@@ -45,7 +45,7 @@ type FunctionInjector struct {
 
 	functionArgumentInjector *FunctionArgumentInjector
 	mutator                  FunctionToBlockMutator
-	paramReplacements        inlineIDNodeMap
+	paramReplacements        smallIDNodeMap
 	scratchSummary           calleeSummary
 	decomposer               *ExpressionDecomposer
 

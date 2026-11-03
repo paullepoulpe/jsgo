@@ -553,13 +553,7 @@ func (f *FunctionTypeBase) GetInternalArrowType() *ArrowType {
 
 // Java: FunctionType.getSlot(Property.Key)
 func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
-	isProto := false
-	if !rhinoStringPoolWasCleared() {
-		isProto = name.symbol == nil && name.stringID == propKeyIDPrototype
-	} else {
-		isProto = name.Matches("prototype")
-	}
-	if isProto {
+	if name.symbol == nil && name.stringID == propKeyIDPrototype {
 		// Lazy initialization of the prototype field.
 		f.GetPrototype()
 		return f.prototypeSlot()

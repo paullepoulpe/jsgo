@@ -277,50 +277,26 @@ func (q *QualifiedName_StringListQname) GetComponentCount() int {
 // Java: QualifiedName.StringListQname.matches(Node)
 func (q *QualifiedName_StringListQname) Matches(n Node) bool {
 	pos := q.size - 1
-	if !rhinoStringPoolWasCleared() {
-		for pos > 0 && n.rec().token == Token_GETPROP {
-			n.node_castKind(node_kindString)
-			if rhinoStringID(n.rec().payload) != q.termIDs[pos] {
-				return false
-			}
-			pos--
-			n = n.firstNode()
-		}
-		if pos > 0 {
-			return false
-		}
-		termID := q.termIDs[0]
-		switch n.rec().token {
-		case Token_NAME, Token_MEMBER_FUNCTION_DEF:
-			n.node_castKind(node_kindString)
-			return rhinoStringID(n.rec().payload) == termID
-		case Token_THIS:
-			return termID == qualifiedName_THIS_ID
-		case Token_SUPER:
-			return termID == qualifiedName_SUPER_ID
-		default:
-			return false
-		}
-	}
-	for pos > 0 && n.IsGetProp() {
-		if !RhinoStringPool_UncheckedEquals(n.GetString(), q.terms[pos]) {
+	for pos > 0 && n.rec().token == Token_GETPROP {
+		n.node_castKind(node_kindString)
+		if rhinoStringID(n.rec().payload) != q.termIDs[pos] {
 			return false
 		}
 		pos--
-		n = n.GetFirstChild()
+		n = n.firstNode()
 	}
 	if pos > 0 {
 		return false
 	}
-
-	term := q.terms[0]
-	switch n.GetToken() {
+	termID := q.termIDs[0]
+	switch n.rec().token {
 	case Token_NAME, Token_MEMBER_FUNCTION_DEF:
-		return RhinoStringPool_UncheckedEquals(term, n.GetString())
+		n.node_castKind(node_kindString)
+		return rhinoStringID(n.rec().payload) == termID
 	case Token_THIS:
-		return RhinoStringPool_UncheckedEquals(term, QualifiedName_THIS)
+		return termID == qualifiedName_THIS_ID
 	case Token_SUPER:
-		return RhinoStringPool_UncheckedEquals(term, QualifiedName_SUPER)
+		return termID == qualifiedName_SUPER_ID
 	default:
 		return false
 	}
@@ -406,17 +382,12 @@ func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uin
 
 // Java: QualifiedName.GetpropQname.matches(Node)
 func (q *QualifiedName_GetpropQname) Matches(n Node) bool {
-	if !rhinoStringPoolWasCleared() {
-		if n.rec().token != Token_GETPROP {
-			return false
-		}
-		n.node_castKind(node_kindString)
-		return rhinoStringID(n.rec().payload) == q.propID &&
-			q.owner.Matches(n.firstNode())
+	if n.rec().token != Token_GETPROP {
+		return false
 	}
-	return n.IsGetProp() &&
-		RhinoStringPool_UncheckedEquals(n.GetString(), q.prop) &&
-		q.owner.Matches(n.GetFirstChild())
+	n.node_castKind(node_kindString)
+	return rhinoStringID(n.rec().payload) == q.propID &&
+		q.owner.Matches(n.firstNode())
 }
 
 // Java: QualifiedName.GetpropQname.getComponentCount()

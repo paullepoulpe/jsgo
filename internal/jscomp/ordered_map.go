@@ -195,6 +195,65 @@ func (m *OrderedMap[K, V]) ContainsKey(k K) bool {
 	return ok
 }
 
+// Clear removes all entries while retaining backing storage for reuse.
+func (m *OrderedMap[K, V]) Clear() {
+	if m == nil {
+		return
+	}
+	clear(m.entries)
+	m.entries = m.entries[:0]
+	if m.index != nil {
+		clear(m.index)
+	}
+	m.holes = 0
+}
+
+// Index returns the 0-based insertion-order position of k and true if present,
+// or (-1, false) if absent.
+func (m *OrderedMap[K, V]) Index(k K) (int, bool) {
+	if m == nil || len(m.entries) == m.holes {
+		return -1, false
+	}
+	m.compact()
+	if m.index != nil {
+		if idx, ok := m.index[k]; ok {
+			return idx, true
+		}
+		return -1, false
+	}
+	for i := range m.entries {
+		if m.entries[i].Key == k {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+// Intern inserts k with the zero value of V if absent, and returns k's 0-based
+// insertion-order index.
+func (m *OrderedMap[K, V]) Intern(k K) int {
+	m.compact()
+	if m.index != nil {
+		if idx, ok := m.index[k]; ok {
+			return idx
+		}
+		idx := len(m.entries)
+		m.index[k] = idx
+		var zero V
+		m.entries = append(m.entries, OrderedMapEntry[K, V]{Key: k, Value: zero})
+		return idx
+	}
+	for i := range m.entries {
+		if m.entries[i].Key == k {
+			return i
+		}
+	}
+	idx := len(m.entries)
+	var zero V
+	m.appendUnique(k, zero)
+	return idx
+}
+
 func (m *OrderedMap[K, V]) Size() int {
 	if m == nil {
 		return 0
@@ -347,6 +406,26 @@ func (s *OrderedSet[K]) Remove(k K) bool {
 	_, ok := s.m.Delete(k)
 	return ok
 }
+
+// Clear removes all elements while retaining backing storage for reuse.
+func (s *OrderedSet[K]) Clear() {
+	if s == nil {
+		return
+	}
+	s.m.Clear()
+}
+
+// Index returns the 0-based insertion-order position of k and true if present,
+// or (-1, false) if absent.
+func (s *OrderedSet[K]) Index(k K) (int, bool) {
+	if s == nil {
+		return -1, false
+	}
+	return s.m.Index(k)
+}
+
+// Intern inserts k if absent and returns its 0-based insertion-order index.
+func (s *OrderedSet[K]) Intern(k K) int { return s.m.Intern(k) }
 
 func (s *OrderedSet[K]) Len() int { return s.Size() }
 func (s *OrderedSet[K]) Size() int {

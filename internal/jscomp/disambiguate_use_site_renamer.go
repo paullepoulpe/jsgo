@@ -161,9 +161,6 @@ func (r UseSiteRenamer_RenameUsesResult) Name() string {
 // String is Enum.toString().
 func (r UseSiteRenamer_RenameUsesResult) String() string { return r.Name() }
 
-// Ordinal is Enum.ordinal().
-func (r UseSiteRenamer_RenameUsesResult) Ordinal() int { return int(r) }
-
 // UseSiteNameSlice holds the renamed cluster names for a single property.
 type UseSiteNameSlice []string
 

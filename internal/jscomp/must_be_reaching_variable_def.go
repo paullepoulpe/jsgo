@@ -31,12 +31,6 @@ var argumentsStringID = rhino.RhinoStringPool_InternID(Var_ARGUMENTS)
 // (multiple or conditional reaching definitions). A nil entry represents TOP.
 var mustDefBottom MustBeReachingVariableDef_Definition
 
-type mustDefNodeState struct {
-	in        *MustBeReachingVariableDef_MustDef
-	out       *MustBeReachingVariableDef_MustDef
-	stepCount int
-}
-
 // MustBeReachingVariableDef computes must-be-reaching definition for all
 // uses of each variable.
 //
@@ -50,7 +44,7 @@ type mustDefNodeState struct {
 type MustBeReachingVariableDef struct {
 	cfg        *ControlFlowGraph[rhino.Node]
 	worklist   cfgWorklist
-	nodeStates []mustDefNodeState
+	nodeStates []DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef]
 
 	compiler     AbstractCompiler
 	varTable     fnVarTable
@@ -102,57 +96,25 @@ func (d *MustBeReachingVariableDef) Analyze() {
 	cfg := d.cfg
 	entry := cfg.entry
 	implicitReturn := cfg.implicitReturn
-	cfgNodes := &cfg.Nodes
-
-	d.worklist.reset(cfg, cfgNodes.Size(), true)
-	nodeCap := cfg.NodeIndexCap()
-	if cap(d.nodeStates) < nodeCap {
-		d.nodeStates = make([]mustDefNodeState, nodeCap)
-	} else {
-		clear(d.nodeStates[:nodeCap])
-		d.nodeStates = d.nodeStates[:nodeCap]
-	}
-
-	initial := &d.emptyLattice
-	for node := range cfgNodes.Values() {
-		node.DfaInQueue = false
-		d.nodeStates[node.Index] = mustDefNodeState{in: initial, out: initial}
-		if node != implicitReturn {
-			d.worklist.enqueue(node)
-		}
-	}
-
-	for d.worklist.notEmpty() {
-		curNode := d.worklist.dequeue()
-		curState := &d.nodeStates[curNode.Index]
-		stepCount := curState.stepCount
-		curState.stepCount++
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
+	d.nodeStates = resetLinearFlowStates(d.nodeStates, cfg, &d.emptyLattice)
+	states := d.nodeStates
+	d.worklist.solve(cfg, true, func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+		curState := &states[curNode.Index]
 		d.joinNodeInputs(curNode, curState, entry)
 		outBefore := curState.out
 		outAfter := jutil.CheckNotNullPtr(d.flowThrough(curNode.Value, curState.in))
 		curState.out = outAfter
-		if !mustDefEquals(outBefore, outAfter) {
-			for _, edge := range curNode.OutEdgeList.Slice() {
-				nextNode := edge.DestNode
-				if !nextNode.DfaInQueue && nextNode != implicitReturn {
-					d.worklist.enqueue(nextNode)
-				}
-			}
-		}
-	}
+		return !mustDefEquals(outBefore, outAfter)
+	})
 
 	if implicitReturn != nil {
-		d.joinNodeInputs(implicitReturn, &d.nodeStates[implicitReturn.Index], entry)
+		d.joinNodeInputs(implicitReturn, &states[implicitReturn.Index], entry)
 	}
 }
 
 func (d *MustBeReachingVariableDef) joinNodeInputs(
 	node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
-	state *mustDefNodeState,
+	state *DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef],
 	entry *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) {
 	if node == entry {
@@ -191,9 +153,9 @@ func (d *MustBeReachingVariableDef) initVarsFromTable(table *fnVarTable) {
 		n = table.uniqueCount
 	}
 	releaseLarge := n <= 256
-	d.varTable.escaped.clear(releaseLarge)
-	d.paramBits.clear(releaseLarge)
-	d.catchBits.clear(releaseLarge)
+	d.varTable.escaped.Reset(releaseLarge)
+	d.paramBits.Reset(releaseLarge)
+	d.catchBits.Reset(releaseLarge)
 	d.hasParams = false
 	d.hasCatchVars = false
 	clear(d.varTable.vars)
@@ -316,7 +278,7 @@ func (d *MustBeReachingVariableDef) allocDefinition(node rhino.Node) *MustBeReac
 	def := d.defs.Alloc()
 	def.node = node
 	def.unknownDependencies = false
-	def.deps.clear(len(d.varTable.vars) <= 256)
+	def.deps.Reset(len(d.varTable.vars) <= 256)
 	return def
 }
 

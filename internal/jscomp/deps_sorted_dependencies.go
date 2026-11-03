@@ -77,13 +77,27 @@ func NewSortedDependencies[InputT SortedDependencies_Input](userOrderedInputs []
 	return d
 }
 
+func sortedDepInputsEqual[InputT SortedDependencies_Input](a, b InputT) bool {
+	if a == b {
+		return true
+	}
+	var zero InputT
+	if a == zero || b == zero {
+		return false
+	}
+	if eq, ok := any(a).(jutil.Equaler); ok {
+		return eq.Equals(b)
+	}
+	return false
+}
+
 func (d *SortedDependencies[InputT]) lookupID(input InputT) (int32, bool) {
 	if id, ok := d.ptrToID[input]; ok {
 		return id, true
 	}
 	if d.hashToIDs != nil {
 		for _, candID := range d.hashToIDs[jutil.ObjectHashCode(input)] {
-			if jutil.ObjectsEqualsOf(d.uniqueInputs[candID], input) {
+			if sortedDepInputsEqual(d.uniqueInputs[candID], input) {
 				return candID, true
 			}
 		}
@@ -372,7 +386,7 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 			}
 			eqHash = jutil.ObjectHashCode(userOrderedInput)
 			for _, candID := range d.hashToIDs[eqHash] {
-				if jutil.ObjectsEqualsOf(d.uniqueInputs[candID], userOrderedInput) {
+				if sortedDepInputsEqual(d.uniqueInputs[candID], userOrderedInput) {
 					id, ok = candID, true
 					d.ptrToID[userOrderedInput] = id
 					break

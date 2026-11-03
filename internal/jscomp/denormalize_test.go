@@ -379,7 +379,7 @@ func NewDenormalizeTest_NormalizeAndDenormalizePass(compiler AbstractCompiler, o
 	p := &DenormalizeTest_NormalizeAndDenormalizePass{}
 	p.compiler = compiler
 	p.denormalizePass = NewDenormalize(compiler, outputFeatureSet)
-	p.normalizePass = NewNormalize_NormalizeStatements(compiler, false, nil)
+	p.normalizePass = NewNormalize_NormalizeStatements(compiler, false)
 	return p
 }
 

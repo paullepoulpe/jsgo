@@ -282,8 +282,7 @@ func (a *ConformanceRules_AllowList) Matches(path string) bool {
 }
 
 // ConformanceRules_AbstractRule holds the common rule fields and helpers shared
-// by AbstractRule and AbstractTypeRestrictionRule subclasses, without virtual
-// self-dispatch pointers.
+// by AbstractRule and AbstractTypeRestrictionRule subclasses.
 type ConformanceRules_AbstractRule struct {
 	compiler                  AbstractCompiler
 	message                   string
@@ -293,11 +292,20 @@ type ConformanceRules_AbstractRule struct {
 	reportLooseTypeViolations bool
 	typeMatchingStrategy      TypeMatchingStrategy
 	requirement               *Requirement
+	checkConformance          func(*NodeTraversal, rhino.Node) *ConformanceRules_ConformanceResult
 
-	// Type-restriction rule fields (populated by initTypeRestrictionRule).
+	// Type-restriction rule fields (populated by initTypeRule).
 	nativeObjectType   rhino.JSType
 	allowlistedTypes   rhino.JSType
 	assertionFunctions *CodingConvention_AssertionFunctionLookup
+}
+
+// Java: ConformanceRules.AbstractRule.check(NodeTraversal, Node, LibraryLevelNonAllowlistedConformanceViolationsBehavior)
+func (b *ConformanceRules_AbstractRule) Check(
+	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
+	if result := b.checkConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
+		b.Report(n, result, behavior)
+	}
 }
 
 // Java: CheckConformance.Rule.getPrecondition() (default method)
@@ -305,11 +313,16 @@ func (*ConformanceRules_AbstractRule) GetPrecondition() CheckConformance_Precond
 	return CheckConformance_Precondition_CHECK_ALL
 }
 
-// initAbstractRule initializes the common AbstractRule state.
+// initRule initializes the common AbstractRule state and check callback.
 //
 // Java: ConformanceRules.AbstractRule(AbstractCompiler, Requirement)
-func (b *ConformanceRules_AbstractRule) initAbstractRule(
-	compiler AbstractCompiler, requirement *Requirement, tsIsAllowlisted bool) error {
+func (b *ConformanceRules_AbstractRule) initRule(
+	compiler AbstractCompiler,
+	requirement *Requirement,
+	tsIsAllowlisted bool,
+	check func(*NodeTraversal, rhino.Node) *ConformanceRules_ConformanceResult,
+) error {
+	b.checkConformance = check
 	if !requirement.HasErrorMessage() {
 		return errInvalidRequirementSpec("missing message")
 	}
@@ -378,12 +391,16 @@ func (b *ConformanceRules_AbstractRule) initAbstractRule(
 	return nil
 }
 
-// initTypeRestrictionRule initializes AbstractTypeRestrictionRule state.
+// initTypeRule initializes AbstractTypeRestrictionRule state and check callback.
 //
 // Java: ConformanceRules.AbstractTypeRestrictionRule(AbstractCompiler, Requirement)
-func (b *ConformanceRules_AbstractRule) initTypeRestrictionRule(
-	compiler AbstractCompiler, requirement *Requirement, tsIsAllowlisted bool) error {
-	if err := b.initAbstractRule(compiler, requirement, tsIsAllowlisted); err != nil {
+func (b *ConformanceRules_AbstractRule) initTypeRule(
+	compiler AbstractCompiler,
+	requirement *Requirement,
+	tsIsAllowlisted bool,
+	check func(*NodeTraversal, rhino.Node) *ConformanceRules_ConformanceResult,
+) error {
+	if err := b.initRule(compiler, requirement, tsIsAllowlisted, check); err != nil {
 		return err
 	}
 	b.nativeObjectType = compiler.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)

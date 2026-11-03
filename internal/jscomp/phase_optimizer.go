@@ -123,28 +123,40 @@ func (p *PhaseOptimizer) SetPrintAstHashcodes(printAstHashcodes bool) {
 	p.printAstHashcodes = printAstHashcodes
 }
 
+func (p *PhaseOptimizer) snapshotRoots() (prevExterns, prevJsRoot rhino.Node) {
+	if c := p.compiler; c != nil {
+		return c.externsRoot, c.jsRoot
+	}
+	return rhino.NilNode, rhino.NilNode
+}
+
+func (p *PhaseOptimizer) refreshRoots(prevExterns, prevJsRoot rhino.Node, externs, root *rhino.Node) {
+	c := p.compiler
+	if c == nil {
+		return
+	}
+	if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
+		*externs = c.externsRoot
+	}
+	if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
+		*root = c.jsRoot
+		p.jsRoot = *root
+	}
+}
+
 // Process runs all passes in the optimizer without retaining per-pass instances.
 func (p *PhaseOptimizer) Process(externs rhino.Node, root rhino.Node) {
 	for _, pass := range p.passes {
 		if Platform_IsThreadInterrupted() {
 			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
-		var prevExterns, prevJsRoot rhino.Node
-		if c := p.compiler; c != nil {
-			prevExterns, prevJsRoot = c.externsRoot, c.jsRoot
-		}
+		prevExterns, prevJsRoot := p.snapshotRoots()
 		pass.Process(externs, root)
 		if p.HasHaltingErrors() {
 			return
 		}
+		p.refreshRoots(prevExterns, prevJsRoot, &externs, &root)
 		if c := p.compiler; c != nil {
-			if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
-				externs = c.externsRoot
-			}
-			if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
-				root = c.jsRoot
-				p.jsRoot = root
-			}
 			if np, ok := pass.(*PhaseOptimizer_NamedPass); ok {
 				c.maybeCompactAST(np.name, &externs, &root, nil)
 			}
@@ -206,20 +218,9 @@ func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) 
 	}
 
 	// Delay pass construction until immediately before execution.
-	var prevExterns, prevJsRoot rhino.Node
-	if c := p.compiler; c != nil {
-		prevExterns, prevJsRoot = c.externsRoot, c.jsRoot
-	}
+	prevExterns, prevJsRoot := p.snapshotRoots()
 	n.factory.Create(p.compiler).Process(externs, root)
-	if c := p.compiler; c != nil {
-		if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
-			externs = c.externsRoot
-		}
-		if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
-			root = c.jsRoot
-			p.jsRoot = root
-		}
-	}
+	p.refreshRoots(prevExterns, prevJsRoot, &externs, &root)
 
 	if debugEnd != nil {
 		debugEnd()
@@ -398,22 +399,11 @@ func (l *PhaseOptimizer_Loop) Process(externs rhino.Node, root rhino.Node) {
 			}
 			p.changeTracker.IncrementChangeStamp()
 			p.currentPass = pass
-			var prevExterns, prevJsRoot rhino.Node
-			if c := p.compiler; c != nil {
-				prevExterns, prevJsRoot = c.externsRoot, c.jsRoot
-			}
+			prevExterns, prevJsRoot := p.snapshotRoots()
 			pass.Process(externs, root)
-			if c := p.compiler; c != nil {
-				if c.externsRoot != prevExterns && !c.externsRoot.IsNil() {
-					externs = c.externsRoot
-				}
-				if c.jsRoot != prevJsRoot && !c.jsRoot.IsNil() {
-					root = c.jsRoot
-					p.jsRoot = root
-				}
-				if propIndexVerify {
-					c.propIndexAfterPass(pass.name)
-				}
+			p.refreshRoots(prevExterns, prevJsRoot, &externs, &root)
+			if propIndexVerify && p.compiler != nil {
+				p.compiler.propIndexAfterPass(pass.name)
 			}
 			pass.runInPrevIter = true
 			pass.lastRun = p.changeTracker.GetChangeStamp()

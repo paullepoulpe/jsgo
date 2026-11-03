@@ -31,8 +31,7 @@ import (
 type VarCheck struct {
 	// Vars that were referenced in the externs without being declared in externs, even if they were
 	// defined in code. These will be declared at the end of this pass.
-	undefinedNamesFromExterns    []string
-	undefinedNamesFromExternsSet map[string]struct{}
+	varsToDeclareInExterns OrderedSet[string]
 
 	compiler AbstractCompiler
 
@@ -131,24 +130,6 @@ func NewVarCheckWithValidityCheck(compiler AbstractCompiler, validityCheck bool)
 	return v
 }
 
-func (v *VarCheck) addUndefinedNameFromExterns(name string) {
-	if v.undefinedNamesFromExternsSet == nil {
-		v.undefinedNamesFromExternsSet = make(map[string]struct{}, 32)
-	} else if _, exists := v.undefinedNamesFromExternsSet[name]; exists {
-		return
-	}
-	v.undefinedNamesFromExternsSet[name] = struct{}{}
-	v.undefinedNamesFromExterns = append(v.undefinedNamesFromExterns, name)
-}
-
-func (v *VarCheck) hasUndefinedNameFromExterns(name string) bool {
-	if v.undefinedNamesFromExternsSet == nil {
-		return false
-	}
-	_, exists := v.undefinedNamesFromExternsSet[name]
-	return exists
-}
-
 // CreateScopeCreator creates the scope creator used by this pass. If not in
 // validity check mode, use a RedeclarationCheckHandler to check var
 // redeclarations.
@@ -190,7 +171,7 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	}
 	b.TraverseRoots(externs, root)
 
-	for _, varName := range v.undefinedNamesFromExterns {
+	for varName := range v.varsToDeclareInExterns.All() {
 		v.CreateSynthesizedExternVar(varName, false /* isFromUndefinedCodeRef */)
 	}
 
@@ -365,7 +346,7 @@ func (v *VarCheck) HandleUndeclaredVariableRef(t *NodeTraversal, n rhino.Node) {
 		// declared or marked as an extern. A failure at this point means that we have created
 		// some variable/generated some code with an undefined reference.
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected variable " + varName))
-	} else if !v.hasUndefinedNameFromExterns(varName) {
+	} else if !v.varsToDeclareInExterns.Has(varName) {
 		// Skip this case if the name is already going to be added as an "undefined name from extern"
 		// That declaration must take priority, to avoid the RemoveUnnecessarySyntheticExterns pass
 		// accidentally treating the synthetic extern as unnecessary.
@@ -384,7 +365,7 @@ func (v *VarCheck) ExitScope(t *NodeTraversal) {
 		for _, requiredSymbol := range varCheck_requiredSymbols {
 			var_ := scope.GetVar(requiredSymbol)
 			if var_ == nil {
-				v.addUndefinedNameFromExterns(requiredSymbol)
+				v.varsToDeclareInExterns.Add(requiredSymbol)
 			}
 		}
 	}
@@ -511,7 +492,7 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 				}
 				nameStr := n.GetString()
 				t.Report(n, VarCheck_UNDEFINED_EXTERN_VAR_ERROR, nameStr)
-				c.outer.addUndefinedNameFromExterns(nameStr)
+				c.outer.varsToDeclareInExterns.Add(nameStr)
 			}
 			return
 		case rhino.Token_ASSIGN:
@@ -539,7 +520,7 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 		nameStr := n.GetString()
 		t.Report(n, VarCheck_NAME_REFERENCE_IN_EXTERNS_ERROR, nameStr)
 		if t.GetScope().GetVarByNode(n) == nil {
-			c.outer.addUndefinedNameFromExterns(nameStr)
+			c.outer.varsToDeclareInExterns.Add(nameStr)
 		}
 	}
 }

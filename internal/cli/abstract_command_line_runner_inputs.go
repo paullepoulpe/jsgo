@@ -237,15 +237,6 @@ func (r *AbstractCommandLineRunnerBase) ParseJsonFilesFromInputStream() []*Abstr
 	return jsonFiles
 }
 
-func wrapJsonSyntaxErr(err jutil.Throwable) jutil.IJsonParseException {
-	switch err.(type) {
-	case jutil.IEOFException, jutil.IIllegalStateException, jutil.IIOException:
-		return jutil.NewJsonSyntaxExceptionWithCause(err)
-	default:
-		panic(err)
-	}
-}
-
 func tryParseJsonFileSpec(scanner *jutil.JsonScanner) (*AbstractCommandLineRunner_JsonFileSpec, jutil.IJsonParseException) {
 	oldLenient := scanner.IsLenient()
 	scanner.SetLenient(true)
@@ -256,29 +247,29 @@ func tryParseJsonFileSpec(scanner *jutil.JsonScanner) (*AbstractCommandLineRunne
 		if _, isEOF := err.(jutil.IEOFException); isEOF {
 			return nil, nil
 		}
-		return nil, wrapJsonSyntaxErr(err)
+		return nil, jutil.WrapJsonScannerErr(err)
 	}
 	if tok == jutil.JsonToken_NULL {
 		if err := scanner.NextNull(); err != nil {
-			return nil, wrapJsonSyntaxErr(err)
+			return nil, jutil.WrapJsonScannerErr(err)
 		}
 		return nil, nil
 	}
 	spec := newAbstractCommandLineRunner_JsonFileSpecDefault()
 	if err := scanner.BeginObject(); err != nil {
-		return nil, wrapJsonSyntaxErr(err)
+		return nil, jutil.WrapJsonScannerErr(err)
 	}
 	for {
 		more, err := scanner.HasNext()
 		if err != nil {
-			return nil, wrapJsonSyntaxErr(err)
+			return nil, jutil.WrapJsonScannerErr(err)
 		}
 		if !more {
 			break
 		}
 		name, err := scanner.NextName()
 		if err != nil {
-			return nil, wrapJsonSyntaxErr(err)
+			return nil, jutil.WrapJsonScannerErr(err)
 		}
 		switch name {
 		case "src":
@@ -293,11 +284,11 @@ func tryParseJsonFileSpec(scanner *jutil.JsonScanner) (*AbstractCommandLineRunne
 			err = scanner.SkipValue()
 		}
 		if err != nil {
-			return nil, wrapJsonSyntaxErr(err)
+			return nil, jutil.WrapJsonScannerErr(err)
 		}
 	}
 	if err := scanner.EndObject(); err != nil {
-		return nil, wrapJsonSyntaxErr(err)
+		return nil, jutil.WrapJsonScannerErr(err)
 	}
 	return spec, nil
 }

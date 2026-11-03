@@ -741,9 +741,6 @@ func (r RenamingToken) Name() string { return renamingToken_names[r] }
 // String is Enum.toString().
 func (r RenamingToken) String() string { return r.Name() }
 
-// Ordinal is Enum.ordinal().
-func (r RenamingToken) Ordinal() int { return int(r) }
-
 // Java: RenamingToken.get(String)
 func (r RenamingToken) Get(value string) (string, bool) {
 	return "", false
@@ -778,9 +775,6 @@ func (p VariableRenamingPolicy) Name() string { return variableRenamingPolicy_na
 // String is Enum.toString().
 func (p VariableRenamingPolicy) String() string { return p.Name() }
 
-// Ordinal is Enum.ordinal().
-func (p VariableRenamingPolicy) Ordinal() int { return int(p) }
-
 // PropertyRenamingPolicy holds the policies to determine how properties
 // should be renamed.
 type PropertyRenamingPolicy int32
@@ -810,6 +804,3 @@ func (p PropertyRenamingPolicy) Name() string { return propertyRenamingPolicy_na
 
 // String is Enum.toString().
 func (p PropertyRenamingPolicy) String() string { return p.Name() }
-
-// Ordinal is Enum.ordinal().
-func (p PropertyRenamingPolicy) Ordinal() int { return int(p) }

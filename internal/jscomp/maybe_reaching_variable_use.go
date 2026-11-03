@@ -80,7 +80,6 @@ type MaybeReachingVariableUse struct {
 	outWords  []uint64
 
 	worklist cfgWorklist
-	steps    []int
 }
 
 type mrvuRawUse struct {
@@ -112,9 +111,6 @@ func (u *MaybeReachingVariableUse) releaseLargeStorage() {
 	u.rawUses = u.rawUses[:0]
 	if cap(u.rawUses) > mrvuReuseMaxCap {
 		u.rawUses = nil
-	}
-	if cap(u.steps) > mrvuReuseMaxCap {
-		u.steps = nil
 	}
 	if cap(u.blockKillVarWords) > mrvuReuseMaxCap {
 		u.blockKillVarWords = nil
@@ -240,7 +236,6 @@ func (u *MaybeReachingVariableUse) Analyze() {
 	}
 
 	u.useNodes = mrvuResetZeroSlice(u.useNodes, totalUses)
-	u.steps = mrvuResetZeroSlice(u.steps, nodeCap)
 
 	words := (totalUses + 63) >> 6
 	u.useWords = words
@@ -272,35 +267,13 @@ func (u *MaybeReachingVariableUse) Analyze() {
 	u.solve(cfg, implicitReturn, words)
 }
 
-func (u *MaybeReachingVariableUse) initQueue(
-	cfg *ControlFlowGraph[rhino.Node],
-	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
-) {
-	u.worklist.reset(cfg, cfg.Nodes.Size(), false)
-	for node := range cfg.Nodes.Values() {
-		node.DfaInQueue = false
-		if node != implicitReturn {
-			u.worklist.enqueue(node)
-		}
-	}
-}
-
 func (u *MaybeReachingVariableUse) solve(
 	cfg *ControlFlowGraph[rhino.Node],
 	implicitReturn *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 	words int,
 ) {
-	u.initQueue(cfg, implicitReturn)
-	for u.worklist.notEmpty() {
-		curNode := u.worklist.dequeue()
-		idx := int(curNode.Index)
-		stepCount := u.steps[idx]
-		u.steps[idx] = stepCount + 1
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
-		base := idx * words
+	u.worklist.solve(cfg, false, func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+		base := int(curNode.Index) * words
 		outRow := u.outWords[base : base+words]
 		outEdges := curNode.OutEdgeList.Slice()
 		if len(outEdges) > 0 {
@@ -328,15 +301,8 @@ func (u *MaybeReachingVariableUse) solve(
 				changed = true
 			}
 		}
-		if changed {
-			for _, edge := range curNode.InEdgeList.Slice() {
-				prev := edge.SourceNode
-				if !prev.DfaInQueue && prev != implicitReturn {
-					u.worklist.enqueue(prev)
-				}
-			}
-		}
-	}
+		return changed
+	})
 }
 
 func (u *MaybeReachingVariableUse) genVarIdx(v int) {

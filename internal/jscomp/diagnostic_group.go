@@ -81,26 +81,17 @@ type DiagnosticGroup struct {
 
 const diagnosticGroup_serialVersionUID int64 = 1
 
-// NewDiagnosticGroupWithName creates a group that matches all errors of the
-// given types.
-//
-// Java: DiagnosticGroup(String, DiagnosticType...)
-func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *DiagnosticGroup {
-	if len(types) <= diagnosticGroupMapThreshold {
-		dedup := make(DiagnosticTypeSlice, 0, len(types))
-		for _, t := range types {
-			jutil.CheckNotNull(t)
-			dup := false
+func newDiagnosticGroupDedup(name *string, capHint int, visit func(add func(*DiagnosticType))) *DiagnosticGroup {
+	dedup := make(DiagnosticTypeSlice, 0, capHint)
+	if capHint <= diagnosticGroupMapThreshold {
+		visit(func(t *DiagnosticType) {
 			for _, existing := range dedup {
 				if existing == t || existing.key == t.key {
-					dup = true
-					break
+					return
 				}
 			}
-			if !dup {
-				dedup = append(dedup, t)
-			}
-		}
+			dedup = append(dedup, t)
+		})
 		return &DiagnosticGroup{
 			id:    nextDiagnosticGroupID.Add(1),
 			name:  name,
@@ -108,15 +99,13 @@ func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *Diagnos
 		}
 	}
 
-	keySet := make(map[string]struct{}, len(types))
-	dedup := make(DiagnosticTypeSlice, 0, len(types))
-	for _, t := range types {
-		jutil.CheckNotNull(t)
+	keySet := make(map[string]struct{}, capHint)
+	visit(func(t *DiagnosticType) {
 		if _, exists := keySet[t.key]; !exists {
 			keySet[t.key] = struct{}{}
 			dedup = append(dedup, t)
 		}
-	}
+	})
 	var storedSet map[string]struct{}
 	if len(dedup) > diagnosticGroupMapThreshold {
 		storedSet = keySet
@@ -127,6 +116,19 @@ func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *Diagnos
 		types:      dedup,
 		typeKeySet: storedSet,
 	}
+}
+
+// NewDiagnosticGroupWithName creates a group that matches all errors of the
+// given types.
+//
+// Java: DiagnosticGroup(String, DiagnosticType...)
+func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *DiagnosticGroup {
+	return newDiagnosticGroupDedup(name, len(types), func(add func(*DiagnosticType)) {
+		for _, t := range types {
+			jutil.CheckNotNull(t)
+			add(t)
+		}
+	})
 }
 
 // NewDiagnosticGroup creates a group that matches all errors of the given
@@ -165,49 +167,13 @@ func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGro
 		jutil.CheckNotNull(group)
 		total += len(group.types)
 	}
-	if total <= diagnosticGroupMapThreshold {
-		dedup := make(DiagnosticTypeSlice, 0, total)
+	return newDiagnosticGroupDedup(name, total, func(add func(*DiagnosticType)) {
 		for _, group := range groups {
 			for _, t := range group.types {
-				dup := false
-				for _, existing := range dedup {
-					if existing == t || existing.key == t.key {
-						dup = true
-						break
-					}
-				}
-				if !dup {
-					dedup = append(dedup, t)
-				}
+				add(t)
 			}
 		}
-		return &DiagnosticGroup{
-			id:    nextDiagnosticGroupID.Add(1),
-			name:  name,
-			types: dedup,
-		}
-	}
-
-	keySet := make(map[string]struct{}, total)
-	dedup := make(DiagnosticTypeSlice, 0, total)
-	for _, group := range groups {
-		for _, t := range group.types {
-			if _, exists := keySet[t.key]; !exists {
-				keySet[t.key] = struct{}{}
-				dedup = append(dedup, t)
-			}
-		}
-	}
-	var storedSet map[string]struct{}
-	if len(dedup) > diagnosticGroupMapThreshold {
-		storedSet = keySet
-	}
-	return &DiagnosticGroup{
-		id:         nextDiagnosticGroupID.Add(1),
-		name:       name,
-		types:      dedup,
-		typeKeySet: storedSet,
-	}
+	})
 }
 
 // DiagnosticGroups with only a single DiagnosticType, keyed by DiagnosticType.key.

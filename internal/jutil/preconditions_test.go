@@ -48,7 +48,4 @@ func TestIsNilTypedPointersAndSlices(t *testing.T) {
 			t.Fatalf("IsNil(%#v) = %v, want %v", tc.v, got, tc.want)
 		}
 	}
-	if !IsNilOf(nilSlice) || IsNilOf(nonNilSlice) || !IsNilOf(nilMap) || IsNilOf(nonNilMap) || !IsNilOf(nilFunc) || IsNilOf(nonNilFunc) {
-		t.Fatal("IsNilOf mismatch for slice/map/func")
-	}
 }

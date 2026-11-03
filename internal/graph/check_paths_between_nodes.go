@@ -188,7 +188,7 @@ func (c *CheckPathsBetweenNodes[N, E]) discoverBackEdges(u *LinkedDiGraphNode[N,
 // Java: CheckPathsBetweenNodes.allPathsSatisfyPredicate()
 func (c *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
 	base := c.prepare()
-	return c.checkAllPaths(c.linkedStart, c.linkedEnd, base)
+	return c.checkPaths(c.linkedStart, c.linkedEnd, base, true)
 }
 
 // SomePathsSatisfyPredicate returns true iff some paths contain at least
@@ -197,13 +197,14 @@ func (c *CheckPathsBetweenNodes[N, E]) AllPathsSatisfyPredicate() bool {
 // Java: CheckPathsBetweenNodes.somePathsSatisfyPredicate()
 func (c *CheckPathsBetweenNodes[N, E]) SomePathsSatisfyPredicate() bool {
 	base := c.prepare()
-	return c.checkSomePaths(c.linkedStart, c.linkedEnd, base)
+	return c.checkPaths(c.linkedStart, c.linkedEnd, base, false)
 }
 
-func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
+func (c *CheckPathsBetweenNodes[N, E]) checkPaths(
 	a *LinkedDiGraphNode[N, E],
 	b *LinkedDiGraphNode[N, E],
 	base uint32,
+	requireAll bool,
 ) bool {
 	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
 		return true
@@ -224,40 +225,9 @@ func (c *CheckPathsBetweenNodes[N, E]) checkAllPaths(
 			continue
 		}
 		c.edgeState[e.Index] = visited
-		if !c.checkAllPaths(e.DestNode, b, base) {
-			return false
+		if c.checkPaths(e.DestNode, b, base, requireAll) != requireAll {
+			return !requireAll
 		}
 	}
-	return true
-}
-
-func (c *CheckPathsBetweenNodes[N, E]) checkSomePaths(
-	a *LinkedDiGraphNode[N, E],
-	b *LinkedDiGraphNode[N, E],
-	base uint32,
-) bool {
-	if (c.inclusive || (a != c.linkedStart && a != c.linkedEnd)) && c.nodePredicate(a.Value) {
-		return true
-	}
-	if a == b {
-		return false
-	}
-	visited := base + 1
-	for _, e := range a.OutEdgeList.Slice() {
-		es := c.edgeState[e.Index]
-		if es == visited {
-			continue
-		}
-		if !c.allEdges && !c.edgePredicate(e) {
-			continue
-		}
-		if es == base { // BACK_EDGE
-			continue
-		}
-		c.edgeState[e.Index] = visited
-		if c.checkSomePaths(e.DestNode, b, base) {
-			return true
-		}
-	}
-	return false
+	return requireAll
 }

@@ -226,18 +226,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	}
 
 	var segments []metaSegment
-	var addedSourcesBuf [16]string
-	addedSources := addedSourcesBuf[:0]
-	var addedSourceIdx map[string]int32
-	var lastAddedSource string
-	lastAddedSourceIdx := int32(-1)
-
-	var addedNamesBuf [16]string
-	addedNames := addedNamesBuf[:0]
-	var addedNameIdx map[string]int32
-	var lastAddedName string
-	lastAddedNameIdx := int32(-1)
-
+	var addedSources, addedNames stringTable
 	var lastStartLine, lastStartCol int32
 
 	addSegment := func(
@@ -272,10 +261,10 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		lastStartLine = startLine
 		lastStartCol = startCol
 
-		sourceIdx := internSourceMapString(&addedSources, &addedSourceIdx, &lastAddedSource, &lastAddedSourceIdx, srcName.text)
+		sourceIdx := addedSources.intern(srcName.text)
 		nameIdx := int32(-1)
 		if symName.present {
-			nameIdx = internSourceMapString(&addedNames, &addedNameIdx, &lastAddedName, &lastAddedNameIdx, symName.text)
+			nameIdx = addedNames.intern(symName.text)
 		}
 		segments = append(segments, metaSegment{
 			sourceIdx: sourceIdx,
@@ -387,17 +376,19 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	}
 	maxLine := jutil.IntAdd(maxEndLine, 1)
 
-	sourceIdxToId := make([]int32, len(addedSources))
+	sources := addedSources.slice()
+	sourceIdxToId := make([]int32, len(sources))
 	for i := range sourceIdxToId {
 		sourceIdxToId[i] = -1
 	}
-	orderedSources := make([]optionalString, 0, len(addedSources))
+	orderedSources := make([]optionalString, 0, len(sources))
 
-	nameIdxToId := make([]int32, len(addedNames))
+	names := addedNames.slice()
+	nameIdxToId := make([]int32, len(names))
 	for i := range nameIdxToId {
 		nameIdxToId[i] = -1
 	}
-	orderedNames := make([]optionalString, 0, len(addedNames))
+	orderedNames := make([]optionalString, 0, len(names))
 
 	data := make([]byte, 0, len(segments)*4)
 	estLines := 1
@@ -429,7 +420,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 					srcId := sourceIdxToId[m.sourceIdx]
 					if srcId < 0 {
 						srcId = int32(len(orderedSources))
-						orderedSources = append(orderedSources, optionalString{text: addedSources[m.sourceIdx], present: true})
+						orderedSources = append(orderedSources, optionalString{text: sources[m.sourceIdx], present: true})
 						sourceIdxToId[m.sourceIdx] = srcId
 					}
 					e.srcId = srcId
@@ -440,7 +431,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 						nameId := nameIdxToId[m.nameIdx]
 						if nameId < 0 {
 							nameId = int32(len(orderedNames))
-							orderedNames = append(orderedNames, optionalString{text: addedNames[m.nameIdx], present: true})
+							orderedNames = append(orderedNames, optionalString{text: names[m.nameIdx], present: true})
 							nameIdxToId[m.nameIdx] = nameId
 						}
 						e.nameId = nameId

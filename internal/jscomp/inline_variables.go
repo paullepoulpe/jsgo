@@ -125,9 +125,6 @@ func inlineVariables_isDeclaredOrInferredConst(v *Var) bool {
 // Java: InlineVariables.Mode.name()
 func (m InlineVariables_Mode) String() string { return inlineVariables_Mode_names[m] }
 
-// Java: InlineVariables.Mode.ordinal()
-func (m InlineVariables_Mode) Ordinal() int { return int(m) }
-
 // Java: InlineVariables(AbstractCompiler, Mode)
 func NewInlineVariables(compiler AbstractCompiler, mode InlineVariables_Mode) *InlineVariables {
 	return &InlineVariables{compiler: compiler, mode: mode}

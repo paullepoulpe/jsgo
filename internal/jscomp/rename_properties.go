@@ -50,6 +50,10 @@ var (
 	renamePropertiesJscFnID     = strpool.Intern(NodeUtil_JSC_PROPERTY_NAME_FN)
 )
 
+func nodeStringID(n rhino.Node) strpool.ID {
+	return strpool.ID(n.GetStringID())
+}
+
 type propRenameCandidate struct {
 	node rhino.Node
 	prop *RenameProperties_Property
@@ -266,11 +270,9 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Update the string nodes.
 	for _, cand := range r.candidates {
 		p := cand.prop
-		if p.newNameID != 0 {
+		if p.newNameID != 0 && p.newNameID != p.oldNameID && nodeStringID(cand.node) != p.newNameID {
 			setNodeStringID(cand.node, p.newNameID)
-			if p.newNameID != p.oldNameID {
-				r.compiler.ReportChangeToEnclosingScope(cand.node)
-			}
+			r.compiler.ReportChangeToEnclosingScope(cand.node)
 		}
 	}
 	r.candidates = nil
@@ -378,7 +380,7 @@ func (r *RenameProperties) visitor() *ast.Visitor[*NodeTraversal] {
 		MemberFunctionDef: func(_ *NodeTraversal, mf ast.MemberFunctionDef) {
 			jutil.CheckState(!mf.Node().IsQuotedStringKey())
 			if mf.IsEs6Constructor() {
-				r.externedNames[strpool.ID(mf.Node().GetStringID())] = struct{}{}
+				r.externedNames[nodeStringID(mf.Node())] = struct{}{}
 			} else {
 				r.maybeMarkCandidate(mf.Node())
 			}
@@ -395,7 +397,7 @@ func (r *RenameProperties) recordQuotedIndex(index ast.Expr) {
 	// ensure that we never rename some other property in a way that
 	// could conflict with this quoted name.
 	if lit, ok := index.AsStringLit(); ok {
-		r.quotedNames[strpool.ID(lit.Node().GetStringID())] = struct{}{}
+		r.quotedNames[nodeStringID(lit.Node())] = struct{}{}
 	}
 }
 
@@ -403,7 +405,7 @@ func (r *RenameProperties) visitKeyOrAccessor(n rhino.Node) {
 	if n.IsQuotedStringKey() {
 		// Ensure that we never rename some other property in a way
 		// that could conflict with this quoted key.
-		r.quotedNames[strpool.ID(n.GetStringID())] = struct{}{}
+		r.quotedNames[nodeStringID(n)] = struct{}{}
 	} else {
 		r.maybeMarkCandidate(n)
 	}
@@ -437,10 +439,10 @@ func (r *RenameProperties) visitFunction(fn ast.Function) {
 	n := fn.Node()
 	parent := n.GetParent()
 	if NodeUtil_IsFunctionDeclaration(n) {
-		if strpool.ID(fn.NameNode().Node().GetStringID()) == renamePropertiesJscFnID {
+		if nodeStringID(fn.NameNode().Node()) == renamePropertiesJscFnID {
 			r.toRemove = append(r.toRemove, n)
 		}
-	} else if parent.IsName() && strpool.ID(parent.GetStringID()) == renamePropertiesJscFnID {
+	} else if parent.IsName() && nodeStringID(parent) == renamePropertiesJscFnID {
 		if decl, ok := ast.AsNameDeclaration(parent.GetParent()); ok && decl.Token() == rhino.Token_VAR {
 			r.toRemove = append(r.toRemove, parent)
 		}
@@ -463,7 +465,7 @@ func (r *RenameProperties) visitFunction(fn ast.Function) {
 //
 // Java: RenameProperties.ProcessProperties.maybeMarkCandidate(Node)
 func (r *RenameProperties) maybeMarkCandidate(n rhino.Node) {
-	id := strpool.ID(n.GetStringID())
+	id := nodeStringID(n)
 	if _, externed := r.externedNames[id]; !externed {
 		if !r.allPropertiesEligible && !r.propertyRenameEligibilityFilter(n) {
 			if r.filteredOutNames == nil {

@@ -348,17 +348,22 @@ func (*lookAheadRedundantClinitPruner) visitTokens() *ast.TokenSet {
 }
 
 func (l *lookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
-	if !node.IsExprResult() {
+	exprStmt, ok := ast.AsExprStmt(node)
+	if !ok {
 		return
 	}
 
-	clinitID := j2clClinitCallID(node.GetFirstChild())
+	clinitID := j2clClinitCallID(exprStmt.Expr().Node())
 	if clinitID == 0 {
 		return
 	}
 
-	callOrNewNode := getCallOrNewNode(node.GetNext())
-	if callOrNewNode.IsNil() || !callOrNewNode.GetFirstChild().IsName() {
+	callOrNew, ok := getCallOrNewNode(node.GetNext())
+	if !ok {
+		return
+	}
+	calleeName, ok := callOrNew.Callee().AsName()
+	if !ok {
 		return
 	}
 
@@ -366,26 +371,29 @@ func (l *lookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node
 	if enclosingFunction.IsNil() {
 		return
 	}
-	calleeNode := callOrNewNode.GetFirstChild()
-	if nearest := NodeUtil_GetNearestFunctionName(enclosingFunction); nearest != nil && calleeNode.GetString() == *nearest {
+	if nearest := NodeUtil_GetNearestFunctionName(enclosingFunction); nearest != nil && calleeName.Ident() == *nearest {
 		return
 	}
 
-	var_ := t.GetScope().GetVarByID(calleeNode.GetStringID())
-	if var_ == nil || var_.GetInitialValue().IsNil() || !var_.GetInitialValue().IsFunction() {
+	var_ := t.GetScope().GetVarByID(calleeName.Node().GetStringID())
+	if var_ == nil {
+		return
+	}
+	staticFn, ok := ast.AsFunction(var_.GetInitialValue())
+	if !ok {
 		return
 	}
 
-	staticFnNode := var_.GetInitialValue()
-	if callsClinit(staticFnNode, clinitID) && hasSafeArguments(t, callOrNewNode) {
+	if callsClinit(staticFn, clinitID) && hasSafeArguments(t, callOrNew) {
 		node.Detach()
 		l.p.compiler.ReportChangeToEnclosingScope(parent)
 	}
 }
 
-func hasSafeArguments(t *NodeTraversal, callOrNewNode rhino.Node) bool {
-	for child := callOrNewNode.GetSecondChild(); !child.IsNil(); child = child.GetNext() {
-		if !NodeUtil_IsLiteralValue(child, false) && !isParameter(t, child) {
+func hasSafeArguments(t *NodeTraversal, callOrNew ast.CallOrNew) bool {
+	for arg := range callOrNew.Args() {
+		argNode := arg.Node()
+		if !NodeUtil_IsLiteralValue(argNode, false) && !isParameter(t, argNode) {
 			return false
 		}
 	}
@@ -399,31 +407,54 @@ func isParameter(t *NodeTraversal, n rhino.Node) bool {
 	return t.GetScope().GetVarByNode(n).GetParentNode().IsParamList()
 }
 
-func getCallOrNewNode(n rhino.Node) rhino.Node {
+func getCallOrNewNode(n rhino.Node) (ast.CallOrNew, bool) {
 	for !n.IsNil() {
 		switch n.GetToken() {
-		case rhino.Token_EXPR_RESULT, rhino.Token_RETURN:
-			n = n.GetFirstChild()
-		case rhino.Token_CALL, rhino.Token_NEW:
-			return n
-		case rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR:
-			if !n.HasOneChild() {
-				return rhino.NilNode
+		case rhino.Token_EXPR_RESULT:
+			n = ast.MustExprStmt(n).Expr().Node()
+		case rhino.Token_RETURN:
+			val, ok := ast.MustReturn(n).Value()
+			if !ok {
+				return ast.CallOrNew{}, false
 			}
-			n = n.GetFirstFirstChild()
+			n = val.Node()
+		case rhino.Token_CALL, rhino.Token_NEW:
+			return ast.MustCallOrNew(n), true
+		case rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR:
+			decl, ok := ast.MustNameDeclaration(n).OnlyDeclarator()
+			if !ok {
+				return ast.CallOrNew{}, false
+			}
+			nm, ok := decl.AsName()
+			if !ok {
+				return ast.CallOrNew{}, false
+			}
+			init, ok := nm.Init()
+			if !ok {
+				return ast.CallOrNew{}, false
+			}
+			n = init.Node()
 		default:
-			return rhino.NilNode
+			return ast.CallOrNew{}, false
 		}
 	}
-	return rhino.NilNode
+	return ast.CallOrNew{}, false
 }
 
-func callsClinit(fnNode rhino.Node, clinitID strpool.ID) bool {
-	child := fnNode.GetLastChild().GetFirstChild()
-	if child.IsNil() || !child.IsExprResult() {
+func callsClinit(fn ast.Function, clinitID strpool.ID) bool {
+	block, ok := fn.Body().AsBlock()
+	if !ok {
 		return false
 	}
-	return j2clClinitCallID(child.GetFirstChild()) == clinitID
+	firstStmt, ok := block.FirstStatement()
+	if !ok {
+		return false
+	}
+	exprStmt, ok := firstStmt.AsExprStmt()
+	if !ok {
+		return false
+	}
+	return j2clClinitCallID(exprStmt.Expr().Node()) == clinitID
 }
 
 // emptyClinitPruner removes the body of empty clinits.
@@ -442,51 +473,59 @@ func (e *emptyClinitPruner) Visit(t *NodeTraversal, node rhino.Node, parent rhin
 	if fnID == 0 {
 		return
 	}
-	e.trySubstituteEmptyFunction(node, fnID)
+	e.trySubstituteEmptyFunction(ast.MustFunction(node), fnID)
 }
 
-func (e *emptyClinitPruner) trySubstituteEmptyFunction(fnNode rhino.Node, fnID strpool.ID) {
-	body := fnNode.GetLastChild()
-	if !body.HasChildren() {
+func (e *emptyClinitPruner) trySubstituteEmptyFunction(fn ast.Function, fnID strpool.ID) {
+	block, ok := fn.Body().AsBlock()
+	if !ok {
+		return
+	}
+	firstStmt, ok := block.FirstStatement()
+	if !ok {
 		return
 	}
 
 	// Ensure that the first expression in the body sets itself to the empty function.
-	firstExpr := body.GetFirstChild()
-	if !isAssignToEmptyFn(firstExpr, fnID) {
+	if !isAssignToEmptyFn(firstStmt, fnID) {
 		return
 	}
 
-	secondExpr := firstExpr.GetNext()
 	var replaceReferencesWith rhino.Node
-	if secondExpr.IsNil() {
+	if secondStmt, hasSecond := firstStmt.Next(); !hasSecond {
 		// No expressions in clinit so it is a no-op; remove all references.
 		replaceReferencesWith = rhino.NilNode
-	} else if secondExpr.GetNext().IsNil() &&
-		secondExpr.IsExprResult() &&
-		j2clClinitCallID(secondExpr.GetFirstChild()) != 0 {
+	} else if _, hasThird := secondStmt.Next(); !hasThird {
+		secondExpr, ok := secondStmt.AsExprStmt()
+		if !ok || j2clClinitCallID(secondExpr.Expr().Node()) == 0 {
+			return
+		}
 		// Only expression in clinit is a call to another clinit; forward references to it.
-		replaceReferencesWith = secondExpr.GetFirstChild()
+		replaceReferencesWith = secondExpr.Expr().Node()
 	} else {
 		return
 	}
 
 	e.p.recordEmptiedClinit(fnID, replaceReferencesWith)
-	NodeUtil_DeleteNode(firstExpr, e.p.compiler)
+	NodeUtil_DeleteNode(firstStmt.Node(), e.p.compiler)
 }
 
-func isAssignToEmptyFn(node rhino.Node, enclosingFnID strpool.ID) bool {
-	if !NodeUtil_IsExprAssign(node) {
+func isAssignToEmptyFn(stmt ast.Statement, enclosingFnID strpool.ID) bool {
+	exprStmt, ok := stmt.AsExprStmt()
+	if !ok {
 		return false
 	}
-	assign := node.GetFirstChild()
-	lhs := assign.GetFirstChild()
+	assign, ok := exprStmt.Expr().AsAssign()
+	if !ok {
+		return false
+	}
+	lhs := assign.Target().Node()
 	if lhs.IsGetElem() {
 		return false
 	}
 	jutil.CheckStateMsg1(lhs.IsName() || lhs.IsGetProp(), "%s", lhs)
 
-	rhs := assign.GetLastChild()
+	rhs := assign.Value().Node()
 	if !NodeUtil_IsEmptyFunctionExpression(rhs) {
 		return false
 	}
@@ -509,10 +548,11 @@ func j2clLeafMayBeClinit(leaf string) bool {
 // j2clClinitCallID returns the interned clinit method ID if node is a clinit
 // CALL node, or 0 otherwise.
 func j2clClinitCallID(node rhino.Node) strpool.ID {
-	if !node.IsCall() {
+	call, ok := ast.AsCall(node)
+	if !ok {
 		return 0
 	}
-	callee := node.GetFirstChild()
+	callee := call.Callee().Node()
 	switch callee.GetToken() {
 	case rhino.Token_NAME:
 		if j2clIsClinitName(callee.GetString()) {

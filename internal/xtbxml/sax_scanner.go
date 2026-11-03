@@ -85,70 +85,27 @@ type saxScanner struct {
 	elementContent map[string]bool
 	attlists       map[string][]saxAttrDecl
 	ended          bool
-}
-
-// saxLocator is the Locator given to the ContentHandler: the scanner's
-// current position, and -1 once the document has ended.
-type saxLocator struct{ s *saxScanner }
-
-func (l *saxLocator) GetPublicId() *string { return nil }
-func (l *saxLocator) GetSystemId() *string { return nil }
-func (l *saxLocator) GetLineNumber() int {
-	if l.s.ended {
-		return -1
-	}
-	return l.s.in.line
-}
-func (l *saxLocator) GetColumnNumber() int {
-	if l.s.ended {
-		return -1
-	}
-	return l.s.in.column
-}
-
-// saxAttributes is the Attributes of a start tag, in document order.
-type saxAttributes struct {
-	names  []string
-	values []string
-}
-
-func (a *saxAttributes) GetLength() int { return len(a.names) }
-
-func (a *saxAttributes) GetQName(index int) string {
-	if index < 0 || index >= len(a.names) {
-		return ""
-	}
-	return a.names[index]
-}
-
-func (a *saxAttributes) GetValueAt(index int) string {
-	if index < 0 || index >= len(a.values) {
-		return ""
-	}
-	return a.values[index]
-}
-
-func (a *saxAttributes) GetValue(qName string) *string {
-	for i, n := range a.names {
-		if n == qName {
-			return &a.values[i]
-		}
-	}
-	return nil
+	err            jutil.Throwable
 }
 
 func newSaxScanner(handler ContentHandler, src io.Reader) *saxScanner {
 	if handler == nil {
 		handler = DefaultHandler{}
 	}
-	s := &saxScanner{in: newSaxInput(src), handler: handler}
+	s := &saxScanner{handler: handler}
+	s.in = newSaxInput(s, src)
 	s.locator.s = s
-	s.in.fail = s.fatal
 	return s
 }
 
 // ---------------------------------------------------------------------------
 // Errors.
+
+func (s *saxScanner) setErr(err jutil.Throwable) {
+	if s.err == nil {
+		s.err = err
+	}
+}
 
 func (s *saxScanner) fatal(msg string) {
 	s.fatalAt(msg, s.in.line, s.in.column)
@@ -158,8 +115,11 @@ func (s *saxScanner) fatal(msg string) {
 // ErrorHandler, the JDK also prints the error on System.err; observed
 // behaviour (black-box): "[Fatal Error] :L:C: msg".
 func (s *saxScanner) fatalAt(msg string, line, column int) {
+	if s.err != nil {
+		return
+	}
 	jutil.System_Err().Println("[Fatal Error] :" + strconv.Itoa(line) + ":" + strconv.Itoa(column) + ": " + msg)
-	panic(saxBailout{err: newSAXParseExceptionAt(msg, line, column)})
+	s.err = newSAXParseExceptionAt(msg, line, column)
 }
 
 // fatalOrEOF reports msg, or the end-of-input error when the input has
@@ -167,6 +127,7 @@ func (s *saxScanner) fatalAt(msg string, line, column int) {
 func (s *saxScanner) fatalOrEOF(msg string) {
 	if s.peek() == saxStopEOF {
 		s.fatal(s.eofMessage())
+		return
 	}
 	s.fatal(msg)
 }
@@ -259,8 +220,11 @@ func saxIsNameChar(c int) bool {
 
 // peek returns the next char without consuming it, or saxStopEOF.
 func (s *saxScanner) peek() int {
+	if s.err != nil {
+		return saxStopEOF
+	}
 	in := s.in
-	if in.pos == in.count && in.load(in.pos) == 0 {
+	if (in.pos == in.count && in.load(in.pos) == 0) || s.err != nil {
 		return saxStopEOF
 	}
 	return int(in.buf[in.pos])
@@ -313,9 +277,12 @@ func (s *saxScanner) skipSpaces() bool {
 // skipUnits consumes str if it is next. It first makes sure the buffer
 // holds len(str) chars, reading into the free end of the buffer.
 func (s *saxScanner) skipUnits(str []uint16) bool {
+	if s.err != nil {
+		return false
+	}
 	in := s.in
 	for in.count-in.pos < len(str) {
-		if in.loadMore() == 0 {
+		if in.loadMore() == 0 || s.err != nil {
 			return false
 		}
 	}
@@ -329,9 +296,12 @@ func (s *saxScanner) skipUnits(str []uint16) bool {
 }
 
 func (s *saxScanner) skipASCII(str string) bool {
+	if s.err != nil {
+		return false
+	}
 	in := s.in
 	for in.count-in.pos < len(str) {
-		if in.loadMore() == 0 {
+		if in.loadMore() == 0 || s.err != nil {
 			return false
 		}
 	}
@@ -351,8 +321,11 @@ const saxMaxNameLength = 1000
 // the buffer is kept in the buffer while more is read. Names longer than
 // 1000 chars hit the JDK's secure-processing limit.
 func (s *saxScanner) scanName() []uint16 {
+	if s.err != nil {
+		return nil
+	}
 	in := s.in
-	if in.pos == in.count && in.load(in.pos) == 0 {
+	if (in.pos == in.count && in.load(in.pos) == 0) || s.err != nil {
 		return nil
 	}
 	if !saxIsNameStart(int(in.buf[in.pos])) {
@@ -373,8 +346,12 @@ func (s *saxScanner) scanName() []uint16 {
 			// reaches the end of the buffer, before reading more.
 			s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + saxGrouped(n) +
 				"\" that exceeds the \"1,000\" limit set by \"jaxp.properties\".")
+			return nil
 		}
 		read := in.load(start)
+		if s.err != nil {
+			return nil
+		}
 		start = in.pos
 		end = start + n
 		if read == 0 {
@@ -386,6 +363,7 @@ func (s *saxScanner) scanName() []uint16 {
 	if len(name) > saxMaxNameLength {
 		s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + saxGrouped(len(name)) +
 			"\" that exceeds the \"1,000\" limit set by \"jaxp.properties\".")
+		return nil
 	}
 	return name
 }
@@ -393,7 +371,7 @@ func (s *saxScanner) scanName() []uint16 {
 // flushText reports the pending character data, routing whitespace-only runs
 // inside element-content elements to ContentHandler.IgnorableWhitespace.
 func (s *saxScanner) flushText() {
-	if len(s.text) > 0 {
+	if s.err == nil && len(s.text) > 0 {
 		if len(s.openElemContent) > 0 && s.openElemContent[len(s.openElemContent)-1] && saxAllSpaces(s.text) {
 			s.handler.IgnorableWhitespace(s.text, 0, len(s.text))
 		} else {
@@ -415,9 +393,15 @@ func saxAllSpaces(units []uint16) bool {
 // ---------------------------------------------------------------------------
 // Document.
 
-func (s *saxScanner) parse() {
+func (s *saxScanner) parse() jutil.Throwable {
 	s.in.detectEncoding()
+	if s.err != nil {
+		return s.err
+	}
 	s.preScanDeclaration()
+	if s.err != nil {
+		return s.err
+	}
 	// Observed behaviour (black-box): the Locator reads 1:1 during
 	// setDocumentLocator and startDocument, whatever the pre-scan consumed.
 	line, column := s.in.line, s.in.column
@@ -428,297 +412,37 @@ func (s *saxScanner) parse() {
 	if s.hasDecl {
 		s.xmlDecl()
 	}
-	s.prolog()
-	s.trailingMisc()
+	if s.err == nil {
+		s.prolog()
+	}
+	if s.err == nil {
+		s.trailingMisc()
+	}
+	if s.err != nil {
+		return s.err
+	}
 	s.ended = true
 	s.handler.EndDocument()
-}
-
-// preScanDeclaration looks for an XML declaration and its version before
-// the document is reported (the JDK reads the version first, to choose
-// between XML 1.0 and 1.1). It consumes "<?xml", white space, "version",
-// white space, '=' and white space, as far as they are there, then looks
-// at the next five chars (the version literal and one more) without
-// consuming them; the declaration is then scanned from where it stopped.
-// Observed behaviour (black-box):
-//   - the end of input during the pre-scan is a "Premature end of file."
-//     error at line and column -1, before setDocumentLocator; a decoding
-//     error is reported where the pre-scan met it, also before;
-//   - after the pre-scan the position is line 1, column one more than
-//     the number of chars consumed: line ends in the pre-scanned part
-//     count as columns. But when the version literal is not "1.0" in a
-//     matching pair of quotes, the column at the literal's quote is 15
-//     (that of "<?xml version='"), and a literal of four chars or more
-//     gets as many spaces after its fourth char as the pre-scanned part is
-//     longer than "<?xml version=" (the spaces count as columns too);
-//   - when the pre-scan (look-ahead included) had to read past the first
-//     read of the input (32 bytes, so always in UTF-16), the column is
-//     that of the shortest declaration in the same state ("<?xml ",
-//     "<?xml version", "<?xml version="), and there are no spaces;
-//   - when the pre-scan stayed in the first read and consumed more than
-//     "<?xml version=", the pseudo attribute after the version needs no
-//     white space before it;
-//   - when "<?xml" is followed by a name char instead (a processing
-//     instruction such as "<?xml-stylesheet"), the scan restarts at the
-//     beginning but keeps the five columns it skipped, so positions on
-//     line 1 are five columns too far.
-func (s *saxScanner) preScanDeclaration() {
-	in := s.in
-	if !s.skipASCII("<?xml") {
-		return
-	}
-	eof := func() { s.fatalAt("Premature end of file.", -1, -1) }
-	c := s.peek()
-	if c == saxStopEOF {
-		eof()
-	}
-	if !saxIsSpace(c) {
-		in.pos = 0
-		return
-	}
-	s.hasDecl = true
-	in.declMode = true
-	firstEnd := in.base + in.count
-	beyond := func() bool { return in.base+in.count > firstEnd }
-	spaces := func() {
-		s.skipSpaces()
-		if s.peek() == saxStopEOF {
-			eof()
-		}
-	}
-	// finish sets the position after the pre-scan; shortest is the length
-	// of the shortest declaration prefix in the same state.
-	finish := func(shortest int) {
-		in.line, in.column = 1, in.base+in.pos+1
-		if beyond() {
-			in.column = shortest + 1
-		}
-	}
-	spaces()
-	if !s.skipASCII("version") {
-		finish(len("<?xml "))
-		return
-	}
-	s.declStage = 1
-	spaces()
-	if s.peek() != '=' {
-		finish(len("<?xml version"))
-		return
-	}
-	in.advance(1)
-	s.declStage = 2
-	spaces()
-	// The literal is read one char at a time: a decoding error is
-	// reported after the chars read so far.
-	for k := 1; k <= 5; k++ {
-		for in.count-in.pos < k {
-			line, column := in.line, in.column
-			for _, u := range in.buf[in.pos : in.pos+k-1] {
-				if u == '\n' || u == '\r' {
-					in.line, in.column = in.line+1, 1
-				} else {
-					in.column++
-				}
-			}
-			n := in.loadMore()
-			in.line, in.column = line, column
-			if n == 0 {
-				eof()
-			}
-		}
-	}
-	b := in.buf[in.pos : in.pos+5]
-	quoted := (b[0] == '"' || b[0] == '\'') && b[4] == b[0]
-	if quoted && b[1] == '1' && b[2] == '.' && b[3] == '1' {
-		saxUnsupported("XML 1.1 documents are")
-	}
-	s.versionLoose = !beyond() && in.base+in.pos > len("<?xml version=")
-	if quoted && b[1] == '1' && b[2] == '.' && b[3] == '0' {
-		finish(len("<?xml version="))
-		return
-	}
-	if !beyond() {
-		s.versionPad = in.base + in.pos - len("<?xml version=")
-	}
-	in.line, in.column = 1, len("<?xml version=")+1
-}
-
-// xmlDecl scans the rest of the XML declaration (production [23]) from
-// where the pre-scan stopped (s.declStage: 0 before the first pseudo
-// attribute, 1 before the '=' of version, 2 before its value).
-func (s *saxScanner) xmlDecl() {
-	seen := 0
-	var encoding string
-	haveEncoding, haveStandalone := false, false
-	for {
-		var which string
-		sawSpace := true
-		stage := 0
-		if seen == 0 {
-			stage = s.declStage
-		}
-		if stage == 0 {
-			if seen > 0 {
-				sawSpace = s.skipSpaces() || seen == 1 && s.versionLoose
-			}
-			c := s.peek()
-			if c == '?' || c == saxStopEOF {
-				if seen == 0 {
-					s.fatal("The version is required in the XML declaration.")
-				}
-				break
-			}
-			switch {
-			case s.skipASCII("version"):
-				which = "version"
-			case s.skipASCII("encoding"):
-				which = "encoding"
-			case s.skipASCII("standalone"):
-				which = "standalone"
-			default:
-				s.fatal("A pseudo attribute name is expected.")
-			}
-			s.skipSpaces()
-		} else {
-			which = "version"
-		}
-		if stage < 2 {
-			if !s.skipChar('=') {
-				s.fatalOrEOF("The ' = ' character must follow \"" + which + "\" in the XML declaration.")
-			}
-			s.skipSpaces()
-		}
-		quote := s.peek()
-		if quote != '"' && quote != '\'' {
-			s.fatalOrEOF("The value following \"" + which + "\" in the XML declaration must be a quoted string.")
-		}
-		s.in.advance(1)
-		if s.in.pos == s.in.count-1 {
-			// Observed behaviour (black-box): when the value starts with
-			// the last char of the buffer, more is read before it.
-			s.in.load(s.in.pos)
-		}
-		var value []uint16
-		padded := seen != 0
-		for {
-			c := s.peek()
-			if c == saxStopEOF {
-				s.fatal(s.eofMessage())
-			}
-			if saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()) {
-				value = append(value, uint16(c), s.in.buf[s.in.pos+1])
-				s.in.advance(2)
-			} else if saxIsHighSurrogate(c) {
-				s.loneHighSurrogate(c)
-			} else {
-				if !saxIsXMLChar(c) {
-					s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the XML declaration.")
-				}
-				if c = s.next(); c == quote {
-					break
-				}
-				value = append(value, uint16(c))
-			}
-			if !padded && len(value) >= 4 {
-				for i := 0; i < s.versionPad; i++ {
-					value = append(value, ' ')
-				}
-				s.in.column += s.versionPad
-				padded = true
-			}
-		}
-		v := jutil.StringFromUTF16(value)
-		switch {
-		case seen == 0 && which != "version":
-			s.fatal("The version is required in the XML declaration.")
-		case seen == 0:
-			if v != "1.0" {
-				s.fatal("XML version \"" + v + "\" is not supported, only XML 1.0 is supported.")
-			}
-		// Observed behaviour (black-box): the messages for a pseudo
-		// attribute out of order.
-		case haveStandalone:
-			s.fatal("No more pseudo attributes are allowed.")
-		case haveEncoding && which != "standalone":
-			s.fatal("The standalone name in XML declaration may be misspelled.")
-		case which == "version":
-			s.fatal("The encoding declaration is required in the text declaration.")
-		case !sawSpace:
-			// Observed behaviour (black-box): the message names encoding
-			// for standalone too.
-			s.fatal("White space is required before the encoding pseudo attribute in the XML declaration.")
-		case which == "encoding":
-			haveEncoding = true
-			encoding = v
-		default:
-			if v != "yes" && v != "no" {
-				s.fatal("The standalone document declaration value must be \"yes\" or \"no\", not \"" + v + "\".")
-			}
-			haveStandalone = true
-			s.standalone = v == "yes"
-		}
-		seen++
-	}
-	if !s.skipChar('?') {
-		s.fatalOrEOF("The XML declaration must end with \"?>\".")
-	}
-	if !s.skipChar('>') {
-		s.fatalOrEOF("The XML declaration must end with \"?>\".")
-	}
-	s.in.declMode = false
-	if haveEncoding {
-		if !saxIsEncName(encoding) {
-			s.fatal("Invalid encoding name \"" + encoding + "\".")
-		}
-		enc, ok := saxEncodingByName(encoding)
-		if !ok {
-			if saxKnownEncoding(encoding) {
-				saxUnsupported("encoding \"" + encoding + "\" is")
-			}
-			// Observed behaviour (black-box): the JDK throws
-			// java.io.UnsupportedEncodingException for an encoding it does
-			// not know.
-			e := &saxUnsupportedEncodingException{}
-			jutil.InitThrowable(e, "java.io.UnsupportedEncodingException", &encoding, nil)
-			panic(saxBailout{err: e})
-		}
-		s.in.setEncoding(enc, encoding)
-	}
-}
-
-// saxIsEncName is production [81] EncName.
-func saxIsEncName(name string) bool {
-	if name == "" {
-		return false
-	}
-	for i := 0; i < len(name); i++ {
-		c := name[i]
-		letter := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-		if i == 0 {
-			if !letter {
-				return false
-			}
-		} else if !letter && !(c >= '0' && c <= '9') && c != '.' && c != '_' && c != '-' {
-			return false
-		}
-	}
-	return true
+	return nil
 }
 
 // prolog scans Misc* (doctypedecl Misc*)? and the root element.
 func (s *saxScanner) prolog() {
-	for {
+	for s.err == nil {
 		s.skipSpaces()
 		c := s.peek()
 		if c == saxStopEOF {
 			s.fatal("Premature end of file.")
+			return
 		}
 		if c == '&' {
 			s.in.advance(1)
 			s.fatal("Reference is not allowed in prolog.")
+			return
 		}
 		if c != '<' {
 			s.fatal("Content is not allowed in prolog.")
+			return
 		}
 		s.in.advance(1)
 		c = s.peek()
@@ -732,28 +456,32 @@ func (s *saxScanner) prolog() {
 				s.in.advance(1)
 				if !s.skipChar('-') {
 					s.fatalOrEOF("Comment must start with \"<!--\".")
+					return
 				}
 				s.comment()
 			} else if s.skipASCII("DOCTYPE") {
 				if s.sawDoctype {
 					s.fatal("Already seen doctype.")
+					return
 				}
 				s.doctype()
 			} else {
 				s.fatalOrEOF("The markup in the document preceding the root element must be well-formed.")
+				return
 			}
 		case saxIsNameStart(c):
 			s.element()
 			return
 		default:
 			s.fatalOrEOF("The markup in the document preceding the root element must be well-formed.")
+			return
 		}
 	}
 }
 
 // trailingMisc scans the Misc* after the root element.
 func (s *saxScanner) trailingMisc() {
-	for {
+	for s.err == nil {
 		s.skipSpaces()
 		c := s.peek()
 		if c == saxStopEOF {
@@ -761,6 +489,7 @@ func (s *saxScanner) trailingMisc() {
 		}
 		if c != '<' {
 			s.fatal("Content is not allowed in trailing section.")
+			return
 		}
 		s.in.advance(1)
 		c = s.peek()
@@ -772,14 +501,17 @@ func (s *saxScanner) trailingMisc() {
 			s.in.advance(1)
 			if !s.skipASCII("--") {
 				s.fatal("Comment must start with \"<!--\".")
+				return
 			}
 			s.comment()
 		case '/':
 			// Observed behaviour (black-box): reported after "</".
 			s.in.advance(1)
 			s.fatal("The markup in the document following the root element must be well-formed.")
+			return
 		default:
 			s.fatalOrEOF("The markup in the document following the root element must be well-formed.")
+			return
 		}
 	}
 }
@@ -790,7 +522,7 @@ func (s *saxScanner) trailingMisc() {
 // element scans the root element: its start tag (the '<' is consumed and
 // a name start is next) and, unless it is empty, its content.
 func (s *saxScanner) element() {
-	if s.startTag() {
+	if s.startTag() || s.err != nil {
 		return
 	}
 	s.content()
@@ -801,6 +533,9 @@ func (s *saxScanner) element() {
 // pushed on s.open.
 func (s *saxScanner) startTag() bool {
 	nameUnits := s.scanName()
+	if s.err != nil {
+		return false
+	}
 	name := jutil.StringFromUTF16(nameUnits)
 	s.attrs.names = s.attrs.names[:0]
 	s.attrs.values = s.attrs.values[:0]
@@ -816,56 +551,71 @@ func (s *saxScanner) startTag() bool {
 			s.in.advance(1)
 			if !s.skipChar('>') {
 				s.fatalOrEOF("Element type \"" + name + "\" must be followed by either attribute specifications, \">\" or \"/>\".")
+				return false
 			}
 			empty = true
 			break
 		}
 		if c == saxStopEOF {
 			s.fatal(s.eofMessage())
+			return false
 		}
 		if !sawSpace || !saxIsNameStart(c) {
 			s.fatal("Element type \"" + name + "\" must be followed by either attribute specifications, \">\" or \"/>\".")
+			return false
 		}
-		attr := jutil.StringFromUTF16(s.scanName())
+		attrUnits := s.scanName()
+		if s.err != nil {
+			return false
+		}
+		attr := jutil.StringFromUTF16(attrUnits)
 		s.skipSpaces()
 		if !s.skipChar('=') {
 			s.fatalOrEOF("Attribute name \"" + attr + "\" associated with an element type \"" + name + "\" must be followed by the ' = ' character.")
+			return false
 		}
 		s.skipSpaces()
 		quote := s.peek()
 		if quote != '"' && quote != '\'' {
 			s.fatalOrEOF("Open quote is expected for attribute \"" + attr + "\" associated with an  element type  \"" + name + "\".")
+			return false
 		}
 		s.in.advance(1)
 		value := s.attributeValue(quote, name, attr)
+		if s.err != nil {
+			return false
+		}
 		if s.isNonCDATAAttr(name, attr) {
 			value = saxNormalizeNonCDATA(value)
 		}
 		for _, n := range s.attrs.names {
 			if n == attr {
 				s.fatal("Attribute \"" + attr + "\" was already specified for element \"" + name + "\".")
+				return false
 			}
 		}
 		if len(s.attrs.names) == 10000 {
 			s.fatal("JAXP00010002:  Element \"" + name + "\" has more than \"10,000\" attributes, \"10,000\" is the limit imposed by the JDK.")
+			return false
 		}
 		s.attrs.names = append(s.attrs.names, attr)
 		s.attrs.values = append(s.attrs.values, value)
 	}
 	if decls := s.attlists[name]; len(decls) > 0 {
 		for _, d := range decls {
-			if d.hasDefault && s.attrs.GetValue(d.name) == nil {
+			if _, ok := s.attrs.Value(d.name); d.hasDefault && !ok {
 				if len(s.attrs.names) == 10000 {
 					s.fatal("JAXP00010002:  Element \"" + name + "\" has more than \"10,000\" attributes, \"10,000\" is the limit imposed by the JDK.")
+					return false
 				}
 				s.attrs.names = append(s.attrs.names, d.name)
 				s.attrs.values = append(s.attrs.values, d.defaultVal)
 			}
 		}
 	}
-	s.handler.StartElement("", "", name, &s.attrs)
+	s.handler.StartElement(name, &s.attrs)
 	if empty {
-		s.handler.EndElement("", "", name)
+		s.handler.EndElement(name)
 		return true
 	}
 	s.open = append(s.open, nameUnits)
@@ -879,25 +629,30 @@ func (s *saxScanner) endTag() {
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipUnits(nameUnits) {
 		s.fatal("The element type \"" + name + "\" must be terminated by the matching end-tag \"</" + name + ">\".")
+		return
 	}
 	s.skipSpaces()
 	if !s.skipChar('>') {
 		s.fatalOrEOF("The end-tag for element type \"" + name + "\" must end with a '>' delimiter.")
+		return
 	}
-	s.handler.EndElement("", "", name)
+	s.handler.EndElement(name)
 	s.open = s.open[:len(s.open)-1]
 	s.openElemContent = s.openElemContent[:len(s.openElemContent)-1]
 }
 
 // content scans the content of the root element up to its end tag.
 func (s *saxScanner) content() {
-	for len(s.open) > 0 {
+	for len(s.open) > 0 && s.err == nil {
 		// Observed behaviour (black-box): markup and references are
 		// recognized before a text step starts (so without its reading
 		// rule for the last char of the buffer).
 		c := s.peek()
 		if c != '<' && c != '&' && c != saxStopEOF {
 			c = s.textStep(true)
+		}
+		if s.err != nil {
+			return
 		}
 		switch c {
 		case '<':
@@ -910,6 +665,7 @@ func (s *saxScanner) content() {
 				continue
 			case saxStopEOF:
 				s.fatal(s.eofMessage())
+				return
 			}
 			s.flushText()
 			s.markup()
@@ -919,6 +675,7 @@ func (s *saxScanner) content() {
 			s.reference()
 		case saxStopEOF:
 			s.fatal(s.eofMessage())
+			return
 		default:
 			if c != ']' && c != '\n' && c != '\r' && c != saxStopBufEnd && !saxIsTextChar(uint16(c)) {
 				s.otherChar(c)
@@ -926,11 +683,17 @@ func (s *saxScanner) content() {
 				continue
 			}
 			if c == ']' {
-				s.brackets()
+				if s.brackets(); s.err != nil {
+					return
+				}
 			}
 			c = s.textStep(false)
+			if s.err != nil {
+				return
+			}
 			if c == saxStopEOF {
 				s.fatal(s.eofMessage())
+				return
 			}
 			if c == ']' {
 				s.brackets()
@@ -953,6 +716,9 @@ func (s *saxScanner) textStep(first bool) int {
 		}
 	} else if in.pos == in.count-1 {
 		in.load(in.pos)
+		if s.err != nil {
+			return saxStopEOF
+		}
 	}
 	if c := in.buf[in.pos]; c == '\n' || c == '\r' {
 		var stopped bool
@@ -1049,6 +815,7 @@ func (s *saxScanner) brackets() {
 		if c == '>' && n >= 2 {
 			s.in.advance(1)
 			s.fatal("The character sequence \"]]>\" must not appear in content unless used to mark the end of a CDATA section.")
+			return
 		}
 		if c == saxStopEOF {
 			s.fatal(s.eofMessage())
@@ -1068,6 +835,7 @@ func (s *saxScanner) otherChar(c int) {
 			return
 		}
 		s.loneHighSurrogate(c)
+		return
 	}
 	s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the element content of the document.")
 }
@@ -1080,6 +848,7 @@ func (s *saxScanner) loneHighSurrogate(c int) {
 	s.in.advance(1)
 	if s.peek() == saxStopEOF {
 		s.fatal(s.eofMessage())
+		return
 	}
 	s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the element content of the document.")
 }
@@ -1090,7 +859,7 @@ func (s *saxScanner) peekSecond() int {
 	in := s.in
 	if in.pos+1 >= in.count {
 		in.load(in.pos)
-		if in.pos+1 >= in.count {
+		if in.pos+1 >= in.count || s.err != nil {
 			return saxStopEOF
 		}
 	}
@@ -1108,11 +877,13 @@ func (s *saxScanner) markup() {
 			s.in.advance(1)
 			if !s.skipChar('-') {
 				s.fatalOrEOF("Comment must start with \"<!--\".")
+				return
 			}
 			s.comment()
 		case '[':
 			if !s.skipASCII("[CDATA[") {
 				s.fatalOrEOF("The content of elements must consist of well-formed character data or markup.")
+				return
 			}
 			s.cdata()
 		case 'D':
@@ -1122,7 +893,8 @@ func (s *saxScanner) markup() {
 				e := &SAXException{}
 				msg := "Scanner State 24 not Recognized "
 				jutil.InitThrowable(e, "org.xml.sax.SAXException", &msg, nil)
-				panic(saxBailout{err: e})
+				s.setErr(e)
+				return
 			}
 			s.fatalOrEOF("The content of elements must consist of well-formed character data or markup.")
 		default:

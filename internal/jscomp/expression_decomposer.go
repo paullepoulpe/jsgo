@@ -84,9 +84,6 @@ func (t ExpressionDecomposer_DecompositionType) String() string {
 	return expressionDecomposer_DecompositionType_names[t]
 }
 
-// Java: ExpressionDecomposer.DecompositionType.ordinal()
-func (t ExpressionDecomposer_DecompositionType) Ordinal() int { return int(t) }
-
 // NewExpressionDecomposer creates an ExpressionDecomposer.
 //
 // DO NOT USE THIS METHOD DIRECTLY. Call

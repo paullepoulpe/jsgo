@@ -51,21 +51,8 @@ func (ti *TypeInference) InferParameters(entryFlowScope *LinkedFlowScope) *Linke
 		// Pretend the function literal in `goog.loadModule(function(exports) {` does not exist.
 		return entryFlowScope
 	}
-	astParameters := fn.Params()
-	var iifeArgumentNode rhino.Node
-
-	if NodeUtil_IsInvocationTarget(functionNode) {
-		iifeArgumentNode = functionNode.GetNext()
-	}
 
 	functionType := rhino.JSType_ToMaybeFunctionType(functionNode.GetJSType())
-	parameterTypes := functionType.GetParameters()
-	nextParameter := 0
-	var parameter rhino.FunctionType_Parameter
-	if nextParameter < len(parameterTypes) {
-		parameter = parameterTypes[nextParameter]
-		nextParameter++
-	}
 
 	// This really iterates over three different things at once:
 	//   - the actual AST parameter nodes (which may be REST, DEFAULT_VALUE, etc.)
@@ -73,49 +60,36 @@ func (ti *TypeInference) InferParameters(entryFlowScope *LinkedFlowScope) *Linke
 	//   - the parameter type nodes from the FunctionType on the FUNCTION node
 	// Always visit every AST parameter once, regardless of how many IIFE arguments or
 	// FunctionType param nodes there are.
-	for astParamItr := range astParameters.Params() {
-		astParam := astParamItr.Node()
-		if !iifeArgumentNode.IsNil() && iifeArgumentNode.IsSpread() {
-			// block inference on all parameters that might possibly be set by a spread, e.g. `z` in
-			// (function f(x, y, z = 1))(...[1, 2], 'foo')
-			iifeArgumentNode = rhino.NilNode
-		}
-
+	for zp := range zipFunctionParams(fn.Params(), functionType.GetParameters(), firstIIFEArg(fn)) {
 		// Running variable for the type of the param within the body of the function. We use the
 		// existing type on the param node as the default, and then transform it according to the
 		// declaration syntax.
-		inferredType := ti.GetJSType(astParam)
+		inferredType := ti.GetJSType(zp.param.Node())
 
-		if !iifeArgumentNode.IsNil() {
-			if iifeArgumentNode.GetJSType() != nil {
-				inferredType = iifeArgumentNode.GetJSType()
+		if !zp.callArg.IsNil() {
+			if argType := zp.callArg.GetJSType(); argType != nil {
+				inferredType = argType
 			}
-		} else if parameter.GetJSType() != nil {
-			inferredType = parameter.GetJSType()
+		} else if paramType := zp.jsDocParam.GetJSType(); paramType != nil {
+			inferredType = paramType
 		}
 
-		var defaultValue rhino.Node
-		if defVal, ok := astParamItr.AsDefaultValue(); ok {
-			defaultValue = defVal.Value().Node()
+		if zp.isDefault {
+			defaultValue := zp.defaultValue.Node()
 			// must call `traverse` to correctly type the default value
 			entryFlowScope = ti.Traverse(defaultValue, entryFlowScope)
-			astParam = defVal.Target().Node()
-		} else if rest, ok := astParamItr.AsIterRest(); ok {
+			// The param could possibly be the default type, and `undefined` args won't propagate in.
+			inferredType =
+				ti.registry.CreateUnionType(
+					inferredType.RestrictByNotUndefined(), ti.GetJSType(defaultValue))
+		} else if zp.isRest {
 			// e.g. `function f(p1, ...restParamName) {}`
-			// set astParam = restParamName
-			astParam = rest.Target().Node()
 			// convert 'number' into 'Array<number>' for rest parameters
 			inferredType =
 				ti.registry.CreateTemplatizedType(ti.registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE), inferredType)
 		}
 
-		if !defaultValue.IsNil() {
-			// The param could possibly be the default type, and `undefined` args won't propagate in.
-			inferredType =
-				ti.registry.CreateUnionType(
-					inferredType.RestrictByNotUndefined(), ti.GetJSType(defaultValue))
-		}
-
+		astParam := zp.target.Node()
 		if astParam.IsDestructuringPattern() {
 			// even if the inferredType is null, we still need to type all the nodes inside the
 			// destructuring pattern. (e.g. in computed properties or default value expressions)
@@ -124,16 +98,7 @@ func (ti *TypeInference) InferParameters(entryFlowScope *LinkedFlowScope) *Linke
 			// for simple named parameters, we only need to update the scope/AST if we have a new
 			// inferred type.
 			entryFlowScope =
-				ti.UpdateNamedParameter(astParam, !defaultValue.IsNil(), inferredType, entryFlowScope)
-		}
-
-		parameter = rhino.FunctionType_Parameter{}
-		if nextParameter < len(parameterTypes) {
-			parameter = parameterTypes[nextParameter]
-			nextParameter++
-		}
-		if !iifeArgumentNode.IsNil() {
-			iifeArgumentNode = iifeArgumentNode.GetNext()
+				ti.UpdateNamedParameter(astParam, zp.isDefault, inferredType, entryFlowScope)
 		}
 	}
 
@@ -326,14 +291,8 @@ const (
 
 var typeInference_AssignmentType_names = [...]string{"DECLARATION", "ASSIGN"}
 
-// Name is Java's Enum.name().
-func (t TypeInference_AssignmentType) Name() string { return typeInference_AssignmentType_names[t] }
-
 // String is Java's Enum.toString().
-func (t TypeInference_AssignmentType) String() string { return t.Name() }
-
-// Ordinal is Java's Enum.ordinal().
-func (t TypeInference_AssignmentType) Ordinal() int { return int(t) }
+func (t TypeInference_AssignmentType) String() string { return typeInference_AssignmentType_names[t] }
 
 // Java: TypeInference.updateScopeForAssignment(FlowScope, Node, JSType, AssignmentType)
 func (ti *TypeInference) UpdateScopeForAssignment(
@@ -624,8 +583,8 @@ func (ti *TypeInference) ensurePropertyDeclaredHelper(
 
 // Java: TypeInference.traverseDeclaration(Node, FlowScope)
 func (ti *TypeInference) TraverseDeclaration(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
-	for declarationChild := n.GetFirstChild(); !declarationChild.IsNil(); declarationChild = declarationChild.GetNext() {
-		scope = ti.TraverseDeclarationChild(declarationChild, scope)
+	for declarationChild := range ast.MustNameDeclaration(n).Declarators() {
+		scope = ti.TraverseDeclarationChild(declarationChild.Node(), scope)
 	}
 
 	return scope
@@ -680,7 +639,7 @@ func (ti *TypeInference) TraverseDestructuringPatternHelper(
 	ForEachDestructuredTarget(ti.registry, patternType, pattern, func(target DestructuredTarget) {
 		// The computed property is always evaluated first.
 		if target.HasComputedProperty() {
-			scope = ti.Traverse(target.GetComputedProperty().GetFirstChild(), scope)
+			scope = ti.Traverse(ast.MustComputedProp(target.GetComputedProperty()).Key().Node(), scope)
 		}
 		targetNode := target.GetNode()
 

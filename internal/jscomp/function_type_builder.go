@@ -22,6 +22,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -827,6 +828,11 @@ func FunctionTypeBuilder_HasMoreTagsToResolve(objectType rhino.ObjectType) bool 
 }
 
 func functionTypeBuilder_hasSingleThrow(n rhino.Node) bool {
-	block := n.GetLastChild()
-	return block.HasOneChild() && block.GetFirstChild().IsThrow()
+	if fn, ok := ast.AsFunction(n); ok {
+		if block, ok := fn.Body().AsBlock(); ok {
+			stmt, hasOne := block.OnlyStatement()
+			return hasOne && stmt.Node().IsThrow()
+		}
+	}
+	return false
 }

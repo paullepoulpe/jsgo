@@ -41,6 +41,7 @@ const dfaReuseMaxNodes = 1024
 // when forward is false, else FIFO).
 type cfgWorklist struct {
 	queue       []*graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	steps       []uint32
 	queueHead   int
 	usePriority bool
 	forward     bool
@@ -61,6 +62,9 @@ func (w *cfgWorklist) releaseLarge(maxCap int) {
 	if cap(w.queue) > maxCap {
 		w.queue = nil
 		w.queueHead = 0
+	}
+	if cap(w.steps) > maxCap {
+		w.steps = nil
 	}
 }
 
@@ -156,6 +160,61 @@ func (w *cfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlow
 	}
 	curNode.DfaInQueue = false
 	return curNode
+}
+
+// solve runs a forward or backward fixed-point iteration over cfg without boxing
+// lattice states. stepNode updates curNode's state and reports whether its
+// outgoing (forward) or incoming (backward) lattice changed.
+func (w *cfgWorklist) solve(
+	cfg *ControlFlowGraph[rhino.Node],
+	forward bool,
+	stepNode func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool,
+) {
+	implicitReturn := cfg.implicitReturn
+	cfgNodes := &cfg.Nodes
+	w.reset(cfg, cfgNodes.Size(), forward)
+	nodeCap := cfg.NodeIndexCap()
+	if cap(w.steps) < nodeCap {
+		w.steps = make([]uint32, nodeCap)
+	} else {
+		w.steps = w.steps[:nodeCap]
+		clear(w.steps)
+	}
+
+	for node := range cfgNodes.Values() {
+		node.DfaInQueue = false
+		if node != implicitReturn {
+			w.enqueue(node)
+		}
+	}
+
+	steps := w.steps
+	for w.notEmpty() {
+		curNode := w.dequeue()
+		stepCount := steps[curNode.Index]
+		steps[curNode.Index] = stepCount + 1
+		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
+			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
+		}
+		if !stepNode(curNode) {
+			continue
+		}
+		if forward {
+			for _, edge := range curNode.OutEdgeList.Slice() {
+				nextNode := edge.DestNode
+				if !nextNode.DfaInQueue && nextNode != implicitReturn {
+					w.enqueue(nextNode)
+				}
+			}
+		} else {
+			for _, edge := range curNode.InEdgeList.Slice() {
+				nextNode := edge.SourceNode
+				if !nextNode.DfaInQueue && nextNode != implicitReturn {
+					w.enqueue(nextNode)
+				}
+			}
+		}
+	}
 }
 
 const fnVarTableInlineCap = 16
@@ -261,7 +320,7 @@ func (t *fnVarTable) reset() {
 		t.vars = t.vars[:0]
 	}
 	t.ids.reset()
-	t.escaped.clear(true)
+	t.escaped.Reset(true)
 	t.uniqueCount = 0
 	t.hasDuplicateNames = false
 }
@@ -330,6 +389,24 @@ type DataFlowAnalysis_LinearFlowState[L any] struct {
 	stepCount int
 	in        L
 	out       L
+}
+
+func resetLinearFlowStates[L any](
+	states []DataFlowAnalysis_LinearFlowState[L],
+	cfg *ControlFlowGraph[rhino.Node],
+	initLat L,
+) []DataFlowAnalysis_LinearFlowState[L] {
+	nodeCap := cfg.NodeIndexCap()
+	if cap(states) < nodeCap {
+		states = make([]DataFlowAnalysis_LinearFlowState[L], nodeCap)
+	} else {
+		clear(states[:max(len(states), nodeCap)])
+		states = states[:nodeCap]
+	}
+	for node := range cfg.Nodes.Values() {
+		states[node.Index] = DataFlowAnalysis_LinearFlowState[L]{in: initLat, out: initLat}
+	}
+	return states
 }
 
 // Java: DataFlowAnalysis.LinearFlowState.getIn()

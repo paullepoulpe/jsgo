@@ -47,33 +47,12 @@ type rhinoStringID = strpool.ID
 
 func rhinoStringPoolIntern(s string) rhinoStringID { return strpool.Intern(s) }
 func rhinoStringFromID(id rhinoStringID) string    { return strpool.String(id) }
-func rhinoStringPoolWasCleared() bool              { return strpool.WasClearedForTest() }
 
 func rhinoStringIDFromPtr(s *string) rhinoStringID {
 	if s == nil {
 		return 0
 	}
 	return strpool.Intern(*s)
-}
-
-// RhinoStringPool_UncheckedEquals checks if two strings are the same
-// according to interning.
-//
-// The caller is responsible for ensuring that strings passed to this method
-// are actually interned. This method mainly exists to highlight where
-// equality checks depend on interning for correctness.
-//
-// Ideally we could use something like a branded-type, for interned strings,
-// to verify correct usage. However, Java doesn't support type-brands, and
-// using like wrapper objects would undermine performance. This also needs to
-// be ergonomic enough that callers don't resort to using `==` directly.
-//
-// Go-only: language-adapter — Java compares the references; Go compares the
-// string values, which is the same for interned strings.
-//
-// Java: RhinoStringPool.uncheckedEquals(String, String)
-func RhinoStringPool_UncheckedEquals(a string, b string) bool {
-	return a == b
 }
 
 // Java: RhinoStringPool.addOrGet(String)

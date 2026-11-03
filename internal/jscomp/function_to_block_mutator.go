@@ -41,11 +41,11 @@ type FunctionToBlockMutator struct {
 	onMovedArg               func(rhino.Node)
 	errorNodes               map[rhino.Node]struct{}
 	lastDiagCount            int
-	paramNamesScratch        inlineIDSet
-	modifiedParamsScratch    inlineIDSet
+	paramNamesScratch        smallIDSet
+	modifiedParamsScratch    smallIDSet
 	argsScratch              []callParamBinding
-	allNamesToAliasScratch   inlineIDSet
-	paramReplacementsScratch inlineIDNodeMap
+	allNamesToAliasScratch   smallIDSet
+	paramReplacementsScratch smallIDNodeMap
 	newAliasesToAddScratch   []rhino.Node
 	scratchSummary           calleeSummary
 }
@@ -542,7 +542,7 @@ func (m *FunctionToBlockMutator) takeOrCloneCallArg(origArg rhino.Node) rhino.No
 func (m *FunctionToBlockMutator) aliasAndInlineArgumentsByID(
 	fnTemplateRoot rhino.Node,
 	bindings []callParamBinding,
-	namesToAlias *inlineIDSet,
+	namesToAlias *smallIDSet,
 	hasSummary bool,
 	knownReferencesThis bool,
 ) rhino.Node {

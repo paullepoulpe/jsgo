@@ -171,14 +171,14 @@ func (g *Gson) fromJsonStringErr(json string, typeOfT gsonRequestedType) (JsonEl
 	s.Init(json, true)
 	_, emptyEOF, err := s.DoPeek(true)
 	if err != nil {
-		return nil, gson_wrapScannerErr(err)
+		return nil, WrapJsonScannerErr(err)
 	}
 	if emptyEOF {
 		return nil, nil
 	}
 	object, err := s.ReadJsonElement()
 	if err != nil {
-		return nil, gson_wrapScannerErr(err)
+		return nil, WrapJsonScannerErr(err)
 	}
 	if object != nil && !typeOfT.isInstance(object) {
 		return nil, newJsonSyntaxException("Expected a " + typeOfT.getName() +
@@ -205,7 +205,10 @@ func (g *Gson) fromJsonStringErr(json string, typeOfT gsonRequestedType) (JsonEl
 	return object, nil
 }
 
-func gson_wrapScannerErr(err Throwable) IJsonParseException {
+// WrapJsonScannerErr wraps JsonScanner errors (EOFException,
+// IllegalStateException, IOException) as a JsonSyntaxException and wraps
+// AssertionError with Gson's version prefix.
+func WrapJsonScannerErr(err Throwable) IJsonParseException {
 	switch e := err.(type) {
 	case IEOFException, IIllegalStateException, IIOException:
 		return NewJsonSyntaxExceptionWithCause(e)

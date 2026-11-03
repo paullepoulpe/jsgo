@@ -83,10 +83,12 @@ func (b *smallBitSet) Get(bitIndex int) bool {
 	return w < len(b.ext) && (b.ext[w]&(uint64(1)<<uint(bitIndex&63))) != 0
 }
 
-func (b *smallBitSet) clear(releaseLarge bool) {
+// Reset clears all bits in b, releasing large heap-allocated extension storage
+// when release is true.
+func (b *smallBitSet) Reset(release bool) {
 	b.w0 = 0
 	b.w1 = 0
-	if releaseLarge && cap(b.ext) > 16 {
+	if release && cap(b.ext) > 16 {
 		b.ext = nil
 	} else if len(b.ext) > 0 {
 		clear(b.ext)
@@ -95,7 +97,7 @@ func (b *smallBitSet) clear(releaseLarge bool) {
 }
 
 func (b *smallBitSet) ClearAll() {
-	b.clear(false)
+	b.Reset(false)
 }
 
 func (b *smallBitSet) IsEmpty() bool {

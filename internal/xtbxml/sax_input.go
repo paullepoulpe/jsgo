@@ -106,20 +106,21 @@ type saxInput struct {
 	splitRead bool
 	declMode  bool
 
-	// fail reports a fatal error at the current position (set by the
-	// scanner; it does not return).
-	fail func(msg string)
+	s *saxScanner
 }
 
-func newSaxInput(src io.Reader) *saxInput {
+func newSaxInput(s *saxScanner, src io.Reader) *saxInput {
 	return &saxInput{
 		src:       src,
 		buf:       make([]uint16, saxBufferChars+2),
 		line:      1,
 		column:    1,
 		firstRead: true,
+		s:         s,
 	}
 }
+
+func (in *saxInput) failed() bool { return in.s.err != nil }
 
 // detectEncoding looks at the first bytes of a byte stream, as XML 1.0
 // Appendix F describes: a byte order mark, or the first characters of
@@ -150,7 +151,7 @@ func (in *saxInput) detectEncoding() {
 
 // readRaw reads up to n bytes, fewer only at the end of the stream.
 func (in *saxInput) readRaw(n int) []byte {
-	if n <= 0 {
+	if n <= 0 || in.failed() {
 		return nil
 	}
 	if cap(in.raw) < n {
@@ -167,7 +168,8 @@ func (in *saxInput) readRaw(n int) []byte {
 		if err == io.EOF {
 			in.srcEOF = true
 		} else if err != nil {
-			panic(saxBailout{err: jutil.NewIOException(err.Error())})
+			in.s.setErr(jutil.NewIOException(err.Error()))
+			return nil
 		}
 	}
 	// Return a copy the caller may keep while readRaw is called again for
@@ -197,14 +199,28 @@ func (in *saxInput) setEncoding(enc saxEncoding, name string) {
 // readChars appends decoded chars to buf[count:], reading about n bytes; it
 // returns the number of chars appended (0 at the end of the input).
 func (in *saxInput) readChars(n int) int {
+	if in.failed() {
+		return 0
+	}
 	if in.deferred != "" {
-		in.fail(in.deferred)
+		msg := in.deferred
+		in.deferred = ""
+		in.s.fatal(msg)
+		return 0
 	}
 	switch in.enc {
 	case saxEncUTF8Lenient:
-		return in.readLenientUTF8(n)
+		c := in.readLenientUTF8(n)
+		if in.failed() {
+			return 0
+		}
+		return c
 	case saxEncUTF16BELenient, saxEncUTF16LELenient, saxEncUTF16Lenient, saxEncUTF16LELenientBOM:
-		return in.readLenientUTF16(n)
+		c := in.readLenientUTF16(n)
+		if in.failed() {
+			return 0
+		}
+		return c
 	}
 	start := in.count
 	if (in.enc == saxEncUTF16BE || in.enc == saxEncUTF16LE) && !in.splitRead {
@@ -220,11 +236,21 @@ func (in *saxInput) readChars(n int) int {
 		head := in.ahead
 		in.ahead = nil
 		if !in.decodeBlock(head, start) {
+			if in.failed() {
+				return 0
+			}
 			return in.count - start
 		}
 		n -= len(head)
 	}
-	in.decodeBlock(in.readRaw(n), start)
+	raw := in.readRaw(n)
+	if in.failed() {
+		return 0
+	}
+	in.decodeBlock(raw, start)
+	if in.failed() {
+		return 0
+	}
 	return in.count - start
 }
 
@@ -257,6 +283,9 @@ func (in *saxInput) decodeBlock(bytes []byte, start int) bool {
 			i, msg = in.decodeUTF8(bytes, i)
 		}
 		if msg != "" {
+			if in.failed() {
+				return false
+			}
 			// Observed behaviour (black-box): a UTF-8 error waits for the
 			// next read when this one has chars to deliver, except the one
 			// about the planes of a 4-byte sequence; an ASCII one does not.
@@ -264,7 +293,8 @@ func (in *saxInput) decodeBlock(bytes []byte, start int) bool {
 				in.deferred = msg
 				return false
 			}
-			in.fail(msg)
+			in.s.fatal(msg)
+			return false
 		}
 	}
 	return true
@@ -643,4 +673,300 @@ func saxKnownEncoding(name string) bool {
 		}
 	}
 	return false
+}
+
+// preScanDeclaration looks for an XML declaration and its version before
+// the document is reported (the JDK reads the version first, to choose
+// between XML 1.0 and 1.1). It consumes "<?xml", white space, "version",
+// white space, '=' and white space, as far as they are there, then looks
+// at the next five chars (the version literal and one more) without
+// consuming them; the declaration is then scanned from where it stopped.
+// Observed behaviour (black-box):
+//   - the end of input during the pre-scan is a "Premature end of file."
+//     error at line and column -1, before setDocumentLocator; a decoding
+//     error is reported where the pre-scan met it, also before;
+//   - after the pre-scan the position is line 1, column one more than
+//     the number of chars consumed: line ends in the pre-scanned part
+//     count as columns. But when the version literal is not "1.0" in a
+//     matching pair of quotes, the column at the literal's quote is 15
+//     (that of "<?xml version='"), and a literal of four chars or more
+//     gets as many spaces after its fourth char as the pre-scanned part is
+//     longer than "<?xml version=" (the spaces count as columns too);
+//   - when the pre-scan (look-ahead included) had to read past the first
+//     read of the input (32 bytes, so always in UTF-16), the column is
+//     that of the shortest declaration in the same state ("<?xml ",
+//     "<?xml version", "<?xml version="), and there are no spaces;
+//   - when the pre-scan stayed in the first read and consumed more than
+//     "<?xml version=", the pseudo attribute after the version needs no
+//     white space before it;
+//   - when "<?xml" is followed by a name char instead (a processing
+//     instruction such as "<?xml-stylesheet"), the scan restarts at the
+//     beginning but keeps the five columns it skipped, so positions on
+//     line 1 are five columns too far.
+func (s *saxScanner) preScanDeclaration() {
+	in := s.in
+	if !s.skipASCII("<?xml") || s.err != nil {
+		return
+	}
+	eof := func() { s.fatalAt("Premature end of file.", -1, -1) }
+	c := s.peek()
+	if c == saxStopEOF {
+		eof()
+		return
+	}
+	if !saxIsSpace(c) {
+		in.pos = 0
+		return
+	}
+	s.hasDecl = true
+	in.declMode = true
+	firstEnd := in.base + in.count
+	beyond := func() bool { return in.base+in.count > firstEnd }
+	spaces := func() bool {
+		s.skipSpaces()
+		if s.peek() == saxStopEOF {
+			eof()
+			return false
+		}
+		return true
+	}
+	// finish sets the position after the pre-scan; shortest is the length
+	// of the shortest declaration prefix in the same state.
+	finish := func(shortest int) {
+		in.line, in.column = 1, in.base+in.pos+1
+		if beyond() {
+			in.column = shortest + 1
+		}
+	}
+	if !spaces() {
+		return
+	}
+	if !s.skipASCII("version") {
+		if s.err == nil {
+			finish(len("<?xml "))
+		}
+		return
+	}
+	s.declStage = 1
+	if !spaces() {
+		return
+	}
+	if s.peek() != '=' {
+		finish(len("<?xml version"))
+		return
+	}
+	in.advance(1)
+	s.declStage = 2
+	if !spaces() {
+		return
+	}
+	// The literal is read one char at a time: a decoding error is
+	// reported after the chars read so far.
+	for k := 1; k <= 5; k++ {
+		for in.count-in.pos < k {
+			line, column := in.line, in.column
+			for _, u := range in.buf[in.pos : in.pos+k-1] {
+				if u == '\n' || u == '\r' {
+					in.line, in.column = in.line+1, 1
+				} else {
+					in.column++
+				}
+			}
+			n := in.loadMore()
+			in.line, in.column = line, column
+			if n == 0 || s.err != nil {
+				eof()
+				return
+			}
+		}
+	}
+	b := in.buf[in.pos : in.pos+5]
+	quoted := (b[0] == '"' || b[0] == '\'') && b[4] == b[0]
+	if quoted && b[1] == '1' && b[2] == '.' && b[3] == '1' {
+		saxUnsupported("XML 1.1 documents are")
+	}
+	s.versionLoose = !beyond() && in.base+in.pos > len("<?xml version=")
+	if quoted && b[1] == '1' && b[2] == '.' && b[3] == '0' {
+		finish(len("<?xml version="))
+		return
+	}
+	if !beyond() {
+		s.versionPad = in.base + in.pos - len("<?xml version=")
+	}
+	in.line, in.column = 1, len("<?xml version=")+1
+}
+
+// xmlDecl scans the rest of the XML declaration (production [23]) from
+// where the pre-scan stopped (s.declStage: 0 before the first pseudo
+// attribute, 1 before the '=' of version, 2 before its value).
+func (s *saxScanner) xmlDecl() {
+	seen := 0
+	var encoding string
+	haveEncoding, haveStandalone := false, false
+	for {
+		var which string
+		sawSpace := true
+		stage := 0
+		if seen == 0 {
+			stage = s.declStage
+		}
+		if stage == 0 {
+			if seen > 0 {
+				sawSpace = s.skipSpaces() || seen == 1 && s.versionLoose
+			}
+			c := s.peek()
+			if c == '?' || c == saxStopEOF {
+				if seen == 0 {
+					s.fatal("The version is required in the XML declaration.")
+					return
+				}
+				break
+			}
+			switch {
+			case s.skipASCII("version"):
+				which = "version"
+			case s.skipASCII("encoding"):
+				which = "encoding"
+			case s.skipASCII("standalone"):
+				which = "standalone"
+			default:
+				s.fatal("A pseudo attribute name is expected.")
+				return
+			}
+			s.skipSpaces()
+		} else {
+			which = "version"
+		}
+		if stage < 2 {
+			if !s.skipChar('=') {
+				s.fatalOrEOF("The ' = ' character must follow \"" + which + "\" in the XML declaration.")
+				return
+			}
+			s.skipSpaces()
+		}
+		quote := s.peek()
+		if quote != '"' && quote != '\'' {
+			s.fatalOrEOF("The value following \"" + which + "\" in the XML declaration must be a quoted string.")
+			return
+		}
+		s.in.advance(1)
+		if s.in.pos == s.in.count-1 {
+			// Observed behaviour (black-box): when the value starts with
+			// the last char of the buffer, more is read before it.
+			s.in.load(s.in.pos)
+			if s.err != nil {
+				return
+			}
+		}
+		var value []uint16
+		padded := seen != 0
+		for {
+			c := s.peek()
+			if c == saxStopEOF {
+				s.fatal(s.eofMessage())
+				return
+			}
+			if saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()) {
+				value = append(value, uint16(c), s.in.buf[s.in.pos+1])
+				s.in.advance(2)
+			} else if saxIsHighSurrogate(c) {
+				s.loneHighSurrogate(c)
+				return
+			} else {
+				if !saxIsXMLChar(c) {
+					s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the XML declaration.")
+					return
+				}
+				if c = s.next(); c == quote {
+					break
+				}
+				value = append(value, uint16(c))
+			}
+			if !padded && len(value) >= 4 {
+				for i := 0; i < s.versionPad; i++ {
+					value = append(value, ' ')
+				}
+				s.in.column += s.versionPad
+				padded = true
+			}
+		}
+		v := jutil.StringFromUTF16(value)
+		switch {
+		case seen == 0 && which != "version":
+			s.fatal("The version is required in the XML declaration.")
+		case seen == 0:
+			if v != "1.0" {
+				s.fatal("XML version \"" + v + "\" is not supported, only XML 1.0 is supported.")
+			}
+		// Observed behaviour (black-box): the messages for a pseudo
+		// attribute out of order.
+		case haveStandalone:
+			s.fatal("No more pseudo attributes are allowed.")
+		case haveEncoding && which != "standalone":
+			s.fatal("The standalone name in XML declaration may be misspelled.")
+		case which == "version":
+			s.fatal("The encoding declaration is required in the text declaration.")
+		case !sawSpace:
+			// Observed behaviour (black-box): the message names encoding
+			// for standalone too.
+			s.fatal("White space is required before the encoding pseudo attribute in the XML declaration.")
+		case which == "encoding":
+			haveEncoding = true
+			encoding = v
+		default:
+			if v != "yes" && v != "no" {
+				s.fatal("The standalone document declaration value must be \"yes\" or \"no\", not \"" + v + "\".")
+			}
+			haveStandalone = true
+			s.standalone = v == "yes"
+		}
+		if s.err != nil {
+			return
+		}
+		seen++
+	}
+	if !s.skipChar('?') || !s.skipChar('>') {
+		s.fatalOrEOF("The XML declaration must end with \"?>\".")
+		return
+	}
+	s.in.declMode = false
+	if haveEncoding {
+		if !saxIsEncName(encoding) {
+			s.fatal("Invalid encoding name \"" + encoding + "\".")
+			return
+		}
+		enc, ok := saxEncodingByName(encoding)
+		if !ok {
+			if saxKnownEncoding(encoding) {
+				saxUnsupported("encoding \"" + encoding + "\" is")
+			}
+			// Observed behaviour (black-box): the JDK throws
+			// java.io.UnsupportedEncodingException for an encoding it does
+			// not know.
+			e := &saxUnsupportedEncodingException{}
+			jutil.InitThrowable(e, "java.io.UnsupportedEncodingException", &encoding, nil)
+			s.setErr(e)
+			return
+		}
+		s.in.setEncoding(enc, encoding)
+	}
+}
+
+// saxIsEncName is production [81] EncName.
+func saxIsEncName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		letter := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+		if i == 0 {
+			if !letter {
+				return false
+			}
+		} else if !letter && !(c >= '0' && c <= '9') && c != '.' && c != '_' && c != '-' {
+			return false
+		}
+	}
+	return true
 }

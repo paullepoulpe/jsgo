@@ -71,7 +71,7 @@ type ifConflictScanResult struct {
 	hasCalled      bool
 }
 
-func (f *InlineFunctions) scanFunctionConflicts(fnNode rhino.Node, calledIDs *inlineIDSet) (needsBaseClone, hasCalled bool) {
+func (f *InlineFunctions) scanFunctionConflicts(fnNode rhino.Node, calledIDs *smallIDSet) (needsBaseClone, hasCalled bool) {
 	calledIDs.clear()
 	hasAnon := inlineFunctions_findCalledFunctions(ast.MustFunction(fnNode).Body().Node(), calledIDs, f.anonFns)
 	if calledIDs.isEmpty() {
@@ -106,7 +106,7 @@ func (f *InlineFunctions) resolveInlineConflictsParallel(
 	numWorkers int,
 ) {
 	type workerState struct {
-		calledIDs inlineIDSet
+		calledIDs smallIDSet
 		slab      []*InlineFunctions_FunctionState
 	}
 
@@ -250,7 +250,7 @@ func inlineFunctions_isIsolatedStmtFn(fnNode rhino.Node) bool {
 
 func inlineFunctions_findCalledFunctions(
 	node rhino.Node,
-	changed *inlineIDSet,
+	changed *smallIDSet,
 	anonFns map[rhino.Node]*InlineFunctions_FunctionState,
 ) bool {
 	hasAnon := false

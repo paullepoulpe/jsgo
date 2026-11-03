@@ -9,13 +9,15 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
 	registry := NewJSTypeRegistry(nil)
 	typ := registry.GetNativeType(JSTypeNative_NUMBER_TYPE)
-	n := Node_NewStringWithToken(Token_NAME, "distinct_compact_node_name")
+	buf := make([]byte, 1024)
+	copy(buf, "distinct_compact_node_name")
+	n := Node_NewStringWithToken(Token_NAME, string(buf[:len("distinct_compact_node_name")]))
+	buf = nil
 	n.SetJSType(typ)
 	typ = nil
 	for i := 0; i < 3; i++ {
@@ -32,12 +34,6 @@ func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
 	n.SetJSType(nil)
 	if n.GetJSType() != nil || n.GetColor() != nil {
 		t.Fatal("cleared type is non-null")
-	}
-	// String pointer cells must remain valid even after the bounded pool clears.
-	strpool.ClearForTest()
-	runtime.GC()
-	if n.GetString() != "distinct_compact_node_name" {
-		t.Fatal("intern table owned node payload lifetime")
 	}
 	n.SetOriginalName(jutil.StringPtr("original"))
 }

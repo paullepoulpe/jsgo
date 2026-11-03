@@ -136,17 +136,17 @@ func (l *LiveVariablesAnalysis) Reset(
 
 	table := &allVarsDeclaredInFunction.table
 	releaseLarge := len(table.vars) <= 256
-	table.escaped.clear(releaseLarge)
+	table.escaped.Reset(releaseLarge)
 	computeEscapedInTable(jsScope, table, compiler, scopeCreator)
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
 	l.table = table
 	l.escaped.CopyFrom(&table.escaped)
-	l.untracked.clear(releaseLarge)
-	l.genScratch.clear(releaseLarge)
-	l.killScratch.clear(releaseLarge)
-	l.outScratch.clear(releaseLarge)
+	l.untracked.Reset(releaseLarge)
+	l.genScratch.Reset(releaseLarge)
+	l.killScratch.Reset(releaseLarge)
+	l.outScratch.Reset(releaseLarge)
 	l.paramsMarkedEscaped = false
 	l.emptyLattice = LiveVariablesAnalysis_LiveVariableLattice{}
 	l.lattices.Reset(nil)
@@ -314,52 +314,16 @@ func (l *LiveVariablesAnalysis) FlowStateAt(index uint32) *DataFlowAnalysis_Line
 func (l *LiveVariablesAnalysis) Analyze() {
 	cfg := l.cfg
 	implicitReturn := cfg.implicitReturn
-	cfgNodes := &cfg.Nodes
-	numNodes := cfgNodes.Size()
-	nodeCap := cfg.NodeIndexCap()
-
-	l.worklist.reset(cfg, numNodes, false)
-	if cap(l.states) < nodeCap {
-		l.states = make([]DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice], nodeCap)
-	} else {
-		clear(l.states[:max(len(l.states), nodeCap)])
-		l.states = l.states[:nodeCap]
-	}
-
-	initLat := &l.emptyLattice
+	l.states = resetLinearFlowStates(l.states, cfg, &l.emptyLattice)
 	states := l.states
-	for node := range cfgNodes.Values() {
-		node.DfaInQueue = false
-		state := &states[node.Index]
-		state.in = initLat
-		state.out = initLat
-		if node != implicitReturn {
-			l.worklist.enqueue(node)
-		}
-	}
-
-	for l.worklist.notEmpty() {
-		curNode := l.worklist.dequeue()
+	l.worklist.solve(cfg, false, func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
 		curState := &states[curNode.Index]
-		stepCount := curState.stepCount
-		curState.stepCount++
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
 		l.joinNodeInputs(curNode, curState, implicitReturn)
 		inBefore := curState.in
 		inAfter := jutil.CheckNotNull(l.flowThroughEdges(curNode.Value, curNode.OutEdgeList.Slice(), curState.out, inBefore))
 		curState.in = inAfter
-		if inBefore != inAfter && !inBefore.liveSet.Equals(&inAfter.liveSet) {
-			for _, edge := range curNode.InEdgeList.Slice() {
-				nextNode := edge.SourceNode
-				if !nextNode.DfaInQueue && nextNode != implicitReturn {
-					l.worklist.enqueue(nextNode)
-				}
-			}
-		}
-	}
+		return inBefore != inAfter && !inBefore.liveSet.Equals(&inAfter.liveSet)
+	})
 }
 
 func (l *LiveVariablesAnalysis) joinNodeInputs(

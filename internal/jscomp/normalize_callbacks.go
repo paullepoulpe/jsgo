@@ -193,7 +193,6 @@ type Normalize_NormalizeStatements struct {
 	astFactory                              *AstFactory
 	assertOnChange                          bool
 	isNormalizedObfuscated                  bool
-	makeDeclaredNamesUnique                 *MakeDeclaredNamesUnique
 	rewriteLogicalAssignmentOperatorsHelper *RewriteLogicalAssignmentOperatorsHelper
 
 	useFastContextualRenamer bool
@@ -207,21 +206,18 @@ type Normalize_NormalizeStatements struct {
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
-// pass instead of using this class directly. makeDeclaredNamesUnique may be
-// nil.
+// pass instead of using this class directly.
 //
 // Java: Normalize.NormalizeStatements(AbstractCompiler, boolean, MakeDeclaredNamesUnique)
 func NewNormalize_NormalizeStatements(
 	compiler AbstractCompiler,
-	assertOnChange bool,
-	makeDeclaredNamesUnique *MakeDeclaredNamesUnique) *Normalize_NormalizeStatements {
+	assertOnChange bool) *Normalize_NormalizeStatements {
 	s := &Normalize_NormalizeStatements{
-		compiler:                compiler,
-		convention:              compiler.GetCodingConvention(),
-		assertOnChange:          assertOnChange,
-		isNormalizedObfuscated:  compiler.GetLifeCycleStage().IsNormalizedObfuscated(),
-		makeDeclaredNamesUnique: makeDeclaredNamesUnique,
-		astFactory:              compiler.CreateAstFactory(),
+		compiler:               compiler,
+		convention:             compiler.GetCodingConvention(),
+		assertOnChange:         assertOnChange,
+		isNormalizedObfuscated: compiler.GetLifeCycleStage().IsNormalizedObfuscated(),
+		astFactory:             compiler.CreateAstFactory(),
 	}
 	s.rewriteLogicalAssignmentOperatorsHelper =
 		NewRewriteLogicalAssignmentOperatorsHelper(
@@ -468,8 +464,6 @@ func (s *Normalize_NormalizeStatements) ReportCodeChange(changeDescription strin
 func (s *Normalize_NormalizeStatements) EnterScope(t *NodeTraversal) {
 	if s.useFastContextualRenamer {
 		s.fastEnterScope(t)
-	} else if s.makeDeclaredNamesUnique != nil {
-		s.makeDeclaredNamesUnique.EnterScope(t)
 	}
 }
 
@@ -477,16 +471,11 @@ func (s *Normalize_NormalizeStatements) EnterScope(t *NodeTraversal) {
 func (s *Normalize_NormalizeStatements) ExitScope(t *NodeTraversal) {
 	if s.useFastContextualRenamer {
 		s.fastExitScope(t)
-	} else if s.makeDeclaredNamesUnique != nil {
-		s.makeDeclaredNamesUnique.ExitScope(t)
 	}
 }
 
 // Java: Normalize.NormalizeStatements.shouldTraverse(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if !s.useFastContextualRenamer && s.makeDeclaredNamesUnique != nil {
-		_ = s.makeDeclaredNamesUnique.ShouldTraverse(t, n, parent)
-	}
 	if n.GetFirstChild().IsNil() {
 		return true
 	}
@@ -504,37 +493,26 @@ func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n rhino
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !s.useFastContextualRenamer && s.makeDeclaredNamesUnique != nil {
-		s.makeDeclaredNamesUnique.Visit(t, n, parent)
-	}
 	normalizePostOrderVisitor.Visit(normalizePostOrderContext{s: s, t: t}, n)
 }
 
-// visitName renames x if it is shadowed (with the fast contextual renamer;
-// otherwise makeDeclaredNamesUnique did) and marks it constant when it is.
+// visitName renames x if it is shadowed (when the fast contextual renamer is
+// enabled) and marks it constant when it is.
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node) (NAME)
 func (s *Normalize_NormalizeStatements) visitName(t *NodeTraversal, x ast.Name) {
-	if !s.useFastContextualRenamer {
-		s.AnnotateConstantsByConvention(x)
-		s.AnnotateFunctionExpressionNameAsConstant(x)
+	if s.useFastContextualRenamer {
+		s.fastVisitNameOrImportStar(t, x.Node())
+	}
+	if x.Node().GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		return
 	}
-	n := x.Node()
-	s.fastVisitNameOrImportStar(t, n)
-	if n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
-		return
-	}
-	if !s.isNormalizedObfuscated && s.convention.IsConstant(x.Ident()) {
-		jutil.CheckStateMsg1(!s.assertOnChange, "Not marked as constant when it should be: %s", n)
-		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
-	} else if normalizeIsFunctionExpressionName(x) {
-		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
-	}
+	s.AnnotateConstantsByConvention(x)
+	s.AnnotateFunctionExpressionNameAsConstant(x)
 }
 
-// visitImportStar renames x if it is shadowed (with the fast contextual
-// renamer; otherwise makeDeclaredNamesUnique did).
+// visitImportStar renames x if it is shadowed (when the fast contextual
+// renamer is enabled).
 func (s *Normalize_NormalizeStatements) visitImportStar(t *NodeTraversal, x ast.ImportStar) {
 	if s.useFastContextualRenamer {
 		s.fastVisitNameOrImportStar(t, x.Node())
@@ -562,13 +540,12 @@ func (s *Normalize_NormalizeStatements) visitWhile(x ast.While) {
 func (s *Normalize_NormalizeStatements) AnnotateConstantsByConvention(x ast.Name) {
 	// Need to check that variables have not been renamed, to determine whether
 	// coding conventions still apply.
-	if s.compiler.GetLifeCycleStage().IsNormalizedObfuscated() {
+	if s.isNormalizedObfuscated {
 		return
 	}
 
 	n := x.Node()
-	if !n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) &&
-		NodeUtil_IsConstantByConvention(s.compiler.GetCodingConvention(), n) {
+	if !n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) && s.convention.IsConstant(x.Ident()) {
 		jutil.CheckStateMsg1(!s.assertOnChange, "Not marked as constant when it should be: %s", n)
 		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	}

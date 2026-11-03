@@ -41,7 +41,7 @@ type Path struct {
 	hash atomic.Int32
 	// elemStarts holds the byte offset where each name element begins; nil
 	// until first needed.
-	elemStarts []int
+	elemStarts atomic.Pointer[[]int]
 }
 
 // Path_Of is Path.of(first, more...): when more is not empty, the non-empty
@@ -122,11 +122,15 @@ func newPathFromString(s string) *Path {
 }
 
 var (
-	emptyPath = &Path{s: "", elemStarts: []int{0}}
-	rootPath  = &Path{s: "/", elemStarts: []int{}}
+	emptyPath       = &Path{s: ""}
+	rootPath        = &Path{s: "/"}
+	emptyElemStarts = []int{0}
+	rootElemStarts  = []int{}
 )
 
 func init() {
+	emptyPath.elemStarts.Store(&emptyElemStarts)
+	rootPath.elemStarts.Store(&rootElemStarts)
 	rootPath.hash.Store('/')
 }
 
@@ -134,13 +138,12 @@ func (p *Path) isEmpty() bool { return len(p.s) == 0 }
 
 // elementOffsets returns the start offset of every name element.
 func (p *Path) elementOffsets() []int {
-	if p.elemStarts != nil {
-		return p.elemStarts
+	if starts := p.elemStarts.Load(); starts != nil {
+		return *starts
 	}
 	if p.isEmpty() {
-		starts := []int{0}
-		p.elemStarts = starts
-		return starts
+		p.elemStarts.Store(&emptyElemStarts)
+		return emptyElemStarts
 	}
 	s := p.s
 	n := 0
@@ -150,9 +153,8 @@ func (p *Path) elementOffsets() []int {
 		}
 	}
 	if n == 0 {
-		starts := []int{}
-		p.elemStarts = starts
-		return starts
+		p.elemStarts.Store(&rootElemStarts)
+		return rootElemStarts
 	}
 	starts := make([]int, 0, n)
 	for i := 0; i < len(s); i++ {
@@ -160,7 +162,7 @@ func (p *Path) elementOffsets() []int {
 			starts = append(starts, i)
 		}
 	}
-	p.elemStarts = starts
+	p.elemStarts.Store(&starts)
 	return starts
 }
 

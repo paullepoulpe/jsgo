@@ -170,9 +170,6 @@ var globalNamespace_SourceKind_names = [...]string{"EXTERN", "TYPE_SUMMARY", "CO
 // Java: GlobalNamespace.SourceKind.name()
 func (k GlobalNamespace_SourceKind) String() string { return globalNamespace_SourceKind_names[k] }
 
-// Java: GlobalNamespace.SourceKind.ordinal()
-func (k GlobalNamespace_SourceKind) Ordinal() int { return int(k) }
-
 // Java: GlobalNamespace.SourceKind.fromScriptNode(Node)
 func GlobalNamespace_SourceKind_FromScriptNode(n rhino.Node) GlobalNamespace_SourceKind {
 	if !n.IsFromExterns() {

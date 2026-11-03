@@ -29,29 +29,6 @@ import (
 
 const rescopeDisambiguationSuffix = "$"
 
-type rescopeOrderedChunkSet struct {
-	chunks []*JSChunk
-	seen   map[*JSChunk]struct{}
-}
-
-func (s *rescopeOrderedChunkSet) add(chunk *JSChunk) {
-	if s.seen == nil {
-		s.seen = make(map[*JSChunk]struct{})
-	}
-	if _, ok := s.seen[chunk]; !ok {
-		s.seen[chunk] = struct{}{}
-		s.chunks = append(s.chunks, chunk)
-	}
-}
-
-func (s *rescopeOrderedChunkSet) contains(chunk *JSChunk) bool {
-	if s == nil {
-		return false
-	}
-	_, ok := s.seen[chunk]
-	return ok
-}
-
 type rescopeChunkGlobal struct {
 	root rhino.Node
 	name rhino.Node
@@ -71,9 +48,9 @@ type rescopeRewriteCallback struct {
 	preDeclarations []rescopeChunkGlobal
 	lhsScratch      []rhino.Node
 
-	localAliasesForUnwrappedCrossChunkNames map[*JSChunk]*rescopeOrderedStringSet
-	chunksUsingCrossChunkSymbols            map[string]*rescopeOrderedChunkSet
-	wrappedCrossChunkNames                  rescopeOrderedStringSet
+	localAliasesForUnwrappedCrossChunkNames map[*JSChunk]*OrderedSet[string]
+	chunksUsingCrossChunkSymbols            map[string]*OrderedSet[*JSChunk]
+	wrappedCrossChunkNames                  OrderedSet[string]
 }
 
 var (
@@ -160,19 +137,19 @@ func (c *rescopeRewriteCallback) collectWrappedCrossChunkNames() {
 	if !c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
 		return
 	}
-	for _, name := range c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.names {
+	for name := range c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.All() {
 		if !c.isExternName(name) {
-			c.wrappedCrossChunkNames.add(name)
+			c.wrappedCrossChunkNames.Add(name)
 		}
 	}
-	for _, name := range c.symbolInfo.crossChunkNamesUsedInNonDependentChunk.names {
+	for name := range c.symbolInfo.crossChunkNamesUsedInNonDependentChunk.All() {
 		if !c.isExternName(name) {
-			c.wrappedCrossChunkNames.add(name)
+			c.wrappedCrossChunkNames.Add(name)
 		}
 	}
-	for _, name := range c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.names {
+	for name := range c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.All() {
 		if c.isCrossChunkName(name) && !c.isExternName(name) {
-			c.wrappedCrossChunkNames.add(name)
+			c.wrappedCrossChunkNames.Add(name)
 		}
 	}
 }
@@ -227,8 +204,8 @@ func (c *rescopeRewriteCallback) globalVarStaysLocalInDefiningChunk(id uint32, n
 		return false
 	}
 	_, readInDefining := c.symbolInfo.globalNamesWithReadInDefiningChunk[name]
-	return !c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.contains(name) &&
-		!c.wrappedCrossChunkNames.contains(name) &&
+	return !c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(name) &&
+		!c.wrappedCrossChunkNames.Has(name) &&
 		readInDefining
 }
 
@@ -332,8 +309,8 @@ func (c *rescopeRewriteCallback) containsRescopedOrInitializedVars(declaration r
 		if name, ok := decl.AsName(); ok {
 			ident := name.Ident()
 			if isGlobalDeclaration &&
-				(c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.contains(ident) ||
-					c.wrappedCrossChunkNames.contains(ident)) {
+				(c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(ident) ||
+					c.wrappedCrossChunkNames.Has(ident)) {
 				return true
 			}
 			if _, hasInit := name.Init(); hasInit {
@@ -346,26 +323,26 @@ func (c *rescopeRewriteCallback) containsRescopedOrInitializedVars(declaration r
 	return false
 }
 
-func (c *rescopeRewriteCallback) ensureLocalAliasesForChunk(chunk *JSChunk) *rescopeOrderedStringSet {
+func (c *rescopeRewriteCallback) ensureLocalAliasesForChunk(chunk *JSChunk) *OrderedSet[string] {
 	if s, ok := c.localAliasesForUnwrappedCrossChunkNames[chunk]; ok {
 		return s
 	}
 	if c.localAliasesForUnwrappedCrossChunkNames == nil {
-		c.localAliasesForUnwrappedCrossChunkNames = make(map[*JSChunk]*rescopeOrderedStringSet)
+		c.localAliasesForUnwrappedCrossChunkNames = make(map[*JSChunk]*OrderedSet[string])
 	}
-	s := &rescopeOrderedStringSet{}
+	s := &OrderedSet[string]{}
 	c.localAliasesForUnwrappedCrossChunkNames[chunk] = s
 	return s
 }
 
-func (c *rescopeRewriteCallback) ensureChunksUsingCrossChunkSymbol(name string) *rescopeOrderedChunkSet {
+func (c *rescopeRewriteCallback) ensureChunksUsingCrossChunkSymbol(name string) *OrderedSet[*JSChunk] {
 	if s, ok := c.chunksUsingCrossChunkSymbols[name]; ok {
 		return s
 	}
 	if c.chunksUsingCrossChunkSymbols == nil {
-		c.chunksUsingCrossChunkSymbols = make(map[string]*rescopeOrderedChunkSet)
+		c.chunksUsingCrossChunkSymbols = make(map[string]*OrderedSet[*JSChunk])
 	}
-	s := &rescopeOrderedChunkSet{}
+	s := &OrderedSet[*JSChunk]{}
 	c.chunksUsingCrossChunkSymbols[name] = s
 	return s
 }
@@ -396,17 +373,17 @@ func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, paren
 
 	currentChunk := t.GetChunk()
 	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
-		c.ensureChunksUsingCrossChunkSymbol(name).add(currentChunk)
+		c.ensureChunksUsingCrossChunkSymbol(name).Add(currentChunk)
 	}
 
-	if c.wrappedCrossChunkNames.contains(name) {
+	if c.wrappedCrossChunkNames.Has(name) {
 		replacement := rhino.IR_Getprop(rhino.IR_Name(name), "_")
 		c.replaceSymbol(n, name, replacement)
 		return
 	}
 
 	if c.optimizeLocalAccess.ShouldOptimize() &&
-		!c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.contains(name) {
+		!c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(name) {
 		definingChunk := var_.GetInput().GetChunk()
 		if currentChunk == definingChunk {
 			if _, readInDefining := c.symbolInfo.globalNamesWithReadInDefiningChunk[name]; readInDefining {
@@ -419,9 +396,9 @@ func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, paren
 			c.replaceSymbol(n, name, replacement)
 			return
 		} else if c.optimizeLocalAccess.ShouldOptimizeAllChunks() {
-			if !c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.contains(name) &&
+			if !c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.Has(name) &&
 				c.compiler.GetChunkGraph().DependsOn(currentChunk, definingChunk) {
-				c.ensureLocalAliasesForChunk(currentChunk).add(name)
+				c.ensureLocalAliasesForChunk(currentChunk).Add(name)
 				return
 			}
 		}
@@ -507,14 +484,14 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappers() {
 	defaultRootChunk := chunks[0]
 
 	var wrapperAssignmentChunks map[string]*JSChunk
-	if len(c.wrappedCrossChunkNames.names) > 0 {
-		wrapperAssignmentChunks = make(map[string]*JSChunk, len(c.wrappedCrossChunkNames.names))
-		for _, name := range c.wrappedCrossChunkNames.names {
+	if !c.wrappedCrossChunkNames.IsEmpty() {
+		wrapperAssignmentChunks = make(map[string]*JSChunk, c.wrappedCrossChunkNames.Len())
+		for name := range c.wrappedCrossChunkNames.All() {
 			usingChunks := c.chunksUsingCrossChunkSymbols[name]
-			if usingChunks == nil || len(usingChunks.chunks) == 0 {
+			if usingChunks.IsEmpty() {
 				wrapperAssignmentChunks[name] = defaultRootChunk
 			} else {
-				wrapperAssignmentChunks[name] = chunkGraph.GetDeepestCommonDependencyInclusiveOfCollection(usingChunks.chunks)
+				wrapperAssignmentChunks[name] = chunkGraph.GetDeepestCommonDependencyInclusiveOfCollection(usingChunks.ToSlice())
 			}
 		}
 	}
@@ -600,15 +577,15 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappersForChunk(
 	changed := false
 	usedCleanupHelper := false
 
-	if unwrapped := c.localAliasesForUnwrappedCrossChunkNames[chunk]; unwrapped != nil {
-		allLocalAliases = append(allLocalAliases, unwrapped.names...)
+	for name := range c.localAliasesForUnwrappedCrossChunkNames[chunk].All() {
+		allLocalAliases = append(allLocalAliases, name)
 	}
 
 	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
-		for _, name := range c.wrappedCrossChunkNames.names {
+		for name := range c.wrappedCrossChunkNames.All() {
 			assignmentChunk := wrapperAssignmentChunks[name]
 			usingChunks := c.chunksUsingCrossChunkSymbols[name]
-			usedHere := usingChunks.contains(chunk)
+			usedHere := usingChunks.Has(chunk)
 			if chunk == assignmentChunk {
 				if usedHere {
 					rescopeAddDeclaration(
@@ -698,11 +675,11 @@ func (c *rescopeRewriteCallback) canDeleteFromGlobalNamespace(currentChunk *JSCh
 		return false
 	}
 	usingChunks := c.chunksUsingCrossChunkSymbols[name]
-	if !usingChunks.contains(currentChunk) {
+	if !usingChunks.Has(currentChunk) {
 		return false
 	}
 	chunkGraph := c.compiler.GetChunkGraph()
-	for _, otherChunk := range usingChunks.chunks {
+	for otherChunk := range usingChunks.All() {
 		if otherChunk != currentChunk && !chunkGraph.DependsOn(currentChunk, otherChunk) {
 			return false
 		}

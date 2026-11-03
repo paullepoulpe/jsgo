@@ -141,7 +141,7 @@ func (f *FlowSensitiveInlineVariables) reportChange(n rhino.Node) {
 func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
 	if f.reachingUses == nil {
 		table := f.activeVarTable
-		f.candVarSeen.clear(len(table.vars) <= 256)
+		f.candVarSeen.Reset(len(table.vars) <= 256)
 		f.candVarIDs = f.candVarIDs[:0]
 		for i := range f.candidates {
 			cand := &f.candidates[i]
@@ -481,7 +481,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		return
 	}
 
-	table.escaped.clear(len(table.vars) <= 256)
+	table.escaped.Reset(len(table.vars) <= 256)
 	computeEscapedInTable(fnScope, table, f.compiler, scopeCreator)
 	nDefs = 0
 	for _, d := range f.inlinableDefs {

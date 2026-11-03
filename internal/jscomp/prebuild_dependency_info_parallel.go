@@ -21,8 +21,6 @@ package jscomp
 import (
 	"iter"
 	"slices"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -41,65 +39,19 @@ func NewPrebuildDependencyInfo(numParalleThreads int) *PrebuildDependencyInfo {
 	return &PrebuildDependencyInfo{numParallelThreads: numParalleThreads}
 }
 
-func prebuildCallDependencyInfo(input *CompilerInput) (failure jutil.Throwable) {
-	defer func() {
-		if r := recover(); r != nil {
-			if t, ok := r.(jutil.Throwable); ok {
-				failure = t
-				return
-			}
-			panic(r)
-		}
-	}()
-	input.GetDependencyInfo()
-	return nil
+func prebuildCallDependencyInfo(input *CompilerInput) jutil.Throwable {
+	return runThrowableTask(func() { input.GetDependencyInfo() })
 }
 
-func prebuildRunTask(run func(int), index int) (failure jutil.Throwable) {
-	defer func() {
-		if r := recover(); r != nil {
-			if t, ok := r.(jutil.Throwable); ok {
-				failure = t
-				return
-			}
-			panic(r)
-		}
-	}()
-	run(index)
-	return nil
-}
-
-func prebuildRunIndexedTask(run func(worker, index int), worker, index int) (failure jutil.Throwable) {
-	defer func() {
-		if r := recover(); r != nil {
-			if t, ok := r.(jutil.Throwable); ok {
-				failure = t
-				return
-			}
-			panic(r)
-		}
-	}()
-	run(worker, index)
-	return nil
-}
-
-func prebuildPublishDiagnostics(events []prebuildDependencyDiagnostic) (failure jutil.Throwable) {
+func prebuildPublishDiagnostics(events []prebuildDependencyDiagnostic) jutil.Throwable {
 	if len(events) == 0 {
 		return nil
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			if t, ok := r.(jutil.Throwable); ok {
-				failure = t
-				return
-			}
-			panic(r)
+	return runThrowableTask(func() {
+		for _, diagnostic := range events {
+			diagnostic.target.Report(diagnostic.level, diagnostic.error)
 		}
-	}()
-	for _, diagnostic := range events {
-		diagnostic.target.Report(diagnostic.level, diagnostic.error)
-	}
-	return nil
+	})
 }
 
 // Prebuild gets the dependency info of every input.
@@ -130,66 +82,6 @@ func (p *PrebuildDependencyInfo) Prebuild(allInputs iter.Seq[*CompilerInput]) {
 	if failure != nil {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewExecutionException(failure)))
 	}
-}
-
-// parallelPrebuild runs every submitted task, retaining failures in input order.
-// Each slot is written by one worker and consumed only after the join.
-func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
-	return parallelPrebuildWorkers(count, workers, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
-		for {
-			index, ok := claim()
-			if !ok {
-				return
-			}
-			if t := prebuildRunTask(run, index); t != nil {
-				recordFailure(index, t)
-			}
-		}
-	})
-}
-
-func parallelPrebuildIndexed(count, workers int, run func(worker, index int)) []jutil.Throwable {
-	var nextWorker atomic.Int32
-	return parallelPrebuildWorkers(count, workers, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
-		worker := int(nextWorker.Add(1) - 1)
-		for {
-			index, ok := claim()
-			if !ok {
-				return
-			}
-			if t := prebuildRunIndexedTask(run, worker, index); t != nil {
-				recordFailure(index, t)
-			}
-		}
-	})
-}
-
-func parallelPrebuildWorkers(
-	count, workers int,
-	workerFn func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)),
-) []jutil.Throwable {
-	failures := make([]jutil.Throwable, count)
-	var next atomic.Int64
-	claim := func() (int, bool) {
-		index := int(next.Add(1) - 1)
-		if index >= count {
-			return 0, false
-		}
-		return index, true
-	}
-	recordFailure := func(index int, t jutil.Throwable) {
-		failures[index] = t
-	}
-	var wg sync.WaitGroup
-	for range min(workers, count) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			workerFn(claim, recordFailure)
-		}()
-	}
-	wg.Wait()
-	return failures
 }
 
 type prebuildDependencyDiagnostic struct {
@@ -286,35 +178,27 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 			var cachedSource *ModuleLoader
 			var workerLoader *ModuleLoader
 			var privatePath ModuleLoader_ModulePath
-			scanOne := func(i int) (failure jutil.Throwable) {
-				defer func() {
-					if r := recover(); r != nil {
-						if t, ok := r.(jutil.Throwable); ok {
-							failure = t
-							return
+			scanOne := func(i int) jutil.Throwable {
+				return runThrowableTask(func() {
+					input := inputs[i]
+					orig := origPaths[i]
+					workerEvents = nil
+					workerModuleErrors.target = orig.outer.GetErrorHandler()
+					if orig.outer != cachedSource {
+						cachedSource = orig.outer
+						workerLoader = prebuildCloneModuleLoader(orig.outer, &workerModuleErrors)
+					}
+					privatePath = *orig
+					privatePath.outer = workerLoader
+					input.modulePath = &privatePath
+					defer func() {
+						input.modulePath = orig
+						if len(workerEvents) > 0 {
+							errorsByInput[i] = workerEvents
 						}
-						panic(r)
-					}
-				}()
-				input := inputs[i]
-				orig := origPaths[i]
-				workerEvents = nil
-				workerModuleErrors.target = orig.outer.GetErrorHandler()
-				if orig.outer != cachedSource {
-					cachedSource = orig.outer
-					workerLoader = prebuildCloneModuleLoader(orig.outer, &workerModuleErrors)
-				}
-				privatePath = *orig
-				privatePath.outer = workerLoader
-				input.modulePath = &privatePath
-				defer func() {
-					input.modulePath = orig
-					if len(workerEvents) > 0 {
-						errorsByInput[i] = workerEvents
-					}
-				}()
-				input.GetDependencyInfo()
-				return nil
+					}()
+					input.GetDependencyInfo()
+				})
 			}
 			for {
 				i, ok := claim()
@@ -363,31 +247,23 @@ func (p *PrebuildDependencyInfo) prebuildParallel(inputs []*CompilerInput) bool 
 		}
 		loader := prebuildCloneModuleLoader(compiler.GetModuleLoader(), &workerModuleErrors)
 		parser := NewJsFileRegexParser(&workerErrors).SetModuleLoader(loader).SetIncludeGoogBase(true)
-		parseOne := func(i int) (failure jutil.Throwable) {
-			defer func() {
-				if r := recover(); r != nil {
-					if t, ok := r.(jutil.Throwable); ok {
-						failure = t
-						return
-					}
-					panic(r)
+		parseOne := func(i int) jutil.Throwable {
+			return runThrowableTask(func() {
+				input, result := inputs[i], &results[i]
+				if input.dependencyInfo != nil {
+					return
 				}
-			}()
-			input, result := inputs[i], &results[i]
-			if input.dependencyInfo != nil {
-				return nil
-			}
-			workerErrors.events = nil
-			if code, err := input.getCode(); err != nil {
-				result.readFailure = true
-				workerErrors.Report(CheckLevel_ERROR,
-					JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), ioErrorMessage(err)))
-				result.info = SimpleDependencyInfo_EMPTY
-			} else {
-				result.info = parser.ParseFile(input.GetName(), input.GetName(), code)
-			}
-			result.events = workerErrors.events
-			return nil
+				workerErrors.events = nil
+				if code, err := input.getCode(); err != nil {
+					result.readFailure = true
+					workerErrors.Report(CheckLevel_ERROR,
+						JSError_Make(AbstractCompiler_READ_ERROR, input.GetName(), ioErrorMessage(err)))
+					result.info = SimpleDependencyInfo_EMPTY
+				} else {
+					result.info = parser.ParseFile(input.GetName(), input.GetName(), code)
+				}
+				result.events = workerErrors.events
+			})
 		}
 		for {
 			i, ok := claim()

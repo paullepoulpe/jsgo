@@ -23,11 +23,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// CoverageUtil contains all general purpose static methods that are used
-// by coverage instrumentation related classes - not limited to them,
-// though.
-type CoverageUtil struct{}
-
 // CoverageUtil_CreateIdentifierFromText returns a string with all
 // non-alphanumeric characters in the given string replaced with
 // underscores. This is to create a valid identifier based on the given
@@ -107,11 +102,7 @@ func NewCoverageInstrumentationCallback(
 //
 // Java: CoverageInstrumentationCallback.getFileName(NodeTraversal)
 func CoverageInstrumentationCallback_GetFileName(traversal *NodeTraversal) string {
-	name := traversal.GetSourceName()
-	if name == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	return *name
+	return *jutil.CheckNotNull(traversal.GetSourceName())
 }
 
 // CreateArrayName returns a string that can be used as array name. The name

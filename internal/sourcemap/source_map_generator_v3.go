@@ -63,20 +63,14 @@ type SourceMapGeneratorV3 struct {
 	// values on the source entry.
 	sourceRootPath string
 
-	addedSourceFiles       []string
-	addedSourceFileIndex   map[string]int32
-	sourceIdxToFileId      []int32
-	orderedSourceFiles     []string
-	lastAddedSourceFile    string
-	lastAddedSourceFileIdx int32
-	addedSymbolNames       []string
-	addedSymbolIndex       map[string]int32
-	symbolIdxToNameId      []int32
-	orderedSymbolNames     []string
-	lastAddedSymbolName    string
-	lastAddedSymbolNameIdx int32
-	addedSourceFilesBuf    [16]string
-	addedSymbolNamesBuf    [16]string
+	sourceFiles        stringTable
+	symbolNames        stringTable
+	addedSourceFiles   []string
+	addedSymbolNames   []string
+	sourceIdxToFileId  []int32
+	orderedSourceFiles []string
+	symbolIdxToNameId  []int32
+	orderedSymbolNames []string
 }
 
 // SourceMapGeneratorV3_ExtensionMergeAction provides the merging strategy
@@ -101,36 +95,26 @@ const SourceMapGeneratorV3_UNMAPPED = -1
 //
 // Java: SourceMapGeneratorV3()
 func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
-	g := &SourceMapGeneratorV3{}
-	g.addedSourceFiles = g.addedSourceFilesBuf[:0:len(g.addedSourceFilesBuf)]
-	g.lastAddedSourceFileIdx = -1
-	g.addedSymbolNames = g.addedSymbolNamesBuf[:0:len(g.addedSymbolNamesBuf)]
-	g.lastAddedSymbolNameIdx = -1
-	g.offsetPosition = MakeFilePosition(0, 0)
-	g.prefixPosition = MakeFilePosition(0, 0)
-	return g
+	return &SourceMapGeneratorV3{
+		offsetPosition: MakeFilePosition(0, 0),
+		prefixPosition: MakeFilePosition(0, 0),
+	}
 }
 
 // Java: SourceMapGeneratorV3.reset()
 func (g *SourceMapGeneratorV3) Reset() {
 	// Do not reset sourceFileContentMap
 	g.mappings.reset()
-	clear(g.addedSourceFiles)
-	g.addedSourceFiles = g.addedSourceFiles[:0]
-	clear(g.addedSourceFileIndex)
+	g.sourceFiles.reset()
+	g.symbolNames.reset()
+	g.addedSourceFiles = nil
+	g.addedSymbolNames = nil
 	g.sourceIdxToFileId = g.sourceIdxToFileId[:0]
 	clear(g.orderedSourceFiles)
 	g.orderedSourceFiles = g.orderedSourceFiles[:0]
-	g.lastAddedSourceFile = ""
-	g.lastAddedSourceFileIdx = -1
-	clear(g.addedSymbolNames)
-	g.addedSymbolNames = g.addedSymbolNames[:0]
-	clear(g.addedSymbolIndex)
 	g.symbolIdxToNameId = g.symbolIdxToNameId[:0]
 	clear(g.orderedSymbolNames)
 	g.orderedSymbolNames = g.orderedSymbolNames[:0]
-	g.lastAddedSymbolName = ""
-	g.lastAddedSymbolNameIdx = -1
 	g.offsetPosition = MakeFilePosition(0, 0)
 	g.prefixPosition = MakeFilePosition(0, 0)
 }
@@ -245,17 +229,11 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		}
 	}
 
-	sourceFileIdx := internSourceMapString(
-		&g.addedSourceFiles, &g.addedSourceFileIndex,
-		&g.lastAddedSourceFile, &g.lastAddedSourceFileIdx,
-		sourceName)
+	sourceFileIdx := g.sourceFiles.intern(sourceName)
 
 	originalNameIdx := int32(-1)
 	if symbolName != nil {
-		originalNameIdx = internSourceMapString(
-			&g.addedSymbolNames, &g.addedSymbolIndex,
-			&g.lastAddedSymbolName, &g.lastAddedSymbolNameIdx,
-			*symbolName)
+		originalNameIdx = g.symbolNames.intern(*symbolName)
 	}
 
 	// Create the new mapping.
@@ -272,20 +250,28 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	g.mappings.add(&mapping)
 }
 
-func internSourceMapString(
-	items *[]string,
-	index *map[string]int32,
-	last *string,
-	lastIdx *int32,
-	s string,
-) int32 {
-	if *lastIdx >= 0 && *last == s {
-		return *lastIdx
+// stringTable interns strings into dense 0-based int32 IDs with an inline
+// [16]string small-table fast path and single-entry MRU cache.
+type stringTable struct {
+	items   []string
+	index   map[string]int32
+	last    string
+	lastIdx int32
+	hasLast bool
+	buf     [16]string
+}
+
+func (t *stringTable) intern(s string) int32 {
+	if t.hasLast && t.last == s {
+		return t.lastIdx
+	}
+	if t.items == nil {
+		t.items = t.buf[:0:len(t.buf)]
 	}
 	var idx int32
-	if len(*items) < 16 {
+	if len(t.items) < len(t.buf) {
 		found := false
-		for i, item := range *items {
+		for i, item := range t.items {
 			if item == s {
 				idx = int32(i)
 				found = true
@@ -293,29 +279,45 @@ func internSourceMapString(
 			}
 		}
 		if !found {
-			idx = int32(len(*items))
-			*items = append(*items, s)
+			idx = int32(len(t.items))
+			t.items = append(t.items, s)
 		}
 	} else {
-		if len(*index) == 0 {
-			if *index == nil {
-				*index = make(map[string]int32, 256)
+		if len(t.index) == 0 {
+			if t.index == nil {
+				t.index = make(map[string]int32, 256)
 			}
-			for i, item := range *items {
-				(*index)[item] = int32(i)
+			for i, item := range t.items {
+				t.index[item] = int32(i)
 			}
 		}
-		if existing, ok := (*index)[s]; ok {
+		if existing, ok := t.index[s]; ok {
 			idx = existing
 		} else {
-			idx = int32(len(*items))
-			*items = append(*items, s)
-			(*index)[s] = idx
+			idx = int32(len(t.items))
+			t.items = append(t.items, s)
+			t.index[s] = idx
 		}
 	}
-	*last = s
-	*lastIdx = idx
+	t.last = s
+	t.lastIdx = idx
+	t.hasLast = true
 	return idx
+}
+
+func (t *stringTable) reset() {
+	clear(t.items)
+	if t.items != nil {
+		t.items = t.items[:0]
+	}
+	clear(t.index)
+	t.last = ""
+	t.lastIdx = 0
+	t.hasLast = false
+}
+
+func (t *stringTable) slice() []string {
+	return t.items
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
@@ -688,6 +690,7 @@ func SourceMapGeneratorV3_AppendFieldStartWithFirst(out io.StringWriter, name st
 func SourceMapGeneratorV3_AppendFieldEnd(out io.StringWriter) {}
 
 func (g *SourceMapGeneratorV3) ensureIDTables() {
+	g.addedSourceFiles = g.sourceFiles.slice()
 	nSources := len(g.addedSourceFiles)
 	if cap(g.sourceIdxToFileId) < nSources {
 		g.sourceIdxToFileId = make([]int32, nSources)
@@ -703,6 +706,7 @@ func (g *SourceMapGeneratorV3) ensureIDTables() {
 		clear(g.orderedSourceFiles)
 		g.orderedSourceFiles = g.orderedSourceFiles[:0]
 	}
+	g.addedSymbolNames = g.symbolNames.slice()
 	nSymbols := len(g.addedSymbolNames)
 	if cap(g.symbolIdxToNameId) < nSymbols {
 		g.symbolIdxToNameId = make([]int32, nSymbols)

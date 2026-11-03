@@ -149,19 +149,6 @@ func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *ju
 	return deduplicateLines(lines)
 }
 
-// AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader loads legacy
-// warnings list from the file. It panics with an IOException when reading
-// fails.
-//
-// Returns the lines of the file.
-//
-// Java: AllowlistWarningsGuard.loadAllowlistedJsWarnings(Reader)
-func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(reader jutil.JavaReader) []string {
-	// TODO(nicksantos): This is a weird API.
-	jutil.CheckNotNull(reader)
-	return deduplicateLines(jutil.CharStreams_ReadLines(reader))
-}
-
 func deduplicateLines(lines []string) []string {
 	seen := make(map[string]struct{}, len(lines))
 	result := make([]string, 0, len(lines))
@@ -247,13 +234,4 @@ func (g *AllowlistWarningsGuard) NormalizeSourceName(s string) string {
 		}
 		offset = matchStart + len(prefix)
 	}
-}
-
-// Java: AllowlistWarningsGuard.getFirstLine(String)
-func AllowlistWarningsGuard_GetFirstLine(warning string) string {
-	lineLength := strings.IndexByte(warning, '\n')
-	if lineLength > 0 {
-		warning = warning[:lineLength]
-	}
-	return warning
 }

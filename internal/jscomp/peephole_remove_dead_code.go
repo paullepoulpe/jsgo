@@ -227,24 +227,11 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree rhino.Node) rhino.Node {
 	stmt, ok := ast.AsExprStmt(subtree)
 	jutil.CheckState(ok)
 	expr := stmt.Expr().Node()
+	if _, ok := ast.AsAssignment(expr); ok {
+		return subtree
+	}
 	switch expr.GetToken() {
-	case rhino.Token_ASSIGN,
-		rhino.Token_ASSIGN_BITOR,
-		rhino.Token_ASSIGN_BITXOR,
-		rhino.Token_ASSIGN_BITAND,
-		rhino.Token_ASSIGN_LSH,
-		rhino.Token_ASSIGN_RSH,
-		rhino.Token_ASSIGN_URSH,
-		rhino.Token_ASSIGN_ADD,
-		rhino.Token_ASSIGN_SUB,
-		rhino.Token_ASSIGN_MUL,
-		rhino.Token_ASSIGN_DIV,
-		rhino.Token_ASSIGN_MOD,
-		rhino.Token_ASSIGN_EXPONENT,
-		rhino.Token_ASSIGN_OR,
-		rhino.Token_ASSIGN_AND,
-		rhino.Token_ASSIGN_COALESCE,
-		rhino.Token_INC,
+	case rhino.Token_INC,
 		rhino.Token_DEC,
 		rhino.Token_DELPROP,
 		rhino.Token_YIELD,

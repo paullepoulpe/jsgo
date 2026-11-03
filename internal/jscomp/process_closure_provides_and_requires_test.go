@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -72,7 +71,7 @@ func (c *ProcessClosureProvidesAndRequiresTest) GetProcessor(compiler *Compiler)
 }
 
 // Java: ProcessClosureProvidesAndRequiresTest.getProvidedNameCollection(String)
-func (c *ProcessClosureProvidesAndRequiresTest) GetProvidedNameCollection(js string) *jutil.LinkedHashMap[string, *ProcessClosureProvidesAndRequires_ProvidedName] {
+func (c *ProcessClosureProvidesAndRequiresTest) GetProvidedNameCollection(js string) *OrderedStringMap[*ProcessClosureProvidesAndRequires_ProvidedName] {
 	compiler := c.CreateCompiler()
 	processor := c.CreateClosureProcessor(compiler)
 	jsRoot := compiler.ParseTestCode(js)

@@ -67,7 +67,7 @@ type AmbiguateProperties struct {
 
 	// Properties discovered in deterministic encounter order, indexed by name ID.
 	properties    []AmbiguateProperties_Property
-	propIndexByID map[uint32]uint32
+	propIndexByID map[strpool.ID]uint32
 
 	// Property names that don't get renamed
 	externedIDs smallBitSet
@@ -106,16 +106,16 @@ func NewAmbiguateProperties(
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
 	var externedIDs smallBitSet
-	externedIDs.Set(int(rhino.RhinoStringPool_InternID("prototype")))
+	externedIDs.Set(int(renamePropertiesPrototypeID))
 	for name := range externProperties.All() {
-		externedIDs.Set(int(rhino.RhinoStringPool_InternID(name)))
+		externedIDs.Set(int(strpool.Intern(name)))
 	}
 	return &AmbiguateProperties{
 		compiler:                   compiler,
 		reservedFirstCharacters:    reservedFirstCharacters,
 		reservedNonFirstCharacters: reservedNonFirstCharacters,
 		properties:                 make([]AmbiguateProperties_Property, 0, 2048),
-		propIndexByID:              make(map[uint32]uint32, 2048),
+		propIndexByID:              make(map[strpool.ID]uint32, 2048),
 		externedIDs:                externedIDs,
 		colorRegistry:              compiler.GetColorRegistry(),
 	}
@@ -241,10 +241,10 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	numProperties := len(a.properties)
 	reservedNames := make(stringMapSet, a.externedIDs.Cardinality()+a.quotedIDs.Cardinality()+256)
 	for id := a.externedIDs.NextSetBit(0); id >= 0; id = a.externedIDs.NextSetBit(id + 1) {
-		reservedNames[rhino.RhinoStringPool_StringFromID(uint32(id))] = struct{}{}
+		reservedNames[strpool.String(strpool.ID(id))] = struct{}{}
 	}
 	for id := a.quotedIDs.NextSetBit(0); id >= 0; id = a.quotedIDs.NextSetBit(id + 1) {
-		reservedNames[rhino.RhinoStringPool_StringFromID(uint32(id))] = struct{}{}
+		reservedNames[strpool.String(strpool.ID(id))] = struct{}{}
 	}
 	a.externedIDs = smallBitSet{}
 	a.quotedIDs = smallBitSet{}
@@ -323,7 +323,7 @@ func (a *AmbiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	// Assign the new names to the relevant STRING nodes in the AST.
 	for _, item := range a.nodesToRename {
 		p := &a.properties[item.propIdx]
-		if p.newNameID != 0 && uint32(p.newNameID) != p.oldNameID && item.node.GetStringID() != uint32(p.newNameID) {
+		if p.newNameID != 0 && p.newNameID != p.oldNameID && nodeStringID(item.node) != p.newNameID {
 			setNodeStringID(item.node, p.newNameID)
 			a.compiler.ReportChangeToEnclosingScope(item.node)
 		}
@@ -424,7 +424,7 @@ func (a *AmbiguateProperties) processCall(call ast.Call) {
 				// Skip ambiguation for properties in renaming calls
 				// NOTE (lharker@) - I'm not sure if this behavior is necessary, or if we could safely
 				// ambiguate the property as long as we also updated the property renaming call
-				propIdx := a.getOrAddPropertyIndexByID(propName.Node().GetStringID())
+				propIdx := a.getOrAddPropertyIndexByID(nodeStringID(propName.Node()))
 				a.properties[propIdx].skipAmbiguating = true
 			}
 		}
@@ -520,26 +520,26 @@ func (a *AmbiguateProperties) processClass(cls ast.Class) {
 //
 // Java: AmbiguateProperties.ProcessPropertiesAndConstructors.maybeMarkCandidate(Node, Color)
 func (a *AmbiguateProperties) maybeMarkCandidate(n rhino.Node, type_ *colors.Color) {
-	id := n.GetStringID()
+	id := nodeStringID(n)
 	if !a.externedIDs.Get(int(id)) {
 		propIdx := a.recordPropertyByID(id, type_)
 		a.nodesToRename = append(a.nodesToRename, ambiguateNodeToRename{node: n, propIdx: propIdx})
 	}
 }
 
-func (a *AmbiguateProperties) recordPropertyByID(id uint32, color *colors.Color) uint32 {
+func (a *AmbiguateProperties) recordPropertyByID(id strpool.ID, color *colors.Color) uint32 {
 	propIdx := a.getOrAddPropertyIndexByID(id)
 	a.properties[propIdx].addRelatedColor(a.graphNodeFactory, color)
 	return propIdx
 }
 
-func (a *AmbiguateProperties) getOrAddPropertyIndexByID(id uint32) uint32 {
+func (a *AmbiguateProperties) getOrAddPropertyIndexByID(id strpool.ID) uint32 {
 	if idx, ok := a.propIndexByID[id]; ok {
 		return idx
 	}
 	idx := uint32(len(a.properties))
 	a.properties = append(a.properties, AmbiguateProperties_Property{
-		oldName:          rhino.RhinoStringPool_StringFromID(id),
+		oldName:          strpool.String(id),
 		oldNameID:        id,
 		singleColorIndex: -1,
 	})
@@ -567,7 +567,7 @@ type AmbiguateProperties_Property struct {
 	oldName          string
 	newName          string
 	numOccurrences   int
-	oldNameID        uint32
+	oldNameID        strpool.ID
 	newNameID        strpool.ID
 	singleColorIndex int32
 	skipAmbiguating  bool

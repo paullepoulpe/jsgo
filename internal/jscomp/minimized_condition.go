@@ -118,9 +118,6 @@ func (s MinimizedCondition_MinimizationStyle) Name() string {
 // String is Enum.toString().
 func (s MinimizedCondition_MinimizationStyle) String() string { return s.Name() }
 
-// Ordinal is Enum.ordinal().
-func (s MinimizedCondition_MinimizationStyle) Ordinal() int { return int(s) }
-
 // MinimizedCondition_FromConditionNode returns a MinimizedCondition that
 // represents the condition node after minimization.
 //

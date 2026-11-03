@@ -19,12 +19,93 @@
 package jscomp
 
 import (
+	"iter"
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+// zippedFunctionParam pairs a formal AST parameter with its corresponding
+// FunctionType_Parameter (when present) and optional IIFE call argument, with
+// REST and DEFAULT_VALUE wrappers already unwrapped onto target.
+type zippedFunctionParam struct {
+	jsDocParam   rhino.FunctionType_Parameter
+	index        int
+	param        ast.Param
+	target       ast.Target
+	defaultValue ast.Expr
+	callArg      rhino.Node
+	isRest       bool
+	isDefault    bool
+}
+
+func firstIIFEArg(fn ast.Function) rhino.Node {
+	if NodeUtil_IsInvocationTarget(fn.Node()) {
+		return fn.Node().GetNext()
+	}
+	return rhino.NilNode
+}
+
+func trailingFunctionParams(consumed int, params []rhino.FunctionType_Parameter) []rhino.FunctionType_Parameter {
+	return params[min(consumed, len(params)):]
+}
+
+func nextZippedFunctionParam(
+	index int,
+	param ast.Param,
+	jsDocParams []rhino.FunctionType_Parameter,
+	callArg rhino.Node,
+) (zippedFunctionParam, rhino.Node) {
+	if !callArg.IsNil() && callArg.IsSpread() {
+		// Block inference on all parameters that might be populated by a spread.
+		callArg = rhino.NilNode
+	}
+	zp := zippedFunctionParam{
+		index:   index,
+		param:   param,
+		callArg: callArg,
+	}
+	if index < len(jsDocParams) {
+		zp.jsDocParam = jsDocParams[index]
+	}
+	if rest, ok := param.AsIterRest(); ok {
+		zp.isRest = true
+		zp.target = rest.Target()
+	} else if defVal, ok := param.AsDefaultValue(); ok {
+		zp.isDefault = true
+		zp.target = defVal.Target()
+		zp.defaultValue = defVal.Value()
+	} else {
+		zp.target = ast.MustTarget(param.Node())
+	}
+	var nextArg rhino.Node
+	if !callArg.IsNil() {
+		nextArg = callArg.GetNext()
+	}
+	return zp, nextArg
+}
+
+func zipFunctionParams(
+	astParams ast.ParamList,
+	jsDocParams []rhino.FunctionType_Parameter,
+	firstCallArg rhino.Node,
+) iter.Seq[zippedFunctionParam] {
+	return func(yield func(zippedFunctionParam) bool) {
+		callArg := firstCallArg
+		index := 0
+		for param, ok := astParams.FirstParam(); ok; param, ok = param.Next() {
+			var zp zippedFunctionParam
+			zp, callArg = nextZippedFunctionParam(index, param, jsDocParams, callArg)
+			index++
+			if !yield(zp) {
+				return
+			}
+		}
+	}
+}
 
 // InferFromOverriddenFunction infers the parameter and return types of a
 // function from the parameter and return types of the function it is
@@ -55,16 +136,18 @@ func (f *FunctionTypeBuilder) InferFromOverriddenFunction(oldType rhino.Function
 	} else {
 		// We're overriding with a function literal. Apply type information
 		// to each parameter of the literal.
+		paramList := ast.MustParamList(paramsParent)
+		numParams := paramList.NumParams()
 		var paramBuilder rhino.FunctionParamBuilder
-		paramBuilder.Init(f.typeRegistry, paramsParent.GetChildCount())
+		paramBuilder.Init(f.typeRegistry, numParams)
 		oldParams := oldType.GetParameters()
-		oldParamsIndex := 0
 		warnedAboutArgList := false
 		oldParamsListHitOptArgs := false
-		for currentParam := paramsParent.GetFirstChild(); !currentParam.IsNil(); currentParam = currentParam.GetNext() {
-			if oldParamsIndex < len(oldParams) {
-				oldParam := oldParams[oldParamsIndex]
-				oldParamsIndex++
+		lastIndex := numParams - 1
+		for zp := range zipFunctionParams(paramList, oldParams, rhino.NilNode) {
+			currentParam := zp.param.Node()
+			if !zp.jsDocParam.IsZero() {
+				oldParam := zp.jsDocParam
 
 				oldParamsListHitOptArgs =
 					oldParamsListHitOptArgs || oldParam.IsVariadic() || oldParam.IsOptional()
@@ -73,13 +156,13 @@ func (f *FunctionTypeBuilder) InferFromOverriddenFunction(oldType rhino.Function
 
 				isOptionalArg := oldParam.IsOptional()
 				isVarArgs := oldParam.IsVariadic()
-				if !currentParam.GetNext().IsNil() && isVarArgs {
+				if zp.index < lastIndex && isVarArgs {
 					isVarArgs = false
 					isOptionalArg = true
 				}
 				// The subclass method might also make a required parameter into an optional parameter
 				// with a default value
-				if currentParam.IsDefaultValue() {
+				if zp.isDefault {
 					isOptionalArg = true
 				}
 				paramBuilder.NewParameterFrom(
@@ -91,16 +174,15 @@ func (f *FunctionTypeBuilder) InferFromOverriddenFunction(oldType rhino.Function
 					warnedAboutArgList,
 					f.codingConvention.IsOptionalParameter(currentParam) ||
 						oldParamsListHitOptArgs ||
-						currentParam.IsDefaultValue(),
+						zp.isDefault,
 					f.codingConvention.IsVarArgsParameter(currentParam)) || warnedAboutArgList
 			}
 		}
 
 		// Clone any remaining params that aren't in the function literal,
 		// but make them optional.
-		for oldParamsIndex < len(oldParams) {
-			paramBuilder.NewOptionalParameterFrom(oldParams[oldParamsIndex])
-			oldParamsIndex++
+		for _, oldParam := range trailingFunctionParams(numParams, oldParams) {
+			paramBuilder.NewOptionalParameterFrom(oldParam)
 		}
 
 		f.parameters = paramBuilder.Build()
@@ -176,8 +258,8 @@ func (f *FunctionTypeBuilder) InferParameterTypes(info *rhino.JSDocInfo) *Functi
 			warnedAboutArgList
 	}
 	if !isVarArgs {
-		for ; oldIdx < len(f.parameters); oldIdx++ {
-			builder.NewParameterFrom(f.parameters[oldIdx])
+		for _, oldParam := range trailingFunctionParams(paramCount, f.parameters) {
+			builder.NewParameterFrom(oldParam)
 		}
 	}
 	f.parameters = builder.Build()
@@ -196,44 +278,39 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 		return f.InferParameterTypes(info)
 	}
 
+	paramList := ast.MustParamList(paramsParent)
+	numParams := paramList.NumParams()
 	var builder rhino.FunctionParamBuilder
-	builder.Init(f.typeRegistry, paramsParent.GetChildCount())
+	builder.Init(f.typeRegistry, numParams)
 	warnedAboutArgList := false
 	hasJsDocParams := info != nil && info.GetParameterCount() > 0
 	var seenBuf [8]string
 	seen := seenBuf[:0]
-	oldIdx := 0
 	isVarArgs := false
-	paramIndex := 0
-	for param := paramsParent.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
+	for zp := range zipFunctionParams(paramList, f.parameters, rhino.NilNode) {
 		isOptionalParam := false
-		var paramLhs rhino.Node
-
-		if param.IsRest() {
+		if zp.isRest {
 			isVarArgs = true
-			paramLhs = param.GetOnlyChild()
-		} else if param.IsDefaultValue() {
-			// The first child is the actual positional parameter
-			paramLhs = rhino.CheckNotNullMsg1(param.GetFirstChild(), "%s", param)
+		} else if zp.isDefault {
 			isOptionalParam = true
 		} else {
-			isVarArgs = f.IsVarArgsParameterByConvention(param)
-			isOptionalParam = f.IsOptionalParameterByConvention(param)
-			paramLhs = param
+			paramNode := zp.param.Node()
+			isVarArgs = f.IsVarArgsParameterByConvention(paramNode)
+			isOptionalParam = f.IsOptionalParameterByConvention(paramNode)
 		}
 
 		var paramName string
 		var hasParamName bool
-		if paramLhs.IsName() {
-			paramName = paramLhs.GetString()
+		if name, ok := zp.target.AsName(); ok {
+			paramName = name.Ident()
 			hasParamName = true
 		} else {
-			jutil.CheckState(paramLhs.IsDestructuringPattern())
+			jutil.CheckState(zp.target.Node().IsDestructuringPattern())
 			// Right now, the only way to match a JSDoc param to a destructuring parameter is through
 			// ordering the JSDoc parameters. So the third formal parameter will correspond to the
 			// third JSDoc parameter.
 			if info != nil {
-				if p, ok := info.GetParameterNameValueAt(paramIndex); ok {
+				if p, ok := info.GetParameterNameValueAt(zp.index); ok {
 					paramName = p
 					hasParamName = true
 				}
@@ -243,11 +320,8 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 			seen = append(seen, paramName)
 		}
 
-		var oldParameterType rhino.FunctionType_Parameter
-		if oldIdx < len(f.parameters) {
-			oldParameterType = f.parameters[oldIdx]
-			oldIdx++
-		}
+		oldParameterType := zp.jsDocParam
+		paramLhs := zp.target.Node()
 
 		// type from JSDocInfo
 		var parameterType rhino.JSType
@@ -259,8 +333,8 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 			parameterType = parameterTypeExpression.Evaluate(f.templateScope, f.typeRegistry)
 			isOptionalParam = isOptionalParam || parameterTypeExpression.IsOptionalArg()
 			isVarArgs = isVarArgs || parameterTypeExpression.IsVarArgs()
-		} else if paramLhs.GetJSDocInfo() != nil && paramLhs.GetJSDocInfo().HasType() {
-			parameterTypeExpression := paramLhs.GetJSDocInfo().GetType()
+		} else if lhsDoc := paramLhs.GetJSDocInfo(); lhsDoc != nil && lhsDoc.HasType() {
+			parameterTypeExpression := lhsDoc.GetType()
 			parameterType = parameterTypeExpression.Evaluate(f.templateScope, f.typeRegistry)
 			isOptionalParam = parameterTypeExpression.IsOptionalArg()
 			isVarArgs = parameterTypeExpression.IsVarArgs()
@@ -274,12 +348,11 @@ func (f *FunctionTypeBuilder) InferParameterTypesWithParamsParent(paramsParent r
 
 		warnedAboutArgList = f.AddParameter(&builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs) ||
 			warnedAboutArgList
-		paramIndex++
 	}
 	// Copy over any old parameters that aren't in the param list.
 	if !isVarArgs {
-		for ; oldIdx < len(f.parameters); oldIdx++ {
-			builder.NewParameterFrom(f.parameters[oldIdx])
+		for _, oldParam := range trailingFunctionParams(numParams, f.parameters) {
+			builder.NewParameterFrom(oldParam)
 		}
 	}
 

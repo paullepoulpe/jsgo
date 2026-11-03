@@ -507,31 +507,7 @@ func (g *CodeGenerator) strEscapeASCII(
 		if g.writeCommonEscape(b, c, doublequoteEscape, singlequoteEscape, backtickEscape, backslashEscape, dollarEscape, isRegexp) {
 			continue
 		}
-		switch c {
-		case '>':
-			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(codeGenerator_GT_ESCAPED)
-			} else if i >= 2 && ((s[i-1] == '-' && s[i-2] == '-') || (s[i-1] == ']' && s[i-2] == ']')) {
-				b.writeASCII(codeGenerator_GT_ESCAPED)
-			} else {
-				b.writeByte('>')
-			}
-		case '<':
-			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(codeGenerator_LT_ESCAPED)
-			} else if codeGenerator_matchesLtHazardASCII(s, i+1) {
-				b.writeASCII(codeGenerator_LT_ESCAPED)
-			} else {
-				b.writeByte('<')
-			}
-		default:
-			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(uint16(c))) ||
-				(c > 0x1f && c < 0x7f) {
-				b.writeByte(c)
-			} else {
-				b.writeHexJS(uint16(c))
-			}
-		}
+		g.writeEscapeTail(b, uint16(c), isRegexp, false, s, nil, i)
 	}
 }
 
@@ -560,44 +536,67 @@ func (g *CodeGenerator) strEscapeUnits(
 				continue
 			}
 		}
-		switch c {
-		case '>':
-			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(codeGenerator_GT_ESCAPED)
-			} else if i >= 2 && ((units[i-1] == '-' && units[i-2] == '-') || (units[i-1] == ']' && units[i-2] == ']')) {
-				b.writeASCII(codeGenerator_GT_ESCAPED)
-			} else {
-				b.writeByte('>')
-			}
-		case '<':
-			if !g.trustedStrings && !isRegexp {
-				b.writeASCII(codeGenerator_LT_ESCAPED)
-			} else if codeGenerator_matchesLtHazardUnits(units, i+1) {
-				b.writeASCII(codeGenerator_LT_ESCAPED)
-			} else {
-				b.writeByte('<')
-			}
-		default:
-			if escapeLineSep {
-				// In 2019 these characters (line and paragraph separators)
-				// are valid in strings but not regular expressions.
-				// https://github.com/tc39/proposal-json-superset
-				if c == '\u2028' {
-					b.writeASCII("\\u2028")
-					break
-				}
-				if c == '\u2029' {
-					b.writeASCII("\\u2029")
-					break
-				}
-			}
+		g.writeEscapeTail(b, c, isRegexp, escapeLineSep, "", units, i)
+	}
+}
 
-			if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(c)) ||
-				(c > 0x1f && c < 0x7f) {
-				b.writeChar(c)
+func (g *CodeGenerator) writeEscapeTail(
+	b *escBuf,
+	c uint16,
+	isRegexp bool,
+	escapeLineSep bool,
+	s string,
+	units []uint16,
+	i int,
+) {
+	switch c {
+	case '>':
+		hazard := !g.trustedStrings && !isRegexp
+		if !hazard && i >= 2 {
+			if len(units) != 0 {
+				hazard = (units[i-1] == '-' && units[i-2] == '-') || (units[i-1] == ']' && units[i-2] == ']')
 			} else {
-				b.writeHexJS(c)
+				hazard = (s[i-1] == '-' && s[i-2] == '-') || (s[i-1] == ']' && s[i-2] == ']')
 			}
+		}
+		if hazard {
+			b.writeASCII(codeGenerator_GT_ESCAPED)
+		} else {
+			b.writeByte('>')
+		}
+	case '<':
+		hazard := !g.trustedStrings && !isRegexp
+		if !hazard {
+			if len(units) != 0 {
+				hazard = codeGenerator_matchesLtHazardUnits(units, i+1)
+			} else {
+				hazard = codeGenerator_matchesLtHazardASCII(s, i+1)
+			}
+		}
+		if hazard {
+			b.writeASCII(codeGenerator_LT_ESCAPED)
+		} else {
+			b.writeByte('<')
+		}
+	default:
+		if escapeLineSep {
+			// In 2019 these characters (line and paragraph separators)
+			// are valid in strings but not regular expressions.
+			// https://github.com/tc39/proposal-json-superset
+			if c == '\u2028' {
+				b.writeASCII("\\u2028")
+				return
+			}
+			if c == '\u2029' {
+				b.writeASCII("\\u2029")
+				return
+			}
+		}
+		if (g.outputCharsetEncoder != nil && g.outputCharsetEncoder.CanEncode(c)) ||
+			(c > 0x1f && c < 0x7f) {
+			b.writeChar(c)
+		} else {
+			b.writeHexJS(c)
 		}
 	}
 }

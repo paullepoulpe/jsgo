@@ -176,32 +176,12 @@ func (c *rescopeGlobalDeclsCallback) Visit(t *NodeTraversal, n rhino.Node, paren
 	c.compiler.ReportChangeToEnclosingScope(parent)
 }
 
-type rescopeOrderedStringSet struct {
-	names []string
-	seen  map[string]struct{}
-}
-
-func (s *rescopeOrderedStringSet) add(name string) {
-	if s.seen == nil {
-		s.seen = make(map[string]struct{})
-	}
-	if _, ok := s.seen[name]; !ok {
-		s.seen[name] = struct{}{}
-		s.names = append(s.names, name)
-	}
-}
-
-func (s *rescopeOrderedStringSet) contains(name string) bool {
-	_, ok := s.seen[name]
-	return ok
-}
-
 type rescopeSymbolInfo struct {
 	crossChunkNames                               map[string]struct{}
-	crossChunkNamesWithWriteFromOtherChunk        rescopeOrderedStringSet
-	crossChunkNamesUsedInNonDependentChunk        rescopeOrderedStringSet
+	crossChunkNamesWithWriteFromOtherChunk        OrderedSet[string]
+	crossChunkNamesUsedInNonDependentChunk        OrderedSet[string]
 	globalNamesWithReadInDefiningChunk            map[string]struct{}
-	globalNamesWithInnerScopeWriteInDefiningChunk rescopeOrderedStringSet
+	globalNamesWithInnerScopeWriteInDefiningChunk OrderedSet[string]
 	maybeReferencesThis                           map[string]struct{}
 }
 
@@ -265,7 +245,7 @@ func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
 		(input == nil || input.GetChunk() == t.GetChunk()) &&
 		NodeUtil_IsLValue(n) &&
 		(!NodeUtil_IsNameDeclaration(parent) || hasInit) {
-		c.info.globalNamesWithInnerScopeWriteInDefiningChunk.add(name)
+		c.info.globalNamesWithInnerScopeWriteInDefiningChunk.Add(name)
 	}
 
 	if input == nil {
@@ -276,10 +256,10 @@ func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
 		c.info.crossChunkNames[name] = struct{}{}
 		if c.trackLocalAccessSets {
 			if NodeUtil_IsLValue(n) && (!NodeUtil_IsNameDeclaration(parent) || hasInit) {
-				c.info.crossChunkNamesWithWriteFromOtherChunk.add(name)
+				c.info.crossChunkNamesWithWriteFromOtherChunk.Add(name)
 			}
 			if !c.compiler.GetChunkGraph().DependsOn(t.GetChunk(), input.GetChunk()) {
-				c.info.crossChunkNamesUsedInNonDependentChunk.add(name)
+				c.info.crossChunkNamesUsedInNonDependentChunk.Add(name)
 			}
 		}
 	} else if c.trackLocalAccessSets && n != v.GetNameNode() {

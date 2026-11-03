@@ -59,9 +59,6 @@ var (
 // Java: GlobalNamespace.Inlinability.name()
 func (i GlobalNamespace_Inlinability) String() string { return globalNamespace_Inlinability_names[i] }
 
-// Java: GlobalNamespace.Inlinability.ordinal()
-func (i GlobalNamespace_Inlinability) Ordinal() int { return int(i) }
-
 // Java: GlobalNamespace.Inlinability.shouldInlineUsages()
 func (i GlobalNamespace_Inlinability) ShouldInlineUsages() bool {
 	return globalNamespace_Inlinability_shouldInlineUsages[i]
@@ -831,9 +828,6 @@ const GlobalNamespace_NameProp_NAME_KIND_MASK int32 = (int32(1) << GlobalNamespa
 
 // Java: GlobalNamespace.NameProp.name()
 func (p GlobalNamespace_NameProp) String() string { return globalNamespace_NameProp_names[p] }
-
-// Java: GlobalNamespace.NameProp.ordinal()
-func (p GlobalNamespace_NameProp) Ordinal() int { return int(p) }
 
 // Bit is the enum field `bit` (some power of 2): `1 << p`.
 func (p GlobalNamespace_NameProp) Bit() int32 {

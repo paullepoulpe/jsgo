@@ -164,7 +164,7 @@ func (c *Compiler) renderChunksBatched(
 		batchLen := min(batchSize, len(activeChunks)-batchStart)
 		clear(printErrs[:batchLen])
 
-		failures := parallelPrebuildIndexed(batchLen, numWorkers, func(w, j int) {
+		failures := runParallelIndexedTasks(batchLen, numWorkers, func(w, j int) {
 			m := activeChunks[batchStart+j]
 			inputs := m.GetInputs()
 			nInputs := len(inputs)
@@ -228,7 +228,7 @@ func (c *Compiler) renderChunksBatched(
 		}
 
 		if onParChunk != nil {
-			parFailures := parallelPrebuildIndexed(batchLen, numWorkers, func(w, j int) {
+			parFailures := runParallelIndexedTasks(batchLen, numWorkers, func(w, j int) {
 				globalIdx := batchStart + j
 				m := activeChunks[globalIdx]
 				var sm *SourceMap

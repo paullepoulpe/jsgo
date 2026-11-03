@@ -97,6 +97,18 @@ func polymerMatchesNameOrProp(n rhino.Node, name string) bool {
 	return ok && gp.Property() == name
 }
 
+func polymerMemberFunctionValue(member rhino.Node) (ast.Function, bool) {
+	if pkm, ok := ast.AsPlainKeyMember(member); ok {
+		return pkm.Value().AsFunction()
+	}
+	if mfd, ok := ast.AsMemberFieldDef(member); ok {
+		if val, hasVal := mfd.Value(); hasVal {
+			return val.AsFunction()
+		}
+	}
+	return ast.Function{}, false
+}
+
 // PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets rewrites usage of a
 // Polymer element's "$" local-DOM map from "this.$.foo" to "this.$['foo']" to
 // avoid JSC_POSSIBLE_INEXISTENT_PROPERTY errors, excluding zero-arg function
@@ -104,11 +116,10 @@ func polymerMatchesNameOrProp(n rhino.Node, name string) bool {
 //
 // Java: PolymerPassStaticUtils.switchDollarSignPropsToBrackets(Node, AbstractCompiler)
 func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, compiler AbstractCompiler) {
-	jutil.CheckState(def.IsObjectLit() || def.IsClassMembers())
-	for keyNode := def.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		fn, ok := ast.AsFunction(keyNode.GetFirstChild())
+	rewriteMember := func(keyNode rhino.Node) {
+		fn, ok := polymerMemberFunctionValue(keyNode)
 		if !ok {
-			continue
+			return
 		}
 		NodeUtil_VisitPostOrder(
 			fn.Body().Node(),
@@ -132,6 +143,17 @@ func PolymerPassStaticUtils_SwitchDollarSignPropsToBrackets(def rhino.Node, comp
 				compiler.ReportChangeToEnclosingScope(getelem)
 			})
 	}
+	if obj, ok := ast.AsObjectLit(def); ok {
+		for member := range obj.Members() {
+			rewriteMember(member.Node())
+		}
+	} else if clsBody, ok := ast.AsClassBody(def); ok {
+		for member := range clsBody.Members() {
+			rewriteMember(member.Node())
+		}
+	} else {
+		jutil.CheckState(false)
+	}
 }
 
 // PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys ensures keys for
@@ -147,10 +169,13 @@ func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit rhino.Node,
 		if sk.Key() != "listeners" && sk.Key() != "hostAttributes" {
 			continue
 		}
-		for keyToQuote := sk.Value().Node().GetFirstChild(); !keyToQuote.IsNil(); keyToQuote = keyToQuote.GetNext() {
-			if !keyToQuote.IsQuotedStringKey() {
-				keyToQuote.SetQuotedStringKey()
-				compiler.ReportChangeToEnclosingScope(keyToQuote)
+		if innerObj, ok := sk.Value().AsObjectLit(); ok {
+			for listenerMember := range innerObj.Members() {
+				keyToQuote := listenerMember.Node()
+				if !keyToQuote.IsQuotedStringKey() {
+					keyToQuote.SetQuotedStringKey()
+					compiler.ReportChangeToEnclosingScope(keyToQuote)
+				}
 			}
 		}
 	}
@@ -163,7 +188,7 @@ func PolymerPassStaticUtils_QuoteListenerAndHostAttributeKeys(objLit rhino.Node,
 //
 // Java: PolymerPassStaticUtils.protectObserverAndPropertyFunctionKeys(Node)
 func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLit rhino.Node) {
-	jutil.CheckState(behaviorObjLit.IsObjectLit())
+	behaviorObj := ast.MustObjectLit(behaviorObjLit)
 
 	var methodsToProtect map[string]struct{}
 	addMethod := func(name string) {
@@ -174,10 +199,10 @@ func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLi
 	}
 
 	observers := NodeUtil_GetFirstPropMatchingKey(behaviorObjLit, "observers")
-	if !observers.IsNil() && observers.IsArrayLit() {
-		for child := observers.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsStringLit() {
-				if name, ok := polymerExtractMethodName(child.GetString()); ok {
+	if obsArr, ok := ast.AsArrayLit(observers); ok {
+		for elem := range obsArr.Elements() {
+			if str, ok := elem.AsStringLit(); ok {
+				if name, ok := polymerExtractMethodName(str.Value()); ok {
 					addMethod(name)
 				}
 			}
@@ -197,13 +222,13 @@ func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLi
 			}
 
 			observer := NodeUtil_GetFirstPropMatchingKey(propVal, "observer")
-			if !observer.IsNil() && observer.IsStringLit() {
-				addMethod(observer.GetString())
+			if obsStr, ok := ast.AsStringLit(observer); ok {
+				addMethod(obsStr.Value())
 			}
 
 			computed := NodeUtil_GetFirstPropMatchingKey(propVal, "computed")
-			if !computed.IsNil() && computed.IsStringLit() {
-				if name, ok := polymerExtractMethodName(computed.GetString()); ok {
+			if compStr, ok := ast.AsStringLit(computed); ok {
+				if name, ok := polymerExtractMethodName(compStr.Value()); ok {
 					addMethod(name)
 				}
 			}
@@ -214,13 +239,15 @@ func PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(behaviorObjLi
 		return
 	}
 
-	for keyNode := behaviorObjLit.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if !NodeUtil_IsObjectLitKey(keyNode) {
+	for member := range behaviorObj.Members() {
+		pkm, ok := member.AsPlainKeyMember()
+		if !ok {
 			continue
 		}
-		if _, protect := methodsToProtect[NodeUtil_GetObjectOrClassLitKeyName(keyNode)]; !protect {
+		if _, protect := methodsToProtect[pkm.Key()]; !protect {
 			continue
 		}
+		keyNode := pkm.Node()
 		newDocs := rhino.JSDocInfo_Builder_MaybeCopyFrom(keyNode.GetJSDocInfo())
 		newDocs.RecordNoCollapse()
 		newDocs.RecordExport()
@@ -261,10 +288,10 @@ func PolymerPassStaticUtils_ExtractProperties(
 	enclosingModule := NodeUtil_GetEnclosingModuleIfPresent(descriptor)
 
 	var members []*PolymerPass_MemberDefinition
-	for keyNode := properties.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
+	appendMember := func(keyNode, valNode rhino.Node, key string) {
 		// The JSDoc for a Polymer property in the constructor wins over the JSDoc in the
 		// Polymer properties configuration object.
-		constructorJsDoc := constructorPropertyJsDoc[keyNode.GetString()]
+		constructorJsDoc := constructorPropertyJsDoc[key]
 		propertiesConfigJsDoc := NodeUtil_GetBestJSDocInfo(keyNode)
 		bestJsDoc := propertiesConfigJsDoc
 		if constructorJsDoc != nil {
@@ -274,7 +301,21 @@ func PolymerPassStaticUtils_ExtractProperties(
 			}
 		}
 		members = append(members,
-			NewPolymerPass_MemberDefinition(bestJsDoc, keyNode, keyNode.GetFirstChild(), enclosingModule))
+			NewPolymerPass_MemberDefinition(bestJsDoc, keyNode, valNode, enclosingModule))
+	}
+	if propsObj, ok := ast.AsObjectLit(properties); ok {
+		for member := range propsObj.Members() {
+			if pkm, ok := member.AsPlainKeyMember(); ok {
+				appendMember(pkm.Node(), pkm.Value().Node(), pkm.Key())
+			} else {
+				keyNode := member.Node()
+				appendMember(keyNode, keyNode.GetFirstChild(), keyNode.GetString())
+			}
+		}
+		return members
+	}
+	for keyNode := properties.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
+		appendMember(keyNode, keyNode.GetFirstChild(), keyNode.GetString())
 	}
 	return members
 }
@@ -464,7 +505,12 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n rh
 		var behaviorValue rhino.Node
 		if isDecl {
 			if first, ok := decl.FirstDeclarator(); ok {
-				behaviorValue = first.Node().GetFirstChild()
+				if nm, ok := first.AsName(); ok {
+					init, _ := nm.Init()
+					behaviorValue = init.Node()
+				} else if dlhs, ok := first.AsDestructuringLhs(); ok {
+					behaviorValue = dlhs.Pattern().Node()
+				}
 			}
 		} else {
 			behaviorValue = assign.Value().Node()
@@ -498,9 +544,9 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressBehavior(behaviorVal
 		return
 	}
 
-	if behaviorValue.IsArrayLit() {
-		for child := behaviorValue.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			p.suppressBehavior(child, behaviorValue)
+	if arr, ok := ast.AsArrayLit(behaviorValue); ok {
+		for elem := range arr.Elements() {
+			p.suppressBehavior(elem.Node(), behaviorValue)
 		}
 	} else if behaviorValue.IsObjectLit() {
 		p.stripPropertyTypes(behaviorValue)
@@ -550,9 +596,9 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressDefaultValues(behavi
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.addBehaviorSuppressions(Node)
 func (p polymerPassSuppressBehaviorsAndProtectKeys) addBehaviorSuppressions(behaviorValue rhino.Node) {
-	for keyNode := behaviorValue.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if first := keyNode.GetFirstChild(); !first.IsNil() && first.IsFunction() {
-			p.addSuppressionJsDocAnnotations(keyNode)
+	for member := range ast.MustObjectLit(behaviorValue).Members() {
+		if _, ok := polymerMemberFunctionValue(member.Node()); ok {
+			p.addSuppressionJsDocAnnotations(member.Node())
 		}
 	}
 	p.suppressDefaultValues(behaviorValue)

@@ -215,8 +215,9 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		if !ClassUtil_IsConstructor(n) || !ClassUtil_HasNamedClass(n) {
-			body := ast.MustFunction(n).Body().Node()
-			if !body.IsBlock() || body.HasChildren() {
+			fnBody := ast.MustFunction(n).Body()
+			if block, ok := fnBody.AsBlock(); !ok || block.HasStatements() {
+				body := fnBody.Node()
 				t.ReportCodeChangeWithNode(body)
 				body.ReplaceWith(ast.NewBlock().Node().Srcref(body))
 				NodeUtil_MarkFunctionsDeleted(body, t.GetCompiler())
@@ -259,23 +260,46 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 			NodeUtil_DeleteNode(n, t.GetCompiler())
 		}
 		return false
-	case rhino.Token_LABEL, rhino.Token_IF, rhino.Token_SWITCH, rhino.Token_CASE, rhino.Token_WHILE:
-		// First child can't have declaration. Statement itself will be removed post-order.
-		NodeUtil_DeleteNode(n.GetFirstChild(), t.GetCompiler())
+	case rhino.Token_LABEL:
+		NodeUtil_DeleteNode(ast.MustLabel(n).Name().Node(), t.GetCompiler())
 		return true
-	case rhino.Token_TRY, rhino.Token_DO:
-		// Second child can't have declarations. Statement itself will be removed post-order.
-		NodeUtil_DeleteNode(n.GetSecondChild(), t.GetCompiler())
+	case rhino.Token_IF:
+		NodeUtil_DeleteNode(ast.MustIf(n).Cond().Node(), t.GetCompiler())
+		return true
+	case rhino.Token_SWITCH:
+		NodeUtil_DeleteNode(ast.MustSwitch(n).Discriminant().Node(), t.GetCompiler())
+		return true
+	case rhino.Token_CASE:
+		NodeUtil_DeleteNode(ast.MustCase(n).Value().Node(), t.GetCompiler())
+		return true
+	case rhino.Token_WHILE:
+		NodeUtil_DeleteNode(ast.MustWhile(n).Cond().Node(), t.GetCompiler())
+		return true
+	case rhino.Token_TRY:
+		NodeUtil_DeleteNode(ast.MustTry(n).Catches().Node(), t.GetCompiler())
+		return true
+	case rhino.Token_DO:
+		NodeUtil_DeleteNode(ast.MustDo(n).Cond().Node(), t.GetCompiler())
 		return true
 	case rhino.Token_FOR:
-		NodeUtil_DeleteNode(n.GetSecondChild(), t.GetCompiler())
-		// fall-through
-		fallthrough
+		compiler := t.GetCompiler()
+		initNode := n.GetFirstChild()
+		condNode := initNode.GetNext()
+		incrNode := condNode.GetNext()
+		bodyNode := incrNode.GetNext()
+		NodeUtil_DeleteNode(condNode, compiler)
+		NodeUtil_DeleteNode(incrNode, compiler)
+		initNode.Detach()
+		if initNode.IsVar() {
+			bodyNode.AddChildToFront(initNode)
+		}
+		return true
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
-		NodeUtil_DeleteNode(n.GetSecondChild(), t.GetCompiler())
-		initializer := n.RemoveFirstChild()
-		if initializer.IsVar() {
-			n.GetLastChild().AddChildToFront(initializer)
+		loop := ast.MustEnhancedFor(n)
+		target, collection, body := loop.Target(), loop.Collection(), loop.Body()
+		NodeUtil_DeleteNode(collection.Node(), t.GetCompiler())
+		if initNode := target.Detach().Node(); initNode.IsVar() {
+			body.Node().AddChildToFront(initNode)
 		}
 		return true
 	case rhino.Token_CONST, rhino.Token_LET:
@@ -325,7 +349,8 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n r
 			if !n.HasOneChild() {
 				jutil.CheckStateMsg1(false, "malfrmed sWITCH %s", n.ToStringTree())
 			}
-			children := n.GetFirstChild().RemoveChildren()
+			switchBody := ast.MustSwitchBody(n.GetOnlyChild())
+			children := switchBody.Node().RemoveChildren()
 			parent.AddChildrenAfter(children, n)
 			n.Detach()
 			t.ReportCodeChange()

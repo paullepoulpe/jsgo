@@ -130,7 +130,7 @@ func (g *LinkedDirectedGraph[N, E]) AllocNode(nodeValue N) *LinkedDiGraphNode[N,
 	n.Index = g.nextNodeIndex
 	g.nextNodeIndex++
 	n.Priority = -1
-	n.annotated = g.useNodeAnnotations
+	n.annotationSlot = makeNodeAnnotation(g.useNodeAnnotations)
 	return n
 }
 
@@ -143,7 +143,7 @@ func (g *LinkedDirectedGraph[N, E]) newEdge(
 	e.Value = edgeValue
 	e.Index = g.nextEdgeIndex
 	g.nextEdgeIndex++
-	e.annotated = g.useEdgeAnnotations
+	e.annotationSlot = makeEdgeAnnotation(g.useEdgeAnnotations)
 	return e
 }
 
@@ -450,18 +450,72 @@ func (g *LinkedDirectedGraph[N, E]) GetNodeDegree(value N) int {
 	return node.InEdgeList.Size() + node.OutEdgeList.Size()
 }
 
+const (
+	annFlagEnabled uint8 = 1 << iota
+	annFlagEdge
+)
+
+// annotationSlot holds optional node or edge annotation state and promotes
+// GetAnnotation / SetAnnotation across directed and undirected graph elements.
+type annotationSlot struct {
+	annotation Annotation
+	annFlags   uint8
+}
+
+func makeNodeAnnotation(enabled bool) annotationSlot {
+	if enabled {
+		return annotationSlot{annFlags: annFlagEnabled}
+	}
+	return annotationSlot{}
+}
+
+func makeEdgeAnnotation(enabled bool) annotationSlot {
+	if enabled {
+		return annotationSlot{annFlags: annFlagEnabled | annFlagEdge}
+	}
+	return annotationSlot{annFlags: annFlagEdge}
+}
+
+func (s *annotationSlot) isAnnotated() bool {
+	return s.annFlags&annFlagEnabled != 0
+}
+
+func (s *annotationSlot) GetAnnotation() Annotation {
+	if s.annFlags&annFlagEnabled != 0 {
+		return s.annotation
+	}
+	s.failDisabled()
+	return nil
+}
+
+func (s *annotationSlot) SetAnnotation(data Annotation) {
+	if s.annFlags&annFlagEnabled != 0 {
+		s.annotation = data
+		return
+	}
+	s.failDisabled()
+}
+
+//go:noinline
+func (s *annotationSlot) failDisabled() {
+	if s.annFlags&annFlagEdge != 0 {
+		panic(jutil.NewUnsupportedOperationExceptionMsg(
+			"Graph initialized with edge annotations turned off"))
+	}
+	panic(jutil.NewUnsupportedOperationExceptionMsg(
+		"Graph initialized with node annotations turned off"))
+}
+
 // LinkedDiGraphNode is a directed graph node storing incoming and outgoing
 // edges inline when at most two per direction.
 type LinkedDiGraphNode[N, E comparable] struct {
 	InEdgeList, OutEdgeList LinkedEdgeList[LinkedDiGraphEdge[N, E]]
-
-	Annotation Annotation
+	annotationSlot
 
 	Value N
 
 	Index      uint32
 	Priority   int32
-	annotated  bool
 	inWorkSet  bool
 	DfaInQueue bool
 }
@@ -546,25 +600,6 @@ func (n *LinkedDiGraphNode[N, E]) GetValue() N {
 	return n.Value
 }
 
-// Java: LinkedDirectedGraph.LinkedDiGraphNode.getAnnotation()
-func (n *LinkedDiGraphNode[N, E]) GetAnnotation() Annotation {
-	if n.annotated {
-		return n.Annotation
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with node annotations turned off"))
-}
-
-// Java: LinkedDirectedGraph.LinkedDiGraphNode.setAnnotation(Annotation)
-func (n *LinkedDiGraphNode[N, E]) SetAnnotation(data Annotation) {
-	if n.annotated {
-		n.Annotation = data
-		return
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with node annotations turned off"))
-}
-
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.getColor()
 func (n *LinkedDiGraphNode[N, E]) GetColor() string {
 	return "white"
@@ -577,12 +612,8 @@ func (n *LinkedDiGraphNode[N, E]) GetId() string {
 
 // Java: LinkedDirectedGraph.LinkedDiGraphNode.getLabel()
 func (n *LinkedDiGraphNode[N, E]) GetLabel() string {
-	if n.annotated {
-		result := n.String()
-		if n.Annotation != nil {
-			result += "\n" + jutil.ToJavaString(n.Annotation)
-		}
-		return result
+	if n.isAnnotated() && n.annotation != nil {
+		return n.String() + "\n" + jutil.ToJavaString(n.annotation)
 	}
 	return n.String()
 }
@@ -625,9 +656,8 @@ type LinkedDiGraphEdge[N, E comparable] struct {
 	DestNode   *LinkedDiGraphNode[N, E]
 	Value      E
 
-	Annotation Annotation
-	Index      uint32
-	annotated  bool
+	annotationSlot
+	Index uint32
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getSource()
@@ -643,25 +673,6 @@ func (e *LinkedDiGraphEdge[N, E]) GetDestination() *LinkedDiGraphNode[N, E] {
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getValue()
 func (e *LinkedDiGraphEdge[N, E]) GetValue() E {
 	return e.Value
-}
-
-// Java: LinkedDirectedGraph.LinkedDiGraphEdge.getAnnotation()
-func (e *LinkedDiGraphEdge[N, E]) GetAnnotation() Annotation {
-	if e.annotated {
-		return e.Annotation
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with edge annotations turned off"))
-}
-
-// Java: LinkedDirectedGraph.LinkedDiGraphEdge.setAnnotation(Annotation)
-func (e *LinkedDiGraphEdge[N, E]) SetAnnotation(data Annotation) {
-	if e.annotated {
-		e.Annotation = data
-		return
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with edge annotations turned off"))
 }
 
 // Java: LinkedDirectedGraph.LinkedDiGraphEdge.getColor()

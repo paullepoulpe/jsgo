@@ -121,18 +121,10 @@ func parseXtbGenderVariant(s string) (string, bool) {
 //
 // Java: private class XtbMessageBundle.Handler implements ContentHandler
 type xtbMessageBundle_Handler struct {
-	outer         *XtbMessageBundle
-	msgBuilder    *JsMessage_Builder
-	genderCase    JsMessage_GrammaticalGenderCase
-	hasGenderCase bool
-	hasLang       bool
-}
-
-func (h *xtbMessageBundle_Handler) requireGenderCase() JsMessage_GrammaticalGenderCase {
-	if !h.hasGenderCase {
-		panic(jutil.NewNullPointerException())
-	}
-	return h.genderCase
+	outer      *XtbMessageBundle
+	msgBuilder *JsMessage_Builder
+	genderCase JsMessage_GrammaticalGenderCase
+	hasLang    bool
 }
 
 // Java: XtbMessageBundle.Handler.setDocumentLocator(Locator)
@@ -144,40 +136,37 @@ func (h *xtbMessageBundle_Handler) StartDocument() {}
 // Java: XtbMessageBundle.Handler.endDocument()
 func (h *xtbMessageBundle_Handler) EndDocument() {}
 
-// Java: XtbMessageBundle.Handler.startPrefixMapping(String, String)
-func (h *xtbMessageBundle_Handler) StartPrefixMapping(prefix string, uri string) {}
-
-// Java: XtbMessageBundle.Handler.endPrefixMapping(String)
-func (h *xtbMessageBundle_Handler) EndPrefixMapping(prefix string) {}
-
 // Java: XtbMessageBundle.Handler.startElement(String, String, String, Attributes)
-func (h *xtbMessageBundle_Handler) StartElement(uri string, localName string, qName string,
-	atts xtbxml.Attributes) {
+func (h *xtbMessageBundle_Handler) StartElement(qName string, atts xtbxml.Attributes) {
 	switch qName {
 	case xtbMessageBundle_Handler_BUNDLE_ELEM_NAME:
 		jutil.CheckState(!h.hasLang)
-		lang := atts.GetValue(xtbMessageBundle_Handler_LANG_ATT_NAME)
-		jutil.CheckState(lang != nil && *lang != "")
+		lang, _ := atts.Value(xtbMessageBundle_Handler_LANG_ATT_NAME)
+		jutil.CheckState(lang != "")
 		h.hasLang = true
 	case xtbMessageBundle_Handler_TRANSLATION_ELEM_NAME:
 		jutil.CheckState(h.msgBuilder == nil)
-		id := atts.GetValue(xtbMessageBundle_Handler_MESSAGE_ID_ATT_NAME)
-		jutil.CheckState(id != nil && *id != "")
-		h.msgBuilder = NewJsMessage_Builder().SetKey(*id).SetId(*id)
+		id, _ := atts.Value(xtbMessageBundle_Handler_MESSAGE_ID_ATT_NAME)
+		jutil.CheckState(id != "")
+		h.msgBuilder = NewJsMessage_Builder().SetKey(id).SetId(id)
 	case xtbMessageBundle_Handler_PLACEHOLDER_ELEM_NAME:
 		jutil.CheckState(h.msgBuilder != nil)
-		phRef := *jutil.CheckNotNullMsg(
-			atts.GetValue(xtbMessageBundle_Handler_PLACEHOLDER_NAME_ATT_NAME),
-			"Placeholder name must not be null")
+		phRef, ok := atts.Value(xtbMessageBundle_Handler_PLACEHOLDER_NAME_ATT_NAME)
+		if !ok {
+			panic(jutil.NewNullPointerExceptionMsg("Placeholder name must not be null"))
+		}
 		if h.msgBuilder.HasGenderedVariants() {
-			h.msgBuilder.AppendCanonicalPlaceholderReferenceForGender(h.requireGenderCase(), phRef)
+			h.msgBuilder.AppendCanonicalPlaceholderReferenceForGender(h.genderCase, phRef)
 		} else {
 			h.msgBuilder.AppendCanonicalPlaceholderReference(phRef)
 		}
 	case xtbMessageBundle_Handler_BRANCH_ELEM_NAME:
 		jutil.CheckState(h.msgBuilder != nil)
-		gender := atts.GetValue(xtbMessageBundle_Handler_BRANCH_NAME_ATT_NAME)
-		if variant, ok := parseXtbGenderVariant(*jutil.CheckNotNull(gender)); ok {
+		gender, ok := atts.Value(xtbMessageBundle_Handler_BRANCH_NAME_ATT_NAME)
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		if variant, ok := parseXtbGenderVariant(gender); ok {
 			var parsed JsMessage_GrammaticalGenderCase
 			switch variant {
 			case xtbMessageBundle_Handler_MALE_GENDER_CASE:
@@ -193,14 +182,13 @@ func (h *xtbMessageBundle_Handler) StartElement(uri string, localName string, qN
 					"Gender case must be one of the following: MASCULINE, FEMININE, NEUTER, or OTHER."))
 			}
 			h.genderCase = parsed
-			h.hasGenderCase = true
 			h.msgBuilder.AddGenderedMessageKey(parsed)
 		}
 	}
 }
 
 // Java: XtbMessageBundle.Handler.endElement(String, String, String)
-func (h *xtbMessageBundle_Handler) EndElement(uri string, localName string, qName string) {
+func (h *xtbMessageBundle_Handler) EndElement(qName string) {
 	if xtbMessageBundle_Handler_TRANSLATION_ELEM_NAME == qName {
 		jutil.CheckState(h.msgBuilder != nil)
 		if !h.msgBuilder.HasParts() {
@@ -211,28 +199,25 @@ func (h *xtbMessageBundle_Handler) EndElement(uri string, localName string, qNam
 	}
 }
 
-// Java: XtbMessageBundle.Handler.characters(char[], int, int)
-func (h *xtbMessageBundle_Handler) Characters(ch []uint16, start int, length int) {
+func (h *xtbMessageBundle_Handler) appendStringPart(units []uint16) {
 	if h.msgBuilder != nil {
-		part := jutil.StringFromUTF16(ch[start : start+length])
+		part := jutil.StringFromUTF16(units)
 		if h.msgBuilder.HasGenderedVariants() {
-			h.msgBuilder.AppendStringPartForGender(h.requireGenderCase(), part)
+			h.msgBuilder.AppendStringPartForGender(h.genderCase, part)
 		} else {
 			h.msgBuilder.AppendStringPart(part)
 		}
 	}
 }
 
+// Java: XtbMessageBundle.Handler.characters(char[], int, int)
+func (h *xtbMessageBundle_Handler) Characters(ch []uint16, start int, length int) {
+	h.appendStringPart(ch[start : start+length])
+}
+
 // Java: XtbMessageBundle.Handler.ignorableWhitespace(char[], int, int)
 func (h *xtbMessageBundle_Handler) IgnorableWhitespace(ch []uint16, start int, length int) {
-	if h.msgBuilder != nil {
-		part := jutil.StringFromUTF16(ch[start : start+length])
-		if h.msgBuilder.HasGenderedVariants() {
-			h.msgBuilder.AppendStringPartForGender(h.requireGenderCase(), part)
-		} else {
-			h.msgBuilder.AppendStringPart(part)
-		}
-	}
+	h.appendStringPart(ch[start : start+length])
 }
 
 // Java: XtbMessageBundle.Handler.processingInstruction(String, String)

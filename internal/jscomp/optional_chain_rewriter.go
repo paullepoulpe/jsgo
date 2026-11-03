@@ -93,9 +93,7 @@ func initOptionalChainRewriter(
 	}
 	// This class will only operate on an entire chain.
 	jutil.CheckArgumentMsg1(NodeUtil_IsEndOfFullOptChain(wholeChain), "%s", wholeChain)
-	if tmpVarNameCreator == nil {
-		panic(jutil.NewNullPointerException())
-	}
+	jutil.CheckNotNull(tmpVarNameCreator)
 	o.compiler = compiler
 	o.astFactory = astFactory
 	o.tmpVarNameCreator = tmpVarNameCreator
@@ -143,9 +141,14 @@ func (o *OptionalChainRewriter) Rewrite() {
 	// in a hook statement like `(tmp0 = a.b) == null ? void 0 : tmp0.rest?.of.chain?.()`,
 	// So wholeChain ends up more deeply nested on each rewrite.
 	// We only care about the top-most replacement here.
-	optChainReplacement := o.RewriteInitialSegment(optionalChainRewriterPop(&startNodeStack), o.wholeChain)
-	for len(startNodeStack) != 0 {
-		o.RewriteInitialSegment(optionalChainRewriterPop(&startNodeStack), o.wholeChain)
+	var optChainReplacement rhino.Node
+	for len(startNodeStack) > 0 {
+		subchainStart := startNodeStack[len(startNodeStack)-1]
+		startNodeStack = startNodeStack[:len(startNodeStack)-1]
+		rewritten := o.RewriteInitialSegment(subchainStart, o.wholeChain)
+		if optChainReplacement.IsNil() {
+			optChainReplacement = rewritten
+		}
 	}
 
 	// Handle a non-optional call to an optional chain that ends in an element or property
@@ -159,7 +162,7 @@ func (o *OptionalChainRewriter) Rewrite() {
 	if parentCall, ok := ast.AsCall(o.chainParent); ok &&
 		// If the call is explicitly a free call (e.g. `(0, a?.b)()`), we should not preserve
 		// `this`.
-		!o.chainParent.GetBooleanProp(rhino.Node_FREE_CALL) &&
+		!parentCall.IsFreeCall() &&
 		// The chain will have been replaced by optChainReplacement during the rewriting above.
 		parentCall.Callee().Is(optChainReplacement) {
 		// The wholeChain variable will still point to the rewritten final Node of the
@@ -218,20 +221,6 @@ func (o *OptionalChainRewriter) Rewrite() {
 	NodeUtil_AddFeatureToScript(enclosingScript, parser.FeatureSet_Feature_LET_DECLARATIONS, o.compiler)
 }
 
-// optionalChainRewriterPop is ArrayDeque.pop() on a stack whose top is the
-// last element.
-//
-// Go-only: language-adapter — ArrayDeque.
-func optionalChainRewriterPop(stack *[]rhino.Node) rhino.Node {
-	s := *stack
-	if len(s) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	top := s[len(s)-1]
-	*stack = s[:len(s)-1]
-	return top
-}
-
 // RewriteInitialSegment rewrites the first part of a possibly-multi-part
 // optional chain.
 //
@@ -286,18 +275,19 @@ func (o *OptionalChainRewriter) RewriteInitialSegment(fullChainStart rhino.Node,
 	// NOTE: convertToNonOptionalChain() above will have made the chain start
 	// and all the other nodes in the first segment of the chain non-optional,
 	// so ast.AsCall(fullChainStart) is the right test here.
+	startCall, isCall := ast.AsCall(fullChainStart)
 	if recvGet, ok := ast.AsNormalGet(receiverNode); ok &&
-		fullChainStart.IsCall() &&
+		isCall &&
 		// Check !FREE_CALL to ensure we don't treat free calls on property
 		// access (e.g. `(0, expr.prop)?.()`) as method calls.
-		!fullChainStart.GetBooleanProp(rhino.Node_FREE_CALL) {
+		!startCall.IsFreeCall() {
 		// `expr.prop?.(x).y`
 		// Needs to become
 		// `(t1 = (t0 = expr).prop) == null ? void 0 : t1.call(t0, x).y`
 		thisValue := recvGet.Object().Node()
 		tmpThisNode := o.GetSubExprNameNode(thisValue)
 		tmpReceiverNode := o.GetSubExprNameNode(receiverNode)
-		receiverNode = fullChainStart.RemoveFirstChild()
+		receiverNode = startCall.Callee().Detach().Node()
 		fullChainStart.AddChildToFront(tmpThisNode)
 		fullChainStart.AddChildToFront(
 			o.astFactory.

@@ -29,8 +29,6 @@ import (
 	"bufio"
 	"errors"
 	"os"
-	"unicode/utf16"
-	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -40,69 +38,18 @@ var errStreamClosed = errors.New("Stream closed")
 // logWriter wraps an *os.File and *bufio.Writer, sanitizing lone WTF-8
 // surrogates to '?' (matching Java's UTF-8 REPLACE encoder).
 type logWriter struct {
-	file     *os.File
-	buf      *bufio.Writer
-	highSurr rune
-	closed   bool
-}
-
-func hasWTF8Surrogate(s string) bool {
-	for i := 0; i+2 < len(s); i++ {
-		if s[i] == 0xED && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2]&0xC0 == 0x80 {
-			return true
-		}
-	}
-	return false
-}
-
-func decodeLogRune(s string) (rune, int) {
-	c := s[0]
-	if c < 0x80 {
-		return rune(c), 1
-	}
-	if c == 0xED && len(s) >= 3 && s[1] >= 0xA0 && s[1] <= 0xBF && s[2]&0xC0 == 0x80 {
-		return rune(c&0x0F)<<12 | rune(s[1]&0x3F)<<6 | rune(s[2]&0x3F), 3
-	}
-	return utf8.DecodeRuneInString(s)
+	file   *os.File
+	buf    *bufio.Writer
+	enc    jutil.StreamEncoder
+	closed bool
 }
 
 func (w *logWriter) WriteString(s string) (int, error) {
 	if w.closed {
 		return 0, errStreamClosed
 	}
-	if len(s) == 0 {
-		return 0, nil
-	}
-	if w.highSurr == 0 && !hasWTF8Surrogate(s) {
-		return w.buf.WriteString(s)
-	}
-	for i := 0; i < len(s); {
-		r, width := decodeLogRune(s[i:])
-		i += width
-		if w.highSurr != 0 {
-			high := w.highSurr
-			w.highSurr = 0
-			if r >= 0xDC00 && r <= 0xDFFF {
-				if _, err := w.buf.WriteRune(utf16.DecodeRune(high, r)); err != nil {
-					return 0, err
-				}
-				continue
-			}
-			if err := w.buf.WriteByte('?'); err != nil {
-				return 0, err
-			}
-		}
-		if r >= 0xD800 && r <= 0xDBFF {
-			w.highSurr = r
-		} else if r >= 0xDC00 && r <= 0xDFFF {
-			if err := w.buf.WriteByte('?'); err != nil {
-				return 0, err
-			}
-		} else {
-			if _, err := w.buf.WriteRune(r); err != nil {
-				return 0, err
-			}
-		}
+	if err := w.enc.WriteTo(w.buf, s); err != nil {
+		return 0, err
 	}
 	return len(s), nil
 }
@@ -112,11 +59,7 @@ func (w *logWriter) Close() error {
 		return nil
 	}
 	w.closed = true
-	var flushErr error
-	if w.highSurr != 0 {
-		w.highSurr = 0
-		flushErr = w.buf.WriteByte('?')
-	}
+	flushErr := w.enc.FinishTo(w.buf)
 	if err := w.buf.Flush(); err != nil && flushErr == nil {
 		flushErr = err
 	}
@@ -170,6 +113,7 @@ func LogFile_CreateOrReopen(file *jutil.Path) LogFile {
 		writer: &logWriter{
 			file: f,
 			buf:  bufio.NewWriter(f),
+			enc:  jutil.StandardCharsets_UTF_8.NewStreamEncoder(),
 		},
 	}
 }

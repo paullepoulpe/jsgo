@@ -40,7 +40,7 @@ type FunctionArgumentInjector struct {
 	templateUndefinedNode rhino.Node
 	sentinelThisNode      rhino.Node
 	paramBindings         []callParamBinding
-	scratchLocals         inlineIDSet
+	scratchLocals         smallIDSet
 	scratchSummary        calleeSummary
 	seScratchSummary      calleeSummary
 	referencedAfter       FunctionArgumentInjector_ReferencedAfterSideEffect
@@ -106,7 +106,7 @@ func replaceLexicalThis(node, parent rhino.Node, replaceThis func(thisNode, pare
 func replaceInjectedThis(
 	compiler AbstractCompiler,
 	node, parent rhino.Node,
-	replacements *inlineIDNodeMap,
+	replacements *smallIDNodeMap,
 ) rhino.Node {
 	replacementTemplate := replacements.get(calleeThisMarkerID)
 	rhino.CheckNotNull(replacementTemplate)
@@ -138,7 +138,7 @@ func (f *FunctionArgumentInjector) injectByID(
 	compiler AbstractCompiler,
 	node rhino.Node,
 	parent rhino.Node,
-	replacements *inlineIDNodeMap,
+	replacements *smallIDNodeMap,
 	replaceThis bool) rhino.Node {
 	if len(replacements.keys) == 0 {
 		return node
@@ -216,7 +216,7 @@ func hasDuplicateBindingID(bindings []callParamBinding) bool {
 	if n <= 1 {
 		return false
 	}
-	if n <= inlineSmallCap {
+	if n <= smallSetInlineCap {
 		for i := 1; i < n; i++ {
 			id := bindings[i].nameID
 			for j := 0; j < i; j++ {
@@ -380,7 +380,7 @@ func throwDuplicateParamBinding(bindings []callParamBinding) {
 func (f *FunctionArgumentInjector) failDuplicateParamBindings(
 	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string,
 ) {
-	var bindingsBuf [inlineSmallCap]callParamBinding
+	var bindingsBuf [smallSetInlineCap]callParamBinding
 	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
 	throwDuplicateParamBinding(bindings)
 }
@@ -389,7 +389,7 @@ func (f *FunctionArgumentInjector) fillCallParamNodeMap(
 	fnNode rhino.Node,
 	callNode rhino.Node,
 	safeNameIdSupplier func() string,
-	dst *inlineIDNodeMap,
+	dst *smallIDNodeMap,
 ) {
 	dst.clear()
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
@@ -480,7 +480,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
 	bindings []callParamBinding,
-	modifiedParameters *inlineIDSet,
+	modifiedParameters *smallIDSet,
 	convention CodingConvention,
 	summary *calleeSummary,
 	renamedClone bool,
@@ -662,7 +662,7 @@ func (f *FunctionArgumentInjector) hasCallArgumentsNeedingTempsForBindings(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
 	bindings []callParamBinding,
-	modifiedParameters *inlineIDSet,
+	modifiedParameters *smallIDSet,
 	convention CodingConvention,
 	summary *calleeSummary,
 ) bool {
@@ -694,11 +694,11 @@ func (f *FunctionArgumentInjector) gatherCallArgumentsNeedingTempsByID(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
 	bindings []callParamBinding,
-	modifiedParameters *inlineIDSet,
+	modifiedParameters *smallIDSet,
 	convention CodingConvention,
 	summary *calleeSummary,
 	renamedClone bool,
-	dst *inlineIDSet,
+	dst *smallIDSet,
 ) {
 	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
 	dst.clear()
@@ -718,7 +718,7 @@ func addCallArgumentsNeedingTempsByID(
 	fnNode rhino.Node,
 	bindings []callParamBinding,
 	requiresTempsUpToID uint32,
-	dst *inlineIDSet,
+	dst *smallIDSet,
 ) {
 	thisArg := findThisArgInBindings(bindings)
 	// mark all names up to requiresTempsUpToID as namesNeedingTemps
@@ -811,12 +811,12 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 	outer                *FunctionArgumentInjector
 	summary              *calleeSummary
-	locals               *inlineIDSet
+	locals               *smallIDSet
 	sideEffectSeen       bool
-	parametersReferenced inlineIDSet
+	parametersReferenced smallIDSet
 
 	nameNodeHasBeenSeen                          bool
-	parametersWithNamesReferencedBeforeParameter inlineIDSet
+	parametersWithNamesReferencedBeforeParameter smallIDSet
 
 	loopsEntered int
 }
@@ -824,7 +824,7 @@ type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) reset(
 	outer *FunctionArgumentInjector,
 	summary *calleeSummary,
-	locals *inlineIDSet,
+	locals *smallIDSet,
 ) {
 	r.outer = outer
 	r.summary = summary

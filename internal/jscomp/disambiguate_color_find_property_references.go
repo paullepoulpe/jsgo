@@ -219,16 +219,8 @@ func (r *ColorFindPropertyReferences) handleClass(t *NodeTraversal, cls ast.Clas
 	owners := classMemberOwners{ctor: classType}
 	for member := range body.Members() {
 		child := member.Node()
-		switch member.Token() {
-		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
-			continue
-		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-			if !child.IsQuotedStringKey() {
-				r.registerPropertyUse(t, child, owners.ownerOf(member))
-			}
-		default:
-			panic(jutil.NewIllegalStateExceptionMsg(
-				"Unexpected child of " + body.Node().GetToken().String() + ": " + child.ToStringTree()))
+		if isNamedPropertyMember(body.Node(), child) {
+			r.registerPropertyUse(t, child, owners.ownerOf(member))
 		}
 	}
 	r.createNode(classType)
@@ -270,19 +262,22 @@ func (r *ColorFindPropertyReferences) traverseObjectlitLike(t *NodeTraversal, n 
 	jutil.CheckState(n.IsObjectLit() || n.IsObjectPattern() || n.IsClassMembers())
 
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		switch child.GetToken() {
-		case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
-			continue
-		case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-			if child.IsQuotedStringKey() {
-				continue // These won't be renamed due to our assumptions. Ignore them.
-			}
-
+		if isNamedPropertyMember(n, child) {
 			r.registerPropertyUse(t, child, owner)
-		default:
-			panic(jutil.NewIllegalStateExceptionMsg(
-				"Unexpected child of " + n.GetToken().String() + ": " + child.ToStringTree()))
 		}
+	}
+}
+
+func isNamedPropertyMember(container, child rhino.Node) bool {
+	switch child.GetToken() {
+	case rhino.Token_BLOCK, rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_OBJECT_REST, rhino.Token_OBJECT_SPREAD:
+		return false
+	case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+		// Quoted keys won't be renamed due to our assumptions. Ignore them.
+		return !child.IsQuotedStringKey()
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Unexpected child of " + container.GetToken().String() + ": " + child.ToStringTree()))
 	}
 }
 

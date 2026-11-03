@@ -9,7 +9,6 @@ import (
 const (
 	smallSetInlineCap = 16
 	smallMapInlineCap = 8
-	inlineSmallCap    = smallSetInlineCap
 )
 
 // smallSet is a reusable insertion-ordered set backed by an inline buffer for
@@ -93,19 +92,13 @@ type smallIDSet struct {
 	smallSet[uint32]
 }
 
-type inlineIDSet = smallIDSet
-
+// Nil-safe forwarders: Go's promoted value-field wrapper panics on a nil outer pointer.
 func (s *smallIDSet) clear() {
-	if s == nil {
-		return
+	if s != nil {
+		s.smallSet.clear()
 	}
-	s.smallSet.clear()
 }
-
-func (s *smallIDSet) isEmpty() bool {
-	return s == nil || s.smallSet.isEmpty()
-}
-
+func (s *smallIDSet) isEmpty() bool { return s == nil || s.smallSet.isEmpty() }
 func (s *smallIDSet) size() int {
 	if s == nil {
 		return 0
@@ -336,26 +329,18 @@ type smallIDNodeMap struct {
 	smallMap[uint32, rhino.Node]
 }
 
-type inlineIDNodeMap = smallIDNodeMap
-
+// Nil-safe forwarders: Go's promoted value-field wrapper panics on a nil outer pointer.
 func (m *smallIDNodeMap) clear() {
-	if m == nil {
-		return
+	if m != nil {
+		m.smallMap.clear()
 	}
-	m.smallMap.clear()
 }
-
 func (m *smallIDNodeMap) release() {
-	if m == nil {
-		return
+	if m != nil {
+		m.smallMap.release()
 	}
-	m.smallMap.release()
 }
-
-func (m *smallIDNodeMap) isEmpty() bool {
-	return m == nil || m.smallMap.isEmpty()
-}
-
+func (m *smallIDNodeMap) isEmpty() bool { return m == nil || m.smallMap.isEmpty() }
 func (m *smallIDNodeMap) size() int {
 	if m == nil {
 		return 0

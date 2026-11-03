@@ -361,9 +361,6 @@ func (e InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) String() stri
 	return inlineFunctions_ShouldWarnWhenRequireInliningCannotInline_names[e]
 }
 
-// Java: InlineFunctions.ShouldWarnWhenRequireInliningCannotInline.ordinal()
-func (e InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) Ordinal() int { return int(e) }
-
 // InlineFunctions_CannotRemoveReason is the enum
 // InlineFunctions.CannotRemoveReason.
 type InlineFunctions_CannotRemoveReason int32
@@ -386,9 +383,6 @@ var inlineFunctions_CannotRemoveReason_names = [...]string{
 func (e InlineFunctions_CannotRemoveReason) String() string {
 	return inlineFunctions_CannotRemoveReason_names[e]
 }
-
-// Java: InlineFunctions.CannotRemoveReason.ordinal()
-func (e InlineFunctions_CannotRemoveReason) Ordinal() int { return int(e) }
 
 // InlineFunctions_DisallowInliningReason is the enum
 // InlineFunctions.DisallowInliningReason.
@@ -426,9 +420,6 @@ var inlineFunctions_DisallowInliningReason_names = [...]string{
 func (e InlineFunctions_DisallowInliningReason) String() string {
 	return inlineFunctions_DisallowInliningReason_names[e]
 }
-
-// Java: InlineFunctions.DisallowInliningReason.ordinal()
-func (e InlineFunctions_DisallowInliningReason) Ordinal() int { return int(e) }
 
 // InlineFunctions_ShouldRequireInlining is the record
 // InlineFunctions.ShouldRequireInlining(boolean shouldValidate, String
