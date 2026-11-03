@@ -108,7 +108,7 @@ func (t *PreprocessorSymbolTable) GetScope(slot rhino.SimpleSlot) rhino.StaticSc
 
 // Java: PreprocessorSymbolTable.addReference(Node)
 func (t *PreprocessorSymbolTable) AddReference(node rhino.Node) {
-	name, ok := t.QualifiedName(node)
+	name, ok := t.GetQualifiedName(node)
 	if !ok {
 		panic(jutil.NewNullPointerException())
 	}
@@ -124,20 +124,11 @@ func (t *PreprocessorSymbolTable) AddReferenceWithName(node rhino.Node, name str
 	t.refs[name] = append(t.refs[name], NewPreprocessorSymbolTable_Reference(slot, node))
 }
 
-// GetQualifiedName: this variant of Node#getQualifiedName is adds special
-// support STRING nodes which represent module names.
+// GetQualifiedName: this variant of Node#getQualifiedName adds special
+// support for STRINGLIT nodes which represent module names.
 //
 // Java: PreprocessorSymbolTable.getQualifiedName(Node)
-func (t *PreprocessorSymbolTable) GetQualifiedName(n rhino.Node) *string {
-	if s, ok := t.QualifiedName(n); ok {
-		return &s
-	}
-	return nil
-}
-
-// QualifiedName returns the qualified name for n (including STRINGLIT module names)
-// without pointer boxing.
-func (t *PreprocessorSymbolTable) QualifiedName(n rhino.Node) (string, bool) {
+func (t *PreprocessorSymbolTable) GetQualifiedName(n rhino.Node) (string, bool) {
 	if n.IsStringLit() {
 		return n.GetString(), true
 	}

@@ -399,7 +399,7 @@ type IServiceException interface {
 // Java: ServiceException(String)
 func NewServiceException(message string) *ServiceException {
 	e := &ServiceException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.ServiceException", &message, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.deps.ServiceException", message, nil)
 	return e
 }
 

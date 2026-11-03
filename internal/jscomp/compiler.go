@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 	"weak"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -241,7 +242,7 @@ type Compiler struct {
 	instrumentationMapping *VariableMap
 
 	// Id generator map
-	idGeneratorMap *string
+	idGeneratorMap base.OptString
 
 	// Conformance violations persisted across compilation stages.
 	conformanceViolations             []*ConformanceViolationsProto

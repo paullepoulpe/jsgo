@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -162,8 +161,8 @@ func (c *RewritePolyfillsTest) TestEmpty() {
 
 // Java: RewritePolyfillsTest.testClassesInjected()
 func (c *RewritePolyfillsTest) TestClassesInjected() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
-	c.AddLibrary("Set", "es6", "es3", jutil.StringPtr("es6/set"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
+	c.AddLibrary("Set", "es6", "es3", testStringPtr("es6/set"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects("var m = new Map();", "es6/map")
@@ -177,7 +176,7 @@ func (c *RewritePolyfillsTest) TestClassesInjected() {
 
 // Java: RewritePolyfillsTest.testLibrariesOnlyInjectedOnce()
 func (c *RewritePolyfillsTest) TestLibrariesOnlyInjectedOnce() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects("var m = new Map(); m = new Map();", "es6/map")
@@ -186,8 +185,8 @@ func (c *RewritePolyfillsTest) TestLibrariesOnlyInjectedOnce() {
 // Java: RewritePolyfillsTest.testClassesNotInjectedIfSufficientLanguageOut()
 func (c *RewritePolyfillsTest) TestClassesNotInjectedIfSufficientLanguageOut() {
 	c.AddLibrary("Proxy", "es6", "es6", nil)
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
-	c.AddLibrary("Set", "es6", "es3", jutil.StringPtr("es6/set"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
+	c.AddLibrary("Set", "es6", "es3", testStringPtr("es6/set"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES6)
 	c.TestDoesNotInject("new Proxy();")
@@ -197,7 +196,7 @@ func (c *RewritePolyfillsTest) TestClassesNotInjectedIfSufficientLanguageOut() {
 
 // Java: RewritePolyfillsTest.testClassesNotInjectedIfDeclaredInScope()
 func (c *RewritePolyfillsTest) TestClassesNotInjectedIfDeclaredInScope() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestDoesNotInject("/** @constructor */ var Map = function() {}; new Map();")
@@ -206,7 +205,7 @@ func (c *RewritePolyfillsTest) TestClassesNotInjectedIfDeclaredInScope() {
 // Java: RewritePolyfillsTest.testClassesWarnIfInsufficientLanguageOut()
 func (c *RewritePolyfillsTest) TestClassesWarnIfInsufficientLanguageOut() {
 	c.AddLibrary("Proxy", "es6", "es6", nil)
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjectsWithWarning("new Proxy();", RewritePolyfills_INSUFFICIENT_OUTPUT_VERSION_ERROR)
@@ -217,8 +216,8 @@ func (c *RewritePolyfillsTest) TestClassesWarnIfInsufficientLanguageOut() {
 
 // Java: RewritePolyfillsTest.testGlobalThisInjected()
 func (c *RewritePolyfillsTest) TestGlobalThisInjected() {
-	c.AddLibrary("globalThis", "es_2020", "es3", jutil.StringPtr("es6/globalThis"))
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("globalThis", "es_2020", "es3", testStringPtr("es6/globalThis"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.TestInjects("globalThis.String", "es6/globalThis")
 	c.TestInjects("var m = new globalThis.Map();", "es6/globalThis", "es6/map")
@@ -226,8 +225,8 @@ func (c *RewritePolyfillsTest) TestGlobalThisInjected() {
 
 // Java: RewritePolyfillsTest.testGlobalThisInjectedNotInjectedGivenSufficientLanguageOut()
 func (c *RewritePolyfillsTest) TestGlobalThisInjectedNotInjectedGivenSufficientLanguageOut() {
-	c.AddLibrary("globalThis", "es_2020", "es3", jutil.StringPtr("es6/globalThis"))
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("globalThis", "es_2020", "es3", testStringPtr("es6/globalThis"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES_2020)
 	c.TestDoesNotInject("globalThis.String")
@@ -236,9 +235,9 @@ func (c *RewritePolyfillsTest) TestGlobalThisInjectedNotInjectedGivenSufficientL
 
 // Java: RewritePolyfillsTest.testStaticMethodsInjected()
 func (c *RewritePolyfillsTest) TestStaticMethodsInjected() {
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
-	c.AddLibrary("Array.of", "es6", "es3", jutil.StringPtr("es6/array/of"))
-	c.AddLibrary("Object.keys", "es5", "es3", jutil.StringPtr("es5/object/keys"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
+	c.AddLibrary("Array.of", "es6", "es3", testStringPtr("es6/array/of"))
+	c.AddLibrary("Object.keys", "es5", "es3", testStringPtr("es5/object/keys"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects("Math.clz32(x);", "es6/math/clz32")
@@ -253,9 +252,9 @@ func (c *RewritePolyfillsTest) TestStaticMethodsInjected() {
 // Java: RewritePolyfillsTest.testStaticMethodsNotInjectedIfSufficientLanguageOut()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInjectedIfSufficientLanguageOut() {
 	c.AddLibrary("Array.from", "es6", "es6", nil)
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
-	c.AddLibrary("Array.of", "es6", "es3", jutil.StringPtr("es6/array/of"))
-	c.AddLibrary("Object.keys", "es5", "es3", jutil.StringPtr("es5/object/keys"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
+	c.AddLibrary("Array.of", "es6", "es3", testStringPtr("es6/array/of"))
+	c.AddLibrary("Object.keys", "es5", "es3", testStringPtr("es5/object/keys"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES6)
 	c.TestDoesNotInject("Array.from(x);")
@@ -268,7 +267,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInjectedIfSufficientLanguageO
 
 // Java: RewritePolyfillsTest.testStaticMethodsNotInjectedIfDeclaredInScope()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInjectedIfDeclaredInScope() {
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestDoesNotInject("var Math = {clz32: function() {}}; Math.clz32(x);")
@@ -277,7 +276,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInjectedIfDeclaredInScope() {
 // Java: RewritePolyfillsTest.testStaticMethodsWarnIfInsufficientLanguageOut()
 func (c *RewritePolyfillsTest) TestStaticMethodsWarnIfInsufficientLanguageOut() {
 	c.AddLibrary("Array.from", "es6", "es6", nil)
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjectsWithWarning("Array.from(x);", RewritePolyfills_INSUFFICIENT_OUTPUT_VERSION_ERROR)
@@ -289,7 +288,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsWarnIfInsufficientLanguageOut() 
 
 // Java: RewritePolyfillsTest.testStaticMethodsNotInstalledIfGuardedByIf()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByIf() {
-	c.AddLibrary("Array.of", "es6", "es5", jutil.StringPtr("es6/array/of"))
+	c.AddLibrary("Array.of", "es6", "es5", testStringPtr("es6/array/of"))
 
 	c.TestDoesNotInject("if (Array.of) { Array.of(); } else { Array.of(); }")
 	c.TestDoesNotInject("if (x || Array.of) { Array.of(x); }")
@@ -304,7 +303,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByIf() {
 
 // Java: RewritePolyfillsTest.testStaticMethodsNotInstalledIfGuardedByLogicalOperator()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByLogicalOperator() {
-	c.AddLibrary("Array.of", "es6", "es5", jutil.StringPtr("es6/array/of"))
+	c.AddLibrary("Array.of", "es6", "es5", testStringPtr("es6/array/of"))
 
 	c.TestDoesNotInject("Array.of && Array.of();")
 	c.TestDoesNotInject("!Array.of || Array.of();")
@@ -317,7 +316,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByLogicalOp
 // Java: RewritePolyfillsTest.testStaticMethodsNotInstalledIfGuardedByNullishCoalesce()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByNullishCoalesce() {
 	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_UNSTABLE)
-	c.AddLibrary("Array.of", "es_unstable", "es5", jutil.StringPtr("es6/array/of"))
+	c.AddLibrary("Array.of", "es_unstable", "es5", testStringPtr("es6/array/of"))
 
 	c.TestDoesNotInject("!Array.of ?? Array.of();")
 	// NOTE: ?? is not safe by itself.
@@ -327,7 +326,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByNullishCo
 
 // Java: RewritePolyfillsTest.testStaticMethodsNotInstalledIfGuardedByHook()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByHook() {
-	c.AddLibrary("Array.of", "es6", "es5", jutil.StringPtr("es6/array/of"))
+	c.AddLibrary("Array.of", "es6", "es5", testStringPtr("es6/array/of"))
 
 	c.TestDoesNotInject("var x = Array.of ? y : function(z) { Array.of(z); };")
 	c.TestDoesNotInject("var x = Array.of ? function(y) { Array.of(y); } : z;")
@@ -340,7 +339,7 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByHook() {
 
 // Java: RewritePolyfillsTest.testStaticMethodsNotInstalledIfGuardedByAbruptReturn()
 func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByAbruptReturn() {
-	c.AddLibrary("Array.of", "es6", "es5", jutil.StringPtr("es6/array/of"))
+	c.AddLibrary("Array.of", "es6", "es5", testStringPtr("es6/array/of"))
 
 	c.TestDoesNotInject("if (!Array.of) throw 'x'; Array.of();")
 	c.TestDoesNotInject("!function() { if (!Array.of) return; Array.of(); }")
@@ -358,9 +357,9 @@ func (c *RewritePolyfillsTest) TestStaticMethodsNotInstalledIfGuardedByAbruptRet
 
 // Java: RewritePolyfillsTest.testPrototypeMethodsInjected()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsInjected() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
-	c.AddLibrary("Array.prototype.fill", "es6", "es3", jutil.StringPtr("es6/array/fill"))
-	c.AddLibrary("Array.prototype.forEach", "es5", "es3", jutil.StringPtr("es5/array/foreach"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
+	c.AddLibrary("Array.prototype.fill", "es6", "es3", testStringPtr("es6/array/fill"))
+	c.AddLibrary("Array.prototype.forEach", "es5", "es3", testStringPtr("es5/array/foreach"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects("x.endsWith(y);", "es6/string/endswith")
@@ -373,9 +372,9 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsInjected() {
 // Java: RewritePolyfillsTest.testPrototypeMethodsNotInjectedIfSufficientLanguageOut()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInjectedIfSufficientLanguageOut() {
 	c.AddLibrary("String.prototype.normalize", "es6", "es6", nil)
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
-	c.AddLibrary("Array.prototype.fill", "es6", "es3", jutil.StringPtr("es6/array/fill"))
-	c.AddLibrary("Array.prototype.forEach", "es5", "es3", jutil.StringPtr("es5/array/foreach"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
+	c.AddLibrary("Array.prototype.fill", "es6", "es3", testStringPtr("es6/array/fill"))
+	c.AddLibrary("Array.prototype.forEach", "es5", "es3", testStringPtr("es5/array/foreach"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES6)
 	c.TestDoesNotInject("x.normalize();")
@@ -389,8 +388,8 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInjectedIfSufficientLangua
 // Java: RewritePolyfillsTest.testPrototypeMethodsDontWarnIfInsufficientVersionNumber()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsDontWarnIfInsufficientVersionNumber() {
 	c.AddLibrary("String.prototype.normalize", "es6", "es6", nil)
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
-	c.AddLibrary("Array.prototype.fill", "es6", "es3", jutil.StringPtr("es6/array/fill"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
+	c.AddLibrary("Array.prototype.fill", "es6", "es3", testStringPtr("es6/array/fill"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES3)
 	c.TestDoesNotInject("x.normalize();")
@@ -400,8 +399,8 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsDontWarnIfInsufficientVersion
 
 // Java: RewritePolyfillsTest.testMultiplePrototypeMethodsWithSameName()
 func (c *RewritePolyfillsTest) TestMultiplePrototypeMethodsWithSameName() {
-	c.AddLibrary("Array.prototype.includes", "es6", "es3", jutil.StringPtr("es6/array/includes"))
-	c.AddLibrary("String.prototype.includes", "es5", "es3", jutil.StringPtr("es5/string/includes"))
+	c.AddLibrary("Array.prototype.includes", "es6", "es3", testStringPtr("es6/array/includes"))
+	c.AddLibrary("String.prototype.includes", "es5", "es3", testStringPtr("es5/string/includes"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects("x.includes();", "es6/array/includes")
@@ -412,7 +411,7 @@ func (c *RewritePolyfillsTest) TestMultiplePrototypeMethodsWithSameName() {
 
 // Java: RewritePolyfillsTest.testPrototypeMethodsInstalledIfStaticMethodShadowed()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsInstalledIfStaticMethodShadowed() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects(
@@ -430,7 +429,7 @@ string.foo = function(string) { return string.endsWith('x'); };
 //
 // Java: RewritePolyfillsTest.testPrototypeMethodsInstalledIfActuallyStatic()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsInstalledIfActuallyStatic() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES6, rewritePolyfillsTest_ES5)
 	c.TestInjects(
@@ -447,7 +446,7 @@ string.foo = function() { return string.endsWith('x'); };
 
 // Java: RewritePolyfillsTest.testPrototypeMethodsNotInstalledIfGuardedByIf()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByIf() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("if (String.prototype.endsWith) { x.endsWith(); } else { y.endsWith(); }")
 	c.TestDoesNotInject("if (x || String.prototype.endsWith) { x.endsWith(); }")
@@ -462,7 +461,7 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByIf() {
 
 // Java: RewritePolyfillsTest.testPrototypeMethodsNotInstalledIfGuardedByLogicalOperator()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByLogicalOperator() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("String.prototype.endsWith && x.endsWith();")
 	c.TestDoesNotInject("!String.prototype.endsWith || x.endsWith();")
@@ -476,7 +475,7 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByLogica
 // Java: RewritePolyfillsTest.testPrototypeMethodsNotInstalledIfGuardedByNullishCoalesce()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByNullishCoalesce() {
 	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_UNSTABLE)
-	c.AddLibrary("String.prototype.endsWith", "es_unstable", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es_unstable", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("!String.prototype.endsWith ?? x.endsWith();")
 	// NOTE: ?? is not safe by itself.
@@ -486,7 +485,7 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByNullis
 
 // Java: RewritePolyfillsTest.testPrototypeMethodsNotInstalledIfGuardedByHook()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByHook() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("var x = String.prototype.endsWith ? y : function(z) { z.endsWith(); };")
 	c.TestDoesNotInject("var x = String.prototype.endsWith ? function(y) { y.endsWith(); } : z;")
@@ -499,7 +498,7 @@ func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByHook()
 
 // Java: RewritePolyfillsTest.testPrototypeMethodsNotInstalledIfGuardedByAbruptReturn()
 func (c *RewritePolyfillsTest) TestPrototypeMethodsNotInstalledIfGuardedByAbruptReturn() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("if (!x.endsWith) throw 'x'; y.endsWith();")
 	c.TestDoesNotInject("if (!x.endsWith) { throw 'x'; } y.endsWith();")
@@ -550,7 +549,7 @@ func (c *RewritePolyfillsTest) TestRegexFeatureSetException() {
 	// with the feature set of the specification that added them.
 
 	// Promise.prototype.finally was added in ES_2018
-	c.AddLibrary("Promise.prototype.finally", "es_2018", "es3", jutil.StringPtr("es6/promise/finally"))
+	c.AddLibrary("Promise.prototype.finally", "es_2018", "es3", testStringPtr("es6/promise/finally"))
 
 	// input is assumed to contain features from the rewritePolyfillsTest_ES_2020 spec
 	c.SetAcceptedLanguage(rewritePolyfillsTest_ES_2020)
@@ -596,7 +595,7 @@ var set = new Set();
 // Java: RewritePolyfillsTest.testAddsPolyfillMethodToExterns()
 func (c *RewritePolyfillsTest) TestAddsPolyfillMethodToExterns() {
 	c.isolatePolyfills = true
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestExternChanges(c.Srcs(""), c.Expected("var $jscomp$lookupPolyfilledValue"))
 }
@@ -605,7 +604,7 @@ func (c *RewritePolyfillsTest) TestAddsPolyfillMethodToExterns() {
 func (c *RewritePolyfillsTest) TestNoCodeChangesIfInjectionDisabled() {
 	c.isolatePolyfills = true
 	c.injectPolyfills = false
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestExternChanges(c.Srcs(""), c.Expected("var $jscomp$lookupPolyfilledValue"))
 
@@ -616,8 +615,8 @@ func (c *RewritePolyfillsTest) TestNoCodeChangesIfInjectionDisabled() {
 // Java: RewritePolyfillsTest.testForceInject_es5_addsES6AndES8()
 func (c *RewritePolyfillsTest) TestForceInject_es5_addsES6AndES8() {
 	c.injectPolyfillsNewerThan, c.hasInjectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT5, true
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
-	c.AddLibrary("Object.values", "es8", "es3", jutil.StringPtr("es6/object/values"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
+	c.AddLibrary("Object.values", "es8", "es3", testStringPtr("es6/object/values"))
 
 	c.TestInjects("", "es6/string/endswith", "es6/object/values")
 }
@@ -625,7 +624,7 @@ func (c *RewritePolyfillsTest) TestForceInject_es5_addsES6AndES8() {
 // Java: RewritePolyfillsTest.testForceInject_es2015_addsES8Polyfill()
 func (c *RewritePolyfillsTest) TestForceInject_es2015_addsES8Polyfill() {
 	c.injectPolyfillsNewerThan, c.hasInjectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT5, true
-	c.AddLibrary("Object.values", "es8", "es3", jutil.StringPtr("es6/object/values"))
+	c.AddLibrary("Object.values", "es8", "es3", testStringPtr("es6/object/values"))
 
 	c.TestInjects("", "es6/object/values")
 }
@@ -633,21 +632,21 @@ func (c *RewritePolyfillsTest) TestForceInject_es2015_addsES8Polyfill() {
 // Java: RewritePolyfillsTest.testForceInject_es2015_skipsEs2015Polyfills()
 func (c *RewritePolyfillsTest) TestForceInject_es2015_skipsEs2015Polyfills() {
 	c.injectPolyfillsNewerThan, c.hasInjectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT_2015, true
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("")
 }
 
 // Java: RewritePolyfillsTest.testIteratorPolyfill()
 func (c *RewritePolyfillsTest) TestIteratorPolyfill() {
-	c.AddLibrary("Iterator", "es_next", "es3", jutil.StringPtr("es6/iterator"))
-	c.AddLibrary("Iterator.from", "es_next", "es3", jutil.StringPtr("es6/iterator/from"))
-	c.AddLibrary("Iterator.prototype.every", "es_next", "es3", jutil.StringPtr("es6/iterator/every"))
-	c.AddLibrary("Iterator.prototype.find", "es_next", "es3", jutil.StringPtr("es6/iterator/find"))
-	c.AddLibrary("Iterator.prototype.forEach", "es_next", "es3", jutil.StringPtr("es6/iterator/foreach"))
-	c.AddLibrary("Iterator.prototype.reduce", "es_next", "es3", jutil.StringPtr("es6/iterator/reduce"))
-	c.AddLibrary("Iterator.prototype.some", "es_next", "es3", jutil.StringPtr("es6/iterator/some"))
-	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", jutil.StringPtr("es6/iterator/toarray"))
+	c.AddLibrary("Iterator", "es_next", "es3", testStringPtr("es6/iterator"))
+	c.AddLibrary("Iterator.from", "es_next", "es3", testStringPtr("es6/iterator/from"))
+	c.AddLibrary("Iterator.prototype.every", "es_next", "es3", testStringPtr("es6/iterator/every"))
+	c.AddLibrary("Iterator.prototype.find", "es_next", "es3", testStringPtr("es6/iterator/find"))
+	c.AddLibrary("Iterator.prototype.forEach", "es_next", "es3", testStringPtr("es6/iterator/foreach"))
+	c.AddLibrary("Iterator.prototype.reduce", "es_next", "es3", testStringPtr("es6/iterator/reduce"))
+	c.AddLibrary("Iterator.prototype.some", "es_next", "es3", testStringPtr("es6/iterator/some"))
+	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", testStringPtr("es6/iterator/toarray"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES3)
 	c.TestInjects("Iterator;", "es6/iterator")
@@ -665,11 +664,11 @@ func (c *RewritePolyfillsTest) TestIteratorPolyfill() {
 // Java: RewritePolyfillsTest.testIteratorPolyfill_typedReceiver()
 func (c *RewritePolyfillsTest) TestIteratorPolyfill_typedReceiver() {
 	c.disambiguateProperties = true
-	c.AddLibrary("Iterator", "es_next", "es3", jutil.StringPtr("es6/iterator"))
-	c.AddLibrary("Iterator.prototype.every", "es_next", "es3", jutil.StringPtr("es6/iterator/every"))
-	c.AddLibrary("Iterator.prototype.find", "es_next", "es3", jutil.StringPtr("es6/iterator/find"))
-	c.AddLibrary("Iterator.prototype.some", "es_next", "es3", jutil.StringPtr("es6/iterator/some"))
-	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", jutil.StringPtr("es6/iterator/toarray"))
+	c.AddLibrary("Iterator", "es_next", "es3", testStringPtr("es6/iterator"))
+	c.AddLibrary("Iterator.prototype.every", "es_next", "es3", testStringPtr("es6/iterator/every"))
+	c.AddLibrary("Iterator.prototype.find", "es_next", "es3", testStringPtr("es6/iterator/find"))
+	c.AddLibrary("Iterator.prototype.some", "es_next", "es3", testStringPtr("es6/iterator/some"))
+	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", testStringPtr("es6/iterator/toarray"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES3)
 	c.EnableTypeCheck()
@@ -790,8 +789,8 @@ func (c *RewritePolyfillsTest) TestIteratorPolyfill_typedReceiver() {
 // Java: RewritePolyfillsTest.testIteratorPolyfill_typedReceiver_disambiguatePropertiesDisabled_injects()
 func (c *RewritePolyfillsTest) TestIteratorPolyfill_typedReceiver_disambiguatePropertiesDisabled_injects() {
 	c.disambiguateProperties = false
-	c.AddLibrary("Iterator", "es_next", "es3", jutil.StringPtr("es6/iterator"))
-	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", jutil.StringPtr("es6/iterator/toarray"))
+	c.AddLibrary("Iterator", "es_next", "es3", testStringPtr("es6/iterator"))
+	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", testStringPtr("es6/iterator/toarray"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES3)
 	c.EnableTypeCheck()

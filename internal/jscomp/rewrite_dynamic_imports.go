@@ -207,7 +207,7 @@ func (r *RewriteDynamicImports) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 
 		var targetModuleNS *Var
 		if module != nil {
-			targetModuleVarName := ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(module.Metadata(), nil, nil).AliasName().Join()
+			targetModuleVarName := ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(module.Metadata(), base.NoString(), nil).AliasName().Join()
 			targetModuleNS = t.GetScope().GetVar(targetModuleVarName)
 		}
 

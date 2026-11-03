@@ -20,9 +20,12 @@
 package jscomp
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -270,4 +273,385 @@ func (c *CombinedCompilerPassTest) TestScopes() {
 	AssertThat(c1.GetVisitedScopes().Size()).IsEqualTo(1)
 	AssertThat(c2.GetVisitedScopes().Size()).IsEqualTo(3)
 	AssertThat(c3.GetVisitedScopes().Size()).IsEqualTo(5)
+}
+
+type testFilteredCallback struct {
+	id         string
+	tokens     *ast.TokenSet
+	jsdoc      bool
+	noST       bool
+	onlySF     bool
+	noVisit    bool
+	shouldFn   func(t *NodeTraversal, n, parent rhino.Node) bool
+	visitFn    func(t *NodeTraversal, n, parent rhino.Node)
+	enterFn    func(t *NodeTraversal)
+	events     []string
+	sawNilMask bool
+}
+
+func (cb *testFilteredCallback) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
+	cb.events = append(cb.events, fmt.Sprintf("ST:%s:%s", cb.id, n.GetToken()))
+	if cb.shouldFn != nil {
+		return cb.shouldFn(t, n, parent)
+	}
+	return true
+}
+
+func (cb *testFilteredCallback) Visit(t *NodeTraversal, n, parent rhino.Node) {
+	if t.visitTokens == nil {
+		cb.sawNilMask = true
+	}
+	cb.events = append(cb.events, fmt.Sprintf("V:%s:%s:jsdoc=%v", cb.id, n.GetToken(), n.HasJSDocInfo()))
+	if cb.visitFn != nil {
+		cb.visitFn(t, n, parent)
+	}
+}
+
+func (cb *testFilteredCallback) EnterScope(t *NodeTraversal) {
+	cb.events = append(cb.events, fmt.Sprintf("EN:%s:%s", cb.id, t.GetScopeRoot().GetToken()))
+	if cb.enterFn != nil {
+		cb.enterFn(t)
+	}
+}
+
+func (cb *testFilteredCallback) ExitScope(t *NodeTraversal) {
+	cb.events = append(cb.events, fmt.Sprintf("EX:%s:%s", cb.id, t.GetScopeRoot().GetToken()))
+}
+
+func (cb *testFilteredCallback) visitTokens() *ast.TokenSet { return cb.tokens }
+func (cb *testFilteredCallback) visitJSDoc() bool           { return cb.jsdoc }
+func (cb *testFilteredCallback) shouldTraverseOnlyScriptAndFunction() bool {
+	return cb.onlySF
+}
+
+type testNoSTFilteredCallback struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+	tokens  *ast.TokenSet
+	jsdoc   bool
+	visitFn func(t *NodeTraversal, n, parent rhino.Node)
+	events  []string
+}
+
+func (cb *testNoSTFilteredCallback) Visit(t *NodeTraversal, n, parent rhino.Node) {
+	cb.events = append(cb.events, fmt.Sprintf("V:%s:jsdoc=%v", n.GetToken(), n.HasJSDocInfo()))
+	if cb.visitFn != nil {
+		cb.visitFn(t, n, parent)
+	}
+}
+
+func (cb *testNoSTFilteredCallback) visitTokens() *ast.TokenSet { return cb.tokens }
+func (cb *testNoSTFilteredCallback) visitJSDoc() bool           { return cb.jsdoc }
+
+type testPreOrderCallback struct {
+	NodeTraversal_AbstractPreOrderCallbackBase
+	shouldFn func(t *NodeTraversal, n, parent rhino.Node) bool
+	events   []string
+}
+
+func (cb *testPreOrderCallback) ShouldTraverse(t *NodeTraversal, n, parent rhino.Node) bool {
+	cb.events = append(cb.events, fmt.Sprintf("ST:%s", n.GetToken()))
+	if cb.shouldFn != nil {
+		return cb.shouldFn(t, n, parent)
+	}
+	return true
+}
+
+func attachTestJSDoc(n rhino.Node) {
+	b := rhino.JSDocInfo_Builder_()
+	b.RecordConstancy()
+	n.SetJSDocInfo(b.Build())
+}
+
+func TestCombinedCompilerPass_VisitJSDocAndTokenFilter(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	root := compiler.ParseTestCode("function f(a) { var x = 1 + 2; debugger; return f(a); }")
+
+	// Attach JSDoc to both a branch node (ADD) and normal leaf nodes (NUMBER, DEBUGGER).
+	var addNode, numNode, dbgNode rhino.Node
+	NodeUtil_VisitPreOrder(root, func(n rhino.Node) {
+		switch n.GetToken() {
+		case rhino.Token_ADD:
+			addNode = n
+		case rhino.Token_NUMBER:
+			if numNode.IsNil() {
+				numNode = n
+			}
+		case rhino.Token_DEBUGGER:
+			dbgNode = n
+		}
+	})
+	attachTestJSDoc(addNode)
+	attachTestJSDoc(numNode)
+	attachTestJSDoc(dbgNode)
+
+	callSet := makeVisitTokenSet(rhino.Token_CALL)
+	fnSet := makeVisitTokenSet(rhino.Token_FUNCTION)
+
+	makeCallbacks := func() (*testNoSTFilteredCallback, *testNoSTFilteredCallback, *testNoSTFilteredCallback) {
+		jsdocOnly := &testNoSTFilteredCallback{tokens: &emptyTokenSet, jsdoc: true}
+		callOnly := &testNoSTFilteredCallback{tokens: &callSet, jsdoc: false}
+		fnAndJSDoc := &testNoSTFilteredCallback{tokens: &fnSet, jsdoc: true}
+		return jsdocOnly, callOnly, fnAndJSDoc
+	}
+
+	s1, s2, s3 := makeCallbacks()
+	NodeTraversal_Traverse(compiler, root, s1)
+	NodeTraversal_Traverse(compiler, root, s2)
+	NodeTraversal_Traverse(compiler, root, s3)
+
+	if len(s1.events) != 3 {
+		t.Fatalf("expected jsdocOnly to visit exactly 3 JSDoc nodes, got %v", s1.events)
+	}
+
+	c1, c2, c3 := makeCallbacks()
+	sawUnfiltered := false
+	c1.visitFn = func(nt *NodeTraversal, _, _ rhino.Node) {
+		if nt.visitTokens == nil || !nt.visitJSDoc || !nt.noShouldTraverse || !nt.noBranchShouldTraverse {
+			sawUnfiltered = true
+		}
+	}
+	NewCombinedCompilerPass(compiler, c1, c2, c3).Process(rhino.NilNode, root)
+
+	if sawUnfiltered {
+		t.Fatalf("expected CombinedCompilerPass to keep visitTokens, visitJSDoc, noShouldTraverse, and noBranchShouldTraverse enabled")
+	}
+	if !slices.Equal(c1.events, s1.events) {
+		t.Fatalf("jsdocOnly mismatch:\ngot:  %v\nwant: %v", c1.events, s1.events)
+	}
+	if !slices.Equal(c2.events, s2.events) {
+		t.Fatalf("callOnly mismatch:\ngot:  %v\nwant: %v", c2.events, s2.events)
+	}
+	if !slices.Equal(c3.events, s3.events) {
+		t.Fatalf("fnAndJSDoc mismatch:\ngot:  %v\nwant: %v", c3.events, s3.events)
+	}
+}
+
+func TestCombinedCompilerPass_WaitingTokenMaskParityAndActiveFilters(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	s1 := compiler.ParseSyntheticCode("s1.js", "function outer() { function inner() { callInner(); } callOuter(); } function sib() { return 1; }")
+	s2 := compiler.ParseSyntheticCode("s2.js", "var z = 1; z = 2;")
+	root := rhino.IR_Root(s1, s2)
+
+	// Attach JSDoc to a leaf inside inner() and a statement in s2.
+	NodeUtil_VisitPreOrder(root, func(n rhino.Node) {
+		if n.IsNumber() {
+			attachTestJSDoc(n)
+		}
+	})
+
+	modSet := makeVisitTokenSet(rhino.Token_MODULE_BODY)
+	callSet := makeVisitTokenSet(rhino.Token_CALL)
+	retSet := makeVisitTokenSet(rhino.Token_RETURN)
+	assignSet := makeVisitTokenSet(rhino.Token_ASSIGN)
+
+	buildSuite := func() []NodeTraversal_Callback {
+		// Callback 0: deactivates on s1 (SCRIPT), active on s2.
+		cb0 := &testFilteredCallback{
+			id:     "cb0",
+			tokens: &modSet,
+			shouldFn: func(_ *NodeTraversal, n, _ rhino.Node) bool {
+				return n != s1
+			},
+		}
+		// Callback 1: deactivates on outer() FUNCTION.
+		cb1 := &testFilteredCallback{
+			id:     "cb1",
+			tokens: &callSet,
+			jsdoc:  true,
+			shouldFn: func(_ *NodeTraversal, n, _ rhino.Node) bool {
+				return !n.IsFunction() || n.GetFirstChild().GetString() != "outer"
+			},
+		}
+		// Callback 2: deactivates on inner() FUNCTION (same Token_FUNCTION as outer!).
+		cb2 := &testFilteredCallback{
+			id:     "cb2",
+			tokens: &callSet,
+			shouldFn: func(_ *NodeTraversal, n, _ rhino.Node) bool {
+				return !n.IsFunction() || n.GetFirstChild().GetString() != "inner"
+			},
+		}
+		// Callback 3: post-order only + JSDoc.
+		cb3 := &testNoSTFilteredCallback{
+			tokens: &retSet,
+			jsdoc:  true,
+		}
+		// Callback 4: onlyScriptAndFunction ShouldTraverse.
+		cb4 := &testFilteredCallback{
+			id:     "cb4",
+			tokens: &assignSet,
+			onlySF: true,
+		}
+		return []NodeTraversal_Callback{cb0, cb1, cb2, cb3, cb4}
+	}
+
+	standalone := buildSuite()
+	for _, cb := range standalone {
+		NodeTraversal_Traverse(compiler, root, cb)
+	}
+
+	combined := buildSuite()
+	NewCombinedCompilerPassOfList(compiler, combined).Process(rhino.NilNode, root)
+
+	for i := range standalone {
+		switch s := standalone[i].(type) {
+		case *testFilteredCallback:
+			c := combined[i].(*testFilteredCallback)
+			if c.sawNilMask {
+				t.Fatalf("callback %d saw nil t.visitTokens while subset callbacks were waiting", i)
+			}
+			if !slices.Equal(c.events, s.events) {
+				t.Fatalf("callback %d mismatch:\ngot:  %v\nwant: %v", i, c.events, s.events)
+			}
+		case *testNoSTFilteredCallback:
+			c := combined[i].(*testNoSTFilteredCallback)
+			if !slices.Equal(c.events, s.events) {
+				t.Fatalf("callback %d mismatch:\ngot:  %v\nwant: %v", i, c.events, s.events)
+			}
+		}
+	}
+}
+
+func TestCombinedCompilerPass_NoShouldTraverseWhenDeactivatedAndLeafReactivation(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	s1 := compiler.ParseSyntheticCode("s1.js", "var a = 1; function fn() { var b = a; }")
+	s2 := compiler.ParseSyntheticCode("s2.js", "var c = 2;")
+	root := rhino.IR_Root(s1, s2)
+
+	scriptSet := makeVisitTokenSet(rhino.Token_MODULE_BODY)
+	nameSet := makeVisitTokenSet(rhino.Token_NAME)
+
+	pruner := &testFilteredCallback{
+		id:     "pruner",
+		tokens: &scriptSet,
+		shouldFn: func(_ *NodeTraversal, n, _ rhino.Node) bool {
+			return n != s1
+		},
+	}
+	sawDisabledNoSTInS1 := false
+	visitor := &testNoSTFilteredCallback{
+		tokens: &nameSet,
+		visitFn: func(nt *NodeTraversal, n, _ rhino.Node) {
+			if nt.GetCurrentScript() == s1 && (!nt.noShouldTraverse || !nt.noBranchShouldTraverse || nt.visitTokens == nil) {
+				sawDisabledNoSTInS1 = true
+			}
+		},
+	}
+
+	NewCombinedCompilerPass(compiler, pruner, visitor).Process(rhino.NilNode, root)
+	if sawDisabledNoSTInS1 {
+		t.Fatalf("expected noShouldTraverse, noBranchShouldTraverse, and visitTokens to stay active inside s1 when pruner is deactivated at s1")
+	}
+	// Verify pruner reactivated at exit of s1 and ran ShouldTraverse on s2.
+	sawS2 := false
+	for _, ev := range pruner.events {
+		if ev == "ST:pruner:SCRIPT" {
+			// Should be called on BOTH s1 and s2.
+			if sawS2 {
+				break
+			}
+			sawS2 = true
+		}
+	}
+	stScriptCount := 0
+	for _, ev := range pruner.events {
+		if ev == "ST:pruner:SCRIPT" {
+			stScriptCount++
+		}
+	}
+	if stScriptCount != 2 {
+		t.Fatalf("expected pruner.ShouldTraverse to run on both SCRIPT nodes, got count=%d events=%v", stScriptCount, pruner.events)
+	}
+
+	// Also verify allNoVisit leaf deactivation/reactivation (e.g. EMPTY `;` and DEBUGGER `debugger;`).
+	leafRoot := compiler.ParseTestCode("; debugger; var afterLeaf = 1;")
+	p1 := &testPreOrderCallback{
+		shouldFn: func(_ *NodeTraversal, n, _ rhino.Node) bool {
+			return !n.IsEmpty() && !n.IsDebugger()
+		},
+	}
+	p2 := &testPreOrderCallback{}
+	NewCombinedCompilerPass(compiler, p1, p2).Process(rhino.NilNode, leafRoot)
+
+	sP1 := &testPreOrderCallback{shouldFn: p1.shouldFn}
+	NodeTraversal_Traverse(compiler, leafRoot, sP1)
+	if !slices.Equal(p1.events, sP1.events) {
+		t.Fatalf("leaf pre-order reactivation mismatch:\ngot:  %v\nwant: %v", p1.events, sP1.events)
+	}
+}
+
+func TestCombinedCompilerPass_HaltingErrorStopsTraversalWhenNoShouldTraverse(t *testing.T) {
+	haltDiag := DiagnosticType_Error("JSC_TEST_HALTING_ERROR", "halting test error")
+
+	t.Run("haltInVisit", func(t *testing.T) {
+		compiler := NewCompiler()
+		compiler.InitOptions(NewCompilerOptions())
+		s1 := compiler.ParseSyntheticCode("s1.js", "first(); second();")
+		s2 := compiler.ParseSyntheticCode("s2.js", "third();")
+		root := rhino.IR_Root(s1, s2)
+
+		callSet := makeVisitTokenSet(rhino.Token_CALL)
+		var visitedCalls []string
+		errCb := &testNoSTFilteredCallback{
+			tokens: &callSet,
+			visitFn: func(nt *NodeTraversal, n, _ rhino.Node) {
+				name := n.GetFirstChild().GetString()
+				visitedCalls = append(visitedCalls, name)
+				if name == "first" {
+					nt.Report(n, haltDiag)
+				}
+			},
+		}
+		otherCb := &testNoSTFilteredCallback{tokens: &callSet}
+
+		NewCombinedCompilerPass(compiler, errCb, otherCb).Process(rhino.NilNode, root)
+		if !slices.Equal(visitedCalls, []string{"first"}) {
+			t.Fatalf("expected halting error in Visit to stop before sibling/next script, visited=%v", visitedCalls)
+		}
+	})
+
+	t.Run("haltInEnterScope", func(t *testing.T) {
+		compiler := NewCompiler()
+		compiler.InitOptions(NewCompilerOptions())
+		root := compiler.ParseTestCode("function bad() { insideBad(); } afterBad();")
+
+		callSet := makeVisitTokenSet(rhino.Token_CALL)
+		var visitedCalls []string
+		scopeErrCb := &testFilteredCallback{
+			id:     "scopeErr",
+			tokens: &callSet,
+			enterFn: func(nt *NodeTraversal) {
+				if nt.GetScopeRoot().IsFunction() {
+					nt.Report(nt.GetScopeRoot(), haltDiag)
+				}
+			},
+			visitFn: func(_ *NodeTraversal, n, _ rhino.Node) {
+				visitedCalls = append(visitedCalls, n.GetFirstChild().GetString())
+			},
+		}
+		// Wrap a second noShouldTraverse callback; make scopeErrCb also noShouldTraverse via wrapper below.
+		noSTVisit := &testNoSTFilteredCallback{
+			tokens: &callSet,
+			visitFn: func(_ *NodeTraversal, n, _ rhino.Node) {
+				visitedCalls = append(visitedCalls, "noST:"+n.GetFirstChild().GetString())
+			},
+		}
+		NewCombinedCompilerPass(compiler, &testScopedNoSTCallback{inner: scopeErrCb}, noSTVisit).Process(rhino.NilNode, root)
+		if len(visitedCalls) != 0 {
+			t.Fatalf("expected halting error in EnterScope to prevent visiting insideBad/afterBad, visited=%v", visitedCalls)
+		}
+	})
+}
+
+type testScopedNoSTCallback struct {
+	NodeTraversal_AbstractScopedCallbackBase
+	inner *testFilteredCallback
+}
+
+func (s *testScopedNoSTCallback) visitTokens() *ast.TokenSet  { return s.inner.tokens }
+func (s *testScopedNoSTCallback) EnterScope(t *NodeTraversal) { s.inner.EnterScope(t) }
+func (s *testScopedNoSTCallback) Visit(t *NodeTraversal, n, parent rhino.Node) {
+	s.inner.Visit(t, n, parent)
 }

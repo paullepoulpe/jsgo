@@ -122,11 +122,10 @@ func (c *CheckConstPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, pare
 
 // Java: CheckConstPrivateProperties.recordConstructorOrInterface(Node)
 func (c *CheckConstPrivateProperties) RecordConstructorOrInterface(n rhino.Node) {
-	className := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
-	if className != nil {
+	if className, ok := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n)); ok {
 		// If className is null, then this pass won't report any diagnostics on static members of this
 		// class.
-		c.constructorsAndInterfaces[*className] = true
+		c.constructorsAndInterfaces[className] = true
 	}
 }
 

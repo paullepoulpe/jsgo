@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -28,36 +29,38 @@ import (
 
 // Java: AstValidator.validateExpression(Node)
 func (v *AstValidator) ValidateExpression(n rhino.Node) {
-	v.ValidateTypeInformation(n)
-	v.ValidateRequiredInlinings(n)
+	v.validateTypeInformation(n)
+	v.validateRequiredInlinings(n)
 
 	switch n.GetToken() {
-	// Childless expressions
 	case rhino.Token_NEW_TARGET:
-		v.ValidateFeature(parser.FeatureSet_Feature_NEW_TARGET, n)
-		v.ValidateProperties(n)
-		v.ValidateChildless(n)
+		v.validateFeature(parser.FeatureSet_Feature_NEW_TARGET, n)
+		v.validateChildlessNode(n)
 	case rhino.Token_IMPORT_META:
-		v.ValidateFeature(parser.FeatureSet_Feature_IMPORT_META, n)
-		v.ValidateProperties(n)
-		v.ValidateChildless(n)
+		v.validateFeature(parser.FeatureSet_Feature_IMPORT_META, n)
+		v.validateChildlessNode(n)
 	case rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_THIS, rhino.Token_TRUE:
-		v.ValidateProperties(n)
-		v.ValidateChildless(n)
+		v.validateChildlessNode(n)
 
-	// General unary ops
 	case rhino.Token_DELPROP, rhino.Token_POS, rhino.Token_NEG, rhino.Token_NOT, rhino.Token_TYPEOF,
-		rhino.Token_VOID, rhino.Token_BITNOT, rhino.Token_CAST:
-		v.ValidateUnaryOp(n)
+		rhino.Token_VOID, rhino.Token_BITNOT:
+		v.validatePropsAndCount(n, 1)
+		v.ValidateExpression(ast.MustUnary(n).Operand().Node())
+	case rhino.Token_CAST:
+		v.validatePropsAndCount(n, 1)
+		v.ValidateExpression(ast.MustCast(n).Expr().Node())
+	case rhino.Token_DYNAMIC_IMPORT:
+		v.validateFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT, n)
+		v.validatePropsAndCount(n, 1)
+		v.ValidateExpression(ast.MustDynamicImport(n).Specifier().Node())
 	case rhino.Token_INC, rhino.Token_DEC:
-		v.ValidateIncDecOp(n)
+		v.validateIncDecOp(ast.MustIncDec(n))
 
-	// Assignments
 	case rhino.Token_ASSIGN:
-		v.ValidateAssignmentExpression(n)
+		v.validateAssignmentExpression(ast.MustAssign(n))
 	case rhino.Token_ASSIGN_EXPONENT:
-		v.ValidateFeature(parser.FeatureSet_Feature_EXPONENT_OP, n)
-		v.ValidateCompoundAssignmentExpression(n)
+		v.validateFeature(parser.FeatureSet_Feature_EXPONENT_OP, n)
+		v.validateCompoundAssignmentExpression(ast.MustAssignOp(n))
 	case rhino.Token_ASSIGN_BITOR,
 		rhino.Token_ASSIGN_BITXOR,
 		rhino.Token_ASSIGN_BITAND,
@@ -69,35 +72,33 @@ func (v *AstValidator) ValidateExpression(n rhino.Node) {
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_DIV,
 		rhino.Token_ASSIGN_MOD:
-		v.ValidateCompoundAssignmentExpression(n)
+		v.validateCompoundAssignmentExpression(ast.MustAssignOp(n))
 	case rhino.Token_ASSIGN_COALESCE:
-		v.ValidateFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP, n)
-		v.ValidateFeature(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT, n)
-		v.ValidateCompoundAssignmentExpression(n)
+		v.validateFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP, n)
+		v.validateFeature(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT, n)
+		v.validateCompoundAssignmentExpression(ast.MustAssignOp(n))
 	case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND:
-		v.ValidateFeature(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT, n)
-		v.ValidateCompoundAssignmentExpression(n)
+		v.validateFeature(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT, n)
+		v.validateCompoundAssignmentExpression(ast.MustAssignOp(n))
 
 	case rhino.Token_HOOK:
-		v.ValidateTrinaryOp(n)
+		v.validateTrinaryOp(ast.MustHook(n))
 
-	// Node types that require special handling
 	case rhino.Token_STRINGLIT:
-		v.ValidateStringLit(n)
+		v.validateStringLit(n)
 	case rhino.Token_NUMBER:
-		v.ValidateNumber(n)
+		v.validateNumber(ast.MustNumber(n))
 	case rhino.Token_BIGINT:
-		v.ValidateBigInt(n)
+		v.validateBigInt(ast.MustBigInt(n))
 	case rhino.Token_NAME:
-		v.ValidateName(n)
+		v.validateName(n)
 
-	// General binary ops
 	case rhino.Token_EXPONENT:
-		v.ValidateFeature(parser.FeatureSet_Feature_EXPONENT_OP, n)
-		v.ValidateBinaryOp(n)
+		v.validateFeature(parser.FeatureSet_Feature_EXPONENT_OP, n)
+		v.validateBinaryOp(ast.MustBinary(n))
 	case rhino.Token_COALESCE:
-		v.ValidateFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP, n)
-		v.ValidateBinaryOp(n)
+		v.validateFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP, n)
+		v.validateBinaryOp(ast.MustBinary(n))
 	case rhino.Token_COMMA,
 		rhino.Token_OR,
 		rhino.Token_AND,
@@ -122,153 +123,131 @@ func (v *AstValidator) ValidateExpression(n rhino.Node) {
 		rhino.Token_MUL,
 		rhino.Token_MOD,
 		rhino.Token_DIV:
-		v.ValidateBinaryOp(n)
+		v.validateBinaryOp(ast.MustBinary(n))
 
 	case rhino.Token_GETELEM:
-		v.ValidateGetElem(n)
+		v.validateGetElem(ast.MustGetElem(n))
 	case rhino.Token_OPTCHAIN_GETELEM:
-		v.ValidateOptChainGetElem(n)
-
+		v.validateOptChainGetElem(ast.MustOptChainGetElem(n))
 	case rhino.Token_GETPROP:
-		v.ValidateGetProp(n)
+		v.validateGetProp(ast.MustGetProp(n))
 	case rhino.Token_OPTCHAIN_GETPROP:
-		v.ValidateOptChainGetProp(n)
+		v.validateOptChainGetProp(ast.MustOptChainGetProp(n))
 
 	case rhino.Token_ARRAYLIT:
-		v.ValidateArrayLit(n)
+		v.validateArrayLit(ast.MustArrayLit(n))
 	case rhino.Token_OBJECTLIT:
-		v.ValidateObjectLit(n)
+		v.validateObjectLit(ast.MustObjectLit(n))
 	case rhino.Token_REGEXP:
-		v.ValidateRegExpLit(n)
+		v.validateRegExpLit(ast.MustRegExp(n))
 
 	case rhino.Token_CALL:
-		v.ValidateCall(n)
+		v.validateCall(ast.MustCall(n))
 	case rhino.Token_OPTCHAIN_CALL:
-		v.ValidateOptChainCall(n)
+		v.validateOptChainCall(ast.MustOptChainCall(n))
 	case rhino.Token_NEW:
-		v.ValidateNew(n)
+		v.validateNew(ast.MustNew(n))
 
 	case rhino.Token_FUNCTION:
-		v.ValidateRequiredInlinings(n)
-		v.ValidateFunctionExpression(n)
+		v.validateRequiredInlinings(n)
+		v.validateFunctionExpression(n)
 	case rhino.Token_CLASS:
-		v.ValidateClass(n)
+		v.validateClass(ast.MustClass(n))
 
 	case rhino.Token_TEMPLATELIT:
-		v.ValidateTemplateLit(n)
+		v.validateTemplateLit(n)
 	case rhino.Token_TAGGED_TEMPLATELIT:
-		v.ValidateTaggedTemplateLit(n)
+		v.validateTaggedTemplateLit(ast.MustTaggedTemplateLit(n))
 
 	case rhino.Token_YIELD:
-		v.ValidateYield(n)
+		v.validateYield(ast.MustYield(n))
 	case rhino.Token_AWAIT:
-		v.ValidateAwait(n)
-	case rhino.Token_DYNAMIC_IMPORT:
-		v.ValidateFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT, n)
-		v.ValidateUnaryOp(n)
+		v.validateAwait(ast.MustAwait(n))
 
 	default:
 		v.Violation("Expected expression but was "+n.GetToken().String(), n)
 	}
 }
 
-// ValidatePseudoExpression validates an expression or expresison-like
-// construct.
-//
-// An expression-like construct (pseudoexpression) is an AST fragment that
-// is valid in some, but not all, of the same contexts as true expressions.
-// For example, a VANILLA_FOR permits EMPTY as its condition and increment
-// expressions, even though EMPTY is not valid as an expression in general.
-//
-// allowedPseudoexpressions allows the caller to specify which
-// pseudoexpressions are valid for their context. If n is a
-// pseudoexpression, it will be considered invalid unless its token is in
-// this set.
+// validatePseudoExpression validates an expression or expression-like
+// construct (EMPTY or ITER_SPREAD when explicitly allowed in context).
 //
 // Java: AstValidator.validatePseudoExpression(Node, Token...)
-func (v *AstValidator) ValidatePseudoExpression(n rhino.Node, allowedPseudoexpressions ...rhino.Token) {
+func (v *AstValidator) validatePseudoExpression(n rhino.Node, allowedPseudoexpressions ...rhino.Token) {
 	switch n.GetToken() {
 	case rhino.Token_EMPTY:
-		jutil.CheckArgumentMsg1(slices.Contains(allowedPseudoexpressions, rhino.Token_EMPTY), "Unexpected pseudoexpression %s", n)
-		v.ValidateProperties(n)
-		v.ValidateChildless(n)
+		jutil.CheckArgumentMsg1(
+			slices.Contains(allowedPseudoexpressions, rhino.Token_EMPTY), "Unexpected pseudoexpression %s", n)
+		v.validateChildlessNode(n)
 	case rhino.Token_ITER_SPREAD:
 		jutil.CheckArgumentMsg1(
 			slices.Contains(allowedPseudoexpressions, rhino.Token_ITER_SPREAD), "Unexpected pseudoexpression %s", n)
-		v.ValidateProperties(n)
-		v.ValidateChildCount(n)
-		v.ValidateFeature(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS, n)
-		v.ValidateExpression(n.GetFirstChild())
-	// The only kinds of potential pseudo-expressions we recognize are EMPTY
-	// and ITER_SPREAD. So if the given node is neither, validate that it's a
-	// (non-pseudo) legitimate expression
+		v.validatePropsAndArity(n)
+		v.validateFeature(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS, n)
+		v.ValidateExpression(ast.MustIterSpread(n).Expr().Node())
 	default:
 		v.ValidateExpression(n)
 	}
 }
 
 // Java: AstValidator.validateYield(Node)
-func (v *AstValidator) ValidateYield(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_GENERATORS, n)
-	v.ValidateNodeType(rhino.Token_YIELD, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountIn(n, 0, 1)
-	if n.HasChildren() {
-		v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateYield(y ast.Yield) {
+	n := y.Node()
+	v.validateFeature(parser.FeatureSet_Feature_GENERATORS, n)
+	v.validateProperties(n)
+	v.validateChildCountIn(n, 0, 1)
+	if val, ok := y.Value(); ok {
+		v.ValidateExpression(val.Node())
 	}
-	v.ValidateYieldWithinGeneratorFunction(n)
+	v.validateYieldWithinGeneratorFunction(n)
 }
 
 // Java: AstValidator.validateYieldWithinGeneratorFunction(Node)
-func (v *AstValidator) ValidateYieldWithinGeneratorFunction(n rhino.Node) {
-	parentFunction := NodeUtil_GetEnclosingFunction(n)
-	if parentFunction.IsNil() || !parentFunction.IsGeneratorFunction() {
+func (v *AstValidator) validateYieldWithinGeneratorFunction(n rhino.Node) {
+	fn, ok := ast.AsFunction(NodeUtil_GetEnclosingFunction(n))
+	if !ok || !fn.IsGenerator() {
 		v.Violation("'yield' expression is not within a generator function", n)
-	} else if v.IsInParameterListOfFunction(n, parentFunction) {
+	} else if v.isInParameterListOfFunction(n, fn) {
 		v.Violation("'yield' expression is not allowed in a parameter list", n)
 	}
 }
 
 // Java: AstValidator.validateAwait(Node)
-func (v *AstValidator) ValidateAwait(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_ASYNC_FUNCTIONS, n)
-	v.ValidateNodeType(rhino.Token_AWAIT, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateAwaitWithinAsyncFunction(n)
+func (v *AstValidator) validateAwait(aw ast.Await) {
+	n := aw.Node()
+	v.validateFeature(parser.FeatureSet_Feature_ASYNC_FUNCTIONS, n)
+	v.validatePropsAndArity(n)
+	v.ValidateExpression(aw.Value().Node())
+	v.validateAwaitWithinAsyncFunction(n)
 }
 
-// Java: AstValidator.AWAIT_NOT_WITHIN_ASYNC_FUNCTION
-const astValidator_AWAIT_NOT_WITHIN_ASYNC_FUNCTION = "'await' expression is not within an async function"
-
-// Java: AstValidator.AWAIT_NOT_ALLOWED_IN_PARAMETER_LIST
-const astValidator_AWAIT_NOT_ALLOWED_IN_PARAMETER_LIST = "'await' expression is not allowed in a parameter list"
+const (
+	astValidator_AWAIT_NOT_WITHIN_ASYNC_FUNCTION     = "'await' expression is not within an async function"
+	astValidator_AWAIT_NOT_ALLOWED_IN_PARAMETER_LIST = "'await' expression is not allowed in a parameter list"
+)
 
 // Java: AstValidator.validateAwaitWithinAsyncFunction(Node)
-func (v *AstValidator) ValidateAwaitWithinAsyncFunction(n rhino.Node) {
-	parentFunction := NodeUtil_GetEnclosingFunction(n)
-
-	if parentFunction.IsNil() {
+func (v *AstValidator) validateAwaitWithinAsyncFunction(n rhino.Node) {
+	fn, ok := ast.AsFunction(NodeUtil_GetEnclosingFunction(n))
+	if !ok {
 		// Top-level await is only allowed in modules.
 		if !NodeUtil_GetEnclosingScript(n).GetBooleanProp(rhino.Node_ES6_MODULE) {
 			v.Violation(astValidator_AWAIT_NOT_WITHIN_ASYNC_FUNCTION, n)
 		}
 		return
 	}
-
-	if !parentFunction.IsAsyncFunction() {
+	if !fn.IsAsync() {
 		v.Violation(astValidator_AWAIT_NOT_WITHIN_ASYNC_FUNCTION, n)
-	} else if v.IsInParameterListOfFunction(n, parentFunction) {
+	} else if v.isInParameterListOfFunction(n, fn) {
 		v.Violation(astValidator_AWAIT_NOT_ALLOWED_IN_PARAMETER_LIST, n)
 	}
 }
 
 // Java: AstValidator.isInParameterListOfFunction(Node, Node)
-func (v *AstValidator) IsInParameterListOfFunction(child rhino.Node, functionNode rhino.Node) bool {
-	paramList := rhino.CheckNotNullMsg1(functionNode.GetSecondChild(), "%s", functionNode)
-	for parent := child.GetParent(); parent != functionNode; parent = parent.GetParent() {
-		rhino.CheckNotNullMsg2(parent, "%s not contained in function %s", child, functionNode)
+func (v *AstValidator) isInParameterListOfFunction(child rhino.Node, fn ast.Function) bool {
+	paramList := rhino.CheckNotNullMsg1(fn.Params().Node(), "%s", fn.Node())
+	for parent := child.GetParent(); !fn.Is(parent); parent = parent.GetParent() {
+		rhino.CheckNotNullMsg2(parent, "%s not contained in function %s", child, fn.Node())
 		if parent == paramList {
 			return true
 		}
@@ -277,115 +256,134 @@ func (v *AstValidator) IsInParameterListOfFunction(child rhino.Node, functionNod
 }
 
 // Java: AstValidator.validateTaggedTemplateLit(Node)
-func (v *AstValidator) ValidateTaggedTemplateLit(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_TEMPLATE_LITERALS, n)
-	v.ValidateNodeType(rhino.Token_TAGGED_TEMPLATELIT, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateTaggedTemplateLit(tagged ast.TaggedTemplateLit) {
+	n := tagged.Node()
+	v.validateFeature(parser.FeatureSet_Feature_TEMPLATE_LITERALS, n)
+	if v.validatePropsAndArity(n) {
+		v.ValidateExpression(tagged.Tag().Node())
+		v.validateTemplateLit(tagged.Template().Node())
+		return
+	}
 	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateTemplateLit(n.GetLastChild())
+	v.validateTemplateLit(n.GetLastChild())
 }
 
 // Java: AstValidator.validateTemplateLit(Node)
-func (v *AstValidator) ValidateTemplateLit(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_TEMPLATE_LITERALS, n)
-	v.ValidateNodeType(rhino.Token_TEMPLATELIT, n)
+func (v *AstValidator) validateTemplateLit(n rhino.Node) {
+	v.validateFeature(parser.FeatureSet_Feature_TEMPLATE_LITERALS, n)
+	if v.validateNodeType(rhino.Token_TEMPLATELIT, n) {
+		for part := range ast.MustTemplateLit(n).Parts() {
+			if str, ok := part.AsTemplateLitString(); ok {
+				v.validateTemplateLitString(str)
+			} else {
+				v.validateTemplateLitSub(part.Node())
+			}
+		}
+		return
+	}
 	for child := range n.Children() {
-		if child.IsTemplateLitString() {
-			v.ValidateTemplateLitString(child)
+		if str, ok := ast.AsTemplateLitString(child); ok {
+			v.validateTemplateLitString(str)
 		} else {
-			v.ValidateTemplateLitSub(child)
+			v.validateTemplateLitSub(child)
 		}
 	}
 }
 
 // Java: AstValidator.validateTemplateLitString(Node)
-func (v *AstValidator) ValidateTemplateLitString(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_TEMPLATELIT_STRING, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	_ = n.GetRawString()
+func (v *AstValidator) validateTemplateLitString(str ast.TemplateLitString) {
+	n := str.Node()
+	v.validatePropsAndArity(n)
+	_ = str.Raw()
 }
 
 // Java: AstValidator.validateTemplateLitSub(Node)
-func (v *AstValidator) ValidateTemplateLitSub(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_TEMPLATELIT_SUB, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateTemplateLitSub(n rhino.Node) {
+	if v.validateNodeType(rhino.Token_TEMPLATELIT_SUB, n) {
+		sub := ast.MustTemplateLitSub(n)
+		v.validatePropsAndArity(n)
+		v.ValidateExpression(sub.Expr().Node())
+		return
+	}
+	v.validatePropsAndArity(n)
 	v.ValidateExpression(n.GetFirstChild())
 }
 
 // Java: AstValidator.validateCall(Node)
-func (v *AstValidator) ValidateCall(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_CALL, n)
-	v.ValidateProperties(n)
-	v.ValidateMinimumChildCount(n, 1)
-	callee := n.GetFirstChild()
+func (v *AstValidator) validateCall(call ast.Call) {
+	n := call.Node()
+	v.validateProperties(n)
+	v.validateMinimumChildCount(n, 1)
+	callee := call.Callee().Node()
 	if callee.IsSuper() {
-		v.ValidateSuper(callee)
+		v.validateSuper(callee)
 	} else {
 		v.ValidateExpression(callee)
 	}
-	for c := callee.GetNext(); !c.IsNil(); c = c.GetNext() {
-		v.ValidatePseudoExpression(c, rhino.Token_ITER_SPREAD)
+	for arg := range call.Args() {
+		v.validatePseudoExpression(arg.Node(), rhino.Token_ITER_SPREAD)
 	}
 }
 
 // Java: AstValidator.validateOptChainCall(Node)
-func (v *AstValidator) ValidateOptChainCall(node rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING, node)
-	v.ValidateNodeType(rhino.Token_OPTCHAIN_CALL, node)
-	v.ValidateProperties(node)
-	v.ValidateMinimumChildCount(node, 1)
-	callee := node.GetFirstChild()
-	v.ValidateExpression(callee)
-	for argument := callee.GetNext(); !argument.IsNil(); argument = argument.GetNext() {
-		v.ValidatePseudoExpression(argument, rhino.Token_ITER_SPREAD)
+func (v *AstValidator) validateOptChainCall(call ast.OptChainCall) {
+	n := call.Node()
+	v.validateFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING, n)
+	v.validateProperties(n)
+	v.validateMinimumChildCount(n, 1)
+	v.ValidateExpression(call.Callee().Node())
+	for arg := range call.Args() {
+		v.validatePseudoExpression(arg.Node(), rhino.Token_ITER_SPREAD)
 	}
-	v.ValidateFirstNodeOfOptChain(node)
+	v.validateFirstNodeOfOptChain(call.AsOptChain())
 }
 
 // Java: AstValidator.validateSuper(Node)
-func (v *AstValidator) ValidateSuper(superNode rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_SUPER, superNode)
-	v.ValidateProperties(superNode)
-	v.ValidateChildless(superNode)
-	v.ValidateTypeInformation(superNode)
+func (v *AstValidator) validateSuper(superNode rhino.Node) {
+	v.validateFeature(parser.FeatureSet_Feature_SUPER, superNode)
+	v.validateChildlessNode(superNode)
+	v.validateTypeInformation(superNode)
 	superParent := superNode.GetParent()
 	methodNode := NodeUtil_GetEnclosingNonArrowFunction(superParent)
 
-	if NodeUtil_IsNormalGet(superParent) && superNode.IsFirstChildOf(superParent) {
+	if get, ok := ast.AsNormalGet(superParent); ok && get.Object().Is(superNode) {
 		// `super.prop` or `super['prop']`
-		if !v.AllowsSuperPropertyReference(superParent) {
+		if !v.allowsSuperPropertyReference(superParent) {
 			v.Violation(
-				"super property references are only allowed in methods, class static blocks and class"+
-					" fields.",
+				"super property references are only allowed in methods, class static blocks and class fields.",
 				superNode)
 		}
-	} else if superParent.IsCall() && superNode.IsFirstChildOf(superParent) {
+		return
+	}
+
+	if call, ok := ast.AsCall(superParent); ok && call.Callee().Is(superNode) {
 		// super() constructor call
 		if methodNode.IsNil() || !NodeUtil_IsEs6Constructor(methodNode) {
 			v.Violation("super constructor call is only allowed in a constructor method", superNode)
-		} else {
-			extendsNode := methodNode.
-				GetParent().     // MEMBER_FUNCTION_DEF
-				GetParent().     // CLASS_METHODS
-				GetParent().     // CLASS
-				GetSecondChild() // extends clause
-			if extendsNode.IsEmpty() {
+			return
+		}
+		classNode := methodNode.
+			GetParent(). // MEMBER_FUNCTION_DEF
+			GetParent(). // CLASS_MEMBERS
+			GetParent()  // CLASS
+		if cls, ok := ast.AsClass(classNode); ok {
+			if _, hasExtends := cls.Extends(); !hasExtends {
 				v.Violation("super constructor call in a class that extends nothing", superNode)
 			}
+		} else if classNode.GetSecondChild().IsEmpty() {
+			v.Violation("super constructor call in a class that extends nothing", superNode)
 		}
-	} else {
-		v.Violation("`super` is a syntax error here", superNode)
+		return
 	}
+
+	v.Violation("`super` is a syntax error here", superNode)
 }
 
-// AllowsSuperPropertyReference checks if a super property reference is in
-// a method, class static block or class field.
+// allowsSuperPropertyReference checks if a super property reference is inside
+// a method, class static block, or class field.
 //
 // Java: AstValidator.allowsSuperPropertyReference(Node)
-func (v *AstValidator) AllowsSuperPropertyReference(n rhino.Node) bool {
+func (v *AstValidator) allowsSuperPropertyReference(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		return false
@@ -394,54 +392,52 @@ func (v *AstValidator) AllowsSuperPropertyReference(n rhino.Node) bool {
 	case rhino.Token_FUNCTION:
 		if NodeUtil_IsMethodDeclaration(n) {
 			return true
-		} else if !n.IsArrowFunction() {
+		}
+		if !ast.MustFunction(n).IsArrow() {
 			return false
 		}
-		return v.AllowsSuperPropertyReference(n.GetParent())
+		return v.allowsSuperPropertyReference(n.GetParent())
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsClassStaticBlock(n) {
 			return true
 		}
-		return v.AllowsSuperPropertyReference(n.GetParent())
+		return v.allowsSuperPropertyReference(n.GetParent())
 	default:
-		return v.AllowsSuperPropertyReference(n.GetParent())
+		return v.allowsSuperPropertyReference(n.GetParent())
 	}
 }
 
 // Java: AstValidator.validateObjectSpread(Node)
-func (v *AstValidator) ValidateObjectSpread(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateFeature(parser.FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD, n)
-	v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateObjectSpread(spread ast.ObjectSpread) {
+	n := spread.Node()
+	v.validatePropsAndArity(n)
+	v.validateFeature(parser.FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD, n)
+	v.ValidateExpression(spread.Expr().Node())
 }
 
 // Java: AstValidator.validateNew(Node)
-func (v *AstValidator) ValidateNew(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_NEW, n)
-	v.ValidateProperties(n)
-	v.ValidateMinimumChildCount(n, 1)
-
-	v.ValidateExpression(n.GetFirstChild())
-	for c := n.GetSecondChild(); !c.IsNil(); c = c.GetNext() {
-		v.ValidatePseudoExpression(c, rhino.Token_ITER_SPREAD)
+func (v *AstValidator) validateNew(newExpr ast.New) {
+	n := newExpr.Node()
+	v.validateProperties(n)
+	v.validateMinimumChildCount(n, 1)
+	v.ValidateExpression(newExpr.Callee().Node())
+	for arg := range newExpr.Args() {
+		v.validatePseudoExpression(arg.Node(), rhino.Token_ITER_SPREAD)
 	}
 }
 
 // Java: AstValidator.validateGetPropGetElemInLHS(Token, Node)
-func (v *AstValidator) ValidateGetPropGetElemInLHS(contextType rhino.Token, n rhino.Node) {
-	if contextType == rhino.Token_CONST ||
-		contextType == rhino.Token_LET ||
-		contextType == rhino.Token_VAR ||
-		contextType == rhino.Token_PARAM_LIST {
+func (v *AstValidator) validateGetPropGetElemInLHS(contextType rhino.Token, n rhino.Node) {
+	switch contextType {
+	case rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR, rhino.Token_PARAM_LIST:
 		v.Violation("Invalid child for "+contextType.String()+" node", n)
 		return
 	}
 	switch n.GetToken() {
 	case rhino.Token_GETPROP:
-		v.ValidateGetProp(n)
+		v.validateGetProp(ast.MustGetProp(n))
 	case rhino.Token_GETELEM:
-		v.ValidateGetElem(n)
+		v.validateGetElem(ast.MustGetElem(n))
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Expected GETPROP or GETELEM but instead got node " + n.GetToken().String()))
@@ -449,314 +445,315 @@ func (v *AstValidator) ValidateGetPropGetElemInLHS(contextType rhino.Token, n rh
 }
 
 // Java: AstValidator.validateAssignmentExpression(Node)
-func (v *AstValidator) ValidateAssignmentExpression(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateLHS(n.GetToken(), n.GetFirstChild())
+func (v *AstValidator) validateAssignmentExpression(assign ast.Assign) {
+	n := assign.Node()
+	if v.validatePropsAndArity(n) {
+		v.validateLHS(rhino.Token_ASSIGN, assign.Target().Node())
+		v.ValidateExpression(assign.Value().Node())
+		return
+	}
+	v.validateLHS(rhino.Token_ASSIGN, n.GetFirstChild())
 	v.ValidateExpression(n.GetLastChild())
 }
 
 // Java: AstValidator.validateCompoundAssignmentExpression(Node)
-func (v *AstValidator) ValidateCompoundAssignmentExpression(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	contextType := n.GetToken()
-	lhs := n.GetFirstChild()
-	v.ValidateAssignmentOpTarget(lhs, contextType)
+func (v *AstValidator) validateCompoundAssignmentExpression(assign ast.AssignOp) {
+	n := assign.Node()
+	contextType := assign.Token()
+	if v.validatePropsAndArity(n) {
+		v.validateAssignmentOpTarget(assign.Target().Node(), contextType)
+		v.ValidateExpression(assign.Value().Node())
+		return
+	}
+	v.validateAssignmentOpTarget(n.GetFirstChild(), contextType)
 	v.ValidateExpression(n.GetLastChild())
 }
 
-// ValidateAssignmentOpTarget validates the lhs of a compound assignment op,
-// inc, or dec
-//
-// This check is stricter than validateLhs.
+// validateAssignmentOpTarget validates the LHS of a compound assignment op,
+// inc, or dec (stricter than validateLHS).
 //
 // Java: AstValidator.validateAssignmentOpTarget(Node, Token)
-func (v *AstValidator) ValidateAssignmentOpTarget(lhs rhino.Node, contextType rhino.Token) {
+func (v *AstValidator) validateAssignmentOpTarget(lhs rhino.Node, contextType rhino.Token) {
 	switch lhs.GetToken() {
 	case rhino.Token_NAME:
-		v.ValidateName(lhs)
+		v.validateName(lhs)
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
-		v.ValidateGetPropGetElemInLHS(contextType, lhs)
+		v.validateGetPropGetElemInLHS(contextType, lhs)
 	case rhino.Token_CAST:
-		v.ValidateProperties(lhs)
-		v.ValidateChildCountWithExpected(lhs, 1)
-		v.ValidateAssignmentOpTarget(lhs.GetFirstChild(), contextType)
+		v.validatePropsAndCount(lhs, 1)
+		v.validateAssignmentOpTarget(ast.MustCast(lhs).Expr().Node(), contextType)
 	default:
 		v.Violation("Invalid child for "+contextType.String()+" node", lhs)
 	}
 }
 
 // Java: AstValidator.validateGetElem(Node)
-func (v *AstValidator) ValidateGetElem(n rhino.Node) {
-	jutil.CheckArgumentMsg1(n.IsGetElem(), "%s", n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 2)
-	v.ValidatePropertyReferenceTarget(n.GetFirstChild())
+func (v *AstValidator) validateGetElem(elem ast.GetElem) {
+	n := elem.Node()
+	if v.validatePropsAndCount(n, 2) {
+		v.validatePropertyReferenceTarget(elem.Object().Node())
+		v.ValidateExpression(elem.Index().Node())
+		return
+	}
+	v.validatePropertyReferenceTarget(n.GetFirstChild())
 	v.ValidateExpression(n.GetLastChild())
 }
 
 // Java: AstValidator.validateOptChainGetElem(Node)
-func (v *AstValidator) ValidateOptChainGetElem(node rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING, node)
-	jutil.CheckArgumentMsg1(node.IsOptChainGetElem(), "%s", node)
-	v.ValidateProperties(node)
-	v.ValidateChildCountWithExpected(node, 2)
-	v.ValidateExpression(node.GetFirstChild())
-	v.ValidateExpression(node.GetLastChild())
-	v.ValidateFirstNodeOfOptChain(node)
+func (v *AstValidator) validateOptChainGetElem(elem ast.OptChainGetElem) {
+	n := elem.Node()
+	v.validateFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING, n)
+	if v.validatePropsAndCount(n, 2) {
+		v.ValidateExpression(elem.Object().Node())
+		v.ValidateExpression(elem.Index().Node())
+	} else {
+		v.ValidateExpression(n.GetFirstChild())
+		v.ValidateExpression(n.GetLastChild())
+	}
+	v.validateFirstNodeOfOptChain(elem.AsOptChain())
 }
 
 // Java: AstValidator.validateGetProp(Node)
-func (v *AstValidator) ValidateGetProp(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_GETPROP, n)
-	v.ValidatePropertyReferenceTarget(n.GetFirstChild())
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateNonEmptyString(n)
+func (v *AstValidator) validateGetProp(prop ast.GetProp) {
+	n := prop.Node()
+	v.validatePropertyReferenceTarget(prop.Object().Node())
+	v.validatePropsAndArity(n)
+	v.validateNonEmptyString(n)
 }
 
 // Java: AstValidator.validateOptChainGetProp(Node)
-func (v *AstValidator) ValidateOptChainGetProp(node rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING, node)
-	v.ValidateNodeType(rhino.Token_OPTCHAIN_GETPROP, node)
-	v.ValidateExpression(node.GetFirstChild())
-	v.ValidateFirstNodeOfOptChain(node)
-	v.ValidateProperties(node)
-	v.ValidateChildCount(node)
-	v.ValidateNonEmptyString(node)
+func (v *AstValidator) validateOptChainGetProp(prop ast.OptChainGetProp) {
+	n := prop.Node()
+	v.validateFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING, n)
+	v.ValidateExpression(prop.Object().Node())
+	v.validateFirstNodeOfOptChain(prop.AsOptChain())
+	v.validatePropsAndArity(n)
+	v.validateNonEmptyString(n)
 }
 
 // Java: AstValidator.validatePropertyReferenceTarget(Node)
-func (v *AstValidator) ValidatePropertyReferenceTarget(objectNode rhino.Node) {
+func (v *AstValidator) validatePropertyReferenceTarget(objectNode rhino.Node) {
 	if objectNode.IsSuper() {
-		v.ValidateSuper(objectNode)
+		v.validateSuper(objectNode)
 	} else {
 		v.ValidateExpression(objectNode)
 	}
 }
 
 // Java: AstValidator.validateRegExpLit(Node)
-func (v *AstValidator) ValidateRegExpLit(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_REGEXP_SYNTAX, n)
-	v.ValidateNodeType(rhino.Token_REGEXP, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountIn(n, 1, 2)
+func (v *AstValidator) validateRegExpLit(re ast.RegExp) {
+	n := re.Node()
+	v.validateFeature(parser.FeatureSet_Feature_REGEXP_SYNTAX, n)
+	v.validateProperties(n)
+	if v.validateChildCountIn(n, 1, 2) {
+		v.validateStringLit(re.Pattern().Node())
+		if flags, ok := re.Flags(); ok {
+			v.validateStringLit(flags.Node())
+		}
+		return
+	}
 	for c := range n.Children() {
-		v.ValidateStringLit(c)
+		v.validateStringLit(c)
 	}
 }
 
 // Java: AstValidator.validateStringLit(Node)
-func (v *AstValidator) ValidateStringLit(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_STRINGLIT, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateStringLit(n rhino.Node) {
+	v.validateNodeType(rhino.Token_STRINGLIT, n)
+	v.validatePropsAndArity(n)
 	_ = n.GetString()
 }
 
 // Java: AstValidator.validateNumber(Node)
-func (v *AstValidator) ValidateNumber(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_NUMBER, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	_ = n.GetDouble()
+func (v *AstValidator) validateNumber(num ast.Number) {
+	v.validatePropsAndArity(num.Node())
+	_ = num.Value()
 }
 
 // Java: AstValidator.validateBigInt(Node)
-func (v *AstValidator) ValidateBigInt(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_BIGINT, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateBigInt(bi ast.BigInt) {
+	n := bi.Node()
+	v.validatePropsAndArity(n)
 	_ = n.GetBigInt()
 }
 
 // Java: AstValidator.validateArrayLit(Node)
-func (v *AstValidator) ValidateArrayLit(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_ARRAYLIT, n)
-	for c := range n.Children() {
-		// Array-literals may have empty slots.
-		v.ValidatePseudoExpression(c, rhino.Token_EMPTY, rhino.Token_ITER_SPREAD)
-		break
+func (v *AstValidator) validateArrayLit(arr ast.ArrayLit) {
+	if first, ok := arr.FirstElement(); ok {
+		// Upstream Java AstValidator.validateArrayLit has an unconditional
+		// break after the first element; preserve exact parity.
+		v.validatePseudoExpression(first.Node(), rhino.Token_EMPTY, rhino.Token_ITER_SPREAD)
 	}
 }
 
 // Java: AstValidator.validateObjectLit(Node)
-func (v *AstValidator) ValidateObjectLit(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_OBJECTLIT, n)
-	for c := range n.Children() {
-		v.ValidateObjectLitKey(c)
+func (v *AstValidator) validateObjectLit(obj ast.ObjectLit) {
+	for member := range obj.Members() {
+		v.validateObjectLitKey(member.Node())
 	}
 }
 
 // Java: AstValidator.validateObjectLitKey(Node)
-func (v *AstValidator) ValidateObjectLitKey(n rhino.Node) {
+func (v *AstValidator) validateObjectLitKey(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_GETTER_DEF:
-		v.ValidateObjectLitGetKey(n)
+		v.validateObjectLitGetKey(ast.MustGetterDef(n))
 	case rhino.Token_SETTER_DEF:
-		v.ValidateObjectLitSetKey(n)
+		v.validateObjectLitSetKey(ast.MustSetterDef(n))
 	case rhino.Token_STRING_KEY:
-		v.ValidateObjectLitStringKey(n)
+		v.validateObjectLitStringKey(ast.MustStringKey(n))
 	case rhino.Token_MEMBER_FUNCTION_DEF:
-		v.ValidateClassMember(n, false)
-		if n.IsStaticMember() {
+		def := ast.MustMemberFunctionDef(n)
+		v.validateClassMember(n, false)
+		if def.IsStatic() {
 			v.Violation("Keys in an object literal should not be static.", n)
 		}
 	case rhino.Token_COMPUTED_PROP:
-		v.ValidateObjectLitComputedPropKey(n)
+		v.validateObjectLitComputedPropKey(ast.MustComputedProp(n))
 	case rhino.Token_OBJECT_SPREAD:
-		v.ValidateObjectSpread(n)
+		v.validateObjectSpread(ast.MustObjectSpread(n))
 	default:
 		v.Violation("Expected object literal key expression but was "+n.GetToken().String(), n)
 	}
 }
 
 // Java: AstValidator.validateObjectLitGetKey(Node)
-func (v *AstValidator) ValidateObjectLitGetKey(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_GETTER, n)
-	v.ValidateNodeType(rhino.Token_GETTER_DEF, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateObjectLiteralKeyName(n)
-	function := n.GetFirstChild()
-	v.ValidateFunctionExpression(function)
-	// objlit get functions must be nameless, and must have zero parameters.
-	if function.GetFirstChild().GetString() != "" {
-		v.Violation("Expected unnamed function expression.", n)
-	}
-	functionParams := function.GetSecondChild()
-	if functionParams.HasChildren() {
-		v.Violation("get methods must not have parameters.", n)
-	}
+func (v *AstValidator) validateObjectLitGetKey(def ast.GetterDef) {
+	n := def.Node()
+	v.validateFeature(parser.FeatureSet_Feature_GETTER, n)
+	v.validatePropsAndArity(n)
+	v.validateObjectLiteralKeyName(n)
+	v.validateAccessorFunction(n, def.Function().Node(), false)
 }
 
 // Java: AstValidator.validateObjectLitSetKey(Node)
-func (v *AstValidator) ValidateObjectLitSetKey(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_SETTER, n)
-	v.ValidateNodeType(rhino.Token_SETTER_DEF, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateObjectLiteralKeyName(n)
-	function := n.GetFirstChild()
-	v.ValidateFunctionExpression(function)
-	// objlit set functions must be nameless, and must have 1 parameter.
-	if function.GetFirstChild().GetString() != "" {
-		v.Violation("Expected unnamed function expression.", n)
-	}
-	functionParams := function.GetSecondChild()
-	if !functionParams.HasOneChild() {
-		v.Violation("set methods must have exactly one parameter.", n)
-	}
+func (v *AstValidator) validateObjectLitSetKey(def ast.SetterDef) {
+	n := def.Node()
+	v.validateFeature(parser.FeatureSet_Feature_SETTER, n)
+	v.validatePropsAndArity(n)
+	v.validateObjectLiteralKeyName(n)
+	v.validateAccessorFunction(n, def.Function().Node(), true)
 }
 
 // Java: AstValidator.validateObjectLitStringKey(Node)
-func (v *AstValidator) ValidateObjectLitStringKey(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_STRING_KEY, n)
-	v.ValidateObjectLiteralKeyName(n)
-
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 1)
-	v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateObjectLitStringKey(sk ast.StringKey) {
+	n := sk.Node()
+	v.validateObjectLiteralKeyName(n)
+	v.validatePropsAndCount(n, 1)
+	v.ValidateExpression(sk.Value().Node())
 	if n.GetBooleanProp(rhino.Node_IS_SHORTHAND_PROPERTY) {
-		v.ValidateFeature(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES, n)
+		v.validateFeature(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES, n)
 	}
 }
 
 // Java: AstValidator.validateObjectLitComputedPropKey(Node)
-func (v *AstValidator) ValidateObjectLitComputedPropKey(n rhino.Node) {
-	// TODO: b/499356003 - clean up this hack. The right fix is to:
-	// 1) model computed prop getter/setters with a separate Feature from
-	// COMPUTED_PROPERTIES
-	// 2) modify the transpilation passes to *not* remove the computed prop
-	// getter/setter in object literals feature from the compiler featureset
-	// because it can't actually transpile them. (The transpilation passes
-	// report a suppressible error instead).
+func (v *AstValidator) validateObjectLitComputedPropKey(prop ast.ComputedProp) {
+	n := prop.Node()
+	// TODO: b/499356003 - clean up this hack once computed getter/setters have
+	// their own Feature separate from COMPUTED_PROPERTIES.
 	if !(n.GetIsInClosureUnawareSubtree() && NodeUtil_IsGetOrSetKey(n)) {
-		v.ValidateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
+		v.validateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
 	}
-	v.ValidateNodeType(rhino.Token_COMPUTED_PROP, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+	if v.validatePropsAndArity(n) {
+		v.ValidateExpression(prop.Key().Node())
+		val, _ := prop.Value()
+		v.ValidateExpression(val.Node())
+		return
+	}
 	v.ValidateExpression(n.GetFirstChild())
 	v.ValidateExpression(n.GetLastChild())
 }
 
 // Java: AstValidator.validateObjectLitComputedPropGetKey(Node)
-func (v *AstValidator) ValidateObjectLitComputedPropGetKey(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
-	v.ValidateFeature(parser.FeatureSet_Feature_GETTER, n)
-	v.ValidateNodeType(rhino.Token_COMPUTED_PROP, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	function := n.GetLastChild()
-	v.ValidateFunctionExpression(function)
-	// objlit get functions must be nameless, and must have zero parameters.
-	if function.GetFirstChild().GetString() != "" {
-		v.Violation("Expected unnamed function expression.", n)
+func (v *AstValidator) validateObjectLitComputedPropGetKey(prop ast.ComputedProp) {
+	n := prop.Node()
+	v.validateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
+	v.validateFeature(parser.FeatureSet_Feature_GETTER, n)
+	var fnNode rhino.Node
+	if v.validatePropsAndArity(n) {
+		val, _ := prop.Value()
+		fnNode = val.Node()
+	} else {
+		fnNode = n.GetLastChild()
 	}
-	functionParams := function.GetSecondChild()
-	if functionParams.HasChildren() {
-		v.Violation("get methods must not have parameters.", n)
-	}
+	v.validateAccessorFunction(n, fnNode, false)
 }
 
 // Java: AstValidator.validateObjectLitComputedPropSetKey(Node)
-func (v *AstValidator) ValidateObjectLitComputedPropSetKey(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
-	v.ValidateFeature(parser.FeatureSet_Feature_SETTER, n)
-	v.ValidateNodeType(rhino.Token_COMPUTED_PROP, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	function := n.GetLastChild()
-	v.ValidateFunctionExpression(function)
-	// objlit set functions must be nameless, and must have 1 parameter.
-	if function.GetFirstChild().GetString() != "" {
-		v.Violation("Expected unnamed function expression.", n)
+func (v *AstValidator) validateObjectLitComputedPropSetKey(prop ast.ComputedProp) {
+	n := prop.Node()
+	v.validateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
+	v.validateFeature(parser.FeatureSet_Feature_SETTER, n)
+	var fnNode rhino.Node
+	if v.validatePropsAndArity(n) {
+		val, _ := prop.Value()
+		fnNode = val.Node()
+	} else {
+		fnNode = n.GetLastChild()
 	}
-	functionParams := function.GetSecondChild()
-	if !functionParams.HasOneChild() {
-		v.Violation("set methods must have exactly one parameter.", n)
+	v.validateAccessorFunction(n, fnNode, true)
+}
+
+func (v *AstValidator) validateAccessorFunction(keyNode, fnNode rhino.Node, isSetter bool) {
+	v.validateFunctionExpression(fnNode)
+	if fn, ok := ast.AsFunction(fnNode); ok {
+		if fn.NameNode().Ident() != "" {
+			v.Violation("Expected unnamed function expression.", keyNode)
+		}
+		if isSetter {
+			if _, ok := fn.Params().OnlyParam(); !ok {
+				v.Violation("set methods must have exactly one parameter.", keyNode)
+			}
+		} else if fn.Params().HasParams() {
+			v.Violation("get methods must not have parameters.", keyNode)
+		}
+		return
+	}
+	if fnNode.GetFirstChild().GetString() != "" {
+		v.Violation("Expected unnamed function expression.", keyNode)
+	}
+	params := fnNode.GetSecondChild()
+	if isSetter {
+		if !params.HasOneChild() {
+			v.Violation("set methods must have exactly one parameter.", keyNode)
+		}
+	} else if params.HasChildren() {
+		v.Violation("get methods must not have parameters.", keyNode)
 	}
 }
 
 // Java: AstValidator.validateObjectLiteralKeyName(Node)
-func (v *AstValidator) ValidateObjectLiteralKeyName(n rhino.Node) {
+func (v *AstValidator) validateObjectLiteralKeyName(n rhino.Node) {
 	if n.IsQuotedStringKey() {
 		_ = n.GetString()
 	} else {
-		v.ValidateNonEmptyString(n)
+		v.validateNonEmptyString(n)
 	}
 }
 
 // Java: AstValidator.validateIncDecOp(Node)
-func (v *AstValidator) ValidateIncDecOp(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 1)
-	v.ValidateAssignmentOpTarget(n.GetFirstChild(), n.GetToken())
-}
-
-// Java: AstValidator.validateUnaryOp(Node)
-func (v *AstValidator) ValidateUnaryOp(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 1)
-	v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateIncDecOp(inc ast.IncDec) {
+	n := inc.Node()
+	v.validatePropsAndCount(n, 1)
+	v.validateAssignmentOpTarget(inc.Target().Node(), inc.Token())
 }
 
 // Java: AstValidator.validateBinaryOp(Node)
-func (v *AstValidator) ValidateBinaryOp(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 2)
+func (v *AstValidator) validateBinaryOp(bin ast.Binary) {
+	n := bin.Node()
+	if v.validatePropsAndCount(n, 2) {
+		v.ValidateExpression(bin.Left().Node())
+		v.ValidateExpression(bin.Right().Node())
+		return
+	}
 	v.ValidateExpression(n.GetFirstChild())
 	v.ValidateExpression(n.GetLastChild())
 }
 
 // Java: AstValidator.validateTrinaryOp(Node)
-func (v *AstValidator) ValidateTrinaryOp(n rhino.Node) {
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 3)
-	first := n.GetFirstChild()
-	v.ValidateExpression(first)
-	v.ValidateExpression(first.GetNext())
-	v.ValidateExpression(n.GetLastChild())
+func (v *AstValidator) validateTrinaryOp(hook ast.Hook) {
+	v.validatePropsAndCount(hook.Node(), 3)
+	v.ValidateExpression(hook.Cond().Node())
+	v.ValidateExpression(hook.Then().Node())
+	v.ValidateExpression(hook.Else().Node())
 }

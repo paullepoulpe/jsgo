@@ -94,27 +94,21 @@ func (p *ProcessClosureProvidesAndRequires) putProvidedName(ns string, pn *Proce
 func (p *ProcessClosureProvidesAndRequires) getProvidedNameByNode(node rhino.Node) *ProcessClosureProvidesAndRequires_ProvidedName {
 	switch node.GetToken() {
 	case rhino.Token_NAME:
-		name := node.GetString()
+		name := ast.MustName(node).Ident()
 		if name == "" {
 			return nil
 		}
 		return p.providedNames.Get(name)
 	case rhino.Token_GETPROP:
-		if _, ok := p.providedLeafs[node.GetString()]; !ok {
+		if _, ok := p.providedLeafs[ast.MustGetProp(node).Property()]; !ok {
 			return nil
 		}
-		name, ok := node.GetQualifiedNameString()
-		if !ok {
-			return nil
-		}
-		return p.providedNames.Get(name)
-	default:
-		name, ok := node.GetQualifiedNameString()
-		if !ok {
-			return nil
-		}
-		return p.providedNames.Get(name)
 	}
+	name, ok := node.GetQualifiedNameString()
+	if !ok {
+		return nil
+	}
+	return p.providedNames.Get(name)
 }
 
 // Process: when invoked as compiler pass, we rewrite all provides and requires.
@@ -192,85 +186,115 @@ type closureProvideCollector struct {
 	outer *ProcessClosureProvidesAndRequires
 }
 
+var (
+	_ NodeTraversal_Callback       = (*closureProvideCollector)(nil)
+	_ nodeTraversal_visitTokens    = (*closureProvideCollector)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*closureProvideCollector)(nil)
+)
+
 func (*closureProvideCollector) visitTokens() *ast.TokenSet {
 	return &closureProvideCollectorVisitTokens
 }
+
+func (*closureProvideCollector) onlyNameLeaves() {}
 
 func (c *closureProvideCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	// Don't recurse into modules, which cannot have goog.provides. We do need to handle legacy
 	// goog.modules, but we do that quickly here rather than descending all the way into them.
 	// We completely ignore ES modules and CommonJS modules.
-	if (n.IsModuleBody() && n.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)) ||
+	if (n.IsModuleBody() && parent.GetBooleanProp(rhino.Node_GOOG_MODULE)) ||
 		NodeUtil_IsBundledGoogModuleScopeRoot(n) {
-		googModuleCall := n.GetFirstChild()
-		if exprStmt, ok := ast.AsExprStmt(googModuleCall); ok {
-			if call, ok := exprStmt.Expr().AsCall(); ok {
-				if arg0, ok := call.FirstArg(); ok {
-					if nsLit, ok := arg0.AsStringLit(); ok {
-						maybeLegacyNamespaceCall := googModuleCall.GetNext()
-						if !maybeLegacyNamespaceCall.IsNil() &&
-							NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(maybeLegacyNamespaceCall) {
-							c.outer.processLegacyModuleCall(nsLit.Value(), googModuleCall, t.GetChunk())
-						}
-					}
-				}
-			}
+		if ns, googModuleStmt, ok := legacyGoogModuleCall(n); ok {
+			c.outer.processLegacyModuleCall(ns, googModuleStmt, t.GetChunk())
 		}
 		return false
 	}
 	return !n.IsModuleBody()
 }
 
+func legacyGoogModuleCall(scopeRoot rhino.Node) (namespace string, googModuleStmt rhino.Node, ok bool) {
+	var first ast.Statement
+	if modBody, isMod := ast.AsModuleBody(scopeRoot); isMod {
+		first, ok = modBody.FirstStatement()
+	} else if block, isBlock := ast.AsBlock(scopeRoot); isBlock {
+		first, ok = block.FirstStatement()
+	}
+	if !ok {
+		return "", rhino.NilNode, false
+	}
+	exprStmt, ok := first.AsExprStmt()
+	if !ok {
+		return "", rhino.NilNode, false
+	}
+	call, ok := exprStmt.Expr().AsCall()
+	if !ok {
+		return "", rhino.NilNode, false
+	}
+	arg0, ok := call.FirstArg()
+	if !ok {
+		return "", rhino.NilNode, false
+	}
+	nsLit, ok := arg0.AsStringLit()
+	if !ok {
+		return "", rhino.NilNode, false
+	}
+	second, ok := first.Next()
+	if !ok || !NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(second.Node()) {
+		return "", rhino.NilNode, false
+	}
+	return nsLit.Value(), first.Node(), true
+}
+
 func (c *closureProvideCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		call := ast.MustCall(n)
-		left := call.Callee().Node()
-		if left.IsGetProp() && left.GetFirstChild().MatchesName(processClosureProvidesAndRequires_GOOG) {
-			c.outer.visitGoogMethodCall(t, parent, n, left.GetString())
+		if prop, ok := call.Callee().AsGetProp(); ok && prop.Object().Node().MatchesName(processClosureProvidesAndRequires_GOOG) {
+			c.outer.visitGoogMethodCall(t, call, parent, prop.Property())
 		}
 	case rhino.Token_ASSIGN, rhino.Token_NAME:
 		// If this is an assignment to a provided name, remove the provided object.
 		c.outer.handleCandidateProvideDefinition(t, n, parent)
 	case rhino.Token_EXPR_RESULT:
-		c.outer.handleStubDefinition(t, n)
+		c.outer.handleStubDefinition(t, ast.MustExprStmt(n))
 	}
 }
 
-func (p *ProcessClosureProvidesAndRequires) visitGoogMethodCall(t *NodeTraversal, parent rhino.Node, n rhino.Node, methodName string) {
+func (p *ProcessClosureProvidesAndRequires) visitGoogMethodCall(t *NodeTraversal, call ast.Call, parent rhino.Node, methodName string) {
 	switch methodName {
 	case "exportSymbol":
 		// Note: exportSymbol is allowed in local scope
-		call := ast.MustCall(n)
-		if firstArg, ok := call.FirstArg(); ok && firstArg.Node().IsStringLit() {
-			rootVar, _, _ := strings.Cut(firstArg.Node().GetString(), ".")
-			p.exportedVars.Add(rootVar)
+		if firstArg, ok := call.FirstArg(); ok {
+			if lit, ok := firstArg.AsStringLit(); ok {
+				rootVar, _, _ := strings.Cut(lit.Value(), ".")
+				p.exportedVars.Add(rootVar)
+			}
 		}
 	case "require", "requireType":
-		if p.isValidPrimitiveCall(t, n) {
-			p.processRequireCall(n, parent)
+		if p.isValidPrimitiveCall(t, parent) {
+			p.processRequireCall(call, parent)
 		}
 	case "provide":
-		if p.isValidPrimitiveCall(t, n) {
-			p.processProvideCall(t, n, parent)
+		if p.isValidPrimitiveCall(t, parent) {
+			p.processProvideCall(t, call, parent)
 		}
 	case "forwardDeclare":
-		if p.isValidPrimitiveCall(t, n) {
-			p.processForwardDeclare(n, parent)
+		if p.isValidPrimitiveCall(t, parent) {
+			p.processForwardDeclare(call.Node(), parent)
 		}
 	}
 }
 
-func (p *ProcessClosureProvidesAndRequires) isValidPrimitiveCall(t *NodeTraversal, n rhino.Node) bool {
+func (p *ProcessClosureProvidesAndRequires) isValidPrimitiveCall(t *NodeTraversal, parent rhino.Node) bool {
 	// Ignore invalid primitives if we didn't strip module sugar.
 	if p.compiler.GetOptions().ShouldPreserveGoogModule() {
 		return true
 	}
-	return t.InGlobalHoistScope() && n.GetParent().IsExprResult()
+	return t.InGlobalHoistScope() && parent.IsExprResult()
 }
 
-func (p *ProcessClosureProvidesAndRequires) processRequireCall(call rhino.Node, parent rhino.Node) {
-	if !verifyOnlyArgumentIsString(call) {
+func (p *ProcessClosureProvidesAndRequires) processRequireCall(call ast.Call, parent rhino.Node) {
+	if _, ok := closureOnlyStringArg(call); !ok {
 		return
 	}
 	if !p.preserveGoogProvidesAndRequires {
@@ -285,14 +309,13 @@ func (p *ProcessClosureProvidesAndRequires) processLegacyModuleCall(namespace st
 		p.newProvidedName(namespace, googModuleCall, chunk, true, true, false))
 }
 
-func (p *ProcessClosureProvidesAndRequires) processProvideCall(t *NodeTraversal, call rhino.Node, parent rhino.Node) {
-	callNode := ast.MustCall(call)
-	if !verifyOnlyArgumentIsString(call) {
+func (p *ProcessClosureProvidesAndRequires) processProvideCall(t *NodeTraversal, call ast.Call, parent rhino.Node) {
+	ns, ok := closureOnlyStringArg(call)
+	if !ok {
 		return
 	}
-	ns := callNode.MustFirstArg().Node().GetString()
 
-	info := NodeUtil_GetBestJSDocInfo(call)
+	info := NodeUtil_GetBestJSDocInfo(call.Node())
 	isImplicitlyInitialized := info != nil && info.IsProvideAlreadyProvided()
 
 	if previouslyProvided := p.providedNames.Get(ns); previouslyProvided != nil {
@@ -307,10 +330,11 @@ func (p *ProcessClosureProvidesAndRequires) processProvideCall(t *NodeTraversal,
 	}
 }
 
-func (p *ProcessClosureProvidesAndRequires) handleStubDefinition(t *NodeTraversal, exprResult rhino.Node) {
+func (p *ProcessClosureProvidesAndRequires) handleStubDefinition(t *NodeTraversal, exprStmt ast.ExprStmt) {
 	if !t.InGlobalHoistScope() {
 		return
 	}
+	exprResult := exprStmt.Node()
 	isExternStub := exprResult.IsFromExterns()
 	isTypedefStub := isTypedefStubDeclaration(exprResult)
 	// recognize @typedefs only if using this pass for typechecking via
@@ -318,16 +342,16 @@ func (p *ProcessClosureProvidesAndRequires) handleStubDefinition(t *NodeTraversa
 	isValidTypedefStubDefinition := isTypedefStub && !p.hasRewritingOccurred
 
 	if isValidTypedefStubDefinition || isExternStub {
-		if pn := p.getProvidedNameByNode(exprResult.GetFirstChild()); pn != nil {
+		if pn := p.getProvidedNameByNode(exprStmt.Expr().Node()); pn != nil {
 			pn.addDefinition(exprResult, t.GetChunk(), p.chunkGraph)
 		}
 	}
 	if isTypedefStub {
-		p.checkNestedTypedefProvide(exprResult)
+		p.checkNestedTypedefProvide(exprStmt)
 	}
 }
 
-func (p *ProcessClosureProvidesAndRequires) checkNestedTypedefProvide(exprResult rhino.Node) {
+func (p *ProcessClosureProvidesAndRequires) checkNestedTypedefProvide(exprStmt ast.ExprStmt) {
 	// forbid this pattern:
 	//   goog.provide('my.parent');
 	//   goog.provide('my.parent.ChildTypedef');
@@ -338,27 +362,28 @@ func (p *ProcessClosureProvidesAndRequires) checkNestedTypedefProvide(exprResult
 	// runtime because the compiler would initialize `my.parent.ChildType = {}` before
 	// `my.parent = [...]`, so report an error.
 
-	child := exprResult.GetFirstChild()
-	if !child.IsGetProp() {
+	prop, ok := exprStmt.Expr().AsGetProp()
+	if !ok {
 		return
 	}
-	if _, ok := p.providedLeafs[child.GetString()]; !ok {
+	if _, ok := p.providedLeafs[prop.Property()]; !ok {
 		return
 	}
-	name, ok := child.GetQualifiedNameString()
+	name, ok := prop.Node().GetQualifiedNameString()
 	if !ok {
 		return
 	}
 	lastDot := strings.LastIndexByte(name, '.')
-	if lastDot < 0 {
-		return
-	}
-	if !p.providedNames.ContainsKey(name) {
+	if lastDot < 0 || !p.providedNames.ContainsKey(name) {
 		return
 	}
 	parentName := name[:lastDot]
 	parent := p.providedNames.Get(parentName)
+	if parent == nil {
+		return
+	}
 	parentDefinition := parent.GetCandidateDefinition()
+	exprResult := exprStmt.Node()
 	if parentDefinition.IsNil() ||
 		parentDefinition.GetStaticSourceFile() != exprResult.GetStaticSourceFile() ||
 		isTypedefStubDeclaration(parentDefinition) {
@@ -380,13 +405,13 @@ func (p *ProcessClosureProvidesAndRequires) handleCandidateProvideDefinition(t *
 		return
 	}
 	var pn *ProcessClosureProvidesAndRequires_ProvidedName
-	switch n.GetParent().GetToken() {
+	switch parent.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST:
 		if t.InGlobalScope() {
-			pn = p.providedNames.Get(n.GetString())
+			pn = p.providedNames.Get(ast.MustName(n).Ident())
 		}
 	case rhino.Token_VAR:
-		pn = p.providedNames.Get(n.GetString())
+		pn = p.providedNames.Get(ast.MustName(n).Ident())
 	case rhino.Token_EXPR_RESULT:
 		if assign, ok := ast.AsAssign(n); ok {
 			pn = p.getProvidedNameByNode(assign.Target().Node())
@@ -414,9 +439,16 @@ func (p *ProcessClosureProvidesAndRequires) processForwardDeclare(n rhino.Node, 
 	}
 }
 
-func verifyOnlyArgumentIsString(call rhino.Node) bool {
-	arg := call.GetSecondChild()
-	return !arg.IsNil() && arg.IsStringLit() && arg.GetNext().IsNil()
+func closureOnlyStringArg(call ast.Call) (string, bool) {
+	arg, ok := call.OnlyArg()
+	if !ok {
+		return "", false
+	}
+	lit, ok := arg.AsStringLit()
+	if !ok {
+		return "", false
+	}
+	return lit.Value(), true
 }
 
 // registerAnyProvidedPrefixes registers ProvidedNames for prefix namespaces
@@ -453,7 +485,7 @@ func (p *ProcessClosureProvidesAndRequires) newProvidedName(
 			(!explicit &&
 				(NodeUtil_IsExprAssign(node) ||
 					NodeUtil_IsNameDeclaration(node) ||
-					(node.IsExprResult() && node.GetFirstChild().IsQualifiedName()))),
+					isClosureExprQualifiedName(node))),
 		"%s",
 		node)
 	pn := &ProcessClosureProvidesAndRequires_ProvidedName{
@@ -470,6 +502,11 @@ func (p *ProcessClosureProvidesAndRequires) newProvidedName(
 	}
 	pn.addProvide(node, chunk, explicit, p.chunkGraph)
 	return pn
+}
+
+func isClosureExprQualifiedName(node rhino.Node) bool {
+	exprStmt, ok := ast.AsExprStmt(node)
+	return ok && exprStmt.Expr().Node().IsQualifiedName()
 }
 
 // -------------------------------------------------------------------------
@@ -575,10 +612,9 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) replace(
 		pn.replacementNode = pn.candidateDefinition
 		if exprStmt, ok := ast.AsExprStmt(pn.candidateDefinition); ok {
 			if assign, ok := exprStmt.Expr().AsAssign(); ok {
-				nameNode := assign.Target().Node()
-				if nameNode.IsName() {
+				if name, ok := assign.Target().AsName(); ok {
 					// In the case of a simple name, `name = value;`, ensure the name is declared with `var`.
-					pn.convertProvideAssignmentToVarDeclaration(assign.Node(), nameNode)
+					pn.convertProvideAssignmentToVarDeclaration(assign, name)
 				} else {
 					// `some.provided.namespace = value;`
 					pn.candidateDefinition.PutBooleanProp(rhino.Node_IS_NAMESPACE, true)
@@ -600,15 +636,14 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) replace(
 	}
 }
 
-func (pn *ProcessClosureProvidesAndRequires_ProvidedName) convertProvideAssignmentToVarDeclaration(assignNode rhino.Node, nameNode rhino.Node) {
-	jutil.CheckArgumentMsg1(assignNode.IsAssign(), "%s", assignNode)
-	jutil.CheckArgumentMsg1(nameNode.IsName(), "%s", nameNode)
-	valueNode := nameNode.GetNext()
+func (pn *ProcessClosureProvidesAndRequires_ProvidedName) convertProvideAssignmentToVarDeclaration(assign ast.Assign, name ast.Name) {
+	nameNode := name.Node()
+	valueNode := assign.Value().Node()
 	nameNode.Detach()
 	valueNode.Detach()
 
 	varNode := rhino.IR_VarWithValue(nameNode, valueNode).Srcref(pn.candidateDefinition)
-	varNode.SetJSDocInfo(assignNode.GetJSDocInfo())
+	varNode.SetJSDocInfo(assign.Node().GetJSDocInfo())
 	varNode.PutBooleanProp(rhino.Node_IS_NAMESPACE, true)
 
 	pn.candidateDefinition.ReplaceWith(varNode)
@@ -666,14 +701,15 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) makeVarDeclNode(value 
 
 func (pn *ProcessClosureProvidesAndRequires_ProvidedName) makeAssignmentExprNode(value rhino.Node) rhino.Node {
 	lhs := pn.astFactory.CreateQNameWithUnknownType(pn.namespace).SrcrefTree(pn.firstNode)
-	decl := rhino.IR_ExprResult(pn.astFactory.CreateAssign(lhs, value))
-	decl.PutBooleanProp(rhino.Node_IS_NAMESPACE, true)
+	assign := pn.astFactory.CreateAssign(lhs, value)
 	if !pn.HasCandidateDefinition() {
-		decl.GetFirstChild().SetJSDocInfo(NodeUtil_CreateConstantJsDoc())
+		assign.SetJSDocInfo(NodeUtil_CreateConstantJsDoc())
 	}
+	decl := rhino.IR_ExprResult(assign)
+	decl.PutBooleanProp(rhino.Node_IS_NAMESPACE, true)
 	jutil.CheckState(isNamespacePlaceholder(decl))
 	pn.setSourceInfo(decl)
-	lhs.GetFirstChild().MakeNonIndexableRecursive()
+	ast.MustGetProp(lhs).Object().Node().MakeNonIndexableRecursive()
 	return decl
 }
 
@@ -697,8 +733,13 @@ func (pn *ProcessClosureProvidesAndRequires_ProvidedName) setSourceInfo(newNode 
 }
 
 func (pn *ProcessClosureProvidesAndRequires_ProvidedName) getProvideStringNode() rhino.Node {
-	if pn.firstNode.HasChildren() && NodeUtil_IsExprCall(pn.firstNode) {
-		return pn.firstNode.GetFirstChild().GetLastChild()
+	if exprStmt, ok := ast.AsExprStmt(pn.firstNode); ok {
+		if call, ok := exprStmt.Expr().AsCall(); ok {
+			if arg, ok := call.LastArg(); ok {
+				return arg.Node()
+			}
+			return call.Callee().Node()
+		}
 	}
 	return rhino.NilNode
 }
@@ -717,18 +758,25 @@ func isNamespacePlaceholder(n rhino.Node) bool {
 		return false
 	}
 
-	var value rhino.Node
-	if n.IsExprResult() {
-		value = n.GetFirstChild().GetLastChild()
-	} else if n.IsVar() {
-		value = n.GetFirstChild().GetFirstChild()
+	var value ast.Expr
+	var ok bool
+	if exprStmt, isExpr := ast.AsExprStmt(n); isExpr {
+		if assign, isAssign := exprStmt.Expr().AsAssign(); isAssign {
+			value, ok = assign.Value(), true
+		}
+	} else if decl, isVar := ast.AsNameDeclarationOf(n, rhino.Token_VAR); isVar {
+		if first, hasFirst := decl.FirstDeclarator(); hasFirst {
+			if name, isName := first.AsName(); isName {
+				value, ok = name.Init()
+			}
+		}
 	}
-
-	if value.IsNil() {
+	if !ok {
 		return false
 	}
-	if value.IsCast() {
-		value = value.GetOnlyChild()
+	if cast, isCast := value.AsCast(); isCast {
+		value = cast.Expr()
 	}
-	return value.IsObjectLit() && !value.HasChildren()
+	obj, isObj := value.AsObjectLit()
+	return isObj && !obj.HasMembers()
 }

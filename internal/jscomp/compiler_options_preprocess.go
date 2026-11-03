@@ -198,7 +198,7 @@ type CompilerOptionsPreprocessor_InvalidOptionsException struct {
 // Java: CompilerOptionsPreprocessor.InvalidOptionsException(String)
 func newCompilerOptionsPreprocessor_InvalidOptionsException(message string) *CompilerOptionsPreprocessor_InvalidOptionsException {
 	e := &CompilerOptionsPreprocessor_InvalidOptionsException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.CompilerOptionsPreprocessor$InvalidOptionsException", &message, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.CompilerOptionsPreprocessor$InvalidOptionsException", message, nil)
 	return e
 }
 
@@ -220,7 +220,7 @@ const FlagUsageException_serialVersionUID int64 = 1
 // Java: FlagUsageException(String)
 func NewFlagUsageException(message string) *FlagUsageException {
 	e := &FlagUsageException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.FlagUsageException", &message, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.FlagUsageException", message, nil)
 	return e
 }
 

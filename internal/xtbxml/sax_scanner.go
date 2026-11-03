@@ -891,8 +891,7 @@ func (s *saxScanner) markup() {
 				// Observed behaviour (black-box): the JDK fails with this
 				// internal-state SAXException (not a SAXParseException).
 				e := &SAXException{}
-				msg := "Scanner State 24 not Recognized "
-				jutil.InitThrowable(e, "org.xml.sax.SAXException", &msg, nil)
+				jutil.InitThrowableMsg(e, "org.xml.sax.SAXException", "Scanner State 24 not Recognized ", nil)
 				s.setErr(e)
 				return
 			}

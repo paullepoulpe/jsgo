@@ -837,7 +837,9 @@ func TestNodeUtil_AssortedTests_TestTypedefNamespace(t *testing.T) {
 
 func nuh_assertGetNameResult(t *testing.T, function rhino.Node, name string) {
 	nuAssertNode(t, function).HasToken(rhino.Token_FUNCTION)
-	nuAssertThat(t, NodeUtil_GetName(function)).IsEqualTo(name)
+	got, ok := NodeUtil_GetName(function)
+	nuAssertThat(t, ok).IsTrue()
+	nuAssertThat(t, got).IsEqualTo(name)
 }
 
 func TestNodeUtil_AssortedTests_TestIsFunctionDeclaration(t *testing.T) {
@@ -2859,8 +2861,10 @@ func TestNodeUtil_AssortedTests_TestGetBestLValue(t *testing.T) {
 }
 
 func TestNodeUtil_AssortedTests_TestGetBestLValueName(t *testing.T) {
-	getBestName := func(js string) *string {
-		return NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(nuParseFirst(t, rhino.Token_FUNCTION, js)))
+	getBestName := func(js string) string {
+		got, ok := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(nuParseFirst(t, rhino.Token_FUNCTION, js)))
+		nuAssertThat(t, ok).IsTrue()
+		return got
 	}
 	nuAssertThat(t, getBestName("var x = function() {};")).IsEqualTo("x")
 	nuAssertThat(t, getBestName("x = function() {};")).IsEqualTo("x")
@@ -5399,13 +5403,15 @@ func nuh_executedOnceTestCase(t *testing.T, code string) bool {
 	return NodeUtil_IsExecutedExactlyOnce(nameNode)
 }
 
+func testStringPtr(s string) *string { return &s }
+
 // Java: NodeUtilTest.getFunctionLValue(String)
 func nuh_getFunctionLValue(t *testing.T, js string) *string {
 	lVal := NodeUtil_GetBestLValue(nuParseFirst(t, rhino.Token_FUNCTION, js))
 	if lVal.IsNil() {
 		return nil
 	}
-	return jutil.StringPtr(lVal.GetString())
+	return testStringPtr(lVal.GetString())
 }
 
 // Java: NodeUtilTest.functionIsRValueOfAssign(String)
@@ -5547,7 +5553,11 @@ func TestNodeUtil_GoogRequireRecordMethods(t *testing.T) {
 		for j, d := range cases {
 			nuAssertThat(t, *c.r == *d.r).IsEqualTo(i == j)
 		}
-		nuAssertThat(t, *c.r == *NewNodeUtil_GoogRequire(c.r.Namespace(), c.r.Property(), c.r.IsStrongRequire())).IsTrue()
+		var propOpt base.OptString
+		if prop, ok := c.r.Property(); ok {
+			propOpt = base.SomeString(prop)
+		}
+		nuAssertThat(t, *c.r == *NewNodeUtil_GoogRequire(c.r.Namespace(), propOpt, c.r.IsStrongRequire())).IsTrue()
 	}
 }
 

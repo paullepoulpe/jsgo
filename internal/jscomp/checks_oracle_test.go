@@ -250,7 +250,7 @@ func checksDumpException(sb *strings.Builder, e jutil.Throwable) {
 		if _, ok := c.(jutil.INullPointerException); ok {
 			checksDumpLine(sb, "!! cause "+checksDumpClassName(c))
 		} else {
-			checksDumpLine(sb, "!! cause "+checksDumpClassName(c)+": "+jutil.ToJavaString(jutil.GetMessageOrNull(c)))
+			checksDumpLine(sb, "!! cause "+checksDumpClassName(c)+": "+typeCheckDump_messageString(c))
 		}
 	}
 }
@@ -259,8 +259,8 @@ func checksDumpException(sb *strings.Builder, e jutil.Throwable) {
 // "<class>: <message>" (or "<class>" without a message).
 func checksDumpClassName(e jutil.Throwable) string {
 	s := e.Error()
-	if m := jutil.GetMessageOrNull(e); m != nil {
-		return strings.TrimSuffix(s, ": "+*m)
+	if m, ok := jutil.ThrowableMessage(e); ok {
+		return strings.TrimSuffix(s, ": "+m)
 	}
 	return s
 }

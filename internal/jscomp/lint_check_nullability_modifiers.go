@@ -117,6 +117,18 @@ func (c *CheckNullabilityModifiers) recordCandidate(node rhino.Node, bit uint8) 
 	return true
 }
 
+var checkNullabilityModifiersVisitTokens = makeVisitTokenSet(rhino.Token_SCRIPT)
+
+var (
+	_ nodeTraversal_visitTokens = (*CheckNullabilityModifiers)(nil)
+	_ nodeTraversal_visitJSDoc  = (*CheckNullabilityModifiers)(nil)
+)
+
+func (*CheckNullabilityModifiers) visitTokens() *ast.TokenSet {
+	return &checkNullabilityModifiersVisitTokens
+}
+func (*CheckNullabilityModifiers) visitJSDoc() bool { return true }
+
 // Java: CheckNullabilityModifiers.visit(NodeTraversal, Node, Node)
 func (c *CheckNullabilityModifiers) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()

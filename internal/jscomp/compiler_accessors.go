@@ -72,7 +72,7 @@ func (c *Compiler) GetResult() *Result {
 		c.sourceMap,
 		externExports,
 		c.cssNames,
-		base.OptStringFromPtr(c.idGeneratorMap),
+		c.idGeneratorMap,
 		c.transpiledFiles)
 }
 
@@ -90,10 +90,7 @@ func (c *Compiler) GetDefaultCodingConvention() CodingConvention {
 // GetIdGeneratorMap returns the serialized ID generator mapping, or "" when
 // none has been produced, without allocating a full Result.
 func (c *Compiler) GetIdGeneratorMap() string {
-	if c.idGeneratorMap == nil {
-		return ""
-	}
-	return *c.idGeneratorMap
+	return c.idGeneratorMap.ValueOrEmpty()
 }
 
 // GetConformanceViolations returns the attributed conformance violation protos

@@ -1114,3 +1114,17 @@ func TestNode_ReplaceWithPropagatesSrcrefIfMissing(t *testing.T) {
 	check("replacement3", replacement3, 20, 8, true, "replacement.js")
 	check("child", child, -1, -1, false, "")
 }
+
+func TestNode_HasJSDocInfo(t *testing.T) {
+	assertFalse(t, "NilNode.HasJSDocInfo()", NilNode.HasJSDocInfo())
+	n := IR_Name("x")
+	assertFalse(t, "initial HasJSDocInfo()", n.HasJSDocInfo())
+	b := JSDocInfo_Builder_()
+	b.RecordConstancy()
+	n.SetJSDocInfo(b.Build())
+	assertTrue(t, "after SetJSDocInfo", n.HasJSDocInfo())
+	n.PutProp(Node_Prop_DECLARED_TYPE_EXPR, n) // force extBox path
+	assertTrue(t, "with extBox", n.HasJSDocInfo())
+	n.SetJSDocInfo(nil)
+	assertFalse(t, "after SetJSDocInfo(nil)", n.HasJSDocInfo())
+}

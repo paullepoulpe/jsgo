@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -64,9 +65,9 @@ type TemplateAstMatcher struct {
 
 // Custom Token types for to use as placeholders in the template AST.
 const (
-	templateAstMatcher_TEMPLATE_TYPE_PARAM     = rhino.Token_PLACEHOLDER1
-	templateAstMatcher_TEMPLATE_LOCAL_NAME     = rhino.Token_PLACEHOLDER2
-	templateAstMatcher_TEMPLATE_STRING_LITERAL = rhino.Token_PLACEHOLDER3
+	templateTypeParam     = rhino.Token_PLACEHOLDER1
+	templateLocalName     = rhino.Token_PLACEHOLDER2
+	templateStringLiteral = rhino.Token_PLACEHOLDER3
 )
 
 // NewTemplateAstMatcher constructs this matcher with a Function node that
@@ -77,21 +78,24 @@ const (
 func NewTemplateAstMatcher(
 	compiler AbstractCompiler,
 	templateFunctionNode rhino.Node,
-	typeMatchingStrategy TypeMatchingStrategy) *TemplateAstMatcher {
+	typeMatchingStrategy TypeMatchingStrategy,
+) *TemplateAstMatcher {
+	_, isFn := ast.AsFunction(templateFunctionNode)
 	jutil.CheckStateMsg1(
-		templateFunctionNode.IsFunction(),
+		isFn,
 		"Template node must be a function node. Received: %s",
 		templateFunctionNode)
 
-	m := &TemplateAstMatcher{}
-	// TopScope may be null if the template is used before type checking,
-	// which is useful if just check code structure.
-	m.topScope = compiler.GetTopScope()
-	m.typeRegistry = jutil.CheckNotNull(compiler.GetTypeRegistry())
-	m.templateStart = m.InitTemplate(templateFunctionNode)
-	// Go-only: language-adapter — checkNotNull(typeMatchingStrategy): an
-	// enum value, which cannot be null in Go.
-	m.typeMatchingStrategy = typeMatchingStrategy
+	m := &TemplateAstMatcher{
+		// TopScope may be null if the template is used before type checking,
+		// which is useful if just check code structure.
+		topScope:     compiler.GetTopScope(),
+		typeRegistry: jutil.CheckNotNull(compiler.GetTypeRegistry()),
+		// Go-only: language-adapter — checkNotNull(typeMatchingStrategy): an
+		// enum value, which cannot be null in Go.
+		typeMatchingStrategy: typeMatchingStrategy,
+	}
+	m.templateStart = m.initTemplate(templateFunctionNode)
 	return m
 }
 
@@ -99,17 +103,17 @@ func NewTemplateAstMatcher(
 //
 // Java: TemplateAstMatcher.matches(Node)
 func (m *TemplateAstMatcher) Matches(n rhino.Node) bool {
-	if m.MatchesTemplateShape(m.templateStart, n) {
-		if len(m.paramNodeMatches) == 0 && len(m.localVarMatches) == 0 {
-			// If there are no parameters or locals to match against, this has
-			// been a successful match and there is no reason to traverse the
-			// AST again.
-			return true
-		}
-		m.Reset()
-		return m.MatchesTemplate(m.templateStart, n)
+	if !m.matchesTemplateShape(m.templateStart, n) {
+		return false
 	}
-	return false
+	if len(m.paramNodeMatches) == 0 && len(m.localVarMatches) == 0 {
+		// If there are no parameters or locals to match against, this has
+		// been a successful match and there is no reason to traverse the
+		// AST again.
+		return true
+	}
+	m.reset()
+	return m.matchesTemplate(m.templateStart, n)
 }
 
 // IsLooseMatch returns whether the last match succeeded due to loose type
@@ -126,254 +130,235 @@ func (m *TemplateAstMatcher) IsLooseMatch() bool {
 //
 // Java: TemplateAstMatcher.getTemplateNodeToMatchMap()
 func (m *TemplateAstMatcher) GetTemplateNodeToMatchMap() *OrderedStringMap[rhino.Node] {
-	map_ := NewOrderedStringMapWithCapacity[rhino.Node](len(m.templateParams) + len(m.templateLocals))
-
+	matches := NewOrderedStringMapWithCapacity[rhino.Node](len(m.templateParams) + len(m.templateLocals))
 	for i, name := range m.templateParams {
-		map_.Put(name, m.paramNodeMatches[i])
+		matches.Put(name, m.paramNodeMatches[i])
 	}
-
 	for i, name := range m.templateLocals {
 		matchedName, ok := m.localVarMatches[i].Get()
 		jutil.CheckState(ok)
-		map_.Put(name, rhino.IR_Name(matchedName))
+		matches.Put(name, ast.NewName(matchedName).Node())
 	}
-
-	return map_
+	return matches
 }
 
-// InitTemplate prepares an template AST to use when performing matches.
+// initTemplate prepares a template AST to use when performing matches.
 //
 // templateFunctionNode is the template declaration function to extract the
 // template AST from. Returns the first node of the template AST sequence to
 // use when matching.
 //
 // Java: TemplateAstMatcher.initTemplate(Node)
-func (m *TemplateAstMatcher) InitTemplate(templateFunctionNode rhino.Node) rhino.Node {
-	prepped := templateFunctionNode.CloneTree()
-	m.PrepTemplatePlaceholders(prepped)
+func (m *TemplateAstMatcher) initTemplate(templateFunctionNode rhino.Node) rhino.Node {
+	prepped := ast.MustFunction(templateFunctionNode.CloneTree())
+	m.prepTemplatePlaceholders(prepped)
 
-	body := prepped.GetLastChild()
 	var startNode rhino.Node
-	if body.HasOneChild() && body.GetFirstChild().IsExprResult() {
-		// When matching an expression, don't require it to be a complete
-		// statement.
-		startNode = body.GetFirstFirstChild()
+	if body, ok := prepped.Body().AsBlock(); ok {
+		if onlyStmt, hasOnly := body.OnlyStatement(); hasOnly {
+			if exprStmt, isExpr := onlyStmt.AsExprStmt(); isExpr {
+				// When matching an expression, don't require it to be a complete
+				// statement.
+				startNode = exprStmt.Expr().Node()
+			} else {
+				startNode = onlyStmt.Node()
+			}
+		} else if firstStmt, hasFirst := body.FirstStatement(); hasFirst {
+			startNode = firstStmt.Node()
+		}
 	} else {
-		startNode = body.GetFirstChild()
+		startNode = prepped.Body().Node().GetFirstChild()
 	}
 
 	m.localVarMatches = make([]base.OptString, len(m.templateLocals))
 	m.paramNodeMatches = make([]rhino.Node, len(m.templateParams))
-
 	return startNode
 }
 
-// PrepTemplatePlaceholders builds parameter and local information for the
+// prepTemplatePlaceholders builds parameter and local information for the
 // template and replaces the references in the template 'fn' with
-// placeholder nodes use to facility matching.
+// placeholder nodes used to facilitate matching.
 //
 // Java: TemplateAstMatcher.prepTemplatePlaceholders(Node)
-func (m *TemplateAstMatcher) PrepTemplatePlaceholders(fn rhino.Node) {
-	paramTypes := make(map[string]rhino.JSType)
-
-	// drop the function name so it isn't include in the name maps
-	fnName := fn.GetFirstChild().GetString()
-	fn.GetFirstChild().SetString("")
+func (m *TemplateAstMatcher) prepTemplatePlaceholders(fn ast.Function) {
+	// Drop the function name so it isn't included in the name maps.
+	fnName := fn.NameNode().Ident()
+	fn.RemoveName()
 
 	// Build a list of parameter names and types.
-	templateParametersNode := fn.GetSecondChild()
-	info := NodeUtil_GetBestJSDocInfo(fn)
-	if templateParametersNode.HasChildren() {
+	params := fn.Params()
+	info := NodeUtil_GetBestJSDocInfo(fn.Node())
+	var paramTypes []rhino.JSType
+	if params.HasParams() {
 		jutil.CheckNotNullMsg1(info,
 			"Missing JSDoc declaration for template function %s", fnName)
+		nParams := params.NumParams()
+		m.templateParams = make([]string, 0, nParams)
+		paramTypes = make([]rhino.JSType, 0, nParams)
 	}
-	for paramNode := templateParametersNode.GetFirstChild(); !paramNode.IsNil(); paramNode = paramNode.GetNext() {
-		name := paramNode.GetString()
+	// Go-only: language-adapter — a null topScope must reach the
+	// registry as a null StaticTypedScope, not as a typed nil.
+	var scope rhino.StaticTypedScope
+	if m.topScope != nil {
+		scope = m.topScope
+	}
+	for param := range params.Params() {
+		var name string
+		if nameNode, ok := param.AsName(); ok {
+			name = nameNode.Ident()
+		} else {
+			name = param.Node().GetString()
+		}
 		expression := info.GetParameterType(name)
 		jutil.CheckNotNullMsg2(expression,
 			"Missing JSDoc for parameter %s of template function %s",
 			name, fnName)
-		// Go-only: language-adapter — a null topScope must reach the
-		// registry as a null StaticTypedScope, not as a typed nil.
-		var scope rhino.StaticTypedScope
-		if m.topScope != nil {
-			scope = m.topScope
-		}
-		type_ := m.typeRegistry.EvaluateTypeExpression(expression, scope)
-		jutil.CheckNotNull(type_)
+		paramType := m.typeRegistry.EvaluateTypeExpression(expression, scope)
+		jutil.CheckNotNull(paramType)
 		m.templateParams = append(m.templateParams, name)
-		paramTypes[name] = type_
+		paramTypes = append(paramTypes, paramType)
 	}
 
 	// Find references to string literals, local variables and parameters
 	// and replace them.
-	m.Traverse(
-		fn,
-		func(n rhino.Node) {
-			if n.IsName() {
-				parent := n.GetParent()
-				name := n.GetString()
-				if name != "" && parent.IsVar() && !slices.Contains(m.templateLocals, name) {
-					m.templateLocals = append(m.templateLocals, name)
-				}
-
-				if paramIdx := slices.Index(m.templateParams, name); paramIdx >= 0 {
-					type_ := paramTypes[name]
-					isStringLiteral := type_.IsStringValueType() && strings.HasPrefix(name, "string_literal")
-					m.ReplaceNodeInPlace(
-						n, m.CreateTemplateParameterNode(paramIdx, type_, isStringLiteral))
-				} else if localIdx := slices.Index(m.templateLocals, name); localIdx >= 0 {
-					m.ReplaceNodeInPlace(n, m.CreateTemplateLocalNameNode(localIdx))
-				}
-			}
-		})
+	traverseTemplatePostOrder(fn.Node(), func(n rhino.Node) {
+		nameNode, ok := ast.AsName(n)
+		if !ok {
+			return
+		}
+		name := nameNode.Ident()
+		if name != "" && n.GetParent().IsVar() && !slices.Contains(m.templateLocals, name) {
+			m.templateLocals = append(m.templateLocals, name)
+		}
+		if paramIdx := slices.Index(m.templateParams, name); paramIdx >= 0 {
+			paramType := paramTypes[paramIdx]
+			isStringLiteral := paramType.IsStringValueType() && strings.HasPrefix(name, "string_literal")
+			replaceTemplateNodeInPlace(n, createTemplateParameterNode(paramIdx, paramType, isStringLiteral))
+		} else if localIdx := slices.Index(m.templateLocals, name); localIdx >= 0 {
+			replaceTemplateNodeInPlace(n, createTemplateLocalNameNode(localIdx))
+		}
+	})
 }
 
 // Java: TemplateAstMatcher.replaceNodeInPlace(Node, Node)
-func (m *TemplateAstMatcher) ReplaceNodeInPlace(n rhino.Node, replacement rhino.Node) {
+func replaceTemplateNodeInPlace(n, replacement rhino.Node) {
 	if n.HasChildren() {
-		children := n.RemoveChildren()
-		replacement.AddChildrenToFront(children)
+		replacement.AddChildrenToFront(n.RemoveChildren())
 	}
 	n.ReplaceWith(replacement)
 }
 
-// templateAstMatcher_Visitor is the private Visitor interface.
-//
-// Go-only: language-adapter — a single-method interface implemented by an
-// anonymous class, so a Go func type.
-type templateAstMatcher_Visitor func(n rhino.Node)
-
 // Java: TemplateAstMatcher.traverse(Node, Visitor)
-func (m *TemplateAstMatcher) Traverse(n rhino.Node, callback templateAstMatcher_Visitor) {
-	var next rhino.Node
-	for c := n.GetFirstChild(); !c.IsNil(); c = next {
-		next = c.GetNext() // in case the child is remove, grab the next node now
-		m.Traverse(c, callback)
+func traverseTemplatePostOrder(n rhino.Node, callback func(rhino.Node)) {
+	for c := n.GetFirstChild(); !c.IsNil(); {
+		next := c.GetNext() // in case the child is removed, grab the next node now
+		traverseTemplatePostOrder(c, callback)
+		c = next
 	}
 	callback(n)
 }
 
 // Java: TemplateAstMatcher.reset()
-func (m *TemplateAstMatcher) Reset() {
+func (m *TemplateAstMatcher) reset() {
 	m.isLooseMatch = false
 	clear(m.localVarMatches)
 	clear(m.paramNodeMatches)
 }
 
-// Java: TemplateAstMatcher.isTemplateParameterNode(Node)
-func (m *TemplateAstMatcher) IsTemplateParameterNode(n rhino.Node) bool {
-	return n.GetToken() == templateAstMatcher_TEMPLATE_TYPE_PARAM
-}
-
-// IsTemplateParameterStringLiteralNode matches parameters (in the
-// refasterJS template) whose names start with 'string_literal_'.
-//
-// Java: TemplateAstMatcher.isTemplateParameterStringLiteralNode(Node)
-func (m *TemplateAstMatcher) IsTemplateParameterStringLiteralNode(n rhino.Node) bool {
-	return n.GetToken() == templateAstMatcher_TEMPLATE_STRING_LITERAL
-}
-
-// CreateTemplateParameterNode creates a template parameter or string
+// createTemplateParameterNode creates a template parameter or string
 // literal template node.
 //
 // Java: TemplateAstMatcher.createTemplateParameterNode(int, JSType, boolean)
-func (m *TemplateAstMatcher) CreateTemplateParameterNode(index int, type_ rhino.JSType, isStringLiteral bool) rhino.Node {
+func createTemplateParameterNode(index int, paramType rhino.JSType, isStringLiteral bool) rhino.Node {
 	jutil.CheckState(index >= 0)
-	jutil.CheckNotNull(type_)
+	jutil.CheckNotNull(paramType)
 	n := rhino.Node_NewNumber(float64(index))
 	if isStringLiteral {
-		n.SetToken(templateAstMatcher_TEMPLATE_STRING_LITERAL)
+		n.SetToken(templateStringLiteral)
 	} else {
-		n.SetToken(templateAstMatcher_TEMPLATE_TYPE_PARAM)
+		n.SetToken(templateTypeParam)
 	}
-	n.SetJSType(type_)
+	n.SetJSType(paramType)
 	return n
-}
-
-// Java: TemplateAstMatcher.isTemplateLocalNameNode(Node)
-func (m *TemplateAstMatcher) IsTemplateLocalNameNode(n rhino.Node) bool {
-	return n.GetToken() == templateAstMatcher_TEMPLATE_LOCAL_NAME
 }
 
 // Java: TemplateAstMatcher.createTemplateLocalNameNode(int)
-func (m *TemplateAstMatcher) CreateTemplateLocalNameNode(index int) rhino.Node {
+func createTemplateLocalNameNode(index int) rhino.Node {
 	jutil.CheckState(index >= 0)
 	n := rhino.Node_NewNumber(float64(index))
-	n.SetToken(templateAstMatcher_TEMPLATE_LOCAL_NAME)
+	n.SetToken(templateLocalName)
 	return n
 }
 
-// MatchesTemplateShape returns whether the template matches an AST
-// structure node starting with node, taking into account the template
+// matchesTemplateShape returns whether the template matches an AST
+// structure node starting with n, taking into account the template
 // parameters that were provided to this matcher. Here only the template
 // shape is checked, template local declarations and parameters are checked
 // later.
 //
 // Java: TemplateAstMatcher.matchesTemplateShape(Node, Node)
-func (m *TemplateAstMatcher) MatchesTemplateShape(template rhino.Node, ast rhino.Node) bool {
+func (m *TemplateAstMatcher) matchesTemplateShape(template, n rhino.Node) bool {
 	for !template.IsNil() {
-		if ast.IsNil() || !m.MatchesNodeShape(template, ast) {
+		if n.IsNil() || !m.matchesNodeShape(template, n) {
 			return false
 		}
 		template = template.GetNext()
-		ast = ast.GetNext()
+		n = n.GetNext()
 	}
 	return true
 }
 
 // Java: TemplateAstMatcher.matchesNodeShape(Node, Node)
-func (m *TemplateAstMatcher) MatchesNodeShape(template rhino.Node, ast rhino.Node) bool {
-	if m.IsTemplateParameterNode(template) {
+func (m *TemplateAstMatcher) matchesNodeShape(template, n rhino.Node) bool {
+	switch template.GetToken() {
+	case templateTypeParam:
 		// Match the entire expression but only if it is an expression.
-		return !NodeUtil_IsStatement(ast)
-	} else if m.IsTemplateLocalNameNode(template) {
-		// Match any name. Maybe match locals here.
-		if !ast.IsName() {
+		return !n.IsNil() && !NodeUtil_IsStatement(n)
+	case templateLocalName:
+		// Match any name with matching initializer presence.
+		if n.IsNil() || !n.IsName() || n.HasChildren() != template.HasChildren() {
 			return false
 		}
-	} else if m.IsTemplateParameterStringLiteralNode(template) {
+	case templateStringLiteral:
 		// Matches parameters (in the refasterJS template) whose names start
 		// with 'string_literal_'.
-		return NodeUtil_IsSomeCompileTimeConstStringValue(ast)
-	} else if template.IsCall() {
-		// Loosely match CALL nodes. isEquivalentToShallow checks free calls
+		return !n.IsNil() && NodeUtil_IsSomeCompileTimeConstStringValue(n)
+	case rhino.Token_CALL:
+		// Loosely match CALL nodes. IsEquivalentToShallow checks free calls
 		// against non-free calls, but the template should ignore that
 		// distinction.
-		if ast.IsNil() || !ast.IsCall() || !ast.HasXChildren(template.GetChildCount()) {
+		if n.IsNil() || !n.IsCall() || !n.HasXChildren(template.GetChildCount()) {
 			return false
 		}
-		// But check any children.
-	} else if !template.IsEquivalentToShallow(ast) {
-		return false
+	default:
+		if !template.IsEquivalentToShallow(n) {
+			return false
+		}
 	}
 
-	// isEquivalentToShallow guarantees the child counts match
-	templateChild := template.GetFirstChild()
-	astChild := ast.GetFirstChild()
-	for !templateChild.IsNil() {
-		if !m.MatchesNodeShape(templateChild, astChild) {
+	// IsEquivalentToShallow (and the CALL / local-name checks above) guarantee
+	// the child counts match.
+	for tc, nc := template.GetFirstChild(), n.GetFirstChild(); !tc.IsNil(); tc, nc = tc.GetNext(), nc.GetNext() {
+		if !m.matchesNodeShape(tc, nc) {
 			return false
 		}
-		templateChild = templateChild.GetNext()
-		astChild = astChild.GetNext()
 	}
 	return true
 }
 
 // Java: TemplateAstMatcher.matchesTemplate(Node, Node)
-func (m *TemplateAstMatcher) MatchesTemplate(template rhino.Node, ast rhino.Node) bool {
+func (m *TemplateAstMatcher) matchesTemplate(template, n rhino.Node) bool {
 	for !template.IsNil() {
-		if ast.IsNil() || !m.MatchesNode(template, ast) {
+		if n.IsNil() || !m.matchesNode(template, n) {
 			return false
 		}
 		template = template.GetNext()
-		ast = ast.GetNext()
+		n = n.GetNext()
 	}
 	return true
 }
 
-// MatchesNode returns whether two nodes are equivalent, taking into account
+// matchesNode returns whether two nodes are equivalent, taking into account
 // the template parameters that were provided to this matcher. If the
 // template comparison node is a parameter node, then only the types of the
 // node must match. If the template node is a string literal, only match
@@ -382,38 +367,38 @@ func (m *TemplateAstMatcher) MatchesTemplate(template rhino.Node, ast rhino.Node
 // built in Node equivalence function with the special comparison.
 //
 // Java: TemplateAstMatcher.matchesNode(Node, Node)
-func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bool {
-	if m.IsTemplateParameterNode(template) {
-		paramIndex := int(jutil.D2I(template.GetDouble()))
-		previousMatch := m.paramNodeMatches[paramIndex]
-		if !previousMatch.IsNil() {
+func (m *TemplateAstMatcher) matchesNode(template, n rhino.Node) bool {
+	switch template.GetToken() {
+	case templateTypeParam:
+		paramIndex := int(template.GetDouble())
+		if previousMatch := m.paramNodeMatches[paramIndex]; !previousMatch.IsNil() {
 			// If this named node has already been matched against, make sure
 			// all subsequent usages of the same named node are equivalent.
-			return ast.IsEquivalentTo(previousMatch)
+			return n.IsEquivalentTo(previousMatch)
 		}
 
 		// Only the types need to match for the template parameters, which
 		// allows the template function to express arbitrary expressions.
 		templateType := template.GetJSType()
-
 		jutil.CheckNotNullMsg(templateType, "null template parameter type.")
 
 		// TODO(johnlenz): We shouldn't spend time checking template whose
 		// types whose definitions aren't included (NoResolvedType).
 		// Alternately we should treat them as "unknown" and perform loose
 		// matches.
-		if m.IsUnresolvedType(templateType) {
+		if isUnresolvedTemplateType(templateType) {
 			return false
 		}
 
-		matchResult := m.typeMatchingStrategy.Match(templateType, ast.GetJSType())
+		matchResult := m.typeMatchingStrategy.Match(templateType, n.GetJSType())
 		m.isLooseMatch = matchResult.IsLooseMatch()
-		isMatch := matchResult.IsMatch()
-		if isMatch && previousMatch.IsNil() {
-			m.paramNodeMatches[paramIndex] = ast
+		if !matchResult.IsMatch() {
+			return false
 		}
-		return isMatch
-	} else if m.IsTemplateLocalNameNode(template) {
+		m.paramNodeMatches[paramIndex] = n
+		return true
+
+	case templateLocalName:
 		// If this template name node was already matched against, then make
 		// sure all subsequent usages of the same template name node are
 		// equivalent in the matched code.
@@ -430,27 +415,26 @@ func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bo
 		// but it will not match:
 		//   var b = 'str';
 		//   fn('str');
-		paramIndex := int(jutil.D2I(template.GetDouble()))
-		if prev, ok := m.localVarMatches[paramIndex].Get(); ok {
+		localIndex := int(template.GetDouble())
+		nameNode := ast.MustName(n)
+		if prev, ok := m.localVarMatches[localIndex].Get(); ok {
 			// If this named node has already been matched against, make sure
 			// all subsequent usages of the same named node are equivalent.
-			return ast.GetString() == prev
-		} else {
-			name, hasOrig := ast.OriginalName()
-			if !hasOrig {
-				name = ast.GetString()
-			}
-			m.localVarMatches[paramIndex] = base.SomeString(name)
+			return nameNode.Ident() == prev
 		}
-	} else if m.IsTemplateParameterStringLiteralNode(template) {
-		paramIndex := int(jutil.D2I(template.GetDouble()))
-		previousMatch := m.paramNodeMatches[paramIndex]
-		if !previousMatch.IsNil() {
-			return ast.IsEquivalentTo(previousMatch)
+		name, hasOrig := n.OriginalName()
+		if !hasOrig {
+			name = nameNode.Ident()
 		}
+		m.localVarMatches[localIndex] = base.SomeString(name)
 
-		if NodeUtil_IsSomeCompileTimeConstStringValue(ast) {
-			m.paramNodeMatches[paramIndex] = ast
+	case templateStringLiteral:
+		paramIndex := int(template.GetDouble())
+		if previousMatch := m.paramNodeMatches[paramIndex]; !previousMatch.IsNil() {
+			return n.IsEquivalentTo(previousMatch)
+		}
+		if NodeUtil_IsSomeCompileTimeConstStringValue(n) {
+			m.paramNodeMatches[paramIndex] = n
 			return true
 		}
 		return false
@@ -458,32 +442,27 @@ func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bo
 
 	// Template and AST shape has already been checked, but continue look for
 	// other template variables (parameters and locals) that must be checked.
-	templateChild := template.GetFirstChild()
-	astChild := ast.GetFirstChild()
-	for !templateChild.IsNil() {
-		if !m.MatchesNode(templateChild, astChild) {
+	for tc, nc := template.GetFirstChild(), n.GetFirstChild(); !tc.IsNil(); tc, nc = tc.GetNext(), nc.GetNext() {
+		if !m.matchesNode(tc, nc) {
 			return false
 		}
-		templateChild = templateChild.GetNext()
-		astChild = astChild.GetNext()
 	}
-
 	return true
 }
 
 // Java: TemplateAstMatcher.isUnresolvedType(JSType)
-func (m *TemplateAstMatcher) IsUnresolvedType(type_ rhino.JSType) bool {
+func isUnresolvedTemplateType(t rhino.JSType) bool {
 	// TODO(b/146173738): When types are used in templates that do not appear
 	// in the compilation unit being processed, the template type will be a
 	// named type that resolves to unknown instead of being a no resolved
 	// type. This should be fixed in the compiler such that it resolves to a
 	// no resolved type, and then this code can be simplified to use that.
-	if type_.IsNoResolvedType() || (type_.IsNamedType() && type_.IsUnknownType()) {
+	if t.IsNoResolvedType() || (t.IsNamedType() && t.IsUnknownType()) {
 		return true
 	}
-	if type_.IsUnionType() {
-		for _, alternate := range type_.GetUnionMembers() {
-			if m.IsUnresolvedType(alternate) {
+	if t.IsUnionType() {
+		for _, alternate := range t.GetUnionMembers() {
+			if isUnresolvedTemplateType(alternate) {
 				return true
 			}
 		}

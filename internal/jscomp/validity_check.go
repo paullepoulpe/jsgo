@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -147,6 +148,17 @@ func (c *ValidityCheck_VerifyConstants) Process(externs rhino.Node, root rhino.N
 	jutil.CheckState(!externsAndJs.IsNil())
 	jutil.CheckState(externsAndJs.HasChild(externs))
 	NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
+}
+
+var validityCheckVerifyConstantsVisitTokens = makeVisitTokenSet(rhino.Token_NAME)
+
+var (
+	_ nodeTraversal_visitTokens    = (*ValidityCheck_VerifyConstants)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*ValidityCheck_VerifyConstants)(nil)
+)
+
+func (*ValidityCheck_VerifyConstants) visitTokens() *ast.TokenSet {
+	return &validityCheckVerifyConstantsVisitTokens
 }
 
 // Java: ValidityCheck.VerifyConstants.visit(NodeTraversal, Node, Node)

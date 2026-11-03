@@ -438,12 +438,7 @@ func (g *j2clGatherer) visitClass(class ast.Class) {
 		return
 	}
 
-	var className string
-	hasClassName := false
-	if namePtr := NodeUtil_GetName(class.Node()); namePtr != nil {
-		className = *namePtr
-		hasClassName = true
-	}
+	className, hasClassName := NodeUtil_GetName(class.Node())
 	if g.getterIdxByName == nil {
 		g.getterIdxByName = make(map[string]int)
 		g.setterDefByName = make(map[string]ast.SetterDef)

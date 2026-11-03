@@ -33,7 +33,7 @@ type unsupportedCharsetException struct{ IllegalArgumentException }
 // newUnsupportedCharsetException is new UnsupportedCharsetException(name).
 func newUnsupportedCharsetException(charsetName string) *unsupportedCharsetException {
 	e := &unsupportedCharsetException{}
-	InitThrowable(e, "java.nio.charset.UnsupportedCharsetException", msgPtr(charsetName), nil)
+	InitThrowableMsg(e, "java.nio.charset.UnsupportedCharsetException", charsetName, nil)
 	return e
 }
 
@@ -571,7 +571,7 @@ type illegalCharsetNameException struct {
 // newIllegalCharsetNameException is new IllegalCharsetNameException(String).
 func newIllegalCharsetNameException(charsetName string) *illegalCharsetNameException {
 	e := &illegalCharsetNameException{}
-	InitThrowable(e, "java.nio.charset.IllegalCharsetNameException", &charsetName, nil)
+	InitThrowableMsg(e, "java.nio.charset.IllegalCharsetNameException", charsetName, nil)
 	return e
 }
 

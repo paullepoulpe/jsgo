@@ -2522,7 +2522,7 @@ function f() {
 // Java: CheckConformanceTest.testSimpleExtends()
 func (c *CheckConformanceTest) TestSimpleExtends() {
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2531,7 +2531,7 @@ func (c *CheckConformanceTest) TestSimpleExtends() {
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   extends: 'gws:goog.Promise.X'
 }
 `)
@@ -2544,7 +2544,7 @@ func (c *CheckConformanceTest) TestSimpleExtends() {
 // Java: CheckConformanceTest.testSimpleExtends_withAllowlist()
 func (c *CheckConformanceTest) TestSimpleExtends_withAllowlist() {
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2553,7 +2553,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_withAllowlist() {
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   extends: 'gws:goog.Promise.X'
   allowlist: "testcode"
 }
@@ -2567,7 +2567,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_withAllowlist() {
 // Java: CheckConformanceTest.testSimpleExtends_withAllowlistRegexp()
 func (c *CheckConformanceTest) TestSimpleExtends_withAllowlistRegexp() {
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2576,7 +2576,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_withAllowlistRegexp() {
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   extends: 'gws:goog.Promise.X'
   allowlist_regexp: "code$"
 }
@@ -2590,7 +2590,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_withAllowlistRegexp() {
 // Java: CheckConformanceTest.testSimpleExtends_withErrorMessage()
 func (c *CheckConformanceTest) TestSimpleExtends_withErrorMessage() {
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2598,7 +2598,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_withErrorMessage() {
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   extends: 'gws:goog.Promise.X'
   error_message: "Contact gws-team@ for questions."
 }
@@ -2616,14 +2616,14 @@ func (c *CheckConformanceTest) TestSimpleExtends_withErrorMessage() {
 func (c *CheckConformanceTest) TestSimpleExtends_missingRootErrorMessage_reportsInvalidRequirementSpec() {
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   value: "goog.Promise.all"
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   extends: 'gws:goog.Promise.X'
   error_message: "Contact gws-team@ for questions."
 }
@@ -2645,7 +2645,7 @@ rule_id: "gws:goog.Promise.X"
 func (c *CheckConformanceTest) TestRequirementHasBothRuleIdAndExtends_reportsInvalidRequirementSpec() {
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2655,7 +2655,7 @@ func (c *CheckConformanceTest) TestRequirementHasBothRuleIdAndExtends_reportsInv
 `)
 	// has both rule_id and extends fields set
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "extends:gws:goog.Promise.X"
   extends: 'gws:goog.Promise.X'
 }
@@ -2673,7 +2673,7 @@ func (c *CheckConformanceTest) TestMissingBehaviorInLibraryLevelReportingMode() 
 	c.reportingMode = CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2693,7 +2693,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_disallowsOverridingLibraryLevel
 	c.reportingMode = CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`library_level_non_allowlisted_conformance_violations_behavior: REPORT_AS_BUILD_ERROR
+		testStringPtr(`library_level_non_allowlisted_conformance_violations_behavior: REPORT_AS_BUILD_ERROR
 requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
@@ -2703,7 +2703,7 @@ requirement: {
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`# tries to override the library-level behavior, not allowed
+		testStringPtr(`# tries to override the library-level behavior, not allowed
 library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
 requirement: {
   extends: 'gws:goog.Promise.X'
@@ -2726,7 +2726,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_allowsOverridingLibraryLevelBeh
 	c.reportingMode = CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2735,7 +2735,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_allowsOverridingLibraryLevelBeh
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`library_level_non_allowlisted_conformance_violations_behavior: REPORT_AS_BUILD_ERROR
+		testStringPtr(`library_level_non_allowlisted_conformance_violations_behavior: REPORT_AS_BUILD_ERROR
 requirement: {
   extends: 'gws:goog.Promise.X'
 }
@@ -2751,7 +2751,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_appliesLibraryLevelBehaviorThat
 	c.reportingMode = CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
   error_message: "Prefer using native Promise equivalents. See go/gws-js-conformance#goog-promise"
@@ -2760,7 +2760,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_appliesLibraryLevelBehaviorThat
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
+		testStringPtr(`library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
 requirement: {
   extends: 'gws:goog.Promise.X'
 }
@@ -2776,7 +2776,7 @@ func (c *CheckConformanceTest) TestSimpleExtends_appliesLibraryLevelBehaviorThat
 	c.reportingMode = CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG
 	c.AllowSourcelessWarnings()
 	c.baseConfiguration =
-		jutil.StringPtr(`library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
+		testStringPtr(`library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
 requirement: {
   rule_id: "gws:goog.Promise.X"
   type: BANNED_NAME
@@ -2786,7 +2786,7 @@ requirement: {
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   extends: 'gws:goog.Promise.X'
 }
 `)
@@ -2841,7 +2841,7 @@ func (c *CheckConformanceTest) TestLibraryLevelConformance_requiresRuleIdOrExten
 	c.AllowSourcelessWarnings()
 	c.configuration = ""
 	c.baseConfiguration =
-		jutil.StringPtr(`requirement: {
+		testStringPtr(`requirement: {
   rule_id: 'base-rule'
   type: BANNED_NAME
   value: 'eval'
@@ -2849,7 +2849,7 @@ func (c *CheckConformanceTest) TestLibraryLevelConformance_requiresRuleIdOrExten
 }
 `)
 	c.extendingConfiguration =
-		jutil.StringPtr(`library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
+		testStringPtr(`library_level_non_allowlisted_conformance_violations_behavior: RECORD_ONLY
 requirement: {
   extends: 'base-rule'
 }

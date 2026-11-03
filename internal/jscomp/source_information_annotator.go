@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -66,6 +67,26 @@ func SourceInformationAnnotator_Create() *SourceInformationAnnotator {
 // Java: SourceInformationAnnotator.createWithAnnotationChecks(String)
 func SourceInformationAnnotator_CreateWithAnnotationChecks(sourceFile string) *SourceInformationAnnotator {
 	return NewSourceInformationAnnotator(sourceFile, true)
+}
+
+var sourceInformationAnnotatorVisitTokens = makeVisitTokenSet(
+	rhino.Token_GETPROP,
+	rhino.Token_OPTCHAIN_GETPROP,
+	rhino.Token_NAME,
+	rhino.Token_MEMBER_FUNCTION_DEF,
+	rhino.Token_GETTER_DEF,
+	rhino.Token_SETTER_DEF,
+	rhino.Token_STRING_KEY,
+	rhino.Token_FUNCTION,
+)
+
+var _ nodeTraversal_visitTokens = (*SourceInformationAnnotator)(nil)
+
+func (a *SourceInformationAnnotator) visitTokens() *ast.TokenSet {
+	if a.checkSourceFile {
+		return nil
+	}
+	return &sourceInformationAnnotatorVisitTokens
 }
 
 // Java: SourceInformationAnnotator.visit(NodeTraversal, Node, Node)

@@ -45,7 +45,7 @@ type InvalidProtocolBufferException struct{ jutil.IOException }
 // NewInvalidProtocolBufferException is new InvalidProtocolBufferException(String).
 func NewInvalidProtocolBufferException(description string) *InvalidProtocolBufferException {
 	e := &InvalidProtocolBufferException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.jarjar.com.google.protobuf.InvalidProtocolBufferException", &description, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.jarjar.com.google.protobuf.InvalidProtocolBufferException", description, nil)
 	return e
 }
 

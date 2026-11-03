@@ -116,16 +116,14 @@ func MalformedTypedAstException_CheckWellFormedWithParam(condition bool, descrip
 // Java: MalformedTypedAstException(Object)
 func NewMalformedTypedAstException(msg any) *MalformedTypedAstException {
 	e := &MalformedTypedAstException{}
-	s := malformedTypedAstFormatMsg(msg, true)
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.serialization.MalformedTypedAstException", &s, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.serialization.MalformedTypedAstException", malformedTypedAstFormatMsg(msg, true), nil)
 	return e
 }
 
 // Java: MalformedTypedAstException(Object, Throwable)
 func NewMalformedTypedAstExceptionWithCause(msg any, cause jutil.Throwable) *MalformedTypedAstException {
 	e := &MalformedTypedAstException{}
-	s := malformedTypedAstFormatMsg(msg, true)
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.serialization.MalformedTypedAstException", &s, cause)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.serialization.MalformedTypedAstException", malformedTypedAstFormatMsg(msg, true), cause)
 	return e
 }
 
@@ -702,9 +700,8 @@ func typedAstDeserializer_deserializeTypedAsts(
 	defer func() {
 		if r := recover(); r != nil {
 			if ex, ok := r.(jutil.IIOException); ok {
-				message := "Cannot read from TypedAST input stream"
 				e := &jutil.IllegalArgumentException{}
-				jutil.InitThrowable(e, "java.lang.IllegalArgumentException", &message, ex)
+				jutil.InitThrowableMsg(e, "java.lang.IllegalArgumentException", "Cannot read from TypedAST input stream", ex)
 				panic(e)
 			}
 			panic(r)

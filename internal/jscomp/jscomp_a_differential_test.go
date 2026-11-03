@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
@@ -403,7 +404,7 @@ func jsaDiffMakeError(t *testing.T, provider *jsaDiffProvider, row []string) *JS
 	type_ := jsaDiffTypes[jsaAtoi(t, row[6])]
 	arg := "arg" + strconv.Itoa(line)
 	if row[5] == "0" {
-		return JSError_MakeWithSourceLocation(name, line, charno, type_, arg)
+		return JSError_MakeWithOptSourceLocation(base.OptStringFromPtr(name), line, charno, type_, arg)
 	}
 	n := rhino.Node_NewString("x").SetLinenoCharno(line, charno)
 	n.SetLength(length)
@@ -465,18 +466,18 @@ func jsaDiffReport(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProv
 		fmt.Sprintf("%d/%d/%t", manager.GetErrorCount(), manager.GetWarningCount(), manager.HasHaltingErrors()), row[7])
 }
 
-func jsaDiffSource(s string) *string {
+func jsaDiffSource(s string) base.OptString {
 	if s == "~" {
-		return nil
+		return base.NoString()
 	}
-	return &s
+	return base.SomeString(s)
 }
 
 func jsaDiffSorting(t *testing.T, d *jsaDiff, row []string) {
 	m := NewSortingErrorManager(nil)
 	for _, e := range strings.Split(row[1], ";") {
 		f := strings.Split(e, "|")
-		m.Report(jsaDiffLevels[jsaAtoi(t, f[4])], JSError_MakeWithSourceLocation(
+		m.Report(jsaDiffLevels[jsaAtoi(t, f[4])], JSError_MakeWithOptSourceLocation(
 			jsaDiffSource(f[0]), jsaAtoi(t, f[1]), jsaAtoi(t, f[2]), jsaDiffTypes[jsaAtoi(t, f[3])], "a"))
 	}
 	var sorted strings.Builder
@@ -578,7 +579,7 @@ func jsaDiffGuard(t *testing.T, d *jsaDiff, row []string) {
 	var levels []string
 	for _, e := range strings.Split(row[2], ";") {
 		f := strings.Split(e, "|")
-		err := JSError_MakeWithSourceLocation(jsaDiffSource(f[0]), jsaAtoi(t, f[2]), -1, jsaDiffTypes[jsaAtoi(t, f[1])])
+		err := JSError_MakeWithOptSourceLocation(jsaDiffSource(f[0]), jsaAtoi(t, f[2]), -1, jsaDiffTypes[jsaAtoi(t, f[1])])
 		levels = append(levels, jsaSafe(func() string { return jsaLevelStr(guard.Level(err)) }))
 	}
 	d.check("guard", row, "level", strings.Join(levels, ";"), row[3])

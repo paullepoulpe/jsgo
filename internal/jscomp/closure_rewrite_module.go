@@ -366,6 +366,11 @@ type closureScriptPreprocessor struct {
 	outer *ClosureRewriteModule
 }
 
+var (
+	_ NodeTraversal_Callback = (*closureScriptPreprocessor)(nil)
+	_ nodeTraversal_noVisit  = (*closureScriptPreprocessor)(nil)
+)
+
 func (p *closureScriptPreprocessor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_ROOT, rhino.Token_MODULE_BODY:
@@ -391,6 +396,7 @@ type closureScriptRecorder struct {
 }
 
 var (
+	_ NodeTraversal_Callback      = (*closureScriptRecorder)(nil)
 	_ nodeTraversal_visitTokens   = (*closureScriptRecorder)(nil)
 	_ nodeTraversal_noVisitLeaves = (*closureScriptRecorder)(nil)
 )
@@ -412,21 +418,22 @@ func (r *closureScriptRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, p
 			break
 		}
 		method := getProp.Node()
-		if closureRewriteModule_GOOG_MODULE.Matches(method) {
+		switch {
+		case closureRewriteModule_GOOG_MODULE.Matches(method):
 			m.recordGoogModule(t, call)
-		} else if closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE.Matches(method) {
+		case closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE.Matches(method):
 			m.recordGoogDeclareLegacyNamespace()
-		} else if closureRewriteModule_GOOG_PROVIDE.Matches(method) {
+		case closureRewriteModule_GOOG_PROVIDE.Matches(method):
 			m.recordGoogProvide(t, call)
-		} else if closureRewriteModule_GOOG_REQUIRE.Matches(method) {
+		case closureRewriteModule_GOOG_REQUIRE.Matches(method):
 			m.recordGoogRequire(t, call)
-		} else if closureRewriteModule_GOOG_REQUIRETYPE.Matches(method) {
+		case closureRewriteModule_GOOG_REQUIRETYPE.Matches(method):
 			m.recordGoogRequireType(t, call)
-		} else if closureRewriteModule_GOOG_REQUIREDYNAMIC.Matches(method) {
+		case closureRewriteModule_GOOG_REQUIREDYNAMIC.Matches(method):
 			m.recordGoogRequireDynamic(t, call)
-		} else if closureRewriteModule_GOOG_FORWARDDECLARE.Matches(method) && !parent.IsExprResult() {
+		case closureRewriteModule_GOOG_FORWARDDECLARE.Matches(method) && !parent.IsExprResult():
 			m.recordGoogForwardDeclare(t, call)
-		} else if closureRewriteModule_GOOG_MODULE_GET.Matches(method) {
+		case closureRewriteModule_GOOG_MODULE_GET.Matches(method):
 			m.recordGoogModuleGet(t, call)
 		}
 	case rhino.Token_CLASS, rhino.Token_FUNCTION:
@@ -553,6 +560,11 @@ type closureUnwrapGoogLoadModule struct {
 	outer *ClosureRewriteModule
 }
 
+var (
+	_ NodeTraversal_Callback = (*closureUnwrapGoogLoadModule)(nil)
+	_ nodeTraversal_noVisit  = (*closureUnwrapGoogLoadModule)(nil)
+)
+
 func (u *closureUnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	compiler := u.outer.compiler
 	switch n.GetToken() {
@@ -563,26 +575,32 @@ func (u *closureUnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.N
 		if !ok || !closureRewriteModule_GOOG_LOADMODULE.Matches(call.Callee().Node()) {
 			return false
 		}
-		lastArg, _ := call.LastArg()
-		if function, ok := ast.AsFunction(lastArg.Node()); ok &&
-			function.Body().Node().IsBlock() &&
-			function.Params().Node().HasOneChild() {
-			parent.PutBooleanProp(rhino.Node_GOOG_MODULE, true)
-			functionNode := function.Node()
-			compiler.ReportFunctionDeleted(functionNode)
-			moduleBody := function.Body().Detach().Node()
-			moduleBody.SetToken(rhino.Token_MODULE_BODY)
-			exportsParameter := function.Params().Node().GetOnlyChild()
-			moduleBody.SetJSType(exportsParameter.GetJSType())
-			n.ReplaceWith(moduleBody)
-			returnNode := moduleBody.GetLastChild()
-			if returnNode.IsNil() || !returnNode.IsReturn() {
-				compiler.Report(JSError_MakeWithNode(moduleBody, ClosureRewriteModule_LOAD_MODULE_FN_MISSING_RETURN))
-			} else {
-				returnNode.Detach()
-			}
-			t.ReportCodeChange()
+		lastArg, ok := call.LastArg()
+		if !ok {
+			return false
 		}
+		function, ok := lastArg.AsFunction()
+		if !ok {
+			return false
+		}
+		bodyBlock, isBlock := function.Body().AsBlock()
+		exportsParam, hasOneParam := function.Params().OnlyParam()
+		if !isBlock || !hasOneParam {
+			return false
+		}
+		parent.PutBooleanProp(rhino.Node_GOOG_MODULE, true)
+		compiler.ReportFunctionDeleted(function.Node())
+		moduleBodyNode := bodyBlock.Detach().Node()
+		moduleBodyNode.SetToken(rhino.Token_MODULE_BODY)
+		moduleBodyNode.SetJSType(exportsParam.Node().GetJSType())
+		n.ReplaceWith(moduleBodyNode)
+		lastStmt, hasLast := ast.MustModuleBody(moduleBodyNode).LastStatement()
+		if retStmt, isRet := lastStmt.AsReturn(); hasLast && isRet {
+			retStmt.Detach()
+		} else {
+			compiler.Report(JSError_MakeWithNode(moduleBodyNode, ClosureRewriteModule_LOAD_MODULE_FN_MISSING_RETURN))
+		}
+		t.ReportCodeChange()
 		return false
 	default:
 		return false
@@ -708,7 +726,7 @@ func (m *ClosureRewriteModule) preprocessExportDeclaration(t *NodeTraversal, n r
 	if NodeUtil_IsNamedExportsLiteral(exportRhs) {
 		insertionPoint := n.GetGrandparent()
 		for member := range ast.MustObjectLit(exportRhs).Members() {
-			key := ast.MustStringKey(member.Node())
+			key := member.MustStringKey()
 			exportName := key.Key()
 			jsdoc := key.Node().GetJSDocInfo()
 			rhs := key.Value().Detach().Node()

@@ -478,7 +478,7 @@ type JSChunkGraph_ChunkDependenceException struct {
 func NewJSChunkGraph_ChunkDependenceException(
 	message string, chunk *JSChunk, dependentChunk *JSChunk) *JSChunkGraph_ChunkDependenceException {
 	e := &JSChunkGraph_ChunkDependenceException{chunk: chunk, dependentChunk: dependentChunk}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.JSChunkGraph$ChunkDependenceException", &message, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.JSChunkGraph$ChunkDependenceException", message, nil)
 	return e
 }
 
@@ -499,6 +499,6 @@ type JSChunkGraph_MissingChunkException struct{ jutil.JavaException }
 // Java: JSChunkGraph.MissingChunkException(String)
 func NewJSChunkGraph_MissingChunkException(chunkName string) *JSChunkGraph_MissingChunkException {
 	e := &JSChunkGraph_MissingChunkException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.JSChunkGraph$MissingChunkException", &chunkName, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.JSChunkGraph$MissingChunkException", chunkName, nil)
 	return e
 }

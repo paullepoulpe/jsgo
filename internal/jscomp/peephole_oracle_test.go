@@ -194,7 +194,7 @@ func (d *peepholeOracleDumper) bigints(n rhino.Node) {
 func peepholeOracleException(r any) string {
 	t := jutil.AsThrowable(r)
 	s := t.Error()
-	if jutil.GetMessageOrNull(t) == nil {
+	if _, ok := jutil.ThrowableMessage(t); !ok {
 		s += ": null"
 	}
 	if nl := strings.IndexByte(s, '\n'); nl >= 0 {

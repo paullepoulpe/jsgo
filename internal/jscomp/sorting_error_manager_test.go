@@ -24,9 +24,8 @@ import (
 )
 
 var (
-	jsaSemNULL_SOURCE *string
-	jsaSemFOO_TYPE    = DiagnosticType_Error("TEST_FOO", "Foo")
-	jsaSemJOO_TYPE    = DiagnosticType_Error("TEST_JOO", "Joo")
+	jsaSemFOO_TYPE = DiagnosticType_Error("TEST_FOO", "Foo")
+	jsaSemJOO_TYPE = DiagnosticType_Error("TEST_JOO", "Joo")
 )
 
 func TestSortingErrorManager_OrderingBothNull(t *testing.T) {
@@ -34,42 +33,42 @@ func TestSortingErrorManager_OrderingBothNull(t *testing.T) {
 }
 
 func TestSortingErrorManager_OrderingSourceName1(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaStr("a"), -1, -1, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeAtSourceLocation("a", -1, -1, jsaSemFOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemError(e1), jsaSemError(e2))
 }
 
 func TestSortingErrorManager_OrderingSourceName2(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaStr("a"), -1, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaStr("b"), -1, -1, jsaSemFOO_TYPE)
+	e1 := JSError_MakeAtSourceLocation("a", -1, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeAtSourceLocation("b", -1, -1, jsaSemFOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemError(e1), jsaSemError(e2))
 }
 
 func TestSortingErrorManager_OrderingLineno1(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 2, -1, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(2, -1, jsaSemFOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemError(e1), jsaSemError(e2))
 }
 
 func TestSortingErrorManager_OrderingLineno2(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 8, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 56, -1, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(8, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(56, -1, jsaSemFOO_TYPE)
 	jsaSemAssertSmaller(t, jsaSemError(e1), jsaSemError(e2))
 }
 
 func TestSortingErrorManager_OrderingCheckLevel(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemWarning(e1), jsaSemError(e2))
 }
 
 func TestSortingErrorManager_OrderingCharno1(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 5, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 5, 2, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(5, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(5, 2, jsaSemFOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemError(e1), jsaSemError(e2))
 	// CheckLevel preempts charno comparison
@@ -77,8 +76,8 @@ func TestSortingErrorManager_OrderingCharno1(t *testing.T) {
 }
 
 func TestSortingErrorManager_OrderingCharno2(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 8, 7, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, 8, 5, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(8, 7, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(8, 5, jsaSemFOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemError(e2), jsaSemError(e1))
 	// CheckLevel preempts charno comparison
@@ -86,8 +85,8 @@ func TestSortingErrorManager_OrderingCharno2(t *testing.T) {
 }
 
 func TestSortingErrorManager_OrderingDescription(t *testing.T) {
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemJOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemJOO_TYPE)
 
 	jsaSemAssertSmaller(t, jsaSemError(e1), jsaSemError(e2))
 }
@@ -106,8 +105,8 @@ func (m *jsaSemPrintingManager) Println(level CheckLevel, error *JSError) {
 func TestSortingErrorManager_DeduplicatedErrors(t *testing.T) {
 	manager := &jsaSemPrintingManager{}
 	manager.initReportHooks(manager.Println, nil)
-	e1 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
-	e2 := JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE)
+	e1 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
+	e2 := JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE)
 	manager.Report(CheckLevel_ERROR, e1)
 	manager.Report(CheckLevel_ERROR, e2)
 	manager.GenerateReport()
@@ -126,7 +125,7 @@ func (m *jsaSemReportingManager) Println(level CheckLevel, error *JSError) {
 	if error.Type().Equals(jsaSemFOO_TYPE) {
 		// TODO(b/114762232) This behavior should not be supported, and will become malformed
 		// when migrating to a SortingErrorManager with an ErrorReportGenerator.
-		m.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemJOO_TYPE))
+		m.Report(CheckLevel_ERROR, JSError_MakeWithoutSourceLocation(-1, -1, jsaSemJOO_TYPE))
 	}
 	m.printed++
 }
@@ -139,7 +138,7 @@ func (m *jsaSemReportingManager) PrintSummary() {
 func TestSortingErrorManager_GenerateReportCausesMoreWarnings(t *testing.T) {
 	manager := &jsaSemReportingManager{t: t}
 	manager.initReportHooks(manager.Println, func(*SortingErrorManager) { manager.PrintSummary() })
-	manager.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaSemNULL_SOURCE, -1, -1, jsaSemFOO_TYPE))
+	manager.Report(CheckLevel_ERROR, JSError_MakeWithoutSourceLocation(-1, -1, jsaSemFOO_TYPE))
 	manager.GenerateReport()
 }
 
@@ -169,10 +168,10 @@ func TestSortingErrorManager_CountsAndGenerators(t *testing.T) {
 	})
 	m := NewSortingErrorManager([]SortingErrorManager_ErrorReportGenerator{gen, gen})
 	w := DiagnosticType_Warning("TEST_W", "w")
-	m.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaStr("b.js"), 1, 1, jsaSemFOO_TYPE))
-	m.Report(CheckLevel_ERROR, JSError_MakeWithSourceLocation(jsaStr("a.js"), 1, 1, w))
-	m.Report(CheckLevel_WARNING, JSError_MakeWithSourceLocation(jsaStr("a.js"), 1, 1, w))
-	m.Report(CheckLevel_OFF, JSError_MakeWithSourceLocation(jsaStr("a.js"), 2, 1, w))
+	m.Report(CheckLevel_ERROR, JSError_MakeAtSourceLocation("b.js", 1, 1, jsaSemFOO_TYPE))
+	m.Report(CheckLevel_ERROR, JSError_MakeAtSourceLocation("a.js", 1, 1, w))
+	m.Report(CheckLevel_WARNING, JSError_MakeAtSourceLocation("a.js", 1, 1, w))
+	m.Report(CheckLevel_OFF, JSError_MakeAtSourceLocation("a.js", 2, 1, w))
 	jsaEq(t, m.GetErrorCount(), 2)
 	jsaEq(t, m.GetWarningCount(), 1)
 	jsaTrue(t, m.HasHaltingErrors())

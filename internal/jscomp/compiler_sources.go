@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -317,16 +318,7 @@ func (c *Compiler) AddInputSourceMap(sourceFileName string, inputSourceMap *Sour
 // in `//# sourceMappingURL=` comment.
 //
 // Java: Compiler.getBase64SourceMapContents(String)
-func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
-	if s, ok := c.Base64SourceMapContents(sourceFileName); ok {
-		return &s
-	}
-	return nil
-}
-
-// Base64SourceMapContents returns the base64-encoded inline source map contents
-// for sourceFileName when present.
-func (c *Compiler) Base64SourceMapContents(sourceFileName string) (string, bool) {
+func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) (string, bool) {
 	sourceMapInput := c.inputSourceMaps[sourceFileName]
 	// This sourceMappingURL ends with a ".inline.map", and we want to get its base64-encoded
 	// contents (i.e. "data:application/json;base64,<encoded_source_map>").
@@ -603,7 +595,7 @@ func (c *Compiler) SetCssNames(cssNames *OrderedSet[string]) {
 
 // Java: Compiler.setIdGeneratorMap(String)
 func (c *Compiler) SetIdGeneratorMap(serializedIdMappings string) {
-	c.idGeneratorMap = &serializedIdMappings
+	c.idGeneratorMap = base.SomeString(serializedIdMappings)
 }
 
 // Java: Compiler.getTranspiledFiles()

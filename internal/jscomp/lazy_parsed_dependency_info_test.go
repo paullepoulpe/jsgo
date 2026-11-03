@@ -128,8 +128,7 @@ func TestLazyParsedDependencyInfo_ModuleConflict(t *testing.T) {
 	assertEqual(t, "warnings before", len(compiler.GetErrorManager().GetWarnings()), 0)
 	lazyParsedDependencyInfoTest_assertMapContainsExactly(t, info.GetLoadFlags(), "module", "es6", "lang", "es6")
 	assertEqual(t, "isEs6Module", info.IsEs6Module(), false)
-	name := "my/js.js"
-	want := JSError_MakeWithSourceLocation(&name, -1, -1, ModuleLoader_MODULE_CONFLICT, "my/js.js")
+	want := JSError_MakeAtSourceLocation("my/js.js", -1, -1, ModuleLoader_MODULE_CONFLICT, "my/js.js")
 	got := compiler.GetErrorManager().GetWarnings()
 	if len(got) != 1 || !jutil.ObjectsEquals(got[0], want) {
 		t.Errorf("warnings: got %v, want [%v]", got, want)

@@ -216,6 +216,16 @@ func (p *CreateSyntheticBlocks) MoveSiblingExclusive(dest rhino.Node, start rhin
 	}
 }
 
+var createSyntheticBlocksVisitTokens = makeVisitTokenSet(rhino.Token_CALL)
+
+var (
+	_ nodeTraversal_visitTokens   = (*CreateSyntheticBlocks)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CreateSyntheticBlocks)(nil)
+)
+
+func (*CreateSyntheticBlocks) noVisitLeaves()             {}
+func (*CreateSyntheticBlocks) visitTokens() *ast.TokenSet { return &createSyntheticBlocksVisitTokens }
+
 // Java: CreateSyntheticBlocks.visit(NodeTraversal, Node, Node)
 func (p *CreateSyntheticBlocks) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	call, ok := ast.AsCall(n)

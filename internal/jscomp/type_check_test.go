@@ -3538,7 +3538,7 @@ func (c *TypeCheckTest) TestInnerFunction6NullishCoalesce() {
  function g() { if (goog.isFunction(x)) { x(1); } }
  g();
 }
-`, jutil.StringPtr(`Function x: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
+`, testStringPtr(`Function x: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
 `))
 }
 
@@ -3550,7 +3550,7 @@ func (c *TypeCheckTest) TestInnerFunction7NullishCoalesce() {
  function g() { if (goog.isFunction(x)) { x(1); } }
  g();
 }
-`, jutil.StringPtr(`Function x: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
+`, testStringPtr(`Function x: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
 `))
 }
 
@@ -3561,7 +3561,7 @@ func (c *TypeCheckTest) TestInnerFunction8() {
   function g() { if (goog.isFunction(x)) { x(1); } }
   g();
 }
-`, jutil.StringPtr(`Function x: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
+`, testStringPtr(`Function x: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).
 `))
 }
 
@@ -9590,7 +9590,7 @@ func (c *TypeCheckTest) TestClosure7() {
 	c.TestClosureTypes(`/** @type {string|null|undefined} */ var a = foo();
 /** @type {number} */
 var b = goog.asserts.assert(a);
-`, jutil.StringPtr(`initializing variable
+`, testStringPtr(`initializing variable
 found   : string
 required: number
 `))
@@ -12453,7 +12453,7 @@ func (c *TypeCheckTest) TestGoogBind1() {
 /** @type {function(number): boolean} */
 function f(x, y) { return true; }
 f(goog.bind(f, null, 'x')());
-`, jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+`, testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : boolean
 required: number
 `))
@@ -13989,7 +13989,7 @@ goog.Super = function() {};
 /** @constructor
  @extends {goog.Super} */function Sub() {};
 /** @override */ Sub.prototype.foo = function() {};
-`, jutil.StringPtr(`Bad type annotation. Unknown type goog.Missing
+`, testStringPtr(`Bad type annotation. Unknown type goog.Missing
 It's possible that 'goog.Missing' refers to a value, not a type.
 `))
 }
@@ -14423,7 +14423,7 @@ func (c *TypeCheckTest) TestObjectLiteralDeclaration4() {
  * @param {string} x
  * @suppress {duplicate}
  */ x.abc = function(x) {};
-`, jutil.StringPtr(`assignment to property abc of x
+`, testStringPtr(`assignment to property abc of x
 found   : function(string): undefined
 required: function(boolean): undefined
 `))
@@ -15539,7 +15539,7 @@ SubFoo.prototype.method = function() {
     g(this.bar);
   }
 };
-`, jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+`, testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : (null|{baz: number})
 required: number
 `))
@@ -15584,7 +15584,7 @@ func (c *TypeCheckTest) TestForwardTypeDeclaration1() {
 /** @param {!MyType} x */ function f(x) { }
 `
 	c.TestClosureTypes(f, nil)
-	c.TestClosureTypes(f+"f(3);", jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+	c.TestClosureTypes(f+"f(3);", testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : number
 required: MyType
 `))
@@ -15596,7 +15596,7 @@ func (c *TypeCheckTest) TestForwardTypeDeclaration2() {
 /** @param {MyType} x */ function f(x) { }
 `
 	c.TestClosureTypes(f, nil)
-	c.TestClosureTypes(f+"f(3);", jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+	c.TestClosureTypes(f+"f(3);", testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : number
 required: (MyType|null)
 `))
@@ -15608,7 +15608,7 @@ func (c *TypeCheckTest) TestForwardTypeDeclaration3() {
 /** @param {MyType} x */ function f(x) { return x; }
 /** @constructor */ var MyType = function() {};
 f(3);
-`, jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+`, testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : number
 required: (MyType|null)
 `))
@@ -15631,7 +15631,7 @@ func (c *TypeCheckTest) TestForwardTypeDeclaration5() {
  * @extends {MyType}
  */ var YourType = function() {};
 /** @override */ YourType.prototype.method = function() {};
-`, jutil.StringPtr("Could not resolve type in @extends tag of YourType"))
+`, testStringPtr("Could not resolve type in @extends tag of YourType"))
 }
 
 // Java: TypeCheckTest.testForwardTypeDeclaration6()
@@ -15676,7 +15676,7 @@ func (c *TypeCheckTest) TestForwardTypeDeclaration10() {
 `
 	c.TestClosureTypes(f, nil)
 	c.TestClosureTypes(f+"f(3);", nil)
-	c.TestClosureTypes(f+"f('3');", jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+	c.TestClosureTypes(f+"f('3');", testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : string
 required: (MyType|null|number)
 `))
@@ -15701,7 +15701,7 @@ func (c *TypeCheckTest) TestForwardTypeDeclaration13() {
  * @return {MyType}
  */
 function f(ctor) { return (new ctor()).impossibleProp; }
-`, jutil.StringPtr("Property impossibleProp never defined on ?"+TypeCheck_POSSIBLE_INEXISTENT_PROPERTY_EXPLANATION))
+`, testStringPtr("Property impossibleProp never defined on ?"+TypeCheck_POSSIBLE_INEXISTENT_PROPERTY_EXPLANATION))
 }
 
 // Java: TypeCheckTest.testDuplicateTypeDef()
@@ -16359,7 +16359,7 @@ func (c *TypeCheckTest) TestMissingProperty40b() {
 	c.TestClosureTypes(`goog.forwardDeclare('MissingType');
 /** @param {(Array|MissingType)} x */
 function f(x) { x.impossible(); }
-`, jutil.StringPtr("Property impossible not defined on all member types of x"))
+`, testStringPtr("Property impossible not defined on all member types of x"))
 }
 
 // Java: TypeCheckTest.testMissingProperty41a()
@@ -16528,7 +16528,7 @@ goog.reflect.object = function(x, y){};
 /** @param {string} x */ function f(x) {}
 /** @constructor */ function A() {}
 goog.reflect.object(A, {x: f(1 + 1)});
-`, jutil.StringPtr(`actual parameter 1 of f does not match formal parameter
+`, testStringPtr(`actual parameter 1 of f does not match formal parameter
 found   : number
 required: string
 `))
@@ -18467,7 +18467,7 @@ var arr;
 var result = goog.array.filter(
    arr,
    function(item,index,src) {return false;});
-`, jutil.StringPtr(`initializing variable
+`, testStringPtr(`initializing variable
 found   : Array<string>
 required: Array<number>
 `))
@@ -18482,7 +18482,7 @@ var arr;
 var out4 = goog.array.filter(
    arr,
    function(item,index,src) {out = item; return false});
-`, jutil.StringPtr(`assignment
+`, testStringPtr(`assignment
 found   : string
 required: number
 `))
@@ -18496,7 +18496,7 @@ var out;
 var result = goog.array.filter(
    arr,
    function(item,index,src) {out = index;});
-`, jutil.StringPtr(`assignment
+`, testStringPtr(`assignment
 found   : number
 required: string
 `))
@@ -18510,7 +18510,7 @@ var out;
 var out4 = goog.array.filter(
    arr,
    function(item,index,srcArr) {out = srcArr;});
-`, jutil.StringPtr(`assignment
+`, testStringPtr(`assignment
 found   : (Array|null|{length: number})
 required: string
 `))
@@ -20355,7 +20355,7 @@ function f(pred, x) {
   }
   var /** number */ z = y;
 }
-`, jutil.StringPtr(`initializing variable
+`, testStringPtr(`initializing variable
 found   : (Foo|null)
 required: number
 `))
@@ -22336,7 +22336,7 @@ func (c *TypeCheckTest) TestEs6ExtendCannotUseGoogInherits() {
 /** @extends {Super} */
 class Sub {}
 goog.inherits(Sub, Super);
-`, jutil.StringPtr("Do not use goog.inherits with ES6 classes. Use the ES6 `extends` keyword to inherit instead.\n"))
+`, testStringPtr("Do not use goog.inherits with ES6 classes. Use the ES6 `extends` keyword to inherit instead.\n"))
 }
 
 // Java: TypeCheckTest.testParameterShadowsNamespace()

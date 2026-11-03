@@ -546,9 +546,8 @@ func sourceFile_decodeStrictBytes(cs *jutil.Charset, b []byte, path string) (str
 	}
 	s, decodeErr := cs.TryDecodeStrict(b)
 	if decodeErr != nil {
-		msg := "Failed to read: " + path + ", is this input UTF-8 encoded?"
 		ex := &jutil.IOException{}
-		jutil.InitThrowable(ex, "java.io.IOException", &msg, decodeErr)
+		jutil.InitThrowableMsg(ex, "java.io.IOException", "Failed to read: "+path+", is this input UTF-8 encoded?", decodeErr)
 		return "", ex
 	}
 	return s, nil

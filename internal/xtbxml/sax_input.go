@@ -944,7 +944,7 @@ func (s *saxScanner) xmlDecl() {
 			// java.io.UnsupportedEncodingException for an encoding it does
 			// not know.
 			e := &saxUnsupportedEncodingException{}
-			jutil.InitThrowable(e, "java.io.UnsupportedEncodingException", &encoding, nil)
+			jutil.InitThrowableMsg(e, "java.io.UnsupportedEncodingException", encoding, nil)
 			s.setErr(e)
 			return
 		}

@@ -246,8 +246,8 @@ func (p *JsFileRegexParser) setModuleType(type_ jsFileRegexParser_ModuleType) bo
 		fileName := p.file.String()
 		p.errorManager.Report(
 			CheckLevel_WARNING,
-			JSError_MakeWithSourceLocation(
-				&fileName,
+			JSError_MakeAtSourceLocation(
+				fileName,
 				/* lineno= */ -1,
 				/* charno= */ -1,
 				ModuleLoader_MODULE_CONFLICT,

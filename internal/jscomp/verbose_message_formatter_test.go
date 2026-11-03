@@ -21,7 +21,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
@@ -44,7 +43,7 @@ func TestVerboseMessageFormatterTest(t *testing.T) {
 // Java: VerboseMessageFormatterTest.testFormatError_validLineNumber()
 func (c *VerboseMessageFormatterTest) TestFormatError_validLineNumber() {
 	formatter := NewVerboseMessageFormatter(verboseMessageFormatterTest_emptySourceProvider())
-	error := JSError_MakeWithSourceLocation(jutil.StringPtr("test.js"), 10, 5, VerboseMessageFormatterTest_FOO_TYPE)
+	error := JSError_MakeAtSourceLocation("test.js", 10, 5, VerboseMessageFormatterTest_FOO_TYPE)
 
 	formatted := formatter.FormatError(error)
 
@@ -56,7 +55,7 @@ func (c *VerboseMessageFormatterTest) TestFormatError_validLineNumber() {
 // Java: VerboseMessageFormatterTest.testFormatError_unknownLineNumber()
 func (c *VerboseMessageFormatterTest) TestFormatError_unknownLineNumber() {
 	formatter := NewVerboseMessageFormatter(verboseMessageFormatterTest_emptySourceProvider())
-	error := JSError_MakeWithSourceLocation(jutil.StringPtr("test.js"), -1, -1, VerboseMessageFormatterTest_FOO_TYPE)
+	error := JSError_MakeAtSourceLocation("test.js", -1, -1, VerboseMessageFormatterTest_FOO_TYPE)
 
 	formatted := formatter.FormatError(error)
 
@@ -69,7 +68,7 @@ func (c *VerboseMessageFormatterTest) TestFormatError_unknownLineNumber() {
 // Java: VerboseMessageFormatterTest.testFormatError_unknownSourceName()
 func (c *VerboseMessageFormatterTest) TestFormatError_unknownSourceName() {
 	formatter := NewVerboseMessageFormatter(verboseMessageFormatterTest_emptySourceProvider())
-	error := JSError_MakeWithSourceLocation(nil, 10, 5, VerboseMessageFormatterTest_FOO_TYPE)
+	error := JSError_MakeWithoutSourceLocation(10, 5, VerboseMessageFormatterTest_FOO_TYPE)
 
 	formatted := formatter.FormatError(error)
 
@@ -81,7 +80,7 @@ func (c *VerboseMessageFormatterTest) TestFormatError_unknownSourceName() {
 // Java: VerboseMessageFormatterTest.testFormatError_unknownSourceAndLineNumber()
 func (c *VerboseMessageFormatterTest) TestFormatError_unknownSourceAndLineNumber() {
 	formatter := NewVerboseMessageFormatter(verboseMessageFormatterTest_emptySourceProvider())
-	error := JSError_MakeWithSourceLocation(nil, -1, -1, VerboseMessageFormatterTest_FOO_TYPE)
+	error := JSError_MakeWithoutSourceLocation(-1, -1, VerboseMessageFormatterTest_FOO_TYPE)
 
 	formatted := formatter.FormatError(error)
 
@@ -111,7 +110,7 @@ func (c *VerboseMessageFormatterTest) TestFormatError_withSourceRegion() {
 	provider := &verboseMessageFormatterTest_regionProvider{}
 
 	formatter := NewVerboseMessageFormatter(provider)
-	error := JSError_MakeWithSourceLocation(jutil.StringPtr("test.js"), 10, 0, VerboseMessageFormatterTest_FOO_TYPE)
+	error := JSError_MakeAtSourceLocation("test.js", 10, 0, VerboseMessageFormatterTest_FOO_TYPE)
 
 	formatted := formatter.FormatError(error)
 
@@ -123,7 +122,7 @@ func (c *VerboseMessageFormatterTest) TestFormatError_withSourceRegion() {
 func (c *VerboseMessageFormatterTest) TestFormatWarning_validLineNumber() {
 	formatter := NewVerboseMessageFormatter(verboseMessageFormatterTest_emptySourceProvider())
 	warningType := DiagnosticType_Warning("TEST_WARN", "warning description here")
-	warning := JSError_MakeWithSourceLocation(jutil.StringPtr("test.js"), 42, 0, warningType)
+	warning := JSError_MakeAtSourceLocation("test.js", 42, 0, warningType)
 
 	formatted := formatter.FormatWarning(warning)
 

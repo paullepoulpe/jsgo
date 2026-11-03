@@ -553,7 +553,6 @@ type invalidPathException struct {
 
 func newInvalidPathException(input, reason string) *invalidPathException {
 	e := &invalidPathException{}
-	msg := reason + ": " + input
-	InitThrowable(e, "java.nio.file.InvalidPathException", &msg, nil)
+	InitThrowableMsg(e, "java.nio.file.InvalidPathException", reason+": "+input, nil)
 	return e
 }

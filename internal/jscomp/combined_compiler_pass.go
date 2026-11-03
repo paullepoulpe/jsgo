@@ -47,30 +47,44 @@ import (
 // compiler pass to give it context about what combined passes are doing.
 type CombinedCompilerPass struct {
 	// The callbacks that this pass combines.
-	callbacks             []combinedCompilerPass_CallbackWrapper
-	shouldTraverseIndices []int
-	visitCallbacks        []NodeTraversal_Callback
-	scopedIndices         []int
-	visitTokenMask        [256]uint32
-	unionVisitTokens      ast.TokenSet
-	inactiveMask          uint32
-	useVisitTokenMask     bool
-	hasVisitTokenFilter   bool
-	compiler              AbstractCompiler
-	cachedErrorManager    ErrorManager
-	sortingErrorManager   *SortingErrorManager
-	continueAfterErrors   bool
-	allNoVisit            bool
-	inactiveCount         int
+	callbacks                   []combinedCompilerPass_CallbackWrapper
+	shouldTraverseIndices       []int
+	visitCallbacks              []NodeTraversal_Callback
+	scopedIndices               []int
+	visitTokenMask              [256]uint32
+	waitingTokenMask            [256]uint32
+	unionVisitTokens            ast.TokenSet
+	activeVisitTokens           ast.TokenSet
+	visitJSDocMask              uint32
+	shouldTraverseMask          uint32
+	onlyScriptAndFunctionSTMask uint32
+	unreachableCodeMask         uint32
+	scopedMask                  uint32
+	inactiveMask                uint32
+	useVisitTokenMask           bool
+	hasVisitTokenFilter         bool
+	compiler                    AbstractCompiler
+	cachedErrorManager          ErrorManager
+	sortingErrorManager         *SortingErrorManager
+	continueAfterErrors         bool
+	allNoVisit                  bool
+	inactiveCount               int
 }
 
-var _ nodeTraversal_visitTokens = (*CombinedCompilerPass)(nil)
+var (
+	_ nodeTraversal_visitTokens = (*CombinedCompilerPass)(nil)
+	_ nodeTraversal_visitJSDoc  = (*CombinedCompilerPass)(nil)
+)
 
 func (p *CombinedCompilerPass) visitTokens() *ast.TokenSet {
-	if p.hasVisitTokenFilter && p.inactiveCount == 0 {
-		return &p.unionVisitTokens
+	if p.hasVisitTokenFilter || (p.allNoVisit && p.useVisitTokenMask) {
+		return &p.activeVisitTokens
 	}
 	return nil
+}
+
+func (p *CombinedCompilerPass) visitJSDoc() bool {
+	return p.hasVisitTokenFilter && (p.visitJSDocMask&^p.inactiveMask) != 0
 }
 
 // NewCombinedCompilerPass creates a combined compiler pass.
@@ -97,14 +111,23 @@ func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTr
 	hasUnfilteredVisit := false
 	for i, cb := range callbacks {
 		w, hasShouldTraverse := initCombinedCompilerPass_CallbackWrapper(cb)
+		bit := uint32(1) << i
 		if hasShouldTraverse {
 			p.shouldTraverseIndices = append(p.shouldTraverseIndices, i)
+			if p.useVisitTokenMask {
+				p.shouldTraverseMask |= bit
+				if w.onlyScriptAndFunction {
+					p.onlyScriptAndFunctionSTMask |= bit
+				}
+				if _, isUC := w.callback.(*CheckUnreachableCode); isUC {
+					p.unreachableCodeMask |= bit
+				}
+			}
 		}
 		if !w.noVisit {
 			p.allNoVisit = false
 			p.visitCallbacks = append(p.visitCallbacks, w.callback)
 			if p.useVisitTokenMask {
-				bit := uint32(1) << i
 				if f, ok := w.callback.(nodeTraversal_visitTokens); ok && f.visitTokens() != nil {
 					ts := f.visitTokens()
 					for wordIdx := 0; wordIdx < 4; wordIdx++ {
@@ -113,6 +136,9 @@ func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTr
 							p.visitTokenMask[tok] |= bit
 						}
 						p.unionVisitTokens[wordIdx] |= ts[wordIdx]
+					}
+					if vj, ok := w.callback.(nodeTraversal_visitJSDoc); ok && vj.visitJSDoc() {
+						p.visitJSDocMask |= bit
 					}
 				} else {
 					hasUnfilteredVisit = true
@@ -124,10 +150,14 @@ func NewCombinedCompilerPassOfList(compiler AbstractCompiler, callbacks []NodeTr
 		}
 		if w.scopedCallback != nil {
 			p.scopedIndices = append(p.scopedIndices, i)
+			if p.useVisitTokenMask {
+				p.scopedMask |= bit
+			}
 		}
 		p.callbacks[i] = w
 	}
 	p.hasVisitTokenFilter = p.useVisitTokenMask && !hasUnfilteredVisit && !p.allNoVisit
+	p.activeVisitTokens = p.unionVisitTokens
 	p.refreshErrorState()
 	return p
 }
@@ -192,8 +222,9 @@ type combinedCompilerPass_CallbackWrapper struct {
 	// The node that Callback#shouldTraverse(NodeTraversal, Node, Node)
 	// returned false for. The wrapped callback doesn't receive messages until
 	// after this node is revisited in the post-order traversal.
-	waiting rhino.Node
-	noVisit bool
+	waiting               rhino.Node
+	noVisit               bool
+	onlyScriptAndFunction bool
 }
 
 // Java: CombinedCompilerPass.CallbackWrapper(NodeTraversal.Callback)
@@ -206,36 +237,40 @@ func initCombinedCompilerPass_CallbackWrapper(callback NodeTraversal_Callback) (
 	if !noShouldTraverse {
 		_, noShouldTraverse = callback.(NodeTraversal_AbstractPostOrderCallbackInterface)
 	}
+	if !noShouldTraverse {
+		if sf, ok := callback.(nodeTraversal_onlyScriptAndFunctionShouldTraverse); ok {
+			w.onlyScriptAndFunction = sf.shouldTraverseOnlyScriptAndFunction()
+		}
+	}
 	_, w.noVisit = callback.(nodeTraversal_noVisit)
 	return w, !noShouldTraverse
 }
 
 func (p *CombinedCompilerPass) resetActiveState() {
-	p.inactiveCount = 0
-	p.inactiveMask = 0
-	for i := range p.callbacks {
-		p.callbacks[i].waiting = rhino.NilNode
+	if p.inactiveCount != 0 {
+		for i := range p.callbacks {
+			if wait := p.callbacks[i].waiting; !wait.IsNil() {
+				if p.useVisitTokenMask {
+					p.waitingTokenMask[byte(wait.GetToken())] = 0
+				}
+				p.callbacks[i].waiting = rhino.NilNode
+			}
+		}
+		p.inactiveCount = 0
+		p.inactiveMask = 0
 	}
+	p.activeVisitTokens = p.unionVisitTokens
 }
 
 func (p *CombinedCompilerPass) deactivate(idx int, n rhino.Node) {
 	p.callbacks[idx].waiting = n
 	p.inactiveCount++
 	if p.useVisitTokenMask {
-		p.inactiveMask |= uint32(1) << idx
-	}
-}
-
-func (p *CombinedCompilerPass) visitOrActivate(idx int, t *NodeTraversal, n, parent rhino.Node) {
-	w := &p.callbacks[idx]
-	if w.waiting.IsNil() {
-		if !w.noVisit {
-			w.callback.Visit(t, n, parent)
-		}
-	} else if w.waiting == n {
-		w.waiting = rhino.NilNode
-		p.inactiveMask &^= uint32(1) << idx
-		p.inactiveCount--
+		bit := uint32(1) << idx
+		p.inactiveMask |= bit
+		tok := n.GetToken()
+		p.waitingTokenMask[byte(tok)] |= bit
+		p.activeVisitTokens.Add(tok)
 	}
 }
 
@@ -252,12 +287,12 @@ func (p *CombinedCompilerPass) syncTraversalVisitFilter(t *NodeTraversal) {
 	}
 	if p.allNoVisit {
 		t.noVisit = p.inactiveCount == 0
-	} else if p.hasVisitTokenFilter {
-		if p.inactiveCount == 0 {
-			t.visitTokens = &p.unionVisitTokens
-		} else {
-			t.visitTokens = nil
+		if p.useVisitTokenMask {
+			t.visitTokens = &p.activeVisitTokens
 		}
+	} else if p.hasVisitTokenFilter {
+		t.visitTokens = &p.activeVisitTokens
+		t.visitJSDoc = (p.visitJSDocMask &^ p.inactiveMask) != 0
 	}
 }
 
@@ -363,12 +398,41 @@ func (p *CombinedCompilerPass) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 		return false
 	}
 
-	for _, idx := range p.shouldTraverseIndices {
-		if w := &p.callbacks[idx]; w.waiting.IsNil() && !w.callback.ShouldTraverse(t, n, parent) {
-			p.deactivate(idx, n)
+	deactivated := false
+	if p.useVisitTokenMask {
+		stMask := p.shouldTraverseMask &^ p.inactiveMask
+		if p.onlyScriptAndFunctionSTMask != 0 {
+			if tok := n.GetToken(); tok != rhino.Token_SCRIPT && tok != rhino.Token_FUNCTION {
+				stMask &^= p.onlyScriptAndFunctionSTMask
+			}
+		}
+		for m := stMask; m != 0; m &= m - 1 {
+			idx := bits.TrailingZeros32(m)
+			if !p.callbacks[idx].callback.ShouldTraverse(t, n, parent) {
+				p.deactivate(idx, n)
+				deactivated = true
+			}
+		}
+	} else {
+		isSF := false
+		if tok := n.GetToken(); tok == rhino.Token_SCRIPT || tok == rhino.Token_FUNCTION {
+			isSF = true
+		}
+		for _, idx := range p.shouldTraverseIndices {
+			w := &p.callbacks[idx]
+			if w.waiting.IsNil() && (!w.onlyScriptAndFunction || isSF) && !w.callback.ShouldTraverse(t, n, parent) {
+				p.deactivate(idx, n)
+				deactivated = true
+			}
 		}
 	}
-	p.syncTraversalVisitFilter(t)
+	if deactivated || p.allNoVisit || len(p.shouldTraverseIndices) == 0 {
+		p.syncTraversalVisitFilter(t)
+		p.updateNoShouldTraverse(t)
+	} else if t != nil && (t.noShouldTraverse || t.noBranchShouldTraverse) && p.hasHaltingErrors() {
+		t.noShouldTraverse = false
+		t.noBranchShouldTraverse = false
+	}
 	// Note that this method could return false if all callbacks are
 	// inactive. This apparent optimization would make this method more
 	// expensive in the typical case where not all nodes are inactive. It is
@@ -386,19 +450,66 @@ func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 		}
 		if p.useVisitTokenMask {
 			mask := p.visitTokenMask[byte(n.GetToken())]
+			if p.visitJSDocMask != 0 && n.HasJSDocInfo() {
+				mask |= p.visitJSDocMask
+			}
 			if mask == 0 || p.hasHaltingErrors() {
 				return
 			}
 			for ; mask != 0; mask &= mask - 1 {
 				p.callbacks[bits.TrailingZeros32(mask)].callback.Visit(t, n, parent)
 			}
+		} else {
+			if p.hasHaltingErrors() {
+				return
+			}
+			for _, cb := range p.visitCallbacks {
+				cb.Visit(t, n, parent)
+			}
+		}
+		if t != nil && (t.noShouldTraverse || t.noBranchShouldTraverse) && p.hasHaltingErrors() {
+			t.noShouldTraverse = false
+			t.noBranchShouldTraverse = false
+		}
+		return
+	}
+
+	if p.useVisitTokenMask {
+		tok := n.GetToken()
+		btok := byte(tok)
+		activeMask := p.visitTokenMask[btok]
+		if p.visitJSDocMask != 0 && n.HasJSDocInfo() {
+			activeMask |= p.visitJSDocMask
+		}
+		activeMask &^= p.inactiveMask
+		waitMask := p.waitingTokenMask[btok]
+		combined := activeMask | waitMask
+		if combined == 0 || p.hasHaltingErrors() {
 			return
 		}
-		if p.hasHaltingErrors() {
-			return
+		reactivated := false
+		for m := combined; m != 0; m &= m - 1 {
+			idx := bits.TrailingZeros32(m)
+			bit := uint32(1) << idx
+			if (activeMask & bit) != 0 {
+				p.callbacks[idx].callback.Visit(t, n, parent)
+			} else if p.callbacks[idx].waiting == n {
+				p.callbacks[idx].waiting = rhino.NilNode
+				p.inactiveMask &^= bit
+				p.inactiveCount--
+				p.waitingTokenMask[btok] &^= bit
+				if p.waitingTokenMask[btok] == 0 && !p.unionVisitTokens.Has(tok) {
+					p.activeVisitTokens[btok>>6] &^= uint64(1) << (btok & 63)
+				}
+				reactivated = true
+			}
 		}
-		for _, cb := range p.visitCallbacks {
-			cb.Visit(t, n, parent)
+		if reactivated {
+			p.syncTraversalVisitFilter(t)
+			p.updateNoShouldTraverse(t)
+		} else if t != nil && (t.noShouldTraverse || t.noBranchShouldTraverse) && p.hasHaltingErrors() {
+			t.noShouldTraverse = false
+			t.noBranchShouldTraverse = false
 		}
 		return
 	}
@@ -406,52 +517,102 @@ func (p *CombinedCompilerPass) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 	if p.hasHaltingErrors() {
 		return
 	}
-	if p.useVisitTokenMask {
-		for mask := p.visitTokenMask[byte(n.GetToken())] | p.inactiveMask; mask != 0; mask &= mask - 1 {
-			p.visitOrActivate(bits.TrailingZeros32(mask), t, n, parent)
-		}
-	} else {
-		for i := range p.callbacks {
-			p.visitOrActivate(i, t, n, parent)
+	reactivated := false
+	for i := range p.callbacks {
+		w := &p.callbacks[i]
+		if w.waiting.IsNil() {
+			if !w.noVisit {
+				w.callback.Visit(t, n, parent)
+			}
+		} else if w.waiting == n {
+			w.waiting = rhino.NilNode
+			p.inactiveCount--
+			reactivated = true
 		}
 	}
-	p.syncTraversalVisitFilter(t)
+	if reactivated {
+		p.syncTraversalVisitFilter(t)
+		p.updateNoShouldTraverse(t)
+	} else if t != nil && (t.noShouldTraverse || t.noBranchShouldTraverse) && p.hasHaltingErrors() {
+		t.noShouldTraverse = false
+		t.noBranchShouldTraverse = false
+	}
 }
 
 // Java: CombinedCompilerPass.enterScope(NodeTraversal)
 func (p *CombinedCompilerPass) EnterScope(t *NodeTraversal) {
-	for _, idx := range p.scopedIndices {
-		if cb := p.activeScoped(idx); cb != nil {
-			cb.EnterScope(t)
+	if p.useVisitTokenMask {
+		for m := p.scopedMask &^ p.inactiveMask; m != 0; m &= m - 1 {
+			p.callbacks[bits.TrailingZeros32(m)].scopedCallback.EnterScope(t)
 		}
+	} else {
+		for _, idx := range p.scopedIndices {
+			if cb := p.activeScoped(idx); cb != nil {
+				cb.EnterScope(t)
+			}
+		}
+	}
+	if p.allNoVisit {
+		p.syncTraversalVisitFilter(t)
 	}
 	p.updateNoShouldTraverse(t)
 }
 
 // Java: CombinedCompilerPass.exitScope(NodeTraversal)
 func (p *CombinedCompilerPass) ExitScope(t *NodeTraversal) {
-	for _, idx := range p.scopedIndices {
-		if cb := p.activeScoped(idx); cb != nil {
-			cb.ExitScope(t)
+	if p.useVisitTokenMask {
+		for m := p.scopedMask &^ p.inactiveMask; m != 0; m &= m - 1 {
+			p.callbacks[bits.TrailingZeros32(m)].scopedCallback.ExitScope(t)
+		}
+	} else {
+		for _, idx := range p.scopedIndices {
+			if cb := p.activeScoped(idx); cb != nil {
+				cb.ExitScope(t)
+			}
 		}
 	}
 	p.updateNoShouldTraverse(t)
 }
 
 func (p *CombinedCompilerPass) updateNoShouldTraverse(t *NodeTraversal) {
-	if t == nil || p.hasHaltingErrors() {
+	if t == nil {
 		return
 	}
-	if p.inactiveCount > 0 {
+	if p.hasHaltingErrors() {
 		t.noShouldTraverse = false
+		t.noBranchShouldTraverse = false
 		return
 	}
+	if p.useVisitTokenMask {
+		activeST := p.shouldTraverseMask &^ p.inactiveMask
+		if ucMask := activeST & p.unreachableCodeMask; ucMask != 0 {
+			for m := ucMask; m != 0; m &= m - 1 {
+				idx := bits.TrailingZeros32(m)
+				if p.callbacks[idx].callback.(*CheckUnreachableCode).CurrentScopeHasNoUnreachable() {
+					activeST &^= uint32(1) << idx
+				}
+			}
+		}
+		t.noShouldTraverse = activeST == 0
+		t.noBranchShouldTraverse = (activeST &^ p.onlyScriptAndFunctionSTMask) == 0
+		return
+	}
+	noST := true
+	noBranchST := true
 	for _, idx := range p.shouldTraverseIndices {
-		if uc, ok := p.callbacks[idx].callback.(*CheckUnreachableCode); ok && uc.CurrentScopeHasNoUnreachable() {
+		w := &p.callbacks[idx]
+		if !w.waiting.IsNil() {
 			continue
 		}
-		t.noShouldTraverse = false
-		return
+		if uc, ok := w.callback.(*CheckUnreachableCode); ok && uc.CurrentScopeHasNoUnreachable() {
+			continue
+		}
+		noST = false
+		if !w.onlyScriptAndFunction {
+			noBranchST = false
+			break
+		}
 	}
-	t.noShouldTraverse = true
+	t.noShouldTraverse = noST
+	t.noBranchShouldTraverse = noBranchST
 }

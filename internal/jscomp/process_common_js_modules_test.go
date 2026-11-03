@@ -1762,3 +1762,13 @@ module.exports = Hello;
 			ProcessCommonJSModules_SUSPICIOUS_EXPORTS_ASSIGNMENT,
 			nil))
 }
+
+func (c *ProcessCommonJSModulesTest) TestZeroArgRequireIgnoredWithoutCrash() {
+	c.TestModules(
+		"test.js",
+		"var x = require(); exports.y = 1;",
+		`/** @const */ var module$test = {/** @const */ default: {}};
+var x$$module$test = require();
+module$test.default.y = 1;
+`)
+}

@@ -21,24 +21,35 @@ package jscomp
 import (
 	"strconv"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // Java: AstValidator.validateRoot(Node)
 func (v *AstValidator) ValidateRoot(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_ROOT, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 2)
-	v.ValidateCodeRoot(n.GetFirstChild())
-	v.ValidateCodeRoot(n.GetLastChild())
+	isRoot := v.validateNodeType(rhino.Token_ROOT, n)
+	if v.validatePropsAndCount(n, 2) && isRoot {
+		root := ast.MustRoot(n)
+		externsRoot, _ := root.FirstItem()
+		codeRoot, _ := root.LastItem()
+		v.ValidateCodeRoot(externsRoot.Node())
+		v.ValidateCodeRoot(codeRoot.Node())
+	} else {
+		v.ValidateCodeRoot(n.GetFirstChild())
+		v.ValidateCodeRoot(n.GetLastChild())
+	}
 	v.checkGrammar(n)
 }
 
 // Java: AstValidator.validateCodeRoot(Node)
 func (v *AstValidator) ValidateCodeRoot(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_ROOT, n)
+	if v.validateNodeType(rhino.Token_ROOT, n) {
+		for item := range ast.MustRoot(n).Items() {
+			v.ValidateScript(item.Node())
+		}
+		return
+	}
 	for c := range n.Children() {
 		v.ValidateScript(c)
 	}
@@ -46,37 +57,42 @@ func (v *AstValidator) ValidateCodeRoot(n rhino.Node) {
 
 // Java: AstValidator.validateScript(Node)
 func (v *AstValidator) ValidateScript(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_SCRIPT, n)
-	v.ValidateHasSourceName(n)
-	v.ValidateHasInputId(n)
+	isScript := v.validateNodeType(rhino.Token_SCRIPT, n)
+	v.validateHasSourceName(n)
+	v.validateHasInputId(n)
 	v.currentScript = n
-	if n.HasChildren() && n.GetFirstChild().IsModuleBody() {
-		v.ValidateProperties(n)
-		v.ValidateChildCountWithExpected(n, 1)
-		v.ValidateModuleContents(n.GetFirstChild())
+	if isScript {
+		script := ast.MustScript(n)
+		if first, ok := script.FirstItem(); ok && first.Node().IsModuleBody() {
+			v.validatePropsAndCount(n, 1)
+			v.validateModuleContents(ast.MustModuleBody(first.Node()))
+		} else {
+			for item := range script.Items() {
+				v.ValidateStatement(item.Node())
+			}
+		}
+	} else if n.HasChildren() && n.GetFirstChild().IsModuleBody() {
+		v.validatePropsAndCount(n, 1)
+		v.validateModuleContents(ast.MustModuleBody(n.GetFirstChild()))
 	} else {
-		v.ValidateStatements(n.GetFirstChild())
+		for c := range n.Children() {
+			v.ValidateStatement(c)
+		}
 	}
 	if v.isScriptFeatureValidationEnabled {
-		v.ValidateScriptFeatureSet(n)
+		v.validateScriptFeatureSet(n)
 	}
 }
 
-// ValidateScriptFeatureSet confirms that every SCRIPT node’s FEATURE_SET <=
-// compiler's allowable featureSet. This is possbile because with
-// go/accurately-maintain-script-node-featureSet, each transpiler pass
-// updates script features anytime it updates the compiler's allowable
-// features.
+// validateScriptFeatureSet confirms that every SCRIPT node's FEATURE_SET <=
+// compiler's allowable featureSet.
 //
 // Java: AstValidator.validateScriptFeatureSet(Node)
-func (v *AstValidator) ValidateScriptFeatureSet(scriptNode rhino.Node) {
+func (v *AstValidator) validateScriptFeatureSet(scriptNode rhino.Node) {
 	if !scriptNode.IsScript() {
+		// Unit tests pass non-SCRIPT nodes to ValidateScript and expect a
+		// violation rather than a panic in NodeUtil_GetFeatureSetOfScript.
 		v.Violation("Not a script node", scriptNode)
-		// unit tests for this pass perform "Negaive Testing" (i.e pass
-		// non-script nodes to {@code validateScript}) and expect a violation
-		// {@code expectInvalid(n, Check.SCRIPT);} report violation and return
-		// here instead of crashing below in {@code
-		// NodeUtil.getFeatureSetofScript} for test to complete
 		return
 	}
 	scriptFeatures := NodeUtil_GetFeatureSetOfScript(v.currentScript)
@@ -84,330 +100,295 @@ func (v *AstValidator) ValidateScriptFeatureSet(scriptNode rhino.Node) {
 	if scriptFeatures.IsZero() || allowableFeatures.IsZero() {
 		return
 	}
-	if !allowableFeatures.Contains(scriptFeatures) {
-		if !scriptNode.IsFromExterns() {
-			// Skip this check for externs because we don't need to complete
-			// transpilation on externs, and currently only transpile externs
-			// so that we can typecheck ES6+ features in externs.
-			differentFeatures := scriptFeatures.Without(allowableFeatures)
-			v.Violation(
-				"SCRIPT node contains these unallowable features:"+differentFeatures.String(),
-				v.currentScript)
-		}
+	if !allowableFeatures.Contains(scriptFeatures) && !scriptNode.IsFromExterns() {
+		differentFeatures := scriptFeatures.Without(allowableFeatures)
+		v.Violation(
+			"SCRIPT node contains these unallowable features:"+differentFeatures.String(),
+			v.currentScript)
 	}
 }
 
 // Java: AstValidator.validateModuleContents(Node)
-func (v *AstValidator) ValidateModuleContents(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_MODULE_BODY, n)
-	v.ValidateStatements(n.GetFirstChild())
-}
-
-// Java: AstValidator.validateStatements(Node)
-func (v *AstValidator) ValidateStatements(n rhino.Node) {
-	for !n.IsNil() {
-		v.ValidateStatement(n)
-		n = n.GetNext()
+func (v *AstValidator) validateModuleContents(mod ast.ModuleBody) {
+	for stmt := range mod.Statements() {
+		v.ValidateStatement(stmt.Node())
 	}
 }
 
 // Java: AstValidator.validateStatement(Node)
 func (v *AstValidator) ValidateStatement(n rhino.Node) {
-	v.ValidateStatementWithAmbient(n, false)
+	v.validateStatementWithAmbient(n, false)
 }
 
-// ValidateStatementWithAmbient validates a statement node and its
-// children.
-//
-// isAmbient is whether this statement comes from TS ambient `declare
-// [...]`.
+// validateStatementWithAmbient validates a statement node and its children.
+// isAmbient reports whether this statement comes from TS ambient `declare [...]`.
 //
 // Java: AstValidator.validateStatement(Node, boolean)
-func (v *AstValidator) ValidateStatementWithAmbient(n rhino.Node, isAmbient bool) {
+func (v *AstValidator) validateStatementWithAmbient(n rhino.Node, isAmbient bool) {
 	switch n.GetToken() {
 	case rhino.Token_LABEL:
-		v.ValidateLabel(n)
+		v.validateLabel(ast.MustLabel(n))
 	case rhino.Token_BLOCK:
-		v.ValidateBlock(n)
+		v.validateBlock(n)
 	case rhino.Token_FUNCTION:
 		if isAmbient {
-			v.ValidateFunctionSignature(n)
+			v.validateFunctionSignature(n)
 		} else {
-			v.ValidateFunctionStatement(n)
+			v.validateFunctionStatement(ast.MustFunction(n))
 		}
 	case rhino.Token_WITH:
-		v.ValidateWith(n)
+		v.validateWith(ast.MustWith(n))
 	case rhino.Token_FOR:
-		v.ValidateFor(n)
-	case rhino.Token_FOR_IN:
-		v.ValidateForIn(n)
-	case rhino.Token_FOR_OF:
-		v.ValidateForOf(n)
-	case rhino.Token_FOR_AWAIT_OF:
-		v.ValidateForAwaitOf(n)
+		v.validateFor(ast.MustFor(n))
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		v.validateEnhancedFor(ast.MustEnhancedFor(n))
 	case rhino.Token_WHILE:
-		v.ValidateWhile(n)
+		v.validateWhile(ast.MustWhile(n))
 	case rhino.Token_DO:
-		v.ValidateDo(n)
+		v.validateDo(ast.MustDo(n))
 	case rhino.Token_SWITCH:
-		v.ValidateSwitch(n)
+		v.validateSwitch(ast.MustSwitch(n))
 	case rhino.Token_IF:
-		v.ValidateIf(n)
+		v.validateIf(ast.MustIf(n))
 	case rhino.Token_CONST, rhino.Token_VAR, rhino.Token_LET:
-		v.ValidateNameDeclarationHelper(n, n.GetToken(), n)
+		v.validateNameDeclaration(n, ast.MustNameDeclaration(n))
 	case rhino.Token_EXPR_RESULT:
-		v.ValidateExprStmt(n)
+		v.validateExprStmt(ast.MustExprStmt(n))
 	case rhino.Token_RETURN:
-		v.ValidateReturn(n)
+		v.validateReturn(ast.MustReturn(n))
 	case rhino.Token_THROW:
-		v.ValidateThrow(n)
+		v.validateThrow(ast.MustThrow(n))
 	case rhino.Token_TRY:
-		v.ValidateTry(n)
-	case rhino.Token_BREAK:
-		v.ValidateBreak(n)
-	case rhino.Token_CONTINUE:
-		v.ValidateContinue(n)
+		v.validateTry(ast.MustTry(n))
+	case rhino.Token_BREAK, rhino.Token_CONTINUE:
+		v.validateJump(ast.MustJump(n))
 	case rhino.Token_EMPTY, rhino.Token_DEBUGGER:
-		v.ValidateProperties(n)
-		v.ValidateChildless(n)
+		v.validateChildlessNode(n)
 	case rhino.Token_CLASS:
-		v.ValidateClassDeclaration(n, isAmbient)
+		v.validateClassDeclaration(ast.MustClass(n), isAmbient)
 	case rhino.Token_IMPORT:
-		v.ValidateImport(n)
+		v.validateImport(ast.MustImport(n))
 	case rhino.Token_EXPORT:
-		v.ValidateExport(n, isAmbient)
+		v.validateExport(ast.MustExport(n), isAmbient)
 	case rhino.Token_INTERFACE:
-		v.ValidateInterface(n)
+		v.validateInterface(n)
 	case rhino.Token_ENUM:
-		v.ValidateEnum(n)
+		v.validateEnum(n)
 	case rhino.Token_TYPE_ALIAS:
-		v.ValidateTypeAlias(n)
+		v.validateTypeAlias(n)
 	case rhino.Token_DECLARE:
-		v.ValidateAmbientDeclaration(n)
+		v.validateAmbientDeclaration(n)
 	case rhino.Token_NAMESPACE:
-		v.ValidateNamespace(n, isAmbient)
+		v.validateNamespace(n, isAmbient)
 	case rhino.Token_MODULE_BODY:
-		// Uncommon case where a module body is not the first child of a
-		// script. This may happen in a specific circumstance where the {@code
-		// LateEs6ToEs3Rewriter} pass injects code above a module body. Valid
-		// only when skipNonTranspilationPasses=true and
-		// setWrapGoogModulesForWhitespaceOnly=false
-		// TODO: b/294420383 Ideally the LateEs6ToEs3Rewriter pass should not
-		// inject code above the module body node
-		if v.compiler.GetOptions().GetSkipNonTranspilationPasses() {
-			if !v.compiler.GetOptions().ShouldWrapGoogModulesForWhitespaceOnly() {
-				v.ValidateModuleContents(n)
-				return
-			}
+		// LateEs6ToEs3Rewriter may inject code above a MODULE_BODY when
+		// skipNonTranspilationPasses=true and wrapGoogModulesForWhitespaceOnly=false.
+		opts := v.compiler.GetOptions()
+		if opts.GetSkipNonTranspilationPasses() && !opts.ShouldWrapGoogModulesForWhitespaceOnly() {
+			v.validateModuleContents(ast.MustModuleBody(n))
+			return
 		}
 		v.Violation("Expected statement but was "+n.GetToken().String()+".", n)
 	default:
-		if n.IsModuleBody() && v.compiler.GetOptions().GetSkipNonTranspilationPasses() {
-			jutil.CheckStateMsg(
-				!v.compiler.GetOptions().ShouldWrapGoogModulesForWhitespaceOnly(),
-				"Modules can exist in transpiler only if setWrapGoogModulesForWhitespaceOnly is"+
-					" false")
-			v.ValidateModuleContents(n)
-			return
-		}
 		v.Violation("Expected statement but was "+n.GetToken().String()+".", n)
 	}
 }
 
 // Java: AstValidator.validateBlock(Node)
-func (v *AstValidator) ValidateBlock(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_BLOCK, n)
+func (v *AstValidator) validateBlock(n rhino.Node) {
+	if v.validateNodeType(rhino.Token_BLOCK, n) {
+		for stmt := range ast.MustBlock(n).Statements() {
+			v.ValidateStatement(stmt.Node())
+		}
+		return
+	}
 	for c := range n.Children() {
 		v.ValidateStatement(c)
 	}
 }
 
 // Java: AstValidator.validateLabel(Node)
-func (v *AstValidator) ValidateLabel(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_LABEL, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateLabelName(n.GetFirstChild())
+func (v *AstValidator) validateLabel(lbl ast.Label) {
+	n := lbl.Node()
+	if v.validatePropsAndArity(n) {
+		v.validateLabelName(lbl.Name().Node())
+		v.ValidateStatement(lbl.Body().Node())
+		return
+	}
+	v.validateLabelName(n.GetFirstChild())
 	v.ValidateStatement(n.GetLastChild())
 }
 
 // Java: AstValidator.validateLabelName(Node)
-func (v *AstValidator) ValidateLabelName(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_LABEL_NAME, n)
-	v.ValidateNonEmptyString(n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateLabelName(n rhino.Node) {
+	v.validateNodeType(rhino.Token_LABEL_NAME, n)
+	v.validateNonEmptyString(n)
+	v.validatePropsAndArity(n)
 }
 
 // Java: AstValidator.validateFor(Node)
-func (v *AstValidator) ValidateFor(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_FOR, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 4)
-	target := n.GetFirstChild()
-	if NodeUtil_IsNameDeclaration(target) {
-		v.ValidateNameDeclarationHelper(n, target.GetToken(), target)
+func (v *AstValidator) validateFor(forStmt ast.For) {
+	n := forStmt.Node()
+	v.validatePropsAndCount(n, 4)
+
+	if init, ok := forStmt.Init(); !ok {
+		v.validateChildlessNode(n.GetFirstChild())
+	} else if decl, ok := init.AsNameDeclaration(); ok {
+		v.validateNameDeclaration(n, decl)
 	} else {
-		v.ValidatePseudoExpression(target, rhino.Token_EMPTY)
+		v.validatePseudoExpression(init.Node(), rhino.Token_EMPTY)
 	}
-	v.ValidatePseudoExpression(n.GetSecondChild(), rhino.Token_EMPTY)
-	v.ValidatePseudoExpression(n.GetChildAtIndex(2), rhino.Token_EMPTY)
-	v.ValidateBlock(n.GetLastChild())
+
+	if cond, ok := forStmt.Cond(); !ok {
+		v.validateChildlessNode(n.GetSecondChild())
+	} else {
+		v.validatePseudoExpression(cond.Node(), rhino.Token_EMPTY)
+	}
+
+	if update, ok := forStmt.Update(); !ok {
+		v.validateChildlessNode(n.GetChildAtIndex(2))
+	} else {
+		v.validatePseudoExpression(update.Node(), rhino.Token_EMPTY)
+	}
+
+	v.validateBlock(forStmt.Body().Node())
 }
 
-// Java: AstValidator.validateForIn(Node)
-func (v *AstValidator) ValidateForIn(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_FOR_IN, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateEnhancedForVarOrAssignmentTarget(n, n.GetFirstChild())
-	v.ValidateExpression(n.GetSecondChild())
-	v.ValidateBlock(n.GetLastChild())
-}
-
-// Java: AstValidator.validateForOf(Node)
-func (v *AstValidator) ValidateForOf(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_FOR_OF, n)
-	v.ValidateNodeType(rhino.Token_FOR_OF, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateEnhancedForVarOrAssignmentTarget(n, n.GetFirstChild())
-	v.ValidateExpression(n.GetSecondChild())
-	v.ValidateBlock(n.GetLastChild())
-}
-
-// Java: AstValidator.validateForAwaitOf(Node)
-func (v *AstValidator) ValidateForAwaitOf(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_FOR_AWAIT_OF, n)
-	v.ValidateNodeType(rhino.Token_FOR_AWAIT_OF, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateEnhancedForVarOrAssignmentTarget(n, n.GetFirstChild())
-	v.ValidateExpression(n.GetSecondChild())
-	v.ValidateBlock(n.GetLastChild())
-	v.ValidateAwaitWithinAsyncFunction(n)
+// Java: AstValidator.validateForIn / validateForOf / validateForAwaitOf
+func (v *AstValidator) validateEnhancedFor(loop ast.EnhancedFor) {
+	n := loop.Node()
+	switch loop.Token() {
+	case rhino.Token_FOR_OF:
+		v.validateFeature(parser.FeatureSet_Feature_FOR_OF, n)
+	case rhino.Token_FOR_AWAIT_OF:
+		v.validateFeature(parser.FeatureSet_Feature_FOR_AWAIT_OF, n)
+	}
+	v.validatePropsAndArity(n)
+	v.validateEnhancedForTarget(n, loop.Target())
+	v.ValidateExpression(loop.Collection().Node())
+	v.validateBlock(loop.AsLoop().Body().Node())
+	if loop.Token() == rhino.Token_FOR_AWAIT_OF {
+		v.validateAwaitWithinAsyncFunction(n)
+	}
 }
 
 // Java: AstValidator.validateEnhancedForVarOrAssignmentTarget(Node, Node)
-func (v *AstValidator) ValidateEnhancedForVarOrAssignmentTarget(forNode rhino.Node, n rhino.Node) {
-	if NodeUtil_IsNameDeclaration(n) {
-		// Only one NAME can be declared for FOR-IN and FOR_OF expressions.
-		v.ValidateProperties(n)
-		v.ValidateChildCountWithExpected(n, 1)
-		v.ValidateNameDeclarationHelper(forNode, n.GetToken(), n)
-	} else {
-		v.ValidateLHS(n.GetParent().GetToken(), n)
+func (v *AstValidator) validateEnhancedForTarget(forNode rhino.Node, target ast.ForTarget) {
+	if decl, ok := target.AsNameDeclaration(); ok {
+		// Only one NAME can be declared for FOR-IN and FOR-OF expressions.
+		v.validatePropsAndCount(decl.Node(), 1)
+		v.validateNameDeclaration(forNode, decl)
+		return
 	}
+	n := target.Node()
+	v.validateLHS(n.GetParent().GetToken(), n)
 }
 
 // Java: AstValidator.validateWith(Node)
-func (v *AstValidator) ValidateWith(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_WITH, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateWith(stmt ast.With) {
+	n := stmt.Node()
+	if v.validatePropsAndArity(n) {
+		v.ValidateExpression(stmt.Object().Node())
+		v.validateBlock(stmt.Body().Node())
+		return
+	}
 	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateBlock(n.GetLastChild())
+	v.validateBlock(n.GetLastChild())
 }
 
 // Java: AstValidator.validateWhile(Node)
-func (v *AstValidator) ValidateWhile(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_WHILE, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateWhile(stmt ast.While) {
+	n := stmt.Node()
+	if v.validatePropsAndArity(n) {
+		v.ValidateExpression(stmt.Cond().Node())
+		v.validateBlock(stmt.Body().Node())
+		return
+	}
 	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateBlock(n.GetLastChild())
+	v.validateBlock(n.GetLastChild())
 }
 
 // Java: AstValidator.validateDo(Node)
-func (v *AstValidator) ValidateDo(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_DO, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateBlock(n.GetFirstChild())
+func (v *AstValidator) validateDo(stmt ast.Do) {
+	n := stmt.Node()
+	if v.validatePropsAndArity(n) {
+		v.validateBlock(stmt.Body().Node())
+		v.ValidateExpression(stmt.Cond().Node())
+		return
+	}
+	v.validateBlock(n.GetFirstChild())
 	v.ValidateExpression(n.GetLastChild())
 }
 
 // Java: AstValidator.validateIf(Node)
-func (v *AstValidator) ValidateIf(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_IF, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountIn(n, 2, 3)
-	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateBlock(n.GetSecondChild())
-	if n.HasXChildren(3) {
-		v.ValidateBlock(n.GetLastChild())
+func (v *AstValidator) validateIf(stmt ast.If) {
+	n := stmt.Node()
+	v.validateProperties(n)
+	valid := v.validateChildCountIn(n, 2, 3)
+	v.ValidateExpression(stmt.Cond().Node())
+	v.validateBlock(stmt.Then().Node())
+	if valid {
+		if elseBlock, ok := stmt.Else(); ok {
+			v.validateBlock(elseBlock.Node())
+		}
 	}
 }
 
 // Java: AstValidator.validateExprStmt(Node)
-func (v *AstValidator) ValidateExprStmt(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_EXPR_RESULT, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateExprStmt(stmt ast.ExprStmt) {
+	v.validatePropsAndArity(stmt.Node())
+	v.ValidateExpression(stmt.Expr().Node())
 }
 
 // Java: AstValidator.validateReturn(Node)
-func (v *AstValidator) ValidateReturn(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_RETURN, n)
-	v.ValidateProperties(n)
-	v.ValidateMaximumChildCount(n, 1)
-	if n.HasChildren() {
-		v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateReturn(stmt ast.Return) {
+	n := stmt.Node()
+	v.validateProperties(n)
+	v.validateMaximumChildCount(n, 1)
+	if val, ok := stmt.Value(); ok {
+		v.ValidateExpression(val.Node())
 	}
 }
 
 // Java: AstValidator.validateThrow(Node)
-func (v *AstValidator) ValidateThrow(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_THROW, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateExpression(n.GetFirstChild())
+func (v *AstValidator) validateThrow(stmt ast.Throw) {
+	v.validatePropsAndArity(stmt.Node())
+	v.ValidateExpression(stmt.Value().Node())
 }
 
-// Java: AstValidator.validateBreak(Node)
-func (v *AstValidator) ValidateBreak(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_BREAK, n)
-	v.ValidateProperties(n)
-	v.ValidateMaximumChildCount(n, 1)
-	if n.HasChildren() {
-		v.ValidateLabelName(n.GetFirstChild())
-	}
-}
-
-// Java: AstValidator.validateContinue(Node)
-func (v *AstValidator) ValidateContinue(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_CONTINUE, n)
-	v.ValidateProperties(n)
-	v.ValidateMaximumChildCount(n, 1)
-	if n.HasChildren() {
-		v.ValidateLabelName(n.GetFirstChild())
+// Java: AstValidator.validateBreak / validateContinue
+func (v *AstValidator) validateJump(stmt ast.Jump) {
+	n := stmt.Node()
+	v.validateProperties(n)
+	v.validateMaximumChildCount(n, 1)
+	if lbl, ok := stmt.Label(); ok {
+		v.validateLabelName(lbl.Node())
 	}
 }
 
 // Java: AstValidator.validateTry(Node)
-func (v *AstValidator) ValidateTry(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_TRY, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountIn(n, 2, 3)
-	v.ValidateBlock(n.GetFirstChild())
+func (v *AstValidator) validateTry(stmt ast.Try) {
+	n := stmt.Node()
+	v.validateProperties(n)
+	valid := v.validateChildCountIn(n, 2, 3)
+	v.validateBlock(stmt.Body().Node())
 
 	seenCatchOrFinally := false
 
-	// Validate catch
-	catches := n.GetSecondChild()
-	v.ValidateNodeType(rhino.Token_BLOCK, catches)
-	v.ValidateProperties(catches)
-	v.ValidateMaximumChildCount(catches, 1)
-	if catches.HasChildren() {
-		v.ValidateCatch(catches.GetFirstChild())
+	catches := stmt.Catches()
+	v.validateNodeType(rhino.Token_BLOCK, catches.Node())
+	v.validateProperties(catches.Node())
+	v.validateMaximumChildCount(catches.Node(), 1)
+	if catchClause, ok := catches.Catch(); ok {
+		v.validateCatch(catchClause.Node())
 		seenCatchOrFinally = true
 	}
 
-	// Validate finally
-	if n.HasXChildren(3) {
-		v.ValidateBlock(n.GetLastChild())
-		seenCatchOrFinally = true
+	if valid {
+		if finallyBlock, ok := stmt.Finally(); ok {
+			v.validateBlock(finallyBlock.Node())
+			seenCatchOrFinally = true
+		}
 	}
 
 	if !seenCatchOrFinally {
@@ -416,44 +397,56 @@ func (v *AstValidator) ValidateTry(n rhino.Node) {
 }
 
 // Java: AstValidator.validateCatch(Node)
-func (v *AstValidator) ValidateCatch(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_CATCH, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	caught := n.GetFirstChild()
-	if caught.IsName() {
-		v.ValidateName(caught)
-	} else if caught.IsArrayPattern() {
-		v.ValidateArrayPattern(rhino.Token_CATCH, caught)
-	} else if caught.IsObjectPattern() {
-		v.ValidateObjectPattern(rhino.Token_CATCH, caught)
-	} else if caught.IsEmpty() {
-		v.ValidateNoCatchBinding(caught)
+func (v *AstValidator) validateCatch(n rhino.Node) {
+	isCatch := v.validateNodeType(rhino.Token_CATCH, n)
+	valid := v.validatePropsAndArity(n)
+
+	var caught, body rhino.Node
+	if isCatch && valid {
+		c := ast.MustCatch(n)
+		body = c.Body().Node()
+		if param, ok := c.Param(); ok {
+			caught = param.Node()
+		} else {
+			caught = n.GetFirstChild()
+		}
 	} else {
+		caught = n.GetFirstChild()
+		body = n.GetLastChild()
+	}
+
+	switch caught.GetToken() {
+	case rhino.Token_NAME:
+		v.validateName(caught)
+	case rhino.Token_ARRAY_PATTERN:
+		v.validateArrayPattern(rhino.Token_CATCH, caught)
+	case rhino.Token_OBJECT_PATTERN:
+		v.validateObjectPattern(rhino.Token_CATCH, caught)
+	case rhino.Token_EMPTY:
+		v.validateNoCatchBinding(caught)
+	default:
 		v.Violation("Unexpected catch binding: "+caught.String(), n)
 	}
-	v.ValidateBlock(n.GetLastChild())
+	v.validateBlock(body)
 }
 
 // Java: AstValidator.validateNoCatchBinding(Node)
-func (v *AstValidator) ValidateNoCatchBinding(n rhino.Node) {
-	v.ValidateFeature(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateNoCatchBinding(n rhino.Node) {
+	v.validateFeature(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING, n)
+	v.validatePropsAndArity(n)
 }
 
 // Java: AstValidator.validateSwitch(Node)
-func (v *AstValidator) ValidateSwitch(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_SWITCH, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCountWithExpected(n, 2)
-	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateNodeType(rhino.Token_SWITCH_BODY, n.GetSecondChild())
-	cases := n.GetSecondChild()
+func (v *AstValidator) validateSwitch(sw ast.Switch) {
+	n := sw.Node()
+	v.validatePropsAndCount(n, 2)
+	v.ValidateExpression(sw.Discriminant().Node())
+	body := sw.Body()
+	v.validateNodeType(rhino.Token_SWITCH_BODY, body.Node())
 	defaults := 0
-	for c := range cases.Children() {
-		v.ValidateSwitchMember(c)
-		if c.IsDefaultCase() {
+	for c := range body.Cases() {
+		v.validateSwitchMember(c.Node())
+		if c.Node().IsDefaultCase() {
 			defaults++
 		}
 	}
@@ -463,30 +456,35 @@ func (v *AstValidator) ValidateSwitch(n rhino.Node) {
 }
 
 // Java: AstValidator.validateSwitchMember(Node)
-func (v *AstValidator) ValidateSwitchMember(n rhino.Node) {
+func (v *AstValidator) validateSwitchMember(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CASE:
-		v.ValidateCase(n)
+		v.validateCase(ast.MustCase(n))
 	case rhino.Token_DEFAULT_CASE:
-		v.ValidateDefaultCase(n)
+		v.validateDefaultCase(ast.MustDefaultCase(n))
 	default:
 		v.Violation("Expected switch member but was "+n.GetToken().String(), n)
 	}
 }
 
 // Java: AstValidator.validateDefaultCase(Node)
-func (v *AstValidator) ValidateDefaultCase(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_DEFAULT_CASE, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateBlock(n.GetLastChild())
+func (v *AstValidator) validateDefaultCase(c ast.DefaultCase) {
+	n := c.Node()
+	if v.validatePropsAndArity(n) {
+		v.validateBlock(c.Body().Node())
+		return
+	}
+	v.validateBlock(n.GetLastChild())
 }
 
 // Java: AstValidator.validateCase(Node)
-func (v *AstValidator) ValidateCase(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_CASE, n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
+func (v *AstValidator) validateCase(c ast.Case) {
+	n := c.Node()
+	if v.validatePropsAndArity(n) {
+		v.ValidateExpression(c.Value().Node())
+		v.validateBlock(c.Body().Node())
+		return
+	}
 	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateBlock(n.GetLastChild())
+	v.validateBlock(n.GetLastChild())
 }

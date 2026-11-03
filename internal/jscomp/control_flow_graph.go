@@ -189,10 +189,12 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 		// Params() (child index 1), not Body() (child index 2); only Params()
 		// returns false here, matching Java's `n != parent.getSecondChild()`.
 		return !ast.MustFunction(parent).Params().Is(n)
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF:
-		// These control structures are represented by a node that holds the
-		// condition. Each of them is a branch node based on its condition.
-		return NodeUtil_GetConditionExpression(parent) != n
+	case rhino.Token_WHILE:
+		return !ast.MustWhile(parent).Cond().Is(n)
+	case rhino.Token_DO:
+		return !ast.MustDo(parent).Cond().Is(n)
+	case rhino.Token_IF:
+		return !ast.MustIf(parent).Cond().Is(n)
 	case rhino.Token_FOR:
 		// The FOR(;;) node differs from other control structures in that
 		// it has an initialization and an increment statement. Those
@@ -201,7 +203,7 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 		// That way the following:
 		// for(var x = 0; x < 10; x++) { } has a graph that is isomorphic to
 		// var x = 0; while(x<10) {  x++; }
-		return NodeUtil_GetConditionExpression(parent) != n
+		return ast.RoleIn(n, parent) != ast.RoleForCond
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// TODO(user): Investigate how we should handle the case where
 		// we have a very complex expression inside the FOR-IN header.
@@ -209,7 +211,7 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 	case rhino.Token_CASE:
 		return !ast.MustCase(parent).Value().Is(n)
 	case rhino.Token_CATCH:
-		return parent.GetFirstChild() != n // exclude catch param (or its EMPTY placeholder)
+		return ast.RoleIn(n, parent) != ast.RoleCatchParam // exclude catch param (or its EMPTY placeholder)
 	case rhino.Token_WITH:
 		return !ast.MustWith(parent).Object().Is(n)
 	default:
@@ -250,7 +252,7 @@ func isCfgSubtreeBoundary(n rhino.Node, isRoot bool, allowRootFunction bool) boo
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_VARIABLE_DEF:
 		return true
 	case rhino.Token_MEMBER_FIELD_DEF:
-		if !n.IsStaticMember() {
+		if !ast.MustMemberFieldDef(n).IsStatic() {
 			return true
 		}
 	case rhino.Token_BLOCK:
@@ -283,7 +285,8 @@ func isCfgCondEvalStopNode(n rhino.Node) bool {
 	if isCfgCondEvalStopToken(n.GetToken()) {
 		return true
 	}
-	return n.IsMemberFieldDef() && !n.IsStaticMember()
+	mf, ok := ast.AsMemberFieldDef(n)
+	return ok && !mf.IsStatic()
 }
 
 // walkCfgNode walks the AST subtree of cfgRoot without crossing into nested CFG
@@ -310,30 +313,39 @@ func walkCfgSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhin
 			walkCfgSubtree(cls.NameNode(), n, false, visit) ||
 			walkCfgSubtree(cls.Body().Node(), n, false, visit)
 	case rhino.Token_CLASS_MEMBERS:
-		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if walkCfgSubtree(m.GetFirstChild(), m, false, visit) {
-					return true
-				}
+		body := ast.MustClassBody(n)
+		for cm := range body.ComputedMembers() {
+			if walkCfgSubtree(cm.Key().Node(), cm.Node(), false, visit) {
+				return true
 			}
 		}
-		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
+		for m, ok := body.FirstMember(); ok; m, ok = m.Next() {
+			switch m.Token() {
 			case rhino.Token_COMPUTED_FIELD_DEF:
-				if m.IsStaticMember() && walkCfgSubtree(m.GetSecondChild(), m, false, visit) {
-					return true
+				cf := m.MustComputedFieldDef()
+				if cf.IsStatic() {
+					if val, hasVal := cf.Value(); hasVal && walkCfgSubtree(val.Node(), cf.Node(), false, visit) {
+						return true
+					}
 				}
 			case rhino.Token_MEMBER_FIELD_DEF:
-				if m.IsStaticMember() && walkCfgSubtree(m, n, false, visit) {
+				if m.MustMemberFieldDef().IsStatic() && walkCfgSubtree(m.Node(), n, false, visit) {
 					return true
 				}
 			}
 		}
 		return false
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		return walkCfgSubtree(n.GetFirstChild(), n, false, visit) ||
-			(n.IsStaticMember() && walkCfgSubtree(n.GetSecondChild(), n, false, visit))
+		cf := ast.MustComputedFieldDef(n)
+		if walkCfgSubtree(cf.Key().Node(), n, false, visit) {
+			return true
+		}
+		if cf.IsStatic() {
+			if val, hasVal := cf.Value(); hasVal {
+				return walkCfgSubtree(val.Node(), n, false, visit)
+			}
+		}
+		return false
 	default:
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if walkCfgSubtree(c, n, false, visit) {
@@ -395,32 +407,34 @@ func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent 
 		walkCfgEvalSubtree(cls.NameNode(), n, false, visit)
 		walkCfgEvalSubtree(cls.Body().Node(), n, false, visit)
 	case rhino.Token_CLASS_MEMBERS:
-		for m := n.GetFirstChild(); !m.IsNil(); {
-			next := m.GetNext()
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				walkCfgEvalSubtree(m.GetFirstChild(), m, false, visit)
-			}
-			m = next
+		body := ast.MustClassBody(n)
+		for cm := range body.ComputedMembers() {
+			walkCfgEvalSubtree(cm.Key().Node(), cm.Node(), false, visit)
 		}
-		for m := n.GetFirstChild(); !m.IsNil(); {
-			next := m.GetNext()
-			switch m.GetToken() {
+		for m, ok := body.FirstMember(); ok; {
+			next, nextOk := m.Next()
+			switch m.Token() {
 			case rhino.Token_COMPUTED_FIELD_DEF:
-				if m.IsStaticMember() {
-					walkCfgEvalSubtree(m.GetSecondChild(), m, false, visit)
+				cf := m.MustComputedFieldDef()
+				if cf.IsStatic() {
+					if val, hasVal := cf.Value(); hasVal {
+						walkCfgEvalSubtree(val.Node(), cf.Node(), false, visit)
+					}
 				}
 			case rhino.Token_MEMBER_FIELD_DEF:
-				if m.IsStaticMember() {
-					walkCfgEvalSubtree(m, n, false, visit)
+				if m.MustMemberFieldDef().IsStatic() {
+					walkCfgEvalSubtree(m.Node(), n, false, visit)
 				}
 			}
-			m = next
+			m, ok = next, nextOk
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		walkCfgEvalSubtree(n.GetFirstChild(), n, false, visit)
-		if n.IsStaticMember() {
-			walkCfgEvalSubtree(n.GetSecondChild(), n, false, visit)
+		cf := ast.MustComputedFieldDef(n)
+		walkCfgEvalSubtree(cf.Key().Node(), n, false, visit)
+		if cf.IsStatic() {
+			if val, hasVal := cf.Value(); hasVal {
+				walkCfgEvalSubtree(val.Node(), n, false, visit)
+			}
 		}
 	default:
 		for c := n.GetFirstChild(); !c.IsNil(); {
@@ -470,8 +484,17 @@ func walkCfgCondEvalForward[T any](
 		return cfgCondEvalContinue
 	}
 	switch n.GetToken() {
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
-		return walkCfgCondEvalForward(NodeUtil_GetConditionExpression(n), conditional, ctx, visit)
+	case rhino.Token_WHILE:
+		return walkCfgCondEvalForward(ast.MustWhile(n).Cond().Node(), conditional, ctx, visit)
+	case rhino.Token_DO:
+		return walkCfgCondEvalForward(ast.MustDo(n).Cond().Node(), conditional, ctx, visit)
+	case rhino.Token_IF:
+		return walkCfgCondEvalForward(ast.MustIf(n).Cond().Node(), conditional, ctx, visit)
+	case rhino.Token_FOR:
+		if cond, ok := ast.MustFor(n).Cond(); ok {
+			return walkCfgCondEvalForward(cond.Node(), conditional, ctx, visit)
+		}
+		return cfgCondEvalContinue
 	case rhino.Token_OPTCHAIN_GETPROP:
 		return walkCfgCondEvalForward(ast.MustOptChainGetProp(n).Object().Node(), conditional, ctx, visit)
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
@@ -525,25 +548,16 @@ func walkCfgCondEvalForward[T any](
 		}
 		return walkCfgCondEvalForward(cls.Body().Node(), conditional, ctx, visit)
 	case rhino.Token_CLASS_MEMBERS:
-		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if state := walkCfgCondEvalForward(m.GetFirstChild(), conditional, ctx, visit); state != cfgCondEvalContinue {
-					return state
-				}
+		body := ast.MustClassBody(n)
+		for cm := range body.ComputedMembers() {
+			if state := walkCfgCondEvalForward(cm.Key().Node(), conditional, ctx, visit); state != cfgCondEvalContinue {
+				return state
 			}
 		}
-		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				if m.IsStaticMember() {
-					if state := walkCfgCondEvalForward(m.GetSecondChild(), conditional, ctx, visit); state != cfgCondEvalContinue {
-						return state
-					}
-				}
-			case rhino.Token_MEMBER_FIELD_DEF:
-				if m.IsStaticMember() {
-					if state := walkCfgCondEvalForward(m.GetFirstChild(), conditional, ctx, visit); state != cfgCondEvalContinue {
+		for m, ok := body.FirstMember(); ok; m, ok = m.Next() {
+			if fd, isField := m.AsFieldDef(); isField && fd.IsStatic() {
+				if val, hasVal := fd.Value(); hasVal {
+					if state := walkCfgCondEvalForward(val.Node(), conditional, ctx, visit); state != cfgCondEvalContinue {
 						return state
 					}
 				}
@@ -551,11 +565,14 @@ func walkCfgCondEvalForward[T any](
 		}
 		return cfgCondEvalContinue
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		if state := walkCfgCondEvalForward(n.GetFirstChild(), conditional, ctx, visit); state != cfgCondEvalContinue {
+		cf := ast.MustComputedFieldDef(n)
+		if state := walkCfgCondEvalForward(cf.Key().Node(), conditional, ctx, visit); state != cfgCondEvalContinue {
 			return state
 		}
-		if n.IsStaticMember() {
-			return walkCfgCondEvalForward(n.GetSecondChild(), conditional, ctx, visit)
+		if cf.IsStatic() {
+			if val, hasVal := cf.Value(); hasVal {
+				return walkCfgCondEvalForward(val.Node(), conditional, ctx, visit)
+			}
 		}
 		return cfgCondEvalContinue
 	default:
@@ -584,8 +601,16 @@ func walkCfgCondEvalBackward[T any](
 		return
 	}
 	switch n.GetToken() {
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
-		walkCfgCondEvalBackward(NodeUtil_GetConditionExpression(n), conditional, ctx, visit)
+	case rhino.Token_WHILE:
+		walkCfgCondEvalBackward(ast.MustWhile(n).Cond().Node(), conditional, ctx, visit)
+	case rhino.Token_DO:
+		walkCfgCondEvalBackward(ast.MustDo(n).Cond().Node(), conditional, ctx, visit)
+	case rhino.Token_IF:
+		walkCfgCondEvalBackward(ast.MustIf(n).Cond().Node(), conditional, ctx, visit)
+	case rhino.Token_FOR:
+		if cond, ok := ast.MustFor(n).Cond(); ok {
+			walkCfgCondEvalBackward(cond.Node(), conditional, ctx, visit)
+		}
 	case rhino.Token_OPTCHAIN_GETPROP:
 		walkCfgCondEvalBackward(ast.MustOptChainGetProp(n).Object().Node(), conditional, ctx, visit)
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
@@ -614,29 +639,27 @@ func walkCfgCondEvalBackward[T any](
 		walkCfgCondEvalBackward(cls.ExtendsNode(), conditional, ctx, visit)
 		walkCfgCondEvalBackward(cls.NameNode(), conditional, ctx, visit)
 	case rhino.Token_CLASS_MEMBERS:
-		for m := n.GetLastChild(); !m.IsNil(); m = m.GetPrevious() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				if m.IsStaticMember() {
-					walkCfgCondEvalBackward(m.GetSecondChild(), conditional, ctx, visit)
-				}
-			case rhino.Token_MEMBER_FIELD_DEF:
-				if m.IsStaticMember() {
-					walkCfgCondEvalBackward(m.GetFirstChild(), conditional, ctx, visit)
+		body := ast.MustClassBody(n)
+		for m, ok := body.LastMember(); ok; m, ok = m.Previous() {
+			if fd, isField := m.AsFieldDef(); isField && fd.IsStatic() {
+				if val, hasVal := fd.Value(); hasVal {
+					walkCfgCondEvalBackward(val.Node(), conditional, ctx, visit)
 				}
 			}
 		}
-		for m := n.GetLastChild(); !m.IsNil(); m = m.GetPrevious() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				walkCfgCondEvalBackward(m.GetFirstChild(), conditional, ctx, visit)
+		for m, ok := body.LastMember(); ok; m, ok = m.Previous() {
+			if cm, isComp := m.AsComputedMember(); isComp {
+				walkCfgCondEvalBackward(cm.Key().Node(), conditional, ctx, visit)
 			}
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		if n.IsStaticMember() {
-			walkCfgCondEvalBackward(n.GetSecondChild(), conditional, ctx, visit)
+		cf := ast.MustComputedFieldDef(n)
+		if cf.IsStatic() {
+			if val, hasVal := cf.Value(); hasVal {
+				walkCfgCondEvalBackward(val.Node(), conditional, ctx, visit)
+			}
 		}
-		walkCfgCondEvalBackward(n.GetFirstChild(), conditional, ctx, visit)
+		walkCfgCondEvalBackward(cf.Key().Node(), conditional, ctx, visit)
 	default:
 		for c := n.GetLastChild(); !c.IsNil(); c = c.GetPrevious() {
 			walkCfgCondEvalBackward(c, conditional, ctx, visit)
@@ -655,38 +678,26 @@ func walkClassMembersBefore[T any](
 	ctx T,
 	visit func(ctx T, expr rhino.Node) bool,
 ) bool {
+	body := ast.MustClassBody(classMembers)
 	if !inPass2 {
-		for m := classMembers.GetFirstChild(); !m.IsNil() && m != member; m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if key := m.GetFirstChild(); !key.IsNil() && visit(ctx, key) {
+		for m, ok := body.FirstMember(); ok && !m.Is(member); m, ok = m.Next() {
+			if cm, isComp := m.AsComputedMember(); isComp {
+				if key := cm.Key().Node(); !key.IsNil() && visit(ctx, key) {
 					return true
 				}
 			}
 		}
 		return false
 	}
-	for m := classMembers.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-		switch m.GetToken() {
-		case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-			if key := m.GetFirstChild(); !key.IsNil() && visit(ctx, key) {
-				return true
-			}
+	for cm := range body.ComputedMembers() {
+		if key := cm.Key().Node(); !key.IsNil() && visit(ctx, key) {
+			return true
 		}
 	}
-	for m := classMembers.GetFirstChild(); !m.IsNil() && m != member; m = m.GetNext() {
-		switch m.GetToken() {
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			if m.IsStaticMember() {
-				if val := m.GetSecondChild(); !val.IsNil() && visit(ctx, val) {
-					return true
-				}
-			}
-		case rhino.Token_MEMBER_FIELD_DEF:
-			if m.IsStaticMember() {
-				if val := m.GetFirstChild(); !val.IsNil() && visit(ctx, val) {
-					return true
-				}
+	for m, ok := body.FirstMember(); ok && !m.Is(member); m, ok = m.Next() {
+		if fd, isField := m.AsFieldDef(); isField && fd.IsStatic() {
+			if val, hasVal := fd.Value(); hasVal && visit(ctx, val.Node()) {
+				return true
 			}
 		}
 	}
@@ -703,36 +714,25 @@ func walkClassMembersAfterState[T any](
 	ctx T,
 	visit func(ctx T, expr rhino.Node) cfgCondEvalState,
 ) cfgCondEvalState {
-	startStatic := member.GetNext()
+	cur := ast.MustClassMember(member)
+	startStatic, hasStatic := cur.Next()
 	if !inPass2 {
-		for m := member.GetNext(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if key := m.GetFirstChild(); !key.IsNil() {
+		for m, ok := startStatic, hasStatic; ok; m, ok = m.Next() {
+			if cm, isComp := m.AsComputedMember(); isComp {
+				if key := cm.Key().Node(); !key.IsNil() {
 					if state := visit(ctx, key); state != cfgCondEvalContinue {
 						return state
 					}
 				}
 			}
 		}
-		startStatic = classMembers.GetFirstChild()
+		startStatic, hasStatic = ast.MustClassBody(classMembers).FirstMember()
 	}
-	for m := startStatic; !m.IsNil(); m = m.GetNext() {
-		switch m.GetToken() {
-		case rhino.Token_COMPUTED_FIELD_DEF:
-			if m.IsStaticMember() {
-				if val := m.GetSecondChild(); !val.IsNil() {
-					if state := visit(ctx, val); state != cfgCondEvalContinue {
-						return state
-					}
-				}
-			}
-		case rhino.Token_MEMBER_FIELD_DEF:
-			if m.IsStaticMember() {
-				if val := m.GetFirstChild(); !val.IsNil() {
-					if state := visit(ctx, val); state != cfgCondEvalContinue {
-						return state
-					}
+	for m, ok := startStatic, hasStatic; ok; m, ok = m.Next() {
+		if fd, isField := m.AsFieldDef(); isField && fd.IsStatic() {
+			if val, hasVal := fd.Value(); hasVal {
+				if state := visit(ctx, val.Node()); state != cfgCondEvalContinue {
+					return state
 				}
 			}
 		}

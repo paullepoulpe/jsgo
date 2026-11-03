@@ -113,10 +113,7 @@ const varCheck_JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME = "$jscomp_wrap_clos
 var (
 	varCheckGoogID               = strpool.Intern("goog")
 	varCheckForwardDeclareID     = strpool.Intern("forwardDeclare")
-	varCheckUndefinedExternProbe = func() *JSError {
-		empty := ""
-		return JSError_MakeWithSourceLocation(&empty, 0, 0, VarCheck_UNDEFINED_EXTERN_VAR_ERROR)
-	}()
+	varCheckUndefinedExternProbe = JSError_MakeAtSourceLocation("", 0, 0, VarCheck_UNDEFINED_EXTERN_VAR_ERROR)
 )
 
 // Java: VarCheck(AbstractCompiler)

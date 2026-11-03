@@ -80,7 +80,7 @@ func ModuleRenaming_GetGlobalNameWithoutGoogNamespace(
 // name for moduleMetadata and optional googNamespace without pointer boxing.
 func ModuleRenaming_GetGlobalNameWithOptGoogNamespace(
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata, googNamespace base.OptString) rhino.QualifiedName {
-	return ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace(moduleMetadata, googNamespace, nil).AliasName()
+	return ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(moduleMetadata, googNamespace, nil).AliasName()
 }
 
 // ModuleRenaming_GetGlobalName returns the post-transpilation, globalized
@@ -261,16 +261,6 @@ func ModuleRenaming_GlobalizedModuleName_CreateWithGoogNamespace(
 //
 // Java: ModuleRenaming.GlobalizedModuleName.create(ModuleMetadata, String, TypedScope)
 func ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(
-	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
-	googNamespace *string,
-	globalTypedScope *TypedScope) ModuleRenaming_GlobalizedModuleName {
-	return ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace(
-		moduleMetadata, base.OptStringFromPtr(googNamespace), globalTypedScope)
-}
-
-// ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace creates a
-// GlobalizedModuleName for an optional googNamespace without pointer boxing.
-func ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace(
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
 	googNamespace base.OptString,
 	globalTypedScope *TypedScope) ModuleRenaming_GlobalizedModuleName {

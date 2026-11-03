@@ -47,8 +47,10 @@ type NodeTraversal struct {
 	onlyNameLeaves                                 bool
 	stopAtNestedChangeScope                        bool
 	// visitTokens, if not nil, holds the only tokens Visit acts on (see
-	// nodeTraversal_visitTokens): the traversal skips the call for others.
+	// nodeTraversal_visitTokens): the traversal skips the call for others
+	// unless visitJSDoc is true and the node has JSDocInfo attached.
 	visitTokens *ast.TokenSet
+	visitJSDoc  bool
 
 	scopeTraversalRoot rhino.Node
 
@@ -170,6 +172,11 @@ func initNodeTraversal(
 		t.visitTokens = vt.visitTokens()
 	} else {
 		t.visitTokens = nil
+	}
+	if vj, ok := cb.(nodeTraversal_visitJSDoc); ok {
+		t.visitJSDoc = vj.visitJSDoc()
+	} else {
+		t.visitJSDoc = false
 	}
 	_, t.onlyNameLeaves = cb.(nodeTraversal_onlyNameLeaves)
 	if !t.onlyNameLeaves {
@@ -476,7 +483,7 @@ func (t *NodeTraversal) shouldTraverse(n, parent rhino.Node) bool {
 }
 
 func (t *NodeTraversal) visitNode(n, parent rhino.Node) {
-	if !t.noVisit && (t.visitTokens == nil || t.visitTokens.Has(n.GetToken())) {
+	if !t.noVisit && (t.visitTokens == nil || t.visitTokens.Has(n.GetToken()) || (t.visitJSDoc && n.HasJSDocInfo())) {
 		t.callback.Visit(t, n, parent)
 	}
 }
@@ -646,7 +653,7 @@ func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 					}
 				}
 				if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit &&
-					(t.visitTokens == nil || t.visitTokens.Has(ctok)) {
+					(t.visitTokens == nil || t.visitTokens.Has(ctok) || (t.visitJSDoc && child.HasJSDocInfo())) {
 					t.currentNode = child
 					cb.Visit(t, child, n)
 				}
@@ -665,7 +672,7 @@ func (t *NodeTraversal) TraverseBranch(n rhino.Node, parent rhino.Node) {
 
 	if !t.noVisit {
 		if (pushedScope || !n.GetFirstChild().IsNil() || (!noVisitLeaves && (!onlyNameLeaves || tok == rhino.Token_NAME)) || tok == rhino.Token_BLOCK) &&
-			(t.visitTokens == nil || t.visitTokens.Has(tok)) {
+			(t.visitTokens == nil || t.visitTokens.Has(tok) || (t.visitJSDoc && n.HasJSDocInfo())) {
 			t.currentNode = n
 			cb.Visit(t, n, parent)
 		}
@@ -862,7 +869,7 @@ func (t *NodeTraversal) TraverseChildren(n rhino.Node) {
 					}
 				}
 				if !noVisitLeaves && (!onlyNameLeaves || ctok == rhino.Token_NAME) && !t.noVisit &&
-					(t.visitTokens == nil || t.visitTokens.Has(ctok)) {
+					(t.visitTokens == nil || t.visitTokens.Has(ctok) || (t.visitJSDoc && child.HasJSDocInfo())) {
 					t.currentNode = child
 					cb.Visit(t, child, n)
 				}

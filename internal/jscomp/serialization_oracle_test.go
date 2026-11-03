@@ -75,7 +75,7 @@ func serializationDump_dumpFile(sb *strings.Builder, externs, rel, src string, f
 		jutil.Try(func() { s.compiler.Parse() }, func(e jutil.IRuntimeException) { thrown = e })
 		if thrown != nil {
 			typeCheckDump_line(sb, "# parse exception "+typeCheckDump_className(thrown)+": "+
-				jutil.ToJavaString(jutil.GetMessageOrNull(thrown)))
+				typeCheckDump_messageString(thrown))
 			return
 		}
 		ok := s.errors.GetErrorCount() == 0
@@ -174,7 +174,7 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 		serializationDump_section(sb, "deserialized", tree, fullThis)
 	}, func(e jutil.IRuntimeException) {
 		typeCheckDump_line(sb, "exception "+stage+" "+typeCheckDump_className(e)+": "+
-			jutil.ToJavaString(jutil.GetMessageOrNull(e)))
+			typeCheckDump_messageString(e))
 	})
 }
 

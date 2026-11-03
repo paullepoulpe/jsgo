@@ -48,8 +48,8 @@ func (t *CodeSubTree) FindClassDefinition(wantedClassName string) *CodeSubTree {
 			if !node.IsClass() {
 				return false
 			}
-			name := NodeUtil_GetName(node)
-			return name != nil && wantedClassName == *name
+			name, ok := NodeUtil_GetName(node)
+			return ok && wantedClassName == name
 		})
 	return newCodeSubTree(classNode)
 }

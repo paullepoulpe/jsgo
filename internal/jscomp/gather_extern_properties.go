@@ -22,6 +22,7 @@ import (
 	"iter"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -219,6 +220,34 @@ func (g *GatherExternProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(g.compiler, externs, g)
 	g.published = true
 	g.compiler.SetExternPropSet(g.externProperties)
+}
+
+var gatherExternPropertiesOptimizeVisitTokens = makeVisitTokenSet(
+	rhino.Token_GETPROP,
+	rhino.Token_STRING_KEY,
+	rhino.Token_MEMBER_FUNCTION_DEF,
+	rhino.Token_MEMBER_FIELD_DEF,
+	rhino.Token_GETTER_DEF,
+	rhino.Token_SETTER_DEF,
+)
+
+var (
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*GatherExternProperties)(nil)
+	_ nodeTraversal_visitTokens                         = (*GatherExternProperties)(nil)
+	_ nodeTraversal_visitJSDoc                          = (*GatherExternProperties)(nil)
+)
+
+func (*GatherExternProperties) shouldTraverseOnlyScriptAndFunction() bool { return true }
+
+func (g *GatherExternProperties) visitTokens() *ast.TokenSet {
+	if gatherExternProperties_Mode_optimize[g.mode] {
+		return &gatherExternPropertiesOptimizeVisitTokens
+	}
+	return &emptyTokenSet
+}
+
+func (g *GatherExternProperties) visitJSDoc() bool {
+	return gatherExternProperties_Mode_check[g.mode]
 }
 
 // Java: GatherExternProperties.shouldTraverse(NodeTraversal, Node, Node)

@@ -89,12 +89,12 @@ func (d *LazyParsedDependencyInfo) GetLoadFlags() LoadFlags {
 			if hasMod && modFlag != "es6" {
 				name := d.GetName()
 				d.compiler.Report(
-					JSError_MakeWithSourceLocation(
-						&name,
+					JSError_MakeAtSourceLocation(
+						name,
 						/* lineno= */ -1,
 						/* charno= */ -1,
 						ModuleLoader_MODULE_CONFLICT,
-						d.GetName()))
+						name))
 			}
 			modFlag, hasMod = "es6", true
 		}

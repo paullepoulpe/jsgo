@@ -714,19 +714,12 @@ func NodeUtil_GetBestLValueOwner(lValue rhino.Node) rhino.Node {
 	return rhino.NilNode
 }
 
-// NodeUtil_GetBestLValueName gets the name of the given l-value node.
-//
-// Go-only: performance — the body is in NodeUtil_BestLValueName, so that this
-// wrapper inlines and a caller that only reads the result keeps the string
-// header on its stack.
+// NodeUtil_GetBestLValueName gets the name of the given l-value node,
+// returning ("", false) where Java returns null.
 //
 // Java: NodeUtil.getBestLValueName(Node)
-func NodeUtil_GetBestLValueName(lValue rhino.Node) *string {
-	s, ok := NodeUtil_BestLValueName(lValue)
-	if !ok {
-		return nil
-	}
-	return &s
+func NodeUtil_GetBestLValueName(lValue rhino.Node) (string, bool) {
+	return NodeUtil_BestLValueName(lValue)
 }
 
 // NodeUtil_BestLValueName gets the name of the given l-value node, returning

@@ -156,7 +156,7 @@ func typeCheckDump_dumpOne(sb *strings.Builder, externs string, name string, src
 	}
 	if thrown != nil {
 		typeCheckDump_line(sb, "# exception "+typeCheckDump_className(thrown)+": "+
-			jutil.ToJavaString(jutil.GetMessageOrNull(thrown)))
+			typeCheckDump_messageString(thrown))
 		return
 	}
 	if typedPercent != nil {
@@ -183,10 +183,17 @@ func typeCheckDump_dumpTree(sb *strings.Builder, n rhino.Node, level int) {
 // renders "<class>: <message>" (or "<class>" without a message).
 func typeCheckDump_className(e jutil.Throwable) string {
 	s := e.Error()
-	if m := jutil.GetMessageOrNull(e); m != nil {
-		return strings.TrimSuffix(s, ": "+*m)
+	if m, ok := jutil.ThrowableMessage(e); ok {
+		return strings.TrimSuffix(s, ": "+m)
 	}
 	return s
+}
+
+func typeCheckDump_messageString(e jutil.Throwable) string {
+	if m, ok := jutil.ThrowableMessage(e); ok {
+		return m
+	}
+	return "null"
 }
 
 // typeCheckDump_escape is TypeCheckDump.escape: backslash and every UTF-16

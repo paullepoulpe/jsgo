@@ -36,7 +36,7 @@ type VariableMapParseError struct {
 
 func newVariableMapParseError(msg string) *VariableMapParseError {
 	e := &VariableMapParseError{}
-	jutil.InitThrowable(e, "java.text.ParseException", &msg, nil)
+	jutil.InitThrowableMsg(e, "java.text.ParseException", msg, nil)
 	return e
 }
 

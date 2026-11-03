@@ -194,9 +194,7 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		fnNode = unwrapAssignChain(assign.Value().Node())
 		injectAfter = n.GetParent()
 	case rhino.Token_FUNCTION:
-		if namePtr := NodeUtil_GetName(n); namePtr != nil {
-			name, hasName = *namePtr, true
-		}
+		name, hasName = NodeUtil_GetName(n)
 		fnNode, injectAfter = n, n
 		if parent := n.GetParent(); parent.IsAssign() && parent.GetJSDocInfo() != nil && parent.GetJSDocInfo().IsNgInject() {
 			// Handled when visiting the assign.
@@ -215,15 +213,17 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		if parent := n.GetParent(); parent.IsClassMembers() {
 			classNode := parent.GetParent()
 			if m.IsEs6Constructor() {
-				if namePtr := NodeUtil_GetName(classNode); namePtr != nil {
-					name, hasName = *namePtr, true
-				}
+				name, hasName = NodeUtil_GetName(classNode)
 			} else {
 				midPart := ".prototype."
 				if m.IsStatic() {
 					midPart = "."
 				}
-				name, hasName = jutil.ToJavaString(NodeUtil_GetName(classNode))+midPart+m.Key(), true
+				className := "null"
+				if s, ok := NodeUtil_GetName(classNode); ok {
+					className = s
+				}
+				name, hasName = className+midPart+m.Key(), true
 			}
 			fnNode = m.Function().Node()
 			injectAfter = NodeUtil_GetEnclosingStatement(classNode)

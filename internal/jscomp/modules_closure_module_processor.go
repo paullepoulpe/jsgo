@@ -70,7 +70,7 @@ func (m *unresolvedGoogModule) ResolveExportWithTraces(
 	return m.ResolveExport(moduleRequestResolver, exportName)
 }
 
-func closureModuleProcessor_onlyNamespace(metadata *ModuleMetadataMap_ModuleMetadata) string {
+func onlyClosureNamespace(metadata *ModuleMetadataMap_ModuleMetadata) string {
 	var out string
 	found := false
 	for ns := range metadata.GoogNamespaces().All() {
@@ -90,7 +90,7 @@ func (m *unresolvedGoogModule) ResolveWithModuleSpecifier(
 	moduleRequestResolver ModuleRequestResolver, moduleSpecifier string, hasModuleSpecifier bool) *Module {
 	if m.resolved == nil {
 		boundNames := m.getAllResolvedImports(moduleRequestResolver)
-		closureNamespace := closureModuleProcessor_onlyNamespace(m.metadata)
+		closureNamespace := onlyClosureNamespace(m.metadata)
 		m.resolved = NewModule(
 			m.metadata,
 			m.path,
@@ -192,7 +192,7 @@ func (m *unresolvedGoogModule) reportInvalidDestructuringRequire(
 					importRecord.ModuleRequest(),
 					"https://github.com/google/closure-library/wiki/goog.module%3A-an-ES6-module-like-alternative-to-goog.provide#destructuring-imports")
 
-			if closureModuleProcessor_mayBeAccidentalDefaultExport(importRecord.ImportName(), defaultBinding) {
+			if mayBeAccidentalDefaultExport(importRecord.ImportName(), defaultBinding) {
 				additionalInfo +=
 					jutil.LenientFormat(
 						"\n"+
@@ -218,10 +218,10 @@ func (m *unresolvedGoogModule) reportInvalidDestructuringRequire(
 			additionalInfo))
 }
 
-func closureModuleProcessor_mayBeAccidentalDefaultExport(importName string, defaultBinding *Binding) bool {
+func mayBeAccidentalDefaultExport(importName string, defaultBinding *Binding) bool {
 	defaultExport := defaultBinding.OriginatingExport().ExportNode()
 	assign, isAssign := ast.AsAssign(defaultExport.GetParent())
-	jutil.CheckStateMsg1(defaultExport.MatchesName("exports") && isAssign, "%s", defaultExport)
+	jutil.CheckStateMsg1(isClosureExportsIdent(defaultExport) && isAssign, "%s", defaultExport)
 	objLit, ok := assign.Value().AsObjectLit()
 	if !ok {
 		return false
@@ -249,7 +249,7 @@ func (p *ClosureModuleProcessor) Process(
 
 	cb := &closureModuleProcessingCallback{
 		metadata:            metadata,
-		closureNamespace:    closureModuleProcessor_onlyNamespace(metadata),
+		closureNamespace:    onlyClosureNamespace(metadata),
 		namespace:           &OrderedStringMap[*Binding]{},
 		requiresByLocalName: make(map[string]*ClosureRequireProcessor_Require),
 	}
@@ -285,6 +285,15 @@ type closureModuleProcessingCallback struct {
 	seenExportsAssignment bool
 }
 
+var (
+	_ NodeTraversal_Callback = (*closureModuleProcessingCallback)(nil)
+	_ nodeTraversal_noVisit  = (*closureModuleProcessingCallback)(nil)
+)
+
+func isClosureExportsIdent(n rhino.Node) bool {
+	return n.IsName() && n.GetStringID() == closureModuleExportsID
+}
+
 func (c *closureModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_MODULE_BODY, rhino.Token_SCRIPT, rhino.Token_CALL, rhino.Token_BLOCK:
@@ -309,25 +318,23 @@ func (c *closureModuleProcessingCallback) ShouldTraverse(t *NodeTraversal, n rhi
 
 func (c *closureModuleProcessingCallback) maybeInitializeExports(assign ast.Assign) {
 	lhs := assign.Target()
-	if lhsName, ok := lhs.AsName(); ok && lhsName.Node().GetStringID() == closureModuleExportsID {
+	if isClosureExportsIdent(lhs.Node()) {
 		rhs := assign.Value().Node()
 		if NodeUtil_IsNamedExportsLiteral(rhs) {
 			for member := range ast.MustObjectLit(rhs).Members() {
-				c.addPropertyExport(member.Node().GetString(), member.Node())
+				c.addPropertyExport(member.MustStringKey().Key(), member.Node())
 			}
 		} else {
 			c.seenExportsAssignment = true
 			c.markExportsAssignmentInNamespace(lhs.Node())
 		}
 	} else if getProp, ok := lhs.AsGetProp(); ok {
-		if owner, ok := getProp.Object().AsName(); ok && owner.Node().GetStringID() == closureModuleExportsID {
-			c.addPropertyExport(getProp.Property(), getProp.Node())
-		}
+		c.maybeInitializeExportsStub(getProp)
 	}
 }
 
 func (c *closureModuleProcessingCallback) maybeInitializeExportsStub(getProp ast.GetProp) {
-	if owner, ok := getProp.Object().AsName(); ok && owner.Node().GetStringID() == closureModuleExportsID {
+	if isClosureExportsIdent(getProp.Object().Node()) {
 		c.addPropertyExport(getProp.Property(), getProp.Node())
 	}
 }

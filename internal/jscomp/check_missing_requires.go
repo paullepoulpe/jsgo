@@ -374,7 +374,8 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n rhino.N
 		}
 
 		// Not destructured.
-		if require.Property() == nil {
+		prop, ok := require.Property()
+		if !ok {
 			return
 		}
 
@@ -389,7 +390,7 @@ func (c *CheckMissingRequires) VisitMaybeDeclaration(t *NodeTraversal, n rhino.N
 			return
 		}
 
-		reference := require.Namespace() + "." + *require.Property()
+		reference := require.Namespace() + "." + prop
 
 		// Do not report references to a namespace provided in the same file, and do not recurse
 		// into parent namespaces either.
@@ -794,8 +795,8 @@ func (c *CheckMissingRequires) NormalizeQualifiedNamePlusImport(
 	qualifiedName rhino.QualifiedName, imported *NodeUtil_GoogRequire) rhino.QualifiedName {
 	newQName := rhino.QualifiedName_Of(imported.Namespace())
 
-	if imported.Property() != nil {
-		newQName = newQName.Getprop(*imported.Property())
+	if prop, ok := imported.Property(); ok {
+		newQName = newQName.Getprop(prop)
 	}
 	return CheckMissingRequires_SwapRootOfQualifiedName(qualifiedName, newQName)
 }

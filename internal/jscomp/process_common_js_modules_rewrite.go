@@ -50,6 +50,27 @@ type commonJsRewriteModule struct {
 	defaultExportIsConst      bool
 }
 
+var commonJsRewriteModuleVisitTokens = makeVisitTokenSet(
+	rhino.Token_SCRIPT,
+	rhino.Token_CALL,
+	rhino.Token_VAR,
+	rhino.Token_LET,
+	rhino.Token_CONST,
+	rhino.Token_NAME,
+	rhino.Token_GETPROP,
+	rhino.Token_TYPEOF,
+)
+
+var (
+	_ NodeTraversal_Callback    = (*commonJsRewriteModule)(nil)
+	_ nodeTraversal_visitTokens = (*commonJsRewriteModule)(nil)
+	_ nodeTraversal_visitJSDoc  = (*commonJsRewriteModule)(nil)
+)
+
+func (*commonJsRewriteModule) visitTokens() *ast.TokenSet { return &commonJsRewriteModuleVisitTokens }
+
+func (*commonJsRewriteModule) visitJSDoc() bool { return true }
+
 func (r *commonJsRewriteModule) reset(allowFullRewrite bool, defaultExportIsConst bool) {
 	r.allowFullRewrite = allowFullRewrite
 	r.defaultExportIsConst = defaultExportIsConst
@@ -87,6 +108,8 @@ func firstHoistScopeStmt(scopeRoot rhino.Node) rhino.Node {
 	return rhino.NilNode
 }
 
+// Visit acts on commonJsRewriteModuleVisitTokens plus any AST node carrying
+// JSDoc type expressions (via visitJSDoc for fixTypeAnnotationsForNode).
 func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := r.outer.compiler
 	switch n.GetToken() {
@@ -116,9 +139,11 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 			scopeRoot := t.GetClosestHoistScopeRoot()
 			firstStmt := firstHoistScopeStmt(scopeRoot)
 			var insertionPoint rhino.Node
-			if !firstStmt.IsNil() && firstStmt.IsVar() {
-				if nameNode, ok := ast.MustNameDeclaration(firstStmt).MustFirstDeclarator().AsName(); ok && nameNode.Ident() == moduleName {
-					insertionPoint = firstStmt
+			if varDecl, ok := ast.AsNameDeclarationOf(firstStmt, rhino.Token_VAR); ok {
+				if firstDecl, hasFirst := varDecl.FirstDeclarator(); hasFirst {
+					if nameNode, isName := firstDecl.AsName(); isName && nameNode.Ident() == moduleName {
+						insertionPoint = firstStmt
+					}
 				}
 			}
 
@@ -143,7 +168,8 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 			r.imports = append(r.imports, n)
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		if n.HasMoreThanOneChild() && !NodeUtil_IsAnyFor(parent) && !parent.IsExport() {
+		decl := ast.MustNameDeclaration(n)
+		if commonJsHasMultipleDeclarators(decl) && !NodeUtil_IsAnyFor(parent) && !parent.IsExport() {
 			vars := splitMultipleDeclarations(n)
 			t.ReportCodeChange()
 			for _, varNode := range vars {
@@ -151,15 +177,15 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 			}
 		}
 
-		if processCommonJSModules_isSelfAlias(ast.MustNameDeclaration(n)) {
+		if processCommonJSModules_isSelfAlias(decl) {
 			n.Detach()
 			t.ReportCodeChange()
 			return
 		}
 	case rhino.Token_NAME:
-		if NodeUtil_IsNameDeclaration(n.GetParent()) &&
-			n.GetParent().HasMoreThanOneChild() &&
-			!NodeUtil_IsAnyFor(n.GetGrandparent()) {
+		if decl, ok := ast.AsNameDeclaration(parent); ok &&
+			commonJsHasMultipleDeclarators(decl) &&
+			!NodeUtil_IsAnyFor(parent.GetParent()) {
 			break
 		}
 
@@ -184,8 +210,8 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 				}
 			}
 		} else if r.allowFullRewrite &&
-			n.GetString() == processCommonJSModules_MODULE &&
-			!(n.GetParent().IsGetProp() || n.GetParent().IsGetElem() || n.GetParent().IsTypeOf()) {
+			ast.MustName(n).Ident() == processCommonJSModules_MODULE &&
+			!(parent.IsGetProp() || parent.IsGetElem() || parent.IsTypeOf()) {
 			objectLit := rhino.IR_Objectlit().Srcref(n)
 			n.ReplaceWith(objectLit)
 			t.ReportCodeChangeWithNode(objectLit)
@@ -219,8 +245,29 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 	r.fixTypeAnnotationsForNode(t, n)
 }
 
+func commonJsHasMultipleDeclarators(decl ast.NameDeclaration) bool {
+	first, ok := decl.FirstDeclarator()
+	return ok && !first.IsLast()
+}
+
+func commonJsIsDestructuredVar(v *Var) bool {
+	if v == nil {
+		return false
+	}
+	nameNode := v.GetNameNode()
+	return !nameNode.GetParent().IsNil() && NodeUtil_IsLhsByDestructuring(nameNode)
+}
+
+func commonJsIsAssignmentTarget(n rhino.Node) bool {
+	assign, ok := ast.AsAssignment(n.GetParent())
+	return ok && assign.Target().Is(n)
+}
+
 func processCommonJSModules_isSelfAlias(declaration ast.NameDeclaration) bool {
-	first, _ := declaration.FirstDeclarator()
+	first, ok := declaration.FirstDeclarator()
+	if !ok {
+		return false
+	}
 	name, ok := first.AsName()
 	if !ok {
 		return false
@@ -255,12 +302,12 @@ func (r *commonJsRewriteModule) visitExport(t *NodeTraversal, export commonJsExp
 	compiler := r.outer.compiler
 	root := baseQualifiedNameNode(export.node)
 	rValue := NodeUtil_GetRValueOfLValue(root)
+	_, isAssignTarget := processCommonJSModules_assignToTarget(root)
+	isTopLevelAssign := isAssignTarget && root.GetGrandparent().IsExprResult()
 
-	if processCommonJSModules_MODULE_EXPORTS.Matches(root) &&
-		!rValue.IsNil() &&
-		rValue.IsObjectLit() &&
-		root.GetParent().IsAssign() &&
-		root.GetGrandparent().IsExprResult() {
+	if isTopLevelAssign &&
+		processCommonJSModules_MODULE_EXPORTS.Matches(root) &&
+		rValue.IsObjectLit() {
 		if r.expandObjectLitAssignment(t, root, export.scope) {
 			return
 		}
@@ -274,15 +321,13 @@ func (r *commonJsRewriteModule) visitExport(t *NodeTraversal, export commonJsExp
 		rValueVar = export.scope.GetVar(rValQName)
 	}
 
-	if root.GetParent().IsAssign() &&
-		root.GetGrandparent().IsExprResult() &&
-		(!root.GetNext().IsNil() && (root.GetNext().IsName() || root.GetNext().IsGetProp())) &&
+	if isTopLevelAssign &&
+		(rValue.IsName() || rValue.IsGetProp()) &&
 		rValueVar != nil &&
 		(NodeUtil_GetEnclosingScript(rValueVar.GetNameNode()).IsNil() ||
 			(rValueVar.GetNameNode().HasParent() && !rValueVar.IsParam())) &&
 		export.isInSupportedScope &&
-		(rValueVar.GetNameNode().GetParent().IsNil() ||
-			!NodeUtil_IsLhsByDestructuring(rValueVar.GetNameNode())) {
+		!commonJsIsDestructuredVar(rValueVar) {
 		root.GetGrandparent().Detach()
 		t.ReportCodeChange()
 		return
@@ -299,11 +344,10 @@ func (r *commonJsRewriteModule) visitExport(t *NodeTraversal, export commonJsExp
 
 	var changeScope rhino.Node
 
-	if processCommonJSModules_MODULE_EXPORTS.Matches(root) &&
+	if isTopLevelAssign &&
+		processCommonJSModules_MODULE_EXPORTS.Matches(root) &&
 		!rValue.IsNil() &&
 		export.scope.GetVar("module.exports") == nil &&
-		root.GetParent().IsAssign() &&
-		root.GetGrandparent().IsExprResult() &&
 		moduleInitialization == nil {
 		parent := root.GetParent()
 		assign := rhino.IR_Assign(updatedExport, rValue.Detach())
@@ -315,13 +359,12 @@ func (r *commonJsRewriteModule) visitExport(t *NodeTraversal, export commonJsExp
 		exportName := rhino.IR_ExprResult(assign)
 		parent.GetParent().ReplaceWith(exportName.SrcrefTree(parent))
 		changeScope = ChangeTracker_GetEnclosingChangeScopeRoot(parent)
-	} else if !root.GetNext().IsNil() &&
-		root.GetNext().IsName() &&
+	} else if commonJsIsAssignmentTarget(root) &&
+		rValue.IsName() &&
 		rValueVar != nil &&
 		rValueVar.IsGlobal() &&
 		export.isInSupportedScope &&
-		(rValueVar.GetNameNode().GetParent().IsNil() ||
-			!NodeUtil_IsLhsByDestructuring(rValueVar.GetNameNode())) {
+		!commonJsIsDestructuredVar(rValueVar) {
 		parent := root.GetParent()
 		root.Detach()
 		parent.ReplaceWith(root)
@@ -352,37 +395,36 @@ func (r *commonJsRewriteModule) expandObjectLitAssignment(t *NodeTraversal, expo
 	rhino.CheckNotNull(insertionRef.GetParent())
 
 	rValue := ast.MustObjectLit(NodeUtil_GetRValueOfLValue(export))
-	member, ok := rValue.FirstMember()
 
 	removedNodes := false
-	for ok {
+	for member := range ast.ReadAhead(rValue.FirstMember()) {
 		if !processCommonJSModules_isNamespaceMember(member) {
-			member, ok = member.Next()
 			continue
 		}
 		key := member.Node()
 
 		exportClone := export.CloneTree()
-		lhs := rhino.IR_Getprop(exportClone, key.GetString())
+		var propName string
 		var value rhino.Node
 		if stringKey, ok := member.AsStringKey(); ok {
+			propName = stringKey.Key()
 			value = stringKey.Value().Detach().Node()
 		} else {
-			value = ast.MustMemberFunctionDef(key).Function().Detach().Node()
+			fnDef := member.MustMemberFunctionDef()
+			propName = fnDef.Key()
+			value = fnDef.Function().Detach().Node()
 		}
+		lhs := rhino.IR_Getprop(exportClone, propName)
 
 		expr := rhino.IR_ExprResult(rhino.IR_Assign(lhs, value)).SrcrefTreeIfMissing(key)
 		expr.InsertAfter(insertionRef)
-		newExport := newCommonJsExportInfo(exportClone, scope)
-		r.visitExport(t, newExport)
+		r.visitExport(t, newCommonJsExportInfo(exportClone, scope))
 
 		if !expr.IsNil() && expr.HasParent() {
 			insertionRef = expr
 		}
 
-		current := member
-		member, ok = member.Next()
-		current.Detach()
+		member.Detach()
 		removedNodes = true
 	}
 
@@ -411,9 +453,7 @@ func (r *commonJsRewriteModule) maybeUpdateName(t *NodeTraversal, n rhino.Node, 
 
 		if (n != var_.GetNode() || n.GetParent().IsClass()) &&
 			!hasExportedName &&
-			(var_ == nil ||
-				var_.GetNameNode().GetParent().IsNil() ||
-				!NodeUtil_IsLhsByDestructuring(var_.GetNameNode())) {
+			!commonJsIsDestructuredVar(var_) {
 			if cls, ok := ast.AsClass(n.GetParent()); ok {
 				if clsName, hasName := cls.Name(); hasName && clsName.Is(n) {
 					r.rewrittenClassExpressions = append(r.rewrittenClassExpressions, n.GetParent())
@@ -426,8 +466,7 @@ func (r *commonJsRewriteModule) maybeUpdateName(t *NodeTraversal, n rhino.Node, 
 			hasExportedName &&
 			exportedName != name &&
 			!var_.IsParam() &&
-			(var_.GetNameNode().GetParent().IsNil() ||
-				!NodeUtil_IsLhsByDestructuring(var_.GetNameNode())) {
+			!commonJsIsDestructuredVar(var_) {
 			exportPropIsConst := r.defaultExportIsConst &&
 				r.outer.getBasePropertyImport(commonJsModuleName(t.GetInput())) == exportedName &&
 				baseQualifiedNameNode(n) == n &&
@@ -541,7 +580,7 @@ func (r *commonJsRewriteModule) updateNameReference(
 			nameRef.SetOriginalName(originalName)
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		if parent.HasMoreThanOneChild() && !NodeUtil_IsAnyFor(parent.GetParent()) {
+		if commonJsHasMultipleDeclarators(ast.MustNameDeclaration(parent)) && !NodeUtil_IsAnyFor(parent.GetParent()) {
 			splitMultipleDeclarations(parent)
 			parent = nameRef.GetParent()
 			newNameDeclaration = t.GetScope().GetVar(newName)
@@ -724,8 +763,9 @@ func (r *commonJsRewriteModule) getModuleImportName(t *NodeTraversal, n rhino.No
 	if key, ok := ast.AsStringKey(parent); ok {
 		if lhs, ok := ast.AsDestructuringLhs(parent.GetGrandparent()); ok && lhs.Pattern().Is(parent.GetParent()) {
 			if _, isObjectPattern := lhs.Pattern().AsObjectPattern(); isObjectPattern {
-				init, _ := lhs.Init()
-				rValue = init.Node()
+				if init, hasInit := lhs.Init(); hasInit {
+					rValue = init.Node()
+				}
 				propSuffix = "." + key.Key()
 			}
 		}

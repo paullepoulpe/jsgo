@@ -1047,4 +1047,10 @@ func (c *ProcessClosureProvidesAndRequiresTest) TestMalformedGoogModuleDoesNotCr
 });
 `)
 	AssertThat(providedNonString.KeySlice()).ContainsExactly("goog")
+
+	providedEmptyLoadModule := c.GetProvidedNameCollection(
+		`goog.loadModule();
+goog.loadModule(function(exports) {});
+`)
+	AssertThat(providedEmptyLoadModule.KeySlice()).ContainsExactly("goog")
 }

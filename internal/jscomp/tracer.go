@@ -80,9 +80,15 @@ var Tracer_clock Tracer_InternalClock = tracer_systemClock{}
 // tracer_Throwable is `new Throwable(message)`, used to log a stack trace marker.
 type tracer_Throwable struct{ jutil.ThrowableBase }
 
-func newTracer_Throwable(message *string) *tracer_Throwable {
+func newTracer_Throwable() *tracer_Throwable {
 	t := &tracer_Throwable{}
-	jutil.InitThrowable(t, "java.lang.Throwable", message, nil)
+	jutil.InitThrowableNoMsg(t, "java.lang.Throwable", nil)
+	return t
+}
+
+func newTracer_ThrowableMsg(message string) *tracer_Throwable {
+	t := &tracer_Throwable{}
+	jutil.InitThrowableMsg(t, "java.lang.Throwable", message, nil)
 	return t
 }
 
@@ -117,7 +123,7 @@ func newTracer(type_ string, hasType bool, comment string) *Tracer {
 		Tracer_logger.LogWithThrown(jutil.Level_WARNING,
 			"Giant thread trace. Too many Tracers created. "+
 				"Clearing to avoid memory leak.",
-			newTracer_Throwable(jutil.StringPtr(trace.String())))
+			newTracer_ThrowableMsg(trace.String()))
 		trace.TruncateEvents()
 	}
 
@@ -128,7 +134,7 @@ func newTracer(type_ string, hasType bool, comment string) *Tracer {
 				"or Tracer.stop() is not wrapped in a "+
 				"try/finally block. "+
 				"Clearing to avoid memory leak.",
-			newTracer_Throwable(jutil.StringPtr(trace.String())))
+			newTracer_ThrowableMsg(trace.String()))
 		trace.TruncateOutstandingEvents()
 	}
 
@@ -241,7 +247,7 @@ func Tracer_InitCurrentThreadTrace() {
 	if !events.IsEmpty() {
 		Tracer_logger.LogWithThrown(jutil.Level_WARNING,
 			"Non-empty timer log:\n"+events.String(),
-			newTracer_Throwable(nil))
+			newTracer_Throwable())
 		Tracer_ClearThreadTrace()
 		events = Tracer_GetThreadTrace()
 	}
@@ -278,7 +284,7 @@ func Tracer_LogCurrentThreadTrace() {
 			jutil.Level_INFO,
 			"Tracer log requested for this thread but was not "+
 				"initialized using Tracer.initCurrentThreadTrace().",
-			newTracer_Throwable(nil))
+			newTracer_Throwable())
 		return
 	}
 
@@ -425,7 +431,7 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 			Tracer_logger.LogWithThrown(jutil.Level_WARNING,
 				"event not found, probably because the event stack "+
 					"overflowed and was truncated",
-				newTracer_Throwable(nil))
+				newTracer_Throwable())
 		} else {
 			jutil.CheckState(false)
 		}

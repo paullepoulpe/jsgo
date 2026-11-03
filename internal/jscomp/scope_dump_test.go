@@ -105,8 +105,8 @@ func scopeDumpNode(n rhino.Node) string {
 // scopeDumpJavaClass is Throwable.getClass().getName().
 func scopeDumpJavaClass(t jutil.Throwable) string {
 	full := t.Error()
-	if msg := jutil.GetMessageOrNull(t); msg != nil {
-		return strings.TrimSuffix(full, ": "+*msg)
+	if msg, ok := jutil.ThrowableMessage(t); ok {
+		return strings.TrimSuffix(full, ": "+msg)
 	}
 	return full
 }

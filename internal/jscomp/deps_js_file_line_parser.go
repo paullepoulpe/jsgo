@@ -61,7 +61,7 @@ type JsFileLineParser_ParseException struct {
 
 func newJsFileLineParser_ParseException(message string) *JsFileLineParser_ParseException {
 	e := &JsFileLineParser_ParseException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.JsFileLineParser$ParseException", &message, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.deps.JsFileLineParser$ParseException", message, nil)
 	return e
 }
 
@@ -100,7 +100,7 @@ func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, f
 		b.lineNum = 0
 		b.parseSucceeded = false
 		b.errorManager.Report(CheckLevel_ERROR,
-			JSError_MakeWithSourceLocation(&filePath, 0, 0,
+			JSError_MakeAtSourceLocation(filePath, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
 		return
 	}
@@ -199,7 +199,7 @@ func parseJsLines[H jsLineHandler](b *jsFileLineParser, h H, filePath string, te
 			if errMsg != "" {
 				b.errorManager.Report(
 					CheckLevel_ERROR,
-					JSError_MakeWithSourceLocation(&b.filePath, b.lineNum, 0,
+					JSError_MakeAtSourceLocation(b.filePath, b.lineNum, 0,
 						JsFileLineParser_PARSE_ERROR, errMsg, line))
 				b.parseSucceeded = false
 				continue

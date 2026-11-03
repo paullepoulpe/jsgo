@@ -97,8 +97,7 @@ type Wtf8_Decoder struct {
 func newWtf8_Decoder(maxLength int) *Wtf8_Decoder {
 	if maxLength < 0 {
 		e := &jutil.RuntimeException{}
-		msg := strconv.Itoa(maxLength)
-		jutil.InitThrowable(e, "java.lang.NegativeArraySizeException", &msg, nil)
+		jutil.InitThrowableMsg(e, "java.lang.NegativeArraySizeException", strconv.Itoa(maxLength), nil)
 		panic(e)
 	}
 	return &Wtf8_Decoder{

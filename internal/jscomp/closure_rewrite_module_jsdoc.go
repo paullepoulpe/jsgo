@@ -155,8 +155,8 @@ func (m *ClosureRewriteModule) maybeAddAliasToSymbolTable(n rhino.Node, moduleOr
 	var nodeNameStr string
 	if n.IsStringLit() {
 		nodeNameStr = n.GetString()
-	} else if qn := m.preprocessorSymbolTable.GetQualifiedName(n); qn != nil {
-		nodeNameStr = *qn
+	} else if qn, ok := m.preprocessorSymbolTable.GetQualifiedName(n); ok {
+		nodeNameStr = qn
 	} else {
 		nodeNameStr = "null"
 	}

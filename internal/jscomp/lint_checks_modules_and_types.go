@@ -161,11 +161,13 @@ var checkPrototypePropertiesVisitTokens = func() ast.TokenSet {
 }()
 
 var (
-	_ nodeTraversal_visitTokens   = (*CheckPrototypeProperties)(nil)
-	_ nodeTraversal_noVisitLeaves = (*CheckPrototypeProperties)(nil)
+	_ nodeTraversal_noShouldTraverse = (*CheckPrototypeProperties)(nil)
+	_ nodeTraversal_visitTokens      = (*CheckPrototypeProperties)(nil)
+	_ nodeTraversal_noVisitLeaves    = (*CheckPrototypeProperties)(nil)
 )
 
-func (*CheckPrototypeProperties) noVisitLeaves() {}
+func (*CheckPrototypeProperties) nodeTraversalNoShouldTraverse() {}
+func (*CheckPrototypeProperties) noVisitLeaves()                 {}
 func (*CheckPrototypeProperties) visitTokens() *ast.TokenSet {
 	return &checkPrototypePropertiesVisitTokens
 }
@@ -350,6 +352,16 @@ func (*CheckPrimitiveAsObject) cloneForParallel(c *Compiler) NodeTraversal_Callb
 func (c *CheckPrimitiveAsObject) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
+
+var checkPrimitiveAsObjectVisitTokens = makeVisitTokenSet(rhino.Token_NEW)
+
+var (
+	_ nodeTraversal_visitTokens = (*CheckPrimitiveAsObject)(nil)
+	_ nodeTraversal_visitJSDoc  = (*CheckPrimitiveAsObject)(nil)
+)
+
+func (*CheckPrimitiveAsObject) visitTokens() *ast.TokenSet { return &checkPrimitiveAsObjectVisitTokens }
+func (*CheckPrimitiveAsObject) visitJSDoc() bool           { return true }
 
 // Java: CheckPrimitiveAsObject.visit(NodeTraversal, Node, Node)
 func (c *CheckPrimitiveAsObject) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -732,12 +744,14 @@ var checkConstantCaseNamesVisitTokens = func() ast.TokenSet {
 }()
 
 var (
-	_ nodeTraversal_visitTokens    = (*CheckConstantCaseNames)(nil)
-	_ nodeTraversal_onlyNameLeaves = (*CheckConstantCaseNames)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*CheckConstantCaseNames)(nil)
+	_ nodeTraversal_visitTokens                         = (*CheckConstantCaseNames)(nil)
+	_ nodeTraversal_onlyNameLeaves                      = (*CheckConstantCaseNames)(nil)
 )
 
-func (*CheckConstantCaseNames) onlyNameLeaves()            {}
-func (*CheckConstantCaseNames) visitTokens() *ast.TokenSet { return &checkConstantCaseNamesVisitTokens }
+func (*CheckConstantCaseNames) shouldTraverseOnlyScriptAndFunction() bool { return true }
+func (*CheckConstantCaseNames) onlyNameLeaves()                           {}
+func (*CheckConstantCaseNames) visitTokens() *ast.TokenSet                { return &checkConstantCaseNamesVisitTokens }
 
 // Java: CheckConstantCaseNames.visit(NodeTraversal, Node, Node)
 func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

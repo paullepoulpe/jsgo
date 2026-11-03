@@ -121,12 +121,18 @@ func (n Node) CopyTypeFrom(other Node) Node {
 	return n
 }
 
+// HasJSDocInfo reports whether this node has the JSDoc property flag set.
+// It is guaranteed to return true whenever GetJSDocInfo() != nil.
+func (n Node) HasJSDocInfo() bool {
+	return !n.IsNil() && (n.rec().propFlags&propWord(propFlagHasJSDoc)) != 0
+}
+
 // GetJSDocInfo gets the JSDocInfo attached to this node; null if no JSDoc is
 // attached to this node.
 //
 // Java: Node.getJSDocInfo()
 func (n Node) GetJSDocInfo() *JSDocInfo {
-	if (n.props() & propFlagHasJSDoc) == 0 {
+	if (n.rec().propFlags & propWord(propFlagHasJSDoc)) == 0 {
 		return nil
 	}
 	a, ok := n.auxOf()

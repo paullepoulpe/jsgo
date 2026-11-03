@@ -148,9 +148,9 @@ func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, par
 }
 
 func (c *CheckUnusedPrivateProperties) recordConstructorOrInterface(n rhino.Node) {
-	if className := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n)); className != nil {
+	if className, ok := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n)); ok {
 		// If className is null, this pass won't report diagnostics on static members of this class.
-		c.constructorsAndInterfaces[*className] = true
+		c.constructorsAndInterfaces[className] = true
 	}
 }
 

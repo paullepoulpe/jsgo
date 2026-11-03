@@ -599,12 +599,7 @@ type NodeUtil_GoogRequire struct {
 }
 
 // Java: NodeUtil.GoogRequire(String, String, boolean)
-func NewNodeUtil_GoogRequire(namespace string, property *string, isStrongRequire bool) *NodeUtil_GoogRequire {
-	return NewNodeUtil_GoogRequireOpt(namespace, base.OptStringFromPtr(property), isStrongRequire)
-}
-
-// NewNodeUtil_GoogRequireOpt constructs a NodeUtil_GoogRequire for an optional property.
-func NewNodeUtil_GoogRequireOpt(namespace string, property base.OptString, isStrongRequire bool) *NodeUtil_GoogRequire {
+func NewNodeUtil_GoogRequire(namespace string, property base.OptString, isStrongRequire bool) *NodeUtil_GoogRequire {
 	prop, hasProp := property.Get()
 	return &NodeUtil_GoogRequire{
 		namespace:       namespace,
@@ -617,16 +612,10 @@ func NewNodeUtil_GoogRequireOpt(namespace string, property base.OptString, isStr
 // Java: NodeUtil.GoogRequire.namespace()
 func (r *NodeUtil_GoogRequire) Namespace() string { return r.namespace }
 
+// Property returns the destructured property name and whether one is present.
+//
 // Java: NodeUtil.GoogRequire.property()
-func (r *NodeUtil_GoogRequire) Property() *string {
-	if !r.hasProperty {
-		return nil
-	}
-	return &r.property
-}
-
-// PropertyOk returns the destructured property name and whether one is present.
-func (r *NodeUtil_GoogRequire) PropertyOk() (string, bool) {
+func (r *NodeUtil_GoogRequire) Property() (string, bool) {
 	return r.property, r.hasProperty
 }
 

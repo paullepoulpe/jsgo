@@ -18,7 +18,7 @@ type illegalFormatException struct{ IllegalArgumentException }
 
 func newIllegalFormatException(className, message string) *illegalFormatException {
 	e := &illegalFormatException{}
-	InitThrowable(e, className, msgPtr(message), nil)
+	InitThrowableMsg(e, className, message, nil)
 	return e
 }
 

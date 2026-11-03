@@ -725,3 +725,62 @@ func (p *templateAstMatcherTest_TestNodePair) GetTestExprResultRoot() rhino.Node
 	}
 	return rhino.NilNode
 }
+
+func (c *TemplateAstMatcherTest) TestMatches_localVarInitializerMismatch() {
+	templateWithParamInit := `/** @param {string} x */
+function template(x) {
+  var a = x;
+}
+`
+	pair := c.compile("", templateWithParamInit, "var b;")
+	c.assertNotMatch(pair.templateNode, pair.testNode.GetFirstChild())
+	pair = c.compile("", templateWithParamInit, "var b = 'ok';")
+	c.assertMatch(pair.templateNode, pair.testNode.GetFirstChild())
+
+	templateWithoutInit := `function template() {
+  var a;
+}
+`
+	pair = c.compile("", templateWithoutInit, "var b = 1;")
+	c.assertNotMatch(pair.templateNode, pair.testNode.GetFirstChild())
+	pair = c.compile("", templateWithoutInit, "var b;")
+	c.assertMatch(pair.templateNode, pair.testNode.GetFirstChild())
+}
+
+func TestTemplateAstMatcher_ZeroAllocs(t *testing.T) {
+	tc := &TemplateAstMatcherTest{t: t}
+	externs := `/** @param {string|number} x */ function sink(x) {}`
+	template := `/**
+ * @param {string|number} val
+ * @param {string} string_literal_tag
+ */
+function template(val, string_literal_tag) {
+  var local = val;
+  sink(local);
+  sink(string_literal_tag);
+}
+`
+	pair := tc.compile(externs, template, "var x = 'hello'; sink(x); sink('tag');")
+	matcher := NewTemplateAstMatcher(tc.lastCompiler, pair.templateNode.GetFirstChild(), TypeMatchingStrategy_LOOSE)
+	matchCandidate := pair.testNode.GetFirstChild()
+	nonMatchCandidate := pair.testNode.GetSecondChild()
+
+	if !matcher.Matches(matchCandidate) {
+		t.Fatal("expected matchCandidate to match")
+	}
+	if matcher.Matches(nonMatchCandidate) {
+		t.Fatal("expected nonMatchCandidate not to match")
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		if !matcher.Matches(matchCandidate) {
+			t.Fatal("unexpected mismatch")
+		}
+		if matcher.Matches(nonMatchCandidate) {
+			t.Fatal("unexpected match")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("TemplateAstMatcher.Matches allocated %v times per run, want 0", allocs)
+	}
+}

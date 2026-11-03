@@ -137,8 +137,8 @@ func (d *polymerJ2clOracleDumper) tree(n rhino.Node) {
 // polymerJ2clOracleFirstLine is PolymerJ2clDump.firstLine.
 func polymerJ2clOracleFirstLine(t jutil.Throwable) string {
 	msg := "null"
-	if m := jutil.GetMessageOrNull(t); m != nil {
-		msg = *m
+	if m, ok := jutil.ThrowableMessage(t); ok {
+		msg = m
 	}
 	if nl := strings.IndexByte(msg, '\n'); nl >= 0 {
 		msg = msg[:nl]

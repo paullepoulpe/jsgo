@@ -70,16 +70,17 @@ func (u *closureScriptUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 			break
 		}
 		method := getProp.Node()
-		if closureRewriteModule_GOOG_MODULE.Matches(method) {
+		switch {
+		case closureRewriteModule_GOOG_MODULE.Matches(method):
 			m.updateGoogModule(t, call)
-		} else if closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE.Matches(method) {
+		case closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE.Matches(method):
 			NodeUtil_GetEnclosingStatement(n).Detach()
-		} else if closureRewriteModule_GOOG_REQUIRE.Matches(method) ||
-			closureRewriteModule_GOOG_REQUIRETYPE.Matches(method) {
+		case closureRewriteModule_GOOG_REQUIRE.Matches(method) ||
+			closureRewriteModule_GOOG_REQUIRETYPE.Matches(method):
 			m.updateGoogRequire(t, call)
-		} else if closureRewriteModule_GOOG_FORWARDDECLARE.Matches(method) && !parent.IsExprResult() {
+		case closureRewriteModule_GOOG_FORWARDDECLARE.Matches(method) && !parent.IsExprResult():
 			m.updateGoogForwardDeclare(t, call)
-		} else if closureRewriteModule_GOOG_MODULE_PREVENTMODULEEXPORTSEALING.Matches(method) {
+		case closureRewriteModule_GOOG_MODULE_PREVENTMODULEEXPORTSEALING.Matches(method):
 			NodeUtil_GetEnclosingStatement(n).Detach()
 		}
 	case rhino.Token_GETPROP:
@@ -106,8 +107,13 @@ var closureScriptUpdaterVisitTokens = makeVisitTokenSet(
 )
 
 func (*closureScriptUpdater) visitTokens() *ast.TokenSet { return &closureScriptUpdaterVisitTokens }
+func (*closureScriptUpdater) onlyNameLeaves()            {}
 
-var _ nodeTraversal_visitTokens = (*closureScriptUpdater)(nil)
+var (
+	_ NodeTraversal_Callback       = (*closureScriptUpdater)(nil)
+	_ nodeTraversal_visitTokens    = (*closureScriptUpdater)(nil)
+	_ nodeTraversal_onlyNameLeaves = (*closureScriptUpdater)(nil)
+)
 
 func (u *closureScriptUpdater) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	m := u.outer
@@ -584,15 +590,19 @@ func ClosureRewriteModule_CheckAndSetStrictModeDirective(t *NodeTraversal, n rhi
 }
 
 func closureRewriteModule_maybeSplitMultiVar(rhsNode rhino.Node) {
-	statementNode := rhsNode.GetGrandparent()
-	if !statementNode.IsVar() || !statementNode.HasMoreThanOneChild() {
+	decl, ok := ast.AsNameDeclarationOf(rhsNode.GetGrandparent(), rhino.Token_VAR)
+	if !ok {
+		return
+	}
+	first, hasFirst := decl.FirstDeclarator()
+	if !hasFirst || first.IsLast() {
 		return
 	}
 
 	nameNode := rhsNode.GetParent()
 	nameNode.Detach()
 	rhsNode.Detach()
-	rhino.IR_VarWithValue(nameNode, rhsNode).InsertBefore(statementNode)
+	rhino.IR_VarWithValue(nameNode, rhsNode).InsertBefore(decl.Node())
 }
 
 func (m *ClosureRewriteModule) recordExportToInline(exportDefinition closureExportDefinition) {
@@ -695,8 +705,8 @@ func (m *ClosureRewriteModule) safeSetMaybeQualifiedString(
 	}
 
 	nameNode.ReplaceWith(newQualifiedName)
-	if newQualifiedName.HasChildren() {
-		newQualifiedName.GetFirstChild().MakeNonIndexableRecursive()
+	if prop, ok := ast.AsGetProp(newQualifiedName); ok {
+		prop.Object().Node().MakeNonIndexableRecursive()
 	}
 	m.compiler.ReportChangeToEnclosingScope(newQualifiedName)
 }

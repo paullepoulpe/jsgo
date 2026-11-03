@@ -442,12 +442,15 @@ func l11optDiagnostics(c *Compiler) []string {
 func l11optException(r any) string {
 	th := jutil.AsThrowable(r)
 	full := th.Error()
-	msg := jutil.GetMessageOrNull(th)
 	class := full
-	if msg != nil && strings.HasSuffix(full, ": "+*msg) {
-		class = strings.TrimSuffix(full, ": "+*msg)
+	msgStr := "null"
+	if msg, ok := jutil.ThrowableMessage(th); ok {
+		msgStr = msg
+		if strings.HasSuffix(full, ": "+msg) {
+			class = strings.TrimSuffix(full, ": "+msg)
+		}
 	}
-	return "exception " + class + ": " + jutil.ToJavaString(msg)
+	return "exception " + class + ": " + msgStr
 }
 
 func l11optLine(sb *strings.Builder, s string) {

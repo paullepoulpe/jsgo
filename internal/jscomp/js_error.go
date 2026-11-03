@@ -177,19 +177,11 @@ func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
 		type_, type_.Format(arguments...), "", false, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
 }
 
-// JSError_MakeWithSourceLocation creates a JSError at a given source
+// JSError_MakeWithOptSourceLocation creates a JSError at an optional source
 // location: lineno is the line number with source file, or -1 if unknown;
 // charno the column number within line, or -1 for whole line.
 //
 // Java: JSError.make(String, int, int, DiagnosticType, String...)
-func JSError_MakeWithSourceLocation(
-	sourceName *string, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
-	return JSError_MakeWithOptSourceLocation(
-		base.OptStringFromPtr(sourceName), lineno, charno, type_, arguments...)
-}
-
-// JSError_MakeWithOptSourceLocation creates a JSError at an optional source
-// location without pointer boxing.
 func JSError_MakeWithOptSourceLocation(
 	sourceName base.OptString, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
@@ -201,6 +193,8 @@ func JSError_MakeWithOptSourceLocation(
 
 // JSError_MakeAtSourceLocation creates a JSError at a non-null source location
 // without boxing sourceName.
+//
+// Java: JSError.make(String, int, int, DiagnosticType, String...)
 func JSError_MakeAtSourceLocation(
 	sourceName string, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
@@ -208,6 +202,17 @@ func JSError_MakeAtSourceLocation(
 	}
 	return newJSError(
 		type_, type_.Format(arguments...), sourceName, true, lineno, charno, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
+}
+
+// JSError_MakeWithoutSourceLocation creates a JSError with an absent source
+// name at a given line and column number (or -1 if unknown).
+func JSError_MakeWithoutSourceLocation(
+	lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	return newJSError(
+		type_, type_.Format(arguments...), "", false, lineno, charno, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
 }
 
 // JSError_MakeWithNode creates a JSError from a file and Node position.
@@ -324,8 +329,13 @@ func (b *JSErrorBuilder) SetLevel(level CheckLevel) *JSErrorBuilder {
 // Incompatible with SetNode.
 //
 // Java: JSError.Builder.setSourceLocation(String, int, int)
-func (b *JSErrorBuilder) SetSourceLocation(sourceName *string, lineno int, charno int) *JSErrorBuilder {
-	return b.SetOptSourceLocation(base.OptStringFromPtr(sourceName), lineno, charno)
+func (b *JSErrorBuilder) SetSourceLocation(sourceName string, lineno int, charno int) *JSErrorBuilder {
+	jutil.CheckStateMsg(b.n.IsNil(), "Cannot provide a source location when there is already a Node")
+	b.sourceName = sourceName
+	b.hasSourceName = true
+	b.lineno = lineno
+	b.charno = charno
+	return b
 }
 
 // SetOptSourceLocation sets the optional source location without pointer boxing.

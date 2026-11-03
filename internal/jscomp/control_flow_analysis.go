@@ -374,7 +374,7 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node) {
 }
 
 type cfaWorkItem struct {
-	node *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
 	pos  int32
 }
 
@@ -382,7 +382,7 @@ func cfaWorkItemLess(a, b cfaWorkItem) bool { return a.pos < b.pos }
 
 // prioritizeFromEntryNode finds all nodes reachable from entry and assigns
 // their priorities.
-func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *graph.LinkedDirectedGraph_LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
+func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
 	if entry == nil {
 		panic(jutil.NewNullPointerException())
 	}

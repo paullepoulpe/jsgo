@@ -127,8 +127,8 @@ func checkClassMethods(t *NodeTraversal, cls ast.Class, ctorDef rhino.Node) {
 		}
 		if memberNode.IsStaticMember() {
 			name := checkInterfaces_ANONYMOUS_CLASSNAME
-			if className := NodeUtil_GetName(cls.Node()); className != nil {
-				name = *className
+			if className, ok := NodeUtil_GetName(cls.Node()); ok {
+				name = className
 			}
 			t.Report(memberNode, CheckInterfaces_STATIC_MEMBER_FUNCTION_IN_INTERFACE_CLASS, name, memberNode.GetString())
 		} else if fn, ok := ast.AsFunction(memberNode.GetLastChild()); ok {

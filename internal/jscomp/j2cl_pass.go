@@ -433,7 +433,11 @@ func (f *j2clFunctionDefsCollector) Visit(t *NodeTraversal, n rhino.Node, parent
 			jutil.CheckStateMsg(ok, "expected qualified name on assignment target")
 			qualifiedFnName = qname
 		} else {
-			qualifiedFnName = *jutil.CheckNotNullPtr(NodeUtil_GetBestLValueName(n))
+			qname, ok := NodeUtil_GetBestLValueName(n)
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
+			qualifiedFnName = qname
 		}
 		previousValue := f.outer.fnsToInlineByQualifiedName[qualifiedFnName]
 		f.outer.fnsToInlineByQualifiedName[qualifiedFnName] = inlinableFunction

@@ -146,6 +146,22 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(script rhino.Node) {
 	}
 }
 
+var checkJSDocVisitTokens = makeVisitTokenSet(
+	rhino.Token_SCRIPT,
+	rhino.Token_FUNCTION,
+	rhino.Token_ITER_REST,
+	rhino.Token_OBJECT_REST,
+	rhino.Token_DEFAULT_VALUE,
+)
+
+var (
+	_ nodeTraversal_visitTokens = (*CheckJSDoc)(nil)
+	_ nodeTraversal_visitJSDoc  = (*CheckJSDoc)(nil)
+)
+
+func (*CheckJSDoc) visitTokens() *ast.TokenSet { return &checkJSDocVisitTokens }
+func (*CheckJSDoc) visitJSDoc() bool           { return true }
+
 // Java: CheckJSDoc.visit(NodeTraversal, Node, Node)
 func (c *CheckJSDoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	info := n.GetJSDocInfo()

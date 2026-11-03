@@ -159,7 +159,7 @@ func (r *NodeModuleResolver) ResolveJsModule(
 	if !ok {
 		r.errorHandler.Report(
 			CheckLevel_WARNING,
-			JSError_MakeWithSourceLocation(&sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
+			JSError_MakeAtSourceLocation(sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
 	}
 	return loadAddress, ok
 }

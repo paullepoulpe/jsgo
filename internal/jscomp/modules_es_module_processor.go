@@ -643,9 +643,9 @@ func (p *EsModuleProcessor) ShouldTraverse(t *NodeTraversal, n rhino.Node, paren
 func (p *EsModuleProcessor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_EXPORT:
-		p.visitExport(t, n)
+		p.visitExport(t, ast.MustExport(n))
 	case rhino.Token_IMPORT:
-		p.visitImport(t, n)
+		p.visitImport(t, ast.MustImport(n))
 	}
 }
 
@@ -736,37 +736,48 @@ func (p *EsModuleProcessor) addLocalDeclExport(t *NodeTraversal, name string, na
 	}
 }
 
-func (p *EsModuleProcessor) visitExport(t *NodeTraversal, exportNode rhino.Node) {
-	export := ast.MustExport(exportNode)
-	if export.IsAllFrom() {
+func (p *EsModuleProcessor) visitExport(t *NodeTraversal, export ast.Export) {
+	switch {
+	case export.IsAllFrom():
 		p.visitExportAllFrom(t, export)
-	} else if export.IsDefault() {
+	case export.IsDefault():
 		p.visitExportDefault(t, export)
-	} else if source, hasSource := export.Source(); hasSource {
-		p.visitExportFrom(t, export, export.Body().MustExportSpecs(), source.Value())
-	} else if specs, ok := export.Body().AsExportSpecs(); ok {
-		p.visitExportSpecs(t, export, specs)
-	} else {
-		declaration := export.Body().Node()
-		if nameDecl, ok := ast.AsNameDeclaration(declaration); ok {
-			NodeUtil_VisitLhsNodesInNode(nameDecl.Node(), func(lhs rhino.Node) {
-				lhsName := ast.MustName(lhs)
-				p.addLocalDeclExport(t, lhsName.Ident(), lhsName.Node(), exportNode)
-			})
-		} else {
-			var nameNode ast.Name
-			if fn, ok := ast.AsFunction(declaration); ok {
-				nameNode = fn.NameNode()
-			} else {
-				nameNode = ast.MustName(ast.MustClass(declaration).NameNode())
+	default:
+		if source, hasSource := export.Source(); hasSource {
+			if specs, ok := export.Body().AsExportSpecs(); ok {
+				p.visitExportFrom(t, export, specs, source.Value())
 			}
-			p.addLocalDeclExport(t, nameNode.Ident(), nameNode.Node(), exportNode)
+		} else if specs, ok := export.Body().AsExportSpecs(); ok {
+			p.visitExportSpecs(t, export, specs)
+		} else {
+			p.visitExportDeclaration(t, export)
 		}
 	}
 }
 
-func (p *EsModuleProcessor) visitImport(t *NodeTraversal, importNode rhino.Node) {
-	imp := ast.MustImport(importNode)
+func (p *EsModuleProcessor) visitExportDeclaration(t *NodeTraversal, export ast.Export) {
+	exportNode := export.Node()
+	declaration := export.Body().Node()
+	if nameDecl, ok := ast.AsNameDeclaration(declaration); ok {
+		NodeUtil_VisitLhsNodesInNode(nameDecl.Node(), func(lhs rhino.Node) {
+			if lhsName, ok := ast.AsName(lhs); ok {
+				p.addLocalDeclExport(t, lhsName.Ident(), lhsName.Node(), exportNode)
+			}
+		})
+		return
+	}
+	if fn, ok := ast.AsFunction(declaration); ok {
+		nameNode := fn.NameNode()
+		p.addLocalDeclExport(t, nameNode.Ident(), nameNode.Node(), exportNode)
+	} else if cls, ok := ast.AsClass(declaration); ok {
+		if clsName, hasName := cls.Name(); hasName {
+			p.addLocalDeclExport(t, clsName.Ident(), clsName.Node(), exportNode)
+		}
+	}
+}
+
+func (p *EsModuleProcessor) visitImport(t *NodeTraversal, imp ast.Import) {
+	importNode := imp.Node()
 	moduleRequest := imp.Source().Value()
 	modulePath := t.GetInput().GetPath()
 

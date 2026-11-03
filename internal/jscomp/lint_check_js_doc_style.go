@@ -121,6 +121,24 @@ func (c *CheckJSDocStyle) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(c.compiler, externs, &CheckJSDocStyle_ExternsCallback{})
 }
 
+var checkJSDocStyleVisitTokens = makeVisitTokenSet(
+	rhino.Token_FUNCTION,
+	rhino.Token_CLASS,
+	rhino.Token_ASSIGN,
+	rhino.Token_MEMBER_FUNCTION_DEF,
+	rhino.Token_GETTER_DEF,
+	rhino.Token_SETTER_DEF,
+	rhino.Token_SCRIPT,
+)
+
+var (
+	_ nodeTraversal_visitTokens = (*CheckJSDocStyle)(nil)
+	_ nodeTraversal_visitJSDoc  = (*CheckJSDocStyle)(nil)
+)
+
+func (*CheckJSDocStyle) visitTokens() *ast.TokenSet { return &checkJSDocStyleVisitTokens }
+func (*CheckJSDocStyle) visitJSDoc() bool           { return true }
+
 // Java: CheckJSDocStyle.visit(NodeTraversal, Node, Node)
 func (c *CheckJSDocStyle) Visit(t *NodeTraversal, n rhino.Node, unused rhino.Node) {
 	switch n.GetToken() {
@@ -458,6 +476,18 @@ func (f *CheckJSDocStyle_FindNonTrivialReturn) ShouldTraverse(t *NodeTraversal, 
 
 // Java: CheckJSDocStyle.ExternsCallback
 type CheckJSDocStyle_ExternsCallback struct{}
+
+var checkJSDocStyleExternsVisitTokens = makeVisitTokenSet(rhino.Token_SCRIPT)
+
+var (
+	_ nodeTraversal_visitTokens   = (*CheckJSDocStyle_ExternsCallback)(nil)
+	_ nodeTraversal_noVisitLeaves = (*CheckJSDocStyle_ExternsCallback)(nil)
+)
+
+func (*CheckJSDocStyle_ExternsCallback) noVisitLeaves() {}
+func (*CheckJSDocStyle_ExternsCallback) visitTokens() *ast.TokenSet {
+	return &checkJSDocStyleExternsVisitTokens
+}
 
 // Java: CheckJSDocStyle.ExternsCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (*CheckJSDocStyle_ExternsCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {

@@ -385,7 +385,7 @@ func NewGZIPInputStreamWithSize(in io.ReadCloser, size int) io.ReadCloser {
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// Java: new EOFException(), with a null message.
 			e := &eofException{}
-			InitThrowable(e, "java.io.EOFException", nil, nil)
+			InitThrowableNoMsg(e, "java.io.EOFException", nil)
 			panic(e)
 		}
 		panic(NewIOException(err.Error()))
@@ -509,14 +509,13 @@ func IOExceptionFromError(err error, path string) Throwable {
 	msg := err.Error()
 	switch {
 	case path != "" && strings.Contains(msg, "no such file or directory"):
-		InitThrowable(e, "java.nio.file.NoSuchFileException", &path, nil)
+		InitThrowableMsg(e, "java.nio.file.NoSuchFileException", path, nil)
 	case path != "" && strings.Contains(msg, "permission denied"):
-		InitThrowable(e, "java.nio.file.AccessDeniedException", &path, nil)
+		InitThrowableMsg(e, "java.nio.file.AccessDeniedException", path, nil)
 	case strings.Contains(msg, "is a directory"):
-		m := "Is a directory"
-		InitThrowable(e, "java.io.IOException", &m, nil)
+		InitThrowableMsg(e, "java.io.IOException", "Is a directory", nil)
 	default:
-		InitThrowable(e, "java.io.IOException", &msg, nil)
+		InitThrowableMsg(e, "java.io.IOException", msg, nil)
 	}
 	return e
 }

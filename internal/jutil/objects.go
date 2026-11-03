@@ -277,11 +277,6 @@ func LongToHexString(i int64) string {
 	return strconv.FormatUint(uint64(i), 16)
 }
 
-// StringPtr returns a pointer to a copy of s. Java String values that may be
-// null are *string in the port; this builds a non-null one from a literal or
-// expression.
-func StringPtr(s string) *string { return &s }
-
 // ---------------------------------------------------------------------------
 // MoreObjects.ToStringHelper
 

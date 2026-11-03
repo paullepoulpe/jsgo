@@ -1910,3 +1910,47 @@ func TestControlFlowAnalysis_IsEnteringNewCfgNode_enhancedForLoops(t *testing.T)
 			"async function f() { for await (var item of collection) { body(); } }"),
 		(rhino.Node).IsForAwaitOf)
 }
+
+func TestReusableCfg_ZeroAllocs(t *testing.T) {
+	compiler := NewCompiler()
+	src := `function f(a, b) {
+  outer: for (let i = 0; i < 10; i++) {
+    try {
+      switch (a) {
+        case 1:
+          if (b) continue outer;
+          break;
+        default:
+          throw b;
+      }
+    } catch (e) {
+      b = e;
+    } finally {
+      a++;
+    }
+  }
+  class C {
+    static [a] = b;
+    static s = a + b;
+    m() {}
+  }
+  return C;
+}`
+	root := compiler.ParseSyntheticCode("reusable_cfg", src)
+	fn := cfaFindNodes(t, root, (rhino.Node).IsFunction)[0]
+
+	var rc ReusableCfg
+	defer rc.release()
+	// Warm up backing slabs and maps.
+	_ = rc.Compute(compiler, fn, false, true)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		cfg := rc.Compute(compiler, fn, false, true)
+		if cfg.GetEntry() == nil {
+			t.Fatal("expected non-nil entry")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("ReusableCfg.Compute allocated %v times per run, want 0", allocs)
+	}
+}

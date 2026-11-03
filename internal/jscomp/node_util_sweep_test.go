@@ -200,13 +200,6 @@ func (s *nodeUtilSweeper) list(nodes []rhino.Node) string {
 	return b.String()
 }
 
-func nodeUtilSweepStr(s *string) string {
-	if s == nil {
-		return "-"
-	}
-	return nodeUtilSweepQuote(*s)
-}
-
 func nodeUtilSweepStrOpt(s string, ok bool) string {
 	if !ok {
 		return "-"
@@ -558,8 +551,8 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 		d := NodeUtil_GetNumericLiteralValue(n)
 		return nodeUtilSweepDbl(&d)
 	})
-	field(isName, func() string { name := NodeUtil_GetOriginalName(n.GetString()); return nodeUtilSweepStr(&name) })
-	field(isFnOrClass, func() string { return nodeUtilSweepStr(NodeUtil_GetName(n)) })
+	field(isName, func() string { return nodeUtilSweepStrOpt(NodeUtil_GetOriginalName(n.GetString()), true) })
+	field(isFnOrClass, func() string { return nodeUtilSweepStrOpt(NodeUtil_GetName(n)) })
 	field(isFnOrClass, func() string { return s.idx(NodeUtil_GetNameNode(n)) })
 	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_NearestFunctionName(n)) })
 	field(n.IsClass(), func() string { return s.idx(NodeUtil_GetClassMembers(n)) })
@@ -683,7 +676,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(true, func() string { return s.idx(NodeUtil_GetBestLValue(n)) })
 	field(hasParent, func() string { return s.idx(NodeUtil_GetRValueOfLValue(n)) })
 	field(true, func() string { return s.idx(NodeUtil_GetBestLValueOwner(n)) })
-	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetBestLValueName(n)) })
+	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_GetBestLValueName(n)) })
 	field(true, func() string { return s.idx(NodeUtil_GetBestLValueRoot(n)) })
 	field(NodeUtil_IsInvocation(n), func() string {
 		var args []rhino.Node

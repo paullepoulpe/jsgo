@@ -1106,6 +1106,11 @@ func (c *ClosureCheckModuleTest) TestDontCrashOnTrailingDot() {
 
 var a = goog.require('abc.');
 `)
+	c.TestSame(
+		`goog.module('foo');
+
+var b = goog.require('');
+`)
 }
 
 // Java: ClosureCheckModuleTest.testAllowGoogProvideDeclaration()

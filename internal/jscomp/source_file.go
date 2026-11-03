@@ -677,9 +677,8 @@ func sourceFile_fileInputStreamException(err error, name string) jutil.Throwable
 	if reason != "" {
 		reason = strings.ToUpper(reason[:1]) + reason[1:]
 	}
-	msg := name + " (" + reason + ")"
 	e := &jutil.IOException{}
-	jutil.InitThrowable(e, "java.io.FileNotFoundException", &msg, nil)
+	jutil.InitThrowableMsg(e, "java.io.FileNotFoundException", name+" ("+reason+")", nil)
 	return e
 }
 
@@ -703,9 +702,8 @@ func SourceFile_FromZipInput(zipName string, input io.Reader, inputCharset *juti
 	}
 	in, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
-		msg := err.Error()
 		e := &jutil.IOException{}
-		jutil.InitThrowable(e, "java.util.zip.ZipException", &msg, nil)
+		jutil.InitThrowableMsg(e, "java.util.zip.ZipException", err.Error(), nil)
 		panic(e)
 	}
 	for _, zipEntry := range in.File {

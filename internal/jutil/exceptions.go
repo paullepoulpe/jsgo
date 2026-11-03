@@ -63,20 +63,16 @@ func (t *ThrowableBase) Error() string {
 	return t.className + ": " + t.message
 }
 
-// InitThrowable initializes the base of an exception. className is the
-// fully qualified Java class name, used by Error()/toString().
-func InitThrowable(t Throwable, className string, message *string, cause Throwable) {
-	if message != nil {
-		initThrowableMsg(t, className, *message, true, cause)
-		return
-	}
-	initThrowableMsg(t, className, "", false, cause)
-}
-
 // InitThrowableMsg initializes the base of an exception with a non-null message
 // without boxing message into a *string.
 func InitThrowableMsg(t Throwable, className string, message string, cause Throwable) {
 	initThrowableMsg(t, className, message, true, cause)
+}
+
+// InitThrowableNoMsg initializes the base of an exception without an explicit
+// message (Java null message, or cause.toString() when cause is non-nil).
+func InitThrowableNoMsg(t Throwable, className string, cause Throwable) {
+	initThrowableMsg(t, className, "", false, cause)
 }
 
 func initThrowableMsg(t Throwable, className string, message string, hasMsg bool, cause Throwable) {
@@ -90,8 +86,6 @@ func initThrowableMsg(t Throwable, className string, message string, hasMsg bool
 	}
 	b.cause = cause
 }
-
-func msgPtr(s string) *string { return &s }
 
 // RuntimeException is java.lang.RuntimeException.
 type RuntimeException struct{ ThrowableBase }
@@ -583,15 +577,6 @@ func ThrowableMessage(t Throwable) (string, bool) {
 		return "", false
 	}
 	return msg, true
-}
-
-// GetMessageOrNull is Throwable.getMessage() with Java null as nil.
-func GetMessageOrNull(t Throwable) *string {
-	msg, ok := ThrowableMessage(t)
-	if !ok {
-		return nil
-	}
-	return &msg
 }
 
 // Throwable_PrintStackTrace is Throwable.printStackTrace(PrintStream): the

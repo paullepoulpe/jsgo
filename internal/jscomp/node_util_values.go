@@ -634,15 +634,8 @@ func NodeUtil_TrimJsWhiteSpace(s string) string {
 // has one. n is a function or class node.
 //
 // Java: NodeUtil.getName(Node)
-func NodeUtil_GetName(n rhino.Node) *string {
-	nameNode := NodeUtil_GetNameNode(n)
-	if nameNode.IsNil() {
-		return nil
-	}
-	if q, ok := nameNode.QualifiedName(); ok {
-		return &q
-	}
-	return nil
+func NodeUtil_GetName(n rhino.Node) (string, bool) {
+	return NodeUtil_GetNameNode(n).GetQualifiedNameString()
 }
 
 // NodeUtil_IsImmutableValue returns true if this is an immutable value.

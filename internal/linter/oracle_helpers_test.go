@@ -15,8 +15,8 @@ import (
 
 func checksDumpClassName(e jutil.Throwable) string {
 	s := e.Error()
-	if m := jutil.GetMessageOrNull(e); m != nil {
-		return strings.TrimSuffix(s, ": "+*m)
+	if m, ok := jutil.ThrowableMessage(e); ok {
+		return strings.TrimSuffix(s, ": "+m)
 	}
 	return s
 }

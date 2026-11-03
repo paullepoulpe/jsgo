@@ -718,7 +718,7 @@ type TextFormat_ParseException struct {
 // Java: TextFormat.ParseException(int, int, String)
 func NewTextFormat_ParseExceptionAt(line int, column int, message string) *TextFormat_ParseException {
 	e := &TextFormat_ParseException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.jarjar.com.google.protobuf.TextFormat$ParseException",
-		jutil.StringPtr(strconv.Itoa(line)+":"+strconv.Itoa(column)+": "+message), nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.jarjar.com.google.protobuf.TextFormat$ParseException",
+		strconv.Itoa(line)+":"+strconv.Itoa(column)+": "+message, nil)
 	return e
 }

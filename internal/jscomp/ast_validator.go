@@ -29,12 +29,13 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// AstValidator walks the AST and validates that the structure is correct.
+// AstValidator walks the AST and validates that its structure, node properties,
+// FeatureSet annotations, and optional type/color information are valid.
 //
-// Validator methods inspect raw rhino.Node child positions rather than
-// internal/ast role views because ValidateChildCount records a violation and
-// continues into malformed/missing child slots (matching Java's cascading
-// violation and NullPointerException behavior on corrupted ASTs).
+// Validator methods check node token and child arity first, using typed
+// internal/ast views when structure matches and falling back to raw child
+// slots when arity or token is malformed so cascading violations and
+// NullPointerExceptions match Java's AstValidator on corrupted ASTs.
 type AstValidator struct {
 	// Possible enhancements:
 	// * verify NAME, LABEL_NAME, GETPROP property name and unquoted
@@ -88,7 +89,8 @@ func NewAstValidatorWithViolationFunc(
 	compiler AbstractCompiler,
 	handler func(message string, n rhino.Node),
 	validateScriptFeatures bool,
-	shouldValidateRequiredInlinings bool) *AstValidator {
+	shouldValidateRequiredInlinings bool,
+) *AstValidator {
 	defaultHandler := handler == nil
 	if handler == nil {
 		handler = astValidator_defaultViolationHandler
@@ -110,7 +112,8 @@ func NewAstValidatorWithHandler(
 		HandleViolation(message string, n rhino.Node)
 	},
 	validateScriptFeatures bool,
-	shouldValidateRequiredInlinings bool) *AstValidator {
+	shouldValidateRequiredInlinings bool,
+) *AstValidator {
 	var fn func(message string, n rhino.Node)
 	if handler != nil {
 		fn = handler.HandleViolation
@@ -119,12 +122,13 @@ func NewAstValidatorWithHandler(
 		compiler,
 		fn,
 		validateScriptFeatures,
-		shouldValidateRequiredInlinings)
+		shouldValidateRequiredInlinings,
+	)
 }
 
 // Java: AstValidator(AbstractCompiler)
 func NewAstValidator(compiler AbstractCompiler) *AstValidator {
-	return NewAstValidatorWithValidateScriptFeatures(compiler /* validateScriptFeatures= */, false)
+	return NewAstValidatorWithValidateScriptFeatures(compiler, false)
 }
 
 // Java: AstValidator(AbstractCompiler, boolean)
@@ -133,7 +137,8 @@ func NewAstValidatorWithValidateScriptFeatures(compiler AbstractCompiler, valida
 		compiler,
 		astValidator_defaultViolationHandler,
 		validateScriptFeatures,
-		compiler.GetOptions().GetShouldValidateRequiredInlinings() == base.Tri_TRUE)
+		compiler.GetOptions().GetShouldValidateRequiredInlinings() == base.Tri_TRUE,
+	)
 	v.defaultViolationHandler = true
 	return v
 }
@@ -162,8 +167,7 @@ func (v *AstValidator) SetViolationHandler(handler func(message string, n rhino.
 	return v
 }
 
-// SetTypeValidationMode enables or disables validation of type
-// information.
+// SetTypeValidationMode enables or disables validation of type information.
 //
 // TODO(b/74537281): Currently only expressions are checked for type
 // information. Do we need to do more?
@@ -191,7 +195,7 @@ func (v *AstValidator) Process(externs rhino.Node, root rhino.Node) {
 
 // Go-only: with more than one thread, the scripts of the externs and the
 // program are validated on workers. Process validates them one by one and
-// validateScript keeps nothing across scripts but the current script, so
+// ValidateScript keeps nothing across scripts but the current script, so
 // each script's validation is independent; the default handler panics at the
 // first violation, and the workers' panics are rethrown in script order, so
 // the first violation in sequential order is the one that panics. Not with a
@@ -233,103 +237,96 @@ func (v *AstValidator) checkGrammar(root rhino.Node) {
 	})
 }
 
-// ValidateTypeInformation enforces the given node has a type if we are
-// validating JSTypes or Colors
-//
-// n is a Node which we expect to have a type attached (i.e. not a
-// control-flow-only node like a BLOCK or IF)
+// Java: AstValidator.violation(String, Node)
+func (v *AstValidator) Violation(message string, n rhino.Node) {
+	v.violationHandler(message, n)
+}
+
+// validateTypeInformation enforces that n has a type attached when validating
+// JSTypes or Colors.
 //
 // Java: AstValidator.validateTypeInformation(Node)
-func (v *AstValidator) ValidateTypeInformation(n rhino.Node) {
+func (v *AstValidator) validateTypeInformation(n rhino.Node) {
 	if n.GetIsInClosureUnawareSubtree() {
 		// We don't expect closure-unaware code to have type information.
 		// TODO: b/321233583 - Maybe this should be a separate validation
 		// step, to ensure that nothing tries to infer type information where
 		// we are mostly unsure of it?
-
 		return
 	}
 	if v.typeValidationMode == AstValidator_TypeInfoValidation_NONE {
 		return
 	}
-
 	if v.typeValidationMode == AstValidator_TypeInfoValidation_JSTYPE {
-		type_ := n.GetJSType()
-
-		if type_ != nil && !type_.IsResolved() { // null types are checked in the switch statement
-			v.Violation("Found unresolved type "+type_.String(), n)
+		if typ := n.GetJSType(); typ != nil && !typ.IsResolved() {
+			// Null types are checked in the switch below.
+			v.Violation("Found unresolved type "+typ.String(), n)
 		}
 	}
 
-	switch n.GetToken() {
-	case rhino.Token_CALL:
-		if !n.GetFirstChild().IsSuper() {
+	if call, ok := ast.AsCall(n); ok {
+		if !call.Callee().Node().IsSuper() {
 			// TODO(sdh): need to validate super() using validateNewType()
-			// instead, if it existed
-			v.ValidateCallType(n)
+			// instead, if it existed.
+			v.validateCallType(call)
 		}
-	default:
-		v.ExpectSomeTypeInformation(n)
+		return
 	}
+	v.expectSomeTypeInformation(n)
 }
 
 // Java: AstValidator.validateCallType(Node)
-func (v *AstValidator) ValidateCallType(callNode rhino.Node) {
+func (v *AstValidator) validateCallType(call ast.Call) {
+	callNode := call.Node()
+	callee := call.Callee().Node()
 	switch v.typeValidationMode {
 	case AstValidator_TypeInfoValidation_JSTYPE:
 		// TODO(b/74537281): Shouldn't CALL nodes always have a type, even if
 		// it is unknown?
-		callee := callNode.GetFirstChild()
 		calleeType := callee.GetJSType()
 		if calleeType == nil {
-			// Go-only: language-adapter — the message argument
-			// callNode.toStringTree() is only built when the check fails.
+			// Go-only: language-adapter — callNode.ToStringTree() is only built
+			// when the check fails.
 			jutil.CheckNotNullMsg1(calleeType, "Callee of\n\n%s\nhas no type.", callNode.ToStringTree())
 		}
-
 		if calleeType.IsFunctionType() {
-			calleeFunctionType := calleeType.ToMaybeFunctionType()
-			returnType := calleeFunctionType.GetReturnType()
+			returnType := calleeType.ToMaybeFunctionType().GetReturnType()
 			// Skip this check if the call node was originally in a cast,
 			// because the cast type may be narrower than the return type. Also
 			// skip the check if the function's return type is the any
 			// (formerly unknown) type, since we may have inferred a better
 			// type.
 			if callNode.GetJSTypeBeforeCast() == nil && !returnType.IsUnknownType() {
-				v.ExpectMatchingTypeInformation(callNode, returnType)
+				v.expectMatchingTypeInformation(callNode, returnType)
 			}
 		}
-		// TODO(b/74537281): What other cases should be covered?
 	case AstValidator_TypeInfoValidation_COLOR:
-		callee := callNode.GetFirstChild()
 		if callee.GetColor() == nil {
-			// Go-only: language-adapter — the message argument
-			// callNode.toStringTree() is only built when the check fails.
+			// Go-only: language-adapter — callNode.ToStringTree() is only built
+			// when the check fails.
 			jutil.CheckNotNullMsg1(callee.GetColor(), "Callee of\n\n%s\nhas no color.", callNode.ToStringTree())
 		}
-		// skip additional validation of return types, since optimization
-		// colors don't include call signature types
+		// Skip additional validation of return types, since optimization
+		// colors don't include call signature types.
 	case AstValidator_TypeInfoValidation_NONE:
 		panic(jutil.NewAssertionErrorNoMessage())
 	}
 }
 
 // Java: AstValidator.expectSomeTypeInformation(Node)
-func (v *AstValidator) ExpectSomeTypeInformation(n rhino.Node) {
+func (v *AstValidator) expectSomeTypeInformation(n rhino.Node) {
 	switch v.typeValidationMode {
 	case AstValidator_TypeInfoValidation_JSTYPE:
 		if n.GetJSType() == nil {
 			v.Violation(
-				"Type information missing"+
-					"\n"+
+				"Type information missing\n"+
 					v.compiler.ToSourceOfNode(NodeUtil_GetEnclosingStatement(n)),
 				n)
 		}
 	case AstValidator_TypeInfoValidation_COLOR:
 		if n.GetColor() == nil {
 			v.Violation(
-				"Color information missing"+
-					"\n"+
+				"Color information missing\n"+
 					v.compiler.ToSourceOfNode(NodeUtil_GetEnclosingStatement(n)),
 				n)
 		}
@@ -349,58 +346,56 @@ func astValidator_jsTypesEqual(a, b rhino.JSType) bool {
 }
 
 // Java: AstValidator.expectMatchingTypeInformation(Node, JSType)
-func (v *AstValidator) ExpectMatchingTypeInformation(n rhino.Node, expectedTypeI rhino.JSType) {
-	typeI := n.GetJSType()
-	if !astValidator_jsTypesEqual(expectedTypeI, typeI) {
+func (v *AstValidator) expectMatchingTypeInformation(n rhino.Node, expectedType rhino.JSType) {
+	actualType := n.GetJSType()
+	if !astValidator_jsTypesEqual(expectedType, actualType) {
 		v.Violation(
 			"Expected type: "+
-				astValidator_getTypeAnnotationString(expectedTypeI)+
+				astValidator_getTypeAnnotationString(expectedType)+
 				" Actual type: "+
-				astValidator_getTypeAnnotationString(typeI),
+				astValidator_getTypeAnnotationString(actualType),
 			n)
 	}
 }
 
 // Java: AstValidator.getTypeAnnotationString(JSType)
-func astValidator_getTypeAnnotationString(typeI rhino.JSType) string {
-	if typeI == nil {
+func astValidator_getTypeAnnotationString(typ rhino.JSType) string {
+	if typ == nil {
 		return "NO TYPE INFORMATION"
 	}
-	return "{" + typeI.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT) + "}"
+	return "{" + typ.ToAnnotationString(rhino.JSType_Nullability_EXPLICIT) + "}"
 }
 
 // Java: AstValidator.validateHasSourceName(Node)
-func (v *AstValidator) ValidateHasSourceName(n rhino.Node) {
-	sourceName, ok := n.SourceFileName()
-	if !ok || sourceName == "" {
+func (v *AstValidator) validateHasSourceName(n rhino.Node) {
+	if sourceName, ok := n.SourceFileName(); !ok || sourceName == "" {
 		v.Violation("Missing 'source name' annotation.", n)
 	}
 }
 
 // Java: AstValidator.validateHasInputId(Node)
-func (v *AstValidator) ValidateHasInputId(n rhino.Node) {
-	inputId := n.GetInputId()
-	if inputId == nil {
+func (v *AstValidator) validateHasInputId(n rhino.Node) {
+	if n.GetInputId() == nil {
 		v.Violation("Missing 'input id' annotation.", n)
 	}
 }
 
 // Java: AstValidator.validateNonEmptyString(Node)
-func (v *AstValidator) ValidateNonEmptyString(n rhino.Node) {
-	if v.ValidateNonNullString(n) && n.GetString() == "" {
+func (v *AstValidator) validateNonEmptyString(n rhino.Node) {
+	if v.validateNonNullString(n) && n.GetString() == "" {
 		v.Violation("Expected non-empty string.", n)
 	}
 }
 
 // Java: AstValidator.validateEmptyString(Node)
-func (v *AstValidator) ValidateEmptyString(n rhino.Node) {
-	if v.ValidateNonNullString(n) && n.GetString() != "" {
+func (v *AstValidator) validateEmptyString(n rhino.Node) {
+	if v.validateNonNullString(n) && n.GetString() != "" {
 		v.Violation("Expected empty string.", n)
 	}
 }
 
 // Java: AstValidator.validateNonNullString(Node)
-func (v *AstValidator) ValidateNonNullString(n rhino.Node) bool {
+func (v *AstValidator) validateNonNullString(n rhino.Node) bool {
 	if !n.IsStringNode() {
 		v.Violation("Expected non-null string.", n)
 		return false
@@ -409,205 +404,218 @@ func (v *AstValidator) ValidateNonNullString(n rhino.Node) bool {
 }
 
 // Java: AstValidator.validateName(Node)
-func (v *AstValidator) ValidateName(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_NAME, n)
-	v.ValidateNonEmptyString(n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	v.ValidateTypeInformation(n)
-	v.ValidateShadowContentIfPresent(n)
+func (v *AstValidator) validateName(n rhino.Node) {
+	v.validateNodeType(rhino.Token_NAME, n)
+	v.validateNonEmptyString(n)
+	v.validatePropsAndArity(n)
+	v.validateTypeInformation(n)
+	v.validateShadowContentIfPresent(n)
 }
 
 // Java: AstValidator.validateOptionalName(Node)
-func (v *AstValidator) ValidateOptionalName(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_NAME, n)
-	v.ValidateNonNullString(n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-	// `n.getString() != null && !n.getString().isEmpty()`: never null.
+func (v *AstValidator) validateOptionalName(n rhino.Node) {
+	v.validateNodeType(rhino.Token_NAME, n)
+	v.validateNonNullString(n)
+	v.validatePropsAndArity(n)
 	if n.GetString() != "" {
-		v.ValidateTypeInformation(n)
+		v.validateTypeInformation(n)
 	}
 }
 
+// Java: AstValidator.validateEmptyName(Node)
+func (v *AstValidator) validateEmptyName(n rhino.Node) {
+	v.validateNodeType(rhino.Token_NAME, n)
+	v.validateEmptyString(n)
+	v.validatePropsAndArity(n)
+}
+
 // Java: AstValidator.validateShadowContentIfPresent(Node)
-func (v *AstValidator) ValidateShadowContentIfPresent(n rhino.Node) {
+func (v *AstValidator) validateShadowContentIfPresent(n rhino.Node) {
 	shadow := n.GetClosureUnawareShadow()
 	if shadow.IsNil() {
 		return
 	}
-	if !shadow.IsRoot() {
+	root, ok := ast.AsRoot(shadow)
+	if !ok {
 		v.Violation("Shadow reference node is not a ROOT node", shadow)
 		return
 	}
-	shadowScript := shadow.GetFirstChild()
-	if shadowScript.IsNil() || !shadowScript.IsScript() {
-		v.Violation("Shadow root node's child is not a script node", shadowScript)
+	firstRootItem, _ := root.FirstItem()
+	shadowScript, ok := ast.AsScript(firstRootItem.Node())
+	if !ok {
+		v.Violation("Shadow root node's child is not a script node", firstRootItem.Node())
 		return
 	}
-	if shadowScript.GetChildCount() != 1 {
-		v.Violation("Shadow SCRIPT node child has more than one child", shadowScript)
+	onlyScriptItem, ok := shadowScript.OnlyItem()
+	if !ok {
+		v.Violation("Shadow SCRIPT node child has more than one child", shadowScript.Node())
 		return
 	}
-	exprResult := shadowScript.GetFirstChild()
-	if exprResult.IsNil() || !exprResult.IsExprResult() {
-		v.Violation("Shadow SCRIPT node child is not an expr result node", exprResult)
+	exprResult, ok := onlyScriptItem.AsExprStmt()
+	if !ok {
+		v.Violation("Shadow SCRIPT node child is not an expr result node", onlyScriptItem.Node())
 		return
 	}
-	if exprResult.GetChildCount() != 1 {
-		v.Violation("Shadow EXPR_RESULT node should have exactly one child", exprResult)
+	if !exprResult.Node().HasOneChild() {
+		v.Violation("Shadow EXPR_RESULT node should have exactly one child", exprResult.Node())
 		return
 	}
-	shadowJsCall := exprResult.GetOnlyChild()
-	if !shadowJsCall.IsCall() {
-		v.Violation("Shadow node EXPR_RESULT child is not a call", shadowJsCall)
+	shadowJsCall, ok := exprResult.Expr().AsCall()
+	if !ok {
+		v.Violation("Shadow node EXPR_RESULT child is not a call", exprResult.Expr().Node())
 		return
 	}
-	shadowJsFunction := shadowJsCall.GetLastChild()
+	var shadowJsFunction rhino.Node
+	if lastArg, ok := shadowJsCall.LastArg(); ok {
+		shadowJsFunction = lastArg.Node()
+	} else {
+		shadowJsFunction = shadowJsCall.Callee().Node()
+	}
 	if !shadowJsFunction.IsFunction() {
 		v.Violation("Shadow node CALL child is not a function", shadowJsFunction)
 		return
 	}
-	v.ValidateFunctionExpression(shadowJsFunction)
+	v.validateFunctionExpression(shadowJsFunction)
 }
 
-// Java: AstValidator.validateEmptyName(Node)
-func (v *AstValidator) ValidateEmptyName(n rhino.Node) {
-	v.ValidateNodeType(rhino.Token_NAME, n)
-	v.ValidateEmptyString(n)
-	v.ValidateProperties(n)
-	v.ValidateChildCount(n)
-}
-
-// Java: AstValidator.validateChildless(Node)
-func (v *AstValidator) ValidateChildless(n rhino.Node) {
-	v.ValidateChildCountWithExpected(n, 0)
-}
-
-// Java: AstValidator.violation(String, Node)
-func (v *AstValidator) Violation(message string, n rhino.Node) {
-	v.violationHandler(message, n)
-}
-
-// ValidateFirstNodeOfOptChain: the first node of an opt chain must be
-// marked with Prop.START_OF_OPT_CHAIN
+// validateFirstNodeOfOptChain verifies that the first node of an optional chain
+// is marked with START_OF_OPT_CHAIN.
 //
 // Java: AstValidator.validateFirstNodeOfOptChain(Node)
-func (v *AstValidator) ValidateFirstNodeOfOptChain(n rhino.Node) {
-	if !NodeUtil_IsOptChainNode(n.GetFirstChild()) {
-		// if the first child of an opt chain node is not an opt chain node
-		// then it is the start of an opt chain
-		if !n.IsOptionalChainStart() {
-			v.Violation(
-				"Start of optional chain node "+n.GetToken().String()+" is not marked as the start.", n)
-		}
+func (v *AstValidator) validateFirstNodeOfOptChain(opt ast.OptChain) {
+	if _, ok := ast.AsOptChain(nodeUtil_optChainReceiver(opt)); !ok && !opt.IsStart() {
+		v.Violation("Start of optional chain node "+opt.Token().String()+" is not marked as the start.", opt.Node())
 	}
 }
 
 // Java: AstValidator.validateNodeType(Token, Node)
-func (v *AstValidator) ValidateNodeType(type_ rhino.Token, n rhino.Node) {
-	if n.GetToken() != type_ {
-		v.Violation("Expected "+type_.String()+" but was "+n.GetToken().String(), n)
+func (v *AstValidator) validateNodeType(expected rhino.Token, n rhino.Node) bool {
+	if n.GetToken() != expected {
+		v.Violation("Expected "+expected.String()+" but was "+n.GetToken().String(), n)
+		return false
 	}
+	return true
+}
+
+// Java: AstValidator.validateChildless(Node)
+func (v *AstValidator) validateChildless(n rhino.Node) bool {
+	return v.validateChildCountWithExpected(n, 0)
+}
+
+// validateChildlessNode validates both properties and zero-child arity.
+func (v *AstValidator) validateChildlessNode(n rhino.Node) {
+	v.validateProperties(n)
+	v.validateChildless(n)
+}
+
+// validatePropsAndArity validates node properties and its token's fixed arity.
+func (v *AstValidator) validatePropsAndArity(n rhino.Node) bool {
+	v.validateProperties(n)
+	return v.validateChildCount(n)
+}
+
+// validatePropsAndCount validates node properties and an explicit child count.
+func (v *AstValidator) validatePropsAndCount(n rhino.Node, expected int) bool {
+	v.validateProperties(n)
+	return v.validateChildCountWithExpected(n, expected)
 }
 
 // Java: AstValidator.validateChildCount(Node)
-func (v *AstValidator) ValidateChildCount(n rhino.Node) {
-	expectedArity := rhino.Token_Arity(n.GetToken())
-	if expectedArity != -1 {
-		v.ValidateChildCountWithExpected(n, expectedArity)
+func (v *AstValidator) validateChildCount(n rhino.Node) bool {
+	if expectedArity := rhino.Token_Arity(n.GetToken()); expectedArity != -1 {
+		return v.validateChildCountWithExpected(n, expectedArity)
 	}
+	return true
 }
 
 // Java: AstValidator.validateChildCount(Node, int)
-func (v *AstValidator) ValidateChildCountWithExpected(n rhino.Node, expected int) {
+func (v *AstValidator) validateChildCountWithExpected(n rhino.Node, expected int) bool {
 	count := n.GetChildCount()
 	if expected != count {
 		v.Violation("Expected "+strconv.Itoa(expected)+" children, but was "+strconv.Itoa(count), n)
+		return false
 	}
+	return true
 }
 
 // Java: AstValidator.validateChildCountIn(Node, int, int)
-func (v *AstValidator) ValidateChildCountIn(n rhino.Node, min int, max int) {
+func (v *AstValidator) validateChildCountIn(n rhino.Node, min, max int) bool {
 	if max == min {
-		v.ValidateChildCountWithExpected(n, min)
-		return
+		return v.validateChildCountWithExpected(n, min)
 	}
 	count := n.GetChildCount()
 	if count < min || count > max {
 		v.Violation("Expected child count in ["+strconv.Itoa(min)+", "+strconv.Itoa(max)+"], but was "+strconv.Itoa(count), n)
+		return false
 	}
+	return true
 }
 
 // Java: AstValidator.validateMinimumChildCount(Node, int)
-func (v *AstValidator) ValidateMinimumChildCount(n rhino.Node, i int) {
-	valid := false
-	if i == 1 {
+func (v *AstValidator) validateMinimumChildCount(n rhino.Node, min int) bool {
+	var valid bool
+	switch min {
+	case 1:
 		valid = n.HasChildren()
-	} else if i == 2 {
+	case 2:
 		valid = n.HasMoreThanOneChild()
-	} else {
-		valid = n.GetChildCount() >= i
+	default:
+		valid = n.GetChildCount() >= min
 	}
-
 	if !valid {
-		v.Violation("Expected at least "+strconv.Itoa(i)+" children, but was "+strconv.Itoa(n.GetChildCount()), n)
+		v.Violation("Expected at least "+strconv.Itoa(min)+" children, but was "+strconv.Itoa(n.GetChildCount()), n)
 	}
+	return valid
 }
 
 // Java: AstValidator.validateMaximumChildCount(Node, int)
-func (v *AstValidator) ValidateMaximumChildCount(n rhino.Node, i int) {
-	valid := false
-	if i == 1 {
+func (v *AstValidator) validateMaximumChildCount(n rhino.Node, max int) bool {
+	var valid bool
+	switch max {
+	case 1:
 		valid = !n.HasMoreThanOneChild()
-	} else if i == -1 {
-		valid = true // Varying number of children.
-	} else {
-		valid = n.GetChildCount() <= i
+	case -1:
+		valid = true
+	default:
+		valid = n.GetChildCount() <= max
 	}
 	if !valid {
-		v.Violation("Expected no more than "+strconv.Itoa(i)+" children, but was "+strconv.Itoa(n.GetChildCount()), n)
+		v.Violation("Expected no more than "+strconv.Itoa(max)+" children, but was "+strconv.Itoa(n.GetChildCount()), n)
 	}
+	return valid
 }
 
 // Java: AstValidator.validateFeature(Feature, Node)
-func (v *AstValidator) ValidateFeature(feature parser.FeatureSet_Feature, n rhino.Node) {
-	allowbleFeatures := v.compiler.GetAllowableFeatures()
-	// Checks that feature present in the AST is recorded in the compiler's
-	// featureSet.
-	if !n.IsFromExterns() && !allowbleFeatures.Has(feature) {
+func (v *AstValidator) validateFeature(feature parser.FeatureSet_Feature, n rhino.Node) {
+	allowableFeatures := v.compiler.GetAllowableFeatures()
+	if !n.IsFromExterns() && !allowableFeatures.Has(feature) {
 		// Skip this check for externs because we don't need to complete
 		// transpilation on externs, and currently only transpile externs so
 		// that we can typecheck ES6+ features in externs.
 		v.Violation("AST should not contain "+feature.String(), n)
 	}
-	// Note: currentScript may be null if someone called validateStatement or
-	// validateExpression
+	// Note: currentScript may be nil if someone called ValidateStatement or
+	// ValidateExpression directly.
 	if !v.isScriptFeatureValidationEnabled || v.currentScript.IsNil() {
 		return
 	}
 	scriptFeatures := NodeUtil_GetFeatureSetOfScript(v.currentScript)
-	// Checks that feature present in the AST is recorded in the SCRIPT node's
-	// featureSet.
 	if scriptFeatures.IsZero() || !scriptFeatures.Has(feature) {
 		v.Violation("SCRIPT node should be marked as containing feature "+feature.String(), v.currentScript)
 	}
 }
 
 // Java: AstValidator.validateProperties(Node)
-func (v *AstValidator) ValidateProperties(n rhino.Node) {
+func (v *AstValidator) validateProperties(n rhino.Node) {
 	n.ValidateProperties(func(errorMessage string) { v.Violation(errorMessage, n) })
 }
 
 // Java: AstValidator.validateRequiredInlinings(Node)
-func (v *AstValidator) ValidateRequiredInlinings(n rhino.Node) {
+func (v *AstValidator) validateRequiredInlinings(n rhino.Node) {
 	if !v.shouldValidateRequiredInlinings {
 		return
 	}
-	// Any node with JSDoc that says that it was required to be inlined is an
-	// error.
-	jsdocInfo := n.GetJSDocInfo()
-	if jsdocInfo != nil && jsdocInfo.IsRequireInlining() {
+	if jsdocInfo := n.GetJSDocInfo(); jsdocInfo != nil && jsdocInfo.IsRequireInlining() {
 		v.Violation("@requireInlining node failed to be inlined.", n)
 	}
 }

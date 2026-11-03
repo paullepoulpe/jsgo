@@ -477,8 +477,9 @@ func (c *SerializeAndDeserializeAstTest) TestInlineSourceMaps() {
 	code := sourceMapTestCode + "\n" + sourceMappingURLComment
 
 	result := c.testAndReturnResult(c.Srcs(code), c.Expected(code))
-	AssertThat(result.compiler.GetBase64SourceMapContents("testcode")).
-		IsEqualTo(serializeAndDeserializeAstTest_ENCODED_SOURCE_MAP)
+	got, ok := result.compiler.GetBase64SourceMapContents("testcode")
+	AssertThat(ok).IsTrue()
+	AssertThat(got).IsEqualTo(serializeAndDeserializeAstTest_ENCODED_SOURCE_MAP)
 }
 
 // Java: SerializeAndDeserializeAstTest.testSourceMapsInSeparateMapFiles()
@@ -497,7 +498,8 @@ func (c *SerializeAndDeserializeAstTest) TestSourceMapsInSeparateMapFiles() {
 	code := sourceMapTestCode + "\n" + sourceMappingURLComment
 
 	result := c.testAndReturnResult(c.Srcs(code), c.Expected(code))
-	AssertThat(result.compiler.GetBase64SourceMapContents("testcode")).IsNull()
+	_, ok := result.compiler.GetBase64SourceMapContents("testcode")
+	AssertThat(ok).IsFalse()
 }
 
 // Java: SerializeAndDeserializeAstTest.testSourceMapsWithoutResolvingSourceMapAnnotations()
@@ -515,7 +517,8 @@ func (c *SerializeAndDeserializeAstTest) TestSourceMapsWithoutResolvingSourceMap
 
 	result := c.testAndReturnResult(c.Srcs(code), c.Expected(code))
 	// Source map not registered because `c.resolveSourceMapAnnotations = false`
-	AssertThat(result.compiler.GetBase64SourceMapContents("testcode")).IsNull()
+	_, ok := result.compiler.GetBase64SourceMapContents("testcode")
+	AssertThat(ok).IsFalse()
 }
 
 // Java: SerializeAndDeserializeAstTest.testSourceMapsWithoutParsingInlineSourceMaps()
@@ -534,7 +537,8 @@ func (c *SerializeAndDeserializeAstTest) TestSourceMapsWithoutParsingInlineSourc
 	result := c.testAndReturnResult(c.Srcs(code), c.Expected(code))
 	// Source map is registered when `c.parseInlineSourceMaps = false`, but we won't try to
 	// parse it as a Base64 encoded source map.
-	AssertThat(result.compiler.GetBase64SourceMapContents("testcode")).IsNull()
+	_, ok := result.compiler.GetBase64SourceMapContents("testcode")
+	AssertThat(ok).IsFalse()
 }
 
 // Java: SerializeAndDeserializeAstTest.testConfiguredDirectorySourceMaps()
@@ -555,7 +559,8 @@ func (c *SerializeAndDeserializeAstTest) TestConfiguredDirectorySourceMaps() {
 	code := sourceMapTestCode + "\n" + sourceMappingURLComment
 
 	result := c.testAndReturnResult(c.Srcs(code), c.Expected(code))
-	AssertThat(result.compiler.GetBase64SourceMapContents("testcode")).IsNull()
+	_, ok := result.compiler.GetBase64SourceMapContents("testcode")
+	AssertThat(ok).IsFalse()
 }
 
 // Java: SerializeAndDeserializeAstTest.testConvertsNumberTypeToColor()

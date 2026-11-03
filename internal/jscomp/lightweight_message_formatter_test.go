@@ -138,7 +138,7 @@ func TestLightweightMessageFormatter_FormatErrorTabs(t *testing.T) {
 }
 
 func TestLightweightMessageFormatter_FormatErrorSpaceEndOfLine1(t *testing.T) {
-	error := JSError_MakeWithSourceLocation(jsaStr("javascript/complex.js"), 1, 10, jsaLmfFOO_TYPE)
+	error := JSError_MakeAtSourceLocation("javascript/complex.js", 1, 10, jsaLmfFOO_TYPE)
 	formatter := jsaLmfFormatter("assert (1;")
 	jsaEq(t, formatter.FormatError(error),
 		"javascript/complex.js:1:10: ERROR - [TEST_FOO] error description here\n"+
@@ -147,7 +147,7 @@ func TestLightweightMessageFormatter_FormatErrorSpaceEndOfLine1(t *testing.T) {
 }
 
 func TestLightweightMessageFormatter_FormatErrorSpaceEndOfLine2(t *testing.T) {
-	error := JSError_MakeWithSourceLocation(jsaStr("javascript/complex.js"), 6, 7, jsaLmfFOO_TYPE)
+	error := JSError_MakeAtSourceLocation("javascript/complex.js", 6, 7, jsaLmfFOO_TYPE)
 	formatter := jsaLmfFormatter("if (foo")
 	jsaEq(t, formatter.FormatError(error),
 		"javascript/complex.js:6:7: ERROR - [TEST_FOO] error description here\n"+
@@ -267,7 +267,7 @@ func TestLightweightMessageFormatter_Multiline_nodeLengthOutOfBounds(t *testing.
 }
 
 func TestLightweightMessageFormatter_Multiline_errorWithoutAssociatedNode(t *testing.T) {
-	error := JSError_MakeWithSourceLocation(jsaStr("javascript/complex.js"), 5, 4, jsaLmfFOO_TYPE)
+	error := JSError_MakeAtSourceLocation("javascript/complex.js", 5, 4, jsaLmfFOO_TYPE)
 	formatter := jsaLmfFormatterFull("if (foobar", SourceExcerptProvider_SourceExcerpt_FULL, 5)
 	jsaEq(t, formatter.FormatError(error),
 		"javascript/complex.js:5:4: ERROR - [TEST_FOO] error description here\n"+
@@ -276,7 +276,7 @@ func TestLightweightMessageFormatter_Multiline_errorWithoutAssociatedNode(t *tes
 }
 
 func TestLightweightMessageFormatter_Multiline_errorWithoutAssociatedNodeAndNegativeChar(t *testing.T) {
-	error := JSError_MakeWithSourceLocation(jsaStr("javascript/complex.js"), 5, -1, jsaLmfFOO_TYPE)
+	error := JSError_MakeAtSourceLocation("javascript/complex.js", 5, -1, jsaLmfFOO_TYPE)
 	formatter := jsaLmfFormatterFull("if (foobar", SourceExcerptProvider_SourceExcerpt_FULL, 5)
 	jsaEq(t, formatter.FormatError(error),
 		"javascript/complex.js:5: ERROR - [TEST_FOO] error description here\n"+
@@ -284,8 +284,8 @@ func TestLightweightMessageFormatter_Multiline_errorWithoutAssociatedNodeAndNega
 }
 
 func TestLightweightMessageFormatter_SourcelessAndEmptySourceName(t *testing.T) {
-	sourceless := JSError_MakeWithSourceLocation(nil, 5, 4, jsaLmfFOO_TYPE)
-	emptySource := JSError_MakeWithSourceLocation(jsaStr(""), 5, 4, jsaLmfFOO_TYPE)
+	sourceless := JSError_MakeWithoutSourceLocation(5, 4, jsaLmfFOO_TYPE)
+	emptySource := JSError_MakeAtSourceLocation("", 5, 4, jsaLmfFOO_TYPE)
 	formatter := LightweightMessageFormatter_WithoutSource()
 	jsaEq(t, formatter.FormatError(sourceless), "ERROR - [TEST_FOO] error description here\n")
 	jsaEq(t, formatter.FormatError(emptySource), ":5:4: ERROR - [TEST_FOO] error description here\n")

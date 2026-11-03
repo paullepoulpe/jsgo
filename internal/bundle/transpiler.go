@@ -79,7 +79,7 @@ func NewTranspilationException(
 	warnings []*jscomp.JSError) *TranspilationException {
 	formatted := transpilationException_format(source, errors, warnings)
 	e := &TranspilationException{errors: errors, warnings: warnings}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.bundle.TranspilationException", &formatted, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.bundle.TranspilationException", formatted, nil)
 	return e
 }
 

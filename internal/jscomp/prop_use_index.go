@@ -761,8 +761,8 @@ func piPosition(n rhino.Node) string {
 	}
 	desc := n.GetToken().String()
 	if n.IsFunction() {
-		if name := NodeUtil_GetName(n); name != nil {
-			desc += " " + *name
+		if name, ok := NodeUtil_GetName(n); ok {
+			desc += " " + name
 		}
 	}
 	return fmt.Sprintf("%s %s:%d:%d (deleted %v, change time %d)", desc, file, n.GetLineno(), n.GetCharno(), n.IsDeleted(), n.GetChangeTime())

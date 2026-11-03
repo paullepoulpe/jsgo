@@ -25,6 +25,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -153,8 +154,8 @@ func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder 
 		builder.AddAllCssNames(c.cssNames.ToSlice())
 	}
 
-	if c.idGeneratorMap != nil {
-		builder.SetIdGeneratorMap(*c.idGeneratorMap)
+	if idGenMap, ok := c.idGeneratorMap.Get(); ok {
+		builder.SetIdGeneratorMap(idGenMap)
 	}
 
 	builder.
@@ -236,10 +237,9 @@ func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 	c.propertyMap = nil
 
 	if compilerState.HasIdGeneratorMap() {
-		idGeneratorMap := compilerState.GetIdGeneratorMap()
-		c.idGeneratorMap = &idGeneratorMap
+		c.idGeneratorMap = base.SomeString(compilerState.GetIdGeneratorMap())
 	} else {
-		c.idGeneratorMap = nil
+		c.idGeneratorMap = base.NoString()
 	}
 	c.transpiledFiles = compilerState.GetTranspiledFiles()
 

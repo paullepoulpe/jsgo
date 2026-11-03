@@ -104,10 +104,24 @@ type nodeTraversal_onlyNameLeaves interface {
 // nodeTraversal_visitTokens is an internal interface for callbacks whose
 // Visit method only acts on nodes with the tokens of the set it returns
 // (the typed visitor, node_traversal_visitor.go): the traversal does not
-// call Visit for other nodes where it has their token at hand.
+// call Visit for other nodes where it has their token at hand (unless
+// nodeTraversal_visitJSDoc is also enabled and the node has JSDocInfo).
 type nodeTraversal_visitTokens interface {
 	visitTokens() *ast.TokenSet
 }
+
+// nodeTraversal_visitJSDoc is an internal interface for callbacks that also
+// implement nodeTraversal_visitTokens and additionally act on any node with
+// JSDocInfo attached (n.HasJSDocInfo()). Callbacks using visitJSDoc must not
+// implement nodeTraversal_noVisitLeaves or nodeTraversal_onlyNameLeaves unless
+// they genuinely ignore JSDoc on leaf nodes.
+type nodeTraversal_visitJSDoc interface {
+	visitJSDoc() bool
+}
+
+// emptyTokenSet is an immutable empty ast.TokenSet returned by callbacks whose
+// Visit method only acts on nodes with JSDocInfo (via nodeTraversal_visitJSDoc).
+var emptyTokenSet ast.TokenSet
 
 // NodeTraversal_Callback is the callback for tree-based traversals.
 type NodeTraversal_Callback interface {
@@ -195,6 +209,10 @@ type NodeTraversal_ExternsSkippingCallbackBase struct{}
 // Java: NodeTraversal.ExternsSkippingCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (NodeTraversal_ExternsSkippingCallbackBase) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	return !n.IsScript() || !n.IsFromExterns() || NodeUtil_IsFromTypeSummary(n)
+}
+
+func (NodeTraversal_ExternsSkippingCallbackBase) shouldTraverseOnlyScriptAndFunction() bool {
+	return true
 }
 
 // NodeTraversal_AbstractPostOrderCallbackInterface is the abstract callback
@@ -386,12 +404,16 @@ func NodeTraversal_TraverseScopeRoots(
 	defer releaseNodeTraversal(t)
 	t.stopAtNestedChangeScope = !traverseNested
 	origNoShouldTraverse := t.noShouldTraverse
+	origNoBranchShouldTraverse := t.noBranchShouldTraverse
 	origNoVisit := t.noVisit
 	origVisitTokens := t.visitTokens
+	origVisitJSDoc := t.visitJSDoc
 	for _, scopeNode := range scopeNodes {
 		t.noShouldTraverse = origNoShouldTraverse
+		t.noBranchShouldTraverse = origNoBranchShouldTraverse
 		t.noVisit = origNoVisit
 		t.visitTokens = origVisitTokens
+		t.visitJSDoc = origVisitJSDoc
 		t.scopeTraversalRoot = scopeNode
 		t.traverseScopeRoot(scopeNode, true)
 	}

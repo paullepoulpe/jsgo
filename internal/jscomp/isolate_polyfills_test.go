@@ -145,8 +145,8 @@ func (c *IsolatePolyfillsTest) TestEmpty() {
 
 // Java: IsolatePolyfillsTest.testOptChainCall_doesNotCrash()
 func (c *IsolatePolyfillsTest) TestOptChainCall_doesNotCrash() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
-	c.AddLibrary("Array.prototype.includes", "es6", "es5", jutil.StringPtr("es6/array/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
+	c.AddLibrary("Array.prototype.includes", "es6", "es5", testStringPtr("es6/array/includes"))
 	c.Test(
 		c.BuildPolyfillJs()+"if (a.b()?.includes()) {}",
 		`var $jscomp$polyfillTmp;
@@ -160,8 +160,8 @@ func (c *IsolatePolyfillsTest) TestOptChainCall_doesNotCrash() {
 
 // Java: IsolatePolyfillsTest.testOptChainGetProp_doesNotCrash()
 func (c *IsolatePolyfillsTest) TestOptChainGetProp_doesNotCrash() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
-	c.AddLibrary("Array.prototype.includes", "es6", "es5", jutil.StringPtr("es6/array/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
+	c.AddLibrary("Array.prototype.includes", "es6", "es5", testStringPtr("es6/array/includes"))
 	c.TestWithPolyfills(
 		"if (a.b?.includes()) {}",
 		"if ($jscomp$lookupPolyfilledValue(a.b, 'includes', true)?.call(a.b)) {}")
@@ -169,7 +169,7 @@ func (c *IsolatePolyfillsTest) TestOptChainGetProp_doesNotCrash() {
 
 // Java: IsolatePolyfillsTest.testClassesAreIsolated()
 func (c *IsolatePolyfillsTest) TestClassesAreIsolated() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills("var m = new Map();", "var m = new $jscomp.polyfills['Map']();")
@@ -184,7 +184,7 @@ func (c *IsolatePolyfillsTest) TestClassesAreNotIsolatedUnlessPolyfillInjected()
 	// Replacing "new Map()" with "new $jscomp.polyfills['Map']()" would result in an undefined
 	// reference at runtime, so just leave "new Map()" as is.
 
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 	c.polyfillsToInject.Remove("Map")
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
@@ -195,7 +195,7 @@ func (c *IsolatePolyfillsTest) TestClassesAreNotIsolatedUnlessPolyfillInjected()
 
 // Java: IsolatePolyfillsTest.testClassesGuardedByIfAreIsolated()
 func (c *IsolatePolyfillsTest) TestClassesGuardedByIfAreIsolated() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills(
@@ -205,7 +205,7 @@ func (c *IsolatePolyfillsTest) TestClassesGuardedByIfAreIsolated() {
 
 // Java: IsolatePolyfillsTest.testClassesAccessedViaBrackets_notIsolated()
 func (c *IsolatePolyfillsTest) TestClassesAccessedViaBrackets_notIsolated() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	// We could support literal accesses like these but are currently choosing not to.
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
@@ -215,8 +215,8 @@ func (c *IsolatePolyfillsTest) TestClassesAccessedViaBrackets_notIsolated() {
 
 // Java: IsolatePolyfillsTest.testGlobalThisIsolated()
 func (c *IsolatePolyfillsTest) TestGlobalThisIsolated() {
-	c.AddLibrary("globalThis", "es_2020", "es3", jutil.StringPtr("es6/globalthis"))
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("globalThis", "es_2020", "es3", testStringPtr("es6/globalthis"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills("alert(globalThis);", "alert($jscomp.polyfills['globalThis']);")
@@ -227,8 +227,8 @@ func (c *IsolatePolyfillsTest) TestGlobalThisIsolated() {
 
 // Java: IsolatePolyfillsTest.testClassOnGlobalThisIsolated()
 func (c *IsolatePolyfillsTest) TestClassOnGlobalThisIsolated() {
-	c.AddLibrary("globalThis", "es_2020", "es3", jutil.StringPtr("es6/globalthis"))
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("globalThis", "es_2020", "es3", testStringPtr("es6/globalthis"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills("var m = new globalThis.Map();", "var m = new $jscomp.polyfills['Map']();")
@@ -240,7 +240,7 @@ func (c *IsolatePolyfillsTest) TestClassOnGlobalThisIsolated() {
 
 // Java: IsolatePolyfillsTest.testEnablingPropertyFlatteningUsesFlattenedJscompPolyfills()
 func (c *IsolatePolyfillsTest) TestEnablingPropertyFlatteningUsesFlattenedJscompPolyfills() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.enablePropertyFlattening = true
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
@@ -251,7 +251,7 @@ func (c *IsolatePolyfillsTest) TestEnablingPropertyFlatteningUsesFlattenedJscomp
 
 // Java: IsolatePolyfillsTest.testMultipleUsagesOfClassAllIsolated()
 func (c *IsolatePolyfillsTest) TestMultipleUsagesOfClassAllIsolated() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills(
@@ -262,8 +262,8 @@ func (c *IsolatePolyfillsTest) TestMultipleUsagesOfClassAllIsolated() {
 // Java: IsolatePolyfillsTest.testClassesGivenSufficientLanguageOutNotIsolated()
 func (c *IsolatePolyfillsTest) TestClassesGivenSufficientLanguageOutNotIsolated() {
 	c.AddLibrary("Proxy", "es6", "es6", nil)
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
-	c.AddLibrary("Set", "es6", "es3", jutil.StringPtr("es6/set"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
+	c.AddLibrary("Set", "es6", "es3", testStringPtr("es6/set"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES6)
 	c.TestSameWithPolyfills("new Proxy();")
@@ -273,7 +273,7 @@ func (c *IsolatePolyfillsTest) TestClassesGivenSufficientLanguageOutNotIsolated(
 
 // Java: IsolatePolyfillsTest.testClassesDeclaredInScopeNotIsolated()
 func (c *IsolatePolyfillsTest) TestClassesDeclaredInScopeNotIsolated() {
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestSameWithPolyfills("/** @constructor */ var Map = function() {}; new Map();")
@@ -281,9 +281,9 @@ func (c *IsolatePolyfillsTest) TestClassesDeclaredInScopeNotIsolated() {
 
 // Java: IsolatePolyfillsTest.testStaticMethodsIsolated()
 func (c *IsolatePolyfillsTest) TestStaticMethodsIsolated() {
-	c.AddLibrary("Array.of", "es6", "es3", jutil.StringPtr("es6/array/of"))
-	c.AddLibrary("Object.keys", "es5", "es3", jutil.StringPtr("es5/object/keys"))
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
+	c.AddLibrary("Array.of", "es6", "es3", testStringPtr("es6/array/of"))
+	c.AddLibrary("Object.keys", "es5", "es3", testStringPtr("es5/object/keys"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
 
 	// NOTE: Storing an entry for `Array.of` in the $jscomp.polyfills dictionary instead of using
 	// `$jscomp$lookupPolyfilledValue` is a potential optimization, but not necessary for
@@ -301,9 +301,9 @@ func (c *IsolatePolyfillsTest) TestStaticMethodsIsolated() {
 // Java: IsolatePolyfillsTest.testStaticMethodsWithSufficientLanguageOutNotIsolated()
 func (c *IsolatePolyfillsTest) TestStaticMethodsWithSufficientLanguageOutNotIsolated() {
 	c.AddLibrary("Array.from", "es6", "es6", nil)
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
-	c.AddLibrary("Array.of", "es6", "es3", jutil.StringPtr("es6/array/of"))
-	c.AddLibrary("Object.keys", "es5", "es3", jutil.StringPtr("es5/object/keys"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
+	c.AddLibrary("Array.of", "es6", "es3", testStringPtr("es6/array/of"))
+	c.AddLibrary("Object.keys", "es5", "es3", testStringPtr("es5/object/keys"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES6)
 	c.TestSameWithPolyfills("Array.from(x);")
@@ -316,7 +316,7 @@ func (c *IsolatePolyfillsTest) TestStaticMethodsWithSufficientLanguageOutNotIsol
 
 // Java: IsolatePolyfillsTest.testStaticMethodsDeclaredInScopeNotIsolated()
 func (c *IsolatePolyfillsTest) TestStaticMethodsDeclaredInScopeNotIsolated() {
-	c.AddLibrary("Math.clz32", "es6", "es5", jutil.StringPtr("es6/math/clz32"))
+	c.AddLibrary("Math.clz32", "es6", "es5", testStringPtr("es6/math/clz32"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestSameWithPolyfills("var Math = {clz32: function() {}}; Math.clz32(x);")
@@ -324,7 +324,7 @@ func (c *IsolatePolyfillsTest) TestStaticMethodsDeclaredInScopeNotIsolated() {
 
 // Java: IsolatePolyfillsTest.testStaticMethodsGuardedByIfStillIsolated()
 func (c *IsolatePolyfillsTest) TestStaticMethodsGuardedByIfStillIsolated() {
-	c.AddLibrary("Array.of", "es6", "es5", jutil.StringPtr("es6/array/of"))
+	c.AddLibrary("Array.of", "es6", "es5", testStringPtr("es6/array/of"))
 
 	c.TestWithPolyfills(
 		"if (Array.of) { Array.of(); } else { Array.of(); }",
@@ -338,8 +338,8 @@ $jscomp$lookupPolyfilledValue(Array, 'of').call(Array);
 
 // Java: IsolatePolyfillsTest.testStaticMethodIsolatedOnPolyfilledNameIsolated()
 func (c *IsolatePolyfillsTest) TestStaticMethodIsolatedOnPolyfilledNameIsolated() {
-	c.AddLibrary("Promise", "es6", "es3", jutil.StringPtr("es6/promise/promise"))
-	c.AddLibrary("Promise.allSettled", "es_2020", "es3", jutil.StringPtr("es6/promise/allSettled"))
+	c.AddLibrary("Promise", "es6", "es3", testStringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise.allSettled", "es_2020", "es3", testStringPtr("es6/promise/allSettled"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES3)
 	c.TestWithPolyfills(
@@ -356,7 +356,7 @@ func (c *IsolatePolyfillsTest) TestStaticMethodIsolatedOnPolyfilledNameIsolated(
 
 // Java: IsolatePolyfillsTest.testSinglePrototypeMethodIsIsolated()
 func (c *IsolatePolyfillsTest) TestSinglePrototypeMethodIsIsolated() {
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills("x.endsWith(y);", "$jscomp$lookupPolyfilledValue(x, 'endsWith').call(x, y);")
@@ -374,8 +374,8 @@ func (c *IsolatePolyfillsTest) TestSinglePrototypeMethodIsIsolated() {
 
 // Java: IsolatePolyfillsTest.testMultiplePrototypeMethodsAllIsolated()
 func (c *IsolatePolyfillsTest) TestMultiplePrototypeMethodsAllIsolated() {
-	c.AddLibrary("String.prototype.startsWith", "es6", "es5", jutil.StringPtr("es6/string/startswith"))
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.startsWith", "es6", "es5", testStringPtr("es6/string/startswith"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills(
@@ -399,8 +399,8 @@ func (c *IsolatePolyfillsTest) TestMultiplePrototypeMethodsAllIsolated() {
 
 // Java: IsolatePolyfillsTest.testMethodMatchingMultiplePolyfillsIsolatedOnlyOnce()
 func (c *IsolatePolyfillsTest) TestMethodMatchingMultiplePolyfillsIsolatedOnlyOnce() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
-	c.AddLibrary("Array.prototype.includes", "es6", "es5", jutil.StringPtr("es6/array/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
+	c.AddLibrary("Array.prototype.includes", "es6", "es5", testStringPtr("es6/array/includes"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 	c.TestWithPolyfills("x.includes(y);", "$jscomp$lookupPolyfilledValue(x, 'includes').call(x, y);")
@@ -408,8 +408,8 @@ func (c *IsolatePolyfillsTest) TestMethodMatchingMultiplePolyfillsIsolatedOnlyOn
 
 // Java: IsolatePolyfillsTest.testMethodsNotIsolatedUnlessPolyfillInjected()
 func (c *IsolatePolyfillsTest) TestMethodsNotIsolatedUnlessPolyfillInjected() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
-	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
+	c.AddLibrary("String.prototype.endsWith", "es6", "es5", testStringPtr("es6/string/endswith"))
 	c.polyfillsToInject.Remove("String.prototype.endsWith")
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
@@ -421,7 +421,7 @@ func (c *IsolatePolyfillsTest) TestMethodsNotIsolatedUnlessPolyfillInjected() {
 
 // Java: IsolatePolyfillsTest.testLvaluePolyfillUsageNotIsolated()
 func (c *IsolatePolyfillsTest) TestLvaluePolyfillUsageNotIsolated() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 
@@ -430,7 +430,7 @@ func (c *IsolatePolyfillsTest) TestLvaluePolyfillUsageNotIsolated() {
 
 // Java: IsolatePolyfillsTest.testLvaluePolyfillUsage_doesntCauseBackoffForOtherUsages()
 func (c *IsolatePolyfillsTest) TestLvaluePolyfillUsage_doesntCauseBackoffForOtherUsages() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 
@@ -441,7 +441,7 @@ func (c *IsolatePolyfillsTest) TestLvaluePolyfillUsage_doesntCauseBackoffForOthe
 
 // Java: IsolatePolyfillsTest.testLvaluePolyfillUsageInNestedAssignNotIsolated()
 func (c *IsolatePolyfillsTest) TestLvaluePolyfillUsageInNestedAssignNotIsolated() {
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES6, isolatePolyfillsTest_ES5)
 
@@ -451,8 +451,8 @@ func (c *IsolatePolyfillsTest) TestLvaluePolyfillUsageInNestedAssignNotIsolated(
 
 // Java: IsolatePolyfillsTest.testPolyfilledMethodOnPolyfilledClassAreBothIsolated()
 func (c *IsolatePolyfillsTest) TestPolyfilledMethodOnPolyfilledClassAreBothIsolated() {
-	c.AddLibrary("Promise", "es6", "es3", jutil.StringPtr("es6/promise/promise"))
-	c.AddLibrary("Promise.prototype.finally", "es9", "es3", jutil.StringPtr("es6/promise/finally"))
+	c.AddLibrary("Promise", "es6", "es3", testStringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise.prototype.finally", "es9", "es3", testStringPtr("es6/promise/finally"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES3)
 
@@ -464,7 +464,7 @@ func (c *IsolatePolyfillsTest) TestPolyfilledMethodOnPolyfilledClassAreBothIsola
 
 // Java: IsolatePolyfillsTest.testNonPolyfilledMethodOnPolyfilledClassNotIsolated()
 func (c *IsolatePolyfillsTest) TestNonPolyfilledMethodOnPolyfilledClassNotIsolated() {
-	c.AddLibrary("Promise", "es6", "es3", jutil.StringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise", "es6", "es3", testStringPtr("es6/promise/promise"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES3)
 	c.TestWithPolyfills("Promise.all(p1, p2);", "$jscomp.polyfills['Promise'].all(p1, p2);")
@@ -479,8 +479,8 @@ func (c *IsolatePolyfillsTest) TestExternForJSCompLookupPolyfillDeleted() {
 
 // Java: IsolatePolyfillsTest.testJscompLookupPolyfillDeletedIfNotUsed()
 func (c *IsolatePolyfillsTest) TestJscompLookupPolyfillDeletedIfNotUsed() {
-	c.AddLibrary("Promise", "es6", "es3", jutil.StringPtr("es6/promise/promise"))
-	c.AddLibrary("Promise.prototype.finally", "es9", "es3", jutil.StringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise", "es6", "es3", testStringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise.prototype.finally", "es9", "es3", testStringPtr("es6/promise/promise"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES3)
 	c.TestWithPolyfills("var $jscomp$lookupPolyfilledValue = function() {};", "")
@@ -493,8 +493,8 @@ new Promise();
 
 // Java: IsolatePolyfillsTest.testJscompLookupPolyfillKeptIfUsed()
 func (c *IsolatePolyfillsTest) TestJscompLookupPolyfillKeptIfUsed() {
-	c.AddLibrary("Promise", "es6", "es3", jutil.StringPtr("es6/promise/promise"))
-	c.AddLibrary("Promise.prototype.finally", "es9", "es3", jutil.StringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise", "es6", "es3", testStringPtr("es6/promise/promise"))
+	c.AddLibrary("Promise.prototype.finally", "es9", "es3", testStringPtr("es6/promise/promise"))
 
 	c.SetLanguage(isolatePolyfillsTest_ES_2020, isolatePolyfillsTest_ES3)
 	c.Test(
@@ -535,7 +535,7 @@ $jscomp.polyfill('String.prototype.endsWith', 'es6', 'es5');
 // Java: IsolatePolyfillsTest.testOptChainMethodCallOnPlainGetProp()
 func (c *IsolatePolyfillsTest) TestOptChainMethodCallOnPlainGetProp() {
 	// TODO(b/571890155): silent miscompile for x.includes?.(y)
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
 	c.TestWithPolyfills(
 		"x.includes?.(y);", "$jscomp$lookupPolyfilledValue(x, 'includes').call?.(x, y);")
 }
@@ -543,7 +543,7 @@ func (c *IsolatePolyfillsTest) TestOptChainMethodCallOnPlainGetProp() {
 // Java: IsolatePolyfillsTest.testOptChainNonCallContinuation()
 func (c *IsolatePolyfillsTest) TestOptChainNonCallContinuation() {
 	// TODO(b/571890155): semantic bug caught by AstValidator.validateFirstNodeOfOptChain
-	c.AddLibrary("String.prototype.includes", "es6", "es5", jutil.StringPtr("es6/string/includes"))
+	c.AddLibrary("String.prototype.includes", "es6", "es5", testStringPtr("es6/string/includes"))
 	e :=
 		AssertThrows[jutil.IRuntimeException](func() { c.TestSameWithPolyfills("x?.includes.bind(x);") })
 	// Throwables.getRootCause(e)
@@ -559,6 +559,6 @@ func (c *IsolatePolyfillsTest) TestOptChainNonCallContinuation() {
 // Java: IsolatePolyfillsTest.testOptChainOnGlobalPolyfill()
 func (c *IsolatePolyfillsTest) TestOptChainOnGlobalPolyfill() {
 	// TODO(b/571890155): replaces window?.Map with $jscomp.polyfills['Map'] instead of preserving ?.
-	c.AddLibrary("Map", "es6", "es5", jutil.StringPtr("es6/map"))
+	c.AddLibrary("Map", "es6", "es5", testStringPtr("es6/map"))
 	c.TestWithPolyfills("alert(window?.Map);", "alert($jscomp.polyfills['Map']);")
 }

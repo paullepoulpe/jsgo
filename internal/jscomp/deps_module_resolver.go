@@ -216,8 +216,8 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 	if ModuleLoader_IsAmbiguousIdentifier(moduleAddress) {
 		r.errorHandler.Report(
 			CheckLevel_WARNING,
-			JSError_MakeWithSourceLocation(
-				&sourcename,
+			JSError_MakeAtSourceLocation(
+				sourcename,
 				lineno,
 				colno,
 				ModuleLoader_INVALID_MODULE_PATH,
@@ -230,7 +230,7 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 	if !ok {
 		r.errorHandler.Report(
 			CheckLevel_WARNING,
-			JSError_MakeWithSourceLocation(&sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
+			JSError_MakeAtSourceLocation(sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
 	}
 	return loadAddress, ok
 }
@@ -412,8 +412,8 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 	if !replaced && ModuleLoader_IsAmbiguousIdentifier(transformedAddress) {
 		r.errorHandler.Report(
 			CheckLevel_WARNING,
-			JSError_MakeWithSourceLocation(
-				&sourcename,
+			JSError_MakeAtSourceLocation(
+				sourcename,
 				lineno,
 				colno,
 				BrowserWithTransformedPrefixesModuleResolver_INVALID_AMBIGUOUS_PATH,

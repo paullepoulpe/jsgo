@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -204,7 +205,12 @@ func (c *ImplicitNullabilityCheck) Visit(t *NodeTraversal, n rhino.Node, p rhino
 	}
 }
 
+func (*ImplicitNullabilityCheck) visitTokens() *ast.TokenSet { return &emptyTokenSet }
+func (*ImplicitNullabilityCheck) visitJSDoc() bool           { return true }
+
 var (
-	_ NodeTraversal_Callback = (*ImplicitNullabilityCheck)(nil)
-	_ CompilerPass           = (*ImplicitNullabilityCheck)(nil)
+	_ NodeTraversal_Callback    = (*ImplicitNullabilityCheck)(nil)
+	_ CompilerPass              = (*ImplicitNullabilityCheck)(nil)
+	_ nodeTraversal_visitTokens = (*ImplicitNullabilityCheck)(nil)
+	_ nodeTraversal_visitJSDoc  = (*ImplicitNullabilityCheck)(nil)
 )

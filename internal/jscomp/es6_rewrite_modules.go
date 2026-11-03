@@ -947,8 +947,8 @@ func (e *Es6RewriteModules) maybeAddAliasToSymbolTable(n rhino.Node, module stri
 	nodeName := "null"
 	if n.IsStringLit() || n.IsImportStar() {
 		nodeName = n.GetString()
-	} else if qn := e.preprocessorSymbolTable.GetQualifiedName(n); qn != nil {
-		nodeName = *qn
+	} else if qn, ok := e.preprocessorSymbolTable.GetQualifiedName(n); ok {
+		nodeName = qn
 	}
 	e.preprocessorSymbolTable.AddReferenceWithName(n, "alias_"+moduleName+"_"+nodeName)
 }

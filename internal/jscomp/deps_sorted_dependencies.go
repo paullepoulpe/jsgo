@@ -494,13 +494,13 @@ type SortedDependencies_MissingProvideException struct{ jutil.JavaException }
 // Java: SortedDependencies.MissingProvideException(String)
 func NewSortedDependencies_MissingProvideException(provide string) *SortedDependencies_MissingProvideException {
 	e := &SortedDependencies_MissingProvideException{}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.deps.SortedDependencies$MissingProvideException", &provide, nil)
+	jutil.InitThrowableMsg(e, "com.google.javascript.jscomp.deps.SortedDependencies$MissingProvideException", provide, nil)
 	return e
 }
 
 // Java: SortedDependencies.MissingProvideException(String, Exception)
 func NewSortedDependencies_MissingProvideExceptionWithCause(provide string, e jutil.Throwable) *SortedDependencies_MissingProvideException {
 	ex := &SortedDependencies_MissingProvideException{}
-	jutil.InitThrowable(ex, "com.google.javascript.jscomp.deps.SortedDependencies$MissingProvideException", &provide, e)
+	jutil.InitThrowableMsg(ex, "com.google.javascript.jscomp.deps.SortedDependencies$MissingProvideException", provide, e)
 	return ex
 }

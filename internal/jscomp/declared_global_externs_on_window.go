@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -120,6 +121,21 @@ func DeclaredGlobalExternsOnWindow_AddExtern(node rhino.Node, defineOnWindow boo
 	newNode.SetOriginalName(name)
 	newNode.MakeNonIndexableRecursive()
 	node.GetGrandparent().AddChildToBack(rhino.IR_ExprResult(newNode))
+}
+
+var declaredGlobalExternsOnWindowVisitTokens = makeVisitTokenSet(
+	rhino.Token_FUNCTION,
+	rhino.Token_VAR,
+)
+
+var (
+	_ nodeTraversal_visitTokens   = (*DeclaredGlobalExternsOnWindow)(nil)
+	_ nodeTraversal_noVisitLeaves = (*DeclaredGlobalExternsOnWindow)(nil)
+)
+
+func (*DeclaredGlobalExternsOnWindow) noVisitLeaves() {}
+func (*DeclaredGlobalExternsOnWindow) visitTokens() *ast.TokenSet {
+	return &declaredGlobalExternsOnWindowVisitTokens
 }
 
 // Java: DeclaredGlobalExternsOnWindow.visit(NodeTraversal, Node, Node)

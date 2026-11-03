@@ -439,9 +439,11 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(call ast.Call) {
 			// TODO(lharker): this check ignores class expressions like "foo.Bar = class extends X {}"
 			if (hasClsName && clsName.Ident() == baseContainer) ||
 				(hasSuper && superIsName && superName.Ident() == baseContainer) {
-				badName := jutil.ToJavaString(NodeUtil_GetBestLValueName(cls.Node()))
+				badName := "null"
 				if hasClsName {
 					badName = clsName.Ident()
+				} else if lvalName, ok := NodeUtil_GetBestLValueName(cls.Node()); ok {
+					badName = lvalName
 				}
 				p.ReportBadBaseMethodUse(
 					n,
@@ -454,9 +456,12 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(call ast.Call) {
 
 	if ProcessClosurePrimitives_BaseUsedInClass(n) {
 		clazz := NodeUtil_GetEnclosingClass(n)
-		name := NodeUtil_GetBestLValueName(clazz)
+		badName := "null"
+		if name, ok := NodeUtil_GetBestLValueName(clazz); ok {
+			badName = name
+		}
 		p.ReportBadBaseMethodUse(
-			n, jutil.ToJavaString(name), "base method is not allowed in ES6 class. Use super instead.")
+			n, badName, "base method is not allowed in ES6 class. Use super instead.")
 		return
 	}
 

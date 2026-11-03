@@ -250,8 +250,7 @@ func (g *DisambiguateProperties_TrackerSummaryGenerator) BuildSummaryString() st
 func (d *DisambiguateProperties) CreateInvalidationError(prop *PropertyClustering) *JSError {
 	additionalContext := ""
 
-	return JSError_MakeWithSourceLocation(
-		nil,
+	return JSError_MakeWithoutSourceLocation(
 		-1,
 		-1,
 		DisambiguateProperties_PROPERTY_INVALIDATION,

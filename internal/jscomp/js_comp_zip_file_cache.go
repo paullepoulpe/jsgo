@@ -184,10 +184,9 @@ func (z *JSCompZipFileCache_CachedZipFile) getEntryLocked(name string) *zip.File
 func jSCompZipFileCache_ioException(err error, path string) jutil.IIOException {
 	e := &jutil.IOException{}
 	if errors.Is(err, fs.ErrNotExist) {
-		jutil.InitThrowable(e, "java.nio.file.NoSuchFileException", &path, nil)
+		jutil.InitThrowableMsg(e, "java.nio.file.NoSuchFileException", path, nil)
 	} else {
-		msg := err.Error()
-		jutil.InitThrowable(e, "java.io.IOException", &msg, nil)
+		jutil.InitThrowableMsg(e, "java.io.IOException", err.Error(), nil)
 	}
 	return e
 }

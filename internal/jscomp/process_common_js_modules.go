@@ -39,9 +39,10 @@ import (
 // declarations it splits. The port no longer follows the Java line by line.
 //
 // Java quirks kept: the require.ensure warning counts the callee in the
-// "found {0}" argument count, and the webpack module shim reads the
-// argument of the `module` parameter by child index, one place earlier for
-// a free call.
+// "found {0}" argument count, the webpack module shim reads the argument of
+// the `module` parameter by child index (one place earlier for a free call),
+// and the suspicious-exports check compares the LValue `exports` against its
+// declarator's initializer rather than the declarator NAME itself.
 //
 // Left on the rhino API: the per-node visits (they match qualified names
 // on any node), the JSDoc type rewriting, and the name rewriting of
@@ -154,9 +155,10 @@ func commonJsModuleName(input *CompilerInput) string {
 }
 
 func (p *ProcessCommonJSModules) getBasePropertyImportWithRequireCall(moduleName string, requireCall rhino.Node) string {
-	jutil.CheckArgument(requireCall.IsCall())
+	call, ok := ast.AsCall(requireCall)
+	jutil.CheckArgument(ok)
 	if p.compiler.GetOptions().GetModuleResolutionMode() == ModuleLoader_ResolutionMode_WEBPACK &&
-		requireCall.GetFirstChild().MatchesQualifiedName(processCommonJSModules_WEBPACK_REQUIRE_NAMESPACE) {
+		call.Callee().Node().MatchesQualifiedName(processCommonJSModules_WEBPACK_REQUIRE_NAMESPACE) {
 		return moduleName
 	}
 	return p.getBasePropertyImport(moduleName)
@@ -220,16 +222,16 @@ func ProcessCommonJSModules_GetCommonJsImportPath(
 	first, ok := ast.MustCall(requireCall).FirstArg()
 	jutil.CheckState(ok)
 	if resolutionMode == ModuleLoader_ResolutionMode_WEBPACK {
-		pathArgument := first.Node()
+		pathArg := first
 		if second, ok := first.Next(); ok {
-			pathArgument = second.Node()
+			pathArg = second
 		}
-		if pathArgument.IsNumber() {
-			return strconv.Itoa(int(jutil.D2I(pathArgument.GetDouble())))
+		if num, ok := pathArg.AsNumber(); ok {
+			return strconv.Itoa(int(jutil.D2I(num.Value())))
 		}
-		return pathArgument.GetString()
+		return pathArg.MustStringLit().Value()
 	}
-	return first.Node().GetString()
+	return first.MustStringLit().Value()
 }
 
 func (p *ProcessCommonJSModules) getImportedModuleName(t *NodeTraversal, requireCall rhino.Node) string {
@@ -384,10 +386,8 @@ func (f *commonJsFindImportsAndExports) ShouldTraverse(nodeTraversal *NodeTraver
 }
 
 func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if NodeUtil_IsShallowStatementTree(parent) && n.IsExprResult() {
-		maybeGetProp := n.GetFirstFirstChild()
-		if !maybeGetProp.IsNil() &&
-			(processCommonJSModules_GOOG_PROVIDE.Matches(maybeGetProp) || processCommonJSModules_GOOG_MODULE.Matches(maybeGetProp)) {
+	if NodeUtil_IsShallowStatementTree(parent) {
+		if exprStmt, ok := ast.AsExprStmt(n); ok && commonJsIsGoogProvideOrModule(exprStmt) {
 			f.hasGoogProvideOrModule = true
 		}
 	}
@@ -430,16 +430,9 @@ func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, pa
 				qNameRoot.MatchesQualifiedName(processCommonJSModules_EXPORTS) &&
 				NodeUtil_IsLValue(qNameRoot) {
 				// Match `exports = module.exports` or `exports = module.exports = ...`
-				next := n.GetNext()
-				if n.GetGrandparent().IsExprResult() &&
-					!next.IsNil() &&
-					((next.IsGetProp() &&
-						processCommonJSModules_MODULE_EXPORTS.Matches(next)) ||
-						(next.IsAssign() &&
-							processCommonJSModules_MODULE_EXPORTS.Matches(next.GetFirstChild()))) {
+				if commonJsIsExportsAlias(n, parent) {
 					f.exports = append(f.exports, newCommonJsExportInfo(n, t.GetScope()))
-				} else if !f.hasGoogProvideOrModule &&
-					(v == nil || (!v.GetNameNode().IsNil() && v.GetNameNode().GetFirstChild() != n)) {
+				} else if !f.hasGoogProvideOrModule && commonJsIsSuspiciousExportsDecl(v, n) {
 					f.errors = append(f.errors, JSError_MakeWithNode(qNameRoot, ProcessCommonJSModules_SUSPICIOUS_EXPORTS_ASSIGNMENT))
 				}
 			} else {
@@ -455,13 +448,60 @@ func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, pa
 				}
 			}
 		}
-	} else if n.IsThis() && n.GetParent().IsGetProp() && t.InGlobalScope() {
+	} else if n.IsThis() && parent.IsGetProp() && t.InGlobalScope() {
 		f.exports = append(f.exports, newCommonJsExportInfo(n, t.GetScope()))
 	}
 
 	if f.outer.isCommonJsImport(n) {
 		f.visitRequireCall(t, n, parent)
 	}
+}
+
+func commonJsIsGoogProvideOrModule(exprStmt ast.ExprStmt) bool {
+	expr := exprStmt.Expr()
+	var target rhino.Node
+	if inv, ok := expr.AsInvocation(); ok {
+		target = inv.Callee().Node()
+	} else if assign, ok := expr.AsAssignment(); ok {
+		target = assign.Target().Node()
+	} else if gp, ok := expr.AsGetProp(); ok {
+		target = gp.Object().Node()
+	} else if bin, ok := expr.AsBinary(); ok {
+		target = bin.Left().Node()
+	} else {
+		return false
+	}
+	return processCommonJSModules_GOOG_PROVIDE.Matches(target) ||
+		processCommonJSModules_GOOG_MODULE.Matches(target)
+}
+
+func commonJsIsExportsAlias(n rhino.Node, parent rhino.Node) bool {
+	assign, ok := ast.AsAssignment(parent)
+	if !ok || !assign.Target().Is(n) || !parent.GetParent().IsExprResult() {
+		return false
+	}
+	rhs := assign.Value()
+	if processCommonJSModules_MODULE_EXPORTS.Matches(rhs.Node()) {
+		return true
+	}
+	rhsAssign, ok := rhs.AsAssign()
+	return ok && processCommonJSModules_MODULE_EXPORTS.Matches(rhsAssign.Target().Node())
+}
+
+// commonJsIsSuspiciousExportsDecl preserves Java's `v == null ||
+// (v.getNameNode() != null && v.getNameNode().getFirstChild() != n)` check,
+// which compares n against the declarator's initializer rather than the
+// declarator NAME itself.
+func commonJsIsSuspiciousExportsDecl(v *Var, n rhino.Node) bool {
+	if v == nil {
+		return true
+	}
+	declName, ok := ast.AsName(v.GetNameNode())
+	if !ok {
+		return false
+	}
+	init, _ := declName.Init()
+	return !init.Is(n)
 }
 
 func (f *commonJsFindImportsAndExports) visitRequireCall(t *NodeTraversal, require rhino.Node, parent rhino.Node) {
@@ -641,9 +681,11 @@ func (f *commonJsFindImportsAndExports) initializeModule() bool {
 		}
 	}
 
-	initModule := rhino.IR_VarWithValue(rhino.IR_Name(moduleName), rhino.IR_Objectlit())
-	initModule.GetFirstChild().PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
-	initModule.GetFirstChild().MakeNonIndexable()
+	moduleVarName := rhino.IR_Name(moduleName)
+	moduleObjLit := rhino.IR_Objectlit()
+	initModule := rhino.IR_VarWithValue(moduleVarName, moduleObjLit)
+	moduleVarName.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
+	moduleVarName.MakeNonIndexable()
 	builder := rhino.JSDocInfo_Builder_().ParseDocumentation()
 	builder.RecordConstancy()
 	initModule.SetJSDocInfo(builder.Build())
@@ -651,7 +693,7 @@ func (f *commonJsFindImportsAndExports) initializeModule() bool {
 		defaultProp := rhino.IR_StringKey(processCommonJSModules_EXPORT_PROPERTY_NAME)
 		defaultProp.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 		defaultProp.AddChildToFront(rhino.IR_Objectlit())
-		initModule.GetFirstFirstChild().AddChildToFront(defaultProp)
+		moduleObjLit.AddChildToFront(defaultProp)
 		if len(f.exports) == 0 || len(f.moduleExports) == 0 {
 			builder = rhino.JSDocInfo_Builder_().ParseDocumentation()
 			builder.RecordConstancy()

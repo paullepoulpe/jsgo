@@ -71,6 +71,14 @@ func NewFindExportableNodes(compiler AbstractCompiler, allowLocalExports bool) *
 	}
 }
 
+var (
+	_ nodeTraversal_visitTokens = (*FindExportableNodes)(nil)
+	_ nodeTraversal_visitJSDoc  = (*FindExportableNodes)(nil)
+)
+
+func (*FindExportableNodes) visitTokens() *ast.TokenSet { return &emptyTokenSet }
+func (*FindExportableNodes) visitJSDoc() bool           { return true }
+
 // Java: FindExportableNodes.visit(NodeTraversal, Node, Node)
 func (f *FindExportableNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	docInfo := n.GetJSDocInfo()

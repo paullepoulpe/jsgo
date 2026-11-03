@@ -463,8 +463,8 @@ func (p *ExternExportsPass) LookForQnameDefinition(n rhino.Node) {
 			}
 		}
 	} else if methodDef, ok := ast.AsMemberFunctionDef(n); ok {
-		if lvalueName := NodeUtil_GetBestLValueName(n); lvalueName != nil {
-			p.definitionMap[*lvalueName] = methodDef.Function().Node()
+		if lvalueName, ok := NodeUtil_GetBestLValueName(n); ok {
+			p.definitionMap[lvalueName] = methodDef.Function().Node()
 		}
 	}
 }
@@ -540,10 +540,9 @@ func (p *ExternExportsPass) LookForAtExportOnThisDotProperty(t *NodeTraversal, t
 	} else {
 		classNode = constructorNode
 	}
-	className := NodeUtil_GetName(classNode)
 	classNameStr := "null"
-	if className != nil {
-		classNameStr = *className
+	if className, ok := NodeUtil_GetName(classNode); ok {
+		classNameStr = className
 	}
 	propertyName := gp.Property()
 	prototypeName := classNameStr + ".prototype"

@@ -68,6 +68,22 @@ type exportTestFunctionsNodes struct {
 	outer *ExportTestFunctions
 }
 
+var exportTestFunctionsVisitTokens = makeVisitTokenSet(
+	rhino.Token_FUNCTION,
+	rhino.Token_VAR,
+	rhino.Token_LET,
+	rhino.Token_CONST,
+	rhino.Token_CLASS,
+	rhino.Token_ASSIGN,
+	rhino.Token_OBJECTLIT,
+)
+
+var _ nodeTraversal_visitTokens = (*exportTestFunctionsNodes)(nil)
+
+func (*exportTestFunctionsNodes) visitTokens() *ast.TokenSet {
+	return &exportTestFunctionsVisitTokens
+}
+
 // Java: ExportTestFunctions.ExportTestFunctionsNodes.visit(NodeTraversal, Node, Node)
 func (x *exportTestFunctionsNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if parent.IsNil() {
