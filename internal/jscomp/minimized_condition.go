@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -190,7 +191,7 @@ func (c *MinimizedCondition) pickBest(a, b measuredID) measuredID {
 func (c *MinimizedCondition) computeMinimizedCondition(n rhino.Node) (measuredID, measuredID) {
 	switch n.GetToken() {
 	case rhino.Token_NOT:
-		subPos, subNeg := c.computeMinimizedCondition(n.GetFirstChild())
+		subPos, subNeg := c.computeMinimizedCondition(ast.MustUnary(n).Operand().Node())
 		positive := c.pickBest(c.addNode1(n, subPos), subNeg)
 		negative := c.pickBest(
 			c.negate(subNeg), // since parent node `n` is a NOT, we need to negate the subtree's
@@ -198,14 +199,15 @@ func (c *MinimizedCondition) computeMinimizedCondition(n rhino.Node) (measuredID
 			subPos)
 		return positive, c.change(negative)
 	case rhino.Token_AND, rhino.Token_OR:
+		bin := ast.MustBinary(n)
 		var complementToken rhino.Token
-		if n.IsAnd() {
+		if bin.Token() == rhino.Token_AND {
 			complementToken = rhino.Token_OR
 		} else {
 			complementToken = rhino.Token_AND
 		}
-		leftPos, leftNeg := c.computeMinimizedCondition(n.GetFirstChild())
-		rightPos, rightNeg := c.computeMinimizedCondition(n.GetLastChild())
+		leftPos, leftNeg := c.computeMinimizedCondition(bin.Left().Node())
+		rightPos, rightNeg := c.computeMinimizedCondition(bin.Right().Node())
 		posTree := c.addNode2(n, 0, leftPos, rightPos)
 		negComplementTree := c.addNode2(n, complementToken, leftNeg, rightNeg)
 		positive := c.pickBest(
@@ -216,19 +218,17 @@ func (c *MinimizedCondition) computeMinimizedCondition(n rhino.Node) (measuredID
 			c.change(negComplementTree))
 		return positive, c.change(negative)
 	case rhino.Token_HOOK:
-		cond := n.GetFirstChild()
-		thenNode := cond.GetNext()
-		elseNode := thenNode.GetNext()
-		thenPos, thenNeg := c.computeMinimizedCondition(thenNode)
-		elsePos, elseNeg := c.computeMinimizedCondition(elseNode)
-		condMeasured := c.forNode(cond)
+		hook := ast.MustHook(n)
+		thenPos, thenNeg := c.computeMinimizedCondition(hook.Then().Node())
+		elsePos, elseNeg := c.computeMinimizedCondition(hook.Else().Node())
+		condMeasured := c.forNode(hook.Cond().Node())
 		positive := c.addNode3(n, condMeasured, thenPos, elsePos)
 		negative := c.addNode3(n, condMeasured, thenNeg, elseNeg)
 		return positive, c.change(negative)
 	case rhino.Token_COMMA:
-		lhs := n.GetFirstChild()
-		rhsPos, rhsNeg := c.computeMinimizedCondition(lhs.GetNext())
-		lhsMeasured := c.forNode(lhs)
+		comma := ast.MustBinary(n)
+		rhsPos, rhsNeg := c.computeMinimizedCondition(comma.Right().Node())
+		lhsMeasured := c.forNode(comma.Left().Node())
 		positive := c.addNode2(n, 0, lhsMeasured, rhsPos)
 		negative := c.addNode2(n, 0, lhsMeasured, rhsNeg)
 		return positive, c.change(negative)
@@ -303,7 +303,7 @@ func (c *MinimizedCondition) withoutNot(id measuredID) measuredID {
 	if mn.hasChildren {
 		return c.change(mn.children[0])
 	}
-	return c.change(c.forNode(mn.node.GetFirstChild()))
+	return c.change(c.forNode(ast.MustUnary(mn.node).Operand().Node()))
 }
 
 func (c *MinimizedCondition) negate(id measuredID) measuredID {

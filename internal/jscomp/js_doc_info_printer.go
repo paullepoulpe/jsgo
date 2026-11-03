@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -54,421 +55,564 @@ func NewJSDocInfoPrinterWithPrintDesc(useOriginalName bool, printDesc bool) *JSD
 // matching picks the same matches as Java's backtracking for it.
 var blockDescriptionLineStartPattern = regexp.MustCompile("\n[ \t\n\x0B\f\r]*\\*[ \t\n\x0B\f\r]*")
 
+// jsDocWriter streams JSDoc parts directly into a single strings.Builder while
+// applying the line-prefix formatting (" *\n" / " * ") on the fly.
+type jsDocWriter struct {
+	sb             strings.Builder
+	multiline      bool
+	afterBlockDesc bool
+	pendingNL      bool
+}
+
+func (w *jsDocWriter) startPart() {
+	if w.afterBlockDesc {
+		w.writeByte('\n')
+		w.afterBlockDesc = false
+	}
+	if w.multiline {
+		w.writeByte('\n')
+	} else {
+		w.writeByte(' ')
+	}
+}
+
+func (w *jsDocWriter) writeByte(b byte) {
+	if b == '\n' {
+		if w.pendingNL {
+			w.sb.WriteString("\n *")
+		}
+		w.pendingNL = true
+		return
+	}
+	if w.pendingNL {
+		if b != ' ' {
+			w.sb.WriteString("\n * ")
+		} else {
+			w.sb.WriteString("\n *")
+		}
+		w.pendingNL = false
+	}
+	w.sb.WriteByte(b)
+}
+
+func (w *jsDocWriter) writeString(s string) {
+	if len(s) == 0 {
+		return
+	}
+	if w.pendingNL {
+		if s[0] != ' ' && s[0] != '\n' {
+			w.sb.WriteString("\n * ")
+		} else {
+			w.sb.WriteString("\n *")
+		}
+		w.pendingNL = false
+	}
+	for {
+		nl := strings.IndexByte(s, '\n')
+		if nl < 0 {
+			w.sb.WriteString(s)
+			return
+		}
+		w.sb.WriteString(s[:nl])
+		if nl+1 == len(s) {
+			w.pendingNL = true
+			return
+		}
+		if s[nl+1] != ' ' && s[nl+1] != '\n' {
+			w.sb.WriteString("\n * ")
+		} else {
+			w.sb.WriteString("\n *")
+		}
+		s = s[nl+1:]
+	}
+}
+
+func (w *jsDocWriter) finish() string {
+	if w.pendingNL {
+		w.sb.WriteString("\n *")
+		w.pendingNL = false
+	}
+	if w.multiline {
+		w.sb.WriteString("\n */\n")
+	} else {
+		w.sb.WriteString(" */ ")
+	}
+	return w.sb.String()
+}
+
+func jsDocTrimRightSpace(s string) string {
+	end := len(s)
+	for end > 0 && s[end-1] <= ' ' {
+		end--
+	}
+	return s[:end]
+}
+
 // Java: JSDocInfoPrinter.print(JSDocInfo)
 func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
-	multiline := false
+	authors := info.GetAuthors()
+	description, hasDescription := info.GetDescriptionString()
+	refs := info.GetReferences()
+	extendedInterfaces := info.GetExtendedInterfaces()
+	implementedInterfaces := info.GetImplementedInterfaces()
+	paramCount := info.GetParameterCount()
+	throws := info.GetThrowsAnnotations()
+	hasThrows := len(throws) != 0 && throws[0] != ""
+	templateEntries := info.GetTemplateTypeEntries()
+	typeTransformations := info.GetTypeTransformationEntries()
+	suppressions := info.GetSuppressionsAndTheirDescription()
 
-	var parts []string
+	var cleanedBlockDesc string
+	hasBlockDesc := false
+	if p.printDesc {
+		if blockDesc, ok := info.GetBlockDescriptionString(); ok {
+			cleaned := blockDescriptionLineStartPattern.ReplaceAllLiteralString(blockDesc, "\n")
+			if cleaned != "" {
+				cleanedBlockDesc = jutil.StringTrim(cleaned)
+				hasBlockDesc = true
+			}
+		}
+	}
 
-	parts = append(parts, "/**")
+	multiline := hasBlockDesc ||
+		authors != nil ||
+		hasDescription ||
+		refs != nil ||
+		info.HasBaseType() ||
+		len(extendedInterfaces) > 0 ||
+		len(implementedInterfaces) > 0 ||
+		info.HasThisType() ||
+		paramCount > 0 ||
+		info.HasReturnType() ||
+		hasThrows ||
+		len(templateEntries) > 0 ||
+		len(typeTransformations) > 0 ||
+		len(suppressions) != 0 ||
+		info.IsDeprecated() ||
+		info.IsPolymer() ||
+		info.IsPolymerBehavior() ||
+		info.IsMixinFunction() ||
+		info.IsMixinClass() ||
+		info.IsCustomElement()
+
+	var w jsDocWriter
+	w.multiline = multiline
+	if multiline {
+		w.sb.Grow(96)
+	} else {
+		w.sb.Grow(32)
+	}
+	w.sb.WriteString("/**")
+
+	if hasBlockDesc {
+		w.startPart()
+		w.writeString(cleanedBlockDesc)
+		w.afterBlockDesc = true
+	}
 
 	if info.IsExterns() {
-		parts = append(parts, "@externs")
+		w.startPart()
+		w.writeString("@externs")
 	}
 	if info.IsTypeSummary() {
-		parts = append(parts, "@typeSummary")
+		w.startPart()
+		w.writeString("@typeSummary")
 	}
 
 	if info.IsExport() {
-		parts = append(parts, "@export")
-	} else if info.GetVisibility() != rhino.JSDocInfo_Visibility_INHERITED {
+		w.startPart()
+		w.writeString("@export")
+	} else if vis := info.GetVisibility(); vis != rhino.JSDocInfo_Visibility_INHERITED {
 		// Go-only: language-adapter — getVisibility() is never null (it
 		// defaults to INHERITED), so `getVisibility() != null` always holds.
-		parts = append(parts, "@"+jutil.StringToLowerCaseASCII(info.GetVisibility().String()))
+		w.startPart()
+		switch vis {
+		case rhino.JSDocInfo_Visibility_PRIVATE:
+			w.writeString("@private")
+		case rhino.JSDocInfo_Visibility_PROTECTED:
+			w.writeString("@protected")
+		case rhino.JSDocInfo_Visibility_PACKAGE:
+			w.writeString("@package")
+		case rhino.JSDocInfo_Visibility_PUBLIC:
+			w.writeString("@public")
+		default:
+			w.writeByte('@')
+			w.writeString(jutil.StringToLowerCaseASCII(vis.String()))
+		}
 	}
 
-	if authors := info.GetAuthors(); authors != nil {
-		multiline = true
-		for _, name := range authors {
-			parts = append(parts, "@author "+name)
-		}
+	for _, name := range authors {
+		w.startPart()
+		w.writeString("@author ")
+		w.writeString(name)
 	}
 
 	if info.IsAbstract() {
-		parts = append(parts, "@abstract")
+		w.startPart()
+		w.writeString("@abstract")
 	}
 
 	if info.HasLendsName() {
-		parts = append(parts, p.BuildAnnotationWithTypeNode("lends", info.GetLendsName().GetRoot()))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "lends", info.GetLendsName().GetRoot(), "", false)
 	}
 
 	if info.HasConstAnnotation() && !info.IsDefine() {
-		parts = append(parts, "@const")
+		w.startPart()
+		w.writeString("@const")
 	}
 
 	if info.IsFinal() {
-		parts = append(parts, "@final")
+		w.startPart()
+		w.writeString("@final")
 	}
 
-	if description, ok := info.GetDescriptionString(); ok {
-		multiline = true
-		parts = append(parts, "@desc "+description)
+	if hasDescription {
+		w.startPart()
+		w.writeString("@desc ")
+		w.writeString(description)
 	}
 
-	if refs := info.GetReferences(); refs != nil {
-		multiline = true
-		for _, desc := range refs {
-			parts = append(parts, "@see "+desc)
-		}
+	for _, desc := range refs {
+		w.startPart()
+		w.writeString("@see ")
+		w.writeString(desc)
 	}
 
 	if info.IsWizaction() {
-		parts = append(parts, "@wizaction")
+		w.startPart()
+		w.writeString("@wizaction")
 	}
 
 	if info.IsNoSideEffects() {
-		parts = append(parts, "@nosideeffects")
+		w.startPart()
+		w.writeString("@nosideeffects")
 	}
 
 	if info.IsNoCompile() {
-		parts = append(parts, "@nocompile")
+		w.startPart()
+		w.writeString("@nocompile")
 	}
 
 	if info.IsNoInline() {
-		parts = append(parts, "@noinline")
+		w.startPart()
+		w.writeString("@noinline")
 	}
 
 	if info.IsRequireInlining() {
-		parts = append(parts, "@requireInlining")
+		w.startPart()
+		w.writeString("@requireInlining")
 	}
 
 	if info.IsEncourageInlining() {
-		parts = append(parts, "@encourageInlining")
+		w.startPart()
+		w.writeString("@encourageInlining")
 	}
 
 	if info.IsProvideAlreadyProvided() {
-		parts = append(parts, "@provideAlreadyProvided")
+		w.startPart()
+		w.writeString("@provideAlreadyProvided")
 	}
 
 	if info.IsIdGenerator() {
-		parts = append(parts, "@idGenerator {unique}")
+		w.startPart()
+		w.writeString("@idGenerator {unique}")
 	}
 
 	if info.IsConsistentIdGenerator() {
-		parts = append(parts, "@idGenerator {consistent}")
+		w.startPart()
+		w.writeString("@idGenerator {consistent}")
 	}
 
 	if info.IsStableIdGenerator() {
-		parts = append(parts, "@idGenerator {stable}")
+		w.startPart()
+		w.writeString("@idGenerator {stable}")
 	}
 
 	if info.IsXidGenerator() {
-		parts = append(parts, "@idGenerator {xid}")
+		w.startPart()
+		w.writeString("@idGenerator {xid}")
 	}
 
 	if info.IsMappedIdGenerator() {
-		parts = append(parts, "@idGenerator {mapped}")
+		w.startPart()
+		w.writeString("@idGenerator {mapped}")
 	}
 
 	if info.MakesDicts() {
-		parts = append(parts, "@dict")
+		w.startPart()
+		w.writeString("@dict")
 	}
 
 	if info.MakesStructs() {
-		parts = append(parts, "@struct")
+		w.startPart()
+		w.writeString("@struct")
 	}
 
 	if info.MakesUnrestricted() {
-		parts = append(parts, "@unrestricted ")
+		w.startPart()
+		w.writeString("@unrestricted ")
 	}
 
 	if info.IsConstructor() {
-		parts = append(parts, "@constructor")
+		w.startPart()
+		w.writeString("@constructor")
 	}
 
 	if info.IsInterface() && !info.UsesImplicitMatch() {
-		parts = append(parts, "@interface")
+		w.startPart()
+		w.writeString("@interface")
 	}
 
 	if info.IsInterface() && info.UsesImplicitMatch() {
-		parts = append(parts, "@record")
+		w.startPart()
+		w.writeString("@record")
 	}
 
 	if info.IsClosureUnawareCode() {
-		parts = append(parts, "@closureUnaware")
+		w.startPart()
+		w.writeString("@closureUnaware")
 	}
 
 	if info.HasBaseType() {
-		multiline = true
-		typeNode := p.StripBang(info.GetBaseType().GetRoot())
-		parts = append(parts, p.BuildAnnotationWithTypeNode("extends", typeNode))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "extends", jsDocStripBang(info.GetBaseType().GetRoot()), "", false)
 	}
 
-	for _, type_ := range info.GetExtendedInterfaces() {
-		multiline = true
-		typeNode := p.StripBang(type_.GetRoot())
-		parts = append(parts, p.BuildAnnotationWithTypeNode("extends", typeNode))
+	for _, type_ := range extendedInterfaces {
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "extends", jsDocStripBang(type_.GetRoot()), "", false)
 	}
 
-	for _, type_ := range info.GetImplementedInterfaces() {
-		multiline = true
-		typeNode := p.StripBang(type_.GetRoot())
-		parts = append(parts, p.BuildAnnotationWithTypeNode("implements", typeNode))
+	for _, type_ := range implementedInterfaces {
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "implements", jsDocStripBang(type_.GetRoot()), "", false)
 	}
 
 	if info.HasThisType() {
-		multiline = true
-		typeNode := p.StripBang(info.GetThisType().GetRoot())
-		parts = append(parts, p.BuildAnnotationWithTypeNode("this", typeNode))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "this", jsDocStripBang(info.GetThisType().GetRoot()), "", false)
 	}
 
-	if paramCount := info.GetParameterCount(); paramCount > 0 {
-		multiline = true
-		for i := 0; i < paramCount; i++ {
-			name, _ := info.GetParameterNameValueAt(i)
-			parts = append(parts, "@param "+p.BuildParamType(info, name))
-		}
+	for i := 0; i < paramCount; i++ {
+		name, _ := info.GetParameterNameValueAt(i)
+		w.startPart()
+		w.writeString("@param ")
+		p.writeParamType(&w, info, name)
 	}
 
 	if info.HasReturnType() {
-		multiline = true
 		retDesc, hasRetDesc := info.GetReturnDescriptionString()
-		parts = append(parts,
-			p.buildAnnotationWithTypeNode("return", info.GetReturnType().GetRoot(), retDesc, hasRetDesc))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "return", info.GetReturnType().GetRoot(), retDesc, hasRetDesc)
 	}
 
-	if throws := info.GetThrowsAnnotations(); len(throws) != 0 && throws[0] != "" {
-		multiline = true
-		parts = append(parts, "@throws "+throws[0])
+	if hasThrows {
+		w.startPart()
+		w.writeString("@throws ")
+		w.writeString(throws[0])
 	}
 
-	for _, entry := range info.GetTemplateTypeEntries() {
+	for _, entry := range templateEntries {
 		name, boundExpr := entry.Name, entry.Type
-		multiline = true
 		boundRoot := boundExpr.GetRoot()
+		w.startPart()
 		if boundRoot.GetToken() == rhino.Token_QMARK && !boundRoot.HasChildren() {
 			// If the bound of the expression is `?` (as it is after
 			// parsing an unbounded template) don't specify a bound.
 			// TODO(b/140187077): This case becomes redundant when fixed.
 			// It also only covers explicit `?` bounds, typedefs will
 			// remain explicit.
-			parts = append(parts, "@template "+name)
+			w.writeString("@template ")
+			w.writeString(name)
 		} else {
-			parts = append(parts, p.buildAnnotationWithTypeNode("template", boundRoot, name, true))
+			p.writeAnnotationWithTypeNode(&w, "template", boundRoot, name, true)
 		}
 	}
 
-	typeTransformations := info.GetTypeTransformationEntries()
-	if len(typeTransformations) > 0 {
-		multiline = true
-		for _, tr := range typeTransformations {
-			tranformationDefinition := PrintCode(CodePrintConfig{Root: tr.TypeNode})
-			parts = append(parts, "@template "+tr.Name+" := "+tranformationDefinition+" =:")
-		}
+	for _, tr := range typeTransformations {
+		tranformationDefinition := PrintCode(CodePrintConfig{Root: tr.TypeNode})
+		w.startPart()
+		w.writeString("@template ")
+		w.writeString(tr.Name)
+		w.writeString(" := ")
+		w.writeString(tranformationDefinition)
+		w.writeString(" =:")
 	}
 
 	if info.IsOverride() {
-		parts = append(parts, "@override")
+		w.startPart()
+		w.writeString("@override")
 	}
 
 	if info.HasType() && !info.IsDefine() {
+		w.startPart()
 		if info.IsInlineType() {
-			parts = append(parts, p.TypeNode(info.GetType().GetRoot()))
+			p.appendTypeNode(&w, info.GetType().GetRoot())
 		} else {
-			parts = append(parts, p.BuildAnnotationWithType("type", info.GetType()))
+			p.writeAnnotationWithTypeNode(&w, "type", info.GetType().GetRoot(), "", false)
 		}
 	}
 
 	if info.IsDefine() {
-		parts = append(parts, p.BuildAnnotationWithType("define", info.GetType()))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "define", info.GetType().GetRoot(), "", false)
 	}
 
 	if info.HasTypedefType() {
-		parts = append(parts, p.BuildAnnotationWithType("typedef", info.GetTypedefType()))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "typedef", info.GetTypedefType().GetRoot(), "", false)
 	}
 
 	if info.HasEnumParameterType() {
-		parts = append(parts, p.BuildAnnotationWithType("enum", info.GetEnumParameterType()))
+		w.startPart()
+		p.writeAnnotationWithTypeNode(&w, "enum", info.GetEnumParameterType().GetRoot(), "", false)
 	}
 
 	if info.IsImplicitCast() {
-		parts = append(parts, "@implicitCast")
+		w.startPart()
+		w.writeString("@implicitCast")
 	}
 
 	if info.IsNoCollapse() {
-		parts = append(parts, "@nocollapse")
+		w.startPart()
+		w.writeString("@nocollapse")
 	}
 
-	suppressions := info.GetSuppressionsAndTheirDescription()
-	if len(suppressions) != 0 {
-		for _, sup := range suppressions {
-			warnings := slices.Clone(sup.Warnings)
-			// Even the warnings inside a suppress annotation are printed in
-			// natural order for consistency
-			slices.SortStableFunc(warnings, jutil.StringCompareTo)
-			var sb strings.Builder
-			sb.WriteString("@suppress {")
-			sb.WriteString(strings.Join(warnings, ","))
-			sb.WriteString("}")
-			if sup.Description != "" {
-				sb.WriteString(" ")
-				sb.WriteString(sup.Description)
-			}
-			parts = append(parts, sb.String())
+	var suppressBuf [8]string
+	for _, sup := range suppressions {
+		var warnings []string
+		if len(sup.Warnings) <= len(suppressBuf) {
+			warnings = suppressBuf[:len(sup.Warnings)]
+			copy(warnings, sup.Warnings)
+		} else {
+			warnings = slices.Clone(sup.Warnings)
 		}
-		multiline = true
+		// Even the warnings inside a suppress annotation are printed in
+		// natural order for consistency
+		slices.SortStableFunc(warnings, jutil.StringCompareTo)
+		w.startPart()
+		w.writeString("@suppress {")
+		for i, warn := range warnings {
+			if i > 0 {
+				w.writeByte(',')
+			}
+			w.writeString(warn)
+		}
+		w.writeByte('}')
+		if sup.Description != "" {
+			w.writeByte(' ')
+			w.writeString(sup.Description)
+		}
 	}
 
 	if info.IsDeprecated() {
+		w.startPart()
 		if deprecationReason, ok := info.GetDeprecationReasonString(); ok {
-			parts = append(parts, "@deprecated "+deprecationReason)
+			w.writeString("@deprecated ")
+			w.writeString(deprecationReason)
 		} else {
-			parts = append(parts, "@deprecated")
+			w.writeString("@deprecated")
 		}
-		multiline = true
 	}
 
 	if info.IsPolymer() {
-		multiline = true
-		parts = append(parts, "@polymer")
+		w.startPart()
+		w.writeString("@polymer")
 	}
 	if info.IsPolymerBehavior() {
-		multiline = true
-		parts = append(parts, "@polymerBehavior")
+		w.startPart()
+		w.writeString("@polymerBehavior")
 	}
 	if info.IsMixinFunction() {
-		multiline = true
-		parts = append(parts, "@mixinFunction")
+		w.startPart()
+		w.writeString("@mixinFunction")
 	}
 	if info.IsMixinClass() {
-		multiline = true
-		parts = append(parts, "@mixinClass")
+		w.startPart()
+		w.writeString("@mixinClass")
 	}
 	if info.IsCustomElement() {
-		multiline = true
-		parts = append(parts, "@customElement")
+		w.startPart()
+		w.writeString("@customElement")
 	}
 
 	if id, ok := info.GetClosurePrimitiveIdString(); ok {
-		parts = append(parts, "@closurePrimitive {"+id+"}")
+		w.startPart()
+		w.writeString("@closurePrimitive {")
+		w.writeString(id)
+		w.writeByte('}')
 	}
 
 	if info.IsNgInject() {
-		parts = append(parts, "@ngInject")
+		w.startPart()
+		w.writeString("@ngInject")
 	}
 
 	for _, tsType := range info.GetTsTypes() {
-		parts = append(parts, "@tsType "+tsType)
+		w.startPart()
+		w.writeString("@tsType ")
+		w.writeString(tsType)
 	}
 
-	if p.printDesc {
-		if blockDesc, ok := info.GetBlockDescriptionString(); ok {
-			cleaned := blockDescriptionLineStartPattern.ReplaceAllLiteralString(blockDesc, "\n")
-			if cleaned != "" {
-				multiline = true
-				cleaned = jutil.StringTrim(cleaned)
-				if len(parts) > 1 {
-					// If there is more than one part - the opening "/**" - then
-					// add blank line between the description and everything else.
-					cleaned += "\n"
-				}
-				parts = slices.Insert(parts, 1, cleaned)
-			}
-		}
-	}
-
-	var sb strings.Builder
-	estLen := 8
-	for _, part := range parts {
-		estLen += len(part) + 4
-	}
-	sb.Grow(estLen)
-
-	// Ensure all lines start with " *", and then ensure all non blank lines
-	// have a space after the *.
-	if multiline {
-		for i, part := range parts {
-			if i > 0 {
-				afterSep := -1
-				if len(part) > 0 {
-					afterSep = int(part[0])
-				} else if i+1 < len(parts) {
-					afterSep = '\n'
-				}
-				if afterSep >= 0 && afterSep != ' ' && afterSep != '\n' {
-					sb.WriteString("\n * ")
-				} else {
-					sb.WriteString("\n *")
-				}
-			}
-			nextByte := -1
-			if i+1 < len(parts) {
-				nextByte = '\n'
-			}
-			jsDocWriteWithLinePrefixes(&sb, part, nextByte)
-		}
-		sb.WriteString("\n */\n")
-	} else {
-		for i, part := range parts {
-			if i > 0 {
-				sb.WriteByte(' ')
-			}
-			jsDocWriteWithLinePrefixes(&sb, part, ' ')
-		}
-		sb.WriteString(" */ ")
-	}
-	return sb.String()
+	return w.finish()
 }
 
-func jsDocWriteWithLinePrefixes(sb *strings.Builder, s string, nextByte int) {
-	for {
-		nl := strings.IndexByte(s, '\n')
-		if nl < 0 {
-			sb.WriteString(s)
-			return
-		}
-		sb.WriteString(s[:nl])
-		after := nextByte
-		if nl+1 < len(s) {
-			after = int(s[nl+1])
-		}
-		if after >= 0 && after != ' ' && after != '\n' {
-			sb.WriteString("\n * ")
-		} else {
-			sb.WriteString("\n *")
-		}
-		s = s[nl+1:]
+func jsDocOnlyChild(n rhino.Node) (rhino.Node, bool) {
+	for c := range n.Children() {
+		return c, true
 	}
+	return rhino.NilNode, false
+}
+
+func jsDocColonChildren(n rhino.Node) (string, rhino.Node) {
+	var key string
+	var val rhino.Node
+	first := true
+	for c := range n.Children() {
+		if first {
+			if sk, ok := ast.AsStringKey(c); ok {
+				key = sk.Key()
+			} else {
+				key = c.GetString()
+			}
+			first = false
+		} else {
+			val = c
+		}
+	}
+	return key, val
 }
 
 // Java: JSDocInfoPrinter.stripBang(Node)
-func (p *JSDocInfoPrinter) StripBang(typeNode rhino.Node) rhino.Node {
+func jsDocStripBang(typeNode rhino.Node) rhino.Node {
 	if typeNode.GetToken() == rhino.Token_BANG {
-		typeNode = typeNode.GetFirstChild()
+		child, _ := jsDocOnlyChild(typeNode)
+		return child
 	}
 	return typeNode
 }
 
-// Java: JSDocInfoPrinter.buildAnnotationWithType(String, JSTypeExpression)
-func (p *JSDocInfoPrinter) BuildAnnotationWithType(annotation string, type_ *rhino.JSTypeExpression) string {
-	return p.buildAnnotationWithTypeNode(annotation, type_.GetRoot(), "", false)
-}
-
-// Java: JSDocInfoPrinter.buildAnnotationWithType(String, Node)
-func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNode(annotation string, type_ rhino.Node) string {
-	return p.buildAnnotationWithTypeNode(annotation, type_, "", false)
-}
-
-func (p *JSDocInfoPrinter) buildAnnotationWithTypeNode(
-	annotation string, type_ rhino.Node, description string, hasDesc bool) string {
-	var sb strings.Builder
-	sb.WriteString("@")
-	sb.WriteString(annotation)
-	sb.WriteString(" {")
-	p.AppendTypeNode(&sb, type_)
-	sb.WriteString("}")
+func (p *JSDocInfoPrinter) writeAnnotationWithTypeNode(
+	w *jsDocWriter, annotation string, type_ rhino.Node, description string, hasDesc bool,
+) {
+	w.writeByte('@')
+	w.writeString(annotation)
+	w.writeString(" {")
+	p.appendTypeNode(w, type_)
+	w.writeByte('}')
 	if hasDesc {
-		sb.WriteString(" ")
-		sb.WriteString(description)
+		w.writeByte(' ')
+		w.writeString(description)
 	}
-	return sb.String()
 }
 
 // Java: JSDocInfoPrinter.buildParamType(JSDocInfo, String)
-func (p *JSDocInfoPrinter) BuildParamType(info *rhino.JSDocInfo, name string) string {
+func (p *JSDocInfoPrinter) writeParamType(w *jsDocWriter, info *rhino.JSDocInfo, name string) {
 	type_ := info.GetParameterType(name)
 	if type_ == nil {
-		return name
+		w.writeString(name)
+		return
 	}
 	desc := ""
 	if p.printDesc {
@@ -477,91 +621,108 @@ func (p *JSDocInfoPrinter) BuildParamType(info *rhino.JSDocInfo, name string) st
 			desc = d
 		}
 	}
-	return jutil.StringTrim("{" + p.TypeNode(type_.GetRoot()) + "} " + name + desc)
-}
-
-// Java: JSDocInfoPrinter.typeNode(Node)
-func (p *JSDocInfoPrinter) TypeNode(typeNode rhino.Node) string {
-	var sb strings.Builder
-	p.AppendTypeNode(&sb, typeNode)
-	return sb.String()
+	w.writeByte('{')
+	p.appendTypeNode(w, type_.GetRoot())
+	trimmedDesc := jsDocTrimRightSpace(desc)
+	if trimmedDesc != "" {
+		w.writeString("} ")
+		w.writeString(name)
+		w.writeString(trimmedDesc)
+		return
+	}
+	trimmedName := jsDocTrimRightSpace(name)
+	if trimmedName != "" {
+		w.writeString("} ")
+		w.writeString(trimmedName)
+		return
+	}
+	w.writeByte('}')
 }
 
 // Java: JSDocInfoPrinter.appendTypeNode(StringBuilder, Node)
-func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode rhino.Node) {
+func (p *JSDocInfoPrinter) appendTypeNode(w *jsDocWriter, typeNode rhino.Node) {
 	if p.useOriginalName {
 		if orig, ok := typeNode.GetOriginalNameString(); ok {
-			sb.WriteString(orig)
+			w.writeString(orig)
 			return
 		}
 	}
 	switch typeNode.GetToken() {
 	case rhino.Token_BANG:
-		sb.WriteString("!")
-		p.AppendTypeNode(sb, typeNode.GetFirstChild())
+		w.writeByte('!')
+		child, _ := jsDocOnlyChild(typeNode)
+		p.appendTypeNode(w, child)
 	case rhino.Token_EQUALS:
-		p.AppendTypeNode(sb, typeNode.GetFirstChild())
-		sb.WriteString("=")
+		child, _ := jsDocOnlyChild(typeNode)
+		p.appendTypeNode(w, child)
+		w.writeByte('=')
 	case rhino.Token_PIPE:
-		sb.WriteString("(")
-		lastChild := typeNode.GetLastChild()
-		for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			p.AppendTypeNode(sb, child)
-			if child != lastChild {
-				sb.WriteString("|")
+		w.writeByte('(')
+		first := true
+		for child := range typeNode.Children() {
+			if !first {
+				w.writeByte('|')
 			}
+			first = false
+			p.appendTypeNode(w, child)
 		}
-		sb.WriteString(")")
+		w.writeByte(')')
 	case rhino.Token_ITER_REST:
-		sb.WriteString("...")
-		if typeNode.HasChildren() && !typeNode.GetFirstChild().IsEmpty() {
-			p.AppendTypeNode(sb, typeNode.GetFirstChild())
+		w.writeString("...")
+		if target := ast.MustIterRest(typeNode).Target().Node(); !target.IsNil() && !target.IsEmpty() {
+			p.appendTypeNode(w, target)
 		}
 	case rhino.Token_STAR:
-		sb.WriteString("*")
+		w.writeByte('*')
 	case rhino.Token_QMARK:
-		sb.WriteString("?")
-		if typeNode.HasChildren() {
-			p.AppendTypeNode(sb, typeNode.GetFirstChild())
+		w.writeByte('?')
+		if child, ok := jsDocOnlyChild(typeNode); ok {
+			p.appendTypeNode(w, child)
 		}
 	case rhino.Token_FUNCTION:
-		p.AppendFunctionNode(sb, typeNode)
+		p.appendFunctionNode(w, typeNode)
 	case rhino.Token_LC:
-		sb.WriteString("{")
-		lb := typeNode.GetFirstChild()
-		lastColon := lb.GetLastChild()
-		for colon := lb.GetFirstChild(); !colon.IsNil(); colon = colon.GetNext() {
-			if colon.HasChildren() {
-				sb.WriteString(colon.GetFirstChild().GetString())
-				sb.WriteString(":")
-				p.AppendTypeNode(sb, colon.GetLastChild())
-			} else {
-				sb.WriteString(colon.GetString())
-			}
-			if colon != lastColon {
-				sb.WriteString(",")
+		w.writeByte('{')
+		if lb, ok := jsDocOnlyChild(typeNode); ok {
+			first := true
+			for field := range lb.Children() {
+				if !first {
+					w.writeByte(',')
+				}
+				first = false
+				if sk, isSk := ast.AsStringKey(field); isSk && !field.HasChildren() {
+					w.writeString(sk.Key())
+				} else if field.HasChildren() {
+					key, val := jsDocColonChildren(field)
+					w.writeString(key)
+					w.writeByte(':')
+					p.appendTypeNode(w, val)
+				} else {
+					w.writeString(field.GetString())
+				}
 			}
 		}
-		sb.WriteString("}")
+		w.writeByte('}')
 	case rhino.Token_VOID:
-		sb.WriteString("void")
+		w.writeString("void")
 	case rhino.Token_TYPEOF:
-		sb.WriteString("typeof ")
-		p.AppendTypeNode(sb, typeNode.GetFirstChild())
+		w.writeString("typeof ")
+		p.appendTypeNode(w, ast.MustUnary(typeNode).Operand().Node())
 	case rhino.Token_BLOCK:
-		sb.WriteString("<")
-		last := typeNode.GetLastChild()
-		for type_ := typeNode.GetFirstChild(); !type_.IsNil(); type_ = type_.GetNext() {
-			p.AppendTypeNode(sb, type_)
-			if type_ != last {
-				sb.WriteString(",")
+		w.writeByte('<')
+		first := true
+		for type_ := range typeNode.Children() {
+			if !first {
+				w.writeByte(',')
 			}
+			first = false
+			p.appendTypeNode(w, type_)
 		}
-		sb.WriteString(">")
+		w.writeByte('>')
 	case rhino.Token_STRINGLIT:
-		sb.WriteString(typeNode.GetString())
-		if typeNode.HasChildren() {
-			p.AppendTypeNode(sb, typeNode.GetOnlyChild())
+		w.writeString(ast.MustStringLit(typeNode).Value())
+		if child, ok := jsDocOnlyChild(typeNode); ok {
+			p.appendTypeNode(w, child)
 		}
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("Unexpected typeNode: " + typeNode.String()))
@@ -569,47 +730,52 @@ func (p *JSDocInfoPrinter) AppendTypeNode(sb *strings.Builder, typeNode rhino.No
 }
 
 // Java: JSDocInfoPrinter.appendFunctionNode(StringBuilder, Node)
-func (p *JSDocInfoPrinter) AppendFunctionNode(sb *strings.Builder, function rhino.Node) {
+func (p *JSDocInfoPrinter) appendFunctionNode(w *jsDocWriter, function rhino.Node) {
 	hasNewOrThis := false
-	sb.WriteString("function(")
-	first := function.GetFirstChild()
-	if first.IsNew() {
-		sb.WriteString("new:")
-		p.AppendTypeNode(sb, first.GetFirstChild())
-		hasNewOrThis = true
-	} else if first.IsThis() {
-		sb.WriteString("this:")
-		p.AppendTypeNode(sb, first.GetFirstChild())
-		hasNewOrThis = true
-	} else if first.IsEmpty() {
-		sb.WriteString(")")
-		return
-	} else if !first.IsParamList() {
-		sb.WriteString("):")
-		p.AppendTypeNode(sb, first)
-		return
-	}
-	var paramList rhino.Node
-	if first.IsParamList() {
-		paramList = first
-	} else if first.GetNext().IsParamList() {
-		paramList = first.GetNext()
-	}
-	if !paramList.IsNil() {
-		firstParam := true
-		for param := paramList.GetFirstChild(); !param.IsNil(); param = param.GetNext() {
-			if !firstParam || hasNewOrThis {
-				sb.WriteString(",")
+	seenFirst := false
+	closedParen := false
+	w.writeString("function(")
+	for child := range function.Children() {
+		if !seenFirst {
+			seenFirst = true
+			if newNode, ok := ast.AsNew(child); ok {
+				w.writeString("new:")
+				p.appendTypeNode(w, newNode.Callee().Node())
+				hasNewOrThis = true
+				continue
 			}
-			p.AppendTypeNode(sb, param)
-			firstParam = false
+			if child.IsThis() {
+				w.writeString("this:")
+				ctxType, _ := jsDocOnlyChild(child)
+				p.appendTypeNode(w, ctxType)
+				hasNewOrThis = true
+				continue
+			}
 		}
+		if !closedParen {
+			if pl, ok := ast.AsParamList(child); ok {
+				firstParam := true
+				for param := range pl.Params() {
+					if !firstParam || hasNewOrThis {
+						w.writeByte(',')
+					}
+					p.appendTypeNode(w, param.Node())
+					firstParam = false
+				}
+				w.writeByte(')')
+				closedParen = true
+				continue
+			}
+			w.writeByte(')')
+			closedParen = true
+		}
+		if !child.IsEmpty() {
+			w.writeByte(':')
+			p.appendTypeNode(w, child)
+		}
+		return
 	}
-	sb.WriteString(")")
-
-	returnType := function.GetLastChild()
-	if !returnType.IsEmpty() {
-		sb.WriteString(":")
-		p.AppendTypeNode(sb, returnType)
+	if !closedParen {
+		w.writeByte(')')
 	}
 }

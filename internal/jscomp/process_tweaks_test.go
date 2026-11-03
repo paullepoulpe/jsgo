@@ -252,3 +252,41 @@ if (reg) {
 `,
 		"if (null);")
 }
+
+func (c *ProcessTweaksTest) TestZeroAndOneArgMalformedCalls() {
+	c.TestError("goog.tweak.getBoolean()", ProcessTweaks_NON_LITERAL_TWEAK_ID_ERROR)
+	c.TestError("goog.tweak.registerBoolean()", ProcessTweaks_NON_LITERAL_TWEAK_ID_ERROR)
+	c.TestSame("goog.tweak.registerBoolean('OnlyId'); goog.tweak.getBoolean('OnlyId');")
+
+	c.stripTweaks = true
+	c.Test(
+		"goog.tweak.registerBoolean('OnlyId'); alert(goog.tweak.getBoolean('OnlyId'));",
+		"void 0; alert(false);")
+}
+
+func TestProcessTweaks_ZeroAllocNonTweakCalls(t *testing.T) {
+	compiler := NewCompilerWithErrorManager(NewBlackHoleErrorManager())
+	compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs.js", "")},
+		[]*SourceFile{SourceFile_FromCode("in.js", "a.b.c(1); foo(2); goog.other.fn(3); goog.tweak.other(4);")},
+		NewCompilerOptions())
+	compiler.ParseInputs()
+	pt := NewProcessTweaks(compiler, false)
+	collector := newProcessTweaks_CollectTweaks(pt)
+	script := compiler.GetJsRoot().GetFirstChild()
+	var calls []rhino.Node
+	for stmt := script.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
+		calls = append(calls, stmt.GetFirstChild())
+	}
+	if len(calls) != 4 {
+		t.Fatalf("len(calls) = %d, want 4", len(calls))
+	}
+	allocs := testing.AllocsPerRun(100, func() {
+		for _, call := range calls {
+			collector.Visit(nil, call, call.GetParent())
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("CollectTweaks.Visit non-tweak calls allocated %.2f objects/run, want 0", allocs)
+	}
+}

@@ -320,8 +320,8 @@ func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string
 		for i := range result.mappings {
 			m := &result.mappings[i]
 			original := "-"
-			if m.node.GetOriginalName() != nil {
-				original = *m.node.GetOriginalName()
+			if orig, ok := m.node.OriginalName(); ok {
+				original = orig
 			}
 			if !o.noMappings {
 				w.line(m.node.GetToken().String() + " " +
@@ -334,7 +334,7 @@ func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string
 		}
 		w.line("# map")
 		var out strings.Builder
-		sourceMap.AppendTo(&out, jutil.StringPtr("out.js"))
+		sourceMap.AppendTo(&out, "out.js")
 		w.lines(out.String())
 	})
 }

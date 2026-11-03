@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -75,16 +76,22 @@ func (e *ExtraRequireRemover) Process(externs rhino.Node, root rhino.Node) {
 //
 // Java: ExtraRequireRemover.extractNamespace(Node, QualifiedName...)
 func (e *ExtraRequireRemover) ExtractNamespace(call rhino.Node, primitiveNames ...rhino.QualifiedName) *string {
-	callee := call.GetFirstChild()
-	if !callee.IsGetProp() {
+	callExpr, ok := ast.AsCall(call)
+	if !ok {
 		return nil
 	}
+	calleeProp, ok := callExpr.Callee().AsGetProp()
+	if !ok {
+		return nil
+	}
+	callee := calleeProp.Node()
 	for _, primitiveName := range primitiveNames {
 		if primitiveName.Matches(callee) {
-			target := callee.GetNext()
-			if !target.IsNil() && target.IsStringLit() {
-				s := target.GetString()
-				return &s
+			if target, ok := callExpr.FirstArg(); ok {
+				if targetLit, ok := target.AsStringLit(); ok {
+					s := targetLit.Value()
+					return &s
+				}
 			}
 		}
 	}
@@ -261,15 +268,19 @@ func (e *ExtraRequireRemover) VisitRequire(localName string, namespace string, n
 // Java: ExtraRequireRemover.visitGoogRequire(String, Node, Node)
 func (e *ExtraRequireRemover) VisitGoogRequire(namespace string, googRequireCall rhino.Node, parent rhino.Node) {
 	// local names
-	if parent.IsName() {
-		e.VisitRequire(parent.GetString(), namespace, googRequireCall)
-	} else if parent.IsDestructuringLhs() && parent.GetFirstChild().IsObjectPattern() {
-		// destructured imports
-		if parent.GetFirstChild().HasChildren() {
-			// loop through identifiers in destructured import
-			for stringKey := parent.GetFirstFirstChild(); !stringKey.IsNil(); stringKey = stringKey.GetNext() {
-				importName := stringKey.GetFirstChild()
-				e.VisitRequire(importName.GetString(), namespace, importName)
+	if nameNode, ok := ast.AsName(parent); ok {
+		e.VisitRequire(nameNode.Ident(), namespace, googRequireCall)
+	} else if lhs, ok := ast.AsDestructuringLhs(parent); ok {
+		if objPat, ok := lhs.Pattern().AsObjectPattern(); ok {
+			// destructured imports
+			if objPat.HasProps() {
+				// loop through identifiers in destructured import
+				for prop := range objPat.Props() {
+					importName := prop.MustStringKey().Value().Node()
+					e.VisitRequire(importName.GetString(), namespace, importName)
+				}
+			} else {
+				e.VisitRequire(namespace, namespace, googRequireCall)
 			}
 		} else {
 			e.VisitRequire(namespace, namespace, googRequireCall)
@@ -297,9 +308,16 @@ func (e *ExtraRequireRemover) VisitCallNode(call rhino.Node, parent rhino.Node) 
 		return
 	}
 
-	callee := call.GetFirstChild()
-	if extraRequireRemover_GOOG_MODULE_GET.Matches(callee) && call.GetSecondChild().IsStringLit() {
-		e.usages.Add(call.GetSecondChild().GetString())
+	callExpr, ok := ast.AsCall(call)
+	if !ok {
+		return
+	}
+	if extraRequireRemover_GOOG_MODULE_GET.Matches(callExpr.Callee().Node()) {
+		if arg0, ok := callExpr.FirstArg(); ok {
+			if lit, ok := arg0.AsStringLit(); ok {
+				e.usages.Add(lit.Value())
+			}
+		}
 	}
 }
 
@@ -346,9 +364,18 @@ func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n rhino.Node) {
 
 // Java: ExtraRequireRemover.isTsickleProtoCall(Node)
 func ExtraRequireRemover_IsTsickleProtoCall(call rhino.Node) bool {
-	if !call.IsCall() || !strings.HasSuffix(*call.GetSourceFileName(), ".closure.js") {
+	callExpr, ok := ast.AsCall(call)
+	if !ok {
 		return false
 	}
-	moduleId := call.GetSecondChild()
-	return !moduleId.IsNil() && moduleId.IsStringLit() && strings.HasPrefix(moduleId.GetString(), "proto.")
+	srcName, ok := call.SourceFileName()
+	if !ok || !strings.HasSuffix(srcName, ".closure.js") {
+		return false
+	}
+	arg0, ok := callExpr.FirstArg()
+	if !ok {
+		return false
+	}
+	moduleId, ok := arg0.AsStringLit()
+	return ok && strings.HasPrefix(moduleId.Value(), "proto.")
 }

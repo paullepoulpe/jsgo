@@ -538,7 +538,7 @@ func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied 
 //
 // Java: SourceMapConsumerV3.getMappingForLine(int, int)
 func (c *SourceMapConsumerV3) GetMappingForLine(lineNumber, column int) *Mapping_OriginalMapping {
-	m, _, ok := c.GetMappingForLineValue(lineNumber, column)
+	m, ok := c.GetMappingForLineValue(lineNumber, column)
 	if !ok {
 		return nil
 	}
@@ -547,22 +547,21 @@ func (c *SourceMapConsumerV3) GetMappingForLine(lineNumber, column int) *Mapping
 
 // GetMappingForLineValue returns the original mapping for the line number and
 // column position (both 1-based) by value without heap allocation, along with
-// a non-empty identifier pointer (if any) and a boolean indicating whether a
-// mapping was found.
-func (c *SourceMapConsumerV3) GetMappingForLineValue(lineNumber, column int) (Mapping_OriginalMapping, *string, bool) {
+// a boolean indicating whether a mapping was found.
+func (c *SourceMapConsumerV3) GetMappingForLineValue(lineNumber, column int) (Mapping_OriginalMapping, bool) {
 	return c.GetMappingForLineValueCached(lineNumber, column, nil)
 }
 
 // GetMappingForLineValueCached is like GetMappingForLineValue, but uses a
 // caller-owned SourceMapLineCache when lc != nil so multiple goroutines can
 // query a shared SourceMapConsumerV3 concurrently without data races.
-func (c *SourceMapConsumerV3) GetMappingForLineValueCached(lineNumber, column int, lc *SourceMapLineCache) (Mapping_OriginalMapping, *string, bool) {
+func (c *SourceMapConsumerV3) GetMappingForLineValueCached(lineNumber, column int, lc *SourceMapLineCache) (Mapping_OriginalMapping, bool) {
 	// Normalize the line and column numbers to 0.
 	ln := int32(lineNumber) - 1
 	col := int32(column) - 1
 
 	if ln < 0 || int(ln) >= c.mappings.GetParsedLineCount() {
-		return Mapping_OriginalMapping{}, nil, false
+		return Mapping_OriginalMapping{}, false
 	}
 
 	entries := c.mappings.lineCached(int(ln), lc)
@@ -663,21 +662,21 @@ func (c *SourceMapConsumerV3) GetExtensions() []SourceMapExtension {
 
 // Java: SourceMapConsumerV3.getPreviousMapping(int)
 func (c *SourceMapConsumerV3) GetPreviousMapping(lineNumber int) *Mapping_OriginalMapping {
-	m, _, ok := c.getPreviousMappingValue(lineNumber)
+	m, ok := c.getPreviousMappingValue(lineNumber)
 	if !ok {
 		return nil
 	}
 	return &m
 }
 
-func (c *SourceMapConsumerV3) getPreviousMappingValue(lineNumber int) (Mapping_OriginalMapping, *string, bool) {
+func (c *SourceMapConsumerV3) getPreviousMappingValue(lineNumber int) (Mapping_OriginalMapping, bool) {
 	return c.getPreviousMappingValueCached(lineNumber, nil)
 }
 
-func (c *SourceMapConsumerV3) getPreviousMappingValueCached(lineNumber int, lc *SourceMapLineCache) (Mapping_OriginalMapping, *string, bool) {
+func (c *SourceMapConsumerV3) getPreviousMappingValueCached(lineNumber int, lc *SourceMapLineCache) (Mapping_OriginalMapping, bool) {
 	for {
 		if lineNumber == 0 {
-			return Mapping_OriginalMapping{}, nil, false
+			return Mapping_OriginalMapping{}, false
 		}
 		lineNumber--
 		if !c.mappings.lineIsEmpty(lineNumber) {
@@ -693,17 +692,17 @@ func (c *SourceMapConsumerV3) getPreviousMappingValueCached(lineNumber int, lc *
 //
 // Java: SourceMapConsumerV3.getOriginalMappingForEntry(int, OriginalMapping.Precision)
 func (c *SourceMapConsumerV3) GetOriginalMappingForEntry(entry *sourceMapConsumerV3_entry, precision Mapping_OriginalMapping_Precision) *Mapping_OriginalMapping {
-	m, _, ok := c.getOriginalMappingForEntryValue(entry, precision)
+	m, ok := c.getOriginalMappingForEntryValue(entry, precision)
 	if !ok {
 		return nil
 	}
 	return &m
 }
 
-func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapConsumerV3_entry, precision Mapping_OriginalMapping_Precision) (Mapping_OriginalMapping, *string, bool) {
+func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapConsumerV3_entry, precision Mapping_OriginalMapping_Precision) (Mapping_OriginalMapping, bool) {
 	sourceFileId := entry.srcId
 	if sourceFileId == SourceMapConsumerV3_UNMAPPED {
-		return Mapping_OriginalMapping{}, nil, false
+		return Mapping_OriginalMapping{}, false
 	}
 	// Adjust the line/column here to be start at 1.
 	origSrc := &c.sources[sourceFileId]
@@ -714,7 +713,6 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 	lineNum := int(entry.srcLine + 1)
 	colPos := int(entry.srcCol + 1)
 	var identifier string
-	var identifierPtr *string
 	nameId := entry.nameId
 	if nameId != SourceMapConsumerV3_UNMAPPED {
 		origName := &c.names[nameId]
@@ -722,9 +720,6 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 			panic(jutil.NewNullPointerException())
 		}
 		identifier = origName.Value
-		if identifier != "" {
-			identifierPtr = &origName.Value
-		}
 	}
 	return Mapping_OriginalMapping{
 		OriginalFile:   origFile,
@@ -732,7 +727,7 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 		ColumnPosition: colPos,
 		Identifier:     identifier,
 		Precision:      precision,
-	}, identifierPtr, true
+	}, true
 }
 
 // CreateReverseMapping reverses the source map; the created mapping will

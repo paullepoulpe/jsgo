@@ -184,19 +184,16 @@ func (p *PureFunctionIdentifier) validateArtificialPurityForSummary(function rhi
 		// `new Foo();` rather than `new something.constructor();`.
 		return
 	}
-	var set *OrderedSet[rhino.Node]
+	var formatted []string
 	if p.debugReasons != nil {
-		set = p.debugReasons[sid]
-	}
-	if set == nil {
-		// stream() of a null set.
-		panic(jutil.NewNullPointerException())
-	}
-	reasons := set.ToSlice()
-	slices.SortStableFunc(reasons, PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR)
-	formatted := make([]string, 0, len(reasons))
-	for _, reason := range reasons {
-		formatted = append(formatted, PureFunctionIdentifier_FormatSourceLocation(reason))
+		if set := p.debugReasons[sid]; set != nil {
+			reasons := set.ToSlice()
+			slices.SortStableFunc(reasons, PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR)
+			formatted = make([]string, 0, len(reasons))
+			for _, reason := range reasons {
+				formatted = append(formatted, PureFunctionIdentifier_FormatSourceLocation(reason))
+			}
+		}
 	}
 	sideEffectfulDefinitions := strings.Join(formatted, "\n  ")
 	p.compiler.Report(
@@ -210,13 +207,27 @@ func (p *PureFunctionIdentifier) validateArtificialPurityForSummary(function rhi
 // PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR is
 // Comparator.comparing(Node::getSourceFileName).thenComparingInt(Node::getLineno).thenComparingInt(Node::getCharno).
 func PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(a, b rhino.Node) int {
-	aName, bName := a.GetSourceFileName(), b.GetSourceFileName()
-	if aName == nil || bName == nil {
-		// String.compareTo on a null source file name.
-		panic(jutil.NewNullPointerException())
+	if a.IsNil() || b.IsNil() {
+		if a == b {
+			return 0
+		}
+		if a.IsNil() {
+			return -1
+		}
+		return 1
 	}
-	if c := jutil.StringCompareTo(*aName, *bName); c != 0 {
-		return c
+	aName, aOk := a.SourceFileName()
+	bName, bOk := b.SourceFileName()
+	if aOk != bOk {
+		if !aOk {
+			return -1
+		}
+		return 1
+	}
+	if aOk {
+		if c := jutil.StringCompareTo(aName, bName); c != 0 {
+			return c
+		}
 	}
 	if c := a.GetLineno() - b.GetLineno(); c != 0 {
 		if c < 0 {
@@ -234,9 +245,12 @@ func PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(a, b rhino.Node) int {
 
 // Java: PureFunctionIdentifier.formatSourceLocation(Node)
 func PureFunctionIdentifier_FormatSourceLocation(node rhino.Node) string {
+	if node.IsNil() {
+		return "null:-1:-1"
+	}
 	name := "null"
-	if n := node.GetSourceFileName(); n != nil {
-		name = *n
+	if n, ok := node.SourceFileName(); ok {
+		name = n
 	}
 	return name + ":" + strconv.Itoa(node.GetLineno()) + ":" + strconv.Itoa(node.GetCharno())
 }
@@ -686,7 +700,7 @@ func (p *PureFunctionIdentifier) populateFunctionDefinitionsWithSummary(summaryI
 		} else if NodeUtil_IsUndefined(rvalue) {
 			// Assigning `undefined` leaves purity unchanged.
 		} else {
-			p.addAliasEdge(p.getSummaryForReferenceOrDefault(rvalue), summaryID)
+			p.addAliasEdge(p.getSummaryForReferenceOrDefault(rvalue), summaryID, rvalue)
 		}
 	}
 }

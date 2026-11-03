@@ -364,8 +364,7 @@ func (c *ProcessDefines_ClosureDefinesCollector) walk(n rhino.Node) {
 		}
 		p := c.outer
 		if p.zoneInputPattern != nil {
-			source := n.GetSourceFileName()
-			if source != nil && p.zoneInputPattern.Matches(*source) {
+			if source, ok := n.SourceFileName(); ok && p.zoneInputPattern.Matches(source) {
 				p.hasZoneInput = true
 			}
 		}
@@ -453,8 +452,7 @@ func (c *ProcessDefines_ClosureDefinesCollector) ShouldTraverse(t *NodeTraversal
 func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	p := c.outer
 	if n.IsScript() && p.zoneInputPattern != nil {
-		source := n.GetSourceFileName()
-		if source != nil && p.zoneInputPattern.Matches(*source) {
+		if source, ok := n.SourceFileName(); ok && p.zoneInputPattern.Matches(source) {
 			p.hasZoneInput = true
 		}
 	}

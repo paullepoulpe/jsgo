@@ -39,8 +39,13 @@ func ObjectsEquals(a, b any) bool {
 	}
 	switch x := a.(type) {
 	case string:
-		y, ok := b.(string)
-		return ok && x == y
+		switch y := b.(type) {
+		case string:
+			return x == y
+		case *string:
+			return y != nil && x == *y
+		}
+		return false
 	case int:
 		y, ok := b.(int)
 		return ok && x == y
@@ -84,8 +89,13 @@ func ObjectsEquals(a, b any) bool {
 		if x == nil {
 			return IsNil(b)
 		}
-		y, ok := b.(*string)
-		return ok && y != nil && *x == *y
+		switch y := b.(type) {
+		case *string:
+			return y != nil && *x == *y
+		case string:
+			return *x == y
+		}
+		return false
 	}
 	if na, ok := a.(interface{ IsNil() bool }); ok {
 		if na.IsNil() {

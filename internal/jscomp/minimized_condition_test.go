@@ -119,6 +119,23 @@ func (c *MinimizedConditionTest) TestMinimizeDemorganSimple() {
 	minimizedConditionTest_minCond("(!a||!b)&&(c||d)", "!(a&&b||!c&&!d)", "!(a&&b||!c&&!d)")
 }
 
+func (c *MinimizedConditionTest) TestHookCommaAndWithoutNotAstViews() {
+	minimizedConditionTest_minCond("a ? !b : !c", "a ? !b : !c", "!(a ? b : c)")
+	minimizedConditionTest_minCond("(a(), !b && !c)", "(a(), !b && !c)", "!(a(), b || c)")
+
+	// Exercise WithoutNot on an unmutated NOT leaf (hasChildren == false) and on a
+	// synthesized NOT tree (hasChildren == true).
+	notExpr := minimizedConditionTest_parseExpr("!x")
+	mcLeaf := MinimizedCondition_FromConditionNode(minimizedConditionTest_cloneAttachedTree(notExpr))
+	unnegatedLeaf := mcLeaf.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT).WithoutNot().BuildReplacement()
+	AssertThat(NewCompiler().ToSourceOfNode(unnegatedLeaf)).IsEqualTo("x")
+
+	deMorganExpr := minimizedConditionTest_parseExpr("!x && !y")
+	mcSynth := MinimizedCondition_FromConditionNode(minimizedConditionTest_cloneAttachedTree(deMorganExpr))
+	unnegatedSynth := mcSynth.GetMinimized(MinimizedCondition_MinimizationStyle_ALLOW_LEADING_NOT).WithoutNot().BuildReplacement()
+	AssertThat(NewCompiler().ToSourceOfNode(unnegatedSynth)).IsEqualTo("x||y")
+}
+
 // Java: MinimizedConditionTest.testMinimizeBug8494751()
 func (c *MinimizedConditionTest) TestMinimizeBug8494751() {
 	minimizedConditionTest_minCond(

@@ -1,6 +1,8 @@
 package rhino
 
 import (
+	"math/big"
+
 	"github.com/paullepoulpe/jsgo/internal/colors"
 )
 
@@ -65,8 +67,10 @@ type NodeStoreSnapshot struct {
 	jsDocExprs      []snapJSDocExpr
 	jsDocTransforms []snapJSDocTransform
 
-	types  []*JSTypeBase
-	colors []*colors.Color
+	types       []*JSTypeBase
+	colors      []*colors.Color
+	sourceFiles []sourceFileSlot
+	bigInts     []*big.Int
 }
 
 func usedSlotsInBlock(blockIdx, totalNodes int) int {
@@ -140,17 +144,21 @@ func (s *NodeStore) Snapshot() *NodeStoreSnapshot {
 
 	types := snapshotHandleTable(&s.types)
 	colorsSlice := snapshotHandleTable(&s.colors)
+	sourceFiles := snapshotStoreTable(&s.sourceFiles)
+	bigInts := snapshotStoreTable(&s.bigInts)
 	s.mu.Unlock()
 
 	snap := &NodeStoreSnapshot{
-		storeID:   s.id,
-		base:      base,
-		next:      next,
-		blocks:    blocks,
-		tcs:       tcs,
-		origNames: origNames,
-		types:     types,
-		colors:    colorsSlice,
+		storeID:     s.id,
+		base:        base,
+		next:        next,
+		blocks:      blocks,
+		tcs:         tcs,
+		origNames:   origNames,
+		types:       types,
+		colors:      colorsSlice,
+		sourceFiles: sourceFiles,
+		bigInts:     bigInts,
 	}
 
 	// First count ext boxes and unshared prop items across shards so the snapshot
@@ -377,6 +385,8 @@ func (s *NodeStore) RestoreSnapshot(snap *NodeStoreSnapshot) {
 
 	restoreHandleTable(&s.types, snap.types)
 	restoreHandleTable(&s.colors, snap.colors)
+	restoreStoreTable(&s.sourceFiles, snap.sourceFiles)
+	restoreStoreTable(&s.bigInts, snap.bigInts)
 
 	if snap.base == 0 && wasCurrent {
 		s.setBase(nextBlock.Load() << blockShift)
@@ -562,4 +572,90 @@ func restoreHandleTable[T any](t *handleTable[T], snapEntries []T) {
 	}
 
 	t.next.Store(snapNext)
+}
+
+func snapshotStoreTable[T any](t *storeTable[T]) []T {
+	total := int(t.count.Load())
+	if total == 0 {
+		return nil
+	}
+	out := make([]T, total)
+	for i := 0; i < total; {
+		chunkIdx := i >> storeChunkShift
+		off := i & storeChunkMask
+		end := min(total, (chunkIdx+1)<<storeChunkShift)
+		if mid := t.dir[chunkIdx>>storeDirShift].Load(); mid != nil {
+			if src := mid[chunkIdx&storeDirMask].Load(); src != nil {
+				copy(out[i:end], src[off:off+(end-i)])
+			}
+		}
+		i = end
+	}
+	return out
+}
+
+func restoreStoreTable[T any](t *storeTable[T], snapEntries []T) {
+	snapCount := len(snapEntries)
+	curCount := int(t.count.Load())
+	snapChunks := 0
+	if snapCount > 0 {
+		snapChunks = ((snapCount - 1) >> storeChunkShift) + 1
+	}
+	curChunks := 0
+	if curCount > 0 {
+		curChunks = ((curCount - 1) >> storeChunkShift) + 1
+	}
+
+	for c := snapChunks; c < curChunks; c++ {
+		if mid := t.dir[c>>storeDirShift].Load(); mid != nil {
+			mid[c&storeDirMask].Store(nil)
+		}
+	}
+	snapTopDirs := 0
+	if snapChunks > 0 {
+		snapTopDirs = ((snapChunks - 1) >> storeDirShift) + 1
+	}
+	curTopDirs := 0
+	if curChunks > 0 {
+		curTopDirs = ((curChunks - 1) >> storeDirShift) + 1
+	}
+	for top := snapTopDirs; top < curTopDirs; top++ {
+		if top < len(t.dir) {
+			t.dir[top].Store(nil)
+		}
+	}
+
+	for c := range snapChunks {
+		start := c << storeChunkShift
+		end := min(snapCount, start+storeChunkLen)
+		count := end - start
+
+		topIdx := c >> storeDirShift
+		midIdx := c & storeDirMask
+		mid := t.dir[topIdx].Load()
+		if mid == nil {
+			mid = new(storeDir[T])
+			dst := new(storeChunk[T])
+			copy(dst[:count], snapEntries[start:end])
+			mid[midIdx].Store(dst)
+			t.dir[topIdx].Store(mid)
+			continue
+		}
+		dst := mid[midIdx].Load()
+		if dst == nil {
+			dst = new(storeChunk[T])
+			copy(dst[:count], snapEntries[start:end])
+			mid[midIdx].Store(dst)
+			continue
+		}
+		copy(dst[:count], snapEntries[start:end])
+		if count < storeChunkLen {
+			dirtyEnd := min(storeChunkLen, max(count, curCount-start))
+			if dirtyEnd > count {
+				clear(dst[count:dirtyEnd])
+			}
+		}
+	}
+
+	t.count.Store(uint32(snapCount))
 }

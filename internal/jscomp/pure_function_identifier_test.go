@@ -829,6 +829,65 @@ func (c *PureFunctionIdentifierTest) TestNoSideEffectsOnConstructor() {
 		[]string{"Foo"})
 }
 
+func (c *PureFunctionIdentifierTest) TestNoSideEffectsJsDoc_aliasAndGlobalTaintDoNotCrash() {
+	c.enableArtificialPurityDebugError = true
+	c.DisableTypeCheck()
+
+	// Side effects arriving via alias propagation (`fn = impureFn;`).
+	c.Test(
+		c.Srcs(
+			"function impureFn() { throw 0; }\n"+
+				"var fn = /** @nosideeffects */ function() {};\n"+
+				"fn = impureFn;\n"+
+				"fn();\n"),
+		c.Error(PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION))
+
+	// Side effects arriving via alias to an unknown global callable (`fn = unknownGlobalFn;`),
+	// where `unknownFunctionSummary` has no concrete function reason node.
+	c.Test(
+		c.Srcs(
+			"var fn = /** @nosideeffects */ function() {};\n"+
+				"fn = unknownGlobalFn;\n"+
+				"fn();\n"),
+		c.Error(PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION))
+
+	// Side effects arriving via alias to a non-callable global-tainted variable (`fn = g;`),
+	// where `g` was marked impure with `NilNode` reason and `fn = g` is at script level.
+	c.Test(
+		c.Srcs(
+			"var g = externSef1();\n"+
+				"var fn = /** @nosideeffects */ function() {};\n"+
+				"fn = g;\n"+
+				"fn();\n"),
+		c.Error(PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION).
+			WithMessageContaining("testcode:3:5"))
+
+	// Ambiguous class alias mixing `@nosideeffects` constructor and an impure class alias.
+	c.Test(
+		c.Srcs(
+			"class ImpureBase { constructor() { throw 0; } }\n"+
+				"const C = cond ? (class { /** @nosideeffects */ constructor() {} }) : ImpureBase;\n"+
+				"new C();\n"),
+		c.Error(PureFunctionIdentifier_UNUSED_ARTIFICIAL_PURE_ANNOTATION))
+}
+
+func TestPureFunctionIdentifier_SourceLocationComparatorAndFormat_SourcelessNodes(t *testing.T) {
+	sourcelessA := rhino.IR_Name("a")
+	sourcelessB := rhino.IR_Name("b")
+	sf := SourceFile_FromCode("file.js", "x")
+	sourced := rhino.IR_Name("c")
+	sourced.SetStaticSourceFile(sf)
+	sourced.SetLinenoCharno(3, 4)
+
+	AssertThat(PureFunctionIdentifier_FormatSourceLocation(rhino.NilNode)).IsEqualTo("null:-1:-1")
+	AssertThat(PureFunctionIdentifier_FormatSourceLocation(sourcelessA)).IsEqualTo("null:-1:-1")
+	AssertThat(PureFunctionIdentifier_FormatSourceLocation(sourced)).IsEqualTo("file.js:3:4")
+
+	AssertThat(PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(sourcelessA, sourcelessB)).IsEqualTo(0)
+	AssertThat(PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(sourcelessA, sourced) < 0).IsTrue()
+	AssertThat(PureFunctionIdentifier_SOURCE_LOCATION_COMPARATOR(sourced, sourcelessA) > 0).IsTrue()
+}
+
 // Java: PureFunctionIdentifierTest.testNoSideEffectsOnConstructor_ambiguousWithOtherSideEffects()
 func (c *PureFunctionIdentifierTest) TestNoSideEffectsOnConstructor_ambiguousWithOtherSideEffects() {
 	c.AssertPureCallsMarked(

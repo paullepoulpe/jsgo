@@ -139,7 +139,7 @@ func (s *OptionsCompilerSupplier) Compile(path string, code string) *CompileResu
 	source := compiler.ToSource()
 	var smBuilder strings.Builder
 	if result.SourceMap != nil {
-		result.SourceMap.AppendTo(&smBuilder, &path)
+		result.SourceMap.AppendTo(&smBuilder, path)
 	}
 	transformed := s.AlwaysTransformed || result.TranspiledFiles
 	var sourceMap string

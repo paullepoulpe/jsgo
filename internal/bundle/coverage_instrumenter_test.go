@@ -81,7 +81,7 @@ func TestCoverageInstrumenter_CompilerSupplier_instruments(t *testing.T) {
 	if err := sourceMap.Parse(result.SourceMap); err != nil {
 		t.Fatalf("sourceMap.Parse failed: %v", err)
 	}
-	mappingFoX, _, ok := sourceMap.GetMappingForLineValue(1, jutil.StringIndexOf(result.Source, "x=42")+1)
+	mappingFoX, ok := sourceMap.GetMappingForLineValue(1, jutil.StringIndexOf(result.Source, "x=42")+1)
 	want := sourcemap.Mapping_OriginalMapping{
 		OriginalFile:   transpilerTest_SOURCE_JS.String(),
 		LineNumber:     1,

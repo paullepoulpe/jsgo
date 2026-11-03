@@ -200,7 +200,9 @@ func (p *PureFunctionIdentifier) maybeCollectDebugReason(id pfiSummaryID, s *pfi
 	}
 	fn := reason
 	if !fn.IsFunction() {
-		fn = NodeUtil_GetEnclosingFunction(reason)
+		if enclosing := NodeUtil_GetEnclosingFunction(reason); !enclosing.IsNil() {
+			fn = enclosing
+		}
 	}
 	if p.debugReasons == nil {
 		p.debugReasons = make(map[pfiSummaryID]*OrderedSet[rhino.Node], 8)
@@ -259,8 +261,8 @@ func (p *PureFunctionIdentifier) addEdge(callee pfiSummaryID, caller pfiSummaryI
 	return idx
 }
 
-func (p *PureFunctionIdentifier) addAliasEdge(callee pfiSummaryID, caller pfiSummaryID) {
-	p.addEdge(callee, caller, rhino.NilNode, pfiEdgeAlias|pfiEdgePropagateThrows, 0)
+func (p *PureFunctionIdentifier) addAliasEdge(callee pfiSummaryID, caller pfiSummaryID, aliasRef rhino.Node) {
+	p.addEdge(callee, caller, aliasRef, pfiEdgeAlias|pfiEdgePropagateThrows, 0)
 }
 
 // propagateSideEffects propagates side-effect flags from impure callees to
@@ -298,7 +300,7 @@ func (p *PureFunctionIdentifier) propagateSideEffects() {
 
 		for eIdx := p.summaries[calleeID].firstCallerEdge; eIdx >= 0; eIdx = p.edges[eIdx].nextCallerEdge {
 			e := &p.edges[eIdx]
-			if p.propagateEdge(calleeMask, calleeParams, e) {
+			if p.propagateEdge(calleeID, calleeMask, calleeParams, e) {
 				caller := &p.summaries[e.caller]
 				if caller.firstCallerEdge >= 0 && caller.flags&pfiSummaryInQueue == 0 {
 					caller.flags |= pfiSummaryInQueue
@@ -309,12 +311,21 @@ func (p *PureFunctionIdentifier) propagateSideEffects() {
 	}
 }
 
-func (p *PureFunctionIdentifier) propagateEdge(calleeMask uint8, calleeParams uint64, e *pfiEdge) bool {
+func (p *PureFunctionIdentifier) propagateEdge(calleeID pfiSummaryID, calleeMask uint8, calleeParams uint64, e *pfiEdge) bool {
 	caller := &p.summaries[e.caller]
 	initialMask := caller.bitmask
 	initialParams := caller.mutatedParamMask
 
 	if e.flags&pfiEdgeAlias != 0 {
+		if calleeMask != 0 && caller.flags&pfiSummaryCollectDebug != 0 {
+			if p.debugReasons != nil && p.debugReasons[calleeID] != nil && p.debugReasons[calleeID].Len() > 0 {
+				for _, r := range p.debugReasons[calleeID].ToSlice() {
+					p.maybeCollectDebugReason(e.caller, caller, r)
+				}
+			} else {
+				p.maybeCollectDebugReason(e.caller, caller, e.callerFn)
+			}
+		}
 		caller.bitmask |= calleeMask
 		caller.mutatedParamMask |= calleeParams
 	} else if calleeMask&pfiMutatesGlobalState != 0 {

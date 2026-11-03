@@ -142,6 +142,10 @@ func TestStringFormatMatchesJava(t *testing.T) {
 		{"Character '%c' (U+%04X) is not a valid identifier start char", []any{uint16(0xe9), 0xe9},
 			"Character 'é' (U+00E9) is not a valid identifier start char"},
 		{"Character '%c' (U+%04X)", []any{uint16(0xd800), 0xd800}, "Character '" + StringFromChar(0xd800) + "' (U+D800)"},
+		{"%c|%C|%c|%C", []any{0xd800, int32(0xdfff), 0x1f600, int32('a')}, StringFromChar(0xd800) + "|" + StringFromChar(0xdfff) + "|😀|A"},
+		{"%C", []any{uint16(0xd83d)}, StringFromChar(0xd83d)},
+		{"%S", []any{"ab" + StringFromChar(0xd800) + "é" + StringFromChar(0xdc01) + "z"}, "AB" + StringFromChar(0xd800) + "É" + StringFromChar(0xdc01) + "Z"},
+		{"%C|%S", []any{nil, nil}, "NULL|NULL"},
 		{"%04X", []any{0x12345}, "12345"},
 		{"%04X", []any{-1}, "FFFFFFFF"},
 		{"%x", []any{int64(-1)}, "ffffffffffffffff"},
@@ -166,6 +170,9 @@ func TestStringFormatMatchesJava(t *testing.T) {
 	}{
 		{"%s %s", []any{"a"}, "java.util.MissingFormatArgumentException: Format specifier '%s'"},
 		{"%q", []any{1}, "java.util.UnknownFormatConversionException: Conversion = 'q'"},
+		{"%c", []any{-1}, "java.util.IllegalFormatCodePointException: Code point = 0xffffffff"},
+		{"%C", []any{int32(0x110000)}, "java.util.IllegalFormatCodePointException: Code point = 0x110000"},
+		{"%c", []any{int8(-2)}, "java.util.IllegalFormatCodePointException: Code point = 0xfffffffe"},
 	} {
 		got := ""
 		Try(func() { StringFormat(c.format, c.args...) }, func(e IIllegalArgumentException) { got = e.Error() })

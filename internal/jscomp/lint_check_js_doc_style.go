@@ -254,8 +254,8 @@ func (c *CheckJSDocStyle) IsTestMethod(function rhino.Node) bool {
 	if bestLValue.IsNil() {
 		return false
 	}
-	name := NodeUtil_GetBestLValueName(bestLValue)
-	return name != nil && ExportTestFunctions_IsTestFunction(name)
+	name, ok := NodeUtil_BestLValueName(bestLValue)
+	return ok && ExportTestFunctions_IsTestFunction(name)
 }
 
 // Java: CheckJSDocStyle.isConstructorWithoutParameters(Node)

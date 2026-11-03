@@ -100,7 +100,7 @@ func renderChunkSourceMapString(
 	}
 	name := chunkFileName(m)
 	var mapBuf strings.Builder
-	sm.AppendTo(&mapBuf, &name)
+	sm.AppendTo(&mapBuf, name)
 	return mapBuf.String()
 }
 

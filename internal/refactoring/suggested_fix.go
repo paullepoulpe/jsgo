@@ -334,7 +334,7 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 		} else if child := n.GetFirstChild(); !child.IsNil() {
 			length = (child.GetSourceOffset() + child.GetLength()) - startPosition
 		}
-		if parent.GetLastChild() == n && n != parent.GetFirstChild() {
+		if !parent.IsNil() && parent.GetLastChild() == n && n != parent.GetFirstChild() {
 			previousSibling := n.GetPrevious()
 			prevEndNode := previousSibling
 			if child := previousSibling.GetFirstChild(); !child.IsNil() {
@@ -389,7 +389,7 @@ func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n rhino.Node, name s
 			range_ = n
 		}
 	case rhino.Token_STRINGLIT:
-		jutil.CheckStateMsg1(n.GetParent().IsGetProp(), "%s", n)
+		jutil.CheckStateMsg1(n.HasParent() && n.GetParent().IsGetProp(), "%s", n)
 		range_ = n
 	case rhino.Token_STRING_KEY, rhino.Token_NAME:
 		range_ = n
@@ -684,7 +684,7 @@ func (b *SuggestedFix_Builder) AddImport(
 	}
 
 	script := scriptMetadata.GetScript()
-	if script.GetFirstChild().IsModuleBody() {
+	if script.HasChildren() && script.GetFirstChild().IsModuleBody() {
 		script = script.GetFirstChild()
 	}
 
@@ -783,7 +783,10 @@ func (b *SuggestedFix_Builder) RemoveGoogRequire(m *Match, namespace string) *Su
 func SuggestedFix_Builder_FindGoogRequireNode(
 	n rhino.Node, metadata *NodeMetadata, namespace string) rhino.Node {
 	script := metadata.GetCompiler().GetScriptNode(requireSourceFileName(n))
-	if script.GetFirstChild().IsModuleBody() {
+	if script.IsNil() {
+		return rhino.NilNode
+	}
+	if script.HasChildren() && script.GetFirstChild().IsModuleBody() {
 		script = script.GetFirstChild()
 	}
 

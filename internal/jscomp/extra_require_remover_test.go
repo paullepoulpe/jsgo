@@ -280,3 +280,18 @@ func (c *ExtraRequireRemoverTest) TestNoPruneWithSuppressExtraRequire() {
 const Foo = goog.require('some.message');
 `)))
 }
+
+func (c *ExtraRequireRemoverTest) TestZeroArgAndNonStringGoogModuleGet() {
+	c.Test(
+		`goog.module('x.y.z');
+
+const unused = goog.require('unused.mod');
+goog.module.get();
+goog.module.get(123);
+`,
+		`goog.module('x.y.z');
+
+goog.module.get();
+goog.module.get(123);
+`)
+}

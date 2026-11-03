@@ -163,17 +163,41 @@ func (s *intSetter) DefaultHandler() OptionHandlerClass { return NewIntOptionHan
 func (s *intSetter) AddTypedValue(v int32)              { *s.p = int(v) }
 func (s *intSetter) defaultValueString() (string, bool) { return strconv.Itoa(*s.p), true }
 
-type mapSetter struct {
-	p **jutil.OrderedMap[string, *string]
+type stringMapSetter struct {
+	p **jutil.OrderedMap[string, string]
 }
 
-func (s *mapSetter) IsMultiValued() bool                { return false }
-func (s *mapSetter) DefaultHandler() OptionHandlerClass { return newMapOptionHandler }
-func (s *mapSetter) defaultValueString() (string, bool) {
+func (s *stringMapSetter) IsMultiValued() bool                { return false }
+func (s *stringMapSetter) DefaultHandler() OptionHandlerClass { return StringMapHandler }
+func (s *stringMapSetter) defaultValueString() (string, bool) {
 	if *s.p == nil {
 		return "", false
 	}
-	return (*s.p).String(), true
+	return formatStringMapDefault(*s.p), true
+}
+
+func formatStringMapDefault(m *jutil.OrderedMap[string, string]) string {
+	if m.IsEmpty() {
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteByte('{')
+	first := true
+	for k, v := range m.All() {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString(k)
+		sb.WriteByte('=')
+		if v == "" {
+			sb.WriteString("null")
+		} else {
+			sb.WriteString(v)
+		}
+	}
+	sb.WriteByte('}')
+	return sb.String()
 }
 
 // ScalarField binds a non-nullable scalar field *p using spec.
@@ -199,8 +223,8 @@ func NullableInt32(p **int32) *Field   { return NullableField(Int32Spec, p) }
 func String(p *string) *Field          { return ScalarField(StringSpec, p) }
 func NullableString(p **string) *Field { return NullableField(StringSpec, p) }
 func StringSlice(p *[]string) *Field   { return SliceField(StringSpec, p) }
-func OrderedStringMap(p **jutil.OrderedMap[string, *string]) *Field {
-	return &Field{setter: &mapSetter{p: p}}
+func StringMap(p **jutil.OrderedMap[string, string]) *Field {
+	return &Field{setter: &stringMapSetter{p: p}}
 }
 
 // TrackedString binds *p and clears *isDefault whenever the option is set.

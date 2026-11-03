@@ -2,7 +2,11 @@ package rhino
 
 import (
 	"fmt"
+	"math/big"
+	"runtime"
+	"strings"
 	"testing"
+	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -451,5 +455,254 @@ func TestNodeStoreSnapshotRewindAfterCompaction(t *testing.T) {
 			}()
 			_ = compactedRoot.GetFirstChild()
 		}()
+	}
+}
+
+func TestNodeStoreSnapshotSourceFileAndBigIntIsolation(t *testing.T) {
+	store := NewNodeStore()
+	prev := SetCurrentNodeStore(store)
+	defer SetCurrentNodeStore(prev)
+
+	// Static template node created while a compilation NodeStore is active must
+	// allocate its SOURCE_FILE in staticStore and survive ResetNodeStore.
+	staticSF := NewSimpleSourceFile("static_template.js", StaticSourceFile_SourceKind_STRONG)
+	staticTmpl := NewTemplateNode(Token_SCRIPT).SetStaticSourceFile(staticSF)
+
+	// Populate > storeChunkLen (256) SOURCE_FILEs and BigInts before snapshot.
+	const preCount = storeChunkLen + 20
+	preScriptNodes := make([]Node, preCount)
+	preBigNodes := make([]Node, preCount)
+	for i := range preCount {
+		sf := NewSimpleSourceFile(fmt.Sprintf("pre_%d.js", i), StaticSourceFile_SourceKind_STRONG)
+		sc := IR_Script().SetStaticSourceFile(sf)
+		preScriptNodes[i] = sc
+
+		bi := new(big.Int).Add(big.NewInt(1_000_000), big.NewInt(int64(i)))
+		bn := Node_NewBigInt(bi)
+		preBigNodes[i] = bn
+	}
+	prePropItemPtr := preScriptNodes[0].GetLastPropListItem()
+
+	snap := store.Snapshot()
+
+	// Allocate post-snapshot SOURCE_FILEs and BigInts both in the partial tail of
+	// chunk 1 and into brand-new chunks 2..3, tracking them with weak pointers.
+	var weakSameChunkSF weak.Pointer[SimpleSourceFile]
+	var weakNewChunkSF weak.Pointer[SimpleSourceFile]
+	var weakSameChunkBig weak.Pointer[big.Int]
+	var weakNewChunkBig weak.Pointer[big.Int]
+
+	func() {
+		sfTail := NewSimpleSourceFile("post_tail.js", StaticSourceFile_SourceKind_EXTERN)
+		weakSameChunkSF = weak.Make(sfTail)
+		preScriptNodes[0].SetStaticSourceFile(sfTail)
+
+		biTail := new(big.Int).SetUint64(9_999_999_999_999)
+		weakSameChunkBig = weak.Make(biTail)
+		preBigNodes[0].SetBigInt(biTail)
+
+		for j := range storeChunkLen * 2 {
+			sfExtra := NewSimpleSourceFile(fmt.Sprintf("post_extra_%d.js", j), StaticSourceFile_SourceKind_STRONG)
+			biExtra := new(big.Int).SetInt64(int64(50_000_000 + j))
+			if j == storeChunkLen+10 {
+				weakNewChunkSF = weak.Make(sfExtra)
+				weakNewChunkBig = weak.Make(biExtra)
+			}
+			_ = IR_Script().SetStaticSourceFile(sfExtra)
+			_ = Node_NewBigInt(biExtra)
+		}
+	}()
+
+	store.RestoreSnapshot(snap)
+
+	// Verify pre-snapshot SOURCE_FILEs, shared PropListItem address, and BigInts.
+	if gotPtr := preScriptNodes[0].GetLastPropListItem(); gotPtr != prePropItemPtr {
+		t.Fatalf("expected restored SOURCE_FILE PropListItem pointer %p, got %p", prePropItemPtr, gotPtr)
+	}
+	for i := range preCount {
+		wantName := fmt.Sprintf("pre_%d.js", i)
+		name, ok := preScriptNodes[i].SourceFileName()
+		if !ok || name != wantName {
+			t.Fatalf("preScriptNodes[%d].SourceFileName() = (%q, %v), want (%q, true)", i, name, ok, wantName)
+		}
+		if namePtr := preScriptNodes[i].GetSourceFileName(); namePtr == nil || *namePtr != wantName {
+			t.Fatalf("preScriptNodes[%d].GetSourceFileName() = %v, want %q", i, namePtr, wantName)
+		}
+		wantBig := new(big.Int).Add(big.NewInt(1_000_000), big.NewInt(int64(i)))
+		if gotBig := preBigNodes[i].GetBigInt(); gotBig == nil || gotBig.Cmp(wantBig) != 0 {
+			t.Fatalf("preBigNodes[%d].GetBigInt() = %v, want %v", i, gotBig, wantBig)
+		}
+	}
+
+	// Post-snapshot SOURCE_FILEs and BigInts must be cleared and GC-reclaimed.
+	for range 4 {
+		runtime.GC()
+	}
+	if weakSameChunkSF.Value() != nil {
+		t.Fatal("post-snapshot same-chunk SimpleSourceFile was retained after RestoreSnapshot")
+	}
+	if weakNewChunkSF.Value() != nil {
+		t.Fatal("post-snapshot new-chunk SimpleSourceFile was retained after RestoreSnapshot")
+	}
+	if weakSameChunkBig.Value() != nil {
+		t.Fatal("post-snapshot same-chunk big.Int was retained after RestoreSnapshot")
+	}
+	if weakNewChunkBig.Value() != nil {
+		t.Fatal("post-snapshot new-chunk big.Int was retained after RestoreSnapshot")
+	}
+
+	// Verify ResetNodeStore drops compilation store's SOURCE_FILE and BigInt tables
+	// so GC reclaims them, while staticTmpl in staticStore remains valid!
+	var weakResetSF weak.Pointer[SimpleSourceFile]
+	var weakResetBig weak.Pointer[big.Int]
+	func() {
+		ephemeralStore := NewNodeStore()
+		SetCurrentNodeStore(ephemeralStore)
+		sf := NewSimpleSourceFile("ephemeral.js", StaticSourceFile_SourceKind_STRONG)
+		bi := new(big.Int).SetUint64(1234567890123456789)
+		weakResetSF = weak.Make(sf)
+		weakResetBig = weak.Make(bi)
+		_ = IR_Script().SetStaticSourceFile(sf)
+		_ = Node_NewBigInt(bi)
+		ResetNodeStore()
+	}()
+	for range 4 {
+		runtime.GC()
+	}
+	if weakResetSF.Value() != nil {
+		t.Fatal("SimpleSourceFile from reset NodeStore was retained globally")
+	}
+	if weakResetBig.Value() != nil {
+		t.Fatal("big.Int from reset NodeStore was retained globally")
+	}
+
+	// Activate a fresh store and confirm staticTmpl still resolves staticSF cleanly.
+	SetCurrentNodeStore(NewNodeStore())
+	if staticTmpl.GetStaticSourceFile() != staticSF {
+		t.Fatalf("staticTmpl lost staticSF across ResetNodeStore: got %v", staticTmpl.GetStaticSourceFile())
+	}
+	clonedFromStatic := IR_Block().Srcref(staticTmpl)
+	if clonedFromStatic.GetStaticSourceFile() != staticSF {
+		t.Fatalf("node copying sourceFile from staticTmpl got %v, want %v", clonedFromStatic.GetStaticSourceFile(), staticSF)
+	}
+}
+
+func TestNodeStoreNextBlockWrapOnReset(t *testing.T) {
+	savedPrev := SetCurrentNodeStore(nil)
+	savedNextBlock := nextBlock.Load()
+	defer func() {
+		SetCurrentNodeStore(nil)
+		nextBlock.Store(savedNextBlock)
+		SetCurrentNodeStore(savedPrev)
+	}()
+
+	// Below threshold: ResetNodeStore must NOT wrap nextBlock so cross-test stale
+	// handles continue to hit unmapped blocks.
+	nextBlock.Store(100)
+	sBelow := NewNodeStore()
+	SetCurrentNodeStore(sBelow)
+	_ = IR_Empty()
+	ResetNodeStore()
+	if got := nextBlock.Load(); got != 101 {
+		t.Fatalf("expected nextBlock = 101 below wrap threshold, got %d", got)
+	}
+
+	// At threshold: allocating 1 block brings nextBlock to nextBlockWrapThreshold,
+	// and ResetNodeStore must wrap nextBlock back to 1.
+	nextBlock.Store(nextBlockWrapThreshold - 1)
+	sAtThreshold := NewNodeStore()
+	SetCurrentNodeStore(sAtThreshold)
+	n1 := IR_Name("before_wrap")
+	if wantBase := uint32(nextBlockWrapThreshold-1) << blockShift; sAtThreshold.base != wantBase {
+		t.Fatalf("sAtThreshold.base = %d, want %d", sAtThreshold.base, wantBase)
+	}
+	if n1.GetString() != "before_wrap" {
+		t.Fatalf("unexpected string %q", n1.GetString())
+	}
+
+	ResetNodeStore()
+	if got := nextBlock.Load(); got != 1 {
+		t.Fatalf("expected nextBlock to wrap to 1 at threshold, got %d", got)
+	}
+
+	sAfterWrap := NewNodeStore()
+	SetCurrentNodeStore(sAfterWrap)
+	n2 := IR_Name("after_wrap")
+	if sAfterWrap.base != 1<<blockShift {
+		t.Fatalf("sAfterWrap.base = %d, want %d", sAfterWrap.base, 1<<blockShift)
+	}
+	if n2.GetString() != "after_wrap" {
+		t.Fatalf("unexpected string %q", n2.GetString())
+	}
+}
+
+func TestNodeOriginalQualifiedNameIterative(t *testing.T) {
+	prev := SetCurrentNodeStore(NewNodeStore())
+	defer SetCurrentNodeStore(prev)
+
+	if s, ok := NilNode.OriginalQualifiedName(); ok || s != "" {
+		t.Fatalf("NilNode.OriginalQualifiedName() = (%q, %v), want (\"\", false)", s, ok)
+	}
+
+	emptyName := IR_Name("")
+	if emptyName.GetOriginalQualifiedName() != nil {
+		t.Fatal("expected nil for empty NAME")
+	}
+	if _, ok := emptyName.OriginalQualifiedName(); ok {
+		t.Fatal("expected ok=false for empty NAME")
+	}
+
+	renamedEmptyOrig := IR_Name("cur")
+	renamedEmptyOrig.SetOriginalNameString("")
+	if renamedEmptyOrig.GetOriginalQualifiedName() != nil {
+		t.Fatal("expected nil when OriginalName is empty string")
+	}
+
+	thisProp := IR_Getprop(NewNode(Token_THIS), "renamedProp")
+	thisProp.SetOriginalNameString("origProp")
+	if got, ok := thisProp.OriginalQualifiedName(); !ok || got != "this.origProp" {
+		t.Fatalf("thisProp.OriginalQualifiedName() = (%q, %v), want (\"this.origProp\", true)", got, ok)
+	}
+
+	superProp := IR_Getprop(NewNode(Token_SUPER), "m")
+	if got := superProp.GetOriginalQualifiedName(); got == nil || *got != "super.m" {
+		t.Fatalf("superProp.GetOriginalQualifiedName() = %v, want \"super.m\"", got)
+	}
+
+	// Build a 24-segment GETPROP chain (exceeding the [8]string stack buffer)
+	// with alternating renamed and unrenamed segments.
+	root := IR_Name("r0")
+	root.SetOriginalNameString("origRoot")
+	wantParts := []string{"origRoot"}
+	cur := root
+	for i := 1; i <= 24; i++ {
+		cur = IR_Getprop(cur, fmt.Sprintf("p%d", i))
+		if i%2 == 0 {
+			orig := fmt.Sprintf("origP%d", i)
+			cur.SetOriginalNameString(orig)
+			wantParts = append(wantParts, orig)
+		} else {
+			wantParts = append(wantParts, fmt.Sprintf("p%d", i))
+		}
+	}
+	want := strings.Join(wantParts, ".")
+	gotPtr := cur.GetOriginalQualifiedName()
+	if gotPtr == nil || *gotPtr != want {
+		t.Fatalf("GetOriginalQualifiedName() = %v, want %q", gotPtr, want)
+	}
+	if gotStr, ok := cur.OriginalQualifiedName(); !ok || gotStr != want {
+		t.Fatalf("OriginalQualifiedName() = (%q, %v), want (%q, true)", gotStr, ok, want)
+	}
+
+	// Deep chain rooted at a non-qualified CALL node must return nil / false.
+	badCur := IR_Call(IR_Name("fn"))
+	for i := range 12 {
+		badCur = IR_Getprop(badCur, fmt.Sprintf("seg%d", i))
+	}
+	if badCur.GetOriginalQualifiedName() != nil {
+		t.Fatal("expected nil for GETPROP chain rooted at CALL")
+	}
+	if _, ok := badCur.OriginalQualifiedName(); ok {
+		t.Fatal("expected ok=false for GETPROP chain rooted at CALL")
 	}
 }

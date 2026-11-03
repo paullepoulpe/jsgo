@@ -487,8 +487,6 @@ func sourceMapGeneratorV3_isNilExtension(v any) bool {
 	switch x := v.(type) {
 	case nil:
 		return true
-	case *string:
-		return x == nil
 	case *jutil.JsonObject:
 		return x == nil
 	case *jutil.JsonArray:
@@ -503,17 +501,10 @@ func sourceMapGeneratorV3_isNilExtension(v any) bool {
 }
 
 // sourceMapGeneratorV3_asJavaString is `objValue instanceof String string`:
-// a Java String is a Go string, or a non-nil *string.
+// a Java String is a Go string.
 func sourceMapGeneratorV3_asJavaString(objValue any) (string, bool) {
-	switch v := objValue.(type) {
-	case string:
-		return v, true
-	case *string:
-		if v != nil {
-			return *v, true
-		}
-	}
-	return "", false
+	s, ok := objValue.(string)
+	return s, ok
 }
 
 // SetSourceRoot sets a prefix to be added to the beginning of each

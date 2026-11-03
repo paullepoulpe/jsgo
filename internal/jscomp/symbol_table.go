@@ -460,8 +460,8 @@ func (t *SymbolTable) GetSymbolForTypeHelper(type_ rhino.JSType, linkToCtor bool
 		return t.globalScope.GetQualifiedSlot("Function.prototype")
 	} else if autobox := type_.AutoboxesTo(); autobox != nil {
 		return t.GetSymbolForTypeHelper(autobox, linkToCtor)
-	} else if type_.IsEnumType() {
-		return t.GetSymbolDeclaredByEnum(type_.(*rhino.EnumType))
+	} else if enumType := type_.ToMaybeEnumType(); enumType != nil {
+		return t.GetSymbolDeclaredByEnum(enumType)
 	} else if type_.IsRecordType() {
 		return t.symbolThatDeclaresType[type_]
 	}

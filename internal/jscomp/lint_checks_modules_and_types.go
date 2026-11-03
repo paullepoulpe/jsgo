@@ -469,10 +469,24 @@ func (c *CheckGoogModuleTypeScriptName) Visit(t *NodeTraversal, n rhino.Node, pa
 
 // Java: CheckGoogModuleTypeScriptName.checkGoogModuleNamespace(NodeTraversal, Node)
 func (c *CheckGoogModuleTypeScriptName) CheckGoogModuleNamespace(t *NodeTraversal, n rhino.Node) {
-	originalNamespace := n.GetFirstChild().GetSecondChild().GetString()
+	exprStmt, ok := ast.AsExprStmt(n)
+	if !ok {
+		return
+	}
+	call, ok := exprStmt.Expr().AsCall()
+	if !ok {
+		return
+	}
+	arg0, ok := call.FirstArg()
+	if !ok {
+		return
+	}
+	nsLit, ok := arg0.AsStringLit()
+	if !ok {
+		return
+	}
+	originalNamespace := nsLit.Value()
 	sourceName, ok := t.SourceNameOk()
-	// Go-only: language-adapter — Node.getString() is a Go string, which
-	// cannot be null, so `originalNamespace == null` is always false.
 	if !ok {
 		return
 	}

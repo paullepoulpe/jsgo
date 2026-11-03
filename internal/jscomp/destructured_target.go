@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -143,22 +144,22 @@ func createDestructuredTargetInPattern(
 	case rhino.Token_STRING_KEY:
 		// const {objectLiteralKey: x} = ...
 		d.objectPatternKey = destructuringChild
-		value := destructuringChild.GetFirstChild()
-		if value.IsDefaultValue() {
-			d.node = value.GetFirstChild()
-			d.defaultValue = value.GetSecondChild()
+		val := ast.MustStringKey(destructuringChild).Value()
+		if dv, ok := val.AsDefaultValue(); ok {
+			d.node = dv.Target().Node()
+			d.defaultValue = dv.Value().Node()
 		} else {
-			d.node = value
+			d.node = val.Node()
 		}
 	case rhino.Token_COMPUTED_PROP:
 		// const {['objectLiteralKey']: x} = ...
 		d.objectPatternKey = destructuringChild
-		value := destructuringChild.GetSecondChild()
-		if value.IsDefaultValue() {
-			d.node = value.GetFirstChild()
-			d.defaultValue = value.GetSecondChild()
+		val, _ := ast.MustComputedProp(destructuringChild).Value()
+		if dv, ok := val.AsDefaultValue(); ok {
+			d.node = dv.Target().Node()
+			d.defaultValue = dv.Value().Node()
 		} else {
-			d.node = value
+			d.node = val.Node()
 		}
 	case rhino.Token_OBJECT_PATTERN, // const [{x}] = ...
 		rhino.Token_ARRAY_PATTERN, // const [[x]] = ...
@@ -168,12 +169,16 @@ func createDestructuredTargetInPattern(
 		d.node = destructuringChild
 	case rhino.Token_DEFAULT_VALUE:
 		// const [x = 3] = ...
-		d.node = destructuringChild.GetFirstChild()
-		d.defaultValue = destructuringChild.GetSecondChild()
-	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
+		dv := ast.MustDefaultValue(destructuringChild)
+		d.node = dv.Target().Node()
+		d.defaultValue = dv.Value().Node()
+	case rhino.Token_ITER_REST:
 		// const [...x] = ...
+		d.node = ast.MustIterRest(destructuringChild).Target().Node()
+		d.isRest = true
+	case rhino.Token_OBJECT_REST:
 		// const {...x} = ...
-		d.node = destructuringChild.GetFirstChild()
+		d.node = ast.MustObjectRest(destructuringChild).Target().Node()
 		d.isRest = true
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg(
@@ -191,6 +196,26 @@ func failNotDestructuringChild(child rhino.Node) {
 	jutil.CheckArgumentMsg1(false, "%s", child)
 }
 
+func forEachNonEmptyPatternChild(pattern rhino.Node, fn func(rhino.Node)) {
+	pat, ok := ast.AsPattern(pattern)
+	if !ok {
+		failNotDestructuringPattern(pattern)
+	}
+	if objPat, ok := pat.AsObjectPattern(); ok {
+		for prop := range objPat.Props() {
+			if !prop.Node().IsEmpty() {
+				fn(prop.Node())
+			}
+		}
+		return
+	}
+	for elem := range pat.MustArrayPattern().Elements() {
+		if _, isEmpty := elem.AsEmpty(); !isEmpty {
+			fn(elem.Node())
+		}
+	}
+}
+
 // ForEachDestructuredTarget visits every non-EMPTY target directly in pattern
 // without allocating a slice or per-target heap objects.
 func ForEachDestructuredTarget(
@@ -199,14 +224,9 @@ func ForEachDestructuredTarget(
 	pattern rhino.Node,
 	visit func(DestructuredTarget),
 ) {
-	if !pattern.IsDestructuringPattern() {
-		failNotDestructuringPattern(pattern)
-	}
-	for child := pattern.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if !child.IsEmpty() {
-			visit(createDestructuredTargetInPattern(registry, patternType, nil, pattern, child))
-		}
-	}
+	forEachNonEmptyPatternChild(pattern, func(child rhino.Node) {
+		visit(createDestructuredTargetInPattern(registry, patternType, nil, pattern, child))
+	})
 }
 
 // DestructuredTarget_CreateAllNonEmptyTargetsInPattern returns all the
@@ -217,15 +237,10 @@ func ForEachDestructuredTarget(
 // Java: DestructuredTarget.createAllNonEmptyTargetsInPattern(JSTypeRegistry, JSType, Node)
 func DestructuredTarget_CreateAllNonEmptyTargetsInPattern(
 	registry *rhino.JSTypeRegistry, patternType rhino.JSType, pattern rhino.Node) []DestructuredTarget {
-	if !pattern.IsDestructuringPattern() {
-		failNotDestructuringPattern(pattern)
-	}
 	var targets []DestructuredTarget
-	for child := pattern.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if !child.IsEmpty() {
-			targets = append(targets, createDestructuredTargetInPattern(registry, patternType, nil, pattern, child))
-		}
-	}
+	forEachNonEmptyPatternChild(pattern, func(child rhino.Node) {
+		targets = append(targets, createDestructuredTargetInPattern(registry, patternType, nil, pattern, child))
+	})
 	return targets
 }
 
@@ -235,15 +250,10 @@ func DestructuredTarget_CreateAllNonEmptyTargetsInPattern(
 // Java: DestructuredTarget.createAllNonEmptyTargetsInPattern(JSTypeRegistry, Supplier<JSType>, Node)
 func DestructuredTarget_CreateAllNonEmptyTargetsInPatternWithSupplier(
 	registry *rhino.JSTypeRegistry, patternType func() rhino.JSType, pattern rhino.Node) []DestructuredTarget {
-	if !pattern.IsDestructuringPattern() {
-		failNotDestructuringPattern(pattern)
-	}
 	var targets []DestructuredTarget
-	for child := pattern.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if !child.IsEmpty() {
-			targets = append(targets, createDestructuredTargetInPattern(registry, nil, patternType, pattern, child))
-		}
-	}
+	forEachNonEmptyPatternChild(pattern, func(child rhino.Node) {
+		targets = append(targets, createDestructuredTargetInPattern(registry, nil, patternType, pattern, child))
+	})
 	return targets
 }
 
@@ -292,7 +302,7 @@ func (d DestructuredTarget) InferObjectPatternKeyType() rhino.JSType {
 	}
 	switch d.objectPatternKey.GetToken() {
 	case rhino.Token_STRING_KEY:
-		propertyType := patternType.FindPropertyType(d.objectPatternKey.GetString())
+		propertyType := patternType.FindPropertyType(ast.MustStringKey(d.objectPatternKey).Key())
 		if propertyType != nil {
 			return propertyType
 		}

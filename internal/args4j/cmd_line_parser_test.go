@@ -9,14 +9,14 @@ import (
 type customDelimBean struct {
 	opt  string
 	flag bool
-	defs *jutil.OrderedMap[string, *string]
+	defs *jutil.OrderedMap[string, string]
 }
 
 func (b *customDelimBean) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
 		{Option: &Option{Name: "-opt", Aliases: []string{"--option"}}, Field: String(&b.opt)},
 		{Option: &Option{Name: "-f"}, Field: Bool(&b.flag)},
-		{Option: &Option{Name: "-D"}, Field: OrderedStringMap(&b.defs)},
+		{Option: &Option{Name: "-D"}, Field: StringMap(&b.defs)},
 	}
 }
 
@@ -67,9 +67,9 @@ func TestCustomOptionValueDelimiterColon(t *testing.T) {
 		if bean.defs == nil {
 			t.Fatal("bean.defs is nil")
 		}
-		got := bean.defs.Get("foo")
-		if got == nil || *got != "bar" {
-			t.Fatalf("bean.defs[\"foo\"] = %v, want %q", got, "bar")
+		got, ok := bean.defs.Lookup("foo")
+		if !ok || got != "bar" {
+			t.Fatalf("bean.defs[\"foo\"] = (%q, %v), want (%q, true)", got, ok, "bar")
 		}
 	})
 

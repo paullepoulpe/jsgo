@@ -1028,3 +1028,23 @@ func (c *ProcessClosureProvidesAndRequiresTest) TestGoogExportSymbolRecording() 
 `)
 	AssertThat(c.lastProcessor.GetExportedVariableNames()).ContainsExactly("a", "foo", "b")
 }
+
+func (c *ProcessClosureProvidesAndRequiresTest) TestMalformedGoogModuleDoesNotCrash() {
+	providedZeroArg := c.GetProvidedNameCollection(
+		`goog.loadModule(function(exports) {
+  goog.module();
+  goog.module.declareLegacyNamespace();
+  return exports;
+});
+`)
+	AssertThat(providedZeroArg.KeySlice()).ContainsExactly("goog")
+
+	providedNonString := c.GetProvidedNameCollection(
+		`goog.loadModule(function(exports) {
+  goog.module(123);
+  goog.module.declareLegacyNamespace();
+  return exports;
+});
+`)
+	AssertThat(providedNonString.KeySlice()).ContainsExactly("goog")
+}

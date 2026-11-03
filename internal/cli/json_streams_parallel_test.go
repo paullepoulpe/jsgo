@@ -169,7 +169,7 @@ var unusedWeakSymbol = 999;
 
 					var smBuf strings.Builder
 					lastName := "final_check.js"
-					runner.GetCompiler().GetSourceMap().AppendTo(&smBuf, &lastName)
+					runner.GetCompiler().GetSourceMap().AppendTo(&smBuf, lastName)
 					return outBuf.String(), errBuf.String(), smBuf.String()
 				}
 

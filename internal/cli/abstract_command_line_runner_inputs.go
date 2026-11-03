@@ -47,6 +47,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/resources"
@@ -304,13 +305,13 @@ func tryParseJsonFileSpec(scanner *jutil.JsonScanner) (*AbstractCommandLineRunne
 		}
 		switch name {
 		case "src":
-			spec.Src, err = readJsonNullableString(scanner)
+			spec.Src, err = readJsonOptString(scanner)
 		case "path":
-			spec.Path, err = readJsonNullableString(scanner)
+			spec.Path, err = readJsonOptString(scanner)
 		case "source_map", "sourceMap":
-			spec.SourceMap, err = readJsonNullableString(scanner)
+			spec.SourceMap, err = readJsonOptString(scanner)
 		case "webpack_id", "webpackId":
-			spec.WebpackId, err = readJsonNullableString(scanner)
+			spec.WebpackId, err = readJsonOptString(scanner)
 		default:
 			err = scanner.SkipValue()
 		}
@@ -324,34 +325,32 @@ func tryParseJsonFileSpec(scanner *jutil.JsonScanner) (*AbstractCommandLineRunne
 	return spec, nil
 }
 
-func readJsonNullableString(scanner *jutil.JsonScanner) (*string, jutil.Throwable) {
+func readJsonOptString(scanner *jutil.JsonScanner) (base.OptString, jutil.Throwable) {
 	tok, err := scanner.PeekToken()
 	if err != nil {
-		return nil, err
+		return base.NoString(), err
 	}
 	switch tok {
 	case jutil.JsonToken_NULL:
 		if err := scanner.NextNull(); err != nil {
-			return nil, err
+			return base.NoString(), err
 		}
-		return nil, nil
+		return base.NoString(), nil
 	case jutil.JsonToken_BOOLEAN:
 		b, err := scanner.NextBoolean()
 		if err != nil {
-			return nil, err
+			return base.NoString(), err
 		}
 		if b {
-			s := "true"
-			return &s, nil
+			return base.SomeString("true"), nil
 		}
-		s := "false"
-		return &s, nil
+		return base.SomeString("false"), nil
 	default:
 		s, err := scanner.NextString()
 		if err != nil {
-			return nil, err
+			return base.NoString(), err
 		}
-		return &s, nil
+		return base.SomeString(s), nil
 	}
 }
 
@@ -516,16 +515,16 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 				panic(jutil.NewHelpfulNullPointerException(
 					`Cannot invoke "com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getPath()" because "jsonFile" is null`))
 			}
-			p := jsonFile.GetPath()
-			src := jsonFile.GetSrc()
-			if p == nil {
+			p, hasPath := jsonFile.GetPath()
+			src, hasSrc := jsonFile.GetSrc()
+			if !hasPath {
 				panic(jutil.NewHelpfulNullPointerException(
 					`Cannot invoke "String.indexOf(String)" because "path" is null`))
 			}
-			if src == nil {
+			if !hasSrc {
 				panic(jutil.NewNullPointerException())
 			}
-			inputs = append(inputs, jscomp.SourceFile_FromCode(*p, *src))
+			inputs = append(inputs, jscomp.SourceFile_FromCode(p, src))
 		}
 	}
 
@@ -541,30 +540,30 @@ func collectJsonStreamMaps(jsonFiles []*AbstractCommandLineRunner_JsonFileSpec) 
 			panic(jutil.NewHelpfulNullPointerException(
 				`Cannot invoke "com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()" because "jsonFile" is null`))
 		}
-		if sm := jsonFile.GetSourceMap(); sm != nil && *sm != "" {
-			p := jsonFile.GetPath()
+		if sm, hasSM := jsonFile.GetSourceMap(); hasSM && sm != "" {
+			p, hasPath := jsonFile.GetPath()
 			pathStr := "null"
-			if p != nil {
-				pathStr = *p
+			if hasPath {
+				pathStr = p
 			}
-			sourceMap := jscomp.SourceFile_FromCode(pathStr+".map", *sm)
+			sourceMap := jscomp.SourceFile_FromCode(pathStr+".map", sm)
 			smInput := jscomp.NewSourceMapInput(sourceMap)
-			if p == nil {
+			if !hasPath {
 				panic(jutil.NewNullPointerExceptionMsg("null key in entry: null=" + jutil.ToJavaString(smInput)))
 			}
 			smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{
-				key:   *p,
+				key:   p,
 				value: smInput,
 			})
 		}
-		if wid := jsonFile.GetWebpackId(); wid != nil {
-			p := jsonFile.GetPath()
-			if p == nil {
-				panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + *wid + "=null"))
+		if wid, hasWid := jsonFile.GetWebpackId(); hasWid {
+			p, hasPath := jsonFile.GetPath()
+			if !hasPath {
+				panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + wid + "=null"))
 			}
 			webpackEntries = append(webpackEntries, kvEntry[string]{
-				key:   *wid,
-				value: *p,
+				key:   wid,
+				value: p,
 			})
 		}
 	}

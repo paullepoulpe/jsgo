@@ -382,7 +382,7 @@ func (c *Compiler) GetSourceMapping(
 	if sourceName == "" {
 		return nil
 	}
-	result, _, hasInputMap, isDefaultEmpty := c.getSourceMappingValue(sourceName, lineNumber, columnNumber)
+	result, hasInputMap, isDefaultEmpty := c.getSourceMappingValue(sourceName, lineNumber, columnNumber)
 	if !hasInputMap {
 		return nil
 	}
@@ -416,7 +416,7 @@ func (c *Compiler) newWorkerSourceMap() *SourceMap {
 }
 
 func (c *Compiler) getSourceMappingValue(
-	sourceName string, lineNumber int, columnNumber int) (sourcemap.Mapping_OriginalMapping, *string, bool, bool) {
+	sourceName string, lineNumber int, columnNumber int) (sourcemap.Mapping_OriginalMapping, bool, bool) {
 	return c.getSourceMappingValueCached(sourceName, lineNumber, columnNumber, &c.resolvedSourceMap, nil)
 }
 
@@ -426,13 +426,13 @@ func (c *Compiler) getSourceMappingValueCached(
 	columnNumber int,
 	resolvedCache *compiler_ResolvedSourceMap,
 	lineCache *sourcemap.SourceMapLineCache,
-) (sourcemap.Mapping_OriginalMapping, *string, bool, bool) {
+) (sourcemap.Mapping_OriginalMapping, bool, bool) {
 	if len(c.inputSourceMaps) == 0 {
-		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
+		return sourcemap.Mapping_OriginalMapping{}, false, false
 	}
 	sourceMap := c.inputSourceMaps[sourceName]
 	if sourceMap == nil {
-		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
+		return sourcemap.Mapping_OriginalMapping{}, false, false
 	}
 
 	// JSCompiler uses 1-indexing for lineNumber and 0-indexing for columnNumber.
@@ -445,16 +445,16 @@ func (c *Compiler) getSourceMappingValueCached(
 		consumer = sourceMap.GetSourceMap(compiler_lockedErrorManager{ErrorManager: c.errorManager, mu: &s.sourceMapMu})
 	}
 	if consumer == nil {
-		return sourcemap.Mapping_OriginalMapping{}, nil, false, false
+		return sourcemap.Mapping_OriginalMapping{}, false, false
 	}
 	if !c.options.GetSourceMapIncludeSourcesContent() {
 		// Go-only: performance — only addSourceMapSourceFiles reads the
 		// sources' contents, and only with that option.
 		sourceMap.dropSourcesContentOnce(consumer)
 	}
-	result, identifierPtr, ok := consumer.GetMappingForLineValueCached(lineNumber, columnNumber+1, lineCache)
+	result, ok := consumer.GetMappingForLineValueCached(lineNumber, columnNumber+1, lineCache)
 	if !ok {
-		return sourcemap.Mapping_OriginalMapping{}, nil, true, true
+		return sourcemap.Mapping_OriginalMapping{}, true, true
 	}
 
 	// First check to see if the original file was loaded from an input source map.
@@ -494,7 +494,7 @@ func (c *Compiler) getSourceMappingValueCached(
 	}
 
 	result.SetOriginalFileAndColumnInPlace(relativePath, result.GetColumnPosition()-1)
-	return result, identifierPtr, true, false
+	return result, true, false
 }
 
 // Java: Compiler.getSourceLine(String, int)

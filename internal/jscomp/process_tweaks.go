@@ -212,15 +212,38 @@ func (f ProcessTweaks_TweakFunction) CreateDefaultValueNode() rhino.Node {
 	}
 }
 
-// A map of function name -> TweakFunction.
-var processTweaks_TWEAK_FUNCTIONS_MAP = func() map[string]ProcessTweaks_TweakFunction {
-	vals := ProcessTweaks_TweakFunction_values()
-	m := make(map[string]ProcessTweaks_TweakFunction, len(vals))
-	for _, func_ := range vals {
-		m[func_.GetName()] = func_
+// matchProcessTweakFunction matches a goog.tweak.* callee without allocating
+// a qualified-name string on every CALL node in the AST.
+func matchProcessTweakFunction(callee ast.Expr) (ProcessTweaks_TweakFunction, bool) {
+	outerProp, ok := callee.AsGetProp()
+	if !ok {
+		return processTweaks_TweakFunction_null, false
 	}
-	return m
-}()
+	innerProp, ok := outerProp.Object().AsGetProp()
+	if !ok || innerProp.Property() != "tweak" {
+		return processTweaks_TweakFunction_null, false
+	}
+	rootName, ok := innerProp.Object().AsName()
+	if !ok || rootName.Ident() != "goog" {
+		return processTweaks_TweakFunction_null, false
+	}
+	switch outerProp.Property() {
+	case "registerBoolean":
+		return ProcessTweaks_TweakFunction_REGISTER_BOOLEAN, true
+	case "registerNumber":
+		return ProcessTweaks_TweakFunction_REGISTER_NUMBER, true
+	case "registerString":
+		return ProcessTweaks_TweakFunction_REGISTER_STRING, true
+	case "getBoolean":
+		return ProcessTweaks_TweakFunction_GET_BOOLEAN, true
+	case "getNumber":
+		return ProcessTweaks_TweakFunction_GET_NUMBER, true
+	case "getString":
+		return ProcessTweaks_TweakFunction_GET_STRING, true
+	default:
+		return processTweaks_TweakFunction_null, false
+	}
+}
 
 // Java: ProcessTweaks(AbstractCompiler, boolean)
 func NewProcessTweaks(compiler AbstractCompiler, stripTweaks bool) *ProcessTweaks {
@@ -331,28 +354,29 @@ func (*ProcessTweaks_CollectTweaks) visitTokens() *ast.TokenSet {
 
 // Java: ProcessTweaks.CollectTweaks.visit(NodeTraversal, Node, Node)
 func (c *ProcessTweaks_CollectTweaks) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsCall() {
+	call, ok := ast.AsCall(n)
+	if !ok {
 		return
 	}
 
-	callName := n.GetFirstChild().GetQualifiedName()
-	tweakFunc := processTweaks_TweakFunction_null
-	if callName != nil {
-		if f, ok := processTweaks_TWEAK_FUNCTIONS_MAP[*callName]; ok {
-			tweakFunc = f
-		}
-	}
-	if tweakFunc == processTweaks_TweakFunction_null {
+	tweakFunc, ok := matchProcessTweakFunction(call.Callee())
+	if !ok {
 		return
 	}
 
 	// Ensure the first parameter (the tweak ID) is a string literal.
-	tweakIdNode := n.GetSecondChild()
-	if !tweakIdNode.IsStringLit() {
-		c.outer.compiler.Report(JSError_MakeWithNode(tweakIdNode, ProcessTweaks_NON_LITERAL_TWEAK_ID_ERROR))
+	tweakIdArg, hasTweakId := call.FirstArg()
+	if !hasTweakId {
+		c.outer.compiler.Report(JSError_MakeWithNode(n, ProcessTweaks_NON_LITERAL_TWEAK_ID_ERROR))
 		return
 	}
-	tweakId := tweakIdNode.GetString()
+	tweakIdLit, ok := tweakIdArg.AsStringLit()
+	if !ok {
+		c.outer.compiler.Report(JSError_MakeWithNode(tweakIdArg.Node(), ProcessTweaks_NON_LITERAL_TWEAK_ID_ERROR))
+		return
+	}
+	tweakIdNode := tweakIdLit.Node()
+	tweakId := tweakIdLit.Value()
 
 	// Make sure there is a TweakInfo structure for it.
 	tweakInfo := c.allTweaks.ComputeIfAbsent(tweakId, func(tweakId string) *ProcessTweaks_TweakInfo {
@@ -378,7 +402,10 @@ func (c *ProcessTweaks_CollectTweaks) Visit(t *NodeTraversal, n rhino.Node, pare
 			break
 		}
 
-		tweakDefaultValueNode := tweakIdNode.GetNext().GetNext()
+		var tweakDefaultValueNode rhino.Node
+		if defaultArg, ok := call.AsCallOrNew().ArgAt(2); ok {
+			tweakDefaultValueNode = defaultArg.Node()
+		}
 		tweakInfo.AddRegisterCall(tweakFunc, n, tweakDefaultValueNode)
 	case ProcessTweaks_TweakFunction_GET_BOOLEAN, ProcessTweaks_TweakFunction_GET_NUMBER, ProcessTweaks_TweakFunction_GET_STRING:
 		tweakInfo.AddGetterCall(tweakFunc, n)

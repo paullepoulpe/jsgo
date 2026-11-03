@@ -100,7 +100,7 @@ func TestCompiler_RenderChunksAndSourceMapsParity(t *testing.T) {
 		sm.SetWrapperPrefix(wrapperPrefix(m))
 		outName := chunkFileName(m)
 		var sb strings.Builder
-		sm.AppendTo(&sb, &outName)
+		sm.AppendTo(&sb, outName)
 		want = append(want, RenderedChunk{Chunk: m, Code: code, SourceMap: sb.String()})
 	}
 

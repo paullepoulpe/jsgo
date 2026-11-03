@@ -134,8 +134,8 @@ type beanA struct {
 	boxed     *bool
 	out       string
 	prefix    *string
-	map_      *jutil.OrderedMap[string, *string]
-	nullMap   *jutil.OrderedMap[string, *string]
+	map_      *jutil.OrderedMap[string, string]
+	nullMap   *jutil.OrderedMap[string, string]
 	words     []string
 	noUsage   string
 	dep       *string
@@ -146,7 +146,7 @@ type beanA struct {
 }
 
 func newBeanA() *beanA {
-	return &beanA{zeta: "z", level: tLevel_DEFAULT, threads: 1, map_: jutil.NewOrderedMap[string, *string](), noUsage: "nu", unicode: "é"}
+	return &beanA{zeta: "z", level: tLevel_DEFAULT, threads: 1, map_: jutil.NewOrderedMap[string, string](), noUsage: "nu", unicode: "é"}
 }
 
 func (b *beanA) Args4jFields() []AnnotatedField {
@@ -175,8 +175,8 @@ func (b *beanA) Args4jFields() []AnnotatedField {
 		{Option: &Option{Name: "--boxed", Usage: "A boxed Boolean"}, Field: NullableBool(&b.boxed)},
 		{Option: &Option{Name: "--out", MetaVar: "FILE", Usage: "Primary output filename. If not specified, output is written to stdout"}, Field: String(&b.out)},
 		{Option: &Option{Name: "--prefix", Usage: "A nullable string"}, Field: NullableString(&b.prefix)},
-		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: OrderedStringMap(&b.map_)},
-		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: OrderedStringMap(&b.nullMap)},
+		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: StringMap(&b.map_)},
+		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: StringMap(&b.nullMap)},
 		{Option: &Option{Name: "--words", Handler: NewStringArrayOptionHandler, Usage: "Greedy words"}, Field: StringSlice(&b.words)},
 		{Option: &Option{Name: "--nousage"}, Field: String(&b.noUsage)},
 		{Option: &Option{Name: "--dep", Depends: []string{"--out"}, Usage: "Needs --out"}, Field: NullableString(&b.dep)},
@@ -199,13 +199,20 @@ func javaList[E any](l []E) string {
 
 func javaStr(v any) string { return jutil.ToJavaString(v) }
 
+func javaMap(m *jutil.OrderedMap[string, string]) string {
+	if m == nil {
+		return "null"
+	}
+	return formatStringMapDefault(m)
+}
+
 func (b *beanA) dump() string {
 	return "zeta=" + b.zeta + " help=" + javaStr(b.help) + " year=" + javaStr(b.year) + " level=" + javaStr(b.level) +
 		" mode=" + javaStr(b.mode) + " nullMode=" + javaStr(b.nullMode) + " fmt=" + javaList(b.fmt) +
 		" js=" + javaList(b.js) + " externs=" + javaList(b.externs) + " define=" + javaList(b.define) +
 		" threads=" + javaStr(b.threads) + " debug=" + javaStr(b.debug) + " plain=" + javaStr(b.plain) +
-		" boxed=" + javaStr(b.boxed) + " out=" + b.out + " prefix=" + javaStr(b.prefix) + " map=" + javaStr(b.map_) +
-		" nullMap=" + javaStr(b.nullMap) + " words=" + javaList(b.words) + " noUsage=" + b.noUsage +
+		" boxed=" + javaStr(b.boxed) + " out=" + b.out + " prefix=" + javaStr(b.prefix) + " map=" + javaMap(b.map_) +
+		" nullMap=" + javaMap(b.nullMap) + " words=" + javaList(b.words) + " noUsage=" + b.noUsage +
 		" dep=" + javaStr(b.dep) + " forb=" + javaStr(b.forb) + " nullInt=" + javaStr(b.nullInt) +
 		" unicode=" + b.unicode + " arguments=" + javaList(b.arguments) + " recorded=" + javaList(recorded)
 }

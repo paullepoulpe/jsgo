@@ -224,3 +224,16 @@ func TestFeatureSetValueSemanticsAndPresenceBit(t *testing.T) {
 		t.Error("jutil.ObjectsEquals failed on equal FeatureSet values")
 	}
 }
+
+func TestFeatureSetFeatureValuesDefensiveClone(t *testing.T) {
+	vals1 := FeatureSet_Feature_values()
+	if len(vals1) == 0 {
+		t.Fatal("FeatureSet_Feature_values() returned empty slice")
+	}
+	origFirst := vals1[0]
+	vals1[0] = FeatureSet_Feature(-999)
+	vals2 := FeatureSet_Feature_values()
+	if vals2[0] != origFirst {
+		t.Fatalf("mutating FeatureSet_Feature_values() corrupted backing array: got %v, want %v", vals2[0], origFirst)
+	}
+}

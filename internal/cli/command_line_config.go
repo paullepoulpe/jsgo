@@ -135,7 +135,7 @@ type AbstractCommandLineRunner_CommandLineConfig struct {
 
 	outputManifests []string
 
-	outputChunkDependencies *string // nil is null
+	outputChunkDependencies string
 
 	outputBundles []string
 

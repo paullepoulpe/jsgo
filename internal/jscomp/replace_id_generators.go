@@ -571,7 +571,14 @@ func (g *replaceIdGeneratorsPass) maybeReplaceCall(
 }
 
 func findTtlVar(t *NodeTraversal, arg rhino.Node) rhino.Node {
-	ttlVarName := t.GetScope().GetVar(arg.GetString()).GetNode()
+	v := t.GetScope().GetVar(arg.GetString())
+	if v == nil {
+		return rhino.NilNode
+	}
+	ttlVarName := v.GetNode()
+	if ttlVarName.IsNil() {
+		return rhino.NilNode
+	}
 	parent := ttlVarName.GetParent()
 	// Only interested in top-level var definitions created by the transpiler.
 	if !parent.IsVar() || !parent.GetParent().IsScript() {

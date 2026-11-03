@@ -23,8 +23,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 // AbstractCommandLineRunner_ParseChunkWrappers parses chunk wrapper
@@ -362,12 +364,24 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerO
 	jsonOutput := NewAbstractCommandLineRunner_JsonFileSpec(jsOutput.String(), path)
 
 	if options.ShouldGatherSourceMapInfo() {
-		sourcemap := &strings.Builder{} // Go-only: language-adapter — StringBuilder as SourceMap.appendTo's Appendable
-		r.compiler.GetSourceMap().AppendTo(sourcemap, jsonOutput.GetPath())
-		jsonOutput.SetSourceMap(sourcemap.String())
+		smBuf := &strings.Builder{} // Go-only: language-adapter — StringBuilder as SourceMap.appendTo's Appendable
+		if p, ok := jsonOutput.GetPath(); ok {
+			r.compiler.GetSourceMap().AppendTo(smBuf, p)
+		} else {
+			r.compiler.GetSourceMap().AppendToOptional(smBuf, sourcemap.OptionalString{})
+		}
+		jsonOutput.SetSourceMap(smBuf.String())
 	}
 
 	return jsonOutput
+}
+
+func writeJsonOptStringField(w *jutil.JsonWriter, name string, opt base.OptString) {
+	if v, ok := opt.Get(); ok {
+		w.Name(name).ValueString(&v)
+	} else {
+		w.Name(name).NullValue()
+	}
 }
 
 // Java: AbstractCommandLineRunner.outputJsonStream()
@@ -389,10 +403,10 @@ func (r *AbstractCommandLineRunnerBase) OutputJsonStream() {
 			continue
 		}
 		jsonWriter.BeginObject()
-		jsonWriter.Name("src").ValueString(spec.Src)
-		jsonWriter.Name("path").ValueString(spec.Path)
-		jsonWriter.Name("source_map").ValueString(spec.SourceMap)
-		jsonWriter.Name("webpack_id").ValueString(spec.WebpackId)
+		writeJsonOptStringField(jsonWriter, "src", spec.Src)
+		writeJsonOptStringField(jsonWriter, "path", spec.Path)
+		writeJsonOptStringField(jsonWriter, "source_map", spec.SourceMap)
+		writeJsonOptStringField(jsonWriter, "webpack_id", spec.WebpackId)
 		jsonWriter.EndObject()
 	}
 	jsonWriter.EndArray()
@@ -469,7 +483,7 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 				mlicenseTracker.SetCurrentChunkContext(m)
 				r.self.WriteChunkOutput(chunkFilename, writer, mlicenseTracker, m)
 				if options.ShouldGatherSourceMapInfo() {
-					r.compiler.GetSourceMap().AppendTo(mapFileOut, &chunkFilename)
+					r.compiler.GetSourceMap().AppendTo(mapFileOut, chunkFilename)
 				}
 			}()
 
@@ -542,7 +556,7 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			defer abstractCommandLineRunner_closeWriter(writer)
 			r.writeOutputOfCodeWithSourceMap(writer, sm, code, wrapper, "%s", nil)
 			if mapFileOut != nil {
-				sm.AppendTo(mapFileOut, &filename)
+				sm.AppendTo(mapFileOut, filename)
 			}
 		},
 		WriteChunkNoMap: func(filename string, code string, wrapper string) {
@@ -662,7 +676,7 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFileFromChunk(chunk *jscomp.JS
 	chunkSourceMap := &strings.Builder{} // Go-only: language-adapter — StringBuilder as SourceMap.appendTo's Appendable
 
 	chunkOutputFileName := r.self.GetChunkOutputFileName(chunk)
-	r.compiler.GetSourceMap().AppendTo(chunkSourceMap, &chunkOutputFileName)
+	r.compiler.GetSourceMap().AppendTo(chunkSourceMap, chunkOutputFileName)
 
 	jsonFile.SetSourceMap(chunkSourceMap.String())
 

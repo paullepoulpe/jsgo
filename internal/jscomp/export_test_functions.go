@@ -334,6 +334,6 @@ func isTestFunctionName(functionName string) bool {
 // is recognized as a test function.
 //
 // Java: ExportTestFunctions.isTestFunction(String)
-func ExportTestFunctions_IsTestFunction(functionName *string) bool {
-	return functionName != nil && isTestFunctionName(*functionName)
+func ExportTestFunctions_IsTestFunction(functionName string) bool {
+	return isTestFunctionName(functionName)
 }

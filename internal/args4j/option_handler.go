@@ -234,15 +234,16 @@ func newEnumOptionHandler[E fmt.Stringer](values []E) OptionHandlerClass {
 	}
 }
 
-func newMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
-	ms, ok := setter.(*mapSetter)
+// StringMapHandler parses key=value operands into an ordered string map.
+func StringMapHandler(parser *CmdLineParser, option *OptionDef, setter Setter) *OptionHandler {
+	ms, ok := setter.(*stringMapSetter)
 	if !ok {
 		panic(jutil.NewIllegalArgumentExceptionMsg("MapOptionHandler can only work with fields"))
 	}
 	return newBuiltinOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) (int, *CmdLineException) {
 		m := *ms.p
 		if m == nil {
-			m = jutil.NewOrderedMap[string, *string]()
+			m = jutil.NewOrderedMap[string, string]()
 			*ms.p = m
 		}
 		raw, err := params.TryGetParameter(0)
@@ -256,11 +257,7 @@ func newMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter
 		if len(mapKey) == 0 {
 			return 0, newCmdLineException(h.Owner, spiMsgMapHasNoKey)
 		}
-		var mapValue *string
-		if len(value) > 0 {
-			mapValue = &value
-		}
-		m.Put(mapKey, mapValue)
+		m.Put(mapKey, value)
 		return 1, nil
 	})
 }

@@ -1435,3 +1435,19 @@ func (c *FlowSensitiveInlineVariablesTest) TestClassSynchronousReadsAndCfgBounda
 	c.NoInline("var x = 1; class C { static field = hasSFX(); } print(x, C);")
 	c.NoInline("var x = 1; class C { [hasSFX()] = 1; } print(x, C);")
 }
+
+func (c *FlowSensitiveInlineVariablesTest) TestClassMembersTwoPassEvaluationOrder() {
+	// Computed member keys (methods, getters/setters, computed fields) evaluate in pass 1
+	// BEFORE static field initializers in pass 2, so `[b = 2]` mutates `x`'s dependency `b`
+	// before `static a = noSFX(x)` / `print(x)` runs!
+	c.TestSame("function g(b) { var x = b; var C = class { static a = print(x); [b = 2]() {} }; return [C, b]; }")
+	c.NoInline("var b = noSFX(); var x = b; var C = class { static a = noSFX(x); [b = 2]() {} }; print(C, b);")
+	c.NoInline("var b = noSFX(); var x = b; var C = class { static a = noSFX(x); get [b = 2]() {} }; print(C, b);")
+	c.NoInline("var b = noSFX(); var x = b; var C = class { static a = noSFX(x); [b = 2] = 3; }; print(C, b);")
+
+	// Conversely, a pass 1 computed key `[noSFX(x)]() {}` evaluates BEFORE a preceding
+	// pass 2 static field initializer `static a = (b = 2)`, so `x` CAN inline into `[noSFX(b)]() {}`!
+	c.Inline(
+		"var b = noSFX(); var x = b; var C = class { static a = (b = 2); [noSFX(x)]() {} }; print(C, b);",
+		"var b = noSFX(); var x; var C = class { static a = (b = 2); [noSFX(b)]() {} }; print(C, b);")
+}

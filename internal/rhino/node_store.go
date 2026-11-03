@@ -2,6 +2,7 @@ package rhino
 
 import (
 	"fmt"
+	"math/big"
 	"sync"
 	"sync/atomic"
 
@@ -57,9 +58,81 @@ const (
 	blockLen   = 1 << blockShift
 	blockMask  = blockLen - 1
 	numBlocks  = 1 << (32 - blockShift)
+
+	// nextBlockWrapThreshold is half of the non-static block id space
+	// (65536 blocks = 1,073,741,824 node ids). When no store is active and
+	// nextBlock reaches this mark, SetCurrentNodeStore(nil) wraps nextBlock
+	// back to 1 so unit tests still catch cross-test stale handles across
+	// thousands of stores while long-lived persistent workers never exhaust
+	// the 31-bit node id space.
+	nextBlockWrapThreshold = (staticBit >> blockShift) / 2
+
+	storeChunkShift = 8
+	storeChunkLen   = 1 << storeChunkShift
+	storeChunkMask  = storeChunkLen - 1
+	storeDirShift   = 10
+	storeDirLen     = 1 << storeDirShift
+	storeDirMask    = storeDirLen - 1
+	storeTopLen     = 64 // 64 * 1024 * 256 = 16M entries per store
 )
 
 type nodeBlock [blockLen]nodeData
+
+type storeChunk[T any] [storeChunkLen]T
+type storeDir[T any] [storeDirLen]atomic.Pointer[storeChunk[T]]
+
+// storeTable is a lazily allocated per-NodeStore side table addressed by
+// 1-based handles (0 is absent). An empty storeTable adds zero heap
+// allocations to NewNodeStore.
+type storeTable[T any] struct {
+	count atomic.Uint32
+	dir   [storeTopLen]atomic.Pointer[storeDir[T]]
+}
+
+func (t *storeTable[T]) at(id uint32) *T {
+	idx := id - 1
+	chunkIdx := idx >> storeChunkShift
+	return &t.dir[chunkIdx>>storeDirShift].Load()[chunkIdx&storeDirMask].Load()[idx&storeChunkMask]
+}
+
+func (t *storeTable[T]) add(mu *sync.Mutex, v T) uint32 {
+	idx := t.count.Add(1) - 1
+	chunkIdx := idx >> storeChunkShift
+	topIdx := chunkIdx >> storeDirShift
+	if topIdx >= storeTopLen {
+		panic(fmt.Sprintf("rhino.NodeStore: side table full (%d)", idx+1))
+	}
+	midIdx := chunkIdx & storeDirMask
+	var chunk *storeChunk[T]
+	if mid := t.dir[topIdx].Load(); mid != nil {
+		chunk = mid[midIdx].Load()
+	}
+	if chunk == nil {
+		chunk = t.addChunk(mu, topIdx, midIdx)
+	}
+	chunk[idx&storeChunkMask] = v
+	return idx + 1
+}
+
+//go:noinline
+func (t *storeTable[T]) addChunk(mu *sync.Mutex, topIdx, midIdx uint32) *storeChunk[T] {
+	mu.Lock()
+	defer mu.Unlock()
+	mid := t.dir[topIdx].Load()
+	if mid == nil {
+		mid = new(storeDir[T])
+		chunk := new(storeChunk[T])
+		mid[midIdx].Store(chunk)
+		t.dir[topIdx].Store(mid)
+		return chunk
+	}
+	chunk := mid[midIdx].Load()
+	if chunk == nil {
+		chunk = new(storeChunk[T])
+		mid[midIdx].Store(chunk)
+	}
+	return chunk
+}
 
 // nodeBlocks is the block directory: the records of block id>>blockShift.
 var nodeBlocks [numBlocks]atomic.Pointer[nodeBlock]
@@ -76,11 +149,13 @@ type NodeStore struct {
 
 	mu sync.Mutex // guards block creation and the side tables' growth
 
-	tcs       []*nodeColumn  // the JSType/Color handle columns of the blocks (node_tables.go)
-	origNames []*pagedColumn // the original-name columns of the blocks
-	aux       [auxShards]auxShard
-	types     handleTable[*JSTypeBase]
-	colors    handleTable[*colors.Color]
+	tcs         []*nodeColumn  // the JSType/Color handle columns of the blocks (node_tables.go)
+	origNames   []*pagedColumn // the original-name columns of the blocks
+	aux         [auxShards]auxShard
+	types       handleTable[*JSTypeBase]
+	colors      handleTable[*colors.Color]
+	sourceFiles storeTable[sourceFileSlot]
+	bigInts     storeTable[*big.Int]
 }
 
 var (
@@ -156,20 +231,22 @@ func CurrentNodeStore() *NodeStore {
 // returns the previous one. Call it between passes only.
 func SetCurrentNodeStore(s *NodeStore) *NodeStore {
 	prev := current
-	if prev == s {
-		return prev
-	}
-	if prev != nil {
-		raiseNextBlock(prev.blockEnd())
-		prev.unregister()
-	}
-	if s != nil {
-		if s.base == 0 {
-			s.setBase(nextBlock.Load() << blockShift)
+	if prev != s {
+		if prev != nil {
+			raiseNextBlock(prev.blockEnd())
+			prev.unregister()
 		}
-		s.register()
+		if s != nil {
+			if s.base == 0 {
+				s.setBase(nextBlock.Load() << blockShift)
+			}
+			s.register()
+		}
+		current = s
 	}
-	current = s
+	if s == nil && nextBlock.Load() >= nextBlockWrapThreshold {
+		nextBlock.Store(1)
+	}
 	return prev
 }
 

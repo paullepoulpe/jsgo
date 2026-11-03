@@ -92,19 +92,21 @@ func (f *IRFactory) ValidateShadowHost(n rhino.Node) {
 	}
 
 	parent := n.GetParent()
-	// We only support:
+	if !parent.IsNil() {
+		// We only support:
 
-	//  - FUNCTION nodes that are direct CALL callees
-	if parent.IsCall() {
-		return
-	}
-	//  - FUNCTION nodes that are children of a GETPROP node that is a direct
-	//    CALL callee (e.g. fn.call or fn.apply can be the CALL callee)
-	grandparent := parent.GetParent()
-	if parent.IsGetProp() && !grandparent.IsNil() && grandparent.IsCall() {
-		calledFn := parent.GetString()
-		if calledFn == "call" || calledFn == "apply" {
+		//  - FUNCTION nodes that are direct CALL callees
+		if parent.IsCall() {
 			return
+		}
+		//  - FUNCTION nodes that are children of a GETPROP node that is a direct
+		//    CALL callee (e.g. fn.call or fn.apply can be the CALL callee)
+		grandparent := parent.GetParent()
+		if parent.IsGetProp() && !grandparent.IsNil() && grandparent.IsCall() {
+			calledFn := parent.GetString()
+			if calledFn == "call" || calledFn == "apply" {
+				return
+			}
 		}
 	}
 	f.Error(n, "invalid @closureUnaware node: must be directly called")
@@ -129,7 +131,7 @@ func (f *IRFactory) ValidateAwait(n rhino.Node) {
 		}
 		// The await is in a class static block or a field initializer.
 		// e.g. `class C { static { await y; } }` or `class C { x = await y; }`
-		if (parent.IsBlock() || parent.IsMemberFieldDef()) && parent.GetParent().IsClassMembers() {
+		if (parent.IsBlock() || parent.IsMemberFieldDef()) && parent.HasParent() && parent.GetParent().IsClassMembers() {
 			f.errorReporter.Error(errorMsg, f.sourceName, n.GetLineno(), n.GetCharno())
 			return
 		}
@@ -422,7 +424,7 @@ func (f *IRFactory) validateParametersSlow(n rhino.Node) {
 
 // Java: IRFactory.validateBlockScopedFunctions(Node)
 func (f *IRFactory) ValidateBlockScopedFunctions(n rhino.Node) {
-	if n.IsFunction() && n.GetParent().IsBlock() && !n.GetGrandparent().IsFunction() {
+	if n.IsFunction() && n.HasParent() && n.GetParent().IsBlock() && n.GetParent().HasParent() && !n.GetGrandparent().IsFunction() {
 		f.MaybeWarnForFeatureNode(n, parser.FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION)
 	}
 }

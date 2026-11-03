@@ -210,8 +210,8 @@ func (g *CodeGenerator) addDestructuringLhs(lhs ast.DestructuringLhs, context Co
 
 func (g *CodeGenerator) addName(nm ast.Name, context CodeGenerator_Context) {
 	node := nm.Node()
-	if g.useOriginalName && node.GetOriginalName() != nil {
-		g.AddIdentifier(*node.GetOriginalName())
+	if orig, ok := node.OriginalName(); g.useOriginalName && ok {
+		g.AddIdentifier(orig)
 	} else {
 		g.AddIdentifier(nm.Ident())
 	}
@@ -278,7 +278,7 @@ func (g *CodeGenerator) addGetProp(gp ast.GetProp, context CodeGenerator_Context
 	node := gp.Node()
 	objNode := gp.Object().Node()
 	// Convert rewritten aliased code back to original code when using goog.scope().
-	if g.useOriginalName && node.GetOriginalName() != nil {
+	if _, ok := node.OriginalName(); g.useOriginalName && ok {
 		if codeGenerator_JSCOMP_SCOPE.Matches(objNode) && node.GetParent().IsAssign() {
 			g.Add("var ")
 		}

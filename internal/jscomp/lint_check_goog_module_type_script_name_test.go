@@ -105,3 +105,18 @@ func (c *CheckGoogModuleTypeScriptNameTest) TestWarningWithFullSourceName() {
 alert(1);`)}),
 		c.Warning(CheckGoogModuleTypeScriptName_MODULE_NAMESPACE_MISMATCHES_TYPESCRIPT_NAMESPACE).WithMessageContaining("The correct namespace is: \"google3.gws.js.test\""))
 }
+
+func (c *CheckGoogModuleTypeScriptNameTest) TestMalformedGoogModuleDoesNotCrash() {
+	c.TestNoWarning(
+		c.Srcs(
+			SourceFile_FromCode("gws/js/test.js", "goog.module();\nalert(1);")))
+	c.TestNoWarning(
+		c.Srcs(
+			SourceFile_FromCode("gws/js/test.js", "goog.module(123);\nalert(1);")))
+	c.TestNoWarning(
+		c.Srcs(
+			SourceFile_FromCode("gws/js/test.js", "goog.loadModule(function(exports) { goog.module(); return exports; });")))
+	c.TestNoWarning(
+		c.Srcs(
+			SourceFile_FromCode("gws/js/test.js", "goog.loadModule(function(exports) { goog.module(123); return exports; });")))
+}

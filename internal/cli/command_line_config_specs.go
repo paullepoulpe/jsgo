@@ -21,6 +21,7 @@ package cli
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -59,7 +60,7 @@ var abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_all = [...]Abs
 // AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_values is
 // ErrorFormatOption.values().
 func AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_values() []AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption {
-	return abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_all[:]
+	return slices.Clone(abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_all[:])
 }
 
 // String is Enum.name().
@@ -72,10 +73,10 @@ func (e AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption) String() 
 //
 // Java: AbstractCommandLineRunner.JsonFileSpec
 type AbstractCommandLineRunner_JsonFileSpec struct {
-	Src       *string
-	Path      *string
-	SourceMap *string
-	WebpackId *string
+	Src       base.OptString
+	Path      base.OptString
+	SourceMap base.OptString
+	WebpackId base.OptString
 }
 
 // Graal requires a non-arg constructor for use with GSON
@@ -83,25 +84,27 @@ type AbstractCommandLineRunner_JsonFileSpec struct {
 //
 // Java: AbstractCommandLineRunner.JsonFileSpec()
 func newAbstractCommandLineRunner_JsonFileSpecDefault() *AbstractCommandLineRunner_JsonFileSpec {
-	return NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(nil, nil, nil, nil)
+	return &AbstractCommandLineRunner_JsonFileSpec{}
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec(String, String)
 func NewAbstractCommandLineRunner_JsonFileSpec(src string, path string) *AbstractCommandLineRunner_JsonFileSpec {
-	return NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(&src, &path, nil, nil)
+	return NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(
+		base.SomeString(src), base.SomeString(path), base.NoString(), base.NoString())
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec(String, String, String)
 func NewAbstractCommandLineRunner_JsonFileSpecWithSourceMap(src string, path string, sourceMap string) *AbstractCommandLineRunner_JsonFileSpec {
-	return NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(&src, &path, &sourceMap, nil)
+	return NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(
+		base.SomeString(src), base.SomeString(path), base.SomeString(sourceMap), base.NoString())
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec(String, String, String, String)
 func NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(
-	src *string,
-	path *string,
-	sourceMap *string,
-	webpackId *string) *AbstractCommandLineRunner_JsonFileSpec {
+	src base.OptString,
+	path base.OptString,
+	sourceMap base.OptString,
+	webpackId base.OptString) *AbstractCommandLineRunner_JsonFileSpec {
 	return &AbstractCommandLineRunner_JsonFileSpec{
 		Src:       src,
 		Path:      path,
@@ -111,28 +114,28 @@ func NewAbstractCommandLineRunner_JsonFileSpecWithSourceMapAndWebpackId(
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getSrc()
-func (s *AbstractCommandLineRunner_JsonFileSpec) GetSrc() *string {
-	return s.Src
+func (s *AbstractCommandLineRunner_JsonFileSpec) GetSrc() (string, bool) {
+	return s.Src.Get()
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getPath()
-func (s *AbstractCommandLineRunner_JsonFileSpec) GetPath() *string {
-	return s.Path
+func (s *AbstractCommandLineRunner_JsonFileSpec) GetPath() (string, bool) {
+	return s.Path.Get()
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getSourceMap()
-func (s *AbstractCommandLineRunner_JsonFileSpec) GetSourceMap() *string {
-	return s.SourceMap
+func (s *AbstractCommandLineRunner_JsonFileSpec) GetSourceMap() (string, bool) {
+	return s.SourceMap.Get()
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.getWebpackId()
-func (s *AbstractCommandLineRunner_JsonFileSpec) GetWebpackId() *string {
-	return s.WebpackId
+func (s *AbstractCommandLineRunner_JsonFileSpec) GetWebpackId() (string, bool) {
+	return s.WebpackId.Get()
 }
 
 // Java: AbstractCommandLineRunner.JsonFileSpec.setSourceMap(String)
 func (s *AbstractCommandLineRunner_JsonFileSpec) SetSourceMap(map_ string) {
-	s.SourceMap = &map_
+	s.SourceMap = base.SomeString(map_)
 }
 
 // AbstractCommandLineRunner_JsSourceType is the flag types for JavaScript

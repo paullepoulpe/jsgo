@@ -564,3 +564,24 @@ func (c *AngularPassTest) TestNameDeclarationAndAssign() {
 			"/** @public */\n"+
 			"A_1[\"$inject\"] = [\"foo\"];\n")
 }
+
+func (c *AngularPassTest) TestNgInjectOnRhsFunctionInUnannotatedAssign() {
+	c.TestError(
+		"var ns = {}; ns.fn = /** @ngInject */ function(a) {};",
+		AngularPass_INJECT_IN_NON_GLOBAL_OR_BLOCK_ERROR)
+	c.Test(
+		"var ns = {}; /** @ngInject */ ns.fn = /** @ngInject */ function(a) {};",
+		"var ns = {}; /** @ngInject */ ns.fn = /** @ngInject */ function(a) {}; /** @public */ ns.fn['$inject'] = ['a'];")
+}
+
+func (c *AngularPassTest) TestNgInjectOnDestructuringDeclaration() {
+	c.TestError(
+		"/** @ngInject */ const {a} = fn;",
+		AngularPass_INJECT_NON_FUNCTION_ERROR)
+	c.TestError(
+		"/** @ngInject */ const [a] = fn;",
+		AngularPass_INJECT_NON_FUNCTION_ERROR)
+	c.TestError(
+		"/** @ngInject */ var {a} = function(x) {};",
+		AngularPass_INJECT_NON_FUNCTION_ERROR)
+}

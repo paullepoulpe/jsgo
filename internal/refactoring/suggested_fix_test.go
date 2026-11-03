@@ -1384,3 +1384,42 @@ func (c *SuggestedFixTest) TestUnattachedSyntheticNodesThrowNPE() {
 		NewSuggestedFix_Builder().DeleteArgument(callNode, 0)
 	})
 }
+
+func (c *SuggestedFixTest) TestEmptyScriptAndDetachedNodesDoNotCrash() {
+	// 1. AddGoogRequire / FindGoogRequireNode on an empty script.
+	emptyInput := ""
+	compiler := suggestedFixTest_getCompiler(emptyInput)
+	emptyScript := suggestedFixTest_compileToScriptRoot(compiler)
+	metadata := NewNodeMetadata(compiler)
+
+	found := SuggestedFix_Builder_FindGoogRequireNode(emptyScript, metadata, "abc.def")
+	testjunit.AssertThat(found.IsNil()).IsTrue()
+
+	match := NewMatch(emptyScript, metadata)
+	scriptMetadata := ScriptMetadata_Create(emptyScript, compiler)
+	fix := NewSuggestedFix_Builder().AddGoogRequire(match, "abc.def", scriptMetadata).Build()
+	SuggestedFixes_AssertChanges(fix, "", emptyInput, "goog.require('abc.def');\n")
+
+	// 2. FindGoogRequireNode when the node's source file has no script in the compiler.
+	otherNode := rhino.IR_Name("x")
+	otherNode.SetSourceFileForTesting("unregistered_file.js")
+	missing := SuggestedFix_Builder_FindGoogRequireNode(otherNode, metadata, "abc.def")
+	testjunit.AssertThat(missing.IsNil()).IsTrue()
+
+	// 3. Rename on a detached STRINGLIT throws IllegalStateException rather than SIGSEGV.
+	detachedStr := rhino.IR_String("prop")
+	detachedStr.SetSourceFileForTesting("test")
+	detachedStr.SetLinenoCharno(1, 0)
+	detachedStr.SetLength(6)
+	testjunit.AssertThrows[jutil.IIllegalStateException](func() {
+		NewSuggestedFix_Builder().Rename(detachedStr, "other")
+	})
+
+	// 4. DeleteWithWhitespaceBefore on a detached STRING_KEY with valid source info.
+	detachedKey := rhino.IR_StringKey("k")
+	detachedKey.SetStaticSourceFile(emptyScript.GetStaticSourceFile())
+	detachedKey.SetLinenoCharno(1, 0)
+	detachedKey.SetLength(1)
+	delFix := NewSuggestedFix_Builder().DeleteWithWhitespaceBefore(detachedKey, false).Build()
+	testjunit.AssertThat(delFix.IsNoOp()).IsFalse()
+}

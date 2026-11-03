@@ -208,7 +208,7 @@ var config_JsDocParsing_all = [...]Config_JsDocParsing{
 //
 // Java: Config.JsDocParsing.values()
 func Config_JsDocParsing_values() []Config_JsDocParsing {
-	return config_JsDocParsing_all[:]
+	return slices.Clone(config_JsDocParsing_all[:])
 }
 
 // Name is Enum.name().

@@ -635,8 +635,47 @@ func ConformanceRules_ConformanceUtil_GetValueFromGlobalName(
 	return nil
 }
 
+type conformanceVisitSet struct {
+	inline   [8]rhino.Node
+	n        int
+	overflow []rhino.Node
+}
+
+const conformanceMaxInferenceDepth = 64
+
+func (s *conformanceVisitSet) add(node rhino.Node) bool {
+	if node.IsNil() {
+		return true
+	}
+	if s.n+len(s.overflow) >= conformanceMaxInferenceDepth {
+		return false
+	}
+	for i := range s.n {
+		if s.inline[i] == node {
+			return false
+		}
+	}
+	for _, prev := range s.overflow {
+		if prev == node {
+			return false
+		}
+	}
+	if s.n < len(s.inline) {
+		s.inline[s.n] = node
+		s.n++
+	} else {
+		s.overflow = append(s.overflow, node)
+	}
+	return true
+}
+
 func conformanceValueFromGlobalName(
 	scope *Scope, gns *GlobalNamespace, qualifiedName string, hasQualifiedName bool) (string, bool) {
+	return conformanceValueFromGlobalNameVisited(scope, gns, qualifiedName, hasQualifiedName, conformanceVisitSet{})
+}
+
+func conformanceValueFromGlobalNameVisited(
+	scope *Scope, gns *GlobalNamespace, qualifiedName string, hasQualifiedName bool, visited conformanceVisitSet) (string, bool) {
 	var gn *GlobalNamespace_Name
 	if !hasQualifiedName {
 		gns.EnsureGenerated()
@@ -649,9 +688,13 @@ func conformanceValueFromGlobalName(
 		!ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(gn.GetJSDocInfo()) {
 		return "", false
 	}
+	decl := gn.GetDeclaration()
+	if decl == nil || !visited.add(decl.GetNode()) {
+		return "", false
+	}
 
-	return inferConformanceStringValue(
-		scope, NodeUtil_GetRValueOfLValue(gn.GetDeclaration().GetNode()), func() *GlobalNamespace { return gns })
+	return inferConformanceStringValueVisited(
+		scope, NodeUtil_GetRValueOfLValue(decl.GetNode()), func() *GlobalNamespace { return gns }, visited)
 }
 
 // Java: ConformanceRules.ConformanceUtil.inferStringValue(Scope, Node, Supplier<GlobalNamespace>)
@@ -665,6 +708,11 @@ func ConformanceRules_ConformanceUtil_InferStringValue(
 
 func inferConformanceStringValue(
 	scope *Scope, node rhino.Node, globalNamespaceSupplier func() *GlobalNamespace) (string, bool) {
+	return inferConformanceStringValueVisited(scope, node, globalNamespaceSupplier, conformanceVisitSet{})
+}
+
+func inferConformanceStringValueVisited(
+	scope *Scope, node rhino.Node, globalNamespaceSupplier func() *GlobalNamespace, visited conformanceVisitSet) (string, bool) {
 	if node.IsNil() {
 		return "", false
 	}
@@ -673,7 +721,7 @@ func inferConformanceStringValue(
 	case rhino.Token_STRING_KEY, rhino.Token_STRINGLIT, rhino.Token_TEMPLATELIT, rhino.Token_TEMPLATELIT_STRING:
 		return NodeUtil_GetStringValue(node)
 	case rhino.Token_NAME:
-		if scope == nil {
+		if scope == nil || !visited.add(node) {
 			return "", false
 		}
 		var_ := scope.GetVarByID(node.GetStringID())
@@ -683,9 +731,15 @@ func inferConformanceStringValue(
 		if !var_.IsConst() && !ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(var_.GetJSDocInfo()) {
 			return "", false
 		}
+		if !visited.add(var_.GetNameNode()) {
+			return "", false
+		}
 		initialValue := var_.GetInitialValue()
-		return inferConformanceStringValue(var_.GetScope().(*Scope), initialValue, globalNamespaceSupplier)
+		return inferConformanceStringValueVisited(var_.GetScope().(*Scope), initialValue, globalNamespaceSupplier, visited)
 	case rhino.Token_GETPROP:
+		if !visited.add(node) {
+			return "", false
+		}
 		gp := ast.MustGetProp(node)
 		type_ := node.GetJSType()
 		if type_ == nil {
@@ -699,17 +753,18 @@ func inferConformanceStringValue(
 			if enumSource.IsNil() || (!enumSource.IsObjectLit() && !enumSource.IsClassMembers()) {
 				return "", false
 			}
-			return inferConformanceStringValue(
+			return inferConformanceStringValueVisited(
 				nil,
 				NodeUtil_GetFirstPropMatchingKey(enumSource, gp.Property()),
-				globalNamespaceSupplier)
+				globalNamespaceSupplier,
+				visited)
 		} else if type_.IsString() {
 			gns := globalNamespaceSupplier()
 			if gns == nil {
 				return "", false
 			}
 			qname, hasQName := node.GetQualifiedNameString()
-			return conformanceValueFromGlobalName(scope, gns, qname, hasQName)
+			return conformanceValueFromGlobalNameVisited(scope, gns, qname, hasQName, visited)
 		}
 		return "", false
 	default:

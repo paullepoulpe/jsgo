@@ -345,10 +345,20 @@ func (d *DeadAssignmentsElimination) tryRemoveAssignment(
 
 		d.reportChange(parent)
 		return
+	} else if n.IsComputedFieldDef() {
+		if key := n.GetFirstChild(); !key.IsNil() && !isCfgSubtreeBoundary(key, false, false) {
+			d.tryRemoveAssignment(key, exprRoot, state)
+		}
+		if n.IsStaticMember() {
+			if val := n.GetSecondChild(); !val.IsNil() && !isCfgSubtreeBoundary(val, false, false) {
+				d.tryRemoveAssignment(val, exprRoot, state)
+			}
+		}
+		return
 	} else {
 		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
-			if !ControlFlowGraph_IsEnteringNewCfgNode(c) {
+			if !isCfgSubtreeBoundary(c, false, false) {
 				d.tryRemoveAssignment(c, exprRoot, state)
 			}
 			c = next
@@ -357,13 +367,61 @@ func (d *DeadAssignmentsElimination) tryRemoveAssignment(
 	}
 }
 
+type daePeerEvalCtx struct {
+	d     *DeadAssignmentsElimination
+	varID uint32
+}
+
+func daeEvalPeerReadBeforeKill(ctx daePeerEvalCtx, expr rhino.Node) cfgCondEvalState {
+	return cfgCondEvalState(ctx.d.isVariableReadBeforeKillByID(expr, ctx.varID))
+}
+
 // isVariableStillLiveWithinExpressionByID returns true if there exists a read
-// of varID before a write to varID that is on the right side of n within
-// exprRoot.
+// of varID before a write to varID that evaluates after n within exprRoot.
 func (d *DeadAssignmentsElimination) isVariableStillLiveWithinExpressionByID(
 	n rhino.Node, exprRoot rhino.Node, varID uint32) bool {
+	peerCtx := daePeerEvalCtx{d: d, varID: varID}
 	for n != exprRoot {
 		parent := n.GetParent()
+		if (parent.IsComputedProp() || parent.IsComputedFieldDef()) && parent.GetParent().IsClassMembers() {
+			if parent == exprRoot {
+				if parent.IsComputedFieldDef() && parent.IsStaticMember() && n == parent.GetFirstChild() {
+					if val := parent.GetSecondChild(); !val.IsNil() {
+						return d.isVariableReadBeforeKillByID(val, varID) == DeadAssignmentsElimination_VariableLiveness_READ
+					}
+				}
+				return false
+			}
+			classMembers := parent.GetParent()
+			inPass2 := n != parent.GetFirstChild()
+			if !inPass2 || parent.IsStaticMember() {
+				switch DeadAssignmentsElimination_VariableLiveness(
+					walkClassMembersAfterState(classMembers, parent, inPass2, peerCtx, daeEvalPeerReadBeforeKill),
+				) {
+				case DeadAssignmentsElimination_VariableLiveness_READ:
+					return true
+				case DeadAssignmentsElimination_VariableLiveness_KILL:
+					return false
+				}
+			}
+			n = classMembers
+			continue
+		}
+		if parent.IsClassMembers() {
+			if n.IsMemberFieldDef() && n.IsStaticMember() {
+				switch DeadAssignmentsElimination_VariableLiveness(
+					walkClassMembersAfterState(parent, n, true, peerCtx, daeEvalPeerReadBeforeKill),
+				) {
+				case DeadAssignmentsElimination_VariableLiveness_READ:
+					return true
+				case DeadAssignmentsElimination_VariableLiveness_KILL:
+					return false
+				}
+			}
+			n = parent
+			continue
+		}
+
 		state := DeadAssignmentsElimination_VariableLiveness_MAYBE_LIVE
 		switch parent.GetToken() {
 		case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_CALL:

@@ -198,14 +198,17 @@ func (p *AngularPass) addNode(n rhino.Node) {
 			name, hasName = *namePtr, true
 		}
 		fnNode, injectAfter = n, n
-		if parent := n.GetParent(); parent.IsAssign() && parent.GetJSDocInfo().IsNgInject() {
+		if parent := n.GetParent(); parent.IsAssign() && parent.GetJSDocInfo() != nil && parent.GetJSDocInfo().IsNgInject() {
 			// Handled when visiting the assign.
 			return
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		first := ast.MustNameDeclaration(n).MustFirstDeclarator().Node()
-		name, hasName = first.GetString(), true
-		fnNode = unwrapAssignChain(first.GetFirstChild())
+		if nameNode, ok := ast.MustNameDeclaration(n).MustFirstDeclarator().AsName(); ok {
+			name, hasName = nameNode.Ident(), true
+			if init, hasInit := nameNode.Init(); hasInit {
+				fnNode = unwrapAssignChain(init.Node())
+			}
+		}
 		injectAfter = n
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		m := ast.MustMemberFunctionDef(n)

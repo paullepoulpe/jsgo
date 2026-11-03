@@ -470,6 +470,13 @@ func (n Node) GetQualifiedNameObject() QualifiedName {
 	return nil
 }
 
+func (n Node) originalOrCurrentName() string {
+	if name, ok := n.OriginalName(); ok {
+		return name
+	}
+	return n.GetString()
+}
+
 // GetOriginalQualifiedName takes a set of GETPROP nodes and produces a
 // string that is each property separated by dots. If the node ultimately
 // under the left sub-tree is not a simple name, this is not a valid
@@ -480,36 +487,67 @@ func (n Node) GetQualifiedNameObject() QualifiedName {
 //
 // Java: Node.getOriginalQualifiedName()
 func (n Node) GetOriginalQualifiedName() *string {
-	if n.rec().token == Token_NAME {
-		name, ok := n.OriginalName()
-		if !ok {
-			name = n.GetString()
-		}
-		if name == "" {
-			return nil
-		}
-		return &name
-	} else if n.rec().token == Token_GETPROP {
-		left := n.GetFirstChild().GetOriginalQualifiedName()
-		if left == nil {
-			return nil
-		}
-
-		right, ok := n.OriginalName()
-		if !ok {
-			right = n.GetString()
-		}
-
-		s := *left + "." + right
-		return &s
-	} else if n.rec().token == Token_THIS {
-		s := "this"
-		return &s
-	} else if n.rec().token == Token_SUPER {
-		s := "super"
-		return &s
-	} else {
+	s, ok := n.originalQualifiedName()
+	if !ok {
 		return nil
+	}
+	return &s
+}
+
+// OriginalQualifiedName is the body of GetOriginalQualifiedName; ok is false
+// where Java returns null.
+func (n Node) OriginalQualifiedName() (string, bool) {
+	if n.IsNil() {
+		return "", false
+	}
+	return n.originalQualifiedName()
+}
+
+func (n Node) originalQualifiedName() (string, bool) {
+	switch n.rec().token {
+	case Token_NAME:
+		name := n.originalOrCurrentName()
+		if name == "" {
+			return "", false
+		}
+		return name, true
+	case Token_GETPROP:
+		first := n.firstNode()
+		if !first.IsGetProp() {
+			left, ok := first.originalQualifiedName()
+			if !ok {
+				return "", false
+			}
+			return left + "." + n.originalOrCurrentName(), true
+		}
+		var partsBuf [8]string
+		parts := partsBuf[:0]
+		totalLen := 0
+		cur := n
+		for cur.IsGetProp() {
+			p := cur.originalOrCurrentName()
+			parts = append(parts, p)
+			totalLen += 1 + len(p)
+			cur = cur.firstNode()
+		}
+		left, ok := cur.originalQualifiedName()
+		if !ok {
+			return "", false
+		}
+		var builder strings.Builder
+		builder.Grow(len(left) + totalLen)
+		builder.WriteString(left)
+		for i := len(parts) - 1; i >= 0; i-- {
+			builder.WriteByte('.')
+			builder.WriteString(parts[i])
+		}
+		return builder.String(), true
+	case Token_THIS:
+		return "this", true
+	case Token_SUPER:
+		return "super", true
+	default:
+		return "", false
 	}
 }
 
@@ -699,6 +737,9 @@ func (n Node) CloneNodeWithTypeExprs(cloneTypeExprs bool) Node {
 	clone.rec().token = n.rec().token
 	clone.rec().kindFlags = n.rec().kindFlags & kindMask
 	clone.rec().payload = n.rec().payload
+	if clone.rec().kindFlags == uint8(node_kindBigInt) && uint32(clone)&staticBit != 0 && clone.rec().payload != 0 && clone.rec().payload&staticBit == 0 {
+		clone.rec().payload = staticStore.internBigInt(n.GetBigInt())
+	}
 	Node_CopyBaseNodeFields(n, clone, cloneTypeExprs)
 	return clone
 }
@@ -723,6 +764,9 @@ func Node_CopyBaseNodeFields(source Node, dest Node, cloneTypeExprs bool) {
 	dest.copyLengthFrom(source)
 	dest.node_setOriginalNameID(source.node_originalNameID())
 	dest.setPropsAndSourceFile(source)
+	if sfID := dest.rec().sourceFile; sfID != 0 && sfID&staticBit == 0 && uint32(dest)&staticBit != 0 {
+		dest.rec().sourceFile = staticStore.allocSourceFileID(lookupSourceFileSlot(sfID).item.objectValue)
+	}
 
 	// TODO(johnlenz): Remove this once JSTypeExpression are immutable
 	if cloneTypeExprs {

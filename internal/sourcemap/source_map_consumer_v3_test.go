@@ -180,7 +180,7 @@ func TestExtensions(t *testing.T) {
 func TestSourceMappingExactMatch(t *testing.T) {
 	consumer := mustParseConsumer(t, basicMapJSON())
 
-	mapping, _, ok := consumer.GetMappingForLineValue(1, 1)
+	mapping, ok := consumer.GetMappingForLineValue(1, 1)
 
 	if !ok {
 		t.Fatal("mapping is null")
@@ -216,7 +216,7 @@ func TestSourceMappingApproximatedLine(t *testing.T) {
 				setNames("Shape", "id", "Rectangle", "s").
 				build()))
 
-	mapping, _, ok := consumer.GetMappingForLineValue(40, 10)
+	mapping, ok := consumer.GetMappingForLineValue(40, 10)
 
 	if !ok {
 		t.Fatal("mapping is null")
@@ -257,7 +257,7 @@ func TestLargeMappings(t *testing.T) {
 	if consumer.GetLineCount() != 1 {
 		t.Errorf("lineCount = %d", consumer.GetLineCount())
 	}
-	if _, _, ok := consumer.GetMappingForLineValue(1, 1); !ok {
+	if _, ok := consumer.GetMappingForLineValue(1, 1); !ok {
 		t.Error("mapping is null")
 	}
 }
@@ -278,9 +278,9 @@ func TestMixedEntryTypes(t *testing.T) {
 				setNames("name1").
 				build()))
 
-	m1, _, ok1 := consumer.GetMappingForLineValue(1, 1) // col 0
-	m2, _, ok2 := consumer.GetMappingForLineValue(1, 2) // col 1
-	m4, _, ok4 := consumer.GetMappingForLineValue(1, 4) // col 3
+	m1, ok1 := consumer.GetMappingForLineValue(1, 1) // col 0
+	m2, ok2 := consumer.GetMappingForLineValue(1, 2) // col 1
+	m4, ok4 := consumer.GetMappingForLineValue(1, 4) // col 3
 
 	if ok1 {
 		t.Errorf("m1 = %v", m1)
@@ -342,7 +342,7 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 		}
 
 		for col := 0; col < numEntries; col++ {
-			mapping, _, ok := consumer.GetMappingForLineValue(1, col+1)
+			mapping, ok := consumer.GetMappingForLineValue(1, col+1)
 			if !ok {
 				t.Fatalf("%d entries, col %d: null", numEntries, col)
 			}

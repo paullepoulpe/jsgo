@@ -253,7 +253,7 @@ func NodeUtil_GetBestJsDocInfoNodeInternal(n rhino.Node) rhino.Node {
 // Java: NodeUtil.isGoogModuleCall(Node)
 func NodeUtil_IsGoogModuleCall(n rhino.Node) bool {
 	if exprStmt, ok := ast.AsExprStmt(n); ok {
-		if call, ok := ast.AsCall(exprStmt.Expr().Node()); ok {
+		if call, ok := exprStmt.Expr().AsCall(); ok {
 			return NodeUtil_GOOG_MODULE.Matches(call.Callee().Node())
 		}
 	}
@@ -689,9 +689,15 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode rhino.Node) *NodeUtil_GoogRequire 
 		if !(isStrongRequire || NodeUtil_IsGoogRequireTypeCall(requireCall.Node())) {
 			return nil
 		}
-		firstArg, _ := ast.MustCall(requireCall.Node()).FirstArg()
-		namespace := firstArg.Node().GetString()
-		return NodeUtil_GoogRequire_FromNamespace(namespace, isStrongRequire)
+		firstArg, ok := ast.MustCall(requireCall.Node()).FirstArg()
+		if !ok {
+			return nil
+		}
+		nsLit, ok := firstArg.AsStringLit()
+		if !ok {
+			return nil
+		}
+		return NodeUtil_GoogRequire_FromNamespace(nsLit.Value(), isStrongRequire)
 	} else if strKey, ok := ast.AsStringKey(nameNode.GetParent()); ok && nameNode.GetGrandparent().IsObjectPattern() {
 		requireCall := nameNode.GetGrandparent().GetNext()
 		if requireCall.IsNil() {
@@ -701,10 +707,16 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode rhino.Node) *NodeUtil_GoogRequire 
 		if !(isStrongRequire || NodeUtil_IsGoogRequireTypeCall(requireCall)) {
 			return nil
 		}
+		firstArg, ok := ast.MustCall(requireCall).FirstArg()
+		if !ok {
+			return nil
+		}
+		nsLit, ok := firstArg.AsStringLit()
+		if !ok {
+			return nil
+		}
 		property := strKey.Key()
-		firstArg, _ := ast.MustCall(requireCall).FirstArg()
-		namespace := firstArg.Node().GetString()
-		return NodeUtil_GoogRequire_FromNamespaceAndProperty(namespace, property, isStrongRequire)
+		return NodeUtil_GoogRequire_FromNamespaceAndProperty(nsLit.Value(), property, isStrongRequire)
 	}
 	return nil
 }

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -323,10 +324,13 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 	// content instead.
 	shadow := node.GetClosureUnawareShadow()
 	if !shadow.IsNil() {
-		script := shadow.GetOnlyChild()
-		sinkCall := script.GetOnlyChild().GetOnlyChild()
-		jutil.CheckStateMsg1(sinkCall.IsCall(), "%s", sinkCall)
-		g.AddNodeWithContextAndComments(sinkCall.GetLastChild(), context, printComments)
+		script := ast.MustRoot(shadow).MustOnlyItem().MustScript()
+		sinkExpr := ast.MustExprStmt(script.MustOnlyItem().Node()).Expr()
+		sinkCall, ok := sinkExpr.AsCall()
+		jutil.CheckStateMsg1(ok, "%s", sinkExpr.Node())
+		lastArg, hasArg := sinkCall.LastArg()
+		jutil.CheckState(hasArg)
+		g.AddNodeWithContextAndComments(lastArg.Node(), context, printComments)
 		return
 	}
 	if printComments && (g.preserveTypeAnnotations || g.printNonJSDocComments) {
@@ -335,44 +339,49 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 	cc.TrackLicenses(node)
 
 	type_ := node.GetToken()
-	if opstr, hasOpStr := nodeUtil_opToStr(type_); hasOpStr {
-		if first := node.GetFirstChild(); !first.IsNil() {
-			if second := first.GetNext(); !second.IsNil() {
-				if !second.GetNext().IsNil() {
-					panic(jutil.NewIllegalStateExceptionMsg(
-						jutil.LenientFormat(
-							"Bad binary operator \"%s\": expected 2 arguments but got %s",
-							opstr,
-							node.GetChildCount())))
-				}
-				p := g.Precedence(node)
+	if opstr, hasOpStr := nodeUtil_opToStr(type_); hasOpStr && node.HasMoreThanOneChild() {
+		if !node.HasTwoChildren() {
+			panic(jutil.NewIllegalStateExceptionMsg(
+				jutil.LenientFormat(
+					"Bad binary operator \"%s\": expected 2 arguments but got %s",
+					opstr,
+					node.GetChildCount())))
+		}
+		p := g.Precedence(node)
 
-				// For right-hand-side of operations, only pass context if it's
-				// the IN_FOR_INIT_CLAUSE one.
-				rhsContext := CodeGenerator_GetContextForNoInOperator(context)
+		// For right-hand-side of operations, only pass context if it's
+		// the IN_FOR_INIT_CLAUSE one.
+		rhsContext := CodeGenerator_GetContextForNoInOperator(context)
 
-				needsParens := (context == CodeGenerator_Context_START_OF_EXPR || context.AtArrowFunctionBody()) &&
-					first.IsObjectPattern()
-				if node.IsAssign() && needsParens {
-					g.Add("(")
-				}
-
-				if NodeUtil_IsAssignmentOp(node) || type_ == rhino.Token_EXPONENT {
-					// Assignment operators and '**' are the only right-associative
-					// binary operators
-					g.AddExpr(first, p+1, context)
-					cc.AddOp(opstr, true)
-					g.AddExpr(second, p, rhsContext)
-				} else {
-					g.UnrollBinaryOperator(node, type_, opstr, context, rhsContext, p, p+1)
-				}
-
-				if node.IsAssign() && needsParens {
-					g.Add(")")
-				}
-				return
+		if asgn, isAsgn := ast.AsAssignment(node); isAsgn {
+			first := asgn.Target().Node()
+			needsParens := type_ == rhino.Token_ASSIGN &&
+				(context == CodeGenerator_Context_START_OF_EXPR || context.AtArrowFunctionBody()) &&
+				first.IsObjectPattern()
+			if needsParens {
+				g.Add("(")
+			}
+			// Assignment operators and '**' are the only right-associative
+			// binary operators
+			g.AddExpr(first, p+1, context)
+			cc.AddOp(opstr, true)
+			g.AddExpr(asgn.Value().Node(), p, rhsContext)
+			if needsParens {
+				g.Add(")")
+			}
+		} else {
+			bin := ast.MustBinary(node)
+			if type_ == rhino.Token_EXPONENT {
+				// Assignment operators and '**' are the only right-associative
+				// binary operators
+				g.AddExpr(bin.Left().Node(), p+1, context)
+				cc.AddOp(opstr, true)
+				g.AddExpr(bin.Right().Node(), p, rhsContext)
+			} else {
+				g.UnrollBinaryOperator(node, type_, opstr, context, rhsContext, p, p+1)
 			}
 		}
+		return
 	}
 
 	cc.StartSourceMapping(node)
@@ -407,8 +416,8 @@ func codeGenerator_nodeProp(value any) rhino.Node {
 
 // Java: CodeGenerator.precedence(Node)
 func (g *CodeGenerator) Precedence(n rhino.Node) int {
-	if n.IsCast() {
-		return g.Precedence(n.GetFirstChild())
+	if cast, ok := ast.AsCast(n); ok {
+		return g.Precedence(cast.Expr().Node())
 	}
 	return NodeUtil_Precedence(n.GetToken())
 }
@@ -464,8 +473,8 @@ func CodeGenerator_IsNullishCoalesceChildOfLogicalANDorLogicalOR(n rhino.Node) b
 
 // Java: CodeGenerator.isFirstOperandOfExponentiationExpression(Node)
 func (g *CodeGenerator) IsFirstOperandOfExponentiationExpression(n rhino.Node) bool {
-	parent := n.GetParent()
-	return !parent.IsNil() && parent.IsExponent() && parent.GetFirstChild() == n
+	exp, ok := ast.AsBinaryOf(n.GetParent(), rhino.Token_EXPONENT)
+	return ok && exp.Left().Is(n)
 }
 
 // Java: CodeGenerator.maybeAddAccessibilityModifier(Node)
@@ -619,26 +628,27 @@ func (g *CodeGenerator) ProcessEnd(n rhino.Node, context CodeGenerator_Context) 
 	case rhino.Token_CLASS, rhino.Token_INTERFACE, rhino.Token_ENUM, rhino.Token_NAMESPACE:
 		g.cc.EndClass(context == CodeGenerator_Context_STATEMENT)
 	case rhino.Token_FUNCTION:
-		if n.GetLastChild().IsEmpty() {
+		if ast.MustFunction(n).Body().Node().IsEmpty() {
 			g.cc.EndStatementWithSemiColon(true /* needSemiColon */, false /* hasTrailingCommentOnSameLine */)
 		} else {
 			g.cc.EndFunction(context == CodeGenerator_Context_STATEMENT)
 		}
 	case rhino.Token_DECLARE:
 		if n.GetParent().GetToken() != rhino.Token_NAMESPACE_ELEMENTS {
-			g.ProcessEnd(n.GetFirstChild(), context)
+			g.ProcessEnd(ast.MustDeclare(n).MustFirstChild(), context)
 		}
 	case rhino.Token_EXPORT:
+		body := ast.MustExport(n).Body().Node()
 		if n.GetParent().GetToken() != rhino.Token_NAMESPACE_ELEMENTS &&
-			!n.GetFirstChild().IsDeclare() {
-			g.ProcessEnd(n.GetFirstChild(), context)
+			!body.IsDeclare() {
+			g.ProcessEnd(body, context)
 		}
 	case rhino.Token_COMPUTED_PROP:
-		if n.HasOneChild() {
+		if _, hasVal := ast.MustComputedProp(n).Value(); !hasVal {
 			g.cc.EndStatementWithSemiColon(true /* needSemiColon */, false /* hasTrailingCommentOnSameLine */)
 		}
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-		if n.GetFirstChild().GetLastChild().IsEmpty() {
+		if ast.MustMethodDef(n).Function().Body().Node().IsEmpty() {
 			g.cc.EndStatementWithSemiColon(true /* needSemiColon */, false /* hasTrailingCommentOnSameLine */)
 		}
 	case rhino.Token_MEMBER_VARIABLE_DEF:

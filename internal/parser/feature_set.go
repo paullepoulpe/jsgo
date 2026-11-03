@@ -21,6 +21,7 @@ package parser
 import (
 	"iter"
 	"math/bits"
+	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -557,7 +558,7 @@ var featureSet_Feature_all = func() (out [len(featureSet_Feature_names)]FeatureS
 //
 // Java: FeatureSet.Feature.values()
 func FeatureSet_Feature_values() []FeatureSet_Feature {
-	return featureSet_Feature_all[:]
+	return slices.Clone(featureSet_Feature_all[:])
 }
 
 // Name is Enum.name().

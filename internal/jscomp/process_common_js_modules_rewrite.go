@@ -59,12 +59,40 @@ func (r *commonJsRewriteModule) reset(allowFullRewrite bool, defaultExportIsCons
 	r.functionsToHoist = r.functionsToHoist[:0]
 }
 
+func hoistedFunctionTarget(stmt rhino.Node) rhino.Node {
+	if decl, ok := ast.AsNameDeclaration(stmt); ok {
+		return decl.MustFirstDeclarator().Node()
+	}
+	return ast.MustAssign(ast.MustExprStmt(stmt).Expr().Node()).Target().Node()
+}
+
+func firstHoistScopeStmt(scopeRoot rhino.Node) rhino.Node {
+	if script, ok := ast.AsScript(scopeRoot); ok {
+		if item, ok := script.FirstItem(); ok {
+			return item.Node()
+		}
+		return rhino.NilNode
+	}
+	if mod, ok := ast.AsModuleBody(scopeRoot); ok {
+		if stmt, ok := mod.FirstStatement(); ok {
+			return stmt.Node()
+		}
+		return rhino.NilNode
+	}
+	if blk, ok := ast.AsBlock(scopeRoot); ok {
+		if stmt, ok := blk.FirstStatement(); ok {
+			return stmt.Node()
+		}
+	}
+	return rhino.NilNode
+}
+
 func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	compiler := r.outer.compiler
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		for _, clazz := range r.rewrittenClassExpressions {
-			clazz.GetFirstChild().ReplaceWith(rhino.IR_Empty().Srcref(clazz.GetFirstChild()))
+			ast.MustClass(clazz).RemoveName()
 			t.ReportCodeChange()
 		}
 
@@ -74,7 +102,7 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		if len(r.functionsToHoist) > 1 {
 			baseImport := r.outer.getBasePropertyImport(moduleName)
 			for i := 1; i < len(r.functionsToHoist); i++ {
-				if r.functionsToHoist[i].GetFirstFirstChild().MatchesQualifiedName(baseImport) {
+				if hoistedFunctionTarget(r.functionsToHoist[i]).MatchesQualifiedName(baseImport) {
 					fncVar := r.functionsToHoist[i]
 					r.functionsToHoist = slices.Delete(r.functionsToHoist, i, i+1)
 					r.functionsToHoist = slices.Insert(r.functionsToHoist, 0, fncVar)
@@ -86,14 +114,16 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		for i := len(r.functionsToHoist) - 1; i >= 0; i-- {
 			functionExpr := r.functionsToHoist[i]
 			scopeRoot := t.GetClosestHoistScopeRoot()
-			insertionPoint := scopeRoot.GetFirstChild()
-			if insertionPoint.IsNil() ||
-				!(insertionPoint.IsVar() && insertionPoint.GetFirstChild().GetString() == moduleName) {
-				insertionPoint = rhino.NilNode
+			firstStmt := firstHoistScopeStmt(scopeRoot)
+			var insertionPoint rhino.Node
+			if !firstStmt.IsNil() && firstStmt.IsVar() {
+				if nameNode, ok := ast.MustNameDeclaration(firstStmt).MustFirstDeclarator().AsName(); ok && nameNode.Ident() == moduleName {
+					insertionPoint = firstStmt
+				}
 			}
 
 			if insertionPoint.IsNil() {
-				if scopeRoot.GetFirstChild() != functionExpr {
+				if firstStmt != functionExpr {
 					scopeRoot.AddChildToFront(functionExpr.Detach())
 				}
 			} else if insertionPoint != functionExpr && insertionPoint.GetNext() != functionExpr {
@@ -117,7 +147,7 @@ func (r *commonJsRewriteModule) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 			vars := splitMultipleDeclarations(n)
 			t.ReportCodeChange()
 			for _, varNode := range vars {
-				r.Visit(t, varNode.GetFirstChild(), varNode)
+				r.Visit(t, ast.MustNameDeclaration(varNode).MustFirstDeclarator().Node(), varNode)
 			}
 		}
 
@@ -276,12 +306,13 @@ func (r *commonJsRewriteModule) visitExport(t *NodeTraversal, export commonJsExp
 		root.GetGrandparent().IsExprResult() &&
 		moduleInitialization == nil {
 		parent := root.GetParent()
-		exportName := rhino.IR_ExprResult(rhino.IR_Assign(updatedExport, rValue.Detach()))
+		assign := rhino.IR_Assign(updatedExport, rValue.Detach())
 		if exportIsConst {
 			info := rhino.JSDocInfo_Builder_()
 			info.RecordConstancy()
-			exportName.GetFirstChild().SetJSDocInfo(info.Build())
+			assign.SetJSDocInfo(info.Build())
 		}
+		exportName := rhino.IR_ExprResult(assign)
 		parent.GetParent().ReplaceWith(exportName.SrcrefTree(parent))
 		changeScope = ChangeTracker_GetEnclosingChangeScopeRoot(parent)
 	} else if !root.GetNext().IsNil() &&
@@ -331,7 +362,8 @@ func (r *commonJsRewriteModule) expandObjectLitAssignment(t *NodeTraversal, expo
 		}
 		key := member.Node()
 
-		lhs := rhino.IR_Getprop(export.CloneTree(), key.GetString())
+		exportClone := export.CloneTree()
+		lhs := rhino.IR_Getprop(exportClone, key.GetString())
 		var value rhino.Node
 		if stringKey, ok := member.AsStringKey(); ok {
 			value = stringKey.Value().Detach().Node()
@@ -341,7 +373,7 @@ func (r *commonJsRewriteModule) expandObjectLitAssignment(t *NodeTraversal, expo
 
 		expr := rhino.IR_ExprResult(rhino.IR_Assign(lhs, value)).SrcrefTreeIfMissing(key)
 		expr.InsertAfter(insertionRef)
-		newExport := newCommonJsExportInfo(lhs.GetFirstChild(), scope)
+		newExport := newCommonJsExportInfo(exportClone, scope)
 		r.visitExport(t, newExport)
 
 		if !expr.IsNil() && expr.HasParent() {
@@ -382,8 +414,10 @@ func (r *commonJsRewriteModule) maybeUpdateName(t *NodeTraversal, n rhino.Node, 
 			(var_ == nil ||
 				var_.GetNameNode().GetParent().IsNil() ||
 				!NodeUtil_IsLhsByDestructuring(var_.GetNameNode())) {
-			if n.GetParent().IsClass() && n.GetParent().GetFirstChild() == n {
-				r.rewrittenClassExpressions = append(r.rewrittenClassExpressions, n.GetParent())
+			if cls, ok := ast.AsClass(n.GetParent()); ok {
+				if clsName, hasName := cls.Name(); hasName && clsName.Is(n) {
+					r.rewrittenClassExpressions = append(r.rewrittenClassExpressions, n.GetParent())
+				}
 			}
 			return
 		}
@@ -443,25 +477,23 @@ func (r *commonJsRewriteModule) updateNameReference(
 				newNameRef.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 			}
 
+			placeholder := rhino.IR_NullNode()
 			var expr rhino.Node
 			if !newNameIsQualified && newNameDeclaration == nil {
-				expr = rhino.IR_LetWithValue(newNameRef, rhino.IR_NullNode()).SrcrefTreeIfMissing(nameRef)
+				expr = rhino.IR_LetWithValue(newNameRef, placeholder).SrcrefTreeIfMissing(nameRef)
 			} else {
-				expr = rhino.IR_ExprResult(rhino.IR_Assign(newNameRef, rhino.IR_NullNode())).SrcrefTreeIfMissing(nameRef)
+				assign := rhino.IR_Assign(newNameRef, placeholder)
+				expr = rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(nameRef)
 				info := rhino.JSDocInfo_Builder_MaybeCopyFrom(parent.GetJSDocInfo())
 				parent.SetJSDocInfo(nil)
 				if qualifiedNameIsConst {
 					info.RecordConstancy()
 				}
-				expr.GetFirstChild().SetJSDocInfo(info.Build())
-				r.fixTypeAnnotationsForNode(t, expr.GetFirstChild())
+				assign.SetJSDocInfo(info.Build())
+				r.fixTypeAnnotationsForNode(t, assign)
 			}
 			parent.ReplaceWith(expr)
-			if expr.IsLet() {
-				expr.GetFirstFirstChild().ReplaceWith(parent)
-			} else {
-				expr.GetFirstChild().GetSecondChild().ReplaceWith(parent)
-			}
+			placeholder.ReplaceWith(parent)
 		} else if hasExtends && superClass.Is(nameRef) {
 			newNameRef := NodeUtil_NewQNameWithOriginalName(compiler, newName, nameRef, originalName)
 			if newNameIsModuleExport {
@@ -483,24 +515,25 @@ func (r *commonJsRewriteModule) updateNameReference(
 			}
 			nameRef.SetString("")
 
+			placeholder := rhino.IR_NullNode()
 			var expr rhino.Node
+			var assign rhino.Node
 			if !newNameIsQualified && newNameDeclaration == nil {
-				expr = rhino.IR_VarWithValue(newNameRef, rhino.IR_NullNode()).SrcrefTreeIfMissing(nameRef)
+				expr = rhino.IR_VarWithValue(newNameRef, placeholder).SrcrefTreeIfMissing(nameRef)
 			} else {
-				expr = rhino.IR_ExprResult(rhino.IR_Assign(newNameRef, rhino.IR_NullNode())).SrcrefTreeIfMissing(nameRef)
+				assign = rhino.IR_Assign(newNameRef, placeholder)
+				expr = rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(nameRef)
 			}
 			parent.ReplaceWith(expr)
-			if expr.IsVar() {
-				expr.GetFirstFirstChild().ReplaceWith(parent)
-			} else {
-				expr.GetFirstChild().GetSecondChild().ReplaceWith(parent)
+			placeholder.ReplaceWith(parent)
+			if !assign.IsNil() {
 				info := rhino.JSDocInfo_Builder_MaybeCopyFrom(parent.GetJSDocInfo())
 				parent.SetJSDocInfo(nil)
 				if qualifiedNameIsConst {
 					info.RecordConstancy()
 				}
-				expr.GetFirstChild().SetJSDocInfo(info.Build())
-				r.fixTypeAnnotationsForNode(t, expr.GetFirstChild())
+				assign.SetJSDocInfo(info.Build())
+				r.fixTypeAnnotationsForNode(t, assign)
 			}
 			r.functionsToHoist = append(r.functionsToHoist, expr)
 		} else {
@@ -667,10 +700,12 @@ func getExportedNameNode(info commonJsExportInfo) rhino.Node {
 		return rhino.NilNode
 	}
 	if NodeUtil_IsFunctionExpression(rValue) {
-		return rValue.GetFirstChild()
+		return ast.MustFunction(rValue).NameNode().Node()
 	}
-	if NodeUtil_IsClassExpression(rValue) && rValue.GetFirstChild() == qNameBase {
-		return rValue.GetFirstChild()
+	if NodeUtil_IsClassExpression(rValue) {
+		if clsName, ok := ast.MustClass(rValue).Name(); ok && clsName.Is(qNameBase) {
+			return clsName.Node()
+		}
 	}
 	if !rValue.IsName() {
 		return rhino.NilNode
@@ -781,7 +816,7 @@ func (r *commonJsRewriteModule) fixTypeNode(t *NodeTraversal, typeNode rhino.Nod
 		}
 	}
 
-	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range typeNode.Children() {
 		r.fixTypeNode(t, child)
 	}
 }

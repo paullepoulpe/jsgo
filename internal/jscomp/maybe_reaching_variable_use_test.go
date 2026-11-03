@@ -297,6 +297,17 @@ func (c *MaybeReachingVariableUseTest) TestManyVarsAndManyUses() {
 	c.AssertNotMatch(b.String())
 }
 
+func (c *MaybeReachingVariableUseTest) TestClassMembersTwoPassEvaluationOrder() {
+	// Pass 1 `[use(x)]() {}` runs BEFORE Pass 2 `static a = (x = 2)`, so `static a = (x = 2)`
+	// does NOT kill the upward-exposed read of `x` in `[use(x)]() {}`.
+	c.AssertMatch("D: var x = 1; U: var C = class { static a = (x = 2); [use(x)]() {} };")
+	c.AssertMatch("D: var x = 1; U: var C = class { static [use(x)] = (x = 2); };")
+
+	// Conversely, Pass 1 `[x = 2]() {}` runs BEFORE Pass 2 `static a = use(x)`, killing `x`.
+	c.AssertNotMatch("D: var x = 1; U: var C = class { static a = use(x); [x = 2]() {} };")
+	c.AssertNotMatch("D: var x = 1; U: var C = class { static [x = 2] = use(x); };")
+}
+
 // Java: MaybeReachingVariableUseTest.assertMatch(String)
 func (c *MaybeReachingVariableUseTest) AssertMatch(src string) {
 	c.AssertMatchWithAsync(src, false)

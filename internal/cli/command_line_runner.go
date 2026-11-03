@@ -123,7 +123,7 @@ var commandLineRunner_FormattingOption_all = [...]CommandLineRunner_FormattingOp
 
 // CommandLineRunner_FormattingOption_values is FormattingOption.values().
 func CommandLineRunner_FormattingOption_values() []CommandLineRunner_FormattingOption {
-	return commandLineRunner_FormattingOption_all[:]
+	return slices.Clone(commandLineRunner_FormattingOption_all[:])
 }
 
 // String is Enum.name().
@@ -534,12 +534,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		config.SetOutputManifest([]string{flags.outputManifest})
 		config.outputBundles = bundleFiles
 		config.skipNormalOutputs = skipNormalOutputs
-		if flags.outputChunkDependencies != "" {
-			outputChunkDependencies := flags.outputChunkDependencies
-			config.outputChunkDependencies = &outputChunkDependencies
-		} else {
-			config.outputChunkDependencies = nil
-		}
+		config.outputChunkDependencies = flags.outputChunkDependencies
 		config.processCommonJSModules = flags.processCommonJsModules
 		config.moduleRoots = flags.moduleRoot
 		config.warningsAllowFile = flags.warningsAllowlistFile
@@ -819,16 +814,13 @@ func commandLineRunner_j2clPassModeValueOf(name string) (jscomp.CompilerOptions_
 
 // commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of an
 // ordered Map<String, String>: its entries in insertion order.
-//
-// Go-only: language-adapter — args4j's MapOptionHandler stores String
-// values boxed (*string).
-func commandLineRunner_immutableMapCopyOf(m *jutil.OrderedMap[string, *string]) *jutil.OrderedMap[string, string] {
+func commandLineRunner_immutableMapCopyOf(m *jutil.OrderedMap[string, string]) *jutil.OrderedMap[string, string] {
 	result := jutil.NewOrderedMapWithCapacity[string, string](m.Size())
 	for k, v := range m.All() {
-		if v == nil {
+		if v == "" {
 			panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + k + "=null"))
 		}
-		result.PutNew(k, *v)
+		result.PutNew(k, v)
 	}
 	return result
 }

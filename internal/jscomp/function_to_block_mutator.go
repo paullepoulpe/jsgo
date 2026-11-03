@@ -341,30 +341,31 @@ func ftbmFixUninitializedVarDecls(n rhino.Node, containingBlock rhino.Node, inLo
 	if decl, ok := ast.AsNameDeclaration(n); ok {
 		if onlyDecl, hasOne := decl.OnlyDeclarator(); hasOne {
 			if inLoop && decl.Token() == rhino.Token_VAR {
-				name := onlyDecl.MustName()
-				nameNode := name.Node()
-				inForInit := ast.RoleOf(n) == ast.RoleForInit
-				// Hoist per-function declaration initialized to undefined
-				hoistedName := nameNode.CloneNode().SetJSDocInfo(nil)
-				hoistedName.AddChildToBack(NodeUtil_NewUndefinedNode(nameNode))
-				containingBlock.AddChildToFront(rhino.IR_Var(hoistedName).Srcref(n))
+				if name, isName := onlyDecl.AsName(); isName {
+					nameNode := name.Node()
+					inForInit := ast.RoleOf(n) == ast.RoleForInit
+					// Hoist per-function declaration initialized to undefined
+					hoistedName := nameNode.CloneNode().SetJSDocInfo(nil)
+					hoistedName.AddChildToBack(NodeUtil_NewUndefinedNode(nameNode))
+					containingBlock.AddChildToFront(rhino.IR_Var(hoistedName).Srcref(n))
 
-				if initVal, hasInit := name.Init(); hasInit {
-					// If the var in the loop had an initializer, keep the assignment at the declaration site in
-					// the loop.
-					value := initVal.Detach().Node()
-					assign := rhino.IR_Assign(nameNode.Detach(), value).Srcref(n)
-					if inForInit {
-						n.ReplaceWith(assign)
+					if initVal, hasInit := name.Init(); hasInit {
+						// If the var in the loop had an initializer, keep the assignment at the declaration site in
+						// the loop.
+						value := initVal.Detach().Node()
+						assign := rhino.IR_Assign(nameNode.Detach(), value).Srcref(n)
+						if inForInit {
+							n.ReplaceWith(assign)
+						} else {
+							n.ReplaceWith(NodeUtil_NewExpr(assign))
+						}
 					} else {
-						n.ReplaceWith(NodeUtil_NewExpr(assign))
-					}
-				} else {
-					// If uninitialized in the loop, remove the var declaration from the loop.
-					if inForInit {
-						n.ReplaceWith(rhino.IR_Empty())
-					} else {
-						n.Detach()
+						// If uninitialized in the loop, remove the var declaration from the loop.
+						if inForInit {
+							n.ReplaceWith(rhino.IR_Empty())
+						} else {
+							n.Detach()
+						}
 					}
 				}
 				return

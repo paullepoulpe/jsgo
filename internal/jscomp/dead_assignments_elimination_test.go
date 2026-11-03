@@ -1147,19 +1147,14 @@ func (c *DeadAssignmentsEliminationTest) TestComputedClassField() {
 			"}\n" +
 			"use(x);\n")
 
-	c.InFunctionWithExpected(
-		"let x;\n"+
-			"class C {\n"+
-			"  static field1 = x;\n"+
-			"  [x = 'field2'] = 7;\n"+
-			"}\n"+
-			"use(C.field1);\n",
-		"let x;\n"+
-			"class C {\n"+
-			"  static field1 = x;\n"+
-			"// TODO(b/189993301): don't remove 'x = field2' because it's read by 'field1 = x'\n"+
-			"  ['field2'] = 7;\n"+
-			"}\n"+
+	// Go-only: b/189993301 fixed — computed member keys evaluate in pass 1 before
+	// static field initializers in pass 2, so `x = 'field2'` is read by `field1 = x`.
+	c.InFunction(
+		"let x;\n" +
+			"class C {\n" +
+			"  static field1 = x;\n" +
+			"  [x = 'field2'] = 7;\n" +
+			"}\n" +
 			"use(C.field1);\n")
 }
 
@@ -1370,4 +1365,64 @@ func (c *DeadAssignmentsEliminationTest) TestManyBlockScopedVariables() {
 	c.InFunctionWithExpected(
 		blocks+"let dead; dead = 1;",
 		blocks+"let dead; 1;")
+}
+
+func (c *DeadAssignmentsEliminationTest) TestClassMembersTwoPassEvaluationOrder() {
+	// Pass 1 computed field key runs BEFORE Pass 2 static field initializer.
+	c.InFunction(
+		"let x = 0;\n" +
+			"var C = class {\n" +
+			"  static a = extern(x);\n" +
+			"  [x = 1] = 2;\n" +
+			"};\n" +
+			"return C;\n")
+
+	// Pass 1 computed field key read runs BEFORE a later Pass 1 computed field key write.
+	c.InFunctionWithExpected(
+		"let x = 0;\n"+
+			"var C = class {\n"+
+			"  static [extern(x)] = 1;\n"+
+			"  static [x = 2] = 3;\n"+
+			"};\n"+
+			"return C;\n",
+		"let x = 0;\n"+
+			"var C = class {\n"+
+			"  static [extern(x)] = 1;\n"+
+			"  static [2] = 3;\n"+
+			"};\n"+
+			"return C;\n")
+
+	// Same computed static field: Pass 1 key [x = 1] runs before Pass 2 value extern(x).
+	c.InFunction(
+		"let x;\n" +
+			"var C = class {\n" +
+			"  static [x = 1] = extern(x);\n" +
+			"};\n" +
+			"return C;\n")
+}
+
+func TestDeadAssignmentsElimination_ClassMethodComputedKeyBeforeStaticField(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
+	options := NewCompilerOptions()
+	options.SetLanguage(CompilerOptions_LanguageMode_UNSUPPORTED)
+	compiler.InitOptions(options)
+
+	src := "function f() { let x = 0; const C = class { static a = use(x); [x = 1]() {} }; return C; }"
+	script := compiler.ParseTestCode(src)
+	if len(compiler.GetErrors()) > 0 {
+		t.Fatalf("unexpected parse errors: %v", compiler.GetErrors())
+	}
+	fnBody := script.GetFirstChild().GetLastChild()
+	constStmt := fnBody.GetFirstChild().GetNext()
+	cls := constStmt.GetFirstChild().GetFirstChild()
+	classMembers := cls.GetLastChild()
+	compMethod := classMembers.GetFirstChild().GetNext()
+	assignNode := compMethod.GetFirstChild()
+	xID := assignNode.GetFirstChild().GetStringID()
+
+	dae := NewDeadAssignmentsElimination(compiler)
+	if !dae.isVariableStillLiveWithinExpressionByID(assignNode, constStmt, xID) {
+		t.Fatalf("expected x = 1 in computed method key to be live before static a = use(x)")
+	}
 }

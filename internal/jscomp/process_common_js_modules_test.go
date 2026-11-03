@@ -1730,6 +1730,18 @@ func (c *ProcessCommonJSModulesTest) TestFindModuleDependencies() {
 	input := compiler.GetInput(script.GetInputId())
 	AssertThat(input).IsNotNull()
 	AssertThat(input.GetKnownProvides()).IsNotNull()
+
+	// Malformed 0-arg and non-string goog.requireDynamic / goog.require calls must not panic or pollute dynamic imports.
+	compiler2 := NewCompilerWithErrorManager(NewBlackHoleErrorManager())
+	compiler2.Init(
+		[]*SourceFile{SourceFile_FromCode("externs.js", "")},
+		[]*SourceFile{SourceFile_FromCode("mod2.js", "goog.requireDynamic(); goog.requireDynamic(123); goog.require(); goog.require(123);")},
+		options)
+	root2 := compiler2.ParseInputs()
+	script2 := root2.GetSecondChild().GetFirstChild()
+	NewFindModuleDependencies(compiler2, true, true, NewOrderedStringMap[string]()).Process(script2)
+	input2 := compiler2.GetInput(script2.GetInputId())
+	AssertThat(input2.GetRequireDynamicImports()).IsEmpty()
 }
 
 func (c *ProcessCommonJSModulesTest) TestMultipleAssignmentsWithGlobalExportsDecl() {

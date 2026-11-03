@@ -821,7 +821,11 @@ func (r *AbstractCommandLineRunnerBase) RunCompilerPasses() {
 // Java: AbstractCommandLineRunner.initializeStateBeforeCompilation()
 func (r *AbstractCommandLineRunnerBase) InitializeStateBeforeCompilation() {
 	if r.config.restoredCompilationStage != -1 {
-		r.RestoreState(*r.config.GetContinueSavedCompilationFileName())
+		fn, ok := r.config.continueSavedCompilationFileName.Get()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		r.RestoreState(fn)
 	} else if r.config.typedAstListInputFilename.IsPresent() {
 		// we did this elsewhere
 	} else {

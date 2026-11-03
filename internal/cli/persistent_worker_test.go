@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
+	"weak"
 
+	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -583,6 +586,84 @@ func TestUnboxedOptStringFlagsParity(t *testing.T) {
 	}
 	if !strings.Contains(string(got), "__customImport(") {
 		t.Fatalf("expected --dynamic_import_alias=__customImport in output, got: %s", got)
+	}
+}
+
+func TestPersistentWorkerSourceFileAndBigIntGCReclamation(t *testing.T) {
+	dir := t.TempDir()
+	srcPath := filepath.Join(dir, "ephemeral_big.js")
+	outPath := filepath.Join(dir, "out.js")
+
+	// 1. Direct weak-pointer check on jscomp.SourceFile attached to a compilation NodeStore.
+	var weakSF weak.Pointer[jscomp.SourceFile]
+	func() {
+		rhino.ResetNodeStore()
+		store := rhino.EnsureCompilationStore()
+		if store.IsStatic() {
+			t.Fatal("expected non-static compilation store")
+		}
+		sf := jscomp.SourceFile_FromCode("worker_ephemeral.js", "/* "+strings.Repeat("z", 64*1024)+" */\nconst x = 1n;\n")
+		weakSF = weak.Make(sf)
+		_ = rhino.IR_Script().SetStaticSourceFile(sf)
+		rhino.ResetNodeStore()
+	}()
+	for range 4 {
+		runtime.GC()
+	}
+	if weakSF.Value() != nil {
+		t.Fatal("jscomp.SourceFile remained pinned in rhino after ResetNodeStore")
+	}
+
+	// 2. End-to-end PersistentWorker test with uncached 1 MiB comment-heavy + BigInt
+	// JS files across 16 sequential requests: verify live heap does not retain all
+	// 16 MiB of SourceFile contents after requests finish.
+	worker := NewPersistentWorkerWithCache(nil, NewWorkerDigestCache(0, 0))
+	padding := strings.Repeat("a", 1024*1024)
+
+	// Warm one request first so one-time initialization (builtin externs, pools) settles.
+	warmIn := writeFileWithDigest(t, srcPath, "/* warm */ var w = 9007199254740993n;\n")
+	warmResp := worker.ExecuteRequest(&WorkRequest{
+		RequestId: 1,
+		Arguments: []string{"--env=CUSTOM", "--compilation_level=SIMPLE", "--language_in=ECMASCRIPT_2020", "--language_out=ECMASCRIPT_2020", "--js", srcPath, "--js_output_file", outPath},
+		Inputs:    []WorkerInput{{Path: warmIn.Path, Digest: ""}},
+	})
+	if warmResp.ExitCode != 0 {
+		t.Fatalf("warm request failed: %+v", warmResp)
+	}
+	for range 4 {
+		runtime.GC()
+	}
+	var baseline runtime.MemStats
+	runtime.ReadMemStats(&baseline)
+
+	const iterations = 16
+	for i := range iterations {
+		code := fmt.Sprintf("/* %d %s */\nvar bigVal = %d900719925474099312345n;\nconsole.log(bigVal);\n", i, padding, i+1)
+		if err := os.WriteFile(srcPath, []byte(code), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		resp := worker.ExecuteRequest(&WorkRequest{
+			RequestId: i + 2,
+			Arguments: []string{"--env=CUSTOM", "--compilation_level=SIMPLE", "--language_in=ECMASCRIPT_2020", "--language_out=ECMASCRIPT_2020", "--js", srcPath, "--js_output_file", outPath},
+			Inputs:    []WorkerInput{{Path: srcPath, Digest: ""}},
+		})
+		if resp.ExitCode != 0 {
+			t.Fatalf("request %d failed: %+v", i+2, resp)
+		}
+	}
+	padding = ""
+	for range 4 {
+		runtime.GC()
+	}
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	var retained int64
+	if after.HeapAlloc > baseline.HeapAlloc {
+		retained = int64(after.HeapAlloc - baseline.HeapAlloc)
+	}
+	// If SourceFiles were leaked globally, >= 16 MiB would remain live.
+	if retained > 6*1024*1024 {
+		t.Fatalf("PersistentWorker leaked SourceFile memory across requests: retained %d bytes (> 6 MiB)", retained)
 	}
 }
 

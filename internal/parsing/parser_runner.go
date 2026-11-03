@@ -130,12 +130,14 @@ func ParserRunner_CreateConfigWithModes(
 
 // Java: ParserRunner.getReservedVars()
 func ParserRunner_GetReservedVars() *jutil.OrderedSet[string] {
-	return parserRunner_reservedVars()
+	cloned := parserRunner_reservedVars().Clone()
+	return &cloned
 }
 
 // Java: ParserRunner.getSuppressionNames()
 func ParserRunner_GetSuppressionNames() *jutil.OrderedSet[string] {
-	return parserRunner_suppressionNames()
+	cloned := parserRunner_suppressionNames().Clone()
+	return &cloned
 }
 
 // Java: ParserRunner.initResourceConfig()

@@ -341,33 +341,101 @@ func (c *flowSensitiveInlineCandidate) isRhsNodeSafeToInline(rhs rhino.Node, usa
 	return !c.hasOutOfScopeName(rhs, usageScope)
 }
 
+func (c *flowSensitiveInlineCandidate) hasPeerSideEffects(expr rhino.Node) bool {
+	return c.pass.hasSideEffectsInSubtree(expr, c.defMetadata, true)
+}
+
+func fsivEvalPeerAfterState(c *flowSensitiveInlineCandidate, expr rhino.Node) cfgCondEvalState {
+	if c.hasPeerSideEffects(expr) {
+		return cfgCondEvalRead
+	}
+	return cfgCondEvalContinue
+}
+
 func (c *flowSensitiveInlineCandidate) checkPostExpressions(n rhino.Node, expressionRoot rhino.Node) bool {
-	for p := n; p != expressionRoot; p = p.GetParent() {
+	for p := n; p != expressionRoot; {
+		parent := p.GetParent()
+		if (parent.IsComputedProp() || parent.IsComputedFieldDef()) && parent.GetParent().IsClassMembers() {
+			if parent == expressionRoot {
+				if parent.IsComputedFieldDef() && parent.IsStaticMember() && p == parent.GetFirstChild() {
+					if val := parent.GetSecondChild(); !val.IsNil() && c.hasPeerSideEffects(val) {
+						return true
+					}
+				}
+				return false
+			}
+			classMembers := parent.GetParent()
+			inPass2 := p != parent.GetFirstChild()
+			if (!inPass2 || parent.IsStaticMember()) &&
+				walkClassMembersAfterState(classMembers, parent, inPass2, c, fsivEvalPeerAfterState) != cfgCondEvalContinue {
+				return true
+			}
+			p = classMembers
+			continue
+		}
+		if parent.IsClassMembers() {
+			if p.IsMemberFieldDef() && p.IsStaticMember() &&
+				walkClassMembersAfterState(parent, p, true, c, fsivEvalPeerAfterState) != cfgCondEvalContinue {
+				return true
+			}
+			p = parent
+			continue
+		}
 		for cur := p.GetNext(); !cur.IsNil(); cur = cur.GetNext() {
-			if c.pass.hasSideEffectsInSubtree(cur, c.defMetadata, true) {
+			if c.hasPeerSideEffects(cur) {
 				return true
 			}
 		}
+		p = parent
 	}
 	return false
 }
 
 func (c *flowSensitiveInlineCandidate) checkPreExpressions(n rhino.Node, expressionRoot rhino.Node) bool {
-	for p := n; p != expressionRoot; p = p.GetParent() {
-		oldestSibling := p.GetParent().GetFirstChild()
+	for p := n; p != expressionRoot; {
+		parent := p.GetParent()
+		if (parent.IsComputedProp() || parent.IsComputedFieldDef()) && parent.GetParent().IsClassMembers() {
+			if parent == expressionRoot {
+				if parent.IsComputedFieldDef() && parent.IsStaticMember() && p != parent.GetFirstChild() {
+					if key := parent.GetFirstChild(); !key.IsNil() && c.hasPeerSideEffects(key) {
+						return true
+					}
+				}
+				return false
+			}
+			classMembers := parent.GetParent()
+			inPass2 := p != parent.GetFirstChild()
+			if (!inPass2 || parent.IsStaticMember()) &&
+				walkClassMembersBefore(classMembers, parent, inPass2, c, (*flowSensitiveInlineCandidate).hasPeerSideEffects) {
+				return true
+			}
+			p = classMembers
+			continue
+		}
+		if parent.IsClassMembers() {
+			if p.IsMemberFieldDef() && p.IsStaticMember() &&
+				walkClassMembersBefore(parent, p, true, c, (*flowSensitiveInlineCandidate).hasPeerSideEffects) {
+				return true
+			}
+			p = parent
+			continue
+		}
+		oldestSibling := parent.GetFirstChild()
 		if oldestSibling.IsDestructuringPattern() {
 			if p.IsDestructuringPattern() {
-				if !p.GetNext().IsNil() && c.pass.hasSideEffectsInSubtree(p.GetNext(), c.defMetadata, true) {
+				if !p.GetNext().IsNil() && c.hasPeerSideEffects(p.GetNext()) {
 					return true
 				}
 			}
+			p = parent
 			continue
 		}
 		for cur := oldestSibling; cur != p; cur = cur.GetNext() {
-			if c.pass.hasSideEffectsInSubtree(cur, c.defMetadata, true) {
+			if c.hasPeerSideEffects(cur) {
 				return true
 			}
 		}
+		p = parent
 	}
 	return false
 }

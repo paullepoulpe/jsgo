@@ -203,11 +203,18 @@ func (c *closureProvideCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node,
 	if (n.IsModuleBody() && n.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE)) ||
 		NodeUtil_IsBundledGoogModuleScopeRoot(n) {
 		googModuleCall := n.GetFirstChild()
-		closureNamespace := googModuleCall.GetFirstChild().GetSecondChild().GetString()
-		maybeLegacyNamespaceCall := googModuleCall.GetNext()
-		if !maybeLegacyNamespaceCall.IsNil() &&
-			NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(maybeLegacyNamespaceCall) {
-			c.outer.processLegacyModuleCall(closureNamespace, googModuleCall, t.GetChunk())
+		if exprStmt, ok := ast.AsExprStmt(googModuleCall); ok {
+			if call, ok := exprStmt.Expr().AsCall(); ok {
+				if arg0, ok := call.FirstArg(); ok {
+					if nsLit, ok := arg0.AsStringLit(); ok {
+						maybeLegacyNamespaceCall := googModuleCall.GetNext()
+						if !maybeLegacyNamespaceCall.IsNil() &&
+							NodeUtil_IsGoogModuleDeclareLegacyNamespaceCall(maybeLegacyNamespaceCall) {
+							c.outer.processLegacyModuleCall(nsLit.Value(), googModuleCall, t.GetChunk())
+						}
+					}
+				}
+			}
 		}
 		return false
 	}

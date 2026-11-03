@@ -39,8 +39,6 @@ package rhino
 import (
 	"fmt"
 	"math/big"
-	"sync"
-	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -94,61 +92,52 @@ type nodeExtBox struct {
 	cookedNil      bool               // the TEMPLATELIT_STRING has no cooked string
 }
 
-// The SOURCE_FILE property of a node is an id into these tables: each
-// PutProp(SOURCE_FILE, file) takes a new id, holding the property's list
-// item (shared by every node that copies the id, as Java shares the item)
-// and the file's name. 16M ids: a few per input file.
-const sourceFileIDChunks = 1 << 14
-
-var (
-	sourceFilePropMu        sync.Mutex
-	sourceFilePropCount     atomic.Uint32
-	sourceFilePropChunks    [sourceFileIDChunks]atomic.Pointer[[1024]Node_PropListItem]
-	sourceFileNamePtrChunks [sourceFileIDChunks]atomic.Pointer[[1024]*string]
-)
-
-func sourceFilePropItem(id uint32) *Node_PropListItem {
-	idx := id - 1
-	return &sourceFilePropChunks[idx>>10].Load()[idx&1023]
+// The SOURCE_FILE property of a node is an id into its NodeStore's sourceFiles
+// table (or staticStore's when staticBit is set): each PutProp(SOURCE_FILE, file)
+// takes a new id in that store, holding the property's list item (shared by
+// every node that copies the id, as Java shares the item) and the file's name.
+type sourceFileSlot struct {
+	item    Node_PropListItem
+	namePtr *string
 }
 
-// allocSourceFileID returns a new source-file id for file.
-func allocSourceFileID(file any) uint32 {
-	sourceFilePropMu.Lock()
-	id := sourceFilePropCount.Load() + 1
-	idx := id - 1
-	chunkIdx := idx >> 10
-	if chunkIdx >= sourceFileIDChunks {
-		sourceFilePropMu.Unlock()
-		panic(fmt.Sprintf("rhino: more than %d source-file ids", sourceFileIDChunks*1024))
+func lookupSourceFileSlot(id uint32) *sourceFileSlot {
+	if id&staticBit != 0 {
+		return staticStore.sourceFiles.at(id &^ staticBit)
 	}
-	chunk := sourceFilePropChunks[chunkIdx].Load()
-	if chunk == nil {
-		chunk = new([1024]Node_PropListItem)
-		sourceFilePropChunks[chunkIdx].Store(chunk)
-	}
-	nameChunk := sourceFileNamePtrChunks[chunkIdx].Load()
-	if nameChunk == nil {
-		nameChunk = new([1024]*string)
-		sourceFileNamePtrChunks[chunkIdx].Store(nameChunk)
-	}
+	return CurrentNodeStore().sourceFiles.at(id)
+}
+
+func sourceFilePropItem(id uint32) *Node_PropListItem {
+	return &lookupSourceFileSlot(id).item
+}
+
+func (s *NodeStore) allocSourceFileID(file any) uint32 {
 	var namePtr *string
 	if fast, ok := file.(StaticSourceFileFast); ok {
 		namePtr = fast.GetNamePtr()
 	} else if sf, ok := file.(StaticSourceFile); ok {
-		s := sf.GetName()
-		namePtr = &s
+		name := sf.GetName()
+		namePtr = &name
 	}
-	nameChunk[idx&1023] = namePtr
-	chunk[idx&1023] = Node_PropListItem{
-		objectValue: file,
-		propType:    int8(Node_Prop_SOURCE_FILE),
-		isObject:    true,
-		shared:      true,
+	id := s.sourceFiles.add(&s.mu, sourceFileSlot{
+		item: Node_PropListItem{
+			objectValue: file,
+			propType:    int8(Node_Prop_SOURCE_FILE),
+			isObject:    true,
+			shared:      true,
+		},
+		namePtr: namePtr,
+	})
+	if s.static {
+		return staticBit | id
 	}
-	sourceFilePropCount.Store(id)
-	sourceFilePropMu.Unlock()
 	return id
+}
+
+// allocSourceFileID returns a new source-file id for file in the current store.
+func allocSourceFileID(file any) uint32 {
+	return CurrentNodeStore().allocSourceFileID(file)
 }
 
 // jsDocAux is the node's JSDocInfo when it is stored directly in the aux

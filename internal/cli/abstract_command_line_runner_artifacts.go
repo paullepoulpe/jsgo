@@ -189,7 +189,7 @@ func (r *AbstractCommandLineRunnerBase) OutputSourceMap(options *jscomp.Compiler
 	abstractCommandLineRunner_maybeCreateDirsForPath(outName)
 	out := r.FileNameToOutputWriter2(outName)
 	defer abstractCommandLineRunner_closeWriter(out)
-	r.compiler.GetSourceMap().AppendTo(out, &associatedName)
+	r.compiler.GetSourceMap().AppendTo(out, associatedName)
 }
 
 // GetMapPath returns the path at which to output map file(s) based on the
@@ -390,8 +390,8 @@ func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []str
 //
 // Java: AbstractCommandLineRunner.outputChunkGraphJson()
 func (r *AbstractCommandLineRunnerBase) OutputChunkGraphJson() {
-	if r.config.outputChunkDependencies != nil && *r.config.outputChunkDependencies != "" {
-		out := r.FileNameToOutputWriter2(*r.config.outputChunkDependencies)
+	if r.config.outputChunkDependencies != "" {
+		out := r.FileNameToOutputWriter2(r.config.outputChunkDependencies)
 		defer abstractCommandLineRunner_closeWriter(out)
 		r.self.PrintChunkGraphJsonTo(out)
 	}

@@ -42,7 +42,6 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -63,33 +62,25 @@ func (n Node) SetDouble(x float64) {
 	n.rec().payload = numberPayload(x)
 }
 
-var (
-	rhinoBigIntMu   sync.RWMutex
-	rhinoBigIntPool []*big.Int
-)
-
-func rhinoInternBigInt(v *big.Int) uint32 {
-	rhinoBigIntMu.Lock()
-	rhinoBigIntPool = append(rhinoBigIntPool, v)
-	id := uint32(len(rhinoBigIntPool))
-	rhinoBigIntMu.Unlock()
-	return id
-}
-
-func rhinoBigIntFromID(id uint32) *big.Int {
-	if id == 0 {
-		return nil
+func (s *NodeStore) internBigInt(v *big.Int) uint32 {
+	id := s.bigInts.add(&s.mu, v)
+	if s.static {
+		return staticBit | id
 	}
-	rhinoBigIntMu.RLock()
-	v := rhinoBigIntPool[id-1]
-	rhinoBigIntMu.RUnlock()
-	return v
+	return id
 }
 
 // Java: Node.getBigInt()
 func (n Node) GetBigInt() *big.Int {
 	n.node_castKind(node_kindBigInt)
-	return rhinoBigIntFromID(uint32(n.rec().payload))
+	id := uint32(n.rec().payload)
+	if id == 0 {
+		return nil
+	}
+	if id&staticBit != 0 {
+		return *staticStore.bigInts.at(id &^ staticBit)
+	}
+	return *n.store().bigInts.at(id)
 }
 
 // Java: Node.setBigInt(BigInteger)
@@ -97,7 +88,7 @@ func (n Node) SetBigInt(number *big.Int) {
 	jutil.CheckNotNull(number)
 	jutil.CheckStateMsg1(number.Sign() >= 0, "%s", number)
 	n.node_castKind(node_kindBigInt)
-	n.rec().payload = rhinoInternBigInt(number)
+	n.rec().payload = n.store().internBigInt(number)
 }
 
 // Java: Node.getString()
@@ -418,12 +409,22 @@ func (n Node) node_cooked() *string {
 
 // Java: Node.setStaticSourceFileFrom(Node)
 func (n Node) SetStaticSourceFileFrom(other Node) {
-	n.rec().sourceFile = other.rec().sourceFile
+	sfID := other.rec().sourceFile
+	if sfID != 0 && sfID&staticBit == 0 && uint32(n)&staticBit != 0 {
+		n.rec().sourceFile = staticStore.allocSourceFileID(lookupSourceFileSlot(sfID).item.objectValue)
+		return
+	}
+	n.rec().sourceFile = sfID
 }
 
 // Java: Node.setStaticSourceFile(StaticSourceFile)
 func (n Node) SetStaticSourceFile(file StaticSourceFile) Node {
-	n.PutProp(Node_Prop_SOURCE_FILE, file)
+	if jutil.IsNil(file) {
+		n.RemoveProp(Node_Prop_SOURCE_FILE)
+		return n
+	}
+	r := n.rec()
+	r.sourceFile = n.store().allocSourceFileID(file)
 	return n
 }
 
@@ -432,7 +433,8 @@ func (n Node) SetStaticSourceFile(file StaticSourceFile) Node {
 //
 // Java: Node.setSourceFileForTesting(String)
 func (n Node) SetSourceFileForTesting(name string) {
-	n.PutProp(Node_Prop_SOURCE_FILE, NewSimpleSourceFile(name, StaticSourceFile_SourceKind_STRONG))
+	r := n.rec()
+	r.sourceFile = n.store().allocSourceFileID(NewSimpleSourceFile(name, StaticSourceFile_SourceKind_STRONG))
 }
 
 // TODO(johnlenz): make this final
@@ -443,11 +445,11 @@ func (n Node) GetSourceFileName() *string {
 	if sfID == 0 {
 		return nil
 	}
-	idx := sfID - 1
-	if p := sourceFileNamePtrChunks[idx>>10].Load()[idx&1023]; p != nil {
-		return p
+	slot := lookupSourceFileSlot(sfID)
+	if slot.namePtr != nil {
+		return slot.namePtr
 	}
-	_ = node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
+	_ = node_cast[StaticSourceFile](slot.item.objectValue)
 	return nil
 }
 
@@ -458,11 +460,11 @@ func (n Node) SourceFileName() (string, bool) {
 	if sfID == 0 {
 		return "", false
 	}
-	idx := sfID - 1
-	if p := sourceFileNamePtrChunks[idx>>10].Load()[idx&1023]; p != nil {
-		return *p, true
+	slot := lookupSourceFileSlot(sfID)
+	if slot.namePtr != nil {
+		return *slot.namePtr, true
 	}
-	_ = node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
+	_ = node_cast[StaticSourceFile](slot.item.objectValue)
 	return "", false
 }
 

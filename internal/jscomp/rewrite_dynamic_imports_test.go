@@ -609,3 +609,70 @@ func (c *RewriteDynamicImportsTest) TestInvalidAliasQualifiedName() {
 
 	c.TestError(c.Srcs([]*JSChunk{actualChunk0, actualChunk1}), RewriteDynamicImports_DYNAMIC_IMPORT_INVALID_ALIAS)
 }
+
+func TestRewriteDynamicImports_WrappedAndEmptyTemplatizedType(t *testing.T) {
+	runCase := func(name string, makeType func(*rhino.JSTypeRegistry) rhino.JSType, wantTemplate rhino.JSTypeNative) {
+		t.Run(name, func(t *testing.T) {
+			compiler := NewCompilerWithErrorManager(NewBlackHoleErrorManager())
+			opts := NewCompilerOptions()
+			opts.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+			opts.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
+			compiler.Init(
+				[]*SourceFile{SourceFile_FromCode("externs.js", "/** @constructor @template T */ function Promise() {}; Promise.resolve = function(x) {};")},
+				[]*SourceFile{
+					SourceFile_FromCode("mod.js", "var module$mod = {};"),
+					SourceFile_FromCode("main.js", "const p = import('./mod.js');"),
+				},
+				opts)
+			compiler.ParseInputs()
+			registry := compiler.GetTypeRegistry()
+
+			modScript := compiler.GetJsRoot().GetFirstChild()
+			mainScript := modScript.GetNext()
+			scopeCreator := NewSyntacticScopeCreator(compiler)
+			globalScope := scopeCreator.CreateScope(compiler.GetRoot(), nil).(*Scope)
+			targetModuleNS := globalScope.GetVar("module$mod")
+			if targetModuleNS == nil {
+				t.Fatal("missing module$mod var")
+			}
+
+			dynImport := mainScript.GetFirstChild().GetFirstFirstChild()
+			if dynImport.GetToken() != rhino.Token_DYNAMIC_IMPORT {
+				t.Fatalf("got token %v, want DYNAMIC_IMPORT", dynImport.GetToken())
+			}
+			dynImport.SetJSType(makeType(registry))
+
+			pass := NewRewriteDynamicImports(compiler, base.OptString{}, CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE)
+			nt := (NodeTraversal_Builder{compiler: compiler, callback: NewExtraRequireRemover(compiler)}).Build()
+			pass.ReplaceDynamicImportWithPromise(nt, dynImport, targetModuleNS)
+
+			callNode := mainScript.GetFirstChild().GetFirstFirstChild()
+			fnType := callNode.GetFirstChild().GetJSType().ToMaybeFunctionType()
+			if fnType == nil {
+				t.Fatalf("Promise.resolve type = %v, want FunctionType", callNode.GetFirstChild().GetJSType())
+			}
+			retTemplatized := fnType.GetReturnType().ToMaybeTemplatizedType()
+			if retTemplatized == nil || len(retTemplatized.GetTemplateTypes()) != 1 {
+				t.Fatalf("return type = %v, want 1-arg TemplatizedType", fnType.GetReturnType())
+			}
+			want := registry.GetNativeType(wantTemplate)
+			if got := retTemplatized.GetTemplateTypes()[0]; !got.Equals(want) {
+				t.Fatalf("Promise<T> template arg = %v, want %v", got, want)
+			}
+		})
+	}
+
+	runCase("NamedTypeWrappingTemplatizedType", func(r *rhino.JSTypeRegistry) rhino.JSType {
+		promiseStr := r.CreateTemplatizedType(
+			r.GetNativeObjectType(rhino.JSTypeNative_PROMISE_TYPE),
+			r.GetNativeType(rhino.JSTypeNative_STRING_TYPE))
+		named := r.CreateNamedTypeOpt(nil, "PromiseAlias", "main.js", true, 1, 0)
+		named.SetReferencedType(promiseStr)
+		return named
+	}, rhino.JSTypeNative_STRING_TYPE)
+
+	runCase("ZeroArgTemplatizedType", func(r *rhino.JSTypeRegistry) rhino.JSType {
+		return r.CreateTemplatizedTypeOfList(
+			r.GetNativeObjectType(rhino.JSTypeNative_PROMISE_TYPE), nil)
+	}, rhino.JSTypeNative_UNKNOWN_TYPE)
+}

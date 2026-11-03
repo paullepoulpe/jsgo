@@ -263,7 +263,7 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 		}
 	} else {
 		sourceFileName = sourceFile.GetName()
-		sourceMapping, identifierPtr, hasInputMap, isDefaultEmpty := s.compilerMapping.getSourceMappingValueCached(
+		sourceMapping, hasInputMap, isDefaultEmpty := s.compilerMapping.getSourceMappingValueCached(
 			sourceFileName, lineNo, charNo, &s.resolvedSourceMap, &s.lineCache)
 		if !hasInputMap {
 			// The source file does not have a input map. We consider this to be an
@@ -279,8 +279,8 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 			sourceFileName = sourceMapping.GetOriginalFile()
 			lineNo = sourceMapping.GetLineNumber()
 			charNo = sourceMapping.GetColumnPosition()
-			if identifierPtr != nil {
-				originalName = *identifierPtr
+			if sourceMapping.Identifier != "" {
+				originalName = sourceMapping.Identifier
 				hasOriginalName = true
 			}
 		}
@@ -390,12 +390,8 @@ func (s *SourceMap) AppendToOptional(out io.StringWriter, name sourcemap.Optiona
 // out does.
 //
 // Java: SourceMap.appendTo(Appendable, String)
-func (s *SourceMap) AppendTo(out io.StringWriter, name *string) {
-	var opt sourcemap.OptionalString
-	if name != nil {
-		opt = sourcemap.SomeString(*name)
-	}
-	s.AppendToOptional(out, opt)
+func (s *SourceMap) AppendTo(out io.StringWriter, name string) {
+	s.AppendToOptional(out, sourcemap.SomeString(name))
 }
 
 // Java: SourceMap.reset()

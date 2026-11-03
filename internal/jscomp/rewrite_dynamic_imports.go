@@ -260,10 +260,12 @@ func (r *RewriteDynamicImports) ReplaceDynamicImportWithPromise(
 	isExpressionUsed := NodeUtil_IsExpressionResultUsed(dynamicImport)
 	if isExpressionUsed {
 		var moduleNamespaceType rhino.JSType
-		if dynamicImport.GetJSType() != nil && dynamicImport.GetJSType().IsTemplatizedType() {
-			templatizedType := dynamicImport.GetJSType().(*rhino.TemplatizedType)
-			moduleNamespaceType = templatizedType.GetTemplateTypes()[0]
-		} else {
+		if dynType := dynamicImport.GetJSType(); dynType != nil {
+			if templatized := dynType.ToMaybeTemplatizedType(); templatized != nil && len(templatized.GetTemplateTypes()) > 0 {
+				moduleNamespaceType = templatized.GetTemplateTypes()[0]
+			}
+		}
+		if moduleNamespaceType == nil {
 			moduleNamespaceType = registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 		}
 		promiseDotResolve.SetJSType(

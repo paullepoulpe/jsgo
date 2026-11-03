@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -417,4 +418,47 @@ function signal(x = goog.callerLocation()) {};
 `),
 		c.Srcs("signal();"),
 		c.Expected("signal(goog.callerLocationIdInternalDoNotCallOrElse('testcode:1:0'));"))
+}
+
+func TestRewriteCallerCodeLocation_ZeroAllocNonMatchingCalls(t *testing.T) {
+	compiler := NewCompilerWithErrorManager(NewBlackHoleErrorManager())
+	compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs.js", "")},
+		[]*SourceFile{SourceFile_FromCode("in.js", `
+function module$contents$main_signal(val, here = goog.callerLocation()) { return val; }
+function plainSignal(here = goog.callerLocation()) {}
+foo(1);
+a.b.c(2);
+module$exports$other.fn(3);
+this.method(4);
+(function() {})(5);
+`)},
+		NewCompilerOptions())
+	compiler.ParseInputs()
+
+	pass := NewRewriteCallerCodeLocation(compiler)
+	find := findCallerLocationFunctions{r: pass}
+	NodeTraversal_Traverse(compiler, compiler.GetRoot(), &find)
+
+	script := compiler.GetJsRoot().GetFirstChild()
+	var nonMatchingCalls []ast.Call
+	for stmt := script.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
+		if exprStmt, ok := ast.AsExprStmt(stmt); ok {
+			if call, ok := exprStmt.Expr().AsCall(); ok {
+				nonMatchingCalls = append(nonMatchingCalls, call)
+			}
+		}
+	}
+	if len(nonMatchingCalls) != 5 {
+		t.Fatalf("len(nonMatchingCalls) = %d, want 5", len(nonMatchingCalls))
+	}
+
+	allocs := testing.AllocsPerRun(100, func() {
+		for _, call := range nonMatchingCalls {
+			pass.visitCallNodeAndRewrite(call, nil)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("visitCallNodeAndRewrite on non-matching CALLs allocated %.2f objects/run, want 0", allocs)
+	}
 }

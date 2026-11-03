@@ -1,6 +1,7 @@
 package jutil
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
@@ -19,6 +20,81 @@ func newIllegalFormatException(className, message string) *illegalFormatExceptio
 	e := &illegalFormatException{}
 	InitThrowable(e, className, msgPtr(message), nil)
 	return e
+}
+
+// IllegalFormatCodePointException is java.util.IllegalFormatCodePointException.
+type IllegalFormatCodePointException struct {
+	illegalFormatException
+	c int32
+}
+
+func (*IllegalFormatCodePointException) illegalFormatCodePointException() {}
+
+// IIllegalFormatCodePointException matches IllegalFormatCodePointException.
+type IIllegalFormatCodePointException interface {
+	IIllegalArgumentException
+	illegalFormatCodePointException()
+}
+
+// NewIllegalFormatCodePointException constructs a java.util.IllegalFormatCodePointException.
+func NewIllegalFormatCodePointException(c int) *IllegalFormatCodePointException {
+	var hex uint64
+	if c < 0 && c >= math.MinInt32 {
+		hex = uint64(uint32(int32(c)))
+	} else {
+		hex = uint64(c)
+	}
+	e := &IllegalFormatCodePointException{c: int32(c)}
+	InitThrowableMsg(
+		e,
+		"java.util.IllegalFormatCodePointException",
+		"Code point = 0x"+strconv.FormatUint(hex, 16),
+		nil)
+	return e
+}
+
+// GetCodePoint is IllegalFormatCodePointException.getCodePoint().
+func (e *IllegalFormatCodePointException) GetCodePoint() int32 { return e.c }
+
+// StringFromCodePoint returns the Java String for Unicode code point cp
+// (0..0x10FFFF, encoding surrogates 0xD800..0xDFFF in 3-byte WTF-8), or panics
+// with IllegalFormatCodePointException if cp is not a valid Unicode code point.
+func StringFromCodePoint(cp int) string {
+	if cp < 0 || cp > 0x10FFFF {
+		panic(NewIllegalFormatCodePointException(cp))
+	}
+	if cp <= 0xFFFF {
+		return StringFromChar(uint16(cp))
+	}
+	return string(rune(cp))
+}
+
+func wtf8ToUpper(s string) string {
+	if !hasSurrogateByte(s) {
+		return strings.ToUpper(s)
+	}
+	var sb strings.Builder
+	sb.Grow(len(s))
+	spanStart := 0
+	for i := 0; i < len(s); {
+		if s[i] == 0xED && i+2 < len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2]&0xC0 == 0x80 {
+			if i > spanStart {
+				sb.WriteString(strings.ToUpper(s[spanStart:i]))
+			}
+			sb.WriteString(s[i : i+3])
+			i += 3
+			spanStart = i
+			continue
+		}
+		i++
+	}
+	if spanStart == 0 {
+		return strings.ToUpper(s)
+	}
+	if spanStart < len(s) {
+		sb.WriteString(strings.ToUpper(s[spanStart:]))
+	}
+	return sb.String()
 }
 
 // StringFormat is String.format(String format, Object... args).
@@ -134,7 +210,7 @@ func StringFormat(format string, args ...any) string {
 				}
 			}
 			if conv == 'S' {
-				s = strings.ToUpper(s)
+				s = wtf8ToUpper(s)
 			}
 		case 'b', 'B':
 			switch v := arg.(type) {
@@ -151,9 +227,13 @@ func StringFormat(format string, args ...any) string {
 			case uint16:
 				s = StringFromChar(v)
 			case int:
-				s = string(rune(v))
+				s = StringFromCodePoint(v)
 			case int32:
-				s = string(rune(v))
+				s = StringFromCodePoint(int(v))
+			case int16:
+				s = StringFromCodePoint(int(v))
+			case int8:
+				s = StringFromCodePoint(int(v))
 			default:
 				if IsNil(arg) {
 					s = "null"
@@ -162,7 +242,7 @@ func StringFormat(format string, args ...any) string {
 				}
 			}
 			if conv == 'C' {
-				s = strings.ToUpper(s)
+				s = wtf8ToUpper(s)
 			}
 		case 'd':
 			numeric = true

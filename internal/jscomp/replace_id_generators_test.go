@@ -867,6 +867,14 @@ func (c *ReplaceIdGeneratorsTest) TestTTLCall_invalid() {
 		ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER)
 }
 
+func (c *ReplaceIdGeneratorsTest) TestTTLCall_undeclaredVarDoesNotPanic() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.TestSame(
+		"/** @idGenerator {stable} */ function tagId(strings) {}\n"+
+			"function Foo() { tagId(undeclaredTemplateTagArg); }\n",
+		ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER)
+}
+
 // Java: ReplaceIdGeneratorsTest.testMap(String, String, String)
 func (c *ReplaceIdGeneratorsTest) TestMap(code string, expected string, expectedMap string) {
 	c.Test(code, expected)

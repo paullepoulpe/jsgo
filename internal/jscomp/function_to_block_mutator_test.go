@@ -342,6 +342,46 @@ foo(1);
 		"")
 }
 
+func (c *FunctionToBlockMutatorTest) TestMutateDestructuringVarInLoopDoesNotPanic() {
+	c.isCallInLoop = true
+	c.HelperMutateWithResultName(
+		`function foo(obj) {
+  while (cond()) {
+    var {a} = obj;
+    use(a);
+  }
+}
+foo(o);
+`,
+		`{
+  var a$jscomp$inline_1 = void 0;
+  var obj$jscomp$inline_0 = o;
+  for (; cond();) {
+    ({a: a$jscomp$inline_1} = obj$jscomp$inline_0);
+    use(a$jscomp$inline_1);
+  }
+}
+`,
+		"foo",
+		"")
+
+	// Also verify direct Mutate on an unnormalized AST where `var {a} = o;`
+	// still has `DESTRUCTURING_LHS` as the declarator instead of panicking on MustName().
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
+	mutator := NewFunctionToBlockMutator(compiler, compiler.GetUniqueNameIdSupplier())
+	script := compiler.ParseTestCode("function foo() { while (cond()) { var {a} = o; use(a); } } foo();")
+	AssertThat(compiler.GetErrors()).IsEmpty()
+	fnNode := FunctionToBlockMutatorTest_FindFunction(script, "foo")
+	callNode := script.GetSecondChild().GetFirstChild()
+	result := mutator.Mutate("foo", fnNode, callNode, "", false, true)
+	c.ValidateSourceInfo(compiler, result)
+	expected := compiler.ParseTestCode(
+		"{ while (cond()) { var {a: a$jscomp$inline_0} = o; use(a$jscomp$inline_0); } }",
+	).GetFirstChild()
+	AssertNode(result).UsingSerializer(compiler.ToSourceOfNode).IsEqualTo(expected)
+}
+
 // Java: FunctionToBlockMutatorTest.validateSourceInfo(Compiler, Node)
 func (c *FunctionToBlockMutatorTest) ValidateSourceInfo(compiler *Compiler, subtree rhino.Node) {
 	NewSourceInfoCheck(compiler).SetCheckSubTree(subtree)

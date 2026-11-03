@@ -326,7 +326,7 @@ func (f *IRFactory) validatePrivatePropertyUsage(scope *privatePropScope, classM
 				(node.IsName() && node.HasParent() && node.GetParent().IsIn())) &&
 			!scope.contains(node.GetString()) {
 			propType := "fields"
-			if node.GetParent().IsCall() {
+			if node.HasParent() && node.GetParent().IsCall() {
 				propType = "methods"
 			}
 			f.errorReporter.Error(

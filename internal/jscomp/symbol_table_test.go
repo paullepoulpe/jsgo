@@ -2184,3 +2184,30 @@ func TestSymbolTable_GoOnly_GetSymbolForNameModuleScopeWithoutMetadata(t *testin
 		t.Fatalf("GetSymbolForName(decl, \"missingSym\") = %v, want nil", got)
 	}
 }
+
+func (c *SymbolTableTest) TestNamedTypeWrappingEnumTypeDoesNotPanic() {
+	table := c.CreateSymbolTable(
+		`/** @type {typeof MyEnum} */
+var ref;
+/** @enum {number} */
+const MyEnum = {A: 1};
+`)
+	myEnumSym := c.GetGlobalVar(table, "MyEnum")
+	AssertThat(myEnumSym).IsNotNull()
+	enumType := myEnumSym.GetType().ToMaybeEnumType()
+	AssertThat(enumType).IsNotNull()
+
+	refSym := c.GetGlobalVar(table, "ref")
+	AssertThat(refSym).IsNotNull()
+	symsFromRef := table.GetAllSymbolsForType(refSym.GetType())
+	AssertThat(symsFromRef).ContainsExactly(myEnumSym)
+
+	// Explicitly verify a *rhino.NamedType proxy wrapping an *rhino.EnumType.
+	registry := table.registry
+	namedProxy := registry.CreateNamedTypeOpt(nil, "MyEnum", "in.js", true, 1, 0)
+	namedProxy.SetReferencedType(enumType)
+	if !namedProxy.IsEnumType() {
+		panic("expected NamedType wrapping EnumType to report IsEnumType() == true")
+	}
+	AssertThat(table.GetSymbolForTypeHelper(namedProxy, false)).IsEqualTo(myEnumSym)
+}

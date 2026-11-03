@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -87,6 +88,26 @@ func (f *FindModuleDependencies_FindGoogProvideOrGoogModule) IsFound() bool {
 	return f.found
 }
 
+func isGoogProvideOrModuleStmt(n rhino.Node) bool {
+	exprStmt, ok := ast.AsExprStmt(n)
+	if !ok {
+		return false
+	}
+	expr := exprStmt.Expr()
+	var maybeGetProp rhino.Node
+	if call, ok := expr.AsCall(); ok {
+		maybeGetProp = call.Callee().Node()
+	} else if assign, ok := expr.AsAssign(); ok {
+		maybeGetProp = assign.Target().Node()
+	} else if gp, ok := expr.AsGetProp(); ok {
+		maybeGetProp = gp.Object().Node()
+	} else {
+		return false
+	}
+	return findModuleDependencies_GOOG_PROVIDE.Matches(maybeGetProp) ||
+		findModuleDependencies_GOOG_MODULE.Matches(maybeGetProp)
+}
+
 // Java: FindModuleDependencies.FindGoogProvideOrGoogModule.shouldTraverse(NodeTraversal, Node, Node)
 func (f *FindModuleDependencies_FindGoogProvideOrGoogModule) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if f.found {
@@ -94,13 +115,9 @@ func (f *FindModuleDependencies_FindGoogProvideOrGoogModule) ShouldTraverse(node
 	}
 	// Shallow traversal, since we don't need to inspect within functions or expressions.
 	if NodeUtil_IsShallowStatementTree(parent) {
-		if n.IsExprResult() {
-			maybeGetProp := n.GetFirstFirstChild()
-			if !maybeGetProp.IsNil() &&
-				(findModuleDependencies_GOOG_PROVIDE.Matches(maybeGetProp) || findModuleDependencies_GOOG_MODULE.Matches(maybeGetProp)) {
-				f.found = true
-				return false
-			}
+		if isGoogProvideOrModuleStmt(n) {
+			f.found = true
+			return false
 		}
 		return true
 	}
@@ -187,26 +204,26 @@ func (f *FindModuleDependencies) ShouldTraverse(t *NodeTraversal, n rhino.Node, 
 func (f *FindModuleDependencies) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	resolutionMode := f.compiler.GetOptions().GetModuleResolutionMode()
 	if NodeUtil_IsShallowStatementTree(parent) {
-		if n.IsExprResult() {
-			maybeGetProp := n.GetFirstFirstChild()
-			if !maybeGetProp.IsNil() &&
-				(findModuleDependencies_GOOG_PROVIDE.Matches(maybeGetProp) || findModuleDependencies_GOOG_MODULE.Matches(maybeGetProp)) {
-				f.moduleType = CompilerInput_ModuleType_GOOG
-				return
-			}
+		if isGoogProvideOrModuleStmt(n) {
+			f.moduleType = CompilerInput_ModuleType_GOOG
+			return
 		}
 	}
 
 	// goog.requireDynamic()
-	if NodeUtil_IsGoogRequireDynamicCall(n) {
-		t.GetInput().AddRequireDynamicImports(n.GetLastChild().GetString())
+	if call, ok := ast.AsCall(n); ok && NodeUtil_IsGoogRequireDynamicCall(n) {
+		if lastArg, ok := call.LastArg(); ok {
+			if lit, ok := lastArg.AsStringLit(); ok {
+				t.GetInput().AddRequireDynamicImports(lit.Value())
+			}
+		}
 	}
 
-	if f.supportsEs6Modules && n.IsExport() {
+	if exp, ok := ast.AsExport(n); f.supportsEs6Modules && ok {
 		f.moduleType = CompilerInput_ModuleType_ES6
-		if n.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
+		if exp.IsDefault() {
 			// export default
-		} else if n.HasTwoChildren() {
+		} else if _, hasSource := exp.Source(); hasSource {
 			// export * from 'moduleIdentifier';
 			// export {x, y as z} from 'moduleIdentifier';
 			f.AddEs6ModuleImportToGraph(t, n)
@@ -214,13 +231,13 @@ func (f *FindModuleDependencies) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	} else if f.supportsEs6Modules && n.IsImport() {
 		f.moduleType = CompilerInput_ModuleType_ES6
 		f.AddEs6ModuleImportToGraph(t, n)
-	} else if f.supportsEs6Modules &&
-		n.GetToken() == rhino.Token_DYNAMIC_IMPORT &&
-		n.GetFirstChild().IsString() {
-		path := n.GetFirstChild().GetString()
-		modulePath := t.GetInput().GetPath().ResolveJsModuleSilently(path)
-		if modulePath != nil {
-			t.GetInput().AddDynamicRequire(modulePath.ToModuleName())
+	} else if dynImp, ok := ast.AsDynamicImport(n); f.supportsEs6Modules && ok {
+		if specLit, ok := dynImp.Specifier().AsStringLit(); ok {
+			path := specLit.Value()
+			modulePath := t.GetInput().GetPath().ResolveJsModuleSilently(path)
+			if modulePath != nil {
+				t.GetInput().AddDynamicRequire(modulePath.ToModuleName())
+			}
 		}
 	} else if f.supportsCommonJsModules {
 		if f.moduleType != CompilerInput_ModuleType_GOOG &&
@@ -248,16 +265,19 @@ func (f *FindModuleDependencies) Visit(t *NodeTraversal, n rhino.Node, parent rh
 		// TODO(ChadKillingsworth) add require.ensure support
 	}
 
-	if !parent.IsNil() &&
+	if call, ok := ast.AsCall(n); ok &&
+		!parent.IsNil() &&
 		(parent.IsExprResult() || !t.InGlobalHoistScope()) &&
-		NodeUtil_IsGoogRequireCall(n) &&
-		!n.GetSecondChild().IsNil() &&
-		n.GetSecondChild().IsStringLit() {
-		namespace := n.GetSecondChild().GetString()
-		if strings.HasPrefix(namespace, "goog.") {
-			t.GetInput().AddOrderedRequire(DependencyInfo_Require_BASE)
+		NodeUtil_IsGoogRequireCall(n) {
+		if firstArg, ok := call.FirstArg(); ok {
+			if lit, ok := firstArg.AsStringLit(); ok {
+				namespace := lit.Value()
+				if strings.HasPrefix(namespace, "goog.") {
+					t.GetInput().AddOrderedRequire(DependencyInfo_Require_BASE)
+				}
+				t.GetInput().AddOrderedRequire(DependencyInfo_Require_GoogRequireSymbol(namespace))
+			}
 		}
-		t.GetInput().AddOrderedRequire(DependencyInfo_Require_GoogRequireSymbol(namespace))
 	}
 }
 
@@ -271,6 +291,14 @@ func (f *FindModuleDependencies) ExitScope(t *NodeTraversal) {
 	}
 }
 
+func es6ImportOrExportSource(n rhino.Node) string {
+	if imp, ok := ast.AsImport(n); ok {
+		return imp.Source().Value()
+	}
+	src, _ := ast.MustExport(n).Source()
+	return src.Value()
+}
+
 // AddEs6ModuleImportToGraph adds an es6 module from an import node (import
 // or export statement) to the graph.
 //
@@ -280,7 +308,7 @@ func (f *FindModuleDependencies) AddEs6ModuleImportToGraph(t *NodeTraversal, n r
 	if strings.HasPrefix(moduleName, "goog.") {
 		t.GetInput().AddOrderedRequire(DependencyInfo_Require_BASE)
 	}
-	t.GetInput().AddOrderedRequire(DependencyInfo_Require_Es6Import(moduleName, n.GetLastChild().GetString()))
+	t.GetInput().AddOrderedRequire(DependencyInfo_Require_Es6Import(moduleName, es6ImportOrExportSource(n)))
 }
 
 // GetEs6ModuleNameFromImportNode gets the module name from an import node
@@ -288,7 +316,7 @@ func (f *FindModuleDependencies) AddEs6ModuleImportToGraph(t *NodeTraversal, n r
 //
 // Java: FindModuleDependencies.getEs6ModuleNameFromImportNode(NodeTraversal, Node)
 func (f *FindModuleDependencies) GetEs6ModuleNameFromImportNode(t *NodeTraversal, n rhino.Node) string {
-	importName := n.GetLastChild().GetString()
+	importName := es6ImportOrExportSource(n)
 	isNamespaceImport := strings.HasPrefix(importName, "goog:")
 	if isNamespaceImport {
 		// Allow importing Closure namespace objects (e.g. from goog.provide or goog.module) as
