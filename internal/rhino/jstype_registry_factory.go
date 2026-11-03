@@ -827,7 +827,8 @@ func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n Node, sourceName string, sc
 // Java: JSTypeRegistry.registerTemplateTypeNamesInScope(Iterable<TemplateType>, Node)
 func (r *JSTypeRegistry) RegisterTemplateTypeNamesInScope(keys []*TemplateType, scopeRoot Node) {
 	for _, key := range keys {
-		r.scopedNameTablePut(scopeRoot, *key.GetReferenceName(), key)
+		name, _ := key.ReferenceName()
+		r.scopedNameTablePut(scopeRoot, name, key)
 	}
 }
 
@@ -859,7 +860,8 @@ func NewJSTypeRegistry_SyntheticTemplateScope(delegate StaticTypedScope, templat
 		types = syntheticTemplateScope.types
 	}
 	for _, key := range templates {
-		types = types.Plus(*key.GetReferenceName(), key)
+		name, _ := key.ReferenceName()
+		types = types.Plus(name, key)
 	}
 	s.types = types
 	return s

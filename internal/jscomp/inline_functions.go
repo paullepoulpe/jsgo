@@ -244,8 +244,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 
 	if !root.IsNil() {
 		if !f.findCandidateFunctionsParallel(root) {
-			findCandidates := inlineCandidateFinder{outer: f}
-			findCandidates.walk(root, rhino.NilNode, nil, false)
+			f.findCandidateFunctionsSerial(root)
 		}
 	}
 	if len(f.fns) == 0 {
@@ -465,24 +464,15 @@ func inlineFunctions_matchCandidateNode(reach CompilerOptions_Reach, n, parent r
 	return inlineFnTarget{}, false
 }
 
-// inlineCandidateFinder finds functions that might be inlined.
-type inlineCandidateFinder struct {
-	outer *InlineFunctions
-	// current is the node being visited (NodeTraversal.currentNode), for
-	// recoverWalkException.
-	current rhino.Node
-}
-
-func (c *inlineCandidateFinder) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
-	defer recoverWalkException(c.outer.compiler, n, &c.current, nil)
-	inlineFunctions_walkCandidates(c.outer.compiler, n, parent, chunk, inLocalHoist, c.visitWalkNode)
-}
-
-func (c *inlineCandidateFinder) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
-	c.current = n
-	if target, ok := inlineFunctions_matchCandidateNode(c.outer.reach, n, parent, inLocalHoist); ok {
-		c.outer.MaybeAddFunction(target, chunk)
-	}
+func (f *InlineFunctions) findCandidateFunctionsSerial(root rhino.Node) {
+	var current rhino.Node
+	defer recoverWalkException(f.compiler, root, &current, nil)
+	inlineFunctions_walkCandidates(f.compiler, root, rhino.NilNode, nil, false, func(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+		current = n
+		if target, ok := inlineFunctions_matchCandidateNode(f.reach, n, parent, inLocalHoist); ok {
+			f.MaybeAddFunction(target, chunk)
+		}
+	})
 }
 
 type inlineCandidateAnalysis struct {

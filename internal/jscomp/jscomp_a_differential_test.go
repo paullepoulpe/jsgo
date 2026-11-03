@@ -481,7 +481,7 @@ func jsaDiffSorting(t *testing.T, d *jsaDiff, row []string) {
 	}
 	var sorted strings.Builder
 	for _, e := range m.GetSortedDiagnostics() {
-		fmt.Fprintf(&sorted, "%s %s:%d:%d %s\n", e.Level.String(), jsaJavaStr(e.Error.SourceName()),
+		fmt.Fprintf(&sorted, "%s %s:%d:%d %s\n", e.Level.String(), jsaJavaOptStr(e.Error.SourceName()),
 			e.Error.GetLineNumber(), e.Error.Charno(), e.Error.Description())
 	}
 	d.check("sorting", row, "getSortedDiagnostics", sorted.String(), row[2])
@@ -605,7 +605,7 @@ func jsaDiffMapError(d *jsaDiff, row []string) {
 	var reported []string
 	h := jsaCollectHandler(func(_ CheckLevel, error *JSError) {
 		reported = append(reported, fmt.Sprintf("null %s %s %s:%d:%d %s", error.Type().key,
-			error.DefaultLevel(), jsaJavaStr(error.SourceName()), error.GetLineNumber(), error.Charno(),
+			error.DefaultLevel(), jsaJavaOptStr(error.SourceName()), error.GetLineNumber(), error.Charno(),
 			error.Description()))
 	})
 	reporter := RhinoErrorReporter_ForOldRhino(h)

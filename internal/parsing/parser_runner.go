@@ -236,7 +236,10 @@ func ParserRunner_ParseWithAllocator(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	alloc *rhino.NodeAllocator) *ParserRunner_ParseResult {
-	sourceName := sourceFile.GetName()
+	var sourceName string
+	if sourceFile != nil {
+		sourceName = sourceFile.GetName()
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception parsing \""+sourceName+"\"", jutil.AsThrowable(r)))

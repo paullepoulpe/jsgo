@@ -238,34 +238,100 @@ func throwNilCfgNodeTraversal(compiler AbstractCompiler) {
 	compiler.ThrowInternalError("null", jutil.NewNullPointerException())
 }
 
+// isCfgSubtreeBoundary reports whether n crosses out of the current CFG node's
+// synchronous execution into a nested CFG node, nested function, instance field
+// initializer, or class static block.
+func isCfgSubtreeBoundary(n rhino.Node, isRoot bool, allowRootFunction bool) bool {
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		if !isRoot || !allowRootFunction {
+			return true
+		}
+	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_VARIABLE_DEF:
+		return true
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if !n.IsStaticMember() {
+			return true
+		}
+	case rhino.Token_BLOCK:
+		if !isRoot && n.GetParent().IsClassMembers() {
+			return true
+		}
+	}
+	return !isRoot && ControlFlowGraph_IsEnteringNewCfgNode(n)
+}
+
+// shouldWalkCfgClassEvalItem reports whether a (ch, parent) pair yielded by
+// ast.ClassBody.EvalOrder() executes synchronously in the enclosing CFG.
+// Computed member keys always execute synchronously; field initializers execute
+// synchronously iff static; method/accessor bodies and static blocks are
+// separate CFG roots.
+func shouldWalkCfgClassEvalItem(ch, parent rhino.Node) bool {
+	switch parent.GetToken() {
+	case rhino.Token_COMPUTED_PROP:
+		return ch == parent.GetFirstChild()
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		return ch == parent.GetFirstChild() || parent.IsStaticMember()
+	default:
+		return ch.IsMemberFieldDef() && ch.IsStaticMember()
+	}
+}
+
+func isCfgCondEvalStopToken(tok rhino.Token) bool {
+	switch tok {
+	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
+		return true
+	default:
+		return false
+	}
+}
+
 // walkCfgNode walks the AST subtree of cfgRoot without crossing into nested CFG
-// nodes, calling visit(n, parent) in pre-order and returning true immediately
-// if visit returns true.
+// nodes, nested functions, or deferred class members, calling visit(n, parent)
+// in pre-order and returning true immediately if visit returns true.
 func walkCfgNode(cfgRoot rhino.Node, visit func(n, parent rhino.Node) bool) bool {
 	if cfgRoot.IsNil() {
 		return false
 	}
-	return walkCfgSubtree(cfgRoot, rhino.NilNode, visit)
+	return walkCfgSubtree(cfgRoot, rhino.NilNode, true, visit)
 }
 
-func walkCfgSubtree(n, parent rhino.Node, visit func(n, parent rhino.Node) bool) bool {
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+func walkCfgSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhino.Node) bool) bool {
+	if n.IsNil() || isCfgSubtreeBoundary(n, isRoot, false) {
 		return false
 	}
 	if visit(n, parent) {
 		return true
 	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if walkCfgSubtree(c, n, visit) {
-			return true
+	switch n.GetToken() {
+	case rhino.Token_CLASS:
+		cls := ast.MustClass(n)
+		return walkCfgSubtree(cls.ExtendsNode(), n, false, visit) ||
+			walkCfgSubtree(cls.NameNode(), n, false, visit) ||
+			walkCfgSubtree(cls.Body().Node(), n, false, visit)
+	case rhino.Token_CLASS_MEMBERS:
+		for ch, p := range ast.MustClassBody(n).EvalOrder() {
+			if shouldWalkCfgClassEvalItem(ch, p) && walkCfgSubtree(ch, p, false, visit) {
+				return true
+			}
 		}
+		return false
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		return walkCfgSubtree(n.GetFirstChild(), n, false, visit) ||
+			(n.IsStaticMember() && walkCfgSubtree(n.GetSecondChild(), n, false, visit))
+	default:
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			if walkCfgSubtree(c, n, false, visit) {
+				return true
+			}
+		}
+		return false
 	}
-	return false
 }
 
 // walkCfgEvalOrder walks the AST subtree of cfgRoot without crossing into
-// nested CFG nodes, calling visit(n, parent) in post-order according to
-// JavaScript runtime evaluation order.
+// nested CFG nodes, nested functions, or deferred class members, calling
+// visit(n, parent) in post-order according to JavaScript runtime evaluation order.
 func walkCfgEvalOrder(cfgRoot rhino.Node, visit func(n, parent rhino.Node)) {
 	if cfgRoot.IsNil() {
 		return
@@ -274,7 +340,7 @@ func walkCfgEvalOrder(cfgRoot rhino.Node, visit func(n, parent rhino.Node)) {
 }
 
 func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhino.Node)) {
-	if n.IsNil() || (!isRoot && ControlFlowGraph_IsEnteringNewCfgNode(n)) {
+	if n.IsNil() || isCfgSubtreeBoundary(n, isRoot, true) {
 		return
 	}
 	switch n.GetToken() {
@@ -313,7 +379,14 @@ func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent 
 		walkCfgEvalSubtree(cls.Body().Node(), n, false, visit)
 	case rhino.Token_CLASS_MEMBERS:
 		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			walkCfgEvalSubtree(ch, p, false, visit)
+			if shouldWalkCfgClassEvalItem(ch, p) {
+				walkCfgEvalSubtree(ch, p, false, visit)
+			}
+		}
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		walkCfgEvalSubtree(n.GetFirstChild(), n, false, visit)
+		if n.IsStaticMember() {
+			walkCfgEvalSubtree(n.GetSecondChild(), n, false, visit)
 		}
 	default:
 		for c := n.GetFirstChild(); !c.IsNil(); {
@@ -359,9 +432,10 @@ func walkCfgCondEvalForward[T any](
 	if state, handled := visit(ctx, n, conditional); handled {
 		return state
 	}
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
+	if isCfgCondEvalStopToken(n.GetToken()) {
 		return cfgCondEvalContinue
+	}
+	switch n.GetToken() {
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
 		return walkCfgCondEvalForward(NodeUtil_GetConditionExpression(n), conditional, ctx, visit)
 	case rhino.Token_OPTCHAIN_GETPROP:
@@ -429,9 +503,10 @@ func walkCfgCondEvalBackward[T any](
 	if n.IsNil() || visit(ctx, n, conditional) {
 		return
 	}
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
+	if isCfgCondEvalStopToken(n.GetToken()) {
 		return
+	}
+	switch n.GetToken() {
 	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_IF, rhino.Token_FOR:
 		walkCfgCondEvalBackward(NodeUtil_GetConditionExpression(n), conditional, ctx, visit)
 	case rhino.Token_OPTCHAIN_GETPROP:

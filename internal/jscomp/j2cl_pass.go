@@ -77,17 +77,22 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// J2clSourceUtils_IsJ2clSource: sourceFileName is a nullable Java String.
+func nodeHasJ2clSource(n rhino.Node) bool {
+	sf := n.GetStaticSourceFile()
+	return sf != nil && J2clSourceUtils_IsJ2clSource(sf.GetName())
+}
+
+// J2clSourceUtils_IsJ2clSource reports whether sourceFileName ends with ".java.js".
 //
 // Java: J2clSourceUtils.isJ2clSource(String)
-func J2clSourceUtils_IsJ2clSource(sourceFileName *string) bool {
-	return sourceFileName != nil && strings.HasSuffix(*sourceFileName, ".java.js")
+func J2clSourceUtils_IsJ2clSource(sourceFileName string) bool {
+	return strings.HasSuffix(sourceFileName, ".java.js")
 }
 
 // Java: J2clSourceUtils.isJ2clSource(Node)
 func J2clSourceUtils_IsJ2clSourceOfNode(scriptNode rhino.Node) bool {
 	jutil.CheckArgument(scriptNode.IsScript())
-	return J2clSourceUtils_IsJ2clSource(scriptNode.GetSourceFileName())
+	return nodeHasJ2clSource(scriptNode)
 }
 
 // Java: J2clSourceUtils.isInsideJ2clSource(Node)

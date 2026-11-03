@@ -569,19 +569,6 @@ func (b *TypedScopeCreator_scopeBuilder) defineSlot(d typedScopeSlotSpec) {
 	}
 }
 
-// typedScopeCreator_sourceNameArg passes the AbstractScopeBuilder's
-// sourceName (a Java String that may be null) to
-// TypeValidator.expectUndeclaredVariable, whose Go port takes it as a Go
-// string (and, like the Java, never reads it).
-//
-// Go-only: language-adapter — Java null strings are nil *string.
-func typedScopeCreator_sourceNameArg(sourceName *string) string {
-	if sourceName == nil {
-		return ""
-	}
-	return *sourceName
-}
-
 // Declare declares a variable with the given name and type on the given
 // scope, returning the newly-declared TypedVar. Additionally checks the
 // escapedVarNames and assignedVarNames maps (which were populated during the

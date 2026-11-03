@@ -194,7 +194,7 @@ func (f *VerboseMessageFormatter) FormatWarning(warning *JSError) string {
 // Java: VerboseMessageFormatter.format(JSError)
 func (f *VerboseMessageFormatter) Format(message *JSError) string {
 	description := message.Description()
-	sourceName, hasSourceName := message.SourceNameOk()
+	sourceName, hasSourceName := message.SourceName()
 	lineNumber := message.GetLineNumber()
 	var sourceRegion Region
 	if hasSourceName {
@@ -325,7 +325,7 @@ func (f *LightweightMessageFormatter) appendHeaderLine(
 // Java: LightweightMessageFormatter.format(JSError, boolean)
 func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) string {
 	source := f.source
-	sourceName, hasSource := error.SourceNameOk()
+	sourceName, hasSource := error.SourceName()
 	lineNumber := error.GetLineNumber()
 	charno := error.Charno()
 
@@ -377,7 +377,7 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError)
 func (f *LightweightMessageFormatter) GetExcerptWithPosition(error *JSError) string {
-	sourceName, hasSource := error.SourceNameOk()
+	sourceName, hasSource := error.SourceName()
 	if !hasSource {
 		return ""
 	}

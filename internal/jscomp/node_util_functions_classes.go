@@ -98,8 +98,8 @@ func NodeUtil_RemoveName(n rhino.Node) {
 	originalName.ReplaceWith(emptyName.Srcref(originalName))
 }
 
-// NodeUtil_GetNearestFunctionName gets the function's name. This method
-// recognizes the forms:
+// NodeUtil_NearestFunctionName gets the function's name, returning ("", false)
+// if n is not a FUNCTION or has no name. This method recognizes the forms:
 //
 //   - {'name': function() ...}
 //   - {name: function() ...}
@@ -110,18 +110,14 @@ func NodeUtil_RemoveName(n rhino.Node) {
 //   - var name2 = function name1() ...
 //   - qualified.name2 = function name1() ...
 //
-// n is a node whose type is Token#FUNCTION; returns the function's name, or
-// null if it has no name.
-//
 // Java: NodeUtil.getNearestFunctionName(Node)
-func NodeUtil_GetNearestFunctionName(n rhino.Node) *string {
+func NodeUtil_NearestFunctionName(n rhino.Node) (string, bool) {
 	if !n.IsFunction() {
-		return nil
+		return "", false
 	}
 
-	name := NodeUtil_GetName(n)
-	if name != nil {
-		return name
+	if name, ok := NodeUtil_GetNameString(n); ok {
+		return name, true
 	}
 
 	// Check for the form { 'x' : function() { }} and {x() {}}
@@ -129,14 +125,11 @@ func NodeUtil_GetNearestFunctionName(n rhino.Node) *string {
 	switch parent.GetToken() {
 	// Return the name of the literal's key.
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY:
-		return jutil.StringPtr(parent.GetString())
+		return parent.GetString(), true
 	case rhino.Token_NUMBER:
-		if s, ok := NodeUtil_GetStringValue(parent); ok {
-			return &s
-		}
-		return nil
+		return NodeUtil_GetStringValue(parent)
 	default:
-		return nil
+		return "", false
 	}
 }
 

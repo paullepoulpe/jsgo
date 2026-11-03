@@ -225,6 +225,13 @@ func (p *TypeTransformationParser) GetTypeTransformationAst() rhino.Node {
 	return p.typeTransformationAst
 }
 
+func (p *TypeTransformationParser) getSourceName() string {
+	if p.sourceFile == nil {
+		return ""
+	}
+	return p.sourceFile.GetName()
+}
+
 // Java: TypeTransformationParser.addNewWarning(Msg, String)
 func (p *TypeTransformationParser) AddNewWarning(messageId rhino.Msg, messageArg string) {
 	// TODO(lpino): Use the exact lineno and charno, it is currently using
@@ -232,7 +239,7 @@ func (p *TypeTransformationParser) AddNewWarning(messageId rhino.Msg, messageArg
 	// TODO(lpino): Use only constants as parameters of this method
 	p.errorReporter.Warning(
 		"Bad type annotation. "+messageId.FormatArgs(messageArg),
-		p.sourceFile.GetName(),
+		p.getSourceName(),
 		p.templateLineno,
 		p.templateCharno)
 }

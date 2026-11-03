@@ -666,12 +666,12 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 		strings.HasPrefix(firstRight.GetRawString(), "{") {
 		return oldNode
 	}
-	lastLeftCooked := lastLeft.GetCookedString()
-	firstRightCooked := firstRight.GetCookedString()
-	if lastLeftCooked == nil || firstRightCooked == nil {
+	lastLeftCooked, okLeft := lastLeft.CookedString()
+	firstRightCooked, okRight := firstRight.CookedString()
+	if !okLeft || !okRight {
 		return oldNode
 	}
-	cooked := *lastLeftCooked + *firstRightCooked
+	cooked := lastLeftCooked + firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked,
@@ -782,14 +782,14 @@ func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node
 							continue
 						}
 
-						curCooked := cur.GetCookedString()
-						nextNextCooked := nextNext.GetCookedString()
-						if curCooked == nil || nextNextCooked == nil {
+						curCooked, okCur := cur.CookedString()
+						nextNextCooked, okNext := nextNext.CookedString()
+						if !okCur || !okNext {
 							cur = next
 							continue
 						}
 
-						combinedCooked := *curCooked + strValue + *nextNextCooked
+						combinedCooked := curCooked + strValue + nextNextCooked
 						combinedRaw := curRaw + strValue + nextNextRaw
 
 						newStringNode := rhino.IR_TemplateLiteralString(&combinedCooked, combinedRaw)
@@ -833,12 +833,12 @@ func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Nod
 	lastLeft := left.GetLastChild()
 	jutil.CheckState(lastLeft.IsTemplateLitString())
 
-	lastLeftCooked := lastLeft.GetCookedString()
-	if lastLeftCooked == nil || p.IsRestrictedOctalEscape(lastLeft.GetRawString(), rightStr) {
+	lastLeftCooked, ok := lastLeft.CookedString()
+	if !ok || p.IsRestrictedOctalEscape(lastLeft.GetRawString(), rightStr) {
 		return oldNode
 	}
 
-	cooked := *lastLeftCooked + rightStr
+	cooked := lastLeftCooked + rightStr
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked, lastLeft.GetRawString()+rightStr)
@@ -854,12 +854,12 @@ func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode rhino.Nod
 	firstRight := right.GetFirstChild()
 	jutil.CheckState(firstRight.IsTemplateLitString())
 
-	firstRightCooked := firstRight.GetCookedString()
-	if firstRightCooked == nil || p.IsRestrictedOctalEscape(leftStr, firstRight.GetRawString()) {
+	firstRightCooked, ok := firstRight.CookedString()
+	if !ok || p.IsRestrictedOctalEscape(leftStr, firstRight.GetRawString()) {
 		return oldNode
 	}
 
-	cooked := leftStr + *firstRightCooked
+	cooked := leftStr + firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked, leftStr+firstRight.GetRawString())

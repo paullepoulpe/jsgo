@@ -120,9 +120,6 @@ func (m *MakeDeclaredNamesUnique) EnterScope(t *NodeTraversal) {
 func (m *MakeDeclaredNamesUnique) ExitScope(t *NodeTraversal) {
 	if !t.InGlobalScope() {
 		top := len(m.renamerStack) - 1
-		if top < 0 {
-			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-		}
 		m.renamerStack[top] = nil
 		m.renamerStack = m.renamerStack[:top]
 	}
@@ -397,11 +394,6 @@ func MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name strin
 	return name[:index]
 }
 
-// Java: MakeDeclaredNamesUnique.ContextualRenameInverter.indexOfSeparator(String)
-func MakeDeclaredNamesUnique_ContextualRenameInverter_IndexOfSeparator(name string) int {
-	return jutil.StringLastIndexOf(name, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR)
-}
-
 func renameInverterSubtreeHasSeparator(n rhino.Node) bool {
 	tok := n.GetToken()
 	if tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
@@ -635,9 +627,6 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) pushScope(scopeDepth 
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) popScope() {
-	if len(c.scopes) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-	}
 	stackIdx := len(c.scopes) - 1
 	s := c.scopes[stackIdx]
 	c.scopes = c.scopes[:stackIdx]

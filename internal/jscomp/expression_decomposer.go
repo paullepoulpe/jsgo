@@ -729,16 +729,21 @@ func (e *ExpressionDecomposer) ExtractExpression(expr rhino.Node, injectionPoint
 	// becomes:
 	//    var t1 = next();
 	//    t1.foo = t1.foo + 2;
-	if isLhsOfAssignOp && NodeUtil_IsNormalGet(expr) {
-		var next rhino.Node
-		for n := expr.GetFirstChild(); !n.IsNil(); n = next {
-			// Cache next before extracting n because n is mutated or replaced within the loop body
-			// during expression extraction.
-			next = n.GetNext()
-			if !n.IsStringLit() && !e.IsConstantNameNode(n) {
-				extractedNode := e.ExtractExpression(n, injectionPoint)
-				if firstExtractedNode.IsNil() {
-					firstExtractedNode = extractedNode
+	if isLhsOfAssignOp {
+		if get, ok := ast.AsNormalGet(expr); ok {
+			// Cache both operand nodes before extracting because each operand may be mutated
+			// or replaced within the loop body during expression extraction.
+			var operands [2]rhino.Node
+			operands[0] = get.Object().Node()
+			if ge, ok := get.AsGetElem(); ok {
+				operands[1] = ge.Index().Node()
+			}
+			for _, n := range operands {
+				if !n.IsNil() && !n.IsStringLit() && !e.IsConstantNameNode(n) {
+					extractedNode := e.ExtractExpression(n, injectionPoint)
+					if firstExtractedNode.IsNil() {
+						firstExtractedNode = extractedNode
+					}
 				}
 			}
 		}

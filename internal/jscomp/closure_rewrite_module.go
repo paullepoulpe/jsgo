@@ -324,9 +324,7 @@ func (s *closureScriptDescription) getBinaryNamespace() (string, bool) {
 	if !s.isModule || s.declareLegacyNamespace {
 		return "", false
 	}
-	if !s.hasNamespaceId {
-		panic(jutil.NewNullPointerException())
-	}
+	jutil.CheckStateMsg(s.hasNamespaceId, "Missing namespaceId on module script")
 	return s.binaryNamespace, true
 }
 

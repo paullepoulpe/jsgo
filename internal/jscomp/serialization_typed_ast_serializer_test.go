@@ -338,3 +338,75 @@ func TestSerializeRoots_ParallelMatchesSingleThreadedByteForByte(t *testing.T) {
 		t.Fatalf("parallel stream mismatch: len(1)=%d len(4)=%d", len(stream1), len(stream4))
 	}
 }
+
+func TestSerializeRoots_SimpleSourceFileOnScriptAndChild(t *testing.T) {
+	opts := NewCompilerOptions()
+	comp := NewCompiler()
+	comp.Init([]*SourceFile{}, []*SourceFile{}, opts)
+	comp.Parse()
+
+	externSimple := rhino.NewSimpleSourceFile("simple_extern.js", rhino.StaticSourceFile_SourceKind_EXTERN)
+	externScript := rhino.IR_Script()
+	externScript.SetStaticSourceFile(externSimple)
+	externVar := rhino.IR_Var(rhino.IR_Name("extSym"))
+	// Leave externVar's StaticSourceFile nil to exercise synthetic extern child handling.
+	externScript.AddChildToBack(externVar)
+
+	codeSimple := rhino.NewSimpleSourceFile("simple_code.js", rhino.StaticSourceFile_SourceKind_STRONG)
+	childSimple := rhino.NewSimpleSourceFile("inlined_child.js", rhino.StaticSourceFile_SourceKind_WEAK)
+
+	codeScript := rhino.IR_Script()
+	codeScript.SetStaticSourceFile(codeSimple)
+	stmt := rhino.IR_ExprResult(rhino.IR_Name("extSym"))
+	stmt.SetStaticSourceFile(codeSimple)
+	stmt.GetFirstChild().SetStaticSourceFile(childSimple)
+	codeScript.AddChildToBack(stmt)
+
+	externsRoot := rhino.IR_Root(externScript)
+	jsRoot := rhino.IR_Root(codeScript)
+
+	ser := NewTypedAstSerializer(
+		comp,
+		NewSerializationOptions().SetIncludeDebugInfo(true).SetRunValidation(true).Build())
+	typedAst := ser.SerializeRoots(externsRoot, jsRoot)
+
+	var filenames []string
+	for _, sfProto := range typedAst.GetSourceFilePool().GetSourceFileList() {
+		filenames = append(filenames, sfProto.GetFilename())
+	}
+	AssertThat(filenames).ContainsExactly("simple_extern.js", "simple_code.js", "inlined_child.js")
+}
+
+func TestSerializeScriptNode_NilStaticSourceFileChecksStateCleanly(t *testing.T) {
+	opts := NewCompilerOptions()
+	comp := NewCompiler()
+	comp.Init([]*SourceFile{}, []*SourceFile{}, opts)
+	comp.Parse()
+
+	assertCheckState := func(label string, script rhino.Node) {
+		t.Helper()
+		defer func() {
+			r := recover()
+			if r == nil {
+				t.Fatalf("%s: expected IllegalStateException panic, got none", label)
+			}
+			ise, ok := r.(*jutil.IllegalStateException)
+			if !ok {
+				t.Fatalf("%s: expected *jutil.IllegalStateException, got %T (%v)", label, r, r)
+			}
+			AssertThat(ise.GetMessage()).Contains("Unexpected null SourceFile")
+		}()
+		ser := NewTypedAstSerializer(
+			comp,
+			NewSerializationOptions().SetIncludeDebugInfo(true).Build())
+		ser.SerializeScriptNode(script)
+	}
+
+	nilScript := rhino.IR_Script()
+	assertCheckState("nil StaticSourceFile", nilScript)
+
+	typedNilScript := rhino.IR_Script()
+	var typedNilSF *SourceFile
+	typedNilScript.SetStaticSourceFile(typedNilSF)
+	assertCheckState("typed-nil *SourceFile", typedNilScript)
+}

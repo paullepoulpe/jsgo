@@ -61,10 +61,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var (
-	rewriteDynamicImportsVisitTokens  = makeVisitTokenSet(rhino.Token_DYNAMIC_IMPORT)
-	rewriteDynamicImportsOriginalName = "import"
-)
+const rewriteDynamicImportsOriginalName = "import"
+
+var rewriteDynamicImportsVisitTokens = makeVisitTokenSet(rhino.Token_DYNAMIC_IMPORT)
 
 // RewriteDynamicImports rewrites dynamic import expressions to account for
 // bundling and module rewriting. Since dynamic imports cannot be fully
@@ -444,7 +443,7 @@ func (r *RewriteDynamicImports) AddChainedThen(t *NodeTraversal, dynamicImport r
 func (r *RewriteDynamicImports) AliasDynamicImport(t *NodeTraversal, dynamicImport rhino.Node) {
 	jutil.CheckState(r.hasAlias)
 	aliasNode := r.astFactory.CreateQNameWithUnknownType(r.alias)
-	aliasNode.SetOriginalName(&rewriteDynamicImportsOriginalName)
+	aliasNode.SetOriginalNameString(rewriteDynamicImportsOriginalName)
 	moduleSpecifier := ast.MustDynamicImport(dynamicImport).Specifier().Detach().Node()
 	importAliasCall :=
 		r.astFactory.

@@ -332,7 +332,7 @@ func irFactoryTransformTree(
 	file *parser.SourceFile,
 	alloc *rhino.NodeAllocator) *IRFactory {
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
-	if sourceFile.IsTypeScriptSource() {
+	if sourceFile != nil && sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
 	irFactory := NewIRFactory(
@@ -740,6 +740,7 @@ func (f *IRFactory) NewBigIntNode(value *big.Int) rhino.Node {
 
 // Java: IRFactory.error(Node, String)
 func (f *IRFactory) Error(rhinoNode rhino.Node, message string) {
+	sourceName, _ := rhinoNode.SourceFileName()
 	f.errorReporter.Error(
-		message, irFactory_nullableString(rhinoNode.GetSourceFileName()), rhinoNode.GetLineno(), rhinoNode.GetCharno())
+		message, sourceName, rhinoNode.GetLineno(), rhinoNode.GetCharno())
 }

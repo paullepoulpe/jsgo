@@ -804,7 +804,7 @@ func (t *TypeTransformation) evalTypeOfVar(ttlAst rhino.Node) rhino.JSType {
 func (t *TypeTransformation) evalInstanceOf(ttlAst rhino.Node, nameResolver *typeTransformation_NameResolver) rhino.JSType {
 	type_ := t.evalInternal(t.getCallArgument(ttlAst, 0), nameResolver)
 	if type_.IsUnknownType() || !type_.IsConstructor() {
-		t.reportWarning(ttlAst, TypeTransformation_INVALID_CTOR, stringPtrOrNull(type_.GetDisplayName()))
+		t.reportWarning(ttlAst, TypeTransformation_INVALID_CTOR, jutil.FormatOptionalString(type_.DisplayName()))
 		return t.getUnknownType()
 	}
 	return type_.ToMaybeFunctionType().GetInstanceType()

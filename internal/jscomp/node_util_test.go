@@ -786,13 +786,17 @@ func TestNodeUtil_AssortedTests_TestGetFunctionName5(t *testing.T) {
 func TestNodeUtil_AssortedTests_TestGetBestFunctionName1(t *testing.T) {
 	parent := nuParse(t, "function func(){}")
 
-	nuAssertThat(t, NodeUtil_GetNearestFunctionName(parent.GetFirstChild())).IsEqualTo("func")
+	name, ok := NodeUtil_NearestFunctionName(parent.GetFirstChild())
+	nuAssertThat(t, ok).IsTrue()
+	nuAssertThat(t, name).IsEqualTo("func")
 }
 
 func TestNodeUtil_AssortedTests_TestGetBestFunctionName2(t *testing.T) {
 	parent := nuParse(t, "var obj = {memFunc(){}}").GetFirstFirstChild().GetFirstFirstChild()
 
-	nuAssertThat(t, NodeUtil_GetNearestFunctionName(parent.GetLastChild())).IsEqualTo("memFunc")
+	name, ok := NodeUtil_NearestFunctionName(parent.GetLastChild())
+	nuAssertThat(t, ok).IsTrue()
+	nuAssertThat(t, name).IsEqualTo("memFunc")
 }
 
 func TestNodeUtil_AssortedTests_TestConstKeywordNamespace(t *testing.T) {
@@ -1547,7 +1551,9 @@ func TestNodeUtil_AssortedTests_TestGetSourceName(t *testing.T) {
 	parent := rhino.NewNodeWithChild(rhino.Token_BLOCK, n)
 	parent.SetSourceFileForTesting("foo")
 
-	nuAssertThat(t, NodeUtil_GetSourceName(n)).IsEqualTo("foo")
+	src, ok := NodeUtil_SourceName(n)
+	nuAssertThat(t, ok).IsTrue()
+	nuAssertThat(t, src).IsEqualTo("foo")
 }
 
 func TestNodeUtil_AssortedTests_TestLocalValue1(t *testing.T) {
@@ -5411,7 +5417,12 @@ func nuh_functionIsRValueOfAssign(t *testing.T, js string) bool {
 
 // Java: NodeUtilTest.testFunctionName(String, String)
 func nuh_testFunctionName(t *testing.T, js string, expected any) {
-	nuAssertThat(t, NodeUtil_GetNearestFunctionName(nuParseFirst(t, rhino.Token_FUNCTION, js))).IsEqualTo(expected)
+	name, ok := NodeUtil_NearestFunctionName(nuParseFirst(t, rhino.Token_FUNCTION, js))
+	var got *string
+	if ok {
+		got = &name
+	}
+	nuAssertThat(t, got).IsEqualTo(expected)
 }
 
 // nuh_visitLhsNodesInNode: js is the JavaScript node to be passed to
@@ -5553,5 +5564,47 @@ func TestNodeUtil_GoOnly_ChangeScopeNodesEmptyIsNotNull(t *testing.T) {
 	script.AddChildToBack(fn)
 	if got := NodeUtil_RemoveNestedChangeScopeNodes([]rhino.Node{fn, script}); len(got) != 1 || got[0] != script {
 		t.Errorf("removeNestedChangeScopeNodes([f, SCRIPT]) = %v, want [SCRIPT]", got)
+	}
+}
+
+func TestNodeUtil_GoOnly_UnboxedStringHelpers(t *testing.T) {
+	if s, ok := NodeUtil_OpToStr(rhino.Token_SHEQ); !ok || s != "===" {
+		t.Fatalf("NodeUtil_OpToStr(SHEQ) = (%q, %v), want (\"===\", true)", s, ok)
+	}
+	if s, ok := NodeUtil_OpToStr(rhino.Token_NAME); ok || s != "" {
+		t.Fatalf("NodeUtil_OpToStr(NAME) = (%q, %v), want (\"\", false)", s, ok)
+	}
+	if s, ok := NodeUtil_OpToStr(^rhino.Token(0)); ok || s != "" {
+		t.Fatalf("NodeUtil_OpToStr(^0) = (%q, %v), want (\"\", false)", s, ok)
+	}
+
+	script := nuParse(t, "class C { m() {} } C.prototype.p = function() {};")
+	script.SetStaticSourceFile(rhino.NewSimpleSourceFile("unboxed_src.js", rhino.StaticSourceFile_SourceKind_STRONG))
+	fn := nuGetNode(t, script, rhino.Token_FUNCTION)
+	if src, ok := NodeUtil_SourceName(fn); !ok || src != "testcode" {
+		t.Fatalf("NodeUtil_SourceName(fn) = (%q, %v), want (\"testcode\", true)", src, ok)
+	}
+	synthChild := rhino.IR_Empty()
+	script.AddChildToFront(synthChild)
+	if src, ok := NodeUtil_SourceName(synthChild); !ok || src != "unboxed_src.js" {
+		t.Fatalf("NodeUtil_SourceName(synthChild) = (%q, %v), want (\"unboxed_src.js\", true)", src, ok)
+	}
+	synthChild.Detach()
+	if src, ok := NodeUtil_SourceName(rhino.IR_Name("orphan")); ok || src != "" {
+		t.Fatalf("NodeUtil_SourceName(orphan) = (%q, %v), want (\"\", false)", src, ok)
+	}
+
+	if fnName, ok := NodeUtil_NearestFunctionName(fn); !ok || fnName != "m" {
+		t.Fatalf("NodeUtil_NearestFunctionName(fn) = (%q, %v), want (\"m\", true)", fnName, ok)
+	}
+	if fnName, ok := NodeUtil_NearestFunctionName(script); ok || fnName != "" {
+		t.Fatalf("NodeUtil_NearestFunctionName(script) = (%q, %v), want (\"\", false)", fnName, ok)
+	}
+
+	protoStmt := script.GetLastChild()
+	nuAssertThat(t, NodeUtil_IsPrototypePropertyDeclaration(protoStmt)).IsTrue()
+	protoFn := protoStmt.GetFirstChild().GetLastChild()
+	if lval, ok := NodeUtil_BestLValueName(NodeUtil_GetBestLValue(protoFn)); !ok || lval != "C.prototype.p" {
+		t.Fatalf("NodeUtil_BestLValueName(protoFn) = (%q, %v), want (\"C.prototype.p\", true)", lval, ok)
 	}
 }

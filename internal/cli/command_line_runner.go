@@ -258,13 +258,14 @@ func (r *CommandLineRunner) ProcessFlagFiles() {
 
 func (r *CommandLineRunner) tryProcessFlagFiles() error {
 	for _, flagFile := range r.flags.flagFiles {
-		cmdErr, ioErr := r.tryProcessFlagFile(flagFile)
-		if ioErr != nil {
-			r.ReportError("ERROR - " + flagFile + " read error.")
-			continue
-		}
-		if cmdErr != nil {
-			return cmdErr
+		if err := r.tryProcessFlagFile(flagFile); err != nil {
+			var cmdErr *args4j.CmdLineException
+			var ioErr jutil.IIOException
+			if !errors.As(err, &cmdErr) && errors.As(err, &ioErr) {
+				r.ReportError("ERROR - " + flagFile + " read error.")
+				continue
+			}
+			return err
 		}
 	}
 	return nil
@@ -272,19 +273,15 @@ func (r *CommandLineRunner) tryProcessFlagFiles() error {
 
 // Java: CommandLineRunner.processFlagFile(String)
 func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
-	cmdErr, ioErr := r.tryProcessFlagFile(flagFileString)
-	if ioErr != nil {
-		panic(ioErr)
-	}
-	if cmdErr != nil {
-		panic(cmdErr)
+	if err := r.tryProcessFlagFile(flagFileString); err != nil {
+		panic(err)
 	}
 }
 
-func readUTF8FileStrict(pathStr string) (string, jutil.IIOException) {
+func readUTF8FileStrict(pathStr string) (string, error) {
 	b, err := os.ReadFile(pathStr)
 	if err != nil {
-		return "", jutil.IOExceptionFromError(err, pathStr).(jutil.IIOException)
+		return "", jutil.IOExceptionFromError(err, pathStr)
 	}
 	if utf8.Valid(b) {
 		return string(b), nil
@@ -292,23 +289,23 @@ func readUTF8FileStrict(pathStr string) (string, jutil.IIOException) {
 	return jutil.StandardCharsets_UTF_8.TryDecodeStrict(b)
 }
 
-func readUTF8FileLossy(path string) (string, jutil.IIOException) {
-	f, ioErr := openFileForReading(path)
-	if ioErr != nil {
-		return "", ioErr
+func readUTF8FileLossy(path string) (string, error) {
+	f, err := openFileForReading(path)
+	if err != nil {
+		return "", err
 	}
 	defer f.Close()
-	b, err := io.ReadAll(f)
-	if err != nil {
-		return "", jutil.IOExceptionFromError(err, "").(jutil.IIOException)
+	b, readErr := io.ReadAll(f)
+	if readErr != nil {
+		return "", jutil.IOExceptionFromError(readErr, "")
 	}
 	return jutil.StandardCharsets_UTF_8.Decode(b), nil
 }
 
-func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) (error, jutil.IIOException) {
-	rawContent, ioErr := readUTF8FileStrict(jutil.Path_Of(flagFileString).String())
-	if ioErr != nil {
-		return nil, ioErr
+func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) error {
+	rawContent, err := readUTF8FileStrict(jutil.Path_Of(flagFileString).String())
+	if err != nil {
+		return err
 	}
 	content := strings.TrimPrefix(rawContent, "\uFEFF")
 
@@ -358,7 +355,7 @@ func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) (error, ju
 	r.flags.guardLevels = r.flags.guardLevels[:0]
 	r.flags.mixedJsSources = r.flags.mixedJsSources[:0]
 	if cmdErr := r.flags.TryParse(tokens); cmdErr != nil {
-		return cmdErr, nil
+		return cmdErr
 	}
 	r.flags.guardLevels = append(r.flags.guardLevels, previousGuardLevels...)
 	r.flags.mixedJsSources = append(r.flags.mixedJsSources, previousMixedJsSources...)
@@ -367,7 +364,7 @@ func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) (error, ju
 	if len(r.flags.flagFiles) != 0 {
 		r.ReportError("ERROR - Arguments in the file cannot contain " + "--flagfile option.")
 	}
-	return nil, nil
+	return nil
 }
 
 // Java: CommandLineRunner.getVersionText()
@@ -915,7 +912,7 @@ func commandLineRunner_loadConformanceConfigs(configPaths []string) []*jscomp.Co
 func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.Throwable) {
 	textProto, ioErr := readUTF8FileLossy(configFile)
 	if ioErr != nil {
-		return nil, jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", ioErr)
+		return nil, jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", jutil.AsThrowable(ioErr))
 	}
 
 	builder := jscomp.ConformanceConfig_NewBuilder()

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strconv"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -517,13 +518,13 @@ func (v *TypeValidator) ExpectSwitchMatchesCase(n rhino.Node, switchType rhino.J
 //
 // Java: TypeValidator.expectIndexMatch(Node, JSType, JSType)
 func (v *TypeValidator) ExpectIndexMatch(n rhino.Node, objType rhino.JSType, indexType rhino.JSType) {
-	jutil.CheckStateMsg1(
-		n.IsGetElem() || n.IsOptChainGetElem() || n.IsComputedProp() || n.IsComputedFieldDef(), "%s", n)
 	var indexNode rhino.Node
-	if n.IsGetElem() {
-		indexNode = n.GetLastChild()
+	if getElem, ok := ast.AsNormalOrOptChainGetElem(n); ok {
+		indexNode = getElem.Index().Node()
 	} else {
-		indexNode = n.GetFirstChild()
+		cm, ok := ast.AsComputedMember(n)
+		jutil.CheckStateMsg1(ok, "%s", n)
+		indexNode = cm.Key().Node()
 	}
 	if indexType.IsSymbolValueType() {
 		// For now, allow symbols definitions/access on any type. In the future only allow them

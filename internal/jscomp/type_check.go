@@ -662,24 +662,3 @@ func (l *TypeCheck_DebugTypeLogger) MaybeLogTypeOfNode(n rhino.Node) {
 	l.typeLogFile.LogString(
 		n.ToStringWithFlags( /* printSource= */ true /* printAnnotations= */, true /* printType= */, true))
 }
-
-func stringPtrOrNull(s *string) string {
-	if s == nil {
-		return "null"
-	}
-	return *s
-}
-
-func jsTypeStringOrNull(t rhino.JSType) string {
-	if t == nil {
-		return "null"
-	}
-	return t.String()
-}
-
-func nodeStringOrNull(n rhino.Node) string {
-	if n.IsNil() {
-		return "null"
-	}
-	return n.String()
-}

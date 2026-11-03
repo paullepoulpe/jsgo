@@ -61,7 +61,7 @@ type SourceMapConsumerV3_MappingBuilder struct {
 const SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES = 5
 
 func tryNewMappingBuilder(
-	outer *SourceMapConsumerV3, lineMap OptionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) (*SourceMapConsumerV3_MappingBuilder, jutil.Throwable) {
+	outer *SourceMapConsumerV3, lineMap OptionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) (*SourceMapConsumerV3_MappingBuilder, error) {
 	if !lineMap.Valid {
 		return nil, jutil.NewNullPointerException()
 	}
@@ -85,7 +85,7 @@ func tryNewMappingBuilder(
 	return b, nil
 }
 
-func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Mappings, jutil.Throwable) {
+func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Mappings, error) {
 	var temp [SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES]int32
 
 	entriesCount := 0
@@ -210,7 +210,7 @@ func maskCompactId(id int32) int32 {
 
 // tryDecodeEntry resolves the VLQ deltas in vals against the builder's running
 // state, applying compact 16-bit ID masking when entrySize == 4.
-func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryValues int) (sourceMapConsumerV3_entry, jutil.Throwable) {
+func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryValues int) (sourceMapConsumerV3_entry, error) {
 	if b.entrySize > b.flatLength {
 		b.flatLength *= 2
 		if b.entrySize > b.flatLength {
@@ -252,7 +252,7 @@ func (b *SourceMapConsumerV3_MappingBuilder) tryDecodeEntry(vals []int32, entryV
 }
 
 // Java: SourceMapConsumerV3.MappingBuilder.validateEntry(int, int)
-func (b *SourceMapConsumerV3_MappingBuilder) tryValidateEntry(e sourceMapConsumerV3_entry, line int) jutil.Throwable {
+func (b *SourceMapConsumerV3_MappingBuilder) tryValidateEntry(e sourceMapConsumerV3_entry, line int) error {
 	if !(b.lineCount < 0 || line < b.lineCount) {
 		return jutil.NewIllegalStateExceptionMsg(jutil.LenientFormat("line=%s, lineCount=%s", line, b.lineCount))
 	}
@@ -305,7 +305,7 @@ func (b *SourceMapConsumerV3_MappingBuilder) EntryComplete() bool {
 	return c == ';' || c == ','
 }
 
-func (b *SourceMapConsumerV3_MappingBuilder) tryNextValue() (int32, jutil.Throwable) {
+func (b *SourceMapConsumerV3_MappingBuilder) tryNextValue() (int32, error) {
 	var result int32
 	var shift int32
 	in := b.content

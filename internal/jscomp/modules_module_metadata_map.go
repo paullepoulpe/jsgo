@@ -687,16 +687,25 @@ func (b ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_Mod
 
 // ModuleByPath looks up metadata by module path in O(1).
 func (m *ModuleMetadataMap) ModuleByPath(path string) *ModuleMetadataMap_ModuleMetadata {
+	if m == nil {
+		return nil
+	}
 	return m.byPath.Get(path)
 }
 
 // ModuleByGoogNamespace looks up metadata by Closure namespace in O(1).
 func (m *ModuleMetadataMap) ModuleByGoogNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata {
+	if m == nil {
+		return nil
+	}
 	return m.byGoogNamespace.Get(namespace)
 }
 
 // AllMetadataSlice returns the slice of all distinct ModuleMetadata values in insertion order.
 func (m *ModuleMetadataMap) AllMetadataSlice() []*ModuleMetadataMap_ModuleMetadata {
+	if m == nil {
+		return nil
+	}
 	return m.allMetadata
 }
 
@@ -710,6 +719,9 @@ func (m *ModuleMetadataMap) AllMetadataSlice() []*ModuleMetadataMap_ModuleMetada
 //
 // Java: ModuleMetadataMap.getModulesByPath()
 func (m *ModuleMetadataMap) GetModulesByPath() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
+	if m == nil {
+		return nil
+	}
 	return &m.byPath
 }
 
@@ -722,6 +734,9 @@ func (m *ModuleMetadataMap) GetModulesByPath() *OrderedStringMap[*ModuleMetadata
 //
 // Java: ModuleMetadataMap.getModulesByGoogNamespace()
 func (m *ModuleMetadataMap) GetModulesByGoogNamespace() *OrderedStringMap[*ModuleMetadataMap_ModuleMetadata] {
+	if m == nil {
+		return nil
+	}
 	return &m.byGoogNamespace
 }
 
@@ -732,6 +747,9 @@ func (m *ModuleMetadataMap) GetModulesByGoogNamespace() *OrderedStringMap[*Modul
 //
 // Java: ModuleMetadataMap.getAllModuleMetadata()
 func (m *ModuleMetadataMap) GetAllModuleMetadata() ModuleMetadataSet {
+	if m == nil {
+		return ModuleMetadataSet{}
+	}
 	return ModuleMetadataSet{items: m.allMetadata}
 }
 

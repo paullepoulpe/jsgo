@@ -271,12 +271,7 @@ func (r disambiguateProperties_renamingIndexJson) WriteGson(out *jutil.JsonWrite
 	for _, e := range r.m.Entries() {
 		out.Name(e.Key)
 		if e.Value.invalidated {
-			if !e.Value.invalidation.IsValid() {
-				nullLit := "null"
-				out.JsonValue(&nullLit)
-			} else {
-				diagnostic.LogsGson_GSON.ToJsonWriter(e.Value.invalidation, out)
-			}
+			diagnostic.LogsGson_GSON.ToJsonWriter(e.Value.invalidation, out)
 		} else {
 			out.BeginArray()
 			for i := range e.Value.names {
@@ -695,6 +690,9 @@ type invalidationWithReceiverJson struct {
 // ToLogsGson formats Invalidation identically to Java's Invalidation and
 // Invalidation.WithReceiverType ({"receiverType":5,"reason":"INVALIDATING_TYPE"}).
 func (i Invalidation) ToLogsGson() any {
+	if !i.valid {
+		return nil
+	}
 	if i.hasReceiver {
 		return invalidationWithReceiverJson{
 			ReceiverType: int(i.receiverType),

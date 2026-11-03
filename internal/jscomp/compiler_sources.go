@@ -319,22 +319,20 @@ func (c *Compiler) AddInputSourceMap(sourceFileName string, inputSourceMap *Sour
 // Java: Compiler.getBase64SourceMapContents(String)
 func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
 	sourceMapInput := c.inputSourceMaps[sourceFileName]
-	// This sourceMappingURL ends with a ".inline.map", and we want to get its base4-encoded
+	// This sourceMappingURL ends with a ".inline.map", and we want to get its base64-encoded
 	// contents (i.e. "data:application/json;base64,<encoded_source_map>").
-	var sourceMappingURL *string
-	if sourceMapInput != nil {
-		originalPath := sourceMapInput.GetOriginalPath()
-		sourceMappingURL = &originalPath
-	}
-	if sourceMappingURL != nil && strings.HasSuffix(*sourceMappingURL, ".inline.map") {
+	if sourceMapInput != nil && strings.HasSuffix(sourceMapInput.GetOriginalPath(), ".inline.map") {
 		if sf := sourceMapInput.sourceFile; sf != nil && sf.code.Load() == nil {
 			if l, ok := sf.loader.(*sourceFile_CodeLoader_InlineBase64); ok && l.canonicalUTF8 {
 				raw := l.rawBase64
 				return &raw
 			}
 		}
-		unencoded := sourceMapInput.GetRawSourceMapContents() // This is the sourcemap.
-		encoded := base64.StdEncoding.EncodeToString([]byte(*unencoded))
+		unencoded, ok := sourceMapInput.GetRawSourceMapContents() // This is the sourcemap.
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		encoded := base64.StdEncoding.EncodeToString([]byte(unencoded))
 		return &encoded
 	}
 	return nil

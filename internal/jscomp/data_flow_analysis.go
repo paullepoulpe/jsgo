@@ -305,6 +305,20 @@ func (t *varIDTable) lookup(id uint32) (int, bool) {
 	return idx, ok
 }
 
+// fnVarTable indexes all variables declared across the scopes of a single
+// function (or hoisting root) for intra-procedural dataflow analyses.
+//
+// Invariants:
+//   - vars stores every *Var encountered in scope traversal order, including
+//     shadowed or duplicate-named block/catch variables.
+//   - ids (queried via lookupIndexByID and lookupVarByID) maps each interned
+//     variable name ID to its last-wins canonical slot index in vars
+//     (canonIdx), matching Java's AllVarsDeclaredInFunction.getAllVariablesInFunction()
+//     Map<String, Var> where later declarations overwrite earlier ones of the
+//     same name so lattice bitsets allocate one canonical index per unique name.
+//   - escaped (indexed via resolveExactVarIndex) tracks exact *Var indices in
+//     vars, matching Java's computeEscaped Set<Var> even when hasDuplicateNames
+//     is true and multiple *Var entries share the same name ID.
 type fnVarTable struct {
 	vars              []*Var
 	ids               varIDTable

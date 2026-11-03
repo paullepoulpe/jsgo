@@ -34,12 +34,12 @@ import (
 // Java: NodeUtil.getInsertionPointAfterAllInnerFunctionDeclarations(Node)
 func NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(block rhino.Node) rhino.Node {
 	jutil.CheckState(block.IsBlock())
-	current := block.GetFirstChild()
-
-	for !current.IsNil() && NodeUtil_IsFunctionDeclaration(current) {
-		current = current.GetNext()
+	for stmt := range ast.MustBlock(block).Statements() {
+		if !NodeUtil_IsFunctionDeclaration(stmt.Node()) {
+			return stmt.Node()
+		}
 	}
-	return current
+	return rhino.NilNode
 }
 
 // NodeUtil_IsSomeCompileTimeConstStringValue returns true iff the value
@@ -147,23 +147,41 @@ func NodeUtil_GetEnclosingNode(n rhino.Node, pred func(rhino.Node) bool) rhino.N
 	return curr
 }
 
+func nodeUtil_propValueMatchingKey(keyNode rhino.Node, keyName string) (rhino.Node, bool) {
+	if sk, ok := ast.AsStringKey(keyNode); ok && sk.Key() == keyName {
+		return sk.Value().Node(), true
+	}
+	if mfd, ok := ast.AsMemberFunctionDef(keyNode); ok && mfd.Key() == keyName {
+		return mfd.Function().Node(), true
+	}
+	if comp, ok := ast.AsComputedProp(keyNode); ok {
+		if keyLit, ok := comp.Key().AsStringLit(); ok && keyLit.Value() == keyName {
+			if val, ok := comp.Value(); ok {
+				return val.Node(), true
+			}
+			return comp.Key().Node(), true
+		}
+	}
+	return rhino.NilNode, false
+}
+
 // NodeUtil_GetFirstPropMatchingKey returns the first property in the objlit
 // or class members, that matches the key.
 //
 // Java: NodeUtil.getFirstPropMatchingKey(Node, String)
 func NodeUtil_GetFirstPropMatchingKey(n rhino.Node, keyName string) rhino.Node {
 	jutil.CheckState(n.IsObjectLit() || n.IsClassMembers())
-	for keyNode := n.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if (keyNode.IsStringKey() || keyNode.IsMemberFunctionDef()) &&
-			keyNode.GetString() == keyName {
-			return ast.MustPlainKeyMember(keyNode).Value().Node()
-		} else if comp, ok := ast.AsComputedProp(keyNode); ok {
-			if keyLit, ok := ast.AsStringLit(comp.Key().Node()); ok && keyLit.Value() == keyName {
-				if val, ok := comp.Value(); ok {
-					return val.Node()
-				}
-				return comp.Key().Node()
+	if obj, ok := ast.AsObjectLit(n); ok {
+		for member := range obj.Members() {
+			if prop, ok := nodeUtil_propValueMatchingKey(member.Node(), keyName); ok {
+				return prop
 			}
+		}
+		return rhino.NilNode
+	}
+	for member := range ast.MustClassBody(n).Members() {
+		if prop, ok := nodeUtil_propValueMatchingKey(member.Node(), keyName); ok {
+			return prop
 		}
 	}
 	return rhino.NilNode
@@ -242,8 +260,14 @@ func NodeUtil_IsControlStructure(n rhino.Node) bool {
 //
 // Java: NodeUtil.isControlStructureCodeBlock(Node, Node)
 func NodeUtil_IsControlStructureCodeBlock(parent rhino.Node, n rhino.Node) bool {
-	if parent.IsTry() {
-		return parent.GetFirstChild() == n || parent.GetLastChild() == n
+	if tryStmt, ok := ast.AsTry(parent); ok {
+		if tryStmt.Body().Is(n) {
+			return true
+		}
+		if finallyBlock, hasFinally := tryStmt.Finally(); hasFinally {
+			return finallyBlock.Is(n)
+		}
+		return tryStmt.Catches().Is(n)
 	}
 	switch ast.RoleIn(n, parent) {
 	case ast.RoleDoBody,
@@ -262,8 +286,14 @@ func NodeUtil_IsControlStructureCodeBlock(parent rhino.Node, n rhino.Node) bool 
 		ast.RoleDefaultCaseBody:
 		return true
 	default:
-		if parent.IsIf() || parent.IsSwitch() || parent.IsCase() {
-			return parent.GetFirstChild() != n // exclude the condition
+		if ifStmt, ok := ast.AsIf(parent); ok {
+			return !ifStmt.Cond().Is(n) // exclude the condition
+		}
+		if sw, ok := ast.AsSwitch(parent); ok {
+			return !sw.Discriminant().Is(n) // exclude the condition
+		}
+		if cs, ok := ast.AsCase(parent); ok {
+			return !cs.Value().Is(n) // exclude the condition
 		}
 		if parent.IsDefaultCase() {
 			return true
@@ -472,7 +502,7 @@ crawl_ancestors:
 			addingRoot = ancestor
 			break crawl_ancestors
 		case rhino.Token_FUNCTION:
-			addingRoot = ancestor.GetLastChild()
+			addingRoot = ast.MustFunction(ancestor).Body().Node()
 			break crawl_ancestors
 		default:
 			continue crawl_ancestors
@@ -480,8 +510,18 @@ crawl_ancestors:
 	}
 
 	// make sure that the adding root looks ok
-	jutil.CheckState(addingRoot.IsBlock() || addingRoot.IsModuleBody() || addingRoot.IsScript())
-	jutil.CheckState(!addingRoot.HasChildren() || !addingRoot.GetFirstChild().IsScript())
+	if blk, ok := ast.AsBlock(addingRoot); ok {
+		first, hasFirst := blk.FirstStatement()
+		jutil.CheckState(!hasFirst || !first.Node().IsScript())
+	} else if mod, ok := ast.AsModuleBody(addingRoot); ok {
+		first, hasFirst := mod.FirstStatement()
+		jutil.CheckState(!hasFirst || !first.Node().IsScript())
+	} else {
+		script, isScript := ast.AsScript(addingRoot)
+		jutil.CheckState(isScript)
+		first, hasFirst := script.FirstItem()
+		jutil.CheckState(!hasFirst || !first.Node().IsScript())
+	}
 	return addingRoot
 }
 
@@ -519,7 +559,8 @@ func NodeUtil_GetCatchBlock(n rhino.Node) rhino.Node {
 // Java: NodeUtil.hasCatchHandler(Node)
 func NodeUtil_HasCatchHandler(n rhino.Node) bool {
 	jutil.CheckArgument(n.IsBlock())
-	return n.HasChildren() && n.GetFirstChild().IsCatch()
+	first, ok := ast.MustBlock(n).FirstStatement()
+	return ok && first.Node().IsCatch()
 }
 
 // NodeUtil_IsExpressionResultUsed returns true iff the result of the

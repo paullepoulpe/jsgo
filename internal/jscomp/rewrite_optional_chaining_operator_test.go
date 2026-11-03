@@ -483,3 +483,28 @@ func (c *RewriteOptionalChainingOperatorTest_DeleteOptChainTests) TestDeleteOptC
     : delete tmp0(num).num
 `))
 }
+
+// Go-only: regression test — nested labels and pre-Normalize expression-bodied arrows.
+func (c *RewriteOptionalChainingOperatorTest_DeleteOptChainTests) TestNestedLabelsAndPreNormalizeArrow() {
+	c.DisableTypeCheck()
+	c.DisableTypeInfoValidation()
+
+	c.Test(
+		c.Externs(RewriteOptionalChainingOperatorTest_TEST_BASE_EXTERNS),
+		c.Srcs("var x; a: b: x = obj?.num;"),
+		c.Expected(
+			`var x;
+let tmp0;
+a: b: x = (tmp0 = obj) == null ? void 0 : tmp0.num;
+`))
+
+	c.Test(
+		c.Externs(RewriteOptionalChainingOperatorTest_TEST_BASE_EXTERNS),
+		c.Srcs("const f = n => (n ? f(0) : null)?.y;"),
+		c.Expected(
+			`const f = n => {
+  let tmp0;
+  return (tmp0 = n ? f(0) : null) == null ? void 0 : tmp0.y;
+};
+`))
+}

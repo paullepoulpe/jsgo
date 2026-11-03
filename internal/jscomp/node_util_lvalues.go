@@ -716,35 +716,35 @@ func NodeUtil_GetBestLValueOwner(lValue rhino.Node) rhino.Node {
 
 // NodeUtil_GetBestLValueName gets the name of the given l-value node.
 //
-// Go-only: performance — the body is in nodeUtil_getBestLValueNameString, so
-// that this wrapper inlines and a caller that only reads the result keeps
-// the string header on its stack.
+// Go-only: performance — the body is in NodeUtil_BestLValueName, so that this
+// wrapper inlines and a caller that only reads the result keeps the string
+// header on its stack.
 //
 // Java: NodeUtil.getBestLValueName(Node)
 func NodeUtil_GetBestLValueName(lValue rhino.Node) *string {
-	s, ok := nodeUtil_getBestLValueNameString(lValue)
+	s, ok := NodeUtil_BestLValueName(lValue)
 	if !ok {
 		return nil
 	}
 	return &s
 }
 
-// nodeUtil_getBestLValueNameString is the body of getBestLValueName; ok is
-// false where Java returns null.
-func nodeUtil_getBestLValueNameString(lValue rhino.Node) (string, bool) {
+// NodeUtil_BestLValueName gets the name of the given l-value node, returning
+// ("", false) where Java returns null.
+func NodeUtil_BestLValueName(lValue rhino.Node) (string, bool) {
 	if lValue.IsNil() || lValue.GetParent().IsNil() {
 		return "", false
 	}
 	if lValue.GetParent().IsClassMembers() && !lValue.IsComputedProp() {
-		className := NodeUtil_GetName(lValue.GetGrandparent())
-		if className == nil { // Anonymous class
+		className, ok := NodeUtil_GetNameString(lValue.GetGrandparent())
+		if !ok { // Anonymous class
 			return "", false
 		}
 		methodName := lValue.GetString()
 		if lValue.IsStaticMember() {
-			return *className + "." + methodName, true
+			return className + "." + methodName, true
 		}
-		return *className + ".prototype." + methodName, true
+		return className + ".prototype." + methodName, true
 	}
 	// TODO(sdh): Tighten this to simply require !lValue.isQuotedString()
 	// Could get rid of the isJSIdentifier check, but may need to fix depot.
@@ -755,7 +755,7 @@ func nodeUtil_getBestLValueNameString(lValue rhino.Node) (string, bool) {
 			if !rhino.TokenStream_IsJSIdentifier(key) {
 				return "", false
 			}
-			ownerName, ok := nodeUtil_getBestLValueNameString(owner)
+			ownerName, ok := NodeUtil_BestLValueName(owner)
 			if ok {
 				return ownerName + "." + key, true
 			}
@@ -763,6 +763,10 @@ func nodeUtil_getBestLValueNameString(lValue rhino.Node) (string, bool) {
 		return "", false
 	}
 	return lValue.GetQualifiedNameString()
+}
+
+func nodeUtil_getBestLValueNameString(lValue rhino.Node) (string, bool) {
+	return NodeUtil_BestLValueName(lValue)
 }
 
 // NodeUtil_GetBestLValueRoot gets the root of a qualified name l-value.

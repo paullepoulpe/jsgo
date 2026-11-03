@@ -164,6 +164,17 @@ func (n Node) GetCookedString() *string {
 	return n.node_cooked()
 }
 
+// CookedString returns the cooked string of a TemplateLiteralSubstringNode
+// without looking up a *string pointer, or ("", false) if unset.
+func (n Node) CookedString() (string, bool) {
+	n.node_castKind(node_kindTemplateLiteralSubstring)
+	id := n.node_cookedID()
+	if id == 0 {
+		return "", false
+	}
+	return strpool.String(id), true
+}
+
 // GetCookedStringID returns the 32-bit interned cooked string ID of a TemplateLiteralSubstringNode, or 0 if unset.
 func (n Node) GetCookedStringID() uint32 {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
@@ -440,6 +451,21 @@ func (n Node) GetSourceFileName() *string {
 	return nil
 }
 
+// SourceFileName returns the source file name of n without allocating a *string,
+// or ("", false) if n has no source file.
+func (n Node) SourceFileName() (string, bool) {
+	sfID := n.rec().sourceFile
+	if sfID == 0 {
+		return "", false
+	}
+	idx := sfID - 1
+	if p := sourceFileNamePtrChunks[idx>>10].Load()[idx&1023]; p != nil {
+		return *p, true
+	}
+	_ = node_cast[StaticSourceFile](sourceFilePropItem(sfID).objectValue)
+	return "", false
+}
+
 // GetStaticSourceFile returns the source file associated with this input.
 //
 // Java: Node.getStaticSourceFile()
@@ -480,13 +506,19 @@ func (n Node) GetOriginalNameID() uint32 {
 	return uint32(n.node_originalNameID())
 }
 
-// GetOriginalNameString returns the node's originalName without allocating a *string.
-func (n Node) GetOriginalNameString() (string, bool) {
+// OriginalName returns the node's originalName without looking up a *string
+// pointer, or ("", false) if unset.
+func (n Node) OriginalName() (string, bool) {
 	id := n.node_originalNameID()
 	if id == 0 {
 		return "", false
 	}
 	return strpool.String(id), true
+}
+
+// GetOriginalNameString returns the node's originalName without allocating a *string.
+func (n Node) GetOriginalNameString() (string, bool) {
+	return n.OriginalName()
 }
 
 // Java: Node.setOriginalName(String)
@@ -610,7 +642,11 @@ func (n Node) GetCharno() int {
 
 // Java: Node.getLocation()
 func (n Node) GetLocation() string {
-	return jutil.ToJavaString(n.GetSourceFileName()) + ":" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
+	sourceName := "null"
+	if name, ok := n.SourceFileName(); ok {
+		sourceName = name
+	}
+	return sourceName + ":" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }
 
 // TODO(johnlenz): make this final

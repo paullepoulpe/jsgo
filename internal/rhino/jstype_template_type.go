@@ -95,6 +95,11 @@ func (t *TemplateType) GetTypeClass() JSTypeClass {
 	return TemplateType_TYPE_CLASS
 }
 
+// ReferenceName returns the template type parameter name without allocating a *string.
+func (t *TemplateType) ReferenceName() (string, bool) {
+	return t.name, true
+}
+
 // Java: TemplateType.getReferenceName()
 func (t *TemplateType) GetReferenceName() *string {
 	return &t.name

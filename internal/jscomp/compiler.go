@@ -540,7 +540,13 @@ func (c *Compiler) CreateExpressionDecomposer(
 		c, uniqueNameIdSupplier, knownConstantFunctions, scope, brokenIE11LocationAssign)
 }
 
-var compilerTracerType = "Compiler"
+const compilerTracerType = "Compiler"
+
+// ModuleTypeByName returns the module type for the provided namespace without boxing.
+func (c *Compiler) ModuleTypeByName(moduleName string) (CompilerInput_ModuleType, bool) {
+	moduleType, ok := c.moduleTypesByName[moduleName]
+	return moduleType, ok
+}
 
 // NewTracer returns a new tracer for the given pass name.
 //
@@ -556,7 +562,7 @@ func (c *Compiler) NewTracer(passName string) *Tracer {
 	if DebugPassLogHook != nil {
 		DebugPassLogHook(DebugPassEvent{Name: passName, Tracer: true, Start: true})
 	}
-	return NewTracerWithType(&compilerTracerType, &comment)
+	return NewTracerWithType(compilerTracerType, comment)
 }
 
 // Java: Compiler.stopTracer(Tracer, String)

@@ -165,8 +165,8 @@ func (c *scriptMetadata_FillerCallback) maybeCollectRequirelikeAlias(n rhino.Nod
 		return
 	}
 	alias := aliasName.Ident()
-	if originalName := aliasName.Node().GetOriginalName(); originalName != nil {
-		alias = *originalName
+	if originalName, ok := aliasName.Node().OriginalName(); ok {
+		alias = originalName
 	}
 	c.toFill.requireAliases[namespace] = alias
 }

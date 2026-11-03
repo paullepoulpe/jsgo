@@ -78,12 +78,8 @@ func hashOrderCreatePass(t testing.TB, pass string, compiler AbstractCompiler) C
 }
 
 func hashOrderFormat(e *JSError) string {
-	sourceName := "null"
-	if s := e.GetSourceName(); s != nil {
-		sourceName = *s
-	}
 	return e.GetType().key +
-		" " + sourceName +
+		" " + jutil.FormatOptionalString(e.SourceName()) +
 		":" + strconv.Itoa(e.GetLineno()) +
 		":" + strconv.Itoa(e.GetCharno()) +
 		" \"" + e.GetDescription() + "\""

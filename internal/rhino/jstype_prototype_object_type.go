@@ -375,7 +375,8 @@ func (p *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 		if sb.IsForAnnotations() {
 			sb.Append(self.GetNormalizedReferenceName())
 		} else {
-			sb.Append(*self.GetReferenceName())
+			name, _ := self.ReferenceName()
+			sb.Append(name)
 		}
 		return
 	}
@@ -502,12 +503,13 @@ func (p *PrototypeObjectTypeBase) HasReferenceName() bool {
 	return p.classNameID != 0 || p.ownerFunction != nil
 }
 
-func (p *PrototypeObjectTypeBase) referenceNameString() (string, bool) {
+// ReferenceName returns the reference name of p without allocating a *string.
+func (p *PrototypeObjectTypeBase) ReferenceName() (string, bool) {
 	if p.classNameID != 0 {
 		return rhinoStringFromID(p.classNameID), true
 	}
 	if p.ownerFunction != nil {
-		if ownerName, ok := p.ownerFunction.referenceNameString(); ok {
+		if ownerName, ok := p.ownerFunction.ReferenceName(); ok {
 			return ownerName + ".prototype", true
 		}
 		return "null.prototype", true
@@ -520,7 +522,7 @@ func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
 	if p.classNameID != 0 {
 		return strpool.StringPtr(p.classNameID)
 	}
-	if name, ok := p.referenceNameString(); ok {
+	if name, ok := p.ReferenceName(); ok {
 		return &name
 	}
 	return nil

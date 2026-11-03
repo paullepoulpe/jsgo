@@ -530,22 +530,25 @@ func NodeUtil_GetEnclosingType(n rhino.Node, type_ rhino.Token) rhino.Node {
 	return rhino.NilNode
 }
 
-var (
-	nodeUtil_opToStrValues [256]string
-	nodeUtil_opToStrTable  [256]*string
-)
+var nodeUtil_opToStrTable [256]string
 
 func init() {
 	for _, t := range rhino.Token_values() {
 		if s, ok := nodeUtil_opToStrSwitch(t); ok {
-			nodeUtil_opToStrValues[t] = s
-			nodeUtil_opToStrTable[t] = &nodeUtil_opToStrValues[t]
+			nodeUtil_opToStrTable[t] = s
 		}
 	}
 }
 
-func nodeUtil_opToStr(operator rhino.Token) (string, bool) {
-	s := nodeUtil_opToStrValues[operator]
+// NodeUtil_OpToStr converts an operator's token value (see Token) to a
+// string representation, returning ("", false) if the token is not an operator.
+//
+// Java: NodeUtil.opToStr(Token)
+func NodeUtil_OpToStr(operator rhino.Token) (string, bool) {
+	if uint(operator) >= uint(len(nodeUtil_opToStrTable)) {
+		return "", false
+	}
+	s := nodeUtil_opToStrTable[operator]
 	return s, s != ""
 }
 
@@ -648,6 +651,10 @@ func nodeUtil_opToStrSwitch(operator rhino.Token) (string, bool) {
 	}
 }
 
+func nodeUtil_opToStr(operator rhino.Token) (string, bool) {
+	return NodeUtil_OpToStr(operator)
+}
+
 // NodeUtil_OpToStrNoFail converts an operator's token value (see Token) to a
 // string representation or fails.
 //
@@ -656,7 +663,7 @@ func nodeUtil_opToStrSwitch(operator rhino.Token) (string, bool) {
 //
 // Java: NodeUtil.opToStrNoFail(Token)
 func NodeUtil_OpToStrNoFail(operator rhino.Token) string {
-	res, ok := nodeUtil_opToStr(operator)
+	res, ok := NodeUtil_OpToStr(operator)
 	if !ok {
 		panic(jutil.NewJavaLangError("Unknown op " + operator.String()))
 	}

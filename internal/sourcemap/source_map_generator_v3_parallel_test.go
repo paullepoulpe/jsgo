@@ -82,3 +82,24 @@ func TestParallelMappingsMatchSequential(t *testing.T) {
 		}
 	}
 }
+
+func TestShareConfigFromClonesSourceFileContentMap(t *testing.T) {
+	template := NewSourceMapGeneratorV3()
+	template.AddSourcesContent("a.js", SomeString("const a = 1;\n"))
+
+	chunk := NewSourceMapGeneratorV3()
+	chunk.ShareConfigFrom(template)
+
+	chunk.AddSourcesContent("b.js", SomeString("const b = 2;\n"))
+	template.AddSourcesContent("c.js", SomeString("const c = 3;\n"))
+
+	if _, exists := template.sourceFileContentMap["b.js"]; exists {
+		t.Fatal("mutating chunk.sourceFileContentMap leaked into template.sourceFileContentMap")
+	}
+	if _, exists := chunk.sourceFileContentMap["c.js"]; exists {
+		t.Fatal("mutating template.sourceFileContentMap leaked into chunk.sourceFileContentMap")
+	}
+	if got := chunk.sourceFileContentMap["a.js"]; !got.Valid || got.Value != "const a = 1;\n" {
+		t.Fatalf("chunk.sourceFileContentMap[\"a.js\"] = %+v, want SomeString(\"const a = 1;\\n\")", got)
+	}
+}

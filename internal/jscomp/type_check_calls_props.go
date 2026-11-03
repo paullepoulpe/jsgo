@@ -464,7 +464,7 @@ func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node, left rhin
 		tc.Report(
 			n,
 			TypeCheck_BINARY_OPERATION,
-			stringPtrOrNull(NodeUtil_OpToStr(n.GetToken())),
+			jutil.FormatOptionalString(NodeUtil_OpToStr(n.GetToken())),
 			leftType.String(),
 			rightType.String())
 		return
@@ -477,7 +477,7 @@ func (tc *TypeCheck) VisitBinaryOperator(op rhino.Token, n rhino.Node, left rhin
 			// NOTE: >>> and >>>= aren't valid operations for bigint, so TypeInference ignores the
 			//     operand types for it and always sets the operator's type to 'number'. Thus,
 			//     if one of the operands is a bigint, we'll end up reporting that as an error here.
-			opStr := stringPtrOrNull(NodeUtil_OpToStr(n.GetToken()))
+			opStr := jutil.FormatOptionalString(NodeUtil_OpToStr(n.GetToken()))
 			if !leftType.MatchesNumberContext() {
 				tc.Report(left, TypeCheck_BIT_OPERATION, opStr, leftType.String())
 			} else {

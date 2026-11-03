@@ -431,32 +431,22 @@ func (f *IRFactory) ValidateBlockScopedFunctions(n rhino.Node) {
 func (f *IRFactory) ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode rhino.Node) {
 	yieldNode := IRFactory_FindNodeTypeInExpression(defaultValueNode, rhino.Token_YIELD)
 	if !yieldNode.IsNil() {
+		sourceName, _ := yieldNode.SourceFileName()
 		f.errorReporter.Error(
 			"`yield` is illegal in parameter default value.",
-			irFactory_nullableString(yieldNode.GetSourceFileName()),
+			sourceName,
 			yieldNode.GetLineno(),
 			yieldNode.GetCharno())
 	}
 	awaitNode := IRFactory_FindNodeTypeInExpression(defaultValueNode, rhino.Token_AWAIT)
 	if !awaitNode.IsNil() {
+		sourceName, _ := awaitNode.SourceFileName()
 		f.errorReporter.Error(
 			"`await` is illegal in parameter default value.",
-			irFactory_nullableString(awaitNode.GetSourceFileName()),
+			sourceName,
 			awaitNode.GetLineno(),
 			awaitNode.GetCharno())
 	}
-}
-
-// irFactory_nullableString passes a nullable Java String to a rhino
-// ErrorReporter.
-//
-// Go-only: language-adapter — rhino.ErrorReporter takes a Go string, so
-// Java's null is "".
-func irFactory_nullableString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // IRFactory_FindNodeTypeInExpression tries to find a node with the given

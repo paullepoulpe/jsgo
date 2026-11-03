@@ -305,9 +305,9 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 	}
 
 	if left.IsNoResolvedType() && right.IsNoResolvedType() {
-		return jsTypeNullableStringEquals(
-			left.ToObjectType().GetReferenceName(),
-			right.ToObjectType().GetReferenceName())
+		lName, lOk := left.ToObjectType().ReferenceName()
+		rName, rOk := right.ToObjectType().ReferenceName()
+		return lOk == rOk && lName == rName
 	}
 
 	leftUnknown := left.IsUnknownType()
@@ -377,11 +377,17 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 			return leftUnwrapped == rightUnwrapped
 		} else {
 			// TODO(b/140763807): this is not valid across scopes pre-resolution.
-			nameOfleft := jutil.CheckNotNull(leftUnwrapped.GetReferenceName())
-			nameOfright := jutil.CheckNotNull(rightUnwrapped.GetReferenceName())
+			nameOfleft, ok := leftUnwrapped.ReferenceName()
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
+			nameOfright, ok := rightUnwrapped.ReferenceName()
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
 			googModuleIdOfLeft := EqualityChecker_GetGoogModuleId(leftUnwrapped)
 			googModuleIdOfRight := EqualityChecker_GetGoogModuleId(rightUnwrapped)
-			return jsTypeNullableStringEquals(nameOfleft, nameOfright) &&
+			return nameOfleft == nameOfright &&
 				jsTypeNullableStringEquals(googModuleIdOfLeft, googModuleIdOfRight)
 		}
 	}

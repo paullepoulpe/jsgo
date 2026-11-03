@@ -322,10 +322,9 @@ func (m *unresolvedEsModule) resolveImportImpl(
 	if importStar || (i.ImportName() == Export_DEFAULT && (reqMeta.IsGoogProvide() || reqMeta.IsGoogModule())) {
 		isGoogSpec := GoogEsImports_IsGoogImportSpecifier(i.ModuleRequest())
 		if !isGoogSpec && (reqMeta.IsGoogModule() || reqMeta.IsGoogProvide()) {
-			srcName := m.path.String()
 			m.outer.compiler.Report(
-				JSError_MakeWithSourceLocation(
-					&srcName,
+				JSError_MakeAtSourceLocation(
+					m.path.String(),
 					i.ImportNode().GetLineno(),
 					i.ImportNode().GetCharno(),
 					EsModuleProcessor_CANNOT_PATH_IMPORT_CLOSURE_FILE,
@@ -334,10 +333,9 @@ func (m *unresolvedEsModule) resolveImportImpl(
 			return ResolveExportResult_ERROR
 		}
 		if importStar && isGoogSpec {
-			srcName := m.path.String()
 			m.outer.compiler.Report(
-				JSError_MakeWithSourceLocation(
-					&srcName,
+				JSError_MakeAtSourceLocation(
+					m.path.String(),
 					i.ImportNode().GetLineno(),
 					i.ImportNode().GetCharno(),
 					EsModuleProcessor_NAMESPACE_IMPORT_CANNOT_USE_STAR,
@@ -360,20 +358,18 @@ func (m *unresolvedEsModule) resolveImportImpl(
 		resolveSet,
 		exportStarSet)
 	if !result.Found() && !result.HadError() {
-		srcName := m.path.String()
 		m.outer.compiler.Report(
-			JSError_MakeWithSourceLocation(
-				&srcName,
+			JSError_MakeAtSourceLocation(
+				m.path.String(),
 				i.ImportNode().GetLineno(),
 				i.ImportNode().GetCharno(),
 				ModuleMapCreator_DOES_NOT_HAVE_EXPORT,
 				i.ImportName()))
 		return ResolveExportResult_ERROR
 	} else if result.IsAmbiguous() {
-		srcName := m.path.String()
 		m.outer.compiler.Report(
-			JSError_MakeWithSourceLocation(
-				&srcName,
+			JSError_MakeAtSourceLocation(
+				m.path.String(),
 				i.ImportNode().GetLineno(),
 				i.ImportNode().GetCharno(),
 				EsModuleProcessor_IMPORTED_AMBIGUOUS_EXPORT,
@@ -465,9 +461,8 @@ func (m *unresolvedEsModule) getAllResolvedExports(
 			}
 			exports.Put(name, jutil.CheckNotNull(b.GetBinding()))
 		} else if b.IsAmbiguous() {
-			srcName := m.path.String()
-			m.outer.compiler.Report(JSError_MakeWithSourceLocation(
-				&srcName, -1, -1, EsModuleProcessor_AMBIGUOUS_EXPORT_DEFINITION, name))
+			m.outer.compiler.Report(JSError_MakeAtSourceLocation(
+				m.path.String(), -1, -1, EsModuleProcessor_AMBIGUOUS_EXPORT_DEFINITION, name))
 		}
 	}
 	if exports == nil {
@@ -488,9 +483,8 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 	if resolveSet != nil {
 		trace := ExportTrace_Create(m, exportName)
 		if _, seen := resolveSet[trace]; seen {
-			srcName := m.path.String()
-			m.outer.compiler.Report(JSError_MakeWithSourceLocation(
-				&srcName, 0, 0, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
+			m.outer.compiler.Report(JSError_MakeAtSourceLocation(
+				m.path.String(), 0, 0, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
 			return ResolveExportResult_ERROR
 		}
 		resolveSet[trace] = struct{}{}
@@ -528,20 +522,18 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 				resolveSet,
 				exportStarSet)
 			if !result.Found() && !result.HadError() {
-				srcName := m.path.String()
 				m.outer.compiler.Report(
-					JSError_MakeWithSourceLocation(
-						&srcName,
+					JSError_MakeAtSourceLocation(
+						m.path.String(),
 						e.ExportNode().GetLineno(),
 						e.ExportNode().GetCharno(),
 						ModuleMapCreator_DOES_NOT_HAVE_EXPORT,
 						e.ImportName()))
 				return ResolveExportResult_ERROR
 			} else if result.IsAmbiguous() {
-				srcName := m.path.String()
 				m.outer.compiler.Report(
-					JSError_MakeWithSourceLocation(
-						&srcName,
+					JSError_MakeAtSourceLocation(
+						m.path.String(),
 						e.ExportNode().GetLineno(),
 						e.ExportNode().GetCharno(),
 						EsModuleProcessor_IMPORTED_AMBIGUOUS_EXPORT,
@@ -557,9 +549,8 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 		exportStarSet = map[UnresolvedModule]struct{}{m: {}}
 	} else {
 		if _, seen := exportStarSet[m]; seen {
-			srcName := m.path.String()
-			m.outer.compiler.Report(JSError_MakeWithSourceLocation(
-				&srcName, -1, -1, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
+			m.outer.compiler.Report(JSError_MakeAtSourceLocation(
+				m.path.String(), -1, -1, EsModuleProcessor_CYCLIC_EXPORT_DEFINITION, exportName))
 			return ResolveExportResult_ERROR
 		}
 		exportStarSet[m] = struct{}{}

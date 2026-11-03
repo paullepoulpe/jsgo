@@ -292,3 +292,14 @@ func TestMustBeReachingVariableDefWideAndEscaped(t *testing.T) {
 	c.AssertNotMatch("var esc = 1; function inner() { return esc; } D: var x = esc; esc = 2; U: x")
 	c.AssertNotMatch("var esc = 1, x; function inner() { return esc; } D: (x = esc, esc = 2); U: x")
 }
+
+// Go-only: test — verifies ComputeDependence stops at nested function default
+// parameters and non-static class field initializers while still recording
+// synchronous computed keys and static field initializers.
+func (c *MustBeReachingVariableDefTest) TestNestedCfgDependenceBoundaries() {
+	c.AssertMatch("var a = 1; D: var x = (p = a) => p; a = 2; U: x")
+	c.AssertMatch("var a = 1; D: var x = (class { field = a; }, 1); a = 2; U: x")
+	c.AssertMatch("var a = 1; D: var x = (class { ['field'] = a; }, 1); a = 2; U: x")
+	c.AssertNotMatch("var a = 1; D: var x = (class { static field = a; }, 1); a = 2; U: x")
+	c.AssertNotMatch("var a = 1; D: var x = (class { [a] = 1; }, 1); a = 2; U: x")
+}

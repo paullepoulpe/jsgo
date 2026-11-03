@@ -94,7 +94,7 @@ type SymbolTable struct {
 	symbolThatDeclaresType map[rhino.JSType]*SymbolTable_Symbol
 
 	// Comparators
-	sourceNameOrdering   func(a, b *string) int
+	sourceNameOrdering   func(a string, aOk bool, b string, bOk bool) int
 	nodeOrdering         func(a, b rhino.Node) int
 	lexicalScopeOrdering func(a, b *SymbolTable_SymbolScope) int
 	symbolOrdering       func(a, b *SymbolTable_Symbol) int
@@ -270,11 +270,11 @@ func (t *SymbolTable) FindSymbolForScope(scope *SymbolTable_SymbolScope) *Symbol
 		return nil
 	}
 
-	name := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(rootNode))
-	if name == nil {
+	name, ok := NodeUtil_BestLValueName(NodeUtil_GetBestLValue(rootNode))
+	if !ok {
 		return nil
 	}
-	return scope.GetParentScope().GetQualifiedSlot(*name)
+	return scope.GetParentScope().GetQualifiedSlot(name)
 }
 
 // GetAllSymbolsForTypeOf gets all symbols associated with the type of the
@@ -301,14 +301,20 @@ func (t *SymbolTable) GetGlobalScope() *SymbolTable_SymbolScope {
 func (t *SymbolTable) GetSymbolDeclaredBy(fn rhino.FunctionType) *SymbolTable_Symbol {
 	jutil.CheckState(fn.IsConstructor() || fn.IsInterface())
 	instanceType := fn.GetInstanceType()
-	return t.GetSymbolForName(fn.GetSource(), instanceType.GetReferenceName())
+	if refName := instanceType.GetReferenceName(); refName != nil {
+		return t.GetSymbolForName(fn.GetSource(), *refName)
+	}
+	return nil
 }
 
 // GetSymbolDeclaredByEnum gets the symbol for the given enum.
 //
 // Java: SymbolTable.getSymbolDeclaredBy(EnumType)
 func (t *SymbolTable) GetSymbolDeclaredByEnum(enumType *rhino.EnumType) *SymbolTable_Symbol {
-	return t.GetSymbolForName(enumType.GetSource(), enumType.GetElementsType().GetReferenceName())
+	if refName := enumType.GetElementsType().GetReferenceName(); refName != nil {
+		return t.GetSymbolForName(enumType.GetSource(), *refName)
+	}
+	return nil
 }
 
 // GetSymbolForInstancesOf gets the symbol for the prototype if this is the
@@ -330,18 +336,14 @@ func (t *SymbolTable) GetSymbolForInstancesOf(sym *SymbolTable_Symbol) *SymbolTa
 func (t *SymbolTable) GetSymbolForInstancesOfFunction(fn rhino.FunctionType) *SymbolTable_Symbol {
 	jutil.CheckState(fn.IsConstructor() || fn.IsInterface())
 	pType := fn.GetPrototype()
-	return t.GetSymbolForName(fn.GetSource(), pType.GetReferenceName())
+	if refName := pType.GetReferenceName(); refName != nil {
+		return t.GetSymbolForName(fn.GetSource(), *refName)
+	}
+	return nil
 }
 
 // Java: SymbolTable.getSymbolForName(Node, String)
-func (t *SymbolTable) GetSymbolForName(source rhino.Node, name *string) *SymbolTable_Symbol {
-	if name == nil {
-		return nil
-	}
-	return t.getSymbolForName(source, *name)
-}
-
-func (t *SymbolTable) getSymbolForName(source rhino.Node, nameStr string) *SymbolTable_Symbol {
+func (t *SymbolTable) GetSymbolForName(source rhino.Node, name string) *SymbolTable_Symbol {
 	if t.globalScope == nil {
 		return nil
 	}
@@ -365,23 +367,26 @@ func (t *SymbolTable) getSymbolForName(source rhino.Node, nameStr string) *Symbo
 		// - the symbol is just `Pinky`. So we need to remove module name to be able to find the
 		// symbol in module scope.
 		var metadata *ModuleMetadataMap_ModuleMetadata
-		if sourceFileName := scope.GetRootNode().GetSourceFileName(); sourceFileName != nil {
-			metadata = t.compiler.GetModuleMetadataMap().ModuleByPath(*sourceFileName)
+		if sourceFileName, ok := symbolTable_nodeSourceName(scope.GetRootNode()); ok && t.compiler != nil {
+			metadata = t.compiler.GetModuleMetadataMap().ModuleByPath(sourceFileName)
 		}
-		if metadata == nil {
-			panic(jutil.NewNullPointerException())
-		}
-		first := "null"
-		if entries := metadata.GoogNamespaces().Entries(); len(entries) > 0 {
-			first = entries[0].Key
-		}
-		moduleNameWithDot := first + "."
-		if strings.HasPrefix(nameStr, moduleNameWithDot) {
-			nameStr = nameStr[len(moduleNameWithDot):]
+		if metadata != nil {
+			first := "null"
+			if entries := metadata.GoogNamespaces().Entries(); len(entries) > 0 {
+				first = entries[0].Key
+			}
+			moduleNameWithDot := first + "."
+			if strings.HasPrefix(name, moduleNameWithDot) {
+				name = name[len(moduleNameWithDot):]
+			}
 		}
 	}
 
-	return scope.GetQualifiedSlot(nameStr)
+	return scope.GetQualifiedSlot(name)
+}
+
+func (t *SymbolTable) getSymbolForName(source rhino.Node, nameStr string) *SymbolTable_Symbol {
+	return t.GetSymbolForName(source, nameStr)
 }
 
 // GetAllSymbolsForType gets all symbols associated with the given type. For
@@ -563,7 +568,11 @@ func (t *SymbolTable) toDebugString(
 		builder.WriteString("  Ref ")
 		builder.WriteString(strconv.Itoa(refCount))
 		builder.WriteString(": ")
-		builder.WriteString(symbolTable_nullableString(node.GetSourceFileName()))
+		if srcName, ok := symbolTable_nodeSourceName(node); ok {
+			builder.WriteString(srcName)
+		} else {
+			builder.WriteString("null")
+		}
 		builder.WriteString(" line: ")
 		builder.WriteString(strconv.Itoa(node.GetLineno()))
 		builder.WriteString(" col: ")
@@ -720,6 +729,13 @@ func (t *SymbolTable) addAnonymousFunctionsInScope(scope *SymbolTable_SymbolScop
 			scope.SetSymbolForScope(anonymousFunctionSymbol)
 		}
 	}
+}
+
+func symbolTable_nodeSourceName(n rhino.Node) (string, bool) {
+	if s := n.GetSourceFileName(); s != nil {
+		return *s, true
+	}
+	return "", false
 }
 
 // symbolTable_nullableString is String.valueOf of a nullable String.
@@ -940,22 +956,24 @@ func (t *SymbolTable) renameSymbol(scope *SymbolTable_SymbolScope, sym *SymbolTa
 
 // Java: SymbolTable.sourceNameOrdering, nodeOrdering, lexicalScopeOrdering, symbolOrdering
 func (t *SymbolTable) initOrderings() {
-	t.sourceNameOrdering = func(a, b *string) int {
+	t.sourceNameOrdering = func(a string, aOk bool, b string, bOk bool) int {
 		// Ordering.natural().nullsFirst()
-		if a == b {
+		if !aOk && !bOk {
 			return 0
 		}
-		if a == nil {
+		if !aOk {
 			return -1
 		}
-		if b == nil {
+		if !bOk {
 			return 1
 		}
-		return jutil.StringCompareTo(*a, *b)
+		return jutil.StringCompareTo(a, b)
 	}
 
 	t.nodeOrdering = func(a, b rhino.Node) int {
-		result := t.sourceNameOrdering(a.GetSourceFileName(), b.GetSourceFileName())
+		aName, aOk := symbolTable_nodeSourceName(a)
+		bName, bOk := symbolTable_nodeSourceName(b)
+		result := t.sourceNameOrdering(aName, aOk, bName, bOk)
 		if result != 0 {
 			return result
 		}

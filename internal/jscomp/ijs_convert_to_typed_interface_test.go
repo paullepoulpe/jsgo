@@ -2732,3 +2732,24 @@ goog.module('a.b.c');
 exports.foo;
 `)
 }
+
+// Go-only: regression test — ES2022 class static initialization blocks must be detached cleanly
+// without splicing statement children under CLASS_MEMBERS.
+func (c *ConvertToTypedInterfaceTest) TestEs2022ClassStaticBlockRemovedCleanly() {
+	c.Test(
+		`class C {
+  static {
+    const x = 1;
+    function helper() {}
+    sideEffect(x, helper);
+  }
+  /** @param {number} a */
+  method(a) {}
+}
+`,
+		`class C {
+  /** @param {number} a */
+  method(a) {}
+}
+`)
+}

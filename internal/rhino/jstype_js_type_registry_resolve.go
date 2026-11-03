@@ -581,9 +581,8 @@ func JSTypeRegistry_GetSimpleReadableJSTypeName(type_ JSType) *string {
 		source := type_.ToObjectType().GetConstructor().GetSource()
 		if !source.IsNil() {
 			jutil.CheckStateMsg1(source.IsFunction() || source.IsClass(), "%s", source)
-			readable := source.GetFirstChild().GetOriginalName()
-			if readable != nil {
-				return readable
+			if readable, ok := source.GetFirstChild().OriginalName(); ok {
+				return &readable
 			}
 		}
 		s := type_.String()

@@ -427,11 +427,12 @@ func (f *FunctionTypeBase) HasReferenceName() bool {
 	return f.PrototypeObjectTypeBase.HasReferenceName()
 }
 
-func (f *FunctionTypeBase) referenceNameString() (string, bool) {
+// ReferenceName returns the reference name of f without allocating a *string.
+func (f *FunctionTypeBase) ReferenceName() (string, bool) {
 	if f.isNoObjectOrNo() {
 		return "", false
 	}
-	return f.PrototypeObjectTypeBase.referenceNameString()
+	return f.PrototypeObjectTypeBase.ReferenceName()
 }
 
 func (f *FunctionTypeBase) referenceNameID() rhinoStringID {
@@ -442,7 +443,7 @@ func (f *FunctionTypeBase) referenceNameID() rhinoStringID {
 		return f.classNameID
 	}
 	if f.ownerFunction != nil {
-		name, _ := f.PrototypeObjectTypeBase.referenceNameString()
+		name, _ := f.PrototypeObjectTypeBase.ReferenceName()
 		return rhinoStringPoolIntern(name)
 	}
 	return 0

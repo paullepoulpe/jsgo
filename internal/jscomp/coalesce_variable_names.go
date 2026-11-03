@@ -325,16 +325,11 @@ func (c *CoalesceVariableNames) enterScopeWithCfg(t *NodeTraversal) {
 
 // Java: CoalesceVariableNames.exitScopeWithCfg(NodeTraversal)
 func (c *CoalesceVariableNames) exitScopeWithCfg(t *NodeTraversal) {
-	if len(c.shouldOptimizeScopeStack) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
-	}
-	shouldOptimize := c.shouldOptimizeScopeStack[len(c.shouldOptimizeScopeStack)-1]
-	c.shouldOptimizeScopeStack = c.shouldOptimizeScopeStack[:len(c.shouldOptimizeScopeStack)-1]
+	n := len(c.shouldOptimizeScopeStack) - 1
+	shouldOptimize := c.shouldOptimizeScopeStack[n]
+	c.shouldOptimizeScopeStack = c.shouldOptimizeScopeStack[:n]
 	if !shouldOptimize {
 		return
-	}
-	if len(c.activeStates) == 0 {
-		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 	}
 	last := len(c.activeStates) - 1
 	if st := c.activeStates[last]; st != nil {

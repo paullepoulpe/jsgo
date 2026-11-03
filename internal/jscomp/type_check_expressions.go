@@ -31,7 +31,7 @@ func (tc *TypeCheck) VisitUnaryPlus(op ast.Unary) {
 		tc.Report(
 			n,
 			TypeCheck_UNARY_OPERATION,
-			stringPtrOrNull(NodeUtil_OpToStr(op.Token())),
+			jutil.FormatOptionalString(NodeUtil_OpToStr(op.Token())),
 			tc.GetJSType(op.Operand().Node()).String())
 	} else {
 		tc.EnsureTypedWithNative(n, rhino.JSTypeNative_NUMBER_TYPE)
@@ -60,7 +60,7 @@ func (tc *TypeCheck) VisitBitwiseNOT(op ast.Unary) {
 	if operatorType.IsNumber() {
 		// This condition is meant to catch any old cases (where bigint isn't involved)
 		if !childType.MatchesNumberContext() {
-			tc.Report(n, TypeCheck_BIT_OPERATION, stringPtrOrNull(NodeUtil_OpToStr(op.Token())), childType.String())
+			tc.Report(n, TypeCheck_BIT_OPERATION, jutil.FormatOptionalString(NodeUtil_OpToStr(op.Token())), childType.String())
 		} else {
 			tc.validator.ExpectNumberStrict(n, childType, "bitwise NOT")
 		}
@@ -375,12 +375,16 @@ func (tc *TypeCheck) VisitObjectOrClassLiteralKey(key rhino.Node, owner rhino.No
 				expectedPropertyType :=
 					tc.GetPropertyTypeIfDeclared(
 						objectCastType, rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType()))
+				rightType := TypeCheck_GetObjectLitKeyTypeFromValueType(key, tc.GetJSType(key.GetSecondChild()))
+				if rightType == nil {
+					rightType = tc.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+				}
 				tc.validator.ExpectCanAssignToPropertyOf(
 					key,
+					rightType,
 					expectedPropertyType,
-					tc.GetJSType(key.GetSecondChild()),
 					owner,
-					stringPtrOrNull(keyType.ToMaybeKnownSymbolType().GetDisplayName()))
+					jutil.FormatOptionalString(keyType.ToMaybeKnownSymbolType().DisplayName()))
 			}
 		}
 		return
@@ -485,8 +489,8 @@ func TypeCheck_PropertyIsImplicitCast(type_ rhino.ObjectType, prop string) bool 
 // Java: TypeCheck.getObjectLitKeyTypeFromValueType(Node, JSType)
 func TypeCheck_GetObjectLitKeyTypeFromValueType(key rhino.Node, valueType rhino.JSType) rhino.JSType {
 	if valueType != nil {
-		switch key.GetToken() {
-		case rhino.Token_GETTER_DEF:
+		switch {
+		case key.IsGetterDef() || (key.IsComputedProp() && key.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER)):
 			// GET must always return a function type.
 			if valueType.IsFunctionType() {
 				fntype := valueType.ToMaybeFunctionType()
@@ -494,17 +498,19 @@ func TypeCheck_GetObjectLitKeyTypeFromValueType(key rhino.Node, valueType rhino.
 			} else {
 				return nil
 			}
-		case rhino.Token_SETTER_DEF:
+		case key.IsSetterDef() || (key.IsComputedProp() && key.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER)):
 			if valueType.IsFunctionType() {
 				// SET must always return a function type.
 				fntype := valueType.ToMaybeFunctionType()
-				param := fntype.GetParameters()[0]
+				params := fntype.GetParameters()
+				if len(params) == 0 {
+					return fntype.GetRegistry().GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
+				}
 				// SET function must always have one parameter.
-				valueType = param.GetJSType()
+				valueType = params[0].GetJSType()
 			} else {
 				return nil
 			}
-		default:
 		}
 	}
 	return valueType
@@ -555,10 +561,8 @@ func (tc *TypeCheck) VisitName(t *NodeTraversal, name ast.Name, parent rhino.Nod
 		// TODO(b/149843534): crash instead of defaulting to '?' when the var is null.
 		var_ := t.GetTypedScope().GetVar(name.Ident())
 		if var_ != nil {
-			type_ = var_.GetType()
-			if type_ == nil {
-				panic(jutil.NewNullPointerException())
-			}
+			// Match Java Preconditions.checkNotNull(var.getType()) (asserted by TestTypeCheckDumpGolden).
+			type_ = jutil.CheckNotNull(var_.GetType())
 		}
 	}
 	tc.EnsureTypedWithType(n, type_)

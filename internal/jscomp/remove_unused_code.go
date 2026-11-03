@@ -244,11 +244,10 @@ func (r *RemoveUnusedCode) logRemoval(kind, name, fnName string) {
 }
 
 func loggableFunctionName(argList rhino.Node) string {
-	functionName := NodeUtil_GetNearestFunctionName(rhino.CheckNotNull(argList).GetParent())
-	if functionName == nil {
-		return "<anonymous>"
+	if functionName, ok := NodeUtil_NearestFunctionName(rhino.CheckNotNull(argList).GetParent()); ok {
+		return functionName
 	}
-	return *functionName
+	return "<anonymous>"
 }
 
 func (r *RemoveUnusedCode) removesAnyProperties() bool {

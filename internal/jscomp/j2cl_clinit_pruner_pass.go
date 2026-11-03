@@ -276,13 +276,11 @@ func (r *redundantClinitPruner) pushIsolatedState() {
 }
 
 func (r *redundantClinitPruner) popIsolatedState() {
-	if len(r.stateStack) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
 	r.current.reset()
 	r.freePool = append(r.freePool, r.current)
-	r.current = r.stateStack[len(r.stateStack)-1]
-	r.stateStack = r.stateStack[:len(r.stateStack)-1]
+	top := len(r.stateStack) - 1
+	r.current = r.stateStack[top]
+	r.stateStack = r.stateStack[:top]
 }
 
 func (r *redundantClinitPruner) ShouldTraverse(t *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
@@ -371,7 +369,7 @@ func (l *lookAheadRedundantClinitPruner) Visit(t *NodeTraversal, node rhino.Node
 	if enclosingFunction.IsNil() {
 		return
 	}
-	if nearest := NodeUtil_GetNearestFunctionName(enclosingFunction); nearest != nil && calleeName.Ident() == *nearest {
+	if nearest, ok := NodeUtil_NearestFunctionName(enclosingFunction); ok && calleeName.Ident() == nearest {
 		return
 	}
 

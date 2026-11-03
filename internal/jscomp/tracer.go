@@ -86,17 +86,18 @@ func newTracer_Throwable(message *string) *tracer_Throwable {
 	return t
 }
 
-// NewTracerWithType creates and starts a tracer. Both type and comment may be null.
+// NewTracerWithType creates and starts a tracer.
 //
 // Java: Tracer(String, String)
-func NewTracerWithType(type_ *string, comment *string) *Tracer {
-	t := &Tracer{}
-	if type_ != nil {
-		t.type_ = *type_
-		t.hasType = true
-	}
-	if comment != nil {
-		t.comment = *comment
+func NewTracerWithType(type_ string, comment string) *Tracer {
+	return newTracer(type_, type_ != "", comment)
+}
+
+func newTracer(type_ string, hasType bool, comment string) *Tracer {
+	t := &Tracer{
+		type_:   type_,
+		comment: comment,
+		hasType: hasType,
 	}
 	t.startTimeMs = Tracer_clock.CurrentTimeMillis()
 	t.startThread = jutil.Thread_CurrentThread()
@@ -139,7 +140,7 @@ func NewTracerWithType(type_ *string, comment *string) *Tracer {
 //
 // Java: Tracer(String)
 func NewTracer(comment string) *Tracer {
-	return NewTracerWithType(nil, &comment)
+	return newTracer("", false, comment)
 }
 
 // tracer_longToPaddedString converts 'v' to a string and pads it with up

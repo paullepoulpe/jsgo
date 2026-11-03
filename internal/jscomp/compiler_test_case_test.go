@@ -1778,11 +1778,11 @@ func (b *CompilerTestCaseBase) validateNormalizationInvariants(root rhino.Node, 
 func (b *CompilerTestCaseBase) validateSourceLocation(jserror *JSError) {
 	// Make sure that source information is always provided.
 	if !b.allowSourcelessWarnings {
-		sourceName := jserror.SourceName()
+		sourceName, hasSourceName := jserror.SourceName()
 		AssertWithMessage("Missing source file name in warning: %s", jserror).
-			That(sourceName != nil && *sourceName != "").
+			That(hasSourceName && sourceName != "").
 			IsTrue()
-		scriptNode := b.lastCompiler.GetScriptNode(*sourceName)
+		scriptNode := b.lastCompiler.GetScriptNode(sourceName)
 		AssertWithMessage("No SCRIPT node found for warning: %s", jserror).
 			That(scriptNode).
 			IsNotNull()

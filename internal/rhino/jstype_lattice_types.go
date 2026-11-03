@@ -85,6 +85,11 @@ func (t *AllType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append("*")
 }
 
+// DisplayName returns "<Any Type>" without allocating a *string.
+func (t *AllType) DisplayName() (string, bool) {
+	return allType_displayName, true
+}
+
 // Java: AllType.getDisplayName()
 func (t *AllType) GetDisplayName() *string {
 	return &allType_displayName
@@ -192,7 +197,8 @@ func (t *UnknownType) IsVoidable() bool {
 
 // Java: UnknownType.appendTo(TypeStringBuilder)
 func (t *UnknownType) AppendTo(sb *TypeStringBuilder) {
-	sb.Append(*t.GetReferenceName())
+	name, _ := t.ReferenceName()
+	sb.Append(name)
 }
 
 // Java: UnknownType.defineProperty(Property.Key, JSType, boolean, Node)
@@ -211,6 +217,14 @@ func (t *UnknownType) GetConstructor() FunctionType {
 	return nil
 }
 
+// ReferenceName returns "?" or "??" without allocating a *string.
+func (t *UnknownType) ReferenceName() (string, bool) {
+	if t.isChecked {
+		return unknownType_checkedName, true
+	}
+	return unknownType_name, true
+}
+
 // Java: UnknownType.getReferenceName()
 func (t *UnknownType) GetReferenceName() *string {
 	if t.isChecked {
@@ -224,6 +238,11 @@ var (
 	unknownType_name        = "?"
 	unknownType_displayName = "Unknown"
 )
+
+// DisplayName returns "Unknown" without allocating a *string.
+func (t *UnknownType) DisplayName() (string, bool) {
+	return unknownType_displayName, true
+}
 
 // Java: UnknownType.getDisplayName()
 func (t *UnknownType) GetDisplayName() *string {
@@ -345,6 +364,11 @@ func NewNoResolvedType(registry *JSTypeRegistry, referenceName string, templateT
 // Java: NoResolvedType.getTypeClass()
 func (t *NoResolvedType) GetTypeClass() JSTypeClass {
 	return JSTypeClass_NO_RESOLVED
+}
+
+// ReferenceName returns the forward-declared reference name without allocating a *string.
+func (t *NoResolvedType) ReferenceName() (string, bool) {
+	return t.referenceName, true
 }
 
 // Java: NoResolvedType.getReferenceName()

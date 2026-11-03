@@ -101,8 +101,8 @@ func isJ2clFileType(jsType rhino.JSType, fileName string) bool {
 	if ctor == nil {
 		return false
 	}
-	sourceName := NodeUtil_GetSourceName(ctor.GetSource())
-	return sourceName != nil && strings.HasSuffix(*sourceName, fileName)
+	sourceName, ok := NodeUtil_SourceName(ctor.GetSource())
+	return ok && strings.HasSuffix(sourceName, fileName)
 }
 
 // Java: J2clChecksPass.process(Node, Node)

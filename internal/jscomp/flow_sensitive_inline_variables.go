@@ -77,11 +77,10 @@ type FlowSensitiveInlineVariables struct {
 	astAnalyzer      *AstAnalyzer
 	codingConvention CodingConvention
 
-	sideEffectPredicate   FlowSensitiveInlineVariables_SideEffectPredicate
 	sideEffectPredicateFn func(rhino.Node) bool
 
 	cfg            *ControlFlowGraph[rhino.Node]
-	candidates     []FlowSensitiveInlineVariables_Candidate
+	candidates     []flowSensitiveInlineCandidate
 	reachingDef    *MustBeReachingVariableDef
 	reachingUses   *MaybeReachingVariableUse
 	activeVarTable *fnVarTable
@@ -167,16 +166,14 @@ func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableU
 
 func (f *FlowSensitiveInlineVariables) sideEffectPredicateFunc() func(rhino.Node) bool {
 	if f.sideEffectPredicateFn == nil {
-		f.sideEffectPredicateFn = f.sideEffectPredicate.Apply
+		f.sideEffectPredicateFn = f.hasNodeSideEffects
 	}
 	return f.sideEffectPredicateFn
 }
 
 // Java: FlowSensitiveInlineVariables(AbstractCompiler)
 func NewFlowSensitiveInlineVariables(compiler AbstractCompiler) *FlowSensitiveInlineVariables {
-	f := &FlowSensitiveInlineVariables{compiler: compiler}
-	f.sideEffectPredicate.outer = f
-	return f
+	return &FlowSensitiveInlineVariables{compiler: compiler}
 }
 
 func newFlowSensitiveInlineVariablesWorker(parent *FlowSensitiveInlineVariables, compiler AbstractCompiler, astAnalyzer *AstAnalyzer, codingConvention CodingConvention, dummyGlobalScope *Scope, globalRoot rhino.Node) *FlowSensitiveInlineVariables {
@@ -257,7 +254,7 @@ func fsivInspectRhs(n rhino.Node) (unsafe bool, hasFunc bool) {
 
 // fsivIsReadName reports whether the name n (whose parent is parent) is
 // purely a read: not assigned, declared, incremented, a parameter, a catch
-// binding or a destructuring target.
+// binding, a function/class binding name, or a destructuring target.
 func fsivIsReadName(n, parent rhino.Node) bool {
 	if parent.IsNil() {
 		return false
@@ -267,7 +264,9 @@ func fsivIsReadName(n, parent rhino.Node) bool {
 		ast.RoleNameDeclarationDeclarators,
 		ast.RoleIncDecTarget,
 		ast.RoleParamListParams,
-		ast.RoleCatchParam:
+		ast.RoleCatchParam,
+		ast.RoleFunctionName,
+		ast.RoleClassName:
 		return false
 	}
 	return !NodeUtil_IsLhsByDestructuring(n)
@@ -412,32 +411,53 @@ func (f *FlowSensitiveInlineVariables) walkCfgStatements(n, parent rhino.Node, s
 	}
 }
 
+func (f *FlowSensitiveInlineVariables) markReadNode(c, parent rhino.Node) {
+	if c.IsName() && fsivIsReadName(c, parent) {
+		nameID := c.GetStringID()
+		for i := range f.inlinableDefs {
+			if f.inlinableDefs[i].nameID == nameID && !f.inlinableDefs[i].hasRead {
+				f.inlinableDefs[i].hasRead = true
+				f.unreadDefCount--
+			}
+		}
+		if f.unreadDefCount == 0 {
+			return
+		}
+	}
+	if c.HasChildren() {
+		f.markReadsOutsideLoop(c)
+	}
+}
+
 func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION,
 		rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
 		rhino.Token_DO, rhino.Token_WHILE,
-		rhino.Token_CLASS, rhino.Token_IMPORT:
+		rhino.Token_IMPORT:
 		return
-	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.IsName() && fsivIsReadName(c, n) {
-			nameID := c.GetStringID()
-			for i := range f.inlinableDefs {
-				if f.inlinableDefs[i].nameID == nameID && !f.inlinableDefs[i].hasRead {
-					f.inlinableDefs[i].hasRead = true
-					f.unreadDefCount--
-				}
-			}
+	case rhino.Token_CLASS:
+		cls := ast.MustClass(n)
+		if ext, ok := cls.Extends(); ok {
+			f.markReadNode(ext.Node(), n)
 			if f.unreadDefCount == 0 {
 				return
 			}
 		}
-		if c.HasChildren() {
-			f.markReadsOutsideLoop(c)
-			if f.unreadDefCount == 0 {
-				return
+		for ch, p := range cls.Body().EvalOrder() {
+			if shouldWalkCfgClassEvalItem(ch, p) {
+				f.markReadNode(ch, p)
+				if f.unreadDefCount == 0 {
+					return
+				}
 			}
+		}
+		return
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		f.markReadNode(c, n)
+		if f.unreadDefCount == 0 {
+			return
 		}
 	}
 }
@@ -583,8 +603,8 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 			continue
 		}
 		candidateVar := jutil.CheckNotNull(table.lookupVarByID(c.nameID))
-		if c.CanInline(candidateVar.GetScope().(*Scope)) {
-			c.InlineVariable()
+		if c.canInline(candidateVar.GetScope().(*Scope)) {
+			c.inlineVariable()
 			c.removed = true
 
 			// If candidate "c" has dependencies, then inlining it may have introduced new dependencies
@@ -860,8 +880,8 @@ func (f *FlowSensitiveInlineVariables) visitCandidateName(n rhino.Node, parent r
 	if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
 		!f.reachingDef.DependsOnOuterScopeVars(def) {
 		if !f.getCodingConvention().IsExportedWithLocal(strpool.String(strpool.ID(nameID)) /* local= */, true) {
-			f.candidates = append(f.candidates, FlowSensitiveInlineVariables_Candidate{
-				outer:       f,
+			f.candidates = append(f.candidates, flowSensitiveInlineCandidate{
+				pass:        f,
 				nameID:      nameID,
 				defMetadata: def,
 				use:         n,

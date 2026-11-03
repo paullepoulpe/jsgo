@@ -384,14 +384,18 @@ func (t *CodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
 			protoObj := ast.MustGetProp(gp.Object().Node()).Object().Node()
 			if qname, hasQName := protoObj.GetQualifiedNameString(); hasQName {
 				if type_ := t.registry.GetGlobalType(qname); type_ != nil {
-					ctor = type_.(rhino.ObjectType).GetConstructor()
+					if objType := type_.ToMaybeObjectType(); objType != nil {
+						ctor = objType.GetConstructor()
+					}
 				}
 			}
 		}
 	} else if cls, ok := ast.AsClass(parent); ok {
 		// TODO(sdh): test this case once the type checker understands ES6
 		// classes
-		ctor = cls.Node().GetJSType().ToMaybeFunctionType()
+		if clsType := cls.Node().GetJSType(); clsType != nil {
+			ctor = clsType.ToMaybeFunctionType()
+		}
 	}
 	if ctor != nil {
 		return ctor.GetInstanceType()

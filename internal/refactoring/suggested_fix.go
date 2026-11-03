@@ -250,10 +250,18 @@ func (b *SuggestedFix_Builder) AddAlternative(alternative *SuggestedFix) *Sugges
 	return b
 }
 
+func requireSourceFileName(node rhino.Node) string {
+	name, ok := node.SourceFileName()
+	if !ok {
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("No source file name for node: %s", node)))
+	}
+	return name
+}
+
 // Java: SuggestedFix.Builder.replaceText(Node, int, String)
 func (b *SuggestedFix_Builder) ReplaceText(node rhino.Node, length int, newContent string) *SuggestedFix_Builder {
 	b.replacements.Put(
-		*node.GetSourceFileName(), CodeReplacement_Create(node.GetSourceOffset(), length, newContent))
+		requireSourceFileName(node), CodeReplacement_Create(node.GetSourceOffset(), length, newContent))
 	return b
 }
 
@@ -263,14 +271,14 @@ func (b *SuggestedFix_Builder) AddChildToFront(parentNode rhino.Node, content st
 		parentNode.IsBlock(), "addChildToFront is only supported for BLOCK statements.")
 	startPosition := parentNode.GetSourceOffset() + 1
 	b.replacements.Put(
-		*parentNode.GetSourceFileName(), CodeReplacement_Create(startPosition, 0, "\n"+content))
+		requireSourceFileName(parentNode), CodeReplacement_Create(startPosition, 0, "\n"+content))
 	return b
 }
 
 // Java: SuggestedFix.Builder.insertAfter(Node, String)
 func (b *SuggestedFix_Builder) InsertAfter(node rhino.Node, text string) *SuggestedFix_Builder {
 	position := node.GetSourceOffset() + node.GetLength()
-	b.replacements.Put(*node.GetSourceFileName(), CodeReplacement_Create(position, 0, text))
+	b.replacements.Put(requireSourceFileName(node), CodeReplacement_Create(position, 0, text))
 	return b
 }
 
@@ -293,10 +301,8 @@ func (b *SuggestedFix_Builder) InsertBefore(nodeToInsertBefore rhino.Node, conte
 // Java: SuggestedFix.Builder.insertBefore(Node, String, String)
 func (b *SuggestedFix_Builder) InsertBeforeWithSortKey(nodeToInsertBefore rhino.Node, content string, sortKey string) *SuggestedFix_Builder {
 	startPosition := SuggestedFix_GetStartPositionForNodeConsideringComments(nodeToInsertBefore)
-	jutil.CheckNotNullMsg1(nodeToInsertBefore.GetSourceFileName(),
-		"No source file name for node: %s", nodeToInsertBefore)
 	b.replacements.Put(
-		*nodeToInsertBefore.GetSourceFileName(),
+		requireSourceFileName(nodeToInsertBefore),
 		CodeReplacement_CreateWithSortKey(startPosition, 0, content, sortKey))
 	return b
 }
@@ -347,7 +353,7 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 			startPosition = previousSiblingEndPosition
 		}
 	}
-	b.replacements.Put(*n.GetSourceFileName(), CodeReplacement_Create(startPosition, length, ""))
+	b.replacements.Put(requireSourceFileName(n), CodeReplacement_Create(startPosition, length, ""))
 	return b
 }
 
@@ -359,7 +365,7 @@ func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespaceBefore(n rhino.Nod
 // Java: SuggestedFix.Builder.deleteWithoutRemovingWhitespace(Node)
 func (b *SuggestedFix_Builder) DeleteWithoutRemovingWhitespace(n rhino.Node) *SuggestedFix_Builder {
 	b.replacements.Put(
-		*n.GetSourceFileName(), CodeReplacement_Create(n.GetSourceOffset(), n.GetLength(), ""))
+		requireSourceFileName(n), CodeReplacement_Create(n.GetSourceOffset(), n.GetLength(), ""))
 	return b
 }
 
@@ -393,7 +399,7 @@ func (b *SuggestedFix_Builder) RenameWithReplaceNameSubtree(n rhino.Node, name s
 	}
 
 	b.replacements.Put(
-		*range_.GetSourceFileName(),
+		requireSourceFileName(range_),
 		CodeReplacement_Create(range_.GetSourceOffset(), range_.GetLength(), name))
 	return b
 }
@@ -408,7 +414,7 @@ func (b *SuggestedFix_Builder) ReplaceRange(first rhino.Node, last rhino.Node, n
 	}
 	end := last.GetSourceOffset() + last.GetLength()
 	b.replacements.Put(
-		*first.GetSourceFileName(), CodeReplacement_Create(start, end-start, newContent))
+		requireSourceFileName(first), CodeReplacement_Create(start, end-start, newContent))
 	return b
 }
 
@@ -455,7 +461,7 @@ func (b *SuggestedFix_Builder) Replace(original rhino.Node, newNode rhino.Node, 
 	}
 
 	b.replacements.Put(
-		*range_.GetSourceFileName(),
+		requireSourceFileName(range_),
 		CodeReplacement_Create(range_.GetSourceOffset(), range_.GetLength(), newCode))
 	return b
 }
@@ -463,7 +469,7 @@ func (b *SuggestedFix_Builder) Replace(original rhino.Node, newNode rhino.Node, 
 // Java: SuggestedFix.Builder.addCast(Node, AbstractCompiler, String)
 func (b *SuggestedFix_Builder) AddCast(n rhino.Node, compiler jscomp.AbstractCompiler, type_ string) *SuggestedFix_Builder {
 	b.replacements.Put(
-		*n.GetSourceFileName(),
+		requireSourceFileName(n),
 		CodeReplacement_Create(
 			n.GetSourceOffset(),
 			n.GetLength(),
@@ -476,14 +482,15 @@ func (b *SuggestedFix_Builder) RemoveCast(n rhino.Node, compiler jscomp.Abstract
 	cast, ok := ast.AsCast(n)
 	jutil.CheckArgument(ok)
 	jsDoc := n.GetJSDocInfo()
+	fileName := requireSourceFileName(n)
 	b.replacements.Put(
-		*n.GetSourceFileName(),
+		fileName,
 		CodeReplacement_Create(
 			jsDoc.GetOriginalCommentPosition(),
 			cast.Expr().Node().GetSourceOffset()-jsDoc.GetOriginalCommentPosition(),
 			""))
 	b.replacements.Put(
-		*n.GetSourceFileName(),
+		fileName,
 		CodeReplacement_Create(n.GetSourceOffset()+n.GetLength()-1, 1, ""))
 	return b
 }
@@ -501,7 +508,7 @@ func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n rhino.Node, newJsDoc string) 
 		jutil.CheckState(ok)
 		length = jutil.StringLength(comment)
 	}
-	b.replacements.Put(*n.GetSourceFileName(), CodeReplacement_Create(offset, length, newJsDoc))
+	b.replacements.Put(requireSourceFileName(n), CodeReplacement_Create(offset, length, newJsDoc))
 	return b
 }
 
@@ -534,7 +541,7 @@ func (b *SuggestedFix_Builder) ReplaceTypePattern(n rhino.Node, type_ string, pa
 		m := pattern.Matcher(originalComment)
 		for m.Find() {
 			b.replacements.Put(
-				*n.GetSourceFileName(),
+				requireSourceFileName(n),
 				CodeReplacement_Create(
 					originalPosition+m.Start(),
 					m.End()-m.Start(),
@@ -568,7 +575,7 @@ func (b *SuggestedFix_Builder) InsertArguments(n rhino.Node, position int, args 
 	} else if position > 0 {
 		newContent = ", " + newContent
 	}
-	b.replacements.Put(*n.GetSourceFileName(), CodeReplacement_Create(startPosition, 0, newContent))
+	b.replacements.Put(requireSourceFileName(n), CodeReplacement_Create(startPosition, 0, newContent))
 	return b
 }
 
@@ -603,7 +610,7 @@ func (b *SuggestedFix_Builder) DeleteArgument(n rhino.Node, position int) *Sugge
 	}
 
 	b.replacements.Put(
-		*n.GetSourceFileName(),
+		requireSourceFileName(n),
 		CodeReplacement_Create(startOfArgumentToRemove, endOfArgumentToRemove-startOfArgumentToRemove, ""))
 	return b
 }
@@ -715,8 +722,8 @@ func (b *SuggestedFix_Builder) AddImport(
 						reqLikeMatcher.Matches(initExpr.Node(), metadata) {
 						lastGoogRequireNode = initExpr.Node()
 						requireName := declName.Ident()
-						if originalName := declName.Node().GetOriginalName(); originalName != nil {
-							requireName = *originalName
+						if originalName, ok := declName.Node().OriginalName(); ok {
+							requireName = originalName
 						}
 						if !hasAlias {
 							panic(jutil.NewNullPointerException())
@@ -740,7 +747,7 @@ func (b *SuggestedFix_Builder) AddImport(
 			}
 			startPosition := nodeToInsertAfter.GetSourceOffset() + nodeToInsertAfter.GetLength() + 2
 			b.replacements.Put(
-				*nodeToInsertAfter.GetSourceFileName(),
+				requireSourceFileName(nodeToInsertAfter),
 				CodeReplacement_CreateWithSortKey(
 					startPosition,
 					0,
@@ -752,7 +759,7 @@ func (b *SuggestedFix_Builder) AddImport(
 			nodeToInsertBefore = script.GetFirstChild()
 		} else {
 			b.replacements.Put(
-				*script.GetSourceFileName(),
+				requireSourceFileName(script),
 				CodeReplacement_CreateWithSortKey(
 					0, 0, b.GenerateCode(metadata.GetCompiler(), newImportNode), namespace))
 			return b
@@ -775,7 +782,7 @@ func (b *SuggestedFix_Builder) RemoveGoogRequire(m *Match, namespace string) *Su
 // Java: SuggestedFix.Builder.findGoogRequireNode(Node, NodeMetadata, String)
 func SuggestedFix_Builder_FindGoogRequireNode(
 	n rhino.Node, metadata *NodeMetadata, namespace string) rhino.Node {
-	script := metadata.GetCompiler().GetScriptNode(*n.GetSourceFileName())
+	script := metadata.GetCompiler().GetScriptNode(requireSourceFileName(n))
 	if script.GetFirstChild().IsModuleBody() {
 		script = script.GetFirstChild()
 	}
@@ -886,12 +893,12 @@ func (i *SuggestedFix_MatchedNodeInfo) GetCharno() int         { return i.charno
 
 // Java: SuggestedFix.MatchedNodeInfo.create(Node, boolean)
 func SuggestedFix_MatchedNodeInfo_Create(node rhino.Node, closurized bool) *SuggestedFix_MatchedNodeInfo {
-	sourceFilename := jscomp.NodeUtil_GetSourceName(node)
-	if sourceFilename == nil {
+	sourceFilename, ok := jscomp.NodeUtil_SourceName(node)
+	if !ok {
 		panic(jutil.NewNullPointerExceptionMsg("sourceFilename"))
 	}
 	return NewSuggestedFix_MatchedNodeInfo(
-		*sourceFilename, node.GetLineno(), node.GetCharno(), closurized)
+		sourceFilename, node.GetLineno(), node.GetCharno(), closurized)
 }
 
 // Java: SuggestedFix.getStartPositionForNodeConsideringComments(Node)

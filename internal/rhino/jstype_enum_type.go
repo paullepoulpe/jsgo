@@ -240,9 +240,16 @@ func (t *EnumType) TestForEquality(that JSType) base.Tri {
 func (t *EnumType) AppendTo(sb *TypeStringBuilder) {
 	if sb.IsForAnnotations() {
 		sb.Append("!Object")
+	} else if name, ok := t.ReferenceName(); ok {
+		sb.Append(name)
 	} else {
-		sb.Append(jutil.ToJavaString(t.GetReferenceName()))
+		sb.Append("null")
 	}
+}
+
+// DisplayName returns the element type's display name without allocating a *string.
+func (t *EnumType) DisplayName() (string, bool) {
+	return t.elementType.DisplayName()
 }
 
 // Java: EnumType.getDisplayName()

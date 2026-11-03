@@ -121,7 +121,7 @@ func (f Parser_FunctionFlavor) IsGenerator() bool { return parser_FunctionFlavor
 // Java: Parser(Config, ErrorReporter, SourceFile)
 func NewParser(config Parser_Config, errorReporter ErrorReporter, source *SourceFile) *Parser {
 	p := &Parser{}
-	p.commentRecorder = Parser_CommentRecorder{this: p, lastCommentEndOffset: -1}
+	p.commentRecorder = Parser_CommentRecorder{p: p, lastCommentEndOffset: -1}
 	p.functionContextStack = p.functionContextBuf[:0]
 	p.config = config
 	p.errorReporter = errorReporter
@@ -189,7 +189,7 @@ const Parser_SOURCE_MAPPING_URL_PREFIX = "//# sourceMappingURL="
 type Parser_CommentRecorder struct {
 	// Go-only: language-adapter — the enclosing Parser instance of the Java
 	// inner class.
-	this *Parser
+	p *Parser
 
 	comments []Comment
 	// Go-only: language-adapter — the offset of Java's
@@ -200,8 +200,8 @@ type Parser_CommentRecorder struct {
 // NewParser_CommentRecorder constructs the comment recorder of parser.
 //
 // Java: Parser.CommentRecorder()
-func NewParser_CommentRecorder(this *Parser) *Parser_CommentRecorder {
-	return &Parser_CommentRecorder{this: this, comments: []Comment{}, lastCommentEndOffset: -1}
+func NewParser_CommentRecorder(p *Parser) *Parser_CommentRecorder {
+	return &Parser_CommentRecorder{p: p, comments: []Comment{}, lastCommentEndOffset: -1}
 }
 
 // RecordComment records a comment the scanner passed.
@@ -214,8 +214,8 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ LineRa
 	if range_.End.Offset > c.lastCommentEndOffset {
 		value = jutil.StringTrim(value)
 		if strings.HasPrefix(value, Parser_SOURCE_MAPPING_URL_PREFIX) {
-			c.this.sourceMapURL = value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
-			c.this.hasSourceMapURL = true
+			c.p.sourceMapURL = value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
+			c.p.hasSourceMapURL = true
 		}
 		c.comments = append(c.comments, NewComment(value, range_, type_))
 		c.lastCommentEndOffset = range_.End.Offset

@@ -22735,6 +22735,80 @@ Foo.prototype = x;
 		Run()
 }
 
+// Go-only: regression test — 0-parameter @type {function()} on an object literal setter must not panic.
+func (c *TypeCheckTest) TestZeroParamSetterTypeInObjectLiteralDoesNotCrash() {
+	TypeCheckTestCase_TypeTestBuilder_NewTest().
+		AddExterns(NewTestExternsBuilder().AddIterable().Build()).
+		AddSource(`const o = {
+  /** @type {function()} */
+  set a(x) {},
+  /** @type {function()} */
+  set [Symbol.iterator](x) {},
+};
+`).
+		Run()
+}
+
+// Go-only: regression test — computed well-known symbol keys check subtype direction (actual <= expected)
+// and unwrap getter/setter function types.
+func (c *TypeCheckTest) TestComputedKnownSymbolKeySubtypeAndAccessorUnwrapping() {
+	symbolExterns := NewTestExternsBuilder().AddIterable().Build() + `
+/** @const {symbol} */
+Symbol.foobar;
+`
+	TypeCheckTestCase_TypeTestBuilder_NewTest().
+		AddExterns(symbolExterns).
+		AddSource(`const okObj = {
+  /** @type {(string|number)} */
+  [Symbol.foobar]: 'ok',
+};
+/** @record */
+class Foo {
+  constructor() {
+    /** @type {(string|number)} */
+    this[Symbol.foobar];
+  }
+}
+/** @type {!Foo} */
+const okGetter = {
+  /** @return {string} */
+  get [Symbol.foobar]() { return 'ok'; },
+};
+/** @type {!Foo} */
+const okSetter = {
+  /** @param {string} v */
+  set [Symbol.foobar](v) {},
+};
+`).
+		Run()
+
+	TypeCheckTestCase_TypeTestBuilder_NewTest().
+		AddExterns(symbolExterns).
+		AddSource(`const badObj = {
+  /** @type {string} */
+  [Symbol.foobar]: /** @type {(string|number)} */ ('bad'),
+};
+`).
+		AddDiagnostic(`assignment to property Symbol.foobar of {[Symbol.foobar]: string}
+found   : (number|string)
+required: string`).
+		Run()
+
+	TypeCheckTestCase_TypeTestBuilder_NewTest().
+		AddExterns(symbolExterns).
+		AddSource(`const badAccessorPair = {
+  /** @return {string} */
+  get [Symbol.foobar]() { return 'ok'; },
+  /** @param {number} v */
+  set [Symbol.foobar](v) {},
+};
+`).
+		AddDiagnostic(`assignment to property Symbol.foobar of {[Symbol.foobar]: string}
+found   : number
+required: string`).
+		Run()
+}
+
 // Java: TypeCheckTest.testClosureTypes(String, String)
 func (c *TypeCheckTest) TestClosureTypes(js string, description *string) {
 	var descriptions []string

@@ -163,8 +163,7 @@ func (p *ProcessCommonJSModules) getBasePropertyImportWithRequireCall(moduleName
 }
 
 func (p *ProcessCommonJSModules) getBasePropertyImport(moduleName string) string {
-	moduleType := p.compiler.GetModuleTypeByName(moduleName)
-	if moduleType != nil && *moduleType != CompilerInput_ModuleType_COMMONJS {
+	if moduleType, ok := p.compiler.ModuleTypeByName(moduleName); ok && moduleType != CompilerInput_ModuleType_COMMONJS {
 		return moduleName
 	}
 	return moduleName + "." + processCommonJSModules_EXPORT_PROPERTY_NAME

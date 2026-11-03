@@ -53,10 +53,10 @@ type PhaseOptimizer struct {
 var (
 	PhaseOptimizer_logger               = jutil.Logger_GetLogger("com.google.javascript.jscomp.PhaseOptimizer")
 	PhaseOptimizer_CODE_REMOVING_PASSES = []string{PassNames_PEEPHOLE_OPTIMIZATIONS}
-	phaseOptimizerTracerType            = "Compiler"
 )
 
 const (
+	phaseOptimizerTracerType                 = "Compiler"
 	PhaseOptimizer_START_TIME          int32 = 0
 	PhaseOptimizer_MAX_LOOPS                 = 100
 	PhaseOptimizer_OPTIMIZE_LOOP_ERROR       = "Fixed point loop exceeded the maximum number of iterations."
@@ -216,7 +216,7 @@ func (n *PhaseOptimizer_NamedPass) Process(externs rhino.Node, root rhino.Node) 
 	if p.tracker != nil {
 		p.tracker.RecordPassStart(n.name, !n.factory.IsRunInFixedPointLoop())
 	}
-	n.tracer = NewTracerWithType(&phaseOptimizerTracerType, &n.name)
+	n.tracer = NewTracerWithType(phaseOptimizerTracerType, n.name)
 
 	p.compiler.BeforePass(n.name)
 	var debugEnd func()

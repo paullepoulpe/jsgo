@@ -106,7 +106,7 @@ func (d *polymerJ2clOracleDumper) line(s string) {
 
 // polymerJ2clOracleError is PolymerJ2clDump.error.
 func polymerJ2clOracleError(level string, e *JSError) string {
-	return level + " " + e.GetType().key + " " + jutil.ToJavaString(e.GetSourceName()) + ":" +
+	return level + " " + e.GetType().key + " " + jutil.FormatOptionalString(e.SourceName()) + ":" +
 		strconv.Itoa(e.GetLineno()) + ":" + strconv.Itoa(e.GetCharno()) + " " + e.GetDescription()
 }
 

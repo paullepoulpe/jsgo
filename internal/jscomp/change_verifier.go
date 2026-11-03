@@ -207,18 +207,16 @@ func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n rhino.Node, snap
 
 // Java: ChangeVerifier.getNameForNode(Node)
 func (v *ChangeVerifier) GetNameForNode(n rhino.Node) string {
-	sourceName := NodeUtil_GetSourceName(n)
+	sourceName := jutil.FormatOptionalString(NodeUtil_SourceName(n))
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		return "SCRIPT: " + jutil.ToJavaString(sourceName)
+		return "SCRIPT: " + sourceName
 	case rhino.Token_FUNCTION:
-		var name string
-		if fnName := NodeUtil_GetNearestFunctionName(n); fnName != nil {
-			name = *fnName
-		} else {
+		name, ok := NodeUtil_NearestFunctionName(n)
+		if !ok {
 			name = "anonymous@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 		}
-		return "FUNCTION: " + name + " in " + jutil.ToJavaString(sourceName)
+		return "FUNCTION: " + name + " in " + sourceName
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("unexpected Node type"))
 	}

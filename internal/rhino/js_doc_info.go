@@ -366,7 +366,10 @@ func (p *JSDocInfo_Property) EqualValues(left any, right any) bool {
 			found := false
 			for _, rt := range r {
 				if rt.Name == lt.Name {
-					if rt.TypeNode.IsNil() || !lt.TypeNode.IsEquivalentTo(rt.TypeNode) {
+					if lt.TypeNode.IsNil() != rt.TypeNode.IsNil() {
+						return false
+					}
+					if !lt.TypeNode.IsNil() && !lt.TypeNode.IsEquivalentTo(rt.TypeNode) {
 						return false
 					}
 					found = true

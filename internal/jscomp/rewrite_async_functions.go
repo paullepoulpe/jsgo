@@ -380,9 +380,7 @@ func (r *RewriteAsyncFunctions) ShouldTraverse(t *NodeTraversal, n rhino.Node, p
 }
 
 func (r *RewriteAsyncFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if len(r.contextStack) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
+	jutil.CheckStateMsg(len(r.contextStack) > 0, "contextStack is empty")
 	topIdx := len(r.contextStack) - 1
 	r.visitContext(t, topIdx, n)
 	if r.contextStack[topIdx].contextRootNode == n {

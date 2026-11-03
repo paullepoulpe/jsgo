@@ -113,19 +113,10 @@ func (e *JSError) Type() *DiagnosticType { return e.type_ }
 // Java: JSError.description()
 func (e *JSError) Description() string { return e.description }
 
+// SourceName returns the source file name and whether one is present.
+//
 // Java: JSError.sourceName()
-func (e *JSError) SourceName() *string {
-	if !e.hasSourceName {
-		return nil
-	}
-	return &e.sourceName
-}
-
-// SourceNameOk returns the source file name and whether one is present.
-func (e *JSError) SourceNameOk() (string, bool) { return e.sourceName, e.hasSourceName }
-
-// SourceNameOpt returns the source file name and whether one is present.
-func (e *JSError) SourceNameOpt() (string, bool) { return e.sourceName, e.hasSourceName }
+func (e *JSError) SourceName() (string, bool) { return e.sourceName, e.hasSourceName }
 
 // Java: JSError.lineno()
 func (e *JSError) Lineno() int { return e.lineno }
@@ -150,9 +141,6 @@ func (e *JSError) GetType() *DiagnosticType { return e.Type() }
 
 // Java: JSError.getDescription()
 func (e *JSError) GetDescription() string { return e.Description() }
-
-// Java: JSError.getSourceName()
-func (e *JSError) GetSourceName() *string { return e.SourceName() }
 
 // Java: JSError.getLineno()
 func (e *JSError) GetLineno() int { return e.Lineno() }
@@ -203,6 +191,17 @@ func JSError_MakeWithSourceLocation(
 	}
 	return NewJSError(
 		type_, type_.Format(arguments...), sourceName, lineno, charno, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
+}
+
+// JSError_MakeAtSourceLocation creates a JSError at a non-null source location
+// without boxing sourceName into a *string.
+func JSError_MakeAtSourceLocation(
+	sourceName string, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	return newJSError(
+		type_, type_.Format(arguments...), sourceName, true, lineno, charno, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
 }
 
 // JSError_MakeWithNode creates a JSError from a file and Node position.

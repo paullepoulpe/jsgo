@@ -6490,3 +6490,34 @@ func TestClosureUnawareMode_outsideFileoverview_errorIfSpecified(t *testing.T) {
 			"@closureUnaware annotation is not allowed in this compilation")
 	assertThat(t, info.IsClosureUnawareCode()).IsTrue()
 }
+
+func TestParserWithTTLMalformedAndValidWhenSourceFileNil(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	config := NewConfigBuilder().
+		SetJsDocParsingMode(Config_JsDocParsing_TYPES_ONLY).
+		SetLanguageMode(Config_LanguageMode_ECMASCRIPT3).
+		SetStrictMode(Config_StrictMode_SLOPPY).
+		Build()
+
+	comment := "@template T := union() =: */"
+	errorReporter := newTestErrorReporter().expectAllWarnings(
+		"Bad type annotation. Missing parameter in union")
+	jsdocParser := NewJsDocInfoParser(
+		jt.stream(comment), comment, 0, rhino.NilNode, config, JsDocInfoParser_JsDocSourceKind_NORMAL, errorReporter)
+	jsdocParser.Parse()
+	errorReporter.verifyHasEncounteredAllWarningsAndErrors(t)
+
+	validComment := "@template T := union('string', 'number') =: */"
+	validReporter := newTestErrorReporter()
+	validParser := NewJsDocInfoParser(
+		jt.stream(validComment), validComment, 0, rhino.NilNode, config, JsDocInfoParser_JsDocSourceKind_NORMAL, validReporter)
+	validParser.Parse()
+	validReporter.verifyHasEncounteredAllWarningsAndErrors(t)
+	info := validParser.RetrieveAndResetParsedJSDocInfo()
+	if info == nil {
+		t.Fatal("expected non-nil JSDocInfo for valid TTL with nil sourceFile")
+	}
+	if !info.GetTypeTransformations().ContainsKey("T") {
+		t.Fatal("expected type transformation T to be recorded")
+	}
+}

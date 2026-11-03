@@ -180,10 +180,8 @@ func (m *jsFileFullParser_ErrorManager) Println(level CheckLevel, error *JSError
 // Go-only: language-adapter — rhino.ErrorReporter takes a Go string, so a
 // null source name is passed as "".
 func jsFileFullParser_sourceName(error *JSError) string {
-	if s := error.SourceName(); s != nil {
-		return *s
-	}
-	return ""
+	s, _ := error.SourceName()
+	return s
 }
 
 func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, module *ModuleMetadataMap_ModuleMetadata) {

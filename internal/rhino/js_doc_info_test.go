@@ -648,3 +648,76 @@ func TestJSDocInfoPropertyCloneCopiesBackingSlices(t *testing.T) {
 		t.Fatalf("mutating cloned JSDocSuppression slice corrupted original: %+v", supps)
 	}
 }
+
+func TestJSDocInfoTypeTransformEqualValuesNilTypeNode(t *testing.T) {
+	bNil1 := JSDocInfo_Builder_()
+	bNil1.RecordTypeTransformation("T", NilNode)
+	infoNil1 := bNil1.Build()
+
+	bNil2 := JSDocInfo_Builder_()
+	bNil2.RecordTypeTransformation("T", NilNode)
+	infoNil2 := bNil2.Build()
+
+	bNonNil := JSDocInfo_Builder_()
+	bNonNil.RecordTypeTransformation("T", Node_NewString("string"))
+	infoNonNil := bNonNil.Build()
+
+	if !JSDocInfo_AreEquivalent(infoNil1, infoNil1) {
+		t.Fatal("expected JSDocInfo with NilNode TypeTransformation to equal itself")
+	}
+	if !JSDocInfo_AreEquivalent(infoNil1, infoNil2) || !JSDocInfo_AreEquivalent(infoNil2, infoNil1) {
+		t.Fatal("expected two JSDocInfos with NilNode TypeTransformation for T to be equal")
+	}
+	if JSDocInfo_AreEquivalent(infoNil1, infoNonNil) || JSDocInfo_AreEquivalent(infoNonNil, infoNil1) {
+		t.Fatal("expected NilNode and non-nil TypeTransformation JSDocInfos to be unequal without panicking")
+	}
+}
+
+func TestNodeAndJSTypeZeroOverheadStringAccessors(t *testing.T) {
+	n := IR_Name("x")
+	if name, ok := n.SourceFileName(); ok || name != "" {
+		t.Fatalf("expected unset SourceFileName, got (%q, %v)", name, ok)
+	}
+	if orig, ok := n.OriginalName(); ok || orig != "" {
+		t.Fatalf("expected unset OriginalName, got (%q, %v)", orig, ok)
+	}
+	n.SetSourceFileForTesting("input.js")
+	n.SetOriginalNameString("origX")
+	if name, ok := n.SourceFileName(); !ok || name != "input.js" {
+		t.Fatalf("SourceFileName() = (%q, %v), want (\"input.js\", true)", name, ok)
+	}
+	if orig, ok := n.OriginalName(); !ok || orig != "origX" {
+		t.Fatalf("OriginalName() = (%q, %v), want (\"origX\", true)", orig, ok)
+	}
+
+	cooked := "a\nb"
+	sub := Node_NewTemplateLitString(&cooked, `a\nb`)
+	if s, ok := sub.CookedString(); !ok || s != "a\nb" {
+		t.Fatalf("CookedString() = (%q, %v), want (\"a\\nb\", true)", s, ok)
+	}
+	invalidSub := Node_NewTemplateLitString(nil, `\u{`)
+	if s, ok := invalidSub.CookedString(); ok || s != "" {
+		t.Fatalf("invalid CookedString() = (%q, %v), want (\"\", false)", s, ok)
+	}
+
+	reg := NewJSTypeRegistry(nil)
+	if d, ok := reg.GetNativeType(JSTypeNative_NUMBER_TYPE).DisplayName(); !ok || d != "number" {
+		t.Fatalf("NUMBER_TYPE.DisplayName() = (%q, %v), want (\"number\", true)", d, ok)
+	}
+	if r, ok := reg.GetNativeType(JSTypeNative_NUMBER_TYPE).ReferenceName(); ok || r != "" {
+		t.Fatalf("NUMBER_TYPE.ReferenceName() = (%q, %v), want (\"\", false)", r, ok)
+	}
+	if d, ok := reg.GetNativeType(JSTypeNative_NO_TYPE).DisplayName(); ok || d != "" {
+		t.Fatalf("NO_TYPE.DisplayName() = (%q, %v), want (\"\", false)", d, ok)
+	}
+	if r, ok := reg.GetNativeObjectType(JSTypeNative_NO_OBJECT_TYPE).ReferenceName(); ok || r != "" {
+		t.Fatalf("NO_OBJECT_TYPE.ReferenceName() = (%q, %v), want (\"\", false)", r, ok)
+	}
+	if r, ok := reg.GetNativeObjectType(JSTypeNative_ARRAY_TYPE).ReferenceName(); !ok || r != "Array" {
+		t.Fatalf("ARRAY_TYPE.ReferenceName() = (%q, %v), want (\"Array\", true)", r, ok)
+	}
+	tmpl := reg.CreateTemplateType("T")
+	if r, ok := tmpl.ReferenceName(); !ok || r != "T" {
+		t.Fatalf("TemplateType.ReferenceName() = (%q, %v), want (\"T\", true)", r, ok)
+	}
+}

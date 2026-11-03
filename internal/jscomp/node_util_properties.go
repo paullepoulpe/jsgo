@@ -69,6 +69,13 @@ func NodeUtil_IsOptChainNode(n rhino.Node) bool {
 	return n.IsOptChainGetProp() || n.IsOptChainGetElem() || n.IsOptChainCall()
 }
 
+func nodeUtil_optChainReceiver(opt ast.OptChain) rhino.Node {
+	if get, ok := opt.AsOptChainGet(); ok {
+		return get.Object().Node()
+	}
+	return opt.MustOptChainCall().Callee().Node()
+}
+
 // NodeUtil_GetStartOfOptChainSegment finds the start of the optional chain.
 // E.g Find the `a?. ...` node in `a?.b.c.d` given any other node.
 //
@@ -81,7 +88,7 @@ func NodeUtil_GetStartOfOptChainSegment(n rhino.Node) rhino.Node {
 	if n.IsOptionalChainStart() {
 		return n
 	}
-	return NodeUtil_GetStartOfOptChainSegment(n.GetFirstChild())
+	return NodeUtil_GetStartOfOptChainSegment(nodeUtil_optChainReceiver(ast.MustOptChain(n)))
 }
 
 // NodeUtil_GetEndOfOptChainSegment finds the end of an optional chain
@@ -163,7 +170,7 @@ func NodeUtil_IsEndOfOptChainSegment(n rhino.Node) bool {
 // Java: NodeUtil.convertToNonOptionalChainSegment(Node)
 func NodeUtil_ConvertToNonOptionalChainSegment(endOfOptChainSegment rhino.Node) {
 	start := NodeUtil_GetStartOfOptChainSegment(endOfOptChainSegment)
-	NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment, start.GetFirstChild())
+	NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment, nodeUtil_optChainReceiver(ast.MustOptChain(start)))
 }
 
 // NodeUtil_ConvertToNonOptionalChainSegmentDownTo: given the end of an
@@ -176,10 +183,18 @@ func NodeUtil_ConvertToNonOptionalChainSegmentDownTo(endOfOptChainSegment rhino.
 	var segmentNodes []rhino.Node
 	segmentNode := endOfOptChainSegment
 	for !segmentNode.IsNil() && segmentNode != stopNode {
-		if NodeUtil_IsOptChainNode(segmentNode) {
+		if opt, ok := ast.AsOptChain(segmentNode); ok {
 			segmentNodes = append(segmentNodes, segmentNode)
+			segmentNode = nodeUtil_optChainReceiver(opt)
+		} else if get, ok := ast.AsNormalGet(segmentNode); ok {
+			segmentNode = get.Object().Node()
+		} else if call, ok := ast.AsCall(segmentNode); ok {
+			segmentNode = call.Callee().Node()
+		} else if cast, ok := ast.AsCast(segmentNode); ok {
+			segmentNode = cast.Expr().Node()
+		} else {
+			break
 		}
-		segmentNode = segmentNode.GetFirstChild()
 	}
 	for _, n := range segmentNodes {
 		n.SetIsOptionalChainStart(false)
@@ -263,9 +278,9 @@ func NodeUtil_GetObjectOrClassLitKeyNode(key rhino.Node) rhino.Node {
 		rhino.Token_MEMBER_FIELD_DEF:
 		return key
 	case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-		if key.GetFirstChild().
-			IsStringLit() { // TODO(b/189993301): may be an issue with non string lits
-			return key.GetFirstChild()
+		keyExpr := ast.MustComputedMember(key).Key()
+		if keyExpr.Node().IsStringLit() { // TODO(b/189993301): may be an issue with non string lits
+			return keyExpr.Node()
 		}
 		return rhino.NilNode
 	default:
@@ -285,21 +300,6 @@ func NodeUtil_IsGetOrSetKey(node rhino.Node) bool {
 		return comp.IsGetter() || comp.IsSetter()
 	}
 	return false
-}
-
-// NodeUtil_OpToStr converts an operator's token value (see Token) to a
-// string representation.
-//
-// operator is the operator's token value to convert; returns the string
-// representation or null if the token value is not an operator.
-//
-// Java: NodeUtil.opToStr(Token)
-func NodeUtil_OpToStr(operator rhino.Token) *string {
-	// Go-only: language-adapter — Java returns interned string constants; the
-	// results of the switch below are computed once per token so that the
-	// *string result does not allocate on every call (the code printer calls
-	// this per operator).
-	return nodeUtil_opToStrTable[operator]
 }
 
 // NodeUtil_IsObjectDefinePropertiesDefinition returns true if the node is a
@@ -369,10 +369,12 @@ func NodeUtil_IsObjectDefinePropertyDefinition(n rhino.Node) bool {
 func NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall rhino.Node) []rhino.Node {
 	jutil.CheckArgument(NodeUtil_IsObjectDefinePropertiesDefinition(definePropertiesCall))
 	var properties []rhino.Node
-	if obj, ok := ast.AsObjectLit(definePropertiesCall.GetLastChild()); ok {
-		for member := range obj.Members() {
-			if key, ok := member.AsStringKey(); ok {
-				properties = append(properties, key.Node())
+	if lastArg, ok := ast.MustCall(definePropertiesCall).LastArg(); ok {
+		if obj, ok := lastArg.AsObjectLit(); ok {
+			for member := range obj.Members() {
+				if key, ok := member.AsStringKey(); ok {
+					properties = append(properties, key.Node())
+				}
 			}
 		}
 	}
@@ -384,7 +386,12 @@ func NodeUtil_GetObjectDefinedPropertiesKeys(definePropertiesCall rhino.Node) []
 //
 // Java: NodeUtil.isPrototypePropertyDeclaration(Node)
 func NodeUtil_IsPrototypePropertyDeclaration(n rhino.Node) bool {
-	return NodeUtil_IsExprAssign(n) && NodeUtil_IsPrototypeProperty(n.GetFirstFirstChild())
+	stmt, ok := ast.AsExprStmt(n)
+	if !ok {
+		return false
+	}
+	assign, ok := stmt.Expr().AsAssign()
+	return ok && NodeUtil_IsPrototypeProperty(assign.Target().Node())
 }
 
 // NodeUtil_IsPrototypeProperty returns whether the node represents a
@@ -434,7 +441,7 @@ func NodeUtil_IsPropertyTest(compiler AbstractCompiler, propAccess rhino.Node) b
 	parent := propAccess.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_CALL:
-		return parent.GetFirstChild() != propAccess &&
+		return !ast.MustCall(parent).Callee().Is(propAccess) &&
 			compiler.GetCodingConvention().IsPropertyTestFunction(parent)
 	case rhino.Token_IF, rhino.Token_WHILE, rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN:
 		return NodeUtil_GetConditionExpression(parent) == propAccess
@@ -444,17 +451,23 @@ func NodeUtil_IsPropertyTest(compiler AbstractCompiler, propAccess rhino.Node) b
 		return true
 
 	case rhino.Token_NE, rhino.Token_SHNE:
+		bin := ast.MustBinary(parent)
 		var other rhino.Node
-		if parent.GetFirstChild() == propAccess {
-			other = parent.GetSecondChild()
+		if bin.Left().Is(propAccess) {
+			other = bin.Right().Node()
 		} else {
-			other = parent.GetFirstChild()
+			other = bin.Left().Node()
 		}
 		return NodeUtil_IsUndefined(other) || (parent.IsNE() && other.IsNull())
-	case rhino.Token_OPTCHAIN_CALL, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_HOOK:
-		return parent.GetFirstChild() == propAccess
+	case rhino.Token_OPTCHAIN_CALL:
+		return ast.MustOptChainCall(parent).Callee().Is(propAccess)
+	case rhino.Token_OPTCHAIN_GETELEM:
+		return ast.MustOptChainGetElem(parent).Object().Is(propAccess)
+	case rhino.Token_HOOK:
+		return ast.MustHook(parent).Cond().Is(propAccess)
 	case rhino.Token_NOT:
-		return parent.GetParent().IsOr() && parent.GetParent().GetFirstChild() == parent
+		orBin, ok := ast.AsBinaryOf(parent.GetParent(), rhino.Token_OR)
+		return ok && orBin.Left().Is(parent)
 	case rhino.Token_CAST:
 		return NodeUtil_IsPropertyTest(compiler, parent)
 	default:
@@ -467,11 +480,12 @@ func NodeUtil_IsPropertyAbsenceTest(propAccess rhino.Node) bool {
 	parent := propAccess.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_EQ, rhino.Token_SHEQ:
+		bin := ast.MustBinary(parent)
 		var other rhino.Node
-		if parent.GetFirstChild() == propAccess {
-			other = parent.GetSecondChild()
+		if bin.Left().Is(propAccess) {
+			other = bin.Right().Node()
 		} else {
-			other = parent.GetFirstChild()
+			other = bin.Left().Node()
 		}
 		return NodeUtil_IsUndefined(other) || (parent.IsEQ() && other.IsNull())
 	default:

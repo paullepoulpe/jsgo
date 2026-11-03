@@ -130,10 +130,7 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(script rhino.Node) {
 		// Comments only available if preservesDetailedSourceInfo is true.
 		return
 	}
-	sf := script.GetStaticSourceFile()
-	if sf == nil {
-		panic(jutil.NewNullPointerException())
-	}
+	sf := jutil.CheckNotNullMsg1(script.GetStaticSourceFile(), "Missing StaticSourceFile on %s", script)
 
 	for _, comment := range c.compiler.GetComments(sf.GetName()) {
 		if comment.Type == parser.Comment_Type_BLOCK {
@@ -218,18 +215,18 @@ func (c *CheckJSDoc) ValidateSuppress(n rhino.Node, info *rhino.JSDocInfo) {
 			return
 		}
 	case rhino.Token_WITH:
-		if CheckJSDoc_ContainsOnlySuppressionFor(info, "with") {
+		if checkJSDoc_containsOnlySuppressionFor(info, "with") {
 			return
 		}
 	}
-	if CheckJSDoc_ContainsOnlySuppressionFor(info, "missingRequire") || ast.RoleOf(n) == ast.RoleExprStmtExpr {
+	if checkJSDoc_containsOnlySuppressionFor(info, "missingRequire") || ast.RoleOf(n) == ast.RoleExprStmtExpr {
 		return
 	}
 	c.compiler.Report(JSError_MakeWithNode(n, CheckJSDoc_MISPLACED_SUPPRESS))
 }
 
 // Java: CheckJSDoc.containsOnlySuppressionFor(JSDocInfo, String)
-func CheckJSDoc_ContainsOnlySuppressionFor(jsdoc *rhino.JSDocInfo, allowedSuppression string) bool {
+func checkJSDoc_containsOnlySuppressionFor(jsdoc *rhino.JSDocInfo, allowedSuppression string) bool {
 	found := false
 	onlyAllowed := true
 	jsdoc.ForEachSuppression(func(s string) bool {
@@ -264,7 +261,7 @@ func (c *CheckJSDoc) ValidateTypedefs(n rhino.Node, info *rhino.JSDocInfo) {
 			n,
 			"typedef",
 			"@typedef is only allowed on qualified name declarations. Did you mean @type?")
-	} else if CheckJSDoc_IsPrototypeOrInstanceDecl(lvalue) {
+	} else if checkJSDoc_isPrototypeOrInstanceDecl(lvalue) {
 		c.ReportMisplaced(
 			n,
 			"typedef",
@@ -279,7 +276,7 @@ func (c *CheckJSDoc) ValidateTemplates(n rhino.Node, info *rhino.JSDocInfo) {
 		!info.IsConstructorOrInterface() &&
 		!c.IsClassDecl(n) &&
 		!info.ContainsFunctionDeclaration() &&
-		CheckJSDoc_GetFunctionDecl(n).IsNil() {
+		checkJSDoc_getFunctionDecl(n).IsNil() {
 		c.ReportMisplaced(
 			n,
 			"template",
@@ -288,12 +285,12 @@ func (c *CheckJSDoc) ValidateTemplates(n rhino.Node, info *rhino.JSDocInfo) {
 	}
 }
 
-// CheckJSDoc_GetFunctionDecl returns the function node associated with the
+// checkJSDoc_getFunctionDecl returns the function node associated with the
 // function declaration associated with the specified node, no null if no such
 // function exists.
 //
 // Java: CheckJSDoc.getFunctionDecl(Node)
-func CheckJSDoc_GetFunctionDecl(n rhino.Node) rhino.Node {
+func checkJSDoc_getFunctionDecl(n rhino.Node) rhino.Node {
 	if n.IsFunction() {
 		return n
 	}
@@ -351,7 +348,7 @@ func (c *CheckJSDoc) IsClass(n rhino.Node) bool {
 }
 
 // Java: CheckJSDoc.isPrototypeOrInstanceDecl(Node)
-func CheckJSDoc_IsPrototypeOrInstanceDecl(n rhino.Node) bool {
+func checkJSDoc_isPrototypeOrInstanceDecl(n rhino.Node) bool {
 	if n.IsStringKey() {
 		return false
 	}
@@ -367,7 +364,7 @@ func CheckJSDoc_IsPrototypeOrInstanceDecl(n rhino.Node) bool {
 //
 // Java: CheckJSDoc.validateClassLevelJsDoc(Node, JSDocInfo)
 func (c *CheckJSDoc) ValidateClassLevelJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
-	if info != nil && n.IsMemberFunctionDef() && CheckJSDoc_HasClassLevelJsDoc(info) {
+	if info != nil && n.IsMemberFunctionDef() && checkJSDoc_hasClassLevelJsDoc(info) {
 		c.Report(n, CheckJSDoc_DISALLOWED_MEMBER_JSDOC)
 	}
 }
@@ -402,7 +399,7 @@ func (c *CheckJSDoc) ValidateAbstractJsDoc(n rhino.Node, info *rhino.JSDocInfo) 
 	}
 
 	// @abstract annotation on a non-function
-	functionNode := CheckJSDoc_GetFunctionDecl(n)
+	functionNode := checkJSDoc_getFunctionDecl(n)
 	if functionNode.IsNil() {
 		c.Report(
 			n,
@@ -452,7 +449,7 @@ func (c *CheckJSDoc) ValidateAbstractJsDoc(n rhino.Node, info *rhino.JSDocInfo) 
 }
 
 // Java: CheckJSDoc.hasClassLevelJsDoc(JSDocInfo)
-func CheckJSDoc_HasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
+func checkJSDoc_hasClassLevelJsDoc(info *rhino.JSDocInfo) bool {
 	return info.IsConstructorOrInterface() ||
 		info.HasBaseType() ||
 		info.GetImplementedInterfaceCount() != 0 ||
@@ -568,19 +565,19 @@ func (c *CheckJSDoc) ValidateMsgJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	if hasNonDescMsgTag ||
 		// Don't error on TS gencode using @desc on a non-message. There's a lot of code that
 		// uses @desc as a general purpose "@desc" tag
-		(hasDesc && !CheckJSDoc_IsFromTs(n)) {
+		(hasDesc && !checkJSDoc_isFromTs(n)) {
 		descOkay := false
 		switch n.GetToken() {
 		case rhino.Token_ASSIGN:
-			descOkay = CheckJSDoc_IsValidMsgName(ast.MustAssign(n).Target().Node())
+			descOkay = checkJSDoc_isValidMsgName(ast.MustAssign(n).Target().Node())
 		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 			d, _ := ast.MustNameDeclaration(n).FirstDeclarator()
-			descOkay = CheckJSDoc_IsValidMsgName(d.Node())
+			descOkay = checkJSDoc_isValidMsgName(d.Node())
 		case rhino.Token_STRING_KEY:
-			descOkay = CheckJSDoc_IsValidMsgName(n)
+			descOkay = checkJSDoc_isValidMsgName(n)
 		case rhino.Token_GETPROP:
 			if n.IsFromExterns() && n.IsQualifiedName() {
-				descOkay = CheckJSDoc_IsValidMsgName(n)
+				descOkay = checkJSDoc_isValidMsgName(n)
 			}
 		}
 		if !descOkay {
@@ -589,11 +586,11 @@ func (c *CheckJSDoc) ValidateMsgJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 	}
 }
 
-// CheckJSDoc_IsValidMsgName returns whether of not the given name is valid
+// checkJSDoc_isValidMsgName returns whether of not the given name is valid
 // target for the result of goog.getMsg.
 //
 // Java: CheckJSDoc.isValidMsgName(Node)
-func CheckJSDoc_IsValidMsgName(nameNode rhino.Node) bool {
+func checkJSDoc_isValidMsgName(nameNode rhino.Node) bool {
 	if nameNode.IsName() || nameNode.IsStringKey() || nameNode.IsQualifiedName() {
 		return strings.HasPrefix(nameNode.GetString(), "MSG_")
 	}
@@ -614,7 +611,7 @@ func (c *CheckJSDoc) ValidateTypeAnnotations(n rhino.Node, info *rhino.JSDocInfo
 		// Object literal properties, catch declarations and variable
 		// initializers are valid.
 		case rhino.Token_NAME:
-			valid = CheckJSDoc_IsTypeAnnotationAllowedForName(n)
+			valid = checkJSDoc_isTypeAnnotationAllowedForName(n)
 		case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
 			// allow JSDoc like
 			//   function f(/** !Object */ {x}) {}
@@ -652,11 +649,11 @@ func (c *CheckJSDoc) ValidateTypeAnnotations(n rhino.Node, info *rhino.JSDocInfo
 	}
 }
 
-// CheckJSDoc_IsTypeAnnotationAllowedForName: is it valid to have a type
+// checkJSDoc_isTypeAnnotationAllowedForName: is it valid to have a type
 // annotation on the given NAME node?
 //
 // Java: CheckJSDoc.isTypeAnnotationAllowedForName(Node)
-func CheckJSDoc_IsTypeAnnotationAllowedForName(n rhino.Node) bool {
+func checkJSDoc_isTypeAnnotationAllowedForName(n rhino.Node) bool {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 	// Only allow type annotations on nodes used as an lvalue.
 	if !NodeUtil_IsLValue(n) {
@@ -824,7 +821,7 @@ func (c *CheckJSDoc) ValidateTsType(n rhino.Node, info *rhino.JSDocInfo) {
 }
 
 // Java: CheckJSDoc.isFromTs(Node)
-func CheckJSDoc_IsFromTs(n rhino.Node) bool {
+func checkJSDoc_isFromTs(n rhino.Node) bool {
 	return n.GetStaticSourceFile().IsTypeScriptSource()
 }
 

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -48,35 +49,58 @@ func NewRewriteLogicalAssignmentOperatorsHelper(
 	return h
 }
 
-// Java: RewriteLogicalAssignmentOperatorsHelper.visitLogicalAssignmentOperator(NodeTraversal, Node)
-func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator(t *NodeTraversal, logicalAssignment rhino.Node) {
-	enclosingFunction := NodeUtil_GetEnclosingFunction(logicalAssignment)
-	if !enclosingFunction.IsNil() && !NodeUtil_GetFunctionBody(enclosingFunction).IsBlock() {
-		returnValue := NodeUtil_GetFunctionBody(enclosingFunction)
-		body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(returnValue.Detach())).SrcrefTreeIfMissing(returnValue)
-		enclosingFunction.AddChildToBack(body)
-		h.compiler.ReportChangeToEnclosingScope(body)
+func ensureArrowBlockBody(compiler AbstractCompiler, exprNode rhino.Node) {
+	for cur := exprNode; !cur.IsNil() && !NodeUtil_IsStatement(cur); cur = cur.GetParent() {
+		parent := cur.GetParent()
+		if fn, ok := ast.AsFunction(parent); ok && fn.Body().Is(cur) && !cur.IsBlock() {
+			body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(cur.Detach())).SrcrefTreeIfMissing(cur)
+			parent.AddChildToBack(body)
+			compiler.ReportChangeToEnclosingScope(body)
+			break
+		}
 	}
+}
 
-	enclosingStatement := NodeUtil_GetEnclosingStatement(logicalAssignment)
+func statementInsertionPoint(exprNode rhino.Node) rhino.Node {
+	enclosingStatement := NodeUtil_GetEnclosingStatement(exprNode)
 	// A LABEL must have exactly one statement child, so any temporaries must be declared before
-	// the outermost label of a labeled statement (e.g. `label: while (o.p ??= 1) {}`).
+	// the outermost label of a labeled statement (e.g. `a: b: while (o.p ??= 1) {}`).
 	for enclosingStatement.GetParent().IsLabel() {
 		enclosingStatement = enclosingStatement.GetParent()
 	}
+	return enclosingStatement
+}
 
-	left := logicalAssignment.RemoveFirstChild()
-	right := logicalAssignment.GetLastChild().Detach()
+// ensureBlockBodyAndStatementInsertionPoint blockifies any enclosing expression-bodied arrow
+// function whose body contains exprNode and returns the outermost labeled statement before which
+// temporary declarations should be inserted.
+func ensureBlockBodyAndStatementInsertionPoint(compiler AbstractCompiler, exprNode rhino.Node) rhino.Node {
+	ensureArrowBlockBody(compiler, exprNode)
+	return statementInsertionPoint(exprNode)
+}
+
+// Java: RewriteLogicalAssignmentOperatorsHelper.visitLogicalAssignmentOperator(NodeTraversal, Node)
+func (h *RewriteLogicalAssignmentOperatorsHelper) VisitLogicalAssignmentOperator(t *NodeTraversal, logicalAssignment rhino.Node) {
+	enclosingStatement := ensureBlockBodyAndStatementInsertionPoint(h.compiler, logicalAssignment)
+
+	assignOp := ast.MustAssignOp(logicalAssignment)
+	targetExpr, valueExpr := assignOp.Target(), assignOp.Value()
+	left := targetExpr.Detach().Node()
+	right := valueExpr.Detach().Node()
 
 	var replacement rhino.Node
 
-	for left.IsCast() {
+	for {
+		cast, ok := ast.AsCast(left)
+		if !ok {
+			break
+		}
 		// This pass runs after type checking, which is what requires the CAST nodes.
 		// They aren't needed after that, but they are still in the AST until
 		// Normalization removes them. So, it's safe to just remove this CAST now to simplify things.
 		// If this pass moves after Normalization, then it will no longer be necessary to check for
 		// CAST nodes.
-		left = left.RemoveFirstChild()
+		left = cast.Expr().Detach().Node()
 	}
 
 	if left.IsName() {
@@ -117,7 +141,13 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSPropertyReference(
 	var assignToRHS rhino.Node
 	var newLHS rhino.Node
 
-	objectNode := left.RemoveFirstChild()
+	get := ast.MustNormalGet(left)
+	getProp, isGetProp := get.AsGetProp()
+	var indexExpr ast.Expr
+	if !isGetProp {
+		indexExpr = get.MustGetElem().Index()
+	}
+	objectNode := get.Object().Detach().Node()
 
 	let := h.astFactory.CreateSingleLetNameDeclaration(tempVarName).SrcrefTree(logicalAssignment)
 	let.InsertBefore(enclosingStatement)
@@ -126,12 +156,12 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSPropertyReference(
 	assignTemp :=
 		h.astFactory.CreateAssign(tempName, objectNode).Srcref(objectNode) // (tmp = someExpression)
 
-	if left.IsGetProp() {
+	if isGetProp {
 		// handle getprop case
 		// e.g. convert `(someExpression).property ??= something()` to
 		// let tmp;
 		// (tmp = someExpression).property ?? (tmp.property = something());
-		propertyName := left.GetString()
+		propertyName := getProp.Property()
 
 		tempProp := h.astFactory.
 			CreateGetProp(tempName.CloneNode(), propertyName, AstFactory_Type_(left)).
@@ -147,10 +177,9 @@ func (h *RewriteLogicalAssignmentOperatorsHelper) HandleLHSPropertyReference(
 		// let tmp;
 		// let tmpIndex;
 		// (tmp = someExpression)[tmpIndex = indexExpression] ?? (tmp[tmpIndex] = something());
-		jutil.CheckStateMsg1(left.IsGetElem(), "%s", left)
 		tempIndexVarName := RewriteLogicalAssignmentOperatorsHelper_TEMP_INDEX_VAR_NAME_PREFIX + uniqueId
 
-		indexExprNode := left.GetLastChild().Detach()
+		indexExprNode := indexExpr.Detach().Node()
 
 		letIndex := h.astFactory.CreateSingleLetNameDeclaration(tempIndexVarName).SrcrefTree(logicalAssignment)
 		letIndex.InsertBefore(enclosingStatement)

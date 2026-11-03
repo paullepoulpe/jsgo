@@ -102,3 +102,35 @@ func (c *RewriteNullishCoalesceOperatorTest) TestChain() {
 ? NULLISH_TMP$1 : c;
 `))
 }
+
+// Go-only: regression test — pre-Normalize labeled statements and recursive expression-bodied arrows.
+func (c *RewriteNullishCoalesceOperatorTest) TestPreNormalizeLabeledAndRecursiveArrow() {
+	c.DisableNormalize()
+	c.DisableTypeCheck()
+	c.DisableTypeInfoValidation()
+
+	c.Test(
+		c.Srcs("var a, b, x; label: x = a() ?? b();"),
+		c.Expected(
+			`var a, b, x;
+let NULLISH_TMP$0;
+label: x = (NULLISH_TMP$0 = a()) != null ? NULLISH_TMP$0 : b();
+`))
+
+	c.Test(
+		c.Srcs("var a, b, x; l1: l2: x = a() ?? b();"),
+		c.Expected(
+			`var a, b, x;
+let NULLISH_TMP$0;
+l1: l2: x = (NULLISH_TMP$0 = a()) != null ? NULLISH_TMP$0 : b();
+`))
+
+	c.Test(
+		c.Srcs("const f = n => (n ? f(0) : null) ?? 1;"),
+		c.Expected(
+			`const f = n => {
+  let NULLISH_TMP$0;
+  return (NULLISH_TMP$0 = n ? f(0) : null) != null ? NULLISH_TMP$0 : 1;
+};
+`))
+}

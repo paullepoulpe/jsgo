@@ -93,13 +93,25 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 		return NodeUtil_GetBooleanValue(ast.MustAssign(n).Value().Node())
 	case rhino.Token_COMMA:
 		return NodeUtil_GetBooleanValue(ast.MustBinary(n).Right().Node())
-	case rhino.Token_AND, rhino.Token_ASSIGN_AND:
-		lhs := NodeUtil_GetBooleanValue(n.GetFirstChild())
-		rhs := NodeUtil_GetBooleanValue(n.GetLastChild())
+	case rhino.Token_AND:
+		bin := ast.MustBinary(n)
+		lhs := NodeUtil_GetBooleanValue(bin.Left().Node())
+		rhs := NodeUtil_GetBooleanValue(bin.Right().Node())
 		return lhs.And(rhs)
-	case rhino.Token_OR, rhino.Token_ASSIGN_OR:
-		lhs := NodeUtil_GetBooleanValue(n.GetFirstChild())
-		rhs := NodeUtil_GetBooleanValue(n.GetLastChild())
+	case rhino.Token_ASSIGN_AND:
+		op := ast.MustAssignOp(n)
+		lhs := NodeUtil_GetBooleanValue(op.Target().Node())
+		rhs := NodeUtil_GetBooleanValue(op.Value().Node())
+		return lhs.And(rhs)
+	case rhino.Token_OR:
+		bin := ast.MustBinary(n)
+		lhs := NodeUtil_GetBooleanValue(bin.Left().Node())
+		rhs := NodeUtil_GetBooleanValue(bin.Right().Node())
+		return lhs.Or(rhs)
+	case rhino.Token_ASSIGN_OR:
+		op := ast.MustAssignOp(n)
+		lhs := NodeUtil_GetBooleanValue(op.Target().Node())
+		rhs := NodeUtil_GetBooleanValue(op.Value().Node())
 		return lhs.Or(rhs)
 	case rhino.Token_HOOK:
 		hook := ast.MustHook(n)
@@ -110,14 +122,22 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 		} else {
 			return base.Tri_UNKNOWN
 		}
-	case rhino.Token_COALESCE, rhino.Token_ASSIGN_COALESCE:
-		lhs := NodeUtil_GetBooleanValue(n.GetFirstChild())
-		rhs := NodeUtil_GetBooleanValue(n.GetLastChild())
+	case rhino.Token_COALESCE:
+		bin := ast.MustBinary(n)
+		lhs := NodeUtil_GetBooleanValue(bin.Left().Node())
+		rhs := NodeUtil_GetBooleanValue(bin.Right().Node())
 		if lhs == base.Tri_TRUE || lhs == rhs {
 			return lhs
-		} else {
-			return base.Tri_UNKNOWN
 		}
+		return base.Tri_UNKNOWN
+	case rhino.Token_ASSIGN_COALESCE:
+		op := ast.MustAssignOp(n)
+		lhs := NodeUtil_GetBooleanValue(op.Target().Node())
+		rhs := NodeUtil_GetBooleanValue(op.Value().Node())
+		if lhs == base.Tri_TRUE || lhs == rhs {
+			return lhs
+		}
+		return base.Tri_UNKNOWN
 	default:
 		return base.Tri_UNKNOWN
 	}
@@ -639,8 +659,10 @@ func NodeUtil_IsImmutableValue(n rhino.Node) bool {
 	case rhino.Token_STRINGLIT, rhino.Token_NUMBER, rhino.Token_BIGINT, rhino.Token_NULL, rhino.Token_TRUE,
 		rhino.Token_FALSE:
 		return true
-	case rhino.Token_CAST, rhino.Token_NOT, rhino.Token_VOID, rhino.Token_NEG:
-		return NodeUtil_IsImmutableValue(n.GetFirstChild())
+	case rhino.Token_CAST:
+		return NodeUtil_IsImmutableValue(ast.MustCast(n).Expr().Node())
+	case rhino.Token_NOT, rhino.Token_VOID, rhino.Token_NEG:
+		return NodeUtil_IsImmutableValue(ast.MustUnary(n).Operand().Node())
 	case rhino.Token_NAME:
 		id := n.GetStringID()
 		// We assume here that programs don't change the value of the keyword
@@ -672,7 +694,7 @@ func NodeUtil_IsNumericLiteral(n rhino.Node) bool {
 		return false
 	}
 	return n.IsNumber() ||
-		((n.IsNeg() || n.IsPos()) && n.HasOneChild() && n.GetFirstChild().IsNumber())
+		((n.IsNeg() || n.IsPos()) && n.HasOneChild() && ast.MustUnary(n).Operand().Node().IsNumber())
 }
 
 // NodeUtil_GetNumericLiteralValue returns the numeric value of n, which must
@@ -754,8 +776,11 @@ func NodeUtil_NewHasLocalResult(n rhino.Node) bool {
 
 // Java: NodeUtil.allArgsUnescapedLocal(Node)
 func NodeUtil_AllArgsUnescapedLocal(callOrNew rhino.Node) bool {
-	for arg := callOrNew.GetSecondChild(); !arg.IsNil(); arg = arg.GetNext() {
-		if !NodeUtil_EvaluatesToLocalValue(arg) {
+	if tagged, ok := ast.AsTaggedTemplateLit(callOrNew); ok {
+		return NodeUtil_EvaluatesToLocalValue(tagged.Template().Node())
+	}
+	for arg := range ast.MustCallOrNew(callOrNew).Args() {
+		if !NodeUtil_EvaluatesToLocalValue(arg.Node()) {
 			return false
 		}
 	}

@@ -698,7 +698,7 @@ func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast
 //
 // Java: Es6NormalizeClasses.visitThisAndSuper(NodeTraversal, Node)
 func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) {
-	if Es6NormalizeClasses_IsSuperCall(n.GetParent()) {
+	if es6NormalizeClasses_isSuperCall(n.GetParent()) {
 		// super(...); calls are only legal in a constructor so we don't need to check for static
 		// context.
 		classRecord := e.peekClassRecord()
@@ -721,7 +721,7 @@ func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) 
 
 	// We always rewrite static this to the class name in a static initialization context so that we
 	// can normalize-away static initialization from field initializers and static blocks.
-	forceRewriteStaticThis := n.IsThis() && Es6NormalizeClasses_IsInStaticInitializationContext(rootNode)
+	forceRewriteStaticThis := n.IsThis() && es6NormalizeClasses_isInStaticInitializationContext(rootNode)
 
 	if !e.doStaticInheritanceRewrites && !forceRewriteStaticThis {
 		return
@@ -754,16 +754,16 @@ func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) 
 }
 
 // Java: Es6NormalizeClasses.isSuperCall(Node)
-func Es6NormalizeClasses_IsSuperCall(n rhino.Node) bool {
+func es6NormalizeClasses_isSuperCall(n rhino.Node) bool {
 	call, ok := ast.AsCall(n)
 	return ok && call.Callee().Node().IsSuper()
 }
 
-// Es6NormalizeClasses_IsInStaticInitializationContext assumes that we have
+// es6NormalizeClasses_isInStaticInitializationContext assumes that we have
 // already filtered out non-static members and non-static blocks.
 //
 // Java: Es6NormalizeClasses.isInStaticInitializationContext(Node)
-func Es6NormalizeClasses_IsInStaticInitializationContext(rootNode rhino.Node) bool {
+func es6NormalizeClasses_isInStaticInitializationContext(rootNode rhino.Node) bool {
 	switch rootNode.GetToken() {
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		jutil.CheckState(rootNode.IsStaticMember())

@@ -390,7 +390,8 @@ func NodeUtil_IsDefinedValue(value rhino.Node) bool {
 		rhino.Token_NEW:
 		return true
 	case rhino.Token_TEMPLATELIT_STRING:
-		return value.GetCookedString() != nil
+		_, ok := value.CookedString()
+		return ok
 	case rhino.Token_NAME:
 		id := value.GetStringID()
 		// We assume here that programs don't change the value of the keyword

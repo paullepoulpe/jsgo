@@ -168,7 +168,8 @@ func (k Property_Key) HumanReadableName() string {
 	if k.symbol == nil {
 		return rhinoStringFromID(k.stringID)
 	}
-	return *k.symbol.GetDisplayName()
+	name, _ := k.symbol.DisplayName()
+	return name
 }
 
 // Java: Property.Key.matches(String) (default method)
@@ -324,7 +325,8 @@ func (p *Property) GetName() string {
 	if !p.isSymbol {
 		return rhinoStringFromID(p.nameID)
 	}
-	return *p.symbol().GetDisplayName()
+	name, _ := p.symbol().DisplayName()
+	return name
 }
 
 // Java: Property.getNode()

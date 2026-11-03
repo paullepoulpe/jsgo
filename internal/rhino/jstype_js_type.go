@@ -74,6 +74,8 @@ type JSType interface {
 	GetJSDocInfo() *JSDocInfo
 	// Java: JSType.getDisplayName()
 	GetDisplayName() *string
+	DisplayName() (string, bool)
+	ReferenceName() (string, bool)
 	// Java: JSType.hasDisplayName()
 	HasDisplayName() bool
 	// Java: JSType.getPropertyKind(Property.Key)
@@ -594,12 +596,22 @@ func (t *JSTypeBase) GetDisplayName() *string {
 	return nil
 }
 
+// DisplayName returns a user-meaningful label for the JSType without allocating a *string.
+func (t *JSTypeBase) DisplayName() (string, bool) {
+	return "", false
+}
+
+// ReferenceName returns the reference name for an ObjectType without allocating a *string.
+func (t *JSTypeBase) ReferenceName() (string, bool) {
+	return "", false
+}
+
 // HasDisplayName returns true if the JSType has a user meaningful label.
 //
 // Java: JSType.hasDisplayName()
 func (t *JSTypeBase) HasDisplayName() bool {
-	displayName := t.self().GetDisplayName()
-	return displayName != nil && *displayName != ""
+	displayName, ok := t.self().DisplayName()
+	return ok && displayName != ""
 }
 
 // JSType_HasPropertyKind is a tristate value returned from

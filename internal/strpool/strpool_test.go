@@ -70,3 +70,38 @@ func TestConcurrentInternAndRead(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestShardCapacityGuardAndUnlockOnPanic(t *testing.T) {
+	var s shard
+	const fullIdx = maxChunks * chunkSize
+	s.nextLocalIdx = fullIdx
+
+	func() {
+		defer func() {
+			r := recover()
+			if r != "strpool: shard capacity exceeded" {
+				t.Fatalf("allocString panic = %v, want \"strpool: shard capacity exceeded\"", r)
+			}
+		}()
+		s.allocString("overflow")
+	}()
+	if s.nextLocalIdx != fullIdx {
+		t.Fatalf("s.nextLocalIdx = %d after overflow panic, want %d", s.nextLocalIdx, fullIdx)
+	}
+
+	func() {
+		defer func() {
+			r := recover()
+			if r != "strpool: shard capacity exceeded" {
+				t.Fatalf("internSlow panic = %v, want \"strpool: shard capacity exceeded\"", r)
+			}
+		}()
+		s.internSlow(0, 0x12345678, "overflow")
+	}()
+
+	// Verify defer s.mu.Unlock() ran on panic so the write lock is not stuck.
+	if !s.mu.TryLock() {
+		t.Fatal("shard mutex remained locked after panic in internSlow")
+	}
+	s.mu.Unlock()
+}

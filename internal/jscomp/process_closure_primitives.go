@@ -202,7 +202,14 @@ func (p *ProcessClosurePrimitives) Visit(t *NodeTraversal, n rhino.Node, parent 
 		if !NodeUtil_IsFunctionDeclaration(n) && !NodeUtil_IsClassDeclaration(n) {
 			return
 		}
-		name := n.GetFirstChild().GetString()
+		var name string
+		if fn, ok := ast.AsFunction(n); ok {
+			fnName, _ := fn.Name()
+			name = fnName.Ident()
+		} else {
+			clsName, _ := ast.MustClass(n).Name()
+			name = clsName.Ident()
+		}
 		pn := p.closureModules.Get(name)
 		if pn != nil && pn.IsGoogProvide() {
 			diagnostic := ProcessClosurePrimitives_FUNCTION_NAMESPACE_ERROR
@@ -425,15 +432,20 @@ func (p *ProcessClosurePrimitives) MaybeProcessClassBaseCall(call ast.Call) {
 		if _, ok := p.knownClosureSubclasses[baseContainer]; ok {
 			p.ReportBadBaseMethodUse(n, baseContainer, "Could not find enclosing method.")
 		} else if ProcessClosurePrimitives_BaseUsedInClass(n) {
-			clazz := NodeUtil_GetEnclosingClass(n)
+			cls := ast.MustClass(NodeUtil_GetEnclosingClass(n))
+			clsName, hasClsName := cls.Name()
+			superExpr, hasSuper := cls.Extends()
+			superName, superIsName := superExpr.AsName()
 			// TODO(lharker): this check ignores class expressions like "foo.Bar = class extends X {}"
-			if (clazz.GetFirstChild().IsName() &&
-				clazz.GetFirstChild().GetString() == baseContainer) ||
-				(clazz.GetSecondChild().IsName() &&
-					clazz.GetSecondChild().GetString() == baseContainer) {
+			if (hasClsName && clsName.Ident() == baseContainer) ||
+				(hasSuper && superIsName && superName.Ident() == baseContainer) {
+				badName := jutil.ToJavaString(NodeUtil_GetBestLValueName(cls.Node()))
+				if hasClsName {
+					badName = clsName.Ident()
+				}
 				p.ReportBadBaseMethodUse(
 					n,
-					clazz.GetFirstChild().GetString(),
+					badName,
 					"base method is not allowed in ES6 class. Use super instead.")
 			}
 		}
@@ -602,11 +614,12 @@ func ProcessClosurePrimitives_FindGoogInheritsCall(ctorDeclarationNode rhino.Nod
 		maybeInheritsExpr = maybeInheritsExpr.GetNext()
 	}
 	var baseClassNode rhino.Node = rhino.NilNode
-	if !maybeInheritsExpr.IsNil() && NodeUtil_IsExprCall(maybeInheritsExpr) {
-		callNode := maybeInheritsExpr.GetFirstChild()
-		if processClosurePrimitives_GOOG_INHERITS.Matches(callNode.GetFirstChild()) &&
-			callNode.GetLastChild().IsQualifiedName() {
-			baseClassNode = callNode.GetLastChild()
+	if exprStmt, ok := ast.AsExprStmt(maybeInheritsExpr); ok {
+		if call, ok := exprStmt.Expr().AsCall(); ok &&
+			processClosurePrimitives_GOOG_INHERITS.Matches(call.Callee().Node()) {
+			if lastArg, ok := call.LastArg(); ok && lastArg.Node().IsQualifiedName() {
+				baseClassNode = lastArg.Node()
+			}
 		}
 	}
 	return baseClassNode
@@ -996,7 +1009,8 @@ func NewWhitespaceWrapGoogModules(compiler AbstractCompiler) *WhitespaceWrapGoog
 
 // Java: WhitespaceWrapGoogModules.process(Node, Node)
 func (w *WhitespaceWrapGoogModules) Process(externs rhino.Node, root rhino.Node) {
-	for c := root.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for item := range ast.MustRoot(root).Items() {
+		c := item.Node()
 		jutil.CheckState(c.IsScript())
 		w.VisitScript(c)
 	}
@@ -1007,7 +1021,7 @@ func (w *WhitespaceWrapGoogModules) VisitScript(scriptRoot rhino.Node) {
 	if !NodeUtil_IsGoogModuleFile(scriptRoot) {
 		return
 	}
-	moduleBody := scriptRoot.GetFirstChild()
+	moduleBody := ast.MustScript(scriptRoot).MustFirstItem().Node()
 	moduleBody.SetToken(rhino.Token_BLOCK)
 	NodeUtil_TryMergeBlock(moduleBody, true)
 	w.compiler.ReportChangeToEnclosingScope(scriptRoot)

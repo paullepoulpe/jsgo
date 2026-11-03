@@ -138,7 +138,11 @@ func (v *ValueTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 
 // Java: ValueType.appendTo(TypeStringBuilder)
 func (v *ValueTypeBase) AppendTo(sb *TypeStringBuilder) {
-	sb.Append(jutil.ToJavaString(v.self().GetDisplayName()))
+	if name, ok := v.self().DisplayName(); ok {
+		sb.Append(name)
+	} else {
+		sb.Append("null")
+	}
 }
 
 // Java: ValueType.hasDisplayName()
@@ -215,6 +219,11 @@ func (t *BooleanType) AutoboxesTo() JSType {
 	return t.GetNativeType(JSTypeNative_BOOLEAN_OBJECT_TYPE)
 }
 
+// DisplayName returns "boolean" without allocating a *string.
+func (t *BooleanType) DisplayName() (string, bool) {
+	return jsType_displayName_boolean, true
+}
+
 // Java: BooleanType.getDisplayName()
 func (t *BooleanType) GetDisplayName() *string {
 	return &jsType_displayName_boolean
@@ -276,6 +285,11 @@ func (t *NumberType) MatchesStringContext() bool {
 func (t *NumberType) MatchesObjectContext() bool {
 	// TODO(user): Revisit this for ES4, which is stricter.
 	return true
+}
+
+// DisplayName returns "number" without allocating a *string.
+func (t *NumberType) DisplayName() (string, bool) {
+	return jsType_displayName_number, true
 }
 
 // Java: NumberType.getDisplayName()
@@ -346,6 +360,11 @@ func (t *StringType) MatchesObjectContext() bool {
 	return true
 }
 
+// DisplayName returns "string" without allocating a *string.
+func (t *StringType) DisplayName() (string, bool) {
+	return jsType_displayName_string, true
+}
+
 // Java: StringType.getDisplayName()
 func (t *StringType) GetDisplayName() *string {
 	return &jsType_displayName_string
@@ -412,6 +431,11 @@ func (t *BigIntType) MatchesStringContext() bool {
 // Java: BigIntType.matchesObjectContext()
 func (t *BigIntType) MatchesObjectContext() bool {
 	return true
+}
+
+// DisplayName returns "bigint" without allocating a *string.
+func (t *BigIntType) DisplayName() (string, bool) {
+	return jsType_displayName_bigint, true
 }
 
 // Java: BigIntType.getDisplayName()
@@ -494,6 +518,11 @@ func (t *NullType) TestForEquality(that JSType) base.Tri {
 	return base.Tri_FALSE
 }
 
+// DisplayName returns "null" without allocating a *string.
+func (t *NullType) DisplayName() (string, bool) {
+	return jsType_displayName_null, true
+}
+
 // Java: NullType.getDisplayName()
 func (t *NullType) GetDisplayName() *string {
 	return &jsType_displayName_null
@@ -568,6 +597,11 @@ func (t *VoidType) IsVoidable() bool {
 // Java: VoidType.isExplicitlyVoidable()
 func (t *VoidType) IsExplicitlyVoidable() bool {
 	return true
+}
+
+// DisplayName returns "undefined" without allocating a *string.
+func (t *VoidType) DisplayName() (string, bool) {
+	return jsType_displayName_undefined, true
 }
 
 // Java: VoidType.getDisplayName()
@@ -646,6 +680,11 @@ func (t *SymbolTypeBase) MatchesObjectContext() bool {
 	return true
 }
 
+// DisplayName returns "symbol" without allocating a *string.
+func (t *SymbolTypeBase) DisplayName() (string, bool) {
+	return jsType_displayName_symbol, true
+}
+
 // Java: SymbolType.getDisplayName()
 func (t *SymbolTypeBase) GetDisplayName() *string {
 	return &jsType_displayName_symbol
@@ -686,6 +725,11 @@ func NewKnownSymbolType(registry *JSTypeRegistry, name string) *KnownSymbolType 
 // Java: KnownSymbolType.getTypeClass()
 func (t *KnownSymbolType) GetTypeClass() JSTypeClass {
 	return KnownSymbolType_TYPE_CLASS
+}
+
+// DisplayName returns the known symbol's name without allocating a *string.
+func (t *KnownSymbolType) DisplayName() (string, bool) {
+	return t.name, true
 }
 
 // Java: KnownSymbolType.getDisplayName()

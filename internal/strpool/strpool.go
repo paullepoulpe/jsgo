@@ -109,8 +109,11 @@ func (s *shard) stringAt(localIdx uint32) string {
 
 func (s *shard) allocString(str string) uint32 {
 	localIdx := s.nextLocalIdx
-	s.nextLocalIdx = localIdx + 1
 	chunkIdx := localIdx >> chunkShift
+	if int(chunkIdx) >= len(s.chunks) {
+		panic("strpool: shard capacity exceeded")
+	}
+	s.nextLocalIdx = localIdx + 1
 	chunk := s.chunks[chunkIdx].Load()
 	if chunk == nil {
 		chunk = new([chunkSize]string)
@@ -165,6 +168,28 @@ func makeID(localIdx, shardIdx uint32) ID {
 	return ID(((localIdx << 6) | shardIdx) + 2)
 }
 
+func (s *shard) internSlow(shardIdx, hash32 uint32, str string) ID {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.table) == 0 {
+		s.table = make([]uint64, 128)
+	} else if localIdx, ok := probeLocked(s, hash32, str); ok {
+		return makeID(localIdx, shardIdx)
+	}
+	if int(s.count+1)*4 > len(s.table)*3 {
+		s.growTable()
+	}
+	localIdx := s.allocString(str)
+	mask := uint32(len(s.table) - 1)
+	slot := hash32 & mask
+	for s.table[slot] != 0 {
+		slot = (slot + 1) & mask
+	}
+	s.table[slot] = (uint64(hash32) << 32) | uint64(localIdx+1)
+	s.count++
+	return makeID(localIdx, shardIdx)
+}
+
 func Intern(str string) ID {
 	if len(str) == 0 {
 		return EmptyID
@@ -180,27 +205,7 @@ func Intern(str string) ID {
 		return makeID(localIdx, shardIdx)
 	}
 	s.mu.RUnlock()
-
-	s.mu.Lock()
-	if len(s.table) == 0 {
-		s.table = make([]uint64, 128)
-	} else if localIdx, ok := probeLocked(s, hash32, str); ok {
-		s.mu.Unlock()
-		return makeID(localIdx, shardIdx)
-	}
-	if int(s.count+1)*4 > len(s.table)*3 {
-		s.growTable()
-	}
-	localIdx := s.allocString(str)
-	mask := uint32(len(s.table) - 1)
-	slot := hash32 & mask
-	for s.table[slot] != 0 {
-		slot = (slot + 1) & mask
-	}
-	s.table[slot] = (uint64(hash32) << 32) | uint64(localIdx+1)
-	s.count++
-	s.mu.Unlock()
-	return makeID(localIdx, shardIdx)
+	return s.internSlow(shardIdx, hash32, str)
 }
 
 func String(id ID) string {
@@ -261,5 +266,5 @@ func InternBytes(b []byte) ID {
 		return makeID(localIdx, shardIdx)
 	}
 	s.mu.RUnlock()
-	return Intern(string(b))
+	return s.internSlow(shardIdx, hash32, string(b))
 }

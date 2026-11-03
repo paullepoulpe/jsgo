@@ -142,7 +142,7 @@ func (g *jsaWgFuncGuard) Level(error *JSError) (CheckLevel, bool) { return g.lev
 
 func TestWarningsGuard_ComposeGuard(t *testing.T) {
 	g1 := &jsaWgFuncGuard{level: func(error *JSError) (CheckLevel, bool) {
-		if *error.SourceName() == "123456" {
+		if src, ok := error.SourceName(); ok && src == "123456" {
 			return CheckLevel_ERROR, true
 		}
 		return 0, false

@@ -86,7 +86,7 @@ func (m *typeCheckDump_errorManager) Report(level CheckLevel, error_ *JSError) {
 			" "+
 			error_.GetType().key+
 			" "+
-			jutil.ToJavaString(error_.GetSourceName())+
+			jutil.FormatOptionalString(error_.SourceName())+
 			":"+
 			strconv.Itoa(error_.GetLineno())+
 			":"+

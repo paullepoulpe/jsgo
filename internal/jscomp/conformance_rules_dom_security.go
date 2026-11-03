@@ -247,11 +247,11 @@ func (r *ConformanceRules_BanCreateDom) GetTagNames(tag rhino.Node) (tagNames []
 	}
 	typeAsObj := type_.ToMaybeObjectType()
 	if typeAsObj != nil && typeAsObj.GetRawType() != nil {
-		if rawDisp := typeAsObj.GetRawType().GetDisplayName(); rawDisp != nil && *rawDisp == "goog.dom.TagName" {
+		if rawDisp, ok := typeAsObj.GetRawType().DisplayName(); ok && rawDisp == "goog.dom.TagName" {
 			tagType := onlyJSTypeElement(typeAsObj.GetTemplateTypes())
 			var names []string
-			if displayName := tagType.GetDisplayName(); displayName != nil {
-				names = htmlElementTagNames[*displayName]
+			if displayName, ok := tagType.DisplayName(); ok {
+				names = htmlElementTagNames[displayName]
 			}
 			return names, false
 		}

@@ -1353,3 +1353,34 @@ func suggestedFixTest_getOnlyElement(nodes []rhino.Node) rhino.Node {
 	jutil.CheckArgumentMsg1(len(nodes) == 1, "expected one element but was: %s", len(nodes))
 	return nodes[0]
 }
+
+func (c *SuggestedFixTest) TestUnattachedSyntheticNodesThrowNPE() {
+	nameNode := rhino.IR_Name("synthetic")
+	blockNode := rhino.IR_Block()
+	callNode := rhino.IR_Call(rhino.IR_Name("fn"), rhino.IR_Name("arg"))
+
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().ReplaceText(nameNode, 3, "new")
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().AddChildToFront(blockNode, "let x = 1;")
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().InsertAfter(nameNode, ";")
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().DeleteWithWhitespaceBefore(nameNode, true)
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().DeleteWithoutRemovingWhitespace(nameNode)
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().Rename(nameNode, "renamed")
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().InsertArguments(callNode, 0, "1")
+	})
+	testjunit.AssertThrows[jutil.INullPointerException](func() {
+		NewSuggestedFix_Builder().DeleteArgument(callNode, 0)
+	})
+}

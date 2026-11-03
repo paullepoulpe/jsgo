@@ -167,16 +167,17 @@ type poolFixup struct {
 }
 
 type scriptWireEncoder struct {
-	nodes              []flatAstNode
-	jsdocs             []flatJsdoc
-	jsdocKinds         []int32
-	fixups             []poolFixup
-	colorRefs          []*colors.Color
-	sfRefs             []*SourceFile
-	subtreeSourceFiles []*SourceFile
-	previousLine       int
-	previousColumn     int
-	lazyAst            LazyAst
+	nodes               []flatAstNode
+	jsdocs              []flatJsdoc
+	jsdocKinds          []int32
+	fixups              []poolFixup
+	colorRefs           []*colors.Color
+	sfRefs              []*SourceFile
+	subtreeSourceFiles  []*SourceFile
+	fallbackSourceFiles map[rhino.StaticSourceFile]*SourceFile
+	previousLine        int
+	previousColumn      int
+	lazyAst             LazyAst
 }
 
 func (enc *scriptWireEncoder) reset() {
@@ -190,6 +191,7 @@ func (enc *scriptWireEncoder) reset() {
 	enc.sfRefs = enc.sfRefs[:0]
 	clear(enc.subtreeSourceFiles)
 	enc.subtreeSourceFiles = enc.subtreeSourceFiles[:0]
+	clear(enc.fallbackSourceFiles)
 	enc.previousLine = 0
 	enc.previousColumn = 0
 	enc.lazyAst = LazyAst{}
@@ -265,14 +267,46 @@ func (enc *scriptWireEncoder) encodeJsdoc(jsdoc *rhino.JSDocInfo) int32 {
 	return int32(jIdx)
 }
 
-func (enc *scriptWireEncoder) pushSourceFile(n rhino.Node, target fixupTarget, targetIdx uint32) bool {
-	var sf *SourceFile
-	if ssf := n.GetStaticSourceFile(); ssf != nil {
-		sf = ssf.(*SourceFile)
+func (enc *scriptWireEncoder) resolveSourceFile(ssf rhino.StaticSourceFile, parent *TypedAstSerializer) *SourceFile {
+	if ssf == nil {
+		return nil
 	}
+	if sf, ok := ssf.(*SourceFile); ok {
+		return sf
+	}
+	if simple, ok := ssf.(*rhino.SimpleSourceFile); ok && simple == nil {
+		return nil
+	}
+	if sf, ok := enc.fallbackSourceFiles[ssf]; ok {
+		return sf
+	}
+	if parent != nil && parent.compiler != nil {
+		if sf := parent.compiler.GetSourceFileByName(ssf.GetName()); sf != nil &&
+			sf.GetKind() == ssf.GetKind() &&
+			sf.IsClosureUnawareCode() == ssf.IsClosureUnawareCode() {
+			if enc.fallbackSourceFiles == nil {
+				enc.fallbackSourceFiles = make(map[rhino.StaticSourceFile]*SourceFile)
+			}
+			enc.fallbackSourceFiles[ssf] = sf
+			return sf
+		}
+	}
+	sf := SourceFile_StubSourceFile(ssf.GetName(), ssf.GetKind())
+	if ssf.IsClosureUnawareCode() {
+		sf.MarkAsClosureUnawareCode()
+	}
+	if enc.fallbackSourceFiles == nil {
+		enc.fallbackSourceFiles = make(map[rhino.StaticSourceFile]*SourceFile)
+	}
+	enc.fallbackSourceFiles[ssf] = sf
+	return sf
+}
+
+func (enc *scriptWireEncoder) pushSourceFile(n rhino.Node, parent *TypedAstSerializer, target fixupTarget, targetIdx uint32) bool {
+	sf := enc.resolveSourceFile(n.GetStaticSourceFile(), parent)
 	if sf == nil {
 		// TODO(b/186056977): enforce that SourceFile is not null in externs as well as code.
-		if !enc.peekLastSubtreeSourceFile().IsExtern() {
+		if last := enc.peekLastSubtreeSourceFile(); last == nil || !last.IsExtern() {
 			jutil.CheckStateMsg2(
 				false,
 				"Unexpected null SourceFile for node %s with parent %s",
@@ -300,13 +334,13 @@ func (enc *scriptWireEncoder) pushSourceFile(n rhino.Node, target fixupTarget, t
 func (enc *scriptWireEncoder) buildScript(script rhino.Node, parent *TypedAstSerializer) {
 	jutil.CheckState(script.IsScript())
 	enc.reset()
-	enc.pushSourceFile(script, fixupLazySourceFile, 0)
+	enc.pushSourceFile(script, parent, fixupLazySourceFile, 0)
 
 	enc.visit(script, parent)
 	clear(enc.subtreeSourceFiles)
 	enc.subtreeSourceFiles = enc.subtreeSourceFiles[:0]
 
-	if name := script.GetSourceFileName(); name != nil {
+	if name := script.GetSourceFileName(); name != nil && parent.compiler != nil {
 		if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*name); encodedSourceMap != nil {
 			// This is the encoded source map taken from the inline sourcemap comment. It does not include
 			// the base64 prefix.
@@ -352,7 +386,7 @@ func (enc *scriptWireEncoder) visit(n rhino.Node, parent *TypedAstSerializer) {
 	fn.kind = uint16(parent.KindTranslator(n).GetNumber())
 	enc.translateValue(&fn, nodeIdx, n, parent.recordUsedProps)
 	fn.boolProps = uint64(n.SerializeProperties())
-	pushedSF := enc.pushSourceFile(n, fixupNodeSourceFile, nodeIdx)
+	pushedSF := enc.pushSourceFile(n, parent, fixupNodeSourceFile, nodeIdx)
 
 	enc.nodes = append(enc.nodes, fn)
 

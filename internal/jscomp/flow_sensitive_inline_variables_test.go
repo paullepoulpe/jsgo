@@ -1338,50 +1338,100 @@ func TestFlowSensitiveInlineVariables_DetachedCandidateGuards(t *testing.T) {
 	// 1. Detached NAME initializer: c.def is NAME(a) with no children.
 	varNameNode := varStmt.GetFirstChild()
 	varNameNode.GetFirstChild().Detach()
-	candDetachedInit := FlowSensitiveInlineVariables_Candidate{
-		outer:       fsiv,
+	candDetachedInit := flowSensitiveInlineCandidate{
+		pass:        fsiv,
 		nameID:      varNameNode.GetStringID(),
 		def:         varNameNode,
 		defMetadata: &MustBeReachingVariableDef_Definition{node: varStmt},
 		use:         useA,
 		useCfgNode:  useStmt,
 	}
-	if candDetachedInit.IsRhsSafeToInline(bodyScope) {
-		t.Fatalf("IsRhsSafeToInline succeeded on NAME with detached initializer")
+	if candDetachedInit.isRhsSafeToInline(bodyScope) {
+		t.Fatalf("isRhsSafeToInline succeeded on NAME with detached initializer")
 	}
-	if candDetachedInit.CanInline(bodyScope) {
-		t.Fatalf("CanInline succeeded on NAME with detached initializer")
+	if candDetachedInit.canInline(bodyScope) {
+		t.Fatalf("canInline succeeded on NAME with detached initializer")
 	}
 
 	// 2. Detached EXPR_RESULT defCfgNode: assignStmt.GetParent() == NilNode.
 	assignStmt.Detach()
-	candDetachedStmt := FlowSensitiveInlineVariables_Candidate{
-		outer:       fsiv,
+	candDetachedStmt := flowSensitiveInlineCandidate{
+		pass:        fsiv,
 		nameID:      useB.GetStringID(),
 		defMetadata: &MustBeReachingVariableDef_Definition{node: assignStmt},
 		use:         useB,
 		useCfgNode:  useStmt,
 	}
-	if candDetachedStmt.CanInline(bodyScope) {
-		t.Fatalf("CanInline succeeded on detached EXPR_RESULT defCfgNode")
+	if candDetachedStmt.canInline(bodyScope) {
+		t.Fatalf("canInline succeeded on detached EXPR_RESULT defCfgNode")
 	}
 
 	// 3. Reattached EXPR_RESULT whose ASSIGN RHS was detached.
 	fnBody.AddChildToFront(assignStmt)
 	assignNode := assignStmt.GetFirstChild()
 	assignNode.GetLastChild().Detach()
-	candDetachedAssignRhs := FlowSensitiveInlineVariables_Candidate{
-		outer:       fsiv,
+	candDetachedAssignRhs := flowSensitiveInlineCandidate{
+		pass:        fsiv,
 		nameID:      useB.GetStringID(),
 		def:         assignNode,
 		defMetadata: &MustBeReachingVariableDef_Definition{node: assignStmt},
 		use:         useB,
 		useCfgNode:  useStmt,
 	}
-	if candDetachedAssignRhs.IsRhsSafeToInline(bodyScope) {
-		t.Fatalf("IsRhsSafeToInline succeeded on ASSIGN with detached RHS")
+	if candDetachedAssignRhs.isRhsSafeToInline(bodyScope) {
+		t.Fatalf("isRhsSafeToInline succeeded on ASSIGN with detached RHS")
 	}
-	if candDetachedAssignRhs.CanInline(bodyScope) {
-		t.Fatalf("CanInline succeeded on ASSIGN with detached RHS")
+	if candDetachedAssignRhs.canInline(bodyScope) {
+		t.Fatalf("canInline succeeded on ASSIGN with detached RHS")
 	}
+}
+
+func (c *FlowSensitiveInlineVariablesTest) TestClassSynchronousReadsAndCfgBoundaries() {
+	// Synchronous class extends, computed keys, and static field initializers inline cleanly.
+	c.Inline(
+		"function Base() {} var b = Base; class C extends b {} print(C);",
+		"function Base() {} var b; class C extends Base {} print(C);")
+	c.Inline(
+		"function Base() {} var b = Base; print(class extends b {});",
+		"function Base() {} var b; print(class extends Base {});")
+	c.Inline(
+		"var k = 'm'; class C { [k]() {} } print(C);",
+		"var k; class C { ['m']() {} } print(C);")
+	c.Inline(
+		"var k = 'f'; class C { [k] = 1; } print(C);",
+		"var k; class C { ['f'] = 1; } print(C);")
+	c.Inline(
+		"var v = 42; class C { static x = v; } print(C);",
+		"var v; class C { static x = 42; } print(C);")
+	c.Inline(
+		"var k = 'f'; var v = 42; class C { static [k] = v; } print(C);",
+		"var k; var v; class C { static ['f'] = 42; } print(C);")
+
+	// Deferred instance field initializers, static blocks, and bleeding class names do not inline.
+	c.NoInline("var v = 1; class C { x = v; } print(C);")
+	c.NoInline("var v = 1; class C { ['x'] = v; } print(C);")
+	c.NoInline("var v = 1; class C { static { print(v); } } print(C);")
+	c.NoInline("var C = 1; print(class C {});")
+
+	// Nested function default-param side effects and instance field side effects do not execute
+	// in the enclosing CFG and must not block inlining.
+	c.Inline(
+		"var x = 1; const fn = (a = hasSFX()) => a; print(x, fn);",
+		"var x; const fn = (a = hasSFX()) => a; print(1, fn);")
+	c.Inline(
+		"var x = 1; print((a = hasSFX()) => a, x);",
+		"var x; print((a = hasSFX()) => a, 1);")
+	c.Inline(
+		"var x = 1; class C { field = hasSFX(); } print(x, C);",
+		"var x; class C { field = hasSFX(); } print(1, C);")
+	c.Inline(
+		"var x = 1; class C { [noSFX()] = hasSFX(); } print(x, C);",
+		"var x; class C { [noSFX()] = hasSFX(); } print(1, C);")
+	c.Inline(
+		"var x = 1; class C { field = hasSFX(); static y = x; } print(C);",
+		"var x; class C { field = hasSFX(); static y = 1; } print(C);")
+
+	// Synchronous static field initializers and computed keys with side effects DO block inlining.
+	c.NoInline("var x = 1; class C { static field = hasSFX(); } print(x, C);")
+	c.NoInline("var x = 1; class C { [hasSFX()] = 1; } print(x, C);")
 }

@@ -172,25 +172,28 @@ func (t *EnumElementType) AppendTo(sb *TypeStringBuilder) {
 		// this.primitiveType
 		sb.AppendType(t.primitiveType)
 	} else {
-		sb.Append(jsTypeNullableToString(t.GetReferenceName()))
+		if name, ok := t.ReferenceName(); ok {
+			sb.Append(name)
+		} else {
+			sb.Append("null")
+		}
 		sb.Append("<")
 		sb.AppendType(t.primitiveType)
 		sb.Append(">")
 	}
 }
 
-// jsTypeNullableToString is String.valueOf for a nullable String, as
-// StringBuilder.append(String) renders it ("null" for null).
-func jsTypeNullableToString(s *string) string {
-	if s == nil {
-		return "null"
-	}
-	return *s
-}
-
 // Java: ObjectType.hasReferenceName()
 func (t *EnumElementType) HasReferenceName() bool {
 	return t.nameID != 0
+}
+
+// ReferenceName returns the enum element reference name without allocating a *string.
+func (t *EnumElementType) ReferenceName() (string, bool) {
+	if t.nameID == 0 {
+		return "", false
+	}
+	return strpool.String(t.nameID), true
 }
 
 // Java: EnumElementType.getReferenceName()

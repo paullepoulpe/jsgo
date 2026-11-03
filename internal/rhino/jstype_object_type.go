@@ -81,6 +81,7 @@ type ObjectType interface {
 	SetJSDocInfo(info *JSDocInfo)
 	DetectInheritanceCycle() bool
 	GetReferenceName() *string
+	ReferenceName() (string, bool)
 	HasReferenceName() bool
 	GetNormalizedReferenceName() string
 	GetRawType() ObjectType
@@ -311,7 +312,8 @@ func objectTypeIterablesContains(iterable []ObjectType, element ObjectType) bool
 //
 // Java: ObjectType.hasReferenceName()
 func (o *ObjectTypeBase) HasReferenceName() bool {
-	return o.selfObj().GetReferenceName() != nil
+	_, ok := o.selfObj().ReferenceName()
+	return ok
 }
 
 func normalizeReferenceName(s string) string {
@@ -341,11 +343,20 @@ func normalizeReferenceName(s string) string {
 //
 // Java: ObjectType.getNormalizedReferenceName()
 func (o *ObjectTypeBase) GetNormalizedReferenceName() string {
-	name := o.selfObj().GetReferenceName()
-	if name == nil {
+	name, ok := o.selfObj().ReferenceName()
+	if !ok {
 		return ""
 	}
-	return normalizeReferenceName(*name)
+	return normalizeReferenceName(name)
+}
+
+// DisplayName returns the normalized reference name of o without allocating a *string.
+func (o *ObjectTypeBase) DisplayName() (string, bool) {
+	name, ok := o.selfObj().ReferenceName()
+	if !ok {
+		return "", false
+	}
+	return normalizeReferenceName(name), true
 }
 
 // Java: ObjectType.getDisplayName()

@@ -192,7 +192,11 @@ func ConformanceAllowlister_GetViolatingPaths(
 	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *OrderedSet[string] {
 	result := NewOrderedSet[string]()
 	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
-		result.Add(*jutil.CheckNotNull(e.SourceName()))
+		src, ok := e.SourceName()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		result.Add(src)
 	}
 	return result
 }

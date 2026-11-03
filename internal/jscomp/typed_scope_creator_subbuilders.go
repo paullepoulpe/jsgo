@@ -257,8 +257,9 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 	// errors. Ideally we'd have a "don't use me" type that gives an error at use.
 	for _, name := range templateNames {
 		if !b.currentScope.CanDeclare(name) {
+			sourceName, _ := NodeUtil_SourceName(functionNode)
 			b.outer.validator.ExpectUndeclaredVariable(
-				typedScopeCreator_sourceNameArg(NodeUtil_GetSourceName(functionNode)),
+				sourceName,
 				input,
 				functionNode,
 				functionNode.GetParent(),

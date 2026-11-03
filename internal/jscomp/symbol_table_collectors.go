@@ -214,7 +214,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Nod
 		if gp, ok := ast.AsNormalOrOptChainGetProp(propNodeDecl); ok {
 			namespace := gp.Object().Node()
 			if qname, hasQname := namespace.GetQualifiedNameString(); hasQname {
-				namespaceSym := t.getSymbolForName(namespace, qname)
+				namespaceSym := t.GetSymbolForName(namespace, qname)
 				if namespaceSym != nil && namespaceSym.GetPropertyScope() != nil {
 					propSym := namespaceSym.GetPropertyScope().GetSlot(propName)
 					if propSym != nil && propSym.GetDeclarationNode() != n {
@@ -240,7 +240,7 @@ func (c *SymbolTable_PropertyRefCollector) maybeDefineTypedReference(n rhino.Nod
 		if propNodeDeclScope == nil || !propNodeDeclScope.IsModuleScope() {
 			return false
 		}
-		symbol := t.getSymbolForName(propNodeDecl, propName)
+		symbol := t.GetSymbolForName(propNodeDecl, propName)
 		if symbol != nil && symbol.GetDeclarationNode() != n {
 			symbol.DefineReferenceAt(n)
 			return true
@@ -276,15 +276,15 @@ func (c *SymbolTable_PropertyRefCollector) Visit(t *NodeTraversal, n rhino.Node,
 		owner := parent.GetJSType()
 		if owner != nil {
 			if c.maybeDefineTypedReference(n, sk.Key(), owner) {
-				if lvalName := NodeUtil_GetBestLValueName(n); lvalName != nil {
-					c.tryRemoveLexicalQualifiedNameRef(*lvalName, n)
+				if lvalName, hasLval := NodeUtil_BestLValueName(n); hasLval {
+					c.tryRemoveLexicalQualifiedNameRef(lvalName, n)
 				}
 				return
 			}
 		}
 
-		if lvalName := NodeUtil_GetBestLValueName(n); lvalName != nil {
-			c.tryDefineLexicalQualifiedNameRef(*lvalName, n)
+		if lvalName, hasLval := NodeUtil_BestLValueName(n); hasLval {
+			c.tryDefineLexicalQualifiedNameRef(lvalName, n)
 		}
 	}
 }
@@ -464,8 +464,8 @@ func (c *SymbolTable_JSDocInfoCollector) visitTypeNode(
 			if symbol != nil {
 				ref := n
 				typeString := name
-				if orig := n.GetOriginalName(); orig != nil {
-					typeString = *orig
+				if orig, ok := n.GetOriginalNameString(); ok {
+					typeString = orig
 				}
 				// Qualified names in JSDoc types are kept as a single string: "foo.bar.MyType". In order
 				// to have good indexing we need to make the SymbolTable reference include only "MyType"

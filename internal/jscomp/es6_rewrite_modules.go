@@ -302,7 +302,7 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 					r.putRename(scopeRoot, local.Ident(), baseGlobal.Getprop(sk.Key()).Join())
 				}
 			} else {
-				baseGlobal := e.getGlobalNameAndType(moduleMetadata, &name /* isFromMissingModuleOrProvide= */, false)
+				baseGlobal := e.getGlobalNameAndType(moduleMetadata, name /* isFromMissingModuleOrProvide= */, false)
 				for prop := range objPat.Props() {
 					sk := ast.MustStringKey(prop.Node())
 					local := ast.MustName(sk.Value().Node())
@@ -679,7 +679,7 @@ func (e *Es6RewriteModules) inlineAliasedTypes(t *NodeTraversal, typeNode rhino.
 			if hasDot {
 				newTypeName += "." + rest
 			}
-			typeNode.SetOriginalName(&name)
+			typeNode.SetOriginalNameString(name)
 			typeNode.SetString(newTypeName)
 			t.ReportCodeChange()
 		}
@@ -747,14 +747,14 @@ func (e *Es6RewriteModules) visitRequireOrGet(
 			if destructLhs, ok := ast.AsDestructuringLhs(parent); ok {
 				objPat := ast.MustObjectPattern(destructLhs.Pattern().Node())
 				toDetach = parent.GetParent()
-				baseGlobal := e.getGlobalNameAndType(m, &namespace, isFromFallbackMetadata)
+				baseGlobal := e.getGlobalNameAndType(m, namespace, isFromFallbackMetadata)
 				for prop := range objPat.Props() {
 					sk := ast.MustStringKey(prop.Node())
 					local := ast.MustName(sk.Value().Node())
 					e.putInlineAlias(local.Ident(), baseGlobal.Getprop(sk.Key()))
 				}
 			} else if nm, ok := ast.AsName(parent); ok {
-				alias := e.getGlobalNameAndType(m, &namespace, isFromFallbackMetadata)
+				alias := e.getGlobalNameAndType(m, namespace, isFromFallbackMetadata)
 				e.putInlineAlias(nm.Ident(), alias)
 				toDetach = parent.GetParent()
 			} else {
@@ -763,7 +763,7 @@ func (e *Es6RewriteModules) visitRequireOrGet(
 			}
 			toDetach.Detach()
 		} else {
-			name := e.getGlobalNameAndType(m, &namespace, isFromFallbackMetadata)
+			name := e.getGlobalNameAndType(m, namespace, isFromFallbackMetadata)
 			replacement := name.ToQname(e.astFactory).SrcrefTree(requireCall)
 			requireCall.ReplaceWith(replacement)
 		}
@@ -775,13 +775,13 @@ func (e *Es6RewriteModules) visitRequireOrGet(
 
 func (e *Es6RewriteModules) getGlobalNameAndType(
 	metadata *ModuleMetadataMap_ModuleMetadata,
-	googNamespace *string,
+	googNamespace string,
 	isFromMissingModuleOrProvide bool) *ModuleRenaming_GlobalizedModuleName {
 	if isFromMissingModuleOrProvide {
-		globalName := ModuleRenaming_GetGlobalNameWithModuleMetadata(metadata, googNamespace)
+		globalName := ModuleRenaming_GetGlobalNameWithModuleMetadata(metadata, &googNamespace)
 		return ModuleRenaming_GlobalizedModuleName_Create(globalName, e.unknownType)
 	}
-	return ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(metadata, googNamespace, e.globalTypedScope)
+	return ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(metadata, &googNamespace, e.globalTypedScope)
 }
 
 // es6RenameGlobalVars appends a module suffix to module-scoped variables and
@@ -809,7 +809,7 @@ func (r *es6RenameGlobalVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		name := nm.Ident()
 		newName := ModuleRenaming_GetGlobalNameOfEsModuleLocalVariable(r.thisModule.Metadata(), name).Join()
 		nm.SetIdent(newName)
-		n.SetOriginalName(&name)
+		n.SetOriginalNameString(name)
 		t.ReportCodeChangeWithNode(n)
 		if NodeUtil_IsDeclarationLValue(n) {
 			r.pass.declareGlobalVariable(n, t)
@@ -873,7 +873,7 @@ func (r *es6RenameGlobalVars) replaceBindingRef(n rhino.Node, binding *Binding) 
 	origName := n.GetString()
 	n.ReplaceWith(newNode)
 	newNode.SrcrefTree(n)
-	newNode.SetOriginalName(&origName)
+	newNode.SetOriginalNameString(origName)
 	return newNode
 }
 
@@ -908,7 +908,7 @@ func (r *es6RenameGlobalVars) fixTypeNode(t *NodeTraversal, typeNode rhino.Node)
 			}
 		}
 
-		typeNode.SetOriginalName(&name)
+		typeNode.SetOriginalNameString(name)
 	}
 
 	for child := typeNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
@@ -919,7 +919,7 @@ func (r *es6RenameGlobalVars) fixTypeNode(t *NodeTraversal, typeNode rhino.Node)
 func (r *es6RenameGlobalVars) maybeSetNewName(t *NodeTraversal, node rhino.Node, name string, newName string) {
 	if name != newName {
 		node.SetString(newName)
-		node.SetOriginalName(&name)
+		node.SetOriginalNameString(name)
 		t.ReportCodeChange()
 	}
 }

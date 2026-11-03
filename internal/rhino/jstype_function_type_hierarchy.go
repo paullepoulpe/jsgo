@@ -75,7 +75,7 @@ func (f *FunctionTypeBase) GetPrototypeProperty() ObjectType {
 func (f *FunctionTypeBase) GetPrototype() ObjectType {
 	// lazy initialization of the prototype field
 	if f.prototypeSlot() == nil {
-		refName, ok := f.referenceNameString()
+		refName, ok := f.ReferenceName()
 		if !ok {
 			// Someone is trying to access the prototype of a structural function.
 			// We don't want to give real properties to this prototype, because
@@ -140,7 +140,7 @@ func (f *FunctionTypeBase) SetPrototypeBasedOnWithPropertyNode(baseType ObjectTy
 			// Bail out for cases like Foo.prototype = new Foo();
 			return
 		}
-		refName, ok := f.referenceNameString()
+		refName, ok := f.ReferenceName()
 		if !ok {
 			refName = "null"
 		}
@@ -698,9 +698,10 @@ func (f *FunctionTypeBase) ResolveTypeListHelper(list []ObjectType, reporter Err
 	for _, type_ := range list {
 		rt := type_.Resolve(reporter)
 		if !rt.IsObjectType() {
+			sourceName, _ := f.source.SourceFileName()
 			reporter.Warning(
 				"not an object type: "+rt.String()+" (at "+f.String()+")",
-				jsTypeDerefString(f.source.GetSourceFileName()),
+				sourceName,
 				f.source.GetLineno(),
 				f.source.GetCharno())
 			continue
@@ -713,18 +714,6 @@ func (f *FunctionTypeBase) ResolveTypeListHelper(list []ObjectType, reporter Err
 		return resolvedList
 	}
 	return nil
-}
-
-// jsTypeDerefString passes a nullable String to an API that takes a Go
-// string; null becomes "".
-//
-// Go-only: language-adapter — ErrorReporter takes a Go string for the
-// nullable source name.
-func jsTypeDerefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // IsAmbiguousConstructor returns true if the constructor does not come from
@@ -793,6 +782,6 @@ var FunctionType_DELEGATE_SUFFIX = ObjectType_CreateDelegateSuffix("Proxy")
 func (f *FunctionTypeBase) IsDelegateProxy() bool {
 	// TODO(bradfordcsmith): There should be a better way to determine that we
 	// have a proxy type.
-	name, ok := f.referenceNameString()
+	name, ok := f.ReferenceName()
 	return ok && strings.HasSuffix(name, FunctionType_DELEGATE_SUFFIX)
 }

@@ -220,49 +220,49 @@ func scopeVarSlot(scope *Scope, v *Var) int {
 	return slices.Index(scope.varList, v)
 }
 
-func (b *InlineVariables_InliningBehavior) recordHandledVar(v *Var, hv inlineVariables_handledVar) {
-	if b.mode == InlineVariables_Mode_CONSTANTS_ONLY {
+func (iv *InlineVariables) recordHandledVar(v *Var, hv inlineVariables_handledVar) {
+	if iv.mode == InlineVariables_Mode_CONSTANTS_ONLY {
 		return
 	}
 	handledPtr := &hv
-	if scope := b.currentScope; v != nil && scope != nil && v.scope == scope {
+	if scope := iv.currentScope; v != nil && scope != nil && v.scope == scope {
 		if slot := scopeVarSlot(scope, v); slot >= 0 {
-			b.handledScopeVars[slot] = hv
-			handledPtr = &b.handledScopeVars[slot]
+			iv.handledScopeVars[slot] = hv
+			handledPtr = &iv.handledScopeVars[slot]
 		}
 	}
 	// Retry any aliases we saw before handling this Var
-	b.RetryAliases(v, handledPtr)
+	iv.RetryAliases(v, handledPtr)
 }
 
-func (b *InlineVariables_InliningBehavior) getHandledVar(scope *Scope, aliasedVar *Var) *inlineVariables_handledVar {
-	if aliasedVar == nil || aliasedVar.scope != scope || scope != b.currentScope {
+func (iv *InlineVariables) getHandledVar(scope *Scope, aliasedVar *Var) *inlineVariables_handledVar {
+	if aliasedVar == nil || aliasedVar.scope != scope || scope != iv.currentScope {
 		return nil
 	}
-	if slot := scopeVarSlot(scope, aliasedVar); slot >= 0 && b.handledScopeVars[slot].state != handledVarUnseen {
-		return &b.handledScopeVars[slot]
+	if slot := scopeVarSlot(scope, aliasedVar); slot >= 0 && iv.handledScopeVars[slot].state != handledVarUnseen {
+		return &iv.handledScopeVars[slot]
 	}
 	return nil
 }
 
-func (b *InlineVariables_InliningBehavior) initScratchVarExpert(
+func (iv *InlineVariables) initScratchVarExpert(
 	v *Var,
 	referenceInfo *ReferenceCollection,
 	isDeclaredOrInferredConstant bool,
 	mayBeAParameterModifiedViaArguments bool,
 ) *inlineVariables_standardVarExpert {
-	b.scratchExpert = inlineVariables_standardVarExpert{
-		outer:                               b,
+	iv.scratchExpert = inlineVariables_standardVarExpert{
+		outer:                               iv,
 		v:                                   v,
 		referenceInfo:                       referenceInfo,
 		declaration:                         referenceInfo.getRef(0),
 		isDeclaredOrInferredConstant:        isDeclaredOrInferredConstant,
 		mayBeAParameterModifiedViaArguments: mayBeAParameterModifiedViaArguments,
 	}
-	return &b.scratchExpert
+	return &iv.scratchExpert
 }
 
-func (b *InlineVariables_InliningBehavior) allocRetryExpert(
+func (iv *InlineVariables) allocRetryExpert(
 	src *inlineVariables_standardVarExpert,
 ) *inlineVariables_standardVarExpert {
 	e := &inlineVariables_standardVarExpert{}
@@ -271,49 +271,49 @@ func (b *InlineVariables_InliningBehavior) allocRetryExpert(
 	return e
 }
 
-func (b *InlineVariables_InliningBehavior) allocRetryHandler(
+func (iv *InlineVariables) allocRetryHandler(
 	v *Var,
 	expert *inlineVariables_standardVarExpert,
 ) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
 	return &InlineVariables_InliningBehavior_AliasInlineRetryHandler{
-		outer:  b,
+		outer:  iv,
 		v:      v,
 		expert: expert,
 	}
 }
 
-func (b *InlineVariables_InliningBehavior) putAliasRetryHandler(
+func (iv *InlineVariables) putAliasRetryHandler(
 	aliasedVar *Var,
 	retryHandler *InlineVariables_InliningBehavior_AliasInlineRetryHandler,
 ) {
-	if b.onGlobalAliasRetry != nil && !aliasedVar.IsLocal() {
-		b.hasGlobalAliasRetries = true
-		b.unpinnedRetries++
-		b.onGlobalAliasRetry(aliasedVar, retryHandler)
+	if iv.onGlobalAliasRetry != nil && !aliasedVar.IsLocal() {
+		iv.hasGlobalAliasRetries = true
+		iv.unpinnedRetries++
+		iv.onGlobalAliasRetry(aliasedVar, retryHandler)
 		return
 	}
-	if b.aliasRetryHandlers == nil {
-		b.aliasRetryHandlers = make(map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler, 8)
+	if iv.aliasRetryHandlers == nil {
+		iv.aliasRetryHandlers = make(map[*Var][]*InlineVariables_InliningBehavior_AliasInlineRetryHandler, 8)
 	}
-	b.aliasRetryHandlers[aliasedVar] = append(b.aliasRetryHandlers[aliasedVar], retryHandler)
-	b.unpinnedRetries++
+	iv.aliasRetryHandlers[aliasedVar] = append(iv.aliasRetryHandlers[aliasedVar], retryHandler)
+	iv.unpinnedRetries++
 }
 
 // Java: InlineVariables.InliningBehavior.afterExitScope(NodeTraversal, ReferenceMap)
-func (b *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, referenceMap *ReferenceCollector) {
-	b.DoInlinesForScope(t, referenceMap)
+func (iv *InlineVariables) AfterExitScope(t *NodeTraversal, referenceMap *ReferenceCollector) {
+	iv.DoInlinesForScope(t, referenceMap)
 }
 
 // DoInlinesForScope: for all variables in this scope, see if they are only
 // used once. If it looks safe to do so, inline them.
 //
 // Java: InlineVariables.InliningBehavior.doInlinesForScope(NodeTraversal, ReferenceMap)
-func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, referenceMap *ReferenceCollector) {
+func (iv *InlineVariables) DoInlinesForScope(t *NodeTraversal, referenceMap *ReferenceCollector) {
 	// Any variables we completed in an earlier scope are now out of scope,
 	// so we can clear this slice.
-	clear(b.handledScopeVars)
-	b.handledScopeVars = b.handledScopeVars[:0]
-	b.currentScope = nil
+	clear(iv.handledScopeVars)
+	iv.handledScopeVars = iv.handledScopeVars[:0]
+	iv.currentScope = nil
 	if len(t.scopes) > 0 && t.scopes[len(t.scopes)-1].scope == nil {
 		return
 	}
@@ -322,53 +322,53 @@ func (b *InlineVariables_InliningBehavior) DoInlinesForScope(t *NodeTraversal, r
 		return
 	}
 	isLocalScope := scope.IsLocal()
-	if b.mode == InlineVariables_Mode_LOCALS_ONLY && !isLocalScope && len(b.aliasRetryHandlers) == 0 {
+	if iv.mode == InlineVariables_Mode_LOCALS_ONLY && !isLocalScope && len(iv.aliasRetryHandlers) == 0 {
 		return
 	}
-	if b.mode != InlineVariables_Mode_CONSTANTS_ONLY {
-		b.currentScope = scope
+	if iv.mode != InlineVariables_Mode_CONSTANTS_ONLY {
+		iv.currentScope = scope
 		nVars := len(scope.varList)
-		b.handledScopeVars = slices.Grow(b.handledScopeVars, nVars)[:nVars]
+		iv.handledScopeVars = slices.Grow(iv.handledScopeVars, nVars)[:nVars]
 	}
 	mayBeAParameterModifiedViaArguments :=
-		b.VarsInThisScopeMayBeModifiedUsingArguments(scope, referenceMap)
+		iv.VarsInThisScopeMayBeModifiedUsingArguments(scope, referenceMap)
 	for i := 0; i < len(scope.varList); i++ {
 		v := scope.varList[i]
 		if v == nil {
 			continue
 		}
-		if b.mode == InlineVariables_Mode_CONSTANTS_ONLY && !inlineVariables_isDeclaredOrInferredConst(v) {
+		if iv.mode == InlineVariables_Mode_CONSTANTS_ONLY && !inlineVariables_isDeclaredOrInferredConst(v) {
 			continue
 		}
 		referenceInfo := referenceMap.GetReferences(v)
-		isConst, bailoutState, bailedOut := b.checkScopeVarEligibility(v, referenceInfo, isLocalScope)
+		isConst, bailoutState, bailedOut := iv.checkScopeVarEligibility(v, referenceInfo, isLocalScope)
 		if bailedOut {
-			b.recordHandledVar(v, inlineVariables_handledVar{state: bailoutState})
+			iv.recordHandledVar(v, inlineVariables_handledVar{state: bailoutState})
 			continue
 		}
-		expert := b.initScratchVarExpert(v, referenceInfo, isConst, mayBeAParameterModifiedViaArguments)
+		expert := iv.initScratchVarExpert(v, referenceInfo, isConst, mayBeAParameterModifiedViaArguments)
 		expert.Analyze()
 		if expert.ShouldWaitForAliasedVar() {
 			// We need to wait for the aliased variable to be handled.
 			aliasedVar := expert.GetAliasedVar()
-			if aliasedHandled := b.getHandledVar(scope, aliasedVar); aliasedHandled != nil {
+			if aliasedHandled := iv.getHandledVar(scope, aliasedVar); aliasedHandled != nil {
 				// We've actually already completed the aliased Var
-				b.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedHandled)
+				iv.handleAliasedVarCompletion(v, expert, aliasedVar, aliasedHandled)
 			} else {
 				// wait for completion of the aliased Var
-				if expert == &b.scratchExpert {
-					expert = b.allocRetryExpert(&b.scratchExpert)
+				if expert == &iv.scratchExpert {
+					expert = iv.allocRetryExpert(&iv.scratchExpert)
 				}
-				retryHandler := b.allocRetryHandler(v, expert)
-				b.putAliasRetryHandler(aliasedVar, retryHandler)
+				retryHandler := iv.allocRetryHandler(v, expert)
+				iv.putAliasRetryHandler(aliasedVar, retryHandler)
 			}
 		} else {
-			b.completeVarExpert(v, expert)
+			iv.completeVarExpert(v, expert)
 		}
 	}
 }
 
-func (b *InlineVariables_InliningBehavior) completeVarExpert(
+func (iv *InlineVariables) completeVarExpert(
 	v *Var,
 	expert *inlineVariables_standardVarExpert,
 ) {
@@ -379,10 +379,10 @@ func (b *InlineVariables_InliningBehavior) completeVarExpert(
 	} else {
 		hv = expert.negativeHandledVar()
 	}
-	b.recordHandledVar(v, hv)
+	iv.recordHandledVar(v, hv)
 }
 
-func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
+func (iv *InlineVariables) handleAliasedVarCompletion(
 	v *Var,
 	expert *inlineVariables_standardVarExpert,
 	aliasedVar *Var,
@@ -391,7 +391,7 @@ func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
 	expert.ReanalyzeAfterAliasedVar(aliasedVar, aliasedHandled)
 	jutil.CheckStateMsg1(
 		!expert.ShouldWaitForAliasedVar(), "expert for %s asked to wait a second time", v)
-	b.completeVarExpert(v, expert)
+	iv.completeVarExpert(v, expert)
 }
 
 var inlineVariablesApplyID = uint32(strpool.Intern("apply"))
@@ -408,13 +408,13 @@ var inlineVariablesApplyID = uint32(strpool.Intern("apply"))
 // issues or simply don't support them ("with" for instance).
 //
 // Java: InlineVariables.InliningBehavior.varsInThisScopeMayBeModifiedUsingArguments(Scope, ReferenceMap)
-func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArguments(
+func (iv *InlineVariables) VarsInThisScopeMayBeModifiedUsingArguments(
 	scope *Scope, referenceMap *ReferenceCollector) bool {
 	if scope.IsFunctionScope() && !scope.GetRootNode().IsArrowFunction() {
 		refs := referenceMap.getReferencesByScopedNameID(scope.GetRootNode(), implicitArgumentsID)
 		if refs != nil && len(refs.references) > 0 {
 			for _, ref := range refs.references {
-				if !b.IsSafeUseOfArguments(ref.GetNode()) {
+				if !iv.IsSafeUseOfArguments(ref.GetNode()) {
 					return true
 				}
 			}
@@ -424,21 +424,21 @@ func (b *InlineVariables_InliningBehavior) VarsInThisScopeMayBeModifiedUsingArgu
 }
 
 // Java: InlineVariables.InliningBehavior.retryAliases(Var, InlineVarAnalysis)
-func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliasedHandled *inlineVariables_handledVar) {
-	if len(b.aliasRetryHandlers) == 0 {
+func (iv *InlineVariables) RetryAliases(aliasedVar *Var, aliasedHandled *inlineVariables_handledVar) {
+	if len(iv.aliasRetryHandlers) == 0 {
 		return
 	}
-	handlers, ok := b.aliasRetryHandlers[aliasedVar]
+	handlers, ok := iv.aliasRetryHandlers[aliasedVar]
 	if !ok {
 		return
 	}
-	delete(b.aliasRetryHandlers, aliasedVar)
-	if len(b.aliasRetryHandlers) == 0 {
-		b.unpinnedRetries = 0
-	} else if b.unpinnedRetries >= len(handlers) {
-		b.unpinnedRetries -= len(handlers)
+	delete(iv.aliasRetryHandlers, aliasedVar)
+	if len(iv.aliasRetryHandlers) == 0 {
+		iv.unpinnedRetries = 0
+	} else if iv.unpinnedRetries >= len(handlers) {
+		iv.unpinnedRetries -= len(handlers)
 	} else {
-		b.unpinnedRetries = 0
+		iv.unpinnedRetries = 0
 	}
 	for _, aliasInlineRetryHandler := range handlers {
 		aliasInlineRetryHandler.HandleAliasedVarCompletion(aliasedVar, aliasedHandled)
@@ -448,7 +448,7 @@ func (b *InlineVariables_InliningBehavior) RetryAliases(aliasedVar *Var, aliased
 // InlineVariables_InliningBehavior_AliasInlineRetryHandler retries inlining
 // an alias variable after the original variable has been dealt with.
 type InlineVariables_InliningBehavior_AliasInlineRetryHandler struct {
-	outer *InlineVariables_InliningBehavior
+	outer *InlineVariables
 
 	v      *Var
 	expert *inlineVariables_standardVarExpert
@@ -489,7 +489,7 @@ const (
 // determine whether it should be inlined, how to do the inlining, and
 // whether it's OK to inline aliases of the variable.
 type inlineVariables_standardVarExpert struct {
-	outer *InlineVariables_InliningBehavior
+	outer *InlineVariables
 
 	v                                   *Var
 	referenceInfo                       *ReferenceCollection

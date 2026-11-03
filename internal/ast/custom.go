@@ -470,10 +470,7 @@ func (x TemplateLitString) Raw() string { return x.node.GetRawString() }
 // Cooked returns the cooked text of x (escapes processed); ok is false if
 // it has none (an invalid escape in a tagged template).
 func (x TemplateLitString) Cooked() (s string, ok bool) {
-	if p := x.node.GetCookedString(); p != nil {
-		return *p, true
-	}
-	return "", false
+	return x.node.CookedString()
 }
 
 // ComputedMembers yields the computed members (ComputedProp and

@@ -438,13 +438,13 @@ func (r *SimpleReference[T]) GetSourceFile() StaticSourceFile {
 
 // Java: SimpleReference.toString()
 func (r *SimpleReference[T]) String() string {
-	var sourceName *string
-	if !r.node.IsNil() {
-		sourceName = r.node.GetSourceFileName()
-	}
+	sourceName := "null"
 	lineNo := -1
 	if !r.node.IsNil() {
+		if name, ok := r.node.SourceFileName(); ok {
+			sourceName = name
+		}
 		lineNo = r.node.GetLineno()
 	}
-	return jutil.ToJavaString(r.node.GetQualifiedName()) + "@" + jutil.ToJavaString(sourceName) + ":" + jutil.ToJavaString(lineNo)
+	return jutil.ToJavaString(r.node.GetQualifiedName()) + "@" + sourceName + ":" + jutil.ToJavaString(lineNo)
 }

@@ -19,6 +19,7 @@
 package sourcemap
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -80,34 +81,32 @@ func (*SourceMapConsumerV3_DefaultSourceMapSupplier) GetSourceMap(url string) (s
 
 // Parse parses the given contents containing a source map.
 func (c *SourceMapConsumerV3) Parse(contents string) error {
-	if err := c.tryParseThrowable(contents); err != nil {
-		return err
-	}
-	return nil
-}
-
-// TryParse parses the given contents containing a source map, returning a
-// *SourceMapParseException instead of panicking on malformed source maps.
-func (c *SourceMapConsumerV3) TryParse(contents string) *SourceMapParseException {
-	err := c.tryParseThrowable(contents)
-	if err == nil {
-		return nil
-	}
-	if sm, ok := err.(*SourceMapParseException); ok {
-		return sm
-	}
-	return NewSourceMapParseException(err.GetMessage())
-}
-
-func (c *SourceMapConsumerV3) tryParseThrowable(contents string) jutil.Throwable {
-	sourceMapObject, err := parseSourceMapObject(contents)
+	sourceMapObject, err := ParseSourceMapObject(contents)
 	if err != nil {
 		return err
 	}
 	return c.tryParseSourceMapObject(sourceMapObject, nil)
 }
 
-func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) jutil.Throwable {
+// TryParse parses the given contents containing a source map, returning a
+// *SourceMapParseException instead of panicking on malformed source maps.
+func (c *SourceMapConsumerV3) TryParse(contents string) *SourceMapParseException {
+	err := c.Parse(contents)
+	if err == nil {
+		return nil
+	}
+	var sm *SourceMapParseException
+	if errors.As(err, &sm) {
+		return sm
+	}
+	var t jutil.Throwable
+	if errors.As(err, &t) {
+		return NewSourceMapParseException(t.GetMessage())
+	}
+	return NewSourceMapParseException(err.Error())
+}
+
+func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) error {
 	if sourceMapObject == nil {
 		return jutil.NewNullPointerException()
 	}
@@ -189,7 +188,7 @@ type metaSegment struct {
 	endCol    int32
 }
 
-func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) jutil.Throwable {
+func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) error {
 	if sourceMapObject == nil {
 		return jutil.NewNullPointerException()
 	}
@@ -212,7 +211,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		offLine, offCol int32,
 		srcName OptionalString, symName OptionalString,
 		origLine, origCol, startLine, startCol, endLine, endCol int32,
-	) jutil.Throwable {
+	) error {
 		if !srcName.Valid || origLine < 0 {
 			return nil
 		}
@@ -291,7 +290,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 			return jutil.NewIllegalStateException()
 		}
 		sectionConsumer := NewSourceMapConsumerV3()
-		if err := sectionConsumer.tryParseThrowable(mapText); err != nil {
+		if err := sectionConsumer.Parse(mapText); err != nil {
 			return err
 		}
 
@@ -345,7 +344,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	}
 
 	maxEndLine := 0
-	if err := traverseMetaSegments(segments, func(m *metaSegment, line, col, nextLine, nextCol int) jutil.Throwable {
+	if err := traverseMetaSegments(segments, func(m *metaSegment, line, col, nextLine, nextCol int) error {
 		if m != nil && int(m.endLine) > maxEndLine {
 			maxEndLine = int(m.endLine)
 		}
@@ -384,7 +383,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		prevInLine = sourceMapConsumerV3_entry{}
 	}
 
-	if err := traverseMetaSegments(segments, func(m *metaSegment, line, col, nextLine, nextCol int) jutil.Throwable {
+	if err := traverseMetaSegments(segments, func(m *metaSegment, line, col, nextLine, nextCol int) error {
 		if line != nextLine || col != nextCol {
 			if line < maxLine {
 				e := sourceMapConsumerV3_entry{
@@ -451,12 +450,12 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	return nil
 }
 
-func traverseMetaSegments(segments []metaSegment, visit func(m *metaSegment, line, col, nextLine, nextCol int) jutil.Throwable) jutil.Throwable {
+func traverseMetaSegments(segments []metaSegment, visit func(m *metaSegment, line, col, nextLine, nextCol int) error) error {
 	var stackBuf [16]metaSegment
 	stack := stackBuf[:0]
 	tLine, tCol := 0, 0
 
-	emit := func(m *metaSegment, nextLine, nextCol int) jutil.Throwable {
+	emit := func(m *metaSegment, nextLine, nextCol int) error {
 		if !(tLine <= nextLine && (tLine < nextLine || tCol < nextCol)) {
 			return jutil.NewIllegalStateException()
 		}
@@ -468,7 +467,7 @@ func traverseMetaSegments(segments []metaSegment, visit func(m *metaSegment, lin
 		return nil
 	}
 
-	maybeVisit := func(m *metaSegment) jutil.Throwable {
+	maybeVisit := func(m *metaSegment) error {
 		nextLine := int(m.endLine)
 		nextCol := int(m.endCol)
 		if tLine < nextLine || (tLine == nextLine && tCol < nextCol) {
@@ -516,15 +515,15 @@ func traverseMetaSegments(segments []metaSegment, visit func(m *metaSegment, lin
 	return nil
 }
 
-func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied string, ok bool, parseErr jutil.Throwable) {
+func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied string, ok bool, parseErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			if ex, isIO := r.(jutil.IIOException); isIO {
 				parseErr = NewSourceMapParseException("IO exception: " + ex.Error())
 				return
 			}
-			if t, isT := r.(jutil.Throwable); isT {
-				parseErr = t
+			if err, isErr := r.(error); isErr {
+				parseErr = err
 				return
 			}
 			panic(r)

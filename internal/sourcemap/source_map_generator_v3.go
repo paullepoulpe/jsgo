@@ -20,6 +20,7 @@ package sourcemap
 
 import (
 	"io"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -324,7 +325,7 @@ func (g *SourceMapGeneratorV3) ShareConfigFrom(other *SourceMapGeneratorV3) {
 	if other == nil {
 		return
 	}
-	g.sourceFileContentMap = other.sourceFileContentMap
+	g.sourceFileContentMap = maps.Clone(other.sourceFileContentMap)
 	g.sourceRootPath = other.sourceRootPath
 	if len(other.extensions) > 0 {
 		g.extensions = slices.Clone(other.extensions)

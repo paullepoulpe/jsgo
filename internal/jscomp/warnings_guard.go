@@ -327,7 +327,7 @@ func (g *CheckTypeSummaryWarningsGuard) GetPriority() int {
 //
 // Java: CheckTypeSummaryWarningsGuard.inTypeSummary(JSError)
 func (g *CheckTypeSummaryWarningsGuard) InTypeSummary(error *JSError) bool {
-	src, ok := error.SourceNameOpt()
+	src, ok := error.SourceName()
 	return ok && strings.HasSuffix(src, ".i.js")
 }
 
@@ -413,7 +413,7 @@ func ByPathWarningsGuard_ExceptPath(
 
 // Java: ByPathWarningsGuard.level(JSError)
 func (g *ByPathWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
-	src, hasPath := error.SourceNameOpt()
+	src, hasPath := error.SourceName()
 	defaultLevel := error.DefaultLevel()
 	if defaultLevel != CheckLevel_ERROR && hasPath {
 		inPath := false
@@ -570,7 +570,7 @@ func NewJ2clSuppressWarningsGuard() *J2clSuppressWarningsGuard {
 
 // Java: J2clSuppressWarningsGuard.level(JSError)
 func (g *J2clSuppressWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
-	if !J2clSourceUtils_IsJ2clSource(error.SourceName()) {
+	if src, ok := error.SourceName(); !ok || !J2clSourceUtils_IsJ2clSource(src) {
 		return 0, false
 	}
 
@@ -659,7 +659,7 @@ func NewDiagnosticGroupPathSuppressingWarningsGuard(group *DiagnosticGroup, part
 //
 // Java: DiagnosticGroupPathSuppressingWarningsGuard.level(JSError)
 func (g *DiagnosticGroupPathSuppressingWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
-	src, ok := error.SourceNameOpt()
+	src, ok := error.SourceName()
 	if !ok || !strings.Contains(src, g.part) {
 		return 0, false
 	}

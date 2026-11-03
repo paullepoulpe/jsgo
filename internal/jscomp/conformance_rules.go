@@ -366,11 +366,8 @@ func (b *ConformanceRules_AbstractRule) Report(
 	err := JSError_MakeWithRequirement(b.requirement, n, msg, b.message, separator, result.note)
 
 	var allowlist *ConformanceRules_AllowList
-	sourcePath := ""
-	hasPath := false
-	if p := NodeUtil_GetSourceName(n); p != nil {
-		sourcePath = *p
-		hasPath = true
+	sourcePath, hasPath := NodeUtil_SourceName(n)
+	if hasPath {
 		allowlist = b.FindAllowListForPath(sourcePath)
 	}
 	isAllowlisted :=

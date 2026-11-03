@@ -2147,3 +2147,36 @@ func symbolTableTest_count[T any](list []T, pred func(T) bool) int64 {
 	}
 	return n
 }
+
+func TestSymbolTable_GoOnly_GetSymbolForNameModuleScopeWithoutMetadata(t *testing.T) {
+	compiler := NewCompilerWithErrorManager(NewBlackHoleErrorManager())
+	compiler.InitOptions(NewCompilerOptions())
+	st := NewSymbolTable(compiler, compiler.GetTypeRegistry())
+
+	root := rhino.NewNode(rhino.Token_ROOT)
+	script := rhino.NewNode(rhino.Token_SCRIPT)
+	script.SetSourceFileForTesting("unregistered_module.js")
+	moduleBody := rhino.NewNode(rhino.Token_MODULE_BODY)
+	moduleBody.SetSourceFileForTesting("unregistered_module.js")
+	decl := rhino.IR_Name("localSym")
+	decl.SetSourceFileForTesting("unregistered_module.js")
+	moduleBody.AddChildToBack(decl)
+	script.AddChildToBack(moduleBody)
+	root.AddChildToBack(script)
+
+	globalScope := NewSymbolTable_SymbolScope(root, nil, nil, nil)
+	st.scopes.Put(root, globalScope)
+	st.globalScope = globalScope
+	modScope := NewSymbolTable_SymbolScope(moduleBody, globalScope, nil, nil)
+	st.scopes.Put(moduleBody, modScope)
+	sym := st.declareSymbol("localSym", nil, true, modScope, decl, nil)
+
+	// compiler.GetModuleMetadataMap() is nil here; GetSymbolForName must not panic
+	// and must still resolve unqualified symbols in module scope.
+	if got := st.GetSymbolForName(decl, "localSym"); got != sym {
+		t.Fatalf("GetSymbolForName(decl, \"localSym\") = %v, want %v", got, sym)
+	}
+	if got := st.GetSymbolForName(decl, "missingSym"); got != nil {
+		t.Fatalf("GetSymbolForName(decl, \"missingSym\") = %v, want nil", got)
+	}
+}

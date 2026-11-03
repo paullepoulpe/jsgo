@@ -54,7 +54,7 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 	jsonWriter := jutil.NewJsonWriter(&bufferedStream)
 	jsonWriter.BeginArray()
 	for _, message := range manager.GetSortedDiagnostics() {
-		sourceName, hasSourceName := message.Error.SourceNameOk()
+		sourceName, hasSourceName := message.Error.SourceName()
 		lineNumber := message.Error.GetLineNumber()
 		charno := message.Error.Charno()
 

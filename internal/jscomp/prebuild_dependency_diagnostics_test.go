@@ -45,10 +45,7 @@ func (r *prebuildDependencyCallbackRecorder) record(kind string, level CheckLeve
 	if testGoroutineID() != r.owner {
 		r.offOwner.Store(true)
 	}
-	source := ""
-	if error.SourceName() != nil {
-		source = *error.SourceName()
-	}
+	source, _ := error.SourceName()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.events = append(r.events, prebuildDependencyCallback{kind, source, level})

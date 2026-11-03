@@ -258,7 +258,7 @@ func (tc *TypeCheck) CheckDeclaredPropertyAgainstNominalInheritance(
 							n,
 							TypeCheck_HIDDEN_SUPERCLASS_PROPERTY,
 							propertyName.HumanReadableName(),
-							stringPtrOrNull(superClass.GetReferenceName())))
+							jutil.ToJavaString(superClass.GetReferenceName())))
 				}
 				tc.validator.CheckPropertyType(
 					n, ctorType.GetTypeOfThis(), superClass, propertyName, propertyType)
@@ -281,7 +281,7 @@ func (tc *TypeCheck) CheckDeclaredPropertyAgainstNominalInheritance(
 					n,
 					TypeCheck_HIDDEN_INTERFACE_PROPERTY,
 					propertyName.HumanReadableName(),
-					stringPtrOrNull(propSlot.GetOwnerInstanceType().GetReferenceName())))
+					jutil.ToJavaString(propSlot.GetOwnerInstanceType().GetReferenceName())))
 		}
 	}
 
@@ -291,7 +291,7 @@ func (tc *TypeCheck) CheckDeclaredPropertyAgainstNominalInheritance(
 				n,
 				TypeCheck_UNKNOWN_OVERRIDE,
 				propertyName.HumanReadableName(),
-				stringPtrOrNull(ctorType.GetInstanceType().GetReferenceName())))
+				jutil.ToJavaString(ctorType.GetInstanceType().GetReferenceName())))
 	}
 }
 

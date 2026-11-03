@@ -100,10 +100,10 @@ func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterf
 // Java: ConvertToTypedInterface.maybeReport(AbstractCompiler, Node, DiagnosticType, String...)
 func ConvertToTypedInterface_MaybeReport(
 	compiler AbstractCompiler, node rhino.Node, diagnostic *DiagnosticType, fillers ...string) {
-	if sourceName := NodeUtil_GetSourceName(node); sourceName != nil &&
-		(strings.HasSuffix(*sourceName, "_test.js") ||
-			strings.HasSuffix(*sourceName, "_test.closure.js") ||
-			strings.HasSuffix(*sourceName, "_test.tsx.cl.js")) {
+	if sourceName, ok := NodeUtil_SourceName(node); ok &&
+		(strings.HasSuffix(sourceName, "_test.js") ||
+			strings.HasSuffix(sourceName, "_test.closure.js") ||
+			strings.HasSuffix(sourceName, "_test.tsx.cl.js")) {
 		// Allow _test.js files and their tsickle generated
 		// equivalents to avoid emitting errors at .i.js generation time.
 		// We expect these files to not be consumed by any other downstream libraries.
@@ -363,7 +363,9 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n r
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n, t)
 	case rhino.Token_BLOCK:
-		if !parent.IsFunction() {
+		if parent.IsClassMembers() {
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+		} else if !parent.IsFunction() {
 			parent.AddChildrenAfter(n.RemoveChildren(), n)
 			n.Detach()
 			t.ReportCodeChangeWithNode(parent)

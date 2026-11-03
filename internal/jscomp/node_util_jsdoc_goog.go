@@ -70,17 +70,18 @@ func NodeUtil_DeleteNode(n rhino.Node, compiler AbstractCompiler) {
 	compiler.ReportChangeToEnclosingScope(parent)
 }
 
-// NodeUtil_GetSourceName returns the source name property on the node or its
-// ancestors.
+// NodeUtil_SourceName returns the source name property on the node or its
+// ancestors, or ("", false) if none is present.
 //
 // Java: NodeUtil.getSourceName(Node)
-func NodeUtil_GetSourceName(n rhino.Node) *string {
-	var sourceName *string
-	for sourceName == nil && !n.IsNil() {
-		sourceName = n.GetSourceFileName()
+func NodeUtil_SourceName(n rhino.Node) (string, bool) {
+	for !n.IsNil() {
+		if sourceName, ok := n.SourceFileName(); ok {
+			return sourceName, true
+		}
 		n = n.GetParent()
 	}
-	return sourceName
+	return "", false
 }
 
 // NodeUtil_GetSourceFile returns the source name property on the node or its

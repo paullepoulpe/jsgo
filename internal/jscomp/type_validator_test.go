@@ -841,3 +841,19 @@ func TestHasDuplicateDeclarationSuppressionZeroAllocAndCustomGuard(t *testing.T)
 		t.Fatal("expected custom WarningsGuard fallback to receive decl on probe JSError")
 	}
 }
+
+// Go-only: regression test — OPTCHAIN_GETELEM index mismatch attaches diagnostic to index expression, not receiver.
+func (c *TypeValidatorTest) TestOptChainGetElemIndexMismatchReportsIndexNode() {
+	c.TestWarning(
+		`/** @type {!Array<number>|undefined} */
+let arr;
+const badIdx = 'not_a_number';
+arr?.[badIdx];
+`,
+		TypeValidator_TYPE_MISMATCH_WARNING)
+	warnings := c.GetLastCompiler().GetWarnings()
+	AssertThat(len(warnings)).IsEqualTo(1)
+	errNode := warnings[0].Node()
+	AssertThat(errNode.IsName()).IsTrue()
+	AssertThat(errNode.GetString()).IsEqualTo("badIdx")
+}

@@ -481,11 +481,9 @@ func (n Node) GetQualifiedNameObject() QualifiedName {
 // Java: Node.getOriginalQualifiedName()
 func (n Node) GetOriginalQualifiedName() *string {
 	if n.rec().token == Token_NAME {
-		var name string
-		if n.GetOriginalName() == nil {
+		name, ok := n.OriginalName()
+		if !ok {
 			name = n.GetString()
-		} else {
-			name = *n.GetOriginalName()
 		}
 		if name == "" {
 			return nil
@@ -497,11 +495,9 @@ func (n Node) GetOriginalQualifiedName() *string {
 			return nil
 		}
 
-		var right string
-		if n.GetOriginalName() == nil {
+		right, ok := n.OriginalName()
+		if !ok {
 			right = n.GetString()
-		} else {
-			right = *n.GetOriginalName()
 		}
 
 		s := *left + "." + right

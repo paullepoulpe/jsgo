@@ -150,9 +150,7 @@ func (e *Es6RewriteDestructuring) peekPatternNestingLevel() *patternNestingLevel
 }
 
 func (e *Es6RewriteDestructuring) lastPatternNestingLevel() patternNestingLevel {
-	if len(e.patternNestingStack) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
+	jutil.CheckStateMsg(len(e.patternNestingStack) > 0, "patternNestingStack is empty")
 	return e.patternNestingStack[len(e.patternNestingStack)-1]
 }
 

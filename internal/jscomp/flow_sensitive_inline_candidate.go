@@ -25,26 +25,25 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-// FlowSensitiveInlineVariables_SideEffectPredicate is a Predicate<Node>.
-type FlowSensitiveInlineVariables_SideEffectPredicate struct {
-	outer     *FlowSensitiveInlineVariables
-	defDeps   *MustBeReachingVariableDef_Definition
-	checkDeps bool
-}
-
+// hasSideEffectsInSubtree reports whether the intra-CFG subtree rooted at n
+// contains a side effect (or, when checkDeps is true, mutates a property or a
+// variable that defDeps depends on).
+//
 // Java: FlowSensitiveInlineVariables.SideEffectPredicate.apply(Node)
-func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) bool {
+func (f *FlowSensitiveInlineVariables) hasSideEffectsInSubtree(
+	n rhino.Node, defDeps *MustBeReachingVariableDef_Definition, checkDeps bool,
+) bool {
 	return walkCfgNode(n, func(cur, _ rhino.Node) bool {
-		if p.checkDeps &&
+		if checkDeps &&
 			cur.IsName() &&
-			p.outer.reachingDef.hasDependentNameID(p.defDeps, cur.GetStringID()) &&
+			f.reachingDef.hasDependentNameID(defDeps, cur.GetStringID()) &&
 			NodeUtil_IsLValue(cur) {
 			// the name is being written to. this is a problem, unless it is part of a top-level assign
 			// chain and the write will take place after all CFG node subexpressions are evaluated
-			return !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(cur)
+			return !fsivIsTopLevelAssignTarget(cur)
 		}
 
-		astAnalyzer := p.outer.getAstAnalyzer()
+		astAnalyzer := f.getAstAnalyzer()
 		if (cur.IsCall() || cur.IsOptChainCall() || cur.IsTaggedTemplateLit()) &&
 			astAnalyzer.FunctionCallHasSideEffects(cur) {
 			return true
@@ -56,17 +55,21 @@ func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) b
 			return true
 		}
 		if (cur.IsGetProp() || cur.IsGetElem()) && NodeUtil_IsLValue(cur) {
-			return !p.checkDeps || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(cur)
+			return !checkDeps || !fsivIsTopLevelAssignTarget(cur)
 		}
 		return false
 	})
 }
 
-// FlowSensitiveInlineVariables_IsTopLevelAssignTarget reports whether the
-// given node is the target of a (possibly chained) assignment.
+func (f *FlowSensitiveInlineVariables) hasNodeSideEffects(n rhino.Node) bool {
+	return f.hasSideEffectsInSubtree(n, nil, false)
+}
+
+// fsivIsTopLevelAssignTarget reports whether the given node is the target of a
+// (possibly chained) assignment statement.
 //
 // Java: FlowSensitiveInlineVariables.isTopLevelAssignTarget(Node)
-func FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n rhino.Node) bool {
+func fsivIsTopLevelAssignTarget(n rhino.Node) bool {
 	ancestor := n.GetParent()
 	for ancestor.IsAssign() {
 		ancestor = ancestor.GetParent()
@@ -74,10 +77,10 @@ func FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n rhino.Node) bool {
 	return ancestor.IsExprResult()
 }
 
-// FlowSensitiveInlineVariables_Candidate models the connection between a
-// definition and a use of that definition.
-type FlowSensitiveInlineVariables_Candidate struct {
-	outer *FlowSensitiveInlineVariables
+// flowSensitiveInlineCandidate models the connection between a definition and
+// a use of that definition.
+type flowSensitiveInlineCandidate struct {
+	pass *FlowSensitiveInlineVariables
 
 	// Pool ID of the variable name.
 	nameID uint32
@@ -98,13 +101,13 @@ type FlowSensitiveInlineVariables_Candidate struct {
 }
 
 // Java: FlowSensitiveInlineVariables.Candidate.getDefCfgNode()
-func (c *FlowSensitiveInlineVariables_Candidate) GetDefCfgNode() rhino.Node {
+func (c *flowSensitiveInlineCandidate) getDefCfgNode() rhino.Node {
 	return c.defMetadata.node
 }
 
 // Java: FlowSensitiveInlineVariables.Candidate.canInline(Scope)
-func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
-	defCfgNode := c.GetDefCfgNode()
+func (c *flowSensitiveInlineCandidate) canInline(scope *Scope) bool {
+	defCfgNode := c.getDefCfgNode()
 	// Cannot inline a parameter, or a definition/use detached by an earlier candidate.
 	if !defCfgNode.IsNil() && (defCfgNode.IsFunction() || defCfgNode.GetParent().IsNil()) {
 		return false
@@ -119,7 +122,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	c.GetDefinition(defCfgNode)
+	c.getDefinition(defCfgNode)
 
 	// Definition was not found, or its initializer/RHS was already detached.
 	if c.def.IsNil() || c.def.GetParent().IsNil() {
@@ -139,57 +142,51 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 		return false
 	}
 
-	if c.outer.getAstAnalyzer().MayHaveSideEffects(rhs.Node()) {
+	if c.pass.getAstAnalyzer().MayHaveSideEffects(rhs.Node()) {
 		return false
 	}
 
 	// Make sure that there are no more than one use in the program and in
 	// the CFG node. Even when semantically valid, inlining twice increases
 	// code size.
-	c.GetNumUseInUseCfgNode(c.useCfgNode)
+	c.getNumUseInUseCfgNode(c.useCfgNode)
 	if c.numUsesWithinCfgNode != 1 {
 		return false
-	}
-
-	sideEffectPredicateWithNames := FlowSensitiveInlineVariables_SideEffectPredicate{
-		outer:     c.outer,
-		defDeps:   c.defMetadata,
-		checkDeps: true,
 	}
 
 	// A subexpression evaluated after the variable has a side effect.
 	// Example, for x:
 	// x = readProp(b), modifyProp(b); print(x);
-	if fsivCheckPostExpressions(c.def, c.GetDefCfgNode(), &sideEffectPredicateWithNames) {
+	if c.checkPostExpressions(c.def, defCfgNode) {
 		return false
 	}
 
 	// Similar check as the above but this time, all the sub-expressions
 	// evaluated before the variable.
 	// x = readProp(b); modifyProp(b), print(x);
-	if fsivCheckPreExpressions(c.use, c.useCfgNode, &sideEffectPredicateWithNames) {
+	if c.checkPreExpressions(c.use, c.useCfgNode) {
 		return false
 	}
 
-	if !c.outer.getReachingUses().HasExactlyOneUseByID(c.nameID, c.GetDefCfgNode()) {
+	if !c.pass.getReachingUses().HasExactlyOneUseByID(c.nameID, defCfgNode) {
 		return false
 	}
 
 	// We can skip the side effect check along the paths of two nodes if
 	// they are just next to each other.
-	if NodeUtil_IsStatementBlock(c.GetDefCfgNode().GetParent()) &&
-		c.GetDefCfgNode().GetNext() != c.useCfgNode {
+	if NodeUtil_IsStatementBlock(defCfgNode.GetParent()) &&
+		defCfgNode.GetNext() != c.useCfgNode {
 		// Similar side effect check as above but this time the side effect is
 		// elsewhere along the path.
 		// x = readProp(b); while(modifyProp(b)) {}; print(x);
-		cfg := c.outer.cfg
-		c.outer.pathChecker.ResetLinkedAllEdges(
+		cfg := c.pass.cfg
+		c.pass.pathChecker.ResetLinkedAllEdges(
 			&cfg.LinkedDirectedGraph,
-			cfg.Nodes.Get(c.GetDefCfgNode()),
+			cfg.Nodes.Get(defCfgNode),
 			cfg.Nodes.Get(c.useCfgNode),
-			c.outer.sideEffectPredicateFunc(),
+			c.pass.sideEffectPredicateFunc(),
 			false)
-		if c.outer.pathChecker.SomePathsSatisfyPredicate() {
+		if c.pass.pathChecker.SomePathsSatisfyPredicate() {
 			return false
 		}
 	}
@@ -197,10 +194,10 @@ func (c *FlowSensitiveInlineVariables_Candidate) CanInline(scope *Scope) bool {
 	return true
 }
 
-// InlineVariable performs the actual transformation.
+// inlineVariable performs the actual transformation.
 //
 // Java: FlowSensitiveInlineVariables.Candidate.inlineVariable()
-func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
+func (c *flowSensitiveInlineCandidate) inlineVariable() {
 	defParent := c.def.GetParent()
 	useParent := c.use.GetParent()
 	if assign, ok := ast.AsAssign(c.def); ok {
@@ -209,7 +206,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 		for defParent.GetParent().IsLabel() {
 			defParent = defParent.GetParent()
 		}
-		c.outer.reportChange(defParent)
+		c.pass.reportChange(defParent)
 		defParent.Detach()
 		c.use.ReplaceWith(rhs.Node())
 	} else if decl, ok := ast.AsNameDeclaration(defParent); ok {
@@ -225,12 +222,12 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 	} else {
 		panic(jutil.NewIllegalStateExceptionMsg("No other definitions can be inlined."))
 	}
-	c.outer.reportChange(useParent)
+	c.pass.reportChange(useParent)
 }
 
 // isDefOfVar reports whether n defines the candidate's variable: the
 // variable declared with a value, or an assignment to it.
-func (c *FlowSensitiveInlineVariables_Candidate) isDefOfVar(n rhino.Node) bool {
+func (c *flowSensitiveInlineCandidate) isDefOfVar(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		return n.GetStringID() == c.nameID && n.HasChildren()
@@ -244,7 +241,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) isDefOfVar(n rhino.Node) bool {
 
 // defValueOpt returns the value that the definition assigns, or false if the
 // definition's initializer or RHS has already been detached.
-func (c *FlowSensitiveInlineVariables_Candidate) defValueOpt() (ast.Expr, bool) {
+func (c *flowSensitiveInlineCandidate) defValueOpt() (ast.Expr, bool) {
 	if assign, ok := ast.AsAssign(c.def); ok {
 		v := assign.Value()
 		return v, !v.Node().IsNil()
@@ -257,21 +254,21 @@ func (c *FlowSensitiveInlineVariables_Candidate) defValueOpt() (ast.Expr, bool) 
 
 // defValue returns the value that the definition assigns: the value of an
 // assignment, or the initial value of a declared name.
-func (c *FlowSensitiveInlineVariables_Candidate) defValue() ast.Expr {
+func (c *flowSensitiveInlineCandidate) defValue() ast.Expr {
 	value, ok := c.defValueOpt()
 	jutil.CheckState(ok)
 	return value
 }
 
-// GetDefinition sets the def node.
+// getDefinition sets the def node.
 //
 // n is a node that has a corresponding CFG node in the CFG.
 //
 // Java: FlowSensitiveInlineVariables.Candidate.getDefinition(Node)
-func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n rhino.Node) {
-	jutil.CheckNotNull(c.outer.compiler)
+func (c *flowSensitiveInlineCandidate) getDefinition(n rhino.Node) {
+	jutil.CheckNotNull(c.pass.compiler)
 	if n.IsNil() {
-		throwNilCfgNodeTraversal(c.outer.compiler)
+		throwNilCfgNodeTraversal(c.pass.compiler)
 		return
 	}
 	walkCfgEvalOrder(n, func(cur, _ rhino.Node) {
@@ -290,15 +287,15 @@ func fsivIsAssignChain(child rhino.Node, ancestor rhino.Node) bool {
 	return true
 }
 
-// GetNumUseInUseCfgNode computes the number of uses of the variable varName
+// getNumUseInUseCfgNode computes the number of uses of the variable varName
 // and stores it in numUsesWithinCfgNode.
 //
 // Java: FlowSensitiveInlineVariables.Candidate.getNumUseInUseCfgNode(Node)
-func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode rhino.Node) {
+func (c *flowSensitiveInlineCandidate) getNumUseInUseCfgNode(cfgNode rhino.Node) {
 	c.numUsesWithinCfgNode = 0
-	jutil.CheckNotNull(c.outer.compiler)
+	jutil.CheckNotNull(c.pass.compiler)
 	if cfgNode.IsNil() {
-		throwNilCfgNodeTraversal(c.outer.compiler)
+		throwNilCfgNodeTraversal(c.pass.compiler)
 		return
 	}
 	walkCfgNode(cfgNode, func(n, parent rhino.Node) bool {
@@ -311,11 +308,11 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode r
 	})
 }
 
-func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node, usageScope *Scope) bool {
+func (c *flowSensitiveInlineCandidate) hasOutOfScopeName(n rhino.Node, usageScope *Scope) bool {
 	if n.IsName() {
 		id := n.GetStringID()
 		if id > strpool.EmptyID && usageScope.GetVarByID(id) == nil {
-			if c.outer == nil || !c.outer.hasEnclosingSlotByID(id) {
+			if c.pass == nil || !c.pass.hasEnclosingSlotByID(id) {
 				return true
 			}
 		}
@@ -328,28 +325,26 @@ func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node,
 	return false
 }
 
-// IsRhsSafeToInline checks if the definition we're considering inlining has
+// isRhsSafeToInline checks if the definition we're considering inlining has
 // anything that makes inlining unsafe (that hasn't already been caught).
 //
 // Java: FlowSensitiveInlineVariables.Candidate.isRhsSafeToInline(Scope)
-func (c *FlowSensitiveInlineVariables_Candidate) IsRhsSafeToInline(usageScope *Scope) bool {
+func (c *flowSensitiveInlineCandidate) isRhsSafeToInline(usageScope *Scope) bool {
 	rhs, ok := c.defValueOpt()
 	return ok && c.isRhsNodeSafeToInline(rhs.Node(), usageScope)
 }
 
-func (c *FlowSensitiveInlineVariables_Candidate) isRhsNodeSafeToInline(rhs rhino.Node, usageScope *Scope) bool {
+func (c *flowSensitiveInlineCandidate) isRhsNodeSafeToInline(rhs rhino.Node, usageScope *Scope) bool {
 	if unsafe, _ := fsivInspectRhs(rhs); unsafe {
 		return false
 	}
 	return !c.hasOutOfScopeName(rhs, usageScope)
 }
 
-func fsivCheckPostExpressions(
-	n rhino.Node, expressionRoot rhino.Node, predicate *FlowSensitiveInlineVariables_SideEffectPredicate,
-) bool {
+func (c *flowSensitiveInlineCandidate) checkPostExpressions(n rhino.Node, expressionRoot rhino.Node) bool {
 	for p := n; p != expressionRoot; p = p.GetParent() {
 		for cur := p.GetNext(); !cur.IsNil(); cur = cur.GetNext() {
-			if predicate.Apply(cur) {
+			if c.pass.hasSideEffectsInSubtree(cur, c.defMetadata, true) {
 				return true
 			}
 		}
@@ -357,21 +352,19 @@ func fsivCheckPostExpressions(
 	return false
 }
 
-func fsivCheckPreExpressions(
-	n rhino.Node, expressionRoot rhino.Node, predicate *FlowSensitiveInlineVariables_SideEffectPredicate,
-) bool {
+func (c *flowSensitiveInlineCandidate) checkPreExpressions(n rhino.Node, expressionRoot rhino.Node) bool {
 	for p := n; p != expressionRoot; p = p.GetParent() {
 		oldestSibling := p.GetParent().GetFirstChild()
 		if oldestSibling.IsDestructuringPattern() {
 			if p.IsDestructuringPattern() {
-				if !p.GetNext().IsNil() && predicate.Apply(p.GetNext()) {
+				if !p.GetNext().IsNil() && c.pass.hasSideEffectsInSubtree(p.GetNext(), c.defMetadata, true) {
 					return true
 				}
 			}
 			continue
 		}
 		for cur := oldestSibling; cur != p; cur = cur.GetNext() {
-			if predicate.Apply(cur) {
+			if c.pass.hasSideEffectsInSubtree(cur, c.defMetadata, true) {
 				return true
 			}
 		}

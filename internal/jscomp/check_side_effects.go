@@ -332,8 +332,7 @@ func (s *CheckSideEffects_StripProtection) Visit(t *NodeTraversal, n rhino.Node,
 		targetID := target.GetStringID()
 		if targetID == checkSideEffectsJ2clProtectorID {
 			// Do not let non-J2CL code abuse it.
-			jutil.CheckStateMsg(
-				J2clSourceUtils_IsJ2clSource(n.GetSourceFileName()), "Only allowed for J2CL code")
+			jutil.CheckStateMsg(nodeHasJ2clSource(n), "Only allowed for J2CL code")
 			NodeUtil_DeleteFunctionCall(n, s.compiler)
 			return
 		}

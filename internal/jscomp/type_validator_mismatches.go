@@ -475,7 +475,7 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 	case *ClosureUnawareCodeWarningsGuard:
 		return 0, false
 	case *J2clSuppressWarningsGuard:
-		if !J2clSourceUtils_IsJ2clSource(decl.GetSourceFileName()) {
+		if !nodeHasJ2clSource(decl) {
 			return 0, false
 		}
 		if J2clSuppressWarningsGuard_DEFAULT_J2CL_SUPRRESIONS.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {

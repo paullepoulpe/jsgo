@@ -444,10 +444,10 @@ func (ti *TypeInference) UpdateModuleScope(module *Module, syntacticBlockScope *
 			syntacticBlockScope)
 		return
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
-		exportsVar := syntacticBlockScope.GetVarByID(implicitExportsID)
-		if exportsVar == nil {
-			panic(jutil.NewNullPointerExceptionMsg(jutil.StringFormat("Missing exports var for %s", module.Metadata())))
-		}
+		exportsVar := jutil.CheckNotNullMsg1(
+			syntacticBlockScope.GetVarByID(implicitExportsID),
+			"Missing exports var for %s",
+			module.Metadata())
 		var exportsType rhino.JSType
 		if exportsVar.GetType() != nil {
 			exportsType = exportsVar.GetType()
@@ -685,11 +685,8 @@ func (ti *TypeInference) Traverse(n rhino.Node, scope *LinkedFlowScope) *LinkedF
 		isTypeable = false
 	case rhino.Token_CAST:
 		scope = ti.TraverseChildren(n, scope)
-		info := n.GetJSDocInfo()
 		// TODO(b/123955687): also check that info.hasType() is true
-		if info == nil {
-			panic(jutil.NewNullPointerExceptionMsg("CAST node should always have JSDocInfo"))
-		}
+		info := jutil.CheckNotNullMsg(n.GetJSDocInfo(), "CAST node should always have JSDocInfo")
 		if info.HasType() {
 			// NOTE(lharker) - I tried moving CAST type evaluation into the typed scope creation
 			// phase.

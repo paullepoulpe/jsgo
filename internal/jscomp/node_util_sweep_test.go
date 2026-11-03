@@ -561,7 +561,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(isName, func() string { name := NodeUtil_GetOriginalName(n.GetString()); return nodeUtilSweepStr(&name) })
 	field(isFnOrClass, func() string { return nodeUtilSweepStr(NodeUtil_GetName(n)) })
 	field(isFnOrClass, func() string { return s.idx(NodeUtil_GetNameNode(n)) })
-	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetNearestFunctionName(n)) })
+	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_NearestFunctionName(n)) })
 	field(n.IsClass(), func() string { return s.idx(NodeUtil_GetClassMembers(n)) })
 	field(n.IsClass(), func() string { return s.idx(NodeUtil_GetEs6ClassConstructorMemberFunctionDef(n)) })
 	field(NodeUtil_IsRelationalOperation(n), func() string { return nodeUtilSweepTok(NodeUtil_GetInverseOperator(t)) })
@@ -600,7 +600,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(nodeUtilSweepIsObjectOrClassLitKeyToken(n),
 		func() string { return nodeUtilSweepQuote(NodeUtil_GetObjectOrClassLitKeyName(n)) })
 	field(nodeUtilSweepIsObjectOrClassLitKeyToken(n), func() string { return s.idx(NodeUtil_GetObjectOrClassLitKeyNode(n)) })
-	field(true, func() string { return nodeUtilSweepStr(NodeUtil_OpToStr(t)) })
+	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_OpToStr(t)) })
 	field(true, func() string { return NodeUtil_OpToStrNoFail(t) })
 	field(isQName, func() string { return s.idx(NodeUtil_GetRootOfQualifiedName(n)) })
 	field(isQName, func() string {
@@ -646,7 +646,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(isFn || n.IsScript(), func() string { return strconv.Itoa(NodeUtil_CountAstSize(n)) })
 	field(n.IsTry(), func() string { return s.idx(NodeUtil_GetCatchBlock(n)) })
 	field(isFn, func() string { return s.idx(NodeUtil_GetFunctionParameters(n)) })
-	field(true, func() string { return nodeUtilSweepStr(NodeUtil_GetSourceName(n)) })
+	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_SourceName(n)) })
 	field(true, func() string {
 		f := NodeUtil_GetSourceFile(n)
 		if f == nil {

@@ -526,15 +526,16 @@ func (i *SourceMapInput) GetOriginalPath() string {
 	return i.sourceFile.GetName()
 }
 
-// GetRawSourceMapContents may return nil.
+// GetRawSourceMapContents returns the raw source map JSON contents and true,
+// or ("", false) if reading the source file failed.
 //
 // Java: SourceMapInput.getRawSourceMapContents()
-func (i *SourceMapInput) GetRawSourceMapContents() *string {
+func (i *SourceMapInput) GetRawSourceMapContents() (string, bool) {
 	code, err := i.sourceFile.getCode()
 	if err != nil {
-		return nil
+		return "", false
 	}
-	return &code
+	return code, true
 }
 
 const sourceMapResolver_BASE64_URL_PREFIX = "data:"

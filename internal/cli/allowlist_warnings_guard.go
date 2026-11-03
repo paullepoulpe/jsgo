@@ -176,7 +176,7 @@ func (g *AllowlistWarningsGuard) FormatWarning(error *jscomp.JSError) string {
 // Java: AllowlistWarningsGuard.formatWarning(JSError, boolean)
 func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError, withMetaData bool) string {
 	var sb strings.Builder
-	if src, ok := error.SourceNameOpt(); ok {
+	if src, ok := error.SourceName(); ok {
 		sb.WriteString(g.NormalizeSourceName(src))
 	} else {
 		sb.WriteString("null")

@@ -156,6 +156,11 @@ func (t *InstanceObjectType) GetReferenceName() *string {
 	return t.GetConstructor().GetReferenceName()
 }
 
+// ReferenceName returns the constructor's reference name without allocating a *string.
+func (t *InstanceObjectType) ReferenceName() (string, bool) {
+	return t.GetConstructor().ReferenceName()
+}
+
 // Java: InstanceObjectType.getImplicitPrototype()
 func (t *InstanceObjectType) GetImplicitPrototype() ObjectType {
 	return t.GetConstructor().GetPrototype()
@@ -186,13 +191,17 @@ func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
 		return
 	}
 
-	name := *ctor.GetReferenceName()
+	name, _ := ctor.ReferenceName()
 	if name == "" {
 		n := ctor.GetSource()
 		sourceFileName := "unknown"
 		lineno := 0
 		if !n.IsNil() {
-			sourceFileName = jutil.ToJavaString(n.GetSourceFileName())
+			if sfName, ok := n.SourceFileName(); ok {
+				sourceFileName = sfName
+			} else {
+				sourceFileName = "null"
+			}
 			lineno = n.GetLineno()
 		}
 		sb.Append("<anonymous@")

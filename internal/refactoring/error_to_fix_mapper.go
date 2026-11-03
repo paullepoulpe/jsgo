@@ -193,11 +193,18 @@ func (m *ErrorToFixMapper) GetFixForEarlyReference(error *jscomp.JSError) *Sugge
 
 // Java: ErrorToFixMapper.getFixForReferenceToShortImportByLongName(JSError)
 func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jscomp.JSError) *SuggestedFix {
+	sourceName, ok := error.SourceName()
+	if !ok {
+		return nil
+	}
+	script := m.compiler.GetScriptNode(sourceName)
+	if script.IsNil() {
+		return nil
+	}
 	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(error.Node(), m.compiler)
 	metadata := NewNodeMetadata(m.compiler)
 	match := NewMatch(error.Node(), metadata)
 
-	script := m.compiler.GetScriptNode(*error.SourceName())
 	scriptMetadata := m.GetMetadataForScript(script)
 
 	fullNameMatcher := errorToFixMapper_FULLY_QUALIFIED_NAME.Matcher(error.Description())
@@ -341,7 +348,14 @@ func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, import
 		error.Node(),
 		namespaceToRequire)
 
-	script := m.compiler.GetScriptNode(*error.SourceName())
+	sourceName, ok := error.SourceName()
+	if !ok {
+		return nil
+	}
+	script := m.compiler.GetScriptNode(sourceName)
+	if script.IsNil() {
+		return nil
+	}
 	scriptMetadata := m.GetMetadataForScript(script)
 
 	metadata := NewNodeMetadata(m.compiler)

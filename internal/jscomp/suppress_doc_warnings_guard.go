@@ -173,7 +173,7 @@ func (g *SuppressDocWarningsGuard) GetCheckLevelFromInfo(error *JSError, info *r
 
 // Java: SuppressDocWarningsGuard.getScriptNodeBySourceName(JSError)
 func (g *SuppressDocWarningsGuard) GetScriptNodeBySourceName(error *JSError) rhino.Node {
-	src, ok := error.SourceNameOpt()
+	src, ok := error.SourceName()
 	if !ok {
 		return rhino.NilNode
 	}

@@ -328,10 +328,12 @@ func (r *RewriteNullishCoalesceOperator) VisitNullishCoalesce(t *NodeTraversal, 
 	// let temp;
 	// ((temp = a()) != null) ? temp : b()
 	tempVarName := RewriteNullishCoalesceOperator_TEMP_VAR_NAME_PREFIX + r.uniqueIdSupplier.GetUniqueId(t.GetInput())
-	enclosingStatement := NodeUtil_GetEnclosingStatement(n)
+	enclosingStatement := ensureBlockBodyAndStatementInsertionPoint(r.compiler, n)
 
-	left := n.RemoveFirstChild()
-	right := n.GetLastChild().Detach()
+	coalesce := ast.MustBinary(n)
+	leftExpr, rightExpr := coalesce.Left(), coalesce.Right()
+	left := leftExpr.Detach().Node()
+	right := rightExpr.Detach().Node()
 
 	let := r.astFactory.CreateSingleLetNameDeclaration(tempVarName)
 	assignName := r.astFactory.CreateName(tempVarName, AstFactory_Type_(left))

@@ -101,20 +101,8 @@ func initOptionalChainRewriter(
 	o.wholeChain = wholeChain
 	o.chainParent = rhino.CheckNotNullMsg1(wholeChain.GetParent(), "%s", wholeChain)
 	o.deletesToDelete = o.deletesToDelete[:0]
-	// Insert temporaries just before the enclosing statement.
-	enclosingStatement := NodeUtil_GetEnclosingStatement(wholeChain)
-	if _, isLabel := ast.AsLabel(enclosingStatement.GetParent()); isLabel {
-		// Do not insert temporaries between a label name and its statement.
-		// e.g. `{ label: for (const a of b?.c) {...}`
-		// AST shape is
-		// BLOCK
-		//      LABEL // parent of enclosingStatement - insert above this
-		//          LABEL_NAME
-		//          enclosingStatement
-		o.insertionPoint = enclosingStatement.GetParent()
-	} else {
-		o.insertionPoint = enclosingStatement
-	}
+	// Insert temporaries just before the enclosing statement (climbing above any enclosing LABELs).
+	o.insertionPoint = statementInsertionPoint(wholeChain)
 }
 
 // Rewrite rewrites the optional chain as a hook with temporary variables
@@ -494,6 +482,7 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) Visit(t *NodeTra
 			c.optChains = c.optChains[:0]
 		}
 	} else if NodeUtil_IsEndOfFullOptChain(n) {
+		ensureArrowBlockBody(c.outer.compiler, n)
 		c.optChains = append(c.optChains, OptionalChainRewriter{})
 		initOptionalChainRewriter(&c.optChains[len(c.optChains)-1], c.outer.compiler, c.astFactory, c.tmpVarNameCreator, nil, n)
 	}

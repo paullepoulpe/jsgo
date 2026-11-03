@@ -139,6 +139,15 @@ func splitSci(s string) (string, int) {
 	return digits, exp
 }
 
+// FormatOptionalString formats a Go (string, bool) optional as Java
+// String.valueOf(String): s when ok is true, or "null" when ok is false.
+func FormatOptionalString(s string, ok bool) string {
+	if !ok {
+		return "null"
+	}
+	return s
+}
+
 // ToJavaString is String.valueOf(Object) for values flowing through Java
 // string concatenation or formatting: nil → "null", float64 →
 // Double.toString, uint16 (Java char) → the character, Stringer → String().

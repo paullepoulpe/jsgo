@@ -34,7 +34,7 @@ type sortingErrorKey struct {
 }
 
 func makeSortingErrorKey(err *JSError, level CheckLevel) sortingErrorKey {
-	source, hasSource := err.SourceNameOpt()
+	source, hasSource := err.SourceName()
 	return sortingErrorKey{
 		level:       level,
 		hasSource:   hasSource,
@@ -259,8 +259,8 @@ func sortingErrorManagerCompare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
 	}
 
 	// sourceName comparison
-	source1, hasSource1 := p1.Error.SourceNameOpt()
-	source2, hasSource2 := p2.Error.SourceNameOpt()
+	source1, hasSource1 := p1.Error.SourceName()
+	source2, hasSource2 := p2.Error.SourceName()
 	if hasSource1 && hasSource2 {
 		if sourceCompare := jutil.StringCompareTo(source1, source2); sourceCompare != 0 {
 			return sourceCompare

@@ -3989,3 +3989,49 @@ func (c *CheckAccessControlsTest) DeprecatedProp(errorMessage string) *CompilerT
 func (c *CheckAccessControlsTest) DeprecatedClass(errorMessage string) *CompilerTestCase_Diagnostic {
 	return c.Error(CheckAccessControls_DEPRECATED_CLASS_REASON).WithMessage(errorMessage)
 }
+
+// Go-only: unit test — BestInstanceTypeForMethodOrCtor must return nil (not nil-panic) when an
+// enclosing OBJECTLIT has a nil JSType, and unreachable untyped computed-method object literals
+// must survive full CheckAccessControls traversal.
+func TestBestInstanceTypeForMethodOrCtorNilObjectLitType(t *testing.T) {
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	compiler.InitOptions(options)
+	script := compiler.ParseTestCode(`const o = {
+  a() {},
+  b: function() {},
+  get c() { return 1; },
+  set c(v) {},
+  [Symbol.iterator]() {},
+};
+`)
+	if compiler.GetErrorCount() != 0 {
+		t.Fatalf("unexpected parse errors: %v", compiler.GetErrors())
+	}
+	cac := NewCheckAccessControls(compiler)
+	objLit := script.GetFirstChild().GetFirstChild().GetFirstChild()
+	if !objLit.IsObjectLit() || objLit.GetJSType() != nil {
+		t.Fatalf("expected untyped OBJECTLIT, got %v (type=%v)", objLit, objLit.GetJSType())
+	}
+	visitedFns := 0
+	for member := objLit.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
+		fn := member.GetLastChild()
+		if !fn.IsFunction() {
+			t.Fatalf("expected FUNCTION child on %v, got %v", member, fn)
+		}
+		if got := cac.BestInstanceTypeForMethodOrCtor(fn); got != nil {
+			t.Fatalf("expected nil instance type for %v in untyped OBJECTLIT, got %v", member, got)
+		}
+		visitedFns++
+	}
+	if visitedFns != 5 {
+		t.Fatalf("expected 5 object-literal function members, visited %d", visitedFns)
+	}
+}
+
+func (c *CheckAccessControlsTest) TestUnreachableComputedMethodObjectLiteralDoesNotCrash() {
+	c.TestSame(`function f() {
+  return;
+  const o = { [Symbol.iterator]() {} };
+}`)
+}

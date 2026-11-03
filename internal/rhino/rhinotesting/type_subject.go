@@ -321,23 +321,20 @@ func (s *TypeSubject) ToStringIsEqualTo(typeString string) {
 // Java: TypeSubject.getReferenceNameIsEqualTo(String)
 func (s *TypeSubject) GetReferenceNameIsEqualTo(referenceName string) {
 	s.t.Helper()
-	s.check("getReferenceName()").
-		That(s.actualNonNull().ToMaybeObjectType().GetReferenceName()).
-		IsEqualTo(referenceName)
-	s.check("hasReferenceName()").
-		That(s.actualNonNull().ToMaybeObjectType().HasReferenceName()).
-		IsTrue()
+	obj := s.actualNonNull().ToMaybeObjectType()
+	name, ok := obj.ReferenceName()
+	s.check("getReferenceName() != null").That(ok).IsTrue()
+	s.check("getReferenceName()").That(name).IsEqualTo(referenceName)
+	s.check("hasReferenceName()").That(obj.HasReferenceName()).IsTrue()
 }
 
 // Java: TypeSubject.getReferenceNameIsNull()
 func (s *TypeSubject) GetReferenceNameIsNull() {
 	s.t.Helper()
-	s.check("getReferenceName()").
-		That(s.actualNonNull().ToMaybeObjectType().GetReferenceName()).
-		IsNull()
-	s.check("hasReferenceName()").
-		That(s.actualNonNull().ToMaybeObjectType().HasReferenceName()).
-		IsFalse()
+	obj := s.actualNonNull().ToMaybeObjectType()
+	_, ok := obj.ReferenceName()
+	s.check("getReferenceName() == null").That(!ok).IsTrue()
+	s.check("hasReferenceName()").That(obj.HasReferenceName()).IsFalse()
 }
 
 // Java: TypeSubject.actualNonNull()
@@ -424,9 +421,9 @@ func (f *TypeSubject_FunctionTypeSubject) HasReturnTypeThat() *TypeSubject {
 func (f *TypeSubject_FunctionTypeSubject) IsConstructorFor(name string) {
 	f.outer.t.Helper()
 	f.outer.check("isConstructor()").That(f.outer.actual.IsConstructor()).IsTrue()
-	f.outer.check("getInstanceType().getDisplayName()").
-		That(f.actualFunctionType().GetInstanceType().GetDisplayName()).
-		IsEqualTo(name)
+	disp, ok := f.actualFunctionType().GetInstanceType().DisplayName()
+	f.outer.check("getInstanceType().getDisplayName() != null").That(ok).IsTrue()
+	f.outer.check("getInstanceType().getDisplayName()").That(disp).IsEqualTo(name)
 }
 
 // Java: TypeSubject.FunctionTypeSubject.isAbstract()

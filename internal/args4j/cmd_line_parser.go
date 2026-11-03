@@ -297,12 +297,23 @@ func (c *cmdLineParams) TryGetParameter(idx int) (string, *CmdLineException) {
 	return c.args[c.pos+idx], nil
 }
 
-// splitToken replaces "-option=value" at c.pos with "value".
+// splitToken replaces "-option<delim>value" (or "-option=value") at c.pos with "value".
+// Upstream args4j 2.33 uses " " as the default optionValueDelimiter (for usage
+// formatting) without splitting single-token space-containing args on " ".
 func (c *cmdLineParams) splitToken() {
-	if c.pos >= 0 && c.pos < len(c.args) {
-		if idx := strings.IndexByte(c.args[c.pos], '='); idx > 0 {
-			c.args[c.pos] = c.args[c.pos][idx+1:]
+	if c.pos < 0 || c.pos >= len(c.args) {
+		return
+	}
+	arg := c.args[c.pos]
+	delim := c.owner.parserProperties.optionValueDelimiter
+	if delim != "" && delim != " " {
+		if idx := strings.Index(arg, delim); idx > 0 {
+			c.args[c.pos] = arg[idx+len(delim):]
+			return
 		}
+	}
+	if idx := strings.IndexByte(arg, '='); idx > 0 {
+		c.args[c.pos] = arg[idx+1:]
 	}
 }
 
@@ -329,7 +340,7 @@ func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
 		arg := cmdLine.args[cmdLine.pos]
 		if strings.HasPrefix(arg, "-") {
 			delim := p.parserProperties.optionValueDelimiter
-			isKeyValuePair := strings.Contains(arg, delim) || strings.IndexByte(arg, '=') != -1
+			isKeyValuePair := (delim != "" && strings.Contains(arg, delim)) || strings.IndexByte(arg, '=') != -1
 			if isKeyValuePair {
 				p.currentOptionHandler = p.findOptionHandler(arg)
 			} else {
@@ -434,7 +445,10 @@ func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*Opti
 
 func (p *CmdLineParser) findOptionHandler(name string) *OptionHandler {
 	delim := p.parserProperties.optionValueDelimiter
-	pos := strings.Index(name, delim)
+	pos := -1
+	if delim != "" {
+		pos = strings.Index(name, delim)
+	}
 	if pos < 0 {
 		pos = strings.IndexByte(name, '=')
 	}

@@ -110,11 +110,11 @@ func (c *JsFlumeCallback) ShouldTraverse(nodeTraversal *jscomp.NodeTraversal, n 
 		return false
 	}
 	if n.IsScript() {
-		filename := n.GetSourceFileName()
+		filename, hasFilename := n.SourceFileName()
 		if c.includeFilePattern != nil &&
 			c.includeFilePattern.Pattern() != "" &&
-			filename != nil && *filename != "" {
-			return c.includeFilePattern.Matcher(*filename).Find()
+			hasFilename && filename != "" {
+			return c.includeFilePattern.Matcher(filename).Find()
 		}
 	}
 	return true

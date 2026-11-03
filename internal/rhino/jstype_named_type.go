@@ -110,8 +110,11 @@ const NamedType_TYPE_CLASS = JSTypeClass_NAMED
 // Java: NamedType.nominalHashCode(ObjectType)
 func NamedType_NominalHashCode(type_ ObjectType) int32 {
 	jutil.CheckState(type_.HasReferenceName())
-	name := jutil.CheckNotNull(type_.GetReferenceName())
-	return jutil.StringHashCode(*name)
+	name, ok := type_.ReferenceName()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return jutil.StringHashCode(name)
 }
 
 // Java: NamedType(Builder)
@@ -204,6 +207,14 @@ func (t *NamedType) FinishPropertyContinuations() {
 // Java: NamedType.getReferencedType()
 func (t *NamedType) GetReferencedType() JSType {
 	return t.GetReferencedTypeInternal()
+}
+
+// ReferenceName returns the unresolved/named reference name without allocating a *string.
+func (t *NamedType) ReferenceName() (string, bool) {
+	if t.referenceID == 0 {
+		return "", false
+	}
+	return rhinoStringFromID(t.referenceID), true
 }
 
 // Java: NamedType.getReferenceName()
@@ -589,7 +600,11 @@ func (b *NamedType_Builder) SetErrorReportingLocation(sourceName *string, lineno
 
 // Java: NamedType.Builder.setErrorReportingLocationFrom(Node)
 func (b *NamedType_Builder) SetErrorReportingLocationFrom(source Node) *NamedType_Builder {
-	b.sourceNameID = rhinoStringIDFromPtr(source.GetSourceFileName())
+	if name, ok := source.SourceFileName(); ok {
+		b.sourceNameID = rhinoStringPoolIntern(name)
+	} else {
+		b.sourceNameID = 0
+	}
 	b.lineno = source.GetLineno()
 	b.charno = source.GetCharno()
 	return b

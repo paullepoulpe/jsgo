@@ -130,9 +130,6 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 		functionName := c.functionNamePeek()
 		// If the function node has been visited by visit() then we can be assured that all its
 		// children nodes have been visited and properly instrumented.
-		if len(c.functionNameStack) == 0 {
-			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop() on an empty deque
-		}
 		c.functionNameStack = c.functionNameStack[:len(c.functionNameStack)-1]
 		src, hasSrc := traversal.SourceNameOk()
 		fileName := nullableString{val: src, ok: hasSrc}
@@ -382,39 +379,53 @@ func (m *productionCoverageInstrumentationCallback_ParameterMapping) generateUni
 	return m.nextUniqueIdentifier
 }
 
-func nullableStringsForJson(keys *OrderedSet[nullableString]) []*string {
-	out := make([]*string, 0, keys.Len())
+func (m *productionCoverageInstrumentationCallback_ParameterMapping) formatNullableStringArrayJson(keys *OrderedSet[nullableString]) string {
+	m.sb.Reset()
+	m.sb.WriteByte('[')
+	first := true
 	for k := range keys.All() {
+		if !first {
+			m.sb.WriteByte(',')
+		}
+		first = false
 		if k.ok {
-			s := k.val
-			out = append(out, &s)
+			_ = jutil.WriteGsonString(&m.sb, k.val, false)
 		} else {
-			out = append(out, nil)
+			m.sb.WriteString("null")
 		}
 	}
-	return out
+	m.sb.WriteByte(']')
+	return m.sb.String()
+}
+
+func (m *productionCoverageInstrumentationCallback_ParameterMapping) formatStringArrayJson(keys *OrderedSet[string]) string {
+	m.sb.Reset()
+	m.sb.WriteByte('[')
+	first := true
+	for k := range keys.All() {
+		if !first {
+			m.sb.WriteByte(',')
+		}
+		first = false
+		_ = jutil.WriteGsonString(&m.sb, k, false)
+	}
+	m.sb.WriteByte(']')
+	return m.sb.String()
 }
 
 // Java: ProductionCoverageInstrumentationCallback.ParameterMapping.getParamMappingAsVariableMap()
 func (m *productionCoverageInstrumentationCallback_ParameterMapping) getParamMappingAsVariableMap() *VariableMap {
-	gson := jutil.NewGsonBuilder().DisableHtmlEscaping().Create()
-
 	pre := NewOrderedStringMapWithCapacity[string](m.paramEncodings.Len() + 3)
 	for k, v := range m.paramEncodings.All() {
 		pre.Put(k, v)
 	}
 
-	types := m.typeNames.ToSlice()
-	if types == nil {
-		types = []string{}
-	}
-
 	// Array names are given a " " (space) prefix since when writing to file, VariableMap.java
 	// sorts the map by key values. This space will place the arrays at the top of the file.
 	// The key and value entry are put in this order because the map will be inversed.
-	pre.Put(gson.ToJson(nullableStringsForJson(&m.fileNames)), " FileNames")
-	pre.Put(gson.ToJson(nullableStringsForJson(&m.functionNames)), " FunctionNames")
-	pre.Put(gson.ToJson(types), " Types")
+	pre.Put(m.formatNullableStringArrayJson(&m.fileNames), " FileNames")
+	pre.Put(m.formatNullableStringArrayJson(&m.functionNames), " FunctionNames")
+	pre.Put(m.formatStringArrayJson(&m.typeNames), " Types")
 
 	origToNew := make(map[string]string, pre.Len())
 	origKeys := make([]string, 0, pre.Len())

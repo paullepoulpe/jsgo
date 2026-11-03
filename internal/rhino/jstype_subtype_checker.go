@@ -813,11 +813,11 @@ func SubtypeChecker_IsBivariantType(type_ JSType) bool {
 	if unwrapped == nil {
 		return false
 	}
-	name := unwrapped.GetReferenceName()
-	if name == nil {
+	name, ok := unwrapped.ReferenceName()
+	if !ok {
 		return false
 	}
-	switch *name {
+	switch name {
 	case "Object", "IArrayLike", "Array":
 		return true
 	}
@@ -839,15 +839,15 @@ func SubtypeChecker_GetTemplateKeyIfCovariantType(type_ JSType) *TemplateType {
 		}
 	}
 	unwrapped := SubtypeChecker_GetObjectTypeIfNative(type_)
-	var unwrappedTypeName *string
-	if unwrapped != nil {
-		unwrappedTypeName = unwrapped.GetReferenceName()
+	if unwrapped == nil {
+		return nil
 	}
-	if unwrappedTypeName == nil {
+	unwrappedTypeName, ok := unwrapped.ReferenceName()
+	if !ok {
 		return nil
 	}
 	registry := unwrapped.GetJSTypeBase().GetRegistry()
-	switch *unwrappedTypeName {
+	switch unwrappedTypeName {
 	case "ReadonlyArray":
 		return registry.GetReadonlyArrayElementKey()
 	case "IteratorLike":

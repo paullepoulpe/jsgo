@@ -1445,3 +1445,28 @@ function() { return 1; };
 `,
 		c.Warning(TypeValidator_TYPE_MISMATCH_WARNING))
 }
+
+func TestScopedAliases_NilModuleMetadataMapWithGiveUniqueName(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
+	script := compiler.ParseTestCode(
+		`goog.provide('provided');
+goog.scope(function() {
+  var Foo = goog.module.get('missing.name.Foo');
+  provided.f = new Foo();
+});`)
+	externs := rhino.IR_Root()
+	jsRoot := rhino.IR_Root(script)
+	rhino.IR_Root(externs, jsRoot)
+
+	pass := NewScopedAliases(compiler, ScopedAliasesOptions{
+		InvalidModuleGetHandling: ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME,
+	})
+	pass.Process(externs, jsRoot)
+
+	got := compiler.ToSourceOfNode(jsRoot)
+	want := "goog.provide(\"provided\");provided.f=new Foo$$jscomp$missingAlias$unknownScript"
+	if got != want {
+		t.Fatalf("ScopedAliases output = %q, want %q", got, want)
+	}
+}
