@@ -9,8 +9,8 @@
 //     literals can contain). Index-based Java String APIs (length, charAt,
 //     substring, indexOf, compareTo, hashCode) go through the String* helpers
 //     here so that indices and orderings are in UTF-16 code units.
-//   - Collections: Java's LinkedHashMap/LinkedHashSet/ImmutableMap/ImmutableSet
-//     iterate in insertion order; Go maps iterate randomly. Ported code never
+//   - Collections: OrderedMap and OrderedSet iterate in insertion order like
+//     Java's ordered maps and sets; Go maps iterate randomly. Ported code never
 //     ranges over a Go map where the order is observable.
 //   - Exceptions: Java exceptions become Go panics carrying a *Throwable-like
 //     value; Try/catch sites use the helpers in exceptions.go.
@@ -141,16 +141,19 @@ func IsNil(v any) bool {
 }
 
 func isNilNonScalar(v any) bool {
-	rv := reflect.ValueOf(v)
+	if v == nil {
+		return true
+	}
+	if n, ok := v.(interface{ IsNil() bool }); ok {
+		return n.IsNil()
+	}
+	return reflectKindIsNil(reflect.ValueOf(v))
+}
+
+func reflectKindIsNil(rv reflect.Value) bool {
 	switch rv.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
 		return rv.IsNil()
-	case reflect.Uint32:
-		if rv.Uint() != 0 {
-			return false
-		}
-		_, ok := v.(interface{ IsNil() bool })
-		return ok
 	default:
 		return false
 	}
@@ -169,9 +172,22 @@ func CheckNotNullPtr[T any](p *T) *T {
 	return p
 }
 
+func isNilGeneric[T any](v T) bool {
+	switch any(v).(type) {
+	case nil:
+		return true
+	case string, int, int32, int64, int16, int8, uint, uint64, uint32, uint16, uint8, bool, float64, float32:
+		return false
+	}
+	if _, ok := any(v).(interface{ IsNil() bool }); ok {
+		return any(v).(interface{ IsNil() bool }).IsNil()
+	}
+	return reflectKindIsNil(reflect.ValueOf(v))
+}
+
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
-	if IsNil(reference) {
+	if isNilGeneric(reference) {
 		failNull()
 	}
 	return reference
@@ -179,7 +195,7 @@ func CheckNotNull[T any](reference T) T {
 
 // CheckNotNullMsg is Preconditions.checkNotNull(T, String, Object...).
 func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
-	if IsNil(reference) {
+	if isNilGeneric(reference) {
 		failNotNull(template, args...)
 	}
 	return reference
@@ -187,7 +203,7 @@ func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
 
 // CheckNotNullMsg1 is Preconditions.checkNotNull(T, String, Object).
 func CheckNotNullMsg1[T, A any](reference T, template string, p1 A) T {
-	if IsNil(reference) {
+	if isNilGeneric(reference) {
 		failNotNull(template, p1)
 	}
 	return reference
@@ -195,7 +211,7 @@ func CheckNotNullMsg1[T, A any](reference T, template string, p1 A) T {
 
 // CheckNotNullMsg2 is Preconditions.checkNotNull(T, String, Object, Object).
 func CheckNotNullMsg2[T, A, B any](reference T, template string, p1 A, p2 B) T {
-	if IsNil(reference) {
+	if isNilGeneric(reference) {
 		failNotNull(template, p1, p2)
 	}
 	return reference

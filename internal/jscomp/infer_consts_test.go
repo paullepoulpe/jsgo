@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -289,7 +288,7 @@ func (c *InferConstsTest) AssertNotConsts(js string, names ...string) {
 // Java: InferConstsTest.assertConsts(String, Expectation...)
 func (c *InferConstsTest) AssertConsts(js string, expectations ...*InferConstsTest_Expectation) {
 	// stream(expectations).flatMap(e -> e.names.stream()).distinct().collect(toImmutableList())
-	distinct := jutil.NewLinkedHashSet[string]()
+	distinct := NewOrderedSet[string]()
 	for _, e := range expectations {
 		distinct.AddAll(e.names...)
 	}
@@ -352,16 +351,16 @@ func NewInferConstsTest_Expectation(isInferred bool, isConst bool, names ...stri
 type InferConstsTest_FindConstants struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	names         []string
-	declaredNodes *jutil.LinkedHashSet[string]
-	inferredNodes *jutil.LinkedHashSet[string]
+	declaredNodes *OrderedSet[string]
+	inferredNodes *OrderedSet[string]
 }
 
 // Java: InferConstsTest.FindConstants(ImmutableList<String>)
 func NewInferConstsTest_FindConstants(names []string) *InferConstsTest_FindConstants {
 	return &InferConstsTest_FindConstants{
 		names:         names,
-		declaredNodes: jutil.NewLinkedHashSet[string](),
-		inferredNodes: jutil.NewLinkedHashSet[string](),
+		declaredNodes: NewOrderedSet[string](),
+		inferredNodes: NewOrderedSet[string](),
 	}
 }
 

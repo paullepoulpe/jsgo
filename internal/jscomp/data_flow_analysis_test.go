@@ -875,7 +875,7 @@ func (i *dataFlowAnalysisTest_BranchInstruction) SetCondition(condition dataFlow
 // Go-only: language-adapter — the HashMap<Variable, Integer> keys use
 // Variable.equals (Variable.name), so constMap is keyed by Variable.name.
 type dataFlowAnalysisTest_ConstPropLatticeElement struct {
-	constMap *jutil.LinkedHashMap[string, int32]
+	constMap *OrderedStringMap[int32]
 	isTop    bool
 }
 
@@ -886,7 +886,7 @@ type dataFlowAnalysisTest_ConstPropLatticeElement struct {
 func newDataFlowAnalysisTest_ConstPropLatticeElementWithTop(isTop bool) *dataFlowAnalysisTest_ConstPropLatticeElement {
 	return &dataFlowAnalysisTest_ConstPropLatticeElement{
 		isTop:    isTop,
-		constMap: jutil.NewLinkedHashMap[string, int32](),
+		constMap: NewOrderedStringMap[int32](),
 	}
 }
 
@@ -900,14 +900,11 @@ func newDataFlowAnalysisTest_ConstPropLatticeElement() *dataFlowAnalysisTest_Con
 
 // Java: DataFlowAnalysisTest.ConstPropLatticeElement(ConstPropLatticeElement)
 func newDataFlowAnalysisTest_ConstPropLatticeElementCopy(other *dataFlowAnalysisTest_ConstPropLatticeElement) *dataFlowAnalysisTest_ConstPropLatticeElement {
-	e := &dataFlowAnalysisTest_ConstPropLatticeElement{
+	cloned := other.constMap.Clone()
+	return &dataFlowAnalysisTest_ConstPropLatticeElement{
 		isTop:    other.isTop,
-		constMap: jutil.NewLinkedHashMap[string, int32](),
+		constMap: &cloned,
 	}
-	for k, v := range other.constMap.All() {
-		e.constMap.Put(k, v)
-	}
-	return e
 }
 
 // Java: DataFlowAnalysisTest.ConstPropLatticeElement.toString()
@@ -938,7 +935,11 @@ func (e *dataFlowAnalysisTest_ConstPropLatticeElement) Equals(other any) bool {
 
 // Java: DataFlowAnalysisTest.ConstPropLatticeElement.hashCode()
 func (e *dataFlowAnalysisTest_ConstPropLatticeElement) HashCode() int32 {
-	return e.constMap.HashCode()
+	var h int32
+	for _, entry := range e.constMap.Entries() {
+		h += jutil.StringHashCode(entry.Key) ^ entry.Value
+	}
+	return h
 }
 
 // dataFlowAnalysisTest_ConstPropJoinOp is ConstPropJoinOp.

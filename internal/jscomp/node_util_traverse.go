@@ -783,13 +783,13 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) Visit(t *NodeTraversal, n
 // Java: NodeUtil.AllVarsDeclaredInFunction
 type NodeUtil_AllVarsDeclaredInFunction struct {
 	table       fnVarTable
-	allVarsInFn *jutil.LinkedHashMap[string, *Var]
+	allVarsInFn *OrderedStringMap[*Var]
 }
 
 // Java: NodeUtil.AllVarsDeclaredInFunction.getAllVariables()
-func (a *NodeUtil_AllVarsDeclaredInFunction) GetAllVariables() *jutil.LinkedHashMap[string, *Var] {
+func (a *NodeUtil_AllVarsDeclaredInFunction) GetAllVariables() *OrderedStringMap[*Var] {
 	if a.allVarsInFn == nil {
-		m := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(a.table.vars))
+		m := NewOrderedStringMapWithCapacity[*Var](len(a.table.vars))
 		for _, v := range a.table.vars {
 			m.Put(v.GetName(), v)
 		}

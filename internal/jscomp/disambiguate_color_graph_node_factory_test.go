@@ -22,15 +22,14 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func newTestColorRegistry() *colors.ColorRegistry {
 	return colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 }
 
-func colorSetOf(cs ...*colors.Color) *jutil.LinkedHashSet[*colors.Color] {
-	return jutil.NewLinkedHashSet(cs...)
+func colorSetOf(cs ...*colors.Color) *OrderedSet[*colors.Color] {
+	return NewOrderedSet(cs...)
 }
 
 func TestColorGraphNodeFactory_TopLikeTypesFlattenToTop(t *testing.T) {
@@ -105,7 +104,7 @@ func sampleColorsForFactoryTest() []*colors.Color {
 }
 
 func flatSamples(factory *ColorGraphNodeFactory, sampleTypes []*colors.Color) []*ColorGraphNode {
-	out := jutil.NewLinkedHashSet[*ColorGraphNode]()
+	out := NewOrderedSet[*ColorGraphNode]()
 	for _, c := range sampleTypes {
 		out.Add(factory.CreateNode(c))
 	}

@@ -20,16 +20,16 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 type RemoveUnnecessarySyntheticExternsTest struct {
 	CompilerTestCaseBase
 
 	// use this set to simulate an earlier compiler pass declaring a synthetic extern
-	syntheticExternsToAdd *jutil.LinkedHashSet[rhino.Node]
+	syntheticExternsToAdd OrderedSet[rhino.Node]
 }
 
 // Java: RemoveUnnecessarySyntheticExternsTest()
@@ -47,7 +47,7 @@ func TestRemoveUnnecessarySyntheticExternsTest(t *testing.T) {
 func (c *RemoveUnnecessarySyntheticExternsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableMultistageCompilation()
-	c.syntheticExternsToAdd = jutil.NewLinkedHashSet[rhino.Node]()
+	c.syntheticExternsToAdd.Clear()
 }
 
 // Java: RemoveUnnecessarySyntheticExternsTest.getProcessor(Compiler)

@@ -587,7 +587,7 @@ func (c *SerializeTypedAstPassTest) debugLogFiles() []string {
 func serializeTypedAstPassTest_assertValidJson(src string) {
 	AssertThat(src).IsNotEmpty()
 
-	// Go-only: language-adapter — new Gson().fromJson(src, LinkedHashMap.class / ArrayList.class)
+	// Go-only: language-adapter — new Gson().fromJson(src, Map.class / ArrayList.class)
 	// is parsed as a JsonObject / JsonArray; both throw if invalid.
 	if jutil.StringCharAt(src, 0) == '{' {
 		jutil.NewGson().FromJsonObject(src)

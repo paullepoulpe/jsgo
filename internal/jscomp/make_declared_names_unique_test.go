@@ -1316,7 +1316,7 @@ func TestMakeDeclaredNamesUnique_renamers(t *testing.T) {
 		t.Errorf("getOriginalName: %q", got)
 	}
 	targetted := NewMakeDeclaredNamesUnique_TargettedRenamer(
-		NewMakeDeclaredNamesUnique_ContextualRenamer(), jutil.NewLinkedHashSet("t"))
+		NewMakeDeclaredNamesUnique_ContextualRenamer(), NewOrderedSet("t"))
 	targetted.AddDeclaredName("t", false)
 	targetted.AddDeclaredName("u", false)
 	if _, ok := targetted.GetReplacementNameValue("u"); ok {

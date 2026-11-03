@@ -55,8 +55,8 @@ import (
 func UnitTestUtils_UpdateGenericVarNamesInExpectedFilesWithMapping(
 	inputs *CompilerTestCase_FlatSources,
 	outputs *CompilerTestCase_Expected,
-	replacementPrefixes *jutil.LinkedHashMap[string, string],
-	genericNameReplacements *jutil.LinkedHashMap[string, string]) []*SourceFile {
+	replacementPrefixes jutil.MapSource[string, string],
+	genericNameReplacements interface{ Put(string, string) string }) []*SourceFile {
 	jutil.CheckState(inputs != nil)
 	// In FlatSources, we correspond each input SourceFile (i.e. each CompilerInput) with an
 	// expected SourceFile. We can know what uniqueID to generate in the expected string by knowing
@@ -84,10 +84,14 @@ func UnitTestUtils_UpdateGenericVarNamesInExpectedFilesWithMapping(
 		}
 		expectedCodeFileName := outputScript.GetName()
 		expectedCode := outputScript.GetCode()
-		for shortName, prefix := range replacementPrefixes.All() {
-			longName := prefix + fileHashString
-			expectedCode = strings.ReplaceAll(expectedCode, shortName, longName)
-			genericNameReplacements.Put(longName, shortName)
+		if !jutil.IsNil(replacementPrefixes) {
+			for shortName, prefix := range replacementPrefixes.All() {
+				longName := prefix + fileHashString
+				expectedCode = strings.ReplaceAll(expectedCode, shortName, longName)
+				if !jutil.IsNil(genericNameReplacements) {
+					genericNameReplacements.Put(longName, shortName)
+				}
+			}
 		}
 		updatedOutputs = append(updatedOutputs, SourceFile_FromCode(expectedCodeFileName, expectedCode))
 	}
@@ -96,7 +100,7 @@ func UnitTestUtils_UpdateGenericVarNamesInExpectedFilesWithMapping(
 
 // Java: UnitTestUtils.updateGenericVarNamesInExpectedFiles(FlatSources, Expected, ImmutableMap<String, String>)
 func UnitTestUtils_UpdateGenericVarNamesInExpectedFiles(
-	inputs *CompilerTestCase_FlatSources, outputs *CompilerTestCase_Expected, replacementPrefixes *jutil.LinkedHashMap[string, string]) []*SourceFile {
+	inputs *CompilerTestCase_FlatSources, outputs *CompilerTestCase_Expected, replacementPrefixes jutil.MapSource[string, string]) []*SourceFile {
 	return UnitTestUtils_UpdateGenericVarNamesInExpectedFilesWithMapping(
-		inputs, outputs, replacementPrefixes, jutil.NewLinkedHashMap[string, string]())
+		inputs, outputs, replacementPrefixes, NewOrderedStringMap[string]())
 }

@@ -13,8 +13,8 @@ import (
 func ptr[T any](v T) *T { return &v }
 
 // mapOf is ImmutableMap.of(k1, v1, k2, v2, ...) for name to type maps.
-func mapOf(keysAndValues ...any) *jutil.LinkedHashMap[string, JSType] {
-	m := jutil.NewLinkedHashMap[string, JSType]()
+func mapOf(keysAndValues ...any) *jutil.OrderedMap[string, JSType] {
+	m := jutil.NewOrderedMap[string, JSType]()
 	for i := 0; i < len(keysAndValues); i += 2 {
 		m.Put(keysAndValues[i].(string), keysAndValues[i+1].(JSType))
 	}
@@ -22,8 +22,8 @@ func mapOf(keysAndValues ...any) *jutil.LinkedHashMap[string, JSType] {
 }
 
 // templateMapOf is ImmutableMap.of(k1, v1, ...) for template type bindings.
-func templateMapOf(keysAndValues ...any) *jutil.LinkedHashMap[*TemplateType, JSType] {
-	m := jutil.NewLinkedHashMap[*TemplateType, JSType]()
+func templateMapOf(keysAndValues ...any) *jutil.OrderedMap[*TemplateType, JSType] {
+	m := jutil.NewOrderedMap[*TemplateType, JSType]()
 	for i := 0; i < len(keysAndValues); i += 2 {
 		m.Put(keysAndValues[i].(*TemplateType), keysAndValues[i+1].(JSType))
 	}

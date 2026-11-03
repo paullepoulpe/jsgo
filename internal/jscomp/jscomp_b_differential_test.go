@@ -80,8 +80,8 @@ func jscompBCatch(body func() string) (result string) {
 	return result
 }
 
-func jscompBNames(s string) *jutil.LinkedHashSet[string] {
-	set := jutil.NewLinkedHashSet[string]()
+func jscompBNames(s string) *OrderedSet[string] {
+	set := NewOrderedSet[string]()
 	if s != "" {
 		set.AddAll(strings.Split(s, ",")...)
 	}
@@ -254,7 +254,7 @@ func jscompBDominators(rg jscompBGraph, entryCol string) string {
 func jscompBLca(rg jscompBGraph, rootsCol string) string {
 	return jscompBCatch(func() string {
 		g := rg.intGraph()
-		roots := jutil.NewLinkedHashSet[int]()
+		roots := NewOrderedSet[int]()
 		for _, r := range strings.Split(rootsCol, ",") {
 			roots.Add(jscompBAtoi(r))
 		}
@@ -276,8 +276,8 @@ func jscompBEntries(m interface {
 	return strings.Join(es, ",")
 }
 
-func jscompBParseEntries(col string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func jscompBParseEntries(col string) *OrderedStringMap[string] {
+	m := NewOrderedStringMap[string]()
 	if col != "" {
 		for _, e := range strings.Split(col, ",") {
 			k, v, _ := strings.Cut(e, "=")

@@ -180,7 +180,7 @@ func (c *DataFlowAnalysisEscapedTest) TestNotEscapedComputedClassFieldKey() {
 // liveness analysis performed by the LiveVariablesAnalysis class
 //
 // Java: DataFlowAnalysisTest.computeEscapedLocals(String)
-func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.LinkedHashSet[*Var] {
+func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *OrderedSet[*Var] {
 	// Set up compiler
 	compiler := NewCompiler()
 	options := NewCompilerOptions()
@@ -232,19 +232,19 @@ func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.Li
 // Java: DataFlowAnalysis.computeEscaped(Scope, Set<Var>, AbstractCompiler, ScopeCreator, Map<String, Var>)
 func DataFlowAnalysis_ComputeEscaped(
 	jsScope *Scope,
-	escaped *jutil.LinkedHashSet[*Var],
+	escaped *OrderedSet[*Var],
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
-	allVarsInFn *jutil.LinkedHashMap[string, *Var],
+	allVarsInFn jutil.MapSource[string, *Var],
 ) {
 	jutil.CheckArgument(jsScope.IsFunctionScope())
-	if allVarsInFn != nil && allVarsInFn.IsEmpty() {
+	if !jutil.IsNil(allVarsInFn) && allVarsInFn.Size() == 0 {
 		return
 	}
 	table := &NodeUtil_GetAllVarsDeclaredInFunction(compiler, scopeCreator, jsScope).table
-	if allVarsInFn != nil {
+	if !jutil.IsNil(allVarsInFn) {
 		jutil.CheckArgument(allVarsInFn.Size() == table.uniqueCount)
-		for var_ := range allVarsInFn.Values() {
+		for _, var_ := range allVarsInFn.All() {
 			// (Var equality is ScopedName's: the traversals that build the
 			// table and allVarsInFn create Vars of their own.)
 			v := table.lookupVarByID(var_.nameID)

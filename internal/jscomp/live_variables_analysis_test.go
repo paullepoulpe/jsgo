@@ -814,8 +814,8 @@ func NewLiveVariablesAnalysis(
 	return l
 }
 
-func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.LinkedHashSet[*Var] {
-	out := jutil.NewLinkedHashSet[*Var]()
+func (l *LiveVariablesAnalysis) GetEscapedLocals() *OrderedSet[*Var] {
+	out := NewOrderedSet[*Var]()
 	l.escaped.ForEach(func(idx int) {
 		if idx < len(l.table.vars) {
 			out.Add(l.table.vars[idx])

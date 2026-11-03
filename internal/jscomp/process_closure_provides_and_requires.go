@@ -125,12 +125,9 @@ func (p *ProcessClosureProvidesAndRequires) Process(externs rhino.Node, root rhi
 }
 
 // Java: ProcessClosureProvidesAndRequires.getExportedVariableNames()
-func (p *ProcessClosureProvidesAndRequires) GetExportedVariableNames() *jutil.LinkedHashSet[string] {
-	exported := jutil.NewLinkedHashSet[string]()
-	for name := range p.exportedVars.All() {
-		exported.Add(name)
-	}
-	return exported
+func (p *ProcessClosureProvidesAndRequires) GetExportedVariableNames() *OrderedSet[string] {
+	cloned := p.exportedVars.Clone()
+	return &cloned
 }
 
 func (p *ProcessClosureProvidesAndRequires) collectProvidedNamesInternal(externs rhino.Node, root rhino.Node) {
@@ -145,7 +142,7 @@ func (p *ProcessClosureProvidesAndRequires) collectProvidedNamesInternal(externs
 }
 
 // CollectProvidedNamesSlice collects all `goog.provide`s in deterministic
-// insertion order without allocating a LinkedHashMap wrapper.
+// insertion order as a flat slice.
 func (p *ProcessClosureProvidesAndRequires) CollectProvidedNamesSlice(externs rhino.Node, root rhino.Node) []*ProcessClosureProvidesAndRequires_ProvidedName {
 	p.collectProvidedNamesInternal(externs, root)
 	return p.providedNames.ValueSlice()

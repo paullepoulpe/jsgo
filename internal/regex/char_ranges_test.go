@@ -318,3 +318,28 @@ func TestDifferenceMergesAdjacentRanges(t *testing.T) {
 		t.Fatalf("empty subtrahend segment Difference = %s (ranges=%v), want %s", got2, got2.ranges, want)
 	}
 }
+
+func TestCharRangesDefensiveCopyOfCallerSlices(t *testing.T) {
+	raw := []int{10, 20}
+	r1 := NewCharRanges(raw)
+	raw[0] = 99
+	if !r1.Contains(10) || r1.Contains(99) {
+		t.Fatalf("mutating caller slice corrupted NewCharRanges: %s", r1)
+	}
+
+	raw2 := []int{30, 40}
+	r2 := CharRanges_WithRanges(raw2...)
+	raw2[0] = 99
+	if !r2.Contains(30) || r2.Contains(99) {
+		t.Fatalf("mutating caller slice corrupted CharRanges_WithRanges: %s", r2)
+	}
+
+	unsorted := []int{9, 1, 5}
+	r3 := CharRanges_WithMembers(unsorted...)
+	if unsorted[0] != 9 || unsorted[1] != 1 || unsorted[2] != 5 {
+		t.Fatalf("CharRanges_WithMembers mutated caller slice order: %v", unsorted)
+	}
+	if !r3.Contains(1) || !r3.Contains(5) || !r3.Contains(9) {
+		t.Fatalf("CharRanges_WithMembers missing elements: %s", r3)
+	}
+}

@@ -19,19 +19,15 @@
 
 package jscomp
 
-import (
-	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "testing"
 
 type Es6TemplateLiteralsTest struct {
 	CompilerTestCaseBase
 }
 
 // Java: Es6TemplateLiteralsTest.REPLACEMENT_PREFIXES
-var Es6TemplateLiteralsTest_REPLACEMENT_PREFIXES = func() *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+var Es6TemplateLiteralsTest_REPLACEMENT_PREFIXES = func() *OrderedStringMap[string] {
+	m := NewOrderedStringMap[string]()
 	m.Put("TAGGED_TEMPLATE_TMP_VAR", "$jscomp$templatelit$")
 	return m
 }()

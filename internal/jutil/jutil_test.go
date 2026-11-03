@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"math"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -149,8 +151,8 @@ func TestTryWrapsRuntimeErrors(t *testing.T) {
 	}
 }
 
-func TestLinkedHashMapOrder(t *testing.T) {
-	m := NewLinkedHashMap[string, int]()
+func TestOrderedMapOrder(t *testing.T) {
+	m := NewOrderedMap[string, int]()
 	for i, k := range []string{"z", "a", "m", "b"} {
 		m.Put(k, i)
 	}
@@ -229,4 +231,129 @@ func TestWTF8IndexingZeroAllocAndBounds(t *testing.T) {
 	assertOOB(func() { StringSubstring(twoEmoji, 0, 5) }, "Range [0, 5) out of bounds for length 4")
 	assertOOB(func() { StringSubstringFrom(twoEmoji, -1) }, "Range [-1, 4) out of bounds for length 4")
 	assertOOB(func() { StringSubstringFrom(twoEmoji, 5) }, "Range [5, 4) out of bounds for length 4")
+}
+
+func TestStringWTF8LoneSurrogates(t *testing.T) {
+	hi := StringFromChar(0xD83D)
+	lo := StringFromChar(0xDE00)
+	pair := "😀" // U+1F600 -> [0xD83D, 0xDE00] in UTF-16, 4-byte F0 9F 98 80 in UTF-8
+
+	if got := StringIndexOf("a"+pair+"b", hi); got != 1 {
+		t.Fatalf("StringIndexOf(hi) = %d, want 1", got)
+	}
+	if got := StringIndexOf("a"+pair+"b", lo); got != 2 {
+		t.Fatalf("StringIndexOf(lo) = %d, want 2", got)
+	}
+	if got := StringIndexOfFrom(pair+pair, lo, 2); got != 3 {
+		t.Fatalf("StringIndexOfFrom(lo, 2) = %d, want 3", got)
+	}
+	if got := StringLastIndexOf(pair+"x"+pair, hi); got != 3 {
+		t.Fatalf("StringLastIndexOf(hi) = %d, want 3", got)
+	}
+	if !StringStartsWith(pair+"abc", hi) || StringStartsWith(pair+"abc", lo) {
+		t.Fatal("StringStartsWith lone-surrogate mismatch")
+	}
+	if !StringEndsWith("abc"+pair, lo) || StringEndsWith("abc"+pair, hi) {
+		t.Fatal("StringEndsWith lone-surrogate mismatch")
+	}
+
+	// Removing "x" between a lone high surrogate and lone low surrogate must
+	// merge the pair into canonical 4-byte UTF-8.
+	merged := StringReplace(hi+"x"+lo, "x", "")
+	if merged != pair || len(merged) != 4 || hasSurrogateByte(merged) {
+		t.Fatalf("StringReplace merge = %q (len=%d), want canonical %q", merged, len(merged), pair)
+	}
+	// Replacing half of an astral character with another surrogate or ASCII.
+	splitReplaced := StringReplace(pair, hi, "H")
+	if want := "H" + lo; splitReplaced != want {
+		t.Fatalf("StringReplace half = %x, want %x", []byte(splitReplaced), []byte(want))
+	}
+	// Empty target inserts between surrogate halves in Java UTF-16 semantics.
+	emptyTarget := StringReplace(pair, "", "_")
+	if want := "_" + hi + "_" + lo + "_"; emptyTarget != want {
+		t.Fatalf("StringReplace empty target = %x, want %x", []byte(emptyTarget), []byte(want))
+	}
+
+	// Fast path without 0xED must remain zero-alloc.
+	clean := "alpha_😀_beta"
+	if n := testing.AllocsPerRun(100, func() {
+		_ = StringIndexOf(clean, "beta")
+		_ = StringIndexOfFrom(clean, "beta", 2)
+		_ = StringLastIndexOf(clean, "alpha")
+		_ = StringStartsWith(clean, "alpha")
+		_ = StringEndsWith(clean, "beta")
+		_ = StringReplace(clean, "missing", "x")
+	}); n != 0 {
+		t.Fatalf("expected 0 allocs on canonical fast path, got %v", n)
+	}
+}
+
+func TestOrderedMapNonMutatingReadsAndFrom(t *testing.T) {
+	m := NewOrderedMap[string, int]()
+	for i := 0; i < 10; i++ {
+		m.Put("k"+strconv.Itoa(i), i)
+	}
+	m.Delete("k1")
+	m.Delete("k5") // leaves holes == 2 (2*2 < 10, so uncompacted)
+	if m.holes != 2 {
+		t.Fatalf("expected holes == 2, got %d", m.holes)
+	}
+
+	wantKeys := []string{"k0", "k2", "k3", "k4", "k6", "k7", "k8", "k9"}
+	wantVals := []int{0, 2, 3, 4, 6, 7, 8, 9}
+
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				if fk, fv, ok := m.First(); !ok || fk != "k0" || fv != 0 {
+					t.Errorf("First() = (%q, %d, %v)", fk, fv, ok)
+				}
+				if got, ok := m.Index("k6"); !ok || got != 4 {
+					t.Errorf("Index(k6) = (%d, %v), want (4, true)", got, ok)
+				}
+				if got, ok := m.ValueAt(4); !ok || got != 6 {
+					t.Errorf("ValueAt(4) = (%d, %v), want (6, true)", got, ok)
+				}
+				if !slices.Equal(m.KeySlice(), wantKeys) {
+					t.Errorf("KeySlice mismatch")
+				}
+				if !slices.Equal(m.ValueSlice(), wantVals) {
+					t.Errorf("ValueSlice mismatch")
+				}
+				if len(m.Entries()) != 8 {
+					t.Errorf("Entries len = %d", len(m.Entries()))
+				}
+				if m.String() != "{k0=0, k2=2, k3=3, k4=4, k6=6, k7=7, k8=8, k9=9}" {
+					t.Errorf("String() = %q", m.String())
+				}
+				_ = m.Clone()
+				_ = m.ToMap()
+				_ = m.HashCode()
+				for range m.All() {
+				}
+				for range m.Keys() {
+				}
+				for range m.Values() {
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	if m.holes != 2 {
+		t.Fatalf("read methods mutated holes: got %d, want 2", m.holes)
+	}
+
+	cp := NewOrderedMapFrom(m)
+	if !cp.EqualFunc(m, func(a, b int) bool { return a == b }) || cp.HashCode() != m.HashCode() {
+		t.Fatal("NewOrderedMapFrom mismatch")
+	}
+
+	var nilSrc *OrderedMap[string, int]
+	if emptyFromNil := NewOrderedMapFrom(nilSrc); emptyFromNil.Len() != 0 {
+		t.Fatalf("NewOrderedMapFrom(nil) len = %d, want 0", emptyFromNil.Len())
+	}
 }

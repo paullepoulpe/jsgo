@@ -307,44 +307,43 @@ func functionInjector_findInnerFunctions(n rhino.Node, containerFn rhino.Node, f
 	return first, count
 }
 
-// InnerFunctionOf returns any inner function or non-static class field
-// initializer of containerFn.
+// innerFunctionOf returns the inner-function state (fnInnerNone, fnInnerOne,
+// or fnInnerMultiple) and, when fnInnerOne, the single inner function or
+// non-static class field initializer of containerFn.
 //
 // Non-static class field initializers are treated like inner functions
 // because they are evaluated later, once per instantiation, and may capture
 // locals.
 //
-// If there are no inner functions, or multilple inner functions, the
-// sentinel values NO_FUNCTIONS, MULTIPLE_FUNCTIONS are returned
-// respectively.
-//
 // Java: FunctionInjector.innerFunctionOf(Node)
-func (f *FunctionInjector) InnerFunctionOf(containerFn rhino.Node) rhino.Node {
+func (f *FunctionInjector) innerFunctionOf(containerFn rhino.Node) (uint8, rhino.Node) {
 	jutil.CheckState(containerFn.IsFunction())
 
 	info := f.fnInfoCache[containerFn]
+	if info.innerState != fnInnerUnknown {
+		return info.innerState, info.inner
+	}
 	if !info.inner.IsNil() {
-		return info.inner
+		return fnInnerOne, info.inner
 	}
 
 	firstInner, count := functionInjector_findInnerFunctions(containerFn, containerFn, rhino.NilNode, 0)
 
-	var cached rhino.Node
 	switch count {
 	case 0:
-		cached = FunctionInjector_NO_FUNCTIONS
+		info.innerState = fnInnerNone
 	case 1:
-		cached = firstInner
+		info.innerState = fnInnerOne
+		info.inner = firstInner
 	default:
-		cached = FunctionInjector_MULTIPLE_FUNCTIONS
+		info.innerState = fnInnerMultiple
 	}
 
 	if f.fnInfoCache == nil {
 		f.fnInfoCache = make(map[rhino.Node]functionInjectorFnInfo, 64)
 	}
-	info.inner = cached
 	f.fnInfoCache[containerFn] = info
-	return cached
+	return info.innerState, info.inner
 }
 
 func (f *FunctionInjector) callMeetsBlockInliningRequirements(
@@ -371,8 +370,8 @@ func (f *FunctionInjector) callMeetsBlockInliningRequirements(
 		if f.ReferencesEval(callerFn) {
 			forbidTemps = true
 		} else {
-			innerFn := f.InnerFunctionOf(callerFn)
-			calleeIsOnlyInnerFn := innerFn == FunctionInjector_NO_FUNCTIONS || innerFn == calleeFn
+			innerState, innerFn := f.innerFunctionOf(callerFn)
+			calleeIsOnlyInnerFn := innerState == fnInnerNone || (innerState == fnInnerOne && innerFn == calleeFn)
 			forbidTemps = !calleeIsOnlyInnerFn
 		}
 	}

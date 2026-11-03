@@ -809,8 +809,8 @@ func TestNodeUtil_AssortedTests_TestTypedefNamespace(t *testing.T) {
 	statements :=
 		nuParse(t,
 			"/** @typedef */ const obj = {};\n/** @const */ obj.a = {};\n/** @typedef @const */ obj.b = {};\n/** @typedef */ obj.c = {};\n/** @typedef @const */ obj.d = function() {};\n")
-	namespaceNames := jutil.NewLinkedHashSet[string]()
-	nonNamespaceNames := jutil.NewLinkedHashSet[string]()
+	namespaceNames := NewOrderedSet[string]()
+	nonNamespaceNames := NewOrderedSet[string]()
 	for statement := range statements.Children() {
 		var name rhino.Node
 		if statement.IsExprResult() {

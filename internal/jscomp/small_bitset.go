@@ -5,8 +5,6 @@ import (
 	"math/bits"
 	"slices"
 	"strconv"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // smallBitSet is a compact 32-byte bitset storing bits 0..127 inline in w0/w1
@@ -62,7 +60,7 @@ func (b *smallBitSet) Set(bitIndex int) {
 		return
 	}
 	if bitIndex < 0 {
-		panic(jutil.NewIndexOutOfBoundsException("bitIndex < 0: " + strconv.Itoa(bitIndex)))
+		panic("jscomp: negative bitIndex")
 	}
 	w := (bitIndex - 128) >> 6
 	b.ensureExt(w + 1)
@@ -77,7 +75,7 @@ func (b *smallBitSet) Get(bitIndex int) bool {
 		return (b.w1 & (uint64(1) << uint(bitIndex-64))) != 0
 	}
 	if bitIndex < 0 {
-		panic(jutil.NewIndexOutOfBoundsException("bitIndex < 0: " + strconv.Itoa(bitIndex)))
+		panic("jscomp: negative bitIndex")
 	}
 	w := (bitIndex - 128) >> 6
 	return w < len(b.ext) && (b.ext[w]&(uint64(1)<<uint(bitIndex&63))) != 0
@@ -140,7 +138,7 @@ func (b *smallBitSet) Cardinality() int {
 
 func (b *smallBitSet) SetRange(fromIndex, toIndex int) {
 	if fromIndex < 0 || toIndex < fromIndex {
-		panic(jutil.NewIndexOutOfBoundsException("invalid range"))
+		panic("jscomp: invalid bit range")
 	}
 	if fromIndex == toIndex {
 		return
@@ -165,7 +163,7 @@ func (b *smallBitSet) SetRange(fromIndex, toIndex int) {
 
 func (b *smallBitSet) FlipRange(fromIndex, toIndex int) {
 	if fromIndex < 0 || toIndex < fromIndex {
-		panic(jutil.NewIndexOutOfBoundsException("invalid range"))
+		panic("jscomp: invalid bit range")
 	}
 	if fromIndex == toIndex {
 		return
@@ -191,7 +189,7 @@ func (b *smallBitSet) FlipRange(fromIndex, toIndex int) {
 
 func (b *smallBitSet) NextSetBit(fromIndex int) int {
 	if fromIndex < 0 {
-		panic(jutil.NewIndexOutOfBoundsException("fromIndex < 0: " + strconv.Itoa(fromIndex)))
+		panic("jscomp: negative bitIndex")
 	}
 	if fromIndex < 64 {
 		if w := b.w0 & (^uint64(0) << uint(fromIndex)); w != 0 {
@@ -227,7 +225,7 @@ func (b *smallBitSet) PreviousSetBit(fromIndex int) int {
 		if fromIndex == -1 {
 			return -1
 		}
-		panic(jutil.NewIndexOutOfBoundsException("fromIndex < -1: " + strconv.Itoa(fromIndex)))
+		panic("jscomp: negative bitIndex")
 	}
 	if fromIndex < 64 {
 		w := b.w0 & (^uint64(0) >> uint(63-fromIndex))
@@ -397,7 +395,13 @@ func (b *smallBitSet) ForEach(fn func(idx int)) {
 	}
 }
 
-func (b *smallBitSet) CopyFromJutil(src *jutil.BitSet) {
+type bitSet128Source interface {
+	Words128() (uint64, uint64)
+	Length() int
+	NextSetBit(int) int
+}
+
+func (b *smallBitSet) CopyFromJutil(src bitSet128Source) {
 	b.ClearAll()
 	b.w0, b.w1 = src.Words128()
 	if src.Length() > 128 {

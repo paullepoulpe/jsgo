@@ -304,11 +304,11 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 
 // addResolvedMapping is the generator half of AddMappingOfNodePositions.
 func (s *SourceMap) addResolvedMapping(r *sourceMap_resolvedMapping) {
-	var origPtr *string
 	if r.hasOriginalName {
-		origPtr = &r.originalName
+		s.generatorV3.AddMappingPositions(r.sourceFileName, &r.originalName, r.srcPos, r.start, r.end)
+		return
 	}
-	s.generatorV3.AddMappingPositions(r.sourceFileName, origPtr, r.srcPos, r.start, r.end)
+	s.generatorV3.AddMappingPositions(r.sourceFileName, nil, r.srcPos, r.start, r.end)
 }
 
 // Java: SourceMap.addSourceFile(String, String)
@@ -380,11 +380,8 @@ func (s *SourceMap) fixupSourceLocation(sourceFile string) string {
 //
 // Java: SourceMap.appendTo(Appendable, String)
 func (s *SourceMap) AppendTo(out io.StringWriter, name *string) {
-	// Go-only: language-adapter — a null name is passed through unchanged
-	// when there are no prefix mappings, as fixupSourceLocation(null) does
-	// in Java.
 	var fixed *string
-	if name != nil || len(s.prefixMappings) != 0 {
+	if name != nil {
 		f := s.fixupSourceLocation(*name)
 		fixed = &f
 	}
@@ -478,14 +475,14 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 				// to treat this file as having a real source map (implying this is an
 				// intermediate source file). Rather, this is the original source file.
 				// https://github.com/gulp-sourcemaps/gulp-sourcemaps/blob/91b94954/src/init/index.js#L116-L124
-				if file := consumer.GetFile(); file != nil &&
-					*file != "" &&
-					len(consumer.GetOriginalSources()) == 1 &&
-					sourceMapInput_contains(consumer.GetOriginalSources(), *file) &&
-					len(consumer.GetOriginalSourcesContent()) == 1 &&
-					len(consumer.GetOriginalNames()) == 0 &&
-					consumer.GetLineCount() == -1 {
-					consumer = nil
+				if file := consumer.GetFile(); file != nil && *file != "" {
+					if sources := consumer.GetOriginalSources(); len(sources) == 1 &&
+						sources[0] != nil && *sources[0] == *file &&
+						len(consumer.GetOriginalSourcesContent()) == 1 &&
+						len(consumer.GetOriginalNames()) == 0 &&
+						consumer.GetLineCount() == -1 {
+						consumer = nil
+					}
 				}
 
 				i.parsedSourceMap = consumer
@@ -509,16 +506,6 @@ func (i *SourceMapInput) dropSourcesContentOnce(consumer *sourcemap.SourceMapCon
 		i.contentDropped.Store(true)
 	}
 	i.mu.Unlock()
-}
-
-// sourceMapInput_contains reports whether list contains a non-nil string equal to target.
-func sourceMapInput_contains(list []*string, target string) bool {
-	for _, s := range list {
-		if s != nil && *s == target {
-			return true
-		}
-	}
-	return false
 }
 
 // GetOriginalPath gets the original location of this sourcemap file on

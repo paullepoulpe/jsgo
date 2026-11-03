@@ -100,20 +100,23 @@ const HamtPMap_BITS = 4
 const HamtPMap_BITS_SHIFT = 32 - HamtPMap_BITS
 
 func hamtIsNull[V comparable](v V) bool {
-	if any(v) == nil {
+	switch any(v).(type) {
+	case nil:
 		return true
-	}
-	if _, ok := any(v).(string); ok {
-		return false
-	}
-	if _, ok := any(v).(int); ok {
+	case string, int, int32, int64, int16, int8, uint, uint64, uint32, uint16, uint8, bool, float64, float32:
 		return false
 	}
 	if n, ok := any(v).(Node); ok {
 		return n.IsNil()
 	}
+	if _, ok := any(v).(interface{ IsNil() bool }); ok {
+		return any(v).(interface{ IsNil() bool }).IsNil()
+	}
 	var zero V
-	return v == zero
+	if v != zero {
+		return false
+	}
+	return jutil.IsNil(any(v))
 }
 
 const debugHamtPMap = false
@@ -390,36 +393,36 @@ func (m *HamtPMap[K, V]) Minus(key K) *HamtPMap[K, V] {
 // MinusMapWithArena is Minus using arena for node and child-slice allocations.
 func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *HamtPMap[K, V] {
 	if m != nil {
-		res, _ := m.minusWithHash(arena, key, hamtHash(key))
+		res, _, _ := m.minusWithHash(arena, key, hamtHash(key))
 		return res
 	}
 	return nil
 }
 
 // minusWithHash is the internal recursive implementation of minus(K), returning
-// the updated subtree and the removed value (zero V if not present).
+// the updated subtree, the removed value, and whether key was present.
 //
 // Java: HamtPMap.minus(K, int, V[])
-func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash uint32) (*HamtPMap[K, V], V) {
+func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash uint32) (*HamtPMap[K, V], V, bool) {
 	var zero V
 	if hash == m.hash && key == m.key {
-		return deleteRoot(arena, m.mask, m.children), m.value
+		return deleteRoot(arena, m.mask, m.children), m.value, true
 	}
 	bucketMask := uint32(1) << (hash >> HamtPMap_BITS_SHIFT)
 	if (m.mask & bucketMask) == 0 {
 		// not present, stop looking
-		return m, zero
+		return m, zero, false
 	}
 	hash <<= HamtPMap_BITS
 	index := m.index(bucketMask)
 	child := m.children[index]
-	newChild, removed := child.minusWithHash(arena, key, hash)
-	if newChild == child {
-		return m, zero
+	newChild, removed, found := child.minusWithHash(arena, key, hash)
+	if !found {
+		return m, zero, false
 	} else if newChild == nil {
-		return m.withChildren(arena, m.mask&^bucketMask, deleteChild(arena, m.children, index)), removed
+		return m.withChildren(arena, m.mask&^bucketMask, deleteChild(arena, m.children, index)), removed, true
 	} else {
-		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild)), removed
+		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild)), removed, true
 	}
 }
 
@@ -526,6 +529,7 @@ func hamtPMap_ReconcileTrees[K, V comparable](arena *HamtPMapArena[K, V], t1 *Ha
 	hash := t1.hash
 	var t1Val, t2Val V
 	var vacatedBit1, vacatedBit2 uint32
+	bothPresent := false
 	if hashCmp < 0 {
 		// t1.key is missing from t2; inline t2.VacateRoot() without allocating intermediate root/slice
 		vacatedBit2 = uint32(1) << (t2.hash >> HamtPMap_BITS_SHIFT)
@@ -541,15 +545,17 @@ func hamtPMap_ReconcileTrees[K, V comparable](arena *HamtPMapArena[K, V], t1 *Ha
 	} else {
 		if t1.key != t2.key {
 			// Hash collision: try to rearrange t2 to have the same root as t1
-			t2 = t2.pivot(arena, t1.key, t1.hash)
+			t2, bothPresent = t2.pivot(arena, t1.key, t1.hash)
 			sameChildrenAs2 = false
+		} else {
+			bothPresent = true
 		}
 		t1Val = t1.value
 		t2Val = t2.value
 	}
 
 	var newValue V
-	if vacatedBit1 == 0 && vacatedBit2 == 0 && hamtValueEquals(t1Val, t2Val) {
+	if bothPresent && hamtValueEquals(t1Val, t2Val) {
 		newValue = t1Val
 	} else {
 		newValue = joiner(key, t1Val, t2Val)
@@ -634,9 +640,9 @@ func HamtPMap_EquivalentTrees[K, V comparable](t1 *HamtPMap[K, V], t2 *HamtPMap[
 		return false
 	} else if t1.key != t2.key {
 		// Hash collision: try to rearrange t2 to have the same root as t1
-		t2 = t2.pivot(nil, t1.key, t1.hash)
-		if hamtIsNull(t2.value) {
-			// pivot() returns a null 't2.value' when t1.key was not found in t2
+		var ok bool
+		t2, ok = t2.pivot(nil, t1.key, t1.hash)
+		if !ok {
 			return false
 		}
 	}
@@ -706,8 +712,7 @@ func hamtHash[K comparable](key K) uint32 {
 	if x, ok := any(key).(int); ok {
 		return bits.Reverse32(uint32(int32(x)))
 	}
-	var zero K
-	if key == zero {
+	if hamtIsNull(key) {
 		failJSTypeNull()
 	}
 	if h, ok := any(key).(interface{ HashCode() int32 }); ok {
@@ -720,11 +725,7 @@ func hamtValueEquals[V comparable](a, b V) bool {
 	if a == b {
 		return true
 	}
-	if any(a) == nil || any(b) == nil {
-		return false
-	}
-	var zero V
-	if a == zero || b == zero {
+	if hamtIsNull(a) || hamtIsNull(b) {
 		return false
 	}
 	if ja, ok := any(a).(JSType); ok {
@@ -744,27 +745,29 @@ func hamtCheckNotNull[V comparable](v V) {
 }
 
 // pivot returns a new version of this map with the given key at the root,
-// and the root element moved to some deeper node. If the key is not found in
-// this map, then value will be null in the returned map.
+// and the root element moved to some deeper node, along with whether key was
+// found in this map.
 //
 // Java: HamtPMap.pivot(K, int)
-func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash uint32) *HamtPMap[K, V] {
-	res, _ := m.pivotWithParent(arena, key, hash, nil)
-	return res
+func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash uint32) (*HamtPMap[K, V], bool) {
+	res, _, ok := m.pivotWithParent(arena, key, hash, nil)
+	return res, ok
 }
 
 // pivotWithParent is the internal recursive version of pivot, returning the
-// pivoted subtree and the found value (zero V if not present). If parent is
-// nil, returns a map rooted at key with the found value; otherwise returns a
-// map rooted at parent.key.
+// pivoted subtree, the found value (zero V if not present), and whether key
+// was present. If parent is nil, returns a map rooted at key with the found
+// value; otherwise returns a map rooted at parent.key.
 //
 // Java: HamtPMap.pivot(K, int, HamtPMap<K, V>, V[])
-func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash uint32, parent *HamtPMap[K, V]) (*HamtPMap[K, V], V) {
+func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash uint32, parent *HamtPMap[K, V]) (*HamtPMap[K, V], V, bool) {
 	var found V
+	var ok bool
 	newMask := m.mask
 	newChildren := m.children
 	if hash == m.hash && key == m.key {
 		found = m.value
+		ok = true
 	} else {
 		// Otherwise, see if the value might be present in a child.
 		searchBucket := hash >> HamtPMap_BITS_SHIFT
@@ -777,7 +780,7 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 				index := m.index(bucketMask)
 				child := newChildren[index]
 				var newChild *HamtPMap[K, V]
-				newChild, found = child.pivotWithParent(arena, key, hash<<HamtPMap_BITS, m)
+				newChild, found, ok = child.pivotWithParent(arena, key, hash<<HamtPMap_BITS, m)
 				newChildren = replaceChild(arena, newChildren, index, newChild)
 			}
 		} else {
@@ -786,7 +789,7 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 				index := m.index(searchMask)
 				child := newChildren[index]
 				var newChild *HamtPMap[K, V]
-				newChild, found = child.minusWithHash(arena, key, hash<<HamtPMap_BITS)
+				newChild, found, ok = child.minusWithHash(arena, key, hash<<HamtPMap_BITS)
 				if newChild != nil {
 					newChildren = replaceChild(arena, newChildren, index, newChild)
 				} else {
@@ -811,9 +814,9 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 		}
 	}
 	if parent != nil {
-		return allocHamtPMap(arena, parent.key, parent.hash<<HamtPMap_BITS, parent.value, newMask, newChildren), found
+		return allocHamtPMap(arena, parent.key, parent.hash<<HamtPMap_BITS, parent.value, newMask, newChildren), found, ok
 	}
-	return allocHamtPMap(arena, key, hash, found, newMask, newChildren), found
+	return allocHamtPMap(arena, key, hash, found, newMask, newChildren), found, ok
 }
 
 // withChildren returns a copy of this node with a different array of

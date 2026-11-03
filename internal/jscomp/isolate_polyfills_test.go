@@ -30,14 +30,13 @@ import (
 type IsolatePolyfillsTest struct {
 	CompilerTestCaseBase
 	polyfillTable            []string
-	polyfillsToInject        *jutil.LinkedHashSet[string]
+	polyfillsToInject        OrderedSet[string]
 	enablePropertyFlattening bool
 }
 
 // Java: IsolatePolyfillsTest()
 func NewIsolatePolyfillsTest() *IsolatePolyfillsTest {
 	c := &IsolatePolyfillsTest{}
-	c.polyfillsToInject = jutil.NewLinkedHashSet[string]()
 	c.InitCompilerTestCaseBase(c)
 	return c
 }

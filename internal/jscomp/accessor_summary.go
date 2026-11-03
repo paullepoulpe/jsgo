@@ -85,12 +85,13 @@ func (k AccessorSummary_PropertyAccessKind) UnionWith(other AccessorSummary_Prop
 // `NORMAL`.
 //
 // Java: AccessorSummary.create(Map<String, PropertyAccessKind>)
-func AccessorSummary_Create(accessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
+func AccessorSummary_Create(accessors jutil.MapSource[string, AccessorSummary_PropertyAccessKind]) *AccessorSummary {
 	jutil.CheckNotNull(accessors)
-	if accessors.IsEmpty() {
+	n := accessors.Size()
+	if n == 0 {
 		return &AccessorSummary{}
 	}
-	entries := make([]accessorIDEntry, 0, accessors.Size())
+	entries := make([]accessorIDEntry, 0, n)
 	for name, kind := range accessors.All() {
 		entries = append(entries, accessorIDEntry{
 			id:   uint32(strpool.Intern(name)),
@@ -163,10 +164,10 @@ func (s *AccessorSummary) AccessorIDs() []uint32 {
 }
 
 // Java: AccessorSummary.getAccessors()
-func (s *AccessorSummary) GetAccessors() *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
-	m := jutil.NewLinkedHashMapWithCapacity[string, AccessorSummary_PropertyAccessKind](len(s.accessorIDs))
+func (s *AccessorSummary) GetAccessors() *OrderedStringMap[AccessorSummary_PropertyAccessKind] {
+	m := NewOrderedStringMapWithCapacity[AccessorSummary_PropertyAccessKind](len(s.accessorIDs))
 	for _, id := range s.accessorIDs {
-		m.Put(strpool.String(strpool.ID(id)), s.GetKindByID(id))
+		m.PutNew(strpool.String(strpool.ID(id)), s.GetKindByID(id))
 	}
 	return m
 }

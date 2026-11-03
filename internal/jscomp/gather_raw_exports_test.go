@@ -21,8 +21,6 @@ package jscomp
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // GatherRawExportsTest holds tests for GatherRawExports.
@@ -61,7 +59,7 @@ func (c *GatherRawExportsTest) GetProcessor(compiler *Compiler) CompilerPass {
 
 // Java: GatherRawExportsTest.assertExported(String, String...)
 func (c *GatherRawExportsTest) AssertExported(js string, names ...string) {
-	setNames := jutil.NewLinkedHashSet(names...)
+	setNames := NewOrderedSet(names...)
 	c.TestSame(js)
 	AssertThat(c.last.GetExportedVariableNames()).IsEqualTo(setNames)
 }

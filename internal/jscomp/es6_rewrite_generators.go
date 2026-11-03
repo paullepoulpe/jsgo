@@ -639,7 +639,7 @@ func (s *generatorFunctionTranspiler) transpileIf(n rhino.Node, breakCase *gener
 	condition = s.prepareNodeForWrite(condition)
 	newIfBlock := s.ctx.createJumpToBlock(ifCase /* allowEmbedding= */, true, n)
 	s.ctx.writeGeneratedNode(
-		astFactory.CreateIf(s.prepareNodeForWrite(condition), newIfBlock).Srcref(n))
+		astFactory.CreateIf(condition, newIfBlock).Srcref(n))
 	s.transpileStatement(elseBlock)
 	s.ctx.writeJumpTo(endCase, elseBlock)
 	s.ctx.switchCaseTo(ifCase)

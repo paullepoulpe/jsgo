@@ -58,11 +58,11 @@ import (
 // String → string, Integer → int, List<String> → []string,
 // List<Marker> → []JSDocInfo_Marker,
 // ArrayList<JSTypeExpression> → []*JSTypeExpression,
-// LinkedHashMap<String, JSTypeExpression> → []JSDocParam,
-// LinkedHashMap<String, String> → []jsDocKV,
+// Map<String, JSTypeExpression> → []JSDocParam,
+// Map<String, String> → []jsDocKV,
 // ImmutableMap<ImmutableSet<String>, String> → []JSDocSuppression,
 // ImmutableSet<String> → []string (deduplicated), and
-// LinkedHashMap<String, Node> → []JSDocTypeTransform.
+// Map<String, Node> → []JSDocTypeTransform.
 type JSDocInfo struct {
 	propertyBits       int64
 	propertyKeysBitset int64
@@ -201,9 +201,9 @@ func (p *JSDocInfo_Property) Clone(arg any, transform JSDocInfo_TypeTransform) a
 		}
 		return out
 	case jsDocPropKindStringList, jsDocPropKindStringSet:
-		return slices.Clip(jsdocGet[[]string](arg))
+		return slices.Clone(jsdocGet[[]string](arg))
 	case jsDocPropKindMarkerList:
-		return slices.Clip(jsdocGet[[]JSDocInfo_Marker](arg))
+		return slices.Clone(jsdocGet[[]JSDocInfo_Marker](arg))
 	case jsDocPropKindTypeMap:
 		out := slices.Clone(jsdocGet[[]JSDocParam](arg))
 		if transform != nil {
@@ -215,9 +215,9 @@ func (p *JSDocInfo_Property) Clone(arg any, transform JSDocInfo_TypeTransform) a
 		}
 		return out
 	case jsDocPropKindStringMap:
-		return slices.Clip(jsdocGet[[]jsDocKV](arg))
+		return slices.Clone(jsdocGet[[]jsDocKV](arg))
 	case jsDocPropKindSuppressions:
-		return slices.Clip(jsdocGet[[]JSDocSuppression](arg))
+		return slices.Clone(jsdocGet[[]JSDocSuppression](arg))
 	case jsDocPropKindNodeMap:
 		return slices.Clone(jsdocGet[[]JSDocTypeTransform](arg))
 	}

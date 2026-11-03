@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"cmp"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
@@ -218,11 +219,13 @@ func ControlFlowGraph_IsEnteringNewCfgNode(n rhino.Node) bool {
 
 // Java: ControlFlowGraph.toString()
 func (c *ControlFlowGraph[N]) String() string {
-	s := "CFG:\n"
+	var sb strings.Builder
+	sb.WriteString("CFG:\n")
 	for _, e := range c.GetGraphvizEdges() {
-		s += jutil.ToJavaString(e) + "\n"
+		sb.WriteString(jutil.ToJavaString(e))
+		sb.WriteByte('\n')
 	}
-	return s
+	return sb.String()
 }
 
 func throwNilCfgNodeTraversal(compiler AbstractCompiler) {

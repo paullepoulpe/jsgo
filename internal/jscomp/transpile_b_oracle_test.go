@@ -175,8 +175,7 @@ func transpileBOraclePasses(compiler *Compiler, variant string) []*transpileBOra
 		}})
 	}
 	passes = append(passes, &transpileBOracleNamedPass{name: "InjectRuntimeLibraries", factory: func(c *Compiler) CompilerPass {
-		return NewInjectRuntimeLibraries(
-			c, jutil.NewLinkedHashSet(c.GetOptions().GetForceLibraryInjectionList()...))
+		return newInjectRuntimeLibrariesFromSlice(c, c.GetOptions().GetForceLibraryInjectionList())
 	}})
 	passes = append(passes, &transpileBOracleNamedPass{name: PassNames_NORMALIZE, factory: func(c *Compiler) CompilerPass {
 		return Normalize_CreateNormalizeForOptimizations(c)

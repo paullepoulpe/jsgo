@@ -99,12 +99,15 @@ func optimizeCallsTest_entries(refs iter.Seq2[string, []rhino.Node]) []optimizeC
 }
 
 // optimizeCallsTest_copyOf is ImmutableMap.copyOf(Iterable<Entry>).
-func optimizeCallsTest_copyOf(refs iter.Seq2[string, []rhino.Node]) *jutil.LinkedHashMap[string, []rhino.Node] {
-	m := jutil.NewImmutableMapBuilder[string, []rhino.Node]()
+func optimizeCallsTest_copyOf(refs iter.Seq2[string, []rhino.Node]) *OrderedStringMap[[]rhino.Node] {
+	m := NewOrderedStringMap[[]rhino.Node]()
 	for k, v := range refs {
-		m.Put(k, v)
+		if m.ContainsKey(k) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k))
+		}
+		m.PutNew(k, v)
 	}
-	return m.BuildOrThrow()
+	return m
 }
 
 var OptimizeCallsTest_KEY_EQUALITY = Correspondence_Transforming(

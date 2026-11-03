@@ -35,17 +35,17 @@ func (*TestLogsGsonable) ToLogsGson() any {
 }
 
 type testMultimap struct {
-	m *jutil.LinkedHashMap[string, *jutil.LinkedHashSet[any]]
+	m *jutil.OrderedMap[string, *jutil.OrderedSet[any]]
 }
 
 func newTestMultimap() *testMultimap {
-	return &testMultimap{m: jutil.NewLinkedHashMap[string, *jutil.LinkedHashSet[any]]()}
+	return &testMultimap{m: jutil.NewOrderedMap[string, *jutil.OrderedSet[any]]()}
 }
 
 func (mm *testMultimap) Put(k string, v any) {
 	s, ok := mm.m.Lookup(k)
 	if !ok {
-		s = jutil.NewLinkedHashSet[any]()
+		s = jutil.NewOrderedSet[any]()
 		mm.m.Put(k, s)
 	}
 	s.Add(v)

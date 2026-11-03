@@ -35,7 +35,7 @@ import (
 // GetParentScope keep rhino.StaticScope's signatures; see the note at the
 // top of abstract_scope.go.
 //
-// Go-only: performance — the Java LinkedHashMap<String, Var> is varList, in
+// Go-only: performance — the Java Map<String, Var> is varList, in
 // declaration order, plus scopeVarIndex once the scope has more than
 // scopeSmallVars vars. lookupParent is the closest ancestor worth searching:
 // scanned scopes without vars or implicit vars are skipped.

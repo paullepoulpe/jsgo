@@ -19,11 +19,7 @@
 
 package jscomp
 
-import (
-	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "testing"
 
 // LateEs6ToEs3ConverterTest has the test cases for ES6 transpilation. This
 // tests LateEs6ToEs3Converter
@@ -41,8 +37,8 @@ const LateEs6ToEs3ConverterTest_SCRIPT1 = "var x;"
 // readability.
 //
 // Java: LateEs6ToEs3ConverterTest.REPLACEMENT_PREFIXES
-var LateEs6ToEs3ConverterTest_REPLACEMENT_PREFIXES = func() *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+var LateEs6ToEs3ConverterTest_REPLACEMENT_PREFIXES = func() *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](2)
 	m.Put("TAGGED_TEMPLATE_TMP_VAR", "$jscomp$templatelit$")
 	m.Put("COMP_PROP_VAR", "$jscomp$compprop")
 	return m

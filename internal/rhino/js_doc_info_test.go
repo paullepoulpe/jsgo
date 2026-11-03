@@ -619,3 +619,32 @@ func createSampleTypeExpression_rootReplacement() *JSTypeExpression {
 }
 
 var jsdocTestEMPTY = JSDocInfo_Builder_().BuildWithAlways(true)
+
+func TestJSDocInfoPropertyCloneCopiesBackingSlices(t *testing.T) {
+	strList := []string{"a", "b"}
+	clonedStrList := JSDocInfo_AUTHORS.Clone(strList, nil).([]string)
+	clonedStrList[0] = "mutated"
+	if strList[0] != "a" {
+		t.Fatalf("mutating cloned string list corrupted original: %v", strList)
+	}
+
+	markers := []JSDocInfo_Marker{{}}
+	clonedMarkers := JSDocInfo_MARKERS.Clone(markers, nil).([]JSDocInfo_Marker)
+	if &clonedMarkers[0] == &markers[0] {
+		t.Fatal("expected JSDocInfo_MARKERS.Clone to allocate a distinct backing array")
+	}
+
+	kvs := []jsDocKV{{key: "k", val: "v1"}}
+	clonedKVs := JSDocInfo_PARAMETER_DESCRIPTIONS.Clone(kvs, nil).([]jsDocKV)
+	clonedKVs[0].val = "v2"
+	if kvs[0].val != "v1" {
+		t.Fatalf("mutating cloned jsDocKV slice corrupted original: %+v", kvs)
+	}
+
+	supps := []JSDocSuppression{{Warnings: []string{"checkTypes"}, Description: "orig"}}
+	clonedSupps := JSDocInfo_SUPPRESSIONS.Clone(supps, nil).([]JSDocSuppression)
+	clonedSupps[0].Description = "changed"
+	if supps[0].Description != "orig" {
+		t.Fatalf("mutating cloned JSDocSuppression slice corrupted original: %+v", supps)
+	}
+}

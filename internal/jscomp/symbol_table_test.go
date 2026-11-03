@@ -2019,7 +2019,7 @@ var x = 4;
 	AssertThat(xSymbols[3].GetDeclarationNode().GetLineno()).IsEqualTo(3)
 
 	// getAllSymbols() should also be deterministic now (it iterates values() which comes from
-	// LinkedHashMap).
+	// OrderedMap).
 	// The exact insertion order into `symbols` depends on the traversal order.
 	// In our traversal, we traverse line 1, then line 2, then line 3, then line 4.
 	allIterated := table.GetAllSymbols()
@@ -2075,7 +2075,7 @@ func (c *SymbolTableTest) CreateSymbolTableFromManySources(inputs ...string) *Sy
 //
 // Java: SymbolTableTest.assertSymbolTableValid(SymbolTable)
 func (c *SymbolTableTest) AssertSymbolTableValid(table *SymbolTable) *SymbolTable {
-	allSymbols := jutil.NewLinkedHashSet[*SymbolTable_Symbol]()
+	allSymbols := NewOrderedSet[*SymbolTable_Symbol]()
 	for _, sym := range table.GetAllSymbols() {
 		allSymbols.Add(sym)
 	}
@@ -2116,8 +2116,8 @@ func (c *SymbolTableTest) AssertSymbolTableValid(table *SymbolTable) *SymbolTabl
 // expected side of containsExactly.
 //
 // Go-only: language-adapter — Truth's MapSubject.containsExactly(k, v, ...).
-func symbolTableTest_mapOf(k1 string, v1 int, k2 string, v2 int) *jutil.LinkedHashMap[string, int] {
-	m := jutil.NewLinkedHashMap[string, int]()
+func symbolTableTest_mapOf(k1 string, v1 int, k2 string, v2 int) *OrderedMap[string, int] {
+	m := NewOrderedMapWithCapacity[string, int](2)
 	m.Put(k1, v1)
 	m.Put(k2, v2)
 	return m

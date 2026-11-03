@@ -230,24 +230,7 @@ func parseVariableMapStream(stream io.Reader) (*VariableMap, error) {
 	if err != nil {
 		panic(jutil.NewIOException(err.Error()))
 	}
-	text := jutil.NewStringFromUTF8Bytes(b)
-	var entries []variableMapEntry
-	for pos := 0; ; {
-		line, nextPos, ok := jutil.NextLineFromString(text, pos)
-		if !ok {
-			break
-		}
-		pos = nextPos
-		if line == "" {
-			continue
-		}
-		orig, newName, ok := parseVariableMapLine(line)
-		if !ok {
-			return nil, errors.New("Bad line: " + line)
-		}
-		entries = append(entries, variableMapEntry{orig: orig, newName: newName})
-	}
-	return newVariableMapFromEntries(entries), nil
+	return parseVariableMapLines(jutil.NewStringFromUTF8Bytes(b))
 }
 
 func parseVariableMapLines(s string) (*VariableMap, error) {

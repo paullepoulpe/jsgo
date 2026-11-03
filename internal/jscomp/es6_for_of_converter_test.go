@@ -56,8 +56,8 @@ func (c *Es6ForOfConverterTest) JUnitBefore() {
 // the String maps of the transpilation tests.
 //
 // Go-only: test-helper.
-func transpileTests_ImmutableMapOf(keysAndValues ...string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func transpileTests_ImmutableMapOf(keysAndValues ...string) *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](len(keysAndValues) / 2)
 	for i := 0; i < len(keysAndValues); i += 2 {
 		jutil.CheckArgumentMsg1(!m.ContainsKey(keysAndValues[i]), "duplicate key: %s", keysAndValues[i])
 		m.Put(keysAndValues[i], keysAndValues[i+1])

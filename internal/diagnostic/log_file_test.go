@@ -76,7 +76,7 @@ func TestLogFileMatchesJava(t *testing.T) {
 	s.step("log(Supplier)", func() any { return log.LogSupplier(func() string { return "supplied" }) })
 	s.step("log(template)", func() any { return log.LogFormat("%s-%d-%s", "x", int32(3), nil) })
 	s.step("logJson(Object)", func() any {
-		m := jutil.NewLinkedHashMap[string, any]()
+		m := jutil.NewOrderedMap[string, any]()
 		m.Put("k", []string{"<v>"})
 		return log.LogJson(m)
 	})

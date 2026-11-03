@@ -37,7 +37,7 @@ type FunctionArgumentInjectorTest struct {
 	functionArgumentInjector *FunctionArgumentInjector
 }
 
-var FunctionArgumentInjectorTest_EMPTY_STRING_SET = jutil.NewLinkedHashSet[string]()
+var FunctionArgumentInjectorTest_EMPTY_STRING_SET = NewOrderedSet[string]()
 
 // Java: FunctionArgumentInjectorTest()
 func NewFunctionArgumentInjectorTest() *FunctionArgumentInjectorTest {
@@ -68,16 +68,24 @@ func (c *FunctionArgumentInjectorTest) SetUp() {
 
 // functionArgumentInjectorTest_mapOf is ImmutableMap.of(k, v).
 //
-// Go-only: test-helper — ImmutableMap is a jutil.LinkedHashMap in the port.
-func functionArgumentInjectorTest_mapOf(k string, v rhino.Node) *jutil.LinkedHashMap[string, rhino.Node] {
-	return jutil.NewImmutableMapBuilder[string, rhino.Node]().Put(k, v).BuildOrThrow()
+// Go-only: test-helper — ImmutableMap is an OrderedStringMap in the port.
+func functionArgumentInjectorTest_mapOf(k string, v rhino.Node) *OrderedStringMap[rhino.Node] {
+	m := NewOrderedStringMapWithCapacity[rhino.Node](1)
+	m.PutNew(k, v)
+	return m
 }
 
 // functionArgumentInjectorTest_mapOf2 is ImmutableMap.of(k1, v1, k2, v2).
 //
-// Go-only: test-helper — ImmutableMap is a jutil.LinkedHashMap in the port.
-func functionArgumentInjectorTest_mapOf2(k1 string, v1 rhino.Node, k2 string, v2 rhino.Node) *jutil.LinkedHashMap[string, rhino.Node] {
-	return jutil.NewImmutableMapBuilder[string, rhino.Node]().Put(k1, v1).Put(k2, v2).BuildOrThrow()
+// Go-only: test-helper — ImmutableMap is an OrderedStringMap in the port.
+func functionArgumentInjectorTest_mapOf2(k1 string, v1 rhino.Node, k2 string, v2 rhino.Node) *OrderedStringMap[rhino.Node] {
+	if k1 == k2 {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k1))
+	}
+	m := NewOrderedStringMapWithCapacity[rhino.Node](2)
+	m.PutNew(k1, v1)
+	m.PutNew(k2, v2)
+	return m
 }
 
 // Java: FunctionArgumentInjectorTest.testInject0()
@@ -383,13 +391,13 @@ func (c *FunctionArgumentInjectorTest) TestFindModifiedParameters_classFields() 
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps1() {
 	// Parameters with side-effects must be executed
 	// even if they aren't referenced.
-	c.TestNeededTemps("function foo(a,b){}; foo(goo(),goo());", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b){}; foo(goo(),goo());", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps1_optChain()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps1_optChain() {
 	// Parameters with side-effects must be executed even if they aren't referenced.
-	c.TestNeededTemps("function foo(a,b){}; foo?.(goo(),goo());", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b){}; foo?.(goo(),goo());", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps2()
@@ -407,19 +415,19 @@ func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams1() {
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams2()
 func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams2() {
 	// The first param is modified, so we add a temp for it.
-	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(x=2,x,x);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(x=2,x,x);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams3()
 func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams3() {
 	// The second param is modified, with first param using the same var, so we add temps for both.
-	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(x,x=2,x);", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(x,x=2,x);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams4()
 func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams4() {
 	// The second param is modified, so we only add temp for both.
-	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(y,x=2,x);", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(y,x=2,x);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams5()
@@ -427,7 +435,7 @@ func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams5() {
 	// The second param is modified with a more complex statement, we detect it and add temps for
 	// first two params.
 	c.TestNeededTemps(
-		"function foo(a,b,c){a;b;c;}; foo(x,(y=2,x=1,z=6),x);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b,c){a;b;c;}; foo(x,(y=2,x=1,z=6),x);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams6()
@@ -437,21 +445,21 @@ func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams6() {
 	c.TestNeededTemps(
 		"function foo(a,b,c){a;b;c;}; foo(x,(function(){y=2,x=1})(),x);",
 		"foo",
-		jutil.NewLinkedHashSet("a", "b"))
+		NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams7()
 func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams7() {
 	// The second param is modified with addition, so we add temps for both.
 	c.TestNeededTemps(
-		"function foo(a,b,c){a;b;c;}; foo(x,x+=2,x);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b,c){a;b;c;}; foo(x,x+=2,x);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams8()
 func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams8() {
 	// The second param is modified with increment, with first param using the same var, so we add
 	// temps for both.
-	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(x,x++,x);", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b,c){a;b;c;}; foo(x,x++,x);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForModifiedParams9()
@@ -464,7 +472,7 @@ func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams9() {
 func (c *FunctionArgumentInjectorTest) TestAddingTempsForModifiedParams10() {
 	// The second param is used in addition, the third param is modified, temp all refs.
 	c.TestNeededTemps(
-		"function foo(a,b,c){a;b;c;}; foo(x,x+2,x=5);", "foo", jutil.NewLinkedHashSet("a", "b", "c"))
+		"function foo(a,b,c){a;b;c;}; foo(x,x+2,x=5);", "foo", NewOrderedSet("a", "b", "c"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForCallParams1()
@@ -473,7 +481,7 @@ func (c *FunctionArgumentInjectorTest) TestAddingTempsForCallParams1() {
 	c.TestNeededTemps(
 		"function foo(a,b,c){a;b;c;}; var x; function incX(){return ++x}; foo(x,incX(),x);",
 		"foo",
-		jutil.NewLinkedHashSet("a", "b"))
+		NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testAddingTempsForCallParams2()
@@ -483,7 +491,7 @@ func (c *FunctionArgumentInjectorTest) TestAddingTempsForCallParams2() {
 		"function foo(a,b,c){a;b;c;}; var x; function incX(){return ++x}; foo(4,incX(),x);",
 		"foo",
 		// TODO: b/309593967 The first param is a number, so we can skip creating a temp for it.
-		jutil.NewLinkedHashSet("a", "b"))
+		NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps2_optChain()
@@ -509,7 +517,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps3_optC
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps4() {
 	// Parameters referenced after side-effect must be assigned to temps.
 	// Since b is getting hoisted as a temp, we must also hoist a.
-	c.TestNeededTemps("function foo(a,b){a;goo();b;}; foo(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b){a;goo();b;}; foo(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testBodyHasConditionalCode()
@@ -525,33 +533,33 @@ func (c *FunctionArgumentInjectorTest) TestBodyHasConditionalCode() {
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps4_optChain() {
 	// Parameters referenced after side-effect must be assigned to temps.
 	// Any param before that param must also be assigned to a temp.
-	c.TestNeededTemps("function foo(a,b){a;goo();b;}; foo?.(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+	c.TestNeededTemps("function foo(a,b){a;goo();b;}; foo?.(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps5()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps5() {
 	// Parameters referenced after out-of-scope side-effect must
 	// be assigned to temps.
-	c.TestNeededTemps("function foo(a,b){x = b; y = a;}; foo(x,y);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a,b){x = b; y = a;}; foo(x,y);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps5_optChain()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps5_optChain() {
 	// Parameters referenced after out-of-scope side-effect must be assigned to temps.
-	c.TestNeededTemps("function foo(a,b){x = b; y = a;}; foo?.(x,y);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a,b){x = b; y = a;}; foo?.(x,y);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps6()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps6() {
 	// Parameter referenced after a out-of-scope side-effect must
 	// be assigned to a temp.
-	c.TestNeededTemps("function foo(a){x++;a;}; foo(x);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){x++;a;}; foo(x);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps6_optChain()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps6_optChain() {
 	// Parameter referenced after a out-of-scope side-effect must be assigned to a temp.
-	c.TestNeededTemps("function foo(a){x++;a;}; foo?.(x);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){x++;a;}; foo?.(x);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps7()
@@ -568,14 +576,14 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps7() {
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps8() {
 	// Temp needed for side-effects to object using local name.
 	c.TestNeededTemps(
-		"function foo(a){var c = {}; c.goo=0; a;}; foo(x);", "foo", jutil.NewLinkedHashSet("a"))
+		"function foo(a){var c = {}; c.goo=0; a;}; foo(x);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps8_optChain()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps8_optChain() {
 	// Temp needed for side-effects to object using local name.
 	c.TestNeededTemps(
-		"function foo(a){var c = {}; c.goo=0; a;}; foo?.(x);", "foo", jutil.NewLinkedHashSet("a"))
+		"function foo(a){var c = {}; c.goo=0; a;}; foo?.(x);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps9()
@@ -583,7 +591,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps9() {
 	// Parameters referenced in a loop with side-effects must
 	// be assigned to temps.
 	c.TestNeededTemps(
-		"function foo(a,b){while(true){a;goo();b;}}; foo(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b){while(true){a;goo();b;}}; foo(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps9_optChain()
@@ -592,7 +600,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps9_optC
 	c.TestNeededTemps(
 		"function foo(a,b){while(true){a;goo();b;}}; foo?.(x,y);",
 		"foo",
-		jutil.NewLinkedHashSet("a", "b"))
+		NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps10()
@@ -607,14 +615,14 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps11() {
 	// Parameters referenced in a loop with side-effects must
 	// be assigned to temps.
 	c.TestNeededTemps(
-		"function foo(a,b){do{a;b;}while(goo());}; foo(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b){do{a;b;}while(goo());}; foo(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps11_optChain()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps11_optChain() {
 	// Parameters referenced in a loop with side-effects must be assigned to temps.
 	c.TestNeededTemps(
-		"function foo(a,b){do{a;b;}while(goo());}; foo?.(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b){do{a;b;}while(goo());}; foo?.(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps12()
@@ -622,7 +630,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps12() {
 	// Parameters referenced in a loop with side-effects must
 	// be assigned to temps.
 	c.TestNeededTemps(
-		"function foo(a,b){for(;;){a;b;goo();}}; foo(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b){for(;;){a;b;goo();}}; foo(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps13()
@@ -632,7 +640,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps13() {
 	c.TestNeededTemps(
 		"function foo(a,b){for(;;){for(;;){a;b;}goo();}}; foo(x,y);",
 		"foo",
-		jutil.NewLinkedHashSet("a", "b"))
+		NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps13_optChain()
@@ -642,7 +650,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps13_opt
 	c.TestNeededTemps(
 		"function foo(a,b){for(;;){for(;;){a;b;}goo();}}; foo?.(x,y);",
 		"foo",
-		jutil.NewLinkedHashSet("a", "b"))
+		NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps14()
@@ -650,13 +658,13 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps14() {
 	// Parameters referenced in a loop must
 	// be assigned to temps.
 	c.TestNeededTemps(
-		"function foo(a,b){goo();for(;;){a;b;}}; foo(x,y);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b){goo();for(;;){a;b;}}; foo(x,y);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps20()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps20() {
 	// A long string referenced more than once should have a temp.
-	c.TestNeededTemps("function foo(a){a;a;}; foo(\"blah blah\");", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){a;a;}; foo(\"blah blah\");", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps21()
@@ -670,26 +678,26 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps22() {
 	// A object literal not referenced.
 	c.TestNeededTemps("function foo(a){}; foo({x:1});", "foo", FunctionArgumentInjectorTest_EMPTY_STRING_SET)
 	// A object literal referenced after side-effect, should have a temp.
-	c.TestNeededTemps("function foo(a){alert('foo');a;}; foo({x:1});", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){alert('foo');a;}; foo({x:1});", "foo", NewOrderedSet("a"))
 	// A object literal referenced after side-effect, should have a temp.
 	c.TestNeededTemps(
-		"function foo(a,b){b;a;}; foo({x:1},alert('foo'));", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a,b){b;a;}; foo({x:1},alert('foo'));", "foo", NewOrderedSet("a", "b"))
 	// A object literal, referenced more than once, should have a temp.
-	c.TestNeededTemps("function foo(a){a;a;}; foo({x:1});", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){a;a;}; foo({x:1});", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps22b()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps22b() {
 	// A object literal not referenced.
 	c.TestNeededTemps(
-		"function foo(a){a(this)}; foo.call(f(),g());", "foo", jutil.NewLinkedHashSet("a", "this"))
+		"function foo(a){a(this)}; foo.call(f(),g());", "foo", NewOrderedSet("a", "this"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps22b_optChain()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps22b_optChain() {
 	// A object literal not referenced.
 	c.TestNeededTemps(
-		"function foo(a){a(this)}; foo?.call(f(),g());", "foo", jutil.NewLinkedHashSet("a", "this"))
+		"function foo(a){a(this)}; foo?.call(f(),g());", "foo", NewOrderedSet("a", "this"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps23()
@@ -697,9 +705,9 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps23() {
 	// A array literal, not referenced.
 	c.TestNeededTemps("function foo(a){}; foo([1,2]);", "foo", FunctionArgumentInjectorTest_EMPTY_STRING_SET)
 	// A array literal, referenced once after side-effect, should have a temp.
-	c.TestNeededTemps("function foo(a){alert('foo');a;}; foo([1,2]);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){alert('foo');a;}; foo([1,2]);", "foo", NewOrderedSet("a"))
 	// A array literal, referenced more than once, should have a temp.
-	c.TestNeededTemps("function foo(a){a;a;}; foo([1,2]);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){a;a;}; foo([1,2]);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps24()
@@ -707,9 +715,9 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps24() {
 	// A regex literal, not referenced.
 	c.TestNeededTemps("function foo(a){}; foo(/mac/);", "foo", FunctionArgumentInjectorTest_EMPTY_STRING_SET)
 	// A regex literal, referenced once after side-effect, should have a temp.
-	c.TestNeededTemps("function foo(a){alert('foo');a;}; foo(/mac/);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){alert('foo');a;}; foo(/mac/);", "foo", NewOrderedSet("a"))
 	// A regex literal, referenced more than once, should have a temp.
-	c.TestNeededTemps("function foo(a){a;a;}; foo(/mac/);", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){a;a;}; foo(/mac/);", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps25()
@@ -718,21 +726,21 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps25() {
 	c.TestNeededTemps("function foo(a){}; foo(new Date());", "foo", FunctionArgumentInjectorTest_EMPTY_STRING_SET)
 	// A side-effect-less constructor, referenced once after sideeffect, should have a temp.
 	c.TestNeededTemps(
-		"function foo(a){alert('foo');a;}; foo(new Date());", "foo", jutil.NewLinkedHashSet("a"))
+		"function foo(a){alert('foo');a;}; foo(new Date());", "foo", NewOrderedSet("a"))
 	// A side-effect-less constructor, referenced more than once, should have
 	// a temp.
-	c.TestNeededTemps("function foo(a){a;a;}; foo(new Date());", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){a;a;}; foo(new Date());", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps26()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps26() {
 	// A constructor, not referenced.
-	c.TestNeededTemps("function foo(a){}; foo(new Bar());", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){}; foo(new Bar());", "foo", NewOrderedSet("a"))
 	// A constructor, referenced once after a sideeffect, should have a temp.
 	c.TestNeededTemps(
-		"function foo(a){alert('foo');a;}; foo(new Bar());", "foo", jutil.NewLinkedHashSet("a"))
+		"function foo(a){alert('foo');a;}; foo(new Bar());", "foo", NewOrderedSet("a"))
 	// A constructor, referenced more than once, should have a temp.
-	c.TestNeededTemps("function foo(a){a;a;}; foo(new Bar());", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){a;a;}; foo(new Bar());", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps27()
@@ -743,7 +751,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps27() {
 	c.TestNeededTemps(
 		"function foo(a,b,c){}; foo.call(this,1,goo(),2);",
 		"foo",
-		jutil.NewLinkedHashSet("this", "a", "b"))
+		NewOrderedSet("this", "a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps28()
@@ -788,7 +796,7 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps_argMu
 	c.TestNeededTemps(
 		"function foo(a, b, c){return a+b+c;}; foo(x,y+1,y=z);",
 		"foo",
-		jutil.NewLinkedHashSet("a", "b", "c"))
+		NewOrderedSet("a", "b", "c"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTemps_argMutatesState2()
@@ -796,25 +804,25 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTemps_argMu
 	// `y=z` happens before `y+1` is read. Safe to inject a temp for evaluating it.
 	// Consequently, we also inject a temp for previous arg `a` that it could affect
 	c.TestNeededTemps(
-		"function foo(a, b, c){return a+b+c;}; foo(x,y=z,y+1);", "foo", jutil.NewLinkedHashSet("a", "b"))
+		"function foo(a, b, c){return a+b+c;}; foo(x,y=z,y+1);", "foo", NewOrderedSet("a", "b"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTempsInLoops()
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTempsInLoops() {
 	// A mutable parameter referenced in loop needs a
 	// temporary.
-	c.TestNeededTemps("function foo(a){for(;;)a;}; foo(new Bar());", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){for(;;)a;}; foo(new Bar());", "foo", NewOrderedSet("a"))
 
-	c.TestNeededTemps("function foo(a){while(true)a;}; foo(new Bar());", "foo", jutil.NewLinkedHashSet("a"))
+	c.TestNeededTemps("function foo(a){while(true)a;}; foo(new Bar());", "foo", NewOrderedSet("a"))
 
 	c.TestNeededTemps(
-		"function foo(a){do{a;}while(true)}; foo(new Bar());", "foo", jutil.NewLinkedHashSet("a"))
+		"function foo(a){do{a;}while(true)}; foo(new Bar());", "foo", NewOrderedSet("a"))
 }
 
 // Java: FunctionArgumentInjectorTest.nullishCoalesce()
 func (c *FunctionArgumentInjectorTest) TestNullishCoalesce() {
 	c.TestNeededTemps(
-		"function foo(...args) {return args ?? x;} foo(1, 2);", "foo", jutil.NewLinkedHashSet("args"))
+		"function foo(...args) {return args ?? x;} foo(1, 2);", "foo", NewOrderedSet("args"))
 }
 
 // Java: FunctionArgumentInjectorTest.testGatherCallArgumentsNeedingTempsRestParam1()
@@ -826,34 +834,34 @@ func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTempsRestPa
 func (c *FunctionArgumentInjectorTest) TestGatherCallArgumentsNeedingTempsRestParam2() {
 	// Since args is hoisted as a temp, we must also hoist the previous argument a
 	c.TestNeededTemps(
-		"function foo(x, ...args) {return args;} foo(1, 2);", "foo", jutil.NewLinkedHashSet("x", "args"))
+		"function foo(x, ...args) {return args;} foo(1, 2);", "foo", NewOrderedSet("x", "args"))
 }
 
 // Java: FunctionArgumentInjectorTest.testArgMapWithRestParam1()
 func (c *FunctionArgumentInjectorTest) TestArgMapWithRestParam1() {
 	c.AssertArgMapHasKeys(
-		"function foo(...args){return args;} foo(1, 2);", "foo", jutil.NewLinkedHashSet("this", "args"))
+		"function foo(...args){return args;} foo(1, 2);", "foo", NewOrderedSet("this", "args"))
 }
 
 // Java: FunctionArgumentInjectorTest.testArgMapWithRestParam2()
 func (c *FunctionArgumentInjectorTest) TestArgMapWithRestParam2() {
 	c.AssertArgMapHasKeys(
-		"function foo(...args){return args;} foo();", "foo", jutil.NewLinkedHashSet("this", "args"))
+		"function foo(...args){return args;} foo();", "foo", NewOrderedSet("this", "args"))
 }
 
 // Java: FunctionArgumentInjectorTest.assertArgMapHasKeys(String, String, ImmutableSet<String>)
-func (c *FunctionArgumentInjectorTest) AssertArgMapHasKeys(code string, fnName string, expectedKeys *jutil.LinkedHashSet[string]) {
+func (c *FunctionArgumentInjectorTest) AssertArgMapHasKeys(code string, fnName string, expectedKeys *OrderedSet[string]) {
 	n := c.Parse(code)
 	fn := FunctionArgumentInjectorTest_FindFunction(n, fnName)
 	AssertThat(fn).IsNotNull()
 	call := FunctionArgumentInjectorTest_FindCall(n, fnName)
 	AssertThat(call).IsNotNull()
 	actualMap := c.GetAndValidateFunctionCallParameterMap(fn, call)
-	AssertThat(jutil.NewLinkedHashSet(actualMap.KeySlice()...)).IsEqualTo(expectedKeys) // keySet()
+	AssertThat(NewOrderedSet(actualMap.KeySlice()...)).IsEqualTo(expectedKeys) // keySet()
 }
 
 // Java: FunctionArgumentInjectorTest.testNeededTemps(String, String, ImmutableSet<String>)
-func (c *FunctionArgumentInjectorTest) TestNeededTemps(code string, fnName string, expectedTemps *jutil.LinkedHashSet[string]) {
+func (c *FunctionArgumentInjectorTest) TestNeededTemps(code string, fnName string, expectedTemps *OrderedSet[string]) {
 	n := c.Parse(code)
 	fn := FunctionArgumentInjectorTest_FindFunction(n, fnName)
 	AssertThat(fn).IsNotNull()
@@ -863,14 +871,14 @@ func (c *FunctionArgumentInjectorTest) TestNeededTemps(code string, fnName strin
 
 	actualTemps :=
 		c.functionArgumentInjector.GatherCallArgumentsNeedingTemps(
-			c.compiler, fn, args, jutil.NewLinkedHashSet[string](), NewClosureCodingConvention())
+			c.compiler, fn, args, NewOrderedSet[string](), NewClosureCodingConvention())
 
 	AssertThat(actualTemps).IsEqualTo(expectedTemps)
 }
 
 // Java: FunctionArgumentInjectorTest.getAndValidateFunctionCallParameterMap(Node, Node)
 func (c *FunctionArgumentInjectorTest) GetAndValidateFunctionCallParameterMap(
-	fn rhino.Node, call rhino.Node) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
+	fn rhino.Node, call rhino.Node) *OrderedStringMap[FunctionArgumentInjector_ParamArgPair] {
 	map_ := c.functionArgumentInjector.GetFunctionCallParameterMap(fn, call, FunctionArgumentInjectorTest_GetNameSupplier())
 	// Verify that all nodes in the map have source info, so they are valid to add to the AST
 	for name, value := range map_.All() {
@@ -951,7 +959,7 @@ func (c *FunctionArgumentInjectorTest) Parse(js string) rhino.Node {
 }
 
 // Java: FunctionArgumentInjector.inject(AbstractCompiler, Node, Node, Map<String, Node>)
-func (f *FunctionArgumentInjector) Inject(compiler AbstractCompiler, node rhino.Node, parent rhino.Node, replacements *jutil.LinkedHashMap[string, rhino.Node]) rhino.Node {
+func (f *FunctionArgumentInjector) Inject(compiler AbstractCompiler, node rhino.Node, parent rhino.Node, replacements *OrderedStringMap[rhino.Node]) rhino.Node {
 	return f.InjectWithReplaceThis(compiler, node, parent, replacements, true /* replaceThis= */)
 }
 
@@ -960,7 +968,7 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 	compiler AbstractCompiler,
 	node rhino.Node,
 	parent rhino.Node,
-	replacements *jutil.LinkedHashMap[string, rhino.Node],
+	replacements *OrderedStringMap[rhino.Node],
 	replaceThis bool) rhino.Node {
 	var idMap smallIDNodeMap
 	idMap.clear()
@@ -983,13 +991,13 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 
 // Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
-	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
+	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *OrderedStringMap[FunctionArgumentInjector_ParamArgPair] {
 	var bindingsBuf [smallSetInlineCap]callParamBinding
 	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
 	if hasDuplicateBindingID(bindings) {
 		throwDuplicateParamBinding(bindings)
 	}
-	argMap := jutil.NewLinkedHashMapWithCapacity[string, FunctionArgumentInjector_ParamArgPair](len(bindings))
+	argMap := NewOrderedStringMapWithCapacity[FunctionArgumentInjector_ParamArgPair](len(bindings))
 	for _, b := range bindings {
 		argMap.PutNew(b.nameStr(), NewFunctionArgumentInjector_ParamArgPair(b.paramNode, b.argNode))
 	}
@@ -1000,9 +1008,9 @@ func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
-	argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair],
-	modifiedParameters *jutil.LinkedHashSet[string],
-	convention CodingConvention) *jutil.LinkedHashSet[string] {
+	argMap *OrderedStringMap[FunctionArgumentInjector_ParamArgPair],
+	modifiedParameters *OrderedSet[string],
+	convention CodingConvention) *OrderedSet[string] {
 	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
 	if argMap.IsEmpty() {
 		return modifiedParameters
@@ -1010,7 +1018,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	var bindingsBuf [smallSetInlineCap]callParamBinding
 	bindings := bindingsFromArgMap(bindingsBuf[:0], argMap)
 	var modifiedIDs smallIDSet
-	modifiedIDs.fromLinkedHashSet(modifiedParameters, true)
+	modifiedIDs.fromOrderedSet(modifiedParameters, true)
 	requiresTempsUpToID := f.findRequiresTempsUpToParameterID(
 		compiler, fnNode, bindings, &modifiedIDs, convention, nil, false)
 	if requiresTempsUpToID == 0 {
@@ -1019,14 +1027,14 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	var dstIDs smallIDSet
 	dstIDs.addAll(&modifiedIDs)
 	addCallArgumentsNeedingTempsByID(fnNode, bindings, requiresTempsUpToID, &dstIDs)
-	return dstIDs.toLinkedHashSet()
+	return dstIDs.toOrderedSet()
 }
 
 // Java: FunctionArgumentInjector.findModifiedParameters(Node)
-func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
+func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *OrderedSet[string] {
 	var paramIDs, modifiedIDs smallIDSet
 	f.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
-	return modifiedIDs.toLinkedHashSet()
+	return modifiedIDs.toOrderedSet()
 }
 
 type FunctionArgumentInjector_ParamArgPair struct {
@@ -1043,7 +1051,7 @@ func NewFunctionArgumentInjector_ParamArgPair(paramNode rhino.Node, arg rhino.No
 func (p FunctionArgumentInjector_ParamArgPair) ParamNode() rhino.Node { return p.paramNode }
 func (p FunctionArgumentInjector_ParamArgPair) Arg() rhino.Node       { return p.arg }
 
-func bindingsFromArgMap(dst []callParamBinding, argMap *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair]) []callParamBinding {
+func bindingsFromArgMap(dst []callParamBinding, argMap *OrderedStringMap[FunctionArgumentInjector_ParamArgPair]) []callParamBinding {
 	dst = dst[:0]
 	if argMap == nil || argMap.IsEmpty() {
 		return dst
@@ -1058,7 +1066,7 @@ func bindingsFromArgMap(dst []callParamBinding, argMap *jutil.LinkedHashMap[stri
 	return dst
 }
 
-func (s *smallIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern bool) {
+func (s *smallIDSet) fromOrderedSet(src *OrderedSet[string], intern bool) {
 	s.clear()
 	if src == nil || src.IsEmpty() {
 		return
@@ -1076,8 +1084,8 @@ func (s *smallIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern 
 	}
 }
 
-func (s *smallIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
-	out := jutil.NewLinkedHashSetWithCapacity[string](s.size())
+func (s *smallIDSet) toOrderedSet() *OrderedSet[string] {
+	out := NewOrderedSetWithCapacity[string](s.size())
 	if s != nil {
 		for _, id := range s.items {
 			out.Add(strpool.String(strpool.ID(id)))

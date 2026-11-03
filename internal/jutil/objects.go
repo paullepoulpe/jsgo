@@ -87,6 +87,11 @@ func ObjectsEquals(a, b any) bool {
 		y, ok := b.(*string)
 		return ok && y != nil && *x == *y
 	}
+	if na, ok := a.(interface{ IsNil() bool }); ok {
+		if na.IsNil() {
+			return IsNil(b)
+		}
+	}
 	va := reflect.ValueOf(a)
 	if va.Kind() == reflect.Pointer {
 		if va.IsNil() {
@@ -101,15 +106,16 @@ func ObjectsEquals(a, b any) bool {
 		}
 		return e.Equals(b)
 	}
-	aNil := reflectValueIsNil(va, a)
-	vb := reflect.ValueOf(b)
-	bNil := reflectValueIsNil(vb, b)
-	if aNil || bNil {
-		return aNil && bNil
+	if reflectKindIsNil(va) {
+		return IsNil(b)
+	}
+	if IsNil(b) {
+		return false
 	}
 	if e, ok := a.(Equaler); ok {
 		return e.Equals(b)
 	}
+	vb := reflect.ValueOf(b)
 	ta := va.Type()
 	if ta != vb.Type() {
 		return false
@@ -125,21 +131,6 @@ func ObjectsEquals(a, b any) bool {
 		return false
 	}
 	return a == b
-}
-
-func reflectValueIsNil(rv reflect.Value, v any) bool {
-	switch rv.Kind() {
-	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
-		return rv.IsNil()
-	case reflect.Uint32:
-		if rv.Uint() != 0 {
-			return false
-		}
-		_, ok := v.(interface{ IsNil() bool })
-		return ok
-	default:
-		return false
-	}
 }
 
 func fold64(u uint64) int32 {

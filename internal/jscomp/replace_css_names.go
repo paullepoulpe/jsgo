@@ -192,7 +192,7 @@ func (r *ReplaceCssNames) Process(externs rhino.Node, root rhino.Node) {
 			}
 			r.cssNamesBySymbol[inst.classesMemberName()] = cssClassName
 			r.classesObjectsQualifiedNames[inst.classesQName] = struct{}{}
-		} else {
+		} else if r.cssNameCollector != nil {
 			r.cssNameCollector.Add(cssClassName)
 		}
 		r.replaceGetCssNameCall(inst.callNode)
@@ -289,8 +289,8 @@ func (g *gatherCssNamesTraversal) Visit(t *NodeTraversal, n rhino.Node, parent r
 }
 
 func isNotInCssClosureFile(node rhino.Node) bool {
-	sourceFileName := node.GetSourceFileName()
-	return sourceFileName == nil || !strings.HasSuffix(*sourceFileName, ".css.closure.js")
+	sf := node.GetStaticSourceFile()
+	return sf == nil || !strings.HasSuffix(sf.GetName(), ".css.closure.js")
 }
 
 func isGetCssNameCall(node rhino.Node) bool {
@@ -507,5 +507,7 @@ func (c *countCssNamesBySymbol) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameNode.GetString()))
 		return
 	}
-	r.cssNameCollector.Add(className)
+	if r.cssNameCollector != nil {
+		r.cssNameCollector.Add(className)
+	}
 }

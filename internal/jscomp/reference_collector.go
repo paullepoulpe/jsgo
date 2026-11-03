@@ -65,8 +65,8 @@ type ReferenceCollector struct {
 	// Var objects are not stable across multiple traversals (unlike scope root or
 	// name).
 	//
-	// Go-only: language-adapter — the LinkedHashMap<Var, ReferenceCollection>
-	// is refs, keyed by what makes Vars equal, plus vars, its keys in
+	// Go-only: language-adapter — Java's insertion-ordered Var->ReferenceCollection
+	// map is refs, keyed by what makes Vars equal, plus vars, its keys in
 	// insertion order.
 	refs map[scopedVarKey]*ReferenceCollection
 	vars []*Var

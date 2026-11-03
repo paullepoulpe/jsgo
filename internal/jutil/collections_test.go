@@ -1,7 +1,9 @@
 package jutil
 
 import (
+	"fmt"
 	"slices"
+	"sync"
 	"testing"
 )
 
@@ -82,5 +84,53 @@ func TestOrderedSetMultimap_CloneAndInverse(t *testing.T) {
 	}
 	if !slices.Equal(mapKeys, []string{"loc0", "loc1"}) {
 		t.Fatalf("AsMap keys = %v", mapKeys)
+	}
+}
+
+func TestOrderedMap_ConcurrentReadsWithHoles(t *testing.T) {
+	for _, size := range []int{6, 24} {
+		m := NewOrderedMap[string, int]()
+		s := NewOrderedSet[string]()
+		for i := 0; i < size; i++ {
+			k := fmt.Sprintf("k%d", i)
+			m.Put(k, i)
+			s.Add(k)
+		}
+		// Leave tombstones (holes > 0) before concurrent read-only access.
+		m.Remove("k1")
+		m.Remove("k3")
+		s.Remove("k1")
+		s.Remove("k3")
+
+		var wg sync.WaitGroup
+		for g := 0; g < 8; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for iter := 0; iter < 50; iter++ {
+					if m.Size() != size-2 || s.Size() != size-2 {
+						t.Errorf("unexpected size: m=%d s=%d", m.Size(), s.Size())
+					}
+					_ = m.KeySlice()
+					_ = m.ValueSlice()
+					_ = m.Entries()
+					_, _, _ = m.First()
+					_, _ = m.ValueAt(1)
+					_, _ = m.Index("k2")
+					_ = m.Clone()
+					_ = m.ToMap()
+					_ = m.String()
+					_ = m.HashCode()
+					_ = m.Equals(m)
+					_ = s.ToSlice()
+					_, _ = s.First()
+					_ = s.Clone()
+					_ = s.String()
+					_ = s.HashCode()
+					_ = s.Equals(s)
+				}
+			}()
+		}
+		wg.Wait()
 	}
 }

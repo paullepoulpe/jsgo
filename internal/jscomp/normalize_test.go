@@ -22,16 +22,17 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 const NormalizeTest_EXTERNS = "var window; var Arguments;"
 
-var NormalizeTest_REPLACEMENTS_MAP = jutil.NewImmutableMapBuilder[string, string]().
-	Put("LA_TMP_INDEX", "$jscomp$logical$assign$tmpindex").
-	Put("LA_TMP", "$jscomp$logical$assign$tmp").
-	BuildOrThrow()
+var NormalizeTest_REPLACEMENTS_MAP = func() *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](2)
+	m.Put("LA_TMP_INDEX", "$jscomp$logical$assign$tmpindex")
+	m.Put("LA_TMP", "$jscomp$logical$assign$tmp")
+	return m
+}()
 
 // NormalizeTest is the unit test of Normalize.
 type NormalizeTest struct {
@@ -1462,8 +1463,8 @@ func NormalizeTest_IsConstantName(n rhino.Node) bool {
 }
 
 // Java: NormalizeTest.findNodesWithProperty(Node, Predicate<Node>)
-func (c *NormalizeTest) FindNodesWithProperty(root rhino.Node, prop func(rhino.Node) bool) *jutil.LinkedHashSet[rhino.Node] {
-	set := jutil.NewLinkedHashSet[rhino.Node]()
+func (c *NormalizeTest) FindNodesWithProperty(root rhino.Node, prop func(rhino.Node) bool) *OrderedSet[rhino.Node] {
+	set := NewOrderedSet[rhino.Node]()
 
 	NodeTraversal_Builder{
 		compiler: c.GetLastCompiler(),

@@ -2256,7 +2256,7 @@ func (c *RemoveUnusedCodeTest) TestRemoveUnusedVarsDeclaredInDestructuring1() {
 type RemoveUnusedCodeTest_PolyfillRemovalTester struct {
 	outer     *RemoveUnusedCodeTest
 	externs   []string
-	polyfills *jutil.LinkedHashSet[string]
+	polyfills *OrderedSet[string]
 
 	// Input source code, which will be prefixed with the polyfills.
 	// A value of `null` just means this hasn't been set yet.
@@ -2278,7 +2278,7 @@ func NewRemoveUnusedCodeTest_PolyfillRemovalTester(outer *RemoveUnusedCodeTest) 
 	return &RemoveUnusedCodeTest_PolyfillRemovalTester{
 		outer:                        outer,
 		externs:                      []string{},
-		polyfills:                    jutil.NewLinkedHashSet[string](),
+		polyfills:                    NewOrderedSet[string](),
 		polyfillsExpectedToBeRemoved: map[string]bool{},
 	}
 }

@@ -603,9 +603,17 @@ func (g *Gson) writeValue(out *JsonWriter, value any) {
 		out.EndArray()
 		return
 	case gson_collection:
+		if IsNil(value) {
+			out.NullValue()
+			return
+		}
 		v.writeGsonCollection(g, out)
 		return
 	case gson_map:
+		if IsNil(value) {
+			out.NullValue()
+			return
+		}
 		v.writeGsonMap(g, out)
 		return
 	}
@@ -765,11 +773,12 @@ type gson_map interface {
 	writeGsonMap(g *Gson, out *JsonWriter)
 }
 
-func (s *LinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
-	if s == nil {
-		out.NullValue()
-		return
-	}
+var (
+	_ gson_collection = (*OrderedSet[string])(nil)
+	_ gson_map        = (*OrderedMap[string, int])(nil)
+)
+
+func (s OrderedSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
 	out.BeginArray()
 	for e := range s.All() {
 		g.writeValue(out, e)
@@ -777,13 +786,9 @@ func (s *LinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
 	out.EndArray()
 }
 
-func (h *LinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
-	if h == nil {
-		out.NullValue()
-		return
-	}
+func (m OrderedMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
 	out.BeginObject()
-	for k, v := range h.All() {
+	for k, v := range m.All() {
 		out.Name(ToJavaString(k))
 		g.writeValue(out, v)
 	}

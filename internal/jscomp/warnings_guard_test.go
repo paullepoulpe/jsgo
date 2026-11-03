@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -289,7 +288,7 @@ func TestWarningsGuard_DiagnosticGuard4(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard1(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -303,7 +302,7 @@ func TestWarningsGuard_SuppressGuard1(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard2(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -317,7 +316,7 @@ func TestWarningsGuard_SuppressGuard2(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard3(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -345,7 +344,7 @@ func TestWarningsGuard_SuppressGuard_strictMissingPropertyOnUnionTypes(t *testin
 }
 
 func TestWarningsGuard_SuppressGuard4(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -357,7 +356,7 @@ func TestWarningsGuard_SuppressGuard4(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard5(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -370,7 +369,7 @@ func TestWarningsGuard_SuppressGuard5(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard6(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -381,7 +380,7 @@ func TestWarningsGuard_SuppressGuard6(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressGuard7(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	compiler := NewCompiler()
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
@@ -393,7 +392,7 @@ func TestWarningsGuard_SuppressGuard7(t *testing.T) {
 }
 
 func TestWarningsGuard_SuppressDocGuard_appliesSuppressionsOnComputedPropMethod_toPropNameExpression(t *testing.T) {
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 
 	compiler := NewCompiler()
@@ -410,7 +409,7 @@ func TestWarningsGuard_SuppressDocGuard_appliesSuppressionsOnComputedPropMethod_
 
 func TestWarningsGuard_SuppressGuard_onCompoundAssignment(t *testing.T) {
 	compiler := NewCompiler()
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
 
@@ -422,7 +421,7 @@ func TestWarningsGuard_SuppressGuard_onCompoundAssignment(t *testing.T) {
 
 func TestWarningsGuard_SuppressGuard_onDetachedNode(t *testing.T) {
 	compiler := NewCompiler()
-	m := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m := NewOrderedStringMap[*DiagnosticGroup]()
 	m.Put("deprecated", NewDiagnosticGroup(jsaWgBAR_WARNING))
 	var guard WarningsGuard = NewSuppressDocWarningsGuard(compiler, m)
 

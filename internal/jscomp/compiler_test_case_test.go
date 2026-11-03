@@ -148,7 +148,7 @@ type CompilerTestCaseBase struct {
 	defaultExternsInputs []*SourceFile
 
 	// Libraries to inject before typechecking
-	librariesToInject *jutil.LinkedHashSet[string]
+	librariesToInject *OrderedSet[string]
 
 	// Whether to compare input and output as trees instead of strings
 	compareAsTree bool
@@ -239,7 +239,7 @@ type CompilerTestCaseBase struct {
 	//
 	// When this field is populated, automatic getter and setter collection is
 	// disabled.
-	declaredAccessors *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind]
+	declaredAccessors *OrderedStringMap[AccessorSummary_PropertyAccessKind]
 
 	// The most recently used Compiler instance.
 	lastCompiler *Compiler
@@ -271,11 +271,11 @@ type CompilerTestCaseBase struct {
 	// have it.
 	typeInfoValidationEnabled bool
 
-	ignoredWarnings *jutil.LinkedHashSet[*DiagnosticType]
+	ignoredWarnings *OrderedSet[*DiagnosticType]
 
-	webpackModulesById *jutil.LinkedHashMap[string, string]
+	webpackModulesById *OrderedStringMap[string]
 
-	genericNameReplacements *jutil.LinkedHashMap[string, string]
+	genericNameReplacements *OrderedStringMap[string]
 
 	// Whether setUp has run.
 	setUpRan bool
@@ -338,13 +338,13 @@ var CompilerTestCase_DEFAULT_EXTERNS = NewTestExternsBuilder().
 // Java: CompilerTestCase(String)
 func (b *CompilerTestCaseBase) InitCompilerTestCaseBaseWithExterns(self CompilerTestCase, externs string) {
 	b.self = self
-	b.declaredAccessors = jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind]()
-	b.ignoredWarnings = jutil.NewLinkedHashSet[*DiagnosticType]()
-	b.webpackModulesById = jutil.NewLinkedHashMap[string, string]()
-	b.genericNameReplacements = jutil.NewLinkedHashMap[string, string]()
+	b.declaredAccessors = NewOrderedStringMap[AccessorSummary_PropertyAccessKind]()
+	b.ignoredWarnings = NewOrderedSet[*DiagnosticType]()
+	b.webpackModulesById = NewOrderedStringMap[string]()
+	b.genericNameReplacements = NewOrderedStringMap[string]()
 	b.rewriteModulesAfterTypechecking = true
 	b.defaultExternsInputs = []*SourceFile{SourceFile_FromCode(CompilerTestCase_GENERATED_EXTERNS_NAME, externs)}
-	b.librariesToInject = jutil.NewLinkedHashSet[string]()
+	b.librariesToInject = NewOrderedSet[string]()
 }
 
 // InitCompilerTestCaseBase constructs a test. Uses AST comparison and no
@@ -952,10 +952,12 @@ func (b *CompilerTestCaseBase) SetExpectParseWarningsInThisTest() {
 }
 
 // Java: CompilerTestCase.setWebpackModulesById(Map<String, String>)
-func (b *CompilerTestCaseBase) SetWebpackModulesById(webpackModulesById *jutil.LinkedHashMap[string, string]) {
+func (b *CompilerTestCaseBase) SetWebpackModulesById(webpackModulesById jutil.MapSource[string, string]) {
 	b.webpackModulesById.Clear()
-	for k, v := range webpackModulesById.All() {
-		b.webpackModulesById.Put(k, v)
+	if !jutil.IsNil(webpackModulesById) {
+		for k, v := range webpackModulesById.All() {
+			b.webpackModulesById.Put(k, v)
+		}
 	}
 }
 
@@ -968,13 +970,21 @@ func (b *CompilerTestCaseBase) SetWebpackModulesById(webpackModulesById *jutil.L
 // Note: Requires that sources are a FlatSources.
 //
 // Java: CompilerTestCase.setGenericNameReplacements(Map<String, String>)
-func (b *CompilerTestCaseBase) SetGenericNameReplacements(genericNameReplacements *jutil.LinkedHashMap[string, string]) {
-	b.genericNameReplacements = jutil.NewLinkedHashMapFrom(genericNameReplacements)
+func (b *CompilerTestCaseBase) SetGenericNameReplacements(genericNameReplacements jutil.MapSource[string, string]) {
+	if jutil.IsNil(genericNameReplacements) {
+		b.genericNameReplacements = NewOrderedStringMap[string]()
+		return
+	}
+	m := NewOrderedStringMapWithCapacity[string](genericNameReplacements.Size())
+	for k, v := range genericNameReplacements.All() {
+		m.Put(k, v)
+	}
+	b.genericNameReplacements = m
 }
 
 // Java: CompilerTestCase.disableGenericNameReplacements()
 func (b *CompilerTestCaseBase) DisableGenericNameReplacements() {
-	b.genericNameReplacements = jutil.NewLinkedHashMap[string, string]()
+	b.genericNameReplacements = NewOrderedStringMap[string]()
 }
 
 // compilerTestCase_createTypeCheck returns a newly created TypeCheck.
@@ -1246,7 +1256,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 	expectedObj *CompilerTestCase_Expected,
 	diagnostics []*CompilerTestCase_Diagnostic,
 	postconditions []CompilerTestCase_Postcondition) {
-	genericNameMapping := jutil.NewLinkedHashMap[string, string]()
+	genericNameMapping := NewOrderedStringMap[string]()
 	if flatSources, ok := inputsObj.(*CompilerTestCase_FlatSources); !b.genericNameReplacements.IsEmpty() &&
 		expectedObj != nil &&
 		expectedObj.expected != nil &&
@@ -1709,16 +1719,16 @@ func (b *CompilerTestCaseBase) validateCodeChangeReporting(
 
 // Java: CompilerTestCase.compareExpectedToActualAsTree(Node, Node, Compiler, Map<String, String>)
 func (b *CompilerTestCaseBase) compareExpectedToActualAsTree(
-	mainRoot rhino.Node, expectedRoot rhino.Node, compiler *Compiler, genericNameMapping *jutil.LinkedHashMap[string, string]) {
+	mainRoot rhino.Node, expectedRoot rhino.Node, compiler *Compiler, genericNameMapping *OrderedStringMap[string]) {
 	if b.compareJsDoc {
 		NodeSubject_AssertNode(mainRoot).
 			UsingSerializer(compilerTestCase_createPrettyPrinter(compiler)).
-			WithGenericNameReplacements(jutil.NewLinkedHashMapFrom(genericNameMapping)).
+			WithGenericNameReplacements(genericNameMapping).
 			IsEqualIncludingJsDocTo(expectedRoot)
 	} else {
 		NodeSubject_AssertNode(mainRoot).
 			UsingSerializer(compilerTestCase_createPrettyPrinter(compiler)).
-			WithGenericNameReplacements(jutil.NewLinkedHashMapFrom(genericNameMapping)).
+			WithGenericNameReplacements(genericNameMapping).
 			IsEqualTo(expectedRoot)
 	}
 }
@@ -1793,11 +1803,11 @@ func compilerTestCase_normalizeActualCode(compiler *Compiler, externsRoot rhino.
 
 // Java: CompilerTestCase.updateAccessorSummary(Compiler, Node)
 func (b *CompilerTestCaseBase) updateAccessorSummary(compiler *Compiler, mainRoot rhino.Node) {
-	union := jutil.NewLinkedHashMapFrom(GatherGetterAndSetterProperties_Gather(compiler, mainRoot.GetParent()))
+	union := GatherGetterAndSetterProperties_Gather(compiler, mainRoot.GetParent()).Clone()
 	for k, v := range b.declaredAccessors.All() {
 		union.Put(k, v)
 	}
-	compiler.SetAccessorSummary(AccessorSummary_Create(union))
+	compiler.SetAccessorSummary(AccessorSummary_Create(&union))
 }
 
 // Java: CompilerTestCase.verifyAccessorSummary(Compiler, Node)

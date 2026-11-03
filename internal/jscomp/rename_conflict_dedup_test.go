@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -20,7 +19,7 @@ type oracleInverterVar struct {
 	preferredName string
 	scopeDepth    int32
 	isCandidate   bool
-	conflicts     jutil.LinkedHashSet[*oracleInverterVar]
+	conflicts     OrderedSet[*oracleInverterVar]
 }
 
 func (v *oracleInverterVar) addConflict(other *oracleInverterVar) {
@@ -64,7 +63,7 @@ type oracleInverterScope struct {
 	parent   *oracleInverterScope
 	depth    int32
 	declared []*oracleInverterVar
-	refs     jutil.LinkedHashSet[*oracleInverterVar]
+	refs     OrderedSet[*oracleInverterVar]
 }
 
 func (s *oracleInverterScope) recordPotentialConflicts(ref *oracleInverterVar) {

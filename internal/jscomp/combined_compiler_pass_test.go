@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -98,12 +97,12 @@ func (c *CombinedCompilerPassTest) SetUp() {
 type combinedCompilerPassTest_ConcatTraversal struct {
 	visited         strings.Builder
 	shouldTraversed strings.Builder
-	ignoring        *jutil.LinkedHashSet[string]
+	ignoring        *OrderedSet[string]
 }
 
 func newCombinedCompilerPassTest_ConcatTraversal() *combinedCompilerPassTest_ConcatTraversal {
 	return &combinedCompilerPassTest_ConcatTraversal{
-		ignoring: jutil.NewLinkedHashSet[string](),
+		ignoring: NewOrderedSet[string](),
 	}
 }
 
@@ -142,7 +141,7 @@ func (c *combinedCompilerPassTest_ConcatTraversal) GetShouldTraversed() string {
 }
 
 // Java: CombinedCompilerPassTest.ConcatTraversal.getIgnoring()
-func (c *combinedCompilerPassTest_ConcatTraversal) GetIgnoring() *jutil.LinkedHashSet[string] {
+func (c *combinedCompilerPassTest_ConcatTraversal) GetIgnoring() *OrderedSet[string] {
 	return c.ignoring
 }
 
@@ -217,14 +216,14 @@ func (c *CombinedCompilerPassTest) TestCombinedPasses() {
 // visited during an AST traversal. Abbreviates traversals by ignoring
 // subtrees rooted with specified NAME nodes.
 type combinedCompilerPassTest_ScopeRecordingCallback struct {
-	visitedScopes *jutil.LinkedHashSet[rhino.Node]
-	ignoring      *jutil.LinkedHashSet[string]
+	visitedScopes *OrderedSet[rhino.Node]
+	ignoring      *OrderedSet[string]
 }
 
 func newCombinedCompilerPassTest_ScopeRecordingCallback() *combinedCompilerPassTest_ScopeRecordingCallback {
 	return &combinedCompilerPassTest_ScopeRecordingCallback{
-		visitedScopes: jutil.NewLinkedHashSet[rhino.Node](),
-		ignoring:      jutil.NewLinkedHashSet[string](),
+		visitedScopes: NewOrderedSet[rhino.Node](),
+		ignoring:      NewOrderedSet[string](),
 	}
 }
 
@@ -244,7 +243,7 @@ func (c *combinedCompilerPassTest_ScopeRecordingCallback) ShouldTraverse(t *Node
 }
 
 // Java: CombinedCompilerPassTest.ScopeRecordingCallback.getVisitedScopes()
-func (c *combinedCompilerPassTest_ScopeRecordingCallback) GetVisitedScopes() *jutil.LinkedHashSet[rhino.Node] {
+func (c *combinedCompilerPassTest_ScopeRecordingCallback) GetVisitedScopes() *OrderedSet[rhino.Node] {
 	return c.visitedScopes
 }
 

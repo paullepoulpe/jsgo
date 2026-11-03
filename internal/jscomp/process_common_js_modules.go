@@ -442,7 +442,7 @@ func (f *commonJsFindImportsAndExports) Visit(t *NodeTraversal, n rhino.Node, pa
 							processCommonJSModules_MODULE_EXPORTS.Matches(next.GetFirstChild()))) {
 					f.exports = append(f.exports, newCommonJsExportInfo(n, t.GetScope()))
 				} else if !f.hasGoogProvideOrModule &&
-					(v == nil || (v.GetNameNode().IsNil() && v.GetNameNode().GetFirstChild() != n)) {
+					(v == nil || (!v.GetNameNode().IsNil() && v.GetNameNode().GetFirstChild() != n)) {
 					f.errors = append(f.errors, JSError_MakeWithNode(qNameRoot, ProcessCommonJSModules_SUSPICIOUS_EXPORTS_ASSIGNMENT))
 				}
 			} else {

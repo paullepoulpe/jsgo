@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // PeepholeFoldConstantsTest is the tests for PeepholeFoldConstants in
@@ -2420,7 +2421,7 @@ func (c *PeepholeFoldConstantsTest) TestClassField() {
 
 // Java: PeepholeFoldConstantsTest.testInvertibleOperators()
 func (c *PeepholeFoldConstantsTest) TestInvertibleOperators() {
-	inverses := jutil.NewLinkedHashMap[string, string]()
+	inverses := NewOrderedStringMap[string]()
 	inverses.Put("==", "!=")
 	inverses.Put("===", "!==")
 	inverses.Put("<=", ">")
@@ -2429,9 +2430,9 @@ func (c *PeepholeFoldConstantsTest) TestInvertibleOperators() {
 	inverses.Put(">", "<=")
 	inverses.Put("!=", "==")
 	inverses.Put("!==", "===")
-	comparators := jutil.NewLinkedHashSet("<=", "<", ">=", ">")
-	equalitors := jutil.NewLinkedHashSet("==", "===")
-	uncomparables := jutil.NewLinkedHashSet("undefined", "void 0")
+	comparators := NewOrderedSet("<=", "<", ">=", ">")
+	equalitors := NewOrderedSet("==", "===")
+	uncomparables := NewOrderedSet("undefined", "void 0")
 	operators := slices.Collect(inverses.Values())
 	for iOperandA := 0; iOperandA < len(peepholeFoldConstantsTest_LITERAL_OPERANDS); iOperandA++ {
 		for iOperandB := 0; iOperandB < len(peepholeFoldConstantsTest_LITERAL_OPERANDS); iOperandB++ {
@@ -2824,7 +2825,7 @@ func (c *PeepholeFoldConstantsTest) PrintHelper(js string, runProcessor bool) st
 		[]*SourceFile{SourceFile_FromCode("testcode", js)},
 		options)
 	root := compiler.ParseInputs()
-	compiler.SetAccessorSummary(AccessorSummary_Create(jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind]()))
+	compiler.SetAccessorSummary(AccessorSummary_Create(NewOrderedStringMap[AccessorSummary_PropertyAccessKind]()))
 	errors := compiler.GetErrors()
 	errorStrings := make([]string, 0, len(errors))
 	for _, e := range errors {
@@ -2856,4 +2857,49 @@ func (c *PeepholeFoldConstantsTest) TestFoldOptChain_nonNullReceiver_chainContin
 	AssertThat(isIllegalState).IsTrue()
 	AssertThat(root.GetMessage()).
 		Contains("Start of optional chain node OPTCHAIN_GETPROP is not marked as the start")
+}
+
+func TestPeepholeFoldConstants_DetachedTemplateLiteralNilCookedString(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	pass := NewPeepholeFoldConstants(true, false)
+	pass.BeginTraversal(compiler)
+
+	empty := ""
+	makeCookedNilTpl := func() rhino.Node {
+		tpl := rhino.IR_TemplateLiteral()
+		tpl.AddChildToBack(rhino.IR_TemplateLiteralString(nil, "\\unicode"))
+		tpl.AddChildToBack(rhino.IR_TemplateLiteralSubstitution(rhino.IR_String("x")))
+		tpl.AddChildToBack(rhino.IR_TemplateLiteralString(&empty, ""))
+		return tpl
+	}
+
+	tpl1 := makeCookedNilTpl()
+	pass.TryFoldTemplateLiteralSubstitutions(tpl1)
+	if tpl1.GetChildCount() != 3 {
+		t.Fatalf("expected cooked-nil template literal substitution to remain unfolded, got %d children", tpl1.GetChildCount())
+	}
+
+	tplTailNil := rhino.IR_TemplateLiteral()
+	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralString(&empty, ""))
+	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralSubstitution(rhino.IR_Name("v")))
+	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralString(nil, "\\unicode"))
+	addRight := rhino.IR_Add(tplTailNil, rhino.IR_String("y"))
+	pass.OptimizeSubtree(addRight)
+	if !addRight.IsAdd() {
+		t.Fatalf("expected cooked-nil template literal + string to remain unfolded")
+	}
+
+	tplHeadNil := makeCookedNilTpl()
+	addLeft := rhino.IR_Add(rhino.IR_String("y"), tplHeadNil)
+	pass.OptimizeSubtree(addLeft)
+	if !addLeft.IsAdd() {
+		t.Fatalf("expected string + cooked-nil template literal to remain unfolded")
+	}
+
+	addBoth := rhino.IR_Add(tplTailNil.CloneTree(), makeCookedNilTpl())
+	pass.OptimizeSubtree(addBoth)
+	if !addBoth.IsAdd() {
+		t.Fatalf("expected cooked-nil template literal + template literal to remain unfolded")
+	}
 }

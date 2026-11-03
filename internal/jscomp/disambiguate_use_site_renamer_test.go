@@ -21,7 +21,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -31,7 +30,7 @@ const useSiteRenamerTest_PROP_NAME = "prop"
 // @After checks run in finish.
 type useSiteRenamerTest struct {
 	t                 *testing.T
-	reportedMutations *jutil.LinkedHashSet[rhino.Node]
+	reportedMutations *OrderedSet[rhino.Node]
 	prop              *PropertyClustering
 	renamingIndex     *UseSiteRenamingIndex
 }
@@ -39,7 +38,7 @@ type useSiteRenamerTest struct {
 func newUseSiteRenamerTest(t *testing.T) *useSiteRenamerTest {
 	return &useSiteRenamerTest{
 		t:                 t,
-		reportedMutations: jutil.NewLinkedHashSet[rhino.Node](),
+		reportedMutations: NewOrderedSet[rhino.Node](),
 		prop:              NewPropertyClustering(useSiteRenamerTest_PROP_NAME),
 	}
 }
@@ -75,7 +74,7 @@ func (s *useSiteRenamerTest) verifyNewNamesAreReportedAsMutations() {
 		return
 	}
 
-	mutatedNodes := jutil.NewLinkedHashSet[rhino.Node]()
+	mutatedNodes := NewOrderedSet[rhino.Node]()
 	for n := range s.prop.GetUseSites().Keys() {
 		if n.GetString() != useSiteRenamerTest_PROP_NAME {
 			mutatedNodes.Add(n)
@@ -93,7 +92,7 @@ func (s *useSiteRenamerTest) runRename() {
 }
 
 func useSiteRenamerTest_namesOf(useSites []rhino.Node) []string {
-	out := jutil.NewLinkedHashSet[string]()
+	out := NewOrderedSet[string]()
 	for _, n := range useSites {
 		out.Add(n.GetString())
 	}

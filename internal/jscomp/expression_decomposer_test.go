@@ -40,7 +40,7 @@ type ExpressionDecomposerTest struct {
 
 	// Go-only: language-adapter — a HashSet<String> that is only copied
 	// into the decomposer's lookup set, so its order is not observable.
-	knownConstants *jutil.LinkedHashSet[string]
+	knownConstants *OrderedSet[string]
 
 	// The language out to set in the compiler options. If null, use the default.
 	languageOut *CompilerOptions_LanguageMode // @Nullable
@@ -51,7 +51,7 @@ type ExpressionDecomposerTest struct {
 
 func TestExpressionDecomposerTest(t *testing.T) {
 	RunJUnit4(t, func() JUnitTestCase {
-		return &ExpressionDecomposerTest{knownConstants: jutil.NewLinkedHashSet[string]()}
+		return &ExpressionDecomposerTest{knownConstants: NewOrderedSet[string]()}
 	})
 }
 

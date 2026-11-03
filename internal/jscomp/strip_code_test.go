@@ -21,8 +21,6 @@ package jscomp
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // StripCodeTest holds tests for StripCode.
@@ -51,7 +49,7 @@ func TestStripCodeTest(t *testing.T) {
 //
 // Java: StripCodeTest.getStripCodeInstance(Compiler)
 func StripCodeTest_GetStripCodeInstance(compiler *Compiler) *StripCode {
-	stripTypes := jutil.NewLinkedHashSet(
+	stripTypes := NewOrderedSet(
 		"goog.debug.DebugWindow",
 		"goog.debug.FancyWindow",
 		"goog.debug.Formatter",
@@ -64,10 +62,10 @@ func StripCodeTest_GetStripCodeInstance(compiler *Compiler) *StripCode {
 		"goog.log",
 		"GA_GoogleDebugger")
 
-	stripNameSuffixes := jutil.NewLinkedHashSet(
+	stripNameSuffixes := NewOrderedSet(
 		"logger", "logger_", "debugWindow", "debugWindow_", "logFormatter_", "logBuffer_")
 
-	stripNamePrefixes := jutil.NewLinkedHashSet("trace")
+	stripNamePrefixes := NewOrderedSet("trace")
 
 	return NewStripCode(compiler, stripTypes, stripNameSuffixes, stripNamePrefixes, false)
 }

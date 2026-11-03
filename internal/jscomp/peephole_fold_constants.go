@@ -666,7 +666,12 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 		strings.HasPrefix(firstRight.GetRawString(), "{") {
 		return oldNode
 	}
-	cooked := peepholeCookedString(lastLeft) + peepholeCookedString(firstRight)
+	lastLeftCooked := lastLeft.GetCookedString()
+	firstRightCooked := firstRight.GetCookedString()
+	if lastLeftCooked == nil || firstRightCooked == nil {
+		return oldNode
+	}
+	cooked := *lastLeftCooked + *firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked,
@@ -777,7 +782,14 @@ func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node
 							continue
 						}
 
-						combinedCooked := *cur.GetCookedString() + strValue + *nextNext.GetCookedString()
+						curCooked := cur.GetCookedString()
+						nextNextCooked := nextNext.GetCookedString()
+						if curCooked == nil || nextNextCooked == nil {
+							cur = next
+							continue
+						}
+
+						combinedCooked := *curCooked + strValue + *nextNextCooked
 						combinedRaw := curRaw + strValue + nextNextRaw
 
 						newStringNode := rhino.IR_TemplateLiteralString(&combinedCooked, combinedRaw)
@@ -816,23 +828,17 @@ func (p *PeepholeFoldConstants) IsRestrictedOctalEscape(prefixRaw string, suffix
 	return false
 }
 
-func peepholeCookedString(n rhino.Node) string {
-	if s := n.GetCookedString(); s != nil {
-		return *s
-	}
-	return "null"
-}
-
 // Java: PeepholeFoldConstants.foldTemplateLiteralAndConstant(Node, Node, String)
 func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Node, left rhino.Node, rightStr string) rhino.Node {
 	lastLeft := left.GetLastChild()
 	jutil.CheckState(lastLeft.IsTemplateLitString())
 
-	if p.IsRestrictedOctalEscape(lastLeft.GetRawString(), rightStr) {
+	lastLeftCooked := lastLeft.GetCookedString()
+	if lastLeftCooked == nil || p.IsRestrictedOctalEscape(lastLeft.GetRawString(), rightStr) {
 		return oldNode
 	}
 
-	cooked := peepholeCookedString(lastLeft) + rightStr
+	cooked := *lastLeftCooked + rightStr
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked, lastLeft.GetRawString()+rightStr)
@@ -848,11 +854,12 @@ func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode rhino.Nod
 	firstRight := right.GetFirstChild()
 	jutil.CheckState(firstRight.IsTemplateLitString())
 
-	if p.IsRestrictedOctalEscape(leftStr, firstRight.GetRawString()) {
+	firstRightCooked := firstRight.GetCookedString()
+	if firstRightCooked == nil || p.IsRestrictedOctalEscape(leftStr, firstRight.GetRawString()) {
 		return oldNode
 	}
 
-	cooked := leftStr + peepholeCookedString(firstRight)
+	cooked := leftStr + *firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			&cooked, leftStr+firstRight.GetRawString())

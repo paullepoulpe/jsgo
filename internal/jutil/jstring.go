@@ -334,13 +334,40 @@ func StringSubstringFrom(s string, begin int) string {
 	panic(NewStringIndexOutOfBoundsExceptionForRange(begin, uIdx, uIdx))
 }
 
+// hasSurrogateByte reports whether s contains 0xED, the lead byte of every
+// 3-byte WTF-8 lone-surrogate sequence (ED A0..BF 80..BF). When false, s is
+// canonical UTF-8 with no unpaired surrogates.
+func hasSurrogateByte(s string) bool {
+	return strings.IndexByte(s, 0xED) >= 0
+}
+
+func utf16Index(us, usub []uint16) int {
+	if len(usub) == 0 {
+		return 0
+	}
+	limit := len(us) - len(usub)
+	first := usub[0]
+	for i := 0; i <= limit; i++ {
+		if us[i] == first && slices.Equal(us[i+1:i+len(usub)], usub[1:]) {
+			return i
+		}
+	}
+	return -1
+}
+
 // StringIndexOf is Java's String.indexOf(String): a UTF-16 index or -1.
 func StringIndexOf(s, sub string) int {
-	i := strings.Index(s, sub)
-	if i < 0 {
-		return -1
+	if sub == "" {
+		return 0
 	}
-	return StringLength(s[:i])
+	if !hasSurrogateByte(s) && !hasSurrogateByte(sub) {
+		i := strings.Index(s, sub)
+		if i < 0 {
+			return -1
+		}
+		return StringLength(s[:i])
+	}
+	return utf16Index(StringToUTF16(s), StringToUTF16(sub))
 }
 
 // StringIndexOfFrom is Java's String.indexOf(String, int fromIndex).
@@ -361,15 +388,57 @@ func StringIndexOfFrom(s, sub string, from int) int {
 		}
 		return from + i
 	}
-	n := StringLength(s)
-	if from > n {
+	if !hasSurrogateByte(s) && !hasSurrogateByte(sub) {
 		if sub == "" {
-			return n
+			n := StringLength(s)
+			if from > n {
+				return n
+			}
+			return from
+		}
+		prefix := ASCIIPrefixLen(s)
+		var byteOff, baseUIdx int
+		if from <= prefix {
+			byteOff = from
+			baseUIdx = from
+		} else {
+			uIdx := prefix
+			i := prefix
+			for i < len(s) && uIdx < from {
+				r, size := decodeWTF8(s[i:])
+				i += size
+				if r >= 0x10000 {
+					uIdx += 2
+				} else {
+					uIdx++
+				}
+			}
+			if from > uIdx && i == len(s) {
+				return -1
+			}
+			// If from landed on the low surrogate of a 4-byte astral rune, uIdx == from+1
+			// and i points after that rune; sub has no lone surrogates so cannot start at
+			// a low surrogate.
+			byteOff = i
+			baseUIdx = uIdx
+		}
+		idx := strings.Index(s[byteOff:], sub)
+		if idx < 0 {
+			return -1
+		}
+		return baseUIdx + StringLength(s[byteOff:byteOff+idx])
+	}
+	us, usub := StringToUTF16(s), StringToUTF16(sub)
+	if from > len(us) {
+		if len(usub) == 0 {
+			return len(us)
 		}
 		return -1
 	}
-	rest := StringSubstringFrom(s, from)
-	i := StringIndexOf(rest, sub)
+	if len(usub) == 0 {
+		return from
+	}
+	i := utf16Index(us[from:], usub)
 	if i < 0 {
 		return -1
 	}
@@ -378,11 +447,23 @@ func StringIndexOfFrom(s, sub string, from int) int {
 
 // StringLastIndexOf is Java's String.lastIndexOf(String).
 func StringLastIndexOf(s, sub string) int {
-	i := strings.LastIndex(s, sub)
-	if i < 0 {
-		return -1
+	if !hasSurrogateByte(s) && !hasSurrogateByte(sub) {
+		i := strings.LastIndex(s, sub)
+		if i < 0 {
+			return -1
+		}
+		return StringLength(s[:i])
 	}
-	return StringLength(s[:i])
+	us, usub := StringToUTF16(s), StringToUTF16(sub)
+	if len(usub) == 0 {
+		return len(us)
+	}
+	for i := len(us) - len(usub); i >= 0; i-- {
+		if us[i] == usub[0] && slices.Equal(us[i+1:i+len(usub)], usub[1:]) {
+			return i
+		}
+	}
+	return -1
 }
 
 // StringCompareTo is Java's String.compareTo: lexicographic over UTF-16 code
@@ -512,17 +593,72 @@ func CaseFormat_UpperUnderscoreToLowerCamel(s string) string {
 }
 
 // StringReplace is String.replace(CharSequence target, CharSequence
-// replacement). Both arguments are whole code-unit sequences, so replacing
-// on the WTF-8 bytes gives the same result as Java's UTF-16 replacement.
+// replacement), matching on UTF-16 code units and re-canonicalizing WTF-8 if
+// newly adjacent high and low surrogates form a supplementary pair.
 func StringReplace(s, target, replacement string) string {
-	return strings.ReplaceAll(s, target, replacement)
+	if !hasSurrogateByte(s) && !hasSurrogateByte(target) && !hasSurrogateByte(replacement) && (target != "" || isASCII(s)) {
+		return strings.ReplaceAll(s, target, replacement)
+	}
+	us, ut := StringToUTF16(s), StringToUTF16(target)
+	if len(ut) == 0 {
+		ur := StringToUTF16(replacement)
+		out := make([]uint16, 0, len(us)+len(ur)*(len(us)+1))
+		out = append(out, ur...)
+		for _, c := range us {
+			out = append(out, c)
+			out = append(out, ur...)
+		}
+		return StringFromUTF16(out)
+	}
+	idx := utf16Index(us, ut)
+	if idx < 0 {
+		if !hasSurrogateByte(s) {
+			return s
+		}
+		return StringFromUTF16(us)
+	}
+	ur := StringToUTF16(replacement)
+	out := make([]uint16, 0, len(us)+len(ur))
+	pos := 0
+	for {
+		out = append(out, us[pos:pos+idx]...)
+		out = append(out, ur...)
+		pos += idx + len(ut)
+		if pos > len(us)-len(ut) {
+			break
+		}
+		idx = utf16Index(us[pos:], ut)
+		if idx < 0 {
+			break
+		}
+	}
+	out = append(out, us[pos:]...)
+	return StringFromUTF16(out)
 }
 
 // StringStartsWith is String.startsWith(String prefix).
-func StringStartsWith(s, prefix string) bool { return strings.HasPrefix(s, prefix) }
+func StringStartsWith(s, prefix string) bool {
+	if prefix == "" {
+		return true
+	}
+	if !hasSurrogateByte(s) && !hasSurrogateByte(prefix) {
+		return strings.HasPrefix(s, prefix)
+	}
+	us, up := StringToUTF16(s), StringToUTF16(prefix)
+	return len(us) >= len(up) && slices.Equal(us[:len(up)], up)
+}
 
 // StringEndsWith is String.endsWith(String suffix).
-func StringEndsWith(s, suffix string) bool { return strings.HasSuffix(s, suffix) }
+func StringEndsWith(s, suffix string) bool {
+	if suffix == "" {
+		return true
+	}
+	if !hasSurrogateByte(s) && !hasSurrogateByte(suffix) {
+		return strings.HasSuffix(s, suffix)
+	}
+	us, usuf := StringToUTF16(s), StringToUTF16(suffix)
+	return len(us) >= len(usuf) && slices.Equal(us[len(us)-len(usuf):], usuf)
+}
 
 // StringRegionMatches is String.regionMatches(int toffset, String other, int
 // ooffset, int len) with UTF-16 offsets.

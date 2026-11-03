@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -237,13 +238,15 @@ func (c *Compiler) OrderInputsWithLargeStack() {
 func (c *Compiler) manageDependenciesForOrderInputs() bool {
 	result, err := c.chunkGraph.TryManageDependencies(c, c.options.GetDependencyOptions())
 	if err != nil {
-		switch e := err.(type) {
-		case *SortedDependencies_MissingProvideException:
-			c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, e.GetMessage()))
-		case *JSChunkGraph_MissingChunkException:
-			c.Report(JSError_Make(Compiler_MISSING_CHUNK_ERROR, e.GetMessage()))
+		var missingProvide *SortedDependencies_MissingProvideException
+		var missingChunk *JSChunkGraph_MissingChunkException
+		switch {
+		case errors.As(err, &missingProvide):
+			c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, missingProvide.GetMessage()))
+		case errors.As(err, &missingChunk):
+			c.Report(JSError_Make(Compiler_MISSING_CHUNK_ERROR, missingChunk.GetMessage()))
 		default:
-			panic(err)
+			c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, err.Error()))
 		}
 		return false
 	}

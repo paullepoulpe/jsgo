@@ -147,8 +147,8 @@ func (r *ReachingUseDefTester) computeCfg(fn rhino.Node) *ControlFlowGraph[rhino
 // on the node extracted at label `D:`.
 //
 // Java: ReachingUseDefTester.getComputedUses()
-func (r *ReachingUseDefTester) GetComputedUses() *jutil.LinkedHashSet[rhino.Node] {
-	uses := jutil.NewLinkedHashSet[rhino.Node]()
+func (r *ReachingUseDefTester) GetComputedUses() *OrderedSet[rhino.Node] {
+	uses := NewOrderedSet[rhino.Node]()
 	for n := range r.reachingUse.GetUses("x", r.labelFinder.extractedDef) {
 		uses.Add(n)
 	}

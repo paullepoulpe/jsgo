@@ -53,7 +53,7 @@ func NewRenameVarsTest() *RenameVarsTest {
 	c := &RenameVarsTest{}
 	c.InitCompilerTestCaseBase(c)
 	c.prefix = RenameVarsTest_DEFAULT_PREFIX
-	c.previouslyUsedMap = NewVariableMap(jutil.NewLinkedHashMap[string, string]())
+	c.previouslyUsedMap = NewVariableMap(NewOrderedStringMap[string]())
 	c.withClosurePass = false
 	c.localRenamingOnly = false
 	c.useGoogleCodingConvention = true
@@ -124,7 +124,7 @@ func (c *RenameVarsTest) GetProcessor(compiler *Compiler) CompilerPass {
 func (c *RenameVarsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.DisableValidateAstChangeMarking()
-	c.previouslyUsedMap = NewVariableMap(jutil.NewLinkedHashMap[string, string]())
+	c.previouslyUsedMap = NewVariableMap(NewOrderedStringMap[string]())
 	c.prefix = RenameVarsTest_DEFAULT_PREFIX
 	c.withClosurePass = false
 	c.withNormalize = false
@@ -828,7 +828,7 @@ func (c *RenameVarsTest) TestDollarSignSuperExport2() {
 // Java: RenameVarsTest.testBias()
 func (c *RenameVarsTest) TestBias() {
 	c.nameGenerator =
-		NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "", ASCIICharSet{})
+		NewDefaultNameGeneratorWithReservedChars(NewOrderedSet[string](), "", ASCIICharSet{})
 	c.nameGenerator.Favors("AAAAAAAAHH")
 	c.Test("var x, y", "var A, H")
 }
@@ -1137,12 +1137,16 @@ func RenameVarsTest_CreateManyVarFunction(numVars int) string {
 func (c *RenameVarsTest) MakeVariableMap(keyValPairs ...string) *VariableMap {
 	jutil.CheckArgument(len(keyValPairs)%2 == 0)
 
-	renameMap := jutil.NewImmutableMapBuilder[string, string]()
+	renameMap := NewOrderedStringMapWithCapacity[string](len(keyValPairs) / 2)
 	for i := 0; i < len(keyValPairs); i += 2 {
-		renameMap.Put(keyValPairs[i], keyValPairs[i+1])
+		k, v := keyValPairs[i], keyValPairs[i+1]
+		if renameMap.ContainsKey(k) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + k))
+		}
+		renameMap.PutNew(k, v)
 	}
 
-	return NewVariableMap(renameMap.BuildOrThrow())
+	return NewVariableMap(renameMap)
 }
 
 // Java: RenameVarsTest.assertVariableMapsEqual(VariableMap, VariableMap)

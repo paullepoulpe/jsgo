@@ -329,7 +329,7 @@ type compiler_ResolvedSourceMap struct {
 }
 
 // compilerForwardDeclaredSet implements jutil.Set[string] for
-// Compiler.forwardDeclaredTypes without LinkedHashSet or interface dispatch
+// Compiler.forwardDeclaredTypes without heap wrapper or interface dispatch
 // on Compiler itself. When all is true (AssumeForwardDeclaredForMissingTypes),
 // Contains reports true for every type name.
 type compilerForwardDeclaredSet struct {

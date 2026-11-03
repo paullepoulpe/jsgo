@@ -1,12 +1,23 @@
 package jutil
 
-import "testing"
+import (
+	"sync"
+	"testing"
+)
 
-func TestLinkedHashCollectionsEqualsAndHash(t *testing.T) {
-	m1 := NewLinkedHashMap[int, *ptrHashableKey]()
-	m2 := NewLinkedHashMap[int, *ptrHashableKey]()
-	ls1 := NewLinkedHashSet[string]()
-	ls2 := NewLinkedHashSet[string]()
+type negSentinelHandle int32
+
+func (h negSentinelHandle) IsNil() bool { return h < 0 }
+
+type nullableValStruct struct{ present bool }
+
+func (s nullableValStruct) IsNil() bool { return !s.present }
+
+func TestOrderedCollectionsEqualsAndHash(t *testing.T) {
+	m1 := NewOrderedMap[int, *ptrHashableKey]()
+	m2 := NewOrderedMap[int, *ptrHashableKey]()
+	ls1 := NewOrderedSet[string]()
+	ls2 := NewOrderedSet[string]()
 
 	for i := 0; i < 20; i++ {
 		m1.Put(i, &ptrHashableKey{i})
@@ -16,10 +27,10 @@ func TestLinkedHashCollectionsEqualsAndHash(t *testing.T) {
 	ls2.AddAll("gamma", "alpha", "beta")
 
 	if !m1.Equals(m2) || m1.HashCode() != m2.HashCode() {
-		t.Fatal("LinkedHashMap Equals/HashCode mismatch")
+		t.Fatal("OrderedMap Equals/HashCode mismatch")
 	}
 	if !ls1.Equals(ls2) || ls1.HashCode() != ls2.HashCode() {
-		t.Fatal("LinkedHashSet Equals/HashCode mismatch")
+		t.Fatal("OrderedSet Equals/HashCode mismatch")
 	}
 	strSlice := []string{"alpha", "beta", "gamma"}
 	if SetHashCode(strSlice) != ls1.HashCode() {
@@ -31,7 +42,7 @@ func TestLinkedHashCollectionsEqualsAndHash(t *testing.T) {
 			t.Fatal("unexpected mismatch")
 		}
 	}); n != 0 {
-		t.Fatalf("expected 0 allocations for LinkedHashSet.Equals, got %v", n)
+		t.Fatalf("expected 0 allocations for OrderedSet.Equals, got %v", n)
 	}
 }
 
@@ -92,4 +103,41 @@ func TestObjectsEqualsFastPathsAndEdgeCases(t *testing.T) {
 	}); n != 0 {
 		t.Fatalf("expected 0 allocations for pointer ObjectsEquals, got %v", n)
 	}
+}
+
+func TestCustomIsNilTypesAndHelpfulNPEConcurrency(t *testing.T) {
+	if !IsNil(negSentinelHandle(-1)) || IsNil(negSentinelHandle(0)) {
+		t.Fatal("negSentinelHandle IsNil mismatch")
+	}
+	if !IsNil(nullableValStruct{present: false}) || IsNil(nullableValStruct{present: true}) {
+		t.Fatal("nullableValStruct IsNil mismatch")
+	}
+	if !ObjectsEquals(negSentinelHandle(-1), nil) || !ObjectsEquals(nullableValStruct{}, negSentinelHandle(-1)) {
+		t.Fatal("custom IsNil ObjectsEquals mismatch")
+	}
+	if ObjectsEquals(negSentinelHandle(0), nil) {
+		t.Fatal("negSentinelHandle(0) must not equal nil")
+	}
+	_ = CheckNotNull(negSentinelHandle(0))
+	_ = CheckNotNull(nullableValStruct{present: true})
+	caught := false
+	Try(func() { CheckNotNull(negSentinelHandle(-1)) }, func(INullPointerException) { caught = true })
+	if !caught {
+		t.Fatal("expected CheckNotNull(negSentinelHandle(-1)) to panic with NullPointerException")
+	}
+
+	orig := SetShowCodeDetailsInExceptionMessages(true)
+	defer SetShowCodeDetailsInExceptionMessages(orig)
+	var wg sync.WaitGroup
+	for g := 0; g < 4; g++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				SetShowCodeDetailsInExceptionMessages((id+i)%2 == 0)
+				_ = NewHelpfulNullPointerException("detail")
+			}
+		}(g)
+	}
+	wg.Wait()
 }

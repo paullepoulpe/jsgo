@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
 
@@ -43,8 +42,8 @@ func TestRewriteCatchWithNoBindingTest(t *testing.T) {
 }
 
 // Java: RewriteCatchWithNoBindingTest.SPECIAL_VARIABLE_MAP
-var RewriteCatchWithNoBindingTest_SPECIAL_VARIABLE_MAP = func() *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+var RewriteCatchWithNoBindingTest_SPECIAL_VARIABLE_MAP = func() *OrderedStringMap[string] {
+	m := NewOrderedStringMap[string]()
 	m.Put("UNUSED_CATCH", "$jscomp$unused$catch$")
 	return m
 }()

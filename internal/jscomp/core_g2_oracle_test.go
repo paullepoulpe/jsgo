@@ -169,7 +169,7 @@ func coreG2Counter() func() string {
 // analysis
 
 func coreG2Analyzers(compiler AbstractCompiler) []*AstAnalyzer {
-	accessors := jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind]()
+	accessors := NewOrderedStringMap[AccessorSummary_PropertyAccessKind]()
 	accessors.Put("getter", AccessorSummary_PropertyAccessKind_GETTER_ONLY)
 	accessors.Put("setter", AccessorSummary_PropertyAccessKind_SETTER_ONLY)
 	accessors.Put("length", AccessorSummary_PropertyAccessKind_GETTER_ONLY)
@@ -506,7 +506,7 @@ func (o *coreG2Out) mdnu(script rhino.Node) {
 				NewMakeDeclaredNamesUniqueWith(
 					NewMakeDeclaredNamesUnique_TargettedRenamer(
 						NewMakeDeclaredNamesUnique_ContextualRenamer(),
-						jutil.NewLinkedHashSet("i", "e", "a", "x", "n", "t")),
+						NewOrderedSet("i", "e", "a", "x", "n", "t")),
 					true, false))
 			o.printRenames(orig, clone)
 		}); e != nil {
@@ -703,11 +703,11 @@ func TestCoreG2OracleCorpus(t *testing.T) {
 // coreG2TestScope is CoreG2Dump.TestScope: a StaticScope whose slots are
 // declared by NAME nodes.
 type coreG2TestScope struct {
-	declarations *jutil.LinkedHashMap[string, rhino.Node]
+	declarations *OrderedStringMap[rhino.Node]
 }
 
 func newCoreG2TestScope() *coreG2TestScope {
-	return &coreG2TestScope{declarations: jutil.NewLinkedHashMap[string, rhino.Node]()}
+	return &coreG2TestScope{declarations: NewOrderedStringMap[rhino.Node]()}
 }
 
 func (s *coreG2TestScope) declare(name string, declaration rhino.Node) *coreG2TestScope {

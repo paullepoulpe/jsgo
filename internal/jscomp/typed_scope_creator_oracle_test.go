@@ -137,7 +137,7 @@ func typedScopeDump_exceptionLine(r any) string {
 	return "X " + className + ": " + msg
 }
 
-func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.LinkedHashSet[string]) (out []string) {
+func typedScopeDump(externs string, inputs []*SourceFile, baseline *OrderedSet[string]) (out []string) {
 	compiler := NewCompiler()
 	compiler.SetAllowableFeatures(CompilerOptions_LanguageMode_UNSUPPORTED.ToFeatureSet())
 	compiler.SetPreferRegexParser(false)
@@ -391,13 +391,13 @@ func TestTypedScopeCreatorOracle(t *testing.T) {
 	sc := bufio.NewScanner(gz)
 	sc.Buffer(make([]byte, 1<<20), 1<<30)
 
-	var baseline *jutil.LinkedHashSet[string]
+	var baseline *OrderedSet[string]
 	files, mismatches := 0, 0
 	check := func(name string, javaLines []string) {
 		var goLines []string
 		if name == typedScopeDump_BASELINE {
 			raw := typedScopeDump(externs, []*SourceFile{SourceFile_FromCode(typedScopeDump_BASELINE, "")}, nil)
-			baseline = jutil.NewLinkedHashSet(raw...)
+			baseline = NewOrderedSet(raw...)
 			goLines = raw
 		} else {
 			goLines = typedScopeDump(externs, typedScopeDump_inputs(t, root, name), baseline)

@@ -41,8 +41,8 @@ type GsonTestPoint struct {
 // Java: class Point3 extends Point { int z; Map<String, Integer> m; }
 type gsonTestPoint3 struct {
 	GsonTestPoint
-	Z int32                         `gson:"z"`
-	M *LinkedHashMap[string, int32] `gson:"m"`
+	Z int32                      `gson:"z"`
+	M *OrderedMap[string, int32] `gson:"m"`
 }
 
 type gsonTestHolder struct {
@@ -60,7 +60,7 @@ func newGsonTestPoint() *GsonTestPoint {
 }
 
 func newGsonTestPoint3() *gsonTestPoint3 {
-	p := &gsonTestPoint3{Z: 9, M: NewLinkedHashMap[string, int32]()}
+	p := &gsonTestPoint3{Z: 9, M: NewOrderedMap[string, int32]()}
 	p.GsonTestPoint = GsonTestPoint{X: 1, Name: "p<q>", T: 5, List: []int32{1, 2}, D: 0.5, C: 'c', B: true, L: 1 << 40}
 	p.Me = p
 	p.M.Put("k", 1)
@@ -69,19 +69,19 @@ func newGsonTestPoint3() *gsonTestPoint3 {
 
 func gsonTestCases() map[string]any {
 	str := func(s string) *string { return &s }
-	m := NewLinkedHashMap[string, any]()
+	m := NewOrderedMap[string, any]()
 	m.Put("a", int32(1))
 	m.Put("b", nil)
 	m.Put("c", []int32{1, 2})
 	m.Put("d", "<")
-	mi := NewLinkedHashMap[int32, string]()
+	mi := NewOrderedMap[int32, string]()
 	mi.Put(3, "x")
 	mi.Put(1, "y")
-	mn := NewLinkedHashMap[*string, int32]()
+	mn := NewOrderedMap[*string, int32]()
 	mn.Put(nil, 1)
-	me := NewLinkedHashMap[gsonTestColor, int32]()
+	me := NewOrderedMap[gsonTestColor, int32]()
 	me.Put(gsonTestColor_RED, 1)
-	ableMap := NewLinkedHashMap[string, int32]()
+	ableMap := NewOrderedMap[string, int32]()
 	ableMap.Put("a", 1)
 	o := NewJsonObject()
 	o.Add("a", NewJsonPrimitiveNumber(gson_javaInteger(1)))
@@ -90,9 +90,9 @@ func gsonTestCases() map[string]any {
 	arr.Add(JsonNull_INSTANCE)
 	o.Add("b", arr)
 	o.Add("c", NewJsonPrimitiveString("<x>"))
-	inner := NewLinkedHashMap[string, any]()
-	inner.Put("x", []any{NewLinkedHashMap[string, any]()})
-	tm := NewLinkedHashMap[string, int32]()
+	inner := NewOrderedMap[string, any]()
+	inner.Put("x", []any{NewOrderedMap[string, any]()})
+	tm := NewOrderedMap[string, int32]()
 	tm.Put("a", 2)
 	tm.Put("b", 1)
 	return map[string]any{
@@ -143,7 +143,7 @@ func gsonTestCases() map[string]any {
 		"jsonTree":        o,
 		"nested":          []any{inner},
 		"treeMap":         tm,
-		"linkedHashSet":   NewLinkedHashSet("b", "a"),
+		"linkedHashSet":   NewOrderedSet("b", "a"),
 		"arrayList":       []int32{3, 1},
 	}
 }
@@ -242,5 +242,38 @@ func TestGsonToJsonUnsupportedGoKinds(t *testing.T) {
 		if !caught {
 			t.Errorf("%T: no UnsupportedOperationException", v)
 		}
+	}
+}
+
+func TestGsonToJsonOrderedMapAndOrderedSet(t *testing.T) {
+	gson := NewGson()
+	m := NewOrderedMap[string, int32]()
+	m.Put("first", 1)
+	m.Put("drop", 2)
+	m.Put("second", 3)
+	m.Delete("drop")
+	if got := gson.ToJson(m); got != `{"first":1,"second":3}` {
+		t.Fatalf("ToJson(*OrderedMap) = %s", got)
+	}
+	if got := gson.ToJson(*m); got != `{"first":1,"second":3}` {
+		t.Fatalf("ToJson(OrderedMap) = %s", got)
+	}
+
+	s := NewOrderedSet("x", "drop", "y")
+	s.Remove("drop")
+	if got := gson.ToJson(s); got != `["x","y"]` {
+		t.Fatalf("ToJson(*OrderedSet) = %s", got)
+	}
+	if got := gson.ToJson(*s); got != `["x","y"]` {
+		t.Fatalf("ToJson(OrderedSet) = %s", got)
+	}
+
+	var nilMap *OrderedMap[string, int32]
+	var nilSet *OrderedSet[string]
+	if got := gson.ToJson(nilMap); got != "null" {
+		t.Fatalf("ToJson(nil *OrderedMap) = %s, want null", got)
+	}
+	if got := gson.ToJson(nilSet); got != "null" {
+		t.Fatalf("ToJson(nil *OrderedSet) = %s, want null", got)
 	}
 }

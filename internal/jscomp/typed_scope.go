@@ -71,7 +71,7 @@ type TypedScope struct {
 	// (nil afterwards, and for scopes built without either).
 	build *typedScopeBuildState
 
-	// Go-only: performance — the Java LinkedHashMap<String, TypedVar> is vars,
+	// Go-only: performance — the Java Map<String, TypedVar> is vars,
 	// in declaration order (a var is keyed by its name), plus scopeVarIndex
 	// once there are more than scopeSmallVars vars.
 	vars []*TypedVar

@@ -200,12 +200,9 @@ func GatherRawExports_IsGlobalThisObject(t *NodeTraversal, n rhino.Node) bool {
 }
 
 // Java: GatherRawExports.getExportedVariableNames()
-func (g *GatherRawExports) GetExportedVariableNames() *jutil.LinkedHashSet[string] {
-	exported := jutil.NewLinkedHashSetWithCapacity[string](g.exportedVariables.Size())
-	for name := range g.exportedVariables.All() {
-		exported.Add(name)
-	}
-	return exported
+func (g *GatherRawExports) GetExportedVariableNames() *OrderedSet[string] {
+	exported := g.exportedVariables.Clone()
+	return &exported
 }
 
 // RemoveCastNodes normalizes all CAST nodes out of the AST.

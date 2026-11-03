@@ -42,7 +42,7 @@ type ColorGraphBuilderTest struct {
 
 	processor CompilerPass // @Nullable
 	result    *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
-	labelToId *jutil.LinkedHashMap[string, colors.ColorId]
+	labelToId *OrderedStringMap[colors.ColorId]
 }
 
 // Java: ColorGraphBuilderTest()
@@ -110,8 +110,8 @@ func (c *ColorGraphBuilderTest) createBuilder(
 type colorGraphBuilderTest_collector struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	graphNodeFactory *ColorGraphNodeFactory
-	testTypes        *jutil.LinkedHashMap[string, *ColorGraphNode]
-	labelToId        *jutil.LinkedHashMap[string, colors.ColorId]
+	testTypes        *OrderedStringMap[*ColorGraphNode]
+	labelToId        *OrderedStringMap[colors.ColorId]
 }
 
 // Java: ColorGraphBuilderTest.createBuilderIncludingCode(...).new AbstractPostOrderCallback() {...}.visit(NodeTraversal, Node, Node)
@@ -138,8 +138,8 @@ func (c *ColorGraphBuilderTest) createBuilderIncludingCode(
 	// the labelToId map has been populated.
 	optLcaFinder func() *colorGraphBuilderTest_StubLcaFinder, src string) *ColorGraphBuilder {
 	graphNodeFactory := c.graphNodeFactory
-	testTypes := jutil.NewLinkedHashMap[string, *ColorGraphNode]()
-	c.labelToId = jutil.NewLinkedHashMap[string, colors.ColorId]()
+	testTypes := NewOrderedStringMap[*ColorGraphNode]()
+	c.labelToId = NewOrderedStringMap[colors.ColorId]()
 
 	/* Flatten and collect the types of all NAMEs that start with "test". */
 	c.processor = CompilerPassFunc(func(externs rhino.Node, main rhino.Node) {
@@ -370,8 +370,8 @@ func (c *ColorGraphBuilderTest) TestUnions_connectedAboveMembers() {
 		func() *colorGraphBuilderTest_StubLcaFinder {
 			return newColorGraphBuilderTest_StubLcaFinder().
 				addStub(
-					jutil.NewLinkedHashSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
-					jutil.NewLinkedHashSet(c.ids("FOO", "BAR", "QUX"), colors.StandardColors_UNKNOWN.GetId()))
+					NewOrderedSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
+					NewOrderedSet(c.ids("FOO", "BAR", "QUX"), colors.StandardColors_UNKNOWN.GetId()))
 		}
 	builder :=
 		c.createBuilderIncludingCode(
@@ -404,8 +404,8 @@ func (c *ColorGraphBuilderTest) TestUnions_connectBelowLca() {
 		func() *colorGraphBuilderTest_StubLcaFinder {
 			return newColorGraphBuilderTest_StubLcaFinder().
 				addStub(
-					jutil.NewLinkedHashSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
-					jutil.NewLinkedHashSet(c.ids("FOO", "BAR", "QUX"), kifId))
+					NewOrderedSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
+					NewOrderedSet(c.ids("FOO", "BAR", "QUX"), kifId))
 		}
 	builder :=
 		c.createBuilderIncludingCode(
@@ -438,8 +438,8 @@ func (c *ColorGraphBuilderTest) TestUnions_connectBelowLca_withMultipleLcas() {
 		func() *colorGraphBuilderTest_StubLcaFinder {
 			return newColorGraphBuilderTest_StubLcaFinder().
 				addStub(
-					jutil.NewLinkedHashSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
-					jutil.NewLinkedHashSet(c.ids("FOO", "BAR", "QUX"), kixId, lopId))
+					NewOrderedSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
+					NewOrderedSet(c.ids("FOO", "BAR", "QUX"), kixId, lopId))
 		}
 	builder :=
 		c.createBuilderIncludingCode(
@@ -473,11 +473,11 @@ func (c *ColorGraphBuilderTest) TestUnions_connectBelowLca_whichIsAlsoUnion() {
 		func() *colorGraphBuilderTest_StubLcaFinder {
 			return newColorGraphBuilderTest_StubLcaFinder().
 				addStub(
-					jutil.NewLinkedHashSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
-					jutil.NewLinkedHashSet(c.ids("FOO", "BAR", "QUX"), kifId)).
+					NewOrderedSet(c.id("FOO"), c.id("BAR"), c.id("QUX")),
+					NewOrderedSet(c.ids("FOO", "BAR", "QUX"), kifId)).
 				addStub(
-					jutil.NewLinkedHashSet(c.id("FOO"), c.id("BAR")),
-					jutil.NewLinkedHashSet(c.ids("FOO", "BAR"), c.ids("FOO", "BAR", "QUX")))
+					NewOrderedSet(c.id("FOO"), c.id("BAR")),
+					NewOrderedSet(c.ids("FOO", "BAR"), c.ids("FOO", "BAR", "QUX")))
 		}
 	builder :=
 		c.createBuilderIncludingCode(
@@ -511,8 +511,8 @@ func (c *ColorGraphBuilderTest) TestUnions_connectBelowLac_whichHasSameDescendan
 		func() *colorGraphBuilderTest_StubLcaFinder {
 			return newColorGraphBuilderTest_StubLcaFinder().
 				addStub(
-					jutil.NewLinkedHashSet(c.id("FOO_PROTOTYPE"), c.id("BAR_PROTOTYPE")),
-					jutil.NewLinkedHashSet(c.ids("FOO_PROTOTYPE", "BAR_PROTOTYPE"), c.id("KIF")))
+					NewOrderedSet(c.id("FOO_PROTOTYPE"), c.id("BAR_PROTOTYPE")),
+					NewOrderedSet(c.ids("FOO_PROTOTYPE", "BAR_PROTOTYPE"), c.id("KIF")))
 		}
 	builder :=
 		c.createBuilderIncludingCode(
@@ -540,7 +540,7 @@ BAR_PROTOTYPE: Bar.prototype;
 
 // Java: ColorGraphBuilderTest.verifyResult_topNodeIsOnlyRoot()
 func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
-	roots := jutil.NewLinkedHashSet[graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
+	roots := NewOrderedSet[graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
 	for _, n := range c.result.GetNodes() {
 		if len(n.GetInEdges()) == 0 {
 			roots.Add(n)
@@ -553,7 +553,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
 
 // Java: ColorGraphBuilderTest.verifyResult_hasNoSelfEdges()
 func (c *ColorGraphBuilderTest) VerifyResult_hasNoSelfEdges() {
-	selfEdges := jutil.NewLinkedHashSet[graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
+	selfEdges := NewOrderedSet[graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
 	for _, e := range c.result.GetEdges() {
 		if jutil.ObjectsEquals(e.GetSource(), e.GetDestination()) {
 			selfEdges.Add(e)
@@ -582,7 +582,7 @@ func (c *ColorGraphBuilderTest) RenderResultGraph() {
 
 // Java: ColorGraphBuilderTest.assertThatResultAsTable()
 func (c *ColorGraphBuilderTest) assertThatResultAsTable() *colorGraphBuilderTest_TableSubject {
-	table := jutil.NewLinkedHashMap[colorGraphBuilderTest_cell, ColorGraphBuilder_EdgeReason]()
+	table := NewOrderedMap[colorGraphBuilderTest_cell, ColorGraphBuilder_EdgeReason]()
 	for _, edge := range c.result.GetEdges() {
 		cell := colorGraphBuilderTest_cell{
 			colorGraphBuilderTest_nameOfNode(edge.GetSource()), colorGraphBuilderTest_nameOfNode(edge.GetDestination())}
@@ -606,7 +606,7 @@ type colorGraphBuilderTest_cell struct {
 //
 // Go-only: test-helper — the table is a map from (row, column) cells.
 type colorGraphBuilderTest_TableSubject struct {
-	table *jutil.LinkedHashMap[colorGraphBuilderTest_cell, ColorGraphBuilder_EdgeReason]
+	table *OrderedMap[colorGraphBuilderTest_cell, ColorGraphBuilder_EdgeReason]
 }
 
 // ContainsCell is TableSubject.containsCell(rowKey, colKey, value).
@@ -631,14 +631,14 @@ func (s *colorGraphBuilderTest_TableSubject) ContainsCell(
 // Java: ColorGraphBuilderTest.StubLcaFinder
 type colorGraphBuilderTest_StubLcaFinder struct {
 	graph *graph.LinkedDirectedGraph[*ColorGraphNode, ColorGraphBuilder_EdgeReason]
-	// Go-only: language-adapter — a LinkedHashMap keyed by ImmutableSet
+	// Go-only: language-adapter — an ordered map keyed by ImmutableSet
 	// equality, as an insertion-ordered list of entries.
 	stubs         []colorGraphBuilderTest_stub
 	preconditions []*colorGraphBuilderTest_precondition
 }
 
 type colorGraphBuilderTest_stub struct {
-	from, to *jutil.LinkedHashSet[colors.ColorId]
+	from, to *OrderedSet[colors.ColorId]
 }
 
 type colorGraphBuilderTest_precondition struct {
@@ -658,10 +658,10 @@ func (f *colorGraphBuilderTest_StubLcaFinder) setGraph(g graph.DiGraph[*ColorGra
 }
 
 // Java: ColorGraphBuilderTest.StubLcaFinder.addStub(ImmutableSet<ColorId>, ImmutableSet<ColorId>)
-func (f *colorGraphBuilderTest_StubLcaFinder) addStub(from, to *jutil.LinkedHashSet[colors.ColorId]) *colorGraphBuilderTest_StubLcaFinder {
+func (f *colorGraphBuilderTest_StubLcaFinder) addStub(from, to *OrderedSet[colors.ColorId]) *colorGraphBuilderTest_StubLcaFinder {
 	for i := range f.stubs {
 		if f.stubs[i].from.Equals(from) {
-			f.stubs[i].to = to // LinkedHashMap.put on an equal key
+			f.stubs[i].to = to // overwrite on an equal key
 			return f
 		}
 	}
@@ -675,12 +675,12 @@ func (f *colorGraphBuilderTest_StubLcaFinder) FindAllSlice(roots []*ColorGraphNo
 		entry.count--
 	}
 
-	rootIds := jutil.NewLinkedHashSet[colors.ColorId]()
+	rootIds := NewOrderedSet[colors.ColorId]()
 	for _, r := range roots {
 		rootIds.Add(colorGraphBuilderTest_nameOf(r))
 	}
-	var resultNames *jutil.LinkedHashSet[colors.ColorId]
-	stubKeys := []*jutil.LinkedHashSet[colors.ColorId]{}
+	var resultNames *OrderedSet[colors.ColorId]
+	stubKeys := []*OrderedSet[colors.ColorId]{}
 	for _, s := range f.stubs {
 		stubKeys = append(stubKeys, s.from)
 		if s.from.Equals(rootIds) {
@@ -693,7 +693,7 @@ func (f *colorGraphBuilderTest_StubLcaFinder) FindAllSlice(roots []*ColorGraphNo
 			"\nbut was: " + jutil.ToJavaString(stubKeys))
 	}
 
-	results := jutil.NewLinkedHashSet[*ColorGraphNode]()
+	results := NewOrderedSet[*ColorGraphNode]()
 	for _, n := range f.graph.GetNodes() {
 		if resultNames.Contains(colorGraphBuilderTest_nameOf(n.GetValue())) {
 			results.Add(n.GetValue())

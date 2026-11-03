@@ -74,8 +74,8 @@ func closureRewriteCreateModuleMap(compiler *Compiler, externs rhino.Node, js rh
 }
 
 // closureRewriteDefineReplacements is the Java tool's define map.
-func closureRewriteDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
-	m := jutil.NewLinkedHashMap[string, rhino.Node]()
+func closureRewriteDefineReplacements() *OrderedStringMap[rhino.Node] {
+	m := NewOrderedStringMapWithCapacity[rhino.Node](10)
 	m.Put("COMPILED", rhino.NewNode(rhino.Token_TRUE))
 	m.Put("goog.DEBUG", rhino.NewNode(rhino.Token_FALSE))
 	m.Put("goog.LOCALE", rhino.IR_String("de"))

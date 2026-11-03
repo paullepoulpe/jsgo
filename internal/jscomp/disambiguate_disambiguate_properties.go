@@ -256,40 +256,59 @@ func (d *DisambiguateProperties) CreateInvalidationError(prop *PropertyClusterin
 		additionalContext)
 }
 
+type disambiguateRenamingEntry struct {
+	names        []string
+	invalidation Invalidation
+	invalidated  bool
+}
+
 type disambiguateProperties_renamingIndexJson struct {
-	m *OrderedStringMap[any]
+	m *OrderedStringMap[disambiguateRenamingEntry]
 }
 
 func (r disambiguateProperties_renamingIndexJson) WriteGson(out *jutil.JsonWriter) {
 	out.BeginObject()
 	for _, e := range r.m.Entries() {
 		out.Name(e.Key)
-		if e.Value == nil || jutil.IsNil(e.Value) {
-			nullLit := "null"
-			out.JsonValue(&nullLit)
+		if e.Value.invalidated {
+			if !e.Value.invalidation.IsValid() {
+				nullLit := "null"
+				out.JsonValue(&nullLit)
+			} else {
+				diagnostic.LogsGson_GSON.ToJsonWriter(e.Value.invalidation, out)
+			}
 		} else {
-			diagnostic.LogsGson_GSON.ToJsonWriter(e.Value, out)
+			out.BeginArray()
+			for i := range e.Value.names {
+				out.ValueString(&e.Value.names[i])
+			}
+			out.EndArray()
 		}
 	}
 	out.EndObject()
 }
 
-// Java: DisambiguateProperties.buildRenamingIndex(LinkedHashMap<String, PropertyClustering>, UseSiteRenamer)
+// Java: DisambiguateProperties.buildRenamingIndex(Map<String, PropertyClustering>, UseSiteRenamer)
 func DisambiguateProperties_BuildRenamingIndex(
-	props *propertyClusteringIndex, renamer *UseSiteRenamer) *OrderedStringMap[any] {
+	props *propertyClusteringIndex, renamer *UseSiteRenamer) *OrderedStringMap[disambiguateRenamingEntry] {
 	newNames := renamer.GetRenamingIndex()
 	// collect(toImmutableSortedMap(naturalOrder(), getName, ...)): duplicate keys throw.
 	propVals := props.values()
-	byName := make(map[string]any, len(propVals))
+	byName := make(map[string]disambiguateRenamingEntry, len(propVals))
 	keys := make([]string, 0, len(propVals))
 	for _, prop := range propVals {
-		var value any
+		var value disambiguateRenamingEntry
 		if prop.IsInvalidated() {
-			value = prop.GetLastInvalidation()
+			value = disambiguateRenamingEntry{
+				invalidation: prop.GetLastInvalidation(),
+				invalidated:  true,
+			}
 		} else {
 			names := newNames.Get(prop.GetName()).ToSlice()
 			slices.SortStableFunc(names, jutil.StringCompareTo)
-			value = slices.Compact(names) // ImmutableSortedSet.copyOf
+			value = disambiguateRenamingEntry{
+				names: slices.Compact(names), // ImmutableSortedSet.copyOf
+			}
 		}
 		name := prop.GetName()
 		if _, exists := byName[name]; exists {
@@ -299,14 +318,14 @@ func DisambiguateProperties_BuildRenamingIndex(
 		keys = append(keys, name)
 	}
 	slices.SortStableFunc(keys, jutil.StringCompareTo)
-	sorted := NewOrderedStringMapWithCapacity[any](len(keys))
+	sorted := NewOrderedStringMapWithCapacity[disambiguateRenamingEntry](len(keys))
 	for _, key := range keys {
 		sorted.PutNew(key, byName[key])
 	}
 	return sorted
 }
 
-// Java: DisambiguateProperties.invalidateWellKnownProperties(LinkedHashMap<String, PropertyClustering>)
+// Java: DisambiguateProperties.invalidateWellKnownProperties(Map<String, PropertyClustering>)
 func DisambiguateProperties_InvalidateWellKnownProperties(
 	propIndex *propertyClusteringIndex) {
 	/*

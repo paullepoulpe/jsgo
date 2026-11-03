@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -144,7 +143,7 @@ func newPeepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization() *p
 // Java: PeepholeOptimizationsPassTest.RemoveNodesNamedXUnderVarOptimization.optimizeSubtree(Node)
 func (o *peepholeOptimizationsPassTest_RemoveNodesNamedXUnderVarOptimization) OptimizeSubtree(node rhino.Node) rhino.Node {
 	if node.IsVar() {
-		nodesToRemove := jutil.NewLinkedHashSet[rhino.Node]()
+		nodesToRemove := NewOrderedSet[rhino.Node]()
 
 		for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
 			if "x" == child.GetString() {

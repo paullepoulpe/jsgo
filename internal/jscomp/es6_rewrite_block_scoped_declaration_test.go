@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -84,13 +83,13 @@ func (c *Es6RewriteBlockScopedDeclarationTest) LoopClosureTest(srcs CompilerTest
 
 // Java: Es6RewriteBlockScopedDeclarationTest.loopClosureTest(Externs, Sources, Expected)
 func (c *Es6RewriteBlockScopedDeclarationTest) LoopClosureTestWithExterns(externs *CompilerTestCase_Externs, srcs CompilerTestCase_Sources, originalExpected *CompilerTestCase_Expected) {
-	loop := jutil.NewLinkedHashMap[string, string]()
+	loop := NewOrderedStringMap[string]()
 	loop.Put("LOOP", "$jscomp$loop$")
 	// change the "LOOP" in expected with "$jscomp$loop$m123..456" name
 	modifiedExpected := c.Expected(
 		UnitTestUtils_UpdateGenericVarNamesInExpectedFiles(
 			srcs.(*CompilerTestCase_FlatSources), originalExpected, loop))
-	param := jutil.NewLinkedHashMap[string, string]()
+	param := NewOrderedStringMap[string]()
 	param.Put("$PARAM", "$jscomp$loop_param$")
 	// change the "$PARAM" in expected with "$jscomp$loop_param$m123..456" parameter name
 	modifiedExpected =
@@ -99,7 +98,7 @@ func (c *Es6RewriteBlockScopedDeclarationTest) LoopClosureTestWithExterns(extern
 				srcs.(*CompilerTestCase_FlatSources),
 				modifiedExpected,
 				param))
-	thisArgs := jutil.NewLinkedHashMap[string, string]()
+	thisArgs := NewOrderedStringMap[string]()
 	thisArgs.Put("$THIS", "$jscomp$this$")
 	thisArgs.Put("$ARGUMENTS", "$jscomp$arguments$")
 	// change the "$THIS" and "$ARGUMENTS" in expected with "$jscomp$this$" and "$jscomp$arguments$"

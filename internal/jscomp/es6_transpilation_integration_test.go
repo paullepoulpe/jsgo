@@ -87,7 +87,7 @@ func (c *Es6TranspilationIntegrationTest) SetUp() {
 	// this confuses the logic for validating AST change marking.
 	// That logic is really only valid when testing a single, real pass.
 	c.DisableValidateAstChangeMarking()
-	replacements := jutil.NewLinkedHashMap[string, string]()
+	replacements := NewOrderedStringMapWithCapacity[string](Es6NormalizeClasses_GENERIC_NAME_REPLACEMENTS.Size() + 3)
 	for k, v := range Es6NormalizeClasses_GENERIC_NAME_REPLACEMENTS.All() {
 		replacements.Put(k, v)
 	}

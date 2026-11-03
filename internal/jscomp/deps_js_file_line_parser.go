@@ -321,8 +321,8 @@ func (b *jsFileLineParser) parseJsStringArray(input string) ([]string, string, b
 
 // ParseJsStringMap parses a JS string-valued object literal for the CoreG3
 // differential oracle (production callers use parseLoadFlagsObject).
-func (b *jsFileLineParser) ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string] {
-	results := jutil.NewLinkedHashMap[string, string]()
+func (b *jsFileLineParser) ParseJsStringMap(input string) *OrderedStringMap[string] {
+	results := NewOrderedStringMap[string]()
 	errMsg, ok := b.parseJsStringObjectEntries(input, func(key, val string) {
 		results.Put(key, val)
 	})

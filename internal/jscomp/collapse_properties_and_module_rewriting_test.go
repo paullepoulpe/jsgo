@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -157,11 +156,10 @@ func (c *CollapsePropertiesAndModuleRewritingTest) TestModuleDynamicImportCommon
 	c.collapseLevel = CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE
 	c.SetModuleResolutionMode(ModuleLoader_ResolutionMode_WEBPACK)
-	c.SetWebpackModulesById(
-		jutil.NewImmutableMapBuilder[string, string]().
-			Put("1", "entry.js").
-			Put("2", "mod1.js").
-			BuildOrThrow())
+	webpackModules := NewOrderedStringMap[string]()
+	webpackModules.Put("1", "entry.js")
+	webpackModules.Put("2", "mod1.js")
+	c.SetWebpackModulesById(webpackModules)
 
 	inputs := []*SourceFile{}
 	inputs = append(inputs,

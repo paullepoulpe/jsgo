@@ -145,3 +145,27 @@ func TestColorCreateUnionSingleSliceReuseAndSpill(t *testing.T) {
 		t.Fatal("expected permuted large union with distinct value-equal *Color pointers to compare equal")
 	}
 }
+
+func TestCreateUnionSliceWithBuilderRestoresTrustUniqueOnPanic(t *testing.T) {
+	c1 := Color_SingleBuilder().SetId(ColorId_FromUnsigned(500)).Build()
+	// Malformed 1-element union so allSame is false, flatElems collapses to 1 element,
+	// and BuildUnion panics after setting builder.trustUnique = true.
+	malformedUnion := &Color{
+		id:            ColorId_FromUnsigned(501),
+		unionElements: []*Color{c1},
+	}
+	var builder Color_Builder
+	builder.trustUnique = false
+	panicked := false
+	jutil.Try(func() {
+		_ = Color_CreateUnionSliceWithBuilder([]*Color{c1, malformedUnion}, &builder, nil, nil)
+	}, func(jutil.Throwable) {
+		panicked = true
+	})
+	if !panicked {
+		t.Fatal("expected BuildUnion to panic on collapsed 1-element union")
+	}
+	if builder.trustUnique {
+		t.Fatal("expected Color_CreateUnionSliceWithBuilder to restore builder.trustUnique to false")
+	}
+}

@@ -232,23 +232,12 @@ func (d *SortedDependencies[InputT]) GetStrongDependenciesOf(rootInputs []InputT
 	return builder
 }
 
-func (d *SortedDependencies[InputT]) lookupInputProviding(symbol string) (InputT, bool) {
+// LookupInputProviding returns the input that provides symbol, if any.
+func (d *SortedDependencies[InputT]) LookupInputProviding(symbol string) (InputT, bool) {
 	if id, ok := d.exportingIDBySymbolName[symbol]; ok {
 		return d.uniqueInputs[id], true
 	}
 	return d.nonExportingInputs.Lookup(ModuleNames_FileToModuleName(symbol))
-}
-
-// GetInputProviding returns the input that gives us the given symbol. It
-// panics with *SortedDependencies_MissingProvideException if there is no
-// input for this symbol.
-//
-// Java: SortedDependencies.getInputProviding(String)
-func (d *SortedDependencies[InputT]) GetInputProviding(symbolName string) InputT {
-	if input, ok := d.lookupInputProviding(symbolName); ok {
-		return input
-	}
-	panic(NewSortedDependencies_MissingProvideException(symbolName))
 }
 
 // Java: SortedDependencies.getInputsWithoutProvides()
@@ -374,7 +363,7 @@ func (d *SortedDependencies[InputT]) GetSortedList() []InputT {
 //
 // Java: SortedDependencies.maybeGetInputProviding(String)
 func (d *SortedDependencies[InputT]) MaybeGetInputProviding(symbol string) InputT {
-	v, _ := d.lookupInputProviding(symbol)
+	v, _ := d.LookupInputProviding(symbol)
 	return v
 }
 

@@ -226,7 +226,7 @@ func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 		// Look for calls to static functions.
 		name := calledFn.GetOriginalQualifiedName()
 		if name != nil {
-			config := r.FindMatching(*name, n.GetSourceFileName())
+			config := r.findMatching(*name, n)
 			if config != nil {
 				r.DoSubstitutions(t, config, n)
 				return
@@ -236,23 +236,24 @@ func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	}
 }
 
-// FindMatching: name is the function name to find; callsiteSourceFileName is
-// the filename containing the callsite. It returns the Config object for the
-// name or null if no match was found.
+// findMatching looks up the Config for name, excluding callsites matching
+// config.excludedSuffixes.
 //
 // Java: ReplaceStrings.findMatching(String, String)
-func (r *ReplaceStrings) FindMatching(name string, callsiteSourceFileName *string) *ReplaceStrings_Config {
+func (r *ReplaceStrings) findMatching(name string, callsite rhino.Node) *ReplaceStrings_Config {
 	config := r.functions[name]
 	if config == nil && strings.IndexByte(name, '$') >= 0 {
 		config = r.functions[strings.ReplaceAll(name, "$", ".")]
 	}
-	if config != nil {
+	if config != nil && len(config.excludedSuffixes) > 0 {
+		sf := callsite.GetStaticSourceFile()
+		// callsiteSourceFileName.endsWith(excludedSuffix): a null name throws.
+		if sf == nil {
+			panic(jutil.NewNullPointerException())
+		}
+		callsiteSourceFileName := sf.GetName()
 		for _, excludedSuffix := range config.excludedSuffixes {
-			// callsiteSourceFileName.endsWith(excludedSuffix): a null name throws.
-			if callsiteSourceFileName == nil {
-				panic(jutil.NewNullPointerException())
-			}
-			if strings.HasSuffix(*callsiteSourceFileName, excludedSuffix) {
+			if strings.HasSuffix(callsiteSourceFileName, excludedSuffix) {
 				return nil
 			}
 		}

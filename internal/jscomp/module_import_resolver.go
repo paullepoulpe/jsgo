@@ -188,10 +188,10 @@ func (r *ModuleImportResolver) GetGoogModuleScopeRoot(module *Module) rhino.Node
 //
 // Java: ModuleImportResolver.declareEsModuleImports(Module, TypedScope, CompilerInput)
 func (r *ModuleImportResolver) DeclareEsModuleImports(
-	module *Module, scope *TypedScope, moduleInput *CompilerInput) *jutil.LinkedHashMap[rhino.Node, ScopedName] {
+	module *Module, scope *TypedScope, moduleInput *CompilerInput) OrderedMap[rhino.Node, ScopedName] {
 	jutil.CheckArgumentMsg1(module.Metadata().IsEs6Module(), "%s", module)
 	jutil.CheckArgumentMsg1(scope.IsModuleScope(), "%s", scope)
-	missingNames := jutil.NewImmutableMapBuilder[rhino.Node, ScopedName]()
+	var missingNames OrderedMap[rhino.Node, ScopedName]
 	for _, entry := range module.BoundNamesMap().Entries() {
 		localName, binding := entry.Key, entry.Value
 		if !binding.IsCreatedByEsImport() {
@@ -205,8 +205,12 @@ func (r *ModuleImportResolver) DeclareEsModuleImports(
 		export := r.GetScopedNameFromEsBinding(binding)
 		modScope := r.nodeToScopeMapper(export.GetScopeRoot())
 		if modScope == nil {
-			jutil.CheckStateMsg1(binding.SourceNode().GetString() == localName, "%s", binding.SourceNode())
-			missingNames.Put(binding.SourceNode(), export)
+			sourceNode := binding.SourceNode()
+			jutil.CheckStateMsg1(sourceNode.GetString() == localName, "%s", sourceNode)
+			if !missingNames.PutIfAbsent(sourceNode, export) {
+				panic(jutil.NewIllegalArgumentExceptionMsg(
+					jutil.LenientFormat("Multiple entries with same key: %s=%s", sourceNode, export)))
+			}
 			continue
 		}
 
@@ -229,7 +233,7 @@ func (r *ModuleImportResolver) DeclareEsModuleImports(
 			}
 		}
 	}
-	return missingNames.BuildOrThrow()
+	return missingNames
 }
 
 // UpdateEsModuleNamespaceType declares or updates the type of properties

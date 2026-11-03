@@ -779,17 +779,17 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 
 		switch child.GetToken() {
 		case rhino.Token_COMPUTED_PROP:
-			t.currentNode = n
+			t.currentNode = child
 
 			if t.shouldTraverse(child, n) {
 				if val, ok := ast.MustComputedProp(child).Value(); ok {
 					t.TraverseBranch(val.Node(), child)
 				}
-				t.currentNode = n
+				t.currentNode = child
 				t.visitNode(child, n)
 			}
 		case rhino.Token_COMPUTED_FIELD_DEF:
-			t.currentNode = n
+			t.currentNode = child
 
 			previousHoistScopeRoot := t.currentHoistScopeRoot
 			t.currentHoistScopeRoot = n
@@ -799,7 +799,7 @@ func (t *NodeTraversal) HandleClassMembers(n rhino.Node, parent rhino.Node) {
 				if val, ok := ast.MustComputedFieldDef(child).Value(); ok { // No RHS to traverse in `[x];` computed field case
 					t.TraverseBranch(val.Node(), child)
 				}
-				t.currentNode = n
+				t.currentNode = child
 				t.visitNode(child, n)
 			}
 

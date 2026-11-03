@@ -47,6 +47,25 @@ func NewOrderedStringMapWithCapacity[V any](capHint int) *OrderedStringMap[V] {
 	return NewOrderedMapWithCapacity[string, V](capHint)
 }
 
+func NewOrderedMapFrom[K comparable, V any](src MapSource[K, V]) *OrderedMap[K, V] {
+	if src == nil {
+		return &OrderedMap[K, V]{}
+	}
+	if om, ok := src.(*OrderedMap[K, V]); ok {
+		cloned := om.Clone()
+		return &cloned
+	}
+	n := src.Size()
+	if n <= 0 {
+		return &OrderedMap[K, V]{}
+	}
+	out := NewOrderedMapWithCapacity[K, V](n)
+	for k, v := range src.All() {
+		out.Put(k, v)
+	}
+	return out
+}
+
 func (m *OrderedMap[K, V]) compact() {
 	if m == nil || m.holes == 0 {
 		return
@@ -237,35 +256,79 @@ func (m *OrderedMap[K, V]) Reset() {
 	m.holes = 0
 }
 
+// First returns the first key-value pair in insertion order, if any.
+func (m *OrderedMap[K, V]) First() (K, V, bool) {
+	var zeroK K
+	var zeroV V
+	if m == nil || len(m.entries) == m.holes {
+		return zeroK, zeroV, false
+	}
+	if m.holes == 0 {
+		e := m.entries[0]
+		return e.Key, e.Value, true
+	}
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; ok && idx == i {
+			return e.Key, e.Value, true
+		}
+	}
+	return zeroK, zeroV, false
+}
+
 // Index returns the 0-based insertion-order position of k and true if present,
 // or (-1, false) if absent.
 func (m *OrderedMap[K, V]) Index(k K) (int, bool) {
 	if m == nil || len(m.entries) == m.holes {
 		return -1, false
 	}
-	m.compact()
-	if m.index != nil {
-		if idx, ok := m.index[k]; ok {
-			return idx, true
+	if m.holes == 0 {
+		if m.index != nil {
+			if idx, ok := m.index[k]; ok {
+				return idx, true
+			}
+			return -1, false
+		}
+		for i := range m.entries {
+			if m.entries[i].Key == k {
+				return i, true
+			}
 		}
 		return -1, false
 	}
-	for i := range m.entries {
-		if m.entries[i].Key == k {
-			return i, true
+	rawIdx, ok := m.index[k]
+	if !ok {
+		return -1, false
+	}
+	pos := 0
+	for i := 0; i < rawIdx; i++ {
+		if idx, ok := m.index[m.entries[i].Key]; ok && idx == i {
+			pos++
 		}
 	}
-	return -1, false
+	return pos, true
 }
 
 // ValueAt returns the index-th value in insertion order without allocating a slice.
 func (m *OrderedMap[K, V]) ValueAt(index int) (V, bool) {
 	var zero V
-	entries := m.Entries()
-	if index < 0 || index >= len(entries) {
+	n := m.Size()
+	if index < 0 || index >= n {
 		return zero, false
 	}
-	return entries[index].Value, true
+	if m.holes == 0 {
+		return m.entries[index].Value, true
+	}
+	pos := 0
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
+		if pos == index {
+			return e.Value, true
+		}
+		pos++
+	}
+	return zero, false
 }
 
 // Intern inserts k with the zero value of V if absent, and returns k's 0-based
@@ -305,40 +368,76 @@ func (m *OrderedMap[K, V]) Len() int { return m.Size() }
 func (m *OrderedMap[K, V]) IsEmpty() bool { return m.Size() == 0 }
 
 func (m *OrderedMap[K, V]) Entries() []OrderedMapEntry[K, V] {
-	if m == nil {
+	if m == nil || len(m.entries) == m.holes {
 		return nil
 	}
-	m.compact()
-	return m.entries
+	if m.holes == 0 {
+		return m.entries
+	}
+	out := make([]OrderedMapEntry[K, V], 0, len(m.entries)-m.holes)
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func (m *OrderedMap[K, V]) KeySlice() []K {
-	entries := m.Entries()
-	if len(entries) == 0 {
+	n := m.Size()
+	if n == 0 {
 		return nil
 	}
-	out := make([]K, len(entries))
-	for i, e := range entries {
-		out[i] = e.Key
+	out := make([]K, 0, n)
+	if m.holes == 0 {
+		for _, e := range m.entries {
+			out = append(out, e.Key)
+		}
+		return out
+	}
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
+		out = append(out, e.Key)
 	}
 	return out
 }
 
 func (m *OrderedMap[K, V]) ValueSlice() []V {
-	entries := m.Entries()
-	if len(entries) == 0 {
+	n := m.Size()
+	if n == 0 {
 		return nil
 	}
-	out := make([]V, len(entries))
-	for i, e := range entries {
-		out[i] = e.Value
+	out := make([]V, 0, n)
+	if m.holes == 0 {
+		for _, e := range m.entries {
+			out = append(out, e.Value)
+		}
+		return out
+	}
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
+		out = append(out, e.Value)
 	}
 	return out
 }
 
 func (m *OrderedMap[K, V]) All() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		for _, e := range m.Entries() {
+		if m == nil {
+			return
+		}
+		for i := 0; i < len(m.entries); i++ {
+			e := m.entries[i]
+			if m.holes > 0 {
+				if idx, ok := m.index[e.Key]; !ok || idx != i {
+					continue
+				}
+			}
 			if !yield(e.Key, e.Value) {
 				return
 			}
@@ -348,7 +447,16 @@ func (m *OrderedMap[K, V]) All() iter.Seq2[K, V] {
 
 func (m *OrderedMap[K, V]) Keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
-		for _, e := range m.Entries() {
+		if m == nil {
+			return
+		}
+		for i := 0; i < len(m.entries); i++ {
+			e := m.entries[i]
+			if m.holes > 0 {
+				if idx, ok := m.index[e.Key]; !ok || idx != i {
+					continue
+				}
+			}
 			if !yield(e.Key) {
 				return
 			}
@@ -358,7 +466,16 @@ func (m *OrderedMap[K, V]) Keys() iter.Seq[K] {
 
 func (m *OrderedMap[K, V]) Values() iter.Seq[V] {
 	return func(yield func(V) bool) {
-		for _, e := range m.Entries() {
+		if m == nil {
+			return
+		}
+		for i := 0; i < len(m.entries); i++ {
+			e := m.entries[i]
+			if m.holes > 0 {
+				if idx, ok := m.index[e.Key]; !ok || idx != i {
+					continue
+				}
+			}
 			if !yield(e.Value) {
 				return
 			}
@@ -367,11 +484,22 @@ func (m *OrderedMap[K, V]) Values() iter.Seq[V] {
 }
 
 func (m *OrderedMap[K, V]) Clone() OrderedMap[K, V] {
-	entries := m.Entries()
-	if len(entries) == 0 {
+	n := m.Size()
+	if n == 0 {
 		return OrderedMap[K, V]{}
 	}
-	cloned := slices.Clone(entries)
+	var cloned []OrderedMapEntry[K, V]
+	if m.holes == 0 {
+		cloned = slices.Clone(m.entries)
+	} else {
+		cloned = make([]OrderedMapEntry[K, V], 0, n)
+		for i, e := range m.entries {
+			if idx, ok := m.index[e.Key]; !ok || idx != i {
+				continue
+			}
+			cloned = append(cloned, e)
+		}
+	}
 	var idx map[K]int
 	if len(cloned) > orderedMapIndexThreshold {
 		idx = make(map[K]int, len(cloned))
@@ -383,9 +511,21 @@ func (m *OrderedMap[K, V]) Clone() OrderedMap[K, V] {
 }
 
 func (m *OrderedMap[K, V]) ToMap() map[K]V {
-	entries := m.Entries()
-	out := make(map[K]V, len(entries))
-	for _, e := range entries {
+	n := m.Size()
+	out := make(map[K]V, n)
+	if n == 0 {
+		return out
+	}
+	if m.holes == 0 {
+		for _, e := range m.entries {
+			out[e.Key] = e.Value
+		}
+		return out
+	}
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
 		out[e.Key] = e.Value
 	}
 	return out
@@ -395,7 +535,22 @@ func (m *OrderedMap[K, V]) EqualFunc(other *OrderedMap[K, V], eq func(V, V) bool
 	if m.Size() != other.Size() {
 		return false
 	}
-	for _, e := range m.Entries() {
+	if m == nil {
+		return true
+	}
+	if m.holes == 0 {
+		for _, e := range m.entries {
+			ov, ok := other.Lookup(e.Key)
+			if !ok || !eq(e.Value, ov) {
+				return false
+			}
+		}
+		return true
+	}
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
 		ov, ok := other.Lookup(e.Key)
 		if !ok || !eq(e.Value, ov) {
 			return false
@@ -427,6 +582,27 @@ func (m *OrderedMap[K, V]) Equals(o any) bool {
 	return mapEntriesEquals(m.Size(), m.All(), o)
 }
 
+// HashCode is Map.hashCode(): the sum of key.hashCode() ^ value.hashCode() across all entries.
+func (m *OrderedMap[K, V]) HashCode() int32 {
+	if m == nil || len(m.entries) == m.holes {
+		return 0
+	}
+	var h int32
+	if m.holes == 0 {
+		for _, e := range m.entries {
+			h += ObjectHashCode(any(e.Key)) ^ ObjectHashCode(any(e.Value))
+		}
+		return h
+	}
+	for i, e := range m.entries {
+		if idx, ok := m.index[e.Key]; !ok || idx != i {
+			continue
+		}
+		h += ObjectHashCode(any(e.Key)) ^ ObjectHashCode(any(e.Value))
+	}
+	return h
+}
+
 // OrderedSet is a compact, insertion-ordered set backed by OrderedMap[K, struct{}].
 // Its zero value is ready to use and allocates zero heap memory when empty.
 type OrderedSet[K comparable] struct {
@@ -446,6 +622,13 @@ func NewOrderedSetWithCapacity[K comparable](capHint int) *OrderedSet[K] {
 		return &OrderedSet[K]{}
 	}
 	return &OrderedSet[K]{m: *NewOrderedMapWithCapacity[K, struct{}](capHint)}
+}
+
+func (s *OrderedSet[K]) mapOrNil() *OrderedMap[K, struct{}] {
+	if s == nil {
+		return nil
+	}
+	return &s.m
 }
 
 func (s *OrderedSet[K]) Add(k K) bool { return s.m.PutIfAbsent(k, struct{}{}) }
@@ -483,54 +666,35 @@ func (s *OrderedSet[K]) Clear() {
 
 // First returns the first element in insertion order, if any.
 func (s *OrderedSet[K]) First() (K, bool) {
-	var zero K
-	entries := s.m.Entries()
-	if len(entries) == 0 {
-		return zero, false
-	}
-	return entries[0].Key, true
+	k, _, ok := s.mapOrNil().First()
+	return k, ok
 }
 
 // Index returns the 0-based insertion-order position of k and true if present,
 // or (-1, false) if absent.
 func (s *OrderedSet[K]) Index(k K) (int, bool) {
-	if s == nil {
-		return -1, false
-	}
-	return s.m.Index(k)
+	return s.mapOrNil().Index(k)
 }
 
 // Intern inserts k if absent and returns its 0-based insertion-order index.
 func (s *OrderedSet[K]) Intern(k K) int { return s.m.Intern(k) }
 
-func (s *OrderedSet[K]) Len() int { return s.Size() }
-func (s *OrderedSet[K]) Size() int {
-	if s == nil {
-		return 0
-	}
-	return s.m.Size()
+func (s *OrderedSet[K]) Len() int  { return s.Size() }
+func (s *OrderedSet[K]) Size() int { return s.mapOrNil().Size() }
+func (s *OrderedSet[K]) IsEmpty() bool {
+	return s.Size() == 0
 }
-func (s *OrderedSet[K]) IsEmpty() bool { return s.Size() == 0 }
 
 func (s *OrderedSet[K]) All() iter.Seq[K] {
-	if s == nil {
-		return func(func(K) bool) {}
-	}
-	return s.m.Keys()
+	return s.mapOrNil().Keys()
 }
 
 func (s *OrderedSet[K]) ToSlice() []K {
-	if s == nil {
-		return nil
-	}
-	return s.m.KeySlice()
+	return s.mapOrNil().KeySlice()
 }
 
 func (s *OrderedSet[K]) Entries() []OrderedMapEntry[K, struct{}] {
-	if s == nil {
-		return nil
-	}
-	return s.m.Entries()
+	return s.mapOrNil().Entries()
 }
 
 func (s *OrderedSet[K]) Clone() OrderedSet[K] {
@@ -544,7 +708,21 @@ func (s *OrderedSet[K]) Equal(other *OrderedSet[K]) bool {
 	if s.Size() != other.Size() {
 		return false
 	}
-	for _, e := range s.m.Entries() {
+	if s == nil {
+		return true
+	}
+	if s.m.holes == 0 {
+		for _, e := range s.m.entries {
+			if !other.Has(e.Key) {
+				return false
+			}
+		}
+		return true
+	}
+	for i, e := range s.m.entries {
+		if idx, ok := s.m.index[e.Key]; !ok || idx != i {
+			continue
+		}
 		if !other.Has(e.Key) {
 			return false
 		}
@@ -572,4 +750,25 @@ func (s *OrderedSet[K]) Equals(o any) bool {
 		return s.Equal(other)
 	}
 	return setEntriesEquals(s.Size(), s.All(), o)
+}
+
+// HashCode is Set.hashCode(): the sum of elem.hashCode() across all elements.
+func (s *OrderedSet[K]) HashCode() int32 {
+	if s == nil || len(s.m.entries) == s.m.holes {
+		return 0
+	}
+	var h int32
+	if s.m.holes == 0 {
+		for _, e := range s.m.entries {
+			h += ObjectHashCode(any(e.Key))
+		}
+		return h
+	}
+	for i, e := range s.m.entries {
+		if idx, ok := s.m.index[e.Key]; !ok || idx != i {
+			continue
+		}
+		h += ObjectHashCode(any(e.Key))
+	}
+	return h
 }

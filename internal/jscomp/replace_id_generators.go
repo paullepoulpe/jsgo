@@ -138,7 +138,7 @@ func NewReplaceIdGenerators(
 	}
 
 	if previousMapSerialized != nil && *previousMapSerialized != "" {
-		r.previousMap = IdMappingUtil_ParseSerializedIdMappings(previousMapSerialized)
+		r.previousMap = IdMappingUtil_ParseSerializedIdMappings(*previousMapSerialized)
 	}
 
 	if idGens != nil {
@@ -649,8 +649,8 @@ func getIdForGeneratorNode(consistent bool, n rhino.Node, name string) string {
 		return name
 	}
 	src := "null"
-	if s := n.GetSourceFileName(); s != nil {
-		src = *s
+	if sf := n.GetStaticSourceFile(); sf != nil {
+		src = sf.GetName()
 	}
 	return src + ":" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 }
