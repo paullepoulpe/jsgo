@@ -2781,6 +2781,740 @@ scope changed. Compat t=1, one run each:
   index has to do the same: precompute per-scope summaries, not just lists
   of nodes.
 
+## Layout round (2026-11-02): pre-order node layout at AST compaction
+
+Branch `fast/layout` off `48515c29` (main with the property index). 4-CPU
+Linux machine, Go 1.27.3. Fast mode round 3 found whole-tree walks bound by
+the latency of their dependent loads, with only about half of the pre-order
+successors near their predecessor in memory, and proposed renumbering the
+live nodes in pre-order when the AST is compacted. This round does that.
+
+**Result: exact, and 0.6–1.8 s per compile on the large tasks.** Nothing
+depended on node id order, and every run is byte-identical to Java. Right
+after the renumbering a walk costs 15–30% less, and 2–4 ns per node less to
+the end of the optimizations. The optimizations lose 0.6–1.8 s per compile
+on typed-full, typed-mega and bundle-mega in every mode (4–8% of them) and
+0.3–0.6 s on bundle-advanced-ts. In wall time, with N=10, typed-full compat
+t=1 reads −4.4% (CI −6.4…−2.3) and bundle-mega compat t=4 −2.9% (CI
+−6.2…+0.5). Peak RSS does not move. Proposed for merging.
+
+### What compaction did on the bench tasks
+
+Compaction slid the live nodes down in id order. It ran after
+`typesToColors` only if at least 10% of the nodes were dead, and later only
+after a quarter of the live nodes had been allocated again. On typed-full,
+typed-mega, bundle-mega and bundle-advanced it never ran: the check after
+`typesToColors` found 2–9% dead and skipped it, and no later point reached
+the threshold. typed-app and shaka-blockly compacted once after
+`typesToColors`; bundle and bundle-advanced-ts once after a loop iteration.
+
+The layout those compilations ran on is the parser's. A probe (not
+committed) measured the share of pre-order successors whose id is the
+predecessor's plus one, and plus 0–7:
+
+| point | typed-mega +1 / <8 | bundle-mega +1 / <8 | typed-full +1 / <8 |
+|---|---|---|---|
+| right after parsing | 27.8% / 58.3% | 29.6% / 61.7% | |
+| `typesToColors` | 27.4% / 57.5% | 29.6% / 61.7% | 36.6% / 62.1% |
+
+The parser makes children before their parents (each IR builder takes its
+children as arguments), so a node's first child sits below it, and the
+checks and transpilation passes before `typesToColors` barely change that.
+
+### Does any output depend on node id order?
+
+Compaction renumbered nodes before too, but kept their relative order; now
+it does not. What was checked:
+
+- **A type-checked scan of `internal/...`** (go/types, a scratch tool in
+  the style of `tools/maprangecheck`) for every comparison or subtraction
+  with a `rhino.Node` operand or an integer conversion of one, every
+  `Node.ID()` call, every `cmp.Compare`/`cmp.Less` on nodes, every sort,
+  binary search, min or max over a slice whose elements hold a `Node`,
+  every range over a Go map keyed by a `Node`, and every identity hash of a
+  node. Outside `internal/rhino` there is no comparison, subtraction,
+  conversion or `ID()` call at all. The six sorts of node-bearing slices
+  compare strings, source positions or declaration kinds. The 13 ranges
+  over node-keyed Go maps are randomized by Go on every run already (and
+  carry their `order-independent:` reasons).
+- **Identity hashes.** `Node.HashCode` is a function of the id, so every
+  hash of a node changes with a renumbering (as it did with the slide). It
+  feeds the jutil collections, which iterate in insertion order whatever
+  the hashes (`LinkedHashMap`, `LinkedHashSet`, `ObjectLinkedHashMap`);
+  `Var` and `ScopedName` hashes (name plus scope root), which only place
+  entries in those maps. `HamtPMap` iterates in hash order and can hash
+  node keys, but no map is keyed by nodes (its maps, keyed by names and
+  scopes, live only in type inference, before any compaction).
+- **Inside `internal/rhino`**, ids index the block directory, the type
+  and original-name columns and the cold-data shards, all rebuilt by
+  compaction; nothing orders by id.
+- **Existing evidence.** Ids already differ between t=1 and t>1, and from
+  run to run at t>1: parse workers take ids in ranges of 1,024 from a
+  shared counter. Every gate compares those runs with Java.
+
+Nothing depended on the order, so nothing was changed. The forwarding
+registry is unchanged too (the same holders are marked and forwarded), but
+it is now exercised on every compilation: the compaction after
+`typesToColors` used to be skipped on most large inputs.
+
+### The layout (`internal/rhino/node_compact.go`)
+
+- **Order.** Mark already walks each tree it marks from its root, in
+  pre-order; `RecordPreorder` makes it record that order. The program (the
+  first tree marked: externs and scripts) is recorded script by script,
+  each script in pre-order followed by the trees hung off its nodes (JSDoc
+  type expressions, node-valued props), which Mark used to mark in the
+  middle of the walk. Then come the detached trees that other holders
+  refer to (diagnostics' nodes, `GlobalNamespace` refs, module bindings).
+- **Copy.** `Permute` replaces the slide. A slide moves each record down
+  and needs no table: a node's new id is the number of live ids before it.
+  A permutation needs a table of new ids (4 bytes per old id, for the
+  links and for `Forward`) and the list of live ids in their new order (4
+  bytes per live node), and records cannot move in place without a serial
+  cycle walk. So the records are copied, in new-id order, into destination
+  blocks, on up to `num_parallel_threads` workers that each fill a stripe of
+  destination blocks, remapping the four links through the table; the type
+  and original-name columns go along, and the cold data is rekeyed as
+  before. The store does not hold two copies of the tree: an old block
+  whose live records have all been copied is reused as a destination block.
+- **Which order for the copy.** A walk crosses from one script to the next
+  once, so the order of the scripts in memory does not matter to it; it
+  matters to the reuse. In tree order, few old blocks emptied before the
+  end: the detached trees, scattered over the old blocks, came last, and
+  dependency sorting (`--dependency_mode=SORT_ONLY` on the typed tasks)
+  puts the scripts in another order than the one they were parsed in. The
+  copy therefore takes the detached trees first, then the program's ROOT
+  nodes, then the scripts in the order of their lowest old id (their parse
+  order). Fresh blocks needed at `typesToColors`, before → after that
+  change, at t=1: typed-full 45 → 2, typed-mega 72 → 3, bundle-mega 2 → 1
+  (of 123, 225 and 262); at t=4, 11–36 (from run to run), because parallel
+  parsing interleaves the scripts' ids in ranges of 1,024 and four stripes
+  start at once.
+- **Static store and detached nodes.** Static nodes (package-level nodes,
+  templates) are never in a compacted tree and are left alone, as before.
+  Detached but held trees are laid out and forwarded like the program; an
+  id kept without forwarding still fails like a nil pointer, since the new
+  ids are in a range no store has used.
+- **Policy.** With the pre-order layout, the compaction after
+  `typesToColors` always runs (whatever the dead fraction), so the whole
+  optimization stage runs on the new layout. The other points (loop
+  iterations, top-level passes, end of the optimizations) keep their
+  threshold. `JSGO_AST_LAYOUT=slide` restores the slide and the old policy;
+  `JSGO_AST_LAYOUT_AT=<points>` forces compactions at more points; the log
+  (`JSGO_AST_COMPACT_LOG=1`) times the mark, the move (copy and tables) and
+  the forwarding.
+
+Tests (`node_compact_preorder_test.go`): the layout of a program with JSDoc
+type expressions, node-valued props, detached trees and a clone (ids
+consecutive in the expected order, types, original names and cold
+properties kept, the same ids at 1 and 4 threads); scripts put in the tree
+out of allocation order; a multi-block store in a locally scrambled order
+(old blocks reused, stale column values cleared) and a globally scrambled
+one (no reuse). Mutations of the script order and of the detached-first
+order fail them.
+
+### The walk, before and after
+
+The same probe timed the two walks of fast mode round 3 at chosen points, at
+t=1 under the exclusive lock (two runs each, mean; the slide is the base
+policy, with no compaction at all on these tasks): a bare recursive walk
+(first child, next sibling) and a `NodeTraversal` with a no-op callback, in
+ns per node, and the share of pre-order successors at +1 id.
+
+| task | point | slide: bare / NT / +1 | pre-order: bare / NT / +1 |
+|---|---|---|---|
+| typed-full | right after the compaction | 16.4 / 21.8 / 36.6% | 11.4 / 15.7 / 99.9% |
+| typed-full | before the early loop | 17.6 / 23.6 / 35.0% | 13.5 / 16.8 / 88.1% |
+| typed-full | before the main loop | 17.4 / 21.9 / 30.4% | 14.4 / 18.2 / 84.3% |
+| typed-full | end of the optimizations | 18.4 / 22.2 / 36.1% | 14.6 / 18.6 / 84.8% |
+| typed-mega | right after the compaction | 15.6 / 20.5 / 27.4% | 12.9 / 19.2 / 99.9% |
+| typed-mega | before the early loop | 17.1 / 21.3 / 28.1% | 13.8 / 17.1 / 88.9% |
+| typed-mega | before the main loop | 17.6 / 21.5 / 24.5% | 14.1 / 17.4 / 85.4% |
+| typed-mega | end of the optimizations | 17.0 / 20.8 / 29.5% | 14.9 / 18.4 / 85.9% |
+| bundle-mega | right after the compaction | 17.8 / 25.0 / 29.6% | 13.8 / 18.2 / 100% |
+| bundle-mega | before the early loop | 17.6 / 22.3 / 27.9% | 14.0 / 19.1 / 95.0% |
+| bundle-mega | before the main loop | 17.2 / 23.4 / 29.1% | 14.9 / 19.4 / 91.4% |
+| bundle-mega | end of the optimizations | 18.8 / 24.7 / 32.6% | 14.9 / 19.9 / 87.4% |
+
+- **Right after the compaction a walk costs 15–30% less**: 2.7–5.0 ns per
+  node for the bare walk, 1.3–6.8 ns for `NodeTraversal` (single points vary
+  by ±1–2 ns from run to run). The bare walk does not reach the 9 ns of
+  independent reads: with the records in address order, what is left is
+  the chain of dependent loads through the L1 and L2 caches and the
+  recursion itself.
+- **The layout decays slowly.** The transpilation passes and the early
+  loop's inlining take the +1 share to 88–95% before the early loop and
+  84–91% before the main loop; the main loop itself costs 0–4 points. The
+  walks stay 2–4 ns per node cheaper to the end of the optimizations.
+- **The compaction costs 0.1–0.25 s at t=1.** Marking (58–145 ms) was
+  already paid by the skipped check; copying takes 74–163 ms at t=1 and
+  rekeying the cold data 6–22 ms (log of the same runs). The skipped check
+  of the base took 46–108 ms.
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Base `48515c29`, branch `985f13c3`, in the same blocks, with `JSGO_PASS_LOG`
+on every run. **All 150 runs are byte-identical to the Java reference**
+(stdout, stderr, exit status, `out.js`, `out.js.map`), with one output per
+task and mode.
+
+Whole compile:
+
+| task | compat t=1 | compat t=4 | fast t=4 |
+|---|---|---|---|
+| typed-app | 3.01 → 3.10 s (+3.0%, CI −3.0…+9.4) | 2.63 → 2.66 s (+0.7%, CI −9.9…+12.5) | 2.47 → 2.43 s (−1.9%, CI −10.9…+8.1) |
+| bundle-advanced-ts | 15.88 → 15.28 s (−3.7%, CI −9.2…+2.0) | 14.76 → 14.69 s (−0.5%, CI −4.8…+4.0) | 14.23 → 14.13 s (−0.9%, CI −10.3…+9.5) |
+| typed-full | 22.50 → 21.42 s (−4.7%, CI −11.1…+2.1) | 17.72 → 16.90 s (−4.6%, CI −9.7…+0.8) | 15.87 → 15.25 s (−3.9%, CI −7.5…−0.1) |
+| typed-mega | 40.33 → 37.73 s (−6.4%, CI −11.2…−1.3) | 31.67 → 30.95 s (−2.3%, CI −8.4…+4.3) | 28.57 → 27.87 s (−2.4%, CI −7.4…+2.8) |
+| bundle-mega | 51.09 → 50.19 s (−1.7%, CI −5.5…+2.1) | 42.20 → 40.92 s (−3.0%, CI −5.9…−0.1) | 40.01 → 38.99 s (−2.5%, CI −6.4…+1.5) |
+
+From the same pass logs, the part of the compile the layout can change,
+split in three: from the end of `typesToColors` to the first loop pass
+(transpilation, normalization, the early passes, and the compaction
+itself), the loops (from the first loop pass to `afterMainOptimizations`),
+and the late passes (up to `generateReport`). Each cell is base → branch in
+seconds, then the mean of branch − base in ms and its paired 95% CI:
+
+| task | mode | end of `typesToColors` to the loops (with the compaction) | both loops | late passes | all three |
+|---|---|---|---|---|---|
+| typed-app | compat t=1 | 0.42 → 0.41, −14 (−89…+62) | 0.67 → 0.71, +38 (−107…+184) | 0.17 → 0.16, −11 (−62…+39) | 1.26 → 1.27, +13 (−120…+147) |
+| typed-app | compat t=4 | 0.41 → 0.39, −18 (−99…+64) | 0.57 → 0.58, +13 (−40…+66) | 0.12 → 0.13, +9 (−22…+40) | 1.10 → 1.10, +4 (−121…+130) |
+| typed-app | fast t=4 | 0.38 → 0.37, −7 (−103…+89) | 0.49 → 0.49, −2 (−81…+76) | 0.12 → 0.12, −6 (−23…+12) | 0.99 → 0.98, −15 (−111…+82) |
+| bundle-advanced-ts | compat t=1 | 1.84 → 1.75, −91 (−218…+35) | 6.47 → 6.18, −295 (−604…+15) | 1.95 → 1.71, −241 (−527…+46) | 10.26 → 9.63, −627 (−1199…−54) |
+| bundle-advanced-ts | compat t=4 | 1.88 → 1.84, −40 (−265…+185) | 6.10 → 5.85, −246 (−484…−8) | 1.75 → 1.65, −102 (−252…+48) | 9.73 → 9.34, −388 (−673…−103) |
+| bundle-advanced-ts | fast t=4 | 1.81 → 1.76, −50 (−293…+192) | 5.75 → 5.60, −148 (−817…+521) | 1.72 → 1.63, −90 (−241…+62) | 9.28 → 8.99, −288 (−1254…+678) |
+| typed-full | compat t=1 | 3.40 → 3.28, −122 (−195…−49) | 8.32 → 7.71, −606 (−1479…+267) | 2.04 → 1.94, −103 (−260…+54) | 13.76 → 12.93, −831 (−1795…+133) |
+| typed-full | compat t=4 | 3.36 → 3.02, −339 (−630…−47) | 6.31 → 5.96, −348 (−662…−34) | 1.47 → 1.35, −118 (−239…+4) | 11.13 → 10.33, −805 (−1359…−251) |
+| typed-full | fast t=4 | 3.18 → 2.93, −250 (−473…−27) | 5.23 → 4.90, −329 (−399…−260) | 1.45 → 1.44, −18 (−312…+277) | 9.87 → 9.27, −597 (−1054…−140) |
+| typed-mega | compat t=1 | 6.20 → 5.65, −549 (−903…−195) | 13.49 → 12.58, −907 (−1441…−373) | 3.87 → 3.50, −367 (−673…−61) | 23.56 → 21.73, −1823 (−2888…−758) |
+| typed-mega | compat t=4 | 5.82 → 5.52, −304 (−822…+214) | 10.20 → 9.90, −294 (−1072…+484) | 2.60 → 2.51, −88 (−391…+214) | 18.61 → 17.93, −686 (−1956…+584) |
+| typed-mega | fast t=4 | 5.68 → 5.27, −405 (−728…−82) | 8.56 → 8.38, −187 (−705…+330) | 2.58 → 2.50, −83 (−272…+106) | 16.82 → 16.15, −675 (−1275…−75) |
+| bundle-mega | compat t=1 | 6.13 → 5.95, −183 (−646…+280) | 20.18 → 19.33, −857 (−2119…+404) | 6.26 → 6.00, −263 (−734…+207) | 32.58 → 31.27, −1304 (−2911…+304) |
+| bundle-mega | compat t=4 | 5.63 → 5.24, −395 (−715…−74) | 16.07 → 15.37, −701 (−1269…−133) | 4.86 → 4.74, −124 (−815…+567) | 26.56 → 25.34, −1220 (−2578…+138) |
+| bundle-mega | fast t=4 | 5.57 → 5.37, −203 (−430…+25) | 14.86 → 14.29, −575 (−1214…+64) | 4.77 → 4.52, −253 (−558…+52) | 25.21 → 24.18, −1031 (−1954…−107) |
+
+- **Where it pays.** The optimizations lose 0.6–1.8 s per compile on
+  typed-full, typed-mega and bundle-mega in every mode, 0.3–0.6 s on
+  bundle-advanced-ts, and nothing measurable on typed-app (1.1–1.3 s of
+  optimizations, which the base already compacted once). That is 4–8% of
+  the optimizations, and the saving is spread over the passes, as a
+  cheaper memory access would be: on typed-mega at t=1, removeUnusedCode
+  −207 ms, collapseObjectLiterals −176, inlineFunctions −147,
+  inlineVariables −123, optimizeCalls −119, inlineAndCollapseProperties
+  −93, normalize −82, peepholeOptimizations −69; on bundle-mega at t=4,
+  removeUnusedCode −203, collapseObjectLiterals −195, inlineFunctions −125,
+  normalize −74. The first segment saves 0.1–0.55 s on the three large
+  tasks, net of the compaction (0.1–0.25 s at t=1, less at t=4).
+- **By mode.** typed-full and bundle-mega save about the same at t=1 and
+  t=4; typed-mega saves less at t=4 (−0.7 against −1.8 s at t=1), with a
+  wide interval at compat t=4.
+- **The whole compile.** 3 of the 15 cells exclude zero (typed-full fast
+  t=4, typed-mega compat t=1, bundle-mega compat t=4); the large-task cells
+  read −1.7 to −6.4%, within 0.4 s of what the pass logs saved, except
+  typed-mega compat t=1, where the front end, which the change cannot
+  reach, read 0.7 s faster by chance.
+- **A wall-only repeat**, N=10 without the pass log, on the two cells the
+  earlier rounds used (all 40 runs byte-identical to Java):
+  - typed-full compat t=1: 22.38 → 21.40 s, **−4.4% (CI −6.4…−2.3)**;
+  - bundle-mega compat t=4: 43.68 → 42.37 s, **−2.9% (CI −6.2…+0.5)**.
+
+  Both differences (1.0 and 1.3 s) are the size of the pass-log saving
+  (0.83 and 1.22 s). Peak RSS: +6 MB (CI −5…+17) and −18 MB (CI −36…−1).
+- **Memory.** Peak RSS does not move beyond noise: −42 to +16 MB per
+  cell (typed-mega fast t=4: 744 → 702 MB; bundle-advanced-ts fast t=4:
+  350 → 367 MB), every interval including zero. The compaction's transient
+  (the table of new ids and the pre-order list, about 31 MB on typed-mega,
+  plus up to 23 MB of fresh blocks at t=4) falls in a phase whose resident
+  memory is below the end-of-compile peak, where toSource and the source
+  map run. VmRSS sampled every 20 ms on single runs at t=4: in the 3 s
+  after `typesToColors` the branch is 33–88 MB above the base, and still
+  10 MB (typed-full), 32 MB (typed-mega) and 260 MB (bundle-mega) below
+  the compile's peak, which both builds reach at the end.
+
+### Tried, not merged
+
+- **The scripts in tree order, the trees hung off nodes after the whole
+  program, the detached trees last** (the first version, `f67a53c7`). The
+  walk is the same, but the copy needed 45 (typed-full), 85 (typed-mega)
+  fresh blocks of 123 and 225 at t=1. Peak RSS on typed-full rose from
+  439 to 475 MB in a single traced run, at `typesToColors`, which became
+  the compile's peak. Placing the side trees after their script alone, or
+  ordering the scripts by parse order alone, changed little (45 and 72
+  fresh blocks); copying the detached trees first is what let the old
+  blocks empty as the copy goes.
+- **An extra compaction before the main loop** (`JSGO_AST_LAYOUT_AT=beforeMainOptimizations`,
+  which takes the layout from 85–91% back to 100% at +1 for the main loop
+  and the late passes). Interleaved, N=5, against the branch, on the mega
+  tasks (all 40 runs byte-identical to Java): typed-mega −1.9% (CI
+  −10.1…+7.1) at compat t=1 and −1.1% (CI −3.1…+0.9) at t=4, bundle-mega
+  +1.5% (CI −7.3…+11.1) and +0.4% (CI −2.6…+3.6). The second copy costs
+  about what the restored 10–15 points save, so it is not added; the knob
+  stays for measuring other points.
+
+### What is left
+
+- **The front end runs on the parser's layout.** Right after parsing, 28–30%
+  of the pre-order successors are at +1 on typed-mega and bundle-mega, and
+  the checks and type inference (the front end is 14–15 s of the 40–51 s at
+  compat t=1) run on that. A renumbering right after parsing would bring
+  them what this round brings the optimizations. It needs the forwarding
+  registry to cover what holds nodes during the checks (no type holds a
+  node yet at that point, but module metadata, the inputs' ASTs and JSDoc
+  do), or the IR factory to allocate parents before children.
+- **A cheaper mark.** Marking (60–145 ms at t=1) is a serial recursive walk;
+  the skipped check paid it already, but a forced compaction at more points
+  would pay it each time. Marking scripts on workers, each into its own
+  list, would make it parallel.
+
+
+Validation of the branch (`f65f8ff9`, the code of `985f13c3` with comments):
+
+- the Java gate on the 11 bench tasks at t=1 and t=4: 22/22 byte-identical
+  (a first run read 21/22 because a concurrent compile wrote into the
+  gate's workspace; the rerun in a workspace of its own matched);
+- fixtures: 2,974/2,976, and the same with `JSGO_PROPINDEX_VERIFY=1` (the
+  property index is rebuilt after the compaction, which now always runs
+  before the loops);
+- `parallel_gate.py` under `-race`: 54/54;
+- `fast_mode_gate.py`: 25/25 under `-race` at t=1/2/4, and 7/7 large tasks;
+- typed-full and bundle-advanced-ts fast t=4 under `-race`: no race reported;
+- `make vet`;
+- `go test ./...`, with `node_compact_preorder_test.go` (also under `-race`).
+
+### Decision
+
+**Proposed for merging.** The case:
+
+- **Gain.** 0.6–1.8 s per compile on typed-full, typed-mega and bundle-mega
+  in every mode, from the pass logs with intervals narrow enough to be
+  significant in 7 of the 15 cells, net of the compaction's own cost. In
+  wall time it is resolved on typed-full at compat t=1 (N=10: −4.4%), on
+  typed-full fast t=4, typed-mega compat t=1 and bundle-mega compat t=4
+  (N=5), and just short of it on bundle-mega compat t=4 at N=10 (−2.9%). That
+  is about what the index round bought (0.7–1.5 s), for any pass, with no
+  per-pass code.
+- **No regression.** typed-app is within noise (its optimizations take
+  1.1–1.3 s, and the base already compacted it once). Peak RSS does not
+  move.
+- **Size.** About 440 lines with their comments (the permutation, the copy
+  with block reuse and the copy order in `node_compact.go`, the policy in
+  `compiler_compact.go`) and 330 lines of tests.
+- **Risk.** Output cannot depend on the layout unless code orders nodes by
+  id, and none does (the audit above; the gates). What is new in practice is
+  that compaction now runs on every optimizing compilation, so the
+  forwarding registry is exercised where it never was (typed-full,
+  typed-mega, bundle-mega and every input with less than 10% dead nodes
+  after `typesToColors`). A holder missing from the registry fails loudly
+  (a stale id has no record), never silently, and the fixtures, the fast
+  gate and the Java gate passed. `JSGO_AST_LAYOUT=slide` brings back the
+  old behaviour without a rebuild.
+
+## Variable-index round (2026-11-02): optimizeCalls and inlineFunctions on the index's records
+
+Branch `fast/ocindex` off main `48515c29`. 4-CPU Linux machine, Go 1.27.3,
+shared with another agent (timing runs under an exclusive lock). The index
+round built the property half of a shared index for the loop passes. A
+design round (branch `fast/varindex`, not merged; its measurements are
+quoted below) then studied the variable passes, found which of them can read
+the same records, and prototyped the first step. This round implements two
+steps of that design, each measured on its own. The profiles, probes and
+hit rates quoted below as the design round's come from that work (probes and
+prototype in commit `6be1f430` on `fast/varindex`).
+
+**Result: both steps exact; step 1 saves what the design estimated, step 2
+less.** Every run is byte-identical to Java, verify mode found no
+difference, and the validation passes. In the pass log, step 1 saves
+0.26–0.57 s per compile on typed-full, typed-mega and bundle-mega in every
+mode (`optimizeCalls` −28 to −49%); step 2 saves 0.36–0.38 s at t=1 and
+0–0.25 s at t=4, against an estimate of 0.5–1.1 s, because on bundle-mega
+the large functions that change in every run must still be scanned. The
+interleaved N=5 wall times resolve neither step; a wall-only N=10 run of
+both steps against base resolves typed-full at t=1 (−3.4%, CI −6.3…−0.5)
+and falls just short on bundle-mega at t=4 (−2.4%, CI −5.3…+0.5). Step 2
+covers the candidate list only; the reference traversal (name usages and
+call-site checks) still walks (see "Not done, and why"). Step 1 is merged
+(through branch `fast/ocindex-s1`); step 2 is not, and stays on branch
+`fast/ocindex` (commits `300a164c` and `6e31cde7`; see "Decision").
+
+### Which variable passes an index can serve (the design round)
+
+The design round's 500 Hz profiles at compat t=1 (main `48515c29`) split the
+variable passes of the main loop as follows (CPU per compile, typed-full /
+bundle-mega):
+
+| pass | CPU | where the time goes |
+|---|---|---|
+| removeUnusedCode | 1.98 / 6.08 s | its own var-info graph 72 / 73%, scopes 19 / 15% |
+| inlineVariables | 1.67 / 4.02 s | decisions 26 / 24%, lookups 21 / 19%, reference building 18 / 23%, scopes 17 / 14% |
+| collapseObjectLiterals | 1.14 / 2.73 s | whole-program collector 80 / 79% |
+| inlineFunctions | 1.13 / 3.25 s | candidate walk 31 / 44% (analysis 11 / 29%), reference traversal 42 / 26%, inlining walk 20 / 24% |
+| optimizeCalls | 0.91 / 1.06 s | reference-map walk 41 / 58%, OptimizeParameters 41 / 32%, OptimizeReturns 12 / 8% |
+
+Every run costs the same whether it changes anything or not: optimizeCalls
+stays at 180–240 ms per run on typed-full while its change reports fall from
+1,112 to 3. After iteration 1 only a few percent of the program changes
+between two runs of a pass (typed-full 42, 15, 3.0, 0.6% before iterations
+2–5; bundle-mega 92, 9.8, 4.3%), but scripts are too coarse a unit: on
+bundle-mega 16–26 of its 26 scripts hold a change in each iteration. Reuse
+has to be per change scope.
+
+The passes fall into two groups:
+
+- **Scanning passes** (`optimizeCalls`, `inlineFunctions`; also the one-shot
+  `devirtualizeMethods`): plain post-order walks that key everything by name
+  id (normalization makes names unique), resolve no names except "is this a
+  global var" and a scope for a few call sites, and never jump to hoisted
+  functions. They fit the property index's model exactly.
+- **Collector passes** (`inlineVariables`, `collapseObjectLiterals`,
+  `removeUnusedCode`): they read a `ReferenceCollector`'s per-run snapshot of
+  `Var`s, `Scope`s and basic blocks, in an order with hoisted-function
+  jumps. Serving them means rebuilding that snapshot's identity and order.
+
+### The obstacles, and how each was met
+
+1. **Name resolution is not local** (the index round measured 1.9% / 8.5% of
+   names to re-resolve under changed declarations). For the scanning passes
+   it does not arise: `optimizeCalls` asks only "is this id a global, non-extern
+   var", which this round answers at read time from the run's global scope,
+   and `inlineFunctions` keys by id. For the collector passes the design
+   round found a rule that leaves almost nothing to re-resolve: only names in
+   the symmetric difference of a changed scope's declarations (0–4 names in
+   nested unchanged function scopes per compile; at most 0.004% of names
+   with script-level changes).
+2. **Iteration 1 is a rebuild** (92% of bundle-mega changes before iteration
+   2). A separate index pays it again: the prototype, with its own records,
+   made optimizeCalls 8% slower on bundle-mega. So the new lists live in the
+   property index's records and share its update, which
+   `inlineSimpleMethods` already pays at the start of each iteration.
+3. **Order.** The scanning passes' orders are plain traversals, which the
+   splice reproduces. For `inlineVariables` the hoisted-function order is
+   observable: without the jumps, 3 of 8 bench tasks change output (all
+   through `inlineVariables`, by which globals are inlined); a global var's
+   `refs[0]`, `refs[1]` and first assignment read it.
+4. **The passes would have to change**: not for `optimizeCalls` (it reads the
+   same map), a little for `inlineFunctions`, a rewrite of the front ends of
+   the collector passes (they decide from `Var`/`Scope`/`BasicBlock` objects).
+
+### Step 1: optimizeCalls' reference map (`prop_use_index_oc.go`)
+
+`OptimizeCalls.Process` built `OptimizeCalls_ReferenceMap` by walking the
+whole program on every run: for each global, non-extern name its NAME nodes,
+for each property name its references, `super()` calls filed under the
+extends clause. The passes then iterate the ids in first-appearance order.
+
+- **The records.** Each change-scope record gets a fifth list, filled by the
+  same per-scope `NodeTraversal`: every NAME with its id, every property
+  reference the map files (GETPROP, OPTCHAIN_GETPROP, unquoted keys and
+  members), and two kinds of nodes to replay. A SUPER is replayed because
+  `visitSuper` reads the enclosing class's extends clause, which lies in
+  another change scope; a call of a property rename function because its
+  first argument may not be a string (the walk then fails there). Extern
+  scripts record nothing: the map is read from the index only with
+  `considerExterns` false, the main loop's `optimizeCalls`.
+  `markPureFunctions` and the one-shot `devirtualizeMethods` keep walking.
+- **The read.** The lists are spliced in traversal order. Global names are
+  filtered by the run's global scope: a bitset of its vars' ids and the
+  implicit vars, then `GetVarByID` for those (it finds nothing else in a
+  scope without a parent). Extern properties are filtered by their bits.
+  The items go into dense per-id tables (one slot array per table, the
+  nodes in one array) and each id's list is moved into the map once, in
+  first-appearance order. The map, its id order and each id's nodes are the
+  walk's; the passes are not touched.
+- **The recorder.** Recording every NAME made the index's builds and big
+  updates costlier: appending to each scope's lists in place reallocated
+  several times per scope (about 22 ns per item in a synthetic probe). The
+  recorder now gathers a scope's lists in its own buffers and copies them
+  once at their size, which halves the added cost; the other lists gain
+  too.
+- **Size.** 583 lines added, 23 removed: 363 for the list's read and
+  verify mode (`prop_use_index_oc.go`), about 70 in the index's recorder,
+  30 in `optimize_calls.go`, 100 of tests.
+
+### Step 2: inlineFunctions' candidates (`prop_use_index_if.go`)
+
+`InlineFunctions.Process` runs three passes over the program: the candidate
+walk (`FindCandidateFunctions`, which analyzes every candidate afresh), the
+reference traversal (name usages and call-site checks, a `NodeTraversal`
+with scopes) and the inlining walk. Step 2 replaces the first.
+
+- **The records.** A sixth list holds, per change scope, the nodes the
+  candidate walk may take for candidates: a VAR, LET or CONST statement
+  whose declarator has a function value (or that has another number of
+  declarators: the walk fails there); a function statement, listed in the
+  scope that holds the statement, right after the function's own items,
+  where the post-order walk visits it; a call of a function expression,
+  directly or through `.call`. Whether one is a candidate is decided at read
+  time, by the walk's own test on the tree as it is, with the walk's chunk
+  and, for local reach, its `inLocalHoist`.
+- **The cached facts.** `analyzeCandidate` reads some facts from the
+  function's subtree alone: the size limit, whether direct replacement is
+  possible, the parameters, and the callee summary (a scan of the body,
+  keyed by the candidate's name). They are kept on the function's record. A
+  read computes each record's latest update over its subtree as it splices
+  the records, and reuses a function's facts when no change scope in the
+  subtree was indexed again since. The rest of what `analyzeCandidate`
+  reads, all outside the subtree, is computed again on every read, in walk
+  order, by the same code: the `@noinline` JSDoc (often the declaration's),
+  the exported name, the declaring block's `let` and `const` (a scan that
+  enters nested functions). `analyzeCandidate` takes no names from the
+  supplier, so caching part of it cannot shift the ids. The same lazy facts
+  serve the walking paths, computed afresh per candidate.
+- **At t>1** the facts that are missing are computed on the workers first
+  (as the walking path's parallel candidate walk does), then the candidates
+  are added in order on the main goroutine.
+- **Size.** 659 lines added, 31 removed: 331 for the list's read, the
+  facts and verify mode (`prop_use_index_if.go`), about 50 in the index's
+  recorder, 120 in `inline_functions.go` (the lazy facts), 149 of tests.
+
+### Verify mode and tests
+
+`JSGO_PROPINDEX_VERIFY=1` now covers the new lists in three ways: its
+rebuild after every loop pass compares them item by item with the kept
+index; every `optimizeCalls` read also builds the map by walking and
+compares the ids in first-appearance order and each id's nodes; every
+`inlineFunctions` read also runs the candidate walk and compares the
+candidate list (targets, chunks, visited nodes), and every analysis made
+with kept facts is made afresh and compared. `JSGO_PROPINDEX_OC=0` and
+`JSGO_PROPINDEX_IF=0` turn each reader off.
+
+- **Bench tasks:** the 11 tasks at compat t=1, compat t=4 and fast t=4, with
+  verify mode on: 33/33 runs for step 1 and 33/33 for step 2, all
+  byte-identical to Java (stdout, stderr, exit status, `out.js`,
+  `out.js.map`), none panicking.
+- **Fixtures** (step 2 binary, verify on): 2,974/2,976, the usual two
+  differences (`testcyclicuniontypedefs`).
+- **`fast_mode_gate.py`** (step 2 binary, verify on): 25/25 on the
+  validation's task list, 23/23 on its default list.
+
+There was nothing to fix: no read differed from its walk, and no loop pass
+changed the tree without reporting it.
+
+Tests (`prop_use_index_oc_test.go`, `prop_use_index_if_test.go`):
+
+- the passes' own suites through a freshly built index, once for their
+  expected outputs and once in verify mode: `OptimizeCallsTest`,
+  `OptimizeParametersTest`, `OptimizeReturnsTest`,
+  `OptimizeConstructorsTest`, `DevirtualizeMethodsTest`,
+  `InlineFunctionsTest`. `FunctionInjectorTest` is not affected (the
+  injector is unchanged, and the call-site checks still walk);
+- cases the suites lack, with and without the index: a method called
+  through an optional chain, `super()` calls to a named and a qualified
+  class;
+- whole ADVANCED compiles over several loop iterations at 1 and 4 threads,
+  with and without verify mode, against the walking passes; one has 400
+  candidates, so that facts are computed on the workers (also under
+  `-race`);
+- facts kept while a function is unchanged and dropped after a change.
+
+Mutations, each run against these tests:
+
+| mutation | caught by |
+|---|---|
+| drop the `super()` replay | `OptimizeParametersTest` outputs, the extra `super()` case, verify mode |
+| drop a property kind: keys and members | five suites' outputs, verify mode |
+| drop a property kind: OPTCHAIN_GETPROP | the extra optional-chain case, verify mode |
+| drop the rename-call replay | `OptimizeCallsTest` and `DevirtualizeMethodsTest` outputs, verify mode |
+| skip the facts' invalidation | the keep-and-drop test (a direct-inlining decision), verify mode in the whole compiles |
+| list a function statement before its own candidates (order) | verify mode (suite and whole compiles); no expected output shows the order |
+| drop call or declaration candidates | `InlineFunctionsTest` outputs, verify mode |
+| `inLocalHoist` ignoring functions | `InlineFunctionsTest` outputs (local reach) |
+
+The brief's fourth mutation, reordering the call-site checks, does not
+apply: the checks are not read from the index.
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Base main `48515c29`, step 1 `7e9a5261`, step 2 `300a164c`, in the same
+blocks (nine configurations per task, rotated), with `JSGO_PASS_LOG` on every
+run. **All 180 runs are byte-identical to the Java reference** (stdout,
+stderr, exit status, `out.js`, `out.js.map`), one output per task and mode.
+
+From the pass logs, in ms per compile, mean of the step minus the one before
+it and its paired 95% CI. The index's builds and updates are charged to its
+first reader of each iteration, `inlineSimpleMethods` (ISM), which is
+included:
+
+| task | mode | step 1: optimizeCalls | step 1: optimizeCalls + ISM | step 2: inlineFunctions | step 2: inlineFunctions + ISM |
+|---|---|---|---|---|---|
+| typed-app | compat t=1 | 70 → 49, −20 (−39…−2) | −20 (−45…+6) | 111 → 105, −6 (−19…+7) | −4 (−19…+11) |
+| typed-app | compat t=4 | 68 → 54, −14 (−25…−4) | −14 (−26…−3) | 78 → 82, +3 (−19…+26) | +4 (−22…+30) |
+| typed-app | fast t=4 | 73 → 56, −16 (−32…−1) | −14 (−30…+2) | 84 → 78, −5 (−15…+4) | −6 (−18…+6) |
+| typed-full | compat t=1 | 1034 → 747, −287 (−350…−223) | −258 (−316…−200) | 1426 → 1041, −385 (−559…−211) | −383 (−551…−216) |
+| typed-full | compat t=4 | 1084 → 723, −361 (−461…−261) | −355 (−463…−247) | 703 → 697, −6 (−53…+41) | −5 (−47…+37) |
+| typed-full | fast t=4 | 1084 → 750, −334 (−396…−272) | −331 (−395…−267) | 760 → 680, −80 (−155…−4) | −69 (−147…+8) |
+| typed-mega | compat t=1 | 1549 → 1064, −485 (−593…−376) | −437 (−581…−293) | 2270 → 1907, −364 (−604…−124) | −362 (−573…−151) |
+| typed-mega | compat t=4 | 1540 → 1065, −475 (−624…−325) | −458 (−611…−305) | 1198 → 1166, −32 (−133…+69) | −47 (−160…+67) |
+| typed-mega | fast t=4 | 1560 → 1061, −499 (−546…−452) | −510 (−594…−426) | 1216 → 1139, −77 (−114…−39) | −59 (−103…−14) |
+| bundle-mega | compat t=1 | 1162 → 638, −524 (−586…−462) | −456 (−590…−321) | 3753 → 3356, −397 (−679…−114) | −361 (−666…−55) |
+| bundle-mega | compat t=4 | 1214 → 618, −596 (−723…−468) | −562 (−702…−422) | 2465 → 2181, −284 (−363…−206) | −251 (−368…−134) |
+| bundle-mega | fast t=4 | 1270 → 679, −591 (−711…−471) | −571 (−713…−429) | 2490 → 2246, −244 (−448…−41) | −212 (−465…+42) |
+
+Both loops together, base → step 1 → step 2 (ms per compile, the same
+blocks): typed-full 9548 → 9531 → 9001 (t=1), 7441 → 6875 → 6952 (c4),
+6294 → 5946 → 5926 (f4); bundle-mega 22521 → 22139 → 21845 (t=1),
+17582 → 17014 → 16676 (c4), 16859 → 16297 → 15815 (f4). No loop difference
+excludes zero except typed-mega c4 for step 1 (−501, CI −984…−17); the
+loops' noise (±0.5–2 s) is larger than the steps.
+
+Whole compile (wall time), each step against the one before it:
+
+| task | mode | base → step 1 | step 1 → step 2 | base → step 2 |
+|---|---|---|---|---|
+| typed-app | compat t=1 | 3.53 → 3.34 s, −5.5% (−17.4…+8.3) | 3.34 → 3.67 s, +10.0% (+6.4…+13.7) | +4.0% (−8.3…+17.9) |
+| typed-app | compat t=4 | 2.96 → 2.99 s, +0.9% (−4.4…+6.4) | 2.99 → 2.96 s, −0.9% (−11.2…+10.5) | −0.1% (−11.0…+12.2) |
+| typed-app | fast t=4 | 2.82 → 2.84 s, +0.7% (−4.5…+6.1) | 2.84 → 2.73 s, −4.0% (−9.1…+1.4) | −3.3% (−6.0…−0.5) |
+| typed-full | compat t=1 | 26.55 → 27.08 s, +2.0% (−0.6…+4.7) | 27.08 → 25.88 s, −4.4% (−11.1…+2.7) | −2.5% (−9.6…+5.2) |
+| typed-full | compat t=4 | 21.49 → 20.87 s, −2.9% (−11.1…+6.1) | 20.87 → 20.88 s, +0.1% (−3.6…+3.9) | −2.8% (−9.8…+4.7) |
+| typed-full | fast t=4 | 19.57 → 18.94 s, −3.2% (−7.6…+1.3) | 18.94 → 19.19 s, +1.3% (−3.3…+6.2) | −1.9% (−5.6…+1.9) |
+| typed-mega | compat t=1 | 47.04 → 46.04 s, −2.2% (−8.6…+4.7) | 46.04 → 46.10 s, +0.1% (−5.3…+5.8) | −2.1% (−8.7…+5.0) |
+| typed-mega | compat t=4 | 37.08 → 35.95 s, −3.1% (−8.0…+2.1) | 35.95 → 36.11 s, +0.5% (−3.8…+4.9) | −2.6% (−6.4…+1.3) |
+| typed-mega | fast t=4 | 33.57 → 33.43 s, −0.5% (−6.3…+5.7) | 33.43 → 33.60 s, +0.5% (−10.3…+12.5) | +0.0% (−10.1…+11.2) |
+| bundle-mega | compat t=1 | 59.90 → 59.53 s, −0.7% (−6.8…+5.8) | 59.53 → 59.55 s, +0.0% (−1.9…+2.0) | −0.7% (−6.4…+5.4) |
+| bundle-mega | compat t=4 | 48.88 → 47.51 s, −2.9% (−8.7…+3.4) | 47.51 → 47.85 s, +0.8% (−5.7…+7.6) | −2.1% (−8.8…+5.0) |
+| bundle-mega | fast t=4 | 46.48 → 46.36 s, −0.3% (−3.6…+3.1) | 46.36 → 45.56 s, −1.7% (−4.5…+1.2) | −2.0% (−4.1…+0.1) |
+
+- **Step 1** saves 0.26–0.57 s per compile in the pass log on typed-full,
+  typed-mega and bundle-mega, in every mode, with narrow intervals.
+  `optimizeCalls` loses 28–33% of its time on the typed tasks and 45–49%
+  on bundle-mega; with `inlineSimpleMethods` counted, 20–33%. That is at or
+  above the design's estimate (0.2 s on typed-full, 0.35–0.45 s on
+  bundle-mega), and about the same at every thread count, as expected of a
+  pass without a parallel path. The recording costs `inlineSimpleMethods`
+  up to 70 ms per compile (its builds and updates now list every NAME); the
+  fill that remains costs 15–20 ms per read on typed-full and about 40 ms on
+  bundle-mega (single runs with `JSGO_PROPINDEX_STATS=1`).
+- **Step 2** saves 0.36–0.38 s per compile at t=1 on the three large tasks.
+  At t=4 it saves 0.25 s on bundle-mega in compat mode and 0–0.08 s
+  elsewhere: the walking path already runs the candidate walk and its
+  analyses on the workers there. The estimate was 0.5 s (typed-full) and
+  1.1 s (bundle-mega) at t=1. On typed-full a read costs 37 ms at the first
+  run of the loop and 9–14 ms once most facts are kept (2,202 nodes scanned
+  in the fifth read). On bundle-mega it stays at 190–340 ms per read
+  although 97–99% of the candidates keep their facts from iteration 3: the
+  145–542 functions that changed include large module functions with nested
+  candidates, whose summaries are scanned again, 6.7–8.5 M nodes per read
+  (each nested candidate's scan covers its own subtree again). The walking
+  path pays the same scans.
+- **The whole compile** does not resolve either step: every wall-time
+  interval but two includes zero. The two are typed-app compat t=1, step 1 →
+  step 2, +10% (+0.33 s), and typed-app fast t=4, base → step 2, −3.3%. In
+  the first, the difference is spread over passes that run before the index
+  exists (`inferTypes` +74 ms, `checkTypes` +46 ms, CIs excluding zero) and
+  `inlineFunctions` itself is −6 ms: it comes from noise (the step 1
+  configuration happened to be fast on typed-app at t=1: −5.5% against base,
+  within noise), not from the step. The pass-log savings are 1–2% of the
+  compile, below what N=5 resolves on this machine.
+- **Memory.** Mean peak RSS moves by −2 to +53 MB between base and either
+  step (+5%, bundle-mega fast t=4, step 1: 1,058 → 1,111 MB; the same cell
+  is 1,057 MB with step 2), within the runs' spread. The new lists add about
+  1.7 M items on bundle-mega (0.62 M on typed-full) to the index, at 12 bytes
+  each, plus the kept facts (one per candidate function).
+
+**A wall-only repeat** (N=10, pass log off, base against step 2, that is
+both steps; all 40 runs byte-identical to Java), on the two cells the index
+round used:
+
+- typed-full compat t=1: 26.55 → 25.64 s, **−3.4% (CI −6.3…−0.5)**;
+- bundle-mega compat t=4: 49.08 → 47.89 s, **−2.4% (CI −5.3…+0.5)**.
+
+The differences (0.91 s and 1.19 s) are larger than the two steps' pass-log
+savings in those cells (0.64 s and 0.81 s); the intervals are about ±0.75 s.
+The typed-full gain is resolved; bundle-mega's interval just reaches zero,
+as in the index round.
+
+Validation of the final branch (`6e31cde7`, which adds only the summaries'
+count to the statistics):
+
+- the Java gate on the 11 bench tasks at t=1 and t=4: 22/22 byte-identical;
+- fixtures: 2,974/2,976;
+- `parallel_gate.py` under `-race`: 54/54;
+- `fast_mode_gate.py`: 25/25 under `-race` at t=1/2/4, and 7/7 large tasks;
+- typed-full and bundle-advanced-ts fast t=4 under `-race`: no race reported;
+- `make vet`;
+- `go test ./internal/jscomp/` and `./tools/bench/ast_isomorphism/`.
+
+### Decision
+
+- **Step 1: merged** (2026-11-02, on top of the layout round). It is exact by construction where it matters (the map
+  is the data structure the walk builds; verify mode compares the two on
+  every read), it touches no pass, and it saves 0.26–0.57 s per compile in
+  every mode with narrow intervals, as the design estimated. 583 lines, of
+  which 100 are tests. Its risk is the index's: a loop pass that changes the
+  tree without reporting it, which verify mode checks. Its timings were
+  taken without the layout round's pre-order layout, which makes every walk
+  cheaper, so on top of it the saving is likely somewhat smaller.
+- **Step 2: not merged** (kept on branch `fast/ocindex`). It is exact and validated, and
+  saves 0.36–0.38 s per compile at t=1, but 0–0.25 s at t=4, where the
+  walking path already spreads the candidate analyses over the workers, for
+  659 more lines in a pass whose order is observable through names. Most of
+  what remains is the summaries of large functions that change in every
+  run; compositional summaries (below) would be the step that makes it
+  worth its size. If single-threaded compiles matter, it can be merged as
+  it is: its exactness rests on the same change reports as the rest of the
+  index, plus the facts' invalidation, which the tests and verify mode
+  cover.
+
+### Not done, and why
+
+- **inlineFunctions' reference traversal (name usages and call-site
+  checks).** The design included it in step 2; this round stopped at the
+  candidates. Two things make it riskier than the candidate list, for a
+  smaller share (the bare traversal is 21% of the pass on typed-full and 9%
+  on bundle-mega at t=1, and it already runs on the workers at t>1):
+  - *Traversal state per call site.* `canInlineReference` reads the
+    traversal through its reference: whether it is in the global scope, the
+    closest hoist scope root, and a lookup scope that is created lazily and
+    skips blocks without declarations (`resolveLookupScope`). An
+    AFTER_PREPARATION result keeps `t.GetScope()` in the reference, and
+    later inlining mutates that scope's vars
+    (`removeConstantVarAnnotation`). An index read would need a traversal
+    cursor that pushes and pops exactly the scopes `NodeTraversal` would
+    between consecutive call sites, so that scope creation, elision and
+    identity match.
+  - *Order and names.* A name usage can disallow a function
+    (REASSIGNED), which skips its later call-site checks; the checks take
+    names from the compat supplier. So the NAME and CALL items must be
+    merged in exact traversal order across two lists and the kids' splice
+    points.
+- **Layer B (`inlineVariables`, `collapseObjectLiterals`,
+  `removeUnusedCode`).** As the design recommends: not before the scanning
+  passes are measured; their front ends would be rewritten, and the order
+  they need (hoisted-function jumps) is observable.
+- **Per-id lists kept across runs** for the reference map: each id's nodes
+  would have to stay in global traversal order under updates (an
+  order-maintenance structure). The fill, rebuilt on every read, costs
+  15–20 ms on typed-full and about 40 ms on bundle-mega.
+
+### What is left
+
+- **An `inlineVariables` decision cache, without an index** (the design
+  round's best candidate for that pass). The collector still runs, but a var
+  whose reference list is the same as in the pass's previous run, with every
+  reference in a change scope unchanged since then, keeps its outcome and
+  its handled state. Probe C held the rule on typed-app, typed-full,
+  typed-mega and bundle-mega, except for aliases of a changed var (one per
+  task: `var onPending = <name>`, `a$jscomp$2473`), so the aliased var's
+  state must be in the key, or aliases excluded; the scopes of the
+  function's `arguments` references and the handled state (safe, lazy,
+  unsafe) of a negative outcome must be kept too. The rule needs the same
+  reference list: a version that only checked the current references'
+  scopes missed a var that lost a reference in a changed scope. Hit rates
+  averaged over all runs were 68% (typed-full) and 63% (bundle-mega); times
+  the decisions' share (26% / 24% of the pass) that is about 0.3 s and 0.6 s
+  per compile. Verify mode would decide anyway and compare. It does not use
+  the index.
+- **Compositional callee summaries** for `inlineFunctions`. What step 2
+  leaves on bundle-mega is the scans of the few large functions that change
+  in every run (module functions with nested candidates, scanned once per
+  enclosing candidate): 6.7–8.5 M nodes per run. A function's summary would
+  have to be assembled from per-record contributions, parameterized by the
+  enclosing function's parameters and names, and keep the order in which
+  parameters become modified. The walking path pays the same scans today.
+- **inlineFunctions' reference traversal** (above), with a traversal cursor
+  for the call sites' scopes.
+- **`crossChunkCodeMotion`** costs 0.3 s per run on bundle-mega and moves
+  nothing; a cheap precheck may pay more than an index (not measured).
+
 ## Smaller open items
 
 - `tools/clie2e/sweep.go` runs its JVMs under its own `nice -n 10`; under
