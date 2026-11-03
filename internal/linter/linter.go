@@ -23,8 +23,6 @@
 package linter
 
 import (
-	"sync"
-
 	"github.com/paullepoulpe/jsgo/internal/args4j"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -120,14 +118,10 @@ func newLinter(options *jscomp.CompilerOptions) *Linter {
 	return &Linter{options: options}
 }
 
-// linterMu serializes standalone Linter compilations so concurrent Linter calls
-// never race on the process-wide rhino NodeStore.
-var linterMu sync.Mutex
-
 // Java: Linter.lint(String)
 func (l *Linter) Lint(filename string) {
-	linterMu.Lock()
-	defer linterMu.Unlock()
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	if rhino.CurrentNodeStore().IsStatic() {
 		defer rhino.ResetNodeStore()
 	}
@@ -136,8 +130,8 @@ func (l *Linter) Lint(filename string) {
 
 // Java: Linter.lint(Path, Compiler)
 func (l *Linter) LintWithCompiler(path *jutil.Path, compiler *jscomp.Compiler) {
-	linterMu.Lock()
-	defer linterMu.Unlock()
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	if rhino.CurrentNodeStore().IsStatic() {
 		defer rhino.ResetNodeStore()
 	}
@@ -182,8 +176,8 @@ func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErro
 //
 // Java: Linter.fix(String, ImmutableSet<DiagnosticType>)
 func (l *Linter) fix(filename string, unfixableErrors []*jscomp.DiagnosticType) (bool, error) {
-	linterMu.Lock()
-	defer linterMu.Unlock()
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	if rhino.CurrentNodeStore().IsStatic() {
 		defer rhino.ResetNodeStore()
 	}

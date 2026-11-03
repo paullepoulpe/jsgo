@@ -72,11 +72,25 @@ func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 			NodeUtil_GetLhsNodesHelper(child, consumer)
 		}
 		return
-	case rhino.Token_DESTRUCTURING_LHS, rhino.Token_DEFAULT_VALUE, rhino.Token_CATCH, rhino.Token_ITER_REST,
-		rhino.Token_OBJECT_REST, rhino.Token_CAST:
-		NodeUtil_GetLhsNodesHelper(n.GetFirstChild(), consumer)
-	case rhino.Token_IMPORT_SPEC, rhino.Token_COMPUTED_PROP, rhino.Token_STRING_KEY:
-		NodeUtil_GetLhsNodesHelper(n.GetLastChild(), consumer)
+	case rhino.Token_DESTRUCTURING_LHS:
+		NodeUtil_GetLhsNodesHelper(ast.MustDestructuringLhs(n).Pattern().Node(), consumer)
+	case rhino.Token_DEFAULT_VALUE:
+		NodeUtil_GetLhsNodesHelper(ast.MustDefaultValue(n).Target().Node(), consumer)
+	case rhino.Token_CATCH:
+		if param, ok := ast.MustCatch(n).Param(); ok {
+			NodeUtil_GetLhsNodesHelper(param.Node(), consumer)
+		}
+	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
+		NodeUtil_GetLhsNodesHelper(ast.MustRest(n).Target().Node(), consumer)
+	case rhino.Token_CAST:
+		NodeUtil_GetLhsNodesHelper(ast.MustCast(n).Expr().Node(), consumer)
+	case rhino.Token_IMPORT_SPEC:
+		NodeUtil_GetLhsNodesHelper(ast.MustImportSpec(n).Local().Node(), consumer)
+	case rhino.Token_COMPUTED_PROP:
+		val, _ := ast.MustComputedProp(n).Value()
+		NodeUtil_GetLhsNodesHelper(val.Node(), consumer)
+	case rhino.Token_STRING_KEY:
+		NodeUtil_GetLhsNodesHelper(ast.MustStringKey(n).Value().Node(), consumer)
 	case rhino.Token_NAME, rhino.Token_IMPORT_STAR:
 		consumer(n)
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
@@ -90,8 +104,8 @@ func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 		// for ({a, b} of someIterable) {...
 		NodeUtil_GetLhsNodesHelper(ast.MustEnhancedFor(n).Target().Node(), consumer)
 	default:
-		if NodeUtil_IsAssignmentOp(n) {
-			NodeUtil_GetLhsNodesHelper(n.GetFirstChild(), consumer)
+		if assign, ok := ast.AsAssignment(n); ok {
+			NodeUtil_GetLhsNodesHelper(assign.Target().Node(), consumer)
 		} else {
 			panic(jutil.NewIllegalStateExceptionMsg("Invalid node in lhs: " + n.String()))
 		}
@@ -666,12 +680,12 @@ func nodeUtilBlockScopeMayHaveDecls(n, root rhino.Node) bool {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH, rhino.Token_IMPORT:
 		return true
 	case rhino.Token_EXPORT:
-		first := n.GetFirstChild()
+		first := ast.MustExport(n).Body().Node()
 		return !first.IsNil() && nodeUtilBlockScopeMayHaveDecls(first, root)
 	case rhino.Token_FUNCTION:
-		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetStringID() > strpool.EmptyID
+		return !NodeUtil_IsFunctionExpression(n) && ast.MustFunction(n).NameNode().Node().GetStringID() > strpool.EmptyID
 	case rhino.Token_CLASS:
-		return !NodeUtil_IsClassExpression(n) && !n.GetFirstChild().IsEmpty()
+		return !NodeUtil_IsClassExpression(n) && !ast.MustClass(n).NameNode().IsEmpty()
 	case rhino.Token_BLOCK:
 		if n != root && scanVarsBlockCreatesScope(n) {
 			return false
@@ -700,7 +714,7 @@ func nodeUtilScopeRootMayDeclareVars(root, fnRoot rhino.Node) bool {
 	case rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_MEMBER_FIELD_DEF:
 		return false
 	case rhino.Token_CLASS:
-		return !root.GetFirstChild().IsEmpty() && NodeUtil_IsClassExpression(root)
+		return !ast.MustClass(root).NameNode().IsEmpty() && NodeUtil_IsClassExpression(root)
 	case rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		return syntacticScopeHasBlockDecls(root)
 	case rhino.Token_SWITCH_BODY:
@@ -754,15 +768,16 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTra
 		if n.IsBlock() {
 			return n.HasChildren()
 		}
-		if n.IsParamList() {
-			for p := n.GetFirstChild(); !p.IsNil(); p = p.GetNext() {
-				if !p.IsName() && nodeUtilSubtreeHasBlockScopeDecls(p) {
+		if params, ok := ast.AsParamList(n); ok {
+			for p := range params.Params() {
+				pn := p.Node()
+				if !pn.IsName() && nodeUtilSubtreeHasBlockScopeDecls(pn) {
 					return true
 				}
 			}
 			return false
 		}
-		if n == fnRoot.GetFirstChild() {
+		if fn, ok := ast.AsFunction(fnRoot); ok && fn.NameNode().Is(n) {
 			return false
 		}
 		return nodeUtilSubtreeHasBlockScopeDecls(n)

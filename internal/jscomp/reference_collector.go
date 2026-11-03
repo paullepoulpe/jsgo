@@ -111,6 +111,13 @@ type ReferenceCollector struct {
 	// order.
 	collectHoistedFunctionsInReferenceOrder bool
 
+	// skipNonHoistGlobalVarRefs omits references inside non-global hoist
+	// scopes (!t.InGlobalHoistScope()) to global VAR variables whose nameNode
+	// is directly under Token_VAR (used by VariableReferenceCheck, where such
+	// references can neither be global declarations nor satisfy
+	// HasSameContainerScope(globalScope), IsConst/IsLet, or IsLocal).
+	skipNonHoistGlobalVarRefs bool
+
 	narrowScope   *Scope
 	parallelState *rcParallelScriptState
 }
@@ -829,6 +836,10 @@ func (c *ReferenceCollector) addReferenceWithScope(v *Var, n rhino.Node, t *Node
 			c.lastRejectedVar = v
 			return nil
 		}
+	}
+	if c.skipNonHoistGlobalVarRefs && v.IsGlobal() && !t.InGlobalHoistScope() &&
+		!v.nameNode.IsNil() && v.nameNode.GetParent().IsVar() {
+		return nil
 	}
 	if ps := c.parallelState; ps != nil && v.IsGlobal() {
 		ps.recordGlobalRef(c, v, n, t, scope)

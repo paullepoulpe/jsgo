@@ -182,6 +182,8 @@ func newRefactoringDriver(
 //
 // Java: RefactoringDriver.drive(Scanner, Pattern)
 func (d *RefactoringDriver) DriveWithIncludeFilePattern(scanner Scanner, includeFilePattern *jutil.Pattern) []*SuggestedFix {
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	callback := NewJsFlumeCallback(scanner, includeFilePattern)
 	jscomp.NodeTraversal_Traverse(d.compiler, d.rootNode, callback)
 	return append(callback.GetFixes(), scanner.ProcessAllMatches(callback.GetMatches())...)
@@ -202,6 +204,8 @@ func (d *RefactoringDriver) GetCompiler() *jscomp.Compiler {
 // Java: RefactoringDriver.createCompiler(List<SourceFile>, List<SourceFile>, CompilerOptions)
 func refactoringDriver_createCompiler(
 	inputs []*jscomp.SourceFile, externs []*jscomp.SourceFile, compilerOptions *jscomp.CompilerOptions) *jscomp.Compiler {
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	compiler := jscomp.NewCompilerWithErrorManager(jscomp.NewBlackHoleErrorManager())
 	compiler.DisableThreads()
 	compiler.Compile(externs, inputs, compilerOptions)

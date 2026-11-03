@@ -33,66 +33,145 @@ const (
 	tableBlockShift = 12
 	tableBlockLen   = 1 << tableBlockShift
 	tableBlockMask  = tableBlockLen - 1
-	tableMaxBlocks  = 1 << 14 // 2^26 handles per table
+
+	tableSubShift  = 8
+	tableSubLen    = 1 << tableSubShift
+	tableSubMask   = tableSubLen - 1
+	tableDirLen    = 64
+	tableMaxBlocks = tableDirLen * tableSubLen // 2^26 handles per table
 )
 
-// handleTable is a growable table of T addressed by 32-bit handles (0 is
-// never handed out).
-type handleTable[T any] struct {
-	next   atomic.Uint32
-	blocks []atomic.Pointer[[tableBlockLen]T]
+type handleBlock[P any] [tableBlockLen]atomic.Pointer[P]
+type handleSubDir[P any] [tableSubLen]atomic.Pointer[handleBlock[P]]
+
+// handleTable is a lazily allocated table of *P addressed by 32-bit handles
+// (0 is never handed out). An empty handleTable adds zero heap allocations to
+// NewNodeStore.
+type handleTable[P any] struct {
+	count atomic.Uint32
+	blk0  atomic.Pointer[handleBlock[P]]
+	dir   [tableDirLen]atomic.Pointer[handleSubDir[P]]
 }
 
-func (t *handleTable[T]) init() {
-	t.blocks = make([]atomic.Pointer[[tableBlockLen]T], tableMaxBlocks)
-	t.next.Store(1)
-}
-
-// at returns the entry of handle h.
-func (t *handleTable[T]) at(h uint32) *T {
-	return &t.blocks[h>>tableBlockShift].Load()[h&tableBlockMask]
-}
-
-// peek returns the entry of h, or the zero T if h was not handed out by t.
-func (t *handleTable[T]) peek(h uint32) T {
-	var zero T
-	if h == 0 || h >= t.next.Load() {
-		return zero
+// load returns the entry of handle h.
+func (t *handleTable[P]) load(h uint32) *P {
+	if h < tableBlockLen {
+		return t.blk0.Load()[h].Load()
 	}
-	blk := t.blocks[h>>tableBlockShift].Load()
+	k := h >> tableBlockShift
+	return t.dir[k>>tableSubShift].Load()[k&tableSubMask].Load()[h&tableBlockMask].Load()
+}
+
+// peek returns the entry of h, or nil if h was not handed out by t.
+func (t *handleTable[P]) peek(h uint32) *P {
+	if h == 0 || h > t.count.Load() {
+		return nil
+	}
+	if h < tableBlockLen {
+		blk := t.blk0.Load()
+		if blk == nil {
+			return nil
+		}
+		return blk[h].Load()
+	}
+	k := h >> tableBlockShift
+	topIdx := k >> tableSubShift
+	if topIdx >= tableDirLen {
+		return nil
+	}
+	sub := t.dir[topIdx].Load()
+	if sub == nil {
+		return nil
+	}
+	blk := sub[k&tableSubMask].Load()
 	if blk == nil {
-		return zero
+		return nil
 	}
-	return blk[h&tableBlockMask]
+	return blk[h&tableBlockMask].Load()
 }
 
 // add stores v in a new entry and returns its handle; mu is the owning
-// store's mutex (taken only to create a block).
-func (t *handleTable[T]) add(mu *sync.Mutex, v T) uint32 {
-	h := t.next.Add(1) - 1
+// store's mutex (taken only to create a directory page or block).
+func (t *handleTable[P]) add(mu *sync.Mutex, v *P) uint32 {
+	h := t.count.Add(1)
+	if h < tableBlockLen {
+		blk := t.blk0.Load()
+		if blk == nil {
+			blk = t.addBlock(mu, 0, 0)
+		}
+		blk[h].Store(v)
+		return h
+	}
 	k := h >> tableBlockShift
-	if k >= tableMaxBlocks {
+	topIdx := k >> tableSubShift
+	if topIdx >= tableDirLen {
 		panic("rhino.NodeStore: side table full")
 	}
-	blk := t.blocks[k].Load()
-	if blk == nil {
-		mu.Lock()
-		if blk = t.blocks[k].Load(); blk == nil {
-			blk = new([tableBlockLen]T)
-			t.blocks[k].Store(blk)
-		}
-		mu.Unlock()
+	subIdx := k & tableSubMask
+	var blk *handleBlock[P]
+	if sub := t.dir[topIdx].Load(); sub != nil {
+		blk = sub[subIdx].Load()
 	}
-	blk[h&tableBlockMask] = v
+	if blk == nil {
+		blk = t.addBlock(mu, topIdx, subIdx)
+	}
+	blk[h&tableBlockMask].Store(v)
 	return h
 }
 
-// each calls f with every entry handed out so far.
-func (t *handleTable[T]) each(f func(*T)) {
-	n := t.next.Load()
-	for h := uint32(1); h < n; h++ {
-		if blk := t.blocks[h>>tableBlockShift].Load(); blk != nil {
-			f(&blk[h&tableBlockMask])
+//go:noinline
+func (t *handleTable[P]) addBlock(mu *sync.Mutex, topIdx, subIdx uint32) *handleBlock[P] {
+	mu.Lock()
+	defer mu.Unlock()
+	sub := t.dir[topIdx].Load()
+	if sub == nil {
+		sub = new(handleSubDir[P])
+		blk := new(handleBlock[P])
+		sub[subIdx].Store(blk)
+		t.dir[topIdx].Store(sub)
+		if topIdx == 0 && subIdx == 0 {
+			t.blk0.Store(blk)
+		}
+		return blk
+	}
+	blk := sub[subIdx].Load()
+	if blk == nil {
+		blk = new(handleBlock[P])
+		sub[subIdx].Store(blk)
+		if topIdx == 0 && subIdx == 0 {
+			t.blk0.Store(blk)
+		}
+	}
+	return blk
+}
+
+// each calls f with every slot handed out so far.
+func (t *handleTable[P]) each(f func(*atomic.Pointer[P])) {
+	n := t.count.Load()
+	if n == 0 {
+		return
+	}
+	lastBlk := min(n>>tableBlockShift, uint32(tableMaxBlocks-1))
+	for k := uint32(0); k <= lastBlk; k++ {
+		sub := t.dir[k>>tableSubShift].Load()
+		if sub == nil {
+			k |= tableSubMask
+			continue
+		}
+		blk := sub[k&tableSubMask].Load()
+		if blk == nil {
+			continue
+		}
+		start := uint32(0)
+		if k == 0 {
+			start = 1
+		}
+		end := uint32(tableBlockLen)
+		if k == lastBlk && (n>>tableBlockShift) == lastBlk {
+			end = (n & tableBlockMask) + 1
+		}
+		for off := start; off < end; off++ {
+			f(&blk[off])
 		}
 	}
 }
@@ -123,7 +202,7 @@ func (s *NodeStore) typeAt(h uint32) *JSTypeBase {
 	if h == 0 {
 		return nil
 	}
-	return *s.types.at(h)
+	return s.types.load(h)
 }
 
 // noteNodeStore records that r's types are registered in s, so that
@@ -148,9 +227,9 @@ func (r *JSTypeRegistry) ReleaseNodeTypeHandles() {
 	r.nodeStores = nil
 	r.nodeStoresMu.Unlock()
 	for _, s := range stores {
-		s.types.each(func(e **JSTypeBase) {
-			if *e != nil && (*e).GetRegistry() == r {
-				*e = nil
+		s.types.each(func(e *atomic.Pointer[JSTypeBase]) {
+			if v := e.Load(); v != nil && v.GetRegistry() == r {
+				e.CompareAndSwap(v, nil)
 			}
 		})
 	}
@@ -171,7 +250,7 @@ func (s *NodeStore) colorAt(h uint32) *colors.Color {
 	if h == 0 {
 		return nil
 	}
-	return *s.colors.at(h)
+	return s.colors.load(h)
 }
 
 // --- aux ---

@@ -355,18 +355,18 @@ func fsivEvalPeerAfterState(c *flowSensitiveInlineCandidate, expr rhino.Node) cf
 func (c *flowSensitiveInlineCandidate) checkPostExpressions(n rhino.Node, expressionRoot rhino.Node) bool {
 	for p := n; p != expressionRoot; {
 		parent := p.GetParent()
-		if (parent.IsComputedProp() || parent.IsComputedFieldDef()) && parent.GetParent().IsClassMembers() {
+		if cm, ok := ast.AsComputedMember(parent); ok && parent.GetParent().IsClassMembers() {
 			if parent == expressionRoot {
-				if parent.IsComputedFieldDef() && parent.IsStaticMember() && p == parent.GetFirstChild() {
-					if val := parent.GetSecondChild(); !val.IsNil() && c.hasPeerSideEffects(val) {
+				if cfd, isField := cm.AsComputedFieldDef(); isField && cfd.IsStatic() && cfd.Key().Is(p) {
+					if val, hasVal := cfd.Value(); hasVal && c.hasPeerSideEffects(val.Node()) {
 						return true
 					}
 				}
 				return false
 			}
 			classMembers := parent.GetParent()
-			inPass2 := p != parent.GetFirstChild()
-			if (!inPass2 || parent.IsStaticMember()) &&
+			inPass2 := !cm.Key().Is(p)
+			if (!inPass2 || cm.IsStatic()) &&
 				walkClassMembersAfterState(classMembers, parent, inPass2, c, fsivEvalPeerAfterState) != cfgCondEvalContinue {
 				return true
 			}
@@ -394,18 +394,18 @@ func (c *flowSensitiveInlineCandidate) checkPostExpressions(n rhino.Node, expres
 func (c *flowSensitiveInlineCandidate) checkPreExpressions(n rhino.Node, expressionRoot rhino.Node) bool {
 	for p := n; p != expressionRoot; {
 		parent := p.GetParent()
-		if (parent.IsComputedProp() || parent.IsComputedFieldDef()) && parent.GetParent().IsClassMembers() {
+		if cm, ok := ast.AsComputedMember(parent); ok && parent.GetParent().IsClassMembers() {
 			if parent == expressionRoot {
-				if parent.IsComputedFieldDef() && parent.IsStaticMember() && p != parent.GetFirstChild() {
-					if key := parent.GetFirstChild(); !key.IsNil() && c.hasPeerSideEffects(key) {
+				if cfd, isField := cm.AsComputedFieldDef(); isField && cfd.IsStatic() && !cfd.Key().Is(p) {
+					if key := cfd.Key().Node(); !key.IsNil() && c.hasPeerSideEffects(key) {
 						return true
 					}
 				}
 				return false
 			}
 			classMembers := parent.GetParent()
-			inPass2 := p != parent.GetFirstChild()
-			if (!inPass2 || parent.IsStaticMember()) &&
+			inPass2 := !cm.Key().Is(p)
+			if (!inPass2 || cm.IsStatic()) &&
 				walkClassMembersBefore(classMembers, parent, inPass2, c, (*flowSensitiveInlineCandidate).hasPeerSideEffects) {
 				return true
 			}

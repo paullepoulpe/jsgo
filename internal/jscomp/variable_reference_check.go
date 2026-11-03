@@ -113,15 +113,129 @@ func (v *VariableReferenceCheck) addBlockWithDeclaration(block *BasicBlock) {
 	}
 }
 
+func varRefCheckFilter(v *Var) bool {
+	if !v.IsGlobal() {
+		return true
+	}
+	if v.IsImplicitGoogNamespace() {
+		return false
+	}
+	if !v.isMultiplyDeclared() && !v.nameNode.IsNil() && v.nameNode.GetParent().IsVar() &&
+		(v.nameNode.IsFromExterns() || v.nameID == uint32(idGoog)) {
+		return false
+	}
+	return true
+}
+
 // Java: VariableReferenceCheck.process(Node, Node)
 func (v *VariableReferenceCheck) Process(externs rhino.Node, root rhino.Node) {
+	if v.processParallel(externs, root) {
+		clear(v.blocksWithDeclarations)
+		v.blocksWithDeclarations = v.blocksWithDeclarations[:0]
+		return
+	}
 	sc := NewSyntacticScopeCreator(v.compiler)
-	callback := NewReferenceCollector(
-		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), sc)
+	callback := NewReferenceCollectorWithVarFilter(
+		v.compiler, NewVariableReferenceCheck_ReferenceCheckingBehavior(v), sc, varRefCheckFilter)
+	callback.skipNonHoistGlobalVarRefs = true
 	callback.enableLocalReclamation(nil)
 	callback.Process(externs, root)
 	clear(v.blocksWithDeclarations)
 	v.blocksWithDeclarations = v.blocksWithDeclarations[:0]
+}
+
+func (v *VariableReferenceCheck) processParallel(externs rhino.Node, root rhino.Node) bool {
+	if rootCount, ok := countRootScripts(root); !ok || rootCount < 8 {
+		return false
+	}
+	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
+	if !ok {
+		return false
+	}
+	numWorkers := parallelThreadCount(v.compiler, len(items))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(v.compiler)
+	restoreReg := enableParallelTypeRegistryReads(v.compiler)
+	defer restoreReg()
+
+	mainSC := NewSyntacticScopeCreator(v.compiler)
+	globalScope := mainSC.CreateScopeOfScope(scopeRoot, nil)
+	freezeGlobalScopeForParallelReads(globalScope)
+	lazyGlobal := &lazyGlobalScope{
+		compiler: v.compiler,
+		root:     scopeRoot,
+		scope:    globalScope,
+	}
+	lazyGlobal.once.Do(func() {})
+	globalBlock := NewBasicBlock(nil, scopeRoot)
+
+	statesByItem := make([]*rcParallelScriptState, len(items))
+	runParallelWork(v.compiler, numWorkers, len(items), func(_ int) (func(int, *recordingCompiler), func()) {
+		var reusableCheck *VariableReferenceCheck
+		var reusableBeh *VariableReferenceCheck_ReferenceCheckingBehavior
+		var reusableCollector *ReferenceCollector
+		var reusableSC *SyntacticScopeCreator
+		dirty := false
+
+		runItem := func(idx int, rc *recordingCompiler) {
+			if reusableCollector == nil || dirty || reusableSC.compiler != rc {
+				reusableSC = NewSyntacticScopeCreator(rc)
+				reusableCheck = &VariableReferenceCheck{
+					compiler:          rc,
+					checkUnusedLocals: v.checkUnusedLocals,
+				}
+				reusableBeh = NewVariableReferenceCheck_ReferenceCheckingBehavior(reusableCheck)
+				reusableCollector = NewReferenceCollectorWithVarFilter(rc, reusableBeh, reusableSC, varRefCheckFilter)
+				reusableCollector.skipNonHoistGlobalVarRefs = true
+				reusableCollector.enableLocalReclamation(nil)
+			} else {
+				reusableCheck.compiler = rc
+				clear(reusableCheck.blocksWithDeclarations)
+				reusableCheck.blocksWithDeclarations = reusableCheck.blocksWithDeclarations[:0]
+				clear(reusableBeh.varsInFunctionBody)
+				reusableCollector.compiler = rc
+				reusableCollector.scopeCreator = reusableSC
+				reusableCollector.clearLocalBase()
+				reusableCollector.maybeReclaimLocals()
+				reusableCollector.blocks.resetHoistedCollected()
+			}
+
+			ps := &rcParallelScriptState{
+				globalScope: globalScope,
+				globalBlock: globalBlock,
+				rc:          rc,
+			}
+			ps.rootSeg.owner = ps
+			ps.curSeg = &ps.rootSeg
+			reusableCollector.parallelState = ps
+			dirty = true
+
+			item := items[idx]
+			tb := reusableCollector.builderVal()
+			tb.traverseScriptUnderRoot(scopeRoot, item.parent, item.script, lazyGlobal)
+			ps.flushCompilerEvents()
+
+			reusableCollector.parallelState = nil
+			dirty = false
+			statesByItem[idx] = ps
+		}
+		return runItem, nil
+	}, false)
+
+	replayParallelReferenceCollection(
+		v.compiler,
+		mainSC,
+		globalScope,
+		globalBlock,
+		NewVariableReferenceCheck_ReferenceCheckingBehavior(v),
+		varRefCheckFilter,
+		statesByItem,
+		nil,
+	)
+	return true
 }
 
 // VariableReferenceCheck_ReferenceCheckingBehavior is behavior that checks
@@ -490,7 +604,7 @@ func (vc *VariableReferenceCheck) CheckEarlyReference(v *Var, reference *Referen
 	// We don't track where `f` is called, just where it's defined, and don't want to warn for
 	//     function f() { return x; } let x = 5; f();
 	// TODO(moz): See if we can remove the bypass for "goog"
-	if reference.GetScope().HasSameContainerScope(v.scope) && v.GetName() != "goog" {
+	if reference.GetScope().HasSameContainerScope(v.scope) && v.nameID != uint32(idGoog) {
 		var diagnostic *DiagnosticType
 		if v.IsGoogModuleExports() {
 			diagnostic = VariableReferenceCheck_EARLY_EXPORTS_REFERENCE

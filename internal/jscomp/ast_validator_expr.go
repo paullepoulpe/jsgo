@@ -660,8 +660,12 @@ func (v *AstValidator) validateObjectLitComputedPropKey(prop ast.ComputedProp) {
 		v.ValidateExpression(val.Node())
 		return
 	}
-	v.ValidateExpression(n.GetFirstChild())
-	v.ValidateExpression(n.GetLastChild())
+	if first := n.GetFirstChild(); !first.IsNil() {
+		v.ValidateExpression(first)
+	}
+	if n.HasMoreThanOneChild() {
+		v.ValidateExpression(n.GetLastChild())
+	}
 }
 
 // Java: AstValidator.validateObjectLitComputedPropGetKey(Node)
@@ -673,7 +677,7 @@ func (v *AstValidator) validateObjectLitComputedPropGetKey(prop ast.ComputedProp
 	if v.validatePropsAndArity(n) {
 		val, _ := prop.Value()
 		fnNode = val.Node()
-	} else {
+	} else if n.HasMoreThanOneChild() {
 		fnNode = n.GetLastChild()
 	}
 	v.validateAccessorFunction(n, fnNode, false)
@@ -688,36 +692,30 @@ func (v *AstValidator) validateObjectLitComputedPropSetKey(prop ast.ComputedProp
 	if v.validatePropsAndArity(n) {
 		val, _ := prop.Value()
 		fnNode = val.Node()
-	} else {
+	} else if n.HasMoreThanOneChild() {
 		fnNode = n.GetLastChild()
 	}
 	v.validateAccessorFunction(n, fnNode, true)
 }
 
 func (v *AstValidator) validateAccessorFunction(keyNode, fnNode rhino.Node, isSetter bool) {
-	v.validateFunctionExpression(fnNode)
-	if fn, ok := ast.AsFunction(fnNode); ok {
-		if fn.NameNode().Ident() != "" {
-			v.Violation("Expected unnamed function expression.", keyNode)
-		}
-		if isSetter {
-			if _, ok := fn.Params().OnlyParam(); !ok {
-				v.Violation("set methods must have exactly one parameter.", keyNode)
-			}
-		} else if fn.Params().HasParams() {
-			v.Violation("get methods must not have parameters.", keyNode)
-		}
+	if fnNode.IsNil() {
 		return
 	}
-	if fnNode.GetFirstChild().GetString() != "" {
+	fn, ok := ast.AsFunction(fnNode)
+	if !ok {
+		v.validateNodeType(rhino.Token_FUNCTION, fnNode)
+		return
+	}
+	v.validateFunctionExpression(fnNode)
+	if fn.NameNode().Ident() != "" {
 		v.Violation("Expected unnamed function expression.", keyNode)
 	}
-	params := fnNode.GetSecondChild()
 	if isSetter {
-		if !params.HasOneChild() {
+		if _, ok := fn.Params().OnlyParam(); !ok {
 			v.Violation("set methods must have exactly one parameter.", keyNode)
 		}
-	} else if params.HasChildren() {
+	} else if fn.Params().HasParams() {
 		v.Violation("get methods must not have parameters.", keyNode)
 	}
 }

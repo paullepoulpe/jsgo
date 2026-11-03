@@ -242,6 +242,9 @@ func (n Node) IsEquivalentToWithModes(
 	jsDocConfig Node_JsDocComparison,
 	sideEffectConfig Node_SideEffectComparison,
 ) bool {
+	if n.IsNil() || node.IsNil() {
+		return false
+	}
 	switch n.nodeKind() {
 	case node_kindNumber:
 		// Java: NumberNode.isEquivalentTo
@@ -389,6 +392,9 @@ const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 //
 // Java: Node.getQualifiedName()
 func (n Node) QualifiedName() (string, bool) {
+	if n.IsNil() {
+		return "", false
+	}
 	return n.getQualifiedNameString()
 }
 
@@ -535,7 +541,7 @@ func (n Node) originalQualifiedName() (string, bool) {
 //
 // Java: Node.isQualifiedName()
 func (n Node) IsQualifiedName() bool {
-	for {
+	for !n.IsNil() {
 		switch n.rec().token {
 		case Token_NAME:
 			return n.GetStringID() > 1
@@ -547,6 +553,7 @@ func (n Node) IsQualifiedName() bool {
 			return false
 		}
 	}
+	return false
 }
 
 // MatchesName returns whether a node matches a simple name, such as `x`,
@@ -554,7 +561,7 @@ func (n Node) IsQualifiedName() bool {
 //
 // Java: Node.matchesName(String)
 func (n Node) MatchesName(name string) bool {
-	if n.rec().token != Token_NAME {
+	if n.IsNil() || n.rec().token != Token_NAME {
 		return false
 	}
 	internalString := n.GetString()
@@ -568,7 +575,7 @@ func (n Node) MatchesName(name string) bool {
 //
 // Java: Node.matchesName(Node)
 func (n Node) MatchesNameNode(other Node) bool {
-	if n.rec().token != Token_NAME || other.rec().token != Token_NAME {
+	if n.IsNil() || other.IsNil() || n.rec().token != Token_NAME || other.rec().token != Token_NAME {
 		return false
 	}
 
@@ -582,7 +589,7 @@ func (n Node) MatchesNameNode(other Node) bool {
 //
 // Java: Node.matchesQualifiedName(String)
 func (n Node) MatchesQualifiedName(qname string) bool {
-	for {
+	for !n.IsNil() {
 		switch n.rec().token {
 		case Token_NAME, Token_IMPORT_STAR:
 			name := n.GetString()
@@ -603,6 +610,7 @@ func (n Node) MatchesQualifiedName(qname string) bool {
 			return false
 		}
 	}
+	return false
 }
 
 // MatchesQualifiedNameWithEnd returns whether a node matches a simple or a
@@ -610,6 +618,9 @@ func (n Node) MatchesQualifiedName(qname string) bool {
 //
 // Java: Node.matchesQualifiedName(String, int)
 func (n Node) MatchesQualifiedNameWithEnd(qname string, endIndex int) bool {
+	if n.IsNil() {
+		return false
+	}
 	start := jutil.StringLastIndexOfCharFrom(qname, '.', endIndex-1) + 1
 
 	switch n.GetToken() {
@@ -640,7 +651,7 @@ func (n Node) MatchesQualifiedNameWithEnd(qname string, endIndex int) bool {
 //
 // Java: Node.matchesQualifiedName(Node)
 func (n Node) MatchesQualifiedNameNode(other Node) bool {
-	if other.rec().token != n.rec().token {
+	if n.IsNil() || other.IsNil() || other.rec().token != n.rec().token {
 		return false
 	}
 
@@ -667,7 +678,7 @@ func (n Node) MatchesQualifiedNameNode(other Node) bool {
 //
 // Java: Node.isUnscopedQualifiedName()
 func (n Node) IsUnscopedQualifiedName() bool {
-	for {
+	for !n.IsNil() {
 		switch n.rec().token {
 		case Token_NAME:
 			return n.GetStringID() > 1
@@ -677,10 +688,14 @@ func (n Node) IsUnscopedQualifiedName() bool {
 			return false
 		}
 	}
+	return false
 }
 
 // Java: Node.isValidAssignmentTarget()
 func (n Node) IsValidAssignmentTarget() bool {
+	if n.IsNil() {
+		return false
+	}
 	switch n.GetToken() {
 	case Token_NAME, Token_GETPROP, Token_GETELEM, Token_ARRAY_PATTERN, Token_OBJECT_PATTERN:
 		return true

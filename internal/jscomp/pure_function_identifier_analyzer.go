@@ -225,9 +225,18 @@ func (b *pfiFunctionBodyAnalyzer) checkIteratesImpureIterable(e *pfiFunctionStac
 	}
 }
 
+func isTryBodyWithCatch(node, parent rhino.Node) bool {
+	tryStmt, ok := ast.AsTry(parent)
+	if !ok || !tryStmt.Body().Is(node) {
+		return false
+	}
+	_, hasCatch := tryStmt.Catch()
+	return hasCatch
+}
+
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.shouldTraverse(NodeTraversal, Node, Node)
 func (b *pfiFunctionBodyAnalyzer) ShouldTraverse(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) bool {
-	if !parent.IsNil() && parent.IsTry() && node == parent.GetFirstChild() && node.GetNext().HasChildren() {
+	if isTryBodyWithCatch(node, parent) {
 		b.currentFunction().catchDepth++
 	}
 	return true
@@ -235,7 +244,7 @@ func (b *pfiFunctionBodyAnalyzer) ShouldTraverse(traversal *NodeTraversal, node 
 
 // Java: PureFunctionIdentifier.FunctionBodyAnalyzer.visit(NodeTraversal, Node, Node)
 func (b *pfiFunctionBodyAnalyzer) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
-	if !parent.IsNil() && parent.IsTry() && node == parent.GetFirstChild() && node.GetNext().HasChildren() {
+	if isTryBodyWithCatch(node, parent) {
 		b.currentFunction().catchDepth--
 	}
 
@@ -744,29 +753,28 @@ func PureFunctionIdentifier_GetParamIndex(param *Var) int {
 
 // Java: PureFunctionIdentifier.isInvocationViaCallOrApply(Node)
 func PureFunctionIdentifier_IsInvocationViaCallOrApply(callSite rhino.Node) bool {
-	tok := callSite.GetToken()
-	if tok != rhino.Token_CALL && tok != rhino.Token_OPTCHAIN_CALL {
+	call, ok := ast.AsNormalOrOptChainCall(callSite)
+	if !ok {
 		return false
 	}
-	calleeNode := callSite.GetFirstChild()
-	calleeTok := calleeNode.GetToken()
+	get, ok := call.Callee().AsNormalOrOptChainGet()
+	if !ok {
+		return false
+	}
 	var propID uint32
-	switch calleeTok {
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
-		propID = calleeNode.GetStringID()
-	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETELEM:
-		key := calleeNode.GetSecondChild()
-		if !key.IsStringLit() {
+	if ge, isElem := get.AsNormalOrOptChainGetElem(); isElem {
+		keyLit, isStr := ge.Index().AsStringLit()
+		if !isStr {
 			return false
 		}
-		propID = key.GetStringID()
-	default:
-		return false
+		propID = keyLit.Node().GetStringID()
+	} else {
+		propID = get.Node().GetStringID()
 	}
 	if propID != pfiCallStringID && propID != pfiApplyStringID {
 		return false
 	}
-	recvTok := calleeNode.GetFirstChild().GetToken()
+	recvTok := get.Object().Node().GetToken()
 	return recvTok == rhino.Token_NAME || recvTok == rhino.Token_GETPROP || recvTok == rhino.Token_OPTCHAIN_GETPROP
 }
 

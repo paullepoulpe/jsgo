@@ -34,6 +34,8 @@ func (c *Compiler) toSourceStreaming(
 	}
 	slots := make([]slot, window)
 	for i := range slots {
+		slots[i].sm.bytesOnly = true
+		slots[i].sm.ownCodeBuf = true
 		slots[i].done = make(chan struct{}, 1)
 	}
 	// One token per slot: a worker takes a token before claiming the next
@@ -120,7 +122,6 @@ func (c *Compiler) toSourceStreaming(
 		} else {
 			c.appendSourceAndMappingsToCodeBuilder(cb, lt, idx, scripts[idx], &s.sm)
 		}
-		s.sm.source = ""
 		tokens <- struct{}{}
 	}
 	close(stop)

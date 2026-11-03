@@ -59,15 +59,50 @@ func (c *FeatureCollector) AllFeatures() parser.FeatureSet {
 
 // Java: FeatureCollector.visitScript(Node)
 func (c *FeatureCollector) VisitScript(script rhino.Node) {
-	c.VisitRecursive([]FeatureCollector_FeatureContext{FeatureCollector_FeatureContext_NONE}, script)
+	var ctxBuf [32]FeatureCollector_FeatureContext
+	c.VisitRecursive(append(ctxBuf[:0], FeatureCollector_FeatureContext_NONE), script)
 }
 
 // Java: FeatureCollector.visitRecursive(List<FeatureContext>, Node)
 func (c *FeatureCollector) VisitRecursive(contextStack []FeatureCollector_FeatureContext, node rhino.Node) {
-	newContext := c.VisitSingleNode(contextStack, node)
-	contextStack = append(contextStack, newContext)
-	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		c.VisitRecursive(contextStack, child)
+	if cap(contextStack) == len(contextStack) && len(contextStack) < 32 {
+		var ctxBuf [32]FeatureCollector_FeatureContext
+		contextStack = append(ctxBuf[:0], contextStack...)
+	} else {
+		contextStack = contextStack[:len(contextStack):cap(contextStack)]
+	}
+	var stackBuf [32]rhino.Node
+	var ctxLenBuf [32]int
+	stack := stackBuf[:0]
+	ctxLens := ctxLenBuf[:0]
+	cur := node
+	atRoot := true
+	for !cur.IsNil() {
+		newContext := c.VisitSingleNode(contextStack, cur)
+		first := cur.GetFirstChild()
+		var next rhino.Node
+		if !atRoot {
+			next = cur.GetNext()
+		}
+		atRoot = false
+		if !first.IsNil() {
+			if !next.IsNil() {
+				stack = append(stack, next)
+				ctxLens = append(ctxLens, len(contextStack))
+			}
+			contextStack = append(contextStack, newContext)
+			cur = first
+		} else if !next.IsNil() {
+			cur = next
+		} else if len(stack) > 0 {
+			top := len(stack) - 1
+			cur = stack[top]
+			stack = stack[:top]
+			contextStack = contextStack[:ctxLens[top]]
+			ctxLens = ctxLens[:top]
+		} else {
+			break
+		}
 	}
 }
 

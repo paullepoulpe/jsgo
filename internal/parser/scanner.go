@@ -36,16 +36,18 @@ type Scanner struct {
 	source        *SourceFile
 	// Go-only: language-adapter — the Java String contents, unwrapped from
 	// the SourceFile (see SourceFile.CharAt).
-	rawContents         string
-	asciiPrefix         int
-	utf16Tail           []uint16
-	contentsLength      int
-	lookahead           []Token
-	lookaheadBuf        [8]Token
-	index               int
-	commentRecorder     *Parser_CommentRecorder
-	typeParameterLevel  int
-	sawNumericSeparator bool
+	rawContents           string
+	asciiPrefix           int
+	asciiSuffixUTF16Start int
+	asciiSuffixByteStart  int
+	utf16Mid              []uint16
+	contentsLength        int
+	lookahead             []Token
+	lookaheadBuf          [8]Token
+	index                 int
+	commentRecorder       *Parser_CommentRecorder
+	typeParameterLevel    int
+	sawNumericSeparator   bool
 
 	// L1 per-Scanner identifier intern cache avoiding strpool RWMutex/maphash
 	// on repeated identifier names within a file.
@@ -98,7 +100,25 @@ func (s *Scanner) charAt(index int) uint16 {
 	if index < s.asciiPrefix {
 		return uint16(s.rawContents[index])
 	}
-	return s.utf16Tail[index-s.asciiPrefix]
+	if index < s.asciiSuffixUTF16Start {
+		return s.utf16Mid[index-s.asciiPrefix]
+	}
+	return uint16(s.rawContents[s.asciiSuffixByteStart+(index-s.asciiSuffixUTF16Start)])
+}
+
+// asciiSpan maps a UTF-16 index inside either pure-ASCII span of rawContents
+// ([0, asciiPrefix) or [asciiSuffixUTF16Start, contentsLength)) to
+// (rawByteStart, rawByteLimit, rawDelta, true) where rawIdx - rawDelta
+// converts a byte offset back to a UTF-16 offset.
+func (s *Scanner) asciiSpan(index int) (rawStart, rawLimit, rawDelta int, ok bool) {
+	if index < s.asciiPrefix {
+		return index, s.asciiPrefix, 0, true
+	}
+	if index >= s.asciiSuffixUTF16Start && index < s.contentsLength {
+		delta := s.asciiSuffixByteStart - s.asciiSuffixUTF16Start
+		return index + delta, len(s.rawContents), delta, true
+	}
+	return 0, 0, 0, false
 }
 
 // sliceString is contents.substring(start, end).
@@ -119,7 +139,9 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder *Parser_CommentReco
 	// The scanner is key to the parsing speed.
 	s.rawContents = file.Contents
 	s.asciiPrefix = file.asciiPrefix
-	s.utf16Tail = file.utf16Tail
+	s.asciiSuffixUTF16Start = file.asciiSuffixUTF16Start
+	s.asciiSuffixByteStart = file.asciiSuffixByteStart
+	s.utf16Mid = file.utf16Mid
 	s.contentsLength = file.Length()
 	s.index = offset
 	s.typeParameterLevel = 0
@@ -383,23 +405,21 @@ func (s *Scanner) IsValidIndex(index int) bool {
 // Java: Scanner.skipWhitespace()
 func (s *Scanner) SkipWhitespace() bool {
 	foundLineTerminator := false
-	if s.index < s.asciiPrefix {
+	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
 		raw := s.rawContents
-		limit := s.asciiPrefix
-		i := s.index
-		for i < limit {
-			switch raw[i] {
+		for rawIdx < rawLimit {
+			switch raw[rawIdx] {
 			case ' ', '\t', 0x0B, 0x0C:
-				i++
+				rawIdx++
 			case '\n', '\r':
 				foundLineTerminator = true
-				i++
+				rawIdx++
 			default:
-				s.index = i
+				s.index = rawIdx - rawDelta
 				return foundLineTerminator
 			}
 		}
-		s.index = i
+		s.index = rawIdx - rawDelta
 	}
 	contentsLength := s.contentsLength
 	for s.index < contentsLength {
@@ -550,14 +570,12 @@ func (s *Scanner) SkipSingleLineComment() {
 // Java: Scanner.skipSingleLineComment(Comment.Type)
 func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
 	startOffset := s.index
-	if s.index < s.asciiPrefix {
+	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
 		raw := s.rawContents
-		limit := s.asciiPrefix
-		i := s.index
-		for i < limit && raw[i] != '\n' && raw[i] != '\r' {
-			i++
+		for rawIdx < rawLimit && raw[rawIdx] != '\n' && raw[rawIdx] != '\r' {
+			rawIdx++
 		}
-		s.index = i
+		s.index = rawIdx - rawDelta
 	}
 	for !s.IsAtEnd() && !Scanner_IsLineTerminator(s.PeekChar()) {
 		s.NextChar()
@@ -577,17 +595,20 @@ func (s *Scanner) SkipMultiLineComment() {
 	startOffset := s.index
 	s.NextChar() // '/'
 	s.NextChar() // '*'
-	for s.index+1 < s.asciiPrefix {
-		rel := strings.IndexByte(s.rawContents[s.index:s.asciiPrefix-1], '*')
-		if rel < 0 {
-			s.index = s.asciiPrefix - 1
-			break
+	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
+		for rawIdx+1 < rawLimit {
+			rel := strings.IndexByte(s.rawContents[rawIdx:rawLimit-1], '*')
+			if rel < 0 {
+				rawIdx = rawLimit - 1
+				break
+			}
+			rawIdx += rel
+			if s.rawContents[rawIdx+1] == '/' {
+				break
+			}
+			rawIdx++
 		}
-		s.index += rel
-		if s.rawContents[s.index+1] == '/' {
-			break
-		}
-		s.index++
+		s.index = rawIdx - rawDelta
 	}
 	for !s.IsAtEnd() && (s.PeekChar() != '*' || s.PeekCharAt(1) != '/') {
 		s.NextChar()

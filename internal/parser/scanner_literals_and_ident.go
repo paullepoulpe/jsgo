@@ -175,16 +175,15 @@ func (s *Scanner) SkipDecimalDigits() {
 // Java: Scanner.skipDecimalDigits(boolean)
 func (s *Scanner) SkipDecimalDigitsWithHasLeadingDigit(hasLeadingDigit bool) {
 	hasDigit := hasLeadingDigit
-	if s.index < s.asciiPrefix {
+	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
 		raw := s.rawContents
-		limit := s.asciiPrefix
-		i := s.index
-		for i < limit && raw[i] >= '0' && raw[i] <= '9' {
-			i++
+		startRaw := rawIdx
+		for rawIdx < rawLimit && raw[rawIdx] >= '0' && raw[rawIdx] <= '9' {
+			rawIdx++
 		}
-		if i > s.index {
+		if rawIdx > startRaw {
 			hasDigit = true
-			s.index = i
+			s.index = rawIdx - rawDelta
 		}
 	}
 	ch := s.PeekChar()
@@ -338,14 +337,12 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		unicodeEscapeLen = 1
 	} else {
 		// Fast path for consecutive non-escaped identifier characters.
-		if s.index < s.asciiPrefix {
+		if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
 			raw := s.rawContents
-			limit := s.asciiPrefix
-			i := s.index
-			for i < limit && asciiIdentFlags[raw[i]]&asciiFlagIdentPart != 0 {
-				i++
+			for rawIdx < rawLimit && asciiIdentFlags[raw[rawIdx]]&asciiFlagIdentPart != 0 {
+				rawIdx++
 			}
-			s.index = i
+			s.index = rawIdx - rawDelta
 		}
 		contentsLength := s.contentsLength
 		for s.index < contentsLength {
@@ -416,13 +413,16 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		var value string
 		if s.index <= s.asciiPrefix {
 			value = s.rawContents[valueStartIndex:s.index]
+		} else if valueStartIndex >= s.asciiSuffixUTF16Start {
+			rawStart := s.asciiSuffixByteStart + (valueStartIndex - s.asciiSuffixUTF16Start)
+			value = s.rawContents[rawStart : rawStart+(s.index-valueStartIndex)]
 		} else {
-			if valueStartIndex >= s.asciiPrefix {
+			if valueStartIndex >= s.asciiPrefix && s.index <= s.asciiSuffixUTF16Start {
 				if n := s.index - valueStartIndex; n <= 64 {
-					tail := s.utf16Tail[valueStartIndex-s.asciiPrefix : s.index-s.asciiPrefix]
+					mid := s.utf16Mid[valueStartIndex-s.asciiPrefix : s.index-s.asciiPrefix]
 					var buf [64]byte
 					allASCII := true
-					for i, u := range tail {
+					for i, u := range mid {
 						if u >= 0x80 {
 							allASCII = false
 							break
@@ -592,21 +592,19 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 
 	hasUnescapedUnicodeLineOrParagraphSeparator := false
 	for {
-		if s.index < s.asciiPrefix {
+		if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
 			raw := s.rawContents
-			limit := s.asciiPrefix
 			term := byte(terminator)
-			i := s.index
-			for i < limit {
-				b := raw[i]
+			for rawIdx < rawLimit {
+				b := raw[rawIdx]
 				if b == term || b == '\\' || b == '\n' || b == '\r' {
 					break
 				}
-				i++
+				rawIdx++
 			}
-			s.index = i
-			if i < limit && raw[i] == term {
-				s.index = i + 1
+			s.index = rawIdx - rawDelta
+			if rawIdx < rawLimit && raw[rawIdx] == term {
+				s.index = rawIdx + 1 - rawDelta
 				return s.newStringLiteralToken(
 					s.GetTokenRangeFromPosition(startingPosition),
 					hasUnescapedUnicodeLineOrParagraphSeparator)
@@ -728,18 +726,16 @@ func (s *Scanner) SkipStringLiteralChar() bool {
 func (s *Scanner) SkipTemplateCharacters() Scanner_SkipTemplateCharactersResult {
 	result := Scanner_SkipTemplateCharactersResult{position: s.GetPosition()}
 	for !s.IsAtEnd() {
-		if s.index < s.asciiPrefix {
+		if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
 			raw := s.rawContents
-			limit := s.asciiPrefix
-			i := s.index
-			for i < limit {
-				b := raw[i]
+			for rawIdx < rawLimit {
+				b := raw[rawIdx]
 				if b == '`' || b == '\\' || b == '$' {
 					break
 				}
-				i++
+				rawIdx++
 			}
-			s.index = i
+			s.index = rawIdx - rawDelta
 			if s.IsAtEnd() {
 				break
 			}

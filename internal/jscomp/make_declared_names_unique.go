@@ -39,11 +39,15 @@ type MakeDeclaredNamesUnique struct {
 	//
 	// Go-only: language-adapter — the ArrayDeque used as a stack is a slice
 	// whose top is the last element.
-	renamerStack    []MakeDeclaredNamesUnique_Renamer
-	renamerStackBuf [16]MakeDeclaredNamesUnique_Renamer
-	rootRenamer     MakeDeclaredNamesUnique_Renamer
-	markChanges     bool
-	assertOnChange  bool
+	renamerStack         []MakeDeclaredNamesUnique_Renamer
+	renamerStackBuf      [16]MakeDeclaredNamesUnique_Renamer
+	contextualInline     [8]MakeDeclaredNamesUnique_ContextualRenamer
+	contextualInlineUsed int
+	contextualFree       []*MakeDeclaredNamesUnique_ContextualRenamer
+	contextualFreeBuf    [8]*MakeDeclaredNamesUnique_ContextualRenamer
+	rootRenamer          MakeDeclaredNamesUnique_Renamer
+	markChanges          bool
+	assertOnChange       bool
 }
 
 func (*MakeDeclaredNamesUnique) visitTokens() *ast.TokenSet {
@@ -81,9 +85,49 @@ func (m *MakeDeclaredNamesUnique) reset(
 	} else {
 		m.renamerStack = m.renamerStack[:0]
 	}
+	clear(m.contextualFree)
+	if cap(m.contextualFree) == 0 {
+		m.contextualFree = m.contextualFreeBuf[:0]
+	} else {
+		m.contextualFree = m.contextualFree[:0]
+	}
+	m.contextualInlineUsed = 0
 	m.rootRenamer = renamer
 	m.markChanges = markChanges
 	m.assertOnChange = assertOnChange
+}
+
+func (m *MakeDeclaredNamesUnique) acquireContextualChildFrame(
+	parent *MakeDeclaredNamesUnique_ContextualRenamer,
+	scopeRoot rhino.Node,
+	hoistingTargetScope bool,
+) *MakeDeclaredNamesUnique_ContextualRenamer {
+	var c *MakeDeclaredNamesUnique_ContextualRenamer
+	if n := len(m.contextualFree); n > 0 {
+		c = m.contextualFree[n-1]
+		m.contextualFree[n-1] = nil
+		m.contextualFree = m.contextualFree[:n-1]
+	} else if m.contextualInlineUsed < len(m.contextualInline) {
+		c = &m.contextualInline[m.contextualInlineUsed]
+		m.contextualInlineUsed++
+	} else {
+		c = &MakeDeclaredNamesUnique_ContextualRenamer{}
+	}
+	initContextualRenamerForChildScope(c, scopeRoot, parent.nameUsage, hoistingTargetScope, parent)
+	return c
+}
+
+func (m *MakeDeclaredNamesUnique) releaseContextualChildFrame(c *MakeDeclaredNamesUnique_ContextualRenamer) {
+	c.scopeRoot = rhino.NilNode
+	c.nameUsage = nil
+	c.hoistRenamer = nil
+	c.decls.inlineLen = 0
+	if len(c.decls.overflow) > 64 {
+		c.decls.overflow = nil
+	} else if len(c.decls.overflow) > 0 {
+		clear(c.decls.overflow)
+	}
+	m.contextualFree = append(m.contextualFree, c)
 }
 
 // Java: MakeDeclaredNamesUnique.getContextualRenameInverter(AbstractCompiler)
@@ -108,7 +152,12 @@ func (m *MakeDeclaredNamesUnique) EnterScope(t *NodeTraversal) {
 		renamer = m.rootRenamer
 	} else {
 		hoist := !declarationRoot.IsFunction() && !NodeUtil_CreatesBlockScope(declarationRoot)
-		renamer = m.renamerStack[len(m.renamerStack)-1].CreateForChildScope(declarationRoot, hoist)
+		top := m.renamerStack[len(m.renamerStack)-1]
+		if parent, ok := top.(*MakeDeclaredNamesUnique_ContextualRenamer); ok {
+			renamer = m.acquireContextualChildFrame(parent, declarationRoot, hoist)
+		} else {
+			renamer = top.CreateForChildScope(declarationRoot, hoist)
+		}
 	}
 
 	m.renamerStack = append(m.renamerStack, renamer)
@@ -120,8 +169,12 @@ func (m *MakeDeclaredNamesUnique) EnterScope(t *NodeTraversal) {
 func (m *MakeDeclaredNamesUnique) ExitScope(t *NodeTraversal) {
 	if !t.InGlobalScope() {
 		top := len(m.renamerStack) - 1
+		popped := m.renamerStack[top]
 		m.renamerStack[top] = nil
 		m.renamerStack = m.renamerStack[:top]
+		if cr, ok := popped.(*MakeDeclaredNamesUnique_ContextualRenamer); ok {
+			m.releaseContextualChildFrame(cr)
+		}
 	}
 }
 
@@ -378,11 +431,30 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.process(Node, Node)
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs rhino.Node, js rhino.Node) {
+	if c.shadowByID == nil {
+		c.shadowByID = make(map[strpool.ID]uint32)
+	}
+	defer c.releaseTransientState()
 	sc := NewSyntacticScopeCreator(c.compiler)
 	sc.skipGlobalScan = true
 	t := acquireNodeTraversalDirect(c.compiler, c, sc, false)
 	t.Traverse(js)
 	releaseNodeTraversal(t)
+}
+
+func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) releaseTransientState() {
+	c.vars = nil
+	c.scopes = nil
+	c.declVars = nil
+	c.renamableDecls = nil
+	c.scopeRefNodes = nil
+	c.refLinks = nil
+	c.conflictLinks = nil
+	c.shadowByID = nil
+	c.deepScopeSeen = nil
+	c.disallowedNames = nil
+	c.nextScopeSeq = 0
+	c.skippingModuleBody = false
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.getOriginalName(String)

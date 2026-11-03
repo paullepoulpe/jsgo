@@ -19,8 +19,9 @@
 package jscomp
 
 import (
+	"bytes"
 	"math"
-	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -43,6 +44,7 @@ const initialBufferCap = 512
 type codePrinterInstance struct {
 	cg                  CodeGenerator
 	prettySrc           prettyNumberSource
+	mappingsBuf         []SourceMap_Mapping
 	codeBuf             [initialBufferCap]byte
 	openMappingsBuf     [64]int
 	completeMappingsBuf [16]int
@@ -103,6 +105,11 @@ func (inst *codePrinterInstance) resetAfterPrint() {
 	if cap(inst.cg.scratchUnits) <= 65536 {
 		keepScratch = inst.cg.scratchUnits[:0]
 	}
+	if cap(inst.mappingsBuf) > 16384 {
+		inst.mappingsBuf = nil
+	} else {
+		inst.mappingsBuf = inst.mappingsBuf[:0]
+	}
 	inst.cg = CodeGenerator{
 		cc:           CodeConsumer{code: keepCode},
 		scratchUnits: keepScratch,
@@ -110,11 +117,56 @@ func (inst *codePrinterInstance) resetAfterPrint() {
 	inst.prettySrc = prettyNumberSource{}
 }
 
-func (c *CodeConsumer) adjustSourceMappings(code string) {
-	if !c.createSrcMap || len(c.allMappings) == 0 || code == "" {
+func asciiPrefixLenBytes(b []byte) int {
+	i := 0
+	for ; i+8 <= len(b); i += 8 {
+		if (b[i] | b[i+1] | b[i+2] | b[i+3] | b[i+4] | b[i+5] | b[i+6] | b[i+7]) >= 0x80 {
+			break
+		}
+	}
+	for ; i < len(b); i++ {
+		if b[i] >= 0x80 {
+			return i
+		}
+	}
+	return len(b)
+}
+
+func decodeWTF8Bytes(b []byte) (r rune, size int) {
+	c := b[0]
+	if c < 0x80 {
+		return rune(c), 1
+	}
+	// Generalized UTF-8 surrogate: ED A0..BF xx
+	if c == 0xED && len(b) >= 3 && b[1] >= 0xA0 && b[1] <= 0xBF && b[2]&0xC0 == 0x80 {
+		return rune(c&0x0F)<<12 | rune(b[1]&0x3F)<<6 | rune(b[2]&0x3F), 3
+	}
+	return utf8.DecodeRune(b)
+}
+
+func utf16LenBytes(b []byte) int {
+	prefix := asciiPrefixLenBytes(b)
+	if prefix == len(b) {
+		return len(b)
+	}
+	n := prefix
+	for i := prefix; i < len(b); {
+		r, size := decodeWTF8Bytes(b[i:])
+		i += size
+		if r >= 0x10000 {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
+}
+
+func (c *CodeConsumer) adjustSourceMappingsBytes(code []byte) {
+	if !c.createSrcMap || len(c.allMappings) == 0 || len(code) == 0 {
 		return
 	}
-	lineEndPos := strings.IndexByte(code, '\n')
+	lineEndPos := bytes.IndexByte(code, '\n')
 	if lineEndPos == -1 {
 		return
 	}
@@ -131,10 +183,10 @@ func (c *CodeConsumer) adjustSourceMappings(code string) {
 		if asciiKnown {
 			lineLengths = append(lineLengths, lineEndPos-lineStartPos)
 		} else {
-			lineLengths = append(lineLengths, jutil.StringLength(code[lineStartPos:lineEndPos]))
+			lineLengths = append(lineLengths, utf16LenBytes(code[lineStartPos:lineEndPos]))
 		}
 		lineStartPos = lineEndPos + 1
-		lineEndPos = strings.IndexByte(code[lineStartPos:], '\n')
+		lineEndPos = bytes.IndexByte(code[lineStartPos:], '\n')
 		if lineEndPos > -1 {
 			lineEndPos += lineStartPos
 		}
@@ -406,6 +458,18 @@ func printCodeWithFormatInto(
 
 	cg := &inst.cg
 	cc := &cg.cc
+	useSlotBufs := sm != nil && sm.ownCodeBuf
+	var savedInstCode []byte
+	initCodeBuf := inst.codeBuf[:0:len(inst.codeBuf)]
+	if useSlotBufs {
+		savedInstCode = cc.code
+		cc.code = nil
+		if cap(sm.codeBytes) == 0 {
+			initCodeBuf = make([]byte, 0, initialBufferCap)
+		} else {
+			initCodeBuf = sm.codeBytes[:0]
+		}
+	}
 	cc.initPrinter(
 		mode,
 		lineBreak,
@@ -413,17 +477,19 @@ func printCodeWithFormatInto(
 		gatherSourceMap,
 		options.GetSourceMapDetailLevel(),
 		cfg.LicenseTracker,
-		inst.codeBuf[:0:len(inst.codeBuf)],
+		initCodeBuf,
 		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
 		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
 		prettySrc,
 	)
 
 	if sm != nil && gatherSourceMap {
-		if cap(sm.mappings) == 0 {
-			cc.allMappings = make([]SourceMap_Mapping, 0, 64)
-		} else {
+		if cap(sm.mappings) > 0 {
 			cc.allMappings = sm.mappings[:0]
+		} else if !useSlotBufs && scratch != nil && cap(inst.mappingsBuf) > 0 {
+			cc.allMappings = inst.mappingsBuf[:0]
+		} else {
+			cc.allMappings = make([]SourceMap_Mapping, 0, 64)
 		}
 	}
 
@@ -443,11 +509,20 @@ func printCodeWithFormatInto(
 	cg.AddNode(cfg.Root)
 	cc.EndFile()
 
-	source := cc.GetCode()
+	var source string
+	if sm == nil || !sm.bytesOnly {
+		source = cc.GetCode()
+	}
 	if sm != nil {
-		sm.source = source
+		if sm.bytesOnly {
+			sm.source = ""
+			sm.codeBytes = cc.code
+		} else {
+			sm.source = source
+			sm.codeBytes = nil
+		}
 		if !cc.hasNonASCII {
-			sm.utf16Len = len(source)
+			sm.utf16Len = len(cc.code)
 			sm.lineIndex = cc.lineIndex
 			sm.lineLength = cc.lineLength
 			sm.hasMetrics = true
@@ -455,11 +530,17 @@ func printCodeWithFormatInto(
 			sm.hasMetrics = false
 		}
 		if gatherSourceMap {
-			cc.adjustSourceMappings(source)
+			cc.adjustSourceMappingsBytes(cc.code)
 			sm.mappings = cc.allMappings
+			if !useSlotBufs && scratch != nil {
+				inst.mappingsBuf = cc.allMappings
+			}
 		} else {
 			sm.mappings = sm.mappings[:0]
 		}
+	}
+	if useSlotBufs {
+		cc.code = savedInstCode
 	}
 	if scratch != nil {
 		inst.resetAfterPrint()
@@ -498,11 +579,14 @@ func CodePrinter_Format_FromOptions(options *CompilerOptions, outputTypes bool, 
 // SourceMap Mappings for that source.
 type CodePrinter_SourceAndMappings struct {
 	source     string
+	codeBytes  []byte
 	mappings   []SourceMap_Mapping
 	utf16Len   int
 	lineIndex  int
 	lineLength int
 	hasMetrics bool
+	bytesOnly  bool
+	ownCodeBuf bool
 }
 
 // Java: CodePrinter.SourceAndMappings()

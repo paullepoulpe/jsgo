@@ -73,6 +73,9 @@ type CheckAccessControls struct {
 	lastHoistScopeDeprecated bool
 	lastVarNode              rhino.Node
 	lastVar                  *Var
+
+	isParallelWorker bool
+	parallelConstOps []checkAccessControlsConstPropOp
 }
 
 var checkAccessControlsActiveToken = func() [256]bool {
@@ -269,6 +272,13 @@ func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckArgumentMsg(!collectPass.hasDuplicate, "Multiple entries with same key")
 	c.defaultVisibilityForFiles = collectPass.visibilities
 
+	if c.processParallel(externs, root) {
+		c.lastHoistScopeRoot = rhino.NilNode
+		c.lastVarNode = rhino.NilNode
+		c.lastVar = nil
+		return
+	}
+
 	sc := NewSyntacticScopeCreator(c.compiler)
 	defer func() {
 		c.lastVarNode = rhino.NilNode
@@ -340,13 +350,15 @@ func (c *CheckAccessControls) ExitAccessControlScope(root rhino.Node) {
 //
 // Java: CheckAccessControls.primaryAccessControlScopeRootFor(Node)
 func checkAccessControls_primaryAccessControlScopeRootFor(node rhino.Node) rhino.Node {
-	if checkAccessControls_isExtendsTarget(node) {
-		return node.GetParent()
-	} else if checkAccessControls_isFunctionOrClass(node) {
-		return node
-	} else {
-		return rhino.NilNode
+	if !node.IsNil() {
+		if parent := node.GetParent(); !parent.IsNil() && parent.IsClass() && isClassExtendsClause(node, parent) {
+			return parent
+		}
 	}
+	if checkAccessControls_isFunctionOrClass(node) {
+		return node
+	}
+	return rhino.NilNode
 }
 
 // BestInstanceTypeForMethodOrCtor returns the instance object type that best
@@ -883,7 +895,11 @@ func checkAccessControls_isFunctionOrClass(n rhino.Node) bool {
 
 // Java: CheckAccessControls.isExtendsTarget(Node)
 func checkAccessControls_isExtendsTarget(node rhino.Node) bool {
-	return ast.RoleOf(node) == ast.RoleClassExtends
+	if node.IsNil() {
+		return false
+	}
+	parent := node.GetParent()
+	return !parent.IsNil() && parent.IsClass() && isClassExtendsClause(node, parent)
 }
 
 // Java: CheckAccessControls.getTypeOfThis(Node)

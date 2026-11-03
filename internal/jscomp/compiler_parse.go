@@ -661,8 +661,14 @@ func (c *Compiler) ToSource() string {
 					// are merged in order as they finish. Same output.
 					c.toSourceStreaming(cb, lt, scripts, c.options.isFastMode())
 				} else {
+					scratch, owned := c.acquirePrintScratch()
+					if owned {
+						defer c.sync.printScratchBusy.Store(false)
+					}
+					sm := CodePrinter_SourceAndMappings{bytesOnly: true}
 					for i, scriptNode := range scripts {
-						c.ToSourceOfCodeBuilder(cb, lt, i, scriptNode)
+						c.toSourceAndMappingsIntoWithScratch(scriptNode, i == 0, lt, &sm, scratch)
+						c.appendSourceAndMappingsToCodeBuilder(cb, lt, i, scriptNode, &sm)
 					}
 				}
 			}

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 
@@ -92,6 +93,8 @@ func (p *parallelScriptPrinter) setSlot(slotIdx int, chunkName string, in *Compi
 	s.startLine = 0
 	s.startCol = 0
 	s.emitted = false
+	s.sm.bytesOnly = true
+	s.sm.ownCodeBuf = true
 	return nil
 }
 
@@ -123,8 +126,8 @@ func (c *Compiler) appendPrintedScriptToCodeBuilder(
 ) {
 	s.rec.Replay(replay)
 	s.startLine, s.startCol, s.emitted = c.appendSourceAndMetricsToCodeBuilderForChunk(
-		cb, lt, inputSeqNum, s.root, s.sm.source, &s.sm)
-	s.sm.source = ""
+		cb, lt, inputSeqNum, s.root, &s.sm)
+	resetSourceCodeBytes(&s.sm)
 	s.root = rhino.NilNode
 }
 
@@ -200,12 +203,18 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 					return cb.String()
 				}
 			}
+			scratch, owned := c.acquirePrintScratch()
+			if owned {
+				defer c.sync.printScratchBusy.Store(false)
+			}
+			sm := CodePrinter_SourceAndMappings{bytesOnly: true}
 			for i := 0; i < numInputs; i++ {
 				scriptNode := inputs[i].GetAstRoot(c)
 				if scriptNode.IsNil() {
 					panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunk.GetName()))
 				}
-				c.ToSourceOfCodeBuilder(cb, licenseTracker, i, scriptNode)
+				c.toSourceAndMappingsIntoWithScratch(scriptNode, i == 0, licenseTracker, &sm, scratch)
+				c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, i, scriptNode, &sm)
 			}
 			return cb.String()
 		})
@@ -228,14 +237,28 @@ func (c *Compiler) ToSourceOfCodeBuilder(
 	inputSeqNum int,
 	root rhino.Node) {
 	c.runInCompilerThread(func() {
-		var sourceAndMappings CodePrinter_SourceAndMappings
-		c.toSourceAndMappingsInto(root, inputSeqNum == 0, licenseTracker, &sourceAndMappings)
+		scratch, owned := c.acquirePrintScratch()
+		if owned {
+			defer c.sync.printScratchBusy.Store(false)
+		}
+		sourceAndMappings := CodePrinter_SourceAndMappings{bytesOnly: true}
+		c.toSourceAndMappingsIntoWithScratch(root, inputSeqNum == 0, licenseTracker, &sourceAndMappings, scratch)
 		c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, inputSeqNum, root, &sourceAndMappings)
 	})
 }
 
+func resetSourceCodeBytes(sm *CodePrinter_SourceAndMappings) {
+	sm.source = ""
+	if !sm.ownCodeBuf || cap(sm.codeBytes) > 1<<20 {
+		sm.codeBytes = nil
+	} else {
+		sm.codeBytes = sm.codeBytes[:0]
+	}
+}
+
 func resetSourceAndMappings(sm *CodePrinter_SourceAndMappings) {
-	if cap(sm.mappings) > 16384 {
+	resetSourceCodeBytes(sm)
+	if !sm.ownCodeBuf || cap(sm.mappings) > 16384 {
 		sm.mappings = nil
 	} else {
 		sm.mappings = sm.mappings[:0]
@@ -249,8 +272,9 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	root rhino.Node,
 	sourceAndMappings *CodePrinter_SourceAndMappings) {
 	startLine, startCol, emitted := c.appendSourceAndMetricsToCodeBuilderForChunk(
-		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source, sourceAndMappings)
+		cb, licenseTracker, inputSeqNum, root, sourceAndMappings)
 	if !emitted {
+		resetSourceAndMappings(sourceAndMappings)
 		return
 	}
 
@@ -259,6 +283,8 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	// This offset is a result of licenses being added to the output buffer.
 	if c.options.ShouldGatherSourceMapInfo() {
 		addMappingsToSourceMap(c.sourceMap, startLine, startCol, sourceAndMappings)
+	} else {
+		resetSourceAndMappings(sourceAndMappings)
 	}
 }
 
@@ -273,7 +299,7 @@ func (c *Compiler) appendSourceAndResolvedMappingsToCodeBuilder(
 	sourceAndMappings *CodePrinter_SourceAndMappings,
 	resolved []sourceMap_resolvedMapping) {
 	startLine, startCol, emitted := c.appendSourceAndMetricsToCodeBuilderForChunk(
-		cb, licenseTracker, inputSeqNum, root, sourceAndMappings.source, sourceAndMappings)
+		cb, licenseTracker, inputSeqNum, root, sourceAndMappings)
 	if emitted {
 		c.sourceMap.SetStartingPosition(startLine, startCol)
 		for i := range resolved {
@@ -288,7 +314,6 @@ func (c *Compiler) appendSourceAndMetricsToCodeBuilderForChunk(
 	licenseTracker CodePrinter_LicenseTracker,
 	inputSeqNum int,
 	root rhino.Node,
-	code string,
 	sm *CodePrinter_SourceAndMappings,
 ) (startLine int, startCol int, emitted bool) {
 	if c.options.ShouldPrintInputDelimiter() {
@@ -319,6 +344,27 @@ func (c *Compiler) appendSourceAndMetricsToCodeBuilderForChunk(
 	}
 
 	// Check whether there's any actual code to emit.
+	if sm.bytesOnly {
+		codeBytes := sm.codeBytes
+		if len(codeBytes) == 0 {
+			return 0, 0, false
+		}
+		startLine = cb.GetLineIndex()
+		startCol = cb.GetColumnIndex()
+		if sm.hasMetrics {
+			cb.appendBytesWithMetrics(codeBytes, sm.utf16Len, sm.lineIndex, sm.lineLength)
+		} else {
+			cb.appendBytes(codeBytes)
+		}
+		n := len(codeBytes)
+		hasSemiColon := codeBytes[n-1] == ';' || (n >= 2 && codeBytes[n-2] == ';' && codeBytes[n-1] == '\n')
+		if !hasSemiColon {
+			cb.Append(";")
+		}
+		return startLine, startCol, true
+	}
+
+	code := sm.source
 	if code == "" {
 		// Nothing to do.
 		return 0, 0, false
@@ -327,7 +373,7 @@ func (c *Compiler) appendSourceAndMetricsToCodeBuilderForChunk(
 	startLine = cb.GetLineIndex()
 	startCol = cb.GetColumnIndex()
 
-	if sm != nil && sm.hasMetrics {
+	if sm.hasMetrics {
 		cb.appendWithMetrics(code, sm.utf16Len, sm.lineIndex, sm.lineLength)
 	} else {
 		cb.Append(code)
@@ -837,6 +883,8 @@ func (b *Compiler_CodeBuilder) ResetAll() {
 	b.colCount = 0
 }
 
+var codeBuilderNewlineSep = []byte{'\n'}
+
 func (b *Compiler_CodeBuilder) appendWithMetrics(str string, utf16Len, newlines, colLen int) {
 	if len(str) == 0 {
 		return
@@ -848,6 +896,48 @@ func (b *Compiler_CodeBuilder) appendWithMetrics(str string, utf16Len, newlines,
 	} else {
 		b.lineCount += newlines
 		b.colCount = colLen
+	}
+}
+
+func (b *Compiler_CodeBuilder) appendBytesWithMetrics(code []byte, utf16Len, newlines, colLen int) {
+	if len(code) == 0 {
+		return
+	}
+	b.sb.Write(code)
+	b.utf16Len += utf16Len
+	if newlines == 0 {
+		b.colCount += colLen
+	} else {
+		b.lineCount += newlines
+		b.colCount = colLen
+	}
+}
+
+func (b *Compiler_CodeBuilder) appendBytes(code []byte) {
+	if len(code) == 0 {
+		return
+	}
+	b.sb.Write(code)
+	lastIndex := bytes.LastIndexByte(code, '\n')
+	if asciiPrefixLenBytes(code) == len(code) {
+		b.utf16Len += len(code)
+		if lastIndex == -1 {
+			b.colCount += len(code)
+		} else {
+			b.lineCount += 1 + bytes.Count(code[:lastIndex], codeBuilderNewlineSep)
+			b.colCount = len(code) - (lastIndex + 1)
+		}
+		return
+	}
+	if lastIndex == -1 {
+		n := utf16LenBytes(code)
+		b.utf16Len += n
+		b.colCount += n
+	} else {
+		tailLen := utf16LenBytes(code[lastIndex+1:])
+		b.utf16Len += utf16LenBytes(code[:lastIndex]) + 1 + tailLen
+		b.lineCount += 1 + bytes.Count(code[:lastIndex], codeBuilderNewlineSep)
+		b.colCount = tailLen
 	}
 }
 

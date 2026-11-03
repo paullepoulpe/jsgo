@@ -21,7 +21,6 @@ package bundle
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -128,44 +127,40 @@ func (s *OptionsCompilerSupplier) options() *jscomp.CompilerOptions {
 	return options
 }
 
-// compileMu serializes standalone single-file compilations so concurrent
-// CachedTransformer / CachingTranspiler cache misses never race on the
-// process-wide rhino NodeStore.
-var compileMu sync.Mutex
-
 // Compile compiles a single JS source file with the shared Symbol() externs.
 func (s *OptionsCompilerSupplier) Compile(path string, code string) *CompileResult {
-	compileMu.Lock()
-	defer compileMu.Unlock()
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	if rhino.CurrentNodeStore().IsStatic() {
 		defer rhino.ResetNodeStore()
 	}
 	compiler := jscomp.NewCompiler()
+	options := s.options()
 	result := compiler.CompileOfSourceFiles(
 		compilerSupplierExterns,
 		jscomp.SourceFile_FromCode(path, code),
-		s.options())
+		options)
 	if s.ThrowOnError && len(result.Errors) != 0 {
 		panic(NewTranspilationException(compiler, result.Errors, result.Warnings))
+	}
+	transformed := s.AlwaysTransformed || result.TranspiledFiles
+	if !transformed {
+		options.SetSourceMapOutputPath("")
+		return NewCompileResult(compiler.ToSource(), result.Errors, false, "")
 	}
 	source := compiler.ToSource()
 	var smBuilder strings.Builder
 	if result.SourceMap != nil {
 		result.SourceMap.AppendTo(&smBuilder, path)
 	}
-	transformed := s.AlwaysTransformed || result.TranspiledFiles
-	var sourceMap string
-	if transformed {
-		sourceMap = smBuilder.String()
-	}
-	return NewCompileResult(source, result.Errors, transformed, sourceMap)
+	return NewCompileResult(source, result.Errors, true, smBuilder.String())
 }
 
 // Runtime compiles an empty input with library force-injected and returns the
 // emitted runtime JS code.
 func (s *OptionsCompilerSupplier) Runtime(library string) string {
-	compileMu.Lock()
-	defer compileMu.Unlock()
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 	if rhino.CurrentNodeStore().IsStatic() {
 		defer rhino.ResetNodeStore()
 	}

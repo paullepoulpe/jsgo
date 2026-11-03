@@ -45,8 +45,11 @@ func (p *ProcessDefines) CollectDefines(root rhino.Node) {
 		totalSets := name.GetTotalSets()
 		valueParent := processDefines_getValueParentForDefine(declaration)
 		var value rhino.Node
-		if !valueParent.IsNil() {
-			value = valueParent.GetLastChild()
+		if assign, ok := ast.AsAssign(valueParent); ok {
+			value = assign.Value().Node()
+		} else if nameNode, ok := ast.AsName(valueParent); ok {
+			init, _ := nameNode.Init()
+			value = init.Node()
 		}
 
 		var defineName string
@@ -333,7 +336,8 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root rhino.Node) {
 			return
 		}
 		b := NodeTraversal_Builder{compiler: p.compiler, callback: NodeTraversal_AbstractPostOrderCallbackInterface(cb)}
-		for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+		for item := range ast.MustRoot(root).Items() {
+			s := item.Node()
 			if _, ok := p.namespace.defineCandidateScripts[s]; ok {
 				b.Traverse(s)
 			}
@@ -354,13 +358,15 @@ type ProcessDefines_ClosureDefinesCollector struct {
 
 func (c *ProcessDefines_ClosureDefinesCollector) walk(n rhino.Node) {
 	switch n.GetToken() {
-	case rhino.Token_ROOT, rhino.Token_EXPR_RESULT:
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			c.walk(ch)
+	case rhino.Token_ROOT:
+		for item := range ast.MustRoot(n).Items() {
+			c.walk(item.Node())
 		}
+	case rhino.Token_EXPR_RESULT:
+		c.walk(ast.MustExprStmt(n).Expr().Node())
 	case rhino.Token_SCRIPT:
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			c.walk(ch)
+		for item := range ast.MustScript(n).Items() {
+			c.walk(item.Node())
 		}
 		p := c.outer
 		if p.zoneInputPattern != nil {
@@ -369,15 +375,16 @@ func (c *ProcessDefines_ClosureDefinesCollector) walk(n rhino.Node) {
 			}
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			c.walk(ch)
+		decl := ast.MustNameDeclaration(n)
+		for d := range decl.Declarators() {
+			c.walk(d.Node())
 		}
-		c.outer.handleClosureDefinesDeclaration(ast.MustNameDeclaration(n))
+		c.outer.handleClosureDefinesDeclaration(decl)
 	case rhino.Token_ASSIGN:
-		for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			c.walk(ch)
-		}
-		c.outer.handleClosureDefinesAssign(ast.MustAssign(n))
+		assign := ast.MustAssign(n)
+		c.walk(assign.Target().Node())
+		c.walk(assign.Value().Node())
+		c.outer.handleClosureDefinesAssign(assign)
 	}
 }
 
@@ -400,9 +407,11 @@ func (p *ProcessDefines) handleClosureDefinesDeclaration(decl ast.NameDeclaratio
 		return
 	}
 	for member := range obj.Members() {
-		// The first child is the value of a string key; HandleClosureDefinesValue
-		// reports the other kinds of members.
-		p.HandleClosureDefinesValue(member.Node(), member.Node().GetFirstChild(), decl.Node())
+		var valNode rhino.Node
+		if sk, ok := member.AsStringKey(); ok {
+			valNode = sk.Value().Node()
+		}
+		p.HandleClosureDefinesValue(member.Node(), valNode, decl.Node())
 	}
 }
 
@@ -649,9 +658,11 @@ func (p *ProcessDefines) VerifyGoogDefine(callNode rhino.Node) bool {
 	}
 	p.knownGoogDefineCalls[callNode] = struct{}{}
 
+	call := ast.MustCall(callNode)
 	parent := callNode.GetParent()
-	methodName := callNode.GetFirstChild()
-	args := callNode.GetSecondChild()
+	methodName := call.Callee().Node()
+	firstArg, _ := call.AsCallOrNew().ArgAt(0)
+	args := firstArg.Node()
 
 	// Calls to goog.define must be in the global hoist scope after module
 	// rewriting

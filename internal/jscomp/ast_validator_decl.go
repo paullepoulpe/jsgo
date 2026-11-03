@@ -687,19 +687,24 @@ func (v *AstValidator) validateObjectPatternComputedPropKey(contextType rhino.To
 	n := prop.Node()
 	valid := v.validatePropsAndArity(n)
 	v.validateFeature(parser.FeatureSet_Feature_COMPUTED_PROPERTIES, n)
-	v.ValidateExpression(prop.Key().Node())
+	if key := prop.Key().Node(); !key.IsNil() {
+		v.ValidateExpression(key)
+	}
 
 	var target rhino.Node
 	if valid {
 		val, _ := prop.Value()
 		target = val.Node()
-	} else {
+	} else if n.HasMoreThanOneChild() {
 		target = n.GetLastChild()
+	}
+	if target.IsNil() {
+		return
 	}
 	if dv, ok := ast.AsDefaultValue(target); ok {
 		v.validateDefaultValue(contextType, dv)
 	} else {
-		v.validateLHS(target.GetToken(), target)
+		v.validateLHS(contextType, target)
 	}
 }
 

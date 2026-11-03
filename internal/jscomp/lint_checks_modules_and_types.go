@@ -443,13 +443,33 @@ func NewCheckGoogModuleTypeScriptName(compiler AbstractCompiler) *CheckGoogModul
 	return &CheckGoogModuleTypeScriptName{compiler: compiler}
 }
 
+func (*CheckGoogModuleTypeScriptName) cloneForParallel(rc *Compiler) NodeTraversal_Callback {
+	return NewCheckGoogModuleTypeScriptName(rc)
+}
+
 // Java: CheckGoogModuleTypeScriptName.process(Node, Node)
 func (c *CheckGoogModuleTypeScriptName) Process(externs rhino.Node, root rhino.Node) {
+	c.finished = false
+	if traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckGoogModuleTypeScriptName]{
+		initWorker: func(_ int, rc *Compiler) *CheckGoogModuleTypeScriptName {
+			return NewCheckGoogModuleTypeScriptName(rc)
+		},
+		callback: func(wc *CheckGoogModuleTypeScriptName, _ int, _ rhino.Node, _ rhino.Node, rc *Compiler) NodeTraversal_Callback {
+			wc.compiler = rc
+			wc.finished = false
+			return wc
+		},
+	}) {
+		return
+	}
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
 // Java: CheckGoogModuleTypeScriptName.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckGoogModuleTypeScriptName) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsScript() || n.IsRoot() {
+		c.finished = false
+	}
 	// Traverse top-level statements until a `goog.module` statement is found.
 	return !c.finished &&
 		(parent.IsNil() || parent.IsRoot() || parent.IsScript() || parent.IsModuleBody())

@@ -953,6 +953,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node)
 		(parentVar != nil && parentVar.IsParam()) ||
 		(id == implicitArgumentsID &&
 			(sc.rootNode.IsFunction() || s.isFnBlock)) {
+		if v != nil {
+			v.markMultiplyDeclared()
+		}
 		if s.redeclarationHandler != nil {
 			s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
 		}

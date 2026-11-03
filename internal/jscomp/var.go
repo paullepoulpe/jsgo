@@ -53,6 +53,7 @@ const (
 	varFlagMarkedAssignedOnce uint32 = 1 << 27
 	varFlagTypeInferred       uint32 = 1 << 28
 	varFlagIsImplicit         uint32 = 1 << 29
+	varFlagMultiplyDeclared   uint32 = 1 << 30
 )
 
 // varCommon holds the shared pointer-free fields of Var and TypedVar.
@@ -265,6 +266,14 @@ func failNotImplicitGoogNamespace(nameNode rhino.Node) {
 // implicit goog namespace.
 func (b *varCommon) IsImplicit() bool {
 	return b.indexAndFlags&varFlagIsImplicit != 0
+}
+
+func (b *varCommon) markMultiplyDeclared() {
+	b.indexAndFlags |= varFlagMultiplyDeclared
+}
+
+func (b *varCommon) isMultiplyDeclared() bool {
+	return b.indexAndFlags&varFlagMultiplyDeclared != 0
 }
 
 // DeclarationToken returns the enclosing declaration token of b, or (0, false)

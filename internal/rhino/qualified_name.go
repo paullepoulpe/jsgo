@@ -276,8 +276,11 @@ func (q *QualifiedName_StringListQname) GetComponentCount() int {
 
 // Java: QualifiedName.StringListQname.matches(Node)
 func (q *QualifiedName_StringListQname) Matches(n Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	pos := q.size - 1
-	for pos > 0 && n.rec().token == Token_GETPROP {
+	for pos > 0 && !n.IsNil() && n.rec().token == Token_GETPROP {
 		n.node_castKind(node_kindString)
 		if rhinoStringID(n.rec().payload) != q.termIDs[pos] {
 			return false
@@ -285,7 +288,7 @@ func (q *QualifiedName_StringListQname) Matches(n Node) bool {
 		pos--
 		n = n.firstNode()
 	}
-	if pos > 0 {
+	if pos > 0 || n.IsNil() {
 		return false
 	}
 	termID := q.termIDs[0]
@@ -382,7 +385,7 @@ func (q *QualifiedName_GetpropQname) AppendTo(sb *strings.Builder, separator uin
 
 // Java: QualifiedName.GetpropQname.matches(Node)
 func (q *QualifiedName_GetpropQname) Matches(n Node) bool {
-	if n.rec().token != Token_GETPROP {
+	if n.IsNil() || n.rec().token != Token_GETPROP {
 		return false
 	}
 	n.node_castKind(node_kindString)
@@ -492,6 +495,9 @@ func (q *QualifiedName_NodeQname) Getprop(propertyName string) QualifiedName {
 
 // Java: QualifiedName.NodeQname.matches(Node)
 func (q *QualifiedName_NodeQname) Matches(n Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	return n.MatchesQualifiedNameNode(q.node)
 }
 

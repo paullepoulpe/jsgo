@@ -36,6 +36,7 @@
 package jscomp
 
 import (
+	"iter"
 	"slices"
 	"strings"
 
@@ -98,10 +99,10 @@ type RenameProperties struct {
 	propSlab     jutil.Slab[RenameProperties_Property]
 
 	// Property names that don't get renamed
-	externedNames map[strpool.ID]struct{}
+	externedNames smallBitSet
 
 	// Names to which properties shouldn't be renamed, to avoid name conflicts
-	quotedNames map[strpool.ID]struct{}
+	quotedNames smallBitSet
 
 	// Shared name generator
 	nameGenerator NameGenerator
@@ -209,10 +210,10 @@ func newRenameProperties(
 	if externProperties == nil {
 		panic(jutil.NewNullPointerException()) // externedNames.addAll(null)
 	}
-	externedNames := make(map[strpool.ID]struct{}, externProperties.Len()+1)
-	externedNames[idPrototype] = struct{}{}
+	var externedNames smallBitSet
+	externedNames.Set(int(idPrototype))
 	for _, id := range externProperties.IDs() {
-		externedNames[id] = struct{}{}
+		externedNames.Set(int(id))
 	}
 	return &RenameProperties{
 		compiler:                        compiler,
@@ -222,9 +223,63 @@ func newRenameProperties(
 		reservedNonFirstCharacters:      reservedNonFirstCharacters,
 		propertyByID:                    make(map[strpool.ID]*RenameProperties_Property, 256),
 		externedNames:                   externedNames,
-		quotedNames:                     make(map[strpool.ID]struct{}, 64),
 		nameGenerator:                   nameGenerator,
 		propertyRenameEligibilityFilter: propertyRenameEligibilityFilter,
+	}
+}
+
+type propReservedSet struct {
+	ids   smallBitSet
+	extra map[string]struct{}
+}
+
+func (s *propReservedSet) addInterned(id strpool.ID, name string) {
+	if len(s.extra) > 0 {
+		delete(s.extra, name)
+	}
+	s.ids.Set(int(id))
+}
+
+func (s *propReservedSet) add(name string) {
+	if id := strpool.Lookup(name); id != 0 {
+		s.ids.Set(int(id))
+		return
+	}
+	if s.extra == nil {
+		s.extra = make(map[string]struct{}, 16)
+	}
+	s.extra[name] = struct{}{}
+}
+
+func (s *propReservedSet) Contains(name string) bool {
+	if id := strpool.Lookup(name); id != 0 && s.ids.Get(int(id)) {
+		return true
+	}
+	_, ok := s.extra[name]
+	return ok
+}
+
+func (s *propReservedSet) Size() int {
+	return s.ids.Cardinality() + len(s.extra)
+}
+
+func (s *propReservedSet) IsEmpty() bool {
+	return s.ids.IsEmpty() && len(s.extra) == 0
+}
+
+func (s *propReservedSet) All() iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for idx := s.ids.NextSetBit(1); idx >= 0; idx = s.ids.NextSetBit(idx + 1) {
+			if !yield(strpool.String(strpool.ID(idx))) {
+				return
+			}
+		}
+		// order-independent: unordered set view used only for membership snapshots
+		for k := range s.extra {
+			if !yield(k) {
+				return
+			}
+		}
 	}
 }
 
@@ -235,15 +290,9 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_TraverseVisitor(r.compiler, root, r.visitor())
 
 	numProperties := len(r.propertyList)
-	reservedNames := make(stringMapSet, len(r.externedNames)+len(r.quotedNames)+numProperties+64)
-	// order-independent: populates unordered reservedNames membership set
-	for id := range r.externedNames {
-		reservedNames[strpool.String(id)] = struct{}{}
-	}
-	// order-independent: populates unordered reservedNames membership set
-	for id := range r.quotedNames {
-		reservedNames[strpool.String(id)] = struct{}{}
-	}
+	var reservedNames propReservedSet
+	reservedNames.ids.Or(&r.externedNames)
+	reservedNames.ids.Or(&r.quotedNames)
 
 	// Assign names, sorted by descending frequency to minimize code size.
 	propsByFreq := make([]*RenameProperties_Property, numProperties)
@@ -253,10 +302,10 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	// First, try and reuse as many property names from the previous compilation
 	// as possible.
 	if r.prevUsedPropertyMap != nil {
-		r.reusePropertyNamesSlice(reservedNames, propsByFreq)
+		r.reusePropertyNamesSlice(&reservedNames, propsByFreq)
 	}
 
-	r.generateNamesSlice(propsByFreq, reservedNames)
+	r.generateNamesSlice(propsByFreq, &reservedNames)
 
 	// Update the string nodes.
 	for _, cand := range r.candidates {
@@ -308,28 +357,28 @@ func (r *RenameProperties) Process(externs rhino.Node, root rhino.Node) {
 	GatherGetterAndSetterProperties_Update(r.compiler, externs, root)
 }
 
-func (r *RenameProperties) reusePropertyNamesSlice(reservedNames stringMapSet, allProps []*RenameProperties_Property) {
+func (r *RenameProperties) reusePropertyNamesSlice(reservedNames *propReservedSet, allProps []*RenameProperties_Property) {
 	if r.generatePseudoNames {
 		return
 	}
 	for _, prop := range allProps {
 		prevName, ok := r.prevUsedPropertyMap.origToNew[prop.oldName]
 		if ok {
-			if _, reserved := reservedNames[prevName]; reserved {
+			if reservedNames.Contains(prevName) {
 				continue
 			}
 
 			prop.newName = prevName
-			reservedNames[prevName] = struct{}{}
+			reservedNames.add(prevName)
 		}
 	}
 }
 
-func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property, reservedNames stringMapSet) {
+func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property, reservedNames *propReservedSet) {
 	r.nameGenerator.ResetWithFirstAndNonFirstChars(
 		reservedNames, "", r.reservedFirstCharacters, r.reservedNonFirstCharacters)
 	if fastFault(r.compiler.GetOptions(), faultBenignRename) {
-		reservedNames[r.nameGenerator.GenerateNextName()] = struct{}{}
+		reservedNames.add(r.nameGenerator.GenerateNextName())
 	}
 	for _, p := range props {
 		if r.generatePseudoNames {
@@ -337,9 +386,11 @@ func (r *RenameProperties) generateNamesSlice(props []*RenameProperties_Property
 		} else if p.newName == "" {
 			p.newName = r.nameGenerator.GenerateNextName()
 		}
-		reservedNames[p.newName] = struct{}{}
 		if _, filtered := r.filteredOutNames[p.oldNameID]; !filtered {
 			p.newNameID = strpool.Intern(p.newName)
+			reservedNames.addInterned(p.newNameID, p.newName)
+		} else {
+			reservedNames.add(p.newName)
 		}
 	}
 }
@@ -371,7 +422,7 @@ func (r *RenameProperties) visitor() *ast.Visitor[*NodeTraversal] {
 		MemberFunctionDef: func(_ *NodeTraversal, mf ast.MemberFunctionDef) {
 			jutil.CheckState(!mf.Node().IsQuotedStringKey())
 			if mf.IsEs6Constructor() {
-				r.externedNames[nodeStringID(mf.Node())] = struct{}{}
+				r.externedNames.Set(int(nodeStringID(mf.Node())))
 			} else {
 				r.maybeMarkCandidate(mf.Node())
 			}
@@ -388,7 +439,7 @@ func (r *RenameProperties) recordQuotedIndex(index ast.Expr) {
 	// ensure that we never rename some other property in a way that
 	// could conflict with this quoted name.
 	if lit, ok := index.AsStringLit(); ok {
-		r.quotedNames[nodeStringID(lit.Node())] = struct{}{}
+		r.quotedNames.Set(int(nodeStringID(lit.Node())))
 	}
 }
 
@@ -396,7 +447,7 @@ func (r *RenameProperties) visitKeyOrAccessor(n rhino.Node) {
 	if n.IsQuotedStringKey() {
 		// Ensure that we never rename some other property in a way
 		// that could conflict with this quoted key.
-		r.quotedNames[nodeStringID(n)] = struct{}{}
+		r.quotedNames.Set(int(nodeStringID(n)))
 	} else {
 		r.maybeMarkCandidate(n)
 	}
@@ -457,7 +508,7 @@ func (r *RenameProperties) visitFunction(fn ast.Function) {
 // Java: RenameProperties.ProcessProperties.maybeMarkCandidate(Node)
 func (r *RenameProperties) maybeMarkCandidate(n rhino.Node) {
 	id := nodeStringID(n)
-	if _, externed := r.externedNames[id]; !externed {
+	if !r.externedNames.Get(int(id)) {
 		if !r.allPropertiesEligible && !r.propertyRenameEligibilityFilter(n) {
 			if r.filteredOutNames == nil {
 				r.filteredOutNames = make(map[strpool.ID]struct{})
@@ -487,7 +538,7 @@ func (r *RenameProperties) countCallCandidates(t *NodeTraversal, call ast.Call) 
 			t.Report(call.Node(), RenameProperties_BAD_ARG, fnName)
 		} else {
 			id := strpool.Intern(name)
-			if _, externed := r.externedNames[id]; !externed {
+			if !r.externedNames.Get(int(id)) {
 				r.countPropertyOccurrenceID(id)
 			}
 		}

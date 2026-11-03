@@ -116,6 +116,10 @@ func (c *CheckAccessControls) CheckConstantProperty(
 
 	if sourceNode.IsFromExterns() && propRef.declaration {
 		// Treat stub declarations in externs as inits, but never warn on them.
+		if c.isParallelWorker {
+			c.recordParallelConstPropOp(sourceNode, propertyName, objectType, constness, true)
+			return
+		}
 		c.RecordConstPropertyInit(propRef, objectType, constness)
 		return
 	}
@@ -144,6 +148,11 @@ func (c *CheckAccessControls) CheckConstantProperty(
 				CheckAccessControls_CONST_PROPERTY_REASSIGNED_VALUE,
 				propertyName,
 				"unknown location due to structural typing"))
+		return
+	}
+
+	if c.isParallelWorker {
+		c.recordParallelConstPropOp(sourceNode, propertyName, objectType, constness, false)
 		return
 	}
 
@@ -867,4 +876,172 @@ func CheckAccessControls_GetEffectiveVisibilityForNonOverriddenProperty(
 		return raw
 	}
 	return *fileOverviewVisibility
+}
+
+type checkAccessControlsConstPropOp struct {
+	eventIdx       int
+	sourceNode     rhino.Node
+	propertyName   string
+	objectType     rhino.ObjectType
+	constness      CheckAccessControls_Constancy
+	externInitOnly bool
+}
+
+func (c *CheckAccessControls) recordParallelConstPropOp(
+	sourceNode rhino.Node,
+	propertyName string,
+	objectType rhino.ObjectType,
+	constness CheckAccessControls_Constancy,
+	externInitOnly bool,
+) {
+	c.parallelConstOps = append(c.parallelConstOps, checkAccessControlsConstPropOp{
+		eventIdx:       len(c.compiler.parallelRecorder.events),
+		sourceNode:     sourceNode,
+		propertyName:   propertyName,
+		objectType:     objectType,
+		constness:      constness,
+		externInitOnly: externInitOnly,
+	})
+}
+
+func (c *CheckAccessControls) takeConstOps() []checkAccessControlsConstPropOp {
+	if len(c.parallelConstOps) == 0 {
+		return nil
+	}
+	out := make([]checkAccessControlsConstPropOp, len(c.parallelConstOps))
+	copy(out, c.parallelConstOps)
+	c.parallelConstOps = c.parallelConstOps[:0]
+	return out
+}
+
+func (c *CheckAccessControls) applyConstPropOp(op *checkAccessControlsConstPropOp) {
+	c.scratchPropRef = CheckAccessControls_PropertyReference{
+		sourceNode: op.sourceNode,
+		name:       op.propertyName,
+	}
+	ref := &c.scratchPropRef
+	if op.externInitOnly {
+		c.RecordConstPropertyInit(ref, op.objectType, op.constness)
+		return
+	}
+	if init, ok := c.GetConstPropertyInit(ref, op.objectType); ok {
+		diagnostic := CheckAccessControls_CONST_PROPERTY_REASSIGNED_VALUE
+		if init.annotation == CheckAccessControls_Constancy_FINAL {
+			diagnostic = CheckAccessControls_FINAL_PROPERTY_OVERRIDDEN
+		}
+		c.compiler.Report(JSError_MakeWithNode(op.sourceNode, diagnostic, op.propertyName, init.node.GetLocation()))
+	}
+	c.RecordConstPropertyInit(ref, op.objectType, op.constness)
+}
+
+type checkAccessControlsWorkerState struct {
+	rc recordingCompiler
+	ac CheckAccessControls
+	sc *SyntacticScopeCreator
+}
+
+func (c *CheckAccessControls) processParallel(externs rhino.Node, root rhino.Node) bool {
+	extCount, ok1 := countRootScripts(externs)
+	rootCount, ok2 := countRootScripts(root)
+	if !ok1 || !ok2 {
+		return false
+	}
+	totalCount := extCount + rootCount
+	numWorkers := parallelThreadCount(c.compiler, totalCount)
+	if numWorkers <= 1 {
+		return false
+	}
+
+	items := make([]scriptWithParent, 0, totalCount)
+	for _, parent := range [2]rhino.Node{externs, root} {
+		for s := parent.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+			items = append(items, scriptWithParent{parent: parent, script: s})
+		}
+	}
+
+	prewarmCompilerForParallelReads(c.compiler)
+	restoreReg := enableParallelTypeRegistryReads(c.compiler)
+	defer restoreReg()
+
+	var lazyExternsGlobal *lazyGlobalScope
+	if extCount > 0 {
+		lazyExternsGlobal = newLazyGlobalScope(c.compiler, externs)
+	}
+	var lazyRootGlobal *lazyGlobalScope
+	if rootCount > 0 {
+		lazyRootGlobal = newLazyGlobalScope(c.compiler, root)
+	}
+
+	eventsByItem := make([][]recordedCompilerEvent, totalCount)
+	opsByItem := make([][]checkAccessControlsConstPropOp, totalCount)
+
+	panicsByItem, workerPanic := collectParallelWorkersDeferredPins(
+		totalCount,
+		numWorkers,
+		func(_ int, w *checkAccessControlsWorkerState) {
+			initRecordingCompiler(&w.rc, c.compiler)
+			w.ac = CheckAccessControls{
+				compiler:                  &w.rc,
+				typeRegistry:              c.typeRegistry,
+				defaultVisibilityForFiles: c.defaultVisibilityForFiles,
+				isParallelWorker:          true,
+			}
+			w.sc = NewSyntacticScopeCreator(&w.rc)
+		},
+		func(w *checkAccessControlsWorkerState, idx int) {
+			resetRecordingCompiler(&w.rc, c.compiler)
+			w.ac.compiler = &w.rc
+			w.ac.deprecationDepth = 0
+			clear(w.ac.currentClassStack)
+			w.ac.currentClassStack = w.ac.currentClassStack[:0]
+			w.ac.lastHoistScopeRoot = rhino.NilNode
+			w.ac.lastHoistScopeDeprecated = false
+			w.ac.lastVarNode = rhino.NilNode
+			w.ac.lastVar = nil
+			w.ac.parallelConstOps = w.ac.parallelConstOps[:0]
+
+			item := items[idx]
+			lazyGlobal := lazyRootGlobal
+			if item.parent == externs {
+				lazyGlobal = lazyExternsGlobal
+			}
+			t := acquireNodeTraversalDirect(&w.rc, &w.ac, w.sc, false)
+			traverseScriptUnderRoot(t, item.parent, item.parent, item.script, lazyGlobal)
+			releaseNodeTraversal(t)
+		},
+		func(w *checkAccessControlsWorkerState, idx int) {
+			eventsByItem[idx] = w.rc.takeEvents()
+			opsByItem[idx] = w.ac.takeConstOps()
+		},
+		func(_ int, w *checkAccessControlsWorkerState) {
+			w.ac.lastVarNode = rhino.NilNode
+			w.ac.lastVar = nil
+		},
+		false,
+	)
+
+	for i := 0; i < totalCount; i++ {
+		events := eventsByItem[i]
+		ops := opsByItem[i]
+		prevIdx := 0
+		for j := range ops {
+			op := &ops[j]
+			if op.eventIdx > prevIdx {
+				end := min(op.eventIdx, len(events))
+				replayCompilerEvents(c.compiler, events[prevIdx:end])
+				prevIdx = end
+			}
+			c.applyConstPropOp(op)
+		}
+		if prevIdx < len(events) {
+			replayCompilerEvents(c.compiler, events[prevIdx:])
+		}
+		if p := panicsByItem[i]; p != nil {
+			rethrowParallelPanic(c.compiler, p)
+		}
+	}
+	if workerPanic != nil {
+		rethrowParallelPanic(c.compiler, workerPanic)
+	}
+	return true
 }

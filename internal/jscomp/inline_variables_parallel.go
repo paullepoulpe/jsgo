@@ -31,17 +31,17 @@ const (
 )
 
 type rcStreamOp struct {
-	kind    rcStreamOpKind
-	events  []recordedCompilerEvent
 	v       *Var
-	node    rhino.Node
 	block   *BasicBlock
 	scope   *Scope
 	inputId *rhino.InputId
-	retry   *InlineVariables_InliningBehavior_AliasInlineRetryHandler
+	node    rhino.Node
+	auxIdx  uint32
+	kind    rcStreamOpKind
 }
 
 type rcStreamSegment struct {
+	owner  *rcParallelScriptState
 	fnNode rhino.Node
 	ops    []rcStreamOp
 }
@@ -53,14 +53,18 @@ type rcParallelScriptState struct {
 	curSeg        *rcStreamSegment
 	rootSeg       rcStreamSegment
 	hoistedSegs   []*rcStreamSegment
+	eventBatches  [][]recordedCompilerEvent
+	retries       []*InlineVariables_InliningBehavior_AliasInlineRetryHandler
 	inHoistedRoot rhino.Node
 }
 
 func (ps *rcParallelScriptState) flushCompilerEvents() {
 	if ps.rc != nil && len(ps.rc.events) > 0 {
+		idx := uint32(len(ps.eventBatches))
+		ps.eventBatches = append(ps.eventBatches, ps.rc.takeEvents())
 		ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
 			kind:   rcOpCompilerEvents,
-			events: ps.rc.takeEvents(),
+			auxIdx: idx,
 		})
 	}
 }
@@ -90,7 +94,7 @@ func (ps *rcParallelScriptState) recordHoistedFunctionDecl(
 		scope:   ps.globalScope,
 		inputId: declInputId,
 	})
-	hSeg := &rcStreamSegment{fnNode: n}
+	hSeg := &rcStreamSegment{owner: ps, fnNode: n}
 	ps.hoistedSegs = append(ps.hoistedSegs, hSeg)
 
 	prevSeg := ps.curSeg
@@ -254,14 +258,17 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 				globalBlock: globalBlock,
 				rc:          rc,
 			}
+			ps.rootSeg.owner = ps
 			ps.curSeg = &ps.rootSeg
 			col.parallelState = ps
 			beh.onGlobalAliasRetry = func(aliasedVar *Var, retryHandler *InlineVariables_InliningBehavior_AliasInlineRetryHandler) {
 				ps.flushCompilerEvents()
+				idx := uint32(len(ps.retries))
+				ps.retries = append(ps.retries, retryHandler)
 				ps.curSeg.ops = append(ps.curSeg.ops, rcStreamOp{
-					kind:  rcOpGlobalAliasRetry,
-					v:     aliasedVar,
-					retry: retryHandler,
+					kind:   rcOpGlobalAliasRetry,
+					v:      aliasedVar,
+					auxIdx: idx,
 				})
 			}
 
@@ -282,6 +289,33 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 		return runItem, nil
 	}, false)
 
+	iv.resetBehavior()
+	replayParallelReferenceCollection(
+		iv.compiler,
+		mainSC,
+		globalScope,
+		globalBlock,
+		iv,
+		varFilter,
+		statesByItem,
+		func(aliasedVar *Var, retry *InlineVariables_InliningBehavior_AliasInlineRetryHandler) {
+			retry.outer.compiler = iv.compiler
+			iv.putAliasRetryHandler(aliasedVar, retry)
+		},
+	)
+	return true
+}
+
+func replayParallelReferenceCollection(
+	compiler *Compiler,
+	mainSC *SyntacticScopeCreator,
+	globalScope *Scope,
+	globalBlock *BasicBlock,
+	behavior ReferenceCollector_Behavior,
+	varFilter func(*Var) bool,
+	statesByItem []*rcParallelScriptState,
+	onAliasRetry func(*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler),
+) {
 	var hoistedByFn map[rhino.Node]*rcStreamSegment
 	for _, ps := range statesByItem {
 		if len(ps.hoistedSegs) > 0 {
@@ -294,8 +328,7 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 		}
 	}
 
-	iv.resetBehavior()
-	globalCollector := NewReferenceCollectorWithVarFilter(iv.compiler, iv, mainSC, varFilter)
+	globalCollector := NewReferenceCollectorWithVarFilter(compiler, behavior, mainSC, varFilter)
 	var collectedHoisted map[rhino.Node]struct{}
 	if len(hoistedByFn) > 0 {
 		collectedHoisted = make(map[rhino.Node]struct{}, len(hoistedByFn))
@@ -306,16 +339,18 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 		if seg == nil {
 			return
 		}
+		owner := seg.owner
 		for i := range seg.ops {
 			op := &seg.ops[i]
 			switch op.kind {
 			case rcOpCompilerEvents:
-				replayCompilerEvents(iv.compiler, op.events)
+				replayCompilerEvents(compiler, owner.eventBatches[op.auxIdx])
 			case rcOpGlobalRef:
 				globalCollector.addGlobalReferenceDirect(op.v, op.node, op.block, op.scope, op.inputId)
 			case rcOpGlobalAliasRetry:
-				op.retry.outer.compiler = iv.compiler
-				iv.putAliasRetryHandler(op.v, op.retry)
+				if onAliasRetry != nil {
+					onAliasRetry(op.v, owner.retries[op.auxIdx])
+				}
 			case rcOpJumpHoisted, rcOpDeclHoisted:
 				if _, done := collectedHoisted[op.node]; done {
 					continue
@@ -330,10 +365,14 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 				}
 			}
 		}
+		seg.ops = nil
 	}
 
-	for _, ps := range statesByItem {
+	for i, ps := range statesByItem {
 		replaySeg(&ps.rootSeg)
+		if len(hoistedByFn) == 0 {
+			statesByItem[i] = nil
+		}
 	}
 
 	gb := globalCollector.builderVal()
@@ -342,6 +381,5 @@ func (iv *InlineVariables) processParallel(externs rhino.Node, root rhino.Node) 
 	globalTraversal.InitTraversal(globalScope.GetRootNode())
 	globalTraversal.currentNode = globalScope.GetRootNode()
 	globalTraversal.PushScopeOfScopeWithQuietly(globalScope, true)
-	iv.AfterExitScope(globalTraversal, globalCollector)
-	return true
+	behavior.AfterExitScope(globalTraversal, globalCollector)
 }

@@ -592,12 +592,16 @@ func (c *Compiler) GetLifeCycleStage() AbstractCompiler_LifeCycleStage {
 // Java: Compiler.setLifeCycleStage(LifeCycleStage)
 func (c *Compiler) SetLifeCycleStage(stage AbstractCompiler_LifeCycleStage) {
 	c.stage = stage
+	if !stage.IsNormalizedUnobfuscated() {
+		c.rucGuarded = nil
+	}
 }
 
 // Java: Compiler.performFinalizations()
 func (c *Compiler) PerformFinalizations() {
 	finalizations := c.GetPassConfig().GetFinalizations().Build()
 	if len(finalizations) == 0 {
+		c.rucGuarded = nil
 		return
 	}
 
@@ -605,6 +609,7 @@ func (c *Compiler) PerformFinalizations() {
 	c.phaseOptimizer.Consume(finalizations)
 	c.phaseOptimizer.Process(c.externsRoot, c.jsRoot)
 	c.phaseOptimizer = nil
+	c.rucGuarded = nil
 }
 
 // getOptimizationPassesToRunInCurrentSegment takes the entire list of

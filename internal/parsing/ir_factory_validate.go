@@ -460,15 +460,16 @@ func (f *IRFactory) ReportErrorIfYieldOrAwaitInDefaultValue(defaultValueNode rhi
 func IRFactory_FindNodeTypeInExpression(expressionNode rhino.Node, token rhino.Token) rhino.Node {
 	// Go-only: language-adapter — the ArrayDeque used as a FIFO queue
 	// (add at the tail, remove at the head) is a slice with a head index.
-	worklist := []rhino.Node{expressionNode}
-	for head := 0; head < len(worklist); {
-		node := worklist[head]
+	var stackBuf [32]rhino.Node
+	stack := append(stackBuf[:0], expressionNode)
+	for head := 0; head < len(stack); {
+		node := stack[head]
 		head++
 		if node.GetToken() == token {
 			return node
 		} else if !node.IsFunction() && !node.IsClass() {
 			for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-				worklist = append(worklist, child)
+				stack = append(stack, child)
 			}
 		}
 	}

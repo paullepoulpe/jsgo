@@ -345,13 +345,13 @@ func (d *DeadAssignmentsElimination) tryRemoveAssignment(
 
 		d.reportChange(parent)
 		return
-	} else if n.IsComputedFieldDef() {
-		if key := n.GetFirstChild(); !key.IsNil() && !isCfgSubtreeBoundary(key, false, false) {
+	} else if cfd, isField := ast.AsComputedFieldDef(n); isField {
+		if key := cfd.Key().Node(); !key.IsNil() && !isCfgSubtreeBoundary(key, false, false) {
 			d.tryRemoveAssignment(key, exprRoot, state)
 		}
-		if n.IsStaticMember() {
-			if val := n.GetSecondChild(); !val.IsNil() && !isCfgSubtreeBoundary(val, false, false) {
-				d.tryRemoveAssignment(val, exprRoot, state)
+		if cfd.IsStatic() {
+			if val, hasVal := cfd.Value(); hasVal && !isCfgSubtreeBoundary(val.Node(), false, false) {
+				d.tryRemoveAssignment(val.Node(), exprRoot, state)
 			}
 		}
 		return
@@ -383,18 +383,18 @@ func (d *DeadAssignmentsElimination) isVariableStillLiveWithinExpressionByID(
 	peerCtx := daePeerEvalCtx{d: d, varID: varID}
 	for n != exprRoot {
 		parent := n.GetParent()
-		if (parent.IsComputedProp() || parent.IsComputedFieldDef()) && parent.GetParent().IsClassMembers() {
+		if cm, ok := ast.AsComputedMember(parent); ok && parent.GetParent().IsClassMembers() {
 			if parent == exprRoot {
-				if parent.IsComputedFieldDef() && parent.IsStaticMember() && n == parent.GetFirstChild() {
-					if val := parent.GetSecondChild(); !val.IsNil() {
-						return d.isVariableReadBeforeKillByID(val, varID) == DeadAssignmentsElimination_VariableLiveness_READ
+				if cfd, isField := cm.AsComputedFieldDef(); isField && cfd.IsStatic() && cfd.Key().Is(n) {
+					if val, hasVal := cfd.Value(); hasVal {
+						return d.isVariableReadBeforeKillByID(val.Node(), varID) == DeadAssignmentsElimination_VariableLiveness_READ
 					}
 				}
 				return false
 			}
 			classMembers := parent.GetParent()
-			inPass2 := n != parent.GetFirstChild()
-			if !inPass2 || parent.IsStaticMember() {
+			inPass2 := !cm.Key().Is(n)
+			if !inPass2 || cm.IsStatic() {
 				switch DeadAssignmentsElimination_VariableLiveness(
 					walkClassMembersAfterState(classMembers, parent, inPass2, peerCtx, daeEvalPeerReadBeforeKill),
 				) {

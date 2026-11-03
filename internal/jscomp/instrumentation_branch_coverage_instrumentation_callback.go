@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -88,11 +89,13 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 		return
 	}
 
-	if node.IsScript() {
+	if script, ok := ast.AsScript(node); ok {
 		if hasFileName && c.instrumentationData[fileName] != nil {
 			toAddTo := node
-			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
-				toAddTo = node.GetFirstChild()
+			if first, hasFirst := script.FirstItem(); hasFirst {
+				if mod, isMod := first.AsModuleBody(); isMod {
+					toAddTo = mod.Node()
+				}
 			}
 			// Add instrumentation code
 			toAddTo.AddChildrenToFront(c.NewHeaderNode(traversal, toAddTo).RemoveChildren())
@@ -138,7 +141,11 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 					} else {
 						// When the destination of an outEdge of the CFG is null then we need to add an empty
 						// block directly after the loop structure that we can later instrument
-						exitBlock.InsertAfter(outEdge.GetSource().GetValue())
+						insertAfterTarget := outEdge.GetSource().GetValue()
+						for insertAfterTarget.GetParent().IsLabel() {
+							insertAfterTarget = insertAfterTarget.GetParent()
+						}
+						exitBlock.InsertAfter(insertAfterTarget)
 					}
 					blocks = append(blocks, exitBlock)
 				}
@@ -208,9 +215,10 @@ func (c *BranchCoverageInstrumentationCallback) ProcessBranchInfo(branchNode rhi
 	lineNumber := branchNode.GetLineno()
 	data.SetBranchPresent(lineNumber)
 
-	// Instrument for each block
+	// Instrument for each block (offset by any branches already recorded on this line)
+	existingBranches := data.GetNumBranches(lineNumber)
 	for i, child := range blocks {
-		data.PutBranchNode(lineNumber, i+1, child)
+		data.PutBranchNode(lineNumber, existingBranches+i+1, child)
 	}
 	data.AddBranches(lineNumber, len(blocks))
 }

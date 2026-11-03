@@ -320,7 +320,7 @@ func runParallelWork(
 		return
 	}
 	eventsByItem := make([][]recordedCompilerEvent, workCount)
-	panicsByItem, workerPanic := collectParallelWorkers(
+	panicsByItem, workerPanic := collectParallelWorkersDeferredPins(
 		workCount,
 		max(min(numWorkers, workCount), 1),
 		func(workerID int, w *parallelWorkState) {
@@ -514,6 +514,27 @@ func spawnIndexedWorkers(
 	}
 	wg.Wait()
 	return workerPanic
+}
+
+func collectParallelWorkersDeferredPins[W any](
+	itemCount, numWorkers int,
+	initWorker func(workerIdx int, w *W),
+	runItem func(w *W, itemIdx int),
+	afterItem func(w *W, itemIdx int),
+	finishWorker func(workerIdx int, w *W),
+	stopWorkerOnPanic bool,
+) ([]any, any) {
+	jsErrorPinsDeferred.Add(1)
+	defer jsErrorPinsDeferred.Add(-1)
+	return collectParallelWorkers(
+		itemCount,
+		numWorkers,
+		initWorker,
+		runItem,
+		afterItem,
+		finishWorker,
+		stopWorkerOnPanic,
+	)
 }
 
 func collectParallelWorkers[W any](

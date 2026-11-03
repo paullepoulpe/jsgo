@@ -132,7 +132,7 @@ func (c *ConcretizeStaticInheritanceForInlining_JavascriptClass) AddStaticMember
 		c.staticMemberSet[node] = true
 		c.staticMembers = append(c.staticMembers, node)
 	}
-	c.staticMemberNames[node.GetFirstChild().GetString()] = true
+	c.staticMemberNames[ast.MustAssign(node).Target().Node().GetString()] = true
 }
 
 func (c *ConcretizeStaticInheritanceForInlining_JavascriptClass) addDefinedProperty(name string) {
@@ -225,9 +225,15 @@ func (c *ConcretizeStaticInheritanceForInlining) Process(externs rhino.Node, roo
 // Java: ConcretizeStaticInheritanceForInlining.processInherits(FindStaticMembers)
 func (c *ConcretizeStaticInheritanceForInlining) ProcessInherits(findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
 	for _, inheritsCall := range findStaticMembers.inheritsCalls {
-		superclassNameNode := inheritsCall.GetLastChild()
+		call := ast.MustCall(inheritsCall).AsCallOrNew()
+		subArg, ok1 := call.ArgAt(0)
+		superArg, ok2 := call.ArgAt(1)
+		if !ok1 || !ok2 {
+			continue
+		}
+		subclassNameNode := subArg.Node()
+		superclassNameNode := superArg.Node()
 		superclassQname, superOk := superclassNameNode.GetQualifiedNameString()
-		subclassNameNode := superclassNameNode.GetPrevious()
 		subclassQname, subOk := subclassNameNode.GetQualifiedNameString()
 		var superClass, subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass
 		if superOk {
@@ -253,6 +259,14 @@ func (c *ConcretizeStaticInheritanceForInlining) CopyStaticMembers(
 	subClass *ConcretizeStaticInheritanceForInlining_JavascriptClass,
 	inheritsCall rhino.Node,
 	findStaticMembers *ConcretizeStaticInheritanceForInlining_FindStaticMembers) {
+	call := ast.MustCall(inheritsCall).AsCallOrNew()
+	subArg, ok1 := call.ArgAt(0)
+	superArg, ok2 := call.ArgAt(1)
+	if !ok1 || !ok2 {
+		return
+	}
+	subclassNameNode := subArg.Node()
+	superclassNameNode := superArg.Node()
 	for _, staticMember := range superClass.staticMembers {
 		assignMember := ast.MustAssign(staticMember)
 		memberName := assignMember.Target().Node().GetString()
@@ -272,12 +286,10 @@ func (c *ConcretizeStaticInheritanceForInlining) CopyStaticMembers(
 		info := rhino.JSDocInfo_Builder_MaybeCopyFrom(staticMember.GetJSDocInfo())
 		function := assignMember.Value().Node()
 		sourceInfoNode := function
-		if function.IsFunction() {
-			sourceInfoNode = function.GetFirstChild()
+		if fn, ok := ast.AsFunction(function); ok {
+			sourceInfoNode = fn.NameNode().Node()
 		}
 
-		subclassNameNode := inheritsCall.GetSecondChild()
-		superclassNameNode := subclassNameNode.GetNext()
 		assign := rhino.IR_Assign(
 			rhino.IR_Getprop(subclassNameNode.CloneTree(), memberName),
 			rhino.IR_Getprop(superclassNameNode.CloneTree(), memberName))
@@ -363,7 +375,7 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) Visit(t *Node
 	switch n.GetToken() {
 	case rhino.Token_CALL:
 		call := ast.MustCall(n)
-		if f.outer.inherits.Matches(call.Callee().Node()) {
+		if f.outer.inherits.Matches(call.Callee().Node()) && call.NumArgs() == 2 {
 			f.inheritsCalls = append(f.inheritsCalls, n)
 			f.nodeOrder[n] = len(f.nodeOrder)
 		}
@@ -425,9 +437,9 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitAssign(t
 		if alias, ok := lhs.GetQualifiedNameString(); ok {
 			f.outer.putClassByAlias(alias, existingClass)
 		}
-	} else if lhs.IsGetProp() {
-		classNode := lhs.GetFirstChild()
-		if cls := f.outer.resolveReferencedClass(t, classNode); cls != nil && !isBannedStaticInheritancePropName(lhs.GetString()) {
+	} else if gp, ok := assign.Target().AsGetProp(); ok {
+		classNode := gp.Object().Node()
+		if cls := f.outer.resolveReferencedClass(t, classNode); cls != nil && !isBannedStaticInheritancePropName(gp.Property()) {
 			cls.AddStaticMember(n)
 			f.nodeOrder[n] = len(f.nodeOrder)
 		}
@@ -441,12 +453,16 @@ func (f *ConcretizeStaticInheritanceForInlining_FindStaticMembers) VisitVariable
 	if !ok {
 		return
 	}
-	child := firstDecl.Node()
-	if !child.HasChildren() {
+	nameDecl, ok := firstDecl.AsName()
+	if !ok {
 		return
 	}
-	if _, existingClass := f.outer.lookupClassByNode(child.GetFirstChild()); existingClass != nil {
-		if maybeAlias, ok := child.GetQualifiedNameString(); ok {
+	init, hasInit := nameDecl.Init()
+	if !hasInit {
+		return
+	}
+	if _, existingClass := f.outer.lookupClassByNode(init.Node()); existingClass != nil {
+		if maybeAlias, ok := nameDecl.Node().GetQualifiedNameString(); ok {
 			f.outer.putClassByAlias(maybeAlias, existingClass)
 		}
 	}

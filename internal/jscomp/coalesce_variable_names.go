@@ -151,9 +151,8 @@ func cvnSubtreeHasShallowLocalDecl(n rhino.Node) bool {
 }
 
 func cvnHasShallowLocalDecl(fn rhino.Node) bool {
-	args := fn.GetSecondChild()
-	body := args.GetNext()
-	return cvnSubtreeHasShallowLocalDecl(body) || cvnSubtreeHasShallowLocalDecl(args)
+	f := ast.MustFunction(fn)
+	return cvnSubtreeHasShallowLocalDecl(f.Body().Node()) || cvnSubtreeHasShallowLocalDecl(f.Params().Node())
 }
 
 // cvnCollectCandidateFuncs collects functions under n that declare at least one
@@ -183,12 +182,11 @@ func cvnCollectCandidateFuncs(
 			}
 			childDepth = depth + 1
 		}
-		args := n.GetSecondChild()
-		body := args.GetNext()
-		if d := cvnCollectCandidateFuncs(args, childDepth, cands, postOrder); d > maxDepth {
+		f := ast.MustFunction(n)
+		if d := cvnCollectCandidateFuncs(f.Params().Node(), childDepth, cands, postOrder); d > maxDepth {
 			maxDepth = d
 		}
-		if d := cvnCollectCandidateFuncs(body, childDepth, cands, postOrder); d > maxDepth {
+		if d := cvnCollectCandidateFuncs(f.Body().Node(), childDepth, cands, postOrder); d > maxDepth {
 			maxDepth = d
 		}
 		if candIdx >= 0 {
@@ -206,19 +204,19 @@ func cvnCollectCandidateFuncs(
 		return maxDepth
 	case rhino.Token_CLASS_MEMBERS:
 		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if d := cvnCollectCandidateFuncs(m.GetFirstChild(), depth, cands, postOrder); d > maxDepth {
+			if cm, ok := ast.AsComputedMember(m); ok {
+				if d := cvnCollectCandidateFuncs(cm.Key().Node(), depth, cands, postOrder); d > maxDepth {
 					maxDepth = d
 				}
 			}
 		}
 		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			var d int
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				d = cvnCollectCandidateFuncs(m.GetSecondChild(), depth, cands, postOrder)
-			default:
+			d := -1
+			if cm, ok := ast.AsComputedMember(m); ok {
+				if val, hasVal := cm.Value(); hasVal {
+					d = cvnCollectCandidateFuncs(val.Node(), depth, cands, postOrder)
+				}
+			} else {
 				d = cvnCollectCandidateFuncs(m, depth, cands, postOrder)
 			}
 			if d > maxDepth {
@@ -335,10 +333,9 @@ func (c *CoalesceVariableNames) analyzeAndCoalesceFunction(fn rhino.Node, fnScop
 	}
 	var changes int32
 	if state.hasCoalescing {
-		args := fn.GetSecondChild()
-		body := args.GetNext()
-		changes += c.visitCoalescedSubtree(args, fn, state)
-		changes += c.visitCoalescedSubtree(body, fn, state)
+		f := ast.MustFunction(fn)
+		changes += c.visitCoalescedSubtree(f.Params().Node(), fn, state)
+		changes += c.visitCoalescedSubtree(f.Body().Node(), fn, state)
 		clear(state.superNode[:])
 	}
 	state.orderedVars = nil
@@ -370,18 +367,18 @@ func (c *CoalesceVariableNames) visitCoalescedSubtree(
 		var changes int32
 		for m := n.GetFirstChild(); !m.IsNil(); {
 			next := m.GetNext()
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				changes += c.visitCoalescedSubtree(m.GetFirstChild(), m, state)
+			if cm, ok := ast.AsComputedMember(m); ok {
+				changes += c.visitCoalescedSubtree(cm.Key().Node(), m, state)
 			}
 			m = next
 		}
 		for m := n.GetFirstChild(); !m.IsNil(); {
 			next := m.GetNext()
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				changes += c.visitCoalescedSubtree(m.GetSecondChild(), m, state)
-			default:
+			if cm, ok := ast.AsComputedMember(m); ok {
+				if val, hasVal := cm.Value(); hasVal {
+					changes += c.visitCoalescedSubtree(val.Node(), m, state)
+				}
+			} else {
 				changes += c.visitCoalescedSubtree(m, n, state)
 			}
 			m = next
@@ -889,6 +886,9 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 //
 // Java: CoalesceVariableNames.isInMultipleLvalueDecl(Var)
 func (c *CoalesceVariableNames) isInMultipleLvalueDecl(v *Var) bool {
+	if p := v.GetParentNode(); NodeUtil_IsNameDeclaration(p) {
+		return !p.HasOneChild()
+	}
 	declarationType, ok := v.DeclarationToken()
 	if !ok {
 		// switch on a null enum throws.

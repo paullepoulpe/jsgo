@@ -407,8 +407,9 @@ func (f *dpaeTraversal) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 
 func dpaeIsConditionalExpression(tok rhino.Token) bool {
 	switch tok {
-	case rhino.Token_AND, rhino.Token_OR, rhino.Token_HOOK, rhino.Token_COALESCE, rhino.Token_OPTCHAIN_CALL,
-		rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_HOOK, rhino.Token_COALESCE,
+		rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_COALESCE,
+		rhino.Token_OPTCHAIN_CALL, rhino.Token_OPTCHAIN_GETELEM, rhino.Token_OPTCHAIN_GETPROP:
 		return true
 	default:
 		return false

@@ -339,16 +339,25 @@ func (m *moduleTraversal) enterNode(t *NodeTraversal, n rhino.Node) bool {
 			m.inLoadModule = true
 		}
 	case rhino.Token_CALL:
-		if m.inLoadModule && nodeTraversal_AbstractModuleCallback_GOOG_MODULE.Matches(n.GetFirstChild()) {
-			newModule := m.moduleMetadataMap.ModuleByGoogNamespace(n.GetLastChild().GetString())
-			if newModule == nil {
-				failNodeTraversalNull()
-			}
-			// In the event of multiple goog.module statements (an error), don't call enterModule
-			// more than once.
-			if newModule != m.currentModule {
-				m.currentModule = newModule
-				return true
+		if m.inLoadModule {
+			call := ast.MustCall(n)
+			if nodeTraversal_AbstractModuleCallback_GOOG_MODULE.Matches(call.Callee().Node()) {
+				var newModule *ModuleMetadataMap_ModuleMetadata
+				if arg, ok := call.FirstArg(); ok {
+					if str, ok := arg.AsStringLit(); ok {
+						newModule = m.moduleMetadataMap.ModuleByGoogNamespace(str.Value())
+					}
+				}
+				if newModule == nil {
+					m.currentModule = nil
+					return false
+				}
+				// In the event of multiple goog.module statements (an error), don't call enterModule
+				// more than once.
+				if newModule != m.currentModule {
+					m.currentModule = newModule
+					return true
+				}
 			}
 		}
 	default:
@@ -369,10 +378,9 @@ func (m *moduleTraversal) exitNode(t *NodeTraversal, n rhino.Node) (exitedModule
 		m.scopeRoot = rhino.NilNode
 	case rhino.Token_BLOCK:
 		if NodeUtil_IsBundledGoogModuleScopeRoot(n) {
-			if m.currentModule == nil {
-				failNodeTraversalNull()
+			if m.currentModule != nil {
+				exitedModule, exitedScopeRoot = m.currentModule, m.scopeRoot
 			}
-			exitedModule, exitedScopeRoot = m.currentModule, m.scopeRoot
 			m.scopeRoot = n.GetGrandparent().GetGrandparent()
 			m.inLoadModule = false
 			m.currentModule = m.moduleMetadataMap.ModuleByPath(t.GetInput().GetPath().String())

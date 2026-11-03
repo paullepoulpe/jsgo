@@ -205,6 +205,18 @@ func NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(
 	nameUsage map[strpool.ID]int,
 	hoistingTargetScope bool,
 	parent MakeDeclaredNamesUnique_Renamer) *MakeDeclaredNamesUnique_ContextualRenamer {
+	c := &MakeDeclaredNamesUnique_ContextualRenamer{}
+	initContextualRenamerForChildScope(c, scopeRoot, nameUsage, hoistingTargetScope, parent)
+	return c
+}
+
+func initContextualRenamerForChildScope(
+	c *MakeDeclaredNamesUnique_ContextualRenamer,
+	scopeRoot rhino.Node,
+	nameUsage map[strpool.ID]int,
+	hoistingTargetScope bool,
+	parent MakeDeclaredNamesUnique_Renamer,
+) {
 	jutil.CheckStateMsg1(NodeUtil_CreatesScope(scopeRoot), "%s", scopeRoot)
 
 	if scopeRoot.IsFunction() {
@@ -219,17 +231,18 @@ func NewMakeDeclaredNamesUnique_ContextualRenamerForChildScope(
 		hoistRenamer = parent.GetHoistRenamer()
 	}
 
-	c := &MakeDeclaredNamesUnique_ContextualRenamer{
-		scopeRoot: scopeRoot,
-		global:    false,
-		nameUsage: nameUsage,
+	c.scopeRoot = scopeRoot
+	c.global = false
+	c.nameUsage = nameUsage
+	c.decls.inlineLen = 0
+	if len(c.decls.overflow) > 0 {
+		clear(c.decls.overflow)
 	}
 	if hoistingTargetScope {
 		c.hoistRenamer = c
 	} else {
 		c.hoistRenamer = hoistRenamer
 	}
-	return c
 }
 
 // CreateForChildScope creates a ContextualRenamer

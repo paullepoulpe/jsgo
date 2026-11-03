@@ -755,7 +755,7 @@ func (v *TypeValidator) ExpectSuperType(n rhino.Node, superObject rhino.ObjectTy
 		}
 
 		// Correct the super type.
-		if !subCtor.HasCachedValues() {
+		if !v.typeRegistry.IsParallelReadOnly() && subCtor != nil && !subCtor.HasCachedValues() {
 			subCtor.SetPrototypeBasedOn(superObject)
 		}
 	}

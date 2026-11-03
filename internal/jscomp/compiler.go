@@ -560,6 +560,9 @@ func (c *Compiler) NewTracer(passName string) *Tracer {
 	if c.inlineFnCache != nil && (c.phaseOptimizer == nil || !c.GetLifeCycleStage().IsNormalized()) {
 		c.inlineFnCache = nil
 	}
+	if c.rucGuarded != nil && (!c.GetLifeCycleStage().IsNormalizedUnobfuscated() || passName == "toSource") {
+		c.rucGuarded = nil
+	}
 	comment := passName
 	if tracerAnyThreadInitialized.Load() && c.changeTracker.GetRecentChange().HasCodeChanged() {
 		comment += " on recently changed AST"

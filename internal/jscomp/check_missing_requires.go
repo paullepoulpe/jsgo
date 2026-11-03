@@ -141,6 +141,23 @@ func NewCheckMissingRequires(compiler AbstractCompiler, moduleMetadataMap *Modul
 
 // Java: CheckMissingRequires.process(Node, Node)
 func (c *CheckMissingRequires) Process(externs rhino.Node, root rhino.Node) {
+	if traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckMissingRequires]{
+		useSharedGlobalScope: true,
+		initWorker: func(_ int, rc *Compiler) *CheckMissingRequires {
+			return NewCheckMissingRequires(rc, c.moduleMetadataMap)
+		},
+		callback: func(wc *CheckMissingRequires, _ int, _ rhino.Node, _ rhino.Node, rc *Compiler) NodeTraversal_Callback {
+			wc.compiler = rc
+			wc.currentModule = nil
+			wc.scopeRoot = rhino.NilNode
+			wc.inLoadModule = false
+			wc.controlFlowScopeDepth = 0
+			clear(wc.templateParamNames)
+			return wc
+		},
+	}) {
+		return
+	}
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -294,9 +311,23 @@ func (c *CheckMissingRequires) VisitJsDocExpr(
 	currentModule *ModuleMetadataMap_ModuleMetadata,
 	expr *rhino.JSTypeExpression,
 	referenceStrength CheckMissingRequires_Strength) {
-	for _, typeNode := range expr.GetAllTypeNodes() {
+	c.visitJsDocTypeNodes(t, currentModule, expr.GetRoot(), referenceStrength)
+}
+
+func (c *CheckMissingRequires) visitJsDocTypeNodes(
+	t *NodeTraversal,
+	currentModule *ModuleMetadataMap_ModuleMetadata,
+	n rhino.Node,
+	referenceStrength CheckMissingRequires_Strength) {
+	if n.IsNil() {
+		return
+	}
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		c.visitJsDocTypeNodes(t, currentModule, child, referenceStrength)
+	}
+	if n.IsStringLit() {
 		c.VisitQualifiedName(
-			t, typeNode, currentModule, rhino.QualifiedName_Of(typeNode.GetString()), referenceStrength)
+			t, n, currentModule, rhino.QualifiedName_Of(n.GetString()), referenceStrength)
 	}
 }
 

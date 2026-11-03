@@ -63,7 +63,7 @@ func NodeUtil_GetAssignedValue(n rhino.Node) rhino.Node {
 			init, _ := name.Init()
 			return init.Node()
 		}
-		return n.GetFirstChild()
+		return ast.MustGetProp(n).Object().Node()
 	} else if ast.RoleIn(n, parent) == ast.RoleAssignTarget {
 		return ast.MustAssign(parent).Value().Node()
 	} else {
@@ -287,13 +287,15 @@ func NodeUtil_GetDeclaringParent(targetNode rhino.Node) rhino.Node {
 		// e.g. `let [a, b] = something;` targetNode is `[a, b]`
 		parent = parent.GetParent()
 		jutil.CheckStateMsg1(NodeUtil_IsNameDeclaration(parent), "%s", parent)
-	} else if parent.IsClass() || parent.IsFunction() {
-		// e.g. `function targetNode() {}`
+	} else if parent.IsClass() {
 		// e.g. `class targetNode {}`
-		jutil.CheckStateMsg1(targetNode == parent.GetFirstChild(), "%s", targetNode)
-	} else if parent.IsImportSpec() {
+		jutil.CheckStateMsg1(ast.MustClass(parent).NameNode() == targetNode, "%s", targetNode)
+	} else if parent.IsFunction() {
+		// e.g. `function targetNode() {}`
+		jutil.CheckStateMsg1(ast.MustFunction(parent).NameNode().Is(targetNode), "%s", targetNode)
+	} else if spec, ok := ast.AsImportSpec(parent); ok {
 		// e.g. `import {foo as targetNode} from './foo';
-		jutil.CheckStateMsg1(targetNode == parent.GetSecondChild(), "%s", targetNode)
+		jutil.CheckStateMsg1(spec.Local().Is(targetNode), "%s", targetNode)
 		// import -> import_specs -> import_spec
 		// we want import
 		parent = parent.GetGrandparent()
@@ -356,16 +358,18 @@ func NodeUtil_GetRootTarget(targetNode rhino.Node) rhino.Node {
 func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
 	jutil.CheckStateMsg1(rhino.CheckNotNull(targetNode).IsValidAssignmentTarget(), "%s", targetNode)
 	parent := rhino.CheckNotNullMsg1(targetNode.GetParent(), "%s", targetNode)
-	targetIsFirstChild := parent.GetFirstChild() == targetNode
-	if parent.IsDefaultValue() || parent.IsRest() {
+	if dv, ok := ast.AsDefaultValue(parent); ok {
 		// in `([something = targetNode] = x)` targetNode isn't actually acting
 		// as a target.
-		jutil.CheckStateMsg1(targetIsFirstChild, "%s", parent)
+		jutil.CheckStateMsg1(dv.Target().Is(targetNode), "%s", parent)
 		// The DEFAULT_VALUE or REST occupies the place where the assignment target it contains would
 		// otherwise be in the AST, so pretend it is the target for the logic below.
 		targetNode = parent
 		parent = rhino.CheckNotNull(targetNode.GetParent())
-		targetIsFirstChild = targetNode == parent.GetFirstChild()
+	} else if rest, ok := ast.AsRest(parent); ok {
+		jutil.CheckStateMsg1(rest.Target().Is(targetNode), "%s", parent)
+		targetNode = parent
+		parent = rhino.CheckNotNull(targetNode.GetParent())
 	}
 	switch parent.GetToken() {
 	case rhino.Token_ARRAY_PATTERN:
@@ -381,7 +385,7 @@ func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
 		// e.g. ({[expression]: targetNode = default} = something)
 		// make sure the effective target (targetNode or DEFAULT_VALUE containing it)
 		// isn't the expression part
-		jutil.CheckStateMsg1(!targetIsFirstChild, "%s", parent)
+		jutil.CheckStateMsg1(!ast.MustComputedProp(parent).Key().Is(targetNode), "%s", parent)
 		grandparent := rhino.CheckNotNullMsg1(parent.GetParent(), "%s", parent)
 		jutil.CheckStateMsg1(grandparent.IsObjectPattern(), "%s", grandparent)
 		return grandparent
@@ -397,22 +401,26 @@ func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
 		// e.g. `let targetNode = 3;`
 		return rhino.NilNode
 
-	case rhino.Token_FUNCTION, rhino.Token_CLASS:
+	case rhino.Token_FUNCTION:
 		// e.g. `function targetNode() {}`
+		jutil.CheckStateMsg1(ast.MustFunction(parent).NameNode().Is(targetNode), "%s", targetNode)
+		return rhino.NilNode
+
+	case rhino.Token_CLASS:
 		// e.g. `class targetNode {}`
-		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
+		jutil.CheckStateMsg1(ast.MustClass(parent).NameNode() == targetNode, "%s", targetNode)
 		return rhino.NilNode
 
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 		// e.g. `for ({length} in obj) {}` // targetNode is `{length}`
 		// e.g. `for ({length} of obj) {}` // targetNode is `{length}`
-		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
+		jutil.CheckStateMsg1(ast.MustEnhancedFor(parent).Target().Is(targetNode), "%s", targetNode)
 		return rhino.NilNode
 
 	case rhino.Token_DESTRUCTURING_LHS:
 		// destructured declarations
 		// e.g. `let [a] = 3`; // targetNode is `[a]`
-		jutil.CheckStateMsg1(targetIsFirstChild, "%s", targetNode)
+		jutil.CheckStateMsg1(ast.MustDestructuringLhs(parent).Pattern().Is(targetNode), "%s", targetNode)
 		return rhino.NilNode
 
 	case rhino.Token_IMPORT:
@@ -422,7 +430,7 @@ func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
 	case rhino.Token_IMPORT_SPEC:
 		// e.g. `import {bar as targetNode} from './foo/bar';`
 		// e.g. `import {targetNode} from './foo/bar';` // AST will have {targetNode as targetNode}
-		jutil.CheckStateMsg1(!targetIsFirstChild, "%s", parent)
+		jutil.CheckStateMsg1(!ast.MustImportSpec(parent).Imported().Is(targetNode), "%s", parent)
 		return rhino.NilNode
 
 	case rhino.Token_CATCH:
@@ -431,7 +439,8 @@ func NodeUtil_GetEnclosingTarget(targetNode rhino.Node) rhino.Node {
 
 	default:
 		// e.g. targetNode = something
-		jutil.CheckStateMsg1(NodeUtil_IsAssignmentOp(parent) && targetIsFirstChild, "%s", parent)
+		assign, ok := ast.AsAssignment(parent)
+		jutil.CheckStateMsg1(ok && assign.Target().Is(targetNode), "%s", parent)
 		return rhino.NilNode
 	}
 }
@@ -581,7 +590,7 @@ func NodeUtil_IsConstantByConvention(convention CodingConvention, node rhino.Nod
 // Java: NodeUtil.isConstantDeclaration(JSDocInfo, Node)
 func NodeUtil_IsConstantDeclaration(info *rhino.JSDocInfo, node rhino.Node) bool {
 	if NodeUtil_IsObjectLitKey(node) ||
-		(node.GetParent().IsAssign() && node.IsFirstChildOf(node.GetParent())) ||
+		ast.RoleOf(node) == ast.RoleAssignTarget ||
 		(node.GetParent().IsExprResult() && NodeUtil_IsNormalGet(node)) ||
 		node.IsMemberFieldDef() ||
 		node.IsComputedFieldDef() ||
@@ -667,27 +676,46 @@ func NodeUtil_GetRValueOfLValue(n rhino.Node) rhino.Node {
 	}
 	switch parent.GetToken() {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		return n.GetLastChild()
+		if name, ok := ast.AsName(n); ok {
+			init, _ := name.Init()
+			return init.Node()
+		}
+		if lhs, ok := ast.AsDestructuringLhs(n); ok {
+			if init, ok := lhs.Init(); ok {
+				return init.Node()
+			}
+			return lhs.Pattern().Node()
+		}
+		return rhino.NilNode
 	case rhino.Token_OBJECTLIT:
-		jutil.CheckStateMsg1(
-			n.IsStringKey() ||
-				n.IsComputedProp() ||
-				n.IsMemberFunctionDef() ||
-				n.IsGetterDef() ||
-				n.IsSetterDef(),
-			"%s",
-			n)
-		return n.GetLastChild()
+		if sk, ok := ast.AsStringKey(n); ok {
+			return sk.Value().Node()
+		}
+		if cp, ok := ast.AsComputedProp(n); ok {
+			val, _ := cp.Value()
+			return val.Node()
+		}
+		if md, ok := ast.AsMethodDef(n); ok {
+			return md.Function().Node()
+		}
+		jutil.CheckStateMsg1(false, "%s", n)
+		return rhino.NilNode
 	case rhino.Token_CLASS_MEMBERS:
-		jutil.CheckStateMsg1(
-			n.IsMemberFunctionDef() ||
-				n.IsMemberFieldDef() ||
-				n.IsComputedFieldDef() ||
-				n.IsGetterDef() ||
-				n.IsSetterDef(),
-			"%s",
-			n)
-		return n.GetLastChild()
+		if md, ok := ast.AsMethodDef(n); ok {
+			return md.Function().Node()
+		}
+		if fd, ok := ast.AsMemberFieldDef(n); ok {
+			val, _ := fd.Value()
+			return val.Node()
+		}
+		if cfd, ok := ast.AsComputedFieldDef(n); ok {
+			if val, ok := cfd.Value(); ok {
+				return val.Node()
+			}
+			return cfd.Key().Node()
+		}
+		jutil.CheckStateMsg1(false, "%s", n)
+		return rhino.NilNode
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
 		return parent
 	default:
@@ -707,8 +735,8 @@ func NodeUtil_GetBestLValueOwner(lValue rhino.Node) rhino.Node {
 	}
 	if NodeUtil_MayBeObjectLitKey(lValue) || lValue.IsComputedProp() {
 		return NodeUtil_GetBestLValue(lValue.GetParent())
-	} else if NodeUtil_IsNormalGet(lValue) {
-		return lValue.GetFirstChild()
+	} else if get, ok := ast.AsNormalGet(lValue); ok {
+		return get.Object().Node()
 	}
 
 	return rhino.NilNode
@@ -774,7 +802,7 @@ func NodeUtil_GetBestLValueRoot(lValue rhino.Node) rhino.Node {
 		// NOTE: beware of getBestLValue returning null (or be null-permissive?)
 		return NodeUtil_GetBestLValueRoot(NodeUtil_GetBestLValue(lValue.GetParent()))
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
-		return NodeUtil_GetBestLValueRoot(lValue.GetFirstChild())
+		return NodeUtil_GetBestLValueRoot(ast.MustNormalGet(lValue).Object().Node())
 	case rhino.Token_THIS, rhino.Token_SUPER, rhino.Token_NAME:
 		return lValue
 	default:

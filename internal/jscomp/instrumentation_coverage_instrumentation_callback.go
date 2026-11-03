@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -209,12 +210,14 @@ func (c *CoverageInstrumentationCallback) ShouldTraverse(nodeTraversal *NodeTrav
 func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	// SCRIPT node is special - it is the root of the AST for code from a file.
 	// Append code to declare and initialize structures used in instrumentation.
-	if node.IsScript() {
+	if script, ok := ast.AsScript(node); ok {
 		// Go-only: language-adapter — the null source name (see GetFileName)
 		// is only looked up here, where Java's map.get(null) is null.
 		if name, ok := traversal.SourceNameOk(); ok && c.instrumentationData[name] != nil {
-			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
-				node = node.GetFirstChild()
+			if first, hasFirst := script.FirstItem(); hasFirst {
+				if mod, isMod := first.AsModuleBody(); isMod {
+					node = mod.Node()
+				}
 			}
 			node.AddChildrenToFront(c.NewHeaderNode(traversal, node).RemoveChildren())
 		}
@@ -230,21 +233,28 @@ func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node r
 
 	// For arrow functions whose body is an expression instead of a block,
 	// convert it to a block so that it can be instrumented.
-	if node.IsFunction() && !NodeUtil_GetFunctionBody(node).IsBlock() {
-		returnValue := NodeUtil_GetFunctionBody(node)
-		body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(returnValue.Detach()))
-		body.SrcrefTreeIfMissing(returnValue)
-		node.AddChildToBack(body)
+	if fn, ok := ast.AsFunction(node); ok {
+		if _, isBlock := fn.Body().AsBlock(); !isBlock {
+			returnValue := fn.Body().Node()
+			body := rhino.IR_BlockOfNode(rhino.IR_ReturnNodeWithExpr(returnValue.Detach()))
+			body.SrcrefTreeIfMissing(returnValue)
+			node.AddChildToBack(body)
+		}
 	}
 
 	// Add instrumentation code just before a function block.
 	// Similarly before other constructs: 'with', 'case', 'default', 'catch'
-	if node.IsFunction() ||
-		node.IsWith() ||
-		node.IsCase() ||
-		node.IsDefaultCase() ||
-		node.IsCatch() {
-		codeBlock := node.GetLastChild()
+	var codeBlock rhino.Node
+	if fn, ok := ast.AsFunction(node); ok {
+		codeBlock = fn.Body().Node()
+	} else if w, ok := ast.AsWith(node); ok {
+		codeBlock = w.Body().Node()
+	} else if sc, ok := ast.AsSwitchCase(node); ok {
+		codeBlock = sc.Body().Node()
+	} else if ca, ok := ast.AsCatch(node); ok {
+		codeBlock = ca.Body().Node()
+	}
+	if !codeBlock.IsNil() {
 		codeBlock.AddChildToFront(
 			c.NewInstrumentationNode(traversal, node))
 		traversal.ReportCodeChange()
@@ -252,9 +262,8 @@ func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node r
 	}
 
 	// Add instrumentation code as the first child of a 'try' block.
-	if node.IsTry() {
-		firstChild := node.GetFirstChild()
-		firstChild.AddChildToFront(
+	if tryStmt, ok := ast.AsTry(node); ok {
+		tryStmt.Body().Node().AddChildToFront(
 			c.NewInstrumentationNode(traversal, node))
 		traversal.ReportCodeChange()
 		return

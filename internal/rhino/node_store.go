@@ -152,8 +152,8 @@ type NodeStore struct {
 	tcs         []*nodeColumn  // the JSType/Color handle columns of the blocks (node_tables.go)
 	origNames   []*pagedColumn // the original-name columns of the blocks
 	aux         [auxShards]auxShard
-	types       handleTable[*JSTypeBase]
-	colors      handleTable[*colors.Color]
+	types       handleTable[JSTypeBase]
+	colors      handleTable[colors.Color]
 	sourceFiles storeTable[sourceFileSlot]
 	bigInts     storeTable[*big.Int]
 }
@@ -165,7 +165,24 @@ var (
 
 	// current is the store new nodes go to; written between passes only.
 	current *NodeStore
+
+	// standaloneStoreMu serializes standalone compilations (CLI persistent
+	// workers, Linter, bundle transformers, RefactoringDriver) that share the
+	// process-wide current NodeStore.
+	standaloneStoreMu sync.Mutex
 )
+
+// LockStandaloneStore acquires the process-wide standalone compilation
+// NodeStore mutex.
+func LockStandaloneStore() {
+	standaloneStoreMu.Lock()
+}
+
+// UnlockStandaloneStore releases the process-wide standalone compilation
+// NodeStore mutex.
+func UnlockStandaloneStore() {
+	standaloneStoreMu.Unlock()
+}
 
 func init() {
 	nextBlock.Store(1) // block 0 is never used: id 0 is the nil node
@@ -179,8 +196,6 @@ func NewNodeStore() *NodeStore {
 
 func newNodeStore(static bool) *NodeStore {
 	s := &NodeStore{id: nodeStoreLastID.Add(1), static: static}
-	s.types.init()
-	s.colors.init()
 	if static {
 		s.setBase(staticBit)
 	}

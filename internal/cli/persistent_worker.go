@@ -273,8 +273,13 @@ func (w *PersistentWorker) Cache() *WorkerDigestCache {
 func (w *PersistentWorker) Serve(in io.Reader, out io.Writer) error {
 	// Ensure no stale compilation store is active before serving requests,
 	// and always release the compilation store when the worker loop exits.
-	rhino.ResetNodeStore()
-	defer rhino.ResetNodeStore()
+	resetStandaloneStore := func() {
+		rhino.LockStandaloneStore()
+		rhino.ResetNodeStore()
+		rhino.UnlockStandaloneStore()
+	}
+	resetStandaloneStore()
+	defer resetStandaloneStore()
 
 	dec := json.NewDecoder(in)
 	for {
@@ -296,8 +301,6 @@ func (w *PersistentWorker) Serve(in io.Reader, out io.Writer) error {
 		}
 	}
 }
-
-var workerExecMu sync.Mutex
 
 type workerSyncBuffer struct {
 	mu  sync.Mutex
@@ -366,8 +369,8 @@ func (w *PersistentWorker) ExecuteRequest(req *WorkRequest) WorkResponse {
 		}
 	}
 
-	workerExecMu.Lock()
-	defer workerExecMu.Unlock()
+	rhino.LockStandaloneStore()
+	defer rhino.UnlockStandaloneStore()
 
 	// Strictly reset the global NodeStore before AND after every compilation request
 	// so AST blocks never leak across requests and are immediately eligible for GC.

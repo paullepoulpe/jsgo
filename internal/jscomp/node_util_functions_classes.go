@@ -87,15 +87,14 @@ func NodeUtil_GetNameNode(n rhino.Node) rhino.Node {
 //
 // Java: NodeUtil.removeName(Node)
 func NodeUtil_RemoveName(n rhino.Node) {
-	jutil.CheckState(n.IsFunction() || n.IsClass())
-	originalName := n.GetFirstChild()
-	var emptyName rhino.Node
-	if n.IsFunction() {
-		emptyName = rhino.IR_Name("")
-	} else {
-		emptyName = rhino.IR_Empty()
+	if fn, ok := ast.AsFunction(n); ok {
+		originalName := fn.NameNode().Node()
+		originalName.ReplaceWith(rhino.IR_Name("").Srcref(originalName))
+		return
 	}
-	originalName.ReplaceWith(emptyName.Srcref(originalName))
+	jutil.CheckState(n.IsClass())
+	originalName := ast.MustClass(n).NameNode()
+	originalName.ReplaceWith(rhino.IR_Empty().Srcref(originalName))
 }
 
 // NodeUtil_NearestFunctionName gets the function's name, returning ("", false)
@@ -155,10 +154,18 @@ func NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode rhino.Node) rhin
 //
 // Java: NodeUtil.getFirstGetterMatchingKey(Node, String)
 func NodeUtil_GetFirstGetterMatchingKey(n rhino.Node, keyName string) rhino.Node {
-	jutil.CheckStateMsg1(n.IsClassMembers() || n.IsObjectLit(), "%s", n)
-	for keyNode := n.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if keyNode.IsGetterDef() && keyNode.GetString() == keyName {
-			return keyNode
+	if body, ok := ast.AsClassBody(n); ok {
+		for member := range body.Members() {
+			if g, ok := member.AsGetterDef(); ok && g.Key() == keyName {
+				return g.Node()
+			}
+		}
+		return rhino.NilNode
+	}
+	jutil.CheckStateMsg1(n.IsObjectLit(), "%s", n)
+	for member := range ast.MustObjectLit(n).Members() {
+		if g, ok := member.AsGetterDef(); ok && g.Key() == keyName {
+			return g.Node()
 		}
 	}
 	return rhino.NilNode
@@ -171,11 +178,13 @@ func NodeUtil_GetFirstGetterMatchingKey(n rhino.Node, keyName string) rhino.Node
 //
 // Java: NodeUtil.hasInstanceElements(Node)
 func NodeUtil_HasInstanceElements(classNode rhino.Node) bool {
-	for member := NodeUtil_GetClassMembers(classNode).GetFirstChild(); !member.IsNil(); member = member.GetNext() {
-		if !member.IsStaticMember() &&
-			(member.IsMemberFieldDef() ||
-				member.IsComputedFieldDef() ||
-				member.IsPrivateIdentifier()) {
+	jutil.CheckArgument(classNode.IsClass())
+	for member := range ast.MustClass(classNode).Body().Members() {
+		m := member.Node()
+		if !m.IsStaticMember() &&
+			(m.IsMemberFieldDef() ||
+				m.IsComputedFieldDef() ||
+				m.IsPrivateIdentifier()) {
 			return true
 		}
 	}
@@ -697,10 +706,12 @@ func NodeUtil_FunctionParametersMayHaveSideEffects(fnNode rhino.Node, astAnalyze
 // Java: NodeUtil.getArgumentForFunction(Node, int)
 func NodeUtil_GetArgumentForFunction(function rhino.Node, index int) rhino.Node {
 	jutil.CheckState(function.IsFunction())
+	params := ast.MustFunction(function).Params()
 	if index < 0 {
-		return NodeUtil_GetNthSibling(function.GetSecondChild().GetFirstChild(), index)
+		first, _ := params.FirstParam()
+		return NodeUtil_GetNthSibling(first.Node(), index)
 	}
-	param, _ := ast.MustFunction(function).Params().ParamAt(index)
+	param, _ := params.ParamAt(index)
 	return param.Node()
 }
 
@@ -710,10 +721,12 @@ func NodeUtil_GetArgumentForFunction(function rhino.Node, index int) rhino.Node 
 // Java: NodeUtil.getArgumentForCallOrNew(Node, int)
 func NodeUtil_GetArgumentForCallOrNew(call rhino.Node, index int) rhino.Node {
 	jutil.CheckState(NodeUtil_IsCallOrNew(call))
+	cn := ast.MustCallOrNew(call)
 	if index < 0 {
-		return NodeUtil_GetNthSibling(call.GetSecondChild(), index)
+		first, _ := cn.FirstArg()
+		return NodeUtil_GetNthSibling(first.Node(), index)
 	}
-	arg, _ := ast.MustCallOrNew(call).ArgAt(index)
+	arg, _ := cn.ArgAt(index)
 	return arg.Node()
 }
 
@@ -751,9 +764,11 @@ func NodeUtil_IsCallOrNewArgument(n rhino.Node) bool {
 
 // Java: NodeUtil.isToStringMethodCall(Node)
 func NodeUtil_IsToStringMethodCall(call rhino.Node) bool {
-	if get, ok := ast.AsNormalOrOptChainGet(call.GetFirstChild()); ok {
-		name, ok := get.StaticPropertyName()
-		return ok && name == "toString"
+	if cn, ok := ast.AsCallOrNew(call); ok {
+		if get, ok := cn.Callee().AsNormalOrOptChainGet(); ok {
+			name, ok := get.StaticPropertyName()
+			return ok && name == "toString"
+		}
 	}
 	return false
 }
@@ -805,12 +820,14 @@ func NodeUtil_IsEs6Constructor(fnNode rhino.Node) bool {
 
 // Java: NodeUtil.isCallTo(Node, String)
 func NodeUtil_IsCallTo(n rhino.Node, qualifiedName string) bool {
-	return n.IsCall() && n.GetFirstChild().MatchesQualifiedName(qualifiedName)
+	call, ok := ast.AsCall(n)
+	return ok && call.Callee().Node().MatchesQualifiedName(qualifiedName)
 }
 
 // Java: NodeUtil.isCallTo(Node, QualifiedName)
 func NodeUtil_IsCallToQualifiedName(n rhino.Node, qualifiedName rhino.QualifiedName) bool {
-	return n.IsCall() && qualifiedName.Matches(n.GetFirstChild())
+	call, ok := ast.AsCall(n)
+	return ok && qualifiedName.Matches(call.Callee().Node())
 }
 
 // NodeUtil_IsCallToNode is a faster version of NodeUtil_IsCallTo.
@@ -820,22 +837,20 @@ func NodeUtil_IsCallToQualifiedName(n rhino.Node, qualifiedName rhino.QualifiedN
 //
 // Java: NodeUtil.isCallTo(Node, Node)
 func NodeUtil_IsCallToNode(n rhino.Node, targetMethod rhino.Node) bool {
-	if !n.IsCall() {
-		return false
-	}
-
-	return n.GetFirstChild().MatchesQualifiedNameNode(targetMethod)
+	call, ok := ast.AsCall(n)
+	return ok && call.Callee().Node().MatchesQualifiedNameNode(targetMethod)
 }
 
 // Java: NodeUtil.getInvocationArgsAsIterable(Node)
 func NodeUtil_GetInvocationArgsAsIterable(invocation rhino.Node) iter.Seq[rhino.Node] {
-	if invocation.IsTaggedTemplateLit() {
-		return NewNodeUtil_TemplateArgsIterable(invocation.GetLastChild()).All()
+	if ttl, ok := ast.AsTaggedTemplateLit(invocation); ok {
+		return NewNodeUtil_TemplateArgsIterable(ttl.Template().Node()).All()
 	}
 
 	jutil.CheckStateMsg1(NodeUtil_IsCallOrNew(invocation), "%s", invocation)
+	firstArg, _ := ast.MustCallOrNew(invocation).FirstArg()
 	return func(yield func(rhino.Node) bool) {
-		for arg := invocation.GetSecondChild(); !arg.IsNil(); {
+		for arg := firstArg.Node(); !arg.IsNil(); {
 			next := arg.GetNext()
 			if !yield(arg) {
 				return
@@ -851,16 +866,19 @@ func NodeUtil_GetInvocationArgsAsIterable(invocation rhino.Node) iter.Seq[rhino.
 //
 // Java: NodeUtil.getInvocationArgsCount(Node)
 func NodeUtil_GetInvocationArgsCount(invocation rhino.Node) int {
-	if invocation.IsTaggedTemplateLit() {
-		templateLit := invocation.GetLastChild()
+	if ttl, ok := ast.AsTaggedTemplateLit(invocation); ok {
+		templateLit := ttl.Template().Node()
 		jutil.CheckState(templateLit.IsTemplateLit())
 		size := 1
-		for child := templateLit.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsTemplateLitSub() {
+		for part := range ast.MustTemplateLit(templateLit).Parts() {
+			if _, ok := part.AsTemplateLitSub(); ok {
 				size++
 			}
 		}
 		return size
+	}
+	if cn, ok := ast.AsCallOrNew(invocation); ok {
+		return cn.NumArgs()
 	}
 	return invocation.GetChildCount() - 1
 }
@@ -884,12 +902,12 @@ func NewNodeUtil_TemplateArgsIterable(templateLit rhino.Node) NodeUtil_TemplateA
 //
 // Go-only: language-adapter — Java's for-each over the Iterable.
 func (t NodeUtil_TemplateArgsIterable) All() iter.Seq[rhino.Node] {
-	templateLit := t.templateLit
+	firstPart, _ := ast.MustTemplateLit(t.templateLit).FirstPart()
 	return func(yield func(rhino.Node) bool) {
-		for child := templateLit.GetFirstChild(); !child.IsNil(); {
+		for child := firstPart.Node(); !child.IsNil(); {
 			next := child.GetNext()
-			if child.IsTemplateLitSub() {
-				if !yield(child.GetFirstChild()) {
+			if sub, ok := ast.AsTemplateLitSub(child); ok {
+				if !yield(sub.Expr().Node()) {
 					return
 				}
 			}

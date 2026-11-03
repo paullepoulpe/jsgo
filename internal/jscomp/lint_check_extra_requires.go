@@ -70,6 +70,22 @@ func NewCheckExtraRequires(
 	}
 }
 
+var checkExtraRequiresVisitTokens = makeVisitTokenSet(
+	rhino.Token_NAME,
+	rhino.Token_GETPROP,
+	rhino.Token_CALL,
+	rhino.Token_SCRIPT,
+	rhino.Token_IMPORT,
+)
+
+var (
+	_ nodeTraversal_visitTokens = (*CheckExtraRequires)(nil)
+	_ nodeTraversal_visitJSDoc  = (*CheckExtraRequires)(nil)
+)
+
+func (*CheckExtraRequires) visitTokens() *ast.TokenSet { return &checkExtraRequiresVisitTokens }
+func (*CheckExtraRequires) visitJSDoc() bool           { return true }
+
 func (c *CheckExtraRequires) cloneForParallel(rc *Compiler) NodeTraversal_Callback {
 	return NewCheckExtraRequires(rc, c.requiresToRemove)
 }
@@ -77,6 +93,18 @@ func (c *CheckExtraRequires) cloneForParallel(rc *Compiler) NodeTraversal_Callba
 // Java: CheckExtraRequires.process(Node, Node)
 func (c *CheckExtraRequires) Process(externs rhino.Node, root rhino.Node) {
 	c.Reset()
+	if traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckExtraRequires]{
+		initWorker: func(_ int, rc *Compiler) *CheckExtraRequires {
+			return NewCheckExtraRequires(rc, c.requiresToRemove)
+		},
+		callback: func(wc *CheckExtraRequires, _ int, _ rhino.Node, _ rhino.Node, rc *Compiler) NodeTraversal_Callback {
+			wc.compiler = rc
+			wc.Reset()
+			return wc
+		},
+	}) {
+		return
+	}
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
@@ -273,8 +301,18 @@ func (c *CheckExtraRequires) MaybeAddJsDocUsages(n rhino.Node) {
 		return
 	}
 	for it := info.TypeExprIter(); it.Next(); {
-		for typeName := range it.Expr().GetAllTypeNames().All() {
-			c.AddUsagesOfAllPrefixes(rhino.QualifiedName_Of(typeName))
-		}
+		c.addJsDocTypeNodeUsages(it.Expr().GetRoot())
+	}
+}
+
+func (c *CheckExtraRequires) addJsDocTypeNodeUsages(n rhino.Node) {
+	if n.IsNil() {
+		return
+	}
+	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		c.addJsDocTypeNodeUsages(child)
+	}
+	if n.IsStringLit() {
+		c.AddUsagesOfAllPrefixes(rhino.QualifiedName_Of(n.GetString()))
 	}
 }

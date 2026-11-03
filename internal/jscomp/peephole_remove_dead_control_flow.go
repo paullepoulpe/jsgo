@@ -131,6 +131,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldTry(n rhino.Node) rhino.Node {
 	if !body.HasStatements() {
 		if hasCatch {
 			NodeUtil_RedeclareVarsInsideBranch(catch.Node())
+			p.MarkFunctionsDeleted(catch.Node())
 		}
 		p.ReportChangeToEnclosingScope(n)
 		if hasFinally {
@@ -807,6 +808,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldFor(n rhino.Node) rhino.Node {
 	NodeUtil_RedeclareVarsInsideBranch(n)
 
 	if !p.MayHaveSideEffects(cond) {
+		p.MarkFunctionsDeleted(forNode.Node())
 		// Remove the entire loop and any associated labels.
 		for parent.IsLabel() {
 			n = parent
@@ -815,6 +817,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldFor(n rhino.Node) rhino.Node {
 		n.Detach()
 	} else {
 		statement := rhino.IR_ExprResult(cond.Detach()).SrcrefIfMissing(cond)
+		p.MarkFunctionsDeleted(forNode.Node())
 		if parent.IsLabel() {
 			block := rhino.IR_Block()
 			block.SrcrefIfMissing(statement)

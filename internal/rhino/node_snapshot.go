@@ -511,67 +511,126 @@ func resizePtrSlice[T any](s []*T, n int) []*T {
 	return s
 }
 
-func snapshotHandleTable[T any](t *handleTable[T]) []T {
-	next := int(t.next.Load())
-	if next <= 1 {
+func snapshotHandleTable[P any](t *handleTable[P]) []*P {
+	count := int(t.count.Load())
+	if count == 0 {
 		return nil
 	}
-	out := make([]T, next)
-	for h := 1; h < next; {
-		blkIdx := h >> tableBlockShift
-		off := h & tableBlockMask
-		end := min(next, (blkIdx+1)<<tableBlockShift)
-		if src := t.blocks[blkIdx].Load(); src != nil {
-			copy(out[h:end], src[off:off+(end-h)])
+	out := make([]*P, count+1)
+	lastBlk := min(count>>tableBlockShift, tableMaxBlocks-1)
+	for k := 0; k <= lastBlk; k++ {
+		sub := t.dir[k>>tableSubShift].Load()
+		if sub == nil {
+			k |= tableSubMask
+			continue
 		}
-		h = end
+		src := sub[k&tableSubMask].Load()
+		if src == nil {
+			continue
+		}
+		startOff := 0
+		if k == 0 {
+			startOff = 1
+		}
+		endOff := tableBlockLen
+		if k == lastBlk && (count>>tableBlockShift) == lastBlk {
+			endOff = (count & tableBlockMask) + 1
+		}
+		base := k << tableBlockShift
+		for off := startOff; off < endOff; off++ {
+			out[base+off] = src[off].Load()
+		}
 	}
 	return out
 }
 
-func restoreHandleTable[T any](t *handleTable[T], snapEntries []T) {
-	snapNext := uint32(1)
+func restoreHandleTable[P any](t *handleTable[P], snapEntries []*P) {
+	snapCount := 0
 	if len(snapEntries) > 1 {
-		snapNext = uint32(len(snapEntries))
+		snapCount = len(snapEntries) - 1
 	}
-	curNext := int(t.next.Load())
-	curBlocks := 0
-	if curNext > 1 {
-		curBlocks = ((curNext - 1) >> tableBlockShift) + 1
-	}
+	curCount := int(t.count.Load())
 	snapBlocks := 0
-	if snapNext > 1 {
-		snapBlocks = int(((snapNext - 1) >> tableBlockShift) + 1)
+	if snapCount > 0 {
+		snapBlocks = (snapCount >> tableBlockShift) + 1
+	}
+	curBlocks := 0
+	if curCount > 0 {
+		curBlocks = min((curCount>>tableBlockShift)+1, tableMaxBlocks)
 	}
 
 	for k := snapBlocks; k < curBlocks; k++ {
-		if k < len(t.blocks) {
-			t.blocks[k].Store(nil)
+		if k == 0 {
+			t.blk0.Store(nil)
+		}
+		if topIdx := k >> tableSubShift; topIdx < tableDirLen {
+			if sub := t.dir[topIdx].Load(); sub != nil {
+				sub[k&tableSubMask].Store(nil)
+			}
+		}
+	}
+	snapTopDirs := 0
+	if snapBlocks > 0 {
+		snapTopDirs = ((snapBlocks - 1) >> tableSubShift) + 1
+	}
+	curTopDirs := 0
+	if curBlocks > 0 {
+		curTopDirs = ((curBlocks - 1) >> tableSubShift) + 1
+	}
+	for top := snapTopDirs; top < curTopDirs; top++ {
+		if top < tableDirLen {
+			t.dir[top].Store(nil)
 		}
 	}
 
 	for k := range snapBlocks {
 		start := k << tableBlockShift
-		end := min(int(snapNext), start+tableBlockLen)
+		end := min(snapCount+1, start+tableBlockLen)
 		count := end - start
 
-		dst := t.blocks[k].Load()
-		if dst == nil {
-			dst = new([tableBlockLen]T)
-			copy(dst[:count], snapEntries[start:end])
-			t.blocks[k].Store(dst)
+		topIdx := k >> tableSubShift
+		subIdx := k & tableSubMask
+		sub := t.dir[topIdx].Load()
+		if sub == nil {
+			sub = new(handleSubDir[P])
+			dst := new(handleBlock[P])
+			for off := range count {
+				dst[off].Store(snapEntries[start+off])
+			}
+			sub[subIdx].Store(dst)
+			t.dir[topIdx].Store(sub)
+			if k == 0 {
+				t.blk0.Store(dst)
+			}
 			continue
 		}
-		copy(dst[:count], snapEntries[start:end])
+		dst := sub[subIdx].Load()
+		if dst == nil {
+			dst = new(handleBlock[P])
+			for off := range count {
+				dst[off].Store(snapEntries[start+off])
+			}
+			sub[subIdx].Store(dst)
+			if k == 0 {
+				t.blk0.Store(dst)
+			}
+			continue
+		}
+		if k == 0 {
+			t.blk0.Store(dst)
+		}
+		for off := range count {
+			dst[off].Store(snapEntries[start+off])
+		}
 		if count < tableBlockLen {
-			dirtyEnd := min(tableBlockLen, max(count, curNext-start))
-			if dirtyEnd > count {
-				clear(dst[count:dirtyEnd])
+			dirtyEnd := min(tableBlockLen, max(count, (curCount+1)-start))
+			for off := count; off < dirtyEnd; off++ {
+				dst[off].Store(nil)
 			}
 		}
 	}
 
-	t.next.Store(snapNext)
+	t.count.Store(uint32(snapCount))
 }
 
 func snapshotStoreTable[T any](t *storeTable[T]) []T {

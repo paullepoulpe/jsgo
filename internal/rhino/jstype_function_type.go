@@ -1007,3 +1007,8 @@ func (f *FunctionTypeBase) GetCanonicalRepresentation() FunctionType {
 	}
 	return nil
 }
+
+// IsParallelReadOnly reports whether r is in concurrent read-only query mode.
+func (r *JSTypeRegistry) IsParallelReadOnly() bool {
+	return r != nil && r.parallelReadOnly
+}

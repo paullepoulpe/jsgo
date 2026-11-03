@@ -216,7 +216,7 @@ func fsivHasNestedBlockScopeDecls(fn ast.Function, fnBody ast.Block) bool {
 			return true
 		default:
 			for c := stmt.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-				if !c.GetFirstChild().IsNil() && fsivSubtreeHasBlockScopeDecls(c) {
+				if c.HasChildren() && fsivSubtreeHasBlockScopeDecls(c) {
 					return true
 				}
 			}
@@ -453,9 +453,8 @@ func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 		}
 		body := cls.Body().Node()
 		for m := body.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if key := m.GetFirstChild(); !key.IsNil() {
+			if cm, ok := ast.AsComputedMember(m); ok {
+				if key := cm.Key().Node(); !key.IsNil() {
 					f.markReadNode(key, m)
 					if f.unreadDefCount == 0 {
 						return
@@ -464,22 +463,19 @@ func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 			}
 		}
 		for m := body.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_FIELD_DEF:
-				if m.IsStaticMember() {
-					if val := m.GetSecondChild(); !val.IsNil() {
-						f.markReadNode(val, m)
+			if cfd, ok := ast.AsComputedFieldDef(m); ok {
+				if cfd.IsStatic() {
+					if val, hasVal := cfd.Value(); hasVal {
+						f.markReadNode(val.Node(), m)
 						if f.unreadDefCount == 0 {
 							return
 						}
 					}
 				}
-			case rhino.Token_MEMBER_FIELD_DEF:
-				if m.IsStaticMember() && m.HasChildren() {
-					f.markReadsOutsideLoop(m)
-					if f.unreadDefCount == 0 {
-						return
-					}
+			} else if m.IsMemberFieldDef() && m.IsStaticMember() && m.HasChildren() {
+				f.markReadsOutsideLoop(m)
+				if f.unreadDefCount == 0 {
+					return
 				}
 			}
 		}
@@ -705,20 +701,18 @@ func (f *FlowSensitiveInlineVariables) collectCandidateFuncs(n rhino.Node, depth
 		return
 	case rhino.Token_CLASS_MEMBERS:
 		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if key := m.GetFirstChild(); !key.IsNil() {
+			if cm, ok := ast.AsComputedMember(m); ok {
+				if key := cm.Key().Node(); !key.IsNil() {
 					f.collectCandidateFuncs(key, depth)
 				}
 			}
 		}
 		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
-			switch m.GetToken() {
-			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
-				if val := m.GetSecondChild(); !val.IsNil() {
-					f.collectCandidateFuncs(val, depth)
+			if cm, ok := ast.AsComputedMember(m); ok {
+				if val, hasVal := cm.Value(); hasVal {
+					f.collectCandidateFuncs(val.Node(), depth)
 				}
-			default:
+			} else {
 				f.collectCandidateFuncs(m, depth)
 			}
 		}

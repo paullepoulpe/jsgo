@@ -380,12 +380,19 @@ func (x NormalOrOptChainGetProp) SetConstantName(constant bool) {
 // IsEs6Constructor reports whether x is an ES6 class constructor method
 // definition (non-static constructor() inside a class body).
 func (x MemberFunctionDef) IsEs6Constructor() bool {
-	return x.node.GetParent().IsClassMembers() && !x.IsStatic() && x.Key() == "constructor"
+	if x.node.IsNil() {
+		return false
+	}
+	parent := x.node.GetParent()
+	return !parent.IsNil() && parent.IsClassMembers() && !x.IsStatic() && x.Key() == "constructor"
 }
 
 // IsEs6Constructor reports whether x is the function of an ES6 class
 // constructor method definition.
 func (x Function) IsEs6Constructor() bool {
+	if x.node.IsNil() {
+		return false
+	}
 	m, ok := AsMemberFunctionDef(x.node.GetParent())
 	return ok && m.IsEs6Constructor()
 }
