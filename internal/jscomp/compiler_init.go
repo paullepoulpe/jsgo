@@ -732,11 +732,12 @@ func (c *Compiler) IsDebugLoggingEnabled() bool {
 
 // Java: Compiler.getDebugLogFilterList()
 func (c *Compiler) GetDebugLogFilterList() []string {
-	if c.GetOptions().GetDebugLogFilter() == nil {
+	filter, ok := c.GetOptions().GetDebugLogFilter()
+	if !ok {
 		return []string{}
 	}
 	var out []string
-	for _, s := range strings.Split(*c.GetOptions().GetDebugLogFilter(), ",") {
+	for _, s := range strings.Split(filter, ",") {
 		if s != "" {
 			out = append(out, s)
 		}

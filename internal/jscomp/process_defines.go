@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -45,8 +46,7 @@ type ProcessDefines struct {
 	mode                       ProcessDefines_Mode
 	namespaceSupplier          func() *GlobalNamespace
 	recognizeClosureDefines    bool
-	enableZonesDefineName      string
-	hasEnableZonesDefineName   bool
+	enableZonesDefineName      base.OptString
 	zoneInputPattern           *jutil.Pattern
 	unknownDefinesToIgnore     map[string]struct{}
 
@@ -152,7 +152,7 @@ type ProcessDefinesOptions struct {
 	Mode                    ProcessDefines_Mode
 	NamespaceSupplier       func() *GlobalNamespace
 	RecognizeClosureDefines bool
-	EnableZonesDefineName   *string
+	EnableZonesDefineName   base.OptString
 	ZoneInputPattern        *jutil.Pattern
 	UnknownDefinesToIgnore  []string
 }
@@ -164,11 +164,8 @@ func NewProcessDefines(compiler AbstractCompiler, opts ProcessDefinesOptions) *P
 		compiler:                compiler,
 		namespaceSupplier:       opts.NamespaceSupplier,
 		recognizeClosureDefines: opts.RecognizeClosureDefines,
+		enableZonesDefineName:   opts.EnableZonesDefineName,
 		zoneInputPattern:        opts.ZoneInputPattern,
-	}
-	if opts.EnableZonesDefineName != nil {
-		p.enableZonesDefineName = *opts.EnableZonesDefineName
-		p.hasEnableZonesDefineName = true
 	}
 	if p.mode.Check() {
 		p.registry = p.compiler.GetTypeRegistry()
@@ -416,10 +413,11 @@ func (p *ProcessDefines) ValidateDefines() {
 // Java: ProcessDefines.isZoneEnabled()
 func (p *ProcessDefines) IsZoneEnabled() bool {
 	enableZonesDefault := true
-	if !p.hasEnableZonesDefineName {
+	defineName, ok := p.enableZonesDefineName.Get()
+	if !ok {
 		return enableZonesDefault
 	}
-	zoneEnabled := p.GetReplacementForDefineName(p.enableZonesDefineName)
+	zoneEnabled := p.GetReplacementForDefineName(defineName)
 	if zoneEnabled.IsNil() {
 		return enableZonesDefault
 	}

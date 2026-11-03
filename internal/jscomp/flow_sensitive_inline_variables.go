@@ -203,20 +203,20 @@ func fsivSubtreeHasBlockScopeDecls(n rhino.Node) bool {
 }
 
 func fsivHasNestedBlockScopeDecls(fn ast.Function, fnBody ast.Block) bool {
-	for p := range fn.Params().Params() {
-		if _, ok := p.AsName(); !ok && fsivSubtreeHasBlockScopeDecls(p.Node()) {
+	for p := fn.Params().Node().GetFirstChild(); !p.IsNil(); p = p.GetNext() {
+		if !p.IsName() && fsivSubtreeHasBlockScopeDecls(p) {
 			return true
 		}
 	}
-	for stmt := range fnBody.Statements() {
-		switch stmt.Token() {
+	for stmt := fnBody.Node().GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
+		switch stmt.GetToken() {
 		case rhino.Token_FUNCTION:
 			continue
 		case rhino.Token_CLASS, rhino.Token_CATCH:
 			return true
 		default:
-			for c := stmt.Node().GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-				if fsivSubtreeHasBlockScopeDecls(c) {
+			for c := stmt.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				if !c.GetFirstChild().IsNil() && fsivSubtreeHasBlockScopeDecls(c) {
 					return true
 				}
 			}
@@ -369,8 +369,8 @@ func (f *FlowSensitiveInlineVariables) walkCfgStatements(n, parent rhino.Node, s
 		f.walkCfgStatements(body, n, true)
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if scanDefs {
-			for d := range ast.MustNameDeclaration(n).Declarators() {
-				if name, ok := d.AsName(); ok {
+			for d := n.GetFirstChild(); !d.IsNil(); d = d.GetNext() {
+				if name, ok := ast.AsName(d); ok {
 					if value, ok := name.Init(); ok {
 						f.maybeAddCandidateDef(name, value)
 					}
@@ -411,15 +411,22 @@ func (f *FlowSensitiveInlineVariables) walkCfgStatements(n, parent rhino.Node, s
 	}
 }
 
-func (f *FlowSensitiveInlineVariables) markReadNode(c, parent rhino.Node) {
-	if c.IsName() && fsivIsReadName(c, parent) {
-		nameID := c.GetStringID()
-		for i := range f.inlinableDefs {
-			if f.inlinableDefs[i].nameID == nameID && !f.inlinableDefs[i].hasRead {
-				f.inlinableDefs[i].hasRead = true
-				f.unreadDefCount--
-			}
+func (f *FlowSensitiveInlineVariables) markReadName(c, parent rhino.Node) {
+	if !fsivIsReadName(c, parent) {
+		return
+	}
+	nameID := c.GetStringID()
+	for i := range f.inlinableDefs {
+		if f.inlinableDefs[i].nameID == nameID && !f.inlinableDefs[i].hasRead {
+			f.inlinableDefs[i].hasRead = true
+			f.unreadDefCount--
 		}
+	}
+}
+
+func (f *FlowSensitiveInlineVariables) markReadNode(c, parent rhino.Node) {
+	if c.IsName() {
+		f.markReadName(c, parent)
 		if f.unreadDefCount == 0 {
 			return
 		}
@@ -444,20 +451,52 @@ func (f *FlowSensitiveInlineVariables) markReadsOutsideLoop(n rhino.Node) {
 				return
 			}
 		}
-		for ch, p := range cls.Body().EvalOrder() {
-			if shouldWalkCfgClassEvalItem(ch, p) {
-				f.markReadNode(ch, p)
-				if f.unreadDefCount == 0 {
-					return
+		body := cls.Body().Node()
+		for m := body.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if key := m.GetFirstChild(); !key.IsNil() {
+					f.markReadNode(key, m)
+					if f.unreadDefCount == 0 {
+						return
+					}
+				}
+			}
+		}
+		for m := body.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if m.IsStaticMember() {
+					if val := m.GetSecondChild(); !val.IsNil() {
+						f.markReadNode(val, m)
+						if f.unreadDefCount == 0 {
+							return
+						}
+					}
+				}
+			case rhino.Token_MEMBER_FIELD_DEF:
+				if m.IsStaticMember() && m.HasChildren() {
+					f.markReadsOutsideLoop(m)
+					if f.unreadDefCount == 0 {
+						return
+					}
 				}
 			}
 		}
 		return
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		f.markReadNode(c, n)
-		if f.unreadDefCount == 0 {
-			return
+		if c.IsName() {
+			f.markReadName(c, n)
+			if f.unreadDefCount == 0 {
+				return
+			}
+		}
+		if c.HasChildren() {
+			f.markReadsOutsideLoop(c)
+			if f.unreadDefCount == 0 {
+				return
+			}
 		}
 	}
 }
@@ -665,8 +704,23 @@ func (f *FlowSensitiveInlineVariables) collectCandidateFuncs(n rhino.Node, depth
 		f.collectCandidateFuncs(class.Body().Node(), depth)
 		return
 	case rhino.Token_CLASS_MEMBERS:
-		for ch := range ast.MustClassBody(n).EvalOrder() {
-			f.collectCandidateFuncs(ch, depth)
+		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if key := m.GetFirstChild(); !key.IsNil() {
+					f.collectCandidateFuncs(key, depth)
+				}
+			}
+		}
+		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if val := m.GetSecondChild(); !val.IsNil() {
+					f.collectCandidateFuncs(val, depth)
+				}
+			default:
+				f.collectCandidateFuncs(m, depth)
+			}
 		}
 		return
 	}

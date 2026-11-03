@@ -313,7 +313,7 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 				PutReplacements(closureRewriteDefineReplacements()).
 				SetMode(mode).
 				SetRecognizeClosureDefines(true).
-				SetEnableZonesDefineName(compiler.GetOptions().GetEnableZonesDefineName()).
+				SetEnableZonesDefineName(compiler.GetOptions().enableZonesDefineName).
 				SetZoneInputPattern(compiler.GetOptions().GetZoneInputPattern()).
 				SetUnknownDefinesToIgnore(compiler.GetOptions().GetUnknownDefinesToIgnore()).
 				Build().

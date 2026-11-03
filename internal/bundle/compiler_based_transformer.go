@@ -100,8 +100,9 @@ func NewCompileResult(source string, errors []*jscomp.JSError, transformed bool,
 	}
 }
 
+const devNullSourceMapPath = "/dev/null"
+
 var (
-	devNullSourceMapPath    = "/dev/null"
 	compilerSupplierExterns = jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}")
 	compilerSupplierEmpty   = jscomp.SourceFile_FromCode("empty.js", "")
 	es5WarningsGroup        = jscomp.NewDiagnosticGroup(jscomp.DiagnosticType_Error("JSC_CANNOT_CONVERT", ""))
@@ -170,7 +171,7 @@ func SetCommonTranspilationOptions(options *jscomp.CompilerOptions) {
 	options.SetPropertyRenaming(jscomp.PropertyRenamingPolicy_OFF)
 	options.SetWrapGoogModulesForWhitespaceOnly(false)
 	options.SetPrettyPrint(true)
-	options.SetSourceMapOutputPath(&devNullSourceMapPath)
+	options.SetSourceMapOutputPath(devNullSourceMapPath)
 	options.SetSourceMapIncludeSourcesContent(true)
 }
 
@@ -232,7 +233,7 @@ func setCoverageOptions(options *jscomp.CompilerOptions) {
 	// Setting the path to any non-null value will trigger source map
 	// generation. CompilerBasedTransformer attaches the sourcemap to the
 	// result.
-	options.SetSourceMapOutputPath(&devNullSourceMapPath)
+	options.SetSourceMapOutputPath(devNullSourceMapPath)
 	options.SetVariableRenaming(jscomp.VariableRenamingPolicy_OFF)
 	options.SetInstrumentForCoverageOption(jscomp.CompilerOptions_InstrumentOption_LINE_ONLY)
 	options.SetInstrumentForCoverageOnly(true)

@@ -73,8 +73,7 @@ func (c *LocaleDataPassesTest) SetUp() {
 // Java: LocaleDataPassesTest.getOptions()
 func (c *LocaleDataPassesTest) GetOptions() *CompilerOptions {
 	options := c.CompilerTestCaseBase.GetOptions()
-	locale := c.locale
-	options.SetLocale(&locale)
+	options.SetLocale(c.locale)
 	return options
 }
 
@@ -99,7 +98,7 @@ func (p *localeDataPassesTest_replacePass) Process(externs rhino.Node, root rhin
 	extract.Process(externs, root)
 	subs :=
 		NewLocaleDataPasses_LocaleSubstitutions(
-			p.compiler, p.compiler.GetOptions().GetLocale())
+			p.compiler, p.compiler.GetOptions().locale)
 	subs.Process(externs, root)
 }
 

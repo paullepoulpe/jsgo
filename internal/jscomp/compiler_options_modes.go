@@ -328,20 +328,30 @@ func (o *CompilerOptions) ShouldAllowDynamicImport() bool {
 // Set the alias name for dynamic import expressions
 //
 // Java: CompilerOptions.getDynamicImportAlias()
-func (o *CompilerOptions) GetDynamicImportAlias() *string {
-	return o.dynamicImportAlias
+func (o *CompilerOptions) GetDynamicImportAlias() (string, bool) {
+	return o.dynamicImportAlias.Get()
 }
 
 // Set the alias name for dynamic import expressions
 //
 // Java: CompilerOptions.setDynamicImportAlias(String)
-func (o *CompilerOptions) SetDynamicImportAlias(value *string) {
+func (o *CompilerOptions) SetDynamicImportAlias(value string) {
+	o.dynamicImportAlias = base.SomeString(value)
+}
+
+// ClearDynamicImportAlias clears dynamicImportAlias to absent (Java null).
+func (o *CompilerOptions) ClearDynamicImportAlias() {
+	o.dynamicImportAlias = base.NoString()
+}
+
+// SetDynamicImportAliasOpt sets or clears dynamicImportAlias from an OptString.
+func (o *CompilerOptions) SetDynamicImportAliasOpt(value base.OptString) {
 	o.dynamicImportAlias = value
 }
 
 // Java: CompilerOptions.shouldAliasDynamicImport()
 func (o *CompilerOptions) ShouldAliasDynamicImport() bool {
-	return o.dynamicImportAlias != nil
+	return o.dynamicImportAlias.IsPresent()
 }
 
 // Java: CompilerOptions.shouldRunCrossChunkCodeMotion()

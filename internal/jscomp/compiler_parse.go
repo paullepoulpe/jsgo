@@ -139,7 +139,7 @@ func (c *Compiler) ParseInputs() (result rhino.Node) {
 	}
 
 	needSourceInfo := c.options.ShouldGatherSourceMapInfo() ||
-		c.options.GetExternExportsPath() != nil ||
+		c.options.HasExternExportsPath() ||
 		len(c.options.GetReplaceStringsFunctionDescriptions()) != 0
 	annotatedInParallel := false
 	if needSourceInfo && !devMode && c.options.GetDevMode() == CompilerOptions_DevMode_OFF &&

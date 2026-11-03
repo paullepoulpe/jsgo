@@ -262,6 +262,11 @@ func (f *FunctionInjector) ReferencesEval(fn rhino.Node) bool {
 	if info.evalState != 0 {
 		return info.evalState == 2
 	}
+	if f.seedCache != nil {
+		if evalState, ok := f.seedCache.lookupSeededEval(fn); ok {
+			return evalState == 2
+		}
+	}
 
 	result := functionInjector_referencesEval(fn, fn)
 	if f.fnInfoCache == nil {
@@ -325,6 +330,11 @@ func (f *FunctionInjector) innerFunctionOf(containerFn rhino.Node) (uint8, rhino
 	}
 	if !info.inner.IsNil() {
 		return fnInnerOne, info.inner
+	}
+	if f.seedCache != nil {
+		if innerState, inner, ok := f.seedCache.lookupSeededInner(containerFn); ok {
+			return innerState, inner
+		}
 	}
 
 	firstInner, count := functionInjector_findInnerFunctions(containerFn, containerFn, rhino.NilNode, 0)

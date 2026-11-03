@@ -43,6 +43,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -177,11 +178,11 @@ func coreG3Set(a string) *OrderedSet[string] {
 	return NewOrderedSet(coreG3List(a)...)
 }
 
-func coreG3Nullable(a string) *string {
+func coreG3OptString(a string) base.OptString {
 	if a == "null" {
-		return nil
+		return base.NoString()
 	}
-	return &a
+	return base.SomeString(a)
 }
 
 func coreG3EnumValues[E ~int32](n int) []E {
@@ -354,13 +355,13 @@ func coreG3Ops() []coreG3Op {
 			k, v, _ := strings.Cut(a, ":")
 			o.SetDefineToStringLiteral(k, v)
 		}},
-		{"setRenamePrefix", []string{"null", "", "$p_"}, func(o *CompilerOptions, a string) { o.SetRenamePrefix(coreG3Nullable(a)) }},
+		{"setRenamePrefix", []string{"null", "", "$p_"}, func(o *CompilerOptions, a string) { o.SetRenamePrefixOpt(coreG3OptString(a)) }},
 		{"setRenamePrefixNamespace", []string{"null", "_ns"}, func(o *CompilerOptions, a string) {
-			o.SetRenamePrefixNamespace(coreG3Nullable(a))
+			o.SetRenamePrefixNamespaceOpt(coreG3OptString(a))
 		}},
-		{"setLocale", []string{"null", "en", "fr_CA"}, func(o *CompilerOptions, a string) { o.SetLocale(coreG3Nullable(a)) }},
+		{"setLocale", []string{"null", "en", "fr_CA"}, func(o *CompilerOptions, a string) { o.SetLocaleOpt(coreG3OptString(a)) }},
 		{"setSourceMapOutputPath", []string{"null", "", "out.map"}, func(o *CompilerOptions, a string) {
-			o.SetSourceMapOutputPath(coreG3Nullable(a))
+			o.SetSourceMapOutputPathOpt(coreG3OptString(a))
 		}},
 		coreG3BoolOp("setAlwaysGatherSourceMapInfo", (*CompilerOptions).SetAlwaysGatherSourceMapInfo),
 		coreG3BoolOp("setSkipNonTranspilationPasses", (*CompilerOptions).SetSkipNonTranspilationPasses),
@@ -423,7 +424,7 @@ func coreG3Ops() []coreG3Op {
 		}},
 		{"setReplaceMessagesWithChromeI18n", []string{"true:null", "true:proj", "false:null"}, func(o *CompilerOptions, a string) {
 			k, v, _ := strings.Cut(a, ":")
-			o.SetReplaceMessagesWithChromeI18n(strings.EqualFold(k, "true"), coreG3Nullable(v))
+			o.SetReplaceMessagesWithChromeI18n(strings.EqualFold(k, "true"), coreG3OptString(v))
 		}},
 		coreG3BoolOp("setDoLateLocalization", (*CompilerOptions).SetDoLateLocalization),
 		{"setMessageBundle", []string{"null", "empty"}, func(o *CompilerOptions, a string) {
@@ -442,7 +443,7 @@ func coreG3Ops() []coreG3Op {
 			(*CompilerOptions).SetInstrumentForCoverageOption),
 		coreG3BoolOp("setInstrumentForCoverageOnly", (*CompilerOptions).SetInstrumentForCoverageOnly),
 		{"setProductionInstrumentationArrayName", []string{"", "arr"}, (*CompilerOptions).SetProductionInstrumentationArrayName},
-		{"setDebugLogFilter", []string{"null", "a,,b"}, func(o *CompilerOptions, a string) { o.SetDebugLogFilter(coreG3Nullable(a)) }},
+		{"setDebugLogFilter", []string{"null", "a,,b"}, func(o *CompilerOptions, a string) { o.SetDebugLogFilterOpt(coreG3OptString(a)) }},
 		coreG3BoolOp("setTrustedStrings", (*CompilerOptions).SetTrustedStrings),
 		coreG3BoolOp("setPreferSingleQuotes", (*CompilerOptions).SetPreferSingleQuotes),
 		coreG3BoolOp("setQuoteKeywordProperties", (*CompilerOptions).SetQuoteKeywordProperties),
@@ -477,7 +478,7 @@ func coreG3Ops() []coreG3Op {
 			o.SetSourceMapLocationMappings(l)
 		}},
 		{"setDynamicImportAlias", []string{"null", "imp"}, func(o *CompilerOptions, a string) {
-			o.SetDynamicImportAlias(coreG3Nullable(a))
+			o.SetDynamicImportAliasOpt(coreG3OptString(a))
 		}},
 		coreG3BoolOp("setAllowDynamicImport", (*CompilerOptions).SetAllowDynamicImport),
 		{"setExperimentalOutputFeatureSet",
@@ -575,7 +576,14 @@ func coreG3Getters() []coreG3Getter {
 	t := reflect.TypeOf((*CompilerOptions)(nil))
 	for i := 0; i < t.NumMethod(); i++ {
 		m := t.Method(i)
-		if m.Type.NumIn() != 1 || m.Type.NumOut() != 1 || m.Name == "String" || m.Name == "HashCode" {
+		if m.Type.NumIn() != 1 || m.Name == "String" || m.Name == "HashCode" ||
+			m.Name == "HasExternExportsPath" || m.Name == "HasRenamePrefixNamespace" || m.Name == "HasSyntheticBlockStartMarker" {
+			continue
+		}
+		isOptStringGetter := m.Type.NumOut() == 2 &&
+			m.Type.Out(0).Kind() == reflect.String &&
+			m.Type.Out(1).Kind() == reflect.Bool
+		if m.Type.NumOut() != 1 && !isOptStringGetter {
 			continue
 		}
 		getters = append(getters, coreG3Getter{strings.ToLower(m.Name[:1]) + m.Name[1:], m})
@@ -670,7 +678,16 @@ func (o *coreG3Out) options(seed int64, n int) {
 		for _, g := range getters {
 			var v string
 			if t := coreG3Try(func() {
-				r := g.method.Func.Call([]reflect.Value{reflect.ValueOf(opts)})[0].Interface()
+				outs := g.method.Func.Call([]reflect.Value{reflect.ValueOf(opts)})
+				if len(outs) == 2 {
+					if !outs[1].Bool() {
+						v = "null"
+					} else {
+						v = outs[0].String()
+					}
+					return
+				}
+				r := outs[0].Interface()
 				if g.javaName == "getExperimentalOutputFeatureSet" {
 					// Go-only: the Java getter returns a Guava Optional; the port
 					// returns a nil-able pointer.

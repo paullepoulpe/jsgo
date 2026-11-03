@@ -201,7 +201,7 @@ func initNodeTraversal(
 	// TODO(johnlenz): refactor into compiler options helper.
 	options := t.compiler.GetOptions()
 	t.mayContainSyntheticBlocks =
-		options == nil || options.GetSyntheticBlockStartMarker() != nil
+		options == nil || options.HasSyntheticBlockStartMarker()
 }
 
 // NodeTraversal_Builder is the value builder for NodeTraversal.

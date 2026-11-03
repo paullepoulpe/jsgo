@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -30,7 +31,7 @@ import (
 type RewriteDynamicImportsTest struct {
 	CompilerTestCaseBase
 
-	dynamicImportAlias *string
+	dynamicImportAlias base.OptString
 	language           *CompilerOptions_LanguageMode
 	languageIn         *CompilerOptions_LanguageMode
 	chunkOutputType    CompilerOptions_ChunkOutputType
@@ -39,7 +40,7 @@ type RewriteDynamicImportsTest struct {
 // Java: RewriteDynamicImportsTest()
 func NewRewriteDynamicImportsTest() *RewriteDynamicImportsTest {
 	c := &RewriteDynamicImportsTest{}
-	c.dynamicImportAlias = jutil.StringPtr("imprt_")
+	c.dynamicImportAlias = base.SomeString("imprt_")
 	c.language = nil
 	c.languageIn = nil
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE
@@ -106,7 +107,7 @@ func (c *RewriteDynamicImportsTest) GetProcessor(compiler *Compiler) CompilerPas
 
 // Java: RewriteDynamicImportsTest.externalImportWithoutAlias()
 func (c *RewriteDynamicImportsTest) TestExternalImportWithoutAlias() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	c.IgnoreWarnings(ModuleLoader_LOAD_WARNING)
 	c.TestSame("import('./external.js')")
 }
@@ -122,7 +123,7 @@ func (c *RewriteDynamicImportsTest) TestExternalImportWithAlias() {
 
 // Java: RewriteDynamicImportsTest.internalImportSameChunkWithoutAlias_unused()
 func (c *RewriteDynamicImportsTest) TestInternalImportSameChunkWithoutAlias_unused() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i1.js", "import('./i0.js');"))
@@ -144,7 +145,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 
 // Java: RewriteDynamicImportsTest.internalImportSameChunkWithoutAlias_used()
 func (c *RewriteDynamicImportsTest) TestInternalImportSameChunkWithoutAlias_used() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i1.js", "const ns = import('./i0.js');"))
@@ -190,7 +191,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 
 // Java: RewriteDynamicImportsTest.internalImportDifferentChunksWithoutAlias_unused()
 func (c *RewriteDynamicImportsTest) TestInternalImportDifferentChunksWithoutAlias_unused() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -237,7 +238,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 
 // Java: RewriteDynamicImportsTest.internalImportDifferentChunksWithoutAlias_used()
 func (c *RewriteDynamicImportsTest) TestInternalImportDifferentChunksWithoutAlias_used() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -289,7 +290,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 
 // Java: RewriteDynamicImportsTest.qualifiedNameAlias()
 func (c *RewriteDynamicImportsTest) TestQualifiedNameAlias() {
-	c.dynamicImportAlias = jutil.StringPtr("ns.imprt_")
+	c.dynamicImportAlias = base.SomeString("ns.imprt_")
 	c.IgnoreWarnings(ModuleLoader_LOAD_WARNING)
 	c.Test(
 		`/** @const */
@@ -308,7 +309,7 @@ ns.imprt_('./other.js');
 
 // Java: RewriteDynamicImportsTest.qualifiedNameAliasExtern()
 func (c *RewriteDynamicImportsTest) TestQualifiedNameAliasExtern() {
-	c.dynamicImportAlias = jutil.StringPtr("ns.imprt_")
+	c.dynamicImportAlias = base.SomeString("ns.imprt_")
 	c.IgnoreWarnings(ModuleLoader_LOAD_WARNING)
 	c.Test(
 		c.Externs("const ns = {}; /** @const */ ns.imprt_ = function(path) {};"),
@@ -318,7 +319,7 @@ func (c *RewriteDynamicImportsTest) TestQualifiedNameAliasExtern() {
 
 // Java: RewriteDynamicImportsTest.internalImportPathError()
 func (c *RewriteDynamicImportsTest) TestInternalImportPathError() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("folder1/chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -330,7 +331,7 @@ func (c *RewriteDynamicImportsTest) TestInternalImportPathError() {
 
 // Java: RewriteDynamicImportsTest.lowerLanguageWithoutAlias()
 func (c *RewriteDynamicImportsTest) TestLowerLanguageWithoutAlias() {
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	actualChunk0 := NewJSChunk("chunk0")
@@ -345,7 +346,7 @@ func (c *RewriteDynamicImportsTest) TestLowerLanguageWithoutAlias() {
 // Java: RewriteDynamicImportsTest.outputModulesExternInjected()
 func (c *RewriteDynamicImportsTest) TestOutputModulesExternInjected() {
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_ES_MODULES
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -361,7 +362,7 @@ func (c *RewriteDynamicImportsTest) TestOutputModulesExternInjected() {
 func (c *RewriteDynamicImportsTest) TestOutputModulesInternalImportSameChunk_unused() {
 	c.AllowExternsChanges()
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_ES_MODULES
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i1.js", "import('./i0.js');"))
@@ -385,7 +386,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 func (c *RewriteDynamicImportsTest) TestOutputModulesInternalImportSameChunk_used() {
 	c.AllowExternsChanges()
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_ES_MODULES
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i1.js", "const ns = import('./i0.js');"))
@@ -409,7 +410,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 func (c *RewriteDynamicImportsTest) TestOutputModulesInternalImportDifferentChunks_unused() {
 	c.AllowExternsChanges()
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_ES_MODULES
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -435,7 +436,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 func (c *RewriteDynamicImportsTest) TestOutputModulesInternalImportDifferentChunks_used() {
 	c.AllowExternsChanges()
 	c.chunkOutputType = CompilerOptions_ChunkOutputType_ES_MODULES
-	c.dynamicImportAlias = nil
+	c.dynamicImportAlias = base.NoString()
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -466,7 +467,7 @@ var $jscompDefaultExport$$module$i0 = a$$module$i0;
 func (c *RewriteDynamicImportsTest) TestAliasExternInjectedSimple() {
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	c.dynamicImportAlias = jutil.StringPtr("import_")
+	c.dynamicImportAlias = base.SomeString("import_")
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -481,7 +482,7 @@ func (c *RewriteDynamicImportsTest) TestAliasExternInjectedSimple() {
 func (c *RewriteDynamicImportsTest) TestAliasExternInjectedSimpleImport() {
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	c.dynamicImportAlias = jutil.StringPtr("import")
+	c.dynamicImportAlias = base.SomeString("import")
 
 	// "import" is not a valid JS identifier name and will not parse.
 	// Instead, we have to manually check the AST for the expected name.
@@ -519,7 +520,7 @@ func (c *RewriteDynamicImportsTest) TestAliasExternInjectedSimpleImport() {
 func (c *RewriteDynamicImportsTest) TestAliasExternInjectedSimpleAlreadyDefined() {
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	c.dynamicImportAlias = jutil.StringPtr("import_")
+	c.dynamicImportAlias = base.SomeString("import_")
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -536,7 +537,7 @@ func (c *RewriteDynamicImportsTest) TestAliasExternInjectedSimpleAlreadyDefined(
 func (c *RewriteDynamicImportsTest) TestAliasExternInjectedQualified() {
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	c.dynamicImportAlias = jutil.StringPtr("foo.import")
+	c.dynamicImportAlias = base.SomeString("foo.import")
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -553,7 +554,7 @@ func (c *RewriteDynamicImportsTest) TestAliasExternInjectedQualified() {
 func (c *RewriteDynamicImportsTest) TestAliasExternInjectedQualifiedAlreadyDefinedComplete() {
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	c.dynamicImportAlias = jutil.StringPtr("foo.import")
+	c.dynamicImportAlias = base.SomeString("foo.import")
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -570,7 +571,7 @@ func (c *RewriteDynamicImportsTest) TestAliasExternInjectedQualifiedAlreadyDefin
 func (c *RewriteDynamicImportsTest) TestAliasExternInjectedQualifiedAlreadyDefinedPartial() {
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	c.dynamicImportAlias = jutil.StringPtr("foo.import")
+	c.dynamicImportAlias = base.SomeString("foo.import")
 	actualChunk0 := NewJSChunk("chunk0")
 	actualChunk0.AddSourceFile(SourceFile_FromCode("i0.js", "const a = 1; export default a;"))
 
@@ -583,7 +584,7 @@ func (c *RewriteDynamicImportsTest) TestAliasExternInjectedQualifiedAlreadyDefin
 
 // Java: RewriteDynamicImportsTest.invalidAliasSimpleName()
 func (c *RewriteDynamicImportsTest) TestInvalidAliasSimpleName() {
-	c.dynamicImportAlias = jutil.StringPtr("fo'oo")
+	c.dynamicImportAlias = base.SomeString("fo'oo")
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	actualChunk0 := NewJSChunk("chunk0")
@@ -597,7 +598,7 @@ func (c *RewriteDynamicImportsTest) TestInvalidAliasSimpleName() {
 
 // Java: RewriteDynamicImportsTest.invalidAliasQualifiedName()
 func (c *RewriteDynamicImportsTest) TestInvalidAliasQualifiedName() {
-	c.dynamicImportAlias = jutil.StringPtr("foo.bar['chunk']")
+	c.dynamicImportAlias = base.SomeString("foo.bar['chunk']")
 	c.language = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_2015)
 	c.languageIn = compilerOptionsLanguageModePtr(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	actualChunk0 := NewJSChunk("chunk0")

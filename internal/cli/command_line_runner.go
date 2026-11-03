@@ -30,6 +30,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/args4j"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -685,9 +686,9 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 
 	options.SetRemoveJ2clAsserts(flags.removeJ2cLAsserts)
 
-	options.SetRenamePrefix(flags.renamePrefix)
+	options.SetRenamePrefixOpt(base.OptStringFromPtr(flags.renamePrefix))
 
-	options.SetRenamePrefixNamespace(flags.renamePrefixNamespace)
+	options.SetRenamePrefixNamespaceOpt(base.OptStringFromPtr(flags.renamePrefixNamespace))
 
 	options.SetPreserveTypeAnnotations(flags.preserveTypeAnnotations)
 
@@ -765,7 +766,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetInstrumentForCoverageOption(flags.instrumentCodeParsed)
 	options.SetProductionInstrumentationArrayName(flags.productionInstrumentationArrayName)
 	options.SetAllowDynamicImport(flags.allowDynamicImport)
-	options.SetDynamicImportAlias(flags.dynamicImportAlias)
+	options.SetDynamicImportAliasOpt(base.OptStringFromPtr(flags.dynamicImportAlias))
 	options.SetAssumeStaticInheritanceIsNotUsed(flags.assumeStaticInheritanceIsNotUsed)
 	options.SetCrossChunkCodeMotionNoStubMethods(flags.assumeNoPrototypeMethodEnumeration)
 

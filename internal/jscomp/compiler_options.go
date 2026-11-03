@@ -48,7 +48,7 @@ func copyIntoOrderedStringSet(dst *OrderedSet[string], src *OrderedSet[string]) 
 // interleaves them with the accessors) and keep their Java declaration
 // order; their initializers run first in NewCompilerOptions, as Java's
 // field initializers run before the constructor body. Value types: a Java
-// String that may be null is a *string; Optional<Boolean> is base.Tri and
+// String that may be null is a base.OptString; Optional<Boolean> is base.Tri and
 // Optional<FeatureSet>/Optional<Pattern> are nil-able pointers (nil is
 // absent); ImmutableSet/Set are *OrderedSet, ImmutableMap/Map are
 // *OrderedMap and ImmutableList/List are slices; the @define
@@ -218,9 +218,9 @@ type CompilerOptions struct {
 	// Generate pseudo names for variables and properties for debugging purposes.
 	generatePseudoNames bool
 	// Specifies a prefix for all globals
-	renamePrefix *string
+	renamePrefix base.OptString
 	// Specifies the name of an object that will be used to store all non-extern globals.
-	renamePrefixNamespace *string
+	renamePrefixNamespace base.OptString
 	// Used by tests of the RescopeGlobalSymbols pass to avoid having declare 2 chunks in simple
 	// cases.
 	renamePrefixNamespaceAssumeCrossChunkNames  bool
@@ -260,13 +260,13 @@ type CompilerOptions struct {
 	// --------------------------------
 	// Replace UI strings with chrome.i18n.getMessage calls. Used by Chrome extensions/apps.
 	replaceMessagesWithChromeI18n bool
-	tcProjectId                   *string
+	tcProjectId                   base.OptString
 	// A CodingConvention to use during the compile.
 	codingConvention          CodingConvention
-	syntheticBlockStartMarker *string
-	syntheticBlockEndMarker   *string
+	syntheticBlockStartMarker base.OptString
+	syntheticBlockEndMarker   base.OptString
 	// Compiling locale
-	locale *string
+	locale base.OptString
 	// If true, then perform localization passes as late as possible.
 	//
 	// At the moment this only affects when `ReplaceMessages` does the work of inserting the
@@ -289,7 +289,7 @@ type CompilerOptions struct {
 	// Processes the output of J2CL
 	j2clPassMode                CompilerOptions_J2clPassMode
 	j2clMinifierEnabled         bool
-	j2clMinifierPruningManifest *string
+	j2clMinifierPruningManifest base.OptString
 	// Remove goog.abstractMethod assignments and @abstract methods.
 	removeAbstractMethods bool
 	// Remove goog.asserts calls.
@@ -331,7 +331,7 @@ type CompilerOptions struct {
 	chunkIdHashFunction Xid_HashFunction
 	// A previous map of ids (serialized to a string by a previous compile). This will be used as a
 	// hint during the ReplaceIdGenerators pass, which will attempt to reuse the same ids.
-	idGeneratorsMapSerialized *string
+	idGeneratorsMapSerialized base.OptString
 	// Configuration strings
 	replaceStringsFunctionDescriptions []string
 	replaceStringsPlaceholderToken     string
@@ -405,7 +405,7 @@ type CompilerOptions struct {
 	// written.
 	//
 	// null indicates that no such files should be written.
-	debugLogFilter          *string
+	debugLogFilter          base.OptString
 	serializeExtraDebugInfo bool
 	// Go-only: language-adapter — Function<OutputStream, OutputStream> and
 	// Function<InputStream, InputStream>; nil is Java null.
@@ -436,13 +436,13 @@ type CompilerOptions struct {
 	// Special Output Options
 	// --------------------------------
 	// The output path for the created externs file.
-	externExportsPath     *string
+	externExportsPath     base.OptString
 	extraReportGenerators []SortingErrorManager_ErrorReportGenerator
 	// --------------------------------
 	// Debugging Options
 	// --------------------------------
 	// The output path for the source map.
-	sourceMapOutputPath *string
+	sourceMapOutputPath base.OptString
 	// Should we gather information needed to generate a source map even when sourceMapOutputPath
 	// indicates otherwise?
 	//
@@ -546,11 +546,11 @@ type CompilerOptions struct {
 	// Which entries to look for in package.json files when processing modules
 	packageJsonEntryNames  []string
 	allowDynamicImport     bool
-	dynamicImportAlias     *string
+	dynamicImportAlias     base.OptString
 	chunkOutputType        CompilerOptions_ChunkOutputType
 	unknownDefinesToIgnore []string
 	inlineFunctionsLevel   CompilerOptions_Reach
-	enableZonesDefineName  *string
+	enableZonesDefineName  base.OptString
 	zoneInputPattern       *jutil.Pattern
 	es6ModuleTranspilation CompilerOptions_Es6ModuleTranspilation
 	// Go-only: fast mode (Go-to-Go deterministic across thread counts, relaxed Java map order)

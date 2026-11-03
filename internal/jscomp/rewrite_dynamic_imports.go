@@ -56,6 +56,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -128,16 +129,13 @@ var RewriteDynamicImports_DYNAMIC_IMPORT_INVALID_ALIAS = DiagnosticType_Error(
 //
 // Java: RewriteDynamicImports(AbstractCompiler, String, ChunkOutputType)
 func NewRewriteDynamicImports(
-	compiler AbstractCompiler, alias *string, chunkOutputType CompilerOptions_ChunkOutputType) *RewriteDynamicImports {
-	var aliasStr string
-	if alias != nil {
-		aliasStr = *alias
-	}
+	compiler AbstractCompiler, alias base.OptString, chunkOutputType CompilerOptions_ChunkOutputType) *RewriteDynamicImports {
+	aliasStr, hasAlias := alias.Get()
 	return &RewriteDynamicImports{
 		compiler:                         compiler,
 		astFactory:                       compiler.CreateAstFactory(),
 		alias:                            aliasStr,
-		hasAlias:                         alias != nil,
+		hasAlias:                         hasAlias,
 		requiresAliasing:                 !compiler.GetOptions().GetOutputFeatureSet().ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT),
 		shouldWrapDynamicImportCallbacks: chunkOutputType == CompilerOptions_ChunkOutputType_ES_MODULES,
 	}

@@ -101,6 +101,10 @@ type Compiler struct {
 	// property passes read (prop_use_index.go).
 	propIndex *propUseIndex
 
+	// Go-only: per-FUNCTION subtree change-stamp cache kept across
+	// PhaseOptimizer loop iterations of InlineFunctions.
+	inlineFnCache *inlineFunctionsCache
+
 	inputPathByWebpackId *OrderedStringMap[string]
 
 	transpilationNamespace rhino.StaticScope
@@ -552,6 +556,9 @@ func (c *Compiler) ModuleTypeByName(moduleName string) (CompilerInput_ModuleType
 //
 // Java: Compiler.newTracer(String)
 func (c *Compiler) NewTracer(passName string) *Tracer {
+	if c.inlineFnCache != nil && (c.phaseOptimizer == nil || !c.GetLifeCycleStage().IsNormalized()) {
+		c.inlineFnCache = nil
+	}
 	comment := passName
 	if tracerAnyThreadInitialized.Load() && c.changeTracker.GetRecentChange().HasCodeChanged() {
 		comment += " on recently changed AST"

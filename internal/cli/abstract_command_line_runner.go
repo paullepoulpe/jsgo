@@ -363,7 +363,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 			panic(jscomp.NewFlagUsageException(
 				"checks_only mode is incompatible with multi-stage compilation"))
 		}
-		if options.GetExternExportsPath() != nil {
+		if options.HasExternExportsPath() {
 			panic(jscomp.NewFlagUsageException(
 				"generating externs from exports is incompatible with multi-stage compilation"))
 		}
@@ -429,10 +429,9 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	}
 
 	if config.createSourceMap != "" {
-		options.SetSourceMapOutputPath(&config.createSourceMap)
+		options.SetSourceMapOutputPath(config.createSourceMap)
 	} else if r.IsOutputInJson() {
-		outname := "%outname%"
-		options.SetSourceMapOutputPath(&outname)
+		options.SetSourceMapOutputPath("%outname%")
 	}
 	options.SetSourceMapDetailLevel(config.sourceMapDetailLevel)
 	options.SetSourceMapFormat(config.sourceMapFormat)
@@ -899,7 +898,7 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *jscomp.Result, ch
 		}
 
 		// Output the externs if required.
-		if options.GetExternExportsPath() != nil {
+		if options.HasExternExportsPath() {
 			func() {
 				eeOut := r.OpenExternExportsStream(options, config.jsOutputFile)
 				defer abstractCommandLineRunner_closeWriter(eeOut)

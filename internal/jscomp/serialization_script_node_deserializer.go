@@ -64,12 +64,21 @@ func NewScriptNodeDeserializer(
 
 // Java: ScriptNodeDeserializer.deserializeNew()
 func (d *ScriptNodeDeserializer) DeserializeNew() rhino.Node {
-	return newScriptNodeDeserializer_Runner(d).Run()
+	return d.DeserializeNewWithAllocator(nil)
+}
+
+// DeserializeNewWithAllocator deserializes a new SCRIPT tree allocating all
+// nodes from alloc (or the current store's global counter when alloc is nil).
+func (d *ScriptNodeDeserializer) DeserializeNewWithAllocator(alloc *rhino.NodeAllocator) rhino.Node {
+	r := newScriptNodeDeserializer_Runner(d)
+	r.alloc = alloc
+	return r.Run()
 }
 
 // Java: ScriptNodeDeserializer.Runner
 type scriptNodeDeserializer_Runner struct {
 	owner_           *ScriptNodeDeserializer
+	alloc            *rhino.NodeAllocator
 	featureCollector *parsing.FeatureCollector
 	previousLine     int
 	previousColumn   int
@@ -143,15 +152,15 @@ func (r *scriptNodeDeserializer_Runner) deserializeShadowRoot(
 	depth int,
 	sourceFileTemplate rhino.Node,
 ) rhino.Node {
-	closureUnawareSubtreeTemplateNode := sourceFileTemplate.CloneTree()
+	closureUnawareSubtreeTemplateNode := r.alloc.Alloc().InitFromTemplate(sourceFileTemplate.GetToken(), sourceFileTemplate)
 	closureUnawareSubtreeTemplateNode.SetIsInClosureUnawareSubtree(true)
 	shadowedCode, shadowOrigNamePtr := r.visitBytes(
 		serializedShadowChild, depth+1, closureUnawareSubtreeTemplateNode)
 	setOriginalNameIfPresent(shadowedCode, r.owner_.stringPool.GetInternedStrings(), shadowOrigNamePtr)
-	shadowRoot := rhino.IR_Root(rhino.IR_ScriptOfNodes(rhino.IR_ExprResult(shadowedCode)))
-	shadowRoot.ClonePropsFrom(closureUnawareSubtreeTemplateNode)
-	shadowRoot.GetFirstChild().ClonePropsFrom(closureUnawareSubtreeTemplateNode)
-	shadowRoot.GetFirstFirstChild().ClonePropsFrom(closureUnawareSubtreeTemplateNode)
+	jutil.CheckStateMsg1(rhino.IR_MayBeExpression(shadowedCode), "%s", shadowedCode)
+	exprResult := r.alloc.Alloc().InitWithChildFromTemplate(rhino.Token_EXPR_RESULT, shadowedCode, closureUnawareSubtreeTemplateNode)
+	script := r.alloc.Alloc().InitWithChildFromTemplate(rhino.Token_SCRIPT, exprResult, closureUnawareSubtreeTemplateNode)
+	shadowRoot := r.alloc.Alloc().InitWithChildFromTemplate(rhino.Token_ROOT, script, closureUnawareSubtreeTemplateNode)
 	return shadowRoot
 }
 
@@ -285,7 +294,7 @@ func (r *scriptNodeDeserializer_Runner) visitBytes(
 
 func (r *scriptNodeDeserializer_Runner) stringNode(token rhino.Token, stringValPtr int32, templateNode rhino.Node) rhino.Node {
 	id := r.owner_.stringPool.GetInternedStrings().GetID(int(stringValPtr))
-	return rhino.AllocNode().InitFromTemplate(token, templateNode).SetStringID(id)
+	return r.alloc.Alloc().InitFromTemplate(token, templateNode).SetStringID(id)
 }
 
 func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
@@ -300,7 +309,7 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 		spec := nodeKindToDeserSpec[kind]
 		switch spec.mode {
 		case deserModePlain:
-			return rhino.AllocNode().InitFromTemplate(spec.token, templateNode)
+			return r.alloc.Alloc().InitFromTemplate(spec.token, templateNode)
 		case deserModeString:
 			return r.stringNode(spec.token, stringValPtr, templateNode)
 		case deserModeQuotedString:
@@ -308,16 +317,16 @@ func (r *scriptNodeDeserializer_Runner) deserializeSingleNode(
 			n.SetQuotedStringKey()
 			return n
 		case deserModePostIncrDecr:
-			n := rhino.AllocNode().InitFromTemplate(spec.token, templateNode)
+			n := r.alloc.Alloc().InitFromTemplate(spec.token, templateNode)
 			n.PutBooleanProp(rhino.Node_INCRDECR_PROP, true)
 			return n
 		case deserModeNumber:
-			return rhino.AllocNode().InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
+			return r.alloc.Alloc().InitFromTemplate(rhino.Token_NUMBER, templateNode).SetNumberRaw(doubleVal)
 		case deserModeBigInt:
 			bigintString := r.owner_.stringPool.Get(int(stringValPtr))
-			return rhino.AllocNode().InitBigIntFromTemplate(jutil.NewBigIntegerFromString(bigintString), templateNode)
+			return r.alloc.Alloc().InitBigIntFromTemplate(jutil.NewBigIntegerFromString(bigintString), templateNode)
 		case deserModeTemplateLitString:
-			return rhino.AllocNode().InitTemplateLitStringFromStringPool(
+			return r.alloc.Alloc().InitTemplateLitStringFromStringPool(
 				r.owner_.stringPool.GetInternedStrings(),
 				int(templateCookedPtr),
 				int(templateRawPtr),

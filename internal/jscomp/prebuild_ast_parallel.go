@@ -148,7 +148,7 @@ func prebuildWorkerStep(
 	if result.wasDeserialized {
 		if sd := result.scriptDeserializer; sd != nil {
 			result.scriptDeserializer = nil
-			result.deserializedRoot = sd.DeserializeNew()
+			result.deserializedRoot = sd.DeserializeNewWithAllocator(alloc)
 			return
 		}
 		fn := result.deserializer

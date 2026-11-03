@@ -79,13 +79,23 @@ func (o *CompilerOptions) GetDebugLogDirectory() *jutil.Path {
 }
 
 // Java: CompilerOptions.setDebugLogFilter(String)
-func (o *CompilerOptions) SetDebugLogFilter(filter *string) {
+func (o *CompilerOptions) SetDebugLogFilter(filter string) {
+	o.debugLogFilter = base.SomeString(filter)
+}
+
+// ClearDebugLogFilter clears debugLogFilter to absent (Java null).
+func (o *CompilerOptions) ClearDebugLogFilter() {
+	o.debugLogFilter = base.NoString()
+}
+
+// SetDebugLogFilterOpt sets or clears debugLogFilter from an OptString.
+func (o *CompilerOptions) SetDebugLogFilterOpt(filter base.OptString) {
 	o.debugLogFilter = filter
 }
 
 // Java: CompilerOptions.getDebugLogFilter()
-func (o *CompilerOptions) GetDebugLogFilter() *string {
-	return o.debugLogFilter
+func (o *CompilerOptions) GetDebugLogFilter() (string, bool) {
+	return o.debugLogFilter.Get()
 }
 
 // Java: CompilerOptions.shouldSerializeExtraDebugInfo()
@@ -150,17 +160,42 @@ func (o *CompilerOptions) GetUseOriginalNamesInOutput() bool {
 }
 
 // Java: CompilerOptions.setExternExportsPath(String)
-func (o *CompilerOptions) SetExternExportsPath(externExportsPath *string) {
+func (o *CompilerOptions) SetExternExportsPath(externExportsPath string) {
+	o.externExportsPath = base.SomeString(externExportsPath)
+}
+
+// ClearExternExportsPath clears externExportsPath to absent (Java null).
+func (o *CompilerOptions) ClearExternExportsPath() {
+	o.externExportsPath = base.NoString()
+}
+
+// SetExternExportsPathOpt sets or clears externExportsPath from an OptString.
+func (o *CompilerOptions) SetExternExportsPathOpt(externExportsPath base.OptString) {
 	o.externExportsPath = externExportsPath
 }
 
 // Java: CompilerOptions.getExternExportsPath()
-func (o *CompilerOptions) GetExternExportsPath() *string {
-	return o.externExportsPath
+func (o *CompilerOptions) GetExternExportsPath() (string, bool) {
+	return o.externExportsPath.Get()
+}
+
+// HasExternExportsPath reports whether an externExportsPath is configured.
+func (o *CompilerOptions) HasExternExportsPath() bool {
+	return o.externExportsPath.IsPresent()
 }
 
 // Java: CompilerOptions.setSourceMapOutputPath(String)
-func (o *CompilerOptions) SetSourceMapOutputPath(sourceMapOutputPath *string) {
+func (o *CompilerOptions) SetSourceMapOutputPath(sourceMapOutputPath string) {
+	o.sourceMapOutputPath = base.SomeString(sourceMapOutputPath)
+}
+
+// ClearSourceMapOutputPath clears sourceMapOutputPath to absent (Java null).
+func (o *CompilerOptions) ClearSourceMapOutputPath() {
+	o.sourceMapOutputPath = base.NoString()
+}
+
+// SetSourceMapOutputPathOpt sets or clears sourceMapOutputPath from an OptString.
+func (o *CompilerOptions) SetSourceMapOutputPathOpt(sourceMapOutputPath base.OptString) {
 	o.sourceMapOutputPath = sourceMapOutputPath
 }
 
@@ -743,6 +778,8 @@ func compilerOptions_isNil(value any) bool {
 		return true
 	}
 	switch v := value.(type) {
+	case base.OptString:
+		return !v.IsPresent()
 	case *string:
 		return v == nil
 	case []string:
@@ -825,6 +862,8 @@ func compilerOptions_toJavaString(value any) string {
 			return "Optional.absent()"
 		}
 		return "Optional.of(" + compilerOptions_toJavaString(v.value) + ")"
+	case base.OptString:
+		return v.String()
 	case *string:
 		return *v
 	case string, bool, int, int32, int64, float64:

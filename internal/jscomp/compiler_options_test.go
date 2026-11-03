@@ -23,6 +23,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -305,5 +306,80 @@ func TestCompilerOptions_NoSharedMutableEmptyCollections(t *testing.T) {
 	o1.GetPropertiesThatMustDisambiguate().Add("prop")
 	if !o2.GetPropertiesThatMustDisambiguate().IsEmpty() {
 		t.Errorf("o2.GetPropertiesThatMustDisambiguate() after empty SetPropertiesThatMustDisambiguate mutated via o1: %v", o2.GetPropertiesThatMustDisambiguate())
+	}
+}
+
+func TestCompilerOptions_OptStringFieldsAndShallowCopyIsolation(t *testing.T) {
+	orig := NewCompilerOptions()
+	if _, ok := orig.GetSourceMapOutputPath(); ok {
+		t.Fatal("default sourceMapOutputPath should be absent")
+	}
+	if orig.ShouldGatherSourceMapInfo() {
+		t.Fatal("default ShouldGatherSourceMapInfo should be false")
+	}
+
+	// Empty string vs unset vs non-empty string semantics.
+	orig.SetSourceMapOutputPath("")
+	if p, ok := orig.GetSourceMapOutputPath(); !ok || p != "" {
+		t.Fatalf("GetSourceMapOutputPath() = (%q, %v), want (\"\", true)", p, ok)
+	}
+	if orig.ShouldGatherSourceMapInfo() {
+		t.Fatal("ShouldGatherSourceMapInfo with empty path should be false")
+	}
+
+	orig.SetSourceMapOutputPath("bundle.map")
+	orig.SetRenamePrefix("$p_")
+	orig.SetRenamePrefixNamespace("_ns")
+	orig.SetLocale("fr_CA")
+	orig.SetExternExportsPath("exports.js")
+	orig.SetDynamicImportAlias("imp_")
+	orig.SetDebugLogFilter("passA,passB")
+	orig.SetSyntheticBlockStartMarker("START")
+	orig.SetSyntheticBlockEndMarker("END")
+	orig.SetIdGeneratorsMapSerialized("[xid]")
+	orig.SetJ2clMinifierPruningManifest("manifest.txt")
+	orig.SetEnableZonesDefineName("ENABLE_ZONES")
+	orig.SetReplaceMessagesWithChromeI18n(true, base.SomeString("my_proj"))
+
+	if !orig.ShouldGatherSourceMapInfo() {
+		t.Fatal("ShouldGatherSourceMapInfo with non-empty path should be true")
+	}
+
+	// Shallow struct copy must not alias any OptString field.
+	copied := *orig
+	copied.SetSourceMapOutputPath("other.map")
+	copied.ClearRenamePrefix()
+	copied.ClearRenamePrefixNamespace()
+	copied.ClearLocale()
+	copied.ClearExternExportsPath()
+	copied.ClearDynamicImportAlias()
+	copied.ClearDebugLogFilter()
+	copied.ClearSyntheticBlockStartMarker()
+	copied.ClearSyntheticBlockEndMarker()
+	copied.ClearIdGeneratorsMapSerialized()
+	copied.ClearJ2clMinifierPruningManifest()
+	copied.ClearEnableZonesDefineName()
+	copied.SetReplaceMessagesWithChromeI18n(false, base.NoString())
+
+	if p, ok := orig.GetSourceMapOutputPath(); !ok || p != "bundle.map" {
+		t.Fatalf("orig sourceMapOutputPath mutated via shallow copy: (%q, %v)", p, ok)
+	}
+	if p, ok := orig.GetRenamePrefix(); !ok || p != "$p_" {
+		t.Fatalf("orig renamePrefix mutated via shallow copy: (%q, %v)", p, ok)
+	}
+	if !orig.HasRenamePrefixNamespace() {
+		t.Fatal("orig renamePrefixNamespace cleared via shallow copy")
+	}
+	if !orig.HasExternExportsPath() {
+		t.Fatal("orig externExportsPath cleared via shallow copy")
+	}
+	if !orig.HasSyntheticBlockStartMarker() {
+		t.Fatal("orig syntheticBlockStartMarker cleared via shallow copy")
+	}
+	if p, ok := orig.GetTcProjectId(); !ok || p != "my_proj" {
+		t.Fatalf("orig tcProjectId mutated via shallow copy: (%q, %v)", p, ok)
+	}
+	if _, ok := copied.GetRenamePrefix(); ok {
+		t.Fatal("copied renamePrefix should be absent after ClearRenamePrefix")
 	}
 }

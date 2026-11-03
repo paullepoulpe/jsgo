@@ -261,22 +261,6 @@ func isCfgSubtreeBoundary(n rhino.Node, isRoot bool, allowRootFunction bool) boo
 	return !isRoot && ControlFlowGraph_IsEnteringNewCfgNode(n)
 }
 
-// shouldWalkCfgClassEvalItem reports whether a (ch, parent) pair yielded by
-// ast.ClassBody.EvalOrder() executes synchronously in the enclosing CFG.
-// Computed member keys always execute synchronously; field initializers execute
-// synchronously iff static; method/accessor bodies and static blocks are
-// separate CFG roots.
-func shouldWalkCfgClassEvalItem(ch, parent rhino.Node) bool {
-	switch parent.GetToken() {
-	case rhino.Token_COMPUTED_PROP:
-		return ch == parent.GetFirstChild()
-	case rhino.Token_COMPUTED_FIELD_DEF:
-		return ch == parent.GetFirstChild() || parent.IsStaticMember()
-	default:
-		return ch.IsMemberFieldDef() && ch.IsStaticMember()
-	}
-}
-
 func isCfgCondEvalStopToken(tok rhino.Token) bool {
 	switch tok {
 	case rhino.Token_SCRIPT, rhino.Token_ROOT, rhino.Token_FUNCTION, rhino.Token_BLOCK:
@@ -310,9 +294,24 @@ func walkCfgSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhin
 			walkCfgSubtree(cls.NameNode(), n, false, visit) ||
 			walkCfgSubtree(cls.Body().Node(), n, false, visit)
 	case rhino.Token_CLASS_MEMBERS:
-		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			if shouldWalkCfgClassEvalItem(ch, p) && walkCfgSubtree(ch, p, false, visit) {
-				return true
+		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if walkCfgSubtree(m.GetFirstChild(), m, false, visit) {
+					return true
+				}
+			}
+		}
+		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if m.IsStaticMember() && walkCfgSubtree(m.GetSecondChild(), m, false, visit) {
+					return true
+				}
+			case rhino.Token_MEMBER_FIELD_DEF:
+				if m.IsStaticMember() && walkCfgSubtree(m, n, false, visit) {
+					return true
+				}
 			}
 		}
 		return false
@@ -333,15 +332,17 @@ func walkCfgSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhin
 // nested CFG nodes, nested functions, or deferred class members, calling
 // visit(n, parent) in post-order according to JavaScript runtime evaluation order.
 func walkCfgEvalOrder(cfgRoot rhino.Node, visit func(n, parent rhino.Node)) {
-	if cfgRoot.IsNil() {
-		return
+	if !cfgRoot.IsNil() {
+		walkCfgEvalSubtree(cfgRoot, rhino.NilNode, true, visit)
 	}
-	walkCfgEvalSubtree(cfgRoot, cfgRoot.GetParent(), true, visit)
 }
 
 func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent rhino.Node)) {
 	if n.IsNil() || isCfgSubtreeBoundary(n, isRoot, true) {
 		return
+	}
+	if isRoot {
+		parent = n.GetParent()
 	}
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
@@ -378,10 +379,27 @@ func walkCfgEvalSubtree(n, parent rhino.Node, isRoot bool, visit func(n, parent 
 		walkCfgEvalSubtree(cls.NameNode(), n, false, visit)
 		walkCfgEvalSubtree(cls.Body().Node(), n, false, visit)
 	case rhino.Token_CLASS_MEMBERS:
-		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			if shouldWalkCfgClassEvalItem(ch, p) {
-				walkCfgEvalSubtree(ch, p, false, visit)
+		for m := n.GetFirstChild(); !m.IsNil(); {
+			next := m.GetNext()
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				walkCfgEvalSubtree(m.GetFirstChild(), m, false, visit)
 			}
+			m = next
+		}
+		for m := n.GetFirstChild(); !m.IsNil(); {
+			next := m.GetNext()
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_FIELD_DEF:
+				if m.IsStaticMember() {
+					walkCfgEvalSubtree(m.GetSecondChild(), m, false, visit)
+				}
+			case rhino.Token_MEMBER_FIELD_DEF:
+				if m.IsStaticMember() {
+					walkCfgEvalSubtree(m, n, false, visit)
+				}
+			}
+			m = next
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
 		walkCfgEvalSubtree(n.GetFirstChild(), n, false, visit)

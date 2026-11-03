@@ -306,7 +306,7 @@ func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string
 	w.line("# print " + name)
 	w.try(func() {
 		opts := NewCompilerOptions()
-		opts.SetSourceMapOutputPath(jutil.StringPtr("out.map"))
+		opts.SetSourceMapOutputPath("out.map")
 		opts.SetSourceMapDetailLevel(detail)
 		opts.SetLineLengthThreshold(threshold)
 		opts.SetPrettyPrint(pretty)

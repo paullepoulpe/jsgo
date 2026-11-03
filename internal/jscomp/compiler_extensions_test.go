@@ -53,8 +53,7 @@ func TestCompiler_RenderChunksAndSourceMapsParity(t *testing.T) {
 		c := NewCompiler()
 		opts := NewCompilerOptions()
 		CompilationLevel_ADVANCED_OPTIMIZATIONS.SetOptionsForCompilationLevel(opts)
-		smPath := "%outname%.map"
-		opts.SetSourceMapOutputPath(&smPath)
+		opts.SetSourceMapOutputPath("%outname%.map")
 		opts.SetSourceMapIncludeSourcesContent(true)
 
 		externs := []*SourceFile{

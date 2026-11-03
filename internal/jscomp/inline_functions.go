@@ -86,7 +86,9 @@ type InlineFunctions struct {
 
 	runState *inlineFunctionsRunState
 
-	candScratch inlineCandidateScratch
+	candScratch   inlineCandidateScratch
+	activeCache   *inlineFunctionsCache
+	sideEffectCfg inlineSideEffectConfig
 }
 
 // Java: InlineFunctions.MISSED_REQUIRED_INLINING
@@ -231,15 +233,21 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	p := f.ensureRunState()
+	f.activeCache = inlineFnCacheFor(f.compiler, root)
+	if f.activeCache != nil {
+		f.sideEffectCfg = currentInlineSideEffectConfig(f.compiler)
+	}
 	defer func() {
 		f.injector.fnInfoCache = nil
+		f.injector.seedCache = nil
 		f.injector.clearKnownConstantFunctions()
 		f.functionArgumentInjector.sideEffectCache = nil
 		f.runState = nil
 		f.fns = nil
 		f.namedFns = nil
 		f.anonFns = nil
-		f.candScratch.lastCheckedBlock = rhino.NilNode
+		f.activeCache = nil
+		f.candScratch.clearWalkState()
 	}()
 
 	if !root.IsNil() {
@@ -251,13 +259,20 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 		return // Nothing left to do.
 	}
 	if !f.findCandidatesReferencesParallel(root) {
+		f.injector.seedCache = f.activeCache
 		sc := NewSyntacticScopeCreator(f.compiler)
 		var collector inlineRefCollector
 		collector.initSerial(f)
 		inlineFunctions_traverseWithScopeCreator(f.compiler, root, &collector.visitor, sc)
 	}
+	var allCands []*InlineFunctions_FunctionState
+	if f.activeCache != nil {
+		f.activeCache.allCandsBuf = append(f.activeCache.allCandsBuf[:0], f.fns...)
+		allCands = f.activeCache.allCandsBuf
+	}
 	f.TrimCandidatesNotMeetingMinimumRequirements()
 	if len(f.fns) == 0 {
+		f.persistPhase2ToCache(allCands)
 		return // Nothing left to do.
 	}
 
@@ -276,6 +291,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	f.TrimCandidatesUsingOnCost()
+	f.persistPhase2ToCache(allCands)
 	if len(f.fns) == 0 {
 		return // Nothing left to do.
 	}
@@ -345,10 +361,12 @@ func inlineFunctions_walkCandidates(
 	parent rhino.Node,
 	chunk *JSChunk,
 	inLocalHoist bool,
+	scratch *inlineCandidateScratch,
 	visit func(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool),
 ) {
 	tok := n.GetToken()
 	childLocalHoist := inLocalHoist
+	trackedFn := false
 	switch tok {
 	case rhino.Token_SCRIPT:
 		if id := n.GetInputId(); id != nil {
@@ -356,7 +374,16 @@ func inlineFunctions_walkCandidates(
 				chunk = inp.GetChunk()
 			}
 		}
-	case rhino.Token_FUNCTION, rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
+	case rhino.Token_FUNCTION:
+		if scratch != nil && scratch.cache != nil {
+			if scratch.trySkipLeafFunctionChildren(n) {
+				visit(n, parent, chunk, inLocalHoist)
+				return
+			}
+			trackedFn = true
+		}
+		childLocalHoist = true
+	case rhino.Token_MODULE_BODY, rhino.Token_MEMBER_FIELD_DEF:
 		childLocalHoist = true
 	case rhino.Token_BLOCK:
 		if !parent.IsNil() && parent.IsClassMembers() {
@@ -365,14 +392,17 @@ func inlineFunctions_walkCandidates(
 	case rhino.Token_CLASS_MEMBERS:
 		for ch, p := range ast.MustClassBody(n).EvalOrder() {
 			hoist := inLocalHoist || (p.IsComputedFieldDef() && ch != p.GetFirstChild())
-			inlineFunctions_walkCandidates(compiler, ch, p, chunk, hoist, visit)
+			inlineFunctions_walkCandidates(compiler, ch, p, chunk, hoist, scratch, visit)
 		}
 		return
 	}
 	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
 		if !ch.GetFirstChild().IsNil() {
-			inlineFunctions_walkCandidates(compiler, ch, n, chunk, childLocalHoist, visit)
+			inlineFunctions_walkCandidates(compiler, ch, n, chunk, childLocalHoist, scratch, visit)
 		}
+	}
+	if trackedFn {
+		scratch.finishFunctionWalk(n)
 	}
 	visit(n, parent, chunk, inLocalHoist)
 }
@@ -467,12 +497,25 @@ func inlineFunctions_matchCandidateNode(reach CompilerOptions_Reach, n, parent r
 func (f *InlineFunctions) findCandidateFunctionsSerial(root rhino.Node) {
 	var current rhino.Node
 	defer recoverWalkException(f.compiler, root, &current, nil)
-	inlineFunctions_walkCandidates(f.compiler, root, rhino.NilNode, nil, false, func(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	if f.activeCache != nil {
+		f.candScratch = f.activeCache.serialScratch
+		defer func() {
+			f.candScratch.clearWalkState()
+			f.activeCache.serialScratch = f.candScratch
+		}()
+	}
+	f.candScratch.resetForWalk(f.activeCache, f.sideEffectCfg)
+	inlineFunctions_walkCandidates(f.compiler, root, rhino.NilNode, nil, false, &f.candScratch, func(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
 		current = n
 		if target, ok := inlineFunctions_matchCandidateNode(f.reach, n, parent, inLocalHoist); ok {
 			f.MaybeAddFunction(target, chunk)
 		}
 	})
+	if f.activeCache != nil {
+		f.activeCache.beginPassMerge(len(f.candScratch.liveFns), f.sideEffectCfg)
+		live := f.activeCache.applyScratch(&f.candScratch)
+		f.activeCache.maybePruneDead(live, []inlineCandidateScratch{f.candScratch})
+	}
 }
 
 type inlineCandidateAnalysis struct {
@@ -546,6 +589,22 @@ type inlineCandidateScratch struct {
 	lastCheckedBlock              rhino.Node
 	lastCheckedBlockHasLetOrConst bool
 	scratchSummary                calleeSummary
+
+	cache           *inlineFunctionsCache
+	sideEffectCfg   inlineSideEffectConfig
+	fnFrames        []inlineFnWalkFrame
+	innerBuf        []rhino.Node
+	liveFns         []rhino.Node
+	unchangedFns    []rhino.Node
+	stamps          []inlineFnStampUpdate
+	stampInners     []rhino.Node
+	candUpdates     []inlineFnCandUpdate
+	candSummaries   []calleeSummary
+	nonLeafSubtree  map[rhino.Node]bool
+	candidateHits   int64
+	candidateMisses int64
+	leafWalkSkips   int64
+	sideEffectHits  int64
 }
 
 func (s *inlineCandidateScratch) blockHasLetOrConst(block rhino.Node) bool {
@@ -558,15 +617,24 @@ func (s *inlineCandidateScratch) blockHasLetOrConst(block rhino.Node) bool {
 	return res
 }
 
-func (s *inlineCandidateScratch) checkCandidateAndScanSummary(f *InlineFunctions, target inlineFnTarget) bool {
-	if target.kind != fnKindExpr {
-		conv := f.compiler.GetCodingConvention()
-		if conv.IsExported(target.name) || (!target.nameNode.IsNil() && conv.IsPropertyRenameFunction(target.nameNode)) {
-			return false
-		}
+func isExportedOrRenameCandidate(f *InlineFunctions, target inlineFnTarget) bool {
+	if target.kind == fnKindExpr {
+		return false
 	}
-	scanCalleeSummary(target.name, target.fnNode, &s.scratchSummary)
-	return !s.scratchSummary.blocksMinReqs
+	conv := f.compiler.GetCodingConvention()
+	return conv.IsExported(target.name) || (!target.nameNode.IsNil() && conv.IsPropertyRenameFunction(target.nameNode))
+}
+
+func (s *inlineCandidateScratch) checkCandidateAndScanSummary(
+	f *InlineFunctions,
+	target inlineFnTarget,
+	abortOnLocalClosure bool,
+) (ok, scanned, abortedLocalClosure bool) {
+	if isExportedOrRenameCandidate(f, target) {
+		return false, false, false
+	}
+	_, aborted := scanCalleeSummaryForInlineCandidate(target.name, target.fnNode, &s.scratchSummary, abortOnLocalClosure)
+	return !s.scratchSummary.blocksMinReqs, true, aborted
 }
 
 func (s *inlineCandidateScratch) analyzeCandidate(
@@ -575,6 +643,19 @@ func (s *inlineCandidateScratch) analyzeCandidate(
 	chunk *JSChunk,
 	debugLogging bool,
 	parallel bool,
+) inlineCandidateAnalysis {
+	_ = parallel
+	if s.cache == nil {
+		return s.analyzeCandidateUncached(f, target, chunk, debugLogging)
+	}
+	return s.analyzeCandidateCached(f, target, chunk, debugLogging)
+}
+
+func (s *inlineCandidateScratch) analyzeCandidateUncached(
+	f *InlineFunctions,
+	target inlineFnTarget,
+	chunk *JSChunk,
+	debugLogging bool,
 ) inlineCandidateAnalysis {
 	res := inlineCandidateAnalysis{
 		target: target,
@@ -615,7 +696,8 @@ func (s *inlineCandidateScratch) analyzeCandidate(
 	}
 
 	if res.canInline() || debugLogging {
-		if !s.checkCandidateAndScanSummary(f, target) {
+		candOk, _, _ := s.checkCandidateAndScanSummary(f, target, !debugLogging && !inlineFnCacheVerify)
+		if !candOk {
 			res.addDisallow(InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION)
 			if !debugLogging {
 				return res
@@ -834,6 +916,9 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 		return true
 	}
 	summary := functionState.ensureSummary()
+	if f.activeCache != nil {
+		return f.inliningLowersCostCached(functionState, summary)
+	}
 	return f.injector.inliningLowersCost(
 		functionState.GetChunk(),
 		functionState.functionNode(),
@@ -842,4 +927,101 @@ func (f *InlineFunctions) InliningLowersCost(functionState *InlineFunctions_Func
 		functionState.CanRemove(),
 		functionState.GetReferencesThis(),
 		summary)
+}
+
+func (f *InlineFunctions) inliningLowersCostCached(
+	functionState *InlineFunctions_FunctionState,
+	summary *calleeSummary,
+) bool {
+	refs := functionState.GetReferences()
+	referenceCount := len(refs)
+	if referenceCount == 0 {
+		return true
+	}
+	fnChunk := functionState.GetChunk()
+	fnNode := functionState.functionNode()
+	aliasCount := functionStateAliasCount(functionState)
+	isRemovable := functionState.CanRemove()
+	referencesThis := functionState.GetReferencesThis()
+
+	referencesUsingBlockInlining := 0
+	checkChunks := isRemovable && fnChunk != nil
+	chunkGraph := f.compiler.GetChunkGraph()
+	for _, ref := range refs {
+		if ref.mode == FunctionInjector_InliningMode_BLOCK {
+			referencesUsingBlockInlining++
+		}
+		if checkChunks && ref.chunk != nil {
+			if ref.chunk != fnChunk && !chunkGraph.DependsOn(ref.chunk, fnChunk) {
+				isRemovable = false
+				checkChunks = false
+			}
+		}
+	}
+	referencesUsingDirectInlining := referenceCount - referencesUsingBlockInlining
+	if referenceCount == 1 && isRemovable && referencesUsingDirectInlining == 1 {
+		return true
+	}
+
+	callCost := FunctionInjector_EstimateCallCost(fnNode, referencesThis)
+	overallCallCost := callCost * referenceCount
+	summary = f.injector.ensureCalleeSummary("", fnNode, summary)
+	costDeltaDirect := functionInjector_inlineCostDelta(fnNode, aliasCount, FunctionInjector_InliningMode_DIRECT, summary)
+	costDeltaBlock := functionInjector_inlineCostDelta(fnNode, aliasCount, FunctionInjector_InliningMode_BLOCK, summary)
+
+	removableCount := 0
+	if isRemovable {
+		removableCount = 1
+	}
+	fnInstanceCount := referencesUsingDirectInlining + referencesUsingBlockInlining - removableCount
+	if fnInstanceCount == 0 {
+		return referencesUsingBlockInlining <= 0 || costDeltaBlock <= 0
+	}
+
+	costDelta := (referencesUsingDirectInlining * -costDeltaDirect) + (referencesUsingBlockInlining * -costDeltaBlock)
+	threshold := (overallCallCost + costDelta) / fnInstanceCount
+
+	var lowers bool
+	cache := f.activeCache
+	entry := cache.entryMut(fnNode)
+	if entry != nil && entry.lastPassID == cache.passID && !fnNode.IsDeleted() && entry.ownChangeTime == fnNode.GetChangeTime() {
+		if entry.costState == fnCostExact {
+			inlineFnCacheCostHits.Add(1)
+			lowers = int(entry.costVal) <= threshold
+		} else if entry.costState == fnCostLowerBound && threshold < int(entry.costVal) {
+			inlineFnCacheCostHits.Add(1)
+			lowers = false
+		} else {
+			c := InlineCostEstimator_GetCostWithThreshold(fnNode, threshold+1)
+			if c <= threshold {
+				entry.costState = fnCostExact
+				entry.costVal = int32(c)
+				lowers = true
+			} else {
+				if entry.costState == fnCostUnknown || int32(c) > entry.costVal {
+					entry.costState = fnCostLowerBound
+					entry.costVal = int32(c)
+				}
+				lowers = false
+			}
+		}
+	} else {
+		lowers = InlineCostEstimator_GetCostWithThreshold(fnNode, threshold+1) <= threshold
+	}
+
+	if inlineFnCacheVerify {
+		want := FunctionInjector_DoesLowerCost(
+			fnNode,
+			overallCallCost,
+			referencesUsingDirectInlining,
+			costDeltaDirect,
+			referencesUsingBlockInlining,
+			costDeltaBlock,
+			isRemovable,
+		)
+		if lowers != want {
+			panic("inlineFnCache verify cost mismatch")
+		}
+	}
+	return lowers
 }

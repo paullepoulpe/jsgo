@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -78,7 +79,7 @@ func (c *CollapsePropertiesAndModuleRewritingTest) GetProcessor(compiler *Compil
 		factories.MaybeAdd(NewPassFactory(
 			"REWRITE_DYNAMIC_IMPORT",
 			func(x AbstractCompiler) CompilerPass {
-				return NewRewriteDynamicImports(compiler, nil, CompilerOptions_ChunkOutputType_ES_MODULES)
+				return NewRewriteDynamicImports(compiler, base.NoString(), CompilerOptions_ChunkOutputType_ES_MODULES)
 			},
 		))
 		factories.MaybeAdd(NewPassFactory(

@@ -541,7 +541,7 @@ func trSectionNamed(name string) trSection {
 				/* templateLiteralsAreTranspiled= */ false,
 				idGens,
 				/* generatePseudoNames= */ false,
-				/* previousMapSerialized= */ nil,
+				/* previousMapSerialized= */ "",
 				/* xidHashFunction= */ nil)
 			pass.Process(c.GetExternsRoot(), c.GetJsRoot())
 			for _, l := range strings.Split(pass.GetSerializedIdMappings(), "\n") {

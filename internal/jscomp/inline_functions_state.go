@@ -37,11 +37,14 @@ package jscomp
 
 import (
 	"math"
+	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type fnDeclKind uint8
@@ -556,4 +559,525 @@ func (e *InlineCostEstimator_CompiledSizeEstimator) ContinueProcessing() bool {
 // Java: InlineCostEstimator.CompiledSizeEstimator.getLastChar()
 func (e *InlineCostEstimator_CompiledSizeEstimator) GetLastChar() uint16 {
 	return e.cg.cc.GetLastChar()
+}
+
+// -------------------------------------------------------------------------
+// Go-only: Compositional Per-FUNCTION Subtree Change-Stamp Cache
+// -------------------------------------------------------------------------
+
+var (
+	inlineFnCacheEnv    = os.Getenv("JSGO_INLINE_FN_CACHE")
+	inlineFnCacheVerify = os.Getenv("JSGO_INLINE_FN_CACHE_VERIFY") == "1"
+	// inlineFnCacheForce enables the cache outside PhaseOptimizer loops (tests).
+	inlineFnCacheForce = false
+
+	inlineFnCacheCandidateHits   atomic.Int64
+	inlineFnCacheCandidateMisses atomic.Int64
+	inlineFnCacheLeafWalkSkips   atomic.Int64
+	inlineFnCacheSideEffectHits  atomic.Int64
+	inlineFnCacheFnInfoSeeds     atomic.Int64
+	inlineFnCacheCostHits        atomic.Int64
+)
+
+const (
+	fnCostUnknown uint8 = iota
+	fnCostLowerBound
+	fnCostExact
+)
+
+func inlineFnCacheEnabled() bool {
+	return inlineFnCacheEnv != "0"
+}
+
+type inlineSideEffectConfig struct {
+	typeRegistry                 *rhino.JSTypeRegistry
+	accessorSummary              *AccessorSummary
+	useTypesForLocalOptimization bool
+	assumeGettersArePure         bool
+	hasRegexpGlobalReferences    bool
+	assumeKnownBuiltinsArePure   bool
+}
+
+func currentInlineSideEffectConfig(compiler AbstractCompiler) inlineSideEffectConfig {
+	a := compiler.GetAstAnalyzer()
+	return inlineSideEffectConfig{
+		typeRegistry:                 a.typeRegistry,
+		accessorSummary:              a.accessorSummary,
+		useTypesForLocalOptimization: a.useTypesForLocalOptimization,
+		assumeGettersArePure:         a.assumeGettersArePure,
+		hasRegexpGlobalReferences:    a.hasRegexpGlobalReferences,
+		assumeKnownBuiltinsArePure:   a.assumeKnownBuiltinsArePure,
+	}
+}
+
+const (
+	fnCacheShallowReady uint8 = 1 << iota
+	fnCacheHasDirectInnerFns
+	fnCacheAlwaysInlinable
+	fnCacheDirectReplace
+	fnCacheIsGenerator
+	fnCacheIsAsync
+	fnCacheHasNonInlinableParam
+	fnCacheShallowLocalClosureDisallowed
+)
+
+// inlineFnCacheEntry is strictly pointer-free (noscan, 44 bytes) so c.arena
+// adds zero GC mark/scan work regardless of function count. Candidate
+// calleeSummary records live in c.summaries (indexed by 1-based summaryIdx).
+type inlineFnCacheEntry struct {
+	ownChangeTime    int32
+	lastPassID       uint32
+	seedPassID       uint32
+	innerOff         uint32
+	innerLen         uint32
+	summaryIdx       uint32
+	fullAstSize      int32
+	fullAstSizeLimit int32
+	costVal          int32
+	fnInnerNode      rhino.Node
+	flags            uint8
+	evalState        uint8
+	fnInnerState     uint8
+	costState        uint8
+}
+
+func (e inlineFnCacheEntry) hasFlag(f uint8) bool { return e.flags&f != 0 }
+
+type inlineFnCandSummary struct {
+	summaryFnNameID uint32
+	seCfgGen        uint32
+	summary         calleeSummary
+	sideEffects     calleeSideEffectSummary
+}
+
+type inlineFunctionsCache struct {
+	root      rhino.Node
+	compacts  int
+	phaseOpt  *PhaseOptimizer
+	passID    uint32
+	seCfg     inlineSideEffectConfig
+	seCfgGen  uint32
+	index     map[rhino.Node]uint32 // 1-based index into arena (value size 4B: zero map-value heap allocs)
+	arena     []inlineFnCacheEntry  // pointer-free noscan slab
+	inners    []rhino.Node          // pointer-free noscan slab
+	summaries []inlineFnCandSummary // 1-based index from entry.summaryIdx (candidates only)
+
+	// Reusable scratch slices across passes within a loop.
+	serialScratch   inlineCandidateScratch
+	workerScratches []inlineCandidateScratch
+	allCandsBuf     []*InlineFunctions_FunctionState
+}
+
+func inlineFnCacheFor(compiler AbstractCompiler, root rhino.Node) *inlineFunctionsCache {
+	if !inlineFnCacheEnabled() || root.IsNil() {
+		return nil
+	}
+	c := compiler
+	if c == nil || c.parallelRecorder != nil || c.changeTracker == nil {
+		return nil
+	}
+	if !c.GetLifeCycleStage().IsNormalized() {
+		return nil
+	}
+	phaseOpt := c.phaseOptimizer
+	if phaseOpt == nil && !inlineFnCacheForce {
+		return nil
+	}
+	cache := c.inlineFnCache
+	if cache == nil {
+		cache = &inlineFunctionsCache{
+			root:      root,
+			compacts:  c.astCompact.count,
+			phaseOpt:  phaseOpt,
+			index:     make(map[rhino.Node]uint32, 256),
+			arena:     make([]inlineFnCacheEntry, 1, 256),
+			summaries: make([]inlineFnCandSummary, 1, 64),
+		}
+		c.inlineFnCache = cache
+		return cache
+	}
+	if cache.root != root ||
+		cache.compacts != c.astCompact.count ||
+		len(cache.arena) == 0 ||
+		(!inlineFnCacheForce && cache.phaseOpt != phaseOpt) {
+		cache.root = root
+		cache.compacts = c.astCompact.count
+		cache.phaseOpt = phaseOpt
+		clear(cache.index)
+		cache.arena = cache.arena[:1]
+		cache.inners = cache.inners[:0]
+		clear(cache.summaries)
+		if cap(cache.summaries) == 0 {
+			cache.summaries = make([]inlineFnCandSummary, 1, 64)
+		} else {
+			cache.summaries = cache.summaries[:1]
+		}
+	}
+	return cache
+}
+
+func (c *inlineFunctionsCache) prepareWorkerScratches(numWorkers int, seCfg inlineSideEffectConfig) []inlineCandidateScratch {
+	if cap(c.workerScratches) < numWorkers {
+		next := make([]inlineCandidateScratch, numWorkers)
+		copy(next, c.workerScratches)
+		c.workerScratches = next
+	} else {
+		c.workerScratches = c.workerScratches[:numWorkers]
+	}
+	for i := range c.workerScratches {
+		c.workerScratches[i].resetForWalk(c, seCfg)
+	}
+	return c.workerScratches
+}
+
+func (c *inlineFunctionsCache) lookup(fnNode rhino.Node) (inlineFnCacheEntry, bool) {
+	idx := c.index[fnNode]
+	if idx == 0 {
+		return inlineFnCacheEntry{}, false
+	}
+	return c.arena[idx], true
+}
+
+func (c *inlineFunctionsCache) summaryOf(e inlineFnCacheEntry) *inlineFnCandSummary {
+	if e.summaryIdx == 0 {
+		return nil
+	}
+	return &c.summaries[e.summaryIdx]
+}
+
+func (c *inlineFunctionsCache) entryMut(fnNode rhino.Node) *inlineFnCacheEntry {
+	if c == nil {
+		return nil
+	}
+	idx := c.index[fnNode]
+	if idx == 0 {
+		return nil
+	}
+	return &c.arena[idx]
+}
+
+func (c *inlineFunctionsCache) getOrAlloc(fnNode rhino.Node) *inlineFnCacheEntry {
+	if idx := c.index[fnNode]; idx != 0 {
+		return &c.arena[idx]
+	}
+	idx := uint32(len(c.arena))
+	c.arena = append(c.arena, inlineFnCacheEntry{})
+	c.index[fnNode] = idx
+	return &c.arena[idx]
+}
+
+func (c *inlineFunctionsCache) allocOrUpdateSummary(entry *inlineFnCacheEntry, fnNameID uint32, sum calleeSummary) {
+	sum.sideEffects = calleeSideEffectSummary{}
+	if entry.summaryIdx != 0 {
+		c.summaries[entry.summaryIdx] = inlineFnCandSummary{
+			summaryFnNameID: fnNameID,
+			summary:         sum,
+		}
+		return
+	}
+	if len(c.summaries) == 0 {
+		c.summaries = make([]inlineFnCandSummary, 1, 64)
+	}
+	idx := uint32(len(c.summaries))
+	c.summaries = append(c.summaries, inlineFnCandSummary{
+		summaryFnNameID: fnNameID,
+		summary:         sum,
+	})
+	entry.summaryIdx = idx
+}
+
+func (c *inlineFunctionsCache) directInnersOf(e inlineFnCacheEntry) []rhino.Node {
+	if e.innerLen == 0 {
+		return nil
+	}
+	return c.inners[e.innerOff : e.innerOff+e.innerLen]
+}
+
+func (c *inlineFunctionsCache) appendInners(src []rhino.Node) (uint32, uint32) {
+	if len(src) == 0 {
+		return 0, 0
+	}
+	off := uint32(len(c.inners))
+	c.inners = append(c.inners, src...)
+	return off, uint32(len(src))
+}
+
+func (c *inlineFunctionsCache) beginPassMerge(totalLive int, seCfg inlineSideEffectConfig) {
+	c.passID++
+	if c.passID == 0 {
+		c.passID = 1
+	}
+	if c.seCfgGen == 0 || c.seCfg != seCfg {
+		c.seCfg = seCfg
+		c.seCfgGen++
+		if c.seCfgGen == 0 {
+			c.seCfgGen = 1
+		}
+	}
+	if len(c.arena) == 1 && totalLive > 0 {
+		if cap(c.arena) < totalLive+64 {
+			c.arena = make([]inlineFnCacheEntry, 1, totalLive+64)
+		}
+		if len(c.index) == 0 {
+			c.index = make(map[rhino.Node]uint32, totalLive+totalLive/4+32)
+		}
+	}
+}
+
+func effectiveCalleeFnNameID(target inlineFnTarget) uint32 {
+	if target.name == "" {
+		return 0
+	}
+	if !target.nameNode.IsNil() {
+		return target.nameNode.GetStringID()
+	}
+	return uint32(strpool.Lookup(target.name))
+}
+
+type inlineFnWalkFrame struct {
+	fnNode                    rhino.Node
+	innerStart                int
+	allInnerSubtreesUnchanged bool
+}
+
+type inlineFnStampUpdate struct {
+	fnNode        rhino.Node
+	ownChangeTime int32
+	innerOff      uint32
+	innerLen      uint32
+	ownUnchanged  bool
+	sameInners    bool
+}
+
+type inlineFnCandUpdate struct {
+	fnNode           rhino.Node
+	fullAstSize      int32
+	fullAstSizeLimit int32
+	summaryIdx       uint32 // 1-based index into scratch.candSummaries (0 = none)
+	summaryFnNameID  uint32
+	flags            uint8
+}
+
+func (c *inlineFunctionsCache) applyScratch(s *inlineCandidateScratch) int {
+	passID := c.passID
+	for _, fn := range s.unchangedFns {
+		if idx := c.index[fn]; idx != 0 {
+			c.arena[idx].lastPassID = passID
+			c.arena[idx].seedPassID = passID
+		}
+	}
+
+	for i := range s.stamps {
+		st := &s.stamps[i]
+		entry := c.getOrAlloc(st.fnNode)
+		prevSummaryIdx := entry.summaryIdx
+		var innerOff, innerLen uint32
+		if st.sameInners {
+			innerOff = entry.innerOff
+			innerLen = entry.innerLen
+		} else if st.innerLen > 0 {
+			src := s.stampInners[st.innerOff : st.innerOff+st.innerLen]
+			innerOff, innerLen = c.appendInners(src)
+		}
+		if st.ownUnchanged {
+			next := inlineFnCacheEntry{
+				ownChangeTime: st.ownChangeTime,
+				lastPassID:    passID,
+				seedPassID:    passID,
+				innerOff:      innerOff,
+				innerLen:      innerLen,
+				flags:         (entry.flags &^ fnCacheHasDirectInnerFns) | fnCacheHasDirectInnerFns,
+				evalState:     entry.evalState,
+			}
+			if innerLen >= 2 && entry.fnInnerState == fnInnerMultiple {
+				next.fnInnerState = fnInnerMultiple
+			}
+			*entry = next
+			continue
+		}
+		*entry = inlineFnCacheEntry{
+			ownChangeTime: st.ownChangeTime,
+			lastPassID:    passID,
+			innerOff:      innerOff,
+			innerLen:      innerLen,
+			summaryIdx:    prevSummaryIdx, // keep slot reusable if candUpdates populates it below, else zeroed
+			flags:         fnCacheHasDirectInnerFns,
+		}
+		if prevSummaryIdx != 0 {
+			c.summaries[prevSummaryIdx] = inlineFnCandSummary{}
+			entry.summaryIdx = 0
+		}
+	}
+
+	for i := range s.candUpdates {
+		u := &s.candUpdates[i]
+		entry := c.getOrAlloc(u.fnNode)
+		if entry.ownChangeTime == 0 && !entry.hasFlag(fnCacheHasDirectInnerFns) {
+			entry.ownChangeTime = u.fnNode.GetChangeTime()
+		}
+		entry.lastPassID = passID
+		entry.flags = (entry.flags & fnCacheHasDirectInnerFns) | u.flags | fnCacheShallowReady
+		if u.fullAstSizeLimit > 0 {
+			entry.fullAstSize = u.fullAstSize
+			entry.fullAstSizeLimit = u.fullAstSizeLimit
+		}
+		if u.summaryIdx != 0 {
+			c.allocOrUpdateSummary(entry, u.summaryFnNameID, s.candSummaries[u.summaryIdx-1])
+		}
+	}
+
+	if s.candidateHits != 0 {
+		inlineFnCacheCandidateHits.Add(s.candidateHits)
+	}
+	if s.candidateMisses != 0 {
+		inlineFnCacheCandidateMisses.Add(s.candidateMisses)
+	}
+	if s.leafWalkSkips != 0 {
+		inlineFnCacheLeafWalkSkips.Add(s.leafWalkSkips)
+	}
+	if s.sideEffectHits != 0 {
+		inlineFnCacheSideEffectHits.Add(s.sideEffectHits)
+	}
+	return len(s.liveFns)
+}
+
+func (c *inlineFunctionsCache) maybePruneDead(totalLive int, scratches []inlineCandidateScratch) {
+	if len(c.index) <= totalLive+max(128, totalLive/2) {
+		return
+	}
+	newIndex := make(map[rhino.Node]uint32, totalLive+totalLive/4+32)
+	newArena := make([]inlineFnCacheEntry, 1, totalLive+1)
+	var newInners []rhino.Node
+	if len(c.inners) > 0 {
+		newInners = make([]rhino.Node, 0, len(c.inners))
+	}
+	newSummaries := make([]inlineFnCandSummary, 1, max(16, len(c.summaries)/2))
+	for i := range scratches {
+		for _, fn := range scratches[i].liveFns {
+			oldIdx := c.index[fn]
+			if oldIdx == 0 {
+				continue
+			}
+			if _, dup := newIndex[fn]; dup {
+				continue
+			}
+			e := c.arena[oldIdx]
+			if e.innerLen > 0 {
+				inners := c.inners[e.innerOff : e.innerOff+e.innerLen]
+				e.innerOff = uint32(len(newInners))
+				newInners = append(newInners, inners...)
+			} else {
+				e.innerOff = 0
+			}
+			if e.summaryIdx != 0 {
+				sumEntry := c.summaries[e.summaryIdx]
+				e.summaryIdx = uint32(len(newSummaries))
+				newSummaries = append(newSummaries, sumEntry)
+			}
+			newIdx := uint32(len(newArena))
+			newArena = append(newArena, e)
+			newIndex[fn] = newIdx
+		}
+	}
+	c.index = newIndex
+	c.arena = newArena
+	c.inners = newInners
+	c.summaries = newSummaries
+}
+
+func (c *inlineFunctionsCache) lookupSeededEval(fnNode rhino.Node) (uint8, bool) {
+	if c == nil {
+		return 0, false
+	}
+	idx := c.index[fnNode]
+	if idx == 0 {
+		return 0, false
+	}
+	e := c.arena[idx]
+	if e.seedPassID != c.passID || e.evalState == 0 {
+		return 0, false
+	}
+	if inlineFnCacheVerify {
+		verifySeededFnInfo(fnNode, functionInjectorFnInfo{evalState: e.evalState})
+	}
+	inlineFnCacheFnInfoSeeds.Add(1)
+	return e.evalState, true
+}
+
+func (c *inlineFunctionsCache) lookupSeededInner(fnNode rhino.Node) (uint8, rhino.Node, bool) {
+	if c == nil {
+		return fnInnerUnknown, rhino.NilNode, false
+	}
+	idx := c.index[fnNode]
+	if idx == 0 {
+		return fnInnerUnknown, rhino.NilNode, false
+	}
+	e := c.arena[idx]
+	if e.seedPassID != c.passID || e.fnInnerState == fnInnerUnknown {
+		return fnInnerUnknown, rhino.NilNode, false
+	}
+	if inlineFnCacheVerify {
+		verifySeededFnInfo(fnNode, functionInjectorFnInfo{innerState: e.fnInnerState, inner: e.fnInnerNode})
+	}
+	inlineFnCacheFnInfoSeeds.Add(1)
+	return e.fnInnerState, e.fnInnerNode, true
+}
+
+func (f *InlineFunctions) persistPhase2ToCache(allCands []*InlineFunctions_FunctionState) {
+	f.injector.seedCache = nil
+	cache := f.activeCache
+	if cache == nil {
+		return
+	}
+	seCfgGen := cache.seCfgGen
+
+	for _, fs := range allCands {
+		if !fs.summaryValid {
+			continue
+		}
+		fnNode := fs.target.fnNode
+		if fs.summary.fnNode != fnNode || !fs.summary.sideEffects.computed {
+			continue
+		}
+		if entry := cache.entryMut(fnNode); entry != nil && entry.summaryIdx != 0 && !fnNode.IsDeleted() && entry.ownChangeTime == fnNode.GetChangeTime() {
+			sumEntry := &cache.summaries[entry.summaryIdx]
+			if !sumEntry.sideEffects.computed || sumEntry.seCfgGen != seCfgGen {
+				sumEntry.sideEffects = fs.summary.sideEffects
+				sumEntry.seCfgGen = seCfgGen
+			}
+		}
+	}
+	clear(allCands)
+
+	if seMap := f.functionArgumentInjector.sideEffectCache; len(seMap) > 0 {
+		// order-independent: updates disjoint per-fnNode side-effect summaries in cache.summaries
+		for fnNode, se := range seMap {
+			if !se.computed {
+				continue
+			}
+			if entry := cache.entryMut(fnNode); entry != nil && entry.summaryIdx != 0 && !fnNode.IsDeleted() && entry.ownChangeTime == fnNode.GetChangeTime() {
+				sumEntry := &cache.summaries[entry.summaryIdx]
+				sumEntry.sideEffects = se
+				sumEntry.seCfgGen = seCfgGen
+			}
+		}
+	}
+
+	if fnMap := f.injector.fnInfoCache; len(fnMap) > 0 {
+		// order-independent: updates disjoint per-fnNode caller fnInfo entries in cache.arena
+		for fnNode, info := range fnMap {
+			entry := cache.entryMut(fnNode)
+			if entry == nil || fnNode.IsDeleted() || entry.ownChangeTime != fnNode.GetChangeTime() {
+				continue
+			}
+			if info.evalState != 0 && entry.evalState != info.evalState {
+				entry.evalState = info.evalState
+			}
+			if info.innerState != fnInnerUnknown &&
+				(entry.fnInnerState != info.innerState || entry.fnInnerNode != info.inner) {
+				entry.fnInnerState = info.innerState
+				entry.fnInnerNode = info.inner
+			}
+		}
+	}
 }

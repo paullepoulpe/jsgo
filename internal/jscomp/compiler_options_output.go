@@ -36,6 +36,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -193,13 +194,13 @@ func (o *CompilerOptions) GetTypedAstOutputFile() *jutil.Path {
 }
 
 // Java: CompilerOptions.getSourceMapOutputPath()
-func (o *CompilerOptions) GetSourceMapOutputPath() *string {
-	return o.sourceMapOutputPath
+func (o *CompilerOptions) GetSourceMapOutputPath() (string, bool) {
+	return o.sourceMapOutputPath.Get()
 }
 
 // Java: CompilerOptions.shouldGatherSourceMapInfo()
 func (o *CompilerOptions) ShouldGatherSourceMapInfo() bool {
-	return o.shouldAlwaysGatherSourceMapInfo || !(o.sourceMapOutputPath == nil || *o.sourceMapOutputPath == "")
+	return o.shouldAlwaysGatherSourceMapInfo || o.sourceMapOutputPath.ValueOrEmpty() != ""
 }
 
 // Java: CompilerOptions.setAlwaysGatherSourceMapInfo(boolean)
@@ -286,8 +287,23 @@ func (o *CompilerOptions) GetIdGenerators() *OrderedStringMap[RenamingMap] {
 }
 
 // Java: CompilerOptions.getIdGeneratorsMapSerialized()
-func (o *CompilerOptions) GetIdGeneratorsMapSerialized() *string {
-	return o.idGeneratorsMapSerialized
+func (o *CompilerOptions) GetIdGeneratorsMapSerialized() (string, bool) {
+	return o.idGeneratorsMapSerialized.Get()
+}
+
+// SetIdGeneratorsMapSerialized sets idGeneratorsMapSerialized.
+func (o *CompilerOptions) SetIdGeneratorsMapSerialized(serialized string) {
+	o.idGeneratorsMapSerialized = base.SomeString(serialized)
+}
+
+// ClearIdGeneratorsMapSerialized clears idGeneratorsMapSerialized to absent (Java null).
+func (o *CompilerOptions) ClearIdGeneratorsMapSerialized() {
+	o.idGeneratorsMapSerialized = base.NoString()
+}
+
+// SetIdGeneratorsMapSerializedOpt sets or clears idGeneratorsMapSerialized from an OptString.
+func (o *CompilerOptions) SetIdGeneratorsMapSerializedOpt(serialized base.OptString) {
+	o.idGeneratorsMapSerialized = serialized
 }
 
 // Java: CompilerOptions.getXidHashFunction()
@@ -309,7 +325,7 @@ func (o *CompilerOptions) SetReplaceStringsConfiguration(placeholderToken string
 }
 
 // Java: CompilerOptions.setReplaceMessagesWithChromeI18n(boolean, String)
-func (o *CompilerOptions) SetReplaceMessagesWithChromeI18n(replaceMessagesWithChromeI18n bool, tcProjectId *string) {
+func (o *CompilerOptions) SetReplaceMessagesWithChromeI18n(replaceMessagesWithChromeI18n bool, tcProjectId base.OptString) {
 	if replaceMessagesWithChromeI18n && o.messageBundle != nil {
 		if _, isEmpty := o.messageBundle.(*EmptyMessageBundle); !isEmpty {
 			panic(jutil.NewRuntimeException(
@@ -323,8 +339,8 @@ func (o *CompilerOptions) SetReplaceMessagesWithChromeI18n(replaceMessagesWithCh
 }
 
 // Java: CompilerOptions.getTcProjectId()
-func (o *CompilerOptions) GetTcProjectId() *string {
-	return o.tcProjectId
+func (o *CompilerOptions) GetTcProjectId() (string, bool) {
+	return o.tcProjectId.Get()
 }
 
 // Should we run the pass that does replacement of the chrome-specific `chrome.i18n.getMessage()`
@@ -463,6 +479,21 @@ func (o *CompilerOptions) IsJ2clMinifierEnabled() bool {
 }
 
 // Java: CompilerOptions.getJ2clMinifierPruningManifest()
-func (o *CompilerOptions) GetJ2clMinifierPruningManifest() *string {
-	return o.j2clMinifierPruningManifest
+func (o *CompilerOptions) GetJ2clMinifierPruningManifest() (string, bool) {
+	return o.j2clMinifierPruningManifest.Get()
+}
+
+// SetJ2clMinifierPruningManifest sets j2clMinifierPruningManifest.
+func (o *CompilerOptions) SetJ2clMinifierPruningManifest(manifest string) {
+	o.j2clMinifierPruningManifest = base.SomeString(manifest)
+}
+
+// ClearJ2clMinifierPruningManifest clears j2clMinifierPruningManifest to absent (Java null).
+func (o *CompilerOptions) ClearJ2clMinifierPruningManifest() {
+	o.j2clMinifierPruningManifest = base.NoString()
+}
+
+// SetJ2clMinifierPruningManifestOpt sets or clears j2clMinifierPruningManifest from an OptString.
+func (o *CompilerOptions) SetJ2clMinifierPruningManifestOpt(manifest base.OptString) {
+	o.j2clMinifierPruningManifest = manifest
 }

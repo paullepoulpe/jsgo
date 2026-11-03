@@ -90,7 +90,7 @@ func (d *Denormalize) Process(externs rhino.Node, root rhino.Node) {
 	d.hasLogicalAssign = d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	NodeTraversal_Traverse(d.compiler, root, d)
 	// Don't inline the VAR declaration if this compilation involves old-style ctemplates.
-	if d.compiler.GetOptions().GetSyntheticBlockStartMarker() == nil {
+	if !d.compiler.GetOptions().HasSyntheticBlockStartMarker() {
 		d.varInliner.reset()
 		b := NodeTraversal_Builder{
 			compiler:     d.compiler,

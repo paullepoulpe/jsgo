@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -98,7 +99,7 @@ func (c *ProcessDefinesTest) GetOptions() *CompilerOptions {
 	options := c.CompilerTestCaseBase.GetOptions()
 
 	options.SetOutputFeatureSet(c.outputFeatureSet)
-	options.SetEnableZonesDefineName(jutil.StringPtr("javascript.angular2.ENABLE_ZONES"))
+	options.SetEnableZonesDefineName("javascript.angular2.ENABLE_ZONES")
 	options.SetZoneInputPattern(processDefinesTest_ZONE_INPUT_PATTERN)
 	if c.enableDefineWithoutGoogDefineCheck {
 		options.SetWarningLevel(DiagnosticGroups_DEFINE_WITHOUT_GOOG_DEFINE, CheckLevel_ERROR)
@@ -139,7 +140,7 @@ func (p *ProcessDefinesTest_ProcessDefinesWithInjectedNamespace) Process(externs
 		Mode:                    c.mode,
 		NamespaceSupplier:       func() *GlobalNamespace { return c.namespace },
 		RecognizeClosureDefines: c.recognizeClosureDefines,
-		EnableZonesDefineName:   p.compiler.GetOptions().GetEnableZonesDefineName(),
+		EnableZonesDefineName:   p.compiler.GetOptions().enableZonesDefineName,
 		ZoneInputPattern:        p.compiler.GetOptions().GetZoneInputPattern(),
 	}).Process(externs, js)
 }
@@ -188,7 +189,7 @@ func (b *ProcessDefines_Builder) SetRecognizeClosureDefines(recognizeClosureDefi
 	return b
 }
 
-func (b *ProcessDefines_Builder) SetEnableZonesDefineName(enableZonesDefineName *string) *ProcessDefines_Builder {
+func (b *ProcessDefines_Builder) SetEnableZonesDefineName(enableZonesDefineName base.OptString) *ProcessDefines_Builder {
 	b.opts.EnableZonesDefineName = enableZonesDefineName
 	return b
 }

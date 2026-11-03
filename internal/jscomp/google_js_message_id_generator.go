@@ -52,7 +52,13 @@ func NewGoogleJsMessageIdGenerator(projectId *string) *GoogleJsMessageIdGenerato
 	if projectId != nil {
 		pid = *projectId
 	}
-	return &GoogleJsMessageIdGenerator{projectId: pid}
+	return NewGoogleJsMessageIdGeneratorForProject(pid)
+}
+
+// NewGoogleJsMessageIdGeneratorForProject creates an instance for an unboxed
+// TC project ID (empty string when unset).
+func NewGoogleJsMessageIdGeneratorForProject(projectId string) *GoogleJsMessageIdGenerator {
+	return &GoogleJsMessageIdGenerator{projectId: projectId}
 }
 
 // Java: GoogleJsMessageIdGenerator.generateId(String, List<Part>)

@@ -304,7 +304,7 @@ func (o *CompilerOptions) SetAssumeGlobalScopeIsIsolated(assumeGlobalScopeIsIsol
 
 // Java: CompilerOptions.shouldTreatGlobalScopeAsIsolated()
 func (o *CompilerOptions) ShouldTreatGlobalScopeAsIsolated() bool {
-	return o.assumeGlobalScopeIsIsolated || o.renamePrefixNamespace != nil
+	return o.assumeGlobalScopeIsIsolated || o.renamePrefixNamespace.IsPresent()
 }
 
 // Java: CompilerOptions.setInlineLocalVariables(boolean)
@@ -548,22 +548,47 @@ func (o *CompilerOptions) IsPropertyRenamingOnlyCompilationMode() bool {
 }
 
 // Java: CompilerOptions.setRenamePrefix(String)
-func (o *CompilerOptions) SetRenamePrefix(renamePrefix *string) {
+func (o *CompilerOptions) SetRenamePrefix(renamePrefix string) {
+	o.renamePrefix = base.SomeString(renamePrefix)
+}
+
+// ClearRenamePrefix clears renamePrefix to absent (Java null).
+func (o *CompilerOptions) ClearRenamePrefix() {
+	o.renamePrefix = base.NoString()
+}
+
+// SetRenamePrefixOpt sets or clears renamePrefix from an OptString.
+func (o *CompilerOptions) SetRenamePrefixOpt(renamePrefix base.OptString) {
 	o.renamePrefix = renamePrefix
 }
 
 // Java: CompilerOptions.getRenamePrefix()
-func (o *CompilerOptions) GetRenamePrefix() *string {
-	return o.renamePrefix
+func (o *CompilerOptions) GetRenamePrefix() (string, bool) {
+	return o.renamePrefix.Get()
 }
 
 // Java: CompilerOptions.getRenamePrefixNamespace()
-func (o *CompilerOptions) GetRenamePrefixNamespace() *string {
-	return o.renamePrefixNamespace
+func (o *CompilerOptions) GetRenamePrefixNamespace() (string, bool) {
+	return o.renamePrefixNamespace.Get()
+}
+
+// HasRenamePrefixNamespace reports whether a renamePrefixNamespace is configured.
+func (o *CompilerOptions) HasRenamePrefixNamespace() bool {
+	return o.renamePrefixNamespace.IsPresent()
 }
 
 // Java: CompilerOptions.setRenamePrefixNamespace(String)
-func (o *CompilerOptions) SetRenamePrefixNamespace(renamePrefixNamespace *string) {
+func (o *CompilerOptions) SetRenamePrefixNamespace(renamePrefixNamespace string) {
+	o.renamePrefixNamespace = base.SomeString(renamePrefixNamespace)
+}
+
+// ClearRenamePrefixNamespace clears renamePrefixNamespace to absent (Java null).
+func (o *CompilerOptions) ClearRenamePrefixNamespace() {
+	o.renamePrefixNamespace = base.NoString()
+}
+
+// SetRenamePrefixNamespaceOpt sets or clears renamePrefixNamespace from an OptString.
+func (o *CompilerOptions) SetRenamePrefixNamespaceOpt(renamePrefixNamespace base.OptString) {
 	o.renamePrefixNamespace = renamePrefixNamespace
 }
 
@@ -647,28 +672,68 @@ func (o *CompilerOptions) ShouldExportTestFunctions() bool {
 }
 
 // Java: CompilerOptions.setSyntheticBlockStartMarker(String)
-func (o *CompilerOptions) SetSyntheticBlockStartMarker(syntheticBlockStartMarker *string) {
+func (o *CompilerOptions) SetSyntheticBlockStartMarker(syntheticBlockStartMarker string) {
+	o.syntheticBlockStartMarker = base.SomeString(syntheticBlockStartMarker)
+}
+
+// ClearSyntheticBlockStartMarker clears syntheticBlockStartMarker to absent (Java null).
+func (o *CompilerOptions) ClearSyntheticBlockStartMarker() {
+	o.syntheticBlockStartMarker = base.NoString()
+}
+
+// SetSyntheticBlockStartMarkerOpt sets or clears syntheticBlockStartMarker from an OptString.
+func (o *CompilerOptions) SetSyntheticBlockStartMarkerOpt(syntheticBlockStartMarker base.OptString) {
 	o.syntheticBlockStartMarker = syntheticBlockStartMarker
 }
 
 // Java: CompilerOptions.getSyntheticBlockStartMarker()
-func (o *CompilerOptions) GetSyntheticBlockStartMarker() *string {
-	return o.syntheticBlockStartMarker
+func (o *CompilerOptions) GetSyntheticBlockStartMarker() (string, bool) {
+	return o.syntheticBlockStartMarker.Get()
+}
+
+// HasSyntheticBlockStartMarker reports whether a syntheticBlockStartMarker is configured.
+func (o *CompilerOptions) HasSyntheticBlockStartMarker() bool {
+	return o.syntheticBlockStartMarker.IsPresent()
+}
+
+// SetSyntheticBlockEndMarker sets syntheticBlockEndMarker.
+func (o *CompilerOptions) SetSyntheticBlockEndMarker(syntheticBlockEndMarker string) {
+	o.syntheticBlockEndMarker = base.SomeString(syntheticBlockEndMarker)
+}
+
+// ClearSyntheticBlockEndMarker clears syntheticBlockEndMarker to absent (Java null).
+func (o *CompilerOptions) ClearSyntheticBlockEndMarker() {
+	o.syntheticBlockEndMarker = base.NoString()
+}
+
+// SetSyntheticBlockEndMarkerOpt sets or clears syntheticBlockEndMarker from an OptString.
+func (o *CompilerOptions) SetSyntheticBlockEndMarkerOpt(syntheticBlockEndMarker base.OptString) {
+	o.syntheticBlockEndMarker = syntheticBlockEndMarker
 }
 
 // Java: CompilerOptions.getSyntheticBlockEndMarker()
-func (o *CompilerOptions) GetSyntheticBlockEndMarker() *string {
-	return o.syntheticBlockEndMarker
+func (o *CompilerOptions) GetSyntheticBlockEndMarker() (string, bool) {
+	return o.syntheticBlockEndMarker.Get()
 }
 
 // Java: CompilerOptions.setLocale(String)
-func (o *CompilerOptions) SetLocale(locale *string) {
+func (o *CompilerOptions) SetLocale(locale string) {
+	o.locale = base.SomeString(locale)
+}
+
+// ClearLocale clears locale to absent (Java null).
+func (o *CompilerOptions) ClearLocale() {
+	o.locale = base.NoString()
+}
+
+// SetLocaleOpt sets or clears locale from an OptString.
+func (o *CompilerOptions) SetLocaleOpt(locale base.OptString) {
 	o.locale = locale
 }
 
 // Java: CompilerOptions.getLocale()
-func (o *CompilerOptions) GetLocale() *string {
-	return o.locale
+func (o *CompilerOptions) GetLocale() (string, bool) {
+	return o.locale.Get()
 }
 
 // Java: CompilerOptions.setDoLateLocalization(boolean)
@@ -808,12 +873,22 @@ func (o *CompilerOptions) GetCustomPassesAt(executionTime CustomPassExecutionTim
 }
 
 // Java: CompilerOptions.getEnableZonesDefineName()
-func (o *CompilerOptions) GetEnableZonesDefineName() *string {
-	return o.enableZonesDefineName
+func (o *CompilerOptions) GetEnableZonesDefineName() (string, bool) {
+	return o.enableZonesDefineName.Get()
 }
 
 // Java: CompilerOptions.setEnableZonesDefineName(String)
-func (o *CompilerOptions) SetEnableZonesDefineName(enableZonesDefineName *string) {
+func (o *CompilerOptions) SetEnableZonesDefineName(enableZonesDefineName string) {
+	o.enableZonesDefineName = base.SomeString(enableZonesDefineName)
+}
+
+// ClearEnableZonesDefineName clears enableZonesDefineName to absent (Java null).
+func (o *CompilerOptions) ClearEnableZonesDefineName() {
+	o.enableZonesDefineName = base.NoString()
+}
+
+// SetEnableZonesDefineNameOpt sets or clears enableZonesDefineName from an OptString.
+func (o *CompilerOptions) SetEnableZonesDefineNameOpt(enableZonesDefineName base.OptString) {
 	o.enableZonesDefineName = enableZonesDefineName
 }
 

@@ -161,7 +161,7 @@ func (c *ClosureUnawareOptions) CopyDebugOptions() {
 	c.shadowOptions.SetInputDelimiter(c.original.GetInputDelimiter())
 	c.shadowOptions.SetUseOriginalNamesInOutput(c.original.GetUseOriginalNamesInOutput())
 
-	c.shadowOptions.SetDebugLogFilter(c.original.GetDebugLogFilter())
+	c.shadowOptions.SetDebugLogFilterOpt(c.original.debugLogFilter)
 	debugLogDirectory := c.original.GetDebugLogDirectory()
 	if debugLogDirectory != nil {
 		c.shadowOptions.SetDebugLogDirectory(

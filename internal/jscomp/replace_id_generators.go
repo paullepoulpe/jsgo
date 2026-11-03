@@ -126,7 +126,7 @@ func NewReplaceIdGenerators(
 	templateLiteralsAreTranspiled bool,
 	idGens *OrderedStringMap[RenamingMap],
 	generatePseudoNames bool,
-	previousMapSerialized *string,
+	previousMapSerialized string,
 	xidHashFunction Xid_HashFunction) *ReplaceIdGenerators {
 	r := &ReplaceIdGenerators{
 		compiler:                      compiler,
@@ -137,8 +137,8 @@ func NewReplaceIdGenerators(
 		idGeneratorMaps:               make(map[string]*idGenMapping),
 	}
 
-	if previousMapSerialized != nil && *previousMapSerialized != "" {
-		r.previousMap = IdMappingUtil_ParseSerializedIdMappings(*previousMapSerialized)
+	if previousMapSerialized != "" {
+		r.previousMap = IdMappingUtil_ParseSerializedIdMappings(previousMapSerialized)
 	}
 
 	if idGens != nil {

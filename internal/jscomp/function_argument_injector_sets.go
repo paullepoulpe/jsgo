@@ -159,13 +159,15 @@ func (s *calleeSummary) canReuseSideEffects(renamedClone bool) bool {
 }
 
 type calleeScanner struct {
-	dst               *calleeSummary
-	body              rhino.Node
-	fnNameID          uint32
-	fnRecursionNameID uint32
-	hasFnName         bool
-	hasFnRecursion    bool
-	hasCondNode       bool
+	dst                 *calleeSummary
+	body                rhino.Node
+	fnNameID            uint32
+	fnRecursionNameID   uint32
+	hasFnName           bool
+	hasFnRecursion      bool
+	hasCondNode         bool
+	abortOnLocalClosure bool
+	abortedLocalClosure bool
 }
 
 func (cs *calleeScanner) walk(n, parent rhino.Node, inInnerClosure, inInnerFn, inReceiverScope, inShallowStmt bool) {
@@ -188,6 +190,11 @@ func (cs *calleeScanner) walk(n, parent rhino.Node, inInnerClosure, inInnerFn, i
 		if tok == rhino.Token_RETURN {
 			dst.shallowReturnCount++
 		}
+	}
+
+	if cs.abortOnLocalClosure && dst.hasInnerClosures && (dst.numParams > 0 || dst.hasShallowDeclarations) {
+		cs.abortedLocalClosure = true
+		return
 	}
 
 	switch tok {
@@ -271,6 +278,9 @@ func (cs *calleeScanner) walk(n, parent rhino.Node, inInnerClosure, inInnerFn, i
 		(tok == rhino.Token_ROOT || tok == rhino.Token_BLOCK || (tok != rhino.Token_FUNCTION && NodeUtil_IsShallowStatementTree(parent)))
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		cs.walk(c, n, inInnerClosure, inInnerFn, inReceiverScope, childrenShallow)
+		if cs.abortedLocalClosure {
+			return
+		}
 	}
 }
 
@@ -279,13 +289,27 @@ func (cs *calleeScanner) walk(n, parent rhino.Node, inInnerClosure, inInnerFn, i
 // duplicate formal parameter names (though body properties are always populated
 // when fnNode is a FUNCTION node).
 func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) bool {
+	paramsPositional, _ := scanCalleeSummaryForInlineCandidate(fnName, fnNode, dst, false)
+	return paramsPositional
+}
+
+// scanCalleeSummaryForInlineCandidate is scanCalleeSummary with an optional
+// early abort when abortOnLocalClosure is true and the function is guaranteed
+// to be disallowed by HAS_LOCAL_NAMES (hasInnerClosures && (numParams > 0 ||
+// hasShallowDeclarations)).
+func scanCalleeSummaryForInlineCandidate(
+	fnName string,
+	fnNode rhino.Node,
+	dst *calleeSummary,
+	abortOnLocalClosure bool,
+) (paramsPositional, abortedLocalClosure bool) {
 	*dst = calleeSummary{fnNode: fnNode}
 	if !fnNode.IsFunction() {
-		return false
+		return false, false
 	}
 	fn := ast.MustFunction(fnNode)
 
-	paramsPositional := true
+	paramsPositional = true
 	for p, more := fn.Params().FirstParam(); more; p, more = p.Next() {
 		var pNameID uint32
 		var isRest bool
@@ -316,9 +340,24 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 	dst.paramsPositional = paramsPositional
 
 	body := fn.Body().Node()
+	if abortOnLocalClosure && dst.numParams == 0 && body.IsBlock() {
+		// Pre-check top-level statements in large wrapper bodies (e.g. IIFE/UMD
+		// bundles) so encountering an earlier inner closure before a declaration
+		// still aborts immediately without scanning the wrapper body.
+		steps := 0
+		for c := body.GetFirstChild(); !c.IsNil() && steps < 64; c = c.GetNext() {
+			if NodeUtil_IsDeclaration(c) {
+				dst.hasShallowDeclarations = true
+				break
+			}
+			steps++
+		}
+	}
+
 	cs := calleeScanner{
-		dst:  dst,
-		body: body,
+		dst:                 dst,
+		body:                body,
+		abortOnLocalClosure: abortOnLocalClosure,
 	}
 	if fnName != "" {
 		if id := uint32(strpool.Lookup(fnName)); id != 0 {
@@ -334,6 +373,9 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 	}
 
 	cs.walk(body, fnNode, false, false, true, true)
+	if cs.abortedLocalClosure {
+		return paramsPositional, true
+	}
 
 	if !body.HasChildren() {
 		dst.isTrivialBody = true
@@ -342,7 +384,7 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 		dst.isTrivialBody = (onlyChild.IsReturn() || onlyChild.IsExprResult()) && !cs.hasCondNode
 	}
 
-	return paramsPositional
+	return paramsPositional, false
 }
 
 func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(

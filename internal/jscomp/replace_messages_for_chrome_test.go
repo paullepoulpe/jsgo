@@ -41,7 +41,7 @@ func TestReplaceMessagesForChromeTest(t *testing.T) {
 
 // Java: ReplaceMessagesForChromeTest.getProcessor(Compiler)
 func (c *ReplaceMessagesForChromeTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return NewReplaceMessagesForChrome(compiler, NewGoogleJsMessageIdGenerator(nil))
+	return NewReplaceMessagesForChrome(compiler, NewGoogleJsMessageIdGeneratorForProject(""))
 }
 
 // Java: ReplaceMessagesForChromeTest.setUp()

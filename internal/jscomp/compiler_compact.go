@@ -111,6 +111,9 @@ func (c *Compiler) beginASTCompaction() {
 // externs and root are the caller's local root pointers (forwarded in
 // place); extra forwards holders the caller keeps in locals.
 func (c *Compiler) maybeCompactAST(after string, externs, root *rhino.Node, extra func(fwd func(rhino.Node) rhino.Node)) {
+	if c.inlineFnCache != nil && (after == "end of optimizations" || c.phaseOptimizer == nil || !c.GetLifeCycleStage().IsNormalized()) {
+		c.inlineFnCache = nil
+	}
 	a := &c.astCompact
 	if !a.enabled || !a.allowed || c.externAndJsRoot.IsNil() {
 		return
@@ -155,6 +158,7 @@ func (c *Compiler) compactAST(after string, force bool, externs, root *rhino.Nod
 		}
 		return
 	}
+	c.inlineFnCache = nil
 	threads := 1
 	if c.options != nil && c.options.GetNumParallelThreads() > 1 {
 		threads = c.options.GetNumParallelThreads()

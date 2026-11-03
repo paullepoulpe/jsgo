@@ -21,8 +21,13 @@ package jscomp
 
 import (
 	"fmt"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"io"
+	"slices"
+	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 type CoalesceVariableNamesTest struct {
@@ -1604,4 +1609,158 @@ func (c *CoalesceVariableNamesTest) InFunction(src string) {
 // Java: CoalesceVariableNamesTest.inFunction(String, String)
 func (c *CoalesceVariableNamesTest) InFunctionWithExpected(src string, expected string) {
 	c.Test("function FUNC(){"+src+"}", "function FUNC(){"+expected+"}")
+}
+
+func collectScopeChangeTimes(n rhino.Node, out *[]string) {
+	if n.IsScript() || n.IsFunction() {
+		*out = append(*out, fmt.Sprintf("%s@%d:%d=%d", n.GetToken(), n.GetLineno(), n.GetCharno(), n.GetChangeTime()))
+	}
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		collectScopeChangeTimes(ch, out)
+	}
+}
+
+func runCoalesceWithThreadsForTest(t *testing.T, src string, numThreads int) (printed string, beforePrinted string, treeDump string, changeTimes []string) {
+	t.Helper()
+	compiler := NewCompilerWithOutStream(jutil.NewPrintStream(io.Discard))
+	opts := NewCompilerOptions()
+	opts.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	opts.SetLanguageOut(CompilerOptions_LanguageMode_NO_TRANSPILE)
+	opts.SetPrettyPrint(true)
+	opts.SetNumParallelThreads(numThreads)
+
+	externsSrc := "function use(...args) {} function sanitize(x) { return x; } var window;"
+	compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs.js", externsSrc)},
+		[]*SourceFile{SourceFile_FromCode("input.js", src)},
+		opts,
+	)
+	compiler.Parse()
+	if compiler.HasErrors() {
+		t.Fatalf("unexpected parse errors (threads=%d): %v", numThreads, compiler.GetErrors())
+	}
+
+	externs := compiler.GetExternsRoot()
+	jsRoot := compiler.GetJsRoot()
+	Normalize_CreateNormalizeForOptimizations(compiler).Process(externs, jsRoot)
+	beforePrinted = compiler.ToSource()
+
+	NewCoalesceVariableNames(compiler, false).Process(externs, jsRoot)
+	printed = compiler.ToSource()
+	treeDump = compiler.GetRoot().ToStringTree()
+	collectScopeChangeTimes(jsRoot, &changeTimes)
+	return printed, beforePrinted, treeDump, changeTimes
+}
+
+func buildInnerFunctionsJS(count int, captureExpr string, shadowNames bool) string {
+	var sb strings.Builder
+	for i := 0; i < count; i++ {
+		switch i % 5 {
+		case 0:
+			// Captures outer variable(s) if provided + coalesces own vars and block-scoped let/const.
+			sb.WriteString(fmt.Sprintf("function inner_%d(p) {\n", i))
+			if captureExpr != "" {
+				sb.WriteString(fmt.Sprintf("  use(%s);\n", captureExpr))
+			}
+			sb.WriteString("  var a = p + 1; use(a);\n")
+			sb.WriteString("  if (p) { let b = 2; use(b); } else { const c = 3; use(c); }\n")
+			sb.WriteString("  var d = 4; return d;\n}\n")
+			sb.WriteString(fmt.Sprintf("use(inner_%d(%d));\n", i, i))
+		case 1:
+			// Shadows outer variable names (initA, initB, capturedVar, blockLet) before normalization.
+			if shadowNames {
+				sb.WriteString(fmt.Sprintf("const fn_%d = function(x) {\n", i))
+			} else {
+				sb.WriteString(fmt.Sprintf("use(function(x) {\n"))
+			}
+			sb.WriteString("  var initA = x + 1; use(initA);\n")
+			sb.WriteString("  let initB = 10; use(initB);\n")
+			sb.WriteString("  const capturedVar = 20; use(capturedVar);\n")
+			sb.WriteString("  { let blockLet = 30; use(blockLet); }\n")
+			if shadowNames {
+				sb.WriteString(fmt.Sprintf("};\nuse(fn_%d(%d));\n", i, i))
+			} else {
+				sb.WriteString(fmt.Sprintf("}(%d));\n", i))
+			}
+		case 2:
+			// Arrow function with loop + uninitialized let + destructuring single-lvalue decl.
+			sb.WriteString(fmt.Sprintf("use((arr) => {\n  for (var idx = 0; idx < %d; idx++) { let tmp; if (idx) { tmp = idx; } use(tmp); }\n  const [first] = arr; return first;\n});\n", i+2))
+		case 3:
+			// Class with computed method key, uninitialized computed fields, static field, and method functions.
+			sb.WriteString(fmt.Sprintf("use((k) => {\n  var m1 = k + 1; use(m1);\n  class C_%d {\n    [k + 1];\n    static [k + 2];\n    static sf = (() => { var s1 = 1; use(s1); var s2 = 2; return s2; })();\n    [k](arg) { var q1 = arg; use(q1); let q2 = 9; return q2; }\n  }\n  let m2 = new C_%d(); return m2;\n});\n", i, i))
+		case 4:
+			// Nested wrapper function (exercising depth >= 2 worker reuse) + try/catch.
+			sb.WriteString(fmt.Sprintf("use(function outerWrap_%d() {\n  return function deep_%d(v) {\n    try { var t1 = sanitize(v); use(t1); } catch (err) { use(err); }\n    let t2 = 7; return t2;\n  };\n}());\n", i, i))
+		}
+	}
+	return sb.String()
+}
+
+func TestCoalesceVariableNamesParallelIIFE(t *testing.T) {
+	// 1. IIFE wrapper with 0 shallow local vars + 20 inner functions.
+	var zeroVarsIIFE strings.Builder
+	zeroVarsIIFE.WriteString("(function() {\n")
+	zeroVarsIIFE.WriteString(buildInnerFunctionsJS(20, "", false))
+	zeroVarsIIFE.WriteString("})();\n")
+
+	// 2. IIFE wrapper with >100 shallow vars + 20 inner functions.
+	var overMaxVarsIIFE strings.Builder
+	overMaxVarsIIFE.WriteString("(function() {\n")
+	for i := 0; i < LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE+6; i++ {
+		overMaxVarsIIFE.WriteString(fmt.Sprintf("  var many_%d = %d; use(many_%d);\n", i, i, i))
+	}
+	overMaxVarsIIFE.WriteString(buildInnerFunctionsJS(20, "many_0", false))
+	overMaxVarsIIFE.WriteString("})();\n")
+
+	// 3. IIFE wrapper with 3 coalesceable vars + block-scoped let/const + captured outer vars +
+	//    20 inner functions (some capturing outer vars, some shadowing outer vars).
+	var coalesceableIIFE strings.Builder
+	coalesceableIIFE.WriteString("(function(global) {\n")
+	coalesceableIIFE.WriteString("  var initA = sanitize(global); use(initA);\n")
+	coalesceableIIFE.WriteString("  var initB = 2; use(initB);\n")
+	coalesceableIIFE.WriteString("  var initC = 3; use(initC);\n")
+	coalesceableIIFE.WriteString("  if (global) { let blockLet = 4; use(blockLet); } else { const blockConst = 5; use(blockConst); }\n")
+	coalesceableIIFE.WriteString("  var capturedVar = sanitize(100);\n")
+	coalesceableIIFE.WriteString("  let capturedLet = sanitize(200);\n")
+	coalesceableIIFE.WriteString(buildInnerFunctionsJS(20, "capturedVar + capturedLet", true))
+	coalesceableIIFE.WriteString("  use(capturedVar, capturedLet);\n")
+	coalesceableIIFE.WriteString("})(window);\n")
+
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{name: "iife_0_vars", src: zeroVarsIIFE.String()},
+		{name: "iife_over_100_vars", src: overMaxVarsIIFE.String()},
+		{name: "iife_3_coalesceable_vars_let_const_20_inner", src: coalesceableIIFE.String()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out1, before1, tree1, times1 := runCoalesceWithThreadsForTest(t, tc.src, 1)
+			if out1 == before1 {
+				t.Fatalf("expected CoalesceVariableNames to transform input in %s, but output was unchanged", tc.name)
+			}
+			if tc.name == "iife_3_coalesceable_vars_let_const_20_inner" {
+				if !strings.Contains(out1, "capturedVar") || !strings.Contains(out1, "capturedLet") {
+					t.Fatalf("expected captured outer bindings to remain uncoalesced:\n%s", out1)
+				}
+				if strings.Contains(out1, "initC") || strings.Contains(out1, "blockConst") {
+					t.Fatalf("expected unescaped outer bindings initC and blockConst to coalesce:\n%s", out1)
+				}
+			}
+			for iter := 0; iter < 3; iter++ {
+				out4, _, tree4, times4 := runCoalesceWithThreadsForTest(t, tc.src, 4)
+				if out4 != out1 {
+					t.Fatalf("iter %d: printed JS mismatch between 1 thread and 4 threads:\n--- 1 thread ---\n%s\n--- 4 threads ---\n%s", iter, out1, out4)
+				}
+				if !slices.Equal(times4, times1) {
+					t.Fatalf("iter %d: per-scope GetChangeTime() mismatch between 1 thread and 4 threads:\n1 thread:  %v\n4 threads: %v", iter, times1, times4)
+				}
+				if tree4 != tree1 {
+					t.Fatalf("iter %d: full AST ToStringTree() mismatch between 1 thread and 4 threads", iter)
+				}
+			}
+		})
+	}
 }

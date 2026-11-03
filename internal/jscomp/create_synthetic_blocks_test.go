@@ -58,8 +58,7 @@ func (c *CreateSyntheticBlocksTest) SetUp() {
 func (c *CreateSyntheticBlocksTest) GetOptions() *CompilerOptions {
 	options := c.CompilerTestCaseBase.GetOptions()
 	// This is used by NodeTraversal and not by the pass under test here
-	startMarker := createSyntheticBlocksTest_START_MARKER
-	options.SetSyntheticBlockStartMarker(&startMarker)
+	options.SetSyntheticBlockStartMarker(createSyntheticBlocksTest_START_MARKER)
 	return options
 }
 

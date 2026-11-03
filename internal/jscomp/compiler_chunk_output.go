@@ -20,8 +20,15 @@ type RenderedChunk struct {
 // wrapper prefixing, and worker parallelism for Compiler.RenderChunksAndSourceMaps.
 type RenderChunkOptions struct {
 	// LicenseTracker tracks emitted licenses across chunks in dependency order.
-	// When nil, NewCompiler_ChunkGraphAwareLicenseTracker(c) is used.
+	// When nil, NewCompiler_ChunkGraphAwareLicenseTracker(c) is used unless
+	// PerChunkScriptLicenses is true.
 	LicenseTracker CodePrinter_LicenseTracker
+
+	// PerChunkScriptLicenses, when true and LicenseTracker is nil, uses a fresh
+	// ScriptNodeLicensesOnlyTracker per chunk (deduplicating script-level
+	// licenses within each chunk, not across chunks), matching
+	// AbstractCommandLineRunner.createJsonFileFromChunk.
+	PerChunkScriptLicenses bool
 
 	// GenerateSourceMaps requests per-chunk source map rendering even when
 	// CompilerOptions.SetSourceMapOutputPath was not set. When false, source maps
@@ -103,6 +110,7 @@ func (c *Compiler) renderChunksBatched(
 	lt CodePrinter_LicenseTracker,
 	onlyScript bool,
 	replay func(string),
+	resetLTPerChunk func(),
 	gatherSourceMap bool,
 	onSeqChunk func(globalIdx, batchIdx int, m *JSChunk, code string),
 	onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap),
@@ -148,6 +156,9 @@ func (c *Compiler) renderChunksBatched(
 		for j := range batchLen {
 			globalIdx := batchStart + j
 			m := activeChunks[globalIdx]
+			if resetLTPerChunk != nil {
+				resetLTPerChunk()
+			}
 			if chunkTracker != nil {
 				chunkTracker.SetCurrentChunkContext(m)
 			}
@@ -215,9 +226,20 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	}
 	numWorkers = max(1, min(numWorkers, max(len(activeChunks), totalInputs)))
 
+	var resetLTPerChunk func()
 	lt := opts.LicenseTracker
 	if lt == nil {
-		lt = NewCompiler_ChunkGraphAwareLicenseTracker(c)
+		if opts.PerChunkScriptLicenses {
+			scriptLT := NewCompiler_ScriptNodeLicensesOnlyTracker(c)
+			lt = scriptLT
+			resetLTPerChunk = func() {
+				clear(scriptLT.globalSeen)
+				resetOrderedSet(&scriptLT.current)
+				scriptLT.lastSeenFile = ""
+			}
+		} else {
+			lt = NewCompiler_ChunkGraphAwareLicenseTracker(c)
+		}
 	}
 	chunkTracker, _ := lt.(*Compiler_ChunkGraphAwareLicenseTracker)
 
@@ -244,6 +266,9 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 			if gatherSourceMap {
 				c.ResetAndInitializeSourceMap()
 			}
+			if resetLTPerChunk != nil {
+				resetLTPerChunk()
+			}
 			if chunkTracker != nil {
 				chunkTracker.SetCurrentChunkContext(m)
 			}
@@ -269,6 +294,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 		lt,
 		onlyScript,
 		replay,
+		resetLTPerChunk,
 		gatherSourceMap,
 		func(globalIdx, _ int, m *JSChunk, code string) {
 			rendered[globalIdx] = RenderedChunk{Chunk: m, Code: code}
@@ -316,6 +342,7 @@ func (c *Compiler) OutputChunksParallel(
 		mlicenseTracker,
 		false,
 		mlicenseTracker.trackLicensesForFileName,
+		nil,
 		gatherSourceMap,
 		func(_, j int, m *JSChunk, code string) {
 			chunkFilename := hooks.ChunkFileName(m)

@@ -152,15 +152,12 @@ func l11optRenameVars(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]s
 	options := c.GetOptions()
 	var reservedChars ASCIICharSet
 	reservedNames := NewOrderedSet[string]()
-	if options.GetRenamePrefixNamespace() != nil {
-		reservedNames.Add(*options.GetRenamePrefixNamespace())
+	if ns, ok := options.GetRenamePrefixNamespace(); ok {
+		reservedNames.Add(ns)
 	}
 	reservedNames.AddAll(c.GetExportedNames().ToSlice()...)
 	reservedNames.AddAll(parsing.ParserRunner_GetReservedVars().ToSlice()...)
-	var renamePrefix string
-	if p := options.GetRenamePrefix(); p != nil {
-		renamePrefix = *p
-	}
+	renamePrefix, _ := options.GetRenamePrefix()
 	rn := NewRenameVars(
 		c,
 		renamePrefix,

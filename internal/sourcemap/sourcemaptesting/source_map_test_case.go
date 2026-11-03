@@ -489,7 +489,7 @@ func (*sourceMapTestCase_uselessCodeGuard) Level(error *jscomp.JSError) (jscomp.
 // Java: SourceMapTestCase.getCompilerOptions()
 func (b *SourceMapTestCaseBase) GetCompilerOptions() *jscomp.CompilerOptions {
 	options := jscomp.NewCompilerOptions()
-	options.SetSourceMapOutputPath(jutil.StringPtr("testcode_source_map.out"))
+	options.SetSourceMapOutputPath("testcode_source_map.out")
 	options.SetSourceMapFormat(b.self.GetSourceMapFormat())
 	options.SetSourceMapDetailLevel(b.DetailLevel)
 	options.SetSourceMapIncludeSourcesContent(b.SourceMapIncludeSourcesContent)

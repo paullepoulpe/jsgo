@@ -123,7 +123,8 @@ var (
 	})
 	defaultPass_angularPass              = passFactoryOf(PassNames_ANGULAR_PASS, NewAngularPass)
 	defaultPass_replaceMessagesForChrome = NewPassFactory(PassNames_REPLACE_MESSAGES, func(c AbstractCompiler) CompilerPass {
-		return NewReplaceMessagesForChrome(c, NewGoogleJsMessageIdGenerator(c.GetOptions().GetTcProjectId()))
+		tcProjectId, _ := c.GetOptions().GetTcProjectId()
+		return NewReplaceMessagesForChrome(c, NewGoogleJsMessageIdGeneratorForProject(tcProjectId))
 	})
 	defaultPass_fullReplaceMessages = NewPassFactory(PassNames_REPLACE_MESSAGES, func(c AbstractCompiler) CompilerPass {
 		return newReplaceMessagesForOptions(c).GetFullReplacementPass()
@@ -167,7 +168,12 @@ var (
 	})
 	defaultPass_createSyntheticBlocks = NewPassFactory("createSyntheticBlocks", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return NewCreateSyntheticBlocks(c, *opts.GetSyntheticBlockStartMarker(), *opts.GetSyntheticBlockEndMarker())
+		startMarker, hasStart := opts.GetSyntheticBlockStartMarker()
+		endMarker, hasEnd := opts.GetSyntheticBlockEndMarker()
+		if !hasStart || !hasEnd {
+			panic(jutil.NewNullPointerException())
+		}
+		return NewCreateSyntheticBlocks(c, startMarker, endMarker)
 	})
 	defaultPass_earlyPeepholeOptimizations = NewPassFactory("earlyPeepholeOptimizations", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
@@ -280,8 +286,9 @@ var (
 	defaultPass_replaceToggles            = passFactoryOf("replaceToggles", NewReplaceToggles)
 	defaultPass_replaceIdGenerators       = actionPassFactory(PassNames_REPLACE_ID_GENERATORS, func(c AbstractCompiler, externs, root rhino.Node) {
 		opts := c.GetOptions()
+		prevMap, _ := opts.GetIdGeneratorsMapSerialized()
 		pass := NewReplaceIdGenerators(c, opts.NeedsTranspilationOf(parser.FeatureSet_Feature_TEMPLATE_LITERALS),
-			opts.GetIdGenerators(), opts.ShouldGeneratePseudoNames(), opts.GetIdGeneratorsMapSerialized(), opts.GetXidHashFunction())
+			opts.GetIdGenerators(), opts.ShouldGeneratePseudoNames(), prevMap, opts.GetXidHashFunction())
 		pass.Process(externs, root)
 		c.SetIdGeneratorMap(pass.GetSerializedIdMappings())
 	})
@@ -300,7 +307,11 @@ var (
 	})
 	defaultPass_rescopeGlobalSymbols = NewPassFactory("rescopeGlobalSymbols", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return NewRescopeGlobalSymbols(c, *opts.GetRenamePrefixNamespace(), opts.AssumeCrossChunkNamesForRenamePrefixNamespace(), opts.GetOptimizeLocalAccessForGlobalSymbolNamespace())
+		ns, ok := opts.GetRenamePrefixNamespace()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		return NewRescopeGlobalSymbols(c, ns, opts.AssumeCrossChunkNamesForRenamePrefixNamespace(), opts.GetOptimizeLocalAccessForGlobalSymbolNamespace())
 	})
 	defaultPass_convertChunksToESModules    = passFactoryOf("convertChunksToESModules", NewConvertChunksToESModules)
 	defaultPass_inlineAndCollapseProperties = makeCheckedPassFactory("inlineAndCollapseProperties", inlineAndCollapsePrecondition, false, func(c AbstractCompiler) CompilerPass {
@@ -478,7 +489,7 @@ var (
 	defaultPass_mergeSyntheticScript    = actionPassFactory("MERGE_SYNTHETIC_SCRIPT", func(c AbstractCompiler, _, _ rhino.Node) { c.MergeSyntheticCodeInput() })
 	defaultPass_protectLocaleData       = passFactoryOf("protectLocaleData", NewLocaleDataPasses_ProtectGoogLocale)
 	defaultPass_substituteLocaleData    = NewPassFactory("SubstituteLocaleData", func(c AbstractCompiler) CompilerPass {
-		return NewLocaleDataPasses_LocaleSubstitutions(c, c.GetOptions().GetLocale())
+		return NewLocaleDataPasses_LocaleSubstitutions(c, c.GetOptions().locale)
 	})
 	defaultPass_transpileOnlyClosureUnaware = NewPassFactory("TranspileOnlyClosureUnaware", func(c AbstractCompiler) CompilerPass {
 		return NewTranspileAndOptimizeClosureUnaware(c, NestedCompilerRunner_Mode_TRANSPILE_ONLY)
@@ -496,7 +507,7 @@ var (
 	defaultPassConfig_forbidDynamicImportUsage = passFactoryOf("FORBID_DYNAMIC_IMPORT", NewForbidDynamicImportUsage)
 	defaultPassConfig_rewriteDynamicImports    = NewPassFactory("REWRITE_DYNAMIC_IMPORT", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return NewRewriteDynamicImports(c, opts.GetDynamicImportAlias(), opts.GetChunkOutputType())
+		return NewRewriteDynamicImports(c, opts.dynamicImportAlias, opts.GetChunkOutputType())
 	})
 )
 
@@ -600,8 +611,8 @@ func createProcessDefines(mode ProcessDefines_Mode) *PassFactory {
 		if opts.ShouldMarkAsCompiled() || opts.GetClosurePass() {
 			replacements.Put(defaultPassConfig_COMPILED_CONSTANT_NAME, rhino.IR_TrueNode())
 		}
-		if opts.GetClosurePass() && opts.GetLocale() != nil && !opts.DoLateLocalization() {
-			replacements.Put(defaultPassConfig_CLOSURE_LOCALE_CONSTANT_NAME, rhino.IR_String(*opts.GetLocale()))
+		if locale, ok := opts.GetLocale(); ok && opts.GetClosurePass() && !opts.DoLateLocalization() {
+			replacements.Put(defaultPassConfig_CLOSURE_LOCALE_CONSTANT_NAME, rhino.IR_String(locale))
 		}
 		for _, e := range opts.defineReplacements.Entries() {
 			replacements.Put(e.Key, e.Value.toNode())
@@ -610,7 +621,7 @@ func createProcessDefines(mode ProcessDefines_Mode) *PassFactory {
 			Replacements:            replacements,
 			Mode:                    mode,
 			RecognizeClosureDefines: opts.GetClosurePass(),
-			EnableZonesDefineName:   opts.GetEnableZonesDefineName(),
+			EnableZonesDefineName:   opts.enableZonesDefineName,
 			ZoneInputPattern:        opts.GetZoneInputPattern(),
 			UnknownDefinesToIgnore:  opts.GetUnknownDefinesToIgnore(),
 		})
@@ -622,8 +633,8 @@ func runVariableRenaming(c AbstractCompiler, prevVariableMap *VariableMap, exter
 	exportedNames := c.GetExportedNames()
 	reservedVars := parsing.ParserRunner_GetReservedVars()
 	reservedNames := NewOrderedSetWithCapacity[string](exportedNames.Size() + reservedVars.Size() + 1)
-	if ns := opts.GetRenamePrefixNamespace(); ns != nil {
-		reservedNames.Add(*ns)
+	if ns, ok := opts.GetRenamePrefixNamespace(); ok {
+		reservedNames.Add(ns)
 	}
 	for name := range exportedNames.All() {
 		reservedNames.Add(name)
@@ -631,10 +642,7 @@ func runVariableRenaming(c AbstractCompiler, prevVariableMap *VariableMap, exter
 	for name := range reservedVars.All() {
 		reservedNames.Add(name)
 	}
-	var renamePrefix string
-	if p := opts.GetRenamePrefix(); p != nil {
-		renamePrefix = *p
-	}
+	renamePrefix, _ := opts.GetRenamePrefix()
 	var reservedChars ASCIICharSet
 	rn := NewRenameVars(c, renamePrefix, opts.GetVariableRenaming() == VariableRenamingPolicy_LOCAL,
 		opts.ShouldGeneratePseudoNames(), opts.ShouldPreferStableNames(),

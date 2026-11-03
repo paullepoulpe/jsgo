@@ -19,7 +19,7 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -115,21 +115,17 @@ type LocaleDataPasses_LocaleSubstitutions struct {
 
 	compiler   AbstractCompiler
 	astFactory *AstFactory
-	locale     *string
+	locale     string
 }
 
 // Java: LocaleDataPasses.LocaleSubstitutions(AbstractCompiler, String)
-func NewLocaleDataPasses_LocaleSubstitutions(compiler AbstractCompiler, locale *string) *LocaleDataPasses_LocaleSubstitutions {
+func NewLocaleDataPasses_LocaleSubstitutions(compiler AbstractCompiler, locale base.OptString) *LocaleDataPasses_LocaleSubstitutions {
 	s := &LocaleDataPasses_LocaleSubstitutions{}
 	s.qnameForLocale = rhino.IR_Name(LocaleDataPasses_GOOG_LOCALE_REPLACEMENT)
 	s.compiler = compiler
 	s.astFactory = compiler.CreateAstFactory()
 	// Use the "default" locale if not otherwise set.
-	if locale == nil {
-		s.locale = jutil.StringPtr(localeDataPasses_LocaleSubstitutions_DEFAULT_LOCALE)
-	} else {
-		s.locale = locale
-	}
+	s.locale = locale.ValueOr(localeDataPasses_LocaleSubstitutions_DEFAULT_LOCALE)
 	return s
 }
 
@@ -142,7 +138,7 @@ func (s *LocaleDataPasses_LocaleSubstitutions) Process(externs rhino.Node, root 
 // Java: LocaleDataPasses.LocaleSubstitutions.visit(NodeTraversal, Node, Node)
 func (s *LocaleDataPasses_LocaleSubstitutions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.MatchesNameNode(s.qnameForLocale) {
-		replacement := s.astFactory.CreateString(*jutil.CheckNotNull(s.locale)).Srcref(n)
+		replacement := s.astFactory.CreateString(s.locale).Srcref(n)
 		n.ReplaceWith(replacement)
 		s.compiler.ReportChangeToEnclosingScope(replacement)
 	}

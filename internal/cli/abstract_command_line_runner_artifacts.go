@@ -30,6 +30,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
+func mustSourceMapOutputPath(options *jscomp.CompilerOptions) string {
+	p, ok := options.GetSourceMapOutputPath()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return p
+}
+
 // ShouldGenerateMapPerChunk returns true if and only if a source map file
 // should be generated for each chunk, as opposed to one unified map. This is
 // specified by having the source map pattern include the %outname%
@@ -38,7 +46,7 @@ import (
 // Java: AbstractCommandLineRunner.shouldGenerateMapPerChunk(B)
 func (r *AbstractCommandLineRunnerBase) ShouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool {
 	return options.ShouldGatherSourceMapInfo() &&
-		strings.Contains(*options.GetSourceMapOutputPath(), "%outname%")
+		strings.Contains(mustSourceMapOutputPath(options), "%outname%")
 }
 
 // OpenExternExportsStream returns a stream for outputting the generated
@@ -50,12 +58,10 @@ func (r *AbstractCommandLineRunnerBase) ShouldGenerateMapPerChunk(options *jscom
 //
 // Java: AbstractCommandLineRunner.openExternExportsStream(B, String)
 func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.CompilerOptions, path string) *cliBufferedWriter {
-	externExportsPath := options.GetExternExportsPath()
-	if externExportsPath == nil {
+	exPath, ok := options.GetExternExportsPath()
+	if !ok {
 		return nil
 	}
-
-	exPath := *externExportsPath
 
 	if !strings.Contains(exPath, jutil.File_separator) {
 		outputFile := jutil.NewFile(path)
@@ -102,7 +108,7 @@ func (r *AbstractCommandLineRunnerBase) ExpandSourceMapPath(options *jscomp.Comp
 	if !options.ShouldGatherSourceMapInfo() {
 		return ""
 	}
-	return r.ExpandCommandLinePath(*options.GetSourceMapOutputPath(), forChunk)
+	return r.ExpandCommandLinePath(mustSourceMapOutputPath(options), forChunk)
 }
 
 // FileNameToLegacyOutputWriter converts a file name into a Writer taking in
@@ -175,7 +181,7 @@ func (r *AbstractCommandLineRunnerBase) CreateWriter(stream io.WriteCloser, char
 // Java: AbstractCommandLineRunner.outputSourceMap(B, String)
 func (r *AbstractCommandLineRunnerBase) OutputSourceMap(options *jscomp.CompilerOptions, associatedName string) {
 	if !options.ShouldGatherSourceMapInfo() ||
-		*options.GetSourceMapOutputPath() == "/dev/null" {
+		mustSourceMapOutputPath(options) == "/dev/null" {
 		return
 	}
 

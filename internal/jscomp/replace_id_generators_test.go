@@ -32,13 +32,12 @@ type ReplaceIdGeneratorsTest struct {
 
 	generatePseudoNames bool
 	lastPass            *ReplaceIdGenerators
-	// nil is Java null.
-	previousMappings *string
+	previousMappings    string
 }
 
 // Java: ReplaceIdGeneratorsTest()
 func NewReplaceIdGeneratorsTest() *ReplaceIdGeneratorsTest {
-	c := &ReplaceIdGeneratorsTest{generatePseudoNames: false, lastPass: nil, previousMappings: nil}
+	c := &ReplaceIdGeneratorsTest{generatePseudoNames: false, lastPass: nil, previousMappings: ""}
 	c.InitCompilerTestCaseBase(c)
 	return c
 }
@@ -46,11 +45,6 @@ func NewReplaceIdGeneratorsTest() *ReplaceIdGeneratorsTest {
 func TestReplaceIdGeneratorsTest(t *testing.T) {
 	RunJUnit4(t, func() JUnitTestCase { return NewReplaceIdGeneratorsTest() })
 }
-
-// replaceIdGeneratorsTest_ptr boxes a non-null Java String.
-//
-// Go-only: test-helper.
-func replaceIdGeneratorsTest_ptr(s string) *string { return &s }
 
 // replaceIdGeneratorsTest_idTestMap is the anonymous RenamingMap of
 // getProcessor.
@@ -92,7 +86,7 @@ func (c *ReplaceIdGeneratorsTest) GetProcessor(compiler *Compiler) CompilerPass 
 func (c *ReplaceIdGeneratorsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.generatePseudoNames = false
-	c.previousMappings = nil
+	c.previousMappings = ""
 }
 
 // Java: ReplaceIdGeneratorsTest.getOptions()
@@ -145,13 +139,13 @@ a:f1
 
 // Java: ReplaceIdGeneratorsTest.testReusePreviousSerialization1()
 func (c *ReplaceIdGeneratorsTest) TestReusePreviousSerialization1() {
-	c.previousMappings = replaceIdGeneratorsTest_ptr(`[goog.events.getUniqueId]
+	c.previousMappings = `[goog.events.getUniqueId]
 
 previous1:testcode:1:32
 previous2:testcode:2:32
 
 [goog.place.getUniqueId]
-`)
+`
 	c.TestMap(
 		`var x = goog.events.getUniqueId('xxx');
 var y = goog.events.getUniqueId('yyy');
@@ -168,13 +162,13 @@ previous2:testcode:2:32
 
 // Java: ReplaceIdGeneratorsTest.testReusePreviousSerialization2()
 func (c *ReplaceIdGeneratorsTest) TestReusePreviousSerialization2() {
-	c.previousMappings = replaceIdGeneratorsTest_ptr(`[goog.events.getUniqueId]
+	c.previousMappings = `[goog.events.getUniqueId]
 
 a:testcode:1:32
 b:testcode:2:32
 
 [goog.place.getUniqueId]
-`)
+`
 	c.TestMap(
 		`var x = goog.events.getUniqueId('xxx');
 // new line to change location
@@ -192,10 +186,10 @@ c:testcode:3:32
 
 // Java: ReplaceIdGeneratorsTest.testReusePreviousSerializationConsistent1()
 func (c *ReplaceIdGeneratorsTest) TestReusePreviousSerializationConsistent1() {
-	c.previousMappings = replaceIdGeneratorsTest_ptr(`[cid]
+	c.previousMappings = `[cid]
 
 a:f1
-`)
+`
 	c.TestMap(
 		`/** @idGenerator {consistent} */ cid = function() {};
 f1 = cid('f1');

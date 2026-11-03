@@ -52,6 +52,7 @@ type FunctionInjector struct {
 	// Combined cache of function node to whether it deeply contains an `eval`
 	// call (evalState: 0 = unknown, 1 = false, 2 = true) and any inner function.
 	fnInfoCache map[rhino.Node]functionInjectorFnInfo
+	seedCache   *inlineFunctionsCache
 }
 
 const (

@@ -40,6 +40,11 @@ type coalesceScopeState struct {
 	hasCoalescing bool
 }
 
+type cvnCandFunc struct {
+	fn    rhino.Node
+	depth int
+}
+
 // CoalesceVariableNames reuses variable names if possible.
 //
 // For example, from
@@ -83,9 +88,10 @@ type CoalesceVariableNames struct {
 	assignToBuf         [16]int
 	readFromBuf         [16]int
 
-	deferChanges     bool
-	changedScopes    []rhino.Node
-	changedScopesBuf [8]rhino.Node
+	candFns      []cvnCandFunc
+	postOrder    []int32
+	levelIndices []int32
+	changeCounts []int32
 }
 
 // NewCoalesceVariableNames: usePseudoNames is for debug purposes, when
@@ -108,53 +114,310 @@ func NewCoalesceVariableNames(compiler AbstractCompiler, usePseudoNames bool) *C
 	c.shouldOptimizeScopeStack = c.shouldOptimizeScopeStackBuf[:0]
 	c.activeStates = c.activeStateBuf[:0]
 	c.scopeStates = c.scopeStatesBuf[:0]
-	c.changedScopes = c.changedScopesBuf[:0]
 	return c
 }
 
-func cvnHasLocalDecl(n rhino.Node) bool {
+func newCoalesceVariableNamesWorker(parent *CoalesceVariableNames) *CoalesceVariableNames {
+	c := &CoalesceVariableNames{
+		compiler:     parent.compiler,
+		astFactory:   parent.astFactory,
+		scopeCreator: NewMemoizedScopeCreator(NewSyntacticScopeCreator(parent.compiler)),
+	}
+	c.cfgs = c.cfgsBuf[:0]
+	c.scopeStates = c.scopeStatesBuf[:0]
+	return c
+}
+
+func cvnSubtreeHasShallowLocalDecl(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		return false
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH:
 		return true
-	default:
 	}
-	for c := range n.Children() {
-		if cvnHasLocalDecl(c) {
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if cvnSubtreeHasShallowLocalDecl(ch) {
 			return true
 		}
 	}
 	return false
 }
 
-func cvnCollectTopFunctions(n rhino.Node, out *[]rhino.Node) {
-	if n.IsFunction() {
-		if cvnHasLocalDecl(n) {
-			*out = append(*out, n)
+func cvnHasShallowLocalDecl(fn rhino.Node) bool {
+	args := fn.GetSecondChild()
+	body := args.GetNext()
+	return cvnSubtreeHasShallowLocalDecl(body) || cvnSubtreeHasShallowLocalDecl(args)
+}
+
+// cvnCollectCandidateFuncs collects functions under n that declare at least one
+// shallow local binding (VAR/LET/CONST/CATCH outside nested FUNCTIONs), recording
+// both their candidate nesting depth and their post-order index sequence so
+// enclosing functions run before nested functions while change reports replay in
+// exact post-order.
+func cvnCollectCandidateFuncs(
+	n rhino.Node,
+	depth int,
+	cands *[]cvnCandFunc,
+	postOrder *[]int32,
+) int {
+	if n.IsNil() {
+		return -1
+	}
+	maxDepth := -1
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		candIdx := int32(-1)
+		childDepth := depth
+		if cvnHasShallowLocalDecl(n) {
+			candIdx = int32(len(*cands))
+			*cands = append(*cands, cvnCandFunc{fn: n, depth: depth})
+			if depth > maxDepth {
+				maxDepth = depth
+			}
+			childDepth = depth + 1
 		}
-		return
+		args := n.GetSecondChild()
+		body := args.GetNext()
+		if d := cvnCollectCandidateFuncs(args, childDepth, cands, postOrder); d > maxDepth {
+			maxDepth = d
+		}
+		if d := cvnCollectCandidateFuncs(body, childDepth, cands, postOrder); d > maxDepth {
+			maxDepth = d
+		}
+		if candIdx >= 0 {
+			*postOrder = append(*postOrder, candIdx)
+		}
+		return maxDepth
+	case rhino.Token_CLASS:
+		cls := ast.MustClass(n)
+		if d := cvnCollectCandidateFuncs(cls.ExtendsNode(), depth, cands, postOrder); d > maxDepth {
+			maxDepth = d
+		}
+		if d := cvnCollectCandidateFuncs(cls.Body().Node(), depth, cands, postOrder); d > maxDepth {
+			maxDepth = d
+		}
+		return maxDepth
+	case rhino.Token_CLASS_MEMBERS:
+		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				if d := cvnCollectCandidateFuncs(m.GetFirstChild(), depth, cands, postOrder); d > maxDepth {
+					maxDepth = d
+				}
+			}
+		}
+		for m := n.GetFirstChild(); !m.IsNil(); m = m.GetNext() {
+			var d int
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				d = cvnCollectCandidateFuncs(m.GetSecondChild(), depth, cands, postOrder)
+			default:
+				d = cvnCollectCandidateFuncs(m, depth, cands, postOrder)
+			}
+			if d > maxDepth {
+				maxDepth = d
+			}
+		}
+		return maxDepth
 	}
-	for c := range n.Children() {
-		cvnCollectTopFunctions(c, out)
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if d := cvnCollectCandidateFuncs(ch, depth, cands, postOrder); d > maxDepth {
+			maxDepth = d
+		}
 	}
+	return maxDepth
 }
 
-func (c *CoalesceVariableNames) processTopFunction(topFn rhino.Node, dummyGlobal *Scope) {
-	fnScope := c.scopeCreator.CreateScopeOfScope(topFn, dummyGlobal)
-	b := NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     c,
-		scopeCreator: c.scopeCreator,
+func (c *CoalesceVariableNames) processSingleFunction(fn rhino.Node, dummyGlobal *Scope) int32 {
+	if Platform_IsThreadInterrupted() {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}
-	b.TraverseAtScope(fnScope)
+	fnScope := c.scopeCreator.CreateScopeOfScope(fn, dummyGlobal)
+	changes := c.analyzeAndCoalesceFunction(fn, fnScope)
 	clear(c.scopeCreator.untypedScopes)
+	return changes
 }
 
-func (c *CoalesceVariableNames) reportChange(n rhino.Node) {
-	if c.deferChanges {
-		c.changedScopes = append(c.changedScopes, ChangeTracker_GetEnclosingChangeScopeRoot(n.GetParent()))
-		return
+func (c *CoalesceVariableNames) prepareFunctionLivenessAndColors(
+	fn rhino.Node,
+	fnScope *Scope,
+	state *coalesceScopeState,
+	allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction,
+	pushCfg bool,
+) bool {
+	orderedVars := allVarsDeclaredInFunction.GetAllVariablesInOrder()
+	candidateCount := 0
+	nonParamCount := 0
+	for _, v := range orderedVars {
+		p := v.GetParentNode()
+		if p.IsFunction() || p.IsClass() {
+			continue
+		}
+		candidateCount++
+		if !v.IsParam() {
+			nonParamCount++
+		}
 	}
-	c.compiler.ReportChangeToEnclosingScope(n)
+	if candidateCount < 2 || nonParamCount == 0 {
+		c.liveness = nil
+		return false
+	}
+
+	jutil.CheckStateMsg1(fnScope.IsFunctionScope(), "%s", fnScope)
+	if pushCfg {
+		c.pushCfgRoot(fn)
+	}
+	cfg := c.GetControlFlowGraph(c.compiler)
+
+	state.liveness.Reset(cfg, fnScope, nil, c.compiler, c.scopeCreator, allVarsDeclaredInFunction)
+	c.liveness = &state.liveness
+
+	if parser.FeatureSet_ES3.Contains(c.compiler.GetOptions().GetOutputFeatureSet()) {
+		// If the function has exactly 2 params, mark them as escaped. This is a work-around for a
+		// bug in IE 8 and below, where it throws an exception if you write to the parameters of the
+		// callback in a sort(). See http://blickly.github.io/closure-compiler-issues/#58 and
+		// https://www.zachleat.com/web/array-sort/
+		if ast.MustFunction(fn).Params().NumParams() == 2 {
+			c.liveness.MarkAllParametersEscaped()
+		}
+	}
+
+	unescapedCandidates := 0
+	unescapedNonParams := 0
+	for vIdx, v := range orderedVars {
+		if c.liveness.isEscapedIndex(vIdx) {
+			continue
+		}
+		p := v.GetParentNode()
+		if p.IsFunction() || p.IsClass() || c.isInMultipleLvalueDecl(v) {
+			continue
+		}
+		unescapedCandidates++
+		if !v.IsParam() {
+			unescapedNonParams++
+		}
+	}
+	if unescapedCandidates < 2 || unescapedNonParams == 0 {
+		c.liveness = nil
+		if pushCfg {
+			c.popCfgRoot()
+		}
+		return false
+	}
+
+	c.liveness.Analyze()
+	c.computeAndColorScope(cfg, state)
+	return true
+}
+
+func (c *CoalesceVariableNames) analyzeAndCoalesceFunction(fn rhino.Node, fnScope *Scope) int32 {
+	if fnScope.GetVarCount() >= LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE {
+		return 0
+	}
+	if len(c.scopeStates) == 0 {
+		c.scopeStates = append(c.scopeStates, &coalesceScopeState{})
+	}
+	state := c.scopeStates[0]
+	allVarsDeclaredInFunction := state.varsFinder.collectWithLimit(
+		c.compiler, c.scopeCreator, fnScope, LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE)
+	if allVarsDeclaredInFunction == nil {
+		return 0
+	}
+	if !c.prepareFunctionLivenessAndColors(fn, fnScope, state, allVarsDeclaredInFunction, true) {
+		return 0
+	}
+	var changes int32
+	if state.hasCoalescing {
+		args := fn.GetSecondChild()
+		body := args.GetNext()
+		changes += c.visitCoalescedSubtree(args, fn, state)
+		changes += c.visitCoalescedSubtree(body, fn, state)
+		clear(state.superNode[:])
+	}
+	state.orderedVars = nil
+	c.liveness = nil
+	c.popCfgRoot()
+	return changes
+}
+
+func (c *CoalesceVariableNames) visitCoalescedSubtree(
+	n rhino.Node, parent rhino.Node, state *coalesceScopeState,
+) int32 {
+	if n.IsNil() {
+		return 0
+	}
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		return 0
+	case rhino.Token_CLASS:
+		cls := ast.MustClass(n)
+		changes := c.visitCoalescedSubtree(cls.ExtendsNode(), n, state)
+		changes += c.visitCoalescedSubtree(cls.NameNode(), n, state)
+		changes += c.visitCoalescedSubtree(cls.Body().Node(), n, state)
+		return changes
+	case rhino.Token_CLASS_MEMBERS:
+		var changes int32
+		for m := n.GetFirstChild(); !m.IsNil(); {
+			next := m.GetNext()
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				changes += c.visitCoalescedSubtree(m.GetFirstChild(), m, state)
+			}
+			m = next
+		}
+		for m := n.GetFirstChild(); !m.IsNil(); {
+			next := m.GetNext()
+			switch m.GetToken() {
+			case rhino.Token_COMPUTED_PROP, rhino.Token_COMPUTED_FIELD_DEF:
+				changes += c.visitCoalescedSubtree(m.GetSecondChild(), m, state)
+			default:
+				changes += c.visitCoalescedSubtree(m, n, state)
+			}
+			m = next
+		}
+		return changes
+	}
+	var changes int32
+	for ch := n.GetFirstChild(); !ch.IsNil(); {
+		next := ch.GetNext()
+		changes += c.visitCoalescedSubtree(ch, n, state)
+		ch = next
+	}
+	if n.IsName() {
+		changes += c.visitCoalescedName(n, parent, state)
+	}
+	return changes
+}
+
+func (c *CoalesceVariableNames) visitCoalescedName(
+	n rhino.Node, parent rhino.Node, state *coalesceScopeState,
+) int32 {
+	if parent.IsFunction() {
+		return 0
+	}
+	vIdx, ok := c.liveness.lookupVarIndexByID(n.GetStringID())
+	if !ok {
+		return 0
+	}
+	color := state.varColor[vIdx]
+	if color < 0 {
+		return 0
+	}
+	var_ := state.orderedVars[vIdx]
+	coalescedVar := state.superNode[color]
+	if coalescedVar == nil {
+		state.superNode[color] = var_
+		return 0
+	}
+	if var_.Equals(coalescedVar) {
+		return 0
+	}
+	ast.MustName(n).SetIdent(coalescedVar.GetName())
+	c.updateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
+	return 1
 }
 
 // Java: CoalesceVariableNames.process(Node, Node)
@@ -173,9 +436,15 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 		return
 	}
 
-	var topFns []rhino.Node
-	cvnCollectTopFunctions(root, &topFns)
-	if len(topFns) == 0 {
+	if Platform_IsThreadInterrupted() {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+	}
+
+	c.candFns = c.candFns[:0]
+	c.postOrder = c.postOrder[:0]
+	maxDepth := cvnCollectCandidateFuncs(root, 0, &c.candFns, &c.postOrder)
+	numCands := len(c.candFns)
+	if numCands == 0 {
 		c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
 		return
 	}
@@ -186,41 +455,81 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 		numThreads = opts.GetNumParallelThreads()
 	}
 
-	if numThreads <= 1 || len(topFns) <= 1 {
-		c.pushCfgRoot(root)
-		defer c.resetCfgStack()
-		for _, topFn := range topFns {
-			c.processTopFunction(topFn, dummyGlobal)
-		}
-		c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
-		return
+	if cap(c.changeCounts) < numCands {
+		c.changeCounts = make([]int32, numCands)
+	} else {
+		c.changeCounts = c.changeCounts[:numCands]
+		clear(c.changeCounts)
+	}
+	changeCounts := c.changeCounts
+	cands := c.candFns
+
+	defer func() {
+		c.resetCfgStack()
+		c.liveness = nil
+		clear(c.scopeCreator.untypedScopes)
+	}()
+
+	var workers []*CoalesceVariableNames
+	if numThreads > 1 && numCands > 1 {
+		prewarmCompilerForParallelReads(c.compiler)
+		restore := enableParallelTypeRegistryReads(c.compiler)
+		defer restore()
+		freezeGlobalScopeForParallelReads(dummyGlobal)
 	}
 
-	changesByFn := make([][]rhino.Node, len(topFns))
-	runParallelWorkersIndexed(
-		len(topFns),
-		numThreads,
-		func(_ int) *CoalesceVariableNames {
-			wc := NewCoalesceVariableNames(c.compiler, false)
-			wc.deferChanges = true
-			wc.pushCfgRoot(root)
-			return wc
-		},
-		func(wc **CoalesceVariableNames, idx int) {
-			w := *wc
-			w.changedScopes = w.changedScopes[:0]
-			w.processTopFunction(topFns[idx], dummyGlobal)
-			if len(w.changedScopes) > 0 {
-				changesByFn[idx] = slices.Clone(w.changedScopes)
+	for depth := 0; depth <= maxDepth; depth++ {
+		c.levelIndices = c.levelIndices[:0]
+		for i, cf := range cands {
+			if cf.depth == depth {
+				c.levelIndices = append(c.levelIndices, int32(i))
 			}
-		},
-		func(_ int, wc **CoalesceVariableNames) {
-			(*wc).resetCfgStack()
-		},
-	)
-	for _, scopes := range changesByFn {
-		for _, scope := range scopes {
-			c.compiler.ReportChangeToChangeScope(scope)
+		}
+		level := c.levelIndices
+		if len(level) == 0 {
+			continue
+		}
+		if numThreads <= 1 || len(level) <= 1 {
+			for _, candIdx := range level {
+				changeCounts[candIdx] = c.processSingleFunction(cands[candIdx].fn, dummyGlobal)
+			}
+			continue
+		}
+		if workers == nil {
+			workers = make([]*CoalesceVariableNames, numThreads)
+			workers[0] = c
+		}
+		runParallelWorkersIndexed(
+			len(level),
+			numThreads,
+			func(wIdx int) *CoalesceVariableNames {
+				w := workers[wIdx]
+				if w == nil {
+					w = newCoalesceVariableNamesWorker(c)
+					workers[wIdx] = w
+				}
+				return w
+			},
+			func(wc **CoalesceVariableNames, itemIdx int) {
+				candIdx := level[itemIdx]
+				changeCounts[candIdx] = (*wc).processSingleFunction(cands[candIdx].fn, dummyGlobal)
+			},
+			func(_ int, wc **CoalesceVariableNames) {
+				w := *wc
+				w.resetCfgStack()
+				w.liveness = nil
+				clear(w.scopeCreator.untypedScopes)
+			},
+		)
+	}
+
+	for _, candIdx := range c.postOrder {
+		nChanges := changeCounts[candIdx]
+		if nChanges > 0 {
+			fn := cands[candIdx].fn
+			for range nChanges {
+				c.compiler.ReportChangeToChangeScope(fn)
+			}
 		}
 	}
 	c.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_RAW)
@@ -258,68 +567,11 @@ func (c *CoalesceVariableNames) enterScopeWithCfg(t *NodeTraversal) {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
 	}
-	orderedVars := allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)
-
-	candidateCount := 0
-	nonParamCount := 0
-	for _, v := range orderedVars {
-		p := v.GetParentNode()
-		if p.IsFunction() || p.IsClass() {
-			continue
-		}
-		candidateCount++
-		if !v.IsParam() {
-			nonParamCount++
-		}
-	}
-	if candidateCount < 2 || nonParamCount == 0 {
-		c.liveness = nil
+	if !c.prepareFunctionLivenessAndColors(fnScope.GetRootNode(), fnScope, state, allVarsDeclaredInFunction, false) {
 		c.activeStates = append(c.activeStates, nil)
 		return
 	}
-
-	jutil.CheckStateMsg1(fnScope.IsFunctionScope(), "%s", fnScope)
-
-	// Live variables analysis is based off of the control flow graph.
-	cfg := c.GetControlFlowGraph(c.compiler)
-
-	state.liveness.Reset(cfg, fnScope, nil, c.compiler, c.scopeCreator, allVarsDeclaredInFunction)
-	c.liveness = &state.liveness
-
-	if parser.FeatureSet_ES3.Contains(c.compiler.GetOptions().GetOutputFeatureSet()) {
-		// If the function has exactly 2 params, mark them as escaped. This is a work-around for a
-		// bug in IE 8 and below, where it throws an exception if you write to the parameters of the
-		// callback in a sort(). See http://blickly.github.io/closure-compiler-issues/#58 and
-		// https://www.zachleat.com/web/array-sort/
-		if ast.MustFunction(fnScope.GetRootNode()).Params().NumParams() == 2 {
-			c.liveness.MarkAllParametersEscaped()
-		}
-	}
-
-	unescapedCandidates := 0
-	unescapedNonParams := 0
-	for vIdx, v := range orderedVars {
-		if c.liveness.isEscapedIndex(vIdx) {
-			continue
-		}
-		p := v.GetParentNode()
-		if p.IsFunction() || p.IsClass() || c.isInMultipleLvalueDecl(v) {
-			continue
-		}
-		unescapedCandidates++
-		if !v.IsParam() {
-			unescapedNonParams++
-		}
-	}
-	if unescapedCandidates < 2 || unescapedNonParams == 0 {
-		c.liveness = nil
-		c.activeStates = append(c.activeStates, nil)
-		return
-	}
-
-	c.liveness.Analyze()
-	c.computeAndColorScope(cfg, state)
 	c.activeStates = append(c.activeStates, state)
 }
 
@@ -395,7 +647,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 
 		// Rename.
 		nameNode.SetIdent(coalescedVar.GetName())
-		c.reportChange(n)
+		c.compiler.ReportChangeToEnclosingScope(n)
 		c.updateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	} else {
 		coalescedVar := state.superNode[color]

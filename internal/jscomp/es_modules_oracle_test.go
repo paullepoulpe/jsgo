@@ -41,6 +41,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/tools/oracle/corpus"
@@ -333,7 +334,7 @@ func (d *esModulesDump) dumpFile(rel string, src string) {
 			d.pass(rel, src, parseDiags, section, func(o *CompilerOptions) { o.SetAllowDynamicImport(true) }, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
 				esModulesGatherAndCreateModuleMap(compiler, externs, js, false)
 				esModulesRewriteModules(compiler, externs, js)
-				NewRewriteDynamicImports(compiler, nil, CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).Process(externs, js)
+				NewRewriteDynamicImports(compiler, base.NoString(), CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE).Process(externs, js)
 			})
 		case "ijs":
 			d.pass(rel, src, parseDiags, section, esModulesNoSetup, func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {

@@ -391,7 +391,7 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 	checks.MaybeAdd(emptyAfterStandardChecks)
 	checks.MaybeAdd(defaultPass_mergeSyntheticScript)
 
-	if options.GetExternExportsPath() != nil {
+	if options.HasExternExportsPath() {
 		checks.MaybeAdd(defaultPass_externExports)
 	}
 	if !options.IsChecksOnly() {
@@ -451,13 +451,13 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 	passes := NewPassListBuilder(options)
 
 	if options.IsPropertyRenamingOnlyCompilationMode() {
-		if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.GetRenamePrefixNamespace() != nil {
+		if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.HasRenamePrefixNamespace() {
 			passes.MaybeAdd(defaultPass_rewriteGlobalDeclarationsForTryCatchWrapping)
 		}
 		passes.MaybeAdd(defaultPass_renameProperties)
-		if ns := options.GetRenamePrefixNamespace(); ns != nil &&
+		if ns, ok := options.GetRenamePrefixNamespace(); ok &&
 			options.GetChunkOutputType() == CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE {
-			validateRenamePrefixNamespace(*ns)
+			validateRenamePrefixNamespace(ns)
 			passes.MaybeAdd(defaultPass_rescopeGlobalSymbols)
 		}
 		return passes
@@ -502,7 +502,7 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 	if options.ShouldCollapseAnonymousFunctions() {
 		passes.MaybeAdd(defaultPass_collapseAnonymousFunctions)
 	}
-	if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.GetRenamePrefixNamespace() != nil {
+	if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.HasRenamePrefixNamespace() {
 		passes.MaybeAdd(defaultPass_rewriteGlobalDeclarationsForTryCatchWrapping)
 	}
 
@@ -573,9 +573,9 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 		passes.MaybeAdd(defaultPass_stripSideEffectProtection)
 	}
 
-	if ns := options.GetRenamePrefixNamespace(); ns != nil &&
+	if ns, ok := options.GetRenamePrefixNamespace(); ok &&
 		options.GetChunkOutputType() == CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE {
-		validateRenamePrefixNamespace(*ns)
+		validateRenamePrefixNamespace(ns)
 		passes.MaybeAdd(defaultPass_rescopeGlobalSymbols)
 	}
 
@@ -664,7 +664,7 @@ func (c *DefaultPassConfig) getEarlyOptimizationPasses() *PassListBuilder {
 
 	passes.MaybeAdd(defaultPass_removeUnnecessarySyntheticExterns)
 
-	if options.GetSyntheticBlockStartMarker() != nil {
+	if options.HasSyntheticBlockStartMarker() {
 		passes.MaybeAdd(defaultPass_createSyntheticBlocks)
 	}
 	if options.GetJ2clPass().ShouldAddJ2clPasses() {

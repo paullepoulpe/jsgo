@@ -138,6 +138,15 @@ func (r *AbstractCommandLineRunnerBase) GetChunkConformanceFileName(m *jscomp.JS
 	return name, ok
 }
 
+func chunkWrapperBaseName(fileName string) string {
+	if fileName != "" {
+		if b := filepath.Base(fileName); b != "/" {
+			return b
+		}
+	}
+	return ""
+}
+
 // Java: AbstractCommandLineRunner.writeChunkOutput(String, Appendable, LicenseTracker, JSChunk)
 func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk) {
 	if r.parsedChunkWrappers == nil {
@@ -148,12 +157,7 @@ func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out ju
 	if !r.IsOutputInJson() {
 		abstractCommandLineRunner_maybeCreateDirsForPath(fileName)
 	}
-	var baseName string
-	if fileName != "" {
-		if b := filepath.Base(fileName); b != "/" {
-			baseName = b
-		}
-	}
+	baseName := chunkWrapperBaseName(fileName)
 	r.self.WriteOutput(
 		out,
 		r.compiler,
@@ -420,6 +424,18 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 		return AbstractCommandLineRunner_INVALID_CHUNK_SOURCEMAP_PATTERN
 	}
 
+	_, isStandardRunner := r.self.(*CommandLineRunner)
+	if r.IsOutputInJson() &&
+		isStandardRunner &&
+		!r.self.IsInTestMode() &&
+		r.compiler.GetSourceMap() != nil &&
+		options.GetOutputJs() == jscomp.CompilerOptions_OutputJs_NORMAL &&
+		options.GetNumParallelThreads() > 1 &&
+		len(chunks) > 1 {
+		r.outputJsonChunksParallel(chunks, options)
+		return nil
+	}
+
 	mlicenseTracker := jscomp.NewCompiler_ChunkGraphAwareLicenseTracker(r.compiler)
 	if !r.IsOutputInJson() &&
 		!r.self.IsInTestMode() &&
@@ -535,6 +551,99 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			r.self.WriteOutputOfCode(writer, r.compiler, code, wrapper, "%s", nil, filename)
 		},
 	})
+}
+
+type jsonChunkMeta struct {
+	filename string
+	prefix   string
+	suffix   string
+}
+
+func formatJsonChunkSrc(code, prefix, suffix string, includeTrailingNewline bool) string {
+	if prefix == "" && suffix == "" && !includeTrailingNewline {
+		return code
+	}
+	extra := 0
+	if includeTrailingNewline {
+		extra = 1
+	}
+	var sb strings.Builder
+	sb.Grow(len(prefix) + len(code) + len(suffix) + extra)
+	sb.WriteString(prefix)
+	sb.WriteString(code)
+	sb.WriteString(suffix)
+	if includeTrailingNewline {
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
+func (r *AbstractCommandLineRunnerBase) outputJsonChunksParallel(
+	chunks []*jscomp.JSChunk,
+	options *jscomp.CompilerOptions,
+) {
+	activeCount := 0
+	for _, m := range chunks {
+		if m != nil && m.GetName() != jscomp.JSChunk_WEAK_CHUNK_NAME {
+			activeCount++
+		}
+	}
+	if activeCount == 0 {
+		return
+	}
+	if r.parsedChunkOutputFiles == nil {
+		r.parsedChunkOutputFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkOutputFiles)
+	}
+	metaByChunk := make(map[*jscomp.JSChunk]jsonChunkMeta, activeCount)
+	metas := make([]jsonChunkMeta, 0, activeCount)
+	for _, m := range chunks {
+		if m == nil || m.GetName() == jscomp.JSChunk_WEAK_CHUNK_NAME {
+			continue
+		}
+		filename := r.self.GetChunkOutputFileName(m)
+		wrapper := strings.ReplaceAll(
+			r.parsedChunkWrappers[m.GetName()],
+			"%basename%",
+			chunkWrapperBaseName(filename))
+		meta := jsonChunkMeta{filename: filename}
+		if pos := strings.Index(wrapper, "%s"); pos != -1 {
+			if pos > 0 {
+				meta.prefix = wrapper[:pos]
+			}
+			meta.suffix = wrapper[pos+len("%s"):]
+		}
+		metaByChunk[m] = meta
+		metas = append(metas, meta)
+	}
+
+	rendered, err := r.compiler.RenderChunksAndSourceMaps(chunks, jscomp.RenderChunkOptions{
+		PerChunkScriptLicenses: true,
+		GenerateSourceMaps:     true,
+		ChunkFileName: func(m *jscomp.JSChunk) string {
+			return metaByChunk[m].filename
+		},
+		WrapperPrefix: func(m *jscomp.JSChunk) string {
+			return metaByChunk[m].prefix
+		},
+		NumWorkers: options.GetNumParallelThreads(),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	includeTrailingNewline := r.self.GetCommandLineConfig().includeTrailingNewline
+	if cap(r.filesToStreamOut)-len(r.filesToStreamOut) < len(rendered) {
+		grown := make([]*AbstractCommandLineRunner_JsonFileSpec, len(r.filesToStreamOut), len(r.filesToStreamOut)+len(rendered))
+		copy(grown, r.filesToStreamOut)
+		r.filesToStreamOut = grown
+	}
+	for i, rc := range rendered {
+		meta := &metas[i]
+		src := formatJsonChunkSrc(rc.Code, meta.prefix, meta.suffix, includeTrailingNewline)
+		r.filesToStreamOut = append(
+			r.filesToStreamOut,
+			NewAbstractCommandLineRunner_JsonFileSpecWithSourceMap(src, meta.filename, rc.SourceMap))
+	}
 }
 
 // CreateJsonFileFromChunk converts the given output chunk to a JSONFileSpec

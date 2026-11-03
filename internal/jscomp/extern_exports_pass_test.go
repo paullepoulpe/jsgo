@@ -49,7 +49,7 @@ func (c *ExternExportsPassTest) SetUp() {
 // Java: ExternExportsPassTest.getOptions()
 func (c *ExternExportsPassTest) GetOptions() *CompilerOptions {
 	options := c.CompilerTestCaseBase.GetOptions()
-	options.SetExternExportsPath(jutil.StringPtr("exports.js"))
+	options.SetExternExportsPath("exports.js")
 	// Check types so we can make sure our exported externs have type
 	// information.
 	options.SetCheckSymbols(true)
