@@ -80,7 +80,8 @@ func (*CollapseAnonymousFunctions) visitTokens() *ast.TokenSet {
 
 // Java: CollapseAnonymousFunctions.visit(NodeTraversal, Node, Node)
 func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !(n.IsVar() || n.IsLet() || n.IsConst()) {
+	decl, ok := ast.AsNameDeclaration(n)
+	if !ok {
 		return
 	}
 
@@ -90,39 +91,42 @@ func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n rhino.Node, paren
 	// expose subtle bugs in browser implementation as function
 	// definitions are added to scopes before the start of execution.
 
-	grandparent := parent.GetParent()
-	if !(parent.IsScript() ||
-		(!grandparent.IsNil() && grandparent.IsFunction() && parent.IsBlock())) {
+	_, inScript := ast.AsScript(parent)
+	_, inBlock := ast.AsBlock(parent)
+	_, inFunction := ast.AsFunction(parent.GetParent())
+	if !inScript && !(inBlock && inFunction) {
 		return
 	}
 
 	// Need to store the next name in case the current name is removed from
 	// the linked list.
-	name := n.GetOnlyChild()
+	declarator, ok := decl.OnlyDeclarator()
+	jutil.CheckState(ok)
 
 	// Don't collapse if the lhs is a destructuring pattern.
-	if !name.IsName() {
+	name, ok := declarator.AsName()
+	if !ok {
 		return
 	}
 
-	value := name.GetFirstChild()
-	if !value.IsNil() &&
-		value.IsFunction() &&
-		!value.IsArrowFunction() &&
-		!c.IsRecursiveFunction(value) {
-		fnName := value.GetFirstChild()
-		if fnName.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) &&
-			!name.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
+	initExpr, ok := name.Init()
+	if !ok {
+		return
+	}
+	fn, ok := initExpr.AsFunction()
+	if ok && !fn.IsArrow() && !c.isRecursiveFunction(fn) {
+		fnName := fn.NameNode()
+		if fnName.IsConstantName() && !name.IsConstantName() {
 			// When the LHS name `f` is already a const `const f = function() {};`, then we must
 			// preserve its constness during this rewriting to `function f() {}`.
 			// When the LHS name `f` is non-const `var f = function() {}` or `let f = function() {}`, we
 			// must reset the constness as the function will no longer be an RHS function expression
 			// during this rewriting to `function f() {}`
-			fnName.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, false)
+			fnName.SetConstantName(false)
 		}
-		fnName.SetString(name.GetString())
-		NodeUtil_CopyNameAnnotations(name, fnName)
-		value.Detach()
+		fnName.SetIdent(name.Ident())
+		NodeUtil_CopyNameAnnotations(name.Node(), fnName.Node())
+		value := fn.Detach().Node()
 		n.ReplaceWith(value)
 
 		// Renormalize the code.
@@ -138,14 +142,15 @@ func (c *CollapseAnonymousFunctions) Visit(t *NodeTraversal, n rhino.Node, paren
 
 // Java: CollapseAnonymousFunctions.isRecursiveFunction(Node)
 func (c *CollapseAnonymousFunctions) IsRecursiveFunction(function rhino.Node) bool {
-	name := function.GetFirstChild()
-	nameID := name.GetStringID()
-	if nameID == 0 || nameID == cafEmptyStringID {
+	return c.isRecursiveFunction(ast.MustFunction(function))
+}
+
+func (c *CollapseAnonymousFunctions) isRecursiveFunction(fn ast.Function) bool {
+	name, ok := fn.Name()
+	if !ok {
 		return false
 	}
-	args := name.GetNext()
-	body := args.GetNext()
-	return cafContainsNameID(body, nameID)
+	return cafContainsNameID(fn.Body().Node(), name.Node().GetStringID())
 }
 
 func cafContainsNameID(n rhino.Node, nameID uint32) bool {

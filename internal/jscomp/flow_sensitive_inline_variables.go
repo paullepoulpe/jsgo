@@ -309,61 +309,105 @@ func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(name ast.Name, rhs a
 // assignment statement to a name (x = v). It walks the statements that
 // get CFG nodes, and of a for loop its init or target, where a var can be.
 func (f *FlowSensitiveInlineVariables) scanStatementsForCandidateDefs(n rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			f.scanStatementsForCandidateDefs(c)
+	f.walkCfgStatements(n, rhino.NilNode, true)
+}
+
+// walkCfgStatements walks the intraprocedural CFG statement skeleton under n
+// using sibling read-ahead so it is safe under both read-only pre-scanning
+// (scanDefs == true) and post-order candidate gathering/mutation (scanDefs == false).
+func (f *FlowSensitiveInlineVariables) walkCfgStatements(n, parent rhino.Node, scanDefs bool) {
+	if !scanDefs {
+		f.gatherWalkNode = n
+		if !parent.IsNil() && parent.IsFunction() && ast.RoleOf(n) != ast.RoleFunctionName {
+			return
 		}
+	}
+	switch n.GetToken() {
 	case rhino.Token_IF:
 		ifs := ast.MustIf(n)
-		f.scanStatementsForCandidateDefs(ifs.Then().Node())
-		if els, ok := ifs.Else(); ok {
-			f.scanStatementsForCandidateDefs(els.Node())
+		els, hasElse := ifs.Else()
+		f.walkCfgStatements(ifs.Then().Node(), n, scanDefs)
+		if hasElse {
+			f.walkCfgStatements(els.Node(), n, scanDefs)
 		}
-	case rhino.Token_WHILE, rhino.Token_DO:
-		f.scanStatementsForCandidateDefs(ast.MustLoop(n).Body().Node())
 	case rhino.Token_WITH:
-		f.scanStatementsForCandidateDefs(ast.MustWith(n).Body().Node())
+		f.walkCfgStatements(ast.MustWith(n).Body().Node(), n, scanDefs)
 	case rhino.Token_SWITCH:
-		f.scanStatementsForCandidateDefs(ast.MustSwitch(n).Body().Node())
+		f.walkCfgStatements(ast.MustSwitch(n).Body().Node(), n, scanDefs)
 	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
-		f.scanStatementsForCandidateDefs(ast.MustSwitchCase(n).Body().Node())
+		f.walkCfgStatements(ast.MustSwitchCase(n).Body().Node(), n, scanDefs)
 	case rhino.Token_CATCH:
-		f.scanStatementsForCandidateDefs(ast.MustCatch(n).Body().Node())
+		f.walkCfgStatements(ast.MustCatch(n).Body().Node(), n, scanDefs)
 	case rhino.Token_LABEL:
-		f.scanStatementsForCandidateDefs(ast.MustLabel(n).Body().Node())
-	case rhino.Token_FOR:
-		loop := ast.MustFor(n)
-		if init, ok := loop.Init(); ok {
-			f.scanStatementsForCandidateDefs(init.Node())
+		f.walkCfgStatements(ast.MustLabel(n).Body().Node(), n, scanDefs)
+	case rhino.Token_WHILE, rhino.Token_DO:
+		if !scanDefs {
+			// Any use inside a loop node has NodeUtil_IsWithinLoop(use) == true,
+			// which CanInline always rejects. Skip loop subtrees entirely.
+			return
 		}
-		f.scanStatementsForCandidateDefs(loop.Body().Node())
+		f.walkCfgStatements(ast.MustLoop(n).Body().Node(), n, true)
+	case rhino.Token_FOR:
+		if !scanDefs {
+			return
+		}
+		loop := ast.MustFor(n)
+		init, hasInit := loop.Init()
+		body := loop.Body().Node()
+		if hasInit {
+			f.walkCfgStatements(init.Node(), n, true)
+		}
+		f.walkCfgStatements(body, n, true)
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+		if !scanDefs {
+			return
+		}
 		loop := ast.MustEnhancedFor(n)
-		f.scanStatementsForCandidateDefs(loop.Target().Node())
-		f.scanStatementsForCandidateDefs(loop.AsLoop().Body().Node())
+		target := loop.Target().Node()
+		body := loop.AsLoop().Body().Node()
+		f.walkCfgStatements(target, n, true)
+		f.walkCfgStatements(body, n, true)
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		for d := range ast.MustNameDeclaration(n).Declarators() {
-			if name, ok := d.AsName(); ok {
-				if value, ok := name.Init(); ok {
-					f.maybeAddCandidateDef(name, value)
+		if scanDefs {
+			for d := range ast.MustNameDeclaration(n).Declarators() {
+				if name, ok := d.AsName(); ok {
+					if value, ok := name.Init(); ok {
+						f.maybeAddCandidateDef(name, value)
+					}
 				}
 			}
+			return
 		}
 	case rhino.Token_EXPR_RESULT:
-		if assign, ok := ast.MustExprStmt(n).Expr().AsAssign(); ok {
-			if lhs, ok := assign.Target().AsName(); ok {
-				f.maybeAddCandidateDef(lhs, assign.Value())
+		if scanDefs {
+			if assign, ok := ast.MustExprStmt(n).Expr().AsAssign(); ok {
+				if lhs, ok := assign.Target().AsName(); ok {
+					f.maybeAddCandidateDef(lhs, assign.Value())
+				}
 			}
+			return
 		}
-	case rhino.Token_FUNCTION, rhino.Token_RETURN, rhino.Token_THROW,
+	case rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_RETURN, rhino.Token_THROW,
 		rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_DEBUGGER,
-		rhino.Token_EMPTY, rhino.Token_CLASS, rhino.Token_EXPORT, rhino.Token_IMPORT:
-		// ControlFlowAnalysis does not enter expressions, functions, or classes for statements.
-	default:
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			f.scanStatementsForCandidateDefs(c)
+		rhino.Token_EMPTY, rhino.Token_EXPORT, rhino.Token_IMPORT:
+		// ControlFlowAnalysis does not enter expressions, nested functions, or classes for statements.
+	case rhino.Token_SCRIPT:
+		if !scanDefs && Platform_IsThreadInterrupted() {
+			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 		}
+		fallthrough
+	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
+		fallthrough
+	default:
+		for child := n.GetFirstChild(); !child.IsNil(); {
+			next := child.GetNext()
+			f.walkCfgStatements(child, n, scanDefs)
+			child = next
+		}
+	}
+	if !scanDefs {
+		f.gatherWalkNode = n
+		f.visitGatherNode(n)
 	}
 }
 
@@ -870,63 +914,5 @@ func (f *FlowSensitiveInlineVariables) traverseGatherCandidates(root rhino.Node)
 }
 
 func (f *FlowSensitiveInlineVariables) walkGatherCandidates(n, parent rhino.Node) {
-	f.gatherWalkNode = n
-	if !parent.IsNil() && parent.IsFunction() && ast.RoleOf(n) != ast.RoleFunctionName {
-		return
-	}
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT:
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			f.walkGatherCandidates(child, n)
-			child = next
-		}
-	case rhino.Token_FUNCTION:
-		// Only the function itself is a CFG node of the enclosing function:
-		// its name is no CFG node, and its params and body are not entered
-		// (above).
-	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY, rhino.Token_TRY:
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			f.walkGatherCandidates(child, n)
-			child = next
-		}
-	case rhino.Token_IF:
-		ifs := ast.MustIf(n)
-		els, hasElse := ifs.Else()
-		f.walkGatherCandidates(ifs.Then().Node(), n)
-		if hasElse {
-			f.walkGatherCandidates(els.Node(), n)
-		}
-	case rhino.Token_WITH:
-		f.walkGatherCandidates(ast.MustWith(n).Body().Node(), n)
-	case rhino.Token_SWITCH:
-		f.walkGatherCandidates(ast.MustSwitch(n).Body().Node(), n)
-	case rhino.Token_CASE, rhino.Token_DEFAULT_CASE:
-		f.walkGatherCandidates(ast.MustSwitchCase(n).Body().Node(), n)
-	case rhino.Token_CATCH:
-		f.walkGatherCandidates(ast.MustCatch(n).Body().Node(), n)
-	case rhino.Token_LABEL:
-		f.walkGatherCandidates(ast.MustLabel(n).Body().Node(), n)
-	case rhino.Token_WHILE, rhino.Token_DO, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		// Any use inside a loop node has NodeUtil_IsWithinLoop(use) == true,
-		// which CanInline always rejects. Skip loop subtrees entirely.
-		return
-	case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
-		rhino.Token_RETURN, rhino.Token_THROW, rhino.Token_BREAK, rhino.Token_CONTINUE,
-		rhino.Token_DEBUGGER, rhino.Token_EMPTY, rhino.Token_CLASS, rhino.Token_EXPORT, rhino.Token_IMPORT:
-		// ControlFlowAnalysis does not enter expressions or classes, so no child of
-		// these nodes is in the CFG.
-	default:
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			f.walkGatherCandidates(child, n)
-			child = next
-		}
-	}
-	f.gatherWalkNode = n
-	f.visitGatherNode(n)
+	f.walkCfgStatements(n, parent, false)
 }

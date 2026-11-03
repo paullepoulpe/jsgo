@@ -106,30 +106,36 @@ func testNewParserConfig(config *Config) parser.Parser_Config {
 	return parser.NewParser_ConfigWithMode(mode, isStrictMode)
 }
 
+type jsdocDumpConfig struct {
+	*Config
+	suppressions *jutil.LinkedHashSet[string]
+	primitives   *jutil.LinkedHashSet[string]
+}
+
 // jsdocConfigFromDump rebuilds the parsing.Config described by the header of
 // a Java dump.
-func jsdocConfigFromDump(dump string) (*Config, error) {
+func jsdocConfigFromDump(dump string) (jsdocDumpConfig, error) {
 	header := map[string]string{}
 	for _, l := range strings.SplitN(dump, "\n", 5)[:4] {
 		k, v, ok := strings.Cut(l, " ")
 		if !ok || k != "#" {
-			return nil, fmt.Errorf("bad header line %q", l)
+			return jsdocDumpConfig{}, fmt.Errorf("bad header line %q", l)
 		}
 		k, v, _ = strings.Cut(v, " ")
 		header[k] = jsdocUnescape(v)
 	}
 	f := strings.Fields(header["config"])
 	if len(f) != 5 {
-		return nil, fmt.Errorf("bad config line %q", header["config"])
+		return jsdocDumpConfig{}, fmt.Errorf("bad config line %q", header["config"])
 	}
 	b := Config_Builder_()
-	for _, m := range Config_LanguageMode_values() {
-		if m.Name() == f[0] {
+	for i := range config_LanguageMode_names {
+		if m := Config_LanguageMode(i); m.Name() == f[0] {
 			b.SetLanguageMode(m)
 		}
 	}
-	for _, m := range Config_StrictMode_values() {
-		if m.Name() == f[1] {
+	for i := range config_StrictMode_names {
+		if m := Config_StrictMode(i); m.Name() == f[1] {
 			b.SetStrictMode(m)
 		}
 	}
@@ -138,8 +144,8 @@ func jsdocConfigFromDump(dump string) (*Config, error) {
 			b.SetJsDocParsingMode(m)
 		}
 	}
-	for _, m := range Config_RunMode_values() {
-		if m.Name() == f[3] {
+	for i := range config_RunMode_names {
+		if m := Config_RunMode(i); m.Name() == f[3] {
 			b.SetRunMode(m)
 		}
 	}
@@ -149,10 +155,12 @@ func jsdocConfigFromDump(dump string) (*Config, error) {
 		k, _, _ := strings.Cut(kv, "=")
 		annotationNames = append(annotationNames, k)
 	}
+	suppressions := jutil.NewLinkedHashSet(jsdocSplitList(header["suppressions"], "[", "]")...)
+	primitives := jutil.NewLinkedHashSet(jsdocSplitList(header["primitives"], "[", "]")...)
 	b.SetExtraAnnotationNames(jutil.NewLinkedHashSet(annotationNames...).All())
-	b.SetSuppressionNames(jutil.NewLinkedHashSet(jsdocSplitList(header["suppressions"], "[", "]")...).All())
-	b.SetClosurePrimitiveNames(jutil.NewLinkedHashSet(jsdocSplitList(header["primitives"], "[", "]")...).All())
-	return b.Build(), nil
+	b.SetSuppressionNames(suppressions.All())
+	b.SetClosurePrimitiveNames(primitives.All())
+	return jsdocDumpConfig{Config: b.Build(), suppressions: suppressions, primitives: primitives}, nil
 }
 
 // jsdocSplitList splits a Java collection rendering "[a, b]" / "{a, b}".
@@ -188,7 +196,8 @@ func jsdocUnescape(s string) string {
 }
 
 // dumpJsDoc is JsDocDump.dumpOne.
-func dumpJsDoc(name, src string, config *Config) string {
+func dumpJsDoc(name, src string, cfg jsdocDumpConfig) string {
+	config := cfg.Config
 	var sb strings.Builder
 	line := func(s string) {
 		sb.WriteString(jsdocEscape(s))
@@ -210,8 +219,8 @@ func dumpJsDoc(name, src string, config *Config) string {
 	}
 	annBuf.WriteByte('}')
 	line("# annotations " + annBuf.String())
-	line("# suppressions " + config.SuppressionNames().String())
-	line("# primitives " + config.ClosurePrimitiveNames().String())
+	line("# suppressions " + cfg.suppressions.String())
+	line("# primitives " + cfg.primitives.String())
 
 	file := parser.NewSourceFile(name, src)
 	p := parser.NewParser(testNewParserConfig(config), newSilentParserReporter(), file)

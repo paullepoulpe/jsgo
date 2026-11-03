@@ -15,7 +15,7 @@ func (*nopCloseBuffer) Close() error { return nil }
 
 func TestOutputStreamWriterSurrogatesMatchJava(t *testing.T) {
 	var out nopCloseBuffer
-	w := NewOutputStreamWriter(&out)
+	w := newOutputStreamWriterWithCharset(&out, StandardCharsets_UTF_8)
 	for _, s := range [][]uint16{{'a', 0xd83d}, {0xde00, 'b'}, {0xdc00}, {'c', 0xd800}, {'d'}, {0xd83d}} {
 		w.Write(StringFromUTF16(s))
 	}

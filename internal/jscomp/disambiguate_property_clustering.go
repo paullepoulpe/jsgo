@@ -210,10 +210,7 @@ func (u *ColorNodeUnionFind) Union(a, b *ColorGraphNode) *ColorGraphNode {
 
 func (u *ColorNodeUnionFind) Find(e *ColorGraphNode) *ColorGraphNode {
 	slot, ok := u.lookupSlot(e)
-	if !ok {
-		jutil.CheckArgumentMsg1(false, "Element does not exist: %s", e)
-		return nil
-	}
+	jutil.CheckArgumentMsg1(ok, "Element does not exist: %s", e)
 	return u.nodes[u.findRoot(slot)]
 }
 

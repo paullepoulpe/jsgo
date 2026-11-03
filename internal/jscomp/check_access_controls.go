@@ -464,40 +464,50 @@ func (c *CheckAccessControls) ShouldTraverse(traversal *NodeTraversal, node rhin
 	return true
 }
 
+func isClassExtendsClause(node, parent rhino.Node) bool {
+	cls, ok := ast.AsClass(parent)
+	return ok && cls.ExtendsNode() == node
+}
+
+func (c *CheckAccessControls) shouldCheckPropertyAccess(traversal *NodeTraversal, node rhino.Node, tok rhino.Token) bool {
+	if !checkAccessControlsActiveToken[tok] {
+		tb := node.GetJSTypeBase()
+		return tb != nil && tb.Self().IsFunctionType()
+	}
+	if tok == rhino.Token_NAME {
+		if tb := node.GetJSTypeBase(); tb != nil && tb.Self().IsFunctionType() && tb.Self().ToMaybeFunctionType().IsConstructor() {
+			return true
+		}
+		if id := node.GetStringID(); id != 0 && id != rhino.RhinoStringPool_EmptyID {
+			scope := traversal.GetScope()
+			if var_ := scope.GetVarByID(id); var_ != nil {
+				if docInfo := var_.GetJSDocInfo(); docInfo != nil && docInfo.IsDeprecated() {
+					if c.ShouldEmitDeprecationWarning(traversal, node) {
+						name := node.GetString()
+						if docInfo.GetDeprecationReason() != nil {
+							c.compiler.Report(
+								JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME_REASON, name, *docInfo.GetDeprecationReason()))
+						} else {
+							c.compiler.Report(JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME, name))
+						}
+					}
+				}
+				c.checkNameVisibilityWithVar(var_, node)
+			}
+		}
+		return false
+	}
+	return true
+}
+
 // Java: CheckAccessControls.visit(NodeTraversal, Node, Node)
 func (c *CheckAccessControls) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	tok := node.GetToken()
-	if !checkAccessControlsActiveToken[tok] {
-		if tb := node.GetJSTypeBase(); tb == nil || !tb.Self().IsFunctionType() {
-			if !parent.IsNil() && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
-				c.ExitAccessControlScope(parent)
-			}
-			return
+	if !c.shouldCheckPropertyAccess(traversal, node, tok) {
+		if isClassExtendsClause(node, parent) {
+			c.ExitAccessControlScope(parent)
 		}
-	} else if tok == rhino.Token_NAME {
-		if tb := node.GetJSTypeBase(); tb == nil || !tb.Self().IsFunctionType() || !tb.Self().ToMaybeFunctionType().IsConstructor() {
-			if id := node.GetStringID(); id != 0 && id != rhino.RhinoStringPool_EmptyID {
-				scope := traversal.GetScope()
-				if var_ := scope.GetVarByID(id); var_ != nil {
-					if docInfo := var_.GetJSDocInfo(); docInfo != nil && docInfo.IsDeprecated() {
-						if c.ShouldEmitDeprecationWarning(traversal, node) {
-							name := node.GetString()
-							if docInfo.GetDeprecationReason() != nil {
-								c.compiler.Report(
-									JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME_REASON, name, *docInfo.GetDeprecationReason()))
-							} else {
-								c.compiler.Report(JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME, name))
-							}
-						}
-					}
-					c.checkNameVisibilityWithVar(var_, node)
-				}
-			}
-			if !parent.IsNil() && parent.IsClass() && parent.GetFirstChild().GetNext() == node {
-				c.ExitAccessControlScope(parent)
-			}
-			return
-		}
+		return
 	}
 
 	identifierBehaviour := CheckAccessControls_IdentifierBehaviour_Select(node)

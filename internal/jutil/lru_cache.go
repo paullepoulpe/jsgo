@@ -56,14 +56,6 @@ type LRUCache[K comparable, V any] struct {
 	order   lruList[K, V]
 }
 
-// NewLRUCache constructs a new LRUCache with the given maximum entry count
-// (-1 for unbounded, 0 for disabled).
-func NewLRUCache[K comparable, V any](maxSize int) *LRUCache[K, V] {
-	var c LRUCache[K, V]
-	c.Init(maxSize)
-	return &c
-}
-
 // Init initializes c in place with the given maximum entry count.
 func (c *LRUCache[K, V]) Init(maxSize int) {
 	c.maxSize = maxSize

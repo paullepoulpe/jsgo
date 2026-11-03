@@ -259,7 +259,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetCtorForGoogModuleGet(extendsNode rhi
 		// Handle invalid goog.module.get calls
 		return nil
 	}
-	moduleScope, ok := b.outer.memoized[extendsCall.GetScopeRoot()]
+	moduleScope, ok := b.outer.memoized.Lookup(extendsCall.GetScopeRoot())
 	if !ok {
 		// Handle invalid goog.module.get calls
 		return nil

@@ -198,35 +198,14 @@ func (i *Import) ImportNode() rhino.Node { return i.importNode }
 // Java: Import.nameNode()
 func (i *Import) NameNode() rhino.Node { return i.nameNode }
 
-type orderedUnresolvedMap struct {
-	keys  []string
-	byKey map[string]UnresolvedModule
-}
-
-func (m *orderedUnresolvedMap) reset() {
-	m.keys = m.keys[:0]
-	if m.byKey == nil {
-		m.byKey = make(map[string]UnresolvedModule)
-	} else {
-		clear(m.byKey)
-	}
-}
-
-func (m *orderedUnresolvedMap) put(k string, v UnresolvedModule) {
-	if _, exists := m.byKey[k]; !exists {
-		m.keys = append(m.keys, k)
-	}
-	m.byKey[k] = v
-}
-
 // ModuleMapCreator creates a ModuleMap.
 type ModuleMapCreator struct {
 	compiler                            AbstractCompiler
 	esModuleProcessor                   *EsModuleProcessor
 	closureModuleProcessor              *ClosureModuleProcessor
 	nonEsModuleProcessor                *NonEsModuleProcessor
-	unresolvedModules                   orderedUnresolvedMap
-	unresolvedModulesByClosureNamespace orderedUnresolvedMap
+	unresolvedModules                   OrderedStringMap[UnresolvedModule]
+	unresolvedModulesByClosureNamespace OrderedStringMap[UnresolvedModule]
 	moduleMetadataMap                   *ModuleMetadataMap
 }
 
@@ -329,11 +308,11 @@ func (r *moduleRequestResolverImpl) ResolveWithExport(e *Export) UnresolvedModul
 }
 
 func (r *moduleRequestResolverImpl) resolveForClosure(namespace string) UnresolvedModule {
-	if m, ok := r.outer.unresolvedModulesByClosureNamespace.byKey[namespace]; ok {
+	if m, ok := r.outer.unresolvedModulesByClosureNamespace.Lookup(namespace); ok {
 		return m
 	}
 	m := r.fallbackForMissingClosureModule(namespace)
-	r.outer.unresolvedModulesByClosureNamespace.put(namespace, m)
+	r.outer.unresolvedModulesByClosureNamespace.Put(namespace, m)
 	return m
 }
 
@@ -356,15 +335,15 @@ func (r *moduleRequestResolverImpl) resolveWithModulePath(
 	if requestedPath == nil {
 		requestedPath = modulePath.ResolveModuleAsPath(moduleRequest)
 		modName := requestedPath.ToModuleName()
-		if existing, ok := r.outer.unresolvedModules.byKey[modName]; ok {
+		if existing, ok := r.outer.unresolvedModules.Lookup(modName); ok {
 			return existing
 		}
 		module := newFallbackMissingNonClosureModule(requestedPath)
-		r.outer.unresolvedModules.put(modName, module)
+		r.outer.unresolvedModules.Put(modName, module)
 		return module
 	}
 
-	return r.outer.unresolvedModules.byKey[requestedPath.ToModuleName()]
+	return r.outer.unresolvedModules.Get(requestedPath.ToModuleName())
 }
 
 type moduleProcessor interface {
@@ -384,8 +363,8 @@ func NewModuleMapCreator(compiler AbstractCompiler, moduleMetadataMap *ModuleMet
 
 // Java: ModuleMapCreator.create()
 func (c *ModuleMapCreator) Create() *ModuleMap {
-	c.unresolvedModules.reset()
-	c.unresolvedModulesByClosureNamespace.reset()
+	c.unresolvedModules.Clear()
+	c.unresolvedModulesByClosureNamespace.Clear()
 
 	for _, moduleMetadata := range c.moduleMetadataMap.AllMetadataSlice() {
 		c.processModuleMetadata(moduleMetadata)
@@ -395,32 +374,30 @@ func (c *ModuleMapCreator) Create() *ModuleMap {
 
 func (c *ModuleMapCreator) resolve() *ModuleMap {
 	requestResolver := &moduleRequestResolverImpl{outer: c}
-	resolvedModules := NewOrderedStringMapWithCapacity[*Module](len(c.unresolvedModules.keys))
-	resolvedClosureModules := NewOrderedStringMapWithCapacity[*Module](len(c.unresolvedModulesByClosureNamespace.keys))
+	resolvedModules := NewOrderedStringMapWithCapacity[*Module](c.unresolvedModules.Size())
+	resolvedClosureModules := NewOrderedStringMapWithCapacity[*Module](c.unresolvedModulesByClosureNamespace.Size())
 
-	// Missing references append fallback entries to unresolvedModules.keys during
+	// Missing references append fallback entries to unresolvedModules during
 	// resolution, so advancing an index cursor resolves known and fallback modules
 	// in deterministic insertion order in a single linear pass.
-	for idx := 0; idx < len(c.unresolvedModules.keys); idx++ {
-		key := c.unresolvedModules.keys[idx]
-		resolved := c.unresolvedModules.byKey[key].Resolve(requestResolver)
-		resolvedModules.Put(key, resolved)
+	for idx := 0; idx < c.unresolvedModules.Size(); idx++ {
+		e := c.unresolvedModules.Entries()[idx]
+		resolved := e.Value.Resolve(requestResolver)
+		resolvedModules.Put(e.Key, resolved)
 		for namespace := range resolved.Metadata().GoogNamespaces().All() {
 			resolvedClosureModules.Put(namespace, resolved)
 		}
 	}
 
-	for idx := 0; idx < len(c.unresolvedModulesByClosureNamespace.keys); idx++ {
-		namespace := c.unresolvedModulesByClosureNamespace.keys[idx]
-		if !resolvedClosureModules.ContainsKey(namespace) {
-			resolvedClosureModules.Put(
-				namespace,
-				c.unresolvedModulesByClosureNamespace.byKey[namespace].Resolve(requestResolver))
+	for idx := 0; idx < c.unresolvedModulesByClosureNamespace.Size(); idx++ {
+		e := c.unresolvedModulesByClosureNamespace.Entries()[idx]
+		if !resolvedClosureModules.ContainsKey(e.Key) {
+			resolvedClosureModules.Put(e.Key, e.Value.Resolve(requestResolver))
 		}
 	}
 
-	c.unresolvedModules.reset()
-	c.unresolvedModulesByClosureNamespace.reset()
+	c.unresolvedModules.Clear()
+	c.unresolvedModulesByClosureNamespace.Clear()
 	return NewModuleMap(resolvedModules, resolvedClosureModules)
 }
 
@@ -441,10 +418,10 @@ func (c *ModuleMapCreator) processModuleMetadata(moduleMetadata *ModuleMetadataM
 	module := processor.Process(moduleMetadata, moduleMetadata.Path(), moduleMetadata.RootNode())
 
 	if moduleMetadata.Path() != nil {
-		c.unresolvedModules.put(moduleMetadata.Path().ToModuleName(), module)
+		c.unresolvedModules.Put(moduleMetadata.Path().ToModuleName(), module)
 	}
 	for namespace := range moduleMetadata.GoogNamespaces().All() {
-		c.unresolvedModulesByClosureNamespace.put(namespace, module)
+		c.unresolvedModulesByClosureNamespace.Put(namespace, module)
 	}
 }
 

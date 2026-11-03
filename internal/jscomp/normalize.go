@@ -102,8 +102,8 @@ func normalizeIsFunctionExpressionName(x ast.Name) bool {
 // Java: Normalize.process(Node, Node)
 func (n *Normalize) Process(externs rhino.Node, root rhino.Node) {
 	normStmts := NewNormalize_NormalizeStatements(n.compiler, n.assertOnChange)
-	normStmts.initFastContextualRenamer()
-	defer normStmts.releaseFastContextualRenamer()
+	normStmts.renamer.enable()
+	defer normStmts.renamer.reset()
 	sc1 := NewSyntacticScopeCreator(n.compiler)
 	b1 := NodeTraversal_Builder{
 		compiler:     n.compiler,

@@ -66,9 +66,7 @@ var ScopeCreator_ASSERT_NO_SCOPES_CREATED ScopeCreator = &scopeCreator_assertNoS
 
 // scopeCreator_assertNoScopesCreated is the anonymous class of
 // ASSERT_NO_SCOPES_CREATED.
-type scopeCreator_assertNoScopesCreated struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
+type scopeCreator_assertNoScopesCreated struct{}
 
 // Java: ScopeCreator.ASSERT_NO_SCOPES_CREATED.createScope(Node, AbstractScope<?, ?>)
 func (*scopeCreator_assertNoScopesCreated) CreateScope(n rhino.Node, parent AbstractScope) AbstractScope {
@@ -137,11 +135,9 @@ func (c *SyntacticScopeCreator) newVarList(n int) []*Var {
 // but not explicitly declared.
 const syntacticScopeCreator_ARGUMENTS = "arguments"
 
-var SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER SyntacticScopeCreator_RedeclarationHandler = NewSyntacticScopeCreator_DefaultRedeclarationHandler()
-
 // Java: SyntacticScopeCreator(AbstractCompiler)
 func NewSyntacticScopeCreator(compiler AbstractCompiler) *SyntacticScopeCreator {
-	return NewSyntacticScopeCreatorWithRedeclarationHandler(compiler, SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER)
+	return NewSyntacticScopeCreatorWithRedeclarationHandler(compiler, nil)
 }
 
 // Java: SyntacticScopeCreator(AbstractCompiler, RedeclarationHandler)
@@ -748,6 +744,7 @@ func scanVarsBlockCreatesScope(n rhino.Node) bool {
 //
 // Java: SyntacticScopeCreator.ScopeScanner.scanVars(Node, Scope, Scope)
 func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *Scope, blockScope *Scope) {
+	isScript := false
 	switch n.GetToken() {
 	case rhino.Token_VAR:
 		if hoistScope != nil {
@@ -797,41 +794,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 			}
 		}
 		s.setInputId(n.GetInputId())
-		// Go-only: performance — the loop over children below, with the
-		// statements of a script that may declare an implicit goog namespace
-		// (Java: the EXPR_RESULT case).
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			ctok := child.GetToken()
-			if scanVarsTokenKind[uint8(ctok)] != 0 {
-				switch ctok {
-				case rhino.Token_EXPR_RESULT:
-					if stmt := ast.MustExprStmt(child); stmt.Expr().Token() == rhino.Token_CALL {
-						s.declareImplicitGoogNamespace(hoistScope, stmt)
-					}
-				case rhino.Token_VAR:
-					if hoistScope != nil {
-						s.declareNameDeclaration(hoistScope, ast.MustNameDeclaration(child))
-					}
-				case rhino.Token_LET, rhino.Token_CONST:
-					if blockScope != nil {
-						s.declareNameDeclaration(blockScope, ast.MustNameDeclaration(child))
-					}
-				case rhino.Token_FUNCTION:
-					if blockScope != nil {
-						s.declareFunctionDeclaration(blockScope, ast.MustFunction(child))
-					}
-				case rhino.Token_CLASS:
-					if blockScope != nil {
-						s.declareClassDeclaration(blockScope, ast.MustClass(child))
-					}
-				default:
-					s.ScanVars(child, hoistScope, blockScope)
-				}
-			}
-			child = next
-		}
-		return
+		isScript = true
 	case rhino.Token_MODULE_BODY:
 		// Module bodies are not part of global scope, but may declare an implicit goog namespace.
 		if hoistScope.IsGlobal() {
@@ -882,8 +845,12 @@ func (s *SyntacticScopeCreator_ScopeScanner) ScanVars(n rhino.Node, hoistScope *
 	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()
 		ctok := child.GetToken()
-		if scanVarsTokenKind[uint8(ctok)] == 1 {
+		if k := scanVarsTokenKind[uint8(ctok)]; k == 1 || (k == 2 && isScript) {
 			switch ctok {
+			case rhino.Token_EXPR_RESULT:
+				if stmt := ast.MustExprStmt(child); stmt.Expr().Token() == rhino.Token_CALL {
+					s.declareImplicitGoogNamespace(hoistScope, stmt)
+				}
 			case rhino.Token_VAR:
 				if hoistScope != nil {
 					s.declareNameDeclaration(hoistScope, ast.MustNameDeclaration(child))
@@ -985,7 +952,9 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node)
 		(parentVar != nil && parentVar.IsParam()) ||
 		(id == implicitArgumentsID &&
 			(sc.rootNode.IsFunction() || s.isFnBlock)) {
-		s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
+		if s.redeclarationHandler != nil {
+			s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
+		}
 	} else {
 		if id <= rhino.RhinoStringPool_EmptyID {
 			panic(jutil.NewIllegalArgumentException())
@@ -1026,7 +995,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareImplicitGoogNamespaceFromCal
 	}
 	// Conditionally report a redeclaration if the root name has already been declared as a normal
 	// variable (normal meaning a var/function/class/etc. declaration).
-	if s.treatProvidesAsRedeclarations {
+	if s.treatProvidesAsRedeclarations && s.redeclarationHandler != nil {
 		existing := sc.getOwnSlotV(root)
 		if existing != nil && !existing.IsImplicitGoogNamespace() {
 			s.redeclarationHandler.OnRedeclaration(
@@ -1049,26 +1018,10 @@ func syntacticScopeCreator_ScopeScanner_isLegacyGoogModule(stmt ast.Statement) b
 }
 
 // SyntacticScopeCreator_RedeclarationHandler is the interface for
-// injectable duplicate handling.
+// injectable duplicate handling (a nil handler is a no-op).
 type SyntacticScopeCreator_RedeclarationHandler interface {
 	// Java: SyntacticScopeCreator.RedeclarationHandler.onRedeclaration(Scope, String, Node, CompilerInput)
 	OnRedeclaration(s *Scope, name string, n rhino.Node, input *CompilerInput)
-}
-
-// SyntacticScopeCreator_DefaultRedeclarationHandler is the default handler
-// for duplicate declarations.
-type SyntacticScopeCreator_DefaultRedeclarationHandler struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// Java: SyntacticScopeCreator.DefaultRedeclarationHandler()
-func NewSyntacticScopeCreator_DefaultRedeclarationHandler() *SyntacticScopeCreator_DefaultRedeclarationHandler {
-	return &SyntacticScopeCreator_DefaultRedeclarationHandler{}
-}
-
-// Java: SyntacticScopeCreator.DefaultRedeclarationHandler.onRedeclaration(Scope, String, Node, CompilerInput)
-func (h *SyntacticScopeCreator_DefaultRedeclarationHandler) OnRedeclaration(
-	s *Scope, name string, n rhino.Node, input *CompilerInput) {
 }
 
 // MemoizedScopeCreator memoizes a scope creator.

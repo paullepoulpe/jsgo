@@ -345,15 +345,6 @@ func scanCalleeSummary(fnName string, fnNode rhino.Node, dst *calleeSummary) boo
 	return paramsPositional
 }
 
-func resolveCalleeSummary(fnName string, fnNode rhino.Node, summary *calleeSummary) *calleeSummary {
-	if summary != nil && summary.fnNode == fnNode {
-		return summary
-	}
-	local := new(calleeSummary)
-	scanCalleeSummary(fnName, fnNode, local)
-	return local
-}
-
 func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(
 	fnNode rhino.Node, _ *smallIDSet, dstModified *smallIDSet,
 ) {

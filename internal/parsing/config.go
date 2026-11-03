@@ -30,8 +30,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parser"
 )
 
-var config_emptyStringSet = jutil.NewLinkedHashSet[string]()
-
 // Config is the configuration for the AST factory. Should be shared across
 // AST creation for all files of a compilation process.
 type Config struct {
@@ -41,8 +39,8 @@ type Config struct {
 	runMode               Config_RunMode
 	annotations           map[string]Annotation
 	extraAnnotations      []string
-	suppressionNames      *jutil.LinkedHashSet[string]
-	closurePrimitiveNames *jutil.LinkedHashSet[string]
+	suppressionNames      map[string]struct{}
+	closurePrimitiveNames map[string]struct{}
 	parseInlineSourceMaps bool
 }
 
@@ -56,13 +54,6 @@ const (
 )
 
 var config_StrictMode_names = [...]string{"STRICT", "SLOPPY"}
-
-// Config_StrictMode_values is StrictMode.values().
-//
-// Java: Config.StrictMode.values()
-func Config_StrictMode_values() []Config_StrictMode {
-	return []Config_StrictMode{Config_StrictMode_STRICT, Config_StrictMode_SLOPPY}
-}
 
 // Name is Enum.name().
 //
@@ -135,17 +126,6 @@ var config_LanguageMode_featureSet = [...]parser.FeatureSet{
 	parser.FeatureSet_ES_NEXT,
 	parser.FeatureSet_ES_UNSTABLE,
 	parser.FeatureSet_ES_UNSUPPORTED,
-}
-
-// Config_LanguageMode_values is LanguageMode.values().
-//
-// Java: Config.LanguageMode.values()
-func Config_LanguageMode_values() []Config_LanguageMode {
-	values := make([]Config_LanguageMode, len(config_LanguageMode_names))
-	for i := range values {
-		values[i] = Config_LanguageMode(i)
-	}
-	return values
 }
 
 // Name is Enum.name().
@@ -261,13 +241,6 @@ const (
 
 var config_RunMode_names = [...]string{"STOP_AFTER_ERROR", "KEEP_GOING"}
 
-// Config_RunMode_values is RunMode.values().
-//
-// Java: Config.RunMode.values()
-func Config_RunMode_values() []Config_RunMode {
-	return []Config_RunMode{Config_RunMode_STOP_AFTER_ERROR, Config_RunMode_KEEP_GOING}
-}
-
 // Name is Enum.name().
 //
 // Java: Config.RunMode.name()
@@ -325,7 +298,7 @@ func (c *Config) LookupAnnotation(name string) (Annotation, bool) {
 // SuppressionNames is the set of recognized names in a `@suppress` tag.
 //
 // Java: Config.suppressionNames()
-func (c *Config) SuppressionNames() *jutil.LinkedHashSet[string] {
+func (c *Config) SuppressionNames() map[string]struct{} {
 	return c.suppressionNames
 }
 
@@ -333,7 +306,7 @@ func (c *Config) SuppressionNames() *jutil.LinkedHashSet[string] {
 // `@closurePrimitive` tag.
 //
 // Java: Config.closurePrimitiveNames()
-func (c *Config) ClosurePrimitiveNames() *jutil.LinkedHashSet[string] {
+func (c *Config) ClosurePrimitiveNames() map[string]struct{} {
 	return c.closurePrimitiveNames
 }
 
@@ -377,8 +350,6 @@ func Config_Builder_() *Config_Builder {
 			jsDocParsingMode:      Config_JsDocParsing_TYPES_ONLY,
 			runMode:               Config_RunMode_STOP_AFTER_ERROR,
 			annotations:           Annotation_recognizedAnnotations,
-			suppressionNames:      config_emptyStringSet,
-			closurePrimitiveNames: config_emptyStringSet,
 			parseInlineSourceMaps: false,
 		},
 	}
@@ -468,12 +439,6 @@ func (b *Config_Builder) SetExtraAnnotationNames(names iter.Seq[string]) *Config
 // Java: Config.Builder.build()
 func (b *Config_Builder) Build() *Config {
 	c := b.cfg
-	if c.suppressionNames == nil {
-		c.suppressionNames = config_emptyStringSet
-	}
-	if c.closurePrimitiveNames == nil {
-		c.closurePrimitiveNames = config_emptyStringSet
-	}
 	if c.annotations == nil && len(c.extraAnnotations) == 0 {
 		c.annotations = Annotation_recognizedAnnotations
 	}
@@ -510,19 +475,16 @@ func Config_BuildAnnotations(allowlist iter.Seq[string]) map[string]Annotation {
 	return m
 }
 
-func config_stringSetCopyOf(names iter.Seq[string]) *jutil.LinkedHashSet[string] {
+func config_stringSetCopyOf(names iter.Seq[string]) map[string]struct{} {
 	if names == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var set *jutil.LinkedHashSet[string]
+	var set map[string]struct{}
 	for name := range names {
 		if set == nil {
-			set = jutil.NewLinkedHashSet[string]()
+			set = make(map[string]struct{})
 		}
-		set.Add(name)
-	}
-	if set == nil {
-		return config_emptyStringSet
+		set[name] = struct{}{}
 	}
 	return set
 }

@@ -443,7 +443,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringIncludes(call ast.Call, lstri
 		}
 		if NodeUtil_IsNumericLiteral(secondArg) {
 			posVal := NodeUtil_GetNumericLiteralValue(secondArg)
-			fromIndex = int(jutil.D2I(base.MathMin(base.MathMax(posVal, 0), float64(jutil.StringLength(lstring)))))
+			fromIndex = int(jutil.D2I(min(max(posVal, 0), float64(jutil.StringLength(lstring)))))
 		} else if !NodeUtil_IsNullOrUndefined(secondArg) {
 			return n
 		}
@@ -482,7 +482,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringStartsWith(call ast.Call, lst
 		}
 		if NodeUtil_IsNumericLiteral(secondArg) {
 			posVal := NodeUtil_GetNumericLiteralValue(secondArg)
-			start = int(jutil.D2I(base.MathMin(base.MathMax(posVal, 0), float64(jutil.StringLength(lstring)))))
+			start = int(jutil.D2I(min(max(posVal, 0), float64(jutil.StringLength(lstring)))))
 		} else if !NodeUtil_IsNullOrUndefined(secondArg) {
 			return n
 		}
@@ -522,7 +522,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldStringEndsWith(call ast.Call, lstri
 		}
 		if NodeUtil_IsNumericLiteral(secondArg) {
 			posVal := NodeUtil_GetNumericLiteralValue(secondArg)
-			end = int(jutil.D2I(base.MathMin(base.MathMax(posVal, 0), float64(jutil.StringLength(lstring)))))
+			end = int(jutil.D2I(min(max(posVal, 0), float64(jutil.StringLength(lstring)))))
 		} else if secondArg.IsNull() {
 			end = 0
 		} else if NodeUtil_IsUndefined(secondArg) {

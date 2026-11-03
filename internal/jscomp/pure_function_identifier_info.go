@@ -280,21 +280,18 @@ func (p *PureFunctionIdentifier) propagateSideEffects() {
 		p.summaries[i].firstCallerEdge = prev
 	}
 
-	queue := make([]pfiSummaryID, 0, 64)
+	var queueBuf [64]pfiSummaryID
+	var queue fifoQueue[pfiSummaryID]
+	queue.initWithBuf(queueBuf[:])
 	for i := range p.summaries {
 		if p.summaries[i].bitmask != 0 && p.summaries[i].firstCallerEdge >= 0 {
 			p.summaries[i].flags |= pfiSummaryInQueue
-			queue = append(queue, pfiSummaryID(i))
+			queue.push(pfiSummaryID(i))
 		}
 	}
 
-	for head := 0; head < len(queue); head++ {
-		if head > 1024 && head*2 >= len(queue) {
-			n := copy(queue, queue[head:])
-			queue = queue[:n]
-			head = 0
-		}
-		calleeID := queue[head]
+	for !queue.isEmpty() {
+		calleeID := queue.pop()
 		p.summaries[calleeID].flags &^= pfiSummaryInQueue
 		calleeMask := p.summaries[calleeID].bitmask
 		calleeParams := p.summaries[calleeID].mutatedParamMask
@@ -305,7 +302,7 @@ func (p *PureFunctionIdentifier) propagateSideEffects() {
 				caller := &p.summaries[e.caller]
 				if caller.firstCallerEdge >= 0 && caller.flags&pfiSummaryInQueue == 0 {
 					caller.flags |= pfiSummaryInQueue
-					queue = append(queue, e.caller)
+					queue.push(e.caller)
 				}
 			}
 		}

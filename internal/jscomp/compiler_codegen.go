@@ -40,6 +40,111 @@ func (c *Compiler) ToSourceOfJSChunk(chunk *JSChunk) string {
 		NewCompiler_ScriptNodeLicensesOnlyTracker(c), chunk)
 }
 
+type parallelPrintedScript struct {
+	root      rhino.Node
+	sm        CodePrinter_SourceAndMappings
+	rec       compiler_ParallelScriptLicenseRecorder
+	startLine int
+	startCol  int
+	emitted   bool
+	first     bool
+}
+
+type parallelScriptPrinter struct {
+	compiler   *Compiler
+	numWorkers int
+	onlyScript bool
+	wantMap    bool
+	scratches  []codePrinterScratch
+	slots      []parallelPrintedScript
+}
+
+func newParallelScriptPrinter(c *Compiler, numWorkers int, onlyScript, wantMap bool, initialSlots int) parallelScriptPrinter {
+	return parallelScriptPrinter{
+		compiler:   c,
+		numWorkers: numWorkers,
+		onlyScript: onlyScript,
+		wantMap:    wantMap,
+		scratches:  make([]codePrinterScratch, numWorkers),
+		slots:      make([]parallelPrintedScript, initialSlots),
+	}
+}
+
+func (p *parallelScriptPrinter) ensureSlots(n int) []parallelPrintedScript {
+	if cap(p.slots) < n {
+		prev := p.slots[:cap(p.slots)]
+		p.slots = make([]parallelPrintedScript, n)
+		copy(p.slots, prev)
+	} else {
+		p.slots = p.slots[:n]
+	}
+	return p.slots
+}
+
+func (p *parallelScriptPrinter) setSlot(slotIdx int, chunkName string, in *CompilerInput, firstInChunk bool) error {
+	scriptNode := in.GetAstRoot(p.compiler)
+	if scriptNode.IsNil() {
+		return jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunkName)
+	}
+	s := &p.slots[slotIdx]
+	s.root = scriptNode
+	s.first = firstInChunk
+	s.startLine = 0
+	s.startCol = 0
+	s.emitted = false
+	return nil
+}
+
+func (p *parallelScriptPrinter) printBatch(count int) error {
+	if count == 0 {
+		return nil
+	}
+	slots := p.slots[:count]
+	failures := runParallelIndexedTasks(count, p.numWorkers, func(w, k int) {
+		s := &slots[k]
+		s.rec.Reset(p.onlyScript)
+		s.sm.mappings = s.sm.mappings[:0]
+		p.compiler.printRootWithScratch(s.root, s.first, p.wantMap, &s.rec, &s.sm, &p.scratches[w])
+	})
+	for _, f := range failures {
+		if f != nil {
+			return f
+		}
+	}
+	return nil
+}
+
+func (c *Compiler) appendPrintedScriptToCodeBuilder(
+	cb *Compiler_CodeBuilder,
+	lt CodePrinter_LicenseTracker,
+	replay func(string),
+	inputSeqNum int,
+	s *parallelPrintedScript,
+) {
+	s.rec.Replay(replay)
+	s.startLine, s.startCol, s.emitted = c.appendSourceAndMetricsToCodeBuilderForChunk(
+		cb, lt, inputSeqNum, s.root, s.sm.source, &s.sm)
+	s.sm.source = ""
+	s.root = rhino.NilNode
+}
+
+func addMappingsToSourceMap(sm *SourceMap, startLine, startCol int, sourceAndMappings *CodePrinter_SourceAndMappings) {
+	sm.SetStartingPosition(startLine, startCol)
+	for i := range sourceAndMappings.mappings {
+		m := &sourceAndMappings.mappings[i]
+		sm.AddMappingOfNodePositions(m.node, m.start, m.end)
+	}
+	resetSourceAndMappings(sourceAndMappings)
+}
+
+func addPrintedScriptMappings(sm *SourceMap, s *parallelPrintedScript) {
+	if s.emitted {
+		addMappingsToSourceMap(sm, s.startLine, s.startCol, &s.sm)
+		return
+	}
+	resetSourceAndMappings(&s.sm)
+}
+
 // ToSourceOfLicenseTrackerAndJSChunk converts the parse tree for a chunk
 // back to JS code, using the given License Tracker to determine which
 // licenses should be emitted before the source code.
@@ -60,44 +165,36 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 			}
 			cb := NewCompiler_CodeBuilder()
 			if numInputs > 1 && c.options != nil && c.options.GetNumParallelThreads() > 1 {
-				replay, onlyScript, canParallel := compiler_licenseTrackerReplay(licenseTracker)
-				if canParallel {
-					scripts := make([]rhino.Node, numInputs)
-					for i := 0; i < numInputs; i++ {
-						scriptNode := inputs[i].GetAstRoot(c)
-						if scriptNode.IsNil() {
-							panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunk.GetName()))
+				if replay, onlyScript, canParallel := compiler_licenseTrackerReplay(licenseTracker); canParallel {
+					chunkName := chunk.GetName()
+					for _, in := range inputs {
+						if in.GetAstRoot(c).IsNil() {
+							panic(jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunkName))
 						}
-						scripts[i] = scriptNode
 					}
+					numThreads := c.options.GetNumParallelThreads()
 					batchSize := 64
 					if numInputs <= 64 {
-						batchSize = max(c.options.GetNumParallelThreads(), 4)
+						batchSize = max(numThreads, 4)
 					}
-					type scriptPrinted struct {
-						sm  CodePrinter_SourceAndMappings
-						rec compiler_ParallelScriptLicenseRecorder
-					}
-					printed := make([]scriptPrinted, min(numInputs, batchSize))
-					numThreads := c.options.GetNumParallelThreads()
-					scratches := make([]codePrinterScratch, numThreads)
+					gatherMap := c.options.ShouldGatherSourceMapInfo()
+					printer := newParallelScriptPrinter(c, min(numThreads, numInputs), onlyScript, gatherMap, min(numInputs, batchSize))
 					for batchStart := 0; batchStart < numInputs; batchStart += batchSize {
-						batchEnd := min(batchStart+batchSize, numInputs)
-						batchLen := batchEnd - batchStart
-						failures := runParallelIndexedTasks(batchLen, numThreads, func(w, j int) {
+						batchLen := min(batchSize, numInputs-batchStart)
+						slots := printer.ensureSlots(batchLen)
+						for j := range batchLen {
 							idx := batchStart + j
-							printed[j].rec.Reset(onlyScript)
-							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, &printed[j].rec, &printed[j].sm, &scratches[w])
-						})
-						for _, f := range failures {
-							if f != nil {
-								panic(f)
-							}
+							_ = printer.setSlot(j, chunkName, inputs[idx], idx == 0)
 						}
-						for j := 0; j < batchLen; j++ {
-							idx := batchStart + j
-							printed[j].rec.Replay(replay)
-							c.appendSourceAndMappingsToCodeBuilder(cb, licenseTracker, idx, scripts[idx], &printed[j].sm)
+						if err := printer.printBatch(batchLen); err != nil {
+							panic(err)
+						}
+						for j := range batchLen {
+							s := &slots[j]
+							c.appendPrintedScriptToCodeBuilder(cb, licenseTracker, replay, batchStart+j, s)
+							if gatherMap {
+								addPrintedScriptMappings(c.sourceMap, s)
+							}
 						}
 					}
 					return cb.String()
@@ -161,12 +258,7 @@ func (c *Compiler) appendSourceAndMappingsToCodeBuilder(
 	// root node's mappings are offset by the given string builder buffer.
 	// This offset is a result of licenses being added to the output buffer.
 	if c.options.ShouldGatherSourceMapInfo() {
-		c.sourceMap.SetStartingPosition(startLine, startCol)
-		for i := range sourceAndMappings.mappings {
-			m := &sourceAndMappings.mappings[i]
-			c.sourceMap.AddMappingOfNodePositions(m.node, m.start, m.end)
-		}
-		resetSourceAndMappings(sourceAndMappings)
+		addMappingsToSourceMap(c.sourceMap, startLine, startCol, sourceAndMappings)
 	}
 }
 
@@ -189,16 +281,6 @@ func (c *Compiler) appendSourceAndResolvedMappingsToCodeBuilder(
 		}
 	}
 	resetSourceAndMappings(sourceAndMappings)
-}
-
-func (c *Compiler) appendSourceToCodeBuilderForChunk(
-	cb *Compiler_CodeBuilder,
-	licenseTracker CodePrinter_LicenseTracker,
-	inputSeqNum int,
-	root rhino.Node,
-	code string,
-) (startLine int, startCol int, emitted bool) {
-	return c.appendSourceAndMetricsToCodeBuilderForChunk(cb, licenseTracker, inputSeqNum, root, code, nil)
 }
 
 func (c *Compiler) appendSourceAndMetricsToCodeBuilderForChunk(

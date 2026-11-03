@@ -370,17 +370,6 @@ var parseTreeType_names = [...]string{
 	"FIELD_DECLARATION",
 }
 
-// ParseTreeType_values is ParseTreeType.values().
-//
-// Java: ParseTreeType.values()
-func ParseTreeType_values() []ParseTreeType {
-	values := make([]ParseTreeType, len(parseTreeType_names))
-	for i := range values {
-		values[i] = ParseTreeType(i)
-	}
-	return values
-}
-
 // Name is Enum.name().
 //
 // Java: ParseTreeType.name()
@@ -904,13 +893,6 @@ const (
 )
 
 var comment_Type_names = [...]string{"BLOCK", "LINE", "JSDOC", "SHEBANG", "IMPORTANT"}
-
-// Comment_Type_values is Comment.Type.values().
-//
-// Java: Comment.Type.values()
-func Comment_Type_values() []Comment_Type {
-	return []Comment_Type{Comment_Type_BLOCK, Comment_Type_LINE, Comment_Type_JSDOC, Comment_Type_SHEBANG, Comment_Type_IMPORTANT}
-}
 
 // Name is Enum.name().
 //

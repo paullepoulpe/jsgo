@@ -548,9 +548,9 @@ func buildHamt(t *testing.T, values ...int) *HamtPMap[int, any] {
 	return m
 }
 
-func buildHamtWithCustomHashCode(t *testing.T, fixedHashCode int32, values ...int) *HamtPMap[*integerWithCustomHashCode, any] {
+func buildHamtWithCustomHashCode(t *testing.T, fixedHashCode int32, values ...int) *HamtPMap[integerWithCustomHashCode, any] {
 	t.Helper()
-	m := HamtPMap_Empty[*integerWithCustomHashCode, any]()
+	m := HamtPMap_Empty[integerWithCustomHashCode, any]()
 	for _, value := range values {
 		m = m.Plus(newIntegerWithCustomHashCode(value, fixedHashCode), value)
 		m.AssertCorrectStructure()
@@ -565,18 +565,11 @@ type integerWithCustomHashCode struct {
 	hashCode int32
 }
 
-func newIntegerWithCustomHashCode(i int, hashCode int32) *integerWithCustomHashCode {
-	return &integerWithCustomHashCode{i: i, hashCode: hashCode}
+func newIntegerWithCustomHashCode(i int, hashCode int32) integerWithCustomHashCode {
+	return integerWithCustomHashCode{i: i, hashCode: hashCode}
 }
 
-func (x *integerWithCustomHashCode) HashCode() int32 { return x.hashCode }
-
-func (x *integerWithCustomHashCode) Equals(o any) bool {
-	if that, ok := o.(*integerWithCustomHashCode); ok && that != nil {
-		return x.i == that.i
-	}
-	return false
-}
+func (x integerWithCustomHashCode) HashCode() int32 { return x.hashCode }
 
 // objectsEquals is Objects::equals as a BiPredicate.
 func objectsEquals(a, b any) bool { return jutil.ObjectsEquals(a, b) }
@@ -652,4 +645,33 @@ func TestHamtPMapArenaZeroAllocs(t *testing.T) {
 		t.Fatalf("got %v allocs/op, want 0", allocs)
 	}
 	strArena.TrimLargeChunks()
+}
+
+func TestHamtPMapNullAndEqualitySemantics(t *testing.T) {
+	if hamtIsNull("") {
+		t.Fatal("empty string must not be treated as null")
+	}
+	if hamtIsNull(0) {
+		t.Fatal("int(0) must not be treated as null")
+	}
+	if !hamtIsNull((JSType)(nil)) {
+		t.Fatal("nil JSType must be treated as null")
+	}
+	if !hamtIsNull((*TemplateType)(nil)) {
+		t.Fatal("nil *TemplateType must be treated as null")
+	}
+	if !hamtIsNull(NilNode) {
+		t.Fatal("NilNode must be treated as null")
+	}
+	reg := NewJSTypeRegistry(nil)
+	num := reg.GetNativeType(JSTypeNative_NUMBER_TYPE)
+	str := reg.GetNativeType(JSTypeNative_STRING_TYPE)
+	ta := reg.CreateUnionType(num, str)
+	tb := reg.CreateUnionType(str, num)
+	if !hamtValueEquals(ta, tb) {
+		t.Fatal("equal JSType values should match via jsTypeEquals")
+	}
+	if hamtValueEquals(ta, num) || hamtValueEquals(ta, nil) {
+		t.Fatal("unequal or nil JSType values must not match")
+	}
 }

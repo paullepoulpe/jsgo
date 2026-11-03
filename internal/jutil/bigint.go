@@ -9,16 +9,6 @@ import (
 // BigInteger is an immutable value; ported code treats *big.Int values the
 // same way (never mutates one it did not just allocate).
 
-// NewBigIntegerFromBytes is new BigInteger(byte[]): a big-endian two's
-// complement representation.
-func NewBigIntegerFromBytes(b []byte) *big.Int {
-	x := new(big.Int).SetBytes(b)
-	if len(b) > 0 && b[0]&0x80 != 0 {
-		x.Sub(x, new(big.Int).Lsh(big.NewInt(1), uint(8*len(b))))
-	}
-	return x
-}
-
 // BigIntegerToByteArray is BigInteger.toByteArray(): the minimal big-endian
 // two's complement representation (always at least one byte, with a sign
 // bit).

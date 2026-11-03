@@ -185,8 +185,7 @@ func initNodeTraversal(
 	t.memoizedScopeCreator = nil
 	if scopeCreator == nil {
 		t.defaultScopeCreator = SyntacticScopeCreator{
-			compiler:             compiler,
-			redeclarationHandler: SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER,
+			compiler: compiler,
 		}
 		t.syntacticScopeCreator = &t.defaultScopeCreator
 	} else if ssc, ok := scopeCreator.(*SyntacticScopeCreator); ok {

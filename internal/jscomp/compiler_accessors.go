@@ -384,7 +384,7 @@ func (c *Compiler) GetTypedScopeCreator() ScopeCreator {
 // Java: Compiler.clearTypedScopeCreator()
 func (c *Compiler) ClearTypedScopeCreator() {
 	if c.typedScopeCreator != nil {
-		c.typedScopeCreator.memoized = nil
+		c.typedScopeCreator.memoized.Clear()
 		c.typedScopeCreator = nil
 	}
 }

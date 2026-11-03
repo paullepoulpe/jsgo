@@ -406,17 +406,6 @@ var tokenType_value = [...]string{
 	"",                           // NAMESPACE
 }
 
-// TokenType_values is TokenType.values().
-//
-// Java: TokenType.values()
-func TokenType_values() []TokenType {
-	values := make([]TokenType, len(tokenType_names))
-	for i := range values {
-		values[i] = TokenType(i)
-	}
-	return values
-}
-
 // Name is Enum.name().
 //
 // Java: TokenType.name()

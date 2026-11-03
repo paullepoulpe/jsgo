@@ -146,17 +146,6 @@ func init() {
 	}
 }
 
-// Keywords_values is Keywords.values().
-//
-// Java: Keywords.values()
-func Keywords_values() []Keywords {
-	values := make([]Keywords, len(keywords_names))
-	for i := range values {
-		values[i] = Keywords(i)
-	}
-	return values
-}
-
 // Name is Enum.name().
 //
 // Java: Keywords.name()

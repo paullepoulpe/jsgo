@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"math"
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -590,14 +589,22 @@ func CodeGenerator_IsSimpleNumber(s string) bool {
 }
 
 // Java: CodeGenerator.getSimpleNumber(String)
-func CodeGenerator_GetSimpleNumber(s string) float64 {
+func codeGenerator_getSimpleNumber(s string) (float64, bool) {
 	if CodeGenerator_IsSimpleNumber(s) {
 		l, err := strconv.ParseInt(s, 10, 64)
 		if err == nil && l <= NodeUtil_MAX_POSITIVE_INTEGER_NUMBER {
-			return float64(l)
+			return float64(l), true
 		}
 	}
-	return math.NaN()
+	return 0, false
+}
+
+func (g *CodeGenerator) addNumericOrStringKey(key string, n rhino.Node) {
+	if d, ok := codeGenerator_getSimpleNumber(key); ok {
+		g.cc.AddNumber(d, n)
+	} else {
+		g.AddJsString(n)
+	}
 }
 
 var codeGenIDEval = rhino.RhinoStringPool_InternID("eval")
@@ -666,12 +673,7 @@ func (g *CodeGenerator) AddStringKey(n rhino.Node) {
 		}
 		g.Add(key)
 	} else {
-		d := CodeGenerator_GetSimpleNumber(key)
-		if !math.IsNaN(d) {
-			g.cc.AddNumber(d, n)
-		} else {
-			g.AddJsString(n)
-		}
+		g.addNumericOrStringKey(key, n)
 	}
 	if n.HasChildren() {
 		// NOTE: the only time a STRING_KEY node does *not* have children is

@@ -219,14 +219,6 @@ type outputStreamWriter struct {
 	closed  bool
 }
 
-// NewOutputStreamWriter is new OutputStreamWriter(out, UTF_8).
-func NewOutputStreamWriter(out io.WriteCloser) Writer {
-	if out == nil {
-		panic(NewNullPointerException())
-	}
-	return &outputStreamWriter{out: out, enc: StreamEncoder{isUTF8: true}}
-}
-
 // newOutputStreamWriterWithCharset is new OutputStreamWriter(out, cs).
 func newOutputStreamWriterWithCharset(out io.WriteCloser, cs *Charset) Writer {
 	if out == nil || cs == nil {

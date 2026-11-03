@@ -26,16 +26,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// JsFileFullParser is a parser that extracts dependency information from a
-// .js file, including goog.require, goog.provide, goog.module, and
-// import/export statements.
-//
-// Java: class deps.JsFileFullParser
-type JsFileFullParser struct {
-	// Go-only: language-adapter — distinct identity.
-	_ byte
-}
-
 // JsFileFullParser_FileInfo is the dependency information contained in a .js
 // source file.
 //

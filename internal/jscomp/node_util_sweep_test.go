@@ -462,8 +462,11 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	bool_(true, func() bool { return NodeUtil_IsPrototypeAssignment(n) })
 	bool_(hasParent, func() bool { return NodeUtil_IsPropertyAbsenceTest(n) })
 	bool_(true, func() bool { return NodeUtil_IsShallowStatementTree(n) })
-	bool_(true, func() bool { return NewNodeUtil_MatchShallowStatement().Apply(n) })
-	bool_(true, func() bool { return NewNodeUtil_MatchDeclaration().Apply(n) })
+	// Preserve NodeUtilSweep.java golden column alignment for deleted MatchShallowStatement / MatchDeclaration wrappers.
+	bool_(true, func() bool {
+		return n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(parent))
+	})
+	bool_(true, func() bool { return NodeUtil_IsDeclaration(n) })
 	bool_(true, func() bool { return NodeUtil_IsConstantVar(n, nil) })
 	bool_(true, func() bool { return NodeUtil_IsConstantName(n) })
 	bool_(true, func() bool { return NodeUtil_FunctionHasInlineJsdocs(n) })

@@ -21,10 +21,10 @@ package bundle
 import "testing"
 
 var (
-	jsaCtFOO = Source_Builder_().SetCode("foo").Build()
-	jsaCtBAR = Source_Builder_().SetCode("bar").Build()
-	jsaCtBAZ = Source_Builder_().SetCode("baz").Build()
-	jsaCtQUX = Source_Builder_().SetCode("qux").Build()
+	jsaCtFOO = NewSource_Builder().SetCode("foo").Build()
+	jsaCtBAR = NewSource_Builder().SetCode("bar").Build()
+	jsaCtBAZ = NewSource_Builder().SetCode("baz").Build()
+	jsaCtQUX = NewSource_Builder().SetCode("qux").Build()
 )
 
 // jsaMockDelegate stands in for the Mockito mock: it answers from a list of

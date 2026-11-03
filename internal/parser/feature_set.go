@@ -198,17 +198,6 @@ var featureSet_LangVersion_names = [...]string{
 	"ES_NEXT", "ES_UNSTABLE", "ES_UNSUPPORTED", "TYPESCRIPT",
 }
 
-// FeatureSet_LangVersion_values is LangVersion.values().
-//
-// Java: FeatureSet.LangVersion.values()
-func FeatureSet_LangVersion_values() []FeatureSet_LangVersion {
-	values := make([]FeatureSet_LangVersion, len(featureSet_LangVersion_names))
-	for i := range values {
-		values[i] = FeatureSet_LangVersion(i)
-	}
-	return values
-}
-
 // Name is Enum.name().
 //
 // Java: FeatureSet.LangVersion.name()

@@ -39,8 +39,7 @@ type Es6RewriteBlockScopedDeclaration struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler          AbstractCompiler
 	astFactory        *AstFactory
-	letConsts         []rhino.Node
-	letConstActive    map[rhino.Node]bool
+	letConsts         OrderedSet[rhino.Node]
 	loopLetConstNames map[string]struct{}
 	uniqueIdSupplier  *UniqueIdSupplier
 }
@@ -77,28 +76,12 @@ func NewEs6RewriteBlockScopedDeclaration(compiler AbstractCompiler) *Es6RewriteB
 	}
 }
 
-func (e *Es6RewriteBlockScopedDeclaration) addLetConst(n rhino.Node) {
-	if e.letConstActive == nil {
-		e.letConstActive = make(map[rhino.Node]bool, 16)
-	}
-	if _, seen := e.letConstActive[n]; !seen {
-		e.letConsts = append(e.letConsts, n)
-	}
-	e.letConstActive[n] = true
-}
-
-func (e *Es6RewriteBlockScopedDeclaration) removeLetConst(n rhino.Node) {
-	if e.letConstActive != nil {
-		e.letConstActive[n] = false
-	}
-}
-
 func (e *Es6RewriteBlockScopedDeclaration) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(!n.IsForOf(), "%s", n)
 	jutil.CheckStateMsg1(parent.IsNil() || !parent.IsForOf(), "%s", parent)
 
 	if n.IsLet() || n.IsConst() {
-		e.addLetConst(n)
+		e.letConsts.Add(n)
 		for nameNode := range n.Children() {
 			e.visitBlockScopedNameDeclaration(n, nameNode)
 		}
@@ -107,7 +90,7 @@ func (e *Es6RewriteBlockScopedDeclaration) Visit(t *NodeTraversal, n rhino.Node,
 
 func (e *Es6RewriteBlockScopedDeclaration) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(e.compiler, root, e)
-	if len(e.letConsts) > 0 {
+	if !e.letConsts.IsEmpty() {
 		if len(e.loopLetConstNames) > 0 {
 			sc := NewSyntacticScopeCreator(e.compiler)
 			transformer := &es6BlockLoopClosureTransformer{pass: e}
@@ -243,10 +226,8 @@ func (e *Es6RewriteBlockScopedDeclaration) insertSpotBeforeLoop(loopNode rhino.N
 }
 
 func (e *Es6RewriteBlockScopedDeclaration) rewriteDeclsToVars() {
-	for _, n := range e.letConsts {
-		if e.letConstActive[n] {
-			e.handleLetConstDeclarationList(n, n.GetParent())
-		}
+	for n := range e.letConsts.All() {
+		e.handleLetConstDeclarationList(n, n.GetParent())
 	}
 }
 
@@ -433,7 +414,7 @@ func (l *es6BlockLoopClosureTransformer) createWrapperFunctions() []ast.Function
 			thisContext.AddVarDeclarations(l.pass.compiler, l.pass.astFactory, script)
 			for child := range scopeBody.Children() {
 				if child.IsLet() || child.IsConst() {
-					l.pass.addLetConst(child)
+					l.pass.letConsts.Add(child)
 				}
 			}
 		}
@@ -521,7 +502,7 @@ func (l *es6BlockLoopClosureTransformer) replaceDeclarationWithProperty(
 ) {
 	declaration := reference.GetParent()
 	grandParent := declaration.GetParent()
-	l.pass.removeLetConst(declaration)
+	l.pass.letConsts.Remove(declaration)
 	l.pass.handleLetConstDeclarationList(declaration, grandParent)
 
 	declaration = reference.GetParent()

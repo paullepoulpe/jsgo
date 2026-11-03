@@ -30,11 +30,11 @@ import (
 var (
 	jsaLmfFOO_TYPE             = DiagnosticType_Error("TEST_FOO", "error description here")
 	jsaLmfORIGINAL_SOURCE_FILE = "original/source.html"
-	jsaLmfORIGINAL_SOURCE      = sourcemap.Mapping_OriginalMapping_NewBuilder().
-					SetOriginalFile(jsaLmfORIGINAL_SOURCE_FILE).
-					SetLineNumber(3).
-					SetColumnPosition(15).
-					Build()
+	jsaLmfORIGINAL_SOURCE      = &sourcemap.Mapping_OriginalMapping{
+		OriginalFile:   jsaLmfORIGINAL_SOURCE_FILE,
+		LineNumber:     3,
+		ColumnPosition: 15,
+	}
 )
 
 func jsaLmfFormat(region Region) *string {

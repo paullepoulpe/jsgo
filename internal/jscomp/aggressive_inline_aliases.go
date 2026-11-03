@@ -406,10 +406,12 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModule
 		ref := aliasRefs.references[i]
 		if ref.IsVarDeclaration() || ref.GetParent().IsAssign() {
 			var rhs rhino.Node
-			if ref.GetParent().IsAssign() {
-				rhs = ref.GetParent().GetSecondChild()
-			} else {
-				rhs = ref.GetNode().GetFirstChild()
+			if assign, ok := ast.AsAssign(ref.GetParent()); ok {
+				rhs = assign.Value().Node()
+			} else if nameNode, ok := ast.AsName(ref.GetNode()); ok {
+				if initExpr, ok := nameNode.Init(); ok {
+					rhs = initExpr.Node()
+				}
 			}
 
 			if !rhs.IsNil() {
@@ -459,17 +461,9 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 	// be in a VAR, LET, or CONST assignment.
 	// Otherwise if the parent is an assign, we are in a "a = alias" case.
 	aliasParent := alias.GetNode().GetParent()
-	if aliasParent.IsName() || aliasParent.IsAssign() {
-		var aliasLhsNode rhino.Node
-		if aliasParent.IsName() {
-			aliasLhsNode = aliasParent
-		} else {
-			aliasLhsNode = aliasParent.GetFirstChild()
-		}
-		aliasVar := alias.scope.GetVarByNode(aliasLhsNode)
-		if aliasVar == nil {
-			jutil.CheckStateMsg1(false, "Expected variable to be defined in scope (%s)", aliasLhsNode.GetString())
-		}
+	if lhsNode, ok := aliasLhsNode(aliasParent); ok {
+		aliasVar := alias.scope.GetVarByNode(lhsNode)
+		jutil.CheckStateMsg1(aliasVar != nil, "Expected variable to be defined in scope (%s)", lhsNode.GetString())
 		aliasScope := aliasVar.scope
 		collector, aliasRefs := a.getReferencesInScope(aliasScope, aliasVar)
 
@@ -492,7 +486,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			}
 
 			// just set the original alias to null.
-			a.TryReplacingAliasingAssignment(alias, name, aliasLhsNode)
+			a.TryReplacingAliasingAssignment(alias, name, lhsNode)
 
 			// Inlining the variable may have introduced new references
 			// to descendants of `name`. So those need to be collected now.
@@ -505,11 +499,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			// generators introduces some constructor aliases that weren't getting inlined.
 			// If we find another (safer) way to avoid aliasing in method decomposition, consider
 			// removing this.
-			if !a.PartiallyInlineAlias(alias, name, namespace, collector, aliasVar, aliasRefs, aliasLhsNode) {
+			if !a.PartiallyInlineAlias(alias, name, namespace, collector, aliasVar, aliasRefs, lhsNode) {
 				// If we can't inline all alias references, make sure there are no unsafe property
 				// accesses.
 				if InlineAndCollapseProperties_ReferencesCollapsibleProperty(aliasRefs, name) {
-					a.outer.compiler.Report(JSError_MakeWithNode(aliasParent, InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING, aliasLhsNode.GetString()))
+					a.outer.compiler.Report(JSError_MakeWithNode(aliasParent, InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING, lhsNode.GetString()))
 				}
 			}
 		}
@@ -669,19 +663,13 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 	// Ensure that the alias is assigned to global name at that the
 	// declaration.
 	aliasParent := alias.GetNode().GetParent()
-	if ((aliasParent.IsAssign() || aliasParent.IsName()) &&
-		NodeUtil_IsExecutedExactlyOnce(aliasParent)) ||
-		// We special-case for constructors here, to inline constructor aliases
-		// more aggressively in global scope.
-		// We do this because constructor properties are always collapsed,
-		// so we want to inline the aliases also to avoid breakages.
-		(aliasParent.IsName() && name.IsConstructor()) {
-		var lvalue rhino.Node
-		if aliasParent.IsName() {
-			lvalue = aliasParent
-		} else {
-			lvalue = aliasParent.GetFirstChild()
-		}
+	if lvalue, ok := aliasLhsNode(aliasParent); ok &&
+		(NodeUtil_IsExecutedExactlyOnce(aliasParent) ||
+			// We special-case for constructors here, to inline constructor aliases
+			// more aggressively in global scope.
+			// We do this because constructor properties are always collapsed,
+			// so we want to inline the aliases also to avoid breakages.
+			(aliasParent.IsName() && name.IsConstructor())) {
 		if lvalue.IsNil() || !lvalue.IsQualifiedName() {
 			return
 		}
@@ -721,9 +709,10 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 				//   a.b = aliasing.name = aliased.name
 				// with
 				//   a.b = aliased.name
-				jutil.CheckStateMsg1(aliasParent.IsAssign(), "%s", aliasParent)
+				assign, ok := ast.AsAssign(aliasParent)
+				jutil.CheckStateMsg1(ok, "%s", aliasParent)
 				aliasGrandparent := aliasParent.GetParent()
-				a.noteMutatedQName(aliasParent.GetFirstChild())
+				a.noteMutatedQName(assign.Target().Node())
 				a.noteMutatedQName(alias.GetNode())
 				aliasParent.ReplaceWith(alias.GetNode().Detach())
 				// Remove the ref to 'aliasing.name' entirely
@@ -825,11 +814,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 		return
 	}
 	if name.MatchesNode(value) {
-		jutil.CheckStateMsg2(
-			false,
-			"%s should not match name %s",
-			value,
-			name.GetFullName())
+		panic(jutil.NewIllegalStateExceptionMsg(
+			jutil.LenientFormat("%s should not match name %s", value, name.GetFullName())))
 	}
 	for prop := range name.Props() {
 		a.RewriteNestedAliasReference(value, depth, newNodes, prop)
@@ -860,7 +846,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAlias
 	refs := prop.snapshotRefs(&refsBuf)
 	for _, ref := range refs {
 		target := ref.GetNode()
-		if target.IsStringKey() && target.GetParent().IsDestructuringPattern() {
+		if _, ok := ast.AsStringKey(target); ok && target.GetParent().IsDestructuringPattern() {
 			// Do nothing for alias properties accessed through object destructuring. This would be
 			// redundant. This method is intended for names nested inside getprop chains, because
 			// GlobalNamespace only creates a single Ref for the outermost getprop. However, for
@@ -881,8 +867,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAlias
 			// for the getprop access. This loop will visit both Refs.
 			// This method is responsible for inlining "const otherLhs = originalObj.key" but not
 			// "const {key: lhs} = originalObj;". We bail out at the Ref in the latter case.
+			gparent := target.GetGrandparent()
+			_, inAssign := ast.AsAssign(gparent)
+			_, inDestructLhs := ast.AsDestructuringLhs(gparent)
 			jutil.CheckStateMsg1(
-				target.GetGrandparent().IsAssign() || target.GetGrandparent().IsDestructuringLhs(),
+				inAssign || inDestructLhs,
 				// Currently GlobalNamespace doesn't create Refs for 'b' in const {a: {b}} = obj;
 				// If it does start creating those Refs, we may have to update this method to handle
 				// them explicitly.
@@ -898,14 +887,14 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAlias
 		}
 
 		for i := 0; i <= depth; i++ {
-			if target.IsGetProp() {
-				target = target.GetFirstChild()
+			if gp, ok := ast.AsGetProp(target); ok {
+				target = gp.Object().Node()
 			} else if NodeUtil_IsObjectLitKey(target) {
 				// Object literal key definitions are a little trickier, as we
 				// need to find the assignment target
 				gparent := target.GetGrandparent()
-				if gparent.IsAssign() {
-					target = gparent.GetFirstChild()
+				if assign, ok := ast.AsAssign(gparent); ok {
+					target = assign.Target().Node()
 				} else {
 					jutil.CheckState(NodeUtil_IsObjectLitKey(gparent))
 					target = gparent
@@ -942,40 +931,54 @@ func NewInlineAndCollapseProperties_RewriteSimpleDestructuringAliases() *InlineA
 	return &InlineAndCollapseProperties_RewriteSimpleDestructuringAliases{}
 }
 
+func parseSimpleDestructuringAlias(n rhino.Node) (ast.ObjectPattern, rhino.Node, bool) {
+	if !NodeUtil_IsStatement(n) {
+		return ast.ObjectPattern{}, rhino.NilNode, false
+	}
+	decl, ok := ast.AsNameDeclarationOf(n, rhino.Token_CONST)
+	if !ok {
+		return ast.ObjectPattern{}, rhino.NilNode, false
+	}
+	declarator, ok := decl.OnlyDeclarator()
+	jutil.CheckState(ok)
+	destructuringLhs, ok := declarator.AsDestructuringLhs()
+	if !ok {
+		return ast.ObjectPattern{}, rhino.NilNode, false
+	}
+	objectPattern, ok := destructuringLhs.Pattern().AsObjectPattern()
+	if !ok {
+		return ast.ObjectPattern{}, rhino.NilNode, false
+	}
+	initExpr, ok := destructuringLhs.Init()
+	if !ok || !initExpr.Node().IsQualifiedName() {
+		return ast.ObjectPattern{}, rhino.NilNode, false
+	}
+	if !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern) {
+		return ast.ObjectPattern{}, rhino.NilNode, false
+	}
+	return objectPattern, initExpr.Node(), true
+}
+
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.isSimpleDestructuringAlias(Node)
 func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringAlias(n rhino.Node) bool {
-	if !NodeUtil_IsStatement(n) || !n.IsConst() {
-		return false
-	}
-	jutil.CheckState(n.HasOneChild())
-	destructuringLhs := n.GetFirstChild()
-	if !destructuringLhs.IsDestructuringLhs() {
-		return false
-	}
-	objectPattern := destructuringLhs.GetFirstChild()
-	if !objectPattern.IsObjectPattern() {
-		return false
-	}
-	rhs := destructuringLhs.GetLastChild()
-	if !rhs.IsQualifiedName() {
-		return false
-	}
-	return InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern)
+	_, _, ok := parseSimpleDestructuringAlias(n)
+	return ok
 }
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.isSimpleDestructuringPattern(Node)
-func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern rhino.Node) bool {
-	jutil.CheckArgument(objectPattern.IsObjectPattern())
-	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		if !key.IsStringKey() || key.IsQuotedStringKey() {
+func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern ast.ObjectPattern) bool {
+	for prop := range objectPattern.Props() {
+		key, ok := prop.AsStringKey()
+		if !ok || key.IsQuoted() {
 			return false
 		}
-		jutil.CheckState(key.HasOneChild())
-		rhs := key.GetFirstChild()
-		if !rhs.IsObjectPattern() && !rhs.IsName() {
-			return false
+		jutil.CheckState(key.Node().HasOneChild())
+		val := key.Value()
+		if _, ok := val.AsName(); ok {
+			continue
 		}
-		if rhs.IsObjectPattern() && !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(rhs) {
+		nested, ok := val.AsObjectPattern()
+		if !ok || !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(nested) {
 			return false
 		}
 	}
@@ -997,41 +1000,41 @@ func (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) noVisitLea
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.visit(NodeTraversal, Node, Node)
 func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringAlias(n) {
+	objectPattern, rhs, ok := parseSimpleDestructuringAlias(n)
+	if !ok {
 		return
 	}
-
-	insertionPoint := n
-
-	destructuringLhs := n.GetFirstChild()
-	objectPattern := destructuringLhs.GetFirstChild()
-	rhs := destructuringLhs.GetLastChild()
-	unusedNewInsertionPoint := r.ExpandObjectPattern(t, insertionPoint, objectPattern, rhs)
-	_ = unusedNewInsertionPoint
+	r.ExpandObjectPattern(t, n, objectPattern, rhs)
 	n.Detach()
 	t.ReportCodeChange()
 }
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.expandObjectPattern(NodeTraversal, Node, Node, Node)
 func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) ExpandObjectPattern(
-	t *NodeTraversal, insertionPoint rhino.Node, objectPattern rhino.Node, rhs rhino.Node) rhino.Node {
-	for key := objectPattern.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		keyChild := key.GetFirstChild()
+	t *NodeTraversal, insertionPoint rhino.Node, objectPattern ast.ObjectPattern, rhs rhino.Node) rhino.Node {
+	for prop := range objectPattern.Props() {
+		key := prop.MustStringKey()
+		val := key.Value()
+		keyChild := val.Node()
 		var nameNode rhino.Node
-		if keyChild.IsName() {
-			nameNode = keyChild.Detach()
+		var nested ast.ObjectPattern
+		var isNested bool
+		if name, ok := val.AsName(); ok {
+			nameNode = name.Detach().Node()
 		} else {
-			jutil.CheckState(keyChild.IsObjectPattern())
+			nested, isNested = val.AsObjectPattern()
+			jutil.CheckState(isNested)
 			uniqueId := t.GetCompiler().GetUniqueIdSupplier().GetUniqueId(t.GetInput())
-			nameNode = rhino.IR_Name("destructuring$" + uniqueId).Srcref(keyChild)
-			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+			newName := ast.NewName("destructuring$" + uniqueId)
+			newName.SetConstantName(true)
+			nameNode = newName.Node().Srcref(keyChild)
 		}
-		newRhs := rhino.IR_Getprop(rhs.CloneTree(), key.GetString()).Srcref(keyChild)
-		newConstNode := rhino.IR_ConstNode(nameNode, newRhs).Srcref(objectPattern)
+		newRhs := rhino.IR_Getprop(rhs.CloneTree(), key.Key()).Srcref(keyChild)
+		newConstNode := rhino.IR_ConstNode(nameNode, newRhs).Srcref(objectPattern.Node())
 		newConstNode.InsertAfter(insertionPoint)
 		insertionPoint = newConstNode
-		if keyChild.IsObjectPattern() {
-			insertionPoint = r.ExpandObjectPattern(t, insertionPoint, keyChild, nameNode.CloneNode())
+		if isNested {
+			insertionPoint = r.ExpandObjectPattern(t, insertionPoint, nested, nameNode.CloneNode())
 		}
 	}
 	return insertionPoint

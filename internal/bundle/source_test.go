@@ -63,16 +63,16 @@ func jsaGroup[T jsaHashable](xs ...T) []jsaHashable {
 }
 
 func TestSource_Equals(t *testing.T) {
-	foo := Source_Builder_().SetCode("foo").Build()
+	foo := NewSource_Builder().SetCode("foo").Build()
 	flags := map[string]string{"x": "y"}
 	jsaEqualsTester(t,
-		jsaGroup(Source_Builder_().Build(), Source_Builder_().Build()),
+		jsaGroup(NewSource_Builder().Build(), NewSource_Builder().Build()),
 		jsaGroup(
-			Source_Builder_().SetCodeFromSupplier(func() string { return "foo" }).Build(),
-			Source_Builder_().SetCodeFromSupplier(func() string { return "foo" }).Build(),
-			Source_Builder_().SetCode("foo").Build(),
-			Source_Builder_().SetCode("foo").Build()),
-		jsaGroup(Source_Builder_().SetCode("bar").Build()),
+			NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build(),
+			NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build(),
+			NewSource_Builder().SetCode("foo").Build(),
+			NewSource_Builder().SetCode("foo").Build()),
+		jsaGroup(NewSource_Builder().SetCode("bar").Build()),
 		jsaGroup(
 			foo.ToBuilder().SetPath(jutil.Path_Of("/x")).Build(),
 			foo.ToBuilder().SetPath(jutil.Path_Of("/x")).Build()),
@@ -88,16 +88,16 @@ func TestSource_Equals(t *testing.T) {
 }
 
 func TestSource_Code(t *testing.T) {
-	jsaEq(t, Source_Builder_().SetCode("foo").Build().Code(), "foo")
-	jsaEq(t, Source_Builder_().SetCodeFromSupplier(func() string { return "foo" }).Build().Code(), "foo")
+	jsaEq(t, NewSource_Builder().SetCode("foo").Build().Code(), "foo")
+	jsaEq(t, NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build().Code(), "foo")
 }
 
 func TestSource_Original(t *testing.T) {
-	jsaEq(t, Source_Builder_().SetCode("foo").Build().OriginalCode(), "foo")
-	jsaEq(t, Source_Builder_().SetCodeFromSupplier(func() string { return "foo" }).Build().OriginalCode(), "foo")
+	jsaEq(t, NewSource_Builder().SetCode("foo").Build().OriginalCode(), "foo")
+	jsaEq(t, NewSource_Builder().SetCodeFromSupplier(func() string { return "foo" }).Build().OriginalCode(), "foo")
 
-	jsaEq(t, Source_Builder_().SetCode("foo").SetOriginalCode("bar").Build().OriginalCode(), "bar")
-	jsaEq(t, Source_Builder_().
+	jsaEq(t, NewSource_Builder().SetCode("foo").SetOriginalCode("bar").Build().OriginalCode(), "bar")
+	jsaEq(t, NewSource_Builder().
 		SetCodeFromSupplier(func() string { return "foo" }).
 		SetOriginalCode("bar").
 		Build().
@@ -105,7 +105,7 @@ func TestSource_Original(t *testing.T) {
 }
 
 func TestSource_Runtimes(t *testing.T) {
-	foo := Source_Builder_().AddRuntime("foo").Build()
+	foo := NewSource_Builder().AddRuntime("foo").Build()
 	jsaDeepEq(t, foo.Runtimes(), []string{"foo"})
 	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").Build().Runtimes(), []string{"foo", "bar"})
 	jsaDeepEq(t, foo.ToBuilder().AddRuntime("bar").AddRuntime("baz").Build().Runtimes(), []string{"foo", "bar", "baz"})

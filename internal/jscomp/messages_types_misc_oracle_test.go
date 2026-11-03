@@ -251,31 +251,29 @@ func l11msgDumpTtl(sb *strings.Builder, ttlExp string) {
 		num := registry.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
 		bool_ := registry.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
 		arr := registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
-		typeVars := jutil.NewImmutableMapBuilder[string, rhino.JSType]().
-			Put("S", str).
-			Put("N", num).
-			Put("B", bool_).
-			Put("BOT", registry.GetNativeType(rhino.JSTypeNative_NO_TYPE)).
-			Put("TOP", registry.GetNativeType(rhino.JSTypeNative_ALL_TYPE)).
-			Put("UNK", registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)).
-			Put("CHKUNK", registry.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)).
-			Put("SO", registry.GetNativeType(rhino.JSTypeNative_STRING_OBJECT_TYPE)).
-			Put("NO", registry.GetNativeType(rhino.JSTypeNative_NUMBER_OBJECT_TYPE)).
-			Put("BO", registry.GetNativeType(rhino.JSTypeNative_BOOLEAN_OBJECT_TYPE)).
-			Put("NULL", registry.GetNativeType(rhino.JSTypeNative_NULL_TYPE)).
-			Put("OBJ", registry.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)).
-			Put("UNDEF", registry.GetNativeType(rhino.JSTypeNative_VOID_TYPE)).
-			Put("ARR", arr).
-			Put("ARRNUM", registry.CreateTemplatizedType(arr, num)).
-			Put("REC", l11msgRecord(registry, "n", num, "s", str, "b", bool_)).
-			Put("NESTEDREC", l11msgRecord(registry, "s", str, "r", l11msgRecord(registry, "s", str, "b", bool_))).
-			Put("ASYNCH", l11msgRecord(registry, "service", rhino.JSType(registry.CreateTemplatizedType(arr, num)))).
-			BuildOrThrow()
-		nameVars := jutil.NewImmutableMapBuilder[string, string]().
-			Put("s", "string").
-			Put("n", "number").
-			Put("b", "boolean").
-			BuildOrThrow()
+		var typeVars OrderedStringMap[rhino.JSType]
+		typeVars.Put("S", str)
+		typeVars.Put("N", num)
+		typeVars.Put("B", bool_)
+		typeVars.Put("BOT", registry.GetNativeType(rhino.JSTypeNative_NO_TYPE))
+		typeVars.Put("TOP", registry.GetNativeType(rhino.JSTypeNative_ALL_TYPE))
+		typeVars.Put("UNK", registry.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))
+		typeVars.Put("CHKUNK", registry.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE))
+		typeVars.Put("SO", registry.GetNativeType(rhino.JSTypeNative_STRING_OBJECT_TYPE))
+		typeVars.Put("NO", registry.GetNativeType(rhino.JSTypeNative_NUMBER_OBJECT_TYPE))
+		typeVars.Put("BO", registry.GetNativeType(rhino.JSTypeNative_BOOLEAN_OBJECT_TYPE))
+		typeVars.Put("NULL", registry.GetNativeType(rhino.JSTypeNative_NULL_TYPE))
+		typeVars.Put("OBJ", registry.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE))
+		typeVars.Put("UNDEF", registry.GetNativeType(rhino.JSTypeNative_VOID_TYPE))
+		typeVars.Put("ARR", arr)
+		typeVars.Put("ARRNUM", registry.CreateTemplatizedType(arr, num))
+		typeVars.Put("REC", l11msgRecord(registry, "n", num, "s", str, "b", bool_))
+		typeVars.Put("NESTEDREC", l11msgRecord(registry, "s", str, "r", l11msgRecord(registry, "s", str, "b", bool_)))
+		typeVars.Put("ASYNCH", l11msgRecord(registry, "service", rhino.JSType(registry.CreateTemplatizedType(arr, num))))
+		var nameVars OrderedStringMap[string]
+		nameVars.Put("s", "string")
+		nameVars.Put("n", "number")
+		nameVars.Put("b", "boolean")
 		ttlParser := parsing.NewTypeTransformationParser(
 			ttlExp, SourceFile_FromCode("[testcode]", ttlExp), errorReporter, 0, 0)
 		if ttlParser.ParseTypeTransformation() {
@@ -294,7 +292,7 @@ func l11msgDumpTtl(sb *strings.Builder, ttlExp string) {
 			func() {
 				defer jutil.System_SetOut(savedOut)
 				jutil.Try(func() {
-					resultType := typeTransformation.EvalWithNameVars(ast, typeVars, nameVars)
+					resultType := typeTransformation.Eval(ast, &typeVars, &nameVars)
 					reported.WriteString("result " + l11msgEscape(resultType.String()) + "\n")
 				}, func(e jutil.IRuntimeException) {
 					reported.WriteString("exception " + l11msgJavaClassName(e) + " " + l11msgThrowableMessage(e) + "\n")

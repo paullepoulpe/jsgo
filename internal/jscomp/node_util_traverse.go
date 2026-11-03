@@ -98,24 +98,6 @@ func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 	}
 }
 
-// NodeUtil_MatchDeclaration is a predicate for matching var, let, const,
-// class or function declarations.
-//
-// Java: NodeUtil.MatchDeclaration
-type NodeUtil_MatchDeclaration struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// Java: NodeUtil.MatchDeclaration()
-func NewNodeUtil_MatchDeclaration() *NodeUtil_MatchDeclaration {
-	return &NodeUtil_MatchDeclaration{}
-}
-
-// Java: NodeUtil.MatchDeclaration.apply(Node)
-func (m *NodeUtil_MatchDeclaration) Apply(n rhino.Node) bool {
-	return NodeUtil_IsDeclaration(n)
-}
-
 // Java: NodeUtil.MATCH_NOT_FUNCTION
 var NodeUtil_MATCH_NOT_FUNCTION = func(n rhino.Node) bool { return !n.IsFunction() }
 
@@ -141,25 +123,6 @@ func NodeUtil_IsShallowStatementTree(n rhino.Node) bool {
 		NodeUtil_IsControlStructure(n) ||
 		NodeUtil_IsStatementBlock(n) ||
 		n.IsSwitchBody()
-}
-
-// NodeUtil_MatchShallowStatement is a predicate for matching statements
-// without exiting the current scope.
-//
-// Java: NodeUtil.MatchShallowStatement
-type NodeUtil_MatchShallowStatement struct {
-	_ byte // Go-only: language-adapter — distinct identity
-}
-
-// Java: NodeUtil.MatchShallowStatement()
-func NewNodeUtil_MatchShallowStatement() *NodeUtil_MatchShallowStatement {
-	return &NodeUtil_MatchShallowStatement{}
-}
-
-// Java: NodeUtil.MatchShallowStatement.apply(Node)
-func (m *NodeUtil_MatchShallowStatement) Apply(n rhino.Node) bool {
-	parent := n.GetParent()
-	return n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(parent))
 }
 
 // NodeUtil_GetNodeTypeReferenceCount finds the number of times a type is
@@ -487,6 +450,7 @@ var externVarNameVisitTokens = makeVisitTokenSet(rhino.Token_NAME, rhino.Token_I
 type externVarNameCollector struct {
 	orderedSet  *jutil.LinkedHashSet[string]
 	externNames map[string]struct{}
+	externIDs   map[uint32]struct{}
 	reserved    stringMapSet
 }
 
@@ -514,6 +478,10 @@ func (c *externVarNameCollector) Visit(t *NodeTraversal, n rhino.Node, parent rh
 		v = t.LookupVarByID(id)
 	}
 	if v != nil && !v.IsParam() {
+		if c.externIDs != nil {
+			c.externIDs[v.nameID] = struct{}{}
+			return
+		}
 		name := v.GetName()
 		if c.orderedSet != nil {
 			c.orderedSet.Add(name)
@@ -524,6 +492,18 @@ func (c *externVarNameCollector) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			}
 		}
 	}
+}
+
+func collectExternVariableNameIDs(compiler AbstractCompiler, externs rhino.Node) map[uint32]struct{} {
+	externIDs := make(map[uint32]struct{})
+	cb := externVarNameCollector{externIDs: externIDs}
+	b := NodeTraversal_Builder{
+		compiler: compiler,
+		callback: &cb,
+		obeyDestructuringAndDefaultValueExecutionOrder: true,
+	}
+	b.Traverse(externs)
+	return externIDs
 }
 
 func collectExternVariableNamesInto(

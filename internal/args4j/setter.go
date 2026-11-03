@@ -63,7 +63,7 @@ var (
 )
 
 // EnumClassOf builds a typed TypeSpec for an enum's values slice.
-func EnumClassOf[E fmt.Stringer](_ string, values []E) *TypeSpec[E] {
+func EnumClassOf[E fmt.Stringer](values []E) *TypeSpec[E] {
 	return &TypeSpec[E]{defaultHandler: newEnumOptionHandler(values)}
 }
 

@@ -43,9 +43,7 @@ type rucPropEntry struct {
 // removeUnusedCodeState is the state of one run of the pass; Process drops
 // it when the run ends.
 type removeUnusedCodeState struct {
-	worklist     []RemoveUnusedCode_Continuation
-	worklistHead int
-	worklistSize int
+	worklist fifoQueue[RemoveUnusedCode_Continuation]
 
 	// Java: varInfoMap (LinkedHashMap<Var, VarInfo>, where Var equality is
 	// (scope root, name)). varByKey indexes VarInfos by scopedVarKey and
@@ -288,9 +286,7 @@ func (r *RemoveUnusedCode) considerPolyfillRef(keyID uint32, n rhino.Node) {
 //
 // Java: RemoveUnusedCode.process(Node, Node)
 func (r *RemoveUnusedCode) Process(externs rhino.Node, root rhino.Node) {
-	if !r.compiler.GetLifeCycleStage().IsNormalized() {
-		jutil.CheckState(false)
-	}
+	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
 	r.externProperties = r.compiler.GetExternProperties()
 	r.accessorSummary = r.compiler.GetAccessorSummary()
 
@@ -313,48 +309,6 @@ func (r *RemoveUnusedCode) Process(externs rhino.Node, root rhino.Node) {
 	r.TraverseAndRemoveUnusedReferences(root)
 }
 
-func (r *RemoveUnusedCode) enqueueContinuation(c RemoveUnusedCode_Continuation) {
-	if r.worklistSize == len(r.worklist) {
-		r.growWorklist()
-	}
-	idx := r.worklistHead + r.worklistSize
-	if idx >= len(r.worklist) {
-		idx -= len(r.worklist)
-	}
-	r.worklist[idx] = c
-	r.worklistSize++
-}
-
-func (r *RemoveUnusedCode) growWorklist() {
-	n := len(r.worklist) * 2
-	if n < 256 {
-		n = 256
-	}
-	nb := make([]RemoveUnusedCode_Continuation, n)
-	if r.worklistSize > 0 {
-		firstPart := len(r.worklist) - r.worklistHead
-		if firstPart >= r.worklistSize {
-			copy(nb, r.worklist[r.worklistHead:r.worklistHead+r.worklistSize])
-		} else {
-			copy(nb, r.worklist[r.worklistHead:])
-			copy(nb[firstPart:], r.worklist[:r.worklistSize-firstPart])
-		}
-	}
-	r.worklist = nb
-	r.worklistHead = 0
-}
-
-func (r *RemoveUnusedCode) popContinuation() RemoveUnusedCode_Continuation {
-	c := r.worklist[r.worklistHead]
-	r.worklist[r.worklistHead] = RemoveUnusedCode_Continuation{}
-	r.worklistHead++
-	if r.worklistHead == len(r.worklist) {
-		r.worklistHead = 0
-	}
-	r.worklistSize--
-	return c
-}
-
 func (r *RemoveUnusedCode) createGlobalScope(root rhino.Node) *Scope {
 	// Create scope from parent of root node, which also has externs as a child, so we'll
 	// have extern definitions in scope.
@@ -372,9 +326,9 @@ func (r *RemoveUnusedCode) traverseRootAndRemoveVars(node rhino.Node, scope *Sco
 	r.root = node
 	r.guardedUsagesComputed = false
 
-	r.enqueueContinuation(RemoveUnusedCode_Continuation{node: node, scope: scope})
-	for r.worklistSize > 0 {
-		continuation := r.popContinuation() // worklist.remove()
+	r.worklist.push(RemoveUnusedCode_Continuation{node: node, scope: scope})
+	for !r.worklist.isEmpty() {
+		continuation := r.worklist.pop() // worklist.remove()
 		continuation.Apply(r)
 	}
 
@@ -450,8 +404,7 @@ func (r *RemoveUnusedCode) resetLocalScriptWorker() {
 	clear(r.varByKey)
 	clear(r.varInfos)
 	r.varInfos = r.varInfos[:0]
-	r.worklistHead = 0
-	r.worklistSize = 0
+	r.worklist.clear()
 	clear(r.extraContSlab)
 	r.extraContSlab = r.extraContSlab[:0]
 	r.removables.Reset(nil)
@@ -539,9 +492,7 @@ func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsWithCompiler(
 	readOnly bool,
 ) {
 	function, ok := ast.AsFunction(fparamScope.GetRootNode())
-	if !ok {
-		jutil.CheckState(false)
-	}
+	jutil.CheckState(ok)
 	if NodeUtil_IsGetOrSetKey(function.Node().GetParent()) {
 		// The parameters object literal setters can not be removed.
 		return
@@ -613,9 +564,7 @@ func (r *RemoveUnusedCode) GetVarForNameNode(nameNode rhino.Node, scope *Scope) 
 
 // Java: RemoveUnusedCode.canRemoveParameters(Node)
 func (r *RemoveUnusedCode) CanRemoveParameters(parameterList rhino.Node) bool {
-	if !parameterList.IsParamList() {
-		jutil.CheckState(false)
-	}
+	jutil.CheckState(parameterList.IsParamList())
 	function := parameterList.GetParent()
 	return r.removeGlobals && !NodeUtil_IsGetOrSetKey(function.GetParent())
 }
@@ -690,9 +639,7 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 // Java: RemoveUnusedCode.considerForAccessorSideEffects(Node, PropertyAccessKind)
 func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop rhino.Node, usage AccessorSummary_PropertyAccessKind) bool {
 	// Other node types may make sense in the future.
-	if !NodeUtil_IsNormalOrOptChainGetProp(getprop) {
-		jutil.CheckStateMsg1(false, "%s", getprop)
-	}
+	jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
 	if r.assumeGettersArePure && !usage.HasSetter() {
 		return false
 	}
@@ -742,9 +689,7 @@ func (r *RemoveUnusedCode) IsIndependentlyRemovable(removable *rucRemovable) boo
 // Java: RemoveUnusedCode.markUnusedParameters(Node, Scope)
 func (r *RemoveUnusedCode) markUnusedParameters(compiler AbstractCompiler, paramList rhino.Node, fparamScope *Scope, readOnly bool) {
 	params, ok := ast.AsParamList(paramList)
-	if !ok {
-		jutil.CheckArgumentMsg1(false, "%s", paramList)
-	}
+	jutil.CheckArgumentMsg1(ok, "%s", paramList)
 
 	for p := range params.Params() {
 		param := p.Node()
@@ -782,9 +727,7 @@ func (r *RemoveUnusedCode) markUnusedParameters(compiler AbstractCompiler, param
 // Java: RemoveUnusedCode.maybeRemoveUnusedTrailingParameters(Node, Scope)
 func (r *RemoveUnusedCode) maybeRemoveUnusedTrailingParameters(compiler AbstractCompiler, argList rhino.Node, fparamScope *Scope, readOnly bool) {
 	params, ok := ast.AsParamList(argList)
-	if !ok {
-		jutil.CheckArgumentMsg1(false, "%s", argList)
-	}
+	jutil.CheckArgumentMsg1(ok, "%s", argList)
 	for {
 		last, ok := params.LastParam()
 		if !ok {

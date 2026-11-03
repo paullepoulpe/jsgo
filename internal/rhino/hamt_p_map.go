@@ -63,11 +63,10 @@ import (
 // We need a solid way to profile the results to see if it's actually worth
 // the extra code.
 //
-// Go-only: language-adapter — keys are hashed and compared with Java
-// hashCode/equals (jutil.ObjectHashCode / Equaler / ==), with unboxed fast
-// paths for string, strpool.ID, Node, and JSType. A nil *HamtPMap[K, V] is
-// the empty map. Null values are the values for which jutil.IsNil is true.
-type HamtPMap[K comparable, V any] struct {
+// Go-only: language-adapter — keys are compared with == and hashed with
+// unboxed fast paths for string, strpool.ID, Node, int, and HashCode() int32.
+// A nil *HamtPMap[K, V] is the empty map.
+type HamtPMap[K, V comparable] struct {
 	// Non-null key.
 	key K
 
@@ -100,12 +99,9 @@ const HamtPMap_BITS = 4
 // bits.
 const HamtPMap_BITS_SHIFT = 32 - HamtPMap_BITS
 
-func hamtIsNull[V any](v V) bool {
+func hamtIsNull[V comparable](v V) bool {
 	if any(v) == nil {
 		return true
-	}
-	if _, ok := any(v).(JSType); ok {
-		return false
 	}
 	if _, ok := any(v).(string); ok {
 		return false
@@ -116,14 +112,15 @@ func hamtIsNull[V any](v V) bool {
 	if n, ok := any(v).(Node); ok {
 		return n.IsNil()
 	}
-	return jutil.IsNil(any(v))
+	var zero V
+	return v == zero
 }
 
 const debugHamtPMap = false
 
 // HamtPMapArena provides bump-allocated storage for HamtPMap nodes and small
 // child slices within a reusable analysis pass (e.g. TypeInference).
-type HamtPMapArena[K comparable, V any] struct {
+type HamtPMapArena[K, V comparable] struct {
 	nodes       jutil.ReuseSlab[HamtPMap[K, V]]
 	childBlocks jutil.ReuseSlab[[32]*HamtPMap[K, V]]
 	childSlice  []*HamtPMap[K, V]
@@ -143,7 +140,7 @@ func (a *HamtPMapArena[K, V]) TrimLargeChunks() {
 	a.Reset()
 }
 
-func allocHamtChildren[K comparable, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[K, V] {
+func allocHamtChildren[K, V comparable](a *HamtPMapArena[K, V], n int) []*HamtPMap[K, V] {
 	if n == 0 {
 		return nil
 	}
@@ -158,7 +155,7 @@ func allocHamtChildren[K comparable, V any](a *HamtPMapArena[K, V], n int) []*Ha
 	return s
 }
 
-func allocHamtPMap[K comparable, V any](a *HamtPMapArena[K, V], key K, hash uint32, value V, mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func allocHamtPMap[K, V comparable](a *HamtPMapArena[K, V], key K, hash uint32, value V, mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	var m *HamtPMap[K, V]
 	if a != nil {
 		m = a.nodes.Alloc()
@@ -187,7 +184,7 @@ func (m *HamtPMap[K, V]) CheckInvariants() {
 // HamtPMap_Empty returns an empty map (represented by nil).
 //
 // Java: HamtPMap.empty()
-func HamtPMap_Empty[K comparable, V any]() *HamtPMap[K, V] { return nil }
+func HamtPMap_Empty[K, V comparable]() *HamtPMap[K, V] { return nil }
 
 // Java: HamtPMap.toString()
 func (m *HamtPMap[K, V]) String() string {
@@ -300,38 +297,11 @@ func (m *HamtPMap[K, V]) Get(key K) V {
 	return null
 }
 
-// keyEquals is Java's `key.equals(this.key)`.
-func (m *HamtPMap[K, V]) keyEquals(key K) bool {
-	if key == m.key {
-		return true
-	}
-	var zero K
-	if key == zero || m.key == zero {
-		return false
-	}
-	if _, ok := any(key).(string); ok {
-		return false
-	}
-	if _, ok := any(key).(strpool.ID); ok {
-		return false
-	}
-	if _, ok := any(key).(int); ok {
-		return false
-	}
-	if _, ok := any(key).(Node); ok {
-		return false
-	}
-	if e, ok := any(key).(jutil.Equaler); ok {
-		return e.Equals(m.key)
-	}
-	return false
-}
-
 // getWithHash is the internal recursive implementation of get(K).
 //
 // Java: HamtPMap.get(K, int)
 func (m *HamtPMap[K, V]) getWithHash(key K, hash uint32) V {
-	if hash == m.hash && m.keyEquals(key) {
+	if hash == m.hash && key == m.key {
 		return m.value
 	}
 	bucketMask := uint32(1) << (hash >> HamtPMap_BITS_SHIFT)
@@ -343,7 +313,7 @@ func (m *HamtPMap[K, V]) getWithHash(key K, hash uint32) V {
 }
 
 // HamtPMap_Reconciler merges two values; see HamtPMap.Reconcile.
-type HamtPMap_Reconciler[K comparable, V any] func(key K, thisVal V, thatVal V) V
+type HamtPMap_Reconciler[K, V comparable] func(key K, thisVal V, thatVal V) V
 
 // Plus returns a new map with the given key-value pair added. If the value
 // is already present, then this same map will be returned.
@@ -367,7 +337,7 @@ func (m *HamtPMap[K, V]) PlusMapWithArena(arena *HamtPMapArena[K, V], key K, val
 //
 // Java: HamtPMap.plus(K, int, V)
 func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash uint32, value V) *HamtPMap[K, V] {
-	if hash == m.hash && m.keyEquals(key) {
+	if hash == m.hash && key == m.key {
 		if hamtValueEquals(value, m.value) {
 			return m
 		}
@@ -431,7 +401,7 @@ func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *H
 // Java: HamtPMap.minus(K, int, V[])
 func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash uint32) (*HamtPMap[K, V], V) {
 	var zero V
-	if hash == m.hash && m.keyEquals(key) {
+	if hash == m.hash && key == m.key {
 		return deleteRoot(arena, m.mask, m.children), m.value
 	}
 	bucketMask := uint32(1) << (hash >> HamtPMap_BITS_SHIFT)
@@ -467,7 +437,7 @@ func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that 
 	return hamtPMap_ReconcileTrees(arena, m, that, joiner, true)
 }
 
-func reconcileSingleTree[K comparable, V any](arena *HamtPMapArena[K, V], t *HamtPMap[K, V], onLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func reconcileSingleTree[K, V comparable](arena *HamtPMapArena[K, V], t *HamtPMap[K, V], onLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	var null, newValue V
 	if onLeft {
 		newValue = joiner(t.key, t.value, null)
@@ -503,7 +473,7 @@ func reconcileSingleTree[K comparable, V any](arena *HamtPMapArena[K, V], t *Ham
 	return deleteRoot(arena, t.mask, newChildren)
 }
 
-func reconcileVacatedChild[K comparable, V any](arena *HamtPMapArena[K, V], vacated, ownChild, otherChild *HamtPMap[K, V], vacatedOnLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func reconcileVacatedChild[K, V comparable](arena *HamtPMapArena[K, V], vacated, ownChild, otherChild *HamtPMap[K, V], vacatedOnLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	shiftedHash := vacated.hash << HamtPMap_BITS
 	if ownChild == nil && otherChild == nil {
 		var null, v V
@@ -536,7 +506,7 @@ func reconcileVacatedChild[K comparable, V any](arena *HamtPMapArena[K, V], vaca
 // reconcile(HamtPMap, BiFunction), factoring out empties.
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
-func hamtPMap_ReconcileTrees[K comparable, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func hamtPMap_ReconcileTrees[K, V comparable](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	if t1 == t2 {
 		return t1
 	} else if t1 == nil {
@@ -568,7 +538,7 @@ func hamtPMap_ReconcileTrees[K comparable, V any](arena *HamtPMapArena[K, V], t1
 		hash = t2.hash
 		t2Val = t2.value
 	} else {
-		if !t2.keyEquals(t1.key) {
+		if t1.key != t2.key {
 			// Hash collision: try to rearrange t2 to have the same root as t1
 			t2 = t2.pivot(arena, t1.key, t1.hash)
 			sameChildrenAs2 = false
@@ -649,7 +619,7 @@ func (m *HamtPMap[K, V]) Equivalent(that *HamtPMap[K, V], equivalence func(V, V)
 // equivalent(HamtPMap, BiPredicate).
 //
 // Java: HamtPMap.equivalent(HamtPMap<K, V>, HamtPMap<K, V>, BiPredicate<V, V>)
-func HamtPMap_EquivalentTrees[K comparable, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], equivalence func(V, V) bool) bool {
+func HamtPMap_EquivalentTrees[K, V comparable](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], equivalence func(V, V) bool) bool {
 	if t1 == t2 {
 		return true
 	} else if t1 == nil || t2 == nil {
@@ -661,7 +631,7 @@ func HamtPMap_EquivalentTrees[K comparable, V any](t1 *HamtPMap[K, V], t2 *HamtP
 		// hash code, we can safely conclude that there's a discrepancy in the
 		// keys without any extra work.
 		return false
-	} else if !t2.keyEquals(t1.key) {
+	} else if t1.key != t2.key {
 		// Hash collision: try to rearrange t2 to have the same root as t1
 		t2 = t2.pivot(nil, t1.key, t1.hash)
 		if hamtIsNull(t2.value) {
@@ -714,6 +684,9 @@ func (m *HamtPMap[K, V]) getChild(bit uint32) *HamtPMap[K, V] {
 //
 // Java: HamtPMap.hash(Object)
 func hamtHash[K comparable](key K) uint32 {
+	if any(key) == nil {
+		failJSTypeNull()
+	}
 	// Go-only: performance — common scalar/handle keys are hashed via direct
 	// non-escaping type assertions without boxing onto the heap.
 	if id, ok := any(key).(strpool.ID); ok {
@@ -733,43 +706,37 @@ func hamtHash[K comparable](key K) uint32 {
 		return bits.Reverse32(uint32(int32(x)))
 	}
 	var zero K
-	if key == zero && jutil.IsNil(any(key)) {
+	if key == zero {
 		failJSTypeNull()
 	}
 	if h, ok := any(key).(interface{ HashCode() int32 }); ok {
 		return bits.Reverse32(uint32(h.HashCode()))
 	}
-	return bits.Reverse32(uint32(jutil.ObjectHashCode(any(key))))
+	panic(jutil.NewUnsupportedOperationException())
 }
 
-func hamtValueEquals[V any](a, b V) bool {
+func hamtValueEquals[V comparable](a, b V) bool {
+	if a == b {
+		return true
+	}
 	if any(a) == nil || any(b) == nil {
-		return hamtIsNull(a) && hamtIsNull(b)
+		return false
+	}
+	var zero V
+	if a == zero || b == zero {
+		return false
 	}
 	if ja, ok := any(a).(JSType); ok {
 		jb, ok := any(b).(JSType)
-		return ok && (ja == jb || jsTypeEquals(ja, jb))
+		return ok && jsTypeEquals(ja, jb)
 	}
-	if sa, ok := any(a).(string); ok {
-		sb, ok := any(b).(string)
-		return ok && sa == sb
+	if ea, ok := any(a).(interface{ Equals(any) bool }); ok {
+		return ea.Equals(any(b))
 	}
-	if ia, ok := any(a).(int); ok {
-		ib, ok := any(b).(int)
-		return ok && ia == ib
-	}
-	if ida, ok := any(a).(strpool.ID); ok {
-		idb, ok := any(b).(strpool.ID)
-		return ok && ida == idb
-	}
-	if na, ok := any(a).(Node); ok {
-		nb, ok := any(b).(Node)
-		return ok && na == nb
-	}
-	return jutil.ObjectsEquals(any(a), any(b))
+	return false
 }
 
-func hamtCheckNotNull[V any](v V) {
+func hamtCheckNotNull[V comparable](v V) {
 	if hamtIsNull(v) {
 		failJSTypeNull()
 	}
@@ -795,7 +762,7 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 	var found V
 	newMask := m.mask
 	newChildren := m.children
-	if hash == m.hash && m.keyEquals(key) {
+	if hash == m.hash && key == m.key {
 		found = m.value
 	} else {
 		// Otherwise, see if the value might be present in a child.
@@ -869,7 +836,7 @@ func hamtSameArray[T any](a, b []T) bool {
 // If there are no children, returns nil.
 //
 // Java: HamtPMap.deleteRoot(int, HamtPMap<K, V>[])
-func deleteRoot[K comparable, V any](arena *HamtPMapArena[K, V], mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func deleteRoot[K, V comparable](arena *HamtPMapArena[K, V], mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == 0 {
 		return nil
 	}
@@ -888,7 +855,7 @@ func deleteRoot[K comparable, V any](arena *HamtPMapArena[K, V], mask uint32, ch
 // child inserted at the given index.
 //
 // Java: HamtPMap.insertChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
-func insertChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
+func insertChild[K, V comparable](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
 	newChildren := allocHamtChildren(arena, len(children)+1)
 	newChildren[index] = child
 	copy(newChildren[0:index], children[0:index])
@@ -900,7 +867,7 @@ func insertChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*Ha
 // the given index replaced.
 //
 // Java: HamtPMap.replaceChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
-func replaceChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
+func replaceChild[K, V comparable](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
 	newChildren := allocHamtChildren(arena, len(children))
 	copy(newChildren, children)
 	newChildren[index] = child
@@ -911,7 +878,7 @@ func replaceChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*H
 // given index deleted.
 //
 // Java: HamtPMap.deleteChild(HamtPMap<K, V>[], int)
-func deleteChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
+func deleteChild[K, V comparable](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
 	if len(children) == 1 {
 		// Note: index should always be zero.
 		return nil

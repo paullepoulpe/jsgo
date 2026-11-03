@@ -481,6 +481,41 @@ func runParallelItemIndexed[W any](w *W, idx int, panicsByItem []any, runItem fu
 	return false
 }
 
+func spawnIndexedWorkers(
+	itemCount, numWorkers int,
+	body func(workerIdx int, claim func() (int, bool)),
+) any {
+	n := min(max(numWorkers, 0), itemCount)
+	if n <= 0 {
+		return nil
+	}
+	var workerPanic any
+	var workerPanicOnce sync.Once
+	var nextIdx atomic.Uint32
+	claim := func() (int, bool) {
+		idx := int(nextIdx.Add(1) - 1)
+		if idx >= itemCount {
+			return 0, false
+		}
+		return idx, true
+	}
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for workerIdx := range n {
+		go func(wIdx int) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					workerPanicOnce.Do(func() { workerPanic = r })
+				}
+			}()
+			body(wIdx, claim)
+		}(workerIdx)
+	}
+	wg.Wait()
+	return workerPanic
+}
+
 func collectParallelWorkers[W any](
 	itemCount, numWorkers int,
 	initWorker func(workerIdx int, w *W),
@@ -490,40 +525,26 @@ func collectParallelWorkers[W any](
 	stopWorkerOnPanic bool,
 ) ([]any, any) {
 	panicsByItem := make([]any, itemCount)
-	var workerPanic any
-	var workerPanicOnce sync.Once
-	var nextIdx atomic.Uint32
-	var wg sync.WaitGroup
-	wg.Add(numWorkers)
-	for workerIdx := 0; workerIdx < numWorkers; workerIdx++ {
-		go func(wIdx int) {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					workerPanicOnce.Do(func() { workerPanic = r })
-				}
-			}()
-			var w W
-			initWorker(wIdx, &w)
-			if finishWorker != nil {
-				defer finishWorker(wIdx, &w)
+	workerPanic := spawnIndexedWorkers(itemCount, numWorkers, func(wIdx int, claim func() (int, bool)) {
+		var w W
+		initWorker(wIdx, &w)
+		if finishWorker != nil {
+			defer finishWorker(wIdx, &w)
+		}
+		for {
+			idx, ok := claim()
+			if !ok {
+				return
 			}
-			for {
-				idx := int(nextIdx.Add(1) - 1)
-				if idx >= itemCount {
-					return
-				}
-				panicked := runParallelItemIndexed(&w, idx, panicsByItem, runItem)
-				if afterItem != nil {
-					afterItem(&w, idx)
-				}
-				if panicked && stopWorkerOnPanic {
-					return
-				}
+			panicked := runParallelItemIndexed(&w, idx, panicsByItem, runItem)
+			if afterItem != nil {
+				afterItem(&w, idx)
 			}
-		}(workerIdx)
-	}
-	wg.Wait()
+			if panicked && stopWorkerOnPanic {
+				return
+			}
+		}
+	})
 	return panicsByItem, workerPanic
 }
 
@@ -714,16 +735,30 @@ func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
 	return runParallelIndexedTasks(count, workers, func(_, index int) { run(index) })
 }
 
+func runParallelThrowableWorkers(
+	count, workers int,
+	workerFn func(workerIdx int, claim func() (int, bool), recordFailure func(int, jutil.Throwable)),
+) []jutil.Throwable {
+	failures := make([]jutil.Throwable, count)
+	recordFailure := func(index int, t jutil.Throwable) {
+		failures[index] = t
+	}
+	if workerPanic := spawnIndexedWorkers(count, workers, func(wIdx int, claim func() (int, bool)) {
+		workerFn(wIdx, claim, recordFailure)
+	}); workerPanic != nil {
+		panic(workerPanic)
+	}
+	return failures
+}
+
 func runParallelIndexedTasks(count, workers int, run func(worker, index int)) []jutil.Throwable {
-	var nextWorker atomic.Int32
-	return parallelPrebuildWorkers(count, workers, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
-		worker := int(nextWorker.Add(1) - 1)
+	return runParallelThrowableWorkers(count, workers, func(wIdx int, claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
 		for {
 			index, ok := claim()
 			if !ok {
 				return
 			}
-			if t := runThrowableTask(func() { run(worker, index) }); t != nil {
+			if t := runThrowableTask(func() { run(wIdx, index) }); t != nil {
 				recordFailure(index, t)
 			}
 		}
@@ -734,26 +769,7 @@ func parallelPrebuildWorkers(
 	count, workers int,
 	workerFn func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)),
 ) []jutil.Throwable {
-	failures := make([]jutil.Throwable, count)
-	var next atomic.Int64
-	claim := func() (int, bool) {
-		index := int(next.Add(1) - 1)
-		if index >= count {
-			return 0, false
-		}
-		return index, true
-	}
-	recordFailure := func(index int, t jutil.Throwable) {
-		failures[index] = t
-	}
-	var wg sync.WaitGroup
-	for range min(workers, count) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			workerFn(claim, recordFailure)
-		}()
-	}
-	wg.Wait()
-	return failures
+	return runParallelThrowableWorkers(count, workers, func(_ int, claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		workerFn(claim, recordFailure)
+	})
 }

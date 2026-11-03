@@ -41,10 +41,6 @@ import (
 // and generates warnings.
 type CheckSuspiciousCode struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-
-	// Go-only: language-adapter — distinct identity (the Java class has no
-	// fields; pointers to zero-size Go structs may compare equal).
-	_ byte
 }
 
 // Java: CheckSuspiciousCode.SUSPICIOUS_SEMICOLON

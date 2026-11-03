@@ -142,14 +142,6 @@ func (s *Source) ToBuilder() *Source_Builder {
 	}
 }
 
-// Source_Builder_ makes a new empty builder (Source.builder()).
-//
-// Go-only: language-adapter — the trailing underscore keeps the mechanical
-// name Source_Builder for the nested Builder type.
-func Source_Builder_() *Source_Builder {
-	return NewSource_Builder()
-}
-
 var source_DEV_NULL = jutil.Path_Of("/dev/null")
 
 // Java: AutoValue_Source.toString()

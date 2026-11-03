@@ -476,21 +476,6 @@ type CrossChunkReferenceCollector_TopLevelStatement struct {
 	declaredValueNode        rhino.Node
 }
 
-// Java: CrossChunkReferenceCollector.TopLevelStatement(TopLevelStatementDraft)
-func NewCrossChunkReferenceCollector_TopLevelStatement(outer *CrossChunkReferenceCollector, draft *CrossChunkReferenceCollector_TopLevelStatementDraft) *CrossChunkReferenceCollector_TopLevelStatement {
-	return &CrossChunkReferenceCollector_TopLevelStatement{
-		outer:                    outer,
-		originalOrder:            draft.originalOrder,
-		chunk:                    draft.chunk,
-		statementNode:            draft.statementNode,
-		nonDeclarationReferences: draft.nonDeclarationReferences,
-		nonDeclarationVars:       draft.nonDeclarationVars,
-		declaredNameReference:    draft.declaredNameReference,
-		declaredVar:              draft.declaredVar,
-		declaredValueNode:        draft.declaredValueNode,
-	}
-}
-
 // Java: CrossChunkReferenceCollector.TopLevelStatement.getOriginalOrder()
 func (s *CrossChunkReferenceCollector_TopLevelStatement) GetOriginalOrder() int {
 	return s.originalOrder
@@ -546,14 +531,4 @@ type CrossChunkReferenceCollector_TopLevelStatementDraft struct {
 	declaredNameNode         rhino.Node
 	declaredNameReference    *Reference
 	declaredVar              *Var
-}
-
-// Java: CrossChunkReferenceCollector.TopLevelStatementDraft(int, JSChunk, Node)
-func NewCrossChunkReferenceCollector_TopLevelStatementDraft(originalOrder int, chunk *JSChunk, statementNode rhino.Node) *CrossChunkReferenceCollector_TopLevelStatementDraft {
-	return &CrossChunkReferenceCollector_TopLevelStatementDraft{
-		originalOrder:            originalOrder,
-		chunk:                    chunk,
-		statementNode:            statementNode,
-		nonDeclarationReferences: []*Reference{},
-	}
 }

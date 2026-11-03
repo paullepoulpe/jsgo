@@ -530,44 +530,53 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgCyclesLatestFirst() []*Cr
 	return cyclesLatestFirst
 }
 
+// mergeDescendingBy merges desc (already in descending order) with asc (in
+// ascending order, iterated in reverse) into a new descending slice, checking
+// descending monotonicity on the consumed side at each comparison step.
+func mergeDescendingBy[T any](desc, asc []T, order func(T) int, strict bool, errMsg string) []T {
+	result := make([]T, 0, len(desc)+len(asc))
+	i := 0
+	j := len(asc) - 1
+	for {
+		if i == len(desc) {
+			for ; j >= 0; j-- {
+				result = append(result, asc[j])
+			}
+			return result
+		}
+		if j < 0 {
+			return append(result, desc[i:]...)
+		}
+		d := desc[i]
+		a := asc[j]
+		od := order(d)
+		oa := order(a)
+		if od > oa {
+			result = append(result, d)
+			i++
+			jutil.CheckStateMsg(
+				i == len(desc) || order(desc[i]) < od || (!strict && order(desc[i]) == od),
+				errMsg)
+		} else {
+			result = append(result, a)
+			j--
+			jutil.CheckStateMsg(
+				j < 0 || order(asc[j]) < oa || (!strict && order(asc[j]) == oa),
+				errMsg)
+		}
+	}
+}
+
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.getDsgsLatestFirst()
 func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgsLatestFirst() []*CrossChunkCodeMotion_DeclarationStatementGroup {
 	var result []*CrossChunkCodeMotion_DeclarationStatementGroup
 	for _, symbol := range y.symbolsSlice {
-		stack1 := result
-		dsgs := symbol.dsgs // earliest-first; iterate latest-first via j
-		result = make([]*CrossChunkCodeMotion_DeclarationStatementGroup, 0, len(stack1)+len(dsgs))
-		i := 0
-		j := len(dsgs) - 1
-		for {
-			if i == len(stack1) {
-				for ; j >= 0; j-- {
-					result = append(result, dsgs[j])
-				}
-				break
-			} else if j < 0 {
-				result = append(result, stack1[i:]...)
-				break
-			} else {
-				dsg1 := stack1[i]
-				dsg2 := dsgs[j]
-				if dsg1.currentChunk.GetIndex() > dsg2.currentChunk.GetIndex() {
-					result = append(result, dsg1)
-					i++
-					jutil.CheckStateMsg(
-						i == len(stack1) ||
-							stack1[i].currentChunk.GetIndex() <= dsg1.currentChunk.GetIndex(),
-						"DSG stacks are out of order.")
-				} else {
-					result = append(result, dsg2)
-					j--
-					jutil.CheckStateMsg(
-						j < 0 ||
-							dsgs[j].currentChunk.GetIndex() <= dsg2.currentChunk.GetIndex(),
-						"DSG stacks are out of order.")
-				}
-			}
-		}
+		result = mergeDescendingBy(
+			result,
+			symbol.dsgs,
+			func(dsg *CrossChunkCodeMotion_DeclarationStatementGroup) int { return dsg.currentChunk.GetIndex() },
+			false,
+			"DSG stacks are out of order.")
 	}
 	return result
 }
@@ -849,41 +858,13 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveStatementsToCh
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getStatementsLastFirst()
 func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastFirst() []*CrossChunkReferenceCollector_TopLevelStatement {
 	var result []*CrossChunkReferenceCollector_TopLevelStatement
-
 	for _, dsg := range y.dsgsSlice {
-		// combine previous result with statements for current DSG
-		stmts := dsg.statements // earliest-first; iterate latest-first via j
-		stack2 := result
-		result = make([]*CrossChunkReferenceCollector_TopLevelStatement, 0, len(stmts)+len(stack2))
-		j := len(stmts) - 1
-		i := 0
-		for {
-			if j < 0 {
-				result = append(result, stack2[i:]...)
-				break
-			} else if i == len(stack2) {
-				for ; j >= 0; j-- {
-					result = append(result, stmts[j])
-				}
-				break
-			} else {
-				s1 := stmts[j]
-				s2 := stack2[i]
-				if s1.GetOriginalOrder() > s2.GetOriginalOrder() {
-					result = append(result, s1)
-					j--
-					jutil.CheckStateMsg(
-						j < 0 || stmts[j].GetOriginalOrder() < s1.GetOriginalOrder(),
-						"Statements are recorded in the wrong order.")
-				} else {
-					result = append(result, s2)
-					i++
-					jutil.CheckStateMsg(
-						i == len(stack2) || stack2[i].GetOriginalOrder() < s2.GetOriginalOrder(),
-						"Statements are recorded in the wrong order.")
-				}
-			}
-		}
+		result = mergeDescendingBy(
+			result,
+			dsg.statements,
+			(*CrossChunkReferenceCollector_TopLevelStatement).GetOriginalOrder,
+			true,
+			"Statements are recorded in the wrong order.")
 	}
 	return result
 }

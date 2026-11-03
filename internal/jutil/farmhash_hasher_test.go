@@ -19,7 +19,8 @@ func TestFarmHashFingerprint64HasherMatchesGuava(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		h := Hashing_FarmHashFingerprint64NewHasher()
+		var h FarmHashFingerprint64Hasher
+		h.Reset()
 		for _, op := range strings.Split(r[0], ";") {
 			arg := op[1:]
 			switch op[0] {

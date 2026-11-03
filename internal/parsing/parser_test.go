@@ -8476,7 +8476,8 @@ func TestAsyncFunction(t *testing.T) {
 	asyncFunctionDeclarationSource := "async function f() {}"
 	pt.expectFeatures(parser.FeatureSet_Feature_ASYNC_FUNCTIONS)
 
-	for _, m := range Config_LanguageMode_values() {
+	for i := range config_LanguageMode_names {
+		m := Config_LanguageMode(i)
 		pt.mode = m
 		if m == Config_LanguageMode_ECMASCRIPT3 {
 			pt.strictMode = Config_StrictMode_SLOPPY
@@ -9494,7 +9495,8 @@ func TestDynamicImport(t *testing.T) {
 	}
 	pt.expectFeatures(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
 
-	for _, m := range Config_LanguageMode_values() {
+	for i := range config_LanguageMode_names {
+		m := Config_LanguageMode(i)
 		pt.mode = m
 		if m == Config_LanguageMode_ECMASCRIPT3 {
 			pt.strictMode = Config_StrictMode_SLOPPY
@@ -10144,7 +10146,8 @@ func (pt *parserTest) doAsyncArrowFunctionTest(arrowFunctionSource string) {
 	pt.t.Helper()
 	pt.expectFeatures(parser.FeatureSet_Feature_ASYNC_FUNCTIONS, parser.FeatureSet_Feature_ARROW_FUNCTIONS)
 
-	for _, m := range Config_LanguageMode_values() {
+	for i := range config_LanguageMode_names {
+		m := Config_LanguageMode(i)
 		pt.mode = m
 		if m == Config_LanguageMode_ECMASCRIPT3 {
 			pt.strictMode = Config_StrictMode_SLOPPY

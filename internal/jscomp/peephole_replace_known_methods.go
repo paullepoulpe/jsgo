@@ -399,13 +399,13 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 		case rkmIDMax:
 			result := math.Inf(-1)
 			for _, d := range args {
-				result = base.MathMax(result, d)
+				result = max(result, d)
 			}
 			replacement, hasReplacement = result, true
 		case rkmIDMin:
 			result := math.Inf(1)
 			for _, d := range args {
-				result = base.MathMin(result, d)
+				result = min(result, d)
 			}
 			replacement, hasReplacement = result, true
 		case rkmIDImul:

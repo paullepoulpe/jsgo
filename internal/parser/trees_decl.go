@@ -246,18 +246,6 @@ const (
 
 var functionDeclarationTree_Kind_names = [...]string{"DECLARATION", "EXPRESSION", "MEMBER", "ARROW"}
 
-// FunctionDeclarationTree_Kind_values is Kind.values().
-//
-// Java: FunctionDeclarationTree.Kind.values()
-func FunctionDeclarationTree_Kind_values() []FunctionDeclarationTree_Kind {
-	return []FunctionDeclarationTree_Kind{
-		FunctionDeclarationTree_Kind_DECLARATION,
-		FunctionDeclarationTree_Kind_EXPRESSION,
-		FunctionDeclarationTree_Kind_MEMBER,
-		FunctionDeclarationTree_Kind_ARROW,
-	}
-}
-
 // Name is Enum.name().
 //
 // Java: FunctionDeclarationTree.Kind.name()

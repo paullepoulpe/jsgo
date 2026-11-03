@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"math"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -443,12 +441,7 @@ func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token) {
 		g.Add(name)
 		g.MaybeAddGenericTypes(fnNameNode.Node())
 	} else {
-		d := CodeGenerator_GetSimpleNumber(name)
-		if !math.IsNaN(d) {
-			g.cc.AddNumber(d, node)
-		} else {
-			g.AddJsString(node)
-		}
+		g.addNumericOrStringKey(name, node)
 	}
 	fnNode := fn.Node()
 	g.MaybeAddOptional(fnNode)

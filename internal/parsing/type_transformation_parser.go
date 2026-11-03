@@ -103,111 +103,48 @@ const (
 	TypeTransformationParser_Keywords_UNKNOWN
 )
 
-var typeTransformationParser_Keywords_constantNames = [...]string{
-	"ALL", "COND", "EQ", "ISCTOR", "ISDEFINED", "ISRECORD", "ISTEMPLATIZED", "ISUNKNOWN", "INSTANCEOF",
-	"MAPUNION", "MAPRECORD", "NONE", "PRINTTYPE", "PROPTYPE", "RAWTYPEOF", "SUB", "STREQ", "RECORD",
-	"TEMPLATETYPEOF", "TYPE", "TYPEEXPR", "TYPEOFVAR", "UNION", "UNKNOWN",
-}
-
-// The fields of each Keywords constant, indexed by ordinal:
+// The enum name and fields of each Keywords constant, indexed by ordinal:
 // Keywords(String name, int minParamCount, int maxParamCount, OperationKind kind).
-var typeTransformationParser_Keywords_fields = [...]struct {
+var typeTransformationParser_Keywords_info = [...]struct {
+	enumName      string
 	name          string
 	minParamCount int
 	maxParamCount int
 	kind          TypeTransformationParser_OperationKind
 }{
-	{"all", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"cond", 3, 3, TypeTransformationParser_OperationKind_OPERATION},
-	{"eq", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"isCtor", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"isDefined", 1, 1, TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE},
-	{"isRecord", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"isTemplatized", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"isUnknown", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"instanceOf", 1, 1, TypeTransformationParser_OperationKind_OPERATION},
-	{"mapunion", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"maprecord", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"none", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"printType", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"propType", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"rawTypeOf", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"sub", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"streq", 2, 2, TypeTransformationParser_OperationKind_STRING_PREDICATE},
-	{"record", 1, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"templateTypeOf", 2, 2, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"type", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"typeExpr", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"typeOfVar", 1, 1, TypeTransformationParser_OperationKind_OPERATION},
-	{"union", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"unknown", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"ALL", "all", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"COND", "cond", 3, 3, TypeTransformationParser_OperationKind_OPERATION},
+	{"EQ", "eq", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
+	{"ISCTOR", "isCtor", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
+	{"ISDEFINED", "isDefined", 1, 1, TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE},
+	{"ISRECORD", "isRecord", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
+	{"ISTEMPLATIZED", "isTemplatized", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
+	{"ISUNKNOWN", "isUnknown", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
+	{"INSTANCEOF", "instanceOf", 1, 1, TypeTransformationParser_OperationKind_OPERATION},
+	{"MAPUNION", "mapunion", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
+	{"MAPRECORD", "maprecord", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
+	{"NONE", "none", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"PRINTTYPE", "printType", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
+	{"PROPTYPE", "propType", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
+	{"RAWTYPEOF", "rawTypeOf", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"SUB", "sub", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
+	{"STREQ", "streq", 2, 2, TypeTransformationParser_OperationKind_STRING_PREDICATE},
+	{"RECORD", "record", 1, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"TEMPLATETYPEOF", "templateTypeOf", 2, 2, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"TYPE", "type", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"TYPEEXPR", "typeExpr", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"TYPEOFVAR", "typeOfVar", 1, 1, TypeTransformationParser_OperationKind_OPERATION},
+	{"UNION", "union", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"UNKNOWN", "unknown", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
 }
 
-// TypeTransformationParser_Keywords_ValueOf is Keywords.valueOf(String).
-func TypeTransformationParser_Keywords_ValueOf(name string) TypeTransformationParser_Keywords {
-	for i, n := range typeTransformationParser_Keywords_constantNames {
-		if n == name {
-			return TypeTransformationParser_Keywords(i)
-		}
+var ttlKeywordsByName = func() map[string]TypeTransformationParser_Keywords {
+	m := make(map[string]TypeTransformationParser_Keywords, len(typeTransformationParser_Keywords_info))
+	for i := range typeTransformationParser_Keywords_info {
+		m[typeTransformationParser_Keywords_info[i].name] = TypeTransformationParser_Keywords(i)
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(
-		"No enum constant com.google.javascript.jscomp.parsing.TypeTransformationParser.Keywords." + name))
-}
-
-func lookupTTLKeyword(name string) (TypeTransformationParser_Keywords, bool) {
-	switch name {
-	case "all":
-		return TypeTransformationParser_Keywords_ALL, true
-	case "cond":
-		return TypeTransformationParser_Keywords_COND, true
-	case "eq":
-		return TypeTransformationParser_Keywords_EQ, true
-	case "isCtor":
-		return TypeTransformationParser_Keywords_ISCTOR, true
-	case "isDefined":
-		return TypeTransformationParser_Keywords_ISDEFINED, true
-	case "isRecord":
-		return TypeTransformationParser_Keywords_ISRECORD, true
-	case "isTemplatized":
-		return TypeTransformationParser_Keywords_ISTEMPLATIZED, true
-	case "isUnknown":
-		return TypeTransformationParser_Keywords_ISUNKNOWN, true
-	case "instanceOf":
-		return TypeTransformationParser_Keywords_INSTANCEOF, true
-	case "mapunion":
-		return TypeTransformationParser_Keywords_MAPUNION, true
-	case "maprecord":
-		return TypeTransformationParser_Keywords_MAPRECORD, true
-	case "none":
-		return TypeTransformationParser_Keywords_NONE, true
-	case "printType":
-		return TypeTransformationParser_Keywords_PRINTTYPE, true
-	case "propType":
-		return TypeTransformationParser_Keywords_PROPTYPE, true
-	case "rawTypeOf":
-		return TypeTransformationParser_Keywords_RAWTYPEOF, true
-	case "sub":
-		return TypeTransformationParser_Keywords_SUB, true
-	case "streq":
-		return TypeTransformationParser_Keywords_STREQ, true
-	case "record":
-		return TypeTransformationParser_Keywords_RECORD, true
-	case "templateTypeOf":
-		return TypeTransformationParser_Keywords_TEMPLATETYPEOF, true
-	case "type":
-		return TypeTransformationParser_Keywords_TYPE, true
-	case "typeExpr":
-		return TypeTransformationParser_Keywords_TYPEEXPR, true
-	case "typeOfVar":
-		return TypeTransformationParser_Keywords_TYPEOFVAR, true
-	case "union":
-		return TypeTransformationParser_Keywords_UNION, true
-	case "unknown":
-		return TypeTransformationParser_Keywords_UNKNOWN, true
-	default:
-		return 0, false
-	}
-}
+	return m
+}()
 
 func asciiEqualUpper(s string, upperConst string) bool {
 	if len(s) != len(upperConst) {
@@ -228,20 +165,22 @@ func asciiEqualUpper(s string, upperConst string) bool {
 // TypeTransformationParser_Keywords_FromCaseInsensitiveASCII resolves
 // Keywords.valueOf(Ascii.toUpperCase(name)) without allocating an uppercase copy.
 func TypeTransformationParser_Keywords_FromCaseInsensitiveASCII(name string) TypeTransformationParser_Keywords {
-	if kw, ok := lookupTTLKeyword(name); ok {
+	if kw, ok := ttlKeywordsByName[name]; ok {
 		return kw
 	}
-	for i, n := range typeTransformationParser_Keywords_constantNames {
-		if asciiEqualUpper(name, n) {
+	for i := range typeTransformationParser_Keywords_info {
+		if asciiEqualUpper(name, typeTransformationParser_Keywords_info[i].enumName) {
 			return TypeTransformationParser_Keywords(i)
 		}
 	}
-	return TypeTransformationParser_Keywords_ValueOf(jutil.StringToUpperCaseASCII(name))
+	panic(jutil.NewIllegalArgumentExceptionMsg(
+		"No enum constant com.google.javascript.jscomp.parsing.TypeTransformationParser.Keywords." +
+			jutil.StringToUpperCaseASCII(name)))
 }
 
 // String is Enum.name().
 func (k TypeTransformationParser_Keywords) String() string {
-	return typeTransformationParser_Keywords_constantNames[k]
+	return typeTransformationParser_Keywords_info[k].enumName
 }
 
 // KeywordName is the field Keywords.name (the keyword as written, e.g.
@@ -250,22 +189,22 @@ func (k TypeTransformationParser_Keywords) String() string {
 // Go-only: language-adapter — the field is named `name` in Java, which Go
 // cannot tell apart from Enum.name() (String).
 func (k TypeTransformationParser_Keywords) KeywordName() string {
-	return typeTransformationParser_Keywords_fields[k].name
+	return typeTransformationParser_Keywords_info[k].name
 }
 
 // MinParamCount is the field Keywords.minParamCount.
 func (k TypeTransformationParser_Keywords) MinParamCount() int {
-	return typeTransformationParser_Keywords_fields[k].minParamCount
+	return typeTransformationParser_Keywords_info[k].minParamCount
 }
 
 // MaxParamCount is the field Keywords.maxParamCount.
 func (k TypeTransformationParser_Keywords) MaxParamCount() int {
-	return typeTransformationParser_Keywords_fields[k].maxParamCount
+	return typeTransformationParser_Keywords_info[k].maxParamCount
 }
 
 // Kind is the field Keywords.kind.
 func (k TypeTransformationParser_Keywords) Kind() TypeTransformationParser_OperationKind {
-	return typeTransformationParser_Keywords_fields[k].kind
+	return typeTransformationParser_Keywords_info[k].kind
 }
 
 // Java: TypeTransformationParser(String, StaticSourceFile, ErrorReporter, int, int)
@@ -305,13 +244,13 @@ func (p *TypeTransformationParser) NameToKeyword(s string) TypeTransformationPar
 
 // Java: TypeTransformationParser.isValidKeyword(String)
 func (p *TypeTransformationParser) IsValidKeyword(name string) bool {
-	_, ok := lookupTTLKeyword(name)
+	_, ok := ttlKeywordsByName[name]
 	return ok
 }
 
 // Java: TypeTransformationParser.isOperationKind(String, OperationKind)
 func (p *TypeTransformationParser) IsOperationKind(name string, kind TypeTransformationParser_OperationKind) bool {
-	kw, ok := lookupTTLKeyword(name)
+	kw, ok := ttlKeywordsByName[name]
 	return ok && kw.Kind() == kind
 }
 
@@ -337,7 +276,7 @@ func (p *TypeTransformationParser) IsBooleanOperation(n rhino.Node) bool {
 
 // Java: TypeTransformationParser.isValidPredicate(String)
 func (p *TypeTransformationParser) IsValidPredicate(name string) bool {
-	kw, ok := lookupTTLKeyword(name)
+	kw, ok := ttlKeywordsByName[name]
 	if !ok {
 		return false
 	}

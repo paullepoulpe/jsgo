@@ -740,13 +740,6 @@ const (
 
 var updateExpressionTree_OperatorPosition_names = [...]string{"PREFIX", "POSTFIX"}
 
-// UpdateExpressionTree_OperatorPosition_values is OperatorPosition.values().
-//
-// Java: UpdateExpressionTree.OperatorPosition.values()
-func UpdateExpressionTree_OperatorPosition_values() []UpdateExpressionTree_OperatorPosition {
-	return []UpdateExpressionTree_OperatorPosition{UpdateExpressionTree_OperatorPosition_PREFIX, UpdateExpressionTree_OperatorPosition_POSTFIX}
-}
-
 // Name is Enum.name().
 //
 // Java: UpdateExpressionTree.OperatorPosition.name()

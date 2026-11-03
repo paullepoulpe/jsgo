@@ -241,35 +241,16 @@ type SortingErrorManager_ErrorReportGenerator interface {
 	GenerateReport(manager *SortingErrorManager)
 }
 
-// SortingErrorManager_LeveledJSErrorComparator is the comparator of JSError
-// with an associated CheckLevel. The ordering is the standard lexical
-// ordering on the quintuple (file name, line number, CheckLevel, character
-// number, description).
-//
-// Note: this comparator imposes orderings that are inconsistent with
-// JSError.equals(Object).
-type SortingErrorManager_LeveledJSErrorComparator struct{}
-
-const (
-	sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2 = -1
-	sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2 = 1
-)
-
-// Java: SortingErrorManager.LeveledJSErrorComparator()
-func NewSortingErrorManager_LeveledJSErrorComparator() *SortingErrorManager_LeveledJSErrorComparator {
-	return &SortingErrorManager_LeveledJSErrorComparator{}
-}
-
 func sortingErrorManagerCompare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
 	// null is the smallest value
 	if p2.Error == nil {
 		if p1.Error == nil {
 			return 0
 		}
-		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
+		return 1
 	}
 	if p1.Error == nil {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2
+		return -1
 	}
 
 	// check level
@@ -285,9 +266,9 @@ func sortingErrorManagerCompare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
 			return sourceCompare
 		}
 	} else if !hasSource1 && hasSource2 {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2
+		return -1
 	} else if hasSource1 && !hasSource2 {
-		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
+		return 1
 	}
 
 	// lineno comparison
@@ -306,11 +287,6 @@ func sortingErrorManagerCompare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
 
 	// description
 	return jutil.StringCompareTo(p1.Error.Description(), p2.Error.Description())
-}
-
-// Java: SortingErrorManager.LeveledJSErrorComparator.compare(ErrorWithLevel, ErrorWithLevel)
-func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
-	return sortingErrorManagerCompare(p1, p2)
 }
 
 // SortingErrorManager_ErrorWithLevel is a JSError with its reported level.

@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -182,24 +183,21 @@ func (p *InlineAndCollapseProperties) PerformAggressiveInliningForTest(externs r
 
 // Java: InlineAndCollapseProperties.maybeGetInnerNameNode(Node)
 func InlineAndCollapseProperties_MaybeGetInnerNameNode(maybeFunctionOrClassNode rhino.Node) rhino.Node {
-	if NodeUtil_IsFunctionExpression(maybeFunctionOrClassNode) {
-		nameNode := maybeFunctionOrClassNode.GetFirstChild()
-		jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
+	if fn, ok := ast.AsFunction(maybeFunctionOrClassNode); ok && NodeUtil_IsFunctionExpression(maybeFunctionOrClassNode) {
+		jutil.CheckStateMsg1(fn.NameNode().Node().IsName(), "%s", fn.NameNode().Node())
 		// functions with no name have a NAME node with an empty string
-		if nameNode.GetString() == "" {
-			return rhino.NilNode
-		}
-		return nameNode
-	} else if NodeUtil_IsClassExpression(maybeFunctionOrClassNode) {
-		nameNode := maybeFunctionOrClassNode.GetFirstChild()
-		// classes with no name have an EMPTY node first child
-		if nameNode.IsName() {
-			return nameNode
+		if name, ok := fn.Name(); ok {
+			return name.Node()
 		}
 		return rhino.NilNode
-	} else {
-		return rhino.NilNode // not a function or class expression
+	} else if cls, ok := ast.AsClass(maybeFunctionOrClassNode); ok && NodeUtil_IsClassExpression(maybeFunctionOrClassNode) {
+		// classes with no name have an EMPTY node first child
+		if name, ok := cls.Name(); ok {
+			return name.Node()
+		}
+		return rhino.NilNode
 	}
+	return rhino.NilNode // not a function or class expression
 }
 
 // InlineAndCollapseProperties_MaybeAddPropertiesToWorklist adds properties
@@ -251,6 +249,18 @@ func InlineAndCollapseProperties_MaybeAddPropertiesToWorklist(name *GlobalNamesp
 	}
 }
 
+// aliasLhsNode returns the LHS target node when parent is an initializing NAME
+// declaration or an ASSIGN expression.
+func aliasLhsNode(parent rhino.Node) (rhino.Node, bool) {
+	if name, ok := ast.AsName(parent); ok {
+		return name.Node(), true
+	}
+	if assign, ok := ast.AsAssign(parent); ok {
+		return assign.Target().Node(), true
+	}
+	return rhino.NilNode, false
+}
+
 // InlineAndCollapseProperties_MayBeGlobalAlias returns true if the alias is
 // possibly defined in the global scope, which we handle with more caution
 // than with locally scoped variables. May return false positives.
@@ -268,22 +278,17 @@ func InlineAndCollapseProperties_MayBeGlobalAlias(alias *GlobalNamespace_Ref) bo
 	}
 	// If the scope in which the alias is assigned is not global, look up the LHS of the
 	// assignment.
-	aliasParent := alias.GetNode().GetParent()
-	if !aliasParent.IsAssign() && !aliasParent.IsName() {
+	lhsNode, ok := aliasLhsNode(alias.GetNode().GetParent())
+	if !ok {
 		// Only handle variable assignments and initializing declarations.
 		return true
 	}
-	var aliasLhsNode rhino.Node
-	if aliasParent.IsName() {
-		aliasLhsNode = aliasParent
-	} else {
-		aliasLhsNode = aliasParent.GetFirstChild()
-	}
-	if !aliasLhsNode.IsName() {
+	lhsName, ok := ast.AsName(lhsNode)
+	if !ok {
 		// Only handle assignments to simple names, not qualified names or GETPROPs.
 		return true
 	}
-	aliasVar := alias.scope.GetVarByNode(aliasLhsNode)
+	aliasVar := alias.scope.GetVarByNode(lhsName.Node())
 	if aliasVar != nil {
 		return aliasVar.IsGlobal()
 	}
@@ -354,16 +359,18 @@ func InlineAndCollapseProperties_IsUnsafelyReassigned(name *GlobalNamespace_Name
 // Java: InlineAndCollapseProperties.getSubclassForEs6Superclass(Node)
 func InlineAndCollapseProperties_GetSubclassForEs6Superclass(superclass rhino.Node) rhino.Node {
 	classNode := superclass.GetParent()
-	jutil.CheckArgumentMsg1(classNode.IsClass(), "%s", classNode)
-	if NodeUtil_IsNameDeclaration(classNode.GetGrandparent()) {
+	cls, ok := ast.AsClass(classNode)
+	jutil.CheckArgumentMsg1(ok, "%s", classNode)
+	classParent := classNode.GetParent()
+	if _, ok := ast.AsNameDeclaration(classParent.GetParent()); ok {
 		// const Clazz = class extends Super {
-		return classNode.GetParent()
-	} else if superclass.GetGrandparent().IsAssign() {
+		return classParent
+	} else if assign, ok := ast.AsAssign(classParent); ok {
 		// ns.foo.Clazz = class extends Super {
-		return classNode.GetPrevious()
-	} else if NodeUtil_IsClassDeclaration(classNode) {
+		return assign.Target().Node()
+	} else if name, ok := cls.Name(); ok && NodeUtil_IsClassDeclaration(classNode) {
 		// class Clazz extends Super {
-		return classNode.GetFirstChild()
+		return name.Node()
 	}
 	return rhino.NilNode
 }

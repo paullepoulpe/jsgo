@@ -57,8 +57,7 @@ type TypedScopeCreator struct {
 	metadataMap              *ModuleMetadataMap
 	moduleImportResolver     *ModuleImportResolver
 	processClosurePrimitives bool
-	memoized                 map[rhino.Node]*TypedScope
-	memoizedOrder            []*TypedScope
+	memoized                 OrderedMap[rhino.Node, *TypedScope]
 
 	// Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
 	// reserve names before the TypedScope is populated.
@@ -170,7 +169,7 @@ func NewTypedScopeCreator_WeakModuleImport(outer *TypedScopeCreator, moduleLocal
 // Java: TypedScopeCreator.WeakModuleImport.resolve()
 func (w *TypedScopeCreator_WeakModuleImport) Resolve() {
 	// resolvedScope may be null if this is importing a nonexistent module
-	resolvedScope := w.outer.memoized[w.scopedImport.GetScopeRoot()]
+	resolvedScope := w.outer.memoized.Get(w.scopedImport.GetScopeRoot())
 	var requiredVar *TypedVar
 	if resolvedScope != nil {
 		requiredVar, _ = resolvedScope.GetSlot(w.scopedImport.GetName()).(*TypedVar)
@@ -227,7 +226,6 @@ func NewTypedScopeCreator(compiler AbstractCompiler) *TypedScopeCreator {
 // Java: TypedScopeCreator(AbstractCompiler, CodingConvention)
 func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingConvention CodingConvention) *TypedScopeCreator {
 	c := &TypedScopeCreator{}
-	c.memoized = make(map[rhino.Node]*TypedScope)
 	c.stage = TypedScopeCreator_Stage_BUILDING
 	c.compiler = compiler
 	c.validator = compiler.GetTypeValidator()
@@ -250,21 +248,11 @@ func NewTypedScopeCreatorWithCodingConvention(compiler AbstractCompiler, codingC
 }
 
 func (c *TypedScopeCreator) putMemoized(root rhino.Node, scope *TypedScope) {
-	if prev, exists := c.memoized[root]; !exists {
-		c.memoizedOrder = append(c.memoizedOrder, scope)
-	} else {
-		for i, existing := range c.memoizedOrder {
-			if existing == prev {
-				c.memoizedOrder[i] = scope
-				break
-			}
-		}
-	}
-	c.memoized[root] = scope
+	c.memoized.Put(root, scope)
 }
 
 func (c *TypedScopeCreator) getMemoizedScope(n rhino.Node) *TypedScope {
-	return c.memoized[n]
+	return c.memoized.Get(n)
 }
 
 // Java: TypedScopeCreator.report(JSError)
@@ -285,7 +273,7 @@ func (c *TypedScopeCreator) GetScope(var_ *TypedVar) rhino.StaticScope {
 // Java: TypedScopeCreator.getAllSymbols()
 func (c *TypedScopeCreator) GetAllSymbols() iter.Seq[*TypedVar] {
 	return func(yield func(*TypedVar) bool) {
-		for _, s := range c.memoizedOrder {
+		for s := range c.memoized.Values() {
 			for v := range s.GetAllSymbols() {
 				if !yield(v) {
 					return
@@ -310,7 +298,7 @@ func (c *TypedScopeCreator) GetNodeToScopeMapper() func(rhino.Node) *TypedScope 
 func (c *TypedScopeCreator) GetAllMemoizedScopes() []*TypedScope {
 	// Return scopes in reverse order of creation so that IIFEs will
 	// come before the global scope.
-	scopes := slices.Clone(c.memoizedOrder)
+	scopes := c.memoized.ValueSlice()
 	slices.Reverse(scopes)
 	return scopes
 }
@@ -323,7 +311,7 @@ func (c *TypedScopeCreator) GetAllMemoizedScopes() []*TypedScope {
 //
 // Java: TypedScopeCreator.createScope(Node)
 func (c *TypedScopeCreator) CreateScopeOfNode(n rhino.Node) *TypedScope {
-	s := c.memoized[n]
+	s := c.memoized.Get(n)
 	if s != nil {
 		return s
 	}
@@ -342,7 +330,7 @@ func (c *TypedScopeCreator) CreateScope(root rhino.Node, parent AbstractScope) A
 		typedParent = parent.(*TypedScope)
 	}
 
-	scope := c.memoized[root]
+	scope := c.memoized.Get(root)
 	if scope != nil {
 		jutil.CheckState(typedParent == scope.GetParent())
 	} else {
@@ -606,9 +594,8 @@ func (c *TypedScopeCreator) CreateInitialScope(root rhino.Node) *TypedScope {
 	// Memoize the global scope so that module scope creation can access it. See
 	// AbstractScopeBuilder#shouldTraverse - modules are traversed early, as if they were always
 	// executed when control flow reaches the module body.
-	if len(c.memoized) == 0 && c.scopeCount > 8 {
-		c.memoized = make(map[rhino.Node]*TypedScope, c.scopeCount+16)
-		c.memoizedOrder = make([]*TypedScope, 0, c.scopeCount+16)
+	if c.memoized.IsEmpty() && c.scopeCount > 8 {
+		c.memoized = *NewOrderedMapWithCapacity[rhino.Node, *TypedScope](c.scopeCount + 16)
 	}
 	c.putMemoized(root, s)
 

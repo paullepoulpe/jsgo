@@ -140,15 +140,8 @@ type rucRemovable struct {
 	flags          uint8
 }
 
-//go:noinline
-func badRemovableKind() {
-	jutil.CheckState(false)
-}
-
 func (b *rucRemovable) requireKind(k uint8) {
-	if b.remKind != k {
-		badRemovableKind()
-	}
+	jutil.CheckState(b.remKind == k)
 }
 
 func (b *rucRemovable) indirectAssignRoot() rhino.Node {
@@ -231,14 +224,14 @@ func (b *rucRemovable) ApplyContinuations(r *RemoveUnusedCode) {
 		// Don't invoke the continuation immediately, because that can lead to concurrent
 		// modification of data structures.
 		if b.hasCont0 {
-			r.enqueueContinuation(b.cont0)
+			r.worklist.push(b.cont0)
 			b.cont0 = RemoveUnusedCode_Continuation{}
 			b.hasCont0 = false
 		}
 		for idx1 := b.extraContHead; idx1 != 0; {
 			slot := &r.extraContSlab[idx1-1]
 			next := slot.next
-			r.enqueueContinuation(slot.cont)
+			r.worklist.push(slot.cont)
 			*slot = rucExtraCont{}
 			idx1 = next
 		}
@@ -442,9 +435,7 @@ func (b *rucRemovable) RemoveInternal(r *RemoveUnusedCode) {
 			if RemoveUnusedCode_IsThisDotProperty(b.targetNode) {
 				r.RemoveExpressionCompletely(b.targetNode)
 			} else {
-				if !RemoveUnusedCode_IsDotPrototypeDotProperty(b.targetNode) {
-					jutil.CheckStateMsg1(false, "%s", b.targetNode)
-				}
+				jutil.CheckStateMsg1(RemoveUnusedCode_IsDotPrototypeDotProperty(b.targetNode), "%s", b.targetNode)
 				// objExpression.prototype.propertyName
 				owner, _ := removeUnusedCode_prototypeOwner(ast.MustNormalOrOptChainGetProp(b.targetNode).Object().Node())
 				objExpression := owner.Node()
@@ -651,9 +642,9 @@ func (b *rucRemovable) String() string {
 }
 
 func (r *RemoveUnusedCode) newUnusedReadRefRemovable(referenceNode rhino.Node, flags uint8) *rucRemovable {
-	if !(RemoveUnusedCode_IsThisDotProperty(referenceNode) || RemoveUnusedCode_IsDotPrototypeDotProperty(referenceNode)) {
-		jutil.CheckStateMsg1(false, "%s", referenceNode)
-	}
+	jutil.CheckStateMsg1(
+		RemoveUnusedCode_IsThisDotProperty(referenceNode) || RemoveUnusedCode_IsDotPrototypeDotProperty(referenceNode),
+		"%s", referenceNode)
 	u := r.removables.Alloc()
 	u.remKind = remKindUnusedReadRef
 	u.targetNode = referenceNode
@@ -694,12 +685,8 @@ func (r *RemoveUnusedCode) newIncOrDecOpRemovable(incOrDecNode, propNode, toPres
 
 func (r *RemoveUnusedCode) newIndirectAssignRemovable(root, targetNode rhino.Node, scope *Scope) *rucRemovable {
 	rootParent := root.GetParent()
-	if !(rootParent.IsDestructuringPattern() || rootParent.IsParamList()) {
-		jutil.CheckStateMsg1(false, "%s", rootParent)
-	}
-	if !(targetNode.IsName() || targetNode.IsGetProp()) {
-		jutil.CheckStateMsg1(false, "%s", targetNode)
-	}
+	jutil.CheckStateMsg1(rootParent.IsDestructuringPattern() || rootParent.IsParamList(), "%s", rootParent)
+	jutil.CheckStateMsg1(targetNode.IsName() || targetNode.IsGetProp(), "%s", targetNode)
 	a := r.removables.Alloc()
 	a.remKind = remKindIndirectAssign
 	a.targetNode = targetNode
@@ -743,12 +730,12 @@ func (r *RemoveUnusedCode) newNamedClassExprRemovable(classNode rhino.Node) *ruc
 }
 
 func (r *RemoveUnusedCode) newClassOrProtoPropRemovable(propertyNode rhino.Node) *rucRemovable {
-	if !(propertyNode.IsMemberFunctionDef() ||
-		propertyNode.IsMemberFieldDef() ||
-		NodeUtil_IsGetOrSetKey(propertyNode) ||
-		(propertyNode.IsStringKey() && !propertyNode.IsQuotedStringKey())) {
-		jutil.CheckArgumentMsg1(false, "%s", propertyNode)
-	}
+	jutil.CheckArgumentMsg1(
+		propertyNode.IsMemberFunctionDef() ||
+			propertyNode.IsMemberFieldDef() ||
+			NodeUtil_IsGetOrSetKey(propertyNode) ||
+			(propertyNode.IsStringKey() && !propertyNode.IsQuotedStringKey()),
+		"%s", propertyNode)
 	p := r.removables.Alloc()
 	p.remKind = remKindClassOrProtoProp
 	p.targetNode = propertyNode

@@ -63,13 +63,6 @@ const (
 
 var parser_Expression_names = [...]string{"NO_IN", "NORMAL"}
 
-// Parser_Expression_values is Expression.values().
-//
-// Java: Parser.Expression.values()
-func Parser_Expression_values() []Parser_Expression {
-	return []Parser_Expression{Parser_Expression_NO_IN, Parser_Expression_NORMAL}
-}
-
 // Name is Enum.name().
 //
 // Java: Parser.Expression.name()

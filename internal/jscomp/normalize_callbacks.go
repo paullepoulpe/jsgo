@@ -19,12 +19,9 @@
 package jscomp
 
 import (
-	"strconv"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func (*Normalize_PropagateConstantPropertyOverVars) onlyNameLeaves()                {}
@@ -122,12 +119,6 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 	}
 }
 
-type normalizeRenameUndo struct {
-	name    strpool.ID
-	oldRepl strpool.ID
-	hadOld  bool
-}
-
 type normalizePostOrderContext struct {
 	s *Normalize_NormalizeStatements
 	t *NodeTraversal
@@ -194,15 +185,7 @@ type Normalize_NormalizeStatements struct {
 	assertOnChange                          bool
 	isNormalizedObfuscated                  bool
 	rewriteLogicalAssignmentOperatorsHelper *RewriteLogicalAssignmentOperatorsHelper
-
-	useFastContextualRenamer bool
-	hasJscompVar             bool
-	nameUsage                map[strpool.ID]int
-	activeReplacements       map[strpool.ID]strpool.ID
-	undoStack                []normalizeRenameUndo
-	scopeUndoOffsets         []int
-	undoStackBuf             [8]normalizeRenameUndo
-	scopeUndoOffsetsBuf      [8]int
+	renamer                                 contextualRenamerState
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
@@ -225,76 +208,8 @@ func NewNormalize_NormalizeStatements(
 	return s
 }
 
-func (s *Normalize_NormalizeStatements) initFastContextualRenamer() {
-	s.useFastContextualRenamer = true
-	s.nameUsage = nil
-	s.activeReplacements = nil
-	s.undoStack = s.undoStackBuf[:0]
-	s.scopeUndoOffsets = s.scopeUndoOffsetsBuf[:0]
-}
-
-func (s *Normalize_NormalizeStatements) releaseFastContextualRenamer() {
-	s.nameUsage = nil
-	s.activeReplacements = nil
-	s.undoStack = nil
-	s.scopeUndoOffsets = nil
-}
-
-func normalizeHasJscompSeparator(s string) bool {
-	const sep = MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR
-	if len(s) < len(sep)+2 {
-		return false
-	}
-	last := s[len(s)-1]
-	if last < '0' || last > '9' {
-		return false
-	}
-	i := len(s) - 1
-	for i > 0 && s[i-1] >= '0' && s[i-1] <= '9' {
-		i--
-	}
-	if s[i] == '0' || i < len(sep)+1 {
-		return false
-	}
-	return s[i-len(sep):i] == sep
-}
-
-func (s *Normalize_NormalizeStatements) formatUniqueNameID(name string, id int) strpool.ID {
-	return strpool.Intern(name + MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR + strconv.Itoa(id))
-}
-
-func (s *Normalize_NormalizeStatements) enableJscompVarMode() {
-	if s.hasJscompVar {
-		return
-	}
-	s.hasJscompVar = true
-	if len(s.nameUsage) == 0 {
-		return
-	}
-	type pending struct {
-		nameID strpool.ID
-		count  int
-	}
-	var toBackfill []pending
-	// order-independent: backfills one entry per (nameID, i), and only absent ones, so the resulting map is the same in any order
-	for origID, count := range s.nameUsage {
-		if count > 1 {
-			toBackfill = append(toBackfill, pending{nameID: origID, count: count})
-		}
-	}
-	for _, p := range toBackfill {
-		origName := strpool.String(p.nameID)
-		for i := 1; i < p.count; i++ {
-			u := s.formatUniqueNameID(origName, i)
-			if _, exists := s.nameUsage[u]; !exists {
-				s.nameUsage[u] = 1
-			}
-		}
-	}
-}
-
 // normalizeScopeMayHaveDeclarations reports whether the scope rooted at n
-// may declare names; fastEnterScope does not create the others.
+// may declare names; EnterScope does not create the others.
 func normalizeScopeMayHaveDeclarations(n rhino.Node) bool {
 	if fn, ok := ast.AsFunction(n); ok {
 		// Its parameters, and the name of a function expression.
@@ -347,111 +262,6 @@ func normalizeMayDeclareInLoopScope(n rhino.Node) bool {
 	return false
 }
 
-func (s *Normalize_NormalizeStatements) fastEnterScope(t *NodeTraversal) {
-	declarationRoot := t.GetScopeRoot()
-	if len(s.scopeUndoOffsets) == 0 {
-		jutil.CheckState(!declarationRoot.IsFunction())
-		s.scopeUndoOffsets = append(s.scopeUndoOffsets, 0)
-		scope := t.GetScope()
-		if s.nameUsage == nil {
-			s.nameUsage = make(map[strpool.ID]int, max(64, len(scope.varList)+len(scope.varList)/2))
-		}
-		for _, v := range scope.varList {
-			if v == nil || v.nameID == implicitArgumentsID {
-				continue
-			}
-			nameID := strpool.ID(v.nameID)
-			if !s.hasJscompVar && normalizeHasJscompSeparator(strpool.String(nameID)) {
-				s.enableJscompVarMode()
-			}
-			s.nameUsage[nameID] = 1
-		}
-		return
-	}
-
-	s.scopeUndoOffsets = append(s.scopeUndoOffsets, len(s.undoStack))
-	if !normalizeScopeMayHaveDeclarations(declarationRoot) {
-		return
-	}
-	for _, v := range t.GetScope().varList {
-		if v == nil || v.nameID == implicitArgumentsID {
-			continue
-		}
-		nameID := strpool.ID(v.nameID)
-		id := s.nameUsage[nameID]
-		if id == 0 && !s.hasJscompVar && normalizeHasJscompSeparator(strpool.String(nameID)) {
-			s.enableJscompVarMode()
-			id = s.nameUsage[nameID]
-		}
-		s.nameUsage[nameID] = id + 1
-		if id != 0 {
-			origName := strpool.String(nameID)
-			unique := s.formatUniqueNameID(origName, id)
-			if s.hasJscompVar {
-				for {
-					uid, exists := s.nameUsage[unique]
-					if !exists || uid == 0 {
-						break
-					}
-					s.nameUsage[unique] = uid + 1
-					unique = s.formatUniqueNameID(origName, uid)
-				}
-				if _, exists := s.nameUsage[unique]; !exists {
-					s.nameUsage[unique] = 1
-				}
-			}
-			oldRepl, hadOld := s.activeReplacements[nameID]
-			s.undoStack = append(s.undoStack, normalizeRenameUndo{
-				name:    nameID,
-				oldRepl: oldRepl,
-				hadOld:  hadOld,
-			})
-			if s.activeReplacements == nil {
-				s.activeReplacements = make(map[strpool.ID]strpool.ID, 16)
-			}
-			s.activeReplacements[nameID] = unique
-		}
-	}
-}
-
-func (s *Normalize_NormalizeStatements) fastExitScope(t *NodeTraversal) {
-	if !t.InGlobalScope() {
-		offset := s.scopeUndoOffsets[len(s.scopeUndoOffsets)-1]
-		s.scopeUndoOffsets = s.scopeUndoOffsets[:len(s.scopeUndoOffsets)-1]
-		for i := len(s.undoStack) - 1; i >= offset; i-- {
-			u := s.undoStack[i]
-			if u.hadOld {
-				s.activeReplacements[u.name] = u.oldRepl
-			} else {
-				delete(s.activeReplacements, u.name)
-			}
-		}
-		s.undoStack = s.undoStack[:offset]
-	}
-}
-
-func (s *Normalize_NormalizeStatements) fastVisitNameOrImportStar(t *NodeTraversal, n rhino.Node) {
-	if len(s.activeReplacements) == 0 {
-		return
-	}
-	if n.IsName() && NodeUtil_IsNonlocalModuleExportName(n) {
-		return
-	}
-	newID, ok := s.activeReplacements[strpool.ID(n.GetStringID())]
-	if !ok {
-		return
-	}
-	if s.assertOnChange {
-		panic(jutil.NewIllegalStateExceptionMsg(
-			"Unexpected renaming in MakeDeclaredNamesUnique. new name: " + strpool.String(newID) + " for " + n.String()))
-	}
-	setNodeStringID(n, newID)
-	t.ReportCodeChange()
-	if parent := n.GetParent(); parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
-		s.compiler.ReportChangeToEnclosingScope(parent)
-	}
-}
-
 // Java: Normalize.NormalizeStatements.reportCodeChange(String, Node)
 func (s *Normalize_NormalizeStatements) ReportCodeChange(changeDescription string, n rhino.Node) {
 	if s.assertOnChange {
@@ -462,16 +272,12 @@ func (s *Normalize_NormalizeStatements) ReportCodeChange(changeDescription strin
 
 // Java: Normalize.NormalizeStatements.enterScope(NodeTraversal)
 func (s *Normalize_NormalizeStatements) EnterScope(t *NodeTraversal) {
-	if s.useFastContextualRenamer {
-		s.fastEnterScope(t)
-	}
+	s.renamer.enterScope(t)
 }
 
 // Java: Normalize.NormalizeStatements.exitScope(NodeTraversal)
 func (s *Normalize_NormalizeStatements) ExitScope(t *NodeTraversal) {
-	if s.useFastContextualRenamer {
-		s.fastExitScope(t)
-	}
+	s.renamer.exitScope(t)
 }
 
 // Java: Normalize.NormalizeStatements.shouldTraverse(NodeTraversal, Node, Node)
@@ -496,14 +302,11 @@ func (s *Normalize_NormalizeStatements) Visit(t *NodeTraversal, n rhino.Node, pa
 	normalizePostOrderVisitor.Visit(normalizePostOrderContext{s: s, t: t}, n)
 }
 
-// visitName renames x if it is shadowed (when the fast contextual renamer is
-// enabled) and marks it constant when it is.
+// visitName renames x if it is shadowed and marks it constant when it is.
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node) (NAME)
 func (s *Normalize_NormalizeStatements) visitName(t *NodeTraversal, x ast.Name) {
-	if s.useFastContextualRenamer {
-		s.fastVisitNameOrImportStar(t, x.Node())
-	}
+	s.renamer.renameNode(t, x.Node(), s.assertOnChange)
 	if x.Node().GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		return
 	}
@@ -511,12 +314,9 @@ func (s *Normalize_NormalizeStatements) visitName(t *NodeTraversal, x ast.Name) 
 	s.AnnotateFunctionExpressionNameAsConstant(x)
 }
 
-// visitImportStar renames x if it is shadowed (when the fast contextual
-// renamer is enabled).
+// visitImportStar renames x if it is shadowed.
 func (s *Normalize_NormalizeStatements) visitImportStar(t *NodeTraversal, x ast.ImportStar) {
-	if s.useFastContextualRenamer {
-		s.fastVisitNameOrImportStar(t, x.Node())
-	}
+	s.renamer.renameNode(t, x.Node(), s.assertOnChange)
 }
 
 // visitWhile turns while (cond) body into for (; cond; ) body.

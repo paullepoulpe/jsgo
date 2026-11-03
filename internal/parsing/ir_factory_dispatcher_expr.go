@@ -95,16 +95,16 @@ func (f *IRFactory) ProcessFunctionCall(callNode *parser.CallExpressionTree) rhi
 	node := f.NewNodeWithChild(rhino.Token_CALL, f.Transform(callNode.Operand))
 	node.SetTrailingComma(callNode.Arguments.HasTrailingComma)
 	argumentsTree := callNode.Arguments
-	argCount := 0
 	for _, child := range argumentsTree.Arguments {
 		childNode := f.Transform(child)
 		node.AddChildToBack(childNode)
 		// The non-trailing comments are already attached to `childNode` in
 		// `transform(child)` call. Now we must attach possible trailing
 		// comments to `childNode`.
-
+		// Upstream IRFactory.java#processFunctionCall leaves `argCount` at 0
+		// across iterations (`zones.get(argCount)` bug-for-bug parity).
 		f.attachPossibleTrailingCommentsForArgAt(
-			childNode, argumentsTree.Arguments, argCount, argumentsTree.CommaPositions, argumentsTree.Location.End)
+			childNode, argumentsTree.Arguments, 0, argumentsTree.CommaPositions, argumentsTree.Location.End)
 	}
 	f.AnnotateCalls(node)
 	return node

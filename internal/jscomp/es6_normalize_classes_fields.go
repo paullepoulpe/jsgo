@@ -32,29 +32,17 @@ import (
 // Java: Es6NormalizeClasses.rewriteSideEffectedComputedProps(NodeTraversal, ClassRecord, Node)
 func (e *Es6NormalizeClasses) RewriteSideEffectedComputedProps(
 	t *NodeTraversal, record *es6NormalizeClasses_ClassRecord, insertionPoint rhino.Node) {
-	computedPropsWithSideEffects := &record.computedPropsWithSideEffects
-
-	if len(*computedPropsWithSideEffects) == 0 {
+	computedPropsWithSideEffects := record.computedPropsWithSideEffects
+	if len(computedPropsWithSideEffects) == 0 {
 		return
 	}
 
-	for len(*computedPropsWithSideEffects) != 0 {
-		computedPropMember := es6NormalizeClasses_dequeRemove(computedPropsWithSideEffects)
+	for _, computedPropMember := range computedPropsWithSideEffects {
 		e.ExtractExpressionFromCompField(t, record, computedPropMember, insertionPoint)
 	}
+	clear(computedPropsWithSideEffects)
+	record.computedPropsWithSideEffects = computedPropsWithSideEffects[:0]
 	t.ReportCodeChange()
-}
-
-// Go-only: language-adapter — ArrayDeque.remove(): removes and returns the
-// first element, throwing NoSuchElementException when empty.
-func es6NormalizeClasses_dequeRemove(deque *[]ast.ClassMember) ast.ClassMember {
-	if len(*deque) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	first := (*deque)[0]
-	(*deque)[0] = ast.ClassMember{}
-	*deque = (*deque)[1:]
-	return first
 }
 
 // ExtractExpressionFromCompField extracts the expression in the LHS of a
@@ -66,7 +54,7 @@ func (e *Es6NormalizeClasses) ExtractExpressionFromCompField(
 	t *NodeTraversal, record *es6NormalizeClasses_ClassRecord, memberField ast.ClassMember, insertionPoint rhino.Node) {
 	compExpression := es6NormalizeClasses_computedKey(memberField).Detach()
 	compFieldVar := e.astFactory.
-		CreateSingleVarNameDeclarationWithValue(e.GenerateUniqueCompFieldVarName(t), compExpression.Node()).
+		CreateSingleVarNameDeclarationWithValue(e.uniqueVarName(t, es6NormalizeClasses_COMP_FIELD_VAR), compExpression.Node()).
 		SrcrefTreeIfMissing(record.classNode.Node())
 	compFieldName := compFieldVar.GetFirstChild()
 	memberField.Node().AddChildToFront(compFieldName.CloneNode())
@@ -89,10 +77,10 @@ func es6NormalizeClasses_computedKey(member ast.ClassMember) ast.Expr {
 //
 // Java: Es6NormalizeClasses.rewriteInstanceMembers(NodeTraversal, ClassRecord)
 func (e *Es6NormalizeClasses) RewriteInstanceMembers(t *NodeTraversal, record *es6NormalizeClasses_ClassRecord) {
-	instanceMembers := &record.instanceMembers
+	instanceMembers := record.instanceMembers
 	hasPriv := e.transpilePrivateClassFields && record.hasInstancePrivateMembers
 
-	if len(*instanceMembers) == 0 && !hasPriv {
+	if len(instanceMembers) == 0 && !hasPriv {
 		return
 	}
 	classNode := record.classNode.Node()
@@ -155,8 +143,7 @@ func (e *Es6NormalizeClasses) RewriteInstanceMembers(t *NodeTraversal, record *e
 		mapSetStmt.InsertBefore(insertionPoint)
 	}
 
-	for len(*instanceMembers) != 0 {
-		instanceMember := es6NormalizeClasses_dequeRemove(instanceMembers)
+	for _, instanceMember := range instanceMembers {
 		field, isField := instanceMember.AsMemberFieldDef()
 		computedField, isComputedField := instanceMember.AsComputedFieldDef()
 		jutil.CheckStateMsg1(isField || isComputedField, "%s", instanceMember.Node())
@@ -183,6 +170,8 @@ func (e *Es6NormalizeClasses) RewriteInstanceMembers(t *NodeTraversal, record *e
 			}
 		}
 	}
+	clear(instanceMembers)
+	record.instanceMembers = instanceMembers[:0]
 
 	if e.transpilePrivateClassFields {
 		// Remove original non-static private member declaration nodes (fields and methods) from the
@@ -512,9 +501,9 @@ func es6StaticInitNeedsMethodPred(n rhino.Node) bool {
 //
 // Java: Es6NormalizeClasses.rewriteStaticMembers(NodeTraversal, ClassRecord, Node)
 func (e *Es6NormalizeClasses) RewriteStaticMembers(t *NodeTraversal, record *es6NormalizeClasses_ClassRecord, insertionPoint rhino.Node) {
-	staticMembers := &record.staticMembers
+	staticMembers := record.staticMembers
 	hasPriv := e.transpilePrivateClassFields && record.hasStaticPrivateMembers
-	if len(*staticMembers) == 0 && !hasPriv {
+	if len(staticMembers) == 0 && !hasPriv {
 		return
 	}
 
@@ -572,8 +561,7 @@ func (e *Es6NormalizeClasses) RewriteStaticMembers(t *NodeTraversal, record *es6
 		e.AddStaticPrivateMembers(record, privName, staticInitTempParent)
 	}
 
-	for len(*staticMembers) != 0 {
-		staticMember := es6NormalizeClasses_dequeRemove(staticMembers)
+	for _, staticMember := range staticMembers {
 		if staticMember.Node().IsPrivateIdentifier() {
 			if e.transpilePrivateClassFields {
 				field := ast.MustMemberFieldDef(staticMember.Node())
@@ -604,6 +592,8 @@ func (e *Es6NormalizeClasses) RewriteStaticMembers(t *NodeTraversal, record *es6
 			}
 		}
 	}
+	clear(staticMembers)
+	record.staticMembers = staticMembers[:0]
 
 	if e.transpilePrivateClassFields {
 		for _, pm := range record.privateMembers {
@@ -633,7 +623,7 @@ func (e *Es6NormalizeClasses) RewriteStaticMembers(t *NodeTraversal, record *es6
 		return
 	}
 
-	staticInitMethodName := e.GenerateUniqueStaticInitMethodName(t)
+	staticInitMethodName := e.uniqueVarName(t, es6NormalizeClasses_STATIC_INIT_METHOD_NAME)
 	staticInitMethodFunc :=
 		e.astFactory.CreateEmptyFunction(AstFactory_Type_OfJSTypeNativeAndColor(rhino.JSTypeNative_FUNCTION_TYPE, colors.StandardColors_TOP_OBJECT))
 	staticInitMethod :=

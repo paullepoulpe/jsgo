@@ -420,8 +420,7 @@ func (m *FunctionToBlockMutator) makeLocalNamesUnique(fnNode rhino.Node, isCallI
 
 	if m.localScopeCreator.compiler == nil {
 		m.localScopeCreator = SyntacticScopeCreator{
-			compiler:             m.compiler,
-			redeclarationHandler: SyntacticScopeCreator_DEFAULT_REDECLARATION_HANDLER,
+			compiler: m.compiler,
 		}
 	} else {
 		m.localScopeCreator.lastInputId = nil

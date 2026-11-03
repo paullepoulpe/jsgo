@@ -231,11 +231,11 @@ func (p *jsaDiffProvider) GetSourceMapping(sourceName *string, lineNumber int, c
 	if sourceName == nil || strings.HasPrefix(*sourceName, "orig/") || lineNumber%5 != 3 {
 		return nil
 	}
-	return sourcemap.Mapping_OriginalMapping_NewBuilder().
-		SetOriginalFile("orig/" + *sourceName).
-		SetLineNumber(lineNumber + 1).
-		SetColumnPosition(columnNumber + 1).
-		Build()
+	return &sourcemap.Mapping_OriginalMapping{
+		OriginalFile:   "orig/" + *sourceName,
+		LineNumber:     lineNumber + 1,
+		ColumnPosition: columnNumber + 1,
+	}
 }
 
 // jsaCollectHandler is an ErrorHandler that renders each report.

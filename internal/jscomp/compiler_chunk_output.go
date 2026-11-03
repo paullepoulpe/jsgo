@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // RenderedChunk holds the rendered JavaScript source and optional source map
@@ -53,19 +52,6 @@ type ParallelChunkOutputCallbacks struct {
 	WriteChunkNoMap   func(filename string, code string, wrapper string)
 }
 
-type chunkPrintedInput struct {
-	root      rhino.Node
-	sm        CodePrinter_SourceAndMappings
-	rec       compiler_ParallelScriptLicenseRecorder
-	startLine int
-	startCol  int
-	emitted   bool
-}
-
-type chunkPrinted struct {
-	inputs []chunkPrintedInput
-}
-
 func (c *Compiler) ensureSourceMapInitialized() {
 	if c.sourceMap != nil {
 		return
@@ -75,21 +61,6 @@ func (c *Compiler) ensureSourceMapInitialized() {
 	if c.options.GetApplyInputSourceMaps() {
 		c.sourceMap.SetCompilerSourceMapping(c)
 	}
-}
-
-func (c *Compiler) printChunkInput(
-	chunkName string,
-	scriptNode rhino.Node,
-	firstOutput bool,
-	gatherSourceMap bool,
-	licenseTracker CodePrinter_LicenseTracker,
-	sm *CodePrinter_SourceAndMappings,
-	scratch *codePrinterScratch,
-) (string, error) {
-	if scriptNode.IsNil() {
-		return "", jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunkName)
-	}
-	return c.printRootWithScratch(scriptNode, firstOutput, gatherSourceMap, licenseTracker, sm, scratch), nil
 }
 
 func filterActiveChunks(chunks []*JSChunk) []*JSChunk {
@@ -102,18 +73,10 @@ func filterActiveChunks(chunks []*JSChunk) []*JSChunk {
 	return active
 }
 
-func populateChunkSourceMap(sm *SourceMap, pc *chunkPrinted) {
+func populateChunkSourceMap(sm *SourceMap, scripts []parallelPrintedScript) {
 	sm.Reset()
-	for i := range pc.inputs {
-		pi := &pc.inputs[i]
-		if pi.emitted {
-			sm.SetStartingPosition(pi.startLine, pi.startCol)
-			for k := range pi.sm.mappings {
-				mp := &pi.sm.mappings[k]
-				sm.AddMappingOfNodePositions(mp.node, mp.start, mp.end)
-			}
-		}
-		resetSourceAndMappings(&pi.sm)
+	for i := range scripts {
+		addPrintedScriptMappings(sm, &scripts[i])
 	}
 }
 
@@ -147,13 +110,12 @@ func (c *Compiler) renderChunksBatched(
 	const batchSize = 256
 	chunkTracker, _ := lt.(*Compiler_ChunkGraphAwareLicenseTracker)
 	batchCap := min(len(activeChunks), batchSize)
-	printed := make([]chunkPrinted, batchCap)
-	printErrs := make([]error, batchCap)
-	scratches := make([]codePrinterScratch, numWorkers)
+	scriptOffsets := make([]int, batchCap+1)
+	printer := newParallelScriptPrinter(c, numWorkers, onlyScript, gatherSourceMap, batchCap)
 
 	var workerSM []*SourceMap
 	if gatherSourceMap && onParChunk != nil {
-		workerSM = make([]*SourceMap, numWorkers)
+		workerSM = make([]*SourceMap, min(numWorkers, batchCap))
 		for w := range workerSM {
 			workerSM[w] = c.newWorkerSourceMap()
 		}
@@ -162,46 +124,25 @@ func (c *Compiler) renderChunksBatched(
 	cb := NewCompiler_CodeBuilder()
 	for batchStart := 0; batchStart < len(activeChunks); batchStart += batchSize {
 		batchLen := min(batchSize, len(activeChunks)-batchStart)
-		clear(printErrs[:batchLen])
+		totalScripts := 0
+		for j := range batchLen {
+			scriptOffsets[j] = totalScripts
+			totalScripts += len(activeChunks[batchStart+j].GetInputs())
+		}
+		scriptOffsets[batchLen] = totalScripts
 
-		failures := runParallelIndexedTasks(batchLen, numWorkers, func(w, j int) {
+		slots := printer.ensureSlots(totalScripts)
+		for j := range batchLen {
 			m := activeChunks[batchStart+j]
-			inputs := m.GetInputs()
-			nInputs := len(inputs)
-			pc := &printed[j]
-			if cap(pc.inputs) >= nInputs {
-				pc.inputs = pc.inputs[:nInputs]
-			} else {
-				pc.inputs = make([]chunkPrintedInput, nInputs)
-			}
-			for i, in := range inputs {
-				scriptNode := in.GetAstRoot(c)
-				pi := &pc.inputs[i]
-				pi.root = scriptNode
-				pi.rec.Reset(onlyScript)
-				pi.sm.mappings = pi.sm.mappings[:0]
-				pi.startLine = 0
-				pi.startCol = 0
-				pi.emitted = false
-				var printErr error
-				if gatherSourceMap {
-					_, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, true, &pi.rec, &pi.sm, &scratches[w])
-				} else {
-					pi.sm.source, printErr = c.printChunkInput(m.GetName(), scriptNode, i == 0, false, &pi.rec, nil, &scratches[w])
-				}
-				if printErr != nil {
-					printErrs[j] = printErr
-					return
+			base := scriptOffsets[j]
+			for i, in := range m.GetInputs() {
+				if err := printer.setSlot(base+i, m.GetName(), in, i == 0); err != nil {
+					return err
 				}
 			}
-		})
-		for j, f := range failures {
-			if printErrs[j] != nil {
-				return printErrs[j]
-			}
-			if f != nil {
-				return f
-			}
+		}
+		if err := printer.printBatch(totalScripts); err != nil {
+			return err
 		}
 
 		for j := range batchLen {
@@ -210,17 +151,12 @@ func (c *Compiler) renderChunksBatched(
 			if chunkTracker != nil {
 				chunkTracker.SetCurrentChunkContext(m)
 			}
-			pc := &printed[j]
+			chunkSlots := slots[scriptOffsets[j]:scriptOffsets[j+1]]
 			var code string
-			if len(pc.inputs) > 0 {
+			if len(chunkSlots) > 0 {
 				cb.ResetAll()
-				for i := range pc.inputs {
-					pi := &pc.inputs[i]
-					pi.rec.Replay(replay)
-					pi.startLine, pi.startCol, pi.emitted = c.appendSourceToCodeBuilderForChunk(
-						cb, lt, i, pi.root, pi.sm.source)
-					pi.sm.source = ""
-					pi.root = rhino.NilNode
+				for i := range chunkSlots {
+					c.appendPrintedScriptToCodeBuilder(cb, lt, replay, i, &chunkSlots[i])
 				}
 				code = cb.String()
 			}
@@ -228,7 +164,7 @@ func (c *Compiler) renderChunksBatched(
 		}
 
 		if onParChunk != nil {
-			parFailures := runParallelIndexedTasks(batchLen, numWorkers, func(w, j int) {
+			parFailures := runParallelIndexedTasks(batchLen, min(numWorkers, batchLen), func(w, j int) {
 				globalIdx := batchStart + j
 				m := activeChunks[globalIdx]
 				var sm *SourceMap
@@ -237,7 +173,7 @@ func (c *Compiler) renderChunksBatched(
 					if globalIdx == len(activeChunks)-1 && c.sourceMap != nil {
 						sm = c.sourceMap
 					}
-					populateChunkSourceMap(sm, &printed[j])
+					populateChunkSourceMap(sm, slots[scriptOffsets[j]:scriptOffsets[j+1]])
 				}
 				onParChunk(globalIdx, j, m, sm)
 			})
@@ -273,7 +209,11 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 			numWorkers = runtime.GOMAXPROCS(0)
 		}
 	}
-	numWorkers = max(1, min(numWorkers, len(activeChunks)))
+	totalInputs := 0
+	for _, m := range activeChunks {
+		totalInputs += len(m.GetInputs())
+	}
+	numWorkers = max(1, min(numWorkers, max(len(activeChunks), totalInputs)))
 
 	lt := opts.LicenseTracker
 	if lt == nil {

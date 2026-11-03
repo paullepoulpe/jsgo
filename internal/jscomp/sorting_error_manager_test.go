@@ -25,13 +25,12 @@ import (
 
 var (
 	jsaSemNULL_SOURCE *string
-	jsaSemComparator  = NewSortingErrorManager_LeveledJSErrorComparator()
 	jsaSemFOO_TYPE    = DiagnosticType_Error("TEST_FOO", "Foo")
 	jsaSemJOO_TYPE    = DiagnosticType_Error("TEST_JOO", "Joo")
 )
 
 func TestSortingErrorManager_OrderingBothNull(t *testing.T) {
-	jsaEq(t, jsaSemComparator.Compare(SortingErrorManager_ErrorWithLevel{}, SortingErrorManager_ErrorWithLevel{}), 0)
+	jsaEq(t, sortingErrorManagerCompare(SortingErrorManager_ErrorWithLevel{}, SortingErrorManager_ErrorWithLevel{}), 0)
 }
 
 func TestSortingErrorManager_OrderingSourceName1(t *testing.T) {
@@ -154,9 +153,9 @@ func jsaSemWarning(e *JSError) SortingErrorManager_ErrorWithLevel {
 
 func jsaSemAssertSmaller(t *testing.T, p1, p2 SortingErrorManager_ErrorWithLevel) {
 	t.Helper()
-	p1p2 := jsaSemComparator.Compare(p1, p2)
+	p1p2 := sortingErrorManagerCompare(p1, p2)
 	jsaTrue(t, p1p2 < 0, strconv.Itoa(p1p2))
-	p2p1 := jsaSemComparator.Compare(p2, p1)
+	p2p1 := sortingErrorManagerCompare(p2, p1)
 	jsaTrue(t, p2p1 > 0, strconv.Itoa(p2p1))
 }
 

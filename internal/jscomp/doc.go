@@ -52,7 +52,7 @@
 //
 // Output and diagnostics must be 100% deterministic and byte-identical to
 // Closure Compiler regardless of --num_parallel_threads:
-//   - Use [jutil.LinkedHashMap] / [jutil.LinkedHashSet] whenever iteration
+//   - Use [OrderedMap], [OrderedStringMap], and [OrderedSet] whenever iteration
 //     order can affect AST mutations, symbol IDs, variable/property renaming,
 //     or diagnostic ordering. Every Go map range in non-test files is checked
 //     by tools/maprangecheck and must carry an // order-independent: comment.

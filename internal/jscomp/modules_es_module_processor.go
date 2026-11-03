@@ -132,28 +132,22 @@ type esUnresolvedModuleBuilder struct {
 	outer              *EsModuleProcessor
 	path               *ModuleLoader_ModulePath
 	root               rhino.Node
-	importNames        []string
-	importsByLocalName map[string]*Import
+	importsByLocalName OrderedStringMap[*Import]
 	exports            []*Export
 	exportedNames      map[string]struct{}
 }
 
 func newEsUnresolvedModuleBuilder(outer *EsModuleProcessor, path *ModuleLoader_ModulePath, root rhino.Node) *esUnresolvedModuleBuilder {
 	return &esUnresolvedModuleBuilder{
-		outer:              outer,
-		path:               path,
-		root:               root,
-		importsByLocalName: make(map[string]*Import),
-		exportedNames:      make(map[string]struct{}),
+		outer:         outer,
+		path:          path,
+		root:          root,
+		exportedNames: make(map[string]struct{}),
 	}
 }
 
 func (b *esUnresolvedModuleBuilder) addImport(i *Import) {
-	name := i.LocalName()
-	if _, exists := b.importsByLocalName[name]; !exists {
-		b.importNames = append(b.importNames, name)
-	}
-	b.importsByLocalName[name] = i
+	b.importsByLocalName.Put(i.LocalName(), i)
 }
 
 func (b *esUnresolvedModuleBuilder) addExport(e *Export) bool {
@@ -177,11 +171,9 @@ func (b *esUnresolvedModuleBuilder) build() UnresolvedModule {
 
 	for _, ee := range b.exports {
 		if !ee.HasModuleRequest() {
-			if ee.HasLocalName() {
-				if _, isImport := b.importsByLocalName[ee.LocalName()]; isImport {
-					indirectExports = append(indirectExports, ee)
-					continue
-				}
+			if ee.HasLocalName() && b.importsByLocalName.ContainsKey(ee.LocalName()) {
+				indirectExports = append(indirectExports, ee)
+				continue
 			}
 			localExports = append(localExports, ee)
 		} else if ee.HasImportName() && ee.ImportName() == "*" {
@@ -197,12 +189,11 @@ func (b *esUnresolvedModuleBuilder) build() UnresolvedModule {
 		outer:              b.outer,
 		metadata:           b.outer.metadata,
 		path:               b.path,
-		importNames:        b.importNames,
 		importsByLocalName: b.importsByLocalName,
 		localExports:       localExports,
 		indirectExports:    indirectExports,
 		starExports:        starExports,
-		resolvedImports:    make(map[string]*ResolveExportResult, len(b.importsByLocalName)),
+		resolvedImports:    make(map[string]*ResolveExportResult, b.importsByLocalName.Size()),
 		resolvedExports:    make(map[string]*ResolveExportResult, len(b.exports)),
 	}
 }
@@ -211,8 +202,7 @@ type unresolvedEsModule struct {
 	outer              *EsModuleProcessor
 	metadata           *ModuleMetadataMap_ModuleMetadata
 	path               *ModuleLoader_ModulePath
-	importNames        []string
-	importsByLocalName map[string]*Import
+	importsByLocalName OrderedStringMap[*Import]
 	localExports       []*Export
 	indirectExports    []*Export
 	starExports        []*Export
@@ -277,17 +267,18 @@ func (m *unresolvedEsModule) Metadata() *ModuleMetadataMap_ModuleMetadata {
 
 func (m *unresolvedEsModule) getAllResolvedImports(
 	moduleRequestResolver ModuleRequestResolver) *OrderedStringMap[*Binding] {
-	if len(m.importNames) == 0 {
+	entries := m.importsByLocalName.Entries()
+	if len(entries) == 0 {
 		return nonEsEmptyBindingMap
 	}
 	var imports *OrderedStringMap[*Binding]
-	for _, name := range m.importNames {
-		b := m.resolveImport(moduleRequestResolver, name)
+	for _, e := range entries {
+		b := m.resolveImport(moduleRequestResolver, e.Key)
 		if b.Resolved() {
 			if imports == nil {
-				imports = NewOrderedStringMapWithCapacity[*Binding](len(m.importNames))
+				imports = NewOrderedStringMapWithCapacity[*Binding](len(entries))
 			}
-			imports.Put(name, jutil.CheckNotNull(b.GetBinding()))
+			imports.Put(e.Key, jutil.CheckNotNull(b.GetBinding()))
 		}
 	}
 	if imports == nil {
@@ -319,7 +310,7 @@ func (m *unresolvedEsModule) resolveImportImpl(
 	name string,
 	resolveSet map[ExportTrace]struct{},
 	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
-	i := m.importsByLocalName[name]
+	i := m.importsByLocalName.Get(name)
 	requested := moduleRequestResolver.Resolve(i)
 	if requested == nil {
 		return ResolveExportResult_ERROR
@@ -520,11 +511,9 @@ func (m *unresolvedEsModule) resolveExportWithSets(
 
 	for _, e := range m.indirectExports {
 		if e.HasExportName() && exportName == e.ExportName() {
-			if e.HasLocalName() {
-				if _, isImport := m.importsByLocalName[e.LocalName()]; isImport {
-					return m.resolveImportWithSets(moduleRequestResolver, e.LocalName(), resolveSet, exportStarSet).
-						Copy(e.NameNode(), Binding_CreatedBy_EXPORT)
-				}
+			if e.HasLocalName() && m.importsByLocalName.ContainsKey(e.LocalName()) {
+				return m.resolveImportWithSets(moduleRequestResolver, e.LocalName(), resolveSet, exportStarSet).
+					Copy(e.NameNode(), Binding_CreatedBy_EXPORT)
 			}
 			requested := moduleRequestResolver.ResolveWithExport(e)
 			if requested == nil {

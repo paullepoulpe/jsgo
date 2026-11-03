@@ -130,16 +130,6 @@ func (b *BitSet) FlipRange(fromIndex, toIndex int) {
 	b.trim()
 }
 
-// NegativeArraySizeException is java.lang.NegativeArraySizeException.
-type NegativeArraySizeException struct{ RuntimeException }
-
-// NewNegativeArraySizeException constructs the exception with a message.
-func NewNegativeArraySizeException(message string) *NegativeArraySizeException {
-	e := &NegativeArraySizeException{}
-	InitThrowable(e, "java.lang.NegativeArraySizeException", msgPtr(message), nil)
-	return e
-}
-
 // Get is BitSet.get(int).
 func (b *BitSet) Get(bitIndex int) bool {
 	bitSetCheckIndex(bitIndex, "bitIndex")

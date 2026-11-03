@@ -313,9 +313,6 @@ func (s *closureScriptDescription) addChildScript(childScript *closureScriptDesc
 }
 
 func (s *closureScriptDescription) removeFirstChildScript() *closureScriptDescription {
-	if len(s.childScripts) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
 	first := s.childScripts[0]
 	s.childScripts[0] = nil
 	s.childScripts = s.childScripts[1:]

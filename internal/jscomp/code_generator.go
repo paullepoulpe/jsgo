@@ -339,11 +339,11 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 		if first := node.GetFirstChild(); !first.IsNil() {
 			if second := first.GetNext(); !second.IsNil() {
 				if !second.GetNext().IsNil() {
-					jutil.CheckStateMsg2(
-						false,
-						"Bad binary operator \"%s\": expected 2 arguments but got %s",
-						opstr,
-						node.GetChildCount())
+					panic(jutil.NewIllegalStateExceptionMsg(
+						jutil.LenientFormat(
+							"Bad binary operator \"%s\": expected 2 arguments but got %s",
+							opstr,
+							node.GetChildCount())))
 				}
 				p := g.Precedence(node)
 

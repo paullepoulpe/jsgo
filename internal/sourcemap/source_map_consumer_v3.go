@@ -737,7 +737,6 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 	origFile := origSrc.text
 	lineNum := int(entry.srcLine + 1)
 	colPos := int(entry.srcCol + 1)
-	bitField := int32(mapping_originalFileBit | mapping_lineNumberBit | mapping_columnPositionBit | mapping_precisionBit)
 	var identifier string
 	var identifierPtr *string
 	nameId := entry.nameId
@@ -747,18 +746,16 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 			panic(jutil.NewNullPointerException())
 		}
 		identifier = origName.text
-		bitField |= mapping_identifierBit
 		if identifier != "" {
 			identifierPtr = &origName.text
 		}
 	}
 	return Mapping_OriginalMapping{
-		bitField0_:      bitField,
-		precision_:      precision,
-		originalFile_:   origFile,
-		lineNumber_:     lineNum,
-		columnPosition_: colPos,
-		identifier_:     identifier,
+		OriginalFile:   origFile,
+		LineNumber:     lineNum,
+		ColumnPosition: colPos,
+		Identifier:     identifier,
+		Precision:      precision,
 	}, identifierPtr, true
 }
 
@@ -779,9 +776,8 @@ func (c *SourceMapConsumerV3) CreateReverseMapping() {
 			if sourceFileId != SourceMapConsumerV3_UNMAPPED && sourceLine != SourceMapConsumerV3_UNMAPPED {
 				key := sourceMapConsumerV3_keyOf(c.sources[sourceFileId], int(sourceLine))
 				mapping := &Mapping_OriginalMapping{
-					bitField0_:      mapping_lineNumberBit | mapping_columnPositionBit,
-					lineNumber_:     targetLine,
-					columnPosition_: int(entry.genCol),
+					LineNumber:     targetLine,
+					ColumnPosition: int(entry.genCol),
 				}
 				c.reverseSourceMapping[key] = append(c.reverseSourceMapping[key], mapping)
 			}

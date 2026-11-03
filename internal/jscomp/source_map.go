@@ -173,6 +173,8 @@ func (m *SourceMap_PrefixLocationMapping) String() string {
 	return "(" + m.prefix + "|" + m.replacement + ")"
 }
 
+// Equals implements jutil.Equaler (exercised via Truth assertions in CLI tests).
+//
 // Java: SourceMap.PrefixLocationMapping.equals(Object)
 func (m *SourceMap_PrefixLocationMapping) Equals(other any) bool {
 	if prefixLocationMapping, ok := other.(*SourceMap_PrefixLocationMapping); ok && prefixLocationMapping != nil {
@@ -181,11 +183,6 @@ func (m *SourceMap_PrefixLocationMapping) Equals(other any) bool {
 	} else {
 		return false
 	}
-}
-
-// Java: SourceMap.PrefixLocationMapping.hashCode()
-func (m *SourceMap_PrefixLocationMapping) HashCode() int32 {
-	return 31*(31+jutil.StringHashCode(m.prefix)) + jutil.StringHashCode(m.replacement)
 }
 
 // Java: SourceMap(SourceMapGenerator)

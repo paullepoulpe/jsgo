@@ -334,42 +334,34 @@ func (t *CodeGenerator) AppendClassAnnotations(sb *strings.Builder, funType rhin
 		}
 	}
 	// Avoid duplicates, sort and deduplicate implemented interfaces.
-	ancestors := funType.GetAncestorInterfaces()
-	if len(ancestors) > 0 {
-		interfaces := make([]string, len(ancestors))
-		for i, interfaze := range ancestors {
-			interfaces[i] = interfaze.ToAnnotationString(rhino.JSType_Nullability_IMPLICIT)
-		}
-		slices.SortFunc(interfaces, jutil.StringCompareTo)
-		interfaces = slices.Compact(interfaces)
-		for _, interfaze := range interfaces {
-			sb.WriteString(" * ")
-			TypedCodeGenerator_AppendAnnotation(sb, "implements", interfaze)
-			sb.WriteString("\n")
-		}
-	}
+	appendAncestorInterfaceAnnotations(sb, funType, "implements")
 }
 
 // Java: TypedCodeGenerator.appendInterfaceAnnotations(StringBuilder, FunctionType)
 func (t *CodeGenerator) AppendInterfaceAnnotations(sb *strings.Builder, funType rhino.FunctionType) {
-	ancestors := funType.GetAncestorInterfaces()
-	if len(ancestors) > 0 {
-		interfaces := make([]string, len(ancestors))
-		for i, interfaceType := range ancestors {
-			interfaces[i] = interfaceType.ToAnnotationString(rhino.JSType_Nullability_IMPLICIT)
-		}
-		slices.SortFunc(interfaces, jutil.StringCompareTo)
-		interfaces = slices.Compact(interfaces)
-		for _, interfaze := range interfaces {
-			sb.WriteString(" * ")
-			TypedCodeGenerator_AppendAnnotation(sb, "extends", interfaze)
-			sb.WriteString("\n")
-		}
-	}
+	appendAncestorInterfaceAnnotations(sb, funType, "extends")
 	if funType.IsStructuralInterface() {
 		sb.WriteString(" * @record\n")
 	} else {
 		sb.WriteString(" * @interface\n")
+	}
+}
+
+func appendAncestorInterfaceAnnotations(sb *strings.Builder, funType rhino.FunctionType, tag string) {
+	ancestors := funType.GetAncestorInterfaces()
+	if len(ancestors) == 0 {
+		return
+	}
+	interfaces := make([]string, len(ancestors))
+	for i, interfaze := range ancestors {
+		interfaces[i] = interfaze.ToAnnotationString(rhino.JSType_Nullability_IMPLICIT)
+	}
+	slices.SortFunc(interfaces, jutil.StringCompareTo)
+	interfaces = slices.Compact(interfaces)
+	for _, interfaze := range interfaces {
+		sb.WriteString(" * ")
+		TypedCodeGenerator_AppendAnnotation(sb, tag, interfaze)
+		sb.WriteString("\n")
 	}
 }
 

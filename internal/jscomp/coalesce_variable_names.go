@@ -522,7 +522,6 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 	clear(interferenceBits)
 
 	lrc := &c.liveRangeChecker
-	lrc.orderedVariables = orderedVariables
 	lrc.liveness = c.liveness
 	if lrc.isAssignToList == nil {
 		lrc.isAssignToList = c.assignToBuf[:0]
@@ -538,8 +537,6 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 		}
 	}
 	lrc.root = rhino.NilNode
-	lrc.state = nil
-	lrc.orderedVariables = nil
 	lrc.liveness = nil
 
 	// Finalize candidate adjacency masks (adding param-param interference) and
@@ -611,7 +608,6 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 	lrc := &c.liveRangeChecker
 	val := cfgNode.Value
 	lrc.root = val
-	lrc.state = state
 	lrc.isAssignToList = lrc.isAssignToList[:0]
 	lrc.isReadFromList = lrc.isReadFromList[:0]
 	lrc.Check(val)
@@ -755,38 +751,18 @@ func (c *CoalesceVariableNames) IsUninitializedLetNameInLoopBodyAndLive(nameNode
 // variables in the same CFG node so that the variable pairs can be marked as
 // interfering in an interference bit map.
 type CoalesceVariableNames_LiveRangeChecker struct {
-	root             rhino.Node
-	state            *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice]
-	orderedVariables []*Var
-	liveness         *LiveVariablesAnalysis
-	isAssignToList   []int // indices of written variables
-	isReadFromList   []int // indices of read variables
-}
-
-// Java: CoalesceVariableNames.LiveRangeChecker(Node, Var[], LinearFlowState<LiveVariableLattice>)
-func NewCoalesceVariableNames_LiveRangeChecker(
-	root rhino.Node, orderedVariables []*Var, state *DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice]) *CoalesceVariableNames_LiveRangeChecker {
-	return &CoalesceVariableNames_LiveRangeChecker{
-		root:             root,
-		orderedVariables: orderedVariables,
-		state:            state,
-	}
+	root           rhino.Node
+	liveness       *LiveVariablesAnalysis
+	isAssignToList []int // indices of written variables
+	isReadFromList []int // indices of read variables
 }
 
 func (l *CoalesceVariableNames_LiveRangeChecker) varIndexByID(id uint32) int {
 	if id == 0 {
 		return -1
 	}
-	if l.liveness != nil {
-		if idx, ok := l.liveness.lookupVarIndexByID(id); ok {
-			return idx
-		}
-		return -1
-	}
-	for i := len(l.orderedVariables) - 1; i >= 0; i-- {
-		if l.orderedVariables[i].nameID == id {
-			return i
-		}
+	if idx, ok := l.liveness.lookupVarIndexByID(id); ok {
+		return idx
 	}
 	return -1
 }

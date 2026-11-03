@@ -162,9 +162,6 @@ var controlFlowGraph_Branch_names = [...]string{"ON_TRUE", "ON_FALSE", "UNCOND",
 // String is Enum.name().
 func (b ControlFlowGraph_Branch) String() string { return controlFlowGraph_Branch_names[b] }
 
-// CompareTo is Enum.compareTo(E): the ordinal difference.
-func (b ControlFlowGraph_Branch) CompareTo(o ControlFlowGraph_Branch) int { return int(b) - int(o) }
-
 // Java: ControlFlowGraph.Branch.isConditional()
 func (b ControlFlowGraph_Branch) IsConditional() bool {
 	return b == ControlFlowGraph_Branch_ON_TRUE || b == ControlFlowGraph_Branch_ON_FALSE

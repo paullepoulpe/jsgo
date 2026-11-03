@@ -32,22 +32,21 @@ import (
 //
 // Go-only: language-adapter — annotations (see package args4j).
 var (
-	commandLineRunner_CompilerOptions_DevMode_class                                       = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$DevMode", jscomp.CompilerOptions_DevMode_values())
-	commandLineRunner_CompilerOptions_SegmentOfCompilationToRun_class                     = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$SegmentOfCompilationToRun", jscomp.CompilerOptions_SegmentOfCompilationToRun_values())
-	commandLineRunner_CompilerOptions_IsolationMode_class                                 = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$IsolationMode", jscomp.CompilerOptions_IsolationMode_values())
-	commandLineRunner_SourceMap_Format_class                                              = args4j.EnumClassOf("com.google.javascript.jscomp.SourceMap$Format", jscomp.SourceMap_Format_values())
-	commandLineRunner_CompilerOptions_IncrementalCheckMode_class                          = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$IncrementalCheckMode", jscomp.CompilerOptions_IncrementalCheckMode_values())
-	commandLineRunner_WarningLevel_class                                                  = args4j.EnumClassOf("com.google.javascript.jscomp.WarningLevel", jscomp.WarningLevel_values())
-	commandLineRunner_CompilerOptions_TracerMode_class                                    = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$TracerMode", jscomp.CompilerOptions_TracerMode_values())
-	commandLineRunner_CompilerOptions_Environment_class                                   = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$Environment", jscomp.CompilerOptions_Environment_values())
-	commandLineRunner_CompilerOptions_JsonStreamMode_class                                = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$JsonStreamMode", jscomp.CompilerOptions_JsonStreamMode_values())
-	commandLineRunner_DependencyOptions_DependencyMode_class                              = args4j.EnumClassOf("com.google.javascript.jscomp.DependencyOptions$DependencyMode", jscomp.DependencyOptions_DependencyMode_values())
-	commandLineRunner_ModuleLoader_ResolutionMode_class                                   = args4j.EnumClassOf("com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode", jscomp.ModuleLoader_ResolutionMode_values())
+	commandLineRunner_CompilerOptions_DevMode_class                                       = args4j.EnumClassOf(jscomp.CompilerOptions_DevMode_values())
+	commandLineRunner_CompilerOptions_SegmentOfCompilationToRun_class                     = args4j.EnumClassOf(jscomp.CompilerOptions_SegmentOfCompilationToRun_values())
+	commandLineRunner_CompilerOptions_IsolationMode_class                                 = args4j.EnumClassOf(jscomp.CompilerOptions_IsolationMode_values())
+	commandLineRunner_SourceMap_Format_class                                              = args4j.EnumClassOf(jscomp.SourceMap_Format_values())
+	commandLineRunner_CompilerOptions_IncrementalCheckMode_class                          = args4j.EnumClassOf(jscomp.CompilerOptions_IncrementalCheckMode_values())
+	commandLineRunner_WarningLevel_class                                                  = args4j.EnumClassOf(jscomp.WarningLevel_values())
+	commandLineRunner_CompilerOptions_TracerMode_class                                    = args4j.EnumClassOf(jscomp.CompilerOptions_TracerMode_values())
+	commandLineRunner_CompilerOptions_Environment_class                                   = args4j.EnumClassOf(jscomp.CompilerOptions_Environment_values())
+	commandLineRunner_CompilerOptions_JsonStreamMode_class                                = args4j.EnumClassOf(jscomp.CompilerOptions_JsonStreamMode_values())
+	commandLineRunner_DependencyOptions_DependencyMode_class                              = args4j.EnumClassOf(jscomp.DependencyOptions_DependencyMode_values())
+	commandLineRunner_ModuleLoader_ResolutionMode_class                                   = args4j.EnumClassOf(jscomp.ModuleLoader_ResolutionMode_values())
 	commandLineRunner_AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_class = args4j.EnumClassOf(
-		"com.google.javascript.jscomp.AbstractCommandLineRunner$CommandLineConfig$ErrorFormatOption",
 		AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_values())
-	commandLineRunner_CompilerOptions_ChunkOutputType_class = args4j.EnumClassOf("com.google.javascript.jscomp.CompilerOptions$ChunkOutputType", jscomp.CompilerOptions_ChunkOutputType_values())
-	commandLineRunner_FormattingOption_class                = args4j.EnumClassOf("com.google.javascript.jscomp.CommandLineRunner$FormattingOption", CommandLineRunner_FormattingOption_values())
+	commandLineRunner_CompilerOptions_ChunkOutputType_class = args4j.EnumClassOf(jscomp.CompilerOptions_ChunkOutputType_values())
+	commandLineRunner_FormattingOption_class                = args4j.EnumClassOf(CommandLineRunner_FormattingOption_values())
 )
 
 // I don't really care about unchecked warnings in this class.

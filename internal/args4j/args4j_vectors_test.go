@@ -64,10 +64,10 @@ const (
 func (f tOutFmt) String() string { return [...]string{"MD", "JSON"}[f] }
 
 var (
-	levelClass  = EnumClassOf("Args4jVectors$Level", []tLevel{tLevel_QUIET, tLevel_DEFAULT, tLevel_VERBOSE})
-	modeClass   = EnumClassOf("Args4jVectors$Mode", []tMode{tMode_BROWSER, tMode_NODE, tMode_WEBPACK, tMode_BROWSER_WITH_TRANSFORMED_PREFIXES})
-	fmtClass    = EnumClassOf("Args4jVectors$Fmt", []tFmt{tFmt_PRETTY_PRINT, tFmt_SINGLE_QUOTES})
-	outFmtClass = EnumClassOf("Args4jVectors$OutFmt", []tOutFmt{tOutFmt_MD, tOutFmt_JSON})
+	levelClass  = EnumClassOf([]tLevel{tLevel_QUIET, tLevel_DEFAULT, tLevel_VERBOSE})
+	modeClass   = EnumClassOf([]tMode{tMode_BROWSER, tMode_NODE, tMode_WEBPACK, tMode_BROWSER_WITH_TRANSFORMED_PREFIXES})
+	fmtClass    = EnumClassOf([]tFmt{tFmt_PRETTY_PRINT, tFmt_SINGLE_QUOTES})
+	outFmtClass = EnumClassOf([]tOutFmt{tOutFmt_MD, tOutFmt_JSON})
 )
 
 // newClosureBool is CommandLineRunner.Flags.BooleanOptionHandler.
@@ -452,13 +452,12 @@ func runVector(header string) []string {
 		bean := newVectorBean(words[2])
 		jutil.Try(func() {
 			parser := NewCmdLineParser(bean)
-			jutil.Try(func() {
-				parser.ParseArgument(args...)
-				out = append(out, "ok")
-			}, func(e *CmdLineException) {
+			if e := parser.TryParseArgument(args...); e != nil {
 				out = append(out, "error "+vectorEsc(e.Error()), "message "+vectorEsc(e.GetMessage()),
 					"parser "+strconv.FormatBool(e.GetParser() == parser))
-			})
+			} else {
+				out = append(out, "ok")
+			}
 			out = append(out, "state "+vectorEsc(dumpVectorBean(bean)))
 			if slices.Contains(args, "--help") {
 				w := jutil.NewStringWriter()

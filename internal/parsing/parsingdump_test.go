@@ -92,6 +92,20 @@ func enumByName[E fmt.Stringer](values []E, name string) (E, bool) {
 	return zero, false
 }
 
+func enumByNameCount[E interface {
+	~int32
+	fmt.Stringer
+}](n int, name string) (E, bool) {
+	for i := range n {
+		v := E(i)
+		if v.String() == name {
+			return v, true
+		}
+	}
+	var zero E
+	return zero, false
+}
+
 // configFromDump rebuilds the Config named by the "# config" line of a Java
 // dump (the Go dump prints the fields of the config built here, so a wrong
 // reconstruction shows up as a diff on that line).
@@ -106,13 +120,13 @@ func configFromDump(dump string) *Config {
 		k, v, _ := strings.Cut(kv, "=")
 		switch k {
 		case "languageMode":
-			lang, _ = enumByName(Config_LanguageMode_values(), v)
+			lang, _ = enumByNameCount[Config_LanguageMode](len(config_LanguageMode_names), v)
 		case "jsDocParsingMode":
 			jsdoc, _ = enumByName(Config_JsDocParsing_values(), v)
 		case "runMode":
-			run, _ = enumByName(Config_RunMode_values(), v)
+			run, _ = enumByNameCount[Config_RunMode](len(config_RunMode_names), v)
 		case "strictMode":
-			strict, _ = enumByName(Config_StrictMode_values(), v)
+			strict, _ = enumByNameCount[Config_StrictMode](len(config_StrictMode_names), v)
 		}
 	}
 	return compilerParserConfig(lang, jsdoc, run, strict)

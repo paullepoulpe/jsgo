@@ -3,12 +3,14 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 const (
 	smallSetInlineCap = 16
 	smallMapInlineCap = 8
+	fifoQueueMinCap   = 64
 )
 
 // smallSet is a reusable insertion-ordered set backed by an inline buffer for
@@ -368,4 +370,72 @@ func (m *smallIDNodeMap) remove(id uint32) {
 		return
 	}
 	m.smallMap.removeSwap(id)
+}
+
+// fifoQueue is a reusable generic FIFO ring buffer whose backing capacity is
+// always 0 or a power of two. Popped slots are zeroed immediately so pointer
+// elements never retain references.
+type fifoQueue[T any] struct {
+	buf  []T
+	head int
+	size int
+}
+
+// initWithBuf initializes q to use a zeroed caller-supplied slice (such as a
+// stack-allocated fixed array) whose capacity must be a positive power of two.
+func (q *fifoQueue[T]) initWithBuf(buf []T) {
+	n := cap(buf)
+	jutil.CheckArgument(n > 0 && n&(n-1) == 0)
+	q.buf = buf[:n]
+	q.head = 0
+	q.size = 0
+}
+
+func (q *fifoQueue[T]) isEmpty() bool {
+	return q == nil || q.size == 0
+}
+
+func (q *fifoQueue[T]) clear() {
+	if q == nil {
+		return
+	}
+	if q.size > 0 {
+		clear(q.buf)
+		q.size = 0
+	}
+	q.head = 0
+}
+
+func (q *fifoQueue[T]) push(v T) {
+	if q.size == len(q.buf) {
+		q.grow()
+	}
+	q.buf[(q.head+q.size)&(len(q.buf)-1)] = v
+	q.size++
+}
+
+func (q *fifoQueue[T]) grow() {
+	newCap := max(len(q.buf)*2, fifoQueueMinCap)
+	nb := make([]T, newCap)
+	if q.size > 0 {
+		firstPart := min(len(q.buf)-q.head, q.size)
+		copy(nb, q.buf[q.head:q.head+firstPart])
+		if firstPart < q.size {
+			copy(nb[firstPart:], q.buf[:q.size-firstPart])
+		}
+		clear(q.buf)
+	}
+	q.buf = nb
+	q.head = 0
+}
+
+func (q *fifoQueue[T]) pop() T {
+	jutil.CheckState(q.size > 0)
+	idx := q.head
+	v := q.buf[idx]
+	var zero T
+	q.buf[idx] = zero
+	q.head = (idx + 1) & (len(q.buf) - 1)
+	q.size--
+	return v
 }

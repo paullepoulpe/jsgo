@@ -38,7 +38,8 @@ func TestFarmHashFingerprint64MatchesGuava(t *testing.T) {
 		want, _ := strconv.ParseInt(r[1], 10, 64)
 		var got int64
 		if strings.HasPrefix(r[0], "L") {
-			h := Hashing_FarmHashFingerprint64NewHasher()
+			var h FarmHashFingerprint64Hasher
+			h.Reset()
 			for _, s := range strings.Split(r[0][1:], ",") {
 				v, _ := strconv.ParseInt(s, 10, 64)
 				h.putLong(v)
@@ -86,10 +87,6 @@ func TestBigIntegerMatchesJava(t *testing.T) {
 		x := NewBigIntegerFromString(r[0])
 		if got := "x" + hex.EncodeToString(BigIntegerToByteArray(x)); got != r[1] {
 			t.Errorf("toByteArray(%s) = %s, Java %s", r[0], got, r[1])
-		}
-		bs, _ := hex.DecodeString(r[1][1:])
-		if back := NewBigIntegerFromBytes(bs); back.Cmp(x) != 0 {
-			t.Errorf("new BigInteger(%s) = %s, want %s", r[1], back, r[0])
 		}
 		if x.String() != r[0] {
 			t.Errorf("toString = %s, want %s", x.String(), r[0])

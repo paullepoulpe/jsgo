@@ -61,19 +61,6 @@ var (
 func (*rescopeRewriteCallback) visitTokens() *ast.TokenSet { return &rescopeNameVisitTokens }
 func (*rescopeRewriteCallback) onlyNameLeaves()            {}
 
-func rescopeCollectExternVariableNameIDs(compiler AbstractCompiler, externs rhino.Node) map[uint32]struct{} {
-	externsRefs := NewReferenceCollector(
-		compiler, ReferenceCollector_DO_NOTHING_BEHAVIOR, NewSyntacticScopeCreator(compiler))
-	externsRefs.ProcessRoot(externs)
-	externsNames := make(map[uint32]struct{})
-	for v := range externsRefs.GetAllSymbols() {
-		if !v.IsParam() {
-			externsNames[v.nameID] = struct{}{}
-		}
-	}
-	return externsNames
-}
-
 func newRescopeRewriteCallback(
 	compiler AbstractCompiler,
 	globalSymbolNamespace string,
@@ -87,7 +74,7 @@ func newRescopeRewriteCallback(
 		disambigPrefix:        globalSymbolNamespace + rescopeDisambiguationSuffix,
 		assumeCrossChunkNames: assumeCrossChunkNames,
 		optimizeLocalAccess:   optimizeLocalAccess,
-		externNames:           rescopeCollectExternVariableNameIDs(compiler, externs),
+		externNames:           collectExternVariableNameIDs(compiler, externs),
 		symbolInfo:            symbolInfo,
 	}
 	c.collectWrappedCrossChunkNames()
@@ -212,83 +199,58 @@ func (c *rescopeRewriteCallback) globalVarStaysLocalInDefiningChunk(id uint32, n
 func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 	t *NodeTraversal, scope *Scope, declaration rhino.Node, allLhsNodes []rhino.Node, isGlobalDeclaration bool) {
 	input := t.GetInput()
+	preserveLocal := c.optimizeLocalAccess.ShouldPreserveLocalVarDeclarations() &&
+		!NodeUtil_IsAnyFor(declaration.GetParent())
 
-	if c.optimizeLocalAccess.ShouldPreserveLocalVarDeclarations() &&
-		!NodeUtil_IsAnyFor(declaration.GetParent()) {
+	var astRoot rhino.Node
+	recordLocalPreDecl := func(lhs rhino.Node) {
+		id := lhs.GetStringID()
+		name := lhs.GetString()
+		if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
+			if astRoot.IsNil() {
+				astRoot = input.GetAstRoot(c.compiler)
+			}
+			c.preDeclarations = append(c.preDeclarations,
+				rescopeChunkGlobal{root: astRoot, name: rhino.IR_Name(name).Srcref(lhs)})
+		}
+	}
+
+	if preserveLocal {
 		if isGlobalDeclaration &&
 			!declaration.IsVar() &&
 			c.containsRescopedOrInitializedVars(declaration, isGlobalDeclaration) {
 			declaration.SetToken(rhino.Token_VAR)
 		}
-		var astRoot rhino.Node
-		for decl := range ast.ReadAhead(ast.MustNameDeclaration(declaration).FirstDeclarator()) {
-			if nameDecl, ok := decl.AsName(); ok {
-				id := nameDecl.Node().GetStringID()
-				name := nameDecl.Ident()
-				if !c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
-					if init, hasInit := nameDecl.Init(); hasInit {
-						assign := rhino.IR_Assign(nameDecl.Node().CloneNode(), init.Detach().Node())
-						nameDecl.Node().ReplaceWith(assign)
-						assign.SetJSDocInfo(declaration.GetJSDocInfo())
-					} else if c.isExternVar(id, scope) {
-						nameDecl.Detach()
-					}
-				}
-			} else if dlhs, ok := decl.AsDestructuringLhs(); ok {
-				NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(lhs rhino.Node) {
-					id := lhs.GetStringID()
-					name := lhs.GetString()
-					if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
-						if astRoot.IsNil() {
-							astRoot = input.GetAstRoot(c.compiler)
-						}
-						c.preDeclarations = append(c.preDeclarations,
-							rescopeChunkGlobal{root: astRoot, name: rhino.IR_Name(name).Srcref(lhs)})
-					}
-				})
-				pattern := dlhs.Pattern()
-				init, _ := dlhs.Init()
-				assign := rhino.IR_Assign(pattern.Detach().Node(), init.Detach().Node())
-				dlhs.Node().ReplaceWith(assign)
-				assign.SetJSDocInfo(declaration.GetJSDocInfo())
-			}
-		}
-		c.compiler.ReportChangeToEnclosingScope(declaration)
-		return
-	}
-
-	if !c.optimizeLocalAccess.ShouldOptimize() ||
+	} else if !c.optimizeLocalAccess.ShouldOptimize() ||
 		c.containsRescopedOrInitializedVars(declaration, isGlobalDeclaration) {
-		var astRoot rhino.Node
 		for _, lhs := range allLhsNodes {
-			id := lhs.GetStringID()
-			name := lhs.GetString()
-			if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
-				if astRoot.IsNil() {
-					astRoot = input.GetAstRoot(c.compiler)
-				}
-				c.preDeclarations = append(c.preDeclarations,
-					rescopeChunkGlobal{root: astRoot, name: rhino.IR_Name(name).Srcref(lhs)})
-			}
+			recordLocalPreDecl(lhs)
 		}
 	}
 
 	for decl := range ast.ReadAhead(ast.MustNameDeclaration(declaration).FirstDeclarator()) {
-		if name, ok := decl.AsName(); ok {
-			if init, hasInit := name.Init(); hasInit {
-				assign := rhino.IR_Assign(name.Node().CloneNode(), init.Detach().Node())
-				name.Node().ReplaceWith(assign)
+		if nameDecl, ok := decl.AsName(); ok {
+			id := nameDecl.Node().GetStringID()
+			if preserveLocal && c.globalVarStaysLocalInDefiningChunk(id, nameDecl.Ident(), scope) {
+				continue
+			}
+			if init, hasInit := nameDecl.Init(); hasInit {
+				assign := rhino.IR_Assign(nameDecl.Node().CloneNode(), init.Detach().Node())
+				nameDecl.Node().ReplaceWith(assign)
 				assign.SetJSDocInfo(declaration.GetJSDocInfo())
+			} else if preserveLocal && c.isExternVar(id, scope) {
+				nameDecl.Detach()
 			}
 		} else if dlhs, ok := decl.AsDestructuringLhs(); ok {
+			if preserveLocal {
+				NodeUtil_VisitLhsNodesInNode(dlhs.Node(), recordLocalPreDecl)
+			}
 			pattern := dlhs.Pattern().Node()
 			init, hasInit := dlhs.Init()
 			if !hasInit {
 				if !NodeUtil_IsEnhancedFor(declaration.GetParent()) {
-					jutil.CheckStateMsg1(
-						false,
-						"DESTRUCTURING_LHS should have two children: %s",
-						declaration.ToStringTree())
+					panic(jutil.NewIllegalStateExceptionMsg(
+						"DESTRUCTURING_LHS should have two children: " + declaration.ToStringTree()))
 				}
 				dlhs.Node().ReplaceWith(pattern.Detach())
 			} else {

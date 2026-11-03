@@ -73,23 +73,6 @@ func TestJSCompDoubles(t *testing.T) {
 		JSCompDoubles_IsMathematicalInteger(math.Inf(1)) || !JSCompDoubles_IsAtLeastIntegerPrecision(1e15) {
 		t.Fatal("exactness predicates")
 	}
-	posZero := 0.0
-	if !math.IsNaN(MathMax(math.NaN(), 1)) || !math.IsNaN(MathMax(1, math.NaN())) || !math.IsNaN(MathMax(math.NaN(), math.NaN())) {
-		t.Fatal("MathMax NaN")
-	}
-	if math.Signbit(MathMax(negZero, posZero)) || math.Signbit(MathMax(posZero, negZero)) ||
-		!math.Signbit(MathMax(negZero, negZero)) || math.Signbit(MathMax(posZero, posZero)) ||
-		MathMax(-2, 3) != 3 || MathMax(3, -2) != 3 {
-		t.Fatal("MathMax zeros/values")
-	}
-	if !math.IsNaN(MathMin(math.NaN(), 1)) || !math.IsNaN(MathMin(1, math.NaN())) || !math.IsNaN(MathMin(math.NaN(), math.NaN())) {
-		t.Fatal("MathMin NaN")
-	}
-	if !math.Signbit(MathMin(negZero, posZero)) || !math.Signbit(MathMin(posZero, negZero)) ||
-		!math.Signbit(MathMin(negZero, negZero)) || math.Signbit(MathMin(posZero, posZero)) ||
-		MathMin(-2, 3) != -2 || MathMin(3, -2) != -2 {
-		t.Fatal("MathMin zeros/values")
-	}
 	if !math.Signbit(MathSignum(negZero)) || MathSignum(-3.5) != -1 || !math.IsNaN(MathSignum(math.NaN())) {
 		t.Fatal("MathSignum")
 	}

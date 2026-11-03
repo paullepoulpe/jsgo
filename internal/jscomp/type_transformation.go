@@ -213,8 +213,8 @@ func (t *TypeTransformation) getComputedPropName(n rhino.Node) string {
 	return ast.MustComputedProp(n).Key().Node().GetString()
 }
 
-// EvalWithNameVars evaluates the type transformation expression and returns
-// the resulting type.
+// Eval evaluates the type transformation expression and returns the resulting
+// type.
 //
 // ttlAst is the node representing the type transformation expression;
 // typeVars is the environment containing the information about the type
@@ -222,20 +222,20 @@ func (t *TypeTransformation) getComputedPropName(n rhino.Node) string {
 // the name variables. Returns the resulting type after the transformation
 //
 // Java: TypeTransformation.eval(Node, ImmutableMap<String, JSType>, ImmutableMap<String, String>)
-func (t *TypeTransformation) EvalWithNameVars(
-	ttlAst rhino.Node, typeVars *jutil.LinkedHashMap[string, rhino.JSType], nameVars *jutil.LinkedHashMap[string, string]) rhino.JSType {
+func (t *TypeTransformation) Eval(
+	ttlAst rhino.Node, typeVars *OrderedStringMap[rhino.JSType], nameVars *OrderedStringMap[string]) rhino.JSType {
 	var tvBuf [8]ttlTypeVar
 	tv := tvBuf[:0]
 	if typeVars != nil {
-		for k, v := range typeVars.All() {
-			tv = append(tv, ttlTypeVar{name: k, typ: v})
+		for _, e := range typeVars.Entries() {
+			tv = append(tv, ttlTypeVar{name: e.Key, typ: e.Value})
 		}
 	}
 	var nvBuf [4]ttlNameVar
 	nv := nvBuf[:0]
 	if nameVars != nil {
-		for k, v := range nameVars.All() {
-			nv = append(nv, ttlNameVar{name: k, val: v})
+		for _, e := range nameVars.Entries() {
+			nv = append(nv, ttlNameVar{name: e.Key, val: e.Value})
 		}
 	}
 	return t.evalWithSlices(ttlAst, tv, nv)

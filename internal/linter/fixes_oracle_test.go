@@ -68,7 +68,7 @@ func refactoringFixesDump_round(sb *strings.Builder, name string, code *string) 
 			done = true
 		}
 	}()
-	options := Linter_Builder_().Options()
+	options := NewLinter_Builder().Options()
 	compiler := jscomp.NewCompilerWithOutStream(jutil.NewPrintStream(io.Discard))
 	errorManager := refactoring.NewFixingErrorManager()
 	compiler.SetErrorManager(errorManager)

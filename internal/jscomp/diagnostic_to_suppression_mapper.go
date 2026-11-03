@@ -191,7 +191,6 @@ type MapDiagnosticToSuppression struct {
 //
 // Go-only: language-adapter — reflection (see package args4j).
 var diagnosticToSuppressionMapper_OutputFormatClass = args4j.EnumClassOf(
-	"com.google.javascript.jscomp.DiagnosticToSuppressionMapper$OutputFormat",
 	DiagnosticToSuppressionMapper_OutputFormat_values())
 
 // Args4jFields lists the fields that carry args4j's @Option annotations, in

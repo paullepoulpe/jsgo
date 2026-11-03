@@ -29,9 +29,7 @@ import (
 func (r *RemoveUnusedCode) traverseNameReference(n rhino.Node, scope *Scope) {
 	// The only cases that should reach this point are parameter declarations and references
 	// to names. The name node does not have children in these cases.
-	if n.HasChildren() {
-		jutil.CheckState(false)
-	}
+	jutil.CheckState(!n.HasChildren())
 	// (A switch on the parent's token: this runs for every name, and
 	// RoleOf would read the parent's children too.)
 	switch n.GetParent().GetToken() {
@@ -41,14 +39,13 @@ func (r *RemoveUnusedCode) traverseNameReference(n rhino.Node, scope *Scope) {
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		// var|let|const name;
 		// are handled at a higher level.
-		jutil.CheckState(false)
+		panic(jutil.NewIllegalStateException())
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
 		// function name() {}
 		// class name() {}
 		// are handled at a higher level.
-		if role := ast.RoleOf(n); role == ast.RoleFunctionName || role == ast.RoleClassName {
-			jutil.CheckState(false)
-		}
+		role := ast.RoleOf(n)
+		jutil.CheckState(role != ast.RoleFunctionName && role != ast.RoleClassName)
 	}
 	varInfo := r.TraverseNameNode(n, scope)
 	if varInfo.IsRemovable() {
@@ -140,9 +137,7 @@ func (r *RemoveUnusedCode) TraverseNode(n rhino.Node, scope *Scope) {
 		r.TraverseEnhancedFor(n, scope)
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
 		// for-loop cases are handled by custom traversal methods.
-		if !NodeUtil_IsStatement(n) {
-			jutil.CheckState(false)
-		}
+		jutil.CheckState(NodeUtil_IsStatement(n))
 		r.TraverseDeclarationStatement(n, scope)
 	case rhino.Token_INSTANCEOF:
 		r.TraverseInstanceof(n, scope)
@@ -158,9 +153,7 @@ func (r *RemoveUnusedCode) TraverseNode(n rhino.Node, scope *Scope) {
 // Java: RemoveUnusedCode.traverseInstanceof(Node, Scope)
 func (r *RemoveUnusedCode) TraverseInstanceof(instanceofNode rhino.Node, scope *Scope) {
 	instanceof, ok := ast.AsBinaryOf(instanceofNode, rhino.Token_INSTANCEOF)
-	if !ok {
-		jutil.CheckArgumentMsg1(false, "%s", instanceofNode)
-	}
+	jutil.CheckArgumentMsg1(ok, "%s", instanceofNode)
 	r.TraverseNode(instanceof.Left().Node(), scope)
 	if rhs, ok := instanceof.Right().AsName(); ok {
 		varInfo := r.TraverseNameNode(rhs.Node(), scope)
@@ -583,9 +576,7 @@ func (r *RemoveUnusedCode) TraverseDeclarationStatement(declarationStatement rhi
 
 // Java: RemoveUnusedCode.traverseIndirectAssignmentList(Node, Scope)
 func (r *RemoveUnusedCode) TraverseIndirectAssignmentList(list rhino.Node, scope *Scope) {
-	if !list.IsArrayPattern() && !list.IsParamList() {
-		jutil.CheckStateMsg1(false, "%s", list)
-	}
+	jutil.CheckStateMsg1(list.IsArrayPattern() || list.IsParamList(), "%s", list)
 
 	for elem := list.GetFirstChild(); !elem.IsNil(); elem = elem.GetNext() {
 		switch elem.GetToken() {
@@ -612,9 +603,7 @@ func (r *RemoveUnusedCode) TraverseIndirectAssignmentList(list rhino.Node, scope
 // Java: RemoveUnusedCode.traverseIndirectAssignment(Node, Node, Scope)
 func (r *RemoveUnusedCode) TraverseIndirectAssignment(root rhino.Node, target rhino.Node, scope *Scope) {
 	rootParent := root.GetParent()
-	if !rootParent.IsDestructuringPattern() && !rootParent.IsParamList() {
-		jutil.CheckArgumentMsg1(false, "%s", rootParent)
-	}
+	jutil.CheckArgumentMsg1(rootParent.IsDestructuringPattern() || rootParent.IsParamList(), "%s", rootParent)
 
 	// Flatten out the case where the target is a default value. We always have to consider it.
 	if defaultValue, ok := ast.AsDefaultValue(target); ok {
@@ -669,13 +658,9 @@ func (r *RemoveUnusedCode) TraverseChildren(n rhino.Node, scope *Scope) {
 // Java: RemoveUnusedCode.traverseFunction(Node, Scope)
 func (r *RemoveUnusedCode) TraverseFunction(function rhino.Node, parentScope *Scope) {
 	fn, ok := ast.AsFunction(function)
-	if !ok {
-		jutil.CheckStateMsg1(false, "%s", function)
-	}
+	jutil.CheckStateMsg1(ok, "%s", function)
 	body := fn.Body().Node()
-	if !body.IsBlock() {
-		jutil.CheckStateMsg1(false, "%s", body)
-	}
+	jutil.CheckStateMsg1(body.IsBlock(), "%s", body)
 	paramlist := fn.Params()
 
 	// Checking the parameters

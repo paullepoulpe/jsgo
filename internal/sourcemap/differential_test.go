@@ -166,16 +166,17 @@ func diffStrs(a []*string) string {
 	return sb.String()
 }
 
-func diffOm(m *sourcemap.Mapping_OriginalMapping) string {
+func diffOm(c *sourcemap.SourceMapConsumerV3, lineNumber, column int) string {
+	m, hasIdentifier := sourcemap.LookupMappingForDiff(c, lineNumber, column)
 	if m == nil {
 		return "-"
 	}
 	id := ""
-	if m.HasIdentifier() {
+	if hasIdentifier {
 		id = "=" + m.GetIdentifier()
 	}
 	return m.GetOriginalFile() + ":" + strconv.Itoa(m.GetLineNumber()) + ":" +
-		strconv.Itoa(m.GetColumnPosition()) + id + ":" + strconv.Itoa(m.GetPrecision().GetNumber())
+		strconv.Itoa(m.GetColumnPosition()) + id + ":" + strconv.Itoa(int(m.GetPrecision()))
 }
 
 type diffState struct {
@@ -324,8 +325,6 @@ func (d *diffState) run(op []*string) {
 		}))
 		d.c = m
 		d.result("ok")
-	case "proto":
-		d.protoScenario()
 	case "cfactory0":
 		d.c = sourcemap.SourceMapConsumerFactory_Parse(d.resolve(op[1]))
 		d.result("ok")
@@ -352,7 +351,7 @@ func (d *diffState) run(op []*string) {
 		d.result(strconv.Itoa(jutil.StringLength(sb.String())))
 	case "clookup":
 		for i := 1; i+1 < len(op); i += 2 {
-			d.result(diffOm(d.c.GetMappingForLine(atoi(op[i]), atoi(op[i+1]))))
+			d.result(diffOm(d.c, atoi(op[i]), atoi(op[i+1])))
 		}
 	case "creverse":
 		var sb strings.Builder
@@ -396,70 +395,6 @@ func (d *diffState) run(op []*string) {
 	default:
 		panic("unknown op " + *op[0])
 	}
-}
-
-func diffProto(m *sourcemap.Mapping_OriginalMapping) string {
-	return jutil.ToJavaString(m.HasOriginalFile()) + "," + m.GetOriginalFile() + "," +
-		jutil.ToJavaString(m.HasLineNumber()) + "," + strconv.Itoa(m.GetLineNumber()) + "," +
-		jutil.ToJavaString(m.HasColumnPosition()) + "," + strconv.Itoa(m.GetColumnPosition()) + "," +
-		jutil.ToJavaString(m.HasIdentifier()) + "," + m.GetIdentifier() + "," +
-		jutil.ToJavaString(m.HasPrecision()) + "," + m.GetPrecision().String()
-}
-
-// protoScenario is SourceMapDiff.protoScenario: the reconstructed
-// OriginalMapping against the generated Java class.
-func (d *diffState) protoScenario() {
-	dm := sourcemap.Mapping_OriginalMapping_GetDefaultInstance()
-	d.result("default " + diffProto(dm) + " " + jutil.ToJavaString(dm.IsInitialized()))
-	a := sourcemap.Mapping_OriginalMapping_NewBuilder().
-		SetOriginalFile("a.js").
-		SetLineNumber(3).
-		SetColumnPosition(-4).
-		SetIdentifier("id").
-		SetPrecision(sourcemap.Mapping_OriginalMapping_Precision_APPROXIMATE_LINE).
-		Build()
-	d.result("a " + diffProto(a))
-	b := a.ToBuilder().ClearIdentifier().ClearPrecision().Build()
-	d.result("b " + diffProto(b))
-	c := sourcemap.Mapping_OriginalMapping_NewBuilderFrom(b).SetLineNumber(0).ClearOriginalFile().Build()
-	d.result("c " + diffProto(c))
-	e := sourcemap.Mapping_OriginalMapping_NewBuilder().SetPrecision(sourcemap.Mapping_OriginalMapping_Precision_UNKNOWN_PRECISION).Build()
-	d.result("e " + diffProto(e))
-	f := sourcemap.Mapping_OriginalMapping_NewBuilder().SetOriginalFile("").SetLineNumber(0).SetIdentifier("").Build()
-	d.result("f " + diffProto(f))
-	g := sourcemap.Mapping_OriginalMapping_NewBuilder().MergeFrom(b).MergeFrom(f).Build()
-	d.result("g " + diffProto(g))
-	h := a.ToBuilder().Clear().SetColumnPosition(9).Build()
-	d.result("h " + diffProto(h))
-	i := sourcemap.Mapping_OriginalMapping_NewBuilderFrom(a)
-	d.result("i " + jutil.ToJavaString(i.HasIdentifier()) + i.GetIdentifier() + i.GetPrecision().String() + strconv.Itoa(i.GetLineNumber()))
-	all := []*sourcemap.Mapping_OriginalMapping{dm, a, b, c, e, f, g, h, a.ToBuilder().Build(), dm.ToBuilder().Build()}
-	var sb strings.Builder
-	sb.WriteString("equals")
-	for _, x := range all {
-		sb.WriteString(" ")
-		for _, y := range all {
-			if x.Equals(y) {
-				sb.WriteString("1")
-			} else {
-				sb.WriteString("0")
-			}
-		}
-	}
-	d.result(sb.String())
-	forNumber := func(n int) string {
-		p, ok := sourcemap.Mapping_OriginalMapping_Precision_ForNumber(n)
-		if !ok {
-			return "null"
-		}
-		return p.String()
-	}
-	var names []string
-	for _, p := range sourcemap.Mapping_OriginalMapping_Precision_values() {
-		names = append(names, p.String())
-	}
-	d.result("forNumber " + forNumber(0) + " " + forNumber(2) + " " + forNumber(3) + " " +
-		strconv.Itoa(sourcemap.Mapping_OriginalMapping_Precision_EXACT.GetNumber()) + " [" + strings.Join(names, ", ") + "]")
 }
 
 func (d *diffState) guarded(body func()) {
@@ -530,7 +465,7 @@ func (d *diffState) dumpConsumer() {
 			for col := 0; col <= jutil.IntAdd(maxCol, 1); col++ {
 				var cur *string
 				if col <= maxCol {
-					s := diffOm(c.GetMappingForLine(l, col))
+					s := diffOm(c, l, col)
 					cur = &s
 				}
 				if prev != nil && !diffStringsEqual(prev, cur) {
@@ -551,7 +486,7 @@ func (d *diffState) dumpConsumer() {
 	}
 	for _, p := range probes {
 		d.guarded(func() {
-			d.result("P" + strconv.Itoa(p[0]) + "," + strconv.Itoa(p[1]) + "=" + diffOm(c.GetMappingForLine(p[0], p[1])))
+			d.result("P" + strconv.Itoa(p[0]) + "," + strconv.Itoa(p[1]) + "=" + diffOm(c, p[0], p[1]))
 		})
 	}
 	d.guarded(func() {
@@ -633,7 +568,7 @@ func TestDifferentialAgainstJava(t *testing.T) {
 			op[i] = diffUnescape(t, a)
 		}
 		switch *op[0] {
-		case "ofast":
+		case "ofast", "proto":
 			continue
 		case "cfast":
 			if len(c.want) == 1 && c.want[0] == "ok" {

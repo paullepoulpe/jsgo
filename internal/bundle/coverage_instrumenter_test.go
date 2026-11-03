@@ -34,7 +34,7 @@ func TestCoverageInstrumenter_CoverageInstrumenter_instrument(t *testing.T) {
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
 	mockCompiler.compileResult = NewCompilerBasedTransformer_CompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
 	bundleTest_assertSource(t, instrumenter.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
-		Source_Builder_().
+		NewSource_Builder().
 			SetPath(transpilerTest_FOO_JS).
 			SetOriginalCode("bar").
 			SetCode("result").
@@ -54,7 +54,7 @@ func TestCoverageInstrumenter_CoverageInstrumenter_noInstrumentation(t *testing.
 // Tests for CompilerSupplier
 
 func TestCoverageInstrumenter_CompilerSupplier_instruments(t *testing.T) {
-	compiler := CoverageInstrumenter_CompilerSupplier_()
+	compiler := NewCoverageInstrumenter_CompilerSupplier()
 	result := compiler.Compile(transpilerTest_SOURCE_JS, "var x = 42;")
 	expected := []string{
 		"(function(self){if(!self.window){self.window=self;self.window.top=self}})(typeof " +
@@ -80,13 +80,13 @@ func TestCoverageInstrumenter_CompilerSupplier_instruments(t *testing.T) {
 	sourceMap := sourcemap.NewSourceMapConsumerV3()
 	sourceMap.Parse(result.sourceMap)
 	mappingFoX := sourceMap.GetMappingForLine(1, jutil.StringIndexOf(result.source, "x=42")+1)
-	want := sourcemap.Mapping_OriginalMapping_NewBuilder().
-		SetOriginalFile(transpilerTest_SOURCE_JS.String()).
-		SetLineNumber(1).
-		SetColumnPosition(5).
-		SetIdentifier("x").
-		SetPrecision(sourcemap.Mapping_OriginalMapping_Precision_EXACT).
-		Build()
+	want := &sourcemap.Mapping_OriginalMapping{
+		OriginalFile:   transpilerTest_SOURCE_JS.String(),
+		LineNumber:     1,
+		ColumnPosition: 5,
+		Identifier:     "x",
+		Precision:      sourcemap.Mapping_OriginalMapping_Precision_EXACT,
+	}
 	if !jutil.ObjectsEquals(mappingFoX, want) {
 		t.Errorf("mapping = %v, want %v", mappingFoX, want)
 	}

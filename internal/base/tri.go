@@ -42,9 +42,6 @@ const (
 
 var tri_names = [...]string{"FALSE", "UNKNOWN", "TRUE"}
 
-// Tri_values is Tri.values().
-func Tri_values() []Tri { return []Tri{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE} }
-
 // Name is Enum.name().
 func (t Tri) Name() string { return tri_names[t] }
 

@@ -54,8 +54,10 @@ type Linter_Builder struct {
 	options *jscomp.CompilerOptions
 }
 
+// NewLinter_Builder constructs a new Linter_Builder (Linter.builder()).
+//
 // Java: Linter.Builder()
-func newLinter_Builder() *Linter_Builder {
+func NewLinter_Builder() *Linter_Builder {
 	b := &Linter_Builder{}
 	b.options = jscomp.NewCompilerOptions()
 	b.options.SetLanguage(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
@@ -115,14 +117,6 @@ const Linter_MAX_FIXES = 5
 // Java: Linter(CompilerOptions)
 func newLinter(options *jscomp.CompilerOptions) *Linter {
 	return &Linter{options: options}
-}
-
-// Linter_Builder_ is Linter.builder() (the trailing underscore keeps it
-// apart from the type Linter_Builder).
-//
-// Java: Linter.builder()
-func Linter_Builder_() *Linter_Builder {
-	return newLinter_Builder()
 }
 
 // Java: Linter.lint(String)
@@ -197,7 +191,6 @@ type LinterMain struct {
 //
 // Go-only: language-adapter — reflection (see package args4j).
 var linterMain_ResolutionModeClass = args4j.EnumClassOf(
-	"com.google.javascript.jscomp.deps.ModuleLoader$ResolutionMode",
 	jscomp.ModuleLoader_ResolutionMode_values())
 
 // Java: LinterMain()
@@ -242,9 +235,11 @@ func LinterMain_Main(args []string) {
 // Java: LinterMain.run(String[])
 func (m *LinterMain) run(args []string) {
 	parser := args4j.NewCmdLineParser(m)
-	parser.ParseArgument(args...)
+	if err := parser.TryParseArgument(args...); err != nil {
+		panic(err)
+	}
 
-	linter := Linter_Builder_().WithModuleResolutionMode(m.resolutionMode).Build()
+	linter := NewLinter_Builder().WithModuleResolutionMode(m.resolutionMode).Build()
 
 	for _, filename := range m.files {
 		if m.fix {

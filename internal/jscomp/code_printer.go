@@ -214,11 +214,11 @@ func adjustEndPosition(
 
 //go:noinline
 func codePrinter_panicBadEndPosition(endPosition sourcemap.FilePosition, lineLen int) {
-	jutil.CheckStateMsg2(
-		false,
-		"End position %s points to a column larger than line length %s",
-		&endPosition,
-		lineLen)
+	panic(jutil.NewIllegalStateExceptionMsg(
+		jutil.LenientFormat(
+			"End position %s points to a column larger than line length %s",
+			&endPosition,
+			lineLen)))
 }
 
 // getTryForCatch returns the TRY node for the specified CATCH node.

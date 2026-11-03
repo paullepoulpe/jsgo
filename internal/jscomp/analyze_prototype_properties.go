@@ -211,32 +211,17 @@ func (a *AnalyzePrototypeProperties) propagateReferences() {
 	if len(a.seededNodes) == 0 {
 		return
 	}
-	totalNodes := len(a.propertyInfos) + len(a.varInfos) + 2
-	ringCap := 16
-	for ringCap < totalNodes+1 {
-		ringCap <<= 1
-	}
 	var ringBuf [64]*AnalyzePrototypeProperties_NameInfo
-	var ring []*AnalyzePrototypeProperties_NameInfo
-	if ringCap <= len(ringBuf) {
-		ring = ringBuf[:ringCap]
-	} else {
-		ring = make([]*AnalyzePrototypeProperties_NameInfo, ringCap)
-	}
-	var head, tail uint32
-	mask := uint32(ringCap - 1)
+	var worklist fifoQueue[*AnalyzePrototypeProperties_NameInfo]
+	worklist.initWithBuf(ringBuf[:])
 	for _, info := range a.seededNodes {
 		if len(info.outEdges) > 0 && !info.inWorkSet {
 			info.inWorkSet = true
-			ring[tail&mask] = info
-			tail++
+			worklist.push(info)
 		}
 	}
-	for head != tail {
-		idx := head & mask
-		start := ring[idx]
-		ring[idx] = nil
-		head++
+	for !worklist.isEmpty() {
+		start := worklist.pop()
 		start.inWorkSet = false
 		if !start.referenced {
 			continue
@@ -250,8 +235,7 @@ func (a *AnalyzePrototypeProperties) propagateReferences() {
 			dest := e.dest
 			if dest.MarkReference(targetChunk) && len(dest.outEdges) > 0 && !dest.inWorkSet {
 				dest.inWorkSet = true
-				ring[tail&mask] = dest
-				tail++
+				worklist.push(dest)
 			}
 		}
 	}

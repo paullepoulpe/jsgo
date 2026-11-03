@@ -306,12 +306,6 @@ func (c *cmdLineParams) splitToken() {
 	}
 }
 
-func (p *CmdLineParser) ParseArgument(args ...string) {
-	if err := p.TryParseArgument(args...); err != nil {
-		panic(err)
-	}
-}
-
 // TryParseArgument parses command-line flags and positional arguments, returning
 // a *CmdLineException instead of panicking on user argument errors.
 func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {

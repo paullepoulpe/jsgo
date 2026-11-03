@@ -55,8 +55,7 @@ type ProcessDefines struct {
 	defineByDefineName   map[string]*ProcessDefines_Define
 	defines              []*ProcessDefines_Define
 	// from var CLOSURE_DEFINES = {
-	replacementValuesFromClosureDefines map[string]rhino.Node
-	closureDefineOrder                  []string
+	replacementValuesFromClosureDefines OrderedStringMap[rhino.Node]
 	validDefineValueExpressions         map[rhino.Node]struct{}
 	hasZoneInput                        bool
 
@@ -300,7 +299,7 @@ func (p *ProcessDefines) OverrideDefines() {
 		}
 	}
 
-	if !p.replacementValuesFromFlags.IsEmpty() || len(p.closureDefineOrder) > 0 {
+	if !p.replacementValuesFromFlags.IsEmpty() || !p.replacementValuesFromClosureDefines.IsEmpty() {
 		// Sets.difference(Sets.union(flags, closureDefines),
 		//     Sets.union(Sets.union(KNOWN_DEFINES, defineByDefineName), ignore))
 		isUsed := func(k string) bool {
@@ -318,9 +317,9 @@ func (p *ProcessDefines) OverrideDefines() {
 				p.compiler.Report(JSError_Make(ProcessDefines_UNKNOWN_DEFINE_WARNING, e.Key))
 			}
 		}
-		for _, unknownDefine := range p.closureDefineOrder {
-			if !p.replacementValuesFromFlags.ContainsKey(unknownDefine) && !isUsed(unknownDefine) {
-				p.compiler.Report(JSError_Make(ProcessDefines_UNKNOWN_DEFINE_WARNING, unknownDefine))
+		for _, e := range p.replacementValuesFromClosureDefines.Entries() {
+			if !p.replacementValuesFromFlags.ContainsKey(e.Key) && !isUsed(e.Key) {
+				p.compiler.Report(JSError_Make(ProcessDefines_UNKNOWN_DEFINE_WARNING, e.Key))
 			}
 		}
 	}
@@ -388,7 +387,7 @@ func (p *ProcessDefines) GetReplacementForDefineName(defineName string) rhino.No
 	if replacementFromFlags, ok := p.replacementValuesFromFlags.Lookup(defineName); ok && !replacementFromFlags.IsNil() {
 		return replacementFromFlags
 	}
-	if replacementFromClosureDefines, ok := p.replacementValuesFromClosureDefines[defineName]; ok && !replacementFromClosureDefines.IsNil() {
+	if replacementFromClosureDefines, ok := p.replacementValuesFromClosureDefines.Lookup(defineName); ok && !replacementFromClosureDefines.IsNil() {
 		return replacementFromClosureDefines
 	}
 	return rhino.NilNode

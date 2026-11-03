@@ -473,20 +473,14 @@ func (p *ProcessDefines) HandleClosureDefinesValue(stringNode rhino.Node, valueN
 	if (stringNode.IsStringKey() || stringNode.IsStringLit()) &&
 		processDefines_isValidClosureDefinesValue(valueNode) {
 		key := stringNode.GetString()
-		if prev, exists := p.replacementValuesFromClosureDefines[key]; exists {
+		if prev := p.replacementValuesFromClosureDefines.Put(key, valueNode); !prev.IsNil() {
 			p.compiler.Report(
 				JSError_MakeWithNode(
 					errorNode,
 					ProcessDefines_CLOSURE_DEFINES_MULTIPLE,
 					key,
 					prev.GetLocation()))
-		} else {
-			if p.replacementValuesFromClosureDefines == nil {
-				p.replacementValuesFromClosureDefines = make(map[string]rhino.Node)
-			}
-			p.closureDefineOrder = append(p.closureDefineOrder, key)
 		}
-		p.replacementValuesFromClosureDefines[key] = valueNode
 	} else if p.mode.Check() {
 		p.compiler.Report(JSError_MakeWithNode(errorNode, ProcessDefines_CLOSURE_DEFINES_ERROR))
 	}

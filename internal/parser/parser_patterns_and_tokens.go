@@ -36,13 +36,6 @@ const (
 
 var parser_PatternKind_names = [...]string{"INITIALIZER", "ANY"}
 
-// Parser_PatternKind_values is PatternKind.values().
-//
-// Java: Parser.PatternKind.values()
-func Parser_PatternKind_values() []Parser_PatternKind {
-	return []Parser_PatternKind{Parser_PatternKind_INITIALIZER, Parser_PatternKind_ANY}
-}
-
 // Name is Enum.name().
 //
 // Java: Parser.PatternKind.name()

@@ -293,12 +293,3 @@ func (s *CoverageInstrumenter_CompilerSupplier) SetOptions(options *jscomp.Compi
 	options.SetInstrumentForCoverageOption(jscomp.CompilerOptions_InstrumentOption_LINE_ONLY)
 	options.SetInstrumentForCoverageOnly(true)
 }
-
-// CoverageInstrumenter_CompilerSupplier_ is CoverageInstrumenter's static
-// compilerSupplier() (the trailing underscore keeps it apart from the type
-// CoverageInstrumenter_CompilerSupplier).
-//
-// Java: CoverageInstrumenter.compilerSupplier()
-func CoverageInstrumenter_CompilerSupplier_() *CoverageInstrumenter_CompilerSupplier {
-	return NewCoverageInstrumenter_CompilerSupplier()
-}

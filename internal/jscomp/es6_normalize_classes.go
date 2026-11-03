@@ -170,18 +170,22 @@ var Es6NormalizeClasses_ILLEGAL_PRIVATE_MEMBER_ASSIGNMENT = DiagnosticType_Error
 	"JSC_ILLEGAL_PRIVATE_MEMBER_ASSIGNMENT",
 	"Invalid assignment to private method ''#{0}''. Private methods cannot be reassigned.")
 
+func (e *Es6NormalizeClasses) uniqueVarName(t *NodeTraversal, prefix string) string {
+	return e.uniqueIdSupplier.UniqueVarName(prefix, t.GetInput())
+}
+
 // GenerateUniqueTmpVarName returns $jscomp$tmp$[FILE_ID]$[number]
 //
 // Java: Es6NormalizeClasses.generateUniqueTmpVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueTmpVarName(t *NodeTraversal) string {
-	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_TMP_VAR, t.GetInput())
+	return e.uniqueVarName(t, es6NormalizeClasses_TMP_VAR)
 }
 
 // GenerateUniqueClassDeclVarName returns $jscomp$classDecl$[FILE_ID]$[number]
 //
 // Java: Es6NormalizeClasses.generateUniqueClassDeclVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueClassDeclVarName(t *NodeTraversal) string {
-	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_CLASS_DECL_VAR, t.GetInput())
+	return e.uniqueVarName(t, es6NormalizeClasses_CLASS_DECL_VAR)
 }
 
 // GenerateUniqueClassExtendsVarName returns
@@ -189,22 +193,7 @@ func (e *Es6NormalizeClasses) GenerateUniqueClassDeclVarName(t *NodeTraversal) s
 //
 // Java: Es6NormalizeClasses.generateUniqueClassExtendsVarName(NodeTraversal)
 func (e *Es6NormalizeClasses) GenerateUniqueClassExtendsVarName(t *NodeTraversal) string {
-	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_CLASS_EXTENDS_VAR, t.GetInput())
-}
-
-// GenerateUniqueCompFieldVarName returns $jscomp$compfield$[FILE_ID]$[number]
-//
-// Java: Es6NormalizeClasses.generateUniqueCompFieldVarName(NodeTraversal)
-func (e *Es6NormalizeClasses) GenerateUniqueCompFieldVarName(t *NodeTraversal) string {
-	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_COMP_FIELD_VAR, t.GetInput())
-}
-
-// GenerateUniqueStaticInitMethodName returns
-// $jscomp$staticInit$[FILE_ID]$[number]
-//
-// Java: Es6NormalizeClasses.generateUniqueStaticInitMethodName(NodeTraversal)
-func (e *Es6NormalizeClasses) GenerateUniqueStaticInitMethodName(t *NodeTraversal) string {
-	return e.uniqueIdSupplier.UniqueVarName(es6NormalizeClasses_STATIC_INIT_METHOD_NAME, t.GetInput())
+	return e.uniqueVarName(t, es6NormalizeClasses_CLASS_EXTENDS_VAR)
 }
 
 // Es6NormalizeClasses_GenerateUniquePrivateMapVarName returns

@@ -26,7 +26,7 @@ func TestFileCharSourceReadLines(t *testing.T) {
 		"a b":        "[a b]",
 	} {
 		var sb strings.Builder
-		for _, l := range CharStreams_ReadLines(NewStringReader(in)) {
+		for _, l := range splitLinesUTF16(StringToUTF16(in)) {
 			sb.WriteString("[" + l + "]")
 		}
 		if sb.String() != want {

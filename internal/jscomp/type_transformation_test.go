@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
@@ -32,8 +31,8 @@ import (
 type TypeTransformationTest struct {
 	CompilerTypeTestCaseBase
 
-	typeVars *jutil.LinkedHashMap[string, rhino.JSType]
-	nameVars *jutil.LinkedHashMap[string, string]
+	typeVars OrderedStringMap[rhino.JSType]
+	nameVars OrderedStringMap[string]
 }
 
 // Java: private static JSType TypeTransformationTest.recordTypeTest
@@ -71,33 +70,29 @@ func (c *TypeTransformationTest) SetUp() {
 	c.CompilerTypeTestCaseBase.SetUp()
 	c.errorReporter = rhinotesting.NewTestErrorReporter()
 	c.initRecordTypeTests()
-	c.typeVars =
-		jutil.NewImmutableMapBuilder[string, rhino.JSType]().
-			Put("S", c.GetNativeStringType()).
-			Put("N", c.GetNativeNumberType()).
-			Put("B", c.GetNativeBooleanType()).
-			Put("BOT", c.GetNativeNoType()).
-			Put("TOP", c.GetNativeAllType()).
-			Put("UNK", c.GetNativeUnknownType()).
-			Put("CHKUNK", c.GetNativeCheckedUnknownType()).
-			Put("SO", c.GetNativeStringObjectType()).
-			Put("NO", c.GetNativeNumberObjectType()).
-			Put("BO", c.GetNativeBooleanObjectType()).
-			Put("NULL", c.GetNativeNullType()).
-			Put("OBJ", c.GetNativeObjectType()).
-			Put("UNDEF", c.GetNativeVoidType()).
-			Put("ARR", c.GetNativeArrayType()).
-			Put("ARRNUM", c.type_(c.GetNativeArrayType(), c.GetNativeNumberType())).
-			Put("REC", typeTransformationTest_recordTypeTest).
-			Put("NESTEDREC", typeTransformationTest_nestedRecordTypeTest).
-			Put("ASYNCH", typeTransformationTest_asynchRecord).
-			BuildOrThrow()
-	c.nameVars =
-		jutil.NewImmutableMapBuilder[string, string]().
-			Put("s", "string").
-			Put("n", "number").
-			Put("b", "boolean").
-			BuildOrThrow()
+	c.typeVars.Clear()
+	c.typeVars.Put("S", c.GetNativeStringType())
+	c.typeVars.Put("N", c.GetNativeNumberType())
+	c.typeVars.Put("B", c.GetNativeBooleanType())
+	c.typeVars.Put("BOT", c.GetNativeNoType())
+	c.typeVars.Put("TOP", c.GetNativeAllType())
+	c.typeVars.Put("UNK", c.GetNativeUnknownType())
+	c.typeVars.Put("CHKUNK", c.GetNativeCheckedUnknownType())
+	c.typeVars.Put("SO", c.GetNativeStringObjectType())
+	c.typeVars.Put("NO", c.GetNativeNumberObjectType())
+	c.typeVars.Put("BO", c.GetNativeBooleanObjectType())
+	c.typeVars.Put("NULL", c.GetNativeNullType())
+	c.typeVars.Put("OBJ", c.GetNativeObjectType())
+	c.typeVars.Put("UNDEF", c.GetNativeVoidType())
+	c.typeVars.Put("ARR", c.GetNativeArrayType())
+	c.typeVars.Put("ARRNUM", c.type_(c.GetNativeArrayType(), c.GetNativeNumberType()))
+	c.typeVars.Put("REC", typeTransformationTest_recordTypeTest)
+	c.typeVars.Put("NESTEDREC", typeTransformationTest_nestedRecordTypeTest)
+	c.typeVars.Put("ASYNCH", typeTransformationTest_asynchRecord)
+	c.nameVars.Clear()
+	c.nameVars.Put("s", "string")
+	c.nameVars.Put("n", "number")
+	c.nameVars.Put("b", "boolean")
 }
 
 // Java: TypeTransformationTest.testTransformationWithValidBasicTypePredicate()
@@ -1132,30 +1127,38 @@ func (c *TypeTransformationTest) type_(baseType rhino.ObjectType, templatizedTyp
 
 // Java: TypeTransformationTest.record()
 func (c *TypeTransformationTest) record() rhino.JSType {
-	return c.recordFromMap(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	return c.recordFromMap(nil)
 }
 
 // Java: TypeTransformationTest.record(String, JSType)
 func (c *TypeTransformationTest) recordWithProperty(p1 string, t1 rhino.JSType) rhino.JSType {
-	return c.recordFromMap(jutil.NewImmutableMapBuilder[string, rhino.JSType]().Put(p1, t1).BuildOrThrow())
+	var m OrderedStringMap[rhino.JSType]
+	m.Put(p1, t1)
+	return c.recordFromMap(&m)
 }
 
 // Java: TypeTransformationTest.record(String, JSType, String, JSType)
 func (c *TypeTransformationTest) recordWithProperties2(p1 string, t1 rhino.JSType, p2 string, t2 rhino.JSType) rhino.JSType {
-	return c.recordFromMap(jutil.NewImmutableMapBuilder[string, rhino.JSType]().Put(p1, t1).Put(p2, t2).BuildOrThrow())
+	var m OrderedStringMap[rhino.JSType]
+	m.Put(p1, t1)
+	m.Put(p2, t2)
+	return c.recordFromMap(&m)
 }
 
 // Java: TypeTransformationTest.record(String, JSType, String, JSType, String, JSType)
 func (c *TypeTransformationTest) recordWithProperties3(p1 string, t1 rhino.JSType, p2 string, t2 rhino.JSType, p3 string, t3 rhino.JSType) rhino.JSType {
-	return c.recordFromMap(
-		jutil.NewImmutableMapBuilder[string, rhino.JSType]().Put(p1, t1).Put(p2, t2).Put(p3, t3).BuildOrThrow())
+	var m OrderedStringMap[rhino.JSType]
+	m.Put(p1, t1)
+	m.Put(p2, t2)
+	m.Put(p3, t3)
+	return c.recordFromMap(&m)
 }
 
 // Java: TypeTransformationTest.record(ImmutableMap<String, JSType>)
-func (c *TypeTransformationTest) recordFromMap(props *jutil.LinkedHashMap[string, rhino.JSType]) rhino.JSType {
+func (c *TypeTransformationTest) recordFromMap(props *OrderedStringMap[rhino.JSType]) rhino.JSType {
 	builder := c.CreateRecordTypeBuilder()
-	for key, value := range props.All() {
-		builder.AddProperty(key, value, rhino.NilNode)
+	for _, e := range props.Entries() {
+		builder.AddProperty(e.Key, e.Value, rhino.NilNode)
 	}
 	return builder.Build()
 }
@@ -1179,7 +1182,7 @@ func (c *TypeTransformationTest) testTTL(expectedType rhino.JSType, ttlExp strin
 		scope := scopeAny.(*TypedScope)
 		// Evaluate the type transformation
 		typeTransformation := NewTypeTransformation(c.compiler, scope)
-		resultType := typeTransformation.EvalWithNameVars(ast, c.typeVars, c.nameVars)
+		resultType := typeTransformation.Eval(ast, &c.typeVars, &c.nameVars)
 		c.CheckReportedWarningsHelper(expectedWarnings)
 		c.AssertTypeEquals(expectedType, resultType)
 	}

@@ -409,90 +409,87 @@ func (m *CrossChunkMethodMotion) tryToMoveMemberFunction(
 	}
 }
 
-// Java: CrossChunkMethodMotion.moveClassInstanceMethodWithoutStub(Node, Node, Node)
-func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
-	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
-	methodDef, ok := ast.AsMemberFunctionDef(methodDefinition)
+func unpackClassInstanceMethod(methodDefinition rhino.Node) (
+	methodDef ast.MemberFunctionDef,
+	classMembers rhino.Node,
+	classNode rhino.Node,
+	originalScript rhino.Node,
+) {
+	var ok bool
+	methodDef, ok = ast.AsMemberFunctionDef(methodDefinition)
 	jutil.CheckArgumentMsg1(ok, "%s", methodDefinition)
 	classBody, ok := ast.AsClassBody(methodDefinition.GetParent())
 	jutil.CheckStateMsg1(ok, "%s", methodDefinition.GetParent())
-	classMembers := classBody.Node()
+	classMembers = classBody.Node()
 	classView, ok := ast.AsClass(classMembers.GetParent())
 	jutil.CheckStateMsg1(ok, "%s", classMembers.GetParent())
-	classNode := classView.Node()
-	originalScript := NodeUtil_GetEnclosingScript(methodDefinition)
+	classNode = classView.Node()
+	originalScript = NodeUtil_GetEnclosingScript(methodDefinition)
+	return methodDef, classMembers, classNode, originalScript
+}
+
+func (m *CrossChunkMethodMotion) createClassPrototypeProp(
+	classNameNode, classNode rhino.Node, key string, typeNode rhino.Node,
+) rhino.Node {
+	clonedNameNode := classNameNode.CloneNode().CopyTypeFrom(classNode)
+	return m.astFactory.CreateGetProp(
+		m.astFactory.CreatePrototypeAccess(clonedNameNode),
+		key,
+		AstFactory_Type_(typeNode))
+}
+
+func (m *CrossChunkMethodMotion) prependMovedPrototypeStatement(
+	lhs, rhs, methodDefinition, originalScript, destinationParent rhino.Node,
+) {
+	statementNode := m.astFactory.
+		CreateAssignStatement(lhs, rhs).
+		SrcrefTreeIfMissing(methodDefinition)
+	destinationParent.AddChildToFront(statementNode)
+	NodeUtil_AddFeaturesToScript(
+		destinationParent, NodeUtil_GetFeatureSetOfScript(originalScript), m.compiler)
+	m.compiler.ReportChangeToEnclosingScope(destinationParent)
+}
+
+// Java: CrossChunkMethodMotion.moveClassInstanceMethodWithoutStub(Node, Node, Node)
+func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithoutStub(
+	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
+	methodDef, classMembers, classNode, originalScript := unpackClassInstanceMethod(methodDefinition)
 
 	methodDefinition.Detach()
 	m.compiler.ReportChangeToEnclosingScope(classMembers)
 
 	// ClassName.prototype.propertyName = function() {};
 	functionNode := methodDef.Function().Detach().Node()
-	clonedNameNode := classNameNode.CloneNode().CopyTypeFrom(classNode)
-	classNameDotPrototypeDotPropName :=
-		m.astFactory.CreateGetProp(
-			m.astFactory.CreatePrototypeAccess(clonedNameNode),
-			methodDef.Key(),
-			AstFactory_Type_(functionNode))
-	definitionStatementNode :=
-		m.astFactory.
-			CreateAssignStatement(classNameDotPrototypeDotPropName, functionNode).
-			SrcrefTreeIfMissing(methodDefinition)
-	destinationParent.AddChildToFront(definitionStatementNode)
-	NodeUtil_AddFeaturesToScript(
-		destinationParent, NodeUtil_GetFeatureSetOfScript(originalScript), m.compiler)
-	m.compiler.ReportChangeToEnclosingScope(destinationParent)
+	lhs := m.createClassPrototypeProp(classNameNode, classNode, methodDef.Key(), functionNode)
+	m.prependMovedPrototypeStatement(lhs, functionNode, methodDefinition, originalScript, destinationParent)
 }
 
 // Java: CrossChunkMethodMotion.moveClassInstanceMethodWithStub(Node, Node, Node)
 func (m *CrossChunkMethodMotion) MoveClassInstanceMethodWithStub(
 	classNameNode rhino.Node, methodDefinition rhino.Node, destinationParent rhino.Node) {
-	methodDef, ok := ast.AsMemberFunctionDef(methodDefinition)
-	jutil.CheckArgumentMsg1(ok, "%s", methodDefinition)
-	classBody, ok := ast.AsClassBody(methodDefinition.GetParent())
-	jutil.CheckStateMsg1(ok, "%s", methodDefinition.GetParent())
-	classMembers := classBody.Node()
-	classView, ok := ast.AsClass(classMembers.GetParent())
-	jutil.CheckStateMsg1(ok, "%s", classMembers.GetParent())
-	classNode := classView.Node()
+	methodDef, classMembers, classNode, originalScript := unpackClassInstanceMethod(methodDefinition)
 
 	stubId := m.idGenerator.NewId()
 
 	// Put a stub definition after the class
 	// ClassName.prototype.propertyName = JSCompiler_stubMethod(id);
-	clonedNameNode := classNameNode.CloneNode().CopyTypeFrom(classNode)
-	classNameDotPrototypeDotPropName :=
-		m.astFactory.CreateGetProp(
-			m.astFactory.CreatePrototypeAccess(clonedNameNode),
-			methodDef.Key(),
-			AstFactory_Type_(methodDefinition))
+	lhs := m.createClassPrototypeProp(classNameNode, classNode, methodDef.Key(), methodDefinition)
 	stubCall := m.CreateStubCall(methodDefinition, stubId)
-	stubDefinitionStatement :=
-		m.astFactory.
-			CreateAssignStatement(classNameDotPrototypeDotPropName, stubCall).
-			SrcrefTreeIfMissing(methodDefinition)
-	classDefiningStatement := NodeUtil_GetEnclosingStatement(classMembers)
-	stubDefinitionStatement.InsertAfter(classDefiningStatement)
-
-	originalScript := NodeUtil_GetEnclosingScript(methodDefinition)
+	stubDefinitionStatement := m.astFactory.
+		CreateAssignStatement(lhs, stubCall).
+		SrcrefTreeIfMissing(methodDefinition)
+	stubDefinitionStatement.InsertAfter(NodeUtil_GetEnclosingStatement(classMembers))
 
 	// Remove the definition from the class
 	methodDefinition.Detach()
-
 	m.compiler.ReportChangeToEnclosingScope(classMembers)
 
 	// Prepend unstub definition to the new location.
 	// ClassName.prototype.propertyName = JSCompiler_unstubMethod(id, function(...) {...});
-	classNameDotPrototypeDotPropName2 := classNameDotPrototypeDotPropName.CloneTree()
+	lhs2 := lhs.CloneTree()
 	functionNode := methodDef.Function().Detach().Node()
 	unstubCall := m.CreateUnstubCall(functionNode, stubId)
-	statementNode :=
-		m.astFactory.
-			CreateAssignStatement(classNameDotPrototypeDotPropName2, unstubCall).
-			SrcrefTreeIfMissing(methodDefinition)
-	destinationParent.AddChildToFront(statementNode)
-	NodeUtil_AddFeaturesToScript(
-		destinationParent, NodeUtil_GetFeatureSetOfScript(originalScript), m.compiler)
-	m.compiler.ReportChangeToEnclosingScope(destinationParent)
+	m.prependMovedPrototypeStatement(lhs2, unstubCall, methodDefinition, originalScript, destinationParent)
 }
 
 func hasUnmovableRedeclaration(declarations []AnalyzePrototypeProperties_Symbol, declIdx int) bool {

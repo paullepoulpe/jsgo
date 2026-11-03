@@ -33,20 +33,31 @@ func enumValues[E enumValue](values []E) []enumValue {
 	return out
 }
 
+func enumSeq[E interface {
+	~int32
+	enumValue
+}](n int) []enumValue {
+	out := make([]enumValue, n)
+	for i := range out {
+		out[i] = E(i)
+	}
+	return out
+}
+
 var javaEnums = map[string][]enumValue{
-	"TokenType":                             enumValues(TokenType_values()),
-	"Keywords":                              enumValues(Keywords_values()),
+	"TokenType":                             enumSeq[TokenType](len(tokenType_names)),
+	"Keywords":                              enumSeq[Keywords](len(keywords_names)),
 	"FeatureSet$Feature":                    enumValues(FeatureSet_Feature_values()),
-	"FeatureSet$LangVersion":                enumValues(FeatureSet_LangVersion_values()),
-	"TemplateLiteralToken$ErrorLevel":       enumValues(TemplateLiteralToken_ErrorLevel_values()),
-	"Parser$FunctionFlavor":                 enumValues(Parser_FunctionFlavor_values()),
-	"Parser$Config$Mode":                    enumValues(Parser_Config_Mode_values()),
-	"Parser$Expression":                     enumValues(Parser_Expression_values()),
-	"Parser$PatternKind":                    enumValues(Parser_PatternKind_values()),
-	"ParseTreeType":                         enumValues(ParseTreeType_values()),
-	"Comment$Type":                          enumValues(Comment_Type_values()),
-	"FunctionDeclarationTree$Kind":          enumValues(FunctionDeclarationTree_Kind_values()),
-	"UpdateExpressionTree$OperatorPosition": enumValues(UpdateExpressionTree_OperatorPosition_values()),
+	"FeatureSet$LangVersion":                enumSeq[FeatureSet_LangVersion](len(featureSet_LangVersion_names)),
+	"TemplateLiteralToken$ErrorLevel":       enumSeq[TemplateLiteralToken_ErrorLevel](len(templateLiteralToken_ErrorLevel_names)),
+	"Parser$FunctionFlavor":                 enumSeq[Parser_FunctionFlavor](len(parser_FunctionFlavor_names)),
+	"Parser$Config$Mode":                    enumSeq[Parser_Config_Mode](len(parser_Config_Mode_names)),
+	"Parser$Expression":                     enumSeq[Parser_Expression](len(parser_Expression_names)),
+	"Parser$PatternKind":                    enumSeq[Parser_PatternKind](len(parser_PatternKind_names)),
+	"ParseTreeType":                         enumSeq[ParseTreeType](len(parseTreeType_names)),
+	"Comment$Type":                          enumSeq[Comment_Type](len(comment_Type_names)),
+	"FunctionDeclarationTree$Kind":          enumSeq[FunctionDeclarationTree_Kind](len(functionDeclarationTree_Kind_names)),
+	"UpdateExpressionTree$OperatorPosition": enumSeq[UpdateExpressionTree_OperatorPosition](len(updateExpressionTree_OperatorPosition_names)),
 }
 
 var javaFeatureSets = map[string]FeatureSet{
@@ -150,7 +161,8 @@ func TestEnumsAndFeatureSetsMatchJava(t *testing.T) {
 			var name, typ, strict string
 			fmt.Sscanf(rest, "%s %s %s", &name, &typ, &strict)
 			found := false
-			for _, k := range Keywords_values() {
+			for i := range keywords_names {
+				k := Keywords(i)
 				if k.Name() == name {
 					found = true
 					if k.Type().Name() != typ {

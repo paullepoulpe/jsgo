@@ -309,14 +309,6 @@ func (c *CharSource) TryReadLines() ([]string, IIOException) {
 	return splitLinesUTF16(StringToUTF16(s)), nil
 }
 
-// CharStreams_ReadLines is Guava CharStreams.readLines(Readable): the lines
-// of the input, split at "\n", "\r" and "\r\n" (Guava's LineReader). The
-// line terminators are not included, and an input that ends with a
-// terminator has no empty last line.
-func CharStreams_ReadLines(r JavaReader) []string {
-	return splitLinesUTF16(StringToUTF16(CharStreams_ToString(r)))
-}
-
 func splitLinesUTF16(units []uint16) []string {
 	var result []string
 	start := 0

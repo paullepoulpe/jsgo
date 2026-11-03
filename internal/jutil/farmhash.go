@@ -39,14 +39,6 @@ type FarmHashFingerprint64Hasher struct {
 	bufStorage [128]byte
 }
 
-// Hashing_FarmHashFingerprint64NewHasher is
-// Hashing.farmHashFingerprint64().newHasher().
-func Hashing_FarmHashFingerprint64NewHasher() *FarmHashFingerprint64Hasher {
-	h := &FarmHashFingerprint64Hasher{}
-	h.buf = h.bufStorage[:0]
-	return h
-}
-
 // Reset resets the buffered bytes for reuse, initializing inline storage if needed.
 func (h *FarmHashFingerprint64Hasher) Reset() {
 	if h.buf == nil {

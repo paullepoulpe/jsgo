@@ -187,15 +187,7 @@ var JSCompDoubles_POW_2_32 = math.Pow(2, 32)
 var JSCompDoubles_POW_2_53 = math.Pow(2, 53)
 
 // Go-only: language-adapter — java.lang.Math methods whose Go counterparts
-// differ from Java (special cases of max/min/pow, round's rounding, signum).
-
-// MathMax is Math.max(double, double). Go's built-in max matches Java on NaN
-// and signed zeros (-0.0 < +0.0).
-func MathMax(a, b float64) float64 { return max(a, b) }
-
-// MathMin is Math.min(double, double). Go's built-in min matches Java on NaN
-// and signed zeros (-0.0 < +0.0).
-func MathMin(a, b float64) float64 { return min(a, b) }
+// differ from Java (special cases of pow, round's rounding, signum).
 
 // MathSignum is Math.signum(double): the argument itself for zeros and NaN,
 // otherwise ±1.0.

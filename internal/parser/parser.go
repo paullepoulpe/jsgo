@@ -101,18 +101,6 @@ var parser_FunctionFlavor_names = [...]string{"NORMAL", "GENERATOR", "ASYNCHRONO
 // parser_FunctionFlavor_isGenerator is the Java field FunctionFlavor.isGenerator.
 var parser_FunctionFlavor_isGenerator = [...]bool{false, true, false, true}
 
-// Parser_FunctionFlavor_values is FunctionFlavor.values().
-//
-// Java: Parser.FunctionFlavor.values()
-func Parser_FunctionFlavor_values() []Parser_FunctionFlavor {
-	return []Parser_FunctionFlavor{
-		Parser_FunctionFlavor_NORMAL,
-		Parser_FunctionFlavor_GENERATOR,
-		Parser_FunctionFlavor_ASYNCHRONOUS,
-		Parser_FunctionFlavor_ASYNCHRONOUS_GENERATOR,
-	}
-}
-
 // Name is Enum.name().
 //
 // Java: Parser.FunctionFlavor.name()
@@ -162,18 +150,6 @@ const (
 )
 
 var parser_Config_Mode_names = [...]string{"ES3", "ES5", "ES6_OR_ES7", "ES8_OR_GREATER"}
-
-// Parser_Config_Mode_values is Mode.values().
-//
-// Java: Parser.Config.Mode.values()
-func Parser_Config_Mode_values() []Parser_Config_Mode {
-	return []Parser_Config_Mode{
-		Parser_Config_Mode_ES3,
-		Parser_Config_Mode_ES5,
-		Parser_Config_Mode_ES6_OR_ES7,
-		Parser_Config_Mode_ES8_OR_GREATER,
-	}
-}
 
 // Name is Enum.name().
 //
