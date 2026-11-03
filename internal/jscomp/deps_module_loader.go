@@ -63,7 +63,6 @@ var ModuleLoader_LOAD_WARNING = DiagnosticType_Error("JSC_JS_MODULE_LOAD_WARNING
 var ModuleLoader_INVALID_MODULE_PATH = DiagnosticType_Error(
 	"JSC_INVALID_MODULE_PATH", "Invalid module path \"{0}\" for resolution mode \"{1}\"")
 
-// Java: ModuleLoader.builder()
 func ModuleLoader_Builder_() ModuleLoader_Builder {
 	return ModuleLoader_Builder{
 		errorHandler: moduleLoader_NOOP_ERROR_HANDER,
@@ -88,7 +87,6 @@ type ModuleLoader_Builder struct {
 	pathEscaper    ModuleLoader_PathEscaper
 }
 
-// Java: ModuleLoader.Builder.setErrorHandler(ErrorHandler)
 func (b ModuleLoader_Builder) SetErrorHandler(x ErrorHandler) ModuleLoader_Builder {
 	if x != nil {
 		b.errorHandler = x
@@ -97,8 +95,6 @@ func (b ModuleLoader_Builder) SetErrorHandler(x ErrorHandler) ModuleLoader_Build
 }
 
 // SetModuleRoots sets the path prefixes to strip from module paths.
-//
-// Java: ModuleLoader.Builder.setModuleRoots(Iterable<String>)
 func (b ModuleLoader_Builder) SetModuleRoots(x []string) ModuleLoader_Builder {
 	b.moduleRoots = x
 	b.moduleRootsSet = true
@@ -108,8 +104,6 @@ func (b ModuleLoader_Builder) SetModuleRoots(x []string) ModuleLoader_Builder {
 // SetInputs sets all inputs to the compilation process.
 //
 // Used to ensure that resolved paths references a valid input.
-//
-// Java: ModuleLoader.Builder.setInputs(Iterable<? extends DependencyInfo>)
 func (b ModuleLoader_Builder) SetInputs(x []DependencyInfo) ModuleLoader_Builder {
 	b.inputs = x
 	b.inputsSet = true
@@ -118,35 +112,27 @@ func (b ModuleLoader_Builder) SetInputs(x []DependencyInfo) ModuleLoader_Builder
 
 // SetFactory creates a module resolver, which determines how module
 // identifiers are resolved.
-//
-// Java: ModuleLoader.Builder.setFactory(ModuleResolverFactory)
 func (b ModuleLoader_Builder) SetFactory(x ModuleLoader_ModuleResolverFactory) ModuleLoader_Builder {
 	b.factory = x
 	return b
 }
 
 // SetPathResolver determines how to sanitize paths before resolving.
-//
-// Java: ModuleLoader.Builder.setPathResolver(PathResolver)
 func (b ModuleLoader_Builder) SetPathResolver(x ModuleLoader_PathResolver) ModuleLoader_Builder {
 	b.pathResolver = x
 	return b
 }
 
 // SetPathEscaper determines if / how paths should be escaped.
-//
-// Java: ModuleLoader.Builder.setPathEscaper(PathEscaper)
 func (b ModuleLoader_Builder) SetPathEscaper(x ModuleLoader_PathEscaper) ModuleLoader_Builder {
 	b.pathEscaper = x
 	return b
 }
 
-// Java: ModuleLoader.Builder.build()
 func (b ModuleLoader_Builder) Build() *ModuleLoader {
 	return newModuleLoader(&b)
 }
 
-// Java: ModuleLoader(Builder)
 func newModuleLoader(builder *ModuleLoader_Builder) *ModuleLoader {
 	l := &ModuleLoader{}
 	l.errorHandler = jutil.CheckNotNull(builder.errorHandler)
@@ -167,8 +153,7 @@ func newModuleLoader(builder *ModuleLoader_Builder) *ModuleLoader {
 	return l
 }
 
-// Java: ModuleLoader.getPackageJsonMainEntries()
-func (l *ModuleLoader) GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string] {
+func (l *ModuleLoader) GetPackageJsonMainEntries() *OrderedStringMap[string] {
 	return l.moduleResolver.GetPackageJsonMainEntries()
 }
 
@@ -179,20 +164,16 @@ type ModuleLoader_ModulePath struct {
 	path  string
 }
 
-// Java: ModuleLoader.ModulePath(String)
 func (l *ModuleLoader) newModulePath(path string) *ModuleLoader_ModulePath {
 	return &ModuleLoader_ModulePath{outer: l, path: path}
 }
 
-// Java: ModuleLoader.ModulePath.toString()
 func (p *ModuleLoader_ModulePath) String() string {
 	return p.path
 }
 
 // EqualsIgnoreLeadingSlash determines if this path is the same as another
 // path, ignoring any potential leading slashes on both.
-//
-// Java: ModuleLoader.ModulePath.equalsIgnoreLeadingSlash(ModulePath)
 func (p *ModuleLoader_ModulePath) EqualsIgnoreLeadingSlash(other *ModuleLoader_ModulePath) bool {
 	return other != nil && p.ToModuleName() == other.ToModuleName()
 }
@@ -201,8 +182,6 @@ func (p *ModuleLoader_ModulePath) EqualsIgnoreLeadingSlash(other *ModuleLoader_M
 // moduleNames in rewritten code. Removes leading /, replaces / with $,
 // removes trailing .js and replaces - with _. All moduleNames get a
 // "module$" prefix.
-//
-// Java: ModuleLoader.ModulePath.toModuleName()
 func (p *ModuleLoader_ModulePath) ToModuleName() string {
 	return ModuleNames_ToModuleName(p.path)
 }
@@ -211,8 +190,6 @@ func (p *ModuleLoader_ModulePath) ToModuleName() string {
 // https://nodejs.org/api/modules.html#modules_all_together
 //
 // It returns the normalized module URI, or nil if not found.
-//
-// Java: ModuleLoader.ModulePath.resolveJsModule(String, String, int, int)
 func (p *ModuleLoader_ModulePath) ResolveJsModule(
 	moduleAddress string, sourcename string, lineno int, colno int) *ModuleLoader_ModulePath {
 	if loadAddress, ok := p.outer.moduleResolver.ResolveJsModule(p.path, moduleAddress, sourcename, lineno, colno); ok {
@@ -227,8 +204,6 @@ func (p *ModuleLoader_ModulePath) ResolveJsModule(
 //
 // It returns the resolved module path, or nil if unresolvable (or
 // ambiguous).
-//
-// Java: ModuleLoader.ModulePath.resolveJsModuleSilently(String)
 func (p *ModuleLoader_ModulePath) ResolveJsModuleSilently(moduleAddress string) *ModuleLoader_ModulePath {
 	if loadAddress, ok := p.outer.moduleResolver.ResolveJsModuleSilently(p.path, moduleAddress); ok {
 		return p.outer.newModulePath(loadAddress)
@@ -242,23 +217,17 @@ func (p *ModuleLoader_ModulePath) ResolveJsModuleSilently(moduleAddress string) 
 // the provided URI.
 //
 // Primarily used for per-file ES6 module transpilation.
-//
-// Java: ModuleLoader.ModulePath.resolveModuleAsPath(String)
 func (p *ModuleLoader_ModulePath) ResolveModuleAsPath(moduleAddress string) *ModuleLoader_ModulePath {
 	return p.outer.newModulePath(p.outer.moduleResolver.ResolveModuleAsPath(p.path, moduleAddress))
 }
 
 // Resolve resolves a path into a ModulePath.
-//
-// Java: ModuleLoader.resolve(String)
 func (l *ModuleLoader) Resolve(path string) *ModuleLoader_ModulePath {
 	return l.newModulePath(ModuleLoader_Normalize(l.pathEscaper.Escape(l.pathResolver.Apply(path)), l.moduleRootPaths))
 }
 
 // ModuleLoader_IsRelativeIdentifier: whether this is relative to the
 // current file, or a top-level identifier.
-//
-// Java: ModuleLoader.isRelativeIdentifier(String)
 func ModuleLoader_IsRelativeIdentifier(name string) bool {
 	return strings.HasPrefix(name, "."+ModuleLoader_MODULE_SLASH) ||
 		strings.HasPrefix(name, ".."+ModuleLoader_MODULE_SLASH) ||
@@ -268,32 +237,24 @@ func ModuleLoader_IsRelativeIdentifier(name string) bool {
 
 // ModuleLoader_IsAbsoluteIdentifier: whether this is absolute to the
 // compilation.
-//
-// Java: ModuleLoader.isAbsoluteIdentifier(String)
 func ModuleLoader_IsAbsoluteIdentifier(name string) bool {
 	return strings.HasPrefix(name, ModuleLoader_MODULE_SLASH)
 }
 
 // ModuleLoader_IsAmbiguousIdentifier: whether this is neither absolute or
 // relative.
-//
-// Java: ModuleLoader.isAmbiguousIdentifier(String)
 func ModuleLoader_IsAmbiguousIdentifier(name string) bool {
 	return !ModuleLoader_IsAbsoluteIdentifier(name) && !ModuleLoader_IsRelativeIdentifier(name)
 }
 
 // ModuleLoader_IsPathIdentifier: whether name is a path-based identifier
 // (has a '/' character).
-//
-// Java: ModuleLoader.isPathIdentifier(String)
 func ModuleLoader_IsPathIdentifier(name string) bool {
 	return strings.Contains(name, ModuleLoader_MODULE_SLASH)
 }
 
 // CreateRootPaths normalizes the given root paths, which are path prefixes
 // to be removed from a module path when resolved.
-//
-// Java: ModuleLoader.createRootPaths(Iterable<String>)
 func (l *ModuleLoader) CreateRootPaths(roots []string) []string {
 	var paths []string
 	for _, root := range roots {
@@ -310,8 +271,6 @@ func (l *ModuleLoader) CreateRootPaths(roots []string) []string {
 
 // ResolvePaths returns the list of normalized modules, which always have a
 // leading slash.
-//
-// Java: ModuleLoader.resolvePaths(Iterable<? extends DependencyInfo>)
 func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *OrderedSet[string] {
 	paths := make([]string, 0, len(inputs))
 	for _, input := range inputs {
@@ -338,8 +297,6 @@ func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *OrderedSet[string]
 
 // ModuleLoader_Normalize normalizes the name and resolves it against the
 // module roots.
-//
-// Java: ModuleLoader.normalize(String, Iterable<String>)
 func ModuleLoader_Normalize(path string, moduleRootPaths []string) string {
 	normalizedPath := path
 	if ModuleLoader_IsAmbiguousIdentifier(normalizedPath) {
@@ -361,7 +318,6 @@ func ModuleLoader_Normalize(path string, moduleRootPaths []string) string {
 	return path
 }
 
-// Java: ModuleLoader.relativePathFrom(String, String)
 func ModuleLoader_RelativePathFrom(fromUriPath string, toUriPath string) string {
 	fromPath := jutil.Path_Of(fromUriPath)
 	toPath := jutil.Path_Of(toUriPath)
@@ -387,7 +343,6 @@ func ModuleLoader_RelativePathFrom(fromUriPath string, toUriPath string) string 
 	return "./" + calculatedPath
 }
 
-// Java: ModuleLoader.setErrorHandler(ErrorHandler)
 func (l *ModuleLoader) SetErrorHandler(errorHandler ErrorHandler) {
 	if errorHandler == nil {
 		l.errorHandler = moduleLoader_NOOP_ERROR_HANDER
@@ -397,14 +352,11 @@ func (l *ModuleLoader) SetErrorHandler(errorHandler ErrorHandler) {
 	l.moduleResolver.SetErrorHandler(l.errorHandler)
 }
 
-// Java: ModuleLoader.getErrorHandler()
 func (l *ModuleLoader) GetErrorHandler() ErrorHandler {
 	return l.errorHandler
 }
 
 // ModuleLoader_PathEscaper indicates whether to escape characters in paths.
-//
-// Java: ModuleLoader.PathEscaper
 type ModuleLoader_PathEscaper int32
 
 const (
@@ -423,7 +375,6 @@ var moduleLoader_PathEscaper_names = [...]string{"ESCAPE", "CANONICALIZE_ONLY"}
 // String is Enum.name().
 func (e ModuleLoader_PathEscaper) String() string { return moduleLoader_PathEscaper_names[e] }
 
-// Java: ModuleLoader.PathEscaper.escape(String)
 func (e ModuleLoader_PathEscaper) Escape(path string) string {
 	switch e {
 	case ModuleLoader_PathEscaper_ESCAPE:
@@ -435,8 +386,6 @@ func (e ModuleLoader_PathEscaper) Escape(path string) string {
 
 // ModuleLoader_PathResolver is an enum indicating whether to absolutize
 // paths.
-//
-// Java: ModuleLoader.PathResolver
 type ModuleLoader_PathResolver int32
 
 const (
@@ -449,7 +398,6 @@ var moduleLoader_PathResolver_names = [...]string{"RELATIVE", "ABSOLUTE"}
 // String is Enum.name().
 func (e ModuleLoader_PathResolver) String() string { return moduleLoader_PathResolver_names[e] }
 
-// Java: ModuleLoader.PathResolver.apply(String)
 func (e ModuleLoader_PathResolver) Apply(path string) string {
 	switch e {
 	case ModuleLoader_PathResolver_RELATIVE:
@@ -461,10 +409,7 @@ func (e ModuleLoader_PathResolver) Apply(path string) string {
 
 // ModuleLoader_ModuleResolverFactory is used to specify what algorithm to
 // use to locate non path-based modules.
-//
-// Java: ModuleLoader.ModuleResolverFactory
 type ModuleLoader_ModuleResolverFactory interface {
-	// Java: ModuleLoader.ModuleResolverFactory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 	Create(
 		modulePaths *OrderedSet[string],
 		moduleRootPaths []string,
@@ -492,8 +437,6 @@ func (f ModuleLoader_ModuleResolverFactoryFunc) Create(
 }
 
 // Sort longest length to shortest so that paths are applied most specific to least.
-//
-// Java: Comparator.comparingInt(String::length).reversed().thenComparing(naturalOrder())
 func moduleLoader_BEST_MATCH_PATH_ORDERING(a, b string) int {
 	return comparePathsLongestFirst(a, b)
 }
@@ -524,8 +467,6 @@ func moduleLoader_NewEmpty() *ModuleLoader {
 
 // ModuleLoader_ResolutionMode lists the standard path base resolution
 // algorithms that are accepted as a command line flag.
-//
-// Java: ModuleLoader.ResolutionMode
 type ModuleLoader_ResolutionMode int32
 
 const (
@@ -559,7 +500,6 @@ const (
 
 var moduleLoader_ResolutionMode_names = [...]string{"BROWSER", "BROWSER_WITH_TRANSFORMED_PREFIXES", "NODE", "WEBPACK"}
 
-// Java: ModuleLoader.ResolutionMode.values()
 func ModuleLoader_ResolutionMode_values() []ModuleLoader_ResolutionMode {
 	return []ModuleLoader_ResolutionMode{
 		ModuleLoader_ResolutionMode_BROWSER, ModuleLoader_ResolutionMode_BROWSER_WITH_TRANSFORMED_PREFIXES,

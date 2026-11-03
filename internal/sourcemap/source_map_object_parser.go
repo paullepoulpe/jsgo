@@ -58,16 +58,13 @@ func wrapGsonSyntaxDirect(msg string) *SourceMapParseException {
 		"JSON parse exception: " + jutil.GsonPackage + ".JsonSyntaxException: " + msg)
 }
 
-// SourceMapObjectParser_Parse parses a source map JSON document. It panics with
-// a *SourceMapParseException on malformed JSON.
-//
-// Java: SourceMapObjectParser.parse(String)
-func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
+// ParseSourceMapObject parses a source map JSON document.
+func ParseSourceMapObject(contents string) (*SourceMapObject, error) {
 	obj, err := parseSourceMapObject(contents)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return obj
+	return obj, nil
 }
 
 func parseSourceMapObject(contents string) (*SourceMapObject, jutil.Throwable) {

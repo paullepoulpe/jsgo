@@ -42,6 +42,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 const (
@@ -453,7 +454,7 @@ func NewVar(
 	index int,
 	input *CompilerInput,
 	implicitGoogNamespaceDefinition rhino.Node) *Var {
-	return newVarWithID(rhino.RhinoStringPool_InternID(name), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
+	return newVarWithID(uint32(strpool.Intern(name)), nameNode, scope, index, input, implicitGoogNamespaceDefinition)
 }
 
 // newVarWithID is NewVar for an interned name.
@@ -502,7 +503,7 @@ func failInvalidVarNameNode(nameNode rhino.Node) {
 
 // Java: AbstractVar.getName()
 func (v *Var) GetName() string {
-	return rhino.RhinoStringPool_StringFromID(v.nameID)
+	return strpool.String(strpool.ID(v.nameID))
 }
 
 // Java: AbstractVar.getScope()

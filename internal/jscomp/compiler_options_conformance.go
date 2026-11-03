@@ -365,7 +365,7 @@ func (o *CompilerOptions) GetRuntimeLibraryMode() RuntimeJsLibManager_RuntimeLib
 }
 
 // Java: CompilerOptions.getUnusedImportsToRemove()
-func (o *CompilerOptions) GetUnusedImportsToRemove() *jutil.LinkedHashSet[string] {
+func (o *CompilerOptions) GetUnusedImportsToRemove() *OrderedSet[string] {
 	return o.unusedImportsToRemove
 }
 
@@ -784,6 +784,8 @@ func compilerOptions_toJavaString(value any) string {
 		return jutil.ToJavaString(v)
 	case []string:
 		return "[" + strings.Join(v, ", ") + "]"
+	case *OrderedSet[string]:
+		return "[" + strings.Join(v.ToSlice(), ", ") + "]"
 	case []*ConformanceConfig:
 		return compilerOptions_formatSlice(v)
 	case []SourceMap_LocationMapping:

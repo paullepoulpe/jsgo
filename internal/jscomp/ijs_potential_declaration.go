@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type potentialDeclKind uint8
@@ -345,11 +346,11 @@ func (d *PotentialDeclaration) simplifyDefine(compiler AbstractCompiler) {
 }
 
 var (
-	potentialDeclBooleanID  = rhino.RhinoStringPool_InternID("boolean")
-	potentialDeclNumberID   = rhino.RhinoStringPool_InternID("number")
-	potentialDeclStringID   = rhino.RhinoStringPool_InternID("string")
-	potentialDeclTypeID     = rhino.RhinoStringPool_InternID("type")
-	potentialDeclReadOnlyID = rhino.RhinoStringPool_InternID("readOnly")
+	potentialDeclBooleanID  = strpool.Intern("boolean")
+	potentialDeclNumberID   = strpool.Intern("number")
+	potentialDeclStringID   = strpool.Intern("string")
+	potentialDeclTypeID     = strpool.Intern("type")
+	potentialDeclReadOnlyID = strpool.Intern("readOnly")
 )
 
 func potentialDeclaration_makeEmptyValueNode(type_ *rhino.JSTypeExpression) rhino.Node {
@@ -360,7 +361,7 @@ func potentialDeclaration_makeEmptyValueNode(type_ *rhino.JSTypeExpression) rhin
 	if n.IsNil() {
 		return rhino.NilNode
 	}
-	switch n.GetStringID() {
+	switch nodeStringID(n) {
 	case potentialDeclBooleanID:
 		return rhino.NewNode(rhino.Token_FALSE)
 	case potentialDeclNumberID:
@@ -406,7 +407,7 @@ func (d *PotentialDeclaration) simplifyPolymerBehaviorProperties(compiler Abstra
 		if defObj, isObj := ast.AsObjectLit(propDef); isObj {
 			for subProp := range ast.ReadAhead(defObj.FirstMember()) {
 				subNode := subProp.Node()
-				subID := subNode.GetStringID()
+				subID := nodeStringID(subNode)
 				if subID != potentialDeclTypeID && subID != potentialDeclReadOnlyID {
 					NodeUtil_DeleteNode(subNode, compiler)
 				}

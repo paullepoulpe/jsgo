@@ -78,14 +78,12 @@ func (*SourceMapConsumerV3_DefaultSourceMapSupplier) GetSourceMap(url string) *s
 	return nil
 }
 
-// Parse parses the given contents containing a source map. It panics with
-// a *SourceMapParseException.
-//
-// Java: SourceMapConsumerV3.parse(String)
-func (c *SourceMapConsumerV3) Parse(contents string) {
+// Parse parses the given contents containing a source map.
+func (c *SourceMapConsumerV3) Parse(contents string) error {
 	if err := c.tryParseThrowable(contents); err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }
 
 // TryParse parses the given contents containing a source map, returning a
@@ -107,16 +105,6 @@ func (c *SourceMapConsumerV3) tryParseThrowable(contents string) jutil.Throwable
 		return err
 	}
 	return c.tryParseSourceMapObject(sourceMapObject, nil)
-}
-
-// ParseSourceMapObject parses the given contents containing a source map.
-// It panics with a *SourceMapParseException.
-//
-// Java: SourceMapConsumerV3.parse(SourceMapObject, SourceMapSupplier)
-func (c *SourceMapConsumerV3) ParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) {
-	if err := c.tryParseSourceMapObject(sourceMapObject, sectionSupplier); err != nil {
-		panic(err)
-	}
 }
 
 func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) jutil.Throwable {
@@ -188,15 +176,6 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 	}
 	c.mappings = mappings
 	return nil
-}
-
-// ParseMetaMap parses an index map by merging its sections directly into this consumer.
-//
-// Java: SourceMapConsumerV3.parseMetaMap(SourceMapObject, SourceMapSupplier)
-func (c *SourceMapConsumerV3) ParseMetaMap(sourceMapObject *SourceMapObject, sectionSupplier SourceMapSupplier) {
-	if err := c.tryParseMetaMap(sourceMapObject, sectionSupplier); err != nil {
-		panic(err)
-	}
 }
 
 type metaSegment struct {

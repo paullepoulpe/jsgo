@@ -112,6 +112,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ---------------------------------------------------------------------------
@@ -209,7 +210,7 @@ func (c *CheckPrototypeProperties) ShouldTraverse(nodeTraversal *NodeTraversal, 
 // CheckEs6Modules: miscellaneous checks for style in ES6 modules.
 type CheckEs6Modules struct {
 	compiler         AbstractCompiler
-	importSpecifiers map[uint32]rhino.Node
+	importSpecifiers map[strpool.ID]rhino.Node
 }
 
 var CheckEs6Modules_DUPLICATE_IMPORT = DiagnosticType_Warning(
@@ -275,7 +276,7 @@ func (c *CheckEs6Modules) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 // Java: CheckEs6Modules.visitImport(NodeTraversal, Node)
 func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode rhino.Node) {
 	src := ast.MustImport(importNode).Source()
-	specifierID := src.Node().GetStringID()
+	specifierID := nodeStringID(src.Node())
 	if duplicateImport, ok := c.importSpecifiers[specifierID]; ok {
 		t.Report(
 			importNode,
@@ -285,7 +286,7 @@ func (c *CheckEs6Modules) VisitImport(t *NodeTraversal, importNode rhino.Node) {
 			strconv.Itoa(duplicateImport.GetCharno()))
 	} else {
 		if c.importSpecifiers == nil {
-			c.importSpecifiers = make(map[uint32]rhino.Node)
+			c.importSpecifiers = make(map[strpool.ID]rhino.Node)
 		}
 		c.importSpecifiers[specifierID] = importNode
 	}
@@ -659,10 +660,10 @@ type CheckConstantCaseNames struct {
 	convention CodingConvention
 	// Maps CONSTANT_CASE module-level name IDs to their initializing NAME node,
 	// accompanied by invalidNamesOrder to preserve declaration order.
-	invalidNamesPerModule map[uint32]rhino.Node
-	invalidNamesOrder     []uint32
+	invalidNamesPerModule map[strpool.ID]rhino.Node
+	invalidNamesOrder     []strpool.ID
 	// Subset of variables in `invalidNamesPerModule` that are mutated post-declaration.
-	reassignedNames map[uint32]bool
+	reassignedNames map[strpool.ID]bool
 }
 
 var CheckConstantCaseNames_MISSING_CONST_PROPERTY = DiagnosticType_Disabled(
@@ -746,9 +747,9 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			func(name rhino.Node) {
 				ident := name.GetString()
 				if c.convention.IsConstant(ident) {
-					id := name.GetStringID()
+					id := nodeStringID(name)
 					if c.invalidNamesPerModule == nil {
-						c.invalidNamesPerModule = make(map[uint32]rhino.Node)
+						c.invalidNamesPerModule = make(map[strpool.ID]rhino.Node)
 					}
 					if _, exists := c.invalidNamesPerModule[id]; !exists {
 						c.invalidNamesOrder = append(c.invalidNamesOrder, id)
@@ -760,7 +761,7 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rh
 		if len(c.invalidNamesPerModule) == 0 {
 			return
 		}
-		id := n.GetStringID()
+		id := nodeStringID(n)
 		if _, exists := c.invalidNamesPerModule[id]; !exists {
 			return
 		}
@@ -768,10 +769,10 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rh
 			return
 		}
 		// Verify this name is referring to the actual module-level var and not a local shadow.
-		v := t.GetScope().GetVarByID(id)
+		v := t.GetScope().GetVarByID(uint32(id))
 		if v.GetScopeRoot().IsModuleBody() {
 			if c.reassignedNames == nil {
-				c.reassignedNames = make(map[uint32]bool)
+				c.reassignedNames = make(map[strpool.ID]bool)
 			}
 			c.reassignedNames[id] = true
 		}
@@ -783,7 +784,7 @@ func (c *CheckConstantCaseNames) Visit(t *NodeTraversal, n rhino.Node, parent rh
 func (c *CheckConstantCaseNames) ReportWarningsAndClear() {
 	for _, id := range c.invalidNamesOrder {
 		nameNode := c.invalidNamesPerModule[id]
-		name := rhino.RhinoStringPool_StringFromID(id)
+		name := strpool.String(id)
 		if c.reassignedNames[id] {
 			c.compiler.Report(JSError_MakeWithNode(nameNode, CheckConstantCaseNames_REASSIGNED_CONSTANT_CASE_NAME, name))
 		} else {
@@ -803,9 +804,9 @@ func (c *CheckConstantCaseNames) ReportWarningsAndClear() {
 // outside of module initialization.
 type CheckNoMutatedEs6Exports struct {
 	compiler           AbstractCompiler
-	mutatedNames       map[uint32][]rhino.Node
-	mutatedOrder       []uint32
-	exportedLocalNames map[uint32]struct{}
+	mutatedNames       map[strpool.ID][]rhino.Node
+	mutatedOrder       []strpool.ID
+	exportedLocalNames map[strpool.ID]struct{}
 }
 
 var CheckNoMutatedEs6Exports_MUTATED_EXPORT = DiagnosticType_Warning(
@@ -846,7 +847,7 @@ func (c *CheckNoMutatedEs6Exports) CheckNoMutations() {
 		if _, ok := c.exportedLocalNames[mutatedID]; !ok {
 			continue
 		}
-		mutatedExport := rhino.RhinoStringPool_StringFromID(mutatedID)
+		mutatedExport := strpool.String(mutatedID)
 		for _, mutation := range c.mutatedNames[mutatedID] {
 			c.compiler.Report(JSError_MakeWithNode(mutation, CheckNoMutatedEs6Exports_MUTATED_EXPORT, mutatedExport))
 		}
@@ -875,9 +876,9 @@ func (c *CheckNoMutatedEs6Exports) ShouldTraverse(t *NodeTraversal, n rhino.Node
 	return true
 }
 
-func (c *CheckNoMutatedEs6Exports) addExportedLocalName(id uint32) {
+func (c *CheckNoMutatedEs6Exports) addExportedLocalName(id strpool.ID) {
 	if c.exportedLocalNames == nil {
-		c.exportedLocalNames = make(map[uint32]struct{})
+		c.exportedLocalNames = make(map[strpool.ID]struct{})
 	}
 	c.exportedLocalNames[id] = struct{}{}
 }
@@ -890,7 +891,7 @@ func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
 	if first.IsExportSpecs() {
 		for exportSpec := first.GetFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
 			jutil.CheckState(exportSpec.HasTwoChildren())
-			c.addExportedLocalName(exportSpec.GetFirstChild().GetStringID())
+			c.addExportedLocalName(nodeStringID(exportSpec.GetFirstChild()))
 		}
 		return
 	}
@@ -900,19 +901,19 @@ func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
 	if NodeUtil_IsNameDeclaration(first) {
 		NodeUtil_VisitLhsNodesInNode(first, func(lhs rhino.Node) {
 			jutil.CheckState(lhs.IsName())
-			c.addExportedLocalName(lhs.GetStringID())
+			c.addExportedLocalName(nodeStringID(lhs))
 		})
 	} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
 		if !first.IsClass() && !first.IsFunction() {
 			return
 		}
 		nameNode := first.GetFirstChild()
-		if !nameNode.IsEmpty() && nameNode.GetStringID() > rhino.RhinoStringPool_EmptyID {
-			c.addExportedLocalName(nameNode.GetStringID())
+		if !nameNode.IsEmpty() && nameNode.GetStringID() > strpool.EmptyID {
+			c.addExportedLocalName(nodeStringID(nameNode))
 		}
 	} else {
 		jutil.CheckState(first.IsClass() || first.IsFunction())
-		c.addExportedLocalName(first.GetFirstChild().GetStringID())
+		c.addExportedLocalName(nodeStringID(first.GetFirstChild()))
 	}
 }
 
@@ -924,13 +925,13 @@ func (c *CheckNoMutatedEs6Exports) VisitName(t *NodeTraversal, name rhino.Node) 
 	if scope.GetClosestHoistScope().IsModuleScope() {
 		return
 	}
-	id := name.GetStringID()
-	var_ := scope.GetVarByID(id)
+	id := nodeStringID(name)
+	var_ := scope.GetVarByID(uint32(id))
 	if var_ == nil || !var_.scope.IsModuleScope() {
 		return
 	}
 	if c.mutatedNames == nil {
-		c.mutatedNames = make(map[uint32][]rhino.Node)
+		c.mutatedNames = make(map[strpool.ID][]rhino.Node)
 	}
 	nodes, exists := c.mutatedNames[id]
 	if !exists {

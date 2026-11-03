@@ -62,28 +62,20 @@ import (
 //
 // For lots of examples, see the unit test.
 type InlineAndCollapseProperties_CollapseProperties struct {
-	outer *InlineAndCollapseProperties
-
+	outer     *InlineAndCollapseProperties
 	namespace *GlobalNamespace
 
-	dynamicallyImportedModules map[string]bool
+	dynamicallyImportedModules OrderedSet[string]
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties()
 func NewInlineAndCollapseProperties_CollapseProperties(outer *InlineAndCollapseProperties) *InlineAndCollapseProperties_CollapseProperties {
-	return &InlineAndCollapseProperties_CollapseProperties{
-		outer: outer,
-	}
+	return &InlineAndCollapseProperties_CollapseProperties{outer: outer}
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) addDynamicallyImportedModule(modName string) {
-	if c.dynamicallyImportedModules == nil {
-		c.dynamicallyImportedModules = make(map[string]bool)
-	}
-	c.dynamicallyImportedModules[modName] = true
+	c.dynamicallyImportedModules.Add(modName)
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties.process(Node, Node)
 func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.Node, root rhino.Node) {
 	if c.outer.propertyCollapseLevel == CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT ||
 		c.outer.chunkOutputType == CompilerOptions_ChunkOutputType_ES_MODULES {
@@ -105,7 +97,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.N
 	}
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties.canCollapse(Name)
 func (c *InlineAndCollapseProperties_CollapseProperties) CanCollapse(name *GlobalNamespace_Name) bool {
 	inlinability := name.CanCollapseOrInline()
 	if !inlinability.CanCollapse() {
@@ -117,7 +108,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanCollapse(name *Globa
 		if !name.IsModuleExport() {
 			c.LogDecisionForNameWithInlinability(name, inlinability, "module export: canCollapse() returns false")
 			return false
-		} else if c.dynamicallyImportedModules[name.GetBaseName()] {
+		} else if c.dynamicallyImportedModules.Has(name.GetBaseName()) {
 			c.LogDecisionForNameWithInlinability(
 				name, inlinability, "dynamic module export: canCollapse() returns false")
 			return false
@@ -130,8 +121,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanCollapse(name *Globa
 
 // CanEliminate returns true if it is safe to completely remove the rvalue
 // assigned to the name from the AST.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.canEliminate(Name, Node)
 func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *GlobalNamespace_Name, rvalue rhino.Node) bool {
 	if !name.CanEliminate() {
 		return false
@@ -152,25 +141,19 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *Glob
 			}
 		}
 	}
-	if !name.HasProps() ||
-		c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT {
-		return true
-	}
-
-	return false
+	return !name.HasProps() ||
+		c.outer.propertyCollapseLevel != CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT
 }
 
 // CheckNamespaces runs through all namespaces (prefixes of classes and
 // enums), and checks if any of them have been used in an unsafe way.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.checkNamespaces()
 func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() {
-	if len(c.dynamicallyImportedModules) > 0 {
+	if !c.dynamicallyImportedModules.IsEmpty() {
 		// When the output chunk type is ES_MODULES, properties of the module namespace
 		// must not be collapsed as they are referenced off the namespace object. The namespace
 		// objects escape via the dynamic import expression.
-		dynNames := make([]*GlobalNamespace_Name, 0, len(c.dynamicallyImportedModules))
-		for modName := range c.dynamicallyImportedModules { // order-independent: dynNames is immediately sorted by unique GlobalNamespace_Name.selfID below
+		dynNames := make([]*GlobalNamespace_Name, 0, c.dynamicallyImportedModules.Size())
+		for modName := range c.dynamicallyImportedModules.All() {
 			if name := c.namespace.LookupName(modName); name != nil {
 				dynNames = append(dynNames, name)
 			}
@@ -193,24 +176,14 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() {
 				}
 				// ES Module rewriting creates aliases on the module namespace object. These aliased
 				// names also escape and their properties may not be collapsed.
-				//
-				// example:
-				// class Foo$$module$foo {
-				//   static bar() { return 'bar'; }
-				// }
-				// /** @const */ var module$foo = {};
-				// /** @const */ module$foo.Foo = Foo$$module$foo;
-				//
-				// While module$foo.Foo cannot be collapsed because we marked the module namespace
-				// as escaped, we also need to prevent any property collapsing on the
-				// Foo$$module$foo
-				// class itself.
 				rValue := NodeUtil_GetRValueOfLValue(propDeclaration.GetNode())
-				if !rValue.IsNil() && rValue.IsName() {
-					c.LogDecisionForName(
-						name, "escapes - dynamically imported module namespace property alias")
-					if target := c.namespace.LookupName(rValue.GetString()); target != nil {
-						target.markEscaped()
+				if !rValue.IsNil() {
+					if rName, ok := ast.AsName(rValue); ok {
+						c.LogDecisionForName(
+							name, "escapes - dynamically imported module namespace property alias")
+						if target := c.namespace.LookupName(rName.Ident()); target != nil {
+							target.markEscaped()
+						}
 					}
 				}
 			}
@@ -248,25 +221,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CheckNamespaces() {
 	}
 }
 
-// WarnAboutNamespaceAliasing reports a warning because a namespace was
-// aliased.
-//
-// nameObj is a namespace that is being aliased; ref the reference that
-// forced the alias.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.warnAboutNamespaceAliasing(Name, Ref)
+// WarnAboutNamespaceAliasing reports a warning because a namespace was aliased.
 func (c *InlineAndCollapseProperties_CollapseProperties) WarnAboutNamespaceAliasing(nameObj *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
 	c.outer.compiler.Report(
 		JSError_MakeWithNode(ref.GetNode(), InlineAndCollapseProperties_PARTIAL_NAMESPACE_WARNING, nameObj.GetFullName()))
 }
 
-// WarnAboutNamespaceRedefinition reports a warning because a namespace was
-// redefined.
-//
-// nameObj is a namespace that is being redefined; ref the reference that set
-// the namespace.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.warnAboutNamespaceRedefinition(Name, Ref)
+// WarnAboutNamespaceRedefinition reports a warning because a namespace was redefined.
 func (c *InlineAndCollapseProperties_CollapseProperties) WarnAboutNamespaceRedefinition(nameObj *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
 	c.outer.compiler.Report(
 		JSError_MakeWithNode(ref.GetNode(), InlineAndCollapseProperties_NAMESPACE_REDEFINED_WARNING, nameObj.GetFullName()))
@@ -275,11 +236,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) WarnAboutNamespaceRedef
 // FlattenReferencesToCollapsibleDescendantNames flattens all references to
 // collapsible properties of a global name except their initial definitions.
 // Recurs on subnames.
-//
-// n is an object representing a global name; alias the flattened name for
-// n.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesToCollapsibleDescendantNames(Name, String, Set<Name>)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToCollapsibleDescendantNames(
 	n *GlobalNamespace_Name, alias string) {
 	if !n.HasProps() {
@@ -328,7 +284,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenReferencesToColl
 	}
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties.logDecisionForName(Name, Inlinability, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameWithInlinability(
 	name *GlobalNamespace_Name, inlinability GlobalNamespace_Inlinability, message string) {
 	if c.outer.decisionsLog.IsLogging() {
@@ -336,26 +291,20 @@ func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameWithI
 	}
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties.logDecisionForName(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForName(name *GlobalNamespace_Name, message string) {
 	if c.outer.decisionsLog.IsLogging() {
 		c.outer.decisionsLog.LogSupplier(func() string { return name.GetFullName() + ": " + message })
 	}
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties.logDecisionForName(Name, Supplier<String>)
 func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameSupplier(name *GlobalNamespace_Name, messageSupplier func() string) {
 	if c.outer.decisionsLog.IsLogging() {
 		c.outer.decisionsLog.LogSupplier(func() string { return name.GetFullName() + ": " + messageSupplier() })
 	}
 }
 
-// FlattenSimpleStubDeclaration flattens a stub declaration. This is mostly a
-// hack to support legacy users.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenSimpleStubDeclaration(Name, String)
+// FlattenSimpleStubDeclaration flattens a stub declaration.
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclaration(name *GlobalNamespace_Name, alias string) {
-	// Iterables.getOnlyElement(name.getRefs())
 	nRefs := name.refCount()
 	if nRefs == 0 {
 		panic(jutil.NewNoSuchElementException())
@@ -372,11 +321,8 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclar
 	c.outer.compiler.ReportChangeToEnclosingScope(varNode)
 }
 
-// inlineAndCollapseProperties_onlyElementMessage is the message of Guava's
-// Iterables.getOnlyElement for more than one element: "expected one element
-// but was: <e1, e2, ...>" (at most five elements, then ", ...").
-//
-// Go-only: language-adapter — Guava's message, computed only on failure.
+// inlineAndCollapseProperties_onlyElementMessage formats Guava's
+// Iterables.getOnlyElement message when more than one element is present.
 func inlineAndCollapseProperties_onlyElementMessage(refs []*GlobalNamespace_Ref) string {
 	var sb strings.Builder
 	sb.WriteString("expected one element but was: <")
@@ -396,11 +342,7 @@ func inlineAndCollapseProperties_onlyElementMessage(refs []*GlobalNamespace_Ref)
 
 // ShouldAddConstantName returns whether a NAME node with the given
 // collapsedName, for a name originally declared at declarationNode, should
-// be annotated with Node#IS_CONSTANT_NAME
-//
-// Validity checks in unit tests will otherwise throw an exception.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.shouldAddConstantName(Node, String)
+// be annotated with Node_IS_CONSTANT_NAME.
 func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(declarationNode rhino.Node, collapsedName string) bool {
 	if declarationNode.IsNil() {
 		return false
@@ -426,11 +368,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p
 
 // flattenReferencesTo flattens all references to a collapsible property of a
 // global name except its initial definition.
-//
-// n is a global property name (e.g. "a.b" or "a.b.c.d"); alias the
-// flattened name (e.g. "a$b" or "a$b$c$d").
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenReferencesTo(Name, String)
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 	n *GlobalNamespace_Name, alias string, checkEscaped bool) {
 	var originalName string
@@ -452,16 +389,17 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 			// Declarations are handled separately.
 			continue
 		}
-		rParent := r.GetNode().GetParent()
+		rNode := r.GetNode()
+		rParent := rNode.GetParent()
 		// We shouldn't flatten a reference that's an object literal key, because duplicate keys
 		// show up as refs.
-		if !NodeUtil_MayBeObjectLitKey(r.GetNode()) {
-			c.FlattenNameRef(alias, r.GetNode(), rParent, getOriginalName(), isConstantName)
-		} else if r.GetNode().IsStringKey() && r.GetNode().GetParent().IsObjectPattern() {
-			newNode := rhino.IR_Name(alias).Srcref(r.GetNode())
-			NodeUtil_CopyNameAnnotations(r.GetNode(), newNode)
+		if !NodeUtil_MayBeObjectLitKey(rNode) {
+			c.FlattenNameRef(alias, rNode, rParent, getOriginalName(), isConstantName)
+		} else if strKey, ok := ast.AsStringKey(rNode); ok && rParent.IsObjectPattern() {
+			newNode := rhino.IR_Name(alias).Srcref(strKey.Node())
+			NodeUtil_CopyNameAnnotations(strKey.Node(), newNode)
 			DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
-				r.GetNode(), newNode, nil, r, c.outer.compiler)
+				strKey.Node(), newNode, nil, r, c.outer.compiler)
 		}
 	}
 
@@ -541,8 +479,6 @@ func buildPrefixOriginalName(baseOriginalName string, n *GlobalNamespace_Name, e
 
 // flattenPrefixesLazy flattens all occurrences of a name as a prefix of
 // subnames beginning with a particular subname.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenPrefixes(String, String, Name, int, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	alias string,
 	baseOriginalName string,
@@ -581,8 +517,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 
 // flattenNameRefAtDepthLazy flattens a particular prefix of a single name
 // reference.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenNameRefAtDepth(String, Node, int, String, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLazy(
 	alias string,
 	n rhino.Node,
@@ -606,31 +540,16 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 }
 
 // FlattenNameRef replaces a GETPROP a.b.c with a NAME a$b$c.
-//
-// alias is a flattened prefix name (e.g. "a$b"); n the GETPROP node
-// corresponding to the original name (e.g. "a.b"); parent n's parent;
-// originalName the string version of the property name; isConstantName
-// whether to annotate with Node#IS_CONSTANT_NAME.
-//
-// Java: InlineAndCollapseProperties.CollapseProperties.flattenNameRef(String, Node, Node, String, boolean)
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	alias string, n rhino.Node, parent rhino.Node, originalName string, isConstantName bool) {
 	jutil.CheckArgumentMsg2(
 		n.IsGetProp(), "Expected GETPROP, found %s. Node: %s", n.GetToken(), n)
 
-	// BEFORE:
-	//   getprop
-	//     getprop
-	//       name a
-	//       string b
-	//     string c
-	// AFTER:
-	//   name a$b$c
 	isConst := isConstantName || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) || c.outer.compiler.GetCodingConvention().IsConstant(alias)
 	if call, ok := ast.AsNormalOrOptChainCall(parent); ok && call.Callee().Is(n) {
 		// The node was a call target. We are deliberately flattening these as
 		// the "this" isn't provided by the namespace. Mark it as such:
-		parent.PutBooleanProp(rhino.Node_FREE_CALL, true)
+		call.SetFreeCall(true)
 	}
 	if n.MutateGetPropToNameInPlace(alias, originalName, isConst) {
 		c.outer.compiler.ReportChangeToEnclosingScope(n)
@@ -675,7 +594,6 @@ func (f *collapseProperties_findDynamicallyImportedModules) visitTokens() *ast.T
 
 func (*collapseProperties_findDynamicallyImportedModules) noVisitLeaves() {}
 
-// Java: InlineAndCollapseProperties.CollapseProperties.FindDynamicallyImportedModules(boolean, ResolutionMode)
 func newCollapseProperties_findDynamicallyImportedModules(
 	outer *InlineAndCollapseProperties_CollapseProperties,
 	processCommonJSModules bool,
@@ -687,7 +605,6 @@ func newCollapseProperties_findDynamicallyImportedModules(
 	}
 }
 
-// Java: InlineAndCollapseProperties.CollapseProperties.FindDynamicallyImportedModules.visit(NodeTraversal, Node, Node)
 func (f *collapseProperties_findDynamicallyImportedModules) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// After rewriting, CommonJS dynamic imports are of the form
 	// __webpack_require__.e(2).then(function() { return module$mod1.default; })
@@ -719,28 +636,18 @@ func (f *collapseProperties_findDynamicallyImportedModules) Visit(t *NodeTravers
 	}
 }
 
-// Java: InlineAndCollapseProperties.isSafeNamespaceReinit(Ref)
 func InlineAndCollapseProperties_IsSafeNamespaceReinit(ref *GlobalNamespace_Ref) bool {
-	// allow "a = a || {}" or "var a = a || {}" or "var a;"
-	valParent := InlineAndCollapseProperties_GetValueParent(ref)
-	if val := valParent.GetLastChild(); !val.IsNil() && val.IsOr() {
-		if ref.GetNode().MatchesQualifiedNameNode(ast.MustBinary(val).Left().Node()) {
-			return true
-		}
+	// allow "a = a || {}" or "var a = a || {}"
+	refNode := ref.GetNode()
+	valParent := refNode.GetParent()
+	if !valParent.IsNil() && NodeUtil_IsNameDeclaration(valParent) {
+		valParent = refNode
+	}
+	if valParent.IsNil() {
+		return false
+	}
+	if orExpr, ok := ast.AsBinaryOf(valParent.GetLastChild(), rhino.Token_OR); ok {
+		return refNode.MatchesQualifiedNameNode(orExpr.Left().Node())
 	}
 	return false
-}
-
-// InlineAndCollapseProperties_GetValueParent gets the parent node of the
-// value for any assignment to a Name. For example, in the assignment `var x
-// = 3;` the parent would be the NAME node.
-//
-// Java: InlineAndCollapseProperties.getValueParent(Ref)
-func InlineAndCollapseProperties_GetValueParent(ref *GlobalNamespace_Ref) rhino.Node {
-	// there are four types of declarations: VARs, LETs, CONSTs, and ASSIGNs
-	n := ref.GetNode().GetParent()
-	if !n.IsNil() && NodeUtil_IsNameDeclaration(n) {
-		return ref.GetNode()
-	}
-	return ref.GetNode().GetParent()
 }

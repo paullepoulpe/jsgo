@@ -50,9 +50,17 @@ func assertSources(t *testing.T, got []*string, want ...string) {
 	}
 }
 
-func TestSources(t *testing.T) {
+func mustParseConsumer(t *testing.T, contents string) *sourcemap.SourceMapConsumerV3 {
+	t.Helper()
 	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(basicMapJSON())
+	if err := consumer.Parse(contents); err != nil {
+		t.Fatalf("Parse failed: %v", err)
+	}
+	return consumer
+}
+
+func TestSources(t *testing.T) {
+	consumer := mustParseConsumer(t, basicMapJSON())
 
 	assertSources(t, consumer.GetOriginalSources(), "testcode")
 	if consumer.GetSourceRoot() != nil {
@@ -61,8 +69,7 @@ func TestSources(t *testing.T) {
 }
 
 func TestSectionsFormat_parsesSuccessfully(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -80,8 +87,7 @@ func TestSectionsFormat_parsesSuccessfully(t *testing.T) {
 }
 
 func TestSectionsFormat_fileNameIsOptional_inSectionAndTopLevel(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -99,8 +105,7 @@ func TestSectionsFormat_fileNameIsOptional_inSectionAndTopLevel(t *testing.T) {
 }
 
 func TestSectionsFormat_ignoresEmptySources(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -119,8 +124,7 @@ func TestSectionsFormat_ignoresEmptySources(t *testing.T) {
 }
 
 func TestSourcesWithRoot(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	consumer := mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -140,8 +144,7 @@ func TestSourcesWithRoot(t *testing.T) {
 }
 
 func TestExtensions(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	consumer := mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -175,8 +178,7 @@ func TestExtensions(t *testing.T) {
 }
 
 func TestSourceMappingExactMatch(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(basicMapJSON())
+	consumer := mustParseConsumer(t, basicMapJSON())
 
 	mapping, _, ok := consumer.GetMappingForLineValue(1, 1)
 
@@ -192,8 +194,7 @@ func TestSourceMappingExactMatch(t *testing.T) {
 }
 
 func TestSourceMappingApproximatedLine(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	consumer := mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -242,8 +243,7 @@ func TestLargeMappings(t *testing.T) {
 	}
 	mappings.WriteString(";")
 
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	consumer := mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -264,8 +264,7 @@ func TestLargeMappings(t *testing.T) {
 
 func TestMixedEntryTypes(t *testing.T) {
 	// Test a mix of 1, 4, and 5 value entries.
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(
+	consumer := mustParseConsumer(t,
 		gsonToJson(
 			testJsonBuilder_Create().
 				setVersion(3).
@@ -299,8 +298,7 @@ func TestMixedEntryTypes(t *testing.T) {
 }
 
 func TestReverseMapping(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(basicMapJSON())
+	consumer := mustParseConsumer(t, basicMapJSON())
 
 	reverse := consumer.GetReverseMapping("testcode", 0, 0)
 	if len(reverse) == 0 {
@@ -330,7 +328,7 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 		}
 		mappings.WriteString(";")
 
-		consumer.Parse(
+		if err := consumer.Parse(
 			gsonToJson(
 				testJsonBuilder_Create().
 					setVersion(3).
@@ -339,7 +337,9 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 					setMappings(mappings.String()).
 					setSources("testcode").
 					setNames("foo").
-					build()))
+					build())); err != nil {
+			t.Fatalf("Parse failed: %v", err)
+		}
 
 		for col := 0; col < numEntries; col++ {
 			mapping, _, ok := consumer.GetMappingForLineValue(1, col+1)
@@ -361,8 +361,7 @@ func (f entryVisitorFunc) Visit(sourceName, symbolName *string, sourcePos, start
 }
 
 func TestVisitMappings(t *testing.T) {
-	consumer := sourcemap.NewSourceMapConsumerV3()
-	consumer.Parse(basicMapJSON())
+	consumer := mustParseConsumer(t, basicMapJSON())
 
 	var symbols []string
 	consumer.VisitMappings(entryVisitorFunc(
@@ -382,18 +381,20 @@ func TestInvalidEntryValuesThrows(t *testing.T) {
 	invalidMappings := "AA;"
 
 	consumer := sourcemap.NewSourceMapConsumerV3()
-	expected := assertThrows[*sourcemap.SourceMapParseException](t, func() {
-		consumer.Parse(
-			gsonToJson(
-				testJsonBuilder_Create().
-					setVersion(3).
-					setFile("testcode").
-					setLineCount(1).
-					setMappings(invalidMappings).
-					setSources("testcode").
-					setNames("foo").
-					build()))
-	})
+	err := consumer.Parse(
+		gsonToJson(
+			testJsonBuilder_Create().
+				setVersion(3).
+				setFile("testcode").
+				setLineCount(1).
+				setMappings(invalidMappings).
+				setSources("testcode").
+				setNames("foo").
+				build()))
+	expected, ok := err.(*sourcemap.SourceMapParseException)
+	if !ok {
+		t.Fatalf("Parse err = %T (%v), want *sourcemap.SourceMapParseException", err, err)
+	}
 
 	if !strings.Contains(expected.GetMessage(), "Unexpected number of values for entry:2") {
 		t.Errorf("message = %q", expected.GetMessage())

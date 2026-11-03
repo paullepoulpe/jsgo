@@ -38,6 +38,8 @@
 package jscomp
 
 import (
+	"fmt"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -344,9 +346,16 @@ func NewPolymerPass_MemberDefinition(info *rhino.JSDocInfo, name rhino.Node, val
 	}
 }
 
+func formatPolymerNode(n rhino.Node) string {
+	if n.IsNil() {
+		return "null"
+	}
+	return n.String()
+}
+
 // Java: PolymerPass.MemberDefinition.toString()
 func (m *PolymerPass_MemberDefinition) String() string {
-	return jutil.MoreObjects_ToStringHelper("MemberDefinition").Add("name", m.name).Add("value", m.value).String()
+	return fmt.Sprintf("MemberDefinition{name=%s, value=%s}", formatPolymerNode(m.name), formatPolymerNode(m.value))
 }
 
 var (

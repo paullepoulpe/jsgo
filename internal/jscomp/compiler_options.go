@@ -69,7 +69,7 @@ type CompilerOptions struct {
 	// The builtin set of externs to be used
 	environment CompilerOptions_Environment
 	// Represents BrowserFeaturesetYear to use for compilation
-	browserFeaturesetYear *CompilerOptions_BrowserFeaturesetYear
+	browserFeaturesetYear CompilerOptions_BrowserFeaturesetYear
 	// Instrument code for the purpose of collecting coverage data - restrict to coverage pass only,
 	// and skip all other passes.
 	instrumentForCoverageOnly  bool
@@ -382,7 +382,7 @@ type CompilerOptions struct {
 	assumeForwardDeclaredForMissingTypes bool
 	// A Set of goog.requires to be removed. If null, ALL of the unused goog.requires will be counted
 	// as a candidate to be removed.
-	unusedImportsToRemove *jutil.LinkedHashSet[string]
+	unusedImportsToRemove *OrderedSet[string]
 	// --------------------------------
 	// Output options
 	// --------------------------------

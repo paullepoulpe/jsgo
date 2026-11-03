@@ -21,6 +21,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // JSDocSerializer_ConvertJSDocInfoForOptimizations returns a variant of
@@ -81,13 +82,13 @@ func jsDocSerializer_buildConvertedJSDoc(
 		builder.RecordLicense(license)
 	}
 	if meaning != "" {
-		builder.RecordMeaning(rhino.RhinoStringPool_AddOrGet(meaning))
+		builder.RecordMeaning(strpool.String(strpool.Intern(meaning)))
 	}
 	if description != "" {
-		builder.RecordDescription(rhino.RhinoStringPool_AddOrGet(description))
+		builder.RecordDescription(strpool.String(strpool.Intern(description)))
 	}
 	if alternateMessageId != "" {
-		builder.RecordAlternateMessageId(rhino.RhinoStringPool_AddOrGet(alternateMessageId))
+		builder.RecordAlternateMessageId(strpool.String(strpool.Intern(alternateMessageId)))
 	}
 	jsDocSerializer_applyTagsToBuilder(kinds, builder)
 	return builder.Build()

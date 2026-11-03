@@ -69,7 +69,7 @@ func propUseIndexForOptimizeCalls(o *OptimizeCalls, externs, root rhino.Node) *p
 // ocName records a NAME, as maybeAddNameReferenceNode filters it before
 // resolving it.
 func (r *piRecorder) ocName(n rhino.Node) {
-	if id := n.GetStringID(); id > rhino.RhinoStringPool_EmptyID {
+	if id := n.GetStringID(); id > strpool.EmptyID {
 		r.lists[piListOC] = append(r.lists[piListOC], piItem{n: n, prop: id, bits: piOCName})
 	}
 }
@@ -84,10 +84,10 @@ const (
 // ocFillTable is one table of the map (names or properties) as a read fills
 // it: per-id lists in dense arrays, moved into the map once per id.
 type ocFillTable struct {
-	slot  []int32  // id -> 1 + its index in ids, 0 when not met in this read
-	ids   []uint32 // the ids in first-appearance order
-	count []int32  // per index: its nodes
-	refs  []ocRef  // the nodes filed, in traversal order
+	slot  []int32      // id -> 1 + its index in ids, 0 when not met in this read
+	ids   []strpool.ID // the ids in first-appearance order
+	count []int32      // per index: its nodes
+	refs  []ocRef      // the nodes filed, in traversal order
 }
 
 type ocRef struct {
@@ -95,7 +95,7 @@ type ocRef struct {
 	n    rhino.Node
 }
 
-func (t *ocFillTable) add(id uint32, n rhino.Node) {
+func (t *ocFillTable) add(id strpool.ID, n rhino.Node) {
 	if int(id) >= len(t.slot) {
 		t.slot = slices.Grow(t.slot, int(id)+1-len(t.slot)+len(t.slot)/2)
 		t.slot = t.slot[:cap(t.slot)]
@@ -114,8 +114,8 @@ func (t *ocFillTable) add(id uint32, n rhino.Node) {
 // flush moves the lists into data, in first-appearance order, and resets the
 // table for the next read.
 func (t *ocFillTable) flush(m *OptimizeCalls_ReferenceMap, data *optimizeCalls_refTable) {
-	data.byID = make(map[uint32]*optimizeCalls_refList, len(t.ids))
-	data.order = append(make([]uint32, 0, len(t.ids)), t.ids...)
+	data.byID = make(map[strpool.ID]*optimizeCalls_refList, len(t.ids))
+	data.order = append(make([]strpool.ID, 0, len(t.ids)), t.ids...)
 	data.size = len(t.ids)
 	nodes := make([]rhino.Node, len(t.refs))
 	// count becomes each list's end.
@@ -146,9 +146,9 @@ func (t *ocFillTable) flush(m *OptimizeCalls_ReferenceMap, data *optimizeCalls_r
 // across reads.
 type ocFillState struct {
 	names, props ocFillTable
-	maybe        []uint64 // the name ids the global scope may declare (a bitset)
-	verdict      []uint8  // name id -> ocVerdict*, for the ids in maybe
-	marked       []uint32 // the ids set in maybe or verdict
+	maybe        []uint64     // the name ids the global scope may declare (a bitset)
+	verdict      []uint8      // name id -> ocVerdict*, for the ids in maybe
+	marked       []strpool.ID // the ids set in maybe or verdict
 	global       *Scope
 	lookupAll    bool // the global scope has a parent: look every name up
 
@@ -157,7 +157,7 @@ type ocFillState struct {
 	fill  time.Duration
 }
 
-func (st *ocFillState) mark(id uint32) {
+func (st *ocFillState) mark(id strpool.ID) {
 	w := int(id >> 6)
 	if w >= len(st.maybe) {
 		st.maybe = slices.Grow(st.maybe, w+1-len(st.maybe)+len(st.maybe)/2)
@@ -180,10 +180,10 @@ func (st *ocFillState) begin(gs *Scope) {
 	st.global = gs
 	st.lookupAll = gs.lookupParent != nil
 	for _, v := range gs.varList {
-		st.mark(v.nameID)
+		st.mark(strpool.ID(v.nameID))
 	}
 	for _, id := range [...]uint32{implicitArgumentsID, implicitThisID, implicitExportsID, implicitSuperID} {
-		st.mark(id)
+		st.mark(strpool.ID(id))
 	}
 }
 
@@ -198,7 +198,7 @@ func (st *ocFillState) end() {
 
 // isGlobalName is maybeAddNameReferenceNode's test with considerExterns
 // false: the run's global scope declares id, and not in the externs.
-func (st *ocFillState) isGlobalName(id uint32) bool {
+func (st *ocFillState) isGlobalName(id strpool.ID) bool {
 	if w := int(id >> 6); w >= len(st.maybe) || st.maybe[w]&(uint64(1)<<(id&63)) == 0 {
 		if !st.lookupAll {
 			return false
@@ -212,7 +212,7 @@ func (st *ocFillState) isGlobalName(id uint32) bool {
 		return false
 	}
 	keep := false
-	if v := st.global.GetVarByID(id); v != nil && !v.IsExtern() {
+	if v := st.global.GetVarByID(uint32(id)); v != nil && !v.IsExtern() {
 		keep = true
 	}
 	if keep {
@@ -278,12 +278,12 @@ func (f *ocFiller) walk(s *piScope) {
 		it := &items[i]
 		switch it.bits {
 		case piOCName:
-			if st.isGlobalName(it.prop) {
-				st.names.add(it.prop, it.n)
+			if id := strpool.ID(it.prop); st.isGlobalName(id) {
+				st.names.add(id, it.n)
 			}
 		case piOCProp:
 			if !cb.externPropBits.Get(int(it.prop)) {
-				st.props.add(it.prop, it.n)
+				st.props.add(strpool.ID(it.prop), it.n)
 			}
 		case piOCSuper:
 			// visitSuper
@@ -293,16 +293,16 @@ func (f *ocFiller) walk(s *piScope) {
 			}
 			if isName {
 				// maybeAddNameReferenceNode(target, superNode)
-				if id := target.GetStringID(); id > rhino.RhinoStringPool_EmptyID && st.isGlobalName(id) {
+				if id := nodeStringID(target); id > strpool.EmptyID && st.isGlobalName(id) {
 					st.names.add(id, it.n)
 				}
-			} else if id := target.GetStringID(); !cb.externPropBits.Get(int(id)) {
+			} else if id := nodeStringID(target); !cb.externPropBits.Get(int(id)) {
 				st.props.add(id, it.n)
 			}
 		case piOCRename:
 			// traverseNode's CALL case
 			firstArg, _ := ast.MustCall(it.n).FirstArg()
-			if id := firstArg.Node().GetStringID(); !cb.externPropBits.Get(int(id)) {
+			if id := nodeStringID(firstArg.Node()); !cb.externPropBits.Get(int(id)) {
 				st.props.add(id, it.n)
 			}
 		}
@@ -317,12 +317,12 @@ func (f *ocFiller) walk(s *piScope) {
 // and each id's nodes.
 func verifyOptimizeCallsMap(c *Compiler, got, want *OptimizeCalls_ReferenceMap) {
 	cmp := func(kind string, g, w *optimizeCalls_refTable) {
-		var gi, wi []uint32
+		var gi, wi []strpool.ID
 		for id := range g.allByID() {
-			gi = append(gi, id)
+			gi = append(gi, strpool.ID(id))
 		}
 		for id := range w.allByID() {
-			wi = append(wi, id)
+			wi = append(wi, strpool.ID(id))
 		}
 		fail := func(format string, args ...any) {
 			var b strings.Builder
@@ -332,9 +332,9 @@ func verifyOptimizeCallsMap(c *Compiler, got, want *OptimizeCalls_ReferenceMap) 
 		}
 		for i := 0; i < len(gi) || i < len(wi); i++ {
 			if i >= len(gi) || i >= len(wi) || gi[i] != wi[i] {
-				name := func(ids []uint32) string {
+				name := func(ids []strpool.ID) string {
 					if i < len(ids) {
-						return strpool.String(strpool.ID(ids[i]))
+						return strpool.String(ids[i])
 					}
 					return "(none)"
 				}

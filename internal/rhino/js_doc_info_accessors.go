@@ -40,6 +40,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // jsDocKV is an ordered (key, val) string pair for parameter descriptions.
@@ -114,10 +115,10 @@ func jsDocStringSetFromSlice(s []string) *jutil.LinkedHashSet[string] {
 
 var (
 	emptyStringSlice              = []string{}
-	jsDocModifiesThis             = []string{RhinoStringPool_AddOrGet("this")}
-	jsDocModifiesArguments        = []string{RhinoStringPool_AddOrGet("arguments")}
-	jsDocModifiesThisAndArguments = []string{RhinoStringPool_AddOrGet("this"), RhinoStringPool_AddOrGet("arguments")}
-	jsDocModifiesArgumentsAndThis = []string{RhinoStringPool_AddOrGet("arguments"), RhinoStringPool_AddOrGet("this")}
+	jsDocModifiesThis             = []string{strpool.String(strpool.Intern("this"))}
+	jsDocModifiesArguments        = []string{strpool.String(strpool.Intern("arguments"))}
+	jsDocModifiesThisAndArguments = []string{strpool.String(strpool.Intern("this")), strpool.String(strpool.Intern("arguments"))}
+	jsDocModifiesArgumentsAndThis = []string{strpool.String(strpool.Intern("arguments")), strpool.String(strpool.Intern("this"))}
 )
 
 func (i *JSDocInfo) getStringProp(p *JSDocInfo_Property) (string, bool) {

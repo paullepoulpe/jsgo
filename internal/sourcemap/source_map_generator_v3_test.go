@@ -507,8 +507,12 @@ func TestSourceMapMerging(t *testing.T) {
 
 	generator := sourcemap.NewSourceMapGeneratorV3()
 
-	generator.MergeMapSection(0, 0, result1.SourceMapFileContent)
-	generator.MergeMapSection(offset.GetLine(), offset.GetColumn(), result2.SourceMapFileContent)
+	if err := generator.MergeMapSection(0, 0, result1.SourceMapFileContent); err != nil {
+		t.Fatalf("MergeMapSection(0, 0) failed: %v", err)
+	}
+	if err := generator.MergeMapSection(offset.GetLine(), offset.GetColumn(), result2.SourceMapFileContent); err != nil {
+		t.Fatalf("MergeMapSection(offset) failed: %v", err)
+	}
 
 	var mapContents strings.Builder
 	generator.AppendTo(&mapContents, jutil.StringPtr("out.js"))
@@ -543,8 +547,12 @@ func TestSourceMerging1(t *testing.T) {
 
 	// combine the two
 	sourceMapGeneratorV3 = sourcemap.NewSourceMapGeneratorV3()
-	sourceMapGeneratorV3.MergeMapSection(0, 0, sourceMap1)
-	sourceMapGeneratorV3.MergeMapSection(4, 0, sourceMap2)
+	if err := sourceMapGeneratorV3.MergeMapSection(0, 0, sourceMap1); err != nil {
+		t.Fatalf("MergeMapSection(sourceMap1) failed: %v", err)
+	}
+	if err := sourceMapGeneratorV3.MergeMapSection(4, 0, sourceMap2); err != nil {
+		t.Fatalf("MergeMapSection(sourceMap2) failed: %v", err)
+	}
 	sourceMapGeneratorV3.AppendTo(&w, jutil.StringPtr("foobar.js.sourcemap"))
 	combinedMap := w.String()
 
@@ -616,7 +624,7 @@ func (f extensionMergeActionFunc) Merge(extensionKey string, currentValue, newVa
 
 func TestSourceMapMergeExtensions(t *testing.T) {
 	mapper := sourcemap.NewSourceMapGeneratorV3()
-	mapper.MergeMapSection(
+	if err := mapper.MergeMapSection(
 		0,
 		0,
 		"{\n"+
@@ -627,7 +635,9 @@ func TestSourceMapMergeExtensions(t *testing.T) {
 			"\"sources\":[\"testcode\"],\n"+
 			"\"names\":[\"__BASIC__\"],\n"+
 			"\"x_company_foo\":2\n"+
-			"}\n")
+			"}\n"); err != nil {
+		t.Fatalf("MergeMapSection failed: %v", err)
+	}
 
 	if mapper.HasExtension("x_company_foo") {
 		t.Error("x_company_foo merged")
@@ -635,7 +645,7 @@ func TestSourceMapMergeExtensions(t *testing.T) {
 
 	mapper.AddExtension("x_company_baz", 2)
 
-	mapper.MergeMapSectionWithMergeAction(
+	if err := mapper.MergeMapSectionWithMergeAction(
 		0,
 		0,
 		"{\n"+
@@ -650,7 +660,9 @@ func TestSourceMapMergeExtensions(t *testing.T) {
 			"}\n",
 		extensionMergeActionFunc(func(extensionKey string, currentValue, newValue any) any {
 			return currentValue.(int) + int(newValue.(*jutil.JsonPrimitive).GetAsInt())
-		}))
+		})); err != nil {
+		t.Fatalf("MergeMapSectionWithMergeAction failed: %v", err)
+	}
 
 	if got := mapper.GetExtension("x_company_baz"); got != 5 {
 		t.Errorf("x_company_baz = %v", got)

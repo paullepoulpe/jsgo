@@ -47,6 +47,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // SourceMap collects information mapping the generated (compiled) source
@@ -318,7 +319,7 @@ func (s *SourceMap) AddSourceFile(name string, code *string) {
 // Java: SourceMap.getOriginalName(Node)
 func sourceMap_getOriginalName(node rhino.Node) (string, bool) {
 	if id := node.GetOriginalNameID(); id != 0 {
-		return rhino.RhinoStringPool_StringFromID(id), true
+		return strpool.String(strpool.ID(id)), true
 	}
 	// If this is the name identifier of a function declaration/expression and the name node itself
 	// has no originalName, fall back to the enclosing FUNCTION node's originalName.
@@ -331,14 +332,14 @@ func sourceMap_getOriginalName(node rhino.Node) (string, bool) {
 		parent := node.GetParent()
 		if !parent.IsNil() && parent.IsFunction() && parent.GetFirstChild() == node {
 			if id := parent.GetOriginalNameID(); id != 0 {
-				return rhino.RhinoStringPool_StringFromID(id), true
+				return strpool.String(strpool.ID(id)), true
 			}
 		}
 		return "", false
 	}
 	if node.IsMemberFunctionDef() {
 		if id := node.GetFirstChild().GetOriginalNameID(); id != 0 {
-			return rhino.RhinoStringPool_StringFromID(id), true
+			return strpool.String(strpool.ID(id)), true
 		}
 	}
 	return "", false

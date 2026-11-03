@@ -40,6 +40,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 var (
@@ -61,9 +62,9 @@ var (
 	functionPrototypeBindCallQ = rhino.QualifiedName_Of("Function.prototype.bind.call")
 	chromeAddSingletonGetterQ  = rhino.QualifiedName_Of("cr.addSingletonGetter")
 
-	codingConvArrayID   = rhino.RhinoStringPool_InternID("Array")
-	codingConvIsArrayID = rhino.RhinoStringPool_InternID("isArray")
-	codingConvBindID    = rhino.RhinoStringPool_InternID("bind")
+	codingConvArrayID   = strpool.Intern("Array")
+	codingConvIsArrayID = strpool.Intern("isArray")
+	codingConvBindID    = strpool.Intern("bind")
 )
 
 // CodingConventions_GetDefault gets the default coding convention.
@@ -194,9 +195,9 @@ func (d *CodingConventions_DefaultCodingConvention) ApplySingletonGetter(
 
 func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call rhino.Node) bool {
 	callee := call.GetFirstChild()
-	if callee.IsGetProp() && callee.GetStringID() == codingConvIsArrayID {
+	if callee.IsGetProp() && nodeStringID(callee) == codingConvIsArrayID {
 		recv := callee.GetFirstChild()
-		return recv.IsName() && recv.GetStringID() == codingConvArrayID
+		return recv.IsName() && nodeStringID(recv) == codingConvArrayID
 	}
 	return false
 }
@@ -230,7 +231,7 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino
 		return NewCodingConvention_Bind(fn, thisValue, parameters)
 	}
 
-	if callTarget.IsGetProp() && callTarget.GetStringID() == codingConvBindID {
+	if callTarget.IsGetProp() && nodeStringID(callTarget) == codingConvBindID {
 		maybeFn := callTarget.GetFirstChild()
 		maybeFnType := maybeFn.GetJSType()
 		var fnType rhino.FunctionType

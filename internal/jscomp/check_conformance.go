@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // CheckConformance provides a framework for checking code against a set of
@@ -113,7 +114,7 @@ func (p checkConformance_NodePrecondition) ShouldCheck(n rhino.Node) bool {
 		case rhino.Token_GETPROP:
 			return n.GetFirstChild().IsQualifiedName()
 		case rhino.Token_NAME:
-			return n.GetStringID() != rhino.RhinoStringPool_EmptyID
+			return n.GetStringID() != strpool.EmptyID
 		default:
 			return false
 		}

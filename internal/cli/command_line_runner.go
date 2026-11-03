@@ -456,7 +456,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	// Handle --compilation_level=BUNDLE
 	bundleFiles := []string{}
 	skipNormalOutputs := false
-	if flags.compilationLevelParsed != nil && *flags.compilationLevelParsed == jscomp.CompilationLevel_BUNDLE {
+	if flags.hasCompilationLevelParsed && flags.compilationLevelParsed == jscomp.CompilationLevel_BUNDLE {
 		if flags.jsOutputFile == "" {
 			r.ReportError("--compilation_level=BUNDLE cannot be used without a --js_output_file.")
 		} else {
@@ -476,7 +476,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	}
 
 	if !flags.renaming &&
-		flags.compilationLevelParsed != nil && *flags.compilationLevelParsed == jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS {
+		flags.hasCompilationLevelParsed && flags.compilationLevelParsed == jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS {
 		r.ReportError("ERROR - renaming cannot be disabled when ADVANCED_OPTIMIZATIONS is used.")
 	}
 
@@ -619,7 +619,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 
 	options.SetExtraAnnotationNames(flags.extraAnnotationName)
 
-	level := *flags.compilationLevelParsed
+	level := flags.compilationLevelParsed
 	level.SetOptionsForCompilationLevel(options)
 
 	if flags.debug {

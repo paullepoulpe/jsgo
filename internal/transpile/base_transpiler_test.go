@@ -26,17 +26,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// baseTranspilerTest_mockCompiler is the Mockito mock of
-// BaseTranspiler.CompilerSupplier (RETURNS_SMART_NULLS: an unstubbed call
-// returns the empty value, "" for a String, null otherwise).
+// baseTranspilerTest_mockCompiler is the Mockito mock of CompilerSupplier.
 //
 // Go-only: test-helper — Mockito.
 type baseTranspilerTest_mockCompiler struct {
-	compileResult *BaseTranspiler_CompileResult
+	compileResult *CompileResult
 	runtimes      map[string]string
 }
 
-func (m *baseTranspilerTest_mockCompiler) Compile(path string, code string) *BaseTranspiler_CompileResult {
+func (m *baseTranspilerTest_mockCompiler) Compile(path string, code string) *CompileResult {
 	if path == baseTranspilerTest_FOO_JS && code == "bar" {
 		return m.compileResult
 	}
@@ -54,7 +52,7 @@ const (
 
 type baseTranspilerTest struct {
 	transpiler   Transpiler
-	compiler     BaseTranspiler_CompilerSupplier
+	compiler     CompilerSupplier
 	mockCompiler *baseTranspilerTest_mockCompiler
 }
 
@@ -63,7 +61,7 @@ func newBaseTranspilerTest() *baseTranspilerTest {
 	x := &baseTranspilerTest{}
 	x.mockCompiler = &baseTranspilerTest_mockCompiler{runtimes: map[string]string{}}
 	x.transpiler = NewBaseTranspiler(x.mockCompiler, "es6_runtime")
-	x.compiler = NewBaseTranspiler_CompilerSupplier()
+	x.compiler = NewCompilerSupplier()
 	return x
 }
 
@@ -78,14 +76,14 @@ func baseTranspilerTest_assertResult(t *testing.T, got *TranspileResult, want *T
 
 func TestBaseTranspiler_Transpiler_transpile(t *testing.T) {
 	x := newBaseTranspilerTest()
-	x.mockCompiler.compileResult = NewBaseTranspiler_CompileResult("result", true, "srcmap")
+	x.mockCompiler.compileResult = NewCompileResult("result", true, "srcmap")
 	baseTranspilerTest_assertResult(t, x.transpiler.Transpile(baseTranspilerTest_FOO_JS, "bar"),
 		NewTranspileResult(baseTranspilerTest_FOO_JS, "bar", "result", "srcmap"))
 }
 
 func TestBaseTranspiler_Transpiler_noTranspilation(t *testing.T) {
 	x := newBaseTranspilerTest()
-	x.mockCompiler.compileResult = NewBaseTranspiler_CompileResult("result", false, "srcmap")
+	x.mockCompiler.compileResult = NewCompileResult("result", false, "srcmap")
 	baseTranspilerTest_assertResult(t, x.transpiler.Transpile(baseTranspilerTest_FOO_JS, "bar"),
 		NewTranspileResult(baseTranspilerTest_FOO_JS, "bar", "bar", ""))
 }
@@ -103,17 +101,17 @@ func TestBaseTranspiler_Transpiler_runtime(t *testing.T) {
 func TestBaseTranspiler_CompilerSupplier_compileChanged(t *testing.T) {
 	x := newBaseTranspilerTest()
 	result := x.compiler.Compile(baseTranspilerTest_SOURCE_JS, "const x = () => 42;")
-	if result.source != "var x = function() {\n  return 42;\n};\n" || !result.transpiled ||
-		!strings.Contains(result.sourceMap, "\"mappings\":\"AAAA,IAAMA,IAAIA,QAAA,EAAM;AAAA,SAAA,EAAA;AAAA,CAAhB;;\"") {
-		t.Errorf("compile = %q %v %q", result.source, result.transpiled, result.sourceMap)
+	if result.Source != "var x = function() {\n  return 42;\n};\n" || !result.Transformed ||
+		!strings.Contains(result.SourceMap, "\"mappings\":\"AAAA,IAAMA,IAAIA,QAAA,EAAM;AAAA,SAAA,EAAA;AAAA,CAAhB;;\"") {
+		t.Errorf("compile = %q %v %q", result.Source, result.Transformed, result.SourceMap)
 	}
 }
 
 func TestBaseTranspiler_CompilerSupplier_compileNoChange(t *testing.T) {
 	x := newBaseTranspilerTest()
 	result := x.compiler.Compile(baseTranspilerTest_SOURCE_JS, "var x = 42;")
-	if result.source != "var x = 42;\n" || result.transpiled || result.sourceMap != "" {
-		t.Errorf("compile = %q %v %q", result.source, result.transpiled, result.sourceMap)
+	if result.Source != "var x = 42;\n" || result.Transformed || result.SourceMap != "" {
+		t.Errorf("compile = %q %v %q", result.Source, result.Transformed, result.SourceMap)
 	}
 }
 
@@ -153,8 +151,8 @@ func TestBaseTranspiler_CompilerSupplier_inlineSourceMap(t *testing.T) {
 			"c291cmNlLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBLE1BQU0sQ0FBQyxHQUFHLEdBQUcs"+
 			"RUFBRSxDQUFDLEVBQUUsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbImNvbnN0IHggPSAoKSA9PiA0Mjtc"+
 			"biJdfQ==")
-	if result.source != "var x = function() {\n  return 42;\n};\n" || !result.transpiled {
-		t.Errorf("compile = %q %v", result.source, result.transpiled)
+	if result.Source != "var x = function() {\n  return 42;\n};\n" || !result.Transformed {
+		t.Errorf("compile = %q %v", result.Source, result.Transformed)
 	}
 	// This should map back to the typescript source file.
 	want := "{\n" +
@@ -166,7 +164,7 @@ func TestBaseTranspiler_CompilerSupplier_inlineSourceMap(t *testing.T) {
 		"\"sourcesContent\":[\"const x = () => 42;\\n\"],\n" +
 		"\"names\":[\"x\"]\n" +
 		"}\n"
-	if result.sourceMap != want {
-		t.Errorf("sourceMap = %q, want %q", result.sourceMap, want)
+	if result.SourceMap != want {
+		t.Errorf("sourceMap = %q, want %q", result.SourceMap, want)
 	}
 }

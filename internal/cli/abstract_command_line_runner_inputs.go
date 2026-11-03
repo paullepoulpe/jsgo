@@ -197,13 +197,7 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Envi
 
 // Java: AbstractCommandLineRunner.getExternsInput()
 func abstractCommandLineRunner_getExternsInput() []byte {
-	input := resources.ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.AbstractCommandLineRunner", "/externs.zip")
-	if input == nil {
-		// In some environments, the externs.zip is relative to this class.
-		input = resources.ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.AbstractCommandLineRunner", "externs.zip")
-	}
-	jutil.CheckNotNull(input)
-	return input
+	return resources.MustLoadBytes("externs.zip")
 }
 
 // Java: AbstractCommandLineRunner.parseJsonFilesFromInputStream()

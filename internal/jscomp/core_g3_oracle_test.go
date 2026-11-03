@@ -111,6 +111,11 @@ func coreG3Fmt(v any) string {
 		return "null"
 	}
 	switch x := v.(type) {
+	case CompilerOptions_BrowserFeaturesetYear:
+		if x == CompilerOptions_BrowserFeaturesetYear_NONE {
+			return "null"
+		}
+		return x.String()
 	case *string:
 		return *x
 	case string, bool, int, int32, int64, float64, uint16:
@@ -433,7 +438,8 @@ func coreG3Ops() []coreG3Op {
 		{"setMaxFunctionSizeAfterInlining", []string{"0", "100"}, func(o *CompilerOptions, a string) {
 			o.SetMaxFunctionSizeAfterInlining(coreG3Atoi(a))
 		}},
-		coreG3EnumOp("setInstrumentForCoverageOption", compilerOptions_InstrumentOption_ptrs[:],
+		coreG3EnumOp("setInstrumentForCoverageOption",
+			coreG3EnumValues[CompilerOptions_InstrumentOption](len(compilerOptions_InstrumentOption_names)),
 			(*CompilerOptions).SetInstrumentForCoverageOption),
 		coreG3BoolOp("setInstrumentForCoverageOnly", (*CompilerOptions).SetInstrumentForCoverageOnly),
 		{"setProductionInstrumentationArrayName", []string{"", "arr"}, (*CompilerOptions).SetProductionInstrumentationArrayName},
@@ -599,9 +605,13 @@ func (o *coreG3Out) options(seed int64, n int) {
 		o.line("fromString " + s + " -> " + coreG3Fmt(CompilerOptions_LanguageMode_FromString(&s)))
 	}
 	for _, s := range []string{"NONE", "LINE", "BRANCH", "PRODUCTION", "LINE_ONLY", "x"} {
-		o.line("InstrumentOption.fromString " + s + " -> " + coreG3Fmt(CompilerOptions_InstrumentOption_FromString(&s)))
+		got := "null"
+		if opt, ok := CompilerOptions_InstrumentOption_FromString(s); ok {
+			got = opt.String()
+		}
+		o.line("InstrumentOption.fromString " + s + " -> " + got)
 	}
-	for _, y := range compilerOptions_BrowserFeaturesetYear_ptrs {
+	for y := CompilerOptions_BrowserFeaturesetYear_YEAR_2012; y <= CompilerOptions_BrowserFeaturesetYear_YEAR_2026; y++ {
 		o.line("BrowserFeaturesetYear " + y.String() + " " + strconv.Itoa(y.GetYear()) + " " + y.GetFeatureSet().String())
 	}
 	for _, f := range parser.FeatureSet_Feature_values() {

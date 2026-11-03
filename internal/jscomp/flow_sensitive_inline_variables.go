@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: the shapes this pass reads (declarations and assignments with
@@ -284,14 +285,14 @@ func fsivRhsDependsOnOuterOrCatchVars(rhs rhino.Node, table *fnVarTable) bool {
 
 func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(name ast.Name, rhs ast.Expr) {
 	nameID := name.Node().GetStringID()
-	if nameID <= rhino.RhinoStringPool_EmptyID {
+	if nameID <= strpool.EmptyID {
 		return
 	}
 	unsafe, hasFunc := fsivInspectRhs(rhs.Node())
 	if unsafe {
 		return
 	}
-	if f.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID), true) {
+	if f.getCodingConvention().IsExportedWithLocal(strpool.String(strpool.ID(nameID)), true) {
 		return
 	}
 	if f.getAstAnalyzer().MayHaveSideEffects(rhs.Node()) {
@@ -858,7 +859,7 @@ func (f *FlowSensitiveInlineVariables) visitCandidateName(n rhino.Node, parent r
 	}
 	if def != nil && !def.node.IsFunction() && !def.node.IsBlock() &&
 		!f.reachingDef.DependsOnOuterScopeVars(def) {
-		if !f.getCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID) /* local= */, true) {
+		if !f.getCodingConvention().IsExportedWithLocal(strpool.String(strpool.ID(nameID)) /* local= */, true) {
 			f.candidates = append(f.candidates, FlowSensitiveInlineVariables_Candidate{
 				outer:       f,
 				nameID:      nameID,

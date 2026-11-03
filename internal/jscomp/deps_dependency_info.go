@@ -45,7 +45,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // LoadFlag is a single (Key, Value) entry in LoadFlags.
@@ -255,7 +255,7 @@ func DependencyInfo_Require_AsSymbolList(requires []*DependencyInfo_Require) []s
 
 // Java: DependencyInfo.Require.googRequireSymbol(String)
 func DependencyInfo_Require_GoogRequireSymbol(symbol string) *DependencyInfo_Require {
-	interned := rhino.RhinoStringPool_AddOrGet(symbol)
+	interned := strpool.String(strpool.Intern(symbol))
 	return &DependencyInfo_Require{
 		symbol:  interned,
 		rawText: interned,

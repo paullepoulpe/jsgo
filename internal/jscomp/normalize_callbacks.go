@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func (*Normalize_PropagateConstantPropertyOverVars) onlyNameLeaves()                {}
@@ -79,7 +80,7 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 		return
 	}
 	id := n.GetStringID()
-	if id <= rhino.RhinoStringPool_EmptyID {
+	if id <= strpool.EmptyID {
 		return
 	}
 

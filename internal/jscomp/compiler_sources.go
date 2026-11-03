@@ -895,7 +895,7 @@ func (c *Compiler) loadResourceContents(resourceName string, path string) rhino.
 	jutil.CheckStateMsg(
 		!c.HasTypeCheckingRun(),
 		"runtime library injected after type checking but before optimization colors")
-	originalCode := resources.ResourceLoader_LoadTextResource("com.google.javascript.jscomp.Compiler", "js/"+resourceName+".js")
+	originalCode := resources.LoadText(resources.JsDir + resourceName + ".js")
 
 	source := SourceFile_FromCode(path, originalCode)
 	c.addFilesToSourceMap([]*SourceFile{source})

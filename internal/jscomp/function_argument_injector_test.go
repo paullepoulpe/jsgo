@@ -24,6 +24,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // FunctionArgumentInjectorTest: tests for the static methods in
@@ -966,7 +967,7 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 	hadThis := false
 	if replacements != nil {
 		for k, v := range replacements.All() {
-			id := rhino.RhinoStringPool_InternID(k)
+			id := uint32(strpool.Intern(k))
 			if id == calleeThisMarkerID {
 				hadThis = true
 			}
@@ -1049,7 +1050,7 @@ func bindingsFromArgMap(dst []callParamBinding, argMap *jutil.LinkedHashMap[stri
 	}
 	for k, pair := range argMap.All() {
 		dst = append(dst, callParamBinding{
-			nameID:    rhino.RhinoStringPool_InternID(k),
+			nameID:    uint32(strpool.Intern(k)),
 			paramNode: pair.ParamNode(),
 			argNode:   pair.Arg(),
 		})
@@ -1065,9 +1066,9 @@ func (s *smallIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern 
 	for name := range src.All() {
 		var id uint32
 		if intern {
-			id = rhino.RhinoStringPool_InternID(name)
+			id = uint32(strpool.Intern(name))
 		} else {
-			id = rhino.RhinoStringPool_LookupID(name)
+			id = uint32(strpool.Lookup(name))
 		}
 		if id != 0 {
 			s.add(id)
@@ -1079,7 +1080,7 @@ func (s *smallIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
 	out := jutil.NewLinkedHashSetWithCapacity[string](s.size())
 	if s != nil {
 		for _, id := range s.items {
-			out.Add(rhino.RhinoStringPool_StringFromID(id))
+			out.Add(strpool.String(strpool.ID(id)))
 		}
 	}
 	return out

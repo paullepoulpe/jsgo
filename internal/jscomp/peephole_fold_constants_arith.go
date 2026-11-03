@@ -29,6 +29,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Java: PeepholeFoldConstants.tryFoldUnaryOperator(Node)
@@ -131,9 +132,9 @@ func (p *PeepholeFoldConstants) TryFoldAdd(node rhino.Node, left rhino.Node, rig
 		if NodeUtil_IsLiteralValue(left, false) && NodeUtil_IsLiteralValue(right, false) {
 			// '6' + 7
 			return p.TryFoldAddConstantString(node, left, right)
-		} else if left.IsStringLit() && left.GetStringID() == rhino.RhinoStringPool_EmptyID && p.IsStringTyped(right) {
+		} else if left.IsStringLit() && left.GetStringID() == strpool.EmptyID && p.IsStringTyped(right) {
 			return p.Replace(node, right.CloneTreeWithTypeExprs(true))
-		} else if right.IsStringLit() && right.GetStringID() == rhino.RhinoStringPool_EmptyID && p.IsStringTyped(left) {
+		} else if right.IsStringLit() && right.GetStringID() == strpool.EmptyID && p.IsStringTyped(left) {
 			return p.Replace(node, left.CloneTreeWithTypeExprs(true))
 		} else {
 			// a + 7 or 6 + a

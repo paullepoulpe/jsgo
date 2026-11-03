@@ -91,20 +91,20 @@ func TestCompilerOptions_BrowserFeaturesetYearOptionSetsAssumeES6(t *testing.T) 
 }
 
 func TestCompilerOptions_MinimumBrowserFeatureSetYearRequiredFor(t *testing.T) {
-	assertEqual(t, "GETTER", *CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_GETTER),
+	assertEqual(t, "GETTER", CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_GETTER),
 		CompilerOptions_BrowserFeaturesetYear_YEAR_2012)
-	assertEqual(t, "CLASSES", *CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_CLASSES),
+	assertEqual(t, "CLASSES", CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_CLASSES),
 		CompilerOptions_BrowserFeaturesetYear_YEAR_2018)
 	assertEqual(t, "REGEXP_UNICODE_PROPERTY_ESCAPE",
-		*CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE),
+		CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE),
 		CompilerOptions_BrowserFeaturesetYear_YEAR_2021)
 }
 
 func TestCompilerOptions_MinimumBrowserFeatureSetYearRequiredFor_returnsUnspecifiedIfUnsupported(t *testing.T) {
 	// Newer features, in particular anything in ES_NEXT, may not be part of a browser featureset
 	// year yet.
-	if got := CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_ES_NEXT_RUNTIME); got != nil {
-		t.Errorf("got %v, want nil", *got)
+	if got := CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(parser.FeatureSet_Feature_ES_NEXT_RUNTIME); got != CompilerOptions_BrowserFeaturesetYear_NONE {
+		t.Errorf("got %v, want NONE", got)
 	}
 }
 

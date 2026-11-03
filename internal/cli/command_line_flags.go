@@ -160,7 +160,8 @@ type commandLineRunner_Flags struct {
 
 	arguments []string
 
-	compilationLevelParsed *jscomp.CompilationLevel // nil is null
+	compilationLevelParsed    jscomp.CompilationLevel
+	hasCompilationLevelParsed bool
 
 	instrumentCodeParsed jscomp.CompilerOptions_InstrumentOption
 
@@ -476,25 +477,26 @@ func (f *commandLineRunner_Flags) Parse(args []string) {
 }
 
 func (f *commandLineRunner_Flags) TryParse(args []string) error {
+	f.hasCompilationLevelParsed = false
 	if err := f.parser.TryParseArgument(slices.Clone(args)...); err != nil {
 		return err
 	}
 
-	compilationLevel := asciiUpper(f.compilationLevel)
-	f.compilationLevelParsed = jscomp.CompilationLevel_FromString(&compilationLevel)
-	if f.compilationLevelParsed == nil {
+	compilationLevel, ok := jscomp.CompilationLevel_FromString(asciiUpper(f.compilationLevel))
+	if !ok {
 		return args4j.NewCmdLineExceptionWithParser(
 			f.parser, "Bad value for --compilation_level: "+f.compilationLevel)
 	}
+	f.compilationLevelParsed = compilationLevel
+	f.hasCompilationLevelParsed = true
 
-	instrumentForCoverageOption := asciiUpper(f.instrumentForCoverageOption)
-	instrumentCodeParsed := jscomp.CompilerOptions_InstrumentOption_FromString(&instrumentForCoverageOption)
-	if instrumentCodeParsed == nil {
+	instrumentCodeParsed, ok := jscomp.CompilerOptions_InstrumentOption_FromString(asciiUpper(f.instrumentForCoverageOption))
+	if !ok {
 		return args4j.NewCmdLineExceptionWithParser(
 			f.parser,
 			"Bad value for --instrument_for_coverage_option: "+f.instrumentForCoverageOption)
 	}
-	f.instrumentCodeParsed = *instrumentCodeParsed
+	f.instrumentCodeParsed = instrumentCodeParsed
 	return nil
 }
 

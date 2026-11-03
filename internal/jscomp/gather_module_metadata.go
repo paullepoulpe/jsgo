@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // GatherModuleMetadata gathers metadata around modules that is useful for
@@ -95,8 +96,8 @@ var GatherModuleMetadata_INVALID_TOGGLE_USAGE = DiagnosticType_Error("JSC_INVALI
 const gatherModuleMetadata_TOGGLE_NAME_PREFIX = "TOGGLE_"
 
 var (
-	gatherMetaGoogID       = rhino.RhinoStringPool_InternID("goog")
-	gatherMetaLoadModuleID = rhino.RhinoStringPool_InternID("loadModule")
+	gatherMetaGoogID       = strpool.Intern("goog")
+	gatherMetaLoadModuleID = strpool.Intern("loadModule")
 )
 
 // Java: GatherModuleMetadata(AbstractCompiler, boolean, ModuleLoader.ResolutionMode)
@@ -214,7 +215,7 @@ type GatherModuleMetadata_Finder struct {
 	outer *GatherModuleMetadata
 
 	// Lazily allocated only if a $2etoggles goog.require is encountered.
-	toggleModuleIDs map[uint32]struct{}
+	toggleModuleIDs map[strpool.ID]struct{}
 	toggleModules   map[*Var]struct{}
 }
 
@@ -241,8 +242,8 @@ func (f *GatherModuleMetadata_Finder) ShouldTraverse(t *NodeTraversal, n rhino.N
 		f.VisitImportOrExport(t, n)
 	case rhino.Token_CALL:
 		if call, ok := ast.AsCall(n); ok {
-			if gp, ok := call.Callee().AsGetProp(); ok && gp.Node().GetStringID() == gatherMetaLoadModuleID {
-				if base, ok := gp.Object().AsName(); ok && base.Node().GetStringID() == gatherMetaGoogID {
+			if gp, ok := call.Callee().AsGetProp(); ok && nodeStringID(gp.Node()) == gatherMetaLoadModuleID {
+				if base, ok := gp.Object().AsName(); ok && nodeStringID(base.Node()) == gatherMetaGoogID {
 					f.outer.loadModuleCall = n
 					f.EnterModule(t, n, nil)
 				}
@@ -351,7 +352,7 @@ func (f *GatherModuleMetadata_Finder) Visit(t *NodeTraversal, n rhino.Node, pare
 func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
 	// Because other tools are regex based we force importing this file as "import * as goog".
 	star, ok := ast.AsImportStar(goog.GetNameNode())
-	if !ok || star.Node().GetStringID() != gatherMetaGoogID {
+	if !ok || nodeStringID(star.Node()) != gatherMetaGoogID {
 		return false
 	}
 	imp, ok := ast.AsImport(star.Node().GetParent())
@@ -364,10 +365,10 @@ func (f *GatherModuleMetadata_Finder) IsFromGoogImport(goog *Var) bool {
 
 // Java: GatherModuleMetadata.Finder.visitName(NodeTraversal, Node)
 func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) {
-	id := n.GetStringID()
+	id := nodeStringID(n)
 	if f.toggleModuleIDs != nil {
 		if _, ok := f.toggleModuleIDs[id]; ok {
-			nameVar := t.GetScope().GetVarByID(id)
+			nameVar := t.GetScope().GetVarByID(uint32(id))
 			if _, ok := f.toggleModules[nameVar]; ok {
 				parent := n.GetParent()
 				if gp, ok := ast.AsGetProp(parent); ok {
@@ -385,7 +386,7 @@ func (f *GatherModuleMetadata_Finder) VisitName(t *NodeTraversal, n rhino.Node) 
 		return
 	}
 
-	root := t.GetScope().GetVarByID(gatherMetaGoogID)
+	root := t.GetScope().GetVarByID(uint32(gatherMetaGoogID))
 	if root != nil && !f.IsFromGoogImport(root) {
 		return
 	}
@@ -414,7 +415,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 		depth++
 	}
 
-	if name, ok := firstProp.AsName(); !ok || name.Node().GetStringID() != gatherMetaGoogID {
+	if name, ok := firstProp.AsName(); !ok || nodeStringID(name.Node()) != gatherMetaGoogID {
 		return
 	}
 
@@ -425,7 +426,7 @@ func (f *GatherModuleMetadata_Finder) VisitGoogCall(t *NodeTraversal, call ast.C
 	}
 
 	n := call.Node()
-	root := t.GetScope().GetVarByID(gatherMetaGoogID)
+	root := t.GetScope().GetVarByID(uint32(gatherMetaGoogID))
 	if root != nil {
 		scope := root.GetScope().(*Scope)
 		if scope.IsModuleScope() {
@@ -550,11 +551,11 @@ func (f *GatherModuleMetadata_Finder) recordToggleRequire(t *NodeTraversal, n rh
 		}
 	} else if nameNode, ok := ast.AsName(callParent); ok {
 		// const fooToggles = goog.require('foo$2etoggles');
-		nameID := nameNode.Node().GetStringID()
-		nameVar := t.GetScope().GetVarByID(nameID)
+		nameID := nodeStringID(nameNode.Node())
+		nameVar := t.GetScope().GetVarByID(uint32(nameID))
 		if f.toggleModules == nil {
 			f.toggleModules = make(map[*Var]struct{})
-			f.toggleModuleIDs = make(map[uint32]struct{})
+			f.toggleModuleIDs = make(map[strpool.ID]struct{})
 		}
 		f.toggleModules[nameVar] = struct{}{}
 		f.toggleModuleIDs[nameID] = struct{}{}

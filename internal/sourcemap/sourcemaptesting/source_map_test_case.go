@@ -358,12 +358,13 @@ func (b *SourceMapTestCaseBase) CheckWithSupplier(
 		t.Fatalf("expected to have size: %d\nbut was: %d", len(originalTokens.byKey), len(resultTokens.byKey))
 	}
 
-	var reader *sourcemap.SourceMapConsumerV3
-	jutil.Try(func() {
-		reader = sourcemap.SourceMapConsumerFactory_ParseWithSupplier(sourceMapFileContent, supplier)
-	}, func(e sourcemap.ISourceMapParseException) {
-		panic(jutil.NewRuntimeExceptionWithMessageAndCause("unexpected exception", e))
-	})
+	reader, err := sourcemap.ParseSourceMapWithSupplier(sourceMapFileContent, supplier)
+	if err != nil {
+		if smpe, ok := err.(sourcemap.ISourceMapParseException); ok {
+			panic(jutil.NewRuntimeExceptionWithMessageAndCause("unexpected exception", smpe))
+		}
+		panic(err)
+	}
 
 	// Map the tokens from the generated source back to the
 	// input source and ensure that the map is correct.

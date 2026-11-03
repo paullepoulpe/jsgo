@@ -48,10 +48,8 @@ type jsFileLineParser struct {
 	parseSucceeded bool
 }
 
-// Java: JsFileLineParser.PARSE_WARNING
 var JsFileLineParser_PARSE_WARNING = DiagnosticType_Warning("DEPS_PARSE_WARNING", "{0}\n{1}")
 
-// Java: JsFileLineParser.PARSE_ERROR
 var JsFileLineParser_PARSE_ERROR = DiagnosticType_Error("DEPS_PARSE_ERROR", "{0}\n{1}")
 
 // JsFileLineParser_ParseException signifies a problem parsing a JS literal
@@ -67,12 +65,10 @@ func newJsFileLineParser_ParseException(message string) *JsFileLineParser_ParseE
 	return e
 }
 
-// Java: JsFileLineParser.setShortcutMode(boolean)
 func (b *jsFileLineParser) SetShortcutMode(mode bool) {
 	b.shortcutMode = mode
 }
 
-// Java: JsFileLineParser.didParseSucceed()
 func (b *jsFileLineParser) DidParseSucceed() bool {
 	return b.parseSucceeded
 }
@@ -95,30 +91,29 @@ func readJsReader(r jutil.JavaReader) (text string, ok bool) {
 }
 
 func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, fileContents jutil.JavaReader) {
-	b.filePath = filePath
-	b.parseSucceeded = true
-	b.lineNum = 0
-
 	text, ok := readJsReader(fileContents)
 	if !ok {
+		b.filePath = filePath
+		b.lineNum = 0
+		b.parseSucceeded = false
 		fp := filePath
 		b.errorManager.Report(CheckLevel_ERROR,
 			JSError_MakeWithSourceLocation(&fp, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
-		b.parseSucceeded = false
 		return
 	}
 	parseJsLines(b, h, filePath, text)
 }
 
 func parseJsString[H jsLineHandler](b *jsFileLineParser, h H, filePath string, text string) {
-	b.filePath = filePath
-	b.parseSucceeded = true
-	b.lineNum = 0
 	parseJsLines(b, h, filePath, text)
 }
 
 func parseJsLines[H jsLineHandler](b *jsFileLineParser, h H, filePath string, text string) {
+	b.filePath = filePath
+	b.parseSucceeded = true
+	b.lineNum = 0
+
 	inMultilineComment := false
 	inJsDocComment := false
 	pos := 0
@@ -225,7 +220,6 @@ func jsFileLineParser_indexFrom(s string, sub string, from int) int {
 	return -1
 }
 
-// Java: JsFileLineParser.isCommentQuoted(String, int, char)
 func jsFileLineParser_isCommentQuoted(line string, startOfMultilineComment int, quoteChar byte) bool {
 	startQuoteIndex := strings.IndexByte(line, quoteChar)
 	// Loop in case there are multiple strings between start of line and start of the comment.
@@ -259,7 +253,6 @@ func jsFileLineParser_indexByteFrom(s string, c byte, from int) int {
 	return -1
 }
 
-// Java: JsFileLineParser.isEscaped(String, int)
 func jsFileLineParser_isEscaped(line string, closingQuoteIndex int) bool {
 	escapeCharCount := 0
 	for index := closingQuoteIndex - 1; line[index] == '\\'; index-- {
@@ -270,7 +263,6 @@ func jsFileLineParser_isEscaped(line string, closingQuoteIndex int) bool {
 	return escapeCharCount%2 == 1
 }
 
-// Java: JsFileLineParser.parseJsString(String)
 func (b *jsFileLineParser) ParseJsString(jsStringLiteral string) string {
 	val, errMsg, ok := b.parseJsString(jsStringLiteral)
 	if !ok {
@@ -287,7 +279,6 @@ func (b *jsFileLineParser) parseJsString(jsStringLiteral string) (string, string
 	return b.valueMatcher.MatchedValue(), "", true
 }
 
-// Java: JsFileLineParser.parseJsStringArray(String)
 func (b *jsFileLineParser) ParseJsStringArray(input string) []string {
 	indexStart := strings.IndexByte(input, '[')
 	indexEnd := strings.LastIndexByte(input, ']')
@@ -330,24 +321,15 @@ func (b *jsFileLineParser) parseJsStringArray(input string) ([]string, string, b
 	return results, "", true
 }
 
-// Java: JsFileLineParser.parseJsStringMap(String)
 func (b *jsFileLineParser) ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string] {
-	m, errMsg, ok := b.parseJsStringMap(input)
-	if !ok {
-		panic(newJsFileLineParser_ParseException(errMsg))
-	}
-	return m
-}
-
-func (b *jsFileLineParser) parseJsStringMap(input string) (*jutil.LinkedHashMap[string, string], string, bool) {
 	results := jutil.NewLinkedHashMap[string, string]()
 	errMsg, ok := b.parseJsStringObjectEntries(input, func(key, val string) {
 		results.Put(key, val)
 	})
 	if !ok {
-		return nil, errMsg, false
+		panic(newJsFileLineParser_ParseException(errMsg))
 	}
-	return results, "", true
+	return results
 }
 
 func (b *jsFileLineParser) parseLoadFlagsObject(input string) (LoadFlags, string, bool) {

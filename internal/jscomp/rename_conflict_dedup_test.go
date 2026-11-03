@@ -11,6 +11,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type oracleInverterVar struct {
@@ -90,7 +91,7 @@ func TestRenameConflictDedupPreservesOrderAndNames(t *testing.T) {
 		// Include global/undeclared variables at depth 0.
 		for g := 0; g < 6; g++ {
 			name := fmt.Sprintf("v%d", g)
-			id := rhino.RhinoStringPool_InternID(name)
+			id := strpool.Intern(name)
 			if len(inverter.vars) == 0 {
 				inverter.vars = append(inverter.vars, inverterVar{})
 			}

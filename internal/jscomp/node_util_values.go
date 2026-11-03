@@ -29,6 +29,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // NodeUtil_GetBooleanValue gets the boolean value of a node that represents
@@ -56,7 +57,7 @@ func NodeUtil_GetBooleanValue(n rhino.Node) base.Tri {
 			return base.Tri_UNKNOWN
 		}
 	case rhino.Token_STRINGLIT:
-		return base.Tri_ForBoolean(n.GetStringID() != rhino.RhinoStringPool_EmptyID)
+		return base.Tri_ForBoolean(n.GetStringID() != strpool.EmptyID)
 	case rhino.Token_NUMBER:
 		return base.Tri_ForBoolean(n.GetDouble() != 0)
 	case rhino.Token_BIGINT:

@@ -25,9 +25,8 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Java: ModuleLoaderTest.inputs(String...)
 func jsaMlInputs(names ...string) []DependencyInfo {
-	builder := []DependencyInfo{}
+	builder := make([]DependencyInfo, 0, len(names))
 	for _, name := range names {
 		builder = append(builder, jsaMlInput(name))
 	}
@@ -40,31 +39,19 @@ func jsaMlInput(name string) DependencyInfo {
 	return NewCompilerInputWithIsExtern(SourceFile_FromCode(name, ""), false)
 }
 
-func jsaMlPACKAGE_JSON_MAIN_ENTRIES() *jutil.LinkedHashMap[string, string] {
+func jsaMlPACKAGE_JSON_MAIN_ENTRIES() *OrderedStringMap[string] {
 	return jsaMap(
 		"/B/package.json", "/B/lib/b",
 		"/node_modules/B/package.json", "/node_modules/B/lib/b.js")
 }
 
-func jsaMap(kv ...string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func jsaMap(kv ...string) *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](len(kv) / 2)
 	for i := 0; i < len(kv); i += 2 {
 		m.Put(kv[i], kv[i+1])
 	}
 	return m
 }
-
-type jsaMapBuilderT struct {
-	m *jutil.LinkedHashMap[string, string]
-}
-
-func jsaMapBuilder() *jsaMapBuilderT {
-	return &jsaMapBuilderT{m: jutil.NewLinkedHashMap[string, string]()}
-}
-
-func (b *jsaMapBuilderT) Put(k, v string) *jsaMapBuilderT { b.m.Put(k, v); return b }
-
-func (b *jsaMapBuilderT) Build() *jutil.LinkedHashMap[string, string] { return b.m }
 
 func (b ModuleLoader_Builder) jsaBuildFunc() func() { return func() { b.Build() } }
 
@@ -330,21 +317,21 @@ func TestModuleLoader_Webpack(t *testing.T) {
 }
 
 func TestModuleLoader_BrowserWithPrefixReplacement(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/path/to/project0/index.js", "/path/to/project1/index.js", "app.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMapBuilder().Put("@project0/", "/path/to/project0/").Put("+project1/", "/path/to/project1/").Put("@root/", "/").Build())).Build()
+	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/path/to/project0/index.js", "/path/to/project1/index.js", "app.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("@project0/", "/path/to/project0/", "+project1/", "/path/to/project1/", "@root/", "/"))).Build()
 	jsaMlAssertUri(t, "/path/to/project0/index.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "@project0/index.js"))
 	jsaMlAssertUri(t, "/path/to/project1/index.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "+project1/index.js"))
 	jsaMlAssertUri(t, "/app.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "@root/app.js"))
 }
 
 func TestModuleLoader_BrowserWithPrefixReplacementResolveModuleAsPath(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{".", "/path/to/project0/", "/path/to/project1/"}).SetInputs(jsaMlInputs()).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMapBuilder().Put("@project0/", "/path/to/project0/").Put("+project1/", "/path/to/project1/").Put("@root/", "/").Build())).Build()
+	loader := ModuleLoader_Builder_().SetModuleRoots([]string{".", "/path/to/project0/", "/path/to/project1/"}).SetInputs(jsaMlInputs()).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("@project0/", "/path/to/project0/", "+project1/", "/path/to/project1/", "@root/", "/"))).Build()
 	jsaMlAssertUri(t, "index.js", loader.Resolve("fake.js").ResolveModuleAsPath("@project0/index.js"))
 	jsaMlAssertUri(t, "foo/bar/index.js", loader.Resolve("fake.js").ResolveModuleAsPath("+project1/foo/bar/index.js"))
 	jsaMlAssertUri(t, "@not/a/root/index.js", loader.Resolve("fake.js").ResolveModuleAsPath("@not/a/root/index.js"))
 }
 
 func TestModuleLoader_BrowserWithPrefixReplacementAppliedMostSpecificToLeast(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMapBuilder().Put("0/1/2/", "/p0/p1/p2/").Put("0/", "/p0/").Put("0/1/", "/p0/p1/").Build())).Build()
+	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
 	jsaMlAssertUri(t, "/p0/p1/p2/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "0/p1/p2/file.js"))
 	jsaMlAssertUri(t, "/p0/p1/p2/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "0/1/p2/file.js"))
 	jsaMlAssertUri(t, "/p0/p1/p2/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "0/1/2/file.js"))
@@ -465,7 +452,7 @@ func TestModuleLoader_NodeResolverSilentResolvesRelativePath(t *testing.T) {
 func TestModuleLoader_BrowserWithPrefixesSilentHandlesAmbiguousIdentifier(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMapBuilder().Put("0/1/2/", "/p0/p1/p2/").Put("0/", "/p0/").Put("0/1/", "/p0/p1/").Build())).Build()
+	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
 	appPath := loader.Resolve("/p0/file.js")
 	result := appPath.ResolveJsModuleSilently("lodash")
 	jsaTrue(t, result == nil)
@@ -475,7 +462,7 @@ func TestModuleLoader_BrowserWithPrefixesSilentHandlesAmbiguousIdentifier(t *tes
 func TestModuleLoader_BrowserWithPrefixesSilentResolvesTransformedPrefixes(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMapBuilder().Put("0/1/2/", "/p0/p1/p2/").Put("0/", "/p0/").Put("0/1/", "/p0/p1/").Build())).Build()
+	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
 	appPath := loader.Resolve("fake.js")
 	result := appPath.ResolveJsModuleSilently("0/1/2/file.js")
 	jsaTrue(t, result != nil)

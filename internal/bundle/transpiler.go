@@ -39,7 +39,7 @@ type Transpiler struct {
 var _ Source_Transformer = (*Transpiler)(nil)
 
 // Java: Transpiler(CompilerBasedTransformer.CompilerSupplier, String)
-func NewTranspiler(compilerSupplier CompilerBasedTransformer_CompilerSupplier,
+func NewTranspiler(compilerSupplier CompilerSupplier,
 	runtimeLibraryName string) *Transpiler {
 	return &Transpiler{
 		CompilerBasedTransformer: CompilerBasedTransformer{
@@ -52,8 +52,8 @@ func NewTranspiler(compilerSupplier CompilerBasedTransformer_CompilerSupplier,
 }
 
 // Java: Transpiler.compilerSupplier()
-func Transpiler_CompilerSupplier() CompilerBasedTransformer_CompilerSupplier {
-	return NewCompilerBasedTransformer_CompilerSupplier()
+func TranspilerCompilerSupplier() CompilerSupplier {
+	return NewCompilerSupplier()
 }
 
 // TranspilationException is an unchecked exception thrown when

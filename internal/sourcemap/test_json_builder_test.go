@@ -20,7 +20,6 @@ package sourcemap_test
 
 import (
 	"strings"
-	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -126,22 +125,6 @@ func gsonToJson(e jutil.JsonElement) string {
 	w.SetLenient(true)
 	jutil.Streams_Write(e, w)
 	return sb.String()
-}
-
-// assertThrows is org.junit.Assert.assertThrows: body must throw an
-// exception assignable to E.
-func assertThrows[E any](t *testing.T, body func()) E {
-	t.Helper()
-	var caught E
-	ok := false
-	jutil.Try(body, func(e E) {
-		caught = e
-		ok = true
-	})
-	if !ok {
-		t.Fatalf("expected %T to be thrown", (*E)(nil))
-	}
-	return caught
 }
 
 // deref is the Java value of a nullable String ("<null>" for null, for

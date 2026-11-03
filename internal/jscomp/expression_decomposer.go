@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: conditional, call, property-access, spread, and assignment shapes
@@ -686,7 +687,7 @@ func internKnownConstantFunctions(names map[string]bool) (map[uint32]struct{}, m
 		if ids == nil {
 			ids = make(map[uint32]struct{}, len(names))
 		}
-		ids[rhino.RhinoStringPool_InternID(name)] = struct{}{}
+		ids[uint32(strpool.Intern(name))] = struct{}{}
 	}
 	return ids, qnames
 }

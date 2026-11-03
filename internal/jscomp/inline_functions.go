@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type inlineFnKey struct {
@@ -672,7 +673,7 @@ func (f *InlineFunctions) MaybeAddFunction(target inlineFnTarget, chunk *JSChunk
 	if !target.nameNode.IsNil() {
 		nameID = target.nameNode.GetStringID()
 	} else {
-		nameID = rhino.RhinoStringPool_InternID(target.name)
+		nameID = uint32(strpool.Intern(target.name))
 	}
 	functionState := f.getOrCreateNamedFunctionState(nameID)
 	f.UpdateFunctionStateForInlining(target, chunk, functionState)

@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"regexp"
-	"regexp/syntax"
 	"slices"
 	"strings"
 
@@ -112,95 +110,6 @@ func (l ConformanceRules_ConformanceLevel) String() string {
 	return conformanceRules_ConformanceLevel_names[l]
 }
 
-func conformanceRules_isValidPattern(regex string) bool {
-	var sb strings.Builder
-	rs := []rune(regex)
-	n := len(rs)
-	inClass := false
-	classStart := 0
-	for i := 0; i < n; i++ {
-		c := rs[i]
-		switch {
-		case c == '\\':
-			if i+1 >= n {
-				return false
-			}
-			i++
-			e := rs[i]
-			switch {
-			case e == 'Q':
-				end := -1
-				for j := i + 1; j+1 < n; j++ {
-					if rs[j] == '\\' && rs[j+1] == 'E' {
-						end = j
-						break
-					}
-				}
-				var lit string
-				if end == -1 {
-					lit = string(rs[i+1:])
-					i = n
-				} else {
-					lit = string(rs[i+1 : end])
-					i = end + 1
-				}
-				if inClass {
-					for _, r := range lit {
-						sb.WriteString(regexp.QuoteMeta(string(r)))
-					}
-				} else {
-					sb.WriteString(regexp.QuoteMeta(lit))
-				}
-			case e == 'E':
-			case e == 's', e == 'S', e == 'v', e == 'h', e == 'V', e == 'H',
-				e == 'e', e == 'a',
-				e == '0', e >= '1' && e <= '9', e == 'k',
-				e == 'b', e == 'B', e == 'z', e == 'Z', e == 'G', e == 'A', e == 'R', e == 'X',
-				e == 'p', e == 'P', e == 'x', e == 'u', e == 'c', e == 'N':
-				sb.WriteByte('a')
-			case e == 'd', e == 'D', e == 'w', e == 'W', e == 't', e == 'n', e == 'r', e == 'f':
-				sb.WriteByte('\\')
-				sb.WriteRune(e)
-			case (e >= 'a' && e <= 'z') || (e >= 'A' && e <= 'Z'):
-				return false
-			default:
-				sb.WriteString(regexp.QuoteMeta(string(e)))
-			}
-		case inClass:
-			if c == ']' {
-				if i == classStart || (i == classStart+1 && rs[classStart] == '^') {
-					sb.WriteString(`\]`)
-				} else {
-					inClass = false
-					sb.WriteByte(']')
-				}
-			} else {
-				sb.WriteRune(c)
-			}
-		case c == '[':
-			inClass = true
-			classStart = i + 1
-			sb.WriteByte('[')
-		default:
-			sb.WriteRune(c)
-		}
-	}
-	if inClass {
-		return false
-	}
-	if _, err := syntax.Parse(sb.String(), syntax.Perl); err != nil {
-		if se, ok := err.(*syntax.Error); ok {
-			switch se.Code {
-			case syntax.ErrInvalidRepeatSize, syntax.ErrInvalidRepeatOp, syntax.ErrLarge,
-				syntax.ErrNestingDepth, syntax.ErrInternalError:
-				return true
-			}
-		}
-		return false
-	}
-	return true
-}
-
 // Java: ConformanceRules.buildPattern(List<String>)
 func conformanceRules_buildPattern(reqPatterns []string) (*jutil.Pattern, error) {
 	if len(reqPatterns) == 0 {
@@ -209,7 +118,7 @@ func conformanceRules_buildPattern(reqPatterns []string) (*jutil.Pattern, error)
 
 	// validate the patterns
 	for _, reqPattern := range reqPatterns {
-		if !conformanceRules_isValidPattern(reqPattern) {
+		if !jutil.IsValidPattern(reqPattern) {
 			return nil, errInvalidRequirementSpec("invalid regex pattern")
 		}
 	}

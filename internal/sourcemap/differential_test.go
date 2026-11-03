@@ -297,14 +297,23 @@ func (d *diffState) run(op []*string) {
 		}()
 		d.g.AppendIndexMapTo(&sb, *op[1], sections)
 	case "gmerge":
-		d.g.MergeMapSection(atoi(op[1]), atoi(op[2]), d.resolve(op[3]))
+		if err := d.g.MergeMapSection(atoi(op[1]), atoi(op[2]), d.resolve(op[3])); err != nil {
+			d.result(diffExc(err))
+			return
+		}
 		d.result("ok")
 	case "gmergex":
-		d.g.MergeMapSectionWithMergeAction(atoi(op[1]), atoi(op[2]), d.resolve(op[3]), diffMergeAction{})
+		if err := d.g.MergeMapSectionWithMergeAction(atoi(op[1]), atoi(op[2]), d.resolve(op[3]), diffMergeAction{}); err != nil {
+			d.result(diffExc(err))
+			return
+		}
 		d.result("ok")
 	case "cparse":
 		d.c = sourcemap.NewSourceMapConsumerV3()
-		d.c.Parse(d.resolve(op[1]))
+		if err := d.c.Parse(d.resolve(op[1])); err != nil {
+			d.result(diffExc(err))
+			return
+		}
 		d.result("ok")
 	case "cfactory":
 		maps := make(map[string]string, len(op)-2)
@@ -313,7 +322,7 @@ func (d *diffState) run(op []*string) {
 			v := (*kv)[eq+1:]
 			maps[(*kv)[:eq]] = d.resolve(&v)
 		}
-		m := sourcemap.SourceMapConsumerFactory_ParseWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) *string {
+		m, err := sourcemap.ParseSourceMapWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) *string {
 			v, ok := maps[url]
 			if !ok {
 				return nil
@@ -323,10 +332,19 @@ func (d *diffState) run(op []*string) {
 			}
 			return &v
 		}))
+		if err != nil {
+			d.result(diffExc(err))
+			return
+		}
 		d.c = m
 		d.result("ok")
 	case "cfactory0":
-		d.c = sourcemap.SourceMapConsumerFactory_Parse(d.resolve(op[1]))
+		m, err := sourcemap.ParseSourceMap(d.resolve(op[1]))
+		if err != nil {
+			d.result(diffExc(err))
+			return
+		}
+		d.c = m
 		d.result("ok")
 	case "gbig":
 		var sb strings.Builder
@@ -372,7 +390,12 @@ func (d *diffState) run(op []*string) {
 	case "cdump":
 		d.dumpConsumer()
 	case "oparse":
-		d.dumpObject(sourcemap.SourceMapObjectParser_Parse(d.resolve(op[1])))
+		obj, err := sourcemap.ParseSourceMapObject(d.resolve(op[1]))
+		if err != nil {
+			d.result(diffExc(err))
+			return
+		}
+		d.dumpObject(obj)
 	case "venc":
 		var sb strings.Builder
 		sourcemap.Base64VLQ_Encode(&sb, int32(atoi(op[1])))

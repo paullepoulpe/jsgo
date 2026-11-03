@@ -39,6 +39,7 @@ package jscomp
 
 import (
 	"cmp"
+	"iter"
 	"slices"
 	"strings"
 
@@ -48,23 +49,16 @@ import (
 // ModuleResolver is the base class for algorithms that resolve JavaScript
 // module references to input files.
 type ModuleResolver interface {
-	// Java: ModuleResolver.getPackageJsonMainEntries()
-	GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string]
+	GetPackageJsonMainEntries() *OrderedStringMap[string]
 
 	// ResolveJsModule resolves a JS module reference, returning (path, true) if found.
-	//
-	// Java: ModuleResolver.resolveJsModule(String, String, String, int, int)
 	ResolveJsModule(scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool)
 
 	// ResolveJsModuleSilently resolves a JS module reference silently, returning (path, true) if found.
-	//
-	// Java: ModuleResolver.resolveJsModuleSilently(String, String)
 	ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool)
 
-	// Java: ModuleResolver.resolveModuleAsPath(String, String)
 	ResolveModuleAsPath(scriptAddress string, moduleAddress string) string
 
-	// Java: ModuleResolver.setErrorHandler(ErrorHandler)
 	SetErrorHandler(errorHandler ErrorHandler)
 }
 
@@ -97,7 +91,7 @@ func comparePathCodeUnits(a, b string) int {
 	return jutil.StringCompareTo(a, b)
 }
 
-var emptyPackageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
+var emptyPackageJsonMainEntries = &OrderedStringMap[string]{}
 
 // moduleResolverCommon holds the shared fields and path helpers for concrete
 // ModuleResolver implementations without Base/Init fake-inheritance boilerplate.
@@ -125,12 +119,10 @@ func newModuleResolverCommon(
 	}
 }
 
-// Java: ModuleResolver.getPackageJsonMainEntries()
-func (r *moduleResolverCommon) GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string] {
+func (r *moduleResolverCommon) GetPackageJsonMainEntries() *OrderedStringMap[string] {
 	return emptyPackageJsonMainEntries
 }
 
-// Java: ModuleResolver.resolveModuleAsPath(String, String)
 func (r *moduleResolverCommon) ResolveModuleAsPath(scriptAddress string, moduleAddress string) string {
 	if !strings.HasSuffix(moduleAddress, ".js") {
 		moduleAddress += ".js"
@@ -148,8 +140,6 @@ func (r *moduleResolverCommon) ResolveModuleAsPath(scriptAddress string, moduleA
 
 // Locate locates the module with the given name, returning ("", false) if there
 // is no JS file in the expected location.
-//
-// Java: ModuleResolver.locate(String, String)
 func (r *moduleResolverCommon) Locate(scriptAddress string, name string) (string, bool) {
 	canonicalizedPath := r.CanonicalizePath(scriptAddress, name)
 
@@ -179,8 +169,6 @@ func (r *moduleResolverCommon) Locate(scriptAddress string, name string) (string
 
 // CanonicalizePath normalizes a module path reference. Includes escaping
 // special characters and converting relative paths to absolute references.
-//
-// Java: ModuleResolver.canonicalizePath(String, String)
 func (r *moduleResolverCommon) CanonicalizePath(scriptAddress string, moduleAddress string) string {
 	path := r.pathEscaper.Escape(moduleAddress)
 	if ModuleLoader_IsRelativeIdentifier(moduleAddress) {
@@ -193,7 +181,6 @@ func (r *moduleResolverCommon) CanonicalizePath(scriptAddress string, moduleAddr
 	return path
 }
 
-// Java: ModuleResolver.setErrorHandler(ErrorHandler)
 func (r *moduleResolverCommon) SetErrorHandler(errorHandler ErrorHandler) {
 	r.errorHandler = errorHandler
 }
@@ -208,13 +195,11 @@ type BrowserModuleResolver struct {
 
 var _ ModuleResolver = (*BrowserModuleResolver)(nil)
 
-// Java: BrowserModuleResolver.FACTORY
 var BrowserModuleResolver_FACTORY ModuleLoader_ModuleResolverFactory = ModuleLoader_ModuleResolverFactoryFunc(
 	func(modulePaths *OrderedSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
 		return NewBrowserModuleResolver(modulePaths, moduleRootPaths, errorHandler, pathEscaper)
 	})
 
-// Java: BrowserModuleResolver(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func NewBrowserModuleResolver(
 	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
@@ -225,7 +210,6 @@ func NewBrowserModuleResolver(
 	}
 }
 
-// Java: BrowserModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *BrowserModuleResolver) ResolveJsModule(
 	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 
@@ -251,7 +235,6 @@ func (r *BrowserModuleResolver) ResolveJsModule(
 	return loadAddress, ok
 }
 
-// Java: BrowserModuleResolver.resolveJsModuleSilently(String, String)
 func (r *BrowserModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	if ModuleLoader_IsAmbiguousIdentifier(moduleAddress) {
 		return "", false
@@ -268,9 +251,20 @@ type WebpackModuleResolver struct {
 
 var _ ModuleResolver = (*WebpackModuleResolver)(nil)
 
-func orderedStringMapFromLinkedHashMap(src *jutil.LinkedHashMap[string, string]) *OrderedStringMap[string] {
-	if src == nil {
+type orderedStringPairs interface {
+	comparable
+	Size() int
+	All() iter.Seq2[string, string]
+}
+
+func cloneOrderedStringMap[M orderedStringPairs](src M) *OrderedStringMap[string] {
+	var zero M
+	if src == zero {
 		return nil
+	}
+	if om, ok := any(src).(*OrderedStringMap[string]); ok {
+		c := om.Clone()
+		return &c
 	}
 	dst := NewOrderedStringMapWithCapacity[string](src.Size())
 	for k, v := range src.All() {
@@ -287,12 +281,10 @@ type WebpackModuleResolver_Factory struct {
 
 var _ ModuleLoader_ModuleResolverFactory = (*WebpackModuleResolver_Factory)(nil)
 
-// Java: WebpackModuleResolver.Factory(Map<String, String>)
-func NewWebpackModuleResolver_Factory(lookupMap *jutil.LinkedHashMap[string, string]) *WebpackModuleResolver_Factory {
-	return &WebpackModuleResolver_Factory{lookupMap: orderedStringMapFromLinkedHashMap(lookupMap)}
+func NewWebpackModuleResolver_Factory[M orderedStringPairs](lookupMap M) *WebpackModuleResolver_Factory {
+	return &WebpackModuleResolver_Factory{lookupMap: cloneOrderedStringMap(lookupMap)}
 }
 
-// Java: WebpackModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func (f *WebpackModuleResolver_Factory) Create(
 	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
@@ -318,7 +310,6 @@ func (f *WebpackModuleResolver_Factory) Create(
 	}
 }
 
-// Java: WebpackModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *WebpackModuleResolver) ResolveJsModule(
 	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 	if loadAddress, ok := r.modulesById[moduleAddress]; ok {
@@ -327,7 +318,6 @@ func (r *WebpackModuleResolver) ResolveJsModule(
 	return r.NodeModuleResolver.ResolveJsModule(scriptAddress, moduleAddress, sourcename, lineno, colno)
 }
 
-// Java: WebpackModuleResolver.resolveJsModuleSilently(String, String)
 func (r *WebpackModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	if loadAddress, ok := r.modulesById[moduleAddress]; ok {
 		return loadAddress, true
@@ -364,14 +354,12 @@ type BrowserWithTransformedPrefixesModuleResolver_Factory struct {
 
 var _ ModuleLoader_ModuleResolverFactory = (*BrowserWithTransformedPrefixesModuleResolver_Factory)(nil)
 
-// Java: BrowserWithTransformedPrefixesModuleResolver.Factory(ImmutableMap<String, String>)
-func NewBrowserWithTransformedPrefixesModuleResolver_Factory(prefixReplacements *jutil.LinkedHashMap[string, string]) *BrowserWithTransformedPrefixesModuleResolver_Factory {
+func NewBrowserWithTransformedPrefixesModuleResolver_Factory[M orderedStringPairs](prefixReplacements M) *BrowserWithTransformedPrefixesModuleResolver_Factory {
 	return &BrowserWithTransformedPrefixesModuleResolver_Factory{
-		prefixReplacements: orderedStringMapFromLinkedHashMap(prefixReplacements),
+		prefixReplacements: cloneOrderedStringMap(prefixReplacements),
 	}
 }
 
-// Java: BrowserWithTransformedPrefixesModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func (f *BrowserWithTransformedPrefixesModuleResolver_Factory) Create(
 	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
@@ -381,7 +369,6 @@ func (f *BrowserWithTransformedPrefixesModuleResolver_Factory) Create(
 		modulePaths, moduleRootPaths, errorHandler, pathEscaper, f.prefixReplacements)
 }
 
-// Java: BrowserWithTransformedPrefixesModuleResolver(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper, ImmutableMap<String, String>)
 func NewBrowserWithTransformedPrefixesModuleResolver(
 	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
@@ -417,7 +404,6 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) replacePathPrefixes(modul
 	return moduleAddress, false
 }
 
-// Java: BrowserWithTransformedPrefixesModuleResolver.resolveJsModule(String, String, String, int, int)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 	scriptAddress string, moduleAddress string, sourcename string, lineno int, colno int) (string, bool) {
 	transformedAddress, replaced := r.replacePathPrefixes(moduleAddress)
@@ -438,7 +424,6 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(
 	return r.Locate(scriptAddress, transformedAddress)
 }
 
-// Java: BrowserWithTransformedPrefixesModuleResolver.resolveJsModuleSilently(String, String)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) (string, bool) {
 	transformedAddress, replaced := r.replacePathPrefixes(moduleAddress)
 	replaced = replaced && transformedAddress != moduleAddress
@@ -448,7 +433,6 @@ func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(s
 	return r.Locate(scriptAddress, transformedAddress)
 }
 
-// Java: BrowserWithTransformedPrefixesModuleResolver.resolveModuleAsPath(String, String)
 func (r *BrowserWithTransformedPrefixesModuleResolver) ResolveModuleAsPath(scriptAddress string, moduleAddress string) string {
 	if ModuleLoader_IsRelativeIdentifier(moduleAddress) {
 		return r.moduleResolverCommon.ResolveModuleAsPath(scriptAddress, moduleAddress)

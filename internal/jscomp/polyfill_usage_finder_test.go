@@ -238,7 +238,7 @@ func polyfillUsageFinderTest_createFinderWithRegistry(registry *colors.ColorRegi
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_unknownAndTopObject_returnsFalse()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unknownAndTopObject_returnsFalse() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 
 	AssertThat(finder.IsDisjointFromIterator(colors.StandardColors_UNKNOWN)).IsFalse()
@@ -248,7 +248,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unknownAndTopObject
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_sameColor_returnsFalse()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_sameColor_returnsFalse() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
 
@@ -257,7 +257,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_sameColor_returnsFa
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_unrelatedColors_returnsTrue()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unrelatedColors_returnsTrue() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 	array := registry.Get(colors.StandardColors_ARRAY_ID)
 	customFoo := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Foo")).Build()
@@ -268,7 +268,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unrelatedColors_ret
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_generatorAndIterator_returnsFalse()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_generatorAndIterator_returnsFalse() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 	generator := registry.Get(colors.StandardColors_GENERATOR_ID)
 
@@ -285,7 +285,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_subtypesAndSupertyp
 	superIterable := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("SuperIt")).Build()
 	unrelated := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Unrel")).Build()
 
-	registry := colors.ColorRegistry_Builder_().
+	registry := colors.NewColorRegistryBuilder().
 		SetDefaultNativeColorsForTesting().
 		AddDisambiguationEdge(subIterator, iterator).
 		AddDisambiguationEdge(subSubIterator, subIterator).
@@ -314,7 +314,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_branchingAndSibling
 	baseClass := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Base")).Build()
 	childClass := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Child")).Build()
 
-	registry := colors.ColorRegistry_Builder_().
+	registry := colors.NewColorRegistryBuilder().
 		SetDefaultNativeColorsForTesting().
 		AddDisambiguationEdge(subIteratorA, iterator).
 		AddDisambiguationEdge(subIteratorB, iterator).
@@ -338,7 +338,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_cyclesInSupertypeGr
 	classB := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("ClassB")).Build()
 
 	// Cycle A <-> B with no connection to Iterator
-	registryWithCycle := colors.ColorRegistry_Builder_().
+	registryWithCycle := colors.NewColorRegistryBuilder().
 		SetDefaultNativeColorsForTesting().
 		AddDisambiguationEdge(classA, classB).
 		AddDisambiguationEdge(classB, classA).
@@ -349,7 +349,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_cyclesInSupertypeGr
 	AssertThat(finderWithCycle.IsDisjointFromIterator(classB)).IsTrue()
 
 	// Cycle A <-> B where B also extends Iterator
-	registryWithCycleAndIterator := colors.ColorRegistry_Builder_().
+	registryWithCycleAndIterator := colors.NewColorRegistryBuilder().
 		SetDefaultNativeColorsForTesting().
 		AddDisambiguationEdge(classA, classB).
 		AddDisambiguationEdge(classB, classA).
@@ -372,7 +372,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unionSupertypesInHi
 	unionWithIterator := colors.Color_CreateUnion2(classFoo, iterator)
 	unionWithoutIterator := colors.Color_CreateUnion2(classFoo, classBar)
 
-	registry := colors.ColorRegistry_Builder_().
+	registry := colors.NewColorRegistryBuilder().
 		SetDefaultNativeColorsForTesting().
 		AddDisambiguationEdge(classSub1, unionWithIterator).
 		AddDisambiguationEdge(classSub2, unionWithoutIterator).
@@ -388,7 +388,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unionSupertypesInHi
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_primitives_returnsTrue()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_primitives_returnsTrue() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 
 	// Primitives are disjoint from Iterator
@@ -402,7 +402,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_primitives_returnsT
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_nullAndUndefinedUnions()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_nullAndUndefinedUnions() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
 	array := registry.Get(colors.StandardColors_ARRAY_ID)
@@ -424,7 +424,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unionReceivers() {
 	classFoo := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Foo")).Build()
 	classBar := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Bar")).Build()
 
-	registry := colors.ColorRegistry_Builder_().
+	registry := colors.NewColorRegistryBuilder().
 		SetDefaultNativeColorsForTesting().
 		AddDisambiguationEdge(subIterator, iterator).
 		Build()
@@ -453,7 +453,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_unionReceivers() {
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_invalidatingColors_structuralRecordsVsNativeArrays()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_invalidatingColors_structuralRecordsVsNativeArrays() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 
 	structuralRecord := colors.Color_SingleBuilder().SetId(colors.ColorId_FromAscii("Struct")).SetInvalidating(true).Build()
@@ -490,7 +490,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_invalidatingColors_
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_nodeAndOwnerChecks()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_nodeAndOwnerChecks() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	array := registry.Get(colors.StandardColors_ARRAY_ID)
 	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
 
@@ -530,7 +530,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_nodeAndOwnerChecks(
 
 // Java: PolyfillUsageFinderTest.isDisjointFromIterator_receiverWithNullColor_returnsFalse()
 func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_receiverWithNullColor_returnsFalse() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	finder := polyfillUsageFinderTest_createFinderWithRegistry(registry)
 
 	receiverNode := rhino.IR_Name("x")
@@ -542,7 +542,7 @@ func (c *PolyfillUsageFinderTest) TestIsDisjointFromIterator_receiverWithNullCol
 
 // Java: PolyfillUsageFinderTest.traverse_withColorRegistry_filtersDisjointUsages()
 func (c *PolyfillUsageFinderTest) TestTraverse_withColorRegistry_filtersDisjointUsages() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	array := registry.Get(colors.StandardColors_ARRAY_ID)
 	iterator := registry.Get(colors.StandardColors_ITERATOR_ID)
 
@@ -596,7 +596,7 @@ func (c *PolyfillUsageFinderTest) TestTraverse_withColorRegistry_filtersDisjoint
 
 // Java: PolyfillUsageFinderTest.traverse_withColorRegistry_disambiguatePropertiesDisabled_doesNotFilterUsages()
 func (c *PolyfillUsageFinderTest) TestTraverse_withColorRegistry_disambiguatePropertiesDisabled_doesNotFilterUsages() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	array := registry.Get(colors.StandardColors_ARRAY_ID)
 
 	finder := PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder_().
@@ -618,7 +618,7 @@ func (c *PolyfillUsageFinderTest) TestTraverse_withColorRegistry_disambiguatePro
 
 // Java: PolyfillUsageFinderTest.traverse_withoutColorRegistry_doesNotFilterUsages()
 func (c *PolyfillUsageFinderTest) TestTraverse_withoutColorRegistry_doesNotFilterUsages() {
-	registry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	registry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 	array := registry.Get(colors.StandardColors_ARRAY_ID)
 
 	finder := PolyfillUsageFinderTest_TestPolyfillUsageFinder_Builder_().

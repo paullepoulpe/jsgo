@@ -26,6 +26,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // MaybeReachingVariableUse computes "may be" reaching use for all
@@ -140,7 +141,7 @@ func (u *MaybeReachingVariableUse) lookupVarIdxByID(id uint32) int {
 }
 
 func (u *MaybeReachingVariableUse) lookupVarIdxByName(name string) int {
-	return u.lookupVarIdxByID(rhino.RhinoStringPool_LookupID(name))
+	return u.lookupVarIdxByID(uint32(strpool.Lookup(name)))
 }
 
 func mrvuResetZeroSlice[T any](s []T, n int) []T {

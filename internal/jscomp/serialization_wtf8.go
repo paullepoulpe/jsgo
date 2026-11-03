@@ -22,7 +22,7 @@ import (
 	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Wtf8 is an encoder/decoder into https://simonsapin.github.io/wtf-8/
@@ -130,12 +130,12 @@ func wtf8_byteAt(encoded []byte, i int) int32 {
 	return int32(int8(encoded[i]))
 }
 
-// DecodeInternID decodes encoded WTF8 bytes and returns their interned RhinoStringPool ID.
-func (d *Wtf8_Decoder) DecodeInternID(encoded []byte) uint32 {
+// DecodeInternID decodes encoded WTF8 bytes and returns their interned strpool.ID.
+func (d *Wtf8_Decoder) DecodeInternID(encoded []byte) strpool.ID {
 	if len(encoded) <= len(d.codepointBuffer) && wtf8_isASCIIBytes(encoded) {
-		return rhino.RhinoStringPool_InternBytesID(encoded)
+		return strpool.InternBytes(encoded)
 	}
-	return rhino.RhinoStringPool_InternID(d.Decode(encoded))
+	return strpool.Intern(d.Decode(encoded))
 }
 
 // Java: Wtf8.Decoder.decode(ByteString)

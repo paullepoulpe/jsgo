@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // StringPool aggregates strings into a StringPool.
@@ -43,8 +44,8 @@ func StringPool_FromProto(proto *StringPoolProto) *StringPool {
 	decoder := Wtf8_Decoder_(maxLength)
 
 	stringsList := proto.GetStringsList()
-	ids := make([]uint32, len(stringsList)+1)
-	ids[0] = rhino.RhinoStringPool_InternID("")
+	ids := make([]strpool.ID, len(stringsList)+1)
+	ids[0] = strpool.Intern("")
 	for i := 0; i < len(stringsList); i++ {
 		ids[i+1] = decoder.DecodeInternID(stringsList[i])
 	}
@@ -158,28 +159,32 @@ func StringPool_Builder_() *StringPool_Builder {
 // StringPool_Builder is StringPool.Builder.
 type StringPool_Builder struct {
 	maxLength int
-	indexByID map[uint32]int
-	ids       []uint32
+	indexByID map[strpool.ID]int
+	ids       []strpool.ID
 }
 
 func newStringPool_Builder() *StringPool_Builder {
-	emptyID := rhino.RhinoStringPool_InternID("")
+	emptyID := strpool.Intern("")
 	return &StringPool_Builder{
-		indexByID: map[uint32]int{emptyID: 0},
-		ids:       []uint32{emptyID},
+		indexByID: map[strpool.ID]int{emptyID: 0},
+		ids:       []strpool.ID{emptyID},
 	}
 }
 
-// PutID inserts the string with the given 32-bit RhinoStringPool ID into the
+// PutID inserts the string with the given 32-bit strpool ID into the
 // string pool if not present and returns its index.
 func (b *StringPool_Builder) PutID(id uint32) int {
+	return b.putPoolID(strpool.ID(id))
+}
+
+func (b *StringPool_Builder) putPoolID(id strpool.ID) int {
 	if id == 0 {
 		return 0
 	}
 	if idx, ok := b.indexByID[id]; ok {
 		return idx
 	}
-	s := rhino.RhinoStringPool_StringFromID(id)
+	s := strpool.String(id)
 	if len(s) > b.maxLength {
 		if n := jutil.StringLength(s); n > b.maxLength {
 			b.maxLength = n
@@ -196,7 +201,7 @@ func (b *StringPool_Builder) Lookup(s string) (int, bool) {
 	if s == "" {
 		return 0, true
 	}
-	id := rhino.RhinoStringPool_LookupID(s)
+	id := strpool.Lookup(s)
 	if id == 0 {
 		return 0, false
 	}
@@ -209,7 +214,7 @@ func (b *StringPool_Builder) Lookup(s string) (int, bool) {
 //
 // Java: StringPool.Builder.put(String)
 func (b *StringPool_Builder) Put(s string) int {
-	return b.PutID(rhino.RhinoStringPool_InternID(s))
+	return b.putPoolID(strpool.Intern(s))
 }
 
 // Java: StringPool.Builder.putAnd(String)

@@ -20,8 +20,6 @@
 package refactoring
 
 import (
-	"slices"
-
 	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
 
@@ -64,7 +62,7 @@ func SuggestedFixes_AssertChangesOfList(
 	fixes []*SuggestedFix, externs string, originalCode string, expectedCode string) {
 	testjunit.AssertThat(fixes).IsNotEmpty()
 	codeMap := map[string]string{"test": originalCode}
-	res := ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)
+	res := ApplyToCode(fixes, codeMap)
 	var newCode any
 	if v, ok := res["test"]; ok {
 		newCode = v

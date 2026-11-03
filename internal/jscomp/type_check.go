@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast). Visit keeps the
@@ -78,7 +79,7 @@ type TypeCheck struct {
 	debugTypeLogger TypeCheck_DebugTypeLogger
 }
 
-var typeCheckPrototypeID = rhino.RhinoStringPool_InternID("prototype")
+var typeCheckPrototypeID = uint32(strpool.Intern("prototype"))
 
 //
 // Internal errors

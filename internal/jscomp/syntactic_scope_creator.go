@@ -39,6 +39,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ScopeCreator defines how objects capable of creating scopes from the parse
@@ -956,7 +957,7 @@ func (s *SyntacticScopeCreator_ScopeScanner) DeclareVar(sc *Scope, n rhino.Node)
 			s.redeclarationHandler.OnRedeclaration(sc, n.GetString(), n, input)
 		}
 	} else {
-		if id <= rhino.RhinoStringPool_EmptyID {
+		if id <= strpool.EmptyID {
 			panic(jutil.NewIllegalArgumentException())
 		}
 		if parentVar != nil && !sc.isBleedingFunctionNameID(id) {

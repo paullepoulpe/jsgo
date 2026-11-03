@@ -485,8 +485,7 @@ func (r *PolymerClassRewriter) replaceJSDocAndAddNewVars(
 	infoBuilder := rhino.JSDocInfo_Builder_MaybeCopyFrom(prop.info)
 	infoBuilder.RecordType(propType)
 	origInfo := infoBuilder.Build()
-	propertyNames := propType.GetRecordPropertyNames()
-	r.createVarsInExternsBlock(block, propertyNames, propType, prop)
+	r.createVarsInExternsBlock(block, propType, prop)
 	unknown := rhino.NewJSTypeExpression(rhino.NewNode(rhino.Token_QMARK), propType.GetSourceName())
 	newInfoBuilder := rhino.JSDocInfo_Builder_MaybeCopyFromWithNewType(origInfo, unknown)
 	return newInfoBuilder.Build()
@@ -557,10 +556,9 @@ func (r *PolymerClassRewriter) appendPropertiesToBlock(
 
 func (r *PolymerClassRewriter) createVarsInExternsBlock(
 	block rhino.Node,
-	propertyNames *jutil.LinkedHashSet[string],
 	propType *rhino.JSTypeExpression,
 	prop *PolymerPass_MemberDefinition) {
-	for propName := range propertyNames.All() {
+	for propName := range propType.GetRecordPropertyNames().All() {
 		varName := "PolymerDummyVar" + r.compiler.GetUniqueNameIdSupplier()()
 		n := rhino.Node_NewStringWithToken(rhino.Token_NAME, varName)
 		var_ := rhino.NewNodeWithChild(rhino.Token_VAR, n)
@@ -753,28 +751,17 @@ func (r *PolymerClassRewriter) createExportsAndExterns(
 
 	// Deduplicate behavior and element methods by name in first-seen key order
 	// with last-seen definition winning (matching Java LinkedHashMap.put).
-	var methodOrder []string
-	var uniqueMethods map[string]*PolymerPass_MemberDefinition
-	putMethod := func(method *PolymerPass_MemberDefinition) {
-		if uniqueMethods == nil {
-			uniqueMethods = make(map[string]*PolymerPass_MemberDefinition)
-		}
-		name := method.name.GetString()
-		if _, exists := uniqueMethods[name]; !exists {
-			methodOrder = append(methodOrder, name)
-		}
-		uniqueMethods[name] = method
-	}
+	var uniqueMethods OrderedStringMap[*PolymerPass_MemberDefinition]
 	for _, behavior := range cls.behaviors {
 		for _, method := range behavior.functionsToCopy {
-			putMethod(method)
+			uniqueMethods.Put(method.name.GetString(), method)
 		}
 	}
 	for _, method := range cls.methods {
-		putMethod(method)
+		uniqueMethods.Put(method.name.GetString(), method)
 	}
-	for _, name := range methodOrder {
-		r.addMethodToObjectExternsUsingExportAnnotation(cls, uniqueMethods[name])
+	for _, entry := range uniqueMethods.Entries() {
+		r.addMethodToObjectExternsUsingExportAnnotation(cls, entry.Value)
 	}
 
 	for _, prop := range readOnlyProps {

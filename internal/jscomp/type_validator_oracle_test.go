@@ -203,7 +203,7 @@ func (d *tvDump) call(desc string, c func() string) {
 	all := d.validator.GetMismatches()
 	for i := d.mismatchCount; i < len(all); i++ {
 		m := all[i]
-		d.line("  M " + raiStr(m.Found()) + " | " + raiStr(m.Required()) + " @" + tvNodeLabel(m.Location()))
+		d.line("  M " + raiStr(m.Found) + " | " + raiStr(m.Required) + " @" + tvNodeLabel(m.Location))
 	}
 	d.mismatchCount = len(all)
 }

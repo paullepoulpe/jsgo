@@ -195,40 +195,39 @@ func SourceMapGeneratorFactory_GetInstance(format SourceMapFormat) *SourceMapGen
 	panic(jutil.NewIllegalStateException())
 }
 
-// SourceMapConsumerFactory_Parse parses the string representing the source
-// map file contents. It panics with a *SourceMapParseException.
-//
-// Java: SourceMapConsumerFactory.parse(String)
-func SourceMapConsumerFactory_Parse(contents string) *SourceMapConsumerV3 {
-	return SourceMapConsumerFactory_ParseWithSupplier(contents, nil)
+// ParseSourceMap parses the string representing the source map file contents.
+func ParseSourceMap(contents string) (*SourceMapConsumerV3, error) {
+	return ParseSourceMapWithSupplier(contents, nil)
 }
 
-// SourceMapConsumerFactory_ParseWithSupplier parses the string representing
-// the source map file contents, using supplier (may be nil) for any
-// referenced maps.
-//
-// Java: SourceMapConsumerFactory.parse(String, SourceMapSupplier)
-func SourceMapConsumerFactory_ParseWithSupplier(contents string, supplier SourceMapSupplier) *SourceMapConsumerV3 {
+// ParseSourceMapWithSupplier parses the string representing the source map
+// file contents, using supplier (may be nil) for any referenced maps.
+func ParseSourceMapWithSupplier(contents string, supplier SourceMapSupplier) (*SourceMapConsumerV3, error) {
 	// Version 1, starts with a magic string
 	if strings.HasPrefix(contents, "/** Begin line maps. **/") {
-		panic(NewSourceMapParseException(
-			"This appears to be a V1 SourceMap, which is not supported."))
+		return nil, NewSourceMapParseException(
+			"This appears to be a V1 SourceMap, which is not supported.")
 	} else if strings.HasPrefix(contents, "{") {
-		sourceMapObject := SourceMapObjectParser_Parse(contents)
+		sourceMapObject, err := parseSourceMapObject(contents)
+		if err != nil {
+			return nil, err
+		}
 
 		// Check basic assertions about the format.
 		switch sourceMapObject.version {
 		case 3:
 			consumer := NewSourceMapConsumerV3()
-			consumer.ParseSourceMapObject(sourceMapObject, supplier)
-			return consumer
+			if err := consumer.tryParseSourceMapObject(sourceMapObject, supplier); err != nil {
+				return nil, err
+			}
+			return consumer, nil
 		default:
-			panic(NewSourceMapParseException(
-				"Unknown source map version:" + strconv.Itoa(sourceMapObject.version)))
+			return nil, NewSourceMapParseException(
+				"Unknown source map version:" + strconv.Itoa(sourceMapObject.version))
 		}
 	}
 
-	panic(NewSourceMapParseException("unable to detect source map format"))
+	return nil, NewSourceMapParseException("unable to detect source map format")
 }
 
 // SourceMapParseException is thrown if an invalid or unknown source map is

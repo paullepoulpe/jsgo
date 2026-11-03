@@ -463,7 +463,7 @@ func (g *GlobalNamespace) lookupGlobalNode(qname rhino.Node) (*GlobalNamespace_N
 	switch qname.GetToken() {
 	case rhino.Token_NAME:
 		id := qname.GetStringID()
-		if id <= rhino.RhinoStringPool_EmptyID {
+		if id <= strpool.EmptyID {
 			return nil, false
 		}
 		if g.indexedGlobalCount == 0 {
@@ -489,7 +489,7 @@ func (g *GlobalNamespace) lookupGlobalNode(qname rhino.Node) (*GlobalNamespace_N
 		cur := qname
 		for cur.IsGetProp() {
 			segID := cur.GetStringID()
-			if !hasDot && (segID <= rhino.RhinoStringPool_EmptyID || strings.IndexByte(strpool.String(strpool.ID(segID)), '.') >= 0) {
+			if !hasDot && (segID <= strpool.EmptyID || strings.IndexByte(strpool.String(strpool.ID(segID)), '.') >= 0) {
 				hasDot = true
 			}
 			segs = append(segs, segID)
@@ -499,7 +499,7 @@ func (g *GlobalNamespace) lookupGlobalNode(qname rhino.Node) (*GlobalNamespace_N
 		switch cur.GetToken() {
 		case rhino.Token_NAME:
 			topID = cur.GetStringID()
-			if topID <= rhino.RhinoStringPool_EmptyID {
+			if topID <= strpool.EmptyID {
 				return nil, false
 			}
 			if !hasDot && strings.IndexByte(strpool.String(strpool.ID(topID)), '.') >= 0 {

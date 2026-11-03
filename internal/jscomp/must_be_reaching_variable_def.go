@@ -23,6 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // mustDefBottom is the sentinel for BOTTOM in MustBeReachingVariableDef_MustDef.defs
@@ -706,7 +707,7 @@ func (d *MustBeReachingVariableDef) getDefByID(nameID uint32, useNode rhino.Node
 //
 // Java: MustBeReachingVariableDef.getDef(String, Node)
 func (d *MustBeReachingVariableDef) GetDef(name string, useNode rhino.Node) *MustBeReachingVariableDef_Definition {
-	return d.getDefByID(rhino.RhinoStringPool_LookupID(name), useNode)
+	return d.getDefByID(uint32(strpool.Lookup(name)), useNode)
 }
 
 // Java: MustBeReachingVariableDef.getDefNode(String, Node)

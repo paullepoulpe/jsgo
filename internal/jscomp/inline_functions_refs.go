@@ -22,9 +22,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var inlineFnCallPropID = rhino.RhinoStringPool_InternID("call")
+var inlineFnCallPropID = strpool.Intern("call")
 
 // containingFnSizeCache remembers the AST size of the last enclosing function
 // measured, since consecutive call sites usually share one.
@@ -209,11 +210,11 @@ func InlineFunctions_IsCandidateUsage(name rhino.Node) bool {
 		//     Function-parameter-1
 		//     ...
 		index, ok := ast.MustGetElem(name.GetParent()).Index().AsStringLit()
-		if !ok || index.Node().GetStringID() != inlineFnCallPropID {
+		if !ok || nodeStringID(index.Node()) != inlineFnCallPropID {
 			return false
 		}
 	case ast.RoleGetPropObject:
-		if name.GetParent().GetStringID() != inlineFnCallPropID {
+		if nodeStringID(name.GetParent()) != inlineFnCallPropID {
 			return false
 		}
 	default:
@@ -421,7 +422,7 @@ func (r *inlineRefCollector) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	id := n.GetStringID()
-	if id == rhino.RhinoStringPool_EmptyID {
+	if id == strpool.EmptyID {
 		return
 	}
 

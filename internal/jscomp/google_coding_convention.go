@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // GoogleCodingConvention describes the Google-specific JavaScript coding
@@ -36,7 +37,7 @@ const (
 	googleVarArgsName       = "var_args"
 )
 
-var googleVarArgsID = rhino.RhinoStringPool_InternID(googleVarArgsName)
+var googleVarArgsID = strpool.Intern(googleVarArgsName)
 
 func NewGoogleCodingConvention() *GoogleCodingConvention {
 	return NewGoogleCodingConventionWithConvention(NewClosureCodingConvention())
@@ -149,7 +150,7 @@ func (c *GoogleCodingConvention) IsOptionalParameter(parameter rhino.Node) bool 
 
 func (c *GoogleCodingConvention) IsVarArgsParameter(parameter rhino.Node) bool {
 	return c.CodingConvention.IsVarArgsParameter(parameter) ||
-		(parameter.IsName() && parameter.GetStringID() == googleVarArgsID)
+		(parameter.IsName() && nodeStringID(parameter) == googleVarArgsID)
 }
 
 func (c *GoogleCodingConvention) IsExportedWithLocal(name string, local bool) bool {

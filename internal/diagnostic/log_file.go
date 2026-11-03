@@ -29,6 +29,7 @@ import (
 	"bufio"
 	"errors"
 	"os"
+	"path/filepath"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -44,6 +45,21 @@ type logWriter struct {
 	closed bool
 }
 
+func openLogWriter(dir, path string) (*logWriter, error) {
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o666)
+	if err != nil {
+		return nil, err
+	}
+	return &logWriter{
+		file: f,
+		buf:  bufio.NewWriter(f),
+		enc:  jutil.StandardCharsets_UTF_8.NewStreamEncoder(),
+	}, nil
+}
+
 func (w *logWriter) WriteString(s string) (int, error) {
 	if w.closed {
 		return 0, errStreamClosed
@@ -52,6 +68,14 @@ func (w *logWriter) WriteString(s string) (int, error) {
 		return 0, err
 	}
 	return len(s), nil
+}
+
+func (w *logWriter) writeLine(s string) error {
+	if _, err := w.WriteString(s); err != nil {
+		return err
+	}
+	_, err := w.WriteString("\n")
+	return err
 }
 
 func (w *logWriter) Close() error {
@@ -67,6 +91,10 @@ func (w *logWriter) Close() error {
 		flushErr = err
 	}
 	return flushErr
+}
+
+func wrapIOError(err error) jutil.Throwable {
+	return jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error()))
 }
 
 // LogFile is a handle for writing to a human readable log file.
@@ -93,6 +121,16 @@ type LogFile_StreamedJsonProducer interface {
 	WriteJson(jsonWriter *jutil.JsonWriter)
 }
 
+// OpenLogFile creates the log file (and its parent directory) if needed and
+// opens it for appending, returning any underlying I/O error directly.
+func OpenLogFile(path string) (LogFile, error) {
+	w, err := openLogWriter(filepath.Dir(path), path)
+	if err != nil {
+		return LogFile{}, err
+	}
+	return LogFile{writer: w}, nil
+}
+
 // LogFile_CreateOrReopen creates the log file (and its directory) if
 // needed and opens it for appending.
 //
@@ -102,20 +140,11 @@ func LogFile_CreateOrReopen(file *jutil.Path) LogFile {
 	if dir == nil {
 		panic(jutil.NewHelpfulNullPointerException(`Cannot invoke "java.nio.file.Path.getFileSystem()" because "path" is null`))
 	}
-	if err := os.MkdirAll(dir.String(), 0o777); err != nil {
-		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-	}
-	f, err := os.OpenFile(file.String(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o666)
+	w, err := openLogWriter(dir.String(), file.String())
 	if err != nil {
-		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
+		panic(wrapIOError(err))
 	}
-	return LogFile{
-		writer: &logWriter{
-			file: f,
-			buf:  bufio.NewWriter(f),
-			enc:  jutil.StandardCharsets_UTF_8.NewStreamEncoder(),
-		},
-	}
+	return LogFile{writer: w}
 }
 
 // LogFile_CreateNoOp returns a LogFile that discards everything.
@@ -193,12 +222,9 @@ func (l LogFile) LogJsonProducer(producer LogFile_StreamedJsonProducer) LogFile 
 		return l
 	}
 	writer := jutil.NewJsonWriter(l.writer)
-	completed := false
 	defer func() {
 		r := recover()
-		if !completed {
-			_ = l.writer.Close()
-		}
+		_ = l.writer.Close()
 		if r != nil {
 			if ex, ok := r.(jutil.IIOException); ok {
 				panic(jutil.NewAssertionErrorWithCause(ex))
@@ -207,20 +233,24 @@ func (l LogFile) LogJsonProducer(producer LogFile_StreamedJsonProducer) LogFile 
 		}
 	}()
 	producer.WriteJson(writer)
-	completed = true
-	writer.Close() // also closes this.writer, as Java's JsonWriter.close() does
+	writer.Close() // also closes l.writer, as Java's JsonWriter.close() does
 	return l
+}
+
+// WriteLine appends value and a newline, returning any write error directly.
+func (l LogFile) WriteLine(value string) error {
+	if l.writer == nil {
+		return nil
+	}
+	return l.writer.writeLine(value)
 }
 
 // logInternal appends value and a newline.
 //
 // Java: WritingLogFile.logInternal(String)
 func (l LogFile) logInternal(value string) LogFile {
-	if _, err := l.writer.WriteString(value); err != nil {
-		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
-	}
-	if _, err := l.writer.WriteString("\n"); err != nil {
-		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
+	if err := l.writer.writeLine(value); err != nil {
+		panic(wrapIOError(err))
 	}
 	return l
 }
@@ -232,13 +262,18 @@ func (l LogFile) IsLogging() bool {
 	return l.writer != nil
 }
 
+// CloseErr flushes and closes the underlying log file, returning any I/O error.
+func (l LogFile) CloseErr() error {
+	if l.writer == nil {
+		return nil
+	}
+	return l.writer.Close()
+}
+
 // Java: LogFile.close()
 func (l LogFile) Close() {
-	if l.writer == nil {
-		return
-	}
-	if err := l.writer.Close(); err != nil {
-		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewIOException(err.Error())))
+	if err := l.CloseErr(); err != nil {
+		panic(wrapIOError(err))
 	}
 }
 

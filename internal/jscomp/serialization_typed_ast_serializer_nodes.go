@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Wire tags and oneof discriminators for AstNode, TemplateStringValue, and OptimizationJsdoc.
@@ -231,7 +232,7 @@ func (enc *scriptWireEncoder) addJsdocStrFixup(jIdx uint32, val string, target f
 	if val != "" {
 		enc.fixups = append(enc.fixups, poolFixup{
 			targetIdx: jIdx,
-			refIdx:    rhino.RhinoStringPool_InternID(val),
+			refIdx:    uint32(strpool.Intern(val)),
 			target:    target,
 		})
 	}
@@ -415,7 +416,7 @@ func (enc *scriptWireEncoder) translateValue(fn *flatAstNode, nodeIdx uint32, n 
 	case rhino.Token_BIGINT:
 		enc.fixups = append(enc.fixups, poolFixup{
 			targetIdx: nodeIdx,
-			refIdx:    rhino.RhinoStringPool_InternID(n.GetBigInt().String()),
+			refIdx:    uint32(strpool.Intern(n.GetBigInt().String())),
 			target:    fixupNodeStrVal,
 		})
 		fn.markStringValue()

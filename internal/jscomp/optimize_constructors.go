@@ -64,7 +64,6 @@ type OptimizeConstructors struct {
 	removableConstructors []ast.MemberFunctionDef
 }
 
-// Java: OptimizeConstructors(AbstractCompiler)
 func NewOptimizeConstructors(compiler AbstractCompiler) *OptimizeConstructors {
 	compiler = jutil.CheckNotNull(compiler)
 	return &OptimizeConstructors{
@@ -73,15 +72,11 @@ func NewOptimizeConstructors(compiler AbstractCompiler) *OptimizeConstructors {
 	}
 }
 
-// Process is CompilerPass.process.
-//
-// Java: OptimizeConstructors.process(Node, Node)
 func (o *OptimizeConstructors) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(o.compiler.GetLifeCycleStage() == AbstractCompiler_LifeCycleStage_NORMALIZED)
 	NewOptimizeCalls(o.compiler, false, o).Process(externs, root)
 }
 
-// Java: OptimizeConstructors.process(Node, Node, ReferenceMap)
 func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, refMap *OptimizeCalls_ReferenceMap) {
 	defer func() {
 		clear(o.removableConstructors)
@@ -100,7 +95,6 @@ func (o *OptimizeConstructors) ProcessWithReferenceMap(externs rhino.Node, root 
 	}
 }
 
-// Java: OptimizeConstructors.addConstructorsToBeRemoved(String, ArrayList<Node>)
 func (o *OptimizeConstructors) addConstructorsToBeRemovedByID(nameID uint32, refs []rhino.Node) {
 	if !OptimizeCalls_MayBeOptimizableNameByID(o.compiler, nameID) {
 		return
@@ -173,12 +167,9 @@ func (o *OptimizeConstructors) addConstructorsToBeRemovedByID(nameID uint32, ref
 	}
 }
 
-// Java: OptimizeConstructors.isAssigningReference(Node)
 func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 	parent := n.GetParent()
 	if assign, ok := ast.AsAssignment(parent); ok {
-		// If n is the target of the assignment (the first child/LHS of the assignment node),
-		// then it is an assigning reference.
 		return assign.Target().Is(n)
 	}
 	switch parent.GetToken() {
@@ -187,7 +178,7 @@ func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 	case rhino.Token_STRING_KEY:
 		return parent.GetParent().IsObjectPattern()
 	case rhino.Token_COMPUTED_PROP:
-		return parent.GetLastChild() == n && parent.GetParent().IsObjectPattern()
+		return ast.RoleIn(n, parent) == ast.RoleComputedPropValue && parent.GetParent().IsObjectPattern()
 	case rhino.Token_ARRAY_PATTERN,
 		rhino.Token_DEFAULT_VALUE, // object or array or function parameter
 		rhino.Token_PARAM_LIST,
@@ -197,13 +188,13 @@ func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 		rhino.Token_DEC:
 		return true
 	case rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_CATCH:
-		return parent.GetFirstChild() == n
+		r := ast.RoleIn(n, parent)
+		return r == ast.RoleFunctionName || r == ast.RoleClassName || r == ast.RoleCatchParam
 	default:
 		return false
 	}
 }
 
-// Java: OptimizeConstructors.getClassDefinitionOrFunction(Node)
 func optimizeConstructors_getClassDefinitionOrFunction(n rhino.Node) rhino.Node {
 	parent := n.GetParent()
 
@@ -213,7 +204,7 @@ func optimizeConstructors_getClassDefinitionOrFunction(n rhino.Node) rhino.Node 
 	} else if name, ok := ast.AsName(n); ok && n.HasChildren() {
 		init, _ := name.Init()
 		expr = init.Node()
-	} else if (parent.IsFunction() || parent.IsClass()) && n.IsFirstChildOf(parent) {
+	} else if r := ast.RoleIn(n, parent); r == ast.RoleFunctionName || r == ast.RoleClassName {
 		expr = parent
 	} else {
 		return rhino.NilNode
@@ -249,7 +240,6 @@ type optimizeConstructorsSummary struct {
 	isVarArgs            bool
 }
 
-// Java: OptimizeConstructors.ClassConstructorSummary.build(Node)
 func optimizeConstructors_buildSummary(classDefinition rhino.Node) optimizeConstructorsSummary {
 	var fn ast.Function
 	if cls, ok := ast.AsClass(classDefinition); ok {
@@ -268,7 +258,6 @@ func optimizeConstructors_buildSummary(classDefinition rhino.Node) optimizeConst
 	}
 }
 
-// Java: OptimizeConstructors.ClassConstructorSummary.isEquivalentConstructorDefinition(Node)
 func (s optimizeConstructorsSummary) isEquivalentConstructorDefinition(ctor ast.MemberFunctionDef) bool {
 	fn := ctor.Function()
 	if optimizeConstructors_functionHasRest(fn) {
@@ -281,13 +270,11 @@ func (s optimizeConstructorsSummary) isEquivalentConstructorDefinition(ctor ast.
 	return s.formalParameterCount == fn.Params().NumParams()
 }
 
-// Java: OptimizeConstructors.functionHasRest(Node)
 func optimizeConstructors_functionHasRest(fn ast.Function) bool {
 	lastParam, ok := fn.Params().LastParam()
 	return ok && lastParam.Node().IsRest()
 }
 
-// Java: OptimizeConstructors.constructorHasRemovableDefinition(Node)
 func optimizeConstructors_constructorHasRemovableDefinition(ctor ast.MemberFunctionDef) bool {
 	fn := ctor.Function()
 	superCall, ok := optimizeConstructors_getOnlySuperCall(fn)
@@ -319,7 +306,6 @@ func optimizeConstructors_constructorHasRemovableDefinition(ctor ast.MemberFunct
 	return true
 }
 
-// Java: OptimizeConstructors.hasRemovableParameterList(Node)
 func (o *OptimizeConstructors) hasRemovableParameterList(ctor ast.MemberFunctionDef) bool {
 	for param := range ctor.Function().Params().Params() {
 		if _, ok := param.AsName(); ok {
@@ -339,7 +325,6 @@ func (o *OptimizeConstructors) hasRemovableParameterList(ctor ast.MemberFunction
 	return true
 }
 
-// Java: OptimizeConstructors.getOnlySuperCall(Node)
 func optimizeConstructors_getOnlySuperCall(fn ast.Function) (ast.Call, bool) {
 	block, ok := fn.Body().AsBlock()
 	if !ok {
@@ -360,7 +345,6 @@ func optimizeConstructors_getOnlySuperCall(fn ast.Function) (ast.Call, bool) {
 	return call, true
 }
 
-// Java: OptimizeConstructors.removeConstructorMethod(Node)
 func (o *OptimizeConstructors) removeConstructorMethod(ctor ast.MemberFunctionDef) {
 	o.compiler.ReportFunctionDeleted(ctor.Function().Node())
 	o.compiler.ReportChangeToEnclosingScope(ctor.Node())

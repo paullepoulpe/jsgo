@@ -57,7 +57,6 @@ type ismPropSlot struct {
 // the prototype method is mutated and we don't detect that, inlining it is
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
-	externPropsRaw  *jutil.LinkedHashSet[string]
 	externPropBits  smallBitSet
 	externPropsInit bool
 	props           map[uint32]ismPropSlot
@@ -71,10 +70,8 @@ type InlineSimpleMethods struct {
 	codingConvention CodingConvention
 }
 
-// Java: InlineSimpleMethods(AbstractCompiler)
 func NewInlineSimpleMethods(compiler AbstractCompiler) *InlineSimpleMethods {
 	return &InlineSimpleMethods{
-		externPropsRaw:   compiler.GetExternProperties(),
 		compiler:         compiler,
 		astAnalyzer:      compiler.GetAstAnalyzer(),
 		codingConvention: compiler.GetCodingConvention(),
@@ -91,8 +88,8 @@ func (m *InlineSimpleMethods) ensureProps() map[uint32]ismPropSlot {
 func (m *InlineSimpleMethods) hasExternProp(id uint32) bool {
 	if !m.externPropsInit {
 		m.externPropsInit = true
-		if m.externPropsRaw != nil {
-			for name := range m.externPropsRaw.All() {
+		if externProps := m.compiler.GetExternProperties(); externProps != nil {
+			for name := range externProps.All() {
 				if pid := strpool.Lookup(name); pid != 0 {
 					m.externPropBits.Set(int(pid))
 				}
@@ -117,7 +114,6 @@ func (m *InlineSimpleMethods) markNonInlineable(propID uint32) {
 	m.nonInlineableBits.Set(int(propID))
 }
 
-// Java: InlineSimpleMethods.process(Node, Node)
 func (m *InlineSimpleMethods) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckStateMsg1(m.compiler.GetLifeCycleStage().IsNormalized(), "%s", m.compiler.GetLifeCycleStage())
 	jutil.CheckState(!m.hasDefs)
@@ -209,8 +205,8 @@ func (m *InlineSimpleMethods) processIndexed(ix *propUseIndex, externs, root rhi
 		rp.cur = call
 		r := m.inlineCall(changeScope, ast.MustCall(call))
 		if !r.IsNil() && r.IsGetProp() {
-			if p := r.GetParent(); p.IsCall() && p.GetFirstChild() == r {
-				pending = append(pending, pendingCall{p, changeScope})
+			if callParent, ok := ast.AsCall(r.GetParent()); ok && callParent.Callee().Is(r) {
+				pending = append(pending, pendingCall{callParent.Node(), changeScope})
 			}
 		}
 	}
@@ -247,8 +243,6 @@ func piIsAncestor(a, n rhino.Node) bool {
 // inlineCall checks whether a method call is a candidate for inlining and
 // performs the inlining if so. changeScope is the change scope the call is
 // in. It returns the node that replaced the call, or NilNode.
-//
-// Java: InlineSimpleMethods.InlineTrivialAccessors.visit(NodeTraversal, Node, Node, String)
 func (m *InlineSimpleMethods) inlineCall(changeScope rhino.Node, call ast.Call) rhino.Node {
 	callee, ok := call.Callee().AsGetProp()
 	if !ok {
@@ -295,8 +289,6 @@ func (m *InlineSimpleMethods) inlineCall(changeScope rhino.Node, call ast.Call) 
 
 // inlineSimpleMethods_isPropertyTree reports whether expr is a getprop chain
 // rooted at `this` (e.g. `this.a` or `this.a.b`).
-//
-// Java: InlineSimpleMethods.isPropertyTree(Node)
 func inlineSimpleMethods_isPropertyTree(expr ast.Expr) bool {
 	gp, ok := expr.AsGetProp()
 	if !ok {
@@ -308,8 +300,6 @@ func inlineSimpleMethods_isPropertyTree(expr ast.Expr) bool {
 
 // inlineSimpleMethods_replaceThis replaces the root `this` in a cloned
 // property-access chain with replacement.
-//
-// Java: InlineSimpleMethods.replaceThis(Node, Node)
 func inlineSimpleMethods_replaceThis(expectedGetprop rhino.Node, replacement rhino.Node) {
 	leftChild := ast.MustGetProp(expectedGetprop).Object().Node()
 	if leftChild.IsThis() {
@@ -319,7 +309,6 @@ func inlineSimpleMethods_replaceThis(expectedGetprop rhino.Node, replacement rhi
 	}
 }
 
-// Java: InlineSimpleMethods.returnedExpression(Node)
 func inlineSimpleMethods_returnedExpression(fn ast.Function) (ast.Expr, bool) {
 	block, ok := fn.Body().AsBlock()
 	if !ok {
@@ -336,12 +325,10 @@ func inlineSimpleMethods_returnedExpression(fn ast.Function) (ast.Expr, bool) {
 	return ret.Value()
 }
 
-// Java: InlineSimpleMethods.isEmptyMethod(Node)
 func inlineSimpleMethods_isEmptyMethod(fn ast.Function) bool {
 	return NodeUtil_IsEmptyBlock(fn.Body().Node())
 }
 
-// Java: InlineSimpleMethods.allDefinitionsEquivalent(Set<Node>)
 func (m *InlineSimpleMethods) allDefinitionsEquivalent(first ast.Function, extraDefs []ast.Function) bool {
 	firstNode := first.Node()
 	for _, fn := range extraDefs {
@@ -368,7 +355,6 @@ func (m *InlineSimpleMethods) isDefinitionNotInlineable(fn ast.Function) bool {
 	return jsDocInfo != nil && jsDocInfo.IsNoInline()
 }
 
-// Java: InlineSimpleMethods.anyDefinitionsNotInlineable(Set<Node>)
 func (m *InlineSimpleMethods) anyDefinitionsNotInlineable(first ast.Function, extraDefs []ast.Function) bool {
 	if m.isDefinitionNotInlineable(first) {
 		return true
@@ -381,7 +367,6 @@ func (m *InlineSimpleMethods) anyDefinitionsNotInlineable(first ast.Function, ex
 	return false
 }
 
-// Java: InlineSimpleMethods.inlinePropertyReturn(Node, Node)
 func (m *InlineSimpleMethods) inlinePropertyReturn(call ast.Call, callee ast.GetProp, returnedValue rhino.Node) rhino.Node {
 	getProp := returnedValue.CloneTree()
 	inlineSimpleMethods_replaceThis(getProp, callee.Object().Detach().Node())
@@ -390,7 +375,6 @@ func (m *InlineSimpleMethods) inlinePropertyReturn(call ast.Call, callee ast.Get
 	return getProp
 }
 
-// Java: InlineSimpleMethods.inlineConstReturn(Node, Node)
 func (m *InlineSimpleMethods) inlineConstReturn(call rhino.Node, returnedValue rhino.Node) rhino.Node {
 	retValue := returnedValue.CloneTree()
 	call.ReplaceWith(retValue)
@@ -398,10 +382,7 @@ func (m *InlineSimpleMethods) inlineConstReturn(call rhino.Node, returnedValue r
 	return retValue
 }
 
-// changeScope is the traversal's current change scope (Java:
-// t.reportCodeChange()).
-//
-// Java: InlineSimpleMethods.inlineEmptyMethod(NodeTraversal, Node, Node)
+// changeScope is the traversal's current change scope.
 func (m *InlineSimpleMethods) inlineEmptyMethod(changeScope rhino.Node, parent rhino.Node, call rhino.Node) rhino.Node {
 	// If the return value of the method call is read,
 	// replace it with "void 0". Otherwise, remove the call entirely.
@@ -415,7 +396,6 @@ func (m *InlineSimpleMethods) inlineEmptyMethod(changeScope rhino.Node, parent r
 		call.ReplaceWith(replacement)
 		NodeUtil_MarkFunctionsDeleted(call, m.compiler)
 	}
-	// t.reportCodeChange()
 	if changeScope.IsNil() {
 		panic(jutil.NewNullPointerException()) // checkNotNull(changeScope)
 	}
@@ -424,7 +404,6 @@ func (m *InlineSimpleMethods) inlineEmptyMethod(changeScope rhino.Node, parent r
 	return replacement
 }
 
-// Java: InlineSimpleMethods.argsMayHaveSideEffects(Node)
 func (m *InlineSimpleMethods) argsMayHaveSideEffects(call ast.Call) bool {
 	for arg := range call.Args() {
 		if m.astAnalyzer.MayHaveSideEffects(arg.Node()) {
@@ -434,7 +413,6 @@ func (m *InlineSimpleMethods) argsMayHaveSideEffects(call ast.Call) bool {
 	return false
 }
 
-// Java: InlineSimpleMethods.addPossibleSignature(String, Node)
 func (m *InlineSimpleMethods) addPossibleSignature(propID uint32, node rhino.Node) {
 	if fn, ok := ast.AsFunction(node); ok {
 		m.addSignature(propID, fn)
@@ -443,7 +421,6 @@ func (m *InlineSimpleMethods) addPossibleSignature(propID uint32, node rhino.Nod
 	}
 }
 
-// Java: InlineSimpleMethods.addSignature(String, Node)
 func (m *InlineSimpleMethods) addSignature(propID uint32, function ast.Function) {
 	if m.nonInlineableBits.Get(int(propID)) {
 		return
@@ -480,9 +457,8 @@ func ismStaticPropertyID(n rhino.Node) (uint32, bool) {
 	case rhino.Token_GETPROP:
 		return n.GetStringID(), true
 	case rhino.Token_GETELEM:
-		last := n.GetLastChild()
-		if last.IsStringLit() {
-			return last.GetStringID(), true
+		if idx, ok := ast.MustGetElem(n).Index().AsStringLit(); ok {
+			return idx.Node().GetStringID(), true
 		}
 	}
 	return 0, false
@@ -502,12 +478,10 @@ func (m *InlineSimpleMethods) gatherMemberContainer(container rhino.Node) {
 	ismGatherMemberContainer(m, container)
 }
 
-// Java: InlineSimpleMethods.GatherSignatures.visit (CALL)
 func (m *InlineSimpleMethods) gatherCall(_ *NodeTraversal, call ast.Call) {
 	ismGatherCall(m, m.codingConvention, call)
 }
 
-// Java: InlineSimpleMethods.GatherSignatures.visit (GETPROP / GETELEM)
 func ismGatherNormalGet(m ismSignatureSink, n rhino.Node) {
 	parent := n.GetParent()
 	pt := parent.GetToken()
@@ -529,12 +503,19 @@ func ismGatherNormalGet(m ismSignatureSink, n rhino.Node) {
 	}
 }
 
-// Java: InlineSimpleMethods.GatherSignatures.visit (OBJECTLIT / CLASS_MEMBERS)
 func ismGatherMemberContainer(m ismSignatureSink, container rhino.Node) {
 	for key := container.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
 		switch key.GetToken() {
-		case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF, rhino.Token_STRING_KEY:
-			m.addPossibleSignature(key.GetStringID(), key.GetFirstChild())
+		case rhino.Token_MEMBER_FUNCTION_DEF:
+			m.addPossibleSignature(key.GetStringID(), ast.MustMemberFunctionDef(key).Function().Node())
+		case rhino.Token_MEMBER_FIELD_DEF:
+			if val, ok := ast.MustMemberFieldDef(key).Value(); ok {
+				m.addPossibleSignature(key.GetStringID(), val.Node())
+			} else {
+				m.markNonInlineable(key.GetStringID())
+			}
+		case rhino.Token_STRING_KEY:
+			m.addPossibleSignature(key.GetStringID(), ast.MustStringKey(key).Value().Node())
 		case rhino.Token_SETTER_DEF, rhino.Token_GETTER_DEF:
 			m.markNonInlineable(key.GetStringID())
 		case rhino.Token_COMPUTED_PROP, // complicated
@@ -562,18 +543,15 @@ func ismMemberKeysKnown(container rhino.Node) bool {
 	return true
 }
 
-// Java: InlineSimpleMethods.GatherSignatures.visit (CALL)
 func ismGatherCall(m ismSignatureSink, conv CodingConvention, call ast.Call) {
 	// If a goog.reflect.objectProperty is used for a method's name, we can't assume that the
 	// method can be safely inlined.
 	callee := call.Callee().Node()
 	if firstArg, ok := call.FirstArg(); ok && conv.IsPropertyRenameFunction(callee) {
-		// Other code guarantees that getSecondChild() is a STRINGLIT
 		m.markNonInlineable(firstArg.Node().GetStringID())
 	}
 }
 
-// Java: InlineSimpleMethods.GatherSignatures.processPrototypeParent(Node)
 func ismProcessPrototypeParent(m ismSignatureSink, n rhino.Node) {
 	propID, hasName := ismStaticPropertyID(n)
 	if !hasName {

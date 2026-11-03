@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type PropertyUseSite struct {
@@ -256,14 +257,14 @@ func NewPropertyClustering(name string) *PropertyClustering {
 	// checkNotNull(name): a Go string is never null.
 	return &PropertyClustering{
 		name:   name,
-		nameID: rhino.RhinoStringPool_InternID(name),
+		nameID: uint32(strpool.Intern(name)),
 	}
 }
 
 // Java: PropertyClustering.getName()
 func (p *PropertyClustering) GetName() string {
 	if p.name == "" && p.nameID != 0 {
-		p.name = rhino.RhinoStringPool_StringFromID(p.nameID)
+		p.name = strpool.String(strpool.ID(p.nameID))
 	}
 	return p.name
 }
@@ -359,36 +360,37 @@ func (p *PropertyClustering) String() string {
 type propertyClusteringIndex struct {
 	slab  jutil.Slab[PropertyClustering]
 	order []*PropertyClustering
-	byID  map[uint32]uint32
+	byID  map[strpool.ID]uint32
 }
 
 func newPropertyClusteringIndex(capHint int) *propertyClusteringIndex {
 	return &propertyClusteringIndex{
 		order: make([]*PropertyClustering, 0, capHint),
-		byID:  make(map[uint32]uint32, capHint),
+		byID:  make(map[strpool.ID]uint32, capHint),
 	}
 }
 
 func (idx *propertyClusteringIndex) getOrCreateByID(id uint32) *PropertyClustering {
-	if pos, ok := idx.byID[id]; ok {
+	sid := strpool.ID(id)
+	if pos, ok := idx.byID[sid]; ok {
 		return idx.order[pos]
 	}
 	p := idx.slab.New()
 	p.nameID = id
 	pos := uint32(len(idx.order))
 	idx.order = append(idx.order, p)
-	idx.byID[id] = pos
+	idx.byID[sid] = pos
 	return p
 }
 
 func (idx *propertyClusteringIndex) getOrCreateByName(name string) *PropertyClustering {
-	id := rhino.RhinoStringPool_InternID(name)
+	id := strpool.Intern(name)
 	if pos, ok := idx.byID[id]; ok {
 		return idx.order[pos]
 	}
 	p := idx.slab.New()
 	p.name = name
-	p.nameID = id
+	p.nameID = uint32(id)
 	pos := uint32(len(idx.order))
 	idx.order = append(idx.order, p)
 	idx.byID[id] = pos
@@ -396,7 +398,7 @@ func (idx *propertyClusteringIndex) getOrCreateByName(name string) *PropertyClus
 }
 
 func (idx *propertyClusteringIndex) getByName(name string) *PropertyClustering {
-	id := rhino.RhinoStringPool_LookupID(name)
+	id := strpool.Lookup(name)
 	if id == 0 && name != "" {
 		return nil
 	}

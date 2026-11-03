@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ClosureModuleProcessor is the processor for goog.module.
@@ -31,7 +32,7 @@ type ClosureModuleProcessor struct {
 
 var _ moduleProcessor = (*ClosureModuleProcessor)(nil)
 
-var closureModuleExportsID = rhino.RhinoStringPool_InternID("exports")
+var closureModuleExportsID = uint32(strpool.Intern("exports"))
 
 type unresolvedGoogModule struct {
 	metadata            *ModuleMetadataMap_ModuleMetadata

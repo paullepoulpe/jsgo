@@ -62,8 +62,8 @@ func jsFileRegexParserTest_es6(symbol, raw string) *DependencyInfo_Require {
 	return DependencyInfo_Require_Es6Import(symbol, raw)
 }
 
-func jsFileRegexParserTest_flags(kv ...string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func jsFileRegexParserTest_flags(kv ...string) *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](len(kv) / 2)
 	for i := 0; i < len(kv); i += 2 {
 		m.Put(kv[i], kv[i+1])
 	}

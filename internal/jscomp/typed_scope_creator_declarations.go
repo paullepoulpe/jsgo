@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // DeclareAliasTypeIfRvalueIsAliasable: for a const alias, like
@@ -237,7 +238,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetDeclaredRValueType(lValue rhino.Node
 
 	if call, ok := ast.AsCall(rValue); ok && call.Callee().Node().MatchesName("Symbol") {
 		// Type calls like `Symbol('foo')`
-		symbolVar := b.currentScope.GetVarByID(typedScopeSymbolID)
+		symbolVar := b.currentScope.GetVarByID(uint32(typedScopeSymbolID))
 		if symbolVar != nil && symbolVar.Scope().IsGlobal() {
 			return b.outer.typeRegistry.GetNativeType(rhino.JSTypeNative_SYMBOL_TYPE)
 		}
@@ -381,7 +382,7 @@ func (b *TypedScopeCreator_scopeBuilder) MaybeDeclareQualifiedName(
 	var hasQName bool
 	if !rhsValue.IsNil() && rhsValue.IsFunction() {
 		if origID := rhsValue.GetOriginalNameID(); origID != 0 {
-			origStr := rhino.RhinoStringPool_StringFromID(origID)
+			origStr := strpool.String(strpool.ID(origID))
 			if n.MatchesQualifiedName(origStr) {
 				qName = origStr
 				hasQName = true

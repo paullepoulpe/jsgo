@@ -60,18 +60,6 @@ type SourceMapConsumerV3_MappingBuilder struct {
 // entry has.
 const SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES = 5
 
-// NewSourceMapConsumerV3_MappingBuilder constructs a builder over lineMap.
-//
-// Java: SourceMapConsumerV3.MappingBuilder(String, int, boolean, int)
-func NewSourceMapConsumerV3_MappingBuilder(
-	outer *SourceMapConsumerV3, lineMap *string, lineCount int, useCompactMappings bool, estimatedEntries int32) *SourceMapConsumerV3_MappingBuilder {
-	b, err := tryNewMappingBuilder(outer, makeOptionalString(lineMap), lineCount, useCompactMappings, estimatedEntries)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
 func tryNewMappingBuilder(
 	outer *SourceMapConsumerV3, lineMap optionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) (*SourceMapConsumerV3_MappingBuilder, jutil.Throwable) {
 	if !lineMap.present {
@@ -95,15 +83,6 @@ func tryNewMappingBuilder(
 	}
 	b.lineStart = make([]uint32, 0, jutil.IntAdd(estimatedLines, 1))
 	return b, nil
-}
-
-// Java: SourceMapConsumerV3.MappingBuilder.build()
-func (b *SourceMapConsumerV3_MappingBuilder) Build() *SourceMapConsumerV3_Mappings {
-	m, err := b.tryBuild()
-	if err != nil {
-		panic(err)
-	}
-	return m
 }
 
 func (b *SourceMapConsumerV3_MappingBuilder) tryBuild() (*SourceMapConsumerV3_Mappings, jutil.Throwable) {
@@ -324,15 +303,6 @@ func (b *SourceMapConsumerV3_MappingBuilder) EntryComplete() bool {
 
 	c := b.content.Peek()
 	return c == ';' || c == ','
-}
-
-// Java: SourceMapConsumerV3.MappingBuilder.nextValue()
-func (b *SourceMapConsumerV3_MappingBuilder) NextValue() int32 {
-	v, err := b.tryNextValue()
-	if err != nil {
-		panic(err)
-	}
-	return v
 }
 
 func (b *SourceMapConsumerV3_MappingBuilder) tryNextValue() (int32, jutil.Throwable) {

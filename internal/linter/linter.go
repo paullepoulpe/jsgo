@@ -23,8 +23,6 @@
 package linter
 
 import (
-	"slices"
-
 	"github.com/paullepoulpe/jsgo/internal/args4j"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -134,31 +132,35 @@ func (l *Linter) LintWithCompiler(path *jutil.Path, compiler *jscomp.Compiler) {
 }
 
 // FixRepeatedly keeps applying fixes to the given file until no more fixes
-// can be found, or until fixes have been applied MAX_FIXES times. It throws
-// IOException.
+// can be found, or until fixes have been applied MAX_FIXES times.
 //
 // Java: Linter.fixRepeatedly(String)
-func (l *Linter) FixRepeatedly(filename string) {
-	l.FixRepeatedlyWithUnfixableErrors(filename, nil)
+func (l *Linter) FixRepeatedly(filename string) error {
+	return l.FixRepeatedlyWithUnfixableErrors(filename, nil)
 }
 
 // FixRepeatedlyWithUnfixableErrors keeps applying fixes to the given file
 // until no more fixes can be found, or until fixes have been applied
-// MAX_FIXES times. It throws IOException.
+// MAX_FIXES times.
 //
 // Java: Linter.fixRepeatedly(String, ImmutableSet<DiagnosticType>)
-func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErrors []*jscomp.DiagnosticType) {
+func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErrors []*jscomp.DiagnosticType) error {
 	for i := 0; i < Linter_MAX_FIXES; i++ {
-		if !l.fix(filename, unfixableErrors) {
+		fixed, err := l.fix(filename, unfixableErrors)
+		if err != nil {
+			return err
+		}
+		if !fixed {
 			break
 		}
 	}
+	return nil
 }
 
-// fix returns whether any fixes were applied. It throws IOException.
+// fix returns whether any fixes were applied.
 //
 // Java: Linter.fix(String, ImmutableSet<DiagnosticType>)
-func (l *Linter) fix(filename string, unfixableErrors []*jscomp.DiagnosticType) bool {
+func (l *Linter) fix(filename string, unfixableErrors []*jscomp.DiagnosticType) (bool, error) {
 	compiler := jscomp.NewCompilerWithOutStream(jutil.System_Out())
 	errorManager := refactoring.NewFixingErrorManagerWithUnfixableErrors(unfixableErrors)
 	compiler.SetErrorManager(errorManager)
@@ -168,10 +170,12 @@ func (l *Linter) fix(filename string, unfixableErrors []*jscomp.DiagnosticType) 
 
 	fixes := errorManager.GetSureFixes()
 	if len(fixes) != 0 {
-		refactoring.ApplySuggestedFixes_ApplySuggestedFixesToFiles(slices.Values(fixes))
-		return true
+		if err := refactoring.ApplyToFiles(fixes); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 // LinterMain is a minimal binary that just runs the "lint" checks which can
@@ -229,25 +233,30 @@ func (m *LinterMain) Args4jFields() []args4j.AnnotatedField {
 //
 // Java: LinterMain.main(String[])
 func LinterMain_Main(args []string) {
-	newLinterMain().run(args)
+	if err := newLinterMain().run(args); err != nil {
+		panic(err)
+	}
 }
 
 // Java: LinterMain.run(String[])
-func (m *LinterMain) run(args []string) {
+func (m *LinterMain) run(args []string) error {
 	parser := args4j.NewCmdLineParser(m)
 	if err := parser.TryParseArgument(args...); err != nil {
-		panic(err)
+		return err
 	}
 
 	linter := NewLinter_Builder().WithModuleResolutionMode(m.resolutionMode).Build()
 
 	for _, filename := range m.files {
 		if m.fix {
-			linter.FixRepeatedly(filename)
+			if err := linter.FixRepeatedly(filename); err != nil {
+				return err
+			}
 		} else {
 			linter.Lint(filename)
 		}
 	}
+	return nil
 }
 
 // LintPassConfig is a PassConfig for the standalone linter, which runs on a

@@ -37,53 +37,34 @@ import (
 //
 // Java: record TypeMismatch(JSType found, JSType required, Node location)
 type TypeMismatch struct {
-	found    rhino.JSType
-	required rhino.JSType
-	location rhino.Node
+	Found    rhino.JSType
+	Required rhino.JSType
+	Location rhino.Node
 }
 
-// NewTypeMismatch is the record's canonical (compact) constructor.
+// NewTypeMismatch constructs a TypeMismatch after checking that none of its
+// components are null.
 //
-// Java: TypeMismatch(JSType, JSType, Node)
+// Java: TypeMismatch(JSType, JSType, Node) / TypeMismatch.create(JSType, JSType, Node)
 func NewTypeMismatch(found rhino.JSType, required rhino.JSType, location rhino.Node) TypeMismatch {
 	jutil.CheckNotNullMsg(found, "found")
 	jutil.CheckNotNullMsg(required, "required")
 	rhino.CheckNotNullMsg(location, "location")
-	return TypeMismatch{found: found, required: required, location: location}
-}
-
-// Found is the record component accessor.
-//
-// Java: TypeMismatch.found()
-func (m TypeMismatch) Found() rhino.JSType { return m.found }
-
-// Required is the record component accessor.
-//
-// Java: TypeMismatch.required()
-func (m TypeMismatch) Required() rhino.JSType { return m.required }
-
-// Location is the record component accessor.
-//
-// Java: TypeMismatch.location()
-func (m TypeMismatch) Location() rhino.Node { return m.location }
-
-// Java: TypeMismatch.create(JSType, JSType, Node)
-func TypeMismatch_Create(found rhino.JSType, required rhino.JSType, location rhino.Node) TypeMismatch {
-	return NewTypeMismatch(found, required, location)
+	return TypeMismatch{Found: found, Required: required, Location: location}
 }
 
 // Java: TypeMismatch.createForTesting(JSType, JSType)
-func TypeMismatch_CreateForTesting(found rhino.JSType, required rhino.JSType) TypeMismatch {
-	return TypeMismatch_Create(found, required, rhino.IR_Empty())
+func NewTypeMismatchForTesting(found rhino.JSType, required rhino.JSType) TypeMismatch {
+	return NewTypeMismatch(found, required, rhino.IR_Empty())
 }
 
 // String is the record's implicit toString.
 //
 // Java: TypeMismatch.toString()
 func (m TypeMismatch) String() string {
-	return "TypeMismatch[found=" + m.found.String() +
-		", required=" + m.required.String() +
-		", location=" + m.location.String() + "]"
+	return "TypeMismatch[found=" + m.Found.String() +
+		", required=" + m.Required.String() +
+		", location=" + m.Location.String() + "]"
 }
 
 // TypeMismatch_Accumulator collects a set of related mismatches.
@@ -114,7 +95,7 @@ func (a *TypeMismatch_Accumulator) RegisterMismatch(location rhino.Node, found r
 	}
 
 	if TypeMismatch_Accumulator_BothAreNotTemplateTypes(found, required) {
-		a.mismatches = append(a.mismatches, TypeMismatch_Create(found, required, location))
+		a.mismatches = append(a.mismatches, NewTypeMismatch(found, required, location))
 	}
 
 	if found.IsFunctionType() && required.IsFunctionType() {

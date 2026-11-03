@@ -410,13 +410,23 @@ func overwriteMembersIfPresent(
 
 // Java: PolymerClassDefinition.toString()
 func (d *PolymerClassDefinition) String() string {
-	return jutil.MoreObjects_ToStringHelper("PolymerClassDefinition").
-		Add("defType", d.defType).
-		Add("definition", d.definition).
-		Add("target", d.target).
-		Add("nativeBaseElement", d.nativeBaseElement).
-		OmitNullValues().
-		String()
+	var b strings.Builder
+	b.WriteString("PolymerClassDefinition{defType=")
+	b.WriteString(d.defType.String())
+	if !d.definition.IsNil() {
+		b.WriteString(", definition=")
+		b.WriteString(d.definition.String())
+	}
+	if !d.target.IsNil() {
+		b.WriteString(", target=")
+		b.WriteString(d.target.String())
+	}
+	if d.nativeBaseElement != nil {
+		b.WriteString(", nativeBaseElement=")
+		b.WriteString(*d.nativeBaseElement)
+	}
+	b.WriteByte('}')
+	return b.String()
 }
 
 // Java: PolymerClassDefinition.getInterfaceName(UniqueIdSupplier)

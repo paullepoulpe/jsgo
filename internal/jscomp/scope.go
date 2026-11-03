@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Scope contains information about a variable scope in JavaScript. Scopes
@@ -211,23 +212,23 @@ func (s *Scope) GetOwnSlot(name string) rhino.StaticSlot {
 }
 
 func (s *Scope) getOwnSlotV(name string) *Var {
-	id := rhino.RhinoStringPool_LookupID(name)
+	id := strpool.Lookup(name)
 	if id == 0 {
 		return nil
 	}
-	return s.getOwnSlotByID(id)
+	return s.getOwnSlotByID(uint32(id))
 }
 
 // Java: AbstractScope.hasOwnSlot(String)
 func (s *Scope) HasOwnSlot(name string) bool {
-	id := rhino.RhinoStringPool_LookupID(name)
-	return id != 0 && s.hasOwnSlotByID(id)
+	id := strpool.Lookup(name)
+	return id != 0 && s.hasOwnSlotByID(uint32(id))
 }
 
 // Java: AbstractScope.hasSlot(String)
 func (s *Scope) HasSlot(name string) bool {
-	id := rhino.RhinoStringPool_LookupID(name)
-	return id != 0 && s.HasSlotByID(id)
+	id := strpool.Lookup(name)
+	return id != 0 && s.HasSlotByID(uint32(id))
 }
 
 func (s *Scope) HasSlotByID(id uint32) bool {
@@ -255,11 +256,11 @@ func (s *Scope) inheritedInput() (*CompilerInput, bool) {
 
 // GetVar looks up name in s and its ancestors.
 func (s *Scope) GetVar(name string) *Var {
-	id := rhino.RhinoStringPool_LookupID(name)
+	id := strpool.Lookup(name)
 	if id == 0 {
 		return nil
 	}
-	return s.GetVarByID(id)
+	return s.GetVarByID(uint32(id))
 }
 
 func (s *Scope) GetVarByNode(n rhino.Node) *Var {
@@ -345,7 +346,7 @@ func (s *Scope) GetSlot(name string) rhino.StaticSlot {
 // Java: Scope.declare(String, Node, CompilerInput)
 func (s *Scope) Declare(name string, nameNode rhino.Node, input *CompilerInput) *Var {
 	jutil.CheckArgument(name != "")
-	id := rhino.RhinoStringPool_InternID(name)
+	id := uint32(strpool.Intern(name))
 	// Make sure that it's declared only once
 	if s.getOwnSlotByID(id) != nil {
 		panic(jutil.NewIllegalStateException())
@@ -383,7 +384,7 @@ func (s *Scope) DeclareImplicitGoogNamespaceIfAbsent(name string, definition rhi
 	jutil.CheckStateMsg1(s.IsGlobal(), "Cannot declare implicit goog namespace in local scope %s", s)
 	// Allow redeclarations of provides, since they are implicit and don't have a single
 	// declaration site.
-	id := rhino.RhinoStringPool_InternID(name)
+	id := uint32(strpool.Intern(name))
 	var_ := s.getOwnSlotByID(id)
 	if var_ == nil {
 		var_ = newVarWithID(id, rhino.NilNode, s, -1, nil, definition)

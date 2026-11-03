@@ -353,8 +353,8 @@ func (b *InvalidatingTypes_Builder) Build() *InvalidatingTypes {
 // Java: InvalidatingTypes.Builder.addAllTypeMismatches(Iterable<TypeMismatch>)
 func (b *InvalidatingTypes_Builder) AddAllTypeMismatches(mismatches []TypeMismatch) *InvalidatingTypes_Builder {
 	for _, mismatch := range mismatches {
-		b.AddTypeWithReason(mismatch.Found(), mismatch.Location())
-		b.AddTypeWithReason(mismatch.Required(), mismatch.Location())
+		b.AddTypeWithReason(mismatch.Found, mismatch.Location)
+		b.AddTypeWithReason(mismatch.Required, mismatch.Location)
 	}
 
 	return b

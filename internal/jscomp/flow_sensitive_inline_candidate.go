@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // FlowSensitiveInlineVariables_SideEffectPredicate is a Predicate<Node>.
@@ -313,7 +314,7 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode r
 func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node, usageScope *Scope) bool {
 	if n.IsName() {
 		id := n.GetStringID()
-		if id > rhino.RhinoStringPool_EmptyID && usageScope.GetVarByID(id) == nil {
+		if id > strpool.EmptyID && usageScope.GetVarByID(id) == nil {
 			if c.outer == nil || !c.outer.hasEnclosingSlotByID(id) {
 				return true
 			}

@@ -47,12 +47,15 @@ func TestSourceMapObjectParser_ZeroExtraAllocsLargeMappings(t *testing.T) {
 	largeMappings := strings.Repeat("AAAA,CAAC;", 1024)
 	srcMap := `{"version":3,"file":"out.js","sourceRoot":"","sources":["in.js"],"names":["foo"],"mappings":"` + largeMappings + `","unknown":{"nested":[1,2,"skip\\nme"]}}`
 	allocs := testing.AllocsPerRun(100, func() {
-		obj := SourceMapObjectParser_Parse(srcMap)
+		obj, err := ParseSourceMapObject(srcMap)
+		if err != nil {
+			t.Fatalf("ParseSourceMapObject error = %v", err)
+		}
 		if obj.mappings.text != largeMappings {
 			t.Fatal("mappings mismatch")
 		}
 	})
 	if allocs > 4 {
-		t.Fatalf("SourceMapObjectParser_Parse allocated %.1f objects, want <= 4 (SourceMapObject + sources + names slices only)", allocs)
+		t.Fatalf("ParseSourceMapObject allocated %.1f objects, want <= 4 (SourceMapObject + sources + names slices only)", allocs)
 	}
 }

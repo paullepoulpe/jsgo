@@ -267,7 +267,7 @@ func (*RenameVars_ProcessVars) visitTokens() *ast.TokenSet {
 func (p *RenameVars_ProcessVars) EnterScope(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
 	fn, ok := ast.AsFunction(scopeRoot)
-	if !ok || fn.NameNode().Node().GetStringID() <= rhino.RhinoStringPool_EmptyID || !NodeUtil_IsFunctionExpression(scopeRoot) {
+	if !ok || fn.NameNode().Node().GetStringID() <= strpool.EmptyID || !NodeUtil_IsFunctionExpression(scopeRoot) {
 		return
 	}
 	r := p.outer
@@ -304,7 +304,7 @@ func (p *RenameVars_ProcessVars) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	id := n.GetStringID()
 
 	// Ignore anonymous functions and classes.
-	if id <= rhino.RhinoStringPool_EmptyID {
+	if id <= strpool.EmptyID {
 		return
 	}
 

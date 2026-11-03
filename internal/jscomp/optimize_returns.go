@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // OptimizeReturns is a compiler pass to optimize function return results.
@@ -71,7 +72,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 	for id, refs := range definitions.GetNameReferencesByID() {
 		if o.isCandidateByID(id, refs) {
 			if o.decisionsLog.IsLogging() {
-				o.decisionsLog.LogFormat("name %s\tremoving return value", rhino.RhinoStringPool_StringFromID(id))
+				o.decisionsLog.LogFormat("name %s\tremoving return value", strpool.String(strpool.ID(id)))
 			}
 			toOptimize = append(toOptimize, refs)
 		}
@@ -80,7 +81,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 	for id, refs := range definitions.GetPropReferencesByID() {
 		if o.isCandidateByID(id, refs) {
 			if o.decisionsLog.IsLogging() {
-				o.decisionsLog.LogFormat("property %s\tremoving return value", rhino.RhinoStringPool_StringFromID(id))
+				o.decisionsLog.LogFormat("property %s\tremoving return value", strpool.String(strpool.ID(id)))
 			}
 			toOptimize = append(toOptimize, refs)
 		}
@@ -110,7 +111,7 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 func (o *OptimizeReturns) isCandidateByID(nameID uint32, refs []rhino.Node) bool {
 	if !OptimizeCalls_MayBeOptimizableNameByID(o.compiler, nameID) {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\tnot an optimizable name", rhino.RhinoStringPool_StringFromID(nameID))
+			o.decisionsLog.LogFormat("%s\tnot an optimizable name", strpool.String(strpool.ID(nameID)))
 		}
 		return false
 	}
@@ -123,7 +124,7 @@ func (o *OptimizeReturns) isCandidateByID(nameID uint32, refs []rhino.Node) bool
 			callNode := OptimizeCalls_ReferenceMap_GetCallOrNewNodeForTarget(n)
 			if NodeUtil_IsExpressionResultUsed(callNode) {
 				if o.decisionsLog.IsLogging() { // avoid build location string when not logging
-					o.decisionsLog.LogFormat("%s\treturn value used: %s", rhino.RhinoStringPool_StringFromID(nameID), callNode.GetLocation())
+					o.decisionsLog.LogFormat("%s\treturn value used: %s", strpool.String(strpool.ID(nameID)), callNode.GetLocation())
 				}
 				return false
 			}
@@ -134,7 +135,7 @@ func (o *OptimizeReturns) isCandidateByID(nameID uint32, refs []rhino.Node) bool
 			// If this isn't a non-aliasing reference (typeof, instanceof, etc)
 			// then there is nothing that can be done.
 			if o.decisionsLog.IsLogging() { // avoid build location string when not logging
-				o.decisionsLog.LogFormat("%s\tdisallowed reference: %s", rhino.RhinoStringPool_StringFromID(nameID), n.GetLocation())
+				o.decisionsLog.LogFormat("%s\tdisallowed reference: %s", strpool.String(strpool.ID(nameID)), n.GetLocation())
 			}
 			return false
 		}
@@ -142,13 +143,13 @@ func (o *OptimizeReturns) isCandidateByID(nameID uint32, refs []rhino.Node) bool
 
 	if !seenUse {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\tno usage seen", rhino.RhinoStringPool_StringFromID(nameID))
+			o.decisionsLog.LogFormat("%s\tno usage seen", strpool.String(strpool.ID(nameID)))
 		}
 		return false
 	}
 	if !seenCandidateDefinition {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\tno definition seen", rhino.RhinoStringPool_StringFromID(nameID))
+			o.decisionsLog.LogFormat("%s\tno definition seen", strpool.String(strpool.ID(nameID)))
 		}
 		return false
 	}

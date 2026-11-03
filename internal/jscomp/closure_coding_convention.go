@@ -55,10 +55,10 @@ var (
 	googPartialQ                      = rhino.QualifiedName_Of("goog.partial")
 	googReflectCacheQ                 = rhino.QualifiedName_Of("goog.reflect.cache")
 
-	codingConvPrototypeID               = rhino.RhinoStringPool_InternID("prototype")
-	codingConvIsArrayLikeID             = rhino.RhinoStringPool_InternID("isArrayLike")
-	codingConvIsObjectID                = rhino.RhinoStringPool_InternID("isObject")
-	codingConvGoogReflectCacheMangledID = rhino.RhinoStringPool_InternID("goog$reflect$cache")
+	codingConvPrototypeID               = strpool.Intern("prototype")
+	codingConvIsArrayLikeID             = strpool.Intern("isArrayLike")
+	codingConvIsObjectID                = strpool.Intern("isObject")
+	codingConvGoogReflectCacheMangledID = strpool.Intern("goog$reflect$cache")
 
 	closureOwnAssertionFunctions = []*CodingConvention_AssertionFunctionSpec{
 		newAssertionSpecFunc("goog.asserts.assert", CodingConvention_AssertionFunctionSpec_AssertionKind_TRUTHY),
@@ -171,7 +171,7 @@ func (c *ClosureCodingConvention) IsSuperClassReference(propertyName string) boo
 }
 
 func endsWithPrototype(qualifiedName rhino.Node) bool {
-	return qualifiedName.IsGetProp() && qualifiedName.GetStringID() == codingConvPrototypeID
+	return qualifiedName.IsGetProp() && nodeStringID(qualifiedName) == codingConvPrototypeID
 }
 
 func (c *ClosureCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {
@@ -191,7 +191,7 @@ func extractGoogCallPropAndArg(node rhino.Node, parent rhino.Node) (string, *str
 		return "", nil
 	}
 	recv := callee.GetFirstChild()
-	if recv.IsNil() || !recv.IsName() || recv.GetStringID() != rewriteGoogJsGoogID {
+	if recv.IsNil() || !recv.IsName() || nodeStringID(recv) != rewriteGoogJsGoogID {
 		return "", nil
 	}
 	target := callee.GetNext()
@@ -241,10 +241,10 @@ func (c *ClosureCodingConvention) IsPropertyTestFunction(call rhino.Node) bool {
 	jutil.CheckArgument(call.IsCall())
 	callee := call.GetFirstChild()
 	if callee.IsGetProp() {
-		propID := callee.GetStringID()
+		propID := nodeStringID(callee)
 		if propID == codingConvIsArrayLikeID || propID == codingConvIsObjectID {
 			recv := callee.GetFirstChild()
-			if recv.IsName() && recv.GetStringID() == rewriteGoogJsGoogID {
+			if recv.IsName() && nodeStringID(recv) == rewriteGoogJsGoogID {
 				return true
 			}
 		}
@@ -362,5 +362,5 @@ func matchesCacheMethodName(target rhino.Node) bool {
 	if target.IsGetProp() {
 		return googReflectCacheQ.Matches(target)
 	}
-	return target.IsName() && target.GetStringID() == codingConvGoogReflectCacheMangledID
+	return target.IsName() && nodeStringID(target) == codingConvGoogReflectCacheMangledID
 }

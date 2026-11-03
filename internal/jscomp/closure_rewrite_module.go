@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
@@ -67,7 +68,7 @@ type ClosureRewriteModule struct {
 	preserveSugar           bool
 
 	syntheticExternNodes []rhino.Node
-	syntheticExternSeen  map[uint32]struct{}
+	syntheticExternSeen  map[strpool.ID]struct{}
 
 	globalScope *Scope // set after Process() starts updating scripts
 
@@ -252,10 +253,10 @@ func (e *closureExportDefinition) hasInlinableName(exportedVars map[*Var]struct{
 		return true
 	}
 	maybeGoog, ok := method.Object().AsName()
-	if !ok || maybeGoog.Node().GetStringID() != rewriteGoogJsGoogID {
+	if !ok || nodeStringID(maybeGoog.Node()) != rewriteGoogJsGoogID {
 		return true
 	}
-	switch method.Node().GetStringID() {
+	switch nodeStringID(method.Node()) {
 	case closureRewriteRequireID, closureRewriteForwardDeclareID, closureRewriteGetMsgID:
 		return false
 	default:
@@ -264,9 +265,9 @@ func (e *closureExportDefinition) hasInlinableName(exportedVars map[*Var]struct{
 }
 
 var (
-	closureRewriteRequireID        = rhino.RhinoStringPool_InternID("require")
-	closureRewriteForwardDeclareID = rhino.RhinoStringPool_InternID("forwardDeclare")
-	closureRewriteGetMsgID         = rhino.RhinoStringPool_InternID("getMsg")
+	closureRewriteRequireID        = strpool.Intern("require")
+	closureRewriteForwardDeclareID = strpool.Intern("forwardDeclare")
+	closureRewriteGetMsgID         = strpool.Intern("getMsg")
 )
 
 func (e *closureExportDefinition) localName() (string, bool) {
@@ -656,9 +657,9 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (m *ClosureRewriteModule) addSyntheticExternIfAbsent(lhs rhino.Node) {
-	id := lhs.GetStringID()
+	id := nodeStringID(lhs)
 	if m.syntheticExternSeen == nil {
-		m.syntheticExternSeen = make(map[uint32]struct{})
+		m.syntheticExternSeen = make(map[strpool.ID]struct{})
 	}
 	if _, seen := m.syntheticExternSeen[id]; !seen {
 		m.syntheticExternSeen[id] = struct{}{}

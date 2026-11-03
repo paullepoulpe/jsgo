@@ -59,37 +59,21 @@ var compilationLevel_names = [...]string{
 // String is Enum.name().
 func (l CompilationLevel) String() string { return compilationLevel_names[l] }
 
-var compilationLevel_ptrs = [...]CompilationLevel{
-	CompilationLevel_BUNDLE, CompilationLevel_WHITESPACE_ONLY, CompilationLevel_SIMPLE_OPTIMIZATIONS,
-	CompilationLevel_ADVANCED_OPTIMIZATIONS, CompilationLevel_TRANSPILE_ONLY,
-}
-
-// Ptr returns a shared pointer to the constant, for nullable
-// CompilationLevel values.
-//
-// Go-only: language-adapter — a Java enum reference may be null.
-func (l CompilationLevel) Ptr() *CompilationLevel { return &compilationLevel_ptrs[l] }
-
-// CompilationLevel_FromString: value may be nil, and so may the result.
-//
 // Java: CompilationLevel.fromString(String)
-func CompilationLevel_FromString(value *string) *CompilationLevel {
-	if value == nil {
-		return nil
-	}
-	switch *value {
+func CompilationLevel_FromString(value string) (CompilationLevel, bool) {
+	switch value {
 	case "BUNDLE":
-		return CompilationLevel_BUNDLE.Ptr()
+		return CompilationLevel_BUNDLE, true
 	case "WHITESPACE_ONLY", "WHITESPACE":
-		return CompilationLevel_WHITESPACE_ONLY.Ptr()
+		return CompilationLevel_WHITESPACE_ONLY, true
 	case "TRANSPILE_ONLY":
-		return CompilationLevel_TRANSPILE_ONLY.Ptr()
+		return CompilationLevel_TRANSPILE_ONLY, true
 	case "SIMPLE_OPTIMIZATIONS", "SIMPLE":
-		return CompilationLevel_SIMPLE_OPTIMIZATIONS.Ptr()
+		return CompilationLevel_SIMPLE_OPTIMIZATIONS, true
 	case "ADVANCED_OPTIMIZATIONS", "ADVANCED":
-		return CompilationLevel_ADVANCED_OPTIMIZATIONS.Ptr()
+		return CompilationLevel_ADVANCED_OPTIMIZATIONS, true
 	default:
-		return nil
+		return CompilationLevel_BUNDLE, false
 	}
 }
 

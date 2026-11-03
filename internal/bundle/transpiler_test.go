@@ -26,21 +26,19 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// bundleTest_mockCompiler is the Mockito mock of
-// CompilerBasedTransformer.CompilerSupplier used by TranspilerTest and
-// CoverageInstrumenterTest (RETURNS_SMART_NULLS: an unstubbed call returns
-// the empty value, "" for a String, null otherwise).
+// bundleTest_mockCompiler is the Mockito mock of CompilerSupplier used by
+// TranspilerTest and CoverageInstrumenterTest.
 //
 // Go-only: test-helper — Mockito.
 type bundleTest_mockCompiler struct {
 	compilePath   string
 	compileCode   string
-	compileResult *CompilerBasedTransformer_CompileResult
+	compileResult *CompileResult
 	runtimes      map[string]string
 }
 
-func (m *bundleTest_mockCompiler) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	if path.String() == m.compilePath && code == m.compileCode {
+func (m *bundleTest_mockCompiler) Compile(path string, code string) *CompileResult {
+	if path == m.compilePath && code == m.compileCode {
 		return m.compileResult
 	}
 	return nil
@@ -73,7 +71,7 @@ func TestTranspiler_Transpiler_transpile(t *testing.T) {
 	var transpiler Source_Transformer = NewTranspiler(mockCompiler, "es6_runtime")
 	mockCompiler.runtimes["es6_runtime"] = "$jscomp.es6();"
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
-	mockCompiler.compileResult = NewCompilerBasedTransformer_CompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
+	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
 	bundleTest_assertSource(t, transpiler.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
 		NewSource_Builder().
 			SetPath(transpilerTest_FOO_JS).
@@ -88,7 +86,7 @@ func TestTranspiler_Transpiler_noTranspilation(t *testing.T) {
 	mockCompiler := &bundleTest_mockCompiler{runtimes: map[string]string{}}
 	var transpiler Source_Transformer = NewTranspiler(mockCompiler, "es6_runtime")
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
-	mockCompiler.compileResult = NewCompilerBasedTransformer_CompileResult("result", transpilerTest_NO_ERRORS, false, "srcmap")
+	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, false, "srcmap")
 	bundleTest_assertSource(t, transpiler.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
 		transpilerTest_source(transpilerTest_FOO_JS, "bar"))
 }
@@ -96,24 +94,24 @@ func TestTranspiler_Transpiler_noTranspilation(t *testing.T) {
 // Tests for CompilerSupplier
 
 func TestTranspiler_CompilerSupplier_compileChanged(t *testing.T) {
-	compiler := Transpiler_CompilerSupplier()
-	result := compiler.Compile(transpilerTest_SOURCE_JS, "const x = () => 42;")
-	if result.source != "var x = function() {\n  return 42;\n};\n" || len(result.errors) != 0 || !result.transformed ||
-		!strings.Contains(result.sourceMap, "\"mappings\":\"AAAA,IAAMA,IAAIA,QAAA,EAAM;AAAA,SAAA,EAAA;AAAA,CAAhB;;\"") {
-		t.Errorf("compile = %q %v %v %q", result.source, result.errors, result.transformed, result.sourceMap)
+	compiler := TranspilerCompilerSupplier()
+	result := compiler.Compile(transpilerTest_SOURCE_JS.String(), "const x = () => 42;")
+	if result.Source != "var x = function() {\n  return 42;\n};\n" || len(result.Errors) != 0 || !result.Transformed ||
+		!strings.Contains(result.SourceMap, "\"mappings\":\"AAAA,IAAMA,IAAIA,QAAA,EAAM;AAAA,SAAA,EAAA;AAAA,CAAhB;;\"") {
+		t.Errorf("compile = %q %v %v %q", result.Source, result.Errors, result.Transformed, result.SourceMap)
 	}
 }
 
 func TestTranspiler_CompilerSupplier_compileNoChange(t *testing.T) {
-	compiler := Transpiler_CompilerSupplier()
-	result := compiler.Compile(transpilerTest_SOURCE_JS, "var x = 42;")
-	if result.source != "var x = 42;\n" || len(result.errors) != 0 || result.transformed || result.sourceMap != "" {
-		t.Errorf("compile = %q %v %v %q", result.source, result.errors, result.transformed, result.sourceMap)
+	compiler := TranspilerCompilerSupplier()
+	result := compiler.Compile(transpilerTest_SOURCE_JS.String(), "var x = 42;")
+	if result.Source != "var x = 42;\n" || len(result.Errors) != 0 || result.Transformed || result.SourceMap != "" {
+		t.Errorf("compile = %q %v %v %q", result.Source, result.Errors, result.Transformed, result.SourceMap)
 	}
 }
 
 func TestTranspiler_CompilerSupplier_runtime(t *testing.T) {
-	compiler := Transpiler_CompilerSupplier()
+	compiler := TranspilerCompilerSupplier()
 	runtime := compiler.Runtime("es6_runtime")
 	for _, want := range []string{"$jscomp.polyfill(\"Map\"", "$jscomp.makeIterator", "$jscomp.inherits"} {
 		if !strings.Contains(runtime, want) {

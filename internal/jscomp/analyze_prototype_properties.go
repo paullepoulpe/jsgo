@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // AnalyzePrototypeProperties analyzes properties on prototypes.
@@ -58,19 +59,19 @@ type AnalyzePrototypeProperties struct {
 
 	// All the real NameInfo for prototype properties, keyed by property name ID
 	// and recorded in insertion order in propertyInfos.
-	propertyNameInfo map[uint32]*AnalyzePrototypeProperties_NameInfo
+	propertyNameInfo map[strpool.ID]*AnalyzePrototypeProperties_NameInfo
 	propertyInfos    []*AnalyzePrototypeProperties_NameInfo
 
 	// All the NameInfo for global functions, keyed by global variable name ID
 	// and recorded in insertion order in varInfos.
-	varNameInfo map[uint32]*AnalyzePrototypeProperties_NameInfo
+	varNameInfo map[strpool.ID]*AnalyzePrototypeProperties_NameInfo
 	varInfos    []*AnalyzePrototypeProperties_NameInfo
 
 	seededNodes []*AnalyzePrototypeProperties_NameInfo
 	nameSlab    jutil.Slab[AnalyzePrototypeProperties_NameInfo]
 }
 
-var analyzeProtoPrototypeID = rhino.RhinoStringPool_InternID("prototype")
+var analyzeProtoPrototypeID = uint32(strpool.Intern("prototype"))
 
 func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototypeProperties_NameInfo {
 	info := a.nameSlab.New()
@@ -81,7 +82,7 @@ func (a *AnalyzePrototypeProperties) allocNameInfo(name string) *AnalyzePrototyp
 	return info
 }
 
-func (a *AnalyzePrototypeProperties) allocNameInfoByID(id uint32) *AnalyzePrototypeProperties_NameInfo {
+func (a *AnalyzePrototypeProperties) allocNameInfoByID(id strpool.ID) *AnalyzePrototypeProperties_NameInfo {
 	info := a.nameSlab.New()
 	info.outer = a
 	info.nameID = id
@@ -162,8 +163,8 @@ func NewAnalyzePrototypeProperties(
 	anchorUnusedVars bool,
 	rootScopeUsesAreGlobal bool) *AnalyzePrototypeProperties {
 	a := &AnalyzePrototypeProperties{
-		propertyNameInfo:       make(map[uint32]*AnalyzePrototypeProperties_NameInfo, 16),
-		varNameInfo:            make(map[uint32]*AnalyzePrototypeProperties_NameInfo, 16),
+		propertyNameInfo:       make(map[strpool.ID]*AnalyzePrototypeProperties_NameInfo, 16),
+		varNameInfo:            make(map[strpool.ID]*AnalyzePrototypeProperties_NameInfo, 16),
 		compiler:               compiler,
 		chunkGraph:             chunkGraph,
 		canModifyExterns:       canModifyExterns,
@@ -251,7 +252,7 @@ func (a *AnalyzePrototypeProperties) GetAllNameInfo() []*AnalyzePrototypePropert
 	return result
 }
 
-func (a *AnalyzePrototypeProperties) getNameInfoByID(id uint32, type_ AnalyzePrototypeProperties_SymbolType) *AnalyzePrototypeProperties_NameInfo {
+func (a *AnalyzePrototypeProperties) getNameInfoByID(id strpool.ID, type_ AnalyzePrototypeProperties_SymbolType) *AnalyzePrototypeProperties_NameInfo {
 	if type_ == AnalyzePrototypeProperties_PROPERTY {
 		if info := a.propertyNameInfo[id]; info != nil {
 			return info
@@ -275,7 +276,7 @@ func (a *AnalyzePrototypeProperties) getNameInfoByID(id uint32, type_ AnalyzePro
 //
 // Java: AnalyzePrototypeProperties.getNameInfoForName(String, SymbolType)
 func (a *AnalyzePrototypeProperties) GetNameInfoForName(name string, type_ AnalyzePrototypeProperties_SymbolType) *AnalyzePrototypeProperties_NameInfo {
-	info := a.getNameInfoByID(rhino.RhinoStringPool_InternID(name), type_)
+	info := a.getNameInfoByID(strpool.Intern(name), type_)
 	if info.name == "" && name != "" {
 		info.name = name
 	}
@@ -324,11 +325,11 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) EnterScope(t *NodeTravers
 			})
 		} else if p.IsGlobalFunctionDeclaration(t, n) {
 			parent := n.GetParent()
-			var nameID uint32
+			var nameID strpool.ID
 			if parent.IsName() {
-				nameID = parent.GetStringID() /* VAR */
+				nameID = nodeStringID(parent) /* VAR */
 			} else {
-				nameID = n.GetFirstChild().GetStringID() /* named function */
+				nameID = nodeStringID(n.GetFirstChild()) /* named function */
 			}
 			p.push(AnalyzePrototypeProperties_NameContext{
 				name:      a.getNameInfoByID(nameID, AnalyzePrototypeProperties_VAR),
@@ -432,19 +433,19 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 		}
 
 	case rhino.Token_OPTCHAIN_GETPROP:
-		p.addSymbolUseByID(n.GetStringID(), t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
+		p.addSymbolUseByID(nodeStringID(n), t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
 
 	case rhino.Token_GETPROP:
-		propID := n.GetStringID()
+		propID := nodeStringID(n)
 
 		if n.IsQualifiedName() {
-			if propID == analyzeProtoPrototypeID {
+			if uint32(propID) == analyzeProtoPrototypeID {
 				if p.HandlePossibleAssignmentToPrototype(t, n) {
 					// The reference is being assigned to not read from, so don't record this as a
 					// reference.
 					return
 				}
-			} else if a.compiler.GetCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(propID), false /* local= */) {
+			} else if a.compiler.GetCodingConvention().IsExportedWithLocal(strpool.String(propID), false /* local= */) {
 				p.addGlobalUseOfSymbolByID(propID, t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
 				return
 			} else if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(n) {
@@ -477,7 +478,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 			if pkm, ok := ast.AsPlainKeyMember(propNode); ok {
 				if !pkm.IsQuoted() {
 					// May be STRING, GET, or SET, but NUMBER isn't interesting.
-					p.addSymbolUseByID(propNode.GetStringID(), t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
+					p.addSymbolUseByID(nodeStringID(propNode), t.GetChunk(), AnalyzePrototypeProperties_PROPERTY)
 				}
 				continue
 			}
@@ -513,10 +514,10 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 				if !var_.GetInitialValue().IsNil() && var_.GetInitialValue().IsFunction() {
 					if t.InGlobalHoistScope() {
 						if !p.ProcessGlobalFunctionDeclaration(t, n, var_) {
-							p.addGlobalUseOfSymbolByID(nameID, t.GetChunk(), AnalyzePrototypeProperties_VAR)
+							p.addGlobalUseOfSymbolByID(strpool.ID(nameID), t.GetChunk(), AnalyzePrototypeProperties_VAR)
 						}
 					} else {
-						p.addSymbolUseByID(nameID, t.GetChunk(), AnalyzePrototypeProperties_VAR)
+						p.addSymbolUseByID(strpool.ID(nameID), t.GetChunk(), AnalyzePrototypeProperties_VAR)
 					}
 				}
 
@@ -548,7 +549,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) Visit(t *NodeTraversal, n
 }
 
 // Java: AnalyzePrototypeProperties.ProcessProperties.addSymbolUse(String, JSChunk, SymbolType)
-func (p *AnalyzePrototypeProperties_ProcessProperties) addSymbolUseByID(id uint32, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
+func (p *AnalyzePrototypeProperties_ProcessProperties) addSymbolUseByID(id strpool.ID, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
 	a := p.outer
 	info := a.getNameInfoByID(id, type_)
 	var def *AnalyzePrototypeProperties_NameInfo
@@ -568,7 +569,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) addSymbolUseByID(id uint3
 	}
 }
 
-func (p *AnalyzePrototypeProperties_ProcessProperties) processNonFunctionPrototypeAssignID(n rhino.Node, parent rhino.Node) (uint32, bool) {
+func (p *AnalyzePrototypeProperties_ProcessProperties) processNonFunctionPrototypeAssignID(n rhino.Node, parent rhino.Node) (strpool.ID, bool) {
 	if isAssignRValue(n, parent) && !n.IsFunction() {
 		return p.getPrototypePropertyNameFromRValueID(n)
 	}
@@ -628,7 +629,7 @@ func bestLValueEndsWithPrototype(lv rhino.Node) bool {
 	return false
 }
 
-func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameFromRValueID(rValue rhino.Node) (uint32, bool) {
+func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameFromRValueID(rValue rhino.Node) (strpool.ID, bool) {
 	lValue := NodeUtil_GetBestLValue(rValue)
 	if lValue.IsNil() ||
 		lValue.GetParent().IsNil() ||
@@ -651,7 +652,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameF
 				return 0, false
 			}
 		}
-		return lValue.GetStringID(), true
+		return nodeStringID(lValue), true
 	}
 	if NodeUtil_MayBeObjectLitKey(lValue) {
 		owner := NodeUtil_GetBestLValue(lValue.GetParent())
@@ -663,15 +664,15 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) getPrototypePropertyNameF
 			return 0, false
 		}
 		if !lValue.IsComputedProp() {
-			return lValue.GetStringID(), true
+			return nodeStringID(lValue), true
 		}
-		return rhino.RhinoStringPool_InternID(key), true
+		return strpool.Intern(key), true
 	}
 	if gp, ok := ast.AsGetProp(lValue); ok {
 		if !bestLValueEndsWithPrototype(gp.Object().Node()) {
 			return 0, false
 		}
-		return lValue.GetStringID(), true
+		return nodeStringID(lValue), true
 	}
 	return 0, false
 }
@@ -694,7 +695,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessGlobalFunctionDecl
 		jutil.CheckState(
 			(NodeUtil_IsNameDeclaration(parent) && v.IsGlobal()) ||
 				NodeUtil_IsFunctionDeclaration(parent))
-		nameID := nameNode.GetStringID()
+		nameID := nodeStringID(nameNode)
 		a.getNameInfoByID(nameID, AnalyzePrototypeProperties_VAR).AddDeclaration(
 			AnalyzePrototypeProperties_Symbol{
 				kind:    AnalyzePrototypeProperties_SymbolGlobalFunction,
@@ -705,7 +706,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) ProcessGlobalFunctionDecl
 		// If the function name is exported, we should create an edge here
 		// so that it's never removed.
 		if a.anchorUnusedVars ||
-			a.compiler.GetCodingConvention().IsExportedWithLocal(rhino.RhinoStringPool_StringFromID(nameID), false /* local= */) {
+			a.compiler.GetCodingConvention().IsExportedWithLocal(strpool.String(nameID), false /* local= */) {
 			p.addGlobalUseOfSymbolByID(nameID, t.GetChunk(), AnalyzePrototypeProperties_VAR)
 		}
 
@@ -735,7 +736,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 
 		if NodeUtil_IsExprAssign(grandParent) &&
 			NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
-			a.getNameInfoByID(n.GetStringID(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
+			a.getNameInfoByID(nodeStringID(n), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
 				AnalyzePrototypeProperties_Symbol{
 					kind:    AnalyzePrototypeProperties_SymbolAssignmentProperty,
 					node:    grandParent,
@@ -754,7 +755,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) HandlePossibleAssignmentT
 				if pkm, ok := member.AsPlainKeyMember(); ok && !pkm.IsQuoted() {
 					// We won't consider quoted or computed properties for any kind of modification,
 					// so member may be STRING_KEY, GETTER_DEF, SETTER_DEF, or MEMBER_FUNCTION_DEF.
-					a.getNameInfoByID(pkm.Node().GetStringID(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
+					a.getNameInfoByID(nodeStringID(pkm.Node()), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
 						AnalyzePrototypeProperties_Symbol{
 							kind:       AnalyzePrototypeProperties_SymbolLiteralProperty,
 							node:       pkm.Value().Node(),
@@ -784,7 +785,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) processMemberDef(t *NodeT
 	if !classNameNode.IsNil() && classNameNode.IsName() {
 		var_ = t.LookupVarByID(classNameNode.GetStringID())
 	}
-	p.outer.getNameInfoByID(n.GetStringID(), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
+	p.outer.getNameInfoByID(nodeStringID(n), AnalyzePrototypeProperties_PROPERTY).AddDeclaration(
 		AnalyzePrototypeProperties_Symbol{
 			kind:    AnalyzePrototypeProperties_SymbolClassMember,
 			node:    n,
@@ -802,7 +803,7 @@ func (p *AnalyzePrototypeProperties_ProcessProperties) MaybeGetVar(t *NodeTraver
 }
 
 // Java: AnalyzePrototypeProperties.ProcessProperties.addGlobalUseOfSymbol(String, JSChunk, SymbolType)
-func (p *AnalyzePrototypeProperties_ProcessProperties) addGlobalUseOfSymbolByID(id uint32, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
+func (p *AnalyzePrototypeProperties_ProcessProperties) addGlobalUseOfSymbolByID(id strpool.ID, chunk *JSChunk, type_ AnalyzePrototypeProperties_SymbolType) {
 	p.outer.connectSymbolNodes(p.outer.globalNode, chunk, p.outer.getNameInfoByID(id, type_))
 }
 
@@ -825,7 +826,7 @@ func (p *analyzeProcessExternProperties) Visit(t *NodeTraversal, n rhino.Node, p
 		a := p.outer
 		// Includes GETPROP as well as static/instance methods, getters, and setters
 		// in extern classes, which could act like prototype properties via @record.
-		a.connectSymbolNodes(a.externNode, a.firstChunk, a.getNameInfoByID(n.GetStringID(), AnalyzePrototypeProperties_PROPERTY))
+		a.connectSymbolNodes(a.externNode, a.firstChunk, a.getNameInfoByID(nodeStringID(n), AnalyzePrototypeProperties_PROPERTY))
 	}
 }
 
@@ -920,7 +921,7 @@ type AnalyzePrototypeProperties_NameInfo struct {
 	outer *AnalyzePrototypeProperties
 
 	name   string
-	nameID uint32
+	nameID strpool.ID
 
 	referenced            bool
 	declarations          []AnalyzePrototypeProperties_Symbol
@@ -950,7 +951,7 @@ type AnalyzePrototypeProperties_NameInfo struct {
 // Java: AnalyzePrototypeProperties.NameInfo.toString()
 func (i *AnalyzePrototypeProperties_NameInfo) String() string {
 	if i.name == "" && i.nameID != 0 {
-		i.name = rhino.RhinoStringPool_StringFromID(i.nameID)
+		i.name = strpool.String(i.nameID)
 	}
 	return i.name
 }

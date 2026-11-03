@@ -23,6 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // DataFlowAnalysis_MAX_STEPS_PER_NODE is the maximum number of steps per
@@ -472,7 +473,7 @@ func computeEscapedInTable(
 	fnNameNode := fnRoot.GetFirstChild()
 	fnNameID := fnNameNode.GetStringID()
 	fnNameShadowed := false
-	if fnNameID > rhino.RhinoStringPool_EmptyID && jsScope.hasOwnSlotByID(fnNameID) {
+	if fnNameID > strpool.EmptyID && jsScope.hasOwnSlotByID(fnNameID) {
 		if v := table.lookupVarByID(fnNameID); v == nil || v.scope != jsScope {
 			fnNameShadowed = true
 		}
@@ -604,7 +605,7 @@ func (f *fnVarEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 	}
 
 	id := n.GetStringID()
-	if id <= rhino.RhinoStringPool_EmptyID {
+	if id <= strpool.EmptyID {
 		return
 	}
 	candIdx, ok := f.table.lookupIndexByID(id)

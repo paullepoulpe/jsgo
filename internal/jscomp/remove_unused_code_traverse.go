@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func (r *RemoveUnusedCode) traverseNameReference(n rhino.Node, scope *Scope) {
@@ -373,8 +374,8 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 
 		var classVar *Var
 		if hasClassVarName && NodeUtil_IsValidSimpleName(classVarName) {
-			if id := rhino.RhinoStringPool_LookupID(classVarName); id != 0 {
-				classVar = scope.GetVarByID(id)
+			if id := strpool.Lookup(classVarName); id != 0 {
+				classVar = scope.GetVarByID(uint32(id))
 			}
 			if classVar == nil {
 				jutil.CheckNotNullMsg1(classVar, "%s", classVarName)

@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // addExprOrTypeNode handles expression, literal, destructuring pattern,
@@ -607,13 +608,13 @@ func (g *CodeGenerator) addNumericOrStringKey(key string, n rhino.Node) {
 	}
 }
 
-var codeGenIDEval = rhino.RhinoStringPool_InternID("eval")
+var codeGenIDEval = strpool.Intern("eval")
 
 // CodeGenerator_IsIndirectEval returns whether the name is an indirect eval.
 //
 // Java: CodeGenerator.isIndirectEval(Node)
 func CodeGenerator_IsIndirectEval(n rhino.Node) bool {
-	return n.IsName() && n.GetStringID() == codeGenIDEval && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
+	return n.IsName() && nodeStringID(n) == codeGenIDEval && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
 }
 
 // Java: CodeGenerator.addList(Node)

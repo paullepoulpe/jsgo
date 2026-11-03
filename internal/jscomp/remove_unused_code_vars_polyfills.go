@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 const (
@@ -190,7 +191,7 @@ type rucPolyfillInfo struct {
 	nextByKey   *rucPolyfillInfo
 	owner       string
 	key         string
-	keyID       uint32
+	keyID       strpool.ID
 	kind        rucPolyfillKind
 	isRemovable bool
 }
@@ -209,7 +210,7 @@ func (r *RemoveUnusedCode) createPolyfillInfo(call ast.NormalOrOptChainCall, sco
 			outer:       r,
 			removable:   removable,
 			key:         name,
-			keyID:       rhino.RhinoStringPool_InternID(name),
+			keyID:       strpool.Intern(name),
 			kind:        rucPolyfillGlobal,
 			isRemovable: true,
 		}
@@ -226,7 +227,7 @@ func (r *RemoveUnusedCode) createPolyfillInfo(call ast.NormalOrOptChainCall, sco
 		removable:   removable,
 		owner:       owner,
 		key:         prop,
-		keyID:       rhino.RhinoStringPool_InternID(prop),
+		keyID:       strpool.Intern(prop),
 		kind:        kind,
 		isRemovable: true,
 	}

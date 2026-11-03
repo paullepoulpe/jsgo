@@ -249,7 +249,7 @@ type CompilerTestCaseBase struct {
 
 	languageOut CompilerOptions_LanguageMode
 
-	browserFeaturesetYear *int
+	browserFeaturesetYear int
 
 	// How to interpret ES6 module imports
 	moduleResolutionMode ModuleLoader_ResolutionMode
@@ -408,7 +408,7 @@ func (b *CompilerTestCaseBase) SetUp() {
 	b.gatherExternPropertiesEnabled = false
 	b.inferConsts = false
 	b.languageOut = CompilerOptions_LanguageMode_NO_TRANSPILE
-	b.browserFeaturesetYear = nil
+	b.browserFeaturesetYear = 0
 	b.multistageCompilation = false
 	b.normalizeEnabled = false
 	b.normalizeExpectedOutputEnabled = false
@@ -448,9 +448,9 @@ func (b *CompilerTestCaseBase) GetOptions() *CompilerOptions {
 	options.SetLanguageIn(b.acceptedLanguage)
 	options.SetEmitUseStrict(false)
 	options.SetLanguageOut(b.languageOut)
-	if b.browserFeaturesetYear != nil {
+	if b.browserFeaturesetYear != 0 {
 		// Must be set after languageOut, because it must override languageOut.
-		options.SetBrowserFeaturesetYear(*b.browserFeaturesetYear)
+		options.SetBrowserFeaturesetYear(b.browserFeaturesetYear)
 	}
 	options.SetModuleResolutionMode(b.moduleResolutionMode)
 	options.SetParseJsDocDocumentation(b.parseJsDocDocumentation)
@@ -585,10 +585,10 @@ func (b *CompilerTestCaseBase) SetLanguageOut(langOut CompilerOptions_LanguageMo
 	b.languageOut = langOut
 }
 
-// SetBrowserFeaturesetYear takes the Java @Nullable Integer as *int.
+// SetBrowserFeaturesetYear sets the browser featureset year (0 means unset).
 //
 // Java: CompilerTestCase.setBrowserFeaturesetYear(Integer)
-func (b *CompilerTestCaseBase) SetBrowserFeaturesetYear(year *int) {
+func (b *CompilerTestCaseBase) SetBrowserFeaturesetYear(year int) {
 	b.checkSetUpRan()
 	b.browserFeaturesetYear = year
 }

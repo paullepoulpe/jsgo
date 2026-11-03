@@ -21,10 +21,8 @@ package refactoring
 
 import (
 	"fmt"
-	"iter"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
@@ -69,28 +67,28 @@ func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_overlapsAreErrors() 
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 10, ""), CodeReplacement_Create(5, 3, "")}
 	testjunit.AssertThrows[jutil.IIllegalArgumentException](
-		func() { ApplySuggestedFixes_ApplyCodeReplacements(replacements, "") })
+		func() { ApplyCodeReplacements(replacements, "") })
 }
 
 // Java: ApplySuggestedFixesTest.testApplyCodeReplacements_overlapsAreErrors_unlessEqual()
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_overlapsAreErrors_unlessEqual() {
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 3, "A"), CodeReplacement_Create(0, 3, "A")}
-	ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	ApplyCodeReplacements(replacements, "abcdef")
 }
 
 // Java: ApplySuggestedFixesTest.testApplyCodeReplacements_noOverlapsSucceed()
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_noOverlapsSucceed() {
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 3, ""), CodeReplacement_Create(5, 3, "")}
-	ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	ApplyCodeReplacements(replacements, "abcdef")
 }
 
 // Java: ApplySuggestedFixesTest.testApplyCodeReplacements()
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements() {
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 1, "z"), CodeReplacement_Create(3, 2, "qq")}
-	newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	newCode := ApplyCodeReplacements(replacements, "abcdef")
 	testjunit.AssertThat(newCode).IsEqualTo("zbcqqf")
 }
 
@@ -98,7 +96,7 @@ func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements() {
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_insertion() {
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 0, "z")}
-	newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	newCode := ApplyCodeReplacements(replacements, "abcdef")
 	testjunit.AssertThat(newCode).IsEqualTo("zabcdef")
 }
 
@@ -106,7 +104,7 @@ func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_insertion() {
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_deletion() {
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 6, "")}
-	newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	newCode := ApplyCodeReplacements(replacements, "abcdef")
 	testjunit.AssertThat(newCode).IsEmpty()
 }
 
@@ -114,7 +112,7 @@ func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_deletion() {
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_boundaryCases() {
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(5, 1, "z")}
-	newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	newCode := ApplyCodeReplacements(replacements, "abcdef")
 	testjunit.AssertThat(newCode).IsEqualTo("abcdez")
 }
 
@@ -125,7 +123,7 @@ func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_multipleReplacements
 			CodeReplacement_Create(0, 2, "z"),
 			CodeReplacement_Create(2, 1, "y"),
 			CodeReplacement_Create(3, 3, "xwvu")}
-	newCode := ApplySuggestedFixes_ApplyCodeReplacements(replacements, "abcdef")
+	newCode := ApplyCodeReplacements(replacements, "abcdef")
 	testjunit.AssertThat(newCode).IsEqualTo("zyxwvu")
 }
 
@@ -137,8 +135,7 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes() {
 	fixes :=
 		[]*SuggestedFix{NewSuggestedFix_Builder().Delete(root).Build()}
 	codeMap := applySuggestedFixesTest_mapOf("test", code)
-	newCodeMap :=
-		ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)
+	newCodeMap := ApplyToCode(fixes, codeMap)
 	testjunit.AssertThat(newCodeMap).ContainsExactlyEntriesIn(applySuggestedFixesTest_mapOf("test", ""))
 }
 
@@ -155,8 +152,7 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_insideJSDoc() {
 		Build()
 	fixes := []*SuggestedFix{fix}
 	codeMap := applySuggestedFixesTest_mapOf("test", code)
-	newCodeMap :=
-		ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)
+	newCodeMap := ApplyToCode(fixes, codeMap)
 	testjunit.AssertThat(newCodeMap).ContainsExactlyEntriesIn(
 		applySuggestedFixesTest_mapOf("test", "/** @type {!Foo} */\nvar foo = new Foo()"))
 }
@@ -178,8 +174,7 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_multipleFixesInJsdoc()
 		Build()
 	fixes := []*SuggestedFix{fix1, fix2}
 	codeMap := applySuggestedFixesTest_mapOf("test", code)
-	newCodeMap :=
-		ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)
+	newCodeMap := ApplyToCode(fixes, codeMap)
 	testjunit.AssertThat(newCodeMap).
 		ContainsExactlyEntriesIn(applySuggestedFixesTest_mapOf("test", "/** @type {!Array<!Foo>} */\nvar arr = [new Foo()];"))
 }
@@ -192,8 +187,7 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_noFixes() {
 			"file2", "abcdef")
 	expectedNewCodeMap := applySuggestedFixesTest_mapOf()
 	fixes := []*SuggestedFix{}
-	newCodeMap :=
-		ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)
+	newCodeMap := ApplyToCode(fixes, codeMap)
 	testjunit.AssertThat(newCodeMap).IsEqualTo(expectedNewCodeMap)
 }
 
@@ -206,7 +200,7 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_missingCodeForFile() {
 	fixes :=
 		[]*SuggestedFix{NewSuggestedFix_Builder().Delete(root).Build()}
 	testjunit.AssertThrows[jutil.IIllegalArgumentException](
-		func() { ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap) })
+		func() { ApplyToCode(fixes, codeMap) })
 }
 
 // Java: ApplySuggestedFixesTest.testApplySuggestedFixes_withOveralppingEqualParts_areAllApplied()
@@ -228,8 +222,7 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_withOveralppingEqualPa
 				Rename(var_.GetSecondChild(), "newSecond").
 				Build()}
 
-	newCodeMap :=
-		ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), applySuggestedFixesTest_mapOf("test", code))
+	newCodeMap := ApplyToCode(fixes, applySuggestedFixesTest_mapOf("test", code))
 	testjunit.AssertThat(newCodeMap).ContainsExactlyEntriesIn(applySuggestedFixesTest_mapOf("test", "var newFirst, newSecond, newShared;"))
 }
 
@@ -264,22 +257,7 @@ func applySuggestedFixesTest_getOnlyElement(nodes []rhino.Node) rhino.Node {
 	return nodes[0]
 }
 
-func singleUseSeq[T any](items []T) iter.Seq[T] {
-	consumed := false
-	return func(yield func(T) bool) {
-		if consumed {
-			panic("single-use iter.Seq iterated more than once")
-		}
-		consumed = true
-		for _, item := range items {
-			if !yield(item) {
-				return
-			}
-		}
-	}
-}
-
-func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_singleUseIterSeq() {
+func (c *ApplySuggestedFixesTest) TestApplyToFilesAndChoices() {
 	tmpFile := filepath.Join(c.t.TempDir(), "input.js")
 	code := "var oldName;"
 	if err := os.WriteFile(tmpFile, []byte(code), 0644); err != nil {
@@ -296,7 +274,9 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_singleUseIterSeq() {
 	nameNode := root.GetFirstFirstChild()
 
 	fix := NewSuggestedFix_Builder().Rename(nameNode, "newName").Build()
-	ApplySuggestedFixes_ApplySuggestedFixesToFiles(singleUseSeq([]*SuggestedFix{fix}))
+	if err := ApplyToFiles([]*SuggestedFix{fix}); err != nil {
+		c.t.Fatal(err)
+	}
 	gotBytes, err := os.ReadFile(tmpFile)
 	if err != nil {
 		c.t.Fatal(err)
@@ -305,8 +285,8 @@ func (c *ApplySuggestedFixesTest) TestApplySuggestedFixes_singleUseIterSeq() {
 
 	alt2 := NewSuggestedFix_Builder().Rename(nameNode, "choiceB").Build()
 	withAlts := NewSuggestedFix_Builder().Rename(nameNode, "choiceA").AddAlternative(alt2).Build()
-	choices := ApplySuggestedFixes_ApplyAllSuggestedFixChoicesToCode(
-		singleUseSeq([]*SuggestedFix{withAlts}),
+	choices := ApplyAllChoicesToCode(
+		[]*SuggestedFix{withAlts},
 		applySuggestedFixesTest_mapOf(tmpFile, code))
 	testjunit.AssertThat(len(choices)).IsEqualTo(2)
 	testjunit.AssertThat(choices[0][tmpFile]).IsEqualTo("var choiceA;")

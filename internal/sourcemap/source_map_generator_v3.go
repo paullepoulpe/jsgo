@@ -361,26 +361,27 @@ func (v SourceMapGeneratorV3_ConsumerEntryVisitor) Visit(
 
 // MergeMapSection merges current mapping with mapSectionContents
 // considering the offset (line, column). Any extension in the map section
-// will be ignored. It panics with a *SourceMapParseException.
-//
-// Java: SourceMapGeneratorV3.mergeMapSection(int, int, String)
-func (g *SourceMapGeneratorV3) MergeMapSection(line, column int, mapSectionContents string) {
+// will be ignored.
+func (g *SourceMapGeneratorV3) MergeMapSection(line, column int, mapSectionContents string) error {
 	g.SetStartingPosition(line, column)
 	section := NewSourceMapConsumerV3()
-	section.Parse(mapSectionContents)
+	if err := section.Parse(mapSectionContents); err != nil {
+		return err
+	}
 	section.VisitMappings(SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
+	return nil
 }
 
 // MergeMapSectionWithMergeAction works like MergeMapSection, except that
 // extensions from the mapSectionContents are merged to the top level source
 // map. For conflicts a mergeAction is performed.
-//
-// Java: SourceMapGeneratorV3.mergeMapSection(int, int, String, ExtensionMergeAction)
 func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
-	line, column int, mapSectionContents string, mergeAction SourceMapGeneratorV3_ExtensionMergeAction) {
+	line, column int, mapSectionContents string, mergeAction SourceMapGeneratorV3_ExtensionMergeAction) error {
 	g.SetStartingPosition(line, column)
 	section := NewSourceMapConsumerV3()
-	section.Parse(mapSectionContents)
+	if err := section.Parse(mapSectionContents); err != nil {
+		return err
+	}
 	section.VisitMappings(SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
 	for _, ext := range section.GetExtensions() {
 		if cur, ok := lookupExtension(g.extensions, ext.Key); ok {
@@ -390,6 +391,7 @@ func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
 			g.extensions = putExtension(g.extensions, ext.Key, ext.Value)
 		}
 	}
+	return nil
 }
 
 // AppendTo writes out the source map in the following format (line numbers

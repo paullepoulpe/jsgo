@@ -40,6 +40,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // CheckAccessControls is a compiler pass that checks that the programmer has
@@ -293,7 +294,7 @@ func (c *CheckAccessControls) Process(externs rhino.Node, root rhino.Node) {
 
 func (c *CheckAccessControls) lookupVarNode(scope *Scope, n rhino.Node) *Var {
 	id := n.GetStringID()
-	if id == 0 || id == rhino.RhinoStringPool_EmptyID {
+	if id == 0 || id == strpool.EmptyID {
 		return nil
 	}
 	return scope.GetVarByID(id)
@@ -478,7 +479,7 @@ func (c *CheckAccessControls) shouldCheckPropertyAccess(traversal *NodeTraversal
 		if tb := node.GetJSTypeBase(); tb != nil && tb.Self().IsFunctionType() && tb.Self().ToMaybeFunctionType().IsConstructor() {
 			return true
 		}
-		if id := node.GetStringID(); id != 0 && id != rhino.RhinoStringPool_EmptyID {
+		if id := node.GetStringID(); id != 0 && id != strpool.EmptyID {
 			scope := traversal.GetScope()
 			if var_ := scope.GetVarByID(id); var_ != nil {
 				if docInfo := var_.GetJSDocInfo(); docInfo != nil && docInfo.IsDeprecated() {

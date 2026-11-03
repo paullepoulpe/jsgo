@@ -73,7 +73,8 @@ func (e CompilerOptions_PropertyCollapseLevel) String() string {
 type CompilerOptions_BrowserFeaturesetYear int32
 
 const (
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2012 CompilerOptions_BrowserFeaturesetYear = iota
+	CompilerOptions_BrowserFeaturesetYear_NONE CompilerOptions_BrowserFeaturesetYear = iota
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2012
 	CompilerOptions_BrowserFeaturesetYear_YEAR_2018
 	CompilerOptions_BrowserFeaturesetYear_YEAR_2019
 	CompilerOptions_BrowserFeaturesetYear_YEAR_2020
@@ -89,29 +90,13 @@ var compilerOptions_BrowserFeaturesetYear_names = [...]string{"YEAR_2012", "YEAR
 
 // String is Enum.name().
 func (e CompilerOptions_BrowserFeaturesetYear) String() string {
-	return compilerOptions_BrowserFeaturesetYear_names[e]
+	if e == CompilerOptions_BrowserFeaturesetYear_NONE {
+		return "NONE"
+	}
+	return compilerOptions_BrowserFeaturesetYear_names[e-1]
 }
 
-var compilerOptions_BrowserFeaturesetYear_ptrs = [...]CompilerOptions_BrowserFeaturesetYear{
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2012,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2018,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2019,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2020,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2021,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2022,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2023,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2024,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2025,
-	CompilerOptions_BrowserFeaturesetYear_YEAR_2026,
-}
-
-// Ptr returns the canonical pointer to e (Go-only: language-adapter — a
-// nullable Java BrowserFeaturesetYear reference is a *CompilerOptions_BrowserFeaturesetYear; nil is null).
-func (e CompilerOptions_BrowserFeaturesetYear) Ptr() *CompilerOptions_BrowserFeaturesetYear {
-	return &compilerOptions_BrowserFeaturesetYear_ptrs[e]
-}
-
-// Enum fields, indexed by ordinal (Java: BrowserFeaturesetYear(int, FeatureSet)).
+// Enum fields, indexed by YEAR_* ordinal - 1 (Java: BrowserFeaturesetYear(int, FeatureSet)).
 var compilerOptions_BrowserFeaturesetYear_year = [...]int{2012, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026}
 
 var compilerOptions_BrowserFeaturesetYear_featureSet = [...]parser.FeatureSet{
@@ -131,20 +116,23 @@ var compilerOptions_BrowserFeaturesetYear_featureSet = [...]parser.FeatureSet{
 func CompilerOptions_BrowserFeaturesetYear_From(year int) CompilerOptions_BrowserFeaturesetYear {
 	for i, y := range compilerOptions_BrowserFeaturesetYear_year {
 		if y == year {
-			return CompilerOptions_BrowserFeaturesetYear(i)
+			return CompilerOptions_BrowserFeaturesetYear(i + 1)
 		}
 	}
 	jutil.CheckStateMsg1(
 		false,
 		"Illegal browser_featureset_year=%s. We support values 2012, or 2018..2026 only",
 		year)
-	return 0
+	return CompilerOptions_BrowserFeaturesetYear_NONE
 }
 
 // Java: CompilerOptions.BrowserFeaturesetYear.setDependentValuesFromYear(CompilerOptions)
 func (e CompilerOptions_BrowserFeaturesetYear) SetDependentValuesFromYear(options *CompilerOptions) {
-	year := compilerOptions_BrowserFeaturesetYear_year[e]
-	options.SetOutputFeatureSet(compilerOptions_BrowserFeaturesetYear_featureSet[e])
+	if e == CompilerOptions_BrowserFeaturesetYear_NONE {
+		panic(jutil.NewNullPointerException())
+	}
+	year := compilerOptions_BrowserFeaturesetYear_year[e-1]
+	options.SetOutputFeatureSet(compilerOptions_BrowserFeaturesetYear_featureSet[e-1])
 	// All values targeted by browser featureset year are default strict.
 	options.languageOutIsDefaultStrict = base.Tri_TRUE
 	options.SetDefineToNumberLiteral("goog.FEATURESET_YEAR", year)
@@ -155,27 +143,27 @@ func (e CompilerOptions_BrowserFeaturesetYear) SetDependentValuesFromYear(option
 
 // Java: CompilerOptions.BrowserFeaturesetYear.getFeatureSet()
 func (e CompilerOptions_BrowserFeaturesetYear) GetFeatureSet() parser.FeatureSet {
-	return compilerOptions_BrowserFeaturesetYear_featureSet[e]
+	return compilerOptions_BrowserFeaturesetYear_featureSet[e-1]
 }
 
 // Java: CompilerOptions.BrowserFeaturesetYear.getYear()
 func (e CompilerOptions_BrowserFeaturesetYear) GetYear() int {
-	return compilerOptions_BrowserFeaturesetYear_year[e]
+	return compilerOptions_BrowserFeaturesetYear_year[e-1]
 }
 
 // CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor returns the
-// minimum browser featureset year required for the given feature, or nil if
-// the feature is in a language level higher than that corresponding to the
-// most recent BrowserFeaturesetYear.
+// minimum browser featureset year required for the given feature, or
+// CompilerOptions_BrowserFeaturesetYear_NONE if the feature is in a language
+// level higher than that corresponding to the most recent BrowserFeaturesetYear.
 //
 // Java: CompilerOptions.BrowserFeaturesetYear.minimumRequiredFor(FeatureSet.Feature)
-func CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(feature parser.FeatureSet_Feature) *CompilerOptions_BrowserFeaturesetYear {
+func CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(feature parser.FeatureSet_Feature) CompilerOptions_BrowserFeaturesetYear {
 	for i, fs := range compilerOptions_BrowserFeaturesetYear_featureSet {
 		if fs.ContainsFeature(feature) {
-			return CompilerOptions_BrowserFeaturesetYear(i).Ptr()
+			return CompilerOptions_BrowserFeaturesetYear(i + 1)
 		}
 	}
-	return nil
+	return CompilerOptions_BrowserFeaturesetYear_NONE
 }
 
 // CompilerOptions_IncrementalCheckMode is CompilerOptions.IncrementalCheckMode.
@@ -374,35 +362,19 @@ func (e CompilerOptions_InstrumentOption) String() string {
 	return compilerOptions_InstrumentOption_names[e]
 }
 
-var compilerOptions_InstrumentOption_ptrs = [...]CompilerOptions_InstrumentOption{
-	CompilerOptions_InstrumentOption_NONE,
-	CompilerOptions_InstrumentOption_LINE_ONLY,
-	CompilerOptions_InstrumentOption_BRANCH_ONLY,
-	CompilerOptions_InstrumentOption_PRODUCTION,
-}
-
-// Ptr returns the canonical pointer to e (Go-only: language-adapter — a
-// nullable Java InstrumentOption reference is a *CompilerOptions_InstrumentOption; nil is null).
-func (e CompilerOptions_InstrumentOption) Ptr() *CompilerOptions_InstrumentOption {
-	return &compilerOptions_InstrumentOption_ptrs[e]
-}
-
 // Java: CompilerOptions.InstrumentOption.fromString(String)
-func CompilerOptions_InstrumentOption_FromString(value *string) *CompilerOptions_InstrumentOption {
-	if value == nil {
-		return nil
-	}
-	switch *value {
+func CompilerOptions_InstrumentOption_FromString(value string) (CompilerOptions_InstrumentOption, bool) {
+	switch value {
 	case "NONE":
-		return CompilerOptions_InstrumentOption_NONE.Ptr()
+		return CompilerOptions_InstrumentOption_NONE, true
 	case "LINE":
-		return CompilerOptions_InstrumentOption_LINE_ONLY.Ptr()
+		return CompilerOptions_InstrumentOption_LINE_ONLY, true
 	case "BRANCH":
-		return CompilerOptions_InstrumentOption_BRANCH_ONLY.Ptr()
+		return CompilerOptions_InstrumentOption_BRANCH_ONLY, true
 	case "PRODUCTION":
-		return CompilerOptions_InstrumentOption_PRODUCTION.Ptr()
+		return CompilerOptions_InstrumentOption_PRODUCTION, true
 	default:
-		return nil
+		return CompilerOptions_InstrumentOption_NONE, false
 	}
 }
 

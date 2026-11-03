@@ -24,6 +24,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // CodingConvention defines a set of hooks to customize the behavior of the
@@ -477,8 +478,8 @@ func (k CodingConvention_AssertionFunctionSpec_AssertionKind) String() string {
 // name or Closure Primitive to assertion function.
 type CodingConvention_AssertionFunctionLookup struct {
 	byPrimitive  map[rhino.ClosurePrimitive]*CodingConvention_AssertionFunctionSpec
-	byNameID     map[uint32]*CodingConvention_AssertionFunctionSpec
-	byLastPropID map[uint32][]*CodingConvention_AssertionFunctionSpec
+	byNameID     map[strpool.ID]*CodingConvention_AssertionFunctionSpec
+	byLastPropID map[strpool.ID][]*CodingConvention_AssertionFunctionSpec
 }
 
 // CodingConvention_AssertionFunctionLookup_Of returns a new lookup containing
@@ -503,9 +504,9 @@ func CodingConvention_AssertionFunctionLookup_Of(
 			key := spec.functionName
 			if lastDot := strings.LastIndexByte(key, '.'); lastDot >= 0 {
 				if l.byLastPropID == nil {
-					l.byLastPropID = make(map[uint32][]*CodingConvention_AssertionFunctionSpec)
+					l.byLastPropID = make(map[strpool.ID][]*CodingConvention_AssertionFunctionSpec)
 				}
-				lastPropID := rhino.RhinoStringPool_InternID(key[lastDot+1:])
+				lastPropID := strpool.Intern(key[lastDot+1:])
 				for _, prev := range l.byLastPropID[lastPropID] {
 					if prev.hasFunctionName && prev.functionName == key {
 						panic(jutil.NewIllegalArgumentExceptionMsg(
@@ -515,9 +516,9 @@ func CodingConvention_AssertionFunctionLookup_Of(
 				l.byLastPropID[lastPropID] = append(l.byLastPropID[lastPropID], spec)
 			} else {
 				if l.byNameID == nil {
-					l.byNameID = make(map[uint32]*CodingConvention_AssertionFunctionSpec)
+					l.byNameID = make(map[strpool.ID]*CodingConvention_AssertionFunctionSpec)
 				}
-				nameID := rhino.RhinoStringPool_InternID(key)
+				nameID := strpool.Intern(key)
 				if prev, exists := l.byNameID[nameID]; exists {
 					panic(jutil.NewIllegalArgumentExceptionMsg(
 						"Multiple entries with same key: " + key + "=" + spec.String() + " and " + key + "=" + prev.String()))
@@ -543,10 +544,10 @@ func (l *CodingConvention_AssertionFunctionLookup) LookupByCallee(callee rhino.N
 		}
 	}
 	if callee.IsName() {
-		return l.byNameID[callee.GetStringID()]
+		return l.byNameID[nodeStringID(callee)]
 	}
 	if callee.IsGetProp() && len(l.byLastPropID) > 0 {
-		for _, spec := range l.byLastPropID[callee.GetStringID()] {
+		for _, spec := range l.byLastPropID[nodeStringID(callee)] {
 			if spec.qname != nil && spec.qname.Matches(callee) {
 				return spec
 			}

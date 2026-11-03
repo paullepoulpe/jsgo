@@ -26,7 +26,7 @@ import (
 )
 
 func newTestColorRegistry() *colors.ColorRegistry {
-	return colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+	return colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 }
 
 func colorSetOf(cs ...*colors.Color) *jutil.LinkedHashSet[*colors.Color] {

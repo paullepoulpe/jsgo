@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func TestScopeAndVarSizes(t *testing.T) {
@@ -49,7 +50,7 @@ func TestScopeLargeIndexAndQualifiedTypedScopeNoIntern(t *testing.T) {
 	if ts.GetVar(transientQName) == nil {
 		t.Fatalf("expected TypedScope.GetVar(%q) to succeed", transientQName)
 	}
-	if id := rhino.RhinoStringPool_LookupID(transientQName); id != 0 {
+	if id := strpool.Lookup(transientQName); id != 0 {
 		t.Fatalf("transient qualified slot %q was interned into strpool (id=%d)", transientQName, id)
 	}
 }

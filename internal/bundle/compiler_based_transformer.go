@@ -31,7 +31,7 @@ import (
 //
 // Java: abstract class bundle.CompilerBasedTransformer implements Source.Transformer
 type CompilerBasedTransformer struct {
-	compilerSupplier   CompilerBasedTransformer_CompilerSupplier
+	compilerSupplier   CompilerSupplier
 	transformationName string
 	runtimeLibraryName string
 	hasRuntime         bool
@@ -52,8 +52,8 @@ func (t *CompilerBasedTransformer) GetRuntime() *string {
 
 // Java: CompilerBasedTransformer.transform(Source)
 func (t *CompilerBasedTransformer) Transform(input *Source) *Source {
-	result := t.compilerSupplier.Compile(input.Path(), input.Code())
-	if len(result.errors) != 0 {
+	result := t.compilerSupplier.Compile(input.Path().String(), input.Code())
+	if len(result.Errors) != 0 {
 		// TODO(sdh): how to handle this?  Currently we throw an ISE with the
 		// message, but this may not be the most appropriate option.  It
 		// might make sense to add console.log() statements to any JS that
@@ -62,84 +62,108 @@ func (t *CompilerBasedTransformer) Transform(input *Source) *Source {
 		var message strings.Builder
 		message.WriteString(t.transformationName)
 		message.WriteString(" failed.\n")
-		for _, error := range result.errors {
-			message.WriteString(formatter.FormatError(error))
+		for _, err := range result.Errors {
+			message.WriteString(formatter.FormatError(err))
 		}
 		panic(jutil.NewIllegalStateExceptionMsg(message.String()))
 	}
-	if !result.transformed {
+	if !result.Transformed {
 		return input
 	}
 	builder := input.ToBuilder().
-		SetCode(result.source).
-		SetSourceMap(result.sourceMap)
+		SetCode(result.Source).
+		SetSourceMap(result.SourceMap)
 	if t.hasRuntime {
 		builder.AddRuntime(t.compilerSupplier.Runtime(t.runtimeLibraryName))
 	}
 	return builder.Build()
 }
 
-// CompilerBasedTransformer_CompilerSupplier wraps the Compiler into a small
-// interface, making it easy to test the CompilerBasedTransformer without
-// depending on implementation details of the Compiler itself. Also works
-// around the fact that the Compiler is not thread-safe (since we may do
-// multiple transpiles concurrently), so we supply a fresh instance each time
-// when we're in single-file mode.
-//
-// Java: static class CompilerBasedTransformer.CompilerSupplier
-type CompilerBasedTransformer_CompilerSupplier interface {
-	// Java: CompilerSupplier.compile(Path, String)
-	Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult
-	// Java: CompilerSupplier.runtime(String)
+// CompilerSupplier wraps the Compiler into a small interface, making it easy to
+// test per-file transformers and transpilers without depending on implementation
+// details of the Compiler itself, while supplying a fresh Compiler instance on
+// each call in single-file mode.
+type CompilerSupplier interface {
+	Compile(path string, code string) *CompileResult
 	Runtime(library string) string
 }
 
-// CompilerBasedTransformer_DefaultCompilerSupplier is the default ES5 CompilerSupplier.
-type CompilerBasedTransformer_DefaultCompilerSupplier struct{}
-
-var _ CompilerBasedTransformer_CompilerSupplier = (*CompilerBasedTransformer_DefaultCompilerSupplier)(nil)
-
-// Java: CompilerSupplier()
-func NewCompilerBasedTransformer_CompilerSupplier() *CompilerBasedTransformer_DefaultCompilerSupplier {
-	return &CompilerBasedTransformer_DefaultCompilerSupplier{}
+// CompileResult holds the emitted JS source together with single-file
+// compilation metadata.
+type CompileResult struct {
+	Source      string
+	Errors      []*jscomp.JSError
+	Transformed bool
+	SourceMap   string
 }
 
-var devNullSourceMapPath = "/dev/null"
+// NewCompileResult constructs a CompileResult.
+func NewCompileResult(source string, errors []*jscomp.JSError, transformed bool, sourceMap string) *CompileResult {
+	return &CompileResult{
+		Source:      source,
+		Errors:      errors,
+		Transformed: transformed,
+		SourceMap:   sourceMap,
+	}
+}
 
-// CompileSingleFile compiles a single JS source file with the shared Symbol()
-// externs, returning the compiler, its Result, the emitted JS source, whether
-// the source was transformed, and the serialized source map (when transformed).
-func CompileSingleFile(
-	path string,
-	code string,
-	options *jscomp.CompilerOptions,
-	alwaysTransformed bool,
-) (compiler *jscomp.Compiler, result *jscomp.Result, source string, transformed bool, sourceMap string) {
-	compiler = jscomp.NewCompiler()
-	result = compiler.CompileOfSourceFiles(
-		CompilerBasedTransformer_CompilerSupplier_EXTERNS,
+var (
+	devNullSourceMapPath    = "/dev/null"
+	compilerSupplierExterns = jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}")
+	compilerSupplierEmpty   = jscomp.SourceFile_FromCode("empty.js", "")
+	es5WarningsGroup        = jscomp.NewDiagnosticGroup(jscomp.DiagnosticType_Error("JSC_CANNOT_CONVERT", ""))
+)
+
+// OptionsCompilerSupplier implements CompilerSupplier by configuring a fresh
+// CompilerOptions instance per compilation or runtime library request.
+type OptionsCompilerSupplier struct {
+	SetOptions        func(*jscomp.CompilerOptions)
+	AlwaysTransformed bool
+	ThrowOnError      bool
+}
+
+var _ CompilerSupplier = (*OptionsCompilerSupplier)(nil)
+
+func (s *OptionsCompilerSupplier) options() *jscomp.CompilerOptions {
+	options := jscomp.NewCompilerOptions()
+	if s.SetOptions != nil {
+		s.SetOptions(options)
+	}
+	return options
+}
+
+// Compile compiles a single JS source file with the shared Symbol() externs.
+func (s *OptionsCompilerSupplier) Compile(path string, code string) *CompileResult {
+	compiler := jscomp.NewCompiler()
+	result := compiler.CompileOfSourceFiles(
+		compilerSupplierExterns,
 		jscomp.SourceFile_FromCode(path, code),
-		options)
-	source = compiler.ToSource()
+		s.options())
+	if s.ThrowOnError && len(result.Errors) != 0 {
+		panic(NewTranspilationException(compiler, result.Errors, result.Warnings))
+	}
+	source := compiler.ToSource()
 	var smBuilder strings.Builder
 	if result.SourceMap != nil {
 		result.SourceMap.AppendTo(&smBuilder, &path)
 	}
-	transformed = alwaysTransformed || result.TranspiledFiles
+	transformed := s.AlwaysTransformed || result.TranspiledFiles
+	var sourceMap string
 	if transformed {
 		sourceMap = smBuilder.String()
 	}
-	return compiler, result, source, transformed, sourceMap
+	return NewCompileResult(source, result.Errors, transformed, sourceMap)
 }
 
-// CompileRuntimeLibrary compiles an empty input with library force-injected
-// into options and returns the emitted runtime JS code.
-func CompileRuntimeLibrary(options *jscomp.CompilerOptions, library string) string {
+// Runtime compiles an empty input with library force-injected and returns the
+// emitted runtime JS code.
+func (s *OptionsCompilerSupplier) Runtime(library string) string {
 	compiler := jscomp.NewCompiler()
+	options := s.options()
 	options.SetForceLibraryInjection([]string{library})
 	compiler.CompileOfSourceFiles(
-		CompilerBasedTransformer_CompilerSupplier_EXTERNS,
-		CompilerBasedTransformer_CompilerSupplier_EMPTY,
+		compilerSupplierExterns,
+		compilerSupplierEmpty,
 		options)
 	return compiler.ToSource()
 }
@@ -157,34 +181,14 @@ func SetCommonTranspilationOptions(options *jscomp.CompilerOptions) {
 	options.SetSourceMapIncludeSourcesContent(true)
 }
 
-func compileSingleFile(
-	path *jutil.Path,
-	code string,
-	options *jscomp.CompilerOptions,
-	alwaysTransformed bool) *CompilerBasedTransformer_CompileResult {
-	_, result, source, transformed, sm := CompileSingleFile(path.String(), code, options, alwaysTransformed)
-	return NewCompilerBasedTransformer_CompileResult(source, result.Errors, transformed, sm)
+// NewCompilerSupplier returns the default ES5 CompilerSupplier.
+func NewCompilerSupplier() CompilerSupplier {
+	return &OptionsCompilerSupplier{
+		SetOptions: setEs5TranspilerOptions,
+	}
 }
 
-// Java: CompilerSupplier.compile(Path, String)
-func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	return compileSingleFile(path, code, s.Options(), false)
-}
-
-// Java: CompilerSupplier.runtime(String)
-func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Runtime(library string) string {
-	return CompileRuntimeLibrary(s.Options(), library)
-}
-
-// Java: CompilerSupplier.options()
-func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Options() *jscomp.CompilerOptions {
-	options := jscomp.NewCompilerOptions()
-	s.SetOptions(options)
-	return options
-}
-
-// Java: CompilerSupplier.setOptions(CompilerOptions)
-func (s *CompilerBasedTransformer_DefaultCompilerSupplier) SetOptions(options *jscomp.CompilerOptions) {
+func setEs5TranspilerOptions(options *jscomp.CompilerOptions) {
 	// TODO(sdh): It would be nice to allow people to output code in
 	// strict mode.  But currently we swallow all the input language
 	// strictness checks, and there are various tests that are never
@@ -196,38 +200,7 @@ func (s *CompilerBasedTransformer_DefaultCompilerSupplier) SetOptions(options *j
 	// and then change the default and see what breaks.  b/33005948
 	options.SetLanguageOut(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5)
 	SetCommonTranspilationOptions(options)
-	options.SetWarningLevel(CompilerBasedTransformer_CompilerSupplier_ES5_WARNINGS, jscomp.CheckLevel_OFF)
-}
-
-// Java: CompilerSupplier.EXTERNS
-var CompilerBasedTransformer_CompilerSupplier_EXTERNS = jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}")
-
-// Java: CompilerSupplier.EMPTY
-var CompilerBasedTransformer_CompilerSupplier_EMPTY = jscomp.SourceFile_FromCode("empty.js", "")
-
-// Java: CompilerSupplier.ES5_WARNINGS
-var CompilerBasedTransformer_CompilerSupplier_ES5_WARNINGS = jscomp.NewDiagnosticGroup(jscomp.DiagnosticType_Error("JSC_CANNOT_CONVERT", ""))
-
-// CompilerBasedTransformer_CompileResult is the source together with the
-// additional compilation results.
-//
-// Java: static class CompilerBasedTransformer.CompileResult
-type CompilerBasedTransformer_CompileResult struct {
-	source      string
-	errors      []*jscomp.JSError
-	transformed bool
-	sourceMap   string
-}
-
-// Java: CompileResult(String, ImmutableList<JSError>, boolean, String)
-func NewCompilerBasedTransformer_CompileResult(
-	source string, errors []*jscomp.JSError, transformed bool, sourceMap string) *CompilerBasedTransformer_CompileResult {
-	return &CompilerBasedTransformer_CompileResult{
-		source:      source,
-		errors:      errors, // checkNotNull: a Go slice is never null (nil is an empty list)
-		transformed: transformed,
-		sourceMap:   sourceMap,
-	}
+	options.SetWarningLevel(es5WarningsGroup, jscomp.CheckLevel_OFF)
 }
 
 // CoverageInstrumenter is a source transformer for instrumenting code for
@@ -241,7 +214,7 @@ type CoverageInstrumenter struct {
 var _ Source_Transformer = (*CoverageInstrumenter)(nil)
 
 // Java: CoverageInstrumenter(CompilerBasedTransformer.CompilerSupplier)
-func NewCoverageInstrumenter(compilerSupplier CompilerBasedTransformer_CompilerSupplier) *CoverageInstrumenter {
+func NewCoverageInstrumenter(compilerSupplier CompilerSupplier) *CoverageInstrumenter {
 	return &CoverageInstrumenter{
 		CompilerBasedTransformer: CompilerBasedTransformer{
 			compilerSupplier:   jutil.CheckNotNull(compilerSupplier),
@@ -250,43 +223,21 @@ func NewCoverageInstrumenter(compilerSupplier CompilerBasedTransformer_CompilerS
 	}
 }
 
-// CoverageInstrumenter_CompilerSupplier supplies options for coverage.
-//
-// Java: static class CoverageInstrumenter.CompilerSupplier extends CompilerBasedTransformer.CompilerSupplier
-type CoverageInstrumenter_CompilerSupplier struct{}
-
-var _ CompilerBasedTransformer_CompilerSupplier = (*CoverageInstrumenter_CompilerSupplier)(nil)
-
-// Java: CoverageInstrumenter.CompilerSupplier()
-func NewCoverageInstrumenter_CompilerSupplier() *CoverageInstrumenter_CompilerSupplier {
-	return &CoverageInstrumenter_CompilerSupplier{}
+// NewCoverageCompilerSupplier supplies options for coverage instrumentation.
+func NewCoverageCompilerSupplier() CompilerSupplier {
+	return &OptionsCompilerSupplier{
+		SetOptions:        setCoverageOptions,
+		AlwaysTransformed: true,
+	}
 }
 
-// Java: CompilerSupplier.compile(Path, String)
-func (s *CoverageInstrumenter_CompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	return compileSingleFile(path, code, s.Options(), true)
-}
-
-// Java: CompilerSupplier.runtime(String)
-func (s *CoverageInstrumenter_CompilerSupplier) Runtime(library string) string {
-	return CompileRuntimeLibrary(s.Options(), library)
-}
-
-// Java: CompilerSupplier.options()
-func (s *CoverageInstrumenter_CompilerSupplier) Options() *jscomp.CompilerOptions {
-	options := jscomp.NewCompilerOptions()
-	s.SetOptions(options)
-	return options
-}
-
-// Java: CoverageInstrumenter.CompilerSupplier.setOptions(CompilerOptions)
-func (s *CoverageInstrumenter_CompilerSupplier) SetOptions(options *jscomp.CompilerOptions) {
+func setCoverageOptions(options *jscomp.CompilerOptions) {
 	options.SetCoalesceVariableNames(false)
 	options.SetLanguageOut(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5)
 	options.SetLanguageIn(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	options.SetStrictModeInput(false)
 	// Setting the path to any non-null value will trigger source map
-	// generation. CompilerBasedTransformer attachs the sourcemap to the
+	// generation. CompilerBasedTransformer attaches the sourcemap to the
 	// result.
 	options.SetSourceMapOutputPath(&devNullSourceMapPath)
 	options.SetVariableRenaming(jscomp.VariableRenamingPolicy_OFF)

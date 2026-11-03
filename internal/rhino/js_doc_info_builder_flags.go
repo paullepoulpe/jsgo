@@ -35,6 +35,8 @@
 
 package rhino
 
+import "github.com/paullepoulpe/jsgo/internal/strpool"
+
 // IsPopulatedWithFileOverview returns whether this builder is populated with
 // information that can be used to build a JSDocInfo object that has a
 // fileoverview tag.
@@ -193,7 +195,7 @@ func (b *JSDocInfo_Builder) RecordFinality() bool {
 //
 // Java: JSDocInfo.Builder.recordClosurePrimitiveId(String)
 func (b *JSDocInfo_Builder) RecordClosurePrimitiveId(closurePrimitiveId string) bool {
-	return b.PopulateProp(JSDocInfo_CLOSURE_PRIMITIVE_ID, RhinoStringPool_AddOrGet(closurePrimitiveId))
+	return b.PopulateProp(JSDocInfo_CLOSURE_PRIMITIVE_ID, strpool.String(strpool.Intern(closurePrimitiveId)))
 }
 
 // RecordEnhance records enhanced namespace; returns true if the enhanced
@@ -218,7 +220,7 @@ func (b *JSDocInfo_Builder) IsModsRecorded() bool {
 //
 // Java: JSDocInfo.Builder.recordMods(String)
 func (b *JSDocInfo_Builder) RecordMods(namespace string) bool {
-	return b.PopulateProp(JSDocInfo_MODS, RhinoStringPool_AddOrGet(namespace))
+	return b.PopulateProp(JSDocInfo_MODS, strpool.String(strpool.Intern(namespace)))
 }
 
 // RecordNoCompile records that the JSDocInfo being built should have its

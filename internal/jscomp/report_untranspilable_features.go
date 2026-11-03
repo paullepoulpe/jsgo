@@ -47,7 +47,7 @@ import (
 // output untranspiled ES2018 regex literals.
 type ReportUntranspilableFeatures struct {
 	compiler                       AbstractCompiler
-	browserFeatureSetYear          *CompilerOptions_BrowserFeaturesetYear
+	browserFeatureSetYear          CompilerOptions_BrowserFeaturesetYear
 	untranspilableFeaturesToRemove parser.FeatureSet
 }
 
@@ -109,13 +109,14 @@ var reportUntranspilableFeatures_ALL_UNTRANSPILABLE_FEATURES = parser.FeatureSet
 	Union(reportUntranspilableFeatures_UNTRANSPILABLE_2020_FEATURES)
 
 // NewReportUntranspilableFeatures takes the compiler instance, the given
-// BrowserFeaturesetYear (or nil if it was not specified) and the set of
-// features supported in the given output language.
+// BrowserFeaturesetYear (or CompilerOptions_BrowserFeaturesetYear_NONE if it
+// was not specified) and the set of features supported in the given output
+// language.
 //
 // Java: ReportUntranspilableFeatures(AbstractCompiler, BrowserFeaturesetYear, FeatureSet)
 func NewReportUntranspilableFeatures(
 	compiler AbstractCompiler,
-	browserFeatureSetYear *CompilerOptions_BrowserFeaturesetYear,
+	browserFeatureSetYear CompilerOptions_BrowserFeaturesetYear,
 	outputFeatures parser.FeatureSet) *ReportUntranspilableFeatures {
 	jutil.CheckNotNull(compiler)
 	if outputFeatures.IsZero() {
@@ -212,9 +213,9 @@ func (r *ReportUntranspilableFeatures) ReportUntranspilable(feature parser.Featu
 	// browser featureset year (e.g. 2020) does not correspond to e.g. ECMASCRIPT_2020.
 	var minimum string
 	suggestion := " Consider targeting a more modern output."
-	if r.browserFeatureSetYear != nil {
+	if r.browserFeatureSetYear != CompilerOptions_BrowserFeaturesetYear_NONE {
 		minimumYear := CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(feature)
-		if minimumYear == nil {
+		if minimumYear == CompilerOptions_BrowserFeaturesetYear_NONE {
 			minimum =
 				minimumLanguageMode.String() + ", which is not yet supported by any browser featureset year"
 			suggestion = ""

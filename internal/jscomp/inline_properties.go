@@ -70,25 +70,18 @@ type inlinePropInfo struct {
 }
 
 var (
-	inlinePropsGatherTokens = func() ast.TokenSet {
-		var s ast.TokenSet
-		s.Add(rhino.Token_GETPROP)
-		s.Add(rhino.Token_STRING_KEY)
-		s.Add(rhino.Token_GETTER_DEF)
-		s.Add(rhino.Token_SETTER_DEF)
-		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
-		s.Add(rhino.Token_MEMBER_FIELD_DEF)
-		s.Add(rhino.Token_CALL)
-		return s
-	}()
-	inlinePropsReplaceTokens = func() ast.TokenSet {
-		var s ast.TokenSet
-		s.Add(rhino.Token_GETPROP)
-		return s
-	}()
+	inlinePropsGatherTokens = makeVisitTokenSet(
+		rhino.Token_GETPROP,
+		rhino.Token_STRING_KEY,
+		rhino.Token_GETTER_DEF,
+		rhino.Token_SETTER_DEF,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+		rhino.Token_MEMBER_FIELD_DEF,
+		rhino.Token_CALL,
+	)
+	inlinePropsReplaceTokens = makeVisitTokenSet(rhino.Token_GETPROP)
 )
 
-// Java: InlineProperties(AbstractCompiler)
 func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {
 	return &InlineProperties{
 		compiler:    compiler,
@@ -105,7 +98,6 @@ func inlinePropColor(n rhino.Node) *colors.Color {
 	return colors.StandardColors_UNKNOWN
 }
 
-// Java: InlineProperties.process(Node, Node)
 func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
 	if externProps := p.compiler.GetExternProperties(); externProps != nil {
 		for name := range externProps.All() {
@@ -200,7 +192,6 @@ func (g *inlineGatherCandidates) visitTokens() *ast.TokenSet {
 	return &inlinePropsGatherTokens
 }
 
-// Java: InlineProperties.GatherCandidates.visit(NodeTraversal, Node, Node)
 func (g *inlineGatherCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	g.visit(inlineTraversalState{inGlobalHoistScope: t.InGlobalHoistScope(), enclosingFunction: t.GetEnclosingFunction()}, n, parent)
 }
@@ -378,7 +369,6 @@ func (r *inlineReplaceCandidates) visitTokens() *ast.TokenSet {
 	return &inlinePropsReplaceTokens
 }
 
-// Java: InlineProperties.ReplaceCandidates.visit(NodeTraversal, Node, Node)
 func (r *inlineReplaceCandidates) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if NodeUtil_IsLValue(n) {
 		return

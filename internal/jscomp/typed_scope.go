@@ -26,6 +26,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 var nextTypedScopeID atomic.Uint32
@@ -483,7 +484,7 @@ func (s *TypedScope) IsDeclarativelyUnboundVarWithoutType(var_ *TypedVar) bool {
 }
 
 var (
-	typedScopeSymbolID    = rhino.RhinoStringPool_InternID("Symbol")
+	typedScopeSymbolID    = strpool.Intern("Symbol")
 	typedScopeSymbolHash  = scopeNameHash("Symbol")
 	typedScopeSymbolBloom = scopeBloomFromHash(typedScopeSymbolHash)
 )
@@ -511,12 +512,13 @@ func (s *TypedScope) lookupRootVarPrehashed(
 	return nil
 }
 
-// GetVarByID returns the slot for an interned Rhino string ID.
+// GetVarByID returns the slot for an interned strpool ID.
 func (s *TypedScope) GetVarByID(id uint32) *TypedVar {
-	if id == typedScopeSymbolID {
+	sid := strpool.ID(id)
+	if sid == typedScopeSymbolID {
 		return s.lookupRootVarPrehashed("Symbol", typedScopeSymbolHash, typedScopeSymbolBloom, 0, false)
 	}
-	name := rhino.RhinoStringPool_StringFromID(id)
+	name := strpool.String(sid)
 	if strings.IndexByte(name, '.') >= 0 {
 		return s.GetVar(name)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // EsModuleProcessor collects information related to and resolves ES
@@ -72,15 +73,15 @@ type esFindMutableExports struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	exports          []*Export
-	exportsByLocalID map[uint32][]*Export
+	exportsByLocalID map[strpool.ID][]*Export
 }
 
 func newEsFindMutableExports(exports []*Export) *esFindMutableExports {
 	f := &esFindMutableExports{exports: exports}
 	if len(exports) > 0 {
-		f.exportsByLocalID = make(map[uint32][]*Export, len(exports))
+		f.exportsByLocalID = make(map[strpool.ID][]*Export, len(exports))
 		for _, e := range exports {
-			id := rhino.RhinoStringPool_InternID(e.LocalName())
+			id := strpool.Intern(e.LocalName())
 			f.exportsByLocalID[id] = append(f.exportsByLocalID[id], e)
 		}
 	}
@@ -107,7 +108,7 @@ func (f *esFindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 	if !n.IsName() || len(f.exportsByLocalID) == 0 {
 		return
 	}
-	id := n.GetStringID()
+	id := nodeStringID(n)
 	exports := f.exportsByLocalID[id]
 	if len(exports) == 0 {
 		return
@@ -116,7 +117,7 @@ func (f *esFindMutableExports) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 	if !NodeUtil_IsLValue(n) || scope.GetClosestHoistScope().IsModuleScope() {
 		return
 	}
-	var_ := scope.GetVarByID(id)
+	var_ := scope.GetVarByID(uint32(id))
 	if var_ == nil || !var_.GetScope().(*Scope).IsModuleScope() {
 		return
 	}

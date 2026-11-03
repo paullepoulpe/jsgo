@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // VarCheck checks that all variables are declared, that file-private
@@ -108,8 +109,8 @@ const varCheck_ARGUMENTS = "arguments"
 const varCheck_JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME = "$jscomp_wrap_closure_unaware_code"
 
 var (
-	varCheckGoogID               = rhino.RhinoStringPool_InternID("goog")
-	varCheckForwardDeclareID     = rhino.RhinoStringPool_InternID("forwardDeclare")
+	varCheckGoogID               = strpool.Intern("goog")
+	varCheckForwardDeclareID     = strpool.Intern("forwardDeclare")
 	varCheckUndefinedExternProbe = func() *JSError {
 		empty := ""
 		return JSError_MakeWithSourceLocation(&empty, 0, 0, VarCheck_UNDEFINED_EXTERN_VAR_ERROR)
@@ -234,7 +235,7 @@ func (v *VarCheck) CheckName(t *NodeTraversal, n rhino.Node, parent rhino.Node) 
 	id := n.GetStringID()
 
 	// Only a function can have an empty name.
-	if id == rhino.RhinoStringPool_EmptyID {
+	if id == strpool.EmptyID {
 		// Name is optional for function expressions
 		// x = function() {...}
 		// Arrow functions are also expressions and cannot have a name
@@ -482,7 +483,7 @@ func (c *VarCheck_NameRefInExternsCheck) Visit(t *NodeTraversal, n rhino.Node, p
 			}
 		case rhino.Token_GETPROP:
 			if n == parent.GetFirstChild() {
-				if n.GetStringID() == varCheckGoogID && parent.GetStringID() == varCheckForwardDeclareID {
+				if nodeStringID(n) == varCheckGoogID && nodeStringID(parent) == varCheckForwardDeclareID {
 					// Allow using `goog.forwardDeclare` in the externs without an externs definition
 					// of goog.
 					return

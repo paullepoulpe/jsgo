@@ -170,3 +170,24 @@ func TestLogFileMatchesJava(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenLogFileErrors(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "sub", "out.log")
+	log, err := OpenLogFile(path)
+	if err != nil {
+		t.Fatalf("OpenLogFile(%q) error = %v", path, err)
+	}
+	if err := log.WriteLine("hello"); err != nil {
+		t.Fatalf("WriteLine error = %v", err)
+	}
+	if err := log.CloseErr(); err != nil {
+		t.Fatalf("CloseErr error = %v", err)
+	}
+	if err := log.WriteLine("after close"); err == nil {
+		t.Errorf("WriteLine after close succeeded; want error")
+	}
+	if _, err := OpenLogFile(tmp); err == nil {
+		t.Errorf("OpenLogFile(dir) succeeded; want error")
+	}
+}

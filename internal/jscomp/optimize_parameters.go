@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // OptimizeParameters optimizes function calls and function signatures.
@@ -354,7 +355,7 @@ func optimizeParameters_alreadyRemoved(n rhino.Node) bool {
 func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, refs []rhino.Node) bool {
 	if !OptimizeCalls_MayBeOptimizableNameByID(o.compiler, keyID) {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tnot an optimizable name", refKind, rhino.RhinoStringPool_StringFromID(keyID))
+			o.decisionsLog.LogFormat("%s\t%s\tnot an optimizable name", refKind, strpool.String(strpool.ID(keyID)))
 		}
 		return false
 	}
@@ -371,7 +372,7 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 			definitions = append(definitions, n)
 		} else if !OptimizeCalls_IsAllowedReference(n) {
 			if o.decisionsLog.IsLogging() {
-				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, rhino.RhinoStringPool_StringFromID(keyID), n.GetLocation())
+				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, strpool.String(strpool.ID(keyID)), n.GetLocation())
 			}
 			o.defNodes = definitions
 			o.ttlList = ttls
@@ -383,7 +384,7 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 
 	if len(definitions) == 0 {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, rhino.RhinoStringPool_StringFromID(keyID))
+			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, strpool.String(strpool.ID(keyID)))
 		}
 		return false
 	}
@@ -396,7 +397,7 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 			if firstParam, ok := ast.MustFunction(functionNode).Params().FirstParam(); ok && !firstParam.IsUnused() {
 				if o.decisionsLog.IsLogging() {
 					o.decisionsLog.LogFormat(
-						"%s\t%s\twill not optimize parameters for tagged template literals", refKind, rhino.RhinoStringPool_StringFromID(keyID))
+						"%s\t%s\twill not optimize parameters for tagged template literals", refKind, strpool.String(strpool.ID(keyID)))
 				}
 				return false
 			}
@@ -405,7 +406,7 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 			o.decisionsLog.LogFormat(
 				"%s\t%s\t%s",
 				refKind,
-				rhino.RhinoStringPool_StringFromID(keyID),
+				strpool.String(strpool.ID(keyID)),
 				"first param is unused, so we will convert tagged template literals to normal calls")
 		}
 		seenCandidateUse = true
@@ -413,7 +414,7 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 
 	if !seenCandidateUse {
 		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tno usage found", refKind, rhino.RhinoStringPool_StringFromID(keyID))
+			o.decisionsLog.LogFormat("%s\t%s\tno usage found", refKind, strpool.String(strpool.ID(keyID)))
 		}
 		return false
 	}

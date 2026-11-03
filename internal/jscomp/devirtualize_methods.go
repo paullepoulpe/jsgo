@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // DevirtualizeMethods rewrites prototype and static methods as global, free
@@ -128,7 +129,7 @@ func (d *DevirtualizeMethods) processReferenceListByID(nameID uint32, sites []rh
 	canonicalDefinitionSite := defSites[0]
 
 	// Check that this method is safe for devirtualization in increasing order of cost.
-	name := rhino.RhinoStringPool_StringFromID(nameID)
+	name := strpool.String(strpool.ID(nameID))
 	isExported := d.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false)
 	for _, s := range defSites {
 		if !d.isEligibleDefinitionSite(s, isExported) {
@@ -239,7 +240,7 @@ func (d *DevirtualizeMethods) isDefinitelyCtorOrInterface(receiver rhino.Node) b
 	var var_ *Var
 	if receiver.IsName() {
 		id := receiver.GetStringID()
-		if id <= rhino.RhinoStringPool_EmptyID {
+		if id <= strpool.EmptyID {
 			return false
 		}
 		var_ = d.refMap.GetGlobalScope().GetVarByID(id)
@@ -250,8 +251,8 @@ func (d *DevirtualizeMethods) isDefinitelyCtorOrInterface(receiver rhino.Node) b
 		}
 		// It's safe to rely on the global scope because normalization has made all names unique. No
 		// local will shadow a global name, and we're ok with missing some statics.
-		if id := rhino.RhinoStringPool_LookupID(qname); id != 0 {
-			var_ = d.refMap.GetGlobalScope().GetVarByID(id)
+		if id := strpool.Lookup(qname); id != 0 {
+			var_ = d.refMap.GetGlobalScope().GetVarByID(uint32(id))
 		}
 	}
 	if var_ == nil {
@@ -388,9 +389,9 @@ func (d *DevirtualizeMethods) rewriteDefinition(
 			definitionSite.DetachChildren()
 			recv.DetachChildren()
 
-			methodNameID := rhino.RhinoStringPool_InternID(newMethodName)
+			methodNameID := uint32(strpool.Intern(newMethodName))
 			selfName := newMethodName + "$self"
-			selfNameID := rhino.RhinoStringPool_InternID(selfName)
+			selfNameID := uint32(strpool.Intern(selfName))
 
 			definitionSite.ResetDetachedGetPropToNameID(methodNameID, isConstantName)
 			definitionSite.AddChildToFront(fn.Node())
@@ -442,7 +443,7 @@ func (d *DevirtualizeMethods) rewriteDefinition(
 
 	// Create the `this` param.
 	selfName := newMethodName + "$self"
-	selfNameID := rhino.RhinoStringPool_InternID(selfName)
+	selfNameID := uint32(strpool.Intern(selfName))
 	paramList := fn.Params()
 	selfParam := ast.NewName(selfName)
 	selfParam.Node().SrcrefIfMissing(fn.Node())

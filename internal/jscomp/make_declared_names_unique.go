@@ -313,7 +313,7 @@ type inverterVar struct {
 	name          string
 	preferredName string
 	inScopeMask   uint64
-	nameID        uint32
+	nameID        strpool.ID
 	prevShadow    uint32
 	scopeDepth    int32
 	refs          int32List
@@ -348,7 +348,7 @@ type MakeDeclaredNamesUnique_ContextualRenameInverter struct {
 
 	// Maps StringPool ID to the innermost visible 1-based varID with that name;
 	// outer shadowed variables are chained via inverterVar.prevShadow.
-	shadowByID map[uint32]uint32
+	shadowByID map[strpool.ID]uint32
 
 	// Fallback deduplication table only used when local scope nesting exceeds 64.
 	deepScopeSeen map[inverterScopeVarKey]struct{}
@@ -375,7 +375,7 @@ func NewMakeDeclaredNamesUnique_ContextualRenameInverter(
 ) *MakeDeclaredNamesUnique_ContextualRenameInverter {
 	return &MakeDeclaredNamesUnique_ContextualRenameInverter{
 		compiler:   compiler,
-		shadowByID: make(map[uint32]uint32),
+		shadowByID: make(map[strpool.ID]uint32),
 	}
 }
 
@@ -405,7 +405,7 @@ func MakeDeclaredNamesUnique_ContextualRenameInverter_IndexOfSeparator(name stri
 func renameInverterSubtreeHasSeparator(n rhino.Node) bool {
 	tok := n.GetToken()
 	if tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
-		if n.GetStringID() > rhino.RhinoStringPool_EmptyID {
+		if n.GetStringID() > strpool.EmptyID {
 			s := n.GetString()
 			if len(s) > len(MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) &&
 				strings.LastIndex(s, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR) > 0 {
@@ -422,7 +422,7 @@ func renameInverterSubtreeHasSeparator(n rhino.Node) bool {
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) allocDeclaredVar(
-	currentName string, id uint32, scopeDepth int32,
+	currentName string, id strpool.ID, scopeDepth int32,
 ) uint32 {
 	if len(c.vars) == 0 {
 		c.vars = append(c.vars, inverterVar{})
@@ -452,7 +452,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) pushVar(varID uint32)
 }
 
 func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) getOrCreateCurrentVar(
-	id uint32, node rhino.Node,
+	id strpool.ID, node rhino.Node,
 ) uint32 {
 	if varID := c.shadowByID[id]; varID != 0 {
 		return varID
@@ -611,9 +611,9 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) pushScope(scopeDepth 
 			continue
 		}
 		currentName := var_.GetName()
-		id := var_.nameID
+		id := strpool.ID(var_.nameID)
 		if id == 0 {
-			id = rhino.RhinoStringPool_InternID(currentName)
+			id = strpool.Intern(currentName)
 		}
 		varID := c.allocDeclaredVar(currentName, id, scopeDepth)
 		c.declVars = append(c.declVars, varID)
@@ -790,8 +790,8 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Visit(
 	}
 	tok := node.GetToken()
 	if tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
-		id := node.GetStringID()
-		if tok == rhino.Token_NAME && id <= rhino.RhinoStringPool_EmptyID {
+		id := nodeStringID(node)
+		if tok == rhino.Token_NAME && id <= strpool.EmptyID {
 			return
 		}
 		varID := c.getOrCreateCurrentVar(id, node)

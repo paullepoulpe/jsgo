@@ -209,7 +209,7 @@ func (p *RenameLabels_ProcessLabels) VisitBreakOrContinue(t *NodeTraversal, node
 	// This is a named break or continue.
 	nameNode := labelName.Node()
 	origID := strpool.ID(nameNode.GetStringID())
-	jutil.CheckState(origID > strpool.ID(rhino.RhinoStringPool_EmptyID))
+	jutil.CheckState(origID > strpool.EmptyID)
 	scopeStart := p.scopeStarts[len(p.scopeStarts)-1]
 	for i := len(p.entries) - 1; i >= scopeStart; i-- {
 		if p.entries[i].origID == origID {

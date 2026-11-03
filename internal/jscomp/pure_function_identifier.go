@@ -30,10 +30,10 @@ import (
 )
 
 var (
-	pfiDotStringID         = rhino.RhinoStringPool_InternID(".")
-	pfiConstructorStringID = rhino.RhinoStringPool_InternID("constructor")
-	pfiCallStringID        = rhino.RhinoStringPool_InternID("call")
-	pfiApplyStringID       = rhino.RhinoStringPool_InternID("apply")
+	pfiDotStringID         = uint32(strpool.Intern("."))
+	pfiConstructorStringID = uint32(strpool.Intern("constructor"))
+	pfiCallStringID        = uint32(strpool.Intern("call"))
+	pfiApplyStringID       = uint32(strpool.Intern("apply"))
 )
 
 // PureFunctionIdentifier is a compiler pass that computes function purity
@@ -567,7 +567,7 @@ func (p *PureFunctionIdentifier) populateDatastructuresForAnalysisTraversal(refe
 		if len(refs) == 0 {
 			continue
 		}
-		jutil.CheckState(id > rhino.RhinoStringPool_EmptyID && id != pfiDotStringID)
+		jutil.CheckState(id > strpool.EmptyID && id != pfiDotStringID)
 		sid := p.allocSummary(id, pfiNameVar)
 		p.nameSummaries[id] = sid
 		if s := strpool.String(strpool.ID(id)); len(s) > 1 && s[0] == '.' {
@@ -585,7 +585,7 @@ func (p *PureFunctionIdentifier) populateDatastructuresForAnalysisTraversal(refe
 		if len(refs) == 0 {
 			continue
 		}
-		jutil.CheckState(id > rhino.RhinoStringPool_EmptyID)
+		jutil.CheckState(id > strpool.EmptyID)
 		if dotPrefixedNames != nil {
 			if existing := dotPrefixedNames[id]; existing != 0 {
 				p.propSummaries[id] = existing

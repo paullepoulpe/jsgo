@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ReplaceToggles replaces calls to id generators with ids.
@@ -83,7 +84,7 @@ func (r *ReplaceToggles) Process(externs rhino.Node, root rhino.Node) {
 const ReplaceToggles_ORDINAL_VAR_NAME = "CLOSURE_TOGGLE_ORDINALS"
 
 var (
-	replaceTogglesOrdinalVarID = rhino.RhinoStringPool_InternID(ReplaceToggles_ORDINAL_VAR_NAME)
+	replaceTogglesOrdinalVarID = strpool.Intern(ReplaceToggles_ORDINAL_VAR_NAME)
 	replaceTogglesVisitTokens  = makeVisitTokenSet(
 		rhino.Token_VAR,
 		rhino.Token_LET,
@@ -107,7 +108,7 @@ func (r *ReplaceToggles) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 	// declaration from the AST since we should no longer need it (and the optimizer won't
 	// delete it in case the global assignment was an intended side effect).
 	if NodeUtil_IsNameDeclaration(n) {
-		if first := n.GetFirstChild(); !first.IsName() || first.GetStringID() != replaceTogglesOrdinalVarID {
+		if first := n.GetFirstChild(); !first.IsName() || nodeStringID(first) != replaceTogglesOrdinalVarID {
 			return
 		}
 		rhs := n.GetFirstFirstChild()

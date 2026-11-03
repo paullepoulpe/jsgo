@@ -765,7 +765,7 @@ func coreG2FactorySweep() string {
 	} {
 		for _, mode := range []string{"NONE", "JSTYPE", "COLOR"} {
 			registry := rhino.NewJSTypeRegistry(nil)
-			colorRegistry := colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
+			colorRegistry := colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build()
 			libs := RuntimeJsLibManager_Create(
 				RuntimeJsLibManager_RuntimeLibraryMode_RECORD_AND_VALIDATE_FIELDS,
 				func(unused1 string, unused2 string) rhino.Node {

@@ -337,7 +337,7 @@ type ColorPool_Builder struct {
 	shards       []*ColorPool_ShardView
 	jsTypeShard  *JSTypeReconserializer
 	idToColor    map[colors.ColorId]*colors.Color
-	registry     *colors.ColorRegistry_Builder
+	registry     *colors.ColorRegistryBuilder
 	idToProtoIdx map[colors.ColorId]int
 	protoEntries []colorPoolIdEntry
 	forTesting_  bool
@@ -474,7 +474,7 @@ func (b *ColorPool_Builder) addJSTypeShard(s *JSTypeReconserializer) {
 func newColorPool_Builder() *ColorPool_Builder {
 	b := &ColorPool_Builder{
 		protoToShard: make(map[*TypePool]*ColorPool_ShardView, 4),
-		registry:     colors.ColorRegistry_Builder_(),
+		registry:     colors.NewColorRegistryBuilder(),
 		colorSlab:    jutil.NewFixedSlab[colors.Color](224), // 32.25 KiB <= 32 KiB
 	}
 	b.colorBuilder.SetSlab(&b.colorSlab)

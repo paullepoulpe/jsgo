@@ -143,8 +143,7 @@ func runtimeJsLibManager_FieldsTable() *jutil.LinkedHashMap[string, string] {
 
 // Java: RuntimeJsLibManager.FieldsTable.loadFields()
 func runtimeJsLibManager_FieldsTable_loadFields() *jutil.LinkedHashMap[string, string] {
-	transpilationLibsTxt := resources.ResourceLoader_LoadTextResource(
-		"com.google.javascript.jscomp.js.RuntimeJsLibManager", "transpilation_libs.txt")
+	transpilationLibsTxt := resources.LoadText(resources.JsDir + "transpilation_libs.txt")
 
 	allFields := jutil.NewImmutableMapBuilder[string, string]()
 	// Splitter.on('\n').omitEmptyStrings()

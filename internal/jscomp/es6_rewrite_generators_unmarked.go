@@ -22,9 +22,10 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var generatorArgumentsID = rhino.RhinoStringPool_InternID("arguments")
+var generatorArgumentsID = strpool.Intern("arguments")
 
 var generatorUnmarkedVisitTokens = func() ast.TokenSet {
 	var s ast.TokenSet
@@ -112,7 +113,7 @@ func (u *generatorUnmarkedNodeTranspiler) Visit(t *NodeTraversal, n rhino.Node, 
 		u.visitThis(n)
 	} else if n.IsReturn() {
 		u.visitReturn(n)
-	} else if n.IsName() && n.GetStringID() == generatorArgumentsID {
+	} else if n.IsName() && nodeStringID(n) == generatorArgumentsID {
 		u.visitArguments(n)
 	} else if n.IsVar() {
 		if parent.IsVanillaFor() {

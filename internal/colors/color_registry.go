@@ -41,7 +41,7 @@ type ColorRegistry struct {
 }
 
 // Java: ColorRegistry(Builder)
-func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
+func NewColorRegistry(builder *ColorRegistryBuilder) *ColorRegistry {
 	r := &ColorRegistry{}
 	if !builder.consumed {
 		builder.consumed = true
@@ -271,13 +271,8 @@ func (r *ColorRegistry) GetMismatchLocationsForDebugging() *ColorMismatchLocatio
 	}
 }
 
-// Java: ColorRegistry.builder()
-func ColorRegistry_Builder_() *ColorRegistry_Builder {
-	return NewColorRegistry_Builder()
-}
-
-// ColorRegistry_Builder builds a ColorRegistry.
-type ColorRegistry_Builder struct {
+// ColorRegistryBuilder builds a ColorRegistry.
+type ColorRegistryBuilder struct {
 	nativeColors             map[ColorId]*Color
 	disambiguationSupertypes map[*Color][]*Color
 	disambiguationByHash     map[int32][]*Color
@@ -286,14 +281,14 @@ type ColorRegistry_Builder struct {
 	consumed                 bool
 }
 
-// Java: ColorRegistry.Builder()
-func NewColorRegistry_Builder() *ColorRegistry_Builder {
-	return &ColorRegistry_Builder{
+// NewColorRegistryBuilder returns a new ColorRegistryBuilder.
+func NewColorRegistryBuilder() *ColorRegistryBuilder {
+	return &ColorRegistryBuilder{
 		nativeColors: make(map[ColorId]*Color, ColorRegistry_REQUIRED_IDS.Size()),
 	}
 }
 
-func (b *ColorRegistry_Builder) ensureMutable() {
+func (b *ColorRegistryBuilder) ensureMutable() {
 	if b.consumed {
 		b.nativeColors = maps.Clone(b.nativeColors)
 		b.disambiguationSupertypes = cloneSliceMap(b.disambiguationSupertypes)
@@ -305,7 +300,7 @@ func (b *ColorRegistry_Builder) ensureMutable() {
 }
 
 // Java: ColorRegistry.Builder.setNativeColor(Color)
-func (b *ColorRegistry_Builder) SetNativeColor(x *Color) *ColorRegistry_Builder {
+func (b *ColorRegistryBuilder) SetNativeColor(x *Color) *ColorRegistryBuilder {
 	b.ensureMutable()
 	jutil.CheckStateMsg1(ColorRegistry_REQUIRED_IDS.Contains(x.GetId()), "%s", x)
 	b.nativeColors[x.GetId()] = x
@@ -313,7 +308,7 @@ func (b *ColorRegistry_Builder) SetNativeColor(x *Color) *ColorRegistry_Builder 
 }
 
 // Java: ColorRegistry.Builder.addDisambiguationEdge(Color, Color)
-func (b *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supertype *Color) *ColorRegistry_Builder {
+func (b *ColorRegistryBuilder) AddDisambiguationEdge(subtype *Color, supertype *Color) *ColorRegistryBuilder {
 	jutil.CheckNotNull(subtype)
 	jutil.CheckNotNull(supertype)
 	b.ensureMutable()
@@ -347,7 +342,7 @@ func (b *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supertype 
 }
 
 // Java: ColorRegistry.Builder.addMismatchLocation(ColorId, String)
-func (b *ColorRegistry_Builder) AddMismatchLocation(id ColorId, location string) *ColorRegistry_Builder {
+func (b *ColorRegistryBuilder) AddMismatchLocation(id ColorId, location string) *ColorRegistryBuilder {
 	b.ensureMutable()
 	if b.mismatchLocations == nil {
 		b.mismatchLocations = make(map[ColorId][]string)
@@ -373,7 +368,7 @@ func (b *ColorRegistry_Builder) AddMismatchLocation(id ColorId, location string)
 // "Number" object is invalidating), so should use setNativeColor instead.
 //
 // Java: ColorRegistry.Builder.setDefaultNativeColorsForTesting()
-func (b *ColorRegistry_Builder) SetDefaultNativeColorsForTesting() *ColorRegistry_Builder {
+func (b *ColorRegistryBuilder) SetDefaultNativeColorsForTesting() *ColorRegistryBuilder {
 	for id := range ColorRegistry_REQUIRED_IDS.All() {
 		b.SetNativeColor(Color_SingleBuilder().SetId(id).Build())
 	}
@@ -381,7 +376,7 @@ func (b *ColorRegistry_Builder) SetDefaultNativeColorsForTesting() *ColorRegistr
 }
 
 // Java: ColorRegistry.Builder.build()
-func (b *ColorRegistry_Builder) Build() *ColorRegistry {
+func (b *ColorRegistryBuilder) Build() *ColorRegistry {
 	return NewColorRegistry(b)
 }
 

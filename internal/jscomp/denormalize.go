@@ -23,6 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 var (
@@ -174,7 +175,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, pare
 	case rhino.Token_VAR:
 		if n.GetFirstChild().IsNil() && NodeUtil_IsStatement(parent) {
 			id := n.GetStringID()
-			if id == 0 || id == rhino.RhinoStringPool_EmptyID {
+			if id == 0 || id == strpool.EmptyID {
 				return
 			}
 			v := t.LookupVarByID(id)
@@ -197,7 +198,7 @@ func (inliner *denormalizeVarInliner) Visit(t *NodeTraversal, n rhino.Node, pare
 	case rhino.Token_ASSIGN:
 		if parent.GetFirstChild() == n {
 			id := n.GetStringID()
-			if id == 0 || id == rhino.RhinoStringPool_EmptyID {
+			if id == 0 || id == strpool.EmptyID {
 				return
 			}
 			scope := t.resolveLookupScope(len(t.scopes) - 1)

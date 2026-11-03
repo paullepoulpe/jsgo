@@ -28,7 +28,7 @@ import (
 type ReportUntranspilableFeaturesTest struct {
 	CompilerTestCaseBase
 	languageOut           CompilerOptions_LanguageMode
-	browserFeaturesetYear *CompilerOptions_BrowserFeaturesetYear
+	browserFeaturesetYear CompilerOptions_BrowserFeaturesetYear
 }
 
 // Java: ReportUntranspilableFeaturesTest()
@@ -46,7 +46,7 @@ func TestReportUntranspilableFeaturesTest(t *testing.T) {
 func (c *ReportUntranspilableFeaturesTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.languageOut = CompilerOptions_LanguageMode_ECMASCRIPT3
-	c.browserFeaturesetYear = nil
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_NONE
 	c.DisableTypeCheck()
 	c.EnableRunTypeCheckAfterProcessing()
 }
@@ -54,7 +54,7 @@ func (c *ReportUntranspilableFeaturesTest) SetUp() {
 // Java: ReportUntranspilableFeaturesTest.getProcessor(Compiler)
 func (c *ReportUntranspilableFeaturesTest) GetProcessor(compiler *Compiler) CompilerPass {
 	var outputFeatures parser.FeatureSet
-	if c.browserFeaturesetYear != nil {
+	if c.browserFeaturesetYear != CompilerOptions_BrowserFeaturesetYear_NONE {
 		outputFeatures = c.browserFeaturesetYear.GetFeatureSet()
 	} else {
 		outputFeatures = c.languageOut.ToFeatureSet()
@@ -174,10 +174,10 @@ func (c *ReportUntranspilableFeaturesTest) TestEs2018RegexNamedCaptureGroupsBack
 
 // Java: ReportUntranspilableFeaturesTest.testEs2018RegexNamedCaptureGroupsBackReferencing_usingBrowserFeaturesetYear()
 func (c *ReportUntranspilableFeaturesTest) TestEs2018RegexNamedCaptureGroupsBackReferencing_usingBrowserFeaturesetYear() {
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2021.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2021
 	c.TestSame("const a = /^(?<half>.*).\\k<half>$/u;")
 
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2020.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2020
 	c.TestError(
 		"const a = /^(?<half>.*).\\k<half>$/u;",
 		ReportUntranspilableFeatures_UNTRANSPILABLE_FEATURE_PRESENT,
@@ -200,10 +200,10 @@ func (c *ReportUntranspilableFeaturesTest) TestReportErrorWithBigIntLiteralTrans
 //
 // Java: ReportUntranspilableFeaturesTest.reportErrorWithBigIntLiteralTranspilation_browserFeaturesetYear()
 func (c *ReportUntranspilableFeaturesTest) TestReportErrorWithBigIntLiteralTranspilation_browserFeaturesetYear() {
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2021.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2021
 	c.TestSame("1234n")
 
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2020.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2020
 	c.TestError(
 		"1234n",
 		ReportUntranspilableFeatures_UNTRANSPILABLE_FEATURE_PRESENT,
@@ -234,7 +234,7 @@ func (c *ReportUntranspilableFeaturesTest) TestEs2022RegexFlagD() {
 
 // Java: ReportUntranspilableFeaturesTest.testEs2022RegexFlagD_usingBrowserFeaturesetYear()
 func (c *ReportUntranspilableFeaturesTest) TestEs2022RegexFlagD_usingBrowserFeaturesetYear() {
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2022.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2022
 	c.TestError(
 		"const a = /^(?<half>.*).\\k<half>$/d;",
 		ReportUntranspilableFeatures_UNTRANSPILABLE_FEATURE_PRESENT,
@@ -263,10 +263,10 @@ func (c *ReportUntranspilableFeaturesTest) TestEs2022TopLevelAwait() {
 
 	c.languageOut = CompilerOptions_LanguageMode_ECMASCRIPT3 // Reset
 
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2023.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2023
 	testTopLevelAwaitUnsupported()
 
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2022.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2022
 	testTopLevelAwaitUnsupported()
 }
 
@@ -291,10 +291,10 @@ func (c *ReportUntranspilableFeaturesTest) TestEs2022TopLevelForAwaitOf() {
 
 	c.languageOut = CompilerOptions_LanguageMode_ECMASCRIPT3 // Reset
 
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2023.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2023
 	testTopLevelAwaitUnsupported()
 
-	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2022.Ptr()
+	c.browserFeaturesetYear = CompilerOptions_BrowserFeaturesetYear_YEAR_2022
 	testTopLevelAwaitUnsupported()
 }
 

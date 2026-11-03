@@ -139,7 +139,7 @@ func jsaSplit(s, sep string) []string {
 	return strings.Split(s, sep)
 }
 
-func jsaMapSpec(m *jutil.LinkedHashMap[string, string]) string {
+func jsaMapSpec(m *OrderedStringMap[string]) string {
 	var b strings.Builder
 	for k, v := range m.All() {
 		if b.Len() > 0 {
@@ -150,8 +150,8 @@ func jsaMapSpec(m *jutil.LinkedHashMap[string, string]) string {
 	return b.String()
 }
 
-func jsaParseMapSpec(s string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func jsaParseMapSpec(s string) *OrderedStringMap[string] {
+	m := NewOrderedStringMap[string]()
 	for _, e := range jsaSplit(s, ",") {
 		k, v, _ := strings.Cut(e, "=")
 		m.Put(k, v)

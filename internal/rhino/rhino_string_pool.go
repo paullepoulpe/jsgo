@@ -55,44 +55,15 @@ func rhinoStringIDFromPtr(s *string) rhinoStringID {
 	return strpool.Intern(*s)
 }
 
-// Java: RhinoStringPool.addOrGet(String)
-func RhinoStringPool_AddOrGet(s string) string {
-	return strpool.String(strpool.Intern(s))
-}
-
-// RhinoStringPool_EmptyID is the canonical 32-bit ID of the empty string "".
-const RhinoStringPool_EmptyID uint32 = strpool.EmptyID
-
-// RhinoStringPool_InternID interns s and returns its 32-bit pointer-free ID.
-func RhinoStringPool_InternID(s string) uint32 {
-	return uint32(strpool.Intern(s))
-}
-
-// RhinoStringPool_InternBytesID interns b and returns its 32-bit pointer-free ID
-// without allocating a string when b is already interned.
-func RhinoStringPool_InternBytesID(b []byte) uint32 {
-	return uint32(strpool.InternBytes(b))
-}
-
-// RhinoStringPool_LookupID returns the 32-bit ID of s if already interned, or 0 if not.
-func RhinoStringPool_LookupID(s string) uint32 {
-	return uint32(strpool.Lookup(s))
-}
-
-// RhinoStringPool_StringFromID returns the interned string for a 32-bit ID.
-func RhinoStringPool_StringFromID(id uint32) string {
-	return strpool.String(strpool.ID(id))
-}
-
 // RhinoStringPool_LazyInternedStringList is a list of interned strings backed
-// directly by pre-interned 32-bit rhinoStringIDs (noscan, zero pointers).
+// directly by pre-interned 32-bit strpool.IDs (noscan, zero pointers).
 type RhinoStringPool_LazyInternedStringList struct {
-	ids []uint32
+	ids []strpool.ID
 }
 
 // NewRhinoStringPool_LazyInternedStringListFromIDs creates a LazyInternedStringList
-// backed directly by pre-interned 32-bit rhinoStringIDs (noscan, zero pointers).
-func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []uint32) *RhinoStringPool_LazyInternedStringList {
+// backed directly by pre-interned 32-bit strpool.IDs (noscan, zero pointers).
+func NewRhinoStringPool_LazyInternedStringListFromIDs(ids []strpool.ID) *RhinoStringPool_LazyInternedStringList {
 	return &RhinoStringPool_LazyInternedStringList{ids: ids}
 }
 
@@ -104,7 +75,7 @@ func (l *RhinoStringPool_LazyInternedStringList) outOfBounds(offset int) rhinoSt
 // GetID returns the interned rhinoStringID at offset.
 func (l *RhinoStringPool_LazyInternedStringList) GetID(offset int) rhinoStringID {
 	if uint(offset) < uint(len(l.ids)) {
-		return rhinoStringID(l.ids[offset])
+		return l.ids[offset]
 	}
 	return l.outOfBounds(offset)
 }
@@ -120,7 +91,7 @@ func (l *RhinoStringPool_LazyInternedStringList) Get(offset int) string {
 func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for _, id := range l.ids {
-			if !yield(strpool.String(strpool.ID(id))) {
+			if !yield(strpool.String(id)) {
 				return
 			}
 		}
@@ -131,7 +102,7 @@ func (l *RhinoStringPool_LazyInternedStringList) Stream() iter.Seq[string] {
 func (l *RhinoStringPool_LazyInternedStringList) Slice() []string {
 	out := make([]string, len(l.ids))
 	for i, id := range l.ids {
-		out[i] = strpool.String(strpool.ID(id))
+		out[i] = strpool.String(id)
 	}
 	return out
 }

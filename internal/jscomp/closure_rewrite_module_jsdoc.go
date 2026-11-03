@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 func (m *ClosureRewriteModule) rewriteJsdocInfoWithTraversal(info *rhino.JSDocInfo, t *NodeTraversal) {
@@ -80,7 +81,7 @@ func (m *ClosureRewriteModule) visitJsdocTypeRef(t *NodeTraversal, typeRefNode r
 		}
 		m.safeSetString(typeRefNode, newType)
 	} else if m.currentScript.isModule && len(m.currentScript.topLevelNameIDs) > 0 &&
-		hasUint32Key(m.currentScript.topLevelNameIDs, rhino.RhinoStringPool_LookupID(rootOfType)) {
+		hasUint32Key(m.currentScript.topLevelNameIDs, uint32(strpool.Lookup(rootOfType))) {
 		if isClosureLocalShadowVar(t, rootOfType) {
 			return
 		}

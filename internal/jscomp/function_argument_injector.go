@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: the parameters of a function and the arguments of a call are
@@ -208,7 +209,7 @@ type callParamBinding struct {
 }
 
 func (b callParamBinding) nameStr() string {
-	return rhino.RhinoStringPool_StringFromID(b.nameID)
+	return strpool.String(strpool.ID(b.nameID))
 }
 
 func hasDuplicateBindingID(bindings []callParamBinding) bool {
@@ -344,7 +345,7 @@ func (f *FunctionArgumentInjector) appendCallParamBindings(
 		uniquePlaceholder := FunctionArgumentInjector_GetUniqueAnonymousParameterName(safeNameIdSupplier)
 		if mode == callParamWalkReadOnly {
 			dst = append(dst, callParamBinding{
-				nameID:    rhino.RhinoStringPool_InternID(uniquePlaceholder),
+				nameID:    uint32(strpool.Intern(uniquePlaceholder)),
 				paramNode: FunctionArgumentInjector_THIS_MARKER_NODE,
 				argNode:   cArg.Node(),
 			})

@@ -3,6 +3,7 @@ package resources
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io/fs"
 	"strconv"
@@ -12,57 +13,55 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// Expected values were produced by the pinned jar's ResourceLoader on JDK 21
-// (loadTextResource: UTF-16 length and SHA-256 of the UTF-8 text, or the
-// exception; resourceExists). Closure has no ResourceLoaderTest.
 var resourceLoaderVectors = []struct {
-	clazz, path string
-	exists      bool
-	result      string
+	path   string
+	exists bool
+	result string
 }{
-	{"com.google.javascript.jscomp.RemoveUnusedCode", "js/polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
-	{"com.google.javascript.jscomp.js.RuntimeJsLibManager", "transpilation_libs.txt", true, "len=3965 sha256=bb817d2962ab4d5e29948cc553a61aced001b7260136cc2ad51b76707867b22e"},
-	{"com.google.javascript.jscomp.Compiler", "js/es6_runtime.js", true, "len=1234 sha256=9cde552822c9a16038349459630de758cbff0ddd64e38c05e14c905e3b1e614b"},
-	{"com.google.javascript.jscomp.Compiler", "js/es6/util/arrayiterator.js", true, "len=1395 sha256=a2505a52eb1bae870a5975927ffdfa357c11de977612c9dceb6360e0d5b5c26a"},
-	{"com.google.javascript.jscomp.Compiler", "js/nonexistent.js", false, "java.lang.RuntimeException: No such resource: js/nonexistent.js"},
-	{"com.google.javascript.jscomp.Compiler", "/com/google/javascript/jscomp/js/polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
-	{"com.google.javascript.jscomp.Compiler", "js/../js/polyfills.txt", false, "java.lang.RuntimeException: No such resource: js/../js/polyfills.txt"},
-	{"com.google.javascript.jscomp.Compiler", "js//polyfills.txt", false, "java.lang.RuntimeException: No such resource: js//polyfills.txt"},
-	{"com.google.javascript.jscomp.Compiler", "./js/polyfills.txt", false, "java.lang.RuntimeException: No such resource: ./js/polyfills.txt"},
-	{"com.google.javascript.jscomp.Compiler", "js/", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
-	{"com.google.javascript.jscomp.Compiler", "js", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
-	{"com.google.javascript.jscomp.Compiler$CodeBuilder", "js/polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
-	{"com.google.javascript.jscomp.Compiler", "", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+	{JsDir + "polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
+	{JsDir + "transpilation_libs.txt", true, "len=3965 sha256=bb817d2962ab4d5e29948cc553a61aced001b7260136cc2ad51b76707867b22e"},
+	{JsDir + "es6_runtime.js", true, "len=1234 sha256=9cde552822c9a16038349459630de758cbff0ddd64e38c05e14c905e3b1e614b"},
+	{JsDir + "es6/util/arrayiterator.js", true, "len=1395 sha256=a2505a52eb1bae870a5975927ffdfa357c11de977612c9dceb6360e0d5b5c26a"},
+	{JsDir + "nonexistent.js", false, "java.lang.RuntimeException: No such resource: " + JsDir + "nonexistent.js"},
+	{"/" + JsDir + "polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
+	{JsDir + "../js/polyfills.txt", false, "java.lang.RuntimeException: No such resource: " + JsDir + "../js/polyfills.txt"},
+	{"com/google/javascript/jscomp/js//polyfills.txt", false, "java.lang.RuntimeException: No such resource: com/google/javascript/jscomp/js//polyfills.txt"},
+	{"./" + JsDir + "polyfills.txt", false, "java.lang.RuntimeException: No such resource: ./" + JsDir + "polyfills.txt"},
+	{JsDir, true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+	{"com/google/javascript/jscomp/js", true, "len=0 sha256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
 }
 
 func TestResourceLoaderMatchesJava(t *testing.T) {
 	for _, v := range resourceLoaderVectors {
 		var got string
 		jutil.Try(func() {
-			s := ResourceLoader_LoadTextResource(v.clazz, v.path)
+			s := LoadText(v.path)
 			got = "len=" + strconv.Itoa(jutil.StringLength(s)) + fmt.Sprintf(" sha256=%x", sha256.Sum256([]byte(s)))
 		}, func(e jutil.Throwable) { got = e.Error() })
 		if got != v.result {
-			t.Errorf("loadTextResource(%s, %q) = %s, Java %s", v.clazz, v.path, got, v.result)
+			t.Errorf("LoadText(%q) = %s, want %s", v.path, got, v.result)
 		}
-		if e := ResourceLoader_ResourceExists(v.clazz, v.path); e != v.exists {
-			t.Errorf("resourceExists(%s, %q) = %v, Java %v", v.clazz, v.path, e, v.exists)
+		if e := Exists(v.path); e != v.exists {
+			t.Errorf("Exists(%q) = %v, want %v", v.path, e, v.exists)
+		}
+		_, err := LoadBytes(v.path)
+		if (err == nil) != v.exists {
+			t.Errorf("LoadBytes(%q) err = %v, exists = %v", v.path, err, v.exists)
+		}
+		if !v.exists && !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("LoadBytes(%q) err = %v, want errors.Is(fs.ErrNotExist)", v.path, err)
 		}
 	}
 }
 
-// The embedded text resources must be valid UTF-8: on such input Java's
-// decoding (InputStreamReader with UTF_8) is the identity, which is what
-// resourceLoader_charStreamsToString relies on. (externs.zip and
-// runtime_libs.typedast are binary resources, read as bytes only.)
 func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	n := 0
-	err := fs.WalkDir(resourceLoader_classpath, ".", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(classpath, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
 		n++
-		data, err := fs.ReadFile(resourceLoader_classpath, path)
+		data, err := fs.ReadFile(classpath, path)
 		if err != nil {
 			return err
 		}
@@ -77,19 +76,15 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// unzip -Z1 closure-compiler.jar 'com/google/javascript/jscomp/js/*' minus directories and .class files,
-	// plus externs.zip (runtime_libs.typedast is embedded on its own).
 	if n != 177 {
 		t.Errorf("%d embedded resources, want 177", n)
 	}
 }
 
-// runtime_libs.typedast is the pinned jar's entry, byte for byte
-// (unzip -p closure-compiler.jar runtime_libs.typedast | sha256sum).
 func TestEmbeddedRuntimeLibsTypedAst(t *testing.T) {
-	data := ResourceLoader_GetResourceAsStream("com.google.javascript.jscomp.Compiler", "/runtime_libs.typedast")
-	if data == nil {
-		t.Fatal("/runtime_libs.typedast is not embedded")
+	data, err := LoadBytes("runtime_libs.typedast")
+	if err != nil {
+		t.Fatalf("runtime_libs.typedast: %v", err)
 	}
 	sum := sha256.Sum256(data)
 	if got := hex.EncodeToString(sum[:]); len(data) != 3540605 ||

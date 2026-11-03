@@ -52,7 +52,7 @@ func NewColorGraphBuilderTest() *ColorGraphBuilderTest {
 	c.compiler = NewCompiler()
 	c.graphNodeFactory =
 		ColorGraphNodeFactory_CreateFactory(
-			colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build())
+			colors.NewColorRegistryBuilder().SetDefaultNativeColorsForTesting().Build())
 	return c
 }
 
@@ -349,7 +349,7 @@ func (c *ColorGraphBuilderTest) TestDisambiguationSupertypes_createConnection() 
 	builder :=
 		c.createBuilder(
 			nil,
-			colors.ColorRegistry_Builder_().
+			colors.NewColorRegistryBuilder().
 				SetDefaultNativeColorsForTesting().
 				AddDisambiguationEdge(child, parent).
 				Build())

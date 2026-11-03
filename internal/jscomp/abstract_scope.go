@@ -25,6 +25,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // How the scope hierarchy is mapped (read this before porting code that uses
@@ -526,10 +527,10 @@ var abstractScope_ImplicitVar_names = [...]string{"ARGUMENTS", "EXPORTS", "SUPER
 var abstractScope_ImplicitVar_name = [...]string{"arguments", "exports", "super", "this"}
 
 var (
-	implicitArgumentsID = rhino.RhinoStringPool_InternID("arguments")
-	implicitExportsID   = rhino.RhinoStringPool_InternID("exports")
-	implicitSuperID     = rhino.RhinoStringPool_InternID("super")
-	implicitThisID      = rhino.RhinoStringPool_InternID("this")
+	implicitArgumentsID = uint32(strpool.Intern("arguments"))
+	implicitExportsID   = uint32(strpool.Intern("exports"))
+	implicitSuperID     = uint32(strpool.Intern("super"))
+	implicitThisID      = uint32(strpool.Intern("this"))
 
 	abstractScope_ImplicitVar_id = [...]uint32{
 		implicitArgumentsID,

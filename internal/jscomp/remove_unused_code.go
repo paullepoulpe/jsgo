@@ -23,6 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/diagnostic"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: the traversal methods and the Removables read the shapes they
@@ -35,7 +36,7 @@ type rucPropEntry struct {
 	removables      rucRemovableQueue
 	polyHead        *rucPolyfillInfo
 	polyTail        *rucPolyfillInfo
-	propID          uint32
+	propID          strpool.ID
 	checkedUnpinned bool
 	inRemOrder      bool
 }
@@ -54,7 +55,7 @@ type removeUnusedCodeState struct {
 	trackProps   bool
 	pinnedProps  smallBitSet
 	polyBits     smallBitSet
-	propIdxByID  map[uint32]uint32
+	propIdxByID  map[strpool.ID]uint32
 	propEntries  []rucPropEntry
 	propRemOrder []uint32
 
@@ -176,24 +177,24 @@ var (
 		uint32(idPrototype),
 	}
 
-	rucCalleeInheritsID                 = rhino.RhinoStringPool_InternID("inherits")
-	rucCalleeMixinID                    = rhino.RhinoStringPool_InternID("mixin")
+	rucCalleeInheritsID                 = uint32(strpool.Intern("inherits"))
+	rucCalleeMixinID                    = uint32(strpool.Intern("mixin"))
 	rucCalleeDefinePropertiesID         = uint32(idDefineProperties)
-	rucCalleeObjectPropertyID           = rhino.RhinoStringPool_InternID("objectProperty")
-	rucCalleeAddSingletonGetterID       = rhino.RhinoStringPool_InternID("addSingletonGetter")
-	rucCalleePolyfillID                 = rhino.RhinoStringPool_InternID("polyfill")
-	rucCalleePatchID                    = rhino.RhinoStringPool_InternID("patch")
-	rucCalleePolyfillTypedArrayMethodID = rhino.RhinoStringPool_InternID("polyfillTypedArrayMethod")
+	rucCalleeObjectPropertyID           = uint32(strpool.Intern("objectProperty"))
+	rucCalleeAddSingletonGetterID       = uint32(strpool.Intern("addSingletonGetter"))
+	rucCalleePolyfillID                 = uint32(strpool.Intern("polyfill"))
+	rucCalleePatchID                    = uint32(strpool.Intern("patch"))
+	rucCalleePolyfillTypedArrayMethodID = uint32(strpool.Intern("polyfillTypedArrayMethod"))
 	rucCalleeWeakUsageID                = uint32(idWeakUsage)
 
 	rucCalleeJscPropNameFnID                  = uint32(idJscPropertyNameFn)
-	rucCalleeGoogReflectObjectPropertyID      = rhino.RhinoStringPool_InternID("goog$reflect$objectProperty")
-	rucCalleeJscompPolyfillID                 = rhino.RhinoStringPool_InternID("$jscomp$polyfill")
-	rucCalleeJscompPatchID                    = rhino.RhinoStringPool_InternID("$jscomp$patch")
-	rucCalleeJscompPolyfillTypedArrayMethodID = rhino.RhinoStringPool_InternID("$jscomp$polyfillTypedArrayMethod")
+	rucCalleeGoogReflectObjectPropertyID      = uint32(strpool.Intern("goog$reflect$objectProperty"))
+	rucCalleeJscompPolyfillID                 = uint32(strpool.Intern("$jscomp$polyfill"))
+	rucCalleeJscompPatchID                    = uint32(strpool.Intern("$jscomp$patch"))
+	rucCalleeJscompPolyfillTypedArrayMethodID = uint32(strpool.Intern("$jscomp$polyfillTypedArrayMethod"))
 	rucCalleeGoogWeakUsageID                  = uint32(idGoogWeakUsage)
-	rucCalleeGoogAddSingletonGetterID         = rhino.RhinoStringPool_InternID("goog$addSingletonGetter")
-	rucJscompIdentID                          = rhino.RhinoStringPool_InternID("$jscomp")
+	rucCalleeGoogAddSingletonGetterID         = uint32(strpool.Intern("goog$addSingletonGetter"))
+	rucJscompIdentID                          = uint32(strpool.Intern("$jscomp"))
 )
 
 // RemoveUnusedCodeOptions configures a RemoveUnusedCode pass.
@@ -256,12 +257,12 @@ func (r *RemoveUnusedCode) removesAnyProperties() bool {
 		r.removeUnusedObjectDefinePropertiesDefinitions
 }
 
-func (r *RemoveUnusedCode) ensurePropEntry(id uint32) uint32 {
+func (r *RemoveUnusedCode) ensurePropEntry(id strpool.ID) uint32 {
 	if idx1 := r.propIdxByID[id]; idx1 != 0 {
 		return idx1 - 1
 	}
 	if r.propIdxByID == nil {
-		r.propIdxByID = make(map[uint32]uint32, 64)
+		r.propIdxByID = make(map[strpool.ID]uint32, 64)
 	}
 	idx := uint32(len(r.propEntries))
 	r.propEntries = append(r.propEntries, rucPropEntry{propID: id})
@@ -270,7 +271,7 @@ func (r *RemoveUnusedCode) ensurePropEntry(id uint32) uint32 {
 }
 
 func (r *RemoveUnusedCode) considerPolyfillRef(keyID uint32, n rhino.Node) {
-	idx1 := r.propIdxByID[keyID]
+	idx1 := r.propIdxByID[strpool.ID(keyID)]
 	if idx1 == 0 {
 		return
 	}
@@ -544,7 +545,7 @@ func (r *RemoveUnusedCode) RemoveIndependentlyRemovableProperties() {
 			continue
 		}
 		if r.removalLog.IsLogging() {
-			r.logRemoval("prop", rhino.RhinoStringPool_StringFromID(entry.propID), "")
+			r.logRemoval("prop", strpool.String(entry.propID), "")
 		}
 		entry.removables.drain(func(cur *rucRemovable) {
 			cur.flags &^= remFlagInPropList
@@ -576,7 +577,7 @@ func (r *RemoveUnusedCode) markPropertyIDPinned(id uint32) {
 	r.pinnedProps.Set(int(id))
 	// Continue traversal of all of the property name's values and no longer consider them for
 	// removal.
-	if idx1 := r.propIdxByID[id]; idx1 != 0 {
+	if idx1 := r.propIdxByID[strpool.ID(id)]; idx1 != 0 {
 		r.propEntries[idx1-1].removables.drain(func(cur *rucRemovable) {
 			cur.flags &^= remFlagInPropList
 			cur.ApplyContinuations(r)
@@ -603,9 +604,9 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 		removable.ApplyContinuations(r)
 		return
 	}
-	idx := r.ensurePropEntry(propID)
+	idx := r.ensurePropEntry(strpool.ID(propID))
 	if !r.propEntries[idx].checkedUnpinned {
-		name := rhino.RhinoStringPool_StringFromID(propID)
+		name := strpool.String(strpool.ID(propID))
 		if (r.externProperties != nil && r.externProperties.Contains(name)) ||
 			r.isExportedByConvention(name /* local= */, false) {
 			r.pinnedProps.Set(int(propID))

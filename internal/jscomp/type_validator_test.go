@@ -81,7 +81,7 @@ func (c *TypeValidatorTest) TestFunctionMismatch() {
 	c.assertThatRecordedMismatches().
 		ComparingElementsUsing(TypeValidatorTest_HAVE_SAME_TYPES).
 		ContainsExactly(
-			TypeMismatch_CreateForTesting(firstFunction, secondFunction),
+			NewTypeMismatchForTesting(firstFunction, secondFunction),
 			c.fromNatives(rhino.JSTypeNative_STRING_TYPE, rhino.JSTypeNative_BOOLEAN_TYPE),
 			c.fromNatives(rhino.JSTypeNative_NUMBER_TYPE, rhino.JSTypeNative_STRING_TYPE))
 }
@@ -104,7 +104,7 @@ func (c *TypeValidatorTest) TestFunctionMismatch2() {
 	c.assertThatRecordedMismatches().
 		ComparingElementsUsing(TypeValidatorTest_HAVE_SAME_TYPES).
 		ContainsExactly(
-			TypeMismatch_CreateForTesting(firstFunction, secondFunction),
+			NewTypeMismatchForTesting(firstFunction, secondFunction),
 			c.fromNatives(rhino.JSTypeNative_STRING_TYPE, rhino.JSTypeNative_BOOLEAN_TYPE))
 }
 
@@ -779,7 +779,7 @@ function f() {}
 // Java: TypeValidatorTest.fromNatives(JSTypeNative, JSTypeNative)
 func (c *TypeValidatorTest) fromNatives(a rhino.JSTypeNative, b rhino.JSTypeNative) TypeMismatch {
 	registry := c.GetLastCompiler().GetTypeRegistry()
-	return TypeMismatch_CreateForTesting(registry.GetNativeType(a), registry.GetNativeType(b))
+	return NewTypeMismatchForTesting(registry.GetNativeType(a), registry.GetNativeType(b))
 }
 
 // Java: TypeValidatorTest.assertThatRecordedMismatches()
@@ -789,8 +789,8 @@ func (c *TypeValidatorTest) assertThatRecordedMismatches() *Subject {
 
 // Java: TypeValidatorTest.HAVE_SAME_TYPES
 var TypeValidatorTest_HAVE_SAME_TYPES = Correspondence_TransformingBoth(
-	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
-	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found(), x.Required()} },
+	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found, x.Required} },
+	func(x TypeMismatch) []rhino.JSType { return []rhino.JSType{x.Found, x.Required} },
 	"has same types as")
 
 type dupVarCustomGuard struct {

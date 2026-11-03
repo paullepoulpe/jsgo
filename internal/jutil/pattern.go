@@ -48,6 +48,7 @@ package jutil
 
 import (
 	"regexp"
+	"regexp/syntax"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -303,28 +304,7 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 			switch {
 			case e == 'Q':
 				// Quote until \E (or the end).
-				end := -1
-				for j := i + 1; j+1 < n; j++ {
-					if rs[j] == '\\' && rs[j+1] == 'E' {
-						end = j
-						break
-					}
-				}
-				var lit string
-				if end == -1 {
-					lit = string(rs[i+1:])
-					i = n
-				} else {
-					lit = string(rs[i+1 : end])
-					i = end + 1
-				}
-				if inClass {
-					for _, r := range lit {
-						sb.WriteString(regexp.QuoteMeta(string(r)))
-					}
-				} else {
-					sb.WriteString(regexp.QuoteMeta(lit))
-				}
+				i = writeJavaQuotedLiteral(&sb, rs, i, inClass)
 			case e == 'E':
 				// A stray \E is ignored by Java.
 			case e == 's':
@@ -387,7 +367,7 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 				}
 				sb.WriteRune(c)
 			case ']':
-				if i == classStart || (i == classStart+1 && rs[classStart] == '^') {
+				if isLeadingClassClose(rs, i, classStart) {
 					// A leading ']' is a literal in Java as in RE2.
 					sb.WriteString(`\]`)
 				} else {
@@ -513,6 +493,110 @@ func translateJavaRegex(regex string, mode javaRegexMode) (string, javaRegexInfo
 		panic(NewPatternSyntaxException("Unclosed character class", regex, n-1))
 	}
 	return sb.String(), info
+}
+
+// writeJavaQuotedLiteral consumes a \Q...\E span starting at rs[i] ('Q'),
+// writes the escaped literal to sb, and returns the updated rune index.
+func writeJavaQuotedLiteral(sb *strings.Builder, rs []rune, i int, inClass bool) int {
+	n := len(rs)
+	end := -1
+	for j := i + 1; j+1 < n; j++ {
+		if rs[j] == '\\' && rs[j+1] == 'E' {
+			end = j
+			break
+		}
+	}
+	var lit string
+	if end == -1 {
+		lit = string(rs[i+1:])
+		i = n
+	} else {
+		lit = string(rs[i+1 : end])
+		i = end + 1
+	}
+	if inClass {
+		for _, r := range lit {
+			sb.WriteString(regexp.QuoteMeta(string(r)))
+		}
+	} else {
+		sb.WriteString(regexp.QuoteMeta(lit))
+	}
+	return i
+}
+
+func isLeadingClassClose(rs []rune, i, classStart int) bool {
+	return i == classStart || (i == classStart+1 && rs[classStart] == '^')
+}
+
+// IsValidPattern reports whether pattern is syntactically valid as a Java
+// java.util.regex.Pattern, including Java escapes and repetition forms that
+// Pattern_Compile does not execute on RE2.
+func IsValidPattern(pattern string) bool {
+	var sb strings.Builder
+	rs := []rune(pattern)
+	n := len(rs)
+	inClass := false
+	classStart := 0
+	for i := 0; i < n; i++ {
+		c := rs[i]
+		switch {
+		case c == '\\':
+			if i+1 >= n {
+				return false
+			}
+			i++
+			e := rs[i]
+			switch {
+			case e == 'Q':
+				i = writeJavaQuotedLiteral(&sb, rs, i, inClass)
+			case e == 'E':
+			case e == 's', e == 'S', e == 'v', e == 'h', e == 'V', e == 'H',
+				e == 'e', e == 'a',
+				e == '0', e >= '1' && e <= '9', e == 'k',
+				e == 'b', e == 'B', e == 'z', e == 'Z', e == 'G', e == 'A', e == 'R', e == 'X',
+				e == 'p', e == 'P', e == 'x', e == 'u', e == 'c', e == 'N':
+				sb.WriteByte('a')
+			case e == 'd', e == 'D', e == 'w', e == 'W', e == 't', e == 'n', e == 'r', e == 'f':
+				sb.WriteByte('\\')
+				sb.WriteRune(e)
+			case (e >= 'a' && e <= 'z') || (e >= 'A' && e <= 'Z'):
+				return false
+			default:
+				sb.WriteString(regexp.QuoteMeta(string(e)))
+			}
+		case inClass:
+			if c == ']' {
+				if isLeadingClassClose(rs, i, classStart) {
+					sb.WriteString(`\]`)
+				} else {
+					inClass = false
+					sb.WriteByte(']')
+				}
+			} else {
+				sb.WriteRune(c)
+			}
+		case c == '[':
+			inClass = true
+			classStart = i + 1
+			sb.WriteByte('[')
+		default:
+			sb.WriteRune(c)
+		}
+	}
+	if inClass {
+		return false
+	}
+	if _, err := syntax.Parse(sb.String(), syntax.Perl); err != nil {
+		if se, ok := err.(*syntax.Error); ok {
+			switch se.Code {
+			case syntax.ErrInvalidRepeatSize, syntax.ErrInvalidRepeatOp, syntax.ErrLarge,
+				syntax.ErrNestingDepth, syntax.ErrInternalError:
+				return true
+			}
+		}
+		return false
+	}
+	return true
 }
 
 func isJavaLineTerminatorRune(r rune) bool {

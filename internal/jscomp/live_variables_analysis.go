@@ -23,6 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
@@ -253,7 +254,7 @@ func (l *LiveVariablesAnalysis) lookupVarIndexByID(id uint32) (int, bool) {
 }
 
 func (l *LiveVariablesAnalysis) lookupVarIndex(name string) (int, bool) {
-	return l.table.lookupIndexByID(rhino.RhinoStringPool_LookupID(name))
+	return l.table.lookupIndexByID(uint32(strpool.Lookup(name)))
 }
 
 func (l *LiveVariablesAnalysis) getVarIndexByID(id uint32) int {

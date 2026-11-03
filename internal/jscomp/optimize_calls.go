@@ -28,11 +28,11 @@ import (
 )
 
 var (
-	optimizeCallsCallStringID     = rhino.RhinoStringPool_InternID("call")
-	optimizeCallsPropNameFnID     = rhino.RhinoStringPool_InternID(NodeUtil_JSC_PROPERTY_NAME_FN)
-	optimizeCallsInheritsID       = rhino.RhinoStringPool_InternID("inherits")
-	optimizeCallsJscompInheritsID = rhino.RhinoStringPool_InternID("$jscomp$inherits")
-	optimizeCallsGoogInheritsID   = rhino.RhinoStringPool_InternID("goog$inherits")
+	optimizeCallsCallStringID     = strpool.Intern("call")
+	optimizeCallsPropNameFnID     = strpool.Intern(NodeUtil_JSC_PROPERTY_NAME_FN)
+	optimizeCallsInheritsID       = strpool.Intern("inherits")
+	optimizeCallsJscompInheritsID = strpool.Intern("$jscomp$inherits")
+	optimizeCallsGoogInheritsID   = strpool.Intern("goog$inherits")
 )
 
 // OptimizeCalls is a root pass that is a container for other passes that
@@ -125,7 +125,7 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 // Java: OptimizeCalls.eliminateAccessorsFrom(ReferenceMap)
 func (o *OptimizeCalls) eliminateAccessorsFrom(references *OptimizeCalls_ReferenceMap) {
 	for _, id := range o.compiler.GetAccessorSummary().AccessorIDs() {
-		references.props.removeByID(id)
+		references.props.removeByID(strpool.ID(id))
 	}
 }
 
@@ -154,21 +154,21 @@ type optimizeCalls_refList struct {
 }
 
 type optimizeCalls_refTable struct {
-	byID  map[uint32]*optimizeCalls_refList
-	order []uint32
+	byID  map[strpool.ID]*optimizeCalls_refList
+	order []strpool.ID
 	size  int
 }
 
 func (t *optimizeCalls_refTable) initWithCapacity(capHint int) {
-	t.byID = make(map[uint32]*optimizeCalls_refList, capHint)
-	t.order = make([]uint32, 0, min(capHint, 4096))
+	t.byID = make(map[strpool.ID]*optimizeCalls_refList, capHint)
+	t.order = make([]strpool.ID, 0, min(capHint, 4096))
 	t.size = 0
 }
 
 func (t *optimizeCalls_refTable) Size() int     { return t.size }
 func (t *optimizeCalls_refTable) IsEmpty() bool { return t.size == 0 }
 
-func (t *optimizeCalls_refTable) removeByID(id uint32) {
+func (t *optimizeCalls_refTable) removeByID(id strpool.ID) {
 	if l := t.byID[id]; l != nil {
 		delete(t.byID, id)
 		l.nodes = nil
@@ -180,7 +180,7 @@ func (t *optimizeCalls_refTable) all() iter.Seq2[string, []rhino.Node] {
 	return func(yield func(string, []rhino.Node) bool) {
 		for _, id := range t.order {
 			if l := t.byID[id]; l != nil {
-				if !yield(strpool.String(strpool.ID(id)), l.nodes) {
+				if !yield(strpool.String(id), l.nodes) {
 					return
 				}
 			}
@@ -192,7 +192,7 @@ func (t *optimizeCalls_refTable) allByID() iter.Seq2[uint32, []rhino.Node] {
 	return func(yield func(uint32, []rhino.Node) bool) {
 		for _, id := range t.order {
 			if l := t.byID[id]; l != nil {
-				if !yield(id, l.nodes) {
+				if !yield(uint32(id), l.nodes) {
 					return
 				}
 			}
@@ -200,7 +200,7 @@ func (t *optimizeCalls_refTable) allByID() iter.Seq2[uint32, []rhino.Node] {
 	}
 }
 
-func (m *OptimizeCalls_ReferenceMap) addReferenceByID(data *optimizeCalls_refTable, id uint32, n rhino.Node) {
+func (m *OptimizeCalls_ReferenceMap) addReferenceByID(data *optimizeCalls_refTable, id strpool.ID, n rhino.Node) {
 	refs := data.byID[id]
 	if refs == nil {
 		refs = m.refLists.New()
@@ -214,16 +214,16 @@ func (m *OptimizeCalls_ReferenceMap) addReferenceByID(data *optimizeCalls_refTab
 
 // Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, name string, n rhino.Node) {
-	m.addReferenceByID(data, uint32(strpool.Intern(name)), n)
+	m.addReferenceByID(data, strpool.Intern(name), n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addNameReference(String, Node)
-func (m *OptimizeCalls_ReferenceMap) addNameReferenceByID(id uint32, n rhino.Node) {
+func (m *OptimizeCalls_ReferenceMap) addNameReferenceByID(id strpool.ID, n rhino.Node) {
 	m.addReferenceByID(&m.names, id, n)
 }
 
 // Java: OptimizeCalls.ReferenceMap.addPropReference(String, Node)
-func (m *OptimizeCalls_ReferenceMap) addPropReferenceByID(id uint32, n rhino.Node) {
+func (m *OptimizeCalls_ReferenceMap) addPropReferenceByID(id strpool.ID, n rhino.Node) {
 	m.addReferenceByID(&m.props, id, n)
 }
 
@@ -392,7 +392,7 @@ func OptimizeCalls_ReferenceMap_IsCallTarget(n rhino.Node) bool {
 	if call, ok := ast.AsCall(parent); ok && call.Callee().Is(n) {
 		return true
 	}
-	if !parent.IsGetProp() || parent.GetStringID() != optimizeCallsCallStringID {
+	if !parent.IsGetProp() || nodeStringID(parent) != optimizeCallsCallStringID {
 		return false
 	}
 	call, ok := ast.AsCall(parent.GetParent())
@@ -409,7 +409,7 @@ func OptimizeCalls_ReferenceMap_IsOptChainCallTarget(n rhino.Node) bool {
 	if call, ok := ast.AsOptChainCall(parent); ok && call.Callee().Is(n) {
 		return true
 	}
-	if !parent.IsOptChainGetProp() || parent.GetStringID() != optimizeCallsCallStringID {
+	if !parent.IsOptChainGetProp() || nodeStringID(parent) != optimizeCallsCallStringID {
 		return false
 	}
 	call, ok := ast.AsOptChainCall(parent.GetParent())
@@ -559,7 +559,7 @@ func (c *optimizeCallsRefCollector) traverseNode(n rhino.Node) {
 				c.visitSuper(child)
 			case rhino.Token_MEMBER_FIELD_DEF:
 				if !child.IsQuotedStringKey() {
-					c.maybeAddPropReferenceByID(child.GetStringID(), child)
+					c.maybeAddPropReferenceByID(nodeStringID(child), child)
 				}
 			}
 			continue
@@ -571,16 +571,16 @@ func (c *optimizeCallsRefCollector) traverseNode(n rhino.Node) {
 	case rhino.Token_NAME:
 		c.maybeAddNameReferenceNode(n, n)
 	case rhino.Token_OPTCHAIN_GETPROP, rhino.Token_GETPROP:
-		c.maybeAddPropReferenceByID(n.GetStringID(), n)
+		c.maybeAddPropReferenceByID(nodeStringID(n), n)
 	case rhino.Token_CALL:
 		call := ast.MustCall(n)
 		if firstArg, ok := call.FirstArg(); ok && c.codingConvention.IsPropertyRenameFunction(call.Callee().Node()) {
-			c.maybeAddPropReferenceByID(firstArg.Node().GetStringID(), n)
+			c.maybeAddPropReferenceByID(nodeStringID(firstArg.Node()), n)
 		}
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF,
 		rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF:
 		if !n.IsQuotedStringKey() {
-			c.maybeAddPropReferenceByID(n.GetStringID(), n)
+			c.maybeAddPropReferenceByID(nodeStringID(n), n)
 		}
 	case rhino.Token_SUPER:
 		c.visitSuper(n)
@@ -596,7 +596,7 @@ func (c *optimizeCallsRefCollector) visitSuper(superNode rhino.Node) {
 	if isName {
 		c.maybeAddNameReferenceNode(target, superNode)
 	} else {
-		c.maybeAddPropReferenceByID(target.GetStringID(), superNode)
+		c.maybeAddPropReferenceByID(nodeStringID(target), superNode)
 	}
 }
 
@@ -621,17 +621,17 @@ func optimizeCallsSuperTarget(superNode rhino.Node) (target rhino.Node, isName b
 }
 
 func (c *optimizeCallsRefCollector) maybeAddNameReferenceNode(nameNode rhino.Node, n rhino.Node) {
-	id := nameNode.GetStringID()
-	if id <= rhino.RhinoStringPool_EmptyID {
+	id := nodeStringID(nameNode)
+	if id <= strpool.EmptyID {
 		return
 	}
-	var_ := c.globalScope.GetVarByID(id)
+	var_ := c.globalScope.GetVarByID(uint32(id))
 	if var_ != nil && (c.outer.considerExterns || !var_.IsExtern()) {
 		c.references.addNameReferenceByID(id, n)
 	}
 }
 
-func (c *optimizeCallsRefCollector) maybeAddPropReferenceByID(id uint32, n rhino.Node) {
+func (c *optimizeCallsRefCollector) maybeAddPropReferenceByID(id strpool.ID, n rhino.Node) {
 	if !c.outer.considerExterns && c.externPropBits.Get(int(id)) {
 		return
 	}
@@ -640,11 +640,11 @@ func (c *optimizeCallsRefCollector) maybeAddPropReferenceByID(id uint32, n rhino
 
 // Java: OptimizeCalls.mayBeOptimizableName(AbstractCompiler, String)
 func OptimizeCalls_MayBeOptimizableNameByID(compiler AbstractCompiler, id uint32) bool {
-	switch id {
+	switch strpool.ID(id) {
 	case optimizeCallsPropNameFnID, optimizeCallsInheritsID, optimizeCallsJscompInheritsID, optimizeCallsGoogInheritsID:
 		return false
 	}
-	return !compiler.GetCodingConvention().IsExported(rhino.RhinoStringPool_StringFromID(id))
+	return !compiler.GetCodingConvention().IsExported(strpool.String(strpool.ID(id)))
 }
 
 // OptimizeCalls_IsAllowedReference returns whether the reference is a known

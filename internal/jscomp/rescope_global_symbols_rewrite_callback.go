@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 const rescopeDisambiguationSuffix = "$"
@@ -42,7 +43,7 @@ type rescopeRewriteCallback struct {
 	disambigPrefix        string
 	assumeCrossChunkNames bool
 	optimizeLocalAccess   CompilerOptions_OptimizeLocalAccess
-	externNames           map[uint32]struct{}
+	externNames           map[strpool.ID]struct{}
 	symbolInfo            *rescopeSymbolInfo
 
 	preDeclarations []rescopeChunkGlobal
@@ -92,22 +93,22 @@ func (c *rescopeRewriteCallback) isCrossChunkName(name string) bool {
 }
 
 func (c *rescopeRewriteCallback) isExternName(name string) bool {
-	if id := rhino.RhinoStringPool_LookupID(name); id > rhino.RhinoStringPool_EmptyID {
+	if id := strpool.Lookup(name); id > strpool.EmptyID {
 		_, ok := c.externNames[id]
 		return ok
 	}
 	return false
 }
 
-func (c *rescopeRewriteCallback) isExternVar(id uint32, scope *Scope) bool {
-	if id <= rhino.RhinoStringPool_EmptyID {
+func (c *rescopeRewriteCallback) isExternVar(id strpool.ID, scope *Scope) bool {
+	if id <= strpool.EmptyID {
 		return false
 	}
-	return c.isExternVarResolved(id, scope.GetVarByID(id))
+	return c.isExternVarResolved(id, scope.GetVarByID(uint32(id)))
 }
 
-func (c *rescopeRewriteCallback) isExternVarResolved(id uint32, v *Var) bool {
-	if id <= rhino.RhinoStringPool_EmptyID {
+func (c *rescopeRewriteCallback) isExternVarResolved(id strpool.ID, v *Var) bool {
+	if id <= strpool.EmptyID {
 		return false
 	}
 	if v == nil || v.IsExtern() {
@@ -167,7 +168,7 @@ func (c *rescopeRewriteCallback) visitNameDeclaration(t *NodeTraversal, declarat
 	for _, lhs := range c.lhsScratch {
 		jutil.CheckStateMsg1(lhs.IsName(), "Unexpected lhs node %s, expected NAME", lhs)
 		name := lhs.GetString()
-		if (isGlobalDeclaration && c.isCrossChunkName(name)) || c.isExternVar(lhs.GetStringID(), scope) {
+		if (isGlobalDeclaration && c.isCrossChunkName(name)) || c.isExternVar(nodeStringID(lhs), scope) {
 			hasImportantName = true
 			break
 		}
@@ -178,8 +179,8 @@ func (c *rescopeRewriteCallback) visitNameDeclaration(t *NodeTraversal, declarat
 	}
 }
 
-func (c *rescopeRewriteCallback) globalVarStaysLocalInDefiningChunk(id uint32, name string, scope *Scope) bool {
-	v := scope.GetVarByID(id)
+func (c *rescopeRewriteCallback) globalVarStaysLocalInDefiningChunk(id strpool.ID, name string, scope *Scope) bool {
+	v := scope.GetVarByID(uint32(id))
 	jutil.CheckStateMsg1(v != nil && v.IsGlobal(), "Expected global variable: %s", name)
 	if c.isExternVarResolved(id, v) {
 		return false
@@ -204,7 +205,7 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 
 	var astRoot rhino.Node
 	recordLocalPreDecl := func(lhs rhino.Node) {
-		id := lhs.GetStringID()
+		id := nodeStringID(lhs)
 		name := lhs.GetString()
 		if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
 			if astRoot.IsNil() {
@@ -230,7 +231,7 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 
 	for decl := range ast.ReadAhead(ast.MustNameDeclaration(declaration).FirstDeclarator()) {
 		if nameDecl, ok := decl.AsName(); ok {
-			id := nameDecl.Node().GetStringID()
+			id := nodeStringID(nameDecl.Node())
 			if preserveLocal && c.globalVarStaysLocalInDefiningChunk(id, nameDecl.Ident(), scope) {
 				continue
 			}
@@ -310,13 +311,13 @@ func (c *rescopeRewriteCallback) ensureChunksUsingCrossChunkSymbol(name string) 
 }
 
 func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	id := n.GetStringID()
-	if parent.IsFunction() && id <= rhino.RhinoStringPool_EmptyID {
+	id := nodeStringID(n)
+	if parent.IsFunction() && id <= strpool.EmptyID {
 		return
 	}
 	var var_ *Var
-	if id > rhino.RhinoStringPool_EmptyID {
-		var_ = t.GetScope().GetVarByID(id)
+	if id > strpool.EmptyID {
+		var_ = t.GetScope().GetVarByID(uint32(id))
 		if c.isExternVarResolved(id, var_) {
 			return
 		}

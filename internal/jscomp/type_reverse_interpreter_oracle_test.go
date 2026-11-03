@@ -904,7 +904,7 @@ func (d *raiDump) runDeps(typeStrings []string) {
 			acc.RegisterMismatch(location, t1, t2)
 			var sb strings.Builder
 			for _, m := range acc.GetMismatches() {
-				sb.WriteString(" <" + raiStr(m.Found()) + " ; " + raiStr(m.Required()) + ">")
+				sb.WriteString(" <" + raiStr(m.Found) + " ; " + raiStr(m.Required) + ">")
 			}
 			return sb.String()
 		})

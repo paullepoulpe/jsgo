@@ -412,8 +412,7 @@ func Color_CreateUnionSliceWithBuilder(
 	return res
 }
 
-// newColor is the AutoValue constructor; the generated null checks of its
-// reference fields are Builder.buildInternal's (the only caller).
+// newColor constructs a Color from validated Color_Builder fields.
 //
 // Java: $AutoValue_Color(ColorId, ImmutableSet<Color>, ImmutableSet<Color>, boolean, boolean, boolean, ImmutableSet<String>, ColorId, boolean, ImmutableSet<Color>)
 func newColor(
@@ -430,18 +429,6 @@ func newColor(
 	closureAssert bool,
 	unionElements []*Color,
 ) *Color {
-	if prototypes == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null prototypes"))
-	}
-	if instanceColors == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null instanceColors"))
-	}
-	if ownProperties == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null ownProperties"))
-	}
-	if unionElements == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null unionElements"))
-	}
 	var c *Color
 	if slab != nil {
 		c = slab.New()
@@ -492,9 +479,6 @@ func (c *Color) SubtractNullOrVoid() *Color {
 		return v
 	}
 	v := c.subtractNullOrVoidImpl()
-	if v == nil {
-		panic(jutil.NewNullPointerExceptionMsg("subtractNullOrVoid() cannot return null"))
-	}
 	if c.subtractNullOrVoid.CompareAndSwap(nil, v) {
 		return v
 	}

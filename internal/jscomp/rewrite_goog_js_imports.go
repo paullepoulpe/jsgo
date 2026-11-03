@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // RewriteGoogJsImports looks for references to Closure's goog.js file and
@@ -105,7 +106,7 @@ func (m RewriteGoogJsImports_Mode) String() string {
 
 const rewriteGoogJsImports_EXPECTED_BASE_PROVIDE = "goog"
 
-var rewriteGoogJsGoogID = rhino.RhinoStringPool_InternID("goog")
+var rewriteGoogJsGoogID = strpool.Intern("goog")
 
 // Java: RewriteGoogJsImports(AbstractCompiler, Mode, ModuleMap)
 func NewRewriteGoogJsImports(compiler AbstractCompiler, mode RewriteGoogJsImports_Mode, moduleMap *ModuleMap) *RewriteGoogJsImports {
@@ -207,7 +208,7 @@ func (r *RewriteGoogJsImports) NewReferenceReplacer(
 
 // Java: RewriteGoogJsImports.ReferenceReplacer.maybeRewriteBadGoogJsImportRef(NodeTraversal, Node, Node)
 func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(t *NodeTraversal, nameNode rhino.Node, parent rhino.Node) {
-	if nameNode.GetStringID() != rewriteGoogJsGoogID {
+	if nodeStringID(nameNode) != rewriteGoogJsGoogID {
 		return
 	}
 	gp, ok := ast.AsGetProp(parent)
@@ -215,7 +216,7 @@ func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(
 		return
 	}
 
-	var_ := t.GetScope().GetVarByID(rewriteGoogJsGoogID)
+	var_ := t.GetScope().GetVarByID(uint32(rewriteGoogJsGoogID))
 
 	if var_ == nil ||
 		var_.GetNameNode().IsNil() ||
@@ -284,7 +285,7 @@ func (f *RewriteGoogJsImports_FindReexports) CheckIfForwardingExport(t *NodeTrav
 
 // Java: RewriteGoogJsImports.FindReexports.checkIfNameFowardedExport(NodeTraversal, Node, Node)
 func (f *RewriteGoogJsImports_FindReexports) CheckIfNameFowardedExport(t *NodeTraversal, nameNode rhino.Node, parent rhino.Node) {
-	if f.hasGoogImport && nameNode.GetStringID() == rewriteGoogJsGoogID {
+	if f.hasGoogImport && nodeStringID(nameNode) == rewriteGoogJsGoogID {
 		if spec, ok := ast.AsExportSpec(parent); (ok && spec.Local().Is(nameNode)) || parent.IsExport() {
 			t.Report(nameNode, RewriteGoogJsImports_GOOG_JS_REEXPORTED)
 		}
@@ -349,7 +350,7 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 	moduleScope :=
 		NewSyntacticScopeCreator(r.compiler).
 			CreateScopeOfScope(scriptRoot.GetFirstChild(), Scope_CreateGlobalScope(scriptRoot))
-	googVar := moduleScope.GetVarByID(rewriteGoogJsGoogID)
+	googVar := moduleScope.GetVarByID(uint32(rewriteGoogJsGoogID))
 
 	if googVar != nil && !googVar.GetNameNode().IsNil() {
 		r.compiler.Report(

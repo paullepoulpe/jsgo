@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass reads the declarations, calls and property accesses
@@ -393,7 +394,7 @@ func (b *InlineVariables_InliningBehavior) handleAliasedVarCompletion(
 	b.completeVarExpert(v, expert)
 }
 
-var inlineVariablesApplyID = rhino.RhinoStringPool_InternID("apply")
+var inlineVariablesApplyID = uint32(strpool.Intern("apply"))
 
 // VarsInThisScopeMayBeModifiedUsingArguments returns true for function
 // scopes (the whole function, not the body), if the function uses

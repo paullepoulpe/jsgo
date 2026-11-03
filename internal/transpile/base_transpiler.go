@@ -72,19 +72,30 @@ func (transpile_Transpiler_null) Runtime() string { return "" }
 // Java: Transpiler.NULL
 var Transpiler_NULL Transpiler = transpile_Transpiler_null{}
 
+// CompilerSupplier supplies single-file compilations and runtime libraries.
+type CompilerSupplier = bundle.CompilerSupplier
+
+// CompileResult holds the emitted JS source and metadata from a compilation.
+type CompileResult = bundle.CompileResult
+
+// NewCompileResult constructs a CompileResult without errors.
+func NewCompileResult(source string, transpiled bool, sourceMap string) *CompileResult {
+	return bundle.NewCompileResult(source, nil, transpiled, sourceMap)
+}
+
 // BaseTranspiler is the basic Transpiler implementation for outputting ES5
 // code.
 //
 // Java: final class transpile.BaseTranspiler implements Transpiler
 type BaseTranspiler struct {
-	compilerSupplier   BaseTranspiler_CompilerSupplier
+	compilerSupplier   CompilerSupplier
 	runtimeLibraryName string
 }
 
 var _ Transpiler = (*BaseTranspiler)(nil)
 
 // Java: BaseTranspiler(CompilerSupplier, String)
-func NewBaseTranspiler(compilerSupplier BaseTranspiler_CompilerSupplier, runtimeLibraryName string) *BaseTranspiler {
+func NewBaseTranspiler(compilerSupplier CompilerSupplier, runtimeLibraryName string) *BaseTranspiler {
 	return &BaseTranspiler{
 		compilerSupplier:   jutil.CheckNotNull(compilerSupplier),
 		runtimeLibraryName: runtimeLibraryName,
@@ -94,10 +105,10 @@ func NewBaseTranspiler(compilerSupplier BaseTranspiler_CompilerSupplier, runtime
 // Java: BaseTranspiler.transpile(URI, String)
 func (t *BaseTranspiler) Transpile(path string, code string) *TranspileResult {
 	result := t.compilerSupplier.Compile(path, code)
-	if !result.transpiled {
+	if !result.Transformed {
 		return NewTranspileResult(path, code, code, "")
 	}
-	return NewTranspileResult(path, code, result.source, result.sourceMap)
+	return NewTranspileResult(path, code, result.Source, result.SourceMap)
 }
 
 // Java: BaseTranspiler.runtime()
@@ -148,7 +159,7 @@ var BaseTranspiler_LATEST_TRANSPILER Transpiler = baseTranspilerLatest{}
 
 // Java: BaseTranspiler.to(FeatureSet, String)
 func BaseTranspiler_ToWithRuntime(featureSet parser.FeatureSet, runtime string) *BaseTranspiler {
-	return NewBaseTranspiler(NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(featureSet), runtime)
+	return NewBaseTranspiler(NewCompilerSupplierWithOutputFeatureSet(featureSet), runtime)
 }
 
 // Java: BaseTranspiler.to(FeatureSet)
@@ -156,40 +167,15 @@ func BaseTranspiler_To(featureSet parser.FeatureSet) *BaseTranspiler {
 	return BaseTranspiler_ToWithRuntime(featureSet, "es6_runtime")
 }
 
-// BaseTranspiler_CompilerSupplier wraps the Compiler into a small interface,
-// making it easy to test the Transpiler without depending on implementation
-// details of the Compiler itself. Also works around the fact that the Compiler
-// is not thread-safe (since we may do multiple transpiles concurrently), so we
-// supply a fresh instance each time when we're in single-file mode.
-//
-// Java: static class BaseTranspiler.CompilerSupplier
-type BaseTranspiler_CompilerSupplier interface {
-	// Java: CompilerSupplier.compile(URI, String)
-	Compile(path string, code string) *BaseTranspiler_CompileResult
-	// Java: CompilerSupplier.runtime(String)
-	Runtime(library string) string
-}
-
-// BaseTranspiler_DefaultCompilerSupplier is the concrete CompilerSupplier implementation.
-type BaseTranspiler_DefaultCompilerSupplier struct {
-	moduleResolution jscomp.ModuleLoader_ResolutionMode
-	moduleRoots      []string
-	configureOptions func(*jscomp.CompilerOptions)
-	outputFeatureSet parser.FeatureSet
-}
-
-var _ BaseTranspiler_CompilerSupplier = (*BaseTranspiler_DefaultCompilerSupplier)(nil)
-
 const baseTranspilerDefaultResolutionMode = jscomp.ModuleLoader_ResolutionMode_BROWSER
 
-// Java: CompilerSupplier()
-func NewBaseTranspiler_CompilerSupplier() *BaseTranspiler_DefaultCompilerSupplier {
-	return NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5.ToFeatureSet())
+// NewCompilerSupplier returns a default ES5 CompilerSupplier for BaseTranspiler.
+func NewCompilerSupplier() CompilerSupplier {
+	return NewCompilerSupplierWithOutputFeatureSet(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5.ToFeatureSet())
 }
 
-// Java: CompilerSupplier(FeatureSet)
-func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet parser.FeatureSet) *BaseTranspiler_DefaultCompilerSupplier {
-	// Use the default resolution mode
+// NewCompilerSupplierWithOutputFeatureSet returns a CompilerSupplier targeting outputFeatureSet.
+func NewCompilerSupplierWithOutputFeatureSet(outputFeatureSet parser.FeatureSet) CompilerSupplier {
 	return NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 		outputFeatureSet,
 		baseTranspilerDefaultResolutionMode,
@@ -203,68 +189,43 @@ func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 	outputFeatureSet parser.FeatureSet,
 	moduleResolution jscomp.ModuleLoader_ResolutionMode,
 	moduleRoots []string,
-	configureOptions func(*jscomp.CompilerOptions)) *BaseTranspiler_DefaultCompilerSupplier {
-	return &BaseTranspiler_DefaultCompilerSupplier{
-		outputFeatureSet: outputFeatureSet,
-		moduleResolution: moduleResolution,
-		moduleRoots:      moduleRoots,
-		configureOptions: configureOptions,
+	configureOptions func(*jscomp.CompilerOptions),
+) CompilerSupplier {
+	return &bundle.OptionsCompilerSupplier{
+		ThrowOnError: true,
+		SetOptions: func(options *jscomp.CompilerOptions) {
+			options.SetLanguageIn(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+			options.LegacySetOutputFeatureSet(outputFeatureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES))
+			options.SetEmitUseStrict(false)
+			bundle.SetCommonTranspilationOptions(options)
+			options.SetWarningLevel(jscomp.DiagnosticGroups_NON_STANDARD_JSDOC, jscomp.CheckLevel_OFF)
+			options.SetEs6ModuleTranspilation(jscomp.CompilerOptions_Es6ModuleTranspilation_TO_COMMON_JS_LIKE_MODULES)
+			options.SetModuleResolutionMode(moduleResolution)
+			options.SetModuleRoots(moduleRoots)
+			if configureOptions != nil {
+				configureOptions(options)
+			}
+
+			// Transpiler often used in isolation, so references to other files will
+			// never exist.
+			options.SetWarningLevel(jscomp.DiagnosticGroups_MODULE_LOAD, jscomp.CheckLevel_OFF)
+
+			// Don't escape module paths when bundling in the event paths are URLs.
+			options.SetPathEscaper(jscomp.ModuleLoader_PathEscaper_CANONICALIZE_ONLY)
+			options.SetParseInlineSourceMaps(true)
+			options.SetApplyInputSourceMaps(true)
+			// Make sourcemaps use absolute paths, so that the path is not duplicated
+			// if a build tool adds a sourceurl. Exception: if the location has a
+			// scheme (like http:) then leave the path intact. This makes this usable
+			// from web servers.
+			options.SetSourceMapLocationMappings(baseTranspiler_locationMappings)
+		},
 	}
-}
-
-// Java: CompilerSupplier.compile(URI, String)
-func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path string, code string) *BaseTranspiler_CompileResult {
-	compiler, result, source, transpiled, sm := bundle.CompileSingleFile(path, code, s.Options(), false)
-	if len(result.Errors) != 0 {
-		panic(bundle.NewTranspilationException(compiler, result.Errors, result.Warnings))
-	}
-	return NewBaseTranspiler_CompileResult(source, transpiled, sm)
-}
-
-// Java: CompilerSupplier.runtime(String)
-func (s *BaseTranspiler_DefaultCompilerSupplier) Runtime(library string) string {
-	return bundle.CompileRuntimeLibrary(s.Options(), library)
-}
-
-// Java: CompilerSupplier.options()
-func (s *BaseTranspiler_DefaultCompilerSupplier) Options() *jscomp.CompilerOptions {
-	options := jscomp.NewCompilerOptions()
-	s.SetOptions(options)
-	return options
 }
 
 var baseTranspiler_locationMappings = []jscomp.SourceMap_LocationMapping{baseTranspiler_absoluteLocationMapping{}}
 
 var baseTranspiler_prefixMapping = jscomp.NewSourceMap_PrefixLocationMapping("", "/")
-
-// Java: CompilerSupplier.setOptions(CompilerOptions)
-func (s *BaseTranspiler_DefaultCompilerSupplier) SetOptions(options *jscomp.CompilerOptions) {
-	options.SetLanguageIn(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
-	options.LegacySetOutputFeatureSet(s.outputFeatureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES))
-	options.SetEmitUseStrict(false)
-	bundle.SetCommonTranspilationOptions(options)
-	options.SetWarningLevel(jscomp.DiagnosticGroups_NON_STANDARD_JSDOC, jscomp.CheckLevel_OFF)
-	options.SetEs6ModuleTranspilation(jscomp.CompilerOptions_Es6ModuleTranspilation_TO_COMMON_JS_LIKE_MODULES)
-	options.SetModuleResolutionMode(s.moduleResolution)
-	options.SetModuleRoots(s.moduleRoots)
-	if s.configureOptions != nil {
-		s.configureOptions(options)
-	}
-
-	// Transpiler often used in isolation, so references to other files will
-	// never exist.
-	options.SetWarningLevel(jscomp.DiagnosticGroups_MODULE_LOAD, jscomp.CheckLevel_OFF)
-
-	// Don't escape module paths when bundling in the event paths are URLs.
-	options.SetPathEscaper(jscomp.ModuleLoader_PathEscaper_CANONICALIZE_ONLY)
-	options.SetParseInlineSourceMaps(true)
-	options.SetApplyInputSourceMaps(true)
-	// Make sourcemaps use absolute paths, so that the path is not duplicated
-	// if a build tool adds a sourceurl. Exception: if the location has a
-	// scheme (like http:) then leave the path intact. This makes this usable
-	// from web servers.
-	options.SetSourceMapLocationMappings(baseTranspiler_locationMappings)
-}
 
 // baseTranspiler_absoluteLocationMapping is the location mapping lambda of
 // CompilerSupplier.setOptions.
@@ -298,23 +259,4 @@ func (baseTranspiler_absoluteLocationMapping) Map(location string) (string, bool
 		}
 	}
 	return baseTranspiler_prefixMapping.Map(location)
-}
-
-// BaseTranspiler_CompileResult is the source together with the additional
-// compilation results.
-//
-// Java: static class BaseTranspiler.CompileResult
-type BaseTranspiler_CompileResult struct {
-	source     string
-	transpiled bool
-	sourceMap  string
-}
-
-// Java: CompileResult(String, boolean, String)
-func NewBaseTranspiler_CompileResult(source string, transpiled bool, sourceMap string) *BaseTranspiler_CompileResult {
-	return &BaseTranspiler_CompileResult{
-		source:     source,
-		transpiled: transpiled,
-		sourceMap:  sourceMap,
-	}
 }

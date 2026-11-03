@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // InferConsts attaches the CONST_VAR annotation to any variable that's
@@ -288,7 +289,7 @@ func (c *inferConstsCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 			return
 		}
 		id := n.GetStringID()
-		if id > rhino.RhinoStringPool_EmptyID {
+		if id > strpool.EmptyID {
 			v := t.LookupVarByID(id)
 			if v != nil && !v.nameNode.IsNil() {
 				c.addReference(v, n, parent, t)

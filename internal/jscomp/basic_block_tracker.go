@@ -21,6 +21,7 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type basicBlockEntry struct {
@@ -194,11 +195,11 @@ func rcIsHoistedFunctionDeclaration(fnNode rhino.Node) bool {
 	switch parent.GetToken() {
 	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_EXPORT:
 		first := fnNode.GetFirstChild()
-		return !first.IsNil() && first.IsName() && first.GetStringID() != rhino.RhinoStringPool_EmptyID
+		return !first.IsNil() && first.IsName() && first.GetStringID() != strpool.EmptyID
 	case rhino.Token_BLOCK, rhino.Token_LABEL, rhino.Token_DECLARE, rhino.Token_NAMESPACE_ELEMENTS:
 		if gp := parent.GetParent(); !gp.IsNil() && gp.IsFunction() {
 			first := fnNode.GetFirstChild()
-			return !first.IsNil() && first.IsName() && first.GetStringID() != rhino.RhinoStringPool_EmptyID
+			return !first.IsNil() && first.IsName() && first.GetStringID() != strpool.EmptyID
 		}
 	}
 	return false

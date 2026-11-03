@@ -32,18 +32,17 @@ type CheckExtraRequires struct {
 	compiler AbstractCompiler
 
 	// Keys are the local name of a required namespace. Values are the goog.require CALL node.
-	// Accompanied by requiresOrder to preserve insertion order for deterministic warning output.
-	requires      map[string]rhino.Node
-	requiresOrder []string
+	// Insertion order is preserved for deterministic warning output.
+	requires OrderedStringMap[rhino.Node]
 
 	// Adding an entry to usages indicates that the name (either a fully qualified or local name)
 	// is used and can be required. Note that since usages are name-based and not scoped, any usage
 	// that shadows an unused require in that file will cause the extra require warning to be missed.
-	usages map[string]bool
+	usages map[string]struct{}
 
 	// This is only relevant for the standalone CheckExtraRequires run. This is
 	// used to restrict the linter rule only for the modules listed in this set
-	requiresToRemove *jutil.LinkedHashSet[string]
+	requiresToRemove *OrderedSet[string]
 }
 
 var CheckExtraRequires_EXTRA_REQUIRE_WARNING = DiagnosticType_Disabled(
@@ -63,11 +62,10 @@ func checkExtraRequires_isDefaultExtraNamespace(ns string) bool {
 //
 // Java: CheckExtraRequires(AbstractCompiler, ImmutableSet<String>)
 func NewCheckExtraRequires(
-	compiler AbstractCompiler, requiresToRemove *jutil.LinkedHashSet[string]) *CheckExtraRequires {
+	compiler AbstractCompiler, requiresToRemove *OrderedSet[string]) *CheckExtraRequires {
 	return &CheckExtraRequires{
 		compiler:         compiler,
-		requires:         make(map[string]rhino.Node),
-		usages:           make(map[string]bool),
+		usages:           make(map[string]struct{}),
 		requiresToRemove: requiresToRemove,
 	}
 }
@@ -141,17 +139,17 @@ func (c *CheckExtraRequires) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 // Java: CheckExtraRequires.reset()
 func (c *CheckExtraRequires) Reset() {
 	clear(c.usages)
-	clear(c.requires)
-	c.requiresOrder = c.requiresOrder[:0]
+	c.requires.Clear()
 }
 
 // Java: CheckExtraRequires.visitScriptNode()
 func (c *CheckExtraRequires) VisitScriptNode() {
 	// For every goog.require, check that there is a usage and warn if there is not.
-	for _, require := range c.requiresOrder {
-		if !c.usages[require] &&
+	for _, entry := range c.requires.Entries() {
+		require := entry.Key
+		if _, used := c.usages[require]; !used &&
 			(c.requiresToRemove == nil || c.requiresToRemove.Contains(require)) {
-			c.ReportExtraRequireWarning(c.requires[require], require)
+			c.ReportExtraRequireWarning(entry.Value, require)
 		}
 	}
 }
@@ -183,10 +181,7 @@ func (c *CheckExtraRequires) ReportExtraRequireWarning(call rhino.Node, require 
 //
 // Java: CheckExtraRequires.visitRequire(String, Node)
 func (c *CheckExtraRequires) VisitRequire(localName string, node rhino.Node) {
-	if _, exists := c.requires[localName]; !exists {
-		c.requires[localName] = node
-		c.requiresOrder = append(c.requiresOrder, localName)
-	}
+	c.requires.PutIfAbsent(localName, node)
 }
 
 // Java: CheckExtraRequires.visitImportNode(Node)
@@ -247,7 +242,7 @@ func (c *CheckExtraRequires) VisitCallNode(call ast.Call, parent rhino.Node) {
 	if checkExtraRequires_GOOG_MODULE_GET.Matches(call.Callee().Node()) {
 		if firstArg, hasArg := call.FirstArg(); hasArg {
 			if strLit, ok := ast.AsStringLit(firstArg.Node()); ok {
-				c.usages[strLit.Value()] = true
+				c.usages[strLit.Value()] = struct{}{}
 			}
 		}
 	}
@@ -255,13 +250,13 @@ func (c *CheckExtraRequires) VisitCallNode(call ast.Call, parent rhino.Node) {
 
 // Java: CheckExtraRequires.addUsagesOfAllPrefixes(QualifiedName)
 func (c *CheckExtraRequires) AddUsagesOfAllPrefixes(qualifiedName rhino.QualifiedName) {
-	c.usages[qualifiedName.Join()] = true
+	c.usages[qualifiedName.Join()] = struct{}{}
 	// For "foo.bar.baz.qux" add usages for "foo.bar.baz.qux", "foo.bar.baz",
 	// "foo.bar", and "foo" because any of those might be a require that
 	// we need to include.
 	for !qualifiedName.IsSimple() {
 		qualifiedName = qualifiedName.GetOwner()
-		c.usages[qualifiedName.Join()] = true
+		c.usages[qualifiedName.Join()] = struct{}{}
 	}
 }
 

@@ -559,8 +559,7 @@ func (c *RewritePolyfillsTest) TestRegexFeatureSetException() {
 	// This will set an output `FeatureSet` that does not include some regex features that are
 	// part of ES_2018, so ES_2018 will not be "supported", and could cause a polyfill
 	// that is part of ES_2018 to be included. We have special casing to avoid this.
-	year := 2020
-	c.SetBrowserFeaturesetYear(&year)
+	c.SetBrowserFeaturesetYear(2020)
 
 	// the change marking check will report an error because:
 	// 1. We add the polyfill code to the SCRIPT node

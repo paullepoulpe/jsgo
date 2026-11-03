@@ -40,6 +40,7 @@ import (
 	"unsafe"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // note - RhinoStringPool intentionally uses static state, so these tests are
@@ -60,7 +61,7 @@ func newString(s string) string {
 }
 
 func TestRhinoStringPool_ReturnsDotEqualsString(t *testing.T) {
-	newFoo := RhinoStringPool_AddOrGet("foo")
+	newFoo := strpool.String(strpool.Intern("foo"))
 	if newFoo != "foo" {
 		t.Fatalf("got %q", newFoo)
 	}
@@ -70,7 +71,7 @@ func TestRhinoStringPool_MultipleCallsReturnSameInstance(t *testing.T) {
 	var foos [100]string
 	for i := 0; i < 100; i++ {
 		newFoo := newString("foo") // use a copy to ensure different objects
-		foos[i] = RhinoStringPool_AddOrGet(newFoo)
+		foos[i] = strpool.String(strpool.Intern(newFoo))
 	}
 	for i := 1; i < 100; i++ {
 		if !sameInstance(foos[i], foos[0]) {
@@ -80,9 +81,9 @@ func TestRhinoStringPool_MultipleCallsReturnSameInstance(t *testing.T) {
 }
 
 func newLazyInternedListForTest(strs []string) *RhinoStringPool_LazyInternedStringList {
-	ids := make([]uint32, len(strs))
+	ids := make([]strpool.ID, len(strs))
 	for i, s := range strs {
-		ids[i] = RhinoStringPool_InternID(s)
+		ids[i] = strpool.Intern(s)
 	}
 	return NewRhinoStringPool_LazyInternedStringListFromIDs(ids)
 }
@@ -111,7 +112,7 @@ func TestRhinoStringPool_LazyInternedStringList_GetsSameInstanceAsRhinoStringPoo
 	strs := []string{newString("foo"), newString("bar"), newString("baz")}
 	list := newLazyInternedListForTest(strs)
 	for i, s := range []string{"foo", "bar", "baz"} {
-		if !sameInstance(list.Get(i), RhinoStringPool_AddOrGet(s)) {
+		if !sameInstance(list.Get(i), strpool.String(strpool.Intern(s))) {
 			t.Errorf("list.Get(%d) is not the pooled instance", i)
 		}
 	}
@@ -124,7 +125,7 @@ func TestRhinoStringPool_LazyInternedStringList_VeryLargeListWorks(t *testing.T)
 	}
 	list := newLazyInternedListForTest(strs)
 	for i := 0; i < 10000; i++ {
-		if !sameInstance(list.Get(i), RhinoStringPool_AddOrGet("foo"+strconv.Itoa(i))) {
+		if !sameInstance(list.Get(i), strpool.String(strpool.Intern("foo"+strconv.Itoa(i)))) {
 			t.Fatalf("list.Get(%d) is not the pooled instance", i)
 		}
 	}

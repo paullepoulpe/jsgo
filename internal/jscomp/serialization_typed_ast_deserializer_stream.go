@@ -27,6 +27,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // typedAstDeserializer_WIRETYPE_LENGTH_DELIMITED is
@@ -435,7 +436,7 @@ func typedAstDeserializer_streamLargeShard(
 	}
 	var (
 		hasStringPool bool
-		stringIDs     []uint32
+		stringIDs     []strpool.ID
 		maxAsciiLen   int
 		maxLength     int32
 		deferred      []deferredWtf8
@@ -486,8 +487,8 @@ func typedAstDeserializer_streamLargeShard(
 			subLen := sr.readLength(0)
 			endLeft := sr.totalLeft() - subLen
 			if stringIDs == nil {
-				stringIDs = make([]uint32, 1, min(subLen/12+2, 4_000_000))
-				stringIDs[0] = rhino.RhinoStringPool_InternID("")
+				stringIDs = make([]strpool.ID, 1, min(subLen/12+2, 4_000_000))
+				stringIDs[0] = strpool.Intern("")
 			}
 			for sr.totalLeft() > endLeft {
 				subTag := sr.readTag(endLeft)
@@ -498,7 +499,7 @@ func typedAstDeserializer_streamLargeShard(
 						if len(raw) > maxAsciiLen {
 							maxAsciiLen = len(raw)
 						}
-						stringIDs = append(stringIDs, rhino.RhinoStringPool_InternBytesID(raw))
+						stringIDs = append(stringIDs, strpool.InternBytes(raw))
 					} else {
 						stringIDs = append(stringIDs, 0)
 						deferred = append(deferred, deferredWtf8{idx: len(stringIDs) - 1, data: bytes.Clone(raw)})

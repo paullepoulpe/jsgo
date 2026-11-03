@@ -35,7 +35,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -88,10 +87,9 @@ func refactoringFixesDump_round(sb *strings.Builder, name string, code *string) 
 	if len(fixes) == 0 {
 		return true
 	}
-	// ApplySuggestedFixes.applySuggestedFixesToFiles writes only the files
-	// that have replacements.
+	// ApplyToFiles writes only the files that have replacements.
 	codeMap := map[string]string{name: *code}
-	if newCode, ok := refactoring.ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), codeMap)[name]; ok {
+	if newCode, ok := refactoring.ApplyToCode(fixes, codeMap)[name]; ok {
 		*code = newCode
 	}
 	checksDumpLine(sb, "## code "+refactoringFixesDump_digest(*code))

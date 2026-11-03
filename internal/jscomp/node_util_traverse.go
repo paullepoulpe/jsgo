@@ -450,7 +450,7 @@ var externVarNameVisitTokens = makeVisitTokenSet(rhino.Token_NAME, rhino.Token_I
 type externVarNameCollector struct {
 	orderedSet  *jutil.LinkedHashSet[string]
 	externNames map[string]struct{}
-	externIDs   map[uint32]struct{}
+	externIDs   map[strpool.ID]struct{}
 	reserved    stringMapSet
 }
 
@@ -479,7 +479,7 @@ func (c *externVarNameCollector) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	}
 	if v != nil && !v.IsParam() {
 		if c.externIDs != nil {
-			c.externIDs[v.nameID] = struct{}{}
+			c.externIDs[strpool.ID(v.nameID)] = struct{}{}
 			return
 		}
 		name := v.GetName()
@@ -494,8 +494,8 @@ func (c *externVarNameCollector) Visit(t *NodeTraversal, n rhino.Node, parent rh
 	}
 }
 
-func collectExternVariableNameIDs(compiler AbstractCompiler, externs rhino.Node) map[uint32]struct{} {
-	externIDs := make(map[uint32]struct{})
+func collectExternVariableNameIDs(compiler AbstractCompiler, externs rhino.Node) map[strpool.ID]struct{} {
+	externIDs := make(map[strpool.ID]struct{})
 	cb := externVarNameCollector{externIDs: externIDs}
 	b := NodeTraversal_Builder{
 		compiler: compiler,
@@ -669,7 +669,7 @@ func nodeUtilBlockScopeMayHaveDecls(n, root rhino.Node) bool {
 		first := n.GetFirstChild()
 		return !first.IsNil() && nodeUtilBlockScopeMayHaveDecls(first, root)
 	case rhino.Token_FUNCTION:
-		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetStringID() > rhino.RhinoStringPool_EmptyID
+		return !NodeUtil_IsFunctionExpression(n) && n.GetFirstChild().GetStringID() > strpool.EmptyID
 	case rhino.Token_CLASS:
 		return !NodeUtil_IsClassExpression(n) && !n.GetFirstChild().IsEmpty()
 	case rhino.Token_BLOCK:

@@ -71,23 +71,17 @@ var defaultDependencyResolver_logger = jutil.Logger_GetLogger("com.google.javasc
 // NewDefaultDependencyResolver creates a new dependency resolver. depsFiles
 // is the list of deps files; strictRequires determines if the resolver will
 // throw an exception on a missing dependency.
-//
-// Java: DefaultDependencyResolver(List<DependencyFile>, boolean)
 func NewDefaultDependencyResolver(depsFiles []*DependencyFile, strictRequires bool) *DefaultDependencyResolver {
 	return &DefaultDependencyResolver{depsFiles: depsFiles, strictRequires: strictRequires}
 }
 
 // GetDependencies gets a list of dependencies for the provided code.
-//
-// Java: DefaultDependencyResolver.getDependencies(String)
 func (r *DefaultDependencyResolver) GetDependencies(code string) []string {
 	return r.GetDependenciesOfSymbols(defaultDependencyResolver_parseRequires(code, true))
 }
 
 // GetDependenciesOfSymbols gets a list of dependencies for the provided list
 // of symbols.
-//
-// Java: DefaultDependencyResolver.getDependencies(Collection<String>)
 func (r *DefaultDependencyResolver) GetDependenciesOfSymbols(symbols []string) []string {
 	var seen OrderedSet[string]
 	return r.GetDependenciesOfSymbolsWithSeen(symbols, &seen)
@@ -98,8 +92,6 @@ func (r *DefaultDependencyResolver) GetDependenciesOfSymbols(symbols []string) [
 // whether the closure base file should be added to the dependency list.
 // Returns a list of filenames for each of the dependencies for the provided
 // code.
-//
-// Java: DefaultDependencyResolver.getDependencies(String, Set<String>, boolean)
 func (r *DefaultDependencyResolver) GetDependenciesWithSeen(
 	code string, seen *OrderedSet[string], addClosureBaseFile bool) []string {
 	return r.GetDependenciesOfSymbolsWithSeen(defaultDependencyResolver_parseRequires(code, addClosureBaseFile), seen)
@@ -108,8 +100,6 @@ func (r *DefaultDependencyResolver) GetDependenciesWithSeen(
 // GetDependenciesOfSymbolsWithSeen: symbols is a list of required symbols;
 // seen is the set of already seen symbols. Returns a list of filenames for
 // each of the required symbols.
-//
-// Java: DefaultDependencyResolver.getDependencies(Collection<String>, Set<String>)
 func (r *DefaultDependencyResolver) GetDependenciesOfSymbolsWithSeen(
 	symbols []string, seen *OrderedSet[string]) []string {
 	var list []string
@@ -124,11 +114,7 @@ func (r *DefaultDependencyResolver) GetDependenciesOfSymbolsWithSeen(
 }
 
 // addDependency adds all the transitive dependencies for a symbol to the
-// provided list. The set is used to avoid adding dupes while keeping the
-// correct order. NOTE: Use of a LinkedHashSet would require reversing the
-// results to get correct dependency ordering.
-//
-// Java: DefaultDependencyResolver.addDependency(String, Set<String>, List<String>)
+// provided list in post-order, using seen to avoid adding duplicates.
 func (r *DefaultDependencyResolver) addDependency(symbol string, seen *OrderedSet[string], list *[]string) {
 	dependency := r.GetDependencyInfo(symbol)
 	if dependency == nil {
@@ -155,25 +141,26 @@ func defaultDependencyResolver_containsAll(seen *OrderedSet[string], elems []str
 
 // Parses a block of code for goog.require statements and extracts the
 // required symbols.
-//
-// Java: DefaultDependencyResolver.parseRequires(String, boolean)
 func defaultDependencyResolver_parseRequires(code string, addClosureBase bool) []string {
 	var errorManager ErrorManager = NewLoggerErrorManager(defaultDependencyResolver_logger)
 	parser := NewJsFileRegexParser(errorManager)
 	deps := parser.ParseFile("<unknown path>", "<unknown path>", code)
-	requires := []string{}
+	requiredSymbols := deps.GetRequiredSymbols()
+	capHint := len(requiredSymbols)
+	if addClosureBase {
+		capHint++
+	}
+	requires := make([]string, 0, capHint)
 	if addClosureBase {
 		requires = append(requires, DefaultDependencyResolver_CLOSURE_BASE_PROVIDE)
 	}
-	requires = append(requires, deps.GetRequiredSymbols()...)
+	requires = append(requires, requiredSymbols...)
 	errorManager.GenerateReport()
 	return requires
 }
 
 // GetDependencyInfo looks at each of the dependency files for dependency
 // information.
-//
-// Java: DefaultDependencyResolver.getDependencyInfo(String)
 func (r *DefaultDependencyResolver) GetDependencyInfo(symbol string) DependencyInfo {
 	for _, depsFile := range r.depsFiles {
 		di := depsFile.GetDependencyInfo(symbol)
@@ -201,8 +188,6 @@ var _ Deps_SourceFile = (*DependencyFile)(nil)
 var dependencyFile_logger = jutil.Logger_GetLogger("com.google.javascript.jscomp.deps.DependencyFile")
 
 // NewDependencyFile creates a new dependency file.
-//
-// Java: DependencyFile(SourceFile)
 func NewDependencyFile(delegate Deps_SourceFile) *DependencyFile {
 	return &DependencyFile{
 		dependencies: make(map[string]DependencyInfo),
@@ -210,25 +195,20 @@ func NewDependencyFile(delegate Deps_SourceFile) *DependencyFile {
 	}
 }
 
-// Java: DependencyFile.getName()
 func (f *DependencyFile) GetName() string {
 	return f.delegate.GetName()
 }
 
-// Java: DependencyFile.getContent()
 func (f *DependencyFile) GetContent() string {
 	return f.delegate.GetContent()
 }
 
-// Java: DependencyFile.wasModified()
 func (f *DependencyFile) WasModified() bool {
 	return f.delegate.WasModified()
 }
 
 // EnsureUpToDate ensures that the dependency graph is up to date and reloads
 // the graph if necessary.
-//
-// Java: DependencyFile.ensureUpToDate()
 func (f *DependencyFile) EnsureUpToDate() {
 	if len(f.dependencies) == 0 || f.WasModified() {
 		f.LoadGraph()
@@ -237,15 +217,11 @@ func (f *DependencyFile) EnsureUpToDate() {
 
 // GetDependencyInfo gets the dependency info for the provided symbol, if
 // contained in this dependency file.
-//
-// Java: DependencyFile.getDependencyInfo(String)
 func (f *DependencyFile) GetDependencyInfo(symbol string) DependencyInfo {
 	return f.dependencies[symbol]
 }
 
 // LoadGraph loads the dependency graph.
-//
-// Java: DependencyFile.loadGraph()
 func (f *DependencyFile) LoadGraph() {
 	clear(f.dependencies)
 

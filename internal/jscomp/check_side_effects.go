@@ -232,7 +232,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 						} else if first.IsName() {
 							isDefinedInSrc = t.LookupVarByID(first.GetStringID()) != nil
 						} else {
-							isDefinedInSrc = t.LookupVarByID(rhino.RhinoStringPool_LookupID(qnameStr)) != nil
+							isDefinedInSrc = t.LookupVarByID(uint32(strpool.Lookup(qnameStr))) != nil
 						}
 
 						if !isDefinedInSrc {

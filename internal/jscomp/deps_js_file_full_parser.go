@@ -28,8 +28,6 @@ import (
 
 // JsFileFullParser_FileInfo is the dependency information contained in a .js
 // source file.
-//
-// Java: static final class JsFileFullParser.FileInfo
 type JsFileFullParser_FileInfo struct {
 	goog              bool
 	testonly          bool
@@ -65,7 +63,6 @@ func (info *JsFileFullParser_FileInfo) sortMultisets() {
 	slices.SortFunc(info.maybeRequires, jutil.StringCompareTo)
 }
 
-// Java: JsFileFullParser.FileInfo()
 func NewJsFileFullParser_FileInfo() *JsFileFullParser_FileInfo {
 	return &JsFileFullParser_FileInfo{
 		moduleType: JsFileFullParser_FileInfo_ModuleType_UNKNOWN,
@@ -74,8 +71,6 @@ func NewJsFileFullParser_FileInfo() *JsFileFullParser_FileInfo {
 
 // JsFileFullParser_FileInfo_ModuleType is the module system declared by the
 // file, e.g. goog.provide/goog.module.
-//
-// Java: enum JsFileFullParser.FileInfo.ModuleType
 type JsFileFullParser_FileInfo_ModuleType int32
 
 const (
@@ -94,8 +89,6 @@ func (t JsFileFullParser_FileInfo_ModuleType) String() string {
 
 // JsFileFullParser_Parse parses a JavaScript file for dependencies and
 // annotations. It returns empty info if a syntax error was encountered.
-//
-// Java: JsFileFullParser.parse(String, String, Reporter)
 func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullParser_Reporter) *JsFileFullParser_FileInfo {
 	errorReporter := newJsFileFullParser_DelegatingReporter(reporter)
 	em := &jsFileFullParser_ErrorManager{errorReporter: errorReporter}
@@ -115,7 +108,7 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 			parsing.Config_LanguageMode_ES_NEXT,
 			parsing.Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE,
 			parsing.Config_RunMode_STOP_AFTER_ERROR,
-			/* extraAnnotationNames= */ jutil.NewLinkedHashSet[string](),
+			/* extraAnnotationNames= */ nil,
 			/* parseInlineSourceMaps= */ true,
 			parsing.Config_StrictMode_SLOPPY)
 	info := NewJsFileFullParser_FileInfo()
@@ -159,14 +152,12 @@ func JsFileFullParser_Parse(code string, filename string, reporter JsFileFullPar
 	return info
 }
 
-// jsFileFullParser_ErrorManager is the anonymous BasicErrorManager of parse:
-// it forwards errors and warnings to the DelegatingReporter.
+// jsFileFullParser_ErrorManager forwards errors and warnings to the DelegatingReporter.
 type jsFileFullParser_ErrorManager struct {
 	SortingErrorManager
 	errorReporter *jsFileFullParser_DelegatingReporter
 }
 
-// Java: BasicErrorManager.println(CheckLevel, JSError)
 func (m *jsFileFullParser_ErrorManager) Println(level CheckLevel, error *JSError) {
 	switch level {
 	case CheckLevel_ERROR:
@@ -195,7 +186,6 @@ func jsFileFullParser_sourceName(error *JSError) string {
 	return ""
 }
 
-// Java: JsFileFullParser.recordModuleMetadata(FileInfo, ModuleMetadata)
 func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, module *ModuleMetadataMap_ModuleMetadata) {
 	for _, e := range module.Es6ImportSpecifiers().Entries() {
 		info.importedModules = jsFileFullParser_appendUnique(info.importedModules, e.Key)
@@ -226,17 +216,13 @@ func jsFileFullParser_recordModuleMetadata(info *JsFileFullParser_FileInfo, modu
 }
 
 // JsFileFullParser_Reporter is the callback function for reporting errors.
-//
-// Java: interface JsFileFullParser.Reporter
 type JsFileFullParser_Reporter func(fatal bool, message string, sourceName string, line int, lineOffset int)
 
-// Java: static final class JsFileFullParser.DelegatingReporter implements ErrorReporter
 type jsFileFullParser_DelegatingReporter struct {
 	delegate  JsFileFullParser_Reporter
 	seenError bool
 }
 
-// Java: DelegatingReporter(Reporter)
 func newJsFileFullParser_DelegatingReporter(delegate JsFileFullParser_Reporter) *jsFileFullParser_DelegatingReporter {
 	if delegate == nil {
 		panic(jutil.NewNullPointerException())
@@ -244,12 +230,10 @@ func newJsFileFullParser_DelegatingReporter(delegate JsFileFullParser_Reporter) 
 	return &jsFileFullParser_DelegatingReporter{delegate: delegate}
 }
 
-// Java: DelegatingReporter.warning(String, String, int, int)
 func (r *jsFileFullParser_DelegatingReporter) Warning(message string, sourceName string, line int, lineOffset int) {
 	r.delegate(false, message, sourceName, line, lineOffset)
 }
 
-// Java: DelegatingReporter.error(String, String, int, int)
 func (r *jsFileFullParser_DelegatingReporter) Error(message string, sourceName string, line int, lineOffset int) {
 	r.seenError = true
 	r.delegate(true, message, sourceName, line, lineOffset)

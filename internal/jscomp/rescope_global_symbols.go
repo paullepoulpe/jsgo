@@ -22,6 +22,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // RescopeGlobalSymbols finds all references to global symbols and rewrites
@@ -214,7 +215,7 @@ func (c *rescopeAnalyzeNamesCallback) Visit(t *NodeTraversal, n rhino.Node, pare
 		return
 	}
 	id := n.GetStringID()
-	if id <= rhino.RhinoStringPool_EmptyID {
+	if id <= strpool.EmptyID {
 		return
 	}
 	v := t.GetScope().GetVarByID(id)

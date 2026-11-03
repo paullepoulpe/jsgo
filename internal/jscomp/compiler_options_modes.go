@@ -92,7 +92,7 @@ func (o *CompilerOptions) ShouldPrintConfig() bool {
 }
 
 // Java: CompilerOptions.getBrowserFeaturesetYearObject()
-func (o *CompilerOptions) GetBrowserFeaturesetYearObject() *CompilerOptions_BrowserFeaturesetYear {
+func (o *CompilerOptions) GetBrowserFeaturesetYearObject() CompilerOptions_BrowserFeaturesetYear {
 	return o.browserFeaturesetYear
 }
 
@@ -103,7 +103,7 @@ func (o *CompilerOptions) SetBrowserFeaturesetYear(year int) {
 
 // Java: CompilerOptions.setBrowserFeaturesetYear(BrowserFeaturesetYear)
 func (o *CompilerOptions) SetBrowserFeaturesetYearOfBrowserFeaturesetYear(year CompilerOptions_BrowserFeaturesetYear) {
-	o.browserFeaturesetYear = year.Ptr()
+	o.browserFeaturesetYear = year
 	o.browserFeaturesetYear.SetDependentValuesFromYear(o)
 }
 

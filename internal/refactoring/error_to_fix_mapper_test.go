@@ -20,7 +20,6 @@
 package refactoring
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -2573,7 +2572,7 @@ func (c *ErrorToFixMapperTest) AssertChanges(originalCode string, expectedCode s
 	fixes := c.errorManager.GetAllFixes()
 	testjunit.AssertWithMessage("fixes").That(fixes).IsNotEmpty()
 	newCode :=
-		errorToFixMapperTest_get(ApplySuggestedFixes_ApplySuggestedFixesToCode(slices.Values(fixes), c.GetInputMap(originalCode)), "test")
+		errorToFixMapperTest_get(ApplyToCode(fixes, c.GetInputMap(originalCode)), "test")
 	testjunit.AssertThat(newCode).IsEqualTo(expectedCode)
 }
 
@@ -2589,8 +2588,8 @@ func (c *ErrorToFixMapperTest) AssertChangesWithExpectedFixes(originalCode strin
 	testjunit.AssertWithMessage("fixes").That(fixes).HasSize(len(expectedFixes))
 	for i := 0; i < len(fixes); i++ {
 		newCode :=
-			errorToFixMapperTest_get(ApplySuggestedFixes_ApplySuggestedFixesToCode(
-				slices.Values([]*SuggestedFix{fixes[i]}), c.GetInputMap(originalCode)),
+			errorToFixMapperTest_get(ApplyToCode(
+				[]*SuggestedFix{fixes[i]}, c.GetInputMap(originalCode)),
 				"test")
 		testjunit.AssertThat(newCode).IsEqualTo(expectedFixes[i])
 	}
@@ -2608,8 +2607,8 @@ func (c *ErrorToFixMapperTest) AssertExpectedFixes(originalCode string, expected
 			That(errorToFixMapperTest_nullable(actualFix.GetDescription())).
 			IsEqualTo(errorToFixMapperTest_nullable(expectedFix.Description()))
 		testjunit.AssertThat(
-			ApplySuggestedFixes_ApplySuggestedFixesToCode(
-				slices.Values([]*SuggestedFix{fixes[i]}), c.GetInputMap(originalCode))).
+			ApplyToCode(
+				[]*SuggestedFix{fixes[i]}, c.GetInputMap(originalCode))).
 			ContainsEntry("test", expectedFix.FixedCode())
 	}
 }

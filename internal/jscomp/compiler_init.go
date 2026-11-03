@@ -492,8 +492,7 @@ func (c *Compiler) mergeAndDeserializeTypedAsts(
 func (c *Compiler) InitRuntimeLibraryTypedAsts(colorPoolBuilder *ColorPool_Builder) {
 	jutil.CheckState(c.runtimeLibraryTypedAsts == nil)
 
-	data := resources.ResourceLoader_GetResourceAsStream(
-		"com.google.javascript.jscomp.Compiler", "/runtime_libs.typedast")
+	data := resources.MustLoadBytes("runtime_libs.typedast")
 
 	astData := TypedAstDeserializer_DeserializeRuntimeLibraries(
 		c,

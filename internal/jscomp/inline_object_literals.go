@@ -24,6 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // InlineObjectLiterals: using the infrastructure provided by
@@ -40,8 +41,8 @@ type InlineObjectLiterals struct {
 	// Variables whose reference information is out of sync with the AST.
 	staleVars map[*Var]struct{}
 
-	validProps  smallSet[uint32]
-	propSlots   smallMap[uint32, iolPropSlot]
+	validProps  smallSet[strpool.ID]
+	propSlots   smallMap[strpool.ID, iolPropSlot]
 	assignNodes []rhino.Node
 
 	scanState      iolCandidateScanner
@@ -525,7 +526,7 @@ func (o *InlineObjectLiterals) isInlinableObject(refs []*Reference) bool {
 				return false
 			}
 
-			propID := parent.GetStringID()
+			propID := nodeStringID(parent)
 			if !o.validProps.contains(propID) {
 				if NodeUtil_IsNameDeclOrSimpleAssignLhs(parent, grandparent) {
 					o.validProps.add(propID)
@@ -568,7 +569,7 @@ func (o *InlineObjectLiterals) isInlinableObject(refs []*Reference) bool {
 			}
 
 			pkm := ast.MustPlainKeyMember(member.Node())
-			o.validProps.add(member.Node().GetStringID())
+			o.validProps.add(nodeStringID(member.Node()))
 
 			childVal := pkm.Value().Node()
 			for _, t := range refs {
@@ -595,11 +596,11 @@ func iolIsVarOrAssignExprLhs(n rhino.Node) bool {
 	return ok && assign.Target().Is(n) && parent.GetParent().IsExprResult()
 }
 
-func (o *InlineObjectLiterals) ensurePropSlot(propID uint32, sanitizeKey bool) {
+func (o *InlineObjectLiterals) ensurePropSlot(propID strpool.ID, sanitizeKey bool) {
 	if o.propSlots.indexOf(propID) >= 0 {
 		return
 	}
-	varIdent := rhino.RhinoStringPool_StringFromID(propID)
+	varIdent := strpool.String(propID)
 	if sanitizeKey && !rhino.TokenStream_IsJSIdentifier(varIdent) {
 		varIdent = InlineObjectLiterals_STRING_KEY_IDENTIFIER
 	}
@@ -614,12 +615,12 @@ func (o *InlineObjectLiterals) computeVarList(referenceInfo *ReferenceCollection
 		if ref.IsLvalue() || ref.IsInitializingDeclaration() {
 			if val := ref.GetAssignedValue(); !val.IsNil() {
 				for member := range ast.MustObjectLit(val).Members() {
-					o.ensurePropSlot(member.Node().GetStringID(), true)
+					o.ensurePropSlot(nodeStringID(member.Node()), true)
 				}
 			}
 		} else if !NodeUtil_IsNameDeclaration(ref.GetParent()) {
 			gp := ast.MustNormalOrOptChainGetProp(ref.GetParent())
-			o.ensurePropSlot(gp.Node().GetStringID(), false)
+			o.ensurePropSlot(nodeStringID(gp.Node()), false)
 		}
 	}
 }
@@ -630,7 +631,7 @@ func (o *InlineObjectLiterals) fillInitialValues(init *Reference) {
 	objLit := ast.MustObjectLit(init.GetAssignedValue())
 	for member := range objLit.Members() {
 		key := member.Node()
-		idx := o.propSlots.indexOf(key.GetStringID())
+		idx := o.propSlots.indexOf(nodeStringID(key))
 		slots[idx].initVal = key.RemoveFirstChild()
 	}
 }
@@ -649,7 +650,7 @@ func (o *InlineObjectLiterals) replaceAssignmentExpression(v *Var, ref *Referenc
 	}
 	for member := range objLit.Members() {
 		keyNode := member.Node()
-		idx := o.propSlots.indexOf(keyNode.GetStringID())
+		idx := o.propSlots.indexOf(nodeStringID(keyNode))
 		value := keyNode.RemoveFirstChild()
 		nodes = append(nodes, rhino.IR_Assign(rhino.IR_Name(slots[idx].varName), value))
 		slots[idx].assigned = true
@@ -740,7 +741,7 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 			ref.GetParent().Detach()
 		} else {
 			gpNode := ref.GetParent()
-			idx := o.propSlots.indexOf(gpNode.GetStringID())
+			idx := o.propSlots.indexOf(nodeStringID(gpNode))
 			jutil.CheckState(idx >= 0)
 
 			replacement := rhino.IR_Name(slots[idx].varName).SrcrefIfMissing(gpNode)

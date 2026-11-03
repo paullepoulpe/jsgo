@@ -40,6 +40,7 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // JSDocInfo_Builder is a builder for JSDocInfo objects. This builder is
@@ -314,7 +315,7 @@ func (b *JSDocInfo_Builder) RecordBlockDescription(description string) bool {
 // Java: JSDocInfo.Builder.recordParameter(String, JSTypeExpression)
 func (b *JSDocInfo_Builder) RecordParameter(parameterName string, type_ *JSTypeExpression) bool {
 	return !b.HasAnySingletonTypeTags() &&
-		b.populateParamEntry(JSDocInfo_PARAMETERS, RhinoStringPool_AddOrGet(parameterName), type_)
+		b.populateParamEntry(JSDocInfo_PARAMETERS, strpool.String(strpool.Intern(parameterName)), type_)
 }
 
 // RecordParameterDescription records a parameter's description; returns
@@ -327,7 +328,7 @@ func (b *JSDocInfo_Builder) RecordParameterDescription(parameterName string, des
 		return true
 	}
 	return b.populateStringMapEntry(
-		JSDocInfo_PARAMETER_DESCRIPTIONS, RhinoStringPool_AddOrGet(parameterName), description)
+		JSDocInfo_PARAMETER_DESCRIPTIONS, strpool.String(strpool.Intern(parameterName)), description)
 }
 
 // RecordTemplateTypeName records a template type name; returns true if the
@@ -352,7 +353,7 @@ func (b *JSDocInfo_Builder) RecordTemplateTypeNameWithBound(name string, bound *
 			return false
 		}
 	}
-	return b.populateParamEntry(JSDocInfo_TEMPLATE_TYPE_NAMES, RhinoStringPool_AddOrGet(name), bound)
+	return b.populateParamEntry(JSDocInfo_TEMPLATE_TYPE_NAMES, strpool.String(strpool.Intern(name)), bound)
 }
 
 // RecordTypeTransformation records a type transformation expression
@@ -365,7 +366,7 @@ func (b *JSDocInfo_Builder) RecordTypeTransformation(name string, expr Node) boo
 			return false
 		}
 	}
-	return b.populateNodeMapEntry(JSDocInfo_TYPE_TRANSFORMATIONS, RhinoStringPool_AddOrGet(name), expr)
+	return b.populateNodeMapEntry(JSDocInfo_TYPE_TRANSFORMATIONS, strpool.String(strpool.Intern(name)), expr)
 }
 
 func (b *JSDocInfo_Builder) appendStringProp(prop *JSDocInfo_Property, s string) {
@@ -443,7 +444,7 @@ func (b *JSDocInfo_Builder) recordSuppressionWarnings(warnings []string, descrip
 func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []string, description string) {
 	warnings := make([]string, 0, len(rawNames))
 	for _, raw := range rawNames {
-		s := RhinoStringPool_AddOrGet(raw)
+		s := strpool.String(strpool.Intern(raw))
 		if !slices.Contains(warnings, s) {
 			warnings = append(warnings, s)
 		}
@@ -460,7 +461,7 @@ func (b *JSDocInfo_Builder) RecordSuppressionsSlice(rawNames []string) {
 func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
 	warnings := make([]string, 0, suppressions.Size())
 	for raw := range suppressions.All() {
-		s := RhinoStringPool_AddOrGet(raw)
+		s := strpool.String(strpool.Intern(raw))
 		if !slices.Contains(warnings, s) {
 			warnings = append(warnings, s)
 		}
@@ -479,7 +480,7 @@ func (b *JSDocInfo_Builder) RecordSuppressions(suppressions *jutil.LinkedHashSet
 
 // Java: JSDocInfo.Builder.recordSuppression(String)
 func (b *JSDocInfo_Builder) RecordSuppression(suppression string) {
-	b.recordSuppressionWarnings([]string{RhinoStringPool_AddOrGet(suppression)}, "")
+	b.recordSuppressionWarnings([]string{strpool.String(strpool.Intern(suppression))}, "")
 }
 
 // RecordModifies records the list of modifies warnings.
@@ -653,7 +654,7 @@ func (b *JSDocInfo_Builder) RecordFileOverview(description string) bool {
 
 // Java: JSDocInfo.Builder.recordLicense(String)
 func (b *JSDocInfo_Builder) RecordLicense(license string) bool {
-	b.SetProp(JSDocInfo_LICENSE, RhinoStringPool_AddOrGet(license))
+	b.SetProp(JSDocInfo_LICENSE, strpool.String(strpool.Intern(license)))
 	b.populated = true
 	return true
 }
@@ -665,7 +666,7 @@ func (b *JSDocInfo_Builder) AddLicense(license string) bool {
 	}
 	b.licenseTexts = append(b.licenseTexts, license)
 	txt := jsdocGet[string](b.GetProp(JSDocInfo_LICENSE)) // Strings.nullToEmpty(txt)
-	return b.RecordLicense(RhinoStringPool_AddOrGet(txt + license))
+	return b.RecordLicense(strpool.String(strpool.Intern(txt + license)))
 }
 
 // HasParameter returns whether a parameter of the given name has already
@@ -848,7 +849,7 @@ func (b *JSDocInfo_Builder) PopulateProp(prop *JSDocInfo_Property, value any) bo
 func JSDocInfo_InternSet(strings_ *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
 	interned := jutil.NewLinkedHashSet[string]()
 	for s := range strings_.All() {
-		interned.Add(RhinoStringPool_AddOrGet(s))
+		interned.Add(strpool.String(strpool.Intern(s)))
 	}
 	return interned
 }
@@ -877,7 +878,7 @@ func internModifiesSet(modifies *jutil.LinkedHashSet[string]) []string {
 	}
 	out := make([]string, 0, modifies.Size())
 	for s := range modifies.All() {
-		out = append(out, RhinoStringPool_AddOrGet(s))
+		out = append(out, strpool.String(strpool.Intern(s)))
 	}
 	return out
 }
@@ -894,7 +895,7 @@ func internModifiesSlice(modifies []string) []string {
 	}
 	out := make([]string, 0, len(modifies))
 	for _, raw := range modifies {
-		s := RhinoStringPool_AddOrGet(raw)
+		s := strpool.String(strpool.Intern(raw))
 		if !slices.Contains(out, s) {
 			out = append(out, s)
 		}
@@ -915,7 +916,7 @@ func internSingleModifies(s string) []string {
 	case "arguments":
 		return jsDocModifiesArguments
 	default:
-		return []string{RhinoStringPool_AddOrGet(s)}
+		return []string{strpool.String(strpool.Intern(s))}
 	}
 }
 
@@ -926,5 +927,5 @@ func internTwoModifies(a, b string) []string {
 	if a == "arguments" && b == "this" {
 		return jsDocModifiesArgumentsAndThis
 	}
-	return []string{RhinoStringPool_AddOrGet(a), RhinoStringPool_AddOrGet(b)}
+	return []string{strpool.String(strpool.Intern(a)), strpool.String(strpool.Intern(b))}
 }

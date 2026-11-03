@@ -74,8 +74,8 @@ func (s *SerializeTypesToPointers) GatherTypesOnAst(root rhino.Node) {
 	// these types are only used when debug logging is enabled, but we always serialize them as not
 	// to have a different TypePool with and without debug logging.
 	for _, mismatch := range s.compiler.GetTypeMismatches() {
-		s.jstypeReconserializer.SerializeType(mismatch.Found())
-		s.jstypeReconserializer.SerializeType(mismatch.Required())
+		s.jstypeReconserializer.SerializeType(mismatch.Found)
+		s.jstypeReconserializer.SerializeType(mismatch.Required)
 	}
 
 	s.typePool = s.jstypeReconserializer.GenerateTypePool()
@@ -91,8 +91,8 @@ func (s *SerializeTypesToPointers) gatherTypesForColors(root rhino.Node) {
 	// Always record mismatch types so pointer assignments and debug logs are
 	// identical to GatherTypesOnAst without allocating a TypePool/StringPool.
 	for _, mismatch := range s.compiler.GetTypeMismatches() {
-		s.jstypeReconserializer.SerializeType(mismatch.Found())
-		s.jstypeReconserializer.SerializeType(mismatch.Required())
+		s.jstypeReconserializer.SerializeType(mismatch.Found)
+		s.jstypeReconserializer.SerializeType(mismatch.Required)
 	}
 
 	s.jstypeReconserializer.prepareForColorPool()
@@ -309,7 +309,7 @@ func (j *serializeTypesToPointers_TypeMismatchJson) WriteGson(out *jutil.JsonWri
 // Java: SerializeTypesToPointers.TypeMismatchJson(TypeMismatch, ColorId, ColorId)
 func newSerializeTypesToPointers_TypeMismatchJson(x TypeMismatch, found colors.ColorId, required colors.ColorId) *serializeTypesToPointers_TypeMismatchJson {
 	return &serializeTypesToPointers_TypeMismatchJson{
-		Location:        x.Location().GetLocation(),
+		Location:        x.Location.GetLocation(),
 		FoundColorId:    found.String(),
 		RequiredColorId: required.String(),
 	}
@@ -318,8 +318,8 @@ func newSerializeTypesToPointers_TypeMismatchJson(x TypeMismatch, found colors.C
 // Java: SerializeTypesToPointers.TypeMismatchJson.create(TypeMismatch, JSTypeReconserializer, TypePool)
 func serializeTypesToPointers_TypeMismatchJson_Create(
 	x TypeMismatch, serializer *JSTypeReconserializer) *serializeTypesToPointers_TypeMismatchJson {
-	foundRecord := serializer.RecordType(x.Found())
-	requiredRecord := serializer.RecordType(x.Required())
+	foundRecord := serializer.RecordType(x.Found)
+	requiredRecord := serializer.RecordType(x.Required)
 	return newSerializeTypesToPointers_TypeMismatchJson(x, foundRecord.colorId, requiredRecord.colorId)
 }
 

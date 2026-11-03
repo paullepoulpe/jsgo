@@ -32,7 +32,7 @@ func TestCoverageInstrumenter_CoverageInstrumenter_instrument(t *testing.T) {
 	mockCompiler := &bundleTest_mockCompiler{runtimes: map[string]string{}}
 	var instrumenter Source_Transformer = NewCoverageInstrumenter(mockCompiler)
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
-	mockCompiler.compileResult = NewCompilerBasedTransformer_CompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
+	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
 	bundleTest_assertSource(t, instrumenter.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
 		NewSource_Builder().
 			SetPath(transpilerTest_FOO_JS).
@@ -46,7 +46,7 @@ func TestCoverageInstrumenter_CoverageInstrumenter_noInstrumentation(t *testing.
 	mockCompiler := &bundleTest_mockCompiler{runtimes: map[string]string{}}
 	var instrumenter Source_Transformer = NewCoverageInstrumenter(mockCompiler)
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
-	mockCompiler.compileResult = NewCompilerBasedTransformer_CompileResult("result", transpilerTest_NO_ERRORS, false, "srcmap")
+	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, false, "srcmap")
 	bundleTest_assertSource(t, instrumenter.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),
 		transpilerTest_source(transpilerTest_FOO_JS, "bar"))
 }
@@ -54,8 +54,8 @@ func TestCoverageInstrumenter_CoverageInstrumenter_noInstrumentation(t *testing.
 // Tests for CompilerSupplier
 
 func TestCoverageInstrumenter_CompilerSupplier_instruments(t *testing.T) {
-	compiler := NewCoverageInstrumenter_CompilerSupplier()
-	result := compiler.Compile(transpilerTest_SOURCE_JS, "var x = 42;")
+	compiler := NewCoverageCompilerSupplier()
+	result := compiler.Compile(transpilerTest_SOURCE_JS.String(), "var x = 42;")
 	expected := []string{
 		"(function(self){if(!self.window){self.window=self;self.window.top=self}})(typeof " +
 			"self!==\"undefined\"?self:globalThis);",
@@ -69,17 +69,19 @@ func TestCoverageInstrumenter_CompilerSupplier_instruments(t *testing.T) {
 		"JSCompiler_lcov_data_source_js[0]=true;var x=42;",
 	}
 
-	if want := strings.Join(expected, ""); result.source != want {
-		t.Errorf("source = %q, want %q", result.source, want)
+	if want := strings.Join(expected, ""); result.Source != want {
+		t.Errorf("source = %q, want %q", result.Source, want)
 	}
-	if len(result.errors) != 0 || !result.transformed {
-		t.Errorf("errors %v, transformed %v", result.errors, result.transformed)
+	if len(result.Errors) != 0 || !result.Transformed {
+		t.Errorf("errors %v, transformed %v", result.Errors, result.Transformed)
 	}
 
 	// Ensure that source map for "x" is correct.
 	sourceMap := sourcemap.NewSourceMapConsumerV3()
-	sourceMap.Parse(result.sourceMap)
-	mappingFoX := sourceMap.GetMappingForLine(1, jutil.StringIndexOf(result.source, "x=42")+1)
+	if err := sourceMap.Parse(result.SourceMap); err != nil {
+		t.Fatalf("sourceMap.Parse failed: %v", err)
+	}
+	mappingFoX := sourceMap.GetMappingForLine(1, jutil.StringIndexOf(result.Source, "x=42")+1)
 	want := &sourcemap.Mapping_OriginalMapping{
 		OriginalFile:   transpilerTest_SOURCE_JS.String(),
 		LineNumber:     1,
