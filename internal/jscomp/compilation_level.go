@@ -59,9 +59,6 @@ var compilationLevel_names = [...]string{
 // String is Enum.name().
 func (l CompilationLevel) String() string { return compilationLevel_names[l] }
 
-// Ordinal is Enum.ordinal().
-func (l CompilationLevel) Ordinal() int { return int(l) }
-
 var compilationLevel_ptrs = [...]CompilationLevel{
 	CompilationLevel_BUNDLE, CompilationLevel_WHITESPACE_ONLY, CompilationLevel_SIMPLE_OPTIMIZATIONS,
 	CompilationLevel_ADVANCED_OPTIMIZATIONS, CompilationLevel_TRANSPILE_ONLY,

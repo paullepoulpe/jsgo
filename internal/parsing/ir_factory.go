@@ -70,7 +70,7 @@ type IRFactory struct {
 
 	currentFileIsExterns bool
 
-	features   *parser.FeatureSet
+	features   parser.FeatureSet
 	resultNode rhino.Node
 
 	closureUnawareRanges []irFactorySpan
@@ -382,7 +382,7 @@ func (f *IRFactory) GetResultNode() rhino.Node {
 }
 
 // Java: IRFactory.getFeatures()
-func (f *IRFactory) GetFeatures() *parser.FeatureSet {
+func (f *IRFactory) GetFeatures() parser.FeatureSet {
 	return f.features
 }
 

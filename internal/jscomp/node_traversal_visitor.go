@@ -63,10 +63,9 @@ import (
 //
 // A lambda for NodeTraversal.AbstractPostOrderCallbackInterface is a Go func
 // of type NodeTraversal_AbstractPostOrderCallbackInterface, passed to
-// Builder.SetCallbackFunc (Java: setCallback(AbstractPostOrderCallbackInterface)).
+// NodeTraversal_Builder.callback (Java: setCallback(AbstractPostOrderCallbackInterface)).
 //
-// Names. NodeTraversal.builder() is NodeTraversal_Builder_() (the type is
-// NodeTraversal_Builder); the static traverse(compiler, root, cb),
+// Names. NodeTraversal.Builder is the value struct NodeTraversal_Builder; the static traverse(compiler, root, cb),
 // traverseRoots(compiler, cb, externs, root) and traverseScopeRoots(...) are
 // NodeTraversal_Traverse, NodeTraversal_TraverseRoots and
 // NodeTraversal_TraverseScopeRoots. report(Node, Node, DiagnosticType,

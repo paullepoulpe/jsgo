@@ -53,9 +53,6 @@ func (s CssRenamingMap_Style) Name() string { return cssRenamingMap_Style_names[
 // String is Enum.toString().
 func (s CssRenamingMap_Style) String() string { return s.Name() }
 
-// Ordinal is Enum.ordinal().
-func (s CssRenamingMap_Style) Ordinal() int { return int(s) }
-
 // CssRenamingMap_Style_ValueOf is Style.valueOf(String).
 func CssRenamingMap_Style_ValueOf(name string) CssRenamingMap_Style {
 	for i, n := range cssRenamingMap_Style_names {

@@ -313,15 +313,15 @@ type ParserRunner_ParseResult struct {
 	Ast                     rhino.Node
 	Comments                []parser.Comment
 	TopLevelStatementRanges []parser.SourceRange
-	Features                *parser.FeatureSet
+	Features                parser.FeatureSet
 	SourceMapURL            *string
 }
 
-func NewParserRunner_ParseResult(ast rhino.Node, comments []parser.Comment, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
+func NewParserRunner_ParseResult(ast rhino.Node, comments []parser.Comment, features parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
 	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []parser.SourceRange{}, features, sourceMapURL)
 }
 
-func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []parser.Comment, topLevelStatementRanges []parser.SourceRange, features *parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
+func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []parser.Comment, topLevelStatementRanges []parser.SourceRange, features parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
 	return &ParserRunner_ParseResult{
 		Ast:                     ast,
 		Comments:                comments,

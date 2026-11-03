@@ -81,28 +81,18 @@ func (*jsFileLineParser) parseJsDocCommentLine(string) bool {
 	return true
 }
 
-func readJavaReaderToString(r jutil.JavaReader) (text string, err error) {
-	defer func() {
-		if p := recover(); p != nil {
-			if e, ok := p.(error); ok {
-				if _, isIO := p.(jutil.IIOException); isIO {
-					err = e
-					return
-				}
-			}
-			panic(p)
-		}
-	}()
-	return jutil.CharStreams_ToString(r), nil
-}
-
 func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, fileContents jutil.JavaReader) {
 	b.filePath = filePath
 	b.parseSucceeded = true
 	b.lineNum = 0
 
-	text, err := readJavaReaderToString(fileContents)
-	if err != nil {
+	var text string
+	ioFailed := false
+	jutil.Try(
+		func() { text = jutil.CharStreams_ToString(fileContents) },
+		func(jutil.IIOException) { ioFailed = true },
+	)
+	if ioFailed {
 		fp := filePath
 		b.errorManager.Report(CheckLevel_ERROR,
 			JSError_MakeWithSourceLocation(&fp, 0, 0,
@@ -291,6 +281,13 @@ func (b *jsFileLineParser) parseJsString(jsStringLiteral string) (string, string
 
 // Java: JsFileLineParser.parseJsStringArray(String)
 func (b *jsFileLineParser) ParseJsStringArray(input string) []string {
+	indexStart := strings.IndexByte(input, '[')
+	indexEnd := strings.LastIndexByte(input, ']')
+	if indexStart != -1 && indexEnd != -1 && indexStart+1 > indexEnd {
+		// String.substring(begin, end) with begin > end.
+		panic(jutil.NewStringIndexOutOfBoundsExceptionForRange(
+			jutil.StringLength(input[:indexStart+1]), jutil.StringLength(input[:indexEnd]), jutil.StringLength(input)))
+	}
 	vals, errMsg, ok := b.parseJsStringArray(input)
 	if !ok {
 		panic(newJsFileLineParser_ParseException(errMsg))
@@ -301,13 +298,8 @@ func (b *jsFileLineParser) ParseJsStringArray(input string) []string {
 func (b *jsFileLineParser) parseJsStringArray(input string) ([]string, string, bool) {
 	indexStart := strings.IndexByte(input, '[')
 	indexEnd := strings.LastIndexByte(input, ']')
-	if indexStart == -1 || indexEnd == -1 {
+	if indexStart == -1 || indexEnd == -1 || indexStart+1 > indexEnd {
 		return nil, "Syntax error when parsing JS array", false
-	}
-	if indexStart+1 > indexEnd {
-		// String.substring(begin, end) with begin > end.
-		panic(jutil.NewStringIndexOutOfBoundsExceptionForRange(
-			jutil.StringLength(input[:indexStart+1]), jutil.StringLength(input[:indexEnd]), jutil.StringLength(input)))
 	}
 	innerValues := input[indexStart+1 : indexEnd]
 	results := []string{}

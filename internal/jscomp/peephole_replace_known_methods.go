@@ -32,34 +32,28 @@ import (
 )
 
 var (
-	rkmIDArray         = uint32(strpool.Intern("Array"))
-	rkmIDMath          = uint32(strpool.Intern("Math"))
-	rkmIDNumber        = uint32(strpool.Intern("Number"))
-	rkmIDOf            = uint32(strpool.Intern("of"))
-	rkmIDIsArray       = uint32(strpool.Intern("isArray"))
-	rkmIDParseInt      = uint32(strpool.Intern("parseInt"))
-	rkmIDParseFloat    = uint32(strpool.Intern("parseFloat"))
-	rkmIDIsFinite      = uint32(strpool.Intern("isFinite"))
-	rkmIDIsNaN         = uint32(strpool.Intern("isNaN"))
-	rkmIDIsSafeInteger = uint32(strpool.Intern("isSafeInteger"))
-	rkmIDAbs           = uint32(strpool.Intern("abs"))
-	rkmIDCeil          = uint32(strpool.Intern("ceil"))
-	rkmIDFloor         = uint32(strpool.Intern("floor"))
-	rkmIDFround        = uint32(strpool.Intern("fround"))
-	rkmIDRound         = uint32(strpool.Intern("round"))
-	rkmIDSign          = uint32(strpool.Intern("sign"))
-	rkmIDTrunc         = uint32(strpool.Intern("trunc"))
-	rkmIDClz32         = uint32(strpool.Intern("clz32"))
-	rkmIDMax           = uint32(strpool.Intern("max"))
-	rkmIDMin           = uint32(strpool.Intern("min"))
-	rkmIDImul          = uint32(strpool.Intern("imul"))
-	rkmIDPow           = uint32(strpool.Intern("pow"))
-	rkmIDJoin          = uint32(strpool.Intern("join"))
-	rkmIDConcat        = uint32(strpool.Intern("concat"))
-	rkmIDComma         = uint32(strpool.Intern(","))
-	rkmIDGoog          = uint32(strpool.Intern("goog"))
-	rkmIDWeakUsage     = uint32(strpool.Intern("weakUsage"))
-	rkmIDGoogWeakUsage = uint32(strpool.Intern("goog$weakUsage"))
+	rkmIDOf            = strpool.Intern("of")
+	rkmIDIsArray       = strpool.Intern("isArray")
+	rkmIDParseInt      = strpool.Intern("parseInt")
+	rkmIDParseFloat    = strpool.Intern("parseFloat")
+	rkmIDIsFinite      = strpool.Intern("isFinite")
+	rkmIDIsNaN         = strpool.Intern("isNaN")
+	rkmIDIsSafeInteger = strpool.Intern("isSafeInteger")
+	rkmIDAbs           = strpool.Intern("abs")
+	rkmIDCeil          = strpool.Intern("ceil")
+	rkmIDFloor         = strpool.Intern("floor")
+	rkmIDFround        = strpool.Intern("fround")
+	rkmIDRound         = strpool.Intern("round")
+	rkmIDSign          = strpool.Intern("sign")
+	rkmIDTrunc         = strpool.Intern("trunc")
+	rkmIDClz32         = strpool.Intern("clz32")
+	rkmIDMax           = strpool.Intern("max")
+	rkmIDMin           = strpool.Intern("min")
+	rkmIDImul          = strpool.Intern("imul")
+	rkmIDPow           = strpool.Intern("pow")
+	rkmIDJoin          = strpool.Intern("join")
+	rkmIDConcat        = strpool.Intern("concat")
+	rkmIDComma         = strpool.Intern(",")
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) to read the
@@ -132,10 +126,10 @@ func (p *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree rhino.Node) rhino.
 func (p *PeepholeReplaceKnownMethods) canFoldCall(callee rhino.Node) bool {
 	switch callee.GetToken() {
 	case rhino.Token_NAME:
-		switch callee.GetStringID() {
+		switch nodeStringID(callee) {
 		case rkmIDParseInt, rkmIDParseFloat:
 			return true
-		case rkmIDGoogWeakUsage:
+		case idGoogWeakUsage:
 			return p.late
 		}
 		return false
@@ -144,17 +138,17 @@ func (p *PeepholeReplaceKnownMethods) canFoldCall(callee rhino.Node) bool {
 		case rhino.Token_STRINGLIT, rhino.Token_ARRAYLIT:
 			return true
 		case rhino.Token_NAME:
-			switch recv.GetStringID() {
-			case rkmIDArray, rkmIDMath, rkmIDNumber:
+			switch nodeStringID(recv) {
+			case idArray, idMath, idNumber:
 				return true
-			case rkmIDGoog:
-				return p.late && callee.GetStringID() == rkmIDWeakUsage
+			case idGoog:
+				return p.late && nodeStringID(callee) == idWeakUsage
 			}
 		}
 		if !p.useTypes {
 			return false
 		}
-		switch callee.GetStringID() {
+		switch nodeStringID(callee) {
 		case rkmIDConcat, rkmIDSubstr, rkmIDSubstring, rkmIDSlice:
 			return true
 		}
@@ -182,16 +176,16 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(call ast.Call) rhino.N
 	callTarget := call.Callee()
 	if method, ok := callTarget.AsGetProp(); ok {
 		if receiver, ok := method.Object().AsName(); ok {
-			switch receiver.Node().GetStringID() {
-			case rkmIDArray:
+			switch nodeStringID(receiver.Node()) {
+			case idArray:
 				if p.IsASTNormalized() {
 					return p.TryFoldKnownArrayMethods(call, method)
 				}
-			case rkmIDMath:
+			case idMath:
 				if p.IsASTNormalized() {
 					return p.TryFoldKnownMathMethods(call, method)
 				}
-			case rkmIDNumber:
+			case idNumber:
 				if p.IsASTNormalized() {
 					return p.TryFoldKnownNumberMethods(call, method)
 				}
@@ -210,7 +204,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMethods(call ast.Call) rhino.N
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownArrayMethods(Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownArrayMethods(call ast.Call, callTarget ast.GetProp) rhino.Node {
 	subtree := call.Node()
-	switch callTarget.Node().GetStringID() {
+	switch nodeStringID(callTarget.Node()) {
 	case rkmIDOf:
 		// Array.of(args) -> [args]: the arguments move to the literal at once.
 		callTarget.Detach()
@@ -282,7 +276,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayIsArray(call ast.Call) rhino.N
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownNumberMethods(Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumberMethods(call ast.Call, callTarget ast.GetProp) rhino.Node {
 	subtree := call.Node()
-	methodID := callTarget.Node().GetStringID()
+	methodID := nodeStringID(callTarget.Node())
 	switch methodID {
 	case rkmIDParseInt, rkmIDParseFloat:
 		if firstArg, ok := call.FirstArg(); ok &&
@@ -351,7 +345,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 	}
 	var replacement float64
 	hasReplacement := false
-	methodID := callTarget.Node().GetStringID()
+	methodID := nodeStringID(callTarget.Node())
 	// NOTE: the standard does not define precision for these methods, but we are conservative, so
 	// for now we only implement the methods that are guaranteed to not increase the size of the
 	// numeric constants.
@@ -444,7 +438,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 //
 // Java: PeepholeReplaceKnownMethods.tryFoldKnownNumericMethods(Node, Node)
 func (p *PeepholeReplaceKnownMethods) TryFoldKnownNumericMethods(call ast.Call, callTarget ast.Name) rhino.Node {
-	id := callTarget.Node().GetStringID()
+	id := nodeStringID(callTarget.Node())
 	if id == rkmIDParseInt || id == rkmIDParseFloat {
 		if firstArgument, ok := call.FirstArg(); ok &&
 			(firstArgument.Token() == rhino.Token_STRINGLIT || NodeUtil_IsNumericLiteral(firstArgument.Node())) &&
@@ -667,7 +661,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 	}
 
 	array, ok := callTarget.Object().AsArrayLit()
-	if !ok || callTarget.Node().GetStringID() != rkmIDJoin {
+	if !ok || nodeStringID(callTarget.Node()) != rkmIDJoin {
 		return n
 	}
 	arrayNode := array.Node()
@@ -682,7 +676,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldArrayJoin(call ast.Call) rhino.Node
 
 	if hasRight {
 		str, isStringLit := right.AsStringLit()
-		if NodeUtil_IsUndefined(right.Node()) || (isStringLit && str.Node().GetStringID() == rkmIDComma) {
+		if NodeUtil_IsUndefined(right.Node()) || (isStringLit && nodeStringID(str.Node()) == rkmIDComma) {
 			// "," is the default, it doesn't need to be explicit
 			right.Detach()
 			p.ReportChangeToEnclosingScope(n)
@@ -902,7 +896,7 @@ type peepholeReplaceKnownMethods_ConcatFunctionCall struct {
 // Java: PeepholeReplaceKnownMethods.createConcatFunctionCallForNode(Node)
 func PeepholeReplaceKnownMethods_CreateConcatFunctionCallForNode(n ast.Call) (peepholeReplaceKnownMethods_ConcatFunctionCall, bool) {
 	callTarget, ok := n.Callee().AsGetProp()
-	if !ok || callTarget.Node().GetStringID() != rkmIDConcat {
+	if !ok || nodeStringID(callTarget.Node()) != rkmIDConcat {
 		return peepholeReplaceKnownMethods_ConcatFunctionCall{}, false
 	}
 	calleeNode := callTarget.Object()
@@ -928,6 +922,6 @@ func PeepholeReplaceKnownMethods_ContainsExactlyArray(n ast.Expr) bool {
 	}
 	callee, ok := call.Callee().AsGetProp()
 	return ok &&
-		callee.Node().GetStringID() == rkmIDConcat &&
+		nodeStringID(callee.Node()) == rkmIDConcat &&
 		PeepholeReplaceKnownMethods_ContainsExactlyArray(callee.Object())
 }

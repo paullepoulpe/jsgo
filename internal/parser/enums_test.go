@@ -49,7 +49,7 @@ var javaEnums = map[string][]enumValue{
 	"UpdateExpressionTree$OperatorPosition": enumValues(UpdateExpressionTree_OperatorPosition_values()),
 }
 
-var javaFeatureSets = map[string]*FeatureSet{
+var javaFeatureSets = map[string]FeatureSet{
 	"BARE_MINIMUM":   FeatureSet_BARE_MINIMUM,
 	"ES3":            FeatureSet_ES3,
 	"ES5":            FeatureSet_ES5,

@@ -63,7 +63,7 @@ type CompilerOptions struct {
 	// The JavaScript language version accepted.
 	languageIn CompilerOptions_LanguageMode
 	// The JavaScript features that are allowed to be in the output.
-	outputFeatureSet             *parser.FeatureSet
+	outputFeatureSet             parser.FeatureSet
 	experimentalOutputFeatureSet *CompilerOptions_ExperimentalOutputFeatureSet
 	languageOutIsDefaultStrict   base.Tri
 	// The builtin set of externs to be used

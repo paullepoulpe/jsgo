@@ -64,9 +64,6 @@ func (s CheckEs6ModuleFileStructure_OrderedStatement) Name() string {
 	return checkEs6ModuleFileStructure_OrderedStatement_names[s]
 }
 
-// Ordinal is Enum.ordinal().
-func (s CheckEs6ModuleFileStructure_OrderedStatement) Ordinal() int { return int(s) }
-
 // String is the overridden toString(): the description.
 //
 // Java: CheckEs6ModuleFileStructure.OrderedStatement.toString()

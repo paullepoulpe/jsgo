@@ -49,7 +49,7 @@ type CodeGenerator struct {
 	quoteKeywordProperties bool
 	useOriginalName        bool
 	emitTypeAnnotations    bool
-	outputFeatureSet       *parser.FeatureSet
+	outputFeatureSet       parser.FeatureSet
 	jsDocInfoPrinter       *JSDocInfoPrinter
 	registry               *rhino.JSTypeRegistry
 

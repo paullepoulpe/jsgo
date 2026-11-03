@@ -777,37 +777,17 @@ func (s *LinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
 	out.EndArray()
 }
 
-func (s *ObjectLinkedHashSet[T]) writeGsonCollection(g *Gson, out *JsonWriter) {
-	if s == nil {
-		out.NullValue()
-		return
-	}
-	out.BeginArray()
-	for e := range s.All() {
-		g.writeValue(out, e)
-	}
-	out.EndArray()
-}
-
-func (t *orderedTable[K, V, M]) writeGsonMap(g *Gson, out *JsonWriter) {
-	if t == nil {
+func (h *LinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
+	if h == nil {
 		out.NullValue()
 		return
 	}
 	out.BeginObject()
-	for k, v := range t.all() {
+	for k, v := range h.All() {
 		out.Name(ToJavaString(k))
 		g.writeValue(out, v)
 	}
 	out.EndObject()
-}
-
-func (h *LinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
-	h.table().writeGsonMap(g, out)
-}
-
-func (h *ObjectLinkedHashMap[K, V]) writeGsonMap(g *Gson, out *JsonWriter) {
-	h.table().writeGsonMap(g, out)
 }
 
 // Go-only: language-adapter — com.google.gson.GsonBuilder (Gson 2.9.1, as

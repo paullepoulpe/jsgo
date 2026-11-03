@@ -461,9 +461,6 @@ func (t Token) String() string { return token_names[t] }
 // Name is Enum.name().
 func (t Token) Name() string { return token_names[t] }
 
-// Ordinal is Enum.ordinal().
-func (t Token) Ordinal() int { return int(t) }
-
 // Token_ValueOf is Token.valueOf(String).
 func Token_ValueOf(name string) Token {
 	for i, n := range token_names {

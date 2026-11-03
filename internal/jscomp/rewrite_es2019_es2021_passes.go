@@ -121,12 +121,12 @@ func (*RewriteCatchWithNoBinding) HandledTokens() ast.TokenSet {
 	return rewriteCatchWithNoBindingTokens
 }
 
-func (*RewriteCatchWithNoBinding) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+func (*RewriteCatchWithNoBinding) GetAdditionalFeaturesToRunOn() parser.FeatureSet {
 	return parser.FeatureSet_BARE_MINIMUM
 }
 
 // Java: RewriteCatchWithNoBinding.getTranspiledAwayFeatures()
-func (r *RewriteCatchWithNoBinding) GetTranspiledAwayFeatures() *parser.FeatureSet {
+func (r *RewriteCatchWithNoBinding) GetTranspiledAwayFeatures() parser.FeatureSet {
 	return parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_OPTIONAL_CATCH_BINDING)
 }
 
@@ -192,7 +192,7 @@ func (r *RewriteLogicalAssignmentOperatorsPass) ShouldTraverse(t *NodeTraversal,
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		// runs only if logical assignment present
-		return scriptFeatures == nil || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
+		return scriptFeatures.IsZero() || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	}
 	return true
 }
@@ -231,12 +231,12 @@ func (*RewriteNewDotTarget) HandledTokens() ast.TokenSet {
 	return rewriteNewDotTargetTokens
 }
 
-func (*RewriteNewDotTarget) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+func (*RewriteNewDotTarget) GetAdditionalFeaturesToRunOn() parser.FeatureSet {
 	return parser.FeatureSet_BARE_MINIMUM
 }
 
 // Java: RewriteNewDotTarget.getTranspiledAwayFeatures()
-func (r *RewriteNewDotTarget) GetTranspiledAwayFeatures() *parser.FeatureSet {
+func (r *RewriteNewDotTarget) GetTranspiledAwayFeatures() parser.FeatureSet {
 	return parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_NEW_TARGET)
 }
 
@@ -309,7 +309,7 @@ func (r *RewriteNullishCoalesceOperator) Process(externs rhino.Node, root rhino.
 func (r *RewriteNullishCoalesceOperator) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
-		return scriptFeatures == nil || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP)
+		return scriptFeatures.IsZero() || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_NULL_COALESCE_OP)
 	}
 	return true
 }

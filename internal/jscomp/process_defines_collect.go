@@ -332,7 +332,7 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root rhino.Node) {
 		if len(p.namespace.defineCandidateScripts) == 0 {
 			return
 		}
-		b := NodeTraversal_Builder_().SetCompiler(p.compiler).SetCallbackFunc(cb)
+		b := NodeTraversal_Builder{compiler: p.compiler, callback: NodeTraversal_AbstractPostOrderCallbackInterface(cb)}
 		for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
 			if _, ok := p.namespace.defineCandidateScripts[s]; ok {
 				b.Traverse(s)
@@ -340,10 +340,10 @@ func (p *ProcessDefines) ReportInvalidDefineLocations(root rhino.Node) {
 		}
 		return
 	}
-	NodeTraversal_Builder_().
-		SetCompiler(p.compiler).
-		SetCallbackFunc(cb).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler: p.compiler,
+		callback: NodeTraversal_AbstractPostOrderCallbackInterface(cb),
+	}.Traverse(root)
 }
 
 // ProcessDefines_ClosureDefinesCollector is

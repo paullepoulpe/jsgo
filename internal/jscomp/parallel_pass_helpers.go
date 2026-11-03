@@ -264,10 +264,10 @@ func (r *parallelRecorder) reportFunctionDeleted(node rhino.Node) {
 	})
 }
 
-func (c *Compiler) setWorkerAllowableFeatures(featureSet *parser.FeatureSet) {
+func (c *Compiler) setWorkerAllowableFeatures(featureSet parser.FeatureSet) {
 	if featureSet.ContainsFeature(parser.FeatureSet_Feature_MODULES) &&
-		featureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES).Equals(
-			c.allowableFeatures.WithoutFeatures(parser.FeatureSet_Feature_MODULES)) {
+		featureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES) ==
+			c.allowableFeatures.WithoutFeatures(parser.FeatureSet_Feature_MODULES) {
 		c.allowableFeatures = c.allowableFeatures.With(parser.FeatureSet_Feature_MODULES)
 		c.parallelRecorder.events = append(c.parallelRecorder.events, recordedCompilerEvent{
 			kind: recordedEventAllowModules,

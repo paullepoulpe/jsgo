@@ -691,7 +691,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(NodeUtil_IsInvocation(n), func() string { return strconv.Itoa(NodeUtil_GetInvocationArgsCount(n)) })
 	field(n.IsScript(), func() string {
 		fs := NodeUtil_GetFeatureSetOfScript(n)
-		if fs == nil {
+		if fs.IsZero() {
 			return "-"
 		}
 		return nodeUtilSweepQuote(fs.String())

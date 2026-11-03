@@ -293,18 +293,18 @@ func (it *nuNodeIterator) Next() rhino.Node {
 // nuFeatureSetSubject is com.google.javascript.jscomp.parsing.parser.testing.FeatureSetSubject.
 type nuFeatureSetSubject struct {
 	t      *testing.T
-	actual *parser.FeatureSet
+	actual parser.FeatureSet
 }
 
 // Java: FeatureSetSubject.assertFS(FeatureSet)
-func nuAssertFS(t *testing.T, fs *parser.FeatureSet) *nuFeatureSetSubject {
+func nuAssertFS(t *testing.T, fs parser.FeatureSet) *nuFeatureSetSubject {
 	return &nuFeatureSetSubject{t: t, actual: fs}
 }
 
 // Java: FeatureSetSubject.equals(FeatureSet)
-func (s *nuFeatureSetSubject) Equals(other *parser.FeatureSet) {
+func (s *nuFeatureSetSubject) Equals(other parser.FeatureSet) {
 	s.t.Helper()
-	if !s.actual.Equals(other) {
+	if s.actual != other {
 		s.t.Fatal(jutil.LenientFormat("Expected a FeatureSet equal to: %s\nBut got: %s", other, s.actual))
 	}
 }

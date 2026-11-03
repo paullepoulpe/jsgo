@@ -1465,15 +1465,14 @@ func NormalizeTest_IsConstantName(n rhino.Node) bool {
 func (c *NormalizeTest) FindNodesWithProperty(root rhino.Node, prop func(rhino.Node) bool) *jutil.LinkedHashSet[rhino.Node] {
 	set := jutil.NewLinkedHashSet[rhino.Node]()
 
-	NodeTraversal_Builder_().
-		SetCompiler(c.GetLastCompiler()).
-		SetCallbackFunc(
-			func(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
-				if prop(node) {
-					set.Add(node)
-				}
-			}).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler: c.GetLastCompiler(),
+		callback: NodeTraversal_AbstractPostOrderCallbackInterface(func(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
+			if prop(node) {
+				set.Add(node)
+			}
+		}),
+	}.Traverse(root)
 	return set
 }
 

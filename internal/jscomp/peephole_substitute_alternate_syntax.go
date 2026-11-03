@@ -25,19 +25,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
-)
-
-var (
-	psasIDUndefined = uint32(strpool.Intern("undefined"))
-	psasIDWindow    = uint32(strpool.Intern("window"))
-	psasIDObject    = uint32(strpool.Intern("Object"))
-	psasIDArray     = uint32(strpool.Intern("Array"))
-	psasIDError     = uint32(strpool.Intern("Error"))
-	psasIDRegExp    = uint32(strpool.Intern("RegExp"))
-	psasIDMath      = uint32(strpool.Intern("Math"))
-	psasIDBoolean   = uint32(strpool.Intern("Boolean"))
-	psasIDString    = uint32(strpool.Intern("String"))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) to read the
@@ -150,7 +137,7 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 		}
 		return node
 	case rhino.Token_NAME:
-		if node.GetStringID() != psasIDUndefined {
+		if nodeStringID(node) != idUndefined {
 			return node
 		}
 		return p.TryReplaceUndefined(ast.MustName(node))
@@ -177,9 +164,9 @@ func (p *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node rhino.Node) rhi
 	}
 }
 
-func peepholeSubstituteAlternateSyntax_isBuiltinExternID(id uint32) bool {
-	switch id {
-	case psasIDObject, psasIDArray, psasIDError, psasIDRegExp, psasIDMath:
+func peepholeSubstituteAlternateSyntax_isBuiltinExtern(n rhino.Node) bool {
+	switch nodeStringID(n) {
+	case idObject, idArray, idError, idRegExp, idMath:
 		return true
 	default:
 		return false
@@ -190,12 +177,12 @@ func peepholeSubstituteAlternateSyntax_isBuiltinExternID(id uint32) bool {
 func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(getProp ast.GetProp) rhino.Node {
 	node := getProp.Node()
 	window, ok := getProp.Object().AsName()
-	if !ok || window.Node().GetStringID() != psasIDWindow {
+	if !ok || nodeStringID(window.Node()) != idWindow {
 		return node
 	}
 	// Normalization needs to be done to ensure there's no shadowing.
 	// Since normalization has run we know we're referring to the global window.
-	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_isBuiltinExternID(node.GetStringID()) {
+	if !p.IsASTNormalized() || !peepholeSubstituteAlternateSyntax_isBuiltinExtern(node) {
 		return node
 	}
 	newNameNode := rhino.IR_Name(getProp.Property())
@@ -273,8 +260,8 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(call ast.C
 	if !ok {
 		return n
 	}
-	switch callTarget.Node().GetStringID() {
-	case psasIDBoolean:
+	switch nodeStringID(callTarget.Node()) {
+	case idBoolean:
 		// Fold Boolean(a) to !!a
 		// http://www.ecma-international.org/ecma-262/6.0/index.html#sec-boolean-constructor-boolean-value
 		// and
@@ -303,7 +290,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldSimpleFunctionCall(call ast.C
 		p.ReportChangeToEnclosingScope(replacement)
 		// (Like the Java, this returns n, now out of the tree, not the
 		// replacement.)
-	case psasIDString:
+	case idString:
 		// Fold String(a) to '' + (a) on immutable literals,
 		// which allows further optimizations
 		//
@@ -425,7 +412,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(stmt ast.ExprStmt) rhi
 func (p *PeepholeSubstituteAlternateSyntax) TryReplaceUndefined(name ast.Name) rhino.Node {
 	n := name.Node()
 	// TODO(johnlenz): consider doing this as a normalization.
-	if n.GetStringID() == psasIDUndefined &&
+	if nodeStringID(n) == idUndefined &&
 		p.IsASTNormalized() &&
 		!NodeUtil_IsLValue(n) {
 		replacement := NodeUtil_NewUndefinedNode(n)
@@ -467,7 +454,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhin
 			ret.RemoveValue()
 			p.ReportChangeToEnclosingScope(n)
 		}
-	} else if name, ok := result.AsName(); ok && name.Node().GetStringID() == psasIDUndefined {
+	} else if name, ok := result.AsName(); ok && nodeStringID(name.Node()) == idUndefined {
 		ret.RemoveValue()
 		p.ReportChangeToEnclosingScope(n)
 	}
@@ -477,9 +464,9 @@ func (p *PeepholeSubstituteAlternateSyntax) TryReduceReturn(ret ast.Return) rhin
 // String, Number, and Boolean functions return non-object types, whereas
 // new String, new Number, and new Boolean return object types, so don't
 // include them here.
-func peepholeSubstituteAlternateSyntax_isStandardObjectConstructorID(id uint32) bool {
-	switch id {
-	case psasIDObject, psasIDArray, psasIDError:
+func peepholeSubstituteAlternateSyntax_isStandardObjectConstructor(n rhino.Node) bool {
+	switch nodeStringID(n) {
+	case idObject, idArray, idError:
 		return true
 	default:
 		return false
@@ -512,11 +499,10 @@ func (p *PeepholeSubstituteAlternateSyntax) CanFoldStandardConstructors(newNode 
 	if !ok || !p.IsASTNormalized() {
 		return false
 	}
-	classNameID := constructor.Node().GetStringID()
-	if peepholeSubstituteAlternateSyntax_isStandardObjectConstructorID(classNameID) {
+	if peepholeSubstituteAlternateSyntax_isStandardObjectConstructor(constructor.Node()) {
 		return true
 	}
-	if classNameID == psasIDRegExp {
+	if nodeStringID(constructor.Node()) == idRegExp {
 		// Fold "new RegExp()" to "RegExp()", but only if the argument is a string.
 		// See issue 1260.
 		arg, ok := newNode.FirstArg()
@@ -546,16 +532,16 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldLiteralConstructor(call ast.C
 	if !ok {
 		return n
 	}
-	classNameID := constructorName.Node().GetStringID()
-	if (classNameID != psasIDObject && classNameID != psasIDArray) || !p.IsASTNormalized() {
+	classNameID := nodeStringID(constructorName.Node())
+	if (classNameID != idObject && classNameID != idArray) || !p.IsASTNormalized() {
 		return n
 	}
 
 	var newLiteralNode rhino.Node
-	if classNameID == psasIDObject && !call.HasArgs() {
+	if classNameID == idObject && !call.HasArgs() {
 		// "Object()" --> "{}"
 		newLiteralNode = rhino.IR_Objectlit()
-	} else if classNameID == psasIDArray {
+	} else if classNameID == idArray {
 		// "Array(arg0, arg1, ...)" --> "[arg0, arg1, ...]"
 		action := PeepholeSubstituteAlternateSyntax_IsSafeToFoldArrayConstructor(call)
 

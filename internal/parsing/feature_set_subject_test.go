@@ -28,16 +28,16 @@ import (
 // featureSetSubject is a Truth Subject for FeatureSet.
 type featureSetSubject struct {
 	t      *testing.T
-	actual *parser.FeatureSet
+	actual parser.FeatureSet
 }
 
 // Java: FeatureSetSubject.assertFS(FeatureSet)
-func assertFS(t *testing.T, fs *parser.FeatureSet) *featureSetSubject {
+func assertFS(t *testing.T, fs parser.FeatureSet) *featureSetSubject {
 	return &featureSetSubject{t: t, actual: fs}
 }
 
 // Java: FeatureSetSubject.contains(FeatureSet)
-func (s *featureSetSubject) Contains(other *parser.FeatureSet) {
+func (s *featureSetSubject) Contains(other parser.FeatureSet) {
 	s.t.Helper()
 	if !s.actual.Contains(other) {
 		s.t.Fatal(jutil.LenientFormat("Expected a FeatureSet containing: %s\nBut got: %s", other, s.actual))
@@ -45,9 +45,9 @@ func (s *featureSetSubject) Contains(other *parser.FeatureSet) {
 }
 
 // Java: FeatureSetSubject.containsNoneOf(FeatureSet)
-func (s *featureSetSubject) ContainsNoneOf(other *parser.FeatureSet) {
+func (s *featureSetSubject) ContainsNoneOf(other parser.FeatureSet) {
 	s.t.Helper()
-	if !other.Without(s.actual).Equals(other) {
+	if other.Without(s.actual) != other {
 		s.t.Fatal(jutil.LenientFormat("Expected a FeatureSet containing none of: %s\nBut got: %s", other, s.actual))
 	}
 }

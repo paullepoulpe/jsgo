@@ -81,7 +81,7 @@ func (v *AstValidator) ValidateScriptFeatureSet(scriptNode rhino.Node) {
 	}
 	scriptFeatures := NodeUtil_GetFeatureSetOfScript(v.currentScript)
 	allowableFeatures := v.compiler.GetAllowableFeatures()
-	if scriptFeatures == nil || allowableFeatures == nil {
+	if scriptFeatures.IsZero() || allowableFeatures.IsZero() {
 		return
 	}
 	if !allowableFeatures.Contains(scriptFeatures) {

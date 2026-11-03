@@ -240,9 +240,7 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECT_IN_NON_GLOBAL_OR_BLOCK_ERROR))
 		return
 	}
-	if !hasName {
-		panic(jutil.NewNullPointerException())
-	}
+	jutil.CheckStateMsg(hasName, "expected injectable function to have a name")
 	p.injectables = append(p.injectables, angularInjectable{
 		name:         name,
 		node:         n,

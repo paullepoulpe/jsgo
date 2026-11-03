@@ -44,12 +44,12 @@ var PropTranslator_rhinoToProtoProp = make([]*NodeProperty, len(Node_Prop_values
 
 // Java: PropTranslator.serialize(Prop)
 func PropTranslator_Serialize(x Node_Prop) *NodeProperty {
-	return PropTranslator_rhinoToProtoProp[x.Ordinal()]
+	return PropTranslator_rhinoToProtoProp[int(x)]
 }
 
 // Java: PropTranslator.deserialize(NodeProperty)
 func PropTranslator_Deserialize(x NodeProperty) *Node_Prop {
-	return PropTranslator_protoToRhinoProp[x.Ordinal()]
+	return PropTranslator_protoToRhinoProp[int(x)]
 }
 
 // Java: PropTranslator static initializer
@@ -68,8 +68,8 @@ func PropTranslator_SetProps() {
 				protoProp.GetNumber() < 63, "enum %s value %s", *protoProp, protoProp.GetNumber())
 
 			p := rhinoProp
-			PropTranslator_protoToRhinoProp[protoProp.Ordinal()] = &p
-			PropTranslator_rhinoToProtoProp[rhinoProp.Ordinal()] = protoProp
+			PropTranslator_protoToRhinoProp[int(*protoProp)] = &p
+			PropTranslator_rhinoToProtoProp[int(rhinoProp)] = protoProp
 		}
 	}
 }
@@ -197,7 +197,7 @@ func PropTranslator_CheckUnexpectedNullProtoProps() {
 		default:
 			// everything else should be a 1-to-1 match with a boolean property
 			jutil.CheckStateMsg1(
-				PropTranslator_protoToRhinoProp[protoProp.Ordinal()] != nil,
+				PropTranslator_protoToRhinoProp[int(protoProp)] != nil,
 				"Hit unhandled node property: %s",
 				protoProp)
 

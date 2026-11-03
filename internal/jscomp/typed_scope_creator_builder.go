@@ -131,11 +131,11 @@ func (b *TypedScopeCreator_scopeBuilder) GetModule() *Module {
 func (b *TypedScopeCreator_scopeBuilder) Build() {
 	b.InitializeModuleScope(b.currentScope.GetRootNode())
 
-	NodeTraversal_Builder_().
-		SetCompiler(b.outer.compiler).
-		SetCallback(b).
-		SetScopeCreator(ScopeCreator_ASSERT_NO_SCOPES_CREATED).
-		TraverseAtScope(b.currentScope)
+	NodeTraversal_Builder{
+		compiler:     b.outer.compiler,
+		callback:     b,
+		scopeCreator: ScopeCreator_ASSERT_NO_SCOPES_CREATED,
+	}.TraverseAtScope(b.currentScope)
 
 	b.FinishDeclaringGoogModule()
 }

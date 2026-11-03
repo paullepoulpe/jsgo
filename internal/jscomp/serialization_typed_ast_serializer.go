@@ -489,8 +489,8 @@ func (s *TypedAstSerializer_ColorTypeSerializer) GenerateTypePool() *TypePool {
 		s.colorRegistry.GetDisambiguationSupertypesSlice,
 		func(color *colors.Color) *jutil.LinkedHashSet[string] {
 			// Go-only: language-adapter — the ColorSerializer port takes the
-			// ImmutableSet<String> as a LinkedHashSet, the SetMultimap port
-			// returns an ObjectLinkedHashSet: copied in iteration order.
+			// ImmutableSet<String> as a LinkedHashSet; copy from
+			// ColorMismatchLocations in iteration order.
 			locations := jutil.NewLinkedHashSet[string]()
 			for location := range mismatchLocationsForDebugging.Get(color.GetId()).All() {
 				locations.Add(location)

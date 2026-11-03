@@ -133,11 +133,11 @@ func (c *TypedScopeCreatorTest) GetProcessor(compiler *Compiler) CompilerPass {
 		scopeCreator := NewTypedScopeCreator(compiler)
 		NewTypeInferencePass(compiler, compiler.GetReverseAbstractInterpreter(), scopeCreator).
 			InferAllScopes(root.GetParent())
-		NodeTraversal_Builder_().
-			SetCompiler(compiler).
-			SetCallback(&TypedScopeCreatorTest_ScopeFinder{outer: c}).
-			SetScopeCreator(scopeCreator).
-			TraverseRoots(externs, root)
+		NodeTraversal_Builder{
+			compiler:     compiler,
+			callback:     &TypedScopeCreatorTest_ScopeFinder{outer: c},
+			scopeCreator: scopeCreator,
+		}.TraverseRoots(externs, root)
 	})
 }
 

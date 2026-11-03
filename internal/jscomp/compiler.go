@@ -83,7 +83,7 @@ type Compiler struct {
 
 	// Used to track the invariant about what language features may be in the AST at the given point
 	// in compilation.
-	allowableFeatures *parser.FeatureSet
+	allowableFeatures parser.FeatureSet
 
 	// Keyed by InputId.GetIdName() (InputId equality is id-name string equality).
 	inputsById map[string]*CompilerInput
@@ -541,7 +541,7 @@ var compilerTracerType = "Compiler"
 // Java: Compiler.newTracer(String)
 func (c *Compiler) NewTracer(passName string) *Tracer {
 	comment := passName
-	if c.changeTracker.GetRecentChange().HasCodeChanged() {
+	if tracerAnyThreadInitialized.Load() && c.changeTracker.GetRecentChange().HasCodeChanged() {
 		comment += " on recently changed AST"
 	}
 	if c.options.GetTracerMode().IsOn() && c.tracker != nil {

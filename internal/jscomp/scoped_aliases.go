@@ -759,11 +759,11 @@ func (v *ScopedAliases_Traversal) RenameBleedingFunctionName(t *NodeTraversal, f
 	suffix := compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput())
 	cb := &scopedAliases_renameBleedingFunctionNameCallback{
 		compiler: compiler, name: name, nameID: fnName.GetStringID(), suffix: suffix, fnName: fnName}
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(cb).
-		SetScopeCreator(t.GetScopeCreator()).
-		TraverseAtScope(t.GetScope())
+	NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     cb,
+		scopeCreator: t.GetScopeCreator(),
+	}.TraverseAtScope(t.GetScope())
 	fnName.SetString(name + "$jscomp$scopedAliases$" + suffix)
 }
 

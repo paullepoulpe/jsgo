@@ -44,7 +44,7 @@ func (c *Compiler) createMessageFormatter() MessageFormatter {
 // Java: Compiler.initExperimentalOutputFeatureSetOptions(CompilerOptions)
 func (c *Compiler) initExperimentalOutputFeatureSetOptions(options *CompilerOptions) {
 	featureSet := options.GetOutputFeatureSet()
-	if jutil.ObjectsEquals(featureSet, parser.FeatureSet_ES5) || jutil.ObjectsEquals(featureSet, parser.FeatureSet_ES3) {
+	if featureSet == parser.FeatureSet_ES5 || featureSet == parser.FeatureSet_ES3 {
 		// do not change anything if language_out is configured to be ES5 or ES3.
 		return
 	}

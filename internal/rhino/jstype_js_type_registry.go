@@ -572,12 +572,12 @@ func (r *JSTypeRegistry) GetErrorReporter() ErrorReporter {
 
 // Java: JSTypeRegistry.registerNativeType(JSTypeNative, JSType)
 func (r *JSTypeRegistry) RegisterNativeType(typeId JSTypeNative, type_ JSType) {
-	r.nativeTypes[typeId.Ordinal()] = type_
+	r.nativeTypes[int(typeId)] = type_
 }
 
 // Java: JSTypeRegistry.getNativeType(JSTypeNative)
 func (r *JSTypeRegistry) GetNativeType(typeId JSTypeNative) JSType {
-	return r.nativeTypes[typeId.Ordinal()]
+	return r.nativeTypes[int(typeId)]
 }
 
 // Java: JSTypeRegistry.getNativeObjectType(JSTypeNative)

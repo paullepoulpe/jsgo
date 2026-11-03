@@ -56,9 +56,6 @@ const (
 	NestedCompilerRunner_Mode_TRANSPILE_ONLY
 )
 
-// Ordinal is Enum.ordinal().
-func (m NestedCompilerRunner_Mode) Ordinal() int { return int(m) }
-
 // String is Enum.name().
 func (m NestedCompilerRunner_Mode) String() string {
 	switch m {

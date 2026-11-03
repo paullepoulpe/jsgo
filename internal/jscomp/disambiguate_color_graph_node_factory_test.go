@@ -29,8 +29,8 @@ func newTestColorRegistry() *colors.ColorRegistry {
 	return colors.ColorRegistry_Builder_().SetDefaultNativeColorsForTesting().Build()
 }
 
-func colorSetOf(cs ...*colors.Color) *jutil.ObjectLinkedHashSet[*colors.Color] {
-	return jutil.NewObjectLinkedHashSet(cs...)
+func colorSetOf(cs ...*colors.Color) *jutil.LinkedHashSet[*colors.Color] {
+	return jutil.NewLinkedHashSet(cs...)
 }
 
 func TestColorGraphNodeFactory_TopLikeTypesFlattenToTop(t *testing.T) {

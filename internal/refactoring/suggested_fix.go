@@ -146,9 +146,6 @@ func (t SuggestedFix_ImportType) Name() string { return suggestedFix_ImportType_
 // String is Enum.toString().
 func (t SuggestedFix_ImportType) String() string { return t.Name() }
 
-// Ordinal is Enum.ordinal().
-func (t SuggestedFix_ImportType) Ordinal() int { return int(t) }
-
 // Java: SuggestedFix(MatchedNodeInfo, SetMultimap<String, CodeReplacement>, String, ImmutableList<SuggestedFix>)
 func newSuggestedFix(
 	matchedNodeInfo *SuggestedFix_MatchedNodeInfo,

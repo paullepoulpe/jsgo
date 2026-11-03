@@ -53,7 +53,7 @@ func (c *ReportUntranspilableFeaturesTest) SetUp() {
 
 // Java: ReportUntranspilableFeaturesTest.getProcessor(Compiler)
 func (c *ReportUntranspilableFeaturesTest) GetProcessor(compiler *Compiler) CompilerPass {
-	var outputFeatures *parser.FeatureSet
+	var outputFeatures parser.FeatureSet
 	if c.browserFeaturesetYear != nil {
 		outputFeatures = c.browserFeaturesetYear.GetFeatureSet()
 	} else {

@@ -70,23 +70,23 @@ var (
 // does.
 type Denormalize struct {
 	compiler         AbstractCompiler
-	outputFeatureSet *parser.FeatureSet
+	outputFeatureSet parser.FeatureSet
 	hasLogicalAssign bool
 	varInliner       denormalizeVarInliner
 }
 
 // Java: Denormalize(AbstractCompiler, FeatureSet)
-func NewDenormalize(compiler AbstractCompiler, outputFeatureSet *parser.FeatureSet) *Denormalize {
+func NewDenormalize(compiler AbstractCompiler, outputFeatureSet parser.FeatureSet) *Denormalize {
 	return &Denormalize{
 		compiler:         compiler,
 		outputFeatureSet: outputFeatureSet,
-		hasLogicalAssign: outputFeatureSet != nil && outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT),
+		hasLogicalAssign: outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT),
 	}
 }
 
 // Java: Denormalize.process(Node, Node)
 func (d *Denormalize) Process(externs rhino.Node, root rhino.Node) {
-	d.hasLogicalAssign = d.outputFeatureSet != nil && d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
+	d.hasLogicalAssign = d.outputFeatureSet.Has(parser.FeatureSet_Feature_LOGICAL_ASSIGNMENT)
 	NodeTraversal_Traverse(d.compiler, root, d)
 	// Don't inline the VAR declaration if this compilation involves old-style ctemplates.
 	if d.compiler.GetOptions().GetSyntheticBlockStartMarker() == nil {

@@ -294,11 +294,11 @@ func PeepholeCollectPropertyAssignments_CollectArrayProperty(arrayLiteral ast.Ar
 // Java: PeepholeCollectPropertyAssignments.arrayLiteralHasSpread(Node)
 func PeepholeCollectPropertyAssignments_ArrayLiteralHasSpread(arrayLiteral ast.ArrayLit) bool {
 	script := NodeUtil_GetEnclosingScript(arrayLiteral.Node())
-	var scriptFeatures *parser.FeatureSet
+	var scriptFeatures parser.FeatureSet
 	if !script.IsNil() {
 		scriptFeatures = NodeUtil_GetFeatureSetOfScript(script)
 	}
-	if scriptFeatures != nil && !scriptFeatures.Has(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS) {
+	if !scriptFeatures.IsZero() && !scriptFeatures.Has(parser.FeatureSet_Feature_SPREAD_EXPRESSIONS) {
 		return false
 	}
 	for elem := range arrayLiteral.Elements() {

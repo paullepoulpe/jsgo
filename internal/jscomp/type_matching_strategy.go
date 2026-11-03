@@ -74,9 +74,6 @@ func (s TypeMatchingStrategy) Name() string { return typeMatchingStrategy_names[
 // String is Enum.toString().
 func (s TypeMatchingStrategy) String() string { return s.Name() }
 
-// Ordinal is Enum.ordinal().
-func (s TypeMatchingStrategy) Ordinal() int { return int(s) }
-
 // Java: TypeMatchingStrategy.match(JSType, JSType)
 func (s TypeMatchingStrategy) Match(templateType rhino.JSType, type_ rhino.JSType) TypeMatchingStrategy_MatchResult {
 	allowSubtypes := typeMatchingStrategy_allowSubtypes[s]
@@ -136,9 +133,6 @@ func (r TypeMatchingStrategy_MatchResult) Name() string {
 
 // String is Enum.toString().
 func (r TypeMatchingStrategy_MatchResult) String() string { return r.Name() }
-
-// Ordinal is Enum.ordinal().
-func (r TypeMatchingStrategy_MatchResult) Ordinal() int { return int(r) }
 
 // Java: TypeMatchingStrategy.MatchResult.isMatch()
 func (r TypeMatchingStrategy_MatchResult) IsMatch() bool {

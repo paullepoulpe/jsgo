@@ -119,7 +119,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 				e.compiler.Report(JSError_MakeWithNode(behaviorName, PolymerPassErrors_POLYMER_INVALID_BEHAVIOR))
 			}
 			behaviorModule := NodeUtil_GetEnclosingModuleIfPresent(behaviorName)
-			features, _ := NodeUtil_GetEnclosingScript(behaviorName).GetProp(rhino.Node_FEATURE_SET).(*parser.FeatureSet)
+			features, _ := NodeUtil_GetEnclosingScript(behaviorName).GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
 			behaviors = append(behaviors,
 				NewPolymerBehaviorExtractor_BehaviorDefinition(
 					PolymerPassStaticUtils_ExtractProperties(
@@ -159,7 +159,7 @@ func (e *PolymerBehaviorExtractor) ExtractBehaviors(
 				e.compiler.Report(JSError_MakeWithNode(behaviorValue, PolymerPassErrors_POLYMER_INVALID_BEHAVIOR))
 			}
 			behaviorModule := NodeUtil_GetEnclosingModuleIfPresent(behaviorValue)
-			features, _ := NodeUtil_GetEnclosingScript(behaviorValue).GetProp(rhino.Node_FEATURE_SET).(*parser.FeatureSet)
+			features, _ := NodeUtil_GetEnclosingScript(behaviorValue).GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
 			behaviors = append(behaviors,
 				NewPolymerBehaviorExtractor_BehaviorDefinition(
 					PolymerPassStaticUtils_ExtractProperties(
@@ -580,7 +580,7 @@ type PolymerBehaviorExtractor_BehaviorDefinition struct {
 	isGlobalDeclaration bool
 
 	// Language features to carry over to the extraction destination.
-	features *parser.FeatureSet
+	features parser.FeatureSet
 
 	// Containing MODULE_BODY if this behavior is defined inside a module, otherwise null
 	behaviorModule rhino.Node
@@ -594,7 +594,7 @@ func NewPolymerBehaviorExtractor_BehaviorDefinition(
 	functionsToCopy []*PolymerPass_MemberDefinition,
 	nonPropertyMembersToCopy []*PolymerPass_MemberDefinition,
 	isGlobalDeclaration bool,
-	features *parser.FeatureSet,
+	features parser.FeatureSet,
 	behaviorModule rhino.Node) *PolymerBehaviorExtractor_BehaviorDefinition {
 	return &PolymerBehaviorExtractor_BehaviorDefinition{
 		props:                    props,

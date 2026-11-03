@@ -245,6 +245,3 @@ func (m FindExportableNodes_Mode) Name() string { return findExportableNodes_Mod
 
 // String is Enum.toString().
 func (m FindExportableNodes_Mode) String() string { return m.Name() }
-
-// Ordinal is Enum.ordinal().
-func (m FindExportableNodes_Mode) Ordinal() int { return int(m) }

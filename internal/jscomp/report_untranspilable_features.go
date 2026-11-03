@@ -48,7 +48,7 @@ import (
 type ReportUntranspilableFeatures struct {
 	compiler                       AbstractCompiler
 	browserFeatureSetYear          *CompilerOptions_BrowserFeaturesetYear
-	untranspilableFeaturesToRemove *parser.FeatureSet
+	untranspilableFeaturesToRemove parser.FeatureSet
 }
 
 var reportUntranspilableTokens = func() ast.TokenSet {
@@ -116,9 +116,11 @@ var reportUntranspilableFeatures_ALL_UNTRANSPILABLE_FEATURES = parser.FeatureSet
 func NewReportUntranspilableFeatures(
 	compiler AbstractCompiler,
 	browserFeatureSetYear *CompilerOptions_BrowserFeaturesetYear,
-	outputFeatures *parser.FeatureSet) *ReportUntranspilableFeatures {
+	outputFeatures parser.FeatureSet) *ReportUntranspilableFeatures {
 	jutil.CheckNotNull(compiler)
-	jutil.CheckNotNull(outputFeatures)
+	if outputFeatures.IsZero() {
+		panic(jutil.NewNullPointerException())
+	}
 	r := &ReportUntranspilableFeatures{}
 	r.compiler = compiler
 	r.browserFeatureSetYear = browserFeatureSetYear
@@ -130,12 +132,12 @@ func NewReportUntranspilableFeatures(
 }
 
 // Java: ReportUntranspilableFeatures.getTranspiledAwayFeatures()
-func (r *ReportUntranspilableFeatures) GetTranspiledAwayFeatures() *parser.FeatureSet {
+func (r *ReportUntranspilableFeatures) GetTranspiledAwayFeatures() parser.FeatureSet {
 	return r.untranspilableFeaturesToRemove
 }
 
 // Java: ReportUntranspilableFeatures.getAdditionalFeaturesToRunOn()
-func (r *ReportUntranspilableFeatures) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+func (r *ReportUntranspilableFeatures) GetAdditionalFeaturesToRunOn() parser.FeatureSet {
 	/*
 	 * This pass needs to run on all ES3 REGEXP_SYNTAX because it checks for the presence of
 	 * non-flag RegExp features that are not parsed and not attached to nodes.

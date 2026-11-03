@@ -23,7 +23,6 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -159,33 +158,18 @@ type InverseMismatchLocations struct {
 	byNode map[rhino.Node][]rhino.JSType
 }
 
-// InverseMismatchLocationsMap adapts InverseMismatchLocations for ordered iteration.
-type InverseMismatchLocationsMap struct {
-	inv *InverseMismatchLocations
-}
-
 // All iterates (node, involved types) pairs in insertion order.
-func (m InverseMismatchLocationsMap) All() iter.Seq2[rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]] {
-	return func(yield func(rhino.Node, *jutil.ObjectLinkedHashSet[rhino.JSType]) bool) {
-		if m.inv == nil || len(m.inv.order) == 0 {
+func (iml *InverseMismatchLocations) All() iter.Seq2[rhino.Node, []rhino.JSType] {
+	return func(yield func(rhino.Node, []rhino.JSType) bool) {
+		if iml == nil || len(iml.order) == 0 {
 			return
 		}
-		s := jutil.NewObjectLinkedHashSet[rhino.JSType]()
-		for _, loc := range m.inv.order {
-			s.Clear()
-			for _, t := range m.inv.byNode[loc] {
-				s.Add(t)
-			}
-			if !yield(loc, s) {
+		for _, loc := range iml.order {
+			if !yield(loc, iml.byNode[loc]) {
 				return
 			}
 		}
 	}
-}
-
-// AsMap returns an ordered map view of the node-to-types index.
-func (iml *InverseMismatchLocations) AsMap() InverseMismatchLocationsMap {
-	return InverseMismatchLocationsMap{inv: iml}
 }
 
 // Inverse returns a node-to-types view preserving insertion order.

@@ -224,9 +224,6 @@ func (p Node_Prop) String() string { return node_Prop_names[p] }
 // Name is Enum.name().
 func (p Node_Prop) Name() string { return node_Prop_names[p] }
 
-// Ordinal is Enum.ordinal().
-func (p Node_Prop) Ordinal() int { return int(p) }
-
 // Avoid cloning "values" repeatedly in hot code, we save it off now.
 //
 // Java: Node.propValues
@@ -490,7 +487,7 @@ func (n Node) lookupPropListHead(prop Node_Prop) *Node_PropListItem {
 func Node_RebuildListWithoutProp(item *Node_PropListItem, prop Node_Prop) *Node_PropListItem {
 	if item == nil {
 		return nil
-	} else if int(item.propType) == prop.Ordinal() {
+	} else if Node_Prop(item.propType) == prop {
 		return item.next
 	} else {
 		result := Node_RebuildListWithoutProp(item.next, prop)
@@ -533,23 +530,23 @@ func (n Node) removeExtraColdProp(prop Node_Prop) {
 func (n Node) putColdObjectProp(prop Node_Prop, value any) {
 	head := n.coldPropListHead()
 	for cur := head; cur != nil && !cur.shared; cur = cur.next {
-		if int(cur.propType) == prop.Ordinal() && cur.isObject {
+		if Node_Prop(cur.propType) == prop && cur.isObject {
 			cur.objectValue = value
 			return
 		}
 	}
 	head = Node_RebuildListWithoutProp(head, prop)
-	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop.Ordinal()), value, head))
+	n.setColdPropListHead(NewNode_ObjectPropListItem(int8(prop), value, head))
 }
 
 func (n Node) putColdIntProp(prop Node_Prop, value int32) {
 	head := n.coldPropListHead()
-	if head != nil && !head.shared && int(head.propType) == prop.Ordinal() && !head.isObject {
+	if head != nil && !head.shared && Node_Prop(head.propType) == prop && !head.isObject {
 		head.intValue = value
 		return
 	}
 	head = Node_RebuildListWithoutProp(head, prop)
-	n.setColdPropListHead(NewNode_IntPropListItem(int8(prop.Ordinal()), value, head))
+	n.setColdPropListHead(NewNode_IntPropListItem(int8(prop), value, head))
 }
 
 // Java: Node.getProp(Prop)

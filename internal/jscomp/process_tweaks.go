@@ -138,9 +138,6 @@ func (f ProcessTweaks_TweakFunction) Name() string { return processTweaks_TweakF
 // String is Enum.toString().
 func (f ProcessTweaks_TweakFunction) String() string { return f.Name() }
 
-// Ordinal is Enum.ordinal().
-func (f ProcessTweaks_TweakFunction) Ordinal() int { return int(f) }
-
 // Java: ProcessTweaks.TweakFunction(String, String, Token)
 func newProcessTweaks_TweakFunction(name string, expectedTypeName string, validNodeTypeA rhino.Token) processTweaks_TweakFunction_fields {
 	return newProcessTweaks_TweakFunctionWithAll(name, &expectedTypeName, validNodeTypeA, rhino.Token_EMPTY, processTweaks_TweakFunction_null)

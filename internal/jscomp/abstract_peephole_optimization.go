@@ -149,7 +149,7 @@ func (b *AbstractPeepholeOptimizationBase) bindPendingFeatures(dst *uint64) {
 	b.pendingFeaturesPtr = dst
 }
 
-func peepholeFeaturesToSet(mask uint64) *parser.FeatureSet {
+func peepholeFeaturesToSet(mask uint64) parser.FeatureSet {
 	fs := parser.FeatureSet_BARE_MINIMUM
 	for w := mask; w != 0; {
 		b := bits.TrailingZeros64(w)
@@ -420,7 +420,7 @@ type AbstractPeepholeTranspilation interface {
 	// transpiled away by this pass.
 	//
 	// Java: AbstractPeepholeTranspilation.getTranspiledAwayFeatures()
-	GetTranspiledAwayFeatures() *parser.FeatureSet
+	GetTranspiledAwayFeatures() parser.FeatureSet
 
 	// GetAdditionalFeaturesToRunOn is the set of additional features, if
 	// any, beyond those transpiled away which if present in a SCRIPT should
@@ -431,7 +431,7 @@ type AbstractPeepholeTranspilation interface {
 	// ReportUntranspilableFeatures triggering on REGEXP_SYNTAX).
 	//
 	// Java: AbstractPeepholeTranspilation.getAdditionalFeaturesToRunOn()
-	GetAdditionalFeaturesToRunOn() *parser.FeatureSet
+	GetAdditionalFeaturesToRunOn() parser.FeatureSet
 
 	// HandledTokens returns the exact set of AST node tokens inspected by
 	// TranspileSubtree.

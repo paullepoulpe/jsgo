@@ -70,8 +70,6 @@ type inlinePropInfo struct {
 }
 
 var (
-	inlinePropertiesPrototypeID = uint32(strpool.Intern("prototype"))
-
 	inlinePropsGatherTokens = func() ast.TokenSet {
 		var s ast.TokenSet
 		s.Add(rhino.Token_GETPROP)
@@ -327,7 +325,7 @@ func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t inlineT
 		}
 		return false
 	} else if t.inGlobalHoistScope {
-		if srcGetProp, ok := ast.AsGetProp(src); ok && srcGetProp.Node().GetStringID() == inlinePropertiesPrototypeID {
+		if srcGetProp, ok := ast.AsGetProp(src); ok && nodeStringID(srcGetProp.Node()) == idPrototype {
 			// This is a prototype assignment like:
 			//    x.prototype.foo = 1;
 			return g.maybeStoreCandidateValue(inlinePropColor(src), propID, value)

@@ -831,8 +831,6 @@ func (o *OptimizeParameters) setParameterSideEffectInfo(p *optimizeParametersPar
 	}
 }
 
-var optimizeParametersArgumentsID = rhino.RhinoStringPool_InternID("arguments")
-
 // Java: OptimizeParameters.isMovableValue(Node, Scope)
 func optimizeParameters_isMovableValue(n rhino.Node, globalScope *Scope) bool {
 	switch n.GetToken() {
@@ -843,7 +841,7 @@ func optimizeParameters_isMovableValue(n rhino.Node, globalScope *Scope) bool {
 		return false
 	case rhino.Token_NAME:
 		id := n.GetStringID()
-		if id == optimizeParametersArgumentsID || globalScope.GetVarByID(id) == nil {
+		if id == uint32(idArguments) || globalScope.GetVarByID(id) == nil {
 			return false
 		}
 	}

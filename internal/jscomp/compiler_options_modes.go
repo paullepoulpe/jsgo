@@ -145,7 +145,7 @@ func (o *CompilerOptions) GetLanguageIn() CompilerOptions_LanguageMode {
 func (o *CompilerOptions) SetLanguageOut(languageOut CompilerOptions_LanguageMode) {
 	if languageOut == CompilerOptions_LanguageMode_NO_TRANSPILE {
 		o.languageOutIsDefaultStrict = base.Tri_UNKNOWN
-		o.outputFeatureSet = nil
+		o.outputFeatureSet = parser.FeatureSet{}
 	} else {
 		if languageOut == CompilerOptions_LanguageMode_STABLE {
 			languageOut = CompilerOptions_LanguageMode_STABLE_OUT
@@ -163,20 +163,23 @@ func (o *CompilerOptions) SetLanguageOut(languageOut CompilerOptions_LanguageMod
 // are supported alternatives.
 //
 // Java: CompilerOptions.setOutputFeatureSet(FeatureSet)
-func (o *CompilerOptions) SetOutputFeatureSet(featureSet *parser.FeatureSet) {
-	o.outputFeatureSet = jutil.CheckNotNull(featureSet) // Optional.of
+func (o *CompilerOptions) SetOutputFeatureSet(featureSet parser.FeatureSet) {
+	if featureSet.IsZero() {
+		panic(jutil.NewNullPointerException())
+	}
+	o.outputFeatureSet = featureSet // Optional.of
 }
 
 // Java: CompilerOptions.legacySetOutputFeatureSet(FeatureSet)
-func (o *CompilerOptions) LegacySetOutputFeatureSet(featureSet *parser.FeatureSet) {
+func (o *CompilerOptions) LegacySetOutputFeatureSet(featureSet parser.FeatureSet) {
 	o.SetOutputFeatureSet(featureSet)
 }
 
 // Gets the set of features that can appear in the output.
 //
 // Java: CompilerOptions.getOutputFeatureSet()
-func (o *CompilerOptions) GetOutputFeatureSet() *parser.FeatureSet {
-	if o.outputFeatureSet != nil {
+func (o *CompilerOptions) GetOutputFeatureSet() parser.FeatureSet {
+	if !o.outputFeatureSet.IsZero() {
 		return o.outputFeatureSet
 	}
 
@@ -222,7 +225,7 @@ func (o *CompilerOptions) GetExperimentalOutputFeatureSet() *CompilerOptions_Exp
 }
 
 // Java: CompilerOptions.needsTranspilationFrom(FeatureSet)
-func (o *CompilerOptions) NeedsTranspilationFrom(languageLevel *parser.FeatureSet) bool {
+func (o *CompilerOptions) NeedsTranspilationFrom(languageLevel parser.FeatureSet) bool {
 	// TODO(johnplaisted): This isn't really accurate. This should instead be the *parsed* language,
 	// not the *input* language.
 	return o.GetLanguageIn().ToFeatureSet().Contains(languageLevel) &&

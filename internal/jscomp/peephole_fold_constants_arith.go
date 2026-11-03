@@ -67,7 +67,7 @@ func (p *PeepholeFoldConstants) TryFoldUnaryOperator(n rhino.Node) rhino.Node {
 		return n
 	case rhino.Token_NEG:
 		var result rhino.Node
-		if left.IsName() && left.GetStringID() == foldIDNaN {
+		if left.IsName() && nodeStringID(left) == idNaN {
 			result = left.Detach() // "-NaN" is "NaN".
 		} else if neg, ok := ast.AsUnary(left); ok && neg.Token() == rhino.Token_NEG {
 			leftLeft := neg.Operand().Node()

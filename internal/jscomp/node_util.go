@@ -805,7 +805,7 @@ func NodeUtil_IsValidQualifiedName(mode CompilerOptions_LanguageMode, name strin
 // is a valid qualified name.
 //
 // Java: NodeUtil.isValidQualifiedName(FeatureSet, String)
-func NodeUtil_IsValidQualifiedNameFeatureSet(mode *parser.FeatureSet, name string) bool {
+func NodeUtil_IsValidQualifiedNameFeatureSet(mode parser.FeatureSet, name string) bool {
 	if len(name) == 0 || name[0] == '.' || name[len(name)-1] == '.' {
 		return false
 	}
@@ -837,7 +837,7 @@ func NodeUtil_IsValidQualifiedNameFeatureSet(mode *parser.FeatureSet, name strin
 // words) cannot, in ES3.
 //
 // Java: NodeUtil.isValidPropertyName(FeatureSet, String)
-func NodeUtil_IsValidPropertyName(mode *parser.FeatureSet, name string) bool {
+func NodeUtil_IsValidPropertyName(mode parser.FeatureSet, name string) bool {
 	return NodeUtil_IsValidSimpleName(name) ||
 		(mode.Has(parser.FeatureSet_Feature_KEYWORDS_AS_PROPERTIES) && rhino.TokenStream_IsKeyword(name))
 }

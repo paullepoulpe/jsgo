@@ -885,9 +885,6 @@ var checkMissingRequires_Strength_isTypeOnly = [...]bool{false, true, true}
 // String is Enum.name().
 func (s CheckMissingRequires_Strength) String() string { return checkMissingRequires_Strength_names[s] }
 
-// Ordinal is Enum.ordinal().
-func (s CheckMissingRequires_Strength) Ordinal() int { return int(s) }
-
 // IsStrong is the field Strength.isStrong.
 func (s CheckMissingRequires_Strength) IsStrong() bool {
 	return checkMissingRequires_Strength_isStrong[s]

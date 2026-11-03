@@ -2204,7 +2204,7 @@ const a = $jscomp$destructuring$var1 === void 0
 	objType := c.GetNodeMatchingQName(jsRoot, "obj").GetColor()
 
 	// `$jscomp$destructuring$var0` has the same type as `obj`
-	colorSet := jutil.NewObjectLinkedHashSet[*colors.Color]()
+	colorSet := jutil.NewLinkedHashSet[*colors.Color]()
 	for _, n := range c.GetAllNodesMatchingQName(jsRoot, "$jscomp$destructuring$var0") {
 		colorSet.Add(n.GetColor())
 	}

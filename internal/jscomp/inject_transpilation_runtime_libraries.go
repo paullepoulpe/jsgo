@@ -175,9 +175,9 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs rhino.Node, root r
 }
 
 // Java: InjectTranspilationRuntimeLibraries.getScriptFeatures(Node)
-func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script rhino.Node) *parser.FeatureSet {
+func InjectTranspilationRuntimeLibraries_GetScriptFeatures(script rhino.Node) parser.FeatureSet {
 	features := NodeUtil_GetFeatureSetOfScript(script)
-	if features != nil {
+	if !features.IsZero() {
 		return features
 	}
 	return parser.FeatureSet_ES3

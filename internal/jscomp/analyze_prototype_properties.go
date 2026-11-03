@@ -202,7 +202,7 @@ func (a *AnalyzePrototypeProperties) Process(externRoot rhino.Node, root rhino.N
 	var propProc AnalyzePrototypeProperties_ProcessProperties
 	propProc.outer = a
 	propProc.symbolStack = propProc.symbolStackBuf[:0]
-	NodeTraversal_Builder_().SetCompiler(a.compiler).SetCallback(&propProc).Traverse(root)
+	(NodeTraversal_Builder{compiler: a.compiler, callback: &propProc}).Traverse(root)
 
 	a.propagateReferences()
 }

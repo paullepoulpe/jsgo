@@ -627,7 +627,7 @@ func (f *infraEscapedFinder) EnterScope(t *NodeTraversal) {
 	scope := t.GetScope()
 	var result string
 	if e := infraTry(func() {
-		escaped := jutil.NewObjectLinkedHashSet[*Var]()
+		escaped := jutil.NewLinkedHashSet[*Var]()
 		all := NodeUtil_GetAllVarsDeclaredInFunction(f.d.compiler, f.scopeCreator, scope)
 		DataFlowAnalysis_ComputeEscaped(scope, escaped, f.d.compiler, f.scopeCreator, all.GetAllVariables())
 		var names []string
@@ -648,11 +648,11 @@ func (f *infraEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 func (d *infraDumper) escaped(script rhino.Node) {
 	finder := &infraEscapedFinder{d: d, scopeCreator: NewSyntacticScopeCreator(d.compiler)}
 	if e := infraTry(func() {
-		NodeTraversal_Builder_().
-			SetCompiler(d.compiler).
-			SetScopeCreator(finder.scopeCreator).
-			SetCallback(finder).
-			Traverse(script)
+		NodeTraversal_Builder{
+			compiler:     d.compiler,
+			scopeCreator: finder.scopeCreator,
+			callback:     finder,
+		}.Traverse(script)
 	}); e != nil {
 		finder.lines = append(finder.lines, "E X "+infraExc(e))
 	}

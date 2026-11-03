@@ -293,24 +293,6 @@ func (f *FunctionTypeBase) GetAllImplementedInterfaces() []ObjectType {
 	return interfaces
 }
 
-// Java: FunctionType.AddRelatedInterfaces(ObjectType, Set<ObjectType>)
-func (f *FunctionTypeBase) AddRelatedInterfaces(instance ObjectType, set *jutil.ObjectLinkedHashSet[ObjectType]) {
-	constructor := instance.GetConstructor()
-	if constructor != nil {
-		if !constructor.IsInterface() {
-			return
-		}
-
-		if !set.Add(instance) {
-			return
-		}
-
-		for _, interfaceType := range instance.GetCtorExtendedInterfaces() {
-			f.AddRelatedInterfaces(interfaceType, set)
-		}
-	}
-}
-
 // Java: FunctionType.getAncestorInterfaces()
 func (f *FunctionTypeBase) GetAncestorInterfaces() []ObjectType {
 	var src []ObjectType
@@ -485,37 +467,6 @@ func (f *FunctionTypeBase) checkExtendsLoopSlice(path *[]FunctionType) []Functio
 		if result != nil {
 			return result
 		}
-		(*path)[len(*path)-1] = nil
-		*path = (*path)[:len(*path)-1]
-	}
-	return nil
-}
-
-// Java: FunctionType.checkExtendsLoop(Set<FunctionType>, List<FunctionType>)
-func (f *FunctionTypeBase) CheckExtendsLoopWithCacheAndPath(
-	cache *jutil.ObjectLinkedHashSet[FunctionType], path *[]FunctionType) []FunctionType {
-	for _, interfaceType := range f.GetExtendedInterfaces() {
-		superConstructor := interfaceType.GetConstructor()
-		if superConstructor == nil {
-			continue
-		}
-		if cache.Contains(superConstructor) {
-			// after detecting a loop, prune and return the path, e.g.,: A -> B
-			// -> C -> D -> C, will be pruned into: c -> D -> C
-			*path = append(*path, superConstructor)
-			i := 0
-			for (*path)[i] != superConstructor {
-				i++
-			}
-			return (*path)[i:]
-		}
-		cache.Add(superConstructor)
-		*path = append(*path, superConstructor)
-		result := superConstructor.CheckExtendsLoopWithCacheAndPath(cache, path)
-		if result != nil {
-			return result
-		}
-		cache.Remove(superConstructor)
 		(*path)[len(*path)-1] = nil
 		*path = (*path)[:len(*path)-1]
 	}

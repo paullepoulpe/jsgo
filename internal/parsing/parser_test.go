@@ -78,7 +78,7 @@ type parserTest struct {
 	parsingMode      Config_JsDocParsing
 	strictMode       Config_StrictMode
 	isIdeMode        bool
-	expectedFeatures *parser.FeatureSet
+	expectedFeatures parser.FeatureSet
 }
 
 // newParserTest is setUp().

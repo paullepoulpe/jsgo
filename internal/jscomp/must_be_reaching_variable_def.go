@@ -25,8 +25,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var argumentsStringID = rhino.RhinoStringPool_InternID(Var_ARGUMENTS)
-
 // mustDefBottom is the sentinel for BOTTOM in MustBeReachingVariableDef_MustDef.defs
 // (multiple or conditional reaching definitions). A nil entry represents TOP.
 var mustDefBottom MustBeReachingVariableDef_Definition
@@ -531,14 +529,13 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			d.ComputeMustDef(value, cfgNode, output, true)
 		}
 	case rhino.Token_NAME:
-		strID := n.GetStringID()
 		if NodeUtil_IsLhsByDestructuring(n) {
 			var defNode rhino.Node
 			if !conditional {
 				defNode = cfgNode
 			}
-			d.addToDefIfLocalID(strID, defNode, rhino.NilNode, output)
-		} else if strID == argumentsStringID {
+			d.addToDefIfLocalID(n.GetStringID(), defNode, rhino.NilNode, output)
+		} else if nodeStringID(n) == idArguments {
 			d.EscapeParameters(output)
 		}
 		return
@@ -557,7 +554,7 @@ func (d *MustBeReachingVariableDef) ComputeMustDef(n rhino.Node, cfgNode rhino.N
 			} else if get, isGet := target.AsNormalGet(); isGet {
 				// Treat all assignments to arguments as redefining the
 				// parameters itself.
-				if obj, isObjName := get.Object().AsName(); isObjName && obj.Node().GetStringID() == argumentsStringID {
+				if obj, isObjName := get.Object().AsName(); isObjName && nodeStringID(obj.Node()) == idArguments {
 					// TODO(user): More accuracy can be introduced
 					// i.e. We know exactly what arguments[x] is if x is a constant
 					// number.

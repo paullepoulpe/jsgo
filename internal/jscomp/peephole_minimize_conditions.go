@@ -158,17 +158,7 @@ func peepholeExprResultCannotMinimize(expr rhino.Node) bool {
 		}
 		return !NodeUtil_IsLiteralValue(current, true)
 	}
-	switch expr.GetToken() {
-	case rhino.Token_INC,
-		rhino.Token_DEC,
-		rhino.Token_DELPROP,
-		rhino.Token_YIELD,
-		rhino.Token_AWAIT,
-		rhino.Token_DYNAMIC_IMPORT:
-		return true
-	default:
-		return false
-	}
+	return peepholeIsSideEffectingExprOp(expr.GetToken())
 }
 
 // Java: PeepholeMinimizeConditions.tryJoinForCondition(Node)

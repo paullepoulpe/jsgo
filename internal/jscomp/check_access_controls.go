@@ -236,9 +236,6 @@ var checkAccessControls_Constancy_names = [...]string{"FINAL", "OTHER_CONSTANT",
 // String is Enum.name().
 func (c CheckAccessControls_Constancy) String() string { return checkAccessControls_Constancy_names[c] }
 
-// Ordinal is Enum.ordinal().
-func (c CheckAccessControls_Constancy) Ordinal() int { return int(c) }
-
 // Java: CheckAccessControls.ConstantDeclaration
 type CheckAccessControls_ConstantDeclaration struct {
 	node       rhino.Node
@@ -940,9 +937,6 @@ var checkAccessControls_IdentifierBehaviour_names = [...]string{
 func (b CheckAccessControls_IdentifierBehaviour) String() string {
 	return checkAccessControls_IdentifierBehaviour_names[b]
 }
-
-// Ordinal is Enum.ordinal().
-func (b CheckAccessControls_IdentifierBehaviour) Ordinal() int { return int(b) }
 
 // Java: CheckAccessControls.IdentifierBehaviour.select(Node)
 func CheckAccessControls_IdentifierBehaviour_Select(target rhino.Node) CheckAccessControls_IdentifierBehaviour {

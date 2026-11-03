@@ -201,9 +201,6 @@ func (m GatherExternProperties_Mode) Name() string { return gatherExternProperti
 // String is Enum.toString().
 func (m GatherExternProperties_Mode) String() string { return m.Name() }
 
-// Ordinal is Enum.ordinal().
-func (m GatherExternProperties_Mode) Ordinal() int { return int(m) }
-
 // Java: GatherExternProperties(AbstractCompiler, Mode)
 func NewGatherExternProperties(compiler AbstractCompiler, mode GatherExternProperties_Mode) *GatherExternProperties {
 	return &GatherExternProperties{

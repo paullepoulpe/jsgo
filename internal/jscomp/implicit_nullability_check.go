@@ -83,9 +83,6 @@ func (n ImplicitNullabilityCheck_Nullability) String() string {
 	return implicitNullabilityCheck_Nullability_names[n]
 }
 
-// Ordinal is Enum.ordinal().
-func (n ImplicitNullabilityCheck_Nullability) Ordinal() int { return int(n) }
-
 // Java: ImplicitNullabilityCheck.Nullability.isNullable()
 func (n ImplicitNullabilityCheck_Nullability) IsNullable() bool {
 	return n == ImplicitNullabilityCheck_Nullability_NULLABLE

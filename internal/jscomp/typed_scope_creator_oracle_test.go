@@ -170,11 +170,11 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *jutil.Linked
 			closer := registry.GetResolver().OpenForDefinition()
 			defer closer.Close()
 			topScope := scopeCreator.CreateScope(root, nil).(*TypedScope)
-			NodeTraversal_Builder_().
-				SetCompiler(compiler).
-				SetCallback(&typedScopeDump_firstScopeBuildingCallback{}).
-				SetScopeCreator(scopeCreator).
-				TraverseWithScope(root, topScope)
+			NodeTraversal_Builder{
+				compiler:     compiler,
+				callback:     &typedScopeDump_firstScopeBuildingCallback{},
+				scopeCreator: scopeCreator,
+			}.TraverseWithScope(root, topScope)
 			scopeCreator.ResolveWeakImportsPreResolution()
 		}()
 		scopeCreator.FinishAndFreeze()

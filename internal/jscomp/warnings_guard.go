@@ -196,9 +196,6 @@ var warningsGuard_Priority_values = [...]int{1, 100, 100, 50, 40, 20, 1}
 // String is Enum.name().
 func (p WarningsGuard_Priority) String() string { return warningsGuard_Priority_names[p] }
 
-// Ordinal is Enum.ordinal().
-func (p WarningsGuard_Priority) Ordinal() int { return int(p) }
-
 // value is the field Priority.value.
 func (p WarningsGuard_Priority) value() int { return warningsGuard_Priority_values[p] }
 

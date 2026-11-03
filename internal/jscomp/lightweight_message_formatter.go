@@ -138,9 +138,6 @@ func ErrorFormat_values() []ErrorFormat {
 // String is Enum.name().
 func (f ErrorFormat) String() string { return errorFormat_names[f] }
 
-// Ordinal is Enum.ordinal().
-func (f ErrorFormat) Ordinal() int { return int(f) }
-
 // ToFormatter converts to a concrete formatter.
 //
 // Java: ErrorFormat.toFormatter(SourceExcerptProvider, boolean)

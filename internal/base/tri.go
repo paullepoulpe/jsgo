@@ -48,9 +48,6 @@ func Tri_values() []Tri { return []Tri{Tri_FALSE, Tri_UNKNOWN, Tri_TRUE} }
 // Name is Enum.name().
 func (t Tri) Name() string { return tri_names[t] }
 
-// Ordinal is Enum.ordinal().
-func (t Tri) Ordinal() int { return int(t) }
-
 // Or is ternary or.
 //
 // Java: Tri.or(Tri)

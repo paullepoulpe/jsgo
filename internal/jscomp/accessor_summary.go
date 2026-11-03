@@ -61,9 +61,6 @@ func (k AccessorSummary_PropertyAccessKind) Name() string {
 // String is Enum.toString().
 func (k AccessorSummary_PropertyAccessKind) String() string { return k.Name() }
 
-// Ordinal is Enum.ordinal().
-func (k AccessorSummary_PropertyAccessKind) Ordinal() int { return int(k) }
-
 // Java: AccessorSummary.PropertyAccessKind.hasGetter()
 func (k AccessorSummary_PropertyAccessKind) HasGetter() bool {
 	return (accessorSummary_PropertyAccessKind_flags[k] & 1) != 0

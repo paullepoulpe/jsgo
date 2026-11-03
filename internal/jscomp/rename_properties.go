@@ -45,15 +45,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var (
-	renamePropertiesPrototypeID = strpool.Intern("prototype")
-	renamePropertiesJscFnID     = strpool.Intern(NodeUtil_JSC_PROPERTY_NAME_FN)
-)
-
-func nodeStringID(n rhino.Node) strpool.ID {
-	return strpool.ID(n.GetStringID())
-}
-
 type propRenameCandidate struct {
 	node rhino.Node
 	prop *RenameProperties_Property
@@ -219,7 +210,7 @@ func newRenameProperties(
 		panic(jutil.NewNullPointerException()) // externedNames.addAll(null)
 	}
 	externedNames := make(map[strpool.ID]struct{}, externProperties.Size()+1)
-	externedNames[renamePropertiesPrototypeID] = struct{}{}
+	externedNames[idPrototype] = struct{}{}
 	for name := range externProperties.All() {
 		externedNames[strpool.Intern(name)] = struct{}{}
 	}
@@ -439,10 +430,10 @@ func (r *RenameProperties) visitFunction(fn ast.Function) {
 	n := fn.Node()
 	parent := n.GetParent()
 	if NodeUtil_IsFunctionDeclaration(n) {
-		if nodeStringID(fn.NameNode().Node()) == renamePropertiesJscFnID {
+		if nodeStringID(fn.NameNode().Node()) == idJscPropertyNameFn {
 			r.toRemove = append(r.toRemove, n)
 		}
-	} else if parent.IsName() && nodeStringID(parent) == renamePropertiesJscFnID {
+	} else if parent.IsName() && nodeStringID(parent) == idJscPropertyNameFn {
 		if decl, ok := ast.AsNameDeclaration(parent.GetParent()); ok && decl.Token() == rhino.Token_VAR {
 			r.toRemove = append(r.toRemove, parent)
 		}

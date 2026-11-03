@@ -168,11 +168,11 @@ func (r *ReachingUseDefTester) GetComputedDef() rhino.Node {
 //
 // Java: ReachingUseDefTester.extractDefAndUsesFromInputLabels()
 func (r *ReachingUseDefTester) ExtractDefAndUsesFromInputLabels() {
-	NodeTraversal_Builder_().
-		SetCompiler(r.compiler).
-		SetCallback(r.labelFinder).
-		SetScopeCreator(r.scopeCreator).
-		Traverse(r.root)
+	NodeTraversal_Builder{
+		compiler:     r.compiler,
+		callback:     r.labelFinder,
+		scopeCreator: r.scopeCreator,
+	}.Traverse(r.root)
 	AssertWithMessage("Code should have an instruction labeled D").
 		That(r.labelFinder.extractedDef).
 		IsNotNull()

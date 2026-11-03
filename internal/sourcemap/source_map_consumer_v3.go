@@ -794,25 +794,20 @@ type SourceMapConsumerV3_EntryVisitor interface {
 	// Java: SourceMapConsumerV3.EntryVisitor.visit(String, String, FilePosition, FilePosition, FilePosition)
 	Visit(sourceName *string,
 		symbolName *string,
-		sourceStartPosition *FilePosition,
-		startPosition *FilePosition,
-		endPosition *FilePosition)
+		sourceStartPosition FilePosition,
+		startPosition FilePosition,
+		endPosition FilePosition)
 }
 
 // VisitMappings visits every mapped segment, in order.
 //
 // Java: SourceMapConsumerV3.visitMappings(EntryVisitor)
 func (c *SourceMapConsumerV3) VisitMappings(visitor SourceMapConsumerV3_EntryVisitor) {
-	if gv, ok := visitor.(*SourceMapGeneratorV3_ConsumerEntryVisitor); ok {
-		c.visitMappingsToGenerator(gv.outer)
-		return
-	}
-
 	pending := false
 	var sourceName *string
 	var symbolName *string
-	var sourceStartPosition *FilePosition
-	var startPosition *FilePosition
+	var sourceStartPosition FilePosition
+	var startPosition FilePosition
 
 	for i := 0; i < c.mappings.GetParsedLineCount(); i++ {
 		if !c.mappings.lineIsEmpty(i) {
@@ -854,47 +849,5 @@ func (c *SourceMapConsumerV3) VisitMappings(visitor SourceMapConsumerV3_EntryVis
 		endPosition :=
 			NewFilePosition(startPosition.GetLine(), jutil.IntAdd(startPosition.GetColumn(), 1))
 		visitor.Visit(sourceName, symbolName, sourceStartPosition, startPosition, endPosition)
-	}
-}
-
-func (c *SourceMapConsumerV3) visitMappingsToGenerator(g *SourceMapGeneratorV3) {
-	pending := false
-	var sourceName optionalString
-	var symbolName *string
-	var sourceStartPosition FilePosition
-	var startPosition FilePosition
-
-	for i := 0; i < c.mappings.GetParsedLineCount(); i++ {
-		if !c.mappings.lineIsEmpty(i) {
-			entries := c.mappings.line(i)
-			for j := range entries {
-				entry := &entries[j]
-				if pending {
-					if sourceName.present {
-						endPosition := MakeFilePosition(i, int(entry.genCol))
-						g.AddMappingPositions(sourceName.text, symbolName, sourceStartPosition, startPosition, endPosition)
-					}
-					pending = false
-				}
-
-				sourceFileId := entry.srcId
-				if sourceFileId != SourceMapConsumerV3_UNMAPPED {
-					pending = true
-					sourceName = c.sources[sourceFileId]
-					nameId := entry.nameId
-					if nameId != SourceMapConsumerV3_UNMAPPED {
-						symbolName = c.names[nameId].ptr()
-					} else {
-						symbolName = nil
-					}
-					sourceStartPosition = MakeFilePosition(int(entry.srcLine), int(entry.srcCol))
-					startPosition = MakeFilePosition(i, int(entry.genCol))
-				}
-			}
-		}
-	}
-	if pending && sourceName.present {
-		endPosition := MakeFilePosition(startPosition.GetLine(), jutil.IntAdd(startPosition.GetColumn(), 1))
-		g.AddMappingPositions(sourceName.text, symbolName, sourceStartPosition, startPosition, endPosition)
 	}
 }

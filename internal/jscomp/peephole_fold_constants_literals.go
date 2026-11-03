@@ -55,7 +55,7 @@ func (p *PeepholeFoldConstants) TryFoldUselessObjectDotDefinePropertiesCall(n rh
 	// Go-only: the callee's property is compared first, a cheap test that
 	// fails for almost every call, before NodeUtil's full check.
 	callee, ok := call.Callee().AsGetProp()
-	if !ok || callee.Node().GetStringID() != foldIDDefineProperties || !NodeUtil_IsObjectDefinePropertiesDefinition(n) {
+	if !ok || nodeStringID(callee.Node()) != idDefineProperties || !NodeUtil_IsObjectDefinePropertiesDefinition(n) {
 		return n
 	}
 	// Object.defineProperties(destObj, srcObj): the check above proves both
@@ -91,7 +91,7 @@ func (p *PeepholeFoldConstants) TryFoldInForcedStringContext(n rhino.Node) rhino
 	jutil.CheckArgument(ok)
 
 	objectType, ok := newNode.Callee().AsName()
-	if !ok || objectType.Node().GetStringID() != foldIDString {
+	if !ok || nodeStringID(objectType.Node()) != idString {
 		return n
 	}
 
@@ -154,7 +154,7 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 		obj, _ := left.AsObjectLit() // the case proves the kind
 		return p.tryFoldObjectPropAccessByID(n, obj, get.Node().GetStringID())
 	case rhino.Token_ARRAYLIT, rhino.Token_STRINGLIT:
-		if get.Node().GetStringID() != foldIDLength || NodeUtil_IsLValue(n) {
+		if nodeStringID(get.Node()) != idLength || NodeUtil_IsLValue(n) {
 			return n
 		}
 		var knownLength int

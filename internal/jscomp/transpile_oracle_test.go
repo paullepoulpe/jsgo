@@ -246,7 +246,7 @@ func (d *transpileOracleDumper) dumpFile(rel string, src string) {
 		d.line("libs " + strings.Join(c.GetRuntimeJsLibManager().GetInjectedLibraries(), ","))
 		for script := c.GetJsRoot().GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 			d.line("features " + jutil.ToJavaString(script.GetSourceFileName()) + " " +
-				jutil.ToJavaString(NodeUtil_GetFeatureSetOfScript(script)))
+				NodeUtil_GetFeatureSetOfScript(script).String())
 		}
 		d.line("allowable " + c.GetAllowableFeatures().String())
 		d.line("stage " + c.GetLifeCycleStage().String())

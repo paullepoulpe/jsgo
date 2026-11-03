@@ -61,7 +61,7 @@ func compiler_toVariableMapEntries(m *VariableMap) []*VariableMapEntryProto {
 }
 
 // Java: Compiler.fromProto(List<FeatureProto>)
-func compiler_fromProto(protos []FeatureProto) *parser.FeatureSet {
+func compiler_fromProto(protos []FeatureProto) parser.FeatureSet {
 	fs := parser.FeatureSet_BARE_MINIMUM
 	for _, p := range protos {
 		if p != FeatureProto_FEATURE_UNKNOWN {

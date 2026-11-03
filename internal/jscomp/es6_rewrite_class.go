@@ -81,7 +81,7 @@ func NewEs6RewriteClass(
 
 // Java: Es6RewriteClass.process(Node, Node)
 func (e *Es6RewriteClass) Process(externs rhino.Node, root rhino.Node) {
-	if opts := e.compiler.GetOptions(); opts != nil && opts.GetOutputFeatureSet() != nil {
+	if opts := e.compiler.GetOptions(); opts != nil && !opts.GetOutputFeatureSet().IsZero() {
 		e.isES3Output = parser.FeatureSet_ES3.Contains(opts.GetOutputFeatureSet())
 	} else {
 		e.isES3Output = false

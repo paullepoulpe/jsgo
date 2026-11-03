@@ -119,11 +119,11 @@ type FilePosition struct {
 // NewFilePosition constructs a FilePosition.
 //
 // Java: FilePosition(int, int)
-func NewFilePosition(line, column int) *FilePosition {
-	return &FilePosition{line: int32(line), column: int32(column)}
+func NewFilePosition(line, column int) FilePosition {
+	return FilePosition{line: int32(line), column: int32(column)}
 }
 
-// MakeFilePosition constructs a FilePosition by value without heap allocation.
+// MakeFilePosition is an alias for NewFilePosition.
 func MakeFilePosition(line, column int) FilePosition {
 	return FilePosition{line: int32(line), column: int32(column)}
 }
@@ -134,7 +134,7 @@ func MakeFilePosition(line, column int) FilePosition {
 // consistent with the column representation.
 //
 // Java: FilePosition.getLine()
-func (p *FilePosition) GetLine() int {
+func (p FilePosition) GetLine() int {
 	return int(p.line)
 }
 
@@ -142,14 +142,14 @@ func (p *FilePosition) GetLine() int {
 // the first column being 0.
 //
 // Java: FilePosition.getColumn()
-func (p *FilePosition) GetColumn() int {
+func (p FilePosition) GetColumn() int {
 	return int(p.column)
 }
 
 // String is for debugging only.
 //
 // Java: FilePosition.toString()
-func (p *FilePosition) String() string {
+func (p FilePosition) String() string {
 	return "FilePosition{line=" + strconv.Itoa(int(p.line)) + ", column=" + strconv.Itoa(int(p.column)) + "}"
 }
 
@@ -222,8 +222,8 @@ type SourceMapGenerator interface {
 	//
 	// Java: SourceMapGenerator.addMapping(String, String, FilePosition, FilePosition, FilePosition)
 	AddMapping(sourceName *string, symbolName *string,
-		sourceStartPosition *FilePosition,
-		outputStartPosition *FilePosition, outputEndPosition *FilePosition)
+		sourceStartPosition FilePosition,
+		outputStartPosition FilePosition, outputEndPosition FilePosition)
 
 	// AddSourcesContent adds a sourcesContent entry for the corresponding
 	// source.

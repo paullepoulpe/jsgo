@@ -90,9 +90,6 @@ func (e AbstractCompiler_ConfigContext) String() string {
 	return abstractCompiler_ConfigContext_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e AbstractCompiler_ConfigContext) Ordinal() int { return int(e) }
-
 // AbstractCompiler_LifeCycleStage is what point in optimizations we're in.
 // For use by compiler passes
 type AbstractCompiler_LifeCycleStage int32
@@ -123,9 +120,6 @@ var abstractCompiler_LifeCycleStage_names = [...]string{
 func (s AbstractCompiler_LifeCycleStage) String() string {
 	return abstractCompiler_LifeCycleStage_names[s]
 }
-
-// Ordinal is Enum.ordinal().
-func (s AbstractCompiler_LifeCycleStage) Ordinal() int { return int(s) }
 
 // Java: AbstractCompiler.LifeCycleStage.isNormalized()
 func (s AbstractCompiler_LifeCycleStage) IsNormalized() bool {

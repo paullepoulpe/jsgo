@@ -629,9 +629,9 @@ func jsaCsTestMismatch_Create(locationString string, testColors ...*jsaCsTestCol
 // jsaCsTester drives a ColorSerializer.
 type jsaCsTester struct {
 	// Simulates ColorRegistry#getDisambiguationSuperTypes()
-	subColorToSuperColorsMap *jutil.ObjectLinkedHashMap[*colors.Color, *jutil.ObjectLinkedHashSet[*colors.Color]]
+	subColorToSuperColorsMap *jutil.LinkedHashMap[*colors.Color, *jutil.LinkedHashSet[*colors.Color]]
 	// Simulates ColorRegistry#getMismatchLocationsForDebugging()
-	colorToMismatchLocationStringsMap *jutil.ObjectLinkedHashMap[*colors.Color, *jutil.LinkedHashSet[string]]
+	colorToMismatchLocationStringsMap *jutil.LinkedHashMap[*colors.Color, *jutil.LinkedHashSet[string]]
 	// Simulates StringPool.Builder#put()
 	stringToPoolOffsetMap map[string]int
 	// Test object
@@ -644,8 +644,8 @@ type jsaCsTester struct {
 
 func newJsaCsTester() *jsaCsTester {
 	return &jsaCsTester{
-		subColorToSuperColorsMap:          jutil.NewObjectLinkedHashMap[*colors.Color, *jutil.ObjectLinkedHashSet[*colors.Color]](),
-		colorToMismatchLocationStringsMap: jutil.NewObjectLinkedHashMap[*colors.Color, *jutil.LinkedHashSet[string]](),
+		subColorToSuperColorsMap:          jutil.NewLinkedHashMap[*colors.Color, *jutil.LinkedHashSet[*colors.Color]](),
+		colorToMismatchLocationStringsMap: jutil.NewLinkedHashMap[*colors.Color, *jutil.LinkedHashSet[string]](),
 		stringToPoolOffsetMap:             map[string]int{},
 		serializationMode:                 SerializationOptions_Builder_().SetIncludeDebugInfo(true).SetRunValidation(true).Build(),
 		propertyNameFilter:                func(string) bool { return true },
@@ -687,7 +687,7 @@ func (s *jsaCsTester) AddPooledString(pooledString *jsaCsPooledString) *jsaCsTes
 func (s *jsaCsTester) LinkSubColorToSuperColor(subColor, superColor *jsaCsTestColor) *jsaCsTester {
 	set, ok := s.subColorToSuperColorsMap.Lookup(subColor.color)
 	if !ok {
-		set = jutil.NewObjectLinkedHashSet[*colors.Color]()
+		set = jutil.NewLinkedHashSet[*colors.Color]()
 		s.subColorToSuperColorsMap.Put(subColor.color, set)
 	}
 	set.Add(superColor.color)

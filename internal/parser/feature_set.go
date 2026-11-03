@@ -42,9 +42,11 @@ type FeatureSet struct {
 	bits uint64
 }
 
+const featureSetPresentBit uint64 = 1 << 63
+
 var (
 	// The bare minimum set of features.
-	FeatureSet_BARE_MINIMUM = &FeatureSet{}
+	FeatureSet_BARE_MINIMUM = FeatureSet{bits: featureSetPresentBit}
 
 	// Features from ES3.
 	FeatureSet_ES3 = FeatureSet_BARE_MINIMUM.withBits(FeatureSet_LangVersion_ES3.featureBits())
@@ -424,7 +426,8 @@ var featureSet_Feature_names = [...]string{
 	"TYPE_ANNOTATION",
 }
 
-var _ [64 - len(featureSet_Feature_names)]struct{}
+// Bit 63 is reserved for featureSetPresentBit; ensure feature count < 63.
+var _ [62 - len(featureSet_Feature_names)]struct{}
 
 var featureSet_tsBits = FeatureSet_LangVersion_TYPESCRIPT.featureBits()
 
@@ -607,18 +610,24 @@ func featureSetBit(feature FeatureSet_Feature) uint64 {
 	return uint64(1) << uint(feature)
 }
 
-func (f *FeatureSet) withBits(newBits uint64) *FeatureSet {
-	if (newBits &^ f.bits) == 0 {
-		return f
-	}
-	return &FeatureSet{bits: f.bits | newBits}
+// IsZero reports whether this FeatureSet is the zero (unset/absent) value.
+func (f FeatureSet) IsZero() bool {
+	return f.bits == 0
+}
+
+func (f FeatureSet) featureBits() uint64 {
+	return f.bits &^ featureSetPresentBit
+}
+
+func (f FeatureSet) withBits(newBits uint64) FeatureSet {
+	return FeatureSet{bits: f.bits | newBits | featureSetPresentBit}
 }
 
 // Version returns a string representation suitable for use in polyfill
 // definition files and encoding in depgraph and deps.js files.
 //
 // Java: FeatureSet.version()
-func (f *FeatureSet) Version() string {
+func (f FeatureSet) Version() string {
 	if FeatureSet_ES3.Contains(f) {
 		return "es3"
 	}
@@ -669,133 +678,111 @@ func (f *FeatureSet) Version() string {
 // Deprecated: Please use Version() instead.
 //
 // Java: FeatureSet.versionForDebugging()
-func (f *FeatureSet) VersionForDebugging() string {
+func (f FeatureSet) VersionForDebugging() string {
 	return f.Version()
 }
 
 // WithoutFeatures returns this set minus the given features.
 //
 // Java: FeatureSet.without(Feature, Feature...)
-func (f *FeatureSet) WithoutFeatures(featureToRemove FeatureSet_Feature, moreFeaturesToRemove ...FeatureSet_Feature) *FeatureSet {
-	updated := f.bits &^ featureSetBit(featureToRemove)
+func (f FeatureSet) WithoutFeatures(featureToRemove FeatureSet_Feature, moreFeaturesToRemove ...FeatureSet_Feature) FeatureSet {
+	updated := (f.bits | featureSetPresentBit) &^ featureSetBit(featureToRemove)
 	for _, feature := range moreFeaturesToRemove {
 		updated &^= featureSetBit(feature)
 	}
-	if updated == f.bits {
-		return f
-	}
-	return &FeatureSet{bits: updated}
+	return FeatureSet{bits: updated}
 }
 
 // Without returns this set minus the features of other.
 //
 // Java: FeatureSet.without(FeatureSet)
-func (f *FeatureSet) Without(other *FeatureSet) *FeatureSet {
-	if f.bits&other.bits == 0 {
-		return f
-	}
-	return &FeatureSet{bits: f.bits &^ other.bits}
+func (f FeatureSet) Without(other FeatureSet) FeatureSet {
+	return FeatureSet{bits: (f.bits | featureSetPresentBit) &^ other.featureBits()}
 }
 
 // WithoutTypes returns this set minus the TypeScript features.
 //
 // Java: FeatureSet.withoutTypes()
-func (f *FeatureSet) WithoutTypes() *FeatureSet {
-	if f.bits&featureSet_tsBits == 0 {
-		return f
-	}
-	return &FeatureSet{bits: f.bits &^ featureSet_tsBits}
+func (f FeatureSet) WithoutTypes() FeatureSet {
+	return FeatureSet{bits: (f.bits | featureSetPresentBit) &^ featureSet_tsBits}
 }
 
 // Union returns a new FeatureSet including all features of both this and
 // other.
 //
 // Java: FeatureSet.union(FeatureSet)
-func (f *FeatureSet) Union(other *FeatureSet) *FeatureSet {
-	if f == other || (other.bits&^f.bits) == 0 {
-		return f
-	}
-	if (f.bits &^ other.bits) == 0 {
-		return other
-	}
-	return &FeatureSet{bits: f.bits | other.bits}
+func (f FeatureSet) Union(other FeatureSet) FeatureSet {
+	return FeatureSet{bits: f.bits | other.bits | featureSetPresentBit}
 }
 
 // ContainsAtLeastOneOf reports whether this FeatureSet contains at least one
 // of the features of other.
 //
 // Java: FeatureSet.containsAtLeastOneOf(FeatureSet)
-func (f *FeatureSet) ContainsAtLeastOneOf(other *FeatureSet) bool {
-	return f.bits&other.bits != 0
+func (f FeatureSet) ContainsAtLeastOneOf(other FeatureSet) bool {
+	return f.featureBits()&other.featureBits() != 0
 }
 
 // Contains reports whether this FeatureSet contains all of the features of
 // other.
 //
 // Java: FeatureSet.contains(FeatureSet)
-func (f *FeatureSet) Contains(other *FeatureSet) bool {
-	return (other.bits &^ f.bits) == 0
+func (f FeatureSet) Contains(other FeatureSet) bool {
+	return (other.featureBits() &^ f.featureBits()) == 0
 }
 
 // ContainsFeature reports whether this FeatureSet contains the given
 // feature.
 //
 // Java: FeatureSet.contains(Feature)
-func (f *FeatureSet) ContainsFeature(feature FeatureSet_Feature) bool {
-	return f.bits&featureSetBit(feature) != 0
+func (f FeatureSet) ContainsFeature(feature FeatureSet_Feature) bool {
+	return f.featureBits()&featureSetBit(feature) != 0
 }
 
 // With returns a feature set combining all the features from this and
 // feature.
 //
 // Java: FeatureSet.with(Feature)
-func (f *FeatureSet) With(feature FeatureSet_Feature) *FeatureSet {
-	bit := featureSetBit(feature)
-	if f.bits&bit != 0 {
-		return f
-	}
-	return &FeatureSet{bits: f.bits | bit}
+func (f FeatureSet) With(feature FeatureSet_Feature) FeatureSet {
+	return FeatureSet{bits: f.bits | featureSetBit(feature) | featureSetPresentBit}
 }
 
 // WithFeatures returns a feature set combining all the features from this
 // and newFeatures.
 //
 // Java: FeatureSet.with(Feature...)
-func (f *FeatureSet) WithFeatures(newFeatures ...FeatureSet_Feature) *FeatureSet {
-	updated := f.bits
+func (f FeatureSet) WithFeatures(newFeatures ...FeatureSet_Feature) FeatureSet {
+	updated := f.bits | featureSetPresentBit
 	for _, feat := range newFeatures {
 		updated |= featureSetBit(feat)
 	}
-	if updated == f.bits {
-		return f
-	}
-	return &FeatureSet{bits: updated}
+	return FeatureSet{bits: updated}
 }
 
 // WithFeatureSet returns a feature set combining all the features from this
 // and newFeatures.
 //
 // Java: FeatureSet.with(FeatureSet)
-func (f *FeatureSet) WithFeatureSet(newFeatures *FeatureSet) *FeatureSet {
+func (f FeatureSet) WithFeatureSet(newFeatures FeatureSet) FeatureSet {
 	return f.Union(newFeatures)
 }
 
 // Has reports whether this FeatureSet includes feature.
 //
 // Java: FeatureSet.has(Feature)
-func (f *FeatureSet) Has(feature FeatureSet_Feature) bool {
-	return f.bits&featureSetBit(feature) != 0
+func (f FeatureSet) Has(feature FeatureSet_Feature) bool {
+	return f.featureBits()&featureSetBit(feature) != 0
 }
 
 // IsEmpty reports whether this FeatureSet has no features.
-func (f *FeatureSet) IsEmpty() bool {
-	return f.bits == 0
+func (f FeatureSet) IsEmpty() bool {
+	return f.featureBits() == 0
 }
 
 // All iterates the features in ordinal order.
-func (f *FeatureSet) All() iter.Seq[FeatureSet_Feature] {
+func (f FeatureSet) All() iter.Seq[FeatureSet_Feature] {
 	return func(yield func(FeatureSet_Feature) bool) {
-		for w := f.bits; w != 0; {
+		for w := f.featureBits(); w != 0; {
 			b := bits.TrailingZeros64(w)
 			w &^= uint64(1) << uint(b)
 			if !yield(FeatureSet_Feature(b)) {
@@ -805,18 +792,10 @@ func (f *FeatureSet) All() iter.Seq[FeatureSet_Feature] {
 	}
 }
 
-// Equals is FeatureSet.equals(Object).
-//
-// Java: FeatureSet.equals(Object)
-func (f *FeatureSet) Equals(other any) bool {
-	featureSet, ok := other.(*FeatureSet)
-	return ok && featureSet != nil && featureSet.bits == f.bits
-}
-
 // HashCode is FeatureSet.hashCode().
 //
 // Java: FeatureSet.hashCode()
-func (f *FeatureSet) HashCode() int32 {
+func (f FeatureSet) HashCode() int32 {
 	var h int32
 	for e := range f.All() {
 		h += int32(e)*31 + 7
@@ -827,7 +806,10 @@ func (f *FeatureSet) HashCode() int32 {
 // String renders the features, e.g. "[RegExp syntax, getters]".
 //
 // Java: FeatureSet.toString()
-func (f *FeatureSet) String() string {
+func (f FeatureSet) String() string {
+	if f.IsZero() {
+		return "null"
+	}
 	var sb strings.Builder
 	sb.WriteByte('[')
 	first := true
@@ -845,7 +827,7 @@ func (f *FeatureSet) String() string {
 // FeatureSet_ValueOf parses known strings into feature sets.
 //
 // Java: FeatureSet.valueOf(String)
-func FeatureSet_ValueOf(name string) *FeatureSet {
+func FeatureSet_ValueOf(name string) FeatureSet {
 	switch name {
 	case "es3":
 		return FeatureSet_ES3
@@ -889,7 +871,7 @@ func FeatureSet_ValueOf(name string) *FeatureSet {
 // may want to exclude manually.
 //
 // Java: FeatureSet.browserFeatureSetValueOf(String)
-func FeatureSet_BrowserFeatureSetValueOf(name string) *FeatureSet {
+func FeatureSet_BrowserFeatureSetValueOf(name string) FeatureSet {
 	featureSet := FeatureSet_ValueOf(name)
 	if featureSet.Contains(FeatureSet_ES_NEXT) {
 		// For ES_NEXT and ES_UNSTABLE, we need to return the raw featureSet to retain the RUNTIME
@@ -922,13 +904,13 @@ func FeatureSet_BrowserFeatureSetValueOf(name string) *FeatureSet {
 // AST at all, like empty marker passes.
 //
 // Java: FeatureSet.all()
-func FeatureSet_All() *FeatureSet {
+func FeatureSet_All() FeatureSet {
 	return FeatureSet_ALL
 }
 
 // FeatureSet_Latest returns the latest parseable feature set.
 //
 // Java: FeatureSet.latest()
-func FeatureSet_Latest() *FeatureSet {
+func FeatureSet_Latest() FeatureSet {
 	return FeatureSet_ES_UNSUPPORTED
 }

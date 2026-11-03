@@ -308,7 +308,7 @@ func (e *Es6NormalizeClasses) ShouldTraverse(t *NodeTraversal, n rhino.Node, par
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
-		return scriptFeatures == nil ||
+		return scriptFeatures.IsZero() ||
 			scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_CLASSES) ||
 			scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_CLASS_STATIC_BLOCK) ||
 			scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS) ||
@@ -811,7 +811,7 @@ func (*Es6NormalizeShorthandProperties) HandledTokens() ast.TokenSet {
 	return es6NormalizeShorthandTokens
 }
 
-func (*Es6NormalizeShorthandProperties) GetAdditionalFeaturesToRunOn() *parser.FeatureSet {
+func (*Es6NormalizeShorthandProperties) GetAdditionalFeaturesToRunOn() parser.FeatureSet {
 	return parser.FeatureSet_BARE_MINIMUM
 }
 
@@ -824,7 +824,7 @@ func (e *Es6NormalizeShorthandProperties) TranspileSubtree(subtree rhino.Node) r
 }
 
 // Java: Es6NormalizeShorthandProperties.getTranspiledAwayFeatures()
-func (e *Es6NormalizeShorthandProperties) GetTranspiledAwayFeatures() *parser.FeatureSet {
+func (e *Es6NormalizeShorthandProperties) GetTranspiledAwayFeatures() parser.FeatureSet {
 	return parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_SHORTHAND_OBJECT_PROPERTIES)
 }
 

@@ -179,7 +179,7 @@ func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 	if assign, ok := ast.AsAssignment(parent); ok {
 		// If n is the target of the assignment (the first child/LHS of the assignment node),
 		// then it is an assigning reference.
-		return assign.Target().Node() == n
+		return assign.Target().Is(n)
 	}
 	switch parent.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:

@@ -27,8 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var ismPrototypeID = uint32(strpool.Intern("prototype"))
-
 type ismPropSlot struct {
 	firstDef      ast.Function
 	extraDefs     []ast.Function
@@ -522,7 +520,7 @@ func ismGatherNormalGet(m ismSignatureSink, n rhino.Node) {
 		return
 	}
 
-	if propID == ismPrototypeID {
+	if strpool.ID(propID) == idPrototype {
 		ismProcessPrototypeParent(m, parent)
 	} else if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(n) {
 		// Static methods of the form Foo.bar = function() {} or

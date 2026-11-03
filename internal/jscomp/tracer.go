@@ -19,9 +19,11 @@
 package jscomp
 
 import (
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -35,11 +37,15 @@ var tracerAnyThreadInitialized atomic.Bool
 // A thread must call Tracer_InitCurrentThreadTrace() to enable Tracer logging,
 // otherwise Tracer does nothing.
 type Tracer struct {
-	// The type for grouping traces, may be null
-	type_ *string
+	// The type for grouping traces, valid when hasType is true
+	type_ string
 
 	// A comment string for the report
 	comment string
+
+	// Record our starter thread in order to trap Traces that are started in
+	// one thread and stopped in another
+	startThread *jutil.Thread
 
 	// Start time of the trace
 	startTimeMs int64
@@ -47,9 +53,7 @@ type Tracer struct {
 	// Stop time of the trace, non-final
 	stopTimeMs int64
 
-	// Record our starter thread in order to trap Traces that are started in
-	// one thread and stopped in another
-	startThread *jutil.Thread
+	hasType bool
 }
 
 // Tracer_logger is package-private for access from unit tests.
@@ -87,7 +91,10 @@ func newTracer_Throwable(message *string) *tracer_Throwable {
 // Java: Tracer(String, String)
 func NewTracerWithType(type_ *string, comment *string) *Tracer {
 	t := &Tracer{}
-	t.type_ = type_
+	if type_ != nil {
+		t.type_ = *type_
+		t.hasType = true
+	}
 	if comment != nil {
 		t.comment = *comment
 	}
@@ -97,10 +104,10 @@ func NewTracerWithType(type_ *string, comment *string) *Tracer {
 		return t
 	}
 
-	trace := Tracer_GetThreadTrace()
+	trace := tracerLookupThreadTrace()
 
 	// Do nothing if the current thread trace wasn't initialized.
-	if !trace.IsInitialized() {
+	if trace == nil || !trace.IsInitialized() {
 		return t
 	}
 
@@ -114,7 +121,7 @@ func NewTracerWithType(type_ *string, comment *string) *Tracer {
 	}
 
 	// Check if we forgot to close the Tracers.
-	if trace.outstandingEvents.Size() >= Tracer_MAX_TRACE_SIZE {
+	if trace.outstandingEvents.Len() >= Tracer_MAX_TRACE_SIZE {
 		Tracer_logger.LogWithThrown(jutil.Level_WARNING,
 			"Too many outstanding Tracers. Tracer.stop() is missing "+
 				"or Tracer.stop() is not wrapped in a "+
@@ -152,15 +159,12 @@ func tracer_longToPaddedString(v int64, digitsColumnWidth int) string {
 //
 // Java: Tracer.numDigits(long)
 func tracer_numDigits(n int64) int {
-	i := 0
-	for {
-		i++
-		n = n / 10
-		if !(n > 0) {
-			break
-		}
+	digits := 1
+	for n >= 10 {
+		n /= 10
+		digits++
 	}
-	return i
+	return digits
 }
 
 // Tracer_AppendSpaces gets a string of spaces of the length specified.
@@ -188,14 +192,14 @@ func Tracer_AppendSpaces(sb *strings.Builder, numSpaces int) {
 //
 // Java: Tracer.stop(int)
 func (t *Tracer) StopWithThreshold(silenceThreshold int) int64 {
-	jutil.CheckState(jutil.Thread_CurrentThread() == t.startThread)
 	if !tracerAnyThreadInitialized.Load() {
 		return 0
 	}
+	jutil.CheckState(jutil.Thread_CurrentThread() == t.startThread)
 
-	trace := Tracer_GetThreadTrace()
+	trace := tracerLookupThreadTrace()
 	// Do nothing if the thread trace was not initialized.
-	if !trace.IsInitialized() {
+	if trace == nil || !trace.IsInitialized() {
 		return 0
 	}
 
@@ -216,10 +220,10 @@ func (t *Tracer) Stop() int64 {
 
 // Java: Tracer.toString()
 func (t *Tracer) String() string {
-	if t.type_ == nil {
+	if !t.hasType {
 		return t.comment
 	}
-	return "[" + *t.type_ + "] " + t.comment
+	return "[" + t.type_ + "] " + t.comment
 }
 
 // Java: Tracer.setDefaultSilenceThreshold(int)
@@ -256,15 +260,19 @@ func Tracer_InitCurrentThreadTraceWithThreshold(defaultSilenceThreshold int) {
 //
 // Java: Tracer.getCurrentThreadTraceReport()
 func Tracer_GetCurrentThreadTraceReport() string {
-	return Tracer_GetThreadTrace().String()
+	trace := tracerLookupThreadTrace()
+	if trace == nil {
+		return ""
+	}
+	return trace.String()
 }
 
 // Tracer_LogCurrentThreadTrace logs a timer report.
 //
 // Java: Tracer.logCurrentThreadTrace()
 func Tracer_LogCurrentThreadTrace() {
-	trace := Tracer_GetThreadTrace()
-	if !trace.IsInitialized() {
+	trace := tracerLookupThreadTrace()
+	if trace == nil || !trace.IsInitialized() {
 		Tracer_logger.LogWithThrown(
 			jutil.Level_INFO,
 			"Tracer log requested for this thread but was not "+
@@ -274,7 +282,7 @@ func Tracer_LogCurrentThreadTrace() {
 	}
 
 	if !trace.IsEmpty() {
-		Tracer_logger.LogWithParam(jutil.Level_INFO, "timers:\n{0}", Tracer_GetCurrentThreadTraceReport())
+		Tracer_logger.LogWithParam(jutil.Level_INFO, "timers:\n{0}", trace.String())
 	}
 }
 
@@ -309,7 +317,7 @@ type tracer_Stat struct {
 func tracer_formatTime(t int64) string {
 	sec := int32((t / 1000) % 60)
 	ms := int32(t % 1000)
-	return jutil.StringFormat("%02d.%03d", sec, ms)
+	return fmt.Sprintf("%02d.%03d", sec, ms)
 }
 
 // tracer_Event is created every time a Tracer is created or stopped.
@@ -370,10 +378,10 @@ type Tracer_ThreadTrace struct {
 	events []*tracer_Event
 
 	// Tracers that have not had their .stop() called
-	outstandingEvents *jutil.LinkedHashSet[*Tracer]
+	outstandingEvents OrderedSet[*Tracer]
 
 	// Map from type to Stat object
-	stats *jutil.LinkedHashMap[string, *tracer_Stat]
+	stats OrderedMap[string, *tracer_Stat]
 
 	// True if outstandingEvents has been cleared because we exceeded the max trace limit.
 	isOutstandingEventsTruncated bool
@@ -387,10 +395,7 @@ type Tracer_ThreadTrace struct {
 
 // NewTracer_ThreadTrace is new ThreadTrace().
 func NewTracer_ThreadTrace() *Tracer_ThreadTrace {
-	return &Tracer_ThreadTrace{
-		outstandingEvents: jutil.NewLinkedHashSet[*Tracer](),
-		stats:             jutil.NewLinkedHashMap[string, *tracer_Stat](),
-	}
+	return &Tracer_ThreadTrace{}
 }
 
 // Java: Tracer.ThreadTrace.init()
@@ -421,7 +426,7 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 					"overflowed and was truncated",
 				newTracer_Throwable(nil))
 		} else {
-			panic(jutil.NewIllegalStateException())
+			jutil.CheckState(false)
 		}
 	}
 
@@ -446,12 +451,11 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 		tt.events = append(tt.events, newTracer_Event(false, t))
 	}
 
-	if t.type_ != nil {
-		type_ := *t.type_
-		stat := tt.stats.Get(type_)
+	if t.hasType {
+		stat := tt.stats.Get(t.type_)
 		if stat == nil {
 			stat = &tracer_Stat{}
-			tt.stats.Put(type_, stat)
+			tt.stats.Put(t.type_, stat)
 		}
 
 		stat.count++
@@ -464,7 +468,7 @@ func (tt *Tracer_ThreadTrace) EndEvent(t *Tracer, silenceThreshold int) {
 
 // Java: Tracer.ThreadTrace.isEmpty()
 func (tt *Tracer_ThreadTrace) IsEmpty() bool {
-	return len(tt.events) == 0 && tt.outstandingEvents.IsEmpty()
+	return len(tt.events) == 0 && tt.outstandingEvents.Len() == 0
 }
 
 // Java: Tracer.ThreadTrace.truncateOutstandingEvents()
@@ -490,7 +494,7 @@ func (tt *Tracer_ThreadTrace) String() string {
 		sb.WriteByte('\n')
 	}
 
-	if tt.outstandingEvents.Size() != 0 {
+	if tt.outstandingEvents.Len() != 0 {
 		now := Tracer_clock.CurrentTimeMillis()
 
 		sb.WriteString(" Unstopped timers:\n")
@@ -520,17 +524,34 @@ func (tt *Tracer_ThreadTrace) String() string {
 }
 
 // Holds the ThreadTrace for each thread.
-var tracer_traces *Tracer_ThreadTrace
+var (
+	tracerTracesMu sync.Mutex
+	tracerTraces   map[*jutil.Thread]*Tracer_ThreadTrace
+)
+
+func tracerLookupThreadTrace() *Tracer_ThreadTrace {
+	th := jutil.Thread_CurrentThread()
+	tracerTracesMu.Lock()
+	t := tracerTraces[th]
+	tracerTracesMu.Unlock()
+	return t
+}
 
 // Tracer_GetThreadTrace gets the ThreadTrace for the current thread,
 // creating one if necessary.
 //
 // Java: Tracer.getThreadTrace()
 func Tracer_GetThreadTrace() *Tracer_ThreadTrace {
-	t := tracer_traces
+	th := jutil.Thread_CurrentThread()
+	tracerTracesMu.Lock()
+	defer tracerTracesMu.Unlock()
+	if tracerTraces == nil {
+		tracerTraces = make(map[*jutil.Thread]*Tracer_ThreadTrace)
+	}
+	t := tracerTraces[th]
 	if t == nil {
 		t = NewTracer_ThreadTrace()
-		tracer_traces = t
+		tracerTraces[th] = t
 	}
 	return t
 }
@@ -540,5 +561,11 @@ func Tracer_GetThreadTrace() *Tracer_ThreadTrace {
 //
 // Java: Tracer.clearThreadTrace()
 func Tracer_ClearThreadTrace() {
-	tracer_traces = nil
+	th := jutil.Thread_CurrentThread()
+	tracerTracesMu.Lock()
+	delete(tracerTraces, th)
+	if len(tracerTraces) == 0 {
+		tracerAnyThreadInitialized.Store(false)
+	}
+	tracerTracesMu.Unlock()
 }

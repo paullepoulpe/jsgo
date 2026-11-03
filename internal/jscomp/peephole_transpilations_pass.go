@@ -39,19 +39,19 @@ type PeepholeTranspilationsPass struct {
 	useActiveMask          bool
 
 	// The feature set to mark as transpiled away after all peephole transpilations are done.
-	featureSetToMarkAsTranspiledAway *parser.FeatureSet
+	featureSetToMarkAsTranspiledAway parser.FeatureSet
 
 	// The feature set that triggers this pass. That is, this pass will only run on scripts that
 	// contain at least one of these features.
-	featureSetToRunOn *parser.FeatureSet
+	featureSetToRunOn parser.FeatureSet
 }
 
 // Java: PeepholeTranspilationsPass(AbstractCompiler, List<AbstractPeepholeTranspilation>, FeatureSet, FeatureSet)
 func newPeepholeTranspilationsPass(
 	compiler AbstractCompiler,
 	transpilations []AbstractPeepholeTranspilation,
-	featureSetToRunOn *parser.FeatureSet,
-	featureSetToMarkAsTranspiledAway *parser.FeatureSet) *PeepholeTranspilationsPass {
+	featureSetToRunOn parser.FeatureSet,
+	featureSetToMarkAsTranspiledAway parser.FeatureSet) *PeepholeTranspilationsPass {
 	p := &PeepholeTranspilationsPass{
 		compiler:                         compiler,
 		peepholeTranspilations:           append([]AbstractPeepholeTranspilation(nil), transpilations...),

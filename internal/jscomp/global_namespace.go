@@ -795,7 +795,7 @@ func (g *GlobalNamespace) ProcessNamespace() {
 	}
 	builder := NewGlobalNamespace_BuildGlobalNamespace(g)
 	builder.confirmExisting = !isInitial
-	traversal := NodeTraversal_Builder_().SetCompiler(g.compiler).SetCallback(builder)
+	traversal := NodeTraversal_Builder{compiler: g.compiler, callback: builder}
 
 	if g.HasExternsRoot() {
 		traversal.TraverseRoots(g.externsRoot, g.root)

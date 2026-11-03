@@ -816,8 +816,8 @@ func NewLiveVariablesAnalysis(
 	return l
 }
 
-func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*Var] {
-	out := jutil.NewObjectLinkedHashSet[*Var]()
+func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.LinkedHashSet[*Var] {
+	out := jutil.NewLinkedHashSet[*Var]()
 	l.escaped.ForEach(func(idx int) {
 		if idx < len(l.table.vars) {
 			out.Add(l.table.vars[idx])
@@ -828,7 +828,11 @@ func (l *LiveVariablesAnalysis) GetEscapedLocals() *jutil.ObjectLinkedHashSet[*V
 		for param, ok := params.FirstParam(); ok; param, ok = param.Next() {
 			if param.Token() == rhino.Token_NAME {
 				if pv := l.jsScope.GetVarByID(param.Node().GetStringID()); pv != nil {
-					out.Add(pv)
+					if idx, ok := l.table.resolveExactVarIndex(pv); ok {
+						out.Add(l.table.vars[idx])
+					} else {
+						out.Add(pv)
+					}
 				}
 			}
 		}

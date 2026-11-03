@@ -14,16 +14,13 @@ import (
 
 // MapSource is the part of java.util.Map<K, V> that copy constructors and
 // putAll read: the size and the entries in iteration order. *LinkedHashMap
-// and *ObjectLinkedHashMap implement it.
+// implements it.
 type MapSource[K any, V any] interface {
 	Size() int
 	All() iter.Seq2[K, V]
 }
 
-var (
-	_ MapSource[string, int] = (*LinkedHashMap[string, int])(nil)
-	_ MapSource[string, int] = (*ObjectLinkedHashMap[string, int])(nil)
-)
+var _ MapSource[string, int] = (*LinkedHashMap[string, int])(nil)
 
 // CollectionToString renders elements like Java's AbstractCollection.toString.
 func CollectionToString[T any](elems []T) string {
@@ -51,28 +48,23 @@ func ListHashCode[T any](elems []T) int32 {
 // ---------------------------------------------------------------------------
 // Shared insertion-ordered slot table & open-addressing index
 
-// orderedSlot is an entry slot of an orderedTable.
+// lhmSlot is an entry slot of an orderedTable.
 //
 // Go-only: performance — storing entries in a flat contiguous slice instead
 // of a doubly-linked list of heap-allocated nodes eliminates per-entry heap
-// allocations and the 16-byte prev/next pointer overhead per entry. Both
-// meta and value precede key because Go pads a struct that ends in a
-// zero-size field (struct{} meta of LinkedHashMap or struct{} value of a set)
-// by a word.
-type orderedSlot[K any, V any, M any] struct {
-	meta  M
+// allocations and the 16-byte prev/next pointer overhead per entry. value
+// precedes key because Go pads a struct that ends in a zero-size field
+// (struct{} value of LinkedHashSet) by a word.
+type lhmSlot[K comparable, V any] struct {
 	value V
 	key   K
 }
 
-type lhmSlot[K comparable, V any] = orderedSlot[K, V, struct{}]
-
 // orderedTable is the insertion-ordered slot storage and lazy open-addressed
-// index shared by LinkedHashMap, ObjectLinkedHashMap, LinkedHashSet, and
-// ObjectLinkedHashSet.
-type orderedTable[K any, V any, M any] struct {
+// index shared by LinkedHashMap and LinkedHashSet.
+type orderedTable[K comparable, V any] struct {
 	m     atomic.Pointer[lhmIndex] // nil until len(slots) exceeds lhmSmallSize or a non-front slot is removed
-	slots []orderedSlot[K, V, M]
+	slots []lhmSlot[K, V]
 	size  int32
 	first int32
 }
@@ -95,8 +87,7 @@ type lhmIndex struct {
 
 const lhmTombstone = ^uint32(0)
 
-// lhmSmallSize is the most entries a LinkedHashMap or ObjectLinkedHashMap
-// holds without an index.
+// lhmSmallSize is the most entries a LinkedHashMap holds without an index.
 const lhmSmallSize = 8
 
 // lhmSeed seeds the hash of LinkedHashMap keys. Iteration order never
@@ -191,14 +182,14 @@ func (x *lhmIndex) isRemoved(i int) bool {
 	return i < len(x.removed) && x.removed[i]
 }
 
-func (t *orderedTable[K, V, M]) reset() {
+func (t *orderedTable[K, V]) reset() {
 	t.m.Store(nil)
 	t.slots = nil
 	t.size = 0
 	t.first = 0
 }
 
-func (t *orderedTable[K, V, M]) clear() {
+func (t *orderedTable[K, V]) clear() {
 	clear(t.slots)
 	t.slots = t.slots[:0]
 	if m := t.m.Load(); m != nil {
@@ -210,66 +201,66 @@ func (t *orderedTable[K, V, M]) clear() {
 	t.first = 0
 }
 
-func (t *orderedTable[K, V, M]) loadIndex() *lhmIndex {
+func (t *orderedTable[K, V]) loadIndex() *lhmIndex {
 	return t.m.Load()
 }
 
-func (t *orderedTable[K, V, M]) removedSlice() []bool {
+func (t *orderedTable[K, V]) removedSlice() []bool {
 	if m := t.m.Load(); m != nil {
 		return m.removed
 	}
 	return nil
 }
 
-func (t *orderedTable[K, V, M]) sizeOrZero() int {
+func (t *orderedTable[K, V]) sizeOrZero() int {
 	if t == nil {
 		return 0
 	}
 	return int(t.size)
 }
 
-func (t *orderedTable[K, V, M]) capOrZero() int {
+func (t *orderedTable[K, V]) capOrZero() int {
 	if t == nil {
 		return 0
 	}
 	return cap(t.slots)
 }
 
-func (t *orderedTable[K, V, M]) add(k K, v V, meta M, slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) add(k K, v V) {
 	if len(t.slots) < cap(t.slots) && t.m.Load() == nil {
-		t.slots = append(t.slots, orderedSlot[K, V, M]{meta: meta, value: v, key: k})
+		t.slots = append(t.slots, lhmSlot[K, V]{value: v, key: k})
 		t.size++
 		return
 	}
-	t.addSlow(k, v, meta, slotHash)
+	t.addSlow(k, v)
 }
 
 //go:noinline
-func (t *orderedTable[K, V, M]) addSlow(k K, v V, meta M, slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) addSlow(k K, v V) {
 	if cap(t.slots) == 0 {
-		t.slots = make([]orderedSlot[K, V, M], 0, 2)
+		t.slots = make([]lhmSlot[K, V], 0, 2)
 		t.first = 0
 	} else if len(t.slots) >= 64 && int(t.size)*4 < len(t.slots) {
-		t.compact(slotHash)
+		t.compact()
 	}
 	idx := len(t.slots)
-	t.slots = append(t.slots, orderedSlot[K, V, M]{meta: meta, value: v, key: k})
+	t.slots = append(t.slots, lhmSlot[K, V]{value: v, key: k})
 	t.size++
 	if m := t.m.Load(); m != nil {
 		if m.needsGrow() {
-			t.reindex(slotHash)
+			t.reindex()
 		} else {
-			m.insert(slotHash(&t.slots[idx]), idx)
+			m.insert(lhmHash(t.slots[idx].key), idx)
 		}
 	}
 }
 
 //go:noinline
-func (t *orderedTable[K, V, M]) buildIndex(slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) buildIndex() {
 	x := &lhmIndex{}
 	x.reset(lhmTableLen(int(t.size)))
 	for i := int(t.first); i < len(t.slots); i++ {
-		x.insert(slotHash(&t.slots[i]), i)
+		x.insert(lhmHash(t.slots[i].key), i)
 	}
 	t.m.Store(x)
 }
@@ -278,11 +269,11 @@ func (t *orderedTable[K, V, M]) buildIndex(slotHash func(*orderedSlot[K, V, M]) 
 // atomically so concurrent read-only lookups on an unindexed map are race-free.
 //
 //go:noinline
-func (t *orderedTable[K, V, M]) buildIndexShared(slotHash func(*orderedSlot[K, V, M]) uint) *lhmIndex {
+func (t *orderedTable[K, V]) buildIndexShared() *lhmIndex {
 	x := &lhmIndex{}
 	x.reset(lhmTableLen(int(t.size)))
 	for i := int(t.first); i < len(t.slots); i++ {
-		x.insert(slotHash(&t.slots[i]), i)
+		x.insert(lhmHash(t.slots[i].key), i)
 	}
 	if t.m.CompareAndSwap(nil, x) {
 		return x
@@ -290,18 +281,18 @@ func (t *orderedTable[K, V, M]) buildIndexShared(slotHash func(*orderedSlot[K, V
 	return t.m.Load()
 }
 
-func (t *orderedTable[K, V, M]) reindex(slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) reindex() {
 	x := t.m.Load()
 	x.reset(lhmTableLen(int(t.size)))
 	for i := int(t.first); i < len(t.slots); i++ {
 		if !x.isRemoved(i) {
-			x.insert(slotHash(&t.slots[i]), i)
+			x.insert(lhmHash(t.slots[i].key), i)
 		}
 	}
 }
 
 //go:noinline
-func (t *orderedTable[K, V, M]) compact(slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) compact() {
 	m := t.m.Load()
 	w := 0
 	for i := int(t.first); i < len(t.slots); i++ {
@@ -316,21 +307,21 @@ func (t *orderedTable[K, V, M]) compact(slotHash func(*orderedSlot[K, V, M]) uin
 	if m != nil {
 		clear(m.removed)
 		m.removed = m.removed[:0]
-		t.reindex(slotHash)
+		t.reindex()
 	}
 }
 
-func (t *orderedTable[K, V, M]) removeSlot(i int, slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) removeSlot(i int) {
 	if i != int(t.first) {
-		t.removeSlotMiddle(i, slotHash)
+		t.removeSlotMiddle(i)
 		return
 	}
 	m := t.m.Load()
 	if m != nil {
-		m.erase(slotHash(&t.slots[i]), i)
+		m.erase(lhmHash(t.slots[i].key), i)
 	}
 	t.size--
-	t.slots[i] = orderedSlot[K, V, M]{}
+	t.slots[i] = lhmSlot[K, V]{}
 	first := i + 1
 	if m != nil {
 		for first < len(t.slots) && m.isRemoved(first) {
@@ -341,15 +332,15 @@ func (t *orderedTable[K, V, M]) removeSlot(i int, slotHash func(*orderedSlot[K, 
 }
 
 //go:noinline
-func (t *orderedTable[K, V, M]) removeSlotMiddle(i int, slotHash func(*orderedSlot[K, V, M]) uint) {
+func (t *orderedTable[K, V]) removeSlotMiddle(i int) {
 	m := t.m.Load()
 	if m == nil {
-		t.buildIndex(slotHash)
+		t.buildIndex()
 		m = t.m.Load()
 	}
-	m.erase(slotHash(&t.slots[i]), i)
+	m.erase(lhmHash(t.slots[i].key), i)
 	t.size--
-	t.slots[i] = orderedSlot[K, V, M]{}
+	t.slots[i] = lhmSlot[K, V]{}
 	if i >= len(m.removed) {
 		newLen := max(i+1, len(m.removed)*2, len(t.slots))
 		newRemoved := make([]bool, newLen)
@@ -359,7 +350,7 @@ func (t *orderedTable[K, V, M]) removeSlotMiddle(i int, slotHash func(*orderedSl
 	m.removed[i] = true
 }
 
-func (t *orderedTable[K, V, M]) all() iter.Seq2[K, V] {
+func (t *orderedTable[K, V]) all() iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
 		if t == nil {
 			return
@@ -378,7 +369,7 @@ func (t *orderedTable[K, V, M]) all() iter.Seq2[K, V] {
 // Go-only: performance — keys and values walk the slot slice directly, like
 // all, instead of ranging over all: nested iterator closures escape to the
 // heap, whereas flat ones are inlined into the caller's loop.
-func (t *orderedTable[K, V, M]) keys() iter.Seq[K] {
+func (t *orderedTable[K, V]) keys() iter.Seq[K] {
 	return func(yield func(K) bool) {
 		if t == nil {
 			return
@@ -394,7 +385,7 @@ func (t *orderedTable[K, V, M]) keys() iter.Seq[K] {
 	}
 }
 
-func (t *orderedTable[K, V, M]) values() iter.Seq[V] {
+func (t *orderedTable[K, V]) values() iter.Seq[V] {
 	return func(yield func(V) bool) {
 		if t == nil {
 			return
@@ -410,7 +401,7 @@ func (t *orderedTable[K, V, M]) values() iter.Seq[V] {
 	}
 }
 
-func (t *orderedTable[K, V, M]) valueAt(index int) (V, bool) {
+func (t *orderedTable[K, V]) valueAt(index int) (V, bool) {
 	var zero V
 	if t == nil || index < 0 || index >= int(t.size) {
 		return zero, false
@@ -432,7 +423,7 @@ func (t *orderedTable[K, V, M]) valueAt(index int) (V, bool) {
 	return zero, false
 }
 
-func (t *orderedTable[K, V, M]) firstKey() (K, bool) {
+func (t *orderedTable[K, V]) firstKey() (K, bool) {
 	if t != nil && t.size > 0 {
 		m := t.m.Load()
 		if m == nil || len(m.removed) == 0 {
@@ -448,7 +439,7 @@ func (t *orderedTable[K, V, M]) firstKey() (K, bool) {
 	return zero, false
 }
 
-func (t *orderedTable[K, V, M]) keySlice() []K {
+func (t *orderedTable[K, V]) keySlice() []K {
 	if t == nil || t.size == 0 {
 		return nil
 	}
@@ -485,14 +476,10 @@ func (t *orderedTable[K, V, M]) keySlice() []K {
 // lookups scan the contiguous slots slice, comparing keys with == as a Go
 // map does.
 type LinkedHashMap[K comparable, V any] struct {
-	orderedTable[K, V, struct{}]
+	orderedTable[K, V]
 }
 
-func lhmSlotHash[K comparable, V any](s *lhmSlot[K, V]) uint {
-	return lhmHash(s.key)
-}
-
-func (h *LinkedHashMap[K, V]) table() *orderedTable[K, V, struct{}] {
+func (h *LinkedHashMap[K, V]) table() *orderedTable[K, V] {
 	if h == nil {
 		return nil
 	}
@@ -509,7 +496,7 @@ func NewLinkedHashMap[K comparable, V any]() *LinkedHashMap[K, V] {
 func NewLinkedHashMapWithCapacity[K comparable, V any](cap int) *LinkedHashMap[K, V] {
 	if cap > 0 {
 		return &LinkedHashMap[K, V]{
-			orderedTable: orderedTable[K, V, struct{}]{
+			orderedTable: orderedTable[K, V]{
 				slots: slices.Grow([]lhmSlot[K, V](nil), cap),
 			},
 		}
@@ -526,7 +513,7 @@ func (h *LinkedHashMap[K, V]) find(k K) int {
 		return h.lookupIn(m, k)
 	}
 	if int(h.size) > lhmSmallSize || len(h.slots) > 2*lhmSmallSize {
-		return h.lookupIn(h.buildIndexShared(lhmSlotHash[K, V]), k)
+		return h.lookupIn(h.buildIndexShared(), k)
 	}
 	for i := int(h.first); i < len(h.slots); i++ {
 		if h.slots[i].key == k {
@@ -590,14 +577,14 @@ func (h *LinkedHashMap[K, V]) Put(k K, v V) V {
 		h.slots[i].value = v
 		return old
 	}
-	h.add(k, v, struct{}{}, lhmSlotHash[K, V])
+	h.add(k, v)
 	var zero V
 	return zero
 }
 
 // PutNew inserts (k, v) when the caller has already verified that k is absent.
 func (h *LinkedHashMap[K, V]) PutNew(k K, v V) {
-	h.add(k, v, struct{}{}, lhmSlotHash[K, V])
+	h.add(k, v)
 }
 
 // PutIfAbsent is Map.putIfAbsent: if the key is absent or mapped to null
@@ -612,7 +599,7 @@ func (h *LinkedHashMap[K, V]) PutIfAbsent(k K, v V) V {
 		var zero V
 		return zero
 	}
-	h.add(k, v, struct{}{}, lhmSlotHash[K, V])
+	h.add(k, v)
 	var zero V
 	return zero
 }
@@ -636,7 +623,7 @@ func (h *LinkedHashMap[K, V]) Remove(k K) V {
 		return zero
 	}
 	old := h.slots[i].value
-	h.removeSlot(i, lhmSlotHash[K, V])
+	h.removeSlot(i)
 	return old
 }
 
@@ -727,7 +714,7 @@ func (h *LinkedHashMap[K, V]) HashCode() int32 {
 		if i < len(removed) && removed[i] {
 			continue
 		}
-		sum += objectHashCodeOf(h.slots[i].key) ^ objectHashCodeOf(h.slots[i].value)
+		sum += ObjectHashCode(any(h.slots[i].key)) ^ ObjectHashCode(any(h.slots[i].value))
 	}
 	return sum
 }
@@ -742,7 +729,7 @@ func NewLinkedHashMapFrom[K comparable, V any](src *LinkedHashMap[K, V]) *Linked
 		slots := make([]lhmSlot[K, V], n)
 		copy(slots, src.slots)
 		return &LinkedHashMap[K, V]{
-			orderedTable: orderedTable[K, V, struct{}]{
+			orderedTable: orderedTable[K, V]{
 				slots: slots,
 				size:  int32(n),
 			},
@@ -830,7 +817,7 @@ func (b *ImmutableMapBuilder[K, V]) BuildOrThrow() *LinkedHashMap[K, V] {
 		slots := make([]lhmSlot[K, V], n)
 		copy(slots, src)
 		return &LinkedHashMap[K, V]{
-			orderedTable: orderedTable[K, V, struct{}]{
+			orderedTable: orderedTable[K, V]{
 				slots: slots,
 				size:  int32(n),
 			},

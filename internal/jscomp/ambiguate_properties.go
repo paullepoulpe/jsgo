@@ -106,7 +106,7 @@ func NewAmbiguateProperties(
 	jutil.CheckState(compiler.GetLifeCycleStage().IsNormalized())
 	// ImmutableSet.<String>builder().add("prototype").addAll(externProperties).build()
 	var externedIDs smallBitSet
-	externedIDs.Set(int(renamePropertiesPrototypeID))
+	externedIDs.Set(int(idPrototype))
 	for name := range externProperties.All() {
 		externedIDs.Set(int(strpool.Intern(name)))
 	}

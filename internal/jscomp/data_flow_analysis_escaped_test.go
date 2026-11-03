@@ -180,7 +180,7 @@ func (c *DataFlowAnalysisEscapedTest) TestNotEscapedComputedClassFieldKey() {
 // liveness analysis performed by the LiveVariablesAnalysis class
 //
 // Java: DataFlowAnalysisTest.computeEscapedLocals(String)
-func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.ObjectLinkedHashSet[*Var] {
+func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.LinkedHashSet[*Var] {
 	// Set up compiler
 	compiler := NewCompiler()
 	options := NewCompilerOptions()
@@ -232,7 +232,7 @@ func (c *DataFlowAnalysisEscapedTest) computeEscapedLocals(src string) *jutil.Ob
 // Java: DataFlowAnalysis.computeEscaped(Scope, Set<Var>, AbstractCompiler, ScopeCreator, Map<String, Var>)
 func DataFlowAnalysis_ComputeEscaped(
 	jsScope *Scope,
-	escaped *jutil.ObjectLinkedHashSet[*Var],
+	escaped *jutil.LinkedHashSet[*Var],
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
 	allVarsInFn *jutil.LinkedHashMap[string, *Var],

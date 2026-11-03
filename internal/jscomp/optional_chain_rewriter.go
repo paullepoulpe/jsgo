@@ -472,7 +472,7 @@ func (c *RewriteOptionalChainingOperator_TranspilationCallback) ShouldTraverse(t
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		// ensures that the pass early exits if script does not contain the feature
-		if scriptFeatures != nil && !scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING) {
+		if !scriptFeatures.IsZero() && !scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_OPTIONAL_CHAINING) {
 			return false
 		}
 		c.currentInput = t.GetInput()

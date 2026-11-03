@@ -363,7 +363,7 @@ func (d *diffState) run(op []*string) {
 	case "cvisitcount":
 		n := 0
 		var sb strings.Builder
-		d.c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end *sourcemap.FilePosition) {
+		d.c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end sourcemap.FilePosition) {
 			if n < 6 {
 				sb.WriteString(diffStr(sourceName) + "|" + diffStr(symbolName) + " ")
 			}
@@ -508,7 +508,7 @@ func (d *diffState) dumpConsumer() {
 	})
 	max0, max1, max2 := 0, 0, 0 // line, column, source line
 	d.guarded(func() {
-		c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end *sourcemap.FilePosition) {
+		c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end sourcemap.FilePosition) {
 			d.result("visit " + diffStr(sourceName) + "|" + diffStr(symbolName) + "|" +
 				strconv.Itoa(src.GetLine()) + "," + strconv.Itoa(src.GetColumn()) + "|" +
 				strconv.Itoa(start.GetLine()) + "," + strconv.Itoa(start.GetColumn()) + "|" +

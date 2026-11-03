@@ -143,9 +143,6 @@ var binding_CreatedBy_names = [...]string{"EXPORT", "IMPORT", "GOOG_REQUIRE", "G
 // String is Enum.name().
 func (c Binding_CreatedBy) String() string { return binding_CreatedBy_names[c] }
 
-// Ordinal is Enum.ordinal().
-func (c Binding_CreatedBy) Ordinal() int { return int(c) }
-
 // IsClosureImport is whether this is some goog.* dependency import.
 //
 // Java: Binding.CreatedBy.isClosureImport()

@@ -49,8 +49,8 @@ type Es6RewriteDestructuring struct {
 	astFactory  *AstFactory
 	namespace   rhino.StaticScope
 
-	featuresToTriggerRunningPass *parser.FeatureSet
-	featuresToMarkAsRemoved      *parser.FeatureSet
+	featuresToTriggerRunningPass parser.FeatureSet
+	featuresToMarkAsRemoved      parser.FeatureSet
 
 	patternNestingStack []patternNestingLevel
 	stackBuf            [4]patternNestingLevel
@@ -86,11 +86,6 @@ var es6RewriteDestructuring_ObjectDestructuringRewriteMode_names = [...]string{
 func (e Es6RewriteDestructuring_ObjectDestructuringRewriteMode) String() string {
 	return es6RewriteDestructuring_ObjectDestructuringRewriteMode_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-//
-// Java: ObjectDestructuringRewriteMode.ordinal()
-func (e Es6RewriteDestructuring_ObjectDestructuringRewriteMode) Ordinal() int { return int(e) }
 
 // Java: Es6RewriteDestructuring.DESTRUCTURING_TEMP_VAR
 const Es6RewriteDestructuring_DESTRUCTURING_TEMP_VAR = "$jscomp$destructuring$var"

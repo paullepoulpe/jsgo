@@ -32,27 +32,27 @@ import (
 )
 
 var (
-	rkmIDSplit       = uint32(strpool.Intern("split"))
-	rkmIDToLowerCase = uint32(strpool.Intern("toLowerCase"))
-	rkmIDToUpperCase = uint32(strpool.Intern("toUpperCase"))
-	rkmIDTrim        = uint32(strpool.Intern("trim"))
-	rkmIDTrimStart   = uint32(strpool.Intern("trimStart"))
-	rkmIDTrimEnd     = uint32(strpool.Intern("trimEnd"))
-	rkmIDTrimLeft    = uint32(strpool.Intern("trimLeft"))
-	rkmIDTrimRight   = uint32(strpool.Intern("trimRight"))
-	rkmIDAt          = uint32(strpool.Intern("at"))
-	rkmIDIndexOf     = uint32(strpool.Intern("indexOf"))
-	rkmIDLastIndexOf = uint32(strpool.Intern("lastIndexOf"))
-	rkmIDIncludes    = uint32(strpool.Intern("includes"))
-	rkmIDStartsWith  = uint32(strpool.Intern("startsWith"))
-	rkmIDEndsWith    = uint32(strpool.Intern("endsWith"))
-	rkmIDSubstr      = uint32(strpool.Intern("substr"))
-	rkmIDSubstring   = uint32(strpool.Intern("substring"))
-	rkmIDSlice       = uint32(strpool.Intern("slice"))
-	rkmIDCharAt      = uint32(strpool.Intern("charAt"))
-	rkmIDCharCodeAt  = uint32(strpool.Intern("charCodeAt"))
-	rkmIDReplace     = uint32(strpool.Intern("replace"))
-	rkmIDReplaceAll  = uint32(strpool.Intern("replaceAll"))
+	rkmIDSplit       = strpool.Intern("split")
+	rkmIDToLowerCase = strpool.Intern("toLowerCase")
+	rkmIDToUpperCase = strpool.Intern("toUpperCase")
+	rkmIDTrim        = strpool.Intern("trim")
+	rkmIDTrimStart   = strpool.Intern("trimStart")
+	rkmIDTrimEnd     = strpool.Intern("trimEnd")
+	rkmIDTrimLeft    = strpool.Intern("trimLeft")
+	rkmIDTrimRight   = strpool.Intern("trimRight")
+	rkmIDAt          = strpool.Intern("at")
+	rkmIDIndexOf     = strpool.Intern("indexOf")
+	rkmIDLastIndexOf = strpool.Intern("lastIndexOf")
+	rkmIDIncludes    = strpool.Intern("includes")
+	rkmIDStartsWith  = strpool.Intern("startsWith")
+	rkmIDEndsWith    = strpool.Intern("endsWith")
+	rkmIDSubstr      = strpool.Intern("substr")
+	rkmIDSubstring   = strpool.Intern("substring")
+	rkmIDSlice       = strpool.Intern("slice")
+	rkmIDCharAt      = strpool.Intern("charAt")
+	rkmIDCharCodeAt  = strpool.Intern("charCodeAt")
+	rkmIDReplace     = strpool.Intern("replace")
+	rkmIDReplaceAll  = strpool.Intern("replaceAll")
 )
 
 // Java: PeepholeReplaceKnownMethods.TRIM_BOTH_PATTERN
@@ -228,7 +228,7 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownStringMethods(call ast.Call, c
 	if !isStringLiteral && !p.useTypes {
 		return subtree
 	}
-	methodID := callTarget.Node().GetStringID()
+	methodID := nodeStringID(callTarget.Node())
 	firstArg, hasArgs := call.FirstArg()
 	if isStringLiteral {
 		if methodID == rkmIDSplit {

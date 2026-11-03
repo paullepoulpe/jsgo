@@ -47,9 +47,6 @@ var astFactory_TypeMode_names = [...]string{"JSTYPE", "COLOR", "NONE"}
 // Java: AstFactory.TypeMode.name()
 func (m AstFactory_TypeMode) String() string { return astFactory_TypeMode_names[m] }
 
-// Java: AstFactory.TypeMode.ordinal()
-func (m AstFactory_TypeMode) Ordinal() int { return int(m) }
-
 // IsAddingTypes answers: does this class instance add types to the nodes it
 // creates?
 //

@@ -660,9 +660,9 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 func (g *GatherModuleMetadata) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(g.compiler)
 	finder := GatherModuleMetadata_Finder{outer: g}
-	NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(sc).SetCallback(&finder).Traverse(externs)
+	(NodeTraversal_Builder{compiler: g.compiler, scopeCreator: sc, callback: &finder}).Traverse(externs)
 	finder = GatherModuleMetadata_Finder{outer: g}
-	NodeTraversal_Builder_().SetCompiler(g.compiler).SetScopeCreator(sc).SetCallback(&finder).Traverse(root)
+	(NodeTraversal_Builder{compiler: g.compiler, scopeCreator: sc, callback: &finder}).Traverse(root)
 	g.compiler.SetModuleMetadataMap(newModuleMetadataMapDirect(g.modulesByPath, g.modulesByGoogNamespace))
 }
 

@@ -327,9 +327,6 @@ func (t CodingConvention_SubclassType) Name() string { return codingConvention_S
 // String is Enum.toString().
 func (t CodingConvention_SubclassType) String() string { return t.Name() }
 
-// Ordinal is Enum.ordinal().
-func (t CodingConvention_SubclassType) Ordinal() int { return int(t) }
-
 // CodingConvention_SubclassRelationship records subclass relations.
 type CodingConvention_SubclassRelationship struct {
 	type_          CodingConvention_SubclassType

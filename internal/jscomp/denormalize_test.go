@@ -28,7 +28,7 @@ import (
 type DenormalizeTest struct {
 	CompilerTestCaseBase
 
-	outputFeatureSet *parser.FeatureSet
+	outputFeatureSet parser.FeatureSet
 }
 
 // Java: DenormalizeTest()
@@ -375,7 +375,7 @@ type DenormalizeTest_NormalizeAndDenormalizePass struct {
 }
 
 // Java: DenormalizeTest.NormalizeAndDenormalizePass(AbstractCompiler, FeatureSet)
-func NewDenormalizeTest_NormalizeAndDenormalizePass(compiler AbstractCompiler, outputFeatureSet *parser.FeatureSet) *DenormalizeTest_NormalizeAndDenormalizePass {
+func NewDenormalizeTest_NormalizeAndDenormalizePass(compiler AbstractCompiler, outputFeatureSet parser.FeatureSet) *DenormalizeTest_NormalizeAndDenormalizePass {
 	p := &DenormalizeTest_NormalizeAndDenormalizePass{}
 	p.compiler = compiler
 	p.denormalizePass = NewDenormalize(compiler, outputFeatureSet)

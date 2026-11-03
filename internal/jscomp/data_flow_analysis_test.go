@@ -873,10 +873,9 @@ func (i *dataFlowAnalysisTest_BranchInstruction) SetCondition(condition dataFlow
 // Otherwise, x is not a constant.
 //
 // Go-only: language-adapter — the HashMap<Variable, Integer> keys use
-// Variable.equals, so it is an ObjectLinkedHashMap (its iteration order only
-// reaches toString).
+// Variable.equals (Variable.name), so constMap is keyed by Variable.name.
 type dataFlowAnalysisTest_ConstPropLatticeElement struct {
-	constMap *jutil.ObjectLinkedHashMap[*dataFlowAnalysisTest_Variable, int32]
+	constMap *jutil.LinkedHashMap[string, int32]
 	isTop    bool
 }
 
@@ -887,7 +886,7 @@ type dataFlowAnalysisTest_ConstPropLatticeElement struct {
 func newDataFlowAnalysisTest_ConstPropLatticeElementWithTop(isTop bool) *dataFlowAnalysisTest_ConstPropLatticeElement {
 	return &dataFlowAnalysisTest_ConstPropLatticeElement{
 		isTop:    isTop,
-		constMap: jutil.NewObjectLinkedHashMap[*dataFlowAnalysisTest_Variable, int32](),
+		constMap: jutil.NewLinkedHashMap[string, int32](),
 	}
 }
 
@@ -903,7 +902,7 @@ func newDataFlowAnalysisTest_ConstPropLatticeElement() *dataFlowAnalysisTest_Con
 func newDataFlowAnalysisTest_ConstPropLatticeElementCopy(other *dataFlowAnalysisTest_ConstPropLatticeElement) *dataFlowAnalysisTest_ConstPropLatticeElement {
 	e := &dataFlowAnalysisTest_ConstPropLatticeElement{
 		isTop:    other.isTop,
-		constMap: jutil.NewObjectLinkedHashMap[*dataFlowAnalysisTest_Variable, int32](),
+		constMap: jutil.NewLinkedHashMap[string, int32](),
 	}
 	for k, v := range other.constMap.All() {
 		e.constMap.Put(k, v)
@@ -919,10 +918,10 @@ func (e *dataFlowAnalysisTest_ConstPropLatticeElement) String() string {
 	var out strings.Builder
 
 	out.WriteByte('{')
-	for var_ := range e.constMap.Keys() {
-		out.WriteString(var_.String())
+	for varName, val := range e.constMap.All() {
+		out.WriteString(varName)
 		out.WriteByte('=')
-		out.WriteString(strconv.FormatInt(int64(e.constMap.Get(var_)), 10))
+		out.WriteString(strconv.FormatInt(int64(val), 10))
 		out.WriteByte(' ')
 	}
 	out.WriteByte('}')
@@ -973,14 +972,12 @@ func dataFlowAnalysisTest_ConstPropJoinOp_apply(
 		return newDataFlowAnalysisTest_ConstPropLatticeElementCopy(b)
 	}
 	// Do the join for each variable's lattice.
-	for var_ := range a.constMap.Keys() {
-		if b.constMap.ContainsKey(var_) {
-			number := b.constMap.Get(var_)
-
+	for varName, aVal := range a.constMap.All() {
+		if number, ok := b.constMap.Lookup(varName); ok {
 			// The result will contain that variable as a known constant
 			// if both lattice has that variable the same constant.
-			if a.constMap.Get(var_) == number {
-				result.constMap.Put(var_, number)
+			if aVal == number {
+				result.constMap.Put(varName, number)
 			}
 		}
 	}
@@ -1044,9 +1041,10 @@ func dataFlowAnalysisTest_flowThroughArithmeticInstruction(
 		v := aInst.operand1.(*dataFlowAnalysisTest_NumberValue).value
 		leftConst = &v
 	} else {
-		if variable, ok := aInst.operand1.(*dataFlowAnalysisTest_Variable); ok && input.constMap.ContainsKey(variable) {
-			v := input.constMap.Get(variable)
-			leftConst = &v
+		if variable, ok := aInst.operand1.(*dataFlowAnalysisTest_Variable); ok {
+			if v, ok := input.constMap.Lookup(variable.name); ok {
+				leftConst = &v
+			}
 		}
 	}
 
@@ -1056,9 +1054,10 @@ func dataFlowAnalysisTest_flowThroughArithmeticInstruction(
 		v := aInst.operand2.(*dataFlowAnalysisTest_NumberValue).value
 		rightConst = &v
 	} else {
-		if variable, ok := aInst.operand2.(*dataFlowAnalysisTest_Variable); ok && input.constMap.ContainsKey(variable) {
-			v := input.constMap.Get(variable)
-			rightConst = &v
+		if variable, ok := aInst.operand2.(*dataFlowAnalysisTest_Variable); ok {
+			if v, ok := input.constMap.Lookup(variable.name); ok {
+				rightConst = &v
+			}
 		}
 	}
 
@@ -1079,10 +1078,10 @@ func dataFlowAnalysisTest_flowThroughArithmeticInstruction(
 			constResult = *leftConst / *rightConst
 		}
 		// Put it in the map. (Possibly replacing the existing constant value)
-		out.constMap.Put(aInst.result, constResult)
+		out.constMap.Put(aInst.result.name, constResult)
 	} else {
 		// If we cannot find a constant for it
-		out.constMap.Remove(aInst.result)
+		out.constMap.Remove(aInst.result.name)
 	}
 	return out
 }
@@ -1248,7 +1247,7 @@ func (a *dataFlowAnalysisTest_BranchedDummyConstPropagation) CreateFlowBrancher(
 		branchInst := node.(*dataFlowAnalysisTest_BranchInstruction)
 		edgeResult := newDataFlowAnalysisTest_ConstPropLatticeElementCopy(input)
 		if branch == ControlFlowGraph_Branch_ON_FALSE && branchInst.GetCondition().IsVariable() {
-			edgeResult.constMap.Put(branchInst.GetCondition().(*dataFlowAnalysisTest_Variable), 0)
+			edgeResult.constMap.Put(branchInst.GetCondition().(*dataFlowAnalysisTest_Variable).name, 0)
 		}
 		return edgeResult
 	}
@@ -1427,8 +1426,8 @@ func dataFlowAnalysisTest_verifyOutHas(
 // Java: DataFlowAnalysisTest.veritfyLatticeElementHas(ConstPropLatticeElement, Variable, Integer)
 func dataFlowAnalysisTest_veritfyLatticeElementHas(el *dataFlowAnalysisTest_ConstPropLatticeElement, var_ *dataFlowAnalysisTest_Variable, constant *int32) {
 	if constant == nil {
-		AssertThat(el.constMap).DoesNotContainKey(var_)
+		AssertThat(el.constMap).DoesNotContainKey(var_.name)
 	} else {
-		AssertThat(el.constMap).ContainsEntry(var_, *constant)
+		AssertThat(el.constMap).ContainsEntry(var_.name, *constant)
 	}
 }

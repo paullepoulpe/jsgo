@@ -204,50 +204,12 @@ func initNodeTraversal(
 		options == nil || options.GetSyntheticBlockStartMarker() != nil
 }
 
-// Java: NodeTraversal.builder()
-func NodeTraversal_Builder_() NodeTraversal_Builder {
-	return NodeTraversal_Builder{}
-}
-
 // NodeTraversal_Builder is the value builder for NodeTraversal.
 type NodeTraversal_Builder struct {
 	callback                                       NodeTraversal_Callback
 	compiler                                       AbstractCompiler
 	scopeCreator                                   ScopeCreator
 	obeyDestructuringAndDefaultValueExecutionOrder bool
-}
-
-// Java: NodeTraversal.Builder.setCallback(Callback)
-func (b NodeTraversal_Builder) SetCallback(x NodeTraversal_Callback) NodeTraversal_Builder {
-	b.callback = x
-	return b
-}
-
-// SetCallbackFunc sets a post-order callback given as a function (a Java
-// lambda for AbstractPostOrderCallbackInterface).
-//
-// Java: NodeTraversal.Builder.setCallback(AbstractPostOrderCallbackInterface)
-func (b NodeTraversal_Builder) SetCallbackFunc(x NodeTraversal_AbstractPostOrderCallbackInterface) NodeTraversal_Builder {
-	b.callback = x
-	return b
-}
-
-// Java: NodeTraversal.Builder.setCompiler(AbstractCompiler)
-func (b NodeTraversal_Builder) SetCompiler(x AbstractCompiler) NodeTraversal_Builder {
-	b.compiler = x
-	return b
-}
-
-// Java: NodeTraversal.Builder.setScopeCreator(ScopeCreator)
-func (b NodeTraversal_Builder) SetScopeCreator(x ScopeCreator) NodeTraversal_Builder {
-	b.scopeCreator = x
-	return b
-}
-
-// Java: NodeTraversal.Builder.setObeyDestructuringAndDefaultValueExecutionOrder(boolean)
-func (b NodeTraversal_Builder) SetObeyDestructuringAndDefaultValueExecutionOrder(x bool) NodeTraversal_Builder {
-	b.obeyDestructuringAndDefaultValueExecutionOrder = x
-	return b
 }
 
 // Java: NodeTraversal.Builder.build()

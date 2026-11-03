@@ -462,9 +462,6 @@ var checkLevel_names = [...]string{"ERROR", "WARNING", "OFF"}
 // String is Enum.name().
 func (l CheckLevel) String() string { return checkLevel_names[l] }
 
-// Ordinal is Enum.ordinal().
-func (l CheckLevel) Ordinal() int { return int(l) }
-
 // Java: CheckLevel.isOn()
 func (l CheckLevel) IsOn() bool {
 	return l != CheckLevel_OFF

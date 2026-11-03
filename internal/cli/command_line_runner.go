@@ -129,9 +129,6 @@ func (o CommandLineRunner_FormattingOption) String() string {
 	return commandLineRunner_FormattingOption_names[o]
 }
 
-// Ordinal is Enum.ordinal().
-func (o CommandLineRunner_FormattingOption) Ordinal() int { return int(o) }
-
 // Java: CommandLineRunner.FormattingOption.applyToOptions(CompilerOptions)
 func (o CommandLineRunner_FormattingOption) ApplyToOptions(options *jscomp.CompilerOptions) {
 	switch o {

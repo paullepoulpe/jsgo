@@ -35,7 +35,7 @@ import (
 //
 // Java: final class FeatureCollector
 type FeatureCollector struct {
-	scriptFeatures *parser.FeatureSet
+	scriptFeatures parser.FeatureSet
 }
 
 // NewFeatureCollector is the implicit default constructor.
@@ -53,7 +53,7 @@ func (c *FeatureCollector) Reset() {
 }
 
 // Java: FeatureCollector.allFeatures()
-func (c *FeatureCollector) AllFeatures() *parser.FeatureSet {
+func (c *FeatureCollector) AllFeatures() parser.FeatureSet {
 	return c.scriptFeatures
 }
 

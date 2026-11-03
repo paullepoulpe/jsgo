@@ -771,7 +771,7 @@ func (n Node) GetLastPropListItem() *Node_PropListItem {
 // Java: Node.validatePropListTailOrdering(boolean)
 func (n Node) ValidatePropListTailOrdering(shouldNodeBeClosureUnaware bool) bool {
 	curr := n.GetLastPropListItem()
-	if curr == nil || int(curr.propType) != Node_Prop_SOURCE_FILE.Ordinal() {
+	if curr == nil || Node_Prop(curr.propType) != Node_Prop_SOURCE_FILE {
 		return false
 	}
 

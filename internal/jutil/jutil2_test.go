@@ -115,17 +115,20 @@ func TestObjectsEquals(t *testing.T) {
 	if !s1.Equals(s2) || s1.HashCode() != StringHashCode("a")+StringHashCode("b") {
 		t.Fatal("Set.equals / hashCode")
 	}
-	m := NewObjectLinkedHashMap[*LinkedHashSet[string], string]()
-	m.Put(s1, "x")
-	if m.Get(s2) != "x" || m.Size() != 1 {
-		t.Fatal("ObjectLinkedHashMap keyed by value-equal sets")
-	}
-	m.Put(NewLinkedHashSet("c"), "y")
-	if m.String() != "{[a, b]=x, [c]=y}" {
+	m := NewLinkedHashMap[string, *LinkedHashSet[string]]()
+	m.Put("ab", s1)
+	m.Put("c", NewLinkedHashSet("c"))
+	if m.String() != "{ab=[a, b], c=[c]}" {
 		t.Fatalf("String() = %s", m.String())
 	}
-	m.Remove(s2)
-	if m.Size() != 1 || m.ContainsKey(s1) {
+	m2 := NewLinkedHashMap[string, *LinkedHashSet[string]]()
+	m2.Put("c", NewLinkedHashSet("c"))
+	m2.Put("ab", s2)
+	if !m.Equals(m2) || m.HashCode() != m2.HashCode() {
+		t.Fatal("LinkedHashMap Equals/HashCode with value-equal sets")
+	}
+	m.Remove("ab")
+	if m.Size() != 1 || m.ContainsKey("ab") {
 		t.Fatal("remove")
 	}
 }

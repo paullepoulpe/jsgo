@@ -607,7 +607,7 @@ func (o *CompilerOptions) String() string {
 		"optimizeLocalAccessForGlobalSymbolNamespace",
 		compilerOptions_valueOf(o.optimizeLocalAccessForGlobalSymbolNamespace))
 	h.Add("outputCharset", compilerOptions_valueOf(o.outputCharset))
-	h.Add("outputFeatureSet", compilerOptions_valueOf(compilerOptions_optionalOf(o.outputFeatureSet)))
+	h.Add("outputFeatureSet", compilerOptions_valueOf(compilerOptions_optionalOfFeatureSet(o.outputFeatureSet)))
 	h.Add("outputJs", compilerOptions_valueOf(o.outputJs))
 	h.AddBool("outputJsStringUsage", o.outputJsStringUsage)
 	h.AddBool("parentChunkCanSeeSymbolsDeclaredInChildren", o.parentChunkCanSeeSymbolsDeclaredInChildren)
@@ -737,6 +737,13 @@ func compilerOptions_optionalOf[T any](p *T) compilerOptions_optional {
 		return compilerOptions_optional{}
 	}
 	return compilerOptions_optional{value: p}
+}
+
+func compilerOptions_optionalOfFeatureSet(fs parser.FeatureSet) compilerOptions_optional {
+	if fs.IsZero() {
+		return compilerOptions_optional{}
+	}
+	return compilerOptions_optional{value: fs}
 }
 
 func compilerOptions_optionalOfTri(t base.Tri) compilerOptions_optional {

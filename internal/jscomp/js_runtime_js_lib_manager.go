@@ -111,9 +111,6 @@ func (m RuntimeJsLibManager_RuntimeLibraryMode) Name() string {
 // String is Enum.toString().
 func (m RuntimeJsLibManager_RuntimeLibraryMode) String() string { return m.Name() }
 
-// Ordinal is Enum.ordinal().
-func (m RuntimeJsLibManager_RuntimeLibraryMode) Ordinal() int { return int(m) }
-
 // RuntimeJsLibManager_ResourceProvider loads /js resources into AST
 // format: it returns an AST for the given resource name, with a synthetic
 // source file with the given path.

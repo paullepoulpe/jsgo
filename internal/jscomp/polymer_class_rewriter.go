@@ -249,11 +249,11 @@ func (r *PolymerClassRewriter) RewritePolymerCall(cls *PolymerClassDefinition, t
 		r.compiler.ReportChangeToEnclosingScope(propsAndBehaviorCode)
 	}
 
-	if cls.features != nil {
+	if !cls.features.IsZero() {
 		scriptNode := NodeUtil_GetEnclosingScript(parent)
-		oldFeatures, _ := scriptNode.GetProp(rhino.Node_FEATURE_SET).(*parser.FeatureSet)
+		oldFeatures, _ := scriptNode.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
 		newFeatures := oldFeatures.Union(cls.features)
-		if !newFeatures.Equals(oldFeatures) {
+		if newFeatures != oldFeatures {
 			scriptNode.PutProp(rhino.Node_FEATURE_SET, newFeatures)
 			r.compiler.ReportChangeToChangeScope(scriptNode)
 		}

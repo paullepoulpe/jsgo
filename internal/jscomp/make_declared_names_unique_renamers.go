@@ -252,7 +252,7 @@ func (c *MakeDeclaredNamesUnique_ContextualRenamer) addDeclaredNameID(origID str
 		c.hoistRenamer.addDeclaredNameID(origID, true)
 		return
 	}
-	if origID == makeDeclaredNamesUniqueArgumentsID {
+	if origID == idArguments {
 		return
 	}
 	if c.global {
@@ -364,7 +364,7 @@ func (r *MakeDeclaredNamesUnique_InlineRenamer) AddDeclaredName(name string, hoi
 }
 
 func (r *MakeDeclaredNamesUnique_InlineRenamer) addDeclaredNameID(origID strpool.ID, hoisted bool) {
-	jutil.CheckState(origID != makeDeclaredNamesUniqueArgumentsID)
+	jutil.CheckState(origID != idArguments)
 	if hoisted && r.hoistRenamer != MakeDeclaredNamesUnique_Renamer(r) {
 		r.hoistRenamer.addDeclaredNameID(origID, hoisted)
 		return

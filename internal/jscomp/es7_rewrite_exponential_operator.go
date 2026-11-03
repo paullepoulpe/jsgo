@@ -98,7 +98,7 @@ func (e *Es7RewriteExponentialOperator) ShouldTraverse(t *NodeTraversal, n rhino
 	if n.IsScript() {
 		scriptFeatures := NodeUtil_GetFeatureSetOfScript(n)
 		// Runs only if features exist in the script
-		return scriptFeatures == nil || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_EXPONENT_OP)
+		return scriptFeatures.IsZero() || scriptFeatures.ContainsFeature(parser.FeatureSet_Feature_EXPONENT_OP)
 	}
 	return true
 }

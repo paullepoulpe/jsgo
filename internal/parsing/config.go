@@ -121,7 +121,7 @@ var config_LanguageMode_names = [...]string{
 
 // config_LanguageMode_featureSet is the enum field LanguageMode.featureSet,
 // indexed by ordinal.
-var config_LanguageMode_featureSet = [...]*parser.FeatureSet{
+var config_LanguageMode_featureSet = [...]parser.FeatureSet{
 	parser.FeatureSet_ES3,
 	parser.FeatureSet_ES5,
 	parser.FeatureSet_ES2015_MODULES,
@@ -161,7 +161,7 @@ func (m Config_LanguageMode) String() string { return m.Name() }
 // FeatureSet is the public final field LanguageMode.featureSet.
 //
 // Java: Config.LanguageMode.featureSet
-func (m Config_LanguageMode) FeatureSet() *parser.FeatureSet {
+func (m Config_LanguageMode) FeatureSet() parser.FeatureSet {
 	return config_LanguageMode_featureSet[m]
 }
 
@@ -183,17 +183,13 @@ func Config_LanguageMode_MinimumRequiredFor(feature parser.FeatureSet_Feature) C
 // that supports the specified feature set.
 //
 // Java: Config.LanguageMode.minimumRequiredForSet(FeatureSet)
-func Config_LanguageMode_MinimumRequiredForSet(featureSet *parser.FeatureSet) Config_LanguageMode {
+func Config_LanguageMode_MinimumRequiredForSet(featureSet parser.FeatureSet) Config_LanguageMode {
 	for mode := Config_LanguageMode(0); int(mode) < len(config_LanguageMode_names); mode++ {
 		if mode.FeatureSet().Contains(featureSet) {
 			return mode
 		}
 	}
-	fsStr := "null"
-	if featureSet != nil {
-		fsStr = featureSet.String()
-	}
-	panic(jutil.NewIllegalStateExceptionMsg("No input language mode supports feature set: " + fsStr))
+	panic(jutil.NewIllegalStateExceptionMsg("No input language mode supports feature set: " + featureSet.String()))
 }
 
 // Java: Config.LanguageMode.latestEcmaScript()

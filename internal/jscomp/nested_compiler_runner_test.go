@@ -259,7 +259,7 @@ func (c *NestedCompilerRunnerTest) createScript(code string) rhino.Node {
 	script.SetStaticSourceFile(file)
 	script.SetIsInClosureUnawareSubtree(true)
 	features := NodeUtil_GetFeatureSetOfScript(parsed)
-	if features != nil {
+	if !features.IsZero() {
 		script.PutProp(rhino.Node_FEATURE_SET, features)
 	} else {
 		script.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)

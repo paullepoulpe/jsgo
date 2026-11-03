@@ -69,9 +69,6 @@ func (m CheckProvidesSorted_Mode) Name() string { return checkProvidesSorted_Mod
 // String is Enum.toString().
 func (m CheckProvidesSorted_Mode) String() string { return m.Name() }
 
-// Ordinal is Enum.ordinal().
-func (m CheckProvidesSorted_Mode) Ordinal() int { return int(m) }
-
 // NewCheckProvidesSorted is new CheckProvidesSorted(mode).
 //
 // Java: CheckProvidesSorted(CheckProvidesSorted.Mode)

@@ -164,12 +164,12 @@ func (g *SourceMapGeneratorV3) SetStartingPosition(offsetLine, offsetIndex int) 
 // Java: SourceMapGeneratorV3.addMapping(String, String, FilePosition, FilePosition, FilePosition)
 func (g *SourceMapGeneratorV3) AddMapping(
 	sourceName *string, symbolName *string,
-	sourceStartPosition *FilePosition,
-	startPosition *FilePosition, endPosition *FilePosition) {
+	sourceStartPosition FilePosition,
+	startPosition FilePosition, endPosition FilePosition) {
 	if sourceName == nil || sourceStartPosition.GetLine() < 0 {
 		return
 	}
-	g.AddMappingPositions(*sourceName, symbolName, *sourceStartPosition, *startPosition, *endPosition)
+	g.AddMappingPositions(*sourceName, symbolName, sourceStartPosition, startPosition, endPosition)
 }
 
 // AddMappingPositions adds a mapping using value FilePositions without heap allocation.
@@ -351,10 +351,10 @@ type SourceMapGeneratorV3_ConsumerEntryVisitor struct {
 }
 
 // Java: SourceMapGeneratorV3.ConsumerEntryVisitor.visit(String, String, FilePosition, FilePosition, FilePosition)
-func (v *SourceMapGeneratorV3_ConsumerEntryVisitor) Visit(
+func (v SourceMapGeneratorV3_ConsumerEntryVisitor) Visit(
 	sourceName *string, symbolName *string,
-	sourceStartPosition *FilePosition,
-	startPosition *FilePosition, endPosition *FilePosition) {
+	sourceStartPosition FilePosition,
+	startPosition FilePosition, endPosition FilePosition) {
 	v.outer.AddMapping(sourceName, symbolName,
 		sourceStartPosition, startPosition, endPosition)
 }
@@ -368,7 +368,7 @@ func (g *SourceMapGeneratorV3) MergeMapSection(line, column int, mapSectionConte
 	g.SetStartingPosition(line, column)
 	section := NewSourceMapConsumerV3()
 	section.Parse(mapSectionContents)
-	section.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
+	section.VisitMappings(SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
 }
 
 // MergeMapSectionWithMergeAction works like MergeMapSection, except that
@@ -381,7 +381,7 @@ func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
 	g.SetStartingPosition(line, column)
 	section := NewSourceMapConsumerV3()
 	section.Parse(mapSectionContents)
-	section.VisitMappings(&SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
+	section.VisitMappings(SourceMapGeneratorV3_ConsumerEntryVisitor{outer: g})
 	for _, ext := range section.GetExtensions() {
 		if cur, ok := lookupExtension(g.extensions, ext.Key); ok {
 			g.extensions = putExtension(g.extensions, ext.Key,

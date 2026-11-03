@@ -111,7 +111,7 @@ func (e *Es6RewriteBlockScopedDeclaration) Process(externs rhino.Node, root rhin
 		if len(e.loopLetConstNames) > 0 {
 			sc := NewSyntacticScopeCreator(e.compiler)
 			transformer := &es6BlockLoopClosureTransformer{pass: e}
-			NodeTraversal_Builder_().SetCompiler(e.compiler).SetScopeCreator(sc).SetCallback(transformer).Traverse(root)
+			(NodeTraversal_Builder{compiler: e.compiler, scopeCreator: sc, callback: transformer}).Traverse(root)
 			transformer.transformLoopClosure()
 		}
 		e.rewriteDeclsToVars()

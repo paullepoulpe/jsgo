@@ -254,6 +254,23 @@ func (p *Path) subpath(beginIndex, endIndex int) *Path {
 // IsAbsolute is Path.isAbsolute(): whether the path has the root.
 func (p *Path) IsAbsolute() bool { return len(p.s) > 0 && p.s[0] == '/' }
 
+// ResolveParsedPath resolves other against base, where both strings have
+// already been validated/canonicalized by ParsePathString.
+func ResolveParsedPath(base, other string) string {
+	switch {
+	case len(other) > 0 && other[0] == '/':
+		return other
+	case len(other) == 0:
+		return base
+	case len(base) == 0:
+		return other
+	}
+	if base[len(base)-1] == '/' {
+		return base + other
+	}
+	return base + "/" + other
+}
+
 // Resolve is Path.resolve(Path): other if it is absolute, this path if other
 // is empty, else other appended to this path.
 func (p *Path) Resolve(obj *Path) *Path {
@@ -268,10 +285,7 @@ func (p *Path) Resolve(obj *Path) *Path {
 	case p.isEmpty():
 		return obj
 	}
-	if p.s[len(p.s)-1] == '/' {
-		return newPathFromString(p.s + obj.s)
-	}
-	return newPathFromString(p.s + "/" + obj.s)
+	return newPathFromString(ResolveParsedPath(p.s, obj.s))
 }
 
 // ResolveString is Path.resolve(String).
@@ -349,14 +363,29 @@ func pathHasDotSegment(s string) bool {
 	return false
 }
 
-// Normalize is Path.normalize() (see the observed behaviour above).
-func (p *Path) Normalize() *Path {
-	if !pathHasDotSegment(p.s) {
-		return p
+// NormalizeParsedPath is Path.normalize() on a string already produced by
+// ParsePathString (see the observed behaviour above).
+func NormalizeParsedPath(s string) string {
+	if !pathHasDotSegment(s) {
+		return s
 	}
+	isAbs := len(s) > 0 && s[0] == '/'
 	var kept []string
 	changed := false
-	for _, name := range p.names() {
+	for rest := s; len(rest) > 0; {
+		if rest[0] == '/' {
+			rest = rest[1:]
+			continue
+		}
+		idx := strings.IndexByte(rest, '/')
+		var name string
+		if idx < 0 {
+			name = rest
+			rest = ""
+		} else {
+			name = rest[:idx]
+			rest = rest[idx+1:]
+		}
 		switch name {
 		case ".":
 			changed = true
@@ -367,7 +396,7 @@ func (p *Path) Normalize() *Path {
 				changed = true
 				continue
 			}
-			if p.IsAbsolute() {
+			if isAbs {
 				changed = true
 				continue
 			}
@@ -375,17 +404,17 @@ func (p *Path) Normalize() *Path {
 		kept = append(kept, name)
 	}
 	if !changed {
-		return p
+		return s
 	}
 	if len(kept) == 0 {
-		if p.IsAbsolute() {
-			return rootPath
+		if isAbs {
+			return "/"
 		}
-		return emptyPath
+		return ""
 	}
 	var b strings.Builder
-	b.Grow(len(p.s))
-	if p.IsAbsolute() {
+	b.Grow(len(s))
+	if isAbs {
 		b.WriteByte('/')
 	}
 	for i, name := range kept {
@@ -394,7 +423,16 @@ func (p *Path) Normalize() *Path {
 		}
 		b.WriteString(name)
 	}
-	return newPathFromString(b.String())
+	return b.String()
+}
+
+// Normalize is Path.normalize() (see the observed behaviour above).
+func (p *Path) Normalize() *Path {
+	norm := NormalizeParsedPath(p.s)
+	if norm == p.s {
+		return p
+	}
+	return newPathFromString(norm)
 }
 
 // StartsWith is Path.startsWith(Path): same root and the same leading name
@@ -488,36 +526,24 @@ func Path_NormalizeString(input string) string {
 	return ParsePathString(input)
 }
 
+// WorkingDirString returns Path.of(System.getProperty("user.dir")).toString()
+// so callers resolving many relative paths in a single batch can call os.Getwd() once.
+func WorkingDirString() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		// Java reads user.dir once at startup and cannot fail here.
+		panic(NewJavaLangError("cannot read the working directory: " + err.Error()))
+	}
+	return ParsePathString(wd)
+}
+
 // ToAbsolutePath is Path.toAbsolutePath(): a relative path resolved against
 // the working directory (Java's user.dir).
 func (p *Path) ToAbsolutePath() *Path {
 	if p.IsAbsolute() {
 		return p
 	}
-	wd, err := os.Getwd()
-	if err != nil {
-		// Java reads user.dir once at startup and cannot fail here.
-		panic(NewJavaLangError("cannot read the working directory: " + err.Error()))
-	}
-	return parsePath(wd).Resolve(p)
-}
-
-// Path_WorkingDir returns Path.of(System.getProperty("user.dir")) so callers
-// resolving many relative paths in a single batch can call os.Getwd() once.
-func Path_WorkingDir() *Path {
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(NewJavaLangError("cannot read the working directory: " + err.Error()))
-	}
-	return parsePath(wd)
-}
-
-// ToAbsolutePathWithWd resolves p against wd when p is relative.
-func (p *Path) ToAbsolutePathWithWd(wd *Path) *Path {
-	if p.IsAbsolute() {
-		return p
-	}
-	return wd.Resolve(p)
+	return newPathFromString(ResolveParsedPath(WorkingDirString(), p.s))
 }
 
 // invalidPathException is java.nio.file.InvalidPathException.

@@ -271,7 +271,7 @@ type CompilerTestCaseBase struct {
 	// have it.
 	typeInfoValidationEnabled bool
 
-	ignoredWarnings *jutil.ObjectLinkedHashSet[*DiagnosticType]
+	ignoredWarnings *jutil.LinkedHashSet[*DiagnosticType]
 
 	webpackModulesById *jutil.LinkedHashMap[string, string]
 
@@ -339,7 +339,7 @@ var CompilerTestCase_DEFAULT_EXTERNS = NewTestExternsBuilder().
 func (b *CompilerTestCaseBase) InitCompilerTestCaseBaseWithExterns(self CompilerTestCase, externs string) {
 	b.self = self
 	b.declaredAccessors = jutil.NewLinkedHashMap[string, AccessorSummary_PropertyAccessKind]()
-	b.ignoredWarnings = jutil.NewObjectLinkedHashSet[*DiagnosticType]()
+	b.ignoredWarnings = jutil.NewLinkedHashSet[*DiagnosticType]()
 	b.webpackModulesById = jutil.NewLinkedHashMap[string, string]()
 	b.genericNameReplacements = jutil.NewLinkedHashMap[string, string]()
 	b.rewriteModulesAfterTypechecking = true
@@ -540,7 +540,7 @@ func (b *CompilerTestCaseBase) IgnoreWarnings(warnings ...any) {
 		case *DiagnosticType:
 			b.ignoredWarnings.Add(w)
 		case *DiagnosticGroup:
-			b.ignoredWarnings.AddAll(w.GetTypes().All())
+			b.ignoredWarnings.AddAll(w.GetTypes()...)
 		default:
 			panic(jutil.NewIllegalArgumentExceptionMsg(fmt.Sprintf("ignoreWarnings(%T)", w)))
 		}

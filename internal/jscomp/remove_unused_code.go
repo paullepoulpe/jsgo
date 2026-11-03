@@ -168,36 +168,32 @@ type RemoveUnusedCode struct {
 
 var (
 	// Properties that are implicitly used as part of the JS language.
-	rucPropLengthID      = rhino.RhinoStringPool_InternID("length")
-	rucPropToStringID    = rhino.RhinoStringPool_InternID("toString")
-	rucPropValueOfID     = rhino.RhinoStringPool_InternID("valueOf")
-	rucPropConstructorID = rhino.RhinoStringPool_InternID("constructor")
-	rucPropPrototypeID   = rhino.RhinoStringPool_InternID("prototype")
+	rucPropPrototypeID = uint32(idPrototype)
 
 	rucImplicitPropIDs = [5]uint32{
-		rucPropLengthID,
-		rucPropToStringID,
-		rucPropValueOfID,
-		rucPropConstructorID,
-		rucPropPrototypeID,
+		uint32(idLength),
+		uint32(idToString),
+		uint32(idValueOf),
+		uint32(idConstructor),
+		uint32(idPrototype),
 	}
 
 	rucCalleeInheritsID                 = rhino.RhinoStringPool_InternID("inherits")
 	rucCalleeMixinID                    = rhino.RhinoStringPool_InternID("mixin")
-	rucCalleeDefinePropertiesID         = rhino.RhinoStringPool_InternID("defineProperties")
+	rucCalleeDefinePropertiesID         = uint32(idDefineProperties)
 	rucCalleeObjectPropertyID           = rhino.RhinoStringPool_InternID("objectProperty")
 	rucCalleeAddSingletonGetterID       = rhino.RhinoStringPool_InternID("addSingletonGetter")
 	rucCalleePolyfillID                 = rhino.RhinoStringPool_InternID("polyfill")
 	rucCalleePatchID                    = rhino.RhinoStringPool_InternID("patch")
 	rucCalleePolyfillTypedArrayMethodID = rhino.RhinoStringPool_InternID("polyfillTypedArrayMethod")
-	rucCalleeWeakUsageID                = rhino.RhinoStringPool_InternID("weakUsage")
+	rucCalleeWeakUsageID                = uint32(idWeakUsage)
 
-	rucCalleeJscPropNameFnID                  = rhino.RhinoStringPool_InternID(NodeUtil_JSC_PROPERTY_NAME_FN)
+	rucCalleeJscPropNameFnID                  = uint32(idJscPropertyNameFn)
 	rucCalleeGoogReflectObjectPropertyID      = rhino.RhinoStringPool_InternID("goog$reflect$objectProperty")
 	rucCalleeJscompPolyfillID                 = rhino.RhinoStringPool_InternID("$jscomp$polyfill")
 	rucCalleeJscompPatchID                    = rhino.RhinoStringPool_InternID("$jscomp$patch")
 	rucCalleeJscompPolyfillTypedArrayMethodID = rhino.RhinoStringPool_InternID("$jscomp$polyfillTypedArrayMethod")
-	rucCalleeGoogWeakUsageID                  = rhino.RhinoStringPool_InternID("goog$weakUsage")
+	rucCalleeGoogWeakUsageID                  = uint32(idGoogWeakUsage)
 	rucCalleeGoogAddSingletonGetterID         = rhino.RhinoStringPool_InternID("goog$addSingletonGetter")
 	rucJscompIdentID                          = rhino.RhinoStringPool_InternID("$jscomp")
 )

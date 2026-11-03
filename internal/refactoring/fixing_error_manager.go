@@ -64,9 +64,6 @@ func (t FixingErrorManager_FixTypes) Name() string { return fixingErrorManager_F
 // String is Enum.toString().
 func (t FixingErrorManager_FixTypes) String() string { return t.Name() }
 
-// Ordinal is Enum.ordinal().
-func (t FixingErrorManager_FixTypes) Ordinal() int { return int(t) }
-
 // Java: FixingErrorManager()
 func NewFixingErrorManager() *FixingErrorManager {
 	return NewFixingErrorManagerWithUnfixableErrors(nil)

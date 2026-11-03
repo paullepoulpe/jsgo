@@ -493,7 +493,7 @@ func CheckAccessControls_CanOverrideVisibility(
 	// This allows INHERITED to override anything, PUBLIC to override anything (except INHERITED),
 	// and PROTECTED to override anything (except PUBLIC or INHERITED). PRIVATE was already handled
 	// in a previous check, leaving PACKAGE as the lowest visibility.
-	return superclassVisibility.Ordinal()-subclassVisibility.Ordinal() <= 0
+	return superclassVisibility <= subclassVisibility
 }
 
 // Java: CheckAccessControls.checkPropertyAccessVisibility(PropertyReference, Visibility, JSType, StaticSourceFile, StaticSourceFile)

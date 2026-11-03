@@ -567,7 +567,7 @@ func (r *piRecorder) ismGatherGet(n, parent rhino.Node) {
 	switch parent.GetToken() {
 	case rhino.Token_ASSIGN:
 	case rhino.Token_GETPROP, rhino.Token_GETELEM:
-		if prop != ismPrototypeID {
+		if strpool.ID(prop) != idPrototype {
 			return
 		}
 		if parent.GetParent() == r.cur.root {

@@ -298,9 +298,6 @@ func WarningLevel_values() []WarningLevel {
 // String is Enum.name().
 func (l WarningLevel) String() string { return warningLevel_names[l] }
 
-// Ordinal is Enum.ordinal().
-func (l WarningLevel) Ordinal() int { return int(l) }
-
 // Java: WarningLevel.setOptionsForWarningLevel(CompilerOptions)
 func (l WarningLevel) SetOptionsForWarningLevel(options *CompilerOptions) {
 	switch l {

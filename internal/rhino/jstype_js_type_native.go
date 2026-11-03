@@ -247,6 +247,3 @@ func JSTypeNative_values() []JSTypeNative {
 
 // String is Enum.name().
 func (n JSTypeNative) String() string { return jsTypeNative_names[n] }
-
-// Ordinal is Enum.ordinal().
-func (n JSTypeNative) Ordinal() int { return int(n) }

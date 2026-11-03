@@ -350,9 +350,7 @@ func (c *J2clPass_ClassStaticFunctionsInliner) findMatchingSpecsForFile(
 			matchingSpecs = append(matchingSpecs, inlineSpec)
 			continue
 		}
-		if !hasSource {
-			panic(jutil.NewNullPointerException())
-		}
+		jutil.CheckStateMsg(hasSource, "expected script node to have a source file name")
 		if strings.HasSuffix(sourceFileName, inlineSpec.classFileName) {
 			matchingSpecs = append(matchingSpecs, inlineSpec)
 		}
@@ -447,16 +445,10 @@ func (f *J2clPass_ClassStaticFunctionsInliner_FunctionDefsCollector) Visit(t *No
 		switch n.GetToken() {
 		case rhino.Token_ASSIGN:
 			qname, ok := n.GetFirstChild().GetQualifiedNameString()
-			if !ok {
-				panic(jutil.NewNullPointerException())
-			}
+			jutil.CheckStateMsg(ok, "expected qualified name on assignment target")
 			qualifiedFnName = qname
 		case rhino.Token_MEMBER_FUNCTION_DEF:
-			bestName := NodeUtil_GetBestLValueName(n)
-			if bestName == nil {
-				panic(jutil.NewNullPointerException())
-			}
-			qualifiedFnName = *bestName
+			qualifiedFnName = *jutil.CheckNotNullPtr(NodeUtil_GetBestLValueName(n))
 		default:
 			panic(jutil.NewAssertionErrorNoMessage())
 		}

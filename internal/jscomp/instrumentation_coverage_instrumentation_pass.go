@@ -58,9 +58,6 @@ func (r CoverageInstrumentationPass_CoverageReach) String() string {
 	return coverageInstrumentationPass_CoverageReach_names[r]
 }
 
-// Java: CoverageInstrumentationPass.CoverageReach.ordinal()
-func (r CoverageInstrumentationPass_CoverageReach) Ordinal() int { return int(r) }
-
 // NewCoverageInstrumentationPassWithInstrumentOption: compiler is the
 // compiler which generates the AST.
 //

@@ -540,7 +540,7 @@ BAR_PROTOTYPE: Bar.prototype;
 
 // Java: ColorGraphBuilderTest.verifyResult_topNodeIsOnlyRoot()
 func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
-	roots := jutil.NewObjectLinkedHashSet[graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
+	roots := jutil.NewLinkedHashSet[graph.DiGraph_DiGraphNode[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
 	for _, n := range c.result.GetNodes() {
 		if len(n.GetInEdges()) == 0 {
 			roots.Add(n)
@@ -553,7 +553,7 @@ func (c *ColorGraphBuilderTest) VerifyResult_topNodeIsOnlyRoot() {
 
 // Java: ColorGraphBuilderTest.verifyResult_hasNoSelfEdges()
 func (c *ColorGraphBuilderTest) VerifyResult_hasNoSelfEdges() {
-	selfEdges := jutil.NewObjectLinkedHashSet[graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
+	selfEdges := jutil.NewLinkedHashSet[graph.DiGraph_DiGraphEdge[*ColorGraphNode, ColorGraphBuilder_EdgeReason]]()
 	for _, e := range c.result.GetEdges() {
 		if jutil.ObjectsEquals(e.GetSource(), e.GetDestination()) {
 			selfEdges.Add(e)

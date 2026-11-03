@@ -238,11 +238,11 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root rhino.Node, cfgR
 		// Create the scope with the assumptions.
 		// Also populate a map allowing us to look up labeled statements later.
 		c.labeledStatementMap = jutil.NewLinkedHashMap[string, *TypeInferenceTest_LabeledStatement]()
-		NodeTraversal_Builder_().
-			SetCompiler(c.compiler).
-			SetCallback(&typeInferenceTest_labelCollector{outer: c}).
-			SetScopeCreator(scopeCreator).
-			Traverse(root)
+		NodeTraversal_Builder{
+			compiler:     c.compiler,
+			callback:     &typeInferenceTest_labelCollector{outer: c},
+			scopeCreator: scopeCreator,
+		}.Traverse(root)
 		assumedScope = scopeCreator.CreateScopeOfNode(cfgRoot)
 		for name, type_ := range c.assumptions.All() {
 			assumedScope.Declare(name, rhino.NilNode, type_, nil, false)

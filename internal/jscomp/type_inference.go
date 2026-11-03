@@ -26,9 +26,8 @@ import (
 )
 
 type tiNodeState struct {
-	in        *LinkedFlowScope
-	out       *LinkedFlowScope
-	stepCount int
+	in  *LinkedFlowScope
+	out *LinkedFlowScope
 }
 
 // TypeInference is type inference within a script node or a function body,
@@ -195,7 +194,7 @@ func (ti *TypeInference) GetImplicitReturnScope() *LinkedFlowScope {
 }
 
 func (ti *TypeInference) stepCountAt(index uint32) int {
-	return ti.nodeStates[index].stepCount
+	return int(ti.worklist.steps[index])
 }
 
 // Join merges two FlowScopes directly without interface dispatch.
@@ -218,59 +217,39 @@ func (ti *TypeInference) Analyze() {
 	implicitReturn := cfg.implicitReturn
 	cfgNodes := &cfg.Nodes
 
-	ti.worklist.reset(cfg, cfgNodes.Size(), true)
 	nodeCap := cfg.NodeIndexCap()
 	if cap(ti.nodeStates) < nodeCap {
 		ti.nodeStates = make([]tiNodeState, nodeCap)
 	} else {
-		clear(ti.nodeStates[:nodeCap])
+		clear(ti.nodeStates[:max(len(ti.nodeStates), nodeCap)])
 		ti.nodeStates = ti.nodeStates[:nodeCap]
-	}
-
-	bottom := jutil.CheckNotNullPtr(ti.bottomScope)
-	for node := range cfgNodes.Values() {
-		node.DfaInQueue = false
-		ti.nodeStates[node.Index] = tiNodeState{in: bottom, out: bottom}
-		if node != implicitReturn {
-			ti.worklist.enqueue(node)
-		}
 	}
 
 	edgeCap := cfg.EdgeIndexCap()
 	if cap(ti.edgeStates) < edgeCap {
 		ti.edgeStates = make([]*LinkedFlowScope, edgeCap)
 	} else {
-		clear(ti.edgeStates[:edgeCap])
+		clear(ti.edgeStates[:max(len(ti.edgeStates), edgeCap)])
 		ti.edgeStates = ti.edgeStates[:edgeCap]
 	}
+
+	bottom := jutil.CheckNotNullPtr(ti.bottomScope)
 	for node := range cfgNodes.Values() {
+		ti.nodeStates[node.Index] = tiNodeState{in: bottom, out: bottom}
 		for _, edge := range node.OutEdgeList.Slice() {
 			ti.edgeStates[edge.Index] = bottom
 		}
 	}
 
-	for ti.worklist.notEmpty() {
-		curNode := ti.worklist.dequeue()
-		curState := &ti.nodeStates[curNode.Index]
-		stepCount := curState.stepCount
-		curState.stepCount++
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
+	states := ti.nodeStates
+	ti.worklist.solve(cfg, true, func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+		curState := &states[curNode.Index]
 		ti.joinNodeInputs(curNode, curState, entry)
-		if ti.flowNode(curNode, curState) {
-			for _, edge := range curNode.OutEdgeList.Slice() {
-				nextNode := edge.DestNode
-				if !nextNode.DfaInQueue && nextNode != implicitReturn {
-					ti.worklist.enqueue(nextNode)
-				}
-			}
-		}
-	}
+		return ti.flowNode(curNode, curState)
+	})
 
 	if implicitReturn != nil {
-		ti.joinNodeInputs(implicitReturn, &ti.nodeStates[implicitReturn.Index], entry)
+		ti.joinNodeInputs(implicitReturn, &states[implicitReturn.Index], entry)
 	}
 }
 

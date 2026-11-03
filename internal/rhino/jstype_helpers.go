@@ -261,9 +261,6 @@ var booleanLiteralSet_names = [...]string{"EMPTY", "TRUE", "FALSE", "BOTH"}
 // String is Enum.name().
 func (s BooleanLiteralSet) String() string { return booleanLiteralSet_names[s] }
 
-// Ordinal is Enum.ordinal().
-func (s BooleanLiteralSet) Ordinal() int { return int(s) }
-
 // Java: BooleanLiteralSet.fromOrdinal(int)
 func (s BooleanLiteralSet) FromOrdinal(ordinal int) BooleanLiteralSet {
 	switch ordinal {
@@ -283,21 +280,21 @@ func (s BooleanLiteralSet) FromOrdinal(ordinal int) BooleanLiteralSet {
 //
 // Java: BooleanLiteralSet.intersection(BooleanLiteralSet)
 func (s BooleanLiteralSet) Intersection(that BooleanLiteralSet) BooleanLiteralSet {
-	return s.FromOrdinal(s.Ordinal() & that.Ordinal())
+	return s.FromOrdinal(int(s) & int(that))
 }
 
 // Union computes the union of this set and that.
 //
 // Java: BooleanLiteralSet.union(BooleanLiteralSet)
 func (s BooleanLiteralSet) Union(that BooleanLiteralSet) BooleanLiteralSet {
-	return s.FromOrdinal(s.Ordinal() | that.Ordinal())
+	return s.FromOrdinal(int(s) | int(that))
 }
 
 // Contains returns whether this contains the given literal value.
 //
 // Java: BooleanLiteralSet.contains(boolean)
 func (s BooleanLiteralSet) Contains(literalValue bool) bool {
-	switch s.Ordinal() {
+	switch int(s) {
 	case 0:
 		return false
 	case 1:
@@ -307,7 +304,7 @@ func (s BooleanLiteralSet) Contains(literalValue bool) bool {
 	case 3:
 		return true
 	}
-	panic(jutil.NewIndexOutOfBoundsException("Ordinal: " + strconv.Itoa(s.Ordinal())))
+	panic(jutil.NewIndexOutOfBoundsException("Ordinal: " + strconv.Itoa(int(s))))
 }
 
 // BooleanLiteralSet_Get returns the singleton set {literalValue}.

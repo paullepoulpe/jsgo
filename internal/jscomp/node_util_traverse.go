@@ -577,11 +577,11 @@ func NodeUtil_GetAllVarNamesDeclaredInModule(
 	nameVars := jutil.NewLinkedHashSet[string]()
 
 	finder := &nodeUtil_getAllVarNamesDeclaredInModule_finder{nameVars: nameVars}
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(finder).
-		SetScopeCreator(scopeCreator).
-		TraverseWithScope(moduleNode, globalScope)
+	NodeTraversal_Builder{
+		compiler:     compiler,
+		callback:     finder,
+		scopeCreator: scopeCreator,
+	}.TraverseWithScope(moduleNode, globalScope)
 	return nameVars
 }
 

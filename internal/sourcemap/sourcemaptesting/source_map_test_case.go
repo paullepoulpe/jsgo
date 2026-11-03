@@ -119,11 +119,11 @@ type SourceMapTestCase_RunResult struct {
 type SourceMapTestCase_Token struct {
 	tokenName string
 	inputName string
-	position  *sourcemap.FilePosition
+	position  sourcemap.FilePosition
 }
 
 // Java: SourceMapTestCase.Token(String, String, FilePosition)
-func newSourceMapTestCase_Token(tokenName string, inputName string, position *sourcemap.FilePosition) *SourceMapTestCase_Token {
+func newSourceMapTestCase_Token(tokenName string, inputName string, position sourcemap.FilePosition) *SourceMapTestCase_Token {
 	return &SourceMapTestCase_Token{tokenName: tokenName, inputName: inputName, position: position}
 }
 

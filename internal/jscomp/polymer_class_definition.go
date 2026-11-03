@@ -49,7 +49,7 @@ type PolymerClassDefinition struct {
 	behaviorProps     []polymerBehaviorProp
 	methods           []*PolymerPass_MemberDefinition
 	behaviors         []*PolymerBehaviorExtractor_BehaviorDefinition
-	features          *parser.FeatureSet
+	features          parser.FeatureSet
 	interfaceName     string
 }
 
@@ -82,7 +82,7 @@ func NewPolymerClassDefinition(
 	behaviorProps []polymerBehaviorProp,
 	methods []*PolymerPass_MemberDefinition,
 	behaviors []*PolymerBehaviorExtractor_BehaviorDefinition,
-	features *parser.FeatureSet,
+	features parser.FeatureSet,
 	input *CompilerInput) *PolymerClassDefinition {
 	jutil.CheckState(descriptor.IsNil() || descriptor.IsObjectLit())
 	return &PolymerClassDefinition{
@@ -205,11 +205,10 @@ func PolymerClassDefinition_ExtractFromCallNode(
 		}
 	}
 
-	var newFeatures *parser.FeatureSet
-	if len(behaviors) != 0 {
-		newFeatures = behaviors[0].features
-		for i := 1; i < len(behaviors); i++ {
-			newFeatures = newFeatures.Union(behaviors[i].features)
+	var newFeatures parser.FeatureSet
+	for _, behavior := range behaviors {
+		if !behavior.features.IsZero() {
+			newFeatures = newFeatures.Union(behavior.features)
 		}
 	}
 
@@ -344,7 +343,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode rhino.Node, compiler 
 		nil,
 		methods,
 		nil,
-		nil,
+		parser.FeatureSet{},
 		input)
 }
 

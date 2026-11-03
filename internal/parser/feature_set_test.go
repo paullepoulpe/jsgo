@@ -30,11 +30,11 @@ import (
 // checks FeatureSet.equals.
 type featureSetSubject struct {
 	t      *testing.T
-	actual *FeatureSet
+	actual FeatureSet
 }
 
 // assertFS is FeatureSetSubject.assertFS(FeatureSet).
-func assertFS(t *testing.T, fs *FeatureSet) *featureSetSubject {
+func assertFS(t *testing.T, fs FeatureSet) *featureSetSubject {
 	t.Helper()
 	return &featureSetSubject{t: t, actual: fs}
 }
@@ -53,21 +53,21 @@ func (s *featureSetSubject) doesNotHave(feature FeatureSet_Feature) {
 	}
 }
 
-func (s *featureSetSubject) contains(other *FeatureSet) {
+func (s *featureSetSubject) contains(other FeatureSet) {
 	s.t.Helper()
 	if !s.actual.Contains(other) {
 		s.t.Errorf("Expected a FeatureSet containing: %s\nBut got: %s", other, s.actual)
 	}
 }
 
-func (s *featureSetSubject) equals(other *FeatureSet) {
+func (s *featureSetSubject) equals(other FeatureSet) {
 	s.t.Helper()
-	if !s.actual.Equals(other) {
+	if s.actual != other {
 		s.t.Errorf("Expected a FeatureSet equal to: %s\nBut got: %s", other, s.actual)
 	}
 }
 
-func assertVersion(t *testing.T, fs *FeatureSet, want string) {
+func assertVersion(t *testing.T, fs FeatureSet, want string) {
 	t.Helper()
 	if got := fs.Version(); got != want {
 		t.Errorf("version() = %q, want %q", got, want)
@@ -172,5 +172,55 @@ func TestFeatureSetValueOf(t *testing.T) {
 	jutil.Try(func() { FeatureSet_ValueOf("bad") }, func(e jutil.IIllegalArgumentException) { threw = true })
 	if !threw {
 		t.Errorf("FeatureSet_ValueOf(\"bad\") did not throw IllegalArgumentException")
+	}
+}
+
+func TestFeatureSetValueSemanticsAndPresenceBit(t *testing.T) {
+	var zero FeatureSet
+	if !zero.IsZero() {
+		t.Fatal("zero FeatureSet should report IsZero() == true")
+	}
+	if FeatureSet_BARE_MINIMUM.IsZero() {
+		t.Fatal("FeatureSet_BARE_MINIMUM should report IsZero() == false")
+	}
+	if zero == FeatureSet_BARE_MINIMUM {
+		t.Fatal("zero FeatureSet must not equal FeatureSet_BARE_MINIMUM")
+	}
+	if got := zero.String(); got != "null" {
+		t.Errorf("zero.String() = %q, want \"null\"", got)
+	}
+	if got := FeatureSet_BARE_MINIMUM.String(); got != "[]" {
+		t.Errorf("FeatureSet_BARE_MINIMUM.String() = %q, want \"[]\"", got)
+	}
+	if !FeatureSet_BARE_MINIMUM.IsEmpty() {
+		t.Error("FeatureSet_BARE_MINIMUM.IsEmpty() = false, want true")
+	}
+	if FeatureSet_ES5.Without(FeatureSet_ES5) != FeatureSet_BARE_MINIMUM {
+		t.Error("FeatureSet_ES5.Without(FeatureSet_ES5) != FeatureSet_BARE_MINIMUM")
+	}
+	if !FeatureSet_ES3.Contains(FeatureSet_BARE_MINIMUM) {
+		t.Error("FeatureSet_ES3.Contains(FeatureSet_BARE_MINIMUM) = false, want true")
+	}
+	if FeatureSet_BARE_MINIMUM.ContainsAtLeastOneOf(FeatureSet_BARE_MINIMUM) {
+		t.Error("FeatureSet_BARE_MINIMUM.ContainsAtLeastOneOf(FeatureSet_BARE_MINIMUM) = true, want false")
+	}
+	for f := range FeatureSet_BARE_MINIMUM.All() {
+		t.Errorf("FeatureSet_BARE_MINIMUM.All() yielded %v, want empty", f)
+	}
+	count := 0
+	for f := range FeatureSet_ALL.All() {
+		if f < 0 || int(f) >= len(featureSet_Feature_names) {
+			t.Errorf("FeatureSet_ALL.All() yielded out-of-range ordinal %d", f)
+		}
+		count++
+	}
+	if count != len(featureSet_Feature_names) {
+		t.Errorf("FeatureSet_ALL.All() count = %d, want %d", count, len(featureSet_Feature_names))
+	}
+	if got := zero.With(FeatureSet_Feature_MODULES); got != FeatureSet_BARE_MINIMUM.With(FeatureSet_Feature_MODULES) {
+		t.Errorf("zero.With(MODULES) = %v, want %v", got, FeatureSet_BARE_MINIMUM.With(FeatureSet_Feature_MODULES))
+	}
+	if !jutil.ObjectsEquals(FeatureSet_ES2015, FeatureSet_ES2015_MODULES.WithoutFeatures(FeatureSet_Feature_MODULES)) {
+		t.Error("jutil.ObjectsEquals failed on equal FeatureSet values")
 	}
 }

@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -64,7 +65,7 @@ func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_noNativeElement()
 		nil,
 		nil,
 		nil,
-		nil,
+		parser.FeatureSet{},
 		nil)
 	AssertThat(PolymerPassStaticUtils_GetPolymerElementType(def)).IsEqualTo("PolymerElement")
 }
@@ -85,7 +86,7 @@ func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_inputBaseElement(
 		nil,
 		nil,
 		nil,
-		nil,
+		parser.FeatureSet{},
 		nil)
 	AssertThat(PolymerPassStaticUtils_GetPolymerElementType(def)).IsEqualTo("PolymerInputElement")
 }

@@ -140,9 +140,6 @@ var typedScopeCreator_Stage_names = [...]string{"BUILDING", "FROZEN"}
 // String is Enum.name().
 func (s TypedScopeCreator_Stage) String() string { return typedScopeCreator_Stage_names[s] }
 
-// Ordinal is Enum.ordinal().
-func (s TypedScopeCreator_Stage) Ordinal() int { return int(s) }
-
 // TypedScopeCreator_WeakModuleImport tracks information about a weakly
 // ordered import, such as goog.requireType or goog.forwardDeclare.
 //
@@ -580,11 +577,11 @@ func (c *TypedScopeCreator) CreateInitialScope(root rhino.Node) *TypedScope {
 	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
 	analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry
 
-	NodeTraversal_Builder_().
-		SetCompiler(c.compiler).
-		SetCallback(analyzer).
-		SetScopeCreator(scopeCreator).
-		TraverseRoots(root.GetFirstChild(), root.GetLastChild())
+	(NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     analyzer,
+		scopeCreator: scopeCreator,
+	}).TraverseRoots(root.GetFirstChild(), root.GetLastChild())
 
 	c.GatherAllProvides(root)
 

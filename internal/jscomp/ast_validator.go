@@ -82,9 +82,6 @@ func (v AstValidator_TypeInfoValidation) Name() string {
 // String is Enum.toString().
 func (v AstValidator_TypeInfoValidation) String() string { return v.Name() }
 
-// Ordinal is Enum.ordinal().
-func (v AstValidator_TypeInfoValidation) Ordinal() int { return int(v) }
-
 // NewAstValidatorWithViolationFunc constructs an AstValidator with a violation
 // callback function directly without allocating an interface wrapper.
 func NewAstValidatorWithViolationFunc(
@@ -592,7 +589,7 @@ func (v *AstValidator) ValidateFeature(feature parser.FeatureSet_Feature, n rhin
 	scriptFeatures := NodeUtil_GetFeatureSetOfScript(v.currentScript)
 	// Checks that feature present in the AST is recorded in the SCRIPT node's
 	// featureSet.
-	if scriptFeatures == nil || !scriptFeatures.Has(feature) {
+	if scriptFeatures.IsZero() || !scriptFeatures.Has(feature) {
 		v.Violation("SCRIPT node should be marked as containing feature "+feature.String(), v.currentScript)
 	}
 }

@@ -695,7 +695,7 @@ func TestSourceRoot(t *testing.T) {
 	}
 }
 
-func count(js string) *sourcemap.FilePosition {
+func count(js string) sourcemap.FilePosition {
 	line := 0
 	column := 0
 	for _, c := range jutil.StringToUTF16(js) {
@@ -709,7 +709,7 @@ func count(js string) *sourcemap.FilePosition {
 	return sourcemap.NewFilePosition(line, column)
 }
 
-func appendAndCount(out *strings.Builder, js string) *sourcemap.FilePosition {
+func appendAndCount(out *strings.Builder, js string) sourcemap.FilePosition {
 	out.WriteString(js)
 	return count(js)
 }

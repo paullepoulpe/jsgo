@@ -175,7 +175,7 @@ func (r *RewritePolyfills) RemoveUnneededPolyfills(parent rhino.Node, runtimeEnd
 		// look up the next node now, because we may be removing this one.
 		next := node.GetNext()
 		polyfillSupportedFeatureSet := r.GetPolyfillSupportedFeatureSet(node)
-		if polyfillSupportedFeatureSet != nil &&
+		if !polyfillSupportedFeatureSet.IsZero() &&
 			outputFeatureSet.Contains(polyfillSupportedFeatureSet) {
 			NodeUtil_RemoveChild(parent, node)
 			NodeUtil_MarkFunctionsDeleted(node, r.compiler)
@@ -188,21 +188,21 @@ func (r *RewritePolyfills) RemoveUnneededPolyfills(parent rhino.Node, runtimeEnd
 // definition, the `FeatureSet` which should be considered to already
 // include that polyfill (making it unnecessary).
 //
-// Otherwise, returns `null`.
+// Otherwise, returns the zero `FeatureSet`.
 //
 // Java: RewritePolyfills.getPolyfillSupportedFeatureSet(Node)
-func (r *RewritePolyfills) GetPolyfillSupportedFeatureSet(maybePolyfill rhino.Node) *parser.FeatureSet {
+func (r *RewritePolyfills) GetPolyfillSupportedFeatureSet(maybePolyfill rhino.Node) parser.FeatureSet {
 	stmt, ok := ast.AsExprStmt(maybePolyfill)
 	if !ok {
-		return nil
+		return parser.FeatureSet{}
 	}
 	call, ok := stmt.Expr().AsCall()
 	if !ok || !rewritePolyfills_JSCOMP_POLYFILL.Matches(call.Callee().Node()) {
-		return nil
+		return parser.FeatureSet{}
 	}
 	arg, ok := call.AsCallOrNew().ArgAt(2)
 	if !ok {
-		return nil
+		return parser.FeatureSet{}
 	}
 	nativeVersionStr := arg.MustStringLit().Value()
 	return PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr)

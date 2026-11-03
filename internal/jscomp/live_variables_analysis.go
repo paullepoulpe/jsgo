@@ -23,10 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
-
-var lvaArgumentsIdentID = uint32(strpool.Intern("arguments"))
 
 const LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE = 100
 
@@ -498,7 +495,7 @@ func (l *LiveVariablesAnalysis) computeGenKillBits(n rhino.Node, gen *smallBitSe
 		l.computeGenKillBits(hook.Else().Node(), gen, kill, true)
 		return
 	case rhino.Token_NAME:
-		if n.GetStringID() == lvaArgumentsIdentID {
+		if nodeStringID(n) == idArguments {
 			l.MarkAllParametersEscaped()
 		} else if !NodeUtil_IsLhsByDestructuring(n) {
 			// Only add names in destructuring patterns if they're not lvalues.

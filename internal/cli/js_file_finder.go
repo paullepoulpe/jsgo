@@ -51,7 +51,7 @@ type jsInputsCollector struct {
 	byAbs    map[string]jsInputEntry
 	order    []string
 	excludes map[string]struct{}
-	wd       *jutil.Path
+	wd       string
 }
 
 func (c *jsInputsCollector) put(absPath, origPath string) {
@@ -77,14 +77,17 @@ func (c *jsInputsCollector) remove(absPath string) {
 	c.order[e.orderIdx] = ""
 }
 
-func (c *jsInputsCollector) record(p, norm *jutil.Path, remove bool) {
-	if norm == nil {
-		norm = p.Normalize()
+func (c *jsInputsCollector) record(origPath, norm string, hasNorm, remove bool) {
+	if !hasNorm {
+		norm = jutil.NormalizeParsedPath(origPath)
 	}
-	if !norm.IsAbsolute() && c.wd == nil {
-		c.wd = jutil.Path_WorkingDir()
+	absPath := norm
+	if len(absPath) == 0 || absPath[0] != '/' {
+		if c.wd == "" {
+			c.wd = jutil.WorkingDirString()
+		}
+		absPath = jutil.ResolveParsedPath(c.wd, norm)
 	}
-	absPath := norm.ToAbsolutePathWithWd(c.wd).String()
 	if remove {
 		if c.excludes == nil {
 			c.excludes = make(map[string]struct{})
@@ -92,7 +95,7 @@ func (c *jsInputsCollector) record(p, norm *jutil.Path, remove bool) {
 		c.excludes[absPath] = struct{}{}
 		c.remove(absPath)
 	} else if _, excluded := c.excludes[absPath]; !excluded {
-		c.put(absPath, p.String())
+		c.put(absPath, origPath)
 	}
 }
 
@@ -119,11 +122,11 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 	var allJsInputs jsInputsCollector
 	for _, pattern := range patterns {
 		if !strings.Contains(pattern, "*") && !strings.HasPrefix(pattern, "!") {
-			p := jutil.Path_Of(pattern)
-			if isExistingDir(p.String()) {
-				allJsInputs.matchPaths(p.ResolveString("**.js").String())
+			p := jutil.ParsePathString(pattern)
+			if isExistingDir(p) {
+				allJsInputs.matchPaths(jutil.ResolveParsedPath(p, "**.js"))
 			} else {
-				allJsInputs.record(p, nil, false)
+				allJsInputs.record(p, "", false, false)
 			}
 		} else {
 			allJsInputs.matchPaths(pattern)
@@ -172,43 +175,44 @@ func (c *jsInputsCollector) matchPaths(pattern string) {
 	}
 
 	matcher := compileGlobMatcher(prefix + separator + pattern)
-	visitFile := func(p *jutil.Path) {
-		var norm *jutil.Path
-		if !matcher.MatchString(p.String()) {
-			norm = p.Normalize()
-			if !matcher.MatchString(norm.String()) {
+	visitFile := func(p string) {
+		var norm string
+		hasNorm := false
+		if !matcher.MatchString(p) {
+			norm = jutil.NormalizeParsedPath(p)
+			hasNorm = true
+			if !matcher.MatchString(norm) {
 				return
 			}
 		}
-		c.record(p, norm, remove)
+		c.record(p, norm, hasNorm, remove)
 	}
 
-	startPath := jutil.Path_Of(prefix)
-	startStr := startPath.String()
+	startStr := jutil.ParsePathString(prefix)
 	st, err := os.Stat(startStr)
 	if err != nil {
 		// Broken symlink: visit the link itself as a file; nonexistent start: skip.
 		if lst, lerr := os.Lstat(startStr); lerr == nil && !lst.IsDir() {
-			visitFile(startPath)
+			visitFile(startStr)
 		}
 		return
 	}
 	if !st.IsDir() {
-		visitFile(startPath)
+		visitFile(startStr)
 		return
 	}
 	evalRoot, err := filepath.EvalSymlinks(startStr)
 	if err != nil {
 		return
 	}
-	commandLineRunner_walkDir(evalRoot, startPath, nil, visitFile)
+	commandLineRunner_walkDir(evalRoot, startStr, nil, visitFile)
 }
 
 func commandLineRunner_walkDir(
 	evalRoot string,
-	logicalRoot *jutil.Path,
+	logicalRoot string,
 	ancestors []os.FileInfo,
-	visitFile func(*jutil.Path),
+	visitFile func(string),
 ) {
 	_ = filepath.WalkDir(evalRoot, func(walkPath string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil || walkPath == evalRoot {
@@ -226,7 +230,7 @@ func commandLineRunner_walkDir(
 		if d.IsDir() {
 			return nil
 		}
-		logicalPath := logicalRoot.ResolveString(rel)
+		logicalPath := jutil.ResolveParsedPath(logicalRoot, jutil.ParsePathString(rel))
 		if d.Type()&fs.ModeSymlink != 0 {
 			targetInfo, err := os.Stat(walkPath)
 			if err == nil && targetInfo.IsDir() {

@@ -147,12 +147,12 @@ func (baseTranspilerLatest) Runtime() string {
 var BaseTranspiler_LATEST_TRANSPILER Transpiler = baseTranspilerLatest{}
 
 // Java: BaseTranspiler.to(FeatureSet, String)
-func BaseTranspiler_ToWithRuntime(featureSet *parser.FeatureSet, runtime string) *BaseTranspiler {
+func BaseTranspiler_ToWithRuntime(featureSet parser.FeatureSet, runtime string) *BaseTranspiler {
 	return NewBaseTranspiler(NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(featureSet), runtime)
 }
 
 // Java: BaseTranspiler.to(FeatureSet)
-func BaseTranspiler_To(featureSet *parser.FeatureSet) *BaseTranspiler {
+func BaseTranspiler_To(featureSet parser.FeatureSet) *BaseTranspiler {
 	return BaseTranspiler_ToWithRuntime(featureSet, "es6_runtime")
 }
 
@@ -175,7 +175,7 @@ type BaseTranspiler_DefaultCompilerSupplier struct {
 	moduleResolution jscomp.ModuleLoader_ResolutionMode
 	moduleRoots      []string
 	configureOptions func(*jscomp.CompilerOptions)
-	outputFeatureSet *parser.FeatureSet
+	outputFeatureSet parser.FeatureSet
 }
 
 var _ BaseTranspiler_CompilerSupplier = (*BaseTranspiler_DefaultCompilerSupplier)(nil)
@@ -188,7 +188,7 @@ func NewBaseTranspiler_CompilerSupplier() *BaseTranspiler_DefaultCompilerSupplie
 }
 
 // Java: CompilerSupplier(FeatureSet)
-func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet *parser.FeatureSet) *BaseTranspiler_DefaultCompilerSupplier {
+func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet parser.FeatureSet) *BaseTranspiler_DefaultCompilerSupplier {
 	// Use the default resolution mode
 	return NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 		outputFeatureSet,
@@ -200,7 +200,7 @@ func NewBaseTranspiler_CompilerSupplierWithOutputFeatureSet(outputFeatureSet *pa
 // NewBaseTranspiler_CompilerSupplierWithModuleResolution accepts commonly
 // overridden options for ES6 modules to avoid needing to subclass.
 func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
-	outputFeatureSet *parser.FeatureSet,
+	outputFeatureSet parser.FeatureSet,
 	moduleResolution jscomp.ModuleLoader_ResolutionMode,
 	moduleRoots []string,
 	configureOptions func(*jscomp.CompilerOptions)) *BaseTranspiler_DefaultCompilerSupplier {

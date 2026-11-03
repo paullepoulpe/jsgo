@@ -27,9 +27,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func compilerOptionsTest_assertFeatureSet(t *testing.T, got *parser.FeatureSet, want *parser.FeatureSet) {
+func compilerOptionsTest_assertFeatureSet(t *testing.T, got parser.FeatureSet, want parser.FeatureSet) {
 	t.Helper()
-	if !got.Equals(want) {
+	if got != want {
 		t.Errorf("getOutputFeatureSet: got %v, want %v", got, want)
 	}
 }

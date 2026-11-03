@@ -165,9 +165,6 @@ var nodeProperty_numbers = [...]int32{
 // String is Enum.name().
 func (p NodeProperty) String() string { return nodeProperty_names[p] }
 
-// Ordinal is Enum.ordinal().
-func (p NodeProperty) Ordinal() int { return int(p) }
-
 // GetNumber returns the proto number; UNRECOGNIZED has none.
 //
 // Java: NodeProperty.getNumber()

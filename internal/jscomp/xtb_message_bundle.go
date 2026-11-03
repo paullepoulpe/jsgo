@@ -152,9 +152,7 @@ func (h *xtbMessageBundle_Handler) StartElement(qName string, atts xtbxml.Attrib
 	case xtbMessageBundle_Handler_PLACEHOLDER_ELEM_NAME:
 		jutil.CheckState(h.msgBuilder != nil)
 		phRef, ok := atts.Value(xtbMessageBundle_Handler_PLACEHOLDER_NAME_ATT_NAME)
-		if !ok {
-			panic(jutil.NewNullPointerExceptionMsg("Placeholder name must not be null"))
-		}
+		jutil.CheckStateMsg(ok, "Placeholder name must not be null")
 		if h.msgBuilder.HasGenderedVariants() {
 			h.msgBuilder.AppendCanonicalPlaceholderReferenceForGender(h.genderCase, phRef)
 		} else {
@@ -163,9 +161,7 @@ func (h *xtbMessageBundle_Handler) StartElement(qName string, atts xtbxml.Attrib
 	case xtbMessageBundle_Handler_BRANCH_ELEM_NAME:
 		jutil.CheckState(h.msgBuilder != nil)
 		gender, ok := atts.Value(xtbMessageBundle_Handler_BRANCH_NAME_ATT_NAME)
-		if !ok {
-			panic(jutil.NewNullPointerException())
-		}
+		jutil.CheckStateMsg(ok, "Branch variants attribute must not be null")
 		if variant, ok := parseXtbGenderVariant(gender); ok {
 			var parsed JsMessage_GrammaticalGenderCase
 			switch variant {

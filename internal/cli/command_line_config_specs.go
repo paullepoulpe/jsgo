@@ -204,9 +204,6 @@ func (e AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption) String() 
 	return abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption) Ordinal() int { return int(e) }
-
 // Java: AbstractCommandLineRunner.CommandLineConfig.setErrorFormat(ErrorFormatOption)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetErrorFormat(errorFormat AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption) *AbstractCommandLineRunner_CommandLineConfig {
 	c.errorFormat = errorFormat
@@ -320,9 +317,6 @@ func (t AbstractCommandLineRunner_JsSourceType) String() string {
 	return abstractCommandLineRunner_JsSourceType_names[t]
 }
 
-// Ordinal is Enum.ordinal().
-func (t AbstractCommandLineRunner_JsSourceType) Ordinal() int { return int(t) }
-
 // FlagName reads the field flagName.
 func (t AbstractCommandLineRunner_JsSourceType) FlagName() string {
 	return abstractCommandLineRunner_JsSourceType_flagName[t]
@@ -332,9 +326,8 @@ func (t AbstractCommandLineRunner_JsSourceType) FlagName() string {
 // parameter: Java compares flags with equals() and prints them with
 // toString(); the only flags are enums.
 type abstractCommandLineRunner_flag interface {
-	comparable
+	~int32
 	String() string
-	Ordinal() int
 }
 
 // AbstractCommandLineRunner_FlagEntry is a pair from flag to its value.
@@ -366,7 +359,7 @@ func (e *AbstractCommandLineRunner_FlagEntry[T]) Equals(o any) bool {
 //
 // Java: AbstractCommandLineRunner.FlagEntry.hashCode()
 func (e *AbstractCommandLineRunner_FlagEntry[T]) HashCode() int32 {
-	return int32(e.flag.Ordinal()) + jutil.StringHashCode(e.value)
+	return int32(e.flag) + jutil.StringHashCode(e.value)
 }
 
 // Java: AbstractCommandLineRunner.FlagEntry.toString()

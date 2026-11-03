@@ -116,9 +116,6 @@ func (k PolyfillUsageFinder_Polyfill_Kind) String() string {
 	return polyfillUsageFinder_Polyfill_Kind_names[k]
 }
 
-// Ordinal is Enum.ordinal().
-func (k PolyfillUsageFinder_Polyfill_Kind) Ordinal() int { return int(k) }
-
 // Java: PolyfillUsageFinder.Polyfill(String, String, String, String, Kind)
 func NewPolyfillUsageFinder_Polyfill(
 	nativeSymbol string,
@@ -328,7 +325,7 @@ func (p *PolyfillUsageFinder_Polyfills) GetPolyfillsNewerThan(languageMode Compi
 // FeatureSet.
 //
 // Java: PolyfillUsageFinder.getPolyfillSupportedFeatureSet(String)
-func PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr string) *parser.FeatureSet {
+func PolyfillUsageFinder_GetPolyfillSupportedFeatureSet(nativeVersionStr string) parser.FeatureSet {
 	// When calculating whether a polyfill should be included for a given language_out associated
 	// with a BFSY, we want to also compare using a BFSY FeatureSet. Needed because BFSY FeatureSets
 	// often exclude features but the ES20XX FeatureSets do not meaning we could unnecessarily
@@ -409,12 +406,11 @@ func NewPolyfillUsageFinder(
 //
 // Java: PolyfillUsageFinder.traverseExcludingGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
-	sc := NewSyntacticScopeCreator(f.compiler)
-	NodeTraversal_Builder_().
-		SetCompiler(f.compiler).
-		SetCallback(newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ONLY_UNGUARDED)).
-		SetScopeCreator(sc).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler:     f.compiler,
+		callback:     newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ONLY_UNGUARDED),
+		scopeCreator: NewSyntacticScopeCreator(f.compiler),
+	}.Traverse(root)
 }
 
 // TraverseIncludingGuarded passes all polyfill usages found, in postorder,
@@ -425,12 +421,11 @@ func (f *PolyfillUsageFinder) TraverseExcludingGuarded(root rhino.Node, polyfill
 //
 // Java: PolyfillUsageFinder.traverseIncludingGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
-	sc := NewSyntacticScopeCreator(f.compiler)
-	NodeTraversal_Builder_().
-		SetCompiler(f.compiler).
-		SetCallback(newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ALL)).
-		SetScopeCreator(sc).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler:     f.compiler,
+		callback:     newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ALL),
+		scopeCreator: NewSyntacticScopeCreator(f.compiler),
+	}.Traverse(root)
 }
 
 // TraverseOnlyGuarded passes all polyfill usages found, in postorder, to
@@ -441,12 +436,11 @@ func (f *PolyfillUsageFinder) TraverseIncludingGuarded(root rhino.Node, polyfill
 //
 // Java: PolyfillUsageFinder.traverseOnlyGuarded(Node, Consumer<PolyfillUsage>)
 func (f *PolyfillUsageFinder) TraverseOnlyGuarded(root rhino.Node, polyfillConsumer func(*PolyfillUsageFinder_PolyfillUsage)) {
-	sc := NewSyntacticScopeCreator(f.compiler)
-	NodeTraversal_Builder_().
-		SetCompiler(f.compiler).
-		SetCallback(newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ONLY_GUARDED)).
-		SetScopeCreator(sc).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler:     f.compiler,
+		callback:     newPolyfillUsageFinder_Traverser(f, f.compiler, polyfillConsumer, polyfillUsageFinder_Guard_ONLY_GUARDED),
+		scopeCreator: NewSyntacticScopeCreator(f.compiler),
+	}.Traverse(root)
 }
 
 // polyfillUsageFinder_Guard is the private enum PolyfillUsageFinder.Guard.

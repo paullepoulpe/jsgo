@@ -100,9 +100,6 @@ func (k CheckNestedNames_DeclarationKind) Name() string {
 // String is Enum.toString().
 func (k CheckNestedNames_DeclarationKind) String() string { return k.Name() }
 
-// Ordinal is Enum.ordinal().
-func (k CheckNestedNames_DeclarationKind) Ordinal() int { return int(k) }
-
 func checkNestedNames_kindToReport(k CheckNestedNames_DeclarationKind) (string, bool) {
 	switch k {
 	case CheckNestedNames_DeclarationKind_CLASS:

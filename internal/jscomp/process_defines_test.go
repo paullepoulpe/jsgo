@@ -53,7 +53,7 @@ type ProcessDefinesTest struct {
 	enableJ2clPasses                   bool
 	enableDefineWithoutGoogDefineCheck bool
 
-	outputFeatureSet *parser.FeatureSet
+	outputFeatureSet parser.FeatureSet
 }
 
 // Java: ProcessDefinesTest()

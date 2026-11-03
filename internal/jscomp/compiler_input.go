@@ -488,11 +488,7 @@ type CompilerInput_DepsFinder struct {
 func (f *CompilerInput_DepsFinder) VisitTree(n rhino.Node) {
 	f.VisitSubtree(n, rhino.NilNode)
 	jutil.CheckArgument(n.IsScript())
-	var features *parser.FeatureSet
-	if p := n.GetProp(rhino.Node_FEATURE_SET); p != nil {
-		features = p.(*parser.FeatureSet)
-	}
-	if features != nil {
+	if features, ok := n.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet); ok && !features.IsZero() {
 		// Only add the "lang" load flag if it's not the default (es3), so that
 		// legacy deps files will remain unchanged (i.e. load flags omitted).
 		version := features.Version()
@@ -767,7 +763,7 @@ var compilerInput_ModuleType_names = [...]string{
 func (t CompilerInput_ModuleType) String() string { return compilerInput_ModuleType_names[t] }
 
 // Java: CompilerInput.getFeatures(AbstractCompiler)
-func (c *CompilerInput) GetFeatures(compiler AbstractCompiler) *parser.FeatureSet {
+func (c *CompilerInput) GetFeatures(compiler AbstractCompiler) parser.FeatureSet {
 	_ = c.ast.GetAstRoot(compiler) // parse if required
 	return c.ast.features
 }
@@ -787,7 +783,7 @@ type CompilerInput_JsAst struct {
 	// (non-static) inner class.
 	outer    *CompilerInput
 	root     rhino.Node
-	features *parser.FeatureSet
+	features parser.FeatureSet
 }
 
 // Java: CompilerInput.JsAst.getAstRoot(AbstractCompiler)
@@ -812,11 +808,7 @@ func (a *CompilerInput_JsAst) GetAstRoot(compiler AbstractCompiler) rhino.Node {
 
 func (a *CompilerInput_JsAst) installDeserializedRoot(root rhino.Node) {
 	a.root = root
-	if p := a.root.GetProp(rhino.Node_FEATURE_SET); p != nil {
-		a.features = p.(*parser.FeatureSet)
-	} else {
-		a.features = nil
-	}
+	a.features, _ = a.root.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
 }
 
 // Java: CompilerInput.JsAst.clearAst()

@@ -354,9 +354,9 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 	}
 }
 
-type entryVisitorFunc func(sourceName, symbolName *string, sourcePos, startPos, endPos *sourcemap.FilePosition)
+type entryVisitorFunc func(sourceName, symbolName *string, sourcePos, startPos, endPos sourcemap.FilePosition)
 
-func (f entryVisitorFunc) Visit(sourceName, symbolName *string, sourcePos, startPos, endPos *sourcemap.FilePosition) {
+func (f entryVisitorFunc) Visit(sourceName, symbolName *string, sourcePos, startPos, endPos sourcemap.FilePosition) {
 	f(sourceName, symbolName, sourcePos, startPos, endPos)
 }
 
@@ -366,7 +366,7 @@ func TestVisitMappings(t *testing.T) {
 
 	var symbols []string
 	consumer.VisitMappings(entryVisitorFunc(
-		func(sourceName, symbolName *string, sourcePos, startPos, endPos *sourcemap.FilePosition) {
+		func(sourceName, symbolName *string, sourcePos, startPos, endPos sourcemap.FilePosition) {
 			if symbolName != nil {
 				symbols = append(symbols, *symbolName)
 			}

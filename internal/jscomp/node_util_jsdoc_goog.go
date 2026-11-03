@@ -441,13 +441,10 @@ func NodeUtil_IsLegacyGoogModuleFile(n rhino.Node) bool {
 // or if the parser didn't detect any interesting features.
 //
 // Java: NodeUtil.getFeatureSetOfScript(Node)
-func NodeUtil_GetFeatureSetOfScript(scriptNode rhino.Node) *parser.FeatureSet {
+func NodeUtil_GetFeatureSetOfScript(scriptNode rhino.Node) parser.FeatureSet {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
-	prop := scriptNode.GetProp(rhino.Node_FEATURE_SET)
-	if prop == nil {
-		return nil
-	}
-	return prop.(*parser.FeatureSet)
+	fs, _ := scriptNode.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
+	return fs
 }
 
 // NodeUtil_AddFeatureToScript adds the given features to a SCRIPT node's
@@ -459,13 +456,10 @@ func NodeUtil_GetFeatureSetOfScript(scriptNode rhino.Node) *parser.FeatureSet {
 func NodeUtil_AddFeatureToScript(scriptNode rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
-	var newFeatures *parser.FeatureSet
-	if currentFeatures != nil {
-		newFeatures = currentFeatures.With(feature)
-	} else {
-		newFeatures = parser.FeatureSet_BARE_MINIMUM.With(feature)
+	newFeatures := currentFeatures.With(feature)
+	if newFeatures != currentFeatures {
+		scriptNode.PutProp(rhino.Node_FEATURE_SET, newFeatures)
 	}
-	scriptNode.PutProp(rhino.Node_FEATURE_SET, newFeatures)
 	if feature != parser.FeatureSet_Feature_MODULES {
 		// Except MODULES (which can get reintroduced later in ConvertChunksToEsModules pass),
 		// prohibit passes from reintroducing any feature that already got transpiled.
@@ -491,7 +485,7 @@ func NodeUtil_AddFeatureToScript(scriptNode rhino.Node, feature parser.FeatureSe
 // Java: NodeUtil.removeFeatureFromScript(Node, Feature)
 func NodeUtil_RemoveFeatureFromScript(scriptNode rhino.Node, feature parser.FeatureSet_Feature) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
-	if currentFeatures == nil {
+	if currentFeatures.IsZero() {
 		scriptNode.PutProp(rhino.Node_FEATURE_SET, nil)
 		return
 	}
@@ -512,9 +506,9 @@ func NodeUtil_RemoveFeatureFromScript(scriptNode rhino.Node, feature parser.Feat
 // script.
 //
 // Java: NodeUtil.removeFeaturesFromScript(Node, FeatureSet)
-func NodeUtil_RemoveFeaturesFromScript(scriptNode rhino.Node, featureSet *parser.FeatureSet) {
+func NodeUtil_RemoveFeaturesFromScript(scriptNode rhino.Node, featureSet parser.FeatureSet) {
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(scriptNode)
-	if currentFeatures != nil {
+	if !currentFeatures.IsZero() {
 		updated := currentFeatures.Without(featureSet)
 		if updated != currentFeatures {
 			scriptNode.PutProp(rhino.Node_FEATURE_SET, updated)
@@ -544,7 +538,7 @@ func NodeUtil_RemoveFeatureFromAllScripts(root rhino.Node, feature parser.Featur
 //
 // Java: NodeUtil.removeFeaturesFromAllScripts(Node, FeatureSet, AbstractCompiler)
 func NodeUtil_RemoveFeaturesFromAllScripts(
-	root rhino.Node, featureSet *parser.FeatureSet, compiler AbstractCompiler) {
+	root rhino.Node, featureSet parser.FeatureSet, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
 	for childNode := range root.Children() {
 		jutil.CheckState(childNode.IsScript())
@@ -571,7 +565,7 @@ func NodeUtil_AddFeatureToAllScripts(root rhino.Node, feature parser.FeatureSet_
 // Also updates the compiler's FeatureSet.
 //
 // Java: NodeUtil.addFeaturesToScript(Node, FeatureSet, AbstractCompiler)
-func NodeUtil_AddFeaturesToScript(scriptNode rhino.Node, features *parser.FeatureSet, compiler AbstractCompiler) {
+func NodeUtil_AddFeaturesToScript(scriptNode rhino.Node, features parser.FeatureSet, compiler AbstractCompiler) {
 	jutil.CheckStateMsg1(scriptNode.IsScript(), "%s", scriptNode)
 	for feature := range features.All() {
 		NodeUtil_AddFeatureToScript(scriptNode, feature, compiler)

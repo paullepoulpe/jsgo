@@ -69,7 +69,6 @@ type Parser struct {
 	functionContextStack []Parser_FunctionFlavor
 	functionContextBuf   [8]Parser_FunctionFlavor
 	featureBits          uint64
-	features             *FeatureSet
 	lastSourcePosition   SourcePosition
 	// Go-only: language-adapter — nil is Java null.
 	sourceMapURL *string
@@ -267,14 +266,8 @@ func (p *Parser) GetComments() []Comment {
 // GetFeatures returns the language features used by the source file.
 //
 // Java: Parser.getFeatures()
-func (p *Parser) GetFeatures() *FeatureSet {
-	if p.featureBits == 0 {
-		return FeatureSet_BARE_MINIMUM
-	}
-	if p.features == nil || p.features.bits != p.featureBits {
-		p.features = &FeatureSet{bits: p.featureBits}
-	}
-	return p.features
+func (p *Parser) GetFeatures() FeatureSet {
+	return FeatureSet{bits: p.featureBits | featureSetPresentBit}
 }
 
 // GetSourceMapURL returns the url provided by the sourceMappingURL if any

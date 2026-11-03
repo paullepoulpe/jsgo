@@ -74,8 +74,6 @@ func (d *DeadPropertyAssignmentElimination) Process(externs rhino.Node, root rhi
 	visitor := &dpaeFunctionVisitor{
 		traversal: dpaeTraversal{
 			skiplisted:  skiplisted,
-			thisID:      uint32(strpool.Intern("this")),
-			superID:     uint32(strpool.Intern("super")),
 			propertyMap: make(map[uint32]*deadProp, 32),
 		},
 	}
@@ -230,8 +228,6 @@ func (p *deadProp) addChild(child *deadProp, newlyCreated bool) {
 type dpaeTraversal struct {
 	// A set of property name IDs that are potentially unsafe to remove duplicate writes to.
 	skiplisted map[uint32]struct{}
-	thisID     uint32
-	superID    uint32
 
 	// A map of property name IDs to their nodes.
 	// Note: the references a.b and c.b assume that it's the same b,
@@ -312,10 +308,10 @@ func (f *dpaeTraversal) getOrCreateProperty(propNode rhino.Node) *deadProp {
 		prop, _ := f.propForID(id)
 		return prop
 	case rhino.Token_THIS:
-		prop, _ := f.propForID(f.thisID)
+		prop, _ := f.propForID(uint32(idThis))
 		return prop
 	case rhino.Token_SUPER:
-		prop, _ := f.propForID(f.superID)
+		prop, _ := f.propForID(uint32(idSuper))
 		return prop
 	default:
 		return nil
@@ -458,9 +454,9 @@ func (f *dpaeTraversal) visitAssignmentLhs(assign ast.Assignment) {
 		case rhino.Token_NAME:
 			childID = child.GetStringID()
 		case rhino.Token_THIS:
-			childID = f.thisID
+			childID = uint32(idThis)
 		case rhino.Token_SUPER:
-			childID = f.superID
+			childID = uint32(idSuper)
 		default:
 			return
 		}

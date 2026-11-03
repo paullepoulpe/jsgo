@@ -416,9 +416,9 @@ var TranspilationPasses_rewriteNullishCoalesceOperator = makeTranspilationPass(
 // be relied upon to check if a feature exists in the AST or not.
 //
 // Java: TranspilationPasses.doesScriptHaveAnyOfTheseFeatures(Node, FeatureSet)
-func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script rhino.Node, featureSet *parser.FeatureSet) bool {
+func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script rhino.Node, featureSet parser.FeatureSet) bool {
 	features := NodeUtil_GetFeatureSetOfScript(script)
-	return features != nil && features.ContainsAtLeastOneOf(featureSet)
+	return !features.IsZero() && features.ContainsAtLeastOneOf(featureSet)
 }
 
 // TranspilationPasses_ProcessTranspile runs the given transpilation callbacks
@@ -437,7 +437,7 @@ func TranspilationPasses_DoesScriptHaveAnyOfTheseFeatures(script rhino.Node, fea
 func TranspilationPasses_ProcessTranspile(
 	compiler AbstractCompiler,
 	combinedRoot rhino.Node,
-	featuresToRunFor *parser.FeatureSet,
+	featuresToRunFor parser.FeatureSet,
 	callbacks ...NodeTraversal_Callback) {
 	languageOutFeatures := compiler.GetOptions().GetOutputFeatureSet()
 	if languageOutFeatures.Contains(featuresToRunFor) {
@@ -477,7 +477,7 @@ func TranspilationPasses_MaybeMarkFeatureAsTranspiledAway(
 //
 // Java: TranspilationPasses.maybeMarkFeaturesAsTranspiledAway(AbstractCompiler, Node, FeatureSet)
 func TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(
-	compiler AbstractCompiler, root rhino.Node, transpiledFeatures *parser.FeatureSet) {
+	compiler AbstractCompiler, root rhino.Node, transpiledFeatures parser.FeatureSet) {
 	// We don't bother to do this if the compiler has halting errors, which avoids unnecessary
 	// warnings from AstValidator warning that the features are still there.
 	if !compiler.HasHaltingErrors() {
@@ -524,7 +524,7 @@ func TranspilationPasses_PostTranspileCheckUnsupportedFeaturesRemoved(compiler A
 //
 // Java: TranspilationPasses.createFeatureRemovalPass(String, FeatureSet)
 func TranspilationPasses_CreateFeatureRemovalPass(
-	passName string, featuresToRemove *parser.FeatureSet) *PassFactory {
+	passName string, featuresToRemove parser.FeatureSet) *PassFactory {
 	return makeTranspilationPass(passName, func(compiler AbstractCompiler) CompilerPass {
 		return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 			TranspilationPasses_MaybeMarkFeaturesAsTranspiledAway(compiler, root, featuresToRemove)

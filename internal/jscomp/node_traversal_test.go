@@ -100,9 +100,7 @@ func TestNodeTraversal_Report(t *testing.T) {
 	compiler.SetErrorManager(newNodeTraversalTest_ErrorManager(&errors))
 	compiler.InitCompilerOptionsIfTesting()
 
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
+	(NodeTraversal_Builder{compiler: compiler, callback: callback}).
 		Traverse(rhino.NewNode(rhino.Token_EMPTY))
 
 	if len(errors) != 1 {
@@ -135,7 +133,7 @@ func TestNodeTraversal_ReportWithRange(t *testing.T) {
 	code := "a.b.c;"
 	tree := scopeTestParse(t, compiler, code)
 
-	NodeTraversal_Builder_().SetCompiler(compiler).SetCallback(callback).Traverse(tree)
+	(NodeTraversal_Builder{compiler: compiler, callback: callback}).Traverse(tree)
 
 	if len(errors) != 1 {
 		t.Fatalf("got %d errors, want 1", len(errors))
@@ -158,7 +156,7 @@ func TestNodeTraversal_UnexpectedException(t *testing.T) {
 	code := "function foo() {}"
 	tree := scopeTestParse(t, compiler, code)
 	thrown := scopeTestCatch(func() {
-		NodeTraversal_Builder_().SetCompiler(compiler).SetCallbackFunc(cb).Traverse(tree)
+		(NodeTraversal_Builder{compiler: compiler, callback: cb}).Traverse(tree)
 	})
 	e, ok := thrown.(jutil.IRuntimeException)
 	if !ok {
@@ -332,10 +330,7 @@ func TestNodeTraversal_GetCurrentNode(t *testing.T) {
 	compiler := NewCompiler()
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `var a;
 function foo() {
@@ -369,10 +364,7 @@ func TestNodeTraversal_TraverseAtScopeWithBlockScope(t *testing.T) {
 	compiler := scopeTestNewCompiler(NewCompilerOptions())
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `function foo() {
   if (bar) {
@@ -400,10 +392,7 @@ func TestNodeTraversal_TraverseAtScopeWithForScope(t *testing.T) {
 	compiler := scopeTestNewCompiler(NewCompilerOptions())
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `function foo() {
   var b = [0];
@@ -435,10 +424,7 @@ func TestNodeTraversal_TraverseAtScopeWithSwitchScope(t *testing.T) {
 	compiler := scopeTestNewCompiler(NewCompilerOptions())
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `function foo() {
   var b = [0];
@@ -469,10 +455,7 @@ func TestNodeTraversal_TraverseAtScopeWithModuleScope(t *testing.T) {
 	compiler := scopeTestNewCompiler(NewCompilerOptions())
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `goog.module('example.module');
 
@@ -496,10 +479,7 @@ func TestNodeTraversal_TraverseAtScopeWithMemberFieldDefScope(t *testing.T) {
 	compiler.InitCompilerOptionsIfTesting()
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `class Foo {
   a = this.a;
@@ -537,10 +517,7 @@ func TestNodeTraversal_TraverseAtScopeWithComputedFieldDefScope(t *testing.T) {
 	compiler.InitCompilerOptionsIfTesting()
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := newNodeTraversalTest_ExpectNodeOnEnterScope(t)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `class Foo {
   x = 'hi';
@@ -580,10 +557,7 @@ func TestNodeTraversal_TraverseComputedFieldsInOrder(t *testing.T) {
 	compiler.InitCompilerOptionsIfTesting()
 	callback := &nodeTraversalTest_TokenAccumulator{}
 	creator := NewSyntacticScopeCreator(compiler)
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	code := `class Foo {
   [this.x] = true;
@@ -608,10 +582,7 @@ func TestNodeTraversal_GetVarAccessible(t *testing.T) {
 	compiler := scopeTestNewCompiler(NewCompilerOptions())
 	creator := NewSyntacticScopeCreator(compiler)
 	callback := &nodeTraversalTest_AccessibleCallback{t: t}
-	b := NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(callback).
-		SetScopeCreator(creator)
+	b := NodeTraversal_Builder{compiler: compiler, callback: callback, scopeCreator: creator}
 
 	// variables are hoisted to their enclosing scope
 	code := `var varDefinedInScript;

@@ -114,7 +114,7 @@ func (e CompilerOptions_BrowserFeaturesetYear) Ptr() *CompilerOptions_BrowserFea
 // Enum fields, indexed by ordinal (Java: BrowserFeaturesetYear(int, FeatureSet)).
 var compilerOptions_BrowserFeaturesetYear_year = [...]int{2012, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026}
 
-var compilerOptions_BrowserFeaturesetYear_featureSet = [...]*parser.FeatureSet{
+var compilerOptions_BrowserFeaturesetYear_featureSet = [...]parser.FeatureSet{
 	CompilerOptions_LanguageMode_ECMASCRIPT5_STRICT.ToFeatureSet(),
 	CompilerOptions_LanguageMode_ECMASCRIPT_2016.ToFeatureSet(),
 	parser.FeatureSet_BROWSER_2019,
@@ -154,7 +154,7 @@ func (e CompilerOptions_BrowserFeaturesetYear) SetDependentValuesFromYear(option
 }
 
 // Java: CompilerOptions.BrowserFeaturesetYear.getFeatureSet()
-func (e CompilerOptions_BrowserFeaturesetYear) GetFeatureSet() *parser.FeatureSet {
+func (e CompilerOptions_BrowserFeaturesetYear) GetFeatureSet() parser.FeatureSet {
 	return compilerOptions_BrowserFeaturesetYear_featureSet[e]
 }
 
@@ -648,7 +648,7 @@ func CompilerOptions_LanguageMode_FromString(value *string) *CompilerOptions_Lan
 }
 
 // Java: CompilerOptions.LanguageMode.toFeatureSet()
-func (e CompilerOptions_LanguageMode) ToFeatureSet() *parser.FeatureSet {
+func (e CompilerOptions_LanguageMode) ToFeatureSet() parser.FeatureSet {
 	switch e {
 	case CompilerOptions_LanguageMode_ECMASCRIPT3:
 		return parser.FeatureSet_ES3

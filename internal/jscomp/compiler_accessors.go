@@ -158,12 +158,12 @@ func (c *Compiler) GetRoot() rhino.Node {
 }
 
 // Java: Compiler.getAllowableFeatures()
-func (c *Compiler) GetAllowableFeatures() *parser.FeatureSet {
+func (c *Compiler) GetAllowableFeatures() parser.FeatureSet {
 	return c.allowableFeatures
 }
 
 // Java: Compiler.setAllowableFeatures(FeatureSet)
-func (c *Compiler) SetAllowableFeatures(allowableFeatures *parser.FeatureSet) {
+func (c *Compiler) SetAllowableFeatures(allowableFeatures parser.FeatureSet) {
 	if c.parallelRecorder != nil {
 		c.setWorkerAllowableFeatures(allowableFeatures)
 		return
@@ -180,7 +180,7 @@ func (c *Compiler) MarkFeatureNotAllowed(feature parser.FeatureSet_Feature) {
 }
 
 // Java: Compiler.markFeatureSetNotAllowed(FeatureSet)
-func (c *Compiler) MarkFeatureSetNotAllowed(featureSet *parser.FeatureSet) {
+func (c *Compiler) MarkFeatureSetNotAllowed(featureSet parser.FeatureSet) {
 	if c.parallelRecorder != nil {
 		panic(jutil.NewUnsupportedOperationExceptionMsg("MarkFeatureSetNotAllowed unsupported in parallel worker"))
 	}

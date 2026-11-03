@@ -182,9 +182,6 @@ func (s JSTypeReconserializer_State) Name() string { return jsTypeReconserialize
 // String is Enum.toString().
 func (s JSTypeReconserializer_State) String() string { return s.Name() }
 
-// Ordinal is Enum.ordinal().
-func (s JSTypeReconserializer_State) Ordinal() int { return int(s) }
-
 // Java: JSTypeReconserializer(JSTypeRegistry, InvalidatingTypes, StringPool.Builder, Predicate<String>, SerializationOptions)
 func newJSTypeReconserializer(
 	registry *rhino.JSTypeRegistry,
@@ -700,9 +697,9 @@ func (s *JSTypeReconserializer) CheckValidLinearTime() {
 	}
 }
 
-func (s *JSTypeReconserializer) collectSortedInvolvedPointers(types *jutil.ObjectLinkedHashSet[rhino.JSType]) []int32 {
-	involvedColors := make([]int32, 0, types.Size())
-	for t := range types.All() {
+func (s *JSTypeReconserializer) collectSortedInvolvedPointers(types []rhino.JSType) []int32 {
+	involvedColors := make([]int32, 0, len(types))
+	for _, t := range types {
 		jutil.CheckStateMsg1(!t.IsUnionType(), "%s", t)
 		// Ensure all types are recorded before reconciliation.
 		involvedColors = append(involvedColors, int32(s.SerializeType(t)))
@@ -730,7 +727,6 @@ func (s *JSTypeReconserializer) GenerateTypePool() *TypePool {
 		for location, types := range s.invalidatingTypes.
 			GetMismatchLocations().
 			Inverse().
-			AsMap().
 			All() {
 			mismatches = append(mismatches, &TypePool_DebugInfo_Mismatch{
 				sourceRef_:     location.GetLocation(),
@@ -830,7 +826,6 @@ func (s *JSTypeReconserializer) prepareForColorPool() {
 		for location, types := range s.invalidatingTypes.
 			GetMismatchLocations().
 			Inverse().
-			AsMap().
 			All() {
 			s.debugMismatches = append(s.debugMismatches, jsTypeDebugMismatch{
 				sourceRef:        location.GetLocation(),

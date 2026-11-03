@@ -183,7 +183,7 @@ func (r *RewriteDynamicImports) Process(externs rhino.Node, root rhino.Node) {
 func (r *RewriteDynamicImports) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		fs := NodeUtil_GetFeatureSetOfScript(n)
-		return fs == nil || fs.ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
+		return fs.IsZero() || fs.ContainsFeature(parser.FeatureSet_Feature_DYNAMIC_IMPORT)
 	}
 	return true
 }
@@ -667,9 +667,9 @@ func (f *ForbidDynamicImportUsage) ShouldTraverse(t *NodeTraversal, n rhino.Node
 }
 
 // Java: ForbidDynamicImportUsage.getFeatureSetOfScript(Node)
-func (f *ForbidDynamicImportUsage) GetFeatureSetOfScript(n rhino.Node) *parser.FeatureSet {
+func (f *ForbidDynamicImportUsage) GetFeatureSetOfScript(n rhino.Node) parser.FeatureSet {
 	featureSet := NodeUtil_GetFeatureSetOfScript(n)
-	if featureSet == nil {
+	if featureSet.IsZero() {
 		return parser.FeatureSet_BARE_MINIMUM
 	}
 	return featureSet

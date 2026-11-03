@@ -260,11 +260,11 @@ func scopeDumpTraversalFlags(t *NodeTraversal) string {
 }
 
 func (d *scopeDumper) traversal(compiler AbstractCompiler, root rhino.Node, obey, verbose bool) {
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetCallback(&scopeDumpRecorder{d: d, verbose: verbose, scoped: verbose}).
-		SetObeyDestructuringAndDefaultValueExecutionOrder(obey).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler: compiler,
+		callback: &scopeDumpRecorder{d: d, verbose: verbose, scoped: verbose},
+		obeyDestructuringAndDefaultValueExecutionOrder: obey,
+	}.Traverse(root)
 }
 
 // scopeDumpFunctions is ScopeDump.functions.
@@ -319,22 +319,22 @@ func (c *scopeDumpScopeCollector) Visit(t *NodeTraversal, n rhino.Node, parent r
 func (d *scopeDumper) atScope(compiler AbstractCompiler, root rhino.Node) {
 	creator := NewMemoizedScopeCreator(NewSyntacticScopeCreator(compiler))
 	collector := &scopeDumpScopeCollector{}
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetScopeCreator(creator).
-		SetCallback(collector).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler:     compiler,
+		scopeCreator: creator,
+		callback:     collector,
+	}.Traverse(root)
 	for _, s := range collector.fnScopes {
 		if scopeDumpSize(s.GetRootNode()) > 64 {
 			continue
 		}
 		d.line("A " + scopeDumpNode(s.GetRootNode()))
 		jutil.Try(func() {
-			NodeTraversal_Builder_().
-				SetCompiler(compiler).
-				SetCallback(&scopeDumpRecorder{d: d, verbose: false, scoped: true}).
-				SetScopeCreator(creator).
-				TraverseAtScope(s)
+			NodeTraversal_Builder{
+				compiler:     compiler,
+				callback:     &scopeDumpRecorder{d: d, verbose: false, scoped: true},
+				scopeCreator: creator,
+			}.TraverseAtScope(s)
 		}, func(e jutil.Throwable) { d.line("# exception " + scopeDumpExc(e)) })
 	}
 }
@@ -367,11 +367,11 @@ func (p *scopeDumpScopePrinter) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 func (d *scopeDumper) scopes(compiler AbstractCompiler, root rhino.Node) {
 	creator := NewSyntacticScopeCreatorWithTreatProvidesAsRedeclarations(
 		compiler, &scopeDumpRedeclarationHandler{d: d}, true)
-	NodeTraversal_Builder_().
-		SetCompiler(compiler).
-		SetScopeCreator(creator).
-		SetCallback(&scopeDumpScopePrinter{d: d}).
-		Traverse(root)
+	NodeTraversal_Builder{
+		compiler:     compiler,
+		scopeCreator: creator,
+		callback:     &scopeDumpScopePrinter{d: d},
+	}.Traverse(root)
 }
 
 // scopeDumpScopeRoot is ScopeDump.scopeRoot.

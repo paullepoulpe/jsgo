@@ -27,15 +27,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
-)
-
-var (
-	foldIDDefineProperties = uint32(strpool.Intern("defineProperties"))
-	foldIDString           = uint32(strpool.Intern("String"))
-	foldIDLength           = uint32(strpool.Intern("length"))
-	foldIDNaN              = uint32(strpool.Intern("NaN"))
-	foldIDObject           = uint32(strpool.Intern("Object"))
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
@@ -208,18 +199,8 @@ func (p *PeepholeFoldConstants) TryFoldBinaryOperator(subtree rhino.Node) rhino.
 		return p.TryFoldGetElem(subtree)
 	case rhino.Token_ASSIGN:
 		return p.TryFoldAssign(subtree)
-	case rhino.Token_ASSIGN_BITOR,
-		rhino.Token_ASSIGN_BITXOR,
-		rhino.Token_ASSIGN_BITAND,
-		rhino.Token_ASSIGN_LSH,
-		rhino.Token_ASSIGN_RSH,
-		rhino.Token_ASSIGN_URSH,
-		rhino.Token_ASSIGN_ADD,
-		rhino.Token_ASSIGN_SUB,
-		rhino.Token_ASSIGN_MUL,
-		rhino.Token_ASSIGN_DIV,
-		rhino.Token_ASSIGN_MOD,
-		rhino.Token_ASSIGN_EXPONENT:
+	}
+	if _, ok := ast.AsAssignOp(subtree); ok && !NodeUtil_IsLogicalAssignmentOp(subtree) {
 		return p.TryUnfoldAssignOp(subtree)
 	}
 
@@ -272,29 +253,23 @@ func (p *PeepholeFoldConstants) TryReduceVoid(n rhino.Node) rhino.Node {
 
 // Java: PeepholeFoldConstants.tryReduceOperandsForOp(Node)
 func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n rhino.Node) {
-	switch n.GetToken() {
+	switch token := n.GetToken(); token {
 	case rhino.Token_ADD:
 		add := ast.MustBinary(n)
 		if !NodeUtil_MayBeStringWithUseType(add.Left().Node(), p.shouldUseTypes) &&
 			!NodeUtil_MayBeStringWithUseType(add.Right().Node(), p.shouldUseTypes) {
 			p.TryConvertOperandsToNumber(n)
 		}
-	case rhino.Token_ASSIGN_BITOR,
-		rhino.Token_ASSIGN_BITXOR,
-		rhino.Token_ASSIGN_BITAND,
-		rhino.Token_ASSIGN_LSH,
-		rhino.Token_ASSIGN_RSH,
-		rhino.Token_ASSIGN_URSH,
-		rhino.Token_ASSIGN_SUB,
-		rhino.Token_ASSIGN_MUL,
-		rhino.Token_ASSIGN_MOD,
-		rhino.Token_ASSIGN_DIV:
-		assignOp := ast.MustAssignOp(n)
-		// TODO(johnlenz): convert these to integers.
-		p.TryConvertToNumber(assignOp.Value().Node())
 	case rhino.Token_BITNOT, rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_URSH, rhino.Token_SUB, rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_POS, rhino.Token_NEG, rhino.Token_EXPONENT:
 		p.TryConvertOperandsToNumber(n)
 	default:
+		if assignOp, ok := ast.AsAssignOp(n); ok &&
+			!NodeUtil_IsLogicalAssignmentOp(n) &&
+			token != rhino.Token_ASSIGN_ADD &&
+			token != rhino.Token_ASSIGN_EXPONENT {
+			// TODO(johnlenz): convert these to integers.
+			p.TryConvertToNumber(assignOp.Value().Node())
+		}
 	}
 }
 
@@ -381,7 +356,7 @@ func (p *PeepholeFoldConstants) TryFoldTypeof(originalTypeofNode rhino.Node) rhi
 	case rhino.Token_NAME:
 		// We assume here that programs don't change the value of the
 		// keyword undefined to something other than the value undefined.
-		if argumentNode.Node().GetStringID() == nodeUtilIDUndefined {
+		if nodeStringID(argumentNode.Node()) == idUndefined {
 			typeNameString = "undefined"
 		}
 	default:
@@ -425,7 +400,7 @@ func (p *PeepholeFoldConstants) TryFoldInstanceof(n rhino.Node, left rhino.Node,
 			if !p.MayHaveSideEffects(left) {
 				replacementNode = rhino.IR_FalseNode()
 			}
-		} else if right.IsName() && right.GetStringID() == foldIDObject {
+		} else if right.IsName() && nodeStringID(right) == idObject {
 			replacementNode = rhino.IR_TrueNode()
 		}
 

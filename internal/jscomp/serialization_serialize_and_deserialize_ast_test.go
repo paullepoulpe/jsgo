@@ -990,7 +990,7 @@ func (c *SerializeAndDeserializeAstTest) assertFeatureSetsOfScriptsMatch(oldRoot
 		oldFeatureSet := featureSetsOfOldScripts.Get(sourceFile)
 		newFeatureSet := featureSetsOfNewScripts.Get(sourceFile)
 		jutil.CheckStateMsg3(
-			jutil.ObjectsEquals(oldFeatureSet, newFeatureSet),
+			oldFeatureSet == newFeatureSet,
 			"Feature sets of scripts do not match for file %s. Old: %s, New: %s",
 			sourceFile.GetName(),
 			oldFeatureSet,
@@ -999,8 +999,8 @@ func (c *SerializeAndDeserializeAstTest) assertFeatureSetsOfScriptsMatch(oldRoot
 }
 
 // Java: SerializeAndDeserializeAstTest.getFeatureSetsOfScripts(Node)
-func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node) *jutil.LinkedHashMap[*SourceFile, *parser.FeatureSet] {
-	builder := jutil.NewImmutableMapBuilder[*SourceFile, *parser.FeatureSet]()
+func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node) *jutil.LinkedHashMap[*SourceFile, parser.FeatureSet] {
+	builder := jutil.NewImmutableMapBuilder[*SourceFile, parser.FeatureSet]()
 	externsRoot := root.GetFirstChild()
 	sourceRoot := root.GetSecondChild()
 	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
@@ -1020,8 +1020,8 @@ func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node
 // (FeatureSet) script.getProp(Node.FEATURE_SET), null included.
 //
 // Go-only: language-adapter — a Go type assertion panics on a nil interface.
-func serializeAndDeserializeAstTest_featureSet(script rhino.Node) *parser.FeatureSet {
-	featureSet, _ := script.GetProp(rhino.Node_FEATURE_SET).(*parser.FeatureSet)
+func serializeAndDeserializeAstTest_featureSet(script rhino.Node) parser.FeatureSet {
+	featureSet, _ := script.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
 	return featureSet
 }
 

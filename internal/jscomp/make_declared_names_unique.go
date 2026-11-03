@@ -28,8 +28,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-var makeDeclaredNamesUniqueArgumentsID = strpool.Intern(MakeDeclaredNamesUnique_ARGUMENTS)
-
 // MakeDeclaredNamesUnique finds all Functions, VARs, and Exception names
 // and make them unique. Specifically, it will not modify object properties.
 type MakeDeclaredNamesUnique struct {

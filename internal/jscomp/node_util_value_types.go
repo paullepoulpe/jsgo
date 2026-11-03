@@ -51,9 +51,6 @@ func (t NodeUtil_ValueType) Name() string { return nodeUtil_ValueType_names[t] }
 // Java: NodeUtil.ValueType.toString()
 func (t NodeUtil_ValueType) String() string { return nodeUtil_ValueType_names[t] }
 
-// Java: NodeUtil.ValueType.ordinal()
-func (t NodeUtil_ValueType) Ordinal() int { return int(t) }
-
 // NodeUtil_GetKnownValueType evaluates a node's token and attempts to
 // determine which primitive value type it could resolve to. Without proper
 // type information some assumptions had to be made for operations that could

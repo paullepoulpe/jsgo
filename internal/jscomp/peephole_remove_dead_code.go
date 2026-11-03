@@ -144,7 +144,7 @@ func (p *PeepholeRemoveDeadCode) TryRemoveDefaultValue(n rhino.Node) rhino.Node 
 	removeVal := false
 
 	// If the default is `undefined` always remove the value
-	if name, ok := val.AsName(); ok && name.Node().GetStringID() == nodeUtilIDUndefined {
+	if name, ok := val.AsName(); ok && nodeStringID(name.Node()) == idUndefined {
 		removeVal = true
 	}
 
@@ -217,6 +217,20 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeNameDeclaration(subtree rhino.Node) 
 	return subtree
 }
 
+func peepholeIsSideEffectingExprOp(tok rhino.Token) bool {
+	switch tok {
+	case rhino.Token_INC,
+		rhino.Token_DEC,
+		rhino.Token_DELPROP,
+		rhino.Token_YIELD,
+		rhino.Token_AWAIT,
+		rhino.Token_DYNAMIC_IMPORT:
+		return true
+	default:
+		return false
+	}
+}
+
 // TryFoldExpr tries folding EXPR_RESULT nodes by removing useless Ops and
 // expressions.
 //
@@ -227,17 +241,10 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree rhino.Node) rhino.Node {
 	stmt, ok := ast.AsExprStmt(subtree)
 	jutil.CheckState(ok)
 	expr := stmt.Expr().Node()
-	if _, ok := ast.AsAssignment(expr); ok {
+	if _, ok := ast.AsAssignment(expr); ok || peepholeIsSideEffectingExprOp(expr.GetToken()) {
 		return subtree
 	}
 	switch expr.GetToken() {
-	case rhino.Token_INC,
-		rhino.Token_DEC,
-		rhino.Token_DELPROP,
-		rhino.Token_YIELD,
-		rhino.Token_AWAIT,
-		rhino.Token_DYNAMIC_IMPORT:
-		return subtree
 	case rhino.Token_CALL, rhino.Token_NEW, rhino.Token_TAGGED_TEMPLATELIT:
 		if p.NodeTypeMayHaveSideEffects(expr) {
 			return subtree
