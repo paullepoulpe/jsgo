@@ -184,7 +184,9 @@ func (p *PolymerPass) rewritePolymer2ClassDefinition(node rhino.Node, traversal 
 		p.propertySinkExternInjected = rewriter.propertySinkExternInjected
 
 		// Support Polymer implicit property edge cases by just @exporting all non-private properties.
-		polymerPass_exportTsickleProps(def.definition, *def.target.GetQualifiedName())
+		if targetQName, ok := def.target.GetQualifiedNameString(); ok {
+			polymerPass_exportTsickleProps(def.definition, targetQName)
+		}
 	}
 }
 

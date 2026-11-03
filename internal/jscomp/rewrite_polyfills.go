@@ -35,15 +35,15 @@ import (
 // TODO(b/120486392): consider merging this pass with InjectRuntimeLibraries
 // and InjectTranspilationRuntimeLibraries.
 type RewritePolyfills struct {
-	compiler            AbstractCompiler
-	runtimeJsLibManager *RuntimeJsLibManager
-	polyfills           *PolyfillUsageFinder_Polyfills
-	injectPolyfills     bool
-	isolatePolyfills    bool
-	libraries           OrderedSet[string]
-	// Go-only: language-adapter — a nullable LanguageMode: nil is null.
-	injectPolyfillsNewerThan *CompilerOptions_LanguageMode
-	disambiguateProperties   bool
+	compiler                    AbstractCompiler
+	runtimeJsLibManager         *RuntimeJsLibManager
+	polyfills                   *PolyfillUsageFinder_Polyfills
+	libraries                   OrderedSet[string]
+	injectPolyfillsNewerThan    CompilerOptions_LanguageMode
+	hasInjectPolyfillsNewerThan bool
+	injectPolyfills             bool
+	isolatePolyfills            bool
+	disambiguateProperties      bool
 }
 
 // Java: RewritePolyfills.INSUFFICIENT_OUTPUT_VERSION_ERROR
@@ -66,13 +66,19 @@ func NewRewritePolyfills(
 	isolatePolyfills bool,
 	injectPolyfillsNewerThan *CompilerOptions_LanguageMode,
 	disambiguateProperties bool) *RewritePolyfills {
+	var newerThan CompilerOptions_LanguageMode
+	hasNewerThan := injectPolyfillsNewerThan != nil
+	if hasNewerThan {
+		newerThan = *injectPolyfillsNewerThan
+	}
 	return NewRewritePolyfillsWithRuntimeJsLibManager(
 		compiler,
 		compiler.GetRuntimeJsLibManager(),
 		defaultPolyfillsTable(),
 		injectPolyfills,
 		isolatePolyfills,
-		injectPolyfillsNewerThan,
+		newerThan,
+		hasNewerThan,
 		disambiguateProperties)
 }
 
@@ -87,17 +93,19 @@ func NewRewritePolyfillsWithRuntimeJsLibManager(
 	polyfills *PolyfillUsageFinder_Polyfills,
 	injectPolyfills bool,
 	isolatePolyfills bool,
-	injectPolyfillsNewerThan *CompilerOptions_LanguageMode,
+	injectPolyfillsNewerThan CompilerOptions_LanguageMode,
+	hasInjectPolyfillsNewerThan bool,
 	disambiguateProperties bool) *RewritePolyfills {
-	r := &RewritePolyfills{}
-	r.compiler = compiler
-	r.runtimeJsLibManager = runtimeJsLibManager
-	r.polyfills = polyfills
-	r.injectPolyfills = injectPolyfills
-	r.isolatePolyfills = isolatePolyfills
-	r.injectPolyfillsNewerThan = injectPolyfillsNewerThan
-	r.disambiguateProperties = disambiguateProperties
-	return r
+	return &RewritePolyfills{
+		compiler:                    compiler,
+		runtimeJsLibManager:         runtimeJsLibManager,
+		polyfills:                   polyfills,
+		injectPolyfills:             injectPolyfills,
+		isolatePolyfills:            isolatePolyfills,
+		injectPolyfillsNewerThan:    injectPolyfillsNewerThan,
+		hasInjectPolyfillsNewerThan: hasInjectPolyfillsNewerThan,
+		disambiguateProperties:      disambiguateProperties,
+	}
 }
 
 // Java: RewritePolyfills.process(Node, Node)
@@ -114,7 +122,7 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 		r.compiler.ReportChangeToEnclosingScope(jscompLookupMethodDecl)
 	}
 
-	if !r.injectPolyfills && r.injectPolyfillsNewerThan == nil {
+	if !r.injectPolyfills && !r.hasInjectPolyfillsNewerThan {
 		// Nothing left to do. Probably this pass only needed to run because --isolate_polyfills is
 		// enabled but not --rewrite_polyfills.
 		return
@@ -126,9 +134,9 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 	}
 
 	var librariesToInject []string
-	if r.injectPolyfillsNewerThan != nil {
+	if r.hasInjectPolyfillsNewerThan {
 		polyfillsToInject :=
-			r.polyfills.GetPolyfillsNewerThan(*r.injectPolyfillsNewerThan)
+			r.polyfills.GetPolyfillsNewerThan(r.injectPolyfillsNewerThan)
 		librariesToInject = make([]string, 0, len(polyfillsToInject))
 		for _, p := range polyfillsToInject {
 			// Skip polyfills that have no associated library. This is true for language
@@ -143,7 +151,7 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 		librariesToInject = r.libraries.ToSlice()
 	}
 
-	r.InjectAll(librariesToInject /* forceInjection= */, r.injectPolyfillsNewerThan != nil)
+	r.InjectAll(librariesToInject /* forceInjection= */, r.hasInjectPolyfillsNewerThan)
 }
 
 // Java: RewritePolyfills.injectAll(Iterable<String>, boolean)

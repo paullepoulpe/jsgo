@@ -22,11 +22,10 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func linkedHashSetSize(s *jutil.LinkedHashSet[string]) int {
+func orderedSetSize(s *OrderedSet[string]) int {
 	if s == nil {
 		return 0
 	}
@@ -39,11 +38,11 @@ func linkedHashSetSize(s *jutil.LinkedHashSet[string]) int {
 func (f *FunctionInjector) CanInlineReferenceToFunction(
 	ref *FunctionInjector_Reference,
 	fnNode rhino.Node,
-	needAliases *jutil.LinkedHashSet[string],
+	needAliases *OrderedSet[string],
 	referencesThis bool,
 	containsClosures bool) FunctionInjector_CanInlineResult {
 	return f.canInlineReference(
-		ref, fnNode, linkedHashSetSize(needAliases), referencesThis, containsClosures, nil)
+		ref, fnNode, orderedSetSize(needAliases), referencesThis, containsClosures, nil)
 }
 
 // FunctionInjectorTest: inline function tests.

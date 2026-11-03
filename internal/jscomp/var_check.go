@@ -30,6 +30,8 @@ import (
 // var references that cross chunk boundaries respect declared chunk
 // dependencies.
 type VarCheck struct {
+	NodeTraversal_AbstractScopedCallbackBase
+
 	// Vars that were referenced in the externs without being declared in externs, even if they were
 	// defined in code. These will be declared at the end of this pass.
 	varsToDeclareInExterns OrderedSet[string]
@@ -206,7 +208,6 @@ var varCheckVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*VarCheck) nodeTraversalNoShouldTraverse()                   {}
 func (*VarCheck) onlyNameLeaves()                                  {}
 func (*VarCheck) visitTokens() *ast.TokenSet                       { return &varCheckVisitTokens }
 func (*VarCheck_NameRefInExternsCheck) visitTokens() *ast.TokenSet { return &varCheckVisitTokens }
@@ -215,11 +216,6 @@ var (
 	_ nodeTraversal_visitTokens = (*VarCheck)(nil)
 	_ nodeTraversal_visitTokens = (*VarCheck_NameRefInExternsCheck)(nil)
 )
-
-// Java: VarCheck.shouldTraverse(NodeTraversal, Node, Node)
-func (v *VarCheck) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	return true
-}
 
 // Java: VarCheck.visit(NodeTraversal, Node, Node)
 func (v *VarCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
@@ -354,9 +350,6 @@ func (v *VarCheck) HandleUndeclaredVariableRef(t *NodeTraversal, n rhino.Node) {
 		v.CreateSynthesizedExternVar(varName, true /* isFromUndefinedCodeRef */)
 	}
 }
-
-// Java: VarCheck.enterScope(NodeTraversal)
-func (v *VarCheck) EnterScope(t *NodeTraversal) {}
 
 // Java: VarCheck.exitScope(NodeTraversal)
 func (v *VarCheck) ExitScope(t *NodeTraversal) {

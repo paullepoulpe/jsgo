@@ -39,8 +39,8 @@ type TestPoint struct {
 
 type testPoint3 struct {
 	TestPoint
-	Z int32                               `gson:"z"`
-	M *jutil.LinkedHashMap[string, int32] `gson:"m"`
+	Z int32                            `gson:"z"`
+	M *jutil.OrderedMap[string, int32] `gson:"m"`
 }
 
 type testHolder struct {
@@ -59,7 +59,7 @@ func newTestPoint() *TestPoint {
 }
 
 func newTestPoint3() *testPoint3 {
-	p := &testPoint3{Z: 9, M: jutil.NewLinkedHashMap[string, int32]()}
+	p := &testPoint3{Z: 9, M: jutil.NewOrderedMap[string, int32]()}
 	p.TestPoint = TestPoint{X: 1, Name: "p<q>", T: 5, List: []int32{1, 2}, D: 0.5, C: 'c', B: true, L: 1 << 40}
 	p.Me = p
 	p.M.Put("k", 1)
@@ -68,19 +68,19 @@ func newTestPoint3() *testPoint3 {
 
 func testCases() map[string]any {
 	str := func(s string) *string { return &s }
-	m := jutil.NewLinkedHashMap[string, any]()
+	m := jutil.NewOrderedMap[string, any]()
 	m.Put("a", int32(1))
 	m.Put("b", nil)
 	m.Put("c", []int32{1, 2})
 	m.Put("d", "<")
-	mi := jutil.NewLinkedHashMap[int32, string]()
+	mi := jutil.NewOrderedMap[int32, string]()
 	mi.Put(3, "x")
 	mi.Put(1, "y")
-	mn := jutil.NewLinkedHashMap[*string, int32]()
+	mn := jutil.NewOrderedMap[*string, int32]()
 	mn.Put(nil, 1)
-	me := jutil.NewLinkedHashMap[testColor, int32]()
+	me := jutil.NewOrderedMap[testColor, int32]()
 	me.Put(testColor_RED, 1)
-	ableMap := jutil.NewLinkedHashMap[string, int32]()
+	ableMap := jutil.NewOrderedMap[string, int32]()
 	ableMap.Put("a", 1)
 	o := jutil.NewJsonObject()
 	o.Add("a", jutil.NewJsonPrimitiveNumber(jutil.NewLazilyParsedNumber("1")))
@@ -89,9 +89,9 @@ func testCases() map[string]any {
 	arr.Add(jutil.JsonNull_INSTANCE)
 	o.Add("b", arr)
 	o.Add("c", jutil.NewJsonPrimitiveString("<x>"))
-	inner := jutil.NewLinkedHashMap[string, any]()
-	inner.Put("x", []any{jutil.NewLinkedHashMap[string, any]()})
-	tm := jutil.NewLinkedHashMap[string, int32]()
+	inner := jutil.NewOrderedMap[string, any]()
+	inner.Put("x", []any{jutil.NewOrderedMap[string, any]()})
+	tm := jutil.NewOrderedMap[string, int32]()
 	tm.Put("a", 2)
 	tm.Put("b", 1)
 	multimap := newTestMultimap()
@@ -148,7 +148,7 @@ func testCases() map[string]any {
 		"jsonTree":        o,
 		"nested":          []any{inner},
 		"treeMap":         tm,
-		"linkedHashSet":   jutil.NewLinkedHashSet("b", "a"),
+		"linkedHashSet":   jutil.NewOrderedSet("b", "a"),
 		"arrayList":       []int32{3, 1},
 		"multimap":        multimap,
 		"holderMultimap":  &testHolder{Value: multimap2},

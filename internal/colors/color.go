@@ -396,7 +396,10 @@ func Color_CreateUnionSliceWithBuilder(
 
 	prevTrust := builder.trustUnique
 	builder.trustUnique = true
-	res := builder.
+	defer func() {
+		builder.trustUnique = prevTrust
+	}()
+	return builder.
 		ClearBoxId().
 		SetClosureAssert(isClosureAssert).
 		SetConstructor(isConstructor).
@@ -408,8 +411,6 @@ func Color_CreateUnionSliceWithBuilder(
 		SetPrototypes(prototypes).
 		SetUnionElements(newElements).
 		BuildUnion()
-	builder.trustUnique = prevTrust
-	return res
 }
 
 // newColor constructs a Color from validated Color_Builder fields.

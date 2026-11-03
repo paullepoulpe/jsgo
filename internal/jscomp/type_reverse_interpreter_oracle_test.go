@@ -316,12 +316,12 @@ var (
 // raiCase is the state of one case: the blind scope's slots and their
 // declaration order.
 type raiCase struct {
-	slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]
+	slots *OrderedStringMap[rhino.StaticTypedSlot]
 	decls strings.Builder
 }
 
 func newRaiCase() *raiCase {
-	return &raiCase{slots: jutil.NewLinkedHashMap[string, rhino.StaticTypedSlot]()}
+	return &raiCase{slots: NewOrderedStringMap[rhino.StaticTypedSlot]()}
 }
 
 func (c *raiCase) declare(name string, t rhino.JSType) {

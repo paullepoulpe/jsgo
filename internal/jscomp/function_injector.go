@@ -54,17 +54,18 @@ type FunctionInjector struct {
 	fnInfoCache map[rhino.Node]functionInjectorFnInfo
 }
 
+const (
+	fnInnerUnknown uint8 = iota
+	fnInnerNone
+	fnInnerOne
+	fnInnerMultiple
+)
+
 type functionInjectorFnInfo struct {
-	inner     rhino.Node
-	evalState uint8
+	inner      rhino.Node
+	evalState  uint8
+	innerState uint8
 }
-
-// Sentinel value indicating that the key contains no functions.
-var FunctionInjector_NO_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
-
-// Sentinel value indicating that the key contains multiple distinct
-// functions.
-var FunctionInjector_MULTIPLE_FUNCTIONS = rhino.NewNode(rhino.Token_FUNCTION)
 
 // FunctionInjectorOptions configures a FunctionInjector.
 type FunctionInjectorOptions struct {

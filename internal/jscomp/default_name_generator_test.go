@@ -26,7 +26,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-var defaultNameGeneratorTest_RESERVED_NAMES = jutil.NewLinkedHashSet("ba", "xba")
+var defaultNameGeneratorTest_RESERVED_NAMES = NewOrderedSet("ba", "xba")
 
 func noChars(chars ...byte) ASCIICharSet { return NewASCIICharSet(chars...) }
 
@@ -44,7 +44,7 @@ func generateNames(t *testing.T, ng NameGenerator, prefix string, num int) []str
 
 func TestDefaultNameGenerator_NameGeneratorInvalidPrefixes(t *testing.T) {
 	ex := assertThrows[jutil.IIllegalArgumentException](t, func() {
-		NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "123abc", noChars())
+		NewDefaultNameGeneratorWithReservedChars(NewOrderedSet[string](), "123abc", noChars())
 	})
 	// The error messages should contain meaningful information.
 	if !strings.Contains(ex.GetMessage(), "W, X, Y, Z, $]") {
@@ -52,7 +52,7 @@ func TestDefaultNameGenerator_NameGeneratorInvalidPrefixes(t *testing.T) {
 	}
 
 	ex = assertThrows[jutil.IIllegalArgumentException](t, func() {
-		NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "abc%", noChars())
+		NewDefaultNameGeneratorWithReservedChars(NewOrderedSet[string](), "abc%", noChars())
 	})
 	if !strings.Contains(ex.GetMessage(), "W, X, Y, Z, _, 0, 1") {
 		t.Errorf("message %q", ex.GetMessage())
@@ -191,8 +191,8 @@ func TestDefaultNameGenerator_DeterministicNameGeneration(t *testing.T) {
 	reservedChars1 := NewASCIICharSet('a', 'b', 'c')
 	reservedChars2 := NewASCIICharSet('c', 'b', 'a')
 
-	ng1 := NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "", reservedChars1)
-	ng2 := NewDefaultNameGeneratorWithReservedChars(jutil.NewLinkedHashSet[string](), "", reservedChars2)
+	ng1 := NewDefaultNameGeneratorWithReservedChars(NewOrderedSet[string](), "", reservedChars1)
+	ng2 := NewDefaultNameGeneratorWithReservedChars(NewOrderedSet[string](), "", reservedChars2)
 
 	result1 := generateNames(t, ng1, "", 10)
 	result2 := generateNames(t, ng2, "", 10)
@@ -201,8 +201,8 @@ func TestDefaultNameGenerator_DeterministicNameGeneration(t *testing.T) {
 		t.Errorf("reserved characters: %v != %v", result1, result2)
 	}
 
-	reservedNames1 := jutil.NewLinkedHashSet("a", "b", "c")
-	reservedNames2 := jutil.NewLinkedHashSet("c", "b", "a")
+	reservedNames1 := NewOrderedSet("a", "b", "c")
+	reservedNames2 := NewOrderedSet("c", "b", "a")
 
 	ng1 = NewDefaultNameGeneratorWithReservedChars(reservedNames1, "", ASCIICharSet{})
 	ng2 = NewDefaultNameGeneratorWithReservedChars(reservedNames2, "", ASCIICharSet{})

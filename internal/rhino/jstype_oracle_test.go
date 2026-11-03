@@ -49,7 +49,7 @@ type typeAlgebraDump struct {
 	tKey       *TemplateType
 	partialMap *TemplateTypeMap
 	totalMap   *TemplateTypeMap
-	inferMap   *jutil.LinkedHashMap[*TemplateType, JSType]
+	inferMap   *jutil.OrderedMap[*TemplateType, JSType]
 	// asts maps a type string to the serialized AST the Java dump printed.
 	asts map[string]string
 }
@@ -202,7 +202,7 @@ func (r *typeAlgebraTestReporter) Error(message string, sourceName string, line 
 
 type typeAlgebraTestScope struct {
 	root  Node
-	slots *jutil.LinkedHashMap[string, *SimpleSlotBase]
+	slots *jutil.OrderedMap[string, *SimpleSlotBase]
 }
 
 func (s *typeAlgebraTestScope) GetRootNode() Node { return s.root }
@@ -236,13 +236,13 @@ func (s *typeAlgebraTestScope) LookupQualifiedName(qname QualifiedName) JSType {
 func newTypeAlgebraDump(asts map[string]string) *typeAlgebraDump {
 	d := &typeAlgebraDump{
 		out: &strings.Builder{}, seed: 0x5DEECE66D, asts: asts,
-		inferMap: jutil.NewLinkedHashMap[*TemplateType, JSType](),
+		inferMap: jutil.NewOrderedMap[*TemplateType, JSType](),
 	}
 	d.registry = NewJSTypeRegistryWithForwardDeclaredTypes(
-		&typeAlgebraTestReporter{sb: d.out}, jutil.NewLinkedHashSet("Forwarded"))
+		&typeAlgebraTestReporter{sb: d.out}, jutil.NewOrderedSet("Forwarded"))
 	d.scope = &typeAlgebraTestScope{
 		root:  NewNode(Token_ROOT),
-		slots: jutil.NewLinkedHashMap[string, *SimpleSlotBase](),
+		slots: jutil.NewOrderedMap[string, *SimpleSlotBase](),
 	}
 	return d
 }
@@ -409,8 +409,8 @@ func (d *typeAlgebraDump) parsed(typeString string, s StaticTypedScope) JSType {
 	return d.registry.CreateTypeFromCommentNodeWithScope(n, "src.js", s)
 }
 
-func taPropertyTypeMap(o ObjectType) *jutil.LinkedHashMap[string, JSType] {
-	propTypeMap := jutil.NewLinkedHashMap[string, JSType]()
+func taPropertyTypeMap(o ObjectType) *jutil.OrderedMap[string, JSType] {
+	propTypeMap := jutil.NewOrderedMap[string, JSType]()
 	if fn, ok := o.(FunctionType); ok {
 		var cacheBuf [8]FunctionType
 		taUpdateFnPropertyTypeMap(fn, propTypeMap, cacheBuf[:0])
@@ -425,7 +425,7 @@ func taPropertyTypeMap(o ObjectType) *jutil.LinkedHashMap[string, JSType] {
 	return propTypeMap
 }
 
-func taUpdateFnPropertyTypeMap(type_ FunctionType, propTypeMap *jutil.LinkedHashMap[string, JSType], cache []FunctionType) {
+func taUpdateFnPropertyTypeMap(type_ FunctionType, propTypeMap *jutil.OrderedMap[string, JSType], cache []FunctionType) {
 	if type_ == nil {
 		return
 	}
@@ -445,8 +445,8 @@ func taUpdateFnPropertyTypeMap(type_ FunctionType, propTypeMap *jutil.LinkedHash
 	}
 }
 
-func taRecord(keysAndValues ...any) *jutil.LinkedHashMap[string, JSType] {
-	m := jutil.NewLinkedHashMap[string, JSType]()
+func taRecord(keysAndValues ...any) *jutil.OrderedMap[string, JSType] {
+	m := jutil.NewOrderedMap[string, JSType]()
 	for i := 0; i < len(keysAndValues); i += 2 {
 		m.Put(keysAndValues[i].(string), keysAndValues[i+1].(JSType))
 	}
@@ -602,7 +602,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("{bar:number}", registry.CreateRecordType(taRecord("bar", number)))
 	d.add("{r:{a:number},f:...}", registry.CreateRecordType(
 		taRecord("r", recA, "f", JSType(registry.CreateFunctionType(number, string_)))))
-	rMany := jutil.NewLinkedHashMap[string, JSType]()
+	rMany := jutil.NewOrderedMap[string, JSType]()
 	for i := 0; i < 12; i++ {
 		if i%2 == 0 {
 			rMany.Put("p"+string(rune('a'+i)), number)
@@ -760,7 +760,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("Array<Array<string>>", registry.CreateTemplatizedType(array, registry.CreateTemplatizedType(array, string_)))
 	uKey := taAdd(d, "U extends number", registry.CreateTemplateTypeWithBound("U", number))
 	d.add("Box<T>", registry.CreateTemplatizedType(box, tKey))
-	tmap := jutil.NewLinkedHashMap[*TemplateType, JSType]()
+	tmap := jutil.NewOrderedMap[*TemplateType, JSType]()
 	tmap.Put(tKey, bool_)
 	d.add("Box<boolean>(map)", registry.CreateTemplatizedTypeOfMap(box, tmap))
 	replacer := TemplateTypeReplacer_ForInference(registry, tmap)

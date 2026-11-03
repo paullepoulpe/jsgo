@@ -46,7 +46,7 @@ type rucPropEntry struct {
 type removeUnusedCodeState struct {
 	worklist fifoQueue[RemoveUnusedCode_Continuation]
 
-	// Java: varInfoMap (LinkedHashMap<Var, VarInfo>, where Var equality is
+	// Java: varInfoMap (insertion-ordered Map<Var, VarInfo>, where Var equality is
 	// (scope root, name)). varByKey indexes VarInfos by scopedVarKey and
 	// varInfos preserves insertion order.
 	varByKey map[scopedVarKey]*RemoveUnusedCode_RealVarInfo

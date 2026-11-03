@@ -158,9 +158,9 @@ func (b *TypedScopeCreator_scopeBuilder) InitializeModuleScope(moduleBody rhino.
 			b.GetModule(),
 			b.currentScope,
 			b.outer.compiler.GetInput(NodeUtil_GetInputId(moduleBody)))
-		for key, value := range unresolvedImports.All() {
+		for _, entry := range unresolvedImports.Entries() {
 			b.outer.weakImports = append(b.outer.weakImports,
-				NewTypedScopeCreator_WeakModuleImport(b.outer, key, value, b.currentScope))
+				NewTypedScopeCreator_WeakModuleImport(b.outer, entry.Key, entry.Value, b.currentScope))
 		}
 	default:
 		// This should have been a build-breaking DUPLICATE_NAMESPACE_AND_MODULE error in

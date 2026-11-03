@@ -100,7 +100,7 @@ func (s ASCIICharSet) Ptr() *ASCIICharSet {
 }
 
 // stringMapSet adapts a plain Go map[string]struct{} to jutil.Set[string]
-// without LinkedHashSet entry/order slice overhead.
+// without ordered-set entry/order slice overhead.
 type stringMapSet map[string]struct{}
 
 func (s stringMapSet) Size() int              { return len(s) }

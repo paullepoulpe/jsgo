@@ -680,7 +680,7 @@ function bar() {
 
 func TestNodeTraversal_TraverseEs6ScopeRoots_parentScopesWork(t *testing.T) {
 	compiler := NewCompiler()
-	callback := &nodeTraversalTest_LexicallyScopedVarsAccumulator{varNames: jutil.NewLinkedHashSet[string]()}
+	callback := &nodeTraversalTest_LexicallyScopedVarsAccumulator{varNames: NewOrderedSet[string]()}
 
 	code := `var varDefinedInScript;
 var foo = function() {
@@ -739,7 +739,7 @@ func TestNodeTraversal_NodeTraversalInterruptable(t *testing.T) {
 // to collect all the vars from current scope and its parent scopes.
 type nodeTraversalTest_LexicallyScopedVarsAccumulator struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	varNames *jutil.LinkedHashSet[string]
+	varNames *OrderedSet[string]
 }
 
 func (a *nodeTraversalTest_LexicallyScopedVarsAccumulator) Visit(t *NodeTraversal, n, parent rhino.Node) {
@@ -915,5 +915,53 @@ func TestNodeTraversal_CanonicalTraverseEntryPoints(t *testing.T) {
 		compiler, cb, NewSyntacticScopeCreator(compiler).CreateScope(scopeRoot, nil))
 	if !slices.Equal(visited, []rhino.Node{externs, root, scopeRoot}) {
 		t.Errorf("traverseAtScope visited %v, want [externs root scopeRoot]", visited)
+	}
+}
+
+func TestNodeTraversal_ClassComputedMembersCurrentNode(t *testing.T) {
+	compiler := NewCompiler()
+	tree := scopeTestParse(t, compiler, "class C { [a]() {} [b] = 1; }")
+
+	sawComputedProp := false
+	sawComputedField := false
+	sawComputedFieldScope := false
+	cb := &nodeTraversalTestScopedCallback{
+		nodeTraversalTestCallback: nodeTraversalTestCallback{
+			shouldTraverse: func(nt *NodeTraversal, n, parent rhino.Node) bool {
+				if n.IsComputedProp() || n.IsComputedFieldDef() {
+					if nt.GetCurrentNode() != n {
+						t.Errorf("ShouldTraverse(%v): GetCurrentNode() = %v, want %v", n.GetToken(), nt.GetCurrentNode(), n)
+					}
+				}
+				return true
+			},
+			visit: func(nt *NodeTraversal, n, parent rhino.Node) {
+				if n.IsComputedProp() {
+					sawComputedProp = true
+					if nt.GetCurrentNode() != n {
+						t.Errorf("Visit(COMPUTED_PROP): GetCurrentNode() = %v, want %v", nt.GetCurrentNode(), n)
+					}
+				} else if n.IsComputedFieldDef() {
+					sawComputedField = true
+					if nt.GetCurrentNode() != n {
+						t.Errorf("Visit(COMPUTED_FIELD_DEF): GetCurrentNode() = %v, want %v", nt.GetCurrentNode(), n)
+					}
+				}
+			},
+		},
+		enterScope: func(nt *NodeTraversal) {
+			if nt.GetScopeRoot().IsComputedFieldDef() {
+				sawComputedFieldScope = true
+				if nt.GetCurrentNode() != nt.GetScopeRoot() {
+					t.Errorf("EnterScope(COMPUTED_FIELD_DEF): GetCurrentNode() = %v, want %v", nt.GetCurrentNode(), nt.GetScopeRoot())
+				}
+			}
+		},
+	}
+
+	NodeTraversal_Traverse(compiler, tree, cb)
+	if !sawComputedProp || !sawComputedField || !sawComputedFieldScope {
+		t.Fatalf("sawComputedProp=%v sawComputedField=%v sawComputedFieldScope=%v, want all true",
+			sawComputedProp, sawComputedField, sawComputedFieldScope)
 	}
 }

@@ -28,6 +28,8 @@ import (
 // statements are only expected for functions with return type information.
 // Functions with empty bodies are ignored.
 type CheckMissingReturn struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+	NodeTraversal_AbstractPreOrderCallbackBase
 	cfgScopeStack
 
 	compiler        AbstractCompiler
@@ -163,19 +165,6 @@ func (c *CheckMissingReturn) FastAllPathsReturnCheck(cfg *ControlFlowGraph[rhino
 	}
 	return true
 }
-
-// Java: CheckMissingReturn.shouldTraverse(NodeTraversal, Node, Node)
-func (c *CheckMissingReturn) ShouldTraverse(
-	nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	return true
-}
-
-// Java: CheckMissingReturn.visit(NodeTraversal, Node, Node)
-func (c *CheckMissingReturn) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-}
-
-func (*CheckMissingReturn) nodeTraversalNoVisit()          {}
-func (*CheckMissingReturn) nodeTraversalNoShouldTraverse() {}
 
 // GetExplicitReturnTypeIfExpected determines if the given scope should
 // explicitly return. All functions with non-void or non-unknown return types

@@ -19,11 +19,7 @@
 
 package jscomp
 
-import (
-	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "testing"
 
 type InjectTranspilationRuntimeLibrariesTest struct {
 	// Go-only: test-helper — the Go test running the current test method.
@@ -65,7 +61,7 @@ func (c *InjectTranspilationRuntimeLibrariesTest) Setup() {
 // Returns the set of paths to all the injected libraries.
 //
 // Java: InjectTranspilationRuntimeLibrariesTest.parseAndRunInjectionPass(String)
-func (c *InjectTranspilationRuntimeLibrariesTest) ParseAndRunInjectionPass(js string) *jutil.LinkedHashSet[string] {
+func (c *InjectTranspilationRuntimeLibrariesTest) ParseAndRunInjectionPass(js string) *OrderedSet[string] {
 	options := NewCompilerOptions()
 	options.SetLanguageOut(c.languageOut)
 	options.SetInstrumentAsyncContext(c.instrumentAsyncContext)
@@ -79,7 +75,7 @@ func (c *InjectTranspilationRuntimeLibrariesTest) ParseAndRunInjectionPass(js st
 	NewInjectTranspilationRuntimeLibraries(c.compiler).
 		Process(c.compiler.GetExternsRoot(), c.compiler.GetJsRoot())
 
-	return jutil.NewLinkedHashSet(c.compiler.GetRuntimeJsLibManager().GetInjectedLibraries()...)
+	return NewOrderedSet(c.compiler.GetRuntimeJsLibManager().GetInjectedLibraries()...)
 }
 
 // Java: InjectTranspilationRuntimeLibrariesTest.testEmptyInjected()
@@ -176,9 +172,9 @@ func (c *InjectTranspilationRuntimeLibrariesTest) TestInjectRuntimeLibraries_for
 	compiler.Parse()
 
 	pass :=
-		NewInjectRuntimeLibraries(compiler, jutil.NewLinkedHashSet("es6/util/makeiterator"))
+		NewInjectRuntimeLibraries(compiler, NewOrderedSet("es6/util/makeiterator"))
 	pass.Process(compiler.GetExternsRoot(), compiler.GetJsRoot())
 
-	AssertThat(jutil.NewLinkedHashSet(compiler.GetRuntimeJsLibManager().GetInjectedLibraries()...)).
+	AssertThat(NewOrderedSet(compiler.GetRuntimeJsLibManager().GetInjectedLibraries()...)).
 		Contains("es6/util/makeiterator")
 }

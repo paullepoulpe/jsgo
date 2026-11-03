@@ -320,9 +320,6 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 	// both separate result flow scopes individually, but if they both refined the same slot, we
 	// can join the two refinements.  TODO(sdh): look into simplifying this.  If joining were
 	// more efficient, we should just be able to join the scopes unconditionally?
-	defer func() {
-		s.activeTrackers = s.activeTrackers[:0]
-	}()
 	var inlineParents [8]*sraiRefinementTracker
 	var savedParents []*sraiRefinementTracker
 	if n := len(s.activeTrackers); n > 0 {
@@ -333,6 +330,9 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 		}
 		copy(savedParents, s.activeTrackers)
 	}
+	defer func() {
+		s.activeTrackers = append(s.activeTrackers[:0], savedParents...)
+	}()
 	var tracker sraiRefinementTracker
 	s.activeTrackers = append(s.activeTrackers, &tracker)
 
@@ -367,7 +367,6 @@ func (s *SemanticReverseAbstractInterpreter) CaseAndOrMaybeShortCircuiting(
 		return blindScope
 	}
 	type_ := leftType.GetLeastSupertype(rightType)
-	s.activeTrackers = s.activeTrackers[:0]
 	return blindScope.InferSlotType(leftName, type_)
 }
 

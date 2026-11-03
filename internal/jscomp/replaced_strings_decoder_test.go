@@ -20,8 +20,6 @@ package jscomp
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func verifyDecoder(t *testing.T, original, replacement string) {
@@ -32,7 +30,7 @@ func verifyDecoder(t *testing.T, original, replacement string) {
 func verifyDecoderWithArgs(t *testing.T, original, replacement, args string) {
 	t.Helper()
 	encoding := "Xy" // an arbitrary encoding for the test
-	m := jutil.NewLinkedHashMap[string, string]()
+	m := NewOrderedStringMap[string]()
 	m.Put(encoding, replacement)
 	variableMap := VariableMap_FromMap(m)
 	decoder := NewReplacedStringsDecoder(variableMap)

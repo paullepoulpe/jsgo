@@ -164,7 +164,7 @@ func conformanceAllowlisterTest_testConformanceAllowlister(
 	}
 
 	var errors []conformanceAllowlisterTest_entry
-	keys := jutil.NewLinkedHashSet[string]()
+	keys := NewOrderedSet[string]()
 	for node := range ConformanceAllowlister_GetViolatingNodes(
 		compiler, compiler.GetExternsRoot(), compiler.GetJsRoot(), config).All() {
 		file := *node.GetSourceFileName()
@@ -189,8 +189,8 @@ func conformanceAllowlisterTest_testConformanceAllowlister(
 //
 // Java: ConformanceAllowlister.getViolatingPaths(Compiler, Node, Node, Requirement)
 func ConformanceAllowlister_GetViolatingPaths(
-	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *jutil.LinkedHashSet[string] {
-	result := jutil.NewLinkedHashSet[string]()
+	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *OrderedSet[string] {
+	result := NewOrderedSet[string]()
 	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
 		result.Add(*jutil.CheckNotNull(e.SourceName()))
 	}
@@ -203,8 +203,8 @@ func ConformanceAllowlister_GetViolatingPaths(
 //
 // Java: ConformanceAllowlister.getViolatingNodes(Compiler, Node, Node, Requirement)
 func ConformanceAllowlister_GetViolatingNodes(
-	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *jutil.LinkedHashSet[rhino.Node] {
-	result := jutil.NewLinkedHashSet[rhino.Node]()
+	compiler *Compiler, externs rhino.Node, ast rhino.Node, requirement *Requirement) *OrderedSet[rhino.Node] {
+	result := NewOrderedSet[rhino.Node]()
 	for _, e := range ConformanceAllowlister_GetConformanceErrors(compiler, externs, ast, requirement) {
 		result.Add(rhino.CheckNotNull(e.Node()))
 	}

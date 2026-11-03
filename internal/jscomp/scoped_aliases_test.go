@@ -56,7 +56,9 @@ func (c *ScopedAliasesTest) SetUp() {
 	c.EnableRunTypeCheckAfterProcessing()
 	c.EnableCreateModuleMap()
 	c.invalidModuleGetHandling = ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME
-	c.SetGenericNameReplacements(jutil.NewImmutableMapBuilder[string, string]().Put("SCOPED_ALIASES", "jscomp$scopedAliases$").BuildOrThrow())
+	replacements := NewOrderedStringMap[string]()
+	replacements.Put("SCOPED_ALIASES", "jscomp$scopedAliases$")
+	c.SetGenericNameReplacements(replacements)
 }
 
 // Java: ScopedAliasesTest.testScoped(String, String, Postcondition...)

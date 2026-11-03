@@ -241,7 +241,7 @@ func (c *transpileAndOptimizeClosureUnaware_CollectShadowAsts) Visit(t *NodeTrav
 		t.GetInput().GetSourceFile(), newTranspileAndOptimizeClosureUnaware_ShadowAst(shadow, callNode, shadow.GetOnlyChild()))
 }
 
-// Java: TranspileAndOptimizeClosureUnaware.initShadowInputs(NestedCompilerRunner, LinkedHashMultimap<SourceFile, ShadowAst>)
+// Java: TranspileAndOptimizeClosureUnaware.initShadowInputs(NestedCompilerRunner, Multimap<SourceFile, ShadowAst>)
 func (p *TranspileAndOptimizeClosureUnaware) initShadowInputs(
 	shadowCompiler *NestedCompilerRunner,
 	groups []shadowFileGroup) {
@@ -257,7 +257,7 @@ func (p *TranspileAndOptimizeClosureUnaware) initShadowInputs(
 // previously detached for compilation, to their associated ROOT nodes from
 // the main AST.
 //
-// Java: TranspileAndOptimizeClosureUnaware.reattachShadowNodes(LinkedHashMultimap<SourceFile, ShadowAst>)
+// Java: TranspileAndOptimizeClosureUnaware.reattachShadowNodes(Multimap<SourceFile, ShadowAst>)
 func (p *TranspileAndOptimizeClosureUnaware) reattachShadowNodes(
 	inputs []*transpileAndOptimizeClosureUnaware_ShadowAst) {
 	for _, shadowAst := range inputs {

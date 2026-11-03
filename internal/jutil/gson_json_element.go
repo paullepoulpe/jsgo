@@ -128,7 +128,7 @@ func jsonElementToString(e JsonElement) string {
 // JsonObject is com.google.gson.JsonObject: members in insertion order (a
 // LinkedTreeMap in Gson; re-adding a member keeps its position).
 type JsonObject struct {
-	members *LinkedHashMap[string, JsonElement]
+	members OrderedMap[string, JsonElement]
 }
 
 func (*JsonObject) isJsonElement() {}
@@ -137,7 +137,7 @@ func (*JsonObject) isJsonElement() {}
 //
 // Java: JsonObject()
 func NewJsonObject() *JsonObject {
-	return &JsonObject{members: NewLinkedHashMap[string, JsonElement]()}
+	return &JsonObject{}
 }
 
 func (*JsonObject) IsJsonArray() bool     { return false }
@@ -208,8 +208,8 @@ func (o *JsonObject) AddPropertyString(property string, value *string) {
 // EntrySet iterates the members in insertion order.
 //
 // Java: JsonObject.entrySet()
-func (o *JsonObject) EntrySet() *LinkedHashMap[string, JsonElement] {
-	return o.members
+func (o *JsonObject) EntrySet() *OrderedMap[string, JsonElement] {
+	return &o.members
 }
 
 // Size is the number of members.
@@ -241,14 +241,14 @@ func (o *JsonObject) Equals(other any) bool {
 		return true
 	}
 	if x, ok := other.(*JsonObject); ok && x != nil {
-		return jsonObject_membersEqual(x.members, o.members)
+		return jsonObject_membersEqual(&x.members, &o.members)
 	}
 	return false
 }
 
 // jsonObject_membersEqual is LinkedTreeMap.equals (Map.equals): the same
 // keys, each mapped to equal values.
-func jsonObject_membersEqual(a, b *LinkedHashMap[string, JsonElement]) bool {
+func jsonObject_membersEqual(a, b *OrderedMap[string, JsonElement]) bool {
 	if a.Size() != b.Size() {
 		return false
 	}

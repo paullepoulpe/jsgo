@@ -431,7 +431,7 @@ func (g *LinkedDirectedGraph[N, E]) GetNodeCount() int {
 
 // Java: LinkedDirectedGraph.getNeighborNodes(N)
 func (g *LinkedDirectedGraph[N, E]) GetNeighborNodes(value N) []*LinkedDiGraphNode[N, E] {
-	node := g.Nodes.Get(value)
+	node := g.getLinkedNodeOrFail(value)
 	inEdges := node.InEdgeList.Slice()
 	outEdges := node.OutEdgeList.Slice()
 	result := make([]*LinkedDiGraphNode[N, E], 0, len(inEdges)+len(outEdges))

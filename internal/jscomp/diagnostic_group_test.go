@@ -80,13 +80,13 @@ func TestDiagnosticGroup_ValueCopyEquality(t *testing.T) {
 
 	jsaEq(t, jutil.ObjectHashCode(orig), jutil.ObjectHashCode(&copied))
 
-	set := jutil.NewLinkedHashSet(orig)
+	set := NewOrderedSet(orig)
 	jsaTrue(t, set.Contains(orig))
 	jsaFalse(t, set.Contains(other))
 
-	m1 := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m1 := NewOrderedStringMap[*DiagnosticGroup]()
 	m1.Put("g", orig)
-	m2 := jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+	m2 := NewOrderedStringMap[*DiagnosticGroup]()
 	m2.Put("g", &copied)
 	jsaTrue(t, m1.Equals(m2))
 	jsaEq(t, m1.HashCode(), m2.HashCode())

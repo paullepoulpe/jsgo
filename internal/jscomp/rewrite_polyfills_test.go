@@ -29,20 +29,19 @@ import (
 
 type RewritePolyfillsTest struct {
 	CompilerTestCaseBase
-	injectableLibraries      *jutil.LinkedHashMap[string, string]
-	injectBeforePass         *jutil.LinkedHashSet[string]
-	polyfillTable            []string
-	isolatePolyfills         bool
-	injectPolyfills          bool
-	injectPolyfillsNewerThan *CompilerOptions_LanguageMode
-	disambiguateProperties   bool
+	injectableLibraries         OrderedStringMap[string]
+	injectBeforePass            OrderedSet[string]
+	polyfillTable               []string
+	injectPolyfillsNewerThan    CompilerOptions_LanguageMode
+	hasInjectPolyfillsNewerThan bool
+	isolatePolyfills            bool
+	injectPolyfills             bool
+	disambiguateProperties      bool
 }
 
 // Java: RewritePolyfillsTest()
 func NewRewritePolyfillsTest() *RewritePolyfillsTest {
 	c := &RewritePolyfillsTest{}
-	c.injectableLibraries = jutil.NewLinkedHashMap[string, string]()
-	c.injectBeforePass = jutil.NewLinkedHashSet[string]()
 	c.isolatePolyfills = false
 	c.injectPolyfills = true
 	c.InitCompilerTestCaseBase(c)
@@ -87,7 +86,7 @@ func (c *RewritePolyfillsTest) SetUp() {
 	c.injectableLibraries.Clear()
 	c.injectBeforePass.Clear()
 	c.polyfillTable = c.polyfillTable[:0]
-	c.injectPolyfillsNewerThan = nil
+	c.hasInjectPolyfillsNewerThan = false
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
 	c.disambiguateProperties = false
 }
@@ -101,6 +100,7 @@ func (c *RewritePolyfillsTest) GetProcessor(compiler *Compiler) CompilerPass {
 		c.injectPolyfills,
 		c.isolatePolyfills,
 		c.injectPolyfillsNewerThan,
+		c.hasInjectPolyfillsNewerThan,
 		c.disambiguateProperties)
 }
 
@@ -615,7 +615,7 @@ func (c *RewritePolyfillsTest) TestNoCodeChangesIfInjectionDisabled() {
 
 // Java: RewritePolyfillsTest.testForceInject_es5_addsES6AndES8()
 func (c *RewritePolyfillsTest) TestForceInject_es5_addsES6AndES8() {
-	c.injectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT5.Ptr()
+	c.injectPolyfillsNewerThan, c.hasInjectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT5, true
 	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
 	c.AddLibrary("Object.values", "es8", "es3", jutil.StringPtr("es6/object/values"))
 
@@ -624,7 +624,7 @@ func (c *RewritePolyfillsTest) TestForceInject_es5_addsES6AndES8() {
 
 // Java: RewritePolyfillsTest.testForceInject_es2015_addsES8Polyfill()
 func (c *RewritePolyfillsTest) TestForceInject_es2015_addsES8Polyfill() {
-	c.injectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT5.Ptr()
+	c.injectPolyfillsNewerThan, c.hasInjectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT5, true
 	c.AddLibrary("Object.values", "es8", "es3", jutil.StringPtr("es6/object/values"))
 
 	c.TestInjects("", "es6/object/values")
@@ -632,7 +632,7 @@ func (c *RewritePolyfillsTest) TestForceInject_es2015_addsES8Polyfill() {
 
 // Java: RewritePolyfillsTest.testForceInject_es2015_skipsEs2015Polyfills()
 func (c *RewritePolyfillsTest) TestForceInject_es2015_skipsEs2015Polyfills() {
-	c.injectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT_2015.Ptr()
+	c.injectPolyfillsNewerThan, c.hasInjectPolyfillsNewerThan = CompilerOptions_LanguageMode_ECMASCRIPT_2015, true
 	c.AddLibrary("String.prototype.endsWith", "es6", "es5", jutil.StringPtr("es6/string/endswith"))
 
 	c.TestDoesNotInject("")

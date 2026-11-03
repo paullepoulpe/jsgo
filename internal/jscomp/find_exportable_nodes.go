@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -86,79 +87,87 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		}
 	}
 
-	mode := findExportableNodes_Mode_null
-	var export *string = nil
-	var context rhino.Node = rhino.NilNode
+	var mode FindExportableNodes_Mode
+	var export string
+	hasExport := false
+	var context rhino.Node
 
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION, rhino.Token_CLASS:
 		if parent.IsScript() {
-			export = NodeUtil_GetName(n)
-			context = n
-			mode = FindExportableNodes_Mode_EXPORT
+			if name, ok := NodeUtil_GetNameString(n); ok {
+				export = name
+				hasExport = true
+				context = n
+				mode = FindExportableNodes_Mode_EXPORT
+			}
 		}
 
 	case rhino.Token_ASSIGN:
+		assign := ast.MustAssign(n)
 		grandparent := parent.GetParent()
-		child := n.GetFirstChild()
-		if parent.IsExprResult() && !n.GetLastChild().IsAssign() {
-			if !grandparent.IsNil() && grandparent.IsScript() && child.IsQualifiedName() {
-				export = child.GetQualifiedName()
+		if parent.IsExprResult() && !assign.Value().Node().IsAssign() {
+			target := assign.Target()
+			if qname, ok := target.Node().GetQualifiedNameString(); ok && !grandparent.IsNil() && grandparent.IsScript() {
+				export = qname
+				hasExport = true
 				context = n
 				mode = FindExportableNodes_Mode_EXPORT
-			} else if f.allowLocalExports && child.IsGetProp() {
-				s := child.GetString()
-				export = &s
-				mode = FindExportableNodes_Mode_EXTERN
+			} else if f.allowLocalExports {
+				if gp, ok := target.AsGetProp(); ok {
+					export = gp.Property()
+					hasExport = true
+					mode = FindExportableNodes_Mode_EXTERN
+				}
 			}
 		}
 
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if parent.IsScript() {
-			if n.GetFirstChild().HasChildren() && !n.GetFirstFirstChild().IsAssign() {
-				s := n.GetFirstChild().GetString()
-				export = &s
-				context = n
-				mode = FindExportableNodes_Mode_EXPORT
+			if decl, ok := ast.MustNameDeclaration(n).FirstDeclarator(); ok {
+				declNode := decl.Node()
+				if declNode.HasChildren() && !declNode.GetFirstChild().IsAssign() {
+					export = declNode.GetString()
+					hasExport = true
+					context = n
+					mode = FindExportableNodes_Mode_EXPORT
+				}
 			}
 		}
 
 	case rhino.Token_GETPROP:
-		{
-			// TODO(b/63582201): currently, the IF body is executed even for code in the global
-			// scope, e.g., when the pass looks at code transpiled from ES6 that uses getters.
-			// This means that the top-level code we want to rewrite works by accident, only when
-			// allowLocalExports happens to be true.
-			if f.allowLocalExports && parent.IsExprResult() {
-				s := n.GetString()
-				export = &s
-				mode = FindExportableNodes_Mode_EXTERN
-			}
+		// TODO(b/63582201): currently, the IF body is executed even for code in the global
+		// scope, e.g., when the pass looks at code transpiled from ES6 that uses getters.
+		// This means that the top-level code we want to rewrite works by accident, only when
+		// allowLocalExports happens to be true.
+		if f.allowLocalExports && parent.IsExprResult() {
+			export = ast.MustGetProp(n).Property()
+			hasExport = true
+			mode = FindExportableNodes_Mode_EXTERN
 		}
 
 	case rhino.Token_MEMBER_FIELD_DEF:
 		if n.IsStaticMember() {
 			classNode := parent.GetParent()
-			className := NodeUtil_GetName(classNode)
-			if className == nil {
+			className, ok := NodeUtil_GetNameString(classNode)
+			if !ok {
 				t.Report(n, FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED)
 				return
 			}
-			s := *className + "." + n.GetString()
-			export = &s
+			export = className + "." + n.GetString()
+			hasExport = true
 			mode = FindExportableNodes_Mode_EXPORT
 			context = n
 		} else if f.allowLocalExports {
-			s := n.GetString()
-			export = &s
+			export = n.GetString()
+			hasExport = true
 			mode = FindExportableNodes_Mode_EXTERN
 		}
 
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		if parent.GetParent().IsClass() {
-			methodOwnerName :=
-				NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(parent.GetParent()))
-			if methodOwnerName == nil {
+			methodOwnerName, ok := nodeUtil_getBestLValueNameString(NodeUtil_GetBestLValue(parent.GetParent()))
+			if !ok {
 				t.Report(n, FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED)
 				return
 			}
@@ -166,29 +175,29 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 			if n.IsStaticMember() {
 				suffix = ""
 			}
-			f.es6ClassExports.Put(n, *methodOwnerName+suffix)
+			f.es6ClassExports.Put(n, methodOwnerName+suffix)
 			return
 		}
 		fallthrough
 
 	case rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		if f.allowLocalExports {
-			s := n.GetString()
-			export = &s
+			export = n.GetString()
+			hasExport = true
 			mode = FindExportableNodes_Mode_EXTERN
 		}
 	default:
 	}
 
-	if export != nil {
+	if hasExport {
 		if mode == FindExportableNodes_Mode_EXPORT {
 			rhino.CheckNotNull(context)
-			f.exports.Put(*export, context)
+			f.exports.Put(export, context)
 		} else {
 			jutil.CheckState(context.IsNil())
 			jutil.CheckState(mode == FindExportableNodes_Mode_EXTERN)
-			jutil.CheckState(!(*export == ""))
-			f.localExports.Add(*export)
+			jutil.CheckState(export != "")
+			f.localExports.Add(export)
 		}
 	} else if !(n.IsGetProp() && parent.IsExprResult()) {
 		// Silently ignore exports of the form:
@@ -229,11 +238,6 @@ const (
 	FindExportableNodes_Mode_EXPORT FindExportableNodes_Mode = iota
 	FindExportableNodes_Mode_EXTERN
 )
-
-// findExportableNodes_Mode_null stands for a null Mode variable.
-//
-// Go-only: language-adapter — Java null for an enum-typed local.
-const findExportableNodes_Mode_null FindExportableNodes_Mode = -1
 
 var findExportableNodes_Mode_names = [...]string{"EXPORT", "EXTERN"}
 

@@ -155,8 +155,8 @@ func TestDepsFileRegexParser_GoogModule(t *testing.T) {
 	depsFileRegexParserTest_assertDepsEqual(t, result, expected)
 }
 
-func depsFileRegexParserTest_mapOf(k string, v string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func depsFileRegexParserTest_mapOf(k string, v string) *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](1)
 	m.Put(k, v)
 	return m
 }

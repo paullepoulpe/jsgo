@@ -818,7 +818,7 @@ Foo.prototype.c=0;
 `
 	c.Test(js, output)
 
-	answerMap := jutil.NewLinkedHashMap[string, string]()
+	answerMap := NewOrderedStringMap[string]()
 	answerMap.Put("x", "b")
 	answerMap.Put("y", "c")
 	answerMap.Put("z", "a")

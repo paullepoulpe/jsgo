@@ -96,7 +96,7 @@ type NodeSubject struct {
 	*Subject
 	actual                  rhino.Node
 	serializer              func(rhino.Node) string
-	genericNameReplacements *jutil.LinkedHashMap[string, string]
+	genericNameReplacements *OrderedStringMap[string]
 }
 
 // NodeSubject_AssertNode is NodeSubject.assertNode(Node).
@@ -114,7 +114,7 @@ func AssertNode(node rhino.Node) *NodeSubject {
 
 // Java: NodeSubject(FailureMetadata, Node)
 func newNodeSubject(s *Subject, node rhino.Node) *NodeSubject {
-	return &NodeSubject{Subject: s, actual: node, genericNameReplacements: jutil.NewLinkedHashMap[string, string]()}
+	return &NodeSubject{Subject: s, actual: node}
 }
 
 // check is Subject.check(format, args): a subject for a property of the
@@ -140,8 +140,8 @@ func (s *NodeSubject) UsingSerializer(serializer func(rhino.Node) string) *NodeS
 }
 
 // Java: NodeSubject.withGenericNameReplacements(ImmutableMap<String, String>)
-func (s *NodeSubject) WithGenericNameReplacements(genericNameReplacements *jutil.LinkedHashMap[string, string]) *NodeSubject {
-	s.genericNameReplacements = genericNameReplacements
+func (s *NodeSubject) WithGenericNameReplacements(genericNameReplacements jutil.MapSource[string, string]) *NodeSubject {
+	s.genericNameReplacements = copyOrderedStringMap(genericNameReplacements)
 	return s
 }
 
@@ -309,9 +309,9 @@ func nodeSubject_maybeGetErrorPrefix(nodeDiffs []nodeSubject_NodeDiff, i int, ac
 
 // Java: NodeSubject.applyGenericNames(String)
 func (s *NodeSubject) applyGenericNames(input string) string {
-	for k, v := range s.genericNameReplacements.All() {
+	for _, e := range s.genericNameReplacements.Entries() {
 		// Replace the actual name with the generic name.
-		input = strings.ReplaceAll(input, k, v)
+		input = strings.ReplaceAll(input, e.Key, e.Value)
 	}
 	return input
 }

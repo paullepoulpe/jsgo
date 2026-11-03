@@ -159,7 +159,7 @@ type ColorPool struct {
 	shardViews []*ColorPool_ShardView
 }
 
-// Java: ColorPool(LinkedHashMap<ColorId, Color>, ColorRegistry, ImmutableList<ShardView>)
+// Java: ColorPool(Map<ColorId, Color>, ColorRegistry, ImmutableList<ShardView>)
 func newColorPool(
 	idToColor map[colors.ColorId]*colors.Color,
 	colorRegistry *colors.ColorRegistry,

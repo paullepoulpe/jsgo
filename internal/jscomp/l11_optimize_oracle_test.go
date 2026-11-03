@@ -151,7 +151,7 @@ func l11optPasses() []l11optPass {
 func l11optRenameVars(c *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 	options := c.GetOptions()
 	var reservedChars ASCIICharSet
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 	if options.GetRenamePrefixNamespace() != nil {
 		reservedNames.Add(*options.GetRenamePrefixNamespace())
 	}

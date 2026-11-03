@@ -57,7 +57,7 @@ func newReplaceMessagesDump_collector(compiler AbstractCompiler) *replaceMessage
 
 // replaceMessagesDump_bundle is ReplaceMessagesDump.Bundle.
 type replaceMessagesDump_bundle struct {
-	messages *jutil.LinkedHashMap[string, *JsMessage]
+	messages *OrderedStringMap[*JsMessage]
 }
 
 func (b *replaceMessagesDump_bundle) GetMessage(id string) *JsMessage {
@@ -74,11 +74,11 @@ func (b *replaceMessagesDump_bundle) IdGenerator() JsMessage_IdGenerator {
 
 // replaceMessagesDump_buildBundle is ReplaceMessagesDump.buildBundle.
 func replaceMessagesDump_buildBundle(found []*JsMessage) *replaceMessagesDump_bundle {
-	byId := jutil.NewLinkedHashMap[string, *JsMessage]()
+	byId := NewOrderedStringMap[*JsMessage]()
 	for _, m := range found {
 		byId.PutIfAbsent(m.GetId(), m)
 	}
-	bundle := &replaceMessagesDump_bundle{messages: jutil.NewLinkedHashMap[string, *JsMessage]()}
+	bundle := &replaceMessagesDump_bundle{messages: NewOrderedStringMap[*JsMessage]()}
 	i := 0
 	for m := range byId.Values() {
 		skip := i%4 == 3

@@ -21,8 +21,6 @@ package jscomp
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // GatherGetterAndSetterPropertiesTest holds tests for
@@ -443,6 +441,9 @@ func TestAccessorSummaryBitmaskAndProtoRoundTrip(t *testing.T) {
 // Go-only: test-helper.
 func gatherGetterAndSetterPropertiesTest_mapOf(
 	k1 string, v1 AccessorSummary_PropertyAccessKind,
-	k2 string, v2 AccessorSummary_PropertyAccessKind) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
-	return jutil.NewImmutableMapBuilder[string, AccessorSummary_PropertyAccessKind]().Put(k1, v1).Put(k2, v2).BuildOrThrow()
+	k2 string, v2 AccessorSummary_PropertyAccessKind) *OrderedStringMap[AccessorSummary_PropertyAccessKind] {
+	m := NewOrderedStringMapWithCapacity[AccessorSummary_PropertyAccessKind](2)
+	m.PutNew(k1, v1)
+	m.PutNew(k2, v2)
+	return m
 }

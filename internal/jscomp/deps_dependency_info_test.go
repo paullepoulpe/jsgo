@@ -26,7 +26,7 @@ import (
 
 func TestDependencyInfo_WriteAddDependency(t *testing.T) {
 	sb := jutil.NewStringWriter()
-	flags := jutil.NewLinkedHashMap[string, string]()
+	flags := NewOrderedStringMap[string]()
 	flags.Put("module", "goog")
 	flags.Put("lang", "es6")
 	DependencyInfo_Util_WriteAddDependency(

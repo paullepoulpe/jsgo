@@ -235,12 +235,12 @@ func TestJSTypeRegistry_CreateTypeFromCommentNode_usesGlobalTypeIfExists(t *test
 	s := newJsTypeRegistryTest(t)
 	// Create a global scope and a global type 'Foo'.
 	globalScope :=
-		s.createStaticTypedScope(IR_Root(), nil, jutil.NewLinkedHashMap[string, StaticTypedSlot](), jutil.NewLinkedHashSet[string]())
+		s.createStaticTypedScope(IR_Root(), nil, jutil.NewOrderedMap[string, StaticTypedSlot](), jutil.NewOrderedSet[string]())
 	s.registry.DeclareType(globalScope, "Foo", s.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 
 	// Create an empty child scope.
 	emptyLocalScope :=
-		s.createStaticTypedScope(IR_Block(), globalScope, jutil.NewLinkedHashMap[string, StaticTypedSlot](), jutil.NewLinkedHashSet[string]())
+		s.createStaticTypedScope(IR_Block(), globalScope, jutil.NewOrderedMap[string, StaticTypedSlot](), jutil.NewOrderedSet[string]())
 
 	// Looking up 'Foo' in the child scope resolves to the global type `Foo`, not a NamedType.
 	type_ :=
@@ -263,13 +263,13 @@ func TestJSTypeRegistry_CreateTypeFromCommentNode_createsNamedTypeIfLocalShadows
 	// Create a global scope and a global type 'Foo'.
 	unknownType := s.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 	globalScope :=
-		s.createStaticTypedScope(IR_Root(), nil, jutil.NewLinkedHashMap[string, StaticTypedSlot](), jutil.NewLinkedHashSet[string]())
+		s.createStaticTypedScope(IR_Root(), nil, jutil.NewOrderedMap[string, StaticTypedSlot](), jutil.NewOrderedSet[string]())
 	s.registry.DeclareType(globalScope, "Foo", unknownType)
 
 	// Create a child scope containing a slot for 'Foo'.
-	slots := jutil.NewLinkedHashMap[string, StaticTypedSlot]()
+	slots := jutil.NewOrderedMap[string, StaticTypedSlot]()
 	localScopeWithFoo :=
-		s.createStaticTypedScope(IR_Block(), globalScope, slots, jutil.NewLinkedHashSet[string]())
+		s.createStaticTypedScope(IR_Block(), globalScope, slots, jutil.NewOrderedSet[string]())
 	slots.Put(
 		"Foo",
 		&localSlot{SimpleSlotBase: NewSimpleSlot("Foo", unknownType /* inferred= */, true), scope: localScopeWithFoo})
@@ -301,13 +301,13 @@ func TestJSTypeRegistry_CreateTypeFromCommentNode_usesTopMostScopeOfName(t *test
 	s := newJsTypeRegistryTest(t)
 	// Create a global scope and a global type 'Foo'.
 	globalScope :=
-		s.createStaticTypedScope(IR_Root(), nil, jutil.NewLinkedHashMap[string, StaticTypedSlot](), jutil.NewLinkedHashSet[string]())
+		s.createStaticTypedScope(IR_Root(), nil, jutil.NewOrderedMap[string, StaticTypedSlot](), jutil.NewOrderedSet[string]())
 	s.registry.DeclareType(globalScope, "Foo", s.registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 
 	// Create a child scope with no actual variables, but that returns the child scope when asked
 	// for the eventual scope of the name "Foo".
 	emptyLocalScope :=
-		s.createStaticTypedScope(IR_Block(), globalScope, jutil.NewLinkedHashMap[string, StaticTypedSlot](), jutil.NewLinkedHashSet("Foo"))
+		s.createStaticTypedScope(IR_Block(), globalScope, jutil.NewOrderedMap[string, StaticTypedSlot](), jutil.NewOrderedSet("Foo"))
 
 	// Looking up 'Foo' in the child scope resolves to a NamedType.
 	type_ :=
@@ -348,8 +348,8 @@ type jsTypeRegistryTestScope struct {
 	rhinotesting.AbstractStaticScopeBase
 	root          Node
 	parentScope   StaticTypedScope
-	slots         *jutil.LinkedHashMap[string, StaticTypedSlot]
-	reservedNames *jutil.LinkedHashSet[string]
+	slots         *jutil.OrderedMap[string, StaticTypedSlot]
+	reservedNames *jutil.OrderedSet[string]
 }
 
 func (sc *jsTypeRegistryTestScope) GetRootNode() Node {
@@ -384,8 +384,8 @@ func (sc *jsTypeRegistryTestScope) GetTopmostScopeOfEventualDeclaration(name str
 func (s *jsTypeRegistryTest) createStaticTypedScope(
 	root Node,
 	parentScope StaticTypedScope,
-	slots *jutil.LinkedHashMap[string, StaticTypedSlot],
-	reservedNames *jutil.LinkedHashSet[string]) StaticTypedScope {
+	slots *jutil.OrderedMap[string, StaticTypedSlot],
+	reservedNames *jutil.OrderedSet[string]) StaticTypedScope {
 	sc := &jsTypeRegistryTestScope{root: root, parentScope: parentScope, slots: slots, reservedNames: reservedNames}
 	sc.InitAbstractStaticScopeBase(sc)
 	return sc

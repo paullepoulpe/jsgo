@@ -30,7 +30,7 @@ type JSChunkGraphBuilder struct {
 	chunks    []string
 	// correspondances between chunk indices in `chunks` and specified names. if no name is specified
 	// defaults to "m{i}"
-	chunkNames     *jutil.LinkedHashMap[int, string]
+	chunkNames     *OrderedMap[int, string]
 	filenameFormat string
 }
 
@@ -83,7 +83,7 @@ func newJSChunkGraphBuilder(graphType jsChunkGraphBuilder_GraphType) *JSChunkGra
 	return &JSChunkGraphBuilder{
 		graphType:      graphType,
 		chunks:         []string{},
-		chunkNames:     jutil.NewLinkedHashMap[int, string](),
+		chunkNames:     NewOrderedMap[int, string](),
 		filenameFormat: "i%s.js",
 	}
 }

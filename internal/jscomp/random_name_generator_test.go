@@ -53,7 +53,7 @@ func TestRandomNameGenerator_ConstructorInvalidPrefixes(t *testing.T) {
 	random := NewJavaRandomWithSeed(0)
 
 	ex := assertThrows[jutil.IIllegalArgumentException](t, func() {
-		NewRandomNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "123abc", noChars(), random)
+		NewRandomNameGeneratorWithReserved(NewOrderedSet[string](), "123abc", noChars(), random)
 	})
 	// The error messages should contain meaningful information.
 	if !strings.Contains(ex.GetMessage(), "W, X, Y, Z, $") {
@@ -61,7 +61,7 @@ func TestRandomNameGenerator_ConstructorInvalidPrefixes(t *testing.T) {
 	}
 
 	ex = assertThrows[jutil.IIllegalArgumentException](t, func() {
-		NewRandomNameGeneratorWithReserved(jutil.NewLinkedHashSet[string](), "abc%", noChars(), random)
+		NewRandomNameGeneratorWithReserved(NewOrderedSet[string](), "abc%", noChars(), random)
 	})
 	if !strings.Contains(ex.GetMessage(), "W, X, Y, Z, _, 0, 1") {
 		t.Errorf("message %q", ex.GetMessage())
@@ -73,7 +73,7 @@ func TestRandomNameGenerator_Generate(t *testing.T) {
 	// mocking Random to get nicer values. Instead, let's just try to verify
 	// the sanity of the results.
 	random := NewJavaRandomWithSeed(0)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 	prefix := "prefix"
 	prefixLen := len(prefix)
 	// Add a prefix to avoid dropping JavaScript keywords.
@@ -135,7 +135,7 @@ func TestRandomNameGenerator_Generate(t *testing.T) {
 
 func TestRandomNameGenerator_FirstCharAlphabet(t *testing.T) {
 	random := NewJavaRandomWithSeed(0)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random)
 	// Generate all 1- and 2-character names.
 	len1 := RandomNameGenerator_FIRST_CHAR.Size()
@@ -167,7 +167,7 @@ func TestRandomNameGenerator_FirstCharAlphabet(t *testing.T) {
 
 func TestRandomNameGenerator_Prefix(t *testing.T) {
 	random := NewJavaRandomWithSeed(0)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 	prefix := "prefix"
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, prefix, noChars(), random)
 	// Generate all 1- and 2-character names.
@@ -187,7 +187,7 @@ func TestRandomNameGenerator_Seeds(t *testing.T) {
 	// Using different seeds should return different names.
 	random0 := NewJavaRandomWithSeed(0)
 	random1 := NewJavaRandomWithSeed(1)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 	ng0 := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random0)
 	ng1 := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random1)
 
@@ -209,7 +209,7 @@ func TestRandomNameGenerator_Seeds(t *testing.T) {
 
 func TestRandomNameGenerator_ReservedNames(t *testing.T) {
 	random := NewJavaRandomWithSeed(0)
-	reservedNames := jutil.NewLinkedHashSet("x", "ba")
+	reservedNames := NewOrderedSet("x", "ba")
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars(), random)
 	// Generate all 1- and 2-character names (and a couple 3-character
 	// names, because "x" and "ba", and keywords, shouldn't be used).
@@ -226,7 +226,7 @@ func TestRandomNameGenerator_ReservedNames(t *testing.T) {
 
 func TestRandomNameGenerator_ReservedCharacters(t *testing.T) {
 	random := NewJavaRandomWithSeed(0)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "", noChars('a', 'b'), random)
 	// Generate all 1- and 2-character names (and also many 3-character
 	// names, because "a" and "b" shouldn't be used).
@@ -247,7 +247,7 @@ func TestRandomNameGenerator_ReservedCharacters(t *testing.T) {
 
 func TestRandomNameGenerator_ES6KeywordsNotGenerated(t *testing.T) {
 	random := NewJavaRandomWithSeed(0)
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	reservedNames := NewOrderedSet[string]()
 
 	ng := NewRandomNameGeneratorWithReserved(reservedNames, "le", noChars('$'), random)
 	result := generateRandomNames(ng, 106)

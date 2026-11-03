@@ -23,12 +23,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-func crossChunkGlobalVariableNamesMap(c *CrossChunkReferenceCollector) *jutil.LinkedHashMap[string, *Var] {
-	out := jutil.NewLinkedHashMapWithCapacity[string, *Var](len(c.vars))
+func crossChunkGlobalVariableNamesMap(c *CrossChunkReferenceCollector) *OrderedStringMap[*Var] {
+	out := NewOrderedStringMapWithCapacity[*Var](len(c.vars))
 	for _, v := range c.vars {
 		out.Put(v.GetName(), v)
 	}

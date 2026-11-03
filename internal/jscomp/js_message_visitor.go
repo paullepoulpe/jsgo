@@ -120,6 +120,8 @@ func (e *malformedMessageError) Error() string {
 // JsMessageVisitor locates JS code that declares localizable messages and
 // dispatches found definitions to its configured callbacks.
 type JsMessageVisitor struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
 	compiler          AbstractCompiler
 	idGenerator       JsMessage_IdGenerator
 	onJsMessage       func(JsMessageDefinition)
@@ -178,15 +180,8 @@ var jsMessageVisitorVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*JsMessageVisitor) nodeTraversalNoShouldTraverse() {}
-
 func (*JsMessageVisitor) visitTokens() *ast.TokenSet {
 	return &jsMessageVisitorVisitTokens
-}
-
-// ShouldTraverse implements NodeTraversal_Callback (post-order traversal).
-func (v *JsMessageVisitor) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	return true
 }
 
 // Java: JsMessageVisitor.process(Node, Node)
@@ -194,9 +189,10 @@ func (v *JsMessageVisitor) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(v.compiler, root, v)
 
 	for msgNode := range v.googMsgNodes.All() {
+		calleeQName, _ := msgNode.GetFirstChild().GetQualifiedNameString()
 		v.compiler.Report(
 			JSError_MakeWithNode(
-				msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, *msgNode.GetFirstChild().GetQualifiedName()))
+				msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, calleeQName))
 	}
 }
 
@@ -590,14 +586,16 @@ func (v *JsMessageVisitor) visitFallbackFunctionCall(t *NodeTraversal, call ast.
 	firstArg := callNode.GetSecondChild()
 	firstMessage := v.getJsMessageFromNode(t, firstArg)
 	if firstMessage == nil {
-		v.compiler.Report(JSError_MakeWithNode(firstArg, JsMessageVisitor_FALLBACK_ARG_ERROR, *firstArg.GetQualifiedName()))
+		firstArgQName, _ := firstArg.GetQualifiedNameString()
+		v.compiler.Report(JSError_MakeWithNode(firstArg, JsMessageVisitor_FALLBACK_ARG_ERROR, firstArgQName))
 		return
 	}
 
 	secondArg := firstArg.GetNext()
 	secondMessage := v.getJsMessageFromNode(t, secondArg)
 	if secondMessage == nil {
-		v.compiler.Report(JSError_MakeWithNode(secondArg, JsMessageVisitor_FALLBACK_ARG_ERROR, *secondArg.GetQualifiedName()))
+		secondArgQName, _ := secondArg.GetQualifiedNameString()
+		v.compiler.Report(JSError_MakeWithNode(secondArg, JsMessageVisitor_FALLBACK_ARG_ERROR, secondArgQName))
 		return
 	}
 
@@ -616,17 +614,16 @@ func (v *JsMessageVisitor) IsMessageName(identifier string) bool {
 
 // Java: JsMessageVisitor.isMessageIdentifier(Node)
 func jsMessageVisitor_isMessageIdentifier(node rhino.Node) bool {
-	qname := node.GetQualifiedName()
-	return qname != nil && strings.Contains(*qname, JsMessageVisitor_MSG_PREFIX)
+	qname, ok := node.GetQualifiedNameString()
+	return ok && strings.Contains(qname, JsMessageVisitor_MSG_PREFIX)
 }
 
 // Java: JsMessageVisitor.getJsMessageFromNode(NodeTraversal, Node)
 func (v *JsMessageVisitor) getJsMessageFromNode(t *NodeTraversal, node rhino.Node) *JsMessage {
-	messageNamePtr := node.GetQualifiedName()
-	if messageNamePtr == nil {
+	messageName, ok := node.GetQualifiedNameString()
+	if !ok {
 		return nil
 	}
-	messageName := *messageNamePtr
 	msgIdx := strings.Index(messageName, JsMessageVisitor_MSG_PREFIX)
 	if msgIdx < 0 {
 		return nil

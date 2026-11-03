@@ -523,17 +523,16 @@ func (m *RuntimeJsLibManager) injectLibraryDependencies(ast rhino.Node, force bo
 	// As we process each one, remove it from its parent.
 	for node := ast.GetFirstChild(); !node.IsNil() && node.IsExprResult() && node.GetFirstChild().IsStringLit(); node = ast.GetFirstChild() {
 		directive := node.GetFirstChild().GetString()
-		// Splitter.on(' ').limit(2).splitToList(directive)
-		words := strings.SplitN(directive, " ", 2)
-		switch words[0] {
+		kind, arg, hasArg := strings.Cut(directive, " ")
+		switch kind {
 		// 'use strict' is ignored (and deleted).
 		case "use":
 		// 'require lib'; pulls in the named library before this one.
 		case "require":
-			if len(words) < 2 {
-				panic(jutil.NewIndexOutOfBoundsException(jutil.LenientFormat("Index %s out of bounds for length %s", 1, len(words))))
+			if !hasArg {
+				panic(jutil.NewIndexOutOfBoundsException("Index 1 out of bounds for length 1"))
 			}
-			m.EnsureLibraryInjected(words[1], force)
+			m.EnsureLibraryInjected(arg, force)
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg("Bad directive: " + directive))
 		}
@@ -562,11 +561,16 @@ type InjectRuntimeLibraries struct {
 }
 
 // Java: InjectRuntimeLibraries(AbstractCompiler, ImmutableSet<String>)
-func NewInjectRuntimeLibraries(compiler AbstractCompiler, forceInjectedLibraries *jutil.LinkedHashSet[string]) *InjectRuntimeLibraries {
-	return &InjectRuntimeLibraries{
-		runtimeLibs:            compiler.GetRuntimeJsLibManager(),
-		forceInjectedLibraries: forceInjectedLibraries.ToSlice(),
+func NewInjectRuntimeLibraries(compiler AbstractCompiler, forceInjectedLibraries jutil.Set[string]) *InjectRuntimeLibraries {
+	jutil.CheckNotNull(forceInjectedLibraries)
+	var libs []string
+	if n := forceInjectedLibraries.Size(); n > 0 {
+		libs = make([]string, 0, n)
+		for lib := range forceInjectedLibraries.All() {
+			libs = append(libs, lib)
+		}
 	}
+	return newInjectRuntimeLibrariesFromSlice(compiler, libs)
 }
 
 func newInjectRuntimeLibrariesFromSlice(compiler AbstractCompiler, forceInjectedLibraries []string) *InjectRuntimeLibraries {

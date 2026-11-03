@@ -440,11 +440,11 @@ func TestHamtPMap_All_OrderAndEarlyStop(t *testing.T) {
 // merge method value is the HamtPMap_Reconciler).
 type joinExpectations struct {
 	t            *testing.T
-	expectations *jutil.LinkedHashMap[int, []any]
+	expectations *jutil.OrderedMap[int, []any]
 }
 
 func newJoinExpectations(t *testing.T) *joinExpectations {
-	return &joinExpectations{t: t, expectations: jutil.NewLinkedHashMap[int, []any]()}
+	return &joinExpectations{t: t, expectations: jutil.NewOrderedMap[int, []any]()}
 }
 
 func (j *joinExpectations) merge(key int, left any, right any) any {
@@ -707,5 +707,58 @@ func TestHamtPMapNullAndEqualitySemantics(t *testing.T) {
 	}
 	if hamtValueEquals(ta, num) || hamtValueEquals(ta, nil) {
 		t.Fatal("unequal or nil JSType values must not match")
+	}
+}
+
+func TestHamtPMapZeroNonPointerValuesAndZeroHashableKeys(t *testing.T) {
+	type zeroStructVal struct{ a, b int }
+	if hamtIsNull(false) || hamtIsNull(int32(0)) || hamtIsNull(uint32(0)) || hamtIsNull(zeroStructVal{}) {
+		t.Fatal("non-pointer zero values must not be classified as null")
+	}
+
+	boolMap := HamtPMap_Empty[string, bool]().Plus("f", false).Plus("t", true)
+	if boolMap.Get("f") != false || boolMap.Get("t") != true {
+		t.Fatal("bool HamtPMap Get mismatch")
+	}
+	i32Map := HamtPMap_Empty[string, int32]().Plus("z", 0)
+	u32Map := HamtPMap_Empty[string, uint32]().Plus("z", 0)
+	structMap := HamtPMap_Empty[string, zeroStructVal]().Plus("z", zeroStructVal{})
+	if i32Map.IsEmpty() || u32Map.IsEmpty() || structMap.IsEmpty() {
+		t.Fatal("maps storing non-pointer zero values must not be empty")
+	}
+
+	// Zero-valued struct key implementing HashCode() int32 must not panic with NPE.
+	zeroKey := newIntegerWithCustomHashCode(0, 0)
+	otherKey := newIntegerWithCustomHashCode(1, 0)
+	missingKey := newIntegerWithCustomHashCode(2, 0)
+	m1 := HamtPMap_Empty[integerWithCustomHashCode, int]().
+		Plus(zeroKey, 0).
+		Plus(otherKey, 7)
+	if got := m1.Get(zeroKey); got != 0 {
+		t.Fatalf("Get(zeroKey) = %d, want 0", got)
+	}
+	if got := m1.Get(otherKey); got != 7 {
+		t.Fatalf("Get(otherKey) = %d, want 7", got)
+	}
+
+	// Hash-collision Equivalent when V has zero value 0 and key is absent on right side.
+	m2 := HamtPMap_Empty[integerWithCustomHashCode, int]().
+		Plus(otherKey, 7).
+		Plus(missingKey, 0)
+	if m1.Equivalent(m2, func(a, b int) bool { return a == b }) {
+		t.Fatal("maps with distinct colliding keys and 0 values must not be equivalent")
+	}
+
+	// Hash-collision Reconcile when V has zero value 0 and key is absent on right side.
+	seenZeroKey := false
+	merged := m1.Reconcile(m2, func(k integerWithCustomHashCode, l, r int) int {
+		if k == zeroKey {
+			seenZeroKey = true
+			return 99
+		}
+		return l + r
+	})
+	if !seenZeroKey || merged.Get(zeroKey) != 99 {
+		t.Fatalf("expected joiner to run on colliding key with zero value; seen=%v, val=%d", seenZeroKey, merged.Get(zeroKey))
 	}
 }

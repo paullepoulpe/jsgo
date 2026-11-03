@@ -282,7 +282,7 @@ type ColorGraphNodeFactory struct {
 	nodeSlab  jutil.Slab[ColorGraphNode]
 }
 
-// Java: ColorGraphNodeFactory(LinkedHashMap<Color, ColorGraphNode>, ColorRegistry)
+// Java: ColorGraphNodeFactory(Map<Color, ColorGraphNode>, ColorRegistry)
 func NewColorGraphNodeFactory(registry *colors.ColorRegistry) *ColorGraphNodeFactory {
 	f := &ColorGraphNodeFactory{registry: registry}
 	f.typeIndex.init(64)

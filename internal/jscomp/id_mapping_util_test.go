@@ -21,11 +21,13 @@ package jscomp
 import (
 	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func TestIdMappingUtil_ParseIdMapping(t *testing.T) {
 	s := "[gen1]\nid1:data1\nid2:data2:data22\n\n[gen2]"
-	result := IdMappingUtil_ParseSerializedIdMappings(&s)
+	result := IdMappingUtil_ParseSerializedIdMappings(s)
 
 	assertEqual(t, "size", len(result), 2)
 
@@ -50,4 +52,27 @@ func TestIdMappingUtil_ParseSectionAsStream(t *testing.T) {
 
 	assertEqual(t, "size", result.Size(), 1)
 	assertEqual(t, "id1", result.Get("id1"), "data1")
+}
+
+func TestIdMappingUtil_SectionHeaderEdgeCases(t *testing.T) {
+	assertThrows[jutil.IIllegalArgumentException](t, func() {
+		IdMappingUtil_ParseSerializedIdMappings("[")
+	})
+	assertThrows[jutil.IIllegalArgumentException](t, func() {
+		IdMappingUtil_ParseSerializedIdMappings("[foo")
+	})
+
+	withBracketKey := IdMappingUtil_ParseSerializedIdMappings("[sec]\n[foo:bar")
+	sec, ok := withBracketKey["sec"]
+	if !ok {
+		t.Fatal("missing sec")
+	}
+	assertEqual(t, "[foo", sec.Get("[foo"), "bar")
+
+	emptySection := IdMappingUtil_ParseSerializedIdMappings("[]\nk:v")
+	emptySec, ok := emptySection[""]
+	if !ok {
+		t.Fatal("missing empty section")
+	}
+	assertEqual(t, "k", emptySec.Get("k"), "v")
 }

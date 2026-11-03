@@ -284,7 +284,7 @@ func (a *aggressiveInlineAliases) maybeInlineInnerName(globalName *GlobalNamespa
 		a.outer.compiler,
 		ReferenceCollector_DO_NOTHING_BEHAVIOR,
 		a.getScopeCreator(),
-		func(v *Var) bool { return jutil.ObjectsEquals(innerNameVar, v) })
+		func(v *Var) bool { return innerNameVar == v })
 	collector.ProcessScope(innerScope)
 	innerNameRefs := collector.GetReferences(innerNameVar)
 

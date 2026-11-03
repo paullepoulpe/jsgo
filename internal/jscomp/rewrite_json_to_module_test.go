@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -73,8 +72,8 @@ func (c *RewriteJsonToModuleTest) GetOptions() *CompilerOptions {
 //
 // Go-only: test-helper — Truth's MapSubject.containsExactly(Object...)
 // becomes ContainsExactlyEntriesIn(map).
-func rewriteJsonToModuleTest_mapOf(kvs ...string) *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func rewriteJsonToModuleTest_mapOf(kvs ...string) *OrderedStringMap[string] {
+	m := NewOrderedStringMap[string]()
 	for i := 0; i < len(kvs); i += 2 {
 		m.Put(kvs[i], kvs[i+1])
 	}

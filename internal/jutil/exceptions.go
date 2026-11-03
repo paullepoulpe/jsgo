@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -613,23 +614,25 @@ func Throwable_PrintStackTrace(t Throwable, s *PrintStream) {
 // messages by "null") turn it off with SetShowCodeDetailsInExceptionMessages.
 
 // showCodeDetailsInExceptionMessages is -XX:[+-]ShowCodeDetailsInExceptionMessages.
-var showCodeDetailsInExceptionMessages = true
+var showCodeDetailsInExceptionMessages atomic.Bool
+
+func init() {
+	showCodeDetailsInExceptionMessages.Store(true)
+}
 
 // SetShowCodeDetailsInExceptionMessages sets what
 // -XX:+ShowCodeDetailsInExceptionMessages (on) or
 // -XX:-ShowCodeDetailsInExceptionMessages (off) sets on the JVM, and returns
 // the previous setting. It is on by default, as on JDK 21.
 func SetShowCodeDetailsInExceptionMessages(on bool) (was bool) {
-	was = showCodeDetailsInExceptionMessages
-	showCodeDetailsInExceptionMessages = on
-	return was
+	return showCodeDetailsInExceptionMessages.Swap(on)
 }
 
 // NewHelpfulNullPointerException is the NullPointerException that the JVM
 // throws on a null dereference whose helpful message is detail: its message
 // is detail, or null when the option is off.
 func NewHelpfulNullPointerException(detail string) *NullPointerException {
-	if !showCodeDetailsInExceptionMessages {
+	if !showCodeDetailsInExceptionMessages.Load() {
 		return NewNullPointerException()
 	}
 	return NewNullPointerExceptionMsg(detail)

@@ -19,11 +19,7 @@
 
 package jscomp
 
-import (
-	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "testing"
 
 // Unit tests for ProcessCommonJSModules
 type ProcessCommonJSModulesTest struct {
@@ -65,6 +61,13 @@ func (c *ProcessCommonJSModulesTest) GetProcessor(compiler *Compiler) CompilerPa
 // Java: ProcessCommonJSModulesTest.testModules(String, String, String)
 func (c *ProcessCommonJSModulesTest) TestModules(filename string, input string, expected string) {
 	ModulesTestUtils_TestModules(c, filename, input, expected)
+}
+
+func (c *ProcessCommonJSModulesTest) setWebpackModules(webpackModulesById *OrderedStringMap[string]) {
+	c.webpackModulesById.Clear()
+	for _, e := range webpackModulesById.Entries() {
+		c.webpackModulesById.Put(e.Key, e.Value)
+	}
 }
 
 // Java: ProcessCommonJSModulesTest.testWithoutExports()
@@ -1077,7 +1080,7 @@ var __WEBPACK_AMD_DEFINE_RESULT__$$module$test;
 			"yet_another.js", "yet_another.js",
 			"3", "test.js")
 
-	c.SetWebpackModulesById(webpackModulesById)
+	c.setWebpackModules(webpackModulesById)
 	c.resolutionMode = ModuleLoader_ResolutionMode_WEBPACK
 
 	c.TestModules(
@@ -1426,7 +1429,7 @@ func (c *ProcessCommonJSModulesTest) TestWebpackRequire() {
 			"1", "other.js",
 			"2", "yet_another.js",
 			"3", "test.js")
-	c.SetWebpackModulesById(webpackModulesById)
+	c.setWebpackModules(webpackModulesById)
 	c.resolutionMode = ModuleLoader_ResolutionMode_WEBPACK
 
 	c.TestModules(
@@ -1447,7 +1450,7 @@ func (c *ProcessCommonJSModulesTest) TestWebpackRequireString() {
 			"1", "other.js",
 			"yet_another.js", "yet_another.js",
 			"3", "test.js")
-	c.SetWebpackModulesById(webpackModulesById)
+	c.setWebpackModules(webpackModulesById)
 	c.resolutionMode = ModuleLoader_ResolutionMode_WEBPACK
 
 	c.TestModules(
@@ -1467,7 +1470,7 @@ func (c *ProcessCommonJSModulesTest) TestWebpackAMDModuleShim() {
 		esModulesTest_mapOf(
 			"1", "test.js",
 			"2", "/webpack/buildin/module.js")
-	c.SetWebpackModulesById(webpackModulesById)
+	c.setWebpackModules(webpackModulesById)
 	c.resolutionMode = ModuleLoader_ResolutionMode_WEBPACK
 
 	// Shared with ProcessCommonJSModulesTest.
@@ -1631,7 +1634,7 @@ func (c *ProcessCommonJSModulesTest) TestWebpackRequireNamespace() {
 			"1", "other.js",
 			"yet_another.js", "yet_another.js",
 			"3", "test.js")
-	c.SetWebpackModulesById(webpackModulesById)
+	c.setWebpackModules(webpackModulesById)
 	c.resolutionMode = ModuleLoader_ResolutionMode_WEBPACK
 
 	c.TestModules(
@@ -1722,9 +1725,28 @@ func (c *ProcessCommonJSModulesTest) TestFindModuleDependencies() {
 	root := compiler.ParseInputs()
 	script := root.GetSecondChild().GetFirstChild()
 	pass :=
-		NewFindModuleDependencies(compiler, true, true, jutil.NewLinkedHashMap[string, string]())
+		NewFindModuleDependencies(compiler, true, true, NewOrderedStringMap[string]())
 	pass.Process(script)
 	input := compiler.GetInput(script.GetInputId())
 	AssertThat(input).IsNotNull()
 	AssertThat(input.GetKnownProvides()).IsNotNull()
+}
+
+func (c *ProcessCommonJSModulesTest) TestMultipleAssignmentsWithGlobalExportsDecl() {
+	chunk := NewJSChunk("out")
+	chunk.AddSourceFile(
+		SourceFile_FromCode(
+			"test",
+			`var exports = {};
+/** @constructor */ function Hello() {}
+module.exports = Hello;
+`))
+	chunks := []*JSChunk{chunk}
+	c.Test(
+		c.Srcs(chunks),
+		c.Expected([]string(nil)),
+		newCompilerTestCase_Diagnostic(
+			ProcessCommonJSModules_SUSPICIOUS_EXPORTS_ASSIGNMENT.level,
+			ProcessCommonJSModules_SUSPICIOUS_EXPORTS_ASSIGNMENT,
+			nil))
 }

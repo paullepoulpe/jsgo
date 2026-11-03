@@ -48,14 +48,14 @@ type TypeInferenceTest struct {
 	compiler        *Compiler
 	registry        *rhino.JSTypeRegistry
 	closer          *rhino.JSTypeResolver_Closer
-	assumptions     *jutil.LinkedHashMap[string, rhino.JSType]
+	assumptions     *OrderedStringMap[rhino.JSType]
 	assumedThisType rhino.JSType
 	returnScope     FlowScope
 
 	// Maps a label name to information about the labeled statement.
 	//
 	// This map is recreated each time parseAndRunTypeInference() is executed.
-	labeledStatementMap *jutil.LinkedHashMap[string, *TypeInferenceTest_LabeledStatement]
+	labeledStatementMap *OrderedStringMap[*TypeInferenceTest_LabeledStatement]
 }
 
 // Java: TypeInferenceTest()
@@ -95,7 +95,7 @@ func (c *TypeInferenceTest) SetUp() {
 	options.SetLanguageIn(CompilerOptions_LanguageMode_UNSUPPORTED)
 	c.compiler.InitOptions(options)
 	c.registry = c.compiler.GetTypeRegistry()
-	c.assumptions = jutil.NewLinkedHashMap[string, rhino.JSType]()
+	c.assumptions = NewOrderedStringMap[rhino.JSType]()
 	c.returnScope = nil
 	c.closer = c.registry.GetResolver().OpenForDefinition()
 }
@@ -237,7 +237,7 @@ func (c *TypeInferenceTest) ParseAndRunTypeInferenceOfNode(root rhino.Node, cfgR
 		defer closer.Close()
 		// Create the scope with the assumptions.
 		// Also populate a map allowing us to look up labeled statements later.
-		c.labeledStatementMap = jutil.NewLinkedHashMap[string, *TypeInferenceTest_LabeledStatement]()
+		c.labeledStatementMap = NewOrderedStringMap[*TypeInferenceTest_LabeledStatement]()
 		NodeTraversal_Builder{
 			compiler:     c.compiler,
 			callback:     &typeInferenceTest_labelCollector{outer: c},
@@ -412,12 +412,20 @@ func (c *TypeInferenceTest) CreateUnionType(type1 rhino.JSTypeNative, type2 rhin
 	return c.registry.CreateUnionType(c.registry.GetNativeType(type1), c.registry.GetNativeType(type2))
 }
 
+func typeInferenceTest_recordMap(entries ...OrderedStringEntry[rhino.JSType]) *OrderedStringMap[rhino.JSType] {
+	m := NewOrderedStringMapWithCapacity[rhino.JSType](len(entries))
+	for _, e := range entries {
+		m.Put(e.Key, e.Value)
+	}
+	return m
+}
+
 // CreateRecordType returns a record type with a field `fieldName` and
 // JSType specified by `fieldType`.
 //
 // Java: TypeInferenceTest.createRecordType(String, JSType)
 func (c *TypeInferenceTest) CreateRecordType(fieldName string, fieldType rhino.JSType) rhino.JSType {
-	property := jutil.NewImmutableMapBuilder[string, rhino.JSType]().Put(fieldName, fieldType).BuildOrThrow()
+	property := typeInferenceTest_recordMap(OrderedStringEntry[rhino.JSType]{Key: fieldName, Value: fieldType})
 	return c.registry.CreateRecordType(property)
 }
 
@@ -2715,7 +2723,10 @@ var out = x.a;
 
 // Java: TypeInferenceTest.testObjectSpread_isInferredToBeObject()
 func (c *TypeInferenceTest) TestObjectSpread_isInferredToBeObject() {
-	var recordType rhino.JSType = c.registry.CreateRecordType(jutil.NewImmutableMapBuilder[string, rhino.JSType]().Put("x", c.GetNativeType(rhino.JSTypeNative_STRING_TYPE)).Put("y", c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)).BuildOrThrow())
+	var recordType rhino.JSType = c.registry.CreateRecordType(typeInferenceTest_recordMap(
+		OrderedStringEntry[rhino.JSType]{Key: "x", Value: c.GetNativeType(rhino.JSTypeNative_STRING_TYPE)},
+		OrderedStringEntry[rhino.JSType]{Key: "y", Value: c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)},
+	))
 	c.Assuming("obj", recordType)
 	c.AssumingNative("before", rhino.JSTypeNative_BOOLEAN_TYPE)
 	c.AssumingNative("after", rhino.JSTypeNative_NULL_TYPE)
@@ -3431,7 +3442,10 @@ function(str, ...nums) {
 
 // Java: TypeInferenceTest.testObjectDestructuringDeclarationInference()
 func (c *TypeInferenceTest) TestObjectDestructuringDeclarationInference() {
-	var recordType rhino.JSType = c.registry.CreateRecordType(jutil.NewImmutableMapBuilder[string, rhino.JSType]().Put("x", c.GetNativeType(rhino.JSTypeNative_STRING_TYPE)).Put("y", c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)).BuildOrThrow())
+	var recordType rhino.JSType = c.registry.CreateRecordType(typeInferenceTest_recordMap(
+		OrderedStringEntry[rhino.JSType]{Key: "x", Value: c.GetNativeType(rhino.JSTypeNative_STRING_TYPE)},
+		OrderedStringEntry[rhino.JSType]{Key: "y", Value: c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)},
+	))
 	c.Assuming("obj", recordType)
 	c.InFunction(`let {x, y} = obj;  // preserve newline
 X: x;
@@ -3494,7 +3508,7 @@ B: b
 
 // Java: TypeInferenceTest.testObjectDestructuringDeclarationInferenceWithUnknownProperty()
 func (c *TypeInferenceTest) TestObjectDestructuringDeclarationInferenceWithUnknownProperty() {
-	var recordType rhino.JSType = c.registry.CreateRecordType(jutil.NewImmutableMapBuilder[string, rhino.JSType]().BuildOrThrow())
+	var recordType rhino.JSType = c.registry.CreateRecordType(typeInferenceTest_recordMap())
 	c.Assuming("obj", recordType)
 	c.InFunction(`let {x} = obj;  // preserve newline
 X: x;
@@ -3917,4 +3931,18 @@ func (c *TypeInferenceTest) IncludeAssertInstanceof() {
 		WithName(jutil.StringPtr(fullName)).
 		Build()
 	c.Assuming(fullName, fnType)
+}
+
+func (c *TypeInferenceTest) TestShortCircuitingRefinementNested() {
+	c.InFunction(`var /** (boolean|number|string) */ x;
+var /** function(): boolean */ fn;
+var /** function(): boolean */ fn2;
+if (((fn() || fn2()) && typeof x === 'string') || typeof x === 'number') {
+  THEN: x;
+} else {
+  ELSE: x;
+}
+`)
+	c.AssertTypeOfExpression("THEN").ToStringIsEqualTo("(number|string)")
+	c.AssertTypeOfExpression("ELSE").ToStringIsEqualTo("(boolean|string)")
 }

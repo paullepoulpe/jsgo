@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -127,13 +126,8 @@ func (mr *IdMappingUtil_MappingReader) Next() bool {
 		if line == "" {
 			continue
 		}
-		if line[0] == '[' {
-			end := len(line) - 1
-			if end >= 1 && line[end] >= 0x80 {
-				_, w := utf8.DecodeLastRuneInString(line)
-				end = len(line) - w
-			}
-			mr.currentSection = line[1:end]
+		if len(line) >= 2 && line[0] == '[' && line[len(line)-1] == ']' {
+			mr.currentSection = line[1 : len(line)-1]
 			mr.currentKey = ""
 			mr.currentValue = ""
 			mr.isSection = true
@@ -227,11 +221,11 @@ func IdMappingUtil_ParseSerializedIdMappingsFromReader(br *jutil.BufferedReader)
 }
 
 // Java: IdMappingUtil.parseSerializedIdMappings(String)
-func IdMappingUtil_ParseSerializedIdMappings(idMappings *string) map[string]*IdMappingSection {
-	if idMappings == nil || *idMappings == "" {
+func IdMappingUtil_ParseSerializedIdMappings(idMappings string) map[string]*IdMappingSection {
+	if idMappings == "" {
 		return make(map[string]*IdMappingSection)
 	}
-	br := jutil.NewBufferedReaderFromString(*idMappings)
+	br := jutil.NewBufferedReaderFromString(idMappings)
 	defer br.Close()
 	return IdMappingUtil_ParseSerializedIdMappingsFromReader(br)
 }

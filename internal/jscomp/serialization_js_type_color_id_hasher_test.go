@@ -20,11 +20,9 @@ package jscomp
 
 import (
 	"fmt"
-	"slices"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -38,7 +36,7 @@ type JSTypeColorIdHasherTest struct {
 	CompilerTestCaseBase
 
 	hasher         *JSTypeColorIdHasher
-	labelToColorId *jutil.LinkedHashMap[string, colors.ColorId]
+	labelToColorId *OrderedStringMap[colors.ColorId]
 
 	// Java: @Parameterized.Parameter
 	rewriteClosureModules bool
@@ -108,14 +106,14 @@ func (f *jsTypeColorIdHasherTest_LabeledTypeFinder) Visit(t *NodeTraversal, n rh
 }
 
 // Java: JSTypeColorIdHasherTest.labelIdSet()
-func (c *JSTypeColorIdHasherTest) labelIdSet() *jutil.LinkedHashSet[colors.ColorId] {
-	return jutil.NewLinkedHashSet(slices.Collect(c.labelToColorId.Values())...)
+func (c *JSTypeColorIdHasherTest) labelIdSet() *OrderedSet[colors.ColorId] {
+	return NewOrderedSet(c.labelToColorId.ValueSlice()...)
 }
 
 // Java: JSTypeColorIdHasherTest.getProcessor(Compiler)
 func (c *JSTypeColorIdHasherTest) GetProcessor(compiler *Compiler) CompilerPass {
 	c.hasher = NewJSTypeColorIdHasher(compiler.GetTypeRegistry())
-	c.labelToColorId = jutil.NewLinkedHashMap[string, colors.ColorId]()
+	c.labelToColorId = NewOrderedStringMap[colors.ColorId]()
 
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NodeTraversal_TraverseRoots(compiler, &jsTypeColorIdHasherTest_LabeledTypeFinder{outer: c}, externs, root)

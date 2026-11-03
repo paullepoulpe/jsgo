@@ -212,7 +212,7 @@ func (m *OptimizeCalls_ReferenceMap) addReferenceByID(data *optimizeCalls_refTab
 	refs.nodes = append(refs.nodes, n)
 }
 
-// Java: OptimizeCalls.ReferenceMap.addReference(LinkedHashMap<String, ArrayList<Node>>, String, Node)
+// Java: OptimizeCalls.ReferenceMap.addReference(Map<String, ArrayList<Node>>, String, Node)
 func (m *OptimizeCalls_ReferenceMap) AddReference(data *optimizeCalls_refTable, name string, n rhino.Node) {
 	m.addReferenceByID(data, strpool.Intern(name), n)
 }

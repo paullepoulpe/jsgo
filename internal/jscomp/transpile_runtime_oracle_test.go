@@ -297,13 +297,13 @@ func trAddInjected(c *Compiler, results *[]string) {
 	}
 }
 
-func trVisibilityMap(c *Compiler) *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility] {
+func trVisibilityMap(c *Compiler) *OrderedMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility] {
 	pass := NewCollectFileOverviewVisibility(c)
 	pass.Process(c.GetExternsRoot(), c.GetJsRoot())
 	if pass.hasDuplicate {
 		panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key"))
 	}
-	m := jutil.NewLinkedHashMapWithCapacity[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility](len(pass.visibilities))
+	m := NewOrderedMapWithCapacity[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility](len(pass.visibilities))
 	for script := c.GetJsRoot().GetFirstChild(); !script.IsNil(); script = script.GetNext() {
 		if script.GetJSDocInfo() == nil {
 			continue
@@ -319,7 +319,7 @@ func trVisibilityMap(c *Compiler) *jutil.LinkedHashMap[rhino.StaticSourceFile, r
 // trAccessCallback is the access section's traversal.
 type trAccessCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	visibilities *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
+	visibilities *OrderedMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]
 	names        int
 	getprops     int
 	crc          uint32
@@ -482,7 +482,7 @@ func trSectionNamed(name string) trSection {
 		}
 	case "force":
 		return func(c *Compiler, r *[]string) rhino.Node {
-			NewInjectRuntimeLibraries(c, jutil.NewLinkedHashSet("es6/util/inherits", "es6/symbol")).
+			newInjectRuntimeLibrariesFromSlice(c, []string{"es6/util/inherits", "es6/symbol"}).
 				Process(c.GetExternsRoot(), c.GetJsRoot())
 			trAddInjected(c, r)
 			return c.GetJsRoot()
@@ -584,7 +584,8 @@ func trSectionNamed(name string) trSection {
 		}
 	case "access":
 		return func(c *Compiler, r *[]string) rhino.Node {
-			cb := &trAccessCallback{visibilities: jutil.NewLinkedHashMapFrom(trVisibilityMap(c))}
+			vis := trVisibilityMap(c).Clone()
+			cb := &trAccessCallback{visibilities: &vis}
 			NodeTraversal_Traverse(c, c.GetJsRoot(), cb)
 			*r = append(*r, "access "+strconv.Itoa(cb.names)+" "+strconv.Itoa(cb.getprops)+" "+
 				strconv.FormatUint(uint64(cb.crc), 16))

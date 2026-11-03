@@ -176,6 +176,7 @@ func installPassLog(path string, labels bool) func() {
 		wall time.Time
 		cpu  time.Duration
 	}
+	var mu sync.Mutex
 	var stack []frame
 	var rows []string
 	cpuNow := func() time.Duration {
@@ -194,6 +195,8 @@ func installPassLog(path string, labels bool) func() {
 		pprof.SetGoroutineLabels(pprof.WithLabels(context.Background(), pprof.Labels("pass", name)))
 	}
 	jscomp.DebugPassLogHook = func(ev jscomp.DebugPassEvent) {
+		mu.Lock()
+		defer mu.Unlock()
 		if ev.Start {
 			stack = append(stack, frame{ev: ev, wall: time.Now(), cpu: cpuNow()})
 			setLabel(ev.Name)
@@ -226,13 +229,16 @@ func installPassLog(path string, labels bool) func() {
 		}
 	}
 	return func() {
+		mu.Lock()
+		snapshot := append([]string(nil), rows...)
+		mu.Unlock()
 		f, err := os.Create(path)
 		if err != nil {
 			return
 		}
 		w := bufio.NewWriter(f)
 		fmt.Fprintln(w, "kind\tname\tloop\titer\twall_ms\tcpu_ms\treports\tscopes\tdepth\tstart_ms")
-		for _, r := range rows {
+		for _, r := range snapshot {
 			fmt.Fprintln(w, r)
 		}
 		fmt.Fprintf(w, "total\tprocess\t0\t0\t%.3f\t%.3f\t0\t0\t0\t0\n",

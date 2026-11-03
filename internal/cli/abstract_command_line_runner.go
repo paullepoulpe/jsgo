@@ -612,29 +612,7 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 			jsonFiles = []*AbstractCommandLineRunner_JsonFileSpec{}
 		}
 
-		var smEntries []kvEntry[*jscomp.SourceMapInput]
-		var webpackEntries []kvEntry[string]
-
-		for _, jsonFile := range jsonFiles {
-			if sm := jsonFile.GetSourceMap(); sm != nil && *sm != "" {
-				pathStr := "null"
-				if p := jsonFile.GetPath(); p != nil {
-					pathStr = *p
-				}
-				sourceMapPath := pathStr + ".map"
-				sourceMap := jscomp.SourceFile_FromCode(sourceMapPath, *sm)
-				smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{
-					key:   *jsonFile.GetPath(),
-					value: jscomp.NewSourceMapInput(sourceMap),
-				})
-			}
-			if wid := jsonFile.GetWebpackId(); wid != nil {
-				webpackEntries = append(webpackEntries, kvEntry[string]{
-					key:   *wid,
-					value: *jsonFile.GetPath(),
-				})
-			}
-		}
+		smEntries, webpackEntries := collectJsonStreamMaps(jsonFiles)
 
 		if len(smEntries) > 0 {
 			for k, v := range options.GetInputSourceMaps().All() {

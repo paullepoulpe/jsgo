@@ -1771,7 +1771,7 @@ new Example(0, 1);
 func (c *AstFactoryTest) TestCreateRuntimeField_throwsIfFieldNotInjected() {
 	// Given
 	astFactory := c.createTestAstFactoryWithoutTypes()
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	scope := rhinotesting.NewMapBasedScope(NewOrderedStringMap[rhino.JSType]())
 	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
 	// When
 	AssertThrows[*jutil.IllegalStateException](func() { astFactory.CreateQNameOfField(scope, field) })
@@ -1781,7 +1781,7 @@ func (c *AstFactoryTest) TestCreateRuntimeField_throwsIfFieldNotInjected() {
 func (c *AstFactoryTest) TestCreateRuntimeField_succeeds() {
 	// Given
 	astFactory := c.createTestAstFactoryWithoutTypes()
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	scope := rhinotesting.NewMapBasedScope(NewOrderedStringMap[rhino.JSType]())
 	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
 	c.runtimeJsLibManager.InjectLibForField("$jscomp.global")
 	// When
@@ -1802,7 +1802,7 @@ func (c *AstFactoryTest) TestCreateRuntimeField_inExternMode_succeeds_andUsesUnd
 			c.compiler.GetChangeTracker(),
 			func() rhino.Node { return externs })
 	astFactory := c.createTestAstFactoryWithoutTypes()
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	scope := rhinotesting.NewMapBasedScope(NewOrderedStringMap[rhino.JSType]())
 	field := c.runtimeJsLibManager.GetJsLibField("$jscomp.global")
 	c.runtimeJsLibManager.InjectLibForField("$jscomp.global")
 	// When
@@ -1816,7 +1816,7 @@ func (c *AstFactoryTest) TestCreateJscompMakeIteratorCall_throwsIfJscompMakeIter
 	// Given
 	astFactory := c.createTestAstFactoryWithoutTypes()
 	iterable := rhino.IR_Name("arr")
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	scope := rhinotesting.NewMapBasedScope(NewOrderedStringMap[rhino.JSType]())
 	// When
 	AssertThrows[*jutil.IllegalStateException](
 		func() { astFactory.CreateJSCompMakeIteratorCall(iterable, scope) })
@@ -1842,7 +1842,7 @@ func (c *AstFactoryTest) TestCreateJscompIteratorCloseCall_throwsIfJscompIterato
 	astFactory := c.createTestAstFactoryWithoutTypes()
 	iter := rhino.IR_Name("iter")
 	iterResult := rhino.IR_Name("res")
-	scope := rhinotesting.NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	scope := rhinotesting.NewMapBasedScope(NewOrderedStringMap[rhino.JSType]())
 
 	// When
 	AssertThrows[*jutil.IllegalStateException](

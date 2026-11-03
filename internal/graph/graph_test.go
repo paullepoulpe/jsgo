@@ -321,11 +321,11 @@ func graphTest_assertListCount[T GraphNode[string, string]](t *testing.T, list [
 
 func graphTest_assertSetEquals[T GraphNode[string, string]](t *testing.T, actual []T, expected ...string) {
 	t.Helper()
-	got := jutil.NewLinkedHashSet[string]()
+	got := jutil.NewOrderedSet[string]()
 	for _, n := range actual {
 		got.Add(n.GetValue())
 	}
-	want := jutil.NewLinkedHashSet[string]()
+	want := jutil.NewOrderedSet[string]()
 	want.AddAll(expected...)
 	assertSameElements(t, "values", got.ToSlice(), want.ToSlice())
 }
@@ -347,5 +347,19 @@ func TestGraph_UndirectedClearForReuse(t *testing.T) {
 		assertTrue(t, "a-d", g.IsConnected("a", "d"))
 		g.ClearForReuse()
 		assertEqual(t, "node count after clear", g.GetNodeCount(), 0)
+	}
+}
+
+func TestLinkedDirectedGraphGetNeighborNodesUnknownNode(t *testing.T) {
+	g := LinkedDirectedGraph_Create[string, string]()
+	g.CreateNode("a")
+	caught := false
+	jutil.Try(func() {
+		_ = g.GetNeighborNodes("unknown")
+	}, func(jutil.IIllegalArgumentException) {
+		caught = true
+	})
+	if !caught {
+		t.Fatal("expected IllegalArgumentException from GetNeighborNodes on unknown node")
 	}
 }

@@ -309,13 +309,15 @@ func (c *cmdLineParams) splitToken() {
 // TryParseArgument parses command-line flags and positional arguments, returning
 // a *CmdLineException instead of panicking on user argument errors.
 func (p *CmdLineParser) TryParseArgument(args ...string) *CmdLineException {
-	expandedArgs := args
+	var expandedArgs []string
 	if p.parserProperties.atSyntax {
 		var err *CmdLineException
 		expandedArgs, err = p.tryExpandAtFiles(args)
 		if err != nil {
 			return err
 		}
+	} else {
+		expandedArgs = slices.Clone(args)
 	}
 	cmdLine := &cmdLineParams{owner: p, args: expandedArgs}
 
@@ -412,7 +414,7 @@ func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*Opti
 			continue
 		}
 		for _, depend := range handler.Option.depends {
-			if !presentSet[p.findOptionHandler(depend)] {
+			if h := p.findOptionHandler(depend); h == nil || !presentSet[h] {
 				return newCmdLineException(p, msgRequiresOptionMissing, handler.Option.String(), "["+strings.Join(handler.Option.depends, ", ")+"]")
 			}
 		}
@@ -422,7 +424,7 @@ func (p *CmdLineParser) tryCheckRequiredOptionsAndArguments(presentSet map[*Opti
 			continue
 		}
 		for _, forbid := range handler.Option.forbids {
-			if presentSet[p.findOptionHandler(forbid)] {
+			if h := p.findOptionHandler(forbid); h != nil && presentSet[h] {
 				return newCmdLineException(p, msgForbiddenOptionPresent, handler.Option.String(), "["+strings.Join(handler.Option.forbids, ", ")+"]")
 			}
 		}

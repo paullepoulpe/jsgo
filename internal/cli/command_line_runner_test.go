@@ -3713,3 +3713,61 @@ func commandLineRunnerTest_readLines(f *jutil.File) []string {
 	}
 	return lines
 }
+
+func TestStdinDisallowedForExternsAndJsonStreams(t *testing.T) {
+	runWithArgs := func(stdin string, args ...string) (msg string) {
+		var outBuf, errBuf bytes.Buffer
+		runner := NewCommandLineRunnerWithStreams(
+			args,
+			bytes.NewReader([]byte(stdin)),
+			jutil.NewPrintStream(&outBuf),
+			jutil.NewPrintStream(&errBuf),
+		)
+		jutil.Try(func() {
+			runner.DoRun()
+		}, func(e jscomp.IFlagUsageException) {
+			msg = e.GetMessage()
+		})
+		return msg
+	}
+
+	if got, want := runWithArgs("", "--externs", "-"), "Bad --externs flag. Can't specify stdin."; got != want {
+		t.Fatalf("externs stdin error = %q, want %q", got, want)
+	}
+	if got, want := runWithArgs("[]", "--json_streams=IN", "--js", "-"), "Bad --js flag. Can't specify stdin."; got != want {
+		t.Fatalf("json_streams=IN + --js - error = %q, want %q", got, want)
+	}
+}
+
+func TestJsonStreamNullGuards(t *testing.T) {
+	cases := []struct {
+		name string
+		json string
+	}{
+		{"nullElement", `[null]`},
+		{"missingPath", `[{"src":"var x = 1;"}]`},
+		{"nullPathWithSourceMap", `[{"path":null,"src":"var x = 1;","sourceMap":"{\"version\":3}"}]`},
+		{"nullPathWithWebpackId", `[{"path":null,"src":"var x = 1;","webpackId":"m0"}]`},
+		{"missingSrc", `[{"path":"a.js"}]`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var outBuf, errBuf bytes.Buffer
+			runner := NewCommandLineRunnerWithStreams(
+				[]string{"--json_streams=IN"},
+				bytes.NewReader([]byte(tc.json)),
+				jutil.NewPrintStream(&outBuf),
+				jutil.NewPrintStream(&errBuf),
+			)
+			caughtNPE := false
+			jutil.Try(func() {
+				runner.DoRun()
+			}, func(jutil.INullPointerException) {
+				caughtNPE = true
+			})
+			if !caughtNPE {
+				t.Fatalf("expected NullPointerException for %s (%s)", tc.name, tc.json)
+			}
+		})
+	}
+}

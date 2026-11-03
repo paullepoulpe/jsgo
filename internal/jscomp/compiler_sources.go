@@ -791,7 +791,7 @@ func (c *Compiler) InitializeSyntheticCodeInput() {
 	if chunks := c.GetChunks(); len(chunks) > 0 {
 		firstChunk = chunks[0]
 	}
-	if firstChunk.GetName() == JSChunk_STRONG_CHUNK_NAME {
+	if firstChunk != nil && firstChunk.GetName() == JSChunk_STRONG_CHUNK_NAME {
 		firstChunk.Add(ast)
 	}
 	ast.SetChunk(firstChunk)

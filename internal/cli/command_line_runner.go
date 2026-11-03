@@ -808,8 +808,8 @@ func commandLineRunner_j2clPassModeValueOf(name string) (jscomp.CompilerOptions_
 	return 0, false
 }
 
-// commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of a
-// LinkedHashMap<String, String>: its entries in insertion order.
+// commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of an
+// ordered Map<String, String>: its entries in insertion order.
 //
 // Go-only: language-adapter — args4j's MapOptionHandler stores String
 // values boxed (*string).

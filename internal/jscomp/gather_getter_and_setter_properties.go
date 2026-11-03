@@ -73,7 +73,7 @@ func GatherGetterAndSetterProperties_Update(compiler AbstractCompiler, externs r
 }
 
 // Java: GatherGetterAndSetterProperties.gather(AbstractCompiler, Node)
-func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root rhino.Node) *jutil.LinkedHashMap[string, AccessorSummary_PropertyAccessKind] {
+func GatherGetterAndSetterProperties_Gather(compiler AbstractCompiler, root rhino.Node) *OrderedStringMap[AccessorSummary_PropertyAccessKind] {
 	return gatherAccessorSummary(compiler, root).GetAccessors()
 }
 

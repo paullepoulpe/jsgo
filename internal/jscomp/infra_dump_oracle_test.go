@@ -627,7 +627,7 @@ func (f *infraEscapedFinder) EnterScope(t *NodeTraversal) {
 	scope := t.GetScope()
 	var result string
 	if e := infraTry(func() {
-		escaped := jutil.NewLinkedHashSet[*Var]()
+		escaped := NewOrderedSet[*Var]()
 		all := NodeUtil_GetAllVarsDeclaredInFunction(f.d.compiler, f.scopeCreator, scope)
 		DataFlowAnalysis_ComputeEscaped(scope, escaped, f.d.compiler, f.scopeCreator, all.GetAllVariables())
 		var names []string

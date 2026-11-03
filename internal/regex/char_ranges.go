@@ -39,10 +39,10 @@ type CharRanges struct {
 }
 
 // CharRanges_EMPTY is the empty set.
-var CharRanges_EMPTY = NewCharRanges([]int{})
+var CharRanges_EMPTY = newCharRanges([]int{})
 
 // CharRanges_ALL_CODE_UNITS is the set of all UTF-16 code units.
-var CharRanges_ALL_CODE_UNITS = NewCharRanges([]int{0, 0x10000})
+var CharRanges_ALL_CODE_UNITS = newCharRanges([]int{0, 0x10000})
 
 // CharRanges_Inclusive returns the range [start, end].
 //
@@ -51,7 +51,7 @@ func CharRanges_Inclusive(start, end int) *CharRanges {
 	if start > end {
 		panic(jutil.NewIndexOutOfBoundsException(strconv.Itoa(start) + " > " + strconv.Itoa(end)))
 	}
-	return NewCharRanges([]int{start, end + 1})
+	return newCharRanges([]int{start, end + 1})
 }
 
 // CharRanges_WithMembers returns an instance containing all and only the
@@ -59,7 +59,7 @@ func CharRanges_Inclusive(start, end int) *CharRanges {
 //
 // Java: CharRanges.withMembers(int...)
 func CharRanges_WithMembers(members ...int) *CharRanges {
-	return NewCharRanges(CharRanges_IntArrayToRanges(members))
+	return newCharRanges(CharRanges_IntArrayToRanges(slices.Clone(members)))
 }
 
 // CharRanges_WithRanges returns an instance containing the given ranges.
@@ -80,13 +80,15 @@ func CharRanges_WithRanges(ranges ...int) *CharRanges {
 	return NewCharRanges(ranges)
 }
 
-// NewCharRanges wraps a ranges array.
+// NewCharRanges wraps a defensive copy of a ranges slice.
 //
 // Java: CharRanges(int[])
 func NewCharRanges(ranges []int) *CharRanges {
-	c := &CharRanges{}
-	c.ranges = ranges
-	return c
+	return &CharRanges{ranges: slices.Clone(ranges)}
+}
+
+func newCharRanges(ranges []int) *CharRanges {
+	return &CharRanges{ranges: ranges}
 }
 
 // CharRanges_IntArrayToRanges converts a set of members to ranges. It sorts
@@ -290,7 +292,7 @@ func (c *CharRanges) Union(other *CharRanges) *CharRanges {
 		k += n - j
 	}
 	// We guessed at the output length above.  Cut off the tail.
-	return NewCharRanges(out[:k])
+	return newCharRanges(out[:k])
 }
 
 // Intersection returns the intersection of c and other.
@@ -342,7 +344,7 @@ func (c *CharRanges) Intersection(other *CharRanges) *CharRanges {
 			}
 		}
 	}
-	return NewCharRanges(intersection[:intersectionIdx])
+	return newCharRanges(intersection[:intersectionIdx])
 }
 
 // Difference returns c minus subtrahendRanges.
@@ -403,7 +405,7 @@ func (c *CharRanges) Difference(subtrahendRanges *CharRanges) *CharRanges {
 		}
 	}
 
-	return NewCharRanges(difference[:dIdx])
+	return newCharRanges(difference[:dIdx])
 }
 
 // ContainsAll reports whether every member of sub is in c.
@@ -472,7 +474,7 @@ func (c *CharRanges) Shift(delta int) *CharRanges {
 	for i := n - 1; i >= 0; i-- {
 		shiftedRanges[i] = c.ranges[i] + delta
 	}
-	return NewCharRanges(shiftedRanges)
+	return newCharRanges(shiftedRanges)
 }
 
 // String renders the ranges, e.g. "[0x0-0x1 0x4 0x9]".

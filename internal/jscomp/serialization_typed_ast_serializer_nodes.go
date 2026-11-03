@@ -306,12 +306,14 @@ func (enc *scriptWireEncoder) buildScript(script rhino.Node, parent *TypedAstSer
 	clear(enc.subtreeSourceFiles)
 	enc.subtreeSourceFiles = enc.subtreeSourceFiles[:0]
 
-	if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*script.GetSourceFileName()); encodedSourceMap != nil {
-		// This is the encoded source map taken from the inline sourcemap comment. It does not include
-		// the base64 prefix.
-		// E.g. We serialize "eyJ2ZXJzaW9uI..." from the "//# sourceMappingURL=
-		// data:application/json;base64,eyJ2ZXJzaW9uI..." comment.
-		enc.lazyAst.sourceMappingUrl_ = *encodedSourceMap
+	if name := script.GetSourceFileName(); name != nil {
+		if encodedSourceMap := parent.compiler.GetBase64SourceMapContents(*name); encodedSourceMap != nil {
+			// This is the encoded source map taken from the inline sourcemap comment. It does not include
+			// the base64 prefix.
+			// E.g. We serialize "eyJ2ZXJzaW9uI..." from the "//# sourceMappingURL=
+			// data:application/json;base64,eyJ2ZXJzaW9uI..." comment.
+			enc.lazyAst.sourceMappingUrl_ = *encodedSourceMap
+		}
 	}
 }
 

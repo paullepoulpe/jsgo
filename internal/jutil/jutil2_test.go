@@ -107,22 +107,22 @@ func TestObjectsEquals(t *testing.T) {
 	if ListHashCode([]string{"a", "b"}) != ListHashCode([]string{"a", "b"}) {
 		t.Fatal("List.hashCode")
 	}
-	s1 := NewLinkedHashSet("a", "b")
-	s2 := NewLinkedHashSet("b", "a")
+	s1 := NewOrderedSet("a", "b")
+	s2 := NewOrderedSet("b", "a")
 	if !s1.Equals(s2) || s1.HashCode() != StringHashCode("a")+StringHashCode("b") {
 		t.Fatal("Set.equals / hashCode")
 	}
-	m := NewLinkedHashMap[string, *LinkedHashSet[string]]()
+	m := NewOrderedMap[string, *OrderedSet[string]]()
 	m.Put("ab", s1)
-	m.Put("c", NewLinkedHashSet("c"))
+	m.Put("c", NewOrderedSet("c"))
 	if m.String() != "{ab=[a, b], c=[c]}" {
 		t.Fatalf("String() = %s", m.String())
 	}
-	m2 := NewLinkedHashMap[string, *LinkedHashSet[string]]()
-	m2.Put("c", NewLinkedHashSet("c"))
+	m2 := NewOrderedMap[string, *OrderedSet[string]]()
+	m2.Put("c", NewOrderedSet("c"))
 	m2.Put("ab", s2)
 	if !m.Equals(m2) || m.HashCode() != m2.HashCode() {
-		t.Fatal("LinkedHashMap Equals/HashCode with value-equal sets")
+		t.Fatal("OrderedMap Equals/HashCode with value-equal sets")
 	}
 	m.Remove("ab")
 	if m.Size() != 1 || m.ContainsKey("ab") {

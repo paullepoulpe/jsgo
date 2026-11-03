@@ -157,17 +157,17 @@ func (e *Es6ConvertSuperConstructorCalls) visitSuper(t *NodeTraversal, construct
 			"$" +
 			e.uniqueIdSupplier.GetUniqueId(e.compiler.GetInput(NodeUtil_GetInputId(constructor)))
 	superClassNameNode := e.superClassQNameNode(constructor)
-	superClassQName := *superClassNameNode.GetQualifiedName()
+	superClassQName, hasSuperQName := superClassNameNode.GetQualifiedNameString()
 	thisType := e.typeOfThisForConstructor(constructor)
 
-	if e.isNativeObjectClass(t, superClassQName) {
+	if hasSuperQName && e.isNativeObjectClass(t, superClassQName) {
 		e.replaceSuperCallsWithThis(superCalls, thisType)
-	} else if e.isKnownNativeClass(t, superClassQName) {
+	} else if hasSuperQName && e.isKnownNativeClass(t, superClassQName) {
 		e.rewriteSuperCallsToJsCompConstructCalls(
 			constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
-	} else if e.isNativeErrorClass(t, superClassQName) {
+	} else if hasSuperQName && e.isNativeErrorClass(t, superClassQName) {
 		e.rewriteNativeErrorSuperCalls(t, superCalls, superClassNameNode, thisType)
-	} else if e.isKnownToReturnOnlyUndefined(superClassQName) {
+	} else if hasSuperQName && e.isKnownToReturnOnlyUndefined(superClassQName) {
 		e.rewriteSuperCalls(superCalls, superClassNameNode, thisType)
 	} else {
 		e.rewriteSuperAndPreserveReturnedThis(
@@ -398,8 +398,8 @@ func (e *Es6ConvertSuperConstructorCalls) isNodeKnownToOnlyReturnUndefined(node 
 		NodeTraversal_Traverse(e.compiler, functionBody, &check)
 		return !check.foundNonEmptyReturn
 	}
-	if node.IsQualifiedName() {
-		return e.isKnownToReturnOnlyUndefined(*node.GetQualifiedName())
+	if qname, ok := node.GetQualifiedNameString(); ok {
+		return e.isKnownToReturnOnlyUndefined(qname)
 	}
 	if hk, ok := ast.AsHook(node); ok {
 		return e.isNodeKnownToOnlyReturnUndefined(hk.Then().Node()) &&
@@ -680,12 +680,12 @@ func (e *Es6ConvertSuperConstructorCalls) typeOfThisForConstructor(constructor r
 }
 
 func (e *Es6ConvertSuperConstructorCalls) superClassQNameNode(constructor rhino.Node) rhino.Node {
-	className := NodeUtil_GetNameNode(constructor).GetQualifiedName()
+	className, hasClassName := rhino.CheckNotNull(NodeUtil_GetNameNode(constructor)).GetQualifiedNameString()
 	constructorStatement := rhino.CheckNotNull(NodeUtil_GetEnclosingStatement(constructor))
 
 	var superClassNameNode rhino.Node
 	for statement := constructorStatement.GetNext(); !statement.IsNil(); statement = statement.GetNext() {
-		superClassNameNode = e.superClassNameNodeIfInheritsStatement(statement, className)
+		superClassNameNode = e.superClassNameNodeIfInheritsStatement(statement, className, hasClassName)
 		if !superClassNameNode.IsNil() {
 			break
 		}
@@ -695,22 +695,24 @@ func (e *Es6ConvertSuperConstructorCalls) superClassQNameNode(constructor rhino.
 }
 
 func (e *Es6ConvertSuperConstructorCalls) superClassNameNodeIfInheritsStatement(
-	statement rhino.Node, className *string) rhino.Node {
+	statement rhino.Node, className string, hasClassName bool) rhino.Node {
 	exprStmt, ok := ast.AsExprStmt(statement)
 	if !ok {
 		return rhino.NilNode
 	}
-	call, ok := ast.AsCall(exprStmt.Expr().Node())
+	call, ok := exprStmt.Expr().AsCall()
 	if !ok {
 		return rhino.NilNode
 	}
-	jscompDotInherits := call.Callee().Node()
-	if !e.jscompInherits.Matches(jscompDotInherits) {
+	if !e.jscompInherits.Matches(call.Callee().Node()) {
 		return rhino.NilNode
 	}
-	classNameNode := rhino.CheckNotNull(jscompDotInherits.GetNext())
-	if classNameNode.MatchesQualifiedName(*className) {
-		return rhino.CheckNotNull(classNameNode.GetNext())
+	callOrNew := call.AsCallOrNew()
+	classNameArg, _ := callOrNew.ArgAt(0)
+	classNameNode := rhino.CheckNotNull(classNameArg.Node())
+	if hasClassName && classNameNode.MatchesQualifiedName(className) {
+		superClassArg, _ := callOrNew.ArgAt(1)
+		return rhino.CheckNotNull(superClassArg.Node())
 	}
 	return rhino.NilNode
 }

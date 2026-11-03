@@ -83,12 +83,9 @@ func NewGenerateExports(
 }
 
 // Java: GenerateExports.getExportedVariableNames()
-func (g *GenerateExports) GetExportedVariableNames() *jutil.LinkedHashSet[string] {
-	exported := jutil.NewLinkedHashSetWithCapacity[string](g.exportedVariables.Size())
-	for name := range g.exportedVariables.All() {
-		exported.Add(name)
-	}
-	return exported
+func (g *GenerateExports) GetExportedVariableNames() *OrderedSet[string] {
+	exported := g.exportedVariables.Clone()
+	return &exported
 }
 
 // Java: GenerateExports.process(Node, Node)
@@ -225,7 +222,7 @@ func (g *GenerateExports) AddExportForEs6Method(memberFunction rhino.Node, owner
 	jutil.CheckArgumentMsg1(memberFunction.IsMemberFunctionDef(), "%s", memberFunction)
 	jutil.CheckArgumentMsg1(ownerName != "", "%s", ownerName)
 	fullExport := ownerName + "." + memberFunction.GetString()
-	g.AddExportPropertyCall(&ownerName, memberFunction, fullExport, memberFunction.GetString())
+	g.AddExportPropertyCall(ownerName, memberFunction, fullExport, memberFunction.GetString())
 }
 
 // AddExportMethod emits a call to either goog.exportProperty or
@@ -243,49 +240,49 @@ func (g *GenerateExports) AddExportMethod(exports *OrderedStringMap[rhino.Node],
 	// a) ES6 class members, which the above `addExportForEs6Method` handles
 	// b) this is a property on a name which is also being exported
 	// c) this is a prototype property
-	var methodOwnerName *string            // the object this method is on, null for exported names.
+	var methodOwnerName string
+	hasMethodOwnerName := false
 	isEs5StylePrototypeAssignment := false // If this is a prototype property
 	var propertyName string
 
 	child := context.GetFirstChild()
 	if !child.IsNil() && child.IsGetProp() { // e.g. `/** @export */ a.prototype.b = obj;`
-		node := context.GetFirstChild()                // e.g. get `a.prototype.b`
-		ownerNode := node.GetFirstChild()              // e.g. get `a.prototype`
-		methodOwnerName = ownerNode.GetQualifiedName() // e.g. get the string "a.prototype"
+		ownerNode := child.GetFirstChild() // e.g. get `a.prototype`
+		methodOwnerName, hasMethodOwnerName = ownerNode.GetQualifiedNameString()
 		if ownerNode.IsGetProp() && ownerNode.GetString() == generateExports_PROTOTYPE_PROPERTY {
 			// e.g. true if ownerNode is `a.prototype`
 			// false if this export were `/** @export */ a.b = obj;` instead
 			isEs5StylePrototypeAssignment = true
 		}
-		propertyName = node.GetString()
+		propertyName = child.GetString()
 	}
 
 	useExportSymbol := true
 	if isEs5StylePrototypeAssignment {
 		useExportSymbol = false
-	} else if methodOwnerName != nil && exports.ContainsKey(*methodOwnerName) {
+	} else if hasMethodOwnerName && exports.ContainsKey(methodOwnerName) {
 		useExportSymbol = false
 	}
 
 	if useExportSymbol {
 		g.AddExportSymbolCall(export, context)
 	} else {
+		jutil.CheckState(hasMethodOwnerName)
 		g.AddExportPropertyCall(methodOwnerName, context, export, propertyName)
 	}
 }
 
 // Java: GenerateExports.addExportPropertyCall(String, Node, String, String)
 func (g *GenerateExports) AddExportPropertyCall(
-	methodOwnerName *string, context rhino.Node, export string, propertyName string) {
+	methodOwnerName string, context rhino.Node, export string, propertyName string) {
 	// JS output: exportProperty(object, publicName, symbol);
-	jutil.CheckNotNull(methodOwnerName)
 	call :=
 		rhino.IR_Call(
 			NodeUtil_NewQNameWithOriginalName(
 				g.compiler, *g.exportPropertyFunction,
 				context, *g.exportPropertyFunction),
 			NodeUtil_NewQNameWithOriginalName(
-				g.compiler, *methodOwnerName,
+				g.compiler, methodOwnerName,
 				context, *g.exportPropertyFunction),
 			rhino.IR_String(propertyName),
 			NodeUtil_NewQNameWithOriginalName(

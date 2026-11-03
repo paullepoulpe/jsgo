@@ -7,7 +7,7 @@ import (
 )
 
 func TestBatchedCollectionMutationDuringIteration(t *testing.T) {
-	m := NewLinkedHashMap[int, int]()
+	m := NewOrderedMap[int, int]()
 	for i := 0; i < 300; i++ {
 		m.Put(i, i+1000)
 	}
@@ -54,8 +54,8 @@ func TestBatchedCollectionMutationDuringIteration(t *testing.T) {
 }
 
 func TestCollectionIterationZeroAllocs(t *testing.T) {
-	lm := NewLinkedHashMap[int, int]()
-	ls := NewLinkedHashSet[int]()
+	lm := NewOrderedMap[int, int]()
+	ls := NewOrderedSet[int]()
 	for i := 0; i < 16; i++ {
 		lm.Put(i, i)
 		ls.Add(i)
@@ -81,10 +81,10 @@ func TestCollectionIterationZeroAllocs(t *testing.T) {
 
 func BenchmarkOrderedMapBuild(b *testing.B) {
 	for _, size := range []int{0, 1, 8, 16, 128, 1024} {
-		b.Run(fmt.Sprintf("linked/%d", size), func(b *testing.B) {
+		b.Run(fmt.Sprintf("ordered/%d", size), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				m := NewLinkedHashMap[int, int]()
+				m := NewOrderedMap[int, int]()
 				for j := 0; j < size; j++ {
 					m.Put(j, j)
 				}

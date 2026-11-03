@@ -43,7 +43,7 @@ type TypedScopeCreatorTest struct {
 	// This map is recreated each time parseAndRunTypeInference() is
 	// executed. TODO(bradfordcsmith): This map and LabeledStatement are also
 	// in TypeInferenceTest. It would be good to unify them.
-	labeledStatementMap *jutil.LinkedHashMap[string, *TypedScopeCreatorTest_LabeledStatement]
+	labeledStatementMap *OrderedStringMap[*TypedScopeCreatorTest_LabeledStatement]
 }
 
 // TypedScopeCreatorTest_LabeledStatement stores information about a labeled
@@ -124,7 +124,7 @@ func (c *TypedScopeCreatorTest) GetLabeledStatement(label string) *TypedScopeCre
 func (c *TypedScopeCreatorTest) GetProcessor(compiler *Compiler) CompilerPass {
 	c.registry = compiler.GetTypeRegistry()
 	// Create a fresh statement map for each test case.
-	c.labeledStatementMap = jutil.NewLinkedHashMap[string, *TypedScopeCreatorTest_LabeledStatement]()
+	c.labeledStatementMap = NewOrderedStringMap[*TypedScopeCreatorTest_LabeledStatement]()
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		NewGatherModuleMetadata(compiler, false, ModuleLoader_ResolutionMode_BROWSER).Process(externs, root)
 		NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap()).Process(externs, root)

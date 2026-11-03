@@ -239,9 +239,9 @@ func (d *inlineOracleDumper) dumpFile(rel string, src string) {
 	}
 }
 
-func globalNamespaceNameIndex(g *GlobalNamespace) *jutil.LinkedHashMap[string, *GlobalNamespace_Name] {
+func globalNamespaceNameIndex(g *GlobalNamespace) *OrderedStringMap[*GlobalNamespace_Name] {
 	g.EnsureGenerated()
-	m := jutil.NewLinkedHashMapWithCapacity[string, *GlobalNamespace_Name](int(g.indexedGlobalCount))
+	m := NewOrderedStringMapWithCapacity[*GlobalNamespace_Name](int(g.indexedGlobalCount))
 	for n := range g.AllNames() {
 		m.PutNew(n.GetFullName(), n)
 	}

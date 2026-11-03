@@ -636,7 +636,7 @@ func (g *GlobalNamespace) GetScope(slot *GlobalNamespace_Name) rhino.StaticScope
 }
 
 // AllNames iterates all global names in insertion order without materializing
-// a string-keyed LinkedHashMap.
+// a string-keyed OrderedStringMap.
 func (g *GlobalNamespace) AllNames() iter.Seq[*GlobalNamespace_Name] {
 	g.EnsureGenerated()
 	return func(yield func(*GlobalNamespace_Name) bool) {

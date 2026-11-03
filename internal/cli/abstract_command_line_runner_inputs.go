@@ -371,7 +371,6 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
 	allowStdIn bool,
 	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) ([]*jscomp.SourceFile, *jscomp.FlagUsageException) {
-	_ = allowStdIn
 	inputs := make([]*jscomp.SourceFile, 0, len(files))
 	usingStdin := false
 	jsChunkIndex := 0
@@ -423,7 +422,7 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 			if r.config.typedAstListInputFilename != nil {
 				return nil, jscomp.NewFlagUsageException("Can't use TypedASTs with stdin.")
 			}
-			if !r.config.defaultToStdin {
+			if !allowStdIn {
 				return nil, jscomp.NewFlagUsageException("Can't specify stdin.")
 			}
 			if usingStdin {
@@ -458,11 +457,63 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 	}
 	if jsonFiles != nil {
 		for _, jsonFile := range jsonFiles {
-			inputs = append(inputs, jscomp.SourceFile_FromCode(*jsonFile.GetPath(), *jsonFile.GetSrc()))
+			if jsonFile == nil {
+				panic(jutil.NewHelpfulNullPointerException(
+					`Cannot invoke "com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getPath()" because "jsonFile" is null`))
+			}
+			p := jsonFile.GetPath()
+			src := jsonFile.GetSrc()
+			if p == nil {
+				panic(jutil.NewHelpfulNullPointerException(
+					`Cannot invoke "String.indexOf(String)" because "path" is null`))
+			}
+			if src == nil {
+				panic(jutil.NewNullPointerException())
+			}
+			inputs = append(inputs, jscomp.SourceFile_FromCode(*p, *src))
 		}
 	}
 
 	return inputs, nil
+}
+
+func collectJsonStreamMaps(jsonFiles []*AbstractCommandLineRunner_JsonFileSpec) (
+	smEntries []kvEntry[*jscomp.SourceMapInput],
+	webpackEntries []kvEntry[string],
+) {
+	for _, jsonFile := range jsonFiles {
+		if jsonFile == nil {
+			panic(jutil.NewHelpfulNullPointerException(
+				`Cannot invoke "com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getSourceMap()" because "jsonFile" is null`))
+		}
+		if sm := jsonFile.GetSourceMap(); sm != nil && *sm != "" {
+			p := jsonFile.GetPath()
+			pathStr := "null"
+			if p != nil {
+				pathStr = *p
+			}
+			sourceMap := jscomp.SourceFile_FromCode(pathStr+".map", *sm)
+			smInput := jscomp.NewSourceMapInput(sourceMap)
+			if p == nil {
+				panic(jutil.NewNullPointerExceptionMsg("null key in entry: null=" + jutil.ToJavaString(smInput)))
+			}
+			smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{
+				key:   *p,
+				value: smInput,
+			})
+		}
+		if wid := jsonFile.GetWebpackId(); wid != nil {
+			p := jsonFile.GetPath()
+			if p == nil {
+				panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + *wid + "=null"))
+			}
+			webpackEntries = append(webpackEntries, kvEntry[string]{
+				key:   *wid,
+				value: *p,
+			})
+		}
+	}
+	return smEntries, webpackEntries
 }
 
 // DeduplicateIjsFiles removes input --ijs files whose basename matches an

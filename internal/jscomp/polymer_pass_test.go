@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -2503,8 +2502,8 @@ func (f *PolymerPassTest_DoSomethingFunFinder) Visit(n rhino.Node) {
 
 // polymerPassTest_genericNameReplacements is
 // ImmutableMap.of("Interface$UID", "Interface$").
-func polymerPassTest_genericNameReplacements() *jutil.LinkedHashMap[string, string] {
-	m := jutil.NewLinkedHashMap[string, string]()
+func polymerPassTest_genericNameReplacements() *OrderedStringMap[string] {
+	m := NewOrderedStringMap[string]()
 	m.Put("Interface$UID", "Interface$")
 	return m
 }

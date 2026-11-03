@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -63,7 +62,7 @@ func (p *processTweaksTest_pass) Process(externs rhino.Node, root rhino.Node) {
 	processTweak.Process(externs, root)
 
 	if p.outer.stripTweaks {
-		emptySet := jutil.NewLinkedHashSet[string]()
+		emptySet := NewOrderedSet[string]()
 		stripCode :=
 			NewStripCode(
 				p.compiler, emptySet, emptySet, emptySet /* enableTweakStripping= */, true)
