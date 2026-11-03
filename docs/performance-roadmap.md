@@ -3620,7 +3620,7 @@ section 3.4):
 | roots, `scriptNodeByFilename`, inputs' ASTs | set | forwarded (registry, as before) |
 | change timeline, diagnostics (`JSError.node`) | possibly set | forwarded (as before) |
 | `PerformanceTracker.externsRoot/jsRoot` (`--tracer_mode`) | set | **missing from the registry**: on main, `--tracer_mode=ALL` fails with a NullPointerException after the compaction at `typesToColors` (typed-app, verified). Forwarded at every compaction now (`a2f993cd`, with a test) |
-| JSDoc documentation markers (`nameNode`, `type_`), only when documentation is parsed (`--print_tree`) | set | **missing**: marked and forwarded with the type expressions now, at every compaction |
+| JSDoc documentation markers (`nameNode`, `type_`), only when documentation is parsed (`--print_tree`) | set | **missing**: marked and forwarded with the type expressions on the branch (main needs neither: `typesToColors` drops the markers before its only compaction point) |
 | JSDoc type expressions, node-valued props | set | laid out with the tree, as before |
 | module metadata, module map, type registry, typed scopes, type validator, transpilation namespace, `lastInjectedLibrary`, phase optimizer | nil | — |
 | package-level variables | static store only | sentinels and templates, never compacted |
@@ -3810,25 +3810,30 @@ of R − base in ms and its 95% CI:
 
 ### Decision
 
-**Not proposed for merging as it is** (the branch stays as
-`fast/frontlayout`): the walks in the front end are 28–35% cheaper, but in
+**Not merged** (the branch stays as `fast/frontlayout`): the walks in the front end are 28–35% cheaper, but in
 wall time the front end's saving is about what the renumbering costs at
 parse. It is resolved on typed-full at compat t=1 (−2.1%, N=10), flat on
 bundle-mega at compat t=4, and it leans the wrong way on bundle-mega at
 compat t=1 (+3.3%, CI −1.6…+8.5, parsing +0.44 s), which no repeat
 resolved. Taking the large trees' renumbering off the parse's critical
 path (above) is the step that could make it a clean gain; until then
-`JSGO_PARSE_RENUMBER=0` keeps the reserved ids only. What is worth taking
-now:
+`JSGO_PARSE_RENUMBER=0` keeps the reserved ids only. What was merged
+(2026-11-03):
 
-- `a2f993cd` (the tracker's roots and the nil local roots), merged into the
-  work branch already;
-- the documentation markers' forwarding (in `appendNodeSlots`,
-  `d73c4215`), which the compaction after `typesToColors` needs whenever
-  documentation is parsed;
+- `a2f993cd` (the tracker's roots and the nil local roots), merged into
+  main with the layout round's merge;
+- a test that compiles with the tracer on and JSDoc documentation parsed,
+  with and without the compaction (it crashes without `a2f993cd`);
 - the test fix for `TestCompactorPermuteMultiBlockReusesOldBlocks`, whose
   assertion of block reuse with several workers depends on scheduling
   (it failed once under `-race`).
+
+Not merged with them: the documentation markers' forwarding. Main compacts
+only after `typesToColors`, which replaces every JSDocInfo with the
+simplified one the optimizations use (`JSDocSerializer_ConvertJSDocInfoForOptimizations`),
+markers dropped; so the markers hold nodes only before any compaction, and
+the forwarding matters only for a compaction in the front end such as this
+round's.
 
 Validation of the branch (`40f47dd7`): the Java gate on the 11 bench tasks
 at t=1 and t=4, plus t=4 with the renumbering off and t=1 with both
