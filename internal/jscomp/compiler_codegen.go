@@ -768,12 +768,13 @@ func (c *Compiler) printRootWithScratch(
 	sm *CodePrinter_SourceAndMappings,
 	scratch *codePrinterScratch,
 ) string {
-	builder := CodePrinter_Builder{root: n}
-	builder.SetCompilerOptions(c.options)
-	builder.SetTagAsTypeSummary(c.options.ShouldGenerateTypedExterns())
-	builder.SetTagAsStrict(firstOutput && c.options.ShouldEmitUseStrict())
-	builder.SetLicenseTracker(licenseTracker)
-	return builder.buildSourceAndMappingsInto(sm, gatherSourceMap, scratch)
+	return printCodeInto(CodePrintConfig{
+		Root:             n,
+		Options:          c.options,
+		TagAsTypeSummary: c.options.ShouldGenerateTypedExterns(),
+		TagAsStrict:      firstOutput && c.options.ShouldEmitUseStrict(),
+		LicenseTracker:   licenseTracker,
+	}, sm, gatherSourceMap, scratch)
 }
 
 func (c *Compiler) toSourceAndMappingsIntoWithScratch(

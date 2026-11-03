@@ -2350,5 +2350,5 @@ func functionInjectorTest_alwaysTrue(rhino.Node) bool { return true }
 
 // Java: FunctionInjectorTest.toSource(Node)
 func FunctionInjectorTest_ToSource(n rhino.Node) string {
-	return NewCodePrinter_Builder(n).SetPrettyPrint(true).SetLineBreak(true).Build()
+	return PrintCode(CodePrintConfig{Root: n, PrettyPrint: true, LineBreak: true})
 }

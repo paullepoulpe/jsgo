@@ -26,9 +26,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// InlineAndCollapseProperties_AggressiveInlineAliases inlines type aliases
-// if they are explicitly or effectively const. Also inlines inherited static
-// property accesses for ES6 classes.
+// aggressiveInlineAliases inlines type aliases if they are explicitly or
+// effectively const. Also inlines inherited static property accesses for ES6
+// classes.
 //
 // This frees subsequent optimization passes from the responsibility of
 // having to reason about alias chains and is a requirement for correct
@@ -38,7 +38,7 @@ import (
 // some cases inline properties, possibly past places that change the
 // property value. However, it will only do so in cases where
 // CollapseProperties would unsafely collapse the property anyway.
-type InlineAndCollapseProperties_AggressiveInlineAliases struct {
+type aggressiveInlineAliases struct {
 	outer *InlineAndCollapseProperties
 
 	scopeCreator    *SyntacticScopeCreator
@@ -50,25 +50,23 @@ type InlineAndCollapseProperties_AggressiveInlineAliases struct {
 }
 
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases()
-func NewInlineAndCollapseProperties_AggressiveInlineAliases(outer *InlineAndCollapseProperties) *InlineAndCollapseProperties_AggressiveInlineAliases {
-	a := &InlineAndCollapseProperties_AggressiveInlineAliases{outer: outer}
-	a.codeChanged = true
-	return a
+func NewInlineAndCollapseProperties_AggressiveInlineAliases(outer *InlineAndCollapseProperties) *aggressiveInlineAliases {
+	return &aggressiveInlineAliases{outer: outer, codeChanged: true}
 }
 
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.getLastUsedGlobalNamespace()
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) GetLastUsedGlobalNamespace() *GlobalNamespace {
+func (a *aggressiveInlineAliases) GetLastUsedGlobalNamespace() *GlobalNamespace {
 	return a.outer.namespace
 }
 
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) getScopeCreator() *SyntacticScopeCreator {
+func (a *aggressiveInlineAliases) getScopeCreator() *SyntacticScopeCreator {
 	if a.scopeCreator == nil {
 		a.scopeCreator = NewSyntacticScopeCreator(a.outer.compiler)
 	}
 	return a.scopeCreator
 }
 
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) invalidateScopeCollectors() {
+func (a *aggressiveInlineAliases) invalidateScopeCollectors() {
 	if len(a.scopeCollectors) > 0 {
 		clear(a.scopeCollectors)
 		clear(a.cachedVarNames)
@@ -91,7 +89,7 @@ func leftmostQNameID(n rhino.Node) (uint32, bool) {
 	return 0, false
 }
 
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) noteMutatedQName(n rhino.Node) {
+func (a *aggressiveInlineAliases) noteMutatedQName(n rhino.Node) {
 	if len(a.scopeCollectors) == 0 || n.IsNil() || n.IsNull() {
 		return
 	}
@@ -107,7 +105,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) noteMutatedQName(n
 	}
 }
 
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) getReferencesInScope(
+func (a *aggressiveInlineAliases) getReferencesInScope(
 	aliasScope *Scope, aliasVar *Var,
 ) (*ReferenceCollector, *ReferenceCollection) {
 	scopeRoot := aliasScope.GetRootNode()
@@ -140,15 +138,15 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) getReferencesInSco
 }
 
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.process(Node, Node)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(a.outer.compiler, root, NewInlineAndCollapseProperties_RewriteSimpleDestructuringAliases())
+func (a *aggressiveInlineAliases) Process(externs rhino.Node, root rhino.Node) {
+	NodeTraversal_Traverse(a.outer.compiler, root, &rewriteSimpleDestructuringAliases{})
 
 	// Building the `GlobalNamespace` dominates the cost of this pass, so it is built once and
 	// updated as changes are made so it can be reused for the next iteration.
 	a.outer.namespace = NewGlobalNamespaceWithLog(a.outer.decisionsLog, a.outer.compiler, root)
 	for a.codeChanged {
 		a.codeChanged = false
-		a.InlineAliases(a.outer.namespace)
+		a.inlineAliases(a.outer.namespace)
 	}
 	a.scopeCreator = nil
 	a.scopeCollectors = nil
@@ -156,7 +154,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs rh
 	a.newNodes = astChangeSet{}
 }
 
-// InlineAliases: for each qualified name N in the global scope, we check if:
+// inlineAliases: for each qualified name N in the global scope, we check if:
 // (a) No ancestor of N is ever aliased or assigned an unknown value type.
 // (If N = "a.b.c", "a" and "a.b" are never aliased). (b) N has exactly one
 // write, and it lives in the global scope. (c) N is aliased in a local
@@ -184,7 +182,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) Process(externs rh
 // See InlineVariables.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineAliases(GlobalNamespace)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(namespace *GlobalNamespace) {
+func (a *aggressiveInlineAliases) inlineAliases(namespace *GlobalNamespace) {
 	// Invariant: All the names in the worklist meet condition (a).
 	// adds all top-level names to the worklist, but not any properties on those names.
 	//
@@ -205,17 +203,17 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 			name.GetLocalSets() == 0 {
 			// `name` meets condition (b). Find all of its aliases
 			// and try to inline them.
-			a.MaybeInlineInnerName(name)
+			a.maybeInlineInnerName(name)
 			if name.GetAliasingGets() > 0 || name.GetSubclassingGets() > 0 {
 				// condition (c) and/or condition (d) are true
-				a.InlineAliasesForName(name, namespace)
+				a.inlineAliasesForName(name, namespace)
 			}
 		}
 		InlineAndCollapseProperties_MaybeAddPropertiesToWorklist(name, &workList)
 	}
 }
 
-// InlineAliasesForName inlines a global name into all the places where
+// inlineAliasesForName inlines a global name into all the places where
 // references for aliases to it currently exist.
 //
 // e.g.
@@ -233,7 +231,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliases(name
 // aliasName = globalName`.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineAliasesForName(Name, GlobalNamespace)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForName(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
+func (a *aggressiveInlineAliases) inlineAliasesForName(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
 	var refsBuf [8]*GlobalNamespace_Ref
 	refs := name.snapshotRefs(&refsBuf)
 	for _, ref := range refs {
@@ -242,20 +240,20 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForNa
 			// TODO(johnlenz): consider picking up new aliases at the end
 			// of the pass instead of immediately like we do for global
 			// inlines.
-			a.InlineAliasIfPossible(name, ref, namespace)
+			a.inlineAliasIfPossible(name, ref, namespace)
 		} else if ref.IsAliasingGet() &&
 			ref.scope.GetClosestHoistScope().IsGlobal() &&
 			!ref.IsTwin() {
-			a.InlineGlobalAliasIfPossible(name, ref, namespace)
+			a.inlineGlobalAliasIfPossible(name, ref, namespace)
 		} else if name.IsClass() && ref.IsSubclassingGet() && name.HasProps() {
 			for prop := range name.Props() {
-				a.RewriteAllSubclassInheritedAccesses(name, ref, prop, namespace)
+				a.rewriteAllSubclassInheritedAccesses(name, ref, prop, namespace)
 			}
 		}
 	}
 }
 
-// MaybeInlineInnerName: if the global name is a function with an
+// maybeInlineInnerName: if the global name is a function with an
 // inner-scope name, inline references to that name with the global name.
 // Class inner name rewrites are handled in Es6NormalizeClasses.
 //
@@ -267,7 +265,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasesForNa
 //	}
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.maybeInlineInnerName(Name)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerName(globalName *GlobalNamespace_Name) {
+func (a *aggressiveInlineAliases) maybeInlineInnerName(globalName *GlobalNamespace_Name) {
 	globalNameDeclaration := jutil.CheckNotNullMsg1(globalName.getDeclarationRef(), "%s", globalName)
 	globalDeclarationNode := rhino.CheckNotNullMsg1(globalNameDeclaration.GetNode(), "%s", globalNameDeclaration)
 	valueNode := NodeUtil_GetRValueOfLValue(globalDeclarationNode)
@@ -309,13 +307,13 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 			// and the introduction of a reference to a global in a local scope can cause other
 			// optimizations to back off.
 			a.noteMutatedQName(innerNameRefNode)
-			newNodes.add(a.ReplaceAliasReference(globalNameDeclaration, innerNameRef))
+			newNodes.add(a.replaceAliasReference(globalNameDeclaration, innerNameRef))
 		}
 	}
 	a.outer.namespace.ScanNewNodes(newNodes)
 }
 
-// RewriteAllSubclassInheritedAccesses inlines all references to inherited
+// rewriteAllSubclassInheritedAccesses inlines all references to inherited
 // static superclass properties from the subclass or any descendant of the
 // given subclass. Avoids inlining references to inherited methods when
 // possible, since they may use this or super().
@@ -326,7 +324,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) MaybeInlineInnerNa
 // superclassNameObj.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAllSubclassInheritedAccesses(Name, Ref, Name, GlobalNamespace)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclassInheritedAccesses(
+func (a *aggressiveInlineAliases) rewriteAllSubclassInheritedAccesses(
 	superclassNameObj *GlobalNamespace_Name, superclassRef *GlobalNamespace_Ref, prop *GlobalNamespace_Name, namespace *GlobalNamespace) bool {
 	if !prop.CanCollapse() {
 		return false // inlining is a) unnecessary if there is @nocollapse and b) might break
@@ -354,7 +352,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 		var subRefsBuf [8]*GlobalNamespace_Ref
 		for _, ref := range subclassNameObj.snapshotRefs(&subRefsBuf) {
 			if ref.IsSubclassingGet() {
-				a.RewriteAllSubclassInheritedAccesses(superclassNameObj, ref, prop, namespace)
+				a.rewriteAllSubclassInheritedAccesses(superclassNameObj, ref, prop, namespace)
 			}
 		}
 	}
@@ -372,13 +370,13 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 
 		newNodes := &a.newNodes
 		newNodes.reset()
-		a.RewriteNestedAliasReference(superclassNameNode, 0, newNodes, subclassPropNameObj)
+		a.rewriteNestedAliasReference(superclassNameNode, 0, newNodes, subclassPropNameObj)
 		namespace.ScanNewNodes(newNodes)
 	}
 	return true
 }
 
-// IsInlineableModuleExportsAlias recognizes aliases for the special global
+// isInlineableModuleExportsAlias recognizes aliases for the special global
 // variables representing the `exports` values for goog modules which are
 // safe to inline.
 //
@@ -394,7 +392,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAllSubclass
 // aliases which risks producing the PARTIAL_NAMESPACE_WARNING.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.isInlineableModuleExportsAlias(Name, ReferenceCollection)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModuleExportsAlias(name *GlobalNamespace_Name, aliasRefs *ReferenceCollection) bool {
+func (a *aggressiveInlineAliases) isInlineableModuleExportsAlias(name *GlobalNamespace_Name, aliasRefs *ReferenceCollection) bool {
 	if !strings.HasPrefix(name.RootBaseName(), ClosureRewriteModule_MODULE_EXPORTS_PREFIX) {
 		return false
 	}
@@ -439,7 +437,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModule
 	return true
 }
 
-// InlineAliasIfPossible attempts to inline a non-global alias of a global
+// inlineAliasIfPossible attempts to inline a non-global alias of a global
 // name.
 //
 // It is assumed that the name for which it is an alias meets conditions (a)
@@ -454,7 +452,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) IsInlineableModule
 // name to remove.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineAliasIfPossible(Name, Ref, GlobalNamespace)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossible(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
+func (a *aggressiveInlineAliases) inlineAliasIfPossible(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
 	// Ensure that the alias is assigned to a local variable at that
 	// variable's declaration. If the alias's parent is a NAME,
 	// then the NAME must be the child of a VAR, LET, or CONST node, and we must
@@ -469,7 +467,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 
 		if aliasRefs.IsWellDefined() &&
 			(aliasRefs.IsAssignedOnceInLifetime() ||
-				a.IsInlineableModuleExportsAlias(name, aliasRefs)) {
+				a.isInlineableModuleExportsAlias(name, aliasRefs)) {
 			// The alias is well-formed, so do the inlining now.
 			newNodes := &a.newNodes
 			newNodes.reset()
@@ -482,11 +480,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			collector.forgetVar(aliasVar)
 			for i := firstRead; i < size; i++ {
 				aliasRef := aliasRefs.references[i]
-				newNodes.add(a.ReplaceAliasReference(alias, aliasRef))
+				newNodes.add(a.replaceAliasReference(alias, aliasRef))
 			}
 
 			// just set the original alias to null.
-			a.TryReplacingAliasingAssignment(alias, name, lhsNode)
+			a.tryReplacingAliasingAssignment(alias, name, lhsNode)
 
 			// Inlining the variable may have introduced new references
 			// to descendants of `name`. So those need to be collected now.
@@ -499,7 +497,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 			// generators introduces some constructor aliases that weren't getting inlined.
 			// If we find another (safer) way to avoid aliasing in method decomposition, consider
 			// removing this.
-			if !a.PartiallyInlineAlias(alias, name, namespace, collector, aliasVar, aliasRefs, lhsNode) {
+			if !a.partiallyInlineAlias(alias, name, namespace, collector, aliasVar, aliasRefs, lhsNode) {
 				// If we can't inline all alias references, make sure there are no unsafe property
 				// accesses.
 				if InlineAndCollapseProperties_ReferencesCollapsibleProperty(aliasRefs, name) {
@@ -510,7 +508,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 	}
 }
 
-// PartiallyInlineAlias inlines some references to an alias with its value.
+// partiallyInlineAlias inlines some references to an alias with its value.
 // This handles cases where the alias is not declared at initialization. It
 // does nothing if the alias is reassigned after being initialized, unless
 // the reassignment occurs because of an enclosing function or a loop.
@@ -522,7 +520,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineAliasIfPossi
 // all references to the alias were inlined.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.partiallyInlineAlias(Ref, Name, GlobalNamespace, ReferenceCollection, Node)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAlias(
+func (a *aggressiveInlineAliases) partiallyInlineAlias(
 	alias *GlobalNamespace_Ref,
 	aliasingName *GlobalNamespace_Name,
 	namespace *GlobalNamespace,
@@ -573,7 +571,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 			// never reassigned.
 			a.codeChanged = true
 			replacedAny = true
-			newNodes.add(a.ReplaceAliasReference(alias, aliasRef))
+			newNodes.add(a.replaceAliasReference(alias, aliasRef))
 		} else {
 			foundNonReplaceableAlias = true
 		}
@@ -585,7 +583,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 
 	// We removed all references to the alias, so remove the original aliasing assignment.
 	if !foundNonReplaceableAlias {
-		a.TryReplacingAliasingAssignment(alias, aliasingName, aliasLhsNode)
+		a.tryReplacingAliasingAssignment(alias, aliasingName, aliasLhsNode)
 	}
 
 	if a.codeChanged {
@@ -596,11 +594,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) PartiallyInlineAli
 	return !foundNonReplaceableAlias
 }
 
-// TryReplacingAliasingAssignment replaces the rhs of an aliasing assignment
+// tryReplacingAliasingAssignment replaces the rhs of an aliasing assignment
 // with null, unless the assignment result is used in a complex expression.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.tryReplacingAliasingAssignment(Ref, Name, Node)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) TryReplacingAliasingAssignment(
+func (a *aggressiveInlineAliases) tryReplacingAliasingAssignment(
 	alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode rhino.Node) bool {
 	// either VAR/CONST/LET or ASSIGN.
 	assignment := aliasLhsNode.GetParent()
@@ -619,13 +617,13 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) TryReplacingAliasi
 	return true
 }
 
-// ReplaceAliasReference: alias is a GlobalNamespace.Ref of the variable
+// replaceAliasReference: alias is a GlobalNamespace.Ref of the variable
 // being aliased; aliasRef one particular usage of an alias that we want to
 // replace with the aliased var. Returns an AstChange representing the new
 // node(s) added to the AST.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.replaceAliasReference(Ref, Reference)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) ReplaceAliasReference(alias *GlobalNamespace_Ref, aliasRef *Reference) GlobalNamespace_AstChange {
+func (a *aggressiveInlineAliases) replaceAliasReference(alias *GlobalNamespace_Ref, aliasRef *Reference) GlobalNamespace_AstChange {
 	originalRefNode := alias.GetNode()
 	nodeToReplace := aliasRef.GetNode()
 	jutil.CheckStateMsg1(nodeToReplace.IsQualifiedName(), "%s", nodeToReplace)
@@ -649,7 +647,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) ReplaceAliasRefere
 	return NewGlobalNamespace_SimpleAstChange(newNode, alias.GetChunk(), alias.scope)
 }
 
-// InlineGlobalAliasIfPossible attempts to inline an global alias of a
+// inlineGlobalAliasIfPossible attempts to inline an global alias of a
 // global name. This requires that the name is well defined: assigned
 // unconditionally, assigned exactly once. It is assumed that, the name for
 // which it is an alias must already meet these same requirements.
@@ -659,7 +657,7 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) ReplaceAliasRefere
 // name is the global name being aliased; alias the alias to inline.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.inlineGlobalAliasIfPossible(Name, Ref, GlobalNamespace)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasIfPossible(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
+func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
 	// Ensure that the alias is assigned to global name at that the
 	// declaration.
 	aliasParent := alias.GetNode().GetParent()
@@ -697,8 +695,8 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 
 		// Rewrite all references to the aliasing name, except for the initialization & any cross-
 		// chunk references if they exist.
-		newNodes := a.RewriteAliasReferences(aliasingName, alias, aliasInlinability)
-		a.RewriteAliasProps(aliasingName, alias.GetNode(), 0, newNodes)
+		newNodes := a.rewriteAliasReferences(aliasingName, alias, aliasInlinability)
+		a.rewriteAliasProps(aliasingName, alias.GetNode(), 0, newNodes)
 
 		if aliasInlinability.ShouldRemoveDeclaration() {
 			// Rewrite the initialization of the alias.
@@ -741,14 +739,14 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) InlineGlobalAliasI
 	}
 }
 
-// RewriteAliasReferences replaces reads of a name with the name it aliases
+// rewriteAliasReferences replaces reads of a name with the name it aliases
 //
 // aliasingName is the alias - e.g. 'alsoFoo' in 'const alsoFoo = foo;';
 // aliasInlinability indicates whether all references to the alias should be
 // inlined, or only those that are in a valid cross-chunk dependency.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasReferences(Name, Ref, Inlinability)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasReferences(
+func (a *aggressiveInlineAliases) rewriteAliasReferences(
 	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *astChangeSet {
 	newNodes := &a.newNodes
 	newNodes.reset()
@@ -803,12 +801,12 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasRefere
 	return newNodes
 }
 
-// RewriteAliasProps: name is the Name whose properties references should be
+// rewriteAliasProps: name is the Name whose properties references should be
 // updated; value the value to use when rewriting; depth the chain depth;
 // newNodes expression nodes that have been updated.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasProps(Name, Node, int, Set<AstChange>)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
+func (a *aggressiveInlineAliases) rewriteAliasProps(
 	name *GlobalNamespace_Name, value rhino.Node, depth int, newNodes *astChangeSet) {
 	if !name.HasProps() {
 		return
@@ -818,11 +816,11 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 			jutil.LenientFormat("%s should not match name %s", value, name.GetFullName())))
 	}
 	for prop := range name.Props() {
-		a.RewriteNestedAliasReference(value, depth, newNodes, prop)
+		a.rewriteNestedAliasReference(value, depth, newNodes, prop)
 	}
 }
 
-// RewriteNestedAliasReference replaces references to an alias that are
+// rewriteNestedAliasReference replaces references to an alias that are
 // nested inside a longer getprop chain or an object literal
 //
 // For example: if we have an inlined alias 'const A = B;', and reference a
@@ -839,9 +837,9 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteAliasProps(
 // rewrite with value.
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteNestedAliasReference(Node, int, Set<AstChange>, Name)
-func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAliasReference(
+func (a *aggressiveInlineAliases) rewriteNestedAliasReference(
 	value rhino.Node, depth int, newNodes *astChangeSet, prop *GlobalNamespace_Name) {
-	a.RewriteAliasProps(prop, value, depth+1, newNodes)
+	a.rewriteAliasProps(prop, value, depth+1, newNodes)
 	var refsBuf [8]*GlobalNamespace_Ref
 	refs := prop.snapshotRefs(&refsBuf)
 	for _, ref := range refs {
@@ -916,19 +914,13 @@ func (a *InlineAndCollapseProperties_AggressiveInlineAliases) RewriteNestedAlias
 	}
 }
 
-// InlineAndCollapseProperties_RewriteSimpleDestructuringAliases rewrites
-// "simple" destructuring aliases to a format that is more amenable to
-// inlining.
+// rewriteSimpleDestructuringAliases rewrites "simple" destructuring aliases to
+// a format that is more amenable to inlining.
 //
 // To be specific, this rewrites aliases of the form: const {x} =
 // qualified.name; to: const x = qualified.name.x;
-type InlineAndCollapseProperties_RewriteSimpleDestructuringAliases struct {
+type rewriteSimpleDestructuringAliases struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-}
-
-// Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases()
-func NewInlineAndCollapseProperties_RewriteSimpleDestructuringAliases() *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases {
-	return &InlineAndCollapseProperties_RewriteSimpleDestructuringAliases{}
 }
 
 func parseSimpleDestructuringAlias(n rhino.Node) (ast.ObjectPattern, rhino.Node, bool) {
@@ -953,20 +945,14 @@ func parseSimpleDestructuringAlias(n rhino.Node) (ast.ObjectPattern, rhino.Node,
 	if !ok || !initExpr.Node().IsQualifiedName() {
 		return ast.ObjectPattern{}, rhino.NilNode, false
 	}
-	if !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern) {
+	if !isSimpleDestructuringPattern(objectPattern) {
 		return ast.ObjectPattern{}, rhino.NilNode, false
 	}
 	return objectPattern, initExpr.Node(), true
 }
 
-// Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.isSimpleDestructuringAlias(Node)
-func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringAlias(n rhino.Node) bool {
-	_, _, ok := parseSimpleDestructuringAlias(n)
-	return ok
-}
-
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.isSimpleDestructuringPattern(Node)
-func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(objectPattern ast.ObjectPattern) bool {
+func isSimpleDestructuringPattern(objectPattern ast.ObjectPattern) bool {
 	for prop := range objectPattern.Props() {
 		key, ok := prop.AsStringKey()
 		if !ok || key.IsQuoted() {
@@ -978,7 +964,7 @@ func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestr
 			continue
 		}
 		nested, ok := val.AsObjectPattern()
-		if !ok || !InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestructuringPattern(nested) {
+		if !ok || !isSimpleDestructuringPattern(nested) {
 			return false
 		}
 	}
@@ -988,29 +974,29 @@ func InlineAndCollapseProperties_RewriteSimpleDestructuringAliases_IsSimpleDestr
 var rewriteSimpleDestructuringTokens = makeVisitTokenSet(rhino.Token_CONST)
 
 var (
-	_ nodeTraversal_visitTokens   = (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases)(nil)
-	_ nodeTraversal_noVisitLeaves = (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases)(nil)
+	_ nodeTraversal_visitTokens   = (*rewriteSimpleDestructuringAliases)(nil)
+	_ nodeTraversal_noVisitLeaves = (*rewriteSimpleDestructuringAliases)(nil)
 )
 
-func (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) visitTokens() *ast.TokenSet {
+func (*rewriteSimpleDestructuringAliases) visitTokens() *ast.TokenSet {
 	return &rewriteSimpleDestructuringTokens
 }
 
-func (*InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) noVisitLeaves() {}
+func (*rewriteSimpleDestructuringAliases) noVisitLeaves() {}
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.visit(NodeTraversal, Node, Node)
-func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (r *rewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	objectPattern, rhs, ok := parseSimpleDestructuringAlias(n)
 	if !ok {
 		return
 	}
-	r.ExpandObjectPattern(t, n, objectPattern, rhs)
+	expandObjectPattern(t, n, objectPattern, rhs)
 	n.Detach()
 	t.ReportCodeChange()
 }
 
 // Java: InlineAndCollapseProperties.RewriteSimpleDestructuringAliases.expandObjectPattern(NodeTraversal, Node, Node, Node)
-func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) ExpandObjectPattern(
+func expandObjectPattern(
 	t *NodeTraversal, insertionPoint rhino.Node, objectPattern ast.ObjectPattern, rhs rhino.Node) rhino.Node {
 	for prop := range objectPattern.Props() {
 		key := prop.MustStringKey()
@@ -1034,7 +1020,7 @@ func (r *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) ExpandOb
 		newConstNode.InsertAfter(insertionPoint)
 		insertionPoint = newConstNode
 		if isNested {
-			insertionPoint = r.ExpandObjectPattern(t, insertionPoint, nested, nameNode.CloneNode())
+			insertionPoint = expandObjectPattern(t, insertionPoint, nested, nameNode.CloneNode())
 		}
 	}
 	return insertionPoint

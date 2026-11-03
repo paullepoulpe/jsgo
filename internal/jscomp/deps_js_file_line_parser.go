@@ -78,16 +78,16 @@ func (*jsFileLineParser) parseJsDocCommentLine(string) bool {
 }
 
 func readJsReader(r jutil.JavaReader) (text string, ok bool) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			if _, isIO := rec.(jutil.IIOException); isIO {
-				ok = false
-				return
-			}
-			panic(rec)
-		}
-	}()
-	return jutil.CharStreams_ToString(r), true
+	if sr, isStr := r.(*jutil.StringReader); isStr {
+		return jutil.CharStreams_ToString(sr), true
+	}
+	ok = true
+	jutil.Try(func() {
+		text = jutil.CharStreams_ToString(r)
+	}, func(jutil.IIOException) {
+		ok = false
+	})
+	return text, ok
 }
 
 func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, fileContents jutil.JavaReader) {
@@ -96,9 +96,8 @@ func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, f
 		b.filePath = filePath
 		b.lineNum = 0
 		b.parseSucceeded = false
-		fp := filePath
 		b.errorManager.Report(CheckLevel_ERROR,
-			JSError_MakeWithSourceLocation(&fp, 0, 0,
+			JSError_MakeWithSourceLocation(&b.filePath, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
 		return
 	}
@@ -195,10 +194,9 @@ func parseJsLines[H jsLineHandler](b *jsFileLineParser, h H, filePath string, te
 		if revisedLine != "" {
 			keepGoing, errMsg := h.parseLine(revisedLine)
 			if errMsg != "" {
-				fp := filePath
 				b.errorManager.Report(
 					CheckLevel_ERROR,
-					JSError_MakeWithSourceLocation(&fp, b.lineNum, 0,
+					JSError_MakeWithSourceLocation(&b.filePath, b.lineNum, 0,
 						JsFileLineParser_PARSE_ERROR, errMsg, line))
 				b.parseSucceeded = false
 				continue
@@ -321,6 +319,8 @@ func (b *jsFileLineParser) parseJsStringArray(input string) ([]string, string, b
 	return results, "", true
 }
 
+// ParseJsStringMap parses a JS string-valued object literal for the CoreG3
+// differential oracle (production callers use parseLoadFlagsObject).
 func (b *jsFileLineParser) ParseJsStringMap(input string) *jutil.LinkedHashMap[string, string] {
 	results := jutil.NewLinkedHashMap[string, string]()
 	errMsg, ok := b.parseJsStringObjectEntries(input, func(key, val string) {

@@ -96,8 +96,8 @@ const SourceMapGeneratorV3_UNMAPPED = -1
 // Java: SourceMapGeneratorV3()
 func NewSourceMapGeneratorV3() *SourceMapGeneratorV3 {
 	return &SourceMapGeneratorV3{
-		offsetPosition: MakeFilePosition(0, 0),
-		prefixPosition: MakeFilePosition(0, 0),
+		offsetPosition: NewFilePosition(0, 0),
+		prefixPosition: NewFilePosition(0, 0),
 	}
 }
 
@@ -115,8 +115,8 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.symbolIdxToNameId = g.symbolIdxToNameId[:0]
 	clear(g.orderedSymbolNames)
 	g.orderedSymbolNames = g.orderedSymbolNames[:0]
-	g.offsetPosition = MakeFilePosition(0, 0)
-	g.prefixPosition = MakeFilePosition(0, 0)
+	g.offsetPosition = NewFilePosition(0, 0)
+	g.prefixPosition = NewFilePosition(0, 0)
 }
 
 // Validate sets whether to perform (potentially costly) validation on the
@@ -142,7 +142,7 @@ func (g *SourceMapGeneratorV3) SetWrapperPrefix(prefix string) {
 	} else {
 		prefixIndex = jutil.StringLength(prefix)
 	}
-	g.prefixPosition = MakeFilePosition(prefixLine, prefixIndex)
+	g.prefixPosition = NewFilePosition(prefixLine, prefixIndex)
 }
 
 // SetStartingPosition sets the source code that exists in the buffer for
@@ -155,7 +155,7 @@ func (g *SourceMapGeneratorV3) SetWrapperPrefix(prefix string) {
 func (g *SourceMapGeneratorV3) SetStartingPosition(offsetLine, offsetIndex int) {
 	jutil.CheckState(offsetLine >= 0)
 	jutil.CheckState(offsetIndex >= 0)
-	g.offsetPosition = MakeFilePosition(offsetLine, offsetIndex)
+	g.offsetPosition = NewFilePosition(offsetLine, offsetIndex)
 }
 
 // AddMapping adds a mapping for the given node. Mappings must be added in
@@ -203,11 +203,11 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 			endOffsetPosition = 0
 		}
 
-		adjustedStart = MakeFilePosition(
+		adjustedStart = NewFilePosition(
 			jutil.IntAdd(startPosition.GetLine(), offsetLine),
 			jutil.IntAdd(startPosition.GetColumn(), startOffsetPosition))
 
-		adjustedEnd = MakeFilePosition(
+		adjustedEnd = NewFilePosition(
 			jutil.IntAdd(endPosition.GetLine(), offsetLine),
 			jutil.IntAdd(endPosition.GetColumn(), endOffsetPosition))
 	}

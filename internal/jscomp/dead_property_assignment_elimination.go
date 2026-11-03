@@ -21,7 +21,6 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // DeadPropertyAssignmentElimination is an optimization pass that finds and
@@ -54,21 +53,19 @@ func NewDeadPropertyAssignmentElimination(compiler AbstractCompiler) *DeadProper
 func (d *DeadPropertyAssignmentElimination) Process(externs rhino.Node, root rhino.Node) {
 	// GatherExternProperties must be enabled for this pass to safely know what property writes are
 	// eligible for removal.
-	externProps := d.compiler.GetExternProperties()
+	externProps := d.compiler.GetExternPropSet()
 	accessorSummary := d.compiler.GetAccessorSummary()
 	if externProps == nil || accessorSummary == nil {
 		return
 	}
 
 	accessorIDs := accessorSummary.AccessorIDs()
-	skiplisted := make(map[uint32]struct{}, len(accessorIDs)+externProps.Size())
+	skiplisted := make(map[uint32]struct{}, len(accessorIDs)+externProps.Len())
 	for _, id := range accessorIDs {
 		skiplisted[id] = struct{}{}
 	}
-	for name := range externProps.All() {
-		if id := strpool.Lookup(name); id != 0 {
-			skiplisted[uint32(id)] = struct{}{}
-		}
+	for _, id := range externProps.IDs() {
+		skiplisted[uint32(id)] = struct{}{}
 	}
 
 	visitor := &dpaeFunctionVisitor{

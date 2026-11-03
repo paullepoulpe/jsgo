@@ -226,7 +226,7 @@ func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 	c.exportedNames.AddAll(compilerState.GetExportedNamesList()...)
 
 	if compilerState.GetHasCssNames() {
-		c.cssNames = jutil.NewLinkedHashSet(compilerState.GetCssNamesList()...)
+		c.cssNames = NewOrderedSet(compilerState.GetCssNamesList()...)
 	} else {
 		c.cssNames = nil
 	}
@@ -400,7 +400,7 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 	c.chunkGraph = NewJSChunkGraph(chunks)
 
 	// Restore TypedAST and related fields
-	c.externProperties = deserializedAst.GetExternProperties()
+	c.SetExternProperties(deserializedAst.GetExternProperties())
 	c.externAndJsRoot = rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root())
 	c.externsRoot = c.externAndJsRoot.GetFirstChild()
 	c.jsRoot = c.externAndJsRoot.GetLastChild()

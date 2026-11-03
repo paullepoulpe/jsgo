@@ -4495,7 +4495,7 @@ func TestImportantComment(t *testing.T) {
 	assertNode(t, n.GetFirstChild()).HasType(rhino.Token_FUNCTION)
 	assertThat(t, n.GetJSDocInfo()).IsNotNull()
 	assertThat(t, n.GetFirstChild().GetJSDocInfo()).IsNull()
-	assertThat(t, n.GetJSDocInfo().GetLicense()).IsEqualTo(" Hi mom! ")
+	assertThat(t, optString(n.GetJSDocInfo().GetLicenseString())).IsEqualTo(" Hi mom! ")
 }
 
 // Java: ParserTest.testBlockCommentParsed()
@@ -5660,7 +5660,7 @@ func TestParseBlockDescription(t *testing.T) {
 	n := pt.parse("/** This is a variable. */ var x;")
 	var_ := n.GetFirstChild()
 	assertThat(t, var_.GetJSDocInfo()).IsNotNull()
-	assertThat(t, var_.GetJSDocInfo().GetBlockDescription()).IsEqualTo("This is a variable.")
+	assertThat(t, optString(var_.GetJSDocInfo().GetBlockDescriptionString())).IsEqualTo("This is a variable.")
 }
 
 // Java: ParserTest.testUnnamedFunctionStatement()

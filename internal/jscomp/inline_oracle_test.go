@@ -109,7 +109,7 @@ func inlineOracleNewPass(name string, c *Compiler) CompilerPass {
 			ModuleResolutionMode:     ModuleLoader_ResolutionMode_BROWSER,
 		})
 	case "inline-simple-methods":
-		c.SetExternProperties(jutil.NewLinkedHashSet[string]())
+		c.SetExternProperties(NewOrderedSet[string]())
 		return NewInlineSimpleMethods(c)
 	}
 	panic(jutil.NewIllegalArgumentExceptionMsg(name))

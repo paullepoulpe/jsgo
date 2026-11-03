@@ -318,7 +318,7 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 				SetUnknownDefinesToIgnore(compiler.GetOptions().GetUnknownDefinesToIgnore()).
 				Build().
 				Process(externs, js)
-			*extra = append(*extra, "defineNames "+compiler.GetDefineNames().String())
+			*extra = append(*extra, "defineNames "+jutil.CollectionToString(compiler.GetDefineNames().ToSlice()))
 		})
 	}
 	d.pass(inputs, parseDiags, "closureCodeRemoval", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {

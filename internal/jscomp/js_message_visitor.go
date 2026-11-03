@@ -482,17 +482,6 @@ func jsMessageVisitor_externalMessageId(messageKey string) (string, bool) {
 	return "", false
 }
 
-// JsMessageVisitor_GetExternalMessageId extracts an external message ID from
-// the message key, if it contains one, or nil otherwise.
-//
-// Java: JsMessageVisitor.getExternalMessageId(String)
-func JsMessageVisitor_GetExternalMessageId(messageKey string) *string {
-	if id, ok := jsMessageVisitor_externalMessageId(messageKey); ok {
-		return &id
-	}
-	return nil
-}
-
 // Java: JsMessageVisitor.generateKeyFromMessageText(String)
 func jsMessageVisitor_generateKeyFromMessageText(msgText string) string {
 	nonnegativeHash := int64(0x7fffffffffffffff) & jsMessage_Hash_hash64String(msgText)

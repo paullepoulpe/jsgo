@@ -138,7 +138,7 @@ type RemoveUnusedCode struct {
 
 	preserveFunctionExpressionNames bool
 
-	externProperties *jutil.LinkedHashSet[string]
+	externProperties *ExternPropSet
 	accessorSummary  *AccessorSummary
 
 	// Single value to use for all vars for which we cannot remove anything at
@@ -288,7 +288,7 @@ func (r *RemoveUnusedCode) considerPolyfillRef(keyID uint32, n rhino.Node) {
 // Java: RemoveUnusedCode.process(Node, Node)
 func (r *RemoveUnusedCode) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckState(r.compiler.GetLifeCycleStage().IsNormalized())
-	r.externProperties = r.compiler.GetExternProperties()
+	r.externProperties = r.compiler.GetExternPropSet()
 	r.accessorSummary = r.compiler.GetAccessorSummary()
 
 	defer func() {
@@ -606,9 +606,8 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 	}
 	idx := r.ensurePropEntry(strpool.ID(propID))
 	if !r.propEntries[idx].checkedUnpinned {
-		name := strpool.String(strpool.ID(propID))
-		if (r.externProperties != nil && r.externProperties.Contains(name)) ||
-			r.isExportedByConvention(name /* local= */, false) {
+		if r.externProperties.HasID(strpool.ID(propID)) ||
+			r.isExportedByConvention(strpool.String(strpool.ID(propID)) /* local= */, false) {
 			r.pinnedProps.Set(int(propID))
 			removable.ApplyContinuations(r)
 			return

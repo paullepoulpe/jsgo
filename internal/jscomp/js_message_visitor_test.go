@@ -38,6 +38,13 @@ func newJsMessageVisitorTest_RenameMessagesVisitor() *jsMessageVisitorTest_Renam
 	return &jsMessageVisitorTest_RenameMessagesVisitor{}
 }
 
+func jsMessageAssertOpt(s string, ok bool) *Subject {
+	if !ok {
+		return AssertThat(nil)
+	}
+	return AssertThat(s)
+}
+
 // Java: JsMessageVisitorTest.RenameMessagesVisitor.visit(NodeTraversal, Node, Node)
 func (v *jsMessageVisitorTest_RenameMessagesVisitor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Node.getString() is never null for a NAME (the Java null check is kept as a no-op).
@@ -171,7 +178,7 @@ func (c *JsMessageVisitorTest) TestIcuTemplate() {
 
 	msg := definition.GetMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_ICU_EXAMPLE")
-	AssertThat(msg.GetDesc()).IsEqualTo("ICU example message")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("ICU example message")
 	AssertThat(msg.AsIcuMessageString()).
 		IsEqualTo(
 			"{NUM_PEOPLE, plural, offset:1\n" +
@@ -181,7 +188,7 @@ func (c *JsMessageVisitorTest) TestIcuTemplate() {
 				"        other {I see {INTERPOLATION_1} and # other people in {INTERPOLATION_2}.}\n" +
 				"    }")
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)
-	AssertThat(msg.GetSourceName()).IsEqualTo("testcode:1")
+	jsMessageAssertOpt(msg.SourceNameOpt()).IsEqualTo("testcode:1")
 }
 
 // Java: JsMessageVisitorTest.testIcuTemplatePlaceholderTypo()
@@ -263,9 +270,9 @@ func (c *JsMessageVisitorTest) TestJsMessageOnVar() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HELLO")
-	AssertThat(msg.GetDesc()).IsEqualTo("Hello")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("Hello")
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)
-	AssertThat(msg.GetSourceName()).IsEqualTo("testcode:1")
+	jsMessageAssertOpt(msg.SourceNameOpt()).IsEqualTo("testcode:1")
 }
 
 // Java: JsMessageVisitorTest.testJsMessageOnLet()
@@ -275,9 +282,9 @@ func (c *JsMessageVisitorTest) TestJsMessageOnLet() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HELLO")
-	AssertThat(msg.GetDesc()).IsEqualTo("Hello")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("Hello")
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)
-	AssertThat(msg.GetSourceName()).IsEqualTo("testcode:1")
+	jsMessageAssertOpt(msg.SourceNameOpt()).IsEqualTo("testcode:1")
 }
 
 // Java: JsMessageVisitorTest.testJsMessageOnConst()
@@ -287,9 +294,9 @@ func (c *JsMessageVisitorTest) TestJsMessageOnConst() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HELLO")
-	AssertThat(msg.GetDesc()).IsEqualTo("Hello")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("Hello")
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)
-	AssertThat(msg.GetSourceName()).IsEqualTo("testcode:1")
+	jsMessageAssertOpt(msg.SourceNameOpt()).IsEqualTo("testcode:1")
 }
 
 // Java: JsMessageVisitorTest.testJsMessagesWithSrcMap()
@@ -325,13 +332,13 @@ func (c *JsMessageVisitorTest) TestJsMessagesWithSrcMap() {
 
 	msg1 := c.messages[0]
 	AssertThat(msg1.GetKey()).IsEqualTo("MSG_HELLO")
-	AssertThat(msg1.GetDesc()).IsEqualTo("Hello")
-	AssertThat(msg1.GetSourceName()).IsEqualTo("source1.html:11")
+	jsMessageAssertOpt(msg1.DescOpt()).IsEqualTo("Hello")
+	jsMessageAssertOpt(msg1.SourceNameOpt()).IsEqualTo("source1.html:11")
 
 	msg2 := c.messages[1]
 	AssertThat(msg2.GetKey()).IsEqualTo("MSG_HI")
-	AssertThat(msg2.GetDesc()).IsEqualTo("Hi")
-	AssertThat(msg2.GetSourceName()).IsEqualTo("source2.html:11")
+	jsMessageAssertOpt(msg2.DescOpt()).IsEqualTo("Hi")
+	jsMessageAssertOpt(msg2.SourceNameOpt()).IsEqualTo("source2.html:11")
 }
 
 // Java: JsMessageVisitorTest.testJsMessageOnProperty()
@@ -340,7 +347,7 @@ func (c *JsMessageVisitorTest) TestJsMessageOnProperty() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_MENU_MARK_AS_UNREAD")
-	AssertThat(msg.GetDesc()).IsEqualTo("a")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("a")
 }
 
 // Java: JsMessageVisitorTest.testJsMessageOnPublicField()
@@ -451,7 +458,7 @@ func (c *JsMessageVisitorTest) TestStaticInheritance() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_MENU")
-	AssertThat(msg.GetDesc()).IsEqualTo("a")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("a")
 }
 
 // Java: JsMessageVisitorTest.testMsgInEnum()
@@ -490,7 +497,7 @@ func (c *JsMessageVisitorTest) TestJsMessageOnObjLit() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_MENU_MARK_AS_UNREAD")
-	AssertThat(msg.GetDesc()).IsEqualTo("a")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("a")
 }
 
 // Java: JsMessageVisitorTest.testInvalidJsMessageOnObjLit()
@@ -657,7 +664,7 @@ func (c *JsMessageVisitorTest) TestClosureMessageWithHelpPostfix() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_FOO_HELP")
-	AssertThat(msg.GetDesc()).IsEqualTo("help text")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("help text")
 	AssertThat(msg.AsJsMessageString()).IsEqualTo("Help!")
 }
 
@@ -735,7 +742,7 @@ func (c *JsMessageVisitorTest) TestClosureFormatParametizedFunction() {
 
 	msg := jsMessageDefinition.GetMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_SILLY")
-	AssertThat(msg.GetDesc()).IsEqualTo("help text")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("help text")
 	AssertThat(msg.AsJsMessageString()).IsEqualTo("{$adjective} message")
 }
 
@@ -764,7 +771,7 @@ func (c *JsMessageVisitorTest) TestHugeMessage() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HUGE")
-	AssertThat(msg.GetDesc()).IsEqualTo("A message with lots of stuff.")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("A message with lots of stuff.")
 	AssertThat(msg.AsJsMessageString()).
 		IsEqualTo(
 			"{$startLink_1}Google{$endLink}{$startLink_2}blah{$endLink}{$boo}{$foo_001}{$boo}{$foo_002}{$xxx_001}{$image}{$image_001}{$xxx_002}")
@@ -775,7 +782,7 @@ func (c *JsMessageVisitorTest) TestUnnamedGoogleMessage() {
 	c.extractMessages("var MSG_UNNAMED = goog.getMsg('Hullo');")
 
 	msg := c.assertOneMessage()
-	AssertThat(msg.GetDesc()).IsNull()
+	jsMessageAssertOpt(msg.DescOpt()).IsNull()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_16LJMYKCXT84X")
 	AssertThat(msg.GetId()).IsEqualTo("MSG_16LJMYKCXT84X")
 	AssertThat(c.compiler.GetErrors()).IsEmpty()
@@ -792,7 +799,7 @@ func (c *JsMessageVisitorTest) TestUnnamedIcuTemplate() {
 
 	AssertThat(c.icuTemplateDefinitions).HasSize(1)
 	msg := c.icuTemplateDefinitions[0].GetMessage()
-	AssertThat(msg.GetDesc()).IsEqualTo("description")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("description")
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_16LJMYKCXT84X")
 	AssertThat(msg.GetId()).IsEqualTo("MSG_16LJMYKCXT84X")
 }
@@ -807,9 +814,9 @@ func (c *JsMessageVisitorTest) TestMeaningGetsUsedAsIdIfTheresNoGenerator() {
 			"var MSG_HULLO = goog.getMsg('Hullo');\n")
 
 	msg := c.assertOneMessage()
-	AssertThat(msg.GetDesc()).IsEqualTo("some description")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("some description")
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HULLO")
-	AssertThat(msg.GetMeaning()).IsEqualTo("some meaning")
+	jsMessageAssertOpt(msg.MeaningOpt()).IsEqualTo("some meaning")
 	AssertThat(msg.GetId()).IsEqualTo("some meaning")
 }
 
@@ -906,7 +913,7 @@ func (c *JsMessageVisitorTest) TestExtractPropertyMessage() {
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_SILLY")
 	AssertThat(msg.AsJsMessageString()).IsEqualTo("{$adjective} {$someNoun}")
-	AssertThat(msg.GetDesc()).IsEqualTo("A message that demonstrates placeholders")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("A message that demonstrates placeholders")
 }
 
 // Java: JsMessageVisitorTest.testExtractPropertyMessageInFunction()
@@ -924,7 +931,7 @@ func (c *JsMessageVisitorTest) TestExtractPropertyMessageInFunction() {
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_SILLY")
 	AssertThat(msg.AsJsMessageString()).IsEqualTo("{$adjective} {$someNoun}")
-	AssertThat(msg.GetDesc()).IsEqualTo("A message that demonstrates placeholders")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("A message that demonstrates placeholders")
 }
 
 // Java: JsMessageVisitorTest.testAlmostButNotExternalMessage()
@@ -1157,9 +1164,9 @@ func (c *JsMessageVisitorTest) TestRenamedMessages_var() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HELLO")
-	AssertThat(msg.GetDesc()).IsEqualTo("Hello")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("Hello")
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)
-	AssertThat(msg.GetSourceName()).IsEqualTo("testcode:1")
+	jsMessageAssertOpt(msg.SourceNameOpt()).IsEqualTo("testcode:1")
 }
 
 // Java: JsMessageVisitorTest.testRenamedMessages_getprop()
@@ -1170,7 +1177,7 @@ func (c *JsMessageVisitorTest) TestRenamedMessages_getprop() {
 
 	msg := c.assertOneMessage()
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_MENU_MARK_AS_UNREAD")
-	AssertThat(msg.GetDesc()).IsEqualTo("a")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("a")
 }
 
 // Java: JsMessageVisitorTest.testGetMsgWithOptions()
@@ -1198,7 +1205,7 @@ func (c *JsMessageVisitorTest) TestGetMsgWithOptions() {
 	// MSG_HELLO =
 	AssertThat(msg.GetKey()).IsEqualTo("MSG_HELLO")
 	// * @desc Hello
-	AssertThat(msg.GetDesc()).IsEqualTo("Hello")
+	jsMessageAssertOpt(msg.DescOpt()).IsEqualTo("Hello")
 
 	msgDefinition := c.messageDefinitions[0]
 

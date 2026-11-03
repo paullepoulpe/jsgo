@@ -560,12 +560,15 @@ func (c *CheckJSDoc) ValidateMsgJsDoc(n rhino.Node, info *rhino.JSDocInfo) {
 		return
 	}
 
-	hasNonDescMsgTag := info.GetMeaning() != nil || info.GetAlternateMessageId() != nil
+	_, hasMeaning := info.GetMeaningString()
+	_, hasAltId := info.GetAlternateMessageIdString()
+	_, hasDesc := info.GetDescriptionString()
+	hasNonDescMsgTag := hasMeaning || hasAltId
 
 	if hasNonDescMsgTag ||
 		// Don't error on TS gencode using @desc on a non-message. There's a lot of code that
 		// uses @desc as a general purpose "@desc" tag
-		(info.GetDescription() != nil && !CheckJSDoc_IsFromTs(n)) {
+		(hasDesc && !CheckJSDoc_IsFromTs(n)) {
 		descOkay := false
 		switch n.GetToken() {
 		case rhino.Token_ASSIGN:

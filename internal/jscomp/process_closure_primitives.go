@@ -679,7 +679,7 @@ func (p *ProcessClosurePrimitives) ReportPossibleBadBaseMethodUse(n rhino.Node, 
 // processClosurePrimitives_cssRenamingMap is the anonymous CssRenamingMap of
 // processSetCssNameMapping.
 type processClosurePrimitives_cssRenamingMap struct {
-	cssNames *jutil.LinkedHashMap[string, string]
+	cssNames OrderedStringMap[string]
 	style    CssRenamingMap_Style
 }
 
@@ -716,7 +716,7 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 
 	// Translate OBJECTLIT into SubstitutionMap. All keys and
 	// values must be strings, or an error will be thrown.
-	cssNames := jutil.NewLinkedHashMap[string, string]()
+	cssNames := *NewOrderedStringMapWithCapacity[string](obj.Node().GetChildCount())
 
 	for member := range obj.Members() {
 		key, isKey := member.AsStringKey()
@@ -752,7 +752,8 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 		// Make sure that no class keys contain -'s
 		// Variable keys can contain -'s since they're always named BY_WHOLE.
 		var errors []string
-		for key := range cssNames.Keys() {
+		for _, entry := range cssNames.Entries() {
+			key := entry.Key
 			if jutil.StringIndexOf(key, "-") >= 0 && !jutil.StringStartsWith(key, "--") {
 				errors = append(errors, key)
 			}
@@ -766,22 +767,23 @@ func ProcessClosurePrimitives_ProcessSetCssNameMapping(
 		// the map, then map(a-b) = map(a)-map(b).
 		// To speed things up, only consider cases where len(b) <= 10
 		var errors []string
-		for bKey, bValue := range cssNames.All() {
-			if jutil.StringLength(bKey) > 10 {
+		entries := cssNames.Entries()
+		for _, b := range entries {
+			if jutil.StringLength(b.Key) > 10 {
 				continue
 			}
-			for aKey, aValue := range cssNames.All() {
-				combined, ok := cssNames.Lookup(aKey + "-" + bKey)
-				if ok && combined != aValue+"-"+bValue {
+			for _, a := range entries {
+				combined, ok := cssNames.Lookup(a.Key + "-" + b.Key)
+				if ok && combined != a.Value+"-"+b.Value {
 					errors = append(errors,
 						"map("+
-							aKey+
+							a.Key+
 							"-"+
-							bKey+
+							b.Key+
 							") != map("+
-							aKey+
+							a.Key+
 							")-map("+
-							bKey+
+							b.Key+
 							")")
 				}
 			}
@@ -818,8 +820,8 @@ func (p *ProcessClosurePrimitives) ProcessForwardDeclare(n rhino.Node) {
 	}
 	convention := p.compiler.GetCodingConvention()
 
-	typeDeclarations := convention.IdentifyTypeDeclarationCall(n)
-	if len(typeDeclarations) != 1 {
+	typeDeclaration, ok := convention.IdentifyTypeDeclarationCall(n)
+	if !ok {
 		p.compiler.Report(
 			JSError_MakeWithNode(
 				n,
@@ -828,7 +830,7 @@ func (p *ProcessClosurePrimitives) ProcessForwardDeclare(n rhino.Node) {
 		return
 	}
 
-	p.compiler.ForwardDeclareType(typeDeclarations[0])
+	p.compiler.ForwardDeclareType(typeDeclaration)
 }
 
 // ProcessClosurePrimitives_VerifySetCssNameMapping verifies that

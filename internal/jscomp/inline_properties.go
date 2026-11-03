@@ -22,7 +22,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // InlineProperties attempts to find references to properties that are known
@@ -99,11 +98,9 @@ func inlinePropColor(n rhino.Node) *colors.Color {
 }
 
 func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
-	if externProps := p.compiler.GetExternProperties(); externProps != nil {
-		for name := range externProps.All() {
-			if id := strpool.Lookup(name); id != 0 {
-				p.invalidate(uint32(id))
-			}
+	if externProps := p.compiler.GetExternPropSet(); externProps != nil {
+		for _, id := range externProps.IDs() {
+			p.invalidate(uint32(id))
 		}
 	}
 

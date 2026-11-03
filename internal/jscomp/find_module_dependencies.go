@@ -44,7 +44,7 @@ type FindModuleDependencies struct {
 	supportsCommonJsModules bool
 	moduleType              CompilerInput_ModuleType
 	dynamicImportScope      *Scope
-	inputPathByWebpackId    *jutil.LinkedHashMap[string, string]
+	inputPathByWebpackId    *OrderedStringMap[string]
 }
 
 var findModuleDependencies_GOOG_MODULE = rhino.QualifiedName_Of("goog.module")
@@ -55,15 +55,18 @@ func NewFindModuleDependencies(
 	compiler AbstractCompiler,
 	supportsEs6Modules bool,
 	supportsCommonJsModules bool,
-	inputPathByWebpackId *jutil.LinkedHashMap[string, string]) *FindModuleDependencies {
-	f := &FindModuleDependencies{}
-	f.moduleType = CompilerInput_ModuleType_NONE
-	f.dynamicImportScope = nil
-	f.compiler = compiler
-	f.supportsEs6Modules = supportsEs6Modules
-	f.supportsCommonJsModules = supportsCommonJsModules
-	f.inputPathByWebpackId = inputPathByWebpackId
-	return f
+	inputPathByWebpackId jutil.MapSource[string, string]) *FindModuleDependencies {
+	webpackMap, ok := inputPathByWebpackId.(*OrderedStringMap[string])
+	if !ok {
+		webpackMap = copyOrderedStringMap(inputPathByWebpackId)
+	}
+	return &FindModuleDependencies{
+		compiler:                compiler,
+		supportsEs6Modules:      supportsEs6Modules,
+		supportsCommonJsModules: supportsCommonJsModules,
+		moduleType:              CompilerInput_ModuleType_NONE,
+		inputPathByWebpackId:    webpackMap,
+	}
 }
 
 // FindModuleDependencies_FindGoogProvideOrGoogModule is the private static
@@ -143,9 +146,9 @@ func (f *FindModuleDependencies) Process(root rhino.Node) {
 	input.SetHasFullParseDependencyInfo(true)
 }
 
-func findModuleDependencies_hasValue(m *jutil.LinkedHashMap[string, string], target string) bool {
-	for v := range m.Values() {
-		if v == target {
+func findModuleDependencies_hasValue(m *OrderedStringMap[string], target string) bool {
+	for _, e := range m.Entries() {
+		if e.Value == target {
 			return true
 		}
 	}

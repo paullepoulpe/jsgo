@@ -205,14 +205,14 @@ func newRenameProperties(
 	reservedNonFirstCharacters ASCIICharSet,
 	nameGenerator NameGenerator,
 	propertyRenameEligibilityFilter func(rhino.Node) bool) *RenameProperties {
-	externProperties := compiler.GetExternProperties()
+	externProperties := compiler.GetExternPropSet()
 	if externProperties == nil {
 		panic(jutil.NewNullPointerException()) // externedNames.addAll(null)
 	}
-	externedNames := make(map[strpool.ID]struct{}, externProperties.Size()+1)
+	externedNames := make(map[strpool.ID]struct{}, externProperties.Len()+1)
 	externedNames[idPrototype] = struct{}{}
-	for name := range externProperties.All() {
-		externedNames[strpool.Intern(name)] = struct{}{}
+	for _, id := range externProperties.IDs() {
+		externedNames[id] = struct{}{}
 	}
 	return &RenameProperties{
 		compiler:                        compiler,

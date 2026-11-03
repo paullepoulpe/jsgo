@@ -36,6 +36,13 @@ const (
 	inferJSDocInfoTest_DeclarationKeyword_CONST
 )
 
+func inferJSDocAssertOpt(s string, ok bool) *Subject {
+	if !ok {
+		return AssertThat(nil)
+	}
+	return AssertThat(s)
+}
+
 // Java: InferJSDocInfoTest.DeclarationKeyword.toJs()
 func (k inferJSDocInfoTest_DeclarationKeyword) toJs() string {
 	switch k {
@@ -103,7 +110,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromExternTypesIsPreserved() {
 	AssertThat(xType.String()).IsEqualTo("Object")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm an Object.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm an Object.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromInstanceNodesIsIgnored()
@@ -124,7 +131,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromInstanceNodesIsIgnored() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsNotPropagatedToNativeFunctionType()
@@ -162,7 +169,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromNamedFunctionPropagatesToDefinedType()
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromNamedEs6ClassPropagatesToDefinedType()
@@ -179,7 +186,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromNamedEs6ClassPropagatesToDefinedType()
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromGlobalAssignmentPropagatesToDefinedType()
@@ -199,7 +206,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromGlobalAssignmentPropagatesToDefinedTyp
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromNamespacedNameAssignmentPropagatesToDefinedType()
@@ -221,7 +228,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromNamespacedNameAssignmentPropagatesToDe
 	AssertThat(xType.String()).IsEqualTo("namespace.Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromVarAssignmentPropagatesToDefinedType()
@@ -259,7 +266,7 @@ func (c *InferJSDocInfoTest) testJSDocFromVariableAssignmentPropagatesToDefinedT
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromVariableNameAssignmentPropagatesToDefinedType()
@@ -279,7 +286,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromVariableNameAssignmentPropagatesToDefi
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToClasses_Es5()
@@ -299,7 +306,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToClasses_Es5() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user class.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user class.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToClasses_Es6()
@@ -316,7 +323,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToClasses_Es6() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user class.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user class.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToCtors()
@@ -336,7 +343,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToCtors() {
 	AssertThat(xType.String()).IsEqualTo("(typeof Foo)")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user class.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user class.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToInterfaces()
@@ -356,7 +363,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToInterfaces() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user interface.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user interface.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToRecords()
@@ -376,7 +383,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToRecords() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user record.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user record.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToEnums()
@@ -396,7 +403,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToEnums() {
 	AssertThat(xType.String()).IsEqualTo("enum{Foo}")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user enum.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user enum.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToEnumElements()
@@ -416,7 +423,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToEnumElements() {
 	AssertThat(xType.String()).IsEqualTo("Foo<number>")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user enum.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user enum.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToFunctionTypes()
@@ -437,7 +444,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToFunctionTypes() {
 	AssertThat(xType.String()).IsEqualTo("function(*): string")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a custom function.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a custom function.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToScopedTypes()
@@ -459,7 +466,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToScopedTypes() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a scoped user class.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a scoped user class.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToFunctionTypesFromMethodAssigments()
@@ -482,7 +489,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToFunctionTypesFromMethodAssig
 	AssertThat(xType.String()).IsEqualTo("function(this:Foo): number")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a method.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a method.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsNotPropagatedToFunctionTypesFromConstAliases()
@@ -540,11 +547,11 @@ func (c *InferJSDocInfoTest) TestJSDocIsNotPropagatedToFunctionTypesFromProperty
 
 	// Then
 	AssertThat(callbackType.GetJSDocInfo()).IsNull()
-	AssertThat(fooInstanceType.GetPropertyJSDocInfo("callback1").GetBlockDescription()).
+	inferJSDocAssertOpt(fooInstanceType.GetPropertyJSDocInfo("callback1").GetBlockDescriptionString()).
 		IsEqualTo("CB1")
-	AssertThat(fooInstanceType.GetPropertyJSDocInfo("callback2").GetBlockDescription()).
+	inferJSDocAssertOpt(fooInstanceType.GetPropertyJSDocInfo("callback2").GetBlockDescriptionString()).
 		IsEqualTo("CB2")
-	AssertThat(fooInstanceType.GetPropertyJSDocInfo("callback3").GetBlockDescription()).
+	inferJSDocAssertOpt(fooInstanceType.GetPropertyJSDocInfo("callback3").GetBlockDescriptionString()).
 		IsEqualTo("CB3")
 }
 
@@ -580,9 +587,9 @@ func (c *InferJSDocInfoTest) TestJSDocItPropagatedToFunctionTypesFromPropertyAli
 	// type `function(*): string`, it does attach JSDocInfo to the narrower function type
 	// `function(string): string`.
 	AssertThat(callbackType.GetJSDocInfo()).IsNull()
-	AssertThat(fooInstanceType.GetPropertyJSDocInfo("callback").GetBlockDescription()).
+	inferJSDocAssertOpt(fooInstanceType.GetPropertyJSDocInfo("callback").GetBlockDescriptionString()).
 		IsEqualTo("CB1")
-	AssertThat(thisDotCallbackType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("CB1")
+	inferJSDocAssertOpt(thisDotCallbackType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("CB1")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedDistinctlyToMatchingStructuralTypes_ObjectLiteralTypes()
@@ -608,8 +615,8 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedDistinctlyToMatchingStructural
 	AssertThat(test1Type).IsNotSameInstanceAs(test0Type)
 
 	// Then
-	AssertThat(test0Type.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm test0.")
-	AssertThat(test1Type.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm test1.")
+	inferJSDocAssertOpt(test0Type.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm test0.")
+	inferJSDocAssertOpt(test1Type.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm test1.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedDistinctlyToMatchingStructuralTypes_FunctionTypes()
@@ -641,8 +648,8 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedDistinctlyToMatchingStructural
 	AssertThat(test1Type).IsNotSameInstanceAs(test0Type)
 
 	// Then
-	AssertThat(test0Type.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm test0.")
-	AssertThat(test1Type.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm test1.")
+	inferJSDocAssertOpt(test0Type.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm test0.")
+	inferJSDocAssertOpt(test1Type.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm test1.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsNotOverriddenByStructuralTypeAssignments_ObjectLiteralTypes()
@@ -668,7 +675,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsNotOverriddenByStructuralTypeAssignments
 	AssertThat(test1Type).IsSameInstanceAs(test0Type)
 
 	// Then
-	AssertThat(test0Type.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm test0.")
+	inferJSDocAssertOpt(test0Type.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm test0.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsNotOverriddenByStructuralTypeAssignments_FunctionTypes()
@@ -698,7 +705,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsNotOverriddenByStructuralTypeAssignments
 	AssertThat(test1Type).IsSameInstanceAs(test0Type)
 
 	// Then
-	AssertThat(test0Type.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm test0.")
+	inferJSDocAssertOpt(test0Type.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm test0.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToFieldProperties_Es5()
@@ -721,7 +728,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToFieldProperties_Es5() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("field").GetBlockDescription()).IsEqualTo("I'm a field.")
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("field").GetBlockDescriptionString()).IsEqualTo("I'm a field.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToFieldProperties_Es6Class()
@@ -745,7 +752,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToFieldProperties_Es6Class() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("field").GetBlockDescription()).IsEqualTo("I'm a field.")
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("field").GetBlockDescriptionString()).IsEqualTo("I'm a field.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToClassField()
@@ -767,7 +774,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToClassField() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("field").GetBlockDescription()).IsEqualTo("I'm a field.")
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("field").GetBlockDescriptionString()).IsEqualTo("I'm a field.")
 }
 
 // Java: InferJSDocInfoTest.testJsDocIsPropagatedToClassField_computed()
@@ -795,8 +802,8 @@ func (c *InferJSDocInfoTest) TestJsDocIsPropagatedToClassField_computed() {
 	foobarSymbol := c.inferredTypeOfName("Symbol.foobar").ToMaybeKnownSymbolType()
 
 	// Then
-	AssertThat(
-		xType.GetPropertyJSDocInfoByKey(rhino.NewProperty_SymbolKey(foobarSymbol)).GetBlockDescription()).
+	inferJSDocAssertOpt(
+		xType.GetPropertyJSDocInfoByKey(rhino.NewProperty_SymbolKey(foobarSymbol)).GetBlockDescriptionString()).
 		IsEqualTo("I'm a field.")
 }
 
@@ -822,7 +829,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsNotPropagatedFromSuppressionsOnFieldProp
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("field").GetBlockDescription()).IsEqualTo("I'm a field.")
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("field").GetBlockDescriptionString()).IsEqualTo("I'm a field.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsNotPropagatedFromSuppressionsOnEarlyRefToFieldProperties_Es5()
@@ -848,7 +855,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsNotPropagatedFromSuppressionsOnEarlyRefT
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("field").GetBlockDescription()).IsEqualTo("I'm a field.")
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("field").GetBlockDescriptionString()).IsEqualTo("I'm a field.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocIsPropagatedToGetterProperties_Es5()
@@ -873,7 +880,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToGetterProperties_Es5() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("getter").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("getter").GetBlockDescriptionString()).
 		IsEqualTo("I'm a getter.")
 }
 
@@ -896,7 +903,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToGetterProperties_Es6Class() 
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("getter").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("getter").GetBlockDescriptionString()).
 		IsEqualTo("I'm a getter.")
 }
 
@@ -922,7 +929,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToSetterProperties_Es5() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("setter").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("setter").GetBlockDescriptionString()).
 		IsEqualTo("I'm a setter.")
 }
 
@@ -945,7 +952,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToSetterProperties_Es6Class() 
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("setter").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("setter").GetBlockDescriptionString()).
 		IsEqualTo("I'm a setter.")
 }
 
@@ -969,7 +976,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToMethodProperties_Es5() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("method").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("method").GetBlockDescriptionString()).
 		IsEqualTo("I'm a method.")
 }
 
@@ -992,7 +999,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToMethodProperties_Es6Class() 
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("method").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("method").GetBlockDescriptionString()).
 		IsEqualTo("I'm a method.")
 }
 
@@ -1021,8 +1028,8 @@ func (c *InferJSDocInfoTest) TestJsDocIsPropagatedToMethodProperties_computed() 
 	foobarSymbol := c.inferredTypeOfName("Symbol.foobar").ToMaybeKnownSymbolType()
 
 	// Then
-	AssertThat(
-		xType.GetPropertyJSDocInfoByKey(rhino.NewProperty_SymbolKey(foobarSymbol)).GetBlockDescription()).
+	inferJSDocAssertOpt(
+		xType.GetPropertyJSDocInfoByKey(rhino.NewProperty_SymbolKey(foobarSymbol)).GetBlockDescriptionString()).
 		IsEqualTo("I'm a method.")
 }
 
@@ -1047,7 +1054,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToAbstractMethodProperties_Es5
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("method").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("method").GetBlockDescriptionString()).
 		IsEqualTo("I'm a method.")
 }
 
@@ -1071,7 +1078,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToAbstractMethodProperties_Es6
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("method").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("method").GetBlockDescriptionString()).
 		IsEqualTo("I'm a method.")
 }
 
@@ -1095,7 +1102,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToStaticProperties_Es5() {
 	AssertThat(xType.String()).IsEqualTo("(typeof Foo)")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("static").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("static").GetBlockDescriptionString()).
 		IsEqualTo("I'm a static.")
 }
 
@@ -1118,7 +1125,7 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToStaticProperties_Es6Class() 
 	AssertThat(xType.String()).IsEqualTo("(typeof Foo)")
 
 	// Then
-	AssertThat(xType.GetPropertyJSDocInfo("static").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("static").GetBlockDescriptionString()).
 		IsEqualTo("I'm a static.")
 }
 
@@ -1142,7 +1149,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromConstructorsIsIgnored_Es6Class() {
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a class.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a class.")
 	AssertThat(xType.GetPropertyJSDocInfo("constructor")).IsNotNull()
 }
 
@@ -1173,8 +1180,8 @@ func (c *InferJSDocInfoTest) TestJSDocDoesNotPropagateFromStructuralTypesToClass
 	AssertThat(xType).IsNotSameInstanceAs(freeType)
 
 	// Then
-	AssertThat(freeType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a free function.")
-	AssertThat(xType.GetPropertyJSDocInfo("method").GetBlockDescription()).
+	inferJSDocAssertOpt(freeType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a free function.")
+	inferJSDocAssertOpt(xType.GetPropertyJSDocInfo("method").GetBlockDescriptionString()).
 		IsEqualTo("I'm a method.")
 }
 
@@ -1221,7 +1228,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromDuplicateDefinitionDoesNotOverrideJSDo
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a user type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a user type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromDuplicateDefinitionIsUsedIfThereWasNoOriginalJSDocFromOriginal()
@@ -1243,7 +1250,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromDuplicateDefinitionIsUsedIfThereWasNoO
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.GetJSDocInfo().GetBlockDescription()).IsEqualTo("I'm a different type.")
+	inferJSDocAssertOpt(xType.GetJSDocInfo().GetBlockDescriptionString()).IsEqualTo("I'm a different type.")
 }
 
 // Java: InferJSDocInfoTest.testJSDocFromDuplicatePropertyDefinitionDoesNotOverrideJSDoc_es6Style()
@@ -1272,7 +1279,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromDuplicatePropertyDefinitionDoesNotOver
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.AssertObjectType().GetPropertyJSDocInfo("x").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.AssertObjectType().GetPropertyJSDocInfo("x").GetBlockDescriptionString()).
 		IsEqualTo("I'm the first definition")
 }
 
@@ -1304,7 +1311,7 @@ func (c *InferJSDocInfoTest) TestJSDocFromDuplicatePropertyDefinitionDoesNotOver
 	AssertThat(xType.String()).IsEqualTo("Foo")
 
 	// Then
-	AssertThat(xType.AssertObjectType().GetPropertyJSDocInfo("x").GetBlockDescription()).
+	inferJSDocAssertOpt(xType.AssertObjectType().GetPropertyJSDocInfo("x").GetBlockDescriptionString()).
 		IsEqualTo("I'm the first definition")
 }
 
@@ -1324,13 +1331,13 @@ func (c *InferJSDocInfoTest) TestJSDocIsPropagatedToTypeFromObjectLiteralPrototy
 	ctor := c.inferredTypeOfName("Foo").ToMaybeFunctionType()
 	prototype := ctor.GetInstanceType().GetImplicitPrototype()
 
-	AssertThat(prototype.GetOwnPropertyJSDocInfo("a").GetBlockDescription()).
+	inferJSDocAssertOpt(prototype.GetOwnPropertyJSDocInfo("a").GetBlockDescriptionString()).
 		IsEqualTo("Property a.")
-	AssertThat(prototype.GetOwnPropertyJSDocInfo("b").GetBlockDescription()).
+	inferJSDocAssertOpt(prototype.GetOwnPropertyJSDocInfo("b").GetBlockDescriptionString()).
 		IsEqualTo("Property b.")
-	AssertThat(prototype.GetOwnPropertyJSDocInfo("c").GetBlockDescription()).
+	inferJSDocAssertOpt(prototype.GetOwnPropertyJSDocInfo("c").GetBlockDescriptionString()).
 		IsEqualTo("Property c.")
-	AssertThat(prototype.GetOwnPropertyJSDocInfo("d").GetBlockDescription()).
+	inferJSDocAssertOpt(prototype.GetOwnPropertyJSDocInfo("d").GetBlockDescriptionString()).
 		IsEqualTo("Property d.")
 }
 

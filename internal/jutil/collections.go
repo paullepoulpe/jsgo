@@ -882,3 +882,176 @@ func ArraysBinarySearchInts(a []int, key int) int {
 	}
 	return -(low + 1)
 }
+
+// ---------------------------------------------------------------------------
+// OrderedSetMultimap
+
+// OrderedSetView is an insertion-ordered, deduplicated read-only slice view of
+// comparable elements.
+type OrderedSetView[V comparable] []V
+
+// Contains reports whether v is in s.
+func (s OrderedSetView[V]) Contains(v V) bool { return slices.Contains(s, v) }
+
+// ToSlice returns a defensive copy of s (non-nil empty slice when empty).
+func (s OrderedSetView[V]) ToSlice() []V {
+	if len(s) == 0 {
+		return []V{}
+	}
+	return slices.Clone([]V(s))
+}
+
+// All iterates elements in insertion order.
+func (s OrderedSetView[V]) All() iter.Seq[V] { return slices.Values([]V(s)) }
+
+// Size returns the number of elements in s.
+func (s OrderedSetView[V]) Size() int { return len(s) }
+
+// IsEmpty reports whether s has no elements.
+func (s OrderedSetView[V]) IsEmpty() bool { return len(s) == 0 }
+
+// OrderedSetMultimap maps keys to insertion-ordered, deduplicated value sets,
+// preserving first-seen key insertion order (Guava LinkedHashMultimap /
+// ImmutableSetMultimap semantics). Its zero value is ready to use.
+type OrderedSetMultimap[K, V comparable] struct {
+	vals  map[K][]V
+	order []K
+	size  int
+}
+
+// NewOrderedSetMultimap returns an empty OrderedSetMultimap.
+func NewOrderedSetMultimap[K, V comparable]() *OrderedSetMultimap[K, V] {
+	return &OrderedSetMultimap[K, V]{}
+}
+
+// Put adds (k, v) if not already present and reports whether the multimap changed.
+func (m *OrderedSetMultimap[K, V]) Put(k K, v V) bool {
+	if m.vals == nil {
+		m.vals = make(map[K][]V)
+	}
+	existing, ok := m.vals[k]
+	if !ok {
+		m.order = append(m.order, k)
+	} else if slices.Contains(existing, v) {
+		return false
+	}
+	m.vals[k] = append(existing, v)
+	m.size++
+	return true
+}
+
+// Get returns the ordered value set for k (empty view when absent).
+func (m *OrderedSetMultimap[K, V]) Get(k K) OrderedSetView[V] {
+	if m == nil {
+		return nil
+	}
+	return OrderedSetView[V](m.vals[k])
+}
+
+// Size returns the total number of (key, value) pairs.
+func (m *OrderedSetMultimap[K, V]) Size() int {
+	if m == nil {
+		return 0
+	}
+	return m.size
+}
+
+// IsEmpty reports whether m contains no entries.
+func (m *OrderedSetMultimap[K, V]) IsEmpty() bool {
+	return m == nil || m.size == 0
+}
+
+// Entries iterates (key, value) pairs in key and per-key insertion order.
+func (m *OrderedSetMultimap[K, V]) Entries() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		if m == nil {
+			return
+		}
+		for _, k := range m.order {
+			for _, v := range m.vals[k] {
+				if !yield(k, v) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// AsMap iterates (key, valueSet) pairs in key insertion order.
+func (m *OrderedSetMultimap[K, V]) AsMap() iter.Seq2[K, OrderedSetView[V]] {
+	return func(yield func(K, OrderedSetView[V]) bool) {
+		if m == nil {
+			return
+		}
+		for _, k := range m.order {
+			if !yield(k, OrderedSetView[V](m.vals[k])) {
+				return
+			}
+		}
+	}
+}
+
+// Clone returns an independent deep copy of m's key and value slices.
+func (m *OrderedSetMultimap[K, V]) Clone() OrderedSetMultimap[K, V] {
+	if m == nil || len(m.order) == 0 {
+		return OrderedSetMultimap[K, V]{}
+	}
+	vals := make(map[K][]V, len(m.vals))
+	for _, k := range m.order {
+		vals[k] = slices.Clone(m.vals[k])
+	}
+	return OrderedSetMultimap[K, V]{
+		vals:  vals,
+		order: slices.Clone(m.order),
+		size:  m.size,
+	}
+}
+
+// Inverse returns a new multimap mapping each value to its associated keys in
+// insertion order.
+func (m *OrderedSetMultimap[K, V]) Inverse() *OrderedSetMultimap[V, K] {
+	out := &OrderedSetMultimap[V, K]{}
+	if m == nil || len(m.order) == 0 {
+		return out
+	}
+	out.vals = make(map[V][]K, len(m.order))
+	out.order = make([]V, 0, len(m.order))
+	for _, k := range m.order {
+		for _, v := range m.vals[k] {
+			ks, ok := out.vals[v]
+			if !ok {
+				out.order = append(out.order, v)
+			} else if slices.Contains(ks, k) {
+				continue
+			}
+			out.vals[v] = append(ks, k)
+			out.size++
+		}
+	}
+	return out
+}
+
+// String formats m like Guava's AbstractMultimap.toString(): "{k1=[v1, v2]}".
+func (m *OrderedSetMultimap[K, V]) String() string {
+	if m == nil || len(m.order) == 0 {
+		return "{}"
+	}
+	var sb strings.Builder
+	sb.WriteByte('{')
+	for i, k := range m.order {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(ToJavaString(k))
+		sb.WriteString("=[")
+		for j, v := range m.vals[k] {
+			if j > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(ToJavaString(v))
+		}
+		sb.WriteByte(']')
+	}
+	sb.WriteByte('}')
+	return sb.String()
+}

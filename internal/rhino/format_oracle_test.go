@@ -310,7 +310,8 @@ func buildFormatOracle() string {
 	o.rec("suppressions", typeInfo.GetSuppressions().String())
 	o.rec("suppressionsMap", FormatJSDocSuppressions(typeInfo.GetSuppressionsAndTheirDescription()))
 	o.rec("visibility", typeInfo.GetVisibility().String())
-	o.rec("license", *typeInfo.GetLicense())
+	lic, _ := typeInfo.GetLicenseString()
+	o.rec("license", lic)
 	o.rec("clone", fnInfo.CloneWithTypeNodes(true).ToStringVerbose())
 	o.rec("equivalent", jutil.ToJavaString(JSDocInfo_AreEquivalent(fnInfo, fnInfo.Clone())))
 

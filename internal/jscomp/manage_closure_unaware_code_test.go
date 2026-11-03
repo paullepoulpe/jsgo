@@ -123,10 +123,11 @@ func (c *ManageClosureUnawareCodeTest) DoTest(js string, expectedWrapped string,
 	AssertNode(c.gatheredShadowNodeRoot).
 		UsingSerializer(
 			func(n rhino.Node) string {
-				return NewCodePrinter_Builder(n).
-					SetCompilerOptions(c.GetLastCompiler().GetOptions()).
-					SetPrettyPrint(true).
-					Build()
+				return PrintCode(CodePrintConfig{
+					Root:        n,
+					Options:     c.GetLastCompiler().GetOptions(),
+					PrettyPrint: true,
+				})
 			}).
 		IsEqualIncludingJsDocTo(expectedShadowNodeRoot)
 

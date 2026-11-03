@@ -158,15 +158,10 @@ const (
 
 var jsDocInfoParser_State_names = [...]string{"SEARCHING_ANNOTATION", "SEARCHING_NEWLINE", "NEXT_IS_ANNOTATION"}
 
-// Name is Enum.name().
-//
-// Java: JsDocInfoParser.State.name()
-func (s JsDocInfoParser_State) Name() string { return jsDocInfoParser_State_names[s] }
-
 // String is Enum.toString().
 //
 // Java: JsDocInfoParser.State.toString()
-func (s JsDocInfoParser_State) String() string { return s.Name() }
+func (s JsDocInfoParser_State) String() string { return jsDocInfoParser_State_names[s] }
 
 // JsDocInfoParser_JsDocSourceKind says how to handle unexpected JSDoc format.
 type JsDocInfoParser_JsDocSourceKind int32
@@ -178,17 +173,12 @@ const (
 
 var jsDocInfoParser_JsDocSourceKind_names = [...]string{"NORMAL", "TSICKLE"}
 
-// Name is Enum.name().
-//
-// Java: JsDocInfoParser.JsDocSourceKind.name()
-func (k JsDocInfoParser_JsDocSourceKind) Name() string {
-	return jsDocInfoParser_JsDocSourceKind_names[k]
-}
-
 // String is Enum.toString().
 //
 // Java: JsDocInfoParser.JsDocSourceKind.toString()
-func (k JsDocInfoParser_JsDocSourceKind) String() string { return k.Name() }
+func (k JsDocInfoParser_JsDocSourceKind) String() string {
+	return jsDocInfoParser_JsDocSourceKind_names[k]
+}
 
 // NewJsDocInfoParser constructs a parser for one JSDoc comment.
 //

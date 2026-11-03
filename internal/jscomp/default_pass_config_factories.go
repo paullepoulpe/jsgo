@@ -154,9 +154,9 @@ var (
 	})
 	defaultPass_closureReplaceGetCssName = actionPassFactory("closureReplaceGetCssName", func(c AbstractCompiler, externs, jsRoot rhino.Node) {
 		opts := c.GetOptions()
-		var cssNames *jutil.LinkedHashSet[string]
+		var cssNames *OrderedSet[string]
 		if opts.ShouldGatherCssNames() {
-			cssNames = jutil.NewLinkedHashSet[string]()
+			cssNames = NewOrderedSet[string]()
 		}
 		NewReplaceCssNames(c, opts.GetCssRenamingMap(), ReplaceCssNames_CssNameCollectorFunc(func(name string) {
 			if cssNames != nil {
@@ -619,14 +619,16 @@ func createProcessDefines(mode ProcessDefines_Mode) *PassFactory {
 
 func runVariableRenaming(c AbstractCompiler, prevVariableMap *VariableMap, externs, root rhino.Node) *VariableMap {
 	opts := c.GetOptions()
-	reservedNames := jutil.NewLinkedHashSet[string]()
+	exportedNames := c.GetExportedNames()
+	reservedVars := parsing.ParserRunner_GetReservedVars()
+	reservedNames := NewOrderedSetWithCapacity[string](exportedNames.Size() + reservedVars.Size() + 1)
 	if ns := opts.GetRenamePrefixNamespace(); ns != nil {
 		reservedNames.Add(*ns)
 	}
-	for name := range c.GetExportedNames().All() {
+	for name := range exportedNames.All() {
 		reservedNames.Add(name)
 	}
-	for name := range parsing.ParserRunner_GetReservedVars().All() {
+	for name := range reservedVars.All() {
 		reservedNames.Add(name)
 	}
 	var renamePrefix string

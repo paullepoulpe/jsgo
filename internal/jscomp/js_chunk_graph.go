@@ -331,8 +331,8 @@ func (g *JSChunkGraph) GetChunkByName(name string) *JSChunk {
 // GetChunksByName gets all chunks indexed by name.
 //
 // Java: JSChunkGraph.getChunksByName()
-func (g *JSChunkGraph) GetChunksByName() *jutil.LinkedHashMap[string, *JSChunk] {
-	result := jutil.NewLinkedHashMap[string, *JSChunk]()
+func (g *JSChunkGraph) GetChunksByName() *OrderedStringMap[*JSChunk] {
+	result := NewOrderedStringMapWithCapacity[*JSChunk](len(g.chunks))
 	for _, m := range g.chunks {
 		result.Put(m.GetName(), m)
 	}

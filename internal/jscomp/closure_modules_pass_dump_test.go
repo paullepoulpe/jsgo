@@ -140,12 +140,13 @@ func (d *closureModulesDump) pass(rel string, src string, parseDiags []string, n
 	js := compiler.GetJsRoot()
 	before := js.ToStringTree()
 	var extra []string
-	var exception *string
+	var exception string
+	hasException := false
 	jutil.Try(func() {
 		run(compiler, externs, js, &extra)
 	}, func(e jutil.IRuntimeException) {
-		s := "exception " + e.Error()
-		exception = &s
+		exception = "exception " + e.Error()
+		hasException = true
 	})
 	remaining := append([]string(nil), parseDiags...)
 	for _, diag := range closureModulesDiagnostics(compiler) {
@@ -161,8 +162,8 @@ func (d *closureModulesDump) pass(rel string, src string, parseDiags []string, n
 			closureModulesLine(sb, diag)
 		}
 	}
-	if exception != nil {
-		closureModulesLine(sb, *exception)
+	if hasException {
+		closureModulesLine(sb, exception)
 	}
 	after := js.ToStringTree()
 	if after == before {
@@ -303,8 +304,7 @@ func (d *closureModulesDump) conventionsAt(c CodingConvention, n rhino.Node) {
 			closureModulesLine(sb, at+" subclass "+rel.subclassName+" "+rel.superclassName+" "+rel.type_.String())
 		}
 		for _, checkTypes := range []bool{false, true} {
-			bind := c.DescribeFunctionBind(n, checkTypes)
-			if bind != nil {
+			if bind, ok := c.DescribeFunctionBind(n, checkTypes); ok {
 				tf := "F"
 				if checkTypes {
 					tf = "T"

@@ -23,7 +23,6 @@ package parsing
 
 import (
 	"iter"
-	"maps"
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -197,15 +196,19 @@ var config_JsDocParsing_names = [...]string{
 	"LICENSE_COMMENTS_ONLY",
 }
 
+var config_JsDocParsing_all = [...]Config_JsDocParsing{
+	Config_JsDocParsing_TYPES_ONLY,
+	Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE,
+	Config_JsDocParsing_INCLUDE_DESCRIPTIONS_WITH_WHITESPACE,
+	Config_JsDocParsing_INCLUDE_ALL_COMMENTS,
+	Config_JsDocParsing_LICENSE_COMMENTS_ONLY,
+}
+
 // Config_JsDocParsing_values is JsDocParsing.values().
 //
 // Java: Config.JsDocParsing.values()
 func Config_JsDocParsing_values() []Config_JsDocParsing {
-	values := make([]Config_JsDocParsing, len(config_JsDocParsing_names))
-	for i := range values {
-		values[i] = Config_JsDocParsing(i)
-	}
-	return values
+	return config_JsDocParsing_all[:]
 }
 
 // Name is Enum.name().
@@ -216,7 +219,7 @@ func (p Config_JsDocParsing) Name() string { return config_JsDocParsing_names[p]
 // String is Enum.toString().
 //
 // Java: Config.JsDocParsing.toString()
-func (p Config_JsDocParsing) String() string { return p.Name() }
+func (p Config_JsDocParsing) String() string { return config_JsDocParsing_names[p] }
 
 // Java: Config.JsDocParsing.shouldParseDescriptions()
 func (p Config_JsDocParsing) ShouldParseDescriptions() bool {
@@ -443,36 +446,6 @@ func (b *Config_Builder) Build() *Config {
 		c.annotations = Annotation_recognizedAnnotations
 	}
 	return &c
-}
-
-// Config_BuildAnnotations creates the annotation names from the
-// user-specified annotation allowlist.
-//
-// Java: Config.buildAnnotations(Iterable<String>)
-func Config_BuildAnnotations(allowlist iter.Seq[string]) map[string]Annotation {
-	var extra []string
-	for unrecognizedAnnotation := range allowlist {
-		if unrecognizedAnnotation == "" {
-			continue
-		}
-		if _, recognized := Annotation_recognizedAnnotations[unrecognizedAnnotation]; !recognized {
-			extra = append(extra, unrecognizedAnnotation)
-		}
-	}
-	if len(extra) == 0 {
-		return Annotation_recognizedAnnotations
-	}
-	m := maps.Clone(Annotation_recognizedAnnotations)
-	for _, unrecognizedAnnotation := range extra {
-		if _, dup := m[unrecognizedAnnotation]; dup {
-			panic(jutil.NewIllegalArgumentExceptionMsg(
-				"Multiple entries with same key: " + unrecognizedAnnotation + "=" +
-					Annotation_NOT_IMPLEMENTED.String() + " and " +
-					unrecognizedAnnotation + "=" + Annotation_NOT_IMPLEMENTED.String()))
-		}
-		m[unrecognizedAnnotation] = Annotation_NOT_IMPLEMENTED
-	}
-	return m
 }
 
 func config_stringSetCopyOf(names iter.Seq[string]) map[string]struct{} {

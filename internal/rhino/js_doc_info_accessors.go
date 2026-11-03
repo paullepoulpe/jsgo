@@ -286,7 +286,7 @@ func (i *JSDocInfo) GetDescriptionString() (string, bool) {
 	return i.getStringProp(JSDocInfo_DESCRIPTION)
 }
 
-// GetMeaning gets the meaning specified by the `@meaning` annotation.
+// GetMeaningString gets the meaning specified by the `@meaning` annotation.
 //
 // In localization systems, two messages with the same content but different
 // "meanings" may be translated differently. By default, we use the name of
@@ -297,16 +297,11 @@ func (i *JSDocInfo) GetDescriptionString() (string, bool) {
 // with the jsdoc `@meaning` annotation.
 //
 // Java: JSDocInfo.getMeaning()
-func (i *JSDocInfo) GetMeaning() *string {
-	return i.getStringPtrProp(JSDocInfo_MEANING)
-}
-
-// GetMeaningString returns the `@meaning` string without allocating a *string.
 func (i *JSDocInfo) GetMeaningString() (string, bool) {
 	return i.getStringProp(JSDocInfo_MEANING)
 }
 
-// GetAlternateMessageId gets the alternate message ID specified by the
+// GetAlternateMessageIdString gets the alternate message ID specified by the
 // `@alternateMessageId` annotation.
 //
 // In localization systems, if we migrate from one message ID algorithm to
@@ -317,11 +312,6 @@ func (i *JSDocInfo) GetMeaningString() (string, bool) {
 // Some code generators (like Closure Templates) inject this.
 //
 // Java: JSDocInfo.getAlternateMessageId()
-func (i *JSDocInfo) GetAlternateMessageId() *string {
-	return i.getStringPtrProp(JSDocInfo_ALTERNATE_MESSAGE_ID)
-}
-
-// GetAlternateMessageIdString returns the `@alternateMessageId` string without allocating a *string.
 func (i *JSDocInfo) GetAlternateMessageIdString() (string, bool) {
 	return i.getStringProp(JSDocInfo_ALTERNATE_MESSAGE_ID)
 }
@@ -398,15 +388,9 @@ func (i *JSDocInfo) GetReturnDescriptionString() (string, bool) {
 	return i.getStringProp(JSDocInfo_RETURN_DESCRIPTION)
 }
 
-// GetBlockDescription returns the block-level description or null if none
-// specified.
+// GetBlockDescriptionString returns the block-level description, if specified.
 //
 // Java: JSDocInfo.getBlockDescription()
-func (i *JSDocInfo) GetBlockDescription() *string {
-	return i.getStringPtrProp(JSDocInfo_BLOCK_DESCRIPTION)
-}
-
-// GetBlockDescriptionString returns the block-level description without allocating a *string.
 func (i *JSDocInfo) GetBlockDescriptionString() (string, bool) {
 	return i.getStringProp(JSDocInfo_BLOCK_DESCRIPTION)
 }
@@ -464,16 +448,11 @@ func (i *JSDocInfo) GetMarkers() []JSDocInfo_Marker {
 	return []JSDocInfo_Marker{}
 }
 
-// GetOriginalCommentString returns the original JSDoc comment string.
-// Returns null unless parseJsDocDocumentation is enabled via the
-// ParserConfig.
+// GetOriginalCommentStringValue returns the original JSDoc comment string
+// without allocating a *string. Returns ("", false) unless
+// parseJsDocDocumentation is enabled via the ParserConfig.
 //
 // Java: JSDocInfo.getOriginalCommentString()
-func (i *JSDocInfo) GetOriginalCommentString() *string {
-	return i.getStringPtrProp(JSDocInfo_SOURCE_COMMENT)
-}
-
-// GetOriginalCommentStringValue returns the original JSDoc comment string without allocating a *string.
 func (i *JSDocInfo) GetOriginalCommentStringValue() (string, bool) {
 	return i.getStringProp(JSDocInfo_SOURCE_COMMENT)
 }

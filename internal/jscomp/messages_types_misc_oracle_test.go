@@ -49,11 +49,11 @@ func l11msgEscape(s string) string {
 	return b.String()
 }
 
-func l11msgEscapeNullable(s *string) string {
-	if s == nil {
+func l11msgEscapeOpt(s string, ok bool) string {
+	if !ok {
 		return "<null>"
 	}
-	return l11msgEscape(*s)
+	return l11msgEscape(s)
 }
 
 func l11msgBool(b bool) string { return strconv.FormatBool(b) }
@@ -110,10 +110,10 @@ func l11msgMessage(sb *strings.Builder, m *JsMessage) {
 	sb.WriteString("  id=" + l11msgEscape(m.GetId()) + "\n")
 	sb.WriteString("  anonymous=" + l11msgBool(m.IsAnonymous()) + " external=" + l11msgBool(m.IsExternal()) +
 		" empty=" + l11msgBool(m.IsEmpty()) + "\n")
-	sb.WriteString("  source=" + l11msgEscapeNullable(m.GetSourceName()) + "\n")
-	sb.WriteString("  desc=" + l11msgEscapeNullable(m.GetDesc()) + "\n")
-	sb.WriteString("  meaning=" + l11msgEscapeNullable(m.GetMeaning()) + "\n")
-	sb.WriteString("  alternateId=" + l11msgEscapeNullable(m.GetAlternateId()) + "\n")
+	sb.WriteString("  source=" + l11msgEscapeOpt(m.SourceNameOpt()) + "\n")
+	sb.WriteString("  desc=" + l11msgEscapeOpt(m.DescOpt()) + "\n")
+	sb.WriteString("  meaning=" + l11msgEscapeOpt(m.MeaningOpt()) + "\n")
+	sb.WriteString("  alternateId=" + l11msgEscapeOpt(m.AlternateIdOpt()) + "\n")
 	sb.WriteString("  parts=" + l11msgEscape(l11msgParts(m.GetParts())) + "\n")
 	sb.WriteString("  jsPlaceholders=" + l11msgEscape(m.formatJsPlaceholders()) + "\n")
 	sb.WriteString("  examples=" + l11msgEscape(l11msgMap(m.GetPlaceholderNameToExampleMap())) + "\n")

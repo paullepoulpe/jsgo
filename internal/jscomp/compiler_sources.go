@@ -596,7 +596,7 @@ func (c *Compiler) SetStringMap(stringMap *VariableMap) {
 }
 
 // Java: Compiler.setCssNames(Set<String>)
-func (c *Compiler) SetCssNames(cssNames *jutil.LinkedHashSet[string]) {
+func (c *Compiler) SetCssNames(cssNames *OrderedSet[string]) {
 	c.cssNames = cssNames
 }
 
@@ -636,26 +636,26 @@ func (c *Compiler) GetInstrumentationMapping() *VariableMap {
 }
 
 // Java: Compiler.addExportedNames(Set<String>)
-func (c *Compiler) AddExportedNames(exportedNames *jutil.LinkedHashSet[string]) {
-	c.exportedNames.AddAll(exportedNames.ToSlice()...)
+func (c *Compiler) AddExportedNames(exportedNames jutil.Set[string]) {
+	jutil.CheckNotNull(exportedNames)
+	for name := range exportedNames.All() {
+		c.exportedNames.Add(name)
+	}
 }
 
 // Java: Compiler.getExportedNames()
-func (c *Compiler) GetExportedNames() *jutil.LinkedHashSet[string] {
-	return c.exportedNames
+func (c *Compiler) GetExportedNames() *OrderedSet[string] {
+	return &c.exportedNames
 }
 
 // Java: Compiler.setDefineNames(Collection<String>)
 func (c *Compiler) SetDefineNames(defineNames []string) {
-	c.defineNames = jutil.NewLinkedHashSet[string](defineNames...)
+	c.defineNames = *NewOrderedSet(defineNames...)
 }
 
 // Java: Compiler.getDefineNames()
-func (c *Compiler) GetDefineNames() *jutil.LinkedHashSet[string] {
-	if c.defineNames == nil {
-		c.defineNames = jutil.NewLinkedHashSet[string]()
-	}
-	return c.defineNames
+func (c *Compiler) GetDefineNames() *OrderedSet[string] {
+	return &c.defineNames
 }
 
 // Java: Compiler.getOptions()
@@ -845,18 +845,18 @@ func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bo
 }
 
 // Java: Compiler.setExternProperties(ImmutableSet<String>)
-func (c *Compiler) SetExternProperties(externProperties *jutil.LinkedHashSet[string]) {
+func (c *Compiler) SetExternProperties(externProperties *OrderedSet[string]) {
 	c.externProperties = externProperties
 	c.externPropSet = nil
 	c.externPropSetSource = nil
 }
 
 // Java: Compiler.getExternProperties()
-func (c *Compiler) GetExternProperties() *jutil.LinkedHashSet[string] {
+func (c *Compiler) GetExternProperties() *OrderedSet[string] {
 	if c.externProperties == nil && c.externPropSet != nil {
-		lhs := c.externPropSet.ToLinkedHashSet()
-		c.externProperties = lhs
-		c.externPropSetSource = lhs
+		os := c.externPropSet.ToOrderedSet()
+		c.externProperties = os
+		c.externPropSetSource = os
 	}
 	return c.externProperties
 }
@@ -958,8 +958,8 @@ func (c *Compiler) addFilesToSourceMap(files []*SourceFile) {
 }
 
 // Java: Compiler.initWebpackMap(ImmutableMap<String, String>)
-func (c *Compiler) InitWebpackMap(inputPathByWebpackId *jutil.LinkedHashMap[string, string]) {
-	c.inputPathByWebpackId = inputPathByWebpackId
+func (c *Compiler) InitWebpackMap(inputPathByWebpackId jutil.MapSource[string, string]) {
+	c.inputPathByWebpackId = copyOrderedStringMap(inputPathByWebpackId)
 }
 
 // SetDebugMessage sets an additional human-readable message appended to

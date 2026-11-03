@@ -54,6 +54,7 @@ package parsing
 
 import (
 	_ "embed"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -68,11 +69,16 @@ import (
 var (
 	parserRunner_defaultExtraAnnotations []string
 	parserRunner_defaultAnnotations      map[string]Annotation
-	parserRunner_suppressionNames        *jutil.LinkedHashSet[string]
 	parserRunner_suppressionSet          map[string]struct{}
-	parserRunner_reservedVars            *jutil.LinkedHashSet[string]
 	parserRunner_closurePrimitives       map[string]struct{}
 	parserRunner_initOnce                sync.Once
+
+	parserRunner_reservedVars = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
+		return parserRunner_extractList(ParserConfiguration_GetString("compiler.reserved.vars"))
+	})
+	parserRunner_suppressionNames = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
+		return parserRunner_extractList(ParserConfiguration_GetString("jsdoc.suppressions"))
+	})
 )
 
 // Java: ParserRunner.createConfig(LanguageMode, JsDocParsing, RunMode, Set<String>, boolean, StrictMode)
@@ -124,14 +130,12 @@ func ParserRunner_CreateConfigWithModes(
 
 // Java: ParserRunner.getReservedVars()
 func ParserRunner_GetReservedVars() *jutil.LinkedHashSet[string] {
-	ParserRunner_InitResourceConfig()
-	return parserRunner_reservedVars
+	return parserRunner_reservedVars()
 }
 
 // Java: ParserRunner.getSuppressionNames()
 func ParserRunner_GetSuppressionNames() *jutil.LinkedHashSet[string] {
-	ParserRunner_InitResourceConfig()
-	return parserRunner_suppressionNames
+	return parserRunner_suppressionNames()
 }
 
 // Java: ParserRunner.initResourceConfig()
@@ -139,28 +143,30 @@ func ParserRunner_InitResourceConfig() {
 	parserRunner_initOnce.Do(func() {
 		annotationProp := ParserConfiguration_GetString("jsdoc.annotations")
 		seenAnnotations := make(map[string]struct{}, strings.Count(annotationProp, ",")+1)
-		var annotationList []string
 		for part := range strings.SplitSeq(annotationProp, ",") {
 			name := parserRunner_trimWhitespace(part)
+			if name == "" {
+				continue
+			}
 			if _, dup := seenAnnotations[name]; dup {
 				continue
 			}
 			seenAnnotations[name] = struct{}{}
-			annotationList = append(annotationList, name)
-			if name != "" {
-				if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
-					parserRunner_defaultExtraAnnotations = append(parserRunner_defaultExtraAnnotations, name)
-				}
+			if _, recognized := Annotation_recognizedAnnotations[name]; !recognized {
+				parserRunner_defaultExtraAnnotations = append(parserRunner_defaultExtraAnnotations, name)
 			}
 		}
-		parserRunner_defaultAnnotations = Config_BuildAnnotations(slices.Values(annotationList))
-		parserRunner_suppressionNames = parserRunner_extractList(ParserConfiguration_GetString("jsdoc.suppressions"))
-		parserRunner_suppressionSet = make(map[string]struct{}, parserRunner_suppressionNames.Size())
-		for name := range parserRunner_suppressionNames.All() {
-			parserRunner_suppressionSet[name] = struct{}{}
+		if len(parserRunner_defaultExtraAnnotations) == 0 {
+			parserRunner_defaultAnnotations = Annotation_recognizedAnnotations
+		} else {
+			m := maps.Clone(Annotation_recognizedAnnotations)
+			for _, name := range parserRunner_defaultExtraAnnotations {
+				m[name] = Annotation_NOT_IMPLEMENTED
+			}
+			parserRunner_defaultAnnotations = m
 		}
+		parserRunner_suppressionSet = parserRunner_extractSet(ParserConfiguration_GetString("jsdoc.suppressions"))
 		parserRunner_closurePrimitives = parserRunner_extractSet(ParserConfiguration_GetString("jsdoc.primitives"))
-		parserRunner_reservedVars = parserRunner_extractList(ParserConfiguration_GetString("compiler.reserved.vars"))
 	})
 }
 

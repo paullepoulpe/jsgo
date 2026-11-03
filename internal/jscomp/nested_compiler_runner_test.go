@@ -183,7 +183,7 @@ func (c *NestedCompilerRunnerTest) TestTranspiles_exponentialOperatorToES2016_in
 // Java: NestedCompilerRunnerTest.doesNotMangleOriginalExternProperties()
 func (c *NestedCompilerRunnerTest) TestDoesNotMangleOriginalExternProperties() {
 	c.options.SetPropertyRenaming(PropertyRenamingPolicy_ALL_UNQUOTED)
-	c.original.SetExternProperties(jutil.NewLinkedHashSet("external"))
+	c.original.SetExternProperties(NewOrderedSet("external"))
 	c.original.Init([]*SourceFile{}, []*SourceFile{}, c.options)
 
 	script := c.createScript("alert({external: 1, internal: 2});")

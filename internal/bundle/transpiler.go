@@ -78,17 +78,8 @@ func NewTranspilationException(
 	errors []*jscomp.JSError,
 	warnings []*jscomp.JSError) *TranspilationException {
 	formatted := transpilationException_format(source, errors, warnings)
-	return newTranspilationException(errors, warnings, &formatted, nil)
-}
-
-// Java: TranspilationException(ImmutableList<JSError>, ImmutableList<JSError>, String, Exception)
-func newTranspilationException(
-	errors []*jscomp.JSError,
-	warnings []*jscomp.JSError,
-	formatted *string,
-	cause jutil.Throwable) *TranspilationException {
 	e := &TranspilationException{errors: errors, warnings: warnings}
-	jutil.InitThrowable(e, "com.google.javascript.jscomp.bundle.TranspilationException", formatted, cause)
+	jutil.InitThrowable(e, "com.google.javascript.jscomp.bundle.TranspilationException", &formatted, nil)
 	return e
 }
 

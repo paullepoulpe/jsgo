@@ -19,10 +19,8 @@
 package colors
 
 import (
-	"iter"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -36,8 +34,7 @@ type ColorRegistry struct {
 	nativeColors             map[ColorId]*Color
 	disambiguationSupertypes map[*Color][]*Color
 	disambiguationByHash     map[int32][]*Color
-	mismatchLocations        map[ColorId][]string
-	mismatchOrder            []ColorId
+	mismatchLocations        jutil.OrderedSetMultimap[ColorId, string]
 }
 
 // Java: ColorRegistry(Builder)
@@ -49,13 +46,11 @@ func NewColorRegistry(builder *ColorRegistryBuilder) *ColorRegistry {
 		r.disambiguationSupertypes = builder.disambiguationSupertypes
 		r.disambiguationByHash = builder.disambiguationByHash
 		r.mismatchLocations = builder.mismatchLocations
-		r.mismatchOrder = builder.mismatchOrder
 	} else {
 		r.nativeColors = maps.Clone(builder.nativeColors)
 		r.disambiguationSupertypes = cloneSliceMap(builder.disambiguationSupertypes)
 		r.disambiguationByHash = cloneSliceMap(builder.disambiguationByHash)
-		r.mismatchLocations = cloneSliceMap(builder.mismatchLocations)
-		r.mismatchOrder = slices.Clone(builder.mismatchOrder)
+		r.mismatchLocations = builder.mismatchLocations.Clone()
 	}
 
 	ok := len(r.nativeColors) == ColorRegistry_REQUIRED_IDS.Size()
@@ -108,37 +103,11 @@ func (r *ColorRegistry) GetDisambiguationSupertypesSlice(x *Color) []*Color {
 }
 
 // ColorMismatchLocSet is an insertion-ordered, deduplicated view of mismatch location strings.
-type ColorMismatchLocSet []string
-
-// Contains reports whether loc is in s.
-func (s ColorMismatchLocSet) Contains(loc string) bool {
-	return slices.Contains(s, loc)
-}
-
-// ToSlice returns a defensive copy of the locations (non-nil empty slice when empty).
-func (s ColorMismatchLocSet) ToSlice() []string {
-	if len(s) == 0 {
-		return []string{}
-	}
-	return slices.Clone([]string(s))
-}
-
-// All iterates locations in insertion order.
-func (s ColorMismatchLocSet) All() iter.Seq[string] {
-	return slices.Values([]string(s))
-}
-
-// Size returns the number of locations.
-func (s ColorMismatchLocSet) Size() int { return len(s) }
-
-// IsEmpty reports whether s has no locations.
-func (s ColorMismatchLocSet) IsEmpty() bool { return len(s) == 0 }
+type ColorMismatchLocSet = jutil.OrderedSetView[string]
 
 // ColorMismatchLocations maps ColorIds to mismatch location sourceref strings in insertion order.
 type ColorMismatchLocations struct {
-	locs  map[ColorId][]string
-	order []ColorId
-	size  int
+	jutil.OrderedSetMultimap[ColorId, string]
 }
 
 // NewColorMismatchLocations returns an empty ColorMismatchLocations.
@@ -146,79 +115,17 @@ func NewColorMismatchLocations() *ColorMismatchLocations {
 	return &ColorMismatchLocations{}
 }
 
-// Put adds (id, loc) if not already present.
-func (cml *ColorMismatchLocations) Put(id ColorId, loc string) bool {
-	if cml.locs == nil {
-		cml.locs = make(map[ColorId][]string)
-	}
-	existing, ok := cml.locs[id]
-	if !ok {
-		cml.order = append(cml.order, id)
-	} else if slices.Contains(existing, loc) {
-		return false
-	}
-	cml.locs[id] = append(existing, loc)
-	cml.size++
-	return true
-}
-
-// Get returns the mismatch location strings for id (empty set when absent).
-func (cml *ColorMismatchLocations) Get(id ColorId) ColorMismatchLocSet {
-	return ColorMismatchLocSet(cml.locs[id])
-}
-
-// Size returns the total number of (ColorId, location) pairs.
-func (cml *ColorMismatchLocations) Size() int { return cml.size }
-
-// Entries iterates (ColorId, location) pairs in insertion order.
-func (cml *ColorMismatchLocations) Entries() iter.Seq2[ColorId, string] {
-	return func(yield func(ColorId, string) bool) {
-		for _, id := range cml.order {
-			for _, loc := range cml.locs[id] {
-				if !yield(id, loc) {
-					return
-				}
-			}
-		}
-	}
-}
-
-func (cml *ColorMismatchLocations) String() string {
-	if len(cml.order) == 0 {
-		return "{}"
-	}
-	var sb strings.Builder
-	sb.WriteByte('{')
-	for i, id := range cml.order {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(id.String())
-		sb.WriteString("=[")
-		for j, loc := range cml.locs[id] {
-			if j > 0 {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(loc)
-		}
-		sb.WriteByte(']')
-	}
-	sb.WriteByte('}')
-	return sb.String()
-}
-
 // InverseColorMismatchLocations maps mismatch location strings to involved ColorIds.
 type InverseColorMismatchLocations struct {
-	locs  map[string][]ColorId
-	order []string
+	jutil.OrderedSetMultimap[string, ColorId]
 }
 
 // AsMapObject exposes the underlying map as a JsonObject for LogsGson serialization.
 func (inv *InverseColorMismatchLocations) AsMapObject() any {
 	obj := jutil.NewJsonObject()
-	for _, loc := range inv.order {
+	for loc, ids := range inv.AsMap() {
 		arr := jutil.NewJsonArray()
-		for _, id := range inv.locs[loc] {
+		for _, id := range ids {
 			arr.Add(jutil.NewJsonPrimitiveString(id.ToLogsGson()))
 		}
 		obj.Add(loc, arr)
@@ -228,23 +135,7 @@ func (inv *InverseColorMismatchLocations) AsMapObject() any {
 
 // Inverse returns a location-to-ColorIds index preserving insertion order.
 func (cml *ColorMismatchLocations) Inverse() *InverseColorMismatchLocations {
-	if len(cml.order) == 0 {
-		return &InverseColorMismatchLocations{}
-	}
-	locs := make(map[string][]ColorId, len(cml.order))
-	order := make([]string, 0, len(cml.order))
-	for _, id := range cml.order {
-		for _, loc := range cml.locs[id] {
-			ids, ok := locs[loc]
-			if !ok {
-				order = append(order, loc)
-			} else if slices.Contains(ids, id) {
-				continue
-			}
-			locs[loc] = append(ids, id)
-		}
-	}
-	return &InverseColorMismatchLocations{locs: locs, order: order}
+	return &InverseColorMismatchLocations{OrderedSetMultimap: *cml.OrderedSetMultimap.Inverse()}
 }
 
 // GetMismatchLocationsForDebugging returns an index (mismatch sourceref
@@ -255,20 +146,7 @@ func (cml *ColorMismatchLocations) Inverse() *InverseColorMismatchLocations {
 //
 // Java: ColorRegistry.getMismatchLocationsForDebugging()
 func (r *ColorRegistry) GetMismatchLocationsForDebugging() *ColorMismatchLocations {
-	if len(r.mismatchOrder) == 0 {
-		return &ColorMismatchLocations{}
-	}
-	locs := cloneSliceMap(r.mismatchLocations)
-	order := slices.Clone(r.mismatchOrder)
-	size := 0
-	for _, id := range order {
-		size += len(locs[id])
-	}
-	return &ColorMismatchLocations{
-		locs:  locs,
-		order: order,
-		size:  size,
-	}
+	return &ColorMismatchLocations{OrderedSetMultimap: r.mismatchLocations.Clone()}
 }
 
 // ColorRegistryBuilder builds a ColorRegistry.
@@ -276,8 +154,7 @@ type ColorRegistryBuilder struct {
 	nativeColors             map[ColorId]*Color
 	disambiguationSupertypes map[*Color][]*Color
 	disambiguationByHash     map[int32][]*Color
-	mismatchLocations        map[ColorId][]string
-	mismatchOrder            []ColorId
+	mismatchLocations        jutil.OrderedSetMultimap[ColorId, string]
 	consumed                 bool
 }
 
@@ -293,8 +170,7 @@ func (b *ColorRegistryBuilder) ensureMutable() {
 		b.nativeColors = maps.Clone(b.nativeColors)
 		b.disambiguationSupertypes = cloneSliceMap(b.disambiguationSupertypes)
 		b.disambiguationByHash = cloneSliceMap(b.disambiguationByHash)
-		b.mismatchLocations = cloneSliceMap(b.mismatchLocations)
-		b.mismatchOrder = slices.Clone(b.mismatchOrder)
+		b.mismatchLocations = b.mismatchLocations.Clone()
 		b.consumed = false
 	}
 }
@@ -344,20 +220,7 @@ func (b *ColorRegistryBuilder) AddDisambiguationEdge(subtype *Color, supertype *
 // Java: ColorRegistry.Builder.addMismatchLocation(ColorId, String)
 func (b *ColorRegistryBuilder) AddMismatchLocation(id ColorId, location string) *ColorRegistryBuilder {
 	b.ensureMutable()
-	if b.mismatchLocations == nil {
-		b.mismatchLocations = make(map[ColorId][]string)
-	}
-	locs, exists := b.mismatchLocations[id]
-	if !exists {
-		b.mismatchOrder = append(b.mismatchOrder, id)
-	} else {
-		for _, existing := range locs {
-			if existing == location {
-				return b
-			}
-		}
-	}
-	b.mismatchLocations[id] = append(locs, location)
+	b.mismatchLocations.Put(id, location)
 	return b
 }
 
@@ -381,16 +244,7 @@ func (b *ColorRegistryBuilder) Build() *ColorRegistry {
 }
 
 // ColorIdSet is an immutable insertion-ordered set of ColorIds.
-type ColorIdSet []ColorId
-
-// Contains reports whether id is in s.
-func (s ColorIdSet) Contains(id ColorId) bool { return slices.Contains(s, id) }
-
-// Size returns the number of ColorIds in s.
-func (s ColorIdSet) Size() int { return len(s) }
-
-// All iterates ColorIds in insertion order.
-func (s ColorIdSet) All() iter.Seq[ColorId] { return slices.Values([]ColorId(s)) }
+type ColorIdSet = jutil.OrderedSetView[ColorId]
 
 // Java: ColorRegistry.REQUIRED_IDS
 var ColorRegistry_REQUIRED_IDS = StandardColors_STANDARD_OBJECT_IDS

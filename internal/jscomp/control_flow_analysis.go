@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"strconv"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -269,43 +267,6 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowGr
 	c.cfg.implicitReturn.SetPriority(c.priorityCounter)
 }
 
-func formatCfgNodeContext(compiler AbstractCompiler, label string, n rhino.Node) string {
-	if n.IsNil() {
-		return "  " + label + ": NULL"
-	}
-	pos := nodeTraversal_MISSING_SOURCE + "\n"
-	if sourceFileName := n.GetSourceFileName(); sourceFileName != nil {
-		lineNumber := n.GetLineno()
-		srcLine := nodeTraversal_MISSING_SOURCE
-		if src := compiler.GetSourceLine(sourceFileName, lineNumber); src != nil {
-			srcLine = *src
-		}
-		pos = *sourceFileName + ":" + strconv.Itoa(lineNumber) + ":" + strconv.Itoa(n.GetCharno()) + "\n" + srcLine + "\n"
-	}
-	return "  " + label + "(" + n.ToStringWithFlags(false, false, false) + "): " + pos
-}
-
-func reportUnexpectedCfgException(compiler AbstractCompiler, root, currentScript, currentNode rhino.Node, err jutil.Throwable) {
-	script := currentScript
-	if script.IsNil() {
-		for s := root; !s.IsNil(); s = s.GetParent() {
-			if s.IsScript() {
-				script = s
-				break
-			}
-		}
-	}
-	msg := jutil.ToJavaString(jutil.GetMessageOrNull(err))
-	if !script.IsNil() {
-		parentContext := ""
-		if !currentNode.IsNil() {
-			parentContext = formatCfgNodeContext(compiler, "Parent", currentNode.GetParent())
-		}
-		msg += "\n" + formatCfgNodeContext(compiler, "Node", currentNode) + parentContext
-	}
-	compiler.ThrowInternalError(msg, err)
-}
-
 func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 	jutil.CheckNotNull(c.compiler)
 	if root.IsNil() {
@@ -319,15 +280,7 @@ func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 	}
 	c.walkNode = root
 	c.walkScript = rhino.NilNode
-	defer func() {
-		r := recover()
-		node, script := c.walkNode, c.walkScript
-		c.walkNode = rhino.NilNode
-		c.walkScript = rhino.NilNode
-		if r != nil {
-			reportUnexpectedCfgException(c.compiler, root, script, node, jutil.AsThrowable(r))
-		}
-	}()
+	defer recoverWalkException(c.compiler, root, &c.walkNode, &c.walkScript)
 	c.walkBranch(root, rhino.NilNode)
 }
 

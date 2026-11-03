@@ -54,20 +54,6 @@ func assertNullTypeExpr(t *testing.T, what string, e *JSTypeExpression) {
 	}
 }
 
-func assertNullString(t *testing.T, what string, s *string) {
-	t.Helper()
-	if s != nil {
-		t.Errorf("%s = %q, want null", what, *s)
-	}
-}
-
-func assertStringPtr(t *testing.T, what string, s *string, want string) {
-	t.Helper()
-	if s == nil || *s != want {
-		t.Errorf("%s = %v, want %q", what, jutil.ToJavaString(s), want)
-	}
-}
-
 func assertNotContains(t *testing.T, what string, set *jutil.LinkedHashSet[string], s string) {
 	t.Helper()
 	if set.Contains(s) {
@@ -294,7 +280,9 @@ func TestJSDocInfo_JSDocInfoCloneAndReplaceNames_Params(t *testing.T) {
 	if got := cloned.GetParameterCount(); got != 1 {
 		t.Errorf("parameter count = %d, want 1", got)
 	}
-	assertStringPtr(t, "getParameterNameAt(0)", cloned.GetParameterNameAt(0), "a")
+	if got, ok := cloned.GetParameterNameValueAt(0); !ok || got != "a" {
+		t.Errorf("getParameterNameAt(0) = (%q, %v), want (\"a\", true)", got, ok)
+	}
 	// not same reference after cloning
 	assertTrue(t, "cloned param type is a new object", cloned.GetParameterType("a") != jsTypeExpression)
 	assertNotContains(t, "param type names", cloned.GetParameterType("a").GetAllTypeNames(), "Item")

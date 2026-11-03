@@ -2368,19 +2368,19 @@ func TestParseDesc12(t *testing.T) {
 
 func TestParseMeaning1(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@meaning tigers   */").GetMeaning()).IsEqualTo("tigers")
+	assertThat(t, optString(jt.parse("@meaning tigers   */").GetMeaningString())).IsEqualTo("tigers")
 }
 
 func TestParseMeaning2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@meaning tigers\n * and lions\n * and bears */").GetMeaning()).IsEqualTo("tigers and lions and bears")
+	assertThat(t, optString(jt.parse("@meaning tigers\n * and lions\n * and bears */").GetMeaningString())).IsEqualTo("tigers and lions and bears")
 }
 
 func TestParseMeaning3(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@meaning  tigers\n * and lions\n * @desc  and bears */")
-	assertThat(t, info.GetMeaning()).IsEqualTo("tigers and lions")
-	assertThat(t, info.GetDescription()).IsEqualTo("and bears")
+	assertThat(t, optString(info.GetMeaningString())).IsEqualTo("tigers and lions")
+	assertThat(t, optString(info.GetDescriptionString())).IsEqualTo("and bears")
 }
 
 func TestParseMeaning4(t *testing.T) {
@@ -2390,19 +2390,19 @@ func TestParseMeaning4(t *testing.T) {
 
 func TestParseAlternateMessageId1(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@alternateMessageId A   */").GetAlternateMessageId()).IsEqualTo("A")
+	assertThat(t, optString(jt.parse("@alternateMessageId A   */").GetAlternateMessageIdString())).IsEqualTo("A")
 }
 
 func TestParseAlternateMessageId2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@alternateMessageId A\n * B\n * C */").GetAlternateMessageId()).IsEqualTo("A")
+	assertThat(t, optString(jt.parse("@alternateMessageId A\n * B\n * C */").GetAlternateMessageIdString())).IsEqualTo("A")
 }
 
 func TestParseAlternateMessageId3(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@alternateMessageId  A\n * B\n * @desc  C */")
-	assertThat(t, info.GetAlternateMessageId()).IsEqualTo("A")
-	assertThat(t, info.GetDescription()).IsEqualTo("C")
+	assertThat(t, optString(info.GetAlternateMessageIdString())).IsEqualTo("A")
+	assertThat(t, optString(info.GetDescriptionString())).IsEqualTo("C")
 }
 
 func TestParseAlternateMessageId4(t *testing.T) {
@@ -4100,7 +4100,7 @@ func TestSingleTags(t *testing.T) {
 			true)
 
 	assertThat(t, jsdoc.IsDeprecated()).IsTrue()
-	assertThat(t, jsdoc.GetDeprecationReason()).IsEqualTo("In favor of the new one!")
+	assertThat(t, optString(jsdoc.GetDeprecationReasonString())).IsEqualTo("In favor of the new one!")
 	assertThat(t, optString(jsdoc.GetReturnDescriptionString())).IsEqualTo("The most important object :-)")
 }
 
@@ -4119,7 +4119,7 @@ func TestSingleTagsReordered(t *testing.T) {
 			true)
 
 	assertThat(t, jsdoc.IsDeprecated()).IsTrue()
-	assertThat(t, jsdoc.GetDeprecationReason()).IsEqualTo("In favor of the new one!")
+	assertThat(t, optString(jsdoc.GetDeprecationReasonString())).IsEqualTo("In favor of the new one!")
 	assertThat(t, optString(jsdoc.GetReturnDescriptionString())).IsEqualTo("The most important object :-)")
 }
 
@@ -4140,7 +4140,7 @@ func TestParseBlockComment(t *testing.T) {
 			"this is a nice comment\n * that is multiline\n * @author abc@google.com */\n",
 			true)
 
-	assertThat(t, jsdoc.GetBlockDescription()).IsEqualTo("this is a nice comment\nthat is multiline")
+	assertThat(t, optString(jsdoc.GetBlockDescriptionString())).IsEqualTo("this is a nice comment\nthat is multiline")
 
 	jt.assertDocumentationInMarker(
 		jt.assertAnnotationMarker(jsdoc, "author", 2, 3), "abc@google.com", 10, 2, 24)
@@ -4153,7 +4153,7 @@ func TestParseBlockComment2(t *testing.T) {
 			"this is a nice comment\n * that is *** multiline\n * @author abc@google.com */\n",
 			true)
 
-	assertThat(t, jsdoc.GetBlockDescription()).IsEqualTo("this is a nice comment\nthat is *** multiline")
+	assertThat(t, optString(jsdoc.GetBlockDescriptionString())).IsEqualTo("this is a nice comment\nthat is *** multiline")
 
 	jt.assertDocumentationInMarker(
 		jt.assertAnnotationMarker(jsdoc, "author", 2, 3), "abc@google.com", 10, 2, 24)
@@ -4166,7 +4166,7 @@ func TestParseBlockComment3(t *testing.T) {
 			" \n* hello world \n* @author abc@google.com */\n",
 			true)
 
-	assertThat(t, jsdoc.GetBlockDescription()).IsEqualTo("hello world")
+	assertThat(t, optString(jsdoc.GetBlockDescriptionString())).IsEqualTo("hello world")
 
 	jt.assertDocumentationInMarker(
 		jt.assertAnnotationMarker(jsdoc, "author", 2, 2), "abc@google.com", 9, 2, 23)
@@ -6017,9 +6017,9 @@ func TestGetOriginalCommentString(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	comment := "* @desc This is a comment */"
 	info := jt.parse(comment)
-	assertThat(t, info.GetOriginalCommentString()).IsNull()
+	assertThat(t, optString(info.GetOriginalCommentStringValue())).IsNull()
 	info = jt.parse(comment /* parseDocumentation= */, true)
-	assertThat(t, info.GetOriginalCommentString()).IsEqualTo(comment)
+	assertThat(t, optString(info.GetOriginalCommentStringValue())).IsEqualTo(comment)
 }
 
 func TestGetMultilineDesc(t *testing.T) {
@@ -6169,7 +6169,7 @@ func TestPreserveWhitespace1(t *testing.T) {
 		jt.preserveWhitespaceParse(
 			"this is a nice comment\n * that spans multiple lines\n *     with custom\n *     formatting\n * @author abc@google.com */\n")
 
-	assertThat(t, jsdoc.GetBlockDescription()).IsEqualTo(
+	assertThat(t, optString(jsdoc.GetBlockDescriptionString())).IsEqualTo(
 		"this is a nice comment\n that spans multiple lines\n     with custom\n     formatting\n" +
 			" ")
 
@@ -6225,7 +6225,7 @@ func TestPreserveWhitespace6(t *testing.T) {
 	info :=
 		jt.preserveWhitespaceParse(
 			"This is the typedef description\n *     with multiple lines\n * @typedef \n {string}*/\n")
-	assertThat(t, info.GetBlockDescription()).IsEqualTo(
+	assertThat(t, optString(info.GetBlockDescriptionString())).IsEqualTo(
 		"This is the typedef description\n     with multiple lines\n" +
 			" ")
 	assertThat(t, info.HasTypedefType()).IsTrue()
@@ -6271,7 +6271,7 @@ func TestParseCommentWithStarsOnOpenCommentLine(t *testing.T) {
 	jutil.CheckState(fn.IsFunction())
 
 	info := fn.GetJSDocInfo()
-	assertThat(t, info.GetBlockDescription()).IsEqualTo("****\nThis is a typedef comment with ASCII art.")
+	assertThat(t, optString(info.GetBlockDescriptionString())).IsEqualTo("****\nThis is a typedef comment with ASCII art.")
 	assertThat(t, info.GetDescription()).IsEqualTo("this is a description ***")
 }
 

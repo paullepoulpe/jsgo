@@ -291,7 +291,7 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 	// them zero based.
 	lineBaseOffset := 1
 
-	srcPos := sourcemap.MakeFilePosition(lineNo-lineBaseOffset, charNo)
+	srcPos := sourcemap.NewFilePosition(lineNo-lineBaseOffset, charNo)
 	return sourceMap_resolvedMapping{
 		sourceFileName:  sourceFileName,
 		originalName:    originalName,

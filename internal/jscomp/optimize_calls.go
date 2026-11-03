@@ -502,11 +502,9 @@ func newOptimizeCallsRefCollector(outer *OptimizeCalls, references *OptimizeCall
 		references:       references,
 	}
 	if !outer.considerExterns {
-		if externProps := outer.compiler.GetExternProperties(); externProps != nil {
-			for name := range externProps.All() {
-				if id := strpool.Lookup(name); id != 0 {
-					c.externPropBits.Set(int(id))
-				}
+		if externProps := outer.compiler.GetExternPropSet(); externProps != nil {
+			for _, id := range externProps.IDs() {
+				c.externPropBits.Set(int(id))
 			}
 		}
 	}

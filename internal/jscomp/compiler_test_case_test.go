@@ -893,7 +893,7 @@ func (b *CompilerTestCaseBase) EnableGatherExternProperties() {
 }
 
 // Java: CompilerTestCase.getGatheredExternProperties()
-func (b *CompilerTestCaseBase) GetGatheredExternProperties() *jutil.LinkedHashSet[string] {
+func (b *CompilerTestCaseBase) GetGatheredExternProperties() *OrderedSet[string] {
 	jutil.CheckStateMsg(b.gatherExternPropertiesEnabled, "Must enable gatherExternProperties")
 	return b.lastCompiler.GetExternProperties()
 }
@@ -1989,7 +1989,7 @@ func (b *CompilerTestCaseBase) CreateCompiler() *Compiler {
 	compiler := NewCompiler()
 	compiler.SetAllowableFeatures(b.acceptedLanguage.ToFeatureSet())
 	if !b.webpackModulesById.IsEmpty() {
-		compiler.InitWebpackMap(jutil.NewLinkedHashMapFrom(b.webpackModulesById))
+		compiler.InitWebpackMap(b.webpackModulesById)
 	}
 	compiler.SetPreferRegexParser(false)
 	return compiler
@@ -2562,10 +2562,11 @@ func (f CompilerTestCase_PostconditionFunc) Verify(compiler *Compiler) { f(compi
 // Java: CompilerTestCase.createPrettyPrinter(Compiler)
 func compilerTestCase_createPrettyPrinter(compiler *Compiler) func(rhino.Node) string {
 	return func(n rhino.Node) string {
-		return NewCodePrinter_Builder(n).
-			SetCompilerOptions(compiler.GetOptions()).
-			SetPrettyPrint(true).
-			Build()
+		return PrintCode(CodePrintConfig{
+			Root:        n,
+			Options:     compiler.GetOptions(),
+			PrettyPrint: true,
+		})
 	}
 }
 

@@ -170,7 +170,7 @@ func (m *FunctionToBlockMutator) mutateInternal(
 		// they will be within a block and normalization prevents function
 		// declarations within block as browser implementations vary.
 		if summary == nil || summary.hasInnerFunctionDecls {
-			FunctionToBlockMutator_RewriteFunctionDeclarations(newFn.Body().Node())
+			ftbmRewriteFunctionDecls(newFn.Body().Node())
 		}
 	}
 
@@ -204,7 +204,7 @@ func (m *FunctionToBlockMutator) mutateInternal(
 	mayHaveInjectedDecls := false
 	if isCallInLoop && summary != nil && !summary.hasVarOrLetDecls && !(renameLocals && summary.hasInnerFunctionDecls) {
 		for _, b := range m.argsScratch {
-			if b.argNode.HasChildren() && functionToBlockMutator_hasVarOrLetOutsideFn(b.argNode) {
+			if b.argNode.HasChildren() && ftbmHasVarOrLetOutsideFn(b.argNode) {
 				mayHaveInjectedDecls = true
 				break
 			}
@@ -225,23 +225,23 @@ func (m *FunctionToBlockMutator) mutateInternal(
 	// that they are properly initialized.
 	//
 	if isCallInLoop && (summary == nil || summary.hasVarOrLetDecls || (renameLocals && summary.hasInnerFunctionDecls) || mayHaveInjectedDecls) {
-		FunctionToBlockMutator_FixUninitializedVarDeclarations(newBlock, newBlock)
+		ftbmFixUninitializedVarDecls(newBlock, newBlock /* inLoop= */, false)
 	}
 
-	labelName := m.GetLabelNameForFunction(fnName)
+	labelName := m.getLabelNameForFunction(fnName)
 	var injectableBlock rhino.Node
 	if summary != nil {
-		injectableBlock = functionToBlockMutator_replaceReturnsWithCount(
+		injectableBlock = ftbmReplaceReturnsWithCount(
 			newBlock, resultName, labelName, needsDefaultResult, int(summary.shallowReturnCount))
 	} else {
-		injectableBlock = FunctionToBlockMutator_ReplaceReturns(newBlock, resultName, labelName, needsDefaultResult)
+		injectableBlock = ftbmReplaceReturns(newBlock, resultName, labelName, needsDefaultResult)
 	}
 	jutil.CheckState(!injectableBlock.IsNil())
 
 	return injectableBlock
 }
 
-func functionToBlockMutator_hasVarOrLetOutsideFn(n rhino.Node) bool {
+func ftbmHasVarOrLetOutsideFn(n rhino.Node) bool {
 	if n.IsFunction() {
 		return false
 	}
@@ -249,18 +249,18 @@ func functionToBlockMutator_hasVarOrLetOutsideFn(n rhino.Node) bool {
 		return true
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if c.HasChildren() && functionToBlockMutator_hasVarOrLetOutsideFn(c) {
+		if c.HasChildren() && ftbmHasVarOrLetOutsideFn(c) {
 			return true
 		}
 	}
 	return false
 }
 
-// FunctionToBlockMutator_RewriteFunctionDeclarations: n is the node to
-// inspect.
+// ftbmRewriteFunctionDecls rewrites nested function declarations in n as
+// hoisted VAR function expressions.
 //
 // Java: FunctionToBlockMutator.rewriteFunctionDeclarations(Node)
-func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node {
+func ftbmRewriteFunctionDecls(n rhino.Node) rhino.Node {
 	if fn, ok := ast.AsFunction(n); ok {
 		if NodeUtil_IsFunctionDeclaration(n) {
 			// Rewrite: function f() {} ==> var f = function() {}
@@ -288,7 +288,7 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node
 	var next rhino.Node
 	for c := n.GetFirstChild(); !c.IsNil(); c = next {
 		next = c.GetNext() // We may rewrite "c"
-		fnVar := FunctionToBlockMutator_RewriteFunctionDeclarations(c)
+		fnVar := ftbmRewriteFunctionDecls(c)
 		if !fnVar.IsNil() {
 			functionsToHoist = append(functionsToHoist, fnVar)
 		}
@@ -304,23 +304,16 @@ func FunctionToBlockMutator_RewriteFunctionDeclarations(n rhino.Node) rhino.Node
 	return rhino.NilNode
 }
 
-// FunctionToBlockMutator_FixUninitializedVarDeclarations: for all VAR
-// declarations (and LET declarations outside loops) that are uninitialized,
-// set their initial values to "undefined" and hoist them to the containing
-// block.
+// ftbmFixUninitializedVarDecls: for all VAR declarations (and LET declarations
+// outside loops) that are uninitialized, set their initial values to
+// "undefined" and hoist them to the containing block.
 //
 // When a function is called within a loop, local variables are recreated on
 // each call in normal execution. When inlined into the loop, uninitialized
 // variables would otherwise retain their values across loop iterations.
 //
-// Java: FunctionToBlockMutator.fixUninitializedVarDeclarations(Node, Node)
-func FunctionToBlockMutator_FixUninitializedVarDeclarations(n rhino.Node, containingBlock rhino.Node) {
-	FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(n, containingBlock /* inLoop= */, false)
-}
-
 // Java: FunctionToBlockMutator.fixUninitializedVarDeclarations(Node, Node, boolean)
-func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
-	n rhino.Node, containingBlock rhino.Node, inLoop bool) {
+func ftbmFixUninitializedVarDecls(n rhino.Node, containingBlock rhino.Node, inLoop bool) {
 	// Nested functions introduce there own var hoisting scope
 	// thier `var` should not be hoisted out to the containing block.
 	if _, ok := ast.AsFunction(n); ok {
@@ -335,11 +328,11 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	if loop, ok := ast.AsLoop(n); ok {
 		body := loop.Body().Node()
 		if !body.IsNil() {
-			FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(body, containingBlock /* inLoop= */, true)
+			ftbmFixUninitializedVarDecls(body, containingBlock /* inLoop= */, true)
 		}
 		if vanillaFor, isFor := loop.AsFor(); isFor {
 			if init, hasInit := vanillaFor.Init(); hasInit {
-				FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(init.Node(), containingBlock /* inLoop= */, true)
+				ftbmFixUninitializedVarDecls(init.Node(), containingBlock /* inLoop= */, true)
 			}
 		}
 		return
@@ -397,7 +390,7 @@ func FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		FunctionToBlockMutator_FixUninitializedVarDeclarationsWithInLoop(c, containingBlock, inLoop)
+		ftbmFixUninitializedVarDecls(c, containingBlock, inLoop)
 	}
 }
 
@@ -459,10 +452,10 @@ func hasLabelNode(n rhino.Node) bool {
 	return false
 }
 
-// GetLabelNameForFunction creates a unique label name.
+// getLabelNameForFunction creates a unique label name.
 //
 // Java: FunctionToBlockMutator.getLabelNameForFunction(String)
-func (m *FunctionToBlockMutator) GetLabelNameForFunction(fnName string) string {
+func (m *FunctionToBlockMutator) getLabelNameForFunction(fnName string) string {
 	name := fnName
 	if fnName == "" {
 		name = "anon"
@@ -470,10 +463,10 @@ func (m *FunctionToBlockMutator) GetLabelNameForFunction(fnName string) string {
 	return "JSCompiler_inline_label_" + name + "_" + m.safeNameIdSupplier()
 }
 
-// GetUniqueThisName creates a unique "this" name.
+// getUniqueThisName creates a unique "this" name.
 //
 // Java: FunctionToBlockMutator.getUniqueThisName()
-func (m *FunctionToBlockMutator) GetUniqueThisName() string {
+func (m *FunctionToBlockMutator) getUniqueThisName() string {
 	return "JSCompiler_inline_this_" + m.safeNameIdSupplier()
 }
 
@@ -581,7 +574,7 @@ func (m *FunctionToBlockMutator) aliasAndInlineArgumentsByID(
 					referencesThis = NodeUtil_ReferencesEnclosingReceiver(fnTemplateRoot)
 				}
 				if referencesThis || m.compiler.GetAstAnalyzer().MayHaveSideEffects(originalValue) {
-					newName := m.GetUniqueThisName()
+					newName := m.getUniqueThisName()
 					newValue := m.takeOrCloneCallArg(originalValue)
 					newNode := NodeUtil_NewVarNode(newName, newValue).SrcrefTreeIfMissing(newValue)
 					newAliasesToAdd = append(newAliasesToAdd, newNode)
@@ -627,35 +620,35 @@ func (m *FunctionToBlockMutator) aliasAndInlineArgumentsByID(
 	return result
 }
 
-// FunctionToBlockMutator_ReplaceReturns converts returns to assignments and
-// breaks, as needed. For example, with a labelName of 'foo': { return a; }
-// becomes: foo: { a; break foo; } or foo: { resultName = a; break foo; }
+// ftbmReplaceReturns converts returns to assignments and breaks, as needed.
+// For example, with a labelName of 'foo': { return a; } becomes:
+// foo: { a; break foo; } or foo: { resultName = a; break foo; }
 //
 // resultMustBeSet is whether the result must always be set to a value.
 // Returns the node containing the transformed block, this may be different
 // than the passed in node 'block'.
 //
 // Java: FunctionToBlockMutator.replaceReturns(Node, String, String, boolean)
-func FunctionToBlockMutator_ReplaceReturns(
+func ftbmReplaceReturns(
 	block rhino.Node, resultName string, labelName string, resultMustBeSet bool) rhino.Node {
 	rhino.CheckNotNull(block)
 	returnCount := functionInjector_countShallowReturns(block)
-	return functionToBlockMutator_replaceReturnsWithCount(
+	return ftbmReplaceReturnsWithCount(
 		block, resultName, labelName, resultMustBeSet, returnCount)
 }
 
-func functionToBlockMutator_replaceReturnsWithCount(
+func ftbmReplaceReturnsWithCount(
 	block rhino.Node, resultName string, labelName string, resultMustBeSet bool, returnCount int) rhino.Node {
 	rhino.CheckNotNull(block)
 
 	root := block
 	hasReturnAtExit := false
 	if returnCount > 0 {
-		hasReturnAtExit = FunctionToBlockMutator_HasReturnAtExit(block)
+		hasReturnAtExit = ftbmHasReturnAtExit(block)
 		// TODO(johnlenz): Simpler not to special case this,
 		// and let it be optimized later.
 		if hasReturnAtExit {
-			FunctionToBlockMutator_ConvertLastReturnToStatement(block, resultName)
+			ftbmConvertLastReturnToStmt(block, resultName)
 			returnCount--
 		}
 
@@ -663,7 +656,7 @@ func functionToBlockMutator_replaceReturnsWithCount(
 			// A label and breaks are needed.
 
 			// Add the breaks
-			FunctionToBlockMutator_ReplaceReturnWithBreak(block, rhino.NilNode, resultName, labelName)
+			ftbmReplaceReturnWithBreak(block, rhino.NilNode, resultName, labelName)
 
 			// Add label
 			name := rhino.IR_LabelName(labelName).Srcref(block)
@@ -680,7 +673,7 @@ func functionToBlockMutator_replaceReturnsWithCount(
 	// If there wasn't an return at the end of the function block, and we need
 	// a result, add one to the block.
 	if resultMustBeSet && !hasReturnAtExit && resultName != "" {
-		FunctionToBlockMutator_AddDummyAssignment(block, resultName)
+		ftbmAddDummyAssignment(block, resultName)
 	}
 
 	return root
@@ -690,32 +683,32 @@ func functionToBlockMutator_replaceReturnsWithCount(
  *  Functions following here are general node transformation functions
  **********************************************************************/
 
-// FunctionToBlockMutator_AddDummyAssignment, example: a = (void) 0;
+// ftbmAddDummyAssignment, example: a = (void) 0;
 //
 // Java: FunctionToBlockMutator.addDummyAssignment(Node, String)
-func FunctionToBlockMutator_AddDummyAssignment(node rhino.Node, resultName string) {
+func ftbmAddDummyAssignment(node rhino.Node, resultName string) {
 	jutil.CheckArgument(node.IsBlock())
 
 	// A result is needed create a dummy value.
 	srcLocation := node
 	retVal := NodeUtil_NewUndefinedNode(srcLocation)
-	resultNode := FunctionToBlockMutator_CreateAssignStatementNode(resultName, retVal)
+	resultNode := ftbmCreateAssignStmt(resultName, retVal)
 	resultNode.SrcrefTreeIfMissing(node)
 
 	node.AddChildToBack(resultNode)
 }
 
-// FunctionToBlockMutator_ConvertLastReturnToStatement replaces the 'return'
-// statement with its child expression. "return foo()" becomes "foo()" or
-// "resultName = foo()" "return" is removed or becomes "resultName = void 0".
+// ftbmConvertLastReturnToStmt replaces the 'return' statement with its child
+// expression. "return foo()" becomes "foo()" or "resultName = foo()";
+// "return" is removed or becomes "resultName = void 0".
 //
 // Java: FunctionToBlockMutator.convertLastReturnToStatement(Node, String)
-func FunctionToBlockMutator_ConvertLastReturnToStatement(block rhino.Node, resultName string) {
+func ftbmConvertLastReturnToStmt(block rhino.Node, resultName string) {
 	lastStmt, hasLast := ast.MustBlock(block).LastStatement()
 	ret, isRet := lastStmt.AsReturn()
 	jutil.CheckArgument(hasLast && isRet)
 	retNode := ret.Node()
-	resultNode := FunctionToBlockMutator_GetReplacementReturnStatement(retNode, resultName)
+	resultNode := ftbmReplacementReturnStmt(retNode, resultName)
 
 	if resultNode.IsNil() {
 		retNode.Detach()
@@ -725,11 +718,11 @@ func FunctionToBlockMutator_ConvertLastReturnToStatement(block rhino.Node, resul
 	}
 }
 
-// FunctionToBlockMutator_CreateAssignStatementNode creates a valid statement
-// Node containing an assignment to name of the given expression.
+// ftbmCreateAssignStmt creates a valid statement Node containing an assignment
+// to name of the given expression.
 //
 // Java: FunctionToBlockMutator.createAssignStatementNode(String, Node)
-func FunctionToBlockMutator_CreateAssignStatementNode(name string, expression rhino.Node) rhino.Node {
+func ftbmCreateAssignStmt(name string, expression rhino.Node) rhino.Node {
 	// Create 'name = result-expression;' statement.
 	// EXPR (ASSIGN (NAME, EXPRESSION))
 	nameNode := rhino.IR_Name(name)
@@ -737,14 +730,13 @@ func FunctionToBlockMutator_CreateAssignStatementNode(name string, expression rh
 	return NodeUtil_NewExpr(assign)
 }
 
-// FunctionToBlockMutator_GetReplacementReturnStatement replaces the 'return'
-// statement with its child expression. If the result is needed (resultName
-// != ""): "return foo()" becomes "resultName = foo()" "return" becomes
-// "resultName = void 0". Otherwise: "return foo()" becomes "foo()" "return",
-// null is returned.
+// ftbmReplacementReturnStmt replaces the 'return' statement with its child
+// expression. If the result is needed (resultName != ""): "return foo()"
+// becomes "resultName = foo()" and "return" becomes "resultName = void 0".
+// Otherwise: "return foo()" becomes "foo()" and for "return" nil is returned.
 //
 // Java: FunctionToBlockMutator.getReplacementReturnStatement(Node, String)
-func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resultName string) rhino.Node {
+func ftbmReplacementReturnStmt(node rhino.Node, resultName string) rhino.Node {
 	var resultNode rhino.Node
 
 	var retVal rhino.Node
@@ -765,17 +757,17 @@ func FunctionToBlockMutator_GetReplacementReturnStatement(node rhino.Node, resul
 			retVal = NodeUtil_NewUndefinedNode(srcLocation)
 		}
 		// Create a "resultName = retVal;" statement.
-		resultNode = FunctionToBlockMutator_CreateAssignStatementNode(resultName, retVal)
+		resultNode = ftbmCreateAssignStmt(resultName, retVal)
 	}
 
 	return resultNode
 }
 
-// FunctionToBlockMutator_HasReturnAtExit returns whether the given block end
-// with an return statement.
+// ftbmHasReturnAtExit returns whether the given block ends with a return
+// statement.
 //
 // Java: FunctionToBlockMutator.hasReturnAtExit(Node)
-func FunctionToBlockMutator_HasReturnAtExit(block rhino.Node) bool {
+func ftbmHasReturnAtExit(block rhino.Node) bool {
 	// Only inline functions that return something (empty returns
 	// will be handled by ConstFolding+EmptyFunctionRemoval)
 	last, hasLast := ast.MustBlock(block).LastStatement()
@@ -786,13 +778,13 @@ func FunctionToBlockMutator_HasReturnAtExit(block rhino.Node) bool {
 	return isRet
 }
 
-// FunctionToBlockMutator_ReplaceReturnWithBreak replaces the 'return'
-// statement with its child expression. "return foo()" becomes "{foo();
-// break;}" or "{resultName = foo(); break;}" "return" becomes {break;} or
-// "{resultName = void 0;break;}".
+// ftbmReplaceReturnWithBreak replaces the 'return' statement with its child
+// expression. "return foo()" becomes "{foo(); break;}" or
+// "{resultName = foo(); break;}"; "return" becomes "{break;}" or
+// "{resultName = void 0; break;}".
 //
 // Java: FunctionToBlockMutator.replaceReturnWithBreak(Node, Node, String, String)
-func FunctionToBlockMutator_ReplaceReturnWithBreak(
+func ftbmReplaceReturnWithBreak(
 	current rhino.Node, parent rhino.Node, resultName string, labelName string) rhino.Node {
 
 	if current.IsFunction() || current.IsExprResult() {
@@ -804,7 +796,7 @@ func FunctionToBlockMutator_ReplaceReturnWithBreak(
 	if current.IsReturn() {
 		jutil.CheckState(NodeUtil_IsStatementBlock(parent))
 
-		resultNode := FunctionToBlockMutator_GetReplacementReturnStatement(current, resultName)
+		resultNode := ftbmReplacementReturnStmt(current, resultName)
 		breakNode := rhino.IR_BreakNodeWithLabel(rhino.IR_LabelName(labelName))
 
 		// Replace the node in parent, and reset current to the first new child.
@@ -818,7 +810,7 @@ func FunctionToBlockMutator_ReplaceReturnWithBreak(
 	} else {
 		for c := current.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			// c may be replaced.
-			c = FunctionToBlockMutator_ReplaceReturnWithBreak(c, current, resultName, labelName)
+			c = ftbmReplaceReturnWithBreak(c, current, resultName, labelName)
 		}
 	}
 

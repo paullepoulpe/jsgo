@@ -459,12 +459,12 @@ type Result struct {
 	variableMap             *VariableMap
 	propertyMap             *VariableMap
 	namedAnonFunctionMap    *VariableMap
-	stringMap               *VariableMap                 // nil is null
-	instrumentationMappings *VariableMap                 // nil is null
-	SourceMap               *SourceMap                   // nil is null
-	cssNames                *jutil.LinkedHashSet[string] // nil is null
-	ExternExport            *string                      // nil is null
-	idGeneratorMap          *string                      // nil is null
+	stringMap               *VariableMap        // nil is null
+	instrumentationMappings *VariableMap        // nil is null
+	SourceMap               *SourceMap          // nil is null
+	cssNames                *OrderedSet[string] // nil is null
+	ExternExport            *string             // nil is null
+	idGeneratorMap          *string             // nil is null
 	TranspiledFiles         bool
 }
 
@@ -479,7 +479,7 @@ func NewResultWithAllMaps(
 	instrumentationMappings *VariableMap,
 	sourceMap *SourceMap,
 	externExport *string,
-	cssNames *jutil.LinkedHashSet[string],
+	cssNames *OrderedSet[string],
 	idGeneratorMap *string,
 	transpiledFiles bool) *Result {
 	return &Result{

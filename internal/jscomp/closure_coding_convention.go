@@ -38,10 +38,11 @@ var ClosureCodingConvention_OBJECTLIT_EXPECTED = DiagnosticType_Warning(
 	"JSC_REFLECT_OBJECTLIT_EXPECTED",
 	"Object literal expected as second argument")
 
+const closureAbstractMethodName = "goog.abstractMethod"
+
 var (
 	closureExportPropertyFunction = "goog.exportProperty"
 	closureExportSymbolFunction   = "goog.exportSymbol"
-	closureAbstractMethodName     = "goog.abstractMethod"
 
 	googForwardDeclareQ               = rhino.QualifiedName_Of("goog.forwardDeclare")
 	googAddSingletonGetterQ           = rhino.QualifiedName_Of("goog.addSingletonGetter")
@@ -182,39 +183,39 @@ func stripPrototypeProp(qualifiedName rhino.Node) rhino.Node {
 	return qualifiedName
 }
 
-func (c *ClosureCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) *string {
-	prop, arg := extractGoogCallPropAndArg(node, parent)
-	if arg != nil && prop == "require" {
-		return arg
+func (c *ClosureCodingConvention) ExtractClassNameIfRequire(node rhino.Node, parent rhino.Node) (string, bool) {
+	prop, arg, ok := extractGoogCallPropAndArg(node, parent)
+	if ok && prop == "require" {
+		return arg, true
 	}
-	return nil
+	return "", false
 }
 
-func extractGoogCallPropAndArg(node rhino.Node, parent rhino.Node) (string, *string) {
+func extractGoogCallPropAndArg(node rhino.Node, parent rhino.Node) (string, string, bool) {
 	if !NodeUtil_IsExprCall(parent) {
-		return "", nil
+		return "", "", false
 	}
 	call, ok := ast.AsCall(node)
 	if !ok {
-		return "", nil
+		return "", "", false
 	}
 	callee, ok := call.Callee().AsGetProp()
 	if !ok {
-		return "", nil
+		return "", "", false
 	}
 	recv, ok := callee.Object().AsName()
 	if !ok || nodeStringID(recv.Node()) != rewriteGoogJsGoogID {
-		return "", nil
+		return "", "", false
 	}
 	firstArg, ok := call.FirstArg()
 	if !ok {
-		return "", nil
+		return "", "", false
 	}
 	target, ok := firstArg.AsStringLit()
 	if !ok {
-		return "", nil
+		return "", "", false
 	}
-	return callee.Property(), strpool.StringPtr(strpool.ID(target.Node().GetStringID()))
+	return callee.Property(), target.Value(), true
 }
 
 func (c *ClosureCodingConvention) GetExportPropertyFunction() *string {
@@ -225,27 +226,27 @@ func (c *ClosureCodingConvention) GetExportSymbolFunction() *string {
 	return &closureExportSymbolFunction
 }
 
-func (c *ClosureCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) []string {
+func (c *ClosureCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) (string, bool) {
 	if call, ok := ast.AsCall(n); ok && googForwardDeclareQ.Matches(call.Callee().Node()) {
 		if arg, ok := call.OnlyArg(); ok {
 			if lit, ok := arg.AsStringLit(); ok {
-				return []string{lit.Value()}
+				return lit.Value(), true
 			}
 		}
 	}
 	return c.CodingConvention.IdentifyTypeDeclarationCall(n)
 }
 
-func (c *ClosureCodingConvention) GetAbstractMethodName() *string {
-	return &closureAbstractMethodName
+func (c *ClosureCodingConvention) GetAbstractMethodName() string {
+	return closureAbstractMethodName
 }
 
-func (c *ClosureCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
+func (c *ClosureCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) (string, bool) {
 	if call, ok := ast.AsCall(callNode); ok {
 		callee := call.Callee().Node()
 		if arg, ok := call.OnlyArg(); ok &&
 			(googAddSingletonGetterQ.Matches(callee) || googAddSingletonGetterMangledQ.Matches(callee)) {
-			return arg.Node().GetQualifiedName()
+			return arg.Node().GetQualifiedNameString()
 		}
 	}
 	return c.CodingConvention.GetSingletonGetterClassName(callNode)
@@ -283,33 +284,34 @@ func (c *ClosureCodingConvention) IsFunctionCallThatAlwaysThrows(n rhino.Node) b
 		callAlwaysThrowsQName(n, googAssertsFailQ)
 }
 
-func (c *ClosureCodingConvention) GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast {
+func (c *ClosureCodingConvention) GetObjectLiteralCast(callNode rhino.Node) (CodingConvention_ObjectLiteralCast, bool) {
 	call, ok := ast.AsCall(callNode)
 	jutil.CheckArgumentMsg1(ok, "Expected call node but found %s", callNode)
-	if proxyCast := c.CodingConvention.GetObjectLiteralCast(callNode); proxyCast != nil {
-		return proxyCast
+	if proxyCast, ok := c.CodingConvention.GetObjectLiteralCast(callNode); ok {
+		return proxyCast, true
 	}
 
 	callName := call.Callee().Node()
 	if !(googReflectObjectQ.Matches(callName) || jscompReflectObjectQ.Matches(callName)) ||
 		call.NumArgs() != 2 {
-		return nil
+		return CodingConvention_ObjectLiteralCast{}, false
 	}
 
 	callOrNew := call.AsCallOrNew()
 	typeArg, _ := callOrNew.ArgAt(0)
 	typeNode := typeArg.Node()
 	if !typeNode.IsQualifiedName() {
-		return nil
+		return CodingConvention_ObjectLiteralCast{}, false
 	}
 
 	objectArg, _ := callOrNew.ArgAt(1)
 	objectNode := objectArg.Node()
 	if !objectNode.IsObjectLit() {
-		return NewCodingConvention_ObjectLiteralCast(nil, rhino.NilNode, ClosureCodingConvention_OBJECTLIT_EXPECTED)
+		return NewCodingConvention_ObjectLiteralCast("", rhino.NilNode, ClosureCodingConvention_OBJECTLIT_EXPECTED), true
 	}
 
-	return NewCodingConvention_ObjectLiteralCast(typeNode.GetQualifiedName(), objectNode, nil)
+	typeName, _ := typeNode.GetQualifiedNameString()
+	return NewCodingConvention_ObjectLiteralCast(typeName, objectNode, nil), true
 }
 
 func (c *ClosureCodingConvention) GetAssertionFunctions() []*CodingConvention_AssertionFunctionSpec {
@@ -335,10 +337,10 @@ func (c *ClosureCodingConvention) GetAssertionFunctions() []*CodingConvention_As
 	return out
 }
 
-func (c *ClosureCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind {
+func (c *ClosureCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes bool) (CodingConvention_Bind, bool) {
 	call, ok := ast.AsCall(n)
 	if !ok {
-		return nil
+		return CodingConvention_Bind{}, false
 	}
 	callTarget := call.Callee().Node()
 	if callTarget.IsQualifiedName() {
@@ -346,28 +348,28 @@ func (c *ClosureCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes 
 		if googBindQ.Matches(callTarget) || callTarget.MatchesName("goog$bind") {
 			fn, ok := call.FirstArg()
 			if !ok {
-				return nil
+				return CodingConvention_Bind{}, false
 			}
 			thisValue, _ := callOrNew.ArgAt(1)
 			parameters, _ := callOrNew.ArgAt(2)
-			return NewCodingConvention_Bind(fn.Node(), thisValue.Node(), parameters.Node())
+			return NewCodingConvention_Bind(fn.Node(), thisValue.Node(), parameters.Node()), true
 		}
 		if googPartialQ.Matches(callTarget) || callTarget.MatchesName("goog$partial") {
 			fn, ok := call.FirstArg()
 			if !ok {
-				return nil
+				return CodingConvention_Bind{}, false
 			}
 			parameters, _ := callOrNew.ArgAt(1)
-			return NewCodingConvention_Bind(fn.Node(), rhino.NilNode, parameters.Node())
+			return NewCodingConvention_Bind(fn.Node(), rhino.NilNode, parameters.Node()), true
 		}
 	}
 	return c.CodingConvention.DescribeFunctionBind(n, checkTypes)
 }
 
-func (c *ClosureCodingConvention) DescribeCachingCall(node rhino.Node) *CodingConvention_Cache {
+func (c *ClosureCodingConvention) DescribeCachingCall(node rhino.Node) (CodingConvention_Cache, bool) {
 	call, ok := ast.AsCall(node)
 	if !ok {
-		return nil
+		return CodingConvention_Cache{}, false
 	}
 	callTarget := call.Callee().Node()
 	if matchesCacheMethodName(callTarget) {
@@ -378,7 +380,7 @@ func (c *ClosureCodingConvention) DescribeCachingCall(node rhino.Node) *CodingCo
 			keyNode, _ := callOrNew.ArgAt(1)
 			valueFn, _ := callOrNew.ArgAt(2)
 			keyFn, _ := callOrNew.ArgAt(3)
-			return NewCodingConvention_Cache(cacheObj.Node(), keyNode.Node(), valueFn.Node(), keyFn.Node())
+			return NewCodingConvention_Cache(cacheObj.Node(), keyNode.Node(), valueFn.Node(), keyFn.Node()), true
 		}
 	}
 	return c.CodingConvention.DescribeCachingCall(node)

@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -39,7 +38,7 @@ var j2clUtilGetDefineVisitTokens = func() ast.TokenSet {
 type J2clUtilGetDefineRewriterPass struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler AbstractCompiler
-	defines  *jutil.LinkedHashSet[string]
+	defines  *OrderedSet[string]
 }
 
 func (*J2clUtilGetDefineRewriterPass) noVisitLeaves() {}

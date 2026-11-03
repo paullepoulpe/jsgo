@@ -115,13 +115,15 @@ const (
 
 var commandLineRunner_FormattingOption_names = [...]string{"PRETTY_PRINT", "PRINT_INPUT_DELIMITER", "SINGLE_QUOTES"}
 
+var commandLineRunner_FormattingOption_all = [...]CommandLineRunner_FormattingOption{
+	CommandLineRunner_FormattingOption_PRETTY_PRINT,
+	CommandLineRunner_FormattingOption_PRINT_INPUT_DELIMITER,
+	CommandLineRunner_FormattingOption_SINGLE_QUOTES,
+}
+
 // CommandLineRunner_FormattingOption_values is FormattingOption.values().
 func CommandLineRunner_FormattingOption_values() []CommandLineRunner_FormattingOption {
-	return []CommandLineRunner_FormattingOption{
-		CommandLineRunner_FormattingOption_PRETTY_PRINT,
-		CommandLineRunner_FormattingOption_PRINT_INPUT_DELIMITER,
-		CommandLineRunner_FormattingOption_SINGLE_QUOTES,
-	}
+	return commandLineRunner_FormattingOption_all[:]
 }
 
 // String is Enum.name().

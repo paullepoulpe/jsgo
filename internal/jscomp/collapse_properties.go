@@ -305,12 +305,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) LogDecisionForNameSuppl
 
 // FlattenSimpleStubDeclaration flattens a stub declaration.
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclaration(name *GlobalNamespace_Name, alias string) {
-	nRefs := name.refCount()
-	if nRefs == 0 {
-		panic(jutil.NewNoSuchElementException())
-	} else if nRefs > 1 {
-		panic(jutil.NewIllegalArgumentExceptionMsg(inlineAndCollapseProperties_onlyElementMessage(name.GetRefs())))
-	}
+	jutil.CheckState(name.refCount() == 1)
 	ref := name.GetFirstRef()
 	nameNode := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, ref.GetNode(), name.GetFullName())
 	varNode := rhino.IR_Var(nameNode).SrcrefIfMissing(nameNode)
@@ -319,25 +314,6 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclar
 	parent := ref.GetNode().GetParent()
 	parent.ReplaceWith(varNode)
 	c.outer.compiler.ReportChangeToEnclosingScope(varNode)
-}
-
-// inlineAndCollapseProperties_onlyElementMessage formats Guava's
-// Iterables.getOnlyElement message when more than one element is present.
-func inlineAndCollapseProperties_onlyElementMessage(refs []*GlobalNamespace_Ref) string {
-	var sb strings.Builder
-	sb.WriteString("expected one element but was: <")
-	for i, ref := range refs {
-		if i == 5 {
-			sb.WriteString(", ...")
-			break
-		}
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(ref.String())
-	}
-	sb.WriteByte('>')
-	return sb.String()
 }
 
 // ShouldAddConstantName returns whether a NAME node with the given

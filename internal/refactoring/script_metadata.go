@@ -88,21 +88,13 @@ func (m *ScriptMetadata) UsesName(name string) bool {
 	return ok
 }
 
-func (m *ScriptMetadata) lookupAlias(namespace string) (string, bool) {
-	alias, ok := m.requireAliases[namespace]
-	return alias, ok
-}
-
-// GetAlias returns the local alias for `namespace`, or nil if not required or
-// unaliased.
+// GetAlias returns the local alias for `namespace` and true, or ("", false) if
+// not required or unaliased.
 //
 // Java: ScriptMetadata.getAlias(String)
-func (m *ScriptMetadata) GetAlias(namespace string) *string {
+func (m *ScriptMetadata) GetAlias(namespace string) (string, bool) {
 	alias, ok := m.requireAliases[namespace]
-	if !ok {
-		return nil
-	}
-	return &alias
+	return alias, ok
 }
 
 // AddAlias records that `namespace` has been required with local alias `alias`.

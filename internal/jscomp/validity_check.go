@@ -98,24 +98,26 @@ func (v *ValidityCheck) CheckNormalization(externs rhino.Node, root rhino.Node) 
 
 // Java: ValidityCheck.checkExternProperties(Node)
 func (v *ValidityCheck) CheckExternProperties(externs rhino.Node) {
-	externProperties := v.compiler.GetExternProperties()
+	externProperties := v.compiler.GetExternPropSet()
 	if externProperties == nil {
 		// GatherExternProperties hasn't run yet. Don't report a violation.
 		return
 	}
 	NewGatherExternProperties(v.compiler, GatherExternProperties_Mode_CHECK).Process(externs, rhino.NilNode)
-	if !v.compiler.GetExternProperties().Equals(externProperties) {
+	if !v.compiler.GetExternPropSet().Equals(externProperties) {
+		oldStr := jutil.CollectionToString(externProperties.ToOrderedSet().ToSlice())
+		newStr := jutil.CollectionToString(v.compiler.GetExternProperties().ToSlice())
 		v.compiler.Report(
 			JSError_Make(
 				ValidityCheck_EXTERN_PROPERTIES_CHANGED,
-				externProperties.String(),
-				v.compiler.GetExternProperties().String()))
+				oldStr,
+				newStr))
 		// Throw an exception, so that the infrastructure will tell us which pass violated the check.
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Validity Check failed: Extern properties changed from:\n" +
-				externProperties.String() +
+				oldStr +
 				"\nto:\n" +
-				v.compiler.GetExternProperties().String()))
+				newStr))
 	}
 }
 

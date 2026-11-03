@@ -434,7 +434,10 @@ func (tc *TypeCheck) VisitInterfacePropertyAssignment(object ast.Expr, lvalue as
 
 	if fn, ok := rvalue.AsFunction(); ok && !NodeUtil_IsEmptyBlock(fn.Body().Node()) {
 		abstractMethodName := tc.compiler.GetCodingConvention().GetAbstractMethodName()
-		tc.compiler.Report(JSError_MakeWithNode(object.Node(), TypeCheck_INTERFACE_METHOD_NOT_EMPTY, stringPtrOrNull(abstractMethodName)))
+		if abstractMethodName == "" {
+			abstractMethodName = "null"
+		}
+		tc.compiler.Report(JSError_MakeWithNode(object.Node(), TypeCheck_INTERFACE_METHOD_NOT_EMPTY, abstractMethodName))
 	}
 }
 
@@ -443,8 +446,8 @@ func (tc *TypeCheck) ReportInvalidInterfaceMemberDeclaration(interfaceNode rhino
 	abstractMethodName := tc.compiler.GetCodingConvention().GetAbstractMethodName()
 	// This is bad i18n style but we don't localize our compiler errors.
 	abstractMethodMessage := ""
-	if abstractMethodName != nil {
-		abstractMethodMessage = ", or " + *abstractMethodName
+	if abstractMethodName != "" {
+		abstractMethodMessage = ", or " + abstractMethodName
 	}
 	tc.compiler.Report(
 		JSError_MakeWithNode(interfaceNode, TypeCheck_INVALID_INTERFACE_MEMBER_DECLARATION, abstractMethodMessage))

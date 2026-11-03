@@ -401,8 +401,7 @@ func (p *ProcessClosureProvidesAndRequires) processForwardDeclare(n rhino.Node, 
 	if p.preserveGoogProvidesAndRequires {
 		return
 	}
-	typeDeclarations := p.compiler.GetCodingConvention().IdentifyTypeDeclarationCall(n)
-	if len(typeDeclarations) == 1 {
+	if _, ok := p.compiler.GetCodingConvention().IdentifyTypeDeclarationCall(n); ok {
 		toRemove := parent.GetParent()
 		if parent.IsExprResult() {
 			toRemove = parent

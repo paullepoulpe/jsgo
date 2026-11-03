@@ -47,15 +47,15 @@ func TestCodePrinterEs6TypedTest(t *testing.T) {
 
 // Java: CodePrinterEs6TypedTest.assertPrettyPrint(Node, String)
 func (c *CodePrinterEs6TypedTest) AssertPrettyPrint(root rhino.Node, js string) {
-	parsed := NewCodePrinter_Builder(root).
-		SetCompilerOptions(
-			c.NewCompilerOptions(
-				codePrinterTestBase_CompilerOptionBuilderFunc(func(options *CompilerOptions) {
-					options.SetPrettyPrint(true)
-					options.SetPreferSingleQuotes(true)
-					options.SetGentsMode(true)
-				}))).
-		Build()
+	parsed := PrintCode(CodePrintConfig{
+		Root: root,
+		Options: c.NewCompilerOptions(
+			codePrinterTestBase_CompilerOptionBuilderFunc(func(options *CompilerOptions) {
+				options.SetPrettyPrint(true)
+				options.SetPreferSingleQuotes(true)
+				options.SetGentsMode(true)
+			})),
+	})
 	parsed = jutil.StringTrim(parsed) // strip trailing line break.
 	AssertThat(parsed).IsEqualTo(js)
 }

@@ -86,10 +86,10 @@ func TestJsMessage_HashValues(t *testing.T) {
 
 func TestJsMessage_NoAlternateId(t *testing.T) {
 	msg := newTestMessageBuilder("MSG_SOME_KEY").SetDesc(jutil.StringPtr("Hello.")).Build()
-	assertEqual(t, "desc", strPtrValue(msg.GetDesc()), "Hello.")
+	assertEqual(t, "desc", jsMessage_optStringFormat(msg.DescOpt()), "Hello.")
 	assertEqual(t, "id", msg.GetId(), "MSG_SOME_KEY")
-	if msg.GetAlternateId() != nil {
-		t.Errorf("alternate id %q, want null", *msg.GetAlternateId())
+	if alt, ok := msg.AlternateIdOpt(); ok {
+		t.Errorf("alternate id %q, want null", alt)
 	}
 }
 
@@ -98,10 +98,10 @@ func TestJsMessage_SelfReferentialAlternateId(t *testing.T) {
 		SetDesc(jutil.StringPtr("Hello.")).
 		SetAlternateId(jutil.StringPtr("MSG_SOME_NAME")).
 		Build()
-	assertEqual(t, "desc", strPtrValue(msg.GetDesc()), "Hello.")
+	assertEqual(t, "desc", jsMessage_optStringFormat(msg.DescOpt()), "Hello.")
 	assertEqual(t, "id", msg.GetId(), "MSG_SOME_NAME")
-	if msg.GetAlternateId() != nil {
-		t.Errorf("alternate id %q, want null", *msg.GetAlternateId())
+	if alt, ok := msg.AlternateIdOpt(); ok {
+		t.Errorf("alternate id %q, want null", alt)
 	}
 }
 
@@ -118,9 +118,9 @@ func TestJsMessage_AlternateId(t *testing.T) {
 		AppendStringPart("part1").
 		AppendStringPart("part2").
 		Build()
-	assertEqual(t, "desc", strPtrValue(msg.GetDesc()), "Hello.")
+	assertEqual(t, "desc", jsMessage_optStringFormat(msg.DescOpt()), "Hello.")
 	assertEqual(t, "id", msg.GetId(), "meaning")
-	assertEqual(t, "alternate id", strPtrValue(msg.GetAlternateId()), "foo")
+	assertEqual(t, "alternate id", jsMessage_optStringFormat(msg.AlternateIdOpt()), "foo")
 }
 
 func TestJsMessage_MessageWithGenderedVariants(t *testing.T) {

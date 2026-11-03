@@ -91,6 +91,13 @@ func jsaJavaStr(s *string) string {
 	return *s
 }
 
+func jsaJavaOptStr(s string, ok bool) string {
+	if !ok {
+		return "null"
+	}
+	return s
+}
+
 func jsaLevelStr(l CheckLevel, ok bool) string {
 	if !ok {
 		return "null"
@@ -763,11 +770,11 @@ func jsaJsdocSummary(d *rhino.JSDocInfo) string {
 		mode = m.String()
 	}
 	return fmt.Sprintf("%t %t %s %s %s %s %s %t%t%t %t%t%t%t%t %s %t %s %s",
-		d.IsConstant(), d.IsNoSideEffects(), jsaJavaSet(d.GetModifies()), jsaJavaStr(d.GetDescription()),
-		jsaJavaStr(d.GetMeaning()), jsaJavaStr(d.GetAlternateMessageId()), jsaJavaSet(d.GetSuppressions()),
+		d.IsConstant(), d.IsNoSideEffects(), jsaJavaSet(d.GetModifies()), jsaJavaOptStr(d.GetDescriptionString()),
+		jsaJavaOptStr(d.GetMeaningString()), jsaJavaOptStr(d.GetAlternateMessageIdString()), jsaJavaSet(d.GetSuppressions()),
 		d.IsStableIdGenerator(), d.IsConsistentIdGenerator(), d.IsIdGenerator(),
 		d.IsConstructor(), d.IsInterface(), d.IsAbstract(), d.IsNoInline(), d.IsTypeSummary(),
-		jsaJavaStr(d.GetLicense()), d.HasFileOverview(),
+		jsaJavaOptStr(d.GetLicenseString()), d.HasFileOverview(),
 		"["+strings.Join(d.GetThrowsAnnotations(), ", ")+"]", mode)
 }
 

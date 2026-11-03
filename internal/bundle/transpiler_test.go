@@ -68,7 +68,14 @@ func bundleTest_assertSource(t *testing.T, got *Source, want *Source) {
 
 func TestTranspiler_Transpiler_transpile(t *testing.T) {
 	mockCompiler := &bundleTest_mockCompiler{runtimes: map[string]string{}}
-	var transpiler Source_Transformer = NewTranspiler(mockCompiler, "es6_runtime")
+	tr := NewTranspiler(mockCompiler, "es6_runtime")
+	if rt, ok := tr.GetRuntime(); !ok || rt != "es6_runtime" {
+		t.Fatalf("Transpiler.GetRuntime() = (%q, %v), want (\"es6_runtime\", true)", rt, ok)
+	}
+	if rt, ok := NewCoverageInstrumenter(mockCompiler).GetRuntime(); ok || rt != "" {
+		t.Fatalf("CoverageInstrumenter.GetRuntime() = (%q, %v), want (\"\", false)", rt, ok)
+	}
+	var transpiler Source_Transformer = tr
 	mockCompiler.runtimes["es6_runtime"] = "$jscomp.es6();"
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
 	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, true, "srcmap")
@@ -84,7 +91,14 @@ func TestTranspiler_Transpiler_transpile(t *testing.T) {
 
 func TestTranspiler_Transpiler_noTranspilation(t *testing.T) {
 	mockCompiler := &bundleTest_mockCompiler{runtimes: map[string]string{}}
-	var transpiler Source_Transformer = NewTranspiler(mockCompiler, "es6_runtime")
+	tr := NewTranspiler(mockCompiler, "es6_runtime")
+	if rt, ok := tr.GetRuntime(); !ok || rt != "es6_runtime" {
+		t.Fatalf("Transpiler.GetRuntime() = (%q, %v), want (\"es6_runtime\", true)", rt, ok)
+	}
+	if rt, ok := NewCoverageInstrumenter(mockCompiler).GetRuntime(); ok || rt != "" {
+		t.Fatalf("CoverageInstrumenter.GetRuntime() = (%q, %v), want (\"\", false)", rt, ok)
+	}
+	var transpiler Source_Transformer = tr
 	mockCompiler.compilePath, mockCompiler.compileCode = "foo.js", "bar"
 	mockCompiler.compileResult = NewCompileResult("result", transpilerTest_NO_ERRORS, false, "srcmap")
 	bundleTest_assertSource(t, transpiler.Transform(transpilerTest_source(transpilerTest_FOO_JS, "bar")),

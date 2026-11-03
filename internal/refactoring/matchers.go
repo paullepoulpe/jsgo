@@ -275,7 +275,7 @@ func Matchers_FunctionCall() Matcher {
 //
 // Java: Matchers.functionCall(String)
 func Matchers_FunctionCallWithName(name string) Matcher {
-	propMatcher := Matchers_PropertyAccessWithName(&name)
+	propMatcher := Matchers_PropertyAccessWithName(name)
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		call, ok := ast.AsCall(node)
 		return ok && propMatcher.Matches(call.Callee().Node(), metadata)
@@ -352,23 +352,26 @@ func Matchers_GoogModuleOrProvide() Matcher {
 //
 // Java: Matchers.propertyAccess()
 func Matchers_PropertyAccess() Matcher {
-	return Matchers_PropertyAccessWithName(nil)
+	return func(node rhino.Node, metadata *NodeMetadata) bool {
+		_, ok := ast.AsGetProp(node)
+		return ok
+	}
 }
 
 // Matchers_PropertyAccessWithName returns a Matcher that matches nodes
 // representing a GETPROP access of an object property.
 //
 // Java: Matchers.propertyAccess(String)
-func Matchers_PropertyAccessWithName(name *string) Matcher {
+func Matchers_PropertyAccessWithName(name string) Matcher {
 	return func(node rhino.Node, metadata *NodeMetadata) bool {
 		if _, ok := ast.AsGetProp(node); !ok {
 			return false
 		}
-		if name == nil || node.MatchesQualifiedName(*name) {
+		if node.MatchesQualifiedName(name) {
 			return true
 		}
-		if strings.Contains(*name, ".prototype.") {
-			return matchers_matchesPrototypeInstanceVar(node, metadata, *name)
+		if strings.Contains(name, ".prototype.") {
+			return matchers_matchesPrototypeInstanceVar(node, metadata, name)
 		}
 		return false
 	}

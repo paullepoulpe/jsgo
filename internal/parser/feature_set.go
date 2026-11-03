@@ -546,15 +546,18 @@ var featureSet_Feature_version = [...]FeatureSet_LangVersion{
 	FeatureSet_LangVersion_TYPESCRIPT,
 }
 
+var featureSet_Feature_all = func() (out [len(featureSet_Feature_names)]FeatureSet_Feature) {
+	for i := range out {
+		out[i] = FeatureSet_Feature(i)
+	}
+	return out
+}()
+
 // FeatureSet_Feature_values is Feature.values().
 //
 // Java: FeatureSet.Feature.values()
 func FeatureSet_Feature_values() []FeatureSet_Feature {
-	values := make([]FeatureSet_Feature, len(featureSet_Feature_names))
-	for i := range values {
-		values[i] = FeatureSet_Feature(i)
-	}
-	return values
+	return featureSet_Feature_all[:]
 }
 
 // Name is Enum.name().

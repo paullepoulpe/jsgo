@@ -51,13 +51,15 @@ const (
 
 var abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_names = [...]string{"STANDARD", "JSON"}
 
+var abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_all = [...]AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption{
+	AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_STANDARD,
+	AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_JSON,
+}
+
 // AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_values is
 // ErrorFormatOption.values().
 func AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_values() []AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption {
-	return []AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption{
-		AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_STANDARD,
-		AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_JSON,
-	}
+	return abstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_all[:]
 }
 
 // String is Enum.name().

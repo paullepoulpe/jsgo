@@ -172,8 +172,8 @@ func (s *requiresSortedImport) format() string {
 		}
 		if jsDoc := NodeUtil_GetBestJSDocInfo(node); jsDoc != nil {
 			// StringBuilder.append(String) appends "null" for a null string.
-			if original := jsDoc.GetOriginalCommentString(); original != nil {
-				sb.WriteString(*original)
+			if original, ok := jsDoc.GetOriginalCommentStringValue(); ok {
+				sb.WriteString(original)
 			} else {
 				sb.WriteString("null")
 			}

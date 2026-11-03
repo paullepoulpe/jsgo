@@ -373,8 +373,7 @@ func PureFunctionIdentifier_IsDefinitelyRValue(rvalue rhino.Node) bool {
 	}
 }
 
-func (p *PureFunctionIdentifier) appendGoogCacheCallableLeaves(cacheCall *CodingConvention_Cache) []rhino.Node {
-	jutil.CheckNotNull(cacheCall)
+func (p *PureFunctionIdentifier) appendGoogCacheCallableLeaves(cacheCall CodingConvention_Cache) []rhino.Node {
 	leaves := p.scratchCallableLeaves[:0]
 	if !pureFunctionIdentifier_collectCallableLeavesSlice(cacheCall.valueFn, &leaves, p.astAnalyzer) {
 		// ImmutableList.Builder.addAll(null)
@@ -428,15 +427,15 @@ func (p *PureFunctionIdentifier) recordCallSite(invocation rhino.Node) pfiCallSi
 		flags |= pfiCallViaCallOrApply
 	}
 
-	var cacheCall *CodingConvention_Cache
+	var cacheCall CodingConvention_Cache
+	isCacheCall := false
 	if tok == rhino.Token_CALL {
-		cacheCall = p.codingConvention.DescribeCachingCall(invocation)
-		if cacheCall != nil {
+		if cacheCall, isCacheCall = p.codingConvention.DescribeCachingCall(invocation); isCacheCall {
 			flags |= pfiCallIsCacheCall
 		}
 	}
 
-	if cacheCall == nil {
+	if !isCacheCall {
 		var singleCallee rhino.Node
 		if isViaCallOrApply {
 			singleCallee = ast.MustNormalOrOptChainGet(calleeNode).Object().Node()
@@ -484,7 +483,7 @@ func (p *PureFunctionIdentifier) recordCallSite(invocation rhino.Node) pfiCallSi
 	}
 
 	var callees []rhino.Node
-	if cacheCall != nil {
+	if isCacheCall {
 		callees = p.appendGoogCacheCallableLeaves(cacheCall)
 	} else {
 		p.scratchCallableLeaves = p.scratchCallableLeaves[:0]

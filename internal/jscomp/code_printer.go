@@ -173,7 +173,7 @@ func convertPositionAfterLineCut(
 	originalLine := position.GetLine()
 	originalChar := position.GetColumn()
 	if originalLine == lineIndex && originalChar >= characterPosition {
-		return sourcemap.MakeFilePosition(originalLine+1, originalChar-characterPosition)
+		return sourcemap.NewFilePosition(originalLine+1, originalChar-characterPosition)
 	}
 	return position
 }
@@ -207,7 +207,7 @@ func adjustEndPosition(
 		codePrinter_panicBadEndPosition(endPosition, lineLengths[line])
 	}
 	if col == lineLengths[line] {
-		return sourcemap.MakeFilePosition(line+1, 0)
+		return sourcemap.NewFilePosition(line+1, 0)
 	}
 	return endPosition
 }
@@ -320,129 +320,66 @@ type CodePrinter_LicenseTracker interface {
 	EmitLicenses() []string
 }
 
-// CodePrinter_Builder builds the source code of an AST.
-type CodePrinter_Builder struct {
-	root             rhino.Node
-	options          *CompilerOptions
-	lineBreak        bool
-	prettyPrint      bool
-	outputTypes      bool
-	tagAsTypeSummary bool
-	tagAsStrict      bool
-	licenseTracker   CodePrinter_LicenseTracker // nil is null
-	registry         *rhino.JSTypeRegistry      // may be null unless using Format.TYPED
+var defaultCodePrintOptions = &CompilerOptions{
+	languageIn:          CompilerOptions_LanguageMode_STABLE_IN,
+	lineLengthThreshold: CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD,
 }
 
-// NewCodePrinter_Builder sets the root node from which to generate the
-// source code.
+// CodePrintConfig configures AST source code generation for PrintCode and
+// PrintCodeWithMappings.
 //
-// Java: CodePrinter.Builder(Node)
-func NewCodePrinter_Builder(node rhino.Node) *CodePrinter_Builder {
-	return &CodePrinter_Builder{root: node}
+// Java: CodePrinter.Builder
+type CodePrintConfig struct {
+	Root             rhino.Node
+	Options          *CompilerOptions
+	PrettyPrint      bool
+	LineBreak        bool
+	OutputTypes      bool
+	TagAsTypeSummary bool
+	TagAsStrict      bool
+	LicenseTracker   CodePrinter_LicenseTracker // nil is null
+	Registry         *rhino.JSTypeRegistry      // may be nil unless OutputTypes is true
 }
 
-func (b *CodePrinter_Builder) getOptions() *CompilerOptions {
-	if b.options == nil {
-		b.options = NewCompilerOptions()
-	}
-	return b.options
-}
-
-// SetCompilerOptions sets the output options from compiler options.
-//
-// Java: CodePrinter.Builder.setCompilerOptions(CompilerOptions)
-func (b *CodePrinter_Builder) SetCompilerOptions(options *CompilerOptions) *CodePrinter_Builder {
-	b.options = options
-	b.prettyPrint = options.IsPrettyPrint()
-	b.lineBreak = options.ShouldAddLineBreak()
-	return b
-}
-
-// Java: CodePrinter.Builder.setTypeRegistry(JSTypeRegistry)
-func (b *CodePrinter_Builder) SetTypeRegistry(registry *rhino.JSTypeRegistry) *CodePrinter_Builder {
-	b.registry = registry
-	return b
-}
-
-// SetPrettyPrint sets whether pretty printing should be used.
-//
-// Java: CodePrinter.Builder.setPrettyPrint(boolean)
-func (b *CodePrinter_Builder) SetPrettyPrint(prettyPrint bool) *CodePrinter_Builder {
-	b.prettyPrint = prettyPrint
-	return b
-}
-
-// SetLineBreak sets whether line breaking should be done automatically.
-//
-// Java: CodePrinter.Builder.setLineBreak(boolean)
-func (b *CodePrinter_Builder) SetLineBreak(lineBreak bool) *CodePrinter_Builder {
-	b.lineBreak = lineBreak
-	return b
-}
-
-// SetOutputTypes sets whether to output closure-style type annotations.
-//
-// Java: CodePrinter.Builder.setOutputTypes(boolean)
-func (b *CodePrinter_Builder) SetOutputTypes(outputTypes bool) *CodePrinter_Builder {
-	b.outputTypes = outputTypes
-	return b
-}
-
-// SetLicenseTracker sets the license tracker to use when printing.
-//
-// Java: CodePrinter.Builder.setLicenseTracker(LicenseTracker)
-func (b *CodePrinter_Builder) SetLicenseTracker(licenseTracker CodePrinter_LicenseTracker) *CodePrinter_Builder {
-	b.licenseTracker = licenseTracker
-	return b
-}
-
-// SetTagAsTypeSummary sets whether the output should be tagged as an .i.js
-// file.
-//
-// Java: CodePrinter.Builder.setTagAsTypeSummary(boolean)
-func (b *CodePrinter_Builder) SetTagAsTypeSummary(tagAsTypeSummary bool) *CodePrinter_Builder {
-	b.tagAsTypeSummary = tagAsTypeSummary
-	return b
-}
-
-// SetTagAsStrict sets whether the output should be tags as ECMASCRIPT 5
-// Strict.
-//
-// Java: CodePrinter.Builder.setTagAsStrict(boolean)
-func (b *CodePrinter_Builder) SetTagAsStrict(tagAsStrict bool) *CodePrinter_Builder {
-	b.tagAsStrict = tagAsStrict
-	return b
-}
-
-// Build generates the source code and returns it.
+// PrintCode generates the source code for cfg.Root and returns it.
 //
 // Java: CodePrinter.Builder.build()
-func (b *CodePrinter_Builder) Build() string {
-	return b.buildSourceAndMappingsInto(nil, false, nil)
+func PrintCode(cfg CodePrintConfig) string {
+	return printCodeInto(cfg, nil, false, nil)
 }
 
+// PrintCodeWithMappings generates the source code and source mappings for cfg.Root.
+//
 // Java: CodePrinter.Builder.buildWithSourceMappings()
-func (b *CodePrinter_Builder) BuildWithSourceMappings() *CodePrinter_SourceAndMappings {
+func PrintCodeWithMappings(cfg CodePrintConfig) *CodePrinter_SourceAndMappings {
 	sm := &CodePrinter_SourceAndMappings{}
-	b.buildSourceAndMappingsInto(sm, true, nil)
+	printCodeInto(cfg, sm, true, nil)
 	return sm
 }
 
-func (b *CodePrinter_Builder) buildSourceAndMappingsInto(
+func printCodeInto(
+	cfg CodePrintConfig,
 	sm *CodePrinter_SourceAndMappings,
 	wantMappings bool,
 	scratch *codePrinterScratch) string {
-	if b.root.IsNil() {
+	if cfg.Root.IsNil() {
 		panic(jutil.NewIllegalStateExceptionMsg("Cannot build without root node being specified"))
 	}
-	options := b.getOptions()
-	outputFormat := CodePrinter_Format_FromOptions(options, b.outputTypes, b.prettyPrint)
-	return b.buildSourceAndMappingsWithFormatInto(options, outputFormat, sm, wantMappings, scratch)
+	options := cfg.Options
+	if options == nil {
+		options = defaultCodePrintOptions
+	}
+	prettyPrint := cfg.PrettyPrint || options.IsPrettyPrint()
+	lineBreak := cfg.LineBreak || options.ShouldAddLineBreak()
+	outputFormat := CodePrinter_Format_FromOptions(options, cfg.OutputTypes, prettyPrint)
+	return printCodeWithFormatInto(cfg, options, outputFormat, lineBreak, sm, wantMappings, scratch)
 }
 
-func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
+func printCodeWithFormatInto(
+	cfg CodePrintConfig,
 	options *CompilerOptions,
 	outputFormat CodePrinter_Format,
+	lineBreak bool,
 	sm *CodePrinter_SourceAndMappings,
 	wantMappings bool,
 	scratch *codePrinterScratch) string {
@@ -471,11 +408,11 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 	cc := &cg.cc
 	cc.initPrinter(
 		mode,
-		b.lineBreak,
+		lineBreak,
 		options.GetLineLengthThreshold(),
 		gatherSourceMap,
 		options.GetSourceMapDetailLevel(),
-		b.licenseTracker,
+		cfg.LicenseTracker,
 		inst.codeBuf[:0:len(inst.codeBuf)],
 		inst.openMappingsBuf[:0:len(inst.openMappingsBuf)],
 		inst.completeMappingsBuf[:0:len(inst.completeMappingsBuf)],
@@ -491,19 +428,19 @@ func (b *CodePrinter_Builder) buildSourceAndMappingsWithFormatInto(
 	}
 
 	if outputFormat == CodePrinter_Format_TYPED {
-		cg.initTypedWithOptions(options, b.registry)
+		cg.initTypedWithOptions(options, cfg.Registry)
 	} else {
 		cg.initWithOptions(options)
 	}
 
-	if b.tagAsTypeSummary {
+	if cfg.TagAsTypeSummary {
 		cg.TagAsTypeSummary()
 	}
-	if b.tagAsStrict {
+	if cfg.TagAsStrict {
 		cg.TagAsStrict()
 	}
 
-	cg.AddNode(b.root)
+	cg.AddNode(cfg.Root)
 	cc.EndFile()
 
 	source := cc.GetCode()

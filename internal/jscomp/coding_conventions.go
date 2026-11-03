@@ -173,20 +173,20 @@ func (d *CodingConventions_DefaultCodingConvention) GetExportSymbolFunction() *s
 	return nil
 }
 
-func (d *CodingConventions_DefaultCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) []string {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) (string, bool) {
+	return "", false
 }
 
 func (d *CodingConventions_DefaultCodingConvention) ApplySubclassRelationship(
 	parent *rhino.NominalTypeBuilder, child *rhino.NominalTypeBuilder, type_ CodingConvention_SubclassType) {
 }
 
-func (d *CodingConventions_DefaultCodingConvention) GetAbstractMethodName() *string {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) GetAbstractMethodName() string {
+	return ""
 }
 
-func (d *CodingConventions_DefaultCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) (string, bool) {
+	return "", false
 }
 
 func (d *CodingConventions_DefaultCodingConvention) ApplySingletonGetter(
@@ -206,29 +206,29 @@ func (d *CodingConventions_DefaultCodingConvention) IsPropertyRenameFunction(nam
 	return nameNode.MatchesName(NodeUtil_JSC_PROPERTY_NAME_FN)
 }
 
-func (d *CodingConventions_DefaultCodingConvention) GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) GetObjectLiteralCast(callNode rhino.Node) (CodingConvention_ObjectLiteralCast, bool) {
+	return CodingConvention_ObjectLiteralCast{}, false
 }
 
 func (d *CodingConventions_DefaultCodingConvention) GetAssertionFunctions() []*CodingConvention_AssertionFunctionSpec {
 	return defaultAssertionFunctions
 }
 
-func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind {
+func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino.Node, checkTypes bool) (CodingConvention_Bind, bool) {
 	call, ok := ast.AsCall(n)
 	if !ok {
-		return nil
+		return CodingConvention_Bind{}, false
 	}
 
 	callTarget := call.Callee().Node()
 	if callTarget.IsQualifiedName() && functionPrototypeBindCallQ.Matches(callTarget) {
 		fn := callTarget.GetNext()
 		if fn.IsNil() {
-			return nil
+			return CodingConvention_Bind{}, false
 		}
 		thisValue := safeNextNode(fn)
 		parameters := safeNextNode(thisValue)
-		return NewCodingConvention_Bind(fn, thisValue, parameters)
+		return NewCodingConvention_Bind(fn, thisValue, parameters), true
 	}
 
 	if callTarget.IsGetProp() && nodeStringID(callTarget) == codingConvBindID {
@@ -241,15 +241,15 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino
 		if fnType != nil || maybeFn.IsFunction() {
 			thisValue := callTarget.GetNext()
 			parameters := safeNextNode(thisValue)
-			return NewCodingConvention_Bind(maybeFn, thisValue, parameters)
+			return NewCodingConvention_Bind(maybeFn, thisValue, parameters), true
 		}
 	}
 
-	return nil
+	return CodingConvention_Bind{}, false
 }
 
-func (d *CodingConventions_DefaultCodingConvention) DescribeCachingCall(node rhino.Node) *CodingConvention_Cache {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) DescribeCachingCall(node rhino.Node) (CodingConvention_Cache, bool) {
+	return CodingConvention_Cache{}, false
 }
 
 func safeNextNode(n rhino.Node) rhino.Node {
@@ -277,12 +277,12 @@ func (c *ChromeCodingConvention) IsExported(name string) bool {
 	return CodingConvention_IsExported(c, name)
 }
 
-func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) *string {
+func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) (string, bool) {
 	callArg := callNode.GetFirstChild()
 	if !chromeAddSingletonGetterQ.Matches(callArg) || !callNode.HasTwoChildren() {
 		return c.CodingConvention.GetSingletonGetterClassName(callNode)
 	}
-	return callArg.GetNext().GetQualifiedName()
+	return callArg.GetNext().GetQualifiedNameString()
 }
 
 func (c *ChromeCodingConvention) ApplySingletonGetter(classType *rhino.NominalTypeBuilder, getterType rhino.FunctionType) {

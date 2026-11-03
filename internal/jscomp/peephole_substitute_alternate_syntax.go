@@ -317,8 +317,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldImmediateCallToBoundFunction(
 	if !ok {
 		return n
 	}
-	bind := p.GetCodingConvention().DescribeFunctionBind(boundCall.Node(), false)
-	if bind != nil {
+	if bind, ok := p.GetCodingConvention().DescribeFunctionBind(boundCall.Node(), false); ok {
 		// replace the call target
 		bind.target.Detach()
 		boundCall.Node().ReplaceWith(bind.target)

@@ -208,29 +208,29 @@ func printDumpOne(o *printDumpOptions, name, src string) string {
 		return w.sb.String()
 	}
 
-	print := func(name string, root rhino.Node, configure func(b *CodePrinter_Builder)) {
+	print := func(name string, root rhino.Node, configure func(cfg *CodePrintConfig)) {
 		if !o.selected(name) {
 			return
 		}
 		w.line("# print " + name)
 		w.try(func() {
-			b := NewCodePrinter_Builder(root)
-			configure(b)
-			w.lines(b.Build())
+			cfg := CodePrintConfig{Root: root}
+			configure(&cfg)
+			w.lines(PrintCode(cfg))
 		})
 	}
-	withOptions := func(set func(o *CompilerOptions)) func(b *CodePrinter_Builder) {
-		return func(b *CodePrinter_Builder) {
+	withOptions := func(set func(o *CompilerOptions)) func(cfg *CodePrintConfig) {
+		return func(cfg *CodePrintConfig) {
 			opts := NewCompilerOptions()
 			set(opts)
-			b.SetCompilerOptions(opts)
+			cfg.Options = opts
 		}
 	}
 
 	// Plain configurations.
-	print("compact", root, func(b *CodePrinter_Builder) {})
-	print("pretty", root, func(b *CodePrinter_Builder) { b.SetPrettyPrint(true) })
-	print("linebreak", root, func(b *CodePrinter_Builder) { b.SetLineBreak(true) })
+	print("compact", root, func(cfg *CodePrintConfig) {})
+	print("pretty", root, func(cfg *CodePrintConfig) { cfg.PrettyPrint = true })
+	print("linebreak", root, func(cfg *CodePrintConfig) { cfg.LineBreak = true })
 	print("compact-threshold-60", root, withOptions(func(o *CompilerOptions) { o.SetLineLengthThreshold(60) }))
 	print("single-quotes", root, withOptions(func(o *CompilerOptions) { o.SetPreferSingleQuotes(true) }))
 	print("es3-untrusted", root, withOptions(func(o *CompilerOptions) {
@@ -245,11 +245,14 @@ func printDumpOne(o *printDumpOptions, name, src string) string {
 		o.SetPreserveTypeAnnotations(true)
 		o.SetPrettyPrint(true)
 	}))
-	print("typesummary-strict", root, func(b *CodePrinter_Builder) {
-		b.SetPrettyPrint(true).SetTagAsTypeSummary(true).SetTagAsStrict(true)
+	print("typesummary-strict", root, func(cfg *CodePrintConfig) {
+		cfg.PrettyPrint = true
+		cfg.TagAsTypeSummary = true
+		cfg.TagAsStrict = true
 	})
-	print("typed", root, func(b *CodePrinter_Builder) {
-		b.SetOutputTypes(true).SetTypeRegistry(rhino.NewJSTypeRegistry(nil))
+	print("typed", root, func(cfg *CodePrintConfig) {
+		cfg.OutputTypes = true
+		cfg.Registry = rhino.NewJSTypeRegistry(nil)
 	})
 
 	// Source maps, after the original names are recorded as the compiler
@@ -308,7 +311,7 @@ func printDumpWithSourceMap(o *printDumpOptions, w *printDumpWriter, name string
 		opts.SetLineLengthThreshold(threshold)
 		opts.SetPrettyPrint(pretty)
 		opts.SetLineBreak(lineBreak)
-		result := NewCodePrinter_Builder(root).SetCompilerOptions(opts).BuildWithSourceMappings()
+		result := PrintCodeWithMappings(CodePrintConfig{Root: root, Options: opts})
 		w.lines(result.source)
 		if !o.noMappings {
 			w.line("# mappings")

@@ -315,7 +315,7 @@ func (b *InlineVariables_InliningBehavior) CanInline(
 
 		// issue 668: Don't inline singleton getter methods
 		// calls as this confused class removing logic.
-		if convention.GetSingletonGetterClassName(call.Node()) != nil {
+		if _, ok := convention.GetSingletonGetterClassName(call.Node()); ok {
 			return false
 		}
 	}

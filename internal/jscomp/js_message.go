@@ -132,13 +132,10 @@ type JsMessage struct {
 	isExternal                bool
 }
 
+// SourceNameOpt returns the source name and whether one is present.
+//
 // Java: JsMessage.getSourceName()
-func (m *JsMessage) GetSourceName() *string {
-	if !m.hasSourceName {
-		return nil
-	}
-	return &m.sourceName
-}
+func (m *JsMessage) SourceNameOpt() (string, bool) { return m.sourceName, m.hasSourceName }
 
 // Java: JsMessage.getKey()
 func (m *JsMessage) GetKey() string { return m.key }
@@ -165,37 +162,19 @@ func (m *JsMessage) GenderedMessagesAll() iter.Seq2[JsMessage_GrammaticalGenderC
 	return m.genderedMessages.All()
 }
 
-// Java: JsMessage.getAlternateId()
-func (m *JsMessage) GetAlternateId() *string {
-	if !m.hasAlternateId {
-		return nil
-	}
-	return &m.alternateId
-}
-
 // AlternateIdOpt returns the alternate ID and whether one is present.
+//
+// Java: JsMessage.getAlternateId()
 func (m *JsMessage) AlternateIdOpt() (string, bool) { return m.alternateId, m.hasAlternateId }
 
-// Java: JsMessage.getDesc()
-func (m *JsMessage) GetDesc() *string {
-	if !m.hasDesc {
-		return nil
-	}
-	return &m.desc
-}
-
 // DescOpt returns the description and whether one is present.
+//
+// Java: JsMessage.getDesc()
 func (m *JsMessage) DescOpt() (string, bool) { return m.desc, m.hasDesc }
 
-// Java: JsMessage.getMeaning()
-func (m *JsMessage) GetMeaning() *string {
-	if !m.hasMeaning {
-		return nil
-	}
-	return &m.meaning
-}
-
 // MeaningOpt returns the meaning and whether one is present.
+//
+// Java: JsMessage.getMeaning()
 func (m *JsMessage) MeaningOpt() (string, bool) { return m.meaning, m.hasMeaning }
 
 // Java: JsMessage.getPlaceholderNameToExampleMap()

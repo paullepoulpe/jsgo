@@ -237,8 +237,8 @@ func (ti *TypeInference) BackwardsInferenceFromCallSite(n rhino.Node, fnType rhi
 //
 // Java: TypeInference.updateBind(Node)
 func (ti *TypeInference) UpdateBind(n rhino.Node) {
-	bind := ti.compiler.GetCodingConvention().DescribeFunctionBind(n, true)
-	if bind == nil {
+	bind, ok := ti.compiler.GetCodingConvention().DescribeFunctionBind(n, true)
+	if !ok {
 		return
 	}
 

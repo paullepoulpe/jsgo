@@ -383,8 +383,8 @@ func (b *GlobalNamespace_BuildGlobalNamespace) IsClassDefiningCall(callNode rhin
 	}
 
 	// Look for calls to goog.addSingletonGetter calls.
-	className := convention.GetSingletonGetterClassName(callNode)
-	return className != nil
+	_, ok := convention.GetSingletonGetterClassName(callNode)
+	return ok
 }
 
 // IsObjectHasOwnPropertyCall detects calls of the form

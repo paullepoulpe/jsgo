@@ -252,7 +252,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 	if !typeTransformations.IsEmpty() {
 		multiline = true
 		for name, value := range typeTransformations.All() {
-			tranformationDefinition := NewCodePrinter_Builder(value).Build()
+			tranformationDefinition := PrintCode(CodePrintConfig{Root: value})
 			parts = append(parts, "@template "+name+" := "+tranformationDefinition+" =:")
 		}
 	}

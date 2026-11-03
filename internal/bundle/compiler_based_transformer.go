@@ -39,15 +39,11 @@ type CompilerBasedTransformer struct {
 
 var _ Source_Transformer = (*CompilerBasedTransformer)(nil)
 
-// GetRuntime returns nil for Optional.empty().
+// GetRuntime returns the runtime library name and whether one is present.
 //
 // Java: CompilerBasedTransformer.getRuntime()
-func (t *CompilerBasedTransformer) GetRuntime() *string {
-	if !t.hasRuntime {
-		return nil
-	}
-	s := t.runtimeLibraryName
-	return &s
+func (t *CompilerBasedTransformer) GetRuntime() (string, bool) {
+	return t.runtimeLibraryName, t.hasRuntime
 }
 
 // Java: CompilerBasedTransformer.transform(Source)

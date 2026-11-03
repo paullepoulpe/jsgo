@@ -266,37 +266,43 @@ func (c *ClosureCodingConventionTest) TestDescribeCachingCall() {
 // Java: ClosureCodingConventionTest.assertFunctionBind(String)
 func (c *ClosureCodingConventionTest) AssertFunctionBind(code string) {
 	n := c.ParseTestCode(code)
-	AssertThat(c.conv.DescribeFunctionBind(n.GetFirstChild(), false)).IsNotNull()
+	_, ok := c.conv.DescribeFunctionBind(n.GetFirstChild(), false)
+	AssertThat(ok).IsTrue()
 }
 
 // Java: ClosureCodingConventionTest.assertNotFunctionBind(String)
 func (c *ClosureCodingConventionTest) AssertNotFunctionBind(code string) {
 	n := c.ParseTestCode(code)
-	AssertThat(c.conv.DescribeFunctionBind(n.GetFirstChild(), false)).IsNull()
+	_, ok := c.conv.DescribeFunctionBind(n.GetFirstChild(), false)
+	AssertThat(ok).IsFalse()
 }
 
 // Java: ClosureCodingConventionTest.assertRequire(String)
 func (c *ClosureCodingConventionTest) AssertRequire(code string) {
 	n := c.ParseTestCode(code)
-	AssertThat(c.conv.ExtractClassNameIfRequire(n.GetFirstChild(), n)).IsNotNull()
+	_, ok := c.conv.ExtractClassNameIfRequire(n.GetFirstChild(), n)
+	AssertThat(ok).IsTrue()
 }
 
 // Java: ClosureCodingConventionTest.assertNotRequire(String)
 func (c *ClosureCodingConventionTest) AssertNotRequire(code string) {
 	n := c.ParseTestCode(code)
-	AssertThat(c.conv.ExtractClassNameIfRequire(n.GetFirstChild(), n)).IsNull()
+	_, ok := c.conv.ExtractClassNameIfRequire(n.GetFirstChild(), n)
+	AssertThat(ok).IsFalse()
 }
 
 // Java: ClosureCodingConventionTest.assertNotObjectLiteralCast(String)
 func (c *ClosureCodingConventionTest) AssertNotObjectLiteralCast(code string) {
 	n := c.ParseTestCode(code)
-	AssertThat(c.conv.GetObjectLiteralCast(n.GetFirstChild())).IsNull()
+	_, ok := c.conv.GetObjectLiteralCast(n.GetFirstChild())
+	AssertThat(ok).IsFalse()
 }
 
 // Java: ClosureCodingConventionTest.assertObjectLiteralCast(String)
 func (c *ClosureCodingConventionTest) AssertObjectLiteralCast(code string) {
 	n := c.ParseTestCode(code)
-	AssertThat(c.conv.GetObjectLiteralCast(n.GetFirstChild())).IsNotNull()
+	_, ok := c.conv.GetObjectLiteralCast(n.GetFirstChild())
+	AssertThat(ok).IsTrue()
 }
 
 // Java: ClosureCodingConventionTest.assertNotClassDefining(String)
@@ -317,13 +323,15 @@ func (c *ClosureCodingConventionTest) AssertDefinesClasses(code string, subclass
 // Java: ClosureCodingConventionTest.assertCachingCall(String)
 func (c *ClosureCodingConventionTest) AssertCachingCall(code string) {
 	node := c.ParseTestCode(code)
-	AssertThat(c.conv.DescribeCachingCall(node.GetFirstChild())).IsNotNull()
+	_, ok := c.conv.DescribeCachingCall(node.GetFirstChild())
+	AssertThat(ok).IsTrue()
 }
 
 // Java: ClosureCodingConventionTest.assertNotCachingCall(String)
 func (c *ClosureCodingConventionTest) AssertNotCachingCall(code string) {
 	node := c.ParseTestCode(code)
-	AssertThat(c.conv.DescribeCachingCall(node.GetFirstChild())).IsNull()
+	_, ok := c.conv.DescribeCachingCall(node.GetFirstChild())
+	AssertThat(ok).IsFalse()
 }
 
 // Java: ClosureCodingConventionTest.parseTestCode(String)

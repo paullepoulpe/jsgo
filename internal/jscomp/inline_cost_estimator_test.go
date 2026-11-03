@@ -62,7 +62,7 @@ func InlineCostEstimatorTest_Parse(js string) rhino.Node {
 func InlineCostEstimatorTest_Minimize(js string) string {
 	options := NewCompilerOptions()
 	options.SetLineLengthThreshold(math.MaxInt32)
-	return NewCodePrinter_Builder(InlineCostEstimatorTest_Parse(js)).SetCompilerOptions(options).Build()
+	return PrintCode(CodePrintConfig{Root: InlineCostEstimatorTest_Parse(js), Options: options})
 }
 
 // Java: InlineCostEstimatorTest.cost(String)

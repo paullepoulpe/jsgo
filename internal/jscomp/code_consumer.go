@@ -117,8 +117,8 @@ func (c *CodeConsumer) StartSourceMapping(node rhino.Node) {
 		idx := len(c.allMappings)
 		c.allMappings = append(c.allMappings, SourceMap_Mapping{
 			node:  node,
-			start: sourcemap.MakeFilePosition(line, index),
-			end:   sourcemap.MakeFilePosition(-1, -1),
+			start: sourcemap.NewFilePosition(line, index),
+			end:   sourcemap.NewFilePosition(-1, -1),
 		})
 		c.openMappings = append(c.openMappings, idx)
 	}
@@ -136,7 +136,7 @@ func (c *CodeConsumer) EndSourceMapping(node rhino.Node) {
 			line := c.lineIndex
 			index := c.lineLength
 			jutil.CheckState(line >= 0)
-			c.allMappings[topIdx].end = sourcemap.MakeFilePosition(line, index)
+			c.allMappings[topIdx].end = sourcemap.NewFilePosition(line, index)
 			if len(c.openMappings) < c.cutStackDepth {
 				c.cutStackDepth = len(c.openMappings)
 				c.completeMappings = append(c.completeMappings, topIdx)

@@ -101,7 +101,7 @@ type Compiler struct {
 	// property passes read (prop_use_index.go).
 	propIndex *propUseIndex
 
-	inputPathByWebpackId *jutil.LinkedHashMap[string, string]
+	inputPathByWebpackId *OrderedStringMap[string]
 
 	transpilationNamespace rhino.StaticScope
 
@@ -179,9 +179,9 @@ type Compiler struct {
 
 	outStream *jutil.PrintStream
 
-	externProperties    *jutil.LinkedHashSet[string]
+	externProperties    *OrderedSet[string]
 	externPropSet       *ExternPropSet
-	externPropSetSource *jutil.LinkedHashSet[string]
+	externPropSetSource *OrderedSet[string]
 	accessorSummary     *AccessorSummary
 
 	changeTracker *ChangeTracker
@@ -222,7 +222,7 @@ type Compiler struct {
 	crossChunkIdGenerator *IdGenerator
 
 	// Arguments passed to getCssName() found during compilation.
-	cssNames *jutil.LinkedHashSet[string]
+	cssNames *OrderedSet[string]
 
 	// The variable renaming map
 	variableMap *VariableMap
@@ -247,10 +247,10 @@ type Compiler struct {
 	transpiledFiles bool
 
 	// Names exported by goog.exportSymbol.
-	exportedNames *jutil.LinkedHashSet[string]
+	exportedNames OrderedSet[string]
 
 	// Names defined by goog.define.
-	defineNames *jutil.LinkedHashSet[string]
+	defineNames OrderedSet[string]
 
 	moduleMetadataMap *ModuleMetadataMap
 
@@ -382,36 +382,39 @@ const compiler_SYNTHETIC_FILE_NAME_PREFIX = " [synthetic:"
 // Java: Compiler.SYNTHETIC_CODE_INPUT_ID
 var compiler_SYNTHETIC_CODE_INPUT_ID = rhino.NewInputId(compiler_SYNTHETIC_FILE_NAME_PREFIX + "input] ")
 
+func copyOrderedStringMap(src jutil.MapSource[string, string]) *OrderedStringMap[string] {
+	if jutil.IsNil(src) {
+		return nil
+	}
+	if om, ok := src.(*OrderedStringMap[string]); ok {
+		cloned := om.Clone()
+		return &cloned
+	}
+	m := NewOrderedStringMapWithCapacity[string](src.Size())
+	for k, v := range src.All() {
+		m.Put(k, v)
+	}
+	return m
+}
+
 // initFields runs the Java field initializers, in declaration order.
 func (c *Compiler) initFields() {
-	c.externs = nil
 	c.inputsById = make(map[string]*CompilerInput)
 	c.scriptNodeByFilename = make(map[string]rhino.Node)
-	c.sourceMapOriginalSources = nil
 	c.inputSourceMaps = make(map[string]*SourceMapInput)
-	c.inputSourceMapOrder = nil
 	c.commentsPerFile = make(map[string][]parser.Comment)
 	c.uniqueIdSupplier = NewUniqueIdSupplier()
-	c.uniqueNameId = 0
 	c.hasRegExpGlobalReferences = true
-	c.runJ2clPasses = false
 	c.defaultCodingConvention = NewClosureCodingConvention()
-	c.forwardDeclaredTypes = compilerForwardDeclaredSet{}
-	c.typeCheckingHasRun = false
 	c.asErrorHandler = &compiler_errorHandler{c: c}
 	c.oldErrorReporter = RhinoErrorReporter_ForOldRhino(c.asErrorHandler)
 	c.compilerExecutor = c.CreateCompilerExecutor()
 	c.changeTracker = NewChangeTracker()
-	c.resolvedSourceMap = compiler_ResolvedSourceMap{}
 	c.validityCheck = compiler_validityCheck
 	c.currentPassIndex = -1
-	c.stage = AbstractCompiler_LifeCycleStage_RAW
-	c.preferRegexParser = false
 	c.SYNTHETIC_EXTERNS_FILE = SourceFile_FromCodeWithKind(compiler_SYNTHETIC_FILE_NAME_PREFIX+"externs] ", "", rhino.StaticSourceFile_SourceKind_EXTERN)
 	c.syntheticTypeSummaryFile = SourceFile_FromCodeWithKind(compiler_SYNTHETIC_FILE_NAME_PREFIX+"typeSummary] ", "", rhino.StaticSourceFile_SourceKind_EXTERN)
 	c.crossChunkIdGenerator = NewIdGenerator()
-	c.exportedNames = jutil.NewLinkedHashSet[string]()
-	c.defineNames = nil
 	c.sync = &compilerSync{}
 }
 

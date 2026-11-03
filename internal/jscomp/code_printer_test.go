@@ -2271,18 +2271,18 @@ func (c *CodePrinterTest) AssertPrettyPrintWithOptionBuilder(js string, expected
 
 // Java: CodePrinterTest.assertTypeAnnotations(String, String)
 func (c *CodePrinterTest) AssertTypeAnnotations(js string, expected string) {
-	actual := NewCodePrinter_Builder(c.ParseTypeChecked(js /* typeChecked= */, true)).
-		SetCompilerOptions(
-			c.NewCompilerOptions(
-				codePrinterTestBase_CompilerOptionBuilderFunc(func(options *CompilerOptions) {
-					options.SetPrettyPrint(true)
-					options.SetLineBreak(false)
-					options.SetLineLengthThreshold(
-						CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD)
-				}))).
-		SetOutputTypes(true).
-		SetTypeRegistry(c.lastCompiler.GetTypeRegistry()).
-		Build()
+	actual := PrintCode(CodePrintConfig{
+		Root: c.ParseTypeChecked(js /* typeChecked= */, true),
+		Options: c.NewCompilerOptions(
+			codePrinterTestBase_CompilerOptionBuilderFunc(func(options *CompilerOptions) {
+				options.SetPrettyPrint(true)
+				options.SetLineBreak(false)
+				options.SetLineLengthThreshold(
+					CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD)
+			})),
+		OutputTypes: true,
+		Registry:    c.lastCompiler.GetTypeRegistry(),
+	})
 
 	AssertThat(actual).IsEqualTo(expected)
 }
@@ -2427,7 +2427,7 @@ func (c *CodePrinterTest) TestParsePrintParse() {
 func (c *CodePrinterTest) TestReparse(code string) {
 	compiler := NewCompiler()
 	parseOnce := c.Parse(code)
-	parseTwice := c.Parse(NewCodePrinter_Builder(parseOnce).Build())
+	parseTwice := c.Parse(PrintCode(CodePrintConfig{Root: parseOnce}))
 	AssertNode(parseTwice).UsingSerializer(compiler.ToSourceOfNode).IsEqualTo(parseOnce)
 }
 
@@ -2632,7 +2632,7 @@ func (c *CodePrinterTest) TestPrintScript() {
 		rhino.Token_SCRIPT,
 		rhino.NewNodeWithChild(rhino.Token_EXPR_RESULT, rhino.Node_NewString("f")),
 		rhino.NewNodeWithChild(rhino.Token_EXPR_RESULT, rhino.Node_NewString("g")))
-	result := NewCodePrinter_Builder(ast).SetPrettyPrint(true).Build()
+	result := PrintCode(CodePrintConfig{Root: ast, PrettyPrint: true})
 	AssertThat(result).IsEqualTo("\"f\";\n\"g\";\n")
 }
 
@@ -2765,38 +2765,39 @@ func (c *CodePrinterTest) TestNegNoCollapse() {
 }
 
 // Java: CodePrinterTest.defaultBuilder(Node)
-func (c *CodePrinterTest) DefaultBuilder(jsRoot rhino.Node) *CodePrinter_Builder {
-	return NewCodePrinter_Builder(jsRoot).
-		SetCompilerOptions(
-			c.NewCompilerOptions(
-				codePrinterTestBase_CompilerOptionBuilderFunc(func(options *CompilerOptions) {
-					options.SetPrettyPrint(false)
-					options.SetLineBreak(false)
-					options.SetLineLengthThreshold(0)
-				}))).
-		SetOutputTypes(false).
-		SetTypeRegistry(c.lastCompiler.GetTypeRegistry())
+func (c *CodePrinterTest) defaultPrintConfig(jsRoot rhino.Node) CodePrintConfig {
+	return CodePrintConfig{
+		Root: jsRoot,
+		Options: c.NewCompilerOptions(
+			codePrinterTestBase_CompilerOptionBuilderFunc(func(options *CompilerOptions) {
+				options.SetPrettyPrint(false)
+				options.SetLineBreak(false)
+				options.SetLineLengthThreshold(0)
+			})),
+		Registry: c.lastCompiler.GetTypeRegistry(),
+	}
 }
 
 // Java: CodePrinterTest.testStrict()
 func (c *CodePrinterTest) TestStrict() {
-	result := c.DefaultBuilder(c.ParseTypeChecked("var x" /* typeChecked= */, true)).SetTagAsStrict(true).Build()
-	AssertThat(result).IsEqualTo("'use strict';var x")
+	cfg := c.defaultPrintConfig(c.ParseTypeChecked("var x" /* typeChecked= */, true))
+	cfg.TagAsStrict = true
+	AssertThat(PrintCode(cfg)).IsEqualTo("'use strict';var x")
 }
 
 // Java: CodePrinterTest.testStrictPretty()
 func (c *CodePrinterTest) TestStrictPretty() {
-	result := c.DefaultBuilder(c.ParseTypeChecked("var x" /* typeChecked= */, true)).
-		SetTagAsStrict(true).
-		SetPrettyPrint(true).
-		Build()
-	AssertThat(result).IsEqualTo("'use strict';\nvar x;\n")
+	cfg := c.defaultPrintConfig(c.ParseTypeChecked("var x" /* typeChecked= */, true))
+	cfg.TagAsStrict = true
+	cfg.PrettyPrint = true
+	AssertThat(PrintCode(cfg)).IsEqualTo("'use strict';\nvar x;\n")
 }
 
 // Java: CodePrinterTest.testIjs()
 func (c *CodePrinterTest) TestIjs() {
-	result := c.DefaultBuilder(c.ParseTypeChecked("var x" /* typeChecked= */, true)).SetTagAsTypeSummary(true).Build()
-	AssertThat(result).IsEqualTo("/** @fileoverview @typeSummary */\nvar x")
+	cfg := c.defaultPrintConfig(c.ParseTypeChecked("var x" /* typeChecked= */, true))
+	cfg.TagAsTypeSummary = true
+	AssertThat(PrintCode(cfg)).IsEqualTo("/** @fileoverview @typeSummary */\nvar x")
 }
 
 // Java: CodePrinterTest.testIjsWithProvideAlreadyProvided()
@@ -4012,10 +4013,10 @@ func (c *CodePrinterTest) TestMultiLineTemplateLiteral_brokenOntoLastLine_isNotC
 		"bar`;\n")
 
 	// When
-	actual := NewCodePrinter_Builder(c.Parse(input)).
-		SetCompilerOptions(codePrinterOptions).
-		SetPrettyPrint(false).
-		Build()
+	actual := PrintCode(CodePrintConfig{
+		Root:    c.Parse(input),
+		Options: codePrinterOptions,
+	})
 
 	// Then
 	AssertThat(actual).
@@ -4156,11 +4157,12 @@ func (c *CodePrinterTest) TestGoogScope() {
 	codePrinterOptions.SetPreserveTypeAnnotations(true)
 	codePrinterOptions.SetUseOriginalNamesInOutput(true)
 	AssertThat(
-		NewCodePrinter_Builder(node).
-			SetCompilerOptions(codePrinterOptions).
-			SetPrettyPrint(true).
-			SetLineBreak(true).
-			Build()).
+		PrintCode(CodePrintConfig{
+			Root:        node,
+			Options:     codePrinterOptions,
+			PrettyPrint: true,
+			LineBreak:   true,
+		})).
 		IsEqualTo(expectedCode)
 }
 
@@ -4270,7 +4272,7 @@ func (c *CodePrinterTest) TestPrintsContentOfClosureUnawareShadow() {
 		rhino.IR_Root(rhino.IR_ScriptOfNodes(rhino.IR_ExprResult(rhino.IR_Call(rhino.IR_Name("PRESERVE"), closureUnawareFn)))))
 
 	AssertThat(
-		NewCodePrinter_Builder(shadowHost).SetCompilerOptions(NewCompilerOptions()).Build()).
+		PrintCode(CodePrintConfig{Root: shadowHost, Options: NewCompilerOptions()})).
 		IsEqualTo("function(){}")
 }
 
@@ -4294,11 +4296,12 @@ func (c *CodePrinterTest) CheckWithOriginalName(code string, expectedCode string
 	codePrinterOptions.SetLineLengthThreshold(80)
 	codePrinterOptions.SetUseOriginalNamesInOutput(true)
 	AssertThat(
-		NewCodePrinter_Builder(node).
-			SetCompilerOptions(codePrinterOptions).
-			SetPrettyPrint(true).
-			SetLineBreak(true).
-			Build()).
+		PrintCode(CodePrintConfig{
+			Root:        node,
+			Options:     codePrinterOptions,
+			PrettyPrint: true,
+			LineBreak:   true,
+		})).
 		IsEqualTo(expectedCode)
 }
 
@@ -4345,7 +4348,7 @@ func TestCodeGeneratorStreamingEscapeAndZeroAlloc(t *testing.T) {
 				}
 				strNode := rhino.IR_String(tc)
 				var scratch codePrinterScratch
-				got := NewCodePrinter_Builder(strNode).SetCompilerOptions(opts).buildSourceAndMappingsInto(nil, false, &scratch)
+				got := printCodeInto(CodePrintConfig{Root: strNode, Options: opts}, nil, false, &scratch)
 				cg := NewCodeGeneratorWithOptions(&CodeConsumer{mode: sinkCompact, continueProcessing: true}, opts)
 				want := cg.JsString(tc)
 				if got != want {
@@ -4368,14 +4371,14 @@ func TestCodeGeneratorStreamingEscapeAndZeroAlloc(t *testing.T) {
 
 	var scratch codePrinterScratch
 	opts := NewCompilerOptions()
-	builder := NewCodePrinter_Builder(astNode).SetCompilerOptions(opts)
+	cfg := CodePrintConfig{Root: astNode, Options: opts}
 	// Warm up reusable scratch buffer once.
-	_ = builder.buildSourceAndMappingsInto(nil, false, &scratch)
+	_ = printCodeInto(cfg, nil, false, &scratch)
 	allocsPrint := testing.AllocsPerRun(100, func() {
-		_ = builder.buildSourceAndMappingsInto(nil, false, &scratch)
+		_ = printCodeInto(cfg, nil, false, &scratch)
 	})
 	// Only the final returned Go string is allocated (1 alloc/op).
 	if allocsPrint > 1 {
-		t.Fatalf("CodePrinter buildSourceAndMappingsInto allocs = %v, want <= 1", allocsPrint)
+		t.Fatalf("CodePrinter printCodeInto allocs = %v, want <= 1", allocsPrint)
 	}
 }

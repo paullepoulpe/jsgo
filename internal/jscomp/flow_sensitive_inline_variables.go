@@ -899,14 +899,7 @@ func (f *FlowSensitiveInlineVariables) traverseGatherCandidates(root rhino.Node)
 		return
 	}
 	f.gatherWalkNode = rhino.NilNode
-	defer func() {
-		r := recover()
-		node := f.gatherWalkNode
-		f.gatherWalkNode = rhino.NilNode
-		if r != nil {
-			reportUnexpectedCfgException(f.compiler, root, rhino.NilNode, node, jutil.AsThrowable(r))
-		}
-	}()
+	defer recoverWalkException(f.compiler, root, &f.gatherWalkNode, nil)
 	if Platform_IsThreadInterrupted() {
 		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 	}

@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/testjunit"
 )
@@ -360,11 +359,11 @@ func (c *MatchersTest) TestPropertyAccess() {
 	barNode := methodNode.GetFirstChild()
 	testjunit.AssertThat(Matchers_PropertyAccess().Matches(methodNode, NewNodeMetadata(compiler))).IsTrue()
 	testjunit.AssertThat(Matchers_PropertyAccess().Matches(barNode, NewNodeMetadata(compiler))).IsTrue()
-	testjunit.AssertThat(Matchers_PropertyAccessWithName(jutil.StringPtr("foo.bar.method")).Matches(
+	testjunit.AssertThat(Matchers_PropertyAccessWithName("foo.bar.method").Matches(
 		methodNode, NewNodeMetadata(compiler))).IsTrue()
-	testjunit.AssertThat(Matchers_PropertyAccessWithName(jutil.StringPtr("foo.bar")).Matches(
+	testjunit.AssertThat(Matchers_PropertyAccessWithName("foo.bar").Matches(
 		barNode, NewNodeMetadata(compiler))).IsTrue()
-	testjunit.AssertThat(Matchers_PropertyAccessWithName(jutil.StringPtr("foo")).Matches(
+	testjunit.AssertThat(Matchers_PropertyAccessWithName("foo").Matches(
 		barNode.GetFirstChild(), NewNodeMetadata(compiler))).IsFalse()
 }
 
@@ -379,9 +378,9 @@ func (c *MatchersTest) TestPropertyAccess_instance() {
 	root := matchersTest_compileToScriptRoot(compiler)
 	node := root.GetLastChild().GetFirstChild()
 	testjunit.AssertThat(Matchers_PropertyAccess().Matches(node, NewNodeMetadata(compiler))).IsTrue()
-	testjunit.AssertThat(Matchers_PropertyAccessWithName(jutil.StringPtr("Foo.prototype.bar")).Matches(
+	testjunit.AssertThat(Matchers_PropertyAccessWithName("Foo.prototype.bar").Matches(
 		node, NewNodeMetadata(compiler))).IsTrue()
-	testjunit.AssertThat(Matchers_PropertyAccessWithName(jutil.StringPtr("foo.bar")).Matches(
+	testjunit.AssertThat(Matchers_PropertyAccessWithName("foo.bar").Matches(
 		node, NewNodeMetadata(compiler))).IsTrue()
 }
 

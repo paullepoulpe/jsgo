@@ -48,7 +48,13 @@ func (c *ScriptMetadataTest) TestParsesAliases() {
 	compiler.Parse()
 	metadata := ScriptMetadata_Create(compiler.GetRoot().GetLastChild().GetOnlyChild(), compiler)
 
-	testjunit.AssertThat(metadata.GetAlias("a.b.Foo")).IsEqualTo("Foo")
-	testjunit.AssertThat(metadata.GetAlias("a.b.Bar")).IsEqualTo("Bar")
-	testjunit.AssertThat(metadata.GetAlias("a.b.Qux")).IsEqualTo("Qux")
+	alias, ok := metadata.GetAlias("a.b.Foo")
+	testjunit.AssertThat(ok).IsTrue()
+	testjunit.AssertThat(alias).IsEqualTo("Foo")
+	alias, ok = metadata.GetAlias("a.b.Bar")
+	testjunit.AssertThat(ok).IsTrue()
+	testjunit.AssertThat(alias).IsEqualTo("Bar")
+	alias, ok = metadata.GetAlias("a.b.Qux")
+	testjunit.AssertThat(ok).IsTrue()
+	testjunit.AssertThat(alias).IsEqualTo("Qux")
 }

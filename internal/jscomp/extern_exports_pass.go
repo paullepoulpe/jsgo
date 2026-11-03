@@ -405,17 +405,19 @@ func (p *ExternExportsPass) Process(externs rhino.Node, root rhino.Node) {
 
 // Java: ExternExportsPass.setGeneratedExternsOnCompiler()
 func (p *ExternExportsPass) SetGeneratedExternsOnCompiler() {
-	builder := NewCodePrinter_Builder(p.externsRoot).
-		SetPrettyPrint(true).
-		SetOutputTypes(true).
-		SetTypeRegistry(p.compiler.GetTypeRegistry())
+	externs := PrintCode(CodePrintConfig{
+		Root:        p.externsRoot,
+		PrettyPrint: true,
+		OutputTypes: true,
+		Registry:    p.compiler.GetTypeRegistry(),
+	})
 
 	p.compiler.SetExternExports(
 		"/**\n" +
 			" * @fileoverview Generated externs.\n" +
 			" * @externs\n" +
 			" */\n" +
-			builder.Build())
+			externs)
 }
 
 // Java: ExternExportsPass.visit(NodeTraversal, Node, Node)

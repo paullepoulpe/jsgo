@@ -477,8 +477,7 @@ func (c *CheckJSDocStyle) CheckLicenseComment(t *NodeTraversal, n rhino.Node) {
 	if jsDoc == nil {
 		return
 	}
-	license := jsDoc.GetLicense()
-	if license != nil && strings.Contains(*license, "@externs") {
+	if license, ok := jsDoc.GetLicenseString(); ok && strings.Contains(license, "@externs") {
 		t.Report(n, CheckJSDocStyle_LICENSE_CONTAINS_AT_EXTERNS)
 	}
 }

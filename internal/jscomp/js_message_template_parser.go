@@ -69,18 +69,9 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 	var description, meaning, alternateMessageId string
 	var hasDescription, hasMeaning, hasAlternateMessageId bool
 	if jsDocInfo != nil {
-		if s := jsDocInfo.GetDescription(); s != nil {
-			description = *s
-			hasDescription = true
-		}
-		if s := jsDocInfo.GetMeaning(); s != nil {
-			meaning = *s
-			hasMeaning = true
-		}
-		if s := jsDocInfo.GetAlternateMessageId(); s != nil {
-			alternateMessageId = *s
-			hasAlternateMessageId = true
-		}
+		description, hasDescription = jsDocInfo.GetDescriptionString()
+		meaning, hasMeaning = jsDocInfo.GetMeaningString()
+		alternateMessageId, hasAlternateMessageId = jsDocInfo.GetAlternateMessageIdString()
 	}
 
 	firstArg, hasFirstArg := msgCall.FirstArg()
@@ -169,19 +160,19 @@ func (v *JsMessageVisitor) extractIcuTemplateDefinition(
 ) (IcuTemplateDefinition, *malformedMessageError) {
 	msgNode := msgCall.Node()
 	if jsDocInfo != nil {
-		if jsDocInfo.GetAlternateMessageId() != nil {
+		if _, ok := jsDocInfo.GetAlternateMessageIdString(); ok {
 			return IcuTemplateDefinition{}, &malformedMessageError{
 				msg:  "Use the 'alternate_message_id' option, not the '@alternateMessageId' annotation",
 				node: msgNode,
 			}
 		}
-		if jsDocInfo.GetDescription() != nil {
+		if _, ok := jsDocInfo.GetDescriptionString(); ok {
 			return IcuTemplateDefinition{}, &malformedMessageError{
 				msg:  "Use the 'description' option, not the '@desc' annotation",
 				node: msgNode,
 			}
 		}
-		if jsDocInfo.GetMeaning() != nil {
+		if _, ok := jsDocInfo.GetMeaningString(); ok {
 			return IcuTemplateDefinition{}, &malformedMessageError{
 				msg:  "Use the 'meaning' option, not the '@meaning' annotation",
 				node: msgNode,

@@ -150,7 +150,7 @@ func (b *CodePrinterTestBase) CheckUnexpectedErrorsOrWarnings(compiler *Compiler
 
 // Java: CodePrinterTestBase.parsePrint(String, CompilerOptions)
 func (b *CodePrinterTestBase) ParsePrint(js string, options *CompilerOptions) string {
-	return NewCodePrinter_Builder(b.Parse(js)).SetCompilerOptions(options).Build()
+	return PrintCode(CodePrintConfig{Root: b.Parse(js), Options: options})
 }
 
 // Java: CodePrinterTestBase.shouldIgnore(JSError)
@@ -196,7 +196,7 @@ func (b *CodePrinterTestBase) PrintNode(n rhino.Node) string {
 	options.SetLineLengthThreshold(CompilerOptions_DEFAULT_LINE_LENGTH_THRESHOLD)
 	options.SetLanguageOut(b.languageMode)
 	options.SetOutputCharset(b.outputCharset)
-	return NewCodePrinter_Builder(n).SetCompilerOptions(options).Build()
+	return PrintCode(CodePrintConfig{Root: n, Options: options})
 }
 
 // Java: CodePrinterTestBase.assertPrintNode(String, Node)
@@ -211,7 +211,7 @@ func (b *CodePrinterTestBase) PrettyPrintNode(n rhino.Node) string {
 	options.SetLanguageOut(b.languageMode)
 	options.SetOutputCharset(b.outputCharset)
 	options.SetPrettyPrint(true)
-	return NewCodePrinter_Builder(n).SetCompilerOptions(options).Build()
+	return PrintCode(CodePrintConfig{Root: n, Options: options})
 }
 
 // Java: CodePrinterTestBase.assertPrettyPrintNode(String, Node)

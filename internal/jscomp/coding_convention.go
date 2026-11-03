@@ -31,8 +31,7 @@ import (
 // Compiler for a specific team/company.
 //
 // Overloads (PORTING.md §3): isExported(String) keeps the plain name and
-// isExported(String, boolean) is IsExportedWithLocal. Java String results
-// that may be null are *string.
+// isExported(String, boolean) is IsExportedWithLocal.
 type CodingConvention interface {
 	// IsConstant checks whether a given variable name, such as a name in
 	// all-caps should be treated as if it had the @const annotation.
@@ -158,11 +157,10 @@ type CodingConvention interface {
 	GetExportSymbolFunction() *string
 
 	// IdentifyTypeDeclarationCall checks if the given CALL node is
-	// forward-declaring any types, and returns the name of the types if it
-	// is.
+	// forward-declaring a single type, and returns its name and true if so.
 	//
 	// Java: CodingConvention.identifyTypeDeclarationCall(Node)
-	IdentifyTypeDeclarationCall(n rhino.Node) []string
+	IdentifyTypeDeclarationCall(n rhino.Node) (string, bool)
 
 	// ApplySubclassRelationship: in many JS libraries, the function that
 	// produces inheritance also adds properties to the superclass and/or
@@ -172,19 +170,19 @@ type CodingConvention interface {
 	ApplySubclassRelationship(
 		parent *rhino.NominalTypeBuilder, child *rhino.NominalTypeBuilder, type_ CodingConvention_SubclassType)
 
-	// GetAbstractMethodName is the function name for abstract methods. An
-	// abstract method can be assigned to an interface method instead of an
-	// function expression in order to avoid linter warnings produced by
+	// GetAbstractMethodName is the function name for abstract methods, or "" if
+	// none. An abstract method can be assigned to an interface method instead
+	// of a function expression in order to avoid linter warnings produced by
 	// assigning a function without a return value where a return value is
 	// expected.
 	//
 	// Java: CodingConvention.getAbstractMethodName()
-	GetAbstractMethodName() *string
+	GetAbstractMethodName() string
 
 	// GetSingletonGetterClassName checks if the given method defines a
 	// singleton getter, and if it does, returns the name of the class with
-	// the singleton getter. By default, always returns null. Meant to be
-	// overridden by subclasses.
+	// the singleton getter and true. By default, always returns ("", false).
+	// Meant to be overridden by subclasses.
 	//
 	// addSingletonGetter needs a coding convention because in the general
 	// case, it can't be inlined. The function inliner sees that it creates
@@ -193,7 +191,7 @@ type CodingConvention interface {
 	// callNode is a CALL node.
 	//
 	// Java: CodingConvention.getSingletonGetterClassName(Node)
-	GetSingletonGetterClassName(callNode rhino.Node) *string
+	GetSingletonGetterClassName(callNode rhino.Node) (string, bool)
 
 	// ApplySingletonGetter: in many JS libraries, the function that adds a
 	// singleton getter to a class adds properties to the class.
@@ -201,7 +199,8 @@ type CodingConvention interface {
 	// Java: CodingConvention.applySingletonGetter(NominalTypeBuilder, FunctionType)
 	ApplySingletonGetter(classType *rhino.NominalTypeBuilder, getterType rhino.FunctionType)
 
-	// DescribeFunctionBind returns a Bind instance or null.
+	// DescribeFunctionBind returns a Bind description and true if n is a
+	// recognized function bind call.
 	//
 	// When seeing an expression exp1.bind(recv, arg1, ...); we only know
 	// that it's a function bind if exp1 has type function. W/out type info,
@@ -214,10 +213,10 @@ type CodingConvention interface {
 	// checkTypes: check that the bound node has a function type.
 	//
 	// Java: CodingConvention.describeFunctionBind(Node, boolean)
-	DescribeFunctionBind(n rhino.Node, checkTypes bool) *CodingConvention_Bind
+	DescribeFunctionBind(n rhino.Node, checkTypes bool) (CodingConvention_Bind, bool)
 
-	// DescribeCachingCall builds a Cache instance from the given call node
-	// and returns that instance, or null if the Node does not resemble a
+	// DescribeCachingCall builds a Cache description from the given call node
+	// and returns it with true, or false if the Node does not resemble a
 	// cache utility call.
 	//
 	// This should match calls to a cache utility method. This type of node
@@ -225,7 +224,7 @@ type CodingConvention interface {
 	// something on a cache object would be seen as a side-effect.
 	//
 	// Java: CodingConvention.describeCachingCall(Node)
-	DescribeCachingCall(node rhino.Node) *CodingConvention_Cache
+	DescribeCachingCall(node rhino.Node) (CodingConvention_Cache, bool)
 
 	// IsPropertyTestFunction: whether this CALL function is testing for the
 	// existence of a property.
@@ -240,14 +239,14 @@ type CodingConvention interface {
 	// Java: CodingConvention.isPropertyRenameFunction(Node)
 	IsPropertyRenameFunction(nameNode rhino.Node) bool
 
-	// GetObjectLiteralCast checks if the given method performs a object
-	// literal cast, and if it does, returns information on the cast. By
-	// default, always returns null. Meant to be overridden by subclasses.
+	// GetObjectLiteralCast checks if the given method performs an object
+	// literal cast, and if it does, returns information on the cast and true.
+	// By default, always returns false. Meant to be overridden by subclasses.
 	//
 	// callNode is a CALL node.
 	//
 	// Java: CodingConvention.getObjectLiteralCast(Node)
-	GetObjectLiteralCast(callNode rhino.Node) *CodingConvention_ObjectLiteralCast
+	GetObjectLiteralCast(callNode rhino.Node) (CodingConvention_ObjectLiteralCast, bool)
 
 	// GetAssertionFunctions returns the set of AssertionFunction.
 	//
@@ -267,26 +266,26 @@ func CodingConvention_IsExported(c CodingConvention, name string) bool {
 type CodingConvention_Bind struct {
 	// The target of the bind action
 	target rhino.Node
-	// The node representing the "this" value, maybe null
+	// The node representing the "this" value, maybe NilNode
 	thisValue rhino.Node
 	// The head of a Node list representing the parameters
 	parameters rhino.Node
 }
 
 // Java: CodingConvention.Bind(Node, Node, Node)
-func NewCodingConvention_Bind(target rhino.Node, thisValue rhino.Node, parameters rhino.Node) *CodingConvention_Bind {
-	b := &CodingConvention_Bind{}
-	b.target = target
-	b.thisValue = thisValue
-	b.parameters = parameters
-	return b
+func NewCodingConvention_Bind(target rhino.Node, thisValue rhino.Node, parameters rhino.Node) CodingConvention_Bind {
+	return CodingConvention_Bind{
+		target:     target,
+		thisValue:  thisValue,
+		parameters: parameters,
+	}
 }
 
 // GetBoundParameterCount is the number of parameters bound (not including
 // the 'this' value).
 //
 // Java: CodingConvention.Bind.getBoundParameterCount()
-func (b *CodingConvention_Bind) GetBoundParameterCount() int {
+func (b CodingConvention_Bind) GetBoundParameterCount() int {
 	if b.parameters.IsNil() {
 		return 0
 	}
@@ -303,13 +302,13 @@ type CodingConvention_Cache struct {
 }
 
 // Java: CodingConvention.Cache(Node, Node, Node, Node)
-func NewCodingConvention_Cache(cacheObj rhino.Node, key rhino.Node, valueFn rhino.Node, keyFn rhino.Node) *CodingConvention_Cache {
-	c := &CodingConvention_Cache{}
-	c.cacheObj = cacheObj
-	c.key = key
-	c.valueFn = valueFn
-	c.keyFn = keyFn
-	return c
+func NewCodingConvention_Cache(cacheObj rhino.Node, key rhino.Node, valueFn rhino.Node, keyFn rhino.Node) CodingConvention_Cache {
+	return CodingConvention_Cache{
+		cacheObj: cacheObj,
+		key:      key,
+		valueFn:  valueFn,
+		keyFn:    keyFn,
+	}
 }
 
 // CodingConvention_SubclassType specifies the kind of inheritance.
@@ -357,7 +356,7 @@ func NewCodingConvention_SubclassRelationship(
 // mechanism to cast object literals to other types without a warning.
 type CodingConvention_ObjectLiteralCast struct {
 	// Type to cast to.
-	typeName *string
+	typeName string
 
 	// Object to cast.
 	objectNode rhino.Node
@@ -368,12 +367,12 @@ type CodingConvention_ObjectLiteralCast struct {
 
 // Java: CodingConvention.ObjectLiteralCast(String, Node, DiagnosticType)
 func NewCodingConvention_ObjectLiteralCast(
-	typeName *string, objectNode rhino.Node, diagnosticType *DiagnosticType) *CodingConvention_ObjectLiteralCast {
-	c := &CodingConvention_ObjectLiteralCast{}
-	c.typeName = typeName
-	c.objectNode = objectNode
-	c.diagnosticType = diagnosticType
-	return c
+	typeName string, objectNode rhino.Node, diagnosticType *DiagnosticType) CodingConvention_ObjectLiteralCast {
+	return CodingConvention_ObjectLiteralCast{
+		typeName:       typeName,
+		objectNode:     objectNode,
+		diagnosticType: diagnosticType,
+	}
 }
 
 // CodingConvention_AssertionFunctionSpec describes a JavaScript function that

@@ -382,4 +382,7 @@ func TestExternPropSet(t *testing.T) {
 	if !set.Equals(fromStrings) {
 		t.Fatalf("Equals() = false, want true")
 	}
+	if !slices.Equal(set.ToOrderedSet().ToSlice(), []string{"alpha", "beta"}) {
+		t.Fatalf("ToOrderedSet() = %v, want [alpha beta]", set.ToOrderedSet().ToSlice())
+	}
 }

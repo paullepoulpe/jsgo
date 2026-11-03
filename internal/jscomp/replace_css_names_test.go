@@ -45,7 +45,7 @@ type ReplaceCssNamesTest struct {
 
 	// Go-only: language-adapter — Sets.newHashSet() is only compared
 	// without order (containsExactly), so insertion order is used.
-	cssNames *jutil.LinkedHashSet[string]
+	cssNames *OrderedSet[string]
 }
 
 // Java: ReplaceCssNamesTest()
@@ -139,7 +139,7 @@ func (c *ReplaceCssNamesTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableTypeCheck()
 	c.EnableRewriteClosureCode()
-	c.cssNames = jutil.NewLinkedHashSet[string]()
+	c.cssNames = NewOrderedSet[string]()
 	c.useReplacementMap = true
 	c.renamingMap = c.GetPartialMap()
 }
@@ -453,7 +453,7 @@ func (c *ReplaceCssNamesTest) TestNoSymbolMapStripsCallAndDoesntIssueWarnings() 
 
 // Java: ReplaceCssNamesTest.testWhitelistByPart()
 func (c *ReplaceCssNamesTest) TestWhitelistByPart() {
-	c.skiplist = jutil.NewLinkedHashSet[string]("goog", "elephant")
+	c.skiplist = NewOrderedSet("goog", "elephant")
 	c.Test(
 		"var x = goog.getCssName('goog')", //
 		"var x = 'goog'")
@@ -468,7 +468,7 @@ func (c *ReplaceCssNamesTest) TestWhitelistByPart() {
 
 // Java: ReplaceCssNamesTest.testWhitelistByWhole()
 func (c *ReplaceCssNamesTest) TestWhitelistByWhole() {
-	c.skiplist = jutil.NewLinkedHashSet[string]("long-prefix")
+	c.skiplist = NewOrderedSet("long-prefix")
 	c.renamingMap = c.GetFullMap()
 	c.Test(
 		"var x = goog.getCssName('long-prefix')", //
@@ -477,7 +477,7 @@ func (c *ReplaceCssNamesTest) TestWhitelistByWhole() {
 
 // Java: ReplaceCssNamesTest.testWhitelistWithDashes()
 func (c *ReplaceCssNamesTest) TestWhitelistWithDashes() {
-	c.skiplist = jutil.NewLinkedHashSet[string]("goog-elephant")
+	c.skiplist = NewOrderedSet("goog-elephant")
 	c.Test(
 		"var x = goog.getCssName('goog')", //
 		"var x = 'g'")

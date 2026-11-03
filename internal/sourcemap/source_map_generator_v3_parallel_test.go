@@ -31,8 +31,8 @@ func buildRandomMappings(g *SourceMapGeneratorV3, rng *rand.Rand, n int) {
 			col += rng.Intn(3)
 			m := &mapping{
 				src:   "src" + strconv.Itoa(rng.Intn(7)) + ".js",
-				orig:  MakeFilePosition(rng.Intn(500), rng.Intn(80)),
-				start: MakeFilePosition(line, col),
+				orig:  NewFilePosition(rng.Intn(500), rng.Intn(80)),
+				start: NewFilePosition(line, col),
 			}
 			if rng.Intn(3) == 0 {
 				s := "name" + strconv.Itoa(rng.Intn(20))
@@ -47,7 +47,7 @@ func buildRandomMappings(g *SourceMapGeneratorV3, rng *rand.Rand, n int) {
 				line++
 				col = rng.Intn(3)
 			}
-			m.end = MakeFilePosition(line, col)
+			m.end = NewFilePosition(line, col)
 		}
 	}
 	for count < n {

@@ -122,9 +122,9 @@ func (s *TypedAstSerializer) SerializeRoots(externsRoot rhino.Node, jsRoot rhino
 	}
 
 	var externsSummary *ExternsSummary
-	if s.compiler.GetExternProperties() != nil {
-		var propNamePtrs []int32
-		for prop := range s.compiler.GetExternProperties().All() {
+	if externProps := s.compiler.GetExternPropSet(); externProps != nil {
+		propNamePtrs := make([]int32, 0, externProps.Len())
+		for prop := range externProps.AllStrings() {
 			propNamePtrs = append(propNamePtrs, int32(s.stringPool.Put(prop)))
 		}
 		externsSummary = &ExternsSummary{

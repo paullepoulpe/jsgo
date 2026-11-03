@@ -292,10 +292,9 @@ func (b *TypedScopeCreator_scopeBuilder) CheckForClassDefiningCalls(n rhino.Node
 		}
 	}
 
-	singletonGetterClassName := b.outer.codingConvention.GetSingletonGetterClassName(n)
-	if singletonGetterClassName != nil {
+	if singletonGetterClassName, ok := b.outer.codingConvention.GetSingletonGetterClassName(n); ok {
 		objectType :=
-			rhino.ObjectType_Cast(b.outer.typeRegistry.GetType(b.currentScope, *singletonGetterClassName))
+			rhino.ObjectType_Cast(b.outer.typeRegistry.GetType(b.currentScope, singletonGetterClassName))
 		if objectType != nil {
 			functionType := objectType.GetConstructor()
 
@@ -307,11 +306,10 @@ func (b *TypedScopeCreator_scopeBuilder) CheckForClassDefiningCalls(n rhino.Node
 		}
 	}
 
-	objectLiteralCast := b.outer.codingConvention.GetObjectLiteralCast(n)
-	if objectLiteralCast != nil {
+	if objectLiteralCast, ok := b.outer.codingConvention.GetObjectLiteralCast(n); ok {
 		if objectLiteralCast.diagnosticType == nil {
 			type_ :=
-				rhino.ObjectType_Cast(b.outer.typeRegistry.GetType(b.currentScope, *objectLiteralCast.typeName))
+				rhino.ObjectType_Cast(b.outer.typeRegistry.GetType(b.currentScope, objectLiteralCast.typeName))
 			if type_ != nil && type_.GetConstructor() != nil {
 				b.outer.SetDeferredType(objectLiteralCast.objectNode, type_)
 				objectLiteralCast.objectNode.PutBooleanProp(rhino.Node_REFLECTED_OBJECT, true)

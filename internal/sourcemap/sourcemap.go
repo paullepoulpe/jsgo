@@ -121,11 +121,6 @@ func NewFilePosition(line, column int) FilePosition {
 	return FilePosition{line: int32(line), column: int32(column)}
 }
 
-// MakeFilePosition is an alias for NewFilePosition.
-func MakeFilePosition(line, column int) FilePosition {
-	return FilePosition{line: int32(line), column: int32(column)}
-}
-
 // GetLine returns the line number of this position. Note: The v1 and v2
 // source maps use a line number with the first line being 1, whereas the v3
 // source map corrects this and uses a first line number of 0 to be

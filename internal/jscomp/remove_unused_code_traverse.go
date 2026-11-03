@@ -365,9 +365,9 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 				classVarName = subclassRelationship.subclassName
 				hasClassVarName = true
 				classDefiningCall = true
-			} else if singletonName := r.codingConvention.GetSingletonGetterClassName(callNode); singletonName != nil {
+			} else if singletonName, ok := r.codingConvention.GetSingletonGetterClassName(callNode); ok {
 				// Look for calls to addSingletonGetter calls.
-				classVarName = *singletonName
+				classVarName = singletonName
 				hasClassVarName = true
 			}
 		}

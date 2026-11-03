@@ -77,10 +77,11 @@ func (c *TranspileAndOptimizeClosureUnawareTest) GetOptions() *CompilerOptions {
 
 // Java: TranspileAndOptimizeClosureUnawareTest.createPrettyPrinter(Node)
 func (c *TranspileAndOptimizeClosureUnawareTest) createPrettyPrinter(n rhino.Node) string {
-	return NewCodePrinter_Builder(n).
-		SetCompilerOptions(c.GetLastCompiler().GetOptions()).
-		SetPrettyPrint(true).
-		Build()
+	return PrintCode(CodePrintConfig{
+		Root:        n,
+		Options:     c.GetLastCompiler().GetOptions(),
+		PrettyPrint: true,
+	})
 }
 
 // Java: TranspileAndOptimizeClosureUnawareTest.testEmptyClosureUnawareFn_unchanged()

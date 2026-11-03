@@ -131,13 +131,13 @@ func (s *ExternPropSet) AllStrings() iter.Seq[string] {
 	}
 }
 
-// ToLinkedHashSet materializes a LinkedHashSet[string] in insertion order, or
+// ToOrderedSet materializes an OrderedSet[string] in insertion order, or
 // returns nil if s is nil.
-func (s *ExternPropSet) ToLinkedHashSet() *jutil.LinkedHashSet[string] {
+func (s *ExternPropSet) ToOrderedSet() *OrderedSet[string] {
 	if s == nil {
 		return nil
 	}
-	out := jutil.NewLinkedHashSetWithCapacity[string](len(s.ids))
+	out := NewOrderedSetWithCapacity[string](len(s.ids))
 	for _, id := range s.ids {
 		out.Add(strpool.String(id))
 	}

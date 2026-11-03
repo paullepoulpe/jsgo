@@ -244,7 +244,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 
 	if !root.IsNil() {
 		if !f.findCandidateFunctionsParallel(root) {
-			findCandidates := InlineFunctions_FindCandidateFunctions{outer: f}
+			findCandidates := inlineCandidateFinder{outer: f}
 			findCandidates.walk(root, rhino.NilNode, nil, false)
 		}
 	}
@@ -389,6 +389,33 @@ func inlineFunctions_throwWalkException(compiler AbstractCompiler, r any, n, scr
 	t.ThrowUnexpectedException(jutil.AsThrowable(r))
 }
 
+// recoverWalkException recovers from panics during custom AST walks, clears the
+// tracked node/script pointers, and reports unexpected exceptions with source
+// context via NodeTraversal.ThrowUnexpectedException. Must be invoked directly
+// via `defer recoverWalkException(...)`.
+func recoverWalkException(compiler AbstractCompiler, root rhino.Node, nodePtr, scriptPtr *rhino.Node) {
+	r := recover()
+	var node, script rhino.Node
+	if nodePtr != nil {
+		node = *nodePtr
+		*nodePtr = rhino.NilNode
+	}
+	if scriptPtr != nil {
+		script = *scriptPtr
+		*scriptPtr = rhino.NilNode
+	}
+	if r == nil {
+		return
+	}
+	if script.IsNil() && !node.IsNil() {
+		script = NodeUtil_GetEnclosingScript(node)
+	}
+	if script.IsNil() {
+		script = NodeUtil_GetEnclosingScript(root)
+	}
+	inlineFunctions_throwWalkException(compiler, r, node, script)
+}
+
 func inlineFunctions_matchCandidateNode(reach CompilerOptions_Reach, n, parent rhino.Node, inLocalHoist bool) (inlineFnTarget, bool) {
 	if !reach.IncludesGlobals() && !inLocalHoist {
 		return inlineFnTarget{}, false
@@ -438,25 +465,20 @@ func inlineFunctions_matchCandidateNode(reach CompilerOptions_Reach, n, parent r
 	return inlineFnTarget{}, false
 }
 
-// InlineFunctions_FindCandidateFunctions finds functions that might be
-// inlined.
-type InlineFunctions_FindCandidateFunctions struct {
+// inlineCandidateFinder finds functions that might be inlined.
+type inlineCandidateFinder struct {
 	outer *InlineFunctions
 	// current is the node being visited (NodeTraversal.currentNode), for
-	// inlineFunctions_throwWalkException.
+	// recoverWalkException.
 	current rhino.Node
 }
 
-func (c *InlineFunctions_FindCandidateFunctions) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			inlineFunctions_throwWalkException(c.outer.compiler, r, c.current, NodeUtil_GetEnclosingScript(c.current))
-		}
-	}()
+func (c *inlineCandidateFinder) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+	defer recoverWalkException(c.outer.compiler, n, &c.current, nil)
 	inlineFunctions_walkCandidates(c.outer.compiler, n, parent, chunk, inLocalHoist, c.visitWalkNode)
 }
 
-func (c *InlineFunctions_FindCandidateFunctions) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
+func (c *inlineCandidateFinder) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
 	c.current = n
 	if target, ok := inlineFunctions_matchCandidateNode(c.outer.reach, n, parent, inLocalHoist); ok {
 		c.outer.MaybeAddFunction(target, chunk)

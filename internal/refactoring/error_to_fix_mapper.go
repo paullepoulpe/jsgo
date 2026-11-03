@@ -205,12 +205,16 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 	fullName := *fullNameMatcher.Group(1)
 
 	shortNameMatcher := errorToFixMapper_USE_SHORT_NAME.Matcher(error.Description())
-	var shortName *string
+	var shortName string
 	if shortNameMatcher.Matches() {
-		shortName = shortNameMatcher.Group(1)
+		shortName = *shortNameMatcher.Group(1)
 	} else {
 		fix.AddGoogRequire(match, fullName, scriptMetadata)
-		shortName = scriptMetadata.GetAlias(fullName)
+		var ok bool
+		shortName, ok = scriptMetadata.GetAlias(fullName)
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 	}
 
 	var oldName string
@@ -222,7 +226,7 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 
 	return fix.Replace(
 		error.Node(),
-		jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(oldName, fullName, *shortName)),
+		jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(oldName, fullName, shortName)),
 		m.compiler).
 		Build()
 }
@@ -347,10 +351,10 @@ func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, import
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
 			AddImport(match, namespaceToRequire, importType, scriptMetadata)
 
-	if alias := scriptMetadata.GetAlias(namespaceToRequire); alias != nil {
+	if alias, ok := scriptMetadata.GetAlias(namespaceToRequire); ok {
 		fix.Replace(
 			error.Node(),
-			jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(qName, namespaceToRequire, *alias)),
+			jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(qName, namespaceToRequire, alias)),
 			m.compiler)
 	}
 

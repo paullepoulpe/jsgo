@@ -69,16 +69,16 @@ type CrossChunkCodeMotion struct {
 	chunkInsertionPointMap map[*JSChunk]rhino.Node
 
 	scratchImmovableChunks smallBitSet
-	scratchDsgCycle        CrossChunkCodeMotion_DeclarationStatementGroupCycle
+	scratchDsgCycle        cccmDsgCycle
 
-	symbolSlab jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]
-	dsgSlab    jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]
-	cycleSlab  jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]
+	symbolSlab jutil.Slab[cccmGlobalSymbol]
+	dsgSlab    jutil.Slab[cccmDsg]
+	cycleSlab  jutil.Slab[cccmSymbolCycle]
 
 	parentChunkCanSeeSymbolsDeclaredInChildren bool
 }
 
-func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
+func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *cccmGlobalSymbol {
 	s := c.symbolSlab.New()
 	s.outer = c
 	s.preorderNumber = -1
@@ -88,7 +88,7 @@ func (c *CrossChunkCodeMotion) allocGlobalSymbol(var_ *Var) *CrossChunkCodeMotio
 	return s
 }
 
-func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
+func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *cccmGlobalSymbol, currentChunk *JSChunk) *cccmDsg {
 	g := c.dsgSlab.New()
 	g.declaredGlobalSymbol = declaredGlobalSymbol
 	g.currentChunk = currentChunk
@@ -97,7 +97,7 @@ func (c *CrossChunkCodeMotion) allocDsg(declaredGlobalSymbol *CrossChunkCodeMoti
 	return g
 }
 
-func (c *CrossChunkCodeMotion) allocCycle() *CrossChunkCodeMotion_GlobalSymbolCycle {
+func (c *CrossChunkCodeMotion) allocCycle() *cccmSymbolCycle {
 	y := c.cycleSlab.New()
 	y.outer = c
 	y.symbolsSlice = y.symbolsBuf[:0]
@@ -127,9 +127,9 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	defer logFile.Close()
 	defer func() {
 		c.cccmLog = diagnostic.LogFile{}
-		c.symbolSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbol]{}
-		c.dsgSlab = jutil.Slab[CrossChunkCodeMotion_DeclarationStatementGroup]{}
-		c.cycleSlab = jutil.Slab[CrossChunkCodeMotion_GlobalSymbolCycle]{}
+		c.symbolSlab = jutil.Slab[cccmGlobalSymbol]{}
+		c.dsgSlab = jutil.Slab[cccmDsg]{}
+		c.cycleSlab = jutil.Slab[cccmSymbolCycle]{}
 		c.scratchImmovableChunks = smallBitSet{}
 		clear(c.chunkInsertionPointMap)
 	}()
@@ -140,61 +140,54 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 		referenceCollector :=
 			NewCrossChunkReferenceCollector(c.compiler, NewSyntacticScopeCreator(c.compiler))
 		referenceCollector.ProcessRoot(root)
-		globalSymbols :=
-			NewCrossChunkCodeMotion_GlobalSymbolCollector(c).CollectGlobalSymbols(referenceCollector)
-		c.MoveGlobalSymbols(globalSymbols)
-		c.AddInstanceofGuards(globalSymbols)
+		collector := cccmSymbolCollector{outer: c}
+		globalSymbols := collector.collectGlobalSymbols(referenceCollector)
+		c.moveGlobalSymbols(globalSymbols)
+		c.addInstanceofGuards(globalSymbols)
 	} else {
 		c.cccmLog.LogString("only one chunk exists")
 	}
 }
 
 // Java: CrossChunkCodeMotion.addInstanceofGuards(Collection<GlobalSymbol>)
-func (c *CrossChunkCodeMotion) AddInstanceofGuards(globalSymbols []*CrossChunkCodeMotion_GlobalSymbol) {
+func (c *CrossChunkCodeMotion) addInstanceofGuards(globalSymbols []*cccmGlobalSymbol) {
 	for _, globalSymbol := range globalSymbols {
 		refs := globalSymbol.instanceofReferencesToGuard
 		for i := len(refs) - 1; i >= 0; i-- {
 			ref := refs[i]
-			if !globalSymbol.DeclarationsCoverChunk(ref.targetChunk()) {
-				c.AddGuardToInstanceofReference(ref.node)
+			if !globalSymbol.declsCoverChunk(ref.targetChunk()) {
+				c.addGuardToInstanceofRef(ref.node)
 			}
 		}
 	}
 }
 
-// CrossChunkCodeMotion_GlobalSymbolCollector collects all global symbols,
-// their declaration statements and references.
-type CrossChunkCodeMotion_GlobalSymbolCollector struct {
+// cccmSymbolCollector collects all global symbols, their declaration statements
+// and references.
+type cccmSymbolCollector struct {
 	outer *CrossChunkCodeMotion
 
-	globalSymbolForVar map[*Var]*CrossChunkCodeMotion_GlobalSymbol
-	symbolsByVarIndex  []*CrossChunkCodeMotion_GlobalSymbol
+	globalSymbolForVar map[*Var]*cccmGlobalSymbol
+	symbolsByVarIndex  []*cccmGlobalSymbol
 
 	// Returning the symbols in the reverse order in which they are defined
 	// helps to minimize unnecessary reordering of declaration statements.
-	symbolStack []*CrossChunkCodeMotion_GlobalSymbol
-}
-
-// Java: CrossChunkCodeMotion.GlobalSymbolCollector()
-func NewCrossChunkCodeMotion_GlobalSymbolCollector(outer *CrossChunkCodeMotion) *CrossChunkCodeMotion_GlobalSymbolCollector {
-	return &CrossChunkCodeMotion_GlobalSymbolCollector{
-		outer: outer,
-	}
+	symbolStack []*cccmGlobalSymbol
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.collectGlobalSymbols(CrossChunkReferenceCollector)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(referenceCollector *CrossChunkReferenceCollector) []*CrossChunkCodeMotion_GlobalSymbol {
+func (g *cccmSymbolCollector) collectGlobalSymbols(referenceCollector *CrossChunkReferenceCollector) []*cccmGlobalSymbol {
 	if n := len(referenceCollector.vars); n > 0 && len(g.symbolStack) == 0 {
-		g.symbolStack = make([]*CrossChunkCodeMotion_GlobalSymbol, 0, n)
+		g.symbolStack = make([]*cccmGlobalSymbol, 0, n)
 	}
 	if maxIdx := referenceCollector.maxVarIndex; maxIdx >= 0 && maxIdx < 1_000_000 {
-		g.symbolsByVarIndex = make([]*CrossChunkCodeMotion_GlobalSymbol, maxIdx+1)
+		g.symbolsByVarIndex = make([]*cccmGlobalSymbol, maxIdx+1)
 	}
 	for _, statement := range referenceCollector.GetTopLevelStatements() {
 		if statement.IsDeclarationStatement() {
-			g.ProcessDeclarationStatement(statement)
+			g.processDeclStmt(statement)
 		} else {
-			g.ProcessImmovableStatement(statement)
+			g.processImmovableStmt(statement)
 		}
 	}
 	slices.Reverse(g.symbolStack)
@@ -202,59 +195,54 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) CollectGlobalSymbols(refere
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.processImmovableStatement(TopLevelStatement)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessImmovableStatement(statement *CrossChunkReferenceCollector_TopLevelStatement) {
+func (g *cccmSymbolCollector) processImmovableStmt(statement *CrossChunkReferenceCollector_TopLevelStatement) {
 	refs := statement.GetNonDeclarationReferences()
 	vars := statement.nonDeclarationVars
 	chunk := statement.GetChunk()
 	if len(vars) == len(refs) {
 		for i, ref := range refs {
-			g.processImmovableReferenceWithVar(ref, vars[i], chunk)
+			g.processImmovableRefWithVar(ref, vars[i], chunk)
 		}
 	} else {
 		for _, ref := range refs {
-			g.ProcessImmovableReference(ref, chunk)
+			g.processImmovableRefWithVar(ref, ref.getSymbolV(), chunk)
 		}
 	}
 }
 
-// Java: CrossChunkCodeMotion.GlobalSymbolCollector.processImmovableReference(Reference, JSChunk)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessImmovableReference(ref *Reference, chunk *JSChunk) {
-	g.processImmovableReferenceWithVar(ref, ref.getSymbolV(), chunk)
-}
-
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) processImmovableReferenceWithVar(ref *Reference, v *Var, chunk *JSChunk) {
-	globalSymbol := g.GetGlobalSymbol(v)
+func (g *cccmSymbolCollector) processImmovableRefWithVar(ref *Reference, v *Var, chunk *JSChunk) {
+	globalSymbol := g.globalSymbol(v)
 	if g.outer.parentChunkCanSeeSymbolsDeclaredInChildren {
 		// It is possible to move the declaration of `Foo` after
 		// `'undefined' != typeof Foo && x instanceof Foo`.
 		// We'll add the undefined check, if necessary.
 		n := ref.GetNode()
-		if g.outer.IsGuardedInstanceofReference(n) || g.outer.IsUndefinedTypeofGuardReference(n) {
+		if g.outer.isGuardedInstanceofRef(n) || g.outer.isUndefinedTypeofGuardRef(n) {
 			return
-		} else if g.outer.IsUnguardedInstanceofReference(n) {
+		} else if g.outer.isUnguardedInstanceofRef(n) {
 			globalSymbol.instanceofReferencesToGuard = append(
 				globalSymbol.instanceofReferencesToGuard,
 				instanceofRef{node: n, chunk: chunk})
 			return
 		}
 	}
-	globalSymbol.AddImmovableReference(chunk)
+	globalSymbol.addImmovableRef(chunk)
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.processDeclarationStatement(TopLevelStatement)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement(statement *CrossChunkReferenceCollector_TopLevelStatement) {
+func (g *cccmSymbolCollector) processDeclStmt(statement *CrossChunkReferenceCollector_TopLevelStatement) {
 	v := statement.declaredVar
 	if v == nil {
 		v = statement.GetDeclaredNameReference().getSymbolV()
 	}
-	declaredSymbol := g.GetGlobalSymbol(v)
-	dsg := declaredSymbol.AddDeclarationStatement(statement)
-	g.ProcessDeclarationStatementContainedReferences(statement, declaredSymbol, dsg)
+	declaredSymbol := g.globalSymbol(v)
+	dsg := declaredSymbol.addDeclStmt(statement)
+	g.processDeclStmtContainedRefs(statement, declaredSymbol, dsg)
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.processDeclarationStatementContainedReferences(TopLevelStatement, GlobalSymbol, DeclarationStatementGroup)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatementContainedReferences(
-	statement *CrossChunkReferenceCollector_TopLevelStatement, declaredSymbol *CrossChunkCodeMotion_GlobalSymbol, dsg *CrossChunkCodeMotion_DeclarationStatementGroup) {
+func (g *cccmSymbolCollector) processDeclStmtContainedRefs(
+	statement *CrossChunkReferenceCollector_TopLevelStatement, declaredSymbol *cccmGlobalSymbol, dsg *cccmDsg) {
 	refs := statement.GetNonDeclarationReferences()
 	vars := statement.nonDeclarationVars
 	hasVars := len(vars) == len(refs)
@@ -265,7 +253,7 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 		} else {
 			v = ref.getSymbolV()
 		}
-		refSymbol := g.GetGlobalSymbol(v)
+		refSymbol := g.globalSymbol(v)
 		if refSymbol == declaredSymbol {
 			continue // ignore circular reference
 		}
@@ -274,22 +262,22 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 			// `'undefined' != typeof Foo && x instanceof Foo`.
 			// We'll add the undefined check, if necessary.
 			n := ref.GetNode()
-			if g.outer.IsGuardedInstanceofReference(n) || g.outer.IsUndefinedTypeofGuardReference(n) {
+			if g.outer.isGuardedInstanceofRef(n) || g.outer.isUndefinedTypeofGuardRef(n) {
 				continue
-			} else if g.outer.IsUnguardedInstanceofReference(n) {
+			} else if g.outer.isUnguardedInstanceofRef(n) {
 				refSymbol.instanceofReferencesToGuard = append(
 					refSymbol.instanceofReferencesToGuard,
 					instanceofRef{node: n, dsg: dsg, movable: true})
 				continue
 			}
 		}
-		if dsg.AddReferenceToGlobalSymbol(refSymbol) {
+		if dsg.addRefToGlobalSymbol(refSymbol) {
 			if len(declaredSymbol.dsgs) == 1 {
 				refSymbol.referencingSlice = append(refSymbol.referencingSlice, declaredSymbol)
 			} else {
 				alreadyReferred := false
 				for _, prevDsg := range declaredSymbol.dsgs[:len(declaredSymbol.dsgs)-1] {
-					if prevDsg.hasReferenceToGlobalSymbol(refSymbol) {
+					if prevDsg.hasRefToGlobalSymbol(refSymbol) {
 						alreadyReferred = true
 						break
 					}
@@ -303,7 +291,7 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) ProcessDeclarationStatement
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.getGlobalSymbol(Var)
-func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
+func (g *cccmSymbolCollector) globalSymbol(var_ *Var) *cccmGlobalSymbol {
 	idx := var_.GetIndex()
 	if idx >= 0 && idx < len(g.symbolsByVarIndex) {
 		if sym := g.symbolsByVarIndex[idx]; sym != nil {
@@ -322,40 +310,44 @@ func (g *CrossChunkCodeMotion_GlobalSymbolCollector) GetGlobalSymbol(var_ *Var) 
 	}
 	globalSymbol := g.outer.allocGlobalSymbol(var_)
 	if g.globalSymbolForVar == nil {
-		g.globalSymbolForVar = make(map[*Var]*CrossChunkCodeMotion_GlobalSymbol)
+		g.globalSymbolForVar = make(map[*Var]*cccmGlobalSymbol)
 	}
 	g.globalSymbolForVar[var_] = globalSymbol
 	g.symbolStack = append(g.symbolStack, globalSymbol)
 	return globalSymbol
 }
 
-// MoveGlobalSymbols moves all of the declaration statements that can move to
+// moveGlobalSymbols moves all of the declaration statements that can move to
 // their best possible chunk location.
 //
 // Java: CrossChunkCodeMotion.moveGlobalSymbols(Collection<GlobalSymbol>)
-func (c *CrossChunkCodeMotion) MoveGlobalSymbols(globalSymbols []*CrossChunkCodeMotion_GlobalSymbol) {
+func (c *CrossChunkCodeMotion) moveGlobalSymbols(globalSymbols []*cccmGlobalSymbol) {
 	if len(globalSymbols) == 0 {
 		return
 	}
-	o := NewCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(c, globalSymbols)
-	o.orderAndCombineSlice()
+	o := cccmSymbolOrderer{
+		outer:        c,
+		inputSymbols: globalSymbols,
+		cycles:       make([]*cccmSymbolCycle, 0, len(globalSymbols)),
+	}
+	o.orderAndCombine()
 	for _, globalSymbolCycle := range o.cycles {
 		// Symbols whose declarations refer to each other must be grouped together and their
 		// declaration statements moved together.
-		globalSymbolCycle.MoveDeclarationStatements()
+		globalSymbolCycle.moveDeclStmts()
 	}
 }
 
-// CrossChunkCodeMotion_GlobalSymbol represents a global symbol whose
-// declaration statements may be moved.
-type CrossChunkCodeMotion_GlobalSymbol struct {
+// cccmGlobalSymbol represents a global symbol whose declaration statements may
+// be moved.
+type cccmGlobalSymbol struct {
 	outer *CrossChunkCodeMotion
 
 	var_ *Var
 	// As we traverse the statements in execution order the last element of
 	// dsgs represents the most recently seen DSG for the variable.
-	dsgs   []*CrossChunkCodeMotion_DeclarationStatementGroup
-	dsgBuf [2]*CrossChunkCodeMotion_DeclarationStatementGroup
+	dsgs   []*cccmDsg
+	dsgBuf [2]*cccmDsg
 
 	chunksWithImmovableReferences smallBitSet
 
@@ -363,48 +355,47 @@ type CrossChunkCodeMotion_GlobalSymbol struct {
 	//
 	// Insertion order is preserved to enforce a consistent ordering when
 	// we iterate over these to identify cycles.
-	referencingSlice []*CrossChunkCodeMotion_GlobalSymbol
-	referencingBuf   [4]*CrossChunkCodeMotion_GlobalSymbol
+	referencingSlice []*cccmGlobalSymbol
+	referencingBuf   [4]*cccmGlobalSymbol
 
 	// Instanceof references we may need to update with a guard after moving
 	// declarations (in push order; iterated latest-first).
 	instanceofReferencesToGuard []instanceofRef
-	// Used by OrderAndCombineGlobalSymbols to find reference cycles.
+	// Used by cccmSymbolOrderer to find reference cycles.
 	preorderNumber int
-	// Used by OrderAndCombineGlobalSymbols to find reference cycles.
+	// Used by cccmSymbolOrderer to find reference cycles.
 	hasBeenAssignedToAStronglyConnectedComponent bool
 	// Used to confirm all symbols get moved in the correct order.
 	isMoveDeclarationStatementsDone bool
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.toString()
-func (s *CrossChunkCodeMotion_GlobalSymbol) String() string {
+func (s *cccmGlobalSymbol) String() string {
 	return s.var_.GetName()
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbol.addImmovableReference(JSChunk)
-func (s *CrossChunkCodeMotion_GlobalSymbol) AddImmovableReference(chunk *JSChunk) {
+func (s *cccmGlobalSymbol) addImmovableRef(chunk *JSChunk) {
 	s.chunksWithImmovableReferences.Set(chunk.GetIndex())
 }
 
-func (s *CrossChunkCodeMotion_GlobalSymbol) orImmovableChunksInto(dst *smallBitSet) {
+func (s *cccmGlobalSymbol) orImmovableChunksInto(dst *smallBitSet) {
 	dst.Or(&s.chunksWithImmovableReferences)
 }
 
-// AddDeclarationStatement adds the statement to the appropriate
-// DeclarationStatementGroup and returns it.
+// addDeclStmt adds the statement to the appropriate cccmDsg and returns it.
 //
 // Java: CrossChunkCodeMotion.GlobalSymbol.addDeclarationStatement(TopLevelStatement)
-func (s *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statement *CrossChunkReferenceCollector_TopLevelStatement) *CrossChunkCodeMotion_DeclarationStatementGroup {
+func (s *cccmGlobalSymbol) addDeclStmt(statement *CrossChunkReferenceCollector_TopLevelStatement) *cccmDsg {
 	chunk := statement.GetChunk()
-	var lastDsg *CrossChunkCodeMotion_DeclarationStatementGroup
+	var lastDsg *cccmDsg
 	if len(s.dsgs) > 0 {
 		lastDsg = s.dsgs[len(s.dsgs)-1]
 	} else {
 		lastDsg = s.outer.allocDsg(s, chunk)
 		s.dsgs = append(s.dsgs, lastDsg)
 	}
-	var statementDsg *CrossChunkCodeMotion_DeclarationStatementGroup
+	var statementDsg *cccmDsg
 	if chunk == lastDsg.currentChunk {
 		statementDsg = lastDsg
 	} else {
@@ -416,11 +407,11 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statement *C
 	return statementDsg
 }
 
-// DeclarationsCoverChunk: does the chunk depend on at least one of the
-// chunks containing declaration statements for this symbol?
+// declsCoverChunk reports whether the chunk depends on at least one of the
+// chunks containing declaration statements for this symbol.
 //
 // Java: CrossChunkCodeMotion.GlobalSymbol.declarationsCoverChunk(JSChunk)
-func (s *CrossChunkCodeMotion_GlobalSymbol) DeclarationsCoverChunk(chunk *JSChunk) bool {
+func (s *cccmGlobalSymbol) declsCoverChunk(chunk *JSChunk) bool {
 	for i := len(s.dsgs) - 1; i >= 0; i-- {
 		dsg := s.dsgs[i]
 		if chunk == dsg.currentChunk || s.outer.graph.DependsOn(chunk, dsg.currentChunk) {
@@ -430,22 +421,21 @@ func (s *CrossChunkCodeMotion_GlobalSymbol) DeclarationsCoverChunk(chunk *JSChun
 	return false
 }
 
-// CrossChunkCodeMotion_GlobalSymbolCycle represents a set of global symbols
-// that all refer to each other, and so must be considered for movement as a
-// group.
-type CrossChunkCodeMotion_GlobalSymbolCycle struct {
+// cccmSymbolCycle represents a set of global symbols that all refer to each
+// other, and so must be considered for movement as a group.
+type cccmSymbolCycle struct {
 	outer        *CrossChunkCodeMotion
-	symbolsSlice []*CrossChunkCodeMotion_GlobalSymbol
-	symbolsBuf   [1]*CrossChunkCodeMotion_GlobalSymbol
+	symbolsSlice []*cccmGlobalSymbol
+	symbolsBuf   [1]*cccmGlobalSymbol
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.addSymbol(GlobalSymbol)
-func (y *CrossChunkCodeMotion_GlobalSymbolCycle) AddSymbol(symbol *CrossChunkCodeMotion_GlobalSymbol) {
+func (y *cccmSymbolCycle) addSymbol(symbol *cccmGlobalSymbol) {
 	y.symbolsSlice = append(y.symbolsSlice, symbol)
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.moveDeclarationStatements()
-func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
+func (y *cccmSymbolCycle) moveDeclStmts() {
 	if len(y.symbolsSlice) == 1 {
 		symbol := y.symbolsSlice[0]
 		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
@@ -457,10 +447,10 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 			dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
 			dsgCycle.dsgsSlice[0] = dsg
 			if symbol.chunksWithImmovableReferences.IsEmpty() {
-				dsg.MakeReferencesImmovable()
+				dsg.makeRefsImmovable()
 			} else if symbol.chunksWithImmovableReferences.Cardinality() == 1 {
 				var preferredChunk *JSChunk
-				if !dsg.AllStatementsCanMove() {
+				if !dsg.allStmtsCanMove() {
 					preferredChunk = dsg.currentChunk
 				} else {
 					chunkIdx := symbol.chunksWithImmovableReferences.NextSetBit(0)
@@ -473,7 +463,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 				}
 				dsgCycle.moveToPreferredChunkDirect(preferredChunk)
 			} else {
-				dsgCycle.MoveToPreferredChunk(&symbol.chunksWithImmovableReferences)
+				dsgCycle.moveToPreferredChunk(&symbol.chunksWithImmovableReferences)
 			}
 			dsgCycle.dsgsSlice[0] = nil
 			symbol.isMoveDeclarationStatementsDone = true
@@ -490,7 +480,7 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 				dsgCycle.dsgsSlice = dsgCycle.dsgsBuf[:1]
 				dsgCycle.dsgsSlice[0] = dsg
 				symbol.orImmovableChunksInto(chunksWithImmovableReferences)
-				dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
+				dsgCycle.moveToPreferredChunk(chunksWithImmovableReferences)
 			}
 			dsgCycle.dsgsSlice[0] = nil
 		}
@@ -502,13 +492,13 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 	}
 	chunksWithImmovableReferences := &y.outer.scratchImmovableChunks
 	chunksWithImmovableReferences.ClearAll()
-	cyclesLatestFirst := y.GetDsgCyclesLatestFirst()
+	cyclesLatestFirst := y.dsgCyclesLatestFirst()
 	for _, dsgCycle := range cyclesLatestFirst {
 		// Each move may change chunksWithImmovableReferences
 		for _, symbol := range y.symbolsSlice {
 			symbol.orImmovableChunksInto(chunksWithImmovableReferences)
 		}
-		dsgCycle.MoveToPreferredChunk(chunksWithImmovableReferences)
+		dsgCycle.moveToPreferredChunk(chunksWithImmovableReferences)
 	}
 	for _, symbol := range y.symbolsSlice {
 		symbol.isMoveDeclarationStatementsDone = true
@@ -516,13 +506,13 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) MoveDeclarationStatements() {
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.getDsgCyclesLatestFirst()
-func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgCyclesLatestFirst() []*CrossChunkCodeMotion_DeclarationStatementGroupCycle {
-	var cyclesLatestFirst []*CrossChunkCodeMotion_DeclarationStatementGroupCycle
-	dsgsLatestFirst := y.GetDsgsLatestFirst()
-	var cycle *CrossChunkCodeMotion_DeclarationStatementGroupCycle
+func (y *cccmSymbolCycle) dsgCyclesLatestFirst() []*cccmDsgCycle {
+	var cyclesLatestFirst []*cccmDsgCycle
+	dsgsLatestFirst := y.dsgsLatestFirst()
+	var cycle *cccmDsgCycle
 	for _, dsg := range dsgsLatestFirst {
 		if cycle == nil || cycle.currentChunk != dsg.currentChunk {
-			cycle = NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(y.outer, dsg.currentChunk)
+			cycle = newCccmDsgCycle(y.outer, dsg.currentChunk)
 			cyclesLatestFirst = append(cyclesLatestFirst, cycle)
 		}
 		cycle.dsgsSlice = append(cycle.dsgsSlice, dsg)
@@ -568,13 +558,13 @@ func mergeDescendingBy[T any](desc, asc []T, order func(T) int, strict bool, err
 }
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCycle.getDsgsLatestFirst()
-func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgsLatestFirst() []*CrossChunkCodeMotion_DeclarationStatementGroup {
-	var result []*CrossChunkCodeMotion_DeclarationStatementGroup
+func (y *cccmSymbolCycle) dsgsLatestFirst() []*cccmDsg {
+	var result []*cccmDsg
 	for _, symbol := range y.symbolsSlice {
 		result = mergeDescendingBy(
 			result,
 			symbol.dsgs,
-			func(dsg *CrossChunkCodeMotion_DeclarationStatementGroup) int { return dsg.currentChunk.GetIndex() },
+			func(dsg *cccmDsg) int { return dsg.currentChunk.GetIndex() },
 			false,
 			"DSG stacks are out of order.")
 	}
@@ -582,9 +572,9 @@ func (y *CrossChunkCodeMotion_GlobalSymbolCycle) GetDsgsLatestFirst() []*CrossCh
 }
 
 // Java: CrossChunkCodeMotion.addGuardToInstanceofReference(Node)
-func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode rhino.Node) {
+func (c *CrossChunkCodeMotion) addGuardToInstanceofRef(referenceNode rhino.Node) {
 	jutil.CheckStateMsg1(
-		c.IsUnguardedInstanceofReference(referenceNode),
+		c.isUnguardedInstanceofRef(referenceNode),
 		"instanceof Reference is already guarded: %s",
 		referenceNode)
 	instanceofNode := rhino.CheckNotNull(referenceNode.GetParent())
@@ -602,15 +592,15 @@ func (c *CrossChunkCodeMotion) AddGuardToInstanceofReference(referenceNode rhino
 	c.compiler.ReportChangeToEnclosingScope(and)
 }
 
-// CrossChunkCodeMotion_DeclarationStatementGroup is a group of declaration
-// statements that must be moved (or not) as a group.
+// cccmDsg is a group of declaration statements that must be moved (or not) as
+// a group.
 //
 // All of the statements must be in the same chunk initially. If there are
 // declarations for the same variable in different chunks, they will be
 // grouped separately.
-type CrossChunkCodeMotion_DeclarationStatementGroup struct {
-	declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol
-	referenced           smallSet[*CrossChunkCodeMotion_GlobalSymbol]
+type cccmDsg struct {
+	declaredGlobalSymbol *cccmGlobalSymbol
+	referenced           smallSet[*cccmGlobalSymbol]
 
 	// chunk containing the statements
 	currentChunk *JSChunk
@@ -621,7 +611,7 @@ type CrossChunkCodeMotion_DeclarationStatementGroup struct {
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.allStatementsCanMove()
-func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove() bool {
+func (g *cccmDsg) allStmtsCanMove() bool {
 	for i := len(g.statements) - 1; i >= 0; i-- {
 		if !g.statements[i].IsMovableDeclaration() {
 			return false
@@ -630,31 +620,30 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AllStatementsCanMove() 
 	return true
 }
 
-func (g *CrossChunkCodeMotion_DeclarationStatementGroup) hasReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) bool {
+func (g *cccmDsg) hasRefToGlobalSymbol(refSymbol *cccmGlobalSymbol) bool {
 	return g.referenced.contains(refSymbol)
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.addReferenceToGlobalSymbol(GlobalSymbol)
-func (g *CrossChunkCodeMotion_DeclarationStatementGroup) AddReferenceToGlobalSymbol(refSymbol *CrossChunkCodeMotion_GlobalSymbol) bool {
+func (g *cccmDsg) addRefToGlobalSymbol(refSymbol *cccmGlobalSymbol) bool {
 	return g.referenced.add(refSymbol)
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroup.makeReferencesImmovable()
-func (g *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmovable() {
-	g.declaredGlobalSymbol.AddImmovableReference(g.currentChunk)
+func (g *cccmDsg) makeRefsImmovable() {
+	g.declaredGlobalSymbol.addImmovableRef(g.currentChunk)
 	for _, symbol := range g.referenced.items {
 		jutil.CheckStateMsg2(
 			!symbol.isMoveDeclarationStatementsDone,
 			"symbol %s moved before referring symbol %s",
 			symbol,
 			g.declaredGlobalSymbol)
-		symbol.AddImmovableReference(g.currentChunk)
+		symbol.addImmovableRef(g.currentChunk)
 	}
 }
 
-// CrossChunkCodeMotion_OrderAndCombineGlobalSymbols orders
-// DeclarationStatementGroups so that each DSG appears in the list only after
-// all of the DSGs that contain references to it.
+// cccmSymbolOrderer orders DeclarationStatementGroups so that each DSG appears
+// in the list only after all of the DSGs that contain references to it.
 //
 // DSGs that form cycles are combined into a single DSG. This happens when
 // declarations within a chunk form cycles by referring to each other.
@@ -662,43 +651,30 @@ func (g *CrossChunkCodeMotion_DeclarationStatementGroup) MakeReferencesImmovable
 // This is an implementation of the path-based strong component algorithm as
 // it is described in the Wikipedia article
 // https://en.wikipedia.org/wiki/Path-based_strong_component_algorithm.
-type CrossChunkCodeMotion_OrderAndCombineGlobalSymbols struct {
+type cccmSymbolOrderer struct {
 	outer        *CrossChunkCodeMotion
-	inputSymbols []*CrossChunkCodeMotion_GlobalSymbol
+	inputSymbols []*cccmGlobalSymbol
 	// Tracks DSGs that may be part of a strongly connected component
 	// (reference cycle).
-	componentContents []*CrossChunkCodeMotion_GlobalSymbol
+	componentContents []*cccmGlobalSymbol
 	// Tracks DSGs that may be the root of a strongly connected component
 	// (reference cycle).
-	componentRoots []*CrossChunkCodeMotion_GlobalSymbol
+	componentRoots []*cccmGlobalSymbol
 	// Filled with lists of strongly connected DSGs as they are discovered.
-	cycles []*CrossChunkCodeMotion_GlobalSymbolCycle
+	cycles []*cccmSymbolCycle
 
 	preorderCounter int
 }
 
-// Java: CrossChunkCodeMotion.OrderAndCombineGlobalSymbols(Collection<GlobalSymbol>)
-func NewCrossChunkCodeMotion_OrderAndCombineGlobalSymbols(outer *CrossChunkCodeMotion, dsgs []*CrossChunkCodeMotion_GlobalSymbol) *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols {
-	o := &CrossChunkCodeMotion_OrderAndCombineGlobalSymbols{
-		outer:           outer,
-		preorderCounter: 0,
-		inputSymbols:    dsgs,
-	}
-	if n := len(dsgs); n > 0 {
-		o.cycles = make([]*CrossChunkCodeMotion_GlobalSymbolCycle, 0, n)
-	}
-	return o
-}
-
-func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) orderAndCombineSlice() {
+func (o *cccmSymbolOrderer) orderAndCombine() {
 	for _, globalSymbol := range o.inputSymbols {
 		if globalSymbol.preorderNumber < 0 {
-			o.ProcessGlobalSymbol(globalSymbol)
+			o.processGlobalSymbol(globalSymbol)
 		} // else already processed
 	}
 }
 
-// ProcessGlobalSymbol determines to which strongly connected component this
+// processGlobalSymbol determines to which strongly connected component this
 // GlobalSymbol belongs.
 //
 // Called exactly once for each GlobalSymbol. When this method returns we
@@ -715,7 +691,7 @@ func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) orderAndCombineSlice
 //     fallen back to the call made with that GlobalSymbol.
 //
 // Java: CrossChunkCodeMotion.OrderAndCombineGlobalSymbols.processGlobalSymbol(GlobalSymbol)
-func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSymbol(symbol *CrossChunkCodeMotion_GlobalSymbol) {
+func (o *cccmSymbolOrderer) processGlobalSymbol(symbol *cccmGlobalSymbol) {
 	// preorderNumber is used to track whether we've already processed a DSG and the order in
 	// which they have been processed. It is initially -1.
 	jutil.CheckStateMsg1(symbol.preorderNumber < 0, "already processed: %s", symbol)
@@ -725,7 +701,7 @@ func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSymbol(
 	o.componentContents = append(o.componentContents, symbol) // could be part of an existing strongly connected component
 	for _, referringSymbol := range symbol.referencingSlice {
 		if referringSymbol.preorderNumber < 0 {
-			o.ProcessGlobalSymbol(referringSymbol)
+			o.processGlobalSymbol(referringSymbol)
 		} else if !referringSymbol.hasBeenAssignedToAStronglyConnectedComponent {
 			// This GlobalSymbol is part of a not-yet-completed strongly connected component.
 			// Back off the potential roots stack to the earliest symbol that is part of the
@@ -751,7 +727,7 @@ func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSymbol(
 			connectedSymbol := o.componentContents[lastContent]
 			o.componentContents[lastContent] = nil
 			o.componentContents = o.componentContents[:lastContent]
-			cycle.AddSymbol(connectedSymbol)
+			cycle.addSymbol(connectedSymbol)
 			connectedSymbol.hasBeenAssignedToAStronglyConnectedComponent = true
 			if connectedSymbol == symbol {
 				break
@@ -761,19 +737,18 @@ func (o *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSymbol(
 	}
 }
 
-// CrossChunkCodeMotion_DeclarationStatementGroupCycle is one or more
-// DeclarationStatementGroups that that share the same chunk and whose
-// declared global symbols refer to each other.
-type CrossChunkCodeMotion_DeclarationStatementGroupCycle struct {
+// cccmDsgCycle is one or more DeclarationStatementGroups that share the same
+// chunk and whose declared global symbols refer to each other.
+type cccmDsgCycle struct {
 	outer        *CrossChunkCodeMotion
 	currentChunk *JSChunk
-	dsgsSlice    []*CrossChunkCodeMotion_DeclarationStatementGroup
-	dsgsBuf      [2]*CrossChunkCodeMotion_DeclarationStatementGroup
+	dsgsSlice    []*cccmDsg
+	dsgsBuf      [2]*cccmDsg
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle(JSChunk)
-func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCodeMotion, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroupCycle {
-	y := &CrossChunkCodeMotion_DeclarationStatementGroupCycle{
+func newCccmDsgCycle(outer *CrossChunkCodeMotion, currentChunk *JSChunk) *cccmDsgCycle {
+	y := &cccmDsgCycle{
 		outer:        outer,
 		currentChunk: currentChunk,
 	}
@@ -782,18 +757,18 @@ func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer *CrossChunkCod
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.moveToPreferredChunk(BitSet)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveToPreferredChunk(chunksWithImmovableReferences *smallBitSet) {
-	y.moveToPreferredChunkDirect(y.GetPreferredChunk(chunksWithImmovableReferences))
+func (y *cccmDsgCycle) moveToPreferredChunk(chunksWithImmovableReferences *smallBitSet) {
+	y.moveToPreferredChunkDirect(y.preferredChunk(chunksWithImmovableReferences))
 }
 
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveToPreferredChunkDirect(preferredChunk *JSChunk) {
+func (y *cccmDsgCycle) moveToPreferredChunkDirect(preferredChunk *JSChunk) {
 	if preferredChunk != y.currentChunk {
 		if y.outer.cccmLog.IsLogging() {
 			// Write a separate log for each global symbol, because this is easier to work
 			// with when analyzing the log.
 			// Include a header, so we can tell which ones were treated as a cycle
 			y.outer.cccmLog.LogString("start DSG Cycle move")
-			for _, globalSymbolName := range y.GetGlobalSymbolNames() {
+			for _, globalSymbolName := range y.globalSymbolNames() {
 				y.outer.cccmLog.LogSupplier(
 					func() string {
 						return jutil.StringFormat(
@@ -802,18 +777,18 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveToPreferredChu
 					})
 			}
 		}
-		y.MoveStatementsToChunk(preferredChunk)
+		y.moveStmtsToChunk(preferredChunk)
 	}
 	// Now that all the statements have been moved, update the current chunk for all the DSGs
 	// and treat all the references they contain as now immovable.
 	for _, dsg := range y.dsgsSlice {
 		dsg.currentChunk = preferredChunk
-		dsg.MakeReferencesImmovable()
+		dsg.makeRefsImmovable()
 	}
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getGlobalSymbolNames()
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetGlobalSymbolNames() []string {
+func (y *cccmDsgCycle) globalSymbolNames() []string {
 	builder := make([]string, 0, len(y.dsgsSlice))
 	for _, dsg := range y.dsgsSlice {
 		builder = append(builder, dsg.declaredGlobalSymbol.var_.GetName())
@@ -821,7 +796,7 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetGlobalSymbolNam
 	return builder
 }
 
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveSingleStatementToChunk(statement *CrossChunkReferenceCollector_TopLevelStatement, destParent rhino.Node) {
+func (y *cccmDsgCycle) moveSingleStmtToChunk(statement *CrossChunkReferenceCollector_TopLevelStatement, destParent rhino.Node) {
 	statementNode := statement.GetStatementNode()
 	// Remove it
 	y.outer.compiler.ReportChangeToEnclosingScope(statementNode)
@@ -837,7 +812,7 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) moveSingleStatemen
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.moveStatementsToChunk(JSChunk)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveStatementsToChunk(preferredChunk *JSChunk) {
+func (y *cccmDsgCycle) moveStmtsToChunk(preferredChunk *JSChunk) {
 	destParent, ok := y.outer.chunkInsertionPointMap[preferredChunk]
 	if !ok {
 		destParent = y.outer.compiler.GetNodeForCodeInsertion(preferredChunk)
@@ -846,17 +821,17 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) MoveStatementsToCh
 	if len(y.dsgsSlice) == 1 {
 		stmts := y.dsgsSlice[0].statements
 		for i := len(stmts) - 1; i >= 0; i-- {
-			y.moveSingleStatementToChunk(stmts[i], destParent)
+			y.moveSingleStmtToChunk(stmts[i], destParent)
 		}
 		return
 	}
-	for _, statement := range y.GetStatementsLastFirst() {
-		y.moveSingleStatementToChunk(statement, destParent)
+	for _, statement := range y.stmtsLastFirst() {
+		y.moveSingleStmtToChunk(statement, destParent)
 	}
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getStatementsLastFirst()
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastFirst() []*CrossChunkReferenceCollector_TopLevelStatement {
+func (y *cccmDsgCycle) stmtsLastFirst() []*CrossChunkReferenceCollector_TopLevelStatement {
 	var result []*CrossChunkReferenceCollector_TopLevelStatement
 	for _, dsg := range y.dsgsSlice {
 		result = mergeDescendingBy(
@@ -870,10 +845,10 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetStatementsLastF
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.getPreferredChunk(BitSet)
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetPreferredChunk(chunksWithImmovableReferences *smallBitSet) *JSChunk {
+func (y *cccmDsgCycle) preferredChunk(chunksWithImmovableReferences *smallBitSet) *JSChunk {
 	if chunksWithImmovableReferences.IsEmpty() {
 		return y.currentChunk
-	} else if !y.AllStatementsCanMove() {
+	} else if !y.allStmtsCanMove() {
 		return y.currentChunk
 	} else {
 		return y.outer.graph.getSmallestCoveringSubtree(y.currentChunk, chunksWithImmovableReferences)
@@ -881,9 +856,9 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) GetPreferredChunk(
 }
 
 // Java: CrossChunkCodeMotion.DeclarationStatementGroupCycle.allStatementsCanMove()
-func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) AllStatementsCanMove() bool {
+func (y *cccmDsgCycle) allStmtsCanMove() bool {
 	for _, dsg := range y.dsgsSlice {
-		if !dsg.AllStatementsCanMove() {
+		if !dsg.allStmtsCanMove() {
 			return false
 		}
 	}
@@ -893,7 +868,7 @@ func (y *CrossChunkCodeMotion_DeclarationStatementGroupCycle) AllStatementsCanMo
 type instanceofRef struct {
 	node    rhino.Node
 	chunk   *JSChunk
-	dsg     *CrossChunkCodeMotion_DeclarationStatementGroup
+	dsg     *cccmDsg
 	movable bool
 }
 
@@ -904,32 +879,32 @@ func (r instanceofRef) targetChunk() *JSChunk {
 	return r.chunk
 }
 
-// IsUndefinedTypeofGuardReference: is the reference node the first Ref in
-// an expression like 'undefined' != typeof Ref && x instanceof Ref?
+// isUndefinedTypeofGuardRef reports whether the reference node is the first Ref
+// in an expression like 'undefined' != typeof Ref && x instanceof Ref.
 //
 // It's safe to ignore this kind of reference when moving the definition of
 // Ref.
 //
 // Java: CrossChunkCodeMotion.isUndefinedTypeofGuardReference(Node)
-func (c *CrossChunkCodeMotion) IsUndefinedTypeofGuardReference(reference rhino.Node) bool {
+func (c *CrossChunkCodeMotion) isUndefinedTypeofGuardRef(reference rhino.Node) bool {
 	// reference => typeof => `!=`
 	maybeTypeofGuard := reference.GetGrandparent()
-	if !maybeTypeofGuard.IsNil() && c.IsExistenceTypeofGuardFor(maybeTypeofGuard, reference) {
+	if !maybeTypeofGuard.IsNil() && c.isExistenceTypeofGuardFor(maybeTypeofGuard, reference) {
 		if andBin, ok := ast.AsBinaryOf(maybeTypeofGuard.GetParent(), rhino.Token_AND); ok {
-			return c.IsInstanceofFor(andBin.Right().Node(), reference)
+			return c.isInstanceofFor(andBin.Right().Node(), reference)
 		}
 	}
 	return false
 }
 
-// IsExistenceTypeofGuardFor: is the expression of the form 'undefined' !=
-// typeof Ref or 'function' == typeof Ref?
+// isExistenceTypeofGuardFor reports whether the expression is of the form
+// 'undefined' != typeof Ref or 'function' == typeof Ref.
 //
 // expression is the expression being checked; reference the Ref node must
 // be equivalent to this node.
 //
 // Java: CrossChunkCodeMotion.isExistenceTypeofGuardFor(Node, Node)
-func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression rhino.Node, reference rhino.Node) bool {
+func (c *CrossChunkCodeMotion) isExistenceTypeofGuardFor(expression rhino.Node, reference rhino.Node) bool {
 	bin, ok := ast.AsBinary(expression)
 	if !ok {
 		return false
@@ -951,28 +926,28 @@ func (c *CrossChunkCodeMotion) IsExistenceTypeofGuardFor(expression rhino.Node, 
 	return ok && typeofOp.Operand().Node().IsEquivalentTo(reference)
 }
 
-// IsGuardedInstanceofReference: is the reference node the second Ref in an
-// expression like 'undefined' != typeof Ref && x instanceof Ref?
+// isGuardedInstanceofRef reports whether the reference node is the second Ref
+// in an expression like 'undefined' != typeof Ref && x instanceof Ref.
 //
 // It's safe to ignore this kind of reference when moving the definition of
 // Ref.
 //
 // Java: CrossChunkCodeMotion.isGuardedInstanceofReference(Node)
-func (c *CrossChunkCodeMotion) IsGuardedInstanceofReference(reference rhino.Node) bool {
+func (c *CrossChunkCodeMotion) isGuardedInstanceofRef(reference rhino.Node) bool {
 	instanceofNode := reference.GetParent()
-	if c.IsInstanceofFor(instanceofNode, reference) {
+	if c.isInstanceofFor(instanceofNode, reference) {
 		if andBin, ok := ast.AsBinaryOf(instanceofNode.GetParent(), rhino.Token_AND); ok {
-			return c.IsExistenceTypeofGuardFor(andBin.Left().Node(), reference)
+			return c.isExistenceTypeofGuardFor(andBin.Left().Node(), reference)
 		}
 	}
 	return false
 }
 
-// IsUnguardedInstanceofReference: is the reference the right hand side of
-// an instanceof and not guarded?
+// isUnguardedInstanceofRef reports whether the reference is the right hand side
+// of an instanceof and not guarded.
 //
 // Java: CrossChunkCodeMotion.isUnguardedInstanceofReference(Node)
-func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference rhino.Node) bool {
+func (c *CrossChunkCodeMotion) isUnguardedInstanceofRef(reference rhino.Node) bool {
 	instanceofBin, ok := ast.AsBinaryOf(reference.GetParent(), rhino.Token_INSTANCEOF)
 	if !ok || !instanceofBin.Right().Node().IsEquivalentTo(reference) {
 		return false
@@ -980,15 +955,15 @@ func (c *CrossChunkCodeMotion) IsUnguardedInstanceofReference(reference rhino.No
 	if c.compiler.GetAstAnalyzer().MayHaveSideEffects(instanceofBin.Left().Node()) {
 		return false
 	}
-	return !c.IsGuardedInstanceofReference(reference)
+	return !c.isGuardedInstanceofRef(reference)
 }
 
-// IsInstanceofFor: is the expression of the form x instanceof Ref?
+// isInstanceofFor reports whether the expression is of the form x instanceof Ref.
 //
 // reference is the Ref node; it must be equivalent to this node.
 //
 // Java: CrossChunkCodeMotion.isInstanceofFor(Node, Node)
-func (c *CrossChunkCodeMotion) IsInstanceofFor(expression rhino.Node, reference rhino.Node) bool {
+func (c *CrossChunkCodeMotion) isInstanceofFor(expression rhino.Node, reference rhino.Node) bool {
 	bin, ok := ast.AsBinaryOf(expression, rhino.Token_INSTANCEOF)
 	return ok && bin.Right().Node().IsEquivalentTo(reference)
 }

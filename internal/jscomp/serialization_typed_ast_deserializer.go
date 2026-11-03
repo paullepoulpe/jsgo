@@ -180,8 +180,8 @@ type TypedAstDeserializer struct {
 	filePoolBuilder               map[string]*SourceFile
 	canonicalFilePool             map[string]*SourceFile
 	typedAstFilesystem            typedAstFilesystemMap
-	externProperties              *jutil.LinkedHashSet[string]
-	runtimeLibraries              *jutil.LinkedHashSet[string]
+	externProperties              *OrderedSet[string]
+	runtimeLibraries              *OrderedSet[string]
 	syntheticExternsDeserializers []*ScriptNodeDeserializer
 }
 
@@ -205,8 +205,8 @@ func newTypedAstDeserializer(
 		filePoolBuilder:    make(map[string]*SourceFile, capHint),
 		canonicalFilePool:  make(map[string]*SourceFile),
 		typedAstFilesystem: make(typedAstFilesystemMap, capHint),
-		externProperties:   jutil.NewLinkedHashSet[string](),
-		runtimeLibraries:   jutil.NewLinkedHashSet[string](),
+		externProperties:   NewOrderedSet[string](),
+		runtimeLibraries:   NewOrderedSet[string](),
 	}
 	d.syntheticExterns = syntheticExterns
 	d.mode = mode
@@ -505,7 +505,11 @@ func (d *TypedAstDeserializer) deserializeTypedAstWithStringShard(
 	if d.colorPoolBuilder != nil {
 		colorShard = d.colorPoolBuilder.AddShard(typedAstProto.GetTypePool(), stringShard)
 	}
-	for _, x := range typedAstProto.GetExternsSummary().GetPropNamePtrList() {
+	propNamePtrs := typedAstProto.GetExternsSummary().GetPropNamePtrList()
+	if d.externProperties.IsEmpty() && len(propNamePtrs) > orderedMapIndexThreshold {
+		d.externProperties = NewOrderedSetWithCapacity[string](len(propNamePtrs))
+	}
+	for _, x := range propNamePtrs {
 		d.externProperties.Add(stringShard.Get(int(x)))
 	}
 
@@ -798,8 +802,8 @@ func typedAstDeserializer_deserializeTypedAsts(
 type TypedAstDeserializer_DeserializedAst struct {
 	filesystem       typedAstFilesystemMap
 	colorRegistry    *colors.ColorRegistry // Optional: nil when absent
-	externProperties *jutil.LinkedHashSet[string]
-	runtimeLibraries *jutil.LinkedHashSet[string]
+	externProperties *OrderedSet[string]
+	runtimeLibraries *OrderedSet[string]
 }
 
 // GetColorRegistry is the built ColorRegistry (nil when absent).
@@ -820,12 +824,12 @@ func (a *TypedAstDeserializer_DeserializedAst) GetColorRegistry() *colors.ColorR
 // but not serialized on the AST
 //
 // Java: TypedAstDeserializer.DeserializedAst.getExternProperties()
-func (a *TypedAstDeserializer_DeserializedAst) GetExternProperties() *jutil.LinkedHashSet[string] {
+func (a *TypedAstDeserializer_DeserializedAst) GetExternProperties() *OrderedSet[string] {
 	return a.externProperties
 }
 
 // Java: TypedAstDeserializer.DeserializedAst.getRuntimeLibraries()
-func (a *TypedAstDeserializer_DeserializedAst) GetRuntimeLibraries() *jutil.LinkedHashSet[string] {
+func (a *TypedAstDeserializer_DeserializedAst) GetRuntimeLibraries() *OrderedSet[string] {
 	return a.runtimeLibraries
 }
 
@@ -833,8 +837,8 @@ func (a *TypedAstDeserializer_DeserializedAst) GetRuntimeLibraries() *jutil.Link
 func typedAstDeserializer_DeserializedAst_create(
 	filesystem typedAstFilesystemMap,
 	colorRegistry *colors.ColorRegistry,
-	externProperties *jutil.LinkedHashSet[string],
-	runtimeLibraries *jutil.LinkedHashSet[string]) *TypedAstDeserializer_DeserializedAst {
+	externProperties *OrderedSet[string],
+	runtimeLibraries *OrderedSet[string]) *TypedAstDeserializer_DeserializedAst {
 	if filesystem == nil {
 		panic(jutil.NewNullPointerExceptionMsg("Null filesystem"))
 	}

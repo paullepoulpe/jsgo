@@ -176,13 +176,11 @@ func (f *SuggestedFix) GetReplacements() FileReplacements {
 	return f.replacements
 }
 
+// Description returns the optional description of this fix.
+//
 // Java: SuggestedFix.getDescription()
-func (f *SuggestedFix) GetDescription() *string {
-	if !f.hasDescription {
-		return nil
-	}
-	s := f.description
-	return &s
+func (f *SuggestedFix) Description() (string, bool) {
+	return f.description, f.hasDescription
 }
 
 // Java: SuggestedFix.getAlternatives()
@@ -499,7 +497,9 @@ func (b *SuggestedFix_Builder) AddOrReplaceJsDoc(n rhino.Node, newJsDoc string) 
 	}
 	if jsDoc := jscomp.NodeUtil_GetBestJSDocInfo(n); jsDoc != nil {
 		offset = jsDoc.GetOriginalCommentPosition()
-		length = jutil.StringLength(*jsDoc.GetOriginalCommentString())
+		comment, ok := jsDoc.GetOriginalCommentStringValue()
+		jutil.CheckState(ok)
+		length = jutil.StringLength(comment)
 	}
 	b.replacements.Put(*n.GetSourceFileName(), CodeReplacement_Create(offset, length, newJsDoc))
 	return b
@@ -529,10 +529,9 @@ func (b *SuggestedFix_Builder) ChangeJsDocType(n rhino.Node, compiler jscomp.Abs
 func (b *SuggestedFix_Builder) ReplaceTypePattern(n rhino.Node, type_ string, pattern *jutil.Pattern) {
 	info := jscomp.NodeUtil_GetBestJSDocInfo(n)
 	jutil.CheckNotNullMsg1(info, "Node %s does not have JS Doc associated with it.", n)
-	originalComment := info.GetOriginalCommentString()
 	originalPosition := info.GetOriginalCommentPosition()
-	if originalComment != nil {
-		m := pattern.Matcher(*originalComment)
+	if originalComment, ok := info.GetOriginalCommentStringValue(); ok {
+		m := pattern.Matcher(originalComment)
 		for m.Find() {
 			b.replacements.Put(
 				*n.GetSourceFileName(),
@@ -641,7 +640,7 @@ func (b *SuggestedFix_Builder) AddImport(
 	m *Match, namespace string, importType SuggestedFix_ImportType, scriptMetadata *ScriptMetadata) *SuggestedFix_Builder {
 	alias, hasAlias := "", false
 	if scriptMetadata.SupportsRequireAliases() {
-		if existingAlias, ok := scriptMetadata.lookupAlias(namespace); ok {
+		if existingAlias, ok := scriptMetadata.GetAlias(namespace); ok {
 			alias, hasAlias = existingAlias, true
 		} else if strings.IndexByte(namespace, '.') == -1 {
 			alias, hasAlias = namespace, true
@@ -832,13 +831,14 @@ func (b *SuggestedFix_Builder) GenerateCode(compiler jscomp.AbstractCompiler, no
 	compilerOptions.SetUseOriginalNamesInOutput(true)
 	compilerOptions.SetPreserveNonJSDocComments(true)
 	compilerOptions.SetTrustedStrings(true)
-	return jscomp.NewCodePrinter_Builder(node).
-		SetCompilerOptions(compilerOptions).
-		SetTypeRegistry(compiler.GetTypeRegistry()).
-		SetPrettyPrint(true).
-		SetLineBreak(true).
-		SetOutputTypes(true).
-		Build()
+	return jscomp.PrintCode(jscomp.CodePrintConfig{
+		Root:        node,
+		Options:     compilerOptions,
+		Registry:    compiler.GetTypeRegistry(),
+		PrettyPrint: true,
+		LineBreak:   true,
+		OutputTypes: true,
+	})
 }
 
 // Java: SuggestedFix.Builder.setDescription(String)
@@ -868,12 +868,9 @@ type SuggestedFix_MatchedNodeInfo struct {
 
 // Java: SuggestedFix.MatchedNodeInfo(String, int, int, boolean)
 func NewSuggestedFix_MatchedNodeInfo(
-	sourceFilename *string, lineno int, charno int, inClosurizedFile bool) *SuggestedFix_MatchedNodeInfo {
-	if sourceFilename == nil {
-		panic(jutil.NewNullPointerExceptionMsg("sourceFilename"))
-	}
+	sourceFilename string, lineno int, charno int, inClosurizedFile bool) *SuggestedFix_MatchedNodeInfo {
 	return &SuggestedFix_MatchedNodeInfo{
-		sourceFilename:   *sourceFilename,
+		sourceFilename:   sourceFilename,
 		lineno:           lineno,
 		charno:           charno,
 		inClosurizedFile: inClosurizedFile,
@@ -889,8 +886,12 @@ func (i *SuggestedFix_MatchedNodeInfo) GetCharno() int         { return i.charno
 
 // Java: SuggestedFix.MatchedNodeInfo.create(Node, boolean)
 func SuggestedFix_MatchedNodeInfo_Create(node rhino.Node, closurized bool) *SuggestedFix_MatchedNodeInfo {
+	sourceFilename := jscomp.NodeUtil_GetSourceName(node)
+	if sourceFilename == nil {
+		panic(jutil.NewNullPointerExceptionMsg("sourceFilename"))
+	}
 	return NewSuggestedFix_MatchedNodeInfo(
-		jscomp.NodeUtil_GetSourceName(node), node.GetLineno(), node.GetCharno(), closurized)
+		*sourceFilename, node.GetLineno(), node.GetCharno(), closurized)
 }
 
 // Java: SuggestedFix.getStartPositionForNodeConsideringComments(Node)

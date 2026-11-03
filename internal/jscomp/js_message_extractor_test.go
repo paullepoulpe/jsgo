@@ -282,10 +282,16 @@ func jsMessageExtractorTest_assertEquals(t *testing.T, expected *JsMessage, actu
 	if !actual.JsPlaceholderNames().Equal(expected.JsPlaceholderNames()) {
 		t.Errorf("jsPlaceholderNames = %v, want %v", actual.JsPlaceholderSlice(), expected.JsPlaceholderSlice())
 	}
-	if !jutil.ObjectsEquals(actual.GetDesc(), expected.GetDesc()) {
-		t.Errorf("desc = %v, want %v", jutil.ToJavaString(actual.GetDesc()), jutil.ToJavaString(expected.GetDesc()))
+	if ad, aok := actual.DescOpt(); true {
+		ed, eok := expected.DescOpt()
+		if aok != eok || ad != ed {
+			t.Errorf("desc = %v, want %v", jsMessage_optStringFormat(ad, aok), jsMessage_optStringFormat(ed, eok))
+		}
 	}
-	if !jutil.ObjectsEquals(actual.GetMeaning(), expected.GetMeaning()) {
-		t.Errorf("meaning = %v, want %v", jutil.ToJavaString(actual.GetMeaning()), jutil.ToJavaString(expected.GetMeaning()))
+	if am, aok := actual.MeaningOpt(); true {
+		em, eok := expected.MeaningOpt()
+		if aok != eok || am != em {
+			t.Errorf("meaning = %v, want %v", jsMessage_optStringFormat(am, aok), jsMessage_optStringFormat(em, eok))
+		}
 	}
 }

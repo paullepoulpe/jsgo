@@ -83,14 +83,17 @@ func (c *ErrorToFixMapperTest) SetUp() {
 //
 // Java: @AutoValue abstract static class ErrorToFixMapperTest.ExpectedFix
 type ErrorToFixMapperTest_ExpectedFix struct {
-	description *string
-	fixedCode   string
+	description    string
+	hasDescription bool
+	fixedCode      string
 }
 
-// Description is the optional string describing the fix.
+// Description returns the optional string describing the fix.
 //
 // Java: ErrorToFixMapperTest.ExpectedFix.description()
-func (f *ErrorToFixMapperTest_ExpectedFix) Description() *string { return f.description }
+func (f *ErrorToFixMapperTest_ExpectedFix) Description() (string, bool) {
+	return f.description, f.hasDescription
+}
 
 // FixedCode is what the code should look like after applying the fix.
 //
@@ -110,14 +113,16 @@ func ErrorToFixMapperTest_ExpectedFix_Builder_() *ErrorToFixMapperTest_ExpectedF
 //
 // Java: @AutoValue.Builder abstract static class ErrorToFixMapperTest.ExpectedFix.Builder
 type ErrorToFixMapperTest_ExpectedFix_Builder struct {
-	description  *string
-	fixedCode    string
-	fixedCodeSet bool
+	description    string
+	hasDescription bool
+	fixedCode      string
+	fixedCodeSet   bool
 }
 
 // Java: ErrorToFixMapperTest.ExpectedFix.Builder.description(String)
 func (b *ErrorToFixMapperTest_ExpectedFix_Builder) Description(description string) *ErrorToFixMapperTest_ExpectedFix_Builder {
-	b.description = &description
+	b.description = description
+	b.hasDescription = true
 	return b
 }
 
@@ -133,7 +138,11 @@ func (b *ErrorToFixMapperTest_ExpectedFix_Builder) Build() *ErrorToFixMapperTest
 	if !b.fixedCodeSet {
 		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties: fixedCode"))
 	}
-	return &ErrorToFixMapperTest_ExpectedFix{description: b.description, fixedCode: b.fixedCode}
+	return &ErrorToFixMapperTest_ExpectedFix{
+		description:    b.description,
+		hasDescription: b.hasDescription,
+		fixedCode:      b.fixedCode,
+	}
 }
 
 // Java: ErrorToFixMapperTest.testMissingSuperCall()
@@ -2603,9 +2612,16 @@ func (c *ErrorToFixMapperTest) AssertExpectedFixes(originalCode string, expected
 	for i := 0; i < len(fixes); i++ {
 		expectedFix := expectedFixes[i]
 		actualFix := fixes[i]
+		actualDesc, actualHasDesc := actualFix.Description()
+		expectedDesc, expectedHasDesc := expectedFix.Description()
 		testjunit.AssertWithMessage("Actual fix[%s]: %s", i, actualFix).
-			That(errorToFixMapperTest_nullable(actualFix.GetDescription())).
-			IsEqualTo(errorToFixMapperTest_nullable(expectedFix.Description()))
+			That(actualHasDesc).
+			IsEqualTo(expectedHasDesc)
+		if expectedHasDesc {
+			testjunit.AssertWithMessage("Actual fix[%s]: %s", i, actualFix).
+				That(actualDesc).
+				IsEqualTo(expectedDesc)
+		}
 		testjunit.AssertThat(
 			ApplyToCode(
 				[]*SuggestedFix{fixes[i]}, c.GetInputMap(originalCode))).
@@ -2639,14 +2655,4 @@ func errorToFixMapperTest_get(m map[string]string, key string) any {
 		return v
 	}
 	return nil
-}
-
-// errorToFixMapperTest_nullable is a nullable String as Truth compares it.
-//
-// Go-only: test-helper.
-func errorToFixMapperTest_nullable(s *string) any {
-	if s == nil {
-		return nil
-	}
-	return *s
 }

@@ -124,8 +124,12 @@ func refactoringFixesDump_fix(sb *strings.Builder, i int, fix *refactoring.Sugge
 		at = info.SourceFilename() + ":" + strconv.Itoa(info.Lineno()) + ":" + strconv.Itoa(info.Charno()) +
 			" closurized=" + strconv.FormatBool(info.InClosurizedFile())
 	}
+	desc := "null"
+	if d, ok := fix.Description(); ok {
+		desc = d
+	}
 	checksDumpLine(sb, "fix "+strconv.Itoa(i)+" alts="+strconv.Itoa(len(fix.GetAlternatives()))+
-		" desc="+jutil.ToJavaString(fix.GetDescription())+" at="+at)
+		" desc="+desc+" at="+at)
 	for k, r := range fix.GetReplacements().Entries() {
 		checksDumpLine(sb, "  "+k+" "+r.String())
 	}

@@ -57,7 +57,7 @@ type ismPropSlot struct {
 // the prototype method is mutated and we don't detect that, inlining it is
 // unsafe. We enable it whenever function inlining is enabled.
 type InlineSimpleMethods struct {
-	externPropBits  smallBitSet
+	externProps     *ExternPropSet
 	externPropsInit bool
 	props           map[uint32]ismPropSlot
 	hasDefs         bool
@@ -88,15 +88,9 @@ func (m *InlineSimpleMethods) ensureProps() map[uint32]ismPropSlot {
 func (m *InlineSimpleMethods) hasExternProp(id uint32) bool {
 	if !m.externPropsInit {
 		m.externPropsInit = true
-		if externProps := m.compiler.GetExternProperties(); externProps != nil {
-			for name := range externProps.All() {
-				if pid := strpool.Lookup(name); pid != 0 {
-					m.externPropBits.Set(int(pid))
-				}
-			}
-		}
+		m.externProps = m.compiler.GetExternPropSet()
 	}
-	return m.externPropBits.Get(int(id))
+	return m.externProps.HasID(strpool.ID(id))
 }
 
 func (m *InlineSimpleMethods) markNonInlineable(propID uint32) {
@@ -123,7 +117,7 @@ func (m *InlineSimpleMethods) Process(externs rhino.Node, root rhino.Node) {
 	defer func() {
 		m.props = nil
 		m.nonInlineableBits = smallBitSet{}
-		m.externPropBits = smallBitSet{}
+		m.externProps = nil
 		m.externPropsInit = false
 		m.hasDefs = false
 	}()
