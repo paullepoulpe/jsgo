@@ -124,10 +124,10 @@ func dumpParseTree(name, src string, config Parser_Config) string {
 		return sb.String()
 	}
 	sb.WriteString("# features " + dumpQuote(p.GetFeatures().String()) + "\n")
-	if url := p.GetSourceMapURL(); url == nil {
+	if url, ok := p.GetSourceMapURL(); !ok {
 		sb.WriteString("# sourceMapURL null\n")
 	} else {
-		sb.WriteString("# sourceMapURL " + dumpQuote(*url) + "\n")
+		sb.WriteString("# sourceMapURL " + dumpQuote(url) + "\n")
 	}
 	sb.WriteString("# comments\n")
 	d := &dumper{sb: &sb, file: file, scanner: p.scanner}

@@ -159,10 +159,10 @@ func dumpParsing(name, src string, config *Config) string {
 		return sb.String()
 	}
 	line("# features " + result.Features.String())
-	if result.SourceMapURL == nil {
+	if !result.HasSourceMapURL {
 		line("# sourceMapURL null")
 	} else {
-		line("# sourceMapURL " + dumpQuote(*result.SourceMapURL))
+		line("# sourceMapURL " + dumpQuote(result.SourceMapURL))
 	}
 	line("# comments")
 	for _, c := range result.Comments {

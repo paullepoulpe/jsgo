@@ -469,20 +469,20 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 //
 // Go-only: language-adapter — see ReferenceCollector.
 func (c *ReferenceCollector) AsStaticSymbolTable() rhino.StaticSymbolTable[*Var, *Reference] {
-	return referenceCollector_staticSymbolTable{c}
+	return rcStaticSymbolTable{c}
 }
 
-// referenceCollector_staticSymbolTable is the
-// rhino.StaticSymbolTable[*Var, *Reference] view of a ReferenceCollector:
-// the same three methods, with StaticSymbolTable's Go result types.
+// rcStaticSymbolTable is the rhino.StaticSymbolTable[*Var, *Reference] view of
+// a ReferenceCollector: the same three methods, with StaticSymbolTable's Go
+// result types.
 //
 // Go-only: language-adapter — see ReferenceCollector.
-type referenceCollector_staticSymbolTable struct {
+type rcStaticSymbolTable struct {
 	c *ReferenceCollector
 }
 
 // Java: ReferenceCollector.getReferences(Var)
-func (t referenceCollector_staticSymbolTable) GetReferences(symbol *Var) iter.Seq[*Reference] {
+func (t rcStaticSymbolTable) GetReferences(symbol *Var) iter.Seq[*Reference] {
 	refs := t.c.GetReferences(symbol)
 	if refs == nil {
 		return nil
@@ -491,7 +491,7 @@ func (t referenceCollector_staticSymbolTable) GetReferences(symbol *Var) iter.Se
 }
 
 // Java: ReferenceCollector.getScope(Var)
-func (t referenceCollector_staticSymbolTable) GetScope(symbol *Var) rhino.StaticScope {
+func (t rcStaticSymbolTable) GetScope(symbol *Var) rhino.StaticScope {
 	if s := t.c.GetScope(symbol); s != nil {
 		return s
 	}
@@ -499,7 +499,7 @@ func (t referenceCollector_staticSymbolTable) GetScope(symbol *Var) rhino.Static
 }
 
 // Java: ReferenceCollector.getAllSymbols()
-func (t referenceCollector_staticSymbolTable) GetAllSymbols() iter.Seq[*Var] {
+func (t rcStaticSymbolTable) GetAllSymbols() iter.Seq[*Var] {
 	return t.c.GetAllSymbols()
 }
 
@@ -532,7 +532,7 @@ func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraver
 	 * reference must be recorded with the containing scope, and traverseAtScope skips bleeding
 	 * function NAME nodes
 	 */
-	c.AddReference(var_, fnNode.GetFirstChild(), t)
+	c.AddReference(var_, ast.MustFunction(fnNode).NameNode().Node(), t)
 	b := c.builderVal()
 	b.TraverseAtScope(c.scopeCreator.CreateScope(fnNode, varScope))
 
@@ -610,10 +610,10 @@ func (c *ReferenceCollector) visitTokens() *ast.TokenSet {
 //
 // Java: ReferenceCollector.CollectorCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if c.nodeBehavior == nil && n.GetFirstChild().IsNil() {
+	if c.nodeBehavior == nil && !n.HasChildren() {
 		switch n.GetToken() {
 		case rhino.Token_NAME, rhino.Token_IMPORT_STAR, rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
-			if referenceCollector_isBlockBoundary(n, parent) {
+			if isBlockBoundary(n, parent) {
 				c.PushNewBlock(n)
 			}
 			return true
@@ -642,7 +642,7 @@ func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhin
 	}
 
 	// If node is a new basic block, put on basic block stack
-	if referenceCollector_isBlockBoundary(n, parent) {
+	if isBlockBoundary(n, parent) {
 		c.PushNewBlock(n)
 	}
 
@@ -721,7 +721,7 @@ func (c *ReferenceCollector) ExitScope(t *NodeTraversal) {
 func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	var addedReference *Reference
 	if tok := n.GetToken(); (tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR) &&
-		!referenceCollector_isNonLocalModuleSpecifierName(n, parent) {
+		!isNonLocalModuleSpecifierName(n, parent) {
 		id := n.GetStringID()
 		var v *Var
 		var scope *Scope
@@ -747,23 +747,23 @@ func (c *ReferenceCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 		c.nodeBehavior.AfterVisitNode(t, n, parent, addedReference)
 	}
 
-	if referenceCollector_isBlockBoundary(n, parent) {
+	if isBlockBoundary(n, parent) {
 		c.PopLastBlock(n)
 	}
 }
 
-// referenceCollector_isNonLocalModuleSpecifierName returns true if n is the
-// non-local name in `import {n as x}` or `export {x as n}`, which is not a
-// reference even though it is a NAME node.
+// isNonLocalModuleSpecifierName reports whether n is the non-local name in
+// `import {n as x}` or `export {x as n}`, which is not a reference even though
+// it is a NAME node.
 //
 // Java: ReferenceCollector.isNonLocalModuleSpecifierName(Node, Node)
-func referenceCollector_isNonLocalModuleSpecifierName(n rhino.Node, parent rhino.Node) bool {
-	if parent.IsNil() {
+func isNonLocalModuleSpecifierName(n rhino.Node, parent rhino.Node) bool {
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleImportSpecImported, ast.RoleExportSpecExported:
+		return true
+	default:
 		return false
 	}
-	pt := parent.GetToken()
-	return (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
-		(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild())
 }
 
 // Java: ReferenceCollector.pushNewBlock(Node)
@@ -798,11 +798,10 @@ var refCollectorParentBoundaryKind = [256]uint8{
 	rhino.Token_DEFAULT_VALUE:    2,
 }
 
-// referenceCollector_isBlockBoundary returns true if this node marks the
-// start of a new basic block
+// isBlockBoundary reports whether this node marks the start of a new basic block.
 //
 // Java: ReferenceCollector.isBlockBoundary(Node, Node)
-func referenceCollector_isBlockBoundary(n rhino.Node, parent rhino.Node) bool {
+func isBlockBoundary(n rhino.Node, parent rhino.Node) bool {
 	if !parent.IsNil() {
 		switch refCollectorParentBoundaryKind[uint8(parent.GetToken())] {
 		case 1:
@@ -813,6 +812,10 @@ func referenceCollector_isBlockBoundary(n rhino.Node, parent rhino.Node) bool {
 	}
 
 	return n.IsCase()
+}
+
+func referenceCollector_isBlockBoundary(n, parent rhino.Node) bool {
+	return isBlockBoundary(n, parent)
 }
 
 // Java: ReferenceCollector.addReference(Var, Node, NodeTraversal)

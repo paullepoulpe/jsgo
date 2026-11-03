@@ -50,15 +50,6 @@ func (p *PrintStream) Println(s string) {
 	p.write("\n")
 }
 
-// PrintlnNullable is PrintStream.println(String) for a possibly-null String.
-func (p *PrintStream) PrintlnNullable(s *string) {
-	if s == nil {
-		p.Println("null")
-		return
-	}
-	p.Println(*s)
-}
-
 // PrintlnEmpty is PrintStream.println().
 func (p *PrintStream) PrintlnEmpty() { p.write("\n") }
 

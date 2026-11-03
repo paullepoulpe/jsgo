@@ -78,13 +78,14 @@ type NodeTraversal struct {
 	scopes    []scopeStackEntry
 	scopesBuf [8]scopeStackEntry
 
-	// The current source file name
-	sourceName *string
-
 	// The current input
 	inputId *rhino.InputId
 
 	compilerInput *CompilerInput
+
+	// The current source file name when hasSourceName is true
+	sourceName    string
+	hasSourceName bool
 }
 
 var nodeTraversalPool = sync.Pool{
@@ -365,18 +366,18 @@ const nodeTraversal_MISSING_SOURCE = "[source unknown]"
 
 // Java: NodeTraversal.formatNodePosition(Node)
 func (t *NodeTraversal) FormatNodePosition(n rhino.Node) string {
-	sourceFileName := t.GetBestSourceFileName(n)
-	if sourceFileName == nil {
+	sourceFileName, ok := t.GetBestSourceFileName(n)
+	if !ok {
 		return nodeTraversal_MISSING_SOURCE + "\n"
 	}
 
 	lineNumber := n.GetLineno()
 	columnNumber := n.GetCharno()
 	src := nodeTraversal_MISSING_SOURCE
-	if line := t.compiler.GetSourceLine(sourceFileName, lineNumber); line != nil {
-		src = *line
+	if line, hasLine := t.compiler.GetSourceLine(sourceFileName, lineNumber); hasLine {
+		src = line
 	}
-	return *sourceFileName + ":" + strconv.Itoa(lineNumber) + ":" + strconv.Itoa(columnNumber) + "\n" + src + "\n"
+	return sourceFileName + ":" + strconv.Itoa(lineNumber) + ":" + strconv.Itoa(columnNumber) + "\n" + src + "\n"
 }
 
 // TraverseWithScope traverses a parse tree recursively with a scope,
@@ -403,24 +404,32 @@ func (t *NodeTraversal) GetCompiler() AbstractCompiler {
 	return t.compiler
 }
 
-var nodeTraversal_emptyString = ""
-
-// GetSourceName gets the current input source name: a string that may be
-// empty, but not null.
-//
-// Go-only: language-adapter — a *string, since the Java String comes from
-// Node.getSourceFileName(), which may be null.
-//
-// Java: NodeTraversal.getSourceName()
-func (t *NodeTraversal) GetSourceName() *string {
-	if t.sourceName == nil {
+// SourceNameOk returns the current input source name and whether one is present.
+// When traversing outside a SCRIPT node, ("", true) is returned (matching Java's
+// non-null "" fallback); when inside a SCRIPT node with no source file name,
+// ("", false) is returned.
+func (t *NodeTraversal) SourceNameOk() (string, bool) {
+	if !t.hasSourceName {
 		if !t.currentScript.IsNil() {
-			t.sourceName = t.currentScript.GetSourceFileName()
+			if s := t.currentScript.GetSourceFileName(); s != nil {
+				t.sourceName = *s
+				t.hasSourceName = true
+			}
 		} else {
-			t.sourceName = &nodeTraversal_emptyString
+			t.sourceName = ""
+			t.hasSourceName = true
 		}
 	}
-	return t.sourceName
+	return t.sourceName, t.hasSourceName
+}
+
+// GetSourceName gets the current input source name, or "" when the current
+// script has no source file name.
+//
+// Java: NodeTraversal.getSourceName()
+func (t *NodeTraversal) GetSourceName() string {
+	s, _ := t.SourceNameOk()
+	return s
 }
 
 // GetInput gets the current input source.
@@ -964,7 +973,8 @@ func (t *NodeTraversal) InitTraversal(traversalRoot rhino.Node) {
 // Java: NodeTraversal.clearScriptState()
 func (t *NodeTraversal) ClearScriptState() {
 	t.inputId = nil
-	t.sourceName = nil
+	t.sourceName = ""
+	t.hasSourceName = false
 	t.compilerInput = nil
 }
 
@@ -977,9 +987,12 @@ func (t *NodeTraversal) GetInputId() *rhino.InputId {
 }
 
 // Java: NodeTraversal.getBestSourceFileName(Node)
-func (t *NodeTraversal) GetBestSourceFileName(n rhino.Node) *string {
+func (t *NodeTraversal) GetBestSourceFileName(n rhino.Node) (string, bool) {
 	if n.IsNil() {
-		return t.GetSourceName()
+		return t.SourceNameOk()
 	}
-	return n.GetSourceFileName()
+	if s := n.GetSourceFileName(); s != nil {
+		return *s, true
+	}
+	return "", false
 }

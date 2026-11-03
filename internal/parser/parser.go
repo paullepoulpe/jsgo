@@ -70,8 +70,8 @@ type Parser struct {
 	functionContextBuf   [8]Parser_FunctionFlavor
 	featureBits          uint64
 	lastSourcePosition   SourcePosition
-	// Go-only: language-adapter — nil is Java null.
-	sourceMapURL *string
+	sourceMapURL         string
+	hasSourceMapURL      bool
 
 	// Go-only: performance — scratch stacks for the lists being parsed (Java
 	// uses an ImmutableList.Builder per list); popStackChunked copies each
@@ -214,8 +214,8 @@ func (c *Parser_CommentRecorder) RecordComment(type_ Comment_Type, range_ LineRa
 	if range_.End.Offset > c.lastCommentEndOffset {
 		value = jutil.StringTrim(value)
 		if strings.HasPrefix(value, Parser_SOURCE_MAPPING_URL_PREFIX) {
-			sourceMapURL := value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
-			c.this.sourceMapURL = &sourceMapURL
+			c.this.sourceMapURL = value[len(Parser_SOURCE_MAPPING_URL_PREFIX):]
+			c.this.hasSourceMapURL = true
 		}
 		c.comments = append(c.comments, NewComment(value, range_, type_))
 		c.lastCommentEndOffset = range_.End.Offset
@@ -246,12 +246,12 @@ func (p *Parser) GetFeatures() FeatureSet {
 	return FeatureSet{bits: p.featureBits | featureSetPresentBit}
 }
 
-// GetSourceMapURL returns the url provided by the sourceMappingURL if any
-// was found (nil otherwise).
+// GetSourceMapURL returns the url provided by the sourceMappingURL and whether
+// one was found.
 //
 // Java: Parser.getSourceMapURL()
-func (p *Parser) GetSourceMapURL() *string {
-	return p.sourceMapURL
+func (p *Parser) GetSourceMapURL() (string, bool) {
+	return p.sourceMapURL, p.hasSourceMapURL
 }
 
 // 14 Program

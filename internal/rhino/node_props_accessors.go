@@ -690,7 +690,7 @@ func (n Node) SetPropListHead(propListHead *Node_PropListItem) {
 	for x := propListHead; x != nil; x = x.next {
 		s := nodePropSpecs[x.propType]
 		if x.isObject {
-			if !jutil.IsNil(x.objectValue) {
+			if x.objectValue != nil {
 				switch s.kind {
 				case propKindJSDoc:
 					flags |= propFlagHasJSDoc

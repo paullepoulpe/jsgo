@@ -390,11 +390,11 @@ func (c *MakeDeclaredNamesUnique_ContextualRenameInverter) Process(externs rhino
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.getOriginalName(String)
 func MakeDeclaredNamesUnique_ContextualRenameInverter_GetOriginalName(name string) string {
-	index := MakeDeclaredNamesUnique_ContextualRenameInverter_IndexOfSeparator(name)
+	index := strings.LastIndex(name, MakeDeclaredNamesUnique_ContextualRenamer_UNIQUE_ID_SEPARATOR)
 	if index <= 0 {
 		return name
 	}
-	return jutil.StringSubstring(name, 0, index)
+	return name[:index]
 }
 
 // Java: MakeDeclaredNamesUnique.ContextualRenameInverter.indexOfSeparator(String)

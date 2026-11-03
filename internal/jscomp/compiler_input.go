@@ -866,10 +866,10 @@ func (a *CompilerInput_JsAst) installParseResult(compiler AbstractCompiler, resu
 	if compiler.GetOptions().PreservesDetailedSourceInfo() {
 		compiler.AddComments(sourceFile.GetName(), result.Comments)
 	}
-	if result.SourceMapURL != nil && compiler.GetOptions().GetResolveSourceMapAnnotations() {
+	if result.HasSourceMapURL && compiler.GetOptions().GetResolveSourceMapAnnotations() {
 		parseInline := compiler.GetOptions().GetParseInlineSourceMaps()
 		sourceMapSourceFile :=
-			SourceMapResolver_ExtractSourceMap(sourceFile, *result.SourceMapURL, parseInline)
+			SourceMapResolver_ExtractSourceMap(sourceFile, result.SourceMapURL, parseInline)
 		if sourceMapSourceFile != nil {
 			compiler.AddInputSourceMap(
 				sourceFile.GetName(), NewSourceMapInput(sourceMapSourceFile))

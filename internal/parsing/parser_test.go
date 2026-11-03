@@ -9410,6 +9410,7 @@ console.log(new X(1));
 //# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9vLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiZm9vLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBO0lBR0UsV0FBWSxLQUFhO1FBQ3ZCLElBQUksQ0FBQyxDQUFDLEdBQUcsS0FBSyxDQUFDO0lBQ2pCLENBQUM7SUFDSCxRQUFDO0FBQUQsQ0FBQyxBQU5ELElBTUM7QUFFRCxPQUFPLENBQUMsR0FBRyxDQUFDLElBQUksQ0FBQyxDQUFDLENBQUMsQ0FBQyxDQUFDLENBQUMifQ==
 `
 	result := pt.doParse(code)
+	assertThat(t, result.HasSourceMapURL).IsEqualTo(true)
 	assertThat(t, result.SourceMapURL).
 		IsEqualTo(
 			"data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZm9vLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiZm9vLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBO0lBR0UsV0FBWSxLQUFhO1FBQ3ZCLElBQUksQ0FBQyxDQUFDLEdBQUcsS0FBSyxDQUFDO0lBQ2pCLENBQUM7SUFDSCxRQUFDO0FBQUQsQ0FBQyxBQU5ELElBTUM7QUFFRCxPQUFPLENBQUMsR0FBRyxDQUFDLElBQUksQ0FBQyxDQUFDLENBQUMsQ0FBQyxDQUFDLENBQUMifQ==")
@@ -9430,6 +9431,7 @@ console.log(new X(1));
 //# sourceMappingURL=somefile.js.map
 `
 	result := pt.doParse(code)
+	assertThat(t, result.HasSourceMapURL).IsEqualTo(true)
 	assertThat(t, result.SourceMapURL).IsEqualTo("somefile.js.map")
 }
 
@@ -9442,6 +9444,7 @@ func TestParseSourceMapAbsoluteURL(t *testing.T) {
 //# sourceMappingURL=/some/absolute/path/to/somefile.js.map
 `
 	result := pt.doParse(code)
+	assertThat(t, result.HasSourceMapURL).IsEqualTo(true)
 	assertThat(t, result.SourceMapURL).IsEqualTo("/some/absolute/path/to/somefile.js.map")
 }
 
@@ -9454,6 +9457,7 @@ func TestParseSourceMapAbsoluteURLHTTP(t *testing.T) {
 //# sourceMappingURL=http://google.com/some/absolute/path/to/somefile.js.map
 `
 	result := pt.doParse(code)
+	assertThat(t, result.HasSourceMapURL).IsEqualTo(true)
 	assertThat(t, result.SourceMapURL).
 		IsEqualTo("http://google.com/some/absolute/path/to/somefile.js.map")
 }

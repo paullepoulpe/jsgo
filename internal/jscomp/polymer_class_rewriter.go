@@ -32,8 +32,8 @@ import (
 var polymerElementID = uint32(strpool.Intern("PolymerElement"))
 
 const (
-	polymerClassRewriter_VIRTUAL_FILE                = "<PolymerClassRewriter.java>"
-	polymerClassRewriter_POLYMER_ELEMENT_PROP_CONFIG = "PolymerElementProperties"
+	polymerRewriterVirtualFile   = "<PolymerClassRewriter.java>"
+	polymerElementPropConfigType = "PolymerElementProperties"
 )
 
 var (
@@ -306,7 +306,7 @@ func (r *PolymerClassRewriter) RewritePolymerClassDeclaration(
 	interfaceName := cls.GetInterfaceName(r.compiler.GetUniqueIdSupplier())
 	interfaceType := rhino.NewJSTypeExpression(
 		rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(interfaceName)).SrcrefTree(jsDocInfoNode),
-		polymerClassRewriter_VIRTUAL_FILE)
+		polymerRewriterVirtualFile)
 	classInfo.RecordImplementedInterface(interfaceType)
 	jsDocInfoNode.SetJSDocInfo(classInfo.Build())
 
@@ -317,17 +317,17 @@ func (r *PolymerClassRewriter) RewritePolymerClassDeclaration(
 		r.compiler.ReportChangeToEnclosingScope(insertAfterReference)
 	}
 
-	addReturnTypeIfMissing(cls, "is", rhino.NewJSTypeExpression(rhino.IR_String("string"), polymerClassRewriter_VIRTUAL_FILE))
+	addReturnTypeIfMissing(cls, "is", rhino.NewJSTypeExpression(rhino.IR_String("string"), polymerRewriterVirtualFile))
 
 	type_ := rhino.NewNode(rhino.Token_BANG)
 	array := rhino.IR_String("Array")
 	type_.AddChildToBack(array)
 	array.AddChildToBack(rhino.NewNodeWithChild(rhino.Token_BLOCK, rhino.IR_String("string")))
-	addReturnTypeIfMissing(cls, "observers", rhino.NewJSTypeExpression(type_, polymerClassRewriter_VIRTUAL_FILE))
+	addReturnTypeIfMissing(cls, "observers", rhino.NewJSTypeExpression(type_, polymerRewriterVirtualFile))
 	addReturnTypeIfMissing(
 		cls,
 		"properties",
-		rhino.NewJSTypeExpression(rhino.IR_String(polymerClassRewriter_POLYMER_ELEMENT_PROP_CONFIG), polymerClassRewriter_VIRTUAL_FILE))
+		rhino.NewJSTypeExpression(rhino.IR_String(polymerElementPropConfigType), polymerRewriterVirtualFile))
 
 	if !cls.descriptor.IsNil() {
 		r.convertSimpleObserverStringsToReferences(cls)
@@ -385,7 +385,7 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 			fnDoc.RecordThisType(
 				rhino.NewJSTypeExpression(
 					rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(thisType)).SrcrefTree(keyNode),
-					polymerClassRewriter_VIRTUAL_FILE))
+					polymerRewriterVirtualFile))
 			keyNode.SetJSDocInfo(fnDoc.Build())
 		}
 	}
@@ -404,7 +404,7 @@ func (r *PolymerClassRewriter) addTypesToFunctions(
 		fnDoc.RecordThisType(
 			rhino.NewJSTypeExpression(
 				rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(thisType)).SrcrefTree(defaultValueKey),
-				polymerClassRewriter_VIRTUAL_FILE))
+				polymerRewriterVirtualFile))
 		fnDoc.RecordReturnType(PolymerPassStaticUtils_GetTypeFromProperty(property, r.compiler))
 		defaultValueKey.SetJSDocInfo(fnDoc.Build())
 	}
@@ -444,13 +444,13 @@ func (r *PolymerClassRewriter) getConstructorDoc(cls *PolymerClassDefinition) *r
 	baseType := rhino.NewJSTypeExpression(
 		rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(PolymerPassStaticUtils_GetPolymerElementType(cls))).
 			SrcrefTree(cls.definition),
-		polymerClassRewriter_VIRTUAL_FILE)
+		polymerRewriterVirtualFile)
 	constructorDoc.RecordBaseType(baseType)
 
 	interfaceName := cls.GetInterfaceName(r.compiler.GetUniqueIdSupplier())
 	interfaceType := rhino.NewJSTypeExpression(
 		rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(interfaceName)).SrcrefTree(cls.definition),
-		polymerClassRewriter_VIRTUAL_FILE)
+		polymerRewriterVirtualFile)
 	constructorDoc.RecordImplementedInterface(interfaceType)
 
 	return constructorDoc
@@ -622,7 +622,8 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 
 			fnValue := behaviorFunction.value.CloneTree()
 			NodeUtil_MarkNewScopesChanged(fnValue, r.compiler)
-			exprResult := rhino.IR_ExprResult(rhino.IR_Assign(NodeUtil_NewQName(r.compiler, qualifiedPath+fnName), fnValue))
+			assign := rhino.IR_Assign(NodeUtil_NewQName(r.compiler, qualifiedPath+fnName), fnValue)
+			exprResult := rhino.IR_ExprResult(assign)
 			exprResult.SrcrefTreeIfMissing(behaviorFunction.name)
 
 			info := r.getJSDocInfoBuilderForBehavior(behavior, behaviorFunction)
@@ -652,7 +653,7 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 				}
 			}
 
-			exprResult.GetFirstChild().SetJSDocInfo(info.Build())
+			assign.SetJSDocInfo(info.Build())
 			block.AddChildToBack(exprResult)
 			nameToExprResult[fnName] = exprResult
 		}
@@ -663,7 +664,8 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 				prev.Detach()
 			}
 
-			exprResult := rhino.IR_ExprResult(NodeUtil_NewQName(r.compiler, qualifiedPath+propName))
+			propQName := NodeUtil_NewQName(r.compiler, qualifiedPath+propName)
+			exprResult := rhino.IR_ExprResult(propQName)
 			exprResult.SrcrefTree(behaviorProp.name)
 
 			info := r.getJSDocInfoBuilderForBehavior(behavior, behaviorProp)
@@ -678,7 +680,7 @@ func (r *PolymerClassRewriter) appendBehaviorMembersToBlock(cls *PolymerClassDef
 				}
 			}
 
-			exprResult.GetFirstChild().SetJSDocInfo(info.Build())
+			propQName.SetJSDocInfo(info.Build())
 			block.AddChildToBack(exprResult)
 			nameToExprResult[propName] = exprResult
 		}
@@ -721,14 +723,14 @@ func (r *PolymerClassRewriter) makeReadOnlySetter(prop *PolymerPass_MemberDefini
 	setterName := polymerReadOnlySetterName(propName)
 	fnNode := rhino.IR_Function(rhino.IR_Name(""), rhino.IR_ParamList(rhino.IR_Name(propName)), rhino.IR_Block())
 	r.compiler.ReportChangeToChangeScope(fnNode)
-	exprResNode := rhino.IR_ExprResult(rhino.IR_Assign(NodeUtil_NewQName(r.compiler, qualifiedPath+setterName), fnNode))
+	assign := rhino.IR_Assign(NodeUtil_NewQName(r.compiler, qualifiedPath+setterName), fnNode)
 
 	info := rhino.JSDocInfo_Builder_().ParseDocumentation()
 	info.RecordOverride()
 	propType := PolymerPassStaticUtils_GetTypeFromProperty(prop, r.compiler)
 	info.RecordParameter(propName, propType)
-	exprResNode.GetFirstChild().SetJSDocInfo(info.Build())
-	return exprResNode
+	assign.SetJSDocInfo(info.Build())
+	return rhino.IR_ExprResult(assign)
 }
 
 func (r *PolymerClassRewriter) createExportsAndExterns(
@@ -767,15 +769,15 @@ func (r *PolymerClassRewriter) createExportsAndExterns(
 	for _, prop := range readOnlyProps {
 		propName := prop.name.GetString()
 		setterName := polymerReadOnlySetterName(propName)
-		setterExprNode := rhino.IR_ExprResult(NodeUtil_NewQName(r.compiler, interfaceBasePath+setterName))
+		setterQName := NodeUtil_NewQName(r.compiler, interfaceBasePath+setterName)
 
 		setterInfo := rhino.JSDocInfo_Builder_().ParseDocumentation()
 		propType := PolymerPassStaticUtils_GetTypeFromProperty(prop, r.compiler)
 		unknown := rhino.NewJSTypeExpression(rhino.NewNode(rhino.Token_QMARK), propType.GetSourceName())
 		setterInfo.RecordParameter(propName, unknown)
-		setterExprNode.GetFirstChild().SetJSDocInfo(setterInfo.Build())
+		setterQName.SetJSDocInfo(setterInfo.Build())
 
-		block.AddChildToBack(setterExprNode)
+		block.AddChildToBack(rhino.IR_ExprResult(setterQName))
 	}
 
 	var stmts rhino.Node
@@ -813,8 +815,11 @@ func (r *PolymerClassRewriter) addMethodToObjectExternsUsingExportAnnotation(
 }
 
 func polymerVarToAssign(var_ rhino.Node) rhino.Node {
-	lhs := ast.MustNameDeclaration(var_).MustFirstDeclarator().Node()
-	assign := rhino.IR_Assign(lhs.CloneNode(), lhs.RemoveFirstChild())
+	name := ast.MustNameDeclaration(var_).MustFirstDeclarator().MustName()
+	lhs := name.Node()
+	init, _ := name.Init()
+	rhs := init.Detach().Node()
+	assign := rhino.IR_Assign(lhs.CloneNode(), rhs)
 	return rhino.IR_ExprResult(assign).SrcrefTreeIfMissing(var_)
 }
 
@@ -822,9 +827,9 @@ func (r *PolymerClassRewriter) convertSimpleObserverStringsToReferences(cls *Pol
 	for _, prop := range cls.props {
 		if prop.value.IsObjectLit() {
 			observer := NodeUtil_GetFirstPropMatchingKey(prop.value, "observer")
-			if !observer.IsNil() && observer.IsStringLit() {
+			if str, ok := ast.AsStringLit(observer); ok {
 				observerDirectReference := rhino.IR_GetpropWithMoreProps(
-					cls.target.CloneTree(), "prototype", observer.GetString()).Srcref(observer)
+					cls.target.CloneTree(), "prototype", str.Value()).Srcref(observer)
 				observer.ReplaceWith(observerDirectReference)
 				r.compiler.ReportChangeToEnclosingScope(observerDirectReference)
 			}
@@ -849,23 +854,25 @@ func (r *PolymerClassRewriter) validateComplexObserverReflectionCalls(cls *Polym
 	if getter.IsNil() {
 		return
 	}
-	var complexObservers rhino.Node
 	for stmt := range ast.MustGetterDef(getter).Function().Body().MustBlock().Statements() {
-		if ret, ok := stmt.AsReturn(); ok {
-			if val, hasVal := ret.Value(); hasVal && val.Node().IsArrayLit() {
-				complexObservers = val.Node()
-				break
+		ret, ok := stmt.AsReturn()
+		if !ok {
+			continue
+		}
+		val, hasVal := ret.Value()
+		if !hasVal {
+			continue
+		}
+		complexObservers, ok := val.AsArrayLit()
+		if !ok {
+			continue
+		}
+		for elem := range complexObservers.Elements() {
+			if str, ok := elem.AsStringLit(); ok {
+				r.validateReflectedString(str.Node())
 			}
 		}
-	}
-	if !complexObservers.IsNil() {
-		for complexObserver := complexObservers.GetFirstChild(); !complexObserver.IsNil(); {
-			next := complexObserver.GetNext()
-			if complexObserver.IsStringLit() {
-				r.validateReflectedString(complexObserver)
-			}
-			complexObserver = next
-		}
+		return
 	}
 }
 
@@ -911,9 +918,9 @@ func getInsertionPointForGoogModule(moduleBody rhino.Node) rhino.Node {
 }
 
 func isGoogRequireExpr(statement rhino.Node) bool {
-	if NodeUtil_IsExprCall(statement) &&
-		ModuleImportResolver_IsGoogModuleDependencyCall(statement.GetOnlyChild()) {
-		return true
+	if exprStmt, ok := ast.AsExprStmt(statement); ok {
+		call, ok := exprStmt.Expr().AsCall()
+		return ok && ModuleImportResolver_IsGoogModuleDependencyCall(call.Node())
 	}
 	decl, ok := ast.AsNameDeclaration(statement)
 	if !ok {

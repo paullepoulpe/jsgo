@@ -222,15 +222,15 @@ func (g *SourceMapGeneratorV3) encodeChunk(cp *mappingCheckpoint, count int, max
 	return w.b
 }
 
-// appendToParallel is AppendTo with the parallel mappings encoder.
-func (g *SourceMapGeneratorV3) appendToParallel(out io.StringWriter, name *string) {
+// appendToParallel is AppendToOptional with the parallel mappings encoder.
+func (g *SourceMapGeneratorV3) appendToParallel(out io.StringWriter, name OptionalString) {
 	rawMax, cps := g.prepMappingsParallel()
 	maxLine := jutil.IntAdd(jutil.IntAdd(rawMax, g.prefixPosition.GetLine()), 1)
 
 	appendString(out, "{\n")
 	SourceMapGeneratorV3_AppendFirstField(out, "version", "3")
-	if name != nil {
-		SourceMapGeneratorV3_AppendField(out, "file", SourceMapGeneratorV3_EscapeString(*name))
+	if name.Valid {
+		SourceMapGeneratorV3_AppendField(out, "file", SourceMapGeneratorV3_EscapeString(name.Value))
 	}
 	SourceMapGeneratorV3_AppendField(out, "lineCount", strconv.Itoa(maxLine))
 	if g.sourceRootPath != "" {

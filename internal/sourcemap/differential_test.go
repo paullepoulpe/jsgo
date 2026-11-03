@@ -21,20 +21,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
-// diffStringsEqual is Objects.equals on two nullable strings.
-func diffStringsEqual(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
-}
-
-func diffEsc(s *string) string {
-	if s == nil {
-		return "\\0"
-	}
+func diffEsc(s string) string {
 	var sb strings.Builder
-	for _, c := range jutil.StringToUTF16(*s) {
+	for _, c := range jutil.StringToUTF16(s) {
 		switch {
 		case c == '\\':
 			sb.WriteString("\\\\")
@@ -51,9 +40,9 @@ func diffEsc(s *string) string {
 	return sb.String()
 }
 
-func diffUnescape(t *testing.T, s string) *string {
+func diffUnescape(t *testing.T, s string) sourcemap.OptionalString {
 	if s == "\\0" {
-		return nil
+		return sourcemap.OptionalString{}
 	}
 	var units []uint16
 	for i := 0; i < len(s); i++ {
@@ -81,8 +70,7 @@ func diffUnescape(t *testing.T, s string) *string {
 			t.Fatalf("bad escape in %q", s)
 		}
 	}
-	r := jutil.StringFromUTF16(units)
-	return &r
+	return sourcemap.SomeString(jutil.StringFromUTF16(units))
 }
 
 // diffExc is SourceMapDiff.exc on a recovered panic. JVM exceptions
@@ -118,7 +106,7 @@ func diffExc(r any) string {
 
 func diffSimpleName(o any) string {
 	switch o.(type) {
-	case string, *string:
+	case string:
 		return "String"
 	case int:
 		return "Integer"
@@ -143,14 +131,21 @@ func diffDescribe(o any) string {
 	return diffSimpleName(o) + ":" + jutil.ToJavaString(o)
 }
 
-func diffStr(s *string) string {
-	if s == nil {
+func diffOptStr(s sourcemap.OptionalString) string {
+	if !s.Valid {
 		return "<null>"
 	}
-	return *s
+	return s.Value
 }
 
-func diffStrs(a []*string) string {
+func diffPairStr(s string, ok bool) string {
+	if !ok {
+		return "<null>"
+	}
+	return s
+}
+
+func diffOptStrs(a []sourcemap.OptionalString) string {
 	if a == nil {
 		return "<nullarray>"
 	}
@@ -160,10 +155,17 @@ func diffStrs(a []*string) string {
 		if i > 0 {
 			sb.WriteString("|")
 		}
-		sb.WriteString(diffStr(s))
+		sb.WriteString(diffOptStr(s))
 	}
 	sb.WriteString("]")
 	return sb.String()
+}
+
+func mustStr(s sourcemap.OptionalString) string {
+	if !s.Valid {
+		panic(jutil.NewNullPointerException())
+	}
+	return s.Value
 }
 
 func diffOm(c *sourcemap.SourceMapConsumerV3, lineNumber, column int) string {
@@ -188,15 +190,16 @@ type diffState struct {
 
 func (d *diffState) result(s string) { d.out = append(d.out, s) }
 
-func (d *diffState) resolve(arg *string) string {
-	if arg != nil && strings.HasPrefix(*arg, "@") {
-		n, _ := strconv.Atoi((*arg)[1:])
+func (d *diffState) resolve(arg sourcemap.OptionalString) string {
+	s := mustStr(arg)
+	if strings.HasPrefix(s, "@") {
+		n, _ := strconv.Atoi(s[1:])
 		return d.buffers[n]
 	}
-	return *arg
+	return s
 }
 
-func (d *diffState) emit(op []*string) {
+func (d *diffState) emit(op []sourcemap.OptionalString) {
 	defer func() {
 		if r := recover(); r != nil {
 			d.result(diffExc(r))
@@ -205,8 +208,8 @@ func (d *diffState) emit(op []*string) {
 	d.run(op)
 }
 
-func atoi(s *string) int {
-	n, err := strconv.Atoi(*s)
+func atoi(s sourcemap.OptionalString) int {
+	n, err := strconv.Atoi(mustStr(s))
 	if err != nil {
 		panic(err)
 	}
@@ -219,68 +222,70 @@ func (diffMergeAction) Merge(key string, cur, nw any) any {
 	return "merged(" + key + "," + diffDescribe(cur) + "," + diffDescribe(nw) + ")"
 }
 
-func (d *diffState) run(op []*string) {
-	switch *op[0] {
+func (d *diffState) run(op []sourcemap.OptionalString) {
+	switch mustStr(op[0]) {
 	case "case":
 		d.buffers = nil
 	case "gnew":
 		d.g = sourcemap.NewSourceMapGeneratorV3()
 	case "gfactory":
 		format := sourcemap.SourceMapFormat_V3
-		if *op[1] == "DEFAULT" {
+		if mustStr(op[1]) == "DEFAULT" {
 			format = sourcemap.SourceMapFormat_DEFAULT
 		}
 		d.g = sourcemap.SourceMapGeneratorFactory_GetInstance(format)
 	case "greset":
 		d.g.Reset()
 	case "gvalidate":
-		d.g.Validate(*op[1] == "true")
+		d.g.Validate(mustStr(op[1]) == "true")
 	case "gsourceroot":
-		d.g.SetSourceRoot(*op[1])
+		d.g.SetSourceRoot(mustStr(op[1]))
 	case "gprefix":
-		d.g.SetWrapperPrefix(*op[1])
+		d.g.SetWrapperPrefix(mustStr(op[1]))
 	case "gstart":
 		d.g.SetStartingPosition(atoi(op[1]), atoi(op[2]))
 	case "gmap":
-		d.g.AddMapping(op[1], op[2],
-			sourcemap.NewFilePosition(atoi(op[3]), atoi(op[4])),
-			sourcemap.NewFilePosition(atoi(op[5]), atoi(op[6])),
-			sourcemap.NewFilePosition(atoi(op[7]), atoi(op[8])))
+		origPos := sourcemap.NewFilePosition(atoi(op[3]), atoi(op[4]))
+		startPos := sourcemap.NewFilePosition(atoi(op[5]), atoi(op[6]))
+		endPos := sourcemap.NewFilePosition(atoi(op[7]), atoi(op[8]))
+		if op[1].Valid {
+			d.g.AddMappingPositions(op[1].Value, op[2], origPos, startPos, endPos)
+		}
 	case "gcontent":
-		d.g.AddSourcesContent(*op[1], op[2])
+		d.g.AddSourcesContent(mustStr(op[1]), op[2])
 	case "gext":
 		var value any
-		switch *op[2] {
+		switch mustStr(op[2]) {
 		case "str":
-			value = *op[3]
+			value = mustStr(op[3])
 		case "int":
 			value = atoi(op[3])
 		case "bool":
-			value = strings.EqualFold(*op[3], "true")
+			value = strings.EqualFold(mustStr(op[3]), "true")
 		case "json":
-			if e := jutil.NewGson().FromJsonElement(*op[3]); e != nil {
+			if e := jutil.NewGson().FromJsonElement(mustStr(op[3])); e != nil {
 				value = e
 			}
 		}
-		d.g.AddExtension(*op[1], value)
+		d.g.AddExtension(mustStr(op[1]), value)
 	case "gextrm":
-		d.g.RemoveExtension(*op[1])
+		d.g.RemoveExtension(mustStr(op[1]))
 	case "gexthas":
-		d.result(jutil.ToJavaString(d.g.HasExtension(*op[1])))
+		d.result(jutil.ToJavaString(d.g.HasExtension(mustStr(op[1]))))
 	case "gextget":
-		d.result(diffDescribe(d.g.GetExtension(*op[1])))
+		d.result(diffDescribe(d.g.GetExtension(mustStr(op[1]))))
 	case "gappend":
 		var sb strings.Builder
 		defer func() {
 			d.buffers = append(d.buffers, sb.String())
 			d.result(sb.String())
 		}()
-		d.g.AppendTo(&sb, op[1])
+		d.g.AppendToOptional(&sb, op[1])
 	case "gindex":
 		var sections []*sourcemap.SourceMapSection
 		n := atoi(op[2])
 		for i := 0; i < n; i++ {
-			type_ := *op[3+4*i]
+			type_ := mustStr(op[3+4*i])
 			value := d.resolve(op[4+4*i])
 			line := atoi(op[5+4*i])
 			column := atoi(op[6+4*i])
@@ -295,7 +300,7 @@ func (d *diffState) run(op []*string) {
 			d.buffers = append(d.buffers, sb.String())
 			d.result(sb.String())
 		}()
-		d.g.AppendIndexMapTo(&sb, *op[1], sections)
+		d.g.AppendIndexMapTo(&sb, mustStr(op[1]), sections)
 	case "gmerge":
 		if err := d.g.MergeMapSection(atoi(op[1]), atoi(op[2]), d.resolve(op[3])); err != nil {
 			d.result(diffExc(err))
@@ -318,19 +323,20 @@ func (d *diffState) run(op []*string) {
 	case "cfactory":
 		maps := make(map[string]string, len(op)-2)
 		for _, kv := range op[2:] {
-			eq := strings.IndexByte(*kv, '=')
-			v := (*kv)[eq+1:]
-			maps[(*kv)[:eq]] = d.resolve(&v)
+			kvs := mustStr(kv)
+			eq := strings.IndexByte(kvs, '=')
+			v := kvs[eq+1:]
+			maps[kvs[:eq]] = d.resolve(sourcemap.SomeString(v))
 		}
-		m, err := sourcemap.ParseSourceMapWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) *string {
+		m, err := sourcemap.ParseSourceMapWithSupplier(d.resolve(op[1]), mapSupplierFunc(func(url string) (string, bool) {
 			v, ok := maps[url]
 			if !ok {
-				return nil
+				return "", false
 			}
 			if v == "!io" {
 				panic(jutil.NewIOException("cannot read " + url))
 			}
-			return &v
+			return v, true
 		}))
 		if err != nil {
 			d.result(diffExc(err))
@@ -349,7 +355,7 @@ func (d *diffState) run(op []*string) {
 	case "gbig":
 		var sb strings.Builder
 		sb.WriteString("{\"version\":3,\"mappings\":\"")
-		sb.WriteString(*op[3])
+		sb.WriteString(mustStr(op[3]))
 		sb.WriteString("\",\"sources\":[")
 		for i := 0; i < atoi(op[1]); i++ {
 			if i > 0 {
@@ -373,16 +379,16 @@ func (d *diffState) run(op []*string) {
 		}
 	case "creverse":
 		var sb strings.Builder
-		for _, m := range d.c.GetReverseMapping(*op[1], atoi(op[2]), 0) {
+		for _, m := range d.c.GetReverseMapping(mustStr(op[1]), atoi(op[2]), 0) {
 			sb.WriteString(" " + strconv.Itoa(m.GetLineNumber()) + "," + strconv.Itoa(m.GetColumnPosition()))
 		}
 		d.result(sb.String())
 	case "cvisitcount":
 		n := 0
 		var sb strings.Builder
-		d.c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end sourcemap.FilePosition) {
+		d.c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName sourcemap.OptionalString, src, start, end sourcemap.FilePosition) {
 			if n < 6 {
-				sb.WriteString(diffStr(sourceName) + "|" + diffStr(symbolName) + " ")
+				sb.WriteString(diffOptStr(sourceName) + "|" + diffOptStr(symbolName) + " ")
 			}
 			n++
 		}))
@@ -402,7 +408,7 @@ func (d *diffState) run(op []*string) {
 		d.result(sb.String())
 	case "vdec":
 		it := &base64VLQTest_CharIteratorImpl{}
-		it.set(*op[1])
+		it.set(mustStr(op[1]))
 		var sb strings.Builder
 		defer func() { d.result(sb.String()) }()
 		for it.HasNext() {
@@ -412,11 +418,11 @@ func (d *diffState) run(op []*string) {
 	case "b64":
 		d.result(sourcemap.Base64_Base64EncodeInt(int32(atoi(op[1]))))
 	case "b64from":
-		d.result(jutil.ToJavaString(sourcemap.Base64_FromBase64(jutil.StringToUTF16(*op[1])[0])))
+		d.result(jutil.ToJavaString(sourcemap.Base64_FromBase64(jutil.StringToUTF16(mustStr(op[1]))[0])))
 	case "esc":
-		d.result(sourcemap.Util_EscapeString(*op[1]))
+		d.result(sourcemap.Util_EscapeString(mustStr(op[1])))
 	default:
-		panic("unknown op " + *op[0])
+		panic("unknown op " + mustStr(op[0]))
 	}
 }
 
@@ -431,18 +437,18 @@ func (d *diffState) guarded(body func()) {
 
 func (d *diffState) dumpObject(o *sourcemap.SourceMapObject) {
 	d.result("version=" + strconv.Itoa(o.GetVersion()) + " lineCount=" + strconv.Itoa(o.GetLineCount()))
-	d.result("file=" + diffStr(o.GetFile()))
-	d.result("mappings=" + diffStr(o.GetMappings()))
-	d.result("sourceRoot=" + diffStr(o.GetSourceRoot()))
-	d.result("sources=" + diffStrs(o.GetSources()))
-	d.result("sourcesContent=" + diffStrs(o.GetSourcesContent()))
-	d.result("names=" + diffStrs(o.GetNames()))
+	d.result("file=" + diffPairStr(o.GetFile()))
+	d.result("mappings=" + diffPairStr(o.GetMappings()))
+	d.result("sourceRoot=" + diffPairStr(o.GetSourceRoot()))
+	d.result("sources=" + diffOptStrs(o.GetSources()))
+	d.result("sourcesContent=" + diffOptStrs(o.GetSourcesContent()))
+	d.result("names=" + diffOptStrs(o.GetNames()))
 	if o.GetSections() == nil {
 		d.result("sections=null")
 	} else {
 		for _, s := range o.GetSections() {
 			d.result("section " + s.GetSectionType().String() + " " + strconv.Itoa(s.GetLine()) + " " +
-				strconv.Itoa(s.GetColumn()) + " " + diffStr(s.GetSectionValue()))
+				strconv.Itoa(s.GetColumn()) + " " + diffPairStr(s.GetSectionValue()))
 		}
 	}
 	for _, ext := range o.GetExtensions() {
@@ -453,12 +459,12 @@ func (d *diffState) dumpObject(o *sourcemap.SourceMapObject) {
 func (d *diffState) dumpConsumer() {
 	c := d.c
 	d.guarded(func() {
-		d.result("file=" + diffStr(c.GetFile()) + " lineCount=" + strconv.Itoa(c.GetLineCount()) +
-			" sourceRoot=" + diffStr(c.GetSourceRoot()))
+		d.result("file=" + diffPairStr(c.GetFile()) + " lineCount=" + strconv.Itoa(c.GetLineCount()) +
+			" sourceRoot=" + diffPairStr(c.GetSourceRoot()))
 	})
-	d.guarded(func() { d.result("sources=" + diffStrs(c.GetOriginalSources())) })
-	d.guarded(func() { d.result("sourcesContent=" + diffStrs(c.GetOriginalSourcesContent())) })
-	d.guarded(func() { d.result("names=" + diffStrs(c.GetOriginalNames())) })
+	d.guarded(func() { d.result("sources=" + diffOptStrs(c.OriginalSources())) })
+	d.guarded(func() { d.result("sourcesContent=" + diffOptStrs(c.OriginalSourcesContent())) })
+	d.guarded(func() { d.result("names=" + diffOptStrs(c.GetOriginalNames())) })
 	d.guarded(func() {
 		for _, ext := range c.GetExtensions() {
 			d.result("ext " + ext.Key + "=" + diffDescribe(ext.Value))
@@ -466,8 +472,8 @@ func (d *diffState) dumpConsumer() {
 	})
 	max0, max1, max2 := 0, 0, 0 // line, column, source line
 	d.guarded(func() {
-		c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName *string, src, start, end sourcemap.FilePosition) {
-			d.result("visit " + diffStr(sourceName) + "|" + diffStr(symbolName) + "|" +
+		c.VisitMappings(entryVisitorFunc(func(sourceName, symbolName sourcemap.OptionalString, src, start, end sourcemap.FilePosition) {
+			d.result("visit " + diffOptStr(sourceName) + "|" + diffOptStr(symbolName) + "|" +
 				strconv.Itoa(src.GetLine()) + "," + strconv.Itoa(src.GetColumn()) + "|" +
 				strconv.Itoa(start.GetLine()) + "," + strconv.Itoa(start.GetColumn()) + "|" +
 				strconv.Itoa(end.GetLine()) + "," + strconv.Itoa(end.GetColumn()))
@@ -483,19 +489,18 @@ func (d *diffState) dumpConsumer() {
 		d.guarded(func() {
 			var sb strings.Builder
 			sb.WriteString("L" + strconv.Itoa(l) + ":")
-			var prev *string
+			var prev sourcemap.OptionalString
 			runStart := 0
 			for col := 0; col <= jutil.IntAdd(maxCol, 1); col++ {
-				var cur *string
+				var cur sourcemap.OptionalString
 				if col <= maxCol {
-					s := diffOm(c, l, col)
-					cur = &s
+					cur = sourcemap.SomeString(diffOm(c, l, col))
 				}
-				if prev != nil && !diffStringsEqual(prev, cur) {
-					sb.WriteString(" " + strconv.Itoa(runStart) + "-" + strconv.Itoa(col-1) + "=" + *prev)
+				if prev.Valid && prev != cur {
+					sb.WriteString(" " + strconv.Itoa(runStart) + "-" + strconv.Itoa(col-1) + "=" + prev.Value)
 					runStart = col
 				}
-				if prev == nil {
+				if !prev.Valid {
 					runStart = col
 				}
 				prev = cur
@@ -521,9 +526,9 @@ func (d *diffState) dumpConsumer() {
 				files = append(files, s)
 			}
 		}
-		for _, s := range c.GetOriginalSources() {
-			if s != nil {
-				addFile(*s)
+		for _, s := range c.OriginalSources() {
+			if s.Valid {
+				addFile(s.Value)
 			}
 		}
 		addFile("not-a-source.js")
@@ -586,11 +591,11 @@ func TestDifferentialAgainstJava(t *testing.T) {
 	diffs, outputs := 0, 0
 	skipFastCdump := false
 	for _, c := range calls {
-		op := make([]*string, len(c.op))
+		op := make([]sourcemap.OptionalString, len(c.op))
 		for i, a := range c.op {
 			op[i] = diffUnescape(t, a)
 		}
-		switch *op[0] {
+		switch mustStr(op[0]) {
 		case "ofast", "proto":
 			continue
 		case "cfast":
@@ -615,7 +620,7 @@ func TestDifferentialAgainstJava(t *testing.T) {
 		d.emit(op)
 		got := make([]string, len(d.out))
 		for i, s := range d.out {
-			got[i] = diffEsc(&s)
+			got[i] = diffEsc(s)
 		}
 		outputs += len(c.want)
 		if strings.Join(got, "\n") != strings.Join(c.want, "\n") {

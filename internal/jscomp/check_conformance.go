@@ -199,8 +199,7 @@ func (c *CheckConformance) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent
 	if !c.IsScriptOfInterest(t.GetInput().GetSourceFile()) {
 		return false
 	}
-	sn := t.GetSourceName()
-	return sn == nil || !strings.HasSuffix(*sn, "tsmes.closure.js")
+	return !strings.HasSuffix(t.GetSourceName(), "tsmes.closure.js")
 }
 
 // Java: CheckConformance.isScriptOfInterest(SourceFile)

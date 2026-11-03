@@ -73,7 +73,7 @@ func (f DiagnosticToSuppressionMapper_OutputFormat) String() string {
 func NewDiagnosticToSuppressionMapper(
 	validSuppressions SuppressionNameSet, diagnosticGroups jutil.MapSource[string, *DiagnosticGroup]) *DiagnosticToSuppressionMapper {
 	groups, ok := diagnosticGroups.(*OrderedStringMap[*DiagnosticGroup])
-	if !ok && !jutil.IsNil(diagnosticGroups) {
+	if !ok && diagnosticGroups != nil {
 		groups = NewOrderedStringMapWithCapacity[*DiagnosticGroup](diagnosticGroups.Size())
 		for k, v := range diagnosticGroups.All() {
 			groups.Put(k, v)

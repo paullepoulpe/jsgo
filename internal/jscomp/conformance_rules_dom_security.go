@@ -28,10 +28,10 @@ import (
 )
 
 // Java: ConformanceRules.GOOG_DOM
-var conformanceRules_GOOG_DOM = rhino.QualifiedName_Of("goog.dom")
+var googDomQName = rhino.QualifiedName_Of("goog.dom")
 
 // Java: ConformanceRules.GOOG_DOM_TAGNAME
-var conformanceRules_GOOG_DOM_TAGNAME = rhino.QualifiedName_Of("goog.dom.TagName")
+var googDomTagNameQName = rhino.QualifiedName_Of("goog.dom.TagName")
 
 // ConformanceRules_BanCreateElement bans document.createElement and similar
 // methods with string literal parameter specified in value, e.g. value:
@@ -90,7 +90,7 @@ func (r *ConformanceRules_BanCreateElement) checkCreateElement(call ast.Call) *C
 	}
 
 	srcObj := target.Object().Node()
-	if conformanceRules_GOOG_DOM.Matches(srcObj) {
+	if googDomQName.Matches(srcObj) {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 	type_ := srcObj.GetJSType()
@@ -127,7 +127,7 @@ func newConformanceRules_BanCreateDom(compiler AbstractCompiler, requirement *Re
 	values := requirement.GetValueList()
 	bannedTagAttrs := make([][2]string, 0, len(values))
 	for _, value := range values {
-		tagAttr := conformanceRules_splitToList(conformanceRules_ON_DOT, value)
+		tagAttr := strings.Split(value, ".")
 		if len(tagAttr) != 2 || tagAttr[0] == "" || tagAttr[1] == "" {
 			return nil, errInvalidRequirementSpec("Values must be in the format tagname.attribute.")
 		}
@@ -154,15 +154,14 @@ func (r *ConformanceRules_BanCreateDom) CheckConformance(t *NodeTraversal, n rhi
 	if !ok {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
-	firstArg, hasFirst := call.FirstArg()
-	if !hasFirst {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-	attrsNode := firstArg.Node().GetNext()
-	if attrsNode.IsNil() {
+	cn := call.AsCallOrNew()
+	firstArg, hasFirst := cn.ArgAt(0)
+	attrsArg, hasAttrs := cn.ArgAt(1)
+	if !hasFirst || !hasAttrs {
 		// goog.dom.createDom('iframe') is fine.
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
+	attrsNode := attrsArg.Node()
 
 	tagNames, tagNamesIsNull := r.GetTagNames(firstArg.Node())
 	attrsType := attrsNode.GetJSType()
@@ -179,7 +178,7 @@ func (r *ConformanceRules_BanCreateDom) CheckConformance(t *NodeTraversal, n rhi
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
 
-	hasExtraChildren := !attrsNode.GetNext().IsNil()
+	hasExtraChildren := call.NumArgs() > 2
 
 	for _, tagAttr := range r.bannedTagAttrs {
 		if !tagNamesIsNull && !slices.Contains(tagNames, tagAttr[0]) && tagAttr[0] != "*" {
@@ -221,8 +220,8 @@ func (r *ConformanceRules_BanCreateDom) CheckConformance(t *NodeTraversal, n rhi
 			return violation
 		}
 
-		for attr := objLit.Node().GetFirstChild(); !attr.IsNil(); attr = attr.GetNext() {
-			if attr.IsComputedProp() {
+		for member := range objLit.Members() {
+			if _, isComputed := member.AsComputedProp(); isComputed {
 				// We don't know if the computed property matches 'src' or not
 				if r.reportLooseTypeViolations {
 					return conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
@@ -239,7 +238,7 @@ func (r *ConformanceRules_BanCreateDom) CheckConformance(t *NodeTraversal, n rhi
 func (r *ConformanceRules_BanCreateDom) GetTagNames(tag rhino.Node) (tagNames []string, isNull bool) {
 	if s, ok := ast.AsStringLit(tag); ok {
 		return []string{jutil.StringToLowerCaseRoot(s.Value())}, false
-	} else if gp, ok := ast.AsGetProp(tag); ok && conformanceRules_GOOG_DOM_TAGNAME.Matches(gp.Object().Node()) {
+	} else if gp, ok := ast.AsGetProp(tag); ok && googDomTagNameQName.Matches(gp.Object().Node()) {
 		return []string{jutil.StringToLowerCaseRoot(gp.Property())}, false
 	}
 	type_ := tag.GetJSType()
@@ -247,18 +246,20 @@ func (r *ConformanceRules_BanCreateDom) GetTagNames(tag rhino.Node) (tagNames []
 		return nil, true
 	}
 	typeAsObj := type_.ToMaybeObjectType()
-	if *typeAsObj.GetRawType().GetDisplayName() == "goog.dom.TagName" {
-		tagType := conformanceRules_getOnlyElement(typeAsObj.GetTemplateTypes())
-		var names []string
-		if displayName := tagType.GetDisplayName(); displayName != nil {
-			names = conformanceRules_elementTagNames[*displayName]
+	if typeAsObj != nil && typeAsObj.GetRawType() != nil {
+		if rawDisp := typeAsObj.GetRawType().GetDisplayName(); rawDisp != nil && *rawDisp == "goog.dom.TagName" {
+			tagType := onlyJSTypeElement(typeAsObj.GetTemplateTypes())
+			var names []string
+			if displayName := tagType.GetDisplayName(); displayName != nil {
+				names = htmlElementTagNames[*displayName]
+			}
+			return names, false
 		}
-		return names, false
 	}
 	return nil, true
 }
 
-func conformanceRules_getOnlyElement(types []rhino.JSType) rhino.JSType {
+func onlyJSTypeElement(types []rhino.JSType) rhino.JSType {
 	if len(types) == 0 {
 		panic(jutil.NewNoSuchElementException())
 	}
@@ -281,7 +282,7 @@ func conformanceRules_getOnlyElement(types []rhino.JSType) rhino.JSType {
 }
 
 // Java: ConformanceRules.BanCreateDom.ELEMENT_TAG_NAMES (an ImmutableMultimap)
-var conformanceRules_elementTagNames = map[string][]string{
+var htmlElementTagNames = map[string][]string{
 	"HTMLAnchorElement":       {"a"},
 	"HTMLAppletElement":       {"applet"},
 	"HTMLAreaElement":         {"area"},
@@ -362,7 +363,7 @@ func (r *ConformanceRules_BanCreateDom) asCreateDomCall(n rhino.Node) (ast.Call,
 	}
 
 	srcObj := target.Object().Node()
-	if conformanceRules_GOOG_DOM.Matches(srcObj) {
+	if googDomQName.Matches(srcObj) {
 		return call, true
 	}
 	type_ := srcObj.GetJSType()
@@ -380,7 +381,7 @@ type ConformanceRules_SecuritySensitiveAttributes struct {
 }
 
 // Java: ConformanceRules.SecuritySensitiveAttributes.ALL_BANNED_ATTRS
-var conformanceRules_allBannedAttrs = [...]string{
+var allBannedSecurityAttrs = [...]string{
 	"href",
 	"rel",
 	"src",
@@ -396,7 +397,7 @@ var conformanceRules_allBannedAttrs = [...]string{
 // Java: ConformanceRules.SecuritySensitiveAttributes()
 func NewConformanceRules_SecuritySensitiveAttributes() *ConformanceRules_SecuritySensitiveAttributes {
 	return NewConformanceRules_SecuritySensitiveAttributesWithBannedAttrsAndSupplier(
-		conformanceRules_allBannedAttrs[:], func() *GlobalNamespace { return nil })
+		allBannedSecurityAttrs[:], func() *GlobalNamespace { return nil })
 }
 
 // Java: ConformanceRules.SecuritySensitiveAttributes(Collection<String>, Supplier<GlobalNamespace>)
@@ -421,9 +422,9 @@ func (s *ConformanceRules_SecuritySensitiveAttributes) Contains(attributeName st
 // Java: ConformanceRules.SecuritySensitiveAttributes.checkConformanceForAttributeName(NodeTraversal, Node)
 func (s *ConformanceRules_SecuritySensitiveAttributes) CheckConformanceForAttributeName(
 	traversal *NodeTraversal, attrName rhino.Node) *ConformanceRules_ConformanceResult {
-	literalName :=
-		ConformanceRules_ConformanceUtil_InferStringValue(traversal.GetScope(), attrName, s.globalNamespaceSupplier)
-	if literalName == nil {
+	literalName, hasLiteral :=
+		inferConformanceStringValue(traversal.GetScope(), attrName, s.globalNamespaceSupplier)
+	if !hasLiteral {
 		// xid() obfuscates attribute names, thus never clashing with security-sensitive attributes.
 		if ConformanceRules_ConformanceUtil_IsXid(attrName.GetJSType()) {
 			return ConformanceRules_ConformanceResult_CONFORMANCE
@@ -431,7 +432,7 @@ func (s *ConformanceRules_SecuritySensitiveAttributes) CheckConformanceForAttrib
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 
-	lowerName := jutil.StringToLowerCaseRoot(*literalName)
+	lowerName := jutil.StringToLowerCaseRoot(literalName)
 	if s.Contains(lowerName) || ConformanceRules_ConformanceUtil_IsEventHandlerAttrName(lowerName) {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
@@ -441,12 +442,12 @@ func (s *ConformanceRules_SecuritySensitiveAttributes) CheckConformanceForAttrib
 // Java: ConformanceRules.SecuritySensitiveAttributes.checkConformanceForAttributeNameWithHighConfidence(NodeTraversal, Node)
 func (s *ConformanceRules_SecuritySensitiveAttributes) CheckConformanceForAttributeNameWithHighConfidence(
 	traversal *NodeTraversal, attrName rhino.Node) *ConformanceRules_ConformanceResult {
-	literalName :=
-		ConformanceRules_ConformanceUtil_InferStringValue(traversal.GetScope(), attrName, s.globalNamespaceSupplier)
-	if literalName == nil {
+	literalName, hasLiteral :=
+		inferConformanceStringValue(traversal.GetScope(), attrName, s.globalNamespaceSupplier)
+	if !hasLiteral {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
-	if s.Contains(jutil.StringToLowerCaseRoot(*literalName)) {
+	if s.Contains(jutil.StringToLowerCaseRoot(literalName)) {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
@@ -466,20 +467,20 @@ type ConformanceRules_BanElementSetAttribute struct {
 }
 
 const (
-	conformanceRules_BanElementSetAttribute_ELEMENT_TYPE_NAME               = "Element"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE                   = "setAttribute"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NS                = "setAttributeNS"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE              = "setAttributeNode"
-	conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE_NS           = "setAttributeNodeNS"
-	conformanceRules_BanElementSetAttribute_GLOBAL_NAMESPACE_ANALYSIS_LIMIT = 10000
+	elementTypeName                     = "Element"
+	propSetAttribute                    = "setAttribute"
+	propSetAttributeNS                  = "setAttributeNS"
+	propSetAttributeNode                = "setAttributeNode"
+	propSetAttributeNodeNS              = "setAttributeNodeNS"
+	setAttrGlobalNamespaceAnalysisLimit = 10000
 )
 
-func conformanceRules_isBannedSetAttributeProp(name string) bool {
+func isBannedSetAttributeProp(name string) bool {
 	switch name {
-	case conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE,
-		conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NS,
-		conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE,
-		conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NODE_NS:
+	case propSetAttribute,
+		propSetAttributeNS,
+		propSetAttributeNode,
+		propSetAttributeNodeNS:
 		return true
 	default:
 		return false
@@ -501,15 +502,15 @@ func newConformanceRules_BanElementSetAttribute(compiler AbstractCompiler, requi
 	} else {
 		r.defaultDecisionForUncertainCases = ConformanceRules_ConformanceResult_CONFORMANCE
 	}
-	r.elementType = compiler.GetTypeRegistry().GetGlobalType(conformanceRules_BanElementSetAttribute_ELEMENT_TYPE_NAME)
+	r.elementType = compiler.GetTypeRegistry().GetGlobalType(elementTypeName)
 	return r, nil
 }
 
 // Java: ConformanceRules.BanElementSetAttribute.getGlobalNamespace()
 func (r *ConformanceRules_BanElementSetAttribute) GetGlobalNamespace() *GlobalNamespace {
 	if r.performGlobalNamespaceAnalysis && r.globalNamespace == nil {
-		if NodeUtil_CountAstSizeUpToLimit(r.compiler.GetJsRoot(), conformanceRules_BanElementSetAttribute_GLOBAL_NAMESPACE_ANALYSIS_LIMIT) >=
-			conformanceRules_BanElementSetAttribute_GLOBAL_NAMESPACE_ANALYSIS_LIMIT {
+		if NodeUtil_CountAstSizeUpToLimit(r.compiler.GetJsRoot(), setAttrGlobalNamespaceAnalysisLimit) >=
+			setAttrGlobalNamespaceAnalysisLimit {
 			r.performGlobalNamespaceAnalysis = false
 		} else {
 			r.globalNamespace = NewGlobalNamespace(r.compiler, r.compiler.GetJsRoot())
@@ -536,12 +537,12 @@ func (r *ConformanceRules_BanElementSetAttribute) checkConformanceOnPropertyCall
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
 
-	if calledProperty == conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE {
-		firstArg, hasFirst := call.FirstArg()
-		if !hasFirst || firstArg.Node().GetNext().IsNil() {
+	cn := call.AsCallOrNew()
+	if calledProperty == propSetAttribute {
+		if call.NumArgs() < 2 {
 			return ConformanceRules_ConformanceResult_CONFORMANCE
 		}
-
+		firstArg, _ := cn.ArgAt(0)
 		if r.requirement.GetReportLooseTypeViolations() {
 			return r.securitySensitiveAttributes.CheckConformanceForAttributeName(
 				traversal, firstArg.Node())
@@ -550,24 +551,20 @@ func (r *ConformanceRules_BanElementSetAttribute) checkConformanceOnPropertyCall
 			traversal, firstArg.Node())
 	}
 
-	if calledProperty == conformanceRules_BanElementSetAttribute_SET_ATTRIBUTE_NS {
-		firstArg, hasFirst := call.FirstArg()
-		if !hasFirst {
+	if calledProperty == propSetAttributeNS {
+		if call.NumArgs() < 3 {
 			return ConformanceRules_ConformanceResult_CONFORMANCE
 		}
-		secondArg := firstArg.Node().GetNext()
-		if secondArg.IsNil() || secondArg.GetNext().IsNil() {
-			return ConformanceRules_ConformanceResult_CONFORMANCE
-		}
-
+		firstArg, _ := cn.ArgAt(0)
+		secondArg, _ := cn.ArgAt(1)
 		if firstArg.Node().IsNull() {
 			// A null namespace makes this equivalent to a regular setAttribute call.
 			if r.requirement.GetReportLooseTypeViolations() {
 				return r.securitySensitiveAttributes.CheckConformanceForAttributeName(
-					traversal, secondArg)
+					traversal, secondArg.Node())
 			}
 			return r.securitySensitiveAttributes.CheckConformanceForAttributeNameWithHighConfidence(
-				traversal, secondArg)
+				traversal, secondArg.Node())
 		}
 	}
 
@@ -583,7 +580,7 @@ func (r *ConformanceRules_BanElementSetAttribute) getBannedPropertyName(call ast
 		return "", false
 	}
 	propertyName := target.Property()
-	if !conformanceRules_isBannedSetAttributeProp(propertyName) {
+	if !isBannedSetAttributeProp(propertyName) {
 		return "", false
 	}
 	type_ := target.Object().Node().GetJSType()
@@ -600,12 +597,10 @@ func (r *ConformanceRules_BanElementSetAttribute) getBannedPropertyName(call ast
 func (r *ConformanceRules_BanElementSetAttribute) checkConformanceOnGetElement(
 	traversal *NodeTraversal, ge ast.GetElem) *ConformanceRules_ConformanceResult {
 	key := ge.Index().Node()
-	keyName :=
-		ConformanceRules_ConformanceUtil_InferStringValue(traversal.GetScope(), key, r.GetGlobalNamespace)
-	if keyName != nil {
-		if r.securitySensitiveAttributes.Contains(jutil.StringToLowerCaseRoot(*keyName)) ||
+	if keyName, ok := inferConformanceStringValue(traversal.GetScope(), key, r.GetGlobalNamespace); ok {
+		if r.securitySensitiveAttributes.Contains(jutil.StringToLowerCaseRoot(keyName)) ||
 			(r.requirement.GetReportLooseTypeViolations() &&
-				(*keyName == "innerHTML" || *keyName == "outerHTML")) {
+				(keyName == "innerHTML" || keyName == "outerHTML")) {
 			if r.hasElementType(ge) {
 				return ConformanceRules_ConformanceResult_VIOLATION
 			}
@@ -665,7 +660,7 @@ type ConformanceRules_BanSettingAttributes_AttributeSettingRestriction struct {
 }
 
 // Java: ConformanceRules.BanSettingAttributes.BANNED_ATTRS
-var conformanceRules_BanSettingAttributes_BANNED_ATTRS = NewConformanceRules_SecuritySensitiveAttributes()
+var defaultBannedSettingAttrs = NewConformanceRules_SecuritySensitiveAttributes()
 
 // Java: ConformanceRules.BanSettingAttributes(AbstractCompiler, Requirement)
 func newConformanceRules_BanSettingAttributes(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanSettingAttributes, error) {
@@ -706,16 +701,12 @@ func (r *ConformanceRules_BanSettingAttributes) CheckConformance(traversal *Node
 
 // Java: ConformanceRules.BanSettingAttributes.checkConformanceOnPropertyCall(NodeTraversal, Node)
 func (r *ConformanceRules_BanSettingAttributes) checkConformanceOnPropertyCall(traversal *NodeTraversal, call ast.Call) *ConformanceRules_ConformanceResult {
-	if !r.matchesBannedProperty(call) {
+	if !r.matchesBannedProperty(call) || call.NumArgs() < 2 {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
 
-	firstArg, hasFirst := call.FirstArg()
-	if !hasFirst || firstArg.Node().GetNext().IsNil() {
-		return ConformanceRules_ConformanceResult_CONFORMANCE
-	}
-
-	return conformanceRules_BanSettingAttributes_BANNED_ATTRS.CheckConformanceForAttributeName(traversal, firstArg.Node())
+	firstArg, _ := call.FirstArg()
+	return defaultBannedSettingAttrs.CheckConformanceForAttributeName(traversal, firstArg.Node())
 }
 
 // Java: ConformanceRules.BanSettingAttributes.getBannedPropertyName(Node)

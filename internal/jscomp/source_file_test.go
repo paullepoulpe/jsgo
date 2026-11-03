@@ -109,9 +109,9 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, fCr.GetLineOffset(3), 10)
 	jsaEq(t, fCr.GetNumBytes(), 14)
 	jsaEq(t, fCr.GetNumLines(), 4)
-	jsaEqPtr(t, fCr.GetLine(1), "'1';")
-	jsaEqPtr(t, fCr.GetLine(2), "'2';")
-	jsaEqPtr(t, fCr.GetLine(3), "'3'")
+	jsaEqOk(t, fCr, 1, "'1';")
+	jsaEqOk(t, fCr, 2, "'2';")
+	jsaEqOk(t, fCr, 3, "'3'")
 
 	fLs := factory("'1';\u2028'2';\u2028'3'\u2028")
 	jsaEq(t, fLs.GetLineOffset(1), 0)
@@ -119,9 +119,9 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, fLs.GetLineOffset(3), 10)
 	jsaEq(t, fLs.GetNumBytes(), 14)
 	jsaEq(t, fLs.GetNumLines(), 4)
-	jsaEqPtr(t, fLs.GetLine(1), "'1';")
-	jsaEqPtr(t, fLs.GetLine(2), "'2';")
-	jsaEqPtr(t, fLs.GetLine(3), "'3'")
+	jsaEqOk(t, fLs, 1, "'1';")
+	jsaEqOk(t, fLs, 2, "'2';")
+	jsaEqOk(t, fLs, 3, "'3'")
 
 	fPs := factory("'1';\u2029'2';\u2029'3'\u2029")
 	jsaEq(t, fPs.GetLineOffset(1), 0)
@@ -129,9 +129,9 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, fPs.GetLineOffset(3), 10)
 	jsaEq(t, fPs.GetNumBytes(), 14)
 	jsaEq(t, fPs.GetNumLines(), 4)
-	jsaEqPtr(t, fPs.GetLine(1), "'1';")
-	jsaEqPtr(t, fPs.GetLine(2), "'2';")
-	jsaEqPtr(t, fPs.GetLine(3), "'3'")
+	jsaEqOk(t, fPs, 1, "'1';")
+	jsaEqOk(t, fPs, 2, "'2';")
+	jsaEqOk(t, fPs, 3, "'3'")
 
 	fCrLf := factory("'1';\r\n'2';\r\n'3'\r\n")
 	jsaEq(t, fCrLf.GetLineOffset(1), 0)
@@ -139,9 +139,9 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, fCrLf.GetLineOffset(3), 12)
 	jsaEq(t, fCrLf.GetNumBytes(), 17)
 	jsaEq(t, fCrLf.GetNumLines(), 4)
-	jsaEqPtr(t, fCrLf.GetLine(1), "'1';")
-	jsaEqPtr(t, fCrLf.GetLine(2), "'2';")
-	jsaEqPtr(t, fCrLf.GetLine(3), "'3'")
+	jsaEqOk(t, fCrLf, 1, "'1';")
+	jsaEqOk(t, fCrLf, 2, "'2';")
+	jsaEqOk(t, fCrLf, 3, "'3'")
 
 	fMixed := factory("'1';\r\n'2';\r'3'\u2028'4'\u2029'5'\n")
 	jsaEq(t, fMixed.GetLineOffset(1), 0)
@@ -150,12 +150,13 @@ func TestSourceFile_LineOffset(t *testing.T) {
 	jsaEq(t, fMixed.GetLineOffset(4), 15)
 	jsaEq(t, fMixed.GetLineOffset(5), 19)
 	jsaEq(t, fMixed.GetNumLines(), 6)
-	jsaEqPtr(t, fMixed.GetLine(1), "'1';")
-	jsaEqPtr(t, fMixed.GetLine(2), "'2';")
-	jsaEqPtr(t, fMixed.GetLine(3), "'3'")
-	jsaEqPtr(t, fMixed.GetLine(4), "'4'")
-	jsaEqPtr(t, fMixed.GetLine(5), "'5'")
-	jsaTrue(t, fMixed.GetLine(6) == nil)
+	jsaEqOk(t, fMixed, 1, "'1';")
+	jsaEqOk(t, fMixed, 2, "'2';")
+	jsaEqOk(t, fMixed, 3, "'3'")
+	jsaEqOk(t, fMixed, 4, "'4'")
+	jsaEqOk(t, fMixed, 5, "'5'")
+	_, ok := fMixed.GetLine(6)
+	jsaFalse(t, ok)
 
 	jsaEq(t, fMixed.GetLineOfOffset(0), 1)
 	jsaEq(t, fMixed.GetColumnOfOffset(0), 0)
@@ -174,6 +175,16 @@ func TestSourceFile_LineOffset(t *testing.T) {
 
 }
 
+func jsaEqOk(t *testing.T, f *SourceFile, line int, want string) {
+	t.Helper()
+	got, ok := f.GetLine(line)
+	if !ok {
+		t.Errorf("GetLine(%d) = (_, false), want %q", line, want)
+		return
+	}
+	jsaEq(t, got, want)
+}
+
 // Go-only: extra coverage — offsets and "byte" counts are UTF-16 units, as
 // in Java.
 func TestSourceFile_NonAsciiOffsets(t *testing.T) {
@@ -182,8 +193,8 @@ func TestSourceFile_NonAsciiOffsets(t *testing.T) {
 	jsaEq(t, f.GetNumBytes(), 9)
 	jsaEq(t, f.GetLineOfOffset(6), 1)
 	jsaEq(t, f.GetLineOfOffset(7), 2)
-	jsaEq(t, *f.GetLine(1), "'\u00e9\U0001F600';")
-	jsaEq(t, *f.GetLine(2), "x")
+	jsaEqOk(t, f, 1, "'\u00e9\U0001F600';")
+	jsaEqOk(t, f, 2, "x")
 }
 
 func jsaWriteFile(t *testing.T, path, content string) {
@@ -338,12 +349,12 @@ func TestSourceFile_DiskFile(t *testing.T) {
 	jsaWriteFile(t, tempFile, expectedContent)
 
 	newFile := SourceFile_FromFile(tempFile)
-	jsaEq(t, *newFile.GetLine(1), expectedContent)
+	jsaEqOk(t, newFile, 1, expectedContent)
 
 	newFile.ClearCachedSource()
 
 	jsaFalse(t, newFile.HasSourceInMemory())
-	jsaEq(t, *newFile.GetLine(1), expectedContent)
+	jsaEqOk(t, newFile, 1, expectedContent)
 }
 
 func TestSourceFile_DiskFileWithOriginalPath(t *testing.T) {
@@ -355,12 +366,12 @@ func TestSourceFile_DiskFileWithOriginalPath(t *testing.T) {
 		WithOriginalPath("original_test.js").
 		WithPath(tempFile).
 		Build()
-	jsaEq(t, *newFile.GetLine(1), expectedContent)
+	jsaEqOk(t, newFile, 1, expectedContent)
 
 	newFile.ClearCachedSource()
 
 	jsaFalse(t, newFile.HasSourceInMemory())
-	jsaEq(t, *newFile.GetLine(1), expectedContent)
+	jsaEqOk(t, newFile, 1, expectedContent)
 
 	jsaEq(t, newFile.GetName(), "original_test.js")
 }

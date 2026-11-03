@@ -356,6 +356,8 @@ func (m *OrderedMap[K, V]) Intern(k K) int {
 	return idx
 }
 
+func (m *OrderedMap[K, V]) IsNil() bool { return m == nil }
+
 func (m *OrderedMap[K, V]) Size() int {
 	if m == nil {
 		return 0
@@ -679,8 +681,9 @@ func (s *OrderedSet[K]) Index(k K) (int, bool) {
 // Intern inserts k if absent and returns its 0-based insertion-order index.
 func (s *OrderedSet[K]) Intern(k K) int { return s.m.Intern(k) }
 
-func (s *OrderedSet[K]) Len() int  { return s.Size() }
-func (s *OrderedSet[K]) Size() int { return s.mapOrNil().Size() }
+func (s *OrderedSet[K]) IsNil() bool { return s == nil }
+func (s *OrderedSet[K]) Len() int    { return s.Size() }
+func (s *OrderedSet[K]) Size() int   { return s.mapOrNil().Size() }
 func (s *OrderedSet[K]) IsEmpty() bool {
 	return s.Size() == 0
 }

@@ -43,9 +43,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-const polymerPassStaticUtils_VIRTUAL_FILE = "<PolymerPassStaticUtils.java>"
+const polymerStaticUtilsVirtualFile = "<PolymerPassStaticUtils.java>"
 
-var polymerPassStaticUtils_POLYMER_DOT_ELEMENT = rhino.QualifiedName_Of("Polymer.Element")
+var polymerDotElementQName = rhino.QualifiedName_Of("Polymer.Element")
 
 // PolymerPassStaticUtils_IsPolymerCall returns whether the call represents a
 // call to the Polymer function.
@@ -78,7 +78,7 @@ func PolymerPassStaticUtils_IsPolymerClass(cls rhino.Node) bool {
 		return false
 	}
 	heritage := ext.Node()
-	return polymerPassStaticUtils_POLYMER_DOT_ELEMENT.Matches(heritage) ||
+	return polymerDotElementQName.Matches(heritage) ||
 		polymerMatchesNameOrProp(heritage, "PolymerElement") ||
 		polymerMatchesNameOrProp(heritage, "PolymerElementWithoutHtml") ||
 		polymerMatchesNameOrProp(heritage, "PolymerLiteControllerBase") ||
@@ -314,7 +314,7 @@ func PolymerPassStaticUtils_ExtractProperties(
 		}
 		return members
 	}
-	for keyNode := properties.GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
+	for keyNode := range properties.Children() {
 		appendMember(keyNode, keyNode.GetFirstChild(), keyNode.GetString())
 	}
 	return members
@@ -322,7 +322,7 @@ func PolymerPassStaticUtils_ExtractProperties(
 
 func collectConstructorPropertyJsDoc(node rhino.Node, m map[string]*rhino.JSDocInfo) {
 	rhino.CheckNotNull(node)
-	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range node.Children() {
 		if gp, ok := ast.AsGetProp(child); ok && gp.Object().Node().IsThis() {
 			m[gp.Property()] = NodeUtil_GetBestJSDocInfo(child)
 		} else {
@@ -377,7 +377,7 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 	}
 
 	typeNode.SrcrefTree(typeValue)
-	return rhino.NewJSTypeExpression(typeNode, polymerPassStaticUtils_VIRTUAL_FILE)
+	return rhino.NewJSTypeExpression(typeNode, polymerStaticUtilsVirtualFile)
 }
 
 // PolymerPassStaticUtils_GetPolymerElementType returns the PolymerElement
@@ -485,38 +485,40 @@ type polymerPassSuppressBehaviorsAndProtectKeys struct {
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.visit(NodeTraversal, Node, Node)
 func (p polymerPassSuppressBehaviorsAndProtectKeys) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if polymerPassSuppressBehaviorsAndProtectKeys_isBehavior(n) {
-		decl, isDecl := ast.AsNameDeclaration(n)
-		assign, isAssign := ast.AsAssign(n)
-		if !isDecl && !isAssign {
-			p.compiler.Report(JSError_MakeWithNode(n, PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR))
-			return
-		}
-
-		// Find listener and hostAttribute keys in the behavior, and mark them as quoted.
-		// This ensures that the keys are not renamed.
-		p.traverseBehaviorsAndProtectKeys(n)
-
-		// Add @nocollapse.
-		newDocs := rhino.JSDocInfo_Builder_MaybeCopyFrom(n.GetJSDocInfo())
-		newDocs.RecordNoCollapse()
-		n.SetJSDocInfo(newDocs.Build())
-
-		var behaviorValue rhino.Node
-		if isDecl {
-			if first, ok := decl.FirstDeclarator(); ok {
-				if nm, ok := first.AsName(); ok {
-					init, _ := nm.Init()
-					behaviorValue = init.Node()
-				} else if dlhs, ok := first.AsDestructuringLhs(); ok {
-					behaviorValue = dlhs.Pattern().Node()
-				}
-			}
-		} else {
-			behaviorValue = assign.Value().Node()
-		}
-		p.suppressBehavior(behaviorValue, n)
+	if !isPolymerBehaviorDeclaration(n) {
+		return
 	}
+	decl, isDecl := ast.AsNameDeclaration(n)
+	assign, isAssign := ast.AsAssign(n)
+	if !isDecl && !isAssign {
+		p.compiler.Report(JSError_MakeWithNode(n, PolymerPassErrors_POLYMER_UNQUALIFIED_BEHAVIOR))
+		return
+	}
+
+	// Find listener and hostAttribute keys in the behavior, and mark them as quoted.
+	// This ensures that the keys are not renamed.
+	p.traverseBehaviorsAndProtectKeys(n)
+
+	// Add @nocollapse.
+	newDocs := rhino.JSDocInfo_Builder_MaybeCopyFrom(n.GetJSDocInfo())
+	newDocs.RecordNoCollapse()
+	n.SetJSDocInfo(newDocs.Build())
+
+	var behaviorValue rhino.Node
+	if isDecl {
+		if first, ok := decl.FirstDeclarator(); ok {
+			if nm, ok := first.AsName(); ok {
+				if init, hasInit := nm.Init(); hasInit {
+					behaviorValue = init.Node()
+				}
+			} else if dlhs, ok := first.AsDestructuringLhs(); ok {
+				behaviorValue = dlhs.Pattern().Node()
+			}
+		}
+	} else {
+		behaviorValue = assign.Value().Node()
+	}
+	p.suppressBehavior(behaviorValue, n)
 }
 
 // traverseBehaviorsAndProtectKeys traverses the behavior, finds listener and
@@ -529,7 +531,7 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) traverseBehaviorsAndProtectK
 		PolymerPassStaticUtils_ProtectObserverAndPropertyFunctionKeys(n)
 	}
 
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range n.Children() {
 		p.traverseBehaviorsAndProtectKeys(child)
 	}
 }
@@ -554,12 +556,13 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) suppressBehavior(behaviorVal
 	}
 }
 
-// polymerPassSuppressBehaviorsAndProtectKeys_isBehavior returns whether the
-// node is the declaration of a Behavior.
+// isPolymerBehaviorDeclaration returns whether the node is the declaration of a
+// Behavior.
 //
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.isBehavior(Node)
-func polymerPassSuppressBehaviorsAndProtectKeys_isBehavior(value rhino.Node) bool {
-	return value.GetJSDocInfo() != nil && value.GetJSDocInfo().IsPolymerBehavior()
+func isPolymerBehaviorDeclaration(value rhino.Node) bool {
+	info := value.GetJSDocInfo()
+	return info != nil && info.IsPolymerBehavior()
 }
 
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.stripPropertyTypes(Node)

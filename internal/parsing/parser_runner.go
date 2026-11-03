@@ -92,7 +92,7 @@ func ParserRunner_CreateConfigWithModes(
 	ParserRunner_InitResourceConfig()
 	extra := parserRunner_defaultExtraAnnotations
 	var annotations map[string]Annotation
-	if jutil.IsNil(extraAnnotationNames) || extraAnnotationNames.IsEmpty() {
+	if extraAnnotationNames == nil || extraAnnotationNames.IsEmpty() {
 		annotations = parserRunner_defaultAnnotations
 	} else {
 		var custom []string
@@ -271,8 +271,9 @@ func ParserRunner_ParseWithAllocator(
 			}
 		}
 	}
+	sourceMapURL, hasSourceMapURL := p.GetSourceMapURL()
 	return NewParserRunner_ParseResultWithTopLevelStatementRanges(
-		root, comments, topLevelStatementRanges, features, p.GetSourceMapURL())
+		root, comments, topLevelStatementRanges, features, sourceMapURL, hasSourceMapURL)
 }
 
 // Java: ParserRunner.newParserConfig(Config)
@@ -338,20 +339,22 @@ type ParserRunner_ParseResult struct {
 	Comments                []parser.Comment
 	TopLevelStatementRanges []parser.SourceRange
 	Features                parser.FeatureSet
-	SourceMapURL            *string
+	SourceMapURL            string
+	HasSourceMapURL         bool
 }
 
-func NewParserRunner_ParseResult(ast rhino.Node, comments []parser.Comment, features parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
-	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []parser.SourceRange{}, features, sourceMapURL)
+func NewParserRunner_ParseResult(ast rhino.Node, comments []parser.Comment, features parser.FeatureSet, sourceMapURL string, hasSourceMapURL bool) *ParserRunner_ParseResult {
+	return NewParserRunner_ParseResultWithTopLevelStatementRanges(ast, comments, []parser.SourceRange{}, features, sourceMapURL, hasSourceMapURL)
 }
 
-func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []parser.Comment, topLevelStatementRanges []parser.SourceRange, features parser.FeatureSet, sourceMapURL *string) *ParserRunner_ParseResult {
+func NewParserRunner_ParseResultWithTopLevelStatementRanges(ast rhino.Node, comments []parser.Comment, topLevelStatementRanges []parser.SourceRange, features parser.FeatureSet, sourceMapURL string, hasSourceMapURL bool) *ParserRunner_ParseResult {
 	return &ParserRunner_ParseResult{
 		Ast:                     ast,
 		Comments:                comments,
 		TopLevelStatementRanges: topLevelStatementRanges,
 		Features:                features,
 		SourceMapURL:            sourceMapURL,
+		HasSourceMapURL:         hasSourceMapURL,
 	}
 }
 

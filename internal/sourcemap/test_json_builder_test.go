@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
 // testJsonBuilder is a minimal builder for a Map representing a source map
@@ -127,11 +128,18 @@ func gsonToJson(e jutil.JsonElement) string {
 	return sb.String()
 }
 
-// deref is the Java value of a nullable String ("<null>" for null, for
+// optDeref is the Java value of a nullable String ("<null>" for null, for
 // test messages).
-func deref(s *string) string {
-	if s == nil {
+func optDeref(s sourcemap.OptionalString) string {
+	if !s.Valid {
 		return "<null>"
 	}
-	return *s
+	return s.Value
+}
+
+func pairDeref(s string, ok bool) string {
+	if !ok {
+		return "<null>"
+	}
+	return s
 }

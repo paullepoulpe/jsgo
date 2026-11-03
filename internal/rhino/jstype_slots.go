@@ -381,13 +381,19 @@ func (s *SimpleSlotBase) GetScope() StaticScope {
 // SymbolTable.Reference, PreprocessorSymbolTable.Reference) embed the
 // struct. getSymbol() keeps StaticRef's return type (see StaticTypedScope);
 // GetTypedSymbol returns the T.
-type SimpleReference[T StaticTypedSlot] struct {
+type SimpleReference[T interface {
+	StaticTypedSlot
+	comparable
+}] struct {
 	symbol T
 	node   Node
 }
 
 // Java: SimpleReference(T, Node)
-func NewSimpleReference[T StaticTypedSlot](symbol T, node Node) *SimpleReference[T] {
+func NewSimpleReference[T interface {
+	StaticTypedSlot
+	comparable
+}](symbol T, node Node) *SimpleReference[T] {
 	r := &SimpleReference[T]{}
 	r.InitSimpleReference(symbol, node)
 	return r
@@ -403,7 +409,11 @@ func (r *SimpleReference[T]) InitSimpleReference(symbol T, node Node) {
 
 // Java: SimpleReference.getSymbol()
 func (r *SimpleReference[T]) GetSymbol() StaticSlot {
-	if jutil.IsNil(r.symbol) {
+	var zero T
+	if r.symbol == zero {
+		return nil
+	}
+	if s, ok := any(r.symbol).(*SimpleSlotBase); ok && s == nil {
 		return nil
 	}
 	return r.symbol

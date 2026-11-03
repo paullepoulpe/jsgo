@@ -38,14 +38,14 @@ func basicMapJSON() string {
 			build())
 }
 
-func assertSources(t *testing.T, got []*string, want ...string) {
+func assertSources(t *testing.T, got []sourcemap.OptionalString, want ...string) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("sources = %d entries, want %v", len(got), want)
 	}
 	for i := range want {
-		if deref(got[i]) != want[i] {
-			t.Fatalf("sources[%d] = %s, want %s", i, deref(got[i]), want[i])
+		if optDeref(got[i]) != want[i] {
+			t.Fatalf("sources[%d] = %s, want %s", i, optDeref(got[i]), want[i])
 		}
 	}
 }
@@ -62,9 +62,9 @@ func mustParseConsumer(t *testing.T, contents string) *sourcemap.SourceMapConsum
 func TestSources(t *testing.T) {
 	consumer := mustParseConsumer(t, basicMapJSON())
 
-	assertSources(t, consumer.GetOriginalSources(), "testcode")
-	if consumer.GetSourceRoot() != nil {
-		t.Errorf("sourceRoot = %q, want null", *consumer.GetSourceRoot())
+	assertSources(t, consumer.OriginalSources(), "testcode")
+	if root, ok := consumer.GetSourceRoot(); ok {
+		t.Errorf("sourceRoot = %q, want null", root)
 	}
 }
 
@@ -137,9 +137,9 @@ func TestSourcesWithRoot(t *testing.T) {
 				build()))
 
 	//By default sourceRoot is not prepended
-	assertSources(t, consumer.GetOriginalSources(), "testcode")
-	if deref(consumer.GetSourceRoot()) != "http://server/path/" {
-		t.Errorf("sourceRoot = %s", deref(consumer.GetSourceRoot()))
+	assertSources(t, consumer.OriginalSources(), "testcode")
+	if got := pairDeref(consumer.GetSourceRoot()); got != "http://server/path/" {
+		t.Errorf("sourceRoot = %s", got)
 	}
 }
 
@@ -354,9 +354,9 @@ func TestBinarySearchEdgeCases(t *testing.T) {
 	}
 }
 
-type entryVisitorFunc func(sourceName, symbolName *string, sourcePos, startPos, endPos sourcemap.FilePosition)
+type entryVisitorFunc func(sourceName, symbolName sourcemap.OptionalString, sourcePos, startPos, endPos sourcemap.FilePosition)
 
-func (f entryVisitorFunc) Visit(sourceName, symbolName *string, sourcePos, startPos, endPos sourcemap.FilePosition) {
+func (f entryVisitorFunc) Visit(sourceName, symbolName sourcemap.OptionalString, sourcePos, startPos, endPos sourcemap.FilePosition) {
 	f(sourceName, symbolName, sourcePos, startPos, endPos)
 }
 
@@ -365,9 +365,9 @@ func TestVisitMappings(t *testing.T) {
 
 	var symbols []string
 	consumer.VisitMappings(entryVisitorFunc(
-		func(sourceName, symbolName *string, sourcePos, startPos, endPos sourcemap.FilePosition) {
-			if symbolName != nil {
-				symbols = append(symbols, *symbolName)
+		func(sourceName, symbolName sourcemap.OptionalString, sourcePos, startPos, endPos sourcemap.FilePosition) {
+			if symbolName.Valid {
+				symbols = append(symbols, symbolName.Value)
 			}
 		}))
 

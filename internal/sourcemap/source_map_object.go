@@ -58,43 +58,14 @@ func removeExtension(exts []SourceMapExtension, key string) []SourceMapExtension
 type SourceMapObject struct {
 	version        int
 	lineCount      int
-	sourceRoot     optionalString
-	file           optionalString
-	mappings       optionalString
-	sources        []optionalString
-	sourcesContent []optionalString
-	names          []optionalString
+	sourceRoot     OptionalString
+	file           OptionalString
+	mappings       OptionalString
+	sources        []OptionalString
+	sourcesContent []OptionalString
+	names          []OptionalString
 	sections       []*SourceMapSection
 	extensions     []SourceMapExtension
-}
-
-// NewSourceMapObject constructs a SourceMapObject (private in Java; use
-// the Builder).
-//
-// Java: SourceMapObject(int, int, String, String, String, String[], String[], String[], List, Map)
-func NewSourceMapObject(
-	version int,
-	lineCount int,
-	sourceRoot *string,
-	file *string,
-	mappings *string,
-	sources []*string,
-	sourcesContent []*string,
-	names []*string,
-	sections []*SourceMapSection,
-	extensions []SourceMapExtension) *SourceMapObject {
-	return &SourceMapObject{
-		version:        version,
-		lineCount:      lineCount,
-		sourceRoot:     makeOptionalString(sourceRoot),
-		file:           makeOptionalString(file),
-		mappings:       makeOptionalString(mappings),
-		sources:        optionalStringsFromPtrs(sources),
-		sourcesContent: optionalStringsFromPtrs(sourcesContent),
-		names:          optionalStringsFromPtrs(names),
-		sections:       sections,
-		extensions:     extensions,
-	}
 }
 
 // Java: SourceMapObject.getVersion()
@@ -108,35 +79,35 @@ func (o *SourceMapObject) GetLineCount() int {
 }
 
 // Java: SourceMapObject.getSourceRoot()
-func (o *SourceMapObject) GetSourceRoot() *string {
-	return o.sourceRoot.ptr()
+func (o *SourceMapObject) GetSourceRoot() (string, bool) {
+	return o.sourceRoot.Get()
 }
 
 // Java: SourceMapObject.getFile()
-func (o *SourceMapObject) GetFile() *string {
-	return o.file.ptr()
+func (o *SourceMapObject) GetFile() (string, bool) {
+	return o.file.Get()
 }
 
 // Java: SourceMapObject.getMappings()
-func (o *SourceMapObject) GetMappings() *string {
-	return o.mappings.ptr()
+func (o *SourceMapObject) GetMappings() (string, bool) {
+	return o.mappings.Get()
 }
 
-// GetSources returns the sources (nil for Java null; elements may be nil).
+// GetSources returns the sources (nil for Java null; elements may be absent).
 //
 // Java: SourceMapObject.getSources()
-func (o *SourceMapObject) GetSources() []*string {
-	return optionalStringsToPtrs(o.sources)
+func (o *SourceMapObject) GetSources() []OptionalString {
+	return o.sources
 }
 
 // Java: SourceMapObject.getSourcesContent()
-func (o *SourceMapObject) GetSourcesContent() []*string {
-	return optionalStringsToPtrs(o.sourcesContent)
+func (o *SourceMapObject) GetSourcesContent() []OptionalString {
+	return o.sourcesContent
 }
 
 // Java: SourceMapObject.getNames()
-func (o *SourceMapObject) GetNames() []*string {
-	return optionalStringsToPtrs(o.names)
+func (o *SourceMapObject) GetNames() []OptionalString {
+	return o.names
 }
 
 // GetSections returns the index map sections (nil for Java null).

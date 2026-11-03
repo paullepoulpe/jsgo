@@ -965,3 +965,40 @@ func TestNodeTraversal_ClassComputedMembersCurrentNode(t *testing.T) {
 			sawComputedProp, sawComputedField, sawComputedFieldScope)
 	}
 }
+
+func TestNodeTraversal_SourceNameAndBestSourceFileName(t *testing.T) {
+	compiler := NewCompiler()
+	compiler.InitCompilerOptionsIfTesting()
+
+	// Outside a SCRIPT node: GetSourceName() == "", SourceNameOk() == ("", true).
+	empty := rhino.NewNode(rhino.Token_EMPTY)
+	var gotOutside string
+	var okOutside bool
+	NodeTraversal_Traverse(compiler, empty, &nodeTraversalTestCallback{
+		visit: func(nt *NodeTraversal, n, parent rhino.Node) {
+			gotOutside = nt.GetSourceName()
+			_, okOutside = nt.SourceNameOk()
+		},
+	})
+	assertEqual(t, "outside GetSourceName", gotOutside, "")
+	if !okOutside {
+		t.Fatalf("outside SourceNameOk() = false, want true")
+	}
+
+	// Inside a SCRIPT node with no source file: GetSourceName() == "", SourceNameOk() == ("", false).
+	script := rhino.NewNode(rhino.Token_SCRIPT)
+	script.SetInputId(rhino.NewInputId("s"))
+	var gotUnnamed string
+	var okUnnamed, bestOk bool
+	NodeTraversal_Traverse(compiler, script, &nodeTraversalTestCallback{
+		visit: func(nt *NodeTraversal, n, parent rhino.Node) {
+			gotUnnamed = nt.GetSourceName()
+			_, okUnnamed = nt.SourceNameOk()
+			_, bestOk = nt.GetBestSourceFileName(rhino.NilNode)
+		},
+	})
+	assertEqual(t, "unnamed GetSourceName", gotUnnamed, "")
+	if okUnnamed || bestOk {
+		t.Fatalf("unnamed SourceNameOk=%v bestOk=%v, want both false", okUnnamed, bestOk)
+	}
+}

@@ -42,7 +42,7 @@ type PruningAnalysis struct {
 // Limit the size of the "bottleneck" report to the top N files.
 //
 // Java: PruningAnalysis.BOTTLENECK_THRESHOLD
-const pruningAnalysis_BOTTLENECK_THRESHOLD = 25
+const pruningBottleneckThreshold = 25
 
 // PruningAnalysis_Result holds the results of the pruning analysis.
 //
@@ -123,7 +123,7 @@ func (a *PruningAnalysis) CalculateTotalBlame() *PruningCountMap {
 }
 
 // Java: PruningAnalysis.VIRTUAL_ROOT
-const pruningAnalysis_VIRTUAL_ROOT = "ENTRY POINTS ROOT"
+const pruningVirtualRoot = "ENTRY POINTS ROOT"
 
 // CalculateBottlenecks calculates the top N files that are considered
 // "bottlenecks" in the dependency graph, along with how many files are
@@ -131,9 +131,9 @@ const pruningAnalysis_VIRTUAL_ROOT = "ENTRY POINTS ROOT"
 //
 // Java: PruningAnalysis.calculateBottlenecks()
 func (a *PruningAnalysis) CalculateBottlenecks() *PruningCountMap {
-	depGraph := a.BuildGraph()
+	depGraph := a.buildGraph()
 
-	dominatorTree := graph.DominatorTree_Compute[string, *string](depGraph, pruningAnalysis_VIRTUAL_ROOT)
+	dominatorTree := graph.DominatorTree_Compute[string, struct{}](depGraph, pruningVirtualRoot)
 
 	// bottleneckBlame.entrySet().stream()
 	//     .sorted(comparingInt(Map.Entry::getValue).reversed())
@@ -145,14 +145,14 @@ func (a *PruningAnalysis) CalculateBottlenecks() *PruningCountMap {
 	}
 	var entries []entry
 	for node, retainedCount := range dominatorTree.GetAllSubtreeSizes().All() {
-		if node != pruningAnalysis_VIRTUAL_ROOT && retainedCount > 1 {
+		if node != pruningVirtualRoot && retainedCount > 1 {
 			entries = append(entries, entry{node, retainedCount})
 		}
 	}
 	// Stream.sorted is stable for ordered streams.
 	slices.SortStableFunc(entries, func(x, y entry) int { return cmp.Compare(y.value, x.value) })
-	if len(entries) > pruningAnalysis_BOTTLENECK_THRESHOLD {
-		entries = entries[:pruningAnalysis_BOTTLENECK_THRESHOLD]
+	if len(entries) > pruningBottleneckThreshold {
+		entries = entries[:pruningBottleneckThreshold]
 	}
 	result := NewOrderedStringMapWithCapacity[int](len(entries))
 	for _, e := range entries {
@@ -162,9 +162,9 @@ func (a *PruningAnalysis) CalculateBottlenecks() *PruningCountMap {
 }
 
 // Java: PruningAnalysis.buildGraph()
-func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
-	depGraph := graph.LinkedDirectedGraph_Create[string, *string]()
-	depGraph.CreateNode(pruningAnalysis_VIRTUAL_ROOT)
+func (a *PruningAnalysis) buildGraph() graph.DiGraph[string, struct{}] {
+	depGraph := graph.LinkedDirectedGraph_Create[string, struct{}]()
+	depGraph.CreateNode(pruningVirtualRoot)
 
 	sortedInputs := a.sorter.GetSortedList()
 	for _, input := range sortedInputs {
@@ -172,7 +172,7 @@ func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
 	}
 
 	for input := range a.entryPoints.All() {
-		depGraph.Connect(pruningAnalysis_VIRTUAL_ROOT, nil, input.GetName())
+		depGraph.Connect(pruningVirtualRoot, struct{}{}, input.GetName())
 	}
 
 	var depSymbols OrderedSet[string]
@@ -186,7 +186,7 @@ func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
 
 		for symbol := range depSymbols.All() {
 			if dep := a.sorter.MaybeGetInputProviding(symbol); dep != nil && dep != input {
-				depGraph.ConnectIfNotFound(name, nil, dep.GetName())
+				depGraph.ConnectIfNotFound(name, struct{}{}, dep.GetName())
 			}
 		}
 	}

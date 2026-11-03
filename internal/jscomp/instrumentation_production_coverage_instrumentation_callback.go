@@ -100,8 +100,11 @@ func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraver
 	// polyfill code is injected into the sourceFile AST and this check avoids instrumenting it. We
 	// avoid instrumentation as this callback does not distinguish between sourceFile code and
 	// injected code and can result in an error.
-	if !n.IsRoot() && toNullableString(t.GetSourceName()) != toNullableString(n.GetSourceFileName()) {
-		return false
+	if !n.IsRoot() {
+		src, hasSrc := t.SourceNameOk()
+		if (nullableString{val: src, ok: hasSrc}) != toNullableString(n.GetSourceFileName()) {
+			return false
+		}
 	}
 
 	if n.IsFunction() {
@@ -131,7 +134,8 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop() on an empty deque
 		}
 		c.functionNameStack = c.functionNameStack[:len(c.functionNameStack)-1]
-		fileName := toNullableString(traversal.GetSourceName())
+		src, hasSrc := traversal.SourceNameOk()
+		fileName := nullableString{val: src, ok: hasSrc}
 		c.instrumentBlockNode(ast.MustFunction(node).Body().Node(), fileName, functionName, productionCoverageInstrumentationCallback_Type_FUNCTION)
 	case rhino.Token_IF:
 		sourceFileName := toNullableString(node.GetSourceFileName())

@@ -117,13 +117,19 @@ func PolymerClassDefinition_ExtractFromCallNode(
 	compiler AbstractCompiler,
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
 	behaviorExtractor *PolymerBehaviorExtractor) *PolymerClassDefinition {
-	descriptor := NodeUtil_GetArgumentForCallOrNew(callNode, 0)
-	if descriptor.IsNil() || !descriptor.IsObjectLit() {
+	call, ok := ast.AsCall(callNode)
+	var descriptor rhino.Node
+	if ok {
+		if firstArg, hasArg := call.FirstArg(); hasArg {
+			descriptor = firstArg.Node()
+		}
+	}
+	if !descriptor.IsObjectLit() {
 		compiler.Report(JSError_MakeWithNode(callNode, PolymerPassErrors_POLYMER_DESCRIPTOR_NOT_VALID))
 		return nil
 	}
 
-	if callNode.GetChildCount()-1 != 1 {
+	if call.NumArgs() != 1 {
 		compiler.Report(JSError_MakeWithNode(callNode, PolymerPassErrors_POLYMER_UNEXPECTED_PARAMS))
 		return nil
 	}
@@ -137,11 +143,12 @@ func PolymerClassDefinition_ExtractFromCallNode(
 
 	hasGeneratedLhs := false
 	var target rhino.Node
-	if NodeUtil_IsNameDeclaration(callNode.GetGrandparent()) {
-		target = rhino.IR_Name(callNode.GetParent().GetString())
-	} else if assign, ok := ast.AsAssign(callNode.GetParent()); ok {
-		if isGoogModuleExports(callNode.GetParent()) {
-			target = createDummyGoogModuleExportsTarget(compiler, callNode)
+	callParent := callNode.GetParent()
+	if NodeUtil_IsNameDeclaration(callParent.GetParent()) {
+		target = rhino.IR_Name(callParent.GetString())
+	} else if assign, ok := ast.AsAssign(callParent); ok {
+		if isPolymerGoogModuleExports(assign) {
+			target = createDummyGoogModuleExportsTarget(compiler, callNode, assign)
 		} else {
 			target = assign.Target().Node().CloneTree()
 		}
@@ -249,8 +256,8 @@ func PolymerClassDefinition_ExtractFromCallNode(
 		input)
 }
 
-func isGoogModuleExports(assignNode rhino.Node) bool {
-	assign := ast.MustAssign(assignNode)
+func isPolymerGoogModuleExports(assign ast.Assign) bool {
+	assignNode := assign.Node()
 	if !assignNode.GetParent().IsExprResult() || !assign.Target().Node().MatchesName("exports") {
 		return false
 	}
@@ -260,11 +267,11 @@ func isGoogModuleExports(assignNode rhino.Node) bool {
 		NodeUtil_IsBundledGoogModuleScopeRoot(containingBlock)
 }
 
-func createDummyGoogModuleExportsTarget(compiler AbstractCompiler, callNode rhino.Node) rhino.Node {
+func createDummyGoogModuleExportsTarget(compiler AbstractCompiler, callNode rhino.Node, assign ast.Assign) rhino.Node {
 	madeUpName := "exportsForPolymer$jscomp" + compiler.GetUniqueNameIdSupplier()()
-	assignExpr := callNode.GetGrandparent()
+	assignExpr := assign.Node().GetParent()
 
-	exportName := ast.MustAssign(callNode.GetParent()).Target().Node()
+	exportName := assign.Target().Node()
 	target := rhino.IR_Name(madeUpName).ClonePropsFrom(exportName).Srcref(exportName)
 	callNode.ReplaceWith(target)
 	newDecl := rhino.IR_VarWithValue(target.CloneNode(), callNode).Srcref(assignExpr)
@@ -321,7 +328,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode rhino.Node, compiler 
 	constructor := NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode)
 	properties := PolymerPassStaticUtils_ExtractProperties(
 		propertiesDescriptor, PolymerClassDefinition_DefinitionType_ES6Class, compiler, constructor)
-	methods := extractPolymerClassMethods(classNode, enclosingModule)
+	methods := extractPolymerClassMethods(cls, enclosingModule)
 
 	var ctorInfo *rhino.JSDocInfo
 	if !constructor.IsNil() {
@@ -347,28 +354,30 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode rhino.Node, compiler 
 		input)
 }
 
-func extractPolymerClassMethods(classNode rhino.Node, enclosingModule rhino.Node) []*PolymerPass_MemberDefinition {
+func extractPolymerClassMethods(cls ast.Class, enclosingModule rhino.Node) []*PolymerPass_MemberDefinition {
 	methods := []*PolymerPass_MemberDefinition{}
-	for keyNode := NodeUtil_GetClassMembers(classNode).GetFirstChild(); !keyNode.IsNil(); keyNode = keyNode.GetNext() {
-		if keyNode.IsMemberFunctionDef() || isFunctionField(keyNode) {
+	for member := range cls.Body().Members() {
+		if fnDef, ok := member.AsMemberFunctionDef(); ok {
+			keyNode := fnDef.Node()
 			methods = append(methods,
 				NewPolymerPass_MemberDefinition(
 					NodeUtil_GetBestJSDocInfo(keyNode),
 					keyNode,
-					keyNode.GetFirstChild(),
+					fnDef.Function().Node(),
 					enclosingModule))
+		} else if fieldDef, ok := member.AsMemberFieldDef(); ok {
+			if val, hasVal := fieldDef.Value(); hasVal && val.Node().IsFunction() {
+				keyNode := fieldDef.Node()
+				methods = append(methods,
+					NewPolymerPass_MemberDefinition(
+						NodeUtil_GetBestJSDocInfo(keyNode),
+						keyNode,
+						val.Node(),
+						enclosingModule))
+			}
 		}
 	}
 	return methods
-}
-
-func isFunctionField(field rhino.Node) bool {
-	mf, ok := ast.AsMemberFieldDef(field)
-	if !ok {
-		return false
-	}
-	val, hasVal := mf.Value()
-	return hasVal && val.Node().IsFunction()
 }
 
 func addFunctionAssignmentsFromConstructor(

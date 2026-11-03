@@ -203,22 +203,22 @@ func jsaCheckLevelValueOf(s string) CheckLevel {
 // file); lines whose number is 3 mod 5 have such a mapping.
 type jsaDiffProvider struct{ files map[string]*SourceFile }
 
-func (p *jsaDiffProvider) file(name *string) *SourceFile {
-	if name == nil {
+func (p *jsaDiffProvider) file(name string) *SourceFile {
+	if name == "" {
 		return nil
 	}
-	return p.files[strings.TrimPrefix(*name, "orig/")]
+	return p.files[strings.TrimPrefix(name, "orig/")]
 }
 
-func (p *jsaDiffProvider) GetSourceLine(sourceName *string, lineNumber int) *string {
+func (p *jsaDiffProvider) GetSourceLine(sourceName string, lineNumber int) (string, bool) {
 	f := p.file(sourceName)
 	if f == nil {
-		return nil
+		return "", false
 	}
 	return f.GetLine(lineNumber)
 }
 
-func (p *jsaDiffProvider) GetSourceLines(sourceName *string, lineNumber int, length int) Region {
+func (p *jsaDiffProvider) GetSourceLines(sourceName string, lineNumber int, length int) Region {
 	f := p.file(sourceName)
 	if f == nil {
 		return nil
@@ -226,7 +226,7 @@ func (p *jsaDiffProvider) GetSourceLines(sourceName *string, lineNumber int, len
 	return f.GetLines(lineNumber, length)
 }
 
-func (p *jsaDiffProvider) GetSourceRegion(sourceName *string, lineNumber int) Region {
+func (p *jsaDiffProvider) GetSourceRegion(sourceName string, lineNumber int) Region {
 	f := p.file(sourceName)
 	if f == nil {
 		return nil
@@ -234,12 +234,12 @@ func (p *jsaDiffProvider) GetSourceRegion(sourceName *string, lineNumber int) Re
 	return f.GetRegion(lineNumber)
 }
 
-func (p *jsaDiffProvider) GetSourceMapping(sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
-	if sourceName == nil || strings.HasPrefix(*sourceName, "orig/") || lineNumber%5 != 3 {
+func (p *jsaDiffProvider) GetSourceMapping(sourceName string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
+	if strings.HasPrefix(sourceName, "orig/") || lineNumber%5 != 3 {
 		return nil
 	}
 	return &sourcemap.Mapping_OriginalMapping{
-		OriginalFile:   "orig/" + *sourceName,
+		OriginalFile:   "orig/" + sourceName,
 		LineNumber:     lineNumber + 1,
 		ColumnPosition: columnNumber + 1,
 	}

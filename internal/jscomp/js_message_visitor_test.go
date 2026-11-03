@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
@@ -50,11 +49,11 @@ func (v *jsMessageVisitorTest_RenameMessagesVisitor) Visit(t *NodeTraversal, n r
 	// Node.getString() is never null for a NAME (the Java null check is kept as a no-op).
 	if n.IsName() && strings.HasPrefix(n.GetString(), "MSG_") {
 		originalName := n.GetString()
-		n.SetOriginalName(jutil.StringPtr(originalName))
+		n.SetOriginalNameString(originalName)
 		n.SetString("some_prefix_" + originalName)
-	} else if n.IsGetProp() && parent.IsAssign() && strings.Contains(*n.GetQualifiedName(), ".MSG_") {
+	} else if qn, ok := n.GetQualifiedNameString(); n.IsGetProp() && parent.IsAssign() && ok && strings.Contains(qn, ".MSG_") {
 		originalName := n.GetString()
-		n.SetOriginalName(jutil.StringPtr(originalName))
+		n.SetOriginalNameString(originalName)
 		n.SetString("some_prefix_" + originalName)
 	}
 }
@@ -302,20 +301,20 @@ func (c *JsMessageVisitorTest) TestJsMessageOnConst() {
 // Java: JsMessageVisitorTest.testJsMessagesWithSrcMap()
 func (c *JsMessageVisitorTest) TestJsMessagesWithSrcMap() {
 	sourceMap := sourcemap.NewSourceMapGeneratorV3()
-	sourceMap.AddMapping(
-		jutil.StringPtr("source1.html"),
-		nil,
+	sourceMap.AddMappingPositions(
+		"source1.html",
+		sourcemap.OptionalString{},
 		sourcemap.NewFilePosition(10, 0),
 		sourcemap.NewFilePosition(0, 0),
 		sourcemap.NewFilePosition(0, 100))
-	sourceMap.AddMapping(
-		jutil.StringPtr("source2.html"),
-		nil,
+	sourceMap.AddMappingPositions(
+		"source2.html",
+		sourcemap.OptionalString{},
 		sourcemap.NewFilePosition(10, 0),
 		sourcemap.NewFilePosition(1, 0),
 		sourcemap.NewFilePosition(1, 100))
 	output := &strings.Builder{}
-	sourceMap.AppendTo(output, jutil.StringPtr("unused.js"))
+	sourceMap.AppendToOptional(output, sourcemap.SomeString("unused.js"))
 
 	c.compilerOptions = NewCompilerOptions()
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)

@@ -79,7 +79,7 @@ type CoalesceVariableNames struct {
 	scopeStatesBuf [4]*coalesceScopeState
 
 	interferenceBitsBuf [LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE]bitSet128
-	liveRangeChecker    CoalesceVariableNames_LiveRangeChecker
+	liveRangeChecker    coalesceLiveRangeChecker
 	assignToBuf         [16]int
 	readFromBuf         [16]int
 
@@ -118,7 +118,7 @@ func cvnHasLocalDecl(n rhino.Node) bool {
 		return true
 	default:
 	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		if cvnHasLocalDecl(c) {
 			return true
 		}
@@ -133,7 +133,7 @@ func cvnCollectTopFunctions(n rhino.Node, out *[]rhino.Node) {
 		}
 		return
 	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		cvnCollectTopFunctions(c, out)
 	}
 }
@@ -228,16 +228,16 @@ func (c *CoalesceVariableNames) Process(externs rhino.Node, root rhino.Node) {
 
 func (c *CoalesceVariableNames) EnterScope(t *NodeTraversal) {
 	c.pushScopeRoot(t.GetScopeRoot())
-	c.EnterScopeWithCfg(t)
+	c.enterScopeWithCfg(t)
 }
 
 func (c *CoalesceVariableNames) ExitScope(t *NodeTraversal) {
-	c.ExitScopeWithCfg(t)
+	c.exitScopeWithCfg(t)
 	c.popScopeRoot(t.GetScopeRoot())
 }
 
 // Java: CoalesceVariableNames.enterScopeWithCfg(NodeTraversal)
-func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
+func (c *CoalesceVariableNames) enterScopeWithCfg(t *NodeTraversal) {
 	if !t.GetScopeRoot().IsFunction() {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
@@ -304,7 +304,7 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 			continue
 		}
 		p := v.GetParentNode()
-		if p.IsFunction() || p.IsClass() || c.IsInMultipleLvalueDecl(v) {
+		if p.IsFunction() || p.IsClass() || c.isInMultipleLvalueDecl(v) {
 			continue
 		}
 		unescapedCandidates++
@@ -324,7 +324,7 @@ func (c *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 }
 
 // Java: CoalesceVariableNames.exitScopeWithCfg(NodeTraversal)
-func (c *CoalesceVariableNames) ExitScopeWithCfg(t *NodeTraversal) {
+func (c *CoalesceVariableNames) exitScopeWithCfg(t *NodeTraversal) {
 	if len(c.shouldOptimizeScopeStack) == 0 {
 		panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop()
 	}
@@ -401,7 +401,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		// Rename.
 		nameNode.SetIdent(coalescedVar.GetName())
 		c.reportChange(n)
-		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
+		c.updateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	} else {
 		coalescedVar := state.superNode[color]
 		if coalescedVar == nil {
@@ -438,11 +438,11 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 		if var_.Equals(coalescedVar) {
 			return
 		}
-		c.UpdateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
+		c.updateDeclarationsPostCoalescing(n, coalescedVar, var_, parent)
 	}
 }
 
-// UpdateDeclarationsPostCoalescing updates declarations of the given name
+// updateDeclarationsPostCoalescing updates declarations of the given name
 // node and the coalesced variable. Firstly, it converts the coalesced
 // variable's declaration into a `var` if it is a `const` or a `let`.
 // Secondly, it removes the declaration of the given name node if it is under
@@ -450,7 +450,7 @@ func (c *CoalesceVariableNames) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 // destructuring LHS name under a destructuring LHS declaration.
 //
 // Java: CoalesceVariableNames.updateDeclarationsPostCoalescing(Node, Var, Var, Node)
-func (c *CoalesceVariableNames) UpdateDeclarationsPostCoalescing(
+func (c *CoalesceVariableNames) updateDeclarationsPostCoalescing(
 	n rhino.Node, coalescedVar *Var, originalVar *Var, parent rhino.Node) {
 	jutil.CheckStateMsg(n.IsName(), "trying to update the declaration of a non-name node")
 	if NodeUtil_IsNameDeclaration(parent) ||
@@ -458,22 +458,22 @@ func (c *CoalesceVariableNames) UpdateDeclarationsPostCoalescing(
 			NodeUtil_IsLhsByDestructuring(n) &&
 			// Consider this to be a destructuring LHS declaration only if we don't hit an
 			// assignment like `[a,b] = [3,4]` first.
-			!c.IsNameInsideDestructuringAssignment(n)) {
+			!c.isNameInsideDestructuringAssignment(n)) {
 		// convert the coalesced variable's declaration into a `var` if it is a `const` or a `let`
-		c.MakeDeclarationVar(coalescedVar)
+		c.makeDeclarationVar(coalescedVar)
 		// remove the declaration of the given name node as it has been coalesced with coalescedVar
-		c.RemoveVarDeclaration(n, originalVar)
+		c.removeVarDeclaration(n, originalVar)
 	}
 }
 
-// IsNameInsideDestructuringAssignment: is the given name node inside the LHS
-// of a destructuring pattern assignment like `[a,b,c] = [1,2,3]`.
+// isNameInsideDestructuringAssignment reports whether the given name node is
+// inside the LHS of a destructuring pattern assignment like `[a,b,c] = [1,2,3]`.
 //
 // Importantly, for this pass, it means that the name is not inside a
 // declaration like `const [a,b,c] = [1,2,3]` and must not be undeclared.
 //
 // Java: CoalesceVariableNames.isNameInsideDestructuringAssignment(Node)
-func (c *CoalesceVariableNames) IsNameInsideDestructuringAssignment(n rhino.Node) bool {
+func (c *CoalesceVariableNames) isNameInsideDestructuringAssignment(n rhino.Node) bool {
 	enclosingTarget := NodeUtil_GetRootTarget(n)
 	_, isPat := ast.AsPattern(enclosingTarget)
 	return isPat && ast.RoleOf(enclosingTarget) == ast.RoleAssignTarget
@@ -507,7 +507,7 @@ func (c *CoalesceVariableNames) computeAndColorScope(
 		}
 		// Skip lets, consts, and vars that have multiple variables declared in them
 		// (see testCapture and https://github.com/google/closure-compiler/issues/3164).
-		if c.IsInMultipleLvalueDecl(v) {
+		if c.isInMultipleLvalueDecl(v) {
 			continue
 		}
 		candBits.set(vIndex)
@@ -610,19 +610,19 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 	lrc.root = val
 	lrc.isAssignToList = lrc.isAssignToList[:0]
 	lrc.isReadFromList = lrc.isReadFromList[:0]
-	lrc.Check(val)
+	lrc.check(val)
 	if len(lrc.isAssignToList) > 0 {
 		lrc.setCrossingVariablesBits128(interferenceBits, outBits)
 	}
 }
 
-// IsInMultipleLvalueDecl returns whether this variable's declaration also
+// isInMultipleLvalueDecl returns whether this variable's declaration also
 // declares other names.
 //
 // For example, this would return true for `x` in `let [x, y, z] = []`;
 //
 // Java: CoalesceVariableNames.isInMultipleLvalueDecl(Var)
-func (c *CoalesceVariableNames) IsInMultipleLvalueDecl(v *Var) bool {
+func (c *CoalesceVariableNames) isInMultipleLvalueDecl(v *Var) bool {
 	declarationType, ok := v.DeclarationToken()
 	if !ok {
 		// switch on a null enum throws.
@@ -639,11 +639,11 @@ func (c *CoalesceVariableNames) IsInMultipleLvalueDecl(v *Var) bool {
 	}
 }
 
-// RemoveVarDeclaration removes variable declaration if the variable has been
+// removeVarDeclaration removes variable declaration if the variable has been
 // coalesced with another variable that has already been declared.
 //
 // Java: CoalesceVariableNames.removeVarDeclaration(Node, Var)
-func (c *CoalesceVariableNames) RemoveVarDeclaration(name rhino.Node, originalVar *Var) {
+func (c *CoalesceVariableNames) removeVarDeclaration(name rhino.Node, originalVar *Var) {
 	decl := ast.MustNameDeclaration(NodeUtil_GetEnclosingNode(name, NodeUtil_IsNameDeclaration))
 	var_ := decl.Node()
 	parent := var_.GetParent()
@@ -679,7 +679,7 @@ func (c *CoalesceVariableNames) RemoveVarDeclaration(name rhino.Node, originalVa
 				assign = NodeUtil_NewExpr(assign)
 			}
 			var_.ReplaceWith(assign)
-		} else if c.IsUninitializedLetNameInLoopBodyAndLive(name, originalVar) {
+		} else if c.isUninitializedLetInLoopBodyAndLive(name, originalVar) {
 			nameView.Detach()
 			undefinedValue := ast.MustExpr(c.astFactory.CreateUndefinedValue().SrcrefTree(name))
 			assign := ast.NewAssign(nameView.AsTarget(), undefinedValue).Node().Srcref(name)
@@ -695,14 +695,14 @@ func (c *CoalesceVariableNames) RemoveVarDeclaration(name rhino.Node, originalVa
 	}
 }
 
-// MakeDeclarationVar converts `const` or `let` declarations to `var`
+// makeDeclarationVar converts `const` or `let` declarations to `var`
 // declarations.
 //
 // Java: CoalesceVariableNames.makeDeclarationVar(Var)
-func (c *CoalesceVariableNames) MakeDeclarationVar(coalescedName *Var) {
+func (c *CoalesceVariableNames) makeDeclarationVar(coalescedName *Var) {
 	if coalescedName.IsConst() || coalescedName.IsLet() {
 		nameNode := rhino.CheckNotNullMsg1(coalescedName.GetNameNode(), "%s", coalescedName)
-		if CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode) {
+		if isUninitializedLetInLoopBody(nameNode) {
 			undefinedValue := ast.MustExpr(c.astFactory.CreateUndefinedValue().SrcrefTree(nameNode))
 			ast.MustName(nameNode).SetInit(undefinedValue)
 		}
@@ -715,7 +715,7 @@ func (c *CoalesceVariableNames) MakeDeclarationVar(coalescedName *Var) {
 }
 
 // Java: CoalesceVariableNames.isUninitializedLetNameInLoopBody(Node)
-func CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode rhino.Node) bool {
+func isUninitializedLetInLoopBody(nameNode rhino.Node) bool {
 	name, isName := ast.AsName(nameNode)
 	jutil.CheckStateMsg1(isName, "%s", nameNode)
 	letDecl, isLet := ast.AsNameDeclarationOf(nameNode.GetParent(), rhino.Token_LET)
@@ -735,8 +735,8 @@ func CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode rhino.Node)
 }
 
 // Java: CoalesceVariableNames.isUninitializedLetNameInLoopBodyAndLive(Node, Var)
-func (c *CoalesceVariableNames) IsUninitializedLetNameInLoopBodyAndLive(nameNode rhino.Node, originalVar *Var) bool {
-	if !CoalesceVariableNames_IsUninitializedLetNameInLoopBody(nameNode) {
+func (c *CoalesceVariableNames) isUninitializedLetInLoopBodyAndLive(nameNode rhino.Node, originalVar *Var) bool {
+	if !isUninitializedLetInLoopBody(nameNode) {
 		return false
 	}
 	jutil.CheckState(c.liveness != nil)
@@ -747,17 +747,17 @@ func (c *CoalesceVariableNames) IsUninitializedLetNameInLoopBodyAndLive(nameNode
 	return varIndex >= 0 && state.GetOut().IsLive(varIndex)
 }
 
-// CoalesceVariableNames_LiveRangeChecker is used to find written and read
-// variables in the same CFG node so that the variable pairs can be marked as
-// interfering in an interference bit map.
-type CoalesceVariableNames_LiveRangeChecker struct {
+// coalesceLiveRangeChecker finds written and read variables in the same CFG
+// node so that the variable pairs can be marked as interfering in an
+// interference bit map.
+type coalesceLiveRangeChecker struct {
 	root           rhino.Node
 	liveness       *LiveVariablesAnalysis
 	isAssignToList []int // indices of written variables
 	isReadFromList []int // indices of read variables
 }
 
-func (l *CoalesceVariableNames_LiveRangeChecker) varIndexByID(id uint32) int {
+func (l *coalesceLiveRangeChecker) varIndexByID(id uint32) int {
 	if id == 0 {
 		return -1
 	}
@@ -768,19 +768,19 @@ func (l *CoalesceVariableNames_LiveRangeChecker) varIndexByID(id uint32) int {
 }
 
 // Java: CoalesceVariableNames.LiveRangeChecker.check(Node)
-func (l *CoalesceVariableNames_LiveRangeChecker) Check(n rhino.Node) {
+func (l *coalesceLiveRangeChecker) check(n rhino.Node) {
 	if n != l.root && ControlFlowGraph_IsEnteringNewCfgNode(n) {
 		return
 	}
 	walkCfgEvalOrder(n, func(cur, parent rhino.Node) {
-		if CoalesceVariableNames_LiveRangeChecker_ShouldVisit(cur) {
-			l.Visit(cur, parent)
+		if shouldVisitForLiveRange(cur) {
+			l.visit(cur, parent)
 		}
 	})
 }
 
 // Java: CoalesceVariableNames.LiveRangeChecker.visit(Node, Node)
-func (l *CoalesceVariableNames_LiveRangeChecker) Visit(n rhino.Node, parent rhino.Node) {
+func (l *coalesceLiveRangeChecker) visit(n rhino.Node, parent rhino.Node) {
 	var assignedID uint32
 	if name, isName := ast.AsName(n); isName {
 		_, hasInit := name.Init()
@@ -808,7 +808,7 @@ func (l *CoalesceVariableNames_LiveRangeChecker) Visit(n rhino.Node, parent rhin
 	}
 }
 
-func (l *CoalesceVariableNames_LiveRangeChecker) setCrossingVariablesBits128(
+func (l *coalesceLiveRangeChecker) setCrossingVariablesBits128(
 	interferenceBits []bitSet128,
 	outBits bitSet128,
 ) {
@@ -826,10 +826,10 @@ func (l *CoalesceVariableNames_LiveRangeChecker) setCrossingVariablesBits128(
 	})
 }
 
-// CoalesceVariableNames_LiveRangeChecker_ShouldVisit returns whether any
-// LiveRangeChecker would be interested in the node.
+// shouldVisitForLiveRange returns whether any coalesceLiveRangeChecker would
+// be interested in the node.
 //
 // Java: CoalesceVariableNames.LiveRangeChecker.shouldVisit(Node)
-func CoalesceVariableNames_LiveRangeChecker_ShouldVisit(n rhino.Node) bool {
+func shouldVisitForLiveRange(n rhino.Node) bool {
 	return n.IsName() || (n.HasChildren() && n.GetFirstChild().IsName())
 }

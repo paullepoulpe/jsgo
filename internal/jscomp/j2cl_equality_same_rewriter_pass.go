@@ -22,6 +22,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -69,16 +70,21 @@ func (p *J2clEqualitySameRewriterPass) OptimizeSubtree(node rhino.Node) rhino.No
 		return node
 	}
 
+	call, ok := ast.AsCall(node)
 	// Do not optimize if any parameters were removed during optimizations
-	if !node.HasXChildren(3) {
+	if !ok || call.NumArgs() != 2 {
 		return node
 	}
+	firstArg, _ := call.FirstArg()
+	secondArg, _ := call.LastArg()
+	firstExpr := firstArg.Node()
+	secondExpr := secondArg.Node()
 
 	var replacement rhino.Node
-	if j2clEqualitySameRewriterPass_isStringEqualsMethod(node) {
-		replacement = p.trySubstituteStringEquals(node)
-	} else if j2clEqualitySameRewriterPass_isEqualitySameCall(node) {
-		replacement = p.trySubstituteEqualitySame(node)
+	if isJ2clStringEqualsMethod(call) {
+		replacement = p.trySubstituteStringEquals(firstExpr, secondExpr)
+	} else if isJ2clEqualitySameCall(call) {
+		replacement = p.trySubstituteEqualitySame(firstExpr, secondExpr)
 	}
 
 	if replacement.IsNil() {
@@ -92,46 +98,44 @@ func (p *J2clEqualitySameRewriterPass) OptimizeSubtree(node rhino.Node) rhino.No
 }
 
 // Java: J2clEqualitySameRewriterPass.trySubstituteStringEquals(Node)
-func (p *J2clEqualitySameRewriterPass) trySubstituteStringEquals(callNode rhino.Node) rhino.Node {
-	firstExprValue := j2clEqualitySameRewriterPass_getKnownLiteralValue(callNode.GetSecondChild())
-	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN ||
-		firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
+func (p *J2clEqualitySameRewriterPass) trySubstituteStringEquals(firstExpr, secondExpr rhino.Node) rhino.Node {
+	firstExprValue := knownJ2clLiteralValue(firstExpr)
+	if firstExprValue == j2clNodeValueUnknown ||
+		firstExprValue == j2clNodeValueNullOrUndefined {
 		// Potential NPE, don't optimize.
 		return rhino.NilNode
 	}
 
-	return p.trySubstituteEqualitySame(callNode)
+	return p.trySubstituteEqualitySame(firstExpr, secondExpr)
 }
 
 // Java: J2clEqualitySameRewriterPass.trySubstituteEqualitySame(Node)
-func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(callNode rhino.Node) rhino.Node {
-	firstExpr := callNode.GetSecondChild()
-	firstExprValue := j2clEqualitySameRewriterPass_getKnownLiteralValue(firstExpr)
-	secondExpr := callNode.GetLastChild()
-	secondExprValue := j2clEqualitySameRewriterPass_getKnownLiteralValue(secondExpr)
+func (p *J2clEqualitySameRewriterPass) trySubstituteEqualitySame(firstExpr, secondExpr rhino.Node) rhino.Node {
+	firstExprValue := knownJ2clLiteralValue(firstExpr)
+	secondExprValue := knownJ2clLiteralValue(secondExpr)
 
-	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN &&
-		secondExprValue == J2clEqualitySameRewriterPass_NodeValue_UNKNOWN {
+	if firstExprValue == j2clNodeValueUnknown &&
+		secondExprValue == j2clNodeValueUnknown {
 		return rhino.NilNode
 	}
 
-	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
+	if firstExprValue == j2clNodeValueNullOrUndefined {
 		return p.rewriteNullCheck(secondExpr, firstExpr)
 	}
 
-	if secondExprValue == J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED {
+	if secondExprValue == j2clNodeValueNullOrUndefined {
 		return p.rewriteNullCheck(firstExpr, secondExpr)
 	}
 
-	if firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NON_NULL ||
-		secondExprValue == J2clEqualitySameRewriterPass_NodeValue_NON_NULL {
+	if firstExprValue == j2clNodeValueNonNull ||
+		secondExprValue == j2clNodeValueNonNull {
 		// There is a coercion danger (e.g. 0 == null) but since at least one side is not null, we can
 		// safely use === that will not trigger any coercion.
 		return p.rewriteAsStrictEq(firstExpr, secondExpr)
 	}
 
-	jutil.CheckState(firstExprValue == J2clEqualitySameRewriterPass_NodeValue_NUMBER ||
-		secondExprValue == J2clEqualitySameRewriterPass_NodeValue_NUMBER)
+	jutil.CheckState(firstExprValue == j2clNodeValueNumber ||
+		secondExprValue == j2clNodeValueNumber)
 	return p.rewriteNumberCheck(firstExpr, secondExpr)
 }
 
@@ -188,8 +192,8 @@ func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr rhino.Node, 
 		return NodeUtil_BooleanNode(jutil.DoubleToLongBits(firstValue) == jutil.DoubleToLongBits(secondValue))
 	}
 
-	if (firstOK && j2clEqualitySameRewriterPass_isSafeNumber(firstValue)) ||
-		(secondOK && j2clEqualitySameRewriterPass_isSafeNumber(secondValue)) {
+	if (firstOK && isSafeJ2clNumber(firstValue)) ||
+		(secondOK && isSafeJ2clNumber(secondValue)) {
 		// Since one side is not 0, -0 or NaN, there is no risk of -0 vs 0 or NaN vs NaN comparison.
 		return p.rewriteAsStrictEq(firstExpr, secondExpr)
 	}
@@ -203,74 +207,65 @@ func (p *J2clEqualitySameRewriterPass) rewriteNumberCheck(firstExpr rhino.Node, 
 }
 
 // Java: J2clEqualitySameRewriterPass.isSafeNumber(Double)
-func j2clEqualitySameRewriterPass_isSafeNumber(d float64) bool {
+func isSafeJ2clNumber(d float64) bool {
 	return d != 0 && !math.IsNaN(d)
 }
 
 // Java: private enum J2clEqualitySameRewriterPass.NodeValue
-type J2clEqualitySameRewriterPass_NodeValue int32
+type j2clEqualityNodeValue uint8
 
 const (
-	J2clEqualitySameRewriterPass_NodeValue_UNKNOWN J2clEqualitySameRewriterPass_NodeValue = iota
-	J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED
+	j2clNodeValueUnknown j2clEqualityNodeValue = iota
+	j2clNodeValueNullOrUndefined
 	// JavaScript number. Needs special treatment to preserve Object.is semantics.
-	J2clEqualitySameRewriterPass_NodeValue_NUMBER
+	j2clNodeValueNumber
 	// Non-null and also known to be not a number.
-	J2clEqualitySameRewriterPass_NodeValue_NON_NULL
+	j2clNodeValueNonNull
 )
 
-var j2clEqualitySameRewriterPass_NodeValue_names = [...]string{
-	"UNKNOWN", "NULL_OR_UNDEFINED", "NUMBER", "NON_NULL",
-}
-
-// String is NodeValue.name().
-func (v J2clEqualitySameRewriterPass_NodeValue) String() string {
-	return j2clEqualitySameRewriterPass_NodeValue_names[v]
-}
-
 // Java: J2clEqualitySameRewriterPass.getKnownLiteralValue(Node)
-func j2clEqualitySameRewriterPass_getKnownLiteralValue(n rhino.Node) J2clEqualitySameRewriterPass_NodeValue {
+func knownJ2clLiteralValue(n rhino.Node) j2clEqualityNodeValue {
 	switch NodeUtil_GetKnownValueType(n) {
 	case NodeUtil_ValueType_VOID:
 		if NodeUtil_CanBeSideEffected(n) {
-			return J2clEqualitySameRewriterPass_NodeValue_UNKNOWN
+			return j2clNodeValueUnknown
 		}
-		return J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED
+		return j2clNodeValueNullOrUndefined
 	case NodeUtil_ValueType_NULL:
-		return J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED
+		return j2clNodeValueNullOrUndefined
 	case NodeUtil_ValueType_STRING, NodeUtil_ValueType_BOOLEAN, NodeUtil_ValueType_OBJECT, NodeUtil_ValueType_BIGINT:
-		return J2clEqualitySameRewriterPass_NodeValue_NON_NULL
+		return j2clNodeValueNonNull
 	case NodeUtil_ValueType_NUMBER:
-		return J2clEqualitySameRewriterPass_NodeValue_NUMBER
+		return j2clNodeValueNumber
 	case NodeUtil_ValueType_UNDETERMINED:
-		return J2clEqualitySameRewriterPass_NodeValue_UNKNOWN
+		return j2clNodeValueUnknown
+	default:
+		panic(jutil.NewIllegalStateException())
 	}
-	// Go-only: language-adapter — unreachable for a valid enum value: the
-	// Java switch expression is exhaustive.
-	panic(jutil.NewIllegalStateException())
 }
 
 // Java: J2clEqualitySameRewriterPass.isEqualitySameCall(Node)
-func j2clEqualitySameRewriterPass_isEqualitySameCall(node rhino.Node) bool {
-	return node.IsCall() && j2clEqualitySameRewriterPass_hasName(node.GetFirstChild(), "Equality", "$same")
+func isJ2clEqualitySameCall(call ast.Call) bool {
+	return hasJ2clMethodName(call.Callee().Node(), "Equality", "$same")
 }
 
 // Java: J2clEqualitySameRewriterPass.isStringEqualsMethod(Node)
-func j2clEqualitySameRewriterPass_isStringEqualsMethod(node rhino.Node) bool {
-	return node.IsCall() &&
-		j2clEqualitySameRewriterPass_hasName(
-			node.GetFirstChild(),
-			"String",
-			"m_equals__java_lang_String__java_lang_Object__boolean")
+func isJ2clStringEqualsMethod(call ast.Call) bool {
+	return hasJ2clMethodName(
+		call.Callee().Node(),
+		"String",
+		"m_equals__java_lang_String__java_lang_Object__boolean")
 }
 
 // Java: J2clEqualitySameRewriterPass.hasName(Node, String, String)
-func j2clEqualitySameRewriterPass_hasName(fnName rhino.Node, className string, methodName string) bool {
+func hasJ2clMethodName(fnName rhino.Node, className string, methodName string) bool {
 	if !fnName.IsQualifiedName() {
 		return false
 	}
 	// NOTE: This should be rewritten to use method name + file name of definition site
 	// like other J2CL passes, which is more precise.
-	originalQname := *fnName.GetOriginalQualifiedName()
-	return strings.HasSuffix(originalQname, methodName) && strings.Contains(originalQname, className)
+	originalQname := fnName.GetOriginalQualifiedName()
+	return originalQname != nil &&
+		strings.HasSuffix(*originalQname, methodName) &&
+		strings.Contains(*originalQname, className)
 }

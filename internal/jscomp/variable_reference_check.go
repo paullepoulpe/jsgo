@@ -72,13 +72,13 @@ var VariableReferenceCheck_UNUSED_LOCAL_ASSIGNMENT = DiagnosticType_Disabled(
 	"JSC_UNUSED_LOCAL_ASSIGNMENT", "Value assigned to local variable {0} is never read")
 
 // Java: VariableReferenceCheck.GOOG_REQUIRE
-var variableReferenceCheck_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
+var varRefGoogRequire = rhino.QualifiedName_Of("goog.require")
 
 // Java: VariableReferenceCheck.GOOG_REQUIRE_TYPE
-var variableReferenceCheck_GOOG_REQUIRE_TYPE = rhino.QualifiedName_Of("goog.requireType")
+var varRefGoogRequireType = rhino.QualifiedName_Of("goog.requireType")
 
 // Java: VariableReferenceCheck.GOOG_FORWARD_DECLARE
-var variableReferenceCheck_GOOG_FORWARD_DECLARE = rhino.QualifiedName_Of("goog.forwardDeclare")
+var varRefGoogForwardDeclare = rhino.QualifiedName_Of("goog.forwardDeclare")
 
 // These types do not permit a block-scoped declaration inside them without an
 // explicit block. e.g. if (b) let x;
@@ -86,7 +86,7 @@ var variableReferenceCheck_GOOG_FORWARD_DECLARE = rhino.QualifiedName_Of("goog.f
 // IRFactory.
 //
 // Java: VariableReferenceCheck.BLOCKLESS_DECLARATION_FORBIDDEN_STATEMENTS
-func variableReferenceCheck_isBlocklessDeclarationForbidden(t rhino.Token) bool {
+func isBlocklessDeclarationForbidden(t rhino.Token) bool {
 	switch t {
 	case rhino.Token_IF, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_WHILE:
 		return true
@@ -96,7 +96,7 @@ func variableReferenceCheck_isBlocklessDeclarationForbidden(t rhino.Token) bool 
 }
 
 // Java: VariableReferenceCheck.GOOG_SCOPE
-var variableReferenceCheck_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
+var varRefGoogScope = rhino.QualifiedName_Of("goog.scope")
 
 // Java: VariableReferenceCheck(AbstractCompiler)
 func NewVariableReferenceCheck(compiler AbstractCompiler) *VariableReferenceCheck {
@@ -185,7 +185,7 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckDefaultParam(
 	param *Var, scope *Scope, varsInFunctionBody map[string]struct{}) {
 	NodeTraversal_Traverse(
 		b.v.compiler,
-		param.GetParentNode().GetSecondChild(),
+		ast.MustDefaultValue(param.GetParentNode()).Value().Node(),
 		/*
 		 * Do a shallow check since cases like: {@code
 		 *   function f(y = () => x, x = 5) { return y(); }
@@ -193,18 +193,17 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckDefaultParam(
 		 *   function f(y = (() => x)(), x = 5) { return y(); }
 		 * } but this should be rare.
 		 */
-		&variableReferenceCheck_defaultParamCallback{b: b, scope: scope, varsInFunctionBody: varsInFunctionBody})
+		&defaultParamRefCallback{b: b, scope: scope, varsInFunctionBody: varsInFunctionBody})
 }
 
-var variableReferenceCheckDefaultParamVisitTokens = func() ast.TokenSet {
+var defaultParamRefVisitTokens = func() ast.TokenSet {
 	var s ast.TokenSet
 	s.Add(rhino.Token_NAME)
 	return s
 }()
 
-// variableReferenceCheck_defaultParamCallback is the anonymous
-// AbstractShallowCallback of checkDefaultParam.
-type variableReferenceCheck_defaultParamCallback struct {
+// defaultParamRefCallback is the shallow callback of CheckDefaultParam.
+type defaultParamRefCallback struct {
 	NodeTraversal_AbstractShallowCallbackBase
 
 	b                  *VariableReferenceCheck_ReferenceCheckingBehavior
@@ -212,14 +211,14 @@ type variableReferenceCheck_defaultParamCallback struct {
 	varsInFunctionBody map[string]struct{}
 }
 
-var _ nodeTraversal_visitTokens = (*variableReferenceCheck_defaultParamCallback)(nil)
+var _ nodeTraversal_visitTokens = (*defaultParamRefCallback)(nil)
 
-func (*variableReferenceCheck_defaultParamCallback) visitTokens() *ast.TokenSet {
-	return &variableReferenceCheckDefaultParamVisitTokens
+func (*defaultParamRefCallback) visitTokens() *ast.TokenSet {
+	return &defaultParamRefVisitTokens
 }
 
 // Java: VariableReferenceCheck.ReferenceCheckingBehavior.checkDefaultParam(...).new AbstractShallowCallback() {...}.visit(NodeTraversal, Node, Node)
-func (cb *variableReferenceCheck_defaultParamCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (cb *defaultParamRefCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if !NodeUtil_IsReferenceName(n) {
 		return
 	}
@@ -322,14 +321,19 @@ func (b *VariableReferenceCheck_ReferenceCheckingBehavior) CheckVar(v *Var, refe
 		if isAssignment {
 			decl := references[0]
 			declNode := decl.GetNode()
-			gp := declNode.GetGrandparent()
-			lhsOfForInLoop := gp.IsForIn() && gp.GetFirstFirstChild() == declNode
-
 			if decl.GetScope().IsLocal() &&
 				(decl.IsVarDeclaration() || decl.IsLetDeclaration() || decl.IsConstDeclaration()) &&
-				!decl.GetNode().IsFromExterns() &&
-				!lhsOfForInLoop {
-				unusedAssignment = reference
+				!declNode.IsFromExterns() {
+				lhsOfForInLoop := false
+				if forIn, isForIn := ast.AsForIn(declNode.GetGrandparent()); isForIn {
+					if forDecl, isDecl := forIn.Target().AsNameDeclaration(); isDecl {
+						first, hasFirst := forDecl.FirstDeclarator()
+						lhsOfForInLoop = hasFirst && first.Is(declNode)
+					}
+				}
+				if !lhsOfForInLoop {
+					unusedAssignment = reference
+				}
 			}
 			if (reference.GetParent().IsDec() || reference.GetParent().IsInc() ||
 				NodeUtil_IsCompoundAssignmentOp(reference.GetParent())) &&
@@ -363,8 +367,7 @@ func (v *VariableReferenceCheck) LookForHoistedFunction(references []*Reference)
 // Java: VariableReferenceCheck.checkBlocklessDeclaration(Var, Reference, Node)
 func (v *VariableReferenceCheck) CheckBlocklessDeclaration(va *Var, reference *Reference, referenceNode rhino.Node) {
 	if !reference.IsVarDeclaration() && reference.GetGrandparent().IsAddedBlock() &&
-		variableReferenceCheck_isBlocklessDeclarationForbidden(
-			reference.GetGrandparent().GetParent().GetToken()) {
+		isBlocklessDeclarationForbidden(reference.GetGrandparent().GetParent().GetToken()) {
 		v.compiler.Report(JSError_MakeWithNode(referenceNode, VariableReferenceCheck_DECLARATION_NOT_DIRECTLY_IN_BLOCK, va.GetName()))
 	}
 }
@@ -390,9 +393,7 @@ func (vc *VariableReferenceCheck) CheckRedeclaration(
 			NodeUtil_IsBlockScopedDeclaration(referenceNode.GetParent()) &&
 			v.scope == reference.GetScope().parent
 
-		isFunctionDecl := !v.GetParentNode().IsNil() &&
-			v.GetParentNode().IsFunction() &&
-			v.GetParentNode().GetFirstChild() == referenceNode
+		isFunctionDecl := ast.RoleIn(referenceNode, v.GetParentNode()) == ast.RoleFunctionName
 
 		if v.IsLet() ||
 			v.IsConst() ||
@@ -525,8 +526,10 @@ func (vc *VariableReferenceCheck) CheckForUnusedLocalVar(v *Var, unusedAssignmen
 	s := v.scope
 	if s.IsFunctionBlockScope() {
 		function := s.GetRootNode().GetParent()
-		callee := function.GetPrevious()
-		inGoogScope = !callee.IsNil() && variableReferenceCheck_GOOG_SCOPE.Matches(callee)
+		if call, ok := ast.AsCall(function.GetParent()); ok {
+			firstArg, hasFirstArg := call.FirstArg()
+			inGoogScope = hasFirstArg && firstArg.Is(function) && varRefGoogScope.Matches(call.Callee().Node())
+		}
 	}
 
 	if inGoogScope {
@@ -536,17 +539,21 @@ func (vc *VariableReferenceCheck) CheckForUnusedLocalVar(v *Var, unusedAssignmen
 
 	if s.IsModuleScope() {
 		statement := NodeUtil_GetEnclosingStatement(v.GetNode())
-		if NodeUtil_IsNameDeclaration(statement) {
-			lhs := statement.GetFirstChild()
-			rhs := lhs.GetFirstChild()
-			if !rhs.IsNil() &&
-				(NodeUtil_IsCallToQualifiedName(rhs, variableReferenceCheck_GOOG_FORWARD_DECLARE) ||
-					NodeUtil_IsCallToQualifiedName(rhs, variableReferenceCheck_GOOG_REQUIRE_TYPE) ||
-					NodeUtil_IsCallToQualifiedName(rhs, variableReferenceCheck_GOOG_REQUIRE) ||
-					rhs.IsQualifiedName()) {
-				// No warning. module imports will be caught by the unused-require check, and if the
-				// right side is a qualified name then this is likely an alias used in type annotations.
-				return
+		if decl, ok := ast.AsNameDeclaration(statement); ok {
+			if first, hasFirst := decl.FirstDeclarator(); hasFirst {
+				if name, isName := first.AsName(); isName {
+					if init, hasInit := name.Init(); hasInit {
+						rhs := init.Node()
+						if NodeUtil_IsCallToQualifiedName(rhs, varRefGoogForwardDeclare) ||
+							NodeUtil_IsCallToQualifiedName(rhs, varRefGoogRequireType) ||
+							NodeUtil_IsCallToQualifiedName(rhs, varRefGoogRequire) ||
+							rhs.IsQualifiedName() {
+							// No warning. module imports will be caught by the unused-require check, and if the
+							// right side is a qualified name then this is likely an alias used in type annotations.
+							return
+						}
+					}
+				}
 			}
 		}
 	}

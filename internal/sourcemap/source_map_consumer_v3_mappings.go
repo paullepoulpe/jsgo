@@ -61,12 +61,12 @@ type SourceMapConsumerV3_MappingBuilder struct {
 const SourceMapConsumerV3_MappingBuilder_MAX_ENTRY_VALUES = 5
 
 func tryNewMappingBuilder(
-	outer *SourceMapConsumerV3, lineMap optionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) (*SourceMapConsumerV3_MappingBuilder, jutil.Throwable) {
-	if !lineMap.present {
+	outer *SourceMapConsumerV3, lineMap OptionalString, lineCount int, useCompactMappings bool, estimatedEntries int32) (*SourceMapConsumerV3_MappingBuilder, jutil.Throwable) {
+	if !lineMap.Valid {
 		return nil, jutil.NewNullPointerException()
 	}
 	b := &SourceMapConsumerV3_MappingBuilder{outer: outer}
-	b.content = NewSourceMapConsumerV3_StringCharIterator(lineMap.text)
+	b.content = NewSourceMapConsumerV3_StringCharIterator(lineMap.Value)
 	b.lineCount = lineCount
 	if useCompactMappings {
 		b.entrySize = 4
@@ -76,7 +76,7 @@ func tryNewMappingBuilder(
 	b.flatLength = int(estimatedEntries) * b.entrySize
 	// An entry's varints take at most as many bytes as its Base64 VLQ
 	// characters, so the "mappings" text bounds the stream.
-	b.data = make([]byte, 0, len(lineMap.text))
+	b.data = make([]byte, 0, len(lineMap.Value))
 	estimatedLines := 1000
 	if lineCount >= 0 {
 		estimatedLines = lineCount

@@ -31,17 +31,17 @@ const SourceMapConsumerV3_UNMAPPED = -1
 // format, as produced by the Closure Compiler, etc.
 // https://github.com/google/closure-compiler/wiki/Source-Maps
 type SourceMapConsumerV3 struct {
-	sources        []optionalString
-	sourcesContent []optionalString
-	names          []optionalString
-	file           optionalString
+	sources        []OptionalString
+	sourcesContent []OptionalString
+	names          []OptionalString
+	file           OptionalString
 	lineCount      int
 
 	mappings *SourceMapConsumerV3_Mappings
 
 	// (originalFile path, original line) ==> target mappings
 	reverseSourceMapping map[sourceMapConsumerV3_lineKey][]*Mapping_OriginalMapping
-	sourceRoot           optionalString
+	sourceRoot           OptionalString
 	extensions           []SourceMapExtension
 }
 
@@ -56,11 +56,11 @@ type sourceMapConsumerV3_lineKey struct {
 	isNull bool
 }
 
-func sourceMapConsumerV3_keyOf(s optionalString, line int) sourceMapConsumerV3_lineKey {
-	if !s.present {
+func sourceMapConsumerV3_keyOf(s OptionalString, line int) sourceMapConsumerV3_lineKey {
+	if !s.Valid {
 		return sourceMapConsumerV3_lineKey{line: line, isNull: true}
 	}
-	return sourceMapConsumerV3_lineKey{name: s.text, line: line}
+	return sourceMapConsumerV3_lineKey{name: s.Value, line: line}
 }
 
 // NewSourceMapConsumerV3 constructs an empty consumer.
@@ -74,8 +74,8 @@ func NewSourceMapConsumerV3() *SourceMapConsumerV3 {
 type SourceMapConsumerV3_DefaultSourceMapSupplier struct{}
 
 // Java: SourceMapConsumerV3.DefaultSourceMapSupplier.getSourceMap(String)
-func (*SourceMapConsumerV3_DefaultSourceMapSupplier) GetSourceMap(url string) *string {
-	return nil
+func (*SourceMapConsumerV3_DefaultSourceMapSupplier) GetSourceMap(url string) (string, bool) {
+	return "", false
 }
 
 // Parse parses the given contents containing a source map.
@@ -116,7 +116,7 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 	}
 
 	c.file = sourceMapObject.file
-	if c.file.present && c.file.text == "" {
+	if c.file.Valid && c.file.Value == "" {
 		return NewSourceMapParseException("File entry is empty")
 	}
 
@@ -144,7 +144,7 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 	} else {
 		estimatedEntries = 1000
 	}
-	if sourceMapObject.mappings.present {
+	if sourceMapObject.mappings.Valid {
 		// Estimate the number of entries in the string encoding. A entry has 5
 		// values and a separator, for a minimum of 6 characters.
 		//
@@ -157,7 +157,7 @@ func (c *SourceMapConsumerV3) tryParseSourceMapObject(sourceMapObject *SourceMap
 		// trim() will still trigger an Arrays.copyOf to scale back down to
 		// 266K! If we start with a bigger estimate, we might still need to
 		// trim down at the end, but we save potentially many array copies.
-		estimatedEntries = max(estimatedEntries, int32(jutil.StringLength(sourceMapObject.mappings.text)/6))
+		estimatedEntries = max(estimatedEntries, int32(jutil.StringLength(sourceMapObject.mappings.Value)/6))
 	}
 
 	// The value type of each extension is the native JSON type (e.g.
@@ -198,7 +198,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	}
 
 	if sourceMapObject.lineCount >= 0 ||
-		sourceMapObject.mappings.present ||
+		sourceMapObject.mappings.Valid ||
 		len(sourceMapObject.sources) > 0 ||
 		sourceMapObject.names != nil {
 		return NewSourceMapParseException("Invalid map format")
@@ -210,10 +210,10 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 
 	addSegment := func(
 		offLine, offCol int32,
-		srcName optionalString, symName optionalString,
+		srcName OptionalString, symName OptionalString,
 		origLine, origCol, startLine, startCol, endLine, endCol int32,
 	) jutil.Throwable {
-		if !srcName.present || origLine < 0 {
+		if !srcName.Valid || origLine < 0 {
 			return nil
 		}
 		if offLine != 0 || offCol != 0 {
@@ -240,10 +240,10 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		lastStartLine = startLine
 		lastStartCol = startCol
 
-		sourceIdx := addedSources.intern(srcName.text)
+		sourceIdx := addedSources.intern(srcName.Value)
 		nameIdx := int32(-1)
-		if symName.present {
-			nameIdx = addedNames.intern(symName.text)
+		if symName.Valid {
+			nameIdx = addedNames.intern(symName.Value)
 		}
 		segments = append(segments, metaSegment{
 			sourceIdx: sourceIdx,
@@ -265,25 +265,25 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		var mapText string
 		var hasMap bool
 		if section.type_ == SourceMapSection_SectionType_URL {
-			if !section.value.present {
+			if !section.value.Valid {
 				return jutil.NewNullPointerException()
 			}
-			supplied, supplierErr := callSupplierGetSourceMap(sectionSupplier, section.value.text)
+			supplied, ok, supplierErr := callSupplierGetSourceMap(sectionSupplier, section.value.Value)
 			if supplierErr != nil {
 				return supplierErr
 			}
-			if supplied != nil {
-				mapText = *supplied
+			if ok {
+				mapText = supplied
 				hasMap = true
 			}
-		} else if section.value.present {
-			mapText = section.value.text
+		} else if section.value.Valid {
+			mapText = section.value.Value
 			hasMap = true
 		}
 		if !hasMap {
 			valStr := "null"
-			if section.value.present {
-				valStr = section.value.text
+			if section.value.Valid {
+				valStr = section.value.Value
 			}
 			return NewSourceMapParseException("Unable to retrieve: " + valStr)
 		}
@@ -298,7 +298,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 		offLine := int32(section.line)
 		offCol := int32(section.column)
 		pending := false
-		var pendingSrc, pendingSym optionalString
+		var pendingSrc, pendingSym OptionalString
 		var pendingOrigLine, pendingOrigCol, pendingStartLine, pendingStartCol int32
 		lineCount := sectionConsumer.mappings.GetParsedLineCount()
 		for i := 0; i < lineCount; i++ {
@@ -324,7 +324,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 					if entry.nameId != SourceMapConsumerV3_UNMAPPED {
 						pendingSym = sectionConsumer.names[entry.nameId]
 					} else {
-						pendingSym = optionalString{}
+						pendingSym = OptionalString{}
 					}
 					pendingOrigLine = entry.srcLine
 					pendingOrigCol = entry.srcCol
@@ -360,14 +360,14 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	for i := range sourceIdxToId {
 		sourceIdxToId[i] = -1
 	}
-	orderedSources := make([]optionalString, 0, len(sources))
+	orderedSources := make([]OptionalString, 0, len(sources))
 
 	names := addedNames.slice()
 	nameIdxToId := make([]int32, len(names))
 	for i := range nameIdxToId {
 		nameIdxToId[i] = -1
 	}
-	orderedNames := make([]optionalString, 0, len(names))
+	orderedNames := make([]OptionalString, 0, len(names))
 
 	data := make([]byte, 0, len(segments)*4)
 	estLines := 1
@@ -399,7 +399,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 					srcId := sourceIdxToId[m.sourceIdx]
 					if srcId < 0 {
 						srcId = int32(len(orderedSources))
-						orderedSources = append(orderedSources, optionalString{text: sources[m.sourceIdx], present: true})
+						orderedSources = append(orderedSources, SomeString(sources[m.sourceIdx]))
 						sourceIdxToId[m.sourceIdx] = srcId
 					}
 					e.srcId = srcId
@@ -410,7 +410,7 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 						nameId := nameIdxToId[m.nameIdx]
 						if nameId < 0 {
 							nameId = int32(len(orderedNames))
-							orderedNames = append(orderedNames, optionalString{text: names[m.nameIdx], present: true})
+							orderedNames = append(orderedNames, SomeString(names[m.nameIdx]))
 							nameIdxToId[m.nameIdx] = nameId
 						}
 						e.nameId = nameId
@@ -435,11 +435,11 @@ func (c *SourceMapConsumerV3) tryParseMetaMap(sourceMapObject *SourceMapObject, 
 	closeLine()
 
 	c.file = sourceMapObject.file
-	if c.file.present && c.file.text == "" {
+	if c.file.Valid && c.file.Value == "" {
 		return NewSourceMapParseException("File entry is empty")
 	}
 	c.lineCount = maxLine
-	c.sourceRoot = optionalString{}
+	c.sourceRoot = OptionalString{}
 	c.sources = orderedSources
 	c.sourcesContent = nil
 	c.names = orderedNames
@@ -516,21 +516,22 @@ func traverseMetaSegments(segments []metaSegment, visit func(m *metaSegment, lin
 	return nil
 }
 
-func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied *string, parseErr jutil.Throwable) {
+func callSupplierGetSourceMap(supplier SourceMapSupplier, url string) (supplied string, ok bool, parseErr jutil.Throwable) {
 	defer func() {
 		if r := recover(); r != nil {
-			if ex, ok := r.(jutil.IIOException); ok {
+			if ex, isIO := r.(jutil.IIOException); isIO {
 				parseErr = NewSourceMapParseException("IO exception: " + ex.Error())
 				return
 			}
-			if t, ok := r.(jutil.Throwable); ok {
+			if t, isT := r.(jutil.Throwable); isT {
 				parseErr = t
 				return
 			}
 			panic(r)
 		}
 	}()
-	return supplier.GetSourceMap(url), nil
+	s, found := supplier.GetSourceMap(url)
+	return s, found, nil
 }
 
 // GetMappingForLine returns the original mapping for the line number and
@@ -582,25 +583,22 @@ func (c *SourceMapConsumerV3) GetMappingForLineValueCached(lineNumber, column in
 	return c.getOriginalMappingForEntryValue(&entries[index], Mapping_OriginalMapping_Precision_EXACT)
 }
 
-// GetOriginalSources returns the sources (elements may be nil).
+// OriginalSources returns the sources (elements may be absent).
 //
 // Java: SourceMapConsumerV3.getOriginalSources()
-func (c *SourceMapConsumerV3) GetOriginalSources() []*string {
+func (c *SourceMapConsumerV3) OriginalSources() []OptionalString {
 	if c.sources == nil {
 		// Arrays.asList(null)
 		panic(jutil.NewNullPointerException())
 	}
-	return optionalStringsToPtrs(c.sources)
+	return c.sources
 }
 
-// GetOriginalSourcesContent returns the sources' contents, or nil.
+// OriginalSourcesContent returns the sources' contents, or nil.
 //
 // Java: SourceMapConsumerV3.getOriginalSourcesContent()
-func (c *SourceMapConsumerV3) GetOriginalSourcesContent() []*string {
-	if c.sourcesContent == nil {
-		return nil
-	}
-	return optionalStringsToPtrs(c.sourcesContent)
+func (c *SourceMapConsumerV3) OriginalSourcesContent() []OptionalString {
+	return c.sourcesContent
 }
 
 // DropSourcesContent forgets the sources' contents, once the caller knows
@@ -611,20 +609,20 @@ func (c *SourceMapConsumerV3) DropSourcesContent() {
 	c.sourcesContent = nil
 }
 
-// GetOriginalNames returns the names (elements may be nil).
+// GetOriginalNames returns the names (elements may be absent).
 //
 // Java: SourceMapConsumerV3.getOriginalNames()
-func (c *SourceMapConsumerV3) GetOriginalNames() []*string {
+func (c *SourceMapConsumerV3) GetOriginalNames() []OptionalString {
 	if c.names == nil {
 		// Arrays.asList(null)
 		panic(jutil.NewNullPointerException())
 	}
-	return optionalStringsToPtrs(c.names)
+	return c.names
 }
 
 // Java: SourceMapConsumerV3.getFile()
-func (c *SourceMapConsumerV3) GetFile() *string {
-	return c.file.ptr()
+func (c *SourceMapConsumerV3) GetFile() (string, bool) {
+	return c.file.Get()
 }
 
 // Java: SourceMapConsumerV3.getLineCount()
@@ -652,8 +650,8 @@ func (c *SourceMapConsumerV3) GetReverseMapping(originalFile string, line, colum
 }
 
 // Java: SourceMapConsumerV3.getSourceRoot()
-func (c *SourceMapConsumerV3) GetSourceRoot() *string {
-	return c.sourceRoot.ptr()
+func (c *SourceMapConsumerV3) GetSourceRoot() (string, bool) {
+	return c.sourceRoot.Get()
 }
 
 // GetExtensions returns all extensions and their values (which can be any
@@ -710,10 +708,10 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 	}
 	// Adjust the line/column here to be start at 1.
 	origSrc := &c.sources[sourceFileId]
-	if !origSrc.present {
+	if !origSrc.Valid {
 		panic(jutil.NewNullPointerException())
 	}
-	origFile := origSrc.text
+	origFile := origSrc.Value
 	lineNum := int(entry.srcLine + 1)
 	colPos := int(entry.srcCol + 1)
 	var identifier string
@@ -721,12 +719,12 @@ func (c *SourceMapConsumerV3) getOriginalMappingForEntryValue(entry *sourceMapCo
 	nameId := entry.nameId
 	if nameId != SourceMapConsumerV3_UNMAPPED {
 		origName := &c.names[nameId]
-		if !origName.present {
+		if !origName.Valid {
 			panic(jutil.NewNullPointerException())
 		}
-		identifier = origName.text
+		identifier = origName.Value
 		if identifier != "" {
-			identifierPtr = &origName.text
+			identifierPtr = &origName.Value
 		}
 	}
 	return Mapping_OriginalMapping{
@@ -764,11 +762,14 @@ func (c *SourceMapConsumerV3) CreateReverseMapping() {
 	}
 }
 
+// SourceMapConsumer_EntryVisitor is an alias for SourceMapConsumerV3_EntryVisitor.
+type SourceMapConsumer_EntryVisitor = SourceMapConsumerV3_EntryVisitor
+
 // SourceMapConsumerV3_EntryVisitor receives the mappings of a parsed map.
 type SourceMapConsumerV3_EntryVisitor interface {
 	// Java: SourceMapConsumerV3.EntryVisitor.visit(String, String, FilePosition, FilePosition, FilePosition)
-	Visit(sourceName *string,
-		symbolName *string,
+	Visit(sourceName OptionalString,
+		symbolName OptionalString,
 		sourceStartPosition FilePosition,
 		startPosition FilePosition,
 		endPosition FilePosition)
@@ -779,8 +780,8 @@ type SourceMapConsumerV3_EntryVisitor interface {
 // Java: SourceMapConsumerV3.visitMappings(EntryVisitor)
 func (c *SourceMapConsumerV3) VisitMappings(visitor SourceMapConsumerV3_EntryVisitor) {
 	pending := false
-	var sourceName *string
-	var symbolName *string
+	var sourceName OptionalString
+	var symbolName OptionalString
 	var sourceStartPosition FilePosition
 	var startPosition FilePosition
 
@@ -803,12 +804,12 @@ func (c *SourceMapConsumerV3) VisitMappings(visitor SourceMapConsumerV3_EntryVis
 				sourceFileId := entry.srcId
 				if sourceFileId != SourceMapConsumerV3_UNMAPPED {
 					pending = true
-					sourceName = c.sources[sourceFileId].ptr()
+					sourceName = c.sources[sourceFileId]
 					nameId := entry.nameId
 					if nameId != SourceMapConsumerV3_UNMAPPED {
-						symbolName = c.names[nameId].ptr()
+						symbolName = c.names[nameId]
 					} else {
-						symbolName = nil
+						symbolName = OptionalString{}
 					}
 					sourceStartPosition =
 						NewFilePosition(int(entry.srcLine), int(entry.srcCol))

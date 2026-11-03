@@ -24,11 +24,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var checkNestedNamesVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_GETPROP)
-	return s
-}()
+var checkNestedNamesVisitTokens = makeVisitTokenSet(rhino.Token_GETPROP)
 
 var _ nodeTraversal_visitTokens = (*CheckNestedNames)(nil)
 
@@ -80,42 +76,7 @@ var CheckNestedNames_NESTED_NAME_IN_GOOG_MODULE = DiagnosticType_Disabled(
 		" into `{1}_prop = ...`. You can (if required) export this flat name using named"+
 		" exports (`exports.{1}_prop = {1}_prop`).")
 
-// CheckNestedNames_DeclarationKind is the private enum DeclarationKind.
-type CheckNestedNames_DeclarationKind int32
-
-const (
-	CheckNestedNames_DeclarationKind_CLASS CheckNestedNames_DeclarationKind = iota
-	CheckNestedNames_DeclarationKind_ENUM
-	CheckNestedNames_DeclarationKind_TYPEDEF
-	CheckNestedNames_DeclarationKind_INTERFACE
-)
-
-var checkNestedNames_DeclarationKind_names = [...]string{"CLASS", "ENUM", "TYPEDEF", "INTERFACE"}
-
-// Name is Enum.name().
-func (k CheckNestedNames_DeclarationKind) Name() string {
-	return checkNestedNames_DeclarationKind_names[k]
-}
-
-// String is Enum.toString().
-func (k CheckNestedNames_DeclarationKind) String() string { return k.Name() }
-
-func checkNestedNames_kindToReport(k CheckNestedNames_DeclarationKind) (string, bool) {
-	switch k {
-	case CheckNestedNames_DeclarationKind_CLASS:
-		return "class", true
-	case CheckNestedNames_DeclarationKind_ENUM:
-		return "enum", true
-	case CheckNestedNames_DeclarationKind_INTERFACE:
-		return "interface", true
-	case CheckNestedNames_DeclarationKind_TYPEDEF:
-		return "typedef", true
-	default:
-		return "", false
-	}
-}
-
-// NewCheckNestedNames is new CheckNestedNames(compiler).
+// NewCheckNestedNames constructs a CheckNestedNames pass.
 //
 // Java: CheckNestedNames(AbstractCompiler)
 func NewCheckNestedNames(compiler AbstractCompiler) *CheckNestedNames {
@@ -134,74 +95,62 @@ func (c *CheckNestedNames) Process(externs rhino.Node, root rhino.Node) {
 // Java: CheckNestedNames.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckNestedNames) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
-		// only traverse inside goog.modules
+		// Only traverse inside goog.modules.
 		return n.GetBooleanProp(rhino.Node_GOOG_MODULE)
 	}
-	// only warn on static property assignments of module-level names
+	// Only warn on static property assignments of module-level names.
 	return nodeTraversal.InGlobalOrModuleScope()
 }
 
 // Java: CheckNestedNames.visit(NodeTraversal, Node, Node)
 func (c *CheckNestedNames) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	jutil.CheckArgument(t.InGlobalOrModuleScope())
-	if !n.IsGetProp() || !n.IsQualifiedName() {
+	gp, ok := ast.AsGetProp(n)
+	if !ok || !n.IsQualifiedName() {
 		return
 	}
-	targetGetProp := CheckNestedNames_GetTargetGetProp(n)
-	if (parent.IsAssign() || parent.IsExprResult()) &&
-		n.IsFirstChildOf(parent) &&
-		!CheckNestedNames_IsDotPrototype(targetGetProp) {
-		owner := targetGetProp.GetFirstChild()
-		if !owner.IsName() || owner.GetString() == "exports" {
-			return //  For example `this` or `super` or `exports.SomeEnum = {}`
-		}
-		ownerName := owner.GetString()
-		if declarationKind, ok := c.GetNestedDeclarationKind(n, parent); ok {
-			if nestedKind, ok := checkNestedNames_kindToReport(declarationKind); ok {
-				// Found a nested name that created an inner class, interface, typedef or enum.
-				t.Report(targetGetProp, CheckNestedNames_NESTED_NAME_IN_GOOG_MODULE, nestedKind, ownerName)
-			}
-		}
+	role := ast.RoleIn(n, parent)
+	if role != ast.RoleAssignTarget && role != ast.RoleExprStmtExpr {
+		return
+	}
+	target := outermostTargetGetProp(gp)
+	if target.Property() == "prototype" {
+		return
+	}
+	owner, ok := target.Object().AsName()
+	if !ok || owner.Ident() == "exports" {
+		return // For example `this` or `super` or `exports.SomeEnum = {}`
+	}
+	if nestedKind, ok := nestedDeclarationKind(n); ok {
+		// Found a nested name that created an inner class, interface, typedef, or enum.
+		t.Report(target.Node(), CheckNestedNames_NESTED_NAME_IN_GOOG_MODULE, nestedKind, owner.Ident())
 	}
 }
 
-// CheckNestedNames_GetTargetGetProp gives `a.b` from `a.b.c.d...`.
-//
-// Java: CheckNestedNames.getTargetGetProp(Node)
-func CheckNestedNames_GetTargetGetProp(n rhino.Node) rhino.Node {
-	jutil.CheckArgumentMsg1(n.IsGetProp(), "%s", n)
-	if n.GetFirstChild().IsGetProp() {
-		return CheckNestedNames_GetTargetGetProp(n.GetFirstChild())
+// outermostTargetGetProp returns `a.b` from `a.b.c.d...`.
+func outermostTargetGetProp(gp ast.GetProp) ast.GetProp {
+	for inner, ok := gp.Object().AsGetProp(); ok; inner, ok = gp.Object().AsGetProp() {
+		gp = inner
 	}
-	return n
+	return gp
 }
 
-// CheckNestedNames_IsDotPrototype: true for `someExpression.prototype`.
-//
-// Java: CheckNestedNames.isDotPrototype(Node)
-func CheckNestedNames_IsDotPrototype(getProp rhino.Node) bool {
-	return getProp.IsGetProp() && getProp.GetString() == "prototype"
-}
-
-// Java: CheckNestedNames.getNestedDeclarationKind(Node, Node)
-func (c *CheckNestedNames) GetNestedDeclarationKind(lhs rhino.Node, parent rhino.Node) (CheckNestedNames_DeclarationKind, bool) {
-	jutil.CheckArgumentMsg1(lhs.IsFirstChildOf(parent), "%s", lhs)
-	// Handle `/** @typedef {...} */` X.Y` or `/** @const */ X.Y = SomeTypeDefName`
+func nestedDeclarationKind(lhs rhino.Node) (string, bool) {
+	// Handle `/** @typedef {...} */ X.Y` or `/** @const */ X.Y = SomeTypeDefName`
 	if lhs.GetTypedefTypeProp() != nil {
-		return CheckNestedNames_DeclarationKind_TYPEDEF, true
+		return "typedef", true
 	}
 
-	type_ := lhs.GetJSType()
-	if type_ != nil {
-		// check whether it's an enum, interface or typedef first.
+	if type_ := lhs.GetJSType(); type_ != nil {
+		// Check whether it's an enum, interface, or class constructor.
 		if type_.IsEnumType() {
-			return CheckNestedNames_DeclarationKind_ENUM, true
+			return "enum", true
 		} else if type_.IsInterface() {
-			return CheckNestedNames_DeclarationKind_INTERFACE, true
+			return "interface", true
 		} else if type_.IsConstructor() {
-			return CheckNestedNames_DeclarationKind_CLASS, true
+			return "class", true
 		}
 	}
 
-	return 0, false
+	return "", false
 }

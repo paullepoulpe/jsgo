@@ -383,9 +383,9 @@ func (c *rescopeRewriteCallback) replaceSymbol(node rhino.Node, name string, rep
 	replacement.SrcrefTree(node)
 	node.ReplaceWith(replacement)
 	c.compiler.ReportChangeToEnclosingScope(replacement)
-	if parent.IsCall() {
+	if call, ok := ast.AsCall(parent); ok {
 		if _, maybeThis := c.symbolInfo.maybeReferencesThis[name]; !maybeThis {
-			parent.PutBooleanProp(rhino.Node_FREE_CALL, false)
+			call.SetFreeCall(false)
 		}
 	}
 	c.compiler.ReportChangeToEnclosingScope(parent)

@@ -54,7 +54,7 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 	jsonWriter := jutil.NewJsonWriter(&bufferedStream)
 	jsonWriter.BeginArray()
 	for _, message := range manager.GetSortedDiagnostics() {
-		sourceName := message.Error.SourceName()
+		sourceName, hasSourceName := message.Error.SourceNameOk()
 		lineNumber := message.Error.GetLineNumber()
 		charno := message.Error.Charno()
 
@@ -79,7 +79,11 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 			jsonWriter.EndArray()
 			jsonWriter.EndObject()
 		}
-		jsonWriter.Name("source").ValueString(sourceName)
+		if hasSourceName {
+			jsonWriter.Name("source").ValueString(&sourceName)
+		} else {
+			jsonWriter.Name("source").ValueString(nil)
+		}
 		jsonWriter.Name("line").ValueLong(int64(lineNumber))
 		jsonWriter.Name("column").ValueLong(int64(charno))
 		node := message.Error.Node()
@@ -89,50 +93,48 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 		}
 
 		// extract source excerpt
-		sourceExcerpt :=
-			SourceExcerptProvider_SourceExcerpt_LINE.Get(g.sourceExcerptProvider, sourceName, lineNumber, jsonErrorReportGenerator_excerptFormatter)
-		if sourceExcerpt != nil {
-			var b strings.Builder
-			b.WriteString(*sourceExcerpt)
-			b.WriteString("\n")
+		if hasSourceName {
+			if sourceExcerpt, ok := SourceExcerptProvider_SourceExcerpt_LINE.Get(
+				g.sourceExcerptProvider, sourceName, lineNumber, jsonErrorReportGenerator_excerptFormatter); ok {
+				var b strings.Builder
+				b.WriteString(sourceExcerpt)
+				b.WriteString("\n")
 
-			// padding equal to the excerpt and arrow at the end
-			// charno == sourceExcerpt.length() means something is missing
-			// at the end of the line
-			units := jutil.StringToUTF16(*sourceExcerpt)
-			if 0 <= charno && charno <= len(units) {
-				for i := 0; i < charno; i++ {
-					c := units[i]
-					if rhino.TokenUtil_IsWhitespace(int(c)) {
-						// Whitespace characters are never surrogates.
-						b.WriteRune(rune(c))
-					} else {
-						b.WriteByte(' ')
+				// padding equal to the excerpt and arrow at the end
+				// charno == sourceExcerpt.length() means something is missing
+				// at the end of the line
+				units := jutil.StringToUTF16(sourceExcerpt)
+				if 0 <= charno && charno <= len(units) {
+					for i := 0; i < charno; i++ {
+						c := units[i]
+						if rhino.TokenUtil_IsWhitespace(int(c)) {
+							// Whitespace characters are never surrogates.
+							b.WriteRune(rune(c))
+						} else {
+							b.WriteByte(' ')
+						}
 					}
-				}
-				if node.IsNil() {
-					b.WriteString("^")
-				} else {
-					length := max(1, min(regionLength, len(units)-charno))
-					for i := 0; i < length; i++ {
+					if node.IsNil() {
 						b.WriteString("^")
+					} else {
+						length := max(1, min(regionLength, len(units)-charno))
+						for i := 0; i < length; i++ {
+							b.WriteString("^")
+						}
 					}
 				}
+				context := b.String()
+				jsonWriter.Name("context").ValueString(&context)
 			}
-			context := b.String()
-			jsonWriter.Name("context").ValueString(&context)
-		}
 
-		mapping :=
-			g.sourceExcerptProvider.GetSourceMapping(
-				sourceName, message.Error.GetLineNumber(), message.Error.Charno())
-		if mapping != nil {
-			jsonWriter.Name("originalLocation").BeginObject()
-			originalFile := mapping.GetOriginalFile()
-			jsonWriter.Name("source").ValueString(&originalFile)
-			jsonWriter.Name("line").ValueLong(int64(mapping.GetLineNumber()))
-			jsonWriter.Name("column").ValueLong(int64(mapping.GetColumnPosition()))
-			jsonWriter.EndObject()
+			if mapping := g.sourceExcerptProvider.GetSourceMapping(sourceName, lineNumber, charno); mapping != nil {
+				jsonWriter.Name("originalLocation").BeginObject()
+				originalFile := mapping.GetOriginalFile()
+				jsonWriter.Name("source").ValueString(&originalFile)
+				jsonWriter.Name("line").ValueLong(int64(mapping.GetLineNumber()))
+				jsonWriter.Name("column").ValueLong(int64(mapping.GetColumnPosition()))
+				jsonWriter.EndObject()
+			}
 		}
 		jsonWriter.EndObject()
 	}

@@ -37,7 +37,7 @@ type SourceMapGeneratorV3 struct {
 	parallelWorkers int
 
 	// A map of source names to source file contents
-	sourceFileContentMap map[string]optionalString
+	sourceFileContentMap map[string]OptionalString
 
 	// The mappings, in the order they were added.
 	//
@@ -158,23 +158,11 @@ func (g *SourceMapGeneratorV3) SetStartingPosition(offsetLine, offsetIndex int) 
 	g.offsetPosition = NewFilePosition(offsetLine, offsetIndex)
 }
 
-// AddMapping adds a mapping for the given node. Mappings must be added in
-// order.
+// AddMappingPositions adds a mapping using value FilePositions without heap allocation.
 //
 // Java: SourceMapGeneratorV3.addMapping(String, String, FilePosition, FilePosition, FilePosition)
-func (g *SourceMapGeneratorV3) AddMapping(
-	sourceName *string, symbolName *string,
-	sourceStartPosition FilePosition,
-	startPosition FilePosition, endPosition FilePosition) {
-	if sourceName == nil || sourceStartPosition.GetLine() < 0 {
-		return
-	}
-	g.AddMappingPositions(*sourceName, symbolName, sourceStartPosition, startPosition, endPosition)
-}
-
-// AddMappingPositions adds a mapping using value FilePositions without heap allocation.
 func (g *SourceMapGeneratorV3) AddMappingPositions(
-	sourceName string, symbolName *string,
+	sourceName string, symbolName OptionalString,
 	sourceStartPosition FilePosition,
 	startPosition FilePosition, endPosition FilePosition) {
 
@@ -232,8 +220,8 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 	sourceFileIdx := g.sourceFiles.intern(sourceName)
 
 	originalNameIdx := int32(-1)
-	if symbolName != nil {
-		originalNameIdx = g.symbolNames.intern(*symbolName)
+	if symbolName.Valid {
+		originalNameIdx = g.symbolNames.intern(symbolName.Value)
 	}
 
 	// Create the new mapping.
@@ -321,11 +309,11 @@ func (t *stringTable) slice() []string {
 }
 
 // Java: SourceMapGeneratorV3.addSourcesContent(String, String)
-func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content *string) {
+func (g *SourceMapGeneratorV3) AddSourcesContent(source string, content OptionalString) {
 	if g.sourceFileContentMap == nil {
-		g.sourceFileContentMap = make(map[string]optionalString)
+		g.sourceFileContentMap = make(map[string]OptionalString)
 	}
-	g.sourceFileContentMap[source] = makeOptionalString(content)
+	g.sourceFileContentMap[source] = content
 }
 
 // ShareConfigFrom shares read-only configuration (sourcesContent map,
@@ -352,10 +340,13 @@ type SourceMapGeneratorV3_ConsumerEntryVisitor struct {
 
 // Java: SourceMapGeneratorV3.ConsumerEntryVisitor.visit(String, String, FilePosition, FilePosition, FilePosition)
 func (v SourceMapGeneratorV3_ConsumerEntryVisitor) Visit(
-	sourceName *string, symbolName *string,
+	sourceName OptionalString, symbolName OptionalString,
 	sourceStartPosition FilePosition,
 	startPosition FilePosition, endPosition FilePosition) {
-	v.outer.AddMapping(sourceName, symbolName,
+	if !sourceName.Valid {
+		return
+	}
+	v.outer.AddMappingPositions(sourceName.Value, symbolName,
 		sourceStartPosition, startPosition, endPosition)
 }
 
@@ -394,8 +385,8 @@ func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
 	return nil
 }
 
-// AppendTo writes out the source map in the following format (line numbers
-// are for reference only and are not part of the format):
+// AppendToOptional writes out the source map in the following format (line
+// numbers are for reference only and are not part of the format):
 //
 //	{                                        // line 1
 //	  version: 3,                            // line 2
@@ -422,7 +413,7 @@ func (g *SourceMapGeneratorV3) MergeMapSectionWithMergeAction(
 // custom field (extension).
 //
 // Java: SourceMapGeneratorV3.appendTo(Appendable, String)
-func (g *SourceMapGeneratorV3) AppendTo(out io.StringWriter, name *string) {
+func (g *SourceMapGeneratorV3) AppendToOptional(out io.StringWriter, name OptionalString) {
 	if g.parallelWorkers > 1 {
 		g.appendToParallel(out, name)
 		return
@@ -432,8 +423,8 @@ func (g *SourceMapGeneratorV3) AppendTo(out io.StringWriter, name *string) {
 	// Add the header fields.
 	appendString(out, "{\n")
 	SourceMapGeneratorV3_AppendFirstField(out, "version", "3")
-	if name != nil {
-		SourceMapGeneratorV3_AppendField(out, "file", SourceMapGeneratorV3_EscapeString(*name))
+	if name.Valid {
+		SourceMapGeneratorV3_AppendField(out, "file", SourceMapGeneratorV3_EscapeString(name.Value))
 	}
 	SourceMapGeneratorV3_AppendField(out, "lineCount", strconv.Itoa(maxLine))
 
@@ -589,7 +580,7 @@ func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
 	}
 	found := false
 	for _, key := range g.orderedSourceFiles {
-		if g.sourceFileContentMap[key].present {
+		if g.sourceFileContentMap[key].Valid {
 			found = true
 			break
 		}
@@ -603,7 +594,7 @@ func (g *SourceMapGeneratorV3) AddSourcesContentMap(out io.StringWriter) {
 		if i != 0 {
 			appendString(out, ",")
 		}
-		appendString(out, SourceMapGeneratorV3_EscapeString(g.sourceFileContentMap[key].text))
+		appendString(out, SourceMapGeneratorV3_EscapeString(g.sourceFileContentMap[key].Value))
 	}
 	appendString(out, "]")
 	SourceMapGeneratorV3_AppendFieldEnd(out)
@@ -770,15 +761,15 @@ func (g *SourceMapGeneratorV3) AppendIndexMapTo(out io.StringWriter, name string
 		SourceMapGeneratorV3_AppendFieldStartWithFirst(out, "offset", true)
 		SourceMapGeneratorV3_AppendOffsetValue(out, section.line, section.column)
 		if section.type_ == SourceMapSection_SectionType_URL {
-			if !section.value.present {
+			if !section.value.Valid {
 				panic(jutil.NewNullPointerException())
 			}
-			SourceMapGeneratorV3_AppendField(out, "url", SourceMapGeneratorV3_EscapeString(section.value.text))
+			SourceMapGeneratorV3_AppendField(out, "url", SourceMapGeneratorV3_EscapeString(section.value.Value))
 		} else if section.type_ == SourceMapSection_SectionType_MAP {
 			// Appendable.append(null) appends "null".
 			mapVal := "null"
-			if section.value.present {
-				mapVal = section.value.text
+			if section.value.Valid {
+				mapVal = section.value.Value
 			}
 			SourceMapGeneratorV3_AppendField(out, "map", mapVal)
 		} else {

@@ -275,10 +275,9 @@ func (t *CodeGenerator) GetClassAnnotation(classType rhino.JSType) string {
 	// For simple class, it's possible we didn't end up generating any JSDoc
 	// at all.
 	if jsdocContent == "" {
-		return jsdocContent
-	} else {
-		return "/**\n" + jsdocContent + " */\n"
+		return ""
 	}
+	return "/**\n" + jsdocContent + " */\n"
 }
 
 // Java: TypedCodeGenerator.appendTemplateAnnotations(StringBuilder, Collection<? extends JSType>)
@@ -383,8 +382,10 @@ func (t *CodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
 		if gp, isGp := assign.Target().AsGetProp(); isGp && NodeUtil_IsPrototypeProperty(gp.Node()) {
 			// TODO(johnlenz): handle non-global types
 			protoObj := ast.MustGetProp(gp.Object().Node()).Object().Node()
-			if type_ := t.registry.GetGlobalType(*protoObj.GetQualifiedName()); type_ != nil {
-				ctor = type_.(rhino.ObjectType).GetConstructor()
+			if qname, hasQName := protoObj.GetQualifiedNameString(); hasQName {
+				if type_ := t.registry.GetGlobalType(qname); type_ != nil {
+					ctor = type_.(rhino.ObjectType).GetConstructor()
+				}
 			}
 		}
 	} else if cls, ok := ast.AsClass(parent); ok {

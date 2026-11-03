@@ -35,7 +35,7 @@ type SAXParseException struct {
 
 func newSAXParseExceptionAt(message string, line, column int) *SAXParseException {
 	e := &SAXParseException{lineNumber: line, columnNumber: column}
-	jutil.InitThrowable(e, "org.xml.sax.SAXParseException", &message, nil)
+	jutil.InitThrowableMsg(e, "org.xml.sax.SAXParseException", message, nil)
 	return e
 }
 
@@ -65,8 +65,8 @@ func (e *SAXParseException) Error() string {
 
 // Locator is org.xml.sax.Locator.
 type Locator interface {
-	GetPublicId() *string
-	GetSystemId() *string
+	GetPublicId() (string, bool)
+	GetSystemId() (string, bool)
 	GetLineNumber() int
 	GetColumnNumber() int
 }
@@ -75,8 +75,8 @@ type Locator interface {
 // current position, and -1 once the document has ended.
 type saxLocator struct{ s *saxScanner }
 
-func (l *saxLocator) GetPublicId() *string { return nil }
-func (l *saxLocator) GetSystemId() *string { return nil }
+func (l *saxLocator) GetPublicId() (string, bool) { return "", false }
+func (l *saxLocator) GetSystemId() (string, bool) { return "", false }
 func (l *saxLocator) GetLineNumber() int {
 	if l.s.ended {
 		return -1

@@ -37,7 +37,7 @@ var (
 	}
 )
 
-func jsaLmfFormat(region Region) *string {
+func jsaLmfFormat(region Region) (string, bool) {
 	return NewLightweightMessageFormatter_LineNumberingFormatter().FormatRegion(region)
 }
 
@@ -45,56 +45,61 @@ func jsaLmfRegion(startLine, endLine int, source string) Region {
 	return NewSimpleRegion(startLine, endLine, source)
 }
 
-func jsaEqPtr(t *testing.T, got *string, want string) {
+func jsaEqRegion(t *testing.T, got string, ok bool, want string) {
 	t.Helper()
-	if got == nil {
-		t.Errorf("got nil, want %q", want)
+	if !ok {
+		t.Errorf("got (_, false), want %q", want)
 		return
 	}
-	jsaEq(t, *got, want)
+	jsaEq(t, got, want)
 }
 
 func TestLightweightMessageFormatter_Null(t *testing.T) {
-	jsaTrue(t, jsaLmfFormat(nil) == nil)
+	_, ok := jsaLmfFormat(nil)
+	jsaFalse(t, ok)
 }
 
 func TestLightweightMessageFormatter_OneLineRegion(t *testing.T) {
-	jsaEqPtr(t, jsaLmfFormat(jsaLmfRegion(5, 5, "hello world")), "  5| hello world")
+	got, ok := jsaLmfFormat(jsaLmfRegion(5, 5, "hello world"))
+	jsaEqRegion(t, got, ok, "  5| hello world")
 }
 
 func TestLightweightMessageFormatter_TwoLineRegion(t *testing.T) {
-	jsaEqPtr(t, jsaLmfFormat(jsaLmfRegion(5, 6, "hello world\nfoo bar")),
+	got, ok := jsaLmfFormat(jsaLmfRegion(5, 6, "hello world\nfoo bar"))
+	jsaEqRegion(t, got, ok,
 		"  5| hello world\n"+
 			"  6| foo bar")
 }
 
 func TestLightweightMessageFormatter_ThreeLineRegionAcrossNumberRange(t *testing.T) {
-	region := jsaLmfFormat(jsaLmfRegion(9, 11, "hello world\nfoo bar\nanother one"))
-	jsaEqPtr(t, region,
+	region, ok := jsaLmfFormat(jsaLmfRegion(9, 11, "hello world\nfoo bar\nanother one"))
+	jsaEqRegion(t, region, ok,
 		"   9| hello world\n"+
 			"  10| foo bar\n"+
 			"  11| another one")
 }
 
 func TestLightweightMessageFormatter_ThreeLineRegionEmptyLine(t *testing.T) {
-	region := jsaLmfFormat(jsaLmfRegion(7, 9, "hello world\n\nanother one"))
-	jsaEqPtr(t, region,
+	region, ok := jsaLmfFormat(jsaLmfRegion(7, 9, "hello world\n\nanother one"))
+	jsaEqRegion(t, region, ok,
 		"  7| hello world\n"+
 			"  8| \n"+
 			"  9| another one")
 }
 
 func TestLightweightMessageFormatter_OnlyOneEmptyLine(t *testing.T) {
-	jsaTrue(t, jsaLmfFormat(jsaLmfRegion(7, 7, "")) == nil)
+	_, ok := jsaLmfFormat(jsaLmfRegion(7, 7, ""))
+	jsaFalse(t, ok)
 }
 
 func TestLightweightMessageFormatter_TwoEmptyLines(t *testing.T) {
-	jsaEqPtr(t, jsaLmfFormat(jsaLmfRegion(7, 8, "\n")), "  7| ")
+	got, ok := jsaLmfFormat(jsaLmfRegion(7, 8, "\n"))
+	jsaEqRegion(t, got, ok, "  7| ")
 }
 
 func TestLightweightMessageFormatter_ThreeLineRemoveLastEmptyLine(t *testing.T) {
-	region := jsaLmfFormat(jsaLmfRegion(7, 9, "hello world\nfoobar\n"))
-	jsaEqPtr(t, region,
+	region, ok := jsaLmfFormat(jsaLmfRegion(7, 9, "hello world\nfoobar\n"))
+	jsaEqRegion(t, region, ok,
 		"  7| hello world\n"+
 			"  8| foobar")
 }
@@ -278,51 +283,68 @@ func TestLightweightMessageFormatter_Multiline_errorWithoutAssociatedNodeAndNega
 			"  5| if (foobar\n")
 }
 
+func TestLightweightMessageFormatter_SourcelessAndEmptySourceName(t *testing.T) {
+	sourceless := JSError_MakeWithSourceLocation(nil, 5, 4, jsaLmfFOO_TYPE)
+	emptySource := JSError_MakeWithSourceLocation(jsaStr(""), 5, 4, jsaLmfFOO_TYPE)
+	formatter := LightweightMessageFormatter_WithoutSource()
+	jsaEq(t, formatter.FormatError(sourceless), "ERROR - [TEST_FOO] error description here\n")
+	jsaEq(t, formatter.FormatError(emptySource), ":5:4: ERROR - [TEST_FOO] error description here\n")
+}
+
 func jsaLmfFormatterFull(source string, excerpt SourceExcerptProvider_SourceExcerpt, endLine int) *LightweightMessageFormatter {
-	return NewLightweightMessageFormatterWithFormat(jsaLmfSource(source, nil, endLine), excerpt)
+	return NewLightweightMessageFormatterWithFormat(jsaLmfSource(source, "", false, endLine), excerpt)
 }
 
 func jsaLmfFormatter(source string) *LightweightMessageFormatter {
-	return NewLightweightMessageFormatter(jsaLmfSource(source, nil, -1))
+	return NewLightweightMessageFormatter(jsaLmfSource(source, "", false, -1))
 }
 
 func jsaLmfFormatterWithOriginal(source string, originalSource string) *LightweightMessageFormatter {
-	return NewLightweightMessageFormatter(jsaLmfSource(source, &originalSource, -1))
+	return NewLightweightMessageFormatter(jsaLmfSource(source, originalSource, true, -1))
 }
 
 // jsaLmfSourceExcerptProvider is the anonymous SourceExcerptProvider of the
 // Java test.
 type jsaLmfSourceExcerptProvider struct {
-	source         string
-	originalSource *string
-	endLineNumber  int
+	source            string
+	originalSource    string
+	hasOriginalSource bool
+	endLineNumber     int
 }
 
-func jsaLmfSource(source string, originalSource *string, endLineNumber int) SourceExcerptProvider {
-	return &jsaLmfSourceExcerptProvider{source: source, originalSource: originalSource, endLineNumber: endLineNumber}
-}
-
-func (p *jsaLmfSourceExcerptProvider) GetSourceLine(sourceName *string, lineNumber int) *string {
-	if *sourceName == jsaLmfORIGINAL_SOURCE_FILE {
-		return p.originalSource
+func jsaLmfSource(source string, originalSource string, hasOriginalSource bool, endLineNumber int) SourceExcerptProvider {
+	return &jsaLmfSourceExcerptProvider{
+		source:            source,
+		originalSource:    originalSource,
+		hasOriginalSource: hasOriginalSource,
+		endLineNumber:     endLineNumber,
 	}
-	return &p.source
 }
 
-func (p *jsaLmfSourceExcerptProvider) GetSourceLines(sourceName *string, lineNumber int, length int) Region {
+func (p *jsaLmfSourceExcerptProvider) GetSourceLine(sourceName string, lineNumber int) (string, bool) {
+	if sourceName == jsaLmfORIGINAL_SOURCE_FILE {
+		return p.originalSource, p.hasOriginalSource
+	}
+	return p.source, true
+}
+
+func (p *jsaLmfSourceExcerptProvider) GetSourceLines(sourceName string, lineNumber int, length int) Region {
 	jutil.CheckStateMsg(p.endLineNumber != -1, "Must provide the end of the source lines")
-	if *sourceName == jsaLmfORIGINAL_SOURCE_FILE {
-		return NewSimpleRegion(lineNumber, p.endLineNumber, *p.originalSource)
+	if sourceName == jsaLmfORIGINAL_SOURCE_FILE {
+		if !p.hasOriginalSource {
+			panic(jutil.NewNullPointerException())
+		}
+		return NewSimpleRegion(lineNumber, p.endLineNumber, p.originalSource)
 	}
 	return NewSimpleRegion(lineNumber, p.endLineNumber, p.source)
 }
 
-func (p *jsaLmfSourceExcerptProvider) GetSourceRegion(sourceName *string, lineNumber int) Region {
+func (p *jsaLmfSourceExcerptProvider) GetSourceRegion(sourceName string, lineNumber int) Region {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-func (p *jsaLmfSourceExcerptProvider) GetSourceMapping(sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
-	if p.originalSource != nil {
+func (p *jsaLmfSourceExcerptProvider) GetSourceMapping(sourceName string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
+	if p.hasOriginalSource {
 		return jsaLmfORIGINAL_SOURCE
 	}
 	return nil

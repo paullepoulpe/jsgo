@@ -38,12 +38,12 @@ import (
 // the case of conformance violations (nullable).
 type JSError struct {
 	type_         *DiagnosticType
+	requirement   *Requirement
 	description   string
 	sourceName    string
 	lineno        int
 	charno        int
 	length        int
-	requirement   *Requirement
 	node          rhino.Node
 	defaultLevel  CheckLevel
 	hasSourceName bool
@@ -120,6 +120,9 @@ func (e *JSError) SourceName() *string {
 	}
 	return &e.sourceName
 }
+
+// SourceNameOk returns the source file name and whether one is present.
+func (e *JSError) SourceNameOk() (string, bool) { return e.sourceName, e.hasSourceName }
 
 // SourceNameOpt returns the source file name and whether one is present.
 func (e *JSError) SourceNameOpt() (string, bool) { return e.sourceName, e.hasSourceName }

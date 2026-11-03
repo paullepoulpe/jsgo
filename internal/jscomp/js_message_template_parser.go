@@ -27,18 +27,17 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// jsMessageVisitor_extractStringFromStringExprNode returns the string value
-// associated with a JS string literal, no-substitution template literal, or
-// string concatenation.
-//
-// Java: JsMessageVisitor.extractStringFromStringExprNode(Node)
-func jsMessageVisitor_extractStringFromStringExprNode(node rhino.Node) (string, *malformedMessageError) {
+// extractStringFromExprNode returns the string value associated with a JS
+// string literal, no-substitution template literal, or string concatenation.
+func extractStringFromExprNode(node rhino.Node) (string, *malformedMessageError) {
 	switch node.GetToken() {
 	case rhino.Token_STRINGLIT:
 		return ast.MustStringLit(node).Value(), nil
 	case rhino.Token_TEMPLATELIT:
-		if node.HasOneChild() {
-			return *jutil.CheckNotNull(node.GetFirstChild().GetCookedString()), nil
+		if part, ok := ast.MustTemplateLit(node).OnlyPart(); ok {
+			cooked, hasCooked := part.MustTemplateLitString().Cooked()
+			jutil.CheckState(hasCooked)
+			return cooked, nil
 		}
 		return "", &malformedMessageError{
 			msg:  "Template literals with substitutions are not allowed.",
@@ -46,17 +45,29 @@ func jsMessageVisitor_extractStringFromStringExprNode(node rhino.Node) (string, 
 		}
 	case rhino.Token_ADD:
 		var sb strings.Builder
-		for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			part, err := jsMessageVisitor_extractStringFromStringExprNode(child)
-			if err != nil {
-				return "", err
-			}
-			sb.WriteString(part)
+		if err := appendStringFromExprNode(&sb, node); err != nil {
+			return "", err
 		}
 		return sb.String(), nil
 	default:
 		return "", &malformedMessageError{msg: "literal string or concatenation expected", node: node}
 	}
+}
+
+func appendStringFromExprNode(sb *strings.Builder, node rhino.Node) *malformedMessageError {
+	if node.GetToken() == rhino.Token_ADD {
+		bin := ast.MustBinary(node)
+		if err := appendStringFromExprNode(sb, bin.Left().Node()); err != nil {
+			return err
+		}
+		return appendStringFromExprNode(sb, bin.Right().Node())
+	}
+	part, err := extractStringFromExprNode(node)
+	if err != nil {
+		return err
+	}
+	sb.WriteString(part)
+	return nil
 }
 
 // extractJsMessageDefinition extracts data from a call to goog.getMsg(...).
@@ -78,23 +89,24 @@ func (v *JsMessageVisitor) extractJsMessageDefinition(
 	if !hasFirstArg {
 		return JsMessageDefinition{}, &malformedMessageError{msg: "Message string literal expected", node: msgNode}
 	}
-	msgTextNode := firstArg.Node()
-	valuesObjLit := msgTextNode.GetNext()
-	var optionsBagArgument rhino.Node
-	if !valuesObjLit.IsNil() {
-		optionsBagArgument = valuesObjLit.GetNext()
+	callArgs := msgCall.AsCallOrNew()
+	if unexpectedArg, ok := callArgs.ArgAt(3); ok {
+		return JsMessageDefinition{}, &malformedMessageError{msg: "too many arguments", node: unexpectedArg.Node()}
 	}
-	if !optionsBagArgument.IsNil() {
-		if unexpectedArgument := optionsBagArgument.GetNext(); !unexpectedArgument.IsNil() {
-			return JsMessageDefinition{}, &malformedMessageError{msg: "too many arguments", node: unexpectedArgument}
-		}
+	msgTextNode := firstArg.Node()
+	var valuesObjLit, optionsBagArgument rhino.Node
+	if arg1, ok := callArgs.ArgAt(1); ok {
+		valuesObjLit = arg1.Node()
+	}
+	if arg2, ok := callArgs.ArgAt(2); ok {
+		optionsBagArgument = arg2.Node()
 	}
 
-	msgTextString, malErr := jsMessageVisitor_extractStringFromStringExprNode(msgTextNode)
+	msgTextString, malErr := extractStringFromExprNode(msgTextNode)
 	if malErr != nil {
 		return JsMessageDefinition{}, malErr
 	}
-	googGetMsgParsedText, fmtErr := jsMessageVisitor_extractGoogGetMsgParsedText(msgTextString)
+	googGetMsgParsedText, fmtErr := extractGoogGetMsgParsedText(msgTextString)
 	if fmtErr != nil {
 		return JsMessageDefinition{}, &malformedMessageError{msg: fmtErr.Error(), node: msgTextNode}
 	}
@@ -185,17 +197,18 @@ func (v *JsMessageVisitor) extractIcuTemplateDefinition(
 		return IcuTemplateDefinition{}, &malformedMessageError{msg: "message string argument expected", node: msgNode}
 	}
 	stringLiteralExpression := firstArg.Node()
-	templateString, malErr := jsMessageVisitor_extractStringFromStringExprNode(stringLiteralExpression)
+	templateString, malErr := extractStringFromExprNode(stringLiteralExpression)
 	if malErr != nil {
 		return IcuTemplateDefinition{}, malErr
 	}
 	icuMessageTemplateString := JsMessageVisitor_IcuMessageTemplateString{template: templateString}
 
-	optionsBagNode := stringLiteralExpression.GetNext()
-	if optionsBagNode.IsNil() {
+	callArgs := msgCall.AsCallOrNew()
+	optionsBagArg, hasOptions := callArgs.ArgAt(1)
+	if !hasOptions {
 		return IcuTemplateDefinition{}, &malformedMessageError{msg: "options argument expected", node: msgNode}
 	}
-	icuOptions, malErr := extractIcuTemplateOptions(optionsBagNode)
+	icuOptions, malErr := extractIcuTemplateOptions(optionsBagArg.Node())
 	if malErr != nil {
 		return IcuTemplateDefinition{}, malErr
 	}
@@ -205,8 +218,8 @@ func (v *JsMessageVisitor) extractIcuTemplateDefinition(
 		return IcuTemplateDefinition{}, malErr
 	}
 
-	if unexpectedArgument := optionsBagNode.GetNext(); !unexpectedArgument.IsNil() {
-		return IcuTemplateDefinition{}, &malformedMessageError{msg: "too many arguments", node: unexpectedArgument}
+	if unexpectedArg, ok := callArgs.ArgAt(2); ok {
+		return IcuTemplateDefinition{}, &malformedMessageError{msg: "too many arguments", node: unexpectedArg.Node()}
 	}
 
 	extractedMessage := v.buildJsMessage(jsMessageBuildInput{
@@ -334,7 +347,6 @@ func (o *jsMessageOptions) checkForUnknownPlaceholders(isKnown func(string) bool
 	return o.originalCodeObjectLiteralMap.checkForUnexpectedKeys(isKnown, "Unknown placeholder: ")
 }
 
-// Java: JsMessageVisitor.extractJsMessageOptions(Node)
 func extractJsMessageOptions(optionsBag rhino.Node) (jsMessageOptions, *malformedMessageError) {
 	if optionsBag.IsNil() {
 		return jsMessageOptions{}, nil
@@ -416,7 +428,6 @@ func (o *icuTemplateOptions) checkForUnknownPlaceholders(knownPlaceholders map[s
 	return o.originalCodeObjectLiteralMap.checkForUnexpectedKeys(isKnown, "Unknown placeholder: ")
 }
 
-// Java: JsMessageVisitor.extractIcuTemplateOptions(Node)
 func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malformedMessageError) {
 	objectLiteralMap, err := extractObjectLiteralMap(optionsBag)
 	if err != nil {
@@ -430,7 +441,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	if descriptionNode.IsNil() {
 		return icuTemplateOptions{}, &malformedMessageError{msg: "'description' option field is missing", node: optionsBag}
 	}
-	description, err := jsMessageVisitor_extractStringFromStringExprNode(descriptionNode)
+	description, err := extractStringFromExprNode(descriptionNode)
 	if err != nil {
 		return icuTemplateOptions{}, err
 	}
@@ -438,7 +449,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	var meaning string
 	var hasMeaning bool
 	if meaningNode := objectLiteralMap.getValueNode("meaning"); !meaningNode.IsNil() {
-		m, err := jsMessageVisitor_extractStringFromStringExprNode(meaningNode)
+		m, err := extractStringFromExprNode(meaningNode)
 		if err != nil {
 			return icuTemplateOptions{}, err
 		}
@@ -449,7 +460,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 	var alternateMessageId string
 	var hasAlternateMessageId bool
 	if alternateMessageIdNode := objectLiteralMap.getValueNode("alternate_message_id"); !alternateMessageIdNode.IsNil() {
-		alt, err := jsMessageVisitor_extractStringFromStringExprNode(alternateMessageIdNode)
+		alt, err := extractStringFromExprNode(alternateMessageIdNode)
 		if err != nil {
 			return icuTemplateOptions{}, err
 		}
@@ -515,7 +526,7 @@ func extractIcuTemplateOptions(optionsBag rhino.Node) (icuTemplateOptions, *malf
 // jsMessageObjectLiteralMap represents an AST OBJECTLIT whose members are all
 // unique STRING_KEY nodes.
 type jsMessageObjectLiteralMap struct {
-	nodes OrderedStringMap[rhino.Node]
+	nodes OrderedStringMap[ast.StringKey]
 }
 
 func extractObjectLiteralMap(objLit rhino.Node) (jsMessageObjectLiteralMap, *malformedMessageError) {
@@ -528,32 +539,32 @@ func extractObjectLiteralMap(objLit rhino.Node) (jsMessageObjectLiteralMap, *mal
 	}
 	var m jsMessageObjectLiteralMap
 	for member := range lit.Members() {
-		sk, ok := ast.AsStringKey(member.Node())
+		sk, ok := member.AsStringKey()
 		if !ok {
 			return jsMessageObjectLiteralMap{}, &malformedMessageError{msg: "string key expected", node: member.Node()}
 		}
 		key := sk.Key()
-		if !m.nodes.PutIfAbsent(key, member.Node()) {
-			return jsMessageObjectLiteralMap{}, &malformedMessageError{msg: "duplicate string key: " + key, node: member.Node()}
+		if !m.nodes.PutIfAbsent(key, sk) {
+			return jsMessageObjectLiteralMap{}, &malformedMessageError{msg: "duplicate string key: " + key, node: sk.Node()}
 		}
 	}
 	return m, nil
 }
 
 func (m *jsMessageObjectLiteralMap) getValueNode(key string) rhino.Node {
-	stringKeyNode, ok := m.nodes.Lookup(key)
+	sk, ok := m.nodes.Lookup(key)
 	if !ok {
 		return rhino.NilNode
 	}
-	return stringKeyNode.GetOnlyChild()
+	return sk.Value().Node()
 }
 
 func (m *jsMessageObjectLiteralMap) getBooleanValueOrFalse(key string) (bool, *malformedMessageError) {
-	stringKeyNode, ok := m.nodes.Lookup(key)
+	sk, ok := m.nodes.Lookup(key)
 	if !ok {
 		return false, nil
 	}
-	valueNode := stringKeyNode.GetOnlyChild()
+	valueNode := sk.Value().Node()
 	if valueNode.IsTrue() {
 		return true, nil
 	}
@@ -561,7 +572,7 @@ func (m *jsMessageObjectLiteralMap) getBooleanValueOrFalse(key string) (bool, *m
 		return false, nil
 	}
 	return false, &malformedMessageError{
-		msg:  stringKeyNode.GetString() + ": Literal true or false expected",
+		msg:  sk.Key() + ": Literal true or false expected",
 		node: valueNode,
 	}
 }
@@ -573,7 +584,7 @@ func (m *jsMessageObjectLiteralMap) extractAsValueMap() OrderedStringMap[rhino.N
 	}
 	out := *NewOrderedStringMapWithCapacity[rhino.Node](len(entries))
 	for _, e := range entries {
-		out.Put(e.Key, e.Value.GetOnlyChild())
+		out.Put(e.Key, e.Value.Value().Node())
 	}
 	return out
 }
@@ -585,7 +596,7 @@ func (m *jsMessageObjectLiteralMap) extractAsStringToStringMap() (OrderedStringM
 	}
 	out := *NewOrderedStringMapWithCapacity[string](len(entries))
 	for _, e := range entries {
-		val, err := jsMessageVisitor_extractStringFromStringExprNode(e.Value.GetOnlyChild())
+		val, err := extractStringFromExprNode(e.Value.Value().Node())
 		if err != nil {
 			return OrderedStringMap[string]{}, err
 		}
@@ -599,7 +610,7 @@ func (m *jsMessageObjectLiteralMap) checkForUnexpectedKeys(
 ) *malformedMessageError {
 	for _, e := range m.nodes.Entries() {
 		if !isExpected(e.Key) {
-			return &malformedMessageError{msg: errorPrefix + e.Key, node: e.Value}
+			return &malformedMessageError{msg: errorPrefix + e.Key, node: e.Value.Node()}
 		}
 	}
 	return nil
@@ -623,7 +634,7 @@ type googGetMsgParsedText struct {
 }
 
 func jsMessageVisitor_parseJsMessageTextIntoParts(originalMsgText string) ([]JsMessage_Part, error) {
-	parsed, err := jsMessageVisitor_extractGoogGetMsgParsedText(originalMsgText)
+	parsed, err := extractGoogGetMsgParsedText(originalMsgText)
 	if err != nil {
 		return nil, err
 	}
@@ -632,8 +643,7 @@ func jsMessageVisitor_parseJsMessageTextIntoParts(originalMsgText string) ([]JsM
 
 var errPlaceholderMalformed = errors.New("Placeholder incorrectly formatted")
 
-// Java: JsMessageVisitor.extractGoogGetMsgParsedText(String)
-func jsMessageVisitor_extractGoogGetMsgParsedText(originalMsgText string) (googGetMsgParsedText, error) {
+func extractGoogGetMsgParsedText(originalMsgText string) (googGetMsgParsedText, error) {
 	msgText := originalMsgText
 	var partsBuilder []JsMessage_Part
 	var placeholders OrderedSet[string]

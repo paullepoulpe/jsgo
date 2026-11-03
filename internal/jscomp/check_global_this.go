@@ -25,45 +25,24 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var checkGlobalThisVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_THIS)
-	return s
-}()
+var checkGlobalThisVisitTokens = makeVisitTokenSet(rhino.Token_THIS)
 
 var _ nodeTraversal_visitTokens = (*CheckGlobalThis)(nil)
 
 func (*CheckGlobalThis) visitTokens() *ast.TokenSet { return &checkGlobalThisVisitTokens }
 
-// CheckGlobalThis checks for certain uses of the {@code this} keyword that are
-// considered unsafe because they are likely to reference the global
-// {@code this} object unintentionally.
+// CheckGlobalThis checks for certain uses of the `this` keyword that are
+// considered unsafe because they are likely to reference the global `this`
+// object unintentionally.
 //
-// A use of {@code this} is considered unsafe if it's on the left side of an
+// A use of `this` is considered unsafe if it's on the left side of an
 // assignment or a property access, and not inside one of the following:
 //
 //  1. a class static initialization block
 //  2. a prototype method
-//  3. a function annotated with {@code @constructor}
-//  4. a function annotated with {@code @this}.
-//  5. a function where there's no logical place to put a {@code this}
-//     annotation.
-//
-// Note that this check does not track assignments of {@code this} to
-// variables or objects. The code
-//
-//	function evil() {
-//	  var a = this;
-//	  a.useful = undefined;
-//	}
-//
-// will not get flagged, even though it is semantically equivalent to
-//
-//	function evil() {
-//	  this.useful = undefined;
-//	}
-//
-// which would get flagged.
+//  3. a function annotated with `@constructor`
+//  4. a function annotated with `@this`
+//  5. a function where there's no logical place to put a `@this` annotation.
 type CheckGlobalThis struct {
 	compiler AbstractCompiler
 }
@@ -77,24 +56,18 @@ func NewCheckGlobalThis(compiler AbstractCompiler) *CheckGlobalThis {
 	return &CheckGlobalThis{compiler: compiler}
 }
 
-// ShouldTraverse: since this pass reports errors only when a global
-// {@code this} keyword is encountered, there is no reason to traverse non
-// global contexts.
+// ShouldTraverse skips non-global `this` contexts.
 //
 // Java: CheckGlobalThis.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-
-	if n.IsFunction() {
-		// Arrow functions automatically get the "this" value from the
-		// enclosing scope. e.g. the "this" in
-		//   Foo.prototype.getBar = () => this.bar;
-		// is the global "this", not an instance of Foo.
-		if n.IsArrowFunction() {
+	if fn, ok := ast.AsFunction(n); ok {
+		// Arrow functions automatically inherit `this` from the enclosing scope;
+		// e.g. in `Foo.prototype.getBar = () => this.bar;`, `this` is global `this`.
+		if fn.IsArrow() {
 			return true
 		}
 
-		// Don't traverse functions that are constructors or have the @this
-		// or @override annotation.
+		// Don't traverse functions that are constructors or have @this / @override.
 		jsDoc := NodeUtil_GetBestJSDocInfo(n)
 		if jsDoc != nil &&
 			(jsDoc.IsConstructor() ||
@@ -105,43 +78,29 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 		}
 
 		if jsDoc != nil {
-			functionType := jsDoc.GetType()
-			if functionType != nil {
+			if functionType := jsDoc.GetType(); functionType != nil {
+				// Note: functionNode is a JSDoc type expression node, not a JS ast.Function.
 				functionNode := functionType.GetRoot()
-				if !functionNode.IsNil() && functionNode.IsFunction() {
-					// function(this: ThisType, ...)
-					// `this:` is only allowed as the very first child of the
-					// FUNCTION node.
-					thisNode := functionNode.GetFirstChild()
-					if !thisNode.IsNil() && thisNode.IsThis() {
-						// Type of `this` is specified, so no need to check further.
-						return false
-					}
+				if functionNode.IsFunction() && functionNode.GetFirstChild().IsThis() {
+					return false
 				}
 			}
 		}
 
-		// Don't traverse functions unless they would normally
-		// be able to have a @this annotation associated with them. e.g.,
-		// var a = function() { }; // or
-		// function a() {} // or
-		// a.x = function() {}; // or
-		// var a = {x: function() {}};
-		pType := parent.GetToken()
-		if !(pType == rhino.Token_BLOCK ||
-			pType == rhino.Token_SCRIPT ||
-			pType == rhino.Token_NAME ||
-			pType == rhino.Token_ASSIGN ||
-			// object literal keys
-			pType == rhino.Token_STRING_KEY) {
+		// Only traverse functions where a @this annotation could normally be placed:
+		//   var a = function() {};
+		//   function a() {}
+		//   a.x = function() {};
+		//   var a = {x: function() {}};
+		switch parent.GetToken() {
+		case rhino.Token_BLOCK, rhino.Token_SCRIPT, rhino.Token_NAME, rhino.Token_ASSIGN, rhino.Token_STRING_KEY:
+		default:
 			return false
 		}
 
-		// Don't traverse functions that are getting lent to a prototype.
-		grandparent := parent.GetParent()
+		// Don't traverse functions lent to a prototype via @lends.
 		if NodeUtil_MayBeObjectLitKey(parent) {
-			maybeLends := grandparent.GetJSDocInfo()
-			if maybeLends != nil &&
+			if maybeLends := parent.GetParent().GetJSDocInfo(); maybeLends != nil &&
 				maybeLends.HasLendsName() &&
 				strings.HasSuffix(maybeLends.GetLendsName().GetRoot().GetString(), ".prototype") {
 				return false
@@ -149,30 +108,25 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 		}
 	}
 
-	// Don't traverse class static blocks, 'this' is never the global 'this'
+	// Don't traverse class static blocks; `this` is never global `this`.
 	if NodeUtil_IsClassStaticBlock(n) {
 		return false
 	}
 
-	// `this` in class field definitions refers to the instance (for non-static fields) or the class
-	// itself (for static fields), never the global 'this'.
-	if (n.IsMemberFieldDef() || n.IsComputedFieldDef()) && n.GetParent().IsClassMembers() {
+	// `this` in class field definitions refers to the instance or the class, never global `this`.
+	if _, ok := ast.AsFieldDef(n); ok && parent.IsClassMembers() {
 		return false
 	}
 
-	if !parent.IsNil() && parent.IsAssign() {
-		lhs := parent.GetFirstChild()
-		if n != lhs {
-			// Only traverse the right side if it's not an assignment to a prototype
-			// property or subproperty.
-			if NodeUtil_IsNormalGet(lhs) {
-				if lhs.IsGetProp() && lhs.GetString() == "prototype" {
-					return false
-				}
-				llhs := lhs.GetFirstChild()
-				if llhs.IsGetProp() && llhs.GetString() == "prototype" {
-					return false
-				}
+	if assign, ok := ast.AsAssign(parent); ok && !assign.Target().Is(n) {
+		// Only traverse the right side if it's not an assignment to a prototype
+		// property or subproperty.
+		if lhsGet, ok := ast.AsNormalGet(assign.Target().Node()); ok {
+			if gp, ok := lhsGet.AsGetProp(); ok && gp.Property() == "prototype" {
+				return false
+			}
+			if objGp, ok := lhsGet.Object().AsGetProp(); ok && objGp.Property() == "prototype" {
+				return false
 			}
 		}
 	}
@@ -182,21 +136,20 @@ func (c *CheckGlobalThis) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent 
 
 // Java: CheckGlobalThis.visit(NodeTraversal, Node, Node)
 func (c *CheckGlobalThis) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsThis() && c.ShouldReportThis(n) {
+	if n.IsThis() && shouldReportGlobalThis(n) {
 		c.compiler.Report(JSError_MakeWithNode(n, CheckGlobalThis_GLOBAL_THIS))
 	}
 }
 
-// Java: CheckGlobalThis.shouldReportThis(Node)
-func (c *CheckGlobalThis) ShouldReportThis(n rhino.Node) bool {
+func shouldReportGlobalThis(n rhino.Node) bool {
 	parent := n.GetParent()
-	if !parent.IsNil() && NodeUtil_IsNormalGet(parent) {
+	if _, ok := ast.AsNormalGet(parent); ok {
 		// Report a THIS with a property access.
 		return true
 	}
 	// Always report a THIS on the left side of an assign.
 	for cur, p := n, parent; !p.IsNil() && !p.IsScript(); cur, p = p, p.GetParent() {
-		if p.IsAssign() && p.GetFirstChild() == cur {
+		if ast.RoleIn(cur, p) == ast.RoleAssignTarget {
 			return true
 		}
 	}

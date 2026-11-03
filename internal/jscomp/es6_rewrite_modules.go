@@ -436,13 +436,13 @@ func (e *Es6RewriteModules) visitImport(t *NodeTraversal, importDecl ast.Import,
 
 	if e.preprocessorSymbolTable != nil {
 		if bindings, hasBindings := importDecl.Bindings(); hasBindings {
-			sourceName := t.GetSourceName()
+			sourceName, hasSourceName := t.SourceNameOk()
 			if specs, isSpecs := bindings.AsImportSpecs(); isSpecs {
 				for spec := range specs.Specs() {
-					e.maybeAddAliasToSymbolTable(spec.Imported().Node(), sourceName)
+					e.maybeAddAliasToSymbolTable(spec.Imported().Node(), sourceName, hasSourceName)
 				}
 			} else if star, isStar := bindings.AsImportStar(); isStar {
-				e.maybeAddAliasToSymbolTable(star.Node(), sourceName)
+				e.maybeAddAliasToSymbolTable(star.Node(), sourceName, hasSourceName)
 			}
 		}
 	}
@@ -818,7 +818,8 @@ func (r *es6RenameGlobalVars) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		name := nm.Ident()
 		if binding := r.thisModule.BoundNamesMap().Get(name); binding != nil {
 			if r.pass.preprocessorSymbolTable != nil {
-				r.pass.maybeAddAliasToSymbolTable(n, t.GetSourceName())
+				sourceName, hasSourceName := t.SourceNameOk()
+				r.pass.maybeAddAliasToSymbolTable(n, sourceName, hasSourceName)
 			}
 
 			replacement := r.replaceBindingRef(n, binding)
@@ -901,7 +902,8 @@ func (r *es6RenameGlobalVars) fixTypeNode(t *NodeTraversal, typeNode rhino.Node)
 				if e.preprocessorSymbolTable != nil {
 					onlyBaseName := rhino.Node_NewString(baseName).Srcref(typeNode)
 					onlyBaseName.SetLength(jutil.StringLength(baseName))
-					e.maybeAddAliasToSymbolTable(onlyBaseName, t.GetSourceName())
+					sourceName, hasSourceName := t.SourceNameOk()
+					e.maybeAddAliasToSymbolTable(onlyBaseName, sourceName, hasSourceName)
 				}
 			}
 		}
@@ -922,14 +924,14 @@ func (r *es6RenameGlobalVars) maybeSetNewName(t *NodeTraversal, node rhino.Node,
 	}
 }
 
-func (e *Es6RewriteModules) maybeAddAliasToSymbolTable(n rhino.Node, module *string) {
+func (e *Es6RewriteModules) maybeAddAliasToSymbolTable(n rhino.Node, module string, hasModule bool) {
 	if e.preprocessorSymbolTable == nil {
 		return
 	}
 	n.PutBooleanProp(rhino.Node_MODULE_ALIAS, true)
 	moduleName := "null"
-	if module != nil {
-		moduleName = *module
+	if hasModule {
+		moduleName = module
 	}
 	nodeName := "null"
 	if n.IsStringLit() || n.IsImportStar() {

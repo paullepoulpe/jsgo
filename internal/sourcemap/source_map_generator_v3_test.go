@@ -330,8 +330,8 @@ func TestGoldenOutput_semanticLineBreaks(t *testing.T) {
 
 func TestBasicDeterminism(t *testing.T) {
 	tc := newSourceMapGeneratorV3Test(t)
-	result1 := tc.CompileOfTwo("file1", "foo;", jutil.StringPtr("file2"), jutil.StringPtr("bar;"))
-	result2 := tc.CompileOfTwo("file2", "foo;", jutil.StringPtr("file1"), jutil.StringPtr("bar;"))
+	result1 := tc.CompileOfTwo("file1", "foo;", "file2", "bar;")
+	result2 := tc.CompileOfTwo("file2", "foo;", "file1", "bar;")
 
 	map1 := tc.GetSourceMap(result1)
 	map2 := tc.GetSourceMap(result2)
@@ -395,7 +395,7 @@ func TestWriteMetaMap(t *testing.T) {
 func getEmptyMapFor(name string) string {
 	var out strings.Builder
 	generator := sourcemap.NewSourceMapGeneratorV3()
-	generator.AppendTo(&out, &name)
+	generator.AppendToOptional(&out, sourcemap.SomeString(name))
 	return out.String()
 }
 
@@ -478,17 +478,15 @@ func TestParseSourceMetaMap(t *testing.T) {
 		inputs,
 		output.String(),
 		mapContents.String(),
-		mapSupplierFunc(func(url string) *string {
-			if v, ok := maps[url]; ok {
-				return &v
-			}
-			return nil
+		mapSupplierFunc(func(url string) (string, bool) {
+			v, ok := maps[url]
+			return v, ok
 		}))
 }
 
-type mapSupplierFunc func(url string) *string
+type mapSupplierFunc func(url string) (string, bool)
 
-func (f mapSupplierFunc) GetSourceMap(url string) *string { return f(url) }
+func (f mapSupplierFunc) GetSourceMap(url string) (string, bool) { return f(url) }
 
 func TestSourceMapMerging(t *testing.T) {
 	tc := newSourceMapGeneratorV3Test(t)
@@ -515,7 +513,7 @@ func TestSourceMapMerging(t *testing.T) {
 	}
 
 	var mapContents strings.Builder
-	generator.AppendTo(&mapContents, jutil.StringPtr("out.js"))
+	generator.AppendToOptional(&mapContents, sourcemap.SomeString("out.js"))
 
 	tc.Check(inputs, output.String(), mapContents.String())
 }
@@ -523,26 +521,26 @@ func TestSourceMapMerging(t *testing.T) {
 func TestSourceMerging1(t *testing.T) {
 	// construct first source map
 	sourceMapGeneratorV3 := sourcemap.NewSourceMapGeneratorV3()
-	sourceMapGeneratorV3.AddMapping(
-		jutil.StringPtr("sourceName1"),
-		jutil.StringPtr("symbolName1"),
+	sourceMapGeneratorV3.AddMappingPositions(
+		"sourceName1",
+		sourcemap.SomeString("symbolName1"),
 		sourcemap.NewFilePosition(1, 1),
 		sourcemap.NewFilePosition(2, 2),
 		sourcemap.NewFilePosition(3, 3))
 	var w strings.Builder
-	sourceMapGeneratorV3.AppendTo(&w, jutil.StringPtr("foo.js.sourcemap"))
+	sourceMapGeneratorV3.AppendToOptional(&w, sourcemap.SomeString("foo.js.sourcemap"))
 	sourceMap1 := w.String()
 
 	// construct second source map
 	sourceMapGeneratorV3 = sourcemap.NewSourceMapGeneratorV3()
-	sourceMapGeneratorV3.AddMapping(
-		jutil.StringPtr("sourceName2"),
-		jutil.StringPtr("symbolName2"),
+	sourceMapGeneratorV3.AddMappingPositions(
+		"sourceName2",
+		sourcemap.SomeString("symbolName2"),
 		sourcemap.NewFilePosition(1, 4),
 		sourcemap.NewFilePosition(2, 5),
 		sourcemap.NewFilePosition(3, 6))
 	w.Reset()
-	sourceMapGeneratorV3.AppendTo(&w, jutil.StringPtr("bar.js.sourcemap"))
+	sourceMapGeneratorV3.AppendToOptional(&w, sourcemap.SomeString("bar.js.sourcemap"))
 	sourceMap2 := w.String()
 
 	// combine the two
@@ -553,24 +551,24 @@ func TestSourceMerging1(t *testing.T) {
 	if err := sourceMapGeneratorV3.MergeMapSection(4, 0, sourceMap2); err != nil {
 		t.Fatalf("MergeMapSection(sourceMap2) failed: %v", err)
 	}
-	sourceMapGeneratorV3.AppendTo(&w, jutil.StringPtr("foobar.js.sourcemap"))
+	sourceMapGeneratorV3.AppendToOptional(&w, sourcemap.SomeString("foobar.js.sourcemap"))
 	combinedMap := w.String()
 
 	// Construct the same map manually
 	sourceMapGeneratorV3 = sourcemap.NewSourceMapGeneratorV3()
-	sourceMapGeneratorV3.AddMapping(
-		jutil.StringPtr("sourceName1"),
-		jutil.StringPtr("symbolName1"),
+	sourceMapGeneratorV3.AddMappingPositions(
+		"sourceName1",
+		sourcemap.SomeString("symbolName1"),
 		sourcemap.NewFilePosition(1, 1),
 		sourcemap.NewFilePosition(2, 2),
 		sourcemap.NewFilePosition(3, 3))
-	sourceMapGeneratorV3.AddMapping(
-		jutil.StringPtr("sourceName2"),
-		jutil.StringPtr("symbolName2"),
+	sourceMapGeneratorV3.AddMappingPositions(
+		"sourceName2",
+		sourcemap.SomeString("symbolName2"),
 		sourcemap.NewFilePosition(1, 4),
 		sourcemap.NewFilePosition(6, 5),
 		sourcemap.NewFilePosition(7, 6))
-	sourceMapGeneratorV3.AppendTo(&w, jutil.StringPtr("foobar.js.sourcemap"))
+	sourceMapGeneratorV3.AppendToOptional(&w, sourcemap.SomeString("foobar.js.sourcemap"))
 	manuallyCombined := w.String()
 	// TODO(b/62591567): these should be equal, but combinedMap is missing the
 	// last mapping.
@@ -590,7 +588,7 @@ func TestSourceMapExtensions(t *testing.T) {
 
 	mapper.RemoveExtension("x_google_foo")
 	var out strings.Builder
-	mapper.AppendTo(&out, jutil.StringPtr("out.js"))
+	mapper.AppendToOptional(&out, sourcemap.SomeString("out.js"))
 
 	if !mapper.HasExtension("x_google_test") {
 		t.Error("x_google_test missing")
@@ -677,7 +675,7 @@ func TestSourceRoot(t *testing.T) {
 
 	// checking absence of sourceRoot
 	var out strings.Builder
-	mapper.AppendTo(&out, jutil.StringPtr("out.js"))
+	mapper.AppendToOptional(&out, sourcemap.SomeString("out.js"))
 	mapping := parseJsonObject(out.String())
 
 	if mapping.Get("version").GetAsInt() != 3 {
@@ -689,7 +687,7 @@ func TestSourceRoot(t *testing.T) {
 
 	out.Reset()
 	mapper.SetSourceRoot("")
-	mapper.AppendTo(&out, jutil.StringPtr("out2.js"))
+	mapper.AppendToOptional(&out, sourcemap.SomeString("out2.js"))
 	mapping = parseJsonObject(out.String())
 
 	if mapping.Has("sourceRoot") {
@@ -699,7 +697,7 @@ func TestSourceRoot(t *testing.T) {
 	// checking sourceRoot
 	out.Reset()
 	mapper.SetSourceRoot("http://url/path")
-	mapper.AppendTo(&out, jutil.StringPtr("out3.js"))
+	mapper.AppendToOptional(&out, sourcemap.SomeString("out3.js"))
 	mapping = parseJsonObject(out.String())
 
 	if mapping.Get("sourceRoot").GetAsString() != "http://url/path" {

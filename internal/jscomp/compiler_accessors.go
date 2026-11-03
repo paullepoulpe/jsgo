@@ -58,8 +58,7 @@ func (c *Compiler) GetScriptNode(filename string) rhino.Node {
 func (c *Compiler) GetResult() *Result {
 	var externExports *string
 	if c.hasExternExports {
-		s := c.externExports
-		externExports = &s
+		externExports = &c.externExports
 	}
 	return NewResultWithAllMaps(
 		c.GetErrors(),
@@ -452,7 +451,6 @@ func (c *Compiler) GetTranspilationNamespace() rhino.StaticScope {
 type Result struct {
 	// Java's public final fields; the ones other Go packages read are
 	// exported (PORTING.md §3).
-	Success  bool
 	Errors   []*JSError
 	Warnings []*JSError
 
@@ -465,6 +463,7 @@ type Result struct {
 	cssNames                *OrderedSet[string] // nil is null
 	ExternExport            *string             // nil is null
 	idGeneratorMap          *string             // nil is null
+	Success                 bool
 	TranspiledFiles         bool
 }
 
@@ -525,6 +524,8 @@ func NewResult(
 		/* transpiledFiles= */ false)
 }
 
+var resultEmptyExternExport = ""
+
 // Result_PruneResultForPartialCompilation returns an almost empty result
 // that is more appropriate for a partial compilation.
 //
@@ -545,7 +546,7 @@ func Result_PruneResultForPartialCompilation(result *Result) *Result {
 		/* stringMap= */ nil,
 		/* instrumentationMappings= */ emptyVariableMap,
 		/* sourceMap= */ nil,
-		/* externExport= */ jutil.StringPtr(""),
+		/* externExport= */ &resultEmptyExternExport,
 		/* cssNames= */ nil,
 		/* idGeneratorMap= */ nil,
 		/* transpiledFiles= */ false)

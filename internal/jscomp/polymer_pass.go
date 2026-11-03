@@ -46,14 +46,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-const polymerPass_VIRTUAL_FILE = "<PolymerPass.java>"
+const polymerPassVirtualFile = "<PolymerPass.java>"
 
-var polymerPassVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_CALL)
-	s.Add(rhino.Token_CLASS)
-	return s
-}()
+var polymerPassVisitTokens = makeVisitTokenSet(rhino.Token_CALL, rhino.Token_CLASS)
 
 var _ nodeTraversal_visitTokens = (*PolymerPass)(nil)
 
@@ -185,7 +180,7 @@ func (p *PolymerPass) rewritePolymer2ClassDefinition(node rhino.Node, traversal 
 
 		// Support Polymer implicit property edge cases by just @exporting all non-private properties.
 		if targetQName, ok := def.target.GetQualifiedNameString(); ok {
-			polymerPass_exportTsickleProps(def.definition, targetQName)
+			exportTsicklePolymerProps(def.definition, targetQName)
 		}
 	}
 }
@@ -211,10 +206,11 @@ func (p *PolymerPass) normalizePolymerExport(nameDecl rhino.Node, export rhino.N
 //
 // Java: PolymerPass.appendPolymerElementExterns(PolymerClassDefinition)
 func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
-	if p.nativeExternsAdded[*def.nativeBaseElement] {
+	baseTag := *def.nativeBaseElement
+	if p.nativeExternsAdded[baseTag] {
 		return
 	}
-	p.nativeExternsAdded[*def.nativeBaseElement] = true
+	p.nativeExternsAdded[baseTag] = true
 
 	block := rhino.IR_Block()
 
@@ -222,14 +218,14 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 	polymerElementType := PolymerPassStaticUtils_GetPolymerElementType(def)
 	ast.MustNameDeclaration(baseExterns).MustFirstDeclarator().Node().SetString(polymerElementType)
 
-	elementType, ok := p.tagNameMap[*def.nativeBaseElement]
+	elementType, ok := p.tagNameMap[baseTag]
 	if !ok {
-		p.compiler.Report(JSError_MakeWithNode(def.descriptor, PolymerPassErrors_POLYMER_INVALID_EXTENDS, *def.nativeBaseElement))
+		p.compiler.Report(JSError_MakeWithNode(def.descriptor, PolymerPassErrors_POLYMER_INVALID_EXTENDS, baseTag))
 		return
 	}
 	elementBaseType := rhino.NewJSTypeExpression(
 		rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String(elementType).SrcrefTree(p.polymerElementExterns)),
-		polymerPass_VIRTUAL_FILE)
+		polymerPassVirtualFile)
 	baseDocs := rhino.JSDocInfo_Builder_CopyFrom(baseExterns.GetJSDocInfo())
 	baseDocs.ChangeBaseType(elementBaseType)
 	baseExterns.SetJSDocInfo(baseDocs.Build())
@@ -237,8 +233,8 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 
 	for _, baseProp := range p.polymerElementProps {
 		newProp := baseProp.CloneTree()
-		newPropRootName := NodeUtil_GetRootOfQualifiedName(
-			ast.MustExprStmt(newProp).Expr().Node().GetFirstChild())
+		propTarget, _ := polymerElementPropSubexpr(ast.MustExprStmt(newProp))
+		newPropRootName := NodeUtil_GetRootOfQualifiedName(propTarget.Node())
 		newPropRootName.SetString(polymerElementType)
 		block.AddChildToBack(newProp)
 	}
@@ -252,21 +248,21 @@ func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
 	p.compiler.ReportChangeToEnclosingScope(stmts)
 }
 
-// polymerPass_exportTsickleProps finds the tsickle-generated `if (false)`
-// block and exports all non-private properties.
+// exportTsicklePolymerProps finds the tsickle-generated `if (false)` block and
+// exports all non-private properties.
 //
 // Java: PolymerPass.exportTsickleProps(Node, String)
-func polymerPass_exportTsickleProps(classNode rhino.Node, classQualifiedName string) {
+func exportTsicklePolymerProps(classNode rhino.Node, classQualifiedName string) {
 	classStmt := rhino.CheckNotNull(NodeUtil_GetEnclosingStatement(classNode))
 
 	for sibling := classStmt.GetNext(); !sibling.IsNil(); sibling = sibling.GetNext() {
-		ifBlock := polymerPass_maybeGetTsicklePropTypesIfBlock(sibling)
-		if ifBlock.IsNil() {
+		ifBlock, ok := asTsicklePropTypesIfBlock(sibling)
+		if !ok {
 			continue
 		}
 
-		for stmt := ifBlock.GetFirstChild(); !stmt.IsNil(); stmt = stmt.GetNext() {
-			prop := polymerPass_getTsickleClassPrototypeProp(stmt, classQualifiedName)
+		for stmt := range ifBlock.Statements() {
+			prop := tsickleClassPrototypeProp(stmt.Node(), classQualifiedName)
 			if prop.IsNil() {
 				continue
 			}
@@ -285,24 +281,23 @@ func polymerPass_exportTsickleProps(classNode rhino.Node, classQualifiedName str
 	}
 }
 
-// polymerPass_maybeGetTsicklePropTypesIfBlock: if the given node is an
-// `if (false) {}`, returns its block node. Otherwise returns null.
+// asTsicklePropTypesIfBlock checks whether the given node is `if (false) {}`
+// and returns its block node.
 //
 // Java: PolymerPass.maybeGetTsicklePropTypesIfBlock(Node)
-func polymerPass_maybeGetTsicklePropTypesIfBlock(node rhino.Node) rhino.Node {
+func asTsicklePropTypesIfBlock(node rhino.Node) (ast.Block, bool) {
 	ifNode, ok := ast.AsIf(node)
 	if !ok || !ifNode.Cond().Node().IsFalse() {
-		return rhino.NilNode
+		return ast.Block{}, false
 	}
-	return ifNode.Then().Node()
+	return ifNode.Then(), true
 }
 
-// polymerPass_getTsickleClassPrototypeProp looks for
-// `ClassName.prototype.foo` expressions and returns the property node (if
-// found).
+// tsickleClassPrototypeProp looks for `ClassName.prototype.foo` expressions and
+// returns the property node (if found).
 //
 // Java: PolymerPass.getTsickleClassPrototypeProp(Node, String)
-func polymerPass_getTsickleClassPrototypeProp(stmt rhino.Node, classQualifiedName string) rhino.Node {
+func tsickleClassPrototypeProp(stmt rhino.Node, classQualifiedName string) rhino.Node {
 	exprStmt, ok := ast.AsExprStmt(stmt)
 	if !ok {
 		return rhino.NilNode
@@ -425,16 +420,14 @@ var (
 		"The Polymer computed property or complex observer string could not be parsed.")
 )
 
-const polymerPassFindExterns_POLYMER_ELEMENT_NAME = "PolymerElement"
+const polymerElementExternName = "PolymerElement"
 
-var polymerPassFindExternsVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_VAR)
-	s.Add(rhino.Token_LET)
-	s.Add(rhino.Token_CONST)
-	s.Add(rhino.Token_EXPR_RESULT)
-	return s
-}()
+var polymerPassFindExternsVisitTokens = makeVisitTokenSet(
+	rhino.Token_VAR,
+	rhino.Token_LET,
+	rhino.Token_CONST,
+	rhino.Token_EXPR_RESULT,
+)
 
 var _ nodeTraversal_visitTokens = (*polymerPassFindExterns)(nil)
 
@@ -464,7 +457,7 @@ func (f *polymerPassFindExterns) ShouldTraverse(t *NodeTraversal, n rhino.Node, 
 
 // Java: PolymerPassFindExterns.visit(NodeTraversal, Node, Node)
 func (f *polymerPassFindExterns) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if polymerPassFindExterns_isPolymerElementExterns(n) {
+	if isPolymerElementExterns(n) {
 		f.polymerElementExterns = n
 	} else if polymerPassFindExterns_isPolymerElementPropExpr(n) {
 		f.polymerElementProps = append(f.polymerElementProps, n)
@@ -488,22 +481,34 @@ func (f *polymerPassFindExterns) GetPolymerElementExterns() rhino.Node {
 	return f.polymerElementExterns
 }
 
-// polymerPassFindExterns_isPolymerElementExterns returns whether the node is
-// the declaration of PolymerElement.
+// isPolymerElementExterns returns whether the node is the declaration of
+// PolymerElement.
 //
 // Java: PolymerPassFindExterns.isPolymerElementExterns(Node)
-func polymerPassFindExterns_isPolymerElementExterns(value rhino.Node) bool {
+func isPolymerElementExterns(value rhino.Node) bool {
 	// Explicitly allow var, let or const.
 	decl, ok := ast.AsNameDeclaration(value)
 	if !ok {
 		return false
 	}
 	first, ok := decl.FirstDeclarator()
-	return ok && first.Node().MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
+	return ok && first.Node().MatchesQualifiedName(polymerElementExternName)
+}
+
+func polymerElementPropSubexpr(stmt ast.ExprStmt) (ast.GetProp, bool) {
+	expr := stmt.Expr()
+	if assign, ok := expr.AsAssign(); ok {
+		return assign.Target().AsGetProp()
+	}
+	if gp, ok := expr.AsGetProp(); ok {
+		return gp.Object().AsGetProp()
+	}
+	return ast.GetProp{}, false
 }
 
 // polymerPassFindExterns_isPolymerElementPropExpr returns whether the node is
-// an expression result of an assignment to a property of PolymerElement.
+// an expression result of an assignment or prototype property declaration on
+// PolymerElement.
 //
 // Java: PolymerPassFindExterns.isPolymerElementPropExpr(Node)
 func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
@@ -511,11 +516,10 @@ func polymerPassFindExterns_isPolymerElementPropExpr(value rhino.Node) bool {
 	if !ok {
 		return false
 	}
-	first := stmt.Expr().Node().GetFirstChild()
-	return !first.IsNil() &&
-		first.IsGetProp() &&
-		first.IsQualifiedName() &&
-		NodeUtil_GetRootOfQualifiedName(first).MatchesQualifiedName(polymerPassFindExterns_POLYMER_ELEMENT_NAME)
+	prop, ok := polymerElementPropSubexpr(stmt)
+	return ok &&
+		prop.Node().IsQualifiedName() &&
+		NodeUtil_GetRootOfQualifiedName(prop.Node()).MatchesQualifiedName(polymerElementExternName)
 }
 
 // tagNameToTypeMap contains a mapping from HTML Element tag name to the

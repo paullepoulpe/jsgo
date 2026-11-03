@@ -72,25 +72,21 @@ func (c *CheckUnreachableCode) CurrentScopeHasNoUnreachable() bool {
 // and whether the body ends with an explicit return statement.
 func isStraightLineFunction(fnNode rhino.Node) (straightLine bool, endsWithReturn bool) {
 	fn, ok := ast.AsFunction(fnNode)
-	if !ok {
+	if !ok || fn.Params().Node().IsNil() {
 		return false, false
 	}
-	paramList := fn.Params().Node()
-	if paramList.IsNil() {
-		return false, false
-	}
-	for p := paramList.GetFirstChild(); !p.IsNil(); p = p.GetNext() {
-		if !p.IsName() {
+	for param := range fn.Params().Params() {
+		if _, isName := param.AsName(); !isName {
 			return false, false
 		}
 	}
-	body, ok := ast.AsBlock(paramList.GetNext())
+	body, ok := fn.Body().AsBlock()
 	if !ok || body.IsSynthetic() {
 		return false, false
 	}
 	terminated := false
-	for child := body.Node().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		tok := child.GetToken()
+	for stmt := range body.Statements() {
+		tok := stmt.Token()
 		if tok == rhino.Token_FUNCTION {
 			continue
 		}
@@ -120,7 +116,7 @@ func isStraightLineScript(script rhino.Node) bool {
 			}
 		}
 	}
-	for child := container.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range container.Children() {
 		switch child.GetToken() {
 		case rhino.Token_EXPR_RESULT, rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST,
 			rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_EMPTY,
@@ -139,7 +135,7 @@ func hasTopLevelReturn(n rhino.Node) bool {
 	if n.IsReturn() {
 		return true
 	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		if hasTopLevelReturn(c) {
 			return true
 		}
@@ -158,10 +154,12 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bo
 		if c.rootHasNoUnreachable {
 			return true
 		}
-		for s := scopeRoot.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
-			if !s.IsScript() {
+		for item := range ast.MustRoot(scopeRoot).Items() {
+			script, ok := item.AsScript()
+			if !ok {
 				return false
 			}
+			s := script.Node()
 			if isStraightLineScript(s) {
 				continue
 			}
@@ -233,13 +231,10 @@ func (c *CheckUnreachableCode) ExitScopeWithCfg(t *NodeTraversal) {
 
 // Java: CheckUnreachableCode.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if len(c.hasUnreachableStack) > 0 && !c.hasUnreachableStack[len(c.hasUnreachableStack)-1] {
+	if c.CurrentScopeHasNoUnreachable() {
 		return true
 	}
-	// Only report error when there are some line number informations.
-	// There are synthetic nodes with no line number informations, nodes
-	// introduce by other passes (although not likely since this pass should
-	// be executed early) or some rhino bug.
+	// Only report error when there are line number informations.
 	// Allow spurious semi-colons and spurious breaks.
 	if n.GetLineno() == -1 || n.IsEmpty() || n.IsBreak() {
 		return true
@@ -248,13 +243,13 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 	gNode := cfg.GetNode(n)
 	if gNode != nil && gNode.GetAnnotation() != graph.GraphReachability_REACHABLE {
 		c.compiler.Report(JSError_MakeWithNode(n, CheckUnreachableCode_UNREACHABLE_CODE))
-		// From now on, we are going to assume the user fixed the error and not
-		// give more warning related to code section reachable from this node.
+		// From now on, assume the user fixed the error and do not report further
+		// warnings for code reachable from this node.
 		c.reachability.Graph = cfg
 		c.reachability.EdgePredicate = nil
 		c.reachability.Recompute(n)
 
-		// Saves time by not traversing children.
+		// Save time by not traversing children.
 		return false
 	}
 	return true
@@ -263,21 +258,16 @@ func (c *CheckUnreachableCode) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 // Java: CheckUnreachableCode.initScope(ControlFlowGraph<Node>)
 func (c *CheckUnreachableCode) InitScope(controlFlowGraph *ControlFlowGraph[rhino.Node]) {
 	c.reachability.Graph = controlFlowGraph
-	c.reachability.EdgePredicate = CheckUnreachableCode_IsReachable
+	c.reachability.EdgePredicate = isReachableCfgEdge
 	c.reachability.Compute(controlFlowGraph.entry.Value)
 }
 
-// Java: CheckUnreachableCode.isReachable(EdgeTuple<Node, Branch>)
-func CheckUnreachableCode_IsReachable(input *graph.GraphReachability_EdgeTuple[rhino.Node, ControlFlowGraph_Branch]) bool {
+func isReachableCfgEdge(input *graph.GraphReachability_EdgeTuple[rhino.Node, ControlFlowGraph_Branch]) bool {
 	branch := input.Edge
 	if !branch.IsConditional() {
 		return true
 	}
-	predecessor := input.SourceNode
-	condition := NodeUtil_GetConditionExpression(predecessor)
-
-	// TODO(user): Handle more complicated expression like true == true,
-	// etc....
+	condition := NodeUtil_GetConditionExpression(input.SourceNode)
 	if !condition.IsNil() {
 		val := NodeUtil_GetBooleanValue(condition)
 		if val != base.Tri_UNKNOWN {

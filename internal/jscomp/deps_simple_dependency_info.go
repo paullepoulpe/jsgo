@@ -420,11 +420,21 @@ func (b *SimpleDependencyInfo_Builder) SetTypeRequiresArray(typeRequires ...stri
 
 // Java: SimpleDependencyInfo.Builder.setLoadFlags(Map<String, String>)
 func (b *SimpleDependencyInfo_Builder) SetLoadFlags(loadFlags jutil.MapSource[string, string]) *SimpleDependencyInfo_Builder {
-	if jutil.IsNil(loadFlags) {
+	if loadFlags == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	if lf, ok := loadFlags.(LoadFlags); ok {
+	switch lf := loadFlags.(type) {
+	case LoadFlags:
 		return b.SetLoadFlagsValue(lf)
+	case *LoadFlags:
+		if lf == nil {
+			panic(jutil.NewNullPointerException())
+		}
+		return b.SetLoadFlagsValue(*lf)
+	case *OrderedStringMap[string]:
+		if lf == nil {
+			panic(jutil.NewNullPointerException())
+		}
 	}
 	var buf [4]LoadFlag
 	entries := buf[:0]

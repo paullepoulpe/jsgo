@@ -24,17 +24,15 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-var checkUnusedPrivatePropertiesVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_SCRIPT)
-	s.Add(rhino.Token_GETPROP)
-	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
-	s.Add(rhino.Token_OBJECTLIT)
-	s.Add(rhino.Token_CALL)
-	s.Add(rhino.Token_FUNCTION)
-	s.Add(rhino.Token_CLASS)
-	return s
-}()
+var checkUnusedPrivatePropertiesVisitTokens = makeVisitTokenSet(
+	rhino.Token_SCRIPT,
+	rhino.Token_GETPROP,
+	rhino.Token_MEMBER_FUNCTION_DEF,
+	rhino.Token_OBJECTLIT,
+	rhino.Token_CALL,
+	rhino.Token_FUNCTION,
+	rhino.Token_CLASS,
+)
 
 var _ nodeTraversal_visitTokens = (*CheckUnusedPrivateProperties)(nil)
 
@@ -53,9 +51,12 @@ type CheckUnusedPrivateProperties struct {
 	constructorsAndInterfaces map[string]bool
 }
 
-var CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY = DiagnosticType_Disabled("JSC_UNUSED_PRIVATE_PROPERTY", "Private property {0} is never read")
+var CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY = DiagnosticType_Disabled(
+	"JSC_UNUSED_PRIVATE_PROPERTY",
+	"Private property {0} is never read",
+)
 
-// NewCheckUnusedPrivateProperties is new CheckUnusedPrivateProperties(compiler).
+// NewCheckUnusedPrivateProperties constructs a CheckUnusedPrivateProperties pass.
 //
 // Java: CheckUnusedPrivateProperties(AbstractCompiler)
 func NewCheckUnusedPrivateProperties(compiler AbstractCompiler) *CheckUnusedPrivateProperties {
@@ -71,22 +72,21 @@ func (c *CheckUnusedPrivateProperties) Process(externs rhino.Node, root rhino.No
 	NodeTraversal_Traverse(c.compiler, root, c)
 }
 
-// Java: CheckUnusedPrivateProperties.reportUnused(NodeTraversal)
-func (c *CheckUnusedPrivateProperties) ReportUnused(t *NodeTraversal) {
+func (c *CheckUnusedPrivateProperties) reportUnused(t *NodeTraversal) {
 	for _, n := range c.candidates {
-		propName := c.GetPropName(n)
-		if !c.used[propName] {
-			t.Report(n, CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY, propName)
+		name := candidatePropName(n)
+		if !c.used[name] {
+			t.Report(n, CheckUnusedPrivateProperties_UNUSED_PRIVATE_PROPERTY, name)
 		}
 	}
 }
 
-// Java: CheckUnusedPrivateProperties.getPropName(Node)
-func (c *CheckUnusedPrivateProperties) GetPropName(n rhino.Node) string {
-	switch n.GetToken() {
-	case rhino.Token_GETPROP, rhino.Token_MEMBER_FUNCTION_DEF:
-		return n.GetString()
-	default:
+func candidatePropName(n rhino.Node) string {
+	if gp, ok := ast.AsGetProp(n); ok {
+		return gp.Property()
+	}
+	if m, ok := ast.AsMemberFunctionDef(n); ok {
+		return m.Key()
 	}
 	panic(jutil.NewRuntimeException("Unexpected node type: " + n.String()))
 }
@@ -95,8 +95,8 @@ func (c *CheckUnusedPrivateProperties) GetPropName(n rhino.Node) string {
 func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
 		clear(c.used)
-		// Even if a constructor is unused , we still want to prevent the construction of the class
-		// outside the file.  i.e. a container of static methods.
+		// Even if a constructor is unused, we still want to prevent the construction of the class
+		// outside the file (e.g. a container of static methods).
 		c.used["constructor"] = true
 		clear(c.candidates)
 		c.candidates = c.candidates[:0]
@@ -108,64 +108,53 @@ func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n rhino.
 func (c *CheckUnusedPrivateProperties) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		// exiting the script, report any privates not used in the file.
-		c.ReportUnused(t)
+		// Exiting the script: report any privates not used in the file.
+		c.reportUnused(t)
 	case rhino.Token_GETPROP:
-		propName := n.GetString()
-		if CheckUnusedPrivateProperties_IsPinningPropertyUse(n) || !c.IsCandidatePropertyDefinition(n) {
-			c.used[propName] = true
-		} else {
-			// Only consider "private" properties.
-			if c.IsCheckablePrivatePropDecl(n) {
-				c.candidates = append(c.candidates, n)
-			}
+		gp := ast.MustGetProp(n)
+		if isPinningPropertyUse(n) || !c.isCandidatePropertyDefinition(gp) {
+			c.used[gp.Property()] = true
+		} else if c.isCheckablePrivatePropDecl(n) {
+			c.candidates = append(c.candidates, n)
 		}
 	case rhino.Token_MEMBER_FUNCTION_DEF:
 		// Only consider "private" methods.
-		if c.IsCheckablePrivatePropDecl(n) {
+		if c.isCheckablePrivatePropDecl(n) {
 			c.candidates = append(c.candidates, n)
 		}
 	case rhino.Token_OBJECTLIT:
-		// Assume any object literal definition might be a reflection on the
-		// class property.
-		for c2 := n.GetFirstChild(); !c2.IsNil(); c2 = c2.GetNext() {
-			if c2.IsStringKey() || c2.IsGetterDef() || c2.IsSetterDef() || c2.IsMemberFunctionDef() {
-				c.used[c2.GetString()] = true
+		// Assume any object literal definition might be a reflection on the class property.
+		for member := range ast.MustObjectLit(n).Members() {
+			if pkm, ok := member.AsPlainKeyMember(); ok {
+				c.used[pkm.Key()] = true
 			}
 		}
 	case rhino.Token_CALL:
 		// Look for properties referenced through a property rename function.
-		target := n.GetFirstChild()
-		if n.HasMoreThanOneChild() &&
-			c.compiler.GetCodingConvention().IsPropertyRenameFunction(target) {
-			propName := target.GetNext()
-			if propName.IsStringLit() {
-				c.used[propName.GetString()] = true
+		call := ast.MustCall(n)
+		if firstArg, ok := call.FirstArg(); ok &&
+			c.compiler.GetCodingConvention().IsPropertyRenameFunction(call.Callee().Node()) {
+			if propName, ok := ast.AsStringLit(firstArg.Node()); ok {
+				c.used[propName.Value()] = true
 			}
 		}
 	case rhino.Token_FUNCTION:
-		info := NodeUtil_GetBestJSDocInfo(n)
-		if info != nil && (info.IsConstructor() || info.IsInterface()) {
-			c.RecordConstructorOrInterface(n)
+		if info := NodeUtil_GetBestJSDocInfo(n); info != nil && (info.IsConstructor() || info.IsInterface()) {
+			c.recordConstructorOrInterface(n)
 		}
 	case rhino.Token_CLASS:
-		c.RecordConstructorOrInterface(n)
-	default:
+		c.recordConstructorOrInterface(n)
 	}
 }
 
-// Java: CheckUnusedPrivateProperties.recordConstructorOrInterface(Node)
-func (c *CheckUnusedPrivateProperties) RecordConstructorOrInterface(n rhino.Node) {
-	className := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
-	if className != nil {
-		// If className is null, then this pass won't report any diagnostics on static members of this
-		// class.
+func (c *CheckUnusedPrivateProperties) recordConstructorOrInterface(n rhino.Node) {
+	if className := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n)); className != nil {
+		// If className is null, this pass won't report diagnostics on static members of this class.
 		c.constructorsAndInterfaces[*className] = true
 	}
 }
 
-// Java: CheckUnusedPrivateProperties.isPrivatePropDecl(Node)
-func (c *CheckUnusedPrivateProperties) IsPrivatePropDecl(n rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) isPrivatePropDecl(n rhino.Node) bool {
 	// TODO(johnlenz): add support private by convention property definitions without JSDoc.
 	// TODO(johnlenz): add support for checking protected properties in final classes
 	// TODO(johnlenz): add support for checking "package" properties when checking an entire
@@ -174,61 +163,40 @@ func (c *CheckUnusedPrivateProperties) IsPrivatePropDecl(n rhino.Node) bool {
 	return info != nil && info.GetVisibility() == rhino.JSDocInfo_Visibility_PRIVATE
 }
 
-// Java: CheckUnusedPrivateProperties.isCheckablePrivatePropDecl(Node)
-func (c *CheckUnusedPrivateProperties) IsCheckablePrivatePropDecl(n rhino.Node) bool {
+func (c *CheckUnusedPrivateProperties) isCheckablePrivatePropDecl(n rhino.Node) bool {
 	// TODO(tbreisacher): Look for uses of the typedef/interface in type expressions; warn if there
 	// are no uses.
 	info := NodeUtil_GetBestJSDocInfo(n)
-	return c.IsPrivatePropDecl(n) && !info.HasTypedefType() && !info.IsInterface()
+	return c.isPrivatePropDecl(n) && !info.HasTypedefType() && !info.IsInterface()
 }
 
-// Java: CheckUnusedPrivateProperties.isCandidatePropertyDefinition(Node)
-func (c *CheckUnusedPrivateProperties) IsCandidatePropertyDefinition(n rhino.Node) bool {
-	jutil.CheckStateMsg1(n.IsGetProp(), "%s", n)
-	target := n.GetFirstChild()
-	return target.IsThis() ||
-		c.containsQualifiedName(target) ||
-		(target.IsGetProp() && target.GetString() == "prototype")
+func (c *CheckUnusedPrivateProperties) isCandidatePropertyDefinition(gp ast.GetProp) bool {
+	target := gp.Object().Node()
+	if target.IsThis() {
+		return true
+	}
+	if qname, ok := target.GetQualifiedNameString(); ok && c.constructorsAndInterfaces[qname] {
+		return true
+	}
+	if targetProp, ok := gp.Object().AsGetProp(); ok && targetProp.Property() == "prototype" {
+		return true
+	}
+	return false
 }
 
-// containsQualifiedName is
-// constructorsAndInterfaces.contains(target.getQualifiedName()).
-//
-// Go-only: language-adapter — getQualifiedName() may be null (*string here),
-// and a Java set of non-null strings never contains null.
-func (c *CheckUnusedPrivateProperties) containsQualifiedName(target rhino.Node) bool {
-	qname := target.GetQualifiedName()
-	return qname != nil && c.constructorsAndInterfaces[*qname]
-}
-
-// CheckUnusedPrivateProperties_IsPinningPropertyUse returns whether the
-// property is used in a way that prevents its removal.
-//
-// Java: CheckUnusedPrivateProperties.isPinningPropertyUse(Node)
-func CheckUnusedPrivateProperties_IsPinningPropertyUse(n rhino.Node) bool {
+// isPinningPropertyUse reports whether n is used in a way that prevents its removal.
+func isPinningPropertyUse(n rhino.Node) bool {
 	// Rather than looking for cases that are uses, we assume all references are
 	// pinning uses unless they are:
-	//  - a simple assignment (x.a = 1)
-	//  - a compound assignment or increment (x++, x += 1) whose result is
-	//    otherwise unused
-
+	//  - a stub declaration (`this.x;`)
+	//  - a simple assignment (`x.a = 1`)
+	//  - a compound assignment or increment (`x++`, `x += 1`) whose result is otherwise unused
 	parent := n.GetParent()
-	if n == parent.GetFirstChild() {
-		if parent.IsExprResult() {
-			// A stub declaration "this.x;" isn't a pinning use.
-			return false
-		} else if parent.IsAssign() {
-			// A simple assignment doesn't pin the property.
-			return false
-		} else if NodeUtil_IsAssignmentOp(parent) || parent.IsInc() || parent.IsDec() {
-			// In general, compound assignments are both reads and writes, but
-			// if the property is never otherwise read we can consider it simply
-			// a write.
-			// However if the assign expression is used as part of a larger
-			// expression, we must consider it a read. For example:
-			//    x = (y.a += 1);
-			return NodeUtil_IsExpressionResultUsed(parent)
-		}
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleExprStmtExpr, ast.RoleAssignTarget:
+		return false
+	case ast.RoleAssignOpTarget, ast.RoleIncDecTarget:
+		return NodeUtil_IsExpressionResultUsed(parent)
 	}
 	return true
 }

@@ -281,9 +281,11 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 func (r *JSTypeRegistry) CreateRecordType(props jutil.MapSource[string, JSType]) JSType {
 	var builder RecordTypeBuilder
 	builder.init(r)
-	if !jutil.IsNil(props) {
-		for k, v := range props.All() {
-			builder.AddProperty(k, v, NilNode)
+	if props != nil {
+		if om, ok := props.(*jutil.OrderedMap[string, JSType]); !ok || om != nil {
+			for k, v := range props.All() {
+				builder.AddProperty(k, v, NilNode)
+			}
 		}
 	}
 	return builder.Build()

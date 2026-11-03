@@ -269,31 +269,31 @@ func readStreamInt(s *jutil.JsonScanner, vtok uint8) (val int, coerceErr jutil.T
 	return int(v), cerr, nil
 }
 
-func readStreamOptionalString(s *jutil.JsonScanner, vtok uint8) (val optionalString, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+func readStreamOptionalString(s *jutil.JsonScanner, vtok uint8) (val OptionalString, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
 	switch vtok {
 	case jutil.JsonPeekNull:
 		s.ConsumeScalar()
-		return optionalString{}, nil, nil
+		return OptionalString{}, nil, nil
 	case jutil.JsonPeekDoubleQuoted, jutil.JsonPeekSingleQuoted, jutil.JsonPeekUnquoted:
 		str, err := s.NextString()
 		if err != nil {
-			return optionalString{}, nil, err
+			return OptionalString{}, nil, err
 		}
-		return optionalString{text: str, present: true}, nil, nil
+		return SomeString(str), nil, nil
 	default:
 		elem, err := s.ReadJsonElement()
 		if err != nil {
-			return optionalString{}, nil, err
+			return OptionalString{}, nil, err
 		}
 		str, cerr := elem.TryGetAsString()
 		if cerr != nil {
-			return optionalString{}, cerr, nil
+			return OptionalString{}, cerr, nil
 		}
-		return optionalString{text: str, present: true}, nil, nil
+		return SomeString(str), nil, nil
 	}
 }
 
-func readStreamOptionalStringArray(s *jutil.JsonScanner, vtok uint8) (val []optionalString, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
+func readStreamOptionalStringArray(s *jutil.JsonScanner, vtok uint8) (val []OptionalString, coerceErr jutil.Throwable, syntaxErr jutil.Throwable) {
 	if vtok == jutil.JsonPeekNull {
 		s.ConsumeScalar()
 		return nil, nil, nil
@@ -308,7 +308,7 @@ func readStreamOptionalStringArray(s *jutil.JsonScanner, vtok uint8) (val []opti
 	if err := s.BeginArray(); err != nil {
 		return nil, nil, err
 	}
-	list := []optionalString{}
+	list := []OptionalString{}
 	var firstErr jutil.Throwable
 	for {
 		more, err := s.HasNext()
@@ -325,13 +325,13 @@ func readStreamOptionalStringArray(s *jutil.JsonScanner, vtok uint8) (val []opti
 		switch etok {
 		case jutil.JsonPeekNull:
 			s.ConsumeScalar()
-			list = append(list, optionalString{})
+			list = append(list, OptionalString{})
 		case jutil.JsonPeekDoubleQuoted, jutil.JsonPeekSingleQuoted, jutil.JsonPeekUnquoted:
 			str, err := s.NextString()
 			if err != nil {
 				return nil, nil, err
 			}
-			list = append(list, optionalString{text: str, present: true})
+			list = append(list, SomeString(str))
 		default:
 			elem, err := s.ReadJsonElement()
 			if err != nil {
@@ -342,7 +342,7 @@ func readStreamOptionalStringArray(s *jutil.JsonScanner, vtok uint8) (val []opti
 				if cerr != nil {
 					firstErr = cerr
 				} else {
-					list = append(list, optionalString{text: str, present: true})
+					list = append(list, SomeString(str))
 				}
 			}
 		}

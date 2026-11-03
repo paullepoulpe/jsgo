@@ -28,17 +28,11 @@ var (
 	ccrGoogID           = uint32(strpool.Intern("goog"))
 	ccrAbstractMethodID = uint32(strpool.Intern("abstractMethod"))
 
-	closureCodeRemovalAbstractVisitTokens = func() ast.TokenSet {
-		var s ast.TokenSet
-		s.Add(rhino.Token_ASSIGN)
-		s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
-		return s
-	}()
-	closureCodeRemovalAssertVisitTokens = func() ast.TokenSet {
-		var s ast.TokenSet
-		s.Add(rhino.Token_CALL)
-		return s
-	}()
+	closureCodeRemovalAbstractVisitTokens = makeVisitTokenSet(
+		rhino.Token_ASSIGN,
+		rhino.Token_MEMBER_FUNCTION_DEF,
+	)
+	closureCodeRemovalAssertVisitTokens = makeVisitTokenSet(rhino.Token_CALL)
 )
 
 // ClosureCodeRemoval is a compiler pass that removes Closure-specific code
@@ -55,66 +49,43 @@ var (
 //     call will be removed. It is well-known that this is not provably safe,
 //     much like the equivalent assert statement in Java.
 type ClosureCodeRemoval struct {
-	// Reference to the JS compiler
-	compiler AbstractCompiler
-
+	compiler              AbstractCompiler
 	removeAbstractMethods bool
 	removeAssertionCalls  bool
 
-	// List of names referenced in successive generations of finding
-	// referenced nodes.
-	abstractMethodAssignmentNodes []ClosureCodeRemoval_RemovableAssignment
+	// Removable abstract-method assignments discovered during traversal.
+	abstractMethodAssignmentNodes []removableAssignment
 
-	// List of member function definition nodes annotated with @abstract.
-	abstractMemberFunctionNodes []rhino.Node
+	// Member function definition nodes annotated with @abstract.
+	abstractMemberFunctionNodes []ast.MemberFunctionDef
 
-	// List of assertion functions.
-	assertionCalls []rhino.Node
+	// Calls to assertion functions.
+	assertionCalls []ast.Call
 }
 
 var _ CompilerPass = (*ClosureCodeRemoval)(nil)
 
-// ClosureCodeRemoval_ABSTRACT_METHOD_NAME is the name used to denote an
-// abstract function.
-const ClosureCodeRemoval_ABSTRACT_METHOD_NAME = "goog.abstractMethod"
-
-// ClosureCodeRemoval_RemovableAssignment is a utility class to track a node
-// and its parent (an inner class: outer is the enclosing
-// ClosureCodeRemoval).
-type ClosureCodeRemoval_RemovableAssignment struct {
-	outer *ClosureCodeRemoval
-
-	// The node
-	node rhino.Node
-
-	// Its parent
-	parent rhino.Node
-
-	// Full chain of ASSIGN ancestors
+// removableAssignment tracks an abstract-method assignment and its enclosing
+// chain of ASSIGN ancestors so it can be removed cleanly.
+type removableAssignment struct {
+	outer           *ClosureCodeRemoval
+	assign          ast.Assign
 	assignAncestors []rhino.Node
-
-	// The last ancestor
-	lastAncestor rhino.Node
+	lastAncestor    rhino.Node
 }
 
-// makeRemovableAssignment is the data structure for information about a
-// removable assignment. nameNode is the LHS; assignNode the parent ASSIGN
-// node.
-//
-// Java: ClosureCodeRemoval.RemovableAssignment(Node, Node)
-func (c *ClosureCodeRemoval) makeRemovableAssignment(nameNode rhino.Node, assignNode rhino.Node) ClosureCodeRemoval_RemovableAssignment {
-	a := ClosureCodeRemoval_RemovableAssignment{
+func (c *ClosureCodeRemoval) makeRemovableAssignment(assign ast.Assign) removableAssignment {
+	a := removableAssignment{
 		outer:  c,
-		node:   nameNode,
-		parent: assignNode,
+		assign: assign,
 	}
 
-	ancestor := assignNode
+	ancestor := assign.Node()
 	for {
 		ancestor = ancestor.GetParent()
 		a.assignAncestors = append(a.assignAncestors, ancestor)
-		if !(ancestor.IsAssign() &&
-			ancestor.GetFirstChild().IsQualifiedName()) {
+		parentAssign, ok := ast.AsAssign(ancestor)
+		if !ok || !parentAssign.Target().Node().IsQualifiedName() {
 			break
 		}
 	}
@@ -122,13 +93,10 @@ func (c *ClosureCodeRemoval) makeRemovableAssignment(nameNode rhino.Node, assign
 	return a
 }
 
-// Remove removes this node.
-//
-// Java: ClosureCodeRemoval.RemovableAssignment.remove()
-func (a *ClosureCodeRemoval_RemovableAssignment) Remove() {
+func (a *removableAssignment) remove() {
 	compiler := a.outer.compiler
-	rhs := a.node.GetNext()
-	last := a.parent
+	rhs := a.assign.Value().Node()
+	last := a.assign.Node()
 	for _, ancestor := range a.assignAncestors {
 		if ancestor.IsExprResult() {
 			ancestor.Detach()
@@ -142,86 +110,81 @@ func (a *ClosureCodeRemoval_RemovableAssignment) Remove() {
 	compiler.ReportChangeToEnclosingScope(a.lastAncestor)
 }
 
-// ClosureCodeRemoval_FindAbstractMethods identifies all assignments of the
-// abstract method to a variable and all methods annotated with "@abstract"
-// in their JSDoc (an inner class).
-type ClosureCodeRemoval_FindAbstractMethods struct {
+// abstractMethodFinder identifies all assignments of goog.abstractMethod to a
+// variable and all methods annotated with "@abstract" in their JSDoc.
+type abstractMethodFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *ClosureCodeRemoval
 }
 
-func (*ClosureCodeRemoval_FindAbstractMethods) noVisitLeaves() {}
+func (*abstractMethodFinder) noVisitLeaves() {}
 
-var _ nodeTraversal_visitTokens = (*ClosureCodeRemoval_FindAbstractMethods)(nil)
+var _ nodeTraversal_visitTokens = (*abstractMethodFinder)(nil)
 
-func (*ClosureCodeRemoval_FindAbstractMethods) visitTokens() *ast.TokenSet {
+func (*abstractMethodFinder) visitTokens() *ast.TokenSet {
 	return &closureCodeRemovalAbstractVisitTokens
 }
 
-// Java: ClosureCodeRemoval.FindAbstractMethods.visit(NodeTraversal, Node, Node)
-func (f *ClosureCodeRemoval_FindAbstractMethods) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (f *abstractMethodFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c := f.outer
-	if n.IsAssign() {
-		nameNode := n.GetFirstChild()
-		valueNode := n.GetLastChild()
+	if assign, ok := ast.AsAssign(n); ok {
+		lhs := assign.Target().Node()
+		rhs := assign.Value().Node()
 
-		if valueNode.IsGetProp() &&
-			valueNode.GetStringID() == ccrAbstractMethodID &&
-			valueNode.GetFirstChild().IsName() &&
-			valueNode.GetFirstChild().GetStringID() == ccrGoogID &&
-			nameNode.IsQualifiedName() {
+		if getProp, ok := assign.Value().AsGetProp(); ok &&
+			getProp.Node().GetStringID() == ccrAbstractMethodID &&
+			getProp.Object().Node().IsName() &&
+			getProp.Object().Node().GetStringID() == ccrGoogID &&
+			lhs.IsQualifiedName() {
 			// Foo.prototype.bar = goog.abstractMethod
-			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(nameNode, n))
+			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(assign))
 		} else if jsdoc := n.GetJSDocInfo(); jsdoc != nil &&
 			jsdoc.IsAbstract() &&
 			!jsdoc.IsConstructor() &&
-			NodeUtil_IsEmptyFunctionExpression(valueNode) {
+			NodeUtil_IsEmptyFunctionExpression(rhs) {
 			// @abstract
-			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(nameNode, n))
+			c.abstractMethodAssignmentNodes = append(c.abstractMethodAssignmentNodes, c.makeRemovableAssignment(assign))
 		}
-	} else if n.IsMemberFunctionDef() && parent.IsClassMembers() {
+	} else if m, ok := ast.AsMemberFunctionDef(n); ok && parent.IsClassMembers() {
 		if jsdoc := n.GetJSDocInfo(); jsdoc != nil && jsdoc.IsAbstract() {
-			c.abstractMemberFunctionNodes = append(c.abstractMemberFunctionNodes, n)
+			c.abstractMemberFunctionNodes = append(c.abstractMemberFunctionNodes, m)
 		}
 	}
 }
 
-// ClosureCodeRemoval_FindAssertionCalls identifies all assertion calls (an
-// inner class).
-type ClosureCodeRemoval_FindAssertionCalls struct {
+// assertionCallFinder identifies all calls to Closure assertion functions.
+type assertionCallFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer          *ClosureCodeRemoval
 	assertionNames *CodingConvention_AssertionFunctionLookup
 }
 
-func (*ClosureCodeRemoval_FindAssertionCalls) noVisitLeaves() {}
+func (*assertionCallFinder) noVisitLeaves() {}
 
-var _ nodeTraversal_visitTokens = (*ClosureCodeRemoval_FindAssertionCalls)(nil)
+var _ nodeTraversal_visitTokens = (*assertionCallFinder)(nil)
 
-func (*ClosureCodeRemoval_FindAssertionCalls) visitTokens() *ast.TokenSet {
+func (*assertionCallFinder) visitTokens() *ast.TokenSet {
 	return &closureCodeRemovalAssertVisitTokens
 }
 
-// Java: ClosureCodeRemoval.FindAssertionCalls()
-func (c *ClosureCodeRemoval) NewFindAssertionCalls() *ClosureCodeRemoval_FindAssertionCalls {
-	f := &ClosureCodeRemoval_FindAssertionCalls{outer: c}
-	f.assertionNames =
-		CodingConvention_AssertionFunctionLookup_Of(c.compiler.GetCodingConvention().GetAssertionFunctions())
-	return f
+func (c *ClosureCodeRemoval) newAssertionCallFinder() *assertionCallFinder {
+	return &assertionCallFinder{
+		outer:          c,
+		assertionNames: CodingConvention_AssertionFunctionLookup_Of(c.compiler.GetCodingConvention().GetAssertionFunctions()),
+	}
 }
 
-// Java: ClosureCodeRemoval.FindAssertionCalls.visit(NodeTraversal, Node, Node)
-func (f *ClosureCodeRemoval_FindAssertionCalls) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !n.IsCall() {
+func (f *assertionCallFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	call, ok := ast.AsCall(n)
+	if !ok {
 		return
 	}
 
-	callee := n.GetFirstChild()
-
+	callee := call.Callee().Node()
 	if f.assertionNames.LookupByCallee(callee) != nil { // type-based
-		f.outer.assertionCalls = append(f.outer.assertionCalls, n)
+		f.outer.assertionCalls = append(f.outer.assertionCalls, call)
 	} else if color := callee.GetColor(); color != nil && color.IsClosureAssert() { // color-based
-		f.outer.assertionCalls = append(f.outer.assertionCalls, n)
+		f.outer.assertionCalls = append(f.outer.assertionCalls, call)
 	}
 }
 
@@ -242,43 +205,43 @@ func NewClosureCodeRemoval(compiler AbstractCompiler, removeAbstractMethods bool
 func (c *ClosureCodeRemoval) Process(externs rhino.Node, root rhino.Node) {
 	var passes []NodeTraversal_Callback
 	if c.removeAbstractMethods {
-		passes = append(passes, &ClosureCodeRemoval_FindAbstractMethods{outer: c})
+		passes = append(passes, &abstractMethodFinder{outer: c})
 	}
 	if c.removeAssertionCalls {
-		passes = append(passes, c.NewFindAssertionCalls())
+		passes = append(passes, c.newAssertionCallFinder())
 	}
 	CombinedCompilerPass_Traverse(c.compiler, root, passes)
 
 	for i := range c.abstractMethodAssignmentNodes {
-		c.abstractMethodAssignmentNodes[i].Remove()
+		c.abstractMethodAssignmentNodes[i].remove()
 	}
 
-	for _, memberFunction := range c.abstractMemberFunctionNodes {
-		c.compiler.ReportFunctionDeleted(memberFunction.GetFirstChild())
-		parent := memberFunction.GetParent()
-		memberFunction.Detach()
+	for _, memberFn := range c.abstractMemberFunctionNodes {
+		c.compiler.ReportFunctionDeleted(memberFn.Function().Node())
+		parent := memberFn.Node().GetParent()
+		memberFn.Detach()
 		c.compiler.ReportChangeToEnclosingScope(parent)
 	}
 
 	for _, call := range c.assertionCalls {
-		// If the assertion is an expression, just strip the whole thing.
-		c.compiler.ReportChangeToEnclosingScope(call)
-		parent := call.GetParent()
+		callNode := call.Node()
+		// If the assertion is an expression statement, strip the whole statement.
+		c.compiler.ReportChangeToEnclosingScope(callNode)
+		parent := callNode.GetParent()
 		if parent.IsExprResult() {
 			parent.Detach()
 			NodeUtil_MarkFunctionsDeleted(parent, c.compiler)
 		} else {
 			// Otherwise, replace the assertion with its first argument,
 			// which is the return value of the assertion.
-			firstArg := call.GetSecondChild()
-			if firstArg.IsNil() {
-				call.ReplaceWith(NodeUtil_NewUndefinedNode(call))
+			if firstArg, ok := call.FirstArg(); !ok {
+				callNode.ReplaceWith(NodeUtil_NewUndefinedNode(callNode))
 			} else {
-				replacement := firstArg.Detach()
-				replacement.CopyTypeFrom(call)
-				call.ReplaceWith(replacement)
+				replacement := firstArg.Detach().Node()
+				replacement.CopyTypeFrom(callNode)
+				callNode.ReplaceWith(replacement)
 			}
-			NodeUtil_MarkFunctionsDeleted(call, c.compiler)
+			NodeUtil_MarkFunctionsDeleted(callNode, c.compiler)
 		}
 	}
 }

@@ -732,10 +732,45 @@ func (o *CompilerOptions) ShouldOptimize() bool {
 // compilerOptions_valueOf is the value ToStringHelper.add(String, Object)
 // receives: nil for a Java null, otherwise its String.valueOf.
 func compilerOptions_valueOf(value any) any {
-	if jutil.IsNil(value) {
+	if compilerOptions_isNil(value) {
 		return nil
 	}
 	return compilerOptions_toJavaString(value)
+}
+
+func compilerOptions_isNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	switch v := value.(type) {
+	case *string:
+		return v == nil
+	case []string:
+		return v == nil
+	case []*ConformanceConfig:
+		return v == nil
+	case []SourceMap_LocationMapping:
+		return v == nil
+	case *OrderedSet[string]:
+		return v == nil
+	case *OrderedStringMap[string]:
+		return v == nil
+	case *OrderedStringMap[*SourceMapInput]:
+		return v == nil
+	case *customPassMap:
+		return v == nil
+	case *jutil.Path:
+		return v == nil
+	case *DependencyOptions:
+		return v == nil
+	case *VariableMap:
+		return v == nil
+	case *jutil.Charset:
+		return v == nil
+	case *ComposeWarningsGuard:
+		return v == nil
+	}
+	return false
 }
 
 // compilerOptions_optional is a present or absent Guava Optional.

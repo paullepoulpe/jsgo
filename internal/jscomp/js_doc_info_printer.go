@@ -52,7 +52,7 @@ func NewJSDocInfoPrinterWithPrintDesc(useOriginalName bool, printDesc bool) *JSD
 // [ \t\n\x0B\f\r]; Go's \s lacks \x0B, so the class is spelled out. The
 // pattern uses neither backreferences nor lookaround, and Go's leftmost-first
 // matching picks the same matches as Java's backtracking for it.
-var jsDocInfoPrinter_BLOCK_DESCRIPTION_LINE_START = regexp.MustCompile("\n[ \t\n\x0B\f\r]*\\*[ \t\n\x0B\f\r]*")
+var blockDescriptionLineStartPattern = regexp.MustCompile("\n[ \t\n\x0B\f\r]*\\*[ \t\n\x0B\f\r]*")
 
 // Java: JSDocInfoPrinter.print(JSDocInfo)
 func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
@@ -224,7 +224,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		multiline = true
 		retDesc, hasRetDesc := info.GetReturnDescriptionString()
 		parts = append(parts,
-			p.buildAnnotationWithTypeNodeAndDescStr("return", info.GetReturnType().GetRoot(), retDesc, hasRetDesc))
+			p.buildAnnotationWithTypeNode("return", info.GetReturnType().GetRoot(), retDesc, hasRetDesc))
 	}
 
 	if throws := info.GetThrowsAnnotations(); len(throws) != 0 && throws[0] != "" {
@@ -244,7 +244,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 			// remain explicit.
 			parts = append(parts, "@template "+name)
 		} else {
-			parts = append(parts, p.buildAnnotationWithTypeNodeAndDescStr("template", boundRoot, name, true))
+			parts = append(parts, p.buildAnnotationWithTypeNode("template", boundRoot, name, true))
 		}
 	}
 
@@ -353,7 +353,7 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 
 	if p.printDesc {
 		if blockDesc, ok := info.GetBlockDescriptionString(); ok {
-			cleaned := jsDocInfoPrinter_BLOCK_DESCRIPTION_LINE_START.ReplaceAllLiteralString(blockDesc, "\n")
+			cleaned := blockDescriptionLineStartPattern.ReplaceAllLiteralString(blockDesc, "\n")
 			if cleaned != "" {
 				multiline = true
 				cleaned = jutil.StringTrim(cleaned)
@@ -441,30 +441,15 @@ func (p *JSDocInfoPrinter) StripBang(typeNode rhino.Node) rhino.Node {
 
 // Java: JSDocInfoPrinter.buildAnnotationWithType(String, JSTypeExpression)
 func (p *JSDocInfoPrinter) BuildAnnotationWithType(annotation string, type_ *rhino.JSTypeExpression) string {
-	return p.BuildAnnotationWithTypeAndDescription(annotation, type_, nil)
-}
-
-// Java: JSDocInfoPrinter.buildAnnotationWithType(String, JSTypeExpression, String)
-func (p *JSDocInfoPrinter) BuildAnnotationWithTypeAndDescription(
-	annotation string, type_ *rhino.JSTypeExpression, description *string) string {
-	return p.BuildAnnotationWithTypeNodeAndDescription(annotation, type_.GetRoot(), description)
+	return p.buildAnnotationWithTypeNode(annotation, type_.GetRoot(), "", false)
 }
 
 // Java: JSDocInfoPrinter.buildAnnotationWithType(String, Node)
 func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNode(annotation string, type_ rhino.Node) string {
-	return p.BuildAnnotationWithTypeNodeAndDescription(annotation, type_, nil)
+	return p.buildAnnotationWithTypeNode(annotation, type_, "", false)
 }
 
-// Java: JSDocInfoPrinter.buildAnnotationWithType(String, Node, String)
-func (p *JSDocInfoPrinter) BuildAnnotationWithTypeNodeAndDescription(
-	annotation string, type_ rhino.Node, description *string) string {
-	if description == nil {
-		return p.buildAnnotationWithTypeNodeAndDescStr(annotation, type_, "", false)
-	}
-	return p.buildAnnotationWithTypeNodeAndDescStr(annotation, type_, *description, true)
-}
-
-func (p *JSDocInfoPrinter) buildAnnotationWithTypeNodeAndDescStr(
+func (p *JSDocInfoPrinter) buildAnnotationWithTypeNode(
 	annotation string, type_ rhino.Node, description string, hasDesc bool) string {
 	var sb strings.Builder
 	sb.WriteString("@")
@@ -482,21 +467,17 @@ func (p *JSDocInfoPrinter) buildAnnotationWithTypeNodeAndDescStr(
 // Java: JSDocInfoPrinter.buildParamType(JSDocInfo, String)
 func (p *JSDocInfoPrinter) BuildParamType(info *rhino.JSDocInfo, name string) string {
 	type_ := info.GetParameterType(name)
-	if type_ != nil {
-		desc := ""
-		if p.printDesc {
-			if d, ok := info.GetDescriptionForParameterString(name); ok {
-				// Don't add a leading space; the parser retained it.
-				desc = d
-			}
-		}
-		// Go-only: language-adapter — Java's local `p` would shadow the
-		// receiver here.
-		p_ := "{" + p.TypeNode(type_.GetRoot()) + "} " + name + desc
-		return jutil.StringTrim(p_)
-	} else {
+	if type_ == nil {
 		return name
 	}
+	desc := ""
+	if p.printDesc {
+		if d, ok := info.GetDescriptionForParameterString(name); ok {
+			// Don't add a leading space; the parser retained it.
+			desc = d
+		}
+	}
+	return jutil.StringTrim("{" + p.TypeNode(type_.GetRoot()) + "} " + name + desc)
 }
 
 // Java: JSDocInfoPrinter.typeNode(Node)

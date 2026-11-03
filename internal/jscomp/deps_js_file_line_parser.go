@@ -81,13 +81,16 @@ func readJsReader(r jutil.JavaReader) (text string, ok bool) {
 	if sr, isStr := r.(*jutil.StringReader); isStr {
 		return jutil.CharStreams_ToString(sr), true
 	}
-	ok = true
-	jutil.Try(func() {
-		text = jutil.CharStreams_ToString(r)
-	}, func(jutil.IIOException) {
-		ok = false
-	})
-	return text, ok
+	defer func() {
+		if rec := recover(); rec != nil {
+			if _, isIO := rec.(jutil.IIOException); isIO {
+				ok = false
+				return
+			}
+			panic(rec)
+		}
+	}()
+	return jutil.CharStreams_ToString(r), true
 }
 
 func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, fileContents jutil.JavaReader) {
@@ -97,7 +100,7 @@ func parseJsReader[H jsLineHandler](b *jsFileLineParser, h H, filePath string, f
 		b.lineNum = 0
 		b.parseSucceeded = false
 		b.errorManager.Report(CheckLevel_ERROR,
-			JSError_MakeWithSourceLocation(&b.filePath, 0, 0,
+			JSError_MakeWithSourceLocation(&filePath, 0, 0,
 				JsFileLineParser_PARSE_ERROR, "Error reading file: "+filePath))
 		return
 	}

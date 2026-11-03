@@ -47,15 +47,8 @@ func (h *saxVectorHandler) SkippedEntity(name string) {
 }
 
 func saxVectorEscape(s string) string {
-	return matcherVectorEscape(&s)
-}
-
-func matcherVectorEscape(s *string) string {
-	if s == nil {
-		return "<null>"
-	}
 	var sb strings.Builder
-	for _, c := range jutil.StringToUTF16(*s) {
+	for _, c := range jutil.StringToUTF16(s) {
 		switch {
 		case c == '\\':
 			sb.WriteString(`\\`)
@@ -72,6 +65,13 @@ func matcherVectorEscape(s *string) string {
 		}
 	}
 	return sb.String()
+}
+
+func saxOptEscape(s string, ok bool) string {
+	if !ok {
+		return "<null>"
+	}
+	return saxVectorEscape(s)
 }
 
 // TestSAXParserMatchesJava parses testdata/sax/*.xml and compares the events
@@ -131,8 +131,10 @@ func (h *saxPositionHandler) pos() string {
 		return " @null"
 	}
 	ids := ""
-	if h.locator.GetPublicId() != nil || h.locator.GetSystemId() != nil {
-		ids = " [" + matcherVectorEscape(h.locator.GetPublicId()) + "|" + matcherVectorEscape(h.locator.GetSystemId()) + "]"
+	pub, hasPub := h.locator.GetPublicId()
+	sys, hasSys := h.locator.GetSystemId()
+	if hasPub || hasSys {
+		ids = " [" + saxOptEscape(pub, hasPub) + "|" + saxOptEscape(sys, hasSys) + "]"
 	}
 	return " @" + strconv.Itoa(h.locator.GetLineNumber()) + ":" + strconv.Itoa(h.locator.GetColumnNumber()) + ids
 }

@@ -93,10 +93,10 @@ func StripCode_ToStreamWithCollapsedVersions(s string) []string {
 	return possibleForms
 }
 
-func stripCode_expandCollapsedInto(dst *OrderedSet[string], src jutil.Set[string], extra string) {
+func expandCollapsedInto(dst *OrderedSet[string], src jutil.Set[string], extra string) {
 	var capHint int
 	var seq iter.Seq[string]
-	if src != nil && !jutil.IsNil(src) {
+	if src != nil && !src.IsEmpty() {
 		capHint = src.Size()
 		seq = src.All()
 	}
@@ -166,13 +166,13 @@ func NewStripCode(
 	stripNamePrefixes jutil.Set[string],
 	enableTweakStripping bool) *StripCode {
 	s := &StripCode{compiler: compiler}
-	stripCode_expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes, "")
-	stripCode_expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes, "")
+	expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes, "")
+	expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes, "")
 	extraType := ""
 	if enableTweakStripping {
 		extraType = "goog.tweak"
 	}
-	stripCode_expandCollapsedInto(&s.stripTypes, stripTypes, extraType)
+	expandCollapsedInto(&s.stripTypes, stripTypes, extraType)
 	s.initDerivedLists()
 	return s
 }
@@ -226,7 +226,7 @@ func (s *StripCode) configRecord() string {
 	return builder.String()
 }
 
-func stripCode_qualifiedNameOrNull(n rhino.Node) string {
+func qualifiedNameOrNull(n rhino.Node) string {
 	if qname, ok := n.GetQualifiedNameString(); ok {
 		return qname
 	}
@@ -408,7 +408,7 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 		// GETELEM
 		//   NAME
 		//   NUMBER|STRING|NAME|...
-		if parent.GetFirstChild() == n && s.IsReferenceToRemovedVar(n) {
+		if ast.MustNormalGet(parent).Object().Is(n) && s.IsReferenceToRemovedVar(n) {
 			if s.decisionsLog.IsLogging() {
 				s.decisionsLog.LogString(n.GetString() + ": removing getelem/getprop/call chain")
 			}
@@ -431,7 +431,7 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 			if assign.Target().Is(n) {
 				grandparent := parent.GetParent()
 				if s.decisionsLog.IsLogging() {
-					s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": removing assignment to stripped var")
+					s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": removing assignment to stripped var")
 				}
 				if grandparent.IsExprResult() {
 					// Remove the assignment.
@@ -448,17 +448,17 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 			} else {
 				// The var reference is the r-value. Replace it with null.
 				if s.decisionsLog.IsLogging() {
-					s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing rhs reference with null")
+					s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": replacing rhs reference with null")
 				}
 				s.ReplaceWithNull(n)
 				t.ReportCodeChange()
 			}
 		}
 	case rhino.Token_NEW, rhino.Token_CALL:
-		if !n.IsFirstChildOf(parent) && s.IsReferenceToRemovedVar(n) {
+		if !ast.MustCallOrNew(parent).Callee().Is(n) && s.IsReferenceToRemovedVar(n) {
 			// NOTE: the callee is handled when we visit the CALL or NEW node
 			if s.decisionsLog.IsLogging() {
-				s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing parameter reference with null")
+				s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": replacing parameter reference with null")
 			}
 			s.ReplaceWithNull(n)
 			t.ReportCodeChange()
@@ -468,15 +468,15 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 		// The last child in a comma expression is its result, so we need to be careful replacing
 		// it with null. We don't want to replace the entire comma expression with null because
 		// there could be other elements in it with side-effects.
-		isLastChild := parent.GetLastChild() == n
+		isLastChild := ast.MustBinary(parent).Right().Is(n)
 		// The only parent where replacing with null is an issue is likely where the comma
 		// expression is the first child (callee) of a CALL or NEW node.
-		parentIsCallee :=
-			(grandparent.IsCall() || grandparent.IsNew()) && parent.IsFirstChildOf(grandparent)
+		callOrNew, isCallOrNew := ast.AsCallOrNew(grandparent)
+		parentIsCallee := isCallOrNew && callOrNew.Callee().Is(parent)
 		isSafeToRemove := !isLastChild || !parentIsCallee
 		if isSafeToRemove && s.IsReferenceToRemovedVar(n) {
 			if s.decisionsLog.IsLogging() {
-				s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing reference in comma expr with null")
+				s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": replacing reference in comma expr with null")
 			}
 			s.ReplaceWithNull(n)
 			t.ReportCodeChange()
@@ -484,7 +484,7 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 	default:
 		if s.IsReferenceToRemovedVar(n) {
 			if s.decisionsLog.IsLogging() {
-				s.decisionsLog.LogString(stripCode_qualifiedNameOrNull(n) + ": replacing reference with null")
+				s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": replacing reference with null")
 			}
 			s.ReplaceWithNull(n)
 			t.ReportCodeChange()
@@ -562,7 +562,7 @@ func (s *StripCode) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhi
 				s.compiler.ReportChangeToEnclosingScope(grandparent)
 			}
 		} else {
-			t.Report(n, StripCode_STRIP_ASSIGNMENT_ERROR, stripCode_qualifiedNameOrNull(lvalue))
+			t.Report(n, StripCode_STRIP_ASSIGNMENT_ERROR, qualifiedNameOrNull(lvalue))
 		}
 	}
 }
@@ -770,7 +770,10 @@ func (s *StripCode) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n rh
 	if fnName, ok := ast.AsName(function); ok && s.IsStripName(fnName.Ident()) {
 		return true
 	}
-	callee := function.GetFirstChild()
+	var callee rhino.Node
+	if gp, ok := ast.AsGetProp(function); ok {
+		callee = gp.Object().Node()
+	}
 	return s.NameIncludesFieldNameToStrip(callee) ||
 		s.NameIncludesFieldNameToStrip(function) ||
 		s.QualifiedNameBeginsWithStripType(function) ||
@@ -844,7 +847,7 @@ func (s *StripCode) ActsOnStripType(t *NodeTraversal, callNode rhino.Node) bool 
 	return false
 }
 
-func stripCode_startsWithUpperCase(name string) bool {
+func startsWithUpperCase(name string) bool {
 	c := name[0]
 	if c < 0x80 {
 		return c >= 'A' && c <= 'Z'
@@ -870,7 +873,7 @@ func (s *StripCode) IsStripName(name string) bool {
 		return true
 	}
 
-	if name == "" || stripCode_startsWithUpperCase(name) {
+	if name == "" || startsWithUpperCase(name) {
 		s.LogNotAStripName(name, "empty or starts with uppercase")
 		return false
 	}

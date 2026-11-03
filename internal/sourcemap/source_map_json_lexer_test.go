@@ -51,7 +51,7 @@ func TestSourceMapObjectParser_ZeroExtraAllocsLargeMappings(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ParseSourceMapObject error = %v", err)
 		}
-		if obj.mappings.text != largeMappings {
+		if obj.mappings.Value != largeMappings {
 			t.Fatal("mappings mismatch")
 		}
 	})

@@ -195,9 +195,9 @@ func equalRequiresSortedImport(a, b requiresSortedImport) bool {
 }
 
 var (
-	checkRequiresSorted_GOOG_REQUIRE        = rhino.QualifiedName_Of("goog.require")
-	checkRequiresSorted_GOOG_REQUIRETYPE    = rhino.QualifiedName_Of("goog.requireType")
-	checkRequiresSorted_GOOG_FORWARDDECLARE = rhino.QualifiedName_Of("goog.forwardDeclare")
+	requiresSortedGoogRequire        = rhino.QualifiedName_Of("goog.require")
+	requiresSortedGoogRequireType    = rhino.QualifiedName_Of("goog.requireType")
+	requiresSortedGoogForwardDeclare = rhino.QualifiedName_Of("goog.forwardDeclare")
 )
 
 // NewCheckRequiresSorted is new CheckRequiresSorted(mode).
@@ -258,7 +258,15 @@ func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		callNode = exprStmt.Expr().Node()
 	} else if decl, ok := ast.AsNameDeclaration(n); ok {
 		if first, ok := decl.FirstDeclarator(); ok {
-			callNode = first.Node().GetLastChild()
+			if name, ok := first.AsName(); ok {
+				if init, ok := name.Init(); ok {
+					callNode = init.Node()
+				}
+			} else if lhs, ok := first.AsDestructuringLhs(); ok && isValidRequireDestructuring(lhs) {
+				if init, ok := lhs.Init(); ok {
+					callNode = init.Node()
+				}
+			}
 		}
 	}
 	if !callNode.IsNil() && isValidRequireImportCall(callNode) {
@@ -274,18 +282,35 @@ func (c *CheckRequiresSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	}
 }
 
+func isValidRequireDestructuring(lhs ast.DestructuringLhs) bool {
+	objPattern, ok := lhs.Pattern().AsObjectPattern()
+	if !ok {
+		return false
+	}
+	for prop := range objPattern.Props() {
+		key, ok := prop.AsStringKey()
+		if !ok {
+			return false
+		}
+		if _, ok := key.Value().AsName(); !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func isValidRequireImportCall(n rhino.Node) bool {
 	call, ok := ast.AsCall(n)
 	if !ok {
 		return false
 	}
 	callee := call.Callee().Node()
-	firstArg, ok := call.AsCallOrNew().OnlyArg()
+	firstArg, ok := call.OnlyArg()
 	return ok &&
 		firstArg.Token() == rhino.Token_STRINGLIT &&
-		(checkRequiresSorted_GOOG_REQUIRE.Matches(callee) ||
-			checkRequiresSorted_GOOG_REQUIRETYPE.Matches(callee) ||
-			checkRequiresSorted_GOOG_FORWARDDECLARE.Matches(callee))
+		(requiresSortedGoogRequire.Matches(callee) ||
+			requiresSortedGoogRequireType.Matches(callee) ||
+			requiresSortedGoogForwardDeclare.Matches(callee))
 }
 
 func parseRequireImport(callNode rhino.Node) requiresSortedImport {
@@ -316,33 +341,14 @@ func parseRequireImport(callNode rhino.Node) requiresSortedImport {
 
 	var destructures []requiresSortedBinding
 	if lhs, ok := ast.AsDestructuringLhs(parent); ok {
-		if objPattern, ok := lhs.Pattern().AsObjectPattern(); ok {
-			for prop := range objPattern.Props() {
-				if key, ok := prop.AsStringKey(); ok {
-					if local, ok := key.Value().AsName(); ok {
-						destructures = append(destructures, requiresSortedBinding{
-							exportedName:        key.Key(),
-							localName:           local.Ident(),
-							isShorthandProperty: key.Node().IsShorthandProperty(),
-						})
-						continue
-					}
-				}
-				propNode := prop.Node()
-				destructures = append(destructures, requiresSortedBinding{
-					exportedName:        propNode.GetString(),
-					localName:           propNode.GetFirstChild().GetString(),
-					isShorthandProperty: propNode.IsShorthandProperty(),
-				})
-			}
-		} else {
-			for child := range lhs.Pattern().Node().Children() {
-				destructures = append(destructures, requiresSortedBinding{
-					exportedName:        child.GetString(),
-					localName:           child.GetFirstChild().GetString(),
-					isShorthandProperty: child.IsShorthandProperty(),
-				})
-			}
+		for prop := range lhs.Pattern().MustObjectPattern().Props() {
+			key := prop.MustStringKey()
+			local := key.Value().MustName()
+			destructures = append(destructures, requiresSortedBinding{
+				exportedName:        key.Key(),
+				localName:           local.Ident(),
+				isShorthandProperty: key.Node().IsShorthandProperty(),
+			})
 		}
 	}
 	return requiresSortedImport{

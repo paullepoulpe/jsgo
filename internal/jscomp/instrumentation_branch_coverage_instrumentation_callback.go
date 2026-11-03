@@ -77,34 +77,27 @@ func (c *BranchCoverageInstrumentationCallback) ExitScope(t *NodeTraversal) {
 
 // branchCoverageInstrumentationCallback_stringsEqual is
 // Objects.equals(String, String) on nullable strings.
-func branchCoverageInstrumentationCallback_stringsEqual(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
+func branchCoverageInstrumentationCallback_stringsEqual(a string, hasA bool, b *string) bool {
+	if !hasA {
+		return b == nil
 	}
-	return *a == *b
+	return b != nil && a == *b
 }
 
 // Java: BranchCoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
 func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
-	fileNamePtr := traversal.GetSourceName()
+	fileName, hasFileName := traversal.SourceNameOk()
 
 	// If origin of node is not from sourceFile, do not instrument. This typically occurs when
 	// polyfill code is injected into the sourceFile AST and this check avoids instrumenting it. We
 	// avoid instrumentation as this callback does not distinguish between sourceFile code and
 	// injected code and can result in an error.
-	if !branchCoverageInstrumentationCallback_stringsEqual(fileNamePtr, node.GetSourceFileName()) {
+	if !branchCoverageInstrumentationCallback_stringsEqual(fileName, hasFileName, node.GetSourceFileName()) {
 		return
-	}
-	// Go-only: language-adapter — the source name as a map key (see
-	// CoverageInstrumentationCallback_GetFileName); a null one reaches the map
-	// only through get, where Java's map.get(null) is null.
-	fileName := ""
-	if fileNamePtr != nil {
-		fileName = *fileNamePtr
 	}
 
 	if node.IsScript() {
-		if fileNamePtr != nil && c.instrumentationData[fileName] != nil {
+		if hasFileName && c.instrumentationData[fileName] != nil {
 			toAddTo := node
 			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
 				toAddTo = node.GetFirstChild()

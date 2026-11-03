@@ -151,14 +151,9 @@ func NewJsMessage_Builder() *JsMessage_Builder {
 	return &JsMessage_Builder{}
 }
 
-// GetKey gets the message's key (e.g. "MSG_HELLO").
-//
-// Java: JsMessage.Builder.getKey()
-func (b *JsMessage_Builder) GetKey() *string {
-	if !b.hasKey {
-		return nil
-	}
-	return &b.key
+// Key returns the message's key (e.g. "MSG_HELLO") if set.
+func (b *JsMessage_Builder) Key() (string, bool) {
+	return b.key, b.hasKey
 }
 
 // SetKey sets a key that uniquely identifies this message (e.g. "MSG_HELLO").
@@ -167,20 +162,6 @@ func (b *JsMessage_Builder) GetKey() *string {
 func (b *JsMessage_Builder) SetKey(key string) *JsMessage_Builder {
 	b.key = key
 	b.hasKey = true
-	return b
-}
-
-// SetSourceName sets the message's sourceName.
-//
-// Java: JsMessage.Builder.setSourceName(String)
-func (b *JsMessage_Builder) SetSourceName(sourceName *string) *JsMessage_Builder {
-	if sourceName == nil {
-		b.sourceName = ""
-		b.hasSourceName = false
-	} else {
-		b.sourceName = *sourceName
-		b.hasSourceName = true
-	}
 	return b
 }
 
@@ -329,20 +310,14 @@ func (b *JsMessage_Builder) setPlaceholderOriginalCode(m OrderedStringMap[string
 // Java: JsMessage.Builder.setDesc(String)
 func (b *JsMessage_Builder) SetDesc(desc *string) *JsMessage_Builder {
 	if desc == nil {
-		b.desc = ""
-		b.hasDesc = false
-	} else {
-		b.desc = *desc
-		b.hasDesc = true
+		return b.SetDescOpt("", false)
 	}
-	return b
+	return b.SetDescOpt(*desc, true)
 }
 
 // SetDescString sets a non-null description without pointer boxing.
 func (b *JsMessage_Builder) SetDescString(desc string) *JsMessage_Builder {
-	b.desc = desc
-	b.hasDesc = true
-	return b
+	return b.SetDescOpt(desc, true)
 }
 
 // SetDescOpt sets or clears the description without pointer boxing.
@@ -363,20 +338,14 @@ func (b *JsMessage_Builder) SetDescOpt(desc string, ok bool) *JsMessage_Builder 
 // Java: JsMessage.Builder.setMeaning(String)
 func (b *JsMessage_Builder) SetMeaning(meaning *string) *JsMessage_Builder {
 	if meaning == nil {
-		b.meaning = ""
-		b.hasMeaning = false
-	} else {
-		b.meaning = *meaning
-		b.hasMeaning = true
+		return b.SetMeaningOpt("", false)
 	}
-	return b
+	return b.SetMeaningOpt(*meaning, true)
 }
 
 // SetMeaningString sets a non-null meaning without pointer boxing.
 func (b *JsMessage_Builder) SetMeaningString(meaning string) *JsMessage_Builder {
-	b.meaning = meaning
-	b.hasMeaning = true
-	return b
+	return b.SetMeaningOpt(meaning, true)
 }
 
 // SetMeaningOpt sets or clears the meaning without pointer boxing.
@@ -397,20 +366,14 @@ func (b *JsMessage_Builder) SetMeaningOpt(meaning string, ok bool) *JsMessage_Bu
 // Java: JsMessage.Builder.setAlternateId(String)
 func (b *JsMessage_Builder) SetAlternateId(alternateId *string) *JsMessage_Builder {
 	if alternateId == nil {
-		b.alternateId = ""
-		b.hasAlternateId = false
-	} else {
-		b.alternateId = *alternateId
-		b.hasAlternateId = true
+		return b.SetAlternateIdOpt("", false)
 	}
-	return b
+	return b.SetAlternateIdOpt(*alternateId, true)
 }
 
 // SetAlternateIdString sets a non-null alternate message ID without pointer boxing.
 func (b *JsMessage_Builder) SetAlternateIdString(alternateId string) *JsMessage_Builder {
-	b.alternateId = alternateId
-	b.hasAlternateId = true
-	return b
+	return b.SetAlternateIdOpt(alternateId, true)
 }
 
 // SetAlternateIdOpt sets or clears the alternate message ID without pointer boxing.
@@ -516,20 +479,19 @@ func (b *JsMessage_Builder) Build() *JsMessage {
 type JsMessage_Hash struct{}
 
 const (
-	// Default hash seed (64 bit)
-	jsMessage_Hash_SEED64 uint64 = 0x2b992ddfa23249d6 // part of pi, arbitrary
+	// Default hash seed (64 bit, part of pi)
+	jsMessageHashSeed64 uint64 = 0x2b992ddfa23249d6
 
-	// Hash constant (64 bit)
-	jsMessage_Hash_CONSTANT64 uint64 = 0xe08c1d668b756f82 // part of golden ratio, arbitrary
+	// Hash constant (64 bit, part of golden ratio)
+	jsMessageHashConstant64 uint64 = 0xe08c1d668b756f82
 )
 
-// JsMessage_Hash_Hash64 hashes a string to a 64 bit value. The digits of
-// pi are used for the hash seed.
+// JsMessage_Hash_Hash64 hashes a string to a 64-bit value using pi as seed.
 //
 // Java: JsMessage.Hash.hash64(String)
 func JsMessage_Hash_Hash64(value *string) int64 {
 	if value == nil {
-		return jsMessage_Hash_hash64Range(nil, 0, 0, jsMessage_Hash_SEED64)
+		return hash64Bytes(nil, jsMessageHashSeed64)
 	}
 	return jsMessage_Hash_hash64String(*value)
 }
@@ -537,29 +499,27 @@ func JsMessage_Hash_Hash64(value *string) int64 {
 func jsMessage_Hash_hash64String(value string) int64 {
 	var buf [128]byte
 	b := jutil.AppendStringBytesUTF8(buf[:0], value)
-	return jsMessage_Hash_hash64Range(b, 0, len(b), jsMessage_Hash_SEED64)
+	return hash64Bytes(b, jsMessageHashSeed64)
 }
 
-// jsMessage_Hash_hash64Range hashes byte array to a 64 bit value using the
-// supplied seed.
-//
-// Java: JsMessage.Hash.hash64(byte[], int, int, long)
-func jsMessage_Hash_hash64Range(value []byte, offset int, length int, seed uint64) int64 {
-	a := jsMessage_Hash_CONSTANT64
+// hash64Bytes hashes value to a 64-bit value using the supplied seed.
+func hash64Bytes(value []byte, seed uint64) int64 {
+	a := jsMessageHashConstant64
 	b := a
 	c := seed
-	keylen := length
+	length := len(value)
+	tail := value
 
-	for ; keylen >= 24; keylen, offset = keylen-24, offset+24 {
-		a += binary.LittleEndian.Uint64(value[offset:])
-		b += binary.LittleEndian.Uint64(value[offset+8:])
-		c += binary.LittleEndian.Uint64(value[offset+16:])
-		a, b, c = jsMessage_Hash_mix64(a, b, c)
+	for len(tail) >= 24 {
+		a += binary.LittleEndian.Uint64(tail)
+		b += binary.LittleEndian.Uint64(tail[8:])
+		c += binary.LittleEndian.Uint64(tail[16:])
+		a, b, c = mixHash64(a, b, c)
+		tail = tail[24:]
 	}
 
 	c += uint64(length)
-	tail := value[offset : offset+keylen]
-	switch keylen {
+	switch len(tail) {
 	case 23:
 		c += uint64(tail[22]) << 56
 		fallthrough
@@ -630,14 +590,11 @@ func jsMessage_Hash_hash64Range(value []byte, offset int, length int, seed uint6
 		a += uint64(tail[0])
 		// case 0: nothing left to add
 	}
-	_, _, c = jsMessage_Hash_mix64(a, b, c)
+	_, _, c = mixHash64(a, b, c)
 	return int64(c)
 }
 
-// jsMessage_Hash_mix64 mixes 64-bit words a, b, and c.
-//
-// Java: JsMessage.Hash.mix64(long, long, long)
-func jsMessage_Hash_mix64(a, b, c uint64) (uint64, uint64, uint64) {
+func mixHash64(a, b, c uint64) (uint64, uint64, uint64) {
 	a -= b
 	a -= c
 	a ^= c >> 43

@@ -285,6 +285,9 @@ func (c *Compiler) HasErrors() bool {
 
 // Java: Compiler.getSourceFileByName(String)
 func (c *Compiler) GetSourceFileByName(sourceName string) *SourceFile {
+	if sourceName == "" {
+		return nil
+	}
 	// Here we assume that the source name is the input name, this
 	// is true of JavaScript parsed from source.
 	if input := c.inputsById[sourceName]; input != nil {
@@ -297,17 +300,6 @@ func (c *Compiler) GetSourceFileByName(sourceName string) *SourceFile {
 	sf := c.sourceMapOriginalSources[sourceName]
 	s.sourceMapMu.RUnlock()
 	return sf
-}
-
-// getSourceFileByNullableName is getSourceFileByName for a nullable name.
-//
-// Go-only: language-adapter — the Java null check of getSourceFileByName,
-// for the callers whose name may be null.
-func (c *Compiler) getSourceFileByNullableName(sourceName *string) *SourceFile {
-	if sourceName != nil {
-		return c.GetSourceFileByName(*sourceName)
-	}
-	return nil
 }
 
 // Java: Compiler.addInputSourceMap(String, SourceMapInput)
@@ -363,19 +355,21 @@ func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 	if consumer == nil {
 		return
 	}
-	sourcesContent := consumer.GetOriginalSourcesContent()
-	if sourcesContent == nil {
+	content := consumer.OriginalSourcesContent()
+	if content == nil {
 		return
 	}
-	content := sourcesContent
-	sources := consumer.GetOriginalSources()
+	sources := consumer.OriginalSources()
 	i := 0
 	for i < len(sources) && i < len(content) {
 		code := content[i]
-		source := SourceMapResolver_GetRelativePath(inputSourceMap.GetOriginalPath(), *sources[i])
+		if !sources[i].Valid {
+			panic(jutil.NewNullPointerException())
+		}
+		source := SourceMapResolver_GetRelativePath(inputSourceMap.GetOriginalPath(), sources[i].Value)
 		i++
 		if source != nil {
-			c.sourceMap.AddSourceFile(source.GetName(), code)
+			c.sourceMap.AddSourceFileOptional(source.GetName(), code)
 		}
 	}
 	if i < len(sources) || i < len(content) {
@@ -386,11 +380,11 @@ func (c *Compiler) addSourceMapSourceFiles(inputSourceMap *SourceMapInput) {
 
 // Java: Compiler.getSourceMapping(String, int, int)
 func (c *Compiler) GetSourceMapping(
-	sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
-	if sourceName == nil {
+	sourceName string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
+	if sourceName == "" {
 		return nil
 	}
-	result, _, hasInputMap, isDefaultEmpty := c.getSourceMappingValue(*sourceName, lineNumber, columnNumber)
+	result, _, hasInputMap, isDefaultEmpty := c.getSourceMappingValue(sourceName, lineNumber, columnNumber)
 	if !hasInputMap {
 		return nil
 	}
@@ -506,23 +500,23 @@ func (c *Compiler) getSourceMappingValueCached(
 }
 
 // Java: Compiler.getSourceLine(String, int)
-func (c *Compiler) GetSourceLine(sourceName *string, lineNumber int) *string {
+func (c *Compiler) GetSourceLine(sourceName string, lineNumber int) (string, bool) {
 	if lineNumber < 1 {
-		return nil
+		return "", false
 	}
-	input := c.getSourceFileByNullableName(sourceName)
+	input := c.GetSourceFileByName(sourceName)
 	if input != nil && !input.IsStubSourceFileForAlreadyProvidedInput() {
 		return input.GetLine(lineNumber)
 	}
-	return nil
+	return "", false
 }
 
 // Java: Compiler.getSourceLines(String, int, int)
-func (c *Compiler) GetSourceLines(sourceName *string, lineNumber int, length int) Region {
+func (c *Compiler) GetSourceLines(sourceName string, lineNumber int, length int) Region {
 	if lineNumber < 1 {
 		return nil
 	}
-	input := c.getSourceFileByNullableName(sourceName)
+	input := c.GetSourceFileByName(sourceName)
 	if input != nil && !input.IsStubSourceFileForAlreadyProvidedInput() {
 		return input.GetLines(lineNumber, length)
 	}
@@ -530,11 +524,11 @@ func (c *Compiler) GetSourceLines(sourceName *string, lineNumber int, length int
 }
 
 // Java: Compiler.getSourceRegion(String, int)
-func (c *Compiler) GetSourceRegion(sourceName *string, lineNumber int) Region {
+func (c *Compiler) GetSourceRegion(sourceName string, lineNumber int) Region {
 	if lineNumber < 1 {
 		return nil
 	}
-	input := c.getSourceFileByNullableName(sourceName)
+	input := c.GetSourceFileByName(sourceName)
 	if input != nil && !input.IsStubSourceFileForAlreadyProvidedInput() {
 		return input.GetRegion(lineNumber)
 	}
@@ -954,7 +948,7 @@ func (c *Compiler) addFilesToSourceMap(files []*SourceFile) {
 				}
 				panic(jutil.NewRuntimeExceptionWithMessageAndCause("Cannot read code of a source map's source file.", cause))
 			}
-			c.GetSourceMap().AddSourceFile(file.GetName(), &code)
+			c.GetSourceMap().AddSourceFileOptional(file.GetName(), sourcemap.SomeString(code))
 		}
 	}
 }

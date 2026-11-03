@@ -624,15 +624,19 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 
 	var existingType ModuleMetadataMap_ModuleType
 	hasExistingType := false
-	var existingFileSource *string
+	existingFileSource := "null"
 	if module.metadata.googNamespaces.Contains(namespace) {
 		existingType = module.metadata.moduleType
 		hasExistingType = true
-		existingFileSource = t.GetSourceName()
+		if src, ok := t.SourceNameOk(); ok {
+			existingFileSource = src
+		}
 	} else if existingModule := f.outer.modulesByGoogNamespace.Get(namespace); existingModule != nil {
 		existingType = existingModule.ModuleType()
 		hasExistingType = true
-		existingFileSource = existingModule.RootNode().GetSourceFileName()
+		if src := existingModule.RootNode().GetSourceFileName(); src != nil {
+			existingFileSource = *src
+		}
 	}
 	f.outer.currentModule.metadata.googNamespaces.Add(namespace)
 	if hasExistingType {
@@ -642,14 +646,14 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 			if moduleType == ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 				diagnostic = ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE
 			}
-			t.Report(n, diagnostic, namespace, modules_nullableString(existingFileSource))
+			t.Report(n, diagnostic, namespace, existingFileSource)
 			return
 		case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 			diagnostic := ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE
 			if moduleType == ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 				diagnostic = ClosurePrimitiveErrors_DUPLICATE_NAMESPACE
 			}
-			t.Report(n, diagnostic, namespace, modules_nullableString(existingFileSource))
+			t.Report(n, diagnostic, namespace, existingFileSource)
 			return
 		case ModuleMetadataMap_ModuleType_COMMON_JS, ModuleMetadataMap_ModuleType_SCRIPT:
 		}

@@ -508,18 +508,18 @@ func (f *SourceFile) GetColumnOfOffset(offset int) int {
 
 // GetLine gets the source line for the indicated line number (1 being the
 // first line of the file). It does not include the newline at the end of
-// the file. Returns nil if it does not exist, or if there was an IO
+// the file. Returns ("", false) if it does not exist, or if there was an IO
 // exception.
 //
 // Java: SourceFile.getLine(int)
-func (f *SourceFile) GetLine(lineNumber int) *string {
+func (f *SourceFile) GetLine(lineNumber int) (string, bool) {
 	js, err := f.getCode()
 	if err != nil {
-		return nil
+		return "", false
 	}
 	f.FindLineOffsets()
 	if lineNumber > len(f.lineOffsets) {
-		return nil
+		return "", false
 	}
 
 	if lineNumber < 1 {
@@ -535,19 +535,15 @@ func (f *SourceFile) GetLine(lineNumber int) *string {
 		if js[endPos] == '\n' && endPos > pos && js[endPos-1] == '\r' {
 			endPos--
 		}
-		s := js[pos:endPos]
-		return &s
-	} else {
-		// If next new line cannot be found, there are two cases
-		// 1. pos already reaches the end of file, then null should be returned
-		// 2. otherwise, return the contents between pos and the end of file.
-		if pos >= len(js) {
-			return nil
-		} else {
-			s := js[pos:]
-			return &s
-		}
+		return js[pos:endPos], true
 	}
+	// If next new line cannot be found, there are two cases
+	// 1. pos already reaches the end of file, then null should be returned
+	// 2. otherwise, return the contents between pos and the end of file.
+	if pos >= len(js) {
+		return "", false
+	}
+	return js[pos:], true
 }
 
 // GetLines gets the source lines starting at `lineNumber` (1 being the

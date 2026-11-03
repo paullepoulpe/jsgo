@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -176,12 +177,12 @@ func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n rhino.Node, snap
 	if n.IsRoot() {
 		return
 	}
-	result := changeVerifier_getInequivalenceReasonExcludingFunctions(n, snapshot)
+	result := inequivalenceReasonExcludingFunctions(n, snapshot)
 	if n.GetChangeTime() > snapshot.GetChangeTime() {
 		// If the current node is marked as changed (changeTime >
 		// snapshot.getChangeTime) but is actually equal to the snapshot,
 		// that's an error.
-		if result.Equals() {
+		if result.equals {
 			panic(jutil.NewIllegalStateExceptionMsg(
 				passNameMsg + "unchanged scope marked as changed: " + v.GetNameForNode(n)))
 		}
@@ -189,7 +190,7 @@ func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n rhino.Node, snap
 		// If the current node is NOT marked as changed (changeTime <=
 		// snapshot.getChangeTime) but is actually different from the
 		// snapshot, that's an error.
-		if !result.Equals() {
+		if !result.equals {
 			panic(jutil.NewIllegalStateExceptionMsg(
 				jutil.StringFormat(
 					"\"%schanged scope not marked as changed: %s.\n"+
@@ -199,7 +200,7 @@ func (v *ChangeVerifier) VerifyNodeChange(passNameMsg string, n rhino.Node, snap
 					passNameMsg,
 					v.GetNameForNode(n),
 					result.errorMessage(),
-					v.Path(n, result.ErrorNode()))))
+					v.Path(n, result.errorNode))))
 		}
 	}
 }
@@ -211,12 +212,13 @@ func (v *ChangeVerifier) GetNameForNode(n rhino.Node) string {
 	case rhino.Token_SCRIPT:
 		return "SCRIPT: " + jutil.ToJavaString(sourceName)
 	case rhino.Token_FUNCTION:
-		fnName := NodeUtil_GetNearestFunctionName(n)
-		if fnName == nil {
-			s := "anonymous@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
-			fnName = &s
+		var name string
+		if fnName := NodeUtil_GetNearestFunctionName(n); fnName != nil {
+			name = *fnName
+		} else {
+			name = "anonymous@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
 		}
-		return "FUNCTION: " + *fnName + " in " + jutil.ToJavaString(sourceName)
+		return "FUNCTION: " + name + " in " + jutil.ToJavaString(sourceName)
 	default:
 		panic(jutil.NewIllegalStateExceptionMsg("unexpected Node type"))
 	}
@@ -243,67 +245,62 @@ func (v *ChangeVerifier) Path(ancestor rhino.Node, child rhino.Node) string {
 	return result.String()
 }
 
-// changeVerifier_EqualsResult is the private record EqualsResult(boolean
-// equals, Node errorNode, Supplier<String> errorMessage).
-//
-// Go-only: language-adapter — the Supplier<String> is a Go func; the
-// record's equals/hashCode/toString are never used.
-type changeVerifier_EqualsResult struct {
-	equals       bool
-	errorNode    rhino.Node
-	errorMessage func() *string
+// changeEqualsResult corresponds to Java's private record EqualsResult(boolean
+// equals, Node errorNode, Supplier<String> errorMessage), stored by value and
+// formatting its message lazily only when an inequivalence is reported.
+type changeEqualsResult struct {
+	equals    bool
+	errorNode rhino.Node
+	reason    string
+	before    any
+	after     any
 }
 
-// Java: ChangeVerifier.EqualsResult.equals()
-func (r *changeVerifier_EqualsResult) Equals() bool { return r.equals }
+func (r changeEqualsResult) errorMessage() string {
+	if r.equals {
+		return ""
+	}
+	return jutil.StringFormat(
+		"%s\n"+
+			"Before: %s\n"+
+			"After:  %s\n",
+		r.reason, r.before, r.after)
+}
 
-// Java: ChangeVerifier.EqualsResult.errorNode()
-func (r *changeVerifier_EqualsResult) ErrorNode() rhino.Node { return r.errorNode }
-
-// Java: ChangeVerifier.EqualsResult.errorMessage()
-func (r *changeVerifier_EqualsResult) ErrorMessage() func() *string { return r.errorMessage }
-
-// Java: ChangeVerifier.EqualsResult.equal()
-func changeVerifier_EqualsResult_equal() *changeVerifier_EqualsResult {
-	return &changeVerifier_EqualsResult{true, rhino.NilNode, func() *string { return nil }}
+func equalChangeResult() changeEqualsResult {
+	return changeEqualsResult{equals: true}
 }
 
 // Java: ChangeVerifier.EqualsResult.notEqual(Node, String, Object, Object)
-func changeVerifier_EqualsResult_notEqual(errorNode rhino.Node, error_ string, after any, before any) *changeVerifier_EqualsResult {
-	return &changeVerifier_EqualsResult{
-		false,
-		errorNode,
-		func() *string {
-			s := jutil.StringFormat(
-				"%s\n"+
-					"Before: %s\n"+
-					"After:  %s\n",
-				error_, before, after)
-			return &s
-		}}
+func notEqualChangeResult(errorNode rhino.Node, reason string, after any, before any) changeEqualsResult {
+	return changeEqualsResult{
+		errorNode: errorNode,
+		reason:    reason,
+		before:    before,
+		after:     after,
+	}
 }
 
-// changeVerifier_getInequivalenceReasonExcludingFunctions checks whether the
-// two given nodes are equivalent, while ignoring differences in descendant
-// functions.
+// inequivalenceReasonExcludingFunctions checks whether the two given nodes are
+// equivalent, while ignoring differences in descendant functions.
 //
 // Java: ChangeVerifier.getInequivalenceReasonExcludingFunctions(Node, Node)
-func changeVerifier_getInequivalenceReasonExcludingFunctions(thisNode rhino.Node, thatNode rhino.Node) *changeVerifier_EqualsResult {
+func inequivalenceReasonExcludingFunctions(thisNode rhino.Node, thatNode rhino.Node) changeEqualsResult {
 	rhino.CheckNotNull(thisNode)
 	rhino.CheckNotNull(thatNode)
 	if thisNode.GetChildCount() != thatNode.GetChildCount() {
-		return changeVerifier_EqualsResult_notEqual(
+		return notEqualChangeResult(
 			thisNode,
 			"differing child count",
 			thisNode.String()+": "+strconv.Itoa(thisNode.GetChildCount()),
 			thatNode.String()+": "+strconv.Itoa(thatNode.GetChildCount()))
 	}
 	if !thisNode.IsEquivalentWithSideEffectsToShallow(thatNode) {
-		return changeVerifier_EqualsResult_notEqual(thisNode, "shallow inequivalence", thisNode, thatNode)
+		return notEqualChangeResult(thisNode, "shallow inequivalence", thisNode, thatNode)
 	}
 	if thisNode.IsFunction() && thatNode.IsFunction() {
 		if NodeUtil_IsFunctionDeclaration(thisNode) != NodeUtil_IsFunctionDeclaration(thatNode) {
-			return changeVerifier_EqualsResult_notEqual(
+			return notEqualChangeResult(
 				thisNode, "mismatched isFunctionDeclaration", thisNode, thatNode)
 		}
 	}
@@ -315,20 +312,20 @@ func changeVerifier_getInequivalenceReasonExcludingFunctions(thisNode rhino.Node
 			// Don't compare function expression name, parameters or bodies.
 			// But do check that that the node is there.
 			if thatChild.GetToken() != thisChild.GetToken() {
-				return changeVerifier_EqualsResult_notEqual(thisNode, "different tokens", thisChild, thatChild)
+				return notEqualChangeResult(thisNode, "different tokens", thisChild, thatChild)
 			}
 			// Only compare function names for function declarations (not
 			// function expressions) as they change the outer scope definition.
-			if thisChild.IsFunction() && NodeUtil_IsFunctionDeclaration(thisChild) {
-				thisName := thisChild.GetFirstChild().GetString()
-				thatName := thatChild.GetFirstChild().GetString()
+			if thisFn, ok := ast.AsFunction(thisChild); ok && NodeUtil_IsFunctionDeclaration(thisChild) {
+				thisName := thisFn.NameNode().Ident()
+				thatName := ast.MustFunction(thatChild).NameNode().Ident()
 				if thisName != thatName {
-					return changeVerifier_EqualsResult_notEqual(thisNode, "function name changed", thisName, thatName)
+					return notEqualChangeResult(thisNode, "function name changed", thisName, thatName)
 				}
 			}
 		} else {
-			result := changeVerifier_getInequivalenceReasonExcludingFunctions(thisChild, thatChild)
-			if !result.Equals() {
+			result := inequivalenceReasonExcludingFunctions(thisChild, thatChild)
+			if !result.equals {
 				return result
 			}
 		}
@@ -336,5 +333,5 @@ func changeVerifier_getInequivalenceReasonExcludingFunctions(thisNode rhino.Node
 		thatChild = thatChild.GetNext()
 	}
 
-	return changeVerifier_EqualsResult_equal()
+	return equalChangeResult()
 }

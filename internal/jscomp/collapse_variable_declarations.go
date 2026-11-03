@@ -26,9 +26,9 @@ import (
 
 // Go-only: this pass uses the typed AST view (internal/ast): it gathers and
 // collapses ast.NameDeclarations, and the "next declaration of the same
-// kind" test that both phases need is one helper (nextOfSameKind) instead of
+// kind" test that both phases need is one helper (nextDeclarationOfSameKind) instead of
 // token comparisons. The test that runs on every node stays a token
-// comparison (see GatherCollapses.Visit), and moving the declarators stays
+// comparison (see collapseVarGatherer.Visit), and moving the declarators stays
 // one rhino splice (AddChildrenToBack of RemoveChildren).
 
 // CollapseVariableDeclarations collapses multiple variable declarations into
@@ -89,36 +89,36 @@ func NewCollapseVariableDeclarations(compiler AbstractCompiler) *CollapseVariabl
 func (c *CollapseVariableDeclarations) Process(externs rhino.Node, root rhino.Node) {
 	c.collapseNodes = c.collapseNodes[:0]
 
-	NodeTraversal_Traverse(c.compiler, root, &CollapseVariableDeclarations_GatherCollapses{outer: c})
+	NodeTraversal_Traverse(c.compiler, root, &collapseVarGatherer{outer: c})
 
 	if len(c.collapseNodes) > 0 {
-		c.ApplyCollapses()
+		c.applyCollapses()
 	}
 }
 
-// CollapseVariableDeclarations_GatherCollapses gathers all of the variable
-// declarations that should be collapsed into one.
+// collapseVarGatherer gathers all of the variable declarations that should be
+// collapsed into one.
 //
 // We do not do the collapsing as we go since node traversal would be
 // affected by the changes we are making to the parse tree.
-type CollapseVariableDeclarations_GatherCollapses struct {
+type collapseVarGatherer struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	outer *CollapseVariableDeclarations
 }
 
 var (
-	_ nodeTraversal_noVisitLeaves = (*CollapseVariableDeclarations_GatherCollapses)(nil)
-	_ nodeTraversal_visitTokens   = (*CollapseVariableDeclarations_GatherCollapses)(nil)
+	_ nodeTraversal_noVisitLeaves = (*collapseVarGatherer)(nil)
+	_ nodeTraversal_visitTokens   = (*collapseVarGatherer)(nil)
 )
 
-func (*CollapseVariableDeclarations_GatherCollapses) noVisitLeaves() {}
+func (*collapseVarGatherer) noVisitLeaves() {}
 
-func (*CollapseVariableDeclarations_GatherCollapses) visitTokens() *ast.TokenSet {
+func (*collapseVarGatherer) visitTokens() *ast.TokenSet {
 	return &collapseVarDeclsVisitTokens
 }
 
 // Java: CollapseVariableDeclarations.GatherCollapses.visit(NodeTraversal, Node, Node)
-func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (g *collapseVarGatherer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	tok := n.GetToken()
 	if tok != rhino.Token_VAR && tok != rhino.Token_LET && tok != rhino.Token_CONST {
 		return
@@ -137,28 +137,27 @@ func (g *CollapseVariableDeclarations_GatherCollapses) Visit(t *NodeTraversal, n
 	}
 
 	decl := ast.MustNameDeclaration(n)
-	if _, ok := collapseVariableDeclarations_nextOfSameKind(decl); !ok {
+	if _, ok := nextDeclarationOfSameKind(decl); !ok {
 		return
 	}
 	g.outer.collapseNodes = append(g.outer.collapseNodes, decl)
 }
 
-// collapseVariableDeclarations_nextOfSameKind returns the statement after
-// decl if it is a declaration of the same kind (var, let or const); ok is
-// false otherwise.
+// nextDeclarationOfSameKind returns the statement after decl if it is a
+// declaration of the same kind (var, let or const); ok is false otherwise.
 //
 // Go-only: Java compares the tokens where it needs this.
-func collapseVariableDeclarations_nextOfSameKind(decl ast.NameDeclaration) (ast.NameDeclaration, bool) {
+func nextDeclarationOfSameKind(decl ast.NameDeclaration) (ast.NameDeclaration, bool) {
 	next, ok := ast.AsNameDeclaration(decl.Node().GetNext())
 	return next, ok && next.Token() == decl.Token()
 }
 
 // Java: CollapseVariableDeclarations.applyCollapses()
-func (c *CollapseVariableDeclarations) ApplyCollapses() {
+func (c *CollapseVariableDeclarations) applyCollapses() {
 	for _, decl := range c.collapseNodes {
 		c.compiler.ReportChangeToEnclosingScope(decl.Node())
 
-		for next, ok := collapseVariableDeclarations_nextOfSameKind(decl); ok; next, ok = collapseVariableDeclarations_nextOfSameKind(decl) {
+		for next, ok := nextDeclarationOfSameKind(decl); ok; next, ok = nextDeclarationOfSameKind(decl) {
 			next.Detach()
 
 			// Move all children of the next var node into the first one.

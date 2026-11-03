@@ -304,15 +304,17 @@ func (s *SourceMap) resolveMappingOfNodePositions(
 
 // addResolvedMapping is the generator half of AddMappingOfNodePositions.
 func (s *SourceMap) addResolvedMapping(r *sourceMap_resolvedMapping) {
+	var sym sourcemap.OptionalString
 	if r.hasOriginalName {
-		s.generatorV3.AddMappingPositions(r.sourceFileName, &r.originalName, r.srcPos, r.start, r.end)
-		return
+		sym = sourcemap.SomeString(r.originalName)
 	}
-	s.generatorV3.AddMappingPositions(r.sourceFileName, nil, r.srcPos, r.start, r.end)
+	s.generatorV3.AddMappingPositions(r.sourceFileName, sym, r.srcPos, r.start, r.end)
 }
 
+// AddSourceFileOptional registers source file content without boxing code.
+//
 // Java: SourceMap.addSourceFile(String, String)
-func (s *SourceMap) AddSourceFile(name string, code *string) {
+func (s *SourceMap) AddSourceFileOptional(name string, code sourcemap.OptionalString) {
 	s.generatorV3.AddSourcesContent(s.fixupSourceLocation(name), code)
 }
 
@@ -375,17 +377,25 @@ func (s *SourceMap) fixupSourceLocation(sourceFile string) string {
 	return res
 }
 
+// AppendToOptional appends the source map to out without boxing name.
+func (s *SourceMap) AppendToOptional(out io.StringWriter, name sourcemap.OptionalString) {
+	var fixed sourcemap.OptionalString
+	if name.Valid {
+		fixed = sourcemap.SomeString(s.fixupSourceLocation(name.Value))
+	}
+	s.generatorV3.AppendToOptional(out, fixed)
+}
+
 // AppendTo appends the source map to out. It panics with an IOException if
 // out does.
 //
 // Java: SourceMap.appendTo(Appendable, String)
 func (s *SourceMap) AppendTo(out io.StringWriter, name *string) {
-	var fixed *string
+	var opt sourcemap.OptionalString
 	if name != nil {
-		f := s.fixupSourceLocation(*name)
-		fixed = &f
+		opt = sourcemap.SomeString(*name)
 	}
-	s.generatorV3.AppendTo(out, fixed)
+	s.AppendToOptional(out, opt)
 }
 
 // Java: SourceMap.reset()
@@ -475,10 +485,10 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 				// to treat this file as having a real source map (implying this is an
 				// intermediate source file). Rather, this is the original source file.
 				// https://github.com/gulp-sourcemaps/gulp-sourcemaps/blob/91b94954/src/init/index.js#L116-L124
-				if file := consumer.GetFile(); file != nil && *file != "" {
-					if sources := consumer.GetOriginalSources(); len(sources) == 1 &&
-						sources[0] != nil && *sources[0] == *file &&
-						len(consumer.GetOriginalSourcesContent()) == 1 &&
+				if file, hasFile := consumer.GetFile(); hasFile && file != "" {
+					if sources := consumer.OriginalSources(); len(sources) == 1 &&
+						sources[0].Valid && sources[0].Value == file &&
+						len(consumer.OriginalSourcesContent()) == 1 &&
 						len(consumer.GetOriginalNames()) == 0 &&
 						consumer.GetLineCount() == -1 {
 						consumer = nil

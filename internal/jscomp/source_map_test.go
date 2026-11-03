@@ -297,7 +297,7 @@ func (c *SourceMapTest) SetUp() {
 
 // Java: SourceMapTest.checkSourceMap2(String, String, String, String, String)
 func (c *SourceMapTest) checkSourceMap2(js1 string, file1 string, js2 string, file2 string, expectedMap string) {
-	result := c.CompileOfTwo(js1, file1, &js2, &file2)
+	result := c.CompileOfTwo(js1, file1, js2, file2)
 	jscomp.AssertThat(result.SourceMapFileContent).IsEqualTo(expectedMap)
 	jscomp.AssertThat(c.GetSourceMap(result)).IsEqualTo(result.SourceMapFileContent)
 }

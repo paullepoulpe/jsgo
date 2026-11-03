@@ -66,10 +66,24 @@ func (t *ThrowableBase) Error() string {
 // InitThrowable initializes the base of an exception. className is the
 // fully qualified Java class name, used by Error()/toString().
 func InitThrowable(t Throwable, className string, message *string, cause Throwable) {
+	if message != nil {
+		initThrowableMsg(t, className, *message, true, cause)
+		return
+	}
+	initThrowableMsg(t, className, "", false, cause)
+}
+
+// InitThrowableMsg initializes the base of an exception with a non-null message
+// without boxing message into a *string.
+func InitThrowableMsg(t Throwable, className string, message string, cause Throwable) {
+	initThrowableMsg(t, className, message, true, cause)
+}
+
+func initThrowableMsg(t Throwable, className string, message string, hasMsg bool, cause Throwable) {
 	b := t.throwable()
 	b.className = className
-	if message != nil {
-		b.message, b.hasMsg = *message, true
+	if hasMsg {
+		b.message, b.hasMsg = message, true
 	} else if cause != nil {
 		// Java: Throwable(Throwable cause) uses cause.toString() as message.
 		b.message, b.hasMsg = cause.Error(), true
@@ -92,13 +106,13 @@ type IRuntimeException interface {
 
 func NewRuntimeException(message string) *RuntimeException {
 	e := &RuntimeException{}
-	InitThrowable(e, "java.lang.RuntimeException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.RuntimeException", message, true, nil)
 	return e
 }
 
 func NewRuntimeExceptionWithCause(cause Throwable) *RuntimeException {
 	e := &RuntimeException{}
-	InitThrowable(e, "java.lang.RuntimeException", nil, cause)
+	initThrowableMsg(e, "java.lang.RuntimeException", "", false, cause)
 	return e
 }
 
@@ -114,13 +128,13 @@ type IIllegalStateException interface {
 
 func NewIllegalStateException() *IllegalStateException {
 	e := &IllegalStateException{}
-	InitThrowable(e, "java.lang.IllegalStateException", nil, nil)
+	initThrowableMsg(e, "java.lang.IllegalStateException", "", false, nil)
 	return e
 }
 
 func NewIllegalStateExceptionMsg(message string) *IllegalStateException {
 	e := &IllegalStateException{}
-	InitThrowable(e, "java.lang.IllegalStateException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.IllegalStateException", message, true, nil)
 	return e
 }
 
@@ -136,13 +150,13 @@ type IIllegalArgumentException interface {
 
 func NewIllegalArgumentException() *IllegalArgumentException {
 	e := &IllegalArgumentException{}
-	InitThrowable(e, "java.lang.IllegalArgumentException", nil, nil)
+	initThrowableMsg(e, "java.lang.IllegalArgumentException", "", false, nil)
 	return e
 }
 
 func NewIllegalArgumentExceptionMsg(message string) *IllegalArgumentException {
 	e := &IllegalArgumentException{}
-	InitThrowable(e, "java.lang.IllegalArgumentException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.IllegalArgumentException", message, true, nil)
 	return e
 }
 
@@ -150,7 +164,7 @@ func NewIllegalArgumentExceptionMsg(message string) *IllegalArgumentException {
 // IllegalArgumentException(String message, Throwable cause).
 func NewIllegalArgumentExceptionWithMessageAndCause(message string, cause Throwable) *IllegalArgumentException {
 	e := &IllegalArgumentException{}
-	InitThrowable(e, "java.lang.IllegalArgumentException", &message, cause)
+	initThrowableMsg(e, "java.lang.IllegalArgumentException", message, true, cause)
 	return e
 }
 
@@ -166,7 +180,7 @@ type INumberFormatException interface {
 
 func NewNumberFormatException(message string) *NumberFormatException {
 	e := &NumberFormatException{}
-	InitThrowable(e, "java.lang.NumberFormatException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.NumberFormatException", message, true, nil)
 	return e
 }
 
@@ -182,13 +196,13 @@ type INullPointerException interface {
 
 func NewNullPointerException() *NullPointerException {
 	e := &NullPointerException{}
-	InitThrowable(e, "java.lang.NullPointerException", nil, nil)
+	initThrowableMsg(e, "java.lang.NullPointerException", "", false, nil)
 	return e
 }
 
 func NewNullPointerExceptionMsg(message string) *NullPointerException {
 	e := &NullPointerException{}
-	InitThrowable(e, "java.lang.NullPointerException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.NullPointerException", message, true, nil)
 	return e
 }
 
@@ -204,13 +218,13 @@ type IUnsupportedOperationException interface {
 
 func NewUnsupportedOperationException() *UnsupportedOperationException {
 	e := &UnsupportedOperationException{}
-	InitThrowable(e, "java.lang.UnsupportedOperationException", nil, nil)
+	initThrowableMsg(e, "java.lang.UnsupportedOperationException", "", false, nil)
 	return e
 }
 
 func NewUnsupportedOperationExceptionMsg(message string) *UnsupportedOperationException {
 	e := &UnsupportedOperationException{}
-	InitThrowable(e, "java.lang.UnsupportedOperationException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.UnsupportedOperationException", message, true, nil)
 	return e
 }
 
@@ -226,7 +240,7 @@ type IIndexOutOfBoundsException interface {
 
 func NewIndexOutOfBoundsException(message string) *IndexOutOfBoundsException {
 	e := &IndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.IndexOutOfBoundsException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.IndexOutOfBoundsException", message, true, nil)
 	return e
 }
 
@@ -235,8 +249,8 @@ type StringIndexOutOfBoundsException struct{ IndexOutOfBoundsException }
 
 func NewStringIndexOutOfBoundsException(begin, end int) *StringIndexOutOfBoundsException {
 	e := &StringIndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.StringIndexOutOfBoundsException",
-		msgPtr(fmt.Sprintf("begin %d, end %d", begin, end)), nil)
+	initThrowableMsg(e, "java.lang.StringIndexOutOfBoundsException",
+		fmt.Sprintf("begin %d, end %d", begin, end), true, nil)
 	return e
 }
 
@@ -252,11 +266,11 @@ func AsThrowable(r any) Throwable {
 		return runtimeErrorAsThrowable(v)
 	case error:
 		e := &RuntimeException{}
-		InitThrowable(e, "java.lang.RuntimeException", msgPtr(v.Error()), nil)
+		initThrowableMsg(e, "java.lang.RuntimeException", v.Error(), true, nil)
 		return e
 	default:
 		e := &RuntimeException{}
-		InitThrowable(e, "java.lang.RuntimeException", msgPtr(fmt.Sprint(v)), nil)
+		initThrowableMsg(e, "java.lang.RuntimeException", fmt.Sprint(v), true, nil)
 		return e
 	}
 }
@@ -291,21 +305,21 @@ func runtimeErrorAsThrowable(v runtime.Error) Throwable {
 			return NewArrayIndexOutOfBoundsExceptionForLength(i, n)
 		}
 		e := &ArrayIndexOutOfBoundsException{}
-		InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException", msgPtr(msg), nil)
+		initThrowableMsg(e, "java.lang.ArrayIndexOutOfBoundsException", msg, true, nil)
 		return e
 	case strings.Contains(msg, "slice bounds out of range"):
 		e := &ArrayIndexOutOfBoundsException{}
-		InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException", msgPtr(msg), nil)
+		initThrowableMsg(e, "java.lang.ArrayIndexOutOfBoundsException", msg, true, nil)
 		return e
 	case strings.Contains(msg, "integer divide by zero"):
 		return NewArithmeticException("/ by zero")
 	case strings.Contains(msg, "interface conversion"):
 		e := &ClassCastException{}
-		InitThrowable(e, "java.lang.ClassCastException", msgPtr(msg), nil)
+		initThrowableMsg(e, "java.lang.ClassCastException", msg, true, nil)
 		return e
 	}
 	e := &RuntimeException{}
-	InitThrowable(e, "java.lang.RuntimeException", msgPtr(msg), nil)
+	initThrowableMsg(e, "java.lang.RuntimeException", msg, true, nil)
 	return e
 }
 
@@ -348,8 +362,8 @@ type ArrayIndexOutOfBoundsException struct{ IndexOutOfBoundsException }
 // NewArrayIndexOutOfBoundsException is new ArrayIndexOutOfBoundsException(int index).
 func NewArrayIndexOutOfBoundsException(index int) *ArrayIndexOutOfBoundsException {
 	e := &ArrayIndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException",
-		msgPtr(fmt.Sprintf("Array index out of range: %d", index)), nil)
+	initThrowableMsg(e, "java.lang.ArrayIndexOutOfBoundsException",
+		fmt.Sprintf("Array index out of range: %d", index), true, nil)
 	return e
 }
 
@@ -357,8 +371,8 @@ func NewArrayIndexOutOfBoundsException(index int) *ArrayIndexOutOfBoundsExceptio
 // for an out-of-range array access ("Index i out of bounds for length n").
 func NewArrayIndexOutOfBoundsExceptionForLength(index, length int) *ArrayIndexOutOfBoundsException {
 	e := &ArrayIndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.ArrayIndexOutOfBoundsException",
-		msgPtr(fmt.Sprintf("Index %d out of bounds for length %d", index, length)), nil)
+	initThrowableMsg(e, "java.lang.ArrayIndexOutOfBoundsException",
+		fmt.Sprintf("Index %d out of bounds for length %d", index, length), true, nil)
 	return e
 }
 
@@ -376,8 +390,8 @@ type IClassCastException interface {
 // reference cast `(To) obj`; the message names both classes like the JVM's.
 func NewClassCastException(from, to string) *ClassCastException {
 	e := &ClassCastException{}
-	InitThrowable(e, "java.lang.ClassCastException",
-		msgPtr("class "+from+" cannot be cast to class "+to), nil)
+	initThrowableMsg(e, "java.lang.ClassCastException",
+		"class "+from+" cannot be cast to class "+to, true, nil)
 	return e
 }
 
@@ -386,13 +400,13 @@ type NoSuchElementException struct{ RuntimeException }
 
 func NewNoSuchElementException() *NoSuchElementException {
 	e := &NoSuchElementException{}
-	InitThrowable(e, "java.util.NoSuchElementException", nil, nil)
+	initThrowableMsg(e, "java.util.NoSuchElementException", "", false, nil)
 	return e
 }
 
 func NewNoSuchElementExceptionMsg(message string) *NoSuchElementException {
 	e := &NoSuchElementException{}
-	InitThrowable(e, "java.util.NoSuchElementException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.util.NoSuchElementException", message, true, nil)
 	return e
 }
 
@@ -401,7 +415,7 @@ type ArithmeticException struct{ RuntimeException }
 
 func NewArithmeticException(message string) *ArithmeticException {
 	e := &ArithmeticException{}
-	InitThrowable(e, "java.lang.ArithmeticException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.ArithmeticException", message, true, nil)
 	return e
 }
 
@@ -431,14 +445,14 @@ type IIOException interface {
 
 func NewIOException(message string) *IOException {
 	e := &IOException{}
-	InitThrowable(e, "java.io.IOException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.io.IOException", message, true, nil)
 	return e
 }
 
 // NewIOExceptionWithCause is new IOException(Throwable cause).
 func NewIOExceptionWithCause(cause Throwable) *IOException {
 	e := &IOException{}
-	InitThrowable(e, "java.io.IOException", nil, cause)
+	initThrowableMsg(e, "java.io.IOException", "", false, cause)
 	return e
 }
 
@@ -446,8 +460,8 @@ func NewIOExceptionWithCause(cause Throwable) *IOException {
 // String.charAt(int): "Index 3 out of bounds for length 3".
 func NewStringIndexOutOfBoundsExceptionForIndex(index, length int) *StringIndexOutOfBoundsException {
 	e := &StringIndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.StringIndexOutOfBoundsException",
-		msgPtr(fmt.Sprintf("Index %d out of bounds for length %d", index, length)), nil)
+	initThrowableMsg(e, "java.lang.StringIndexOutOfBoundsException",
+		fmt.Sprintf("Index %d out of bounds for length %d", index, length), true, nil)
 	return e
 }
 
@@ -456,15 +470,15 @@ func NewStringIndexOutOfBoundsExceptionForIndex(index, length int) *StringIndexO
 // "Range [2, 1) out of bounds for length 3".
 func NewStringIndexOutOfBoundsExceptionForRange(begin, end, length int) *StringIndexOutOfBoundsException {
 	e := &StringIndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.StringIndexOutOfBoundsException",
-		msgPtr(fmt.Sprintf("Range [%d, %d) out of bounds for length %d", begin, end, length)), nil)
+	initThrowableMsg(e, "java.lang.StringIndexOutOfBoundsException",
+		fmt.Sprintf("Range [%d, %d) out of bounds for length %d", begin, end, length), true, nil)
 	return e
 }
 
 // NewIndexOutOfBoundsExceptionNoMessage is new IndexOutOfBoundsException().
 func NewIndexOutOfBoundsExceptionNoMessage() *IndexOutOfBoundsException {
 	e := &IndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.IndexOutOfBoundsException", nil, nil)
+	initThrowableMsg(e, "java.lang.IndexOutOfBoundsException", "", false, nil)
 	return e
 }
 
@@ -473,8 +487,8 @@ func NewIndexOutOfBoundsExceptionNoMessage() *IndexOutOfBoundsException {
 // "Range [2, 5) out of bounds for length 3".
 func NewIndexOutOfBoundsExceptionForRange(from, to, length int) *IndexOutOfBoundsException {
 	e := &IndexOutOfBoundsException{}
-	InitThrowable(e, "java.lang.IndexOutOfBoundsException",
-		msgPtr(fmt.Sprintf("Range [%d, %d) out of bounds for length %d", from, to, length)), nil)
+	initThrowableMsg(e, "java.lang.IndexOutOfBoundsException",
+		fmt.Sprintf("Range [%d, %d) out of bounds for length %d", from, to, length), true, nil)
 	return e
 }
 
@@ -482,7 +496,7 @@ func NewIndexOutOfBoundsExceptionForRange(from, to, length int) *IndexOutOfBound
 // message, Throwable cause).
 func NewRuntimeExceptionWithMessageAndCause(message string, cause Throwable) *RuntimeException {
 	e := &RuntimeException{}
-	InitThrowable(e, "java.lang.RuntimeException", &message, cause)
+	initThrowableMsg(e, "java.lang.RuntimeException", message, true, cause)
 	return e
 }
 
@@ -491,7 +505,7 @@ func NewRuntimeExceptionWithMessageAndCause(message string, cause Throwable) *Ru
 // set.
 func NewAssertionErrorWithCause(cause Throwable) *AssertionError {
 	e := &AssertionError{}
-	InitThrowable(e, "java.lang.AssertionError", msgPtr(cause.Error()), cause)
+	initThrowableMsg(e, "java.lang.AssertionError", cause.Error(), true, cause)
 	return e
 }
 
@@ -499,7 +513,7 @@ func NewAssertionErrorWithCause(cause Throwable) *AssertionError {
 // IllegalStateException(String message, Throwable cause).
 func NewIllegalStateExceptionWithMessageAndCause(message string, cause Throwable) *IllegalStateException {
 	e := &IllegalStateException{}
-	InitThrowable(e, "java.lang.IllegalStateException", &message, cause)
+	initThrowableMsg(e, "java.lang.IllegalStateException", message, true, cause)
 	return e
 }
 
@@ -518,7 +532,7 @@ type IError interface {
 // NewJavaLangError is new Error(String message).
 func NewJavaLangError(message string) *JavaLangError {
 	e := &JavaLangError{}
-	InitThrowable(e, "java.lang.Error", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.Error", message, true, nil)
 	return e
 }
 
@@ -529,14 +543,14 @@ type AssertionError struct{ JavaLangError }
 // string message.
 func NewAssertionError(message string) *AssertionError {
 	e := &AssertionError{}
-	InitThrowable(e, "java.lang.AssertionError", msgPtr(message), nil)
+	initThrowableMsg(e, "java.lang.AssertionError", message, true, nil)
 	return e
 }
 
 // NewAssertionErrorNoMessage is new AssertionError().
 func NewAssertionErrorNoMessage() *AssertionError {
 	e := &AssertionError{}
-	InitThrowable(e, "java.lang.AssertionError", nil, nil)
+	initThrowableMsg(e, "java.lang.AssertionError", "", false, nil)
 	return e
 }
 
@@ -549,18 +563,13 @@ type ExecutionException struct{ JavaException }
 // message is cause.toString().
 func NewExecutionException(cause Throwable) *ExecutionException {
 	e := &ExecutionException{}
-	InitThrowable(e, "java.util.concurrent.ExecutionException", nil, cause)
+	initThrowableMsg(e, "java.util.concurrent.ExecutionException", "", false, cause)
 	return e
 }
 
-// InterruptedException is java.lang.InterruptedException (a checked
-// exception).
-type InterruptedException struct{ JavaException }
-
-// NewInterruptedException is new InterruptedException().
-func NewInterruptedException() *InterruptedException {
-	e := &InterruptedException{}
-	InitThrowable(e, "java.lang.InterruptedException", nil, nil)
+func NewInterruptedException() *JavaException {
+	e := &JavaException{}
+	initThrowableMsg(e, "java.lang.InterruptedException", "", false, nil)
 	return e
 }
 
@@ -638,16 +647,12 @@ func NewHelpfulNullPointerException(detail string) *NullPointerException {
 	return NewNullPointerExceptionMsg(detail)
 }
 
-// Go-only: language-adapter — java.nio.charset.CharacterCodingException and
-// its subclasses MalformedInputException and UnmappableCharacterException
-// (all IOExceptions).
-
-// CharacterCodingException is java.nio.charset.CharacterCodingException.
-type CharacterCodingException struct{ IOException }
+// Go-only: language-adapter — java.nio.charset.MalformedInputException and
+// UnmappableCharacterException (both IOExceptions).
 
 // malformedInputException is java.nio.charset.MalformedInputException.
 type malformedInputException struct {
-	CharacterCodingException
+	IOException
 	inputLength int
 }
 
@@ -655,8 +660,7 @@ type malformedInputException struct {
 // its message is "Input length = <inputLength>".
 func newMalformedInputException(inputLength int) *malformedInputException {
 	e := &malformedInputException{inputLength: inputLength}
-	msg := "Input length = " + strconv.Itoa(inputLength)
-	InitThrowable(e, "java.nio.charset.MalformedInputException", &msg, nil)
+	initThrowableMsg(e, "java.nio.charset.MalformedInputException", "Input length = "+strconv.Itoa(inputLength), true, nil)
 	return e
 }
 
@@ -665,7 +669,7 @@ func (e *malformedInputException) getInputLength() int { return e.inputLength }
 // unmappableCharacterException is
 // java.nio.charset.UnmappableCharacterException.
 type unmappableCharacterException struct {
-	CharacterCodingException
+	IOException
 	inputLength int
 }
 
@@ -674,8 +678,7 @@ type unmappableCharacterException struct {
 // "Input length = <inputLength>".
 func newUnmappableCharacterException(inputLength int) *unmappableCharacterException {
 	e := &unmappableCharacterException{inputLength: inputLength}
-	msg := "Input length = " + strconv.Itoa(inputLength)
-	InitThrowable(e, "java.nio.charset.UnmappableCharacterException", &msg, nil)
+	initThrowableMsg(e, "java.nio.charset.UnmappableCharacterException", "Input length = "+strconv.Itoa(inputLength), true, nil)
 	return e
 }
 
@@ -687,7 +690,7 @@ type FileNotFoundException struct{ IOException }
 // NewFileNotFoundException is new FileNotFoundException(String).
 func NewFileNotFoundException(message string) *FileNotFoundException {
 	e := &FileNotFoundException{}
-	InitThrowable(e, "java.io.FileNotFoundException", &message, nil)
+	initThrowableMsg(e, "java.io.FileNotFoundException", message, true, nil)
 	return e
 }
 
@@ -718,7 +721,7 @@ type ZipException struct{ IOException }
 // NewZipException is new ZipException(String).
 func NewZipException(message string) *ZipException {
 	e := &ZipException{}
-	InitThrowable(e, "java.util.zip.ZipException", &message, nil)
+	initThrowableMsg(e, "java.util.zip.ZipException", message, true, nil)
 	return e
 }
 
@@ -759,7 +762,7 @@ func NewPatternSyntaxException(desc string, regex string, index int) *PatternSyn
 		sb.WriteString(strings.Repeat(" ", index))
 		sb.WriteString("^")
 	}
-	InitThrowable(e, "java.util.regex.PatternSyntaxException", msgPtr(sb.String()), nil)
+	initThrowableMsg(e, "java.util.regex.PatternSyntaxException", sb.String(), true, nil)
 	return e
 }
 

@@ -73,15 +73,21 @@ type DiagnosticGroup struct {
 	// Allocated only when len(types) > diagnosticGroupMapThreshold; keyed by DiagnosticType.key.
 	typeKeySet map[string]struct{}
 
-	// A human-readable name for the group. May be nil.
-	name *string
+	// A human-readable name for the group when hasName is true.
+	name string
 
-	id uint32
+	id      uint32
+	hasName bool
 }
 
 const diagnosticGroup_serialVersionUID int64 = 1
 
 func newDiagnosticGroupDedup(name *string, capHint int, visit func(add func(*DiagnosticType))) *DiagnosticGroup {
+	var groupName string
+	hasName := name != nil
+	if hasName {
+		groupName = *name
+	}
 	dedup := make(DiagnosticTypeSlice, 0, capHint)
 	if capHint <= diagnosticGroupMapThreshold {
 		visit(func(t *DiagnosticType) {
@@ -93,9 +99,10 @@ func newDiagnosticGroupDedup(name *string, capHint int, visit func(add func(*Dia
 			dedup = append(dedup, t)
 		})
 		return &DiagnosticGroup{
-			id:    nextDiagnosticGroupID.Add(1),
-			name:  name,
-			types: dedup,
+			id:      nextDiagnosticGroupID.Add(1),
+			name:    groupName,
+			hasName: hasName,
+			types:   dedup,
 		}
 	}
 
@@ -112,7 +119,8 @@ func newDiagnosticGroupDedup(name *string, capHint int, visit func(add func(*Dia
 	}
 	return &DiagnosticGroup{
 		id:         nextDiagnosticGroupID.Add(1),
-		name:       name,
+		name:       groupName,
+		hasName:    hasName,
 		types:      dedup,
 		typeKeySet: storedSet,
 	}
@@ -240,15 +248,23 @@ func (g *DiagnosticGroup) GetTypes() DiagnosticTypeSlice {
 //
 // Java: DiagnosticGroup.getName()
 func (g *DiagnosticGroup) GetName() *string {
-	return g.name
+	if !g.hasName {
+		return nil
+	}
+	return &g.name
+}
+
+// NameOk returns the group's name and whether one is present.
+func (g *DiagnosticGroup) NameOk() (string, bool) {
+	return g.name, g.hasName
 }
 
 // Java: DiagnosticGroup.toString()
 func (g *DiagnosticGroup) String() string {
-	if g.name == nil {
+	if !g.hasName {
 		return jutil.ObjectToString("com.google.javascript.jscomp.DiagnosticGroup", g)
 	}
-	return "DiagnosticGroup<" + *g.name + ">"
+	return "DiagnosticGroup<" + g.name + ">"
 }
 
 // Equals reports whether other refers to the same DiagnosticGroup, including

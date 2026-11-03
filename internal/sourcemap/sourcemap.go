@@ -48,10 +48,11 @@
 // encoding. proto_mapping.go reconstructs the protobuf-generated
 // com.google.debugging.sourcemap.proto.Mapping.
 //
-// Java Strings that may be null at public boundaries are *string; Java arrays
-// that may be null are nil slices (a non-null empty array is a non-nil empty
-// slice); a Java Appendable is an io.StringWriter whose write errors become
-// IOExceptions. See PORTING.md for the translation rules.
+// Java Strings that may be null at public boundaries use OptionalString or
+// (string, bool) returns; Java arrays that may be null are nil slices (a
+// non-null empty array is a non-nil empty slice); a Java Appendable is an
+// io.StringWriter whose write errors become IOExceptions. See PORTING.md for
+// the translation rules.
 package sourcemap
 
 import (
@@ -61,51 +62,21 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-// optionalString stores a nullable Java String by value without heap-allocating
+// OptionalString stores a nullable Java String by value without heap-allocating
 // a *string wrapper.
-type optionalString struct {
-	text    string
-	present bool
+type OptionalString struct {
+	Value string
+	Valid bool
 }
 
-func makeOptionalString(p *string) optionalString {
-	if p == nil {
-		return optionalString{}
-	}
-	return optionalString{text: *p, present: true}
+// SomeString returns a present OptionalString holding s.
+func SomeString(s string) OptionalString {
+	return OptionalString{Value: s, Valid: true}
 }
 
-func (s *optionalString) ptr() *string {
-	if !s.present {
-		return nil
-	}
-	return &s.text
-}
-
-func optionalStringsFromPtrs(xs []*string) []optionalString {
-	if xs == nil {
-		return nil
-	}
-	out := make([]optionalString, len(xs))
-	for i, p := range xs {
-		if p != nil {
-			out[i] = optionalString{text: *p, present: true}
-		}
-	}
-	return out
-}
-
-func optionalStringsToPtrs(xs []optionalString) []*string {
-	if xs == nil {
-		return nil
-	}
-	out := make([]*string, len(xs))
-	for i := range xs {
-		if xs[i].present {
-			out[i] = &xs[i].text
-		}
-	}
-	return out
+// Get returns the string and whether it is present.
+func (s OptionalString) Get() (string, bool) {
+	return s.Value, s.Valid
 }
 
 // FilePosition represents a position in a source file.
@@ -153,10 +124,11 @@ type SourceMapConsumer = *SourceMapConsumerV3
 // contents. Used when parsing index maps.
 type SourceMapSupplier interface {
 	// GetSourceMap returns the contents of the map associated with the URL
-	// (nil for Java null). It may panic with a jutil IOException.
+	// and true, or ("", false) for Java null. It may panic with a jutil
+	// IOException.
 	//
 	// Java: SourceMapSupplier.getSourceMap(String)
-	GetSourceMap(url string) *string
+	GetSourceMap(url string) (string, bool)
 }
 
 // SourceMapFormat is a list of currently support SourceMap format
@@ -242,7 +214,7 @@ type ISourceMapParseException interface {
 // Java: SourceMapParseException(String)
 func NewSourceMapParseException(message string) *SourceMapParseException {
 	e := &SourceMapParseException{}
-	jutil.InitThrowable(e, "com.google.debugging.sourcemap.SourceMapParseException", &message, nil)
+	jutil.InitThrowableMsg(e, "com.google.debugging.sourcemap.SourceMapParseException", message, nil)
 	return e
 }
 
@@ -250,7 +222,7 @@ func NewSourceMapParseException(message string) *SourceMapParseException {
 // record).
 type SourceMapSection struct {
 	type_  SourceMapSection_SectionType
-	value  optionalString
+	value  OptionalString
 	line   int
 	column int
 }
@@ -270,23 +242,35 @@ func (t SourceMapSection_SectionType) String() string {
 	return sourceMapSection_SectionType_names[t]
 }
 
-// NewSourceMapSection is the record's canonical constructor.
+// NewSourceMapSectionURL constructs a URL section (value may be absent for Java null).
 //
-// Java: SourceMapSection(SectionType, String, int, int)
-func NewSourceMapSection(type_ SourceMapSection_SectionType, value *string, line, column int) *SourceMapSection {
-	return &SourceMapSection{type_: type_, value: makeOptionalString(value), line: line, column: column}
+// Java: SourceMapSection(SectionType.URL, String, int, int)
+func NewSourceMapSectionURL(value OptionalString, line, column int) *SourceMapSection {
+	return &SourceMapSection{
+		type_:  SourceMapSection_SectionType_URL,
+		value:  value,
+		line:   line,
+		column: column,
+	}
+}
+
+// NewSourceMapSectionMap constructs a MAP section (value may be absent for Java null).
+//
+// Java: SourceMapSection(SectionType.MAP, String, int, int)
+func NewSourceMapSectionMap(value OptionalString, line, column int) *SourceMapSection {
+	return &SourceMapSection{
+		type_:  SourceMapSection_SectionType_MAP,
+		value:  value,
+		line:   line,
+		column: column,
+	}
 }
 
 // SourceMapSection_ForMap creates a section holding a source map.
 //
 // Java: SourceMapSection.forMap(String, int, int)
 func SourceMapSection_ForMap(value string, line, column int) *SourceMapSection {
-	return &SourceMapSection{
-		type_:  SourceMapSection_SectionType_MAP,
-		value:  optionalString{text: value, present: true},
-		line:   line,
-		column: column,
-	}
+	return NewSourceMapSectionMap(SomeString(value), line, column)
 }
 
 // SourceMapSection_ForURL creates a section referring to a source map by
@@ -294,12 +278,7 @@ func SourceMapSection_ForMap(value string, line, column int) *SourceMapSection {
 //
 // Java: SourceMapSection.forURL(String, int, int)
 func SourceMapSection_ForURL(value string, line, column int) *SourceMapSection {
-	return &SourceMapSection{
-		type_:  SourceMapSection_SectionType_URL,
-		value:  optionalString{text: value, present: true},
-		line:   line,
-		column: column,
-	}
+	return NewSourceMapSectionURL(SomeString(value), line, column)
 }
 
 // Type is the record accessor.
@@ -307,13 +286,6 @@ func SourceMapSection_ForURL(value string, line, column int) *SourceMapSection {
 // Java: SourceMapSection.type()
 func (s *SourceMapSection) Type() SourceMapSection_SectionType {
 	return s.type_
-}
-
-// Value is the record accessor.
-//
-// Java: SourceMapSection.value()
-func (s *SourceMapSection) Value() *string {
-	return s.value.ptr()
 }
 
 // Line is the record accessor.
@@ -338,14 +310,14 @@ func (s *SourceMapSection) GetSectionType() SourceMapSection_SectionType {
 }
 
 // GetSectionValue returns the value that represents the map for this
-// section. This is either a URL for a valid source map file that represents
-// a section of a generate source file such as when multiple files are
-// concatenated together, or a string representing a JSON object that is a
-// source map.
+// section and whether it is non-null. This is either a URL for a valid
+// source map file that represents a section of a generated source file such
+// as when multiple files are concatenated together, or a string representing
+// a JSON object that is a source map.
 //
 // Java: SourceMapSection.getSectionValue()
-func (s *SourceMapSection) GetSectionValue() *string {
-	return s.value.ptr()
+func (s *SourceMapSection) GetSectionValue() (string, bool) {
+	return s.value.Get()
 }
 
 // GetLine returns the starting line for this section.
@@ -380,8 +352,8 @@ func (s *SourceMapSection) Equals(o any) bool {
 // Java: SourceMapSection.toString()
 func (s *SourceMapSection) String() string {
 	val := "null"
-	if s.value.present {
-		val = s.value.text
+	if s.value.Valid {
+		val = s.value.Value
 	}
 	return "SourceMapSection[type=" + s.type_.String() + ", value=" + val +
 		", line=" + strconv.Itoa(s.line) + ", column=" + strconv.Itoa(s.column) + "]"

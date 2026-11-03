@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -35,7 +36,6 @@ type CheckProvidesSorted struct {
 	// The provided namespaces in the order they appear.
 	originalProvides []string
 
-	// The provided namespaces in canonical order.
 	firstNode rhino.Node
 	lastNode  rhino.Node
 	finished  bool
@@ -61,15 +61,15 @@ const (
 	CheckProvidesSorted_Mode_COLLECT_AND_REPORT
 )
 
-var checkProvidesSorted_Mode_names = [...]string{"COLLECT_ONLY", "COLLECT_AND_REPORT"}
+var checkProvidesSortedModeNames = [...]string{"COLLECT_ONLY", "COLLECT_AND_REPORT"}
 
 // Name is Enum.name().
-func (m CheckProvidesSorted_Mode) Name() string { return checkProvidesSorted_Mode_names[m] }
+func (m CheckProvidesSorted_Mode) Name() string { return checkProvidesSortedModeNames[m] }
 
 // String is Enum.toString().
 func (m CheckProvidesSorted_Mode) String() string { return m.Name() }
 
-// NewCheckProvidesSorted is new CheckProvidesSorted(mode).
+// NewCheckProvidesSorted constructs a CheckProvidesSorted callback.
 //
 // Java: CheckProvidesSorted(CheckProvidesSorted.Mode)
 func NewCheckProvidesSorted(mode CheckProvidesSorted_Mode) *CheckProvidesSorted {
@@ -83,16 +83,12 @@ func NewCheckProvidesSorted(mode CheckProvidesSorted_Mode) *CheckProvidesSorted 
 // GetFirstNode returns the node for the first recognized provide statement.
 //
 // Java: CheckProvidesSorted.getFirstNode()
-func (c *CheckProvidesSorted) GetFirstNode() rhino.Node {
-	return c.firstNode
-}
+func (c *CheckProvidesSorted) GetFirstNode() rhino.Node { return c.firstNode }
 
 // GetLastNode returns the node for the last recognized provide statement.
 //
 // Java: CheckProvidesSorted.getLastNode()
-func (c *CheckProvidesSorted) GetLastNode() rhino.Node {
-	return c.lastNode
-}
+func (c *CheckProvidesSorted) GetLastNode() rhino.Node { return c.lastNode }
 
 // GetReplacement returns a textual replacement yielding a canonical version
 // of the provides.
@@ -102,16 +98,15 @@ func (c *CheckProvidesSorted) GetReplacement() *string {
 	if !c.needsFix {
 		return nil
 	}
-	return &c.replacement
+	s := c.replacement
+	return &s
 }
 
 // NeedsFix returns whether the provides need to be fixed, i.e., whether they
 // are *not* already canonical.
 //
 // Java: CheckProvidesSorted.needsFix()
-func (c *CheckProvidesSorted) NeedsFix() bool {
-	return c.needsFix
-}
+func (c *CheckProvidesSorted) NeedsFix() bool { return c.needsFix }
 
 // Java: CheckProvidesSorted.shouldTraverse(NodeTraversal, Node, Node)
 func (c *CheckProvidesSorted) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
@@ -123,50 +118,42 @@ func (c *CheckProvidesSorted) ShouldTraverse(t *NodeTraversal, n rhino.Node, par
 // Java: CheckProvidesSorted.visit(NodeTraversal, Node, Node)
 func (c *CheckProvidesSorted) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsScript() {
-		c.CheckCanonical(t)
+		c.checkCanonical(t)
 		return
 	}
 
-	if NodeUtil_IsGoogProvideCall(n) && CheckProvidesSorted_AreProvideArgumentsValid(n.GetFirstChild()) {
-		c.originalProvides = append(c.originalProvides, CheckProvidesSorted_GetNamespace(n))
+	if namespace, ok := validGoogProvideNamespace(n); ok {
+		c.originalProvides = append(c.originalProvides, namespace)
 		if c.firstNode.IsNil() {
-			c.lastNode = n
-			c.firstNode = c.lastNode
-		} else {
-			c.lastNode = n
+			c.firstNode = n
 		}
+		c.lastNode = n
 	} else if len(c.originalProvides) != 0 {
 		c.finished = true
 	}
 }
 
-// Java: CheckProvidesSorted.areProvideArgumentsValid(Node)
-func CheckProvidesSorted_AreProvideArgumentsValid(call rhino.Node) bool {
-	return call.HasTwoChildren() && call.GetSecondChild().IsStringLit()
+func validGoogProvideNamespace(stmt rhino.Node) (string, bool) {
+	if !NodeUtil_IsGoogProvideCall(stmt) {
+		return "", false
+	}
+	call := ast.MustCall(ast.MustExprStmt(stmt).Expr().Node())
+	onlyArg, ok := call.OnlyArg()
+	if !ok {
+		return "", false
+	}
+	ns, ok := ast.AsStringLit(onlyArg.Node())
+	if !ok {
+		return "", false
+	}
+	return ns.Value(), true
 }
 
-// Java: CheckProvidesSorted.getNamespace(Node)
-func CheckProvidesSorted_GetNamespace(n rhino.Node) string {
-	return n.GetFirstChild().GetSecondChild().GetString()
+func formatProvide(namespace string) string {
+	return "goog.provide('" + namespace + "');"
 }
 
-// CheckProvidesSorted_FormatProvide returns the code for a correctly
-// formatted provide call.
-//
-// Java: CheckProvidesSorted.formatProvide(String)
-func CheckProvidesSorted_FormatProvide(namespace string) string {
-	var sb strings.Builder
-
-	sb.WriteString("goog.provide('")
-	sb.WriteString(namespace)
-	sb.WriteString("');")
-
-	return sb.String()
-}
-
-// Java: CheckProvidesSorted.checkCanonical(NodeTraversal)
-func (c *CheckProvidesSorted) CheckCanonical(t *NodeTraversal) {
-	// originalProvides.stream().sorted().distinct().collect(toImmutableList())
+func (c *CheckProvidesSorted) checkCanonical(t *NodeTraversal) {
 	sorted := slices.Clone(c.originalProvides)
 	slices.SortStableFunc(sorted, jutil.StringCompareTo)
 	canonicalProvides := slices.Compact(sorted)
@@ -174,7 +161,7 @@ func (c *CheckProvidesSorted) CheckCanonical(t *NodeTraversal) {
 		c.needsFix = true
 		formatted := make([]string, len(canonicalProvides))
 		for i, p := range canonicalProvides {
-			formatted[i] = CheckProvidesSorted_FormatProvide(p)
+			formatted[i] = formatProvide(p)
 		}
 		c.replacement = strings.Join(formatted, "\n")
 		if c.mode == CheckProvidesSorted_Mode_COLLECT_AND_REPORT {

@@ -302,17 +302,16 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 	}
 	v.googMsgNodes.Remove(msgNode)
 
-	srcPtr := traversal.GetSourceName()
-	mapping := v.compiler.GetSourceMapping(srcPtr, node.GetLineno(), node.GetCharno())
+	src, hasSrc := traversal.SourceNameOk()
 	var sourceName string
-	if mapping != nil {
-		sourceName = mapping.GetOriginalFile() + ":" + strconv.Itoa(mapping.GetLineNumber())
-	} else {
-		src := "null"
-		if srcPtr != nil {
-			src = *srcPtr
+	if hasSrc {
+		if mapping := v.compiler.GetSourceMapping(src, node.GetLineno(), node.GetCharno()); mapping != nil {
+			sourceName = mapping.GetOriginalFile() + ":" + strconv.Itoa(mapping.GetLineNumber())
+		} else {
+			sourceName = src + ":" + strconv.Itoa(node.GetLineno())
 		}
-		sourceName = src + ":" + strconv.Itoa(node.GetLineno())
+	} else {
+		sourceName = "null:" + strconv.Itoa(node.GetLineno())
 	}
 
 	fnNameNode := msgCall.Callee().Node()

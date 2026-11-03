@@ -320,8 +320,39 @@ type logsGson_ableTypeAdapter struct{}
 
 var logsGsonNullLiteral = "null"
 
+func isNullLogsGsonValue(v any) bool {
+	if v == nil {
+		return true
+	}
+	switch x := v.(type) {
+	case string, int, int32, int64, int16, int8, uint, uint64, uint32, uint16, uint8, bool, float64, float32:
+		return false
+	case *jutil.JsonNull:
+		return true
+	case *jutil.JsonObject:
+		return x == nil
+	case *jutil.JsonArray:
+		return x == nil
+	case *jutil.JsonPrimitive:
+		return x == nil
+	case *string:
+		return x == nil
+	case []any:
+		return x == nil
+	case []string:
+		return x == nil
+	case []int32:
+		return x == nil
+	case []int:
+		return x == nil
+	case interface{ IsNil() bool }:
+		return x.IsNil()
+	}
+	return false
+}
+
 func writeNestedLogsGson(out *jutil.JsonWriter, v any) {
-	if _, ok := v.(*jutil.JsonNull); ok || jutil.IsNil(v) {
+	if isNullLogsGsonValue(v) {
 		out.JsonValue(&logsGsonNullLiteral)
 		return
 	}

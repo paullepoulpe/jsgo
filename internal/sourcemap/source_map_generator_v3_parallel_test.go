@@ -13,7 +13,7 @@ import (
 func buildRandomMappings(g *SourceMapGeneratorV3, rng *rand.Rand, n int) {
 	type mapping struct {
 		src        string
-		sym        *string
+		sym        OptionalString
 		orig       FilePosition
 		start, end FilePosition
 	}
@@ -35,8 +35,7 @@ func buildRandomMappings(g *SourceMapGeneratorV3, rng *rand.Rand, n int) {
 				start: NewFilePosition(line, col),
 			}
 			if rng.Intn(3) == 0 {
-				s := "name" + strconv.Itoa(rng.Intn(20))
-				m.sym = &s
+				m.sym = SomeString("name" + strconv.Itoa(rng.Intn(20)))
 			}
 			out = append(out, m)
 			if depth < 6 {
@@ -73,8 +72,7 @@ func TestParallelMappingsMatchSequential(t *testing.T) {
 				buildRandomMappings(g, rand.New(rand.NewSource(seed)), 400)
 				g.SetParallelWorkers(workers)
 				var sb strings.Builder
-				name := "out.js"
-				g.AppendTo(&sb, &name)
+				g.AppendToOptional(&sb, SomeString("out.js"))
 				return sb.String()
 			}
 			seq, par := mk(1), mk(4)

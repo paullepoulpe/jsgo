@@ -441,7 +441,7 @@ func parseBigDecimalExponent(units []uint16) int64 {
 
 func newNumberFormatExceptionWithoutMessage() *NumberFormatException {
 	e := &NumberFormatException{}
-	InitThrowable(e, "java.lang.NumberFormatException", nil, nil)
+	initThrowableMsg(e, "java.lang.NumberFormatException", "", false, nil)
 	return e
 }
 

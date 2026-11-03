@@ -98,9 +98,9 @@ type verboseMessageFormatterTest_regionProvider struct {
 }
 
 // Java: VerboseMessageFormatterTest.testFormatError_withSourceRegion().new SourceExcerptProvider() {...}.getSourceRegion(String, int)
-func (p *verboseMessageFormatterTest_regionProvider) GetSourceRegion(sourceName *string, lineNumber int) Region {
+func (p *verboseMessageFormatterTest_regionProvider) GetSourceRegion(sourceName string, lineNumber int) Region {
 	// Objects.equals(sourceName, "test.js")
-	if sourceName != nil && *sourceName == "test.js" && lineNumber == 10 {
+	if sourceName == "test.js" && lineNumber == 10 {
 		return NewSimpleRegion(10, 10, "const x = 1;")
 	}
 	return nil
@@ -136,20 +136,20 @@ func (c *VerboseMessageFormatterTest) TestFormatWarning_validLineNumber() {
 // SourceExcerptProvider of emptySourceProvider().
 type verboseMessageFormatterTest_emptyProvider struct{}
 
-func (p *verboseMessageFormatterTest_emptyProvider) GetSourceLine(sourceName *string, lineNumber int) *string {
+func (p *verboseMessageFormatterTest_emptyProvider) GetSourceLine(sourceName string, lineNumber int) (string, bool) {
+	return "", false
+}
+
+func (p *verboseMessageFormatterTest_emptyProvider) GetSourceLines(sourceName string, lineNumber int, length int) Region {
 	return nil
 }
 
-func (p *verboseMessageFormatterTest_emptyProvider) GetSourceLines(sourceName *string, lineNumber int, length int) Region {
-	return nil
-}
-
-func (p *verboseMessageFormatterTest_emptyProvider) GetSourceRegion(sourceName *string, lineNumber int) Region {
+func (p *verboseMessageFormatterTest_emptyProvider) GetSourceRegion(sourceName string, lineNumber int) Region {
 	return nil
 }
 
 func (p *verboseMessageFormatterTest_emptyProvider) GetSourceMapping(
-	sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
+	sourceName string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping {
 	return nil
 }
 

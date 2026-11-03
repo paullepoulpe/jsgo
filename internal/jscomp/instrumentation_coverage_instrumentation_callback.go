@@ -102,7 +102,11 @@ func NewCoverageInstrumentationCallback(
 //
 // Java: CoverageInstrumentationCallback.getFileName(NodeTraversal)
 func CoverageInstrumentationCallback_GetFileName(traversal *NodeTraversal) string {
-	return *jutil.CheckNotNull(traversal.GetSourceName())
+	name, ok := traversal.SourceNameOk()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return name
 }
 
 // CreateArrayName returns a string that can be used as array name. The name
@@ -208,7 +212,7 @@ func (c *CoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node r
 	if node.IsScript() {
 		// Go-only: language-adapter — the null source name (see GetFileName)
 		// is only looked up here, where Java's map.get(null) is null.
-		if name := traversal.GetSourceName(); name != nil && c.instrumentationData[*name] != nil {
+		if name, ok := traversal.SourceNameOk(); ok && c.instrumentationData[name] != nil {
 			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
 				node = node.GetFirstChild()
 			}

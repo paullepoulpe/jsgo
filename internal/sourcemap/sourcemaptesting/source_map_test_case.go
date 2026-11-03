@@ -208,7 +208,7 @@ func sourceMapTestCase_jsonMapEquals(a, b jutil.JsonElement) bool {
 // Java: SourceMapTestCase.getSourceMap(RunResult)
 func (b *SourceMapTestCaseBase) GetSourceMap(result *SourceMapTestCase_RunResult) string {
 	var sb strings.Builder
-	result.SourceMap.AppendTo(&sb, jutil.StringPtr("testcode"))
+	result.SourceMap.AppendToOptional(&sb, sourcemap.SomeString("testcode"))
 	return sb.String()
 }
 
@@ -425,28 +425,27 @@ func (b *SourceMapTestCaseBase) CheckWithSupplier(
 // Java: SourceMapTestCase.compile(String, String)
 func (b *SourceMapTestCaseBase) Compile(js string, fileName string) *SourceMapTestCase_RunResult {
 	b.t.Helper()
-	return b.CompileOfTwo(js, fileName, nil, nil)
+	return b.compileInputs([]*jscomp.SourceFile{jscomp.SourceFile_FromCode(fileName, js)})
 }
 
-// CompileOfTwo compiles js1 (and js2, when js2 and fileName2 are not null)
-// with source maps.
+// CompileOfTwo compiles js1 and js2 with source maps.
 //
 // Java: SourceMapTestCase.compile(String, String, String, String)
-func (b *SourceMapTestCaseBase) CompileOfTwo(js1 string, fileName1 string, js2 *string, fileName2 *string) *SourceMapTestCase_RunResult {
+func (b *SourceMapTestCaseBase) CompileOfTwo(js1 string, fileName1 string, js2 string, fileName2 string) *SourceMapTestCase_RunResult {
+	b.t.Helper()
+	return b.compileInputs([]*jscomp.SourceFile{
+		jscomp.SourceFile_FromCode(fileName1, js1),
+		jscomp.SourceFile_FromCode(fileName2, js2),
+	})
+}
+
+func (b *SourceMapTestCaseBase) compileInputs(inputs []*jscomp.SourceFile) *SourceMapTestCase_RunResult {
 	t := b.t
 	t.Helper()
 	compiler := jscomp.NewCompilerWithErrorManager(NewTestErrorManager())
 	options := b.self.GetCompilerOptions()
 
 	options.SetChecksOnly(true)
-
-	inputs := []*jscomp.SourceFile{jscomp.SourceFile_FromCode(fileName1, js1)}
-
-	if js2 != nil && fileName2 != nil {
-		inputs =
-			[]*jscomp.SourceFile{
-				jscomp.SourceFile_FromCode(fileName1, js1), jscomp.SourceFile_FromCode(*fileName2, *js2)}
-	}
 
 	result := compiler.Compile(SourceMapTestCase_EXTERNS, inputs, options)
 
@@ -464,7 +463,7 @@ func (b *SourceMapTestCaseBase) CompileOfTwo(js1 string, fileName1 string, js2 *
 
 	var sb strings.Builder
 	result.SourceMap.Validate(true)
-	result.SourceMap.AppendTo(&sb, jutil.StringPtr("testcode"))
+	result.SourceMap.AppendToOptional(&sb, sourcemap.SomeString("testcode"))
 
 	rr := &SourceMapTestCase_RunResult{}
 	rr.GeneratedSource = source

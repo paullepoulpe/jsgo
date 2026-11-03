@@ -657,11 +657,16 @@ func NewMakeDeclaredNamesUnique_TargettedRenamer(
 }
 
 func (r *MakeDeclaredNamesUnique_TargettedRenamer) syncTargetIDs() {
-	if jutil.IsNil(r.targets) {
+	if r.targets == nil {
 		return
 	}
 	n := r.targets.Size()
 	if r.targetIDs != nil && r.cachedSize == n {
+		return
+	}
+	if n == 0 {
+		clear(r.targetIDs)
+		r.cachedSize = 0
 		return
 	}
 	r.targetIDs = make(map[strpool.ID]struct{}, n)
@@ -677,9 +682,17 @@ func (r *MakeDeclaredNamesUnique_TargettedRenamer) hasTargetID(id strpool.ID) bo
 	return ok
 }
 
+func (r *MakeDeclaredNamesUnique_TargettedRenamer) hasTargetName(name string) bool {
+	if r.targets != nil {
+		return r.targets.Contains(name)
+	}
+	id := strpool.Lookup(name)
+	return id != 0 && r.hasTargetID(id)
+}
+
 // Java: MakeDeclaredNamesUnique.TargettedRenamer.addDeclaredName(String, boolean)
 func (r *MakeDeclaredNamesUnique_TargettedRenamer) AddDeclaredName(name string, hoisted bool) {
-	if r.targets.Contains(name) {
+	if r.hasTargetName(name) {
 		r.delegate.AddDeclaredName(name, hoisted)
 	}
 }
@@ -699,7 +712,7 @@ func (r *MakeDeclaredNamesUnique_TargettedRenamer) getReplacementNameID(oldID st
 
 // Java: MakeDeclaredNamesUnique.TargettedRenamer.getReplacementName(String)
 func (r *MakeDeclaredNamesUnique_TargettedRenamer) GetReplacementNameValue(oldName string) (string, bool) {
-	if r.targets.Contains(oldName) {
+	if r.hasTargetName(oldName) {
 		return r.delegate.GetReplacementNameValue(oldName)
 	}
 	return "", false

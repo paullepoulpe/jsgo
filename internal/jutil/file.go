@@ -1,8 +1,6 @@
 package jutil
 
 import (
-	"errors"
-	"io/fs"
 	"os"
 	"strings"
 )
@@ -138,33 +136,6 @@ func fileIsDirectoryRaw(path string) bool {
 	}
 	st, err := os.Stat(path)
 	return err == nil && st.IsDir()
-}
-
-// Mkdirs is File.mkdirs(): creates the directory and any missing parents,
-// returning true if and only if the directory was created (false if it
-// already existed or could not be created).
-func (f *File) Mkdirs() bool {
-	if f.Exists() {
-		return false
-	}
-	return os.MkdirAll(f.path, 0o777) == nil
-}
-
-// CreateNewFile is File.createNewFile(): atomically creates the named file
-// if it does not exist, returning true if it was created and false if it
-// already existed; any other failure throws IOException with the C
-// library's reason.
-func (f *File) CreateNewFile() bool {
-	file, err := os.OpenFile(f.path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
-	if err == nil {
-		file.Close()
-		return true
-	}
-	if errors.Is(err, fs.ErrExist) {
-		return false
-	}
-	reason := FileNotFoundExceptionFromError(err, "").GetMessage()
-	panic(NewIOException(strings.TrimSuffix(strings.TrimPrefix(reason, " ("), ")")))
 }
 
 // GetAbsolutePath is File.getAbsolutePath(): the pathname resolved against

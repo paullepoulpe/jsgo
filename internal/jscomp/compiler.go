@@ -383,10 +383,13 @@ const compiler_SYNTHETIC_FILE_NAME_PREFIX = " [synthetic:"
 var compiler_SYNTHETIC_CODE_INPUT_ID = rhino.NewInputId(compiler_SYNTHETIC_FILE_NAME_PREFIX + "input] ")
 
 func copyOrderedStringMap(src jutil.MapSource[string, string]) *OrderedStringMap[string] {
-	if jutil.IsNil(src) {
+	if src == nil {
 		return nil
 	}
 	if om, ok := src.(*OrderedStringMap[string]); ok {
+		if om == nil {
+			return nil
+		}
 		cloned := om.Clone()
 		return &cloned
 	}

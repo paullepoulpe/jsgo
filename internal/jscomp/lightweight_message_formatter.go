@@ -194,13 +194,16 @@ func (f *VerboseMessageFormatter) FormatWarning(warning *JSError) string {
 // Java: VerboseMessageFormatter.format(JSError)
 func (f *VerboseMessageFormatter) Format(message *JSError) string {
 	description := message.Description()
-	sourceName := message.SourceName()
+	sourceName, hasSourceName := message.SourceNameOk()
 	lineNumber := message.GetLineNumber()
-	sourceRegion := f.source.GetSourceRegion(sourceName, lineNumber)
+	var sourceRegion Region
+	if hasSourceName {
+		sourceRegion = f.source.GetSourceRegion(sourceName, lineNumber)
+	}
 
 	source := "(unknown source)"
-	if sourceName != nil && *sourceName != "" {
-		source = *sourceName
+	if sourceName != "" {
+		source = sourceName
 	}
 	line := "(unknown line)"
 	if lineNumber >= 0 {
@@ -322,12 +325,7 @@ func (f *LightweightMessageFormatter) appendHeaderLine(
 // Java: LightweightMessageFormatter.format(JSError, boolean)
 func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) string {
 	source := f.source
-	sourceNamePtr := error.SourceName()
-	var sourceName string
-	hasSource := sourceNamePtr != nil
-	if hasSource {
-		sourceName = *sourceNamePtr
-	}
+	sourceName, hasSource := error.SourceNameOk()
 	lineNumber := error.GetLineNumber()
 	charno := error.Charno()
 
@@ -336,8 +334,8 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 	b.Grow(256)
 
 	var mapping *sourcemap.Mapping_OriginalMapping
-	if source != nil {
-		mapping = source.GetSourceMapping(sourceNamePtr, lineNumber, charno)
+	if source != nil && hasSource {
+		mapping = source.GetSourceMapping(sourceName, lineNumber, charno)
 	}
 
 	// Check if we can reverse-map the source.
@@ -346,10 +344,8 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 			lightweightMessageFormatter_appendPosition(&b, sourceName, lineNumber, charno)
 		}
 
-		originalFile := mapping.GetOriginalFile()
-		sourceName = originalFile
+		sourceName = mapping.GetOriginalFile()
 		hasSource = true
-		sourceNamePtr = &originalFile
 		lineNumber = mapping.GetLineNumber()
 		charno = mapping.GetColumnPosition()
 
@@ -367,21 +363,27 @@ func (f *LightweightMessageFormatter) Format(error *JSError, warning bool) strin
 
 	// For reverse-mapped sources, fall back to a single line excerpt because the excerpt length
 	// cannot be reliably mapped.
-	format := f.defaultFormat
-	if mapping != nil {
-		format = SourceExcerptProvider_SourceExcerpt_LINE
+	if hasSource {
+		format := f.defaultFormat
+		if mapping != nil {
+			format = SourceExcerptProvider_SourceExcerpt_LINE
+		}
+		f.appendExcerptWithPositionAndFormat(
+			&b, error, sourceName, lineNumber, charno, format)
 	}
-	f.appendExcerptWithPositionAndFormat(
-		&b, error, sourceNamePtr, lineNumber, charno, format)
 
 	return b.String()
 }
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError)
 func (f *LightweightMessageFormatter) GetExcerptWithPosition(error *JSError) string {
+	sourceName, hasSource := error.SourceNameOk()
+	if !hasSource {
+		return ""
+	}
 	return f.GetExcerptWithPositionAndLength(
 		error,
-		error.SourceName(),
+		sourceName,
 		error.GetLineNumber(),
 		error.Charno(),
 		error.Length(),
@@ -390,7 +392,7 @@ func (f *LightweightMessageFormatter) GetExcerptWithPosition(error *JSError) str
 
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError, String, int, int, SourceExcerpt)
 func (f *LightweightMessageFormatter) GetExcerptWithPositionAndFormat(
-	error *JSError, sourceName *string, lineNumber int, charno int, format SourceExcerptProvider_SourceExcerpt) string {
+	error *JSError, sourceName string, lineNumber int, charno int, format SourceExcerptProvider_SourceExcerpt) string {
 	var b strings.Builder
 	f.appendExcerptWithPositionAndFormat(&b, error, sourceName, lineNumber, charno, format)
 	return b.String()
@@ -399,7 +401,7 @@ func (f *LightweightMessageFormatter) GetExcerptWithPositionAndFormat(
 func (f *LightweightMessageFormatter) appendExcerptWithPositionAndFormat(
 	b *strings.Builder,
 	error *JSError,
-	sourceName *string,
+	sourceName string,
 	lineNumber int,
 	charno int,
 	format SourceExcerptProvider_SourceExcerpt) {
@@ -409,7 +411,7 @@ func (f *LightweightMessageFormatter) appendExcerptWithPositionAndFormat(
 // Java: LightweightMessageFormatter.getExcerptWithPosition(JSError, String, int, int, int, SourceExcerpt)
 func (f *LightweightMessageFormatter) GetExcerptWithPositionAndLength(
 	error *JSError,
-	sourceName *string,
+	sourceName string,
 	lineNumber int,
 	charno int,
 	length int,
@@ -422,7 +424,7 @@ func (f *LightweightMessageFormatter) GetExcerptWithPositionAndLength(
 func (f *LightweightMessageFormatter) appendExcerptWithPositionAndLength(
 	b *strings.Builder,
 	error *JSError,
-	sourceName *string,
+	sourceName string,
 	lineNumber int,
 	charno int,
 	length int,
@@ -436,12 +438,12 @@ func (f *LightweightMessageFormatter) appendExcerptWithPositionAndLength(
 		cookedLength = charno + length
 	}
 
-	sourceExcerpt := format.GetWithLength(source, sourceName, lineNumber, cookedLength, lightweightMessageFormatter_excerptFormatter)
-	if sourceExcerpt == nil {
+	sourceExcerpt, ok := format.GetWithLength(source, sourceName, lineNumber, cookedLength, lightweightMessageFormatter_excerptFormatter)
+	if !ok {
 		return
 	}
 
-	success := f.PadSourceExcerpt(error, *sourceExcerpt, charno, length, format, b)
+	success := f.PadSourceExcerpt(error, sourceExcerpt, charno, length, format, b)
 	if !success {
 		b.WriteString("Source excerpt could not be formatted. This may indicate a bug in the compiler.")
 	}
@@ -674,24 +676,24 @@ func NewLightweightMessageFormatter_LineNumberingFormatter() *LightweightMessage
 }
 
 // Java: LightweightMessageFormatter.LineNumberingFormatter.formatLine(String, int)
-func (*LightweightMessageFormatter_LineNumberingFormatter) FormatLine(line *string, lineNumber int) *string {
+func (*LightweightMessageFormatter_LineNumberingFormatter) FormatLine(line string, lineNumber int) string {
 	return line
 }
 
-// FormatRegion may return nil.
+// FormatRegion formats a region, returning ("", false) when region is nil or empty.
 //
 // Go-only: language-adapter — the line breaks are ASCII, so cutting the
 // code at their byte offsets yields the same substrings as Java's UTF-16
 // indices.
 //
 // Java: LightweightMessageFormatter.LineNumberingFormatter.formatRegion(Region)
-func (*LightweightMessageFormatter_LineNumberingFormatter) FormatRegion(region Region) *string {
+func (*LightweightMessageFormatter_LineNumberingFormatter) FormatRegion(region Region) (string, bool) {
 	if region == nil {
-		return nil
+		return "", false
 	}
 	code := region.GetSourceExcerpt()
 	if code == "" {
-		return nil
+		return "", false
 	}
 
 	// max length of the number display
@@ -711,8 +713,7 @@ func (*LightweightMessageFormatter_LineNumberingFormatter) FormatRegion(region R
 			line = code[start:]
 			if line == "" {
 				s := builder.String()
-				s = s[:len(s)-1]
-				return &s
+				return s[:len(s)-1], true
 			}
 		} else {
 			line = code[start:end]
@@ -744,8 +745,7 @@ func (*LightweightMessageFormatter_LineNumberingFormatter) FormatRegion(region R
 			lineNumber++
 		}
 	}
-	s := builder.String()
-	return &s
+	return builder.String(), true
 }
 
 // lightweightMessageFormatter_indexOfNewline is code.indexOf('\n', from)
@@ -797,14 +797,11 @@ func (r *SimpleRegion) GetSourceExcerpt() string { return r.source }
 // SourceExcerptProvider is responsible for building source code excerpt of
 // specific locations, such as a specific line or a region around a given
 // line number.
-//
-// Go-only: language-adapter — Java Strings that may be null (source names,
-// lines, formatted excerpts) are *string; nil is null.
 type SourceExcerptProvider interface {
 	// GetSourceLine gets the line indicated by the line number (1 being the
 	// first line of the file). This call will return only the specific line,
-	// or nil if it does not exist.
-	GetSourceLine(sourceName *string, lineNumber int) *string
+	// or ("", false) if it does not exist.
+	GetSourceLine(sourceName string, lineNumber int) (string, bool)
 
 	// GetSourceLines gets the specific lines returned by the beginning and
 	// excerpt length. Must not start or end with a carriage return.
@@ -815,18 +812,18 @@ type SourceExcerptProvider interface {
 	// just a single line. Otherwise, returns as many lines as needed
 	// (including the remainder of the last line). The result is nil if it
 	// does not exist.
-	GetSourceLines(sourceName *string, lineNumber int, length int) Region
+	GetSourceLines(sourceName string, lineNumber int, length int) Region
 
 	// GetSourceRegion gets a region around the indicated line number. The
 	// exact definition of a region is implementation specific, but it must
 	// contain the line indicated by the line number. A region must not start
 	// or end by a carriage return. The result is nil if it does not exist.
-	GetSourceRegion(sourceName *string, lineNumber int) Region
+	GetSourceRegion(sourceName string, lineNumber int) Region
 
 	// GetSourceMapping does a lookup for the original file position based on
 	// this source map, if the source file is associated with an
 	// inputSourceMap.
-	GetSourceMapping(sourceName *string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping
+	GetSourceMapping(sourceName string, lineNumber int, columnNumber int) *sourcemap.Mapping_OriginalMapping
 }
 
 // SourceExcerptProvider_SourceExcerpt is the source excerpt variety.
@@ -852,7 +849,7 @@ func (e SourceExcerptProvider_SourceExcerpt) String() string {
 //
 // Java: SourceExcerptProvider.SourceExcerpt.get(SourceExcerptProvider, String, int, ExcerptFormatter)
 func (e SourceExcerptProvider_SourceExcerpt) Get(
-	source SourceExcerptProvider, sourceName *string, lineNumber int, formatter *LightweightMessageFormatter_LineNumberingFormatter) *string {
+	source SourceExcerptProvider, sourceName string, lineNumber int, formatter *LightweightMessageFormatter_LineNumberingFormatter) (string, bool) {
 	return e.GetWithLength(source, sourceName, lineNumber, -1, formatter)
 }
 
@@ -861,11 +858,15 @@ func (e SourceExcerptProvider_SourceExcerpt) Get(
 //
 // Java: SourceExcerptProvider.SourceExcerpt.get(SourceExcerptProvider, String, int, int, ExcerptFormatter)
 func (e SourceExcerptProvider_SourceExcerpt) GetWithLength(
-	source SourceExcerptProvider, sourceName *string, lineNumber int, length int,
-	formatter *LightweightMessageFormatter_LineNumberingFormatter) *string {
+	source SourceExcerptProvider, sourceName string, lineNumber int, length int,
+	formatter *LightweightMessageFormatter_LineNumberingFormatter) (string, bool) {
 	switch e {
 	case SourceExcerptProvider_SourceExcerpt_LINE:
-		return formatter.FormatLine(source.GetSourceLine(sourceName, lineNumber), lineNumber)
+		line, ok := source.GetSourceLine(sourceName, lineNumber)
+		if !ok {
+			return "", false
+		}
+		return formatter.FormatLine(line, lineNumber), true
 	case SourceExcerptProvider_SourceExcerpt_FULL:
 		return formatter.FormatRegion(source.GetSourceLines(sourceName, lineNumber, length))
 	default: // REGION

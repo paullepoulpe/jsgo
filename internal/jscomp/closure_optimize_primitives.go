@@ -37,108 +37,98 @@ import (
 // Converts goog.reflect.objectProperty(propName, object) to
 // JSCompiler_renameProperty
 type ClosureOptimizePrimitives struct {
-	// Reference to the JS compiler
-	compiler AbstractCompiler
-
-	// Whether we can use Es6 syntax
+	compiler        AbstractCompiler
 	canUseEs6Syntax bool
 }
 
-var ClosureOptimizePrimitives_DUPLICATE_SET_MEMBER = DiagnosticType_Warning("JSC_DUPLICATE_SET_MEMBER", "Found duplicate value ''{0}'' in set")
+var ClosureOptimizePrimitives_DUPLICATE_SET_MEMBER = DiagnosticType_Warning(
+	"JSC_DUPLICATE_SET_MEMBER",
+	"Found duplicate value ''{0}'' in set",
+)
 
-var closureOptimizePrimitives_GOOG_OBJECT_CREATE = rhino.QualifiedName_Of("goog.object.create")
-var closureOptimizePrimitives_GOOG_OBJECT_CREATESET = rhino.QualifiedName_Of("goog.object.createSet")
+var (
+	googObjectCreateQName                = rhino.QualifiedName_Of("goog.object.create")
+	googObjectCreateSetQName             = rhino.QualifiedName_Of("goog.object.createSet")
+	closureOptimizePrimitivesVisitTokens = makeVisitTokenSet(rhino.Token_CALL)
+)
 
-var closureOptimizePrimitivesVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_CALL)
-	return s
-}()
-
-// ClosureOptimizePrimitives_FindPrimitives identifies all calls to closure
-// primitive functions
-type ClosureOptimizePrimitives_FindPrimitives struct {
+// closurePrimitiveFinder identifies all calls to closure primitive functions.
+type closurePrimitiveFinder struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
 	outer *ClosureOptimizePrimitives
 }
 
-func (*ClosureOptimizePrimitives_FindPrimitives) noVisitLeaves() {}
+func (*closurePrimitiveFinder) noVisitLeaves() {}
 
-func (*ClosureOptimizePrimitives_FindPrimitives) visitTokens() *ast.TokenSet {
+func (*closurePrimitiveFinder) visitTokens() *ast.TokenSet {
 	return &closureOptimizePrimitivesVisitTokens
 }
 
-// Java: ClosureOptimizePrimitives.FindPrimitives()
-func newClosureOptimizePrimitives_FindPrimitives(outer *ClosureOptimizePrimitives) *ClosureOptimizePrimitives_FindPrimitives {
-	return &ClosureOptimizePrimitives_FindPrimitives{outer: outer}
-}
-
-// Java: ClosureOptimizePrimitives.FindPrimitives.visit(NodeTraversal, Node, Node)
-func (f *ClosureOptimizePrimitives_FindPrimitives) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsCall() {
-		fn := n.GetFirstChild()
-		// TODO(user): Once goog.object becomes a goog.module, remove "goog$object$create" and
-		// related checks.
-		if f.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(fn) {
-			f.outer.ProcessRenamePropertyCall(n)
-		} else if fn.MatchesName("goog$object$create") ||
-			fn.MatchesName("module$contents$goog$object_create") ||
-			closureOptimizePrimitives_GOOG_OBJECT_CREATE.Matches(fn) {
-			f.outer.ProcessObjectCreateCall(n)
-		} else if fn.MatchesName("goog$object$createSet") ||
-			fn.MatchesName("module$contents$goog$object_createSet") ||
-			closureOptimizePrimitives_GOOG_OBJECT_CREATESET.Matches(fn) {
-			f.outer.ProcessObjectCreateSetCall(n)
-		}
+func (f *closurePrimitiveFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	call, ok := ast.AsCall(n)
+	if !ok {
+		return
+	}
+	fn := call.Callee().Node()
+	// TODO(user): Once goog.object becomes a goog.module, remove "goog$object$create" and
+	// related checks.
+	if f.outer.compiler.GetCodingConvention().IsPropertyRenameFunction(fn) {
+		f.outer.processRenamePropertyCall(call)
+	} else if fn.MatchesName("goog$object$create") ||
+		fn.MatchesName("module$contents$goog$object_create") ||
+		googObjectCreateQName.Matches(fn) {
+		f.outer.processObjectCreateCall(call)
+	} else if fn.MatchesName("goog$object$createSet") ||
+		fn.MatchesName("module$contents$goog$object_createSet") ||
+		googObjectCreateSetQName.Matches(fn) {
+		f.outer.processObjectCreateSetCall(call)
 	}
 }
 
-// NewClosureOptimizePrimitives: compiler is the AbstractCompiler.
+// NewClosureOptimizePrimitives constructs the ClosureOptimizePrimitives pass.
 //
 // Java: ClosureOptimizePrimitives(AbstractCompiler, boolean)
 func NewClosureOptimizePrimitives(compiler AbstractCompiler, canUseEs6Syntax bool) *ClosureOptimizePrimitives {
-	c := &ClosureOptimizePrimitives{}
-	c.compiler = compiler
-	c.canUseEs6Syntax = canUseEs6Syntax
-	return c
+	return &ClosureOptimizePrimitives{
+		compiler:        compiler,
+		canUseEs6Syntax: canUseEs6Syntax,
+	}
 }
 
 // Java: ClosureOptimizePrimitives.process(Node, Node)
 func (c *ClosureOptimizePrimitives) Process(externs rhino.Node, root rhino.Node) {
-	pass := ClosureOptimizePrimitives_FindPrimitives{outer: c}
+	pass := closurePrimitiveFinder{outer: c}
 	NodeTraversal_Traverse(c.compiler, root, &pass)
 }
 
-// ProcessObjectCreateCall converts all of the given call nodes to object
-// literals that are safe to do so.
-//
-// Java: ClosureOptimizePrimitives.processObjectCreateCall(Node)
-func (c *ClosureOptimizePrimitives) ProcessObjectCreateCall(callNode rhino.Node) {
-	curParam := callNode.GetSecondChild()
-	if c.CanOptimizeObjectCreate(curParam) {
-		objNode := rhino.IR_Objectlit().Srcref(callNode)
-		for !curParam.IsNil() {
-			keyNode := curParam
-			valueNode := curParam.GetNext()
-			curParam = valueNode.GetNext()
-
-			keyNode.Detach()
-			valueNode.Detach()
-
-			c.AddKeyValueToObjLit(objNode, keyNode, valueNode, NodeUtil_GetEnclosingScript(callNode))
-		}
-		callNode.ReplaceWith(objNode)
-		c.compiler.ReportChangeToEnclosingScope(objNode)
+// processObjectCreateCall converts safe goog.object.create calls to object literals.
+func (c *ClosureOptimizePrimitives) processObjectCreateCall(call ast.Call) {
+	if !c.canOptimizeObjectCreate(call) {
+		return
 	}
+	callNode := call.Node()
+	objNode := rhino.IR_Objectlit().Srcref(callNode)
+	scriptNode := NodeUtil_GetEnclosingScript(callNode)
+	curParam, hasParam := call.FirstArg()
+	for hasParam {
+		keyNode := curParam.Node()
+		valArg, _ := curParam.Next()
+		valueNode := valArg.Node()
+		curParam, hasParam = valArg.Next()
+
+		keyNode.Detach()
+		valueNode.Detach()
+
+		c.addKeyValueToObjLit(objNode, keyNode, valueNode, scriptNode)
+	}
+	callNode.ReplaceWith(objNode)
+	c.compiler.ReportChangeToEnclosingScope(objNode)
 }
 
-// ProcessRenamePropertyCall converts all of the given call nodes to object
-// literals that are safe to do so.
-//
-// Java: ClosureOptimizePrimitives.processRenamePropertyCall(Node)
-func (c *ClosureOptimizePrimitives) ProcessRenamePropertyCall(callNode rhino.Node) {
-	nameNode := callNode.GetFirstChild()
+// processRenamePropertyCall rewrites property-rename calls to JSCompiler_renameProperty.
+func (c *ClosureOptimizePrimitives) processRenamePropertyCall(call ast.Call) {
+	nameNode := call.Callee().Node()
 	if nameNode.MatchesQualifiedName(NodeUtil_JSC_PROPERTY_NAME_FN) {
 		return
 	}
@@ -146,98 +136,85 @@ func (c *ClosureOptimizePrimitives) ProcessRenamePropertyCall(callNode rhino.Nod
 	newTarget := rhino.IR_Name(NodeUtil_JSC_PROPERTY_NAME_FN).Srcref(nameNode)
 	newTarget.SetOriginalName(nameNode.GetOriginalQualifiedName())
 
-	nameNode.ReplaceWith(newTarget)
-	callNode.PutBooleanProp(rhino.Node_FREE_CALL, true)
-	c.compiler.ReportChangeToEnclosingScope(callNode)
+	call.SetCallee(ast.MustExpr(newTarget))
+	call.SetFreeCall(true)
+	c.compiler.ReportChangeToEnclosingScope(call.Node())
 }
 
-// CanOptimizeObjectCreate returns whether the given call to
-// goog.object.create can be converted to an object literal.
-//
-// Java: ClosureOptimizePrimitives.canOptimizeObjectCreate(Node)
-func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreate(firstParam rhino.Node) bool {
-	curParam := firstParam
-	for !curParam.IsNil() {
-		if !c.IsOptimizableKey(curParam) {
+// canOptimizeObjectCreate reports whether call to goog.object.create can be
+// converted to an object literal.
+func (c *ClosureOptimizePrimitives) canOptimizeObjectCreate(call ast.Call) bool {
+	curParam, hasParam := call.FirstArg()
+	for hasParam {
+		if !c.isOptimizableKey(curParam.Node()) {
 			return false
 		}
-		curParam = curParam.GetNext()
-
 		// Check for an odd number of parameters.
-		if curParam.IsNil() {
+		valArg, hasVal := curParam.Next()
+		if !hasVal {
 			return false
 		}
-		curParam = curParam.GetNext()
+		curParam, hasParam = valArg.Next()
 	}
 	return true
 }
 
-// ProcessObjectCreateSetCall converts all of the given call nodes to object
-// literals that are safe to do so.
-//
-// Java: ClosureOptimizePrimitives.processObjectCreateSetCall(Node)
-func (c *ClosureOptimizePrimitives) ProcessObjectCreateSetCall(callNode rhino.Node) {
-	curParam := callNode.GetSecondChild()
-	if c.CanOptimizeObjectCreateSet(curParam) {
-		objNode := rhino.IR_Objectlit().Srcref(callNode)
-		for !curParam.IsNil() {
-			keyNode := curParam
-			valueNode := rhino.IR_TrueNode().Srcref(keyNode)
-
-			curParam = curParam.GetNext()
-			keyNode.Detach()
-
-			c.AddKeyValueToObjLit(objNode, keyNode, valueNode, NodeUtil_GetEnclosingScript(callNode))
-		}
-		callNode.ReplaceWith(objNode)
-		c.compiler.ReportChangeToEnclosingScope(objNode)
+// processObjectCreateSetCall converts safe goog.object.createSet calls to object literals.
+func (c *ClosureOptimizePrimitives) processObjectCreateSetCall(call ast.Call) {
+	if !c.canOptimizeObjectCreateSet(call) {
+		return
 	}
+	callNode := call.Node()
+	objNode := rhino.IR_Objectlit().Srcref(callNode)
+	scriptNode := NodeUtil_GetEnclosingScript(callNode)
+	for arg := range ast.ReadAhead(call.FirstArg()) {
+		keyNode := arg.Detach().Node()
+		valueNode := rhino.IR_TrueNode().Srcref(keyNode)
+		c.addKeyValueToObjLit(objNode, keyNode, valueNode, scriptNode)
+	}
+	callNode.ReplaceWith(objNode)
+	c.compiler.ReportChangeToEnclosingScope(objNode)
 }
 
-// CanOptimizeObjectCreateSet returns whether the given call to
-// goog.object.createSet can be converted to an object literal.
-//
-// Java: ClosureOptimizePrimitives.canOptimizeObjectCreateSet(Node)
-func (c *ClosureOptimizePrimitives) CanOptimizeObjectCreateSet(firstParam rhino.Node) bool {
-	if !firstParam.IsNil() &&
-		firstParam.GetNext().IsNil() &&
-		!(firstParam.IsNumber() || firstParam.IsStringLit()) {
-		// if there is only one argument, and it's an array, then the method uses the array elements
+// canOptimizeObjectCreateSet reports whether call to goog.object.createSet can
+// be converted to an object literal.
+func (c *ClosureOptimizePrimitives) canOptimizeObjectCreateSet(call ast.Call) bool {
+	if only, ok := call.OnlyArg(); ok && !only.Node().IsNumber() && !only.Node().IsStringLit() {
+		// If there is only one argument, and it's an array, then the method uses the array elements
 		// as keys. Don't optimize it to {[arr]: true}. We only special-case number and string
-		// arguments in order to not regress ES5-out behavior
+		// arguments in order to not regress ES5-out behavior.
 		return false
 	}
 
-	curParam := firstParam
 	keys := make(map[string]bool)
-	for !curParam.IsNil() {
-		// All keys must be strings or numbers, otherwise we can't optimize the call.
-		if !c.IsOptimizableKey(curParam) {
+	for arg := range call.Args() {
+		argNode := arg.Node()
+		// All keys must be strings or numbers (or ES6 expressions), otherwise we can't optimize.
+		if !c.isOptimizableKey(argNode) {
 			return false
 		}
-		if curParam.IsStringLit() || curParam.IsNumber() {
-			var key string
-			if curParam.IsStringLit() {
-				key = curParam.GetString()
-			} else {
-				key = dtoa.DToA_NumberToString(curParam.GetDouble())
-			}
+		var key string
+		var hasKey bool
+		if str, ok := ast.AsStringLit(argNode); ok {
+			key, hasKey = str.Value(), true
+		} else if num, ok := ast.AsNumber(argNode); ok {
+			key, hasKey = dtoa.DToA_NumberToString(num.Value()), true
+		}
+		if hasKey {
 			if keys[key] {
-				c.compiler.Report(JSError_MakeWithNode(firstParam.GetPrevious(), ClosureOptimizePrimitives_DUPLICATE_SET_MEMBER, key))
+				c.compiler.Report(JSError_MakeWithNode(call.Callee().Node(), ClosureOptimizePrimitives_DUPLICATE_SET_MEMBER, key))
 				return false
 			}
 			keys[key] = true
 		}
-		curParam = curParam.GetNext()
 	}
 	return true
 }
 
-// Java: ClosureOptimizePrimitives.addKeyValueToObjLit(Node, Node, Node, Node)
-func (c *ClosureOptimizePrimitives) AddKeyValueToObjLit(objNode rhino.Node, keyNode rhino.Node, valueNode rhino.Node, scriptNode rhino.Node) {
+func (c *ClosureOptimizePrimitives) addKeyValueToObjLit(objNode, keyNode, valueNode, scriptNode rhino.Node) {
 	if keyNode.IsNumber() || keyNode.IsStringLit() {
-		if keyNode.IsNumber() {
-			keyNode = rhino.IR_String(dtoa.DToA_NumberToString(keyNode.GetDouble())).Srcref(keyNode)
+		if num, ok := ast.AsNumber(keyNode); ok {
+			keyNode = rhino.IR_String(dtoa.DToA_NumberToString(num.Value())).Srcref(keyNode)
 		}
 		// It isn't valid for a `STRING_KEY` to be marked as parenthesized.
 		keyNode.SetIsParenthesized(false)
@@ -250,12 +227,10 @@ func (c *ClosureOptimizePrimitives) AddKeyValueToObjLit(objNode rhino.Node, keyN
 	}
 }
 
-// Java: ClosureOptimizePrimitives.isOptimizableKey(Node)
-func (c *ClosureOptimizePrimitives) IsOptimizableKey(curParam rhino.Node) bool {
+func (c *ClosureOptimizePrimitives) isOptimizableKey(curParam rhino.Node) bool {
 	if c.canUseEs6Syntax {
 		return !NodeUtil_IsStatement(curParam)
-	} else {
-		// Not ES6, all keys must be strings or numbers.
-		return curParam.IsStringLit() || curParam.IsNumber()
 	}
+	// Not ES6, all keys must be strings or numbers.
+	return curParam.IsStringLit() || curParam.IsNumber()
 }

@@ -81,10 +81,16 @@ func TemplateTypeReplacer_ForInference(
 // TypeInference without heap allocation.
 func TemplateTypeReplacer_MakeForInference(
 	registry *JSTypeRegistry, bindings jutil.MapSource[*TemplateType, JSType]) TemplateTypeReplacer {
-	if jutil.IsNil(bindings) || bindings.Size() == 0 {
+	if bindings == nil {
+		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
+	}
+	if om, ok := bindings.(*jutil.OrderedMap[*TemplateType, JSType]); ok && om == nil {
 		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
 	}
 	n := bindings.Size()
+	if n == 0 {
+		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
+	}
 	keys := make([]*TemplateType, 0, n)
 	values := make([]JSType, 0, n)
 	unknown := registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
