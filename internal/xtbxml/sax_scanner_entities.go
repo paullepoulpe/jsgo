@@ -17,10 +17,12 @@ func (s *saxScanner) reference() {
 	nameUnits := s.scanName()
 	if nameUnits == nil {
 		s.fatalOrEOF("The entity name must immediately follow the '&' in the entity reference.")
+		return
 	}
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipChar(';') {
 		s.fatalOrEOF("The reference to entity \"" + name + "\" must end with the ';' delimiter.")
+		return
 	}
 	if c, ok := saxPredefined(name); ok {
 		s.text = append(s.text, c)
@@ -32,6 +34,7 @@ func (s *saxScanner) reference() {
 	case !declared:
 		if !s.externalSubset || s.standalone {
 			s.fatal("The entity \"" + name + "\" was referenced, but not declared.")
+			return
 		}
 		s.handler.SkippedEntity(name)
 	case decl.unparsed:
@@ -97,14 +100,20 @@ func (s *saxScanner) charRef(out []uint16) []uint16 {
 		}
 		s.in.advance(1)
 	}
+	if s.err != nil {
+		return out
+	}
 	if len(digits) == 0 {
 		if hex {
 			s.fatalOrEOF("A hexadecimal representation must immediately follow the \"&#x\" in a character reference.")
+		} else {
+			s.fatalOrEOF("A decimal representation must immediately follow the \"&#\" in a character reference.")
 		}
-		s.fatalOrEOF("A decimal representation must immediately follow the \"&#\" in a character reference.")
+		return out
 	}
 	if !s.skipChar(';') {
 		s.fatalOrEOF("The character reference must end with the ';' delimiter.")
+		return out
 	}
 	valid := value == 0x9 || value == 0xA || value == 0xD || (value >= 0x20 && value <= 0xD7FF) ||
 		(value >= 0xE000 && value <= 0xFFFD) || (value >= 0x10000 && value <= 0x10FFFF)
@@ -114,6 +123,7 @@ func (s *saxScanner) charRef(out []uint16) []uint16 {
 			prefix = "&#x"
 		}
 		s.fatal("Character reference \"" + prefix + jutil.StringFromUTF16(digits) + "\" is an invalid XML character.")
+		return out
 	}
 	if value >= 0x10000 {
 		v := value - 0x10000
@@ -122,119 +132,13 @@ func (s *saxScanner) charRef(out []uint16) []uint16 {
 	return append(out, uint16(value))
 }
 
-// attributeValue scans an attribute value after its opening quote, with
-// the normalization of XML 1.0 §3.3.3 for CDATA attributes: each white
-// space char (a line end counting as one) becomes a space, references are
-// replaced. It is scanned in the same steps as character data.
-func (s *saxScanner) attributeValue(quote int, elem, attr string) string {
-	in := s.in
-	s.val = s.val[:0]
-	for {
-		if in.pos == in.count {
-			if in.load(in.pos) == 0 {
-				s.fatal(s.eofMessage())
-			}
-		} else if in.pos == in.count-1 {
-			in.load(in.pos)
-		}
-		c := int(in.buf[in.pos])
-		if c == '\n' || c == '\r' {
-			var stopped bool
-			s.val, stopped = s.lineEnds(s.val, ' ')
-			if stopped {
-				continue
-			}
-		}
-		bracket := false
-		for in.pos < in.count {
-			c = int(in.buf[in.pos])
-			if c == quote {
-				in.advance(1)
-				return jutil.StringFromUTF16(s.val)
-			}
-			if c == '\t' {
-				s.val = append(s.val, ' ')
-				in.advance(1)
-				continue
-			}
-			if c == ']' {
-				// Observed behaviour (black-box): a ']' ends the step, so
-				// the reading rule applies again after it.
-				s.val = append(s.val, ']')
-				in.advance(1)
-				bracket = true
-				break
-			}
-			if !saxIsTextChar(uint16(c)) {
-				break
-			}
-			s.val = append(s.val, uint16(c))
-			in.advance(1)
-		}
-		if bracket || in.pos == in.count {
-			continue
-		}
-		switch {
-		case c == '\n' || c == '\r':
-		case c == '<':
-			s.fatal("The value of attribute \"" + attr + "\" associated with an element type \"" + elem + "\" must not contain the '<' character.")
-		case c == '&':
-			in.advance(1)
-			s.attributeReference(elem, attr)
-		case saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()):
-			s.val = append(s.val, uint16(c), in.buf[in.pos+1])
-			in.advance(2)
-		case saxIsHighSurrogate(c):
-			s.loneHighSurrogate(c)
-		default:
-			s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the value of attribute \"" + attr + "\" and element is \"" + elem + "\".")
-		}
-	}
-}
-
-// attributeReference scans a reference in an attribute value after '&'.
-func (s *saxScanner) attributeReference(elem, attr string) {
-	if s.peek() == '#' {
-		s.in.advance(1)
-		s.val = s.charRef(s.val)
-		return
-	}
-	nameUnits := s.scanName()
-	if nameUnits == nil {
-		s.fatalOrEOF("The entity name must immediately follow the '&' in the entity reference.")
-	}
-	name := jutil.StringFromUTF16(nameUnits)
-	if !s.skipChar(';') {
-		s.fatalOrEOF("The reference to entity \"" + name + "\" must end with the ';' delimiter.")
-	}
-	if c, ok := saxPredefined(name); ok {
-		s.val = append(s.val, c)
-		return
-	}
-	decl, declared := s.entities[name]
-	switch {
-	case !declared:
-		if !s.externalSubset || s.standalone {
-			s.fatal("The entity \"" + name + "\" was referenced, but not declared.")
-		}
-		// Observed behaviour (black-box): with an unread external subset,
-		// an undeclared entity contributes nothing to the value.
-	case decl.unparsed:
-		s.fatal("The unparsed entity reference \"&" + name + ";\" is not permitted.")
-	case decl.external:
-		s.fatal("The external entity reference \"&" + name + ";\" is not permitted in an attribute value.")
-	default:
-		saxUnsupported("references to internal entities are")
-	}
-}
-
 // cdata scans a CDATA section after "<![CDATA[" and reports its text in
 // one characters() call.
 func (s *saxScanner) cdata() {
 	data := s.scanUntil("]]>", "CDATA section", func(part []uint16) {
 		s.handler.Characters(part, 0, len(part))
 	})
-	if len(data) > 0 {
+	if s.err == nil && len(data) > 0 {
 		s.handler.Characters(data, 0, len(data))
 	}
 }
@@ -242,7 +146,7 @@ func (s *saxScanner) cdata() {
 // comment scans a comment after "<!--".
 func (s *saxScanner) comment() {
 	s.scanUntil("--", "comment", nil)
-	if !s.skipChar('>') {
+	if s.err == nil && !s.skipChar('>') {
 		s.fatalOrEOF("The string \"--\" is not permitted within comments.")
 	}
 }
@@ -253,19 +157,22 @@ func (s *saxScanner) processingInstruction(report bool) {
 	targetUnits := s.scanName()
 	if targetUnits == nil {
 		s.fatalOrEOF("The processing instruction must begin with the name of the target.")
+		return
 	}
 	target := jutil.StringFromUTF16(targetUnits)
 	if len(targetUnits) == 3 && strings.EqualFold(target, "xml") {
 		s.fatal("The processing instruction target matching \"[xX][mM][lL]\" is not allowed.")
+		return
 	}
 	data := ""
 	if s.peek() != '?' || !s.skipASCII("?>") {
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White space is required between the processing instruction target and data.")
+			return
 		}
 		data = jutil.StringFromUTF16(s.scanUntil("?>", "processing instruction", nil))
 	}
-	if report {
+	if report && s.err == nil {
 		s.handler.ProcessingInstruction(target, data)
 	}
 }
@@ -282,9 +189,12 @@ func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint1
 	in := s.in
 	s.val = s.val[:0]
 	d0 := uint16(delim[0])
-	for {
+	for s.err == nil {
 		if in.count-in.pos < len(delim) {
 			for in.load(in.pos) > 0 && in.count-in.pos < len(delim) {
+			}
+			if s.err != nil {
+				return nil
 			}
 			if in.count-in.pos < len(delim) {
 				// Observed behaviour (black-box): at the end of input the
@@ -293,6 +203,7 @@ func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint1
 				s.val = append(s.val, in.buf[in.pos:in.count]...)
 				in.advance(in.count - in.pos)
 				s.fatal(s.eofMessage())
+				return nil
 			}
 		}
 		if c := in.buf[in.pos]; c == '\n' || c == '\r' {
@@ -320,10 +231,14 @@ func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint1
 						// The buffer ends inside a possible delimiter.
 						for in.load(in.pos) > 0 && in.pos+i == in.count {
 						}
+						if s.err != nil {
+							return nil
+						}
 						if in.pos+i == in.count {
 							s.val = append(s.val, in.buf[in.pos:in.count]...)
 							in.advance(in.count - in.pos)
 							s.fatal(s.eofMessage())
+							return nil
 						}
 					}
 					if in.buf[in.pos+i] != uint16(delim[i]) {
@@ -350,11 +265,14 @@ func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint1
 				break chars
 			case saxIsHighSurrogate(int(c)):
 				s.loneHighSurrogate(int(c))
+				return nil
 			default:
 				s.fatal("An invalid XML character (Unicode: " + saxHex(int(c)) + ") was found in the " + what + ".")
+				return nil
 			}
 		}
 	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -367,28 +285,39 @@ func (s *saxScanner) doctype() {
 	s.sawDoctype = true
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!DOCTYPE\" in the document type declaration.")
+		return
 	}
 	rootUnits := s.scanName()
 	if rootUnits == nil {
 		s.fatalOrEOF("The root element type must appear after \"<!DOCTYPE\" in the document type declaration.")
+		return
 	}
 	root := jutil.StringFromUTF16(rootUnits)
 	if s.skipSpaces() {
 		if s.skipASCII("SYSTEM") {
 			if !s.skipSpaces() {
 				s.fatalOrEOF("White space is required after keyword SYSTEM in DOCTYPE decl.")
+				return
 			}
-			s.systemLiteral()
+			if s.systemLiteral(); s.err != nil {
+				return
+			}
 			s.externalSubset = true
 		} else if s.skipASCII("PUBLIC") {
 			if !s.skipSpaces() {
 				s.fatalOrEOF("White spaces are required after keyword PUBLIC in DOCTYPE decl.")
+				return
 			}
-			s.pubidLiteral()
+			if s.pubidLiteral(); s.err != nil {
+				return
+			}
 			if !s.skipSpaces() {
 				s.fatalOrEOF("White spaces are required between publicId and systemId.")
+				return
 			}
-			s.systemLiteral()
+			if s.systemLiteral(); s.err != nil {
+				return
+			}
 			s.externalSubset = true
 		}
 		s.skipSpaces()
@@ -398,10 +327,14 @@ func (s *saxScanner) doctype() {
 		s.inSubset = true
 		s.internalSubset()
 		s.inSubset = false
+		if s.err != nil {
+			return
+		}
 		s.skipSpaces()
 		if s.peek() == saxStopEOF {
 			// Observed behaviour (black-box): reported without a position.
 			s.fatalAt("Premature end of file.", -1, -1)
+			return
 		}
 	}
 	if !s.skipChar('>') {
@@ -413,6 +346,7 @@ func (s *saxScanner) systemLiteral() {
 	quote := s.peek()
 	if quote != '"' && quote != '\'' {
 		s.fatalOrEOF("The system identifier must begin with either a single or double quote character.")
+		return
 	}
 	s.in.advance(1)
 	s.literal(quote)
@@ -424,8 +358,10 @@ func (s *saxScanner) pubidLiteral() {
 		// Observed behaviour (black-box): reported after that char.
 		if s.next() == saxStopEOF {
 			s.fatal(s.eofMessage())
+			return
 		}
 		s.fatal("The public identifier must begin with either a single or double quote character.")
+		return
 	}
 	s.in.advance(1)
 	s.pubidChars(quote)
@@ -442,6 +378,7 @@ func (s *saxScanner) pubidChars(quote int) {
 		c := s.peek()
 		if c == saxStopEOF {
 			s.fatal(s.eofMessage())
+			return
 		}
 		if bump {
 			in.column++
@@ -464,6 +401,7 @@ func (s *saxScanner) pubidChars(quote int) {
 		case !saxIsPubidChar(c):
 			in.advance(1)
 			s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the public identifier.")
+			return
 		default:
 			in.advance(1)
 		}
@@ -477,13 +415,17 @@ func (s *saxScanner) pubidChars(quote int) {
 // the chars of production [2] Char in the BMP only.
 func (s *saxScanner) literal(quote int) {
 	in := s.in
-	for {
+	for s.err == nil {
 		if in.pos == in.count {
 			if in.load(in.pos) == 0 {
 				s.fatal(s.eofMessage())
+				return
 			}
 		} else if in.pos == in.count-1 {
 			in.load(in.pos)
+			if s.err != nil {
+				return
+			}
 		}
 		if c := in.buf[in.pos]; (c == '\n' || c == '\r') && int(c) != quote {
 			if _, stopped := s.lineEnds(nil, '\n'); stopped {
@@ -506,6 +448,7 @@ func (s *saxScanner) literal(quote int) {
 			}
 			if !saxIsXMLChar(c) {
 				s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the system identifier.")
+				return
 			}
 			in.advance(1)
 			if c == '&' || c == '<' || c == ']' || c == '%' {
@@ -528,18 +471,22 @@ func saxIsPubidChar(c int) bool {
 
 func (s *saxScanner) internalSubset() {
 	const notWellFormed = "The markup declarations contained or pointed to by the document type declaration must be well-formed."
-	for {
+	for s.err == nil {
 		s.skipSpaces()
 		c := s.peek()
 		switch c {
 		case saxStopEOF:
 			s.fatalAt("Premature end of file.", -1, -1)
+			return
 		case ']':
 			s.in.advance(1)
 			return
 		case '%':
 			s.in.advance(1)
 			name := s.peReference(false)
+			if s.err != nil {
+				return
+			}
 			if _, ok := s.paramEntities[name]; ok {
 				saxUnsupported("parameter entity references are")
 			}
@@ -558,6 +505,7 @@ func (s *saxScanner) internalSubset() {
 					s.in.advance(1)
 					if !s.skipChar('-') {
 						s.fatalOrEOF(notWellFormed)
+						return
 					}
 					s.comment()
 				case s.skipASCII("ELEMENT"):
@@ -573,14 +521,18 @@ func (s *saxScanner) internalSubset() {
 					// is reported after its '['.
 					s.in.advance(1)
 					s.fatal(notWellFormed)
+					return
 				default:
 					s.fatalOrEOF(notWellFormed)
+					return
 				}
 			default:
 				s.fatalOrEOF(notWellFormed)
+				return
 			}
 		default:
 			s.fatal(notWellFormed)
+			return
 		}
 	}
 }
@@ -589,14 +541,17 @@ func (s *saxScanner) internalSubset() {
 func (s *saxScanner) elementDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!ELEMENT\" in the element type declaration.")
+		return
 	}
 	nameUnits := s.scanName()
 	if nameUnits == nil {
 		s.fatalOrEOF("The element type is required in the element type declaration.")
+		return
 	}
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after the element type \"" + name + "\" in the element type declaration.")
+		return
 	}
 	switch {
 	case s.skipASCII("EMPTY"), s.skipASCII("ANY"):
@@ -604,7 +559,9 @@ func (s *saxScanner) elementDecl() {
 		s.in.advance(1)
 		s.skipSpaces()
 		if !s.skipASCII("#PCDATA") {
-			s.childrenGroup(name)
+			if s.childrenGroup(name); s.err != nil {
+				return
+			}
 			if s.elementContent == nil {
 				s.elementContent = map[string]bool{}
 			}
@@ -618,24 +575,29 @@ func (s *saxScanner) elementDecl() {
 			s.skipSpaces()
 			if s.scanName() == nil {
 				s.fatalOrEOF("An element type is required in the declaration of element type \"" + name + "\".")
+				return
 			}
 			names++
 			s.skipSpaces()
 		}
 		if c := s.peek(); c != ')' && names == 0 {
 			s.fatalOrEOF("A ')' is required in the declaration of element type \"" + name + "\".")
+			return
 		}
 		if names > 0 {
 			if !s.skipASCII(")*") {
 				s.fatalOrEOF("The mixed content model \"" + name + "\" must end with \")*\" when the types of child elements are constrained.")
+				return
 			}
 		} else if !s.skipASCII(")*") && !s.skipChar(')') {
 			// Observed behaviour (black-box): ")*" is looked for first,
 			// which reads more input before the ')' is consumed.
 			s.fatalOrEOF("The mixed content model \"" + name + "\" must end with \")*\" when the types of child elements are constrained.")
+			return
 		}
 	default:
 		s.fatalOrEOF("A '(' character or an element type is required in the declaration of element type \"" + name + "\".")
+		return
 	}
 	s.skipSpaces()
 	if !s.skipChar('>') {
@@ -646,7 +608,9 @@ func (s *saxScanner) elementDecl() {
 // childrenGroup scans the rest of a children content model group after
 // its '(' and white space (productions [47] to [50]).
 func (s *saxScanner) childrenGroup(name string) {
-	s.contentParticle(name)
+	if s.contentParticle(name); s.err != nil {
+		return
+	}
 	s.skipSpaces()
 	separator := 0
 	for {
@@ -657,11 +621,14 @@ func (s *saxScanner) childrenGroup(name string) {
 		}
 		if (c != '|' && c != ',') || (separator != 0 && c != separator) {
 			s.fatalOrEOF("A ')' is required in the declaration of element type \"" + name + "\".")
+			return
 		}
 		separator = c
 		s.in.advance(1)
 		s.skipSpaces()
-		s.contentParticle(name)
+		if s.contentParticle(name); s.err != nil {
+			return
+		}
 		s.skipSpaces()
 	}
 	s.occurrence()
@@ -676,6 +643,7 @@ func (s *saxScanner) contentParticle(name string) {
 	}
 	if s.scanName() == nil {
 		s.fatalOrEOF("A '(' character or an element type is required in the declaration of element type \"" + name + "\".")
+		return
 	}
 	s.occurrence()
 }
@@ -690,22 +658,26 @@ func (s *saxScanner) occurrence() {
 func (s *saxScanner) entityDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!ENTITY\" in the entity declaration.")
+		return
 	}
 	isParam := false
 	if s.peek() == '%' {
 		s.in.advance(1)
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White space is required after \"<!ENTITY\" in the entity declaration.")
+			return
 		}
 		isParam = true
 	}
 	nameUnits := s.scanName()
 	if nameUnits == nil {
 		s.fatalOrEOF("The name of the entity is required in the entity declaration.")
+		return
 	}
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required between the entity name \"" + name + "\" and the definition in the entity declaration.")
+		return
 	}
 	decl := saxEntityDecl{}
 	// Observed behaviour (black-box): the keywords are tried first (which
@@ -714,16 +686,21 @@ func (s *saxScanner) entityDecl() {
 	case s.skipASCII("SYSTEM"):
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White space is required after keyword SYSTEM in DOCTYPE decl.")
+			return
 		}
 		s.systemLiteral()
 		decl.external = true
 	case s.skipASCII("PUBLIC"):
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White spaces are required after keyword PUBLIC in DOCTYPE decl.")
+			return
 		}
-		s.pubidLiteral()
+		if s.pubidLiteral(); s.err != nil {
+			return
+		}
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White spaces are required between publicId and systemId.")
+			return
 		}
 		s.systemLiteral()
 		decl.external = true
@@ -736,8 +713,13 @@ func (s *saxScanner) entityDecl() {
 		// key, after the char that is not a quote.
 		if s.next() == saxStopEOF {
 			s.fatal(s.eofMessage())
+		} else {
+			s.fatal("OpenQuoteMissingInDecl")
 		}
-		s.fatal("OpenQuoteMissingInDecl")
+		return
+	}
+	if s.err != nil {
+		return
 	}
 	s.skipSpaces()
 	// Observed behaviour (black-box): NDATA is looked for (reading ahead)
@@ -745,15 +727,18 @@ func (s *saxScanner) entityDecl() {
 	if decl.external && !isParam && s.skipASCII("NDATA") {
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White space is required between \"NDATA\" and the notation name in the declaration for the entity \"" + name + "\".")
+			return
 		}
 		if s.scanName() == nil {
 			s.fatalOrEOF("The name of the notation is required after \"NDATA\" in the declaration for the entity \"" + name + "\".")
+			return
 		}
 		decl.unparsed = true
 		s.skipSpaces()
 	}
 	if !s.skipChar('>') {
 		s.fatalOrEOF("The declaration for the entity \"" + name + "\" must end with '>'.")
+		return
 	}
 	if isParam {
 		if s.paramEntities == nil {
@@ -788,13 +773,17 @@ func (s *saxScanner) entityDecl() {
 func (s *saxScanner) entityValue(quote int) {
 	in := s.in
 	continued := false
-	for {
+	for s.err == nil {
 		if in.pos == in.count {
 			if in.load(in.pos) == 0 {
 				s.fatal("Premature end of file.")
+				return
 			}
 		} else if c := in.buf[in.pos]; in.pos == in.count-1 && !(continued && (c == '\n' || c == '\r')) {
 			in.load(in.pos)
+			if s.err != nil {
+				return
+			}
 		}
 		if c := in.buf[in.pos]; (c == '\n' || c == '\r') && !continued {
 			if _, stopped := s.lineEnds(nil, '\n'); stopped {
@@ -806,6 +795,9 @@ func (s *saxScanner) entityValue(quote int) {
 					in.column++
 					in.load(in.pos)
 					in.column--
+					if s.err != nil {
+						return
+					}
 				}
 				continue
 			}
@@ -839,21 +831,25 @@ func (s *saxScanner) entityValue(quote int) {
 				nameUnits := s.scanName()
 				if nameUnits == nil {
 					s.fatalOrEOF("The entity name must immediately follow the '&' in the entity reference.")
+					return
 				}
 				if !s.skipChar(';') {
 					s.fatalOrEOF("The reference to entity \"" + jutil.StringFromUTF16(nameUnits) + "\" must end with the ';' delimiter.")
+					return
 				}
 				break step
 			case saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()):
 				in.advance(2)
 			case saxIsHighSurrogate(c):
 				s.loneHighSurrogate(c)
+				return
 			case saxIsXMLChar(c):
 				in.advance(1)
 			default:
 				// Observed behaviour (black-box): the JDK reports the bare
 				// message key.
 				s.fatal("InvalidCharInLiteral")
+				return
 			}
 		}
 	}
@@ -866,13 +862,16 @@ func (s *saxScanner) peReference(inValue bool) string {
 	nameUnits := s.scanName()
 	if nameUnits == nil {
 		s.fatalOrEOF("The entity name must immediately follow the '%' in the parameter entity reference.")
+		return ""
 	}
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipChar(';') {
 		s.fatalOrEOF("The parameter entity reference \"%" + name + ";\" must end with the ';' delimiter.")
+		return ""
 	}
 	if inValue {
 		s.fatal("The parameter entity reference \"%" + name + ";\" cannot occur within markup in the internal subset of the DTD.")
+		return ""
 	}
 	return name
 }
@@ -881,33 +880,45 @@ func (s *saxScanner) peReference(inValue bool) string {
 func (s *saxScanner) notationDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!NOTATION\" in the notation declaration.")
+		return
 	}
 	nameUnits := s.scanName()
 	if nameUnits == nil {
 		s.fatalOrEOF("The name of the notation is required in the notation declaration.")
+		return
 	}
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after the notation name \"" + name + "\" in the notation declaration.")
+		return
 	}
 	switch {
 	case s.skipASCII("SYSTEM"):
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White space is required after keyword SYSTEM in DOCTYPE decl.")
+			return
 		}
-		s.systemLiteral()
+		if s.systemLiteral(); s.err != nil {
+			return
+		}
 	case s.skipASCII("PUBLIC"):
 		if !s.skipSpaces() {
 			s.fatalOrEOF("White spaces are required after keyword PUBLIC in DOCTYPE decl.")
+			return
 		}
-		s.pubidLiteral()
+		if s.pubidLiteral(); s.err != nil {
+			return
+		}
 		if s.skipSpaces() {
 			if q := s.peek(); q == '"' || q == '\'' {
-				s.systemLiteral()
+				if s.systemLiteral(); s.err != nil {
+					return
+				}
 			}
 		}
 	default:
 		s.fatalOrEOF("The declaration for the notation \"" + name + "\" must include a system or public identifier.")
+		return
 	}
 	s.skipSpaces()
 	if !s.skipChar('>') {

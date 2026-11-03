@@ -274,23 +274,11 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotObject(t rhino.JSType)
 			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 		}
 		return nil
-	case *rhino.AllType:
-		return s.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
 	case *rhino.UnknownType:
 		return s.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
-	case *rhino.BooleanType:
-		return s.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
-	case *rhino.NullType:
-		return s.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
-	case *rhino.NumberType:
-		return s.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
-	case *rhino.BigIntType:
-		return s.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
-	case *rhino.StringType:
-		return s.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
-	case *rhino.VoidType:
-		return s.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
-	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+	case *rhino.AllType, *rhino.BooleanType, *rhino.NullType,
+		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType, *rhino.VoidType,
+		*rhino.SymbolTypeBase, *rhino.KnownSymbolType:
 		return t
 	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase,
 		*rhino.RecordType, *rhino.EnumType, *rhino.NoResolvedType, *rhino.TemplatizedType, *rhino.TemplateType:
@@ -442,12 +430,12 @@ func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 		}
 		return r
 	case *rhino.AllType:
-		return s.restrictTopByOneTypeOf(s.GetNativeType(rhino.JSTypeNative_ALL_TYPE), value, resultEqualsValue)
+		return s.restrictTopByOneTypeOf(t, value, resultEqualsValue)
 	case *rhino.UnknownType:
 		return s.restrictTopByOneTypeOf(s.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE), value, resultEqualsValue)
 	case *rhino.BooleanType:
 		if (value == "boolean") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+			return t
 		}
 		return nil
 	case *rhino.InstanceObjectType, *rhino.PrototypeObjectTypeBase, *rhino.RecordType,
@@ -455,7 +443,7 @@ func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 		return s.restrictObjectByOneTypeOf(t.(rhino.ObjectType), value, resultEqualsValue)
 	case *rhino.NullType:
 		if (value == "object") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
+			return t
 		}
 		return nil
 	case *rhino.NamedType:
@@ -464,17 +452,17 @@ func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 		return s.restrictByOneTypeOf(x.GetReferencedTypeInternal(), value, resultEqualsValue)
 	case *rhino.NumberType:
 		if (value == "number") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+			return t
 		}
 		return nil
 	case *rhino.BigIntType:
 		if (value == "bigint") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
+			return t
 		}
 		return nil
 	case *rhino.StringType:
 		if (value == "string") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+			return t
 		}
 		return nil
 	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
@@ -484,7 +472,7 @@ func (s *SemanticReverseAbstractInterpreter) restrictByOneTypeOf(
 		return nil
 	case *rhino.VoidType:
 		if (value == "undefined") == resultEqualsValue {
-			return s.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
+			return t
 		}
 		return nil
 	case *rhino.UnionType:
@@ -647,23 +635,11 @@ func (s *SemanticReverseAbstractInterpreter) restrictToNotArray(t rhino.JSType) 
 			return s.GetNativeType(rhino.JSTypeNative_NO_OBJECT_TYPE)
 		}
 		return t
-	case *rhino.AllType:
-		return s.GetNativeType(rhino.JSTypeNative_ALL_TYPE)
 	case *rhino.UnknownType:
 		return s.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
-	case *rhino.BooleanType:
-		return s.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
-	case *rhino.NullType:
-		return s.GetNativeType(rhino.JSTypeNative_NULL_TYPE)
-	case *rhino.NumberType:
-		return s.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
-	case *rhino.BigIntType:
-		return s.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE)
-	case *rhino.StringType:
-		return s.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
-	case *rhino.VoidType:
-		return s.GetNativeType(rhino.JSTypeNative_VOID_TYPE)
-	case *rhino.SymbolTypeBase, *rhino.KnownSymbolType:
+	case *rhino.AllType, *rhino.BooleanType, *rhino.NullType,
+		*rhino.NumberType, *rhino.BigIntType, *rhino.StringType, *rhino.VoidType,
+		*rhino.SymbolTypeBase, *rhino.KnownSymbolType:
 		return t
 	case *rhino.EnumElementType:
 		prim := x.GetPrimitiveType()

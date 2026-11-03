@@ -350,7 +350,7 @@ func (f *commonJsFindImportsAndExports) isCommonJsModule() bool {
 }
 
 // Report implements ErrorHandler for ModuleLoader.SetErrorHandler.
-func (f *commonJsFindImportsAndExports) Report(ignoredLevel *CheckLevel, error_ *JSError) {
+func (f *commonJsFindImportsAndExports) Report(ignoredLevel CheckLevel, error_ *JSError) {
 	f.errors = append(f.errors, error_)
 }
 

@@ -104,11 +104,7 @@ type Es6RewriteBlockScopedFunctionDeclaration struct {
 // Java: Es6RewriteBlockScopedFunctionDeclaration.transpiledFeatures
 var es6RewriteBlockScopedFunctionDeclaration_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION)
 
-var es6RewriteBlockScopedFnVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_FUNCTION)
-	return s
-}()
+var es6RewriteBlockScopedFnVisitTokens = makeVisitTokenSet(rhino.Token_FUNCTION)
 
 func (*Es6RewriteBlockScopedFunctionDeclaration) noVisitLeaves() {}
 func (*Es6RewriteBlockScopedFunctionDeclaration) visitTokens() *ast.TokenSet {
@@ -117,9 +113,7 @@ func (*Es6RewriteBlockScopedFunctionDeclaration) visitTokens() *ast.TokenSet {
 
 // Java: Es6RewriteBlockScopedFunctionDeclaration(AbstractCompiler)
 func NewEs6RewriteBlockScopedFunctionDeclaration(compiler AbstractCompiler) *Es6RewriteBlockScopedFunctionDeclaration {
-	e := &Es6RewriteBlockScopedFunctionDeclaration{}
-	e.compiler = compiler
-	return e
+	return &Es6RewriteBlockScopedFunctionDeclaration{compiler: compiler}
 }
 
 // Java: Es6RewriteBlockScopedFunctionDeclaration.process(Node, Node)
@@ -164,14 +158,15 @@ func (e *Es6RewriteBlockScopedFunctionDeclaration) Visit(t *NodeTraversal, n rhi
 //
 // Java: Es6RewriteBlockScopedFunctionDeclaration.visitBlockScopedFunctionDeclaration(NodeTraversal, Node, Node)
 func (e *Es6RewriteBlockScopedFunctionDeclaration) VisitBlockScopedFunctionDeclaration(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	fn := ast.MustFunction(n)
 	// Prepare a spot for the function.
-	oldNameNode := n.GetFirstChild()
+	oldNameNode := fn.NameNode().Node()
 	fnNameNode := oldNameNode.CloneNode()
 	let := rhino.IR_Declaration(fnNameNode, rhino.Token_LET).Srcref(n)
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
 
 	// Prepare the function.
-	oldNameNode.SetString("")
+	fn.RemoveName()
 	e.compiler.ReportChangeToEnclosingScope(oldNameNode)
 
 	// Move the function to the front of the parent.
@@ -194,11 +189,7 @@ type Es6RewriteRestParameters struct {
 // Java: Es6RewriteRestParameters.TRANSPILED_FEATURES
 var Es6RewriteRestParameters_TRANSPILED_FEATURES = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_REST_PARAMETERS)
 
-var es6RewriteRestParametersVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_ITER_REST)
-	return s
-}()
+var es6RewriteRestParametersVisitTokens = makeVisitTokenSet(rhino.Token_ITER_REST)
 
 func (*Es6RewriteRestParameters) noVisitLeaves() {}
 func (*Es6RewriteRestParameters) visitTokens() *ast.TokenSet {
@@ -207,13 +198,12 @@ func (*Es6RewriteRestParameters) visitTokens() *ast.TokenSet {
 
 // Java: Es6RewriteRestParameters(AbstractCompiler)
 func NewEs6RewriteRestParameters(compiler AbstractCompiler) *Es6RewriteRestParameters {
-	e := &Es6RewriteRestParameters{}
-	e.compiler = compiler
-	e.astFactory = compiler.CreateAstFactory()
-	e.namespace = compiler.GetTranspilationNamespace()
-	e.getRestArguments =
-		compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.getRestArguments")
-	return e
+	return &Es6RewriteRestParameters{
+		compiler:         compiler,
+		astFactory:       compiler.CreateAstFactory(),
+		namespace:        compiler.GetTranspilationNamespace(),
+		getRestArguments: compiler.GetRuntimeJsLibManager().GetJsLibField("$jscomp.getRestArguments"),
+	}
 }
 
 // Java: Es6RewriteRestParameters.process(Node, Node)
@@ -224,7 +214,7 @@ func (e *Es6RewriteRestParameters) Process(externs rhino.Node, root rhino.Node) 
 
 // Java: Es6RewriteRestParameters.visit(NodeTraversal, Node, Node)
 func (e *Es6RewriteRestParameters) Visit(traversal *NodeTraversal, current rhino.Node, parent rhino.Node) {
-	if current.GetToken() == rhino.Token_ITER_REST {
+	if current.IsRest() {
 		e.VisitRestParam(traversal, current, parent)
 	}
 }
@@ -233,9 +223,9 @@ func (e *Es6RewriteRestParameters) Visit(traversal *NodeTraversal, current rhino
 //
 // Java: Es6RewriteRestParameters.visitRestParam(NodeTraversal, Node, Node)
 func (e *Es6RewriteRestParameters) VisitRestParam(t *NodeTraversal, restParam rhino.Node, paramList rhino.Node) {
-	functionBody := paramList.GetNext()
+	functionBody := ast.MustFunction(paramList.GetParent()).Body().Node()
 	restIndex := paramList.GetIndexOfChild(restParam)
-	nameNode := restParam.GetOnlyChild()
+	nameNode := ast.MustIterRest(restParam).Target().Node()
 	paramName := nameNode.GetString()
 
 	// Remove the existing param from the list, as it will be replaced with a declaration with the
@@ -282,22 +272,18 @@ type SubstituteEs6Syntax struct {
 	objectLiteralShorthandWasAdded bool
 }
 
-var substituteEs6SyntaxVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_FUNCTION)
-	s.Add(rhino.Token_STRING_KEY)
-	s.Add(rhino.Token_SCRIPT)
-	return s
-}()
+var substituteEs6SyntaxVisitTokens = makeVisitTokenSet(
+	rhino.Token_FUNCTION,
+	rhino.Token_STRING_KEY,
+	rhino.Token_SCRIPT,
+)
 
 func (*SubstituteEs6Syntax) noVisitLeaves()             {}
 func (*SubstituteEs6Syntax) visitTokens() *ast.TokenSet { return &substituteEs6SyntaxVisitTokens }
 
 // Java: SubstituteEs6Syntax(AbstractCompiler)
 func NewSubstituteEs6Syntax(compiler AbstractCompiler) *SubstituteEs6Syntax {
-	s := &SubstituteEs6Syntax{}
-	s.compiler = compiler
-	return s
+	return &SubstituteEs6Syntax{compiler: compiler}
 }
 
 // Java: SubstituteEs6Syntax.process(Node, Node)
@@ -309,11 +295,11 @@ func (s *SubstituteEs6Syntax) Process(externs rhino.Node, root rhino.Node) {
 func (s *SubstituteEs6Syntax) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		if n.IsArrowFunction() {
-			s.MaybeSimplifyArrowFunctionBody(n, n.GetLastChild())
+		if fn := ast.MustFunction(n); fn.IsArrow() {
+			s.MaybeSimplifyArrowFunctionBody(n, fn.Body().Node())
 		}
 	case rhino.Token_STRING_KEY:
-		if n.GetFirstChild().IsName() && n.GetFirstChild().GetStringID() == n.GetStringID() {
+		if val := ast.MustStringKey(n).Value().Node(); val.IsName() && val.GetStringID() == n.GetStringID() {
 			n.SetShorthandProperty(true)
 			s.objectLiteralShorthandWasAdded = true
 		}
@@ -332,13 +318,21 @@ func (s *SubstituteEs6Syntax) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 // Java: SubstituteEs6Syntax.maybeSimplifyArrowFunctionBody(Node, Node)
 func (s *SubstituteEs6Syntax) MaybeSimplifyArrowFunctionBody(arrowFunction rhino.Node, body rhino.Node) {
 	jutil.CheckArgument(arrowFunction.IsArrowFunction())
-	if !body.IsBlock() || !body.HasOneChild() || !body.GetFirstChild().IsReturn() {
+	block, ok := ast.AsBlock(body)
+	if !ok {
 		return
 	}
-	returnValue := body.GetFirstChild().RemoveFirstChild()
+	onlyStmt, ok := block.OnlyStatement()
+	if !ok {
+		return
+	}
+	ret, ok := onlyStmt.AsReturn()
+	if !ok {
+		return
+	}
 	var replacement rhino.Node
-	if !returnValue.IsNil() {
-		replacement = returnValue
+	if returnValue, ok := ret.Value(); ok {
+		replacement = returnValue.Detach().Node()
 	} else {
 		replacement = rhino.IR_Name("undefined")
 	}
@@ -371,11 +365,7 @@ type RewriteObjectSpread struct {
 // Java: RewriteObjectSpread.transpiledFeatures
 var RewriteObjectSpread_transpiledFeatures = parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD)
 
-var rewriteObjectSpreadVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_OBJECTLIT)
-	return s
-}()
+var rewriteObjectSpreadVisitTokens = makeVisitTokenSet(rhino.Token_OBJECTLIT)
 
 // Java: RewriteObjectSpread(AbstractCompiler)
 func NewRewriteObjectSpread(compiler AbstractCompiler) *RewriteObjectSpread {
@@ -495,14 +485,12 @@ type RewriteGlobalDeclarationsForTryCatchWrapping struct {
 	classes   []rhino.Node
 }
 
-var rewriteGlobalDeclarationsVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_FUNCTION)
-	s.Add(rhino.Token_CLASS)
-	s.Add(rhino.Token_CONST)
-	s.Add(rhino.Token_LET)
-	return s
-}()
+var rewriteGlobalDeclarationsVisitTokens = makeVisitTokenSet(
+	rhino.Token_FUNCTION,
+	rhino.Token_CLASS,
+	rhino.Token_CONST,
+	rhino.Token_LET,
+)
 
 func (*RewriteGlobalDeclarationsForTryCatchWrapping) noVisitLeaves() {}
 func (*RewriteGlobalDeclarationsForTryCatchWrapping) visitTokens() *ast.TokenSet {
@@ -544,15 +532,16 @@ func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Process(externs rhino.Nod
 			// Lists.reverse(entry.getValue())
 			for j := len(fnNodes) - 1; j >= 0; j-- {
 				n := fnNodes[j]
+				fn := ast.MustFunction(n)
 				parent := n.GetParent()
 				n.Detach()
 				r.compiler.ReportChangeToEnclosingScope(parent)
 
-				nameNode := n.GetFirstChild()
-				name := nameNode.GetString()
-				nameNode.SetString("")
+				nameNode := fn.NameNode()
+				name := nameNode.Ident()
+				fn.RemoveName()
 				addingRoot.AddChildToFront(rhino.IR_VarWithValue(rhino.IR_Name(name), n).SrcrefTreeIfMissing(n))
-				r.compiler.ReportChangeToEnclosingScope(nameNode)
+				r.compiler.ReportChangeToEnclosingScope(nameNode.Node())
 			}
 			r.compiler.ReportChangeToEnclosingScope(addingRoot)
 		}
@@ -560,11 +549,12 @@ func (r *RewriteGlobalDeclarationsForTryCatchWrapping) Process(externs rhino.Nod
 
 	for _, n := range r.classes {
 		// rewrite CLASS > NAME ... => VAR > NAME > CLASS > EMPTY ...
-		originalNameNode := n.GetFirstChild()
-		originalNameNode.ReplaceWith(rhino.IR_Empty())
-		var_ := rhino.IR_Var(originalNameNode)
+		cls := ast.MustClass(n)
+		originalNameNode, _ := cls.Name()
+		cls.RemoveName()
+		var_ := rhino.IR_Var(originalNameNode.Node())
 		n.ReplaceWith(var_)
-		originalNameNode.AddChildToFront(n)
+		originalNameNode.Node().AddChildToFront(n)
 		r.compiler.ReportChangeToEnclosingScope(n)
 	}
 }

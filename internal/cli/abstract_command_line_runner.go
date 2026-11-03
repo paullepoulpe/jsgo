@@ -1046,7 +1046,7 @@ func NewVerifyingErrorManager(delegate jscomp.ErrorManager, expectedDiagnostics 
 }
 
 // Java: VerifyingErrorManager.report(CheckLevel, JSError)
-func (m *VerifyingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
+func (m *VerifyingErrorManager) Report(level jscomp.CheckLevel, error *jscomp.JSError) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	formattedError := m.FormatErrorForMatching(level, error)
@@ -1070,7 +1070,7 @@ func (m *VerifyingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.J
 			}
 
 			m.ThreadSafeDelegatingErrorManager.Report(
-				jscomp.CheckLevel_ERROR.Ptr(),
+				jscomp.CheckLevel_ERROR,
 				jscomp.JSError_Make(
 					AbstractCommandLineRunner_AMBIGUOUS_EXPECTATION,
 					formattedError,
@@ -1105,15 +1105,15 @@ func (m *VerifyingErrorManager) ReportMissingExpectations() {
 func (m *VerifyingErrorManager) reportMissingExpectationsLocked() {
 	for _, p := range m.unmatchedExpectations {
 		m.ThreadSafeDelegatingErrorManager.Report(
-			jscomp.CheckLevel_ERROR.Ptr(),
+			jscomp.CheckLevel_ERROR,
 			jscomp.JSError_Make(AbstractCommandLineRunner_EXPECTED_DIAGNOSTIC_NOT_FOUND, p.String()))
 	}
 	m.unmatchedExpectations = m.unmatchedExpectations[:0]
 }
 
 // Java: VerifyingErrorManager.formatErrorForMatching(CheckLevel, JSError)
-func (m *VerifyingErrorManager) FormatErrorForMatching(level *jscomp.CheckLevel, error *jscomp.JSError) string {
-	if level != nil && *level == jscomp.CheckLevel_ERROR {
+func (m *VerifyingErrorManager) FormatErrorForMatching(level jscomp.CheckLevel, error *jscomp.JSError) string {
+	if level == jscomp.CheckLevel_ERROR {
 		return m.formatter.FormatError(error)
 	}
 	return m.formatter.FormatWarning(error)

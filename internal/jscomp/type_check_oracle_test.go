@@ -80,9 +80,9 @@ func newTypeCheckDump_errorManager() *typeCheckDump_errorManager {
 	return m
 }
 
-func (m *typeCheckDump_errorManager) Report(level *CheckLevel, error_ *JSError) {
+func (m *typeCheckDump_errorManager) Report(level CheckLevel, error_ *JSError) {
 	m.lines = append(m.lines,
-		jutil.ToJavaString(level)+
+		level.String()+
 			" "+
 			error_.GetType().key+
 			" "+

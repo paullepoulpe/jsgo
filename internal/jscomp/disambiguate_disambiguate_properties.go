@@ -695,6 +695,3 @@ func (r Invalidation_Reason) Name() string { return invalidation_Reason_names[r]
 
 // String is Enum.toString().
 func (r Invalidation_Reason) String() string { return r.Name() }
-
-// Ordinal is Enum.ordinal().
-func (r Invalidation_Reason) Ordinal() int { return int(r) }

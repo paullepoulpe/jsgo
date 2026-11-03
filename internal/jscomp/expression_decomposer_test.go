@@ -2506,7 +2506,7 @@ func (c *ExpressionDecomposerTest) validateSourceInfo(compiler *Compiler, subtre
 // Java: ExpressionDecomposerTest.parse(Compiler, String)
 func expressionDecomposerTest_parse(compiler *Compiler, js string) rhino.Node {
 	n := compiler.ParseTestCode(js)
-	NodeTraversal_Traverse(compiler, n, NewNormalize_NormalizeStatements(compiler, false, nil))
+	NodeTraversal_Traverse(compiler, n, NewNormalize_NormalizeStatements(compiler, false))
 	AssertThat(compiler.GetErrors()).IsEmpty()
 	return n
 }

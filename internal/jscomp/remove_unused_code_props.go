@@ -35,10 +35,7 @@ import (
 //
 // Java: RemoveUnusedCode.traverseNormalOrOptChainGetProp(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp rhino.Node, scope *Scope) {
-	access, ok := ast.AsNormalOrOptChainGetProp(getProp)
-	if !ok {
-		jutil.CheckStateMsg1(false, "%s", getProp)
-	}
+	access := ast.MustNormalOrOptChainGetProp(getProp)
 	objectNode := access.Object().Node()
 	propID := getProp.GetStringID()
 
@@ -151,9 +148,7 @@ func (r *RemoveUnusedCode) TraverseObjectDefinePropertiesLiteral(propertyDefinit
 
 // Java: RemoveUnusedCode.traverseObjectLiteral(Node, Scope)
 func (r *RemoveUnusedCode) TraverseObjectLiteral(objectLiteral rhino.Node, scope *Scope) {
-	if !objectLiteral.IsObjectLit() {
-		jutil.CheckArgumentMsg1(false, "%s", objectLiteral)
-	}
+	jutil.CheckArgumentMsg1(objectLiteral.IsObjectLit(), "%s", objectLiteral)
 	// Is this an object literal that is assigned directly to a 'prototype' property?
 	if r.IsAssignmentToPrototype(objectLiteral.GetParent()) {
 		r.TraversePrototypeLiteral(objectLiteral, scope)
@@ -250,10 +245,7 @@ func removeUnusedCode_nameDotPrototype(n rhino.Node) (ast.Name, bool) {
 
 // Java: RemoveUnusedCode.traverseAssign(Node, Scope)
 func (r *RemoveUnusedCode) TraverseAssign(assignNode rhino.Node, scope *Scope) {
-	assign, ok := ast.AsAssignment(assignNode)
-	if !ok {
-		jutil.CheckState(false)
-	}
+	assign := ast.MustAssignment(assignNode)
 
 	lhs := assign.Target().Node()
 	valueNode := assign.Value().Node()
@@ -354,10 +346,7 @@ func (r *RemoveUnusedCode) IsNameDotPrototype(n rhino.Node) bool {
 
 // Java: RemoveUnusedCode.traverseObjectPattern(Node, Scope)
 func (r *RemoveUnusedCode) TraverseObjectPattern(pattern rhino.Node, scope *Scope) {
-	objectPattern, ok := ast.AsObjectPattern(pattern)
-	if !ok {
-		jutil.CheckStateMsg1(false, "%s", pattern)
-	}
+	objectPattern := ast.MustObjectPattern(pattern)
 
 	for prop := range objectPattern.Props() {
 		elem := prop.Node()

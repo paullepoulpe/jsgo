@@ -52,9 +52,9 @@ func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 		r.mismatchOrder = builder.mismatchOrder
 	} else {
 		r.nativeColors = maps.Clone(builder.nativeColors)
-		r.disambiguationSupertypes = cloneDisambiguationSupertypes(builder.disambiguationSupertypes)
-		r.disambiguationByHash = cloneDisambiguationByHash(builder.disambiguationByHash)
-		r.mismatchLocations = cloneMismatchLocations(builder.mismatchLocations)
+		r.disambiguationSupertypes = cloneSliceMap(builder.disambiguationSupertypes)
+		r.disambiguationByHash = cloneSliceMap(builder.disambiguationByHash)
+		r.mismatchLocations = cloneSliceMap(builder.mismatchLocations)
 		r.mismatchOrder = slices.Clone(builder.mismatchOrder)
 	}
 
@@ -71,34 +71,12 @@ func NewColorRegistry(builder *ColorRegistry_Builder) *ColorRegistry {
 	return r
 }
 
-func cloneDisambiguationSupertypes(src map[*Color][]*Color) map[*Color][]*Color {
+func cloneSliceMap[K comparable, V any](src map[K][]V) map[K][]V {
 	if len(src) == 0 {
 		return nil
 	}
-	dst := make(map[*Color][]*Color, len(src))
-	for k, vs := range src { // order-independent: copying distinct *Color keys into a new map
-		dst[k] = slices.Clone(vs)
-	}
-	return dst
-}
-
-func cloneDisambiguationByHash(src map[int32][]*Color) map[int32][]*Color {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[int32][]*Color, len(src))
-	for k, vs := range src { // order-independent: copying distinct int32 hash keys into a new map
-		dst[k] = slices.Clone(vs)
-	}
-	return dst
-}
-
-func cloneMismatchLocations(src map[ColorId][]string) map[ColorId][]string {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make(map[ColorId][]string, len(src))
-	for k, vs := range src { // order-independent: copying distinct ColorId keys into a new map
+	dst := make(map[K][]V, len(src))
+	for k, vs := range src { // order-independent: copying distinct keys into a new map
 		dst[k] = slices.Clone(vs)
 	}
 	return dst
@@ -127,19 +105,6 @@ func (r *ColorRegistry) GetDisambiguationSupertypesSlice(x *Color) []*Color {
 		}
 	}
 	return nil
-}
-
-// GetDisambiguationSupertypes returns the colors directly above `x` in the
-// subtyping graph for the purposes of property (dis)ambiguation.
-//
-// Java: ColorRegistry.getDisambiguationSupertypes(Color)
-func (r *ColorRegistry) GetDisambiguationSupertypes(x *Color) *jutil.ObjectLinkedHashSet[*Color] {
-	sups := r.GetDisambiguationSupertypesSlice(x)
-	out := jutil.NewObjectLinkedHashSet[*Color]()
-	for _, s := range sups {
-		out.Add(s)
-	}
-	return out
 }
 
 // ColorMismatchLocSet is an insertion-ordered, deduplicated view of mismatch location strings.
@@ -293,7 +258,7 @@ func (r *ColorRegistry) GetMismatchLocationsForDebugging() *ColorMismatchLocatio
 	if len(r.mismatchOrder) == 0 {
 		return &ColorMismatchLocations{}
 	}
-	locs := cloneMismatchLocations(r.mismatchLocations)
+	locs := cloneSliceMap(r.mismatchLocations)
 	order := slices.Clone(r.mismatchOrder)
 	size := 0
 	for _, id := range order {
@@ -331,9 +296,9 @@ func NewColorRegistry_Builder() *ColorRegistry_Builder {
 func (b *ColorRegistry_Builder) ensureMutable() {
 	if b.consumed {
 		b.nativeColors = maps.Clone(b.nativeColors)
-		b.disambiguationSupertypes = cloneDisambiguationSupertypes(b.disambiguationSupertypes)
-		b.disambiguationByHash = cloneDisambiguationByHash(b.disambiguationByHash)
-		b.mismatchLocations = cloneMismatchLocations(b.mismatchLocations)
+		b.disambiguationSupertypes = cloneSliceMap(b.disambiguationSupertypes)
+		b.disambiguationByHash = cloneSliceMap(b.disambiguationByHash)
+		b.mismatchLocations = cloneSliceMap(b.mismatchLocations)
 		b.mismatchOrder = slices.Clone(b.mismatchOrder)
 		b.consumed = false
 	}

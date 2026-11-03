@@ -372,33 +372,17 @@ func (f *dpaeTraversal) markChildrenRead(p *deadProp) {
 	f.bfsQueue = queue[:0]
 }
 
-var dpaeVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_ASSIGN)
-	s.Add(rhino.Token_ASSIGN_BITOR)
-	s.Add(rhino.Token_ASSIGN_BITXOR)
-	s.Add(rhino.Token_ASSIGN_BITAND)
-	s.Add(rhino.Token_ASSIGN_LSH)
-	s.Add(rhino.Token_ASSIGN_RSH)
-	s.Add(rhino.Token_ASSIGN_URSH)
-	s.Add(rhino.Token_ASSIGN_ADD)
-	s.Add(rhino.Token_ASSIGN_SUB)
-	s.Add(rhino.Token_ASSIGN_MUL)
-	s.Add(rhino.Token_ASSIGN_DIV)
-	s.Add(rhino.Token_ASSIGN_MOD)
-	s.Add(rhino.Token_ASSIGN_EXPONENT)
-	s.Add(rhino.Token_ASSIGN_OR)
-	s.Add(rhino.Token_ASSIGN_AND)
-	s.Add(rhino.Token_ASSIGN_COALESCE)
-	s.Add(rhino.Token_TAGGED_TEMPLATELIT)
-	s.Add(rhino.Token_CALL)
-	s.Add(rhino.Token_OPTCHAIN_CALL)
-	s.Add(rhino.Token_NEW)
-	s.Add(rhino.Token_YIELD)
-	s.Add(rhino.Token_AWAIT)
-	s.Add(rhino.Token_BLOCK)
-	return s
-}()
+var dpaeVisitTokens = (&ast.Visitor[struct{}]{
+	Assign:            func(struct{}, ast.Assign) {},
+	AssignOp:          func(struct{}, ast.AssignOp) {},
+	TaggedTemplateLit: func(struct{}, ast.TaggedTemplateLit) {},
+	Call:              func(struct{}, ast.Call) {},
+	OptChainCall:      func(struct{}, ast.OptChainCall) {},
+	New:               func(struct{}, ast.New) {},
+	Yield:             func(struct{}, ast.Yield) {},
+	Await:             func(struct{}, ast.Await) {},
+	Block:             func(struct{}, ast.Block) {},
+}).Tokens()
 
 var _ nodeTraversal_visitTokens = (*dpaeTraversal)(nil)
 

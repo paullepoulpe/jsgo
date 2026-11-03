@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"encoding/binary"
-	"maps"
 	"slices"
 	"unicode/utf8"
 
@@ -130,17 +129,12 @@ type JsMessage_Builder struct {
 	alternateId string
 	sourceName  string
 
-	parts                              []JsMessage_Part
-	genderedMessageMap                 map[JsMessage_GrammaticalGenderCase][]JsMessage_Part
-	genderedMessageOrder               []JsMessage_GrammaticalGenderCase
-	jsPlaceholderNames                 map[string]struct{}
-	jsPlaceholderNamesOrder            []string
-	canonicalPlaceholderNames          map[string]struct{}
-	canonicalPlaceholderNamesOrder     []string
-	placeholderNameToExampleMap        map[string]string
-	placeholderNameToExampleOrder      []string
-	placeholderNameToOriginalCodeMap   map[string]string
-	placeholderNameToOriginalCodeOrder []string
+	parts                     []JsMessage_Part
+	genderedMessages          OrderedMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part]
+	jsPlaceholderNames        OrderedSet[string]
+	canonicalPlaceholderNames OrderedSet[string]
+	placeholderExamples       OrderedStringMap[string]
+	placeholderOriginalCode   OrderedStringMap[string]
 
 	hasKey         bool
 	hasMeaning     bool
@@ -155,26 +149,6 @@ type JsMessage_Builder struct {
 // NewJsMessage_Builder is new JsMessage.Builder().
 func NewJsMessage_Builder() *JsMessage_Builder {
 	return &JsMessage_Builder{}
-}
-
-func (b *JsMessage_Builder) addJsPlaceholderName(name string) {
-	if b.jsPlaceholderNames == nil {
-		b.jsPlaceholderNames = make(map[string]struct{})
-	}
-	if _, exists := b.jsPlaceholderNames[name]; !exists {
-		b.jsPlaceholderNames[name] = struct{}{}
-		b.jsPlaceholderNamesOrder = append(b.jsPlaceholderNamesOrder, name)
-	}
-}
-
-func (b *JsMessage_Builder) addCanonicalPlaceholderName(name string) {
-	if b.canonicalPlaceholderNames == nil {
-		b.canonicalPlaceholderNames = make(map[string]struct{})
-	}
-	if _, exists := b.canonicalPlaceholderNames[name]; !exists {
-		b.canonicalPlaceholderNames[name] = struct{}{}
-		b.canonicalPlaceholderNamesOrder = append(b.canonicalPlaceholderNamesOrder, name)
-	}
 }
 
 // GetKey gets the message's key (e.g. "MSG_HELLO").
@@ -221,8 +195,8 @@ func (b *JsMessage_Builder) SetSourceNameString(sourceName string) *JsMessage_Bu
 func (b *JsMessage_Builder) AppendPart(part JsMessage_Part) *JsMessage_Builder {
 	b.parts = append(b.parts, part)
 	if part.IsPlaceholder() {
-		b.addJsPlaceholderName(part.GetJsPlaceholderName())
-		b.addCanonicalPlaceholderName(part.GetCanonicalPlaceholderName())
+		b.jsPlaceholderNames.Add(part.GetJsPlaceholderName())
+		b.canonicalPlaceholderNames.Add(part.GetCanonicalPlaceholderName())
 	}
 	return b
 }
@@ -235,14 +209,14 @@ func (b *JsMessage_Builder) AppendParts(parts []JsMessage_Part) *JsMessage_Build
 	return b
 }
 
-// appendGenderedPart appends to genderedMessageMap.get(genderCase), which must
+// appendGenderedPart appends to genderedMessages.get(genderCase), which must
 // exist (Java throws NullPointerException on the null list).
 func (b *JsMessage_Builder) appendGenderedPart(genderCase JsMessage_GrammaticalGenderCase, part JsMessage_Part) {
-	parts, ok := b.genderedMessageMap[genderCase]
+	parts, ok := b.genderedMessages.Lookup(genderCase)
 	if !ok {
 		panic(jutil.NewNullPointerException())
 	}
-	b.genderedMessageMap[genderCase] = append(parts, part)
+	b.genderedMessages.Put(genderCase, append(parts, part))
 }
 
 // AppendJsPlaceholderReference appends a placeholder reference to the message.
@@ -250,7 +224,7 @@ func (b *JsMessage_Builder) appendGenderedPart(genderCase JsMessage_GrammaticalG
 // Java: JsMessage.Builder.appendJsPlaceholderReference(String)
 func (b *JsMessage_Builder) AppendJsPlaceholderReference(name string) *JsMessage_Builder {
 	b.parts = append(b.parts, JsMessage_PlaceholderReference_CreateForJsName(name))
-	b.addJsPlaceholderName(name)
+	b.jsPlaceholderNames.Add(name)
 	return b
 }
 
@@ -260,7 +234,7 @@ func (b *JsMessage_Builder) AppendJsPlaceholderReference(name string) *JsMessage
 // Java: JsMessage.Builder.appendJsPlaceholderReference(GrammaticalGenderCase, String)
 func (b *JsMessage_Builder) AppendJsPlaceholderReferenceForGender(genderCase JsMessage_GrammaticalGenderCase, name string) *JsMessage_Builder {
 	b.appendGenderedPart(genderCase, JsMessage_PlaceholderReference_CreateForJsName(name))
-	b.addJsPlaceholderName(name)
+	b.jsPlaceholderNames.Add(name)
 	return b
 }
 
@@ -271,7 +245,7 @@ func (b *JsMessage_Builder) AppendJsPlaceholderReferenceForGender(genderCase JsM
 func (b *JsMessage_Builder) AppendCanonicalPlaceholderReference(name string) *JsMessage_Builder {
 	placeholder := JsMessage_PlaceholderReference_CreateForCanonicalName(name)
 	b.parts = append(b.parts, placeholder)
-	b.addJsPlaceholderName(placeholder.GetJsPlaceholderName())
+	b.jsPlaceholderNames.Add(placeholder.GetJsPlaceholderName())
 	return b
 }
 
@@ -283,7 +257,7 @@ func (b *JsMessage_Builder) AppendCanonicalPlaceholderReferenceForGender(
 	genderCase JsMessage_GrammaticalGenderCase, name string) *JsMessage_Builder {
 	placeholder := JsMessage_PlaceholderReference_CreateForCanonicalName(name)
 	b.appendGenderedPart(genderCase, placeholder)
-	b.addJsPlaceholderName(placeholder.GetJsPlaceholderName())
+	b.jsPlaceholderNames.Add(placeholder.GetJsPlaceholderName())
 	return b
 }
 
@@ -308,69 +282,45 @@ func (b *JsMessage_Builder) AppendStringPartForGender(genderCase JsMessage_Gramm
 //
 // Java: JsMessage.Builder.addGenderedMessageKey(GrammaticalGenderCase)
 func (b *JsMessage_Builder) AddGenderedMessageKey(part JsMessage_GrammaticalGenderCase) *JsMessage_Builder {
-	if b.genderedMessageMap == nil {
-		b.genderedMessageMap = make(map[JsMessage_GrammaticalGenderCase][]JsMessage_Part, 4)
-	}
-	if _, exists := b.genderedMessageMap[part]; !exists {
-		b.genderedMessageOrder = append(b.genderedMessageOrder, part)
-	}
-	b.genderedMessageMap[part] = nil
+	b.genderedMessages.Put(part, nil)
 	return b
+}
+
+func orderedStringMapFromGoMapSorted(m map[string]string) OrderedStringMap[string] {
+	if len(m) == 0 {
+		return OrderedStringMap[string]{}
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m { // order-independent: keys are sorted immediately after collection
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	out := *NewOrderedStringMapWithCapacity[string](len(keys))
+	for _, k := range keys {
+		out.Put(k, m[k])
+	}
+	return out
 }
 
 // Java: JsMessage.Builder.setPlaceholderNameToExampleMap(Map<String, String>)
 func (b *JsMessage_Builder) SetPlaceholderNameToExampleMap(m map[string]string) *JsMessage_Builder {
-	if len(m) == 0 {
-		b.placeholderNameToExampleMap = nil
-		b.placeholderNameToExampleOrder = nil
-		return b
-	}
-	order := make([]string, 0, len(m))
-	for k := range m { // order-independent: keys are sorted immediately after collection
-		order = append(order, k)
-	}
-	slices.Sort(order)
-	b.placeholderNameToExampleMap = maps.Clone(m)
-	b.placeholderNameToExampleOrder = order
+	b.placeholderExamples = orderedStringMapFromGoMapSorted(m)
 	return b
 }
 
-func (b *JsMessage_Builder) setPlaceholderNameToExampleOrdered(m map[string]string, order []string) *JsMessage_Builder {
-	if len(m) == 0 {
-		b.placeholderNameToExampleMap = nil
-		b.placeholderNameToExampleOrder = nil
-		return b
-	}
-	b.placeholderNameToExampleMap = maps.Clone(m)
-	b.placeholderNameToExampleOrder = slices.Clone(order)
+func (b *JsMessage_Builder) setPlaceholderExamples(m OrderedStringMap[string]) *JsMessage_Builder {
+	b.placeholderExamples = m.Clone()
 	return b
 }
 
 // Java: JsMessage.Builder.setPlaceholderNameToOriginalCodeMap(Map<String, String>)
 func (b *JsMessage_Builder) SetPlaceholderNameToOriginalCodeMap(m map[string]string) *JsMessage_Builder {
-	if len(m) == 0 {
-		b.placeholderNameToOriginalCodeMap = nil
-		b.placeholderNameToOriginalCodeOrder = nil
-		return b
-	}
-	order := make([]string, 0, len(m))
-	for k := range m { // order-independent: keys are sorted immediately after collection
-		order = append(order, k)
-	}
-	slices.Sort(order)
-	b.placeholderNameToOriginalCodeMap = maps.Clone(m)
-	b.placeholderNameToOriginalCodeOrder = order
+	b.placeholderOriginalCode = orderedStringMapFromGoMapSorted(m)
 	return b
 }
 
-func (b *JsMessage_Builder) setPlaceholderNameToOriginalCodeOrdered(m map[string]string, order []string) *JsMessage_Builder {
-	if len(m) == 0 {
-		b.placeholderNameToOriginalCodeMap = nil
-		b.placeholderNameToOriginalCodeOrder = nil
-		return b
-	}
-	b.placeholderNameToOriginalCodeMap = maps.Clone(m)
-	b.placeholderNameToOriginalCodeOrder = slices.Clone(order)
+func (b *JsMessage_Builder) setPlaceholderOriginalCode(m OrderedStringMap[string]) *JsMessage_Builder {
+	b.placeholderOriginalCode = m.Clone()
 	return b
 }
 
@@ -509,7 +459,7 @@ func (b *JsMessage_Builder) HasParts() bool {
 //
 // Java: JsMessage.Builder.hasGenderedVariants()
 func (b *JsMessage_Builder) HasGenderedVariants() bool {
-	return len(b.genderedMessageMap) > 0
+	return !b.genderedMessages.IsEmpty()
 }
 
 // Java: JsMessage.Builder.getParts()
@@ -535,68 +485,30 @@ func (b *JsMessage_Builder) Build() *JsMessage {
 		altId = ""
 	}
 
-	var genderedMap map[JsMessage_GrammaticalGenderCase][]JsMessage_Part
-	var genderedOrder []JsMessage_GrammaticalGenderCase
-	if len(b.genderedMessageOrder) > 0 {
-		genderedMap = make(map[JsMessage_GrammaticalGenderCase][]JsMessage_Part, len(b.genderedMessageOrder))
-		genderedOrder = slices.Clone(b.genderedMessageOrder)
-		for _, k := range genderedOrder {
-			genderedMap[k] = slices.Clone(b.genderedMessageMap[k])
-		}
-	}
-
-	var exampleMap map[string]string
-	var exampleOrder []string
-	if len(b.placeholderNameToExampleOrder) > 0 {
-		exampleMap = maps.Clone(b.placeholderNameToExampleMap)
-		exampleOrder = slices.Clone(b.placeholderNameToExampleOrder)
-	}
-
-	var originalCodeMap map[string]string
-	var originalCodeOrder []string
-	if len(b.placeholderNameToOriginalCodeOrder) > 0 {
-		originalCodeMap = maps.Clone(b.placeholderNameToOriginalCodeMap)
-		originalCodeOrder = slices.Clone(b.placeholderNameToOriginalCodeOrder)
-	}
-
-	var jsPhNames map[string]struct{}
-	var jsPhOrder []string
-	if len(b.jsPlaceholderNamesOrder) > 0 {
-		jsPhNames = maps.Clone(b.jsPlaceholderNames)
-		jsPhOrder = slices.Clone(b.jsPlaceholderNamesOrder)
-	}
-
-	var canonicalPhNames map[string]struct{}
-	var canonicalPhOrder []string
-	if len(b.canonicalPlaceholderNamesOrder) > 0 {
-		canonicalPhNames = maps.Clone(b.canonicalPlaceholderNames)
-		canonicalPhOrder = slices.Clone(b.canonicalPlaceholderNamesOrder)
+	var gendered OrderedMap[JsMessage_GrammaticalGenderCase, []JsMessage_Part]
+	for _, e := range b.genderedMessages.Entries() {
+		gendered.Put(e.Key, slices.Clone(e.Value))
 	}
 
 	return &JsMessage{
-		sourceName:                         b.sourceName,
-		hasSourceName:                      b.hasSourceName,
-		key:                                b.key,
-		isAnonymous:                        b.isAnonymous,
-		isExternal:                         b.isExternal,
-		id:                                 b.id,
-		parts:                              slices.Clone(b.parts),
-		genderedMessagesMap:                genderedMap,
-		genderedMessagesOrder:              genderedOrder,
-		alternateId:                        altId,
-		hasAlternateId:                     hasAltId,
-		desc:                               b.desc,
-		hasDesc:                            b.hasDesc,
-		meaning:                            b.meaning,
-		hasMeaning:                         b.hasMeaning,
-		placeholderNameToExampleMap:        exampleMap,
-		placeholderNameToExampleOrder:      exampleOrder,
-		placeholderNameToOriginalCodeMap:   originalCodeMap,
-		placeholderNameToOriginalCodeOrder: originalCodeOrder,
-		jsPlaceholderNames:                 jsPhNames,
-		jsPlaceholderNamesOrder:            jsPhOrder,
-		canonicalPlaceholderNames:          canonicalPhNames,
-		canonicalPlaceholderNamesOrder:     canonicalPhOrder,
+		sourceName:                b.sourceName,
+		hasSourceName:             b.hasSourceName,
+		key:                       b.key,
+		isAnonymous:               b.isAnonymous,
+		isExternal:                b.isExternal,
+		id:                        b.id,
+		parts:                     slices.Clone(b.parts),
+		genderedMessages:          gendered,
+		alternateId:               altId,
+		hasAlternateId:            hasAltId,
+		desc:                      b.desc,
+		hasDesc:                   b.hasDesc,
+		meaning:                   b.meaning,
+		hasMeaning:                b.hasMeaning,
+		placeholderExamples:       b.placeholderExamples.Clone(),
+		placeholderOriginalCode:   b.placeholderOriginalCode.Clone(),
+		jsPlaceholderNames:        b.jsPlaceholderNames.Clone(),
+		canonicalPlaceholderNames: b.canonicalPlaceholderNames.Clone(),
 	}
 }
 

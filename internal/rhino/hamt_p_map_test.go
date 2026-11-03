@@ -75,14 +75,14 @@ func assertValuesExactly[T any](t *testing.T, seq iter.Seq[T], want ...any) {
 	}
 }
 
-func assertGet[K any](t *testing.T, m *HamtPMap[K, any], key K, want any) {
+func assertGet[K comparable](t *testing.T, m *HamtPMap[K, any], key K, want any) {
 	t.Helper()
 	if got := m.Get(key); !jutil.ObjectsEquals(got, want) {
 		t.Errorf("get(%v) = %v, want %v", key, got, want)
 	}
 }
 
-func assertIsEmpty[K any](t *testing.T, m *HamtPMap[K, any], want bool) {
+func assertIsEmpty[K comparable](t *testing.T, m *HamtPMap[K, any], want bool) {
 	t.Helper()
 	if got := m.IsEmpty(); got != want {
 		t.Errorf("isEmpty() = %v, want %v", got, want)
@@ -380,6 +380,60 @@ func TestHamtPMap_Values_ContainsExactlyValues(t *testing.T) {
 	actual := empty.Plus(1, "a").Plus(2, "b").Plus(3, "kkdmw").Plus(4, ":::").Minus(1)
 
 	assertValuesExactly(t, actual.Values(), "b", "kkdmw", ":::")
+}
+
+func TestHamtPMap_All_OrderAndEarlyStop(t *testing.T) {
+	var nilMap *HamtPMap[int, any]
+	for range nilMap.All() {
+		t.Fatal("nil map should yield no entries")
+	}
+
+	m := HamtPMap_Empty[int, any]()
+	for i := 1; i <= 100; i++ {
+		m = m.Plus(i*17, strconv.Itoa(i))
+	}
+
+	var wantKeys []int
+	var wantVals []any
+	for q := []*HamtPMap[int, any]{m}; len(q) > 0; {
+		top := q[0]
+		q = q[1:]
+		wantKeys = append(wantKeys, top.key)
+		wantVals = append(wantVals, top.value)
+		for i := len(top.children) - 1; i >= 0; i-- {
+			q = append(q, top.children[i])
+		}
+	}
+
+	var gotKeys []int
+	var gotVals []any
+	for k, v := range m.All() {
+		gotKeys = append(gotKeys, k)
+		gotVals = append(gotVals, v)
+	}
+	if !slices.Equal(gotKeys, wantKeys) {
+		t.Fatalf("All() keys = %v, want %v", gotKeys, wantKeys)
+	}
+	if !slices.Equal(gotVals, wantVals) {
+		t.Fatalf("All() vals = %v, want %v", gotVals, wantVals)
+	}
+	if !slices.Equal(slices.Collect(m.Keys()), wantKeys) {
+		t.Fatalf("Keys() order mismatch")
+	}
+	if !slices.Equal(slices.Collect(m.Values()), wantVals) {
+		t.Fatalf("Values() order mismatch")
+	}
+
+	count := 0
+	for range m.All() {
+		count++
+		if count == 5 {
+			break
+		}
+	}
+	if count != 5 {
+		t.Fatalf("early stop count = %d, want 5", count)
+	}
 }
 
 // joinExpectations is HamtPMapTest.JoinExpectations, a Reconciler (its

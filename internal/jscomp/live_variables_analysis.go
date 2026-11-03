@@ -19,8 +19,6 @@
 package jscomp
 
 import (
-	"strconv"
-
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -78,16 +76,6 @@ type LiveVariablesAnalysis struct {
 // it is in the set.
 type LiveVariablesAnalysis_LiveVariableLattice struct {
 	liveSet smallBitSet
-}
-
-// numVars is the number of all local variables.
-//
-// Java: LiveVariablesAnalysis.LiveVariableLattice(int)
-func NewLiveVariablesAnalysis_LiveVariableLattice(numVars int) *LiveVariablesAnalysis_LiveVariableLattice {
-	if numVars < 0 {
-		panic(jutil.NewNegativeArraySizeException("nbits < 0: " + strconv.Itoa(numVars)))
-	}
-	return &LiveVariablesAnalysis_LiveVariableLattice{}
 }
 
 // Java: LiveVariablesAnalysis.LiveVariableLattice(LiveVariableLattice)
@@ -148,17 +136,17 @@ func (l *LiveVariablesAnalysis) Reset(
 
 	table := &allVarsDeclaredInFunction.table
 	releaseLarge := len(table.vars) <= 256
-	table.escaped.clear(releaseLarge)
+	table.escaped.Reset(releaseLarge)
 	computeEscapedInTable(jsScope, table, compiler, scopeCreator)
 
 	l.jsScope = jsScope
 	l.jsScopeChild = jsScopeChild
 	l.table = table
 	l.escaped.CopyFrom(&table.escaped)
-	l.untracked.clear(releaseLarge)
-	l.genScratch.clear(releaseLarge)
-	l.killScratch.clear(releaseLarge)
-	l.outScratch.clear(releaseLarge)
+	l.untracked.Reset(releaseLarge)
+	l.genScratch.Reset(releaseLarge)
+	l.killScratch.Reset(releaseLarge)
+	l.outScratch.Reset(releaseLarge)
 	l.paramsMarkedEscaped = false
 	l.emptyLattice = LiveVariablesAnalysis_LiveVariableLattice{}
 	l.lattices.Reset(nil)
@@ -322,96 +310,20 @@ func (l *LiveVariablesAnalysis) FlowStateAt(index uint32) *DataFlowAnalysis_Line
 	return &l.states[index]
 }
 
-// Java: LiveVariablesAnalysis.isForward()
-func (l *LiveVariablesAnalysis) IsForward() bool {
-	return false
-}
-
-// Java: DataFlowAnalysis.isBranched()
-func (l *LiveVariablesAnalysis) IsBranched() bool {
-	return false
-}
-
-// Java: LiveVariablesAnalysis.createEntryLattice()
-func (l *LiveVariablesAnalysis) CreateEntryLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	return &l.emptyLattice
-}
-
-// Java: LiveVariablesAnalysis.createInitialEstimateLattice()
-func (l *LiveVariablesAnalysis) CreateInitialEstimateLattice() *LiveVariablesAnalysis_LiveVariableLattice {
-	return &l.emptyLattice
-}
-
-func (l *LiveVariablesAnalysis) EqualsLattice(a, b *LiveVariablesAnalysis_LiveVariableLattice) bool {
-	if a == b {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return a.liveSet.Equals(&b.liveSet)
-}
-
-// Java: DataFlowAnalysis.join(L, L)
-func (l *LiveVariablesAnalysis) Join(latticeA, latticeB *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	jutil.CheckNotNull(latticeA)
-	jutil.CheckNotNull(latticeB)
-	result := l.allocLattice()
-	result.liveSet.Or(&latticeA.liveSet)
-	result.liveSet.Or(&latticeB.liveSet)
-	return result
-}
-
 // Java: DataFlowAnalysis.analyze()
 func (l *LiveVariablesAnalysis) Analyze() {
 	cfg := l.cfg
 	implicitReturn := cfg.implicitReturn
-	cfgNodes := &cfg.Nodes
-	numNodes := cfgNodes.Size()
-	nodeCap := cfg.NodeIndexCap()
-
-	l.worklist.reset(cfg, numNodes, false)
-	if cap(l.states) < nodeCap {
-		l.states = make([]DataFlowAnalysis_LinearFlowState[*LiveVariablesAnalysis_LiveVariableLattice], nodeCap)
-	} else {
-		clear(l.states[:max(len(l.states), nodeCap)])
-		l.states = l.states[:nodeCap]
-	}
-
-	initLat := &l.emptyLattice
+	l.states = resetLinearFlowStates(l.states, cfg, &l.emptyLattice)
 	states := l.states
-	for node := range cfgNodes.Values() {
-		node.DfaInQueue = false
-		state := &states[node.Index]
-		state.in = initLat
-		state.out = initLat
-		if node != implicitReturn {
-			l.worklist.enqueue(node)
-		}
-	}
-
-	for l.worklist.notEmpty() {
-		curNode := l.worklist.dequeue()
+	l.worklist.solve(cfg, false, func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
 		curState := &states[curNode.Index]
-		stepCount := curState.stepCount
-		curState.stepCount++
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
 		l.joinNodeInputs(curNode, curState, implicitReturn)
 		inBefore := curState.in
-		inAfter := l.flowThroughEdges(curNode.Value, curNode.OutEdgeList.Slice(), curState.out, inBefore)
-		curState.in = jutil.CheckNotNull(inAfter)
-		if !l.EqualsLattice(inBefore, inAfter) {
-			for _, edge := range curNode.InEdgeList.Slice() {
-				nextNode := edge.SourceNode
-				if !nextNode.DfaInQueue && nextNode != implicitReturn {
-					l.worklist.enqueue(nextNode)
-				}
-			}
-		}
-	}
+		inAfter := jutil.CheckNotNull(l.flowThroughEdges(curNode.Value, curNode.OutEdgeList.Slice(), curState.out, inBefore))
+		curState.in = inAfter
+		return inBefore != inAfter && !inBefore.liveSet.Equals(&inAfter.liveSet)
+	})
 }
 
 func (l *LiveVariablesAnalysis) joinNodeInputs(
@@ -466,11 +378,6 @@ func (l *LiveVariablesAnalysis) joinNodeInputs(
 	joined := l.allocLattice()
 	joined.liveSet = l.outScratch.Clone()
 	state.out = joined
-}
-
-// Java: LiveVariablesAnalysis.flowThrough(Node, LiveVariableLattice)
-func (l *LiveVariablesAnalysis) FlowThrough(node rhino.Node, input *LiveVariablesAnalysis_LiveVariableLattice) *LiveVariablesAnalysis_LiveVariableLattice {
-	return l.flowThroughEdges(node, l.cfg.GetOutEdges(node), input, nil)
 }
 
 func (l *LiveVariablesAnalysis) flowThroughEdges(

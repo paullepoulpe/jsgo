@@ -153,17 +153,17 @@ const ClosureRewriteModule_MODULE_EXPORTS_PREFIX = "module$exports$"
 
 const closureRewriteModule_MODULE_CONTENTS_PREFIX = "module$contents$"
 
-// Prebuilt Nodes and QualifiedNames to speed up qualified-name matching calls
+// Prebuilt QualifiedNames to speed up qualified-name matching calls
 var (
-	closureRewriteModule_GOOG_FORWARDDECLARE                    = rhino.IR_Getprop(rhino.IR_Name("goog"), "forwardDeclare")
+	closureRewriteModule_GOOG_FORWARDDECLARE                    = rhino.QualifiedName_Of("goog.forwardDeclare")
 	closureRewriteModule_GOOG_LOADMODULE                        = rhino.QualifiedName_Of("goog.loadModule")
-	closureRewriteModule_GOOG_MODULE                            = rhino.IR_Getprop(rhino.IR_Name("goog"), "module")
-	closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE     = rhino.IR_Getprop(closureRewriteModule_GOOG_MODULE, "declareLegacyNamespace")
+	closureRewriteModule_GOOG_MODULE                            = rhino.QualifiedName_Of("goog.module")
+	closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE     = rhino.QualifiedName_Of("goog.module.declareLegacyNamespace")
 	closureRewriteModule_GOOG_MODULE_PREVENTMODULEEXPORTSEALING = rhino.QualifiedName_Of("goog.module.preventModuleExportSealing")
 	closureRewriteModule_GOOG_MODULE_GET                        = rhino.QualifiedName_Of("goog.module.get")
 	closureRewriteModule_GOOG_PROVIDE                           = rhino.QualifiedName_Of("goog.provide")
-	closureRewriteModule_GOOG_REQUIRE                           = rhino.IR_Getprop(rhino.IR_Name("goog"), "require")
-	closureRewriteModule_GOOG_REQUIRETYPE                       = rhino.IR_Getprop(rhino.IR_Name("goog"), "requireType")
+	closureRewriteModule_GOOG_REQUIRE                           = rhino.QualifiedName_Of("goog.require")
+	closureRewriteModule_GOOG_REQUIRETYPE                       = rhino.QualifiedName_Of("goog.requireType")
 	closureRewriteModule_GOOG_REQUIREDYNAMIC                    = rhino.QualifiedName_Of("goog.requireDynamic")
 )
 
@@ -388,11 +388,7 @@ func (p *closureScriptPreprocessor) ShouldTraverse(t *NodeTraversal, n rhino.Nod
 	}
 }
 
-var closureScriptRecorderVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_MODULE_BODY)
-	return s
-}()
+var closureScriptRecorderVisitTokens = makeVisitTokenSet(rhino.Token_MODULE_BODY)
 
 type closureScriptRecorder struct {
 	outer *ClosureRewriteModule
@@ -420,19 +416,19 @@ func (r *closureScriptRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, p
 			break
 		}
 		method := getProp.Node()
-		if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE) {
+		if closureRewriteModule_GOOG_MODULE.Matches(method) {
 			m.recordGoogModule(t, call)
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE) {
+		} else if closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE.Matches(method) {
 			m.recordGoogDeclareLegacyNamespace()
 		} else if closureRewriteModule_GOOG_PROVIDE.Matches(method) {
 			m.recordGoogProvide(t, call)
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIRE) {
+		} else if closureRewriteModule_GOOG_REQUIRE.Matches(method) {
 			m.recordGoogRequire(t, call)
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIRETYPE) {
+		} else if closureRewriteModule_GOOG_REQUIRETYPE.Matches(method) {
 			m.recordGoogRequireType(t, call)
 		} else if closureRewriteModule_GOOG_REQUIREDYNAMIC.Matches(method) {
 			m.recordGoogRequireDynamic(t, call)
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_FORWARDDECLARE) && !parent.IsExprResult() {
+		} else if closureRewriteModule_GOOG_FORWARDDECLARE.Matches(method) && !parent.IsExprResult() {
 			m.recordGoogForwardDeclare(t, call)
 		} else if closureRewriteModule_GOOG_MODULE_GET.Matches(method) {
 			m.recordGoogModuleGet(t, call)
@@ -620,7 +616,7 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 	scriptDescriptions := make([]*closureScriptDescription, 0, scriptCount)
 	slabIdx := 0
 	for _, parent := range [2]rhino.Node{externs, root} {
-		for script := parent.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		for script := range parent.Children() {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
 			NodeTraversal_Traverse(m.compiler, script, &unwrap)
 
@@ -865,7 +861,7 @@ func (m *ClosureRewriteModule) recordGoogModuleGet(t *NodeTraversal, call ast.Ca
 
 	aliasVarNodeRhs := NodeUtil_GetRValueOfLValue(aliasVar.GetNode())
 	if aliasVarNodeRhs.IsNil() ||
-		!NodeUtil_IsCallToNode(aliasVarNodeRhs, closureRewriteModule_GOOG_FORWARDDECLARE) ||
+		!NodeUtil_IsCallToQualifiedName(aliasVarNodeRhs, closureRewriteModule_GOOG_FORWARDDECLARE) ||
 		namespaceId != closureRewriteModule_namespaceArg(ast.MustCall(aliasVarNodeRhs)).GetString() {
 		return
 	}

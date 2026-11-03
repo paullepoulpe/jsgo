@@ -37,9 +37,6 @@ type LinkedUndirectedGraph[N, E comparable] struct {
 	nodeSlab jutil.ReuseSlab[LinkedUndirectedGraphNode[N, E]]
 	edgeSlab jutil.ReuseSlab[LinkedUndirectedGraphEdge[N, E]]
 
-	nodeAnnotationStack *annotationStack
-	edgeAnnotationStack *annotationStack
-
 	useNodeAnnotations bool
 	useEdgeAnnotations bool
 }
@@ -65,8 +62,6 @@ func (g *LinkedUndirectedGraph[N, E]) Init(useNodeAnnotations bool, useEdgeAnnot
 // ClearForReuse removes all nodes and edges from g, keeping its slab chunks
 // and (when small) its node map for the next graph built in g.
 func (g *LinkedUndirectedGraph[N, E]) ClearForReuse() {
-	g.nodeAnnotationStack = nil
-	g.edgeAnnotationStack = nil
 	if g.Nodes.Size() > linkedDirectedGraphReuseMaxNodes {
 		g.Nodes.Reset()
 	} else {
@@ -80,13 +75,13 @@ func (g *LinkedUndirectedGraph[N, E]) getLinkedNodeOrFail(val N) *LinkedUndirect
 	if n := g.Nodes.Get(val); n != nil {
 		return n
 	}
-	panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(val) + " does not exist in graph"))
+	panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(val) + " does not exist in graph"))
 }
 
 func (g *LinkedUndirectedGraph[N, E]) allocNode(nodeValue N) *LinkedUndirectedGraphNode[N, E] {
 	n := g.nodeSlab.Alloc()
 	n.Value = nodeValue
-	n.annotated = g.useNodeAnnotations
+	n.annotationSlot = makeNodeAnnotation(g.useNodeAnnotations)
 	return n
 }
 
@@ -96,7 +91,7 @@ func (g *LinkedUndirectedGraph[N, E]) newEdge(
 	e.nodeA = src
 	e.nodeB = dest
 	e.value = edgeValue
-	e.annotated = g.useEdgeAnnotations
+	e.annotationSlot = makeEdgeAnnotation(g.useEdgeAnnotations)
 	return e
 }
 
@@ -286,52 +281,6 @@ func (g *LinkedUndirectedGraph[N, E]) ClearEdgeAnnotations() {
 	}
 }
 
-// Java: Graph.pushNodeAnnotations()
-func (g *LinkedUndirectedGraph[N, E]) PushNodeAnnotations() {
-	if g.nodeAnnotationStack == nil {
-		g.nodeAnnotationStack = &annotationStack{}
-	}
-	nodes := g.Nodes.Slice()
-	top := pushAnnotationFrame(g.nodeAnnotationStack, len(nodes))
-	for _, n := range nodes {
-		*top = append(*top, annotationState{first: n, second: n.GetAnnotation()})
-		n.SetAnnotation(nil)
-	}
-}
-
-// Java: Graph.popNodeAnnotations()
-func (g *LinkedUndirectedGraph[N, E]) PopNodeAnnotations() {
-	if g.nodeAnnotationStack == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Popping node annotations without pushing."))
-	}
-	popAnnotations(g.nodeAnnotationStack)
-}
-
-// Java: Graph.pushEdgeAnnotations()
-func (g *LinkedUndirectedGraph[N, E]) PushEdgeAnnotations() {
-	if g.edgeAnnotationStack == nil {
-		g.edgeAnnotationStack = &annotationStack{}
-	}
-	nodes := g.Nodes.Slice()
-	top := pushAnnotationFrame(g.edgeAnnotationStack, len(nodes))
-	for _, node := range nodes {
-		for _, edge := range node.NeighborEdges.Slice() {
-			if edge.nodeA == node {
-				*top = append(*top, annotationState{first: edge, second: edge.GetAnnotation()})
-				edge.SetAnnotation(nil)
-			}
-		}
-	}
-}
-
-// Java: Graph.popEdgeAnnotations()
-func (g *LinkedUndirectedGraph[N, E]) PopEdgeAnnotations() {
-	if g.edgeAnnotationStack == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Popping edge annotations without pushing."))
-	}
-	popAnnotations(g.edgeAnnotationStack)
-}
-
 // Java: LinkedUndirectedGraph.getGraphvizEdges()
 func (g *LinkedUndirectedGraph[N, E]) GetGraphvizEdges() []GraphvizGraph_GraphvizEdge {
 	edgeList := []GraphvizGraph_GraphvizEdge{}
@@ -383,7 +332,7 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeCount() int {
 func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 	uNode := g.Nodes.Get(value)
 	if uNode == nil {
-		panic(jutil.NewIllegalArgumentExceptionMsg(formatGraphValue(value) + " not found in graph"))
+		panic(jutil.NewIllegalArgumentExceptionMsg(jutil.ToJavaString(value) + " not found in graph"))
 	}
 	return uNode.NeighborEdges.Size()
 }
@@ -392,11 +341,9 @@ func (g *LinkedUndirectedGraph[N, E]) GetNodeDegree(value N) int {
 // inline when at most two.
 type LinkedUndirectedGraphNode[N, E comparable] struct {
 	NeighborEdges LinkedEdgeList[LinkedUndirectedGraphEdge[N, E]]
-	Annotation    Annotation
-	Value         N
-
-	colorIdx  int32
-	annotated bool
+	annotationSlot
+	Value    N
+	colorIdx int32
 }
 
 // recycle zeroes n for allocNode to reuse, keeping small overflow arrays.
@@ -404,25 +351,6 @@ func (n *LinkedUndirectedGraphNode[N, E]) recycle() {
 	more := n.NeighborEdges.spare()
 	*n = LinkedUndirectedGraphNode[N, E]{}
 	n.NeighborEdges.more = more
-}
-
-// Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getAnnotation()
-func (n *LinkedUndirectedGraphNode[N, E]) GetAnnotation() Annotation {
-	if n.annotated {
-		return n.Annotation
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with node annotations turned off"))
-}
-
-// Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.setAnnotation(Annotation)
-func (n *LinkedUndirectedGraphNode[N, E]) SetAnnotation(data Annotation) {
-	if n.annotated {
-		n.Annotation = data
-		return
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with node annotations turned off"))
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getValue()
@@ -442,12 +370,12 @@ func (n *LinkedUndirectedGraphNode[N, E]) GetId() string {
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphNode.getLabel()
 func (n *LinkedUndirectedGraphNode[N, E]) GetLabel() string {
-	return formatGraphValue(n.Value)
+	return jutil.ToJavaString(n.Value)
 }
 
 func (n *LinkedUndirectedGraphNode[N, E]) String() string {
 	className := "com.google.javascript.jscomp.graph.LinkedUndirectedGraph$LinkedUndirectedGraphNode"
-	if n.annotated {
+	if n.isAnnotated() {
 		className = "com.google.javascript.jscomp.graph.LinkedUndirectedGraph$AnnotatedLinkedUndirectedGraphNode"
 	}
 	return jutil.ObjectToString(className, n)
@@ -474,8 +402,7 @@ type LinkedUndirectedGraphEdge[N, E comparable] struct {
 	nodeB *LinkedUndirectedGraphNode[N, E]
 	value E
 
-	annotated  bool
-	annotation Annotation
+	annotationSlot
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getValue()
@@ -493,25 +420,6 @@ func (e *LinkedUndirectedGraphEdge[N, E]) GetNodeB() *LinkedUndirectedGraphNode[
 	return e.nodeB
 }
 
-// Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getAnnotation()
-func (e *LinkedUndirectedGraphEdge[N, E]) GetAnnotation() Annotation {
-	if e.annotated {
-		return e.annotation
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with edge annotations turned off"))
-}
-
-// Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.setAnnotation(Annotation)
-func (e *LinkedUndirectedGraphEdge[N, E]) SetAnnotation(data Annotation) {
-	if e.annotated {
-		e.annotation = data
-		return
-	}
-	panic(jutil.NewUnsupportedOperationExceptionMsg(
-		"Graph initialized with edge annotations turned off"))
-}
-
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getColor()
 func (e *LinkedUndirectedGraphEdge[N, E]) GetColor() string {
 	return "black"
@@ -519,7 +427,7 @@ func (e *LinkedUndirectedGraphEdge[N, E]) GetColor() string {
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getLabel()
 func (e *LinkedUndirectedGraphEdge[N, E]) GetLabel() string {
-	return formatGraphValue(e.value)
+	return jutil.ToJavaString(e.value)
 }
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.getNode1Id()
@@ -534,7 +442,7 @@ func (e *LinkedUndirectedGraphEdge[N, E]) GetNode2Id() string {
 
 // Java: LinkedUndirectedGraph.LinkedUndirectedGraphEdge.toString()
 func (e *LinkedUndirectedGraphEdge[N, E]) String() string {
-	return formatGraphValue(e.nodeA) + " -- " + formatGraphValue(e.nodeB)
+	return jutil.ToJavaString(e.nodeA) + " -- " + jutil.ToJavaString(e.nodeB)
 }
 
 var (

@@ -37,15 +37,16 @@ import (
 // of the WarningsGuards are applied. requirement: requirement that fails in
 // the case of conformance violations (nullable).
 type JSError struct {
-	type_        *DiagnosticType
-	description  string
-	sourceName   *string
-	lineno       int
-	charno       int
-	length       int
-	node         rhino.Node
-	defaultLevel CheckLevel
-	requirement  *Requirement
+	type_         *DiagnosticType
+	description   string
+	sourceName    string
+	lineno        int
+	charno        int
+	length        int
+	requirement   *Requirement
+	node          rhino.Node
+	defaultLevel  CheckLevel
+	hasSourceName bool
 }
 
 // jsErrorPinsDeferred is non-zero while worker goroutines may report on
@@ -55,6 +56,38 @@ type JSError struct {
 // main goroutine instead (replayCompilerEvents). One compilation runs at a
 // time per process (rhino/node_store.go).
 var jsErrorPinsDeferred atomic.Int32
+
+func newJSError(
+	type_ *DiagnosticType,
+	description string,
+	sourceName string,
+	hasSourceName bool,
+	lineno int,
+	charno int,
+	length int,
+	node rhino.Node,
+	defaultLevel CheckLevel,
+	requirement *Requirement,
+) *JSError {
+	if type_ == nil {
+		panic(jutil.NewNullPointerExceptionMsg("type"))
+	}
+	if !node.IsNil() && jsErrorPinsDeferred.Load() == 0 {
+		node.PinForDiagnostic()
+	}
+	return &JSError{
+		type_:         type_,
+		description:   description,
+		sourceName:    sourceName,
+		hasSourceName: hasSourceName,
+		lineno:        lineno,
+		charno:        charno,
+		length:        length,
+		node:          node,
+		defaultLevel:  defaultLevel,
+		requirement:   requirement,
+	}
+}
 
 // Java: JSError(DiagnosticType, String, String, int, int, int, Node, CheckLevel, Requirement)
 func NewJSError(
@@ -67,23 +100,11 @@ func NewJSError(
 	node rhino.Node,
 	defaultLevel CheckLevel,
 	requirement *Requirement) *JSError {
-	if type_ == nil {
-		panic(jutil.NewNullPointerExceptionMsg("type"))
+	var src string
+	if sourceName != nil {
+		src = *sourceName
 	}
-	if !node.IsNil() && jsErrorPinsDeferred.Load() == 0 {
-		node.PinForDiagnostic()
-	}
-	return &JSError{
-		type_:        type_,
-		description:  description,
-		sourceName:   sourceName,
-		lineno:       lineno,
-		charno:       charno,
-		length:       length,
-		node:         node,
-		defaultLevel: defaultLevel,
-		requirement:  requirement,
-	}
+	return newJSError(type_, description, src, sourceName != nil, lineno, charno, length, node, defaultLevel, requirement)
 }
 
 // Java: JSError.type()
@@ -93,7 +114,15 @@ func (e *JSError) Type() *DiagnosticType { return e.type_ }
 func (e *JSError) Description() string { return e.description }
 
 // Java: JSError.sourceName()
-func (e *JSError) SourceName() *string { return e.sourceName }
+func (e *JSError) SourceName() *string {
+	if !e.hasSourceName {
+		return nil
+	}
+	return &e.sourceName
+}
+
+// SourceNameOpt returns the source file name and whether one is present.
+func (e *JSError) SourceNameOpt() (string, bool) { return e.sourceName, e.hasSourceName }
 
 // Java: JSError.lineno()
 func (e *JSError) Lineno() int { return e.lineno }
@@ -155,8 +184,8 @@ func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
-	return NewJSError(
-		type_, type_.Format(arguments...), nil, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
+	return newJSError(
+		type_, type_.Format(arguments...), "", false, jSError_DEFAULT_LINENO, jSError_DEFAULT_CHARNO, jSError_DEFAULT_LENGTH, rhino.NilNode, type_.level, nil)
 }
 
 // JSError_MakeWithSourceLocation creates a JSError at a given source
@@ -222,12 +251,13 @@ type JSError_Builder struct {
 	type_ *DiagnosticType
 	args  []string
 
-	level      CheckLevel
-	n          rhino.Node
-	sourceName *string
-	lineno     int
-	charno     int
-	length     int
+	sourceName    string
+	lineno        int
+	charno        int
+	length        int
+	n             rhino.Node
+	level         CheckLevel
+	hasSourceName bool
 }
 
 func newJSError_Builder(type_ *DiagnosticType, args ...string) *JSError_Builder {
@@ -247,9 +277,12 @@ func newJSError_Builder(type_ *DiagnosticType, args ...string) *JSError_Builder 
 //
 // Java: JSError.Builder.setNode(Node)
 func (b *JSError_Builder) SetNode(n rhino.Node) *JSError_Builder {
-	jutil.CheckStateMsg(b.sourceName == nil, "Cannot provide a Node when there's already a source name")
+	jutil.CheckStateMsg(!b.hasSourceName, "Cannot provide a Node when there's already a source name")
 	b.n = n
-	b.sourceName = n.GetSourceFileName()
+	if src := n.GetSourceFileName(); src != nil {
+		b.sourceName = *src
+		b.hasSourceName = true
+	}
 	b.lineno = n.GetLineno()
 	b.charno = n.GetCharno()
 	b.length = n.GetLength()
@@ -277,7 +310,13 @@ func (b *JSError_Builder) SetLevel(level CheckLevel) *JSError_Builder {
 // Java: JSError.Builder.setSourceLocation(String, int, int)
 func (b *JSError_Builder) SetSourceLocation(sourceName *string, lineno int, charno int) *JSError_Builder {
 	jutil.CheckStateMsg(b.n.IsNil(), "Cannot provide a source location when there is already a Node")
-	b.sourceName = sourceName
+	if sourceName != nil {
+		b.sourceName = *sourceName
+		b.hasSourceName = true
+	} else {
+		b.sourceName = ""
+		b.hasSourceName = false
+	}
 	b.lineno = lineno
 	b.charno = charno
 	return b
@@ -285,8 +324,8 @@ func (b *JSError_Builder) SetSourceLocation(sourceName *string, lineno int, char
 
 // Java: JSError.Builder.build()
 func (b *JSError_Builder) Build() *JSError {
-	return NewJSError(
-		b.type_, b.type_.Format(b.args...), b.sourceName, b.lineno, b.charno, b.length, b.n, b.level, nil)
+	return newJSError(
+		b.type_, b.type_.Format(b.args...), b.sourceName, b.hasSourceName, b.lineno, b.charno, b.length, b.n, b.level, nil)
 }
 
 // JSError_Builder_ creates a new builder (JSError.builder): type is the
@@ -304,8 +343,8 @@ func JSError_Builder_(type_ *DiagnosticType, arguments ...string) *JSError_Build
 // Java: JSError.toString()
 func (e *JSError) String() string {
 	sourceName := "(unknown source)"
-	if e.SourceName() != nil && *e.SourceName() != "" {
-		sourceName = *e.SourceName()
+	if e.hasSourceName && e.sourceName != "" {
+		sourceName = e.sourceName
 	}
 	lineno := "(unknown line)"
 	if e.Lineno() != jSError_DEFAULT_LINENO {
@@ -370,7 +409,8 @@ func (e *JSError) Equals(o any) bool {
 	}
 	return e.type_.Equals(that.type_) &&
 		e.description == that.description &&
-		jutil.ObjectsEquals(e.sourceName, that.sourceName) &&
+		e.hasSourceName == that.hasSourceName &&
+		e.sourceName == that.sourceName &&
 		e.lineno == that.lineno &&
 		e.charno == that.charno &&
 		e.length == that.length &&
@@ -387,8 +427,8 @@ func (e *JSError) HashCode() int32 {
 	var h int32
 	h = 31*h + e.type_.HashCode()
 	h = 31*h + jutil.StringHashCode(e.description)
-	if e.sourceName != nil {
-		h = 31*h + jutil.StringHashCode(*e.sourceName)
+	if e.hasSourceName {
+		h = 31*h + jutil.StringHashCode(e.sourceName)
 	} else {
 		h = 31 * h
 	}
@@ -419,30 +459,13 @@ const (
 
 var checkLevel_names = [...]string{"ERROR", "WARNING", "OFF"}
 
-// CheckLevel_values is CheckLevel.values().
-func CheckLevel_values() []CheckLevel {
-	return []CheckLevel{CheckLevel_ERROR, CheckLevel_WARNING, CheckLevel_OFF}
-}
-
 // String is Enum.name().
 func (l CheckLevel) String() string { return checkLevel_names[l] }
 
 // Ordinal is Enum.ordinal().
 func (l CheckLevel) Ordinal() int { return int(l) }
 
-// CompareTo is Enum.compareTo(E): the ordinal difference.
-func (l CheckLevel) CompareTo(o CheckLevel) int { return int(l) - int(o) }
-
 // Java: CheckLevel.isOn()
 func (l CheckLevel) IsOn() bool {
 	return l != CheckLevel_OFF
 }
-
-// Go-only: language-adapter — a Java CheckLevel reference may be null; such
-// values are *CheckLevel here (nil is null). Ptr returns the canonical
-// pointer to a constant, so that pointers to the same level are identical,
-// like the Java enum constants.
-var checkLevel_ptrs = [...]CheckLevel{CheckLevel_ERROR, CheckLevel_WARNING, CheckLevel_OFF}
-
-// Ptr returns the canonical non-null *CheckLevel for l.
-func (l CheckLevel) Ptr() *CheckLevel { return &checkLevel_ptrs[l] }

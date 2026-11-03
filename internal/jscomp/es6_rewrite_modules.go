@@ -157,12 +157,13 @@ func NewEs6RewriteModulesWithChunkOutputType(
 //
 // Java: Es6RewriteModules.isEs6ModuleRoot(Node)
 func Es6RewriteModules_IsEs6ModuleRoot(scriptNode rhino.Node) bool {
-	_, ok := ast.AsScript(scriptNode)
+	script, ok := ast.AsScript(scriptNode)
 	jutil.CheckArgumentMsg1(ok, "%s", scriptNode)
 	if scriptNode.GetBooleanProp(rhino.Node_GOOG_MODULE) {
 		return false
 	}
-	return scriptNode.HasChildren() && scriptNode.GetFirstChild().IsModuleBody()
+	firstItem, hasFirst := script.FirstItem()
+	return hasFirst && firstItem.Node().IsModuleBody()
 }
 
 // Java: Es6RewriteModules.process(Node, Node)
@@ -252,10 +253,11 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 		return
 	}
 
-	if !n.HasTwoChildren() {
+	arg, hasOneArg := call.OnlyArg()
+	if !hasOneArg {
 		return
 	}
-	argStr, isStr := ast.AsStringLit(n.GetLastChild())
+	argStr, isStr := arg.AsStringLit()
 	if !isStr {
 		// Reported in CheckClosureImports, don't report here.
 		return
@@ -280,8 +282,8 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 
 	statementNode := NodeUtil_GetEnclosingStatement(n)
 	if decl, isNameDecl := ast.AsNameDeclaration(statementNode); isNameDecl {
-		firstDecl := decl.Node().GetFirstChild()
-		if destructuringLhs, isDestruct := ast.AsDestructuringLhs(firstDecl); isDestruct {
+		firstDecl := decl.MustFirstDeclarator()
+		if destructuringLhs, isDestruct := firstDecl.AsDestructuringLhs(); isDestruct {
 			if isForwardDeclare {
 				t.Report(n, ClosurePrimitiveErrors_INVALID_DESTRUCTURING_FORWARD_DECLARE)
 				return
@@ -323,7 +325,7 @@ func (r *es6RewriteRequiresForEs6Modules) Visit(t *NodeTraversal, n rhino.Node, 
 					t.Report(statementNode, diagnostic)
 					return
 				}
-				lhsName := ast.MustName(firstDecl)
+				lhsName := firstDecl.MustName()
 				r.putRename(
 					t.GetScopeRoot(),
 					lhsName.Ident(),
@@ -465,7 +467,7 @@ func (e *Es6RewriteModules) visitExport(t *NodeTraversal, export ast.Export, par
 			exportNode.ReplaceWith(child.Detach())
 		} else {
 			varDecl := e.astFactory.CreateSingleVarNameDeclarationWithValue(
-				ModuleRenaming_DEFAULT_EXPORT_VAR_PREFIX, exportNode.RemoveFirstChild())
+				ModuleRenaming_DEFAULT_EXPORT_VAR_PREFIX, child.Detach())
 			varDecl.SetJSDocInfo(child.GetJSDocInfo())
 			child.SetJSDocInfo(nil)
 			varDecl.SrcrefTreeIfMissing(exportNode)
@@ -503,7 +505,7 @@ func (e *Es6RewriteModules) inlineModuleToGlobalScope(moduleBody ast.ModuleBody)
 }
 
 func (e *Es6RewriteModules) visitScript(t *NodeTraversal, script rhino.Node) {
-	moduleBody := ast.MustModuleBody(script.GetFirstChild())
+	moduleBody := ast.MustScript(script).MustFirstItem().MustModuleBody()
 	// TypedScopeCreator sets the module object type on the MODULE_BODY during type checking.
 	moduleObjectType := AstFactory_Type_(moduleBody.Node())
 	e.inlineModuleToGlobalScope(moduleBody)
@@ -523,9 +525,10 @@ func (e *Es6RewriteModules) visitScript(t *NodeTraversal, script rhino.Node) {
 	e.globalVarRenamer.thisModule = nil
 
 	// Rename the exports object to something we can reference later.
-	moduleVar.GetFirstChild().SetString(moduleName)
+	moduleVarName := ast.MustNameDeclaration(moduleVar).MustOnlyDeclarator().MustName()
+	moduleVarName.SetIdent(moduleName)
 	moduleVar.MakeNonIndexableRecursive()
-	e.declareGlobalVariable(moduleVar.GetFirstChild(), t)
+	e.declareGlobalVariable(moduleVarName.Node(), t)
 
 	e.rewriteRequires(script)
 
@@ -540,11 +543,12 @@ func (e *Es6RewriteModules) createExportsObject(
 	moduleObjectType AstFactory_Type) rhino.Node {
 	moduleObject := e.astFactory.CreateObjectLitWithType(moduleObjectType)
 	moduleVar := e.astFactory.CreateSingleVarNameDeclarationWithValue("$jscomp$tmp$exports$module$name", moduleObject)
-	moduleVar.GetFirstChild().PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
+	moduleVarLhs := ast.MustNameDeclaration(moduleVar).MustOnlyDeclarator().Node()
+	moduleVarLhs.PutBooleanProp(rhino.Node_MODULE_EXPORT, true)
 	infoBuilder := rhino.JSDocInfo_Builder_()
 	infoBuilder.RecordConstancy()
 	moduleVar.SetJSDocInfo(infoBuilder.Build())
-	moduleVar.GetFirstChild().SetDeclaredConstantVar(true)
+	moduleVarLhs.SetDeclaredConstantVar(true)
 	script.AddChildToBack(moduleVar.SrcrefTreeIfMissing(script))
 
 	for _, entry := range thisModule.NamespaceMap().Entries() {
@@ -605,7 +609,7 @@ func (e *Es6RewriteModules) addGetterExport(
 	}
 
 	getter.SrcrefTreeIfMissing(forSourceInfo)
-	e.compiler.ReportChangeToEnclosingScope(getter.GetFirstChild().GetLastChild())
+	e.compiler.ReportChangeToEnclosingScope(ast.MustGetterDef(getter).Function().Body().Node())
 	e.compiler.ReportChangeToEnclosingScope(getter)
 }
 
@@ -686,7 +690,8 @@ func (e *Es6RewriteModules) inlineAliasedTypes(t *NodeTraversal, typeNode rhino.
 }
 
 func (e *Es6RewriteModules) visitGoogModuleGet(t *NodeTraversal, getCall rhino.Node, parent rhino.Node) {
-	if !getCall.HasTwoChildren() || !getCall.GetLastChild().IsStringLit() {
+	arg, hasOneArg := ast.MustCall(getCall).OnlyArg()
+	if !hasOneArg || !arg.Node().IsStringLit() {
 		t.Report(getCall, ClosurePrimitiveErrors_INVALID_GET_NAMESPACE)
 		return
 	}
@@ -710,7 +715,9 @@ func (e *Es6RewriteModules) fallbackMetadataForNamespace(namespace string) *Modu
 
 func (e *Es6RewriteModules) visitRequireOrGet(
 	t *NodeTraversal, requireCall rhino.Node, parent rhino.Node, isRequire bool) {
-	if !requireCall.HasTwoChildren() || !requireCall.GetLastChild().IsStringLit() {
+	arg, hasOneArg := ast.MustCall(requireCall).OnlyArg()
+	argStr, isStr := arg.AsStringLit()
+	if !hasOneArg || !isStr {
 		t.Report(requireCall, ClosurePrimitiveErrors_INVALID_REQUIRE_NAMESPACE)
 		return
 	}
@@ -720,7 +727,7 @@ func (e *Es6RewriteModules) visitRequireOrGet(
 		return
 	}
 
-	namespace := requireCall.GetLastChild().GetString()
+	namespace := argStr.Value()
 	isStoredInDeclaration := NodeUtil_IsDeclaration(parent.GetParent())
 
 	if isStoredInDeclaration && !parent.GetParent().IsConst() {
@@ -980,7 +987,8 @@ func NewEs6RelativizeImportPaths(compiler AbstractCompiler) *Es6RelativizeImport
 // Java: Es6RelativizeImportPaths.process(Node, Node)
 func (e *Es6RelativizeImportPaths) Process(externs rhino.Node, root rhino.Node) {
 	var rewriter Es6RelativizeImportPaths_Rewriter
-	for script := root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+	for item := range ast.MustRoot(root).Items() {
+		script := item.Node()
 		if Es6RewriteModules_IsEs6ModuleRoot(script) {
 			NodeTraversal_Traverse(e.compiler, script, &rewriter)
 		}
@@ -1016,8 +1024,11 @@ func (r *Es6RelativizeImportPaths_Rewriter) ShouldTraverse(nodeTraversal *NodeTr
 
 // Java: Es6RelativizeImportPaths.Rewriter.visitImport(NodeTraversal, Node)
 func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, importDecl rhino.Node) {
-	specifierNode := importDecl.GetLastChild()
-	specifier := specifierNode.GetString()
+	r.relativizeModuleSource(t, ast.MustImport(importDecl).Source())
+}
+
+func (r *Es6RelativizeImportPaths_Rewriter) relativizeModuleSource(t *NodeTraversal, specifierLit ast.StringLit) {
+	specifier := specifierLit.Value()
 
 	// Leave relative and truly absolute paths (those with a scheme) alone. Only transform
 	// absolute paths without a scheme (starting with "/") and ambiguous paths.
@@ -1054,15 +1065,14 @@ func (r *Es6RelativizeImportPaths_Rewriter) VisitImport(t *NodeTraversal, import
 	}
 
 	if newSpecifier != specifier {
-		specifierNode.SetString(newSpecifier)
-		t.ReportCodeChangeWithNode(specifierNode)
+		specifierLit.SetValue(newSpecifier)
+		t.ReportCodeChangeWithNode(specifierLit.Node())
 	}
 }
 
 // Java: Es6RelativizeImportPaths.visitExport(NodeTraversal, Node)
 func (r *Es6RelativizeImportPaths_Rewriter) VisitExport(t *NodeTraversal, export rhino.Node) {
-	if export.HasTwoChildren() {
-		// export from
-		r.VisitImport(t, export)
+	if src, ok := ast.MustExport(export).Source(); ok {
+		r.relativizeModuleSource(t, src)
 	}
 }

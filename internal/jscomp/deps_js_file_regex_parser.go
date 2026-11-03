@@ -245,7 +245,7 @@ func (p *JsFileRegexParser) setModuleType(type_ jsFileRegexParser_ModuleType) bo
 		// TODO(sdh): should this be an error?
 		fileName := p.file.String()
 		p.errorManager.Report(
-			CheckLevel_WARNING.Ptr(),
+			CheckLevel_WARNING,
 			JSError_MakeWithSourceLocation(
 				&fileName,
 				/* lineno= */ -1,

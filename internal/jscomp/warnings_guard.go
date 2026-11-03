@@ -117,12 +117,12 @@ import (
 type WarningsGuard interface {
 	// Level returns a new check level for a given error.
 	//
-	// nil means that this guard does not know what to do with the error. nil
-	// can be used it chain multiple guards; if current guard returns nil,
-	// then the next in the chain should process it.
+	// ok == false means that this guard does not know what to do with the
+	// error; when chaining multiple guards, if the current guard returns
+	// ok == false, the next in the chain processes it.
 	//
 	// Java: WarningsGuard.level(JSError)
-	Level(error *JSError) *CheckLevel
+	Level(error *JSError) (CheckLevel, bool)
 
 	// MustRunChecks: do checks for group still need to be run if this guard
 	// is installed?
@@ -221,17 +221,15 @@ func NewStrictWarningsGuard() *StrictWarningsGuard {
 	return &StrictWarningsGuard{}
 }
 
-// Level may return nil.
-//
 // Java: StrictWarningsGuard.level(JSError)
-func (g *StrictWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *StrictWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	if error.Type() == StrictWarningsGuard_UNRAISABLE_WARNING {
-		return nil
+		return 0, false
 	}
 	if error.DefaultLevel().IsOn() {
-		return CheckLevel_ERROR.Ptr()
+		return CheckLevel_ERROR, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: StrictWarningsGuard.getPriority()
@@ -269,21 +267,19 @@ var closureUnawareCodeWarningsGuard_DEFAULT_CLOSURE_UNAWARE_CODE_SUPPRESSIONS = 
 	RhinoErrorReporter_UNSUPPORTED_BOUNDED_GENERIC_TYPES,
 	RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR)
 
-// Level may return nil.
-//
 // Java: ClosureUnawareCodeWarningsGuard.level(JSError)
-func (g *ClosureUnawareCodeWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *ClosureUnawareCodeWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	if !closureUnawareCodeWarningsGuard_DEFAULT_CLOSURE_UNAWARE_CODE_SUPPRESSIONS.Matches(error) {
-		return nil
+		return 0, false
 	}
 	node := error.Node()
 	if node.IsNil() {
-		return nil
+		return 0, false
 	}
 	if node.IsClosureUnawareCode() {
-		return CheckLevel_OFF.Ptr()
+		return CheckLevel_OFF, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: ClosureUnawareCodeWarningsGuard.getPriority()
@@ -311,18 +307,16 @@ func NewCheckTypeSummaryWarningsGuard(level CheckLevel) *CheckTypeSummaryWarning
 	return &CheckTypeSummaryWarningsGuard{level: level}
 }
 
-// Level may return nil.
-//
 // Java: CheckTypeSummaryWarningsGuard.level(JSError)
-func (g *CheckTypeSummaryWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *CheckTypeSummaryWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	jutil.CheckNotNull(error)
 	if !g.ShouldDemoteIfTypeSummary(error) {
-		return nil
+		return 0, false
 	}
 	if g.InTypeSummary(error) {
-		return g.level.Ptr()
+		return g.level, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: CheckTypeSummaryWarningsGuard.getPriority()
@@ -336,8 +330,8 @@ func (g *CheckTypeSummaryWarningsGuard) GetPriority() int {
 //
 // Java: CheckTypeSummaryWarningsGuard.inTypeSummary(JSError)
 func (g *CheckTypeSummaryWarningsGuard) InTypeSummary(error *JSError) bool {
-	src := error.SourceName()
-	return src != nil && strings.HasSuffix(*src, ".i.js")
+	src, ok := error.SourceNameOpt()
+	return ok && strings.HasSuffix(src, ".i.js")
 }
 
 // ShouldDemoteIfTypeSummary returns whether the given error should be
@@ -420,14 +414,11 @@ func ByPathWarningsGuard_ExceptPath(
 	return newByPathWarningsGuard(paths, false, level)
 }
 
-// Level may return nil.
-//
 // Java: ByPathWarningsGuard.level(JSError)
-func (g *ByPathWarningsGuard) Level(error *JSError) *CheckLevel {
-	errorPath := error.SourceName()
+func (g *ByPathWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
+	src, hasPath := error.SourceNameOpt()
 	defaultLevel := error.DefaultLevel()
-	if defaultLevel != CheckLevel_ERROR && errorPath != nil {
-		src := *errorPath
+	if defaultLevel != CheckLevel_ERROR && hasPath {
 		inPath := false
 		for _, path := range g.paths {
 			if strings.Contains(src, path) {
@@ -436,10 +427,10 @@ func (g *ByPathWarningsGuard) Level(error *JSError) *CheckLevel {
 			}
 		}
 		if inPath == g.include {
-			return g.level.Ptr()
+			return g.level, true
 		}
 	}
-	return nil
+	return 0, false
 }
 
 // Java: ByPathWarningsGuard.getPriority()
@@ -508,7 +499,7 @@ func NewShowByPathWarningsGuardWithPathsAndShowType(paths []string, showType Sho
 }
 
 // Java: ShowByPathWarningsGuard.level(JSError)
-func (g *ShowByPathWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *ShowByPathWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	return g.warningsGuard.Level(error)
 }
 
@@ -581,22 +572,22 @@ func NewJ2clSuppressWarningsGuard() *J2clSuppressWarningsGuard {
 }
 
 // Java: J2clSuppressWarningsGuard.level(JSError)
-func (g *J2clSuppressWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *J2clSuppressWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	if !J2clSourceUtils_IsJ2clSource(error.SourceName()) {
-		return nil
+		return 0, false
 	}
 
 	// Do not warn about deprecated forwardDeclare usages in J2CL generated code as this particular
 	// use-case is still valid, but not elsewhere.
 	if DiagnosticGroups_DEPRECATED.Matches(error) &&
 		strings.Contains(error.Description(), "forwardDeclare") {
-		return CheckLevel_OFF.Ptr()
+		return CheckLevel_OFF, true
 	}
 
 	if J2clSuppressWarningsGuard_DEFAULT_J2CL_SUPRRESIONS.Matches(error) {
-		return CheckLevel_OFF.Ptr()
+		return CheckLevel_OFF, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: J2clSuppressWarningsGuard.getPriority()
@@ -620,14 +611,12 @@ func NewDiagnosticGroupWarningsGuard(
 	return &DiagnosticGroupWarningsGuard{group: group, level: level}
 }
 
-// Level may return nil.
-//
 // Java: DiagnosticGroupWarningsGuard.level(JSError)
-func (g *DiagnosticGroupWarningsGuard) Level(error *JSError) *CheckLevel {
+func (g *DiagnosticGroupWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
 	if g.group.Matches(error) {
-		return g.level.Ptr()
+		return g.level, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: DiagnosticGroupWarningsGuard.mustRunChecks(DiagnosticGroup)
@@ -669,17 +658,18 @@ func NewDiagnosticGroupPathSuppressingWarningsGuard(group *DiagnosticGroup, part
 	return &DiagnosticGroupPathSuppressingWarningsGuard{group: group, part: part}
 }
 
-// Level does not touch warnings in other paths. It may return nil.
+// Level does not touch warnings in other paths.
 //
 // Java: DiagnosticGroupPathSuppressingWarningsGuard.level(JSError)
-func (g *DiagnosticGroupPathSuppressingWarningsGuard) Level(error *JSError) *CheckLevel {
-	if error.SourceName() == nil || !strings.Contains(*error.SourceName(), g.part) {
-		return nil
+func (g *DiagnosticGroupPathSuppressingWarningsGuard) Level(error *JSError) (CheckLevel, bool) {
+	src, ok := error.SourceNameOpt()
+	if !ok || !strings.Contains(src, g.part) {
+		return 0, false
 	}
 	if g.group.Matches(error) {
-		return CheckLevel_OFF.Ptr()
+		return CheckLevel_OFF, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: DiagnosticGroupPathSuppressingWarningsGuard.toString()

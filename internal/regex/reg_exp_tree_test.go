@@ -19,6 +19,7 @@
 package regex
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ import (
 func parseRegExpAndPrintPattern(regex, flags string) string {
 	tree, err := ParseRegExp(regex, flags)
 	if err != nil {
-		panic(err.toThrowable())
+		panic(err.(*RegExpParseError).toThrowable())
 	}
 	var sb strings.Builder
 	tree.AppendSourceCode(&sb)
@@ -39,7 +40,7 @@ func exceptionFrom(t *testing.T, regex, flags string) jutil.IRuntimeException {
 	t.Helper()
 	tree, err := ParseRegExp(regex, flags)
 	if err != nil {
-		return err.toThrowable()
+		return err.(*RegExpParseError).toThrowable()
 	}
 	var sb strings.Builder
 	tree.AppendSourceCode(&sb)
@@ -276,8 +277,9 @@ func TestParseRegExpReturnsErrorWithoutPanic(t *testing.T) {
 		if err == nil || tree != nil {
 			t.Fatalf("ParseRegExp(%q, %q) = (%v, %v), want error %q", tc.pattern, tc.flags, tree, err, tc.wantMsg)
 		}
-		if err.Kind != tc.kind || err.Message != tc.wantMsg {
-			t.Errorf("ParseRegExp(%q, %q) = (%v, %q), want (%v, %q)", tc.pattern, tc.flags, err.Kind, err.Message, tc.kind, tc.wantMsg)
+		var reErr *RegExpParseError
+		if !errors.As(err, &reErr) || reErr.Kind != tc.kind || reErr.Message != tc.wantMsg {
+			t.Errorf("ParseRegExp(%q, %q) = (%v, %q), want (%v, %q)", tc.pattern, tc.flags, err, err.Error(), tc.kind, tc.wantMsg)
 		}
 	}
 }

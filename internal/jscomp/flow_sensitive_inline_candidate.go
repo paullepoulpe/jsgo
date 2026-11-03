@@ -33,45 +33,32 @@ type FlowSensitiveInlineVariables_SideEffectPredicate struct {
 
 // Java: FlowSensitiveInlineVariables.SideEffectPredicate.apply(Node)
 func (p *FlowSensitiveInlineVariables_SideEffectPredicate) Apply(n rhino.Node) bool {
-	// When the node is null it means, we reached the implicit return
-	// where the function returns (possibly without a return statement)
-	if n.IsNil() {
-		return false
-	}
+	return walkCfgNode(n, func(cur, _ rhino.Node) bool {
+		if p.checkDeps &&
+			cur.IsName() &&
+			p.outer.reachingDef.hasDependentNameID(p.defDeps, cur.GetStringID()) &&
+			NodeUtil_IsLValue(cur) {
+			// the name is being written to. this is a problem, unless it is part of a top-level assign
+			// chain and the write will take place after all CFG node subexpressions are evaluated
+			return !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(cur)
+		}
 
-	if p.checkDeps &&
-		n.IsName() &&
-		p.outer.reachingDef.hasDependentNameID(p.defDeps, n.GetStringID()) &&
-		NodeUtil_IsLValue(n) {
-		// the name is being written to. this is a problem, unless it is part of a top-level assign
-		// chain and the write will take place after all CFG node subexpressions are evaluated
-		return !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
-	}
-
-	astAnalyzer := p.outer.getAstAnalyzer()
-	if (n.IsCall() || n.IsOptChainCall() || n.IsTaggedTemplateLit()) &&
-		astAnalyzer.FunctionCallHasSideEffects(n) {
-		return true
-	}
-
-	if n.IsNew() && astAnalyzer.ConstructorCallHasSideEffects(n) {
-		return true
-	}
-
-	if n.IsDelProp() {
-		return true
-	}
-
-	if (n.IsGetProp() || n.IsGetElem()) && NodeUtil_IsLValue(n) {
-		return !p.checkDeps || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(n)
-	}
-
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !ControlFlowGraph_IsEnteringNewCfgNode(c) && p.Apply(c) {
+		astAnalyzer := p.outer.getAstAnalyzer()
+		if (cur.IsCall() || cur.IsOptChainCall() || cur.IsTaggedTemplateLit()) &&
+			astAnalyzer.FunctionCallHasSideEffects(cur) {
 			return true
 		}
-	}
-	return false
+		if cur.IsNew() && astAnalyzer.ConstructorCallHasSideEffects(cur) {
+			return true
+		}
+		if cur.IsDelProp() {
+			return true
+		}
+		if (cur.IsGetProp() || cur.IsGetElem()) && NodeUtil_IsLValue(cur) {
+			return !p.checkDeps || !FlowSensitiveInlineVariables_IsTopLevelAssignTarget(cur)
+		}
+		return false
+	})
 }
 
 // FlowSensitiveInlineVariables_IsTopLevelAssignTarget reports whether the
@@ -240,33 +227,6 @@ func (c *FlowSensitiveInlineVariables_Candidate) InlineVariable() {
 	c.outer.reportChange(useParent)
 }
 
-func (c *FlowSensitiveInlineVariables_Candidate) findDefWalk(n, parent rhino.Node) {
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		return
-	}
-	switch n.GetToken() {
-	case rhino.Token_CLASS:
-		// In NodeTraversal's order: the extends clause, then the name
-		// (which defines nothing), then the body.
-		class := ast.MustClass(n)
-		if extends, ok := class.Extends(); ok {
-			c.findDefWalk(extends.Node(), n)
-		}
-		c.findDefWalk(class.Body().Node(), n)
-	case rhino.Token_CLASS_MEMBERS:
-		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			c.findDefWalk(ch, p)
-		}
-	default:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			c.findDefWalk(child, n)
-		}
-	}
-	if c.isDefOfVar(n) {
-		c.def = n
-	}
-}
-
 // isDefOfVar reports whether n defines the candidate's variable: the
 // variable declared with a value, or an assignment to it.
 func (c *FlowSensitiveInlineVariables_Candidate) isDefOfVar(n rhino.Node) bool {
@@ -313,28 +273,11 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetDefinition(n rhino.Node) {
 		throwNilCfgNodeTraversal(c.outer.compiler)
 		return
 	}
-	c.findDefWalk(n, rhino.NilNode)
-}
-
-func (c *FlowSensitiveInlineVariables_Candidate) countUseWalk(n, parent, cfgNode rhino.Node) {
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		return
-	}
-	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			c.countUseWalk(ch, p, cfgNode)
+	walkCfgEvalOrder(n, func(cur, _ rhino.Node) {
+		if c.isDefOfVar(cur) {
+			c.def = cur
 		}
-		return
-	}
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		c.countUseWalk(child, n, cfgNode)
-	}
-	if n.IsName() && n.GetStringID() == c.nameID {
-		if ast.RoleOf(n) == ast.RoleAssignTarget && fsivIsAssignChain(parent, cfgNode) {
-			return
-		}
-		c.numUsesWithinCfgNode++
-	}
+	})
 }
 
 func fsivIsAssignChain(child rhino.Node, ancestor rhino.Node) bool {
@@ -357,30 +300,14 @@ func (c *FlowSensitiveInlineVariables_Candidate) GetNumUseInUseCfgNode(cfgNode r
 		throwNilCfgNodeTraversal(c.outer.compiler)
 		return
 	}
-	c.countUseWalk(cfgNode, rhino.NilNode, cfgNode)
-}
-
-func fsivHasUnsafeRhsNode(n rhino.Node) bool {
-	switch n.GetToken() {
-	case rhino.Token_GETELEM,
-		rhino.Token_GETPROP,
-		rhino.Token_OPTCHAIN_GETPROP,
-		rhino.Token_OPTCHAIN_GETELEM,
-		rhino.Token_CLASS,
-		rhino.Token_ARRAYLIT,
-		rhino.Token_OBJECTLIT,
-		rhino.Token_REGEXP,
-		rhino.Token_NEW:
-		return true
-	case rhino.Token_FUNCTION:
-		return false
-	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if fsivHasUnsafeRhsNode(c) {
-			return true
+	walkCfgNode(cfgNode, func(n, parent rhino.Node) bool {
+		if n.IsName() && n.GetStringID() == c.nameID {
+			if !(ast.RoleOf(n) == ast.RoleAssignTarget && fsivIsAssignChain(parent, cfgNode)) {
+				c.numUsesWithinCfgNode++
+			}
 		}
-	}
-	return false
+		return false
+	})
 }
 
 func (c *FlowSensitiveInlineVariables_Candidate) hasOutOfScopeName(n rhino.Node, usageScope *Scope) bool {
@@ -410,13 +337,10 @@ func (c *FlowSensitiveInlineVariables_Candidate) IsRhsSafeToInline(usageScope *S
 }
 
 func (c *FlowSensitiveInlineVariables_Candidate) isRhsNodeSafeToInline(rhs rhino.Node, usageScope *Scope) bool {
-	if fsivHasUnsafeRhsNode(rhs) {
+	if unsafe, _ := fsivInspectRhs(rhs); unsafe {
 		return false
 	}
-	if c.hasOutOfScopeName(rhs, usageScope) {
-		return false
-	}
-	return true
+	return !c.hasOutOfScopeName(rhs, usageScope)
 }
 
 func fsivCheckPostExpressions(

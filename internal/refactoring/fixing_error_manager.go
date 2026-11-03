@@ -159,7 +159,7 @@ func (m *FixingErrorManager) getMultiFixes(err *jscomp.JSError) []*SuggestedFix 
 }
 
 // Java: FixingErrorManager.report(CheckLevel, JSError)
-func (m *FixingErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
+func (m *FixingErrorManager) Report(level jscomp.CheckLevel, error *jscomp.JSError) {
 	m.SortingErrorManager.Report(level, error)
 	if !m.isUnfixable(error.Type()) {
 		fixes := m.fixer.GetFixesForJsError(error)
@@ -243,6 +243,6 @@ func (m *FixingErrorManager) PrintSummary() {
 }
 
 // Java: FixingErrorManager.println(CheckLevel, JSError)
-func (m *FixingErrorManager) Println(level *jscomp.CheckLevel, error *jscomp.JSError) {
+func (m *FixingErrorManager) Println(level jscomp.CheckLevel, error *jscomp.JSError) {
 	// No-op
 }

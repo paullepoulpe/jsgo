@@ -156,32 +156,6 @@ func isNilNonScalar(v any) bool {
 	}
 }
 
-// IsNilOf reports whether v is Java null without boxing typed pointers into any.
-func IsNilOf[T any](v T) bool {
-	return isNilOf(v)
-}
-
-func isNilOf[T any](v T) bool {
-	switch reflect.TypeFor[T]().Kind() {
-	case reflect.Pointer, reflect.UnsafePointer, reflect.Chan:
-		var zero T
-		return any(v) == any(zero)
-	case reflect.Uint32:
-		var zero T
-		if any(v) != any(zero) {
-			return false
-		}
-		_, ok := any(v).(interface{ IsNil() bool })
-		return ok
-	case reflect.Interface:
-		return IsNil(any(v))
-	case reflect.Slice, reflect.Map, reflect.Func:
-		return reflect.ValueOf(v).IsNil()
-	default:
-		return false
-	}
-}
-
 //go:noinline
 func failNull() {
 	panic(&NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}})
@@ -197,7 +171,7 @@ func CheckNotNullPtr[T any](p *T) *T {
 
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
-	if isNilOf(reference) {
+	if IsNil(reference) {
 		failNull()
 	}
 	return reference
@@ -205,7 +179,7 @@ func CheckNotNull[T any](reference T) T {
 
 // CheckNotNullMsg is Preconditions.checkNotNull(T, String, Object...).
 func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
-	if isNilOf(reference) {
+	if IsNil(reference) {
 		failNotNull(template, args...)
 	}
 	return reference
@@ -213,7 +187,7 @@ func CheckNotNullMsg[T any](reference T, template string, args ...any) T {
 
 // CheckNotNullMsg1 is Preconditions.checkNotNull(T, String, Object).
 func CheckNotNullMsg1[T, A any](reference T, template string, p1 A) T {
-	if isNilOf(reference) {
+	if IsNil(reference) {
 		failNotNull(template, p1)
 	}
 	return reference
@@ -221,7 +195,7 @@ func CheckNotNullMsg1[T, A any](reference T, template string, p1 A) T {
 
 // CheckNotNullMsg2 is Preconditions.checkNotNull(T, String, Object, Object).
 func CheckNotNullMsg2[T, A, B any](reference T, template string, p1 A, p2 B) T {
-	if isNilOf(reference) {
+	if IsNil(reference) {
 		failNotNull(template, p1, p2)
 	}
 	return reference

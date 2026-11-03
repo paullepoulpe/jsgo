@@ -28,11 +28,11 @@ import (
 
 type VarCheckTest struct {
 	CompilerTestCaseBase
-	strictChunkDepErrorLevel CheckLevel
-	validityCheck            bool
-	// A Java @Nullable CheckLevel: nil is null.
-	externValidationErrorLevel *CheckLevel
-	declarationCheck           bool
+	strictChunkDepErrorLevel      CheckLevel
+	validityCheck                 bool
+	externValidationErrorLevel    CheckLevel
+	hasExternValidationErrorLevel bool
+	declarationCheck              bool
 }
 
 // Java: VarCheckTest()
@@ -56,7 +56,7 @@ func (c *VarCheckTest) SetUp() {
 	// Setup value set by individual tests to the appropriate defaults.
 	c.AllowExternsChanges()
 	c.strictChunkDepErrorLevel = CheckLevel_OFF
-	c.externValidationErrorLevel = nil
+	c.hasExternValidationErrorLevel = false
 	c.validityCheck = false
 	c.declarationCheck = false
 }
@@ -67,8 +67,8 @@ func (c *VarCheckTest) GetOptions() *CompilerOptions {
 	options.SetClosurePass(true)
 	options.SetWarningLevel(DiagnosticGroups_MODULE_LOAD, CheckLevel_OFF)
 	options.SetWarningLevel(DiagnosticGroups_STRICT_MODULE_DEP_CHECK, c.strictChunkDepErrorLevel)
-	if c.externValidationErrorLevel != nil {
-		options.SetWarningLevel(DiagnosticGroups_EXTERNS_VALIDATION, *c.externValidationErrorLevel)
+	if c.hasExternValidationErrorLevel {
+		options.SetWarningLevel(DiagnosticGroups_EXTERNS_VALIDATION, c.externValidationErrorLevel)
 	}
 	return options
 }
@@ -373,7 +373,8 @@ func (c *VarCheckTest) TestVarAssignmentInExterns() {
 
 // Java: VarCheckTest.testAliasesInExterns()
 func (c *VarCheckTest) TestAliasesInExterns() {
-	c.externValidationErrorLevel = CheckLevel_ERROR.Ptr()
+	c.externValidationErrorLevel = CheckLevel_ERROR
+	c.hasExternValidationErrorLevel = true
 
 	c.TestSame(c.Externs("var foo; /** @const */ var asdf = foo;"), c.Srcs(""))
 	c.TestSame(c.Externs("var Foo; var ns = {}; /** @const */ ns.FooAlias = Foo;"), c.Srcs(""))
@@ -431,10 +432,12 @@ func (c *VarCheckTest) TestPropReferenceInExterns3() {
 		c.Srcs("var /** @suppress {duplicate} */ asdf;"),
 		c.Warning(VarCheck_UNDEFINED_EXTERN_VAR_ERROR))
 
-	c.externValidationErrorLevel = CheckLevel_ERROR.Ptr()
+	c.externValidationErrorLevel = CheckLevel_ERROR
+	c.hasExternValidationErrorLevel = true
 	c.Test(c.Externs("asdf.foo;"), c.Srcs("var asdf;"), c.Error(VarCheck_UNDEFINED_EXTERN_VAR_ERROR))
 
-	c.externValidationErrorLevel = CheckLevel_OFF.Ptr()
+	c.externValidationErrorLevel = CheckLevel_OFF
+	c.hasExternValidationErrorLevel = true
 	c.TestSame(c.Externs("asdf.foo;"), c.Srcs("var asdf;"))
 }
 

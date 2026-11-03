@@ -440,49 +440,7 @@ type cfaWorkItem struct {
 	pos  int32
 }
 
-func (c *ControlFlowAnalysis) cfaSiftUp(worklist []cfaWorkItem, i int, x cfaWorkItem) {
-	for i > 0 {
-		parent := (i - 1) / 2
-		p := worklist[parent]
-		if x.pos >= p.pos {
-			break
-		}
-		worklist[i] = p
-		i = parent
-	}
-	worklist[i] = x
-}
-
-func (c *ControlFlowAnalysis) cfaSiftDown(worklist []cfaWorkItem, i int, x cfaWorkItem) {
-	n := len(worklist)
-	if 2*i+1 >= n {
-		worklist[i] = x
-		return
-	}
-	xPos := x.pos
-	for {
-		pick := 2*i + 1
-		if pick >= n {
-			break
-		}
-		smaller := worklist[pick]
-		smallerPos := smaller.pos
-		if sibling := pick + 1; sibling < n {
-			sib := worklist[sibling]
-			if sibPos := sib.pos; smallerPos > sibPos {
-				pick = sibling
-				smaller = sib
-				smallerPos = sibPos
-			}
-		}
-		if xPos <= smallerPos {
-			break
-		}
-		worklist[i] = smaller
-		i = pick
-	}
-	worklist[i] = x
-}
+func cfaWorkItemLess(a, b cfaWorkItem) bool { return a.pos < b.pos }
 
 // prioritizeFromEntryNode: given an entry node, find all the nodes reachable
 // from that node and prioritize them.
@@ -501,7 +459,7 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *graph.LinkedDirecte
 		worklist[n-1] = cfaWorkItem{}
 		worklist = worklist[:n-1]
 		if n > 1 {
-			c.cfaSiftDown(worklist, 0, last)
+			heapSiftDown(worklist, 0, last, cfaWorkItemLess)
 		}
 		if current.Priority >= 0 {
 			continue
@@ -523,7 +481,7 @@ func (c *ControlFlowAnalysis) prioritizeFromEntryNode(entry *graph.LinkedDirecte
 				}
 				succPos := c.astPositionOfNode(succ.Value)
 				worklist = append(worklist, cfaWorkItem{})
-				c.cfaSiftUp(worklist, len(worklist)-1, cfaWorkItem{node: succ, pos: succPos})
+				heapSiftUp(worklist, len(worklist)-1, cfaWorkItem{node: succ, pos: succPos}, cfaWorkItemLess)
 			}
 		}
 	}

@@ -434,22 +434,14 @@ func (e *Es6NormalizeClasses) ExtractExtends(t *NodeTraversal, classRecord *es6N
 		superClass.RemoveName()
 	}
 
-	nameNode := es6NormalizeClasses_optionalGet(classRecord.normalizedNames.superClassNode)
+	nameNode := classRecord.normalizedNames.superClassNode
+	jutil.CheckState(!nameNode.IsNil())
 	originalExtends.Node().ReplaceWith(nameNode)
 	extendsAlias := rhino.IR_ConstNode(nameNode.CloneNode(), originalExtends.Node()).Srcref(originalExtends.Node())
 	extendsAlias.InsertBefore(statement)
 	NodeUtil_AddFeatureToScript(
 		NodeUtil_GetEnclosingScript(classNode.Node()), parser.FeatureSet_Feature_CONST_DECLARATIONS, e.compiler)
 	t.ReportCodeChangeWithNode(classNode.Node())
-}
-
-// Go-only: language-adapter — Optional<Node>.get(): an absent Optional is
-// a nil node.
-func es6NormalizeClasses_optionalGet(n rhino.Node) rhino.Node {
-	if n.IsNil() {
-		panic(jutil.NewNoSuchElementExceptionMsg("No value present"))
-	}
-	return n
 }
 
 // PushDownNodeIntoNewIife replaces a node with an IIFE that returns that
@@ -594,9 +586,7 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 			e.RewritePrivateGetProp(t, ast.MustNormalOrOptChainGetProp(n))
 		}
 	case rhino.Token_CLASS:
-		if len(e.classStack) == 0 {
-			panic(jutil.NewNoSuchElementException())
-		}
+		jutil.CheckState(len(e.classStack) != 0)
 		currClassRecord := e.classStack[len(e.classStack)-1]
 		e.classStack[len(e.classStack)-1] = nil
 		e.classStack = e.classStack[:len(e.classStack)-1]
@@ -776,7 +766,8 @@ func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) 
 
 // Java: Es6NormalizeClasses.isSuperCall(Node)
 func Es6NormalizeClasses_IsSuperCall(n rhino.Node) bool {
-	return n.IsCall() && n.GetFirstChild().IsSuper()
+	call, ok := ast.AsCall(n)
+	return ok && call.Callee().Node().IsSuper()
 }
 
 // Es6NormalizeClasses_IsInStaticInitializationContext assumes that we have
@@ -981,22 +972,24 @@ func NewSynthesizeExplicitConstructors(compiler AbstractCompiler) *SynthesizeExp
 //
 // Java: SynthesizeExplicitConstructors.synthesizeClassConstructorIfMissing(NodeTraversal, Node)
 func (s *SynthesizeExplicitConstructors) SynthesizeClassConstructorIfMissing(t *NodeTraversal, classNode rhino.Node) {
-	jutil.CheckArgument(classNode.IsClass())
-	if NodeUtil_GetEs6ClassConstructorMemberFunctionDef(classNode).IsNil() {
+	cls, ok := ast.AsClass(classNode)
+	jutil.CheckArgument(ok)
+	if _, hasCtor := cls.Constructor(); !hasCtor {
 		s.AddSyntheticConstructor(t, classNode)
 	}
 }
 
 // Java: SynthesizeExplicitConstructors.addSyntheticConstructor(NodeTraversal, Node)
 func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversal, classNode rhino.Node) {
-	superClass := classNode.GetSecondChild()
-	classMembers := classNode.GetLastChild()
+	cls := ast.MustClass(classNode)
+	classMembers := cls.Body().Node()
 	var memberDef rhino.Node
-	if superClass.IsEmpty() {
+	if superClassExpr, hasSuper := cls.Extends(); !hasSuper {
 		function := s.astFactory.CreateEmptyFunction(AstFactory_Type_(classNode))
 		s.compiler.ReportChangeToChangeScope(function)
 		memberDef = s.astFactory.CreateMemberFunctionDef("constructor", function)
 	} else {
+		superClass := superClassExpr.Node()
 		jutil.CheckStateMsg1(
 			superClass.IsQualifiedName(),
 			"Expected Es6NormalizeClasses to make all extends clauses into qualified names, found %s",
@@ -1028,7 +1021,7 @@ func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversa
 	classMembers.AddChildToFront(memberDef)
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_MEMBER_DECLARATIONS, s.compiler)
 	// report newly created constructor
-	s.compiler.ReportChangeToChangeScope(memberDef.GetOnlyChild())
+	s.compiler.ReportChangeToChangeScope(ast.MustMemberFunctionDef(memberDef).Function().Node())
 	// report change to scope containing the class
 	s.compiler.ReportChangeToEnclosingScope(memberDef)
 }

@@ -86,17 +86,17 @@ func AllowlistWarningsGuard_NormalizeAllowlist(allowlist []string) map[string]st
 }
 
 // Java: AllowlistWarningsGuard.level(JSError)
-func (g *AllowlistWarningsGuard) Level(error *jscomp.JSError) *jscomp.CheckLevel {
+func (g *AllowlistWarningsGuard) Level(error *jscomp.JSError) (jscomp.CheckLevel, bool) {
 	if error.DefaultLevel() == jscomp.CheckLevel_ERROR {
-		return nil
+		return 0, false
 	}
 	if len(g.allowlist) > 0 && g.ContainWarning(g.FormatWarning(error)) {
 		// If the message matches the guard we use WARNING, so that it
 		// - Shows up on stderr, and
 		// - Gets caught by the AllowlistBuilder downstream in the pipeline
-		return jscomp.CheckLevel_WARNING.Ptr()
+		return jscomp.CheckLevel_WARNING, true
 	}
-	return nil
+	return 0, false
 }
 
 // ContainWarning determines whether a given warning is included in the
@@ -149,19 +149,6 @@ func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromCharSource(supplier *ju
 	return deduplicateLines(lines)
 }
 
-// AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader loads legacy
-// warnings list from the file. It panics with an IOException when reading
-// fails.
-//
-// Returns the lines of the file.
-//
-// Java: AllowlistWarningsGuard.loadAllowlistedJsWarnings(Reader)
-func AllowlistWarningsGuard_LoadAllowlistedJsWarningsFromReader(reader jutil.JavaReader) []string {
-	// TODO(nicksantos): This is a weird API.
-	jutil.CheckNotNull(reader)
-	return deduplicateLines(jutil.CharStreams_ReadLines(reader))
-}
-
 func deduplicateLines(lines []string) []string {
 	seen := make(map[string]struct{}, len(lines))
 	result := make([]string, 0, len(lines))
@@ -189,8 +176,8 @@ func (g *AllowlistWarningsGuard) FormatWarning(error *jscomp.JSError) string {
 // Java: AllowlistWarningsGuard.formatWarning(JSError, boolean)
 func (g *AllowlistWarningsGuard) FormatWarningWithMetaData(error *jscomp.JSError, withMetaData bool) string {
 	var sb strings.Builder
-	if src := error.SourceName(); src != nil {
-		sb.WriteString(g.NormalizeSourceName(*src))
+	if src, ok := error.SourceNameOpt(); ok {
+		sb.WriteString(g.NormalizeSourceName(src))
 	} else {
 		sb.WriteString("null")
 	}
@@ -247,13 +234,4 @@ func (g *AllowlistWarningsGuard) NormalizeSourceName(s string) string {
 		}
 		offset = matchStart + len(prefix)
 	}
-}
-
-// Java: AllowlistWarningsGuard.getFirstLine(String)
-func AllowlistWarningsGuard_GetFirstLine(warning string) string {
-	lineLength := strings.IndexByte(warning, '\n')
-	if lineLength > 0 {
-		warning = warning[:lineLength]
-	}
-	return warning
 }

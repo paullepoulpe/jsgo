@@ -235,11 +235,10 @@ type beanC struct {
 }
 
 func (b *beanC) Args4jFields() []AnnotatedField {
-	const c = "Args4jVectors$BeanC"
 	return []AnnotatedField{
-		{Option: &Option{Name: "--fix", Usage: "Fix lint warnings automatically"}, Field: BooleanField(c, "fix", &b.fix)},
-		{Option: &Option{Name: "--resolution_mode", Usage: "Expected path resolution mode for resolving module specifiers."}, Field: EnumField(c, "resolutionMode", modeClass, &b.resolutionMode)},
-		{Argument: &Argument{}, Field: ListField(c, "files", Class_String, &b.files)},
+		{Option: &Option{Name: "--fix", Usage: "Fix lint warnings automatically"}, Field: Bool(&b.fix)},
+		{Option: &Option{Name: "--resolution_mode", Usage: "Expected path resolution mode for resolving module specifiers."}, Field: ScalarField(modeClass, &b.resolutionMode)},
+		{Argument: &Argument{}, Field: StringSlice(&b.files)},
 	}
 }
 
@@ -289,9 +288,15 @@ func (b *beanDupIndex) Args4jFields() []AnnotatedField {
 
 type beanFinal struct{ f string }
 
+func finalField(declaringClass, name string) *Field {
+	return &Field{
+		finalErr: "Cannot set value to a final field '" + declaringClass + "." + name + "'.",
+	}
+}
+
 func (b *beanFinal) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
-		{Option: &Option{Name: "-f", Usage: "final"}, Field: FinalField("Args4jVectors$BeanFinal", "f")},
+		{Option: &Option{Name: "-f", Usage: "final"}, Field: finalField("Args4jVectors$BeanFinal", "f")},
 	}
 }
 

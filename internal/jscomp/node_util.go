@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -151,59 +152,44 @@ func NodeUtil_GetInverseOperator(type_ rhino.Token) rhino.Token {
 func NodeUtil_IsLiteralValue(n rhino.Node, includeFunctions bool) bool {
 	switch n.GetToken() {
 	case rhino.Token_CAST:
-		return NodeUtil_IsLiteralValue(n.GetFirstChild(), includeFunctions)
+		return NodeUtil_IsLiteralValue(ast.MustCast(n).Expr().Node(), includeFunctions)
 	case rhino.Token_ARRAYLIT:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if (!child.IsEmpty()) && !NodeUtil_IsLiteralValue(child, includeFunctions) {
+		for child := range n.Children() {
+			if !child.IsEmpty() && !NodeUtil_IsLiteralValue(child, includeFunctions) {
 				return false
 			}
 		}
 		return true
 	case rhino.Token_REGEXP:
 		// Return true only if all descendants are const.
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		for child := range n.Children() {
 			if !NodeUtil_IsLiteralValue(child, includeFunctions) {
 				return false
 			}
 		}
 		return true
 	case rhino.Token_OBJECTLIT:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		for child := range n.Children() {
 			switch child.GetToken() {
 			case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-				// { methodName() {...} }
-				// { get propertyName() {...} }
-				// { set propertyName(value) {...} }
 				if !includeFunctions {
 					return false
 				}
-				// keep going
-
 			case rhino.Token_COMPUTED_PROP:
-				// { [key_expression]: value, ... }
-				// { [key_expression](args) {...}, ... }
-				// { get [key_expression]() {...}, ... }
-				// { set [key_expression](args) {...}, ... }
-				if !NodeUtil_IsLiteralValue(child.GetFirstChild(), includeFunctions) ||
-					!NodeUtil_IsLiteralValue(child.GetLastChild(), includeFunctions) {
+				cp := ast.MustComputedProp(child)
+				val, hasVal := cp.Value()
+				if !hasVal || !NodeUtil_IsLiteralValue(cp.Key().Node(), includeFunctions) ||
+					!NodeUtil_IsLiteralValue(val.Node(), includeFunctions) {
 					return false
 				}
-				// keep going
-
 			case rhino.Token_OBJECT_SPREAD:
-				if !NodeUtil_IsLiteralValue(child.GetOnlyChild(), includeFunctions) {
+				if !NodeUtil_IsLiteralValue(ast.MustObjectSpread(child).Expr().Node(), includeFunctions) {
 					return false
 				}
-				// keep going
-
 			case rhino.Token_STRING_KEY:
-				// { key: value, ... }
-				// { "quoted_key": value, ... }
-				if !NodeUtil_IsLiteralValue(child.GetOnlyChild(), includeFunctions) {
+				if !NodeUtil_IsLiteralValue(ast.MustStringKey(child).Value().Node(), includeFunctions) {
 					return false
 				}
-				// keep going
-
 			default:
 				panic(jutil.NewIllegalArgumentExceptionMsg(
 					"Unexpected child of OBJECTLIT: " + child.ToStringTree()))
@@ -213,11 +199,9 @@ func NodeUtil_IsLiteralValue(n rhino.Node, includeFunctions bool) bool {
 	case rhino.Token_FUNCTION:
 		return includeFunctions && !NodeUtil_IsFunctionDeclaration(n)
 	case rhino.Token_TEMPLATELIT:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsTemplateLitSub() {
-				if !NodeUtil_IsLiteralValue(child.GetFirstChild(), includeFunctions) {
-					return false
-				}
+		for part := range ast.MustTemplateLit(n).Parts() {
+			if sub, ok := part.AsTemplateLitSub(); ok && !NodeUtil_IsLiteralValue(sub.Expr().Node(), includeFunctions) {
+				return false
 			}
 		}
 		return true
@@ -375,25 +359,24 @@ func NodeUtil_IsNamespaceDecl(n rhino.Node) bool {
 	if !n.IsFromExterns() && !isMarkedConst {
 		return false
 	}
-	var qnameNode rhino.Node
-	var initializer rhino.Node
+	var qnameNode, initializer rhino.Node
 	if NodeUtil_IsNameDeclaration(n.GetParent()) {
 		qnameNode = n
 		initializer = n.GetFirstChild()
-	} else if n.IsExprResult() {
-		expr := n.GetFirstChild()
-		if !expr.IsAssign() || !expr.GetFirstChild().IsGetProp() {
+	} else if exprStmt, ok := ast.AsExprStmt(n); ok {
+		assign, ok := exprStmt.Expr().AsAssign()
+		if !ok || !assign.Target().Node().IsGetProp() {
 			return false
 		}
-		qnameNode = expr.GetFirstChild()
-		initializer = expr.GetLastChild()
+		qnameNode = assign.Target().Node()
+		initializer = assign.Value().Node()
 	} else if n.IsGetProp() {
-		parent := n.GetParent()
-		if !parent.IsAssign() || !parent.GetParent().IsExprResult() {
+		assign, ok := ast.AsAssign(n.GetParent())
+		if !ok || !assign.Node().GetParent().IsExprResult() {
 			return false
 		}
 		qnameNode = n
-		initializer = parent.GetLastChild()
+		initializer = assign.Value().Node()
 	} else {
 		return false
 	}
@@ -403,9 +386,11 @@ func NodeUtil_IsNamespaceDecl(n rhino.Node) bool {
 	if initializer.IsObjectLit() {
 		return true
 	}
-	return initializer.IsOr() &&
-		qnameNode.MatchesQualifiedNameNode(initializer.GetFirstChild()) &&
-		initializer.GetLastChild().IsObjectLit()
+	if initializer.IsOr() {
+		bin := ast.MustBinary(initializer)
+		return qnameNode.MatchesQualifiedNameNode(bin.Left().Node()) && bin.Right().Node().IsObjectLit()
+	}
+	return false
 }
 
 // NodeUtil_KNOWN_CONSTANTS: we will assume that side effects never change
@@ -696,9 +681,9 @@ func NodeUtil_RedeclareVarsInsideBranch(branch rhino.Node) {
 
 	parent := NodeUtil_GetAddingRoot(branch)
 	for _, nameNode := range vars {
-		var_ := rhino.IR_Var(rhino.IR_Name(nameNode.GetString()).Srcref(nameNode)).Srcref(nameNode)
-		NodeUtil_CopyNameAnnotations(nameNode, var_.GetFirstChild())
-		parent.AddChildToFront(var_)
+		newName := rhino.IR_Name(nameNode.GetString()).Srcref(nameNode)
+		NodeUtil_CopyNameAnnotations(nameNode, newName)
+		parent.AddChildToFront(rhino.IR_Var(newName).Srcref(nameNode))
 	}
 }
 
@@ -862,9 +847,6 @@ var NodeUtil_GLOBAL_OBJECT = rhino.QualifiedName_Of("$jscomp.global.Object")
 
 // Java: NodeUtil.GLOBAL_OBJECT_MANGLED
 var NodeUtil_GLOBAL_OBJECT_MANGLED = rhino.QualifiedName_Of("$jscomp$global.Object")
-
-// Java: NodeUtil.NUMBER_NAN
-var NodeUtil_NUMBER_NAN = rhino.IR_Getprop(rhino.IR_Name("Number"), "NaN")
 
 // Java: NodeUtil.GOOG_LOADMODULE
 var NodeUtil_GOOG_LOADMODULE = rhino.QualifiedName_Of("goog.loadModule")

@@ -47,7 +47,7 @@ func (c *Compiler) toSourceStreaming(
 	stop := make(chan struct{})
 	var next atomic.Int64
 	var wg sync.WaitGroup
-	for w := range min(numThreads, len(scripts)) {
+	for range min(numThreads, len(scripts)) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -64,11 +64,11 @@ func (c *Compiler) toSourceStreaming(
 					return
 				}
 				s := &slots[idx%window]
-				s.failure = prebuildRunIndexedTask(func(int, int) {
+				s.failure = runThrowableTask(func() {
 					if s.lt == nil {
 						s.lt = newCompiler_SingleBinaryLicenseTracker(c)
 					} else {
-						s.lt.current.clear()
+						resetOrderedSet(&s.lt.current)
 						s.lt.lastSeenFile = ""
 					}
 					c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, s.lt, &s.sm, &scratch)
@@ -88,12 +88,11 @@ func (c *Compiler) toSourceStreaming(
 						}
 						s.resolved = out
 					}
-					if s.lt.current.isEmpty() {
-						s.licenses = s.licenses[:0]
-					} else {
-						s.licenses = append(s.licenses[:0], s.lt.current.order...)
+					s.licenses = s.licenses[:0]
+					for lic := range s.lt.current.All() {
+						s.licenses = append(s.licenses, lic)
 					}
-				}, w, idx)
+				})
 				s.done <- struct{}{}
 			}
 		}()

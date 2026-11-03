@@ -290,7 +290,7 @@ func (v *AstValidator) ValidateTaggedTemplateLit(n rhino.Node) {
 func (v *AstValidator) ValidateTemplateLit(n rhino.Node) {
 	v.ValidateFeature(parser.FeatureSet_Feature_TEMPLATE_LITERALS, n)
 	v.ValidateNodeType(rhino.Token_TEMPLATELIT, n)
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range n.Children() {
 		if child.IsTemplateLitString() {
 			v.ValidateTemplateLitString(child)
 		} else {
@@ -542,7 +542,7 @@ func (v *AstValidator) ValidateRegExpLit(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_REGEXP, n)
 	v.ValidateProperties(n)
 	v.ValidateChildCountIn(n, 1, 2)
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		v.ValidateStringLit(c)
 	}
 }
@@ -574,7 +574,7 @@ func (v *AstValidator) ValidateBigInt(n rhino.Node) {
 // Java: AstValidator.validateArrayLit(Node)
 func (v *AstValidator) ValidateArrayLit(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_ARRAYLIT, n)
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		// Array-literals may have empty slots.
 		v.ValidatePseudoExpression(c, rhino.Token_EMPTY, rhino.Token_ITER_SPREAD)
 		break
@@ -584,7 +584,7 @@ func (v *AstValidator) ValidateArrayLit(n rhino.Node) {
 // Java: AstValidator.validateObjectLit(Node)
 func (v *AstValidator) ValidateObjectLit(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_OBJECTLIT, n)
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		v.ValidateObjectLitKey(c)
 	}
 }

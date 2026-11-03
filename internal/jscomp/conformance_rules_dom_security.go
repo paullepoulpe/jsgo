@@ -47,7 +47,7 @@ type ConformanceRules_BanCreateElement struct {
 // Java: ConformanceRules.BanCreateElement(AbstractCompiler, Requirement)
 func newConformanceRules_BanCreateElement(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanCreateElement, error) {
 	r := &ConformanceRules_BanCreateElement{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
+	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
 		return nil, err
 	}
 	values := requirement.GetValueList()
@@ -62,13 +62,6 @@ func newConformanceRules_BanCreateElement(compiler AbstractCompiler, requirement
 	r.domHelperType = compiler.GetTypeRegistry().GetGlobalType("goog.dom.DomHelper")
 	r.documentType = compiler.GetTypeRegistry().GetGlobalType("Document")
 	return r, nil
-}
-
-func (r *ConformanceRules_BanCreateElement) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
 }
 
 // Java: ConformanceRules.BanCreateElement.checkConformance(NodeTraversal, Node)
@@ -128,7 +121,7 @@ type ConformanceRules_BanCreateDom struct {
 // Java: ConformanceRules.BanCreateDom(AbstractCompiler, Requirement)
 func newConformanceRules_BanCreateDom(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanCreateDom, error) {
 	r := &ConformanceRules_BanCreateDom{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
+	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
 		return nil, err
 	}
 	values := requirement.GetValueList()
@@ -153,13 +146,6 @@ func newConformanceRules_BanCreateDom(compiler AbstractCompiler, requirement *Re
 		registry.GetNativeType(rhino.JSTypeNative_NULL_TYPE),
 		registry.GetNativeType(rhino.JSTypeNative_VOID_TYPE))
 	return r, nil
-}
-
-func (r *ConformanceRules_BanCreateDom) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
 }
 
 // Java: ConformanceRules.BanCreateDom.checkConformance(NodeTraversal, Node)
@@ -505,7 +491,7 @@ func newConformanceRules_BanElementSetAttribute(compiler AbstractCompiler, requi
 	r := &ConformanceRules_BanElementSetAttribute{
 		performGlobalNamespaceAnalysis: true,
 	}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
+	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
 		return nil, err
 	}
 	r.securitySensitiveAttributes =
@@ -530,13 +516,6 @@ func (r *ConformanceRules_BanElementSetAttribute) GetGlobalNamespace() *GlobalNa
 		}
 	}
 	return r.globalNamespace
-}
-
-func (r *ConformanceRules_BanElementSetAttribute) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
 }
 
 // Java: ConformanceRules.BanElementSetAttribute.checkConformance(NodeTraversal, Node)
@@ -691,7 +670,7 @@ var conformanceRules_BanSettingAttributes_BANNED_ATTRS = NewConformanceRules_Sec
 // Java: ConformanceRules.BanSettingAttributes(AbstractCompiler, Requirement)
 func newConformanceRules_BanSettingAttributes(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanSettingAttributes, error) {
 	r := &ConformanceRules_BanSettingAttributes{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
+	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
 		return nil, err
 	}
 
@@ -715,13 +694,6 @@ func newConformanceRules_BanSettingAttributes(compiler AbstractCompiler, require
 
 	r.restrictions = restrictions
 	return r, nil
-}
-
-func (r *ConformanceRules_BanSettingAttributes) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
 }
 
 // Java: ConformanceRules.BanSettingAttributes.checkConformance(NodeTraversal, Node)
@@ -779,7 +751,7 @@ type ConformanceRules_BanExecCommand struct {
 // Java: ConformanceRules.BanExecCommand(AbstractCompiler, Requirement)
 func newConformanceRules_BanExecCommand(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanExecCommand, error) {
 	r := &ConformanceRules_BanExecCommand{}
-	if err := r.initAbstractRule(compiler, requirement, false); err != nil {
+	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
 		return nil, err
 	}
 	values := requirement.GetValueList()
@@ -789,13 +761,6 @@ func newConformanceRules_BanExecCommand(compiler AbstractCompiler, requirement *
 	}
 	r.bannedAttrs = bannedAttrs
 	return r, nil
-}
-
-func (r *ConformanceRules_BanExecCommand) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
 }
 
 // Java: ConformanceRules.BanExecCommand.checkConformance(NodeTraversal, Node)
@@ -851,17 +816,10 @@ type ConformanceRules_BanStaticThis struct {
 // Java: ConformanceRules.BanStaticThis(AbstractCompiler, Requirement)
 func newConformanceRules_BanStaticThis(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanStaticThis, error) {
 	r := &ConformanceRules_BanStaticThis{}
-	if err := r.initTypeRestrictionRule(compiler, requirement, false); err != nil {
+	if err := r.initTypeRule(compiler, requirement, false, r.CheckConformance); err != nil {
 		return nil, err
 	}
 	return r, nil
-}
-
-func (r *ConformanceRules_BanStaticThis) Check(
-	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := r.CheckConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
-		r.Report(n, result, behavior)
-	}
 }
 
 // Java: ConformanceRules.BanStaticThis.checkConformance(NodeTraversal, Node)

@@ -36,7 +36,6 @@
 package jscomp
 
 import (
-	"iter"
 	"slices"
 	"strings"
 
@@ -373,58 +372,16 @@ func (p *ReplaceMessages_ReplacementCompletionPass) VisitMsgFallback(protectedMs
 	p.outer.compiler.ReportChangeToEnclosingScope(valueNodeToUse)
 }
 
-type replaceMessagesPlaceholders struct {
-	byName map[string]rhino.Node
-	order  []string
-	objLit jsMessageObjectLiteralMap
-}
-
-func (p *replaceMessagesPlaceholders) isEmpty() bool {
-	return len(p.order) == 0 && len(p.objLit.entries) == 0
-}
-
-func (p *replaceMessagesPlaceholders) size() int {
-	if len(p.order) > 0 {
-		return len(p.order)
-	}
-	return len(p.objLit.entries)
-}
-
-func (p *replaceMessagesPlaceholders) get(name string) rhino.Node {
-	if p.byName != nil {
-		return p.byName[name]
-	}
-	return p.objLit.getValueNode(name)
-}
-
-func (p *replaceMessagesPlaceholders) entries() iter.Seq2[string, rhino.Node] {
-	return func(yield func(string, rhino.Node) bool) {
-		if len(p.order) > 0 {
-			for _, k := range p.order {
-				if !yield(k, p.byName[k]) {
-					return
-				}
-			}
-			return
-		}
-		for _, e := range p.objLit.entries {
-			if !yield(e.key, e.node.GetOnlyChild()) {
-				return
-			}
-		}
-	}
-}
-
 // Java: ReplaceMessages.extractPlaceholderValuesMapOrThrow(Node)
-func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit rhino.Node) replaceMessagesPlaceholders {
+func ReplaceMessages_ExtractPlaceholderValuesMapOrThrow(valuesObjLit rhino.Node) OrderedStringMap[rhino.Node] {
 	if valuesObjLit.IsNil() {
-		return replaceMessagesPlaceholders{}
+		return OrderedStringMap[rhino.Node]{}
 	}
 	m, err := extractObjectLiteralMap(valuesObjLit)
 	if err != nil {
 		panic(jutil.NewIllegalStateExceptionMsg(err.Error()))
 	}
-	return replaceMessagesPlaceholders{objLit: m}
+	return m.extractAsValueMap()
 }
 
 // ReplaceMessages_ProtectedMsgFallback represents a `__jscomp_msg_fallback__` call.
@@ -504,7 +461,7 @@ func (r *ReplaceMessages) GetFullReplacementPass() CompilerPass {
 // ReplaceMessages_FullReplacementMsgData holds inputs for single-phase replacement.
 type ReplaceMessages_FullReplacementMsgData struct {
 	message             *JsMessage
-	placeholderValueMap replaceMessagesPlaceholders
+	placeholderValueMap OrderedStringMap[rhino.Node]
 	messageNode         rhino.Node
 	messageOptions      ReplaceMessages_MsgOptions
 }
@@ -564,10 +521,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessJsMessageDefinition(definit
 			escapeLessThan:       definition.ShouldEscapeLessThan(),
 			unescapeHtmlEntities: definition.ShouldUnescapeHtmlEntities(),
 		},
-		placeholderValueMap: replaceMessagesPlaceholders{
-			byName: definition.placeholderValueMap,
-			order:  definition.placeholderValueOrder,
-		},
+		placeholderValueMap: definition.placeholderValues,
 	})
 }
 
@@ -604,7 +558,7 @@ func (p *ReplaceMessages_FullReplacementPass) ProcessFullReplacement(fullReplace
 // Java: ReplaceMessages.createNodeForGenderedMsgString(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 	message *JsMessage,
-	placeholderMap *replaceMessagesPlaceholders,
+	placeholderMap *OrderedStringMap[rhino.Node],
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
 ) (rhino.Node, *malformedMessageError) {
@@ -614,9 +568,9 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 		GetUniqueIdSupplier().
 		GetUniqueId(r.compiler.GetInput(NodeUtil_GetInputId(nodeToReplace)))
 	var placeholderMapIds map[string]string
-	if !placeholderMap.isEmpty() {
-		placeholderMapIds = make(map[string]string, placeholderMap.size())
-		for placeholderName := range placeholderMap.entries() {
+	if !placeholderMap.IsEmpty() {
+		placeholderMapIds = make(map[string]string, placeholderMap.Size())
+		for placeholderName := range placeholderMap.Keys() {
 			placeholderId := placeholderName + uniqueId
 			paramList.AddChildToBack(r.astFactory.CreateName(placeholderId, type_))
 			placeholderMapIds[placeholderName] = placeholderId
@@ -629,7 +583,7 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 		return rhino.NilNode, err
 	}
 
-	if placeholderMap.isEmpty() {
+	if placeholderMap.IsEmpty() {
 		return hookExpression, nil
 	}
 
@@ -638,7 +592,7 @@ func (r *ReplaceMessages) CreateNodeForGenderedMsgString(
 	r.compiler.ReportChangeToChangeScope(function)
 
 	callNode := r.astFactory.CreateCall(function, type_)
-	for _, node := range placeholderMap.entries() {
+	for node := range placeholderMap.Values() {
 		callNode.AddChildToBack(node.CloneTree())
 	}
 	return callNode, nil
@@ -776,7 +730,7 @@ func (r *ReplaceMessages) BuildMessageNode(
 // Java: ReplaceMessages.constructStringExprNode(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) ConstructStringExprNode(
 	message *JsMessage,
-	placeholderMap *replaceMessagesPlaceholders,
+	placeholderMap *OrderedStringMap[rhino.Node],
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
 ) (rhino.Node, *malformedMessageError) {
@@ -789,11 +743,11 @@ func (r *ReplaceMessages) ConstructStringExprNode(
 // Java: ReplaceMessages.constructNonGenderedMsgNode(JsMessage, Map<String, Node>, ReplaceMessages.MsgOptions, Node)
 func (r *ReplaceMessages) ConstructNonGenderedMsgNode(
 	message *JsMessage,
-	placeholderMap *replaceMessagesPlaceholders,
+	placeholderMap *OrderedStringMap[rhino.Node],
 	options ReplaceMessages_MsgOptions,
 	nodeToReplace rhino.Node,
 ) (rhino.Node, *malformedMessageError) {
-	if placeholderMap.isEmpty() {
+	if placeholderMap.IsEmpty() {
 		if options.isIcuTemplate {
 			return r.CreateNodeForMsgString(options, message.AsIcuMessageString()), nil
 		}
@@ -814,7 +768,7 @@ func (r *ReplaceMessages) ConstructNonGenderedMsgNode(
 		message.GetParts(),
 		options,
 		nodeToReplace,
-		placeholderMap.get,
+		placeholderMap.Get,
 		false,
 	)
 }

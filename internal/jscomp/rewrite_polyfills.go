@@ -40,8 +40,7 @@ type RewritePolyfills struct {
 	polyfills           *PolyfillUsageFinder_Polyfills
 	injectPolyfills     bool
 	isolatePolyfills    bool
-	libraries           []string
-	librariesSeen       map[string]struct{}
+	libraries           OrderedSet[string]
 	// Go-only: language-adapter — a nullable LanguageMode: nil is null.
 	injectPolyfillsNewerThan *CompilerOptions_LanguageMode
 	disambiguateProperties   bool
@@ -121,8 +120,7 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 		return
 	}
 	if r.injectPolyfills {
-		r.libraries = nil
-		r.librariesSeen = make(map[string]struct{})
+		r.libraries.Clear()
 		NewPolyfillUsageFinder(r.compiler, r.polyfills, r.disambiguateProperties).
 			TraverseExcludingGuarded(root, r.Inject)
 	}
@@ -142,7 +140,7 @@ func (r *RewritePolyfills) Process(externs rhino.Node, root rhino.Node) {
 			}
 		}
 	} else {
-		librariesToInject = r.libraries
+		librariesToInject = r.libraries.ToSlice()
 	}
 
 	r.InjectAll(librariesToInject /* forceInjection= */, r.injectPolyfillsNewerThan != nil)
@@ -232,12 +230,6 @@ func (r *RewritePolyfills) Inject(polyfillUsage *PolyfillUsageFinder_PolyfillUsa
 	// version that introduced this symbol?"
 	if !outputFeatureSet.Contains(parser.FeatureSet_ValueOf(polyfill.nativeVersion)) &&
 		polyfill.library != "" {
-		if r.librariesSeen == nil {
-			r.librariesSeen = make(map[string]struct{})
-		}
-		if _, seen := r.librariesSeen[polyfill.library]; !seen {
-			r.librariesSeen[polyfill.library] = struct{}{}
-			r.libraries = append(r.libraries, polyfill.library)
-		}
+		r.libraries.Add(polyfill.library)
 	}
 }

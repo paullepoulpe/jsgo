@@ -31,12 +31,6 @@ var argumentsStringID = rhino.RhinoStringPool_InternID(Var_ARGUMENTS)
 // (multiple or conditional reaching definitions). A nil entry represents TOP.
 var mustDefBottom MustBeReachingVariableDef_Definition
 
-type mustDefNodeState struct {
-	in        *MustBeReachingVariableDef_MustDef
-	out       *MustBeReachingVariableDef_MustDef
-	stepCount int
-}
-
 // MustBeReachingVariableDef computes must-be-reaching definition for all
 // uses of each variable.
 //
@@ -50,7 +44,7 @@ type mustDefNodeState struct {
 type MustBeReachingVariableDef struct {
 	cfg        *ControlFlowGraph[rhino.Node]
 	worklist   cfgWorklist
-	nodeStates []mustDefNodeState
+	nodeStates []DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef]
 
 	compiler     AbstractCompiler
 	varTable     fnVarTable
@@ -60,7 +54,6 @@ type MustBeReachingVariableDef struct {
 	hasCatchVars bool
 
 	emptyLattice MustBeReachingVariableDef_MustDef
-	joinOp       MustBeReachingVariableDef_MustDefJoin
 
 	flowInput  *MustBeReachingVariableDef_MustDef
 	flowOutput *MustBeReachingVariableDef_MustDef
@@ -92,25 +85,8 @@ func (d *MustBeReachingVariableDef) resetWithTable(
 	d.defs.Rewind()
 }
 
-// GetCfg returns the control flow graph analyzed by MustBeReachingVariableDef.
-//
-// Java: DataFlowAnalysis.getCfg()
-func (d *MustBeReachingVariableDef) GetCfg() *ControlFlowGraph[rhino.Node] {
-	return d.cfg
-}
-
 func (d *MustBeReachingVariableDef) inStateAt(index uint32) *MustBeReachingVariableDef_MustDef {
 	return d.nodeStates[index].in
-}
-
-// Join merges two MustDef lattices directly without interface dispatch.
-//
-// Java: DataFlowAnalysis.join(MustDef, MustDef)
-func (d *MustBeReachingVariableDef) Join(latticeA, latticeB *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
-	d.joinOp.result = d.allocMustDefEmpty()
-	d.joinOp.JoinFlow(latticeA)
-	d.joinOp.JoinFlow(latticeB)
-	return d.joinOp.result
 }
 
 // Analyze computes a forward linear fixed-point flow solution over d.cfg.
@@ -120,61 +96,29 @@ func (d *MustBeReachingVariableDef) Analyze() {
 	cfg := d.cfg
 	entry := cfg.entry
 	implicitReturn := cfg.implicitReturn
-	cfgNodes := &cfg.Nodes
-
-	d.worklist.reset(cfg, cfgNodes.Size(), true)
-	nodeCap := cfg.NodeIndexCap()
-	if cap(d.nodeStates) < nodeCap {
-		d.nodeStates = make([]mustDefNodeState, nodeCap)
-	} else {
-		clear(d.nodeStates[:nodeCap])
-		d.nodeStates = d.nodeStates[:nodeCap]
-	}
-
-	initial := jutil.CheckNotNullPtr(d.CreateInitialEstimateLattice())
-	for node := range cfgNodes.Values() {
-		node.DfaInQueue = false
-		d.nodeStates[node.Index] = mustDefNodeState{in: initial, out: initial}
-		if node != implicitReturn {
-			d.worklist.enqueue(node)
-		}
-	}
-
-	for d.worklist.notEmpty() {
-		curNode := d.worklist.dequeue()
-		curState := &d.nodeStates[curNode.Index]
-		stepCount := curState.stepCount
-		curState.stepCount++
-		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
-			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
-		}
-
+	d.nodeStates = resetLinearFlowStates(d.nodeStates, cfg, &d.emptyLattice)
+	states := d.nodeStates
+	d.worklist.solve(cfg, true, func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+		curState := &states[curNode.Index]
 		d.joinNodeInputs(curNode, curState, entry)
 		outBefore := curState.out
-		outAfter := jutil.CheckNotNullPtr(d.FlowThrough(curNode.Value, curState.in))
+		outAfter := jutil.CheckNotNullPtr(d.flowThrough(curNode.Value, curState.in))
 		curState.out = outAfter
-		if !mustDefEquals(outBefore, outAfter) {
-			for _, edge := range curNode.OutEdgeList.Slice() {
-				nextNode := edge.DestNode
-				if !nextNode.DfaInQueue && nextNode != implicitReturn {
-					d.worklist.enqueue(nextNode)
-				}
-			}
-		}
-	}
+		return !mustDefEquals(outBefore, outAfter)
+	})
 
 	if implicitReturn != nil {
-		d.joinNodeInputs(implicitReturn, &d.nodeStates[implicitReturn.Index], entry)
+		d.joinNodeInputs(implicitReturn, &states[implicitReturn.Index], entry)
 	}
 }
 
 func (d *MustBeReachingVariableDef) joinNodeInputs(
 	node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
-	state *mustDefNodeState,
+	state *DataFlowAnalysis_LinearFlowState[*MustBeReachingVariableDef_MustDef],
 	entry *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch],
 ) {
 	if node == entry {
-		state.in = jutil.CheckNotNullPtr(d.CreateEntryLattice())
+		state.in = jutil.CheckNotNullPtr(d.createEntryLattice())
 		return
 	}
 	inEdges := node.InEdgeList.Slice()
@@ -184,11 +128,11 @@ func (d *MustBeReachingVariableDef) joinNodeInputs(
 	case 1:
 		state.in = jutil.CheckNotNullPtr(d.nodeStates[inEdges[0].SourceNode.Index].out)
 	default:
-		d.joinOp.result = d.allocMustDefEmpty()
+		joined := d.allocMustDefEmpty()
 		for _, inEdge := range inEdges {
-			d.joinOp.JoinFlow(d.nodeStates[inEdge.SourceNode.Index].out)
+			joinMustDefInto(joined, d.nodeStates[inEdge.SourceNode.Index].out)
 		}
-		state.in = jutil.CheckNotNullPtr(d.joinOp.result)
+		state.in = joined
 	}
 }
 
@@ -209,9 +153,9 @@ func (d *MustBeReachingVariableDef) initVarsFromTable(table *fnVarTable) {
 		n = table.uniqueCount
 	}
 	releaseLarge := n <= 256
-	d.varTable.escaped.clear(releaseLarge)
-	d.paramBits.clear(releaseLarge)
-	d.catchBits.clear(releaseLarge)
+	d.varTable.escaped.Reset(releaseLarge)
+	d.paramBits.Reset(releaseLarge)
+	d.catchBits.Reset(releaseLarge)
 	d.hasParams = false
 	d.hasCatchVars = false
 	clear(d.varTable.vars)
@@ -334,7 +278,7 @@ func (d *MustBeReachingVariableDef) allocDefinition(node rhino.Node) *MustBeReac
 	def := d.defs.Alloc()
 	def.node = node
 	def.unknownDependencies = false
-	def.deps.clear(len(d.varTable.vars) <= 256)
+	def.deps.Reset(len(d.varTable.vars) <= 256)
 	return def
 }
 
@@ -375,33 +319,6 @@ func (d *MustBeReachingVariableDef_Definition) DependsOnVarID(id int) bool {
 // variable read by other.
 func (d *MustBeReachingVariableDef_Definition) ContainsAllDependencies(other *MustBeReachingVariableDef_Definition) bool {
 	return d.deps.ContainsAll(&other.deps)
-}
-
-// Java: MustBeReachingVariableDef.Definition.equals(Object)
-func (d *MustBeReachingVariableDef_Definition) Equals(other any) bool {
-	otherDef, ok := other.(*MustBeReachingVariableDef_Definition)
-	if !ok || otherDef == nil {
-		return false
-	}
-	if d == &mustDefBottom || otherDef == &mustDefBottom {
-		return d == otherDef
-	}
-	// If the var has the same definition node we can assume they have the
-	// same depends set.
-	return otherDef.node == d.node
-}
-
-// Java: MustBeReachingVariableDef.Definition.toString()
-func (d *MustBeReachingVariableDef_Definition) String() string {
-	return "Definition@" + jutil.ToJavaString(d.node)
-}
-
-// Java: MustBeReachingVariableDef.Definition.hashCode()
-func (d *MustBeReachingVariableDef_Definition) HashCode() int32 {
-	if d == &mustDefBottom {
-		return -1
-	}
-	return jutil.ObjectHashCode(d.node)
 }
 
 // MustBeReachingVariableDef_MustDef is the must reaching definition lattice
@@ -462,35 +379,11 @@ func mustDefEquals(a, b *MustBeReachingVariableDef_MustDef) bool {
 	return true
 }
 
-// Java: MustBeReachingVariableDef.MustDef.equals(Object)
-func (m *MustBeReachingVariableDef_MustDef) Equals(other any) bool {
-	mustDef, ok := other.(*MustBeReachingVariableDef_MustDef)
-	return ok && mustDefEquals(m, mustDef)
-}
-
-// Java: MustBeReachingVariableDef.MustDef.hashCode()
-func (m *MustBeReachingVariableDef_MustDef) HashCode() int32 {
-	var h int32
-	for i, def := range m.defs {
-		if def != nil {
-			h = 31*h + int32(i)*97 + def.HashCode()
-		}
-	}
-	return h
-}
-
-// MustBeReachingVariableDef_MustDefJoin is the FlowJoiner of this analysis.
-type MustBeReachingVariableDef_MustDefJoin struct {
-	result *MustBeReachingVariableDef_MustDef
-}
-
-// Java: MustBeReachingVariableDef.MustDefJoin.joinFlow(MustDef)
-func (j *MustBeReachingVariableDef_MustDefJoin) JoinFlow(input *MustBeReachingVariableDef_MustDef) {
+func joinMustDefInto(dst, input *MustBeReachingVariableDef_MustDef) {
 	srcDefs := input.defs
 	if len(srcDefs) == 0 {
 		return
 	}
-	dst := j.result
 	if len(dst.defs) == 0 {
 		cloneMustDefInto(input, dst)
 		return
@@ -512,18 +405,7 @@ func (j *MustBeReachingVariableDef_MustDefJoin) JoinFlow(input *MustBeReachingVa
 	}
 }
 
-// Java: MustBeReachingVariableDef.MustDefJoin.finish()
-func (j *MustBeReachingVariableDef_MustDefJoin) Finish() *MustBeReachingVariableDef_MustDef {
-	return j.result
-}
-
-// Java: MustBeReachingVariableDef.isForward()
-func (d *MustBeReachingVariableDef) IsForward() bool {
-	return true
-}
-
-// Java: MustBeReachingVariableDef.createEntryLattice()
-func (d *MustBeReachingVariableDef) CreateEntryLattice() *MustBeReachingVariableDef_MustDef {
+func (d *MustBeReachingVariableDef) createEntryLattice() *MustBeReachingVariableDef_MustDef {
 	if len(d.varTable.vars) == 0 {
 		return &d.emptyLattice
 	}
@@ -535,13 +417,7 @@ func (d *MustBeReachingVariableDef) CreateEntryLattice() *MustBeReachingVariable
 	return m
 }
 
-// Java: MustBeReachingVariableDef.createInitialEstimateLattice()
-func (d *MustBeReachingVariableDef) CreateInitialEstimateLattice() *MustBeReachingVariableDef_MustDef {
-	return &d.emptyLattice
-}
-
-// Java: MustBeReachingVariableDef.flowThrough(Node, MustDef)
-func (d *MustBeReachingVariableDef) FlowThrough(n rhino.Node, input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
+func (d *MustBeReachingVariableDef) flowThrough(n rhino.Node, input *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_MustDef {
 	d.flowInput = input
 	d.flowOutput = input
 	// TODO(user): This must know about ON_EX edges but it should handle
@@ -785,24 +661,6 @@ func (d *MustBeReachingVariableDef) recordDependenceID(def *MustBeReachingVariab
 	def.deps.Set(id)
 }
 
-func (d *MustBeReachingVariableDef) computeDependenceWalk(def *MustBeReachingVariableDef_Definition, n, parent rhino.Node) {
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		return
-	}
-	if n.GetToken() == rhino.Token_CLASS_MEMBERS {
-		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			d.computeDependenceWalk(def, ch, p)
-		}
-		return
-	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		d.computeDependenceWalk(def, c, n)
-	}
-	if n.IsName() {
-		d.recordDependenceID(def, n.GetStringID())
-	}
-}
-
 // ComputeDependence computes all the local variables that rValue reads from
 // and store that in the def's depends set.
 //
@@ -813,7 +671,12 @@ func (d *MustBeReachingVariableDef) ComputeDependence(def *MustBeReachingVariabl
 		throwNilCfgNodeTraversal(d.compiler)
 		return
 	}
-	d.computeDependenceWalk(def, rValue, rhino.NilNode)
+	walkCfgNode(rValue, func(n, _ rhino.Node) bool {
+		if n.IsName() {
+			d.recordDependenceID(def, n.GetStringID())
+		}
+		return false
+	})
 }
 
 func (d *MustBeReachingVariableDef) getDefFromMustDefByID(nameID uint32, inState *MustBeReachingVariableDef_MustDef) *MustBeReachingVariableDef_Definition {

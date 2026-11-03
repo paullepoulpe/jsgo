@@ -197,15 +197,15 @@ func RhinoErrorReporter_ForOldRhino(internalReporter ErrorHandler) rhino.ErrorRe
 // Java: RhinoErrorReporter.warningAtLine(String, String, int, int)
 func (r *RhinoErrorReporter) WarningAtLine(message string, sourceName string, line int,
 	lineOffset int) {
-	r.internalReporter.Report(
-		nil, rhinoErrorReporter_makeError(message, sourceName, line, lineOffset, CheckLevel_WARNING))
+	err := rhinoErrorReporter_makeError(message, sourceName, line, lineOffset, CheckLevel_WARNING)
+	r.internalReporter.Report(err.DefaultLevel(), err)
 }
 
 // Java: RhinoErrorReporter.errorAtLine(String, String, int, int)
 func (r *RhinoErrorReporter) ErrorAtLine(message string, sourceName string, line int,
 	lineOffset int) {
-	r.internalReporter.Report(
-		nil, rhinoErrorReporter_makeError(message, sourceName, line, lineOffset, CheckLevel_ERROR))
+	err := rhinoErrorReporter_makeError(message, sourceName, line, lineOffset, CheckLevel_ERROR)
+	r.internalReporter.Report(err.DefaultLevel(), err)
 }
 
 // Java: RhinoErrorReporter.OldRhinoErrorReporter.error(String, String, int, int)

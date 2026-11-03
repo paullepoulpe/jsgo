@@ -44,12 +44,7 @@ var es6ConvertSuper_FEATURES_TO_RUN_FOR = parser.FeatureSet_BARE_MINIMUM.WithFea
 	parser.FeatureSet_Feature_CLASSES,
 )
 
-var es6ConvertSuperVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_CLASS)
-	s.Add(rhino.Token_SUPER)
-	return s
-}()
+var es6ConvertSuperVisitTokens = makeVisitTokenSet(rhino.Token_CLASS, rhino.Token_SUPER)
 
 func (*Es6ConvertSuper) visitTokens() *ast.TokenSet { return &es6ConvertSuperVisitTokens }
 

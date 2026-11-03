@@ -229,7 +229,7 @@ func (c *JsMessageVisitorTest) TestIcuTemplatePlaceholderUpperSnakeCase() {
 			"      }\n" +
 			"    });\n")
 	jsMessage := c.assertOneMessage()
-	AssertThat(jsMessage.CanonicalPlaceholderNames()).ContainsExactly("USER_EMAIL")
+	AssertThat(jsMessage.CanonicalPlaceholderNames().ToSlice()).ContainsExactly("USER_EMAIL")
 }
 
 // Java: JsMessageVisitorTest.testIcuTemplatePlaceholderLowerCamelCase()
@@ -730,7 +730,7 @@ func (c *JsMessageVisitorTest) TestClosureFormatParametizedFunction() {
 	// Map containing "adjective" -> string node containing "silly"
 	placeholderValueMap :=
 		jsMessageDefinition.GetPlaceholderValueMap()
-	AssertThat(placeholderValueMap).HasSize(1)
+	AssertThat(placeholderValueMap.Size()).IsEqualTo(1)
 	AssertNode(placeholderValueMap.Get("adjective")).IsString("silly")
 
 	msg := jsMessageDefinition.GetMessage()
@@ -1227,9 +1227,9 @@ func (c *JsMessageVisitorTest) TestGetMsgWithOptions() {
 
 	// MapSubject.containsExactly(k, v) is containsExactlyEntriesIn of the one-entry map.
 	// `example: { 'name': 'George' }`
-	AssertThat(msg.GetPlaceholderNameToExampleMap()).ContainsExactlyEntriesIn(map[string]string{"name": "George"})
+	AssertThat(msg.GetPlaceholderNameToExampleMap().ToMap()).ContainsExactlyEntriesIn(map[string]string{"name": "George"})
 	// `original_code: {'name': 'getName()' }`
-	AssertThat(msg.GetPlaceholderNameToOriginalCodeMap()).
+	AssertThat(msg.GetPlaceholderNameToOriginalCodeMap().ToMap()).
 		ContainsExactlyEntriesIn(map[string]string{"name": "getName()"})
 }
 

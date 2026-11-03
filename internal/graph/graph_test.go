@@ -261,32 +261,6 @@ func graphTest_checkAnnotations(t *testing.T, graph Graph[string, string], a Ann
 	graph.ClearNodeAnnotations()
 	assertTrue(t, "a null", a.GetAnnotation() == nil)
 	assertTrue(t, "b null", b.GetAnnotation() == nil)
-
-	a.SetAnnotation(A)
-	b.SetAnnotation(B)
-	// Pushing clears.
-	graph.PushEdgeAnnotations()
-	graph.PushNodeAnnotations()
-	assertTrue(t, "a null", a.GetAnnotation() == nil)
-	assertTrue(t, "b null", b.GetAnnotation() == nil)
-	a.SetAnnotation(B)
-	b.SetAnnotation(B)
-	graph.PushEdgeAnnotations()
-	graph.PushNodeAnnotations()
-	a.SetAnnotation(B)
-	b.SetAnnotation(A)
-
-	// Test restoring then restoring old values with pop.
-	assertTrue(t, "a is B", a.GetAnnotation() == B)
-	assertTrue(t, "b is A", b.GetAnnotation() == A)
-	graph.PopEdgeAnnotations()
-	graph.PopNodeAnnotations()
-	assertTrue(t, "a is B", a.GetAnnotation() == B)
-	assertTrue(t, "b is B", b.GetAnnotation() == B)
-	graph.PopEdgeAnnotations()
-	graph.PopNodeAnnotations()
-	assertTrue(t, "a is A", a.GetAnnotation() == A)
-	assertTrue(t, "b is B", b.GetAnnotation() == B)
 }
 
 func TestGraph_Degree(t *testing.T) {

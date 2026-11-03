@@ -40,7 +40,7 @@ type FunctionArgumentInjector struct {
 	templateUndefinedNode rhino.Node
 	sentinelThisNode      rhino.Node
 	paramBindings         []callParamBinding
-	scratchLocals         inlineIDSet
+	scratchLocals         smallIDSet
 	scratchSummary        calleeSummary
 	seScratchSummary      calleeSummary
 	referencedAfter       FunctionArgumentInjector_ReferencedAfterSideEffect
@@ -71,12 +71,86 @@ func (f *FunctionArgumentInjector) getTemplateUndefinedNode(callNode rhino.Node)
 	return NodeUtil_NewUndefinedNode(callNode)
 }
 
+// isLexicalThisBoundary reports whether node establishes its own `this` binding
+// (non-arrow functions, class member field definitions, and class static blocks).
+func isLexicalThisBoundary(node rhino.Node) bool {
+	return (node.IsFunction() && !node.IsArrowFunction()) ||
+		node.IsMemberFieldDef() ||
+		NodeUtil_IsClassStaticBlock(node)
+}
+
+// replaceLexicalThis replaces `this` nodes within node that bind to the
+// enclosing lexical `this` (stopping at inner `this` boundaries and walking only
+// the computed key of COMPUTED_FIELD_DEF).
+func replaceLexicalThis(node, parent rhino.Node, replaceThis func(thisNode, parent rhino.Node) rhino.Node) rhino.Node {
+	if node.IsThis() {
+		return replaceThis(node, parent)
+	}
+	if isLexicalThisBoundary(node) {
+		return node
+	}
+	if cf, ok := ast.AsComputedFieldDef(node); ok {
+		// Computed field keys are evaluated in the enclosing scope, but field
+		// initializers create a new binding for `this`.
+		if key := cf.Key().Node(); !key.IsNil() {
+			replaceLexicalThis(key, node, replaceThis)
+		}
+		return node
+	}
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		c = replaceLexicalThis(c, node, replaceThis)
+	}
+	return node
+}
+
+func replaceInjectedThis(
+	compiler AbstractCompiler,
+	node, parent rhino.Node,
+	replacements *smallIDNodeMap,
+) rhino.Node {
+	replacementTemplate := replacements.get(calleeThisMarkerID)
+	rhino.CheckNotNull(replacementTemplate)
+	if replacementTemplate.IsThis() {
+		return node
+	}
+	if !parent.IsNil() && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
+		node.OverwriteLeafFromClone(replacementTemplate)
+		if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
+			replacements.remove(calleeThisMarkerID)
+		}
+		return node
+	}
+	// The name may need to be replaced more than once,
+	// so we need to clone the node.
+	replacement := replacementTemplate.CloneTree()
+	node.ReplaceWith(replacement)
+
+	// Remove the value.  This isn't required but it ensures that we won't
+	// inject side-effects multiple times as it will trigger the null
+	// check above if we do.
+	if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
+		replacements.remove(calleeThisMarkerID)
+	}
+	return replacement
+}
+
 func (f *FunctionArgumentInjector) injectByID(
 	compiler AbstractCompiler,
 	node rhino.Node,
 	parent rhino.Node,
-	replacements *inlineIDNodeMap,
+	replacements *smallIDNodeMap,
 	replaceThis bool) rhino.Node {
+	if len(replacements.keys) == 0 {
+		return node
+	}
+	if len(replacements.keys) == 1 && replacements.keys[0] == calleeThisMarkerID {
+		if !replaceThis {
+			return node
+		}
+		return replaceLexicalThis(node, parent, func(thisNode, p rhino.Node) rhino.Node {
+			return replaceInjectedThis(compiler, thisNode, p, replacements)
+		})
+	}
 	if node.IsName() {
 		replacementTemplate := replacements.get(node.GetStringID())
 		if !replacementTemplate.IsNil() {
@@ -93,33 +167,8 @@ func (f *FunctionArgumentInjector) injectByID(
 			return replacement
 		}
 	} else if replaceThis && node.IsThis() {
-		replacementTemplate := replacements.get(calleeThisMarkerID)
-		rhino.CheckNotNull(replacementTemplate)
-		if !replacementTemplate.IsThis() {
-			if !parent.IsNil() && node.CanCloneLeafInPlace() && replacementTemplate.CanCloneLeafInPlace() {
-				node.OverwriteLeafFromClone(replacementTemplate)
-				if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
-					replacements.remove(calleeThisMarkerID)
-				}
-				return node
-			}
-			// The name may need to be replaced more than once,
-			// so we need to clone the node.
-			replacement := replacementTemplate.CloneTree()
-			node.ReplaceWith(replacement)
-
-			// Remove the value.  This isn't required but it ensures that we won't
-			// inject side-effects multiple times as it will trigger the null
-			// check above if we do.
-			if compiler.GetAstAnalyzer().MayHaveSideEffects(replacementTemplate) {
-				replacements.remove(calleeThisMarkerID)
-			}
-
-			return replacement
-		}
-	} else if (node.IsFunction() && !node.IsArrowFunction()) ||
-		node.IsMemberFieldDef() ||
-		NodeUtil_IsClassStaticBlock(node) {
+		return replaceInjectedThis(compiler, node, parent, replacements)
+	} else if isLexicalThisBoundary(node) {
 		// Once we enter another non-arrow function, class field initializer, or static block,
 		// the "this" value changes. Don't try to replace it within an inner scope.
 		replaceThis = false
@@ -167,7 +216,7 @@ func hasDuplicateBindingID(bindings []callParamBinding) bool {
 	if n <= 1 {
 		return false
 	}
-	if n <= inlineSmallCap {
+	if n <= smallSetInlineCap {
 		for i := 1; i < n; i++ {
 			id := bindings[i].nameID
 			for j := 0; j < i; j++ {
@@ -331,7 +380,7 @@ func throwDuplicateParamBinding(bindings []callParamBinding) {
 func (f *FunctionArgumentInjector) failDuplicateParamBindings(
 	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string,
 ) {
-	var bindingsBuf [inlineSmallCap]callParamBinding
+	var bindingsBuf [smallSetInlineCap]callParamBinding
 	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
 	throwDuplicateParamBinding(bindings)
 }
@@ -340,7 +389,7 @@ func (f *FunctionArgumentInjector) fillCallParamNodeMap(
 	fnNode rhino.Node,
 	callNode rhino.Node,
 	safeNameIdSupplier func() string,
-	dst *inlineIDNodeMap,
+	dst *smallIDNodeMap,
 ) {
 	dst.clear()
 	f.paramBindings = f.appendCallParamBindings(f.paramBindings[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkTemplate)
@@ -431,7 +480,7 @@ func (f *FunctionArgumentInjector) findRequiresTempsUpToParameterID(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
 	bindings []callParamBinding,
-	modifiedParameters *inlineIDSet,
+	modifiedParameters *smallIDSet,
 	convention CodingConvention,
 	summary *calleeSummary,
 	renamedClone bool,
@@ -613,7 +662,7 @@ func (f *FunctionArgumentInjector) hasCallArgumentsNeedingTempsForBindings(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
 	bindings []callParamBinding,
-	modifiedParameters *inlineIDSet,
+	modifiedParameters *smallIDSet,
 	convention CodingConvention,
 	summary *calleeSummary,
 ) bool {
@@ -645,11 +694,11 @@ func (f *FunctionArgumentInjector) gatherCallArgumentsNeedingTempsByID(
 	compiler AbstractCompiler,
 	fnNode rhino.Node,
 	bindings []callParamBinding,
-	modifiedParameters *inlineIDSet,
+	modifiedParameters *smallIDSet,
 	convention CodingConvention,
 	summary *calleeSummary,
 	renamedClone bool,
-	dst *inlineIDSet,
+	dst *smallIDSet,
 ) {
 	jutil.CheckArgumentMsg1(fnNode.IsFunction(), "%s", fnNode)
 	dst.clear()
@@ -669,7 +718,7 @@ func addCallArgumentsNeedingTempsByID(
 	fnNode rhino.Node,
 	bindings []callParamBinding,
 	requiresTempsUpToID uint32,
-	dst *inlineIDSet,
+	dst *smallIDSet,
 ) {
 	thisArg := findThisArgInBindings(bindings)
 	// mark all names up to requiresTempsUpToID as namesNeedingTemps
@@ -762,12 +811,12 @@ func (f *FunctionArgumentInjector) ensureCalleeSideEffects(summary *calleeSummar
 type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 	outer                *FunctionArgumentInjector
 	summary              *calleeSummary
-	locals               *inlineIDSet
+	locals               *smallIDSet
 	sideEffectSeen       bool
-	parametersReferenced inlineIDSet
+	parametersReferenced smallIDSet
 
 	nameNodeHasBeenSeen                          bool
-	parametersWithNamesReferencedBeforeParameter inlineIDSet
+	parametersWithNamesReferencedBeforeParameter smallIDSet
 
 	loopsEntered int
 }
@@ -775,7 +824,7 @@ type FunctionArgumentInjector_ReferencedAfterSideEffect struct {
 func (r *FunctionArgumentInjector_ReferencedAfterSideEffect) reset(
 	outer *FunctionArgumentInjector,
 	summary *calleeSummary,
-	locals *inlineIDSet,
+	locals *smallIDSet,
 ) {
 	r.outer = outer
 	r.summary = summary

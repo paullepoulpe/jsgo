@@ -267,10 +267,10 @@ func (k *CheckClosureImports_Checker) VisitWithModule(
 
 	parent := n.GetParent()
 
-	if n.IsCall() {
-		if kindOfCall, ok := k.kindOfCallValue(n); ok {
+	if call, ok := ast.AsCall(n); ok {
+		if kindOfCall, ok := k.kindOfCallValue(call); ok {
 			k.CheckImport(t, n, parent, currentModule, kindOfCall)
-		} else if n.GetFirstChild().MatchesQualifiedNameNode(checkClosureImports_GOOG_MODULE_GET) {
+		} else if call.Callee().Node().MatchesQualifiedNameNode(checkClosureImports_GOOG_MODULE_GET) {
 			k.CheckGoogModuleGet(t, n, currentModule)
 		}
 	} else if n.IsName() {
@@ -283,16 +283,15 @@ func (k *CheckClosureImports_Checker) VisitWithModule(
 //
 // Java: CheckClosureImports.Checker.kindOfCall(Node)
 func (k *CheckClosureImports_Checker) KindOfCall(callNode rhino.Node) *CheckClosureImports_ClosureImport {
-	kind, ok := k.kindOfCallValue(callNode)
+	kind, ok := k.kindOfCallValue(ast.MustCall(callNode))
 	if !ok {
 		return nil
 	}
 	return &kind
 }
 
-func (k *CheckClosureImports_Checker) kindOfCallValue(callNode rhino.Node) (CheckClosureImports_ClosureImport, bool) {
-	jutil.CheckState(callNode.IsCall())
-	callee := callNode.GetFirstChild()
+func (k *CheckClosureImports_Checker) kindOfCallValue(call ast.Call) (CheckClosureImports_ClosureImport, bool) {
+	callee := call.Callee().Node()
 	if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_REQUIRE) {
 		return CheckClosureImports_ClosureImport_REQUIRE, true
 	} else if callee.MatchesQualifiedNameNode(checkClosureImports_GOOG_FORWARD_DECLARE) {
@@ -338,8 +337,8 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 			parent := getSubExprRoot.GetParent()
 			if parent.IsName() || parent.IsDestructuringLhs() {
 				invalid = true
-			} else if parent.IsAssign() {
-				target := parent.GetFirstChild()
+			} else if assign, ok := ast.AsAssign(parent); ok {
+				target := assign.Target().Node()
 				if target.IsName() || target.IsObjectPattern() {
 					invalid = true
 				}
@@ -351,12 +350,14 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 		}
 	}
 
-	if !call.HasTwoChildren() || !call.GetSecondChild().IsStringLit() {
+	arg, hasOneArg := ast.MustCall(call).OnlyArg()
+	argStr, isStr := arg.AsStringLit()
+	if !hasOneArg || !isStr {
 		t.Report(call, CheckClosureImports_INVALID_CLOSURE_IMPORT_CALL, "goog.module.get")
 		return
 	}
 
-	namespace := call.GetSecondChild().GetString()
+	namespace := argStr.Value()
 	requiredModule := k.moduleMetadataMap.GetModulesByGoogNamespace().Get(namespace)
 
 	if requiredModule == nil {
@@ -364,12 +365,12 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 		return
 	}
 
-	maybeAssign := call.GetParent()
-	isFillingAnAlias := maybeAssign.IsAssign() && maybeAssign.GetFirstChild().IsName()
+	assign, isAssign := ast.AsAssign(call.GetParent())
+	isFillingAnAlias := isAssign && assign.Target().Node().IsName()
 	isModule := currentModule.IsGoogModule() || currentModule.IsEs6Module()
 	if isFillingAnAlias && isModule {
 		// If the assignment isn't into a var in our scope then it's not ok.
-		aliasVar := t.GetScope().GetVarByNode(maybeAssign.GetFirstChild())
+		aliasVar := t.GetScope().GetVarByNode(assign.Target().Node())
 		if aliasVar == nil {
 			t.Report(call, ClosureRewriteModule_INVALID_GET_ALIAS)
 			return
@@ -385,7 +386,8 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 			return
 		}
 
-		if namespace != aliasVarNodeRhs.GetLastChild().GetString() {
+		lastArg, _ := ast.MustCall(aliasVarNodeRhs).LastArg()
+		if namespace != lastArg.Node().GetString() {
 			t.Report(call, ClosureRewriteModule_INVALID_GET_ALIAS)
 			return
 		}
@@ -436,15 +438,19 @@ func (k *CheckClosureImports_Checker) CheckImport(
 		return
 	}
 
-	if !call.HasTwoChildren() || !call.GetSecondChild().IsStringLit() {
+	arg, hasOneArg := ast.MustCall(call).OnlyArg()
+	argStr, isStr := arg.AsStringLit()
+	if !hasOneArg || !isStr {
 		t.Report(call, CheckClosureImports_INVALID_CLOSURE_IMPORT_CALL, importType.CallName())
 		return
 	}
+	namespace := argStr.Value()
 
 	if isModule && isAliased {
 		declaration := parent.GetParent()
-
-		if !declaration.HasOneChild() {
+		decl := ast.MustNameDeclaration(declaration)
+		lhsDecl, hasOne := decl.OnlyDeclarator()
+		if !hasOne {
 			t.Report(call, CheckClosureImports_ONE_CLOSURE_IMPORT_PER_DECLARATION, importType.CallName())
 			return
 		}
@@ -457,7 +463,7 @@ func (k *CheckClosureImports_Checker) CheckImport(
 			}
 		}
 
-		lhs := declaration.GetFirstChild()
+		lhs := lhsDecl.Node()
 		if lhs.IsDestructuringLhs() {
 			if importType.AllowDestructuring() {
 				if !k.IsValidDestructuringImport(lhs) {
@@ -467,11 +473,10 @@ func (k *CheckClosureImports_Checker) CheckImport(
 				t.Report(declaration, CheckClosureImports_NO_CLOSURE_IMPORT_DESTRUCTURING, importType.CallName())
 			}
 		} else if lhs.IsName() {
-			k.CheckShortName(t, lhs, call.GetLastChild().GetString())
+			k.CheckShortName(t, lhs, namespace)
 		}
 	}
 
-	namespace := call.GetSecondChild().GetString()
 	requiredModule := k.moduleMetadataMap.GetModulesByGoogNamespace().Get(namespace)
 
 	if requiredModule == nil {

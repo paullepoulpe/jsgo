@@ -115,16 +115,18 @@ func (*InlineAndCollapseProperties_InlineAliases_AliasesCollector) visitTokens()
 
 // Java: InlineAndCollapseProperties.InlineAliases.AliasesCollector.visit(NodeTraversal, Node, Node)
 func (c *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	switch n.GetToken() {
-	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
-		if n.HasOneChild() && t.InGlobalScope() {
-			c.VisitAliasDefinition(n.GetFirstChild(), NodeUtil_GetBestJSDocInfo(n.GetFirstChild()))
+	if !t.InGlobalScope() {
+		return
+	}
+	if decl, ok := ast.AsNameDeclaration(n); ok {
+		if first, ok := decl.FirstDeclarator(); ok {
+			if _, more := first.Next(); !more {
+				lhs := first.Node()
+				c.VisitAliasDefinition(lhs, NodeUtil_GetBestJSDocInfo(lhs))
+			}
 		}
-	case rhino.Token_ASSIGN:
-		if !parent.IsNil() && parent.IsExprResult() && t.InGlobalScope() {
-			c.VisitAliasDefinition(n.GetFirstChild(), n.GetJSDocInfo())
-		}
-	default:
+	} else if assign, ok := ast.AsAssign(n); ok && parent.IsExprResult() {
+		c.VisitAliasDefinition(assign.Target().Node(), n.GetJSDocInfo())
 	}
 }
 
@@ -211,8 +213,8 @@ func (i *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit(t *Node
 				newNode.SrcrefTree(n)
 				// Similarly if n is get_prop like "obj.foo" we should index only foo. obj should not
 				// be indexed as it's invisible to users.
-				if newNode.IsGetProp() {
-					newNode.GetFirstChild().MakeNonIndexableRecursive()
+				if gp, ok := ast.AsGetProp(newNode); ok {
+					gp.Object().Node().MakeNonIndexableRecursive()
 				}
 				n.ReplaceWith(newNode)
 				t.ReportCodeChange()

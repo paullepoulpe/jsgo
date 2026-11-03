@@ -87,9 +87,6 @@ func SourceMap_Format_values() []SourceMap_Format {
 // String is Enum.name().
 func (f SourceMap_Format) String() string { return sourceMap_Format_names[f] }
 
-// Ordinal is Enum.ordinal().
-func (f SourceMap_Format) Ordinal() int { return int(f) }
-
 // Java: SourceMap.Format.getInstance()
 func (f SourceMap_Format) GetInstance() *SourceMap {
 	switch f {
@@ -116,16 +113,8 @@ const (
 
 var sourceMap_DetailLevel_names = [...]string{"ALL", "SYMBOLS"}
 
-// SourceMap_DetailLevel_values is DetailLevel.values().
-func SourceMap_DetailLevel_values() []SourceMap_DetailLevel {
-	return []SourceMap_DetailLevel{SourceMap_DetailLevel_ALL, SourceMap_DetailLevel_SYMBOLS}
-}
-
 // String is Enum.name().
 func (l SourceMap_DetailLevel) String() string { return sourceMap_DetailLevel_names[l] }
-
-// Ordinal is Enum.ordinal().
-func (l SourceMap_DetailLevel) Ordinal() int { return int(l) }
 
 // Apply is Predicate<Node>.apply(Node).
 //
@@ -480,12 +469,12 @@ func (i *SourceMapInput) GetSourceMap(errorManager ErrorManager) *sourcemap.Sour
 		sourceMapContents, ioErr := i.sourceFile.getCode()
 		if ioErr != nil {
 			error := JSError_Make(SourceMapInput_SOURCEMAP_RESOLVE_FAILED, sourceMapPath, ioErr.GetMessage())
-			errorManager.Report(error.DefaultLevel().Ptr(), error)
+			errorManager.Report(error.DefaultLevel(), error)
 		} else {
 			consumer := sourcemap.NewSourceMapConsumerV3()
 			if parseErr := consumer.TryParse(sourceMapContents); parseErr != nil {
 				error := JSError_Make(SourceMapInput_SOURCEMAP_PARSE_FAILED, sourceMapPath, parseErr.GetMessage())
-				errorManager.Report(error.DefaultLevel().Ptr(), error)
+				errorManager.Report(error.DefaultLevel(), error)
 			} else {
 				// Detect an empty "default" source map provided by Gulp. We do not want
 				// to treat this file as having a real source map (implying this is an

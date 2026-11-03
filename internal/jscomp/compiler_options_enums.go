@@ -37,16 +37,8 @@ const (
 
 var compilerOptions_Reach_names = [...]string{"ALL", "LOCAL_ONLY", "NONE"}
 
-// CompilerOptions_Reach_values is Reach.values().
-func CompilerOptions_Reach_values() []CompilerOptions_Reach {
-	return []CompilerOptions_Reach{CompilerOptions_Reach_ALL, CompilerOptions_Reach_LOCAL_ONLY, CompilerOptions_Reach_NONE}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_Reach) String() string { return compilerOptions_Reach_names[e] }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_Reach) Ordinal() int { return int(e) }
 
 // Java: CompilerOptions.Reach.isOn()
 func (e CompilerOptions_Reach) IsOn() bool {
@@ -69,18 +61,10 @@ const (
 
 var compilerOptions_PropertyCollapseLevel_names = [...]string{"ALL", "NONE", "MODULE_EXPORT"}
 
-// CompilerOptions_PropertyCollapseLevel_values is PropertyCollapseLevel.values().
-func CompilerOptions_PropertyCollapseLevel_values() []CompilerOptions_PropertyCollapseLevel {
-	return []CompilerOptions_PropertyCollapseLevel{CompilerOptions_PropertyCollapseLevel_ALL, CompilerOptions_PropertyCollapseLevel_NONE, CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_PropertyCollapseLevel) String() string {
 	return compilerOptions_PropertyCollapseLevel_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_PropertyCollapseLevel) Ordinal() int { return int(e) }
 
 // CompilerOptions_BrowserFeaturesetYear represents browser feature set year to use for compilation. It tells the
 // JSCompiler to output code that works on the releases of major browsers that
@@ -103,23 +87,23 @@ const (
 
 var compilerOptions_BrowserFeaturesetYear_names = [...]string{"YEAR_2012", "YEAR_2018", "YEAR_2019", "YEAR_2020", "YEAR_2021", "YEAR_2022", "YEAR_2023", "YEAR_2024", "YEAR_2025", "YEAR_2026"}
 
-// CompilerOptions_BrowserFeaturesetYear_values is BrowserFeaturesetYear.values().
-func CompilerOptions_BrowserFeaturesetYear_values() []CompilerOptions_BrowserFeaturesetYear {
-	return []CompilerOptions_BrowserFeaturesetYear{CompilerOptions_BrowserFeaturesetYear_YEAR_2012, CompilerOptions_BrowserFeaturesetYear_YEAR_2018, CompilerOptions_BrowserFeaturesetYear_YEAR_2019, CompilerOptions_BrowserFeaturesetYear_YEAR_2020, CompilerOptions_BrowserFeaturesetYear_YEAR_2021, CompilerOptions_BrowserFeaturesetYear_YEAR_2022, CompilerOptions_BrowserFeaturesetYear_YEAR_2023, CompilerOptions_BrowserFeaturesetYear_YEAR_2024, CompilerOptions_BrowserFeaturesetYear_YEAR_2025, CompilerOptions_BrowserFeaturesetYear_YEAR_2026}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_BrowserFeaturesetYear) String() string {
 	return compilerOptions_BrowserFeaturesetYear_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_BrowserFeaturesetYear) Ordinal() int { return int(e) }
-
-var compilerOptions_BrowserFeaturesetYear_ptrs = func() []CompilerOptions_BrowserFeaturesetYear {
-	v := CompilerOptions_BrowserFeaturesetYear_values()
-	return v
-}()
+var compilerOptions_BrowserFeaturesetYear_ptrs = [...]CompilerOptions_BrowserFeaturesetYear{
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2012,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2018,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2019,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2020,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2021,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2022,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2023,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2024,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2025,
+	CompilerOptions_BrowserFeaturesetYear_YEAR_2026,
+}
 
 // Ptr returns the canonical pointer to e (Go-only: language-adapter — a
 // nullable Java BrowserFeaturesetYear reference is a *CompilerOptions_BrowserFeaturesetYear; nil is null).
@@ -143,41 +127,18 @@ var compilerOptions_BrowserFeaturesetYear_featureSet = [...]*parser.FeatureSet{
 	parser.FeatureSet_BROWSER_2026,
 }
 
-func browserFeaturesetYearFromInt(year int) (CompilerOptions_BrowserFeaturesetYear, bool) {
-	switch year {
-	case 2012:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2012, true
-	case 2018:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2018, true
-	case 2019:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2019, true
-	case 2020:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2020, true
-	case 2021:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2021, true
-	case 2022:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2022, true
-	case 2023:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2023, true
-	case 2024:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2024, true
-	case 2025:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2025, true
-	case 2026:
-		return CompilerOptions_BrowserFeaturesetYear_YEAR_2026, true
-	default:
-		return 0, false
-	}
-}
-
 // Java: CompilerOptions.BrowserFeaturesetYear.from(int)
 func CompilerOptions_BrowserFeaturesetYear_From(year int) CompilerOptions_BrowserFeaturesetYear {
-	y, ok := browserFeaturesetYearFromInt(year)
+	for i, y := range compilerOptions_BrowserFeaturesetYear_year {
+		if y == year {
+			return CompilerOptions_BrowserFeaturesetYear(i)
+		}
+	}
 	jutil.CheckStateMsg1(
-		ok,
+		false,
 		"Illegal browser_featureset_year=%s. We support values 2012, or 2018..2026 only",
 		year)
-	return y
+	return 0
 }
 
 // Java: CompilerOptions.BrowserFeaturesetYear.setDependentValuesFromYear(CompilerOptions)
@@ -241,9 +202,6 @@ func (e CompilerOptions_IncrementalCheckMode) String() string {
 	return compilerOptions_IncrementalCheckMode_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_IncrementalCheckMode) Ordinal() int { return int(e) }
-
 // CompilerOptions_ExtractPrototypeMemberDeclarationsMode is CompilerOptions.ExtractPrototypeMemberDeclarationsMode.
 type CompilerOptions_ExtractPrototypeMemberDeclarationsMode int32
 
@@ -256,18 +214,10 @@ const (
 
 var compilerOptions_ExtractPrototypeMemberDeclarationsMode_names = [...]string{"OFF", "USE_GLOBAL_TEMP", "USE_CHUNK_TEMP", "USE_IIFE"}
 
-// CompilerOptions_ExtractPrototypeMemberDeclarationsMode_values is ExtractPrototypeMemberDeclarationsMode.values().
-func CompilerOptions_ExtractPrototypeMemberDeclarationsMode_values() []CompilerOptions_ExtractPrototypeMemberDeclarationsMode {
-	return []CompilerOptions_ExtractPrototypeMemberDeclarationsMode{CompilerOptions_ExtractPrototypeMemberDeclarationsMode_OFF, CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_GLOBAL_TEMP, CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_CHUNK_TEMP, CompilerOptions_ExtractPrototypeMemberDeclarationsMode_USE_IIFE}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_ExtractPrototypeMemberDeclarationsMode) String() string {
 	return compilerOptions_ExtractPrototypeMemberDeclarationsMode_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_ExtractPrototypeMemberDeclarationsMode) Ordinal() int { return int(e) }
 
 // CompilerOptions_OutputJs is what type of JS file should be output by this compilation
 type CompilerOptions_OutputJs int32
@@ -283,16 +233,8 @@ const (
 
 var compilerOptions_OutputJs_names = [...]string{"NONE", "SENTINEL", "NORMAL"}
 
-// CompilerOptions_OutputJs_values is OutputJs.values().
-func CompilerOptions_OutputJs_values() []CompilerOptions_OutputJs {
-	return []CompilerOptions_OutputJs{CompilerOptions_OutputJs_NONE, CompilerOptions_OutputJs_SENTINEL, CompilerOptions_OutputJs_NORMAL}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_OutputJs) String() string { return compilerOptions_OutputJs_names[e] }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_OutputJs) Ordinal() int { return int(e) }
 
 // CompilerOptions_ConformanceReportingMode is whether to respect the library-level non-allowlisted conformance
 // behavior specified in the conformance config.
@@ -319,18 +261,10 @@ const (
 
 var compilerOptions_ConformanceReportingMode_names = [...]string{"IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG", "RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG"}
 
-// CompilerOptions_ConformanceReportingMode_values is ConformanceReportingMode.values().
-func CompilerOptions_ConformanceReportingMode_values() []CompilerOptions_ConformanceReportingMode {
-	return []CompilerOptions_ConformanceReportingMode{CompilerOptions_ConformanceReportingMode_IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG, CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_ConformanceReportingMode) String() string {
 	return compilerOptions_ConformanceReportingMode_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_ConformanceReportingMode) Ordinal() int { return int(e) }
 
 // CompilerOptions_ExperimentalOutputFeatureSet is the option to enable
 // specific output features for performance experiments.
@@ -363,21 +297,10 @@ var compilerOptions_ExperimentalOutputFeatureSet_names = [...]string{
 	"BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD",
 }
 
-// CompilerOptions_ExperimentalOutputFeatureSet_values is ExperimentalOutputFeatureSet.values().
-func CompilerOptions_ExperimentalOutputFeatureSet_values() []CompilerOptions_ExperimentalOutputFeatureSet {
-	return []CompilerOptions_ExperimentalOutputFeatureSet{
-		CompilerOptions_ExperimentalOutputFeatureSet_ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS,
-		CompilerOptions_ExperimentalOutputFeatureSet_BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD,
-	}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_ExperimentalOutputFeatureSet) String() string {
 	return compilerOptions_ExperimentalOutputFeatureSet_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_ExperimentalOutputFeatureSet) Ordinal() int { return int(e) }
 
 // CompilerOptions_Es6ModuleTranspilation is how ES modules should be transformed.
 type CompilerOptions_Es6ModuleTranspilation int32
@@ -395,18 +318,10 @@ const (
 
 var compilerOptions_Es6ModuleTranspilation_names = [...]string{"NONE", "RELATIVIZE_IMPORT_PATHS", "TO_COMMON_JS_LIKE_MODULES", "COMPILE"}
 
-// CompilerOptions_Es6ModuleTranspilation_values is Es6ModuleTranspilation.values().
-func CompilerOptions_Es6ModuleTranspilation_values() []CompilerOptions_Es6ModuleTranspilation {
-	return []CompilerOptions_Es6ModuleTranspilation{CompilerOptions_Es6ModuleTranspilation_NONE, CompilerOptions_Es6ModuleTranspilation_RELATIVIZE_IMPORT_PATHS, CompilerOptions_Es6ModuleTranspilation_TO_COMMON_JS_LIKE_MODULES, CompilerOptions_Es6ModuleTranspilation_COMPILE}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_Es6ModuleTranspilation) String() string {
 	return compilerOptions_Es6ModuleTranspilation_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_Es6ModuleTranspilation) Ordinal() int { return int(e) }
 
 // CompilerOptions_Es6SubclassTranspilation configures the transpiled output for ES6 classes when targeting ES5.
 //
@@ -433,18 +348,10 @@ const (
 
 var compilerOptions_Es6SubclassTranspilation_names = [...]string{"CONCISE_UNSAFE", "SAFE_REFLECT_CONSTRUCT"}
 
-// CompilerOptions_Es6SubclassTranspilation_values is Es6SubclassTranspilation.values().
-func CompilerOptions_Es6SubclassTranspilation_values() []CompilerOptions_Es6SubclassTranspilation {
-	return []CompilerOptions_Es6SubclassTranspilation{CompilerOptions_Es6SubclassTranspilation_CONCISE_UNSAFE, CompilerOptions_Es6SubclassTranspilation_SAFE_REFLECT_CONSTRUCT}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_Es6SubclassTranspilation) String() string {
 	return compilerOptions_Es6SubclassTranspilation_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_Es6SubclassTranspilation) Ordinal() int { return int(e) }
 
 // CompilerOptions_InstrumentOption is an option to determine what level of code instrumentation is performed, if any
 type CompilerOptions_InstrumentOption int32
@@ -462,23 +369,17 @@ const (
 
 var compilerOptions_InstrumentOption_names = [...]string{"NONE", "LINE_ONLY", "BRANCH_ONLY", "PRODUCTION"}
 
-// CompilerOptions_InstrumentOption_values is InstrumentOption.values().
-func CompilerOptions_InstrumentOption_values() []CompilerOptions_InstrumentOption {
-	return []CompilerOptions_InstrumentOption{CompilerOptions_InstrumentOption_NONE, CompilerOptions_InstrumentOption_LINE_ONLY, CompilerOptions_InstrumentOption_BRANCH_ONLY, CompilerOptions_InstrumentOption_PRODUCTION}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_InstrumentOption) String() string {
 	return compilerOptions_InstrumentOption_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_InstrumentOption) Ordinal() int { return int(e) }
-
-var compilerOptions_InstrumentOption_ptrs = func() []CompilerOptions_InstrumentOption {
-	v := CompilerOptions_InstrumentOption_values()
-	return v
-}()
+var compilerOptions_InstrumentOption_ptrs = [...]CompilerOptions_InstrumentOption{
+	CompilerOptions_InstrumentOption_NONE,
+	CompilerOptions_InstrumentOption_LINE_ONLY,
+	CompilerOptions_InstrumentOption_BRANCH_ONLY,
+	CompilerOptions_InstrumentOption_PRODUCTION,
+}
 
 // Ptr returns the canonical pointer to e (Go-only: language-adapter — a
 // nullable Java InstrumentOption reference is a *CompilerOptions_InstrumentOption; nil is null).
@@ -528,9 +429,6 @@ func (e CompilerOptions_ChunkOutputType) String() string {
 	return compilerOptions_ChunkOutputType_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_ChunkOutputType) Ordinal() int { return int(e) }
-
 // CompilerOptions_OptimizeLocalAccess is the option for optimizing local
 // access to the global symbol namespace when using renamePrefixNamespace.
 type CompilerOptions_OptimizeLocalAccess int32
@@ -578,25 +476,10 @@ var compilerOptions_OptimizeLocalAccess_names = [...]string{
 	"DELETE_GLOBALS_ON_LAST_ACCESS",
 }
 
-// CompilerOptions_OptimizeLocalAccess_values is OptimizeLocalAccess.values().
-func CompilerOptions_OptimizeLocalAccess_values() []CompilerOptions_OptimizeLocalAccess {
-	return []CompilerOptions_OptimizeLocalAccess{
-		CompilerOptions_OptimizeLocalAccess_DISABLED,
-		CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY,
-		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS,
-		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS,
-		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED,
-		CompilerOptions_OptimizeLocalAccess_DELETE_GLOBALS_ON_LAST_ACCESS,
-	}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_OptimizeLocalAccess) String() string {
 	return compilerOptions_OptimizeLocalAccess_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_OptimizeLocalAccess) Ordinal() int { return int(e) }
 
 // Java: CompilerOptions.OptimizeLocalAccess.shouldOptimize()
 func (e CompilerOptions_OptimizeLocalAccess) ShouldOptimize() bool {
@@ -605,17 +488,17 @@ func (e CompilerOptions_OptimizeLocalAccess) ShouldOptimize() bool {
 
 // Java: CompilerOptions.OptimizeLocalAccess.shouldOptimizeAllChunks()
 func (e CompilerOptions_OptimizeLocalAccess) ShouldOptimizeAllChunks() bool {
-	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS.Ordinal()
+	return e >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS
 }
 
 // Java: CompilerOptions.OptimizeLocalAccess.shouldWrapReassignableSymbols()
 func (e CompilerOptions_OptimizeLocalAccess) ShouldWrapReassignableSymbols() bool {
-	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS.Ordinal()
+	return e >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS
 }
 
 // Java: CompilerOptions.OptimizeLocalAccess.shouldPreserveLocalVarDeclarations()
 func (e CompilerOptions_OptimizeLocalAccess) ShouldPreserveLocalVarDeclarations() bool {
-	return e.Ordinal() >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED.Ordinal()
+	return e >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
 }
 
 // Java: CompilerOptions.OptimizeLocalAccess.shouldDeleteGlobalsOnLastAccess()
@@ -668,26 +551,32 @@ const (
 
 var compilerOptions_LanguageMode_names = [...]string{"ECMASCRIPT3", "ECMASCRIPT5", "ECMASCRIPT5_STRICT", "ECMASCRIPT_2015", "ECMASCRIPT_2016", "ECMASCRIPT_2017", "ECMASCRIPT_2018", "ECMASCRIPT_2019", "ECMASCRIPT_2020", "ECMASCRIPT_2021", "ECMASCRIPT_2022", "ECMASCRIPT_NEXT", "STABLE", "NO_TRANSPILE", "UNSTABLE", "UNSUPPORTED"}
 
-// CompilerOptions_LanguageMode_values is LanguageMode.values().
-func CompilerOptions_LanguageMode_values() []CompilerOptions_LanguageMode {
-	return []CompilerOptions_LanguageMode{CompilerOptions_LanguageMode_ECMASCRIPT3, CompilerOptions_LanguageMode_ECMASCRIPT5, CompilerOptions_LanguageMode_ECMASCRIPT5_STRICT, CompilerOptions_LanguageMode_ECMASCRIPT_2015, CompilerOptions_LanguageMode_ECMASCRIPT_2016, CompilerOptions_LanguageMode_ECMASCRIPT_2017, CompilerOptions_LanguageMode_ECMASCRIPT_2018, CompilerOptions_LanguageMode_ECMASCRIPT_2019, CompilerOptions_LanguageMode_ECMASCRIPT_2020, CompilerOptions_LanguageMode_ECMASCRIPT_2021, CompilerOptions_LanguageMode_ECMASCRIPT_2022, CompilerOptions_LanguageMode_ECMASCRIPT_NEXT, CompilerOptions_LanguageMode_STABLE, CompilerOptions_LanguageMode_NO_TRANSPILE, CompilerOptions_LanguageMode_UNSTABLE, CompilerOptions_LanguageMode_UNSUPPORTED}
+var compilerOptions_LanguageMode_all = [...]CompilerOptions_LanguageMode{
+	CompilerOptions_LanguageMode_ECMASCRIPT3,
+	CompilerOptions_LanguageMode_ECMASCRIPT5,
+	CompilerOptions_LanguageMode_ECMASCRIPT5_STRICT,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2015,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2016,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2017,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2018,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2019,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2020,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2021,
+	CompilerOptions_LanguageMode_ECMASCRIPT_2022,
+	CompilerOptions_LanguageMode_ECMASCRIPT_NEXT,
+	CompilerOptions_LanguageMode_STABLE,
+	CompilerOptions_LanguageMode_NO_TRANSPILE,
+	CompilerOptions_LanguageMode_UNSTABLE,
+	CompilerOptions_LanguageMode_UNSUPPORTED,
 }
 
 // String is Enum.name().
 func (e CompilerOptions_LanguageMode) String() string { return compilerOptions_LanguageMode_names[e] }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_LanguageMode) Ordinal() int { return int(e) }
-
-var compilerOptions_LanguageMode_ptrs = func() []CompilerOptions_LanguageMode {
-	v := CompilerOptions_LanguageMode_values()
-	return v
-}()
-
 // Ptr returns the canonical pointer to e (Go-only: language-adapter — a
 // nullable Java LanguageMode reference is a *CompilerOptions_LanguageMode; nil is null).
 func (e CompilerOptions_LanguageMode) Ptr() *CompilerOptions_LanguageMode {
-	return &compilerOptions_LanguageMode_ptrs[e]
+	return &compilerOptions_LanguageMode_all[e]
 }
 
 // CompilerOptions_LanguageMode_STABLE_IN is the default input language
@@ -721,7 +610,7 @@ func (e CompilerOptions_LanguageMode) IsDefaultStrict() bool {
 // Java: CompilerOptions.LanguageMode.validCommandLineNames()
 func CompilerOptions_LanguageMode_ValidCommandLineNames() []string {
 	names := []string{}
-	for _, mode := range CompilerOptions_LanguageMode_values() {
+	for _, mode := range compilerOptions_LanguageMode_all {
 		if mode != CompilerOptions_LanguageMode_UNSUPPORTED {
 			names = append(names, mode.String())
 			if strings.HasPrefix(mode.String(), "ECMASCRIPT") {
@@ -729,10 +618,7 @@ func CompilerOptions_LanguageMode_ValidCommandLineNames() []string {
 			}
 		}
 	}
-	names = append(names, "ECMASCRIPT6")
-	names = append(names, "ES6")
-	names = append(names, "ECMASCRIPT6_STRICT")
-	names = append(names, "ES6_STRICT")
+	names = append(names, "ECMASCRIPT6", "ES6", "ECMASCRIPT6_STRICT", "ES6_STRICT")
 	return names
 }
 
@@ -753,7 +639,7 @@ func CompilerOptions_LanguageMode_FromString(value *string) *CompilerOptions_Lan
 	}
 
 	// LanguageMode.valueOf(canonicalizedName), or null for an unknown name.
-	for _, mode := range CompilerOptions_LanguageMode_values() {
+	for _, mode := range compilerOptions_LanguageMode_all {
 		if mode.String() == canonicalizedName {
 			return mode.Ptr()
 		}
@@ -822,9 +708,6 @@ func CompilerOptions_DevMode_values() []CompilerOptions_DevMode {
 // String is Enum.name().
 func (e CompilerOptions_DevMode) String() string { return compilerOptions_DevMode_names[e] }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_DevMode) Ordinal() int { return int(e) }
-
 // CompilerOptions_TracerMode is how much tracing we want to do
 type CompilerOptions_TracerMode int32
 
@@ -853,9 +736,6 @@ func CompilerOptions_TracerMode_values() []CompilerOptions_TracerMode {
 // String is Enum.name().
 func (e CompilerOptions_TracerMode) String() string { return compilerOptions_TracerMode_names[e] }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_TracerMode) Ordinal() int { return int(e) }
-
 // Java: CompilerOptions.TracerMode.isOn()
 func (e CompilerOptions_TracerMode) IsOn() bool {
 	return e != CompilerOptions_TracerMode_OFF
@@ -880,18 +760,10 @@ const (
 
 var compilerOptions_TweakProcessing_names = [...]string{"OFF", "CHECK", "STRIP"}
 
-// CompilerOptions_TweakProcessing_values is TweakProcessing.values().
-func CompilerOptions_TweakProcessing_values() []CompilerOptions_TweakProcessing {
-	return []CompilerOptions_TweakProcessing{CompilerOptions_TweakProcessing_OFF, CompilerOptions_TweakProcessing_CHECK, CompilerOptions_TweakProcessing_STRIP}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_TweakProcessing) String() string {
 	return compilerOptions_TweakProcessing_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_TweakProcessing) Ordinal() int { return int(e) }
 
 // Java: CompilerOptions.TweakProcessing.isOn()
 func (e CompilerOptions_TweakProcessing) IsOn() bool {
@@ -922,9 +794,6 @@ func CompilerOptions_IsolationMode_values() []CompilerOptions_IsolationMode {
 
 // String is Enum.name().
 func (e CompilerOptions_IsolationMode) String() string { return compilerOptions_IsolationMode_names[e] }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_IsolationMode) Ordinal() int { return int(e) }
 
 // CompilerOptions_SegmentOfCompilationToRun is what segment of the compilation to run.
 type CompilerOptions_SegmentOfCompilationToRun int32
@@ -958,9 +827,6 @@ func (e CompilerOptions_SegmentOfCompilationToRun) String() string {
 	return compilerOptions_SegmentOfCompilationToRun_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_SegmentOfCompilationToRun) Ordinal() int { return int(e) }
-
 // CompilerOptions_AliasStringsMode is a mode enum used to indicate the alias strings policy for the AliasStrings pass
 type CompilerOptions_AliasStringsMode int32
 
@@ -977,18 +843,10 @@ const (
 
 var compilerOptions_AliasStringsMode_names = [...]string{"NONE", "LARGE", "ALL", "ALL_AGGRESSIVE"}
 
-// CompilerOptions_AliasStringsMode_values is AliasStringsMode.values().
-func CompilerOptions_AliasStringsMode_values() []CompilerOptions_AliasStringsMode {
-	return []CompilerOptions_AliasStringsMode{CompilerOptions_AliasStringsMode_NONE, CompilerOptions_AliasStringsMode_LARGE, CompilerOptions_AliasStringsMode_ALL, CompilerOptions_AliasStringsMode_ALL_AGGRESSIVE}
-}
-
 // String is Enum.name().
 func (e CompilerOptions_AliasStringsMode) String() string {
 	return compilerOptions_AliasStringsMode_names[e]
 }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_AliasStringsMode) Ordinal() int { return int(e) }
 
 // CompilerOptions_Environment is an environment specifies the built-in externs that are loaded for a given compilation.
 type CompilerOptions_Environment int32
@@ -1009,9 +867,6 @@ func CompilerOptions_Environment_values() []CompilerOptions_Environment {
 
 // String is Enum.name().
 func (e CompilerOptions_Environment) String() string { return compilerOptions_Environment_names[e] }
-
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_Environment) Ordinal() int { return int(e) }
 
 // CompilerOptions_JsonStreamMode is whether standard input or standard output should be an array of JSON encoded files
 type CompilerOptions_JsonStreamMode int32
@@ -1039,9 +894,6 @@ func (e CompilerOptions_JsonStreamMode) String() string {
 	return compilerOptions_JsonStreamMode_names[e]
 }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_JsonStreamMode) Ordinal() int { return int(e) }
-
 // CompilerOptions_J2clPassMode is a mode enum used to indicate whether J2clPass should be enabled,
 // disabled, or enabled automatically if there is any J2cl source file (i.e. in
 // the AUTO mode).
@@ -1064,9 +916,6 @@ func CompilerOptions_J2clPassMode_values() []CompilerOptions_J2clPassMode {
 // String is Enum.name().
 func (e CompilerOptions_J2clPassMode) String() string { return compilerOptions_J2clPassMode_names[e] }
 
-// Ordinal is Enum.ordinal().
-func (e CompilerOptions_J2clPassMode) Ordinal() int { return int(e) }
-
 // Java: CompilerOptions.J2clPassMode.shouldAddJ2clPasses()
 func (e CompilerOptions_J2clPassMode) ShouldAddJ2clPasses() bool {
 	return e == CompilerOptions_J2clPassMode_AUTO
@@ -1087,11 +936,5 @@ var customPassExecutionTime_names = [...]string{
 	"BEFORE_CHECKS", "BEFORE_OPTIMIZATIONS", "BEFORE_OPTIMIZATION_LOOP", "AFTER_OPTIMIZATION_LOOP",
 }
 
-// Name is Enum.name().
-func (t CustomPassExecutionTime) Name() string { return customPassExecutionTime_names[t] }
-
 // String is Enum.toString().
-func (t CustomPassExecutionTime) String() string { return t.Name() }
-
-// Ordinal is Enum.ordinal().
-func (t CustomPassExecutionTime) Ordinal() int { return int(t) }
+func (t CustomPassExecutionTime) String() string { return customPassExecutionTime_names[t] }

@@ -88,37 +88,8 @@ func ObjectsEquals(a, b any) bool {
 		return ok && y != nil && *x == *y
 	}
 	va := reflect.ValueOf(a)
-	switch va.Kind() {
-	case reflect.Pointer:
-		if a == b {
-			return true
-		}
-		if va.IsNil() {
-			return IsNil(b)
-		}
-		if IsNil(b) {
-			return false
-		}
-		if e, ok := a.(Equaler); ok {
-			return e.Equals(b)
-		}
-		return false
-	case reflect.Uint32:
-		if va.Uint() == 0 {
-			if _, ok := a.(interface{ IsNil() bool }); ok {
-				return IsNil(b)
-			}
-		}
-		if a == b {
-			return true
-		}
-		if IsNil(b) {
-			return false
-		}
-		if e, ok := a.(Equaler); ok {
-			return e.Equals(b)
-		}
-		return false
+	if va.Kind() == reflect.Pointer && a == b {
+		return true
 	}
 	aNil, bNil := IsNil(a), IsNil(b)
 	if aNil || bNil {
@@ -150,7 +121,7 @@ func ObjectsEquals(a, b any) bool {
 //
 // Go-only: performance — in generic code, scalars, pointers, structs and node
 // IDs avoid boxing/reflection fast-paths while matching ObjectsEquals exactly.
-// Generic collections (HamtPMap, ObjectLinkedHashMap) use it.
+// Generic collections (ObjectLinkedHashMap) use it.
 func ObjectsEqualsOf[T any](a, b T) bool {
 	t := reflect.TypeFor[T]()
 	switch t.Kind() {
@@ -169,49 +140,28 @@ func ObjectsEqualsOf[T any](a, b T) bool {
 			return e.Equals(b)
 		}
 		return false
-	case reflect.Interface:
-		return ObjectsEquals(a, b)
 	case reflect.String:
 		if x, ok := any(a).(string); ok {
 			return any(b) == x
 		}
-		if e, ok := any(a).(Equaler); ok {
-			return e.Equals(b)
-		}
-		return any(a) == any(b)
 	case reflect.Int, reflect.Int32, reflect.Int64, reflect.Int16, reflect.Int8,
 		reflect.Uint, reflect.Uint64, reflect.Uint16, reflect.Uint8, reflect.Bool:
 		if t.PkgPath() == "" {
 			return any(a) == any(b)
 		}
-		if e, ok := any(a).(Equaler); ok {
-			return e.Equals(b)
-		}
-		return any(a) == any(b)
 	case reflect.Float64:
 		if x, ok := any(a).(float64); ok {
 			return doubleBits(x) == doubleBits(any(b).(float64))
 		}
-		if e, ok := any(a).(Equaler); ok {
-			return e.Equals(b)
-		}
-		return any(a) == any(b)
 	case reflect.Float32:
 		if x, ok := any(a).(float32); ok {
 			return floatBits(x) == floatBits(any(b).(float32))
 		}
-		if e, ok := any(a).(Equaler); ok {
-			return e.Equals(b)
-		}
-		return any(a) == any(b)
 	case reflect.Struct:
 		if e, ok := any(a).(Equaler); ok {
 			return e.Equals(b)
 		}
-		if t.Comparable() {
-			return any(a) == any(b)
-		}
-		return false
+		return t.Comparable() && any(a) == any(b)
 	case reflect.Uint32:
 		if any(a) == any(b) {
 			return true
@@ -233,6 +183,17 @@ func ObjectsEqualsOf[T any](a, b T) bool {
 	return ObjectsEquals(a, b)
 }
 
+func fold64(u uint64) int32 {
+	return int32(u ^ (u >> 32))
+}
+
+func boolHash(b bool) int32 {
+	if b {
+		return 1231
+	}
+	return 1237
+}
+
 // objectHashCodeOf is ObjectHashCode for a value of a type parameter.
 //
 // Go-only: performance — see ObjectsEqualsOf.
@@ -250,96 +211,51 @@ func objectHashCodeOf[T any](v T) int32 {
 		if h, ok := any(v).(hashable); ok {
 			return h.HashCode()
 		}
-		p := uint64(reflect.ValueOf(v).Pointer())
-		return int32(p ^ (p >> 32))
-	case reflect.Interface:
-		return ObjectHashCode(v)
+		return fold64(uint64(reflect.ValueOf(v).Pointer()))
 	case reflect.String:
 		if s, ok := any(v).(string); ok {
 			return StringHashCode(s)
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
-		}
-		return StringHashCode(reflect.ValueOf(v).String())
 	case reflect.Int:
 		if x, ok := any(v).(int); ok {
 			return int32(x)
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
-		}
-		return int32(reflect.ValueOf(v).Int())
 	case reflect.Int32:
 		if x, ok := any(v).(int32); ok {
 			return x
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
-		}
-		return int32(reflect.ValueOf(v).Int())
 	case reflect.Int64:
 		if x, ok := any(v).(int64); ok {
-			return int32(x ^ int64(uint64(x)>>32))
+			return fold64(uint64(x))
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
-		}
-		x := reflect.ValueOf(v).Int()
-		return int32(x ^ int64(uint64(x)>>32))
 	case reflect.Int16, reflect.Int8:
-		if t.PkgPath() == "" {
-			if x, ok := any(v).(int16); ok {
-				return int32(x)
-			}
-			return int32(any(v).(int8))
+		if x, ok := any(v).(int16); ok {
+			return int32(x)
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
+		if x, ok := any(v).(int8); ok {
+			return int32(x)
 		}
-		return int32(reflect.ValueOf(v).Int())
 	case reflect.Uint, reflect.Uint64:
-		if t.PkgPath() == "" {
-			if x, ok := any(v).(uint64); ok {
-				return int32(x ^ (x >> 32))
-			}
-			u := uint64(any(v).(uint))
-			return int32(u ^ (u >> 32))
+		if x, ok := any(v).(uint64); ok {
+			return fold64(x)
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
+		if x, ok := any(v).(uint); ok {
+			return fold64(uint64(x))
 		}
-		x := reflect.ValueOf(v).Uint()
-		return int32(x ^ (x >> 32))
 	case reflect.Uint16, reflect.Uint8:
-		if t.PkgPath() == "" {
-			if x, ok := any(v).(uint8); ok {
-				return int32(x)
-			}
-			return int32(any(v).(uint16))
+		if x, ok := any(v).(uint8); ok {
+			return int32(x)
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
+		if x, ok := any(v).(uint16); ok {
+			return int32(x)
 		}
-		return int32(reflect.ValueOf(v).Uint())
 	case reflect.Bool:
 		if x, ok := any(v).(bool); ok {
-			if x {
-				return 1231
-			}
-			return 1237
+			return boolHash(x)
 		}
-		if h, ok := any(v).(hashable); ok {
-			return h.HashCode()
-		}
-		if reflect.ValueOf(v).Bool() {
-			return 1231
-		}
-		return 1237
 	case reflect.Float64:
 		if x, ok := any(v).(float64); ok {
-			bits := doubleBits(x)
-			return int32(bits ^ (bits >> 32))
+			return fold64(doubleBits(x))
 		}
 	case reflect.Float32:
 		if x, ok := any(v).(float32); ok {
@@ -400,10 +316,7 @@ func ObjectHashCode(v any) int32 {
 		}
 		return StringHashCode(*x)
 	case bool:
-		if x {
-			return 1231
-		}
-		return 1237
+		return boolHash(x)
 	case int:
 		// Go int stands for Java int.
 		return int32(x)
@@ -418,16 +331,15 @@ func ObjectHashCode(v any) int32 {
 	case uint32:
 		return int32(x)
 	case uint64:
-		return int32(x ^ (x >> 32))
+		return fold64(x)
 	case uint:
-		return int32(uint64(x) ^ (uint64(x) >> 32))
+		return fold64(uint64(x))
 	case uint8:
 		return int32(x)
 	case int64:
-		return int32(x ^ int64(uint64(x)>>32))
+		return fold64(uint64(x))
 	case float64:
-		bits := doubleBits(x)
-		return int32(bits ^ (bits >> 32))
+		return fold64(doubleBits(x))
 	case float32:
 		return int32(floatBits(x))
 	}
@@ -456,23 +368,17 @@ func identityHashCodeNonNil(v any) int32 {
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.UnsafePointer:
-		p := uint64(rv.Pointer())
-		return int32(p ^ (p >> 32))
+		return fold64(uint64(rv.Pointer()))
 	case reflect.Int64:
-		x := rv.Int()
-		return int32(x ^ int64(uint64(x)>>32))
+		return fold64(uint64(rv.Int()))
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
 		return int32(rv.Int())
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		x := rv.Uint()
-		return int32(x ^ (x >> 32))
+		return fold64(rv.Uint())
 	case reflect.String:
 		return StringHashCode(rv.String())
 	case reflect.Bool:
-		if rv.Bool() {
-			return 1231
-		}
-		return 1237
+		return boolHash(rv.Bool())
 	}
 	return 0
 }
@@ -482,8 +388,7 @@ func IdentityHashCodeOfPointer[T any](p *T) int32 {
 	if p == nil {
 		return 0
 	}
-	x := uint64(reflect.ValueOf(p).Pointer())
-	return int32(x ^ (x >> 32))
+	return fold64(uint64(reflect.ValueOf(p).Pointer()))
 }
 
 // ObjectToString is java.lang.Object.toString() for classes that do not

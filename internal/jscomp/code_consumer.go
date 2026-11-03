@@ -26,6 +26,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -969,11 +970,13 @@ func (c *CodeConsumer) BreakAfterBlockFor(n rhino.Node, statementContext bool) b
 	case rhino.Token_FUNCTION:
 		return false // FUNCTIONs are handled separately, don't break here.
 	case rhino.Token_TRY:
-		return n != parent.GetFirstChild() // Don't break before catch
+		return !ast.MustTry(parent).Body().Is(n) // Don't break before catch
 	case rhino.Token_CATCH:
-		return !NodeUtil_HasFinally(getTryForCatch(parent)) // Don't break before finally
+		_, hasFinally := getTryForCatch(ast.MustCatch(parent)).Finally()
+		return !hasFinally // Don't break before finally
 	case rhino.Token_IF:
-		return n == parent.GetLastChild() // Don't break before else
+		els, hasElse := ast.MustIf(parent).Else()
+		return !hasElse || els.Is(n) // Don't break before else
 	default:
 		return true
 	}

@@ -224,10 +224,6 @@ func StatementFusion_FuseExpressionIntoSecondChild(exp rhino.Node, stmt rhino.No
 	comma.InsertAfter(target)
 }
 
-// AstManipulations holds utilities to abstract away certain common AST
-// manipulations.
-type AstManipulations struct{}
-
 // AstManipulations_FuseExpressions returns a single node equivalent to
 // executing <expr1, expr2>.
 //

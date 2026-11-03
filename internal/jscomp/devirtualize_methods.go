@@ -458,48 +458,21 @@ func (d *DevirtualizeMethods) rewriteDefinition(
 	d.compiler.ReportChangeToEnclosingScope(newVarNode)
 }
 
-func (d *DevirtualizeMethods) replaceThisNode(thisNode rhino.Node, name string, nameID uint32) {
+func (d *DevirtualizeMethods) replaceThisNode(thisNode rhino.Node, name string, nameID uint32) rhino.Node {
 	if thisNode.MutateThisToNameIDInPlace(nameID) {
 		d.compiler.ReportChangeToEnclosingScope(thisNode)
-	} else {
-		newName := rhino.IR_Name(name).Srcref(thisNode).CopyTypeFrom(thisNode)
-		thisNode.ReplaceWith(newName)
-		d.compiler.ReportChangeToEnclosingScope(newName)
+		return thisNode
 	}
+	newName := rhino.IR_Name(name).Srcref(thisNode).CopyTypeFrom(thisNode)
+	thisNode.ReplaceWith(newName)
+	d.compiler.ReportChangeToEnclosingScope(newName)
+	return newName
 }
 
 func (d *DevirtualizeMethods) replaceReferencesToThisID(node rhino.Node, name string, nameID uint32) {
-	if (node.IsFunction() && !node.IsArrowFunction()) ||
-		node.IsMemberFieldDef() ||
-		NodeUtil_IsClassStaticBlock(node) {
-		// Functions (besides arrows), member field defs, and static blocks create a new binding for
-		// `this`.
-		return
-	}
-
-	if cf, ok := ast.AsComputedFieldDef(node); ok {
-		// Computed field keys are evaluated in the enclosing scope, but field initializers create a
-		// new binding for `this`.
-		key := cf.Key().Node()
-		if !key.IsNil() {
-			if key.IsThis() {
-				d.replaceThisNode(key, name, nameID)
-			} else {
-				d.replaceReferencesToThisID(key, name, nameID)
-			}
-		}
-		return
-	}
-
-	for child := node.GetFirstChild(); !child.IsNil(); {
-		next := child.GetNext()
-		if child.IsThis() {
-			d.replaceThisNode(child, name, nameID)
-		} else {
-			d.replaceReferencesToThisID(child, name, nameID)
-		}
-		child = next
-	}
+	replaceLexicalThis(node, node.GetParent(), func(thisNode, _ rhino.Node) rhino.Node {
+		return d.replaceThisNode(thisNode, name, nameID)
+	})
 }
 
 // Java: DevirtualizeMethods.chunkForNode(Node)

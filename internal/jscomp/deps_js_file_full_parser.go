@@ -177,14 +177,15 @@ type jsFileFullParser_ErrorManager struct {
 }
 
 // Java: BasicErrorManager.println(CheckLevel, JSError)
-func (m *jsFileFullParser_ErrorManager) Println(level *CheckLevel, error *JSError) {
-	if level != nil && *level == CheckLevel_ERROR {
+func (m *jsFileFullParser_ErrorManager) Println(level CheckLevel, error *JSError) {
+	switch level {
+	case CheckLevel_ERROR:
 		m.errorReporter.Error(
 			error.Description(),
 			jsFileFullParser_sourceName(error),
 			error.GetLineNumber(),
 			error.Charno())
-	} else if level != nil && *level == CheckLevel_WARNING {
+	case CheckLevel_WARNING:
 		m.errorReporter.Warning(
 			error.Description(),
 			jsFileFullParser_sourceName(error),

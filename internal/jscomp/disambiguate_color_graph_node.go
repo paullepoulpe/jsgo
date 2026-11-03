@@ -37,7 +37,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -92,9 +91,6 @@ func (a ColorGraphNode_PropAssociation) Name() string { return colorGraphNode_Pr
 
 // String is Enum.toString().
 func (a ColorGraphNode_PropAssociation) String() string { return a.Name() }
-
-// Ordinal is Enum.ordinal().
-func (a ColorGraphNode_PropAssociation) Ordinal() int { return int(a) }
 
 // Java: ColorGraphNode.createForTesting(int)
 func ColorGraphNode_CreateForTesting(index int) *ColorGraphNode {
@@ -277,34 +273,6 @@ func (idx *colorGraphNodeIndex) Values() iter.Seq[*ColorGraphNode] {
 	}
 }
 
-// ColorGraphNodeSet is an insertion-ordered set of ColorGraphNodes.
-type ColorGraphNodeSet struct {
-	order   []*ColorGraphNode
-	members map[*ColorGraphNode]struct{}
-}
-
-// Contains reports whether n is in s.
-func (s ColorGraphNodeSet) Contains(n *ColorGraphNode) bool {
-	_, ok := s.members[n]
-	return ok
-}
-
-// All iterates the nodes in insertion order.
-func (s ColorGraphNodeSet) All() iter.Seq[*ColorGraphNode] {
-	return slices.Values(s.order)
-}
-
-// Size returns the number of distinct nodes.
-func (s ColorGraphNodeSet) Size() int { return len(s.order) }
-
-// ToSlice returns a defensive copy of the nodes in insertion order.
-func (s ColorGraphNodeSet) ToSlice() []*ColorGraphNode {
-	if len(s.order) == 0 {
-		return []*ColorGraphNode{}
-	}
-	return slices.Clone(s.order)
-}
-
 // ColorGraphNodeFactory is a factory and cache for ColorGraphNode
 // instances.
 type ColorGraphNodeFactory struct {
@@ -356,17 +324,12 @@ func (f *ColorGraphNodeFactory) CreateNode(color *colors.Color) *ColorGraphNode 
 }
 
 // Java: ColorGraphNodeFactory.getAllKnownTypes()
-func (f *ColorGraphNodeFactory) GetAllKnownTypes() ColorGraphNodeSet {
-	n := f.typeIndex.Size()
-	members := make(map[*ColorGraphNode]struct{}, n)
-	order := make([]*ColorGraphNode, 0, n)
+func (f *ColorGraphNodeFactory) GetAllKnownTypes() *OrderedSet[*ColorGraphNode] {
+	out := NewOrderedSetWithCapacity[*ColorGraphNode](f.typeIndex.Size())
 	for v := range f.typeIndex.Values() {
-		if _, exists := members[v]; !exists {
-			members[v] = struct{}{}
-			order = append(order, v)
-		}
+		out.Add(v)
 	}
-	return ColorGraphNodeSet{order: order, members: members}
+	return out
 }
 
 // Java: ColorGraphNodeFactory.newColorGraphNode(Color)

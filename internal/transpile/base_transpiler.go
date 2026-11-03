@@ -214,38 +214,16 @@ func NewBaseTranspiler_CompilerSupplierWithModuleResolution(
 
 // Java: CompilerSupplier.compile(URI, String)
 func (s *BaseTranspiler_DefaultCompilerSupplier) Compile(path string, code string) *BaseTranspiler_CompileResult {
-	compiler := jscomp.NewCompiler()
-	result :=
-		compiler.CompileOfSourceFiles(
-			jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}"),
-			jscomp.SourceFile_FromCode(path, code),
-			s.Options())
-	source := compiler.ToSource()
-	var sourceMap strings.Builder
-	if result.SourceMap != nil {
-		result.SourceMap.AppendTo(&sourceMap, &path)
-	}
-	transpiled := result.TranspiledFiles
+	compiler, result, source, transpiled, sm := bundle.CompileSingleFile(path, code, s.Options(), false)
 	if len(result.Errors) != 0 {
 		panic(bundle.NewTranspilationException(compiler, result.Errors, result.Warnings))
-	}
-	sm := ""
-	if transpiled {
-		sm = sourceMap.String()
 	}
 	return NewBaseTranspiler_CompileResult(source, transpiled, sm)
 }
 
 // Java: CompilerSupplier.runtime(String)
 func (s *BaseTranspiler_DefaultCompilerSupplier) Runtime(library string) string {
-	compiler := jscomp.NewCompiler()
-	options := s.Options()
-	options.SetForceLibraryInjection([]string{library})
-	compiler.CompileOfSourceFiles(
-		jscomp.SourceFile_FromCode("externs.js", "function Symbol() {}"),
-		jscomp.SourceFile_FromCode("empty.js", ""),
-		options)
-	return compiler.ToSource()
+	return bundle.CompileRuntimeLibrary(s.Options(), library)
 }
 
 // Java: CompilerSupplier.options()
@@ -264,12 +242,7 @@ func (s *BaseTranspiler_DefaultCompilerSupplier) SetOptions(options *jscomp.Comp
 	options.SetLanguageIn(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
 	options.LegacySetOutputFeatureSet(s.outputFeatureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES))
 	options.SetEmitUseStrict(false)
-	options.SetQuoteKeywordProperties(true)
-	options.SetSkipNonTranspilationPasses(true)
-	options.SetVariableRenaming(jscomp.VariableRenamingPolicy_OFF)
-	options.SetPropertyRenaming(jscomp.PropertyRenamingPolicy_OFF)
-	options.SetWrapGoogModulesForWhitespaceOnly(false)
-	options.SetPrettyPrint(true)
+	bundle.SetCommonTranspilationOptions(options)
 	options.SetWarningLevel(jscomp.DiagnosticGroups_NON_STANDARD_JSDOC, jscomp.CheckLevel_OFF)
 	options.SetEs6ModuleTranspilation(jscomp.CompilerOptions_Es6ModuleTranspilation_TO_COMMON_JS_LIKE_MODULES)
 	options.SetModuleResolutionMode(s.moduleResolution)
@@ -286,9 +259,6 @@ func (s *BaseTranspiler_DefaultCompilerSupplier) SetOptions(options *jscomp.Comp
 	options.SetPathEscaper(jscomp.ModuleLoader_PathEscaper_CANONICALIZE_ONLY)
 	options.SetParseInlineSourceMaps(true)
 	options.SetApplyInputSourceMaps(true)
-	devNull := "/dev/null"
-	options.SetSourceMapOutputPath(&devNull)
-	options.SetSourceMapIncludeSourcesContent(true)
 	// Make sourcemaps use absolute paths, so that the path is not duplicated
 	// if a build tool adds a sourceurl. Exception: if the location has a
 	// scheme (like http:) then leave the path intact. This makes this usable

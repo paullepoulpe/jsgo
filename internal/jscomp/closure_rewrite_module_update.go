@@ -70,14 +70,14 @@ func (u *closureScriptUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 			break
 		}
 		method := getProp.Node()
-		if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE) {
+		if closureRewriteModule_GOOG_MODULE.Matches(method) {
 			m.updateGoogModule(t, call)
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE) {
+		} else if closureRewriteModule_GOOG_MODULE_DECLARELEGACYNAMESPACE.Matches(method) {
 			NodeUtil_GetEnclosingStatement(n).Detach()
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIRE) ||
-			method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_REQUIRETYPE) {
+		} else if closureRewriteModule_GOOG_REQUIRE.Matches(method) ||
+			closureRewriteModule_GOOG_REQUIRETYPE.Matches(method) {
 			m.updateGoogRequire(t, call)
-		} else if method.MatchesQualifiedNameNode(closureRewriteModule_GOOG_FORWARDDECLARE) && !parent.IsExprResult() {
+		} else if closureRewriteModule_GOOG_FORWARDDECLARE.Matches(method) && !parent.IsExprResult() {
 			m.updateGoogForwardDeclare(t, call)
 		} else if closureRewriteModule_GOOG_MODULE_PREVENTMODULEEXPORTSEALING.Matches(method) {
 			NodeUtil_GetEnclosingStatement(n).Detach()
@@ -99,13 +99,11 @@ func (u *closureScriptUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 	return true
 }
 
-var closureScriptUpdaterVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_MODULE_BODY)
-	s.Add(rhino.Token_NAME)
-	s.Add(rhino.Token_SCRIPT)
-	return s
-}()
+var closureScriptUpdaterVisitTokens = makeVisitTokenSet(
+	rhino.Token_MODULE_BODY,
+	rhino.Token_NAME,
+	rhino.Token_SCRIPT,
+)
 
 func (*closureScriptUpdater) visitTokens() *ast.TokenSet { return &closureScriptUpdaterVisitTokens }
 
@@ -347,8 +345,8 @@ func (m *ClosureRewriteModule) maybeUpdateTopLevelName(t *NodeTraversal, nameNod
 		nameNode.GetGrandparent().IsObjectPattern() {
 		if dlhs, ok := ast.AsDestructuringLhs(nameNode.GetGrandparent().GetParent()); ok {
 			if init, hasInit := dlhs.Init(); hasInit &&
-				(NodeUtil_IsCallToNode(init.Node(), closureRewriteModule_GOOG_REQUIRE) ||
-					NodeUtil_IsCallToNode(init.Node(), closureRewriteModule_GOOG_REQUIRETYPE)) {
+				(NodeUtil_IsCallToQualifiedName(init.Node(), closureRewriteModule_GOOG_REQUIRE) ||
+					NodeUtil_IsCallToQualifiedName(init.Node(), closureRewriteModule_GOOG_REQUIRETYPE)) {
 				return
 			}
 		}

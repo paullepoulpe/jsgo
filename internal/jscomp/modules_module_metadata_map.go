@@ -351,9 +351,6 @@ var moduleMetadataMap_ModuleType_description = [...]string{
 // String is Enum.name().
 func (t ModuleMetadataMap_ModuleType) String() string { return moduleMetadataMap_ModuleType_names[t] }
 
-// Ordinal is Enum.ordinal().
-func (t ModuleMetadataMap_ModuleType) Ordinal() int { return int(t) }
-
 // Description is the field ModuleType.description.
 func (t ModuleMetadataMap_ModuleType) Description() string {
 	return moduleMetadataMap_ModuleType_description[t]
@@ -378,23 +375,14 @@ func (m *ModuleMetadataMap) buildAllMetadata() {
 	if total == 0 {
 		return
 	}
-	seen := make(map[*ModuleMetadataMap_ModuleMetadata]struct{}, total)
-	all := make([]*ModuleMetadataMap_ModuleMetadata, 0, total)
+	seen := NewOrderedSetWithCapacity[*ModuleMetadataMap_ModuleMetadata](total)
 	for _, e := range m.byPath.Entries() {
-		v := jutil.CheckNotNull(e.Value)
-		if _, ok := seen[v]; !ok {
-			seen[v] = struct{}{}
-			all = append(all, v)
-		}
+		seen.Add(jutil.CheckNotNull(e.Value))
 	}
 	for _, e := range m.byGoogNamespace.Entries() {
-		v := jutil.CheckNotNull(e.Value)
-		if _, ok := seen[v]; !ok {
-			seen[v] = struct{}{}
-			all = append(all, v)
-		}
+		seen.Add(jutil.CheckNotNull(e.Value))
 	}
-	m.allMetadata = all
+	m.allMetadata = seen.ToSlice()
 }
 
 // Java: ModuleMetadataMap(Map<String, ModuleMetadata>, Map<String, ModuleMetadata>)

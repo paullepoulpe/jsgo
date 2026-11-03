@@ -204,64 +204,9 @@ func (t *InstanceObjectType) AppendTo(sb *TypeStringBuilder) {
 	sb.Append(name)
 }
 
-func (t *InstanceObjectType) isNativeClass(name string) bool {
-	c := t.constructor
-	return (c.protoFlags&protoFlagNative) != 0 && c.classNameID != 0 && rhinoStringFromID(c.classNameID) == name
-}
-
-// Java: InstanceObjectType.isTheObjectType()
-func (t *InstanceObjectType) IsTheObjectType() bool {
-	return t.isNativeClass("Object")
-}
-
 // Java: InstanceObjectType.isInstanceType()
 func (t *InstanceObjectType) IsInstanceType() bool {
 	return true
-}
-
-// Java: InstanceObjectType.isArrayType()
-func (t *InstanceObjectType) IsArrayType() bool {
-	return t.isNativeClass("Array")
-}
-
-// Java: InstanceObjectType.isReadonlyArrayType()
-func (t *InstanceObjectType) IsReadonlyArrayType() bool {
-	return t.isNativeClass("ReadonlyArray")
-}
-
-// Java: InstanceObjectType.isBigIntObjectType()
-func (t *InstanceObjectType) IsBigIntObjectType() bool {
-	return t.isNativeClass("BigInt")
-}
-
-// Java: InstanceObjectType.isStringObjectType()
-func (t *InstanceObjectType) IsStringObjectType() bool {
-	return t.isNativeClass("String")
-}
-
-// Java: InstanceObjectType.isSymbolObjectType()
-func (t *InstanceObjectType) IsSymbolObjectType() bool {
-	return t.isNativeClass("Symbol")
-}
-
-// Java: InstanceObjectType.isBooleanObjectType()
-func (t *InstanceObjectType) IsBooleanObjectType() bool {
-	return t.isNativeClass("Boolean")
-}
-
-// Java: InstanceObjectType.isNumberObjectType()
-func (t *InstanceObjectType) IsNumberObjectType() bool {
-	return t.isNativeClass("Number")
-}
-
-// Java: InstanceObjectType.isDateType()
-func (t *InstanceObjectType) IsDateType() bool {
-	return t.isNativeClass("Date")
-}
-
-// Java: InstanceObjectType.isRegexpType()
-func (t *InstanceObjectType) IsRegexpType() bool {
-	return t.isNativeClass("RegExp")
 }
 
 // Java: InstanceObjectType.isNominalType()

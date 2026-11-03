@@ -122,16 +122,6 @@ type RenameLabels_ProcessLabels struct {
 	namesBuf [8]strpool.ID
 }
 
-// Java: RenameLabels.ProcessLabels(boolean)
-func NewRenameLabels_ProcessLabels(outer *RenameLabels, markChanges bool) *RenameLabels_ProcessLabels {
-	p := &RenameLabels_ProcessLabels{outer: outer, markChanges: markChanges}
-	p.entries = p.entriesBuf[:0]
-	p.scopeStarts = p.scopeStartsBuf[:1]
-	p.scopeStarts[0] = 0
-	p.names = p.namesBuf[:0]
-	return p
-}
-
 func (*RenameLabels_ProcessLabels) visitTokens() *ast.TokenSet {
 	return &renameLabelsVisitTokens
 }

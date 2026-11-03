@@ -479,11 +479,11 @@ type sourceMapTestCase_uselessCodeGuard struct {
 }
 
 // Java: SourceMapTestCase.getCompilerOptions().new WarningsGuard() {...}.level(JSError)
-func (*sourceMapTestCase_uselessCodeGuard) Level(error *jscomp.JSError) *jscomp.CheckLevel {
+func (*sourceMapTestCase_uselessCodeGuard) Level(error *jscomp.JSError) (jscomp.CheckLevel, bool) {
 	if jscomp.DiagnosticGroups_CHECK_USELESS_CODE.Matches(error) {
-		return jscomp.CheckLevel_OFF.Ptr()
+		return jscomp.CheckLevel_OFF, true
 	}
-	return nil
+	return 0, false
 }
 
 // Java: SourceMapTestCase.getCompilerOptions()
@@ -530,10 +530,10 @@ func (m *TestErrorManager) ExpectWarnings(expectedWarnings ...string) {
 }
 
 // Java: TestErrorManager.report(CheckLevel, JSError)
-func (m *TestErrorManager) Report(level *jscomp.CheckLevel, error *jscomp.JSError) {
+func (m *TestErrorManager) Report(level jscomp.CheckLevel, error *jscomp.JSError) {
 	m.SortingErrorManager.Report(level, error)
 
-	switch *level {
+	switch level {
 	case jscomp.CheckLevel_ERROR:
 		if m.errorIndex >= len(m.errors) {
 			panic(jutil.NewAssertionError("Unexpected error: " + error.String()))
@@ -560,7 +560,7 @@ func testErrorManager_assertEquals(expected string, actual string) {
 }
 
 // Java: TestErrorManager.println(CheckLevel, JSError)
-func (m *TestErrorManager) Println(level *jscomp.CheckLevel, error *jscomp.JSError) {
+func (m *TestErrorManager) Println(level jscomp.CheckLevel, error *jscomp.JSError) {
 	// no-op
 }
 

@@ -361,9 +361,6 @@ func (e InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) String() stri
 	return inlineFunctions_ShouldWarnWhenRequireInliningCannotInline_names[e]
 }
 
-// Java: InlineFunctions.ShouldWarnWhenRequireInliningCannotInline.ordinal()
-func (e InlineFunctions_ShouldWarnWhenRequireInliningCannotInline) Ordinal() int { return int(e) }
-
 // InlineFunctions_CannotRemoveReason is the enum
 // InlineFunctions.CannotRemoveReason.
 type InlineFunctions_CannotRemoveReason int32
@@ -386,9 +383,6 @@ var inlineFunctions_CannotRemoveReason_names = [...]string{
 func (e InlineFunctions_CannotRemoveReason) String() string {
 	return inlineFunctions_CannotRemoveReason_names[e]
 }
-
-// Java: InlineFunctions.CannotRemoveReason.ordinal()
-func (e InlineFunctions_CannotRemoveReason) Ordinal() int { return int(e) }
 
 // InlineFunctions_DisallowInliningReason is the enum
 // InlineFunctions.DisallowInliningReason.
@@ -427,9 +421,6 @@ func (e InlineFunctions_DisallowInliningReason) String() string {
 	return inlineFunctions_DisallowInliningReason_names[e]
 }
 
-// Java: InlineFunctions.DisallowInliningReason.ordinal()
-func (e InlineFunctions_DisallowInliningReason) Ordinal() int { return int(e) }
-
 // InlineFunctions_ShouldRequireInlining is the record
 // InlineFunctions.ShouldRequireInlining(boolean shouldValidate, String
 // optMessage).
@@ -438,36 +429,15 @@ type InlineFunctions_ShouldRequireInlining struct {
 	optMessage     string
 }
 
-// Java: InlineFunctions.ShouldRequireInlining(boolean, String)
-func NewInlineFunctions_ShouldRequireInlining(shouldValidate bool, optMessage string) *InlineFunctions_ShouldRequireInlining {
-	return &InlineFunctions_ShouldRequireInlining{shouldValidate: shouldValidate, optMessage: optMessage}
-}
-
 // Java: InlineFunctions.ShouldRequireInlining.shouldValidate()
-func (r *InlineFunctions_ShouldRequireInlining) ShouldValidate() bool { return r.shouldValidate }
+func (r InlineFunctions_ShouldRequireInlining) ShouldValidate() bool { return r.shouldValidate }
 
 // Java: InlineFunctions.ShouldRequireInlining.optMessage()
-func (r *InlineFunctions_ShouldRequireInlining) OptMessage() string { return r.optMessage }
-
-// Java: InlineFunctions.ShouldRequireInlining.equals(Object)
-func (r *InlineFunctions_ShouldRequireInlining) Equals(o any) bool {
-	other, ok := o.(*InlineFunctions_ShouldRequireInlining)
-	return ok && other != nil && r.shouldValidate == other.shouldValidate && r.optMessage == other.optMessage
-}
-
-// Java: InlineFunctions.ShouldRequireInlining.hashCode()
-func (r *InlineFunctions_ShouldRequireInlining) HashCode() int32 {
-	return 31*jutil.ObjectHashCode(r.shouldValidate) + jutil.StringHashCode(r.optMessage)
-}
-
-// Java: InlineFunctions.ShouldRequireInlining.toString()
-func (r *InlineFunctions_ShouldRequireInlining) String() string {
-	return "ShouldRequireInlining[shouldValidate=" + strconv.FormatBool(r.shouldValidate) + ", optMessage=" + r.optMessage + "]"
-}
+func (r InlineFunctions_ShouldRequireInlining) OptMessage() string { return r.optMessage }
 
 // Java: InlineFunctions.checkOptimizationLevelSupportsRequireInlining(CompilerOptions)
 func InlineFunctions_CheckOptimizationLevelSupportsRequireInlining(
-	options *CompilerOptions) *InlineFunctions_ShouldRequireInlining {
+	options *CompilerOptions) InlineFunctions_ShouldRequireInlining {
 	// Non-optimized code might not perform all required inlinings.
 	var problems []string
 	if !options.ShouldOptimize() {
@@ -515,31 +485,20 @@ func InlineFunctions_CheckOptimizationLevelSupportsRequireInlining(
 				strconv.Itoa(options.GetMaxOptimizationLoopIterations()))
 	}
 	if len(problems) == 0 {
-		return NewInlineFunctions_ShouldRequireInlining(true, "")
+		return InlineFunctions_ShouldRequireInlining{shouldValidate: true}
 	}
-	return NewInlineFunctions_ShouldRequireInlining(false, "["+strings.Join(problems, ", ")+"]")
+	return InlineFunctions_ShouldRequireInlining{optMessage: "[" + strings.Join(problems, ", ") + "]"}
 }
 
 // -------------------------------------------------------------------------
 // InlineCostEstimator
 // -------------------------------------------------------------------------
 
-// InlineCostEstimator is for use with CodeGenerator to determine the cost of
-// generated code.
-//
-// See CodeGenerator, CodePrinter.
-type InlineCostEstimator struct{}
-
 // For now simply assume identifiers are 2 characters.
 const InlineCostEstimator_ESTIMATED_IDENTIFIER = "ab"
 
 // Java: InlineCostEstimator.ESTIMATED_IDENTIFIER_COST
 const InlineCostEstimator_ESTIMATED_IDENTIFIER_COST = len(InlineCostEstimator_ESTIMATED_IDENTIFIER)
-
-// Java: InlineCostEstimator()
-func NewInlineCostEstimator() *InlineCostEstimator {
-	return &InlineCostEstimator{}
-}
 
 // InlineCostEstimator_GetCost determines the size of the JS code.
 //

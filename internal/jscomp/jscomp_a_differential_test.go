@@ -91,8 +91,8 @@ func jsaJavaStr(s *string) string {
 	return *s
 }
 
-func jsaLevelStr(l *CheckLevel) string {
-	if l == nil {
+func jsaLevelStr(l CheckLevel, ok bool) string {
+	if !ok {
 		return "null"
 	}
 	return l.String()
@@ -183,7 +183,7 @@ var (
 )
 
 func jsaCheckLevelValueOf(s string) CheckLevel {
-	for _, l := range CheckLevel_values() {
+	for _, l := range jsaDiffLevels {
 		if l.String() == s {
 			return l
 		}
@@ -239,9 +239,9 @@ func (p *jsaDiffProvider) GetSourceMapping(sourceName *string, lineNumber int, c
 }
 
 // jsaCollectHandler is an ErrorHandler that renders each report.
-type jsaCollectHandler func(level *CheckLevel, error *JSError)
+type jsaCollectHandler func(level CheckLevel, error *JSError)
 
-func (h jsaCollectHandler) Report(level *CheckLevel, error *JSError) { h(level, error) }
+func (h jsaCollectHandler) Report(level CheckLevel, error *JSError) { h(level, error) }
 
 // jsaDiff accumulates mismatches per section.
 type jsaDiff struct {
@@ -427,7 +427,7 @@ func jsaDiffFormat(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProv
 	d.check("fmt", row, "noLevel formatWarning", jsaSafe(func() string { return noLevel.FormatWarning(error) }), row[col+1])
 	d.check("fmt", row, "getExcerptWithPosition",
 		jsaSafe(func() string { return NewLightweightMessageFormatter(provider).GetExcerptWithPosition(error) }), row[col+2])
-	manager.Report(jsaDiffLevels[jsaAtoi(t, row[7])].Ptr(), error)
+	manager.Report(jsaDiffLevels[jsaAtoi(t, row[7])], error)
 }
 
 func jsaDiffReport(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProvider, manager *SortingErrorManager) {
@@ -443,10 +443,10 @@ func jsaDiffReport(t *testing.T, d *jsaDiff, row []string, provider *jsaDiffProv
 	pem := NewPrintStreamErrorManager(jutil.NewPrintStream(&ps2))
 	pem.SetSummaryDetailLevel(2)
 	for _, e := range manager.GetErrors() {
-		pem.Report(CheckLevel_ERROR.Ptr(), e)
+		pem.Report(CheckLevel_ERROR, e)
 	}
 	for _, e := range manager.GetWarnings() {
-		pem.Report(CheckLevel_WARNING.Ptr(), e)
+		pem.Report(CheckLevel_WARNING, e)
 	}
 	pem.SetTypedPercent(manager.GetTypedPercent())
 	pem.GenerateReport()
@@ -469,12 +469,12 @@ func jsaDiffSorting(t *testing.T, d *jsaDiff, row []string) {
 	m := NewSortingErrorManager(nil)
 	for _, e := range strings.Split(row[1], ";") {
 		f := strings.Split(e, "|")
-		m.Report(jsaDiffLevels[jsaAtoi(t, f[4])].Ptr(), JSError_MakeWithSourceLocation(
+		m.Report(jsaDiffLevels[jsaAtoi(t, f[4])], JSError_MakeWithSourceLocation(
 			jsaDiffSource(f[0]), jsaAtoi(t, f[1]), jsaAtoi(t, f[2]), jsaDiffTypes[jsaAtoi(t, f[3])], "a"))
 	}
 	var sorted strings.Builder
 	for _, e := range m.GetSortedDiagnostics() {
-		fmt.Fprintf(&sorted, "%s %s:%d:%d %s\n", jsaLevelStr(e.Level), jsaJavaStr(e.Error.SourceName()),
+		fmt.Fprintf(&sorted, "%s %s:%d:%d %s\n", e.Level.String(), jsaJavaStr(e.Error.SourceName()),
 			e.Error.GetLineNumber(), e.Error.Charno(), e.Error.Description())
 	}
 	d.check("sorting", row, "getSortedDiagnostics", sorted.String(), row[2])
@@ -596,8 +596,8 @@ func jsaDiffMapError(d *jsaDiff, row []string) {
 	}
 	d.check("maperr", row, "mapError", key, row[2])
 	var reported []string
-	h := jsaCollectHandler(func(level *CheckLevel, error *JSError) {
-		reported = append(reported, fmt.Sprintf("%s %s %s %s:%d:%d %s", jsaLevelStr(level), error.Type().key,
+	h := jsaCollectHandler(func(_ CheckLevel, error *JSError) {
+		reported = append(reported, fmt.Sprintf("null %s %s %s:%d:%d %s", error.Type().key,
 			error.DefaultLevel(), jsaJavaStr(error.SourceName()), error.GetLineNumber(), error.Charno(),
 			error.Description()))
 	})
@@ -639,8 +639,8 @@ func jsaDiffModuleSetup(d *jsaDiff, row []string, errors *[]string) *ModuleLoade
 			SetModuleRoots(jsaSplit(row[3], ",")).
 			SetInputs(inputs).
 			SetFactory(jsaDiffModuleFactory(row[2])).
-			SetErrorHandler(jsaCollectHandler(func(level *CheckLevel, error *JSError) {
-				*errors = append(*errors, jsaLevelStr(level)+" "+error.Type().key+" "+error.Description())
+			SetErrorHandler(jsaCollectHandler(func(level CheckLevel, error *JSError) {
+				*errors = append(*errors, level.String()+" "+error.Type().key+" "+error.Description())
 			})).
 			SetPathEscaper(escaper).
 			Build()

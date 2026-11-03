@@ -75,9 +75,6 @@ func (r ColorGraphBuilder_EdgeReason) Name() string { return colorGraphBuilder_E
 // Java: ColorGraphBuilder.EdgeReason.toString()
 func (r ColorGraphBuilder_EdgeReason) String() string { return r.Name() }
 
-// Java: ColorGraphBuilder.EdgeReason.ordinal()
-func (r ColorGraphBuilder_EdgeReason) Ordinal() int { return int(r) }
-
 // Java: ColorGraphBuilder(ColorGraphNodeFactory, LowestCommonAncestorFinder.Factory<ColorGraphNode, Object>, ColorRegistry)
 func NewColorGraphBuilder(
 	nodeFactory *ColorGraphNodeFactory,

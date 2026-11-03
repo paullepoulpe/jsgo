@@ -720,9 +720,6 @@ var globalNamespace_Ref_Type_names = [...]string{
 // Java: GlobalNamespace.Ref.Type.name()
 func (t GlobalNamespace_Ref_Type) String() string { return globalNamespace_Ref_Type_names[t] }
 
-// Java: GlobalNamespace.Ref.Type.ordinal()
-func (t GlobalNamespace_Ref_Type) Ordinal() int { return int(t) }
-
 // NewGlobalNamespace_Ref creates a Ref
 //
 // No parameter checking is done here, because we allow nulls for several

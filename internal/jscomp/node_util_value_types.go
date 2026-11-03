@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -65,20 +66,22 @@ func (t NodeUtil_ValueType) Ordinal() int { return int(t) }
 func NodeUtil_GetKnownValueType(n rhino.Node) NodeUtil_ValueType {
 	switch n.GetToken() {
 	case rhino.Token_CAST:
-		return NodeUtil_GetKnownValueType(n.GetFirstChild())
+		return NodeUtil_GetKnownValueType(ast.MustCast(n).Expr().Node())
 	case rhino.Token_ASSIGN, rhino.Token_COMMA:
 		return NodeUtil_GetKnownValueType(n.GetLastChild())
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE, rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND,
 		rhino.Token_ASSIGN_COALESCE:
 		return NodeUtil_And(NodeUtil_GetKnownValueType(n.GetFirstChild()), NodeUtil_GetKnownValueType(n.GetLastChild()))
 	case rhino.Token_HOOK:
-		return NodeUtil_And(NodeUtil_GetKnownValueType(n.GetSecondChild()), NodeUtil_GetKnownValueType(n.GetLastChild()))
+		hook := ast.MustHook(n)
+		return NodeUtil_And(NodeUtil_GetKnownValueType(hook.Then().Node()), NodeUtil_GetKnownValueType(hook.Else().Node()))
 	case rhino.Token_ADD:
-		last := NodeUtil_GetKnownValueType(n.GetLastChild())
+		add := ast.MustBinary(n)
+		last := NodeUtil_GetKnownValueType(add.Right().Node())
 		if last == NodeUtil_ValueType_STRING {
 			return NodeUtil_ValueType_STRING
 		}
-		first := NodeUtil_GetKnownValueType(n.GetFirstChild())
+		first := NodeUtil_GetKnownValueType(add.Left().Node())
 		if first == NodeUtil_ValueType_STRING {
 			return NodeUtil_ValueType_STRING
 		}
@@ -94,17 +97,15 @@ func NodeUtil_GetKnownValueType(n rhino.Node) NodeUtil_ValueType {
 			if first == NodeUtil_ValueType_BIGINT || last == NodeUtil_ValueType_BIGINT {
 				// If one operand is a BigInt, then the result is a BigInt or there's a type error
 				return NodeUtil_ValueType_BIGINT
-			} else {
-				// ADD used with compilations of null, undefined, boolean and number always result
-				// in numbers.
-				return NodeUtil_ValueType_NUMBER
 			}
+			// ADD used with compilations of null, undefined, boolean and number always result
+			// in numbers.
+			return NodeUtil_ValueType_NUMBER
 		}
 
 		return NodeUtil_ValueType_UNDETERMINED
 	case rhino.Token_ASSIGN_ADD:
-		last := NodeUtil_GetKnownValueType(n.GetLastChild())
-		if last == NodeUtil_ValueType_STRING {
+		if NodeUtil_GetKnownValueType(ast.MustAssignOp(n).Value().Node()) == NodeUtil_ValueType_STRING {
 			return NodeUtil_ValueType_STRING
 		}
 		return NodeUtil_ValueType_UNDETERMINED
@@ -129,30 +130,28 @@ func NodeUtil_GetKnownValueType(n rhino.Node) NodeUtil_ValueType {
 		rhino.Token_ASSIGN_DIV,
 		rhino.Token_ASSIGN_MOD:
 		// assign operators could be using BIGINT or NUMBER
-		if NodeUtil_GetKnownValueType(n.GetLastChild()) == NodeUtil_ValueType_BIGINT {
+		if NodeUtil_GetKnownValueType(ast.MustAssignOp(n).Value().Node()) == NodeUtil_ValueType_BIGINT {
 			return NodeUtil_ValueType_BIGINT
-		} else {
-			return NodeUtil_ValueType_NUMBER
 		}
+		return NodeUtil_ValueType_NUMBER
 	case rhino.Token_BIGINT:
 		return NodeUtil_ValueType_BIGINT
 	case rhino.Token_BITOR, rhino.Token_BITXOR, rhino.Token_BITAND, rhino.Token_LSH, rhino.Token_RSH, rhino.Token_SUB,
 		rhino.Token_MUL, rhino.Token_MOD, rhino.Token_DIV, rhino.Token_EXPONENT:
 		// binary arithmetic operators could result in BIGINT or NUMBER
-		first := NodeUtil_GetKnownValueType(n.GetFirstChild())
-		last := NodeUtil_GetKnownValueType(n.GetLastChild())
+		bin := ast.MustBinary(n)
+		first := NodeUtil_GetKnownValueType(bin.Left().Node())
+		last := NodeUtil_GetKnownValueType(bin.Right().Node())
 		if first == NodeUtil_ValueType_BIGINT || last == NodeUtil_ValueType_BIGINT {
 			return NodeUtil_ValueType_BIGINT
-		} else {
-			return NodeUtil_ValueType_NUMBER
 		}
+		return NodeUtil_ValueType_NUMBER
 	case rhino.Token_BITNOT, rhino.Token_NEG:
 		// unary negation (bitwise or arithmetic) could be using BIGINT or NUMBER
-		if NodeUtil_GetKnownValueType(n.GetOnlyChild()) == NodeUtil_ValueType_BIGINT {
+		if NodeUtil_GetKnownValueType(ast.MustUnary(n).Operand().Node()) == NodeUtil_ValueType_BIGINT {
 			return NodeUtil_ValueType_BIGINT
-		} else {
-			return NodeUtil_ValueType_NUMBER
 		}
+		return NodeUtil_ValueType_NUMBER
 	case rhino.Token_INC, rhino.Token_DEC:
 		// increment and decrement can only be used on variables, so we assume they're numbers
 		return NodeUtil_ValueType_NUMBER
@@ -355,13 +354,13 @@ func NodeUtil_IsDefinedValue(value rhino.Node) bool {
 		return NodeUtil_IsDefinedValue(value.GetLastChild())
 	case rhino.Token_COALESCE:
 		// 'null' is a "defined" value so we can only trust the RHS.
-		// NOTE: consider creating and using a "isDefinedAndNotNull" that would allow us to
-		// trust the tested value.
-		return NodeUtil_IsDefinedValue(value.GetSecondChild())
+		return NodeUtil_IsDefinedValue(ast.MustBinary(value).Right().Node())
 	case rhino.Token_AND, rhino.Token_OR:
-		return NodeUtil_IsDefinedValue(value.GetFirstChild()) && NodeUtil_IsDefinedValue(value.GetLastChild())
+		bin := ast.MustBinary(value)
+		return NodeUtil_IsDefinedValue(bin.Left().Node()) && NodeUtil_IsDefinedValue(bin.Right().Node())
 	case rhino.Token_HOOK:
-		return NodeUtil_IsDefinedValue(value.GetSecondChild()) && NodeUtil_IsDefinedValue(value.GetLastChild())
+		hook := ast.MustHook(value)
+		return NodeUtil_IsDefinedValue(hook.Then().Node()) && NodeUtil_IsDefinedValue(hook.Else().Node())
 		// Assume undefined leaks in this and call results.
 	case rhino.Token_CALL,
 		rhino.Token_OPTCHAIN_CALL,
@@ -427,22 +426,29 @@ func NodeUtil_GetNthSibling(first rhino.Node, index int) rhino.Node {
 	return sibling
 }
 
+var nodeUtilNumberNaN = rhino.QualifiedName_Of("Number.NaN")
+
 // Java: NodeUtil.isNaN(Node)
 func NodeUtil_IsNaN(n rhino.Node) bool {
-	return (n.IsName() && n.GetStringID() == nodeUtilIDNaN) ||
-		(n.GetToken() == rhino.Token_DIV &&
-			n.GetFirstChild().IsNumber() &&
-			n.GetFirstChild().GetDouble() == 0 &&
-			n.GetLastChild().IsNumber() &&
-			n.GetLastChild().GetDouble() == 0) ||
-		n.MatchesQualifiedNameNode(NodeUtil_NUMBER_NAN)
+	if n.IsName() && n.GetStringID() == nodeUtilIDNaN {
+		return true
+	}
+	if n.GetToken() == rhino.Token_DIV {
+		div := ast.MustBinary(n)
+		if l, ok := div.Left().AsNumber(); ok && l.Value() == 0 {
+			if r, ok := div.Right().AsNumber(); ok && r.Value() == 0 {
+				return true
+			}
+		}
+	}
+	return nodeUtilNumberNaN.Matches(n)
 }
 
 // Java: NodeUtil.countAstSizeUpToLimit(Node, int)
 func NodeUtil_CountAstSizeUpToLimit(n rhino.Node, limit int) int {
 	count := 1
 	if limit > 1 {
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		for c := range n.Children() {
 			if c.GetFirstChild().IsNil() || limit-count <= 1 {
 				count++
 			} else {

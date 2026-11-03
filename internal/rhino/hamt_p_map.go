@@ -35,9 +35,9 @@
 package rhino
 
 import (
+	"cmp"
 	"iter"
 	"math/bits"
-	"reflect"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -64,22 +64,22 @@ import (
 // the extra code.
 //
 // Go-only: language-adapter — keys are hashed and compared with Java
-// hashCode/equals (jutil.ObjectHashCode / ObjectsEquals), with unboxed fast
+// hashCode/equals (jutil.ObjectHashCode / Equaler / ==), with unboxed fast
 // paths for string, strpool.ID, Node, and JSType. A nil *HamtPMap[K, V] is
 // the empty map. Null values are the values for which jutil.IsNil is true.
-type HamtPMap[K any, V any] struct {
+type HamtPMap[K comparable, V any] struct {
 	// Non-null key.
 	key K
 
-	// Hash of the key, right-shifted by BITS*depth.
-	hash int32
+	// Hash of the key, left-shifted by BITS*depth.
+	hash uint32
 
 	// Non-null value (exception: result of pivot, if not found).
 	value V
 
 	// Bit mask indicating the children that are present (bitCount(mask) ==
 	// children.length).
-	mask int32
+	mask uint32
 
 	// Array of children (nil when empty). Elements are never reassigned.
 	children []*HamtPMap[K, V]
@@ -101,17 +101,29 @@ const HamtPMap_BITS = 4
 const HamtPMap_BITS_SHIFT = 32 - HamtPMap_BITS
 
 func hamtIsNull[V any](v V) bool {
-	if reflect.TypeFor[V]() == reflect.TypeFor[JSType]() {
-		return any(v) == nil
+	if any(v) == nil {
+		return true
 	}
-	return jutil.IsNilOf(v)
+	if _, ok := any(v).(JSType); ok {
+		return false
+	}
+	if _, ok := any(v).(string); ok {
+		return false
+	}
+	if _, ok := any(v).(int); ok {
+		return false
+	}
+	if n, ok := any(v).(Node); ok {
+		return n.IsNil()
+	}
+	return jutil.IsNil(any(v))
 }
 
 const debugHamtPMap = false
 
 // HamtPMapArena provides bump-allocated storage for HamtPMap nodes and small
 // child slices within a reusable analysis pass (e.g. TypeInference).
-type HamtPMapArena[K any, V any] struct {
+type HamtPMapArena[K comparable, V any] struct {
 	nodes       jutil.ReuseSlab[HamtPMap[K, V]]
 	childBlocks jutil.ReuseSlab[[32]*HamtPMap[K, V]]
 	childSlice  []*HamtPMap[K, V]
@@ -131,7 +143,7 @@ func (a *HamtPMapArena[K, V]) TrimLargeChunks() {
 	a.Reset()
 }
 
-func allocHamtChildren[K any, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[K, V] {
+func allocHamtChildren[K comparable, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[K, V] {
 	if n == 0 {
 		return nil
 	}
@@ -146,7 +158,7 @@ func allocHamtChildren[K any, V any](a *HamtPMapArena[K, V], n int) []*HamtPMap[
 	return s
 }
 
-func allocHamtPMap[K any, V any](a *HamtPMapArena[K, V], key K, hash int32, value V, mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func allocHamtPMap[K comparable, V any](a *HamtPMapArena[K, V], key K, hash uint32, value V, mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	var m *HamtPMap[K, V]
 	if a != nil {
 		m = a.nodes.Alloc()
@@ -166,7 +178,7 @@ func allocHamtPMap[K any, V any](a *HamtPMapArena[K, V], key K, hash int32, valu
 
 // Java: HamtPMap.checkInvariants()
 func (m *HamtPMap[K, V]) CheckInvariants() {
-	jutil.CheckState(bits.OnesCount32(uint32(m.mask)) == len(m.children))
+	jutil.CheckState(bits.OnesCount32(m.mask) == len(m.children))
 	for _, child := range m.children {
 		jutil.CheckNotNull(child)
 	}
@@ -175,7 +187,7 @@ func (m *HamtPMap[K, V]) CheckInvariants() {
 // HamtPMap_Empty returns an empty map (represented by nil).
 //
 // Java: HamtPMap.empty()
-func HamtPMap_Empty[K any, V any]() *HamtPMap[K, V] { return nil }
+func HamtPMap_Empty[K comparable, V any]() *HamtPMap[K, V] { return nil }
 
 // Java: HamtPMap.toString()
 func (m *HamtPMap[K, V]) String() string {
@@ -215,34 +227,61 @@ func (m *HamtPMap[K, V]) IsEmpty() bool {
 	return m == nil
 }
 
-// Values returns an iterable for a (possibly null) tree.
+// All returns an iterator over all key-value pairs in a (possibly nil) tree.
+func (m *HamtPMap[K, V]) All() iter.Seq2[K, V] {
+	return func(yield func(K, V) bool) {
+		if m == nil {
+			return
+		}
+		var buf [16]*HamtPMap[K, V]
+		queue := append(buf[:0], m)
+		head := 0
+		for head < len(queue) {
+			top := queue[head]
+			head++
+			if !yield(top.key, top.value) {
+				return
+			}
+			n := len(top.children)
+			if n == 0 {
+				if head == len(queue) {
+					head = 0
+					queue = queue[:0]
+				}
+				continue
+			}
+			if head > 0 && len(queue)+n > cap(queue) {
+				rem := copy(queue[:cap(queue)], queue[head:])
+				queue = queue[:rem]
+				head = 0
+			}
+			for i := n - 1; i >= 0; i-- {
+				queue = append(queue, top.children[i])
+			}
+		}
+	}
+}
+
+// Values returns an iterable for a (possibly nil) tree.
 //
 // Java: HamtPMap.values()
 func (m *HamtPMap[K, V]) Values() iter.Seq[V] {
-	if m == nil {
-		return func(yield func(V) bool) {}
-	}
 	return func(yield func(V) bool) {
-		it := NewHamtPMap_Iter(m, func(m *HamtPMap[K, V]) V { return m.value })
-		for it.HasNext() {
-			if !yield(it.Next()) {
+		for _, v := range m.All() {
+			if !yield(v) {
 				return
 			}
 		}
 	}
 }
 
-// Keys returns an iterable for a (possibly null) tree.
+// Keys returns an iterable for a (possibly nil) tree.
 //
 // Java: HamtPMap.keys()
 func (m *HamtPMap[K, V]) Keys() iter.Seq[K] {
-	if m == nil {
-		return func(yield func(K) bool) {}
-	}
 	return func(yield func(K) bool) {
-		it := NewHamtPMap_Iter(m, func(m *HamtPMap[K, V]) K { return m.key })
-		for it.HasNext() {
-			if !yield(it.Next()) {
+		for k := range m.All() {
+			if !yield(k) {
 				return
 			}
 		}
@@ -255,7 +294,7 @@ func (m *HamtPMap[K, V]) Keys() iter.Seq[K] {
 // Java: HamtPMap.get(K)
 func (m *HamtPMap[K, V]) Get(key K) V {
 	if m != nil {
-		return m.GetWithHash(key, HamtPMap_Hash(key))
+		return m.getWithHash(key, hamtHash(key))
 	}
 	var null V
 	return null
@@ -263,27 +302,48 @@ func (m *HamtPMap[K, V]) Get(key K) V {
 
 // keyEquals is Java's `key.equals(this.key)`.
 func (m *HamtPMap[K, V]) keyEquals(key K) bool {
-	return hamtEquals(key, m.key)
+	if key == m.key {
+		return true
+	}
+	var zero K
+	if key == zero || m.key == zero {
+		return false
+	}
+	if _, ok := any(key).(string); ok {
+		return false
+	}
+	if _, ok := any(key).(strpool.ID); ok {
+		return false
+	}
+	if _, ok := any(key).(int); ok {
+		return false
+	}
+	if _, ok := any(key).(Node); ok {
+		return false
+	}
+	if e, ok := any(key).(jutil.Equaler); ok {
+		return e.Equals(m.key)
+	}
+	return false
 }
 
-// GetWithHash is the internal recursive implementation of get(K).
+// getWithHash is the internal recursive implementation of get(K).
 //
 // Java: HamtPMap.get(K, int)
-func (m *HamtPMap[K, V]) GetWithHash(key K, hash int32) V {
+func (m *HamtPMap[K, V]) getWithHash(key K, hash uint32) V {
 	if hash == m.hash && m.keyEquals(key) {
 		return m.value
 	}
-	bucket := HamtPMap_Bucket(hash)
-	bucketMask := jutil.Shl32(1, int64(bucket))
+	bucketMask := uint32(1) << (hash >> HamtPMap_BITS_SHIFT)
 	if (m.mask & bucketMask) != 0 {
-		return m.children[m.Index(bucketMask)].GetWithHash(key, HamtPMap_Shift(hash))
+		return m.children[m.index(bucketMask)].getWithHash(key, hash<<HamtPMap_BITS)
 	}
 	var null V
 	return null
 }
 
 // HamtPMap_Reconciler merges two values; see HamtPMap.Reconcile.
-type HamtPMap_Reconciler[K any, V any] func(key K, thisVal V, thatVal V) V
+type HamtPMap_Reconciler[K comparable, V any] func(key K, thisVal V, thatVal V) V
 
 // Plus returns a new map with the given key-value pair added. If the value
 // is already present, then this same map will be returned.
@@ -298,28 +358,27 @@ func (m *HamtPMap[K, V]) PlusMapWithArena(arena *HamtPMapArena[K, V], key K, val
 	hamtCheckNotNull(value)
 
 	if m != nil {
-		return m.plusWithHash(arena, key, HamtPMap_Hash(key), value)
+		return m.plusWithHash(arena, key, hamtHash(key), value)
 	}
-	return allocHamtPMap(arena, key, HamtPMap_Hash(key), value, 0, nil)
+	return allocHamtPMap(arena, key, hamtHash(key), value, 0, nil)
 }
 
 // plusWithHash is the internal recursive implementation of plus(K, V).
 //
 // Java: HamtPMap.plus(K, int, V)
-func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash uint32, value V) *HamtPMap[K, V] {
 	if hash == m.hash && m.keyEquals(key) {
-		if hamtEquals(value, m.value) {
+		if hamtValueEquals(value, m.value) {
 			return m
 		}
 		return allocHamtPMap(arena, key, hash, value, m.mask, m.children)
 	}
-	if HamtPMap_CompareUnsigned(hash, m.hash) < 0 {
+	if cmp.Compare(hash, m.hash) < 0 {
 		return m.replaceRoot(arena, key, hash, value)
 	}
-	bucket := HamtPMap_Bucket(hash)
-	hash = HamtPMap_Shift(hash)
-	bucketMask := jutil.Shl32(1, int64(bucket))
-	index := m.Index(bucketMask)
+	bucketMask := uint32(1) << (hash >> HamtPMap_BITS_SHIFT)
+	hash <<= HamtPMap_BITS
+	index := m.index(bucketMask)
 	if (m.mask & bucketMask) != 0 {
 		// already a child, so overwrite
 		child := m.children[index]
@@ -328,19 +387,17 @@ func (m *HamtPMap[K, V]) plusWithHash(arena *HamtPMapArena[K, V], key K, hash in
 			return m
 		}
 		return m.withChildren(arena, m.mask, replaceChild(arena, m.children, index, newChild))
-	} else {
-		// insert at index
-		newChild := allocHamtPMap(arena, key, hash, value, 0, nil)
-		return m.withChildren(arena, m.mask|bucketMask, insertChild(arena, m.children, index, newChild))
 	}
+	// insert at index
+	newChild := allocHamtPMap(arena, key, hash, value, 0, nil)
+	return m.withChildren(arena, m.mask|bucketMask, insertChild(arena, m.children, index, newChild))
 }
 
 // Java: HamtPMap.replaceRoot(K, int, V)
-func (m *HamtPMap[K, V]) replaceRoot(arena *HamtPMapArena[K, V], key K, hash int32, value V) *HamtPMap[K, V] {
-	bucket := HamtPMap_Bucket(m.hash)
-	leafHash := HamtPMap_Shift(m.hash)
-	bucketMask := jutil.Shl32(1, int64(bucket))
-	index := m.Index(bucketMask)
+func (m *HamtPMap[K, V]) replaceRoot(arena *HamtPMapArena[K, V], key K, hash uint32, value V) *HamtPMap[K, V] {
+	bucketMask := uint32(1) << (m.hash >> HamtPMap_BITS_SHIFT)
+	leafHash := m.hash << HamtPMap_BITS
+	index := m.index(bucketMask)
 	var newChildren []*HamtPMap[K, V]
 	if (m.mask & bucketMask) != 0 {
 		newChildren = replaceChild(arena, m.children, index, m.children[index].plusWithHash(arena, m.key, leafHash, m.value))
@@ -362,7 +419,7 @@ func (m *HamtPMap[K, V]) Minus(key K) *HamtPMap[K, V] {
 // MinusMapWithArena is Minus using arena for node and child-slice allocations.
 func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *HamtPMap[K, V] {
 	if m != nil {
-		res, _ := m.minusWithHash(arena, key, HamtPMap_Hash(key))
+		res, _ := m.minusWithHash(arena, key, hamtHash(key))
 		return res
 	}
 	return nil
@@ -372,19 +429,18 @@ func (m *HamtPMap[K, V]) MinusMapWithArena(arena *HamtPMapArena[K, V], key K) *H
 // the updated subtree and the removed value (zero V if not present).
 //
 // Java: HamtPMap.minus(K, int, V[])
-func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash int32) (*HamtPMap[K, V], V) {
+func (m *HamtPMap[K, V]) minusWithHash(arena *HamtPMapArena[K, V], key K, hash uint32) (*HamtPMap[K, V], V) {
 	var zero V
 	if hash == m.hash && m.keyEquals(key) {
 		return deleteRoot(arena, m.mask, m.children), m.value
 	}
-	bucket := HamtPMap_Bucket(hash)
-	bucketMask := jutil.Shl32(1, int64(bucket))
+	bucketMask := uint32(1) << (hash >> HamtPMap_BITS_SHIFT)
 	if (m.mask & bucketMask) == 0 {
 		// not present, stop looking
 		return m, zero
 	}
-	hash = HamtPMap_Shift(hash)
-	index := m.Index(bucketMask)
+	hash <<= HamtPMap_BITS
+	index := m.index(bucketMask)
 	child := m.children[index]
 	newChild, removed := child.minusWithHash(arena, key, hash)
 	if newChild == child {
@@ -411,7 +467,7 @@ func (m *HamtPMap[K, V]) ReconcileMapWithArena(arena *HamtPMapArena[K, V], that 
 	return hamtPMap_ReconcileTrees(arena, m, that, joiner, true)
 }
 
-func reconcileSingleTree[K any, V any](arena *HamtPMapArena[K, V], t *HamtPMap[K, V], onLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func reconcileSingleTree[K comparable, V any](arena *HamtPMapArena[K, V], t *HamtPMap[K, V], onLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	var null, newValue V
 	if onLeft {
 		newValue = joiner(t.key, t.value, null)
@@ -431,7 +487,7 @@ func reconcileSingleTree[K any, V any](arena *HamtPMapArena[K, V], t *HamtPMap[K
 			sameChildren = false
 		}
 	}
-	if sameChildren && hamtEquals(t.value, newValue) {
+	if sameChildren && hamtValueEquals(t.value, newValue) {
 		return t
 	}
 	var newChildren []*HamtPMap[K, V]
@@ -447,8 +503,8 @@ func reconcileSingleTree[K any, V any](arena *HamtPMapArena[K, V], t *HamtPMap[K
 	return deleteRoot(arena, t.mask, newChildren)
 }
 
-func reconcileVacatedChild[K any, V any](arena *HamtPMapArena[K, V], vacated, ownChild, otherChild *HamtPMap[K, V], vacatedOnLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
-	shiftedHash := HamtPMap_Shift(vacated.hash)
+func reconcileVacatedChild[K comparable, V any](arena *HamtPMapArena[K, V], vacated, ownChild, otherChild *HamtPMap[K, V], vacatedOnLeft bool, joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+	shiftedHash := vacated.hash << HamtPMap_BITS
 	if ownChild == nil && otherChild == nil {
 		var null, v V
 		if vacatedOnLeft {
@@ -477,10 +533,10 @@ func reconcileVacatedChild[K any, V any](arena *HamtPMapArena[K, V], vacated, ow
 }
 
 // hamtPMap_ReconcileTrees is the internal recursive implementation of
-// reconcile(HamtPMap, BiFunction), factoring out empies.
+// reconcile(HamtPMap, BiFunction), factoring out empties.
 //
 // Java: HamtPMap.reconcile(HamtPMap<K, V>, HamtPMap<K, V>, Reconciler<K, V>)
-func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
+func hamtPMap_ReconcileTrees[K comparable, V any](arena *HamtPMapArena[K, V], t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], joiner HamtPMap_Reconciler[K, V], checkNotNull bool) *HamtPMap[K, V] {
 	if t1 == t2 {
 		return t1
 	} else if t1 == nil {
@@ -494,19 +550,19 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 	sameChildrenAs2 := true
 
 	// If the hashes are different, we need to keep the lower one at the top.
-	hashCmp := HamtPMap_CompareUnsigned(t1.hash, t2.hash)
+	hashCmp := cmp.Compare(t1.hash, t2.hash)
 	key := t1.key
 	hash := t1.hash
 	var t1Val, t2Val V
-	var vacatedBit1, vacatedBit2 int32
+	var vacatedBit1, vacatedBit2 uint32
 	if hashCmp < 0 {
 		// t1.key is missing from t2; inline t2.VacateRoot() without allocating intermediate root/slice
-		vacatedBit2 = jutil.Shl32(1, int64(HamtPMap_Bucket(t2.hash)))
+		vacatedBit2 = uint32(1) << (t2.hash >> HamtPMap_BITS_SHIFT)
 		sameChildrenAs2 = false
 		t1Val = t1.value
 	} else if hashCmp > 0 {
 		// t2.key is missing from t1; inline t1.VacateRoot() without allocating intermediate root/slice
-		vacatedBit1 = jutil.Shl32(1, int64(HamtPMap_Bucket(t1.hash)))
+		vacatedBit1 = uint32(1) << (t1.hash >> HamtPMap_BITS_SHIFT)
 		sameChildrenAs1 = false
 		key = t2.key
 		hash = t2.hash
@@ -522,7 +578,7 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 	}
 
 	var newValue V
-	if vacatedBit1 == 0 && vacatedBit2 == 0 && hamtEquals(t1Val, t2Val) {
+	if vacatedBit1 == 0 && vacatedBit2 == 0 && hamtValueEquals(t1Val, t2Val) {
 		newValue = t1Val
 	} else {
 		newValue = joiner(key, t1Val, t2Val)
@@ -540,10 +596,10 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 	mask := newMask
 	index := 0
 	for mask != 0 {
-		childBit := mask & -mask // Integer.lowestOneBit
+		childBit := mask & -mask // lowest set bit
 		mask &^= childBit
-		child1 := t1.GetChild(childBit)
-		child2 := t2.GetChild(childBit)
+		child1 := t1.getChild(childBit)
+		child2 := t2.getChild(childBit)
 		var reconciled *HamtPMap[K, V]
 		if childBit == vacatedBit2 {
 			reconciled = reconcileVacatedChild(arena, t2, child2, child1, false, joiner, checkNotNull)
@@ -561,9 +617,9 @@ func hamtPMap_ReconcileTrees[K any, V any](arena *HamtPMapArena[K, V], t1 *HamtP
 			newMask &^= childBit
 		}
 	}
-	if sameChildrenAs1 && hamtEquals(t1Val, newValue) {
+	if sameChildrenAs1 && hamtValueEquals(t1Val, newValue) {
 		return t1
-	} else if sameChildrenAs2 && hamtEquals(t2Val, newValue) {
+	} else if sameChildrenAs2 && hamtValueEquals(t2Val, newValue) {
 		return t2
 	}
 	var newChildren []*HamtPMap[K, V]
@@ -593,7 +649,7 @@ func (m *HamtPMap[K, V]) Equivalent(that *HamtPMap[K, V], equivalence func(V, V)
 // equivalent(HamtPMap, BiPredicate).
 //
 // Java: HamtPMap.equivalent(HamtPMap<K, V>, HamtPMap<K, V>, BiPredicate<V, V>)
-func HamtPMap_EquivalentTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], equivalence func(V, V) bool) bool {
+func HamtPMap_EquivalentTrees[K comparable, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, V], equivalence func(V, V) bool) bool {
 	if t1 == t2 {
 		return true
 	} else if t1 == nil || t2 == nil {
@@ -607,7 +663,7 @@ func HamtPMap_EquivalentTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, 
 		return false
 	} else if !t2.keyEquals(t1.key) {
 		// Hash collision: try to rearrange t2 to have the same root as t1
-		t2 = t2.Pivot(t1.key, t1.hash)
+		t2 = t2.pivot(nil, t1.key, t1.hash)
 		if hamtIsNull(t2.value) {
 			// pivot() returns a null 't2.value' when t1.key was not found in t2
 			return false
@@ -619,36 +675,36 @@ func HamtPMap_EquivalentTrees[K any, V any](t1 *HamtPMap[K, V], t2 *HamtPMap[K, 
 	}
 	mask := t1.mask | t2.mask
 	for mask != 0 {
-		childBit := mask & -mask // Integer.lowestOneBit
+		childBit := mask & -mask // lowest set bit
 		mask &^= childBit
-		if !HamtPMap_EquivalentTrees(t1.GetChild(childBit), t2.GetChild(childBit), equivalence) {
+		if !HamtPMap_EquivalentTrees(t1.getChild(childBit), t2.getChild(childBit), equivalence) {
 			return false
 		}
 	}
 	return true
 }
 
-// Index returns the index into the 'children' array for the given bit,
+// index returns the index into the 'children' array for the given bit,
 // which must have exactly one bit set in its binary representation (i.e.
 // must be a power of two).
 //
 // Java: HamtPMap.index(int)
-func (m *HamtPMap[K, V]) Index(bit int32) int {
-	return bits.OnesCount32(uint32(m.mask & (bit - 1)))
+func (m *HamtPMap[K, V]) index(bit uint32) int {
+	return bits.OnesCount32(m.mask & (bit - 1))
 }
 
-// GetChild returns the child for the given bit, which must have exactly one
-// bit set. Returns null if there is no child for that bit.
+// getChild returns the child for the given bit, which must have exactly one
+// bit set. Returns nil if there is no child for that bit.
 //
 // Java: HamtPMap.getChild(int)
-func (m *HamtPMap[K, V]) GetChild(bit int32) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) getChild(bit uint32) *HamtPMap[K, V] {
 	if (m.mask & bit) != 0 {
-		return m.children[m.Index(bit)]
+		return m.children[m.index(bit)]
 	}
 	return nil
 }
 
-// HamtPMap_Hash performs the hash operation. This is done once per object as
+// hamtHash performs the hash operation. This is done once per object as
 // it enters the map, then never again since the result is passed around
 // internally. We reverse the bits since certain types (such as small
 // integers and short strings) have hash codes that only vary in the least
@@ -657,7 +713,7 @@ func (m *HamtPMap[K, V]) GetChild(bit int32) *HamtPMap[K, V] {
 // hash is always at the root of the tree.
 //
 // Java: HamtPMap.hash(Object)
-func HamtPMap_Hash[K any](key K) int32 {
+func hamtHash[K comparable](key K) uint32 {
 	// Go-only: performance — common scalar/handle keys are hashed via direct
 	// non-escaping type assertions without boxing onto the heap.
 	if id, ok := any(key).(strpool.ID); ok {
@@ -665,26 +721,35 @@ func HamtPMap_Hash[K any](key K) int32 {
 			failJSTypeNull()
 		}
 		h := uint32(id) * 0x9e3779b1
-		return int32(bits.Reverse32(h ^ (h >> 16)))
+		return bits.Reverse32(h ^ (h >> 16))
 	}
 	if s, ok := any(key).(string); ok {
-		return int32(bits.Reverse32(uint32(jutil.StringHashCode(s))))
+		return bits.Reverse32(uint32(jutil.StringHashCode(s)))
 	}
 	if n, ok := any(key).(Node); ok {
-		return int32(bits.Reverse32(uint32(CheckNotNull(n).IdentityHashCode())))
+		return bits.Reverse32(uint32(CheckNotNull(n).IdentityHashCode()))
 	}
 	if x, ok := any(key).(int); ok {
-		return int32(bits.Reverse32(uint32(int32(x))))
+		return bits.Reverse32(uint32(int32(x)))
 	}
-	jutil.CheckNotNull(key)
+	var zero K
+	if key == zero && jutil.IsNil(any(key)) {
+		failJSTypeNull()
+	}
 	if h, ok := any(key).(interface{ HashCode() int32 }); ok {
-		return int32(bits.Reverse32(uint32(h.HashCode())))
+		return bits.Reverse32(uint32(h.HashCode()))
 	}
-	return int32(bits.Reverse32(uint32(jutil.ObjectHashCode(any(key)))))
+	return bits.Reverse32(uint32(jutil.ObjectHashCode(any(key))))
 }
 
-// hamtEquals is jutil.ObjectsEqualsOf, without boxing value/interface types.
-func hamtEquals[T any](a, b T) bool {
+func hamtValueEquals[V any](a, b V) bool {
+	if any(a) == nil || any(b) == nil {
+		return hamtIsNull(a) && hamtIsNull(b)
+	}
+	if ja, ok := any(a).(JSType); ok {
+		jb, ok := any(b).(JSType)
+		return ok && (ja == jb || jsTypeEquals(ja, jb))
+	}
 	if sa, ok := any(a).(string); ok {
 		sb, ok := any(b).(string)
 		return ok && sa == sb
@@ -701,75 +766,21 @@ func hamtEquals[T any](a, b T) bool {
 		nb, ok := any(b).(Node)
 		return ok && na == nb
 	}
-	if reflect.TypeFor[T]() == reflect.TypeFor[JSType]() {
-		ja, _ := any(a).(JSType)
-		jb, _ := any(b).(JSType)
-		return ja == jb || jsTypeEquals(ja, jb)
+	return jutil.ObjectsEquals(any(a), any(b))
+}
+
+func hamtCheckNotNull[V any](v V) {
+	if hamtIsNull(v) {
+		failJSTypeNull()
 	}
-	return jutil.ObjectsEqualsOf(a, b)
 }
 
-// hamtCheckNotNull is jutil.CheckNotNull, without boxing a Node or JSType.
-func hamtCheckNotNull[T any](v T) {
-	if reflect.TypeFor[T]() == reflect.TypeFor[JSType]() {
-		if any(v) == nil {
-			failJSTypeNull()
-		}
-		return
-	}
-	if n, ok := any(v).(Node); ok {
-		CheckNotNull(n)
-		return
-	}
-	jutil.CheckNotNull(v)
-}
-
-// HamtPMap_Bucket returns the current bucket index from the hash.
-//
-// Java: HamtPMap.bucket(int)
-func HamtPMap_Bucket(hash int32) int32 {
-	return jutil.Ushr32(hash, HamtPMap_BITS_SHIFT)
-}
-
-// HamtPMap_Shift returns a new hash with the next bucket number shifted off.
-//
-// Java: HamtPMap.shift(int)
-func HamtPMap_Shift(hash int32) int32 {
-	return jutil.Shl32(hash, HamtPMap_BITS)
-}
-
-// HamtPMap_Unshift unshifts the bucket number back onto a hash.
-//
-// Java: HamtPMap.unshift(int, int)
-func HamtPMap_Unshift(hash int32, bucket int32) int32 {
-	return jutil.Ushr32(hash, HamtPMap_BITS) | jutil.Shl32(bucket, HamtPMap_BITS_SHIFT)
-}
-
-// HamtPMap_CompareUnsigned compares two unsigned integers.
-//
-// Java: HamtPMap.compareUnsigned(int, int)
-func HamtPMap_CompareUnsigned(left int32, right int32) int32 {
-	// NOTE: JDK 7 does not have a built-in operation for this, other than
-	// casting to longs. In JDK 8 it's just Integer.compareUnsigned(left,
-	// right). For now we emulate it by shifting the sign bit away, with a
-	// fallback second compare only if needed.
-	diff := jutil.Ushr32(left, 2) - jutil.Ushr32(right, 2)
-	if diff != 0 {
-		return diff
-	}
-	return (left & 3) - (right & 3)
-}
-
-// Pivot returns a new version of this map with the given key at the root,
+// pivot returns a new version of this map with the given key at the root,
 // and the root element moved to some deeper node. If the key is not found in
 // this map, then value will be null in the returned map.
 //
 // Java: HamtPMap.pivot(K, int)
-func (m *HamtPMap[K, V]) Pivot(key K, hash int32) *HamtPMap[K, V] {
-	return m.pivot(nil, key, hash)
-}
-
-func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash int32) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash uint32) *HamtPMap[K, V] {
 	res, _ := m.pivotWithParent(arena, key, hash, nil)
 	return res
 }
@@ -780,7 +791,7 @@ func (m *HamtPMap[K, V]) pivot(arena *HamtPMapArena[K, V], key K, hash int32) *H
 // map rooted at parent.key.
 //
 // Java: HamtPMap.pivot(K, int, HamtPMap<K, V>, V[])
-func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash int32, parent *HamtPMap[K, V]) (*HamtPMap[K, V], V) {
+func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash uint32, parent *HamtPMap[K, V]) (*HamtPMap[K, V], V) {
 	var found V
 	newMask := m.mask
 	newChildren := m.children
@@ -788,26 +799,26 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 		found = m.value
 	} else {
 		// Otherwise, see if the value might be present in a child.
-		searchBucket := HamtPMap_Bucket(hash)
-		replacementBucket := HamtPMap_Bucket(m.hash)
+		searchBucket := hash >> HamtPMap_BITS_SHIFT
+		replacementBucket := m.hash >> HamtPMap_BITS_SHIFT
 
 		if searchBucket == replacementBucket {
-			bucketMask := jutil.Shl32(1, int64(searchBucket))
+			bucketMask := uint32(1) << searchBucket
 			if (m.mask & bucketMask) != 0 {
 				// Found a child, call pivot recursively.
-				index := m.Index(bucketMask)
+				index := m.index(bucketMask)
 				child := newChildren[index]
 				var newChild *HamtPMap[K, V]
-				newChild, found = child.pivotWithParent(arena, key, HamtPMap_Shift(hash), m)
+				newChild, found = child.pivotWithParent(arena, key, hash<<HamtPMap_BITS, m)
 				newChildren = replaceChild(arena, newChildren, index, newChild)
 			}
 		} else {
-			searchMask := jutil.Shl32(1, int64(searchBucket))
+			searchMask := uint32(1) << searchBucket
 			if (m.mask & searchMask) != 0 {
-				index := m.Index(searchMask)
+				index := m.index(searchMask)
 				child := newChildren[index]
 				var newChild *HamtPMap[K, V]
-				newChild, found = child.minusWithHash(arena, key, HamtPMap_Shift(hash))
+				newChild, found = child.minusWithHash(arena, key, hash<<HamtPMap_BITS)
 				if newChild != nil {
 					newChildren = replaceChild(arena, newChildren, index, newChild)
 				} else {
@@ -815,24 +826,24 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 					newMask &^= searchMask
 				}
 			}
-			replacementMask := jutil.Shl32(1, int64(replacementBucket))
-			index := bits.OnesCount32(uint32(newMask & (replacementMask - 1)))
+			replacementMask := uint32(1) << replacementBucket
+			index := bits.OnesCount32(newMask & (replacementMask - 1))
 			if (m.mask & replacementMask) != 0 {
 				child := newChildren[index]
-				newChild := child.plusWithHash(arena, m.key, HamtPMap_Shift(m.hash), m.value)
+				newChild := child.plusWithHash(arena, m.key, m.hash<<HamtPMap_BITS, m.value)
 				newChildren = replaceChild(arena, newChildren, index, newChild)
 			} else {
 				newChildren = insertChild(
 					arena,
 					newChildren,
 					index,
-					allocHamtPMap(arena, m.key, HamtPMap_Shift(m.hash), m.value, 0, nil))
+					allocHamtPMap(arena, m.key, m.hash<<HamtPMap_BITS, m.value, 0, nil))
 				newMask |= replacementMask
 			}
 		}
 	}
 	if parent != nil {
-		return allocHamtPMap(arena, parent.key, HamtPMap_Shift(parent.hash), parent.value, newMask, newChildren), found
+		return allocHamtPMap(arena, parent.key, parent.hash<<HamtPMap_BITS, parent.value, newMask, newChildren), found
 	}
 	return allocHamtPMap(arena, key, hash, found, newMask, newChildren), found
 }
@@ -841,7 +852,7 @@ func (m *HamtPMap[K, V]) pivotWithParent(arena *HamtPMapArena[K, V], key K, hash
 // children.
 //
 // Java: HamtPMap.withChildren(int, HamtPMap<K, V>[])
-func (m *HamtPMap[K, V]) withChildren(arena *HamtPMapArena[K, V], mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func (m *HamtPMap[K, V]) withChildren(arena *HamtPMapArena[K, V], mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == m.mask && hamtSameArray(children, m.children) {
 		return m
 	}
@@ -855,19 +866,19 @@ func hamtSameArray[T any](a, b []T) bool {
 
 // deleteRoot returns a new map with the elements from children. One
 // element is removed from one of the children and promoted to a root node.
-// If there are no children, returns null.
+// If there are no children, returns nil.
 //
 // Java: HamtPMap.deleteRoot(int, HamtPMap<K, V>[])
-func deleteRoot[K any, V any](arena *HamtPMapArena[K, V], mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func deleteRoot[K comparable, V any](arena *HamtPMapArena[K, V], mask uint32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	if mask == 0 {
 		return nil
 	}
 	child := children[0]
-	hashBits := int32(bits.TrailingZeros32(uint32(mask)))
-	newHash := HamtPMap_Unshift(child.hash, hashBits)
+	hashBits := uint32(bits.TrailingZeros32(mask))
+	newHash := (child.hash >> HamtPMap_BITS) | (hashBits << HamtPMap_BITS_SHIFT)
 	newChild := deleteRoot(arena, child.mask, child.children)
 	if newChild == nil {
-		newMask := mask &^ (mask & -mask) // Integer.lowestOneBit(mask)
+		newMask := mask &^ (mask & -mask) // lowest set bit
 		return allocHamtPMap(arena, child.key, newHash, child.value, newMask, deleteChild(arena, children, 0))
 	}
 	return allocHamtPMap(arena, child.key, newHash, child.value, mask, replaceChild(arena, children, 0, newChild))
@@ -877,7 +888,7 @@ func deleteRoot[K any, V any](arena *HamtPMapArena[K, V], mask int32, children [
 // child inserted at the given index.
 //
 // Java: HamtPMap.insertChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
-func insertChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
+func insertChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
 	newChildren := allocHamtChildren(arena, len(children)+1)
 	newChildren[index] = child
 	copy(newChildren[0:index], children[0:index])
@@ -889,7 +900,7 @@ func insertChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[
 // the given index replaced.
 //
 // Java: HamtPMap.replaceChild(HamtPMap<K, V>[], int, HamtPMap<K, V>)
-func replaceChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
+func replaceChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int, child *HamtPMap[K, V]) []*HamtPMap[K, V] {
 	newChildren := allocHamtChildren(arena, len(children))
 	copy(newChildren, children)
 	newChildren[index] = child
@@ -900,7 +911,7 @@ func replaceChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap
 // given index deleted.
 //
 // Java: HamtPMap.deleteChild(HamtPMap<K, V>[], int)
-func deleteChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
+func deleteChild[K comparable, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[K, V], index int) []*HamtPMap[K, V] {
 	if len(children) == 1 {
 		// Note: index should always be zero.
 		return nil
@@ -911,44 +922,6 @@ func deleteChild[K any, V any](arena *HamtPMapArena[K, V], children []*HamtPMap[
 	return newChildren
 }
 
-// HamtPMap_Iter iterates sequentially over a tree.
-type HamtPMap_Iter[K any, V any, O any] struct {
-	queue       []*HamtPMap[K, V]
-	transformer func(*HamtPMap[K, V]) O
-}
-
-// Java: HamtPMap.Iter(HamtPMap<K, V>, Function<HamtPMap<K, V>, O>)
-func NewHamtPMap_Iter[K any, V any, O any](m *HamtPMap[K, V], transformer func(*HamtPMap[K, V]) O) *HamtPMap_Iter[K, V, O] {
-	it := &HamtPMap_Iter[K, V, O]{transformer: transformer}
-	if m != nil {
-		it.queue = append(it.queue, m)
-	}
-	return it
-}
-
-// Java: HamtPMap.Iter.hasNext()
-func (it *HamtPMap_Iter[K, V, O]) HasNext() bool {
-	return len(it.queue) != 0
-}
-
-// Java: HamtPMap.Iter.next()
-func (it *HamtPMap_Iter[K, V, O]) Next() O {
-	if len(it.queue) == 0 {
-		panic(jutil.NewNoSuchElementException())
-	}
-	top := it.queue[0]
-	it.queue = it.queue[1:]
-	for i := len(top.children) - 1; i >= 0; i-- {
-		it.queue = append(it.queue, top.children[i])
-	}
-	return it.transformer(top)
-}
-
-// Java: HamtPMap.Iter.remove()
-func (it *HamtPMap_Iter[K, V, O]) Remove() {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
 // AssertCorrectStructure throws an assertion error if the map invariant is
 // violated.
 //
@@ -957,13 +930,13 @@ func (m *HamtPMap[K, V]) AssertCorrectStructure() *HamtPMap[K, V] {
 	if m == nil {
 		return nil
 	}
-	hash := HamtPMap_Hash(m.key)
+	hash := hamtHash(m.key)
 	for i := 0; i < len(m.children); i++ {
-		childHash := HamtPMap_Hash(m.children[i].key)
-		if HamtPMap_CompareUnsigned(childHash, hash) < 0 {
+		childHash := hamtHash(m.children[i].key)
+		if cmp.Compare(childHash, hash) < 0 {
 			panic(jutil.NewAssertionError("Invalid map has decreasing hash " + m.children[i].keyString() + "(" +
-				jutil.IntegerToHexString(childHash) + ") beneath " + m.keyString() + "(" +
-				jutil.IntegerToHexString(hash) + ": " + m.String()))
+				jutil.IntegerToHexString(int32(childHash)) + ") beneath " + m.keyString() + "(" +
+				jutil.IntegerToHexString(int32(hash)) + ": " + m.String()))
 		}
 		m.children[i].AssertCorrectStructure()
 	}

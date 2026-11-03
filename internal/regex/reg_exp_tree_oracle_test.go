@@ -172,7 +172,7 @@ func dumpOne(sb *strings.Builder, pattern, flags string) {
 	sb.WriteString("=== " + escape(pattern) + "\t" + escape(flags) + "\n")
 	t, parseErr := ParseRegExp(pattern, flags)
 	if parseErr != nil {
-		line(sb, "parse: "+exceptionString(parseErr.toThrowable()))
+		line(sb, "parse: "+exceptionString(parseErr.(*RegExpParseError).toThrowable()))
 		return
 	}
 	dumpAnalyzed(sb, "parse", t, flags)

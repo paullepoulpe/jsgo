@@ -226,8 +226,8 @@ func (f *IRFactory) ProcessClassDeclaration(tree *parser.ClassDeclarationTree) r
 	f.SetSourceInfo(classMembers, tree)
 
 	func() {
-		ignored := f.classScope.Increment()
-		defer ignored.Close()
+		f.classScopeDepth++
+		defer func() { f.classScopeDepth-- }()
 		hasConstructor := false
 		for _, child := range tree.Elements {
 			switch child.GetParseTreeBase().Type {
@@ -257,7 +257,7 @@ func (f *IRFactory) ProcessClassDeclaration(tree *parser.ClassDeclarationTree) r
 
 	// When nested inside of multiple classes, only run the validation once
 	// the top-most class exits scope.
-	if !f.classScope.InScope() {
+	if f.classScopeDepth == 0 {
 		f.ValidatePrivatePropertyUsage(f.GetPrivatePropsAndValidateUniqueness(classMembers), classMembers)
 	}
 

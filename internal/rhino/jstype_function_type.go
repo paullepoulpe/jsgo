@@ -40,6 +40,7 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // FunctionType is the derived type that provides extended information about
@@ -307,21 +308,6 @@ func (f *FunctionTypeBase) IsInstanceType() bool {
 	return JSType(f) == f.GetRegistry().GetNativeType(JSTypeNative_FUNCTION_TYPE)
 }
 
-// Java: FunctionType.isConstructor()
-func (f *FunctionTypeBase) IsConstructor() bool {
-	return f.call.fnKind == FunctionType_Kind_CONSTRUCTOR
-}
-
-// Java: FunctionType.isInterface()
-func (f *FunctionTypeBase) IsInterface() bool {
-	return f.call.fnKind == FunctionType_Kind_INTERFACE
-}
-
-// Java: FunctionType.isOrdinaryFunction()
-func (f *FunctionTypeBase) IsOrdinaryFunction() bool {
-	return f.call.fnKind == FunctionType_Kind_ORDINARY
-}
-
 // Java: FunctionType.getKind()
 func (f *FunctionTypeBase) GetKind() FunctionType_Kind {
 	return f.call.fnKind
@@ -405,29 +391,6 @@ func (f *FunctionTypeBase) SetDict() {
 // Java: FunctionType.setExplicitUnrestricted()
 func (f *FunctionTypeBase) SetExplicitUnrestricted() {
 	f.call.fnPropAccess = uint8(FunctionType_PropAccess_ANY_EXPLICIT) + 1
-}
-
-// Java: JSType.isFunctionType()
-func (f *FunctionTypeBase) IsFunctionType() bool {
-	return !f.isNoObjectOrNo()
-}
-
-// Java: FunctionType.toMaybeFunctionType() / NoObjectType.toMaybeFunctionType()
-func (f *FunctionTypeBase) ToMaybeFunctionType() FunctionType {
-	if f.isNoObjectOrNo() {
-		return nil
-	}
-	return f
-}
-
-// Java: NoObjectType.isNoObjectType() / NoType.isNoObjectType()
-func (f *FunctionTypeBase) IsNoObjectType() bool {
-	return f.objFlags&objKindMask == objKindNoObject
-}
-
-// Java: NoType.isNoType()
-func (f *FunctionTypeBase) IsNoType() bool {
-	return f.isNo()
 }
 
 // Java: NoType.isNullable()
@@ -590,13 +553,7 @@ func (f *FunctionTypeBase) GetInternalArrowType() *ArrowType {
 
 // Java: FunctionType.getSlot(Property.Key)
 func (f *FunctionTypeBase) GetSlotByKey(name Property_Key) *Property {
-	isProto := false
-	if !rhinoStringPoolWasCleared() {
-		isProto = name.symbol == nil && name.stringID == propKeyIDPrototype
-	} else {
-		isProto = name.Matches("prototype")
-	}
-	if isProto {
+	if name.symbol == nil && name.stringID == propKeyIDPrototype {
 		// Lazy initialization of the prototype field.
 		f.GetPrototype()
 		return f.prototypeSlot()
@@ -912,7 +869,7 @@ func (f *FunctionTypeBase) googModuleStringID() rhinoStringID {
 // Java: FunctionType.getGoogModuleId()
 func (f *FunctionTypeBase) GetGoogModuleId() *string {
 	if f.ext != nil {
-		return rhinoStringPtrFromID(f.ext.googModuleID)
+		return strpool.StringPtr(f.ext.googModuleID)
 	}
 	return nil
 }

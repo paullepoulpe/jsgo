@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // propertySymbolID returns the 1-based index of sym in r's list of symbols
@@ -222,8 +223,8 @@ func NewProperty_StringKeyByID(id uint32) Property_Key {
 // propertyKeyLookup looks up an existing string ID for read-only property
 // queries without interning unseen ASCII strings.
 func propertyKeyLookup(s string) Property_Key {
-	id := rhinoStringPoolLookup(s)
-	if id == 0 && (!propMapIsASCII(s) || rhinoStringPoolWasCleared()) {
+	id := strpool.Lookup(s)
+	if id == 0 && !propMapIsASCII(s) {
 		id = rhinoStringPoolIntern(s)
 	}
 	return Property_Key{stringID: id}

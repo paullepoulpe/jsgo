@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -74,9 +75,9 @@ func (m *InvocationTemplateTypeMatcher) match() {
 		return
 	}
 
-	target := m.invocation.GetFirstChild()
-	if NodeUtil_IsNormalGet(target) {
-		obj := target.GetFirstChild()
+	inv := ast.MustInvocation(m.invocation)
+	if propGet, ok := ast.AsNormalGet(inv.Callee().Node()); ok {
+		obj := propGet.Object().Node()
 		typeOfThisRequiredByTheFunction := m.calleeType.GetTypeOfThis()
 		// The type placed on a SUPER node is the superclass type, which allows us to infer the right
 		// property types for the GETPROP or GETELEM nodes built on it.
@@ -96,7 +97,7 @@ func (m *InvocationTemplateTypeMatcher) match() {
 			typeOfThisRequiredByTheFunction, typeOfThisProvidedByTheCall)
 	}
 
-	if m.invocation.IsTaggedTemplateLit() {
+	if tagged, ok := inv.AsTaggedTemplateLit(); ok {
 		calleeParameters := m.calleeType.GetParameters()
 		if len(calleeParameters) == 0 {
 			// TypeCheck will warn if there are too few function parameters
@@ -112,17 +113,19 @@ func (m *InvocationTemplateTypeMatcher) match() {
 		declParams := calleeParameters[1:]
 		i := 0
 		var variadicParam rhino.FunctionType_Parameter
-		for callParam := range NewNodeUtil_TemplateArgsIterable(m.invocation.GetLastChild()).All() {
-			if !m.matchCallArg(declParams, &i, &variadicParam, callParam) {
-				break
+		for part := range tagged.Template().Parts() {
+			if sub, ok := part.AsTemplateLitSub(); ok {
+				if !m.matchCallArg(declParams, &i, &variadicParam, sub.Expr().Node()) {
+					break
+				}
 			}
 		}
-	} else if m.invocation.HasMoreThanOneChild() {
+	} else if callOrNew := inv.MustCallOrNew(); callOrNew.HasArgs() {
 		declParams := m.calleeType.GetParameters()
 		i := 0
 		var variadicParam rhino.FunctionType_Parameter
-		for callParam := m.invocation.GetSecondChild(); !callParam.IsNil(); callParam = callParam.GetNext() {
-			if !m.matchCallArg(declParams, &i, &variadicParam, callParam) {
+		for callParam := range callOrNew.Args() {
+			if !m.matchCallArg(declParams, &i, &variadicParam, callParam.Node()) {
 				break
 			}
 		}

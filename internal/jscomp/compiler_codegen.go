@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"slices"
 	"strconv"
 	"strings"
 
@@ -85,7 +84,7 @@ func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter
 					for batchStart := 0; batchStart < numInputs; batchStart += batchSize {
 						batchEnd := min(batchStart+batchSize, numInputs)
 						batchLen := batchEnd - batchStart
-						failures := parallelPrebuildIndexed(batchLen, numThreads, func(w, j int) {
+						failures := runParallelIndexedTasks(batchLen, numThreads, func(w, j int) {
 							idx := batchStart + j
 							printed[j].rec.Reset(onlyScript)
 							c.toSourceAndMappingsIntoWithScratch(scripts[idx], idx == 0, &printed[j].rec, &printed[j].sm, &scratches[w])
@@ -291,45 +290,19 @@ func (c *Compiler) ToSourceOfNode(n rhino.Node) string {
 	return sb.String()
 }
 
-type licenseSet struct {
-	seen  map[string]struct{}
-	order []string
+var emptyLicenseSet = &OrderedSet[string]{}
+
+func resetOrderedSet[K comparable](s *OrderedSet[K]) {
+	clear(s.m.entries)
+	s.m.entries = s.m.entries[:0]
+	clear(s.m.index)
+	s.m.holes = 0
 }
 
-var emptyLicenseSet = &licenseSet{}
-
-func (s *licenseSet) isEmpty() bool { return len(s.order) == 0 }
-
-func (s *licenseSet) contains(lic string) bool {
-	if len(s.seen) == 0 {
-		return false
+func addAllOrderedSet[K comparable](dst, src *OrderedSet[K]) {
+	for k := range src.All() {
+		dst.Add(k)
 	}
-	_, ok := s.seen[lic]
-	return ok
-}
-
-func (s *licenseSet) add(lic string) bool {
-	if s.seen == nil {
-		s.seen = make(map[string]struct{}, 4)
-	} else if _, ok := s.seen[lic]; ok {
-		return false
-	}
-	s.seen[lic] = struct{}{}
-	s.order = append(s.order, lic)
-	return true
-}
-
-func (s *licenseSet) addAll(lics []string) {
-	for _, lic := range lics {
-		s.add(lic)
-	}
-}
-
-func (s *licenseSet) clear() {
-	if len(s.seen) > 0 {
-		clear(s.seen)
-	}
-	s.order = s.order[:0]
 }
 
 // licenseTracker maintains two sets of licenses without virtual self-dispatch:
@@ -341,7 +314,7 @@ func (s *licenseSet) clear() {
 type licenseTracker struct {
 	compiler     AbstractCompiler
 	globalSeen   map[string]struct{}
-	current      licenseSet
+	current      OrderedSet[string]
 	lastSeenFile string
 	onlyScript   bool
 }
@@ -376,7 +349,7 @@ func (t *licenseTracker) addLicense(lic string) {
 	if _, ok := t.globalSeen[lic]; ok {
 		return
 	}
-	t.current.add(lic)
+	t.current.Add(lic)
 }
 
 // Java: Compiler.SeenSetLicenseTracker.trackLicensesForNode(Node)
@@ -406,17 +379,17 @@ func (t *licenseTracker) trackLicensesForFileName(file string) {
 
 // Java: Compiler.SeenSetLicenseTracker.emitLicenses()
 func (t *licenseTracker) EmitLicenses() []string {
-	if t.current.isEmpty() {
+	if t.current.IsEmpty() {
 		return nil
 	}
-	rv := slices.Clone(t.current.order)
+	rv := t.current.ToSlice()
 	if t.globalSeen == nil {
 		t.globalSeen = make(map[string]struct{}, len(rv))
 	}
 	for _, lic := range rv {
 		t.globalSeen[lic] = struct{}{}
 	}
-	t.current.clear()
+	resetOrderedSet(&t.current)
 	return rv
 }
 
@@ -437,18 +410,18 @@ func (t *licenseTracker) EmitLicenses() []string {
 // Java: Compiler.ChunkGraphAwareLicenseTracker
 type Compiler_ChunkGraphAwareLicenseTracker struct {
 	compiler           AbstractCompiler
-	licensesFromChunks map[*JSChunk]*licenseSet
-	cumulativeLicenses map[*JSChunk]*licenseSet
+	licensesFromChunks map[*JSChunk]*OrderedSet[string]
+	cumulativeLicenses map[*JSChunk]*OrderedSet[string]
 
 	haveInitializedCurrentChunkLicenses bool
-	currentChunkLicencesInTDeps         licenseSet
-	currentChunkTDepsRef                *licenseSet
+	currentChunkLicencesInTDeps         OrderedSet[string]
+	currentChunkTDepsRef                *OrderedSet[string]
 
 	lastSeenFile             string
-	licensesNewInCurrentFile licenseSet
+	licensesNewInCurrentFile OrderedSet[string]
 
 	// Re-initialized in SetCurrentChunkContext and stored into licensesFromChunks.
-	licensesNewInCurrentChunk *licenseSet
+	licensesNewInCurrentChunk *OrderedSet[string]
 	log                       diagnostic.LogFile
 	currentChunk              *JSChunk
 }
@@ -456,8 +429,8 @@ type Compiler_ChunkGraphAwareLicenseTracker struct {
 // Java: Compiler.ChunkGraphAwareLicenseTracker(AbstractCompiler)
 func NewCompiler_ChunkGraphAwareLicenseTracker(compiler AbstractCompiler) *Compiler_ChunkGraphAwareLicenseTracker {
 	t := &Compiler_ChunkGraphAwareLicenseTracker{
-		licensesFromChunks:        make(map[*JSChunk]*licenseSet, 16),
-		cumulativeLicenses:        make(map[*JSChunk]*licenseSet, 16),
+		licensesFromChunks:        make(map[*JSChunk]*OrderedSet[string], 16),
+		cumulativeLicenses:        make(map[*JSChunk]*OrderedSet[string], 16),
 		licensesNewInCurrentChunk: emptyLicenseSet,
 		log:                       diagnostic.LogFile_CreateNoOp(),
 		compiler:                  compiler,
@@ -477,12 +450,12 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) SetCurrentChunkContext(chunk *J
 		t.log.LogFormat("Initializing licenses from deps for chunk %s", chunk)
 	}
 	t.currentChunk = chunk
-	if !t.currentChunkLicencesInTDeps.isEmpty() {
-		t.currentChunkLicencesInTDeps.clear()
+	if !t.currentChunkLicencesInTDeps.IsEmpty() {
+		resetOrderedSet(&t.currentChunkLicencesInTDeps)
 	}
 	t.currentChunkTDepsRef = emptyLicenseSet
-	if !t.licensesNewInCurrentFile.isEmpty() {
-		t.licensesNewInCurrentFile.clear()
+	if !t.licensesNewInCurrentFile.IsEmpty() {
+		resetOrderedSet(&t.licensesNewInCurrentFile)
 	}
 	t.haveInitializedCurrentChunkLicenses = false
 	if _, visited := t.licensesFromChunks[chunk]; visited {
@@ -492,18 +465,18 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) SetCurrentChunkContext(chunk *J
 	t.licensesFromChunks[chunk] = emptyLicenseSet
 }
 
-func (t *Compiler_ChunkGraphAwareLicenseTracker) mergeDepLicenses(deps []*JSChunk, dst *licenseSet) (*licenseSet, bool) {
+func (t *Compiler_ChunkGraphAwareLicenseTracker) mergeDepLicenses(deps []*JSChunk, dst *OrderedSet[string]) (*OrderedSet[string], bool) {
 	if len(deps) == 0 {
 		return emptyLicenseSet, false
 	}
 	if len(deps) == 1 {
 		return t.ensureCumulativeLicenses(deps[0]), false
 	}
-	var shared *licenseSet
+	var shared *OrderedSet[string]
 	needMerge := false
 	for _, dep := range deps {
 		cumDep := t.ensureCumulativeLicenses(dep)
-		if cumDep.isEmpty() {
+		if cumDep.IsEmpty() {
 			continue
 		}
 		if shared == nil {
@@ -519,17 +492,17 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) mergeDepLicenses(deps []*JSChun
 		return shared, false
 	}
 	if dst == nil {
-		dst = &licenseSet{}
+		dst = &OrderedSet[string]{}
 	}
 	for _, dep := range deps {
-		if cumDep := t.cumulativeLicenses[dep]; !cumDep.isEmpty() {
-			dst.addAll(cumDep.order)
+		if cumDep := t.cumulativeLicenses[dep]; !cumDep.IsEmpty() {
+			addAllOrderedSet(dst, cumDep)
 		}
 	}
 	return dst, true
 }
 
-func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *licenseSet {
+func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk *JSChunk) *OrderedSet[string] {
 	if cum, ok := t.cumulativeLicenses[chunk]; ok {
 		return cum
 	}
@@ -539,19 +512,19 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) ensureCumulativeLicenses(chunk 
 			"Chunk aware license analysis error - analysis out of order."))
 	}
 	depsCum, merged := t.mergeDepLicenses(chunk.deps, nil)
-	var res *licenseSet
+	var res *OrderedSet[string]
 	switch {
-	case chunkNew.isEmpty():
+	case chunkNew.IsEmpty():
 		res = depsCum
-	case depsCum.isEmpty():
+	case depsCum.IsEmpty():
 		res = chunkNew
 	case merged:
-		depsCum.addAll(chunkNew.order)
+		addAllOrderedSet(depsCum, chunkNew)
 		res = depsCum
 	default:
-		res = &licenseSet{}
-		res.addAll(depsCum.order)
-		res.addAll(chunkNew.order)
+		res = &OrderedSet[string]{}
+		addAllOrderedSet(res, depsCum)
+		addAllOrderedSet(res, chunkNew)
 	}
 	t.cumulativeLicenses[chunk] = res
 	return res
@@ -586,8 +559,8 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 					panic(jutil.NewIllegalStateExceptionMsg(
 						"Chunk aware license analysis error - analysis out of order."))
 				}
-				if !depSet.isEmpty() {
-					t.currentChunkLicencesInTDeps.addAll(depSet.order)
+				if !depSet.IsEmpty() {
+					addAllOrderedSet(&t.currentChunkLicencesInTDeps, depSet)
 				}
 			}
 			t.currentChunkTDepsRef = &t.currentChunkLicencesInTDeps
@@ -600,13 +573,13 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(source
 	if !ok {
 		return
 	}
-	if t.currentChunkTDepsRef.contains(license) {
+	if t.currentChunkTDepsRef.Contains(license) {
 		return
 	}
-	if t.licensesNewInCurrentChunk.contains(license) {
+	if t.licensesNewInCurrentChunk.Contains(license) {
 		return
 	}
-	newlyAddedLicense := t.licensesNewInCurrentFile.add(license)
+	newlyAddedLicense := t.licensesNewInCurrentFile.Add(license)
 	if t.log.IsLogging() {
 		if !newlyAddedLicense {
 			t.log.LogFormat(
@@ -674,18 +647,17 @@ func compiler_licenseTrackerReplay(lt CodePrinter_LicenseTracker) (replay func(s
 
 // Java: Compiler.ChunkGraphAwareLicenseTracker.emitLicenses()
 func (t *Compiler_ChunkGraphAwareLicenseTracker) EmitLicenses() []string {
-	if t.licensesNewInCurrentFile.isEmpty() {
+	if t.licensesNewInCurrentFile.IsEmpty() {
 		return nil
 	}
-	rv := slices.Clone(t.licensesNewInCurrentFile.order)
+	rv := t.licensesNewInCurrentFile.ToSlice()
 	if t.licensesNewInCurrentChunk == emptyLicenseSet {
-		t.licensesNewInCurrentChunk = &licenseSet{}
-		t.licensesNewInCurrentChunk.addAll(rv)
+		t.licensesNewInCurrentChunk = NewOrderedSet(rv...)
 		t.licensesFromChunks[t.currentChunk] = t.licensesNewInCurrentChunk
 	} else {
-		t.licensesNewInCurrentChunk.addAll(rv)
+		t.licensesNewInCurrentChunk.AddAll(rv...)
 	}
-	t.licensesNewInCurrentFile.clear()
+	resetOrderedSet(&t.licensesNewInCurrentFile)
 	return rv
 }
 

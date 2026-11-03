@@ -217,16 +217,17 @@ func NodeUtil_GetArrayElementStringValue(n rhino.Node) (string, bool) {
 
 // Java: NodeUtil.arrayToString(Node)
 func NodeUtil_ArrayToString(literal rhino.Node) (string, bool) {
-	first := literal.GetFirstChild()
 	var result strings.Builder
-	for n := first; !n.IsNil(); n = n.GetNext() {
-		childValue, ok := NodeUtil_GetArrayElementStringValue(n)
+	first := true
+	for elem := range ast.MustArrayLit(literal).Elements() {
+		childValue, ok := NodeUtil_GetArrayElementStringValue(elem.Node())
 		if !ok {
 			return "", false
 		}
-		if n != first {
+		if !first {
 			result.WriteByte(',')
 		}
+		first = false
 		result.WriteString(childValue)
 	}
 	return result.String(), true
@@ -684,9 +685,9 @@ func NodeUtil_GetNumericLiteralValue(n rhino.Node) float64 {
 	case rhino.Token_NUMBER:
 		return n.GetDouble()
 	case rhino.Token_POS:
-		return n.GetFirstChild().GetDouble()
+		return ast.MustUnary(n).Operand().Node().GetDouble()
 	case rhino.Token_NEG:
-		return -n.GetFirstChild().GetDouble()
+		return -ast.MustUnary(n).Operand().Node().GetDouble()
 	default:
 		panic(jutil.NewAssertionError("Unreachable: " + n.String()))
 	}
@@ -714,12 +715,12 @@ func NodeUtil_FindClosureUnawareScriptRoot(script rhino.Node) rhino.Node {
 //
 // Java: NodeUtil.isEmptyBlock(Node)
 func NodeUtil_IsEmptyBlock(block rhino.Node) bool {
-	if !block.IsBlock() {
+	b, ok := ast.AsBlock(block)
+	if !ok {
 		return false
 	}
-
-	for n := block.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
-		if !n.IsEmpty() {
+	for stmt := range b.Statements() {
+		if !stmt.Node().IsEmpty() {
 			return false
 		}
 	}
@@ -802,8 +803,8 @@ func nodeUtil_canBeSideEffected(n rhino.Node, defaultKnownConstants bool, knownC
 	// Properties on constant NAMEs can still be side-effected.
 	case rhino.Token_GETPROP:
 		// Assume well-known symbols will not be modified.
-		first := n.GetFirstChild()
-		return !(first.IsName() && first.GetStringID() == nodeUtilIDSymbol)
+		recv := ast.MustGetProp(n).Object().Node()
+		return !(recv.IsName() && recv.GetStringID() == nodeUtilIDSymbol)
 	// Properties on constant NAMEs can still be side-effected.
 	case rhino.Token_GETELEM, rhino.Token_OPTCHAIN_GETPROP, rhino.Token_OPTCHAIN_GETELEM:
 		return true
@@ -817,7 +818,7 @@ func nodeUtil_canBeSideEffected(n rhino.Node, defaultKnownConstants bool, knownC
 	default:
 	}
 
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		if nodeUtil_canBeSideEffected(c, defaultKnownConstants, knownConstants, scope) {
 			return true
 		}

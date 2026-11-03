@@ -355,7 +355,7 @@ func resolveCalleeSummary(fnName string, fnNode rhino.Node, summary *calleeSumma
 }
 
 func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(
-	fnNode rhino.Node, _ *inlineIDSet, dstModified *inlineIDSet,
+	fnNode rhino.Node, _ *smallIDSet, dstModified *smallIDSet,
 ) {
 	dstModified.clear()
 	fn := ast.MustFunction(fnNode)
@@ -375,7 +375,7 @@ func (f *FunctionArgumentInjector) findModifiedParametersByIDInto(
 	}
 }
 
-func gatherLocalNameIDs(n rhino.Node, names *inlineIDSet) {
+func gatherLocalNameIDs(n rhino.Node, names *smallIDSet) {
 	if n.IsFunction() {
 		if NodeUtil_IsFunctionDeclaration(n) {
 			name, _ := ast.MustFunction(n).Name()

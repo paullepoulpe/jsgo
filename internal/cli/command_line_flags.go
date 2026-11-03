@@ -476,7 +476,7 @@ func (f *commandLineRunner_Flags) Parse(args []string) {
 	}
 }
 
-func (f *commandLineRunner_Flags) TryParse(args []string) *args4j.CmdLineException {
+func (f *commandLineRunner_Flags) TryParse(args []string) error {
 	if err := f.parser.TryParseArgument(slices.Clone(args)...); err != nil {
 		return err
 	}
@@ -817,7 +817,7 @@ func (f *commandLineRunner_Flags) GetMixedJsSources() []*AbstractCommandLineRunn
 	return res
 }
 
-func (f *commandLineRunner_Flags) tryGetMixedJsSources() ([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], *args4j.CmdLineException) {
+func (f *commandLineRunner_Flags) tryGetMixedJsSources() ([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], error) {
 	mixedSources := make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], 0, len(f.mixedJsSources)+len(f.arguments))
 	var excludes map[string]struct{}
 	allocJsEntry := func(filename string) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
@@ -887,7 +887,7 @@ func (f *commandLineRunner_Flags) GetSourceMapLocationMappings() []jscomp.Source
 	return res
 }
 
-func (f *commandLineRunner_Flags) tryGetSourceMapLocationMappings() ([]jscomp.SourceMap_LocationMapping, *args4j.CmdLineException) {
+func (f *commandLineRunner_Flags) tryGetSourceMapLocationMappings() ([]jscomp.SourceMap_LocationMapping, error) {
 	split, err := f.trySplitPipeParts(f.sourceMapLocationMapping, "--source_map_location_mapping")
 	if err != nil || len(split) == 0 {
 		return nil, err
@@ -908,7 +908,7 @@ func (f *commandLineRunner_Flags) GetSourceMapInputs() []PipeFlagEntry {
 	return res
 }
 
-func (f *commandLineRunner_Flags) tryGetSourceMapInputs() ([]PipeFlagEntry, *args4j.CmdLineException) {
+func (f *commandLineRunner_Flags) tryGetSourceMapInputs() ([]PipeFlagEntry, error) {
 	return f.trySplitPipeParts(f.sourceMapInputs, "--source_map_input")
 }
 
@@ -921,7 +921,7 @@ func (f *commandLineRunner_Flags) SplitPipeParts(input []string, flagName string
 	return res
 }
 
-func (f *commandLineRunner_Flags) trySplitPipeParts(input []string, flagName string) ([]PipeFlagEntry, *args4j.CmdLineException) {
+func (f *commandLineRunner_Flags) trySplitPipeParts(input []string, flagName string) ([]PipeFlagEntry, error) {
 	if len(input) == 0 {
 		return nil, nil
 	}

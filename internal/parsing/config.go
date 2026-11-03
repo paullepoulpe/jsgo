@@ -40,7 +40,7 @@ type Config struct {
 	jsDocParsingMode      Config_JsDocParsing
 	runMode               Config_RunMode
 	annotations           map[string]Annotation
-	extraAnnotations      *jutil.LinkedHashSet[string]
+	extraAnnotations      []string
 	suppressionNames      *jutil.LinkedHashSet[string]
 	closurePrimitiveNames *jutil.LinkedHashSet[string]
 	parseInlineSourceMaps bool
@@ -320,31 +320,10 @@ func (c *Config) LookupAnnotation(name string) (Annotation, bool) {
 	if ann, ok := Annotation_recognizedAnnotations[name]; ok {
 		return ann, true
 	}
-	if c.extraAnnotations.Contains(name) {
+	if slices.Contains(c.extraAnnotations, name) {
 		return Annotation_NOT_IMPLEMENTED, true
 	}
 	return 0, false
-}
-
-// Annotations are the recognized JSDoc annotations, mapped from their name
-// to their internal representation.
-//
-// Java: Config.annotations()
-func (c *Config) Annotations() map[string]Annotation {
-	if c.annotations != nil {
-		return c.annotations
-	}
-	if c.extraAnnotations.IsEmpty() {
-		return Annotation_recognizedAnnotations
-	}
-	m := make(map[string]Annotation, len(Annotation_recognizedAnnotations)+c.extraAnnotations.Size())
-	for k, v := range Annotation_recognizedAnnotations { // order-independent: populating unordered lookup map
-		m[k] = v
-	}
-	for k := range c.extraAnnotations.All() {
-		m[k] = Annotation_NOT_IMPLEMENTED
-	}
-	return m
 }
 
 // SuppressionNames is the set of recognized names in a `@suppress` tag.
@@ -374,20 +353,18 @@ func (c *Config) ParseInlineSourceMaps() bool {
 //
 // Java: Config.annotationNames()
 func (c *Config) AnnotationNames() []string {
-	if c.extraAnnotations.IsEmpty() {
+	if len(c.extraAnnotations) == 0 {
 		return slices.Clone(annotation_recognizedOrder)
 	}
-	out := make([]string, 0, len(annotation_recognizedOrder)+c.extraAnnotations.Size())
+	out := make([]string, 0, len(annotation_recognizedOrder)+len(c.extraAnnotations))
 	out = append(out, annotation_recognizedOrder...)
-	for name := range c.extraAnnotations.All() {
-		out = append(out, name)
-	}
+	out = append(out, c.extraAnnotations...)
 	return out
 }
 
 // Java: Config.toBuilder()
 func (c *Config) ToBuilder() *Config_Builder {
-	return NewConfig_BuilderFrom(c)
+	return &Config_Builder{cfg: *c}
 }
 
 // Config_Builder_ returns a builder with every property set to its default.
@@ -414,16 +391,6 @@ func Config_Builder_() *Config_Builder {
 // Config_Builder is the builder for a Config.
 type Config_Builder struct {
 	cfg Config
-}
-
-// NewConfig_Builder returns a builder initialized to default Config values.
-func NewConfig_Builder() *Config_Builder {
-	return Config_Builder_()
-}
-
-// NewConfig_BuilderFrom returns a builder initialized from source.
-func NewConfig_BuilderFrom(source *Config) *Config_Builder {
-	return &Config_Builder{cfg: *source}
 }
 
 // Java: Config.Builder.setLanguageMode(LanguageMode)
@@ -477,7 +444,7 @@ func (b *Config_Builder) SetExtraAnnotationNames(names iter.Seq[string]) *Config
 	if names == nil {
 		panic(jutil.NewNullPointerException())
 	}
-	var extra *jutil.LinkedHashSet[string]
+	var extra []string
 	for unrecognizedAnnotation := range names {
 		if unrecognizedAnnotation == "" {
 			continue
@@ -485,22 +452,19 @@ func (b *Config_Builder) SetExtraAnnotationNames(names iter.Seq[string]) *Config
 		if _, recognized := Annotation_recognizedAnnotations[unrecognizedAnnotation]; recognized {
 			continue
 		}
-		if extra == nil {
-			extra = jutil.NewLinkedHashSet[string]()
-		}
-		if !extra.Add(unrecognizedAnnotation) {
+		if slices.Contains(extra, unrecognizedAnnotation) {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"Multiple entries with same key: " + unrecognizedAnnotation + "=" +
 					Annotation_NOT_IMPLEMENTED.String() + " and " +
 					unrecognizedAnnotation + "=" + Annotation_NOT_IMPLEMENTED.String()))
 		}
+		extra = append(extra, unrecognizedAnnotation)
 	}
-	if extra.IsEmpty() {
+	b.cfg.extraAnnotations = extra
+	if len(extra) == 0 {
 		b.cfg.annotations = Annotation_recognizedAnnotations
-		b.cfg.extraAnnotations = nil
 	} else {
 		b.cfg.annotations = nil
-		b.cfg.extraAnnotations = extra
 	}
 	return b
 }
@@ -514,22 +478,10 @@ func (b *Config_Builder) Build() *Config {
 	if c.closurePrimitiveNames == nil {
 		c.closurePrimitiveNames = config_emptyStringSet
 	}
-	if c.annotations == nil && c.extraAnnotations.IsEmpty() {
+	if c.annotations == nil && len(c.extraAnnotations) == 0 {
 		c.annotations = Annotation_recognizedAnnotations
 	}
 	return &c
-}
-
-// SetAnnotations sets the recognized annotations map directly.
-//
-// Java: Config.Builder.setAnnotations(ImmutableMap<String, Annotation>)
-func (b *Config_Builder) SetAnnotations(names map[string]Annotation) *Config_Builder {
-	if names == nil {
-		panic(jutil.NewNullPointerExceptionMsg("Null annotations"))
-	}
-	b.cfg.annotations = names
-	b.cfg.extraAnnotations = nil
-	return b
 }
 
 // Config_BuildAnnotations creates the annotation names from the

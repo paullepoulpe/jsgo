@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // EnumElementType is the type of individual elements of an enum type (see
@@ -103,16 +104,6 @@ func (t *EnumElementType) GetPropertyMap() *PropertyMap {
 	return t.primitiveObjectType.GetPropertyMap()
 }
 
-// Java: JSType.isEnumElementType()
-func (t *EnumElementType) IsEnumElementType() bool {
-	return true
-}
-
-// Java: EnumElementType.toMaybeEnumElementType()
-func (t *EnumElementType) ToMaybeEnumElementType() *EnumElementType {
-	return t
-}
-
 // Java: EnumElementType.matchesNumberContext()
 func (t *EnumElementType) MatchesNumberContext() bool {
 	return t.primitiveType.MatchesNumberContext()
@@ -140,11 +131,6 @@ func (t *EnumElementType) CanBeCalled() bool {
 
 // Java: EnumElementType.isObject()
 func (t *EnumElementType) IsObject() bool {
-	return t.primitiveType.IsObject()
-}
-
-// Java: JSType.isObjectType()
-func (t *EnumElementType) IsObjectType() bool {
 	return t.primitiveType.IsObject()
 }
 
@@ -209,7 +195,7 @@ func (t *EnumElementType) HasReferenceName() bool {
 
 // Java: EnumElementType.getReferenceName()
 func (t *EnumElementType) GetReferenceName() *string {
-	return rhinoStringPtrFromID(t.nameID)
+	return strpool.StringPtr(t.nameID)
 }
 
 // Java: EnumElementType.defineProperty(Property.Key, JSType, boolean, Node)

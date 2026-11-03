@@ -48,8 +48,10 @@ type jsInputEntry struct {
 // jsInputsCollector tracks normalized-absolute-path -> original-path entries
 // while preserving insertion order (or sorting keys alphabetically on output).
 type jsInputsCollector struct {
-	byAbs map[string]jsInputEntry
-	order []string
+	byAbs    map[string]jsInputEntry
+	order    []string
+	excludes map[string]struct{}
+	wd       *jutil.Path
 }
 
 func (c *jsInputsCollector) put(absPath, origPath string) {
@@ -75,6 +77,33 @@ func (c *jsInputsCollector) remove(absPath string) {
 	c.order[e.orderIdx] = ""
 }
 
+func (c *jsInputsCollector) record(p, norm *jutil.Path, remove bool) {
+	if norm == nil {
+		norm = p.Normalize()
+	}
+	if !norm.IsAbsolute() && c.wd == nil {
+		c.wd = jutil.Path_WorkingDir()
+	}
+	absPath := norm.ToAbsolutePathWithWd(c.wd).String()
+	if remove {
+		if c.excludes == nil {
+			c.excludes = make(map[string]struct{})
+		}
+		c.excludes[absPath] = struct{}{}
+		c.remove(absPath)
+	} else if _, excluded := c.excludes[absPath]; !excluded {
+		c.put(absPath, p.String())
+	}
+}
+
+func isExistingDir(path string) bool {
+	if path == "" {
+		return false
+	}
+	st, err := os.Stat(path)
+	return err == nil && st.IsDir()
+}
+
 // commandLineRunner_findJsFilesSorted returns all the JavaScript files from
 // the set of patterns; sortAlphabetically is whether the output filenames
 // should be in alphabetical order. It returns the list of JS filenames found
@@ -88,25 +117,16 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 	// A map from normalized absolute paths to original paths. We need to return original paths to
 	// support allowlist files that depend on them.
 	var allJsInputs jsInputsCollector
-	var excludes map[string]struct{}
-	var wd *jutil.Path
 	for _, pattern := range patterns {
 		if !strings.Contains(pattern, "*") && !strings.HasPrefix(pattern, "!") {
-			if jutil.File_IsDirectoryPath(pattern) {
-				commandLineRunner_matchPaths(jutil.NewFileWithParent(jutil.NewFile(pattern), "**.js").String(), &allJsInputs, &excludes, &wd)
+			p := jutil.Path_Of(pattern)
+			if isExistingDir(p.String()) {
+				allJsInputs.matchPaths(p.ResolveString("**.js").String())
 			} else {
-				original := jutil.Path_Of(pattern)
-				norm := original.Normalize()
-				if !norm.IsAbsolute() && wd == nil {
-					wd = jutil.Path_WorkingDir()
-				}
-				pathStringAbsolute := norm.ToAbsolutePathWithWd(wd).String()
-				if _, excluded := excludes[pathStringAbsolute]; !excluded {
-					allJsInputs.put(pathStringAbsolute, original.String())
-				}
+				allJsInputs.record(p, nil, false)
 			}
 		} else {
-			commandLineRunner_matchPaths(pattern, &allJsInputs, &excludes, &wd)
+			allJsInputs.matchPaths(pattern)
 		}
 	}
 
@@ -127,18 +147,13 @@ func commandLineRunner_findJsFilesSorted(patterns []string, sortAlphabetically b
 }
 
 // Java: CommandLineRunner.matchPaths(String, Map<String, String>, Set<String>)
-func commandLineRunner_matchPaths(
-	pattern string,
-	allJsInputs *jsInputsCollector,
-	excludes *map[string]struct{},
-	wd **jutil.Path,
-) {
+func (c *jsInputsCollector) matchPaths(pattern string) {
 	remove := strings.HasPrefix(pattern, "!")
 	if remove {
 		pattern = pattern[1:]
 	}
 
-	separator := jutil.File_separator
+	const separator = "/"
 
 	// Split the pattern into two pieces: the globbing part
 	// and the non-globbing prefix.
@@ -159,30 +174,13 @@ func commandLineRunner_matchPaths(
 	matcher := compileGlobMatcher(prefix + separator + pattern)
 	visitFile := func(p *jutil.Path) {
 		var norm *jutil.Path
-		matched := matcher.MatchString(p.String())
-		if !matched {
+		if !matcher.MatchString(p.String()) {
 			norm = p.Normalize()
-			matched = matcher.MatchString(norm.String())
-		}
-		if !matched {
-			return
-		}
-		if norm == nil {
-			norm = p.Normalize()
-		}
-		if !norm.IsAbsolute() && *wd == nil {
-			*wd = jutil.Path_WorkingDir()
-		}
-		pathStringAbsolute := norm.ToAbsolutePathWithWd(*wd).String()
-		if remove {
-			if *excludes == nil {
-				*excludes = make(map[string]struct{})
+			if !matcher.MatchString(norm.String()) {
+				return
 			}
-			(*excludes)[pathStringAbsolute] = struct{}{}
-			allJsInputs.remove(pathStringAbsolute)
-		} else if _, excluded := (*excludes)[pathStringAbsolute]; !excluded {
-			allJsInputs.put(pathStringAbsolute, p.String())
 		}
+		c.record(p, norm, remove)
 	}
 
 	startPath := jutil.Path_Of(prefix)

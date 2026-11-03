@@ -247,7 +247,7 @@ func (l *LinkedFlowScope) InferQualifiedSlot(
 		rootVar := syn.lookupRootVar(LinkedFlowScope_GetRootOfQualifiedName(symbol))
 		var rootScope *TypedScope
 		if rootVar != nil {
-			rootScope = rootVar.getScopeS()
+			rootScope = rootVar.scope
 		} else {
 			rootScope = syn.GetGlobalScope()
 		}
@@ -309,7 +309,7 @@ func (l *LinkedFlowScope) LookupSlotType(name string) (declaredVar *TypedVar, sl
 	if var_ == nil {
 		scope = l.GetOverlayScopeForName(name, false)
 	} else {
-		scope = l.GetOverlayScopeForScope(var_.getScopeS(), false)
+		scope = l.GetOverlayScopeForScope(var_.scope, false)
 	}
 
 	if scope != nil {
@@ -340,30 +340,14 @@ func (l *LinkedFlowScope) HasSlot(name string) bool {
 //
 // Java: LinkedFlowScope.getSlot(String)
 func (l *LinkedFlowScope) GetSlot(name string) rhino.StaticSlot {
-	var_ := l.syntacticScope.GetVar(name)
-	var scope *LinkedFlowScope_OverlayScope
-	if var_ == nil {
-		scope = l.GetOverlayScopeForName(name, false)
-	} else {
-		scope = l.GetOverlayScopeForScope(var_.getScopeS(), false)
-	}
-
-	if scope != nil {
-		if t := scope.slots.Get(name); t != nil {
-			return &linkedFlowSlot{name: name, type_: unwrapOverlayType(t)}
-		}
-		if var_ != nil {
-			return var_
-		}
-		if s := scope.scope.GetVar(name); s != nil {
-			return s
-		}
+	_, slotVar, flowType, _, ok := l.LookupSlotType(name)
+	if !ok {
 		return nil
 	}
-	if var_ == nil {
-		return nil
+	if slotVar != nil {
+		return slotVar
 	}
-	return var_
+	return &linkedFlowSlot{name: name, type_: flowType}
 }
 
 // Java: LinkedFlowScope.getRootOfQualifiedName(String)
@@ -386,7 +370,7 @@ func (l *LinkedFlowScope) GetOverlayScopeForName(name string, create bool) *Link
 	rootVar := l.syntacticScope.lookupRootVar(LinkedFlowScope_GetRootOfQualifiedName(name))
 	var scope *TypedScope
 	if rootVar != nil {
-		scope = rootVar.getScopeS()
+		scope = rootVar.scope
 	} else {
 		scope = l.functionScope
 	}
@@ -606,11 +590,6 @@ func linkedFlowScope_EqualTypes(rawA rhino.JSType, rawB rhino.JSType) bool {
 	return !typeA.DiffersFrom(typeB)
 }
 
-// Java: LinkedFlowScope.hashCode()
-func (l *LinkedFlowScope) HashCode() int32 {
-	panic(jutil.NewUnsupportedOperationException())
-}
-
 // Java: LinkedFlowScope.join(LinkedFlowScope, LinkedFlowScope, TypedScope)
 func linkedFlowScope_JoinMap(
 	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
@@ -809,10 +788,6 @@ type linkedFlowSlot struct {
 	type_ rhino.JSType
 }
 
-func (s *linkedFlowSlot) Equals(other any) bool {
-	that, ok := other.(*linkedFlowSlot)
-	return ok && s == that
-}
 func (s *linkedFlowSlot) GetName() string                 { return s.name }
 func (s *linkedFlowSlot) GetType() rhino.JSType           { return s.type_ }
 func (s *linkedFlowSlot) IsTypeInferred() bool            { return true }

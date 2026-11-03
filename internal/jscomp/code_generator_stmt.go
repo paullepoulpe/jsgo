@@ -27,23 +27,16 @@ import (
 )
 
 // addStmtOrDecl handles statement, loop, function, class, module, and
-// declaration nodes, returning true when type_ was handled.
-func (g *CodeGenerator) addStmtOrDecl(
-	node rhino.Node,
-	type_ rhino.Token,
-	first rhino.Node,
-	last rhino.Node,
-	childCount int,
-	context CodeGenerator_Context,
-) bool {
+// declaration nodes, returning true when node's token was handled.
+func (g *CodeGenerator) addStmtOrDecl(node rhino.Node, context CodeGenerator_Context) bool {
 	cc := &g.cc
+	type_ := node.GetToken()
 	switch type_ {
 	case rhino.Token_TRY:
-		g.addTry(node, first, childCount)
+		g.addTry(ast.MustTry(node))
 	case rhino.Token_CATCH:
-		g.addCatch(node, childCount)
+		g.addCatch(ast.MustCatch(node))
 	case rhino.Token_THROW:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
 		g.Add("throw")
 		cc.MaybeInsertSpace()
 		g.AddNode(ast.MustThrow(node).Value().Node())
@@ -51,110 +44,107 @@ func (g *CodeGenerator) addStmtOrDecl(
 		// parse this.
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
 	case rhino.Token_RETURN:
-		g.addReturn(node, childCount)
+		g.addReturn(ast.MustReturn(node))
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
-		g.addNameDecl(node, type_, context)
+		g.addNameDecl(ast.MustNameDeclaration(node), context)
 	case rhino.Token_PARAM_LIST:
-		g.addParamList(node)
+		g.addParamList(ast.MustParamList(node))
 	case rhino.Token_FUNCTION:
-		g.addFunctionNode(node, first, last, childCount, context)
+		g.addFunctionNode(ast.MustFunction(node), context)
 	case rhino.Token_EXPORT:
-		g.addExport(node, context)
+		g.addExport(ast.MustExport(node), context)
 	case rhino.Token_IMPORT:
-		g.addImport(node)
+		g.addImport(ast.MustImport(node))
 	case rhino.Token_EXPORT_SPECS, rhino.Token_IMPORT_SPECS:
-		g.addModuleSpecs(first)
+		g.addModuleSpecs(node.GetFirstChild())
 	case rhino.Token_EXPORT_SPEC:
-		g.addExportSpec(node)
+		g.addExportSpec(ast.MustExportSpec(node))
 	case rhino.Token_IMPORT_SPEC:
-		g.addImportSpec(node)
+		g.addImportSpec(ast.MustImportSpec(node))
 	case rhino.Token_IMPORT_STAR:
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		star := ast.MustImportStar(node)
 		g.Add("*")
 		g.Add("as")
 		g.Add(star.Ident())
 	case rhino.Token_CLASS:
-		g.addClass(node, childCount, context)
+		g.addClass(ast.MustClass(node), context)
 	case rhino.Token_CLASS_MEMBERS, rhino.Token_INTERFACE_MEMBERS, rhino.Token_NAMESPACE_ELEMENTS:
-		g.addMemberBlock(first, context)
+		g.addMemberBlock(node.GetFirstChild(), context)
 	case rhino.Token_ENUM_MEMBERS:
-		g.addEnumMembers(first)
+		g.addEnumMembers(node.GetFirstChild())
 	case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_VARIABLE_DEF:
-		g.addMemberDef(node, type_, first, childCount)
+		g.addMemberDef(node, type_)
 	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
-		g.addFieldDef(node, type_)
+		g.addFieldDef(ast.MustFieldDef(node), type_)
 	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY, rhino.Token_BLOCK, rhino.Token_ROOT:
-		g.addBlockOrRoot(node, type_, first, context)
+		g.addBlockOrRoot(node, type_, context)
 	case rhino.Token_FOR:
-		g.addFor(node, first, childCount, context)
+		g.addFor(ast.MustFor(node), context)
 	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
-		g.addForInOf(node, type_, childCount, context)
+		g.addForInOf(node, type_, context)
 	case rhino.Token_DO:
-		g.addDo(node, childCount)
+		g.addDo(ast.MustDo(node))
 	case rhino.Token_WHILE:
-		g.addWhile(node, childCount, context)
+		g.addWhile(ast.MustWhile(node), context)
 	case rhino.Token_EMPTY:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 	case rhino.Token_WITH:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
 		withStmt := ast.MustWith(node)
 		g.Add("with(")
 		g.AddNode(withStmt.Object().Node())
 		g.Add(")")
 		g.AddNonEmptyStatement(withStmt.Body().Node(), CodeGenerator_GetContextForNonEmptyExpression(context), false)
 	case rhino.Token_IF:
-		g.addIf(node, childCount, context)
+		g.addIf(ast.MustIf(node), context)
 	case rhino.Token_CONTINUE, rhino.Token_BREAK:
-		g.addJump(node, type_, first, childCount)
+		g.addJump(ast.MustJump(node), type_)
 	case rhino.Token_DEBUGGER:
-		jutil.CheckStateMsg1(childCount == 0, "%s", node)
+		jutil.CheckStateMsg1(!node.HasChildren(), "%s", node)
 		g.Add("debugger")
 		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
 	case rhino.Token_EXPR_RESULT:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
 		g.AddNodeWithContext(ast.MustExprStmt(node).Expr().Node(), CodeGenerator_Context_START_OF_EXPR)
 		cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
 	case rhino.Token_SWITCH:
-		g.addSwitch(node, context)
+		g.addSwitch(ast.MustSwitch(node), context)
 	case rhino.Token_SWITCH_BODY:
-		g.addSwitchBody(node, context)
+		g.addSwitchBody(ast.MustSwitchBody(node), context)
 	case rhino.Token_CASE:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
 		caseClause := ast.MustCase(node)
 		g.Add("case ")
 		g.AddNode(caseClause.Value().Node())
 		g.AddCaseBody(caseClause.Body().Node())
 	case rhino.Token_DEFAULT_CASE:
-		jutil.CheckStateMsg1(childCount == 1, "%s", node)
 		g.Add("default")
 		g.AddCaseBody(ast.MustDefaultCase(node).Body().Node())
 	case rhino.Token_LABEL:
-		g.addLabel(node, first, childCount, context)
+		g.addLabel(ast.MustLabel(node), context)
 	case rhino.Token_INTERFACE:
-		g.addInterface(node, first, last, childCount)
+		g.addInterface(node)
 	case rhino.Token_ENUM:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
+		jutil.CheckStateMsg1(node.HasTwoChildren(), "%s", node)
 		g.Add("enum")
-		g.AddNode(first)
-		g.AddNode(last)
+		g.AddNode(node.GetFirstChild())
+		g.AddNode(node.GetLastChild())
 	case rhino.Token_NAMESPACE:
-		jutil.CheckStateMsg1(childCount == 2, "%s", node)
+		jutil.CheckStateMsg1(node.HasTwoChildren(), "%s", node)
 		g.Add("namespace")
-		g.AddNode(first)
-		g.AddNode(last)
+		g.AddNode(node.GetFirstChild())
+		g.AddNode(node.GetLastChild())
 	case rhino.Token_TYPE_ALIAS:
 		g.Add("type")
 		g.Add(node.GetString())
 		cc.AddOp("=", true)
-		g.AddNode(last)
+		g.AddNode(node.GetLastChild())
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
 	case rhino.Token_DECLARE:
 		g.Add("declare")
-		g.AddNode(first)
+		g.AddNode(node.GetFirstChild())
 		g.ProcessEnd(node, context)
 	case rhino.Token_INDEX_SIGNATURE:
 		g.Add("[")
-		g.AddNode(first)
+		g.AddNode(node.GetFirstChild())
 		g.Add("]")
 		g.MaybeAddTypeDecl(node)
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
@@ -163,7 +153,7 @@ func (g *CodeGenerator) addStmtOrDecl(
 			g.Add("new ")
 		}
 		g.MaybeAddGenericTypes(node)
-		g.AddNode(first)
+		g.AddNode(node.GetFirstChild())
 		g.MaybeAddTypeDecl(node)
 		cc.EndStatementWithSemiColon(true /* needSemiColon */, g.HasTrailingCommentOnSameLine(node))
 	default:
@@ -172,11 +162,10 @@ func (g *CodeGenerator) addStmtOrDecl(
 	return true
 }
 
-func (g *CodeGenerator) addTry(node, first rhino.Node, childCount int) {
-	jutil.CheckState(first.GetNext().IsBlock() && !first.GetNext().HasMoreThanOneChild())
-	jutil.CheckState(childCount >= 2 && childCount <= 3)
+func (g *CodeGenerator) addTry(tryStmt ast.Try) {
+	catchSlot := tryStmt.Node().GetSecondChild()
+	jutil.CheckState(catchSlot.IsBlock() && !catchSlot.HasMoreThanOneChild())
 
-	tryStmt := ast.MustTry(node)
 	g.Add("try")
 	g.AddNode(tryStmt.Body().Node())
 
@@ -191,9 +180,7 @@ func (g *CodeGenerator) addTry(node, first rhino.Node, childCount int) {
 	}
 }
 
-func (g *CodeGenerator) addCatch(node rhino.Node, childCount int) {
-	jutil.CheckStateMsg1(childCount == 2, "%s", node)
-	catchClause := ast.MustCatch(node)
+func (g *CodeGenerator) addCatch(catchClause ast.Catch) {
 	g.cc.MaybeInsertSpace()
 	g.Add("catch")
 	g.cc.MaybeInsertSpace()
@@ -208,9 +195,7 @@ func (g *CodeGenerator) addCatch(node rhino.Node, childCount int) {
 	g.AddNode(catchClause.Body().Node())
 }
 
-func (g *CodeGenerator) addReturn(node rhino.Node, childCount int) {
-	jutil.CheckStateMsg1(childCount <= 1, "%s", node)
-	retStmt := ast.MustReturn(node)
+func (g *CodeGenerator) addReturn(retStmt ast.Return) {
 	g.Add("return")
 	if val, ok := retStmt.Value(); ok {
 		valNode := val.Node()
@@ -223,12 +208,12 @@ func (g *CodeGenerator) addReturn(node rhino.Node, childCount int) {
 			g.AddNode(valNode)
 		}
 	}
-	g.cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
+	g.cc.EndStatement(g.HasTrailingCommentOnSameLine(retStmt.Node()))
 }
 
-func (g *CodeGenerator) addNameDecl(node rhino.Node, type_ rhino.Token, context CodeGenerator_Context) {
-	decl := ast.MustNameDeclaration(node)
-	switch type_ {
+func (g *CodeGenerator) addNameDecl(decl ast.NameDeclaration, context CodeGenerator_Context) {
+	node := decl.Node()
+	switch decl.Token() {
 	case rhino.Token_VAR:
 		g.Add("var ")
 	case rhino.Token_CONST:
@@ -244,12 +229,11 @@ func (g *CodeGenerator) addNameDecl(node rhino.Node, type_ rhino.Token, context 
 	}
 }
 
-func (g *CodeGenerator) addParamList(node rhino.Node) {
-	params := ast.MustParamList(node)
+func (g *CodeGenerator) addParamList(params ast.ParamList) {
 	// If this is the list for a non-TypeScript arrow function with one
 	// simple name param.
 	if param, ok := params.OnlyParam(); ok &&
-		node.GetParent().IsArrowFunction() &&
+		params.Node().GetParent().IsArrowFunction() &&
 		param.Node().IsName() &&
 		!g.gentsMode {
 		g.AddNode(param.Node())
@@ -262,20 +246,18 @@ func (g *CodeGenerator) addParamList(node rhino.Node) {
 	}
 }
 
-func (g *CodeGenerator) addFunctionNode(node, first, last rhino.Node, childCount int, context CodeGenerator_Context) {
-	if !node.IsPlainNode() {
+func (g *CodeGenerator) addFunctionNode(fn ast.Function, context CodeGenerator_Context) {
+	if !fn.Node().IsPlainNode() {
 		panic(jutil.NewJavaLangError("Unexpected Node subclass."))
 	}
-	jutil.CheckStateMsg1(childCount == 3, "%s", node)
-	if ast.MustFunction(node).IsArrow() {
-		g.AddArrowFunction(node, first, last, context)
+	if fn.IsArrow() {
+		g.addArrowFunction(fn, context)
 	} else {
-		g.AddFunction(node, first, last, context)
+		g.addFunction(fn, context)
 	}
 }
 
-func (g *CodeGenerator) addExport(node rhino.Node, context CodeGenerator_Context) {
-	exp := ast.MustExport(node)
+func (g *CodeGenerator) addExport(exp ast.Export, context CodeGenerator_Context) {
 	g.Add("export")
 	if exp.IsDefault() {
 		g.Add("default")
@@ -283,7 +265,7 @@ func (g *CodeGenerator) addExport(node rhino.Node, context CodeGenerator_Context
 	bodyNode := exp.Body().Node()
 	if exp.IsAllFrom() {
 		g.Add("*")
-		jutil.CheckStateMsg1(!bodyNode.IsNil() && bodyNode.IsEmpty(), "%s", node)
+		jutil.CheckStateMsg1(!bodyNode.IsNil() && bodyNode.IsEmpty(), "%s", exp.Node())
 	} else {
 		g.AddNode(bodyNode)
 	}
@@ -294,8 +276,7 @@ func (g *CodeGenerator) addExport(node rhino.Node, context CodeGenerator_Context
 	g.ProcessEnd(bodyNode, context)
 }
 
-func (g *CodeGenerator) addImport(node rhino.Node) {
-	imp := ast.MustImport(node)
+func (g *CodeGenerator) addImport(imp ast.Import) {
 	g.Add("import")
 
 	def, hasDef := imp.Default()
@@ -313,7 +294,7 @@ func (g *CodeGenerator) addImport(node rhino.Node) {
 		g.Add("from")
 	}
 	g.AddNode(imp.Source().Node())
-	g.cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
+	g.cc.EndStatement(g.HasTrailingCommentOnSameLine(imp.Node()))
 }
 
 func (g *CodeGenerator) addModuleSpecs(first rhino.Node) {
@@ -327,31 +308,27 @@ func (g *CodeGenerator) addModuleSpecs(first rhino.Node) {
 	g.Add("}")
 }
 
-func (g *CodeGenerator) addExportSpec(node rhino.Node) {
-	spec := ast.MustExportSpec(node)
+func (g *CodeGenerator) addExportSpec(spec ast.ExportSpec) {
 	local := spec.Local()
 	exported := spec.Exported()
 	g.AddNode(local.Node())
-	if !node.IsShorthandProperty() || local.Ident() != exported.Ident() {
+	if !spec.Node().IsShorthandProperty() || local.Ident() != exported.Ident() {
 		g.Add("as")
 		g.AddNode(exported.Node())
 	}
 }
 
-func (g *CodeGenerator) addImportSpec(node rhino.Node) {
-	spec := ast.MustImportSpec(node)
+func (g *CodeGenerator) addImportSpec(spec ast.ImportSpec) {
 	imported := spec.Imported()
 	local := spec.Local()
 	g.AddNode(imported.Node())
-	if !node.IsShorthandProperty() || imported.Ident() != local.Ident() {
+	if !spec.Node().IsShorthandProperty() || imported.Ident() != local.Ident() {
 		g.Add("as")
 		g.AddNode(local.Node())
 	}
 }
 
-func (g *CodeGenerator) addClass(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 3, "%s", node)
-	cls := ast.MustClass(node)
+func (g *CodeGenerator) addClass(cls ast.Class, context CodeGenerator_Context) {
 	classNeedsParens := context == CodeGenerator_Context_START_OF_EXPR
 	if classNeedsParens {
 		g.Add("(")
@@ -371,7 +348,7 @@ func (g *CodeGenerator) addClass(node rhino.Node, childCount int, context CodeGe
 		g.AddExpr(superClass.Node(), 1, CodeGenerator_Context_OTHER)
 	}
 
-	interfaces := codeGenerator_nodeProp(node.GetProp(rhino.Node_IMPLEMENTS))
+	interfaces := codeGenerator_nodeProp(cls.Node().GetProp(rhino.Node_IMPLEMENTS))
 	if !interfaces.IsNil() {
 		g.Add("implements")
 		child := interfaces.GetFirstChild()
@@ -414,7 +391,7 @@ func (g *CodeGenerator) addEnumMembers(first rhino.Node) {
 	cc.EndBlockWithShouldEndLine(false)
 }
 
-func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token, first rhino.Node, childCount int) {
+func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token) {
 	parent := node.GetParent()
 	jutil.CheckState(
 		parent.IsObjectLit() ||
@@ -435,9 +412,6 @@ func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token, first r
 		g.MaybeAddTypeDecl(node)
 		return
 	}
-
-	jutil.CheckStateMsg1(childCount == 1, "%s", node)
-	jutil.CheckStateMsg1(first.IsFunction(), "%s", first)
 
 	method := ast.MustMethodDef(node)
 	fn := method.Function()
@@ -460,7 +434,7 @@ func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token, first r
 
 	// The function referenced by the definition should always be unnamed.
 	fnNameNode := fn.NameNode()
-	jutil.CheckStateMsg1(fnNameNode.Ident() == "", "%s", first)
+	jutil.CheckStateMsg1(fnNameNode.Ident() == "", "%s", fn.Node())
 
 	name := method.Key()
 	if !method.IsQuoted() &&
@@ -483,9 +457,9 @@ func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token, first r
 	g.AddNode(fn.Body().Node())
 }
 
-func (g *CodeGenerator) addFieldDef(node rhino.Node, type_ rhino.Token) {
+func (g *CodeGenerator) addFieldDef(field ast.FieldDef, type_ rhino.Token) {
+	node := field.Node()
 	jutil.CheckState(node.GetParent().IsClassMembers())
-	field := ast.MustFieldDef(node)
 	if field.IsStatic() {
 		g.Add("static ")
 	}
@@ -505,7 +479,7 @@ func (g *CodeGenerator) addFieldDef(node rhino.Node, type_ rhino.Token) {
 	g.Add(";")
 }
 
-func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, first rhino.Node, context CodeGenerator_Context) {
+func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, context CodeGenerator_Context) {
 	if !node.IsPlainNode() {
 		panic(jutil.NewJavaLangError("Unexpected Node subclass."))
 	}
@@ -526,7 +500,7 @@ func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, first
 
 	preferLineBreaks := type_ == rhino.Token_SCRIPT ||
 		(type_ == rhino.Token_BLOCK && !preserveBlock && node.GetParent().IsScript())
-	for c := first; !c.IsNil(); c = c.GetNext() {
+	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		g.AddNodeWithContext(c, CodeGenerator_Context_STATEMENT)
 
 		if c.IsFunction() || c.IsClass() {
@@ -544,27 +518,26 @@ func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, first
 	}
 }
 
-func (g *CodeGenerator) addFor(node, first rhino.Node, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 4, "%s", node)
+func (g *CodeGenerator) addFor(forStmt ast.For, context CodeGenerator_Context) {
 	cc := &g.cc
-	forStmt := ast.MustFor(node)
 	g.Add("for")
 	cc.MaybeInsertSpace()
 	g.Add("(")
-	if NodeUtil_IsNameDeclaration(first) {
-		g.AddNodeWithContext(first, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
+	initNode := forStmt.Node().GetFirstChild()
+	if NodeUtil_IsNameDeclaration(initNode) {
+		g.AddNodeWithContext(initNode, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
 	} else {
-		g.AddExpr(first, 0, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
+		g.AddExpr(initNode, 0, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
 	}
 	g.Add(";")
-	condNode := first.GetNext()
-	if _, hasCond := forStmt.Cond(); hasCond {
+	condNode := initNode.GetNext()
+	if !condNode.IsEmpty() {
 		cc.MaybeInsertSpace()
 	}
 	g.AddNode(condNode)
 	g.Add(";")
 	updateNode := condNode.GetNext()
-	if _, hasUpdate := forStmt.Update(); hasUpdate {
+	if !updateNode.IsEmpty() {
 		cc.MaybeInsertSpace()
 	}
 	g.AddNode(updateNode)
@@ -572,8 +545,7 @@ func (g *CodeGenerator) addFor(node, first rhino.Node, childCount int, context C
 	g.AddNonEmptyStatement(forStmt.Body().Node(), CodeGenerator_GetContextForNonEmptyExpression(context), false)
 }
 
-func (g *CodeGenerator) addForInOf(node rhino.Node, type_ rhino.Token, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 3, "%s", node)
+func (g *CodeGenerator) addForInOf(node rhino.Node, type_ rhino.Token, context CodeGenerator_Context) {
 	cc := &g.cc
 	if type_ == rhino.Token_FOR_IN {
 		forIn := ast.MustForIn(node)
@@ -605,10 +577,8 @@ func (g *CodeGenerator) addForInOf(node rhino.Node, type_ rhino.Token, childCoun
 	g.AddNonEmptyStatement(forOf.AsLoop().Body().Node(), CodeGenerator_GetContextForNonEmptyExpression(context), false)
 }
 
-func (g *CodeGenerator) addDo(node rhino.Node, childCount int) {
-	jutil.CheckStateMsg1(childCount == 2, "%s", node)
+func (g *CodeGenerator) addDo(doStmt ast.Do) {
 	cc := &g.cc
-	doStmt := ast.MustDo(node)
 	g.Add("do")
 	g.AddNonEmptyStatement(doStmt.Body().Node(), CodeGenerator_Context_OTHER, false)
 	cc.MaybeInsertSpace()
@@ -617,12 +587,10 @@ func (g *CodeGenerator) addDo(node rhino.Node, childCount int) {
 	g.Add("(")
 	g.AddNode(doStmt.Cond().Node())
 	g.Add(")")
-	cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
+	cc.EndStatement(g.HasTrailingCommentOnSameLine(doStmt.Node()))
 }
 
-func (g *CodeGenerator) addWhile(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 2, "%s", node)
-	whileStmt := ast.MustWhile(node)
+func (g *CodeGenerator) addWhile(whileStmt ast.While, context CodeGenerator_Context) {
 	g.Add("while")
 	g.cc.MaybeInsertSpace()
 	g.Add("(")
@@ -631,10 +599,8 @@ func (g *CodeGenerator) addWhile(node rhino.Node, childCount int, context CodeGe
 	g.AddNonEmptyStatement(whileStmt.Body().Node(), CodeGenerator_GetContextForNonEmptyExpression(context), false)
 }
 
-func (g *CodeGenerator) addIf(node rhino.Node, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 2 || childCount == 3, "%s", node)
+func (g *CodeGenerator) addIf(ifStmt ast.If, context CodeGenerator_Context) {
 	cc := &g.cc
-	ifStmt := ast.MustIf(node)
 	elseBlock, hasElse := ifStmt.Else()
 	ambiguousElseClause := context == CodeGenerator_Context_BEFORE_DANGLING_ELSE && !hasElse
 	if ambiguousElseClause {
@@ -661,35 +627,27 @@ func (g *CodeGenerator) addIf(node rhino.Node, childCount int, context CodeGener
 	}
 }
 
-func (g *CodeGenerator) addJump(node rhino.Node, type_ rhino.Token, first rhino.Node, childCount int) {
-	jutil.CheckStateMsg1(childCount <= 1, "%s", node)
+func (g *CodeGenerator) addJump(jmp ast.Jump, type_ rhino.Token) {
 	if type_ == rhino.Token_CONTINUE {
 		g.Add("continue")
 	} else {
 		g.Add("break")
 	}
-	if childCount == 1 {
-		if !first.IsLabelName() {
-			panic(jutil.NewJavaLangError("Unexpected token type. Should be LABEL_NAME."))
-		}
-		if lbl, ok := ast.MustJump(node).Label(); ok {
-			g.Add(" ")
-			g.AddNode(lbl.Node())
-		}
+	if lbl, ok := jmp.Label(); ok {
+		g.Add(" ")
+		g.AddNode(lbl.Node())
 	}
-	g.cc.EndStatement(g.HasTrailingCommentOnSameLine(node))
+	g.cc.EndStatement(g.HasTrailingCommentOnSameLine(jmp.Node()))
 }
 
-func (g *CodeGenerator) addSwitch(node rhino.Node, context CodeGenerator_Context) {
-	sw := ast.MustSwitch(node)
+func (g *CodeGenerator) addSwitch(sw ast.Switch, context CodeGenerator_Context) {
 	g.Add("switch(")
 	g.AddNode(sw.Discriminant().Node())
 	g.Add(")")
 	g.AddNodeWithContext(sw.Body().Node(), context)
 }
 
-func (g *CodeGenerator) addSwitchBody(node rhino.Node, context CodeGenerator_Context) {
-	swBody := ast.MustSwitchBody(node)
+func (g *CodeGenerator) addSwitchBody(swBody ast.SwitchBody, context CodeGenerator_Context) {
 	g.cc.BeginBlock()
 	if firstCase, ok := swBody.FirstCase(); ok {
 		g.AddAllSiblings(firstCase.Node())
@@ -697,13 +655,12 @@ func (g *CodeGenerator) addSwitchBody(node rhino.Node, context CodeGenerator_Con
 	g.cc.EndBlockWithShouldEndLine(context == CodeGenerator_Context_STATEMENT)
 }
 
-func (g *CodeGenerator) addLabel(node, first rhino.Node, childCount int, context CodeGenerator_Context) {
-	jutil.CheckStateMsg1(childCount == 2, "%s", node)
-	if !first.IsLabelName() {
+func (g *CodeGenerator) addLabel(lbl ast.Label, context CodeGenerator_Context) {
+	nameNode := lbl.Name().Node()
+	if !nameNode.IsLabelName() {
 		panic(jutil.NewJavaLangError("Unexpected token type. Should be LABEL_NAME."))
 	}
-	lbl := ast.MustLabel(node)
-	g.AddNode(lbl.Name().Node())
+	g.AddNode(nameNode)
 	g.Add(":")
 	bodyNode := lbl.Body().Node()
 	if !bodyNode.IsBlock() {
@@ -712,11 +669,11 @@ func (g *CodeGenerator) addLabel(node, first rhino.Node, childCount int, context
 	g.AddNonEmptyStatement(bodyNode, CodeGenerator_GetContextForNonEmptyExpression(context), true)
 }
 
-func (g *CodeGenerator) addInterface(node, first, last rhino.Node, childCount int) {
-	jutil.CheckStateMsg1(childCount == 3, "%s", node)
-	name := first
-	superTypes := first.GetNext()
-	members := last
+func (g *CodeGenerator) addInterface(node rhino.Node) {
+	jutil.CheckStateMsg1(node.GetChildCount() == 3, "%s", node)
+	name := node.GetFirstChild()
+	superTypes := name.GetNext()
+	members := superTypes.GetNext()
 
 	g.Add("interface")
 	g.AddNode(name)
@@ -774,11 +731,10 @@ func (g *CodeGenerator) ArrowFunctionNeedsParens(n rhino.Node) bool {
 	return false
 }
 
-// Java: CodeGenerator.addArrowFunction(Node, Node, Node, Context)
-func (g *CodeGenerator) AddArrowFunction(n rhino.Node, first rhino.Node, last rhino.Node, context CodeGenerator_Context) {
-	fn := ast.MustFunction(n)
+func (g *CodeGenerator) addArrowFunction(fn ast.Function, context CodeGenerator_Context) {
+	n := fn.Node()
 	nameNode := fn.NameNode()
-	jutil.CheckStateMsg1(nameNode.Ident() == "", "%s", first)
+	jutil.CheckStateMsg1(nameNode.Ident() == "", "%s", nameNode.Node())
 	funcNeedsParens := g.ArrowFunctionNeedsParens(n)
 	if funcNeedsParens {
 		g.Add("(")
@@ -809,9 +765,8 @@ func (g *CodeGenerator) AddArrowFunction(n rhino.Node, first rhino.Node, last rh
 	}
 }
 
-// Java: CodeGenerator.addFunction(Node, Node, Node, Context)
-func (g *CodeGenerator) AddFunction(n rhino.Node, first rhino.Node, last rhino.Node, context CodeGenerator_Context) {
-	fn := ast.MustFunction(n)
+func (g *CodeGenerator) addFunction(fn ast.Function, context CodeGenerator_Context) {
+	n := fn.Node()
 	funcNeedsParens := context == CodeGenerator_Context_START_OF_EXPR
 	if funcNeedsParens {
 		g.Add("(")

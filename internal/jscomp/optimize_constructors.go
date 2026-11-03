@@ -176,6 +176,11 @@ func (o *OptimizeConstructors) addConstructorsToBeRemovedByID(nameID uint32, ref
 // Java: OptimizeConstructors.isAssigningReference(Node)
 func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 	parent := n.GetParent()
+	if assign, ok := ast.AsAssignment(parent); ok {
+		// If n is the target of the assignment (the first child/LHS of the assignment node),
+		// then it is an assigning reference.
+		return assign.Target().Node() == n
+	}
 	switch parent.GetToken() {
 	case rhino.Token_LET, rhino.Token_CONST, rhino.Token_VAR:
 		return n.HasChildren() // value assigned
@@ -192,22 +197,6 @@ func optimizeConstructors_isAssigningReference(n rhino.Node) bool {
 		rhino.Token_DEC:
 		return true
 	case rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_CATCH:
-		return parent.GetFirstChild() == n
-	case rhino.Token_ASSIGN,
-		rhino.Token_ASSIGN_BITOR,
-		rhino.Token_ASSIGN_BITXOR,
-		rhino.Token_ASSIGN_BITAND,
-		rhino.Token_ASSIGN_LSH,
-		rhino.Token_ASSIGN_RSH,
-		rhino.Token_ASSIGN_URSH,
-		rhino.Token_ASSIGN_ADD,
-		rhino.Token_ASSIGN_SUB,
-		rhino.Token_ASSIGN_MUL,
-		rhino.Token_ASSIGN_DIV,
-		rhino.Token_ASSIGN_MOD,
-		rhino.Token_ASSIGN_EXPONENT:
-		// If n is the target of the assignment (the first child/LHS of the assignment node),
-		// then it is an assigning reference.
 		return parent.GetFirstChild() == n
 	default:
 		return false

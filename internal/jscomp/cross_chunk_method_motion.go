@@ -186,10 +186,8 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 			return
 		}
 		destParent := m.compiler.GetNodeForCodeInsertion(deepestCommonChunkRef)
-		if valueParent.IsMemberFunctionDef() {
-			m.MovePrototypeObjectLiteralMethodShorthand(nameInfo.String(), destParent, value)
-		} else if valueParent.IsStringKey() {
-			m.MovePrototypeObjectLiteralProperty(nameInfo.String(), destParent, value)
+		if valueParent.IsMemberFunctionDef() || valueParent.IsStringKey() {
+			m.movePrototypeObjectLiteralMember(valueParent, nameInfo.String(), destParent, valueParent.IsMemberFunctionDef())
 		} else {
 			// Note that computed properties should have been filtered out by
 			// AnalyzePrototypeProperties, because they don't have a recognizable property name.
@@ -200,18 +198,21 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 	}
 }
 
-// MovePrototypeObjectLiteralProperty moves a property defined by object
-// literal assigned to `.prototype`.
+// movePrototypeObjectLiteralMember moves a property or method shorthand defined
+// by an object literal assigned to `.prototype`.
 //
 //	Foo.prototype = { propName: function() {}};
-//
-// Java: CrossChunkMethodMotion.movePrototypeObjectLiteralProperty(String, Node, Node)
-func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
-	propName string, destParent rhino.Node, functionNode rhino.Node) {
+//	Foo.prototype = { propName() {}};
+func (m *CrossChunkMethodMotion) movePrototypeObjectLiteralMember(
+	prop rhino.Node, propName string, destParent rhino.Node, isMethodShorthand bool) {
+	if isMethodShorthand {
+		jutil.CheckStateMsg1(prop.IsMemberFunctionDef(), "%s", prop)
+	} else {
+		jutil.CheckStateMsg1(prop.IsStringKey(), "%s", prop)
+	}
+	functionNode := prop.GetFirstChild()
 	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
-	stringKey := functionNode.GetParent()
-	jutil.CheckStateMsg1(stringKey.IsStringKey(), "%s", stringKey)
-	prototypeObjectLiteral := stringKey.GetParent()
+	prototypeObjectLiteral := prop.GetParent()
 	jutil.CheckStateMsg1(prototypeObjectLiteral.IsObjectLit(), "%s", prototypeObjectLiteral)
 	assign, ok := ast.AsAssign(prototypeObjectLiteral.GetParent())
 	jutil.CheckStateMsg1(ok && assign.Value().Is(prototypeObjectLiteral), "%s", prototypeObjectLiteral.GetParent())
@@ -220,42 +221,53 @@ func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralProperty(
 		ownerDotPrototypeNode.IsQualifiedName() &&
 			ownerDotPrototypeNode.GetStringID() == analyzeProtoPrototypeID,
 		"%s", ownerDotPrototypeNode)
+	var originalScript rhino.Node
+	if isMethodShorthand {
+		originalScript = NodeUtil_GetEnclosingScript(prop)
+	}
 
+	var rhs rhino.Node
+	var ownerDotPrototypeDotPropName rhino.Node
 	if m.noStubFunctions {
 		// Remove the definition from the object literal
-		stringKey.Detach()
+		prop.Detach()
 		m.compiler.ReportChangeToEnclosingScope(prototypeObjectLiteral)
 
 		// Prepend definition to new chunk
 		// Foo.prototype.propName = function() {};
-		ownerDotPrototypeDotPropName :=
+		ownerDotPrototypeDotPropName =
 			m.astFactory.CreateGetProp(ownerDotPrototypeNode.CloneTree(), propName, AstFactory_Type_(functionNode))
-		functionNode.Detach()
-		definitionStatement :=
-			m.astFactory.
-				CreateAssignStatement(ownerDotPrototypeDotPropName, functionNode).
-				SrcrefTreeIfMissing(stringKey)
-		destParent.AddChildToFront(definitionStatement)
-		m.compiler.ReportChangeToEnclosingScope(destParent)
+		rhs = functionNode.Detach()
 	} else {
 		stubId := m.idGenerator.NewId()
-		// { propName: function() {} } => { propName: JSCompiler_stubMethod(0) }
 		stubCall := m.CreateStubCall(functionNode, stubId)
-		functionNode.ReplaceWith(stubCall)
+		if isMethodShorthand {
+			// { propName() {} } => { propName: JSCompiler_stubMethod(0) }
+			prop.ReplaceWith(m.astFactory.CreateStringKey(propName, stubCall))
+			functionNode.Detach()
+		} else {
+			// { propName: function() {} } => { propName: JSCompiler_stubMethod(0) }
+			functionNode.ReplaceWith(stubCall)
+		}
 		m.compiler.ReportChangeToEnclosingScope(prototypeObjectLiteral)
 
 		// Prepend definition to new chunk
 		// Foo.prototype.propName = function() {};
-		ownerDotPrototypeDotPropName :=
+		ownerDotPrototypeDotPropName =
 			m.astFactory.CreateGetProp(ownerDotPrototypeNode.CloneTree(), propName, AstFactory_Type_(functionNode))
-		unstubCall := m.CreateUnstubCall(functionNode, stubId)
-		definitionStatement :=
-			m.astFactory.
-				CreateAssignStatement(ownerDotPrototypeDotPropName, unstubCall).
-				SrcrefTreeIfMissing(stringKey)
-		destParent.AddChildToFront(definitionStatement)
-		m.compiler.ReportChangeToEnclosingScope(destParent)
+		rhs = m.CreateUnstubCall(functionNode, stubId)
 	}
+
+	definitionStatement :=
+		m.astFactory.
+			CreateAssignStatement(ownerDotPrototypeDotPropName, rhs).
+			SrcrefTreeIfMissing(prop)
+	destParent.AddChildToFront(definitionStatement)
+	if isMethodShorthand {
+		NodeUtil_AddFeaturesToScript(
+			destParent, NodeUtil_GetFeatureSetOfScript(originalScript), m.compiler)
+	}
+	m.compiler.ReportChangeToEnclosingScope(destParent)
 }
 
 // MovePrototypeDotMethodAssignment moves a property defined by assignment to
@@ -303,69 +315,6 @@ func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent rhi
 		unstubCall := m.CreateUnstubCall(functionNode, stubId)
 		newDefinitionPlaceholder.ReplaceWith(unstubCall)
 		destParent.AddChildToFront(newDefinitionStatement)
-		m.compiler.ReportChangeToEnclosingScope(destParent)
-	}
-}
-
-// MovePrototypeObjectLiteralMethodShorthand moves a property defined by
-// assignment to `.prototype` or `.prototype.propName`.
-//
-//	Foo.prototype = { propName() {}};
-//
-// Java: CrossChunkMethodMotion.movePrototypeObjectLiteralMethodShorthand(String, Node, Node)
-func (m *CrossChunkMethodMotion) MovePrototypeObjectLiteralMethodShorthand(
-	propName string, destParent rhino.Node, functionNode rhino.Node) {
-	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
-	memberFunctionDef := functionNode.GetParent()
-	jutil.CheckStateMsg1(memberFunctionDef.IsMemberFunctionDef(), "%s", memberFunctionDef)
-	prototypeObjectLiteral := memberFunctionDef.GetParent()
-	jutil.CheckStateMsg1(prototypeObjectLiteral.IsObjectLit(), "%s", prototypeObjectLiteral)
-	assign, ok := ast.AsAssign(prototypeObjectLiteral.GetParent())
-	jutil.CheckStateMsg1(ok && assign.Value().Is(prototypeObjectLiteral), "%s", prototypeObjectLiteral.GetParent())
-	ownerDotPrototypeNode := assign.Target().Node()
-	jutil.CheckStateMsg1(
-		ownerDotPrototypeNode.IsQualifiedName() &&
-			ownerDotPrototypeNode.GetStringID() == analyzeProtoPrototypeID,
-		"%s", ownerDotPrototypeNode)
-	originalScript := NodeUtil_GetEnclosingScript(memberFunctionDef)
-
-	if m.noStubFunctions {
-		// Remove the definition from the object literal
-		memberFunctionDef.Detach()
-		m.compiler.ReportChangeToEnclosingScope(prototypeObjectLiteral)
-
-		// Prepend definition to new chunk
-		// Foo.prototype.propName = function() {};
-		ownerDotPrototypeDotPropName :=
-			m.astFactory.CreateGetProp(ownerDotPrototypeNode.CloneTree(), propName, AstFactory_Type_(functionNode))
-		definitionStatement :=
-			m.astFactory.
-				CreateAssignStatement(ownerDotPrototypeDotPropName, functionNode.Detach()).
-				SrcrefTreeIfMissing(memberFunctionDef)
-		destParent.AddChildToFront(definitionStatement)
-		NodeUtil_AddFeaturesToScript(
-			destParent, NodeUtil_GetFeatureSetOfScript(originalScript), m.compiler)
-		m.compiler.ReportChangeToEnclosingScope(destParent)
-	} else {
-		stubId := m.idGenerator.NewId()
-		// { propName() {} } => { propName: JSCompiler_stubMethod(0) }
-		stubCall := m.CreateStubCall(functionNode, stubId)
-		memberFunctionDef.ReplaceWith(m.astFactory.CreateStringKey(propName, stubCall))
-		m.compiler.ReportChangeToEnclosingScope(prototypeObjectLiteral)
-
-		// Prepend definition to new chunk
-		// Foo.prototype.propName = function() {};
-		ownerDotPrototypeDotPropName :=
-			m.astFactory.CreateGetProp(ownerDotPrototypeNode.CloneTree(), propName, AstFactory_Type_(functionNode))
-		unstubCall := m.CreateUnstubCall(functionNode.Detach(), stubId)
-		definitionStatement :=
-			m.astFactory.
-				CreateAssignStatement(ownerDotPrototypeDotPropName, unstubCall).
-				SrcrefTreeIfMissing(memberFunctionDef)
-		destParent.AddChildToFront(definitionStatement)
-		NodeUtil_AddFeaturesToScript(
-			destParent, NodeUtil_GetFeatureSetOfScript(originalScript), m.compiler)
-
 		m.compiler.ReportChangeToEnclosingScope(destParent)
 	}
 }

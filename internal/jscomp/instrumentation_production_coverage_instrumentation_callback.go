@@ -22,6 +22,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
@@ -80,30 +81,26 @@ func NewProductionCoverageInstrumentationCallback(
 	compiler AbstractCompiler, instrumentationArrayName string) *ProductionCoverageInstrumentationCallback {
 	return &ProductionCoverageInstrumentationCallback{
 		compiler:                 compiler,
-		parameterMapping:         newProductionCoverageInstrumentationCallback_ParameterMapping(),
+		parameterMapping:         &productionCoverageInstrumentationCallback_ParameterMapping{},
 		instrumentationArrayName: instrumentationArrayName,
 	}
 }
 
-// functionNamePeek is ArrayDeque.peek(): the top of the stack, or a null key,
-// returned unboxed by value without escaping to the heap.
-func (c *ProductionCoverageInstrumentationCallback) functionNamePeek() productionCoverageInstrumentationCallback_nullableString {
+// functionNamePeek returns the top of the function-name stack, or an absent nullableString.
+func (c *ProductionCoverageInstrumentationCallback) functionNamePeek() nullableString {
 	if len(c.functionNameStack) == 0 {
-		return productionCoverageInstrumentationCallback_nullableString{isNull: true}
+		return nullableString{}
 	}
-	return productionCoverageInstrumentationCallback_nullableString{
-		s: c.functionNameStack[len(c.functionNameStack)-1],
-	}
+	return nullableString{val: c.functionNameStack[len(c.functionNameStack)-1], ok: true}
 }
 
 // Java: ProductionCoverageInstrumentationCallback.shouldTraverse(NodeTraversal, Node, Node)
 func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-
 	// If origin of node is not from sourceFile, do not instrument. This typically occurs when
 	// polyfill code is injected into the sourceFile AST and this check avoids instrumenting it. We
 	// avoid instrumentation as this callback does not distinguish between sourceFile code and
 	// injected code and can result in an error.
-	if !n.IsRoot() && !productionCoverageInstrumentationCallback_stringsEqual(t.GetSourceName(), n.GetSourceFileName()) {
+	if !n.IsRoot() && toNullableString(t.GetSourceName()) != toNullableString(n.GetSourceFileName()) {
 		return false
 	}
 
@@ -123,18 +120,6 @@ func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraver
 	return true
 }
 
-// productionCoverageInstrumentationCallback_stringsEqual is
-// Objects.equals(String, String).
-func productionCoverageInstrumentationCallback_stringsEqual(a, b *string) bool {
-	if a == b {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return *a == *b
-}
-
 // Java: ProductionCoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
 func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	switch node.GetToken() {
@@ -146,73 +131,71 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 			panic(jutil.NewNoSuchElementException()) // ArrayDeque.pop() on an empty deque
 		}
 		c.functionNameStack = c.functionNameStack[:len(c.functionNameStack)-1]
-		fileName := productionCoverageInstrumentationCallback_keyOf(traversal.GetSourceName())
-		c.instrumentBlockNode(node.GetLastChild(), fileName, functionName, productionCoverageInstrumentationCallback_Type_FUNCTION)
+		fileName := toNullableString(traversal.GetSourceName())
+		c.instrumentBlockNode(ast.MustFunction(node).Body().Node(), fileName, functionName, productionCoverageInstrumentationCallback_Type_FUNCTION)
 	case rhino.Token_IF:
-		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		sourceFileName := toNullableString(node.GetSourceFileName())
 		functionName := c.functionNamePeek()
-		ifTrueNode := node.GetSecondChild()
-		c.instrumentBlockNode(ifTrueNode, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
-		if node.GetChildCount() == 2 {
-			c.addElseBlock(node)
+		ifNode := ast.MustIf(node)
+		c.instrumentBlockNode(ifNode.Then().Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
+		ifFalseBlock, hasElse := ifNode.Else()
+		if !hasElse {
+			ifFalseBlock = c.addElseBlock(ifNode)
 		}
-		ifFalseNode := node.GetLastChild()
 		// The compiler converts all sets of If-Else if-Else blocks into a combination of nested
 		// If-Else blocks. This case checks if the else blocks first child is an If statement, and
 		// if it is it will not instrument. This avoids adding multiple instrumentation calls.
 		// Since we also make sure an Else case is added to every If statement, we are still
 		// assured that the else statement is being reached through a later instrumentation call.
-		if NodeUtil_IsEmptyBlock(ifFalseNode) ||
-			(ifFalseNode.HasChildren() && !ifFalseNode.GetFirstChild().IsIf()) {
-			c.instrumentBlockNode(ifFalseNode, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
+		firstStmt, hasStmts := ifFalseBlock.FirstStatement()
+		if NodeUtil_IsEmptyBlock(ifFalseBlock.Node()) || (hasStmts && !firstStmt.Node().IsIf()) {
+			c.instrumentBlockNode(ifFalseBlock.Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 		}
 	case rhino.Token_SWITCH:
-		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		sourceFileName := toNullableString(node.GetSourceFileName())
 		functionName := c.functionNamePeek()
 		hasDefaultCase := false
-		switchBody := node.GetSecondChild()
-		for ch := switchBody.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
-			if ch.IsDefaultCase() {
+		switchBody := ast.MustSwitch(node).Body()
+		for sc := range switchBody.Cases() {
+			if _, isDefault := sc.AsDefaultCase(); isDefault {
 				c.instrumentBlockNode(
-					ch.GetLastChild(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
+					sc.Body().Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 				hasDefaultCase = true
 			} else {
-				c.instrumentBlockNode(ch.GetLastChild(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
+				c.instrumentBlockNode(sc.Body().Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
 			}
 		}
 		if !hasDefaultCase {
-			defaultBlock := rhino.IR_Block()
-			defaultBlock.SrcrefTreeIfMissing(node)
+			defaultBlock := rhino.IR_Block().SrcrefTreeIfMissing(node)
 			defaultCase := rhino.IR_DefaultCase(defaultBlock).SrcrefTreeIfMissing(node)
-			switchBody.AddChildToBack(defaultCase)
+			switchBody.AppendCase(ast.MustSwitchCase(defaultCase))
 			c.instrumentBlockNode(defaultBlock, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 		}
 	case rhino.Token_HOOK:
-		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		sourceFileName := toNullableString(node.GetSourceFileName())
 		functionName := c.functionNamePeek()
-		ifTernaryIsTrueExpression := node.GetSecondChild()
-		ifTernaryIsFalseExpression := node.GetLastChild()
+		hook := ast.MustHook(node)
 
 		c.addInstrumentationNodeWithComma(
-			ifTernaryIsTrueExpression, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
+			hook.Then().Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
 		c.addInstrumentationNodeWithComma(
-			ifTernaryIsFalseExpression, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
+			hook.Else().Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
 
 		c.compiler.ReportChangeToEnclosingScope(node)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
-		sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+		sourceFileName := toNullableString(node.GetSourceFileName())
 		functionName := c.functionNamePeek()
 		// Only instrument the second child of the binary operation because the first child will
 		// always execute, or the first child is part of a chain of binary operations and would have
 		// already been instrumented.
-		secondExpression := node.GetLastChild()
+		secondExpression := ast.MustBinary(node).Right().Node()
 		c.addInstrumentationNodeWithComma(
 			secondExpression, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
 
 		c.compiler.ReportChangeToEnclosingScope(node)
 	default:
 		if NodeUtil_IsLoopStructure(node) {
-			sourceFileName := productionCoverageInstrumentationCallback_keyOf(node.GetSourceFileName())
+			sourceFileName := toNullableString(node.GetSourceFileName())
 			functionName := c.functionNamePeek()
 			blockNode := NodeUtil_GetLoopCodeBlock(node)
 			rhino.CheckNotNull(blockNode)
@@ -228,8 +211,8 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 // Java: ProductionCoverageInstrumentationCallback.addInstrumentationNodeWithComma(Node, String, String, Type)
 func (c *ProductionCoverageInstrumentationCallback) addInstrumentationNodeWithComma(
 	originalNode rhino.Node,
-	fileName productionCoverageInstrumentationCallback_nullableString,
-	functionName productionCoverageInstrumentationCallback_nullableString,
+	fileName nullableString,
+	functionName nullableString,
 	type_ productionCoverageInstrumentationCallback_Type) {
 	cloneOfOriginal := originalNode.CloneTree()
 	newInstrumentationNode :=
@@ -250,8 +233,8 @@ func (c *ProductionCoverageInstrumentationCallback) addInstrumentationNodeWithCo
 // Java: ProductionCoverageInstrumentationCallback.instrumentBlockNode(Node, String, String, Type)
 func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(
 	block rhino.Node,
-	fileName productionCoverageInstrumentationCallback_nullableString,
-	fnName productionCoverageInstrumentationCallback_nullableString,
+	fileName nullableString,
+	fnName nullableString,
 	type_ productionCoverageInstrumentationCallback_Type) {
 	block.AddChildToFront(c.newInstrumentationNode(block, fileName, fnName, type_))
 	c.compiler.ReportChangeToEnclosingScope(block)
@@ -271,8 +254,8 @@ func (c *ProductionCoverageInstrumentationCallback) instrumentBlockNode(
 // Java: ProductionCoverageInstrumentationCallback.newInstrumentationNode(Node, String, String, Type)
 func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(
 	node rhino.Node,
-	fileName productionCoverageInstrumentationCallback_nullableString,
-	fnName productionCoverageInstrumentationCallback_nullableString,
+	fileName nullableString,
+	fnName nullableString,
 	type_ productionCoverageInstrumentationCallback_Type) rhino.Node {
 
 	lineNo := node.GetLineno()
@@ -297,10 +280,10 @@ func (c *ProductionCoverageInstrumentationCallback) newInstrumentationNode(
 // present.
 //
 // Java: ProductionCoverageInstrumentationCallback.addElseBlock(Node)
-func (c *ProductionCoverageInstrumentationCallback) addElseBlock(node rhino.Node) rhino.Node {
-	defaultBlock := rhino.IR_Block()
-	node.AddChildToBack(defaultBlock)
-	return defaultBlock.SrcrefTreeIfMissing(node)
+func (c *ProductionCoverageInstrumentationCallback) addElseBlock(ifNode ast.If) ast.Block {
+	defaultBlock := ast.MustBlock(rhino.IR_Block().SrcrefTreeIfMissing(ifNode.Node()))
+	ifNode.SetElse(defaultBlock)
+	return defaultBlock
 }
 
 // Java: ProductionCoverageInstrumentationCallback.getInstrumentationMapping()
@@ -308,22 +291,17 @@ func (c *ProductionCoverageInstrumentationCallback) GetInstrumentationMapping() 
 	return c.parameterMapping.getParamMappingAsVariableMap()
 }
 
-// productionCoverageInstrumentationCallback_nullableString is a Java String
-// that may be null, passed unboxed by value and used as a map key.
-//
-// Go-only: language-adapter — the file and function name maps are keyed by
-// nullable Java Strings (NodeTraversal.getSourceName() and
-// Node.getSourceFileName() may be null).
-type productionCoverageInstrumentationCallback_nullableString struct {
-	s      string
-	isNull bool
+// nullableString represents an optional Java String used as an unboxed map/set key.
+type nullableString struct {
+	val string
+	ok  bool
 }
 
-func productionCoverageInstrumentationCallback_keyOf(s *string) productionCoverageInstrumentationCallback_nullableString {
+func toNullableString(s *string) nullableString {
 	if s == nil {
-		return productionCoverageInstrumentationCallback_nullableString{isNull: true}
+		return nullableString{}
 	}
-	return productionCoverageInstrumentationCallback_nullableString{s: *s}
+	return nullableString{val: *s, ok: true}
 }
 
 // productionCoverageInstrumentationCallback_ParameterMapping maintains a
@@ -339,63 +317,28 @@ type productionCoverageInstrumentationCallback_ParameterMapping struct {
 	// defined so that we do not create a duplicate. (Ex. Key: ACA (Base64 VLQ encoding of [0,1,0]),
 	// Value: C (Base64 VLQ encoding of the uniqueIdentifier). This map will later be inversed so
 	// that it is printed in the following form: C:ACA.
-	paramEncodings map[string]string
-	paramOrder     []string
+	paramEncodings OrderedStringMap[string]
 
-	// Insertion-ordered index tables for file names, function names, and types.
-	fileNameToIndex map[productionCoverageInstrumentationCallback_nullableString]int32
-	fileNames       []productionCoverageInstrumentationCallback_nullableString
-
-	functionNameToIndex map[productionCoverageInstrumentationCallback_nullableString]int32
-	functionNames       []productionCoverageInstrumentationCallback_nullableString
-
-	typeToIndex map[string]int32
-	typeNames   []string
+	// Insertion-ordered intern tables for file names, function names, and types.
+	fileNames     OrderedSet[nullableString]
+	functionNames OrderedSet[nullableString]
+	typeNames     OrderedSet[string]
 
 	nextUniqueIdentifier int64
 	sb                   strings.Builder
 }
 
-// Java: ProductionCoverageInstrumentationCallback.ParameterMapping()
-func newProductionCoverageInstrumentationCallback_ParameterMapping() *productionCoverageInstrumentationCallback_ParameterMapping {
-	return &productionCoverageInstrumentationCallback_ParameterMapping{
-		paramEncodings:      make(map[string]string),
-		fileNameToIndex:     make(map[productionCoverageInstrumentationCallback_nullableString]int32),
-		functionNameToIndex: make(map[productionCoverageInstrumentationCallback_nullableString]int32),
-		typeToIndex:         make(map[string]int32, 3),
-		typeNames:           []string{},
-	}
-}
-
 // Java: ProductionCoverageInstrumentationCallback.ParameterMapping.getEncodedParam(String, String, Type, int, int)
 func (m *productionCoverageInstrumentationCallback_ParameterMapping) getEncodedParam(
-	fileKey productionCoverageInstrumentationCallback_nullableString,
-	functionKey productionCoverageInstrumentationCallback_nullableString,
+	fileKey nullableString,
+	functionKey nullableString,
 	type_ productionCoverageInstrumentationCallback_Type,
 	lineNo int,
 	colNo int) string {
 
-	fileIdx, ok := m.fileNameToIndex[fileKey]
-	if !ok {
-		fileIdx = int32(len(m.fileNames))
-		m.fileNameToIndex[fileKey] = fileIdx
-		m.fileNames = append(m.fileNames, fileKey)
-	}
-
-	functionIdx, ok := m.functionNameToIndex[functionKey]
-	if !ok {
-		functionIdx = int32(len(m.functionNames))
-		m.functionNameToIndex[functionKey] = functionIdx
-		m.functionNames = append(m.functionNames, functionKey)
-	}
-
-	typeName := type_.Name()
-	typeIdx, ok := m.typeToIndex[typeName]
-	if !ok {
-		typeIdx = int32(len(m.typeNames))
-		m.typeToIndex[typeName] = typeIdx
-		m.typeNames = append(m.typeNames, typeName)
-	}
+	fileIdx := int32(m.fileNames.Intern(fileKey))
+	functionIdx := int32(m.functionNames.Intern(functionKey))
+	typeIdx := int32(m.typeNames.Intern(type_.Name()))
 
 	m.sb.Reset()
 
@@ -409,7 +352,7 @@ func (m *productionCoverageInstrumentationCallback_ParameterMapping) getEncodedP
 
 	encodedParam := m.sb.String()
 
-	if existing, ok := m.paramEncodings[encodedParam]; ok {
+	if existing, ok := m.paramEncodings.Lookup(encodedParam); ok {
 		return existing
 	}
 
@@ -424,8 +367,7 @@ func (m *productionCoverageInstrumentationCallback_ParameterMapping) getEncodedP
 	sourcemap.Base64VLQ_Encode(&m.sb, int32(uniqueIdentifier))
 	encodedId := m.sb.String()
 
-	m.paramEncodings[encodedParam] = encodedId
-	m.paramOrder = append(m.paramOrder, encodedParam)
+	m.paramEncodings.Put(encodedParam, encodedId)
 
 	return encodedId
 }
@@ -436,14 +378,14 @@ func (m *productionCoverageInstrumentationCallback_ParameterMapping) generateUni
 	return m.nextUniqueIdentifier
 }
 
-// productionCoverageInstrumentationCallback_keysForJson converts nullable
-// strings into the slice representation expected by Gson.
-func productionCoverageInstrumentationCallback_keysForJson(
-	keys []productionCoverageInstrumentationCallback_nullableString) []*string {
-	out := make([]*string, len(keys))
-	for i := range keys {
-		if !keys[i].isNull {
-			out[i] = &keys[i].s
+func nullableStringsForJson(keys *OrderedSet[nullableString]) []*string {
+	out := make([]*string, 0, keys.Len())
+	for k := range keys.All() {
+		if k.ok {
+			s := k.val
+			out = append(out, &s)
+		} else {
+			out = append(out, nil)
 		}
 	}
 	return out
@@ -453,30 +395,26 @@ func productionCoverageInstrumentationCallback_keysForJson(
 func (m *productionCoverageInstrumentationCallback_ParameterMapping) getParamMappingAsVariableMap() *VariableMap {
 	gson := jutil.NewGsonBuilder().DisableHtmlEscaping().Create()
 
-	n := len(m.paramOrder) + 3
-	preVal := make(map[string]string, n)
-	preKeys := make([]string, 0, n)
-	putPre := func(k, v string) {
-		if _, exists := preVal[k]; !exists {
-			preKeys = append(preKeys, k)
-		}
-		preVal[k] = v
+	pre := NewOrderedStringMapWithCapacity[string](m.paramEncodings.Len() + 3)
+	for k, v := range m.paramEncodings.All() {
+		pre.Put(k, v)
 	}
-	for _, k := range m.paramOrder {
-		putPre(k, m.paramEncodings[k])
+
+	types := m.typeNames.ToSlice()
+	if types == nil {
+		types = []string{}
 	}
 
 	// Array names are given a " " (space) prefix since when writing to file, VariableMap.java
 	// sorts the map by key values. This space will place the arrays at the top of the file.
 	// The key and value entry are put in this order because the map will be inversed.
-	putPre(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.fileNames)), " FileNames")
-	putPre(gson.ToJson(productionCoverageInstrumentationCallback_keysForJson(m.functionNames)), " FunctionNames")
-	putPre(gson.ToJson(m.typeNames), " Types")
+	pre.Put(gson.ToJson(nullableStringsForJson(&m.fileNames)), " FileNames")
+	pre.Put(gson.ToJson(nullableStringsForJson(&m.functionNames)), " FunctionNames")
+	pre.Put(gson.ToJson(types), " Types")
 
-	origToNew := make(map[string]string, len(preKeys))
-	origKeys := make([]string, 0, len(preKeys))
-	for _, k := range preKeys {
-		v := preVal[k]
+	origToNew := make(map[string]string, pre.Len())
+	origKeys := make([]string, 0, pre.Len())
+	for k, v := range pre.All() {
 		if prevKey, dup := origToNew[v]; dup {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"Multiple entries with same value: " + k + "=" + v + " and " + prevKey + "=" + v))
@@ -486,7 +424,7 @@ func (m *productionCoverageInstrumentationCallback_ParameterMapping) getParamMap
 	}
 	return &VariableMap{
 		origToNew: origToNew,
-		newToOrig: preVal,
+		newToOrig: pre.ToMap(),
 		origKeys:  origKeys,
 	}
 }

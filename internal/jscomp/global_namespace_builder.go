@@ -322,7 +322,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 	}
 	if g.forProcessDefines && g.processDefinesCheck && g.sourceKind == GlobalNamespace_SourceKind_CODE {
 		if jsdoc := n.GetJSDocInfo(); (jsdoc != nil && jsdoc.IsDefine()) ||
-			(n.IsCall() && n.GetFirstChild().MatchesQualifiedNameNode(processDefines_GOOG_DEFINE)) ||
+			(n.IsCall() && processDefines_GOOG_DEFINE.Matches(n.GetFirstChild())) ||
 			(n.IsName() && n.GetStringID() == gnClosureDefinesStrID) {
 			if !t.currentScript.IsNil() {
 				if g.defineCandidateScripts == nil {

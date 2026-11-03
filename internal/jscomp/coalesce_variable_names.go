@@ -793,38 +793,14 @@ func (l *CoalesceVariableNames_LiveRangeChecker) varIndexByID(id uint32) int {
 
 // Java: CoalesceVariableNames.LiveRangeChecker.check(Node)
 func (l *CoalesceVariableNames_LiveRangeChecker) Check(n rhino.Node) {
-	// For most AST nodes, traverse the subtree in postorder because that's how the expressions
-	// are evaluated.
-	if n == l.root || !ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		if dlhs, ok := ast.AsDestructuringLhs(n); ok {
-			if init, hasInit := dlhs.Init(); hasInit {
-				// Evaluate the rhs of a destructuring declaration before the lhs.
-				l.Check(init.Node())
-				l.Check(dlhs.Pattern().Node())
-			} else {
-				l.Check(dlhs.Pattern().Node())
-			}
-		} else if assign, ok := ast.AsAssign(n); ok {
-			if pat, isPat := assign.Target().AsPattern(); isPat {
-				// Evaluate the rhs of a destructuring assignment before the lhs.
-				l.Check(assign.Value().Node())
-				l.Check(pat.Node())
-			} else {
-				l.Check(assign.Target().Node())
-				l.Check(assign.Value().Node())
-			}
-		} else if dv, ok := ast.AsDefaultValue(n); ok {
-			l.Check(dv.Value().Node())
-			l.Check(dv.Target().Node())
-		} else {
-			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-				l.Check(c)
-			}
-		}
-		if CoalesceVariableNames_LiveRangeChecker_ShouldVisit(n) {
-			l.Visit(n, n.GetParent())
-		}
+	if n != l.root && ControlFlowGraph_IsEnteringNewCfgNode(n) {
+		return
 	}
+	walkCfgEvalOrder(n, func(cur, parent rhino.Node) {
+		if CoalesceVariableNames_LiveRangeChecker_ShouldVisit(cur) {
+			l.Visit(cur, parent)
+		}
+	})
 }
 
 // Java: CoalesceVariableNames.LiveRangeChecker.visit(Node, Node)

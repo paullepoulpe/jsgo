@@ -437,60 +437,65 @@ func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler,
 	// suppressed by the "duplicate" group.
 	jutil.CheckNotNull(compiler.options)
 	var lazyErr *JSError
-	level := dupVarDeclGuardLevel(compiler.warningsGuard, decl, &lazyErr)
-	return level != nil && *level == CheckLevel_OFF
+	level, ok := dupVarDeclGuardLevel(compiler.warningsGuard, decl, &lazyErr)
+	return ok && level == CheckLevel_OFF
 }
 
 func makeDupVarDeclProbeError(decl rhino.Node) *JSError {
+	var src string
+	srcPtr := decl.GetSourceFileName()
+	if srcPtr != nil {
+		src = *srcPtr
+	}
 	return &JSError{
-		type_:        TypeValidator_DUP_VAR_DECLARATION,
-		description:  TypeValidator_DUP_VAR_DECLARATION.Format("dummy", "dummy"),
-		sourceName:   decl.GetSourceFileName(),
-		lineno:       decl.GetLineno(),
-		charno:       decl.GetCharno(),
-		length:       decl.GetLength(),
-		node:         decl,
-		defaultLevel: TypeValidator_DUP_VAR_DECLARATION.level,
+		type_:         TypeValidator_DUP_VAR_DECLARATION,
+		description:   TypeValidator_DUP_VAR_DECLARATION.Format("dummy", "dummy"),
+		sourceName:    src,
+		hasSourceName: srcPtr != nil,
+		lineno:        decl.GetLineno(),
+		charno:        decl.GetCharno(),
+		length:        decl.GetLength(),
+		node:          decl,
+		defaultLevel:  TypeValidator_DUP_VAR_DECLARATION.level,
 	}
 }
 
-func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSError) *CheckLevel {
+func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSError) (CheckLevel, bool) {
 	switch g := guard.(type) {
 	case *ComposeWarningsGuard:
 		for _, entry := range g.entries {
-			newLevel := dupVarDeclGuardLevel(entry.guard, decl, lazyErr)
-			if newLevel != nil {
-				if g.demoteErrors && *newLevel == CheckLevel_ERROR {
-					return CheckLevel_WARNING.Ptr()
+			if newLevel, ok := dupVarDeclGuardLevel(entry.guard, decl, lazyErr); ok {
+				if g.demoteErrors && newLevel == CheckLevel_ERROR {
+					return CheckLevel_WARNING, true
 				}
-				return newLevel
+				return newLevel, true
 			}
 		}
-		return nil
+		return 0, false
 	case *ClosureUnawareCodeWarningsGuard:
-		return nil
+		return 0, false
 	case *J2clSuppressWarningsGuard:
 		if !J2clSourceUtils_IsJ2clSource(decl.GetSourceFileName()) {
-			return nil
+			return 0, false
 		}
 		if J2clSuppressWarningsGuard_DEFAULT_J2CL_SUPRRESIONS.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
-			return CheckLevel_OFF.Ptr()
+			return CheckLevel_OFF, true
 		}
-		return nil
+		return 0, false
 	case *DiagnosticGroupWarningsGuard:
 		if g.group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
-			return g.level.Ptr()
+			return g.level, true
 		}
-		return nil
+		return 0, false
 	case *DiagnosticGroupPathSuppressingWarningsGuard:
 		src := decl.GetSourceFileName()
 		if src == nil || !strings.Contains(*src, g.part) {
-			return nil
+			return 0, false
 		}
 		if g.group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
-			return CheckLevel_OFF.Ptr()
+			return CheckLevel_OFF, true
 		}
-		return nil
+		return 0, false
 	case *ByPathWarningsGuard:
 		if TypeValidator_DUP_VAR_DECLARATION.level != CheckLevel_ERROR {
 			if errorPath := decl.GetSourceFileName(); errorPath != nil {
@@ -503,23 +508,23 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 					}
 				}
 				if inPath == g.include {
-					return g.level.Ptr()
+					return g.level, true
 				}
 			}
 		}
-		return nil
+		return 0, false
 	case *ShowByPathWarningsGuard:
 		return dupVarDeclGuardLevel(g.warningsGuard, decl, lazyErr)
 	case *CheckTypeSummaryWarningsGuard:
 		if src := decl.GetSourceFileName(); src != nil && strings.HasSuffix(*src, ".i.js") {
-			return g.level.Ptr()
+			return g.level, true
 		}
-		return nil
+		return 0, false
 	case *StrictWarningsGuard:
 		if TypeValidator_DUP_VAR_DECLARATION.level.IsOn() {
-			return CheckLevel_ERROR.Ptr()
+			return CheckLevel_ERROR, true
 		}
-		return nil
+		return 0, false
 	case *SuppressDocWarningsGuard:
 		return dupVarDeclSuppressDocLevel(g, decl)
 	default:
@@ -530,7 +535,7 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 	}
 }
 
-func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) *CheckLevel {
+func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) (CheckLevel, bool) {
 	node := decl
 	src := decl.GetSourceFileName()
 	if node.IsNil() && src != nil {
@@ -540,7 +545,7 @@ func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) *C
 		}
 	}
 	if node.IsNil() {
-		return nil
+		return 0, false
 	}
 	for current := node; !current.IsNil(); current = current.GetParent() {
 		var info *rhino.JSDocInfo
@@ -557,8 +562,8 @@ func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) *C
 			info = NodeUtil_GetBestJSDocInfo(current)
 		}
 		if info != nil {
-			if level := dupVarDeclLevelFromInfo(g, info); level != nil {
-				return level
+			if level, ok := dupVarDeclLevelFromInfo(g, info); ok {
+				return level, true
 			}
 		}
 	}
@@ -570,23 +575,25 @@ func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) *C
 			}
 		}
 	}
-	return nil
+	return 0, false
 }
 
-func dupVarDeclLevelFromInfo(g *SuppressDocWarningsGuard, info *rhino.JSDocInfo) *CheckLevel {
-	var matched *CheckLevel
+func dupVarDeclLevelFromInfo(g *SuppressDocWarningsGuard, info *rhino.JSDocInfo) (CheckLevel, bool) {
+	var matched CheckLevel
+	var found bool
 	info.ForEachSuppression(func(suppressor string) bool {
 		group := g.suppressors[suppressor]
 		if group == nil {
 			return true
 		}
 		if group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
-			matched = CheckLevel_OFF.Ptr()
+			matched = CheckLevel_OFF
+			found = true
 			return false
 		}
 		return true
 	})
-	return matched
+	return matched, found
 }
 
 // Java: TypeValidator.expectWellFormedTemplatizedType(Node)

@@ -213,18 +213,6 @@ func (t *TypeTransformation) getComputedPropName(n rhino.Node) string {
 	return ast.MustComputedProp(n).Key().Node().GetString()
 }
 
-// Eval evaluates the type transformation expression and returns the
-// resulting type.
-//
-// ttlAst is the node representing the type transformation expression;
-// typeVars is the environment containing the information about the type
-// variables. Returns the resulting type after the transformation
-//
-// Java: TypeTransformation.eval(Node, ImmutableMap<String, JSType>)
-func (t *TypeTransformation) Eval(ttlAst rhino.Node, typeVars *jutil.LinkedHashMap[string, rhino.JSType]) rhino.JSType {
-	return t.EvalWithNameVars(ttlAst, typeVars, nil)
-}
-
 // EvalWithNameVars evaluates the type transformation expression and returns
 // the resulting type.
 //
@@ -378,8 +366,8 @@ func (t *TypeTransformation) evalUnionType(ttlAst rhino.Node, nameResolver *type
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	var buf [8]rhino.JSType
 	variants := buf[:0]
-	for arg := ttlAst.GetSecondChild(); !arg.IsNil(); arg = arg.GetNext() {
-		variants = append(variants, t.evalInternal(arg, nameResolver))
+	for arg := range ast.MustCall(ttlAst).Args() {
+		variants = append(variants, t.evalInternal(arg.Node(), nameResolver))
 	}
 	return t.registry.CreateUnionType(variants...)
 }
@@ -615,8 +603,8 @@ func (t *TypeTransformation) evalRecordType(ttlAst rhino.Node, nameResolver *typ
 	jutil.CheckArgumentMsg1(ttlAst.IsCall(), "Expected a call node, found %s", ttlAst)
 	var recBuf [4]rhino.ObjectType
 	recTypesBuilder := recBuf[:0]
-	for arg := ttlAst.GetSecondChild(); !arg.IsNil(); arg = arg.GetNext() {
-		type_ := t.evalRecordParam(arg, nameResolver)
+	for arg := range ast.MustCall(ttlAst).Args() {
+		type_ := t.evalRecordParam(arg.Node(), nameResolver)
 		// Check that each parameter evaluates to an object
 		objType := type_.ToMaybeObjectType()
 		if objType == nil || objType.IsUnknownType() {

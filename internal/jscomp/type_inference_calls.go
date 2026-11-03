@@ -293,79 +293,83 @@ func (ti *TypeInference) UpdateBind(n rhino.Node) {
 //
 // Java: TypeInference.updateTypeOfArguments(Node, FunctionType)
 func (ti *TypeInference) UpdateTypeOfArguments(n rhino.Node, fnType rhino.FunctionType) {
-	jutil.CheckStateMsg1(NodeUtil_IsInvocation(n), "%s", n)
+	inv := ast.MustInvocation(n)
 	parameters := fnType.GetParameters()
-	nextParameter := 0
-	var curArg rhino.Node
-	isTaggedTemplateLit := n.IsTaggedTemplateLit()
-	if isTaggedTemplateLit {
-		// Skip the first parameter because it corresponds to a constructed array of the template lit
-		// subs, not an actual AST node, so there's nothing to update.
-		if nextParameter >= len(parameters) {
-			// TypeCheck will warn if there is no first parameter. Just bail out here.
-			return
-		}
-		nextParameter++
-		for curArg = n.GetLastChild().GetFirstChild(); !curArg.IsNil() && !curArg.IsTemplateLitSub(); curArg = curArg.GetNext() {
-		}
-	} else {
-		curArg = n.GetSecondChild()
-	}
 
 	// Note: if there are too many or too few arguments, TypeCheck will warn.
-	for nextParameter < len(parameters) && !curArg.IsNil() {
-		iArgument := curArg
-		curArg = curArg.GetNext()
-		if isTaggedTemplateLit {
-			iArgument = iArgument.GetFirstChild()
-			for !curArg.IsNil() && !curArg.IsTemplateLitSub() {
-				curArg = curArg.GetNext()
+	if tagged, ok := inv.AsTaggedTemplateLit(); ok {
+		// Skip the first parameter because it corresponds to a constructed array of the template lit
+		// subs, not an actual AST node, so there's nothing to update.
+		if len(parameters) <= 1 {
+			return
+		}
+		nextParameter := 1
+		for part := range tagged.Template().Parts() {
+			sub, isSub := part.AsTemplateLitSub()
+			if !isSub {
+				continue
+			}
+			ti.updateTypeOfArgument(sub.Expr().Node(), parameters[nextParameter])
+			nextParameter++
+			if nextParameter >= len(parameters) {
+				break
 			}
 		}
-		iArgumentType := ti.GetJSType(iArgument)
+		return
+	}
 
-		iParameter := parameters[nextParameter]
+	nextParameter := 0
+	for arg := range inv.MustCallOrNew().Args() {
+		if nextParameter >= len(parameters) {
+			break
+		}
+		ti.updateTypeOfArgument(arg.Node(), parameters[nextParameter])
 		nextParameter++
-		var iParameterType rhino.JSType
-		if iParameter.GetJSType() != nil {
-			iParameterType = iParameter.GetJSType()
-		} else {
-			iParameterType = ti.unknownType
-		}
+	}
+}
 
-		TypeInference_InferPropertyTypesToMatchConstraint(iArgumentType, iParameterType)
+func (ti *TypeInference) updateTypeOfArgument(iArgument rhino.Node, iParameter rhino.FunctionType_Parameter) {
+	iArgumentType := ti.GetJSType(iArgument)
 
-		// If the parameter to the call is a function expression, propagate the
-		// function signature from the call site to the function node.
+	var iParameterType rhino.JSType
+	if iParameter.GetJSType() != nil {
+		iParameterType = iParameter.GetJSType()
+	} else {
+		iParameterType = ti.unknownType
+	}
 
-		// Filter out non-function types (such as null and undefined) as
-		// we only care about FUNCTION subtypes here.
-		var restrictedParameter rhino.FunctionType
-		if iParameterType.IsUnionType() {
-			union := iParameterType.ToMaybeUnionType()
-			for _, alternative := range union.GetAlternates() {
-				if alternative.IsFunctionType() {
-					// There is only one function type per union.
-					restrictedParameter = alternative.ToMaybeFunctionType()
-					break
-				}
+	TypeInference_InferPropertyTypesToMatchConstraint(iArgumentType, iParameterType)
+
+	// If the parameter to the call is a function expression, propagate the
+	// function signature from the call site to the function node.
+
+	// Filter out non-function types (such as null and undefined) as
+	// we only care about FUNCTION subtypes here.
+	var restrictedParameter rhino.FunctionType
+	if iParameterType.IsUnionType() {
+		union := iParameterType.ToMaybeUnionType()
+		for _, alternative := range union.GetAlternates() {
+			if alternative.IsFunctionType() {
+				// There is only one function type per union.
+				restrictedParameter = alternative.ToMaybeFunctionType()
+				break
 			}
-		} else {
-			restrictedParameter = iParameterType.ToMaybeFunctionType()
 		}
+	} else {
+		restrictedParameter = iParameterType.ToMaybeFunctionType()
+	}
 
-		if restrictedParameter != nil && iArgument.IsFunction() && iArgumentType.IsFunctionType() {
-			argFnType := iArgumentType.ToMaybeFunctionType()
-			argJsdoc := iArgument.GetJSDocInfo()
-			// Treat the parameter & return types of the function as 'declared' if the function has
-			// JSDoc with type annotations, or a parameter has inline JSDoc.
-			// Note that this does not distinguish between cases where all parameters have JSDoc vs
-			// only one parameter has JSDoc.
-			declared :=
-				(argJsdoc != nil && argJsdoc.ContainsDeclaration()) ||
-					NodeUtil_FunctionHasInlineJsdocs(iArgument)
-			iArgument.SetJSType(ti.MatchFunction(restrictedParameter, argFnType, declared))
-		}
+	if restrictedParameter != nil && iArgument.IsFunction() && iArgumentType.IsFunctionType() {
+		argFnType := iArgumentType.ToMaybeFunctionType()
+		argJsdoc := iArgument.GetJSDocInfo()
+		// Treat the parameter & return types of the function as 'declared' if the function has
+		// JSDoc with type annotations, or a parameter has inline JSDoc.
+		// Note that this does not distinguish between cases where all parameters have JSDoc vs
+		// only one parameter has JSDoc.
+		declared :=
+			(argJsdoc != nil && argJsdoc.ContainsDeclaration()) ||
+				NodeUtil_FunctionHasInlineJsdocs(iArgument)
+		iArgument.SetJSType(ti.MatchFunction(restrictedParameter, argFnType, declared))
 	}
 }
 

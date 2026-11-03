@@ -233,8 +233,8 @@ func reportHalts(c *Compiler, err *JSError) bool {
 	}
 	level := err.DefaultLevel()
 	if c.warningsGuard != nil {
-		if newLevel := c.warningsGuard.Level(err); newLevel != nil {
-			level = *newLevel
+		if newLevel, ok := c.warningsGuard.Level(err); ok {
+			level = newLevel
 		}
 	}
 	return level == CheckLevel_ERROR
@@ -565,4 +565,195 @@ func runParallelWorkersIndexed[W any](
 	if workerPanic != nil {
 		panic(workerPanic)
 	}
+}
+
+type parallelNodeTask[S any] struct {
+	allowDetached           bool
+	enableTypeRegistryReads bool
+	prepare                 func()
+	nodeAt                  func(idx int) rhino.Node
+	initWorker              func(workerID int, rc *Compiler) S
+	runItem                 func(state S, idx int, rc *Compiler)
+	onItemPanic             func(state S)
+	finishWorker            func(workerID int, state S)
+}
+
+func runParallelNodesByScript[S any](
+	compiler *Compiler,
+	itemCount int,
+	task parallelNodeTask[S],
+) bool {
+	if itemCount < 2 || parallelThreadCount(compiler, itemCount) <= 1 {
+		return false
+	}
+	bucketByScript := make(map[rhino.Node]int, min(itemCount, 64))
+	var buckets [][]int
+	var detached []int
+	for idx := 0; idx < itemCount; idx++ {
+		script := NodeUtil_GetEnclosingScript(task.nodeAt(idx))
+		if script.IsNil() {
+			if !task.allowDetached {
+				return false
+			}
+			detached = append(detached, idx)
+			continue
+		}
+		bIdx, exists := bucketByScript[script]
+		if !exists {
+			bIdx = len(buckets)
+			bucketByScript[script] = bIdx
+			buckets = append(buckets, []int{idx})
+		} else {
+			buckets[bIdx] = append(buckets[bIdx], idx)
+		}
+	}
+	numWorkers := parallelThreadCount(compiler, len(buckets))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	if task.enableTypeRegistryReads {
+		prewarmCompilerForParallelReads(compiler)
+		restoreReg := enableParallelTypeRegistryReads(compiler)
+		defer restoreReg()
+	}
+	if task.prepare != nil {
+		task.prepare()
+	}
+
+	eventsByItem := make([][]recordedCompilerEvent, itemCount)
+	panicsByItem := make([]any, itemCount)
+
+	runParallelWork(compiler, numWorkers, len(buckets), func(workerID int) (func(int, *recordingCompiler), func()) {
+		var state S
+		initialized := false
+		var cleanup func()
+		if task.finishWorker != nil {
+			cleanup = func() {
+				if initialized {
+					task.finishWorker(workerID, state)
+				}
+			}
+		}
+		runBucket := func(bIdx int, rc *recordingCompiler) {
+			if !initialized {
+				if task.initWorker != nil {
+					state = task.initWorker(workerID, rc)
+				}
+				initialized = true
+			}
+			for _, origIdx := range buckets[bIdx] {
+				resetRecordingCompiler(rc, compiler)
+				panicked := runParallelItemIndexed(rc, origIdx, panicsByItem, func(rc *recordingCompiler, itemIdx int) {
+					task.runItem(state, itemIdx, rc)
+				})
+				eventsByItem[origIdx] = rc.takeEvents()
+				if panicked {
+					if task.onItemPanic != nil {
+						task.onItemPanic(state)
+					}
+					return
+				}
+			}
+		}
+		return runBucket, cleanup
+	}, false)
+
+	if len(detached) > 0 {
+		var mainRC recordingCompiler
+		initRecordingCompiler(&mainRC, compiler)
+		var mainState S
+		if task.initWorker != nil {
+			mainState = task.initWorker(0, &mainRC)
+			if task.finishWorker != nil {
+				defer task.finishWorker(0, mainState)
+			}
+		}
+		for _, origIdx := range detached {
+			resetRecordingCompiler(&mainRC, compiler)
+			panicked := runParallelItemIndexed(&mainRC, origIdx, panicsByItem, func(rc *recordingCompiler, itemIdx int) {
+				task.runItem(mainState, itemIdx, rc)
+			})
+			eventsByItem[origIdx] = mainRC.takeEvents()
+			if panicked && task.onItemPanic != nil {
+				task.onItemPanic(mainState)
+			}
+		}
+	}
+
+	for i := 0; i < itemCount; i++ {
+		if len(eventsByItem[i]) != 0 {
+			replayCompilerEvents(compiler, eventsByItem[i])
+		}
+		if p := panicsByItem[i]; p != nil {
+			rethrowParallelPanic(compiler, p)
+		}
+	}
+	return true
+}
+
+// runThrowableTask invokes fn and catches any jutil.Throwable panic, returning
+// it as a value while re-panicking non-Throwable panics.
+func runThrowableTask(fn func()) (failure jutil.Throwable) {
+	defer func() {
+		if r := recover(); r != nil {
+			if t, ok := r.(jutil.Throwable); ok {
+				failure = t
+				return
+			}
+			panic(r)
+		}
+	}()
+	fn()
+	return nil
+}
+
+// parallelPrebuild runs every submitted task, retaining Throwable failures in
+// index order. Each slot is written by one worker and consumed after the join.
+func parallelPrebuild(count, workers int, run func(int)) []jutil.Throwable {
+	return runParallelIndexedTasks(count, workers, func(_, index int) { run(index) })
+}
+
+func runParallelIndexedTasks(count, workers int, run func(worker, index int)) []jutil.Throwable {
+	var nextWorker atomic.Int32
+	return parallelPrebuildWorkers(count, workers, func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)) {
+		worker := int(nextWorker.Add(1) - 1)
+		for {
+			index, ok := claim()
+			if !ok {
+				return
+			}
+			if t := runThrowableTask(func() { run(worker, index) }); t != nil {
+				recordFailure(index, t)
+			}
+		}
+	})
+}
+
+func parallelPrebuildWorkers(
+	count, workers int,
+	workerFn func(claim func() (int, bool), recordFailure func(int, jutil.Throwable)),
+) []jutil.Throwable {
+	failures := make([]jutil.Throwable, count)
+	var next atomic.Int64
+	claim := func() (int, bool) {
+		index := int(next.Add(1) - 1)
+		if index >= count {
+			return 0, false
+		}
+		return index, true
+	}
+	recordFailure := func(index int, t jutil.Throwable) {
+		failures[index] = t
+	}
+	var wg sync.WaitGroup
+	for range min(workers, count) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			workerFn(claim, recordFailure)
+		}()
+	}
+	wg.Wait()
+	return failures
 }

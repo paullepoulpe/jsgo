@@ -30,7 +30,7 @@ import (
 type NodeModuleResolver struct {
 	moduleResolverCommon
 
-	packageJsonMainEntries *jutil.LinkedHashMap[string, string]
+	packageJsonMainEntries OrderedStringMap[string]
 	nodeModulesFolders     []string
 }
 
@@ -53,9 +53,8 @@ var nodeModuleResolver_FILES_TO_SEARCH = []string{
 
 // Java: NodeModuleResolver.buildNodeModulesFoldersRegistry(Iterable<String>, Iterable<String>)
 func nodeModuleResolver_buildNodeModulesFoldersRegistry(
-	modulePaths *jutil.LinkedHashSet[string], moduleRootPaths []string) []string {
-	var seen map[string]struct{}
-	var registry []string
+	modulePaths *OrderedSet[string], moduleRootPaths []string) []string {
+	var seen OrderedSet[string]
 
 	const sep = "/node_modules/"
 	for modulePath := range modulePaths.All() {
@@ -78,25 +77,19 @@ func nodeModuleResolver_buildNodeModulesFoldersRegistry(
 			if idx == -1 {
 				break
 			}
-			parentPath := trimmed[:offset+idx+1]
-			if seen == nil {
-				seen = make(map[string]struct{})
-			}
-			if _, ok := seen[parentPath]; !ok {
-				seen[parentPath] = struct{}{}
-				registry = append(registry, parentPath)
-			}
+			seen.Add(trimmed[:offset+idx+1])
 			offset += idx + len(sep)
 		}
 	}
 
+	registry := seen.ToSlice()
 	slices.SortFunc(registry, comparePathsLongestFirst)
 	return registry
 }
 
 // NodeModuleResolver_Factory is the factory for NodeModuleResolver.
 type NodeModuleResolver_Factory struct {
-	packageJsonMainEntries *jutil.LinkedHashMap[string, string]
+	packageJsonMainEntries *OrderedStringMap[string]
 }
 
 var _ ModuleLoader_ModuleResolverFactory = (*NodeModuleResolver_Factory)(nil)
@@ -108,12 +101,14 @@ func NewNodeModuleResolver_Factory() *NodeModuleResolver_Factory {
 
 // Java: NodeModuleResolver.Factory(Map<String, String>)
 func NewNodeModuleResolver_FactoryWithEntries(packageJsonMainEntries *jutil.LinkedHashMap[string, string]) *NodeModuleResolver_Factory {
-	return &NodeModuleResolver_Factory{packageJsonMainEntries: packageJsonMainEntries}
+	return &NodeModuleResolver_Factory{
+		packageJsonMainEntries: orderedStringMapFromLinkedHashMap(packageJsonMainEntries),
+	}
 }
 
 // Java: NodeModuleResolver.Factory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 func (f *NodeModuleResolver_Factory) Create(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
@@ -123,28 +118,26 @@ func (f *NodeModuleResolver_Factory) Create(
 
 // Java: NodeModuleResolver(ImmutableSet<String>, ImmutableList<String>, Map<String, String>, ErrorHandler, PathEscaper)
 func NewNodeModuleResolver(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
-	packageJsonMainEntries *jutil.LinkedHashMap[string, string],
+	packageJsonMainEntries *OrderedStringMap[string],
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) *NodeModuleResolver {
 	r := &NodeModuleResolver{
 		moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
 		nodeModulesFolders:   nodeModuleResolver_buildNodeModulesFoldersRegistry(modulePaths, moduleRootPaths),
 	}
-
-	if packageJsonMainEntries == nil {
-		r.packageJsonMainEntries = emptyPackageJsonMainEntries
-	} else {
+	if packageJsonMainEntries != nil {
 		r.packageJsonMainEntries = nodeModuleResolver_buildPackageJsonMainEntries(packageJsonMainEntries)
 	}
 	return r
 }
 
 func nodeModuleResolver_buildPackageJsonMainEntries(
-	packageJsonMainEntries *jutil.LinkedHashMap[string, string]) *jutil.LinkedHashMap[string, string] {
-	builder := jutil.NewLinkedHashMap[string, string]()
-	for entryKey, value := range packageJsonMainEntries.All() {
+	packageJsonMainEntries *OrderedStringMap[string]) OrderedStringMap[string] {
+	var builder OrderedStringMap[string]
+	for _, e := range packageJsonMainEntries.Entries() {
+		entryKey, value := e.Key, e.Value
 		if ModuleLoader_IsAmbiguousIdentifier(entryKey) {
 			entryKey = ModuleLoader_MODULE_SLASH + entryKey
 		}
@@ -159,7 +152,14 @@ func nodeModuleResolver_buildPackageJsonMainEntries(
 
 // Java: NodeModuleResolver.getPackageJsonMainEntries()
 func (r *NodeModuleResolver) GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string] {
-	return r.packageJsonMainEntries
+	if r.packageJsonMainEntries.IsEmpty() {
+		return emptyPackageJsonMainEntries
+	}
+	out := jutil.NewLinkedHashMapWithCapacity[string, string](r.packageJsonMainEntries.Len())
+	for _, e := range r.packageJsonMainEntries.Entries() {
+		out.Put(e.Key, e.Value)
+	}
+	return out
 }
 
 // Java: NodeModuleResolver.resolveJsModule(String, String, String, int, int)
@@ -168,7 +168,7 @@ func (r *NodeModuleResolver) ResolveJsModule(
 	loadAddress, ok := r.internalResolveJsModule(scriptAddress, moduleAddress)
 	if !ok {
 		r.errorHandler.Report(
-			CheckLevel_WARNING.Ptr(),
+			CheckLevel_WARNING,
 			JSError_MakeWithSourceLocation(&sourcename, lineno, colno, ModuleLoader_LOAD_WARNING, moduleAddress))
 	}
 	return loadAddress, ok

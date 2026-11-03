@@ -95,7 +95,6 @@ type shard struct {
 
 var (
 	shards      [numShards]shard
-	cleared     atomic.Bool
 	emptyString = ""
 	seed        = maphash.MakeSeed()
 )
@@ -140,7 +139,7 @@ func (s *shard) growTable() {
 	s.table = newTable
 }
 
-func (s *shard) probeLocked(hash32 uint32, str string) (uint32, bool) {
+func probeLocked[S ~string | ~[]byte](s *shard, hash32 uint32, key S) (uint32, bool) {
 	tbl := s.table
 	if len(tbl) == 0 {
 		return 0, false
@@ -154,7 +153,7 @@ func (s *shard) probeLocked(hash32 uint32, str string) (uint32, bool) {
 		}
 		if uint32(entry>>32) == hash32 {
 			localIdx := uint32(entry) - 1
-			if s.stringAt(localIdx) == str {
+			if s.stringAt(localIdx) == string(key) {
 				return localIdx, true
 			}
 		}
@@ -176,7 +175,7 @@ func Intern(str string) ID {
 	s := &shards[shardIdx]
 
 	s.mu.RLock()
-	if localIdx, ok := s.probeLocked(hash32, str); ok {
+	if localIdx, ok := probeLocked(s, hash32, str); ok {
 		s.mu.RUnlock()
 		return makeID(localIdx, shardIdx)
 	}
@@ -185,7 +184,7 @@ func Intern(str string) ID {
 	s.mu.Lock()
 	if len(s.table) == 0 {
 		s.table = make([]uint64, 128)
-	} else if localIdx, ok := s.probeLocked(hash32, str); ok {
+	} else if localIdx, ok := probeLocked(s, hash32, str); ok {
 		s.mu.Unlock()
 		return makeID(localIdx, shardIdx)
 	}
@@ -227,17 +226,6 @@ func StringPtr(id ID) *string {
 	return &s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
 }
 
-func ClearForTest() {
-	cleared.Store(true)
-	for i := range shards {
-		s := &shards[i]
-		s.mu.Lock()
-		clear(s.table)
-		s.count = 0
-		s.mu.Unlock()
-	}
-}
-
 func Lookup(str string) ID {
 	if len(str) == 0 {
 		return EmptyID
@@ -248,7 +236,7 @@ func Lookup(str string) ID {
 	s := &shards[shardIdx]
 
 	s.mu.RLock()
-	localIdx, ok := s.probeLocked(hash32, str)
+	localIdx, ok := probeLocked(s, hash32, str)
 	s.mu.RUnlock()
 	if !ok {
 		return 0
@@ -268,27 +256,10 @@ func InternBytes(b []byte) ID {
 	s := &shards[shardIdx]
 
 	s.mu.RLock()
-	if tbl := s.table; len(tbl) > 0 {
-		mask := uint32(len(tbl) - 1)
-		slot := hash32 & mask
-		for {
-			entry := tbl[slot]
-			if entry == 0 {
-				break
-			}
-			if uint32(entry>>32) == hash32 {
-				localIdx := uint32(entry) - 1
-				if s.stringAt(localIdx) == string(b) {
-					s.mu.RUnlock()
-					return makeID(localIdx, shardIdx)
-				}
-			}
-			slot = (slot + 1) & mask
-		}
+	if localIdx, ok := probeLocked(s, hash32, b); ok {
+		s.mu.RUnlock()
+		return makeID(localIdx, shardIdx)
 	}
 	s.mu.RUnlock()
 	return Intern(string(b))
 }
-
-// WasClearedForTest reports whether ClearForTest has been called.
-func WasClearedForTest() bool { return cleared.Load() }

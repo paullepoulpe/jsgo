@@ -45,7 +45,7 @@ func NodeUtil_GetVarsDeclaredInBranch(root rhino.Node) []rhino.Node {
 			})
 		}
 		if !n.IsFunction() {
-			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			for c := range n.Children() {
 				walk(c)
 			}
 		}
@@ -58,12 +58,17 @@ func NodeUtil_GetVarsDeclaredInBranch(root rhino.Node) []rhino.Node {
 func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 	switch n.GetToken() {
 	case rhino.Token_IMPORT:
-		NodeUtil_GetLhsNodesHelper(n.GetFirstChild(), consumer)
-		NodeUtil_GetLhsNodesHelper(n.GetSecondChild(), consumer)
+		imp := ast.MustImport(n)
+		if def, ok := imp.Default(); ok {
+			NodeUtil_GetLhsNodesHelper(def.Node(), consumer)
+		}
+		if bindings, ok := imp.Bindings(); ok {
+			NodeUtil_GetLhsNodesHelper(bindings.Node(), consumer)
+		}
 		return
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET, rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN,
 		rhino.Token_PARAM_LIST, rhino.Token_IMPORT_SPECS:
-		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		for child := range n.Children() {
 			NodeUtil_GetLhsNodesHelper(child, consumer)
 		}
 		return
@@ -83,7 +88,7 @@ func NodeUtil_GetLhsNodesHelper(n rhino.Node, consumer func(rhino.Node)) {
 		// e.g.
 		// for (some.prop in someObj) {...
 		// for ({a, b} of someIterable) {...
-		NodeUtil_GetLhsNodesHelper(n.GetFirstChild(), consumer)
+		NodeUtil_GetLhsNodesHelper(ast.MustEnhancedFor(n).Target().Node(), consumer)
 	default:
 		if NodeUtil_IsAssignmentOp(n) {
 			NodeUtil_GetLhsNodesHelper(n.GetFirstChild(), consumer)
@@ -168,7 +173,7 @@ func NodeUtil_GetNodeTypeReferenceCount(
 		total++
 	}
 	if traverseChildrenPred(node) {
-		for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		for c := range node.Children() {
 			total += NodeUtil_GetNodeTypeReferenceCount(c, type_, traverseChildrenPred)
 		}
 	}
@@ -202,7 +207,7 @@ func nodeUtil_hasNameIDWithPred(node rhino.Node, id uint32, traverseChildrenPred
 	if !traverseChildrenPred(node) {
 		return false
 	}
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range node.Children() {
 		if nodeUtil_hasNameIDWithPred(c, id, traverseChildrenPred) {
 			return true
 		}
@@ -227,7 +232,7 @@ func nodeUtil_hasNameID(node rhino.Node, id uint32) bool {
 	if node.IsName() && node.GetStringID() == id {
 		return true
 	}
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range node.Children() {
 		if nodeUtil_hasNameID(c, id) {
 			return true
 		}
@@ -253,7 +258,7 @@ func nodeUtil_countNameID(node rhino.Node, id uint32) int {
 	if node.IsName() && node.GetStringID() == id {
 		total++
 	}
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range node.Children() {
 		total += nodeUtil_countNameID(c, id)
 	}
 	return total
@@ -275,7 +280,7 @@ func NodeUtil_Has(node rhino.Node, pred func(rhino.Node) bool, traverseChildrenP
 		return false
 	}
 
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range node.Children() {
 		if NodeUtil_Has(c, pred, traverseChildrenPred) {
 			return true
 		}
@@ -298,7 +303,7 @@ func NodeUtil_FindPreorder(
 		return rhino.NilNode
 	}
 
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range node.Children() {
 		result := NodeUtil_FindPreorder(c, pred, traverseChildrenPred)
 		if !result.IsNil() {
 			return result
@@ -320,7 +325,7 @@ func NodeUtil_GetCount(n rhino.Node, pred func(rhino.Node) bool, traverseChildre
 	}
 
 	if traverseChildrenPred(n) {
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		for c := range n.Children() {
 			total += NodeUtil_GetCount(c, pred, traverseChildrenPred)
 		}
 	}
@@ -346,7 +351,7 @@ func NodeUtil_VisitPreOrderWithPred(
 	visitor(node)
 
 	if traverseChildrenPred(node) {
-		for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		for c := range node.Children() {
 			NodeUtil_VisitPreOrderWithPred(c, visitor, traverseChildrenPred)
 		}
 	}
@@ -498,11 +503,8 @@ func (*externVarNameCollector) ShouldTraverse(*NodeTraversal, rhino.Node, rhino.
 }
 
 func (c *externVarNameCollector) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if !parent.IsNil() {
-		if pt := parent.GetToken(); (pt == rhino.Token_IMPORT_SPEC && n != parent.GetLastChild()) ||
-			(pt == rhino.Token_EXPORT_SPEC && n != parent.GetFirstChild()) {
-			return
-		}
+	if role := ast.RoleIn(n, parent); role == ast.RoleImportSpecImported || role == ast.RoleExportSpecExported {
+		return
 	}
 	id := n.GetStringID()
 	var v *Var

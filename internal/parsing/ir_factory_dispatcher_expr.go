@@ -34,7 +34,7 @@ func (f *IRFactory) NewStringNodeFromIdentifier(
 	checkTokenNotNull(identifierToken)
 	// Private properties can only ever be referenced from within the scope of
 	// a class. If we're not in a class, we always use STANDARD rules.
-	if !f.classScope.InScope() {
+	if f.classScopeDepth == 0 {
 		identifierType = IRFactory_IdentifierType_STANDARD
 	}
 
@@ -397,8 +397,8 @@ func (f *IRFactory) ProcessBinaryExpressionHelper(exprTree *parser.BinaryOperato
 func (f *IRFactory) TransformLhsOfBinaryTree(exprTree *parser.BinaryOperatorTree) rhino.Node {
 	if exprTree.Operator.Type() == parser.TokenType_IN {
 		if identExpr, ok := exprTree.Left.(*parser.IdentifierExpressionTree); ok && identExpr.IdentifierToken.IsPrivateIdentifier() {
-			ignored := f.privateIdLhsOfInScope.MaybeIncrement(true)
-			defer ignored.Close()
+			f.privateIdLhsOfInDepth++
+			defer func() { f.privateIdLhsOfInDepth-- }()
 			return f.Transform(exprTree.Left)
 		}
 	}

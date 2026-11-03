@@ -71,26 +71,73 @@ type Locator interface {
 	GetColumnNumber() int
 }
 
+// saxLocator is the Locator given to the ContentHandler: the scanner's
+// current position, and -1 once the document has ended.
+type saxLocator struct{ s *saxScanner }
+
+func (l *saxLocator) GetPublicId() *string { return nil }
+func (l *saxLocator) GetSystemId() *string { return nil }
+func (l *saxLocator) GetLineNumber() int {
+	if l.s.ended {
+		return -1
+	}
+	return l.s.in.line
+}
+func (l *saxLocator) GetColumnNumber() int {
+	if l.s.ended {
+		return -1
+	}
+	return l.s.in.column
+}
+
 // Attributes is org.xml.sax.Attributes (the queries by index and by qName).
 type Attributes interface {
 	GetLength() int
 	GetQName(index int) string
 	GetValueAt(index int) string
-	// GetValue is getValue(String qName): nil when there is no such
-	// attribute.
-	GetValue(qName string) *string
+	// Value returns the value for qName and whether the attribute is present.
+	Value(qName string) (string, bool)
 }
 
-// ContentHandler is org.xml.sax.ContentHandler. Characters and
-// IgnorableWhitespace receive UTF-16 code units, like Java's char[].
+// saxAttributes is the Attributes of a start tag, in document order.
+type saxAttributes struct {
+	names  []string
+	values []string
+}
+
+func (a *saxAttributes) GetLength() int { return len(a.names) }
+
+func (a *saxAttributes) GetQName(index int) string {
+	if index < 0 || index >= len(a.names) {
+		return ""
+	}
+	return a.names[index]
+}
+
+func (a *saxAttributes) GetValueAt(index int) string {
+	if index < 0 || index >= len(a.values) {
+		return ""
+	}
+	return a.values[index]
+}
+
+func (a *saxAttributes) Value(qName string) (string, bool) {
+	for i, n := range a.names {
+		if n == qName {
+			return a.values[i], true
+		}
+	}
+	return "", false
+}
+
+// ContentHandler is org.xml.sax.ContentHandler (namespace-unaware subset).
+// Characters and IgnorableWhitespace receive UTF-16 code units, like Java's char[].
 type ContentHandler interface {
 	SetDocumentLocator(locator Locator)
 	StartDocument()
 	EndDocument()
-	StartPrefixMapping(prefix string, uri string)
-	EndPrefixMapping(prefix string)
-	StartElement(uri string, localName string, qName string, atts Attributes)
-	EndElement(uri string, localName string, qName string)
+	StartElement(qName string, atts Attributes)
+	EndElement(qName string)
 	Characters(ch []uint16, start int, length int)
 	IgnorableWhitespace(ch []uint16, start int, length int)
 	ProcessingInstruction(target string, data string)
@@ -100,35 +147,19 @@ type ContentHandler interface {
 // DefaultHandler provides no-op implementations of ContentHandler.
 type DefaultHandler struct{}
 
-func (DefaultHandler) SetDocumentLocator(Locator)                      {}
-func (DefaultHandler) StartDocument()                                  {}
-func (DefaultHandler) EndDocument()                                    {}
-func (DefaultHandler) StartPrefixMapping(string, string)               {}
-func (DefaultHandler) EndPrefixMapping(string)                         {}
-func (DefaultHandler) StartElement(string, string, string, Attributes) {}
-func (DefaultHandler) EndElement(string, string, string)               {}
-func (DefaultHandler) Characters([]uint16, int, int)                   {}
-func (DefaultHandler) IgnorableWhitespace([]uint16, int, int)          {}
-func (DefaultHandler) ProcessingInstruction(string, string)            {}
-func (DefaultHandler) SkippedEntity(string)                            {}
-
-type saxBailout struct {
-	err jutil.Throwable
-}
+func (DefaultHandler) SetDocumentLocator(Locator)             {}
+func (DefaultHandler) StartDocument()                         {}
+func (DefaultHandler) EndDocument()                           {}
+func (DefaultHandler) StartElement(string, Attributes)        {}
+func (DefaultHandler) EndElement(string)                      {}
+func (DefaultHandler) Characters([]uint16, int, int)          {}
+func (DefaultHandler) IgnorableWhitespace([]uint16, int, int) {}
+func (DefaultHandler) ProcessingInstruction(string, string)   {}
+func (DefaultHandler) SkippedEntity(string)                   {}
 
 // Parse streams XML 1.0 events from r to handler and returns the exception
 // the JDK's SAXParser would throw at the first well-formedness, encoding, or
 // I/O error.
-func Parse(r io.Reader, handler ContentHandler) (err jutil.Throwable) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			if b, ok := rec.(saxBailout); ok {
-				err = b.err
-				return
-			}
-			panic(rec)
-		}
-	}()
-	newSaxScanner(handler, r).parse()
-	return nil
+func Parse(r io.Reader, handler ContentHandler) jutil.Throwable {
+	return newSaxScanner(handler, r).parse()
 }

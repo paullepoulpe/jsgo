@@ -961,7 +961,7 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 	parent rhino.Node,
 	replacements *jutil.LinkedHashMap[string, rhino.Node],
 	replaceThis bool) rhino.Node {
-	var idMap inlineIDNodeMap
+	var idMap smallIDNodeMap
 	idMap.clear()
 	hadThis := false
 	if replacements != nil {
@@ -983,7 +983,7 @@ func (f *FunctionArgumentInjector) InjectWithReplaceThis(
 // Java: FunctionArgumentInjector.getFunctionCallParameterMap(Node, Node, Supplier<String>)
 func (f *FunctionArgumentInjector) GetFunctionCallParameterMap(
 	fnNode rhino.Node, callNode rhino.Node, safeNameIdSupplier func() string) *jutil.LinkedHashMap[string, FunctionArgumentInjector_ParamArgPair] {
-	var bindingsBuf [inlineSmallCap]callParamBinding
+	var bindingsBuf [smallSetInlineCap]callParamBinding
 	bindings := f.appendCallParamBindings(bindingsBuf[:0], fnNode, callNode, safeNameIdSupplier, callParamWalkOwned)
 	if hasDuplicateBindingID(bindings) {
 		throwDuplicateParamBinding(bindings)
@@ -1006,16 +1006,16 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 	if argMap.IsEmpty() {
 		return modifiedParameters
 	}
-	var bindingsBuf [inlineSmallCap]callParamBinding
+	var bindingsBuf [smallSetInlineCap]callParamBinding
 	bindings := bindingsFromArgMap(bindingsBuf[:0], argMap)
-	var modifiedIDs inlineIDSet
+	var modifiedIDs smallIDSet
 	modifiedIDs.fromLinkedHashSet(modifiedParameters, true)
 	requiresTempsUpToID := f.findRequiresTempsUpToParameterID(
 		compiler, fnNode, bindings, &modifiedIDs, convention, nil, false)
 	if requiresTempsUpToID == 0 {
 		return modifiedParameters
 	}
-	var dstIDs inlineIDSet
+	var dstIDs smallIDSet
 	dstIDs.addAll(&modifiedIDs)
 	addCallArgumentsNeedingTempsByID(fnNode, bindings, requiresTempsUpToID, &dstIDs)
 	return dstIDs.toLinkedHashSet()
@@ -1023,7 +1023,7 @@ func (f *FunctionArgumentInjector) GatherCallArgumentsNeedingTemps(
 
 // Java: FunctionArgumentInjector.findModifiedParameters(Node)
 func (f *FunctionArgumentInjector) FindModifiedParameters(fnNode rhino.Node) *jutil.LinkedHashSet[string] {
-	var paramIDs, modifiedIDs inlineIDSet
+	var paramIDs, modifiedIDs smallIDSet
 	f.findModifiedParametersByIDInto(fnNode, &paramIDs, &modifiedIDs)
 	return modifiedIDs.toLinkedHashSet()
 }
@@ -1057,7 +1057,7 @@ func bindingsFromArgMap(dst []callParamBinding, argMap *jutil.LinkedHashMap[stri
 	return dst
 }
 
-func (s *inlineIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern bool) {
+func (s *smallIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern bool) {
 	s.clear()
 	if src == nil || src.IsEmpty() {
 		return
@@ -1075,7 +1075,7 @@ func (s *inlineIDSet) fromLinkedHashSet(src *jutil.LinkedHashSet[string], intern
 	}
 }
 
-func (s *inlineIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
+func (s *smallIDSet) toLinkedHashSet() *jutil.LinkedHashSet[string] {
 	out := jutil.NewLinkedHashSetWithCapacity[string](s.size())
 	if s != nil {
 		for _, id := range s.items {

@@ -40,6 +40,7 @@ import (
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 const (
@@ -838,7 +839,7 @@ func (r *JSTypeRegistry) canPropertyBeDefinedWithKey(type_ JSType, key Property_
 //
 // Java: JSTypeRegistry.getEachReferenceTypeWithProperty(String)
 func (r *JSTypeRegistry) GetEachReferenceTypeWithProperty(propertyName string) []ObjectType {
-	if id := rhinoStringPoolLookup(propertyName); id != 0 {
+	if id := strpool.Lookup(propertyName); id != 0 {
 		if s, ok := r.eachRefTypeIndexedByProperty[id]; ok {
 			return s.toObjectTypeSlice()
 		}

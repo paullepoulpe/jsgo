@@ -31,6 +31,16 @@ func TestInternAndPointers(t *testing.T) {
 	if StringPtr(id1) != StringPtr(id2) || *StringPtr(id1) != large {
 		t.Fatalf("StringPtr identity failed")
 	}
+
+	raw := []byte("zero_alloc_intern_bytes_probe")
+	wantID := Intern(string(raw))
+	if allocs := testing.AllocsPerRun(100, func() {
+		if InternBytes(raw) != wantID {
+			t.Fatal("InternBytes mismatch")
+		}
+	}); allocs != 0 {
+		t.Fatalf("InternBytes hit allocated %v times, want 0", allocs)
+	}
 }
 
 func TestConcurrentInternAndRead(t *testing.T) {

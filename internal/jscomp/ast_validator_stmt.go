@@ -39,7 +39,7 @@ func (v *AstValidator) ValidateRoot(n rhino.Node) {
 // Java: AstValidator.validateCodeRoot(Node)
 func (v *AstValidator) ValidateCodeRoot(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_ROOT, n)
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		v.ValidateScript(c)
 	}
 }
@@ -217,7 +217,7 @@ func (v *AstValidator) ValidateStatementWithAmbient(n rhino.Node, isAmbient bool
 // Java: AstValidator.validateBlock(Node)
 func (v *AstValidator) ValidateBlock(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_BLOCK, n)
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range n.Children() {
 		v.ValidateStatement(c)
 	}
 }
@@ -451,7 +451,7 @@ func (v *AstValidator) ValidateSwitch(n rhino.Node) {
 	v.ValidateNodeType(rhino.Token_SWITCH_BODY, n.GetSecondChild())
 	cases := n.GetSecondChild()
 	defaults := 0
-	for c := cases.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := range cases.Children() {
 		v.ValidateSwitchMember(c)
 		if c.IsDefaultCase() {
 			defaults++

@@ -184,47 +184,14 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareParameters(fn ast.Function) {
 		return
 	}
 
-	var iifeArgumentNode rhino.Node
-
-	if NodeUtil_IsInvocationTarget(functionNode) {
-		iifeArgumentNode = functionNode.GetNext()
-	}
-
 	functionType := rhino.JSType_ToMaybeFunctionType(functionNode.GetJSType())
 	if functionType != nil {
-		// Go-only: language-adapter — the Iterator<Parameter> is an index into
-		// the parameter list.
-		jsdocParameters := functionType.GetParameters()
-		jsdocParametersIndex := 0
-		var jsDocParameter rhino.FunctionType_Parameter
-		if jsdocParametersIndex < len(jsdocParameters) {
-			jsDocParameter = jsdocParameters[jsdocParametersIndex]
-			jsdocParametersIndex++
-		}
-
-		for astParameter := range fn.Params().Params() {
-			if !iifeArgumentNode.IsNil() && iifeArgumentNode.IsSpread() {
-				// don't try inferring types from spreads in iifes because we don't know how
-				// many items are in the iterable.
-				iifeArgumentNode = rhino.NilNode
-			}
-			var declaredType rhino.JSType
-			if jsDocParameter.IsZero() {
+		for zp := range zipFunctionParams(fn.Params(), functionType.GetParameters(), firstIIFEArg(fn)) {
+			declaredType := zp.jsDocParam.GetJSType()
+			if declaredType == nil {
 				declaredType = b.outer.unknownType
-			} else {
-				declaredType = jsDocParameter.GetJSType()
 			}
-			b.DeclareNamesInPositionalParameter(astParameter, declaredType, iifeArgumentNode)
-			if !jsDocParameter.IsZero() {
-				jsDocParameter = rhino.FunctionType_Parameter{}
-				if jsdocParametersIndex < len(jsdocParameters) {
-					jsDocParameter = jsdocParameters[jsdocParametersIndex]
-					jsdocParametersIndex++
-				}
-			}
-			if !iifeArgumentNode.IsNil() {
-				iifeArgumentNode = iifeArgumentNode.GetNext()
-			}
+			b.DeclareNamesInPositionalParameter(zp, declaredType)
 		}
 
 		b.DeclareTemplatesInFunctionBody(functionNode, functionType)
@@ -306,21 +273,20 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 // DeclareNamesInPositionalParameter declares the name(s) in a positional AST
 // parameter in the scope.
 //
-// astParameter is the positional parameter node; declaredParameterType the
-// declared parameter type, or the unknown type if there is none;
-// iifeArgumentNode the corresponding argument from the iife, if in an iife.
-// e.g. for `(function (x) {}(3);` this would be `3`.
+// zp holds the unwrapped positional parameter, JSDoc parameter, and optional
+// IIFE argument; declaredParameterType is the declared parameter type, or the
+// unknown type if there is none.
 //
 // Java: TypedScopeCreator.FunctionScopeBuilder.declareNamesInPositionalParameter(Node, JSType, Node)
 func (b *TypedScopeCreator_scopeBuilder) DeclareNamesInPositionalParameter(
-	astParameter ast.Param, declaredParameterType rhino.JSType, iifeArgumentNode rhino.Node) {
+	zp zippedFunctionParam, declaredParameterType rhino.JSType) {
 	paramType := declaredParameterType
 	isInferred := paramType.Equals(b.outer.unknownType)
 
-	if !iifeArgumentNode.IsNil() && isInferred {
+	if !zp.callArg.IsNil() && isInferred {
 		var argumentVar *TypedVar
 		if b.currentScope.GetParent() != nil {
-			if argumentName, ok := iifeArgumentNode.GetQualifiedNameString(); ok {
+			if argumentName, ok := zp.callArg.GetQualifiedNameString(); ok {
 				argumentVar = b.currentScope.GetParent().GetVar(argumentName)
 			}
 		}
@@ -332,37 +298,17 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareNamesInPositionalParameter(
 	if paramType == nil {
 		paramType = b.outer.unknownType
 	}
-
-	switch astParameter.Token() {
-	case rhino.Token_NAME:
-		// function f(x) {}
-		b.DeclareSingleParameterName(isInferred, astParameter.Node(), paramType)
-	case rhino.Token_ITER_REST:
-		// function f(...x) {}
+	if zp.isRest {
 		// rest parameter is actually an array of the type specified in the JSDoc
-		target := astParameter.MustIterRest().Target()
 		arrayType := b.outer.typeRegistry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE)
-		restParamType := b.outer.typeRegistry.CreateTemplatizedType(arrayType, paramType)
-		if target.Token() == rhino.Token_NAME {
-			b.DeclareSingleParameterName(isInferred, target.Node(), restParamType)
-		} else {
-			// function f(...{length}) {}
-			b.DeclareDestructuringParameter(isInferred, target.Node(), restParamType)
-		}
-	case rhino.Token_DEFAULT_VALUE:
-		// function f(x = 3) {} or function f([x] = []) {}
-		actualParam := astParameter.MustDefaultValue().Target()
-		if actualParam.Token() == rhino.Token_NAME {
-			b.DeclareSingleParameterName(isInferred, actualParam.Node(), paramType)
-		} else {
-			b.DeclareDestructuringParameter(isInferred, actualParam.Node(), paramType)
-		}
-	case rhino.Token_ARRAY_PATTERN, rhino.Token_OBJECT_PATTERN:
-		// function f([x]) {}
-		// function f({x}) {}
-		b.DeclareDestructuringParameter(isInferred, astParameter.Node(), paramType)
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unexpected function parameter node " + nodeStringOrNull(astParameter.Node())))
+		paramType = b.outer.typeRegistry.CreateTemplatizedType(arrayType, paramType)
+	}
+
+	targetNode := zp.target.Node()
+	if targetNode.IsName() {
+		b.DeclareSingleParameterName(isInferred, targetNode, paramType)
+	} else {
+		b.DeclareDestructuringParameter(isInferred, targetNode, paramType)
 	}
 }
 
@@ -634,9 +580,9 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTravers
 		return
 	}
 	root := t.GetScopeRoot()
-	if root.IsFunction() {
+	if fn, ok := ast.AsFunction(root); ok {
 		a.localContainerDepth++
-		if !root.GetLastChild().IsBlock() {
+		if _, isBlock := fn.Body().AsBlock(); !isBlock {
 			a.outer.functionsWithNonEmptyReturns[root] = struct{}{}
 		}
 	} else if root.IsModuleBody() || NodeUtil_IsClassStaticBlock(root) {
@@ -768,12 +714,14 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 	}
 
 	// Record function with returns (blockless arrow functions are recorded in EnterScope)
-	if n.IsReturn() && n.HasChildren() {
-		for i := len(t.scopes) - 1; i >= 0; i-- {
-			rootNode := t.scopes[i].node
-			if !NodeUtil_CreatesBlockScope(rootNode) {
-				a.outer.functionsWithNonEmptyReturns[rootNode] = struct{}{}
-				break
+	if ret, ok := ast.AsReturn(n); ok {
+		if _, hasValue := ret.Value(); hasValue {
+			for i := len(t.scopes) - 1; i >= 0; i-- {
+				rootNode := t.scopes[i].node
+				if !NodeUtil_CreatesBlockScope(rootNode) {
+					a.outer.functionsWithNonEmptyReturns[rootNode] = struct{}{}
+					break
+				}
 			}
 		}
 		return

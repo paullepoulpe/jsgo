@@ -245,10 +245,8 @@ func (c *CompilerInput) GetKnownRequires() []*DependencyInfo_Require {
 	var first []*DependencyInfo_Require
 	if c.dependencyInfo != nil {
 		first = c.dependencyInfo.GetRequires()
-	} else {
-		first = []*DependencyInfo_Require{}
 	}
-	return compilerInput_concat(first, c.extraRequires)
+	return compilerInput_concatRequires(first, c.extraRequires)
 }
 
 // Java: CompilerInput.getKnownRequiredSymbols()
@@ -282,10 +280,8 @@ func (c *CompilerInput) GetKnownProvides() []string {
 	var first []string
 	if c.dependencyInfo != nil {
 		first = c.dependencyInfo.GetProvides()
-	} else {
-		first = []string{}
 	}
-	return compilerInput_concat(first, c.extraProvides)
+	return compilerInput_concatStrings(first, c.extraProvides)
 }
 
 // AddProvide registers a type that this input defines. Includes both
@@ -303,7 +299,7 @@ func (c *CompilerInput) AddProvide(provide string) {
 // Java: CompilerInput.addOrderedRequire(Require)
 func (c *CompilerInput) AddOrderedRequire(require *DependencyInfo_Require) bool {
 	for _, r := range c.orderedRequires {
-		if jutil.ObjectsEquals(r, require) {
+		if r == require || (r != nil && require != nil && *r == *require) {
 			return false
 		}
 	}
@@ -393,8 +389,8 @@ func (c *CompilerInput) GetDependencyInfo() DependencyInfo {
 	}
 	if len(c.extraRequires) != 0 || len(c.extraProvides) != 0 {
 		c.dependencyInfo = SimpleDependencyInfo_Builder_(c.GetName(), c.GetName()).
-			SetProvides(compilerInput_concat(c.dependencyInfo.GetProvides(), c.extraProvides)).
-			SetRequires(compilerInput_concat(c.dependencyInfo.GetRequires(), c.extraRequires)).
+			SetProvides(compilerInput_concatStrings(c.dependencyInfo.GetProvides(), c.extraProvides)).
+			SetRequires(compilerInput_concatRequires(c.dependencyInfo.GetRequires(), c.extraRequires)).
 			SetTypeRequires(c.dependencyInfo.GetTypeRequires()).
 			SetLoadFlagsValue(c.dependencyInfo.GetLoadFlags()).
 			SetHasExternsAnnotation(c.dependencyInfo.GetHasExternsAnnotation()).
@@ -428,7 +424,7 @@ func (c *CompilerInput) generateDependencyInfo() DependencyInfo {
 		code, err := c.getCode()
 		if err != nil {
 			c.compiler.GetErrorManager().Report(
-				CheckLevel_ERROR.Ptr(),
+				CheckLevel_ERROR,
 				JSError_Make(AbstractCompiler_READ_ERROR, c.GetName(), ioErrorMessage(err)))
 			return SimpleDependencyInfo_EMPTY
 		}
@@ -508,7 +504,7 @@ func (f *CompilerInput_DepsFinder) VisitTree(n rhino.Node) {
 
 func (f *CompilerInput_DepsFinder) containsRequire(r *DependencyInfo_Require) bool {
 	for _, x := range f.requires {
-		if jutil.ObjectsEquals(x, r) {
+		if x == r || (x != nil && r != nil && *x == *r) {
 			return true
 		}
 	}
@@ -710,19 +706,36 @@ func (c *CompilerInput) GetRequiredSymbols() []string {
 	return DependencyInfo_GetRequiredSymbols(c)
 }
 
-// compilerInput_concat is ImmutableSet.builder().addAll(first).addAll(second).build():
-// the elements of both, in order, without duplicates (by Java equals).
-//
-// Java: CompilerInput.concat(Iterable<T>, Iterable<T>)
-func compilerInput_concat[T any](first []T, second []T) []T {
-	set := jutil.NewObjectLinkedHashSet[T]()
-	for _, e := range first {
-		set.Add(e)
+func compilerInput_concatStrings(first, second []string) []string {
+	var seen OrderedSet[string]
+	out := make([]string, 0, len(first)+len(second))
+	for _, s := range first {
+		if seen.Add(s) {
+			out = append(out, s)
+		}
 	}
-	for _, e := range second {
-		set.Add(e)
+	for _, s := range second {
+		if seen.Add(s) {
+			out = append(out, s)
+		}
 	}
-	return set.ToSlice()
+	return out
+}
+
+func compilerInput_concatRequires(first, second []*DependencyInfo_Require) []*DependencyInfo_Require {
+	var seen OrderedSet[DependencyInfo_Require]
+	out := make([]*DependencyInfo_Require, 0, len(first)+len(second))
+	for _, r := range first {
+		if seen.Add(*r) {
+			out = append(out, r)
+		}
+	}
+	for _, r := range second {
+		if seen.Add(*r) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // Java: CompilerInput.getPath()
@@ -750,30 +763,8 @@ var compilerInput_ModuleType_names = [...]string{
 	"NONE", "GOOG", "ES6", "COMMONJS", "JSON", "IMPORTED_SCRIPT",
 }
 
-// CompilerInput_ModuleType_values is ModuleType.values().
-func CompilerInput_ModuleType_values() []CompilerInput_ModuleType {
-	return []CompilerInput_ModuleType{
-		CompilerInput_ModuleType_NONE, CompilerInput_ModuleType_GOOG, CompilerInput_ModuleType_ES6,
-		CompilerInput_ModuleType_COMMONJS, CompilerInput_ModuleType_JSON,
-		CompilerInput_ModuleType_IMPORTED_SCRIPT,
-	}
-}
-
 // String is Enum.name().
 func (t CompilerInput_ModuleType) String() string { return compilerInput_ModuleType_names[t] }
-
-// Ordinal is Enum.ordinal().
-func (t CompilerInput_ModuleType) Ordinal() int { return int(t) }
-
-var compilerInput_ModuleType_ptrs = CompilerInput_ModuleType_values()
-
-// Ptr returns the canonical pointer to t.
-//
-// Go-only: language-adapter — a nullable Java ModuleType reference is a
-// *CompilerInput_ModuleType; nil is null.
-func (t CompilerInput_ModuleType) Ptr() *CompilerInput_ModuleType {
-	return &compilerInput_ModuleType_ptrs[t]
-}
 
 // Java: CompilerInput.getFeatures(AbstractCompiler)
 func (c *CompilerInput) GetFeatures(compiler AbstractCompiler) *parser.FeatureSet {

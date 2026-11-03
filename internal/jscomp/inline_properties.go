@@ -39,7 +39,6 @@ type InlineProperties struct {
 	compiler    AbstractCompiler
 	registry    *colors.ColorRegistry
 	astAnalyzer *AstAnalyzer
-	prototypeID uint32
 	props       map[uint32]inlinePropInfo
 	// Go-only: the properties whose entry is invalidated (an entry never
 	// becomes a candidate again), to skip the map on repeated invalidations.
@@ -71,6 +70,8 @@ type inlinePropInfo struct {
 }
 
 var (
+	inlinePropertiesPrototypeID = uint32(strpool.Intern("prototype"))
+
 	inlinePropsGatherTokens = func() ast.TokenSet {
 		var s ast.TokenSet
 		s.Add(rhino.Token_GETPROP)
@@ -108,7 +109,6 @@ func inlinePropColor(n rhino.Node) *colors.Color {
 
 // Java: InlineProperties.process(Node, Node)
 func (p *InlineProperties) Process(externs rhino.Node, root rhino.Node) {
-	p.prototypeID = uint32(strpool.Intern("prototype"))
 	if externProps := p.compiler.GetExternProperties(); externProps != nil {
 		for name := range externProps.All() {
 			if id := strpool.Lookup(name); id != 0 {
@@ -327,7 +327,7 @@ func (g *inlineGatherCandidates) maybeRecordCandidateGetpropDefinition(t inlineT
 		}
 		return false
 	} else if t.inGlobalHoistScope {
-		if srcGetProp, ok := ast.AsGetProp(src); ok && srcGetProp.Node().GetStringID() == g.outer.prototypeID {
+		if srcGetProp, ok := ast.AsGetProp(src); ok && srcGetProp.Node().GetStringID() == inlinePropertiesPrototypeID {
 			// This is a prototype assignment like:
 			//    x.prototype.foo = 1;
 			return g.maybeStoreCandidateValue(inlinePropColor(src), propID, value)

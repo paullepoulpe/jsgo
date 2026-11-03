@@ -45,13 +45,11 @@ type Es6RewriteBlockScopedDeclaration struct {
 	uniqueIdSupplier  *UniqueIdSupplier
 }
 
-var es6RewriteBlockScopedDeclarationVisitTokens = func() ast.TokenSet {
-	var s ast.TokenSet
-	s.Add(rhino.Token_LET)
-	s.Add(rhino.Token_CONST)
-	s.Add(rhino.Token_FOR_OF)
-	return s
-}()
+var es6RewriteBlockScopedDeclarationVisitTokens = makeVisitTokenSet(
+	rhino.Token_LET,
+	rhino.Token_CONST,
+	rhino.Token_FOR_OF,
+)
 
 var _ nodeTraversal_visitTokens = (*Es6RewriteBlockScopedDeclaration)(nil)
 
@@ -101,7 +99,7 @@ func (e *Es6RewriteBlockScopedDeclaration) Visit(t *NodeTraversal, n rhino.Node,
 
 	if n.IsLet() || n.IsConst() {
 		e.addLetConst(n)
-		for nameNode := n.GetFirstChild(); !nameNode.IsNil(); nameNode = nameNode.GetNext() {
+		for nameNode := range n.Children() {
 			e.visitBlockScopedNameDeclaration(n, nameNode)
 		}
 	}
@@ -202,27 +200,16 @@ func (e *Es6RewriteBlockScopedDeclaration) handleLetConstDeclarationList(declara
 func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInForInInitializer(declarationList rhino.Node, forIn ast.ForIn) {
 	loopNode := forIn.Node()
 	lhs := declarationList.GetFirstChild()
-	if dlhs, ok := ast.AsDestructuringLhs(lhs); ok {
-		jutil.CheckStateMsg(
-			false, "Destructuring syntax is unsupported in ES6RewriteBlockScopedDeclarations pass")
-		NodeUtil_VisitLhsNodesInNode(
-			lhs,
-			func(name rhino.Node) {
-				nm, ok := ast.AsName(name)
-				jutil.CheckStateMsg1(ok, "lhs in destructuring declaration should be a simple name. (%s)", name)
-				newVar := rhino.IR_Var(rhino.IR_Name(nm.Ident()).Srcref(name)).Srcref(name)
-				es6BlockExtractInlineJSDoc(declarationList, name, newVar)
-				e.addNodeBeforeLoop(newVar, loopNode)
-			})
-		declarationList.ReplaceWith(dlhs.Pattern().Node().Detach())
-	} else {
-		newStatement := declarationList.CloneTree()
-		name := newStatement.GetFirstChild().CloneNode()
-		newStatement.SetToken(rhino.Token_VAR)
-		es6BlockExtractInlineJSDoc(declarationList, lhs, newStatement)
-		declarationList.ReplaceWith(name)
-		e.addNodeBeforeLoop(newStatement, loopNode)
+	if _, ok := ast.AsDestructuringLhs(lhs); ok {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Destructuring syntax is unsupported in ES6RewriteBlockScopedDeclarations pass"))
 	}
+	newStatement := declarationList.CloneTree()
+	name := newStatement.GetFirstChild().CloneNode()
+	newStatement.SetToken(rhino.Token_VAR)
+	es6BlockExtractInlineJSDoc(declarationList, lhs, newStatement)
+	declarationList.ReplaceWith(name)
+	e.addNodeBeforeLoop(newStatement, loopNode)
 }
 
 func (e *Es6RewriteBlockScopedDeclaration) handleLetConstInVanillaForInitializer(declarationList rhino.Node, forLoop ast.For) {
@@ -444,7 +431,7 @@ func (l *es6BlockLoopClosureTransformer) createWrapperFunctions() []ast.Function
 			updater := NewThisAndArgumentsReferenceUpdater(l.pass.compiler, thisContext, l.pass.astFactory)
 			NodeTraversal_Traverse(l.pass.compiler, functionOrObjectLit, updater)
 			thisContext.AddVarDeclarations(l.pass.compiler, l.pass.astFactory, script)
-			for child := scopeBody.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+			for child := range scopeBody.Children() {
 				if child.IsLet() || child.IsConst() {
 					l.pass.addLetConst(child)
 				}
@@ -484,7 +471,7 @@ func (l *es6BlockLoopClosureTransformer) updateNames(node rhino.Node, paramIdent
 		nm.SetIdent(paramIdent)
 		return
 	}
-	for child := node.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range node.Children() {
 		l.updateNames(child, paramIdent, loopObjectName)
 	}
 }
@@ -538,9 +525,9 @@ func (l *es6BlockLoopClosureTransformer) replaceDeclarationWithProperty(
 	l.pass.handleLetConstDeclarationList(declaration, grandParent)
 
 	declaration = reference.GetParent()
-	if reference.HasChildren() {
+	if init, ok := ast.MustName(reference).Init(); ok {
 		newReference := l.createLoopVarReferenceReplacement(loopObject, reference, newPropertyName)
-		assign := l.pass.astFactory.CreateAssign(newReference, reference.RemoveFirstChild())
+		assign := l.pass.astFactory.CreateAssign(newReference, init.Detach().Node())
 		es6BlockExtractInlineJSDoc(declaration, reference, declaration)
 		es6BlockMaybeAddConstJSDoc(declaration, reference, declaration)
 		assign.SetJSDocInfo(declaration.GetJSDocInfo())
@@ -566,8 +553,8 @@ func (l *es6BlockLoopClosureTransformer) assignLoopVarToLoopObjectProperty(
 			reference.CloneNode())).
 		SrcrefTreeIfMissing(reference)
 
-	loopUpdateStatement := forIn.Body().Node().GetFirstChild()
-	forInPropAssignmentStatement.InsertAfter(loopUpdateStatement)
+	loopUpdateStatement, _ := forIn.Body().FirstStatement()
+	forInPropAssignmentStatement.InsertAfter(loopUpdateStatement.Node())
 }
 
 func (l *es6BlockLoopClosureTransformer) renameVarsToProperties(

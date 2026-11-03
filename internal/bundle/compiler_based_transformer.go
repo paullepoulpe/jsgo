@@ -104,32 +104,37 @@ func NewCompilerBasedTransformer_CompilerSupplier() *CompilerBasedTransformer_De
 	return &CompilerBasedTransformer_DefaultCompilerSupplier{}
 }
 
-func compileSingleFileWithOptions(
-	path *jutil.Path,
+var devNullSourceMapPath = "/dev/null"
+
+// CompileSingleFile compiles a single JS source file with the shared Symbol()
+// externs, returning the compiler, its Result, the emitted JS source, whether
+// the source was transformed, and the serialized source map (when transformed).
+func CompileSingleFile(
+	path string,
 	code string,
 	options *jscomp.CompilerOptions,
-	alwaysTransformed bool) *CompilerBasedTransformer_CompileResult {
-	compiler := jscomp.NewCompiler()
-	result := compiler.CompileOfSourceFiles(
+	alwaysTransformed bool,
+) (compiler *jscomp.Compiler, result *jscomp.Result, source string, transformed bool, sourceMap string) {
+	compiler = jscomp.NewCompiler()
+	result = compiler.CompileOfSourceFiles(
 		CompilerBasedTransformer_CompilerSupplier_EXTERNS,
-		jscomp.SourceFile_FromCode(path.String(), code),
+		jscomp.SourceFile_FromCode(path, code),
 		options)
-	source := compiler.ToSource()
-	var sourceMap strings.Builder
+	source = compiler.ToSource()
+	var smBuilder strings.Builder
 	if result.SourceMap != nil {
-		name := path.String()
-		result.SourceMap.AppendTo(&sourceMap, &name)
+		result.SourceMap.AppendTo(&smBuilder, &path)
 	}
-	transformed := alwaysTransformed || result.TranspiledFiles
-	sm := ""
+	transformed = alwaysTransformed || result.TranspiledFiles
 	if transformed {
-		sm = sourceMap.String()
+		sourceMap = smBuilder.String()
 	}
-	return NewCompilerBasedTransformer_CompileResult(
-		source, result.Errors, transformed, sm)
+	return compiler, result, source, transformed, sourceMap
 }
 
-func runtimeSingleFileWithOptions(options *jscomp.CompilerOptions, library string) string {
+// CompileRuntimeLibrary compiles an empty input with library force-injected
+// into options and returns the emitted runtime JS code.
+func CompileRuntimeLibrary(options *jscomp.CompilerOptions, library string) string {
 	compiler := jscomp.NewCompiler()
 	options.SetForceLibraryInjection([]string{library})
 	compiler.CompileOfSourceFiles(
@@ -139,14 +144,36 @@ func runtimeSingleFileWithOptions(options *jscomp.CompilerOptions, library strin
 	return compiler.ToSource()
 }
 
+// SetCommonTranspilationOptions configures the CompilerOptions shared by
+// single-file ES transpilers in bundle and transpile.
+func SetCommonTranspilationOptions(options *jscomp.CompilerOptions) {
+	options.SetQuoteKeywordProperties(true)
+	options.SetSkipNonTranspilationPasses(true)
+	options.SetVariableRenaming(jscomp.VariableRenamingPolicy_OFF)
+	options.SetPropertyRenaming(jscomp.PropertyRenamingPolicy_OFF)
+	options.SetWrapGoogModulesForWhitespaceOnly(false)
+	options.SetPrettyPrint(true)
+	options.SetSourceMapOutputPath(&devNullSourceMapPath)
+	options.SetSourceMapIncludeSourcesContent(true)
+}
+
+func compileSingleFile(
+	path *jutil.Path,
+	code string,
+	options *jscomp.CompilerOptions,
+	alwaysTransformed bool) *CompilerBasedTransformer_CompileResult {
+	_, result, source, transformed, sm := CompileSingleFile(path.String(), code, options, alwaysTransformed)
+	return NewCompilerBasedTransformer_CompileResult(source, result.Errors, transformed, sm)
+}
+
 // Java: CompilerSupplier.compile(Path, String)
 func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	return compileSingleFileWithOptions(path, code, s.Options(), false)
+	return compileSingleFile(path, code, s.Options(), false)
 }
 
 // Java: CompilerSupplier.runtime(String)
 func (s *CompilerBasedTransformer_DefaultCompilerSupplier) Runtime(library string) string {
-	return runtimeSingleFileWithOptions(s.Options(), library)
+	return CompileRuntimeLibrary(s.Options(), library)
 }
 
 // Java: CompilerSupplier.options()
@@ -168,15 +195,7 @@ func (s *CompilerBasedTransformer_DefaultCompilerSupplier) SetOptions(options *j
 	// the first step would be to allow the option of outputting strict
 	// and then change the default and see what breaks.  b/33005948
 	options.SetLanguageOut(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT5)
-	options.SetQuoteKeywordProperties(true)
-	options.SetSkipNonTranspilationPasses(true)
-	options.SetVariableRenaming(jscomp.VariableRenamingPolicy_OFF)
-	options.SetPropertyRenaming(jscomp.PropertyRenamingPolicy_OFF)
-	options.SetWrapGoogModulesForWhitespaceOnly(false)
-	options.SetPrettyPrint(true)
-	devNull := "/dev/null"
-	options.SetSourceMapOutputPath(&devNull)
-	options.SetSourceMapIncludeSourcesContent(true)
+	SetCommonTranspilationOptions(options)
 	options.SetWarningLevel(CompilerBasedTransformer_CompilerSupplier_ES5_WARNINGS, jscomp.CheckLevel_OFF)
 }
 
@@ -245,12 +264,12 @@ func NewCoverageInstrumenter_CompilerSupplier() *CoverageInstrumenter_CompilerSu
 
 // Java: CompilerSupplier.compile(Path, String)
 func (s *CoverageInstrumenter_CompilerSupplier) Compile(path *jutil.Path, code string) *CompilerBasedTransformer_CompileResult {
-	return compileSingleFileWithOptions(path, code, s.Options(), true)
+	return compileSingleFile(path, code, s.Options(), true)
 }
 
 // Java: CompilerSupplier.runtime(String)
 func (s *CoverageInstrumenter_CompilerSupplier) Runtime(library string) string {
-	return runtimeSingleFileWithOptions(s.Options(), library)
+	return CompileRuntimeLibrary(s.Options(), library)
 }
 
 // Java: CompilerSupplier.options()
@@ -269,8 +288,7 @@ func (s *CoverageInstrumenter_CompilerSupplier) SetOptions(options *jscomp.Compi
 	// Setting the path to any non-null value will trigger source map
 	// generation. CompilerBasedTransformer attachs the sourcemap to the
 	// result.
-	devNull := "/dev/null"
-	options.SetSourceMapOutputPath(&devNull)
+	options.SetSourceMapOutputPath(&devNullSourceMapPath)
 	options.SetVariableRenaming(jscomp.VariableRenamingPolicy_OFF)
 	options.SetInstrumentForCoverageOption(jscomp.CompilerOptions_InstrumentOption_LINE_ONLY)
 	options.SetInstrumentForCoverageOnly(true)

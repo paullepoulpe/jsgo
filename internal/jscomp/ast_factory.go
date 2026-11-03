@@ -389,6 +389,41 @@ func (a *AstFactory) CreateNameWithUnknownType(name string) rhino.Node {
 	return a.CreateName(name, AstFactory_Type_OfJSTypeAndColor(a.unknownType, colors.StandardColors_UNKNOWN))
 }
 
+// buildQName splits qname on '.' and builds a property chain starting from
+// makeBase(head), calling step(receiver, prop, prefix) for each subsequent
+// segment (where prefix is qname up to and including prop).
+func buildQName(
+	qname string,
+	makeBase func(head string) rhino.Node,
+	step func(receiver rhino.Node, prop, prefix string) rhino.Node,
+) rhino.Node {
+	head, _, hasDot := strings.Cut(qname, ".")
+	result := makeBase(head)
+	if !hasDot {
+		return result
+	}
+	for propStart := len(head) + 1; ; {
+		relDot := strings.IndexByte(qname[propStart:], '.')
+		if relDot < 0 {
+			return step(result, qname[propStart:], qname)
+		}
+		nextDot := propStart + relDot
+		result = step(result, qname[propStart:nextDot], qname[:nextDot])
+		propStart = nextDot + 1
+	}
+}
+
+func (a *AstFactory) scopedQNameProp(scope rhino.StaticScope, receiver rhino.Node, prop, prefix string) rhino.Node {
+	var type_ AstFactory_Type
+	if a.IsAddingTypes() || a.IsAddingColors() {
+		def := jutil.CheckNotNullMsg1(scope.GetSlot(prefix), "Cannot find name %s in StaticScope.", prefix).
+			GetDeclaration().
+			GetNode()
+		type_ = AstFactory_Type_(def)
+	}
+	return a.CreateGetProp(receiver, prop, type_)
+}
+
 // CreateQNameUsingJSTypeInfo looks up the type of a name from a TypedScope
 // created from typechecking, using the JSType API. Will crash if is called
 // on an AstFactory that is created after JSType -> color conversion.
@@ -401,32 +436,16 @@ func (a *AstFactory) CreateNameWithUnknownType(name string) rhino.Node {
 func (a *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope, qname string) rhino.Node {
 	jutil.CheckArgumentMsg1(globalTypedScope == nil || globalTypedScope.IsGlobal(), "%s", globalTypedScope)
 	a.AssertNotAddingColors()
-
-	dot := strings.IndexByte(qname, '.')
-	receiverPart := qname
-	if dot >= 0 {
-		receiverPart = qname[:dot]
-	}
-
-	receiver := rhino.IR_Name(receiverPart)
-	if a.IsAddingTypes() {
-		var_ := jutil.CheckNotNullMsg1(globalTypedScope.GetVar(receiverPart), "%s", receiverPart)
-		receiver.SetJSType(jutil.CheckNotNullMsg1(var_.GetType(), "%s", var_))
-	}
-	if dot < 0 {
-		return receiver
-	}
-
-	result := receiver
-	rest := qname[dot+1:]
-	for {
-		nextDot := strings.IndexByte(rest, '.')
-		if nextDot < 0 {
-			return a.CreateGetPropWithoutColor(result, rest)
+	return buildQName(qname, func(head string) rhino.Node {
+		receiver := rhino.IR_Name(head)
+		if a.IsAddingTypes() {
+			var_ := jutil.CheckNotNullMsg1(globalTypedScope.GetVar(head), "%s", head)
+			receiver.SetJSType(jutil.CheckNotNullMsg1(var_.GetType(), "%s", var_))
 		}
-		result = a.CreateGetPropWithoutColor(result, rest[:nextDot])
-		rest = rest[nextDot+1:]
-	}
+		return receiver
+	}, func(receiver rhino.Node, prop, _ string) rhino.Node {
+		return a.CreateGetPropWithoutColor(receiver, prop)
+	})
 }
 
 // CreateQName creates a qualfied name in the given scope.
@@ -437,42 +456,11 @@ func (a *AstFactory) CreateQNameUsingJSTypeInfo(globalTypedScope *TypedScope, qn
 //
 // Java: AstFactory.createQName(StaticScope, String)
 func (a *AstFactory) CreateQName(scope rhino.StaticScope, qname string) rhino.Node {
-	dot := strings.IndexByte(qname, '.')
-	if dot < 0 {
-		return a.CreateNameInScope(scope, qname)
-	}
-	baseNameNode := a.CreateNameInScope(scope, qname[:dot])
-	return a.createQNamePropsFromString(scope, baseNameNode, qname, dot+1)
-}
-
-func (a *AstFactory) createQNamePropsFromString(
-	scope rhino.StaticScope, baseNameNode rhino.Node, qname string, propStart int) rhino.Node {
-	result := baseNameNode
-	addingTypeInfo := a.IsAddingTypes() || a.IsAddingColors()
-	for {
-		relDot := strings.IndexByte(qname[propStart:], '.')
-		var propertyName, prefix string
-		if relDot < 0 {
-			propertyName = qname[propStart:]
-			prefix = qname
-		} else {
-			nextDot := propStart + relDot
-			propertyName = qname[propStart:nextDot]
-			prefix = qname[:nextDot]
-			propStart = nextDot + 1
-		}
-		var type_ AstFactory_Type
-		if addingTypeInfo {
-			def := jutil.CheckNotNullMsg1(scope.GetSlot(prefix), "Cannot find name %s in StaticScope.", prefix).
-				GetDeclaration().
-				GetNode()
-			type_ = AstFactory_Type_(def)
-		}
-		result = a.CreateGetProp(result, propertyName, type_)
-		if relDot < 0 {
-			return result
-		}
-	}
+	return buildQName(qname,
+		func(head string) rhino.Node { return a.CreateNameInScope(scope, head) },
+		func(recv rhino.Node, prop, prefix string) rhino.Node {
+			return a.scopedQNameProp(scope, recv, prop, prefix)
+		})
 }
 
 // CreateQNameOfNames creates a qualfied name in the given scope.
@@ -531,13 +519,10 @@ func (a *AstFactory) CreateQNameWithBaseNameNode(
 		}
 		return qname
 	}
-	name := baseName
+	prefix := baseName
 	for _, propertyName := range propertyNames {
-		name += "." + propertyName
-		def := jutil.CheckNotNullMsg1(scope.GetSlot(name), "Cannot find name %s in StaticScope.", name).
-			GetDeclaration().
-			GetNode()
-		qname = a.CreateGetProp(qname, propertyName, AstFactory_Type_(def))
+		prefix += "." + propertyName
+		qname = a.scopedQNameProp(scope, qname, propertyName, prefix)
 	}
 	return qname
 }
@@ -562,44 +547,29 @@ func (a *AstFactory) createJscompFieldBaseNode(baseName string) rhino.Node {
 //
 // Java: AstFactory.createQName(StaticScope, RuntimeJsLibManager.JsLibField)
 func (a *AstFactory) CreateQNameOfField(scope rhino.StaticScope, field RuntimeJsLibManager_JsLibField) rhino.Node {
-	qname := field.AssertInjected().QualifiedName()
-	dot := strings.IndexByte(qname, '.')
-	if dot < 0 {
-		return a.createJscompFieldBaseNode(qname)
-	}
-	baseNameNode := a.createJscompFieldBaseNode(qname[:dot])
-	return a.createQNamePropsFromString(scope, baseNameNode, qname, dot+1)
+	return buildQName(field.AssertInjected().QualifiedName(),
+		a.createJscompFieldBaseNode,
+		func(recv rhino.Node, prop, prefix string) rhino.Node {
+			return a.scopedQNameProp(scope, recv, prop, prefix)
+		})
 }
 
 // Java: AstFactory.createQNameWithUnknownType(String)
 func (a *AstFactory) CreateQNameWithUnknownType(qname string) rhino.Node {
-	dot := strings.IndexByte(qname, '.')
-	if dot < 0 {
-		return a.CreateNameWithUnknownType(qname)
-	}
-	return a.createGetPropsWithUnknownTypeFromString(a.CreateNameWithUnknownType(qname[:dot]), qname[dot+1:])
+	return buildQName(qname,
+		a.CreateNameWithUnknownType,
+		func(recv rhino.Node, prop, _ string) rhino.Node {
+			return a.CreateGetPropWithUnknownType(recv, prop)
+		})
 }
 
 // Java: AstFactory.createQNameWithUnknownType(RuntimeJsLibManager.JsLibField)
 func (a *AstFactory) CreateQNameWithUnknownTypeOfField(field RuntimeJsLibManager_JsLibField) rhino.Node {
-	qname := field.AssertInjected().QualifiedName()
-	dot := strings.IndexByte(qname, '.')
-	if dot < 0 {
-		return a.createJscompFieldBaseNode(qname)
-	}
-	return a.createGetPropsWithUnknownTypeFromString(a.createJscompFieldBaseNode(qname[:dot]), qname[dot+1:])
-}
-
-func (a *AstFactory) createGetPropsWithUnknownTypeFromString(receiver rhino.Node, rest string) rhino.Node {
-	result := receiver
-	for {
-		dot := strings.IndexByte(rest, '.')
-		if dot < 0 {
-			return a.CreateGetPropWithUnknownType(result, rest)
-		}
-		result = a.CreateGetPropWithUnknownType(result, rest[:dot])
-		rest = rest[dot+1:]
-	}
+	return buildQName(field.AssertInjected().QualifiedName(),
+		a.createJscompFieldBaseNode,
+		func(recv rhino.Node, prop, _ string) rhino.Node {
+			return a.CreateGetPropWithUnknownType(recv, prop)
+		})
 }
 
 // Java: AstFactory.createQNameWithUnknownType(Iterable<String>)
@@ -663,11 +633,14 @@ func (a *AstFactory) CreatePrototypeAccess(receiver rhino.Node) rhino.Node {
 func (a *AstFactory) CreateJSCompDotGlobalAccess(scope rhino.StaticScope, qname string) rhino.Node {
 	global := a.runtimeJsLibManager.GetJsLibField("$jscomp.global")
 	jscompDotGlobal := a.CreateQNameOfField(scope, global)
-	result := a.CreateQName(scope, qname)
-	// Move the fully qualified qname onto the $jscomp.global getprop
-	qnameRoot := NodeUtil_GetRootOfQualifiedName(result)
-	qnameRoot.ReplaceWith(a.CreateGetProp(jscompDotGlobal, qnameRoot.GetString(), AstFactory_Type_(qnameRoot)))
-	return result
+	return buildQName(qname,
+		func(head string) rhino.Node {
+			headNode := a.CreateNameInScope(scope, head)
+			return a.CreateGetProp(jscompDotGlobal, head, AstFactory_Type_(headNode))
+		},
+		func(recv rhino.Node, prop, prefix string) rhino.Node {
+			return a.scopedQNameProp(scope, recv, prop, prefix)
+		})
 }
 
 // Deprecated: Use CreateGetProp instead.

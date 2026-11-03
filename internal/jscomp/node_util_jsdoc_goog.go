@@ -530,7 +530,7 @@ func NodeUtil_RemoveFeaturesFromScript(scriptNode rhino.Node, featureSet *parser
 // Java: NodeUtil.removeFeatureFromAllScripts(Node, Feature, AbstractCompiler)
 func NodeUtil_RemoveFeatureFromAllScripts(root rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	for childNode := root.GetFirstChild(); !childNode.IsNil(); childNode = childNode.GetNext() {
+	for childNode := range root.Children() {
 		jutil.CheckState(childNode.IsScript())
 		NodeUtil_RemoveFeatureFromScript(childNode, feature)
 	}
@@ -546,7 +546,7 @@ func NodeUtil_RemoveFeatureFromAllScripts(root rhino.Node, feature parser.Featur
 func NodeUtil_RemoveFeaturesFromAllScripts(
 	root rhino.Node, featureSet *parser.FeatureSet, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	for childNode := root.GetFirstChild(); !childNode.IsNil(); childNode = childNode.GetNext() {
+	for childNode := range root.Children() {
 		jutil.CheckState(childNode.IsScript())
 		NodeUtil_RemoveFeaturesFromScript(childNode, featureSet)
 	}
@@ -559,7 +559,7 @@ func NodeUtil_RemoveFeaturesFromAllScripts(
 // Java: NodeUtil.addFeatureToAllScripts(Node, Feature, AbstractCompiler)
 func NodeUtil_AddFeatureToAllScripts(root rhino.Node, feature parser.FeatureSet_Feature, compiler AbstractCompiler) {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	for childNode := root.GetFirstChild(); !childNode.IsNil(); childNode = childNode.GetNext() {
+	for childNode := range root.Children() {
 		jutil.CheckState(childNode.IsScript())
 		NodeUtil_AddFeatureToScript(childNode, feature, compiler)
 	}
@@ -597,81 +597,64 @@ func NodeUtil_GetParamOrPatternNames(n rhino.Node, cb func(rhino.Node)) {
 // Java: NodeUtil.GoogRequire
 type NodeUtil_GoogRequire struct {
 	namespace       string
-	property        *string
+	property        string
+	hasProperty     bool
 	isStrongRequire bool
 }
 
 // Java: NodeUtil.GoogRequire(String, String, boolean)
 func NewNodeUtil_GoogRequire(namespace string, property *string, isStrongRequire bool) *NodeUtil_GoogRequire {
-	// Go-only: language-adapter — requireNonNull(namespace, "namespace"): a Go
-	// string cannot be null.
-	return &NodeUtil_GoogRequire{namespace: namespace, property: property, isStrongRequire: isStrongRequire}
+	if property != nil {
+		return &NodeUtil_GoogRequire{
+			namespace:       namespace,
+			property:        *property,
+			hasProperty:     true,
+			isStrongRequire: isStrongRequire,
+		}
+	}
+	return &NodeUtil_GoogRequire{namespace: namespace, isStrongRequire: isStrongRequire}
 }
 
 // Java: NodeUtil.GoogRequire.namespace()
 func (r *NodeUtil_GoogRequire) Namespace() string { return r.namespace }
 
 // Java: NodeUtil.GoogRequire.property()
-func (r *NodeUtil_GoogRequire) Property() *string { return r.property }
+func (r *NodeUtil_GoogRequire) Property() *string {
+	if !r.hasProperty {
+		return nil
+	}
+	return &r.property
+}
 
 // Java: NodeUtil.GoogRequire.isStrongRequire()
 func (r *NodeUtil_GoogRequire) IsStrongRequire() bool { return r.isStrongRequire }
-
-// Equals is the record's component-wise equals.
-//
-// Java: NodeUtil.GoogRequire.equals(Object)
-func (r *NodeUtil_GoogRequire) Equals(o any) bool {
-	other, ok := o.(*NodeUtil_GoogRequire)
-	if !ok || other == nil {
-		return false
-	}
-	if r == other {
-		return true
-	}
-	if (r.property == nil) != (other.property == nil) ||
-		(r.property != nil && *r.property != *other.property) {
-		return false
-	}
-	return r.namespace == other.namespace && r.isStrongRequire == other.isStrongRequire
-}
-
-// HashCode is the record's hashCode: 31 * h + hash(component), in
-// declaration order.
-//
-// Java: NodeUtil.GoogRequire.hashCode()
-func (r *NodeUtil_GoogRequire) HashCode() int32 {
-	var h int32
-	h = 31*h + jutil.StringHashCode(r.namespace)
-	var propertyHash int32
-	if r.property != nil {
-		propertyHash = jutil.StringHashCode(*r.property)
-	}
-	h = 31*h + propertyHash
-	var strongHash int32 = 1237
-	if r.isStrongRequire {
-		strongHash = 1231
-	}
-	h = 31*h + strongHash
-	return h
-}
 
 // String is the record's toString.
 //
 // Java: NodeUtil.GoogRequire.toString()
 func (r *NodeUtil_GoogRequire) String() string {
-	return "GoogRequire[namespace=" + r.namespace + ", property=" + jutil.ToJavaString(r.property) +
+	prop := "null"
+	if r.hasProperty {
+		prop = r.property
+	}
+	return "GoogRequire[namespace=" + r.namespace + ", property=" + prop +
 		", isStrongRequire=" + jutil.ToJavaString(r.isStrongRequire) + "]"
 }
 
 // Java: NodeUtil.GoogRequire.fromNamespace(String, boolean)
 func NodeUtil_GoogRequire_FromNamespace(namespace string, isStrongRequire bool) *NodeUtil_GoogRequire {
-	return NewNodeUtil_GoogRequire(namespace /* property= */, nil, isStrongRequire)
+	return &NodeUtil_GoogRequire{namespace: namespace, isStrongRequire: isStrongRequire}
 }
 
 // Java: NodeUtil.GoogRequire.fromNamespaceAndProperty(String, String, boolean)
 func NodeUtil_GoogRequire_FromNamespaceAndProperty(
 	namespace string, property string, isStrongRequire bool) *NodeUtil_GoogRequire {
-	return NewNodeUtil_GoogRequire(namespace, jutil.StringPtr(property), isStrongRequire)
+	return &NodeUtil_GoogRequire{
+		namespace:       namespace,
+		property:        property,
+		hasProperty:     true,
+		isStrongRequire: isStrongRequire,
+	}
 }
 
 // Java: NodeUtil.getGoogRequireInfo(String, Scope)
@@ -711,7 +694,8 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode rhino.Node) *NodeUtil_GoogRequire 
 		if !(isStrongRequire || NodeUtil_IsGoogRequireTypeCall(requireCall.Node())) {
 			return nil
 		}
-		namespace := requireCall.Node().GetSecondChild().GetString()
+		firstArg, _ := ast.MustCall(requireCall.Node()).FirstArg()
+		namespace := firstArg.Node().GetString()
 		return NodeUtil_GoogRequire_FromNamespace(namespace, isStrongRequire)
 	} else if strKey, ok := ast.AsStringKey(nameNode.GetParent()); ok && nameNode.GetGrandparent().IsObjectPattern() {
 		requireCall := nameNode.GetGrandparent().GetNext()
@@ -723,7 +707,8 @@ func NodeUtil_GetGoogRequireInfoNode(nameNode rhino.Node) *NodeUtil_GoogRequire 
 			return nil
 		}
 		property := strKey.Key()
-		namespace := requireCall.GetSecondChild().GetString()
+		firstArg, _ := ast.MustCall(requireCall).FirstArg()
+		namespace := firstArg.Node().GetString()
 		return NodeUtil_GoogRequire_FromNamespaceAndProperty(namespace, property, isStrongRequire)
 	}
 	return nil

@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -67,7 +68,14 @@ type AngularPass struct {
 	compiler AbstractCompiler
 
 	// injectables are the nodes annotated with @ngInject
-	injectables []AngularPass_NodeContext
+	injectables []angularInjectable
+}
+
+type angularInjectable struct {
+	name         string
+	node         rhino.Node
+	functionNode ast.Function
+	target       rhino.Node
 }
 
 // Java: AngularPass(AbstractCompiler)
@@ -104,37 +112,33 @@ func (p *AngularPass) Process(externs rhino.Node, root rhino.Node) {
 	// iterates through annotated nodes adding $inject property to elements.
 	for i := range p.injectables {
 		entry := &p.injectables[i]
-		name := entry.GetName()
-		fn := entry.GetFunctionNode()
-		dependencies := p.createDependenciesList(fn)
+		dependencies := p.createDependenciesList(entry.functionNode)
 		// skips entry if it does not have any dependencies.
 		if len(dependencies) == 0 {
 			continue
 		}
 		dependenciesArray := rhino.IR_ArraylitOfIterable(slices.Values(dependencies))
 		// creates `something.$inject = ['param1', 'param2']` node.
-		statement :=
-			rhino.IR_ExprResult(
-				rhino.IR_Assign(
-					rhino.IR_Getelem(NodeUtil_NewQName(p.compiler, name), rhino.IR_String(AngularPass_INJECT_PROPERTY_NAME)),
-					dependenciesArray))
-		statement.SrcrefTree(entry.GetNode())
-		statement.SetOriginalName(&name)
+		assign := rhino.IR_Assign(
+			rhino.IR_Getelem(NodeUtil_NewQName(p.compiler, entry.name), rhino.IR_String(AngularPass_INJECT_PROPERTY_NAME)),
+			dependenciesArray)
+		statement := rhino.IR_ExprResult(assign).SrcrefTree(entry.node)
+		statement.SetOriginalName(&entry.name)
 		// Set the visibility of the newly created property.
 		newPropertyDoc := rhino.JSDocInfo_Builder_()
 		newPropertyDoc.RecordVisibility(rhino.JSDocInfo_Visibility_PUBLIC)
-		statement.GetFirstChild().SetJSDocInfo(newPropertyDoc.Build())
+		assign.SetJSDocInfo(newPropertyDoc.Build())
 
 		// adds `something.$inject = [...]` node after the annotated node or the following
 		// goog.inherits call.
-		insertionPoint := entry.GetTarget()
-		next := insertionPoint.GetNext()
-		for !next.IsNil() &&
-			NodeUtil_IsExprCall(next) &&
-			p.compiler.GetCodingConvention().GetClassesDefinedByCall(
-				next.GetFirstChild()) != nil {
+		insertionPoint := entry.target
+		for next := insertionPoint.GetNext(); !next.IsNil(); next = insertionPoint.GetNext() {
+			exprStmt, ok := ast.AsExprStmt(next)
+			if !ok || !exprStmt.Expr().Node().IsCall() ||
+				p.compiler.GetCodingConvention().GetClassesDefinedByCall(exprStmt.Expr().Node()) == nil {
+				break
+			}
 			insertionPoint = next
-			next = insertionPoint.GetNext()
 		}
 
 		statement.InsertAfter(insertionPoint)
@@ -145,128 +149,86 @@ func (p *AngularPass) Process(externs rhino.Node, root rhino.Node) {
 // createDependenciesList: given a FUNCTION node returns array of STRING
 // nodes representing function parameters.
 //
-// n is the FUNCTION node. Returns STRING nodes.
-//
 // Java: AngularPass.createDependenciesList(Node)
-func (p *AngularPass) createDependenciesList(n rhino.Node) []rhino.Node {
-	jutil.CheckArgument(n.IsFunction())
-	params := NodeUtil_GetFunctionParameters(n)
-	if !params.IsNil() {
-		return p.createStringsFromParamList(params)
-	}
-	return nil
-}
-
-// createStringsFromParamList: given a PARAM_LIST node creates an array of
-// corresponding STRING nodes.
-//
-// params is the PARAM_LIST node. Returns array of STRING nodes.
-//
-// Java: AngularPass.createStringsFromParamList(Node)
-func (p *AngularPass) createStringsFromParamList(params rhino.Node) []rhino.Node {
-	param := params.GetFirstChild()
+func (p *AngularPass) createDependenciesList(fn ast.Function) []rhino.Node {
 	var names []rhino.Node
-	for !param.IsNil() {
-		if param.IsName() {
-			names = append(names, rhino.IR_String(param.GetString()).Srcref(param))
-		} else if param.IsDestructuringPattern() {
-			p.compiler.Report(JSError_MakeWithNode(param,
-				AngularPass_INJECTED_FUNCTION_HAS_DESTRUCTURED_PARAM))
+	for param := range fn.Params().Params() {
+		if name, ok := param.AsName(); ok {
+			names = append(names, rhino.IR_String(name.Ident()).Srcref(param.Node()))
+		} else if _, ok := param.AsPattern(); ok {
+			p.compiler.Report(JSError_MakeWithNode(param.Node(), AngularPass_INJECTED_FUNCTION_HAS_DESTRUCTURED_PARAM))
 			return nil
-		} else if param.IsDefaultValue() {
-			p.compiler.Report(JSError_MakeWithNode(param,
-				AngularPass_INJECTED_FUNCTION_HAS_DEFAULT_VALUE))
+		} else if _, ok := param.AsDefaultValue(); ok {
+			p.compiler.Report(JSError_MakeWithNode(param.Node(), AngularPass_INJECTED_FUNCTION_HAS_DEFAULT_VALUE))
 			return nil
 		}
-		param = param.GetNext()
 	}
 	return names
 }
 
 // Java: AngularPass.visit(NodeTraversal, Node, Node)
 func (p *AngularPass) Visit(unused *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	docInfo := n.GetJSDocInfo()
-	if docInfo != nil && docInfo.IsNgInject() {
+	if docInfo := n.GetJSDocInfo(); docInfo != nil && docInfo.IsNgInject() {
 		p.addNode(n)
 	}
 }
 
 // addNode adds node to the list of injectables.
 //
-// n is the node to add.
-//
 // Java: AngularPass.addNode(Node)
 func (p *AngularPass) addNode(n rhino.Node) {
 	var injectAfter rhino.Node
-	var fn rhino.Node
+	var fnNode rhino.Node
 	var name string
 	var hasName bool
 
 	switch n.GetToken() {
 	case rhino.Token_ASSIGN:
-		// handles assignment cases like:
-		// a = function() {}
-		// a = b = c = function() {}
-		if !n.GetFirstChild().IsQualifiedName() {
+		assign := ast.MustAssign(n)
+		lhs := assign.Target().Node()
+		if !lhs.IsQualifiedName() {
 			p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECTED_FUNCTION_ON_NON_QNAME))
 			return
 		}
-		name, hasName = n.GetFirstChild().GetQualifiedNameString()
-		// last node of chained assignment.
-		fn = n
-		for fn.IsAssign() {
-			fn = fn.GetLastChild()
-		}
+		name, hasName = lhs.GetQualifiedNameString()
+		fnNode = unwrapAssignChain(assign.Value().Node())
 		injectAfter = n.GetParent()
 	case rhino.Token_FUNCTION:
-		// handles function case:
-		// function fnName() {}
 		if namePtr := NodeUtil_GetName(n); namePtr != nil {
 			name, hasName = *namePtr, true
 		}
-		fn = n
-		injectAfter = n
-		if n.GetParent().IsAssign() && n.GetParent().GetJSDocInfo().IsNgInject() {
-			// This is a function assigned into a symbol, e.g. a regular function
-			// declaration in a goog.module or goog.scope.
-			// Skip in this traversal, it is handled when visiting the assign.
+		fnNode, injectAfter = n, n
+		if parent := n.GetParent(); parent.IsAssign() && parent.GetJSDocInfo().IsNgInject() {
+			// Handled when visiting the assign.
 			return
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		// handles var declaration cases like:
-		// var a = function() {}
-		// var a = b = function() {}
-		name, hasName = n.GetFirstChild().GetString(), true
-		// looks for a function node.
-		fn = angularPass_getDeclarationRValue(n)
+		first := ast.MustNameDeclaration(n).MustFirstDeclarator().Node()
+		name, hasName = first.GetString(), true
+		fnNode = unwrapAssignChain(first.GetFirstChild())
 		injectAfter = n
 	case rhino.Token_MEMBER_FUNCTION_DEF:
-		// handles class method case:
-		// class clName(){
-		//   constructor(){}
-		//   someMethod(){} <===
-		// }
-		parent := n.GetParent()
-		if parent.IsClassMembers() {
+		m := ast.MustMemberFunctionDef(n)
+		if parent := n.GetParent(); parent.IsClassMembers() {
 			classNode := parent.GetParent()
-			if NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
+			if m.IsEs6Constructor() {
 				if namePtr := NodeUtil_GetName(classNode); namePtr != nil {
 					name, hasName = *namePtr, true
 				}
 			} else {
 				midPart := ".prototype."
-				if n.IsStaticMember() {
+				if m.IsStatic() {
 					midPart = "."
 				}
-				name, hasName = jutil.ToJavaString(NodeUtil_GetName(classNode))+midPart+n.GetString(), true
+				name, hasName = jutil.ToJavaString(NodeUtil_GetName(classNode))+midPart+m.Key(), true
 			}
-			fn = n.GetFirstChild()
+			fnNode = m.Function().Node()
 			injectAfter = NodeUtil_GetEnclosingStatement(classNode)
 		}
-	default:
 	}
 
-	if fn.IsNil() || !fn.IsFunction() {
+	fn, ok := ast.AsFunction(fnNode)
+	if !ok {
 		p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECT_NON_FUNCTION_ERROR))
 		return
 	}
@@ -274,20 +236,14 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		// handle `export class Foo {` or `export function(`
 		injectAfter = injectAfter.GetParent()
 	}
-	// report an error if the function declaration did not take place in the root of a statement
-	// for example, `fn(/** @inject */ function(x) {});` is forbidden
 	if !NodeUtil_IsStatementBlock(injectAfter.GetParent()) {
 		p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECT_IN_NON_GLOBAL_OR_BLOCK_ERROR))
 		return
 	}
-	// checks that name is present, which must always be the case unless the
-	// compiler allowed a syntax error or a dangling anonymous function
-	// expression.
 	if !hasName {
 		panic(jutil.NewNullPointerException())
 	}
-	// registers the node.
-	p.injectables = append(p.injectables, AngularPass_NodeContext{
+	p.injectables = append(p.injectables, angularInjectable{
 		name:         name,
 		node:         n,
 		functionNode: fn,
@@ -295,68 +251,9 @@ func (p *AngularPass) addNode(n rhino.Node) {
 	})
 }
 
-// angularPass_getDeclarationRValue: given a VAR node (variable declaration)
-// returns the node of initial value.
-//
-//	var x;  // null
-//	var y = "value"; // STRING "value" node
-//	var z = x = y = function() {}; // FUNCTION node
-//
-// n is the VAR node. Returns the assigned initial value, or the rightmost
-// rvalue of an assignment chain, or null.
-//
-// Java: AngularPass.getDeclarationRValue(Node)
-func angularPass_getDeclarationRValue(n rhino.Node) rhino.Node {
-	rhino.CheckNotNull(n)
-	jutil.CheckArgument(NodeUtil_IsNameDeclaration(n))
-	n = n.GetFirstFirstChild()
-	if n.IsNil() {
-		return rhino.NilNode
-	}
-	for n.IsAssign() {
-		n = n.GetLastChild()
+func unwrapAssignChain(n rhino.Node) rhino.Node {
+	for inner, ok := ast.AsAssign(n); ok; inner, ok = ast.AsAssign(n) {
+		n = inner.Value().Node()
 	}
 	return n
-}
-
-// AngularPass_NodeContext is an annotated node.
-//
-// Java: static class AngularPass.NodeContext
-type AngularPass_NodeContext struct {
-	// name is the name of the function/object.
-	name string
-	// node is the node jsDoc is attached to.
-	node rhino.Node
-	// functionNode is the function node
-	functionNode rhino.Node
-	// target is the node after which to inject the new code
-	target rhino.Node
-}
-
-// GetName returns the name.
-//
-// Java: AngularPass.NodeContext.getName()
-func (c *AngularPass_NodeContext) GetName() string {
-	return c.name
-}
-
-// GetNode returns the node.
-//
-// Java: AngularPass.NodeContext.getNode()
-func (c *AngularPass_NodeContext) GetNode() rhino.Node {
-	return c.node
-}
-
-// GetFunctionNode returns the context.
-//
-// Java: AngularPass.NodeContext.getFunctionNode()
-func (c *AngularPass_NodeContext) GetFunctionNode() rhino.Node {
-	return c.functionNode
-}
-
-// GetTarget returns the context.
-//
-// Java: AngularPass.NodeContext.getTarget()
-func (c *AngularPass_NodeContext) GetTarget() rhino.Node {
-	return c.target
 }

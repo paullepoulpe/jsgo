@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -36,9 +37,6 @@ type plainU32 uint32
 func checkObjectsOf[T any](t *testing.T, vals []T) {
 	t.Helper()
 	for _, a := range vals {
-		if got, want := isNilOf(a), IsNil(a); got != want {
-			t.Errorf("isNilOf(%#v) = %v, IsNil %v", a, got, want)
-		}
 		if got, want := objectHashCodeOf(a), ObjectHashCode(a); got != want {
 			t.Errorf("objectHashCodeOf(%#v) = %d, ObjectHashCode %d", a, got, want)
 		}
@@ -256,4 +254,26 @@ func TestIdentityHashCodeOfPointer(t *testing.T) {
 	if n := testing.AllocsPerRun(100, func() { _ = IdentityHashCodeOfPointer(ns[3]) }); n != 0 {
 		t.Fatalf("allocated %v times", n)
 	}
+}
+
+func TestPathElementOffsetsConcurrent(t *testing.T) {
+	p := Path_Of("alpha/beta/gamma/delta.js")
+	other := Path_Of("alpha/beta/other.js")
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if got := p.GetNameCount(); got != 4 {
+				t.Errorf("GetNameCount = %d, want 4", got)
+			}
+			if got := p.GetName(2).String(); got != "gamma" {
+				t.Errorf("GetName(2) = %q, want gamma", got)
+			}
+			if got := p.Relativize(other).String(); got != "../../other.js" {
+				t.Errorf("Relativize = %q, want ../../other.js", got)
+			}
+		}()
+	}
+	wg.Wait()
 }

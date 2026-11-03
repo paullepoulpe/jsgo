@@ -210,44 +210,63 @@ func (c *ReferenceCollector) allocCollection(v *Var, k int) *ReferenceCollection
 	return col
 }
 
+func (c *ReferenceCollector) findVarLocalTarget(v *Var) (frame *rcLocalScopeFrame, slot int, imp AbstractScope_ImplicitVar, hasImp bool) {
+	if !c.reclaimLocals || c.narrowScope != nil || v.scope.parent == nil {
+		return nil, -1, 0, false
+	}
+	frame = c.findLocalFrame(v.scope.GetRootNode())
+	if frame == nil {
+		return nil, -1, 0, false
+	}
+	if slot = scopeVarSlot(v.scope, v); slot >= 0 {
+		return frame, slot, 0, false
+	}
+	imp, hasImp = AbstractScope_ImplicitVar_LookupID(v.nameID)
+	return frame, -1, imp, hasImp
+}
+
+func (c *ReferenceCollector) cacheCollection(v *Var, col *ReferenceCollection) *ReferenceCollection {
+	if col != nil {
+		c.lastVar = v
+		c.lastCollection = col
+	}
+	return col
+}
+
 func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar && v != nil {
 		return c.lastCollection
 	}
-	if c.reclaimLocals && c.narrowScope == nil && v.scope.parent != nil {
-		if frame := c.findLocalFrame(v.scope.GetRootNode()); frame != nil {
-			var col *ReferenceCollection
-			if slot := scopeVarSlot(v.scope, v); slot >= 0 {
-				if frame.base < 0 {
-					nVars := max(len(v.scope.varList), slot+1)
-					frame.base = len(c.localCollections)
-					frame.count = nVars
-					frame.scope = v.scope
-					c.localCollections = slices.Grow(c.localCollections, nVars)[:frame.base+nVars]
-				} else if slot >= frame.count && frame.base+frame.count == len(c.localCollections) {
-					extra := slot + 1 - frame.count
-					c.localCollections = slices.Grow(c.localCollections, extra)[:frame.base+slot+1]
-					frame.count = slot + 1
-				}
-				if slot < frame.count {
-					col = c.localCollections[frame.base+slot]
-					if col == nil {
-						col = c.allocCollection(v, rcLocal)
-						c.localCollections[frame.base+slot] = col
-					}
-				}
-			} else if imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID); ok {
-				col = frame.implicits[imp]
+	if frame, slot, imp, hasImp := c.findVarLocalTarget(v); frame != nil {
+		var col *ReferenceCollection
+		if slot >= 0 {
+			if frame.base < 0 {
+				nVars := max(len(v.scope.varList), slot+1)
+				frame.base = len(c.localCollections)
+				frame.count = nVars
+				frame.scope = v.scope
+				c.localCollections = slices.Grow(c.localCollections, nVars)[:frame.base+nVars]
+			} else if slot >= frame.count && frame.base+frame.count == len(c.localCollections) {
+				extra := slot + 1 - frame.count
+				c.localCollections = slices.Grow(c.localCollections, extra)[:frame.base+slot+1]
+				frame.count = slot + 1
+			}
+			if slot < frame.count {
+				col = c.localCollections[frame.base+slot]
 				if col == nil {
 					col = c.allocCollection(v, rcLocal)
-					frame.implicits[imp] = col
+					c.localCollections[frame.base+slot] = col
 				}
 			}
-			if col != nil {
-				c.lastVar = v
-				c.lastCollection = col
-				return col
+		} else if hasImp {
+			col = frame.implicits[imp]
+			if col == nil {
+				col = c.allocCollection(v, rcLocal)
+				frame.implicits[imp] = col
 			}
+		}
+		if col != nil {
+			return c.cacheCollection(v, col)
 		}
 	}
 	key := scopedVarKeyOf(v)
@@ -268,9 +287,7 @@ func (c *ReferenceCollector) getOrCreateReferences(v *Var) *ReferenceCollection 
 			c.vars = append(c.vars, v)
 		}
 	}
-	c.lastVar = v
-	c.lastCollection = col
-	return col
+	return c.cacheCollection(v, col)
 }
 
 const (
@@ -330,15 +347,13 @@ func (c *ReferenceCollector) forgetVar(v *Var) {
 	if v == nil {
 		return
 	}
-	if c.reclaimLocals && c.narrowScope == nil && v.scope.parent != nil {
-		if frame := c.findLocalFrame(v.scope.GetRootNode()); frame != nil {
-			if slot := scopeVarSlot(v.scope, v); slot >= 0 {
-				if frame.base >= 0 && slot < frame.count {
-					c.localCollections[frame.base+slot] = nil
-				}
-			} else if imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID); ok {
-				frame.implicits[imp] = nil
+	if frame, slot, imp, hasImp := c.findVarLocalTarget(v); frame != nil {
+		if slot >= 0 {
+			if frame.base >= 0 && slot < frame.count {
+				c.localCollections[frame.base+slot] = nil
 			}
+		} else if hasImp {
+			frame.implicits[imp] = nil
 		}
 	}
 	delete(c.refs, scopedVarKeyOf(v))
@@ -433,36 +448,19 @@ func (c *ReferenceCollector) GetReferences(v *Var) *ReferenceCollection {
 	if v == c.lastVar {
 		return c.lastCollection
 	}
-	if c.reclaimLocals && c.narrowScope == nil && v.scope.parent != nil {
-		if frame := c.findLocalFrame(v.scope.GetRootNode()); frame != nil {
-			if slot := scopeVarSlot(v.scope, v); slot >= 0 {
-				if frame.base < 0 {
-					return nil
-				}
-				if slot < frame.count {
-					col := c.localCollections[frame.base+slot]
-					if col != nil {
-						c.lastVar = v
-						c.lastCollection = col
-					}
-					return col
-				}
-			} else if imp, ok := AbstractScope_ImplicitVar_LookupID(v.nameID); ok {
-				col := frame.implicits[imp]
-				if col != nil {
-					c.lastVar = v
-					c.lastCollection = col
-				}
-				return col
+	if frame, slot, imp, hasImp := c.findVarLocalTarget(v); frame != nil {
+		if slot >= 0 {
+			if frame.base < 0 {
+				return nil
 			}
+			if slot < frame.count {
+				return c.cacheCollection(v, c.localCollections[frame.base+slot])
+			}
+		} else if hasImp {
+			return c.cacheCollection(v, frame.implicits[imp])
 		}
 	}
-	col := c.refs[scopedVarKeyOf(v)]
-	if col != nil {
-		c.lastVar = v
-		c.lastCollection = col
-	}
-	return col
+	return c.cacheCollection(v, c.refs[scopedVarKeyOf(v)])
 }
 
 // AsStaticSymbolTable returns this collector as the Java

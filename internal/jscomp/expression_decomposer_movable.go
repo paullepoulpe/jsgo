@@ -260,9 +260,6 @@ func (d ExpressionDecomposer_EvaluationDirection) String() string {
 	return expressionDecomposer_EvaluationDirection_names[d]
 }
 
-// Java: ExpressionDecomposer.EvaluationDirection.ordinal()
-func (d ExpressionDecomposer_EvaluationDirection) Ordinal() int { return int(d) }
-
 // ExpressionDecomposer_GetEvaluationDirection returns the order in which
 // the given node's children should be evaluated.
 //

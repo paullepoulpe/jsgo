@@ -335,65 +335,50 @@ func (g *CodeGenerator) AddNodeWithContextAndComments(node rhino.Node, context C
 	cc.TrackLicenses(node)
 
 	type_ := node.GetToken()
-	opstr, hasOpStr := nodeUtil_opToStr(type_)
-	first := node.GetFirstChild()
-	last := node.GetLastChild()
-	childCount := 0
-	if !first.IsNil() {
-		if first == last {
-			childCount = 1
-		} else if second := first.GetNext(); second == last {
-			childCount = 2
-		} else if third := second.GetNext(); third == last {
-			childCount = 3
-		} else if third.GetNext() == last {
-			childCount = 4
-		} else {
-			childCount = 5
-		}
-	}
+	if opstr, hasOpStr := nodeUtil_opToStr(type_); hasOpStr {
+		if first := node.GetFirstChild(); !first.IsNil() {
+			if second := first.GetNext(); !second.IsNil() {
+				if !second.GetNext().IsNil() {
+					jutil.CheckStateMsg2(
+						false,
+						"Bad binary operator \"%s\": expected 2 arguments but got %s",
+						opstr,
+						node.GetChildCount())
+				}
+				p := g.Precedence(node)
 
-	// Handle all binary operators
-	if hasOpStr && first != last {
-		if childCount != 2 {
-			jutil.CheckStateMsg2(
-				false,
-				"Bad binary operator \"%s\": expected 2 arguments but got %s",
-				opstr,
-				node.GetChildCount())
-		}
-		p := g.Precedence(node)
+				// For right-hand-side of operations, only pass context if it's
+				// the IN_FOR_INIT_CLAUSE one.
+				rhsContext := CodeGenerator_GetContextForNoInOperator(context)
 
-		// For right-hand-side of operations, only pass context if it's
-		// the IN_FOR_INIT_CLAUSE one.
-		rhsContext := CodeGenerator_GetContextForNoInOperator(context)
+				needsParens := (context == CodeGenerator_Context_START_OF_EXPR || context.AtArrowFunctionBody()) &&
+					first.IsObjectPattern()
+				if node.IsAssign() && needsParens {
+					g.Add("(")
+				}
 
-		needsParens := (context == CodeGenerator_Context_START_OF_EXPR || context.AtArrowFunctionBody()) &&
-			first.IsObjectPattern()
-		if node.IsAssign() && needsParens {
-			g.Add("(")
-		}
+				if NodeUtil_IsAssignmentOp(node) || type_ == rhino.Token_EXPONENT {
+					// Assignment operators and '**' are the only right-associative
+					// binary operators
+					g.AddExpr(first, p+1, context)
+					cc.AddOp(opstr, true)
+					g.AddExpr(second, p, rhsContext)
+				} else {
+					g.UnrollBinaryOperator(node, type_, opstr, context, rhsContext, p, p+1)
+				}
 
-		if NodeUtil_IsAssignmentOp(node) || type_ == rhino.Token_EXPONENT {
-			// Assignment operators and '**' are the only right-associative
-			// binary operators
-			g.AddExpr(first, p+1, context)
-			cc.AddOp(opstr, true)
-			g.AddExpr(last, p, rhsContext)
-		} else {
-			g.UnrollBinaryOperator(node, type_, opstr, context, rhsContext, p, p+1)
+				if node.IsAssign() && needsParens {
+					g.Add(")")
+				}
+				return
+			}
 		}
-
-		if node.IsAssign() && needsParens {
-			g.Add(")")
-		}
-		return
 	}
 
 	cc.StartSourceMapping(node)
 
-	if !g.addStmtOrDecl(node, type_, first, last, childCount, context) {
-		g.addExprOrTypeNode(node, type_, first, last, childCount, context)
+	if !g.addStmtOrDecl(node, context) {
+		g.addExprOrTypeNode(node, context)
 	}
 
 	if g.printNonJSDocComments {

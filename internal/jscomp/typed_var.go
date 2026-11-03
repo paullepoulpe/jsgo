@@ -117,10 +117,6 @@ func (v *TypedVar) Scope() *TypedScope {
 	return v.scope
 }
 
-func (v *TypedVar) getScopeS() *TypedScope {
-	return v.scope
-}
-
 // Java: AbstractVar.getScopeRoot()
 func (v *TypedVar) GetScopeRoot() rhino.Node {
 	return v.scope.rootNode
@@ -216,10 +212,10 @@ func (v *TypedVar) IsTypeInferred() bool {
 
 // Java: TypedVar.getInputName()
 func (v *TypedVar) GetInputName() string {
-	if v.GetInput() == nil {
-		return "<non-file>"
+	if in := v.GetInput(); in != nil {
+		return in.GetName()
 	}
-	return v.GetInput().GetName()
+	return "<non-file>"
 }
 
 // Java: TypedVar.toString()

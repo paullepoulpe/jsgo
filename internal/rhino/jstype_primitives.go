@@ -169,7 +169,7 @@ type BooleanType struct {
 // Java: BooleanType(JSTypeRegistry)
 func NewBooleanType(registry *JSTypeRegistry) *BooleanType {
 	t := &BooleanType{}
-	t.objFlags = jsKindScalarValue
+	t.objFlags = jsKindBoolean
 	t.InitValueTypeBase(t, registry)
 	return t
 }
@@ -192,11 +192,6 @@ func (t *BooleanType) TestForEquality(that JSType) base.Tri {
 		return base.Tri_UNKNOWN
 	}
 	return base.Tri_FALSE
-}
-
-// Java: BooleanType.isBooleanValueType()
-func (t *BooleanType) IsBooleanValueType() bool {
-	return true
 }
 
 // Java: BooleanType.matchesNumberContext()
@@ -240,7 +235,7 @@ type NumberType struct {
 // Java: NumberType(JSTypeRegistry)
 func NewNumberType(registry *JSTypeRegistry) *NumberType {
 	t := &NumberType{}
-	t.objFlags = jsKindScalarValue
+	t.objFlags = jsKindNumber
 	t.InitValueTypeBase(t, registry)
 	return t
 }
@@ -265,11 +260,6 @@ func (t *NumberType) TestForEquality(that JSType) base.Tri {
 		return base.Tri_UNKNOWN
 	}
 	return base.Tri_FALSE
-}
-
-// Java: NumberType.isNumberValueType()
-func (t *NumberType) IsNumberValueType() bool {
-	return true
 }
 
 // Java: NumberType.matchesNumberContext()
@@ -313,7 +303,7 @@ type StringType struct {
 // Java: StringType(JSTypeRegistry)
 func NewStringType(registry *JSTypeRegistry) *StringType {
 	t := &StringType{}
-	t.objFlags = jsKindScalarValue
+	t.objFlags = jsKindString
 	t.InitValueTypeBase(t, registry)
 	return t
 }
@@ -338,11 +328,6 @@ func (t *StringType) TestForEquality(that JSType) base.Tri {
 		return base.Tri_UNKNOWN
 	}
 	return base.Tri_FALSE
-}
-
-// Java: StringType.isStringValueType()
-func (t *StringType) IsStringValueType() bool {
-	return true
 }
 
 // Java: StringType.matchesNumberContext()
@@ -386,7 +371,7 @@ type BigIntType struct {
 // Java: BigIntType(JSTypeRegistry)
 func NewBigIntType(registry *JSTypeRegistry) *BigIntType {
 	t := &BigIntType{}
-	t.objFlags = jsKindScalarValue
+	t.objFlags = jsKindBigInt
 	t.InitValueTypeBase(t, registry)
 	return t
 }
@@ -411,11 +396,6 @@ func (t *BigIntType) TestForEquality(that JSType) base.Tri {
 		return base.Tri_UNKNOWN
 	}
 	return base.Tri_FALSE
-}
-
-// Java: BigIntType.isBigIntValueType()
-func (t *BigIntType) IsBigIntValueType() bool {
-	return true
 }
 
 // Java: BigIntType.matchesNumberContext()
@@ -467,11 +447,6 @@ func NewNullType(registry *JSTypeRegistry) *NullType {
 // Java: NullType.getTypeClass()
 func (t *NullType) GetTypeClass() JSTypeClass {
 	return JSTypeClass_NULL
-}
-
-// Java: NullType.isNullType()
-func (t *NullType) IsNullType() bool {
-	return true
 }
 
 // Java: NullType.isNullable()
@@ -585,11 +560,6 @@ func (t *VoidType) MatchesStringContext() bool {
 	return true
 }
 
-// Java: VoidType.isVoidType()
-func (t *VoidType) IsVoidType() bool {
-	return true
-}
-
 // Java: VoidType.isVoidable()
 func (t *VoidType) IsVoidable() bool {
 	return true
@@ -625,7 +595,7 @@ type SymbolTypeBase struct {
 // Java: SymbolType(JSTypeRegistry)
 func NewSymbolType(registry *JSTypeRegistry) *SymbolTypeBase {
 	t := &SymbolTypeBase{}
-	t.objFlags = jsKindScalarValue
+	t.objFlags = jsKindSymbol
 	t.InitSymbolTypeBase(t, registry)
 	return t
 }
@@ -654,11 +624,6 @@ func (t *SymbolTypeBase) TestForEquality(that JSType) base.Tri {
 		return base.Tri_UNKNOWN
 	}
 	return base.Tri_FALSE
-}
-
-// Java: SymbolType.isSymbolValueType()
-func (t *SymbolTypeBase) IsSymbolValueType() bool {
-	return true
 }
 
 // Java: SymbolType.matchesNumberContext()
@@ -726,14 +691,4 @@ func (t *KnownSymbolType) GetTypeClass() JSTypeClass {
 // Java: KnownSymbolType.getDisplayName()
 func (t *KnownSymbolType) GetDisplayName() *string {
 	return &t.name
-}
-
-// Java: KnownSymbolType.isKnownSymbolValueType()
-func (t *KnownSymbolType) IsKnownSymbolValueType() bool {
-	return true
-}
-
-// Java: KnownSymbolType.toMaybeKnownSymbolType()
-func (t *KnownSymbolType) ToMaybeKnownSymbolType() *KnownSymbolType {
-	return t
 }

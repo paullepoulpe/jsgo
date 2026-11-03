@@ -178,128 +178,35 @@ func (p *PeepholeOptimizationsPass) cloneForWorker(rc *recordingCompiler) *Peeph
 	return cp
 }
 
-func enclosingScriptForPeephole(n rhino.Node) rhino.Node {
-	for cur := n; !cur.IsNil(); cur = cur.GetParent() {
-		if cur.IsScript() {
-			return cur
-		}
-	}
-	return rhino.NilNode
+func (p *PeepholeOptimizationsPass) newWorkerPass(rc *Compiler) *PeepholeOptimizationsPass {
+	workerPass := p.cloneForWorker(rc)
+	workerPass.BeginTraversal()
+	return workerPass
 }
 
-type peepholeScriptBucket struct {
-	origIndices []int
+func finishPeepholeWorker(_ int, workerPass *PeepholeOptimizationsPass) {
+	workerPass.pendingFeatures = 0
+	workerPass.EndTraversal()
 }
 
 func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) bool {
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(p.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-	runParallelWork(p.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *PeepholeOptimizationsPass
-
-		cleanup := func() {
-			if workerPass != nil {
-				workerPass.EndTraversal()
-			}
-		}
-		runItem := func(idx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = p.cloneForWorker(rc)
-				workerPass.BeginTraversal()
-			}
-			b := NodeTraversal_Builder{
-				compiler: rc,
-				callback: workerPass,
-			}
-			b.traverseScriptUnderRoot(root, root, scripts[idx], nil)
-		}
-		return runItem, cleanup
-	}, false)
-	return true
+	return traverseScriptsParallel(p.compiler, root, parallelScriptOptions[*PeepholeOptimizationsPass]{
+		initWorker:   func(_ int, rc *Compiler) *PeepholeOptimizationsPass { return p.newWorkerPass(rc) },
+		finishWorker: finishPeepholeWorker,
+	})
 }
 
 func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNodes []rhino.Node) bool {
-	if len(changedScopeNodes) < 2 {
-		return false
-	}
-	bucketByScript := make(map[rhino.Node]int, len(changedScopeNodes))
-	var buckets []peepholeScriptBucket
-	for origIdx, scopeNode := range changedScopeNodes {
-		script := enclosingScriptForPeephole(scopeNode)
-		if script.IsNil() {
-			return false
-		}
-		bIdx, exists := bucketByScript[script]
-		if !exists {
-			bIdx = len(buckets)
-			bucketByScript[script] = bIdx
-			buckets = append(buckets, peepholeScriptBucket{origIndices: []int{origIdx}})
-		} else {
-			buckets[bIdx].origIndices = append(buckets[bIdx].origIndices, origIdx)
-		}
-	}
-	numWorkers := parallelThreadCount(p.compiler, len(buckets))
-	if numWorkers <= 1 {
-		return false
-	}
-
-	eventsByOrigIdx := make([][]recordedCompilerEvent, len(changedScopeNodes))
-	panicsByOrigIdx := make([]any, len(changedScopeNodes))
-
-	runParallelWork(p.compiler, numWorkers, len(buckets), func(_ int) (func(int, *recordingCompiler), func()) {
-		var workerRC *recordingCompiler
-		var workerPass *PeepholeOptimizationsPass
-
-		cleanup := func() {
-			if workerPass != nil {
-				workerPass.EndTraversal()
-			}
-		}
-		runItem := func(bIdx int, rc *recordingCompiler) {
-			if workerPass == nil || workerRC != rc {
-				workerRC = rc
-				workerPass = p.cloneForWorker(rc)
-				workerPass.BeginTraversal()
-			}
-			for _, origIdx := range buckets[bIdx].origIndices {
-				resetRecordingCompiler(rc, p.compiler)
-				panicked := runParallelItemIndexed(rc, origIdx, panicsByOrigIdx, func(rc *recordingCompiler, itemIdx int) {
-					b := NodeTraversal_Builder{
-						compiler: rc,
-						callback: workerPass,
-					}
-					b.traverseScopedRoot(changedScopeNodes[itemIdx], false)
-				})
-				eventsByOrigIdx[origIdx] = rc.takeEvents()
-				if panicked {
-					workerPass.pendingFeatures = 0
-					return
-				}
-			}
-		}
-		return runItem, cleanup
-	}, false)
-
-	for i := range changedScopeNodes {
-		if len(eventsByOrigIdx[i]) != 0 {
-			replayCompilerEvents(p.compiler, eventsByOrigIdx[i])
-		}
-		if r := panicsByOrigIdx[i]; r != nil {
-			if ie, ok := r.(parallelInternalError); ok {
-				p.compiler.ThrowInternalError(ie.msg, ie.cause)
-			}
-			panic(r)
-		}
-	}
-	return true
+	return runParallelNodesByScript(p.compiler, len(changedScopeNodes), parallelNodeTask[*PeepholeOptimizationsPass]{
+		nodeAt:     func(idx int) rhino.Node { return changedScopeNodes[idx] },
+		initWorker: func(_ int, rc *Compiler) *PeepholeOptimizationsPass { return p.newWorkerPass(rc) },
+		runItem: func(workerPass *PeepholeOptimizationsPass, idx int, rc *Compiler) {
+			b := NodeTraversal_Builder{compiler: rc, callback: workerPass}
+			b.traverseScopedRoot(changedScopeNodes[idx], false)
+		},
+		onItemPanic:  func(workerPass *PeepholeOptimizationsPass) { workerPass.pendingFeatures = 0 },
+		finishWorker: finishPeepholeWorker,
+	})
 }
 
 // Java: PeepholeOptimizationsPass.PeepCallback.visit(NodeTraversal, Node, Node)

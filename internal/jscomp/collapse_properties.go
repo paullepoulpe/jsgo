@@ -598,8 +598,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 	for i := 1; i < depth && n.HasChildren(); i++ {
 		n = n.GetFirstChild()
 	}
-	if n.IsGetProp() && n.GetFirstChild().IsGetProp() {
-		c.FlattenNameRef(alias, n.GetFirstChild(), n, originalName.get(), isConstantName)
+	if gp, ok := ast.AsGetProp(n); ok {
+		if obj, ok := gp.Object().AsGetProp(); ok {
+			c.FlattenNameRef(alias, obj.Node(), n, originalName.get(), isConstantName)
+		}
 	}
 }
 
@@ -625,7 +627,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	// AFTER:
 	//   name a$b$c
 	isConst := isConstantName || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) || c.outer.compiler.GetCodingConvention().IsConstant(alias)
-	if NodeUtil_IsNormalOrOptChainCall(parent) && n.IsFirstChildOf(parent) {
+	if call, ok := ast.AsNormalOrOptChainCall(parent); ok && call.Callee().Is(n) {
 		// The node was a call target. We are deliberately flattening these as
 		// the "this" isn't provided by the namespace. Mark it as such:
 		parent.PutBooleanProp(rhino.Node_FREE_CALL, true)
@@ -694,18 +696,18 @@ func (f *collapseProperties_findDynamicallyImportedModules) Visit(t *NodeTravers
 	if f.processCommonJSModules &&
 		n.IsGetProp() &&
 		n.IsQualifiedName() &&
-		!n.GetParent().IsNil() &&
-		n.GetParent().IsReturn() &&
-		n.GetGrandparent().IsBlock() &&
-		n.GetGrandparent().HasOneChild() &&
-		n.GetGrandparent().GetParent().IsFunction() {
-		potentialCallback := NodeUtil_GetEnclosingFunction(n)
-		if !potentialCallback.IsNil() &&
-			ProcessCommonJSModules_IsCommonJsDynamicImportCallback(
-				NodeUtil_GetEnclosingFunction(potentialCallback), f.moduleResolutionMode) {
-			qname, ok := n.GetQualifiedNameString()
-			jutil.CheckState(ok)
-			f.outer.addDynamicallyImportedModule(NodeUtil_GetRootOfQualifiedNameString(qname))
+		ast.RoleIn(n, parent) == ast.RoleReturnValue {
+		if block, ok := ast.AsBlock(parent.GetParent()); ok && ast.RoleOf(block.Node()) == ast.RoleFunctionBody {
+			if _, only := block.OnlyStatement(); only {
+				potentialCallback := NodeUtil_GetEnclosingFunction(n)
+				if !potentialCallback.IsNil() &&
+					ProcessCommonJSModules_IsCommonJsDynamicImportCallback(
+						NodeUtil_GetEnclosingFunction(potentialCallback), f.moduleResolutionMode) {
+					qname, ok := n.GetQualifiedNameString()
+					jutil.CheckState(ok)
+					f.outer.addDynamicallyImportedModule(NodeUtil_GetRootOfQualifiedNameString(qname))
+				}
+			}
 		}
 	} else if ConvertChunksToESModules_IsDynamicImportCallback(n) {
 		moduleNamespace := ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(f.outer.outer.compiler, n)
@@ -721,14 +723,11 @@ func (f *collapseProperties_findDynamicallyImportedModules) Visit(t *NodeTravers
 func InlineAndCollapseProperties_IsSafeNamespaceReinit(ref *GlobalNamespace_Ref) bool {
 	// allow "a = a || {}" or "var a = a || {}" or "var a;"
 	valParent := InlineAndCollapseProperties_GetValueParent(ref)
-	val := valParent.GetLastChild()
-	if !val.IsNil() && val.IsOr() {
-		maybeName := val.GetFirstChild()
-		if ref.GetNode().MatchesQualifiedNameNode(maybeName) {
+	if val := valParent.GetLastChild(); !val.IsNil() && val.IsOr() {
+		if ref.GetNode().MatchesQualifiedNameNode(ast.MustBinary(val).Left().Node()) {
 			return true
 		}
 	}
-
 	return false
 }
 

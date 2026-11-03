@@ -93,7 +93,7 @@ func TestDependencyResolver_OneMoreForGoodMeasure(t *testing.T) {
 
 func TestDependencyResolver_SharedSeenSetNoBaseFile(t *testing.T) {
 	d := dependencyResolverTest_setUp()
-	seen := jutil.NewLinkedHashSet[string]()
+	seen := NewOrderedSet[string]()
 
 	deps := d.resolver.GetDependenciesWithSeen(
 		"goog.require('g');goog.require('f');goog.require('c');", seen, false)
@@ -108,7 +108,7 @@ func TestDependencyResolver_SharedSeenSetNoBaseFile(t *testing.T) {
 
 func TestDependencyResolver_SharedSeenSetNoBaseFileNewRequires(t *testing.T) {
 	d := dependencyResolverTest_setUp()
-	seen := jutil.NewLinkedHashSet[string]()
+	seen := NewOrderedSet[string]()
 
 	deps := d.resolver.GetDependenciesWithSeen("goog.require('f');goog.require('c');", seen, false)
 
@@ -120,7 +120,7 @@ func TestDependencyResolver_SharedSeenSetNoBaseFileNewRequires(t *testing.T) {
 
 func TestDependencyResolver_SharedSeenSetNoBaseFileMultipleProvides(t *testing.T) {
 	d := dependencyResolverTest_setUp()
-	seen := jutil.NewLinkedHashSet[string]()
+	seen := NewOrderedSet[string]()
 
 	deps := d.resolver.GetDependenciesWithSeen("goog.require('h');goog.require('i');", seen, false)
 
@@ -129,7 +129,7 @@ func TestDependencyResolver_SharedSeenSetNoBaseFileMultipleProvides(t *testing.T
 
 func TestDependencyResolver_NonExistentProvideLoose(t *testing.T) {
 	d := dependencyResolverTest_setUp()
-	seen := jutil.NewLinkedHashSet[string]()
+	seen := NewOrderedSet[string]()
 	d.resolver = NewDefaultDependencyResolver([]*DependencyFile{d.fakeDeps1}, false)
 	deps := d.resolver.GetDependenciesWithSeen("goog.require('foo');goog.require('d');", seen, false)
 
@@ -138,7 +138,7 @@ func TestDependencyResolver_NonExistentProvideLoose(t *testing.T) {
 
 func TestDependencyResolver_NonExistentProvideStrict(t *testing.T) {
 	d := dependencyResolverTest_setUp()
-	seen := jutil.NewLinkedHashSet[string]()
+	seen := NewOrderedSet[string]()
 	d.resolver = NewDefaultDependencyResolver([]*DependencyFile{d.fakeDeps1}, true)
 	thrown := false
 	jutil.Try(func() {

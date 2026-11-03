@@ -45,14 +45,23 @@ var typeInference_BigIntPresence_names = [...]string{
 	"NO_BIGINT", "ALL_BIGINT", "BIGINT_OR_NUMBER", "BIGINT_OR_OTHER",
 }
 
-// Name is Java's Enum.name().
-func (p TypeInference_BigIntPresence) Name() string { return typeInference_BigIntPresence_names[p] }
-
 // String is Java's Enum.toString().
-func (p TypeInference_BigIntPresence) String() string { return p.Name() }
+func (p TypeInference_BigIntPresence) String() string { return typeInference_BigIntPresence_names[p] }
 
-// Ordinal is Java's Enum.ordinal().
-func (p TypeInference_BigIntPresence) Ordinal() int { return int(p) }
+func unaryOrIncDecOperand(n rhino.Node) rhino.Node {
+	if u, ok := ast.AsUnary(n); ok {
+		return u.Operand().Node()
+	}
+	return ast.MustIncDec(n).Target().Node()
+}
+
+func binaryOrAssignOpOperands(n rhino.Node) (left, right rhino.Node) {
+	if bin, ok := ast.AsBinary(n); ok {
+		return bin.Left().Node(), bin.Right().Node()
+	}
+	aop := ast.MustAssignOp(n)
+	return aop.Target().Node(), aop.Value().Node()
+}
 
 // TypeInference_GetBigIntPresence is a utility function for determining the
 // BigIntPresence for any type.
@@ -123,7 +132,7 @@ func (ti *TypeInference) TraverseUnaryPlus(n rhino.Node, scope *LinkedFlowScope)
 // Java: TypeInference.traverseBigIntCompatibleUnaryOperator(Node, FlowScope)
 func (ti *TypeInference) TraverseBigIntCompatibleUnaryOperator(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope) // Find types.
-	switch TypeInference_GetBigIntPresence(ti.GetJSType(n.GetFirstChild())) {
+	switch TypeInference_GetBigIntPresence(ti.GetJSType(unaryOrIncDecOperand(n))) {
 	case TypeInference_BigIntPresence_ALL_BIGINT:
 		// BigIntPresence in operand
 		n.SetJSType(ti.GetNativeType(rhino.JSTypeNative_BIGINT_TYPE))
@@ -141,8 +150,9 @@ func (ti *TypeInference) TraverseBigIntCompatibleUnaryOperator(n rhino.Node, sco
 // Java: TypeInference.traverseBigIntCompatibleBinaryOperator(Node, FlowScope)
 func (ti *TypeInference) TraverseBigIntCompatibleBinaryOperator(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope) // Find types.
-	leftBigIntPresence := TypeInference_GetBigIntPresence(ti.GetJSType(n.GetFirstChild()))
-	rightBigIntPresence := TypeInference_GetBigIntPresence(ti.GetJSType(n.GetLastChild()))
+	left, right := binaryOrAssignOpOperands(n)
+	leftBigIntPresence := TypeInference_GetBigIntPresence(ti.GetJSType(left))
+	rightBigIntPresence := TypeInference_GetBigIntPresence(ti.GetJSType(right))
 	if leftBigIntPresence != rightBigIntPresence {
 		// disallowed mixture of bigint and non-bigint operands
 		n.SetJSType(ti.GetNativeType(rhino.JSTypeNative_NO_TYPE))
@@ -230,11 +240,13 @@ func (ti *TypeInference) TraverseArrayLiteral(n rhino.Node, scope *LinkedFlowSco
 func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	type_ := n.GetJSType()
 	jutil.CheckNotNull(type_)
+	objLit := ast.MustObjectLit(n)
 
 	spreadOperatorSeen := false
-	for name := n.GetFirstChild(); !name.IsNil(); name = name.GetNext() {
-		spreadOperatorSeen = spreadOperatorSeen || name.IsSpread()
-		scope = ti.TraverseChildren(name, scope)
+	for member := range objLit.Members() {
+		_, isSpread := member.AsObjectSpread()
+		spreadOperatorSeen = spreadOperatorSeen || isSpread
+		scope = ti.TraverseChildren(member.Node(), scope)
 	}
 
 	// Object literals can be reflected on other types.
@@ -247,16 +259,16 @@ func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope *LinkedFlowSc
 
 	var qObjName string
 	var hasQObjName bool
-	if !n.GetFirstChild().IsNil() {
+	if objLit.HasMembers() {
 		qObjName, hasQObjName = ti.getBestLValueNameString(NodeUtil_GetBestLValue(n))
 	}
-	for key := n.GetFirstChild(); !key.IsNil(); key = key.GetNext() {
-		if key.IsComputedProp() {
+	for member := range objLit.Members() {
+		if _, ok := member.AsComputedProp(); ok {
 			// Don't define computed properties as inferred properties on the object
 			continue
 		}
 
-		if key.IsSpread() {
+		if _, ok := member.AsObjectSpread(); ok {
 			// TODO(b/128355893): Do smarter inferrence. There are a lot of potential issues with
 			// inference on object-spread, so for now we just give up and say `Object`.
 			n.SetJSType(ti.registry.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE))
@@ -265,8 +277,10 @@ func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope *LinkedFlowSc
 
 		// Java tests `memberName != null` here and otherwise sets the unknown type
 		// on n; NodeUtil.getObjectOrClassLitKeyName never returns null (it throws).
-		memberName := NodeUtil_GetObjectOrClassLitKeyName(key)
-		rawValueType := key.GetFirstChild().GetJSType()
+		pkm := member.MustPlainKeyMember()
+		key := pkm.Node()
+		memberName := pkm.Key()
+		rawValueType := pkm.Value().Node().GetJSType()
 		valueType := TypeCheck_GetObjectLitKeyTypeFromValueType(key, rawValueType)
 		if valueType == nil {
 			valueType = ti.unknownType
@@ -314,8 +328,7 @@ func (ti *TypeInference) TraverseObjectLiteral(n rhino.Node, scope *LinkedFlowSc
 
 // Java: TypeInference.traverseAdd(Node, FlowScope)
 func (ti *TypeInference) TraverseAdd(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
-	left := n.GetFirstChild()
-	right := left.GetNext()
+	left, right := binaryOrAssignOpOperands(n)
 	scope = ti.TraverseChildren(n, scope)
 
 	leftType := left.GetJSType()
@@ -625,12 +638,8 @@ func (ti *TypeInference) TraverseDynamicImport(dynamicImport rhino.Node, scope *
 		if targetModule != nil {
 			// TypedScopeCreator ensures that the MODULE_BODY type is the export namespace type
 			scriptNode := targetModule.Metadata().RootNode()
-			if scriptNode.HasOneChild() && scriptNode.GetFirstChild().IsModuleBody() {
-				var exportNamespaceType rhino.JSType
-				if !scriptNode.IsNil() {
-					exportNamespaceType = scriptNode.GetOnlyChild().GetJSType()
-				}
-				if exportNamespaceType != nil {
+			if modBody, ok := scriptOnlyModuleBody(scriptNode); ok {
+				if exportNamespaceType := modBody.Node().GetJSType(); exportNamespaceType != nil {
 					templateType = exportNamespaceType
 				}
 			} else {
@@ -656,18 +665,19 @@ func (ti *TypeInference) TraverseDynamicImport(dynamicImport rhino.Node, scope *
 	return ti.TraverseChildren(dynamicImport, scope)
 }
 
+func scriptOnlyModuleBody(scriptNode rhino.Node) (ast.ModuleBody, bool) {
+	if script, ok := ast.AsScript(scriptNode); ok {
+		if item, hasOne := script.OnlyItem(); hasOne {
+			return item.AsModuleBody()
+		}
+	}
+	return ast.ModuleBody{}, false
+}
+
 // Java: TypeInference.traverseUnsignedRightShift(Node, FlowScope)
 func (ti *TypeInference) TraverseUnsignedRightShift(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	scope = ti.TraverseChildren(n, scope)
-	var left, right rhino.Node
-	if bin, ok := ast.AsBinary(n); ok {
-		left = bin.Left().Node()
-		right = bin.Right().Node()
-	} else {
-		aop := ast.MustAssignOp(n)
-		left = aop.Target().Node()
-		right = aop.Value().Node()
-	}
+	left, right := binaryOrAssignOpOperands(n)
 	if TypeInference_GetBigIntPresence(ti.GetJSType(left)) != TypeInference_BigIntPresence_NO_BIGINT ||
 		TypeInference_GetBigIntPresence(ti.GetJSType(right)) != TypeInference_BigIntPresence_NO_BIGINT {
 		// The spec does not allow for BigInts in an unsigned right shift, so we will report an error

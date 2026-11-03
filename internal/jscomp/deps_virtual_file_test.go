@@ -24,16 +24,11 @@ func TestVirtualFile_Equals(t *testing.T) {
 	vf := NewVirtualFile("name", "code")
 	same := NewVirtualFile("name", "code")
 	other := NewVirtualFile("otherName", "otherCode")
-	jsaTrue(t, vf.Equals(same))
-	jsaTrue(t, same.Equals(vf))
-	jsaFalse(t, vf.Equals(other))
-	jsaFalse(t, other.Equals(vf))
-}
-
-func TestVirtualFile_HashCode(t *testing.T) {
-	vf := NewVirtualFile("name", "code")
-	same := NewVirtualFile("name", "code")
-	other := NewVirtualFile("otherName", "otherCode")
-	jsaEq(t, same.HashCode(), vf.HashCode())
-	jsaTrue(t, vf.HashCode() != other.HashCode())
+	jsaTrue(t, *vf == *same)
+	jsaTrue(t, *same == *vf)
+	jsaFalse(t, *vf == *other)
+	jsaFalse(t, *other == *vf)
+	jsaEq(t, vf.GetName(), "name")
+	jsaEq(t, vf.GetContent(), "code")
+	jsaFalse(t, vf.WasModified())
 }

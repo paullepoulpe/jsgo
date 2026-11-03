@@ -37,6 +37,7 @@ package rhino
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // NamedType is a named reference to some other type. This provides a
@@ -207,7 +208,7 @@ func (t *NamedType) GetReferencedType() JSType {
 
 // Java: NamedType.getReferenceName()
 func (t *NamedType) GetReferenceName() *string {
-	return rhinoStringPtrFromID(t.referenceID)
+	return strpool.StringPtr(t.referenceID)
 }
 
 func (t *NamedType) referenceString() string {
@@ -222,16 +223,6 @@ func (t *NamedType) AppendTo(sb *TypeStringBuilder) {
 	} else {
 		sb.AppendType(type_)
 	}
-}
-
-// Java: JSType.isNamedType()
-func (t *NamedType) IsNamedType() bool {
-	return true
-}
-
-// Java: NamedType.toMaybeNamedType()
-func (t *NamedType) ToMaybeNamedType() *NamedType {
-	return t
 }
 
 // Java: NamedType.isNominalType()
@@ -512,11 +503,6 @@ func (t *NamedType) IsObject() bool {
 		return t.ToMaybeEnumElementType().IsObject()
 	}
 	return t.ProxyObjectTypeBase.IsObject()
-}
-
-// Java: JSType.isObjectType()
-func (t *NamedType) IsObjectType() bool {
-	return t.IsObject()
 }
 
 // Java: NamedType.builder(JSTypeRegistry, String)

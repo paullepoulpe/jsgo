@@ -214,21 +214,20 @@ func newLinterMain() *LinterMain {
 //
 // Go-only: language-adapter — annotations (see package args4j).
 func (m *LinterMain) Args4jFields() []args4j.AnnotatedField {
-	const c = "com.google.javascript.jscomp.LinterMain"
 	return []args4j.AnnotatedField{
 		{
 			Option: &args4j.Option{Name: "--fix", Usage: "Fix lint warnings automatically"},
-			Field:  args4j.BooleanField(c, "fix", &m.fix),
+			Field:  args4j.Bool(&m.fix),
 		},
 		{
 			Option: &args4j.Option{
 				Name:  "--resolution_mode",
 				Usage: "Expected path resolution mode for resolving module specifiers."},
-			Field: args4j.EnumField(c, "resolutionMode", linterMain_ResolutionModeClass, &m.resolutionMode),
+			Field: args4j.ScalarField(linterMain_ResolutionModeClass, &m.resolutionMode),
 		},
 		{
 			Argument: &args4j.Argument{},
-			Field:    args4j.ListField(c, "files", args4j.Class_String, &m.files),
+			Field:    args4j.StringSlice(&m.files),
 		},
 	}
 }

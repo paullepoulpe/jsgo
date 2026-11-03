@@ -26,7 +26,6 @@ import (
 
 type sortingErrorKey struct {
 	level       CheckLevel
-	hasLevel    bool
 	hasSource   bool
 	source      string
 	lineno      int
@@ -34,31 +33,25 @@ type sortingErrorKey struct {
 	description string
 }
 
-func makeSortingErrorKey(err *JSError, level *CheckLevel) sortingErrorKey {
-	var k sortingErrorKey
-	if level != nil {
-		k.level = *level
-		k.hasLevel = true
+func makeSortingErrorKey(err *JSError, level CheckLevel) sortingErrorKey {
+	source, hasSource := err.SourceNameOpt()
+	return sortingErrorKey{
+		level:       level,
+		hasSource:   hasSource,
+		source:      source,
+		lineno:      err.GetLineNumber(),
+		charno:      err.Charno(),
+		description: err.Description(),
 	}
-	if src := err.SourceName(); src != nil {
-		k.source = *src
-		k.hasSource = true
-	}
-	k.lineno = err.GetLineNumber()
-	k.charno = err.Charno()
-	k.description = err.Description()
-	return k
 }
 
 // SortingErrorManager is a customizable error manager that sorts all errors
 // and warnings reported to it, and has customizable output through the
 // ErrorReportGenerator interface.
 type SortingErrorManager struct {
-	messages           []*SortingErrorManager_ErrorWithLevel
+	messages           []SortingErrorManager_ErrorWithLevel
 	seen               map[sortingErrorKey]struct{}
 	sorted             bool
-	hasNilLevel        bool
-	hasNonNilLevel     bool
 	originalErrorCount int
 	promotedErrorCount int
 	warningCount       int
@@ -66,7 +59,7 @@ type SortingErrorManager struct {
 
 	// Responsible for generating the report of the errors at the end of compilation
 	errorReportGenerators []SortingErrorManager_ErrorReportGenerator
-	println               func(*CheckLevel, *JSError)
+	println               func(CheckLevel, *JSError)
 	printSummary          func(*SortingErrorManager)
 }
 
@@ -94,7 +87,7 @@ func (m *SortingErrorManager) InitSortingErrorManager(
 }
 
 func (m *SortingErrorManager) initReportHooks(
-	printlnFn func(*CheckLevel, *JSError),
+	printlnFn func(CheckLevel, *JSError),
 	printSummaryFn func(*SortingErrorManager),
 ) {
 	m.InitSortingErrorManager(nil)
@@ -125,10 +118,7 @@ func sortingErrorManager_immutableSetCopyOf(generators []SortingErrorManager_Err
 }
 
 // Java: SortingErrorManager.report(CheckLevel, JSError)
-func (m *SortingErrorManager) Report(level *CheckLevel, error *JSError) {
-	if (level == nil && m.hasNonNilLevel) || (level != nil && m.hasNilLevel) {
-		panic(jutil.NewNullPointerException())
-	}
+func (m *SortingErrorManager) Report(level CheckLevel, error *JSError) {
 	key := makeSortingErrorKey(error, level)
 	if m.seen == nil {
 		m.seen = make(map[sortingErrorKey]struct{})
@@ -137,20 +127,16 @@ func (m *SortingErrorManager) Report(level *CheckLevel, error *JSError) {
 		return
 	}
 	m.seen[key] = struct{}{}
-	if level == nil {
-		m.hasNilLevel = true
-	} else {
-		m.hasNonNilLevel = true
-	}
 	m.messages = append(m.messages, NewSortingErrorManager_ErrorWithLevel(error, level))
 	m.sorted = false
-	if level != nil && *level == CheckLevel_ERROR {
+	switch level {
+	case CheckLevel_ERROR:
 		if error.Type().level == CheckLevel_ERROR {
 			m.originalErrorCount++
 		} else {
 			m.promotedErrorCount++
 		}
-	} else if level != nil && *level == CheckLevel_WARNING {
+	case CheckLevel_WARNING:
 		m.warningCount++
 	}
 }
@@ -188,13 +174,11 @@ func (m *SortingErrorManager) GetWarnings() []*JSError {
 }
 
 // Java: SortingErrorManager.getSortedDiagnostics()
-func (m *SortingErrorManager) GetSortedDiagnostics() []*SortingErrorManager_ErrorWithLevel {
+func (m *SortingErrorManager) GetSortedDiagnostics() []SortingErrorManager_ErrorWithLevel {
 	// TODO(b/114762232): It should be possible to remove the copying here and switch to an
 	// unmodifiable collection once we get rid of usages that add warnings during generateReport.
 	m.ensureSorted()
-	out := make([]*SortingErrorManager_ErrorWithLevel, len(m.messages))
-	copy(out, m.messages)
-	return out
+	return slices.Clone(m.messages)
 }
 
 // Java: SortingErrorManager.setTypedPercent(double)
@@ -212,7 +196,7 @@ func (m *SortingErrorManager) FilterToListOf(level CheckLevel) []*JSError {
 	m.ensureSorted()
 	out := []*JSError{}
 	for _, e := range m.messages {
-		if e.Level != nil && *e.Level == level {
+		if e.Level == level {
 			out = append(out, e.Error)
 		}
 	}
@@ -276,35 +260,33 @@ func NewSortingErrorManager_LeveledJSErrorComparator() *SortingErrorManager_Leve
 	return &SortingErrorManager_LeveledJSErrorComparator{}
 }
 
-func sortingErrorManagerCompare(p1, p2 *SortingErrorManager_ErrorWithLevel) int {
+func sortingErrorManagerCompare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
 	// null is the smallest value
-	if p2 == nil {
-		if p1 == nil {
+	if p2.Error == nil {
+		if p1.Error == nil {
 			return 0
 		}
 		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
 	}
+	if p1.Error == nil {
+		return sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2
+	}
 
 	// check level
 	if p1.Level != p2.Level {
-		if p1.Level == nil || p2.Level == nil {
-			// p2.level.compareTo(p1.level) with a null level
-			panic(jutil.NewNullPointerException())
-		}
-		return p2.Level.CompareTo(*p1.Level)
+		return int(p2.Level) - int(p1.Level)
 	}
 
 	// sourceName comparison
-	source1 := p1.Error.SourceName()
-	source2 := p2.Error.SourceName()
-	if source1 != nil && source2 != nil {
-		sourceCompare := jutil.StringCompareTo(*source1, *source2)
-		if sourceCompare != 0 {
+	source1, hasSource1 := p1.Error.SourceNameOpt()
+	source2, hasSource2 := p2.Error.SourceNameOpt()
+	if hasSource1 && hasSource2 {
+		if sourceCompare := jutil.StringCompareTo(source1, source2); sourceCompare != 0 {
 			return sourceCompare
 		}
-	} else if source1 == nil && source2 != nil {
+	} else if !hasSource1 && hasSource2 {
 		return sortingErrorManager_LeveledJSErrorComparator_P1_LT_P2
-	} else if source1 != nil && source2 == nil {
+	} else if hasSource1 && !hasSource2 {
 		return sortingErrorManager_LeveledJSErrorComparator_P1_GT_P2
 	}
 
@@ -327,71 +309,20 @@ func sortingErrorManagerCompare(p1, p2 *SortingErrorManager_ErrorWithLevel) int 
 }
 
 // Java: SortingErrorManager.LeveledJSErrorComparator.compare(ErrorWithLevel, ErrorWithLevel)
-func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 *SortingErrorManager_ErrorWithLevel) int {
+func (c *SortingErrorManager_LeveledJSErrorComparator) Compare(p1, p2 SortingErrorManager_ErrorWithLevel) int {
 	return sortingErrorManagerCompare(p1, p2)
 }
 
-// SortingErrorManager_ErrorWithLevel is a JSError with its reported level
-// (which may be nil).
+// SortingErrorManager_ErrorWithLevel is a JSError with its reported level.
 //
 // Go-only: language-adapter — the package-private final fields error and
 // level are exported as Error and Level, since report generators read them.
 type SortingErrorManager_ErrorWithLevel struct {
 	Error *JSError
-	Level *CheckLevel
+	Level CheckLevel
 }
 
 // Java: SortingErrorManager.ErrorWithLevel(JSError, CheckLevel)
-func NewSortingErrorManager_ErrorWithLevel(error *JSError, level *CheckLevel) *SortingErrorManager_ErrorWithLevel {
-	if level != nil {
-		level = level.Ptr()
-	}
-	return &SortingErrorManager_ErrorWithLevel{Error: error, Level: level}
-}
-
-// HashCode is Objects.hash(level, description, sourceName, lineNumber,
-// charno).
-//
-// Go-only: language-adapter — Java hashes the CheckLevel by identity; its
-// ordinal is used here.
-//
-// Java: SortingErrorManager.ErrorWithLevel.hashCode()
-func (e *SortingErrorManager_ErrorWithLevel) HashCode() int32 {
-	h := int32(1)
-	if e.Level != nil {
-		h = 31*h + int32(e.Level.Ordinal())
-	} else {
-		h = 31 * h
-	}
-	h = 31*h + jutil.StringHashCode(e.Error.Description())
-	if s := e.Error.SourceName(); s != nil {
-		h = 31*h + jutil.StringHashCode(*s)
-	} else {
-		h = 31 * h
-	}
-	h = 31*h + int32(e.Error.GetLineNumber())
-	h = 31*h + int32(e.Error.Charno())
-	return h
-}
-
-// Java: SortingErrorManager.ErrorWithLevel.equals(Object)
-func (e *SortingErrorManager_ErrorWithLevel) Equals(obj any) bool {
-	o, ok := obj.(*SortingErrorManager_ErrorWithLevel)
-	if !ok || o == nil {
-		return false
-	}
-	return ((e.Level == nil && o.Level == nil) || (e.Level != nil && o.Level != nil && *e.Level == *o.Level)) &&
-		e.Error.Description() == o.Error.Description() &&
-		sortingErrorManager_nullableStringEquals(e.Error.SourceName(), o.Error.SourceName()) &&
-		e.Error.GetLineNumber() == o.Error.GetLineNumber() &&
-		e.Error.Charno() == o.Error.Charno()
-}
-
-// sortingErrorManager_nullableStringEquals is Objects.equals for nullable
-// Strings.
-func sortingErrorManager_nullableStringEquals(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
+func NewSortingErrorManager_ErrorWithLevel(error *JSError, level CheckLevel) SortingErrorManager_ErrorWithLevel {
+	return SortingErrorManager_ErrorWithLevel{Error: error, Level: level}
 }

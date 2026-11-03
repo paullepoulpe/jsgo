@@ -43,19 +43,26 @@ func TestJ2clSuppressWarningsGuardTest(t *testing.T) {
 func (c *J2clSuppressWarningsGuardTest) TestSuppress_j2cl() {
 	var guard WarningsGuard = NewJ2clSuppressWarningsGuard()
 
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeError("hello.java.js"))).IsNull()
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("hello.java.js"))).IsEqualTo(CheckLevel_OFF.Ptr())
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("hello.impl.java.js"))).IsEqualTo(CheckLevel_OFF.Ptr())
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("foo/hello.impl.java.js"))).IsEqualTo(CheckLevel_OFF.Ptr())
+	_, ok := guard.Level(J2clSuppressWarningsGuardTest_MakeError("hello.java.js"))
+	AssertThat(ok).IsFalse()
+	lvl, ok := guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("hello.java.js"))
+	AssertThat(ok && lvl == CheckLevel_OFF).IsTrue()
+	lvl, ok = guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("hello.impl.java.js"))
+	AssertThat(ok && lvl == CheckLevel_OFF).IsTrue()
+	lvl, ok = guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("foo/hello.impl.java.js"))
+	AssertThat(ok && lvl == CheckLevel_OFF).IsTrue()
 }
 
 // Java: J2clSuppressWarningsGuardTest.testSuppress_nonJ2cl()
 func (c *J2clSuppressWarningsGuardTest) TestSuppress_nonJ2cl() {
 	var guard WarningsGuard = NewJ2clSuppressWarningsGuard()
 
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeError("hello.js"))).IsNull()
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("hello.js"))).IsNull()
-	AssertThat(guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("kajava.js"))).IsNull()
+	_, ok := guard.Level(J2clSuppressWarningsGuardTest_MakeError("hello.js"))
+	AssertThat(ok).IsFalse()
+	_, ok = guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("hello.js"))
+	AssertThat(ok).IsFalse()
+	_, ok = guard.Level(J2clSuppressWarningsGuardTest_MakeJ2clSuppressedError("kajava.js"))
+	AssertThat(ok).IsFalse()
 }
 
 // Java: J2clSuppressWarningsGuardTest.makeError(String)

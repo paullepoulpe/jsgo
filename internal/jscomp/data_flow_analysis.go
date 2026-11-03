@@ -41,6 +41,7 @@ const dfaReuseMaxNodes = 1024
 // when forward is false, else FIFO).
 type cfgWorklist struct {
 	queue       []*graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]
+	steps       []uint32
 	queueHead   int
 	usePriority bool
 	forward     bool
@@ -62,17 +63,62 @@ func (w *cfgWorklist) releaseLarge(maxCap int) {
 		w.queue = nil
 		w.queueHead = 0
 	}
+	if cap(w.steps) > maxCap {
+		w.steps = nil
+	}
 }
 
 func (w *cfgWorklist) notEmpty() bool {
 	return len(w.queue) > w.queueHead
 }
 
-func higherPrio(a, b int32, forward bool) bool {
-	if forward {
-		return a < b
+func heapSiftUp[T any](h []T, i int, x T, less func(a, b T) bool) {
+	for i > 0 {
+		parent := (i - 1) / 2
+		p := h[parent]
+		if !less(x, p) {
+			break
+		}
+		h[i] = p
+		i = parent
 	}
-	return a > b
+	h[i] = x
+}
+
+func heapSiftDown[T any](h []T, i int, x T, less func(a, b T) bool) {
+	n := len(h)
+	for {
+		pick := 2*i + 1
+		if pick >= n {
+			break
+		}
+		best := h[pick]
+		if sibling := pick + 1; sibling < n && less(h[sibling], best) {
+			pick = sibling
+			best = h[sibling]
+		}
+		if !less(best, x) {
+			break
+		}
+		h[i] = best
+		i = pick
+	}
+	h[i] = x
+}
+
+func cfgNodeForwardLess(a, b *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+	return a.Priority < b.Priority
+}
+
+func cfgNodeBackwardLess(a, b *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+	return a.Priority > b.Priority
+}
+
+func cfgNodeHigherPrio(forward bool) func(a, b *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool {
+	if forward {
+		return cfgNodeForwardLess
+	}
+	return cfgNodeBackwardLess
 }
 
 func (w *cfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) {
@@ -85,22 +131,10 @@ func (w *cfgWorklist) enqueue(node *graph.LinkedDiGraphNode[rhino.Node, ControlF
 	node.DfaInQueue = true
 	w.queue = append(w.queue, node)
 	if w.usePriority {
-		i := len(w.queue) - 1
-		xPrio := node.Priority
-		if xPrio < 0 {
+		if node.Priority < 0 {
 			panic(jutil.NewIllegalStateExceptionMsg("priority not set"))
 		}
-		forward := w.forward
-		for i > 0 {
-			parent := (i - 1) / 2
-			p := w.queue[parent]
-			if !higherPrio(xPrio, p.Priority, forward) {
-				break
-			}
-			w.queue[i] = p
-			i = parent
-		}
-		w.queue[i] = node
+		heapSiftUp(w.queue, len(w.queue)-1, node, cfgNodeHigherPrio(w.forward))
 	}
 }
 
@@ -113,32 +147,7 @@ func (w *cfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlow
 		w.queue[n-1] = nil
 		w.queue = w.queue[:n-1]
 		if n > 1 {
-			m := n - 1
-			xPrio := last.Priority
-			forward := w.forward
-			i := 0
-			for {
-				pick := 2*i + 1
-				if pick >= m {
-					break
-				}
-				best := w.queue[pick]
-				bestPrio := best.Priority
-				if sibling := pick + 1; sibling < m {
-					sib := w.queue[sibling]
-					if sibPrio := sib.Priority; higherPrio(sibPrio, bestPrio, forward) {
-						pick = sibling
-						best = sib
-						bestPrio = sibPrio
-					}
-				}
-				if !higherPrio(bestPrio, xPrio, forward) {
-					break
-				}
-				w.queue[i] = best
-				i = pick
-			}
-			w.queue[i] = last
+			heapSiftDown(w.queue, 0, last, cfgNodeHigherPrio(w.forward))
 		}
 	} else {
 		curNode = w.queue[w.queueHead]
@@ -151,6 +160,61 @@ func (w *cfgWorklist) dequeue() *graph.LinkedDiGraphNode[rhino.Node, ControlFlow
 	}
 	curNode.DfaInQueue = false
 	return curNode
+}
+
+// solve runs a forward or backward fixed-point iteration over cfg without boxing
+// lattice states. stepNode updates curNode's state and reports whether its
+// outgoing (forward) or incoming (backward) lattice changed.
+func (w *cfgWorklist) solve(
+	cfg *ControlFlowGraph[rhino.Node],
+	forward bool,
+	stepNode func(curNode *graph.LinkedDiGraphNode[rhino.Node, ControlFlowGraph_Branch]) bool,
+) {
+	implicitReturn := cfg.implicitReturn
+	cfgNodes := &cfg.Nodes
+	w.reset(cfg, cfgNodes.Size(), forward)
+	nodeCap := cfg.NodeIndexCap()
+	if cap(w.steps) < nodeCap {
+		w.steps = make([]uint32, nodeCap)
+	} else {
+		w.steps = w.steps[:nodeCap]
+		clear(w.steps)
+	}
+
+	for node := range cfgNodes.Values() {
+		node.DfaInQueue = false
+		if node != implicitReturn {
+			w.enqueue(node)
+		}
+	}
+
+	steps := w.steps
+	for w.notEmpty() {
+		curNode := w.dequeue()
+		stepCount := steps[curNode.Index]
+		steps[curNode.Index] = stepCount + 1
+		if stepCount > DataFlowAnalysis_MAX_STEPS_PER_NODE {
+			panic(jutil.NewIllegalStateExceptionMsg("Dataflow analysis appears to diverge around: " + jutil.ToJavaString(curNode)))
+		}
+		if !stepNode(curNode) {
+			continue
+		}
+		if forward {
+			for _, edge := range curNode.OutEdgeList.Slice() {
+				nextNode := edge.DestNode
+				if !nextNode.DfaInQueue && nextNode != implicitReturn {
+					w.enqueue(nextNode)
+				}
+			}
+		} else {
+			for _, edge := range curNode.InEdgeList.Slice() {
+				nextNode := edge.SourceNode
+				if !nextNode.DfaInQueue && nextNode != implicitReturn {
+					w.enqueue(nextNode)
+				}
+			}
+		}
+	}
 }
 
 const fnVarTableInlineCap = 16
@@ -256,7 +320,7 @@ func (t *fnVarTable) reset() {
 		t.vars = t.vars[:0]
 	}
 	t.ids.reset()
-	t.escaped.clear(true)
+	t.escaped.Reset(true)
 	t.uniqueCount = 0
 	t.hasDuplicateNames = false
 }
@@ -325,6 +389,24 @@ type DataFlowAnalysis_LinearFlowState[L any] struct {
 	stepCount int
 	in        L
 	out       L
+}
+
+func resetLinearFlowStates[L any](
+	states []DataFlowAnalysis_LinearFlowState[L],
+	cfg *ControlFlowGraph[rhino.Node],
+	initLat L,
+) []DataFlowAnalysis_LinearFlowState[L] {
+	nodeCap := cfg.NodeIndexCap()
+	if cap(states) < nodeCap {
+		states = make([]DataFlowAnalysis_LinearFlowState[L], nodeCap)
+	} else {
+		clear(states[:max(len(states), nodeCap)])
+		states = states[:nodeCap]
+	}
+	for node := range cfg.Nodes.Values() {
+		states[node.Index] = DataFlowAnalysis_LinearFlowState[L]{in: initLat, out: initLat}
+	}
+	return states
 }
 
 // Java: DataFlowAnalysis.LinearFlowState.getIn()

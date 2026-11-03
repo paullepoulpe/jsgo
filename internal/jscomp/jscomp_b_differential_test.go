@@ -12,6 +12,7 @@ import (
 	"iter"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -258,8 +259,9 @@ func jscompBLca(rg jscompBGraph, rootsCol string) string {
 			roots.Add(jscompBAtoi(r))
 		}
 		var finder graph.LowestCommonAncestorFinder[int, any] = graph.NewLowestCommonAncestorFinder[int, any](g)
-		found := jscompBJoin(finder.FindAll(roots).All())
-		again := jscompBJoin(finder.FindAll(roots).All())
+		rootSlice := roots.ToSlice()
+		found := jscompBJoin(slices.Values(finder.FindAllSlice(rootSlice, nil)))
+		again := jscompBJoin(slices.Values(finder.FindAllSlice(rootSlice, nil)))
 		return found + ";" + again
 	})
 }

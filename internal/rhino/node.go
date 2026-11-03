@@ -43,6 +43,7 @@ import (
 	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Node implements the root of the intermediate representation.
@@ -370,12 +371,7 @@ func newNode_StringNode(token Token, str string) Node {
 func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	var cookedID rhinoStringID
-	if cooked != nil {
-		cookedID = rhinoStringPoolIntern(*cooked)
-	}
-	rawID := rhinoStringPoolIntern(raw)
-	n.initTemplateLitPayload(cookedID, rawID)
+	n.initTemplateLitPayload(rhinoStringIDFromPtr(cooked), strpool.Intern(raw))
 	return n
 }
 
@@ -492,7 +488,7 @@ func (n Node) initStringPayloadAndCold(str string, template Node) {
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec().payload = uint32(rhinoStringPoolIntern(str))
+	n.rec().payload = uint32(strpool.Intern(str))
 }
 
 // InitStringFromTemplate initializes a zero Node from a slab as a StringNode with template properties.
@@ -582,12 +578,7 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	var cookedID rhinoStringID
-	if cooked != nil {
-		cookedID = rhinoStringPoolIntern(*cooked)
-	}
-	rawID := rhinoStringPoolIntern(raw)
-	n.initTemplateLitPayload(cookedID, rawID)
+	n.initTemplateLitPayload(rhinoStringIDFromPtr(cooked), strpool.Intern(raw))
 	return n
 }
 

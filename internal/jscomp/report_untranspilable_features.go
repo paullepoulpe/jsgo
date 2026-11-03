@@ -156,7 +156,7 @@ func (r *ReportUntranspilableFeatures) CheckForUntranspilable(root rhino.Node) {
 		}
 		reg, err := regex.ParseRegExp(pattern, flags)
 		if err != nil {
-			r.compiler.Report(JSError_MakeWithNode(root, CheckRegExp_MALFORMED_REGEXP, err.Message))
+			r.compiler.Report(JSError_MakeWithNode(root, CheckRegExp_MALFORMED_REGEXP, err.Error()))
 			break
 		}
 		if r.untranspilableFeaturesToRemove.ContainsFeature(parser.FeatureSet_Feature_REGEXP_FLAG_S) {

@@ -60,9 +60,6 @@ var (
 	BoolSpec   = &TypeSpec[bool]{defaultHandler: newBooleanOptionHandler}
 	Int32Spec  = &TypeSpec[int32]{defaultHandler: NewIntOptionHandler}
 	StringSpec = &TypeSpec[string]{defaultHandler: NewStringOptionHandler}
-
-	// Class_String is an alias for StringSpec used by ListField callers.
-	Class_String = StringSpec
 )
 
 // EnumClassOf builds a typed TypeSpec for an enum's values slice.
@@ -88,13 +85,6 @@ func newSetterForField(f *Field) Setter {
 		panic(jutil.NewIllegalStateExceptionMsg(f.finalErr))
 	}
 	return f.setter
-}
-
-// FinalField constructs a Field representing a Java final field that rejects binding.
-func FinalField(declaringClass, name string) *Field {
-	return &Field{
-		finalErr: "Cannot set value to a final field '" + declaringClass + "." + name + "'.",
-	}
 }
 
 type scalarSetter[T any] struct {
@@ -216,13 +206,4 @@ func LinkedStringMap(p **jutil.LinkedHashMap[string, *string]) *Field {
 // TrackedString binds *p and clears *isDefault whenever the option is set.
 func TrackedString(p *string, isDefault *bool) *Field {
 	return &Field{setter: &trackedScalarSetter[string]{p: p, isDefault: isDefault, handler: NewStringOptionHandler}}
-}
-
-// Compatibility binders used by packages outside cli.
-func BooleanField(_, _ string, p *bool) *Field { return Bool(p) }
-func EnumField[E any](_, _ string, spec *TypeSpec[E], p *E) *Field {
-	return ScalarField(spec, p)
-}
-func ListField[E any](_, _ string, spec *TypeSpec[E], p *[]E) *Field {
-	return SliceField(spec, p)
 }

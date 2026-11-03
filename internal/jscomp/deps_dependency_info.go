@@ -309,20 +309,7 @@ func (r *DependencyInfo_Require) String() string {
 // Java: AutoValue_DependencyInfo_Require.equals(Object)
 func (r *DependencyInfo_Require) Equals(o any) bool {
 	that, ok := o.(*DependencyInfo_Require)
-	return ok && that != nil &&
-		(that == r || (r.symbol == that.symbol && r.rawText == that.rawText && r.type_ == that.type_))
-}
-
-// Java: AutoValue_DependencyInfo_Require.hashCode()
-func (r *DependencyInfo_Require) HashCode() int32 {
-	h := int32(1)
-	h *= 1000003
-	h ^= jutil.StringHashCode(r.symbol)
-	h *= 1000003
-	h ^= jutil.StringHashCode(r.rawText)
-	h *= 1000003
-	h ^= int32(r.type_)
-	return h
+	return ok && that != nil && *r == *that
 }
 
 // DependencyInfo_Util_WriteAddDependency prints a goog.addDependency call
@@ -385,8 +372,8 @@ func dependencyInfo_Util_writeJsArray(out jutil.Appendable, values []string) {
 type DependencyResolver interface {
 	GetDependencies(code string) []string
 	GetDependenciesOfSymbols(symbols []string) []string
-	GetDependenciesWithSeen(code string, seen *jutil.LinkedHashSet[string], addClosureBaseFile bool) []string
-	GetDependenciesOfSymbolsWithSeen(symbols []string, seen *jutil.LinkedHashSet[string]) []string
+	GetDependenciesWithSeen(code string, seen *OrderedSet[string], addClosureBaseFile bool) []string
+	GetDependenciesOfSymbolsWithSeen(symbols []string, seen *OrderedSet[string]) []string
 }
 
 // Deps_SourceFile represents source files for the Compilation Service.
@@ -437,17 +424,3 @@ func (f *VirtualFile) GetContent() string { return f.code }
 
 // Java: VirtualFile.wasModified()
 func (f *VirtualFile) WasModified() bool { return false }
-
-// Java: VirtualFile.hashCode() (Objects.hash(name, code))
-func (f *VirtualFile) HashCode() int32 {
-	h := int32(1)
-	h = 31*h + jutil.StringHashCode(f.name)
-	h = 31*h + jutil.StringHashCode(f.code)
-	return h
-}
-
-// Java: VirtualFile.equals(Object)
-func (f *VirtualFile) Equals(o any) bool {
-	vf, ok := o.(*VirtualFile)
-	return ok && vf != nil && f.name == vf.name && f.code == vf.code
-}

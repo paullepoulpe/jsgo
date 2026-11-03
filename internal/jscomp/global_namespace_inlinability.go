@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -57,9 +58,6 @@ var (
 
 // Java: GlobalNamespace.Inlinability.name()
 func (i GlobalNamespace_Inlinability) String() string { return globalNamespace_Inlinability_names[i] }
-
-// Java: GlobalNamespace.Inlinability.ordinal()
-func (i GlobalNamespace_Inlinability) Ordinal() int { return int(i) }
 
 // Java: GlobalNamespace.Inlinability.shouldInlineUsages()
 func (i GlobalNamespace_Inlinability) ShouldInlineUsages() bool {
@@ -239,13 +237,13 @@ func (n *GlobalNamespace_Name) CanCollapseOrInline() GlobalNamespace_Inlinabilit
 			// whether it is used conditionally.
 			child := n.outer.GetOutermostObjectLit(declaration)
 			for p := child.GetParent(); !p.IsNil() && !p.GetParent().IsNil() && !NodeUtil_IsStatement(p); child, p = p, p.GetParent() {
-				if (p.IsOr() && p.GetFirstChild() != child) ||
-					(p.IsHook() && p.GetFirstChild() != child) ||
-					(p.IsAnd() && p.GetFirstChild() != child) {
-					// Case: `var x = y || {a: b}` or `var x = cond ? y : {a: b}` or `var x = cond && {a:
-					// b}`.
-					n.LogDecision(GlobalNamespace_Inlinability_DO_NOT_INLINE, "conditional definition")
-					return GlobalNamespace_Inlinability_DO_NOT_INLINE
+				switch ast.RoleIn(child, p) {
+				case ast.RoleBinaryRight, ast.RoleHookThen, ast.RoleHookElse:
+					if p.IsOr() || p.IsAnd() || p.IsHook() {
+						// Case: `var x = y || {a: b}` or `var x = cond ? y : {a: b}` or `var x = cond && {a: b}`.
+						n.LogDecision(GlobalNamespace_Inlinability_DO_NOT_INLINE, "conditional definition")
+						return GlobalNamespace_Inlinability_DO_NOT_INLINE
+					}
 				}
 			}
 		}
@@ -351,8 +349,12 @@ func (n *GlobalNamespace_Name) ReferencesSuperOrInnerClassName() bool {
 	// Get either the function body or the member field initializer (which may be null if there is
 	// no initializer).
 	var body rhino.Node
-	if member.IsMemberFieldDef() {
-		body = member.GetFirstChild()
+	if fd, ok := ast.AsMemberFieldDef(member); ok {
+		if val, hasVal := fd.Value(); hasVal {
+			body = val.Node()
+		}
+	} else if mf, ok := ast.AsMemberFunctionDef(member); ok {
+		body = mf.Function().Body().Node()
 	} else {
 		body = NodeUtil_GetFunctionBody(member.GetFirstChild())
 	}
@@ -360,14 +362,14 @@ func (n *GlobalNamespace_Name) ReferencesSuperOrInnerClassName() bool {
 		return true
 	}
 
-	classNode := member.GetGrandparent()
-	if NodeUtil_IsClassDeclaration(classNode) {
+	cls := ast.MustClass(member.GetGrandparent())
+	if NodeUtil_IsClassDeclaration(cls.Node()) {
 		return false // e.g. class C {}
 	}
 
-	innerNameNode := classNode.GetFirstChild()
-	return !innerNameNode.IsEmpty() && // e.g. const C = class {};
-		NodeUtil_IsNameReferenced(member, innerNameNode.GetString())
+	innerName, hasInnerName := cls.Name()
+	return hasInnerName && // e.g. const C = class {};
+		NodeUtil_IsNameReferenced(member, innerName.Ident())
 }
 
 // Java: GlobalNamespace.Name.isSetInLoop()
@@ -709,7 +711,8 @@ func (n *GlobalNamespace_Name) GetDocInfoForDeclaration(ref *GlobalNamespace_Ref
 		case rhino.Token_FUNCTION, rhino.Token_ASSIGN, rhino.Token_CLASS:
 			return refParent.GetJSDocInfo()
 		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-			if ref.node == refParent.GetFirstChild() {
+			first, _ := ast.MustNameDeclaration(refParent).FirstDeclarator()
+			if first.Is(ref.node) {
 				return refParent.GetJSDocInfo()
 			}
 			return ref.node.GetJSDocInfo()
@@ -825,9 +828,6 @@ const GlobalNamespace_NameProp_NAME_KIND_MASK int32 = (int32(1) << GlobalNamespa
 
 // Java: GlobalNamespace.NameProp.name()
 func (p GlobalNamespace_NameProp) String() string { return globalNamespace_NameProp_names[p] }
-
-// Java: GlobalNamespace.NameProp.ordinal()
-func (p GlobalNamespace_NameProp) Ordinal() int { return int(p) }
 
 // Bit is the enum field `bit` (some power of 2): `1 << p`.
 func (p GlobalNamespace_NameProp) Bit() int32 {

@@ -180,6 +180,14 @@ func coreG3Nullable(a string) *string {
 	return &a
 }
 
+func coreG3EnumValues[E ~int32](n int) []E {
+	out := make([]E, n)
+	for i := range out {
+		out[i] = E(i)
+	}
+	return out
+}
+
 func coreG3Names[E fmt.Stringer](values []E) []string {
 	names := make([]string, len(values))
 	for i, v := range values {
@@ -261,8 +269,8 @@ func coreG3Atoi(a string) int {
 
 // coreG3Ops is CoreG3Dump.OPS, in the same order.
 func coreG3Ops() []coreG3Op {
-	lang := CompilerOptions_LanguageMode_values()
-	reach := CompilerOptions_Reach_values()
+	lang := compilerOptions_LanguageMode_all[:]
+	reach := coreG3EnumValues[CompilerOptions_Reach](len(compilerOptions_Reach_names))
 	ops := []coreG3Op{
 		coreG3EnumOp("setLanguageIn", lang, (*CompilerOptions).SetLanguageIn),
 		coreG3EnumOp("setLanguageOut", lang, (*CompilerOptions).SetLanguageOut),
@@ -288,12 +296,13 @@ func coreG3Ops() []coreG3Op {
 		coreG3BoolOp("setSmartNameRemoval", (*CompilerOptions).SetSmartNameRemoval),
 		coreG3BoolOp("setExtractPrototypeMemberDeclarations", (*CompilerOptions).SetExtractPrototypeMemberDeclarations),
 		coreG3EnumOp("setExtractPrototypeMemberDeclarationsOfMode",
-			CompilerOptions_ExtractPrototypeMemberDeclarationsMode_values(),
+			coreG3EnumValues[CompilerOptions_ExtractPrototypeMemberDeclarationsMode](len(compilerOptions_ExtractPrototypeMemberDeclarationsMode_names)),
 			(*CompilerOptions).SetExtractPrototypeMemberDeclarationsOfMode),
 		coreG3BoolOp("setRemoveUnusedPrototypeProperties", (*CompilerOptions).SetRemoveUnusedPrototypeProperties),
 		coreG3BoolOp("setRemoveUnusedClassProperties", (*CompilerOptions).SetRemoveUnusedClassProperties),
 		coreG3BoolOp("setCollapseProperties", (*CompilerOptions).SetCollapseProperties),
-		coreG3EnumOp("setCollapsePropertiesLevel", CompilerOptions_PropertyCollapseLevel_values(),
+		coreG3EnumOp("setCollapsePropertiesLevel",
+			coreG3EnumValues[CompilerOptions_PropertyCollapseLevel](len(compilerOptions_PropertyCollapseLevel_names)),
 			(*CompilerOptions).SetCollapsePropertiesLevel),
 		coreG3BoolOp("setDisambiguateProperties", (*CompilerOptions).SetDisambiguateProperties),
 		coreG3BoolOp("setAmbiguateProperties", (*CompilerOptions).SetAmbiguateProperties),
@@ -352,7 +361,7 @@ func coreG3Ops() []coreG3Op {
 		coreG3BoolOp("setAlwaysGatherSourceMapInfo", (*CompilerOptions).SetAlwaysGatherSourceMapInfo),
 		coreG3BoolOp("setSkipNonTranspilationPasses", (*CompilerOptions).SetSkipNonTranspilationPasses),
 		coreG3BoolOp("setChecksOnly", (*CompilerOptions).SetChecksOnly),
-		coreG3EnumOp("setOutputJs", CompilerOptions_OutputJs_values(), (*CompilerOptions).SetOutputJs),
+		coreG3EnumOp("setOutputJs", coreG3EnumValues[CompilerOptions_OutputJs](len(compilerOptions_OutputJs_names)), (*CompilerOptions).SetOutputJs),
 		coreG3BoolOp("setGenerateExports", (*CompilerOptions).SetGenerateExports),
 		coreG3BoolOp("setPrettyPrint", (*CompilerOptions).SetPrettyPrint),
 		coreG3BoolOp("setLineBreak", (*CompilerOptions).SetLineBreak),
@@ -373,13 +382,13 @@ func coreG3Ops() []coreG3Op {
 		coreG3BoolOp("setEnableModuleRewriting", (*CompilerOptions).SetEnableModuleRewriting),
 		coreG3EnumOp("setModuleResolutionMode", ModuleLoader_ResolutionMode_values(),
 			(*CompilerOptions).SetModuleResolutionMode),
-		coreG3EnumOp("setPathEscaper", ModuleLoader_PathEscaper_values(), (*CompilerOptions).SetPathEscaper),
+		coreG3EnumOp("setPathEscaper", coreG3EnumValues[ModuleLoader_PathEscaper](len(moduleLoader_PathEscaper_names)), (*CompilerOptions).SetPathEscaper),
 		{"setPackageJsonEntryNames", []string{"", "main"}, func(o *CompilerOptions, a string) {
 			o.SetPackageJsonEntryNames(coreG3List(a))
 		}},
 		{"setDependencyOptions", []string{"none", "sortOnly", "pruneLegacy:a", "prune:a,file:b.js", "pruneAllow:"},
 			func(o *CompilerOptions, a string) { o.SetDependencyOptions(coreG3DepOptions(a)) }},
-		coreG3EnumOp("setWarningLevel", CheckLevel_values(), func(o *CompilerOptions, l CheckLevel) {
+		coreG3EnumOp("setWarningLevel", coreG3EnumValues[CheckLevel](len(checkLevel_names)), func(o *CompilerOptions, l CheckLevel) {
 			o.SetWarningLevel(DiagnosticGroup_ForType(RhinoErrorReporter_TYPE_PARSE_ERROR), l)
 		}),
 		{"resetWarningsGuard", []string{""}, func(o *CompilerOptions, a string) { o.ResetWarningsGuard() }},
@@ -424,7 +433,7 @@ func coreG3Ops() []coreG3Op {
 		{"setMaxFunctionSizeAfterInlining", []string{"0", "100"}, func(o *CompilerOptions, a string) {
 			o.SetMaxFunctionSizeAfterInlining(coreG3Atoi(a))
 		}},
-		coreG3EnumOp("setInstrumentForCoverageOption", CompilerOptions_InstrumentOption_values(),
+		coreG3EnumOp("setInstrumentForCoverageOption", compilerOptions_InstrumentOption_ptrs[:],
 			(*CompilerOptions).SetInstrumentForCoverageOption),
 		coreG3BoolOp("setInstrumentForCoverageOnly", (*CompilerOptions).SetInstrumentForCoverageOnly),
 		{"setProductionInstrumentationArrayName", []string{"", "arr"}, (*CompilerOptions).SetProductionInstrumentationArrayName},
@@ -437,19 +446,22 @@ func coreG3Ops() []coreG3Op {
 		coreG3BoolOp("setAssumeGettersArePure", (*CompilerOptions).SetAssumeGettersArePure),
 		coreG3EnumOp("setDevMode", CompilerOptions_DevMode_values(), (*CompilerOptions).SetDevMode),
 		coreG3EnumOp("setEnvironment", CompilerOptions_Environment_values(), (*CompilerOptions).SetEnvironment),
-		coreG3EnumOp("setTweakProcessing", CompilerOptions_TweakProcessing_values(), (*CompilerOptions).SetTweakProcessing),
+		coreG3EnumOp("setTweakProcessing", coreG3EnumValues[CompilerOptions_TweakProcessing](len(compilerOptions_TweakProcessing_names)), (*CompilerOptions).SetTweakProcessing),
 		coreG3EnumOp("setChunkOutputType", CompilerOptions_ChunkOutputType_values(), (*CompilerOptions).SetChunkOutputType),
-		coreG3EnumOp("setEs6ModuleTranspilation", CompilerOptions_Es6ModuleTranspilation_values(),
+		coreG3EnumOp("setEs6ModuleTranspilation",
+			coreG3EnumValues[CompilerOptions_Es6ModuleTranspilation](len(compilerOptions_Es6ModuleTranspilation_names)),
 			(*CompilerOptions).SetEs6ModuleTranspilation),
-		coreG3EnumOp("setEs6SubclassTranspilation", CompilerOptions_Es6SubclassTranspilation_values(),
+		coreG3EnumOp("setEs6SubclassTranspilation",
+			coreG3EnumValues[CompilerOptions_Es6SubclassTranspilation](len(compilerOptions_Es6SubclassTranspilation_names)),
 			(*CompilerOptions).SetEs6SubclassTranspilation),
-		coreG3EnumOp("setConformanceReportingMode", CompilerOptions_ConformanceReportingMode_values(),
+		coreG3EnumOp("setConformanceReportingMode",
+			coreG3EnumValues[CompilerOptions_ConformanceReportingMode](len(compilerOptions_ConformanceReportingMode_names)),
 			(*CompilerOptions).SetConformanceReportingMode),
 		coreG3BoolOp("setContinueAfterErrors", (*CompilerOptions).SetContinueAfterErrors),
 		coreG3EnumOp("setParseJsDocDocumentation", parsing.Config_JsDocParsing_values(),
 			(*CompilerOptions).SetParseJsDocDocumentation),
 		coreG3BoolOp("setPreserveDetailedSourceInfo", (*CompilerOptions).SetPreserveDetailedSourceInfo),
-		coreG3EnumOp("setSourceMapDetailLevel", SourceMap_DetailLevel_values(), (*CompilerOptions).SetSourceMapDetailLevel),
+		coreG3EnumOp("setSourceMapDetailLevel", coreG3EnumValues[SourceMap_DetailLevel](len(sourceMap_DetailLevel_names)), (*CompilerOptions).SetSourceMapDetailLevel),
 		coreG3EnumOp("setSourceMapFormat", SourceMap_Format_values(), (*CompilerOptions).SetSourceMapFormat),
 		{"setSourceMapLocationMappings", []string{"", "a/|b/", "a/|,c|d"}, func(o *CompilerOptions, a string) {
 			l := []SourceMap_LocationMapping{}
@@ -469,14 +481,15 @@ func coreG3Ops() []coreG3Op {
 				if a == "null" {
 					o.SetExperimentalOutputFeatureSet(nil)
 				} else {
-					v := coreG3ValueOf(CompilerOptions_ExperimentalOutputFeatureSet_values(), a)
+					v := coreG3ValueOf(coreG3EnumValues[CompilerOptions_ExperimentalOutputFeatureSet](len(compilerOptions_ExperimentalOutputFeatureSet_names)), a)
 					o.SetExperimentalOutputFeatureSet(&v)
 				}
 			}},
 		coreG3BoolOp("setTranspilePublicClassFields", (*CompilerOptions).SetTranspilePublicClassFields),
 		coreG3BoolOp("setOptimizeLetAndConst", (*CompilerOptions).SetOptimizeLetAndConst),
 		coreG3BoolOp("setAssumeGlobalScopeIsIsolated", (*CompilerOptions).SetAssumeGlobalScopeIsIsolated),
-		coreG3EnumOp("setOptimizeLocalAccessForGlobalSymbolNamespace", CompilerOptions_OptimizeLocalAccess_values(),
+		coreG3EnumOp("setOptimizeLocalAccessForGlobalSymbolNamespace",
+			coreG3EnumValues[CompilerOptions_OptimizeLocalAccess](len(compilerOptions_OptimizeLocalAccess_names)),
 			(*CompilerOptions).SetOptimizeLocalAccessForGlobalSymbolNamespace),
 		{"setCssRenamingSkiplist", []string{"", "x"}, func(o *CompilerOptions, a string) { o.SetCssRenamingSkiplist(coreG3Set(a)) }},
 		{"setInjectPolyfillsNewerThan", []string{"null", "ECMASCRIPT5", "ECMASCRIPT_2015"}, func(o *CompilerOptions, a string) {
@@ -496,7 +509,7 @@ func coreG3Ops() []coreG3Op {
 		coreG3BoolOp("setComputeFunctionSideEffects", (*CompilerOptions).SetComputeFunctionSideEffects),
 		coreG3BoolOp("setOptimizeCalls", (*CompilerOptions).SetOptimizeCalls),
 		coreG3BoolOp("setConvertToDottedProperties", (*CompilerOptions).SetConvertToDottedProperties),
-		coreG3EnumOp("setAliasStringsMode", CompilerOptions_AliasStringsMode_values(), (*CompilerOptions).SetAliasStringsMode),
+		coreG3EnumOp("setAliasStringsMode", coreG3EnumValues[CompilerOptions_AliasStringsMode](len(compilerOptions_AliasStringsMode_names)), (*CompilerOptions).SetAliasStringsMode),
 		coreG3EnumOp("setJ2clPass", CompilerOptions_J2clPassMode_values(), (*CompilerOptions).SetJ2clPass),
 		{"setSummaryDetailLevel", []string{"0", "3"}, func(o *CompilerOptions, a string) { o.SetSummaryDetailLevel(coreG3Atoi(a)) }},
 		{"setNumParallelThreads", []string{"4"}, func(o *CompilerOptions, a string) { o.SetNumParallelThreads(coreG3Atoi(a)) }},
@@ -516,29 +529,29 @@ func coreG3Ops() []coreG3Op {
 // simple name).
 func coreG3EnumLists() map[string][]string {
 	return map[string][]string{
-		"AliasStringsMode":                       coreG3Names(CompilerOptions_AliasStringsMode_values()),
-		"BrowserFeaturesetYear":                  coreG3Names(CompilerOptions_BrowserFeaturesetYear_values()),
-		"ChunkOutputType":                        coreG3Names(CompilerOptions_ChunkOutputType_values()),
-		"ConformanceReportingMode":               coreG3Names(CompilerOptions_ConformanceReportingMode_values()),
-		"DevMode":                                coreG3Names(CompilerOptions_DevMode_values()),
-		"Environment":                            coreG3Names(CompilerOptions_Environment_values()),
-		"Es6ModuleTranspilation":                 coreG3Names(CompilerOptions_Es6ModuleTranspilation_values()),
-		"Es6SubclassTranspilation":               coreG3Names(CompilerOptions_Es6SubclassTranspilation_values()),
-		"ExperimentalOutputFeatureSet":           coreG3Names(CompilerOptions_ExperimentalOutputFeatureSet_values()),
-		"ExtractPrototypeMemberDeclarationsMode": coreG3Names(CompilerOptions_ExtractPrototypeMemberDeclarationsMode_values()),
-		"IncrementalCheckMode":                   coreG3Names(CompilerOptions_IncrementalCheckMode_values()),
-		"InstrumentOption":                       coreG3Names(CompilerOptions_InstrumentOption_values()),
-		"IsolationMode":                          coreG3Names(CompilerOptions_IsolationMode_values()),
-		"J2clPassMode":                           coreG3Names(CompilerOptions_J2clPassMode_values()),
-		"JsonStreamMode":                         coreG3Names(CompilerOptions_JsonStreamMode_values()),
-		"LanguageMode":                           coreG3Names(CompilerOptions_LanguageMode_values()),
-		"OptimizeLocalAccess":                    coreG3Names(CompilerOptions_OptimizeLocalAccess_values()),
-		"OutputJs":                               coreG3Names(CompilerOptions_OutputJs_values()),
-		"PropertyCollapseLevel":                  coreG3Names(CompilerOptions_PropertyCollapseLevel_values()),
-		"Reach":                                  coreG3Names(CompilerOptions_Reach_values()),
-		"SegmentOfCompilationToRun":              coreG3Names(CompilerOptions_SegmentOfCompilationToRun_values()),
-		"TracerMode":                             coreG3Names(CompilerOptions_TracerMode_values()),
-		"TweakProcessing":                        coreG3Names(CompilerOptions_TweakProcessing_values()),
+		"AliasStringsMode":                       compilerOptions_AliasStringsMode_names[:],
+		"BrowserFeaturesetYear":                  compilerOptions_BrowserFeaturesetYear_names[:],
+		"ChunkOutputType":                        compilerOptions_ChunkOutputType_names[:],
+		"ConformanceReportingMode":               compilerOptions_ConformanceReportingMode_names[:],
+		"DevMode":                                compilerOptions_DevMode_names[:],
+		"Environment":                            compilerOptions_Environment_names[:],
+		"Es6ModuleTranspilation":                 compilerOptions_Es6ModuleTranspilation_names[:],
+		"Es6SubclassTranspilation":               compilerOptions_Es6SubclassTranspilation_names[:],
+		"ExperimentalOutputFeatureSet":           compilerOptions_ExperimentalOutputFeatureSet_names[:],
+		"ExtractPrototypeMemberDeclarationsMode": compilerOptions_ExtractPrototypeMemberDeclarationsMode_names[:],
+		"IncrementalCheckMode":                   compilerOptions_IncrementalCheckMode_names[:],
+		"InstrumentOption":                       compilerOptions_InstrumentOption_names[:],
+		"IsolationMode":                          compilerOptions_IsolationMode_names[:],
+		"J2clPassMode":                           compilerOptions_J2clPassMode_names[:],
+		"JsonStreamMode":                         compilerOptions_JsonStreamMode_names[:],
+		"LanguageMode":                           compilerOptions_LanguageMode_names[:],
+		"OptimizeLocalAccess":                    compilerOptions_OptimizeLocalAccess_names[:],
+		"OutputJs":                               compilerOptions_OutputJs_names[:],
+		"PropertyCollapseLevel":                  compilerOptions_PropertyCollapseLevel_names[:],
+		"Reach":                                  compilerOptions_Reach_names[:],
+		"SegmentOfCompilationToRun":              compilerOptions_SegmentOfCompilationToRun_names[:],
+		"TracerMode":                             compilerOptions_TracerMode_names[:],
+		"TweakProcessing":                        compilerOptions_TweakProcessing_names[:],
 	}
 }
 
@@ -568,12 +581,12 @@ func coreG3Getters() []coreG3Getter {
 
 func (o *coreG3Out) options(seed int64, n int) {
 	o.line("## statics")
-	for _, m := range CompilerOptions_LanguageMode_values() {
+	for _, m := range compilerOptions_LanguageMode_all {
 		var fs string
 		if t := coreG3Try(func() { fs = m.ToFeatureSet().String() }); t != nil {
 			fs = coreG3Exc(t)
 		}
-		o.line("LanguageMode " + m.String() + " " + strconv.Itoa(m.Ordinal()) + " strict=" +
+		o.line("LanguageMode " + m.String() + " " + strconv.Itoa(int(m)) + " strict=" +
 			strconv.FormatBool(m.IsDefaultStrict()) + " " + fs)
 	}
 	o.line("STABLE_IN " + CompilerOptions_LanguageMode_STABLE_IN.String() +
@@ -588,19 +601,19 @@ func (o *coreG3Out) options(seed int64, n int) {
 	for _, s := range []string{"NONE", "LINE", "BRANCH", "PRODUCTION", "LINE_ONLY", "x"} {
 		o.line("InstrumentOption.fromString " + s + " -> " + coreG3Fmt(CompilerOptions_InstrumentOption_FromString(&s)))
 	}
-	for _, y := range CompilerOptions_BrowserFeaturesetYear_values() {
+	for _, y := range compilerOptions_BrowserFeaturesetYear_ptrs {
 		o.line("BrowserFeaturesetYear " + y.String() + " " + strconv.Itoa(y.GetYear()) + " " + y.GetFeatureSet().String())
 	}
 	for _, f := range parser.FeatureSet_Feature_values() {
 		o.line("minimumRequiredFor " + f.Name() + " " + coreG3Fmt(CompilerOptions_BrowserFeaturesetYear_MinimumRequiredFor(f)))
 	}
-	for _, r := range CompilerOptions_Reach_values() {
+	for _, r := range coreG3EnumValues[CompilerOptions_Reach](len(compilerOptions_Reach_names)) {
 		o.line("Reach " + r.String() + " " + strconv.FormatBool(r.IsOn()) + " " + strconv.FormatBool(r.IncludesGlobals()))
 	}
 	for _, r := range CompilerOptions_TracerMode_values() {
 		o.line("TracerMode " + r.String() + " " + strconv.FormatBool(r.IsOn()) + " " + strconv.FormatBool(r.DoPruningAnalysis()))
 	}
-	for _, r := range CompilerOptions_TweakProcessing_values() {
+	for _, r := range coreG3EnumValues[CompilerOptions_TweakProcessing](len(compilerOptions_TweakProcessing_names)) {
 		o.line("TweakProcessing " + r.String() + " " + strconv.FormatBool(r.IsOn()) + " " + strconv.FormatBool(r.ShouldStrip()))
 	}
 	for _, r := range CompilerOptions_J2clPassMode_values() {
@@ -700,7 +713,7 @@ func newCoreG3Collector() *coreG3Collector {
 	return c
 }
 
-func (c *coreG3Collector) Report(level *CheckLevel, error *JSError) {
+func (c *coreG3Collector) Report(level CheckLevel, error *JSError) {
 	c.reports = append(c.reports, level.String()+" "+error.String())
 	c.SortingErrorManager.Report(level, error)
 }

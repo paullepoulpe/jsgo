@@ -84,12 +84,12 @@ type IRFactory struct {
 
 	// Tracks whether a class is currently in scope. Presently used to detect
 	// valid usage of private fields.
-	classScope IRFactory_ScopeTracker
+	classScopeDepth int
 
 	// Used to detect an IdentifierExpression in the following context:
 	// Valid: `class A { #x; static isA(o) { return #x in o; } }`
 	// Invalid: `class A { #x; } function isA(o) { return #x in o; } }`
-	privateIdLhsOfInScope IRFactory_ScopeTracker
+	privateIdLhsOfInDepth int
 
 	// Go-only: performance — single-threaded line table + cursor, fast-path
 	// flags, L1 string intern cache, and reusable literal scratch buffers.

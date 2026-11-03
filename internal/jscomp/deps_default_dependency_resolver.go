@@ -89,9 +89,8 @@ func (r *DefaultDependencyResolver) GetDependencies(code string) []string {
 //
 // Java: DefaultDependencyResolver.getDependencies(Collection<String>)
 func (r *DefaultDependencyResolver) GetDependenciesOfSymbols(symbols []string) []string {
-	// Go-only: language-adapter — the HashSet is only queried (containsAll,
-	// addAll), never iterated, so insertion order is unobservable.
-	return r.GetDependenciesOfSymbolsWithSeen(symbols, jutil.NewLinkedHashSet[string]())
+	var seen OrderedSet[string]
+	return r.GetDependenciesOfSymbolsWithSeen(symbols, &seen)
 }
 
 // GetDependenciesWithSeen: code is the raw code to be parsed for requires;
@@ -102,7 +101,7 @@ func (r *DefaultDependencyResolver) GetDependenciesOfSymbols(symbols []string) [
 //
 // Java: DefaultDependencyResolver.getDependencies(String, Set<String>, boolean)
 func (r *DefaultDependencyResolver) GetDependenciesWithSeen(
-	code string, seen *jutil.LinkedHashSet[string], addClosureBaseFile bool) []string {
+	code string, seen *OrderedSet[string], addClosureBaseFile bool) []string {
 	return r.GetDependenciesOfSymbolsWithSeen(defaultDependencyResolver_parseRequires(code, addClosureBaseFile), seen)
 }
 
@@ -112,7 +111,7 @@ func (r *DefaultDependencyResolver) GetDependenciesWithSeen(
 //
 // Java: DefaultDependencyResolver.getDependencies(Collection<String>, Set<String>)
 func (r *DefaultDependencyResolver) GetDependenciesOfSymbolsWithSeen(
-	symbols []string, seen *jutil.LinkedHashSet[string]) []string {
+	symbols []string, seen *OrderedSet[string]) []string {
 	var list []string
 	for _, depsFile := range r.depsFiles {
 		depsFile.EnsureUpToDate()
@@ -130,7 +129,7 @@ func (r *DefaultDependencyResolver) GetDependenciesOfSymbolsWithSeen(
 // results to get correct dependency ordering.
 //
 // Java: DefaultDependencyResolver.addDependency(String, Set<String>, List<String>)
-func (r *DefaultDependencyResolver) addDependency(symbol string, seen *jutil.LinkedHashSet[string], list *[]string) {
+func (r *DefaultDependencyResolver) addDependency(symbol string, seen *OrderedSet[string], list *[]string) {
 	dependency := r.GetDependencyInfo(symbol)
 	if dependency == nil {
 		if r.strictRequires {
@@ -145,10 +144,9 @@ func (r *DefaultDependencyResolver) addDependency(symbol string, seen *jutil.Lin
 	}
 }
 
-// Go-only: language-adapter — Set.containsAll(Collection).
-func defaultDependencyResolver_containsAll(seen *jutil.LinkedHashSet[string], elems []string) bool {
+func defaultDependencyResolver_containsAll(seen *OrderedSet[string], elems []string) bool {
 	for _, e := range elems {
-		if !seen.Contains(e) {
+		if !seen.Has(e) {
 			return false
 		}
 	}

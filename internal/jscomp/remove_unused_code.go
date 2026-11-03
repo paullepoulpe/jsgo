@@ -425,68 +425,64 @@ func (r *RemoveUnusedCode) canParallelizeLocalScripts() bool {
 		!r.unremovableLog.IsLogging()
 }
 
+func (r *RemoveUnusedCode) newLocalScriptWorker(rc *Compiler) *RemoveUnusedCode {
+	wr := &RemoveUnusedCode{
+		compiler:                        rc,
+		astAnalyzer:                     r.astAnalyzer,
+		codingConvention:                r.codingConvention,
+		scopeCreator:                    NewSyntacticScopeCreator(rc),
+		removeLocalVars:                 r.removeLocalVars,
+		removeGlobals:                   false,
+		preserveFunctionExpressionNames: r.preserveFunctionExpressionNames,
+		externProperties:                r.externProperties,
+		accessorSummary:                 r.accessorSummary,
+		polyfillsFromTable:              r.polyfillsFromTable,
+		polyfillUsageFinder:             r.polyfillUsageFinder,
+		assumeGettersArePure:            r.assumeGettersArePure,
+		disambiguateProperties:          r.disambiguateProperties,
+		removalLog:                      r.removalLog,
+		unremovableLog:                  r.unremovableLog,
+	}
+	wr.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 128)
+	wr.canonicalUnremovableVarInfoVal.outer = wr
+	wr.canonicalUnremovableVarInfoVal.flags = rucVarFlagCanonical
+	wr.canonicalUnremovableVarInfo = &wr.canonicalUnremovableVarInfoVal
+	return wr
+}
+
+func (r *RemoveUnusedCode) resetLocalScriptWorker() {
+	clear(r.varByKey)
+	clear(r.varInfos)
+	r.varInfos = r.varInfos[:0]
+	r.worklistHead = 0
+	r.worklistSize = 0
+	clear(r.extraContSlab)
+	r.extraContSlab = r.extraContSlab[:0]
+	r.removables.Reset(nil)
+	r.varInfoSlab.Reset(nil)
+	r.polyfillSlab.Reset(nil)
+}
+
 func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node) bool {
 	if !r.canParallelizeLocalScripts() || root.GetParent().IsNil() {
 		return false
 	}
-	scripts, ok := collectRootScripts(root)
-	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(r.compiler, len(scripts))
-	if numWorkers <= 1 {
-		return false
-	}
-
-	prewarmCompilerForParallelReads(r.compiler)
-	restoreReg := enableParallelTypeRegistryReads(r.compiler)
-	defer restoreReg()
-
-	globalScope := r.createGlobalScope(root)
-	freezeGlobalScopeForParallelReads(globalScope)
-
-	runParallelWork(r.compiler, numWorkers, len(scripts), func(_ int) (func(int, *recordingCompiler), func()) {
-		var wr *RemoveUnusedCode
-		runItem := func(idx int, rc *recordingCompiler) {
-			if wr == nil || wr.compiler != rc {
-				wr = &RemoveUnusedCode{
-					compiler:                        rc,
-					astAnalyzer:                     r.astAnalyzer,
-					codingConvention:                r.codingConvention,
-					scopeCreator:                    NewSyntacticScopeCreator(rc),
-					removeLocalVars:                 r.removeLocalVars,
-					removeGlobals:                   false,
-					preserveFunctionExpressionNames: r.preserveFunctionExpressionNames,
-					externProperties:                r.externProperties,
-					accessorSummary:                 r.accessorSummary,
-					polyfillsFromTable:              r.polyfillsFromTable,
-					polyfillUsageFinder:             r.polyfillUsageFinder,
-					assumeGettersArePure:            r.assumeGettersArePure,
-					disambiguateProperties:          r.disambiguateProperties,
-					removalLog:                      r.removalLog,
-					unremovableLog:                  r.unremovableLog,
-				}
-				wr.canonicalUnremovableVarInfoVal.outer = wr
-				wr.canonicalUnremovableVarInfoVal.flags = rucVarFlagCanonical
-				wr.canonicalUnremovableVarInfo = &wr.canonicalUnremovableVarInfoVal
-				wr.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 128)
-			} else {
-				clear(wr.varByKey)
-				clear(wr.varInfos)
-				wr.varInfos = wr.varInfos[:0]
-				wr.worklistHead = 0
-				wr.worklistSize = 0
-				clear(wr.extraContSlab)
-				wr.extraContSlab = wr.extraContSlab[:0]
-				wr.removables.Reset(nil)
-				wr.varInfoSlab.Reset(nil)
-				wr.polyfillSlab.Reset(nil)
-			}
-			wr.traverseRootAndRemoveVars(scripts[idx], globalScope)
-		}
-		return runItem, nil
-	}, false)
-	return true
+	var globalScope *Scope
+	return traverseScriptsParallel(r.compiler, root, parallelScriptOptions[*RemoveUnusedCode]{
+		enableTypeRegistryReads: true,
+		prepare: func(_, _ int) bool {
+			globalScope = r.createGlobalScope(root)
+			freezeGlobalScopeForParallelReads(globalScope)
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) *RemoveUnusedCode {
+			return r.newLocalScriptWorker(rc)
+		},
+		runScript: func(wr *RemoveUnusedCode, _ int, _ rhino.Node, script rhino.Node, _ *Compiler) {
+			wr.resetLocalScriptWorker()
+			wr.traverseRootAndRemoveVars(script, globalScope)
+		},
+	})
 }
 
 // trailingParamBinding returns what the parameter p binds: the name or
@@ -562,85 +558,27 @@ func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsWithCompiler(
 	r.markUnusedParameters(compiler, argList, fparamScope, readOnly)
 }
 
-type rucParamScriptGroup struct {
-	script  rhino.Node
-	indices []int
-}
-
 func (r *RemoveUnusedCode) removeUnreferencedFunctionArgsParallel() bool {
-	if !r.removeGlobals ||
-		len(r.allFunctionParamScopes) < 2 ||
-		r.removalLog.IsLogging() ||
-		r.unremovableLog.IsLogging() {
+	if !r.removeGlobals || r.removalLog.IsLogging() || r.unremovableLog.IsLogging() {
 		return false
 	}
-	if r.compiler == nil || r.compiler.GetOptions() == nil || r.compiler.GetOptions().GetNumParallelThreads() <= 1 {
-		return false
-	}
-
-	groupByScript := make(map[rhino.Node]int, 64)
-	var groups []rucParamScriptGroup
-	var detachedIndices []int
-	var anyScope *Scope
-	for idx, fparamScope := range r.allFunctionParamScopes {
-		if anyScope == nil && fparamScope != nil {
-			anyScope = fparamScope
-		}
-		script := NodeUtil_GetEnclosingScript(fparamScope.GetRootNode())
-		if script.IsNil() {
-			detachedIndices = append(detachedIndices, idx)
-			continue
-		}
-		gIdx, exists := groupByScript[script]
-		if !exists {
-			gIdx = len(groups)
-			groupByScript[script] = gIdx
-			groups = append(groups, rucParamScriptGroup{script: script})
-		}
-		groups[gIdx].indices = append(groups[gIdx].indices, idx)
-	}
-
-	numWorkers := parallelThreadCount(r.compiler, len(groups))
-	if numWorkers <= 1 {
-		return false
-	}
-
-	prewarmCompilerForParallelReads(r.compiler)
-	restoreReg := enableParallelTypeRegistryReads(r.compiler)
-	defer restoreReg()
-	if anyScope != nil {
-		freezeGlobalScopeForParallelReads(anyScope.GetGlobalScope())
-	}
-
-	eventsByIdx := make([][]recordedCompilerEvent, len(r.allFunctionParamScopes))
-	runParallelWork(r.compiler, numWorkers, len(groups), func(_ int) (func(int, *recordingCompiler), func()) {
-		runItem := func(gIdx int, rc *recordingCompiler) {
-			g := &groups[gIdx]
-			for _, origIdx := range g.indices {
-				resetRecordingCompiler(rc, r.compiler)
-				r.removeUnreferencedFunctionArgsWithCompiler(rc, r.allFunctionParamScopes[origIdx], true)
-				eventsByIdx[origIdx] = rc.takeEvents()
+	scopes := r.allFunctionParamScopes
+	return runParallelNodesByScript(r.compiler, len(scopes), parallelNodeTask[struct{}]{
+		allowDetached:           true,
+		enableTypeRegistryReads: true,
+		prepare: func() {
+			for _, s := range scopes {
+				if s != nil {
+					freezeGlobalScopeForParallelReads(s.GetGlobalScope())
+					break
+				}
 			}
-		}
-		return runItem, nil
-	}, false)
-
-	if len(detachedIndices) > 0 {
-		var mainRC recordingCompiler
-		initRecordingCompiler(&mainRC, r.compiler)
-		for _, origIdx := range detachedIndices {
-			resetRecordingCompiler(&mainRC, r.compiler)
-			r.removeUnreferencedFunctionArgsWithCompiler(&mainRC, r.allFunctionParamScopes[origIdx], true)
-			eventsByIdx[origIdx] = mainRC.takeEvents()
-		}
-	}
-
-	for _, evs := range eventsByIdx {
-		if len(evs) > 0 {
-			replayCompilerEvents(r.compiler, evs)
-		}
-	}
-	return true
+		},
+		nodeAt: func(idx int) rhino.Node { return scopes[idx].GetRootNode() },
+		runItem: func(_ struct{}, idx int, rc *Compiler) {
+			r.removeUnreferencedFunctionArgsWithCompiler(rc, scopes[idx], true)
+		},
+	})
 }
 
 // Java: RemoveUnusedCode.storePolyfill(PolyfillUsage)

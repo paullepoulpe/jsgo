@@ -178,113 +178,95 @@ func (c *GreedyGraphColoring[N, E]) initSuperNodes(count int) {
 	c.colored = true
 }
 
-type undirectedColoringEntry[N, E comparable] struct {
-	node   *LinkedUndirectedGraphNode[N, E]
+type coloringEntry[N comparable, Node interface{ SetAnnotation(Annotation) }] struct {
+	node   Node
+	value  N
+	idx    int
 	weight int
+}
+
+func colorWorklist[N comparable, Node interface{ SetAnnotation(Annotation) }](
+	worklist []coloringEntry[N, Node],
+	forbiddenLen int,
+	tieBreaker func(a, b N) int,
+	markNeighbors func(node Node, forbidden []int, epoch int),
+) int {
+	slices.SortStableFunc(worklist, func(left, right coloringEntry[N, Node]) int {
+		if result := right.weight - left.weight; result != 0 {
+			return result
+		}
+		if tieBreaker != nil {
+			return tieBreaker(left.value, right.value)
+		}
+		return 0
+	})
+
+	forbidden := make([]int, forbiddenLen)
+	count := 0
+	for len(worklist) > 0 {
+		epoch := count + 1
+		color := NewGraphColoring_Color(count)
+		kept := worklist[:0]
+		for _, entry := range worklist {
+			if forbidden[entry.idx] != epoch {
+				markNeighbors(entry.node, forbidden, epoch)
+				entry.node.SetAnnotation(color)
+			} else {
+				kept = append(kept, entry)
+			}
+		}
+		clear(worklist[len(kept):])
+		worklist = kept
+		count++
+	}
+	return count
 }
 
 func colorUndirectedGraph[N, E comparable](g *LinkedUndirectedGraph[N, E], tieBreaker func(a, b N) int) int {
 	uNodes := g.Nodes.Slice()
-	n := len(uNodes)
-	worklist := make([]undirectedColoringEntry[N, E], n)
+	worklist := make([]coloringEntry[N, *LinkedUndirectedGraphNode[N, E]], len(uNodes))
 	for i, uNode := range uNodes {
-		worklist[i] = undirectedColoringEntry[N, E]{
+		uNode.colorIdx = int32(i)
+		worklist[i] = coloringEntry[N, *LinkedUndirectedGraphNode[N, E]]{
 			node:   uNode,
+			value:  uNode.Value,
+			idx:    i,
 			weight: uNode.NeighborEdges.Size(),
 		}
 	}
-	slices.SortStableFunc(worklist, func(left, right undirectedColoringEntry[N, E]) int {
-		if result := right.weight - left.weight; result != 0 {
-			return result
-		}
-		if tieBreaker != nil {
-			return tieBreaker(left.node.Value, right.node.Value)
-		}
-		return 0
-	})
-
-	for i := range worklist {
-		worklist[i].node.colorIdx = int32(i)
-	}
-	forbidden := make([]int, n)
-	count := 0
-	for len(worklist) > 0 {
-		epoch := count + 1
-		color := NewGraphColoring_Color(count)
-		kept := worklist[:0]
-		for _, entry := range worklist {
-			uNode := entry.node
-			if forbidden[uNode.colorIdx] != epoch {
-				for _, edge := range uNode.NeighborEdges.Slice() {
-					if edge.nodeA == uNode {
-						forbidden[edge.nodeB.colorIdx] = epoch
-					} else {
-						forbidden[edge.nodeA.colorIdx] = epoch
-					}
-				}
-				uNode.SetAnnotation(color)
+	return colorWorklist(worklist, len(uNodes), tieBreaker, func(uNode *LinkedUndirectedGraphNode[N, E], forbidden []int, epoch int) {
+		for _, edge := range uNode.NeighborEdges.Slice() {
+			if edge.nodeA == uNode {
+				forbidden[edge.nodeB.colorIdx] = epoch
 			} else {
-				kept = append(kept, entry)
+				forbidden[edge.nodeA.colorIdx] = epoch
 			}
 		}
-		clear(worklist[len(kept):])
-		worklist = kept
-		count++
-	}
-	return count
-}
-
-type directedColoringEntry[N, E comparable] struct {
-	node   *LinkedDiGraphNode[N, E]
-	weight int
+	})
 }
 
 func colorDirectedGraph[N, E comparable](g *LinkedDirectedGraph[N, E], tieBreaker func(a, b N) int) int {
 	dNodes := g.Nodes.Slice()
-	worklist := make([]directedColoringEntry[N, E], len(dNodes))
-	maxIdx := uint32(0)
+	worklist := make([]coloringEntry[N, *LinkedDiGraphNode[N, E]], len(dNodes))
+	maxIdx := 0
 	for i, dNode := range dNodes {
-		if dNode.Index > maxIdx {
-			maxIdx = dNode.Index
+		idx := int(dNode.Index)
+		if idx > maxIdx {
+			maxIdx = idx
 		}
-		worklist[i] = directedColoringEntry[N, E]{
+		worklist[i] = coloringEntry[N, *LinkedDiGraphNode[N, E]]{
 			node:   dNode,
+			value:  dNode.Value,
+			idx:    idx,
 			weight: dNode.InEdgeList.Size() + dNode.OutEdgeList.Size(),
 		}
 	}
-	slices.SortStableFunc(worklist, func(left, right directedColoringEntry[N, E]) int {
-		if result := right.weight - left.weight; result != 0 {
-			return result
+	return colorWorklist(worklist, maxIdx+1, tieBreaker, func(dNode *LinkedDiGraphNode[N, E], forbidden []int, epoch int) {
+		for _, edge := range dNode.InEdgeList.Slice() {
+			forbidden[edge.SourceNode.Index] = epoch
 		}
-		if tieBreaker != nil {
-			return tieBreaker(left.node.Value, right.node.Value)
+		for _, edge := range dNode.OutEdgeList.Slice() {
+			forbidden[edge.DestNode.Index] = epoch
 		}
-		return 0
 	})
-
-	forbidden := make([]int, int(maxIdx)+1)
-	count := 0
-	for len(worklist) > 0 {
-		epoch := count + 1
-		color := NewGraphColoring_Color(count)
-		kept := worklist[:0]
-		for _, entry := range worklist {
-			dNode := entry.node
-			if forbidden[dNode.Index] != epoch {
-				for _, edge := range dNode.InEdgeList.Slice() {
-					forbidden[edge.SourceNode.Index] = epoch
-				}
-				for _, edge := range dNode.OutEdgeList.Slice() {
-					forbidden[edge.DestNode.Index] = epoch
-				}
-				dNode.SetAnnotation(color)
-			} else {
-				kept = append(kept, entry)
-			}
-		}
-		clear(worklist[len(kept):])
-		worklist = kept
-		count++
-	}
-	return count
 }

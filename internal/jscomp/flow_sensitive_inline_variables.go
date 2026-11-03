@@ -141,7 +141,7 @@ func (f *FlowSensitiveInlineVariables) reportChange(n rhino.Node) {
 func (f *FlowSensitiveInlineVariables) getReachingUses() *MaybeReachingVariableUse {
 	if f.reachingUses == nil {
 		table := f.activeVarTable
-		f.candVarSeen.clear(len(table.vars) <= 256)
+		f.candVarSeen.Reset(len(table.vars) <= 256)
 		f.candVarIDs = f.candVarIDs[:0]
 		for i := range f.candidates {
 			cand := &f.candidates[i]
@@ -272,22 +272,14 @@ func fsivIsReadName(n, parent rhino.Node) bool {
 	return !NodeUtil_IsLhsByDestructuring(n)
 }
 
-func fsivRhsDependsOnOuterOrCatchVars(n, parent rhino.Node, table *fnVarTable) bool {
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		return false
-	}
-	if n.IsName() {
+func fsivRhsDependsOnOuterOrCatchVars(rhs rhino.Node, table *fnVarTable) bool {
+	return walkCfgNode(rhs, func(n, _ rhino.Node) bool {
+		if !n.IsName() {
+			return false
+		}
 		v := table.lookupVarByID(n.GetStringID())
-		if v == nil || v.GetScope().(*Scope).IsCatchScope() {
-			return true
-		}
-	}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if fsivRhsDependsOnOuterOrCatchVars(c, n, table) {
-			return true
-		}
-	}
-	return false
+		return v == nil || v.GetScope().(*Scope).IsCatchScope()
+	})
 }
 
 func (f *FlowSensitiveInlineVariables) maybeAddCandidateDef(name ast.Name, rhs ast.Expr) {
@@ -479,7 +471,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 
 	nDefs := 0
 	for _, d := range f.inlinableDefs {
-		if table.lookupVarByID(d.nameID) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs.Node(), rhino.NilNode, table) {
+		if table.lookupVarByID(d.nameID) != nil && !fsivRhsDependsOnOuterOrCatchVars(d.rhs.Node(), table) {
 			f.inlinableDefs[nDefs] = d
 			nDefs++
 		}
@@ -489,7 +481,7 @@ func (f *FlowSensitiveInlineVariables) processFunction(fn ast.Function, body ast
 		return
 	}
 
-	table.escaped.clear(len(table.vars) <= 256)
+	table.escaped.Reset(len(table.vars) <= 256)
 	computeEscapedInTable(fnScope, table, f.compiler, scopeCreator)
 	nDefs = 0
 	for _, d := range f.inlinableDefs {
@@ -834,65 +826,6 @@ func (f *FlowSensitiveInlineVariables) visitCandidateName(n rhino.Node, parent r
 	}
 }
 
-func (f *FlowSensitiveInlineVariables) walkGatherCfgNode(n, parent rhino.Node) {
-	f.gatherWalkNode = n
-	if !parent.IsNil() && ControlFlowGraph_IsEnteringNewCfgNode(n) {
-		return
-	}
-	switch n.GetToken() {
-	case rhino.Token_SCRIPT:
-		if Platform_IsThreadInterrupted() {
-			panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-		}
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			f.walkGatherCfgNode(child, n)
-			child = next
-		}
-	case rhino.Token_FUNCTION:
-		fn := ast.MustFunction(n)
-		fnName := fn.NameNode().Node()
-		args := fn.Params().Node()
-		body := fn.Body().Node()
-		f.walkGatherCfgNode(fnName, n)
-		f.walkGatherCfgNode(args, n)
-		f.walkGatherCfgNode(body, n)
-	case rhino.Token_CLASS:
-		cls := ast.MustClass(n)
-		className := cls.NameNode()
-		extendsClause := cls.ExtendsNode()
-		body := cls.Body().Node()
-		f.walkGatherCfgNode(extendsClause, n)
-		f.walkGatherCfgNode(className, n)
-		f.walkGatherCfgNode(body, n)
-	case rhino.Token_CLASS_MEMBERS:
-		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			f.walkGatherCfgNode(ch, p)
-		}
-	default:
-		for child := n.GetFirstChild(); !child.IsNil(); {
-			next := child.GetNext()
-			if child.GetFirstChild().IsNil() {
-				if child.IsName() {
-					f.gatherWalkNode = child
-					f.visitCandidateName(child, n)
-				} else if child.GetToken() == rhino.Token_SCRIPT && !ControlFlowGraph_IsEnteringNewCfgNode(child) {
-					if Platform_IsThreadInterrupted() {
-						panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
-					}
-				}
-			} else {
-				f.walkGatherCfgNode(child, n)
-			}
-			child = next
-		}
-	}
-	if n.IsName() {
-		f.gatherWalkNode = n
-		f.visitCandidateName(n, parent)
-	}
-}
-
 func (f *FlowSensitiveInlineVariables) visitGatherNode(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_BLOCK, rhino.Token_TRY, rhino.Token_SWITCH_BODY, rhino.Token_EMPTY:
@@ -905,7 +838,12 @@ func (f *FlowSensitiveInlineVariables) visitGatherNode(n rhino.Node) {
 	}
 	f.gatherCfgNode = n
 	f.gatherInState = f.reachingDef.inStateAt(graphNode.Index)
-	f.walkGatherCfgNode(n, rhino.NilNode)
+	walkCfgEvalOrder(n, func(cur, parent rhino.Node) {
+		f.gatherWalkNode = cur
+		if cur.IsName() {
+			f.visitCandidateName(cur, parent)
+		}
+	})
 	f.gatherInState = nil
 }
 

@@ -23,21 +23,15 @@ type saxVectorHandler struct {
 func (h *saxVectorHandler) SetDocumentLocator(locator Locator) {}
 func (h *saxVectorHandler) StartDocument()                     { h.out.WriteString("startDocument\n") }
 func (h *saxVectorHandler) EndDocument()                       { h.out.WriteString("endDocument\n") }
-func (h *saxVectorHandler) StartPrefixMapping(prefix string, uri string) {
-	h.out.WriteString("startPrefixMapping " + saxVectorEscape(prefix) + "\n")
-}
-func (h *saxVectorHandler) EndPrefixMapping(prefix string) {
-	h.out.WriteString("endPrefixMapping " + saxVectorEscape(prefix) + "\n")
-}
-func (h *saxVectorHandler) StartElement(uri string, localName string, qName string, atts Attributes) {
-	h.out.WriteString("start " + saxVectorEscape(uri) + "|" + saxVectorEscape(localName) + "|" + saxVectorEscape(qName))
+func (h *saxVectorHandler) StartElement(qName string, atts Attributes) {
+	h.out.WriteString("start ||" + saxVectorEscape(qName))
 	for i := 0; i < atts.GetLength(); i++ {
 		h.out.WriteString(" " + saxVectorEscape(atts.GetQName(i)) + "=" + saxVectorEscape(atts.GetValueAt(i)))
 	}
 	h.out.WriteString("\n")
 }
-func (h *saxVectorHandler) EndElement(uri string, localName string, qName string) {
-	h.out.WriteString("end " + saxVectorEscape(uri) + "|" + saxVectorEscape(localName) + "|" + saxVectorEscape(qName) + "\n")
+func (h *saxVectorHandler) EndElement(qName string) {
+	h.out.WriteString("end ||" + saxVectorEscape(qName) + "\n")
 }
 func (h *saxVectorHandler) Characters(ch []uint16, start int, length int) {
 	h.out.WriteString("chars " + saxVectorEscape(jutil.StringFromUTF16(ch[start:start+length])) + "\n")
@@ -149,27 +143,21 @@ func (h *saxPositionHandler) SetDocumentLocator(locator Locator) {
 }
 func (h *saxPositionHandler) StartDocument() { h.out.WriteString("startDocument" + h.pos() + "\n") }
 func (h *saxPositionHandler) EndDocument()   { h.out.WriteString("endDocument" + h.pos() + "\n") }
-func (h *saxPositionHandler) StartPrefixMapping(prefix string, uri string) {
-	h.out.WriteString("startPrefixMapping " + saxVectorEscape(prefix) + "|" + saxVectorEscape(uri) + h.pos() + "\n")
-}
-func (h *saxPositionHandler) EndPrefixMapping(prefix string) {
-	h.out.WriteString("endPrefixMapping " + saxVectorEscape(prefix) + h.pos() + "\n")
-}
-func (h *saxPositionHandler) StartElement(uri string, localName string, qName string, atts Attributes) {
-	h.out.WriteString("start " + saxVectorEscape(uri) + "|" + saxVectorEscape(localName) + "|" + saxVectorEscape(qName))
+func (h *saxPositionHandler) StartElement(qName string, atts Attributes) {
+	h.out.WriteString("start ||" + saxVectorEscape(qName))
 	for i := 0; i < atts.GetLength(); i++ {
 		h.out.WriteString(" " + saxVectorEscape(atts.GetQName(i)) + "=" + saxVectorEscape(atts.GetValueAt(i)))
-		if v := atts.GetValue(atts.GetQName(i)); v == nil || *v != atts.GetValueAt(i) {
+		if v, ok := atts.Value(atts.GetQName(i)); !ok || v != atts.GetValueAt(i) {
 			h.out.WriteString("<GetValue mismatch>")
 		}
 	}
-	if atts.GetValue("no such attribute") != nil {
+	if _, ok := atts.Value("no such attribute"); ok {
 		h.out.WriteString("<GetValue of a missing attribute>")
 	}
 	h.out.WriteString(h.pos() + "\n")
 }
-func (h *saxPositionHandler) EndElement(uri string, localName string, qName string) {
-	h.out.WriteString("end " + saxVectorEscape(uri) + "|" + saxVectorEscape(localName) + "|" + saxVectorEscape(qName) + h.pos() + "\n")
+func (h *saxPositionHandler) EndElement(qName string) {
+	h.out.WriteString("end ||" + saxVectorEscape(qName) + h.pos() + "\n")
 }
 func (h *saxPositionHandler) Characters(ch []uint16, start int, length int) {
 	h.out.WriteString("chars " + saxVectorEscape(jutil.StringFromUTF16(ch[start:start+length])) + h.pos() + "\n")

@@ -284,7 +284,7 @@ func (r *es6NormalizeClasses_ClassRecord) CreateNewSuperclassReferenceNode() rhi
 	if r.normalizedNames.SuperClassNode().IsNil() {
 		panic(jutil.NewIllegalArgumentExceptionMsg("no superclass"))
 	}
-	return es6NormalizeClasses_optionalGet(r.normalizedNames.SuperClassNode()).CloneTree()
+	return r.normalizedNames.SuperClassNode().CloneTree()
 }
 
 // es6NormalizeClasses_NormalizedNames holds the normalized class and superclass

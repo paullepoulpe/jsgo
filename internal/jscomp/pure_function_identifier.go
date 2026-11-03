@@ -785,7 +785,7 @@ func NewPureFunctionIdentifier_Driver(compiler AbstractCompiler) *PureFunctionId
 
 // Java: PureFunctionIdentifier.Driver.process(Node, Node)
 func (d *PureFunctionIdentifier_Driver) Process(externs rhino.Node, root rhino.Node) {
-	shouldValidate :=
+	level, hasLevel :=
 		d.compiler.
 			GetOptions().
 			GetWarningsGuard().
@@ -796,6 +796,6 @@ func (d *PureFunctionIdentifier_Driver) Process(externs rhino.Node, root rhino.N
 		NewPureFunctionIdentifier(
 			d.compiler,
 			d.compiler.GetOptions().GetAssumeGettersArePure(),
-			shouldValidate == nil || *shouldValidate != CheckLevel_OFF),
+			!hasLevel || level != CheckLevel_OFF),
 	).Process(externs, root)
 }

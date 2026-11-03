@@ -99,12 +99,15 @@ func (c *DiagnosticGroupsTest) TestClosureUnawareCodeWarningsGuard() {
 	n1.SetStaticSourceFile(src1)
 	n1.SetIsInClosureUnawareSubtree(true)
 	suppressibleError := JSError_MakeWithNode(n1, RhinoErrorReporter_JSDOC_MISSING_TYPE_WARNING, "")
-	AssertThat(guard.Level(suppressibleError)).IsEqualTo(CheckLevel_OFF.Ptr())
+	lvl, ok := guard.Level(suppressibleError)
+	AssertThat(ok).IsTrue()
+	AssertThat(lvl).IsEqualTo(CheckLevel_OFF)
 
 	n2 := rhino.Node_NewString("test")
 	nonSuppressibleError :=
 		JSError_MakeWithNode(n2, RhinoErrorReporter_JSDOC_MISSING_TYPE_WARNING, "")
-	AssertThat(guard.Level(nonSuppressibleError)).IsNull()
+	_, ok = guard.Level(nonSuppressibleError)
+	AssertThat(ok).IsFalse()
 
 	n3 := rhino.Node_NewString("test")
 	src3 := SourceFile_FromCode("foo.js", "")
@@ -112,7 +115,8 @@ func (c *DiagnosticGroupsTest) TestClosureUnawareCodeWarningsGuard() {
 	n3.SetStaticSourceFile(src3)
 	n3.SetIsInClosureUnawareSubtree(true)
 	otherError := JSError_MakeWithNode(n3, DiagnosticType_Error("FOO", "foo"), "")
-	AssertThat(guard.Level(otherError)).IsNull()
+	_, ok = guard.Level(otherError)
+	AssertThat(ok).IsFalse()
 }
 
 // Java: DiagnosticGroupsTest.testDiagnosticGroupPathSuppressingWarningsGuard()
@@ -123,21 +127,24 @@ func (c *DiagnosticGroupsTest) TestDiagnosticGroupPathSuppressingWarningsGuard()
 
 	lintCheck := DiagnosticGroups_LINT_CHECKS.GetTypes()[0]
 	errorInPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, lintCheck)
+	lvl, ok := guard.Level(errorInPath)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should suppress in matching path").
-		That(guard.Level(errorInPath)).
-		IsEqualTo(CheckLevel_OFF.Ptr())
+		That(ok && lvl == CheckLevel_OFF).
+		IsTrue()
 
 	errorInOtherPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/other/file.js"), -1, -1, lintCheck)
+	_, ok = guard.Level(errorInOtherPath)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should not suppress in other path").
-		That(guard.Level(errorInOtherPath)).
-		IsNull()
+		That(ok).
+		IsFalse()
 
 	otherErrorInPath :=
 		JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, DiagnosticType_Error("FOO", "foo"))
+	_, ok = guard.Level(otherErrorInPath)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should not suppress unrelated errors").
-		That(guard.Level(otherErrorInPath)).
-		IsNull()
+		That(ok).
+		IsFalse()
 }

@@ -75,12 +75,13 @@ type typedScopeDump_errorManager struct {
 	typedPercent float64
 }
 
-func (m *typedScopeDump_errorManager) Report(level *CheckLevel, error_ *JSError) {
+func (m *typedScopeDump_errorManager) Report(level CheckLevel, error_ *JSError) {
 	m.lines = append(m.lines, fmt.Sprintf("D %s %s %d:%d %s",
-		jutil.ToJavaString(level), error_.Type().key, error_.Lineno(), error_.Charno(), error_.Description()))
-	if level != nil && *level == CheckLevel_ERROR {
+		level.String(), error_.Type().key, error_.Lineno(), error_.Charno(), error_.Description()))
+	switch level {
+	case CheckLevel_ERROR:
 		m.errors = append(m.errors, error_)
-	} else if level != nil && *level == CheckLevel_WARNING {
+	case CheckLevel_WARNING:
 		m.warnings = append(m.warnings, error_)
 	}
 }

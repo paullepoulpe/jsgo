@@ -55,7 +55,7 @@ func TestColorPool_DeserializesNativeObjectTableIntoNativeColor(t *testing.T) {
 	view := colorPool.GetOnlyShardForTesting()
 	numberObject := colorPool.GetColor(colors.StandardColors_NUMBER_OBJECT_ID)
 	jsaTrue(t, numberObject.IsInvalidating())
-	jsaColorsExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypes(numberObject), view.GetColor(jsaInt(jsaPoolPointer(1))))
+	jsaColorSliceExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypesSlice(numberObject), view.GetColor(jsaInt(jsaPoolPointer(1))))
 	jsaTrue(t, numberObject == view.GetColor(jsaInt(jsaPoolPointer(0))))
 	jsaJavaEq(t, numberObject.GetId(), colors.StandardColors_NUMBER_OBJECT_ID)
 }
@@ -133,7 +133,7 @@ func TestColorPool_RecordsDisambiguationsSupertypes_multipleSupertypesPerSubtype
 	foo := shard.GetColor(jsaInt(jsaPoolPointer(0)))
 	bar := shard.GetColor(jsaInt(jsaPoolPointer(1)))
 	baz := shard.GetColor(jsaInt(jsaPoolPointer(2)))
-	jsaColorsExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypes(bar), foo, baz)
+	jsaColorSliceExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypesSlice(bar), foo, baz)
 }
 
 func TestColorPool_RecordsDisambiguationsSupertypes_cylceInSupertypeGraph(t *testing.T) {
@@ -156,8 +156,8 @@ func TestColorPool_RecordsDisambiguationsSupertypes_cylceInSupertypeGraph(t *tes
 	// Then
 	foo := shard.GetColor(jsaInt(jsaPoolPointer(0)))
 	bar := shard.GetColor(jsaInt(jsaPoolPointer(1)))
-	jsaColorsExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypes(foo), bar)
-	jsaColorsExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypes(bar), foo)
+	jsaColorSliceExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypesSlice(foo), bar)
+	jsaColorSliceExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypesSlice(bar), foo)
 }
 
 func TestColorPool_ThrowsErrorIfDisambiguationEdgesContainsInvalidOffset(t *testing.T) {
@@ -304,7 +304,7 @@ func TestColorPool_Reconcile_setDisambiguationSupertypes(t *testing.T) {
 	// When
 	colorPool := ColorPool_Builder_().AddShardAnd(typePool0, StringPool_Empty()).AddShardAnd(typePool1, StringPool_Empty()).Build()
 	// Then
-	jsaColorsExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypes(colorPool.GetColor(jsaTEST_ID)), colors.StandardColors_NUMBER, colors.StandardColors_STRING)
+	jsaColorSliceExactly(t, colorPool.GetRegistry().GetDisambiguationSupertypesSlice(colorPool.GetColor(jsaTEST_ID)), colors.StandardColors_NUMBER, colors.StandardColors_STRING)
 }
 
 func TestColorPool_Reconcile_setInstanceColors(t *testing.T) {
@@ -479,18 +479,6 @@ func jsaPoolPointer(offset int) int32 {
 func jsaPrim(p PrimitiveType) int32 { return p.GetNumber() }
 
 func jsaInt(x int32) int { return int(x) }
-
-// jsaColorsExactly is assertThat(colors).containsExactly(expected...).
-func jsaColorsExactly(t *testing.T, got *jutil.ObjectLinkedHashSet[*colors.Color], expected ...*colors.Color) {
-	t.Helper()
-	ok := got.Size() == len(expected)
-	for _, e := range expected {
-		ok = ok && got.Contains(e)
-	}
-	if !ok {
-		t.Errorf("got %v, want exactly %v", got, expected)
-	}
-}
 
 func jsaColorSliceExactly(t *testing.T, got []*colors.Color, expected ...*colors.Color) {
 	t.Helper()

@@ -93,9 +93,9 @@ func newChecksDumpErrorManager(sb *strings.Builder) *checksDumpErrorManager {
 	return m
 }
 
-func (m *checksDumpErrorManager) Report(level *CheckLevel, error *JSError) {
+func (m *checksDumpErrorManager) Report(level CheckLevel, error *JSError) {
 	checksDumpLine(m.sb,
-		jutil.ToJavaString(level)+
+		level.String()+
 			" "+
 			error.GetType().key+
 			" "+

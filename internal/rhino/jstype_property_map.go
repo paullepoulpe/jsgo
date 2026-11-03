@@ -39,6 +39,7 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type knownSymbolProp struct {
@@ -342,7 +343,7 @@ func (m *PropertyMap) GetOwnProperty(propertyName string) *Property {
 		}
 		return nil
 	}
-	return m.getOwnPropertyByID(propertyName, rhinoStringPoolLookup(propertyName))
+	return m.getOwnPropertyByID(propertyName, strpool.Lookup(propertyName))
 }
 
 // Java: PropertyMap.getOwnProperty(Property.Key)

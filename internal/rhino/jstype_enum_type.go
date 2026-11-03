@@ -40,6 +40,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // EnumType is an enum type representing a branded collection of elements.
@@ -177,16 +178,6 @@ func (t *EnumType) GetTypeClass() JSTypeClass {
 	return EnumType_TYPE_CLASS
 }
 
-// Java: JSType.isEnumType()
-func (t *EnumType) IsEnumType() bool {
-	return true
-}
-
-// Java: EnumType.toMaybeEnumType()
-func (t *EnumType) ToMaybeEnumType() *EnumType {
-	return t
-}
-
 // Java: EnumType.getImplicitPrototype()
 func (t *EnumType) GetImplicitPrototype() ObjectType {
 	return t.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE)
@@ -286,7 +277,7 @@ func (t *EnumType) GetSource() Node {
 
 // Java: EnumType.getGoogModuleId()
 func (t *EnumType) GetGoogModuleId() *string {
-	return rhinoStringPtrFromID(t.googModuleID)
+	return strpool.StringPtr(t.googModuleID)
 }
 
 // Java: EnumType.resolveInternal(ErrorReporter)

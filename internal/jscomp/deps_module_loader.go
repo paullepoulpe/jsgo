@@ -312,7 +312,7 @@ func (l *ModuleLoader) CreateRootPaths(roots []string) []string {
 // leading slash.
 //
 // Java: ModuleLoader.resolvePaths(Iterable<? extends DependencyInfo>)
-func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *jutil.LinkedHashSet[string] {
+func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *OrderedSet[string] {
 	paths := make([]string, 0, len(inputs))
 	for _, input := range inputs {
 		p := l.pathEscaper.Escape(l.pathResolver.Apply(input.GetName()))
@@ -323,7 +323,7 @@ func (l *ModuleLoader) ResolvePaths(inputs []DependencyInfo) *jutil.LinkedHashSe
 		paths = append(paths, n)
 	}
 	slices.SortStableFunc(paths, moduleLoader_BEST_MATCH_PATH_ORDERING) // Sort so that this errors are easier to read.
-	out := jutil.NewLinkedHashSetWithCapacity[string](len(paths))
+	out := NewOrderedSetWithCapacity[string](len(paths))
 	for _, p := range paths {
 		if !out.Add(p) {
 			var dupeModulePaths StringCounts
@@ -420,11 +420,6 @@ const (
 
 var moduleLoader_PathEscaper_names = [...]string{"ESCAPE", "CANONICALIZE_ONLY"}
 
-// Java: ModuleLoader.PathEscaper.values()
-func ModuleLoader_PathEscaper_values() []ModuleLoader_PathEscaper {
-	return []ModuleLoader_PathEscaper{ModuleLoader_PathEscaper_ESCAPE, ModuleLoader_PathEscaper_CANONICALIZE_ONLY}
-}
-
 // String is Enum.name().
 func (e ModuleLoader_PathEscaper) String() string { return moduleLoader_PathEscaper_names[e] }
 
@@ -471,7 +466,7 @@ func (e ModuleLoader_PathResolver) Apply(path string) string {
 type ModuleLoader_ModuleResolverFactory interface {
 	// Java: ModuleLoader.ModuleResolverFactory.create(ImmutableSet<String>, ImmutableList<String>, ErrorHandler, PathEscaper)
 	Create(
-		modulePaths *jutil.LinkedHashSet[string],
+		modulePaths *OrderedSet[string],
 		moduleRootPaths []string,
 		errorHandler ErrorHandler,
 		pathEscaper ModuleLoader_PathEscaper) ModuleResolver
@@ -482,14 +477,14 @@ type ModuleLoader_ModuleResolverFactory interface {
 //
 // Go-only: language-adapter — @FunctionalInterface.
 type ModuleLoader_ModuleResolverFactoryFunc func(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver
 
 // Create calls f.
 func (f ModuleLoader_ModuleResolverFactoryFunc) Create(
-	modulePaths *jutil.LinkedHashSet[string],
+	modulePaths *OrderedSet[string],
 	moduleRootPaths []string,
 	errorHandler ErrorHandler,
 	pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
@@ -506,7 +501,7 @@ func moduleLoader_BEST_MATCH_PATH_ORDERING(a, b string) int {
 // moduleLoader_noopErrorHandler is the lambda (CheckLevel level, JSError error) -> {}.
 type moduleLoader_noopErrorHandler struct{}
 
-func (moduleLoader_noopErrorHandler) Report(level *CheckLevel, error *JSError) {}
+func (moduleLoader_noopErrorHandler) Report(level CheckLevel, error *JSError) {}
 
 var moduleLoader_NOOP_ERROR_HANDER ErrorHandler = moduleLoader_noopErrorHandler{}
 

@@ -44,7 +44,7 @@ type inlineFunctionsRunState struct {
 	fnKeys      []inlineFnKey
 	anonOrder   []rhino.Node
 	constFnIDs  []uint32
-	calledIDs   inlineIDSet
+	calledIDs   smallIDSet
 	refsScratch []*FunctionInjector_Reference
 	movedArgs   map[rhino.Node]struct{}
 	references  jutil.Slab[FunctionInjector_Reference]    // one run's references die together

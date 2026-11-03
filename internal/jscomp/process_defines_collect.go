@@ -642,7 +642,7 @@ func (p *ProcessDefines) IsGoogDefineCall(node rhino.Node) bool {
 		return false
 	}
 	call, ok := ast.AsCall(node)
-	return ok && call.Callee().Node().MatchesQualifiedNameNode(processDefines_GOOG_DEFINE)
+	return ok && processDefines_GOOG_DEFINE.Matches(call.Callee().Node())
 }
 
 // VerifyGoogDefine verifies that a goog.define method call has exactly two

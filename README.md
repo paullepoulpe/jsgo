@@ -23,19 +23,19 @@ make oracle-tools   # fetch the pinned Java jar/sources and build oracle tools (
 
 ---
 
-## Benchmarks (`jsgo` vs. Java Closure Compiler v20261021)
+## Benchmarks (`jsgo` vs. Java Closure Compiler v20261028)
 
-Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit code). Cold CLI runs measured across **$N = 5$ counterbalanced interleaved blocks** on an 8-vCPU AMD EPYC-Genoa VPS (Linux, `--num_parallel_threads=4`, Go 1.27.3 + [PGO](cmd/jsgo/default.pgo), OpenJDK 27.0.1), at commit `a167d9c7`; ratios (`Java / jsgo`, against cold Java) report geometric means with 95% CIs (`±`). The warm-JVM column is Java's time in one JVM after warm-up runs (`CliBatch`), from the same measurement; `googleapis` has no warm run.
+Gated on **100% byte-identical output** (JS, source maps, diagnostics, and exit code). Cold CLI runs measured across **$N = 5$ counterbalanced interleaved blocks** on an 8-vCPU AMD EPYC-Genoa VPS (Linux, `--num_parallel_threads=4`, Go 1.27.3 + [PGO](cmd/jsgo/default.pgo), OpenJDK 27.0.1), at commit `1652e273`; ratios (`Java / jsgo`, against cold Java) report geometric means with 95% CIs (`±`). The warm-JVM column is Java's time in one JVM after warm-up runs (`CliBatch`), from the same measurement; `googleapis` has no warm run.
 
 | Benchmark | Java Time (cold) | Java Time (warm JVM) | `jsgo` Time | Java RSS | `jsgo` RSS |
 |---|---:|---:|---:|---:|---:|
-| **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 431.8 s | — | **205.3 s**<br>2.10×±0.02 | 16.73 GiB | **5.50 GiB**<br>3.05×±0.38 |
-| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 93.7 s | 81.0 s | **32.7 s**<br>2.87×±0.08 | 3.63 GiB | **938 MiB**<br>3.96×±0.12 |
-| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 73.4 s | 61.8 s | **25.3 s**<br>2.90×±0.05 | 2.07 GiB | **705 MiB**<br>3.00×±0.06 |
-| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 47.9 s | 38.1 s | **14.9 s**<br>3.21×±0.09 | 1.53 GiB | **439 MiB**<br>3.56×±0.20 |
-| **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 11.8 s | 6.53 s | **3.12 s**<br>3.76×±0.30 | 1.30 GiB | **273 MiB**<br>4.87×±0.34 |
-| **`bundle`**<br>*SIMPLE · 1.11M nodes* | 23.3 s | 17.1 s | **6.31 s**<br>3.69×±0.15 | 1.61 GiB | **226 MiB**<br>7.31×±0.30 |
-| **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 23.9 s | 16.1 s | **6.44 s**<br>3.71×±0.11 | 1.43 GiB | **219 MiB**<br>6.71×±0.23 |
-| **`downlevel-simple`**<br>*SIMPLE→ES5 · 232k nodes* | 7.50 s | 3.61 s | **1.35 s**<br>5.57×±0.22 | 609 MiB | **115 MiB**<br>5.30×±0.19 |
+| **`googleapis`**<br>*staged ADV+types · 35.6M nodes* | 418.8 s | — | **204.3 s**<br>2.05×±0.05 | 16.77 GiB | **5.59 GiB**<br>3.00×±0.24 |
+| **`bundle-mega`**<br>*ADV · 4.19M nodes* | 93.2 s | 78.2 s | **32.2 s**<br>2.89×±0.13 | 3.71 GiB | **935 MiB**<br>4.06×±0.22 |
+| **`typed-mega`**<br>*ADV+types · 3.55M nodes* | 72.7 s | 59.9 s | **25.6 s**<br>2.84×±0.23 | 2.05 GiB | **709 MiB**<br>2.96×±0.18 |
+| **`typed-full`**<br>*ADV+types · 1.90M nodes* | 45.5 s | 36.5 s | **14.4 s**<br>3.16×±0.09 | 1.53 GiB | **427 MiB**<br>3.68×±0.11 |
+| **`checks-only`**<br>*CHECKS+types · 1.29M nodes* | 12.0 s | 6.30 s | **3.12 s**<br>3.85×±0.34 | 1.32 GiB | **272 MiB**<br>4.96×±0.34 |
+| **`bundle`**<br>*SIMPLE · 1.11M nodes* | 22.7 s | 16.6 s | **6.07 s**<br>3.73×±0.10 | 1.62 GiB | **228 MiB**<br>7.28×±0.49 |
+| **`shaka-blockly`**<br>*ADV+types · 618k nodes* | 23.4 s | 15.2 s | **6.20 s**<br>3.77×±0.11 | 1.44 GiB | **221 MiB**<br>6.68×±0.11 |
+| **`downlevel-simple`**<br>*SIMPLE→ES5 · 232k nodes* | 7.52 s | 3.43 s | **1.33 s**<br>5.64×±0.35 | 615 MiB | **119 MiB**<br>5.18×±0.25 |
 
-Across all whole-program and staged workloads, `jsgo` is **2.1×–6.9× faster** and uses **3.0×–8.4× less memory** than cold Java (and 1.9×–2.7× faster than a warm JVM). See [docs/benchmarks.md](docs/benchmarks.md#a167d9c7-on-jdk-27-epyc-vps) for all 13 workloads, warm JVM numbers, the per-stage `googleapis` breakdown, `t=1` results, the comparison with the previous measurement, and full `[lo, hi]` 95% confidence intervals.
+Across all whole-program and staged workloads, `jsgo` is **2.0×–6.1× faster** and uses **3.0×–8.5× less memory** than cold Java (and 1.7×–2.7× faster than a warm JVM). See [docs/benchmarks.md](docs/benchmarks.md#1652e273-on-jdk-27-epyc-vps) for all 13 workloads, warm JVM numbers, the per-stage `googleapis` breakdown, `t=1` results, the comparison with the previous measurement, and full `[lo, hi]` 95% confidence intervals.

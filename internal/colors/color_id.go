@@ -77,25 +77,19 @@ func ColorId_FromBytes(bytes []byte) ColorId {
 
 // Java: ColorId.fromAscii(String)
 func ColorId_FromAscii(str string) ColorId {
-	return ColorId_FromBytesAt(str, len(str), ColorId_ASCII_AT)
-}
-
-// Java: ColorId.fromBytesAt(T, int, ByteAt<T>)
-func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) ColorId {
-	if length > 8 {
-		panic(jutil.NewIllegalStateExceptionMsg(strconv.Itoa(length)))
+	if len(str) > 8 {
+		panic(jutil.NewIllegalStateExceptionMsg(strconv.Itoa(len(str))))
 	}
-
-	var rightAligned int64 = 0
-	for i := 0; i < length; i++ {
-		rightAligned <<= 8
-		rightAligned |= int64(byteAt(source, i)) & 0xFF
+	var rightAligned int64
+	for i := 0; i < len(str); i++ {
+		c := int(str[i])
+		jutil.CheckStateMsg1(c < 128, "%s", c)
+		rightAligned = (rightAligned << 8) | int64(c)
 	}
-
 	return NewColorId(rightAligned)
 }
 
-// ColorId_Union defines how IDs for unions are combined.
+// ColorId_UnionSlice combines a slice of ColorIds into a union ColorId.
 //
 // Ideally, this function would preserve the algebraic properties of the
 // union operation. However, doing so is difficult (impossible?) while also
@@ -109,15 +103,10 @@ func ColorId_FromBytesAt[T any](source T, length int, byteAt ColorId_ByteAt[T]) 
 //	|---------------|-------|-------------------------------|-----------------------------|
 //	| associativity | false | f(x, f(y, z)) = f(f(x, y), z) |                             |
 //	| commutativity | true  |       f(x, y) = f(y, x)       |                             |
-//	| idempotence   | true  |    f(x, x, y) = f(x, y)       | `ids` is a Set              |
+//	| idempotence   | true  |    f(x, x, y) = f(x, y)       | `ids` is deduplicated       |
 //	| identity      | true  |          f(x) = x             | singleton unions are banned |
 //
 // Java: ColorId.union(Set<ColorId>)
-func ColorId_Union(ids *jutil.LinkedHashSet[ColorId]) ColorId {
-	return ColorId_UnionSlice(ids.ToSlice())
-}
-
-// ColorId_UnionSlice combines a slice of ColorIds into a union ColorId.
 func ColorId_UnionSlice(ids []ColorId) ColorId {
 	if len(ids) == 0 {
 		panic(jutil.NewNoSuchElementException())
@@ -214,19 +203,4 @@ func (c ColorId) String() string {
 // Java: ColorId.toLogsGson()
 func (c ColorId) ToLogsGson() string {
 	return c.String()
-}
-
-// ColorId_ByteAt reads byte `index` of `source`.
-//
-// Java: ColorId.ByteAt<T>
-type ColorId_ByteAt[T any] func(source T, index int) int8
-
-// Java: ColorId.ASCII_AT
-var ColorId_ASCII_AT ColorId_ByteAt[string] = func(s string, pos int) int8 {
-	if pos < 0 || pos >= len(s) {
-		panic(jutil.NewStringIndexOutOfBoundsException(pos, len(s)))
-	}
-	c := int(s[pos])
-	jutil.CheckStateMsg1(c < 128, "%s", c)
-	return int8(c)
 }
