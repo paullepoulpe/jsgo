@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -2693,38 +2694,42 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	c.Test("var x = `${a}\\n` + `\\t${b}`", "var x = `${a}\\n\\t${b}`")
 	// getJsRoot() returns the ROOT node for inputs only.
 	// The first child is the SCRIPT node containing the input code.
-	script := c.GetLastCompiler().GetJsRoot().GetFirstChild()
-	var_ := script.GetFirstChild()
-	name := var_.GetFirstChild()
-	templateLit := name.GetFirstChild()
-	AssertThat(templateLit.IsTemplateLit()).IsTrue()
+	script := ast.MustRoot(c.GetLastCompiler().GetJsRoot()).MustFirstItem().MustScript()
+	decl := script.MustFirstItem().MustNameDeclaration()
+	init, hasInit := decl.MustFirstDeclarator().MustName().Init()
+	AssertThat(hasInit).IsTrue()
+	templateLit, isTpl := init.AsTemplateLit()
+	AssertThat(isTpl).IsTrue()
 	// TEMPLATELIT should have 5 total children
-	AssertThat(templateLit.GetChildCount()).IsEqualTo(5)
+	parts := slices.Collect(templateLit.Parts())
+	AssertThat(len(parts)).IsEqualTo(5)
 	// Index 0: TEMPLATELIT_STRING ""
-	child0 := templateLit.GetChildAtIndex(0)
-	AssertThat(child0.IsTemplateLitString()).IsTrue()
-	AssertThat(optStr(child0.CookedString())).IsEmpty()
-	AssertThat(child0.GetRawString()).IsEmpty()
+	child0, ok := parts[0].AsTemplateLitString()
+	AssertThat(ok).IsTrue()
+	AssertThat(optStr(child0.Cooked())).IsEmpty()
+	AssertThat(child0.Raw()).IsEmpty()
 	// Index 1: SUB a
-	child1 := templateLit.GetChildAtIndex(1)
-	AssertThat(child1.IsTemplateLitSub()).IsTrue()
-	AssertThat(child1.GetOnlyChild().IsName()).IsTrue()
-	AssertThat(child1.GetOnlyChild().GetString()).IsEqualTo("a")
+	child1, ok := parts[1].AsTemplateLitSub()
+	AssertThat(ok).IsTrue()
+	name1, ok := child1.Expr().AsName()
+	AssertThat(ok).IsTrue()
+	AssertThat(name1.Ident()).IsEqualTo("a")
 	// Index 2: TEMPLATELIT_STRING "\n\t"
-	child2 := templateLit.GetChildAtIndex(2)
-	AssertThat(child2.IsTemplateLitString()).IsTrue()
-	AssertThat(optStr(child2.CookedString())).IsEqualTo("\n\t")
-	AssertThat(child2.GetRawString()).IsEqualTo("\\n\\t")
+	child2, ok := parts[2].AsTemplateLitString()
+	AssertThat(ok).IsTrue()
+	AssertThat(optStr(child2.Cooked())).IsEqualTo("\n\t")
+	AssertThat(child2.Raw()).IsEqualTo("\\n\\t")
 	// Index 3: SUB b
-	child3 := templateLit.GetChildAtIndex(3)
-	AssertThat(child3.IsTemplateLitSub()).IsTrue()
-	AssertThat(child3.GetOnlyChild().IsName()).IsTrue()
-	AssertThat(child3.GetOnlyChild().GetString()).IsEqualTo("b")
+	child3, ok := parts[3].AsTemplateLitSub()
+	AssertThat(ok).IsTrue()
+	name3, ok := child3.Expr().AsName()
+	AssertThat(ok).IsTrue()
+	AssertThat(name3.Ident()).IsEqualTo("b")
 	// Index 4: TEMPLATELIT_STRING ""
-	child4 := templateLit.GetChildAtIndex(4)
-	AssertThat(child4.IsTemplateLitString()).IsTrue()
-	AssertThat(optStr(child4.CookedString())).IsEmpty()
-	AssertThat(child4.GetRawString()).IsEmpty()
+	child4, ok := parts[4].AsTemplateLitString()
+	AssertThat(ok).IsTrue()
+	AssertThat(optStr(child4.Cooked())).IsEmpty()
+	AssertThat(child4.Raw()).IsEmpty()
 }
 
 // Java: PeepholeFoldConstantsTest.testFoldAddTemplateLiterals_validateRawAndCookedStringForLiteralBackslash_andValidateChildren()
@@ -2738,38 +2743,43 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 		"var x = `${foo()}\\\\n\\t${()=> {return b;}}`")
 	// getJsRoot() returns the ROOT node for inputs only.
 	// The first child is the SCRIPT node containing the input code.
-	script := c.GetLastCompiler().GetJsRoot().GetFirstChild()
-	var_ := script.GetFirstChild()
-	name := var_.GetFirstChild()
-	templateLit := name.GetFirstChild()
-	AssertThat(templateLit.IsTemplateLit()).IsTrue()
+	script := ast.MustRoot(c.GetLastCompiler().GetJsRoot()).MustFirstItem().MustScript()
+	decl := script.MustFirstItem().MustNameDeclaration()
+	init, hasInit := decl.MustFirstDeclarator().MustName().Init()
+	AssertThat(hasInit).IsTrue()
+	templateLit, isTpl := init.AsTemplateLit()
+	AssertThat(isTpl).IsTrue()
 	// TEMPLATELIT should have 5 children:
-	AssertThat(templateLit.GetChildCount()).IsEqualTo(5)
+	parts := slices.Collect(templateLit.Parts())
+	AssertThat(len(parts)).IsEqualTo(5)
 	// Index 0: TEMPLATELIT_STRING ""
-	child0 := templateLit.GetChildAtIndex(0)
-	AssertThat(child0.IsTemplateLitString()).IsTrue()
-	AssertThat(optStr(child0.CookedString())).IsEmpty()
-	AssertThat(child0.GetRawString()).IsEmpty()
+	child0, ok := parts[0].AsTemplateLitString()
+	AssertThat(ok).IsTrue()
+	AssertThat(optStr(child0.Cooked())).IsEmpty()
+	AssertThat(child0.Raw()).IsEmpty()
 	// Index 1: SUB foo()
-	child1 := templateLit.GetChildAtIndex(1)
-	AssertThat(child1.IsTemplateLitSub()).IsTrue()
-	AssertThat(child1.GetOnlyChild().IsCall()).IsTrue()
-	AssertThat(child1.GetOnlyChild().GetOnlyChild().GetString()).IsEqualTo("foo")
+	child1, ok := parts[1].AsTemplateLitSub()
+	AssertThat(ok).IsTrue()
+	call1, ok := child1.Expr().AsCall()
+	AssertThat(ok).IsTrue()
+	AssertThat(call1.HasArgs()).IsFalse()
+	AssertThat(call1.Callee().MustName().Ident()).IsEqualTo("foo")
 	// Index 2: TEMPLATELIT_STRING "\n\t"
-	child2 := templateLit.GetChildAtIndex(2)
-	AssertThat(child2.IsTemplateLitString()).IsTrue()
-	AssertThat(optStr(child2.CookedString())).IsEqualTo("\\n\t")
-	AssertThat(child2.GetRawString()).IsEqualTo("\\\\n\\t")
+	child2, ok := parts[2].AsTemplateLitString()
+	AssertThat(ok).IsTrue()
+	AssertThat(optStr(child2.Cooked())).IsEqualTo("\\n\t")
+	AssertThat(child2.Raw()).IsEqualTo("\\\\n\\t")
 	// Index 3: SUB ()=> {return b;}
-	child3 := templateLit.GetChildAtIndex(3)
-	AssertThat(child3.IsTemplateLitSub()).IsTrue()
-	AssertThat(child3.GetOnlyChild().IsFunction()).IsTrue()
-	AssertThat(child3.GetOnlyChild().GetFirstChild().GetString()).IsEmpty()
+	child3, ok := parts[3].AsTemplateLitSub()
+	AssertThat(ok).IsTrue()
+	fn3, ok := child3.Expr().AsFunction()
+	AssertThat(ok).IsTrue()
+	AssertThat(fn3.NameNode().Ident()).IsEmpty()
 	// Index 4: TEMPLATELIT_STRING ""
-	child4 := templateLit.GetChildAtIndex(4)
-	AssertThat(child4.IsTemplateLitString()).IsTrue()
-	AssertThat(optStr(child4.CookedString())).IsEmpty()
-	AssertThat(child4.GetRawString()).IsEmpty()
+	child4, ok := parts[4].AsTemplateLitString()
+	AssertThat(ok).IsTrue()
+	AssertThat(optStr(child4.Cooked())).IsEmpty()
+	AssertThat(child4.Raw()).IsEmpty()
 }
 
 // Java: PeepholeFoldConstantsTest.foldBigIntTypes(String, String)
@@ -2837,8 +2847,10 @@ func (c *PeepholeFoldConstantsTest) PrintHelper(js string, runProcessor bool) st
 		strings.Join(errorStrings, "\n"), js).
 		That(root).
 		IsNotNull()
-	externsRoot := root.GetFirstChild()
-	mainRoot := externsRoot.GetNext()
+	externsItem := ast.MustRoot(root).MustFirstItem()
+	externsRoot := externsItem.Node()
+	mainItem, _ := externsItem.Next()
+	mainRoot := mainItem.Node()
 	if runProcessor {
 		c.GetProcessor(compiler).Process(externsRoot, mainRoot)
 	}
@@ -2876,8 +2888,8 @@ func TestPeepholeFoldConstants_DetachedTemplateLiteralNilCookedString(t *testing
 
 	tpl1 := makeCookedNilTpl()
 	pass.TryFoldTemplateLiteralSubstitutions(tpl1)
-	if tpl1.GetChildCount() != 3 {
-		t.Fatalf("expected cooked-nil template literal substitution to remain unfolded, got %d children", tpl1.GetChildCount())
+	if got := ast.MustTemplateLit(tpl1).NumParts(); got != 3 {
+		t.Fatalf("expected cooked-nil template literal substitution to remain unfolded, got %d children", got)
 	}
 
 	tplTailNil := rhino.IR_TemplateLiteral()

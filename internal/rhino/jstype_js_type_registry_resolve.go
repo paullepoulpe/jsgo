@@ -652,8 +652,8 @@ func (r *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string 
 		}
 	}
 
-	if n.IsQualifiedName() {
-		return *n.GetQualifiedName()
+	if qname, ok := n.QualifiedName(); ok {
+		return qname
 	} else if type_.IsFunctionType() {
 		// Don't show complex function names.
 		return "function"

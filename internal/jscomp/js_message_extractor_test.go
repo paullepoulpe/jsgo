@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -35,9 +36,9 @@ var jsMessageExtractorTest_TEST_ID_GENERATOR JsMessage_IdGenerator = jsMessageEx
 
 type jsMessageExtractorTest_idGenerator struct{}
 
-func (jsMessageExtractorTest_idGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
+func (jsMessageExtractorTest_idGenerator) GenerateId(meaning base.OptString, messageParts []JsMessage_Part) string {
 	var idBuilder strings.Builder
-	idBuilder.WriteString(jutil.ToJavaString(meaning))
+	idBuilder.WriteString(meaning.String())
 	idBuilder.WriteByte('_')
 	for _, messagePart := range messageParts {
 		if messagePart.IsPlaceholder() {
@@ -139,7 +140,7 @@ func TestJsMessageExtractor_OriginalCodeAndExampleMaps(t *testing.T) {
 				jsMessageExtractorTest_map(
 					"interpolation_0", "Ginny Weasley",
 					"interpolation_1", "Google Muggle Finder")).
-			SetDesc(jutil.StringPtr("The welcome message.")).
+			SetDesc("The welcome message.").
 			Build(),
 		jsMessageExtractorTest_extractMessage(t, nil,
 			"/** @desc The welcome message. */\n"+
@@ -180,7 +181,7 @@ func TestJsMessageExtractor_OriginalCodeAndExampleMapsForDeclareIcuTemplate(t *t
 				jsMessageExtractorTest_map(
 					"INTERPOLATION_0", "Ginny Weasley",
 					"INTERPOLATION_1", "Google Muggle Finder")).
-			SetDesc(jutil.StringPtr("The welcome message.")).
+			SetDesc("The welcome message.").
 			SetId("MSG_WELCOME_s3p15s13p15s1").
 			Build(),
 		jsMessageExtractorTest_extractMessage(t,
@@ -208,7 +209,7 @@ func TestJsMessageExtractor_ExtractNewStyleMessage2(t *testing.T) {
 			AppendStringPart("! Welcome to ").
 			AppendJsPlaceholderReference("product").
 			AppendStringPart(".").
-			SetDesc(jutil.StringPtr("The welcome message.")).
+			SetDesc("The welcome message.").
 			Build(),
 		jsMessageExtractorTest_extractMessage(t, nil,
 			"/**\n"+

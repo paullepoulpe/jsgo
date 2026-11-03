@@ -848,10 +848,13 @@ func (c *Compiler) GetCurrentJsSource() string {
 		rhino.CheckNotNull(c.jsRoot)
 		for _, r := range []rhino.Node{c.externsRoot, c.jsRoot} {
 			for fileNode := r.GetFirstChild(); !fileNode.IsNil(); fileNode = fileNode.GetNext() {
-				fileName := fileNode.GetSourceFileName()
+				fileName, hasFile := fileNode.SourceFileName()
 				for _, regex := range fileNameRegexList {
-					if jutil.Pattern_Compile(regex).Matches(*fileName) {
-						source := "// " + *fileName + "\n" + c.ToSourceOfNode(fileNode)
+					if !hasFile {
+						panic(jutil.NewNullPointerException())
+					}
+					if jutil.Pattern_Compile(regex).Matches(fileName) {
+						source := "// " + fileName + "\n" + c.ToSourceOfNode(fileNode)
 						builder.WriteString(source)
 						break
 					}
@@ -908,18 +911,18 @@ func (c *Compiler) GetCurrentJsSource() string {
 				statement,
 				func(n rhino.Node) bool {
 					rhino.CheckNotNull(n)
-					if !n.IsQualifiedName() {
+					qname, ok := n.QualifiedName()
+					if !ok {
 						return false
 					}
-					qname := n.GetQualifiedName()
-					if _, ok := qnameSet[*qname]; ok {
+					if _, ok := qnameSet[qname]; ok {
 						return true
 					}
 					if originalQname, ok := n.OriginalQualifiedName(); ok {
 						if _, ok := qnameSet[originalQname]; ok {
 							existing := originalToNewQNameMap[originalQname]
-							if !slices.Contains(existing, *qname) {
-								originalToNewQNameMap[originalQname] = append(existing, *qname)
+							if !slices.Contains(existing, qname) {
+								originalToNewQNameMap[originalQname] = append(existing, qname)
 							}
 							return true
 						}

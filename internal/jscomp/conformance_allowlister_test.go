@@ -167,7 +167,10 @@ func conformanceAllowlisterTest_testConformanceAllowlister(
 	keys := NewOrderedSet[string]()
 	for node := range ConformanceAllowlister_GetViolatingNodes(
 		compiler, compiler.GetExternsRoot(), compiler.GetJsRoot(), config).All() {
-		file := *node.GetSourceFileName()
+		file, ok := node.SourceFileName()
+		if !ok {
+			t.Fatalf("node %v has no source file name", node)
+		}
 		errors = append(errors, conformanceAllowlisterTest_entry{file, node.GetLineno()})
 		keys.Add(file)
 	}

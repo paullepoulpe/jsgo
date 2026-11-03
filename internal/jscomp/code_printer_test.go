@@ -26,6 +26,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -2562,34 +2563,34 @@ func (c *CodePrinterTest) TestDirectEval() {
 func (c *CodePrinterTest) TestIndirectEval() {
 	n := c.Parse("eval('1');")
 	c.AssertPrintNode("eval(\"1\")", n)
-	n.GetFirstFirstChild().GetFirstChild().PutBooleanProp(rhino.Node_DIRECT_EVAL, false)
+	ast.MustScript(n).MustFirstItem().MustExprStmt().Expr().MustCall().Callee().Node().PutBooleanProp(rhino.Node_DIRECT_EVAL, false)
 	c.AssertPrintNode("(0,eval)(\"1\")", n)
 }
 
 // Java: CodePrinterTest.freeCallTaggedTemplate()
 func (c *CodePrinterTest) TestFreeCallTaggedTemplate() {
 	n := c.Parse("a.b`xyz`")
-	call := n.GetFirstFirstChild()
-	AssertThat(call.IsTaggedTemplateLit()).IsTrue()
-	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	call, ok := ast.MustScript(n).MustFirstItem().MustExprStmt().Expr().AsTaggedTemplateLit()
+	AssertThat(ok).IsTrue()
+	call.SetFreeCall(true)
 	c.AssertPrintNode("(0,a.b)`xyz`", n)
 }
 
 // Java: CodePrinterTest.freeCallOptChain()
 func (c *CodePrinterTest) TestFreeCallOptChain() {
 	n := c.Parse("(a?.b)()")
-	call := n.GetFirstFirstChild()
-	AssertThat(call.IsCall()).IsTrue()
-	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	call, ok := ast.MustScript(n).MustFirstItem().MustExprStmt().Expr().AsCall()
+	AssertThat(ok).IsTrue()
+	call.SetFreeCall(true)
 	c.AssertPrintNode("(0,a?.b)()", n)
 }
 
 // Java: CodePrinterTest.freeCallOptChainOptChainCall()
 func (c *CodePrinterTest) TestFreeCallOptChainOptChainCall() {
 	n := c.Parse("(a?.b)?.()")
-	call := n.GetFirstFirstChild()
-	AssertThat(call.IsOptChainCall()).IsTrue()
-	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	call, ok := ast.MustScript(n).MustFirstItem().MustExprStmt().Expr().AsOptChainCall()
+	AssertThat(ok).IsTrue()
+	call.SetFreeCall(true)
 	c.AssertPrintNode("(0,a?.b)?.()", n)
 }
 
@@ -2608,9 +2609,9 @@ func (c *CodePrinterTest) TestFreeCall1() {
 func (c *CodePrinterTest) TestFreeCall2() {
 	n := c.Parse("foo(a);")
 	c.AssertPrintNode("foo(a)", n)
-	call := n.GetFirstFirstChild()
-	AssertThat(call.IsCall()).IsTrue()
-	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	call, ok := ast.MustScript(n).MustFirstItem().MustExprStmt().Expr().AsCall()
+	AssertThat(ok).IsTrue()
+	call.SetFreeCall(true)
 	c.AssertPrintNode("foo(a)", n)
 }
 
@@ -2618,9 +2619,9 @@ func (c *CodePrinterTest) TestFreeCall2() {
 func (c *CodePrinterTest) TestFreeCall3() {
 	n := c.Parse("x.foo(a);")
 	c.AssertPrintNode("x.foo(a)", n)
-	call := n.GetFirstFirstChild()
-	AssertThat(call.IsCall()).IsTrue()
-	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	call, ok := ast.MustScript(n).MustFirstItem().MustExprStmt().Expr().AsCall()
+	AssertThat(ok).IsTrue()
+	call.SetFreeCall(true)
 	c.AssertPrintNode("(0,x.foo)(a)", n)
 }
 
@@ -2628,11 +2629,11 @@ func (c *CodePrinterTest) TestFreeCall3() {
 func (c *CodePrinterTest) TestPrintScript() {
 	// Verify that SCRIPT nodes not marked as synthetic are printed as
 	// blocks.
-	ast := rhino.NewNodeWith2Children(
+	scriptAst := rhino.NewNodeWith2Children(
 		rhino.Token_SCRIPT,
 		rhino.NewNodeWithChild(rhino.Token_EXPR_RESULT, rhino.Node_NewString("f")),
 		rhino.NewNodeWithChild(rhino.Token_EXPR_RESULT, rhino.Node_NewString("g")))
-	result := PrintCode(CodePrintConfig{Root: ast, PrettyPrint: true})
+	result := PrintCode(CodePrintConfig{Root: scriptAst, PrettyPrint: true})
 	AssertThat(result).IsEqualTo("\"f\";\n\"g\";\n")
 }
 
@@ -4149,7 +4150,8 @@ func (c *CodePrinterTest) TestGoogScope() {
 		[]*SourceFile{}, // Externs
 		[]*SourceFile{SourceFile_FromCode("test", code)},
 		compilerOptions)
-	node := compiler.GetRoot().GetLastChild().GetFirstChild()
+	jsRoot, _ := ast.MustRoot(compiler.GetRoot()).LastItem()
+	node := jsRoot.MustRoot().MustFirstItem().Node()
 
 	codePrinterOptions := NewCompilerOptions()
 	codePrinterOptions.SetPreferSingleQuotes(true)
@@ -4289,7 +4291,8 @@ func (c *CodePrinterTest) CheckWithOriginalName(code string, expectedCode string
 		[]*SourceFile{}, // Externs
 		[]*SourceFile{SourceFile_FromCode("test", code)},
 		compilerOptions)
-	node := compiler.GetRoot().GetLastChild().GetFirstChild()
+	jsRoot, _ := ast.MustRoot(compiler.GetRoot()).LastItem()
+	node := jsRoot.MustRoot().MustFirstItem().Node()
 
 	codePrinterOptions := NewCompilerOptions()
 	codePrinterOptions.SetPreferSingleQuotes(true)

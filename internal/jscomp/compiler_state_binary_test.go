@@ -194,13 +194,6 @@ func newBinaryStateTestOptions(binaryMode bool, threads int) *CompilerOptions {
 	return opts
 }
 
-func fmtOptStr(s *string) string {
-	if s == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%q", *s)
-}
-
 func fmtOptValStr(s string, ok bool) string {
 	if !ok {
 		return "<nil>"
@@ -222,9 +215,9 @@ func snapshotDeepAst(root rhino.Node) string {
 			colorID = col.GetId().String()
 		}
 		fmt.Fprintf(&sb, "%d:%v@%s:%d:%d props=0x%x orig=%s col=%s",
-			depth, n.GetToken(), fmtOptStr(n.GetSourceFileName()),
+			depth, n.GetToken(), fmtOptValStr(n.SourceFileName()),
 			n.GetLineno(), n.GetCharno(), n.SerializeProperties(),
-			fmtOptStr(n.GetOriginalName()), colorID)
+			fmtOptValStr(n.OriginalName()), colorID)
 		if n.IsTemplateLitString() {
 			fmt.Fprintf(&sb, " tmplRaw=%q tmplCooked=%s", n.GetRawString(), fmtOptValStr(n.CookedString()))
 		}

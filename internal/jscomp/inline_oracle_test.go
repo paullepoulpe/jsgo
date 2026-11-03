@@ -314,8 +314,8 @@ func inlineOracleNode(n rhino.Node) string {
 		return "null"
 	}
 	s := n.GetToken().String() + "@" + strconv.Itoa(n.GetLineno()) + ":" + strconv.Itoa(n.GetCharno())
-	if n.IsQualifiedName() {
-		s += " " + *n.GetQualifiedName()
+	if qname, ok := n.QualifiedName(); ok {
+		s += " " + qname
 	} else if n.IsStringKey() || n.IsMemberFunctionDef() || n.IsMemberFieldDef() || n.IsGetterDef() || n.IsSetterDef() {
 		s += " " + n.GetString()
 	}

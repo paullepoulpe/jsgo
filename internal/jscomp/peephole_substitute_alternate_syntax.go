@@ -33,9 +33,9 @@ import (
 // tryX method takes the kind it rewrites (ast.Call, ast.Return...), so the
 // Java checks of the node's token are gone. It no longer follows the Java
 // line by line; the Go-only notes below say where the logic differs. Code
-// that moves children around (splitComma, the bound function call, the
-// array literal built from a call's arguments) and reduceTrueFalse, which
-// only looks at its parent's token, use the rhino API.
+// that moves children around (the bound function call, the array literal
+// built from a call's arguments) and reduceTrueFalse, which only looks at
+// its parent's token, use the rhino API.
 
 // PeepholeSubstituteAlternateSyntax is a peephole optimization that
 // minimizes code by simplifying conditional expressions, replacing IFs with
@@ -195,10 +195,10 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeWindowRefs(getProp ast.Ge
 	// the role of the window ref in it, so `obj.f(window.Array)` prints as
 	// `(0,obj.f)(Array)` and calls f without obj as this. Kept for identical
 	// output.
-	if _, ok := ast.AsNormalOrOptChainCall(parentNode); ok {
+	if call, ok := ast.AsNormalOrOptChainCall(parentNode); ok {
 		// e.g. when converting `window.Array?.()` to `Array?.()`, ensure that the
 		// OPTCHAIN_CALL gets marked as `FREE_CALL`
-		parentNode.PutBooleanProp(rhino.Node_FREE_CALL, true)
+		call.SetFreeCall(true)
 	}
 	p.ReportChangeToEnclosingScope(parentNode)
 	return newNameNode
@@ -334,9 +334,9 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldImmediateCallToBoundFunction(
 			callTarget.ReplaceWith(newCallTarget)
 			p.MarkFunctionsDeleted(callTarget)
 			bind.thisValue.CloneTree().InsertAfter(newCallTarget)
-			n.PutBooleanProp(rhino.Node_FREE_CALL, false)
+			call.SetFreeCall(false)
 		} else {
-			n.PutBooleanProp(rhino.Node_FREE_CALL, true)
+			call.SetFreeCall(true)
 		}
 		p.ReportChangeToEnclosingScope(n)
 	}
@@ -361,11 +361,15 @@ func PeepholeSubstituteAlternateSyntax_AddParameterAfter(parameterList rhino.Nod
 //
 // Java: PeepholeSubstituteAlternateSyntax.splitComma(Node, boolean, Node)
 func (p *PeepholeSubstituteAlternateSyntax) SplitComma(n rhino.Node, insert bool, insertAfter rhino.Node) rhino.Node {
-	for n.IsComma() {
-		left := n.GetFirstChild()
-		right := n.GetLastChild()
+	for {
+		comma, isComma := ast.AsBinaryOf(n, rhino.Token_COMMA)
+		if !isComma {
+			break
+		}
+		left := comma.Left().Node()
+		right := comma.Right().Node()
 		n.DetachChildren()
-		if right.IsComma() {
+		if _, rightIsComma := ast.AsBinaryOf(right, rhino.Token_COMMA); rightIsComma {
 			p.SplitComma(right, true, insertAfter)
 		} else {
 			// Add the right expression after the optimized expression.
@@ -390,16 +394,15 @@ func (p *PeepholeSubstituteAlternateSyntax) TrySplitComma(stmt ast.ExprStmt) rhi
 	if p.late {
 		return n
 	}
-	if n.GetParent().IsLabel() {
+	if _, isLabel := ast.AsLabel(n.GetParent()); isLabel {
 		// Do not split labeled comma expressions.
 		return n
 	}
-	comma := stmt.Expr()
-	jutil.CheckState(comma.Token() == rhino.Token_COMMA)
+	comma, ok := stmt.Expr().AsBinaryOf(rhino.Token_COMMA)
+	jutil.CheckState(ok)
 	leftmost := p.SplitComma(comma.Node(), false, n)
 	// Replace original expression with leftmost comma expression.
-	n.RemoveChildren()
-	n.AddChildToFront(leftmost)
+	stmt.SetExpr(ast.MustExpr(leftmost))
 	n.Srcref(leftmost)
 	p.ReportChangeToEnclosingScope(leftmost)
 	return leftmost
@@ -480,7 +483,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryFoldStandardConstructors(newNode 
 	if p.CanFoldStandardConstructors(newNode) {
 		// The node becomes a call in place: same children, new token.
 		n.SetToken(rhino.Token_CALL)
-		n.PutBooleanProp(rhino.Node_FREE_CALL, true)
+		ast.MustCall(n).SetFreeCall(true)
 		p.ReportChangeToEnclosingScope(n)
 	}
 	return n
@@ -698,7 +701,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(array 
 		return n
 	}
 
-	numElements := n.GetChildCount()
+	numElements := array.NumElements()
 	// We save two bytes per element.
 	saving := numElements*2 - peepholeSubstituteAlternateSyntax_STRING_SPLIT_OVERHEAD
 	if saving <= 0 {
@@ -728,7 +731,7 @@ func (p *PeepholeSubstituteAlternateSyntax) TryMinimizeStringArrayLiteral(array 
 // Java: PeepholeSubstituteAlternateSyntax.tryTurnTemplateStringsToStrings(Node)
 func (p *PeepholeSubstituteAlternateSyntax) TryTurnTemplateStringsToStrings(template ast.TemplateLit) rhino.Node {
 	n := template.Node()
-	if n.GetParent().IsTaggedTemplateLit() {
+	if _, isTagged := ast.AsTaggedTemplateLit(n.GetParent()); isTagged {
 		return n
 	}
 	str, ok := p.GetSideEffectFreeStringValue(n)

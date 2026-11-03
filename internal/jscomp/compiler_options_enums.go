@@ -594,15 +594,9 @@ func CompilerOptions_LanguageMode_ValidCommandLineNames() []string {
 	return names
 }
 
-// Java: CompilerOptions.LanguageMode.fromString(String)
-func CompilerOptions_LanguageMode_FromString(value *string) *CompilerOptions_LanguageMode {
-	if value == nil {
-		return nil
-	}
-	return CompilerOptions_LanguageMode_FromName(*value)
-}
-
 // CompilerOptions_LanguageMode_FromOptString resolves an optional language mode name.
+//
+// Java: CompilerOptions.LanguageMode.fromString(String)
 func CompilerOptions_LanguageMode_FromOptString(value base.OptString) *CompilerOptions_LanguageMode {
 	s, ok := value.Get()
 	if !ok {

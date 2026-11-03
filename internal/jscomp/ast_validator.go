@@ -371,8 +371,8 @@ func astValidator_getTypeAnnotationString(typeI rhino.JSType) string {
 
 // Java: AstValidator.validateHasSourceName(Node)
 func (v *AstValidator) ValidateHasSourceName(n rhino.Node) {
-	sourceName := n.GetSourceFileName()
-	if sourceName == nil || *sourceName == "" {
+	sourceName, ok := n.SourceFileName()
+	if !ok || sourceName == "" {
 		v.Violation("Missing 'source name' annotation.", n)
 	}
 }

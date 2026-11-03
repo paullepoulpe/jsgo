@@ -63,11 +63,7 @@ func TestReplaceMessagesTest(t *testing.T) {
 type replaceMessagesTest_testIdGenerator struct{}
 
 // Java: ReplaceMessagesTest.TEST_ID_GENERATOR.generateId(String, List<Part>)
-func (g replaceMessagesTest_testIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
-	return g.GenerateIdOpt(base.OptStringFromPtr(meaning), messageParts)
-}
-
-func (replaceMessagesTest_testIdGenerator) GenerateIdOpt(meaning base.OptString, messageParts []JsMessage_Part) string {
+func (replaceMessagesTest_testIdGenerator) GenerateId(meaning base.OptString, messageParts []JsMessage_Part) string {
 	var idBuilder strings.Builder
 	idBuilder.WriteString(meaning.String())
 	idBuilder.WriteByte('_')
@@ -342,7 +338,7 @@ func (c *ReplaceMessagesTest) TestReplaceIcuTemplateMessageWithBundleAndJsPlaceh
 	originalStringPart := JsMessage_StringPart_Create("Email: ")
 	originalPlaceholerPart := JsMessage_PlaceholderReference_CreateForCanonicalName("EMAIL")
 	expectedMessageId :=
-		(replaceMessagesTest_testIdGenerator{}).GenerateIdOpt(
+		(replaceMessagesTest_testIdGenerator{}).GenerateId(
 			base.SomeString(meaning), []JsMessage_Part{originalStringPart, originalPlaceholerPart})
 
 	// Create and register the translation we expect to find in the message bundle

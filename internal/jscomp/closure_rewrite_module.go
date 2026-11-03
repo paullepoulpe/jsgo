@@ -541,8 +541,8 @@ func (m *ClosureRewriteModule) isUnrequiredWeakNamespace(call rhino.Node, namesp
 		return false
 	}
 	var callerMetadata *ModuleMetadataMap_ModuleMetadata
-	if sourceFileName := call.GetSourceFileName(); sourceFileName != nil {
-		callerMetadata = m.compiler.GetModuleMetadataMap().ModuleByPath(*sourceFileName)
+	if sourceFileName, ok := call.SourceFileName(); ok {
+		callerMetadata = m.compiler.GetModuleMetadataMap().ModuleByPath(sourceFileName)
 	}
 	return callerMetadata == nil ||
 		!callerMetadata.StronglyRequiredGoogNamespaces().Contains(namespaceId)

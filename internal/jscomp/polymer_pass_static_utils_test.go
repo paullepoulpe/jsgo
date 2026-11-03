@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -60,7 +61,7 @@ func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_noNativeElement()
 		rhino.IR_Objectlit(),
 		nil,
 		nil,
-		nil,
+		base.NoString(),
 		nil,
 		nil,
 		nil,
@@ -72,7 +73,6 @@ func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_noNativeElement()
 
 // Java: PolymerPassStaticUtilsTest.testGetPolymerElementType_inputBaseElement()
 func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_inputBaseElement() {
-	input := "input"
 	def := NewPolymerClassDefinition(
 		PolymerClassDefinition_DefinitionType_ES6Class,
 		rhino.NilNode,
@@ -81,7 +81,7 @@ func (c *PolymerPassStaticUtilsTest) TestGetPolymerElementType_inputBaseElement(
 		rhino.IR_Objectlit(),
 		nil,
 		nil,
-		&input,
+		base.SomeString("input"),
 		nil,
 		nil,
 		nil,

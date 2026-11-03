@@ -746,7 +746,10 @@ func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) 
 	}
 
 	if !newNameNode.IsNil() {
-		originalName := jutil.CheckNotNull(n.GetQualifiedName())
+		originalName, ok := n.QualifiedName()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 		newNameNode.SrcrefTree(n).SetOriginalName(originalName)
 		n.ReplaceWith(newNameNode)
 		t.ReportCodeChangeWithNode(newNameNode)

@@ -19,6 +19,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -75,12 +76,11 @@ use(a, selfCycle, ns.x, okAlias);
 	if val, ok := inferConformanceStringValue(scope, argNsX, gnsSupplier); ok || val != "" {
 		t.Fatalf("cyclic global ns.x/ns.y = (%q, %v), want (\"\", false)", val, ok)
 	}
-	if got := ConformanceRules_ConformanceUtil_InferStringValue(scope, argA, gnsSupplier); got != nil {
-		t.Fatalf("InferStringValue(cyclic a) = %v, want nil", *got)
+	if val, ok := ConformanceRules_ConformanceUtil_InferStringValueOk(scope, argA, gnsSupplier); ok || val != "" {
+		t.Fatalf("InferStringValueOk(cyclic a) = (%q, %v), want (\"\", false)", val, ok)
 	}
-	nsXName := "ns.x"
-	if got := ConformanceRules_ConformanceUtil_GetValueFromGlobalName(scope, gns, &nsXName); got != nil {
-		t.Fatalf("GetValueFromGlobalName(ns.x) = %v, want nil", *got)
+	if val, ok := ConformanceRules_ConformanceUtil_ValueFromGlobalName(scope, gns, base.SomeString("ns.x")); ok || val != "" {
+		t.Fatalf("ValueFromGlobalName(ns.x) = (%q, %v), want (\"\", false)", val, ok)
 	}
 
 	val, ok := inferConformanceStringValue(scope, argOk, gnsSupplier)

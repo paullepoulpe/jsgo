@@ -177,14 +177,14 @@ var (
 		DiagnosticType_Warning("JSA_W6", "w6 '{0}' \"q\" & é"),
 	}
 	jsaDiffGroups = []*DiagnosticGroup{
-		NewDiagnosticGroupWithName(jutil.StringPtr("g0"), jsaDiffTypes[0], jsaDiffTypes[1]),
-		NewDiagnosticGroupWithName(jutil.StringPtr("g1"), jsaDiffTypes[1]),
-		NewDiagnosticGroupWithName(jutil.StringPtr("g2"), jsaDiffTypes[2], jsaDiffTypes[6]),
+		NewDiagnosticGroupNamed("g0", jsaDiffTypes[0], jsaDiffTypes[1]),
+		NewDiagnosticGroupNamed("g1", jsaDiffTypes[1]),
+		NewDiagnosticGroupNamed("g2", jsaDiffTypes[2], jsaDiffTypes[6]),
 		DiagnosticGroup_ForType(jsaDiffTypes[6]),
-		NewDiagnosticGroupWithNameFromGroups(jutil.StringPtr("g4"),
-			NewDiagnosticGroupWithName(jutil.StringPtr("g0"), jsaDiffTypes[0], jsaDiffTypes[1]),
-			NewDiagnosticGroupWithName(jutil.StringPtr("g2"), jsaDiffTypes[2], jsaDiffTypes[6])),
-		NewDiagnosticGroupWithName(jutil.StringPtr("g5"), jsaDiffTypes[4], jsaDiffTypes[3]),
+		NewDiagnosticGroupNamedFromGroups("g4",
+			NewDiagnosticGroupNamed("g0", jsaDiffTypes[0], jsaDiffTypes[1]),
+			NewDiagnosticGroupNamed("g2", jsaDiffTypes[2], jsaDiffTypes[6])),
+		NewDiagnosticGroupNamed("g5", jsaDiffTypes[4], jsaDiffTypes[3]),
 	}
 	jsaDiffLevels = []CheckLevel{CheckLevel_ERROR, CheckLevel_WARNING, CheckLevel_OFF}
 )

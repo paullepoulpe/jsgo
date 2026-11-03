@@ -639,7 +639,10 @@ func NodeUtil_GetName(n rhino.Node) *string {
 	if nameNode.IsNil() {
 		return nil
 	}
-	return nameNode.GetQualifiedName()
+	if q, ok := nameNode.QualifiedName(); ok {
+		return &q
+	}
+	return nil
 }
 
 // NodeUtil_IsImmutableValue returns true if this is an immutable value.

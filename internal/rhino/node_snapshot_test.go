@@ -9,7 +9,6 @@ import (
 	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 func TestNodeStoreSnapshotDisallowsNilAndStatic(t *testing.T) {
@@ -72,7 +71,7 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 	cloneSrc.PutIntProp(Node_Prop_ACCESS_MODIFIER, 2)
 	richNode := cloneSrc.CloneNode() // marks cloneSrc's prop chain shared
 	richNode.SetString("richIdent")
-	richNode.SetOriginalName(jutil.StringPtr("origRichIdent"))
+	richNode.SetOriginalName("origRichIdent")
 	richNode.PutProp(Node_Prop_REFLECTED_OBJECT, "unshared-initial")
 	richNode.PutIntProp(Node_Prop_SIDE_EFFECT_FLAGS, 100) // > maxInline (15): forces kindFlagHasExtra
 	richNode.PutBooleanProp(Node_Prop_IS_CONSTANT_NAME, true)
@@ -85,7 +84,7 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 
 	// Node with inline original name (kindFlagOrigNameIsString) and JSType.
 	typedNode := IR_Name("inlineOrig")
-	typedNode.SetOriginalName(jutil.StringPtr("inlineOrig"))
+	typedNode.SetOriginalName("inlineOrig")
 	typedNode.SetJSType(numType)
 	numLit := Node_NewNumber(3.14159)
 	typedVar := IR_Var(typedNode)
@@ -99,7 +98,7 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 	for i := range extraVars {
 		nm := IR_Name(fmt.Sprintf("v_%d", i))
 		if i%97 == 0 {
-			nm.SetOriginalName(jutil.StringPtr(fmt.Sprintf("orig_v_%d", i)))
+			nm.SetOriginalName(fmt.Sprintf("orig_v_%d", i))
 			nm.SetColor(colB)
 		}
 		bulkNodes[i] = nm
@@ -132,8 +131,8 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 		if richNode.GetString() != "richIdent" {
 			t.Fatalf("%s: richNode string = %q, want richIdent", round, richNode.GetString())
 		}
-		if orig := richNode.GetOriginalName(); orig == nil || *orig != "origRichIdent" {
-			t.Fatalf("%s: richNode originalName = %v, want origRichIdent", round, orig)
+		if orig, ok := richNode.OriginalName(); !ok || orig != "origRichIdent" {
+			t.Fatalf("%s: richNode originalName = (%q, %v), want origRichIdent", round, orig, ok)
 		}
 		if got := richNode.GetProp(Node_Prop_REFLECTED_OBJECT); got != "unshared-initial" {
 			t.Fatalf("%s: REFLECTED_OBJECT = %v, want unshared-initial", round, got)
@@ -165,8 +164,8 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 		if typedNode.GetString() != "inlineOrig" {
 			t.Fatalf("%s: typedNode string = %q", round, typedNode.GetString())
 		}
-		if orig := typedNode.GetOriginalName(); orig == nil || *orig != "inlineOrig" {
-			t.Fatalf("%s: typedNode originalName = %v", round, orig)
+		if orig, ok := typedNode.OriginalName(); !ok || orig != "inlineOrig" {
+			t.Fatalf("%s: typedNode originalName = (%q, %v)", round, orig, ok)
 		}
 		if typedNode.GetJSType() != numType {
 			t.Fatalf("%s: typedNode JSType = %v, want numType", round, typedNode.GetJSType())
@@ -179,18 +178,18 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 			if nm.GetString() != wantName {
 				t.Fatalf("%s: bulkNodes[%d] string = %q, want %q", round, i, nm.GetString(), wantName)
 			}
-			orig := nm.GetOriginalName()
+			orig, hasOrig := nm.OriginalName()
 			if i%97 == 0 {
 				wantOrig := fmt.Sprintf("orig_v_%d", i)
-				if orig == nil || *orig != wantOrig {
-					t.Fatalf("%s: bulkNodes[%d] orig = %v, want %q", round, i, orig, wantOrig)
+				if !hasOrig || orig != wantOrig {
+					t.Fatalf("%s: bulkNodes[%d] orig = (%q, %v), want %q", round, i, orig, hasOrig, wantOrig)
 				}
 				if nm.GetColor() != colB {
 					t.Fatalf("%s: bulkNodes[%d] lost colB", round, i)
 				}
 			} else {
-				if orig != nil {
-					t.Fatalf("%s: bulkNodes[%d] unexpected orig = %q", round, i, *orig)
+				if hasOrig {
+					t.Fatalf("%s: bulkNodes[%d] unexpected orig = %q", round, i, orig)
 				}
 				if nm.GetColor() != nil {
 					t.Fatalf("%s: bulkNodes[%d] unexpected color", round, i)
@@ -236,9 +235,9 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 		// Populate previously empty columnPages in origNames, and clear existing ones.
 		for i := range 300 {
 			if i%97 == 0 {
-				bulkNodes[i].SetOriginalName(nil)
+				bulkNodes[i].ClearOriginalName()
 			} else {
-				bulkNodes[i].SetOriginalName(jutil.StringPtr("temp_orig"))
+				bulkNodes[i].SetOriginalName("temp_orig")
 			}
 		}
 
@@ -268,7 +267,8 @@ func TestNodeStoreSnapshotMutationsAndMultipleRewinds(t *testing.T) {
 		// Verify newly allocated nodes after RestoreSnapshot start cleanly zeroed
 		// and existing colors/types still resolve handles properly.
 		fresh := IR_Name("after_restore")
-		if !fresh.GetParent().IsNil() || !fresh.GetFirstChild().IsNil() || fresh.GetOriginalName() != nil || fresh.GetColor() != nil {
+		_, freshHasOrig := fresh.OriginalName()
+		if !fresh.GetParent().IsNil() || !fresh.GetFirstChild().IsNil() || freshHasOrig || fresh.GetColor() != nil {
 			t.Fatalf("%s: fresh node after restore was not clean", round)
 		}
 		fresh.SetColor(colA)
@@ -317,7 +317,7 @@ func TestNodeStoreSnapshotRewindAfterCompaction(t *testing.T) {
 	fnDoc := docBuilder.Build()
 
 	fnName := IR_Name("targetFn")
-	fnName.SetOriginalName(jutil.StringPtr("origTargetFn"))
+	fnName.SetOriginalName("origTargetFn")
 	fnParam := IR_Name("arg")
 	fnParam.SetJSType(boolType)
 	fnRetExpr := IR_Name("arg")
@@ -363,8 +363,8 @@ func TestNodeStoreSnapshotRewindAfterCompaction(t *testing.T) {
 		if gotTree := root.ToStringTree(); gotTree != origTree {
 			t.Fatalf("%s: tree mismatch:\ngot:\n%s\nwant:\n%s", label, gotTree, origTree)
 		}
-		if orig := fnName.GetOriginalName(); orig == nil || *orig != "origTargetFn" {
-			t.Fatalf("%s: fnName originalName = %v, want origTargetFn", label, orig)
+		if orig, ok := fnName.OriginalName(); !ok || orig != "origTargetFn" {
+			t.Fatalf("%s: fnName originalName = (%q, %v), want origTargetFn", label, orig, ok)
 		}
 		if fnParam.GetJSType() != boolType {
 			t.Fatalf("%s: fnParam lost JSType", label)
@@ -524,9 +524,6 @@ func TestNodeStoreSnapshotSourceFileAndBigIntIsolation(t *testing.T) {
 		name, ok := preScriptNodes[i].SourceFileName()
 		if !ok || name != wantName {
 			t.Fatalf("preScriptNodes[%d].SourceFileName() = (%q, %v), want (%q, true)", i, name, ok, wantName)
-		}
-		if namePtr := preScriptNodes[i].GetSourceFileName(); namePtr == nil || *namePtr != wantName {
-			t.Fatalf("preScriptNodes[%d].GetSourceFileName() = %v, want %q", i, namePtr, wantName)
 		}
 		wantBig := new(big.Int).Add(big.NewInt(1_000_000), big.NewInt(int64(i)))
 		if gotBig := preBigNodes[i].GetBigInt(); gotBig == nil || gotBig.Cmp(wantBig) != 0 {

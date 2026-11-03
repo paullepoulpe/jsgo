@@ -112,7 +112,7 @@ type replaceStringsTest_Renamer struct {
 func (r *replaceStringsTest_Renamer) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	if n.IsName() || n.IsGetProp() {
 		originalName := n.GetString()
-		n.SetOriginalName(&originalName)
+		n.SetOriginalName(originalName)
 		n.SetString("renamed_" + originalName)
 		t.ReportCodeChange()
 	}

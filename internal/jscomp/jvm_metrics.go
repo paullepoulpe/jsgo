@@ -35,17 +35,17 @@ const (
 )
 
 // Java: JvmMetrics.maybeWriteJvmMetrics(PrintStream, String)
-func JvmMetrics_MaybeWriteJvmMetrics(out io.Writer, options *string) {
-	JvmMetrics_MaybeWriteJvmMetricsOpt(out, base.OptStringFromPtr(options))
-}
-
-// JvmMetrics_MaybeWriteJvmMetricsOpt writes JVM metrics when options is present.
-func JvmMetrics_MaybeWriteJvmMetricsOpt(out io.Writer, options base.OptString) {
+func JvmMetrics_MaybeWriteJvmMetrics(out io.Writer, options base.OptString) {
 	opts, ok := options.Get()
 	if !ok {
 		return
 	}
 	JvmMetrics_WriteJvmMetrics(out, opts)
+}
+
+// JvmMetrics_MaybeWriteJvmMetricsOpt writes JVM metrics when options is present.
+func JvmMetrics_MaybeWriteJvmMetricsOpt(out io.Writer, options base.OptString) {
+	JvmMetrics_MaybeWriteJvmMetrics(out, options)
 }
 
 // JvmMetrics_WriteJvmMetrics writes JVM metrics for non-null options.

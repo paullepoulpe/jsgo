@@ -123,16 +123,10 @@ func newDiagnosticGroupDedup(name base.OptString, capHint int, visit func(add fu
 	}
 }
 
-// NewDiagnosticGroupWithName creates a group that matches all errors of the
-// given types.
-//
-// Java: DiagnosticGroup(String, DiagnosticType...)
-func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *DiagnosticGroup {
-	return NewDiagnosticGroupOpt(base.OptStringFromPtr(name), types...)
-}
-
 // NewDiagnosticGroupNamed creates a named group that matches all errors of the
 // given types without boxing name.
+//
+// Java: DiagnosticGroup(String, DiagnosticType...)
 func NewDiagnosticGroupNamed(name string, types ...*DiagnosticType) *DiagnosticGroup {
 	return NewDiagnosticGroupOpt(base.SomeString(name), types...)
 }
@@ -175,14 +169,9 @@ func NewDiagnosticGroupFromGroups(groups ...*DiagnosticGroup) *DiagnosticGroup {
 	return NewDiagnosticGroupOptFromGroups(base.NoString(), groups...)
 }
 
-// NewDiagnosticGroupWithNameFromGroups creates a composite group.
+// NewDiagnosticGroupNamedFromGroups creates a named composite group without boxing name.
 //
 // Java: DiagnosticGroup(String, DiagnosticGroup...)
-func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGroup) *DiagnosticGroup {
-	return NewDiagnosticGroupOptFromGroups(base.OptStringFromPtr(name), groups...)
-}
-
-// NewDiagnosticGroupNamedFromGroups creates a named composite group without boxing name.
 func NewDiagnosticGroupNamedFromGroups(name string, groups ...*DiagnosticGroup) *DiagnosticGroup {
 	return NewDiagnosticGroupOptFromGroups(base.SomeString(name), groups...)
 }

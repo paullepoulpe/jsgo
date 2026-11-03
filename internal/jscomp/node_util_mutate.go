@@ -350,11 +350,11 @@ func NodeUtil_NewQNameWithConventionAndOriginalName(
 	convention CodingConvention, name string, basisNode rhino.Node, originalName string) rhino.Node {
 	node := NodeUtil_NewQNameWithConvention(convention, name)
 	node.SrcrefTreeIfMissing(basisNode)
-	if nodeOriginalName := node.GetOriginalName(); nodeOriginalName == nil || originalName != *nodeOriginalName {
+	if nodeOriginalName, ok := node.OriginalName(); !ok || originalName != nodeOriginalName {
 		// If basisNode already had the correct original name, then it will already be set correctly.
 		// Setting it again will force the QName node to have a different property list from all of
 		// its children, causing greater memory consumption.
-		node.SetOriginalName(jutil.StringPtr(originalName))
+		node.SetOriginalName(originalName)
 	}
 	return node
 }

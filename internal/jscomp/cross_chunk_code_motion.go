@@ -523,7 +523,7 @@ func (y *cccmSymbolCycle) dsgCyclesLatestFirst() []*cccmDsgCycle {
 // mergeDescendingBy merges desc (already in descending order) with asc (in
 // ascending order, iterated in reverse) into a new descending slice, checking
 // descending monotonicity on the consumed side at each comparison step.
-func mergeDescendingBy[T any](desc, asc []T, order func(T) int, strict bool, errMsg string) []T {
+func mergeDescendingBy[T comparable](desc, asc []T, order func(T) int, strict bool, errMsg string) []T {
 	result := make([]T, 0, len(desc)+len(asc))
 	i := 0
 	j := len(asc) - 1
@@ -577,16 +577,18 @@ func (c *CrossChunkCodeMotion) addGuardToInstanceofRef(referenceNode rhino.Node)
 		c.isUnguardedInstanceofRef(referenceNode),
 		"instanceof Reference is already guarded: %s",
 		referenceNode)
-	instanceofNode := rhino.CheckNotNull(referenceNode.GetParent())
-	referenceForTypeOf := referenceNode.CloneNode()
+	instanceofBin := ast.MustBinary(rhino.CheckNotNull(referenceNode.GetParent()))
+	instanceofNode := instanceofBin.Node()
+	referenceForTypeOf := ast.MustExpr(referenceNode.CloneNode())
 	tmp := rhino.IR_Block()
 	// Wrap "foo instanceof Bar" in
 	// "('function' == typeof Bar && foo instanceof Bar)"
 	instanceofNode.ReplaceWith(tmp)
-	and :=
-		rhino.IR_And(
-			rhino.NewNodeWith2Children(rhino.Token_EQ, rhino.IR_String("function"), rhino.NewNodeWithChild(rhino.Token_TYPEOF, referenceForTypeOf)),
-			instanceofNode)
+	typeofGuard := ast.NewBinary(
+		rhino.Token_EQ,
+		ast.NewStringLit("function").AsExpr(),
+		ast.NewUnary(rhino.Token_TYPEOF, referenceForTypeOf).AsExpr())
+	and := ast.NewBinary(rhino.Token_AND, typeofGuard.AsExpr(), instanceofBin.AsExpr()).Node()
 	and.SrcrefTreeIfMissing(instanceofNode)
 	tmp.ReplaceWith(and)
 	c.compiler.ReportChangeToEnclosingScope(and)
@@ -771,9 +773,9 @@ func (y *cccmDsgCycle) moveToPreferredChunkDirect(preferredChunk *JSChunk) {
 			for _, globalSymbolName := range y.globalSymbolNames() {
 				y.outer.cccmLog.LogSupplier(
 					func() string {
-						return jutil.StringFormat(
-							"Moving DSG for %s from chunk %s to chunk %s",
-							globalSymbolName, y.currentChunk, preferredChunk)
+						return "Moving DSG for " + globalSymbolName +
+							" from chunk " + cccmChunkName(y.currentChunk) +
+							" to chunk " + cccmChunkName(preferredChunk)
 					})
 			}
 		}
@@ -879,6 +881,13 @@ func (r instanceofRef) targetChunk() *JSChunk {
 	return r.chunk
 }
 
+func cccmChunkName(c *JSChunk) string {
+	if c == nil {
+		return "null"
+	}
+	return c.String()
+}
+
 // isUndefinedTypeofGuardRef reports whether the reference node is the first Ref
 // in an expression like 'undefined' != typeof Ref && x instanceof Ref.
 //
@@ -888,7 +897,11 @@ func (r instanceofRef) targetChunk() *JSChunk {
 // Java: CrossChunkCodeMotion.isUndefinedTypeofGuardReference(Node)
 func (c *CrossChunkCodeMotion) isUndefinedTypeofGuardRef(reference rhino.Node) bool {
 	// reference => typeof => `!=`
-	maybeTypeofGuard := reference.GetGrandparent()
+	typeofOp, ok := ast.AsUnaryOf(reference.GetParent(), rhino.Token_TYPEOF)
+	if !ok {
+		return false
+	}
+	maybeTypeofGuard := typeofOp.Node().GetParent()
 	if !maybeTypeofGuard.IsNil() && c.isExistenceTypeofGuardFor(maybeTypeofGuard, reference) {
 		if andBin, ok := ast.AsBinaryOf(maybeTypeofGuard.GetParent(), rhino.Token_AND); ok {
 			return c.isInstanceofFor(andBin.Right().Node(), reference)

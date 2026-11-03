@@ -297,7 +297,11 @@ func w5ChecksDump_isProtector(n rhino.Node) bool {
 // w5ChecksDump_protectors is W5ChecksDump.protectors.
 func w5ChecksDump_protectors(out *strings.Builder, n rhino.Node) {
 	if w5ChecksDump_isProtector(n) {
-		checksDumpLine(out, "= protector "+jutil.ToJavaString(n.GetSourceFileName())+":"+
+		srcName := "null"
+		if s, ok := n.SourceFileName(); ok {
+			srcName = s
+		}
+		checksDumpLine(out, "= protector "+srcName+":"+
 			strconv.Itoa(n.GetLineno())+":"+strconv.Itoa(n.GetCharno()))
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {

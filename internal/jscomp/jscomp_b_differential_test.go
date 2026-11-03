@@ -18,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/graph"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -27,13 +28,14 @@ const jscompBSafe = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456
 
 // jscompBEnc is the oracle's u(): "N" for null, else "u" + the UTF-16 units
 // with every unit outside jscompBSafe written as \XXXX.
-func jscompBEnc(s *string) string {
-	if s == nil {
+func jscompBEnc(s base.OptString) string {
+	v, ok := s.Get()
+	if !ok {
 		return "N"
 	}
 	var sb strings.Builder
 	sb.WriteByte('u')
-	for _, c := range jutil.StringToUTF16(*s) {
+	for _, c := range jutil.StringToUTF16(v) {
 		if c < 0x80 && strings.IndexByte(jscompBSafe, byte(c)) >= 0 {
 			sb.WriteByte(byte(c))
 		} else {
@@ -43,12 +45,12 @@ func jscompBEnc(s *string) string {
 	return sb.String()
 }
 
-func jscompBEncS(s string) string { return jscompBEnc(&s) }
+func jscompBEncS(s string) string { return jscompBEnc(base.SomeString(s)) }
 
 // jscompBDec inverts jscompBEnc.
-func jscompBDec(s string) *string {
+func jscompBDec(s string) base.OptString {
 	if s == "N" {
-		return nil
+		return base.NoString()
 	}
 	if !strings.HasPrefix(s, "u") {
 		panic("bad encoded string: " + s)
@@ -66,11 +68,16 @@ func jscompBDec(s string) *string {
 			units = append(units, uint16(s[i]))
 		}
 	}
-	r := jutil.StringFromUTF16(units)
-	return &r
+	return base.SomeString(jutil.StringFromUTF16(units))
 }
 
-func jscompBDecS(s string) string { return *jscompBDec(s) }
+func jscompBDecS(s string) string {
+	v, ok := jscompBDec(s).Get()
+	if !ok {
+		panic("unexpected null string")
+	}
+	return v
+}
 
 // jscompBCatch runs body; a thrown Java exception becomes "!" + u(toString()).
 func jscompBCatch(body func() string) (result string) {
@@ -393,7 +400,7 @@ func TestJscompBDifferential(t *testing.T) {
 		case "msgid":
 			got = jscompBMessageId(col[1], col[2], col[3])
 		case "hash":
-			got = strconv.FormatInt(JsMessage_Hash_Hash64(jscompBDec(col[1])), 10)
+			got = strconv.FormatInt(JsMessage_Hash_Hash64Opt(jscompBDec(col[1])), 10)
 		case "ph":
 			s := jscompBDecS(col[1])
 			got = strings.Join([]string{

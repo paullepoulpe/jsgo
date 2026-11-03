@@ -83,9 +83,6 @@ type SourceFile struct {
 }
 
 var _ rhino.StaticSourceFile = (*SourceFile)(nil)
-var _ rhino.StaticSourceFileFast = (*SourceFile)(nil)
-
-func (f *SourceFile) GetNamePtr() *string { return &f.fileName }
 
 func (f *SourceFile) getOrCreateSourceInfoTemplate() rhino.Node {
 	if f == nil {

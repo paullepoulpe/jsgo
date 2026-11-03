@@ -85,7 +85,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) Process(externs rhino.N
 			newCollapseProperties_findDynamicallyImportedModules(c, c.outer.haveModulesBeenRewritten, c.outer.moduleResolutionMode))
 	}
 
-	c.namespace = jutil.CheckNotNullMsg(c.outer.namespace, "namespace was not initialized")
+	if c.outer.namespace == nil {
+		panic(jutil.NewNullPointerExceptionMsg("namespace was not initialized"))
+	}
+	c.namespace = c.outer.namespace
 	c.namespace.EnsureGenerated()
 	c.CheckNamespaces()
 	for name := range c.namespace.NameForest() {
@@ -128,8 +131,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *Glob
 
 	if objLit, ok := ast.AsObjectLit(rvalue); ok {
 		for member := range objLit.Members() {
-			child := member.Node()
-			switch child.GetToken() {
+			switch member.Token() {
 			case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 				// We cannot completely eliminate the object literal, because it contains
 				// at least one feature that we cannot extract as a collapsed variable name.
@@ -137,7 +139,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CanEliminate(name *Glob
 			case rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF:
 			default:
 				panic(jutil.NewIllegalStateExceptionMsg(
-					"Unexpected child of OBJECTLIT: " + child.ToStringTree()))
+					"Unexpected child of OBJECTLIT: " + member.Node().ToStringTree()))
 			}
 		}
 	}
@@ -310,9 +312,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenSimpleStubDeclar
 	nameNode := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, ref.GetNode(), name.GetFullName())
 	varNode := rhino.IR_Var(nameNode).SrcrefIfMissing(nameNode)
 
-	jutil.CheckState(ref.GetNode().GetParent().IsExprResult())
-	parent := ref.GetNode().GetParent()
-	parent.ReplaceWith(varNode)
+	exprStmt, isExprStmt := ast.AsExprStmt(ref.GetNode().GetParent())
+	jutil.CheckState(isExprStmt)
+	exprStmt.Node().ReplaceWith(varNode)
 	c.outer.compiler.ReportChangeToEnclosingScope(varNode)
 }
 
@@ -371,11 +373,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenReferencesTo(
 		// show up as refs.
 		if !NodeUtil_MayBeObjectLitKey(rNode) {
 			c.FlattenNameRef(alias, rNode, rParent, getOriginalName(), isConstantName)
-		} else if strKey, ok := ast.AsStringKey(rNode); ok && rParent.IsObjectPattern() {
-			newNode := rhino.IR_Name(alias).Srcref(strKey.Node())
-			NodeUtil_CopyNameAnnotations(strKey.Node(), newNode)
-			DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
-				strKey.Node(), newNode, nil, r, c.outer.compiler)
+		} else if strKey, ok := ast.AsStringKey(rNode); ok {
+			if _, isObjPat := ast.AsObjectPattern(rParent); isObjPat {
+				newNode := ast.NewName(alias).Node().Srcref(strKey.Node())
+				NodeUtil_CopyNameAnnotations(strKey.Node(), newNode)
+				DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
+					strKey.Node(), newNode, nil, r, c.outer.compiler)
+			}
 		}
 	}
 
@@ -397,8 +401,10 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 		return true
 	}
 	decl := n.getDeclarationRef()
-	if decl != nil && !decl.GetNode().IsNil() && decl.GetNode().IsGetProp() {
-		return true
+	if decl != nil {
+		if _, isGetProp := ast.AsGetProp(decl.GetNode()); isGetProp {
+			return true
+		}
 	}
 	nRefs := n.refCount()
 	return nRefs > 1 || (nRefs == 1 && n.GetFirstRef() != decl)
@@ -466,8 +472,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenPrefixesLazy(
 	originalName := lazyOriginalName{baseOriginalName: baseOriginalName, name: n, extraDepth: extraDepth}
 
 	decl := n.getDeclarationRef()
-	if decl != nil && !decl.GetNode().IsNil() && decl.GetNode().IsGetProp() {
-		c.flattenNameRefAtDepthLazy(alias, decl.GetNode(), depth, &originalName, isConstantName)
+	if decl != nil {
+		if declGetProp, isGetProp := ast.AsGetProp(decl.GetNode()); isGetProp {
+			c.flattenNameRefAtDepthLazy(alias, declGetProp.Node(), depth, &originalName, isConstantName)
+		}
 	}
 
 	if descendantsVisited && c.willFlattenReferences(n) {
@@ -499,18 +507,22 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 	depth int,
 	originalName *lazyOriginalName,
 	isConstantName bool) {
-	nType := n.GetToken()
-	isQName := nType == rhino.Token_NAME || nType == rhino.Token_GETPROP
-	if !isQName {
+	_, isName := ast.AsName(n)
+	_, isGetProp := ast.AsGetProp(n)
+	if !isName && !isGetProp {
 		jutil.CheckState(NodeUtil_MayBeObjectLitKey(n))
 		return
 	}
-	for i := 1; i < depth && n.HasChildren(); i++ {
-		n = n.GetFirstChild()
+	for i := 1; i < depth; i++ {
+		gp, ok := ast.AsGetProp(n)
+		if !ok {
+			break
+		}
+		n = gp.Object().Node()
 	}
 	if gp, ok := ast.AsGetProp(n); ok {
 		if obj, ok := gp.Object().AsGetProp(); ok {
-			c.FlattenNameRef(alias, obj.Node(), n, originalName.get(), isConstantName)
+			c.FlattenNameRef(alias, obj.Node(), gp.Node(), originalName.get(), isConstantName)
 		}
 	}
 }
@@ -518,10 +530,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) flattenNameRefAtDepthLa
 // FlattenNameRef replaces a GETPROP a.b.c with a NAME a$b$c.
 func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	alias string, n rhino.Node, parent rhino.Node, originalName string, isConstantName bool) {
+	gp, isGetProp := ast.AsGetProp(n)
 	jutil.CheckArgumentMsg2(
-		n.IsGetProp(), "Expected GETPROP, found %s. Node: %s", n.GetToken(), n)
+		isGetProp, "Expected GETPROP, found %s. Node: %s", n.GetToken(), n)
 
-	isConst := isConstantName || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) || c.outer.compiler.GetCodingConvention().IsConstant(alias)
+	isConst := isConstantName || gp.IsConstantName() || c.outer.compiler.GetCodingConvention().IsConstant(alias)
 	if call, ok := ast.AsNormalOrOptChainCall(parent); ok && call.Callee().Is(n) {
 		// The node was a call target. We are deliberately flattening these as
 		// the "this" isn't provided by the namespace. Mark it as such:
@@ -535,7 +548,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) FlattenNameRef(
 	ref := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, n, originalName).CopyTypeFrom(n)
 	NodeUtil_CopyNameAnnotations(n, ref)
 	if isConstantName {
-		ref.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstantName)
+		ast.MustName(ref).SetConstantName(true)
 	}
 	n.ReplaceWith(ref)
 	c.outer.compiler.ReportChangeToEnclosingScope(ref)
@@ -586,8 +599,9 @@ func (f *collapseProperties_findDynamicallyImportedModules) Visit(t *NodeTravers
 	// __webpack_require__.e(2).then(function() { return module$mod1.default; })
 	//
 	// Mark the base module name as being dynamically imported.
+	_, isGetProp := ast.AsGetProp(n)
 	if f.processCommonJSModules &&
-		n.IsGetProp() &&
+		isGetProp &&
 		n.IsQualifiedName() &&
 		ast.RoleIn(n, parent) == ast.RoleReturnValue {
 		if block, ok := ast.AsBlock(parent.GetParent()); ok && ast.RoleOf(block.Node()) == ast.RoleFunctionBody {
@@ -616,13 +630,19 @@ func InlineAndCollapseProperties_IsSafeNamespaceReinit(ref *GlobalNamespace_Ref)
 	// allow "a = a || {}" or "var a = a || {}"
 	refNode := ref.GetNode()
 	valParent := refNode.GetParent()
-	if !valParent.IsNil() && NodeUtil_IsNameDeclaration(valParent) {
-		valParent = refNode
+	var val rhino.Node
+	if _, isDecl := ast.AsNameDeclaration(valParent); isDecl {
+		if name, ok := ast.AsName(refNode); ok {
+			if init, hasInit := name.Init(); hasInit {
+				val = init.Node()
+			}
+		}
+	} else if assign, isAssign := ast.AsAssignment(valParent); isAssign {
+		val = assign.Value().Node()
+	} else if dv, isDefault := ast.AsDefaultValue(valParent); isDefault {
+		val = dv.Value().Node()
 	}
-	if valParent.IsNil() {
-		return false
-	}
-	if orExpr, ok := ast.AsBinaryOf(valParent.GetLastChild(), rhino.Token_OR); ok {
+	if orExpr, ok := ast.AsBinaryOf(val, rhino.Token_OR); ok {
 		return refNode.MatchesQualifiedNameNode(orExpr.Left().Node())
 	}
 	return false

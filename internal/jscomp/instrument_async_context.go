@@ -411,7 +411,7 @@ func (r *asyncContextArgsRenamer) Visit(t *NodeTraversal, n rhino.Node, parent r
 		}
 		nm.SetIdent(r.argumentsName)
 		if r.outer.compiler.GetOptions().PreservesDetailedSourceInfo() {
-			n.SetOriginalName(&asyncContextArgumentsOriginalName)
+			n.SetOriginalName(asyncContextArgumentsOriginalName)
 		}
 		n.MakeNonIndexable()
 		nm.SetConstantName(true)

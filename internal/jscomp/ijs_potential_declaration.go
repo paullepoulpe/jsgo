@@ -60,6 +60,14 @@ type PotentialDeclaration struct {
 // decided by the length of the longest security-sensitive attribute name.
 const potentialDeclaration_STRING_ENUM_RETAIN_CAP = 10
 
+func mustPotentialDeclQualifiedName(n rhino.Node) string {
+	s, ok := n.QualifiedName()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return s
+}
+
 func newPotentialDeclaration(kind potentialDeclKind, fullyQualifiedName string, lhs rhino.Node, rhs rhino.Node) *PotentialDeclaration {
 	return &PotentialDeclaration{
 		fullyQualifiedName: fullyQualifiedName,
@@ -80,7 +88,7 @@ func PotentialDeclaration_FromName(nameNode rhino.Node) *PotentialDeclaration {
 		d.insertionPoint = NodeUtil_GetEnclosingStatement(thisPropDefinition.GetParent())
 		return d
 	}
-	return newPotentialDeclaration(potentialDeclName, *nameNode.GetQualifiedName(), nameNode, rhs)
+	return newPotentialDeclaration(potentialDeclName, mustPotentialDeclQualifiedName(nameNode), nameNode, rhs)
 }
 
 // Java: PotentialDeclaration.fromMemberFieldDef(Node)
@@ -132,7 +140,7 @@ func PotentialDeclaration_FromDefine(callNode rhino.Node) *PotentialDeclaration 
 		return newPotentialDeclaration(potentialDeclDefine, call.MustFirstArg().Node().GetString(), callNode, rhs)
 	case rhino.Token_ASSIGN:
 		previous := ast.MustAssign(parent).Target().Node()
-		return newPotentialDeclaration(potentialDeclDefine, *previous.GetQualifiedName(), previous, rhs)
+		return newPotentialDeclaration(potentialDeclDefine, mustPotentialDeclQualifiedName(previous), previous, rhs)
 	case rhino.Token_NAME:
 		return newPotentialDeclaration(potentialDeclDefine, parent.GetString(), parent, rhs)
 	default:
@@ -143,7 +151,7 @@ func PotentialDeclaration_FromDefine(callNode rhino.Node) *PotentialDeclaration 
 // Java: PotentialDeclaration.fromAlias(Node)
 func PotentialDeclaration_FromAlias(nameNode rhino.Node) *PotentialDeclaration {
 	jutil.CheckArgumentMsg1(nameNode.IsQualifiedName(), "%s", nameNode)
-	return newPotentialDeclaration(potentialDeclAlias, *nameNode.GetQualifiedName(), nameNode, rhino.NilNode)
+	return newPotentialDeclaration(potentialDeclAlias, mustPotentialDeclQualifiedName(nameNode), nameNode, rhino.NilNode)
 }
 
 // Java: PotentialDeclaration.getFullyQualifiedName()
@@ -306,7 +314,7 @@ func (d *PotentialDeclaration) simplifyName(compiler AbstractCompiler) {
 		jsdoc = JsdocUtil_MarkConstant(jsdoc)
 	}
 	// Completely remove the RHS, and replace with a getprop.
-	newStatement := NodeUtil_NewQNameDeclaration(compiler, *nameNode.GetQualifiedName(), rhino.NilNode, jsdoc)
+	newStatement := NodeUtil_NewQNameDeclaration(compiler, mustPotentialDeclQualifiedName(nameNode), rhino.NilNode, jsdoc)
 	newStatement.SrcrefTreeIfMissing(nameNode)
 	oldStatement := d.GetRemovableNode()
 	NodeUtil_DeleteChildren(oldStatement, compiler)

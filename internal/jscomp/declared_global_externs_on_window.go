@@ -117,7 +117,7 @@ func DeclaredGlobalExternsOnWindow_AddExtern(node rhino.Node, defineOnWindow boo
 	}
 
 	newNode.SrcrefTree(node)
-	newNode.SetOriginalName(&name)
+	newNode.SetOriginalName(name)
 	newNode.MakeNonIndexableRecursive()
 	node.GetGrandparent().AddChildToBack(rhino.IR_ExprResult(newNode))
 }

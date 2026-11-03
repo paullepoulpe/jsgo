@@ -246,12 +246,10 @@ func (p *ProcessCommonJSModules) getImportedModuleNameWithImportPath(t *NodeTrav
 	return modulePath.ToModuleName()
 }
 
-// processCommonJSModules_sourceFileName returns n.GetSourceFileName() as a Go string.
+// processCommonJSModules_sourceFileName returns n.SourceFileName() or "" if unset.
 func processCommonJSModules_sourceFileName(n rhino.Node) string {
-	if s := n.GetSourceFileName(); s != nil {
-		return *s
-	}
-	return ""
+	s, _ := n.SourceFileName()
+	return s
 }
 
 // ProcessCommonJSModules_IsCommonJsExport recognizes if a node is a module export:

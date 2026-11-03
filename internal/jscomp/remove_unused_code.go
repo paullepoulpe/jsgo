@@ -457,7 +457,7 @@ func (r *RemoveUnusedCode) isParamVarRemovable(nameNode rhino.Node, fparamScope 
 	}
 	v := fparamScope.GetVarByNode(nameNode)
 	if v == nil {
-		jutil.CheckNotNullMsg1(v, "%s", nameNode)
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s", nameNode)))
 	}
 	isGlobal := v.IsGlobal()
 	if v.IsExtern() || r.isExportedByConvention(v.GetName(), !isGlobal) || v.IsArguments() {
@@ -557,15 +557,16 @@ func (r *RemoveUnusedCode) RemoveIndependentlyRemovableProperties() {
 func (r *RemoveUnusedCode) GetVarForNameNode(nameNode rhino.Node, scope *Scope) *Var {
 	v := scope.GetVarByNode(nameNode)
 	if v == nil {
-		jutil.CheckNotNullMsg1(v, "%s", nameNode)
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s", nameNode)))
 	}
 	return v
 }
 
 // Java: RemoveUnusedCode.canRemoveParameters(Node)
 func (r *RemoveUnusedCode) CanRemoveParameters(parameterList rhino.Node) bool {
-	jutil.CheckState(parameterList.IsParamList())
-	function := parameterList.GetParent()
+	params, ok := ast.AsParamList(parameterList)
+	jutil.CheckState(ok)
+	function := params.Node().GetParent()
 	return r.removeGlobals && !NodeUtil_IsGetOrSetKey(function.GetParent())
 }
 
@@ -638,7 +639,8 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 // Java: RemoveUnusedCode.considerForAccessorSideEffects(Node, PropertyAccessKind)
 func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop rhino.Node, usage AccessorSummary_PropertyAccessKind) bool {
 	// Other node types may make sense in the future.
-	jutil.CheckStateMsg1(NodeUtil_IsNormalOrOptChainGetProp(getprop), "%s", getprop)
+	access, ok := ast.AsNormalOrOptChainGetProp(getprop)
+	jutil.CheckStateMsg1(ok, "%s", getprop)
 	if r.assumeGettersArePure && !usage.HasSetter() {
 		return false
 	}
@@ -647,7 +649,7 @@ func (r *RemoveUnusedCode) ConsiderForAccessorSideEffects(getprop rhino.Node, us
 		summary = r.compiler.GetAccessorSummary()
 		r.accessorSummary = summary
 	}
-	propID := getprop.GetStringID()
+	propID := access.Node().GetStringID()
 	recorded := summary.GetKindByID(propID)
 	if (recorded.HasGetter() && usage.HasGetter() && !r.assumeGettersArePure) ||
 		(recorded.HasSetter() && usage.HasSetter()) {
@@ -691,25 +693,24 @@ func (r *RemoveUnusedCode) markUnusedParameters(compiler AbstractCompiler, param
 	jutil.CheckArgumentMsg1(ok, "%s", paramList)
 
 	for p := range params.Params() {
-		param := p.Node()
-		if param.IsUnusedParameter() {
+		if p.IsUnused() {
 			// already marked
 			continue
 		}
 
-		paramNameNode := RemoveUnusedCode_NameOfParam(param)
-		if paramNameNode.IsNil() {
+		paramName, hasName := rucParamName(p)
+		if !hasName {
 			// destructuring pattern parameters don't have a name that applies to the whole parameter
 			// TODO(bradfordcsmith): We could mark this if we determined that all vars created by
 			// the pattern are unused.
 			continue
 		}
 
-		if r.isParamVarRemovable(paramNameNode, fparamScope, readOnly) {
-			param.SetUnusedParameter(true)
+		if r.isParamVarRemovable(paramName.Node(), fparamScope, readOnly) {
+			p.SetUnused(true)
 			compiler.ReportChangeToEnclosingScope(paramList)
 			if !readOnly && r.removalLog.IsLogging() {
-				r.logRemoval("argmark", paramNameNode.GetString(), loggableFunctionName(paramList))
+				r.logRemoval("argmark", paramName.Ident(), loggableFunctionName(paramList))
 			}
 		}
 	}
@@ -738,8 +739,8 @@ func (r *RemoveUnusedCode) maybeRemoveUnusedTrailingParameters(compiler Abstract
 			break
 		}
 
-		if argNode.IsDestructuringPattern() {
-			if argNode.HasChildren() {
+		if pat, isPattern := ast.AsPattern(argNode); isPattern {
+			if pat.Node().HasChildren() {
 				// TODO(johnlenz): handle the case where there are no assignments.
 				break
 			}
@@ -757,7 +758,7 @@ func (r *RemoveUnusedCode) maybeRemoveUnusedTrailingParameters(compiler Abstract
 		if r.isParamVarRemovable(argNode, fparamScope, readOnly) {
 			NodeUtil_DeleteNode(lastArg, compiler)
 			if !readOnly && r.removalLog.IsLogging() {
-				r.logRemoval("arg", argNode.GetString(), loggableFunctionName(argList))
+				r.logRemoval("arg", ast.MustName(argNode).Ident(), loggableFunctionName(argList))
 			}
 		} else {
 			break
@@ -779,21 +780,28 @@ func (r *RemoveUnusedCode) TraverseVar(var_ *Var) *RemoveUnusedCode_RealVarInfo 
 	if r.removeLocalVars && var_.IsArguments() {
 		// If we are considering removing local variables, that includes parameters.
 		// If `arguments` is used in a function we must consider all parameters to be referenced.
-		varScope, _ := var_.GetScope().(*Scope)
-		functionScope := varScope.GetClosestHoistScope()
+		functionScope := var_.scope.GetClosestHoistScope()
 		for param := range ast.MustFunction(functionScope.GetRootNode()).Params().Params() {
-			lValue := RemoveUnusedCode_NameOfParam(param.Node())
-			if lValue.IsNil() {
+			paramName, ok := rucParamName(param)
+			if !ok {
 				continue
 			}
 
-			r.GetVarInfo(r.GetVarForNameNode(lValue, functionScope)).
+			r.GetVarInfo(r.GetVarForNameNode(paramName.Node(), functionScope)).
 				pin(rucPinParamInFnUsingArguments)
 		}
 		// `arguments` is never removable.
 		return r.canonicalUnremovableVarInfo
 	}
 	return r.GetVarInfo(var_)
+}
+
+func rucParamName(p ast.Param) (ast.Name, bool) {
+	n := RemoveUnusedCode_NameOfParam(p.Node())
+	if n.IsNil() {
+		return ast.Name{}, false
+	}
+	return ast.MustName(n), true
 }
 
 // RemoveUnusedCode_NameOfParam returns the NAME node associated with a
@@ -864,7 +872,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 		return r.cachedCanonicalVarInfo(var_)
 	}
 	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_)
-	if var_.GetParentNode().IsParamList() {
+	if _, isParamList := ast.AsParamList(var_.GetParentNode()); isParamList {
 		varInfo.SetHasNonLocalOrNonLiteralValue()
 	}
 	// When trackProps is enabled, non-removable vars still need their own VarInfo
@@ -916,21 +924,24 @@ func (r *RemoveUnusedCode) RemoveUnreferencedVarsAndPolyfills() {
 		toRemove := nameNode.GetParent()
 		if toRemove.IsNil() || RemoveUnusedCode_AlreadyRemoved(toRemove) {
 			// assignedVarInfo.removeAllRemovables () already removed it
-		} else if NodeUtil_IsFunctionExpression(toRemove) {
+		} else if fn, isFn := ast.AsFunction(toRemove); isFn && NodeUtil_IsFunctionExpression(fn.Node()) {
 			// TODO(bradfordcsmith): Add a Removable for this case.
 			if !r.preserveFunctionExpressionNames {
 				r.compiler.ReportChangeToEnclosingScope(nameNode)
-				ast.MustFunction(toRemove).RemoveName()
+				fn.RemoveName()
 			}
 		} else {
 			// Removables are not created for theses cases.
 			// function foo(unused1 = someSideEffectingValue, ...unused2) {}
 			// removeUnreferencedFunctionArgs() is responsible for removing these.
 			// TODO(bradfordcsmith): handle parameter declarations with removables
+			_, isParamList := ast.AsParamList(toRemove)
+			_, parentIsParamList := ast.AsParamList(toRemove.GetParent())
+			_, isDefaultVal := ast.AsDefaultValue(toRemove)
+			_, isRest := ast.AsRest(toRemove)
 			jutil.CheckStateMsg1(
-				toRemove.IsParamList() ||
-					(toRemove.GetParent().IsParamList() &&
-						(toRemove.IsDefaultValue() || toRemove.IsRest())),
+				isParamList ||
+					(parentIsParamList && (isDefaultVal || isRest)),
 				"unremoved code: %s",
 				toRemove)
 		}

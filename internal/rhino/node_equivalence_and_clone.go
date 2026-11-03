@@ -382,29 +382,18 @@ const node_propEqualityMask uint64 = propFlag_ARROW_FN |
 	propFlag_COMPUTED_PROP_GETTER |
 	propFlag_COMPUTED_PROP_SETTER
 
-// GetQualifiedName takes a set of GETPROP nodes and produces a string that
+// QualifiedName takes a set of GETPROP nodes and produces a string that
 // is each property separated by dots. If the node ultimately under the left
-// sub-tree is not a simple name, this is not a valid qualified name.
-//
-// Returns null if this is not a qualified name, or a dot-separated string of
-// the name and properties.
+// sub-tree is not a simple name, this is not a valid qualified name (ok is
+// false).
 //
 // Java: Node.getQualifiedName()
-//
-// Go-only: performance — the body is in getQualifiedNameString, so that this
-// wrapper inlines: a caller that only reads the result keeps the string
-// header on its stack instead of the heap (these headers were 6% of
-// checks-only's allocations).
-func (n Node) GetQualifiedName() *string {
-	s, ok := n.getQualifiedNameString()
-	if !ok {
-		return nil
-	}
-	return &s
+func (n Node) QualifiedName() (string, bool) {
+	return n.getQualifiedNameString()
 }
 
-// GetQualifiedNameString is the body of GetQualifiedName; ok is false
-// where Java returns null.
+// GetQualifiedNameString returns the node's qualified name; ok is false
+// where Java returns null (including when n is NilNode).
 func (n Node) GetQualifiedNameString() (string, bool) {
 	if n.IsNil() {
 		return "", false

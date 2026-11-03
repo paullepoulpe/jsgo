@@ -468,10 +468,7 @@ func (e *Es6RewriteClass) visitMethod(member rhino.Node, metadata *es6RewriteCla
 		memberDoc := rhino.JSDocInfo_Builder_MaybeCopyFrom(info)
 		// Go-only: language-adapter — rhino.JSTypeExpression holds a non-null
 		// source name; a null getSourceFileName() becomes "".
-		sourceName := ""
-		if s := member.GetSourceFileName(); s != nil {
-			sourceName = *s
-		}
+		sourceName, _ := member.SourceFileName()
 		// adding an @this type prevents a JSC_UNSAFE_THIS error later on.
 		memberDoc.RecordThisType(
 			rhino.NewJSTypeExpression(

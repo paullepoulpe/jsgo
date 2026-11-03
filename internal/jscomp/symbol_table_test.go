@@ -1072,7 +1072,7 @@ Foo.prototype = {bar: 3}
 	refs := slices.Collect(table.GetReferences(fooPrototype))
 	AssertThat(refs).HasSize(1)
 	AssertThat(refs[0].GetNode().GetToken()).IsEqualTo(rhino.Token_GETPROP)
-	AssertThat(refs[0].GetNode().GetQualifiedName()).IsEqualTo("Foo.prototype")
+	AssertThat(optStringAny(refs[0].GetNode().QualifiedName())).IsEqualTo("Foo.prototype")
 }
 
 // Java: SymbolTableTest.testPrototypeReferences5()
@@ -1409,7 +1409,7 @@ a.b.DerivedClass.prototype.doSomething = function() {
 
 	refs := table.GetReferenceList(good)
 	AssertThat(refs).HasSize(2)
-	AssertThat(refs[1].GetNode().GetQualifiedName()).
+	AssertThat(optStringAny(refs[1].GetNode().QualifiedName())).
 		IsEqualTo("a.b.DerivedClass.superClass_.doSomething")
 }
 

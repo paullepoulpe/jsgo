@@ -94,9 +94,8 @@ type shard struct {
 }
 
 var (
-	shards      [numShards]shard
-	emptyString = ""
-	seed        = maphash.MakeSeed()
+	shards [numShards]shard
+	seed   = maphash.MakeSeed()
 )
 
 func hash(s string) uint64 {
@@ -216,19 +215,6 @@ func String(id ID) string {
 	s := &shards[idx&(numShards-1)]
 	localIdx := idx >> 6
 	return s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
-}
-
-func StringPtr(id ID) *string {
-	if id == 0 {
-		return nil
-	}
-	if id == EmptyID {
-		return &emptyString
-	}
-	idx := uint32(id - 2)
-	s := &shards[idx&(numShards-1)]
-	localIdx := idx >> 6
-	return &s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
 }
 
 func Lookup(str string) ID {

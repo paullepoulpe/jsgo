@@ -1000,8 +1000,8 @@ func functionName(n rhino.Node) string {
 		rhino.Token_SETTER_DEF:
 		return p.GetString()
 	case rhino.Token_ASSIGN:
-		if q := p.GetFirstChild().GetQualifiedName(); q != nil {
-			return *q
+		if q, ok := p.GetFirstChild().QualifiedName(); ok {
+			return q
 		}
 	}
 	return "<anonymous>"

@@ -44,11 +44,13 @@ func (g *CodeGenerator) addExprOrTypeNode(node rhino.Node, context CodeGenerator
 		g.addName(ast.MustName(node), context)
 	case rhino.Token_ARRAYLIT:
 		g.Add("[")
-		g.AddArrayList(ast.MustArrayLit(node).Node().GetFirstChild())
+		firstElem, _ := ast.MustArrayLit(node).FirstElement()
+		g.AddArrayList(firstElem.Node())
 		g.Add("]")
 	case rhino.Token_ARRAY_PATTERN:
 		g.Add("[")
-		g.AddArrayList(ast.MustArrayPattern(node).Node().GetFirstChild())
+		firstElem, _ := ast.MustArrayPattern(node).FirstElement()
+		g.AddArrayList(firstElem.Node())
 		g.Add("]")
 		g.MaybeAddTypeDecl(node)
 	case rhino.Token_DEFAULT_VALUE:
@@ -276,7 +278,8 @@ func (g *CodeGenerator) addOptChainGetProp(gp ast.OptChainGetProp, context CodeG
 
 func (g *CodeGenerator) addGetProp(gp ast.GetProp, context CodeGenerator_Context) {
 	node := gp.Node()
-	objNode := gp.Object().Node()
+	obj := gp.Object()
+	objNode := obj.Node()
 	// Convert rewritten aliased code back to original code when using goog.scope().
 	if _, ok := node.OriginalName(); g.useOriginalName && ok {
 		if codeGenerator_JSCOMP_SCOPE.Matches(objNode) && node.GetParent().IsAssign() {
@@ -287,7 +290,9 @@ func (g *CodeGenerator) addGetProp(gp ast.GetProp, context CodeGenerator_Context
 	}
 	// We need parentheses to distinguish `a?.b.c` from `(a?.b).c`, and
 	// `2.toString()` must be `(2).toString()`.
-	needsParens := objNode.IsNumber() || NodeUtil_IsOptChainNode(objNode)
+	_, isNum := obj.AsNumber()
+	_, isOpt := obj.AsOptChain()
+	needsParens := isNum || isOpt
 	if needsParens {
 		g.Add("(")
 	}
@@ -317,8 +322,9 @@ func (g *CodeGenerator) addOptChainGetElem(ge ast.OptChainGetElem, context CodeG
 }
 
 func (g *CodeGenerator) addGetElem(ge ast.GetElem, context CodeGenerator_Context) {
-	objNode := ge.Object().Node()
-	needsParens := NodeUtil_IsOptChainNode(objNode)
+	obj := ge.Object()
+	objNode := obj.Node()
+	_, needsParens := obj.AsOptChain()
 	if needsParens {
 		g.Add("(")
 	}
@@ -332,9 +338,10 @@ func (g *CodeGenerator) addGetElem(ge ast.GetElem, context CodeGenerator_Context
 }
 
 func (g *CodeGenerator) addOptChainCall(call ast.OptChainCall, context CodeGenerator_Context) {
-	calleeNode := call.Callee().Node()
-	if CodeGenerator_IsIndirectEval(calleeNode) ||
-		(call.IsFreeCall() && NodeUtil_IsNormalOrOptChainGet(calleeNode)) {
+	callee := call.Callee()
+	calleeNode := callee.Node()
+	_, isGet := callee.AsNormalOrOptChainGet()
+	if CodeGenerator_IsIndirectEval(calleeNode) || (call.IsFreeCall() && isGet) {
 		g.Add("(0,")
 		g.AddExpr(calleeNode, NodeUtil_Precedence(rhino.Token_COMMA), CodeGenerator_Context_OTHER)
 		g.Add(")")
@@ -361,7 +368,8 @@ func (g *CodeGenerator) addCall(call ast.Call, context CodeGenerator_Context) {
 }
 
 func (g *CodeGenerator) addNew(nw ast.New) {
-	calleeNode := nw.Callee().Node()
+	callee := nw.Callee()
+	calleeNode := callee.Node()
 	g.Add("new ")
 	precedence := NodeUtil_Precedence(rhino.Token_NEW)
 
@@ -372,8 +380,8 @@ func (g *CodeGenerator) addNew(nw ast.New) {
 
 	// If the callee contains a CALL (outside functions) or is an optional
 	// chain, force parentheses.
-	if NodeUtil_Has(calleeNode, (rhino.Node).IsCall, NodeUtil_MATCH_NOT_FUNCTION) ||
-		NodeUtil_IsOptChainNode(calleeNode) {
+	_, isOpt := callee.AsOptChain()
+	if NodeUtil_Has(calleeNode, (rhino.Node).IsCall, NodeUtil_MATCH_NOT_FUNCTION) || isOpt {
 		precedence = NodeUtil_Precedence(calleeNode.GetToken()) + 1
 	}
 	g.AddExpr(calleeNode, precedence, CodeGenerator_Context_OTHER)
@@ -408,7 +416,8 @@ func (g *CodeGenerator) addObjectLit(lit ast.ObjectLit, context CodeGenerator_Co
 		g.Add("(")
 	}
 	g.Add("{")
-	first := lit.Node().GetFirstChild()
+	firstMember, hasMembers := lit.FirstMember()
+	first := firstMember.Node()
 	for c := first; !c.IsNil(); c = c.GetNext() {
 		if c != first {
 			g.cc.ListSeparator()
@@ -416,7 +425,7 @@ func (g *CodeGenerator) addObjectLit(lit ast.ObjectLit, context CodeGenerator_Co
 		jutil.CheckStateMsg1(NodeUtil_IsObjLitProperty(c) || c.IsSpread(), "%s", c)
 		g.AddNode(c)
 	}
-	if !first.IsNil() && lit.Node().HasTrailingComma() {
+	if hasMembers && lit.Node().HasTrailingComma() {
 		g.cc.OptionalListSeparator()
 	}
 	g.Add("}")
@@ -436,15 +445,19 @@ func (g *CodeGenerator) addComputedProp(cp ast.ComputedProp) {
 	isGetter := cp.IsGetter()
 	isSetter := cp.IsSetter()
 	isMethod := cp.IsMethod()
+	var methodFn ast.Function
+	if isMethod || isGetter || isSetter {
+		methodFn = val.MustFunction()
+	}
 	if isGetter {
 		g.Add("get ")
 	} else if isSetter {
 		g.Add("set ")
 	} else if isMethod {
-		if val.Node().IsAsyncFunction() {
+		if methodFn.IsAsync() {
 			g.Add("async")
 		}
-		if val.Node().GetBooleanProp(rhino.Node_GENERATOR_FN) {
+		if methodFn.IsGenerator() {
 			g.Add("*")
 		}
 	}
@@ -455,9 +468,8 @@ func (g *CodeGenerator) addComputedProp(cp ast.ComputedProp) {
 	g.Add("]")
 	g.MaybeAddTypeDecl(node)
 	if isMethod || isGetter || isSetter {
-		fn := ast.MustFunction(val.Node())
-		g.AddNode(fn.Params().Node())
-		g.AddNode(fn.Body().Node())
+		g.AddNode(methodFn.Params().Node())
+		g.AddNode(methodFn.Body().Node())
 	} else {
 		isInClass := node.GetParent().IsClassMembers()
 		if hasVal {
@@ -515,8 +527,18 @@ func (g *CodeGenerator) AddIdentifier(identifier string) {
 // Java: CodeGenerator.addGetpropIdentifier(Node)
 func (g *CodeGenerator) AddGetpropIdentifier(getprop rhino.Node) {
 	g.cc.StartSourceMapping(getprop)
-	g.AddIdentifier(getprop.GetString())
+	g.AddIdentifier(ast.MustNormalOrOptChainGetProp(getprop).Property())
 	g.cc.EndSourceMapping(getprop)
+}
+
+func isFreeInvocation(inv ast.Invocation) bool {
+	if call, ok := inv.AsNormalOrOptChainCall(); ok {
+		return call.IsFreeCall()
+	}
+	if tagged, ok := inv.AsTaggedTemplateLit(); ok {
+		return tagged.IsFreeCall()
+	}
+	return false
 }
 
 // AddInvocationTarget handles indirect eval and free calls on property
@@ -524,11 +546,13 @@ func (g *CodeGenerator) AddGetpropIdentifier(getprop rhino.Node) {
 //
 // Java: CodeGenerator.addInvocationTarget(Node, Context)
 func (g *CodeGenerator) AddInvocationTarget(node rhino.Node, context CodeGenerator_Context) {
-	first := ast.MustInvocation(node).Callee().Node()
+	inv := ast.MustInvocation(node)
+	callee := inv.Callee()
+	first := callee.Node()
 
-	needsParens := NodeUtil_IsOptChainNode(first)
-	if CodeGenerator_IsIndirectEval(first) ||
-		(node.GetBooleanProp(rhino.Node_FREE_CALL) && NodeUtil_IsNormalOrOptChainGet(first)) {
+	_, needsParens := callee.AsOptChain()
+	_, isGet := callee.AsNormalOrOptChainGet()
+	if CodeGenerator_IsIndirectEval(first) || (isFreeInvocation(inv) && isGet) {
 		g.Add("(0,")
 		g.AddExpr(first, NodeUtil_Precedence(rhino.Token_COMMA), CodeGenerator_Context_OTHER)
 		g.Add(")")
@@ -536,7 +560,7 @@ func (g *CodeGenerator) AddInvocationTarget(node rhino.Node, context CodeGenerat
 		if needsParens {
 			g.Add("(")
 		}
-		g.AddExpr(first, NodeUtil_Precedence(node.GetToken()), context)
+		g.AddExpr(first, NodeUtil_Precedence(inv.Token()), context)
 		if needsParens {
 			g.Add(")")
 		}
@@ -614,7 +638,8 @@ var codeGenIDEval = strpool.Intern("eval")
 //
 // Java: CodeGenerator.isIndirectEval(Node)
 func CodeGenerator_IsIndirectEval(n rhino.Node) bool {
-	return n.IsName() && nodeStringID(n) == codeGenIDEval && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
+	_, isName := ast.AsName(n)
+	return isName && nodeStringID(n) == codeGenIDEval && !n.GetBooleanProp(rhino.Node_DIRECT_EVAL)
 }
 
 // Java: CodeGenerator.addList(Node)
@@ -678,11 +703,11 @@ func (g *CodeGenerator) AddStringKey(n rhino.Node) {
 	} else {
 		g.addNumericOrStringKey(key, n)
 	}
-	if n.HasChildren() {
+	if val := sk.Value().Node(); !val.IsNil() {
 		// NOTE: the only time a STRING_KEY node does *not* have children is
 		// when it's inside a TypeScript enum.
 		g.Add(":")
-		g.AddExpr(sk.Value().Node(), 1, CodeGenerator_Context_OTHER)
+		g.AddExpr(val, 1, CodeGenerator_Context_OTHER)
 	}
 }
 

@@ -3644,9 +3644,10 @@ new module$exports$mod$one.Bar();
 	moduleExportsDotBar := NodeUtil_FindPreorder(secondScript, func(node rhino.Node) bool { return node.MatchesQualifiedName("module$exports$mod$one.Bar") }, func(rhino.Node) bool { return true })
 
 	AssertNode(moduleExportsDotBar).HasJSTypeThat().GetReferenceNameIsEqualTo("mod.one.Bar")
+	secondScriptName, _ := secondScript.SourceFileName()
 	// The source info for the rewritten name must match the source info for `Bar` in `new Bar();`
 	AssertNode(moduleExportsDotBar).
-		HasSourceFileName(secondScript.GetSourceFileName()).
+		HasSourceFileName(secondScriptName).
 		HasLineno(3).
 		HasCharno(4).
 		HasLength(3)

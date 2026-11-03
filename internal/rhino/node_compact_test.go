@@ -35,7 +35,7 @@ func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
 	if n.GetJSType() != nil || n.GetColor() != nil {
 		t.Fatal("cleared type is non-null")
 	}
-	n.SetOriginalName(jutil.StringPtr("original"))
+	n.SetOriginalName("original")
 }
 
 // The length (when it does not fit in 16 bits) and the original name of a
@@ -43,12 +43,13 @@ func TestCompactNodeLayoutAndGCRoots(t *testing.T) {
 func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 	n := Node_NewNumber(42)
 	n.SetLength(100000)
-	n.SetOriginalName(jutil.StringPtr("answer"))
+	n.SetOriginalName("answer")
 	info := NewJSDocInfo_Builder().BuildWithAlways(true)
 	n.SetJSDocInfo(info)
 	for _, c := range []Node{n, n.CloneNode(), NewNode(Token_NUMBER).Srcref(n)} {
-		if c.GetLength() != 100000 || c.GetOriginalName() == nil || *c.GetOriginalName() != "answer" {
-			t.Fatalf("lost length %d or original name %v", c.GetLength(), c.GetOriginalName())
+		orig, hasOrig := c.OriginalName()
+		if c.GetLength() != 100000 || !hasOrig || orig != "answer" {
+			t.Fatalf("lost length %d or original name (%q, %v)", c.GetLength(), orig, hasOrig)
 		}
 	}
 	if n.GetJSDocInfo() != info {
@@ -59,9 +60,10 @@ func TestNodeExtBoxLengthAndOriginalName(t *testing.T) {
 		t.Fatalf("length = %d, want -5", n.GetLength())
 	}
 	n.SetLength(7)
-	n.SetOriginalName(nil)
+	n.ClearOriginalName()
 	n.SetJSDocInfo(nil)
-	if n.GetLength() != 7 || n.GetOriginalName() != nil || n.GetJSDocInfo() != nil {
+	_, hasOrig := n.OriginalName()
+	if n.GetLength() != 7 || hasOrig || n.GetJSDocInfo() != nil {
 		t.Fatal("cleared fields are still set")
 	}
 	if _, ok := n.auxOf(); n.hasAux() || ok {

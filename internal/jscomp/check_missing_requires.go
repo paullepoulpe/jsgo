@@ -744,7 +744,10 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughFullyQualifiedName(
 			// Not a known namespace check the parent
 			continue
 		}
-		fileName := requiredFile.RootNode().GetSourceFileName()
+		fileName := "null"
+		if s, ok := requiredFile.RootNode().SourceFileName(); ok {
+			fileName = s
+		}
 		var toReport *DiagnosticType
 		if currentFile.IsModule() {
 			/*
@@ -777,7 +780,7 @@ func (c *CheckMissingRequires) CheckMissingRequireThroughFullyQualifiedName(
 			return
 		}
 
-		t.Report(n, toReport, namespace, jutil.ToJavaString(fileName))
+		t.Report(n, toReport, namespace, fileName)
 		return
 	}
 }

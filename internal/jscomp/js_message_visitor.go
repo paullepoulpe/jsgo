@@ -231,8 +231,8 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		nm := ast.MustName(node)
 		possiblyObfuscatedMessageKey = nm.Ident()
 		messageKeyFromLhs = possiblyObfuscatedMessageKey
-		if orig := node.GetOriginalName(); orig != nil {
-			messageKeyFromLhs = *orig
+		if orig, ok := node.OriginalName(); ok {
+			messageKeyFromLhs = orig
 		}
 		if init, ok := nm.Init(); ok {
 			msgNode = init.Node()
@@ -247,8 +247,8 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		}
 		possiblyObfuscatedMessageKey = getProp.Property()
 		messageKeyFromLhs = possiblyObfuscatedMessageKey
-		if orig := getProp.Node().GetOriginalName(); orig != nil {
-			messageKeyFromLhs = *orig
+		if orig, ok := getProp.Node().OriginalName(); ok {
+			messageKeyFromLhs = orig
 		}
 		msgNode = assign.Value().Node()
 		jsDocInfo = node.GetJSDocInfo()
@@ -261,8 +261,8 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		sk := ast.MustStringKey(node)
 		possiblyObfuscatedMessageKey = sk.Key()
 		messageKeyFromLhs = possiblyObfuscatedMessageKey
-		if orig := node.GetOriginalName(); orig != nil {
-			messageKeyFromLhs = *orig
+		if orig, ok := node.OriginalName(); ok {
+			messageKeyFromLhs = orig
 		}
 		msgNode = sk.Value().Node()
 		jsDocInfo = node.GetJSDocInfo()
@@ -271,8 +271,8 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		mfd := ast.MustMemberFieldDef(node)
 		possiblyObfuscatedMessageKey = mfd.Key()
 		messageKeyFromLhs = possiblyObfuscatedMessageKey
-		if orig := node.GetOriginalName(); orig != nil {
-			messageKeyFromLhs = *orig
+		if orig, ok := node.OriginalName(); ok {
+			messageKeyFromLhs = orig
 		}
 		if val, ok := mfd.Value(); ok {
 			msgNode = val.Node()
@@ -530,8 +530,8 @@ func jsMessageVisitor_isLegalMessageVarAlias(msgNode rhino.Node) bool {
 	}
 
 	originalName := nm.Ident()
-	if orig := msgNode.GetOriginalName(); orig != nil {
-		originalName = *orig
+	if orig, ok := msgNode.OriginalName(); ok {
+		originalName = orig
 	}
 
 	return strings.HasPrefix(originalName, JsMessageVisitor_MSG_PREFIX)
@@ -557,8 +557,8 @@ func (v *JsMessageVisitor) getTrackedNormalMessage(msgName string) *JsMessage {
 func (v *JsMessageVisitor) checkIfMessageDuplicated(msgName string, msgNode rhino.Node) {
 	if location, ok := v.messageNames[msgName]; ok {
 		srcFile := "null"
-		if s := location.messageNode.GetSourceFileName(); s != nil {
-			srcFile = *s
+		if s, ok := location.messageNode.SourceFileName(); ok {
+			srcFile = s
 		}
 		v.compiler.Report(
 			JSError_MakeWithNode(

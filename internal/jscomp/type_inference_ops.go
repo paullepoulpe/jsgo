@@ -623,12 +623,16 @@ func (ti *TypeInference) TraverseDynamicImport(dynamicImport rhino.Node, scope *
 	importSpecifier := ast.MustDynamicImport(dynamicImport).Specifier().Node()
 	input := ti.compiler.GetInput(NodeUtil_GetInputId(dynamicImport))
 	if importSpecifier.IsStringLit() && moduleMap != nil && input != nil {
+		importFileName, ok := importSpecifier.SourceFileName()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 		targetPath :=
 			input.
 				GetPath().
 				ResolveJsModule(
 					importSpecifier.GetString(),
-					*importSpecifier.GetSourceFileName(),
+					importFileName,
 					importSpecifier.GetLineno(),
 					importSpecifier.GetCharno())
 		var targetModule *Module

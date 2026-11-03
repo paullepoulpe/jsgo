@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -44,7 +45,7 @@ type PolymerClassDefinition struct {
 	hasGeneratedLhs   bool
 	descriptor        rhino.Node
 	constructor       *PolymerPass_MemberDefinition
-	nativeBaseElement *string
+	nativeBaseElement base.OptString
 	props             []*PolymerPass_MemberDefinition
 	behaviorProps     []polymerBehaviorProp
 	methods           []*PolymerPass_MemberDefinition
@@ -56,10 +57,7 @@ type PolymerClassDefinition struct {
 // NativeBaseElement returns the native HTML element name extended by this
 // Polymer element when present.
 func (d *PolymerClassDefinition) NativeBaseElement() (string, bool) {
-	if d.nativeBaseElement == nil {
-		return "", false
-	}
-	return *d.nativeBaseElement, true
+	return d.nativeBaseElement.Get()
 }
 
 // Java: static enum PolymerClassDefinition.DefinitionType
@@ -86,7 +84,7 @@ func NewPolymerClassDefinition(
 	descriptor rhino.Node,
 	classInfo *rhino.JSDocInfo,
 	constructor *PolymerPass_MemberDefinition,
-	nativeBaseElement *string,
+	nativeBaseElement base.OptString,
 	props []*PolymerPass_MemberDefinition,
 	behaviorProps []polymerBehaviorProp,
 	methods []*PolymerPass_MemberDefinition,
@@ -186,10 +184,9 @@ func PolymerClassDefinition_ExtractFromCallNode(
 	}
 
 	baseClass := NodeUtil_GetFirstPropMatchingKey(descriptor, "extends")
-	var nativeBaseElement *string
+	var nativeBaseElement base.OptString
 	if !baseClass.IsNil() {
-		s := baseClass.GetString()
-		nativeBaseElement = &s
+		nativeBaseElement = base.SomeString(baseClass.GetString())
 	}
 
 	behaviorArray := NodeUtil_GetFirstPropMatchingKey(descriptor, "behaviors")
@@ -354,7 +351,7 @@ func PolymerClassDefinition_ExtractFromClassNode(classNode rhino.Node, compiler 
 		propertiesDescriptor,
 		classInfo,
 		NewPolymerPass_MemberDefinition(ctorInfo, rhino.NilNode, constructor, enclosingModule),
-		nil,
+		base.NoString(),
 		properties,
 		nil,
 		methods,
@@ -439,9 +436,9 @@ func (d *PolymerClassDefinition) String() string {
 		b.WriteString(", target=")
 		b.WriteString(d.target.String())
 	}
-	if d.nativeBaseElement != nil {
+	if baseElem, ok := d.nativeBaseElement.Get(); ok {
 		b.WriteString(", nativeBaseElement=")
-		b.WriteString(*d.nativeBaseElement)
+		b.WriteString(baseElem)
 	}
 	b.WriteByte('}')
 	return b.String()

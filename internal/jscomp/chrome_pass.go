@@ -154,7 +154,10 @@ func (p *ChromePass) visitPropertyDefinition(call ast.Call, parent rhino.Node) {
 	}
 
 	// Java string concatenation renders a null qualified name as "null".
-	target := jutil.ToJavaString(targetArg.Node().GetQualifiedName())
+	target := "null"
+	if qname, ok := targetArg.Node().QualifiedName(); ok {
+		target = qname
+	}
 	if isCrDefinePropertyCall && !strings.HasSuffix(target, ".prototype") {
 		target += ".prototype"
 	}
@@ -199,11 +202,15 @@ func (p *ChromePass) getTypeByCrPropertyKind(propertyKind rhino.Node) rhino.Node
 	if chromePass_CR_PROPERTYKIND_BOOL_ATTR.Matches(propertyKind) {
 		return rhino.IR_String("boolean")
 	}
+	propKindName := "null"
+	if qname, ok := propertyKind.QualifiedName(); ok {
+		propKindName = qname
+	}
 	p.compiler.Report(
 		JSError_MakeWithNode(
 			propertyKind,
 			ChromePass_CR_DEFINE_PROPERTY_INVALID_PROPERTY_KIND,
-			jutil.ToJavaString(propertyKind.GetQualifiedName())))
+			propKindName))
 	return rhino.NilNode
 }
 

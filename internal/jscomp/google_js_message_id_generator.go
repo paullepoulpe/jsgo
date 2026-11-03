@@ -48,12 +48,7 @@ type GoogleJsMessageIdGenerator struct {
 // projectId is a TC project name (e.g. "MyProject").
 //
 // Java: GoogleJsMessageIdGenerator(String)
-func NewGoogleJsMessageIdGenerator(projectId *string) *GoogleJsMessageIdGenerator {
-	return NewGoogleJsMessageIdGeneratorOpt(base.OptStringFromPtr(projectId))
-}
-
-// NewGoogleJsMessageIdGeneratorOpt creates an instance for an optional TC project ID.
-func NewGoogleJsMessageIdGeneratorOpt(projectId base.OptString) *GoogleJsMessageIdGenerator {
+func NewGoogleJsMessageIdGenerator(projectId base.OptString) *GoogleJsMessageIdGenerator {
 	return NewGoogleJsMessageIdGeneratorForProject(projectId.ValueOrEmpty())
 }
 
@@ -64,12 +59,7 @@ func NewGoogleJsMessageIdGeneratorForProject(projectId string) *GoogleJsMessageI
 }
 
 // Java: GoogleJsMessageIdGenerator.generateId(String, List<Part>)
-func (g *GoogleJsMessageIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
-	return g.GenerateIdOpt(base.OptStringFromPtr(meaning), messageParts)
-}
-
-// GenerateIdOpt generates the ID for an optional meaning without boxing.
-func (g *GoogleJsMessageIdGenerator) GenerateIdOpt(meaning base.OptString, messageParts []JsMessage_Part) string {
+func (g *GoogleJsMessageIdGenerator) GenerateId(meaning base.OptString, messageParts []JsMessage_Part) string {
 	m, ok := meaning.Get()
 	jutil.CheckState(ok)
 	return g.generateId(m, messageParts)

@@ -701,8 +701,8 @@ func polymerMakeParamSafe(param rhino.Node, index int) {
 }
 
 func polymerSourceFileName(n rhino.Node) string {
-	if s := n.GetSourceFileName(); s != nil {
-		return *s
+	if s, ok := n.SourceFileName(); ok {
+		return s
 	}
 	return "null"
 }

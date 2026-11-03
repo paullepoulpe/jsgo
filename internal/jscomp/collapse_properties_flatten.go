@@ -91,20 +91,21 @@ func (c *InlineAndCollapseProperties_CollapseProperties) CollapseDeclarationOfNa
 func (c *InlineAndCollapseProperties_CollapseProperties) UpdateTwinnedDeclaration(alias string, refName *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
 	jutil.CheckStateMsg1(ref.IsTwin(), "%s", ref)
 	// Don't handle declarations of an already flat name, just qualified names.
-	if !ref.GetNode().IsGetProp() {
+	refGetProp, isGetProp := ast.AsGetProp(ref.GetNode())
+	if !isGetProp {
 		return
 	}
-	assign := ast.MustAssign(ref.GetNode().GetParent())
-	rvalue := assign.Value().Node()
+	assign := ast.MustAssign(refGetProp.Node().GetParent())
+	rvalue := assign.Value()
 	grandparent := assign.Node().GetParent()
 
-	if rvalue.IsFunction() {
-		c.CheckForReceiverAffectedByCollapse(rvalue, refName.GetJSDocInfo(), refName)
+	if fn, isFn := rvalue.AsFunction(); isFn {
+		c.CheckForReceiverAffectedByCollapse(fn.Node(), refName.GetJSDocInfo(), refName)
 	}
 
 	// Create the new alias node.
 	nameNode := NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, grandparent.GetFirstChild(), refName.GetFullName())
-	NodeUtil_CopyNameAnnotations(ref.GetNode(), nameNode)
+	NodeUtil_CopyNameAnnotations(refGetProp.Node(), nameNode)
 
 	// BEFORE:
 	// ... (x.y = 3);
@@ -115,7 +116,13 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateTwinnedDeclaratio
 
 	current := grandparent
 	currentParent := grandparent.GetParent()
-	for ; !currentParent.IsScript() && !currentParent.IsBlock(); current, currentParent = currentParent, currentParent.GetParent() {
+	for {
+		_, isScript := ast.AsScript(currentParent)
+		_, isBlock := ast.AsBlock(currentParent)
+		if isScript || isBlock {
+			break
+		}
+		current, currentParent = currentParent, currentParent.GetParent()
 	}
 
 	// Create a stub variable declaration right
@@ -123,7 +130,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateTwinnedDeclaratio
 	stubVar := rhino.IR_Var(nameNode.CloneTree()).SrcrefIfMissing(nameNode)
 	stubVar.InsertBefore(current)
 
-	ref.GetNode().ReplaceWith(nameNode)
+	refGetProp.Node().ReplaceWith(nameNode)
 	c.outer.compiler.ReportChangeToEnclosingScope(nameNode)
 }
 
@@ -199,8 +206,9 @@ func (c *InlineAndCollapseProperties_CollapseProperties) MoveDeclarationIntoHigh
 	// be parsed before `a$b;`. So we need to avoid a ReferenceError when referencing `a$b`.
 	declName := ast.MustName(decl.GetNode())
 	newNode := declName.Node()
-	varNode := newNode.GetParent()
-	jutil.CheckStateMsg1(varNode.IsVar(), "Unexpected declaration %s", varNode)
+	varDecl, isVar := ast.AsNameDeclarationOf(newNode.GetParent(), rhino.Token_VAR)
+	jutil.CheckStateMsg1(isVar, "Unexpected declaration %s", newNode.GetParent())
+	varNode := varDecl.Node()
 
 	newRoot := commonAncestor.GetFirst().GetAstRoot(c.outer.compiler)
 	if init, hasInit := declName.Init(); !hasInit {
@@ -244,10 +252,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	refNode := ref.GetNode()
 	assign := ast.MustAssign(refNode.GetParent())
 	assignNode := assign.Node()
-	rvalue := assign.Value().Node()
+	rvalueExpr := assign.Value()
+	rvalue := rvalueExpr.Node()
 	grandparent := assignNode.GetParent()
 	varParent := grandparent.GetParent()
-	isObjLit := rvalue.IsObjectLit()
+	_, isObjLit := rvalueExpr.AsObjectLit()
 	insertedVarNode := false
 	var varNode rhino.Node
 
@@ -265,8 +274,8 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 		c.outer.compiler.ReportChangeToEnclosingScope(varNode)
 	} else if !n.IsSimpleName() {
 		// Create a VAR node to declare the name.
-		if rvalue.IsFunction() {
-			c.CheckForReceiverAffectedByCollapse(rvalue, n.GetJSDocInfo(), n)
+		if fn, isFn := rvalueExpr.AsFunction(); isFn {
+			c.CheckForReceiverAffectedByCollapse(fn.Node(), n.GetJSDocInfo(), n)
 		}
 
 		c.outer.compiler.ReportChangeToEnclosingScope(rvalue)
@@ -283,7 +292,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 			varNode = grandparent
 		} else {
 			nameNode = NodeUtil_NewNameWithOriginalName(c.outer.compiler, alias, grandparent, n.GetFullName())
-			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, isConstName)
+			ast.MustName(nameNode).SetConstantName(isConstName)
 			varNode = rhino.NewNode(rhino.Token_VAR)
 			if info != nil {
 				varNode.SetJSDocInfo(info)
@@ -322,7 +331,8 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 //
 // Java: InlineAndCollapseProperties.CollapseProperties.checkForReceiverAffectedByCollapse(Node, JSDocInfo, Name)
 func (c *InlineAndCollapseProperties_CollapseProperties) CheckForReceiverAffectedByCollapse(function rhino.Node, docInfo *rhino.JSDocInfo, name *GlobalNamespace_Name) {
-	jutil.CheckState(function.IsFunction())
+	_, isFn := ast.AsFunction(function)
+	jutil.CheckState(isFn)
 
 	if docInfo != nil {
 		// Don't rely on type inference for this check.
@@ -368,7 +378,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	variableNode := declName.Node().GetParent()
 	grandparent := variableNode.GetParent()
 
-	isObjLit := hasInit && rvalue.IsObjectLit()
+	isObjLit := false
+	if hasInit {
+		_, isObjLit = init.AsObjectLit()
+	}
 
 	if isObjLit {
 		c.DeclareVariablesForObjLitValues(n, name, rvalue, variableNode, variableNode.GetPrevious())
@@ -400,9 +413,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) updateGlobalNameDeclara
 	}
 
 	ref := n.getDeclarationRef()
-	declNode := ref.GetNode()
+	declName := ast.MustName(ref.GetNode())
+	declStmt := declName.Node().GetParent()
 	c.AddStubsForUndeclaredProperties(
-		n, declNode.GetString(), declNode.GetAncestor(2), declNode.GetParent())
+		n, declName.Ident(), declStmt.GetParent(), declStmt)
 }
 
 // UpdateGlobalNameDeclarationAtStaticMemberNode updates the first
@@ -421,8 +435,11 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
 
 	declaration := n.getDeclarationRef()
-	classNode := declaration.GetNode().GetGrandparent()
-	jutil.CheckStateMsg1(classNode.IsClass(), "%s", classNode)
+	classBody, isClassBody := ast.AsClassBody(declaration.GetNode().GetParent())
+	jutil.CheckStateMsg1(isClassBody, "%s", declaration.GetNode().GetParent())
+	classView, isClass := ast.AsClass(classBody.Node().GetParent())
+	jutil.CheckStateMsg1(isClass, "%s", classBody.Node().GetParent())
+	classNode := classView.Node()
 	enclosingStatement := NodeUtil_GetEnclosingStatement(classNode)
 
 	if canCollapseChildNames {
@@ -458,7 +475,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) UpdateGlobalNameDeclara
 	c.outer.compiler.ReportChangeToEnclosingScope(varDecl)
 
 	// collapsing this name's properties requires updating this Ref
-	firstDecl, _ := ast.MustNameDeclaration(varDecl).FirstDeclarator()
+	firstDecl := ast.MustNameDeclaration(varDecl).MustFirstDeclarator()
 	n.UpdateRefNode(declaration, firstDecl.Node())
 }
 
@@ -482,14 +499,19 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 
 		// A computed property, or a get or a set can not be rewritten as a VAR. We don't know what
 		// properties will be generated by a spread.
+		var keyStr string
 		var value rhino.Node
 		switch member.Token() {
 		case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_OBJECT_SPREAD:
 			continue
 		case rhino.Token_STRING_KEY:
-			value = member.MustStringKey().Value().Node()
+			sk := member.MustStringKey()
+			keyStr = sk.Key()
+			value = sk.Value().Node()
 		case rhino.Token_MEMBER_FUNCTION_DEF:
-			value = member.MustMemberFunctionDef().Function().Node()
+			mf := member.MustMemberFunctionDef()
+			keyStr = mf.Key()
+			value = mf.Function().Node()
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected child of OBJECTLIT: " + key.ToStringTree()))
@@ -500,10 +522,10 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 		// this object literal's child names wouldn't be collapsible.) The only
 		// reason that we don't eliminate them entirely is the off chance that
 		// their values are expressions that have side effects.
-		isJsIdentifier := !key.IsNumber() && rhino.TokenStream_IsJSIdentifier(key.GetString())
+		isJsIdentifier := rhino.TokenStream_IsJSIdentifier(keyStr)
 		var propName string
 		if isJsIdentifier {
-			propName = key.GetString()
+			propName = keyStr
 		} else {
 			arbitraryNameCounter++
 			propName = strconv.Itoa(arbitraryNameCounter)
@@ -525,20 +547,22 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 			// Don't report a change here because the objlit has already been removed from the tree.
 		} else {
 			// Substitute a reference for the value.
-			refNode = rhino.IR_Name(propAlias)
+			refName := ast.NewName(propAlias)
 			if isConstantName {
-				refNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+				refName.SetConstantName(true)
 			}
+			refNode = refName.Node()
 
 			value.ReplaceWith(refNode)
 			c.outer.compiler.ReportChangeToEnclosingScope(refNode)
 		}
 
 		// Declare the collapsed name as a variable with the original value.
-		nameNode := rhino.IR_Name(propAlias)
+		declName := ast.NewName(propAlias)
+		nameNode := declName.Node()
 		nameNode.AddChildToFront(value)
 		if isConstantName {
-			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+			declName.SetConstantName(true)
 		}
 		var newVar rhino.Node
 		if discardKeys && key.CanResetInPlace() && (p == nil || p.getDeclarationRef() == nil || p.getDeclarationRef().GetNode() == key) {
@@ -566,8 +590,8 @@ func (c *InlineAndCollapseProperties_CollapseProperties) DeclareVariablesForObjL
 
 			p.UpdateRefNode(p.getDeclarationRef(), nameNode)
 
-			if value.IsFunction() {
-				c.CheckForReceiverAffectedByCollapse(value, keyDoc, p)
+			if fn, isFn := ast.AsFunction(value); isFn {
+				c.CheckForReceiverAffectedByCollapse(fn.Node(), keyDoc, p)
 			}
 		}
 	}
@@ -598,7 +622,8 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AddStubsForUndeclaredPr
 		}
 
 		propAlias := c.AppendPropForAlias(alias, p.GetBaseName())
-		nameNode := rhino.IR_Name(propAlias)
+		declName := ast.NewName(propAlias)
+		nameNode := declName.Node()
 		newVar := rhino.IR_Var(nameNode).SrcrefTreeIfMissing(addAfter)
 		newVar.InsertAfter(addAfter)
 
@@ -611,7 +636,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) AddStubsForUndeclaredPr
 			constPropNode.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) ||
 				c.outer.compiler.GetCodingConvention().IsConstant(propAlias)
 		if isConstantName {
-			nameNode.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+			declName.SetConstantName(true)
 		}
 
 		c.outer.compiler.ReportChangeToEnclosingScope(newVar)

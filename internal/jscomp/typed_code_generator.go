@@ -31,7 +31,7 @@ import (
 
 func (t *CodeGenerator) initTypedWithOptions(options *CompilerOptions, registry *rhino.JSTypeRegistry) {
 	t.initWithOptions(options)
-	jutil.CheckNotNull(registry)
+	jutil.CheckNotNullPtr(registry)
 	t.registry = registry
 	t.emitTypeAnnotations = true
 }
@@ -215,7 +215,7 @@ func (t *CodeGenerator) getMemberFunctionAnnotation(fn ast.Function) string {
 	param, hasParam := fn.Params().FirstParam()
 	t.appendFunctionParamAnnotations(&sb, funType, param, hasParam)
 
-	if NodeUtil_IsEs6Constructor(fn.Node()) {
+	if fn.IsEs6Constructor() {
 		t.AppendTemplateAnnotations(&sb, funType.GetConstructorOnlyTemplateParameters())
 		// no return type for the constructor
 	} else {
@@ -381,7 +381,7 @@ func (t *CodeGenerator) FindMethodOwner(n rhino.Node) rhino.ObjectType {
 	if assign, ok := ast.AsAssign(parent); ok {
 		if gp, isGp := assign.Target().AsGetProp(); isGp && NodeUtil_IsPrototypeProperty(gp.Node()) {
 			// TODO(johnlenz): handle non-global types
-			protoObj := ast.MustGetProp(gp.Object().Node()).Object().Node()
+			protoObj := gp.Object().MustGetProp().Object().Node()
 			if qname, hasQName := protoObj.GetQualifiedNameString(); hasQName {
 				if type_ := t.registry.GetGlobalType(qname); type_ != nil {
 					if objType := type_.ToMaybeObjectType(); objType != nil {

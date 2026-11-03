@@ -207,7 +207,7 @@ func (m *ClosureRewriteModule) updateGoogRequireDynamicCallInThen(requireDynamic
 	closureRewriteModule_renameRequireDynamic(requireDynamic)
 
 	exportedNamespaceNameNode := m.astFactory.CreateNameInScope(m.globalTypedStaticScope(), exportedNamespace).SrcrefTree(call)
-	exportedNamespaceNameNode.SetOriginalName(&namespaceId)
+	exportedNamespaceNameNode.SetOriginalName(namespaceId)
 
 	callback, _ := thenCall.FirstArg()
 	functionNode, ok := ast.AsFunction(callback.Node())
@@ -287,7 +287,7 @@ func (m *ClosureRewriteModule) updateGoogRequireDynamicCallInAwait(requireDynami
 		CreateQNameUsingJSTypeInfo(m.globalTypedScope, exportedNamespace).
 		SrcrefTree(call)
 	exportedNamespaceNameNode.SetJSType(m.rewriteState.getGoogModuleNamespaceType(namespaceId))
-	exportedNamespaceNameNode.SetOriginalName(&namespaceId)
+	exportedNamespaceNameNode.SetOriginalName(namespaceId)
 
 	argNode := m.astFactory.CreateString(m.namespaceIdToXid(namespaceId)).Srcref(namespaceIdNode)
 	namespaceIdNode.ReplaceWith(argNode)
@@ -339,7 +339,7 @@ func (m *ClosureRewriteModule) updateGoogModuleGetCall(moduleGet ast.Call) {
 			CreateQNameUsingJSTypeInfo(m.globalTypedScope, exportedNamespace).
 			SrcrefTree(call)
 		exportedNamespaceName.SetJSType(m.rewriteState.getGoogModuleNamespaceType(namespaceId))
-		exportedNamespaceName.SetOriginalName(&namespaceId)
+		exportedNamespaceName.SetOriginalName(namespaceId)
 		call.ReplaceWith(exportedNamespaceName)
 	}
 }

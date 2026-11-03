@@ -354,7 +354,7 @@ func (jt *jsDocInfoParserTest) parseWith(
 		// assertThat(result.getTypeNodes()).comparingElementsUsing(
 		//     transforming(NodeUtil::getSourceName, "has source name that")).doesNotContain(null)
 		for _, n := range result.GetTypeNodes() {
-			if testGetSourceName(n) == nil {
+			if _, ok := testGetSourceName(n); !ok {
 				t.Fatalf("type node %v has no source name", n)
 			}
 		}
@@ -365,13 +365,14 @@ func (jt *jsDocInfoParserTest) parseWith(
 
 // testGetSourceName is NodeUtil.getSourceName(Node) (jscomp, not ported
 // yet).
-func testGetSourceName(n rhino.Node) *string {
-	var sourceName *string
-	for sourceName == nil && !n.IsNil() {
-		sourceName = n.GetSourceFileName()
+func testGetSourceName(n rhino.Node) (string, bool) {
+	for !n.IsNil() {
+		if sourceName, ok := n.SourceFileName(); ok {
+			return sourceName, true
+		}
 		n = n.GetParent()
 	}
-	return sourceName
+	return "", false
 }
 
 // Java: JsDocInfoParserTest.parseType(String)

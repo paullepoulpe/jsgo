@@ -300,9 +300,9 @@ func (c *Compiler) appendSourceAndMetricsToCodeBuilderForChunk(
 		delimiter := c.options.GetInputDelimiter()
 
 		inputName := root.GetInputId().GetIdName()
-		sourceName := root.GetSourceFileName()
-		jutil.CheckState(sourceName != nil)
-		jutil.CheckState(*sourceName != "")
+		sourceName, ok := root.SourceFileName()
+		jutil.CheckState(ok)
+		jutil.CheckState(sourceName != "")
 
 		delimiter = strings.ReplaceAll(
 			strings.ReplaceAll(
@@ -437,11 +437,11 @@ func (t *licenseTracker) TrackLicensesForNode(node rhino.Node) {
 	if t.onlyScript != isRootOrScript {
 		return
 	}
-	file := node.GetSourceFileName()
-	if file == nil {
+	file, ok := node.SourceFileName()
+	if !ok {
 		return
 	}
-	t.trackLicensesForFileName(*file)
+	t.trackLicensesForFileName(file)
 }
 
 func (t *licenseTracker) trackLicensesForFileName(file string) {
@@ -615,11 +615,11 @@ func (t *Compiler_ChunkGraphAwareLicenseTracker) TrackLicensesForNode(node rhino
 		// Neither of these node kinds on their own emit code, so skip their analysis.
 		return
 	}
-	sourceFile := node.GetSourceFileName()
-	if sourceFile == nil {
+	sourceFile, ok := node.SourceFileName()
+	if !ok {
 		return
 	}
-	t.trackLicensesForFileName(*sourceFile)
+	t.trackLicensesForFileName(sourceFile)
 }
 
 func (t *Compiler_ChunkGraphAwareLicenseTracker) trackLicensesForFileName(sourceFile string) {
@@ -697,16 +697,16 @@ func (r *compiler_ParallelScriptLicenseRecorder) TrackLicensesForNode(node rhino
 	if r.onlyScript != isRootOrScript {
 		return
 	}
-	file := node.GetSourceFileName()
-	if file == nil {
+	file, ok := node.SourceFileName()
+	if !ok {
 		return
 	}
-	if r.hasLastSeen && *file == r.lastSeenFile {
+	if r.hasLastSeen && file == r.lastSeenFile {
 		return
 	}
-	r.lastSeenFile = *file
+	r.lastSeenFile = file
 	r.hasLastSeen = true
-	r.seenFiles = append(r.seenFiles, *file)
+	r.seenFiles = append(r.seenFiles, file)
 }
 
 func (r *compiler_ParallelScriptLicenseRecorder) EmitLicenses() []string {

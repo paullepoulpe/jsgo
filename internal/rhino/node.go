@@ -96,10 +96,9 @@ type nodeExtBox struct {
 // The SOURCE_FILE property of a node is an id into its NodeStore's sourceFiles
 // table (or staticStore's when staticBit is set): each PutProp(SOURCE_FILE, file)
 // takes a new id in that store, holding the property's list item (shared by
-// every node that copies the id, as Java shares the item) and the file's name.
+// every node that copies the id, as Java shares the item).
 type sourceFileSlot struct {
-	item    Node_PropListItem
-	namePtr *string
+	item Node_PropListItem
 }
 
 func lookupSourceFileSlot(id uint32) *sourceFileSlot {
@@ -114,13 +113,6 @@ func sourceFilePropItem(id uint32) *Node_PropListItem {
 }
 
 func (s *NodeStore) allocSourceFileID(file any) uint32 {
-	var namePtr *string
-	if fast, ok := file.(StaticSourceFileFast); ok {
-		namePtr = fast.GetNamePtr()
-	} else if sf, ok := file.(StaticSourceFile); ok {
-		name := sf.GetName()
-		namePtr = &name
-	}
 	id := s.sourceFiles.add(&s.mu, sourceFileSlot{
 		item: Node_PropListItem{
 			objectValue: file,
@@ -128,7 +120,6 @@ func (s *NodeStore) allocSourceFileID(file any) uint32 {
 			isObject:    true,
 			shared:      true,
 		},
-		namePtr: namePtr,
 	})
 	if s.static {
 		return staticBit | id

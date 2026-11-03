@@ -756,8 +756,8 @@ func piPosition(n rhino.Node) string {
 		return "nil"
 	}
 	file := "?"
-	if f := n.GetSourceFileName(); f != nil {
-		file = *f
+	if f, ok := n.SourceFileName(); ok {
+		file = f
 	}
 	desc := n.GetToken().String()
 	if n.IsFunction() {

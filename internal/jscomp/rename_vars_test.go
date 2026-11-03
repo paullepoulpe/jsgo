@@ -152,7 +152,7 @@ func (c *RenameVarsTest) TestRenameSimple() {
 			GetRoot().
 			GetLastChild(). // first child is externs tree, last / second is sources
 			GetLastChild()
-	lastScriptName := lastScript.GetSourceFileName()
+	lastScriptName, _ := lastScript.SourceFileName()
 
 	// function foo(v1, v2) { ... }
 	fnSubject :=

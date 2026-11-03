@@ -366,14 +366,13 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(ifs ast.If) rhino.Node {
 			maybeName2, isName := elseAssign.Target().AsName()
 
 			if hasValue && isName && name1.Node().GetStringID() == maybeName2.Node().GetStringID() {
-				thenExpr := thenValue.Node()
-				thenExpr.Detach()
-				elseExpr := elseAssign.Value().Node()
-				elseExpr.Detach()
-				replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-				hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).Srcref(n)
-				thenVar.Node().Detach()
-				name1.Node().AddChildToBack(hookNode)
+				thenValue.Detach()
+				elseValue := elseAssign.Value().Detach()
+				replacementCond := ast.MustExpr(p.ReplaceNode(originalCond, shortCond).Detach())
+				hook := ast.NewHook(replacementCond, thenValue, elseValue)
+				hook.Node().Srcref(n)
+				thenVar.Detach()
+				name1.SetInit(hook.AsExpr())
 				n.ReplaceWith(thenVar.Node())
 				p.ReportChangeToEnclosingScope(parent)
 				return thenVar.Node()
@@ -387,14 +386,13 @@ func (p *PeepholeMinimizeConditions) TryMinimizeIf(ifs ast.If) rhino.Node {
 			elseValue, hasValue := name2.Init()
 
 			if hasValue && isName && maybeName1.Node().GetStringID() == name2.Node().GetStringID() {
-				thenExpr := thenAssign.Value().Node()
-				thenExpr.Detach()
-				elseExpr := elseValue.Node()
-				elseExpr.Detach()
-				replacementCond := p.ReplaceNode(originalCond, shortCond).Detach()
-				hookNode := rhino.IR_Hook(replacementCond, thenExpr, elseExpr).Srcref(n)
-				elseVar.Node().Detach()
-				name2.Node().AddChildToBack(hookNode)
+				thenValue := thenAssign.Value().Detach()
+				elseValue.Detach()
+				replacementCond := ast.MustExpr(p.ReplaceNode(originalCond, shortCond).Detach())
+				hook := ast.NewHook(replacementCond, thenValue, elseValue)
+				hook.Node().Srcref(n)
+				elseVar.Detach()
+				name2.SetInit(hook.AsExpr())
 				n.ReplaceWith(elseVar.Node())
 				p.ReportChangeToEnclosingScope(parent)
 
@@ -492,10 +490,12 @@ func PeepholeMinimizeConditions_IsLowerPrecedence(n rhino.Node, precedence int) 
 //
 // Java: PeepholeMinimizeConditions.isPropertyAssignmentInExpression(Node)
 func PeepholeMinimizeConditions_IsPropertyAssignmentInExpression(n rhino.Node) bool {
-	if n.IsGetProp() && n.GetParent().IsAssign() {
-		return true
+	if _, isGetProp := ast.AsGetProp(n); isGetProp {
+		if _, isAssign := ast.AsAssign(n.GetParent()); isAssign {
+			return true
+		}
 	}
-	if n.IsFunction() {
+	if _, isFn := ast.AsFunction(n); isFn {
 		return false
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
@@ -679,7 +679,7 @@ func (p *PeepholeMinimizeConditions) PerformConditionSubstitutions(n rhino.Node)
 //
 // Java: PeepholeMinimizeConditions.maybeReplaceChildWithNumber(Node, int)
 func (p *PeepholeMinimizeConditions) MaybeReplaceChildWithNumber(n rhino.Node, num int) rhino.Node {
-	if n.IsNumber() && n.GetDouble() == float64(num) && n.GetDeclaredTypeExpression().IsNil() {
+	if numLit, ok := ast.AsNumber(n); ok && numLit.Value() == float64(num) && n.GetDeclaredTypeExpression().IsNil() {
 		return n
 	}
 	newNode := rhino.IR_Number(float64(num))

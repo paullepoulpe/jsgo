@@ -54,10 +54,10 @@ func NodeUtil_NewExpr(child rhino.Node) rhino.Node {
 // TODO(tbreisacher): Add a method for detecting nodes injected as runtime
 // libraries.
 func NodeUtil_IsInSyntheticScript(n rhino.Node) bool {
-	sourceFileName := n.GetSourceFileName()
-	return sourceFileName != nil &&
-		(strings.HasPrefix(*sourceFileName, " [synthetic:") ||
-			strings.HasPrefix(*sourceFileName, AbstractCompiler_RUNTIME_LIB_DIR))
+	sourceFileName, ok := n.SourceFileName()
+	return ok &&
+		(strings.HasPrefix(sourceFileName, " [synthetic:") ||
+			strings.HasPrefix(sourceFileName, AbstractCompiler_RUNTIME_LIB_DIR))
 }
 
 // NodeUtil_DeleteNode permanently deletes the given node from the AST, as

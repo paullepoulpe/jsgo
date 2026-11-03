@@ -232,10 +232,8 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 		}
 	}
 
-	var oldName string
-	if error.Node().IsQualifiedName() {
-		oldName = *error.Node().GetQualifiedName()
-	} else {
+	oldName, ok := error.Node().QualifiedName()
+	if !ok {
 		oldName = error.Node().GetString()
 	}
 
@@ -248,7 +246,7 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 
 // Java: ErrorToFixMapper.getFixesForImplicitNullabilityErrors(JSError)
 func (m *ErrorToFixMapper) GetFixesForImplicitNullabilityErrors(error *jscomp.JSError) []*SuggestedFix {
-	if error.Node().GetSourceFileName() == nil {
+	if _, ok := error.Node().SourceFileName(); !ok {
 		return []*SuggestedFix{}
 	}
 
@@ -343,10 +341,8 @@ func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, import
 	jutil.CheckStateMsg1(regexMatcher.Matches(), "Unexpected error description: %s", error.Description())
 	namespaceToRequire := mustGroup(regexMatcher, 1)
 
-	var qName string
-	if error.Node().IsQualifiedName() {
-		qName = *error.Node().GetQualifiedName()
-	} else {
+	qName, ok := error.Node().QualifiedName()
+	if !ok {
 		qName = error.Node().GetString()
 	}
 

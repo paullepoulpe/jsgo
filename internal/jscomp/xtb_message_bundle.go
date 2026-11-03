@@ -42,20 +42,20 @@ type XtbMessageBundle struct {
 // project id (i.e. name)
 //
 // Java: XtbMessageBundle(InputStream, String)
-func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
-	return NewXtbMessageBundleOpt(xtb, base.OptStringFromPtr(projectId))
-}
-
-// NewXtbMessageBundleOpt creates an instance and initializes it with the
-// messages in an XTB file for an optional TC project ID.
-func NewXtbMessageBundleOpt(xtb io.Reader, projectId base.OptString) *XtbMessageBundle {
+func NewXtbMessageBundle(xtb io.Reader, projectId base.OptString) *XtbMessageBundle {
 	b := &XtbMessageBundle{
-		idGenerator: NewGoogleJsMessageIdGeneratorOpt(projectId),
+		idGenerator: NewGoogleJsMessageIdGenerator(projectId),
 	}
 	if err := xtbxml.Parse(xtb, &xtbMessageBundle_Handler{outer: b}); err != nil {
 		panic(jutil.NewRuntimeExceptionWithCause(err))
 	}
 	return b
+}
+
+// NewXtbMessageBundleOpt creates an instance and initializes it with the
+// messages in an XTB file for an optional TC project ID.
+func NewXtbMessageBundleOpt(xtb io.Reader, projectId base.OptString) *XtbMessageBundle {
+	return NewXtbMessageBundle(xtb, projectId)
 }
 
 // Java: XtbMessageBundle.getMessage(String)

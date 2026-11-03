@@ -496,8 +496,7 @@ func (p *PerformanceTracker) SetAmbiguatePropertiesSummary(summary string) {
 //
 // Java: PerformanceTracker.outputTracerReport(PrintStream)
 func (p *PerformanceTracker) OutputTracerReport(output *jutil.PrintStream) {
-	jvmMetricsOptions := "verbose:pretty:all"
-	JvmMetrics_MaybeWriteJvmMetrics(output, &jvmMetricsOptions)
+	JvmMetrics_WriteJvmMetrics(output, "verbose:pretty:all")
 	p.CalcTotalStats()
 
 	output.Println(

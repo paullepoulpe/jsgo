@@ -488,12 +488,15 @@ func (ti *TypeInference) ensurePropertyDefined(getprop rhino.Node, qName string,
 			staticPropCreation := false
 			maybeAssignStm := getprop.GetGrandparent()
 			if ti.containerScope.IsGlobal() && NodeUtil_IsPrototypePropertyDeclaration(maybeAssignStm) {
-				propCreationFilename := maybeAssignStm.GetSourceFileName()
+				propCreationFilename, hasPropFile := maybeAssignStm.SourceFileName()
 				ctor := objectType.GetOwnerFunction().GetSource()
 				if !ctor.IsNil() {
 					// ctor.getSourceFileName().equals(propCreationFilename)
-					ctorFileName := *ctor.GetSourceFileName()
-					if propCreationFilename != nil && ctorFileName == *propCreationFilename {
+					ctorFileName, hasCtorFile := ctor.SourceFileName()
+					if !hasCtorFile {
+						panic(jutil.NewNullPointerException())
+					}
+					if hasPropFile && ctorFileName == propCreationFilename {
 						staticPropCreation = true
 					}
 				}

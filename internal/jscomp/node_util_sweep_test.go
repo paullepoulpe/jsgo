@@ -276,8 +276,8 @@ func nodeUtilSweepCompact(n rhino.Node) string {
 	if n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		b.WriteByte('c')
 	}
-	if o := n.GetOriginalName(); o != nil {
-		b.WriteString("o=" + nodeUtilSweepQuote(*o))
+	if o, ok := n.OriginalName(); ok {
+		b.WriteString("o=" + nodeUtilSweepQuote(o))
 	}
 	if n.HasChildren() {
 		b.WriteByte('(')
@@ -602,15 +602,16 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(nodeUtilSweepIsObjectOrClassLitKeyToken(n), func() string { return s.idx(NodeUtil_GetObjectOrClassLitKeyNode(n)) })
 	field(true, func() string { return nodeUtilSweepStrOpt(NodeUtil_OpToStr(t)) })
 	field(true, func() string { return NodeUtil_OpToStrNoFail(t) })
+	qName, _ := n.QualifiedName()
 	field(isQName, func() string { return s.idx(NodeUtil_GetRootOfQualifiedName(n)) })
 	field(isQName, func() string {
-		return nodeUtilSweepQuote(NodeUtil_GetRootOfQualifiedNameString(*n.GetQualifiedName()))
+		return nodeUtilSweepQuote(NodeUtil_GetRootOfQualifiedNameString(qName))
 	})
 	field(isQName, func() string {
-		return nodeUtilSweepB(NodeUtil_IsValidQualifiedNameFeatureSet(parser.FeatureSet_ES3, *n.GetQualifiedName()))
+		return nodeUtilSweepB(NodeUtil_IsValidQualifiedNameFeatureSet(parser.FeatureSet_ES3, qName))
 	})
 	field(isQName, func() string {
-		return nodeUtilSweepB(NodeUtil_IsValidQualifiedNameFeatureSet(parser.FeatureSet_ES_NEXT, *n.GetQualifiedName()))
+		return nodeUtilSweepB(NodeUtil_IsValidQualifiedNameFeatureSet(parser.FeatureSet_ES_NEXT, qName))
 	})
 	field(nodeUtilSweepHasString(n), func() string {
 		return nodeUtilSweepB(NodeUtil_IsValidPropertyName(parser.FeatureSet_ES3, n.GetString())) +
@@ -640,7 +641,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(NodeUtil_IsObjectDefinePropertiesDefinition(n),
 		func() string { return s.list(NodeUtil_GetObjectDefinedPropertiesKeys(n)) })
 	field(true, func() string { return s.idx(NodeUtil_GetPrototypeClassName(n)) })
-	field(isQName && strings.Contains(*n.GetQualifiedName(), ".prototype."),
+	field(isQName && strings.Contains(qName, ".prototype."),
 		func() string { return nodeUtilSweepQuote(NodeUtil_GetPrototypePropertyName(n)) })
 	field(true, func() string { return strconv.Itoa(NodeUtil_CountAstSizeUpToLimit(n, 10)) })
 	field(isFn || n.IsScript(), func() string { return strconv.Itoa(NodeUtil_CountAstSize(n)) })
@@ -714,7 +715,7 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	})
 	field(n.IsScript() || n.IsBlock(), func() string { return s.list(NodeUtil_GetVarsDeclaredInBranch(n)) })
 	field(isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n),
-		func() string { return nodeUtilSweepCompact(NodeUtil_NewQName(s.compiler, *n.GetQualifiedName())) })
+		func() string { return nodeUtilSweepCompact(NodeUtil_NewQName(s.compiler, qName)) })
 	field(isFn || n.IsScript(), func() string {
 		return strconv.Itoa(NodeUtil_GetNodeTypeReferenceCount(n, rhino.Token_NAME, NodeUtil_MATCH_NOT_FUNCTION)) +
 			"," + strconv.Itoa(NodeUtil_GetNameReferenceCount(n, "a"))
@@ -784,18 +785,18 @@ func (s *nodeUtilSweeper) sweepNode(sb *strings.Builder, i int, n rhino.Node) {
 	field(n.IsNumber() || n.IsName(), func() string { return nodeUtilSweepCompact(NodeUtil_NewUndefinedNode(n)) })
 	isOuterQName := isQName && !(hasParent && parent.IsGetProp() && parent.GetFirstChild() == n)
 	field(isOuterQName, func() string {
-		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, *n.GetQualifiedName(), rhino.NilNode, nil))
+		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclaration(s.compiler, qName, rhino.NilNode, nil))
 	})
 	field(isOuterQName, func() string {
 		return nodeUtilSweepCompact(NodeUtil_NewQNameDeclarationWithType(
-			s.compiler, *n.GetQualifiedName(), rhino.IR_Number(0), nil, rhino.Token_LET))
+			s.compiler, qName, rhino.IR_Number(0), nil, rhino.Token_LET))
 	})
 	field(isOuterQName, func() string {
-		return nodeUtilSweepCompact(NodeUtil_NewQNameWithOriginalName(s.compiler, *n.GetQualifiedName(), n, "orig"))
+		return nodeUtilSweepCompact(NodeUtil_NewQNameWithOriginalName(s.compiler, qName, n, "orig"))
 	})
 	field(isOuterQName, func() string {
 		return nodeUtilSweepCompact(
-			NodeUtil_NewQNameWithOriginalName(s.compiler, *n.GetQualifiedName(), n, *n.GetQualifiedName()))
+			NodeUtil_NewQNameWithOriginalName(s.compiler, qName, n, qName))
 	})
 	field(isName, func() string { return nodeUtilSweepCompact(NodeUtil_NewVarNode(n.GetString(), rhino.IR_Number(1))) })
 	field(isName, func() string {

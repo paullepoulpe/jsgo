@@ -104,7 +104,7 @@ func TestDiagnosticToSuppressionMapper_PrintSuppressionMap_asMarkdown_printsSort
 	testError2 := DiagnosticType_Error("JSC_TEST_ERROR_2", "testing")
 	testError3 := DiagnosticType_Error("JSC_OTHER_ERROR", "testing")
 	diagnosticGroups := NewOrderedStringMap[*DiagnosticGroup]()
-	diagnosticGroups.Put("suppressionA", NewDiagnosticGroupWithName(jsaStr("suppressionA"), testError2, testError3))
+	diagnosticGroups.Put("suppressionA", NewDiagnosticGroupNamed("suppressionA", testError2, testError3))
 	diagnosticGroups.Put("suppressionB", DiagnosticGroup_ForType(testError1))
 
 	var myOut bytes.Buffer

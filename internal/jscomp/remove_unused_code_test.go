@@ -20,10 +20,12 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/base"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 type RemoveUnusedCodeTest struct {
@@ -2260,12 +2262,12 @@ type RemoveUnusedCodeTest_PolyfillRemovalTester struct {
 
 	// Input source code, which will be prefixed with the polyfills.
 	// A value of `null` just means this hasn't been set yet.
-	inputSource *string
+	inputSource base.OptString
 
 	// Expected output source code, which will be prefixed with the output version of each polyfill.
 	// A value of `null` means this value hasn't been set yet or needs to be reset because
 	// inputSource has changed.
-	expectedSource *string
+	expectedSource base.OptString
 
 	// Set of polyfills that are expected to be removed by RemoveUnusedCode.
 	// A value of `null` indicates that no expectation has been set since the last time inputSource
@@ -2300,23 +2302,25 @@ func (p *RemoveUnusedCodeTest_PolyfillRemovalTester) AddPolyfill(polyfill string
 
 // Java: RemoveUnusedCodeTest.PolyfillRemovalTester.inputSource(String)
 func (p *RemoveUnusedCodeTest_PolyfillRemovalTester) InputSource(inputSource string) *RemoveUnusedCodeTest_PolyfillRemovalTester {
-	p.inputSource = &inputSource
+	p.inputSource = base.SomeString(inputSource)
 	// Force updates for the expected output source and polyfills
-	p.expectedSource = nil
+	p.expectedSource = base.NoString()
 	p.polyfillsExpectedToBeRemoved = nil
 	return p
 }
 
 // Java: RemoveUnusedCodeTest.PolyfillRemovalTester.expectSourceUnchanged()
 func (p *RemoveUnusedCodeTest_PolyfillRemovalTester) ExpectSourceUnchanged() *RemoveUnusedCodeTest_PolyfillRemovalTester {
-	jutil.CheckNotNull(p.inputSource)
+	if !p.inputSource.IsPresent() {
+		panic(jutil.NewNullPointerException())
+	}
 	p.expectedSource = p.inputSource
 	return p
 }
 
 // Java: RemoveUnusedCodeTest.PolyfillRemovalTester.expectSource(String)
 func (p *RemoveUnusedCodeTest_PolyfillRemovalTester) ExpectSource(expectedSource string) *RemoveUnusedCodeTest_PolyfillRemovalTester {
-	p.expectedSource = &expectedSource
+	p.expectedSource = base.SomeString(expectedSource)
 	return p
 }
 
@@ -2356,28 +2360,21 @@ func (p *RemoveUnusedCodeTest_PolyfillRemovalTester) Test() {
 
 	// Java: Stream.concat(polyfills.stream(), Stream.of(inputSource)).collect(joining("\n"));
 	// a null inputSource joins as "null".
-	inputSourceText := strings.Join(append(p.polyfills.ToSlice(), removeUnusedCodeTest_nullableString(p.inputSource)), "\n")
+	inputSourceText := strings.Join(append(p.polyfills.ToSlice(), p.inputSource.String()), "\n")
 
-	jutil.CheckNotNullMsg(p.polyfillsExpectedToBeRemoved, "unset/undefined polyfill removal behavior")
+	if p.polyfillsExpectedToBeRemoved == nil {
+		panic(jutil.NewNullPointerExceptionMsg("unset/undefined polyfill removal behavior"))
+	}
 	expectedPolyfills := []string{}
 	for polyfill := range p.polyfills.All() {
 		if !p.polyfillsExpectedToBeRemoved[polyfill] {
 			expectedPolyfills = append(expectedPolyfills, polyfill)
 		}
 	}
-	expectedSourceText := strings.Join(append(expectedPolyfills, removeUnusedCodeTest_nullableString(p.expectedSource)), "\n")
+	expectedSourceText := strings.Join(append(expectedPolyfills, p.expectedSource.String()), "\n")
 
 	p.outer.Test(
 		p.outer.Externs(externsText), p.outer.Srcs(inputSourceText), p.outer.Expected(expectedSourceText))
-}
-
-// removeUnusedCodeTest_nullableString is String.valueOf for a @Nullable String
-// (Go-only: language-adapter).
-func removeUnusedCodeTest_nullableString(s *string) string {
-	if s == nil {
-		return "null"
-	}
-	return *s
 }
 
 // Java: RemoveUnusedCodeTest.PolyfillRemovalTester.expectNoRemovalTest(String)

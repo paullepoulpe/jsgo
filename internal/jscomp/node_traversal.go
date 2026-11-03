@@ -417,10 +417,7 @@ func (t *NodeTraversal) GetCompiler() AbstractCompiler {
 func (t *NodeTraversal) SourceNameOk() (string, bool) {
 	if !t.hasSourceName {
 		if !t.currentScript.IsNil() {
-			if s := t.currentScript.GetSourceFileName(); s != nil {
-				t.sourceName = *s
-				t.hasSourceName = true
-			}
+			t.sourceName, t.hasSourceName = t.currentScript.SourceFileName()
 		} else {
 			t.sourceName = ""
 			t.hasSourceName = true
@@ -997,8 +994,5 @@ func (t *NodeTraversal) GetBestSourceFileName(n rhino.Node) (string, bool) {
 	if n.IsNil() {
 		return t.SourceNameOk()
 	}
-	if s := n.GetSourceFileName(); s != nil {
-		return *s, true
-	}
-	return "", false
+	return n.SourceFileName()
 }

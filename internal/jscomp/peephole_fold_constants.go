@@ -32,12 +32,11 @@ import (
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
 // shapes: the operands of the operators it folds (op.Left(), op.Right(),
 // assign.Value(), unary.Operand(), get.Index()...), the callee and
-// arguments of calls, the members of literals. The Java reads the first two
-// children of any node and checks there are two; here each kind is named,
-// so the checks of child counts and of missing operands are gone. The
-// numeric and string value logic, the template literal joins (raw and
-// cooked strings), the chains of '+' and the edits use the rhino API, in
-// the Java's order.
+// arguments of calls, the members of literals, and template literal parts.
+// The Java reads the first two children of any node and checks there are
+// two; here each kind is named, so the checks of child counts and of
+// missing operands are gone. The numeric and string value logic, the chains
+// of '+' and the edits use the rhino API, in the Java's order.
 
 // PeepholeFoldConstants is a peephole optimization to fold constants (e.g.
 // x + 1 + 7 --> x + 8).
@@ -161,7 +160,7 @@ func (p *PeepholeFoldConstants) OptimizeSubtree(subtree rhino.Node) rhino.Node {
 	case rhino.Token_ARRAYLIT, rhino.Token_OBJECTLIT:
 		return p.TryFlattenArrayOrObjectLit(subtree)
 	case rhino.Token_NEG:
-		if subtree.GetFirstChild().IsNumber() {
+		if _, isNum := ast.MustUnary(subtree).Operand().AsNumber(); isNum {
 			return subtree
 		}
 		p.TryReduceOperandsForOp(subtree)
@@ -273,16 +272,16 @@ func (p *PeepholeFoldConstants) TryReduceOperandsForOp(n rhino.Node) {
 	}
 }
 
-// Go-only: n is a unary or a binary operator, whose operands this treats
-// alike, so it uses the rhino API.
-//
 // Java: PeepholeFoldConstants.tryConvertOperandsToNumber(Node)
 func (p *PeepholeFoldConstants) TryConvertOperandsToNumber(n rhino.Node) {
-	var next rhino.Node
-	for c := n.GetFirstChild(); !c.IsNil(); c = next {
-		next = c.GetNext()
-		p.TryConvertToNumber(c)
+	if unary, ok := ast.AsUnary(n); ok {
+		p.TryConvertToNumber(unary.Operand().Node())
+		return
 	}
+	bin := ast.MustBinary(n)
+	left, right := bin.Left().Node(), bin.Right().Node()
+	p.TryConvertToNumber(left)
+	p.TryConvertToNumber(right)
 }
 
 // Java: PeepholeFoldConstants.tryConvertToNumber(Node)
@@ -292,8 +291,11 @@ func (p *PeepholeFoldConstants) TryConvertToNumber(n rhino.Node) {
 		// Nothing to do
 		return
 	case rhino.Token_NEG:
-		if c := n.GetFirstChild(); c.IsNumber() && !math.IsInf(c.GetDouble(), 0) && !math.IsNaN(c.GetDouble()) {
-			return
+		if num, ok := ast.MustUnary(n).Operand().AsNumber(); ok {
+			val := num.Value()
+			if !math.IsInf(val, 0) && !math.IsNaN(val) {
+				return
+			}
 		}
 	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COMMA, rhino.Token_COALESCE:
 		op := ast.MustBinary(n)
@@ -394,13 +396,13 @@ func (p *PeepholeFoldConstants) TryFoldInstanceof(n rhino.Node, left rhino.Node,
 		if NodeUtil_IsImmutableValue(left) {
 			// Non-object types are never instances.
 			replacementNode = rhino.IR_FalseNode()
-		} else if left.IsTemplateLit() {
+		} else if _, isTpl := ast.AsTemplateLit(left); isTpl {
 			// Template literals always evaluate to strings. If they do not meet the "immutable value"
 			// condition above, verify their substitutions have no side effects before folding.
 			if !p.MayHaveSideEffects(left) {
 				replacementNode = rhino.IR_FalseNode()
 			}
-		} else if right.IsName() && nodeStringID(right) == idObject {
+		} else if name, isName := ast.AsName(right); isName && nodeStringID(name.Node()) == idObject {
 			replacementNode = rhino.IR_TrueNode()
 		}
 
@@ -496,9 +498,7 @@ func (p *PeepholeFoldConstants) TryFoldAssign(n rhino.Node) rhino.Node {
 		inner.Token() == operator &&
 		p.AreNodesEqualForInlining(left, inner.Left().Node()) {
 		// x = (x op y) op z: the RHS becomes y op z.
-		newLeft := inner.Right().Node().Detach()
-		right.Node().RemoveFirstChild()
-		right.Node().AddChildToFront(newLeft)
+		right.SetLeft(inner.Right().Detach())
 		newRight = right.Node()
 
 	} else {
@@ -660,14 +660,23 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 	// All template literal nodes with placeholders/substitutions will have their first child
 	// and last child as a string node.
 	// Merge the last left child string node with the first right child node.
-	lastLeft := left.GetLastChild()
-	firstRight := right.GetFirstChild()
-	if p.EndsWithUnescapedDollar(lastLeft.GetRawString()) &&
-		strings.HasPrefix(firstRight.GetRawString(), "{") {
+	leftTpl := ast.MustTemplateLit(left)
+	rightTpl := ast.MustTemplateLit(right)
+	lastPart, okLast := leftTpl.LastPart()
+	firstPart, okFirst := rightTpl.FirstPart()
+	if !okLast || !okFirst {
 		return oldNode
 	}
-	lastLeftCooked, okLeft := lastLeft.CookedString()
-	firstRightCooked, okRight := firstRight.CookedString()
+	lastLeft := lastPart.MustTemplateLitString()
+	firstRight := firstPart.MustTemplateLitString()
+	lastLeftRaw := lastLeft.Raw()
+	firstRightRaw := firstRight.Raw()
+	if p.EndsWithUnescapedDollar(lastLeftRaw) &&
+		strings.HasPrefix(firstRightRaw, "{") {
+		return oldNode
+	}
+	lastLeftCooked, okLeft := lastLeft.Cooked()
+	firstRightCooked, okRight := firstRight.Cooked()
 	if !okLeft || !okRight {
 		return oldNode
 	}
@@ -675,17 +684,17 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
 			base.SomeString(cooked),
-			lastLeft.GetRawString()+firstRight.GetRawString())
-	mergeNode.SrcrefTreeIfMissing(lastLeft)
+			lastLeftRaw+firstRightRaw)
+	mergeNode.SrcrefTreeIfMissing(lastLeft.Node())
 
 	// Detach the lastLeft and firstRight children and append all right children to the left node.
 	lastLeft.Detach()
 	firstRight.Detach()
-	left.AddChildToBack(mergeNode)
+	leftTpl.AppendPart(ast.MustTemplateLitString(mergeNode).AsTemplatePart())
 	left.AddChildrenToBack(right.RemoveChildren())
 
 	// Detach the updated left node and replace the old node with it.
-	left.Detach()
+	leftTpl.Detach()
 	return p.Replace(oldNode, left)
 }
 
@@ -739,74 +748,78 @@ func (p *PeepholeFoldConstants) EndsWithUnescapedDollar(raw string) bool {
 
 // Java: PeepholeFoldConstants.tryFoldTemplateLiteralSubstitutions(Node)
 func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node) rhino.Node {
-	if !n.GetParent().IsNil() && n.GetParent().IsTaggedTemplateLit() {
+	if _, isTagged := ast.AsTaggedTemplateLit(n.GetParent()); isTagged {
+		return n
+	}
+
+	tpl := ast.MustTemplateLit(n)
+	cur, hasCur := tpl.FirstPart()
+	if !hasCur {
 		return n
 	}
 
 	changed := false
-	cur := n.GetFirstChild()
-	if cur.IsNil() {
-		return n
-	}
-
-	for !cur.IsNil() {
-		next := cur.GetNext()
-		if next.IsNil() {
+	for hasCur {
+		next, hasNext := cur.Next()
+		if !hasNext {
 			break
 		}
 
-		sub, nextIsSub := ast.AsTemplateLitSub(next)
-		if cur.IsTemplateLitString() && nextIsSub {
+		curStr, curIsStr := cur.AsTemplateLitString()
+		sub, nextIsSub := next.AsTemplateLitSub()
+		if curIsStr && nextIsSub {
 			expr := sub.Expr().Node()
 			if expr.IsStringLit() || expr.IsNumber() || expr.IsTrue() || expr.IsFalse() {
 				strValue, ok := p.GetSideEffectFreeStringValue(expr)
 				if ok && p.IsSimpleTemplateStringValue(strValue) {
-					nextNext := next.GetNext()
-					if !nextNext.IsNil() && nextNext.IsTemplateLitString() {
-						curRaw := cur.GetRawString()
-						nextNextRaw := nextNext.GetRawString()
+					if nextNextPart, hasNextNext := next.Next(); hasNextNext {
+						if nextNextStr, nextNextIsStr := nextNextPart.AsTemplateLitString(); nextNextIsStr {
+							curRaw := curStr.Raw()
+							nextNextRaw := nextNextStr.Raw()
 
-						// Avoid creating a new `${` sequence when folding.
-						if strValue == "" &&
-							p.EndsWithUnescapedDollar(curRaw) &&
-							strings.HasPrefix(nextNextRaw, "{") {
-							cur = next
+							// Avoid creating a new `${` sequence when folding.
+							if strValue == "" &&
+								p.EndsWithUnescapedDollar(curRaw) &&
+								strings.HasPrefix(nextNextRaw, "{") {
+								cur = next
+								continue
+							}
+
+							// Avoid creating a restricted octal escape sequence (e.g. \07)
+							if p.IsRestrictedOctalEscape(curRaw, strValue) ||
+								(len(nextNextRaw) > 0 && nextNextRaw[0] >= '0' && nextNextRaw[0] <= '9' &&
+									p.IsRestrictedOctalEscape(curRaw+strValue, nextNextRaw)) {
+								cur = next
+								continue
+							}
+
+							curCooked, okCur := curStr.Cooked()
+							nextNextCooked, okNext := nextNextStr.Cooked()
+							if !okCur || !okNext {
+								cur = next
+								continue
+							}
+
+							combinedCooked := curCooked + strValue + nextNextCooked
+							combinedRaw := curRaw + strValue + nextNextRaw
+
+							newStringNode := rhino.IR_TemplateLiteralString(base.SomeString(combinedCooked), combinedRaw)
+							newStringNode.SrcrefTree(cur.Node())
+
+							newPart := ast.MustTemplateLitString(newStringNode).AsTemplatePart()
+							cur.ReplaceWith(newPart)
+							next.Detach()
+							nextNextStr.Detach()
+
+							cur = newPart
+							changed = true
 							continue
 						}
-
-						// Avoid creating a restricted octal escape sequence (e.g. \07)
-						if p.IsRestrictedOctalEscape(curRaw, strValue) ||
-							(len(nextNextRaw) > 0 && nextNextRaw[0] >= '0' && nextNextRaw[0] <= '9' &&
-								p.IsRestrictedOctalEscape(curRaw+strValue, nextNextRaw)) {
-							cur = next
-							continue
-						}
-
-						curCooked, okCur := cur.CookedString()
-						nextNextCooked, okNext := nextNext.CookedString()
-						if !okCur || !okNext {
-							cur = next
-							continue
-						}
-
-						combinedCooked := curCooked + strValue + nextNextCooked
-						combinedRaw := curRaw + strValue + nextNextRaw
-
-						newStringNode := rhino.IR_TemplateLiteralString(base.SomeString(combinedCooked), combinedRaw)
-						newStringNode.SrcrefTree(cur)
-
-						cur.ReplaceWith(newStringNode)
-						next.Detach()
-						nextNext.Detach()
-
-						cur = newStringNode
-						changed = true
-						continue
 					}
 				}
 			}
 		}
-		cur = cur.GetNext()
+		cur, hasCur = next, true
 	}
 
 	if changed {
@@ -830,43 +843,51 @@ func (p *PeepholeFoldConstants) IsRestrictedOctalEscape(prefixRaw string, suffix
 
 // Java: PeepholeFoldConstants.foldTemplateLiteralAndConstant(Node, Node, String)
 func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Node, left rhino.Node, rightStr string) rhino.Node {
-	lastLeft := left.GetLastChild()
-	jutil.CheckState(lastLeft.IsTemplateLitString())
+	leftTpl := ast.MustTemplateLit(left)
+	lastPart, okLast := leftTpl.LastPart()
+	jutil.CheckState(okLast)
+	lastLeft, isStr := lastPart.AsTemplateLitString()
+	jutil.CheckState(isStr)
 
-	lastLeftCooked, ok := lastLeft.CookedString()
-	if !ok || p.IsRestrictedOctalEscape(lastLeft.GetRawString(), rightStr) {
+	lastLeftRaw := lastLeft.Raw()
+	lastLeftCooked, ok := lastLeft.Cooked()
+	if !ok || p.IsRestrictedOctalEscape(lastLeftRaw, rightStr) {
 		return oldNode
 	}
 
 	cooked := lastLeftCooked + rightStr
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
-			base.SomeString(cooked), lastLeft.GetRawString()+rightStr)
-	mergeNode.SrcrefTreeIfMissing(lastLeft)
+			base.SomeString(cooked), lastLeftRaw+rightStr)
+	mergeNode.SrcrefTreeIfMissing(lastLeft.Node())
 
-	lastLeft.ReplaceWith(mergeNode)
-	left.Detach()
+	lastLeft.Node().ReplaceWith(mergeNode)
+	leftTpl.Detach()
 	return p.Replace(oldNode, left)
 }
 
 // Java: PeepholeFoldConstants.foldConstantAndTemplateLiteral(Node, String, Node)
 func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode rhino.Node, leftStr string, right rhino.Node) rhino.Node {
-	firstRight := right.GetFirstChild()
-	jutil.CheckState(firstRight.IsTemplateLitString())
+	rightTpl := ast.MustTemplateLit(right)
+	firstPart, okFirst := rightTpl.FirstPart()
+	jutil.CheckState(okFirst)
+	firstRight, isStr := firstPart.AsTemplateLitString()
+	jutil.CheckState(isStr)
 
-	firstRightCooked, ok := firstRight.CookedString()
-	if !ok || p.IsRestrictedOctalEscape(leftStr, firstRight.GetRawString()) {
+	firstRightRaw := firstRight.Raw()
+	firstRightCooked, ok := firstRight.Cooked()
+	if !ok || p.IsRestrictedOctalEscape(leftStr, firstRightRaw) {
 		return oldNode
 	}
 
 	cooked := leftStr + firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
-			base.SomeString(cooked), leftStr+firstRight.GetRawString())
-	mergeNode.SrcrefTreeIfMissing(firstRight)
+			base.SomeString(cooked), leftStr+firstRightRaw)
+	mergeNode.SrcrefTreeIfMissing(firstRight.Node())
 
-	firstRight.ReplaceWith(mergeNode)
-	right.Detach()
+	firstRight.Node().ReplaceWith(mergeNode)
+	rightTpl.Detach()
 	return p.Replace(oldNode, right)
 }
 

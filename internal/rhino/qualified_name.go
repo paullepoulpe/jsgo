@@ -474,7 +474,10 @@ func (q *QualifiedName_NodeQname) Join() string {
 	// Go-only: language-adapter — Java returns null when the node is not a
 	// qualified name (which callers of getQualifiedNameObject exclude); here
 	// that prints as "null", as Java's appendTo does.
-	return jutil.ToJavaString(q.node.GetQualifiedName())
+	if s, ok := q.node.QualifiedName(); ok {
+		return s
+	}
+	return "null"
 }
 
 // Java: QualifiedName.join(Character)

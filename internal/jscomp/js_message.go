@@ -627,21 +627,14 @@ type JsMessage_IdGenerator interface {
 	// id will get the same translation.
 	//
 	// Java: JsMessage.IdGenerator.generateId(String, List<Part>)
-	GenerateId(meaning *string, messageParts []JsMessage_Part) string
-}
-
-type optMessageIdGenerator interface {
-	GenerateIdOpt(meaning base.OptString, messageParts []JsMessage_Part) string
+	GenerateId(meaning base.OptString, messageParts []JsMessage_Part) string
 }
 
 func generateMessageId(gen JsMessage_IdGenerator, meaning string, parts []JsMessage_Part) string {
 	if g, ok := gen.(*GoogleJsMessageIdGenerator); ok {
 		return g.generateId(meaning, parts)
 	}
-	if og, ok := gen.(optMessageIdGenerator); ok {
-		return og.GenerateIdOpt(base.SomeString(meaning), parts)
-	}
-	return gen.GenerateId(&meaning, parts)
+	return gen.GenerateId(base.SomeString(meaning), parts)
 }
 
 // MessageBundle is an interface for providing alternative values for

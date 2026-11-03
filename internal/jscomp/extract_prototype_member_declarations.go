@@ -275,16 +275,14 @@ func (e *ExtractPrototypeMemberDeclarations) ReplacePrototypeMemberDeclaration(d
 	// Save the full prototype path on the left hand side of the assignment for debugging purposes.
 	// declar.lhs = x.prototype.y so first child of the first child is 'x'.
 	accessNode := ast.MustGetProp(declar.lhs).Object().MustGetProp().Object().Node()
-	originalName := accessNode.GetOriginalName()
 	className := "?"
-	if originalName != nil {
-		className = *originalName
+	if originalName, ok := accessNode.OriginalName(); ok {
+		className = originalName
 	}
 	nameObj := name.Object().Node()
 	nameObj.SrcrefTree(lhs)
 	name.SetConstantName(lhs.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME))
-	newOriginalName := className + ".prototype"
-	nameObj.SetOriginalName(&newOriginalName)
+	nameObj.SetOriginalName(className + ".prototype")
 
 	lhs.ReplaceWith(name.Node())
 	e.compiler.ReportChangeToEnclosingScope(name.Node())

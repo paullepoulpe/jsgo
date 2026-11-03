@@ -245,7 +245,11 @@ func (d *transpileOracleDumper) dumpFile(rel string, src string) {
 		}
 		d.line("libs " + strings.Join(c.GetRuntimeJsLibManager().GetInjectedLibraries(), ","))
 		for script := c.GetJsRoot().GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-			d.line("features " + jutil.ToJavaString(script.GetSourceFileName()) + " " +
+			name := "null"
+			if s, ok := script.SourceFileName(); ok {
+				name = s
+			}
+			d.line("features " + name + " " +
 				NodeUtil_GetFeatureSetOfScript(script).String())
 		}
 		d.line("allowable " + c.GetAllowableFeatures().String())

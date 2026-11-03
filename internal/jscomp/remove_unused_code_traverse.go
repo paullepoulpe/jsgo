@@ -79,7 +79,7 @@ func (r *RemoveUnusedCode) TraverseNode(n rhino.Node, scope *Scope) {
 			name, _ := ast.MustFunction(n).Name() // a declaration has one
 			varInfo := r.TraverseNameNode(name.Node(), scope)
 			varInfo.AddRemovable(r.newFunctionDeclRemovable(n, scope))
-			if n.GetParent().IsExport() {
+			if _, isExport := ast.AsExport(n.GetParent()); isExport {
 				varInfo.pin(rucPinExportedClass)
 			}
 		} else {
@@ -177,17 +177,18 @@ func (r *RemoveUnusedCode) TraverseIncrementOrDecrementOp(incOrDecOp rhino.Node,
 		// If expression result is used, then this expression is definitely not removable.
 		r.TraverseNode(arg, scope)
 	} else if getProp, ok := incDec.Target().AsGetProp(); ok {
-		getPropObj := getProp.Object().Node()
+		getPropObjExpr := getProp.Object()
+		getPropObj := getPropObjExpr.Node()
 
 		if r.ConsiderForAccessorSideEffects(arg, AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER) {
 			r.TraverseNode(getPropObj, scope) // Don't re-traverse the GETPROP as a read.
-		} else if getPropObj.IsThis() {
+		} else if _, isThis := getPropObjExpr.AsThis(); isThis {
 			// this.propName++
 			r.ConsiderForIndependentRemoval(r.newIncOrDecOpRemovable(incOrDecOp, arg, rhino.NilNode, remFlagThisDotPropRef))
 		} else if owner, ok := removeUnusedCode_prototypeOwner(getPropObj); ok {
 			// someExpression.prototype.propName++
 			exprObj := owner.Node()
-			if exprObj.IsName() {
+			if _, isName := owner.AsName(); isName {
 				// varName.prototype.propName++
 				varInfo := r.TraverseNameNode(exprObj, scope)
 				varInfo.AddRemovable(r.newIncOrDecOpRemovable(incOrDecOp, arg, rhino.NilNode, remFlagProtoDotPropRef))
@@ -232,10 +233,11 @@ func (r *RemoveUnusedCode) TraverseCompoundAssign(compoundAssignNode rhino.Node,
 	targetNode := assign.Target().Node()
 	valueNode := assign.Value().Node()
 	if getProp, ok := assign.Target().AsGetProp(); ok {
+		_, isThis := getProp.Object().AsThis()
 		if r.ConsiderForAccessorSideEffects(targetNode, AccessorSummary_PropertyAccessKind_GETTER_AND_SETTER) {
 			r.TraverseNode(getProp.Object().Node(), scope) // Don't re-traverse the GETPROP as a read.
 			r.TraverseNode(valueNode, scope)
-		} else if getProp.Object().Token() == rhino.Token_THIS &&
+		} else if isThis &&
 			!NodeUtil_IsExpressionResultUsed(compoundAssignNode) {
 			rem := r.newNamedPropAssignRemovable(compoundAssignNode, targetNode, nil, remFlagThisDotPropRef)
 			r.traverseRemovableAssignValue(rem, valueNode, scope)
@@ -258,7 +260,7 @@ func (r *RemoveUnusedCode) TraverseNameNode(n rhino.Node, scope *Scope) *RemoveU
 	}
 	v := scope.GetVarByID(nameID)
 	if v == nil {
-		jutil.CheckNotNullMsg1(v, "%s", n)
+		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s", n)))
 	}
 	return r.TraverseVar(v)
 }
@@ -301,16 +303,17 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 	}
 
 	if r.codingConvention.IsPropertyRenameFunction(callee) {
-		if firstArg, ok := call.FirstArg(); ok && firstArg.Node().IsStringLit() {
-			r.markPropertyIDPinned(firstArg.Node().GetStringID())
+		if firstArg, ok := call.FirstArg(); ok {
+			if _, isStr := firstArg.AsStringLit(); isStr {
+				r.markPropertyIDPinned(firstArg.Node().GetStringID())
+			}
 		}
 		r.TraverseChildren(callNode, scope)
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(callNode) {
 		// TODO(bradfordcsmith): Should also handle Object.create() and Object.defineProperty().
 		r.TraverseObjectDefinePropertiesCall(callNode, scope)
-	} else if r.removeUnusedPolyfills && RemoveUnusedCode_IsJscompPolyfill(callee) {
-		firstArg, _ := call.FirstArg() // isJscompPolyfill: a string
-		polyfillName := firstArg.MustStringLit().Value()
+	} else if firstArgStr, isPolyfill := isJscompPolyfillCall(call); r.removeUnusedPolyfills && isPolyfill {
+		polyfillName := firstArgStr.Value()
 		if calleeID := callee.GetStringID(); calleeID == rucCalleePolyfillTypedArrayMethodID ||
 			calleeID == rucCalleeJscompPolyfillTypedArrayMethodID {
 			polyfillName = "TypedArray.prototype." + polyfillName
@@ -355,7 +358,9 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 		// e.g. $jscomp.inherits(Class, BaseClass) or goog.addSingletonGetter(Class)
 		// Such methods never have meaningful return values, so we won't look for them in other
 		// contexts
-		if parent.IsExprResult() || (parent.IsComma() && ast.RoleOf(callNode) == ast.RoleBinaryLeft) {
+		_, isExprStmt := ast.AsExprStmt(parent)
+		commaBin, isComma := ast.AsBinaryOf(parent, rhino.Token_COMMA)
+		if isExprStmt || (isComma && commaBin.Left().Is(callNode)) {
 			subclassRelationship :=
 				r.codingConvention.GetClassesDefinedByCall(callNode)
 			if subclassRelationship != nil {
@@ -378,7 +383,7 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 				classVar = scope.GetVarByID(uint32(id))
 			}
 			if classVar == nil {
-				jutil.CheckNotNullMsg1(classVar, "%s", classVarName)
+				panic(jutil.NewNullPointerExceptionMsg(classVarName))
 			}
 		}
 
@@ -391,8 +396,9 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 			r.TraverseChildren(callNode, scope)
 		} else {
 			rem := r.newClassSetupCallRemovable(callNode, classDefiningCall)
-			for child := callNode.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-				rem.addContinuation(r, child, scope)
+			rem.addContinuation(r, callee, scope)
+			for arg := range call.Args() {
+				rem.addContinuation(r, arg.Node(), scope)
 			}
 			r.TraverseVar(classVar).AddRemovable(rem)
 		}
@@ -409,19 +415,14 @@ func removeUnusedCode_onlyNameArg(call ast.NormalOrOptChainCall) (ast.Name, bool
 	return arg.AsName()
 }
 
-// RemoveUnusedCode_IsJscompPolyfill checks whether this is a recognizable
-// call to $jscomp.polyfill.
-//
-// Java: RemoveUnusedCode.isJscompPolyfill(Node)
-func RemoveUnusedCode_IsJscompPolyfill(n rhino.Node) bool {
+func isJscompPolyfillCallee(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_NAME:
 		// Need to work correctly after CollapseProperties.
 		id := n.GetStringID()
-		return (id == rucCalleeJscompPolyfillID ||
+		return id == rucCalleeJscompPolyfillID ||
 			id == rucCalleeJscompPatchID ||
-			id == rucCalleeJscompPolyfillTypedArrayMethodID) &&
-			n.GetNext().IsStringLit()
+			id == rucCalleeJscompPolyfillTypedArrayMethodID
 	case rhino.Token_GETPROP:
 		// Need to work correctly without CollapseProperties.
 		id := n.GetStringID()
@@ -429,10 +430,41 @@ func RemoveUnusedCode_IsJscompPolyfill(n rhino.Node) bool {
 			return false
 		}
 		object, ok := ast.MustGetProp(n).Object().AsName()
-		return ok && object.Node().GetStringID() == rucJscompIdentID && n.GetNext().IsStringLit()
+		return ok && object.Node().GetStringID() == rucJscompIdentID
 	default:
 		return false
 	}
+}
+
+func isJscompPolyfillCall(call ast.NormalOrOptChainCall) (ast.StringLit, bool) {
+	if !isJscompPolyfillCallee(call.Callee().Node()) {
+		return ast.StringLit{}, false
+	}
+	firstArg, ok := call.FirstArg()
+	if !ok {
+		return ast.StringLit{}, false
+	}
+	return firstArg.AsStringLit()
+}
+
+// RemoveUnusedCode_IsJscompPolyfill checks whether this is a recognizable
+// call to $jscomp.polyfill.
+//
+// Java: RemoveUnusedCode.isJscompPolyfill(Node)
+func RemoveUnusedCode_IsJscompPolyfill(n rhino.Node) bool {
+	if !isJscompPolyfillCallee(n) {
+		return false
+	}
+	call, ok := ast.AsCallOrNew(n.GetParent())
+	if !ok || !call.Callee().Is(n) {
+		return false
+	}
+	firstArg, ok := call.FirstArg()
+	if !ok {
+		return false
+	}
+	_, isStr := firstArg.AsStringLit()
+	return isStr
 }
 
 // Java: RemoveUnusedCode.traverseCatch(Node, Scope)
@@ -577,19 +609,29 @@ func (r *RemoveUnusedCode) TraverseDeclarationStatement(declarationStatement rhi
 
 // Java: RemoveUnusedCode.traverseIndirectAssignmentList(Node, Scope)
 func (r *RemoveUnusedCode) TraverseIndirectAssignmentList(list rhino.Node, scope *Scope) {
-	jutil.CheckStateMsg1(list.IsArrayPattern() || list.IsParamList(), "%s", list)
-
-	for elem := list.GetFirstChild(); !elem.IsNil(); elem = elem.GetNext() {
-		switch elem.GetToken() {
-		case rhino.Token_EMPTY:
-		case rhino.Token_ARRAY_PATTERN, rhino.Token_DEFAULT_VALUE, rhino.Token_GETELEM, rhino.Token_GETPROP, rhino.Token_NAME, rhino.Token_OBJECT_PATTERN:
-			r.TraverseIndirectAssignment(elem, elem, scope)
-		case rhino.Token_ITER_REST:
-			r.TraverseIndirectAssignment(elem, ast.MustIterRest(elem).Target().Node(), scope)
-		default:
-			panic(jutil.NewIllegalStateExceptionMsg(
-				"Unexpected child of " + list.GetToken().String() + ": " + elem.ToStringTree()))
+	if arrPat, ok := ast.AsArrayPattern(list); ok {
+		for elem := range arrPat.Elements() {
+			r.traverseIndirectAssignmentElem(list, elem.Node(), scope)
 		}
+		return
+	}
+	params, ok := ast.AsParamList(list)
+	jutil.CheckStateMsg1(ok, "%s", list)
+	for param := range params.Params() {
+		r.traverseIndirectAssignmentElem(list, param.Node(), scope)
+	}
+}
+
+func (r *RemoveUnusedCode) traverseIndirectAssignmentElem(list, elem rhino.Node, scope *Scope) {
+	switch elem.GetToken() {
+	case rhino.Token_EMPTY:
+	case rhino.Token_ARRAY_PATTERN, rhino.Token_DEFAULT_VALUE, rhino.Token_GETELEM, rhino.Token_GETPROP, rhino.Token_NAME, rhino.Token_OBJECT_PATTERN:
+		r.TraverseIndirectAssignment(elem, elem, scope)
+	case rhino.Token_ITER_REST:
+		r.TraverseIndirectAssignment(elem, ast.MustIterRest(elem).Target().Node(), scope)
+	default:
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Unexpected child of " + list.GetToken().String() + ": " + elem.ToStringTree()))
 	}
 }
 
@@ -604,14 +646,16 @@ func (r *RemoveUnusedCode) TraverseIndirectAssignmentList(list rhino.Node, scope
 // Java: RemoveUnusedCode.traverseIndirectAssignment(Node, Node, Scope)
 func (r *RemoveUnusedCode) TraverseIndirectAssignment(root rhino.Node, target rhino.Node, scope *Scope) {
 	rootParent := root.GetParent()
-	jutil.CheckArgumentMsg1(rootParent.IsDestructuringPattern() || rootParent.IsParamList(), "%s", rootParent)
+	_, isPat := ast.AsPattern(rootParent)
+	_, isParams := ast.AsParamList(rootParent)
+	jutil.CheckArgumentMsg1(isPat || isParams, "%s", rootParent)
 
 	// Flatten out the case where the target is a default value. We always have to consider it.
 	if defaultValue, ok := ast.AsDefaultValue(target); ok {
 		target = defaultValue.Target().Node()
 	}
 
-	if target.IsGetProp() {
+	if _, isGetProp := ast.AsGetProp(target); isGetProp {
 		r.ConsiderForAccessorSideEffects(target, AccessorSummary_PropertyAccessKind_SETTER_ONLY)
 	}
 
@@ -621,7 +665,7 @@ func (r *RemoveUnusedCode) TraverseIndirectAssignment(root rhino.Node, target rh
 		r.TraverseNode(root, scope)
 		// TODO(bradfordcsmith): Preserve side effects without preventing removal of variables and
 		// properties. We could probably do this by subbing in an empty object pattern.
-	} else if target.IsName() {
+	} else if _, isName := ast.AsName(target); isName {
 		varInfo := r.TraverseNameNode(target, scope)
 		varInfo.AddRemovable(r.newIndirectAssignRemovable(root, target, scope))
 	} else if r.IsNameDotPrototype(target) || RemoveUnusedCode_IsThisDotProperty(target) {
@@ -660,8 +704,9 @@ func (r *RemoveUnusedCode) TraverseChildren(n rhino.Node, scope *Scope) {
 func (r *RemoveUnusedCode) TraverseFunction(function rhino.Node, parentScope *Scope) {
 	fn, ok := ast.AsFunction(function)
 	jutil.CheckStateMsg1(ok, "%s", function)
-	body := fn.Body().Node()
-	jutil.CheckStateMsg1(body.IsBlock(), "%s", body)
+	bodyBlock, isBlock := fn.Body().AsBlock()
+	jutil.CheckStateMsg1(isBlock, "%s", fn.Body().Node())
+	body := bodyBlock.Node()
 	paramlist := fn.Params()
 
 	// Checking the parameters

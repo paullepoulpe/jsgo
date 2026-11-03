@@ -386,12 +386,7 @@ func (*j2clFunctionDefsCollector) shouldTraverseOnlyScriptAndFunction() bool {
 // Java: J2clPass.ClassStaticFunctionsInliner.FunctionDefsCollector.shouldTraverse(NodeTraversal, Node, Node)
 func (f *j2clFunctionDefsCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if n.IsScript() {
-		var srcName string
-		hasSrc := false
-		if s := n.GetSourceFileName(); s != nil {
-			srcName = *s
-			hasSrc = true
-		}
+		srcName, hasSrc := n.SourceFileName()
 		f.currFileInlineSpecs = f.outer.findMatchingSpecsForFile(srcName, hasSrc, f.currFileInlineSpecs)
 		return len(f.currFileInlineSpecs) != 0
 	}

@@ -142,10 +142,7 @@ func (c *ConvertToTypedInterface) Process(externs rhino.Node, root rhino.Node) {
 // Java: ConvertToTypedInterface.processFile(Node)
 func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
 	jutil.CheckArgument(scriptNode.IsScript())
-	var sourceFileName string
-	if s := scriptNode.GetSourceFileName(); s != nil {
-		sourceFileName = *s
-	}
+	sourceFileName, _ := scriptNode.SourceFileName()
 	if AbstractCompiler_IsFillFileName(sourceFileName) {
 		scriptNode.Detach()
 		return

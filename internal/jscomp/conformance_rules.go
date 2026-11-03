@@ -622,17 +622,10 @@ func ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(jsdoc *rhino.JSDocInfo)
 	return jsdoc != nil && jsdoc.IsConstant()
 }
 
-// Java: ConformanceRules.ConformanceUtil.getValueFromGlobalName(Scope, GlobalNamespace, String)
-func ConformanceRules_ConformanceUtil_GetValueFromGlobalName(
-	scope *Scope, gns *GlobalNamespace, qualifiedName *string) *string {
-	if s, ok := ConformanceRules_ConformanceUtil_ValueFromGlobalName(scope, gns, base.OptStringFromPtr(qualifiedName)); ok {
-		return &s
-	}
-	return nil
-}
-
 // ConformanceRules_ConformanceUtil_ValueFromGlobalName resolves the constant string
 // value assigned to an optional global qualified name without pointer boxing.
+//
+// Java: ConformanceRules.ConformanceUtil.getValueFromGlobalName(Scope, GlobalNamespace, String)
 func ConformanceRules_ConformanceUtil_ValueFromGlobalName(
 	scope *Scope, gns *GlobalNamespace, qualifiedName base.OptString) (string, bool) {
 	qname, hasQName := qualifiedName.Get()
@@ -701,17 +694,10 @@ func conformanceValueFromGlobalNameVisited(
 		scope, NodeUtil_GetRValueOfLValue(decl.GetNode()), func() *GlobalNamespace { return gns }, visited)
 }
 
-// Java: ConformanceRules.ConformanceUtil.inferStringValue(Scope, Node, Supplier<GlobalNamespace>)
-func ConformanceRules_ConformanceUtil_InferStringValue(
-	scope *Scope, node rhino.Node, globalNamespaceSupplier func() *GlobalNamespace) *string {
-	if s, ok := inferConformanceStringValue(scope, node, globalNamespaceSupplier); ok {
-		return &s
-	}
-	return nil
-}
-
 // ConformanceRules_ConformanceUtil_InferStringValueOk infers a constant string
 // value for node without pointer boxing.
+//
+// Java: ConformanceRules.ConformanceUtil.inferStringValue(Scope, Node, Supplier<GlobalNamespace>)
 func ConformanceRules_ConformanceUtil_InferStringValueOk(
 	scope *Scope, node rhino.Node, globalNamespaceSupplier func() *GlobalNamespace) (string, bool) {
 	return inferConformanceStringValue(scope, node, globalNamespaceSupplier)

@@ -299,9 +299,8 @@ func nodeSubject_maybeGetErrorPrefix(nodeDiffs []nodeSubject_NodeDiff, i int, ac
 		return ""
 	}
 
-	sourceFileName := actualNode.GetSourceFileName()
-	if sourceFileName != nil && *sourceFileName != "" {
-		return fmt.Sprintf("For expected %d, script \"%s\": ", i, *sourceFileName)
+	if sourceFileName, ok := actualNode.SourceFileName(); ok && sourceFileName != "" {
+		return fmt.Sprintf("For expected %d, script \"%s\": ", i, sourceFileName)
 	}
 
 	return fmt.Sprintf("For expected %d: ", i)
@@ -547,11 +546,16 @@ func (s *NodeSubject) MatchesQualifiedName(qname string) *NodeSubject {
 	return s
 }
 
-// HasSourceFileName takes the Java @Nullable String as *string.
-//
+func optStringAny(s string, ok bool) any {
+	if !ok {
+		return nil
+	}
+	return s
+}
+
 // Java: NodeSubject.hasSourceFileName(String)
-func (s *NodeSubject) HasSourceFileName(sourceFileName *string) *NodeSubject {
-	s.check("getSourceFileName()").That(s.actual.GetSourceFileName()).IsEqualTo(sourceFileName)
+func (s *NodeSubject) HasSourceFileName(sourceFileName string) *NodeSubject {
+	s.check("getSourceFileName()").That(optStringAny(s.actual.SourceFileName())).IsEqualTo(sourceFileName)
 	return s
 }
 
@@ -575,7 +579,8 @@ func (s *NodeSubject) HasLength(length int) *NodeSubject {
 
 // Java: NodeSubject.hasEqualSourceInfoTo(Node)
 func (s *NodeSubject) HasEqualSourceInfoTo(other rhino.Node) *NodeSubject {
-	return s.HasSourceFileName(other.GetSourceFileName()).
+	s.check("getSourceFileName()").That(optStringAny(s.actual.SourceFileName())).IsEqualTo(optStringAny(other.SourceFileName()))
+	return s.
 		HasLineno(other.GetLineno()).
 		HasCharno(other.GetCharno()).
 		HasLength(other.GetLength())
@@ -589,7 +594,7 @@ func (s *NodeSubject) IsIndexable(isIndexable bool) *NodeSubject {
 
 // Java: NodeSubject.hasOriginalName(String)
 func (s *NodeSubject) HasOriginalName(originalName string) *NodeSubject {
-	s.check("getOriginalName()").That(s.actual.GetOriginalName()).IsEqualTo(originalName)
+	s.check("getOriginalName()").That(optStringAny(s.actual.OriginalName())).IsEqualTo(originalName)
 	return s
 }
 
@@ -652,7 +657,7 @@ func (s *NodeSubject) HasStringThat() *Subject {
 
 // Java: NodeSubject.hasOriginalNameThat()
 func (s *NodeSubject) HasOriginalNameThat() *Subject {
-	return s.check("getOriginalName()").That(s.actual.GetOriginalName())
+	return s.check("getOriginalName()").That(optStringAny(s.actual.OriginalName()))
 }
 
 // showActual is Subject.actualCustomStringRepresentation().

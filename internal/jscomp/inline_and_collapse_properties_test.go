@@ -447,7 +447,7 @@ a$use(a$b);
 	statement2 := statement1.GetNext()
 	statement3 := statement2.GetNext()
 	statement4 := statement3.GetNext()
-	scriptName := scriptNode.GetSourceFileName()
+	scriptName, _ := scriptNode.SourceFileName()
 	// Original line 2: `a.use = function(arg) {};`
 	// Compiled line 1: `var a$use = function(arg) {};`
 	AssertNode(statement1).

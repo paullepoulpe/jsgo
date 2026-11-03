@@ -120,6 +120,9 @@ func inlineVariables_isDeclaredOrInferredConst(v *Var) bool {
 	if n.GetConstantVarFlags()&(rhino.Node_ConstantVarFlags_DECLARED|rhino.Node_ConstantVarFlags_INFERRED) != 0 {
 		return true
 	}
+	if name, ok := ast.AsName(n); ok {
+		return name.IsConstantName()
+	}
 	return n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME)
 }
 
@@ -410,8 +413,8 @@ var inlineVariablesApplyID = uint32(strpool.Intern("apply"))
 // Java: InlineVariables.InliningBehavior.varsInThisScopeMayBeModifiedUsingArguments(Scope, ReferenceMap)
 func (iv *InlineVariables) VarsInThisScopeMayBeModifiedUsingArguments(
 	scope *Scope, referenceMap *ReferenceCollector) bool {
-	if scope.IsFunctionScope() && !scope.GetRootNode().IsArrowFunction() {
-		refs := referenceMap.getReferencesByScopedNameID(scope.GetRootNode(), implicitArgumentsID)
+	if fn, ok := ast.AsFunction(scope.GetRootNode()); ok && !fn.IsArrow() {
+		refs := referenceMap.getReferencesByScopedNameID(fn.Node(), implicitArgumentsID)
 		if refs != nil && len(refs.references) > 0 {
 			for _, ref := range refs.references {
 				if !iv.IsSafeUseOfArguments(ref.GetNode()) {
@@ -740,9 +743,10 @@ func (e *inlineVariables_standardVarExpert) AnalyzeWithInitialValue(
 			e.analysisKind = analysisKindInlineNeverAssigned
 			return
 		}
+		_, isThis := ast.AsThis(initValue)
 		if e.IsWellDefined() &&
 			(initialValueAnalysis.IsImmutableValue() ||
-				(initValue.IsThis() && !e.referenceInfo.IsThisRebound())) {
+				(isThis && !e.referenceInfo.IsThisRebound())) {
 			// if the variable is referenced more than once, we can only
 			// inline it if it's immutable and never defined before referenced.
 			e.inlineWellDefinedVarAnalysis(initValue)

@@ -136,8 +136,8 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(script rhino.Node) {
 		if comment.Type == parser.Comment_Type_BLOCK {
 			if checkJSDoc_COMMENT_PATTERN.Matcher(comment.Value).Find() {
 				c.compiler.Report(
-					JSError_MakeWithSourceLocation(
-						script.GetSourceFileName(),
+					JSError_MakeAtSourceLocation(
+						sf.GetName(),
 						int(comment.Location.Start.Line)+1,
 						int(comment.Location.Start.Column),
 						CheckJSDoc_JSDOC_IN_BLOCK_COMMENT))

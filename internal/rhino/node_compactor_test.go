@@ -3,8 +3,6 @@ package rhino
 import (
 	"fmt"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: in-place compaction of the node store (node_compact.go).
@@ -127,7 +125,7 @@ func TestCompactorSlideWithThreadsMultiBlock(t *testing.T) {
 				for range deadBefore {
 					d := IR_Name("dead")
 					d.SetJSType(num)
-					d.SetOriginalName(jutil.StringPtr("dead_orig"))
+					d.SetOriginalName("dead_orig")
 				}
 				nm := fmt.Sprintf("v_%d", idx)
 				expectedNames = append(expectedNames, nm)
@@ -136,7 +134,7 @@ func TestCompactorSlideWithThreadsMultiBlock(t *testing.T) {
 					n.SetJSType(num)
 				}
 				if idx%5 == 0 {
-					n.SetOriginalName(jutil.StringPtr("orig_" + nm))
+					n.SetOriginalName("orig_" + nm)
 				}
 				if idx%257 == 0 {
 					ref := IR_Name("prop_" + nm)
@@ -161,13 +159,13 @@ func TestCompactorSlideWithThreadsMultiBlock(t *testing.T) {
 				if (got%3 == 0) != (c.GetJSType() == num) {
 					t.Fatalf("child %d JSType mismatch: %v", got, c.GetJSType())
 				}
-				orig := c.GetOriginalName()
+				orig, hasOrig := c.OriginalName()
 				if got%5 == 0 {
-					if orig == nil || *orig != "orig_"+want {
-						t.Fatalf("child %d OriginalName = %v, want orig_%s", got, orig, want)
+					if !hasOrig || orig != "orig_"+want {
+						t.Fatalf("child %d OriginalName = (%q, %v), want orig_%s", got, orig, hasOrig, want)
 					}
-				} else if orig != nil && *orig != want {
-					t.Fatalf("child %d unexpected OriginalName = %q", got, *orig)
+				} else if hasOrig && orig != want {
+					t.Fatalf("child %d unexpected OriginalName = %q", got, orig)
 				}
 				if got%257 == 0 {
 					propNode, ok := c.GetProp(Node_Prop_DECLARED_TYPE_EXPR).(Node)

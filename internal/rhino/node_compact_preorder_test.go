@@ -3,8 +3,6 @@ package rhino
 import (
 	"fmt"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: the pre-order layout of compaction (Compactor.Permute).
@@ -62,7 +60,7 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 			// highest.
 			script.AddChildToFront(IR_ExprResult(IR_Name("late")))
 			call.GetFirstChild().SetJSType(num)
-			call.GetSecondChild().SetOriginalName(jutil.StringPtr("orig_a"))
+			call.GetSecondChild().SetOriginalName("orig_a")
 			expected := root.CloneTree()
 
 			// A detached subtree held through an interior node, and a
@@ -131,8 +129,8 @@ func TestCompactorPermuteLaysOutTreesInPreorder(t *testing.T) {
 			if newCall.GetFirstChild().GetJSType() != num || newCall.GetSecondChild().GetJSType() != nil {
 				t.Fatal("the JSType of a node was lost or moved")
 			}
-			if o := newCall.GetSecondChild().GetOriginalName(); o == nil || *o != "orig_a" {
-				t.Fatalf("the original name of a node was lost: %v", o)
+			if o, ok := newCall.GetSecondChild().OriginalName(); !ok || o != "orig_a" {
+				t.Fatalf("the original name of a node was lost: (%q, %v)", o, ok)
 			}
 			if !newFn.IsGeneratorFunction() || newFn.GetFirstChild().GetString() != "g" {
 				t.Fatal("the cold property of a node was lost")
@@ -186,14 +184,14 @@ func TestCompactorPermuteMultiBlockReusesOldBlocks(t *testing.T) {
 				if idx%4 == 0 {
 					d := IR_Name("dead")
 					d.SetJSType(num)
-					d.SetOriginalName(jutil.StringPtr("dead_orig"))
+					d.SetOriginalName("dead_orig")
 				}
 				n := IR_Name(fmt.Sprintf("v_%d", idx))
 				if idx%3 == 0 {
 					n.SetJSType(num)
 				}
 				if idx%5 == 0 {
-					n.SetOriginalName(jutil.StringPtr(fmt.Sprintf("orig_%d", idx)))
+					n.SetOriginalName(fmt.Sprintf("orig_%d", idx))
 				}
 				names = append(names, n)
 			}
@@ -249,13 +247,13 @@ func TestCompactorPermuteMultiBlockReusesOldBlocks(t *testing.T) {
 				if (idx%3 == 0) != (c.GetJSType() == num) {
 					t.Fatalf("child %d (v_%d): JSType %v", j, idx, c.GetJSType())
 				}
-				o := c.GetOriginalName()
+				o, hasOrig := c.OriginalName()
 				if idx%5 == 0 {
-					if o == nil || *o != fmt.Sprintf("orig_%d", idx) {
-						t.Fatalf("child %d (v_%d): original name %v", j, idx, o)
+					if !hasOrig || o != fmt.Sprintf("orig_%d", idx) {
+						t.Fatalf("child %d (v_%d): original name (%q, %v)", j, idx, o, hasOrig)
 					}
-				} else if o != nil && *o != c.GetString() {
-					t.Fatalf("child %d (v_%d): unexpected original name %q", j, idx, *o)
+				} else if hasOrig && o != c.GetString() {
+					t.Fatalf("child %d (v_%d): unexpected original name %q", j, idx, o)
 				}
 				if idx%257 == 0 {
 					p, ok := c.GetProp(Node_Prop_DECLARED_TYPE_EXPR).(Node)
@@ -271,7 +269,8 @@ func TestCompactorPermuteMultiBlockReusesOldBlocks(t *testing.T) {
 			// The tail of the last block is clear for new nodes.
 			for range 3 {
 				n := NewNode(Token_NAME)
-				if n.GetJSType() != nil || n.GetOriginalName() != nil || !n.GetParent().IsNil() || n.GetToken() != Token_NAME {
+				_, hasOrig := n.OriginalName()
+				if n.GetJSType() != nil || hasOrig || !n.GetParent().IsNil() || n.GetToken() != Token_NAME {
 					t.Fatal("a node allocated after compaction is not empty")
 				}
 			}

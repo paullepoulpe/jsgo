@@ -904,10 +904,7 @@ Bar.prototype.setC = function(){}
 func (c *RenamePropertiesTest) TestPrototypePropertiesUsingFilterOnFilename() {
 	c.propertyNameFilter =
 		func(node rhino.Node) bool {
-			name := ""
-			if sourceFileName := node.GetSourceFileName(); sourceFileName != nil { // Strings.nullToEmpty
-				name = *sourceFileName
-			}
+			name, _ := node.SourceFileName() // Strings.nullToEmpty
 			return name == "foo.js"
 		}
 
@@ -944,10 +941,7 @@ bar.getA();
 func (c *RenamePropertiesTest) TestPrototypeAndRenameFunctionsFilterOnFilename() {
 	c.propertyNameFilter =
 		func(node rhino.Node) bool {
-			name := ""
-			if sourceFileName := node.GetSourceFileName(); sourceFileName != nil { // Strings.nullToEmpty
-				name = *sourceFileName
-			}
+			name, _ := node.SourceFileName() // Strings.nullToEmpty
 			return name == "foo.js"
 		}
 
@@ -982,10 +976,7 @@ f(bar['myProp']);
 func (c *RenamePropertiesTest) TestPrototypeAndRenameFunctionsFilterOnFilename2() {
 	c.propertyNameFilter =
 		func(node rhino.Node) bool {
-			name := ""
-			if sourceFileName := node.GetSourceFileName(); sourceFileName != nil { // Strings.nullToEmpty
-				name = *sourceFileName
-			}
+			name, _ := node.SourceFileName() // Strings.nullToEmpty
 			return name == "foo.js"
 		}
 

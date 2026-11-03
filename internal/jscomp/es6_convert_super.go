@@ -48,7 +48,7 @@ var es6ConvertSuperVisitTokens = makeVisitTokenSet(rhino.Token_CLASS, rhino.Toke
 
 func (*Es6ConvertSuper) visitTokens() *ast.TokenSet { return &es6ConvertSuperVisitTokens }
 
-var es6ConvertSuperOriginalName = "super"
+const es6ConvertSuperOriginalName = "super"
 
 func es6ConvertSuperIsMemberDef(n rhino.Node) bool {
 	_, isMethod := ast.AsMethodDef(n)
@@ -154,7 +154,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyCall(node rhino.Node, parent rhino.N
 	callTarget := parent
 	if enclosingMemberDef.IsStaticMember() {
 		expandedSuper := superName.CloneTree().SrcrefTree(node)
-		expandedSuper.SetOriginalName(&es6ConvertSuperOriginalName)
+		expandedSuper.SetOriginalName(es6ConvertSuperOriginalName)
 		node.ReplaceWith(expandedSuper)
 		callTarget = e.astFactory.CreateGetPropWithUnknownType(callTarget.Detach(), "call")
 		grandparent.AddChildToFront(callTarget)
@@ -166,7 +166,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyCall(node rhino.Node, parent rhino.N
 		e.ensureNoCollapseOnStaticMemberDef(enclosingMemberDef)
 	} else {
 		expandedSuper := e.astFactory.CreatePrototypeAccess(superName.CloneTree()).SrcrefTree(node)
-		expandedSuper.SetOriginalName(&es6ConvertSuperOriginalName)
+		expandedSuper.SetOriginalName(es6ConvertSuperOriginalName)
 		node.ReplaceWith(expandedSuper)
 		callTarget = e.astFactory.CreateGetPropWithUnknownType(callTarget.Detach(), "call")
 		grandparent.AddChildToFront(callTarget)
@@ -229,7 +229,7 @@ func (e *Es6ConvertSuper) visitSuperPropertyAccess(node rhino.Node, parent rhino
 	}
 
 	node.ReplaceWith(newProp)
-	newProp.SetOriginalName(&es6ConvertSuperOriginalName)
+	newProp.SetOriginalName(es6ConvertSuperOriginalName)
 
 	e.compiler.ReportChangeToEnclosingScope(grandparent)
 }

@@ -221,8 +221,8 @@ func (i *IsolatePolyfills) RewritePolyfill(polyfillUsage *PolyfillUsageFinder_Po
 	polyfillAccess := polyfillUsage.Node()
 	parent := polyfillAccess.GetParent()
 
-	if sourceFileName := polyfillAccess.GetSourceFileName(); sourceFileName != nil &&
-		isolatePolyfills_isAllowedUnqualifiedPolyfillFile(*sourceFileName) {
+	if sourceFileName, ok := polyfillAccess.SourceFileName(); ok &&
+		isolatePolyfills_isAllowedUnqualifiedPolyfillFile(sourceFileName) {
 		return
 	}
 

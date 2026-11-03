@@ -327,10 +327,7 @@ func (r *moduleRequestResolverImpl) resolveWithModulePath(
 		return r.resolveForClosure(GoogEsImports_GetClosureIdFromGoogImportSpecifier(moduleRequest))
 	}
 
-	sourceFileName := ""
-	if s := forLineInfo.GetSourceFileName(); s != nil {
-		sourceFileName = *s
-	}
+	sourceFileName, _ := forLineInfo.SourceFileName()
 	requestedPath := modulePath.ResolveJsModule(
 		moduleRequest,
 		sourceFileName,

@@ -36,7 +36,8 @@ import (
 // Java: RemoveUnusedCode.traverseNormalOrOptChainGetProp(Node, Scope)
 func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp rhino.Node, scope *Scope) {
 	access := ast.MustNormalOrOptChainGetProp(getProp)
-	objectNode := access.Object().Node()
+	objectExpr := access.Object()
+	objectNode := objectExpr.Node()
 	propID := getProp.GetStringID()
 
 	if r.polyBits.Get(int(propID)) {
@@ -48,7 +49,7 @@ func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp rhino.Node, s
 		// must record as reference to the property and continue traversal.
 		r.markPropertyIDPinned(propID)
 		r.TraverseNode(objectNode, scope)
-	} else if objectNode.IsThis() {
+	} else if _, isThis := objectExpr.AsThis(); isThis {
 		// This is probably the declaration of a class field in a constructor.
 		// /** @private {number} */
 		// this.propName;
@@ -57,7 +58,7 @@ func (r *RemoveUnusedCode) TraverseNormalOrOptChainGetProp(getProp rhino.Node, s
 	} else if owner, ok := removeUnusedCode_prototypeOwner(objectNode); ok {
 		// (objExpression).prototype.propName;
 		objExpression := owner.Node()
-		if objExpression.IsName() {
+		if _, isName := owner.AsName(); isName {
 			// name.prototype.propName;
 			varInfo := r.TraverseNameNode(objExpression, scope)
 			varInfo.AddRemovable(r.newUnusedReadRefRemovable(getProp, remFlagProtoDotPropRef))
@@ -148,7 +149,8 @@ func (r *RemoveUnusedCode) TraverseObjectDefinePropertiesLiteral(propertyDefinit
 
 // Java: RemoveUnusedCode.traverseObjectLiteral(Node, Scope)
 func (r *RemoveUnusedCode) TraverseObjectLiteral(objectLiteral rhino.Node, scope *Scope) {
-	jutil.CheckArgumentMsg1(objectLiteral.IsObjectLit(), "%s", objectLiteral)
+	_, isObjLit := ast.AsObjectLit(objectLiteral)
+	jutil.CheckArgumentMsg1(isObjLit, "%s", objectLiteral)
 	// Is this an object literal that is assigned directly to a 'prototype' property?
 	if r.IsAssignmentToPrototype(objectLiteral.GetParent()) {
 		r.TraversePrototypeLiteral(objectLiteral, scope)
@@ -189,22 +191,32 @@ func (r *RemoveUnusedCode) TraverseNonPrototypeObjectLiteral(objectLiteral rhino
 
 // Java: RemoveUnusedCode.traversePrototypeLiteral(Node, Scope)
 func (r *RemoveUnusedCode) TraversePrototypeLiteral(objectLiteral rhino.Node, scope *Scope) {
-	for propertyNode := objectLiteral.GetFirstChild(); !propertyNode.IsNil(); propertyNode = propertyNode.GetNext() {
-		if propertyNode.IsComputedProp() || propertyNode.IsQuotedStringKey() {
+	for member := range ast.MustObjectLit(objectLiteral).Members() {
+		propertyNode := member.Node()
+		if _, isComputed := member.AsComputedProp(); isComputed {
 			r.TraverseChildren(propertyNode, scope)
-		} else {
-			valueNode := propertyNode.GetOnlyChild()
-			if r.MayHaveSideEffects(valueNode) {
-				// TODO(bradfordcsmith): Ideally we should preserve the side-effect without keeping the
-				// property itself alive.
-				r.TraverseNode(valueNode, scope)
-			} else {
-				// If we've come this far, we already know we're keeping the prototype literal itself,
-				// but we may be able to remove unreferenced properties in it.
-				rem := r.newClassOrProtoPropRemovable(propertyNode)
-				rem.addContinuation(r, valueNode, scope)
-				r.ConsiderForIndependentRemoval(rem)
+			continue
+		}
+		var valueNode rhino.Node
+		if plain, isPlain := member.AsPlainKeyMember(); isPlain {
+			if plain.IsQuoted() {
+				r.TraverseChildren(propertyNode, scope)
+				continue
 			}
+			valueNode = plain.Value().Node()
+		} else {
+			valueNode = member.MustObjectSpread().Expr().Node()
+		}
+		if r.MayHaveSideEffects(valueNode) {
+			// TODO(bradfordcsmith): Ideally we should preserve the side-effect without keeping the
+			// property itself alive.
+			r.TraverseNode(valueNode, scope)
+		} else {
+			// If we've come this far, we already know we're keeping the prototype literal itself,
+			// but we may be able to remove unreferenced properties in it.
+			rem := r.newClassOrProtoPropRemovable(propertyNode)
+			rem.addContinuation(r, valueNode, scope)
+			r.ConsiderForIndependentRemoval(rem)
 		}
 	}
 }
@@ -282,10 +294,12 @@ func (r *RemoveUnusedCode) TraverseAssign(assignNode rhino.Node, scope *Scope) {
 			r.TraverseNode(valueNode, scope)
 		}
 	} else if getProp, ok := assign.Target().AsGetProp(); ok {
-		getPropLhs := getProp.Object().Node()
+		getPropObj := getProp.Object()
+		getPropLhs := getPropObj.Node()
 		// Assignments `Foo.prototype.bar = function() {`
 		owner, isDotPrototypeLhs := removeUnusedCode_prototypeOwner(getPropLhs)
-		isPrototypeMethodDef := isDotPrototypeLhs && valueNode.IsFunction()
+		_, valueIsFn := assign.Value().AsFunction()
+		isPrototypeMethodDef := isDotPrototypeLhs && valueIsFn
 
 		if !isPrototypeMethodDef &&
 			r.ConsiderForAccessorSideEffects(lhs, AccessorSummary_PropertyAccessKind_SETTER_ONLY) {
@@ -295,7 +309,7 @@ func (r *RemoveUnusedCode) TraverseAssign(assignNode rhino.Node, scope *Scope) {
 			// Assume prototype method assignments never trigger setters, matching ES class semantics
 			r.TraverseNode(getPropLhs, scope) // Don't re-traverse the GETPROP as a read.
 			r.TraverseNode(valueNode, scope)
-		} else if getPropLhs.IsName() {
+		} else if _, isName := getPropObj.AsName(); isName {
 			// varName.propertyName = someValue
 			varInfo := r.TraverseNameNode(getPropLhs, scope)
 			rem := r.newNamedPropAssignRemovable(assignNode, lhs, varInfo, 0)
@@ -304,7 +318,7 @@ func (r *RemoveUnusedCode) TraverseAssign(assignNode rhino.Node, scope *Scope) {
 		} else if isDotPrototypeLhs {
 			// objExpression.prototype.propertyName = someValue
 			objExpression := owner.Node()
-			if objExpression.IsName() {
+			if _, isName := owner.AsName(); isName {
 				// varName.prototype.propertyName = someValue
 				rem := r.newNamedPropAssignRemovable(assignNode, lhs, nil, remFlagProtoDotPropRef)
 				r.traverseRemovableAssignValue(rem, valueNode, scope)
@@ -322,7 +336,7 @@ func (r *RemoveUnusedCode) TraverseAssign(assignNode rhino.Node, scope *Scope) {
 				}
 				r.ConsiderForIndependentRemoval(rem)
 			}
-		} else if getPropLhs.IsThis() {
+		} else if _, isThis := getPropObj.AsThis(); isThis {
 			// this.propertyName = someValue
 			rem := r.newNamedPropAssignRemovable(assignNode, lhs, nil, remFlagThisDotPropRef)
 			r.traverseRemovableAssignValue(rem, valueNode, scope)
@@ -375,7 +389,8 @@ func (r *RemoveUnusedCode) TraverseObjectPattern(pattern rhino.Node, scope *Scop
 //
 // Java: RemoveUnusedCode.traverseClass(Node, Scope)
 func (r *RemoveUnusedCode) TraverseClass(classNode rhino.Node, scope *Scope) {
-	jutil.CheckArgument(classNode.IsClass())
+	_, isClass := ast.AsClass(classNode)
+	jutil.CheckArgument(isClass)
 	if NodeUtil_IsClassDeclaration(classNode) {
 		r.TraverseClassDeclaration(classNode, scope)
 	} else {
@@ -396,7 +411,7 @@ func (r *RemoveUnusedCode) TraverseClassDeclaration(classNode rhino.Node, scope 
 	classScope := scope
 
 	varInfo := r.TraverseNameNode(className.Node(), scope)
-	if classNode.GetParent().IsExport() {
+	if _, isExport := ast.AsExport(classNode.GetParent()); isExport {
 		// Cannot remove an exported class.
 		varInfo.pin(rucPinExportedClass)
 		if hasBaseClass {
@@ -451,14 +466,16 @@ func (r *RemoveUnusedCode) TraverseClassExpression(classNode rhino.Node, scope *
 
 // Java: RemoveUnusedCode.traverseClassMembers(Node, Scope)
 func (r *RemoveUnusedCode) TraverseClassMembers(node rhino.Node, scope *Scope) {
-	jutil.CheckArgumentMsg1(node.IsClassMembers(), "%s", node)
+	classBody, isClassBody := ast.AsClassBody(node)
+	jutil.CheckArgumentMsg1(isClassBody, "%s", node)
 	if !r.removeUnusedPrototypeProperties {
 		r.TraverseChildren(node, scope)
 		return
 	}
 
-	for member := node.GetFirstChild(); !member.IsNil(); member = member.GetNext() {
-		switch member.GetToken() {
+	for cm := range classBody.Members() {
+		member := cm.Node()
+		switch cm.Token() {
 		case rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF, rhino.Token_MEMBER_FUNCTION_DEF:
 			// If we get as far as traversing the members of a class, we've already decided that
 			// we cannot remove the class itself, so just consider individual members for removal.

@@ -5653,7 +5653,7 @@ func (c *TypeCheckTest) TestGoodExtends4() {
 `)
 	var subTypeName rhino.Node = n.GetLastChild().GetLastChild().
 		GetFirstChild()
-	AssertThat(subTypeName.GetQualifiedName()).IsEqualTo("goog.Derived")
+	AssertThat(optStringAny(subTypeName.QualifiedName())).IsEqualTo("goog.Derived")
 	var subCtorType rhino.FunctionType = subTypeName.GetNext().GetJSType().(rhino.FunctionType)
 	AssertThat(subCtorType.GetInstanceType().String()).IsEqualTo("goog.Derived")
 	var superType rhino.JSType = subCtorType.GetPrototype().GetImplicitPrototype()

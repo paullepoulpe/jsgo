@@ -53,8 +53,12 @@ func (g *CodeGenerator) addStmtOrDecl(node rhino.Node, context CodeGenerator_Con
 		g.addExport(ast.MustExport(node), context)
 	case rhino.Token_IMPORT:
 		g.addImport(ast.MustImport(node))
-	case rhino.Token_EXPORT_SPECS, rhino.Token_IMPORT_SPECS:
-		g.addModuleSpecs(node.GetFirstChild())
+	case rhino.Token_EXPORT_SPECS:
+		firstSpec, _ := ast.MustExportSpecs(node).FirstSpec()
+		g.addModuleSpecs(firstSpec.Node())
+	case rhino.Token_IMPORT_SPECS:
+		firstSpec, _ := ast.MustImportSpecs(node).FirstSpec()
+		g.addModuleSpecs(firstSpec.Node())
 	case rhino.Token_EXPORT_SPEC:
 		g.addExportSpec(ast.MustExportSpec(node))
 	case rhino.Token_IMPORT_SPEC:
@@ -67,7 +71,10 @@ func (g *CodeGenerator) addStmtOrDecl(node rhino.Node, context CodeGenerator_Con
 		g.Add(star.Ident())
 	case rhino.Token_CLASS:
 		g.addClass(ast.MustClass(node), context)
-	case rhino.Token_CLASS_MEMBERS, rhino.Token_INTERFACE_MEMBERS, rhino.Token_NAMESPACE_ELEMENTS:
+	case rhino.Token_CLASS_MEMBERS:
+		firstMember, _ := ast.MustClassBody(node).FirstMember()
+		g.addMemberBlock(firstMember.Node(), context)
+	case rhino.Token_INTERFACE_MEMBERS, rhino.Token_NAMESPACE_ELEMENTS:
 		g.addMemberBlock(node.GetFirstChild(), context)
 	case rhino.Token_ENUM_MEMBERS:
 		g.addEnumMembers(node.GetFirstChild())
@@ -236,18 +243,20 @@ func (g *CodeGenerator) addNameDecl(decl ast.NameDeclaration, context CodeGenera
 func (g *CodeGenerator) addParamList(params ast.ParamList) {
 	// If this is the list for a non-TypeScript arrow function with one
 	// simple name param.
+	parentFn, isFn := ast.AsFunction(params.Node().GetParent())
 	if param, ok := params.OnlyParam(); ok &&
-		params.Node().GetParent().IsArrowFunction() &&
-		param.Node().IsName() &&
+		isFn && parentFn.IsArrow() &&
 		!g.gentsMode {
-		g.AddNode(param.Node())
-	} else {
-		g.Add("(")
-		if firstParam, ok := params.FirstParam(); ok {
-			g.AddList(firstParam.Node())
+		if name, isName := param.AsName(); isName {
+			g.AddNode(name.Node())
+			return
 		}
-		g.Add(")")
 	}
+	g.Add("(")
+	if firstParam, ok := params.FirstParam(); ok {
+		g.AddList(firstParam.Node())
+	}
+	g.Add(")")
 }
 
 func (g *CodeGenerator) addFunctionNode(fn ast.Function, context CodeGenerator_Context) {
@@ -432,7 +441,8 @@ func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token) {
 		jutil.CheckStateMsg1(!fn.Params().HasParams(), "%s", node)
 		g.Add("get ")
 	case rhino.Token_SETTER_DEF:
-		jutil.CheckStateMsg1(fn.Params().Node().HasOneChild(), "%s", node)
+		_, hasOneParam := fn.Params().OnlyParam()
+		jutil.CheckStateMsg1(hasOneParam, "%s", node)
 		g.Add("set ")
 	}
 
@@ -478,6 +488,23 @@ func (g *CodeGenerator) addFieldDef(field ast.FieldDef, type_ rhino.Token) {
 	g.Add(";")
 }
 
+func firstBlockOrRootChild(node rhino.Node, type_ rhino.Token) rhino.Node {
+	switch type_ {
+	case rhino.Token_SCRIPT:
+		first, _ := ast.MustScript(node).FirstItem()
+		return first.Node()
+	case rhino.Token_MODULE_BODY:
+		first, _ := ast.MustModuleBody(node).FirstStatement()
+		return first.Node()
+	case rhino.Token_BLOCK:
+		first, _ := ast.MustBlock(node).FirstStatement()
+		return first.Node()
+	default:
+		first, _ := ast.MustRoot(node).FirstItem()
+		return first.Node()
+	}
+}
+
 func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, context CodeGenerator_Context) {
 	if !node.IsPlainNode() {
 		panic(jutil.NewJavaLangError("Unexpected Node subclass."))
@@ -485,7 +512,7 @@ func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, conte
 	cc := &g.cc
 	preserveBlock := false
 	if blk, ok := ast.AsBlock(node); ok {
-		if node.HasParent() && node.GetParent().IsClassMembers() {
+		if _, inClass := ast.AsClassBody(node.GetParent()); inClass {
 			g.Add("static")
 		}
 		// A BLOCK marked as synthetic is not a real JS block with {}
@@ -499,7 +526,7 @@ func (g *CodeGenerator) addBlockOrRoot(node rhino.Node, type_ rhino.Token, conte
 
 	preferLineBreaks := type_ == rhino.Token_SCRIPT ||
 		(type_ == rhino.Token_BLOCK && !preserveBlock && node.GetParent().IsScript())
-	for c := node.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	for c := firstBlockOrRootChild(node, type_); !c.IsNil(); c = c.GetNext() {
 		g.AddNodeWithContext(c, CodeGenerator_Context_STATEMENT)
 
 		if c.IsFunction() || c.IsClass() {
@@ -522,8 +549,10 @@ func (g *CodeGenerator) addFor(forStmt ast.For, context CodeGenerator_Context) {
 	g.Add("for")
 	cc.MaybeInsertSpace()
 	g.Add("(")
+	// EMPTY placeholder children must still pass through AddExpr/AddNode so
+	// comments and source mappings attached to empty `for (;;)` slots are emitted.
 	initNode := forStmt.Node().GetFirstChild()
-	if NodeUtil_IsNameDeclaration(initNode) {
+	if _, isDecl := ast.AsNameDeclaration(initNode); isDecl {
 		g.AddNodeWithContext(initNode, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
 	} else {
 		g.AddExpr(initNode, 0, CodeGenerator_Context_IN_FOR_INIT_CLAUSE)
@@ -694,7 +723,10 @@ func (g *CodeGenerator) addInterface(iface ast.Interface) {
 func (g *CodeGenerator) ArrowFunctionNeedsParens(n rhino.Node) bool {
 	parent := n.GetParent()
 	expressionOrEnclosingCast := n
-	for !parent.IsNil() && parent.IsCast() {
+	for {
+		if _, isCast := ast.AsCast(parent); !isCast {
+			break
+		}
 		if g.preserveTypeAnnotations {
 			// If printing type annotations, any expression in a CAST
 			// automatically is wrapped in parentheses when printing the
@@ -719,13 +751,12 @@ func (g *CodeGenerator) ArrowFunctionNeedsParens(n rhino.Node) bool {
 		parent.IsAwait() ||
 		parent.IsYield() {
 		return true
-	} else if parent.IsGetElem() ||
-		parent.IsCall() ||
-		parent.IsHook() ||
-		parent.IsOptChainGetElem() ||
-		parent.IsOptChainCall() ||
-		parent.IsNew() {
-		return expressionOrEnclosingCast.IsFirstChildOf(parent)
+	} else if getElem, ok := ast.AsNormalOrOptChainGetElem(parent); ok {
+		return getElem.Object().Is(expressionOrEnclosingCast)
+	} else if callOrNew, ok := ast.AsCallOrNew(parent); ok {
+		return callOrNew.Callee().Is(expressionOrEnclosingCast)
+	} else if hook, ok := ast.AsHook(parent); ok {
+		return hook.Cond().Is(expressionOrEnclosingCast)
 	}
 	return false
 }
@@ -806,13 +837,14 @@ func (g *CodeGenerator) addFunction(fn ast.Function, context CodeGenerator_Conte
 func (g *CodeGenerator) AddNonEmptyStatement(n rhino.Node, context CodeGenerator_Context, allowNonBlockChild bool) {
 	nodeToProcess := n
 
-	if !allowNonBlockChild && !n.IsBlock() {
+	_, isBlock := ast.AsBlock(n)
+	if !allowNonBlockChild && !isBlock {
 		panic(jutil.NewJavaLangError("Missing BLOCK child."))
 	}
 
 	// Strip unneeded blocks, that is blocks with <2 children unless
 	// the CodePrinter specifically wants to keep them.
-	if n.IsBlock() {
+	if isBlock {
 		count := CodeGenerator_GetNonEmptyChildCount(n, 2)
 		if count == 0 {
 			if g.cc.ShouldPreserveExtras(n) {

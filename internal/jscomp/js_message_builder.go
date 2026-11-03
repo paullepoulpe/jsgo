@@ -309,8 +309,8 @@ func (b *JsMessage_Builder) setPlaceholderOriginalCode(m OrderedStringMap[string
 // SetDesc sets the description of the message, which helps translators.
 //
 // Java: JsMessage.Builder.setDesc(String)
-func (b *JsMessage_Builder) SetDesc(desc *string) *JsMessage_Builder {
-	return b.SetDescOptString(base.OptStringFromPtr(desc))
+func (b *JsMessage_Builder) SetDesc(desc string) *JsMessage_Builder {
+	return b.SetDescOpt(desc, true)
 }
 
 // SetDescOptString sets or clears the description from an OptString.
@@ -486,8 +486,8 @@ const (
 // JsMessage_Hash_Hash64 hashes a string to a 64-bit value using pi as seed.
 //
 // Java: JsMessage.Hash.hash64(String)
-func JsMessage_Hash_Hash64(value *string) int64 {
-	return JsMessage_Hash_Hash64Opt(base.OptStringFromPtr(value))
+func JsMessage_Hash_Hash64(value string) int64 {
+	return jsMessage_Hash_hash64String(value)
 }
 
 // JsMessage_Hash_Hash64Opt hashes an optional string to a 64-bit value using pi as seed.
@@ -496,12 +496,7 @@ func JsMessage_Hash_Hash64Opt(value base.OptString) int64 {
 	if !ok {
 		return hash64Bytes(nil, jsMessageHashSeed64)
 	}
-	return JsMessage_Hash_Hash64String(s)
-}
-
-// JsMessage_Hash_Hash64String hashes a non-null string to a 64-bit value using pi as seed.
-func JsMessage_Hash_Hash64String(value string) int64 {
-	return jsMessage_Hash_hash64String(value)
+	return jsMessage_Hash_hash64String(s)
 }
 
 func jsMessage_Hash_hash64String(value string) int64 {

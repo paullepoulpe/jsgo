@@ -32,8 +32,9 @@ import (
 //
 // Java: PeepholeFoldConstants.tryFoldCtorCall(Node)
 func (p *PeepholeFoldConstants) TryFoldCtorCall(n rhino.Node) rhino.Node {
-	jutil.CheckArgument(n.IsNew())
-	if !n.GetFirstChild().IsName() {
+	newNode, ok := ast.AsNew(n)
+	jutil.CheckArgument(ok)
+	if _, isName := newNode.Callee().AsName(); !isName {
 		return n
 	}
 
@@ -168,7 +169,7 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 					return n
 				}
 			}
-			knownLength = arr.Node().GetChildCount()
+			knownLength = arr.NumElements()
 		} else if str, ok := left.AsStringLit(); ok {
 			knownLength = jutil.StringLength(str.Value())
 		}
@@ -191,12 +192,12 @@ func (p *PeepholeFoldConstants) TryFoldGetProp(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeFoldConstants.isFoldableElementIndexKey(Node, int)
 func PeepholeFoldConstants_IsFoldableElementIndexKey(right rhino.Node, intIndex int32) bool {
-	if right.IsStringLit() {
+	if str, ok := ast.AsStringLit(right); ok {
 		if intIndex < 0 {
 			return false
 		}
 		var buf [32]byte
-		return right.GetString() == string(strconv.AppendInt(buf[:0], int64(intIndex), 10))
+		return str.Value() == string(strconv.AppendInt(buf[:0], int64(intIndex), 10))
 	}
 	return NodeUtil_IsNumericResult(right)
 }
@@ -287,34 +288,36 @@ func (p *PeepholeFoldConstants) TryFoldSpread(spread rhino.Node) rhino.Node {
 //
 // Example: `[0, ...[1, 2, 3], 4, ...[5]]` => `[0, 1, 2, 3, 4, 5]`
 //
-// Go-only: array and object literals (and their spreads) are handled
-// alike, so this uses the rhino API.
-//
 // Java: PeepholeFoldConstants.tryFlattenArrayOrObjectLit(Node)
 func (p *PeepholeFoldConstants) TryFlattenArrayOrObjectLit(parentLit rhino.Node) rhino.Node {
-	for child := parentLit.GetFirstChild(); !child.IsNil(); {
-		// We have to store the next element here because nodes may be inserted below.
-		spread := child
-		child = child.GetNext()
+	if arr, ok := ast.AsArrayLit(parentLit); ok {
+		for elem := range ast.ReadAhead(arr.FirstElement()) {
+			spread, isSpread := elem.AsIterSpread()
+			if !isSpread {
+				continue
+			}
+			innerArr, isInnerArr := spread.Expr().AsArrayLit()
+			if !isInnerArr || !PeepholeFoldConstants_IsSafeToFlattenArrayLitSpread(innerArr.Node()) {
+				continue
+			}
+			parentLit.AddChildrenAfter(innerArr.Node().RemoveChildren(), spread.Node())
+			spread.Detach()
+			p.ReportChangeToEnclosingScope(parentLit)
+		}
+		return parentLit
+	}
 
-		if !spread.IsSpread() {
+	obj := ast.MustObjectLit(parentLit)
+	for member := range ast.ReadAhead(obj.FirstMember()) {
+		spread, isSpread := member.AsObjectSpread()
+		if !isSpread {
 			continue
 		}
-
-		innerLit := spread.GetOnlyChild()
-		if parentLit.GetToken() != innerLit.GetToken() {
-			continue // We only want to inline arrays into arrays and objects into objects.
-		}
-
-		if parentLit.IsObjectLit() && !PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerLit) {
+		innerObj, isInnerObj := spread.Expr().AsObjectLit()
+		if !isInnerObj || !PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerObj.Node()) {
 			continue
 		}
-
-		if parentLit.IsArrayLit() && !PeepholeFoldConstants_IsSafeToFlattenArrayLitSpread(innerLit) {
-			continue
-		}
-
-		parentLit.AddChildrenAfter(innerLit.RemoveChildren(), spread)
+		parentLit.AddChildrenAfter(innerObj.Node().RemoveChildren(), spread.Node())
 		spread.Detach()
 		p.ReportChangeToEnclosingScope(parentLit)
 	}
@@ -432,7 +435,7 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 				return n
 			}
 			if nameID != 0 && prop.Node().GetStringID() == nameID {
-				if c.GetBooleanProp(rhino.Node_COMPUTED_PROP_SETTER) {
+				if computed.IsSetter() {
 					if !key.IsNil() && !peepholeFoldConstants_isGetterProp(key) {
 						key = c
 						value = NodeUtil_NewUndefinedNode(c)
@@ -444,11 +447,9 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 				}
 			}
 		case rhino.Token_GETTER_DEF, rhino.Token_STRING_KEY, rhino.Token_MEMBER_FUNCTION_DEF:
-			// (Go: each of these kinds names its key and its only child
-			// differently, so they are read alike with the rhino API.)
 			if nameID != 0 && c.GetStringID() == nameID {
 				key = c
-				value = key.GetFirstChild()
+				value = member.MustPlainKeyMember().Value().Node()
 			}
 		default:
 			panic(jutil.NewIllegalStateException())
@@ -515,9 +516,9 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 
 	parent := n.GetParent()
 
-	if NodeUtil_IsOptChainNode(parent) &&
-		n.IsFirstChildOf(parent) &&
-		!parent.IsOptionalChainStart() {
+	if optParent, ok := ast.AsOptChain(parent); ok &&
+		nodeUtil_optChainReceiver(optParent) == n &&
+		!optParent.IsStart() {
 
 		/*
 		 * If the chain continues after `n`, simply doing `n.replaceWith(value)` below would leave the
@@ -538,10 +539,11 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 		NodeUtil_ConvertToNonOptionalChainSegment(endOfCurrentChain)
 	}
 	if keyIsGetter {
-		value = rhino.IR_Call(value)
-		value.PutBooleanProp(rhino.Node_FREE_CALL, true)
+		call := ast.NewCall(ast.MustExpr(value))
+		call.SetFreeCall(true)
+		value = call.Node()
 	} else if nIsInvoked {
-		n.GetParent().PutBooleanProp(rhino.Node_FREE_CALL, true)
+		parent.PutBooleanProp(rhino.Node_FREE_CALL, true)
 	}
 
 	n.ReplaceWith(value)
@@ -551,18 +553,20 @@ func (p *PeepholeFoldConstants) tryFoldObjectPropAccessByID(n rhino.Node, left a
 }
 
 func peepholeFoldConstants_isGetterProp(key rhino.Node) bool {
-	return !key.IsNil() &&
-		(key.IsGetterDef() ||
-			(key.IsComputedProp() && key.GetBooleanProp(rhino.Node_COMPUTED_PROP_GETTER)))
+	if _, ok := ast.AsGetterDef(key); ok {
+		return true
+	}
+	cp, ok := ast.AsComputedProp(key)
+	return ok && cp.IsGetter()
 }
 
 // Java: PeepholeFoldConstants.isSafeToFlattenObjectLitSpread(Node)
 func PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerLit rhino.Node) bool {
-	for prop := innerLit.GetFirstChild(); !prop.IsNil(); prop = prop.GetNext() {
+	for prop := range ast.MustObjectLit(innerLit).Members() {
 		// Object spread converts all properties to regular data properties. This step evaluates
 		// any getters and omits any setters. See https://tc39.es/ecma262/#sec-copydataproperties.
 		// For simplicity, we just back off and do not flatten spread in this case.
-		if NodeUtil_IsGetOrSetKey(prop) {
+		if NodeUtil_IsGetOrSetKey(prop.Node()) {
 			return false
 		}
 	}
@@ -571,8 +575,8 @@ func PeepholeFoldConstants_IsSafeToFlattenObjectLitSpread(innerLit rhino.Node) b
 
 // Java: PeepholeFoldConstants.isSafeToFlattenArrayLitSpread(Node)
 func PeepholeFoldConstants_IsSafeToFlattenArrayLitSpread(innerLit rhino.Node) bool {
-	for n := innerLit.GetFirstChild(); !n.IsNil(); n = n.GetNext() {
-		if n.IsEmpty() {
+	for elem := range ast.MustArrayLit(innerLit).Elements() {
+		if _, isEmpty := elem.AsEmpty(); isEmpty {
 			return false
 		}
 	}

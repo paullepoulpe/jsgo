@@ -159,7 +159,7 @@ func (p *PolymerPass) rewritePolymer1ClassDefinition(node rhino.Node, parent rhi
 	def := PolymerClassDefinition_ExtractFromCallNode(
 		node, p.compiler, p.getModuleMetadata(traversal), p.behaviorExtractor)
 	if def != nil {
-		if def.nativeBaseElement != nil {
+		if def.nativeBaseElement.IsPresent() {
 			p.appendPolymerElementExterns(def)
 		}
 		rewriter := NewPolymerClassRewriter(p.compiler)
@@ -206,7 +206,7 @@ func (p *PolymerPass) normalizePolymerExport(nameDecl rhino.Node, export rhino.N
 //
 // Java: PolymerPass.appendPolymerElementExterns(PolymerClassDefinition)
 func (p *PolymerPass) appendPolymerElementExterns(def *PolymerClassDefinition) {
-	baseTag := *def.nativeBaseElement
+	baseTag := def.nativeBaseElement.ValueOrEmpty()
 	if p.nativeExternsAdded[baseTag] {
 		return
 	}

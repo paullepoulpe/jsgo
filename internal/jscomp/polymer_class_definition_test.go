@@ -94,7 +94,7 @@ var A = Polymer({
 	AssertThat(def.defType).IsEqualTo(PolymerClassDefinition_DefinitionType_ObjectLiteral)
 	AssertNode(def.target).HasType(rhino.Token_NAME)
 	AssertThat(def.target.GetString()).IsEqualTo("A")
-	AssertThat(def.nativeBaseElement).IsNull()
+	AssertThat(def.nativeBaseElement.IsPresent()).IsFalse()
 	AssertThat(def.behaviors).HasSize(1)
 	AssertThat(def.props).HasSize(2)
 	AssertThat(def.props[0].name.GetString()).IsEqualTo("pets")
@@ -126,7 +126,7 @@ func (c *PolymerClassDefinitionTest) TestBasicClass() {
 	AssertThat(def.target.GetString()).IsEqualTo("A")
 	AssertThat(def.descriptor).IsNotNull()
 	AssertNode(def.descriptor).HasType(rhino.Token_OBJECTLIT)
-	AssertThat(def.nativeBaseElement).IsNull()
+	AssertThat(def.nativeBaseElement.IsPresent()).IsFalse()
 	AssertThat(def.behaviors).IsNull()
 	AssertThat(def.props).HasSize(2)
 }

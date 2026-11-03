@@ -80,7 +80,9 @@ func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *rucRemovable) {
 	}
 	if removable.IsVariableAssignment() {
 		if localValue := removable.GetLocalAssignedValue(); !localValue.IsNil() {
-			if localValue.IsFunction() || localValue.IsClass() {
+			_, isFn := ast.AsFunction(localValue)
+			_, isCls := ast.AsClass(localValue)
+			if isFn || isCls {
 				v.flags |= rucVarFlagHasFuncOrClassLit
 			}
 		} else if !removable.isUninitVarDecl() {
@@ -201,7 +203,8 @@ type rucPolyfillInfo struct {
 //
 // Java: RemoveUnusedCode.createPolyfillInfo(Node, Scope, String)
 func (r *RemoveUnusedCode) createPolyfillInfo(call ast.NormalOrOptChainCall, scope *Scope, name string) *rucPolyfillInfo {
-	jutil.CheckState(call.Node().GetParent().IsExprResult())
+	_, isExprStmt := ast.AsExprStmt(call.Node().GetParent())
+	jutil.CheckState(isExprStmt)
 	removable := r.newPolyfillRemovable(call, scope)
 	info := r.polyfillSlab.Alloc()
 	lastDot := strings.LastIndexByte(name, '.')
@@ -253,7 +256,9 @@ func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
 	if !p.isRemovable || (!p.removable.isPolyfillPatch() && p.outer.isGuardedUsage(n)) {
 		return
 	}
-	if NodeUtil_IsNormalOrOptChainGetProp(n) || (p.kind == rucPolyfillGlobal && n.IsName()) {
+	_, isGetProp := ast.AsNormalOrOptChainGetProp(n)
+	_, isName := ast.AsName(n)
+	if isGetProp || (p.kind == rucPolyfillGlobal && isName) {
 		if p.kind == rucPolyfillPrototype && p.outer.disambiguateProperties &&
 			p.outer.polyfillUsageFinder.IsDisjointFromIteratorNode(n, p.owner) {
 			return
@@ -267,16 +272,18 @@ func (p *rucPolyfillInfo) considerPossibleReference(n rhino.Node) {
 func (r *RemoveUnusedCode) RemoveExpressionCompletely(expression rhino.Node) {
 	jutil.CheckStateMsg1(!NodeUtil_IsExpressionResultUsed(expression), "%s", expression)
 	parent := expression.GetParent()
-	if parent.IsExprResult() {
+	if _, isExprStmt := ast.AsExprStmt(parent); isExprStmt {
 		NodeUtil_DeleteNode(parent, r.compiler)
-	} else if parent.IsComma() {
+	} else if commaBin, isComma := ast.AsBinaryOf(parent, rhino.Token_COMMA); isComma {
 		// Expression is probably the first child of the comma,
 		// but it could be the second if the entire comma expression value is unused.
-		otherChild := expression.GetNext()
-		if otherChild.IsNil() {
-			otherChild = expression.GetPrevious()
+		var otherChild rhino.Node
+		if commaBin.Left().Is(expression) {
+			otherChild = commaBin.Right().Detach().Node()
+		} else {
+			otherChild = commaBin.Left().Detach().Node()
 		}
-		r.ReplaceNodeWith(parent, otherChild.Detach())
+		r.ReplaceNodeWith(parent, otherChild)
 	} else {
 		// value isn't needed, but we need to keep the AST valid.
 		r.ReplaceNodeWith(expression, rhino.IR_Number(0).Srcref(expression))

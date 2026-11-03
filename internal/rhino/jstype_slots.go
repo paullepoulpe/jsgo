@@ -446,5 +446,9 @@ func (r *SimpleReference[T]) String() string {
 		}
 		lineNo = r.node.GetLineno()
 	}
-	return jutil.ToJavaString(r.node.GetQualifiedName()) + "@" + sourceName + ":" + jutil.ToJavaString(lineNo)
+	qname := "null"
+	if s, ok := r.node.QualifiedName(); ok {
+		qname = s
+	}
+	return qname + "@" + sourceName + ":" + jutil.ToJavaString(lineNo)
 }

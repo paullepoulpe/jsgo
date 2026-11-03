@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -133,13 +134,13 @@ type beanA struct {
 	plain     bool
 	boxed     *bool
 	out       string
-	prefix    *string
+	prefix    base.OptString
 	map_      *jutil.OrderedMap[string, string]
 	nullMap   *jutil.OrderedMap[string, string]
 	words     []string
 	noUsage   string
-	dep       *string
-	forb      *string
+	dep       base.OptString
+	forb      base.OptString
 	nullInt   *int32
 	unicode   string
 	arguments []string
@@ -174,13 +175,13 @@ func (b *beanA) Args4jFields() []AnnotatedField {
 		{Option: &Option{Name: "--plain", Usage: "A boolean handled by args4j's own handler"}, Field: Bool(&b.plain)},
 		{Option: &Option{Name: "--boxed", Usage: "A boxed Boolean"}, Field: NullableBool(&b.boxed)},
 		{Option: &Option{Name: "--out", MetaVar: "FILE", Usage: "Primary output filename. If not specified, output is written to stdout"}, Field: String(&b.out)},
-		{Option: &Option{Name: "--prefix", Usage: "A nullable string"}, Field: NullableString(&b.prefix)},
+		{Option: &Option{Name: "--prefix", Usage: "A nullable string"}, Field: OptString(&b.prefix)},
 		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: StringMap(&b.map_)},
 		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: StringMap(&b.nullMap)},
 		{Option: &Option{Name: "--words", Handler: NewStringArrayOptionHandler, Usage: "Greedy words"}, Field: StringSlice(&b.words)},
 		{Option: &Option{Name: "--nousage"}, Field: String(&b.noUsage)},
-		{Option: &Option{Name: "--dep", Depends: []string{"--out"}, Usage: "Needs --out"}, Field: NullableString(&b.dep)},
-		{Option: &Option{Name: "--forb", Forbids: []string{"--debug", "--plain"}, Usage: "Cannot be used with --debug"}, Field: NullableString(&b.forb)},
+		{Option: &Option{Name: "--dep", Depends: []string{"--out"}, Usage: "Needs --out"}, Field: OptString(&b.dep)},
+		{Option: &Option{Name: "--forb", Forbids: []string{"--debug", "--plain"}, Usage: "Cannot be used with --debug"}, Field: OptString(&b.forb)},
 		{Option: &Option{Name: "--nullint", Usage: "A nullable Integer"}, Field: NullableInt32(&b.nullInt)},
 		{Option: &Option{Name: "--ünï",
 			Usage: "Non-ASCII option name: ünïcödé usage text that is long " +
@@ -256,7 +257,7 @@ func (b *beanC) dump() string {
 type beanD struct {
 	output        tOutFmt
 	help          bool
-	second, first *string
+	second, first base.OptString
 	flag          bool
 }
 
@@ -264,32 +265,32 @@ func (b *beanD) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
 		{Option: &Option{Name: "--output", Usage: "Sets the desired output format.\n" + "Options: md, json" + "Default: json"}, Field: ScalarField(outFmtClass, &b.output)},
 		{Option: &Option{Name: "--help", Usage: "Usage"}, Field: Bool(&b.help)},
-		{Argument: &Argument{Index: 1, MetaVar: "SECOND", Usage: "The second argument"}, Field: NullableString(&b.second)},
-		{Argument: &Argument{Index: 0, Required: true, Usage: "The first argument"}, Field: NullableString(&b.first)},
+		{Argument: &Argument{Index: 1, MetaVar: "SECOND", Usage: "The second argument"}, Field: OptString(&b.second)},
+		{Argument: &Argument{Index: 0, Required: true, Usage: "The first argument"}, Field: OptString(&b.first)},
 		{Argument: &Argument{Index: 2, Usage: "A boolean argument"}, Field: Bool(&b.flag)},
 	}
 }
 
 func (b *beanD) dump() string {
-	return "output=" + javaStr(b.output) + " help=" + javaStr(b.help) + " second=" + javaStr(b.second) +
-		" first=" + javaStr(b.first) + " flag=" + javaStr(b.flag)
+	return "output=" + javaStr(b.output) + " help=" + javaStr(b.help) + " second=" + b.second.String() +
+		" first=" + b.first.String() + " flag=" + javaStr(b.flag)
 }
 
-type beanDupName struct{ x, y *string }
+type beanDupName struct{ x, y base.OptString }
 
 func (b *beanDupName) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
-		{Option: &Option{Name: "-x", Usage: "x"}, Field: NullableString(&b.x)},
-		{Option: &Option{Name: "-y", Aliases: []string{"-x"}, Usage: "y"}, Field: NullableString(&b.y)},
+		{Option: &Option{Name: "-x", Usage: "x"}, Field: OptString(&b.x)},
+		{Option: &Option{Name: "-y", Aliases: []string{"-x"}, Usage: "y"}, Field: OptString(&b.y)},
 	}
 }
 
-type beanDupIndex struct{ a, b *string }
+type beanDupIndex struct{ a, b base.OptString }
 
 func (b *beanDupIndex) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
-		{Argument: &Argument{Index: 0}, Field: NullableString(&b.a)},
-		{Argument: &Argument{Index: 0}, Field: NullableString(&b.b)},
+		{Argument: &Argument{Index: 0}, Field: OptString(&b.a)},
+		{Argument: &Argument{Index: 0}, Field: OptString(&b.b)},
 	}
 }
 
@@ -307,11 +308,11 @@ func (b *beanFinal) Args4jFields() []AnnotatedField {
 	}
 }
 
-type beanGap struct{ a *string }
+type beanGap struct{ a base.OptString }
 
 func (b *beanGap) Args4jFields() []AnnotatedField {
 	return []AnnotatedField{
-		{Argument: &Argument{Index: 1}, Field: NullableString(&b.a)},
+		{Argument: &Argument{Index: 1}, Field: OptString(&b.a)},
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -192,7 +193,7 @@ func (r *RewriteGoogJsImports) NewReferenceReplacer(
 				// we're still running we might be in some tool that expects us to be
 				// fault tolerant and still rewrite modules. So assume this is needed
 				// in those tools.
-				starNode.SetOriginalName(jutil.StringPtr("goog"))
+				starNode.SetOriginalName("goog")
 				starNode.SetString("$goog")
 				newBindings.Put("$goog", jutil.CheckNotNull(googBinding))
 			} else {
@@ -231,7 +232,7 @@ func (p *RewriteGoogJsImports_ReferenceReplacer) MaybeRewriteBadGoogJsImportRef(
 	// Rewrite and keep the import so later type checking can report an error
 	// that this property does not exist on the ES6 module.
 	p.hasBadExport = true
-	nameNode.SetOriginalName(jutil.StringPtr("goog"))
+	nameNode.SetOriginalName("goog")
 	nameNode.SetString("$goog")
 	t.ReportCodeChange()
 }
@@ -309,6 +310,13 @@ func (f *RewriteGoogJsImports_FindReexports) ShouldTraverse(t *NodeTraversal, n 
 	}
 }
 
+func optNodeSourceFileName(n rhino.Node) base.OptString {
+	if s, ok := n.SourceFileName(); ok {
+		return base.SomeString(s)
+	}
+	return base.NoString()
+}
+
 // Java: RewriteGoogJsImports.findGoogImportNode(Node)
 func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.Node {
 	// Cannot use the module map here - information is lost about the
@@ -332,8 +340,8 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 			} else {
 				valid = false
 				r.compiler.Report(
-					JSError_MakeWithSourceLocation(
-						scriptRoot.GetSourceFileName(),
+					JSError_MakeWithOptSourceLocation(
+						optNodeSourceFileName(scriptRoot),
 						child.GetLineno(),
 						child.GetCharno(),
 						RewriteGoogJsImports_GOOG_JS_IMPORT_MUST_BE_GOOG_STAR))
@@ -354,8 +362,8 @@ func (r *RewriteGoogJsImports) FindGoogImportNode(scriptRoot rhino.Node) rhino.N
 
 	if googVar != nil && !googVar.GetNameNode().IsNil() {
 		r.compiler.Report(
-			JSError_MakeWithSourceLocation(
-				scriptRoot.GetSourceFileName(),
+			JSError_MakeWithOptSourceLocation(
+				optNodeSourceFileName(scriptRoot),
 				googVar.GetNameNode().GetLineno(),
 				googVar.GetNameNode().GetCharno(),
 				RewriteGoogJsImports_CANNOT_HAVE_MODULE_VAR_NAMED_GOOG))
@@ -410,11 +418,11 @@ func (r *RewriteGoogJsImports) FindGoogJsScriptNode(root rhino.Node) rhino.Node 
 				GetPath().
 				EqualsIgnoreLeadingSlash(expectedGoogPath) {
 				googScriptNode = script
-			} else if srcFileName := script.GetSourceFileName(); srcFileName != nil && strings.HasSuffix(*srcFileName, "/goog.js") {
+			} else if srcFileName, ok := script.SourceFileName(); ok && strings.HasSuffix(srcFileName, "/goog.js") {
 				// Ban the name goog.js as input except for Closure's goog.js file.
 				// This simplifies a lot of logic if the only file that is allowed
 				// to be named goog.js is Closure's.
-				r.compiler.Report(JSError_MakeWithSourceLocation(srcFileName, -1, -1, RewriteGoogJsImports_CANNOT_NAME_FILE_GOOG))
+				r.compiler.Report(JSError_MakeAtSourceLocation(srcFileName, -1, -1, RewriteGoogJsImports_CANNOT_NAME_FILE_GOOG))
 			}
 		}
 

@@ -823,10 +823,12 @@ func TestNodeUtil_AssortedTests_TestTypedefNamespace(t *testing.T) {
 			name = statement.GetFirstChild()
 		}
 		jutil.CheckStateMsg1(name.IsName() || name.IsGetProp(), "%s", name)
+		qname, ok := name.QualifiedName()
+		jutil.CheckStateMsg1(ok, "%s", name)
 		if NodeUtil_IsNamespaceDecl(name) {
-			namespaceNames.Add(*name.GetQualifiedName())
+			namespaceNames.Add(qname)
 		} else {
-			nonNamespaceNames.Add(*name.GetQualifiedName())
+			nonNamespaceNames.Add(qname)
 		}
 	}
 	nuAssertThat(t, namespaceNames).ContainsExactly("obj", "obj.a", "obj.b")

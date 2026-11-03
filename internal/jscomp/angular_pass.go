@@ -123,7 +123,7 @@ func (p *AngularPass) Process(externs rhino.Node, root rhino.Node) {
 			rhino.IR_Getelem(NodeUtil_NewQName(p.compiler, entry.name), rhino.IR_String(AngularPass_INJECT_PROPERTY_NAME)),
 			dependenciesArray)
 		statement := rhino.IR_ExprResult(assign).SrcrefTree(entry.node)
-		statement.SetOriginalName(&entry.name)
+		statement.SetOriginalName(entry.name)
 		// Set the visibility of the newly created property.
 		newPropertyDoc := rhino.JSDocInfo_Builder_()
 		newPropertyDoc.RecordVisibility(rhino.JSDocInfo_Visibility_PUBLIC)

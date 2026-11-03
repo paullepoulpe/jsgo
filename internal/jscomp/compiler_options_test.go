@@ -131,7 +131,7 @@ func compilerOptionsTest_assertEquivalent(t *testing.T, a rhino.Node, b rhino.No
 }
 
 func TestCompilerOptions_LanguageModeFromString(t *testing.T) {
-	from := func(s string) *CompilerOptions_LanguageMode { return CompilerOptions_LanguageMode_FromString(&s) }
+	from := CompilerOptions_LanguageMode_FromName
 	assertEqual(t, "ECMASCRIPT3", from("ECMASCRIPT3"), CompilerOptions_LanguageMode_ECMASCRIPT3.Ptr())
 	// Whitespace should be trimmed, characters converted to uppercase and leading 'ES' replaced
 	// with 'ECMASCRIPT'.

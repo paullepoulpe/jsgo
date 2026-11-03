@@ -435,33 +435,16 @@ func (n Node) SetSourceFileForTesting(name string) {
 
 // TODO(johnlenz): make this final
 //
+// SourceFileName returns the source file name of n, or ("", false) if n has no
+// source file.
+//
 // Java: Node.getSourceFileName()
-func (n Node) GetSourceFileName() *string {
-	sfID := n.rec().sourceFile
-	if sfID == 0 {
-		return nil
-	}
-	slot := lookupSourceFileSlot(sfID)
-	if slot.namePtr != nil {
-		return slot.namePtr
-	}
-	_ = node_cast[StaticSourceFile](slot.item.objectValue)
-	return nil
-}
-
-// SourceFileName returns the source file name of n without allocating a *string,
-// or ("", false) if n has no source file.
 func (n Node) SourceFileName() (string, bool) {
-	sfID := n.rec().sourceFile
-	if sfID == 0 {
+	sf := n.GetStaticSourceFile()
+	if sf == nil {
 		return "", false
 	}
-	slot := lookupSourceFileSlot(sfID)
-	if slot.namePtr != nil {
-		return *slot.namePtr, true
-	}
-	_ = node_cast[StaticSourceFile](slot.item.objectValue)
-	return "", false
+	return sf.GetName(), true
 }
 
 // GetStaticSourceFile returns the source file associated with this input.
@@ -489,23 +472,17 @@ func (n Node) GetInputId() *InputId {
 	return node_cast[*InputId](n.GetProp(Node_Prop_INPUT_ID))
 }
 
-// GetOriginalName returns the original name of this node, if the node has
-// been renamed.
-//
-// Deprecated: "original name" is poorly defined.
-//
-// Java: Node.getOriginalName()
-func (n Node) GetOriginalName() *string {
-	return strpool.StringPtr(n.node_originalNameID())
-}
-
 // GetOriginalNameID returns the 32-bit interned originalName ID of n, or 0 if unset.
 func (n Node) GetOriginalNameID() uint32 {
 	return uint32(n.node_originalNameID())
 }
 
-// OriginalName returns the node's originalName without looking up a *string
-// pointer, or ("", false) if unset.
+// OriginalName returns the original name of this node if the node has been
+// renamed, or ("", false) if unset.
+//
+// Deprecated: "original name" is poorly defined.
+//
+// Java: Node.getOriginalName()
 func (n Node) OriginalName() (string, bool) {
 	id := n.node_originalNameID()
 	if id == 0 {
@@ -514,24 +491,28 @@ func (n Node) OriginalName() (string, bool) {
 	return strpool.String(id), true
 }
 
-// GetOriginalNameString returns the node's originalName without allocating a *string.
+// GetOriginalNameString returns the node's originalName, or ("", false) if unset.
 func (n Node) GetOriginalNameString() (string, bool) {
 	return n.OriginalName()
 }
 
+// SetOriginalName interns s in RhinoStringPool and sets it as the node's
+// original name.
+//
 // Java: Node.setOriginalName(String)
-func (n Node) SetOriginalName(s *string) {
-	var id rhinoStringID
-	if s != nil {
-		id = strpool.Intern(*s)
-	}
-	n.node_setOriginalNameID(id)
+func (n Node) SetOriginalName(s string) {
+	n.node_setOriginalNameID(strpool.Intern(s))
+}
+
+// ClearOriginalName clears the node's original name.
+func (n Node) ClearOriginalName() {
+	n.node_setOriginalNameID(0)
 }
 
 // SetOriginalNameString interns s in RhinoStringPool and sets it as the node's
-// original name without boxing s on the heap.
+// original name.
 func (n Node) SetOriginalNameString(s string) {
-	n.node_setOriginalNameID(strpool.Intern(s))
+	n.SetOriginalName(s)
 }
 
 // Java: Node.setOriginalNameFromStringPool(RhinoStringPool.LazyInternedStringList, int)

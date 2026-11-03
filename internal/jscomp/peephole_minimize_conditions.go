@@ -142,21 +142,26 @@ func (p *PeepholeMinimizeConditions) OptimizeSubtree(node rhino.Node) rhino.Node
 
 func peepholeExprResultCannotMinimize(expr rhino.Node) bool {
 	if assign, ok := ast.AsAssignment(expr); ok {
-		target := assign.Target().Node()
-		if target.IsName() {
+		target := assign.Target()
+		if _, isName := target.AsName(); isName {
 			return true
 		}
-		if !NodeUtil_IsNormalGet(target) {
+		get, isGet := target.AsNormalGet()
+		if !isGet {
 			return false
 		}
-		current := target.GetFirstChild()
-		if NodeUtil_EvaluatesToLocalValue(current) {
+		current := get.Object()
+		if NodeUtil_EvaluatesToLocalValue(current.Node()) {
 			return false
 		}
-		for NodeUtil_IsNormalGet(current) {
-			current = current.GetFirstChild()
+		for {
+			innerGet, ok := current.AsNormalGet()
+			if !ok {
+				break
+			}
+			current = innerGet.Object()
 		}
-		return !NodeUtil_IsLiteralValue(current, true)
+		return !NodeUtil_IsLiteralValue(current.Node(), true)
 	}
 	return peepholeIsSideEffectingExprOp(expr.GetToken())
 }
@@ -318,6 +323,18 @@ func PeepholeMinimizeConditions_StatementMustExitParent(n ast.Statement) bool {
 	}
 }
 
+func peepholeExitValue(n rhino.Node) rhino.Node {
+	if th, ok := ast.AsThrow(n); ok {
+		return th.Value().Node()
+	}
+	if ret, ok := ast.AsReturn(n); ok {
+		if val, hasVal := ret.Value(); hasVal {
+			return val.Node()
+		}
+	}
+	return rhino.NilNode
+}
+
 // TryReplaceExitWithBreak replaces duplicate exits in control structures.
 // If the node following the exit node expression has the same effect as exit
 // node, the node can be replaced or removed. For example:
@@ -330,7 +347,7 @@ func PeepholeMinimizeConditions_StatementMustExitParent(n ast.Statement) bool {
 //
 // Java: PeepholeMinimizeConditions.tryReplaceExitWithBreak(Node)
 func (p *PeepholeMinimizeConditions) TryReplaceExitWithBreak(n rhino.Node) rhino.Node {
-	result := n.GetFirstChild()
+	result := peepholeExitValue(n)
 
 	// Find the enclosing control structure, if any, that a "break" would exit
 	// from.
@@ -395,7 +412,7 @@ func (p *PeepholeMinimizeConditions) TryReplaceExitWithBreak(n rhino.Node) rhino
 //
 // Java: PeepholeMinimizeConditions.tryRemoveRedundantExit(Node)
 func (p *PeepholeMinimizeConditions) TryRemoveRedundantExit(n rhino.Node) rhino.Node {
-	exitExpr := n.GetFirstChild()
+	exitExpr := peepholeExitValue(n)
 
 	follow := ControlFlowAnalysis_ComputeFollowNode(n)
 
@@ -459,9 +476,7 @@ func PeepholeMinimizeConditions_SkipFinallyNodes(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeMinimizeConditions.areMatchingExits(Node, Node)
 func (p *PeepholeMinimizeConditions) AreMatchingExits(nodeThis rhino.Node, nodeThat rhino.Node) bool {
-	if !p.IsASTNormalized() &&
-		(nodeThis.IsThrow() || nodeThis.IsReturn()) &&
-		nodeThis.HasChildren() {
+	if !p.IsASTNormalized() && !peepholeExitValue(nodeThis).IsNil() {
 		// if the ast isn't normalized "return a" or "throw a" may not mean the same thing in
 		// different blocks.
 		return false

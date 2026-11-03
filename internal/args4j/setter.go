@@ -32,6 +32,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -215,14 +216,23 @@ func SliceField[T any](spec *TypeSpec[T], p *[]T) *Field {
 	return &Field{setter: &sliceSetter[T]{p: p, handler: spec.defaultHandler}}
 }
 
-func Bool(p *bool) *Field              { return ScalarField(BoolSpec, p) }
-func NullableBool(p **bool) *Field     { return NullableField(BoolSpec, p) }
-func Int(p *int) *Field                { return &Field{setter: &intSetter{p: p}} }
-func Int32(p *int32) *Field            { return ScalarField(Int32Spec, p) }
-func NullableInt32(p **int32) *Field   { return NullableField(Int32Spec, p) }
-func String(p *string) *Field          { return ScalarField(StringSpec, p) }
-func NullableString(p **string) *Field { return NullableField(StringSpec, p) }
-func StringSlice(p *[]string) *Field   { return SliceField(StringSpec, p) }
+type optStringSetter struct {
+	p *base.OptString
+}
+
+func (s *optStringSetter) IsMultiValued() bool                { return false }
+func (s *optStringSetter) DefaultHandler() OptionHandlerClass { return NewStringOptionHandler }
+func (s *optStringSetter) AddTypedValue(v string)             { *s.p = base.SomeString(v) }
+func (s *optStringSetter) defaultValueString() (string, bool) { return s.p.Get() }
+
+func Bool(p *bool) *Field                { return ScalarField(BoolSpec, p) }
+func NullableBool(p **bool) *Field       { return NullableField(BoolSpec, p) }
+func Int(p *int) *Field                  { return &Field{setter: &intSetter{p: p}} }
+func Int32(p *int32) *Field              { return ScalarField(Int32Spec, p) }
+func NullableInt32(p **int32) *Field     { return NullableField(Int32Spec, p) }
+func String(p *string) *Field            { return ScalarField(StringSpec, p) }
+func OptString(p *base.OptString) *Field { return &Field{setter: &optStringSetter{p: p}} }
+func StringSlice(p *[]string) *Field     { return SliceField(StringSpec, p) }
 func StringMap(p **jutil.OrderedMap[string, string]) *Field {
 	return &Field{setter: &stringMapSetter{p: p}}
 }

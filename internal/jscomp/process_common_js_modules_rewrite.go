@@ -502,7 +502,7 @@ func (r *commonJsRewriteModule) updateNameReference(
 			nameRef.ReplaceWith(newNameRef)
 		} else {
 			nameRef.SetString(newName)
-			nameRef.SetOriginalName(&originalName)
+			nameRef.SetOriginalName(originalName)
 		}
 	case rhino.Token_FUNCTION:
 		if newNameIsQualified || requireFunctionExpressions {
@@ -538,7 +538,7 @@ func (r *commonJsRewriteModule) updateNameReference(
 			r.functionsToHoist = append(r.functionsToHoist, expr)
 		} else {
 			nameRef.SetString(newName)
-			nameRef.SetOriginalName(&originalName)
+			nameRef.SetOriginalName(originalName)
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		if parent.HasMoreThanOneChild() && !NodeUtil_IsAnyFor(parent.GetParent()) {
@@ -589,12 +589,12 @@ func (r *commonJsRewriteModule) updateNameReference(
 			parent.ReplaceWith(rhino.IR_ExprResult(assign).SrcrefTree(nameRef))
 		} else {
 			nameRef.SetString(newName)
-			nameRef.SetOriginalName(&originalName)
+			nameRef.SetOriginalName(originalName)
 		}
 	default:
 		if !newNameIsQualified && nameRef.IsName() {
 			nameRef.SetString(newName)
-			nameRef.SetOriginalName(&originalName)
+			nameRef.SetOriginalName(originalName)
 		} else {
 			var name rhino.Node
 			if newNameIsQualified {
@@ -783,13 +783,13 @@ func (r *commonJsRewriteModule) fixTypeNode(t *NodeTraversal, typeNode rhino.Nod
 					sameInputId(typeDeclaration.GetNode().GetInputId(), typeInputId) {
 					if importedModuleName, ok := r.getModuleImportName(t, typeDeclaration.GetNode()); ok {
 						typeNode.SetString(importedModuleName + suffix)
-						typeNode.SetOriginalName(&name)
+						typeNode.SetOriginalName(name)
 						wasRewritten = true
 						break
 					} else if r.allowFullRewrite {
 						if exportedName, ok := r.getExportedName(t, typeNode, typeDeclaration); ok && exportedName != name {
 							typeNode.SetString(exportedName + suffix)
-							typeNode.SetOriginalName(&name)
+							typeNode.SetOriginalName(name)
 							wasRewritten = true
 							break
 						}
@@ -810,7 +810,7 @@ func (r *commonJsRewriteModule) fixTypeNode(t *NodeTraversal, typeNode rhino.Nod
 						newName += "." + rest
 					}
 					typeNode.SetString(newName)
-					typeNode.SetOriginalName(&name)
+					typeNode.SetOriginalName(name)
 				}
 			}
 		}

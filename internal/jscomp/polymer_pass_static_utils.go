@@ -385,10 +385,11 @@ func PolymerPassStaticUtils_GetTypeFromProperty(
 //
 // Java: PolymerPassStaticUtils.getPolymerElementType(PolymerClassDefinition)
 func PolymerPassStaticUtils_GetPolymerElementType(cls *PolymerClassDefinition) string {
-	if cls.nativeBaseElement == nil {
+	baseElem, ok := cls.nativeBaseElement.Get()
+	if !ok {
 		return "PolymerElement"
 	}
-	return "Polymer" + caseFormatLowerHyphenToUpperCamel(*cls.nativeBaseElement) + "Element"
+	return "Polymer" + caseFormatLowerHyphenToUpperCamel(baseElem) + "Element"
 }
 
 // caseFormatLowerCamelToUpperUnderscore is Guava's

@@ -199,12 +199,11 @@ func (d *closureRewriteDump) pass(inputs []*SourceFile, parseDiags []string, nam
 	before := js.ToStringTree()
 	externsBefore := externs.ToStringTree()
 	var extra []string
-	var exception *string
+	var exception string
 	jutil.Try(func() {
 		run(compiler, externs, js, &extra)
 	}, func(e jutil.IRuntimeException) {
-		s := "exception " + closureRewriteExceptionText(e)
-		exception = &s
+		exception = "exception " + closureRewriteExceptionText(e)
 	})
 	remaining := append([]string(nil), parseDiags...)
 	for _, diag := range closureModulesDiagnostics(compiler) {
@@ -220,8 +219,8 @@ func (d *closureRewriteDump) pass(inputs []*SourceFile, parseDiags []string, nam
 			closureModulesLine(sb, diag)
 		}
 	}
-	if exception != nil {
-		closureModulesLine(sb, *exception)
+	if exception != "" {
+		closureModulesLine(sb, exception)
 	}
 	d.tree("tree", before, js.ToStringTree())
 	d.tree("externs", externsBefore, externs.ToStringTree())
@@ -234,15 +233,14 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 	sb := d.sb
 	closureModulesLine(sb, header)
 	var parsed *Compiler
-	var parseException *string
+	var parseException string
 	jutil.Try(func() {
 		parsed = closureRewriteNewCompiler(inputs)
 	}, func(e jutil.IRuntimeException) {
-		s := "# parse exception " + closureRewriteExceptionText(e)
-		parseException = &s
+		parseException = "# parse exception " + closureRewriteExceptionText(e)
 	})
-	if parseException != nil {
-		closureModulesLine(sb, *parseException)
+	if parseException != "" {
+		closureModulesLine(sb, parseException)
 		return
 	}
 	parseDiags := closureModulesDiagnostics(parsed)
@@ -333,11 +331,11 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 	}
 	d.pass(inputs, parseDiags, "externExports", func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
 		NewExternExportsPass(compiler).Process(externs, js)
-		result := compiler.GetResult().ExternExport
-		if result == nil {
+		result, ok := compiler.GetResult().ExternExportString()
+		if !ok {
 			*extra = append(*extra, "externExport null")
 		} else {
-			for _, l := range strings.Split(*result, "\n") {
+			for _, l := range strings.Split(result, "\n") {
 				*extra = append(*extra, "| "+l)
 			}
 		}

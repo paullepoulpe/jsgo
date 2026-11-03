@@ -108,8 +108,6 @@ func taStr(o any) string {
 	switch v := o.(type) {
 	case string:
 		return v
-	case *string:
-		return *v
 	case bool:
 		return strconv.FormatBool(v)
 	case int:

@@ -157,12 +157,9 @@ func (c *CheckConstPrivateProperties) IsCandidatePropertyDefinition(n rhino.Node
 
 // containsQualifiedName is
 // constructorsAndInterfaces.contains(target.getQualifiedName()).
-//
-// Go-only: language-adapter — getQualifiedName() may be null (*string here),
-// and a Java set of non-null strings never contains null.
 func (c *CheckConstPrivateProperties) containsQualifiedName(target rhino.Node) bool {
-	qname := target.GetQualifiedName()
-	return qname != nil && c.constructorsAndInterfaces[*qname]
+	qname, ok := target.QualifiedName()
+	return ok && c.constructorsAndInterfaces[qname]
 }
 
 // IsFunctionProperty returns whether the given property declaration is

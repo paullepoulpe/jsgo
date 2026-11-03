@@ -609,7 +609,7 @@ func (o *coreG3Out) options(seed int64, n int) {
 		"ECMASCRIPT3", "  es3  ", "junk", "ECMASCRIPT_2020", "  es_2020  ", "  es2020  ", "es6",
 		"ES6_STRICT", "ecmascript_next", "STABLE", "Es5", "ESNEXT", "ES_NEXT", "", "estable",
 	} {
-		o.line("fromString " + s + " -> " + coreG3Fmt(CompilerOptions_LanguageMode_FromString(&s)))
+		o.line("fromString " + s + " -> " + coreG3Fmt(CompilerOptions_LanguageMode_FromName(s)))
 	}
 	for _, s := range []string{"NONE", "LINE", "BRANCH", "PRODUCTION", "LINE_ONLY", "x"} {
 		got := "null"

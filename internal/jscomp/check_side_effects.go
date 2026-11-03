@@ -181,10 +181,15 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 	// they have a special meaning used in Compiler.ensureLibraryInjected
 	if n.IsStringLit() &&
 		n.GetParent().IsExprResult() &&
-		n.GetGrandparent().IsScript() &&
-		strings.HasPrefix(*n.GetSourceFileName(), AbstractCompiler_RUNTIME_LIB_DIR) &&
-		strings.HasPrefix(n.GetString(), "require ") {
-		return
+		n.GetGrandparent().IsScript() {
+		src, ok := n.SourceFileName()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		if strings.HasPrefix(src, AbstractCompiler_RUNTIME_LIB_DIR) &&
+			strings.HasPrefix(n.GetString(), "require ") {
+			return
+		}
 	}
 
 	isResultUsed := NodeUtil_IsExpressionResultUsed(n)

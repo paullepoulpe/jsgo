@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: the 32-bit payload of a node (node_payload.go).
@@ -44,23 +43,25 @@ func TestOriginalNameKeptAcrossRenaming(t *testing.T) {
 		t.Fatal("an original name equal to the node's string is not stored as the flag")
 	}
 	n.SetString("a") // renaming
-	if o := n.GetOriginalName(); o == nil || *o != "foo" || n.GetString() != "a" {
-		t.Fatalf("after renaming: string %q, original name %v", n.GetString(), o)
+	if o, ok := n.OriginalName(); !ok || o != "foo" || n.GetString() != "a" {
+		t.Fatalf("after renaming: string %q, original name (%q, %v)", n.GetString(), o, ok)
 	}
 	n.SetString("foo")
-	if *n.GetOriginalName() != "foo" {
+	if o, ok := n.OriginalName(); !ok || o != "foo" {
 		t.Fatal("original name lost")
 	}
-	n.SetOriginalName(nil)
-	if n.GetOriginalName() != nil || origNameField.get(n) != 0 || n.rec().kindFlags&kindFlagOrigNameIsString != 0 {
+	n.ClearOriginalName()
+	if _, ok := n.OriginalName(); ok || origNameField.get(n) != 0 || n.rec().kindFlags&kindFlagOrigNameIsString != 0 {
 		t.Fatal("original name not cleared")
 	}
 	// Any kind of node can have an original name; copies keep it.
 	call := IR_Call(IR_Name("f"))
-	call.SetOriginalName(jutil.StringPtr("g"))
+	call.SetOriginalName("g")
 	clone := call.CloneNode()
 	other := NewNode(Token_EMPTY).Srcref(call)
-	if *clone.GetOriginalName() != "g" || *other.GetOriginalName() != "g" {
+	cloneOrig, cloneOK := clone.OriginalName()
+	otherOrig, otherOK := other.OriginalName()
+	if !cloneOK || cloneOrig != "g" || !otherOK || otherOrig != "g" {
 		t.Fatal("original name not copied")
 	}
 
@@ -78,7 +79,9 @@ func TestOriginalNameKeptAcrossRenaming(t *testing.T) {
 	k.ForwardSlice(held)
 	k.Finish()
 	newCall := held[0].GetFirstChild().GetFirstChild().GetFirstChild()
-	if *newCall.GetOriginalName() != "g" || *held[1].GetOriginalName() != "x" || held[1].GetString() != "y" {
+	newCallOrig, newCallOK := newCall.OriginalName()
+	held1Orig, held1OK := held[1].OriginalName()
+	if !newCallOK || newCallOrig != "g" || !held1OK || held1Orig != "x" || held[1].GetString() != "y" {
 		t.Fatal("compaction lost an original name")
 	}
 }

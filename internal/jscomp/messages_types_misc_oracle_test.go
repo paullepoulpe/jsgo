@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -135,7 +136,7 @@ func l11msgDumpMessages(sb *strings.Builder, code string) {
 	found := &strings.Builder{}
 	visitor := NewJsMessageVisitor(
 		compiler,
-		NewGoogleJsMessageIdGenerator(nil),
+		NewGoogleJsMessageIdGenerator(base.NoString()),
 		func(definition JsMessageDefinition) {
 			found.WriteString("getMsg " + l11msgNode(definition.GetMessageNode()) + " text=" +
 				l11msgNode(definition.GetTemplateTextNode()) + " values=" +
@@ -164,7 +165,7 @@ func l11msgDumpXtb(sb *strings.Builder, xtb []byte) {
 	var bundle *XtbMessageBundle
 	failed := false
 	jutil.Try(func() {
-		bundle = NewXtbMessageBundle(bytes.NewReader(xtb), jutil.StringPtr("TestProject"))
+		bundle = NewXtbMessageBundle(bytes.NewReader(xtb), base.SomeString("TestProject"))
 	}, func(e jutil.IRuntimeException) {
 		failed = true
 		if re, ok := e.(*jutil.RuntimeException); ok && re.GetCause() != nil {

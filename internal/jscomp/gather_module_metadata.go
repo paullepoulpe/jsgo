@@ -634,8 +634,8 @@ func (f *GatherModuleMetadata_Finder) AddNamespace(
 	} else if existingModule := f.outer.modulesByGoogNamespace.Get(namespace); existingModule != nil {
 		existingType = existingModule.ModuleType()
 		hasExistingType = true
-		if src := existingModule.RootNode().GetSourceFileName(); src != nil {
-			existingFileSource = *src
+		if src, ok := existingModule.RootNode().SourceFileName(); ok {
+			existingFileSource = src
 		}
 	}
 	f.outer.currentModule.metadata.googNamespaces.Add(namespace)

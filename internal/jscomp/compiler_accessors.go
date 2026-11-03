@@ -57,9 +57,9 @@ func (c *Compiler) GetScriptNode(filename string) rhino.Node {
 //
 // Java: Compiler.getResult()
 func (c *Compiler) GetResult() *Result {
-	var externExports *string
+	var externExports base.OptString
 	if c.hasExternExports {
-		externExports = &c.externExports
+		externExports = base.SomeString(c.externExports)
 	}
 	return NewResultWithAllMaps(
 		c.GetErrors(),
@@ -462,7 +462,7 @@ type Result struct {
 	instrumentationMappings *VariableMap        // nil is null
 	SourceMap               *SourceMap          // nil is null
 	cssNames                *OrderedSet[string] // nil is null
-	ExternExport            *string             // nil is null
+	ExternExport            base.OptString
 	idGeneratorMap          base.OptString
 	Success                 bool
 	TranspiledFiles         bool
@@ -470,10 +470,7 @@ type Result struct {
 
 // ExternExportString returns the externs export string when present.
 func (r *Result) ExternExportString() (string, bool) {
-	if r.ExternExport == nil {
-		return "", false
-	}
-	return *r.ExternExport, true
+	return r.ExternExport.Get()
 }
 
 // Java: Result(ImmutableList<JSError>, ImmutableList<JSError>, VariableMap, VariableMap, VariableMap, VariableMap, VariableMap, SourceMap, String, Set<String>, String, boolean)
@@ -486,7 +483,7 @@ func NewResultWithAllMaps(
 	stringMap *VariableMap,
 	instrumentationMappings *VariableMap,
 	sourceMap *SourceMap,
-	externExport *string,
+	externExport base.OptString,
 	cssNames *OrderedSet[string],
 	idGeneratorMap base.OptString,
 	transpiledFiles bool) *Result {
@@ -517,7 +514,7 @@ func NewResult(
 	propertyMap *VariableMap,
 	namedAnonFunctionMap *VariableMap,
 	sourceMap *SourceMap,
-	externExport *string) *Result {
+	externExport base.OptString) *Result {
 	return NewResultWithAllMaps(
 		errors,
 		warnings,
@@ -532,8 +529,6 @@ func NewResult(
 		/* idGeneratorMap= */ base.NoString(),
 		/* transpiledFiles= */ false)
 }
-
-var resultEmptyExternExport = ""
 
 // Result_PruneResultForPartialCompilation returns an almost empty result
 // that is more appropriate for a partial compilation.
@@ -555,7 +550,7 @@ func Result_PruneResultForPartialCompilation(result *Result) *Result {
 		/* stringMap= */ nil,
 		/* instrumentationMappings= */ emptyVariableMap,
 		/* sourceMap= */ nil,
-		/* externExport= */ &resultEmptyExternExport,
+		/* externExport= */ base.SomeString(""),
 		/* cssNames= */ nil,
 		/* idGeneratorMap= */ base.NoString(),
 		/* transpiledFiles= */ false)

@@ -171,12 +171,13 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 	value := prop.GetValue()
 	valueParent := value.GetParent()
 	// Only attempt to move normal functions.
-	if !value.IsFunction() ||
+	_, isFn := ast.AsFunction(value)
+	_, isGetterOrSetter := ast.AsGetterOrSetterDef(valueParent)
+	if !isFn ||
 		// A GET or SET can't be deferred like a normal
 		// FUNCTION property definition as a mix-in would get the result
 		// of a GET instead of the function itself.
-		valueParent.IsGetterDef() ||
-		valueParent.IsSetterDef() {
+		isGetterOrSetter {
 		return
 	}
 
@@ -186,13 +187,16 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 			return
 		}
 		destParent := m.compiler.GetNodeForCodeInsertion(deepestCommonChunkRef)
-		if valueParent.IsMemberFunctionDef() || valueParent.IsStringKey() {
-			m.movePrototypeObjectLiteralMember(valueParent, nameInfo.String(), destParent, valueParent.IsMemberFunctionDef())
+		_, isMethodShorthand := ast.AsMemberFunctionDef(valueParent)
+		_, isStringKey := ast.AsStringKey(valueParent)
+		if isMethodShorthand || isStringKey {
+			m.movePrototypeObjectLiteralMember(valueParent, nameInfo.String(), destParent, isMethodShorthand)
 		} else {
 			// Note that computed properties should have been filtered out by
 			// AnalyzePrototypeProperties, because they don't have a recognizable property name.
 			// Getters and setters are filtered out by the code above.
-			jutil.CheckStateMsg1(valueParent.IsAssign(), "%s", valueParent)
+			_, isAssign := ast.AsAssign(valueParent)
+			jutil.CheckStateMsg1(isAssign, "%s", valueParent)
 			m.MovePrototypeDotMethodAssignment(destParent, value)
 		}
 	}
@@ -205,21 +209,29 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 //	Foo.prototype = { propName() {}};
 func (m *CrossChunkMethodMotion) movePrototypeObjectLiteralMember(
 	prop rhino.Node, propName string, destParent rhino.Node, isMethodShorthand bool) {
+	var functionNode rhino.Node
 	if isMethodShorthand {
-		jutil.CheckStateMsg1(prop.IsMemberFunctionDef(), "%s", prop)
+		mf, ok := ast.AsMemberFunctionDef(prop)
+		jutil.CheckStateMsg1(ok, "%s", prop)
+		functionNode = mf.Function().Node()
 	} else {
-		jutil.CheckStateMsg1(prop.IsStringKey(), "%s", prop)
+		sk, ok := ast.AsStringKey(prop)
+		jutil.CheckStateMsg1(ok, "%s", prop)
+		fn, isFn := sk.Value().AsFunction()
+		jutil.CheckStateMsg1(isFn, "%s", sk.Value().Node())
+		functionNode = fn.Node()
 	}
-	functionNode := prop.GetFirstChild()
-	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
-	prototypeObjectLiteral := prop.GetParent()
-	jutil.CheckStateMsg1(prototypeObjectLiteral.IsObjectLit(), "%s", prototypeObjectLiteral)
+	objLit, isObjLit := ast.AsObjectLit(prop.GetParent())
+	jutil.CheckStateMsg1(isObjLit, "%s", prop.GetParent())
+	prototypeObjectLiteral := objLit.Node()
 	assign, ok := ast.AsAssign(prototypeObjectLiteral.GetParent())
 	jutil.CheckStateMsg1(ok && assign.Value().Is(prototypeObjectLiteral), "%s", prototypeObjectLiteral.GetParent())
+	ownerDotPrototype, isGetProp := assign.Target().AsGetProp()
 	ownerDotPrototypeNode := assign.Target().Node()
 	jutil.CheckStateMsg1(
-		ownerDotPrototypeNode.IsQualifiedName() &&
-			ownerDotPrototypeNode.GetStringID() == analyzeProtoPrototypeID,
+		isGetProp &&
+			ownerDotPrototypeNode.IsQualifiedName() &&
+			ownerDotPrototype.Node().GetStringID() == analyzeProtoPrototypeID,
 		"%s", ownerDotPrototypeNode)
 	var originalScript rhino.Node
 	if isMethodShorthand {
@@ -277,7 +289,8 @@ func (m *CrossChunkMethodMotion) movePrototypeObjectLiteralMember(
 //
 // Java: CrossChunkMethodMotion.movePrototypeDotMethodAssignment(Node, Node)
 func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent rhino.Node, functionNode rhino.Node) {
-	jutil.CheckStateMsg1(functionNode.IsFunction(), "%s", functionNode)
+	_, isFn := ast.AsFunction(functionNode)
+	jutil.CheckStateMsg1(isFn, "%s", functionNode)
 	assign, ok := ast.AsAssign(functionNode.GetParent())
 	jutil.CheckStateMsg1(ok && assign.Value().Is(functionNode), "%s", functionNode.GetParent())
 	exprStmt, ok := ast.AsExprStmt(assign.Node().GetParent())
@@ -378,11 +391,12 @@ func (m *CrossChunkMethodMotion) tryToMoveMemberFunction(
 
 	// Only attempt to move normal member functions.
 	// A getter or setter cannot be as easily defined outside of the class to which it belongs.
-	if !definitionNode.IsMemberFunctionDef() {
+	memberDef, isMemberFn := ast.AsMemberFunctionDef(definitionNode)
+	if !isMemberFn {
 		return
 	}
 
-	if NodeUtil_IsEs6ConstructorMemberFunctionDef(definitionNode) {
+	if memberDef.IsEs6Constructor() {
 		// Constructor functions cannot be moved.
 		return
 	}

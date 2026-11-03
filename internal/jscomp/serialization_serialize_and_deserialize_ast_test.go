@@ -684,7 +684,7 @@ func (c *SerializeAndDeserializeAstTest) TestSerializeAndDeserializeFileOnDiskWi
 
 	IsInstanceOf[*SourceFile](AssertThat(scriptA.GetStaticSourceFile()))
 	AssertThat(scriptA.GetStaticSourceFile().(*SourceFile).GetCode()).IsEqualTo("const a = 0;\n")
-	AssertThat(scriptA.GetSourceFileName()).IsEqualTo("original_a.js")
+	AssertThat(optStringAny(scriptA.SourceFileName())).IsEqualTo("original_a.js")
 }
 
 // Java: SerializeAndDeserializeAstTest.serializesZipEntries()
@@ -723,14 +723,14 @@ func (c *SerializeAndDeserializeAstTest) TestSetsSourceFileOfSyntheticCode() {
 
 	script := result.sourceRoot.GetFirstChild()
 	AssertNode(script).HasToken(rhino.Token_SCRIPT)
-	AssertThat(script.GetSourceFileName()).IsEqualTo("testcode")
+	AssertThat(optStringAny(script.SourceFileName())).IsEqualTo("testcode")
 
 	jscompDeclaration := script.GetFirstChild()
-	AssertThat(jscompDeclaration.GetSourceFileName()).EndsWith("js/base.js")
-	AssertThat(jscompDeclaration.GetFirstChild().GetSourceFileName()).EndsWith("js/base.js")
+	AssertThat(optStringAny(jscompDeclaration.SourceFileName())).EndsWith("js/base.js")
+	AssertThat(optStringAny(jscompDeclaration.GetFirstChild().SourceFileName())).EndsWith("js/base.js")
 
 	number := script.GetLastChild()
-	AssertThat(number.GetSourceFileName()).IsEqualTo("testcode")
+	AssertThat(optStringAny(number.SourceFileName())).IsEqualTo("testcode")
 }
 
 // Java: SerializeAndDeserializeAstTest.includesExternsSummary()

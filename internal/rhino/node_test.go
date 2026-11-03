@@ -862,8 +862,8 @@ func assertLinenoAndSourceFile(t *testing.T, n Node, lineno int, file string) {
 	if got := n.GetLineno(); got != lineno {
 		t.Errorf("lineno = %d, want %d", got, lineno)
 	}
-	if got := n.GetSourceFileName(); got == nil || *got != file {
-		t.Errorf("source file = %v, want %q", jutil.ToJavaString(got), file)
+	if got, ok := n.SourceFileName(); !ok || got != file {
+		t.Errorf("source file = (%q, %v), want (%q, true)", got, ok, file)
 	}
 }
 
@@ -912,8 +912,8 @@ func TestNode_InvalidSourceOffset(t *testing.T) {
 }
 
 func TestNode_QualifiedName(t *testing.T) {
-	if got := IR_Name("").GetQualifiedName(); got != nil {
-		t.Errorf("qualified name of '' = %q, want null", *got)
+	if got, ok := IR_Name("").QualifiedName(); ok {
+		t.Errorf("qualified name of '' = %q, want null", got)
 	}
 	for _, tc := range []struct {
 		n    Node
@@ -926,12 +926,12 @@ func TestNode_QualifiedName(t *testing.T) {
 		{IR_Getprop(IR_ThisNode(), "b"), "this.b"},
 		{IR_Getprop(IR_SuperNode(), "b"), "super.b"},
 	} {
-		if got := tc.n.GetQualifiedName(); got == nil || *got != tc.want {
-			t.Errorf("getQualifiedName() = %v, want %q", jutil.ToJavaString(got), tc.want)
+		if got, ok := tc.n.QualifiedName(); !ok || got != tc.want {
+			t.Errorf("QualifiedName() = (%q, %v), want (%q, true)", got, ok, tc.want)
 		}
 	}
-	if got := IR_Getprop(IR_Call(IR_Name("a")), "b").GetQualifiedName(); got != nil {
-		t.Errorf("qualified name of a().b = %q, want null", *got)
+	if got, ok := IR_Getprop(IR_Call(IR_Name("a")), "b").QualifiedName(); ok {
+		t.Errorf("qualified name of a().b = %q, want null", got)
 	}
 }
 
@@ -1077,7 +1077,7 @@ func TestNode_ReplaceWithPropagatesSrcrefIfMissing(t *testing.T) {
 	target.SetSourceFileForTesting("target.js")
 	parent.AddChildToBack(target)
 
-	check := func(what string, n Node, lineno, charno int, file *string) {
+	check := func(what string, n Node, lineno, charno int, hasFile bool, file string) {
 		t.Helper()
 		if got := n.GetLineno(); got != lineno {
 			t.Errorf("%s lineno: got %d, want %d", what, got, lineno)
@@ -1085,33 +1085,32 @@ func TestNode_ReplaceWithPropagatesSrcrefIfMissing(t *testing.T) {
 		if got := n.GetCharno(); got != charno {
 			t.Errorf("%s charno: got %d, want %d", what, got, charno)
 		}
-		got := n.GetSourceFileName()
+		got, ok := n.SourceFileName()
 		switch {
-		case file == nil && got != nil:
-			t.Errorf("%s source file name: got %q, want null", what, *got)
-		case file != nil && (got == nil || *got != *file):
-			t.Errorf("%s source file name: got %v, want %q", what, got, *file)
+		case !hasFile && ok:
+			t.Errorf("%s source file name: got %q, want null", what, got)
+		case hasFile && (!ok || got != file):
+			t.Errorf("%s source file name: got (%q, %v), want %q", what, got, ok, file)
 		}
 	}
-	str := func(s string) *string { return &s }
 
 	// Case (a): replacement has no source info
 	replacement1 := NewNode(Token_NAME)
 	target.ReplaceWith(replacement1)
-	check("replacement1", replacement1, 10, 5, str("target.js"))
+	check("replacement1", replacement1, 10, 5, true, "target.js")
 
 	// Case (b): replacement already has source info
 	replacement2 := NewNode(Token_NAME)
 	replacement2.SetLinenoCharno(20, 8)
 	replacement2.SetSourceFileForTesting("replacement.js")
 	replacement1.ReplaceWith(replacement2)
-	check("replacement2", replacement2, 20, 8, str("replacement.js"))
+	check("replacement2", replacement2, 20, 8, true, "replacement.js")
 
 	// Case (c): child of replacement has no source info
 	replacement3 := NewNode(Token_NAME)
 	child := NewNode(Token_NAME)
 	replacement3.AddChildToBack(child)
 	replacement2.ReplaceWith(replacement3)
-	check("replacement3", replacement3, 20, 8, str("replacement.js"))
-	check("child", child, -1, -1, nil)
+	check("replacement3", replacement3, 20, 8, true, "replacement.js")
+	check("child", child, -1, -1, false, "")
 }

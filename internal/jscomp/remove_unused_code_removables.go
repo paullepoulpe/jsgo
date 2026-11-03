@@ -34,7 +34,7 @@ type RemoveUnusedCode_Continuation struct {
 
 // Java: RemoveUnusedCode.Continuation.apply()
 func (c RemoveUnusedCode_Continuation) Apply(outer *RemoveUnusedCode) {
-	if c.node.IsFunction() {
+	if _, isFn := ast.AsFunction(c.node); isFn {
 		// Calling traverseNode here would create infinite recursion for a function declaration
 		outer.TraverseFunction(c.node, c.scope)
 	} else {
@@ -249,7 +249,8 @@ func (b *rucRemovable) IsVariableAssignment() bool {
 	case remKindAssignVar, remKindClassDecl, remKindFunctionDecl, remKindNameDeclStmt, remKindVanillaForNameDecl:
 		return true
 	case remKindIndirectAssign:
-		return b.targetNode.IsName()
+		_, isName := ast.AsName(b.targetNode)
+		return isName
 	default:
 		return false
 	}
@@ -274,7 +275,8 @@ func (b *rucRemovable) IsNamedPropertyAssignment() bool {
 	case remKindAssignNamedProp:
 		return true
 	case remKindIndirectAssign:
-		return b.targetNode.IsGetProp()
+		_, isGetProp := ast.AsGetProp(b.targetNode)
+		return isGetProp
 	default:
 		return false
 	}
@@ -397,7 +399,8 @@ func (b *rucRemovable) IsStaticProperty() bool {
 		if b.varInfo != nil && b.varInfo.HasFunctionOrClassLiteralValue() {
 			// varName.propertyName = something
 			target := ast.MustAssignment(b.targetNode).Target().MustGetProp()
-			return target.Object().Token() == rhino.Token_NAME
+			_, isName := target.Object().AsName()
+			return isName
 		}
 		return false
 	default:
@@ -419,7 +422,8 @@ func (b *rucRemovable) PreventsRemovalOfVariableWithNonLocalValueOrPrototype() b
 			// varName.propertyName or varName.prototype.propertyName
 			getPropLhs := getProp.Object()
 			_, isNameDotPrototype := removeUnusedCode_nameDotPrototype(getPropLhs.Node())
-			return getPropLhs.Token() == rhino.Token_NAME || isNameDotPrototype
+			_, isName := getPropLhs.AsName()
+			return isName || isNameDotPrototype
 		}
 		return false
 	default:
@@ -465,7 +469,8 @@ func (b *rucRemovable) RemoveInternal(r *RemoveUnusedCode) {
 			return
 		}
 		arg := ast.MustIncDec(b.targetNode).Target()
-		jutil.CheckStateMsg1(arg.Token() == rhino.Token_GETPROP, "%s", arg.Node())
+		_, isGetProp := arg.AsGetProp()
+		jutil.CheckStateMsg1(isGetProp, "%s", arg.Node())
 		if preserved := b.incDecPreserved(); preserved.IsNil() {
 			r.RemoveExpressionCompletely(b.targetNode)
 		} else {
@@ -523,11 +528,11 @@ func (b *rucRemovable) RemoveInternal(r *RemoveUnusedCode) {
 	case remKindClassSetupCall:
 		parent := b.targetNode.GetParent()
 		classDefiningCall := b.isClassDefiningCall()
+		call := ast.MustNormalOrOptChainCall(b.targetNode)
 
 		var replacement rhino.Node
-		b.targetNode.RemoveFirstChild()
-		for arg := b.targetNode.GetLastChild(); !arg.IsNil(); arg = b.targetNode.GetLastChild() {
-			arg.Detach()
+		for lastArg, ok := call.LastArg(); ok; lastArg, ok = call.LastArg() {
+			arg := lastArg.Detach().Node()
 			if !classDefiningCall && r.MayHaveSideEffects(arg) {
 				if replacement.IsNil() {
 					replacement = arg
@@ -538,13 +543,14 @@ func (b *rucRemovable) RemoveInternal(r *RemoveUnusedCode) {
 				NodeUtil_MarkFunctionsDeleted(arg, compiler)
 			}
 		}
+		call.Callee().Detach()
 
 		if !replacement.IsNil() {
 			r.ReplaceNodeWith(b.targetNode, replacement)
-		} else if parent.IsExprResult() {
+		} else if _, isExprStmt := ast.AsExprStmt(parent); isExprStmt {
 			NodeUtil_DeleteNode(parent, compiler)
-		} else if parent.IsComma() || parent.IsAnd() || parent.IsOr() {
-			bin := ast.MustBinary(parent)
+		} else if bin, isBin := ast.AsBinary(parent); isBin &&
+			(bin.Token() == rhino.Token_COMMA || bin.Token() == rhino.Token_AND || bin.Token() == rhino.Token_OR) {
 			var keep rhino.Node
 			if bin.Left().Is(b.targetNode) {
 				keep = bin.Right().Detach().Node()
@@ -558,9 +564,10 @@ func (b *rucRemovable) RemoveInternal(r *RemoveUnusedCode) {
 			b.targetNode.ReplaceWith(rhino.IR_Number(0))
 		}
 	case remKindVanillaForNameDecl:
-		declaration := rhino.CheckNotNull(b.targetNode.GetParent())
+		decl := ast.MustNameDeclaration(rhino.CheckNotNull(b.targetNode.GetParent()))
+		declaration := decl.Node()
 		compiler.ReportChangeToEnclosingScope(declaration)
-		if b.targetNode.GetPrevious().IsNil() && b.targetNode.GetNext().IsNil() {
+		if _, isOnly := decl.OnlyDeclarator(); isOnly {
 			declaration.ReplaceWith(rhino.IR_Empty().Srcref(declaration))
 		} else {
 			b.targetNode.Detach()
@@ -576,8 +583,13 @@ func (b *rucRemovable) removeIndirectAssignRoot(r *RemoveUnusedCode) {
 	switch rootParent.GetToken() {
 	case rhino.Token_ARRAY_PATTERN:
 		r.ReplaceNodeWith(root, rhino.IR_Empty().Srcref(root))
-		for maybeEmpty := rootParent.GetLastChild(); !maybeEmpty.IsNil() && maybeEmpty.IsEmpty(); maybeEmpty = rootParent.GetLastChild() {
-			maybeEmpty.Detach()
+		arrPat := ast.MustArrayPattern(rootParent)
+		for lastElem, ok := arrPat.LastElement(); ok; lastElem, ok = arrPat.LastElement() {
+			emptyElem, isEmpty := lastElem.AsEmpty()
+			if !isEmpty {
+				break
+			}
+			emptyElem.Detach()
 		}
 		r.compiler.ReportChangeToEnclosingScope(rootParent)
 	case rhino.Token_PARAM_LIST:
@@ -654,7 +666,8 @@ func (r *RemoveUnusedCode) newUnusedReadRefRemovable(referenceNode rhino.Node, f
 }
 
 func (r *RemoveUnusedCode) newInstanceofNameRemovable(instanceofNode rhino.Node) *rucRemovable {
-	jutil.CheckArgumentMsg1(instanceofNode.IsInstanceOf(), "%s", instanceofNode)
+	_, isInstanceOf := ast.AsBinaryOf(instanceofNode, rhino.Token_INSTANCEOF)
+	jutil.CheckArgumentMsg1(isInstanceOf, "%s", instanceofNode)
 	i := r.removables.Alloc()
 	i.remKind = remKindInstanceofName
 	i.targetNode = instanceofNode
@@ -662,7 +675,8 @@ func (r *RemoveUnusedCode) newInstanceofNameRemovable(instanceofNode rhino.Node)
 }
 
 func (r *RemoveUnusedCode) newWeakUsageCallRemovable(weakCallNode rhino.Node) *rucRemovable {
-	jutil.CheckArgumentMsg1(weakCallNode.IsCall(), "%s", weakCallNode)
+	_, isCall := ast.AsCall(weakCallNode)
+	jutil.CheckArgumentMsg1(isCall, "%s", weakCallNode)
 	w := r.removables.Alloc()
 	w.remKind = remKindWeakUsageCall
 	w.targetNode = weakCallNode
@@ -685,13 +699,17 @@ func (r *RemoveUnusedCode) newIncOrDecOpRemovable(incOrDecNode, propNode, toPres
 
 func (r *RemoveUnusedCode) newIndirectAssignRemovable(root, targetNode rhino.Node, scope *Scope) *rucRemovable {
 	rootParent := root.GetParent()
-	jutil.CheckStateMsg1(rootParent.IsDestructuringPattern() || rootParent.IsParamList(), "%s", rootParent)
-	jutil.CheckStateMsg1(targetNode.IsName() || targetNode.IsGetProp(), "%s", targetNode)
+	_, isPat := ast.AsPattern(rootParent)
+	_, isParams := ast.AsParamList(rootParent)
+	jutil.CheckStateMsg1(isPat || isParams, "%s", rootParent)
+	_, isName := ast.AsName(targetNode)
+	_, isGetProp := ast.AsGetProp(targetNode)
+	jutil.CheckStateMsg1(isName || isGetProp, "%s", targetNode)
 	a := r.removables.Alloc()
 	a.remKind = remKindIndirectAssign
 	a.targetNode = targetNode
 	a.setIndirectAssignRoot(root)
-	if targetNode.IsGetProp() {
+	if isGetProp {
 		a.propertyNameID = targetNode.GetStringID()
 		if RemoveUnusedCode_IsThisDotProperty(targetNode) {
 			a.flags = remFlagThisDotPropRef
@@ -730,11 +748,14 @@ func (r *RemoveUnusedCode) newNamedClassExprRemovable(classNode rhino.Node) *ruc
 }
 
 func (r *RemoveUnusedCode) newClassOrProtoPropRemovable(propertyNode rhino.Node) *rucRemovable {
+	_, isMemberFn := ast.AsMemberFunctionDef(propertyNode)
+	_, isMemberField := ast.AsMemberFieldDef(propertyNode)
+	sk, isStringKey := ast.AsStringKey(propertyNode)
 	jutil.CheckArgumentMsg1(
-		propertyNode.IsMemberFunctionDef() ||
-			propertyNode.IsMemberFieldDef() ||
+		isMemberFn ||
+			isMemberField ||
 			NodeUtil_IsGetOrSetKey(propertyNode) ||
-			(propertyNode.IsStringKey() && !propertyNode.IsQuotedStringKey()),
+			(isStringKey && !sk.IsQuoted()),
 		"%s", propertyNode)
 	p := r.removables.Alloc()
 	p.remKind = remKindClassOrProtoProp
@@ -760,7 +781,8 @@ func (r *RemoveUnusedCode) newFunctionDeclRemovable(functionNode rhino.Node, sco
 }
 
 func (r *RemoveUnusedCode) newNameDeclStmtRemovable(declarationStatement rhino.Node, hasInit bool) *rucRemovable {
-	jutil.CheckArgumentMsg1(NodeUtil_IsNameDeclaration(declarationStatement), "%s", declarationStatement)
+	_, isNameDecl := ast.AsNameDeclaration(declarationStatement)
+	jutil.CheckArgumentMsg1(isNameDecl, "%s", declarationStatement)
 	s := r.removables.Alloc()
 	s.remKind = remKindNameDeclStmt
 	s.targetNode = declarationStatement
@@ -781,7 +803,8 @@ func (r *RemoveUnusedCode) newVanillaForNameDeclRemovable(nameNode rhino.Node, h
 }
 
 func (r *RemoveUnusedCode) newVarAssignRemovable(assignNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *rucRemovable {
-	jutil.CheckArgumentMsg1(NodeUtil_IsAssignmentOp(assignNode), "%s", assignNode)
+	_, isAssignment := ast.AsAssignment(assignNode)
+	jutil.CheckArgumentMsg1(isAssignment, "%s", assignNode)
 	jutil.CheckArgumentMsg(varInfo != nil, "missing VarInfo for variable assignment")
 	a := r.removables.Alloc()
 	a.remKind = remKindAssignVar
@@ -791,8 +814,10 @@ func (r *RemoveUnusedCode) newVarAssignRemovable(assignNode rhino.Node, varInfo 
 }
 
 func (r *RemoveUnusedCode) newNamedPropAssignRemovable(assignNode, propNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo, flags uint8) *rucRemovable {
-	jutil.CheckArgumentMsg1(NodeUtil_IsAssignmentOp(assignNode), "%s", assignNode)
-	jutil.CheckArgumentMsg1(propNode.IsGetProp(), "property name is not a GETPROP: %s", propNode)
+	_, isAssignment := ast.AsAssignment(assignNode)
+	jutil.CheckArgumentMsg1(isAssignment, "%s", assignNode)
+	_, isGetProp := ast.AsGetProp(propNode)
+	jutil.CheckArgumentMsg1(isGetProp, "property name is not a GETPROP: %s", propNode)
 	a := r.removables.Alloc()
 	a.remKind = remKindAssignNamedProp
 	a.targetNode = assignNode
@@ -803,7 +828,8 @@ func (r *RemoveUnusedCode) newNamedPropAssignRemovable(assignNode, propNode rhin
 }
 
 func (r *RemoveUnusedCode) newComputedPropAssignRemovable(assignNode, propNode rhino.Node, varInfo *RemoveUnusedCode_RealVarInfo) *rucRemovable {
-	jutil.CheckArgumentMsg1(NodeUtil_IsAssignmentOp(assignNode), "%s", assignNode)
+	_, isAssignment := ast.AsAssignment(assignNode)
+	jutil.CheckArgumentMsg1(isAssignment, "%s", assignNode)
 	jutil.CheckArgumentMsg(!propNode.IsNil(), "missing property node")
 	a := r.removables.Alloc()
 	a.remKind = remKindAssignComputedProp
@@ -813,7 +839,8 @@ func (r *RemoveUnusedCode) newComputedPropAssignRemovable(assignNode, propNode r
 }
 
 func (r *RemoveUnusedCode) newAnonProtoPropAssignRemovable(assignNode, propNode rhino.Node) *rucRemovable {
-	jutil.CheckArgumentMsg1(assignNode.IsAssign(), "%s", assignNode)
+	_, isAssign := ast.AsAssign(assignNode)
+	jutil.CheckArgumentMsg1(isAssign, "%s", assignNode)
 	a := r.removables.Alloc()
 	a.remKind = remKindAnonProtoPropAssign
 	a.targetNode = assignNode
@@ -846,7 +873,11 @@ func (r *RemoveUnusedCode) traverseRemovableAssignValue(rem *rucRemovable, value
 // Java: RemoveUnusedCode.isThisDotProperty(Node)
 func RemoveUnusedCode_IsThisDotProperty(n rhino.Node) bool {
 	access, ok := ast.AsNormalOrOptChainGetProp(n)
-	return ok && access.Object().Token() == rhino.Token_THIS
+	if !ok {
+		return false
+	}
+	_, isThis := access.Object().AsThis()
+	return isThis
 }
 
 // RemoveUnusedCode_IsDotPrototypeDotProperty: true for
@@ -894,7 +925,7 @@ func (r *RemoveUnusedCode) MayHaveSideEffects(node rhino.Node) bool {
 // Java: RemoveUnusedCode.alreadyRemoved(Node)
 func RemoveUnusedCode_AlreadyRemoved(n rhino.Node) bool {
 	for parent := n.GetParent(); !parent.IsNil(); parent = parent.GetParent() {
-		if parent.IsRoot() {
+		if _, isRoot := ast.AsRoot(parent); isRoot {
 			return false
 		}
 	}

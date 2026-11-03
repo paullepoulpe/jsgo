@@ -577,10 +577,10 @@ func (c *CheckArrayWithGoogObject) googObjectArrayCallName(n rhino.Node) (string
 		return "", false
 	}
 	callee := call.Callee().Node()
-	if !callee.IsQualifiedName() {
+	name, ok := callee.QualifiedName()
+	if !ok {
 		return "", false
 	}
-	name := *callee.GetQualifiedName()
 	if !checkArrayWithGoogObject_isGoogObjectMethod(name) {
 		return "", false
 	}
