@@ -477,25 +477,15 @@ func (n Node) originalOrCurrentName() string {
 	return n.GetString()
 }
 
-// GetOriginalQualifiedName takes a set of GETPROP nodes and produces a
+// OriginalQualifiedName takes a set of GETPROP nodes and produces a
 // string that is each property separated by dots. If the node ultimately
 // under the left sub-tree is not a simple name, this is not a valid
-// qualified name. This method returns the original name of each segment
-// rather than the renamed version.
+// qualified name (ok is false). This method returns the original name of
+// each segment rather than the renamed version.
 //
 // Deprecated: "original name" is poorly defined. See #getOriginalName
 //
 // Java: Node.getOriginalQualifiedName()
-func (n Node) GetOriginalQualifiedName() *string {
-	s, ok := n.originalQualifiedName()
-	if !ok {
-		return nil
-	}
-	return &s
-}
-
-// OriginalQualifiedName is the body of GetOriginalQualifiedName; ok is false
-// where Java returns null.
 func (n Node) OriginalQualifiedName() (string, bool) {
 	if n.IsNil() {
 		return "", false

@@ -47,12 +47,16 @@ func matcherVectorUnescape(s string) string {
 	return StringFromUTF16(units)
 }
 
-func matcherVectorEscape(s *string) string {
-	if s == nil {
+func matcherVectorEscapeOpt(s string, ok bool) string {
+	if !ok {
 		return "<null>"
 	}
+	return matcherVectorEscape(s)
+}
+
+func matcherVectorEscape(s string) string {
 	var sb strings.Builder
-	for _, c := range StringToUTF16(*s) {
+	for _, c := range StringToUTF16(s) {
 		switch {
 		case c == '\\':
 			sb.WriteString(`\\`)
@@ -95,7 +99,8 @@ func TestMatcherMatchesJava(t *testing.T) {
 				for m.Find() {
 					fmt.Fprintf(&sb, "%d,%d", m.Start(), m.End())
 					for g := 1; g <= m.groupCount(); g++ {
-						fmt.Fprintf(&sb, ",%s@%d-%d", matcherVectorEscape(m.Group(g)), m.startGroup(g), m.endGroup(g))
+						grp, ok := m.Group(g)
+						fmt.Fprintf(&sb, ",%s@%d-%d", matcherVectorEscapeOpt(grp, ok), m.startGroup(g), m.endGroup(g))
 					}
 					sb.WriteByte(';')
 				}
@@ -134,9 +139,8 @@ func TestMatcherMatchesJava(t *testing.T) {
 		case "replace":
 			repl := matcherVectorUnescape(cols[3])
 			result := func(f func() string) (s string) {
-				Try(func() { r := f(); s = matcherVectorEscape(&r) }, func(e IRuntimeException) {
-					msg := e.Error()
-					s = "!" + matcherVectorEscape(&msg)
+				Try(func() { s = matcherVectorEscape(f()) }, func(e IRuntimeException) {
+					s = "!" + matcherVectorEscape(e.Error())
 				})
 				return s
 			}

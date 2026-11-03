@@ -540,12 +540,16 @@ func (b *SuggestedFix_Builder) ReplaceTypePattern(n rhino.Node, type_ string, pa
 	if originalComment, ok := info.GetOriginalCommentStringValue(); ok {
 		m := pattern.Matcher(originalComment)
 		for m.Find() {
+			tag, ok := m.Group(1)
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
 			b.replacements.Put(
 				requireSourceFileName(n),
 				CodeReplacement_Create(
 					originalPosition+m.Start(),
 					m.End()-m.Start(),
-					"@"+*m.Group(1)+" {"+type_+"}"))
+					"@"+tag+" {"+type_+"}"))
 		}
 	}
 }

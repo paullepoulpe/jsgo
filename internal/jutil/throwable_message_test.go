@@ -8,7 +8,7 @@ import (
 
 // TestThrowableMessageMatchesJava replays testdata/throwable_message.tsv
 // (tools/oracle/java/JutilThrowableVectors.java): getMessage() (or null) and
-// toString() of the exceptions GetMessageOrNull and InterruptedException
+// toString() of the exceptions ThrowableMessage and InterruptedException
 // model.
 func TestThrowableMessageMatchesJava(t *testing.T) {
 	data, err := os.ReadFile("testdata/throwable_message.tsv")
@@ -33,8 +33,8 @@ func TestThrowableMessageMatchesJava(t *testing.T) {
 		}
 		n++
 		got := "<null>"
-		if m := GetMessageOrNull(e); m != nil {
-			got = "=" + *m
+		if m, hasMsg := ThrowableMessage(e); hasMsg {
+			got = "=" + m
 		}
 		if got != f[1] {
 			t.Errorf("%s: getMessage() = %q, Java %q", f[0], got, f[1])

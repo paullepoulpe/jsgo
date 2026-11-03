@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -85,19 +86,19 @@ func TestOriginalNameKeptAcrossRenaming(t *testing.T) {
 func TestTemplateLitCookedString(t *testing.T) {
 	prev := SetCurrentNodeStore(NewNodeStore())
 	defer SetCurrentNodeStore(prev)
-	same := newNode_TemplateLiteralSubstringNode(jutil.StringPtr("abc"), "abc")
-	escaped := newNode_TemplateLiteralSubstringNode(jutil.StringPtr("\n"), `\n`)
-	invalid := newNode_TemplateLiteralSubstringNode(nil, `\u{`)
+	same := newNode_TemplateLiteralSubstringNode(base.SomeString("abc"), "abc")
+	escaped := newNode_TemplateLiteralSubstringNode(base.SomeString("\n"), `\n`)
+	invalid := newNode_TemplateLiteralSubstringNode(base.NoString(), `\u{`)
 	if same.hasAux() {
 		t.Error("a cooked string equal to the raw one takes an ext box")
 	}
-	if *same.GetCookedString() != "abc" || same.GetRawString() != "abc" {
+	if s, ok := same.CookedString(); !ok || s != "abc" || same.GetRawString() != "abc" {
 		t.Error("cooked == raw read back wrong")
 	}
-	if *escaped.GetCookedString() != "\n" || escaped.GetRawString() != `\n` {
+	if s, ok := escaped.CookedString(); !ok || s != "\n" || escaped.GetRawString() != `\n` {
 		t.Error("escaped cooked string read back wrong")
 	}
-	if invalid.GetCookedString() != nil || invalid.GetCookedStringID() != 0 || invalid.GetRawString() != `\u{` {
+	if _, ok := invalid.CookedString(); ok || invalid.GetCookedStringID() != 0 || invalid.GetRawString() != `\u{` {
 		t.Error("missing cooked string read back wrong")
 	}
 	for _, n := range []Node{same, escaped, invalid} {
@@ -105,7 +106,7 @@ func TestTemplateLitCookedString(t *testing.T) {
 			t.Errorf("clone of %q differs", n.GetRawString())
 		}
 	}
-	if newNode_TemplateLiteralSubstringNode(jutil.StringPtr("x"), `\x78`).IsEquivalentTo(newNode_TemplateLiteralSubstringNode(jutil.StringPtr(`\x78`), `\x78`)) {
+	if newNode_TemplateLiteralSubstringNode(base.SomeString("x"), `\x78`).IsEquivalentTo(newNode_TemplateLiteralSubstringNode(base.SomeString(`\x78`), `\x78`)) {
 		t.Error("template strings with different cooked strings are equivalent")
 	}
 }

@@ -75,7 +75,7 @@ func TestJSDocInfo_SetType(t *testing.T) {
 	info := builder.Build()
 
 	s.AssertThat(info.GetBaseType()).IsNull()
-	s.AssertThat(info.GetDescription()).IsNull()
+	s.AssertThat(optStr(info.Description())).IsNull()
 	s.AssertThat(info.GetEnumParameterType()).IsNull()
 	s.AssertThat(info.GetParameterCount()).IsEqualTo(0)
 	s.AssertThat(info.GetReturnType()).IsNull()
@@ -94,7 +94,7 @@ func TestJSDocInfo_SetTypeAndVisibility(t *testing.T) {
 	info := builder.Build()
 
 	s.AssertThat(info.GetBaseType()).IsNull()
-	s.AssertThat(info.GetDescription()).IsNull()
+	s.AssertThat(optStr(info.Description())).IsNull()
 	s.AssertThat(info.GetEnumParameterType()).IsNull()
 	s.AssertThat(info.GetParameterCount()).IsEqualTo(0)
 	s.AssertThat(info.GetReturnType()).IsNull()
@@ -112,7 +112,7 @@ func TestJSDocInfo_SetReturnType(t *testing.T) {
 	info := builder.Build()
 
 	s.AssertThat(info.GetBaseType()).IsNull()
-	s.AssertThat(info.GetDescription()).IsNull()
+	s.AssertThat(optStr(info.Description())).IsNull()
 	s.AssertThat(info.GetEnumParameterType()).IsNull()
 	s.AssertThat(info.GetParameterCount()).IsEqualTo(0)
 	s.AssertType(s.resolve(info.GetReturnType())).IsEqualTo(s.getNativeType(JSTypeNative_STRING_TYPE))
@@ -132,7 +132,7 @@ func TestJSDocInfo_SetReturnTypeAndBaseType(t *testing.T) {
 	info := builder.Build()
 
 	s.AssertType(s.resolve(info.GetBaseType())).IsEqualTo(s.getNativeType(JSTypeNative_NUMBER_OBJECT_TYPE))
-	s.AssertThat(info.GetDescription()).IsNull()
+	s.AssertThat(optStr(info.Description())).IsNull()
 	s.AssertThat(info.GetEnumParameterType()).IsNull()
 	s.AssertThat(info.GetParameterCount()).IsEqualTo(0)
 	s.AssertType(s.resolve(info.GetReturnType())).IsEqualTo(s.getNativeType(JSTypeNative_STRING_TYPE))
@@ -150,7 +150,7 @@ func TestJSDocInfo_SetEnumParameterType(t *testing.T) {
 	info := builder.Build()
 
 	s.AssertThat(info.GetBaseType()).IsNull()
-	s.AssertThat(info.GetDescription()).IsNull()
+	s.AssertThat(optStr(info.Description())).IsNull()
 	s.AssertType(s.resolve(info.GetEnumParameterType())).IsEqualTo(s.getNativeType(JSTypeNative_STRING_TYPE))
 	s.AssertThat(info.GetParameterCount()).IsEqualTo(0)
 	s.AssertThat(info.GetReturnType()).IsNull()
@@ -240,7 +240,7 @@ func TestJSDocInfo_Clone(t *testing.T) {
 	cloned := info.Clone()
 
 	s.AssertType(s.resolve(cloned.GetBaseType())).IsEqualTo(s.getNativeType(JSTypeNative_NUMBER_OBJECT_TYPE))
-	s.AssertThat(cloned.GetDescription()).IsEqualTo("The source info")
+	s.AssertThat(optStr(cloned.Description())).IsEqualTo("The source info")
 	s.AssertType(s.resolve(cloned.GetReturnType())).IsEqualTo(s.getNativeType(JSTypeNative_STRING_TYPE))
 	s.AssertThat(cloned.IsConstant()).IsTrue()
 	s.AssertThat(cloned.IsConstructor()).IsTrue()
@@ -281,7 +281,7 @@ func TestJSDocInfo_CloneTypeExpressions1(t *testing.T) {
 
 	s.AssertThat(cloned.GetBaseType().GetRoot()).IsNotSameInstanceAs(info.GetBaseType().GetRoot())
 	s.AssertType(s.resolve(cloned.GetBaseType())).IsEqualTo(s.getNativeType(JSTypeNative_NUMBER_OBJECT_TYPE))
-	s.AssertThat(cloned.GetDescription()).IsEqualTo("The source info")
+	s.AssertThat(optStr(cloned.Description())).IsEqualTo("The source info")
 	s.AssertThat(cloned.GetReturnType().GetRoot()).
 		IsNotSameInstanceAs(info.GetReturnType().GetRoot())
 	s.AssertType(s.resolve(cloned.GetReturnType())).IsEqualTo(s.getNativeType(JSTypeNative_STRING_TYPE))

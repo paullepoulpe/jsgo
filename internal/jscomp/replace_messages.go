@@ -894,11 +894,11 @@ func ReplaceMessages_ProtectedJsMessage_FromAstNode(
 			msgKey = value
 			hasMsgKey = true
 		case "meaning":
-			jsMessageBuilder.SetMeaningString(value)
+			jsMessageBuilder.SetMeaning(value)
 			meaning = value
 			hasMeaning = true
 		case "alt_id":
-			jsMessageBuilder.SetAlternateIdString(value)
+			jsMessageBuilder.SetAlternateId(value)
 		case "msg_text":
 			messageText = value
 			hasMessageText = true

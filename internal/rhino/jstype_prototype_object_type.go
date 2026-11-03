@@ -38,6 +38,7 @@ package rhino
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -172,8 +173,14 @@ func NewPrototypeObjectType_Builder(registry *JSTypeRegistry) *PrototypeObjectTy
 }
 
 // Java: PrototypeObjectType.Builder.setName(String)
-func (b *PrototypeObjectType_Builder) SetName(x *string) *PrototypeObjectType_Builder {
-	b.classNameID = rhinoStringIDFromPtr(x)
+func (b *PrototypeObjectType_Builder) SetName(x string) *PrototypeObjectType_Builder {
+	b.classNameID = rhinoStringPoolIntern(x)
+	return b
+}
+
+// SetNameOpt sets or clears the prototype object type name from an OptString.
+func (b *PrototypeObjectType_Builder) SetNameOpt(x base.OptString) *PrototypeObjectType_Builder {
+	b.classNameID = rhinoStringIDFromOpt(x)
 	return b
 }
 

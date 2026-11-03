@@ -794,16 +794,16 @@ func (m *Matcher) endGroup(group int) int {
 	return StringLength(m.input[:m.groups[2*group+1]])
 }
 
-// Group is Matcher.group(int): nil when the group did not take part in the
-// match.
-func (m *Matcher) Group(group int) *string {
+// Group returns the input subsequence captured by the given group during the
+// previous match operation and true, or ("", false) when the group did not
+// take part in the match (as in Matcher.group(int)).
+func (m *Matcher) Group(group int) (string, bool) {
 	m.requireMatch()
 	m.requireGroupIndex(group)
 	if m.groups[2*group] < 0 {
-		return nil
+		return "", false
 	}
-	s := m.input[m.groups[2*group]:m.groups[2*group+1]]
-	return &s
+	return m.input[m.groups[2*group]:m.groups[2*group+1]], true
 }
 
 func (m *Matcher) appendReplacement(sb *strings.Builder, appendPos int, replacement string) {

@@ -123,5 +123,5 @@ func TestEnumElementType_EqualityOfEnumTypes_withSameReferenceName(t *testing.T)
 }
 
 func (s *enumElementTypeTest) CreateEnumType(name string, elementType JSType) *EnumType {
-	return EnumType_Builder_(s.Registry).SetName(ptr(name)).SetElementType(elementType).Build()
+	return EnumType_Builder_(s.Registry).SetName(name).SetElementType(elementType).Build()
 }

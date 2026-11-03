@@ -264,8 +264,8 @@ func hasJ2clMethodName(fnName rhino.Node, className string, methodName string) b
 	}
 	// NOTE: This should be rewritten to use method name + file name of definition site
 	// like other J2CL passes, which is more precise.
-	originalQname := fnName.GetOriginalQualifiedName()
-	return originalQname != nil &&
-		strings.HasSuffix(*originalQname, methodName) &&
-		strings.Contains(*originalQname, className)
+	originalQname, ok := fnName.OriginalQualifiedName()
+	return ok &&
+		strings.HasSuffix(originalQname, methodName) &&
+		strings.Contains(originalQname, className)
 }

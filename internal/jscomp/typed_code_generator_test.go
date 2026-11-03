@@ -27,7 +27,7 @@ func TestTypedCodeGenerator_FindMethodOwnerGuards(t *testing.T) {
 	func() {
 		closer := registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
-		ctor = registry.CreateConstructorType(&fooName, rhino.NewNode(rhino.Token_FUNCTION), registry.CreateParameters(), nil, nil, false)
+		ctor = registry.CreateConstructorType(fooName, rhino.NewNode(rhino.Token_FUNCTION), registry.CreateParameters(), nil, nil, false)
 	}()
 	registry.DeclareType(nil, fooName, ctor.GetInstanceType())
 	ctorRoot := compiler.ParseTestCode("FooCtor.prototype.m = function() {};")
@@ -50,7 +50,7 @@ func TestTypedCodeGenerator_FindMethodOwnerGuards(t *testing.T) {
 	func() {
 		closer := registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
-		clsCtor = registry.CreateConstructorType(&clsCtorName, clsNode, registry.CreateParameters(), nil, nil, false)
+		clsCtor = registry.CreateConstructorType(clsCtorName, clsNode, registry.CreateParameters(), nil, nil, false)
 	}()
 	clsNode.SetJSType(clsCtor)
 	if got := gen.FindMethodOwner(clsBody); got != clsCtor.GetInstanceType() {

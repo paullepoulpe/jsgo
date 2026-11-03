@@ -25,6 +25,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -62,13 +63,13 @@ func TestReplaceMessagesTest(t *testing.T) {
 type replaceMessagesTest_testIdGenerator struct{}
 
 // Java: ReplaceMessagesTest.TEST_ID_GENERATOR.generateId(String, List<Part>)
-func (replaceMessagesTest_testIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
+func (g replaceMessagesTest_testIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
+	return g.GenerateIdOpt(base.OptStringFromPtr(meaning), messageParts)
+}
+
+func (replaceMessagesTest_testIdGenerator) GenerateIdOpt(meaning base.OptString, messageParts []JsMessage_Part) string {
 	var idBuilder strings.Builder
-	if meaning == nil {
-		idBuilder.WriteString("null")
-	} else {
-		idBuilder.WriteString(*meaning)
-	}
+	idBuilder.WriteString(meaning.String())
 	idBuilder.WriteByte('_')
 	for _, messagePart := range messageParts {
 		if messagePart.IsPlaceholder() {
@@ -341,14 +342,14 @@ func (c *ReplaceMessagesTest) TestReplaceIcuTemplateMessageWithBundleAndJsPlaceh
 	originalStringPart := JsMessage_StringPart_Create("Email: ")
 	originalPlaceholerPart := JsMessage_PlaceholderReference_CreateForCanonicalName("EMAIL")
 	expectedMessageId :=
-		ReplaceMessagesTest_TEST_ID_GENERATOR.GenerateId(
-			&meaning, []JsMessage_Part{originalStringPart, originalPlaceholerPart})
+		(replaceMessagesTest_testIdGenerator{}).GenerateIdOpt(
+			base.SomeString(meaning), []JsMessage_Part{originalStringPart, originalPlaceholerPart})
 
 	// Create and register the translation we expect to find in the message bundle
 	showEmailTranslatedMsg :=
 		NewJsMessage_Builder().
 			SetKey(meaning).
-			SetMeaning(&meaning).
+			SetMeaning(meaning).
 			AppendStringPart("Retpoŝtadreso: "). // translated string.
 			AppendPart(originalPlaceholerPart).  // placeholder is the same as original.
 			SetId(expectedMessageId).            // message ID was calculated from the original.
@@ -594,8 +595,8 @@ var MSG_A='asdf'
 func (c *ReplaceMessagesTest) TestAlternateMessageWithMismatchedParts() {
 	c.RegisterMessage(
 		c.GetTestMessageBuilder("1984").
-			SetDesc(jutil.StringPtr("B desc")).
-			SetMeaning(jutil.StringPtr("B meaning")).
+			SetDescString("B desc").
+			SetMeaning("B meaning").
 			AppendStringPart("Hello!").
 			AppendStringPart(" Welcome!").
 			Build())
@@ -690,8 +691,8 @@ func (c *ReplaceMessagesTest) GetTestMessageBuilder(keyAndId string) *JsMessage_
 func (c *ReplaceMessagesTest) TestAlternateMessageWithMismatchedPlaceholders() {
 	c.RegisterMessage(
 		c.GetTestMessageBuilder("1984").
-			SetDesc(jutil.StringPtr("B desc")).
-			SetMeaning(jutil.StringPtr("B meaning")).
+			SetDescString("B desc").
+			SetMeaning("B meaning").
 			AppendStringPart("Hello, ").
 			AppendJsPlaceholderReference("firstName").
 			AppendStringPart("!").
@@ -759,8 +760,8 @@ func (c *ReplaceMessagesTest) TestIgnoreUnnecessaryAlternateMessage() {
 	c.RegisterMessage(c.GetTestMessageBuilder("1984").AppendStringPart("Howdy\npardner").Build())
 	c.RegisterMessage(
 		c.GetTestMessageBuilder("MSG_A").
-			SetDesc(jutil.StringPtr("Greeting.")).
-			SetAlternateId(jutil.StringPtr("1984")).
+			SetDescString("Greeting.").
+			SetAlternateId("1984").
 			AppendStringPart("Hi\nthere").
 			Build())
 

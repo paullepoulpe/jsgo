@@ -385,10 +385,10 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 			if !ok {
 				panic(jutil.NewNullPointerException())
 			}
-			googModuleIdOfLeft := EqualityChecker_GetGoogModuleId(leftUnwrapped)
-			googModuleIdOfRight := EqualityChecker_GetGoogModuleId(rightUnwrapped)
+			googModuleIdOfLeft, hasLeftMod := EqualityChecker_GoogModuleId(leftUnwrapped)
+			googModuleIdOfRight, hasRightMod := EqualityChecker_GoogModuleId(rightUnwrapped)
 			return nameOfleft == nameOfright &&
-				jsTypeNullableStringEquals(googModuleIdOfLeft, googModuleIdOfRight)
+				hasLeftMod == hasRightMod && googModuleIdOfLeft == googModuleIdOfRight
 		}
 	}
 
@@ -418,14 +418,6 @@ func (c *EqualityChecker) AreEqualInternal(left JSType, right JSType) bool {
 	// to verify members. If the object pointers are not identical, then the
 	// type member must be different.
 	return false
-}
-
-// jsTypeNullableStringEquals is Objects.equals on two nullable Strings.
-func jsTypeNullableStringEquals(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
-	}
-	return *a == *b
 }
 
 // AreUnionEqual: two union types are equal if, after flattening nested
@@ -467,14 +459,14 @@ outer:
 }
 
 // Java: EqualityChecker.getGoogModuleId(ObjectType)
-func EqualityChecker_GetGoogModuleId(type_ ObjectType) *string {
+func EqualityChecker_GoogModuleId(type_ ObjectType) (string, bool) {
 	if functionType, ok := type_.(FunctionType); ok {
-		return functionType.GetGoogModuleId()
+		return functionType.GoogModuleId()
 	}
 	if type_.GetConstructor() != nil {
-		return type_.GetConstructor().GetGoogModuleId()
+		return type_.GetConstructor().GoogModuleId()
 	}
-	return nil
+	return "", false
 }
 
 // AreFunctionEqual: two function types are equal if their signatures match.

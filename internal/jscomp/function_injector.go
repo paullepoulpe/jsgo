@@ -81,11 +81,14 @@ func NewFunctionInjector(compiler AbstractCompiler, opts FunctionInjectorOptions
 	compiler = jutil.CheckNotNull(compiler)
 	safeNameIdSupplier := opts.SafeNameIdSupplier
 	if safeNameIdSupplier == nil {
-		safeNameIdSupplier = jutil.CheckNotNull(compiler.GetUniqueNameIdSupplier())
+		safeNameIdSupplier = compiler.GetUniqueNameIdSupplier()
+		if safeNameIdSupplier == nil {
+			panic(jutil.NewNullPointerException())
+		}
 	}
 	argInjector := opts.FunctionArgumentInjector
 	if argInjector == nil {
-		argInjector = NewFunctionArgumentInjector(jutil.CheckNotNull(compiler.GetAstAnalyzer()))
+		argInjector = NewFunctionArgumentInjector(jutil.CheckNotNullPtr(compiler.GetAstAnalyzer()))
 	}
 	f := &FunctionInjector{
 		compiler:                 compiler,
@@ -185,7 +188,12 @@ func (r *FunctionInjector_Reference) closestHoistScopeRoot() rhino.Node {
 	}
 	if r.t != nil {
 		root := r.t.GetClosestHoistScopeRoot()
-		if root.IsNil() || root.IsRoot() || root.IsScript() {
+		if root.IsNil() {
+			return rhino.NilNode
+		}
+		_, isRoot := ast.AsRoot(root)
+		_, isScript := ast.AsScript(root)
+		if isRoot || isScript {
 			return rhino.NilNode
 		}
 		return root
@@ -205,7 +213,7 @@ func (r *FunctionInjector_Reference) lookupScope() *Scope {
 
 // Java: FunctionInjector.Reference.toString()
 func (r *FunctionInjector_Reference) String() string {
-	return "Reference @ " + jutil.ToJavaString(r.callNode)
+	return "Reference @ " + nodeJavaString(r.callNode)
 }
 
 // Inline inlines a function into the call site.
@@ -380,8 +388,18 @@ func (f *FunctionInjector) ClassifyCallSite(ref *FunctionInjector_Reference) Fun
 	return f.classifyCallSite(ref, true)
 }
 
+func isAssignToName(n rhino.Node) bool {
+	assign, ok := ast.AsAssign(n)
+	if !ok {
+		return false
+	}
+	_, isName := assign.Target().AsName()
+	return isName
+}
+
 func classifyWithoutScope(exprRoot, subExpression rhino.Node) (FunctionInjector_CallSiteType, bool) {
-	requiresDecomposition := NodeUtil_IsOptChainNode(subExpression) && !NodeUtil_IsEndOfFullOptChain(subExpression)
+	_, isOptChain := ast.AsOptChain(subExpression)
+	requiresDecomposition := isOptChain && !NodeUtil_IsEndOfFullOptChain(subExpression)
 	child := subExpression
 	for parent := child.GetParent(); !parent.IsNil(); parent = parent.GetParent() {
 		if decl, isDecl := ast.AsNameDeclaration(parent); isDecl && !decl.MustFirstDeclarator().Is(child) {
@@ -396,26 +414,18 @@ func classifyWithoutScope(exprRoot, subExpression rhino.Node) (FunctionInjector_
 			}
 			return FunctionInjector_CallSiteType_EXPRESSION, true
 		}
-		if ExpressionDecomposer_IsConditionalOp(parent) {
-			if child != parent.GetFirstChild() {
+		if condOp, isCond := conditionalUnconditionalOperand(parent); isCond {
+			if !condOp.Is(child) {
 				requiresDecomposition = true
 			}
-		} else if assign, isAssign := ast.AsAssign(parent); isAssign && assign.Target().Token() == rhino.Token_NAME {
+		} else if isAssignToName(parent) {
 		} else {
 			direction := ExpressionDecomposer_GetEvaluationDirection(parent)
-			var first rhino.Node
-			if direction == ExpressionDecomposer_EvaluationDirection_FORWARD {
-				first = parent.GetFirstChild()
-			} else {
-				first = parent.GetLastChild()
-			}
-			if first != child {
+			if (*ExpressionDecomposer)(nil).GetFirstEvaluatedChild(parent, direction) != child {
 				return 0, false
 			}
-			if call, isCall := ast.AsCall(parent); requiresDecomposition && isCall {
-				if _, isGet := call.Callee().AsNormalGet(); isGet {
-					return FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION, true
-				}
+			if _, _, isMethodCall := asMethodCall(parent); requiresDecomposition && isMethodCall {
+				return FunctionInjector_CallSiteType_DECOMPOSABLE_EXPRESSION, true
 			}
 		}
 		child = parent
@@ -472,7 +482,7 @@ func functionInjector_simpleAssignTarget(callNode rhino.Node) (ast.Name, bool) {
 	name, ok := assign.Target().AsName()
 	// TODO(nicksantos): Remove this once everyone is using
 	// the CONSTANT_VAR annotation. We know how to remove that.
-	return name, ok && !NodeUtil_IsConstantName(name.Node())
+	return name, ok && !name.IsConstantName()
 }
 
 // functionInjector_simpleVarDecl returns the name that var x = call()
@@ -483,7 +493,7 @@ func functionInjector_simpleVarDecl(callNode rhino.Node) (ast.Name, bool) {
 	}
 	name := ast.MustName(callNode.GetParent())
 	// TODO(nicksantos): Remove this once everyone is using the CONSTANT_VAR annotation.
-	if NodeUtil_IsConstantName(name.Node()) {
+	if name.IsConstantName() {
 		return ast.Name{}, false
 	}
 	// Note: not let or const. See InlineFunctionsTest.testInlineFunctions35
@@ -576,12 +586,14 @@ func (f *FunctionInjector) inlineFunction(
 	case FunctionInjector_CallSiteType_SIMPLE_ASSIGNMENT:
 		// The assignment is now part of the inline function so
 		// replace it completely.
-		jutil.CheckState(grandParent.IsExprResult())
+		_, isExprStmt := ast.AsExprStmt(grandParent)
+		jutil.CheckState(isExprStmt)
 		grandParent.ReplaceWith(newBlock)
 		NodeUtil_MarkFunctionsDeleted(grandParent, f.compiler)
 	case FunctionInjector_CallSiteType_SIMPLE_CALL:
 		// If nothing is looking at the result just replace the call.
-		jutil.CheckState(parent.IsExprResult())
+		_, isExprStmt := ast.AsExprStmt(parent)
+		jutil.CheckState(isExprStmt)
 		parent.ReplaceWith(newBlock)
 		NodeUtil_MarkFunctionsDeleted(parent, f.compiler)
 	default:

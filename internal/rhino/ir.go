@@ -802,7 +802,7 @@ func IR_TemplateLiteral() Node {
 }
 
 // Java: IR.templateLiteralString(String, String)
-func IR_TemplateLiteralString(cooked *string, raw string) Node {
+func IR_TemplateLiteralString(cooked base.OptString, raw string) Node {
 	return Node_NewTemplateLitString(cooked, raw)
 }
 

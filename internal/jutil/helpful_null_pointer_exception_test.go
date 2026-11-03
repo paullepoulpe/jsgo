@@ -5,8 +5,8 @@ import "testing"
 func TestHelpfulNullPointerException(t *testing.T) {
 	const detail = `Cannot invoke "Object.toString()" because "value" is null`
 	e := NewHelpfulNullPointerException(detail)
-	if got := GetMessageOrNull(e); got == nil || *got != detail {
-		t.Errorf("message %v, want %q (on by default, as on JDK 21)", got, detail)
+	if got, ok := ThrowableMessage(e); !ok || got != detail {
+		t.Errorf("message (%q, %v), want (%q, true) (on by default, as on JDK 21)", got, ok, detail)
 	}
 	if got, want := e.Error(), "java.lang.NullPointerException: "+detail; got != want {
 		t.Errorf("toString %q, want %q", got, want)
@@ -17,8 +17,8 @@ func TestHelpfulNullPointerException(t *testing.T) {
 	}
 	defer SetShowCodeDetailsInExceptionMessages(true)
 	e = NewHelpfulNullPointerException(detail)
-	if got := GetMessageOrNull(e); got != nil {
-		t.Errorf("with -XX:-ShowCodeDetailsInExceptionMessages: message %q, want null", *got)
+	if got, ok := ThrowableMessage(e); ok {
+		t.Errorf("with -XX:-ShowCodeDetailsInExceptionMessages: message %q, want null", got)
 	}
 	if got, want := e.Error(), "java.lang.NullPointerException"; got != want {
 		t.Errorf("toString %q, want %q", got, want)

@@ -53,11 +53,11 @@ func textGuard(op func() string) (res string) {
 	return escVector(op())
 }
 
-func javaNull(s *string) string {
-	if s == nil {
+func javaNull(s string, ok bool) string {
+	if !ok {
 		return "null"
 	}
-	return *s
+	return s
 }
 
 func pathOrNull(p *Path) string {
@@ -87,13 +87,13 @@ func TestURITextVectors(t *testing.T) {
 		if got := strconv.FormatBool(u.IsAbsolute()); got != cols[0] {
 			t.Errorf("%v: IsAbsolute = %s, want %s", r, got, cols[0])
 		}
-		if got := strconv.FormatBool(u.path == nil); got != cols[1] {
+		if got := strconv.FormatBool(!u.hasPath); got != cols[1] {
 			t.Errorf("%v: isOpaque = %s, want %s", r, got, cols[1])
 		}
 		if got := escVector(u.String()); got != cols[3] {
 			t.Errorf("%v: String = %s, want %s", r, got, cols[3])
 		}
-		if got := escVector(javaNull(u.path)); got != cols[10] {
+		if got := escVector(javaNull(u.path, u.hasPath)); got != cols[10] {
 			t.Errorf("%v: path = %s, want %s", r, got, cols[10])
 		}
 	}

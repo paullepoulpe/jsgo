@@ -77,20 +77,26 @@ func leftmostQNameID(n rhino.Node) (uint32, bool) {
 	if n.IsNil() {
 		return 0, false
 	}
-	for n.IsGetProp() {
-		n = n.GetFirstChild()
+	for gp, ok := ast.AsGetProp(n); ok; gp, ok = ast.AsGetProp(n) {
+		n = gp.Object().Node()
 	}
-	if n.IsName() {
+	if _, isName := ast.AsName(n); isName {
 		return n.GetStringID(), true
 	}
-	if n.IsThis() || n.IsSuper() || n.IsImportMeta() {
+	_, isThis := ast.AsThis(n)
+	_, isSuper := ast.AsSuper(n)
+	_, isImportMeta := ast.AsImportMeta(n)
+	if isThis || isSuper || isImportMeta {
 		return 0, true
 	}
 	return 0, false
 }
 
 func (a *aggressiveInlineAliases) noteMutatedQName(n rhino.Node) {
-	if len(a.scopeCollectors) == 0 || n.IsNil() || n.IsNull() {
+	if len(a.scopeCollectors) == 0 || n.IsNil() {
+		return
+	}
+	if _, isNull := ast.AsNull(n); isNull {
 		return
 	}
 	id, ok := leftmostQNameID(n)
@@ -266,7 +272,10 @@ func (a *aggressiveInlineAliases) inlineAliasesForName(name *GlobalNamespace_Nam
 //
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.maybeInlineInnerName(Name)
 func (a *aggressiveInlineAliases) maybeInlineInnerName(globalName *GlobalNamespace_Name) {
-	globalNameDeclaration := jutil.CheckNotNullMsg1(globalName.getDeclarationRef(), "%s", globalName)
+	globalNameDeclaration := globalName.getDeclarationRef()
+	if globalNameDeclaration == nil {
+		panic(jutil.NewNullPointerExceptionMsg(globalName.String()))
+	}
 	globalDeclarationNode := rhino.CheckNotNullMsg1(globalNameDeclaration.GetNode(), "%s", globalNameDeclaration)
 	valueNode := NodeUtil_GetRValueOfLValue(globalDeclarationNode)
 	if valueNode.IsNil() {
@@ -278,8 +287,8 @@ func (a *aggressiveInlineAliases) maybeInlineInnerName(globalName *GlobalNamespa
 		// no inner name to require inlining
 		return
 	}
-	innerScope := a.getScopeCreator().CreateScope(valueNode, globalNameDeclaration.scope).(*Scope)
-	innerNameVar := jutil.CheckNotNull(innerScope.GetVarByNode(innerNameNode))
+	innerScope := a.getScopeCreator().CreateScopeOfScope(valueNode, globalNameDeclaration.scope)
+	innerNameVar := jutil.CheckNotNullPtr(innerScope.GetVarByNode(innerNameNode))
 	collector := NewReferenceCollectorWithVarFilter(
 		a.outer.compiler,
 		ReferenceCollector_DO_NOTHING_BEHAVIOR,
@@ -294,7 +303,7 @@ func (a *aggressiveInlineAliases) maybeInlineInnerName(globalName *GlobalNamespa
 	for innerNameRef := range innerNameRefs.All() {
 		// replace all references to the inner name other than its declaration
 		innerNameRefNode := innerNameRef.GetNode()
-		if NodeUtil_IsNormalGet(innerNameRefNode.GetParent()) {
+		if _, isNormalGet := ast.AsNormalGet(innerNameRefNode.GetParent()); isNormalGet {
 			// Replace `innerName` with `globalName` for `innerName.prop` and `innerName[expr]`
 			//
 			// TODO(b/148237949): We are intentionally ignoring cases where the inner name
@@ -360,9 +369,9 @@ func (a *aggressiveInlineAliases) rewriteAllSubclassInheritedAccesses(
 	if subclassPropNameObj != nil {
 		// Use this node as a template for rewriteNestedAliasReference.
 		superclassNameNode := superclassNameObj.getDeclarationRef().GetNode()
-		if superclassNameNode.IsName() {
+		if _, isName := ast.AsName(superclassNameNode); isName {
 			superclassNameNode = superclassNameNode.CloneNode()
-		} else if superclassNameNode.IsGetProp() {
+		} else if _, isGetProp := ast.AsGetProp(superclassNameNode); isGetProp {
 			superclassNameNode = superclassNameNode.CloneTree()
 		} else {
 			return false
@@ -402,9 +411,10 @@ func (a *aggressiveInlineAliases) isInlineableModuleExportsAlias(name *GlobalNam
 	size := len(aliasRefs.references)
 	for i := 0; i < size; i++ {
 		ref := aliasRefs.references[i]
-		if ref.IsVarDeclaration() || ref.GetParent().IsAssign() {
+		assign, isAssign := ast.AsAssign(ref.GetParent())
+		if ref.IsVarDeclaration() || isAssign {
 			var rhs rhino.Node
-			if assign, ok := ast.AsAssign(ref.GetParent()); ok {
+			if isAssign {
 				rhs = assign.Value().Node()
 			} else if nameNode, ok := ast.AsName(ref.GetNode()); ok {
 				if initExpr, ok := nameNode.Init(); ok {
@@ -460,8 +470,9 @@ func (a *aggressiveInlineAliases) inlineAliasIfPossible(name *GlobalNamespace_Na
 	// Otherwise if the parent is an assign, we are in a "a = alias" case.
 	aliasParent := alias.GetNode().GetParent()
 	if lhsNode, ok := aliasLhsNode(aliasParent); ok {
+		lhsIdent := ast.MustName(lhsNode).Ident()
 		aliasVar := alias.scope.GetVarByNode(lhsNode)
-		jutil.CheckStateMsg1(aliasVar != nil, "Expected variable to be defined in scope (%s)", lhsNode.GetString())
+		jutil.CheckStateMsg1(aliasVar != nil, "Expected variable to be defined in scope (%s)", lhsIdent)
 		aliasScope := aliasVar.scope
 		collector, aliasRefs := a.getReferencesInScope(aliasScope, aliasVar)
 
@@ -501,7 +512,7 @@ func (a *aggressiveInlineAliases) inlineAliasIfPossible(name *GlobalNamespace_Na
 				// If we can't inline all alias references, make sure there are no unsafe property
 				// accesses.
 				if InlineAndCollapseProperties_ReferencesCollapsibleProperty(aliasRefs, name) {
-					a.outer.compiler.Report(JSError_MakeWithNode(aliasParent, InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING, lhsNode.GetString()))
+					a.outer.compiler.Report(JSError_MakeWithNode(aliasParent, InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING, lhsIdent))
 				}
 			}
 		}
@@ -602,7 +613,8 @@ func (a *aggressiveInlineAliases) tryReplacingAliasingAssignment(
 	alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode rhino.Node) bool {
 	// either VAR/CONST/LET or ASSIGN.
 	assignment := aliasLhsNode.GetParent()
-	if !NodeUtil_IsNameDeclaration(assignment) && NodeUtil_IsExpressionResultUsed(assignment) {
+	_, isDecl := ast.AsNameDeclaration(assignment)
+	if !isDecl && NodeUtil_IsExpressionResultUsed(assignment) {
 		// e.g. don't change "if (alias = someVariable)" to "if (alias = null)"
 		// TODO(lharker): instead replace the entire assignment with the RHS - "alias = x" becomes
 		// "x"
@@ -635,7 +647,7 @@ func (a *aggressiveInlineAliases) replaceAliasReference(alias *GlobalNamespace_R
 	// If we use cloneTree() for that we'll clone the value, which we don't want.
 	// Otherwise, we do want to clone the tree of GETPROP nodes.
 	var newNode rhino.Node
-	if originalRefNode.IsName() {
+	if _, isName := ast.AsName(originalRefNode); isName {
 		newNode = originalRefNode.CloneNode()
 	} else {
 		newNode = originalRefNode.CloneTree()
@@ -661,18 +673,19 @@ func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamesp
 	// Ensure that the alias is assigned to global name at that the
 	// declaration.
 	aliasParent := alias.GetNode().GetParent()
+	_, isParentName := ast.AsName(aliasParent)
 	if lvalue, ok := aliasLhsNode(aliasParent); ok &&
 		(NodeUtil_IsExecutedExactlyOnce(aliasParent) ||
 			// We special-case for constructors here, to inline constructor aliases
 			// more aggressively in global scope.
 			// We do this because constructor properties are always collapsed,
 			// so we want to inline the aliases also to avoid breakages.
-			(aliasParent.IsName() && name.IsConstructor())) {
+			(isParentName && name.IsConstructor())) {
 		if lvalue.IsNil() || !lvalue.IsQualifiedName() {
 			return
 		}
-		if lvalue.IsName() &&
-			a.outer.compiler.GetCodingConvention().IsExportedWithLocal(lvalue.GetString() /* local= */, false) {
+		if lvalueName, isName := ast.AsName(lvalue); isName &&
+			a.outer.compiler.GetCodingConvention().IsExportedWithLocal(lvalueName.Ident() /* local= */, false) {
 			return
 		}
 		aliasingName, _ := namespace.lookupGlobalNode(lvalue)
@@ -682,7 +695,7 @@ func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamesp
 			return
 		}
 
-		if name == aliasingName && aliasParent.IsAssign() {
+		if _, isAssign := ast.AsAssign(aliasParent); name == aliasingName && isAssign {
 			// Ignore `a.b.c = a.b.c;` with `a.b.c;`.
 			return
 		}
@@ -777,18 +790,21 @@ func (a *aggressiveInlineAliases) rewriteAliasReferences(
 			continue
 		}
 
-		if ref.GetNode().IsStringKey() {
+		refNode := ref.GetNode()
+		if _, isStringKey := ast.AsStringKey(refNode); isStringKey {
 			// e.g. `y` in `const {y} = x;`
 			if ref.scope != nil && ref.scope.IsLocal() {
 				a.invalidateScopeCollectors()
 			}
 			DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
-				ref.GetNode(), aliasingRef.GetNode().CloneTree(), newNodes, ref, a.outer.compiler)
+				refNode, aliasingRef.GetNode().CloneTree(), newNodes, ref, a.outer.compiler)
 		} else {
 			// e.g. `x.y`
-			jutil.CheckState(ref.GetNode().IsGetProp() || ref.GetNode().IsName())
+			_, isGetProp := ast.AsGetProp(refNode)
+			_, isName := ast.AsName(refNode)
+			jutil.CheckState(isGetProp || isName)
 			newNode := aliasingRef.GetNode().CloneTree()
-			node := ref.GetNode()
+			node := refNode
 			a.noteMutatedQName(node)
 			a.noteMutatedQName(newNode)
 			newNode.Srcref(node)
@@ -813,7 +829,7 @@ func (a *aggressiveInlineAliases) rewriteAliasProps(
 	}
 	if name.MatchesNode(value) {
 		panic(jutil.NewIllegalStateExceptionMsg(
-			jutil.LenientFormat("%s should not match name %s", value, name.GetFullName())))
+			nodeJavaString(value) + " should not match name " + name.GetFullName()))
 	}
 	for prop := range name.Props() {
 		a.rewriteNestedAliasReference(value, depth, newNodes, prop)
@@ -844,7 +860,8 @@ func (a *aggressiveInlineAliases) rewriteNestedAliasReference(
 	refs := prop.snapshotRefs(&refsBuf)
 	for _, ref := range refs {
 		target := ref.GetNode()
-		if _, ok := ast.AsStringKey(target); ok && target.GetParent().IsDestructuringPattern() {
+		_, inPattern := ast.AsPattern(target.GetParent())
+		if _, ok := ast.AsStringKey(target); ok && inPattern {
 			// Do nothing for alias properties accessed through object destructuring. This would be
 			// redundant. This method is intended for names nested inside getprop chains, because
 			// GlobalNamespace only creates a single Ref for the outermost getprop. However, for
@@ -878,7 +895,7 @@ func (a *aggressiveInlineAliases) rewriteNestedAliasReference(
 			continue
 		}
 
-		if target.IsMemberFunctionDef() {
+		if _, isMethod := ast.AsMemberFunctionDef(target); isMethod {
 			// In the case of a method reference, the reference to the alias is not fully qualified,
 			// so we should not touch it, see b/293184904.
 			continue
@@ -901,7 +918,9 @@ func (a *aggressiveInlineAliases) rewriteNestedAliasReference(
 				panic(jutil.NewIllegalStateExceptionMsg("unexpected node: " + target.String()))
 			}
 		}
-		jutil.CheckState(target.IsGetProp() || target.IsName())
+		_, isGetProp := ast.AsGetProp(target)
+		_, isName := ast.AsName(target)
+		jutil.CheckState(isGetProp || isName)
 		newValue := value.CloneTree()
 		a.noteMutatedQName(target)
 		a.noteMutatedQName(newValue)

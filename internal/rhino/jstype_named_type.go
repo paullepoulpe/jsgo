@@ -36,6 +36,7 @@
 package rhino
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -587,8 +588,16 @@ func (b *NamedType_Builder) SetResolutionKind(resolutionKind NamedType_Resolutio
 }
 
 // Java: NamedType.Builder.setErrorReportingLocation(String, int, int)
-func (b *NamedType_Builder) SetErrorReportingLocation(sourceName *string, lineno int, charno int) *NamedType_Builder {
-	b.sourceNameID = rhinoStringIDFromPtr(sourceName)
+func (b *NamedType_Builder) SetErrorReportingLocation(sourceName string, lineno int, charno int) *NamedType_Builder {
+	b.sourceNameID = rhinoStringPoolIntern(sourceName)
+	b.lineno = lineno
+	b.charno = charno
+	return b
+}
+
+// SetErrorReportingLocationOpt sets the error-reporting location from an OptString sourceName.
+func (b *NamedType_Builder) SetErrorReportingLocationOpt(sourceName base.OptString, lineno int, charno int) *NamedType_Builder {
+	b.sourceNameID = rhinoStringIDFromOpt(sourceName)
 	b.lineno = lineno
 	b.charno = charno
 	return b

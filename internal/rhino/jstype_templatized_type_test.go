@@ -183,7 +183,7 @@ func TestTemplatizedType_EqualityWithRawType_whenSpecializedOnUnknown_includingH
 	func() {
 		closer := s.Registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
-		resolvedNamedUnknown = s.Registry.CreateNamedType(nil, "Y", ptr(""), -1, -1)
+		resolvedNamedUnknown = s.Registry.CreateNamedType(nil, "Y", someStr(""), -1, -1)
 		resolvedNamedUnknown.SetReferencedType(s.UNKNOWN_TYPE)
 	}()
 	templatizedResolvedNamedUnknownUnknown :=
@@ -195,7 +195,7 @@ func TestTemplatizedType_EqualityWithRawType_whenSpecializedOnUnknown_includingH
 	closer := s.Registry.GetResolver().OpenForDefinition()
 	defer closer.Close()
 	{
-		unresolvedNamedUnknown := s.Registry.CreateNamedType(nil, "Y", ptr(""), -1, -1)
+		unresolvedNamedUnknown := s.Registry.CreateNamedType(nil, "Y", someStr(""), -1, -1)
 		unresolvedNamedUnknown.SetReferencedType(s.UNKNOWN_TYPE)
 
 		templatizedUnresolvedNamedUnknownUnknown :=
@@ -215,7 +215,7 @@ func TestTemplatizedType_GetPropertyTypeOnTemplatizedType(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 		ctor := // function<T>(new:Foo<T>)
 			s.Registry.CreateConstructorType(
-				ptr("Foo"), NilNode, nil, nil, []*TemplateType{templateT}, false)
+				"Foo", NilNode, nil, nil, []*TemplateType{templateT}, false)
 		rawType := ctor.GetInstanceType() // Foo<T> == Foo
 		rawType.DefineDeclaredProperty("property", templateT, NilNode)
 
@@ -233,7 +233,7 @@ func TestTemplatizedType_FindPropertyTypeOnTemplatizedType(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 		ctor := // function<T>(new:Foo<T>)
 			s.Registry.CreateConstructorType(
-				ptr("Foo"), NilNode, nil, nil, []*TemplateType{templateT}, false)
+				"Foo", NilNode, nil, nil, []*TemplateType{templateT}, false)
 		rawType := ctor.GetInstanceType() // Foo<T> == Foo
 		rawType.DefineDeclaredProperty("property", templateT, NilNode)
 
@@ -250,11 +250,11 @@ func TestTemplatizedType_GreatestSubtypeWithSubclass(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 
 		baseCtor := s.Registry.CreateConstructorType(
-			ptr("Base"), NilNode, nil, nil, []*TemplateType{templateT}, false)
+			"Base", NilNode, nil, nil, []*TemplateType{templateT}, false)
 		baseRaw := baseCtor.GetInstanceType()
 
 		subCtor := s.Registry.CreateConstructorType(
-			ptr("Sub"), NilNode, nil, nil, []*TemplateType{templateT}, false)
+			"Sub", NilNode, nil, nil, []*TemplateType{templateT}, false)
 		subCtor.SetPrototypeBasedOn(baseRaw)
 		subRaw := subCtor.GetInstanceType()
 
@@ -274,11 +274,11 @@ func TestTemplatizedType_GreatestSubtypeWithIncompatibleGenerics(t *testing.T) {
 		templateT := s.Registry.CreateTemplateType("T")
 
 		baseCtor := s.Registry.CreateConstructorType(
-			ptr("Base"), NilNode, nil, nil, []*TemplateType{templateT}, false)
+			"Base", NilNode, nil, nil, []*TemplateType{templateT}, false)
 		baseRaw := baseCtor.GetInstanceType()
 
 		subCtor := s.Registry.CreateConstructorType(
-			ptr("Sub"), NilNode, nil, nil, []*TemplateType{templateT}, false)
+			"Sub", NilNode, nil, nil, []*TemplateType{templateT}, false)
 		subCtor.SetPrototypeBasedOn(baseRaw)
 		subRaw := subCtor.GetInstanceType()
 
@@ -297,7 +297,7 @@ func (s *templatizedTypeTest) CreateCustomTemplatizedType(rawName string) Object
 	{
 		ctor := // function<T,U>(new:Foo<T,U>)
 			s.Registry.CreateConstructorType(
-				ptr(rawName),
+				rawName,
 				NilNode,
 				nil,
 				nil,

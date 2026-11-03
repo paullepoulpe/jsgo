@@ -102,7 +102,7 @@ func (s *jsTypeTest) SetUp() {
 		builder.AddProperty("b", s.STRING_TYPE, NilNode)
 		s.recordType = builder.Build()
 
-		s.enumType = EnumType_Builder_(s.Registry).SetName(ptr("Enum")).SetElementType(s.NUMBER_TYPE).Build()
+		s.enumType = EnumType_Builder_(s.Registry).SetName("Enum").SetElementType(s.NUMBER_TYPE).Build()
 		s.elementsType = s.enumType.GetElementsType()
 		s.functionType = FunctionType_Builder_(s.Registry).WithReturnType(s.NUMBER_TYPE).Build()
 		s.dateMethod =
@@ -113,38 +113,38 @@ func (s *jsTypeTest) SetUp() {
 				Build()
 
 		s.ErrorReporter.ExpectAllWarnings("Bad type annotation. Unknown type not.resolved.named.type")
-		s.unresolvedNamedType = s.Registry.CreateNamedType(scope, "not.resolved.named.type", ptr(""), -1, -1)
-		s.namedGoogBar = s.Registry.CreateNamedType(scope, "goog.Bar", nil, -1, -1)
+		s.unresolvedNamedType = s.Registry.CreateNamedType(scope, "not.resolved.named.type", someStr(""), -1, -1)
+		s.namedGoogBar = s.Registry.CreateNamedType(scope, "goog.Bar", noStr(), -1, -1)
 
 		s.subclassCtor = FunctionType_Builder_(s.Registry).ForConstructor().Build()
 		s.subclassCtor.SetPrototypeBasedOn(s.unresolvedNamedType)
 		s.subclassOfUnresolvedNamedType = s.subclassCtor.GetInstanceType()
 
-		s.interfaceType = FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("Interface")).Build()
+		s.interfaceType = FunctionType_Builder_(s.Registry).ForInterface().WithName("Interface").Build()
 		s.interfaceInstType = s.interfaceType.GetInstanceType()
 
 		s.subInterfaceType =
-			FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("SubInterfacce")).Build()
+			FunctionType_Builder_(s.Registry).ForInterface().WithName("SubInterfacce").Build()
 		s.subInterfaceType.SetExtendedInterfaces([]ObjectType{s.interfaceInstType})
 		s.subInterfaceInstType = s.subInterfaceType.GetInstanceType()
 
-		s.googBar = s.Registry.CreateConstructorType(ptr("goog.Bar"), NilNode, nil, nil, nil, false)
+		s.googBar = s.Registry.CreateConstructorType("goog.Bar", NilNode, nil, nil, nil, false)
 		s.googBar.GetPrototype().DefineDeclaredProperty("date", s.DATE_TYPE, NilNode)
 		s.googBar.SetImplementedInterfaces([]ObjectType{s.interfaceInstType})
 		s.googBarInst = s.googBar.GetInstanceType()
 
-		s.googSubBar = s.Registry.CreateConstructorType(ptr("googSubBar"), NilNode, nil, nil, nil, false)
+		s.googSubBar = s.Registry.CreateConstructorType("googSubBar", NilNode, nil, nil, nil, false)
 		s.googSubBar.SetPrototypeBasedOn(s.googBar.GetInstanceType())
 		s.googSubBarInst = s.googSubBar.GetInstanceType()
 
 		s.googSubSubBar =
-			s.Registry.CreateConstructorType(ptr("googSubSubBar"), NilNode, nil, nil, nil, false)
+			s.Registry.CreateConstructorType("googSubSubBar", NilNode, nil, nil, nil, false)
 		s.googSubSubBar.SetPrototypeBasedOn(s.googSubBar.GetInstanceType())
 		s.googSubSubBarInst = s.googSubSubBar.GetInstanceType()
 
 		googObject.DefineDeclaredProperty("Bar", s.googBar, NilNode)
 
-		s.forwardDeclaredNamedType = s.Registry.CreateNamedType(scope, "forwardDeclared", ptr("source"), 1, 0)
+		s.forwardDeclaredNamedType = s.Registry.CreateNamedType(scope, "forwardDeclared", someStr("source"), 1, 0)
 	}()
 
 	s.AssertThat(s.namedGoogBar.GetImplicitPrototype()).IsNotNull()
@@ -2708,7 +2708,7 @@ func TestJSType_FunctionType(t *testing.T) {
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.functionType)
 
-	s.AssertThat(optStr(FunctionType_Builder_(s.Registry).WithName(ptr("aFunctionName")).Build().DisplayName())).
+	s.AssertThat(optStr(FunctionType_Builder_(s.Registry).WithName("aFunctionName").Build().DisplayName())).
 		IsEqualTo("aFunctionName")
 }
 
@@ -3025,7 +3025,7 @@ func TestJSType_RecordTypeGreatestSubType12(t *testing.T) {
 	googBarArgConstructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("barArg"), NilNode, s.Registry.CreateParameters(s.googBar), nil, nil, false)
+				"barArg", NilNode, s.Registry.CreateParameters(s.googBar), nil, nil, false)
 		})
 
 	builder = NewRecordTypeBuilder(s.Registry)
@@ -3293,7 +3293,7 @@ func TestJSType_FunctionPrototypeAndImplicitPrototype1(t *testing.T) {
 	constructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("Foo") /* source= */, NilNode, nil, nil, nil /* isAbstract= */, false)
+				"Foo" /* source= */, NilNode, nil, nil, nil /* isAbstract= */, false)
 		})
 	instance := constructor.GetInstanceType()
 
@@ -3315,7 +3315,7 @@ func TestJSType_FunctionPrototypeAndImplicitPrototype2(t *testing.T) {
 	constructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("Bar"),
+				"Bar",
 				/* source= */ NilNode,
 				s.Registry.CreateParameters(s.ALL_TYPE, s.ALL_TYPE, s.ALL_TYPE),
 				nil,
@@ -3595,7 +3595,7 @@ func TestJSType_BooleanObjectType(t *testing.T) {
 func TestJSType_EnumType(t *testing.T) {
 	s := newJsTypeTest(t)
 	enumType :=
-		EnumType_Builder_(s.Registry).SetName(ptr("Enum")).SetElementType(s.NUMBER_TYPE).Build()
+		EnumType_Builder_(s.Registry).SetName("Enum").SetElementType(s.NUMBER_TYPE).Build()
 
 	// isXxx
 	s.AssertThat(enumType.IsArrayType()).IsFalse()
@@ -3681,7 +3681,7 @@ func TestJSType_EnumType(t *testing.T) {
 
 	s.AssertThat(optStr(
 		EnumType_Builder_(s.Registry).
-			SetName(ptr("AnotherEnum")).
+			SetName("AnotherEnum").
 			SetElementType(s.NUMBER_TYPE).
 			Build().
 			DisplayName())).
@@ -3786,7 +3786,7 @@ func TestJSType_StringEnumType(t *testing.T) {
 	s := newJsTypeTest(t)
 	stringEnum :=
 		EnumType_Builder_(s.Registry).
-			SetName(ptr("Enum")).
+			SetName("Enum").
 			SetElementType(s.STRING_TYPE).
 			Build().
 			GetElementsType()
@@ -3804,7 +3804,7 @@ func TestJSType_StringObjectEnumType(t *testing.T) {
 	s := newJsTypeTest(t)
 	stringEnum :=
 		EnumType_Builder_(s.Registry).
-			SetName(ptr("Enum")).
+			SetName("Enum").
 			SetElementType(s.STRING_OBJECT_TYPE).
 			Build().
 			GetElementsType()
@@ -3863,7 +3863,7 @@ func TestJSType_ObjectType(t *testing.T) {
 	s.AssertThat(objectType.String()).IsEqualTo("{...}")
 	s.AssertThat(optStr(objectType.DisplayName())).IsNull()
 	s.AssertType(objectType).GetReferenceNameIsNull()
-	s.AssertThat(optStr(PrototypeObjectType_Builder_(s.Registry).SetName(ptr("anObject")).Build().DisplayName())).
+	s.AssertThat(optStr(PrototypeObjectType_Builder_(s.Registry).SetName("anObject").Build().DisplayName())).
 		IsEqualTo("anObject")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, objectType)
@@ -3904,7 +3904,7 @@ func TestJSType_ObjectTypePropertiesCount(t *testing.T) {
 	sup.DefineDeclaredProperty("b", s.DATE_TYPE, NilNode)
 	s.AssertThat(sup.GetPropertiesCount()).IsEqualTo(nativeProperties + 2)
 
-	sub := s.Registry.CreateObjectType(nil, sup)
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 	s.AssertThat(sub.GetPropertiesCount()).IsEqualTo(nativeProperties + 2)
 }
 
@@ -3952,7 +3952,7 @@ func TestJSType_ObjectTypePropertiesCountWithShadowing(t *testing.T) {
 	sup.DefineDeclaredProperty("a", s.OBJECT_TYPE, NilNode)
 	s.AssertThat(sup.GetPropertiesCount()).IsEqualTo(nativeProperties + 1)
 
-	sub := s.Registry.CreateObjectType(nil, sup)
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 	sub.DefineDeclaredProperty("a", s.OBJECT_TYPE, NilNode)
 	s.AssertThat(sub.GetPropertiesCount()).IsEqualTo(nativeProperties + 1)
 }
@@ -4285,7 +4285,7 @@ func TestJSType_SubtypingFunctionPrototypeType(t *testing.T) {
 	sub1 :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("Foo1"),
+				"Foo1",
 				/* source= */ NilNode,
 				s.Registry.CreateParameters(s.ALL_TYPE),
 				nil,
@@ -4297,7 +4297,7 @@ func TestJSType_SubtypingFunctionPrototypeType(t *testing.T) {
 	sub2 :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("Foo2"),
+				"Foo2",
 				/* source= */ NilNode,
 				s.Registry.CreateParameters(s.ALL_TYPE),
 				nil,
@@ -4714,8 +4714,8 @@ func TestJSType_NamedTypeEquals(t *testing.T) {
 	{
 		// test == if references are equal
 		s.ErrorReporter.ExpectAllWarnings("Bad type annotation. Unknown type type1")
-		a := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "type1", ptr("source"), 1, 0)
-		b := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "type1", ptr("source"), 1, 0)
+		a := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "type1", someStr("source"), 1, 0)
+		b := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "type1", someStr("source"), 1, 0)
 		s.AssertThat(a.Equals(b)).IsTrue()
 
 		// test == instance of referenced type
@@ -4729,14 +4729,14 @@ func TestJSType_NamedTypeEquals2(t *testing.T) {
 	s := newJsTypeTest(t)
 	// test == if references are equal
 	closer := s.Registry.GetResolver().OpenForDefinition()
-	a := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "typeA", ptr("source"), 1, 0)
-	b := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "typeB", ptr("source"), 1, 0)
+	a := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "typeA", someStr("source"), 1, 0)
+	b := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "typeB", someStr("source"), 1, 0)
 
 	realA :=
-		s.Registry.CreateConstructorType(ptr("typeA"), NilNode, nil, nil, nil, false).GetInstanceType()
+		s.Registry.CreateConstructorType("typeA", NilNode, nil, nil, nil, false).GetInstanceType()
 	realB :=
 		EnumType_Builder_(s.Registry).
-			SetName(ptr("typeB")).
+			SetName("typeB").
 			SetElementType(s.NUMBER_TYPE).
 			Build().
 			GetElementsType()
@@ -4850,7 +4850,7 @@ func TestJSType_GreatestSubtypeSimpleTypes(t *testing.T) {
 func TestJSType_SubtypingDerivedExtendsNamedBaseType(t *testing.T) {
 	s := newJsTypeTest(t)
 	derived :=
-		s.Registry.CreateObjectType(nil, s.Registry.CreateObjectType(nil, s.namedGoogBar))
+		s.Registry.CreateObjectType(noStr(), s.Registry.CreateObjectType(noStr(), s.namedGoogBar))
 
 	s.AssertThat(derived.IsSubtypeOf(s.googBar.GetInstanceType())).IsTrue()
 }
@@ -5038,7 +5038,7 @@ func TestJSType_ConstructorWithArgSubtypeChain(t *testing.T) {
 	googBarArgConstructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("barArg"),
+				"barArg",
 				/* source= */ NilNode,
 				s.Registry.CreateParameters(s.googBar),
 				nil,
@@ -5049,7 +5049,7 @@ func TestJSType_ConstructorWithArgSubtypeChain(t *testing.T) {
 	googSubBarArgConstructor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("subBarArg"),
+				"subBarArg",
 				/* source= */ NilNode,
 				s.Registry.CreateParameters(s.googSubBar),
 				nil,
@@ -5087,7 +5087,7 @@ func TestJSType_InterfaceInheritanceSubtypeChain(t *testing.T) {
 	tempType :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("goog.TempType"),
+				"goog.TempType",
 				/* source= */ NilNode,
 				nil,
 				nil,
@@ -5126,7 +5126,7 @@ func TestJSType_AnonymousEnumElementChain(t *testing.T) {
 	s := newJsTypeTest(t)
 	enumElemType :=
 		EnumType_Builder_(s.Registry).
-			SetName(ptr("typeB")).
+			SetName("typeB").
 			SetElementType(s.Registry.CreateAnonymousObjectType(nil)).
 			Build().
 			GetElementsType()
@@ -5355,7 +5355,7 @@ func TestJSType_TemplatizedTypesWithBoundedGenerics(t *testing.T) {
 	templatizedCtor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("TestingType"),
+				"TestingType",
 				/* source= */ NilNode,
 				nil,
 				s.UNKNOWN_TYPE,
@@ -5745,7 +5745,7 @@ func TestJSType_GoodSetPrototypeBasedOn(t *testing.T) {
 	fun :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("fun") /* source= */, NilNode, nil, nil, nil /* isAbstract= */, false)
+				"fun" /* source= */, NilNode, nil, nil, nil /* isAbstract= */, false)
 		})
 	fun.SetPrototypeBasedOn(s.unresolvedNamedType)
 	s.AssertThat(fun.GetInstanceType().IsUnknownType()).IsTrue()
@@ -5756,7 +5756,7 @@ func TestJSType_LateSetPrototypeBasedOn(t *testing.T) {
 	fun :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("fun") /* source= */, NilNode, nil, nil, nil /* isAbstract= */, false)
+				"fun" /* source= */, NilNode, nil, nil, nil /* isAbstract= */, false)
 		})
 	s.AssertThat(fun.GetInstanceType().IsUnknownType()).IsFalse()
 
@@ -5969,14 +5969,14 @@ func TestJSType_CreateObjectType(t *testing.T) {
 	s := newJsTypeTest(t)
 	// simple
 	subDate :=
-		s.Registry.CreateObjectType(nil, s.DATE_TYPE.GetImplicitPrototype())
+		s.Registry.CreateObjectType(noStr(), s.DATE_TYPE.GetImplicitPrototype())
 	s.AssertTypeEquals(s.DATE_TYPE.GetImplicitPrototype(),
 		subDate.GetImplicitPrototype())
 	s.AssertType(subDate).GetReferenceNameIsNull()
 	s.AssertThat(subDate.String()).IsEqualTo("{...}")
 
 	// name, node, prototype
-	subArray := s.Registry.CreateObjectType(ptr("Foo"),
+	subArray := s.Registry.CreateObjectType(someStr("Foo"),
 		s.ARRAY_TYPE.GetImplicitPrototype())
 	s.AssertTypeEquals(s.ARRAY_TYPE.GetImplicitPrototype(),
 		subArray.GetImplicitPrototype())
@@ -6006,8 +6006,8 @@ func (s *jsTypeTest) AssertTypeCanAssignToItself(type_ JSType) {
 func TestJSType_HasOwnProperty(t *testing.T) {
 	s := newJsTypeTest(t)
 	sup :=
-		s.Registry.CreateObjectType(nil, s.Registry.CreateAnonymousObjectType(nil))
-	sub := s.Registry.CreateObjectType(nil, sup)
+		s.Registry.CreateObjectType(noStr(), s.Registry.CreateAnonymousObjectType(nil))
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 
 	sup.DefineProperty("base", s.GetBottomType(), false, NilNode)
 	sub.DefineProperty("sub", s.GetBottomType(), false, NilNode)
@@ -6031,8 +6031,8 @@ func TestJSType_HasOwnProperty(t *testing.T) {
  */
 func TestJSType_HasOwnProperty_symbol(t *testing.T) {
 	s := newJsTypeTest(t)
-	sup := s.Registry.CreateObjectType(nil, s.Registry.CreateAnonymousObjectType(nil))
-	sub := s.Registry.CreateObjectType(nil, sup)
+	sup := s.Registry.CreateObjectType(noStr(), s.Registry.CreateAnonymousObjectType(nil))
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 	baseSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "base"))
 	subSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "sub"))
 	noneSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "none"))
@@ -6110,8 +6110,8 @@ func TestJSType_InterfaceHasOwnProperty_symbol(t *testing.T) {
 func TestJSType_GetPropertyNames(t *testing.T) {
 	s := newJsTypeTest(t)
 	sup :=
-		s.Registry.CreateObjectType(nil, s.Registry.CreateAnonymousObjectType(nil))
-	sub := s.Registry.CreateObjectType(nil, sup)
+		s.Registry.CreateObjectType(noStr(), s.Registry.CreateAnonymousObjectType(nil))
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 	bottomType := s.GetBottomType()
 
 	sup.DefineProperty("base", bottomType, false, NilNode)
@@ -6146,8 +6146,8 @@ func TestJSType_GetPropertyNames(t *testing.T) {
 
 func TestJSType_GetPropertyNames_symbol(t *testing.T) {
 	s := newJsTypeTest(t)
-	sup := s.Registry.CreateObjectType(nil, s.Registry.CreateAnonymousObjectType(nil))
-	sub := s.Registry.CreateObjectType(nil, sup)
+	sup := s.Registry.CreateObjectType(noStr(), s.Registry.CreateAnonymousObjectType(nil))
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 	bottomType := s.GetBottomType()
 	baseSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "base"))
 	subSymbol := NewProperty_SymbolKey(NewKnownSymbolType(s.Registry, "sub"))
@@ -6203,8 +6203,8 @@ func TestJSType_GetAndSetJSDocInfoWithNamedType(t *testing.T) {
 func TestJSType_GetAndSetJSDocInfoWithObjectTypes(t *testing.T) {
 	s := newJsTypeTest(t)
 	sup :=
-		s.Registry.CreateObjectType(nil, s.Registry.CreateAnonymousObjectType(nil))
-	sub := s.Registry.CreateObjectType(nil, sup)
+		s.Registry.CreateObjectType(noStr(), s.Registry.CreateAnonymousObjectType(nil))
+	sub := s.Registry.CreateObjectType(noStr(), sup)
 
 	builder := JSDocInfo_Builder_()
 	builder.RecordDeprecated()
@@ -6283,7 +6283,7 @@ func TestJSType_TemplatizedType(t *testing.T) {
 	templatizedCtor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("TestingType"),
+				"TestingType",
 				/* source= */ NilNode,
 				nil,
 				s.UNKNOWN_TYPE,
@@ -6322,7 +6322,7 @@ func TestJSType_PartiallyTemplatizedType(t *testing.T) {
 	templatizedCtor :=
 		withOpenRegistry(s, func() FunctionType {
 			return s.Registry.CreateConstructorType(
-				ptr("TestingType"),
+				"TestingType",
 				/* source= */ NilNode,
 				nil,
 				s.UNKNOWN_TYPE,
@@ -6365,7 +6365,7 @@ func TestJSType_TemplatizedTypeWithSubclass(t *testing.T) {
 		withOpenRegistry(s, func() FunctionType {
 			parent :=
 				FunctionType_Builder_(s.Registry).
-					WithName(ptr("ParentType")).
+					WithName("ParentType").
 					ForConstructor().
 					WithTemplateKeysOfList([]*TemplateType{parentKeyA}).
 					Build()
@@ -6377,7 +6377,7 @@ func TestJSType_TemplatizedTypeWithSubclass(t *testing.T) {
 			child :=
 				FunctionType_Builder_(s.Registry).
 					WithPrototypeBasedOn(baseType).
-					WithName(ptr("TestingType")).
+					WithName("TestingType").
 					ForConstructor().
 					WithTemplateKeysOfList([]*TemplateType{childKeyA, childKeyB}).
 					Build()
@@ -6478,10 +6478,10 @@ func TestJSType_EqualityOfClassTypes_withSameReferenceName_preResolution(t *test
 	defer closer.Close()
 	{
 		classACtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 
 		classBCtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 
 		// Currently, to handle NamedTypes, we treat unresolved type equality as purely based on
 		// reference name.
@@ -6497,12 +6497,12 @@ func TestJSType_EqualityOfClassTypes_withSameReferenceName_differentGoogModuleId
 		classACtor :=
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Foo")).
-				SetGoogModuleId(ptr("module1")).
+				WithName("Foo").
+				SetGoogModuleId("module1").
 				Build()
 
 		classBCtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 
 		// the different goog module id indicate the types are not equal.
 		s.AssertType(classACtor.GetInstanceType()).IsNotEqualTo(classBCtor.GetInstanceType())
@@ -6517,15 +6517,15 @@ func TestJSType_EqualityOfClassTypes_withSameReferenceName_sameGoogModuleId_preR
 		classACtor :=
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Foo")).
-				SetGoogModuleId(ptr("module1")).
+				WithName("Foo").
+				SetGoogModuleId("module1").
 				Build()
 
 		classBCtor :=
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Foo")).
-				SetGoogModuleId(ptr("module1")).
+				WithName("Foo").
+				SetGoogModuleId("module1").
 				Build()
 
 		// Currently, to handle NamedTypes, we treat unresolved type equality as purely based on
@@ -6538,11 +6538,11 @@ func TestJSType_EqualityOfClassTypes_withSameReferenceName_postResolution(t *tes
 	s := newJsTypeTest(t)
 	classACtor :=
 		withOpenRegistry(s, func() FunctionType {
-			return FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			return FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 		})
 	classBCtor :=
 		withOpenRegistry(s, func() FunctionType {
-			return FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			return FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 		})
 
 	s.AssertType(classACtor).IsNotEqualTo(classBCtor)
@@ -6553,10 +6553,10 @@ func TestJSType_EqualityOfClassTypes_withSameReferenceName_postResolution(t *tes
 func TestJSType_EqualityOfInterfaceTypes_withSameReferenceName_postResolution(t *testing.T) {
 	s := newJsTypeTest(t)
 	interfaceACtor :=
-		FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("Foo")).Build()
+		FunctionType_Builder_(s.Registry).ForInterface().WithName("Foo").Build()
 
 	interfaceBCtor :=
-		FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("Foo")).Build()
+		FunctionType_Builder_(s.Registry).ForInterface().WithName("Foo").Build()
 
 	s.AssertType(interfaceACtor).IsNotEqualTo(interfaceBCtor)
 	s.AssertType(interfaceACtor.GetInstanceType()).IsNotEqualTo(interfaceBCtor.GetInstanceType())
@@ -6583,7 +6583,7 @@ func TestJSType_RecordAndInterfaceObjectTypeNotEqualWithSameProperties(t *testin
 	// /** @type {number} */
 	// Foo.prototype.x;
 	secondTypeConstructor :=
-		FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("Foo")).Build()
+		FunctionType_Builder_(s.Registry).ForInterface().WithName("Foo").Build()
 
 	secondTypeConstructor.GetPrototype().DefineProperty("x", s.NUMBER_TYPE, false, NilNode)
 	secondTypeConstructor.SetImplicitMatch(true)

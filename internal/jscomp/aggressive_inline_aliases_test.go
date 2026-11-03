@@ -3062,12 +3062,13 @@ func (c *AggressiveInlineAliasesTest) ValidateGlobalNamespace(passGlobalNamespac
 	//  1. the two namespaces have the same qualified names, bar extern names
 	//  2. each name has the same number of references in both namespaces
 	//  3. each name has the same computed `Inlinability`
+	passGlobalNamespace.EnsureGenerated()
 	for _, expectedName := range expectedGlobalNamespace.GetNameForest() {
 		if expectedName.InExterns() {
 			continue
 		}
 		fullName := expectedName.GetFullName()
-		actualName, _ := passGlobalNamespace.GetSlot(expectedName.GetFullName()).(*GlobalNamespace_Name)
+		actualName := passGlobalNamespace.LookupName(fullName)
 		AssertWithMessage(fullName).That(actualName).IsNotNull()
 		AssertWithMessage(fullName).
 			That(actualName.GetAliasingGets()).
@@ -3098,7 +3099,7 @@ func (c *AggressiveInlineAliasesTest) ValidateGlobalNamespace(passGlobalNamespac
 	for _, actualName := range passGlobalNamespace.GetNameForest() {
 		actualFullName := actualName.GetFullName()
 		AssertWithMessage(actualFullName).
-			That(expectedGlobalNamespace.GetSlot(actualFullName)).
+			That(expectedGlobalNamespace.LookupName(actualFullName)).
 			IsNotNull()
 	}
 }

@@ -149,7 +149,7 @@ func TestPropertyMap_LookUpKeysFromParent_stringKey(t *testing.T) {
 	s := newPropertyMapTest(t)
 	parentType :=
 		s.registry.CreateRecordType(mapOf("x", s.numberType)).AssertObjectType()
-	childType := s.registry.CreateObjectType(ptr("Child"), parentType)
+	childType := s.registry.CreateObjectType(someStr("Child"), parentType)
 	child := NewPropertyMap()
 	child.SetParentSource(childType)
 
@@ -163,7 +163,7 @@ func TestPropertyMap_LookUpKeysFromParent_symbolKey(t *testing.T) {
 	s := newPropertyMapTest(t)
 	parentType := s.registry.CreateRecordType(mapOf()).AssertObjectType()
 	parentType.DefineDeclaredPropertyByKey(s.symbolKey, s.numberType, NilNode)
-	childType := s.registry.CreateObjectType(ptr("Child"), parentType)
+	childType := s.registry.CreateObjectType(someStr("Child"), parentType)
 	child := NewPropertyMap()
 	child.SetParentSource(childType)
 

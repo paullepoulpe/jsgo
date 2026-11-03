@@ -78,32 +78,31 @@ func (f *File) GetName() string {
 	return f.path[f.lastSeparator()+1:]
 }
 
-// GetParent is File.getParent(): the pathname of the parent (the prefix and
-// every name but the last), or nil (null) if the pathname names no parent.
-func (f *File) GetParent() *string {
+// Parent returns the pathname of the parent (the prefix and every name but
+// the last) and true, or ("", false) if the pathname names no parent (as in
+// File.getParent()).
+func (f *File) Parent() (string, bool) {
 	index := f.lastSeparator()
 	if index < 0 {
-		return nil
+		return "", false
 	}
 	// The prefix of an absolute pathname is "/".
 	if index == 0 {
 		if len(f.path) > 1 {
-			root := "/"
-			return &root
+			return "/", true
 		}
-		return nil
+		return "", false
 	}
-	parent := f.path[:index]
-	return &parent
+	return f.path[:index], true
 }
 
-// GetParentFile is File.getParentFile(): nil (null) when GetParent is.
+// GetParentFile is File.getParentFile(): nil (null) when Parent is undefined.
 func (f *File) GetParentFile() *File {
-	p := f.GetParent()
-	if p == nil {
+	p, ok := f.Parent()
+	if !ok {
 		return nil
 	}
-	return NewFile(*p)
+	return NewFile(p)
 }
 
 // Exists is File.exists(): whether the file or directory that the abstract

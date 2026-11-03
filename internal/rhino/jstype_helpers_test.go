@@ -4,13 +4,16 @@ package rhino_test
 // (Java literals that Go spells differently).
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	. "github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// ptr returns a pointer to v: a non-null Java String argument where the Go
-// API takes *string.
+// ptr returns a pointer to v.
 func ptr[T any](v T) *T { return &v }
+
+func someStr(s string) base.OptString { return base.SomeString(s) }
+func noStr() base.OptString           { return base.NoString() }
 
 // mapOf is ImmutableMap.of(k1, v1, k2, v2, ...) for name to type maps.
 func mapOf(keysAndValues ...any) *jutil.OrderedMap[string, JSType] {

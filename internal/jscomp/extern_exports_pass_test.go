@@ -71,7 +71,8 @@ func (c *ExternExportsPassTest) compileAndCheckWithExterns(externs string, js st
 	c.compileAndExportExternsWithConsumer(
 		js,
 		externs,
-		func(generatedExterns *string) {
+		func(generatedExterns string, ok bool) {
+			AssertThat(ok).IsTrue()
 			fileoverview :=
 				`/**
  * @fileoverview Generated externs.
@@ -81,7 +82,7 @@ func (c *ExternExportsPassTest) compileAndCheckWithExterns(externs string, js st
 			// NOTE(sdh): The type checker just produces {?}.
 			// For now we will not worry about this distinction and just
 			// normalize it.
-			normalized := jutil.StringReplace(*generatedExterns, "?=", "?")
+			normalized := jutil.StringReplace(generatedExterns, "?=", "?")
 
 			AssertThat(normalized).IsEqualTo(fileoverview + expected)
 		})
@@ -112,7 +113,7 @@ func (c *ExternExportsPassTest) compileAndExportExternsWithExterns(js string, ex
 //
 // Java: ExternExportsPassTest.compileAndExportExterns(String, String, Consumer<String>)
 func (c *ExternExportsPassTest) compileAndExportExternsWithConsumer(
-	js string, externs string, consumer func(*string)) {
+	js string, externs string, consumer func(string, bool)) {
 	js =
 		`/** @const */ var goog = {};
 goog.exportSymbol = function(a, b) {};
@@ -125,7 +126,7 @@ goog.exportProperty = function(a, b, c) {};
 		CompilerTestCase_PostconditionFunc(
 			func(compiler *Compiler) {
 				if consumer != nil {
-					consumer(compiler.GetResult().ExternExport)
+					consumer(compiler.GetResult().ExternExportString())
 				}
 			}))
 }
@@ -1341,8 +1342,12 @@ var bar = function(x) {};
 	c.compileAndExportExternsWithConsumer(
 		librarySource,
 		CompilerTestCase_MINIMAL_EXTERNS,
-		func(generatedExterns *string) {
-			c.compileAndExportExternsWithExterns(clientSource, CompilerTestCase_MINIMAL_EXTERNS+jutil.ToJavaString(generatedExterns))
+		func(generatedExterns string, ok bool) {
+			extra := "null"
+			if ok {
+				extra = generatedExterns
+			}
+			c.compileAndExportExternsWithExterns(clientSource, CompilerTestCase_MINIMAL_EXTERNS+extra)
 		})
 }
 

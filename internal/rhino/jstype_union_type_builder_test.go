@@ -61,12 +61,12 @@ func (s *unionTypeBuilderTest) SetUp() {
 	defer closer.Close()
 	{
 		baseCtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Base")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Base").Build()
 		s.base = baseCtor.GetInstanceType()
 		subCtor :=
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Sub")).
+				WithName("Sub").
 				WithPrototypeBasedOn(s.base).
 				Build()
 		s.sub = subCtor.GetInstanceType()
@@ -157,9 +157,9 @@ func TestUnionTypeBuilder_UnresolvedNamedTypes(t *testing.T) {
 	closer := s.Registry.GetResolver().OpenForDefinition()
 	defer closer.Close()
 	{
-		unresolvedNameA1 := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.A", ptr(""), -1, -1)
-		unresolvedNameA2 := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.A", ptr(""), -1, -1)
-		unresolvedNameB := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.B", ptr(""), -1, -1)
+		unresolvedNameA1 := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.A", someStr(""), -1, -1)
+		unresolvedNameA2 := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.A", someStr(""), -1, -1)
+		unresolvedNameB := s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.B", someStr(""), -1, -1)
 
 		// NOTE: "(?)" means there are multiple unknown types in the union.
 		s.AssertUnion("?", s.UNKNOWN_TYPE, unresolvedNameA1)

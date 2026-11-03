@@ -221,16 +221,14 @@ func (c *CheckRequiresSorted) GetFirstNode() rhino.Node { return c.firstNode }
 // Java: CheckRequiresSorted.getLastNode()
 func (c *CheckRequiresSorted) GetLastNode() rhino.Node { return c.lastNode }
 
-// GetReplacement returns a textual replacement yielding a canonical version
-// of the imports.
+// Replacement returns the canonical imports replacement when present.
 //
 // Java: CheckRequiresSorted.getReplacement()
-func (c *CheckRequiresSorted) GetReplacement() *string {
+func (c *CheckRequiresSorted) Replacement() (string, bool) {
 	if !c.hasReplacement {
-		return nil
+		return "", false
 	}
-	s := c.replacement
-	return &s
+	return c.replacement, true
 }
 
 // NeedsFix returns whether the imports need to be fixed, i.e., whether they

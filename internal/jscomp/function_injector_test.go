@@ -22,6 +22,7 @@ package jscomp
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -2171,9 +2172,10 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 		FunctionArgumentInjector: functionArgumentInjector,
 	})
 
-	parseRoot := compiler.ParseInputs()
-	externsRoot := parseRoot.GetFirstChild()
-	tree := parseRoot.GetLastChild()
+	parseRoot := ast.MustRoot(compiler.ParseInputs())
+	externsRoot := parseRoot.MustFirstItem().Node()
+	lastItem, _ := parseRoot.LastItem()
+	tree := lastItem.Node()
 	AssertThat(tree).IsNotNull()
 	AssertThat(tree).IsNotSameInstanceAs(externsRoot)
 
@@ -2226,7 +2228,7 @@ func (c *FunctionInjectorTest) HelperInlineReferenceToFunction(
 			result := injector.Inline(ref, fnName, fnNode)
 			c.ValidateSourceInfo(compiler, result)
 
-			AssertNode(tree.GetFirstChild()).
+			AssertNode(ast.MustRoot(tree).MustFirstItem().Node()).
 				UsingSerializer(FunctionInjectorTest_ToSource).
 				IsEqualTo(expectedRoot)
 
@@ -2281,15 +2283,13 @@ func (cb *FunctionInjectorTest_TestCallback) ShouldTraverse(nodeTraversal *NodeT
 
 // Java: FunctionInjectorTest.TestCallback.visit(NodeTraversal, Node, Node)
 func (cb *FunctionInjectorTest_TestCallback) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsCall() {
-		var callee rhino.Node
-		if NodeUtil_IsNormalGet(n.GetFirstChild()) {
-			callee = n.GetFirstFirstChild()
-		} else {
-			callee = n.GetFirstChild()
+	if call, isCall := ast.AsCall(n); isCall {
+		calleeExpr := call.Callee()
+		if get, isGet := calleeExpr.AsNormalGet(); isGet {
+			calleeExpr = get.Object()
 		}
 
-		if callee.IsName() && callee.GetString() == cb.callname {
+		if calleeName, isName := calleeExpr.AsName(); isName && calleeName.Ident() == cb.callname {
 			cb.complete = cb.method(t, n, parent)
 		}
 	}
@@ -2301,8 +2301,8 @@ func (cb *FunctionInjectorTest_TestCallback) Visit(t *NodeTraversal, n rhino.Nod
 
 // Java: FunctionInjectorTest.findFunction(Node, String)
 func FunctionInjectorTest_FindFunction(n rhino.Node, name string) rhino.Node {
-	if n.IsFunction() {
-		if n.GetFirstChild().GetString() == name {
+	if fn, isFn := ast.AsFunction(n); isFn {
+		if fn.NameNode().Ident() == name {
 			return n
 		}
 	}
@@ -2322,7 +2322,8 @@ func FunctionInjectorTest_Prep(js string) rhino.Node {
 	compiler := NewCompiler()
 	n := compiler.ParseTestCode(js)
 	AssertThat(compiler.GetErrorCount()).IsEqualTo(0)
-	return n.GetFirstChild()
+	firstItem, _ := ast.MustScript(n).FirstItem()
+	return firstItem.Node()
 }
 
 // Java: FunctionInjectorTest.parse(Compiler, String)

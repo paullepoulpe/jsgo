@@ -21,6 +21,7 @@ package parsing
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -280,10 +281,10 @@ func (f *IRFactory) ProcessTemplateLiteralToken(token parser.Token) rhino.Node {
 	raw := f.rawTokenValue(token)
 	var node rhino.Node
 	if token.HasError() {
-		node = f.NewTemplateLitStringNode(nil, raw)
+		node = f.NewTemplateLitStringNode(base.NoString(), raw)
 	} else {
 		cooked := f.NormalizeString(token, true)
-		node = f.NewTemplateLitStringNode(&cooked, raw)
+		node = f.NewTemplateLitStringNode(base.SomeString(cooked), raw)
 	}
 	f.SetSourceInfoFromToken(node, token)
 	return node

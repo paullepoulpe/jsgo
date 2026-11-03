@@ -132,7 +132,7 @@ func TestJSTypeRegistry_GetBuiltInType_gbigint_unification(t *testing.T) {
 	s := newJsTypeRegistryTest(t)
 	// This simulates what happens when the compiler parses: /** @interface */ function gbigint() {}
 	interfaceType :=
-		FunctionType_Builder_(s.registry).ForInterface().WithName(jutil.StringPtr("gbigint")).Build()
+		FunctionType_Builder_(s.registry).ForInterface().WithName("gbigint").Build()
 	s.registry.DeclareType(nil, "gbigint", interfaceType.GetInstanceType())
 
 	s.AssertType(s.registry.GetGlobalType("gbigint")).

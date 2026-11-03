@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
@@ -388,7 +389,7 @@ func (c *TypeInferenceTest) CreateEnumType(name string, elemType rhino.JSTypeNat
 
 // Java: TypeInferenceTest.createEnumType(String, JSType)
 func (c *TypeInferenceTest) CreateEnumTypeOfJSType(name string, elemType rhino.JSType) *rhino.EnumType {
-	return rhino.EnumType_Builder_(c.registry).SetName(jutil.StringPtr(name)).SetElementType(elemType).Build()
+	return rhino.EnumType_Builder_(c.registry).SetName(name).SetElementType(elemType).Build()
 }
 
 // Java: TypeInferenceTest.createUndefinableType(JSTypeNative)
@@ -1589,7 +1590,7 @@ func (c *TypeInferenceTest) TestAssertFunction_narrowsAllTypeToFunction() {
 
 // Java: TypeInferenceTest.testAssertElement_doesNotChangeElementType()
 func (c *TypeInferenceTest) TestAssertElement_doesNotChangeElementType() {
-	var elementType rhino.JSType = c.registry.CreateObjectType(jutil.StringPtr("Element"), c.registry.GetNativeObjectType(rhino.JSTypeNative_OBJECT_TYPE))
+	var elementType rhino.JSType = c.registry.CreateObjectType(base.SomeString("Element"), c.registry.GetNativeObjectType(rhino.JSTypeNative_OBJECT_TYPE))
 	c.IncludeGoogAssertionFn("assertElement", elementType)
 	c.Assuming("x", elementType)
 	c.InFunction("out1 = x; goog.asserts.assertElement(x); out2 = x;")
@@ -2850,7 +2851,7 @@ SPECIALIZED: f(10);
 	AssertThat(specializedFn).IsNotEqualTo(templateFn)
 	AssertThat(optStr(specializedFn.ReferenceName())).IsEqualTo(optStr(templateFn.ReferenceName()))
 	AssertThat(specializedFn.GetSource()).IsEqualTo(templateFn.GetSource())
-	AssertThat(specializedFn.GetGoogModuleId()).IsEqualTo(templateFn.GetGoogModuleId())
+	AssertThat(optStr(specializedFn.GoogModuleId())).IsEqualTo(optStr(templateFn.GoogModuleId()))
 }
 
 // Java: TypeInferenceTest.testFunctionTemplateType_literalParam()
@@ -3739,7 +3740,7 @@ for ({length: obj.length} in {'1': 1, '22': 22}) {
 // Java: TypeInferenceTest.testInferringTypeInObjectPattern_fromTemplatizedProperty()
 func (c *TypeInferenceTest) TestInferringTypeInObjectPattern_fromTemplatizedProperty() {
 	var templateKey *rhino.TemplateType = c.registry.CreateTemplateType("T")
-	var fooCtor rhino.FunctionType = c.registry.CreateConstructorType(jutil.StringPtr("Foo"), rhino.NilNode, c.registry.CreateParameters(), nil, []*rhino.TemplateType{templateKey}, false)
+	var fooCtor rhino.FunctionType = c.registry.CreateConstructorType("Foo", rhino.NilNode, c.registry.CreateParameters(), nil, []*rhino.TemplateType{templateKey}, false)
 	var fooInstanceType rhino.ObjectType = fooCtor.GetInstanceType()
 	fooInstanceType.DefineDeclaredProperty("data", templateKey, rhino.NilNode)
 	var fooOfNumber rhino.JSType = c.Templatize(fooInstanceType, []rhino.JSType{c.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)})
@@ -3772,7 +3773,7 @@ func (c *TypeInferenceTest) Test_constDeclarationWithReturnJSDoc_ignoresUnknownR
 // Java: TypeInferenceTest.constDeclarationWithCtorJSDoc_ignoresKnownMixinReturnType()
 func (c *TypeInferenceTest) Test_constDeclarationWithCtorJSDoc_ignoresKnownMixinReturnType() {
 	var fooType rhino.JSType = rhino.FunctionType_Builder_(c.registry).ForConstructor().
-		WithName(jutil.StringPtr("Foo")).
+		WithName("Foo").
 		Build()
 	c.Assuming("Foo", fooType)
 	var mixinType rhino.FunctionType = rhino.FunctionType_Builder_(c.registry).WithReturnType(fooType).
@@ -3887,7 +3888,7 @@ func (c *TypeInferenceTest) IncludeGoogAssertionFn(fnName string, returnType rhi
 	fullName := "goog.asserts." + fnName
 	var fnType rhino.FunctionType = rhino.FunctionType_Builder_(c.registry).WithReturnType(returnType).
 		WithParametersOfList(c.registry.CreateParameters(c.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))).
-		WithName(jutil.StringPtr(fullName)).
+		WithName(fullName).
 		Build()
 	c.Assuming(fullName, fnType)
 }
@@ -3897,7 +3898,7 @@ func (c *TypeInferenceTest) IncludePrimitiveTruthyAssertionFunction(fnName strin
 	var t *rhino.TemplateType = c.registry.CreateTemplateType("T")
 	// Go-only: language-adapter — the nullable ClosurePrimitive is a pointer.
 	assertsTruthy := rhino.ClosurePrimitive_ASSERTS_TRUTHY
-	var assertType rhino.FunctionType = rhino.FunctionType_Builder_(c.registry).WithName(jutil.StringPtr(fnName)).
+	var assertType rhino.FunctionType = rhino.FunctionType_Builder_(c.registry).WithName(fnName).
 		WithClosurePrimitiveId(&assertsTruthy).
 		WithReturnType(t).
 		WithParametersOfList(c.registry.CreateParameters(t)).
@@ -3912,7 +3913,7 @@ func (c *TypeInferenceTest) IncludePrimitiveAssertionFn(fullName string, returnT
 	assertsMatchesReturn := rhino.ClosurePrimitive_ASSERTS_MATCHES_RETURN
 	var fnType rhino.FunctionType = rhino.FunctionType_Builder_(c.registry).WithReturnType(returnType).
 		WithParametersOfList(c.registry.CreateParameters(c.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE))).
-		WithName(jutil.StringPtr(fullName)).
+		WithName(fullName).
 		WithClosurePrimitiveId(&assertsMatchesReturn).
 		Build()
 	c.Assuming(fullName, fnType)
@@ -3928,7 +3929,7 @@ func (c *TypeInferenceTest) IncludeAssertInstanceof() {
 	var fnType rhino.FunctionType = rhino.FunctionType_Builder_(c.registry).WithParametersOfList(c.registry.CreateParameters(c.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE), templateTypeCtor)).
 		WithTemplateKeys(templateType).
 		WithReturnType(templateType).
-		WithName(jutil.StringPtr(fullName)).
+		WithName(fullName).
 		Build()
 	c.Assuming(fullName, fnType)
 }

@@ -83,11 +83,11 @@ func guardVector(op func() string) (res string) {
 	return escVector(op())
 }
 
-func javaNullable(p *string) string {
-	if p == nil {
+func javaNullable(s string, ok bool) string {
+	if !ok {
 		return "null"
 	}
-	return *p
+	return s
 }
 
 func TestPathMatchesJava(t *testing.T) {
@@ -155,13 +155,13 @@ func TestURIMatchesJava(t *testing.T) {
 		if got := strconv.FormatBool(x.IsAbsolute()); got != cols[0] {
 			t.Errorf("%v: IsAbsolute = %q, want %q", r, got, cols[0])
 		}
-		if got := strconv.FormatBool(x.path == nil); got != cols[1] {
+		if got := strconv.FormatBool(!x.hasPath); got != cols[1] {
 			t.Errorf("%v: isOpaque = %q, want %q", r, got, cols[1])
 		}
 		if got := escVector(x.String()); got != cols[3] {
 			t.Errorf("%v: String = %q, want %q", r, got, cols[3])
 		}
-		if got := escVector(javaNullable(x.path)); got != cols[7] {
+		if got := escVector(javaNullable(x.path, x.hasPath)); got != cols[7] {
 			t.Errorf("%v: path = %q, want %q", r, got, cols[7])
 		}
 	}

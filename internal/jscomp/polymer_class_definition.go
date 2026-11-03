@@ -53,6 +53,15 @@ type PolymerClassDefinition struct {
 	interfaceName     string
 }
 
+// NativeBaseElement returns the native HTML element name extended by this
+// Polymer element when present.
+func (d *PolymerClassDefinition) NativeBaseElement() (string, bool) {
+	if d.nativeBaseElement == nil {
+		return "", false
+	}
+	return *d.nativeBaseElement, true
+}
+
 // Java: static enum PolymerClassDefinition.DefinitionType
 type PolymerClassDefinition_DefinitionType int32
 

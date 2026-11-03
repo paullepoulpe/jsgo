@@ -67,26 +67,26 @@ window['ans'] = computeValue(20, 1);
 
 	// Stage 1: checks -> save state 1.
 	runStep(nil, func(c *AbstractCommandLineRunner_CommandLineConfig) {
-		c.SetSaveCompilationStateToFilename(&stage1File, 1)
+		c.SetSaveCompilationStateToFilename(stage1File, 1)
 	})
 
 	// Stage 2 (first half): restore state 1 -> OPTIMIZATIONS_FIRST_HALF -> save state 2.
 	runStep(nil, func(c *AbstractCommandLineRunner_CommandLineConfig) {
-		c.SetContinueSavedCompilationFileName(&stage1File, 1)
-		c.SetSaveCompilationStateToFilename(&stage2Half1File, 2)
+		c.SetContinueSavedCompilationFileName(stage1File, 1)
+		c.SetSaveCompilationStateToFilename(stage2Half1File, 2)
 		c.SetStage2SegmentOfCompilationToRun(jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS_FIRST_HALF)
 	})
 
 	// Stage 2 (second half): restore first-half state -> OPTIMIZATIONS_SECOND_HALF -> save state 2.
 	runStep(nil, func(c *AbstractCommandLineRunner_CommandLineConfig) {
-		c.SetContinueSavedCompilationFileName(&stage2Half1File, 1)
-		c.SetSaveCompilationStateToFilename(&stage2Half2File, 2)
+		c.SetContinueSavedCompilationFileName(stage2Half1File, 1)
+		c.SetSaveCompilationStateToFilename(stage2Half2File, 2)
 		c.SetStage2SegmentOfCompilationToRun(jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS_SECOND_HALF)
 	})
 
 	// Stage 3: restore second-half state -> finalizations + codegen.
 	gotOut := runStep(nil, func(c *AbstractCommandLineRunner_CommandLineConfig) {
-		c.SetContinueSavedCompilationFileName(&stage2Half2File, 2)
+		c.SetContinueSavedCompilationFileName(stage2Half2File, 2)
 	})
 
 	if gotOut != wantOut {

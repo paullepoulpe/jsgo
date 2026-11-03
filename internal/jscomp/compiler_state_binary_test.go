@@ -201,6 +201,13 @@ func fmtOptStr(s *string) string {
 	return fmt.Sprintf("%q", *s)
 }
 
+func fmtOptValStr(s string, ok bool) string {
+	if !ok {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%q", s)
+}
+
 func snapshotDeepAst(root rhino.Node) string {
 	var sb strings.Builder
 	sb.WriteString(root.ToStringTree())
@@ -219,7 +226,7 @@ func snapshotDeepAst(root rhino.Node) string {
 			n.GetLineno(), n.GetCharno(), n.SerializeProperties(),
 			fmtOptStr(n.GetOriginalName()), colorID)
 		if n.IsTemplateLitString() {
-			fmt.Fprintf(&sb, " tmplRaw=%q tmplCooked=%s", n.GetRawString(), fmtOptStr(n.GetCookedString()))
+			fmt.Fprintf(&sb, " tmplRaw=%q tmplCooked=%s", n.GetRawString(), fmtOptValStr(n.CookedString()))
 		}
 		if n.IsScript() {
 			fs, _ := n.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
@@ -227,7 +234,7 @@ func snapshotDeepAst(root rhino.Node) string {
 		}
 		if j := n.GetJSDocInfo(); j != nil {
 			fmt.Fprintf(&sb, " jsdoc(lic=%s,desc=%s,noinl=%v,nose=%v,cu=%v)",
-				fmtOptStr(j.GetLicense()), fmtOptStr(j.GetDescription()),
+				fmtOptValStr(j.License()), fmtOptValStr(j.Description()),
 				j.IsNoInline(), j.IsNoSideEffects(), j.IsClosureUnawareCode())
 		}
 		sb.WriteByte('\n')

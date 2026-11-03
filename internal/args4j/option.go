@@ -203,23 +203,24 @@ func newCmdLineException(parser *CmdLineParser, msg messageTemplate, args ...str
 
 func NewCmdLineExceptionWithParser(parser *CmdLineParser, message string) *CmdLineException {
 	e := &CmdLineException{parser: parser}
-	jutil.InitThrowable(e, cmdLineExceptionClassName, &message, nil)
+	jutil.InitThrowableMsg(e, cmdLineExceptionClassName, message, nil)
 	return e
 }
 
 func newCmdLineExceptionWithCause(parser *CmdLineParser, message string, cause jutil.Throwable) *CmdLineException {
 	e := &CmdLineException{parser: parser}
-	jutil.InitThrowable(e, cmdLineExceptionClassName, &message, cause)
+	jutil.InitThrowableMsg(e, cmdLineExceptionClassName, message, cause)
 	return e
 }
 
 func (e *CmdLineException) GetParser() *CmdLineParser { return e.parser }
 
 func (e *CmdLineException) Error() string {
-	if jutil.GetMessageOrNull(e) == nil {
+	msg, ok := jutil.ThrowableMessage(e)
+	if !ok {
 		return cmdLineExceptionClassName
 	}
-	return cmdLineExceptionClassName + ": " + e.GetMessage()
+	return cmdLineExceptionClassName + ": " + msg
 }
 
 const illegalAnnotationErrorClassName = "com.google.javascript.jscomp.jarjar.org.kohsuke.args4j.IllegalAnnotationError"
@@ -230,6 +231,6 @@ type illegalAnnotationError struct {
 
 func newIllegalAnnotationError(message string) *illegalAnnotationError {
 	e := &illegalAnnotationError{}
-	jutil.InitThrowable(e, illegalAnnotationErrorClassName, &message, nil)
+	jutil.InitThrowableMsg(e, illegalAnnotationErrorClassName, message, nil)
 	return e
 }

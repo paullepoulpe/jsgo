@@ -117,7 +117,9 @@ func TestJSDocSerializer_SerializedFields(t *testing.T) {
 	jsaTrue(t, de.IsStableIdGenerator())
 	jsaDeepEq(t, de.GetModifies().ToSlice(), []string{"arguments", "this"})
 	jsaDeepEq(t, de.GetSuppressions().ToSlice(), []string{"messageConventions", "partialAlias"})
-	jsaEq(t, *de.GetDescription(), "desc")
+	desc, hasDesc := de.Description()
+	jsaTrue(t, hasDesc)
+	jsaEq(t, desc, "desc")
 	jsaTrue(t, JSDocSerializer_SerializeJsdoc(rhino.JSDocInfo_Builder_().Build(), pool) == nil)
 
 	bad := &OptimizationJsdoc{kind_: []int32{500}}

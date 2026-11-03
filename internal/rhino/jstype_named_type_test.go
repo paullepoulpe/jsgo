@@ -58,7 +58,7 @@ func (s *namedTypeTest) SetUp() {
 	closer := s.Registry.GetResolver().OpenForDefinition()
 	defer closer.Close()
 	{
-		s.fooCtorType = FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+		s.fooCtorType = FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 		s.fooType = s.fooCtorType.GetInstanceType()
 	}
 }
@@ -368,7 +368,7 @@ func (s *namedTypeTest) CreateNominalType(name string) ObjectType {
 	defer closer.Close()
 	{
 		ctorType :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr(name)).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName(name).Build()
 		return ctorType.GetInstanceType()
 	}
 }
@@ -377,5 +377,5 @@ func (s *namedTypeTest) NamedTypeBuilder(name string) *NamedType_Builder {
 	return NamedType_Builder_(s.Registry, name).
 		SetResolutionKind(NamedType_ResolutionKind_TYPE_NAME).
 		SetScope(rhinotesting.MapBasedScope_EmptyScope()).
-		SetErrorReportingLocation(ptr("source"), 1, 0)
+		SetErrorReportingLocation("source", 1, 0)
 }

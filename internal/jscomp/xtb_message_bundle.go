@@ -23,6 +23,7 @@ import (
 	"iter"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/xtbxml"
 )
@@ -42,8 +43,14 @@ type XtbMessageBundle struct {
 //
 // Java: XtbMessageBundle(InputStream, String)
 func NewXtbMessageBundle(xtb io.Reader, projectId *string) *XtbMessageBundle {
+	return NewXtbMessageBundleOpt(xtb, base.OptStringFromPtr(projectId))
+}
+
+// NewXtbMessageBundleOpt creates an instance and initializes it with the
+// messages in an XTB file for an optional TC project ID.
+func NewXtbMessageBundleOpt(xtb io.Reader, projectId base.OptString) *XtbMessageBundle {
 	b := &XtbMessageBundle{
-		idGenerator: NewGoogleJsMessageIdGenerator(projectId),
+		idGenerator: NewGoogleJsMessageIdGeneratorOpt(projectId),
 	}
 	if err := xtbxml.Parse(xtb, &xtbMessageBundle_Handler{outer: b}); err != nil {
 		panic(jutil.NewRuntimeExceptionWithCause(err))

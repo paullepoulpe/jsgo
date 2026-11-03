@@ -202,8 +202,6 @@ func (p WarningsGuard_Priority) value() int { return warningsGuard_Priority_valu
 // Java: WarningsGuard.Priority.getValue()
 func (p WarningsGuard_Priority) GetValue() int { return p.value() }
 
-func warningsGuardGroupName(s string) *string { return &s }
-
 // StrictWarningsGuard: all warnings should be reported as errors.
 type StrictWarningsGuard struct {
 	WarningsGuardBase
@@ -253,8 +251,8 @@ func NewClosureUnawareCodeWarningsGuard() *ClosureUnawareCodeWarningsGuard {
 	return &ClosureUnawareCodeWarningsGuard{}
 }
 
-var closureUnawareCodeWarningsGuard_DEFAULT_CLOSURE_UNAWARE_CODE_SUPPRESSIONS = NewDiagnosticGroupWithName(
-	warningsGuardGroupName("closureUnawareCodeJSDocIncompatible"),
+var closureUnawareCodeWarningsGuard_DEFAULT_CLOSURE_UNAWARE_CODE_SUPPRESSIONS = NewDiagnosticGroupNamed(
+	"closureUnawareCodeJSDocIncompatible",
 	RhinoErrorReporter_TYPE_PARSE_ERROR,
 	RhinoErrorReporter_UNRECOGNIZED_TYPE_ERROR,
 	RhinoErrorReporter_JSDOC_MISSING_BRACES_WARNING,
@@ -531,8 +529,8 @@ func init() {
 // Java: J2clSuppressWarningsGuard static initializers
 func j2clSuppressWarningsGuard_clinit() {
 	J2clSuppressWarningsGuard_DEFAULT_J2CL_SUPRRESIONS =
-		NewDiagnosticGroupWithNameFromGroups(
-			warningsGuardGroupName("j2clIncomaptible"),
+		NewDiagnosticGroupNamedFromGroups(
+			"j2clIncomaptible",
 			// Do not warn when static overrides do not match. This is safe, because J2CL generated
 			// code directly points to declaration and this is also required with collapse properties
 			// pass, which does not support dynamic dispatch for static methods.

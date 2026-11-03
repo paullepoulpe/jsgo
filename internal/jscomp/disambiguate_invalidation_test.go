@@ -19,4 +19,9 @@ func TestInvalidation_logsGsonMatchesJava(t *testing.T) {
 	if got := diagnostic.LogsGson_ToJson(disambiguateProperties_renamingIndexJson{m: m}); got != want {
 		t.Errorf("got  %s\nwant %s", got, want)
 	}
+	mZero := NewOrderedStringMap[disambiguateRenamingEntry]()
+	mZero.Put("z", disambiguateRenamingEntry{invalidated: true})
+	if got := diagnostic.LogsGson_ToJson(disambiguateProperties_renamingIndexJson{m: mZero}); got != `{"z":null}` {
+		t.Errorf("zero invalidation: got %s, want {\"z\":null}", got)
+	}
 }

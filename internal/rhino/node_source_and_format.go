@@ -149,21 +149,13 @@ func (n Node) GetRawStringID() uint32 {
 	return id
 }
 
+// CookedString returns the cooked string of a TemplateLiteralSubstringNode,
+// or ("", false) if unset.
+//
 // Java: Node.getCookedString()
-func (n Node) GetCookedString() *string {
-	n.node_castKind(node_kindTemplateLiteralSubstring)
-	return n.node_cooked()
-}
-
-// CookedString returns the cooked string of a TemplateLiteralSubstringNode
-// without looking up a *string pointer, or ("", false) if unset.
 func (n Node) CookedString() (string, bool) {
 	n.node_castKind(node_kindTemplateLiteralSubstring)
-	id := n.node_cookedID()
-	if id == 0 {
-		return "", false
-	}
-	return strpool.String(id), true
+	return n.node_cooked()
 }
 
 // GetCookedStringID returns the 32-bit interned cooked string ID of a TemplateLiteralSubstringNode, or 0 if unset.
@@ -400,8 +392,12 @@ func (n Node) node_number() float64 {
 }
 
 // node_cooked is the TemplateLiteralSubstringNode.cooked field.
-func (n Node) node_cooked() *string {
-	return strpool.StringPtr(n.node_cookedID())
+func (n Node) node_cooked() (string, bool) {
+	id := n.node_cookedID()
+	if id == 0 {
+		return "", false
+	}
+	return strpool.String(id), true
 }
 
 // ==========================================================================
@@ -525,7 +521,11 @@ func (n Node) GetOriginalNameString() (string, bool) {
 
 // Java: Node.setOriginalName(String)
 func (n Node) SetOriginalName(s *string) {
-	n.node_setOriginalNameID(rhinoStringIDFromPtr(s))
+	var id rhinoStringID
+	if s != nil {
+		id = strpool.Intern(*s)
+	}
+	n.node_setOriginalNameID(id)
 }
 
 // SetOriginalNameString interns s in RhinoStringPool and sets it as the node's

@@ -40,6 +40,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -532,15 +533,12 @@ func (e *Es6RenameTypeReferences) RenameTypeReference(t *NodeTraversal, n rhino.
 }
 
 // RenameReference: t is the NodeTraversal; oldName is the root name of a
-// qualified name; rest is the rest of the qualified name or null.
+// qualified name; rest is the rest of the qualified name if present.
 //
 // Java: Es6RenameTypeReferences.renameReference(NodeTraversal, Node, String, String)
-func (e *Es6RenameTypeReferences) RenameReference(t *NodeTraversal, n rhino.Node, oldName string, rest *string) {
-	if rest == nil {
-		e.renameReference(t, n, oldName, "", false)
-	} else {
-		e.renameReference(t, n, oldName, *rest, true)
-	}
+func (e *Es6RenameTypeReferences) RenameReference(t *NodeTraversal, n rhino.Node, oldName string, rest base.OptString) {
+	r, hasRest := rest.Get()
+	e.renameReference(t, n, oldName, r, hasRest)
 }
 
 func (e *Es6RenameTypeReferences) renameReference(t *NodeTraversal, n rhino.Node, oldName string, rest string, hasRest bool) {

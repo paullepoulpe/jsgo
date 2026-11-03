@@ -62,8 +62,8 @@ type JsonWriter struct {
 	stackSize int
 
 	// A string containing a full set of spaces for a single level of
-	// indentation, or null for no pretty printing.
-	indent *string
+	// indentation, or "" for no pretty printing.
+	indent string
 
 	// The name/value separator; either ":" or ": ".
 	separator string
@@ -72,7 +72,8 @@ type JsonWriter struct {
 
 	htmlSafe bool
 
-	deferredName *string
+	deferredName    string
+	hasDeferredName bool
 
 	serializeNulls bool
 }
@@ -103,10 +104,10 @@ func (w *JsonWriter) write(s string) {
 // Java: JsonWriter.setIndent(String)
 func (w *JsonWriter) setIndent(indent string) {
 	if len(indent) == 0 {
-		w.indent = nil
+		w.indent = ""
 		w.separator = ":"
 	} else {
-		w.indent = &indent
+		w.indent = indent
 		w.separator = ": "
 	}
 }
@@ -203,8 +204,8 @@ func (w *JsonWriter) close(empty, nonempty int, closeBracket string) *JsonWriter
 	if context != nonempty && context != empty {
 		panic(NewIllegalStateExceptionMsg("Nesting problem."))
 	}
-	if w.deferredName != nil {
-		panic(NewIllegalStateExceptionMsg("Dangling name: " + *w.deferredName))
+	if w.hasDeferredName {
+		panic(NewIllegalStateExceptionMsg("Dangling name: " + w.deferredName))
 	}
 
 	w.stackSize--
@@ -241,48 +242,44 @@ func (w *JsonWriter) replaceTop(topOfStack int) {
 //
 // Java: JsonWriter.name(String)
 func (w *JsonWriter) Name(name string) *JsonWriter {
-	if w.deferredName != nil {
+	if w.hasDeferredName {
 		panic(NewIllegalStateException())
 	}
 	if w.stackSize == 0 {
 		panic(NewIllegalStateExceptionMsg("JsonWriter is closed."))
 	}
-	w.deferredName = &name
+	w.deferredName = name
+	w.hasDeferredName = true
 	return w
 }
 
 func (w *JsonWriter) writeDeferredName() {
-	if w.deferredName != nil {
+	if w.hasDeferredName {
 		w.beforeName()
-		w.string(*w.deferredName)
-		w.deferredName = nil
+		w.string(w.deferredName)
+		w.deferredName = ""
+		w.hasDeferredName = false
 	}
 }
 
-// ValueString encodes value.
+// ValueString encodes value as a JSON string.
 //
-// Java: JsonWriter.value(String)
-func (w *JsonWriter) ValueString(value *string) *JsonWriter {
-	if value == nil {
-		return w.NullValue()
-	}
+// Java: JsonWriter.value(String) (non-null; use NullValue for null)
+func (w *JsonWriter) ValueString(value string) *JsonWriter {
 	w.writeDeferredName()
 	w.beforeValue()
-	w.string(*value)
+	w.string(value)
 	return w
 }
 
 // JsonValue writes value directly to the writer without quoting or
 // escaping.
 //
-// Java: JsonWriter.jsonValue(String)
-func (w *JsonWriter) JsonValue(value *string) *JsonWriter {
-	if value == nil {
-		return w.NullValue()
-	}
+// Java: JsonWriter.jsonValue(String) (non-null; use NullValue for null)
+func (w *JsonWriter) JsonValue(value string) *JsonWriter {
 	w.writeDeferredName()
 	w.beforeValue()
-	w.write(*value)
+	w.write(value)
 	return w
 }
 
@@ -290,11 +287,12 @@ func (w *JsonWriter) JsonValue(value *string) *JsonWriter {
 //
 // Java: JsonWriter.nullValue()
 func (w *JsonWriter) NullValue() *JsonWriter {
-	if w.deferredName != nil {
+	if w.hasDeferredName {
 		if w.serializeNulls {
 			w.writeDeferredName()
 		} else {
-			w.deferredName = nil
+			w.deferredName = ""
+			w.hasDeferredName = false
 			return w // skip the name and the value
 		}
 	}
@@ -511,13 +509,13 @@ func WriteGsonString[W io.StringWriter](out W, value string, htmlSafe bool) erro
 }
 
 func (w *JsonWriter) newline() {
-	if w.indent == nil {
+	if w.indent == "" {
 		return
 	}
 
 	w.write("\n")
 	for i, size := 1, w.stackSize; i < size; i++ {
-		w.write(*w.indent)
+		w.write(w.indent)
 	}
 }
 

@@ -915,12 +915,11 @@ func (c *Compiler) GetCurrentJsSource() string {
 					if _, ok := qnameSet[*qname]; ok {
 						return true
 					}
-					originalQname := n.GetOriginalQualifiedName()
-					if originalQname != nil {
-						if _, ok := qnameSet[*originalQname]; ok {
-							existing := originalToNewQNameMap[*originalQname]
+					if originalQname, ok := n.OriginalQualifiedName(); ok {
+						if _, ok := qnameSet[originalQname]; ok {
+							existing := originalToNewQNameMap[originalQname]
 							if !slices.Contains(existing, *qname) {
-								originalToNewQNameMap[*originalQname] = append(existing, *qname)
+								originalToNewQNameMap[originalQname] = append(existing, *qname)
 							}
 							return true
 						}

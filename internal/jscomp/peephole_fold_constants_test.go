@@ -24,6 +24,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -2702,7 +2703,7 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	// Index 0: TEMPLATELIT_STRING ""
 	child0 := templateLit.GetChildAtIndex(0)
 	AssertThat(child0.IsTemplateLitString()).IsTrue()
-	AssertThat(child0.GetCookedString()).IsEmpty()
+	AssertThat(optStr(child0.CookedString())).IsEmpty()
 	AssertThat(child0.GetRawString()).IsEmpty()
 	// Index 1: SUB a
 	child1 := templateLit.GetChildAtIndex(1)
@@ -2712,7 +2713,7 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	// Index 2: TEMPLATELIT_STRING "\n\t"
 	child2 := templateLit.GetChildAtIndex(2)
 	AssertThat(child2.IsTemplateLitString()).IsTrue()
-	AssertThat(child2.GetCookedString()).IsEqualTo("\n\t")
+	AssertThat(optStr(child2.CookedString())).IsEqualTo("\n\t")
 	AssertThat(child2.GetRawString()).IsEqualTo("\\n\\t")
 	// Index 3: SUB b
 	child3 := templateLit.GetChildAtIndex(3)
@@ -2722,7 +2723,7 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	// Index 4: TEMPLATELIT_STRING ""
 	child4 := templateLit.GetChildAtIndex(4)
 	AssertThat(child4.IsTemplateLitString()).IsTrue()
-	AssertThat(child4.GetCookedString()).IsEmpty()
+	AssertThat(optStr(child4.CookedString())).IsEmpty()
 	AssertThat(child4.GetRawString()).IsEmpty()
 }
 
@@ -2747,7 +2748,7 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	// Index 0: TEMPLATELIT_STRING ""
 	child0 := templateLit.GetChildAtIndex(0)
 	AssertThat(child0.IsTemplateLitString()).IsTrue()
-	AssertThat(child0.GetCookedString()).IsEmpty()
+	AssertThat(optStr(child0.CookedString())).IsEmpty()
 	AssertThat(child0.GetRawString()).IsEmpty()
 	// Index 1: SUB foo()
 	child1 := templateLit.GetChildAtIndex(1)
@@ -2757,7 +2758,7 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	// Index 2: TEMPLATELIT_STRING "\n\t"
 	child2 := templateLit.GetChildAtIndex(2)
 	AssertThat(child2.IsTemplateLitString()).IsTrue()
-	AssertThat(child2.GetCookedString()).IsEqualTo("\\n\t")
+	AssertThat(optStr(child2.CookedString())).IsEqualTo("\\n\t")
 	AssertThat(child2.GetRawString()).IsEqualTo("\\\\n\\t")
 	// Index 3: SUB ()=> {return b;}
 	child3 := templateLit.GetChildAtIndex(3)
@@ -2767,7 +2768,7 @@ func (c *PeepholeFoldConstantsTest) TestFoldAddTemplateLiterals_validateRawAndCo
 	// Index 4: TEMPLATELIT_STRING ""
 	child4 := templateLit.GetChildAtIndex(4)
 	AssertThat(child4.IsTemplateLitString()).IsTrue()
-	AssertThat(child4.GetCookedString()).IsEmpty()
+	AssertThat(optStr(child4.CookedString())).IsEmpty()
 	AssertThat(child4.GetRawString()).IsEmpty()
 }
 
@@ -2865,12 +2866,11 @@ func TestPeepholeFoldConstants_DetachedTemplateLiteralNilCookedString(t *testing
 	pass := NewPeepholeFoldConstants(true, false)
 	pass.BeginTraversal(compiler)
 
-	empty := ""
 	makeCookedNilTpl := func() rhino.Node {
 		tpl := rhino.IR_TemplateLiteral()
-		tpl.AddChildToBack(rhino.IR_TemplateLiteralString(nil, "\\unicode"))
+		tpl.AddChildToBack(rhino.IR_TemplateLiteralString(base.NoString(), "\\unicode"))
 		tpl.AddChildToBack(rhino.IR_TemplateLiteralSubstitution(rhino.IR_String("x")))
-		tpl.AddChildToBack(rhino.IR_TemplateLiteralString(&empty, ""))
+		tpl.AddChildToBack(rhino.IR_TemplateLiteralString(base.SomeString(""), ""))
 		return tpl
 	}
 
@@ -2881,9 +2881,9 @@ func TestPeepholeFoldConstants_DetachedTemplateLiteralNilCookedString(t *testing
 	}
 
 	tplTailNil := rhino.IR_TemplateLiteral()
-	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralString(&empty, ""))
+	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralString(base.SomeString(""), ""))
 	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralSubstitution(rhino.IR_Name("v")))
-	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralString(nil, "\\unicode"))
+	tplTailNil.AddChildToBack(rhino.IR_TemplateLiteralString(base.NoString(), "\\unicode"))
 	addRight := rhino.IR_Add(tplTailNil, rhino.IR_String("y"))
 	pass.OptimizeSubtree(addRight)
 	if !addRight.IsAdd() {

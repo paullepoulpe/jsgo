@@ -737,9 +737,9 @@ type JSType_WithSourceRef interface {
 	// GetSource returns the node representing the declaration of this type.
 	GetSource() Node
 
-	// GetGoogModuleId returns the ID of the goog.module in which this type
-	// was declared.
-	GetGoogModuleId() *string
+	// GoogModuleId returns the ID of the goog.module in which this type
+	// was declared, if any.
+	GoogModuleId() (string, bool)
 }
 
 // String is a string representation of this type, suitable for printing in

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -505,15 +506,14 @@ func TestMust(t *testing.T) {
 
 func TestTemplateLitString(t *testing.T) {
 	newStore(t)
-	cooked := "a\nb"
-	s, ok := AsTemplateLitString(rhino.Node_NewTemplateLitString(&cooked, `a\nb`))
+	s, ok := AsTemplateLitString(rhino.Node_NewTemplateLitString(base.SomeString("a\nb"), `a\nb`))
 	if !ok {
 		t.Fatal("AsTemplateLitString")
 	}
 	if c, ok := s.Cooked(); s.Raw() != `a\nb` || !ok || c != "a\nb" {
 		t.Fatalf("Raw %q Cooked %q %v", s.Raw(), c, ok)
 	}
-	none, _ := AsTemplateLitString(rhino.Node_NewTemplateLitString(nil, `\u{`))
+	none, _ := AsTemplateLitString(rhino.Node_NewTemplateLitString(base.NoString(), `\u{`))
 	if _, ok := none.Cooked(); ok {
 		t.Fatal("Cooked of a string without one")
 	}

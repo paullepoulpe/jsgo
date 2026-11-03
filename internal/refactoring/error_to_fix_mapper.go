@@ -176,11 +176,19 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *jscomp.JSError) *Sugges
 	return fix.Build()
 }
 
+func mustGroup(m *jutil.Matcher, group int) string {
+	s, ok := m.Group(group)
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	return s
+}
+
 // Java: ErrorToFixMapper.getFixForEarlyReference(JSError)
 func (m *ErrorToFixMapper) GetFixForEarlyReference(error *jscomp.JSError) *SuggestedFix {
 	matcher := errorToFixMapper_EARLY_REF.Matcher(error.Description())
 	if matcher.Matches() {
-		name := *matcher.Group(1)
+		name := mustGroup(matcher, 1)
 		stmt := jscomp.NodeUtil_GetEnclosingStatement(error.Node())
 		return NewSuggestedFix_Builder().
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
@@ -209,12 +217,12 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 
 	fullNameMatcher := errorToFixMapper_FULLY_QUALIFIED_NAME.Matcher(error.Description())
 	jutil.CheckStateMsg1(fullNameMatcher.Matches(), "%s", error.Description())
-	fullName := *fullNameMatcher.Group(1)
+	fullName := mustGroup(fullNameMatcher, 1)
 
 	shortNameMatcher := errorToFixMapper_USE_SHORT_NAME.Matcher(error.Description())
 	var shortName string
 	if shortNameMatcher.Matches() {
-		shortName = *shortNameMatcher.Group(1)
+		shortName = mustGroup(shortNameMatcher, 1)
 	} else {
 		fix.AddGoogRequire(match, fullName, scriptMetadata)
 		var ok bool
@@ -305,7 +313,7 @@ func (m *ErrorToFixMapper) GetFixForMissingSuper(error *jscomp.JSError) *Suggest
 func (m *ErrorToFixMapper) GetFixForInvalidSuper(error *jscomp.JSError) *SuggestedFix {
 	matcher := errorToFixMapper_DID_YOU_MEAN.Matcher(error.Description())
 	if matcher.Matches() {
-		superDotSuggestion := *jutil.CheckNotNull(matcher.Group(1))
+		superDotSuggestion := mustGroup(matcher, 1)
 		return NewSuggestedFix_Builder().
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
 			SetDescription("Call '"+superDotSuggestion+"' instead").
@@ -319,7 +327,7 @@ func (m *ErrorToFixMapper) GetFixForInvalidSuper(error *jscomp.JSError) *Suggest
 func (m *ErrorToFixMapper) GetFixForInexistentProperty(error *jscomp.JSError) *SuggestedFix {
 	matcher := errorToFixMapper_DID_YOU_MEAN.Matcher(error.Description())
 	if matcher.Matches() {
-		suggestedPropName := *matcher.Group(1)
+		suggestedPropName := mustGroup(matcher, 1)
 		return NewSuggestedFix_Builder().
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
 			SetDescription("Change property name to '"+suggestedPropName+"'").
@@ -333,7 +341,7 @@ func (m *ErrorToFixMapper) GetFixForInexistentProperty(error *jscomp.JSError) *S
 func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, importType SuggestedFix_ImportType) *SuggestedFix {
 	regexMatcher := errorToFixMapper_MISSING_REQUIRE.Matcher(error.Description())
 	jutil.CheckStateMsg1(regexMatcher.Matches(), "Unexpected error description: %s", error.Description())
-	namespaceToRequire := *regexMatcher.Group(1)
+	namespaceToRequire := mustGroup(regexMatcher, 1)
 
 	var qName string
 	if error.Node().IsQualifiedName() {
@@ -406,9 +414,11 @@ func (m *ErrorToFixMapper) GetFixForUnsortedRequires(error *jscomp.JSError) *Sug
 		return nil
 	}
 
+	replacement, ok := callback.Replacement()
+	jutil.CheckState(ok)
 	return NewSuggestedFix_Builder().
 		AttachMatchedNodeInfo(callback.GetFirstNode(), m.compiler).
-		ReplaceRange(callback.GetFirstNode(), callback.GetLastNode(), *callback.GetReplacement()).
+		ReplaceRange(callback.GetFirstNode(), callback.GetLastNode(), replacement).
 		Build()
 }
 
@@ -422,9 +432,11 @@ func (m *ErrorToFixMapper) GetFixForUnsortedProvides(error *jscomp.JSError) *Sug
 		return nil
 	}
 
+	replacement, ok := callback.Replacement()
+	jutil.CheckState(ok)
 	return NewSuggestedFix_Builder().
 		AttachMatchedNodeInfo(callback.GetFirstNode(), m.compiler).
-		ReplaceRange(callback.GetFirstNode(), callback.GetLastNode(), *callback.GetReplacement()).
+		ReplaceRange(callback.GetFirstNode(), callback.GetLastNode(), replacement).
 		Build()
 }
 

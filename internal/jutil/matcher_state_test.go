@@ -158,8 +158,11 @@ func TestPatternWordBoundariesAndPostDollarLiterals(t *testing.T) {
 
 	grp := Pattern_Compile("(a$|b)c")
 	m := grp.Matcher("bc")
-	if !m.Matches() || *m.Group(1) != "b" {
+	if !m.Matches() {
 		t.Fatalf("(a$|b)c on bc mismatch")
+	}
+	if g1, ok := m.Group(1); !ok || g1 != "b" {
+		t.Fatalf("(a$|b)c group(1) = (%q, %v), want (\"b\", true)", g1, ok)
 	}
 	if grp.Find("ac") || grp.Find("a\n") || grp.Find("a\nc") {
 		t.Fatalf("(a$|b)c unexpectedly matched")

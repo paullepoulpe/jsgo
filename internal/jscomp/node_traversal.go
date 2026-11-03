@@ -270,11 +270,18 @@ func (b NodeTraversal_Builder) traverseScriptUnderRoot(
 	releaseNodeTraversal(t)
 }
 
+func throwableMessageOrNullString(t jutil.Throwable) string {
+	if msg, ok := jutil.ThrowableMessage(t); ok {
+		return msg
+	}
+	return "null"
+}
+
 // Java: NodeTraversal.throwUnexpectedException(Throwable)
 func (t *NodeTraversal) ThrowUnexpectedException(unexpectedException jutil.Throwable) {
 	// If there's an unexpected exception, try to get the
 	// line number of the code that caused it.
-	message := jutil.GetMessageOrNull(unexpectedException)
+	message := throwableMessageOrNullString(unexpectedException)
 
 	// TODO(user): It is possible to get more information if currentNode or
 	// its parent is missing. We still have the scope stack in which it is still
@@ -284,17 +291,16 @@ func (t *NodeTraversal) ThrowUnexpectedException(unexpectedException jutil.Throw
 		if !t.currentNode.IsNil() {
 			parentContext = t.FormatNodeContext("Parent", t.currentNode.GetParent())
 		}
-		m := jutil.ToJavaString(jutil.GetMessageOrNull(unexpectedException)) +
+		message = message +
 			"\n" +
 			t.FormatNodeContext("Node", t.currentNode) +
 			parentContext
-		message = &m
 	}
 	// Go-only: language-adapter — AbstractCompiler.throwInternalError takes a
 	// Go string. A null message (an exception without one, outside any script)
 	// is passed as "null": Compiler.throwInternalError only concatenates it,
 	// which renders a null String as "null".
-	t.compiler.ThrowInternalError(jutil.ToJavaString(message), unexpectedException)
+	t.compiler.ThrowInternalError(message, unexpectedException)
 }
 
 // Java: NodeTraversal.formatNodeContext(String, Node)

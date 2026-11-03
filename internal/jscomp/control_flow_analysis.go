@@ -275,7 +275,7 @@ func (c *ControlFlowAnalysis) traverse(root rhino.Node) {
 	}
 	if Platform_IsThreadInterrupted() {
 		exc := jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException())
-		c.compiler.ThrowInternalError(jutil.ToJavaString(jutil.GetMessageOrNull(exc)), exc)
+		c.compiler.ThrowInternalError(throwableMessageOrNullString(exc), exc)
 		return
 	}
 	c.walkNode = root

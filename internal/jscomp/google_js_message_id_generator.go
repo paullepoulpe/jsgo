@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -48,11 +49,12 @@ type GoogleJsMessageIdGenerator struct {
 //
 // Java: GoogleJsMessageIdGenerator(String)
 func NewGoogleJsMessageIdGenerator(projectId *string) *GoogleJsMessageIdGenerator {
-	var pid string
-	if projectId != nil {
-		pid = *projectId
-	}
-	return NewGoogleJsMessageIdGeneratorForProject(pid)
+	return NewGoogleJsMessageIdGeneratorOpt(base.OptStringFromPtr(projectId))
+}
+
+// NewGoogleJsMessageIdGeneratorOpt creates an instance for an optional TC project ID.
+func NewGoogleJsMessageIdGeneratorOpt(projectId base.OptString) *GoogleJsMessageIdGenerator {
+	return NewGoogleJsMessageIdGeneratorForProject(projectId.ValueOrEmpty())
 }
 
 // NewGoogleJsMessageIdGeneratorForProject creates an instance for an unboxed
@@ -63,8 +65,19 @@ func NewGoogleJsMessageIdGeneratorForProject(projectId string) *GoogleJsMessageI
 
 // Java: GoogleJsMessageIdGenerator.generateId(String, List<Part>)
 func (g *GoogleJsMessageIdGenerator) GenerateId(meaning *string, messageParts []JsMessage_Part) string {
-	jutil.CheckState(meaning != nil)
-	return g.generateId(*meaning, messageParts)
+	return g.GenerateIdOpt(base.OptStringFromPtr(meaning), messageParts)
+}
+
+// GenerateIdOpt generates the ID for an optional meaning without boxing.
+func (g *GoogleJsMessageIdGenerator) GenerateIdOpt(meaning base.OptString, messageParts []JsMessage_Part) string {
+	m, ok := meaning.Get()
+	jutil.CheckState(ok)
+	return g.generateId(m, messageParts)
+}
+
+// GenerateIdForMeaning generates the ID for a non-null meaning string.
+func (g *GoogleJsMessageIdGenerator) GenerateIdForMeaning(meaning string, messageParts []JsMessage_Part) string {
+	return g.generateId(meaning, messageParts)
 }
 
 func (g *GoogleJsMessageIdGenerator) generateId(meaning string, messageParts []JsMessage_Part) string {

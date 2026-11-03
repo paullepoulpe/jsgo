@@ -231,8 +231,20 @@ func TestGsonTypeHierarchyAdapterOrder(t *testing.T) {
 type gsonTestRawAdapter string
 
 func (a gsonTestRawAdapter) Write(out *JsonWriter, value any) {
-	s := string(a)
-	out.JsonValue(&s)
+	out.JsonValue(string(a))
+}
+
+func TestJsonElementUnboxedStringHelpers(t *testing.T) {
+	obj := NewJsonObject()
+	obj.AddPropertyString("k", "v")
+	obj.AddPropertyNull("n")
+	arr := NewJsonArray()
+	arr.AddString("elem")
+	arr.AddNull()
+	obj.Add("arr", arr)
+	if got, want := obj.String(), `{"k":"v","n":null,"arr":["elem",null]}`; got != want {
+		t.Fatalf("got %s, want %s", got, want)
+	}
 }
 
 func TestGsonToJsonUnsupportedGoKinds(t *testing.T) {

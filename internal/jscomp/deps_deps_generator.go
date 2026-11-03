@@ -132,14 +132,14 @@ func NewDepsGenerator(
 
 // ComputeDependencyCalls performs the parsing inputs and writing of outputs.
 // Returns a String of goog.addDependency calls that will build the dependency
-// graph, or nil if there was an error.
+// graph, or ("", false) if there was an error.
 //
 // Java: DepsGenerator.computeDependencyCalls()
-func (g *DepsGenerator) ComputeDependencyCalls() *string {
+func (g *DepsGenerator) ComputeDependencyCalls() (string, bool) {
 	depsFiles := g.parseDepsFiles()
 	jsFiles := g.parseSources(depsFiles)
 	if g.errorManager.GetErrorCount() > 0 {
-		return nil
+		return "", false
 	}
 
 	g.cleanUpDuplicatedFiles(depsFiles, jsFiles)
@@ -148,13 +148,12 @@ func (g *DepsGenerator) ComputeDependencyCalls() *string {
 
 	g.validateDependencies(depsValues, jsValues)
 	if g.errorManager.GetErrorCount() > 0 {
-		return nil
+		return "", false
 	}
 
 	var output bytes.Buffer
 	g.writeDepsContent(depsValues, jsValues, jutil.NewPrintStream(&output))
-	s := jutil.NewStringFromUTF8Bytes(output.Bytes())
-	return &s
+	return jutil.NewStringFromUTF8Bytes(output.Bytes()), true
 }
 
 func (g *DepsGenerator) cleanUpDuplicatedFiles(depsFiles, jsFiles *orderedDepMap) {
@@ -249,49 +248,43 @@ func (g *DepsGenerator) validateDependencies(preparsedFileDependencies, parsedFi
 }
 
 func (g *DepsGenerator) reportMissingFile(depInfo DependencyInfo, path string) {
-	name := depInfo.GetName()
 	g.errorManager.Report(
-		CheckLevel_ERROR, JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_UNKNOWN_PATH_IMPORT, path))
+		CheckLevel_ERROR, JSError_MakeAtSourceLocation(depInfo.GetName(), -1, -1, DepsGenerator_UNKNOWN_PATH_IMPORT, path))
 }
 
 func (g *DepsGenerator) reportEs6ImportForNonEs6Module(provider DependencyInfo, depInfo DependencyInfo) {
-	name := depInfo.GetName()
 	g.errorManager.Report(
 		CheckLevel_ERROR,
-		JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_ES6_IMPORT_FOR_NON_ES6_MODULE, provider.GetName()))
+		JSError_MakeAtSourceLocation(depInfo.GetName(), -1, -1, DepsGenerator_ES6_IMPORT_FOR_NON_ES6_MODULE, provider.GetName()))
 }
 
 func (g *DepsGenerator) reportSameFile(namespace string, depInfo DependencyInfo) {
-	name := depInfo.GetName()
 	g.errorManager.Report(CheckLevel_WARNING,
-		JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_SAME_FILE_WARNING, namespace))
+		JSError_MakeAtSourceLocation(depInfo.GetName(), -1, -1, DepsGenerator_SAME_FILE_WARNING, namespace))
 }
 
 func (g *DepsGenerator) reportUndefinedNamespace(namespace string, depInfo DependencyInfo) {
-	name := depInfo.GetName()
 	g.errorManager.Report(CheckLevel_ERROR,
-		JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_NEVER_PROVIDED_ERROR, namespace))
+		JSError_MakeAtSourceLocation(depInfo.GetName(), -1, -1, DepsGenerator_NEVER_PROVIDED_ERROR, namespace))
 }
 
 func (g *DepsGenerator) reportDuplicateProvide(namespace string, firstDep, secondDep DependencyInfo) {
 	if firstDep == secondDep {
 		if firstDep.GetPathRelativeToClosureBase() != namespace {
-			name := firstDep.GetName()
 			g.errorManager.Report(
 				CheckLevel_WARNING,
-				JSError_MakeWithSourceLocation(&name, -1, -1, DepsGenerator_DUPE_PROVIDES_WARNING, namespace))
+				JSError_MakeAtSourceLocation(firstDep.GetName(), -1, -1, DepsGenerator_DUPE_PROVIDES_WARNING, namespace))
 		}
 	} else {
-		name := secondDep.GetName()
 		g.errorManager.Report(CheckLevel_ERROR,
-			JSError_MakeWithSourceLocation(&name, -1, -1,
+			JSError_MakeAtSourceLocation(secondDep.GetName(), -1, -1,
 				DepsGenerator_MULTIPLE_PROVIDES_ERROR, namespace, firstDep.GetName()))
 	}
 }
 
 func (g *DepsGenerator) reportNoDepsInDepsFile(filePath string) {
 	g.errorManager.Report(CheckLevel_WARNING,
-		JSError_MakeWithSourceLocation(&filePath, -1, -1, DepsGenerator_NO_DEPS_WARNING))
+		JSError_MakeAtSourceLocation(filePath, -1, -1, DepsGenerator_NO_DEPS_WARNING))
 }
 
 func (g *DepsGenerator) addProvideSymbol(provide string, depInfo DependencyInfo, providesMap map[string]DependencyInfo) {

@@ -232,7 +232,7 @@ func throwNilCfgNodeTraversal(compiler AbstractCompiler) {
 	jutil.CheckNotNull(compiler)
 	if Platform_IsThreadInterrupted() {
 		exc := jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException())
-		compiler.ThrowInternalError(jutil.ToJavaString(jutil.GetMessageOrNull(exc)), exc)
+		compiler.ThrowInternalError(throwableMessageOrNullString(exc), exc)
 		return
 	}
 	compiler.ThrowInternalError("null", jutil.NewNullPointerException())

@@ -378,7 +378,7 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerO
 
 func writeJsonOptStringField(w *jutil.JsonWriter, name string, opt base.OptString) {
 	if v, ok := opt.Get(); ok {
-		w.Name(name).ValueString(&v)
+		w.Name(name).ValueString(v)
 	} else {
 		w.Name(name).NullValue()
 	}

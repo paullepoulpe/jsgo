@@ -83,7 +83,8 @@ import (
 // URI is java.net.URI.
 type URI struct {
 	str       string
-	path      *string // nil for opaque URIs
+	path      string
+	hasPath   bool // false for opaque URIs
 	hasScheme bool
 }
 
@@ -100,14 +101,13 @@ func ParseURI(str string) (*URI, error) {
 // IsAbsolute is URI.isAbsolute(): whether the URI has a scheme.
 func (u *URI) IsAbsolute() bool { return u.hasScheme }
 
-// GetPath is URI.getPath(): the decoded path component, nil if the path is
-// undefined.
-func (u *URI) GetPath() *string {
-	if u.path == nil {
-		return nil
+// Path returns the decoded path component and true, or ("", false) if the
+// path is undefined (as in URI.getPath()).
+func (u *URI) Path() (string, bool) {
+	if !u.hasPath {
+		return "", false
 	}
-	s := uriDecodeEscapedOctets(*u.path)
-	return &s
+	return uriDecodeEscapedOctets(u.path), true
 }
 
 // uriDecodeEscapedOctets replaces each maximal run of escaped octets
@@ -217,9 +217,8 @@ func (p *uriParser) fail(reason string, index int) *uriSyntaxError {
 	return &uriSyntaxError{input: p.input, reason: reason, index: index}
 }
 
-func (p *uriParser) str(from, to int) *string {
-	v := StringFromUTF16(p.s[from:to])
-	return &v
+func (p *uriParser) str(from, to int) string {
+	return StringFromUTF16(p.s[from:to])
 }
 
 // find returns the index of the first character in [from, to) that is in
@@ -306,7 +305,7 @@ func (p *uriParser) parse(u *URI) *uriSyntaxError {
 	if err := p.check(i, pathEnd, uriIsPathChar, "path"); err != nil {
 		return err
 	}
-	u.path = p.str(i, pathEnd)
+	u.path, u.hasPath = p.str(i, pathEnd), true
 	i = pathEnd
 	if i < n && p.s[i] == '?' {
 		queryEnd := p.find(i+1, n, "#")

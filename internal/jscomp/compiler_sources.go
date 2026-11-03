@@ -318,24 +318,31 @@ func (c *Compiler) AddInputSourceMap(sourceFileName string, inputSourceMap *Sour
 //
 // Java: Compiler.getBase64SourceMapContents(String)
 func (c *Compiler) GetBase64SourceMapContents(sourceFileName string) *string {
+	if s, ok := c.Base64SourceMapContents(sourceFileName); ok {
+		return &s
+	}
+	return nil
+}
+
+// Base64SourceMapContents returns the base64-encoded inline source map contents
+// for sourceFileName when present.
+func (c *Compiler) Base64SourceMapContents(sourceFileName string) (string, bool) {
 	sourceMapInput := c.inputSourceMaps[sourceFileName]
 	// This sourceMappingURL ends with a ".inline.map", and we want to get its base64-encoded
 	// contents (i.e. "data:application/json;base64,<encoded_source_map>").
 	if sourceMapInput != nil && strings.HasSuffix(sourceMapInput.GetOriginalPath(), ".inline.map") {
 		if sf := sourceMapInput.sourceFile; sf != nil && sf.code.Load() == nil {
 			if l, ok := sf.loader.(*sourceFile_CodeLoader_InlineBase64); ok && l.canonicalUTF8 {
-				raw := l.rawBase64
-				return &raw
+				return l.rawBase64, true
 			}
 		}
 		unencoded, ok := sourceMapInput.GetRawSourceMapContents() // This is the sourcemap.
 		if !ok {
 			panic(jutil.NewNullPointerException())
 		}
-		encoded := base64.StdEncoding.EncodeToString([]byte(unencoded))
-		return &encoded
+		return base64.StdEncoding.EncodeToString([]byte(unencoded)), true
 	}
-	return nil
+	return "", false
 }
 
 // addSourceMapSourceFiles adds file name to content mappings for all
@@ -963,15 +970,10 @@ func (c *Compiler) InitWebpackMap(inputPathByWebpackId jutil.MapSource[string, s
 // compiler & nested compiler.
 //
 // Java: Compiler.setDebugMessage(String)
-func (c *Compiler) SetDebugMessage(debugMessage *string) {
+func (c *Compiler) SetDebugMessage(debugMessage string) {
 	c.compilerExecutor.SetDebugMessage(debugMessage)
-	if debugMessage == nil {
-		c.debugMessage = ""
-		c.hasDebugMessage = false
-	} else {
-		c.debugMessage = *debugMessage
-		c.hasDebugMessage = true
-	}
+	c.debugMessage = debugMessage
+	c.hasDebugMessage = true
 }
 
 // Java: Compiler.createCompilerExecutor()

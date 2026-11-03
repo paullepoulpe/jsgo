@@ -125,11 +125,11 @@ func (h *JSTypeColorIdHasher) PutReferenceNameType(hasher *jutil.FarmHashFingerp
 		return
 	}
 
-	moduleId := sourceRef.GetGoogModuleId()
-	if moduleId == nil {
+	moduleId, hasModuleId := sourceRef.GoogModuleId()
+	if !hasModuleId {
 		hasher.PutInt(jsTypeColorIdHasher_Marker_NO_GOOG_MODULE_ID)
 	} else {
-		JSTypeColorIdHasher_PutUtf8(hasher, *moduleId)
+		JSTypeColorIdHasher_PutUtf8(hasher, moduleId)
 	}
 }
 

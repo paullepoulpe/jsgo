@@ -63,26 +63,23 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 		if message.Level == CheckLevel_ERROR {
 			level = "error"
 		}
-		jsonWriter.Name("level").ValueString(&level)
-		description := message.Error.Description()
-		jsonWriter.Name("description").ValueString(&description)
-		key := message.Error.Type().key
-		jsonWriter.Name("key").ValueString(&key)
+		jsonWriter.Name("level").ValueString(level)
+		jsonWriter.Name("description").ValueString(message.Error.Description())
+		jsonWriter.Name("key").ValueString(message.Error.Type().key)
 		if message.Error.Requirement() != nil {
 			jsonWriter.Name("requirement").BeginObject()
-			ruleId := message.Error.Requirement().GetRuleId()
-			jsonWriter.Name("ruleId").ValueString(&ruleId)
+			jsonWriter.Name("ruleId").ValueString(message.Error.Requirement().GetRuleId())
 			jsonWriter.Name("configFiles").BeginArray()
 			for _, configFile := range message.Error.Requirement().GetConfigFileList() {
-				jsonWriter.ValueString(&configFile)
+				jsonWriter.ValueString(configFile)
 			}
 			jsonWriter.EndArray()
 			jsonWriter.EndObject()
 		}
 		if hasSourceName {
-			jsonWriter.Name("source").ValueString(&sourceName)
+			jsonWriter.Name("source").ValueString(sourceName)
 		} else {
-			jsonWriter.Name("source").ValueString(nil)
+			jsonWriter.Name("source").NullValue()
 		}
 		jsonWriter.Name("line").ValueLong(int64(lineNumber))
 		jsonWriter.Name("column").ValueLong(int64(charno))
@@ -123,14 +120,12 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 						}
 					}
 				}
-				context := b.String()
-				jsonWriter.Name("context").ValueString(&context)
+				jsonWriter.Name("context").ValueString(b.String())
 			}
 
 			if mapping := g.sourceExcerptProvider.GetSourceMapping(sourceName, lineNumber, charno); mapping != nil {
 				jsonWriter.Name("originalLocation").BeginObject()
-				originalFile := mapping.GetOriginalFile()
-				jsonWriter.Name("source").ValueString(&originalFile)
+				jsonWriter.Name("source").ValueString(mapping.GetOriginalFile())
 				jsonWriter.Name("line").ValueLong(int64(mapping.GetLineNumber()))
 				jsonWriter.Name("column").ValueLong(int64(mapping.GetColumnPosition()))
 				jsonWriter.EndObject()
@@ -152,10 +147,8 @@ func (g *JsonErrorReportGenerator) GenerateReport(manager *SortingErrorManager) 
 	}
 
 	jsonWriter.BeginObject()
-	info := "info"
-	jsonWriter.Name("level").ValueString(&info)
-	summary := summaryBuilder.String()
-	jsonWriter.Name("description").ValueString(&summary)
+	jsonWriter.Name("level").ValueString("info")
+	jsonWriter.Name("description").ValueString(summaryBuilder.String())
 	jsonWriter.EndObject()
 
 	jsonWriter.EndArray()

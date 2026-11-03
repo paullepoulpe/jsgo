@@ -1049,7 +1049,9 @@ func (r *Es6RelativizeImportPaths_Rewriter) relativizeModuleSource(t *NodeTraver
 	if err != nil {
 		return
 	}
-	scriptPath = *scriptURI.GetPath()
+	uriPath, hasPath := scriptURI.Path()
+	jutil.CheckState(hasPath)
+	scriptPath = uriPath
 
 	newSpecifier := t.GetInput().GetPath().ResolveModuleAsPath(specifier).String()
 

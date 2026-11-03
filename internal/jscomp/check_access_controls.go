@@ -482,9 +482,9 @@ func (c *CheckAccessControls) shouldCheckPropertyAccess(traversal *NodeTraversal
 				if docInfo := var_.GetJSDocInfo(); docInfo != nil && docInfo.IsDeprecated() {
 					if c.ShouldEmitDeprecationWarning(traversal, node) {
 						name := node.GetString()
-						if docInfo.GetDeprecationReason() != nil {
+						if reason, ok := docInfo.DeprecationReason(); ok {
 							c.compiler.Report(
-								JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME_REASON, name, *docInfo.GetDeprecationReason()))
+								JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME_REASON, name, reason))
 						} else {
 							c.compiler.Report(JSError_MakeWithNode(node, CheckAccessControls_DEPRECATED_NAME, name))
 						}
@@ -621,9 +621,9 @@ func (c *CheckAccessControls) CheckNameDeprecation(t *NodeTraversal, n rhino.Nod
 		return
 	}
 
-	if docInfo.GetDeprecationReason() != nil {
+	if reason, ok := docInfo.DeprecationReason(); ok {
 		c.compiler.Report(
-			JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME_REASON, n.GetString(), *docInfo.GetDeprecationReason()))
+			JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME_REASON, n.GetString(), reason))
 	} else {
 		c.compiler.Report(JSError_MakeWithNode(n, CheckAccessControls_DEPRECATED_NAME, n.GetString()))
 	}
@@ -843,8 +843,8 @@ func checkAccessControls_getTypeDeprecationInfo(type_ rhino.JSType) (string, boo
 // Java: CheckAccessControls.getDeprecationReason(JSDocInfo)
 func CheckAccessControls_GetDeprecationReason(info *rhino.JSDocInfo) (string, bool) {
 	if info != nil && info.IsDeprecated() {
-		if reason := info.GetDeprecationReason(); reason != nil {
-			return *reason, true
+		if reason, ok := info.DeprecationReason(); ok {
+			return reason, true
 		}
 		return "", true
 	}

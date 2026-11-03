@@ -40,7 +40,6 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // FunctionType is the derived type that provides extended information about
@@ -860,11 +859,11 @@ func (f *FunctionTypeBase) googModuleStringID() rhinoStringID {
 }
 
 // Java: FunctionType.getGoogModuleId()
-func (f *FunctionTypeBase) GetGoogModuleId() *string {
-	if f.ext != nil {
-		return strpool.StringPtr(f.ext.googModuleID)
+func (f *FunctionTypeBase) GoogModuleId() (string, bool) {
+	if f.ext != nil && f.ext.googModuleID != 0 {
+		return rhinoStringFromID(f.ext.googModuleID), true
 	}
-	return nil
+	return "", false
 }
 
 // SetSource sets the source node.

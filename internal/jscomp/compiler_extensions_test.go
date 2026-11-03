@@ -43,7 +43,7 @@ sink(CONSTANT_NAME);
 	if gotMap == "" {
 		t.Fatal("expected non-empty GetIdGeneratorMap() after @idGenerator compilation")
 	}
-	if res.idGeneratorMap == nil || gotMap != *res.idGeneratorMap {
+	if resMap, ok := res.idGeneratorMap.Get(); !ok || gotMap != resMap {
 		t.Fatalf("GetIdGeneratorMap() = %q, Result.idGeneratorMap = %v", gotMap, res.idGeneratorMap)
 	}
 }

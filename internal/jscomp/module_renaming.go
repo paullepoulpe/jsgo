@@ -21,6 +21,7 @@ package jscomp
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -66,7 +67,14 @@ func moduleRenaming_getGlobalNameWithModuleMetadata(
 // Java: ModuleRenaming.getGlobalName(ModuleMetadata, String)
 func ModuleRenaming_GetGlobalNameWithModuleMetadata(
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata, googNamespace *string) rhino.QualifiedName {
-	return ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(moduleMetadata, googNamespace, nil).AliasName()
+	return ModuleRenaming_GetGlobalNameWithOptGoogNamespace(moduleMetadata, base.OptStringFromPtr(googNamespace))
+}
+
+// ModuleRenaming_GetGlobalNameWithOptGoogNamespace returns the global qualified
+// name for moduleMetadata and optional googNamespace without pointer boxing.
+func ModuleRenaming_GetGlobalNameWithOptGoogNamespace(
+	moduleMetadata *ModuleMetadataMap_ModuleMetadata, googNamespace base.OptString) rhino.QualifiedName {
+	return ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace(moduleMetadata, googNamespace, nil).AliasName()
 }
 
 // ModuleRenaming_GetGlobalName returns the post-transpilation, globalized
@@ -241,10 +249,18 @@ func ModuleRenaming_GlobalizedModuleName_CreateWithModuleMetadata(
 	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
 	googNamespace *string,
 	globalTypedScope *TypedScope) *ModuleRenaming_GlobalizedModuleName {
-	if googNamespace == nil {
-		return moduleRenaming_createGlobalizedModuleName(moduleMetadata, "", false, globalTypedScope)
-	}
-	return moduleRenaming_createGlobalizedModuleName(moduleMetadata, *googNamespace, true, globalTypedScope)
+	return ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace(
+		moduleMetadata, base.OptStringFromPtr(googNamespace), globalTypedScope)
+}
+
+// ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace creates a
+// GlobalizedModuleName for an optional googNamespace without pointer boxing.
+func ModuleRenaming_GlobalizedModuleName_CreateWithOptGoogNamespace(
+	moduleMetadata *ModuleMetadataMap_ModuleMetadata,
+	googNamespace base.OptString,
+	globalTypedScope *TypedScope) *ModuleRenaming_GlobalizedModuleName {
+	ns, hasNs := googNamespace.Get()
+	return moduleRenaming_createGlobalizedModuleName(moduleMetadata, ns, hasNs, globalTypedScope)
 }
 
 func moduleRenaming_createGlobalizedModuleName(

@@ -129,14 +129,6 @@ func (i *JSDocInfo) getStringProp(p *JSDocInfo_Property) (string, bool) {
 	return jsdocGet[string](v), true
 }
 
-func (i *JSDocInfo) getStringPtrProp(p *JSDocInfo_Property) *string {
-	s, ok := i.getStringProp(p)
-	if !ok {
-		return nil
-	}
-	return &s
-}
-
 func (i *JSDocInfo) suppressions() []JSDocSuppression {
 	return jsdocGet[[]JSDocSuppression](JSDocInfo_SUPPRESSIONS.getRaw(i))
 }
@@ -274,16 +266,16 @@ func (i *JSDocInfo) HasClosurePrimitiveId() bool {
 	return (i.propertyKeysBitset & JSDocInfo_CLOSURE_PRIMITIVE_ID.mask) != 0
 }
 
-// GetDescription gets the description specified by the `@desc` annotation.
+// Description gets the description specified by the `@desc` annotation.
 //
 // Java: JSDocInfo.getDescription()
-func (i *JSDocInfo) GetDescription() *string {
-	return i.getStringPtrProp(JSDocInfo_DESCRIPTION)
+func (i *JSDocInfo) Description() (string, bool) {
+	return i.getStringProp(JSDocInfo_DESCRIPTION)
 }
 
-// GetDescriptionString returns the `@desc` description without allocating a *string.
+// GetDescriptionString returns the `@desc` description.
 func (i *JSDocInfo) GetDescriptionString() (string, bool) {
-	return i.getStringProp(JSDocInfo_DESCRIPTION)
+	return i.Description()
 }
 
 // GetMeaningString gets the meaning specified by the `@meaning` annotation.
@@ -316,29 +308,28 @@ func (i *JSDocInfo) GetAlternateMessageIdString() (string, bool) {
 	return i.getStringProp(JSDocInfo_ALTERNATE_MESSAGE_ID)
 }
 
-// GetDeprecationReason returns the deprecation reason or null if none
-// specified.
+// DeprecationReason returns the deprecation reason, if specified.
 //
 // Java: JSDocInfo.getDeprecationReason()
-func (i *JSDocInfo) GetDeprecationReason() *string {
-	return i.getStringPtrProp(JSDocInfo_DEPRECATION_REASON)
-}
-
-// GetDeprecationReasonString returns the `@deprecated` reason without allocating a *string.
-func (i *JSDocInfo) GetDeprecationReasonString() (string, bool) {
+func (i *JSDocInfo) DeprecationReason() (string, bool) {
 	return i.getStringProp(JSDocInfo_DEPRECATION_REASON)
 }
 
-// GetLicense gets the description specified by the `@license` annotation.
-//
-// Java: JSDocInfo.getLicense()
-func (i *JSDocInfo) GetLicense() *string {
-	return i.getStringPtrProp(JSDocInfo_LICENSE)
+// GetDeprecationReasonString returns the `@deprecated` reason.
+func (i *JSDocInfo) GetDeprecationReasonString() (string, bool) {
+	return i.DeprecationReason()
 }
 
-// GetLicenseString returns the `@license` text without allocating a *string.
-func (i *JSDocInfo) GetLicenseString() (string, bool) {
+// License gets the description specified by the `@license` annotation.
+//
+// Java: JSDocInfo.getLicense()
+func (i *JSDocInfo) License() (string, bool) {
 	return i.getStringProp(JSDocInfo_LICENSE)
+}
+
+// GetLicenseString returns the `@license` text.
+func (i *JSDocInfo) GetLicenseString() (string, bool) {
+	return i.License()
 }
 
 func (i *JSDocInfo) parameterDescriptions() []jsDocKV {
@@ -416,11 +407,11 @@ func (i *JSDocInfo) HasEnhance() bool {
 	return i.CheckBit(JSDocInfo_Bit_ENHANCED_NAMESPACE)
 }
 
-// GetEnhance returns the enhanced namespace or null if none is specified.
+// Enhance returns the enhanced namespace, if specified.
 //
 // Java: JSDocInfo.getEnhance()
-func (i *JSDocInfo) GetEnhance() *string {
-	return i.getStringPtrProp(JSDocInfo_ENHANCED_NAMESPACE)
+func (i *JSDocInfo) Enhance() (string, bool) {
+	return i.getStringProp(JSDocInfo_ENHANCED_NAMESPACE)
 }
 
 // HasMods returns whether this has a modded namespace.
@@ -430,11 +421,11 @@ func (i *JSDocInfo) HasMods() bool {
 	return (i.propertyKeysBitset & JSDocInfo_MODS.mask) != 0
 }
 
-// GetMods returns the modded namespace or null if none is specified.
+// Mods returns the modded namespace, if specified.
 //
 // Java: JSDocInfo.getMods()
-func (i *JSDocInfo) GetMods() *string {
-	return i.getStringPtrProp(JSDocInfo_MODS)
+func (i *JSDocInfo) Mods() (string, bool) {
+	return i.getStringProp(JSDocInfo_MODS)
 }
 
 // GetMarkers gets the list of all markers for the documentation in this

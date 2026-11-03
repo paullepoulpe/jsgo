@@ -67,33 +67,33 @@ func (s *unionTypeTest) SetUp() {
 		s.base =
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Base")).
+				WithName("Base").
 				Build().
 				GetInstanceType()
 		s.baseNameConflict =
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Base")).
+				WithName("Base").
 				Build().
 				GetInstanceType()
 		s.sub1 =
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Sub1")).
+				WithName("Sub1").
 				WithPrototypeBasedOn(s.base).
 				Build().
 				GetInstanceType()
 		s.sub2 =
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Sub2")).
+				WithName("Sub2").
 				WithPrototypeBasedOn(s.base).
 				Build().
 				GetInstanceType()
 		s.sub3 =
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Sub3")).
+				WithName("Sub3").
 				WithPrototypeBasedOn(s.base).
 				Build().
 				GetInstanceType()
@@ -135,7 +135,7 @@ func TestUnionType_UnionOfNullAndUnresolvedNamedType(t *testing.T) {
 	s := newUnionTypeTest(t)
 	s.ErrorReporter.ExpectAllWarnings("Bad type annotation. Unknown type not.resolved.named.type")
 	unresolvedNamedType :=
-		s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.named.type", ptr(""), -1, -1)
+		s.Registry.CreateNamedType(s.EMPTY_SCOPE, "not.resolved.named.type", someStr(""), -1, -1)
 	nullOrUnknown := s.CreateUnionType(s.NULL_TYPE, unresolvedNamedType).(*UnionType)
 	s.AssertThat(nullOrUnknown.IsUnknownType()).IsTrue()
 	s.AssertType(s.NULL_TYPE.GetLeastSupertype(nullOrUnknown)).IsEqualTo(nullOrUnknown)

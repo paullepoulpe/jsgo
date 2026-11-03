@@ -102,17 +102,16 @@ func (c *ProductionCoverageInstrumentationCallback) ShouldTraverse(t *NodeTraver
 	// injected code and can result in an error.
 	if !n.IsRoot() {
 		src, hasSrc := t.SourceNameOk()
-		if (nullableString{val: src, ok: hasSrc}) != toNullableString(n.GetSourceFileName()) {
+		if (nullableString{val: src, ok: hasSrc}) != nodeSourceNullableString(n) {
 			return false
 		}
 	}
 
 	if n.IsFunction() {
-		fnName := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
-		if fnName == nil {
+		if fnName, ok := NodeUtil_BestLValueName(NodeUtil_GetBestLValue(n)); !ok {
 			c.functionNameStack = append(c.functionNameStack, productionCoverageInstrumentationCallback_ANONYMOUS_FUNCTION_NAME)
 		} else {
-			c.functionNameStack = append(c.functionNameStack, *fnName)
+			c.functionNameStack = append(c.functionNameStack, fnName)
 		}
 	}
 
@@ -135,7 +134,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 		fileName := nullableString{val: src, ok: hasSrc}
 		c.instrumentBlockNode(ast.MustFunction(node).Body().Node(), fileName, functionName, productionCoverageInstrumentationCallback_Type_FUNCTION)
 	case rhino.Token_IF:
-		sourceFileName := toNullableString(node.GetSourceFileName())
+		sourceFileName := nodeSourceNullableString(node)
 		functionName := c.functionNamePeek()
 		ifNode := ast.MustIf(node)
 		c.instrumentBlockNode(ifNode.Then().Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH)
@@ -153,7 +152,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 			c.instrumentBlockNode(ifFalseBlock.Node(), sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 		}
 	case rhino.Token_SWITCH:
-		sourceFileName := toNullableString(node.GetSourceFileName())
+		sourceFileName := nodeSourceNullableString(node)
 		functionName := c.functionNamePeek()
 		hasDefaultCase := false
 		switchBody := ast.MustSwitch(node).Body()
@@ -173,7 +172,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 			c.instrumentBlockNode(defaultBlock, sourceFileName, functionName, productionCoverageInstrumentationCallback_Type_BRANCH_DEFAULT)
 		}
 	case rhino.Token_HOOK:
-		sourceFileName := toNullableString(node.GetSourceFileName())
+		sourceFileName := nodeSourceNullableString(node)
 		functionName := c.functionNamePeek()
 		hook := ast.MustHook(node)
 
@@ -184,7 +183,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 
 		c.compiler.ReportChangeToEnclosingScope(node)
 	case rhino.Token_OR, rhino.Token_AND, rhino.Token_COALESCE:
-		sourceFileName := toNullableString(node.GetSourceFileName())
+		sourceFileName := nodeSourceNullableString(node)
 		functionName := c.functionNamePeek()
 		// Only instrument the second child of the binary operation because the first child will
 		// always execute, or the first child is part of a chain of binary operations and would have
@@ -196,7 +195,7 @@ func (c *ProductionCoverageInstrumentationCallback) Visit(traversal *NodeTravers
 		c.compiler.ReportChangeToEnclosingScope(node)
 	default:
 		if NodeUtil_IsLoopStructure(node) {
-			sourceFileName := toNullableString(node.GetSourceFileName())
+			sourceFileName := nodeSourceNullableString(node)
 			functionName := c.functionNamePeek()
 			blockNode := NodeUtil_GetLoopCodeBlock(node)
 			rhino.CheckNotNull(blockNode)
@@ -298,11 +297,9 @@ type nullableString struct {
 	ok  bool
 }
 
-func toNullableString(s *string) nullableString {
-	if s == nil {
-		return nullableString{}
-	}
-	return nullableString{val: *s, ok: true}
+func nodeSourceNullableString(n rhino.Node) nullableString {
+	src, ok := n.SourceFileName()
+	return nullableString{val: src, ok: ok}
 }
 
 // productionCoverageInstrumentationCallback_ParameterMapping maintains a

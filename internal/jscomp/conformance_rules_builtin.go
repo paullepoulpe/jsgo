@@ -929,13 +929,13 @@ func (r *ConformanceRules_BannedEnhance) CheckConformance(t *NodeTraversal, n rh
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
 
-	enhance := docInfo.GetEnhance()
-	if enhance == nil {
+	enhance, hasEnhance := docInfo.Enhance()
+	if !hasEnhance {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
-	if _, ok := r.bannedEnhancedNamespaces[*enhance]; ok {
+	if _, ok := r.bannedEnhancedNamespaces[enhance]; ok {
 		return NewConformanceRules_ConformanceResultWithNote(
-			ConformanceRules_ConformanceLevel_VIOLATION, "The enhanced namespace \""+*enhance+"\"")
+			ConformanceRules_ConformanceLevel_VIOLATION, "The enhanced namespace \""+enhance+"\"")
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
@@ -979,7 +979,7 @@ func (r *ConformanceRules_BannedModsRegex) CheckConformance(t *NodeTraversal, n 
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
 
-	if mods := docInfo.GetMods(); mods != nil && r.bannedModsRegex.Matcher(*mods).Find() {
+	if mods, ok := docInfo.Mods(); ok && r.bannedModsRegex.Matcher(mods).Find() {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE

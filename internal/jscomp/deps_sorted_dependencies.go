@@ -417,16 +417,12 @@ func (d *SortedDependencies[InputT]) ProcessInputs() {
 		d.userOrderedIDs[i] = id
 
 		provides := userOrderedInput.GetProvides()
-		var firstProvide *string
-		if len(provides) > 0 {
-			firstProvide = &provides[0]
-		}
-		if firstProvide == nil ||
+		if len(provides) == 0 ||
 			// "module$" indicates the provide is generated from the path. If
 			// this is the only thing the module provides and it is not an ES6
 			// module then it is just a script and doesn't export anything.
 			(len(provides) == 1 &&
-				strings.HasPrefix(*firstProvide, "module$") &&
+				strings.HasPrefix(provides[0], "module$") &&
 				// ES6 modules should always be considered as exporting
 				// something.
 				!userOrderedInput.IsEs6Module()) {

@@ -4951,11 +4951,11 @@ func TestTemplateLiteralWithLineContinuation(t *testing.T) {
 	templateLiteral := n.GetFirstFirstChild()
 	stringNode := templateLiteral.GetFirstChild()
 	assertNode(t, stringNode).HasType(rhino.Token_TEMPLATELIT_STRING)
-	assertThat(t, stringNode.GetCookedString()).IsEqualTo("string continuation")
+	assertThat(t, optString(stringNode.CookedString())).IsEqualTo("string continuation")
 
 	n = pt.parseWarning("`string \\\u2028continuation`", parserTest_STRING_CONTINUATIONS_WARNING)
 	stringNode = n.GetFirstFirstChild().GetFirstChild()
-	assertThat(t, stringNode.GetCookedString()).IsEqualTo("string continuation")
+	assertThat(t, optString(stringNode.CookedString())).IsEqualTo("string continuation")
 	assertThat(t, stringNode.GetRawString()).IsEqualTo("string \\\u2028continuation")
 }
 
@@ -10142,7 +10142,7 @@ func (pt *parserTest) assertSimpleTemplateLiteral(expectedContents string, liter
 	assertNode(t, node).HasType(rhino.Token_TEMPLATELIT)
 	assertThat(t, node.GetChildCount()).IsEqualTo(1)
 	assertNode(t, node.GetFirstChild()).HasType(rhino.Token_TEMPLATELIT_STRING)
-	assertThat(t, node.GetFirstChild().GetCookedString()).IsEqualTo(expectedContents)
+	assertThat(t, optString(node.GetFirstChild().CookedString())).IsEqualTo(expectedContents)
 }
 
 // Java: ParserTest.doAsyncArrowFunctionTest(String)

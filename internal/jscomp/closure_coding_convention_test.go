@@ -231,15 +231,13 @@ func (c *ClosureCodingConventionTest) TestApplySubclassRelationship() {
 		closer := registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
 		nodeA := rhino.NewNode(rhino.Token_FUNCTION)
-		a := "A"
 		ctorA :=
 			registry.CreateConstructorType(
-				&a, nodeA, registry.CreateParameters(), nil, nil, false)
+				"A", nodeA, registry.CreateParameters(), nil, nil, false)
 		nodeB := rhino.NewNode(rhino.Token_FUNCTION)
-		b := "B"
 		ctorB :=
 			registry.CreateConstructorType(
-				&b, nodeB, registry.CreateParameters(), nil, nil, false)
+				"B", nodeB, registry.CreateParameters(), nil, nil, false)
 		c.conv.ApplySubclassRelationship(
 			rhino.NewNominalTypeBuilder(ctorA, ctorA.GetInstanceType()),
 			rhino.NewNominalTypeBuilder(ctorB, ctorB.GetInstanceType()),

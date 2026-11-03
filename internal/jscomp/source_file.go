@@ -28,6 +28,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -346,7 +347,7 @@ func (f *SourceFile) getCode() (string, jutil.IIOException) {
 			return "", err
 		}
 	}
-	f.SetCodeAndDoBookkeeping(&raw)
+	f.SetCodeAndDoBookkeeping(base.SomeString(raw))
 	return *f.code.Load(), nil
 }
 
@@ -367,7 +368,7 @@ func sourceFile_loadFromCustomLoader(loader SourceFile_CodeLoader) (code string,
 //
 // Deprecated.
 func (f *SourceFile) SetCodeDeprecated(code string) {
-	f.SetCodeAndDoBookkeeping(&code)
+	f.SetCodeAndDoBookkeeping(base.SomeString(code))
 }
 
 // GetCodeReader gets a reader for the code in this source file. It panics
@@ -393,14 +394,13 @@ func (f *SourceFile) GetCodeReader() jutil.JavaReader {
 	return jutil.NewStringReader(f.GetCode())
 }
 
-func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode *string) {
+func (f *SourceFile) SetCodeAndDoBookkeeping(sourceCode base.OptString) {
 	f.code.Store(nil)
 	// Force recalculation of all of these values when they are requested.
 	f.lineOffsets = nil
 	f.lineByteOffsets = nil
 
-	if sourceCode != nil {
-		s := *sourceCode
+	if s, ok := sourceCode.Get(); ok {
 		if strings.HasPrefix(s, sourceFile_UTF8_BOM) {
 			s = s[len(sourceFile_UTF8_BOM):]
 		}
@@ -447,7 +447,7 @@ func (f *SourceFile) GetOriginalPath() string {
 //
 // Java: SourceFile.clearCachedSource()
 func (f *SourceFile) ClearCachedSource() {
-	f.SetCodeAndDoBookkeeping(nil)
+	f.SetCodeAndDoBookkeeping(base.NoString())
 }
 
 // Java: SourceFile.hasSourceInMemory()

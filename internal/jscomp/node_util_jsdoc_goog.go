@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
@@ -599,15 +600,18 @@ type NodeUtil_GoogRequire struct {
 
 // Java: NodeUtil.GoogRequire(String, String, boolean)
 func NewNodeUtil_GoogRequire(namespace string, property *string, isStrongRequire bool) *NodeUtil_GoogRequire {
-	if property != nil {
-		return &NodeUtil_GoogRequire{
-			namespace:       namespace,
-			property:        *property,
-			hasProperty:     true,
-			isStrongRequire: isStrongRequire,
-		}
+	return NewNodeUtil_GoogRequireOpt(namespace, base.OptStringFromPtr(property), isStrongRequire)
+}
+
+// NewNodeUtil_GoogRequireOpt constructs a NodeUtil_GoogRequire for an optional property.
+func NewNodeUtil_GoogRequireOpt(namespace string, property base.OptString, isStrongRequire bool) *NodeUtil_GoogRequire {
+	prop, hasProp := property.Get()
+	return &NodeUtil_GoogRequire{
+		namespace:       namespace,
+		property:        prop,
+		hasProperty:     hasProp,
+		isStrongRequire: isStrongRequire,
 	}
-	return &NodeUtil_GoogRequire{namespace: namespace, isStrongRequire: isStrongRequire}
 }
 
 // Java: NodeUtil.GoogRequire.namespace()
@@ -619,6 +623,11 @@ func (r *NodeUtil_GoogRequire) Property() *string {
 		return nil
 	}
 	return &r.property
+}
+
+// PropertyOk returns the destructured property name and whether one is present.
+func (r *NodeUtil_GoogRequire) PropertyOk() (string, bool) {
+	return r.property, r.hasProperty
 }
 
 // Java: NodeUtil.GoogRequire.isStrongRequire()

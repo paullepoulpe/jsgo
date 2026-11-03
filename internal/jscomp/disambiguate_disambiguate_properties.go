@@ -147,8 +147,9 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 		d.RegisterOwnDeclaredProperties(colorGraphNode, propIndex)
 	}
 
-	graphLog.LogJsonSupplier(
-		func() any {
+	diagnostic.LogJsonOf(
+		graphLog,
+		func() []*disambiguateProperties_TypeNodeJson {
 			var nodes []*disambiguateProperties_TypeNodeJson
 			for _, n := range colorGraph.GetNodes() {
 				nodes = append(nodes, newDisambiguateProperties_TypeNodeJson(n, d.propAssocs))
@@ -179,12 +180,14 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	}
 	d.compiler.ReportDisambiguatePropertiesSummary(trackerSummaryGenerator.BuildSummaryString)
 
-	renamingIndexLog.LogJsonSupplier(func() any {
+	diagnostic.LogJsonOf(renamingIndexLog, func() disambiguateProperties_renamingIndexJson {
 		return disambiguateProperties_renamingIndexJson{m: DisambiguateProperties_BuildRenamingIndex(propIndex, renamer)}
 	})
 	propIndex = nil
 	renamer = nil
-	d.LogForDiagnostics("mismatches", func() any { return d.registry.GetMismatchLocationsForDebugging().Inverse() })
+	d.logForDiagnostics("mismatches", func() *colors.InverseColorMismatchLocations {
+		return d.registry.GetMismatchLocationsForDebugging().Inverse()
+	})
 
 	GatherGetterAndSetterProperties_Update(d.compiler, externs, root)
 }
@@ -271,11 +274,11 @@ func (r disambiguateProperties_renamingIndexJson) WriteGson(out *jutil.JsonWrite
 	for _, e := range r.m.Entries() {
 		out.Name(e.Key)
 		if e.Value.invalidated {
-			diagnostic.LogsGson_GSON.ToJsonWriter(e.Value.invalidation, out)
+			e.Value.invalidation.WriteGson(out)
 		} else {
 			out.BeginArray()
 			for i := range e.Value.names {
-				out.ValueString(&e.Value.names[i])
+				out.ValueString(e.Value.names[i])
 			}
 			out.EndArray()
 		}
@@ -445,10 +448,10 @@ func (d *DisambiguateProperties) RegisterOwnDeclaredProperties(
 }
 
 // Java: DisambiguateProperties.logForDiagnostics(String, Supplier<Object>)
-func (d *DisambiguateProperties) LogForDiagnostics(name string, data func() any) {
+func (d *DisambiguateProperties) logForDiagnostics(name string, data func() *colors.InverseColorMismatchLocations) {
 	log := d.compiler.CreateOrReopenLog("DisambiguateProperties", name+".log")
 	defer log.Close()
-	log.LogJsonSupplier(data)
+	diagnostic.LogJsonOf(log, data)
 }
 
 // Java: DisambiguateProperties.logForDiagnostics(String, LogFile.StreamedJsonProducer)
@@ -493,15 +496,14 @@ func (j *disambiguateProperties_PropertyReferenceIndexJson) WriteJson(writer *ju
 	writer.Name(j.name)
 
 	writer.BeginObject()
-	writer.Name("name").ValueString(&j.name)
+	writer.Name("name").ValueString(j.name)
 	writer.Name("refs").BeginArray()
 	for _, ref := range j.refs {
 		b, err := json.Marshal(ref)
 		if err != nil {
 			panic(err)
 		}
-		raw := string(b)
-		writer.JsonValue(&raw)
+		writer.JsonValue(string(b))
 	}
 	writer.EndArray()
 	writer.EndObject()
@@ -543,8 +545,7 @@ func (p disambiguateProperties_TypeNodePropsJson) WriteGson(out *jutil.JsonWrite
 	out.BeginObject()
 	for i := range p.items {
 		out.Name(p.items[i].name)
-		s := p.items[i].association.String()
-		out.ValueString(&s)
+		out.ValueString(p.items[i].association.String())
 	}
 	out.EndObject()
 }
@@ -665,7 +666,7 @@ var _ graph.FixedPointGraphTraversal_EdgeCallback[*ColorGraphNode, ColorGraphBui
 // This information is only used diagnostically and doesn't affect the
 // outcome of optimizations. Since diagnostic information isn't usually
 // rendered, this value struct avoids heap allocations during disambiguation
-// and formats its GSON representation on demand via diagnostic.LogsGson_Able.
+// and streams its GSON representation on demand via jutil.GsonWritable.
 //
 // Java: class Invalidation
 type Invalidation struct {
@@ -678,31 +679,22 @@ type Invalidation struct {
 // IsValid reports whether this Invalidation has been populated.
 func (i Invalidation) IsValid() bool { return i.valid }
 
-type invalidationJson struct {
-	Reason Invalidation_Reason `gson:"reason"`
-}
-
-type invalidationWithReceiverJson struct {
-	ReceiverType int                 `gson:"receiverType"`
-	Reason       Invalidation_Reason `gson:"reason"`
-}
-
-// ToLogsGson formats Invalidation identically to Java's Invalidation and
+// WriteGson formats Invalidation identically to Java's Invalidation and
 // Invalidation.WithReceiverType ({"receiverType":5,"reason":"INVALIDATING_TYPE"}).
-func (i Invalidation) ToLogsGson() any {
+func (i Invalidation) WriteGson(out *jutil.JsonWriter) {
 	if !i.valid {
-		return nil
+		out.JsonValue("null")
+		return
 	}
+	out.BeginObject()
 	if i.hasReceiver {
-		return invalidationWithReceiverJson{
-			ReceiverType: int(i.receiverType),
-			Reason:       i.reason,
-		}
+		out.Name("receiverType").ValueLong(int64(i.receiverType))
 	}
-	return invalidationJson{Reason: i.reason}
+	out.Name("reason").ValueString(i.reason.String())
+	out.EndObject()
 }
 
-var _ diagnostic.LogsGson_Able = Invalidation{}
+var _ jutil.GsonWritable = Invalidation{}
 
 // Java: Invalidation.wellKnownProperty()
 func Invalidation_WellKnownProperty() Invalidation {

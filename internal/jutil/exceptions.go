@@ -573,12 +573,22 @@ func NewInterruptedException() *JavaException {
 	return e
 }
 
-// GetMessageOrNull is Throwable.getMessage() with Java null as nil:
-// GetMessage returns "" for both a null and an empty message, which is not
-// enough where Java concatenates the message ("null" + ...).
-func GetMessageOrNull(t Throwable) *string {
+// ThrowableMessage returns Throwable.getMessage() and true when the throwable
+// carries an explicit message (possibly ""), or ("", false) when its Java
+// message is null. GetMessage alone returns "" for both a null and an empty
+// message, which is not enough where Java distinguishes null (e.g. "null" + ...).
+func ThrowableMessage(t Throwable) (string, bool) {
 	msg := t.GetMessage()
 	if msg == "" && !t.throwable().hasMsg {
+		return "", false
+	}
+	return msg, true
+}
+
+// GetMessageOrNull is Throwable.getMessage() with Java null as nil.
+func GetMessageOrNull(t Throwable) *string {
+	msg, ok := ThrowableMessage(t)
+	if !ok {
 		return nil
 	}
 	return &msg

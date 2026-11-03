@@ -23,6 +23,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -82,12 +83,8 @@ type DiagnosticGroup struct {
 
 const diagnosticGroup_serialVersionUID int64 = 1
 
-func newDiagnosticGroupDedup(name *string, capHint int, visit func(add func(*DiagnosticType))) *DiagnosticGroup {
-	var groupName string
-	hasName := name != nil
-	if hasName {
-		groupName = *name
-	}
+func newDiagnosticGroupDedup(name base.OptString, capHint int, visit func(add func(*DiagnosticType))) *DiagnosticGroup {
+	groupName, hasName := name.Get()
 	dedup := make(DiagnosticTypeSlice, 0, capHint)
 	if capHint <= diagnosticGroupMapThreshold {
 		visit(func(t *DiagnosticType) {
@@ -131,6 +128,18 @@ func newDiagnosticGroupDedup(name *string, capHint int, visit func(add func(*Dia
 //
 // Java: DiagnosticGroup(String, DiagnosticType...)
 func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *DiagnosticGroup {
+	return NewDiagnosticGroupOpt(base.OptStringFromPtr(name), types...)
+}
+
+// NewDiagnosticGroupNamed creates a named group that matches all errors of the
+// given types without boxing name.
+func NewDiagnosticGroupNamed(name string, types ...*DiagnosticType) *DiagnosticGroup {
+	return NewDiagnosticGroupOpt(base.SomeString(name), types...)
+}
+
+// NewDiagnosticGroupOpt creates an optionally named group that matches all
+// errors of the given types.
+func NewDiagnosticGroupOpt(name base.OptString, types ...*DiagnosticType) *DiagnosticGroup {
 	return newDiagnosticGroupDedup(name, len(types), func(add func(*DiagnosticType)) {
 		for _, t := range types {
 			jutil.CheckNotNull(t)
@@ -144,7 +153,7 @@ func NewDiagnosticGroupWithName(name *string, types ...*DiagnosticType) *Diagnos
 //
 // Java: DiagnosticGroup(DiagnosticType...)
 func NewDiagnosticGroup(types ...*DiagnosticType) *DiagnosticGroup {
-	return NewDiagnosticGroupWithName(nil, types...)
+	return NewDiagnosticGroupOpt(base.NoString(), types...)
 }
 
 // newDiagnosticGroupForSingleType creates a diagnostic group with no name
@@ -163,13 +172,23 @@ func newDiagnosticGroupForSingleType(type_ *DiagnosticType) *DiagnosticGroup {
 //
 // Java: DiagnosticGroup(DiagnosticGroup...)
 func NewDiagnosticGroupFromGroups(groups ...*DiagnosticGroup) *DiagnosticGroup {
-	return NewDiagnosticGroupWithNameFromGroups(nil, groups...)
+	return NewDiagnosticGroupOptFromGroups(base.NoString(), groups...)
 }
 
 // NewDiagnosticGroupWithNameFromGroups creates a composite group.
 //
 // Java: DiagnosticGroup(String, DiagnosticGroup...)
 func NewDiagnosticGroupWithNameFromGroups(name *string, groups ...*DiagnosticGroup) *DiagnosticGroup {
+	return NewDiagnosticGroupOptFromGroups(base.OptStringFromPtr(name), groups...)
+}
+
+// NewDiagnosticGroupNamedFromGroups creates a named composite group without boxing name.
+func NewDiagnosticGroupNamedFromGroups(name string, groups ...*DiagnosticGroup) *DiagnosticGroup {
+	return NewDiagnosticGroupOptFromGroups(base.SomeString(name), groups...)
+}
+
+// NewDiagnosticGroupOptFromGroups creates an optionally named composite group.
+func NewDiagnosticGroupOptFromGroups(name base.OptString, groups ...*DiagnosticGroup) *DiagnosticGroup {
 	total := 0
 	for _, group := range groups {
 		jutil.CheckNotNull(group)
@@ -244,18 +263,10 @@ func (g *DiagnosticGroup) GetTypes() DiagnosticTypeSlice {
 	return g.types
 }
 
-// GetName may return nil.
+// Name returns the group's name and whether one is present.
 //
 // Java: DiagnosticGroup.getName()
-func (g *DiagnosticGroup) GetName() *string {
-	if !g.hasName {
-		return nil
-	}
-	return &g.name
-}
-
-// NameOk returns the group's name and whether one is present.
-func (g *DiagnosticGroup) NameOk() (string, bool) {
+func (g *DiagnosticGroup) Name() (string, bool) {
 	return g.name, g.hasName
 }
 

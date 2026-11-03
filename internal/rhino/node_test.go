@@ -44,6 +44,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -674,9 +675,11 @@ func TestNode_CloneValues(t *testing.T) {
 		sameInstance(string_.CloneNode().GetString(), string_.GetString()))
 
 	cooked := newString("a")
-	template := Node_NewTemplateLitString(&cooked, newString("b"))
+	template := Node_NewTemplateLitString(base.SomeString(cooked), newString("b"))
+	clonedCooked, _ := template.CloneNode().CookedString()
+	origCooked, _ := template.CookedString()
 	assertTrue(t, "clone getCookedString same instance",
-		sameInstance(*template.CloneNode().GetCookedString(), *template.GetCookedString()))
+		sameInstance(clonedCooked, origCooked))
 	assertTrue(t, "clone getRawString same instance",
 		sameInstance(template.CloneNode().GetRawString(), template.GetRawString()))
 

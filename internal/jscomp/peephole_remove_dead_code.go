@@ -111,7 +111,7 @@ func (p *PeepholeRemoveDeadCode) OptimizeSubtree(subtree rhino.Node) rhino.Node 
 		return p.TryFoldFor(subtree)
 	case rhino.Token_DO:
 		foldedDo := p.TryFoldDoAway(subtree)
-		if foldedDo.IsDo() {
+		if _, isDo := ast.AsDo(foldedDo); isDo {
 			return p.TryFoldEmptyDo(foldedDo)
 		}
 		return foldedDo
@@ -254,7 +254,7 @@ func (p *PeepholeRemoveDeadCode) TryFoldExpr(subtree rhino.Node) rhino.Node {
 	if result.IsNil() {
 		parent := subtree.GetParent()
 		// If the EXPR_RESULT no longer has any children, remove it as well.
-		if parent.IsLabel() {
+		if _, isLabel := ast.AsLabel(parent); isLabel {
 			replacement := rhino.IR_Block().Srcref(subtree)
 			subtree.ReplaceWith(replacement)
 			subtree = replacement
@@ -403,7 +403,7 @@ func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node
 		// before arriving here. We don't want to look at any children since they'll never execute.
 	case rhino.Token_MEMBER_FIELD_DEF:
 		field := ast.MustMemberFieldDef(tree)
-		if value, ok := field.Value(); ok && tree.IsStaticMember() {
+		if value, ok := field.Value(); ok && field.IsStatic() {
 			p.trySimplifyUnusedResultInternal(value.Node())
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:
@@ -411,7 +411,7 @@ func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node
 		value, hasValue := field.Value()
 		// Computed key initializers run once when the class is defined, even on non-static fields.
 		p.trySimplifyUnusedResultInternal(field.Key().Node())
-		if hasValue && tree.IsStaticMember() {
+		if hasValue && field.IsStatic() {
 			p.trySimplifyUnusedResultInternal(value.Node())
 		}
 	default:
@@ -441,8 +441,7 @@ func (p *PeepholeRemoveDeadCode) trySimplifyUnusedResultInternal(tree rhino.Node
 //
 // Java: PeepholeRemoveDeadCode.asDetachedExpression(Node)
 func PeepholeRemoveDeadCode_AsDetachedExpression(expr rhino.Node) rhino.Node {
-	switch expr.GetToken() {
-	case rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD:
+	if _, isSpread := ast.AsSpread(expr); isSpread {
 		switch expr.GetParent().GetToken() {
 		case rhino.Token_ARRAYLIT, rhino.Token_NEW,
 			rhino.Token_CALL,          // `Math.sin(...c)`
@@ -453,14 +452,14 @@ func PeepholeRemoveDeadCode_AsDetachedExpression(expr rhino.Node) rhino.Node {
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(expr.ToStringTree()))
 		}
-	default:
 	}
 
 	if expr.HasParent() {
 		expr.Detach()
 	}
 
-	jutil.CheckStateMsg1(rhino.IR_MayBeExpression(expr), "%s", expr)
+	_, isExpr := ast.AsExpr(expr)
+	jutil.CheckStateMsg1(isExpr, "%s", expr)
 	return expr
 }
 
@@ -484,7 +483,8 @@ func PeepholeRemoveDeadCode_HasFixedPointParent(expr rhino.Node) bool {
 		// other than ARRAYLIT and OBJECTLIT are not fixed-point because they are the tersest
 		// legal
 		// parents and are known to be side-effect free.
-		return expr.IsSpread()
+		_, isSpread := ast.AsSpread(expr)
+		return isSpread
 	default:
 		// Statments are always fixed-point parents. All other expressions are not.
 		return NodeUtil_IsStatement(expr.GetParent())
@@ -544,10 +544,12 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
 			c = next
 			continue
 		case rhino.Token_EXPR_RESULT:
-			if expr := c.GetFirstChild(); expr.IsAssign() && expr.GetFirstChild().IsName() {
-				p.TryOptimizeConditionalAfterAssign(c)
-				c = next
-				continue
+			if assign, ok := ast.MustExprStmt(c).Expr().AsAssign(); ok {
+				if _, isName := assign.Target().AsName(); isName {
+					p.TryOptimizeConditionalAfterAssign(c)
+					c = next
+					continue
+				}
 			}
 		}
 		if !PeepholeRemoveDeadCode_IsUnremovableNode(c) && !p.MayHaveSideEffects(c) {
@@ -566,7 +568,11 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
 		c = next
 	}
 
-	if n.IsSyntheticBlock() || n.IsScript() || n.GetParent().IsNil() {
+	if _, isScript := ast.AsScript(n); isScript || n.GetParent().IsNil() {
+		return n
+	}
+	block := ast.MustBlock(n)
+	if block.IsSynthetic() {
 		return n
 	}
 
@@ -575,7 +581,7 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
 	if NodeUtil_TryMergeBlock(n, p.IsASTNormalized()) {
 		p.ReportChangeToEnclosingScope(parent)
 		return rhino.NilNode
-	} else if parent.IsClassMembers() && !n.HasChildren() {
+	} else if _, isClassBody := ast.AsClassBody(parent); isClassBody && !block.HasStatements() {
 		n.Detach()
 		p.ReportChangeToEnclosingScope(parent)
 		return rhino.NilNode
@@ -586,25 +592,26 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeBlock(n rhino.Node) rhino.Node {
 
 // Java: PeepholeRemoveDeadCode.removeFollowingNodes(Node)
 func (p *PeepholeRemoveDeadCode) RemoveFollowingNodes(n rhino.Node) {
+	if n.GetNext().IsNil() {
+		return
+	}
 	parent := n.GetParent()
-	if parent.GetLastChild() != n {
-		changed := false
-		for !n.GetNext().IsNil() {
-			dead := n.GetNext()
-			if NodeUtil_IsFunctionDeclaration(dead) {
-				// Don't remove function declarations as they are hoisted
-				n = dead
-				continue
-			}
-			changed = true
-			NodeUtil_RedeclareVarsInsideBranch(dead)
-			p.RedeclareIfBlockScopedVar(dead, parent)
-			dead.Detach()
-			p.MarkFunctionsDeleted(dead)
+	changed := false
+	for !n.GetNext().IsNil() {
+		dead := n.GetNext()
+		if NodeUtil_IsFunctionDeclaration(dead) {
+			// Don't remove function declarations as they are hoisted
+			n = dead
+			continue
 		}
-		if changed {
-			p.ReportChangeToEnclosingScope(parent)
-		}
+		changed = true
+		NodeUtil_RedeclareVarsInsideBranch(dead)
+		p.RedeclareIfBlockScopedVar(dead, parent)
+		dead.Detach()
+		p.MarkFunctionsDeleted(dead)
+	}
+	if changed {
+		p.ReportChangeToEnclosingScope(parent)
 	}
 }
 
@@ -631,7 +638,7 @@ func (p *PeepholeRemoveDeadCode) RedeclareIfBlockScopedVar(decl rhino.Node, pare
 		NodeUtil_VisitLhsNodesInNode(
 			decl,
 			func(n rhino.Node) {
-				if n.IsName() {
+				if _, isName := ast.AsName(n); isName {
 					blockScopedVars = append(blockScopedVars, n)
 				}
 			})
@@ -639,12 +646,13 @@ func (p *PeepholeRemoveDeadCode) RedeclareIfBlockScopedVar(decl rhino.Node, pare
 
 	addBefore := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(parent)
 	for _, nameNode := range blockScopedVars {
-		var_ := rhino.IR_Let(rhino.IR_Name(nameNode.GetString()).Srcref(nameNode)).Srcref(nameNode)
-		NodeUtil_CopyNameAnnotations(nameNode, var_.GetFirstChild())
+		letName := rhino.IR_Name(ast.MustName(nameNode).Ident()).Srcref(nameNode)
+		letDecl := rhino.IR_Let(letName).Srcref(nameNode)
+		NodeUtil_CopyNameAnnotations(nameNode, letName)
 		if !addBefore.IsNil() {
-			var_.InsertBefore(addBefore)
+			letDecl.InsertBefore(addBefore)
 		} else {
-			parent.AddChildToBack(var_)
+			parent.AddChildToBack(letDecl)
 		}
 	}
 	p.AddFeatureToEnclosingScript(parser.FeatureSet_Feature_LET_DECLARATIONS)
@@ -656,7 +664,11 @@ func (p *PeepholeRemoveDeadCode) RedeclareIfBlockScopedVar(decl rhino.Node, pare
 //
 // Java: PeepholeRemoveDeadCode.isUnremovableNode(Node)
 func PeepholeRemoveDeadCode_IsUnremovableNode(n rhino.Node) bool {
-	return (n.IsBlock() && n.IsSyntheticBlock()) || n.IsScript()
+	if block, isBlock := ast.AsBlock(n); isBlock {
+		return block.IsSynthetic()
+	}
+	_, isScript := ast.AsScript(n)
+	return isScript
 }
 
 // TryOptimizeConditionalAfterAssign attempts to replace the condition of if
@@ -676,12 +688,12 @@ func (p *PeepholeRemoveDeadCode) TryOptimizeConditionalAfterAssign(n rhino.Node)
 	if !ok {
 		return
 	}
-	conditionalRoot := p.GetConditionalRoot(next)
-	if conditionalRoot.IsNil() {
+	conditionalRoot, condExpr, ok := conditionalStatement(next)
+	if !ok {
 		return
 	}
 
-	condition := p.GetConditionalStatementCondition(next)
+	condition := condExpr.Node()
 	if !lhsAssign.Node().MatchesNameNode(condition) {
 		return
 	}
@@ -756,6 +768,31 @@ func peepholeRemoveDeadCode_simpleAssignment(n rhino.Node) (name ast.Name, value
 	return name, value, ok
 }
 
+func exprConditionalCondition(n rhino.Node) (root rhino.Node, cond ast.Expr, ok bool) {
+	stmt, isExprStmt := ast.AsExprStmt(n)
+	if !isExprStmt {
+		return rhino.NilNode, ast.Expr{}, false
+	}
+	expr := stmt.Expr()
+	if hook, isHook := expr.AsHook(); isHook {
+		return hook.Node(), hook.Cond(), true
+	}
+	switch expr.Token() {
+	case rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
+		bin := expr.MustBinary()
+		return bin.Node(), bin.Left(), true
+	default:
+		return rhino.NilNode, ast.Expr{}, false
+	}
+}
+
+func conditionalStatement(n rhino.Node) (root rhino.Node, cond ast.Expr, ok bool) {
+	if ifs, isIf := ast.AsIf(n); isIf {
+		return ifs.Node(), ifs.Cond(), true
+	}
+	return exprConditionalCondition(n)
+}
+
 // GetConditionalRoot returns the root node if a conditional statement or
 // else null.
 //
@@ -763,15 +800,8 @@ func peepholeRemoveDeadCode_simpleAssignment(n rhino.Node) (name ast.Name, value
 func (p *PeepholeRemoveDeadCode) GetConditionalRoot(n rhino.Node) rhino.Node {
 	// We defined a conditional statement to be a IF or EXPR_RESULT rooted with
 	// a HOOK, AND, or OR node.
-	if n.IsNil() {
-		return rhino.NilNode
-	}
-	if n.IsIf() {
-		return n
-	} else if PeepholeRemoveDeadCode_IsExprConditional(n) {
-		return n.GetFirstChild()
-	}
-	return rhino.NilNode
+	root, _, _ := conditionalStatement(n)
+	return root
 }
 
 // PeepholeRemoveDeadCode_IsExprConditional returns whether the node is a
@@ -779,14 +809,8 @@ func (p *PeepholeRemoveDeadCode) GetConditionalRoot(n rhino.Node) rhino.Node {
 //
 // Java: PeepholeRemoveDeadCode.isExprConditional(Node)
 func PeepholeRemoveDeadCode_IsExprConditional(n rhino.Node) bool {
-	if n.IsExprResult() {
-		switch n.GetFirstChild().GetToken() {
-		case rhino.Token_HOOK, rhino.Token_AND, rhino.Token_OR, rhino.Token_COALESCE:
-			return true
-		default:
-		}
-	}
-	return false
+	_, _, ok := exprConditionalCondition(n)
+	return ok
 }
 
 // GetConditionalStatementCondition returns the condition of a conditional
@@ -797,9 +821,10 @@ func (p *PeepholeRemoveDeadCode) GetConditionalStatementCondition(n rhino.Node) 
 	if ifs, ok := ast.AsIf(n); ok {
 		return ifs.Cond().Node()
 	}
-	jutil.CheckState(PeepholeRemoveDeadCode_IsExprConditional(n))
+	_, cond, ok := exprConditionalCondition(n)
+	jutil.CheckState(ok)
 	// The first operand of the HOOK, AND, OR or COALESCE: the tested one.
-	return n.GetFirstFirstChild()
+	return cond.Node()
 }
 
 // TryOptimizeObjectPattern removes string keys with an empty pattern as
@@ -876,13 +901,9 @@ func (p *PeepholeRemoveDeadCode) IsRemovableDestructuringTarget(destructuringEle
 // TryRemoveOptionalChaining removes an optional chain whose object (or
 // callee) is null or undefined.
 //
-// Go-only: the three optional chain kinds have no common typed view (the
-// first child is the object of a property access but the callee of a
-// call), so this uses the rhino API.
-//
 // Java: PeepholeRemoveDeadCode.tryRemoveOptionalChaining(Node)
 func (p *PeepholeRemoveDeadCode) TryRemoveOptionalChaining(optionalChain rhino.Node) rhino.Node {
-	callee := optionalChain.GetFirstChild()
+	callee := nodeUtil_optChainReceiver(ast.MustOptChain(optionalChain))
 	if !NodeUtil_IsNullOrUndefined(callee) {
 		return optionalChain
 	}

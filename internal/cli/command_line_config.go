@@ -224,8 +224,8 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetMixedJsSources(mixedJsS
 //
 // Java: AbstractCommandLineRunner.CommandLineConfig.setContinueSavedCompilationFileName(String, int)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetContinueSavedCompilationFileName(
-	fileName *string, restoredCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
-	return c.setContinueSavedCompilationOpt(base.OptStringFromPtr(fileName), restoredCompilationStage)
+	fileName string, restoredCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
+	return c.setContinueSavedCompilationOpt(base.SomeString(fileName), restoredCompilationStage)
 }
 
 func (c *AbstractCommandLineRunner_CommandLineConfig) setContinueSavedCompilationOpt(
@@ -257,8 +257,8 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldSaveAfterStage1() bo
 }
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.getContinueSavedCompilationFileName()
-func (c *AbstractCommandLineRunner_CommandLineConfig) GetContinueSavedCompilationFileName() *string {
-	return c.continueSavedCompilationFileName.Ptr()
+func (c *AbstractCommandLineRunner_CommandLineConfig) GetContinueSavedCompilationFileName() (string, bool) {
+	return c.continueSavedCompilationFileName.Get()
 }
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.shouldRestoreAndPerformStages2And3()
@@ -349,8 +349,8 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldAlwaysGatherSourceMa
 //
 // Java: AbstractCommandLineRunner.CommandLineConfig.setSaveCompilationStateToFilename(String, int)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetSaveCompilationStateToFilename(
-	fileName *string, saveAfterCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
-	return c.setSaveCompilationStateOpt(base.OptStringFromPtr(fileName), saveAfterCompilationStage)
+	fileName string, saveAfterCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
+	return c.setSaveCompilationStateOpt(base.SomeString(fileName), saveAfterCompilationStage)
 }
 
 func (c *AbstractCommandLineRunner_CommandLineConfig) setSaveCompilationStateOpt(
@@ -361,8 +361,8 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) setSaveCompilationStateOpt
 }
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.getSaveCompilationStateToFilename()
-func (c *AbstractCommandLineRunner_CommandLineConfig) GetSaveCompilationStateToFilename() *string {
-	return c.saveCompilationStateToFilename.Ptr()
+func (c *AbstractCommandLineRunner_CommandLineConfig) GetSaveCompilationStateToFilename() (string, bool) {
+	return c.saveCompilationStateToFilename.Get()
 }
 
 // SetStage2SegmentOfCompilationToRun configures which Stage 2 segment

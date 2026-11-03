@@ -161,32 +161,32 @@ func (d *raiDump) buildTypes(typeStrings []string) {
 	boolean := d.nat(rhino.JSTypeNative_BOOLEAN_TYPE)
 
 	fooCtor := r.CreateConstructorType(
-		jutil.StringPtr("Foo"), raiFn("Foo"), r.CreateParameters(number), nil, nil, false)
+		"Foo", raiFn("Foo"), r.CreateParameters(number), nil, nil, false)
 	foo := fooCtor.GetInstanceType()
 	fooCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.NilNode)
 	foo.DefineDeclaredProperty("p", str, rhino.NilNode)
 	r.DeclareType(d.scope, "Foo", foo)
 
 	subFooCtor := r.CreateConstructorType(
-		jutil.StringPtr("SubFoo"), raiFn("SubFoo"), r.CreateParameters(), nil, nil, false)
+		"SubFoo", raiFn("SubFoo"), r.CreateParameters(), nil, nil, false)
 	subFooCtor.SetPrototypeBasedOn(foo)
 	subFoo := subFooCtor.GetInstanceType()
 	subFoo.DefineDeclaredProperty("qux", boolean, rhino.NilNode)
 	r.DeclareType(d.scope, "SubFoo", subFoo)
 
-	iCtor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I")).WithSourceNode(raiFn("I")).Build()
+	iCtor := rhino.FunctionType_Builder_(r).ForInterface().WithName("I").WithSourceNode(raiFn("I")).Build()
 	iCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.NilNode)
 	iface := iCtor.GetInstanceType()
 	r.DeclareType(d.scope, "I", iface)
 
 	implCtor := r.CreateConstructorType(
-		jutil.StringPtr("Impl"), raiFn("Impl"), r.CreateParameters(), nil, nil, false)
+		"Impl", raiFn("Impl"), r.CreateParameters(), nil, nil, false)
 	implCtor.SetImplementedInterfaces([]rhino.ObjectType{iface})
 	implCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.NilNode)
 	impl := implCtor.GetInstanceType()
 	r.DeclareType(d.scope, "Impl", impl)
 
-	recCtor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("Rec")).WithSourceNode(raiFn("Rec")).Build()
+	recCtor := rhino.FunctionType_Builder_(r).ForInterface().WithName("Rec").WithSourceNode(raiFn("Rec")).Build()
 	recCtor.SetImplicitMatch(true)
 	recCtor.GetPrototype().DefineDeclaredProperty("bar", number, rhino.NilNode)
 	rec := recCtor.GetInstanceType()
@@ -195,7 +195,7 @@ func (d *raiDump) buildTypes(typeStrings []string) {
 	tKey := r.CreateTemplateType("T")
 	boxCtor := rhino.FunctionType_Builder_(r).
 		ForConstructor().
-		WithName(jutil.StringPtr("Box")).
+		WithName("Box").
 		WithSourceNode(raiFn("Box")).
 		WithParametersOfList(r.CreateParameters(tKey)).
 		WithTemplateKeys(tKey).
@@ -204,19 +204,19 @@ func (d *raiDump) buildTypes(typeStrings []string) {
 	box := boxCtor.GetInstanceType()
 	r.DeclareType(d.scope, "Box", box)
 
-	numEnum := rhino.EnumType_Builder_(r).SetName(jutil.StringPtr("E")).SetElementType(number).Build()
+	numEnum := rhino.EnumType_Builder_(r).SetName("E").SetElementType(number).Build()
 	numEnum.DefineElement("A", rhino.NilNode)
 	r.DeclareType(d.scope, "E", numEnum.GetElementsType())
-	strEnum := rhino.EnumType_Builder_(r).SetName(jutil.StringPtr("S")).SetElementType(str).Build()
+	strEnum := rhino.EnumType_Builder_(r).SetName("S").SetElementType(str).Build()
 	strEnum.DefineElement("X", rhino.NilNode)
 	r.DeclareType(d.scope, "S", strEnum.GetElementsType())
 	unionEnum := rhino.EnumType_Builder_(r).
-		SetName(jutil.StringPtr("U")).
+		SetName("U").
 		SetElementType(r.CreateUnionType(str, number)).
 		Build()
 	unionEnum.DefineElement("Y", rhino.NilNode)
 	r.DeclareType(d.scope, "U", unionEnum.GetElementsType())
-	objEnum := rhino.EnumType_Builder_(r).SetName(jutil.StringPtr("O")).SetElementType(foo).Build()
+	objEnum := rhino.EnumType_Builder_(r).SetName("O").SetElementType(foo).Build()
 	objEnum.DefineElement("Z", rhino.NilNode)
 	r.DeclareType(d.scope, "O", objEnum.GetElementsType())
 

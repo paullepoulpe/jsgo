@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -36,7 +37,7 @@ var closureModuleExportsID = uint32(strpool.Intern("exports"))
 
 type unresolvedGoogModule struct {
 	metadata            *ModuleMetadataMap_ModuleMetadata
-	srcFileName         *string
+	srcFileName         base.OptString
 	path                *ModuleLoader_ModulePath
 	namespace           *OrderedStringMap[*Binding]
 	requireNames        []string
@@ -208,7 +209,7 @@ func (m *unresolvedGoogModule) reportInvalidDestructuringRequire(
 		}
 	}
 	m.compiler.Report(
-		JSError_MakeWithSourceLocation(
+		JSError_MakeWithOptSourceLocation(
 			m.srcFileName,
 			importRecord.ImportNode().GetLineno(),
 			importRecord.ImportNode().GetCharno(),
@@ -258,9 +259,13 @@ func (p *ClosureModuleProcessor) Process(
 		namespace = nonEsEmptyBindingMap
 	}
 
+	var srcFileName base.OptString
+	if src, ok := script.SourceFileName(); ok {
+		srcFileName = base.SomeString(src)
+	}
 	return &unresolvedGoogModule{
 		metadata:            metadata,
-		srcFileName:         script.GetSourceFileName(),
+		srcFileName:         srcFileName,
 		path:                path,
 		namespace:           namespace,
 		requireNames:        cb.requireNames,

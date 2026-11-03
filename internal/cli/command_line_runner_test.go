@@ -49,7 +49,8 @@ type CommandLineRunnerTest struct {
 
 	// If set, this will be appended to the end of the args list.
 	// For testing args parsing.
-	lastArg *string // nil is null
+	lastArg    string
+	hasLastArg bool
 
 	// If set to true, uses comparison by string instead of by AST.
 	useStringComparison bool
@@ -165,7 +166,8 @@ func (c *CommandLineRunnerTest) setUp() {
 	c.externs = commandLineRunnerTest_DEFAULT_EXTERNS
 	c.filenames = map[int]string{}
 	c.lastCompiler = nil
-	c.lastArg = nil
+	c.lastArg = ""
+	c.hasLastArg = false
 	c.outReader = &bytes.Buffer{}
 	c.errReader = &bytes.Buffer{}
 	c.useStringComparison = false
@@ -321,9 +323,9 @@ console.log(MSG_HELLO);
 `)
 	expectedSourceMap := jutil.NewJsonObject()
 	expectedSourceMap.Add("version", jutil.NewJsonPrimitiveNumber(jutil.Integer(3)))
-	expectedSourceMap.AddPropertyString("file", jutil.StringPtr(compiledFile.GetAbsolutePath()))
+	expectedSourceMap.AddPropertyString("file", compiledFile.GetAbsolutePath())
 	expectedSourceMap.Add("lineCount", jutil.NewJsonPrimitiveNumber(jutil.Integer(1)))
-	expectedSourceMap.AddPropertyString("mappings", jutil.StringPtr("AAEAA,OAAQC,CAAAA,GAAR,CADkBC,MAClB;"))
+	expectedSourceMap.AddPropertyString("mappings", "AAEAA,OAAQC,CAAAA,GAAR,CADkBC,MAClB;")
 	expectedSourceMap.Add("sources", c.newJsonArrayOfStrings(srcFile.GetAbsolutePath()))
 	expectedSourceMap.Add(
 		"sourcesContent", c.newJsonArrayOfStrings(jutil.Files_ReadStringUTF8(srcFile.ToPath())))
@@ -1455,7 +1457,8 @@ func (c *CommandLineRunnerTest) TestGlobJs1() {
 						jutil.File_separator +
 						"utest2.js"))).
 		IsTrue()
-	glob := *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "**.js"
+	parent1, _ := jutil.NewFile(jsFile1.GetValue()).Parent()
+	glob := parent1 + jutil.File_separator + "**.js"
 	c.compileFiles("var a;var b;", NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob))
 }
 
@@ -1470,7 +1473,8 @@ func (c *CommandLineRunnerTest) TestGlobJs2() {
 						jutil.File_separator +
 						"utest2.js"))).
 		IsTrue()
-	glob := *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "*test*.js"
+	parent1, _ := jutil.NewFile(jsFile1.GetValue()).Parent()
+	glob := parent1 + jutil.File_separator + "*test*.js"
 	c.compileFiles("var a;var b;", NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob))
 }
 
@@ -1487,8 +1491,9 @@ func (c *CommandLineRunnerTest) TestGlobJs3() {
 		IsTrue()
 	// Make sure test2.js is excluded from the inputs when the exclusion
 	// comes after the inclusion
-	glob1 := *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "**.js"
-	glob2 := "!" + *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "**test2.js"
+	parent1, _ := jutil.NewFile(jsFile1.GetValue()).Parent()
+	glob1 := parent1 + jutil.File_separator + "**.js"
+	glob2 := "!" + parent1 + jutil.File_separator + "**test2.js"
 	c.compileFiles(
 		"var a;", NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob1), NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob2))
 }
@@ -1506,8 +1511,9 @@ func (c *CommandLineRunnerTest) TestGlobJs4() {
 		IsTrue()
 	// Make sure test2.js is excluded from the inputs when the exclusion
 	// comes before the inclusion
-	glob1 := "!" + *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "**test2.js"
-	glob2 := *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "**.js"
+	parent1, _ := jutil.NewFile(jsFile1.GetValue()).Parent()
+	glob1 := "!" + parent1 + jutil.File_separator + "**test2.js"
+	glob2 := parent1 + jutil.File_separator + "**.js"
 	c.compileFiles(
 		"var a;", NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob1), NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob2))
 }
@@ -1543,7 +1549,8 @@ func (c *CommandLineRunnerTest) testGlobJs6() {
 	testjunit.AssertThat(jutil.NewFile(jsFile2.GetValue()).RenameTo(ignoredJs)).IsTrue()
 	// Make sure patterns like "!**\./ignored**.js" work
 	glob1 := "!**\\." + jutil.File_separator + "ignored**.js"
-	glob2 := *jutil.NewFile(jsFile1.GetValue()).GetParent() + jutil.File_separator + "**.js"
+	parent1, _ := jutil.NewFile(jsFile1.GetValue()).Parent()
+	glob2 := parent1 + jutil.File_separator + "**.js"
 	c.compileFiles(
 		"var a;", NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob1), NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, glob2))
 	ignoredJs.Delete()
@@ -1723,7 +1730,8 @@ func (c *CommandLineRunnerTest) TestVersionFlag_firstArg() {
 }
 
 func (c *CommandLineRunnerTest) TestVersionFlag_lastArg() {
-	c.lastArg = jutil.StringPtr("--version")
+	c.lastArg = "--version"
+	c.hasLastArg = true
 	runner := c.createCommandLineRunner([]string{"function f() {}"})
 	testjunit.AssertThat(runner.ShouldRunCompiler()).IsTrue()
 	testjunit.AssertThat(runner.HasErrors()).IsFalse()
@@ -3307,7 +3315,7 @@ required: number`)
 func (c *CommandLineRunnerTest) newJsonArrayOfStrings(strings ...string) *jutil.JsonArray {
 	a := jutil.NewJsonArray()
 	for _, s := range strings {
-		a.AddString(jutil.StringPtr(s))
+		a.AddString(s)
 	}
 	return a
 }
@@ -3485,8 +3493,8 @@ func (c *CommandLineRunnerTest) createCommandLineRunner(original []string) *Comm
 		}
 	}
 
-	if c.lastArg != nil {
-		c.argsAdd(*c.lastArg)
+	if c.hasLastArg {
+		c.argsAdd(c.lastArg)
 	}
 
 	argStrings := append([]string{}, c.args...)

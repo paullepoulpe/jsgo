@@ -29,6 +29,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
@@ -87,8 +88,7 @@ func (jt *jsDocInfoParserTest) assertTemplatizedTypeEquals(key *rhino.TemplateTy
 // Java: JsDocInfoParserTest.createNamedType(String)
 func (jt *jsDocInfoParserTest) createNamedType(name string) *rhino.NamedType {
 	jt.ErrorReporter.ExpectAllWarnings("Bad type annotation. Unknown type " + name)
-	sourceName := ""
-	return jt.Registry.CreateNamedType(jsDocInfoParserTest_EMPTY_SCOPE, name, &sourceName, -1, -1)
+	return jt.Registry.CreateNamedType(jsDocInfoParserTest_EMPTY_SCOPE, name, base.SomeString(""), -1, -1)
 }
 
 // Java: JsDocInfoParserTest.testParseType(String) / testParseType(String, String)
@@ -2293,70 +2293,70 @@ func TestParseJsDocAfterEnum(t *testing.T) {
 
 func TestParseDesc1(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc hello world!*/").GetDescription()).IsEqualTo("hello world!")
+	assertThat(t, optString(jt.parse("@desc hello world!*/").Description())).IsEqualTo("hello world!")
 }
 
 func TestParseDesc2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc hello world!\n*/").GetDescription()).IsEqualTo("hello world!")
+	assertThat(t, optString(jt.parse("@desc hello world!\n*/").Description())).IsEqualTo("hello world!")
 }
 
 func TestParseDesc3(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc*/").GetDescription()).IsEmpty()
+	assertThat(t, optString(jt.parse("@desc*/").Description())).IsEmpty()
 }
 
 func TestParseDesc4(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc\n*/").GetDescription()).IsEmpty()
+	assertThat(t, optString(jt.parse("@desc\n*/").Description())).IsEmpty()
 }
 
 func TestParseDesc5(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc hello\nworld!\n*/").GetDescription()).IsEqualTo("hello world!")
+	assertThat(t, optString(jt.parse("@desc hello\nworld!\n*/").Description())).IsEqualTo("hello world!")
 }
 
 func TestParseDesc6(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc hello\n* world!\n*/").GetDescription()).IsEqualTo("hello world!")
+	assertThat(t, optString(jt.parse("@desc hello\n* world!\n*/").Description())).IsEqualTo("hello world!")
 }
 
 func TestParseDesc7(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc a\n\nb\nc*/").GetDescription()).IsEqualTo("a b c")
+	assertThat(t, optString(jt.parse("@desc a\n\nb\nc*/").Description())).IsEqualTo("a b c")
 }
 
 func TestParseDesc8(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
-	assertThat(t, jt.parse("@desc a\n      *b\n\n  *c\n\nd*/").GetDescription()).IsEqualTo("a b c d")
+	assertThat(t, optString(jt.parse("@desc a\n      *b\n\n  *c\n\nd*/").Description())).IsEqualTo("a b c d")
 }
 
 func TestParseDesc9(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	comment := "@desc\n.\n,\n{\n)\n}\n|\n.<\n>\n<\n?\n~\n+\n-\n;\n:\n*/"
 
-	assertThat(t, jt.parse(comment).GetDescription()).IsEqualTo(". , { ) } | < > < ? ~ + - ; :")
+	assertThat(t, optString(jt.parse(comment).Description())).IsEqualTo(". , { ) } | < > < ? ~ + - ; :")
 }
 
 func TestParseDesc10(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	comment := "@desc\n?\n?\n?\n?*/"
 
-	assertThat(t, jt.parse(comment).GetDescription()).IsEqualTo("? ? ? ?")
+	assertThat(t, optString(jt.parse(comment).Description())).IsEqualTo("? ? ? ?")
 }
 
 func TestParseDesc11(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	comment := "@desc :[]*/"
 
-	assertThat(t, jt.parse(comment).GetDescription()).IsEqualTo(":[]")
+	assertThat(t, optString(jt.parse(comment).Description())).IsEqualTo(":[]")
 }
 
 func TestParseDesc12(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	comment := "@desc\n:\n[\n]\n...*/"
 
-	assertThat(t, jt.parse(comment).GetDescription()).IsEqualTo(": [ ] ...")
+	assertThat(t, optString(jt.parse(comment).Description())).IsEqualTo(": [ ] ...")
 }
 
 func TestParseMeaning1(t *testing.T) {
@@ -3155,7 +3155,7 @@ func TestRegression7(t *testing.T) {
 	info := jt.parse(comment)
 	assertThat(t, info.GetParameterCount()).IsEqualTo(1)
 	jt.AssertTypeEqualsExpr(jt.BOOLEAN_TYPE, info.GetParameterType("flag"))
-	assertThat(t, info.GetDescription()).IsEqualTo("description here")
+	assertThat(t, optString(info.Description())).IsEqualTo("description here")
 }
 
 func TestRegression8(t *testing.T) {
@@ -3166,7 +3166,7 @@ func TestRegression8(t *testing.T) {
 	info := jt.parse(comment)
 	assertThat(t, info.GetParameterCount()).IsEqualTo(1)
 	jt.AssertTypeEqualsExpr(jt.BOOLEAN_TYPE, info.GetParameterType("flag"))
-	assertThat(t, info.GetDescription()).IsEqualTo("description here")
+	assertThat(t, optString(info.Description())).IsEqualTo("description here")
 }
 
 func TestRegression9(t *testing.T) {
@@ -3177,7 +3177,7 @@ func TestRegression9(t *testing.T) {
 
 	assertThat(t, jsdoc.GetBaseType()).IsNull()
 	assertThat(t, jsdoc.IsConstant()).IsFalse()
-	assertThat(t, jsdoc.GetDescription()).IsNull()
+	assertThat(t, optString(jsdoc.Description())).IsNull()
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(1)
 	jt.AssertTypeEqualsExpr(jt.STRING_TYPE, jsdoc.GetParameterType("p0"))
@@ -3194,7 +3194,7 @@ func TestRegression10(t *testing.T) {
 
 	assertThat(t, jsdoc.GetBaseType()).IsNull()
 	assertThat(t, jsdoc.IsConstant()).IsFalse()
-	assertThat(t, jsdoc.GetDescription()).IsNull()
+	assertThat(t, optString(jsdoc.Description())).IsNull()
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(2)
 	jt.AssertTypeEqualsExpr(jt.STRING_OBJECT_TYPE, jsdoc.GetParameterType("p0"))
@@ -3212,7 +3212,7 @@ func TestRegression11(t *testing.T) {
 
 	assertThat(t, jsdoc.GetBaseType()).IsNull()
 	assertThat(t, jsdoc.IsConstant()).IsFalse()
-	assertThat(t, jsdoc.GetDescription()).IsNull()
+	assertThat(t, optString(jsdoc.Description())).IsNull()
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(0)
 	assertThat(t, jsdoc.GetReturnType()).IsNull()
@@ -3228,7 +3228,7 @@ func TestRegression12(t *testing.T) {
 
 	jt.AssertTypeEqualsExpr(jt.createNamedType("FooBar"), jsdoc.GetBaseType())
 	assertThat(t, jsdoc.IsConstant()).IsFalse()
-	assertThat(t, jsdoc.GetDescription()).IsNull()
+	assertThat(t, optString(jsdoc.Description())).IsNull()
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(0)
 	assertThat(t, jsdoc.GetReturnType()).IsNull()
@@ -3244,7 +3244,7 @@ func TestRegression13(t *testing.T) {
 
 	assertThat(t, jsdoc.GetBaseType()).IsNull()
 	assertThat(t, jsdoc.IsConstant()).IsFalse()
-	assertThat(t, jsdoc.GetDescription()).IsNull()
+	assertThat(t, optString(jsdoc.Description())).IsNull()
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(0)
 	assertThat(t, jsdoc.GetReturnType()).IsNull()
@@ -3260,7 +3260,7 @@ func TestRegression14(t *testing.T) {
 
 	assertThat(t, jsdoc.GetBaseType()).IsNull()
 	assertThat(t, jsdoc.IsConstant()).IsTrue()
-	assertThat(t, jsdoc.GetDescription()).IsNull()
+	assertThat(t, optString(jsdoc.Description())).IsNull()
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(0)
 	assertThat(t, jsdoc.GetReturnType()).IsNull()
@@ -3276,7 +3276,7 @@ func TestRegression15(t *testing.T) {
 
 	assertThat(t, jsdoc.GetBaseType()).IsNull()
 	assertThat(t, jsdoc.IsConstant()).IsTrue()
-	assertThat(t, jsdoc.GetDescription()).IsEqualTo("Hello, World!")
+	assertThat(t, optString(jsdoc.Description())).IsEqualTo("Hello, World!")
 	assertThat(t, jsdoc.GetEnumParameterType()).IsNull()
 	assertThat(t, jsdoc.GetParameterCount()).IsEqualTo(0)
 	assertThat(t, jsdoc.GetReturnType()).IsNull()
@@ -3302,7 +3302,7 @@ func TestRegression16(t *testing.T) {
 func TestRegression17(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	// verifying that if no @desc is present the description is empty
-	assertThat(t, jt.parse("@private*/").GetDescription()).IsNull()
+	assertThat(t, optString(jt.parse("@private*/").Description())).IsNull()
 }
 
 func TestFullRegression1(t *testing.T) {
@@ -3831,19 +3831,19 @@ func TestBadSuppressMultilineTrailingComma(t *testing.T) {
 func TestMods1(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parseFileOverview("@mods {ns.Foo} */")
-	assertThat(t, info.GetMods()).IsEqualTo("ns.Foo")
+	assertThat(t, optString(info.Mods())).IsEqualTo("ns.Foo")
 }
 
 func TestMods2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parseFileOverview("@mods {google3.path.to.file} */")
-	assertThat(t, info.GetMods()).IsEqualTo("google3.path.to.file")
+	assertThat(t, optString(info.Mods())).IsEqualTo("google3.path.to.file")
 }
 
 func TestJsDocAfterMods(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parseFileOverview("@mods {ns.Foo} @modName {new_feature_flag} */")
-	assertThat(t, info.GetMods()).IsEqualTo("ns.Foo")
+	assertThat(t, optString(info.Mods())).IsEqualTo("ns.Foo")
 }
 
 func TestMultipleModsTags(t *testing.T) {
@@ -6020,7 +6020,7 @@ func TestGetMultilineDesc(t *testing.T) {
 	comment :=
 		" * @desc description here\n         continued here\n */\n"
 	info := jt.parse(comment)
-	assertThat(t, info.GetDescription()).IsEqualTo("description here continued here")
+	assertThat(t, optString(info.Description())).IsEqualTo("description here continued here")
 }
 
 func TestParseNgInject1(t *testing.T) {
@@ -6209,7 +6209,7 @@ func TestPreserveWhitespace5(t *testing.T) {
 		jt.preserveWhitespaceParse(
 			"@desc this is a nice comment\n * that spans multiple lines\n *     with custom\n *     formatting\n */\n")
 
-	assertThat(t, jsdoc.GetDescription()).IsEqualTo(
+	assertThat(t, optString(jsdoc.Description())).IsEqualTo(
 		" this is a nice comment\n that spans multiple lines\n     with custom\n     formatting\n")
 }
 
@@ -6231,7 +6231,7 @@ func TestParseCommentWithStarsAfterLeadingSpace(t *testing.T) {
 		jt.preserveWhitespaceParse(
 			"@desc this comment has extra\n * * stars on new lines\n */\n")
 
-	assertThat(t, jsdoc.GetDescription()).IsEqualTo(
+	assertThat(t, optString(jsdoc.Description())).IsEqualTo(
 		" this comment has extra\n * stars on new lines\n")
 }
 
@@ -6241,7 +6241,7 @@ func TestParseCommentWithThickLeadingStarBlockPreserveWhitespace(t *testing.T) {
 		jt.preserveWhitespaceParse(
 			"@desc line 2 has extra stars\n **** that should pad content\n */\n")
 
-	assertThat(t, jsdoc.GetDescription()).IsEqualTo(
+	assertThat(t, optString(jsdoc.Description())).IsEqualTo(
 		" line 2 has extra stars\n*** that should pad content\n")
 }
 
@@ -6251,7 +6251,7 @@ func TestParseCommentWithThickLeadingStarBlockSingeLine(t *testing.T) {
 		jt.parse(
 			"@desc line 2 has extra stars\n **** that should pad content\n */\n")
 
-	assertThat(t, jsdoc.GetDescription()).IsEqualTo("line 2 has extra stars *** that should pad content")
+	assertThat(t, optString(jsdoc.Description())).IsEqualTo("line 2 has extra stars *** that should pad content")
 }
 
 func TestParseCommentWithStarsOnOpenCommentLine(t *testing.T) {
@@ -6265,7 +6265,7 @@ func TestParseCommentWithStarsOnOpenCommentLine(t *testing.T) {
 
 	info := fn.GetJSDocInfo()
 	assertThat(t, optString(info.GetBlockDescriptionString())).IsEqualTo("****\nThis is a typedef comment with ASCII art.")
-	assertThat(t, info.GetDescription()).IsEqualTo("this is a description ***")
+	assertThat(t, optString(info.Description())).IsEqualTo("this is a description ***")
 }
 
 func TestParseTokenPositions1(t *testing.T) {

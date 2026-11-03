@@ -66,8 +66,8 @@ func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.
 	if !strings.Contains(exPath, jutil.File_separator) {
 		outputFile := jutil.NewFile(path)
 		parent := "null" // Java: a null parent concatenates as "null".
-		if p := outputFile.GetParent(); p != nil {
-			parent = *p
+		if p, hasParent := outputFile.Parent(); hasParent {
+			parent = p
 		}
 		exPath = parent + string(rune(jutil.File_separatorChar)) + exPath
 	}
@@ -219,11 +219,10 @@ func (r *AbstractCommandLineRunnerBase) GetMapPath(outputFile string) string {
 			outputFileName = outputFileName[:len(outputFileName)-3]
 		}
 
-		fileParent := file.GetParent()
-		if fileParent == nil {
+		if fileParent, hasParent := file.Parent(); !hasParent {
 			basePath = outputFileName
 		} else {
-			basePath = *file.GetParent() + string(rune(jutil.File_separatorChar)) + outputFileName
+			basePath = fileParent + string(rune(jutil.File_separatorChar)) + outputFileName
 		}
 	}
 

@@ -23,6 +23,7 @@ import (
 	"slices"
 	"unicode/utf8"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -309,10 +310,12 @@ func (b *JsMessage_Builder) setPlaceholderOriginalCode(m OrderedStringMap[string
 //
 // Java: JsMessage.Builder.setDesc(String)
 func (b *JsMessage_Builder) SetDesc(desc *string) *JsMessage_Builder {
-	if desc == nil {
-		return b.SetDescOpt("", false)
-	}
-	return b.SetDescOpt(*desc, true)
+	return b.SetDescOptString(base.OptStringFromPtr(desc))
+}
+
+// SetDescOptString sets or clears the description from an OptString.
+func (b *JsMessage_Builder) SetDescOptString(desc base.OptString) *JsMessage_Builder {
+	return b.SetDescOpt(desc.Get())
 }
 
 // SetDescString sets a non-null description without pointer boxing.
@@ -336,16 +339,13 @@ func (b *JsMessage_Builder) SetDescOpt(desc string, ok bool) *JsMessage_Builder 
 // forces this message to translate differently.
 //
 // Java: JsMessage.Builder.setMeaning(String)
-func (b *JsMessage_Builder) SetMeaning(meaning *string) *JsMessage_Builder {
-	if meaning == nil {
-		return b.SetMeaningOpt("", false)
-	}
-	return b.SetMeaningOpt(*meaning, true)
+func (b *JsMessage_Builder) SetMeaning(meaning string) *JsMessage_Builder {
+	return b.SetMeaningOpt(meaning, true)
 }
 
-// SetMeaningString sets a non-null meaning without pointer boxing.
-func (b *JsMessage_Builder) SetMeaningString(meaning string) *JsMessage_Builder {
-	return b.SetMeaningOpt(meaning, true)
+// SetMeaningOptString sets or clears the meaning from an OptString.
+func (b *JsMessage_Builder) SetMeaningOptString(meaning base.OptString) *JsMessage_Builder {
+	return b.SetMeaningOpt(meaning.Get())
 }
 
 // SetMeaningOpt sets or clears the meaning without pointer boxing.
@@ -364,16 +364,13 @@ func (b *JsMessage_Builder) SetMeaningOpt(meaning string, ok bool) *JsMessage_Bu
 // is not yet translated.
 //
 // Java: JsMessage.Builder.setAlternateId(String)
-func (b *JsMessage_Builder) SetAlternateId(alternateId *string) *JsMessage_Builder {
-	if alternateId == nil {
-		return b.SetAlternateIdOpt("", false)
-	}
-	return b.SetAlternateIdOpt(*alternateId, true)
+func (b *JsMessage_Builder) SetAlternateId(alternateId string) *JsMessage_Builder {
+	return b.SetAlternateIdOpt(alternateId, true)
 }
 
-// SetAlternateIdString sets a non-null alternate message ID without pointer boxing.
-func (b *JsMessage_Builder) SetAlternateIdString(alternateId string) *JsMessage_Builder {
-	return b.SetAlternateIdOpt(alternateId, true)
+// SetAlternateIdOptString sets or clears the alternate message ID from an OptString.
+func (b *JsMessage_Builder) SetAlternateIdOptString(alternateId base.OptString) *JsMessage_Builder {
+	return b.SetAlternateIdOpt(alternateId.Get())
 }
 
 // SetAlternateIdOpt sets or clears the alternate message ID without pointer boxing.
@@ -490,10 +487,21 @@ const (
 //
 // Java: JsMessage.Hash.hash64(String)
 func JsMessage_Hash_Hash64(value *string) int64 {
-	if value == nil {
+	return JsMessage_Hash_Hash64Opt(base.OptStringFromPtr(value))
+}
+
+// JsMessage_Hash_Hash64Opt hashes an optional string to a 64-bit value using pi as seed.
+func JsMessage_Hash_Hash64Opt(value base.OptString) int64 {
+	s, ok := value.Get()
+	if !ok {
 		return hash64Bytes(nil, jsMessageHashSeed64)
 	}
-	return jsMessage_Hash_hash64String(*value)
+	return JsMessage_Hash_Hash64String(s)
+}
+
+// JsMessage_Hash_Hash64String hashes a non-null string to a 64-bit value using pi as seed.
+func JsMessage_Hash_Hash64String(value string) int64 {
+	return jsMessage_Hash_hash64String(value)
 }
 
 func jsMessage_Hash_hash64String(value string) int64 {

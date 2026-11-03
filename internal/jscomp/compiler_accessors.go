@@ -41,6 +41,7 @@ import (
 	"slices"
 	"weak"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -71,7 +72,7 @@ func (c *Compiler) GetResult() *Result {
 		c.sourceMap,
 		externExports,
 		c.cssNames,
-		c.idGeneratorMap,
+		base.OptStringFromPtr(c.idGeneratorMap),
 		c.transpiledFiles)
 }
 
@@ -462,9 +463,17 @@ type Result struct {
 	SourceMap               *SourceMap          // nil is null
 	cssNames                *OrderedSet[string] // nil is null
 	ExternExport            *string             // nil is null
-	idGeneratorMap          *string             // nil is null
+	idGeneratorMap          base.OptString
 	Success                 bool
 	TranspiledFiles         bool
+}
+
+// ExternExportString returns the externs export string when present.
+func (r *Result) ExternExportString() (string, bool) {
+	if r.ExternExport == nil {
+		return "", false
+	}
+	return *r.ExternExport, true
 }
 
 // Java: Result(ImmutableList<JSError>, ImmutableList<JSError>, VariableMap, VariableMap, VariableMap, VariableMap, VariableMap, SourceMap, String, Set<String>, String, boolean)
@@ -479,7 +488,7 @@ func NewResultWithAllMaps(
 	sourceMap *SourceMap,
 	externExport *string,
 	cssNames *OrderedSet[string],
-	idGeneratorMap *string,
+	idGeneratorMap base.OptString,
 	transpiledFiles bool) *Result {
 	return &Result{
 		Success:                 len(errors) == 0,
@@ -520,7 +529,7 @@ func NewResult(
 		sourceMap,
 		externExport,
 		/* cssNames= */ nil,
-		/* idGeneratorMap= */ nil,
+		/* idGeneratorMap= */ base.NoString(),
 		/* transpiledFiles= */ false)
 }
 
@@ -548,7 +557,7 @@ func Result_PruneResultForPartialCompilation(result *Result) *Result {
 		/* sourceMap= */ nil,
 		/* externExport= */ &resultEmptyExternExport,
 		/* cssNames= */ nil,
-		/* idGeneratorMap= */ nil,
+		/* idGeneratorMap= */ base.NoString(),
 		/* transpiledFiles= */ false)
 }
 

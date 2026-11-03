@@ -36,6 +36,7 @@
 package rhino
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -76,8 +77,14 @@ func NewInstanceObjectType_Builder(registry *JSTypeRegistry) *InstanceObjectType
 }
 
 // Java: PrototypeObjectType.Builder.setName(String)
-func (b *InstanceObjectType_Builder) SetName(x *string) *InstanceObjectType_Builder {
-	b.classNameID = rhinoStringIDFromPtr(x)
+func (b *InstanceObjectType_Builder) SetName(x string) *InstanceObjectType_Builder {
+	b.classNameID = rhinoStringPoolIntern(x)
+	return b
+}
+
+// SetNameOpt sets or clears the instance object type name from an OptString.
+func (b *InstanceObjectType_Builder) SetNameOpt(x base.OptString) *InstanceObjectType_Builder {
+	b.classNameID = rhinoStringIDFromOpt(x)
 	return b
 }
 

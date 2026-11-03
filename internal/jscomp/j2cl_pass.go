@@ -571,8 +571,8 @@ func isJ2clAssertionCall(node rhino.Node) bool {
 
 // Java: J2clAssertRemovalPass.isAssertionMethodName(Node)
 func isJ2clAssertionMethodName(fnName rhino.Node) bool {
-	originalQname := fnName.GetOriginalQualifiedName()
-	return originalQname != nil && strings.Contains(*originalQname, "Asserts") && strings.Contains(*originalQname, ".$assert")
+	originalQname, ok := fnName.OriginalQualifiedName()
+	return ok && strings.Contains(originalQname, "Asserts") && strings.Contains(originalQname, ".$assert")
 }
 
 const j2clStringValueOfMethodName = "module$exports$java$lang$String$impl.m_valueOf__java_lang_Object__java_lang_String"
@@ -658,8 +658,8 @@ func (p *J2clStringValueOfRewriterPass) tryRewriteStringValueOfCall(n rhino.Node
 
 // Java: J2clStringValueOfRewriterPass.isStringValueOfMethodName(Node)
 func isJ2clStringValueOfMethodName(fnName rhino.Node) bool {
-	originalQname := fnName.GetOriginalQualifiedName()
-	return originalQname != nil && *originalQname == j2clStringValueOfMethodName
+	originalQname, ok := fnName.OriginalQualifiedName()
+	return ok && originalQname == j2clStringValueOfMethodName
 }
 
 // Java: final class J2clUndefinedChecksRewriterPass extends AbstractPeepholeOptimization
@@ -708,11 +708,10 @@ func (p *J2clUndefinedChecksRewriterPass) OptimizeSubtree(subtree rhino.Node) rh
 		return subtree
 	}
 	callee := call.Callee().Node()
-	originalQname := callee.GetOriginalQualifiedName()
-	if originalQname == nil {
+	qualifiedName, ok := callee.OriginalQualifiedName()
+	if !ok {
 		return subtree
 	}
-	qualifiedName := *originalQname
 	if !strings.Contains(qualifiedName, "nativebootstrap$Util") {
 		return subtree
 	}

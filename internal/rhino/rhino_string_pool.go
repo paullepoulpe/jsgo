@@ -37,6 +37,7 @@ package rhino
 import (
 	"iter"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -48,11 +49,11 @@ type rhinoStringID = strpool.ID
 func rhinoStringPoolIntern(s string) rhinoStringID { return strpool.Intern(s) }
 func rhinoStringFromID(id rhinoStringID) string    { return strpool.String(id) }
 
-func rhinoStringIDFromPtr(s *string) rhinoStringID {
-	if s == nil {
-		return 0
+func rhinoStringIDFromOpt(s base.OptString) rhinoStringID {
+	if v, ok := s.Get(); ok {
+		return strpool.Intern(v)
 	}
-	return strpool.Intern(*s)
+	return 0
 }
 
 // RhinoStringPool_LazyInternedStringList is a list of interned strings backed

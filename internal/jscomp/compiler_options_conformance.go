@@ -780,8 +780,6 @@ func compilerOptions_isNil(value any) bool {
 	switch v := value.(type) {
 	case base.OptString:
 		return !v.IsPresent()
-	case *string:
-		return v == nil
 	case []string:
 		return v == nil
 	case []*ConformanceConfig:
@@ -864,8 +862,6 @@ func compilerOptions_toJavaString(value any) string {
 		return "Optional.of(" + compilerOptions_toJavaString(v.value) + ")"
 	case base.OptString:
 		return v.String()
-	case *string:
-		return *v
 	case string, bool, int, int32, int64, float64:
 		return jutil.ToJavaString(v)
 	case []string:

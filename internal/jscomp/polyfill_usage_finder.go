@@ -710,11 +710,8 @@ func pufFindGlobalPrefix(qualifiedName string) (string, bool) {
 }
 
 // Java: PolyfillUsageFinder.findGlobalPrefix(String)
-func PolyfillUsageFinder_FindGlobalPrefix(qualifiedName string) *string {
-	if prefix, ok := pufFindGlobalPrefix(qualifiedName); ok {
-		return &prefix
-	}
-	return nil
+func PolyfillUsageFinder_FindGlobalPrefix(qualifiedName string) (string, bool) {
+	return pufFindGlobalPrefix(qualifiedName)
 }
 
 // Java: PolyfillUsageFinder.GLOBAL_NAMES

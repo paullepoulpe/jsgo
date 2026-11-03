@@ -599,8 +599,22 @@ func CompilerOptions_LanguageMode_FromString(value *string) *CompilerOptions_Lan
 	if value == nil {
 		return nil
 	}
+	return CompilerOptions_LanguageMode_FromName(*value)
+}
+
+// CompilerOptions_LanguageMode_FromOptString resolves an optional language mode name.
+func CompilerOptions_LanguageMode_FromOptString(value base.OptString) *CompilerOptions_LanguageMode {
+	s, ok := value.Get()
+	if !ok {
+		return nil
+	}
+	return CompilerOptions_LanguageMode_FromName(s)
+}
+
+// CompilerOptions_LanguageMode_FromName resolves a non-null language mode name.
+func CompilerOptions_LanguageMode_FromName(value string) *CompilerOptions_LanguageMode {
 	// Trim spaces, disregard case, and allow abbreviation of ECMASCRIPT for convenience.
-	canonicalizedName := jutil.StringToUpperCaseASCII(jutil.StringTrim(*value))
+	canonicalizedName := jutil.StringToUpperCaseASCII(jutil.StringTrim(value))
 	if strings.HasPrefix(canonicalizedName, "ES") {
 		canonicalizedName = "ECMASCRIPT" + canonicalizedName[2:]
 	}

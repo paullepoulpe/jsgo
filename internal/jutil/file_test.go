@@ -115,3 +115,25 @@ func TestPathHashCodeConcurrent(t *testing.T) {
 		t.Fatalf("empty HashCode() = %d, want 0", empty.HashCode())
 	}
 }
+
+func TestFileParent(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   string
+		wantOk bool
+	}{
+		{"", "", false},
+		{"a", "", false},
+		{"/", "", false},
+		{"/a", "/", true},
+		{"a/b", "a", true},
+		{"/a/b", "/a", true},
+	}
+	for _, tc := range cases {
+		f := NewFile(tc.in)
+		got, ok := f.Parent()
+		if got != tc.want || ok != tc.wantOk {
+			t.Errorf("NewFile(%q).Parent() = (%q, %v), want (%q, %v)", tc.in, got, ok, tc.want, tc.wantOk)
+		}
+	}
+}

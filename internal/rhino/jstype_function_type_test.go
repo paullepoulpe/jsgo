@@ -215,7 +215,7 @@ func TestFunctionType_CtorWithPrototypeSet(t *testing.T) {
 	closer := s.Registry.GetResolver().OpenForDefinition()
 	defer closer.Close()
 	{
-		ctor := s.Registry.CreateConstructorType(ptr("Foo"), NilNode, nil, nil, nil, false)
+		ctor := s.Registry.CreateConstructorType("Foo", NilNode, nil, nil, nil, false)
 		s.AssertThat(ctor.GetInstanceType().IsUnknownType()).IsFalse()
 
 		node := NewNode(Token_OBJECTLIT)
@@ -236,9 +236,9 @@ func TestFunctionType_CtorWithInstanceInheritance(t *testing.T) {
 	defer closer.Close()
 	{
 		fooCtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 		barCtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Bar")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Bar").Build()
 		barCtor.SetPrototypeBasedOn(fooCtor.GetInstanceType())
 		fooCtor.GetPrototype().DefineDeclaredProperty("bar", s.STRING_TYPE, NilNode)
 
@@ -254,14 +254,14 @@ func TestFunctionType_CtorWithClassSideInheritance(t *testing.T) {
 	defer closer.Close()
 	{
 		fooCtor :=
-			FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+			FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 		// NOTE: FunctionType does not look into the node, only at its token.
 		source := NewNode(Token_CLASS)
 		barCtor :=
 			FunctionType_Builder_(s.Registry).
 				WithSourceNode(source).
 				ForConstructor().
-				WithName(ptr("Bar")).
+				WithName("Bar").
 				Build()
 		barCtor.SetPrototypeBasedOn(fooCtor.GetInstanceType())
 		fooCtor.DefineDeclaredProperty("foo", s.NUMBER_TYPE, NilNode)
@@ -285,10 +285,10 @@ func TestFunctionType_EqualityOfProxyForCtor(t *testing.T) {
 		fooCtor =
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Foo")).
+				WithName("Foo").
 				WithTemplateKeys(key).
 				Build()
-		barType = s.Registry.CreateNamedType(emptyScope, "Bar", ptr(""), -1, -1)
+		barType = s.Registry.CreateNamedType(emptyScope, "Bar", someStr(""), -1, -1)
 		s.Registry.DeclareType(emptyScope, "Bar", fooCtor)
 	}()
 
@@ -306,7 +306,7 @@ func TestFunctionType_CtorsSpecializedOnTemplateTypes(t *testing.T) {
 		fooCtor :=
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Foo")).
+				WithName("Foo").
 				WithTemplateKeys(key).
 				WithReturnType(key).
 				Build()
@@ -536,14 +536,14 @@ func TestFunctionType_Print_constructorFunction_withoutSource(t *testing.T) {
 	closer := s.Registry.GetResolver().OpenForDefinition()
 	defer closer.Close()
 	{
-		fn := FunctionType_Builder_(s.Registry).ForConstructor().WithName(ptr("Foo")).Build()
+		fn := FunctionType_Builder_(s.Registry).ForConstructor().WithName("Foo").Build()
 		s.AssertType(fn).ToStringIsEqualTo("function(new:Foo, ...?): ?")
 	}
 }
 
 func TestFunctionType_Print_interfaceFunction_withoutSource(t *testing.T) {
 	s := newFunctionTypeTest(t)
-	fn := FunctionType_Builder_(s.Registry).ForInterface().WithName(ptr("Foo")).Build()
+	fn := FunctionType_Builder_(s.Registry).ForInterface().WithName("Foo").Build()
 	s.AssertType(fn).ToStringIsEqualTo("function(this:Foo): ?")
 }
 
@@ -555,7 +555,7 @@ func TestFunctionType_Print_constructorFunction_withSource(t *testing.T) {
 		fn :=
 			FunctionType_Builder_(s.Registry).
 				ForConstructor().
-				WithName(ptr("Foo")).
+				WithName("Foo").
 				WithSourceNode(IR_Function(IR_Name(""), IR_ParamList(), IR_Block())).
 				Build()
 		s.AssertType(fn).ToStringIsEqualTo("(typeof Foo)")
@@ -570,7 +570,7 @@ func TestFunctionType_Print_interfaceFunction_withSource(t *testing.T) {
 		fn :=
 			FunctionType_Builder_(s.Registry).
 				ForInterface().
-				WithName(ptr("Foo")).
+				WithName("Foo").
 				WithSourceNode(IR_Function(IR_Name(""), IR_ParamList(), IR_Block())).
 				Build()
 		s.AssertType(fn).ToStringIsEqualTo("(typeof Foo)")
@@ -588,7 +588,7 @@ func (s *functionTypeTest) CreateInterfaceType(name string, templateKeys []*Temp
 	fn :=
 		FunctionType_Builder_(s.Registry).
 			ForInterface().
-			WithName(ptr(name)).
+			WithName(name).
 			WithParameters().
 			WithTemplateKeysOfList(templateKeys).
 			Build()

@@ -706,14 +706,9 @@ func (e *CompilerExecutor) SetTimeout(timeout int) {
 }
 
 // Java: CompilerExecutor.setDebugMessage(String)
-func (e *CompilerExecutor) SetDebugMessage(debugMessage *string) {
-	if debugMessage == nil {
-		e.debugMessage = ""
-		e.hasDebugMessage = false
-	} else {
-		e.debugMessage = *debugMessage
-		e.hasDebugMessage = true
-	}
+func (e *CompilerExecutor) SetDebugMessage(debugMessage string) {
+	e.debugMessage = debugMessage
+	e.hasDebugMessage = true
 }
 
 func (e *CompilerExecutor) finishRun(bootThread bool, dumpTraceReport bool, r any) {

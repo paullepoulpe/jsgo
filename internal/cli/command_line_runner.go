@@ -30,6 +30,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/args4j"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -586,7 +587,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options := jscomp.NewCompilerOptions()
 
 	if flags.languageIn != "" {
-		languageMode := jscomp.CompilerOptions_LanguageMode_FromString(&flags.languageIn)
+		languageMode := jscomp.CompilerOptions_LanguageMode_FromName(flags.languageIn)
 		if languageMode != nil && *languageMode == jscomp.CompilerOptions_LanguageMode_UNSUPPORTED {
 			panic(jscomp.NewFlagUsageException(
 				"Cannot specify the unsupported set of features for language_in."))
@@ -602,7 +603,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 		}
 	}
 
-	languageMode := jscomp.CompilerOptions_LanguageMode_FromString(&flags.languageOut)
+	languageMode := jscomp.CompilerOptions_LanguageMode_FromName(flags.languageOut)
 	if languageMode != nil && *languageMode == jscomp.CompilerOptions_LanguageMode_UNSUPPORTED {
 		panic(jscomp.NewFlagUsageException(
 			"Cannot specify the unsupported set of features for language_out."))
@@ -715,7 +716,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Reading XTB file", ioErr))
 		}
 		defer stream.Close()
-		options.SetMessageBundle(jscomp.NewXtbMessageBundle(stream, flags.translationsProject.Ptr()))
+		options.SetMessageBundle(jscomp.NewXtbMessageBundleOpt(stream, flags.translationsProject))
 	} else if jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS == level {
 		// In SIMPLE or WHITESPACE mode, if the user hasn't specified a
 		// translations file, they might reasonably try to write their own
@@ -894,7 +895,7 @@ func dependencyOptionsFromFlags(
 			"--dependency_mode=" + dependencyMode.String() +
 				" cannot be used with --entry_point, --closure_entry_point or --common_js_entry_module.")
 	}
-	return jscomp.DependencyOptions_FromFlags(dependencyMode, entryPoints, []string{}, nil, false, false), nil
+	return jscomp.DependencyOptions_FromFlags(dependencyMode, entryPoints, []string{}, base.NoString(), false, false), nil
 }
 
 // Java: CommandLineRunner.loadConformanceConfigs(List<String>)

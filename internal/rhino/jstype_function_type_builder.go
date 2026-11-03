@@ -36,6 +36,7 @@
 package rhino
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -114,8 +115,14 @@ func NewFunctionType_Builder(registry *JSTypeRegistry) *FunctionType_Builder {
 }
 
 // Java: PrototypeObjectType.Builder.setName(String)
-func (b *FunctionType_Builder) SetName(x *string) *FunctionType_Builder {
-	b.classNameID = rhinoStringIDFromPtr(x)
+func (b *FunctionType_Builder) SetName(x string) *FunctionType_Builder {
+	b.classNameID = rhinoStringPoolIntern(x)
+	return b
+}
+
+// SetNameOpt sets or clears the function type name from an OptString.
+func (b *FunctionType_Builder) SetNameOpt(x base.OptString) *FunctionType_Builder {
+	b.classNameID = rhinoStringIDFromOpt(x)
 	return b
 }
 
@@ -152,15 +159,20 @@ func (b *FunctionType_Builder) SetTemplateParamCount(x int) *FunctionType_Builde
 // WithName sets the name of the function type.
 //
 // Java: FunctionType.Builder.withName(String)
-func (b *FunctionType_Builder) WithName(name *string) *FunctionType_Builder {
-	b.classNameID = rhinoStringIDFromPtr(name)
+func (b *FunctionType_Builder) WithName(name string) *FunctionType_Builder {
+	b.classNameID = rhinoStringPoolIntern(name)
 	return b
 }
 
-// WithNameString sets the non-null name of the function type without allocating a *string.
-func (b *FunctionType_Builder) WithNameString(name string) *FunctionType_Builder {
-	b.classNameID = rhinoStringPoolIntern(name)
+// WithNameOpt sets or clears the name of the function type from an OptString.
+func (b *FunctionType_Builder) WithNameOpt(name base.OptString) *FunctionType_Builder {
+	b.classNameID = rhinoStringIDFromOpt(name)
 	return b
+}
+
+// WithNameString sets the non-null name of the function type.
+func (b *FunctionType_Builder) WithNameString(name string) *FunctionType_Builder {
+	return b.WithName(name)
 }
 
 // WithSourceNode sets the source node of the function type.
@@ -175,8 +187,14 @@ func (b *FunctionType_Builder) WithSourceNode(sourceNode Node) *FunctionType_Bui
 // declared.
 //
 // Java: FunctionType.Builder.setGoogModuleId(String)
-func (b *FunctionType_Builder) SetGoogModuleId(x *string) *FunctionType_Builder {
-	b.googModuleID = rhinoStringIDFromPtr(x)
+func (b *FunctionType_Builder) SetGoogModuleId(x string) *FunctionType_Builder {
+	b.googModuleID = rhinoStringPoolIntern(x)
+	return b
+}
+
+// SetGoogModuleIdOpt sets or clears the goog.module ID from an OptString.
+func (b *FunctionType_Builder) SetGoogModuleIdOpt(x base.OptString) *FunctionType_Builder {
+	b.googModuleID = rhinoStringIDFromOpt(x)
 	return b
 }
 

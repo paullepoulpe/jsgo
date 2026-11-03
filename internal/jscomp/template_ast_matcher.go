@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -51,7 +52,7 @@ type TemplateAstMatcher struct {
 
 	// Record the first name to match a template local variable, only valid
 	// for the last match if it was successful.
-	localVarMatches []*string
+	localVarMatches []base.OptString
 
 	// Record whether the last successful was a loosely matched type, only
 	// valid for the last match if it was successful.
@@ -132,7 +133,9 @@ func (m *TemplateAstMatcher) GetTemplateNodeToMatchMap() *OrderedStringMap[rhino
 	}
 
 	for i, name := range m.templateLocals {
-		map_.Put(name, rhino.IR_Name(*m.localVarMatches[i]))
+		matchedName, ok := m.localVarMatches[i].Get()
+		jutil.CheckState(ok)
+		map_.Put(name, rhino.IR_Name(matchedName))
 	}
 
 	return map_
@@ -159,7 +162,7 @@ func (m *TemplateAstMatcher) InitTemplate(templateFunctionNode rhino.Node) rhino
 		startNode = body.GetFirstChild()
 	}
 
-	m.localVarMatches = make([]*string, len(m.templateLocals))
+	m.localVarMatches = make([]base.OptString, len(m.templateLocals))
 	m.paramNodeMatches = make([]rhino.Node, len(m.templateParams))
 
 	return startNode
@@ -428,19 +431,16 @@ func (m *TemplateAstMatcher) MatchesNode(template rhino.Node, ast rhino.Node) bo
 		//   var b = 'str';
 		//   fn('str');
 		paramIndex := int(jutil.D2I(template.GetDouble()))
-		if prev := m.localVarMatches[paramIndex]; prev != nil {
+		if prev, ok := m.localVarMatches[paramIndex].Get(); ok {
 			// If this named node has already been matched against, make sure
 			// all subsequent usages of the same named node are equivalent.
-			return ast.GetString() == *prev
+			return ast.GetString() == prev
 		} else {
-			originalName := ast.GetOriginalName()
-			var name string
-			if originalName != nil {
-				name = *originalName
-			} else {
+			name, hasOrig := ast.OriginalName()
+			if !hasOrig {
 				name = ast.GetString()
 			}
-			m.localVarMatches[paramIndex] = &name
+			m.localVarMatches[paramIndex] = base.SomeString(name)
 		}
 	} else if m.IsTemplateParameterStringLiteralNode(template) {
 		paramIndex := int(jutil.D2I(template.GetDouble()))

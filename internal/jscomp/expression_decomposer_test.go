@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -350,11 +351,11 @@ func (c *ExpressionDecomposerTest) TestCanExposeExpression7() {
 				// Dig out the inner IIFE call and return it as the expression we want to ensure is
 				// movable.
 				AssertNode(rootNode).HasToken(rhino.Token_SCRIPT)
-				exprResult := rootNode.GetOnlyChild()
+				exprResult := ast.MustScript(rootNode).MustOnlyItem().Node()
 				AssertNode(exprResult).HasToken(rhino.Token_EXPR_RESULT)
-				outerCall := exprResult.GetOnlyChild()
+				outerCall := ast.MustExprStmt(exprResult).Expr().Node()
 				AssertNode(outerCall).HasToken(rhino.Token_CALL)
-				innerIifeCall := outerCall.GetSecondChild()
+				innerIifeCall := ast.MustCall(outerCall).MustOnlyArg().Node()
 				AssertNode(innerIifeCall).HasToken(rhino.Token_CALL)
 				return innerIifeCall
 			}
@@ -2281,14 +2282,14 @@ func newExpressionDecomposerTest_NodeToSource(compiler AbstractCompiler, node rh
 
 // Java: ExpressionDecomposerTest.NodeToSource.toString()
 func (n *expressionDecomposerTest_NodeToSource) String() string {
-	if n.node.IsTemplateLitString() {
+	if str, ok := ast.AsTemplateLitString(n.node); ok {
 		// A string part of a template literal cannot be printed as code on its own.
-		return fmt.Sprintf("[Template literal string: '%s']", n.node.GetRawString())
-	} else if n.node.IsTemplateLitSub() {
+		return fmt.Sprintf("[Template literal string: '%s']", str.Raw())
+	} else if sub, ok := ast.AsTemplateLitSub(n.node); ok {
 		// The template literal substitution node cannot itself be turned into source code,
 		// but we can do that for the expression inside of it.
 		return fmt.Sprintf(
-			"[Template literal substitution: '%s']", n.compiler.ToSourceOfNode(n.node.GetOnlyChild()))
+			"[Template literal substitution: '%s']", n.compiler.ToSourceOfNode(sub.Expr().Node()))
 	} else {
 		return n.compiler.ToSourceOfNode(n.node)
 	}
@@ -2475,16 +2476,18 @@ func (c *ExpressionDecomposerTest) getCompiler() *Compiler {
 
 // Java: ExpressionDecomposerTest.processForTypecheck(AbstractCompiler, Node)
 func (c *ExpressionDecomposerTest) processForTypecheck(compiler AbstractCompiler, jsRoot rhino.Node) {
-	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(jsRoot))
+	externsRoot := rhino.IR_Root()
+	codeRoot := rhino.IR_Root(jsRoot)
+	_ = rhino.IR_Root(externsRoot, codeRoot)
 	registry := compiler.GetTypeRegistry()
 	NewTypeCheck(compiler, NewSemanticReverseAbstractInterpreter(registry), registry).
-		ProcessForTesting(root.GetFirstChild(), root.GetSecondChild())
+		ProcessForTesting(externsRoot, codeRoot)
 	compiler.SetTypeCheckingHasRun(true)
 }
 
 // Java: ExpressionDecomposerTest.findClass(Node)
 func expressionDecomposerTest_findClass(n rhino.Node) rhino.Node {
-	if n.IsClass() {
+	if _, isClass := ast.AsClass(n); isClass {
 		return n
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {

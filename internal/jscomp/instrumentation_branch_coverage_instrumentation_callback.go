@@ -75,15 +75,6 @@ func (c *BranchCoverageInstrumentationCallback) ExitScope(t *NodeTraversal) {
 	c.popScopeRoot(t.GetScopeRoot())
 }
 
-// branchCoverageInstrumentationCallback_stringsEqual is
-// Objects.equals(String, String) on nullable strings.
-func branchCoverageInstrumentationCallback_stringsEqual(a string, hasA bool, b *string) bool {
-	if !hasA {
-		return b == nil
-	}
-	return b != nil && a == *b
-}
-
 // Java: BranchCoverageInstrumentationCallback.visit(NodeTraversal, Node, Node)
 func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, node rhino.Node, parent rhino.Node) {
 	fileName, hasFileName := traversal.SourceNameOk()
@@ -92,7 +83,8 @@ func (c *BranchCoverageInstrumentationCallback) Visit(traversal *NodeTraversal, 
 	// polyfill code is injected into the sourceFile AST and this check avoids instrumenting it. We
 	// avoid instrumentation as this callback does not distinguish between sourceFile code and
 	// injected code and can result in an error.
-	if !branchCoverageInstrumentationCallback_stringsEqual(fileName, hasFileName, node.GetSourceFileName()) {
+	nodeFileName, hasNodeFileName := node.SourceFileName()
+	if hasFileName != hasNodeFileName || fileName != nodeFileName {
 		return
 	}
 

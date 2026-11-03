@@ -53,7 +53,7 @@ var DiagnosticGroups_groupsByName OrderedStringMap[*DiagnosticGroup]
 
 // Java: DiagnosticGroups.registerDeprecatedGroup(String)
 func DiagnosticGroups_RegisterDeprecatedGroup(name string) *DiagnosticGroup {
-	return DiagnosticGroups_RegisterGroup(name, NewDiagnosticGroupWithName(&name, DiagnosticGroups_UNUSED))
+	return DiagnosticGroups_RegisterGroup(name, NewDiagnosticGroupNamed(name, DiagnosticGroups_UNUSED))
 }
 
 // DiagnosticGroups_RegisterUnsuppressibleGroup creates a group that is
@@ -77,14 +77,14 @@ func DiagnosticGroups_RegisterGroup(name string, group *DiagnosticGroup) *Diagno
 
 // Java: DiagnosticGroups.registerGroup(String, DiagnosticType...)
 func DiagnosticGroups_RegisterGroupOfTypes(name string, types ...*DiagnosticType) *DiagnosticGroup {
-	group := NewDiagnosticGroupWithName(&name, types...)
+	group := NewDiagnosticGroupNamed(name, types...)
 	DiagnosticGroups_groupsByName.Put(name, group)
 	return group
 }
 
 // Java: DiagnosticGroups.registerGroup(String, DiagnosticGroup...)
 func DiagnosticGroups_RegisterGroupOfGroups(name string, groups ...*DiagnosticGroup) *DiagnosticGroup {
-	group := NewDiagnosticGroupWithNameFromGroups(&name, groups...)
+	group := NewDiagnosticGroupNamedFromGroups(name, groups...)
 	DiagnosticGroups_groupsByName.Put(name, group)
 	return group
 }

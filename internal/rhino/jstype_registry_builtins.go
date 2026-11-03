@@ -302,7 +302,7 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	arrayOfString := r.CreateTemplatizedType(arrayType, stringType)
 	iTemplateArrayFunctionType := r.NativeConstructorBuilder("ITemplateArray").WithParameters().Build()
 	iTemplateArrayPrototype := PrototypeObjectType_Builder_(r).
-		SetName(jutil.StringPtr("ITemplateArray.prototype")).
+		SetName("ITemplateArray.prototype").
 		SetNative(true).
 		SetImplicitPrototype(arrayOfString).
 		Build()

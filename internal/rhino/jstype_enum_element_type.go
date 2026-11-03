@@ -64,8 +64,8 @@ type EnumElementType struct {
 const EnumElementType_TYPE_CLASS = JSTypeClass_ENUM_ELEMENT
 
 // Java: EnumElementType(JSTypeRegistry, JSType, String, EnumType)
-func NewEnumElementType(registry *JSTypeRegistry, elementType JSType, name *string, enumType *EnumType) *EnumElementType {
-	return newEnumElementTypeByID(registry, elementType, rhinoStringIDFromPtr(name), enumType)
+func NewEnumElementType(registry *JSTypeRegistry, elementType JSType, name base.OptString, enumType *EnumType) *EnumElementType {
+	return newEnumElementTypeByID(registry, elementType, rhinoStringIDFromOpt(name), enumType)
 }
 
 func newEnumElementTypeByID(registry *JSTypeRegistry, elementType JSType, nameID rhinoStringID, enumType *EnumType) *EnumElementType {

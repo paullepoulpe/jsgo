@@ -40,6 +40,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -629,9 +630,16 @@ type JsMessage_IdGenerator interface {
 	GenerateId(meaning *string, messageParts []JsMessage_Part) string
 }
 
+type optMessageIdGenerator interface {
+	GenerateIdOpt(meaning base.OptString, messageParts []JsMessage_Part) string
+}
+
 func generateMessageId(gen JsMessage_IdGenerator, meaning string, parts []JsMessage_Part) string {
 	if g, ok := gen.(*GoogleJsMessageIdGenerator); ok {
 		return g.generateId(meaning, parts)
+	}
+	if og, ok := gen.(optMessageIdGenerator); ok {
+		return og.GenerateIdOpt(base.SomeString(meaning), parts)
 	}
 	return gen.GenerateId(&meaning, parts)
 }

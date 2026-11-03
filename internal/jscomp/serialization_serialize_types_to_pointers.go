@@ -263,7 +263,7 @@ func (p *serializeTypesToPointers_StreamObjectUuidsJson) WriteJson(jsonWriter *j
 		}
 		slices.SortStableFunc(jstypes, jutil.StringCompareTo)
 		for _, typeName := range jstypes { // all corresponding JSTypes
-			jsonWriter.ValueString(&typeName)
+			jsonWriter.ValueString(typeName)
 		}
 		jsonWriter.EndArray()
 	}
@@ -298,11 +298,11 @@ func (j *serializeTypesToPointers_TypeMismatchJson) WriteGson(out *jutil.JsonWri
 	}
 	out.BeginObject()
 	out.Name("location")
-	out.ValueString(&j.Location)
+	out.ValueString(j.Location)
 	out.Name("foundColorId")
-	out.ValueString(&j.FoundColorId)
+	out.ValueString(j.FoundColorId)
 	out.Name("requiredColorId")
-	out.ValueString(&j.RequiredColorId)
+	out.ValueString(j.RequiredColorId)
 	out.EndObject()
 }
 

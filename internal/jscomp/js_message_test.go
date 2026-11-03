@@ -76,16 +76,14 @@ func newTestMessageBuilder(keyAndId string) *JsMessage_Builder {
 
 func TestJsMessage_HashValues(t *testing.T) {
 	var answerString64 int64 = 0x43ec5d9731515874
-	s := "Hello, world"
-	assertEqual(t, "Hello, world", JsMessage_Hash_Hash64(&s), answerString64)
+	assertEqual(t, "Hello, world", JsMessage_Hash_Hash64String("Hello, world"), answerString64)
 
 	var answerEmpty64 int64 = 0x468d9ea2c42361aa
-	e := ""
-	assertEqual(t, "empty", JsMessage_Hash_Hash64(&e), answerEmpty64)
+	assertEqual(t, "empty", JsMessage_Hash_Hash64String(""), answerEmpty64)
 }
 
 func TestJsMessage_NoAlternateId(t *testing.T) {
-	msg := newTestMessageBuilder("MSG_SOME_KEY").SetDesc(jutil.StringPtr("Hello.")).Build()
+	msg := newTestMessageBuilder("MSG_SOME_KEY").SetDescString("Hello.").Build()
 	assertEqual(t, "desc", jsMessage_optStringFormat(msg.DescOpt()), "Hello.")
 	assertEqual(t, "id", msg.GetId(), "MSG_SOME_KEY")
 	if alt, ok := msg.AlternateIdOpt(); ok {
@@ -95,8 +93,8 @@ func TestJsMessage_NoAlternateId(t *testing.T) {
 
 func TestJsMessage_SelfReferentialAlternateId(t *testing.T) {
 	msg := newTestMessageBuilder("MSG_SOME_NAME").
-		SetDesc(jutil.StringPtr("Hello.")).
-		SetAlternateId(jutil.StringPtr("MSG_SOME_NAME")).
+		SetDescString("Hello.").
+		SetAlternateId("MSG_SOME_NAME").
 		Build()
 	assertEqual(t, "desc", jsMessage_optStringFormat(msg.DescOpt()), "Hello.")
 	assertEqual(t, "id", msg.GetId(), "MSG_SOME_NAME")
@@ -108,9 +106,9 @@ func TestJsMessage_SelfReferentialAlternateId(t *testing.T) {
 func TestJsMessage_AlternateId(t *testing.T) {
 	msg := NewJsMessage_Builder().
 		SetKey("MSG_KEY").
-		SetDesc(jutil.StringPtr("Hello.")).
-		SetAlternateId(jutil.StringPtr("foo")).
-		SetMeaning(jutil.StringPtr("meaning")).
+		SetDescString("Hello.").
+		SetAlternateId("foo").
+		SetMeaning("meaning").
 		SetId("meaning").
 		AppendJsPlaceholderReference("placeholder0").
 		AppendJsPlaceholderReference("placeholder1").
@@ -127,7 +125,7 @@ func TestJsMessage_MessageWithGenderedVariants(t *testing.T) {
 	msg := NewJsMessage_Builder().
 		SetKey("MSG_KEY").
 		SetId("1234567890").
-		SetDesc(jutil.StringPtr("A welcome message.")).
+		SetDescString("A welcome message.").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_MASCULINE).
 		AppendStringPartForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "Beinvenido, ").
 		AppendJsPlaceholderReferenceForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "placeholder").
@@ -163,7 +161,7 @@ func TestJsMessage_GetGenderedVariants(t *testing.T) {
 	msg := NewJsMessage_Builder().
 		SetKey("MSG_KEY").
 		SetId("1234567890").
-		SetDesc(jutil.StringPtr("A welcome message.")).
+		SetDescString("A welcome message.").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_MASCULINE).
 		AppendStringPartForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "Bienvenido, ").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_FEMININE).
@@ -189,7 +187,7 @@ func TestJsMessage_GetGenderedVariantsNoNeuter(t *testing.T) {
 	msg := NewJsMessage_Builder().
 		SetKey("MSG_KEY").
 		SetId("1234567890").
-		SetDesc(jutil.StringPtr("A welcome message.")).
+		SetDescString("A welcome message.").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_MASCULINE).
 		AppendStringPartForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "Bienvenido, ").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_FEMININE).
@@ -212,7 +210,7 @@ func TestJsMessage_GenderedMessageAsString(t *testing.T) {
 	msg := NewJsMessage_Builder().
 		SetKey("MSG_KEY").
 		SetId("1234567890").
-		SetDesc(jutil.StringPtr("A welcome message.")).
+		SetDescString("A welcome message.").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_MASCULINE).
 		AppendStringPartForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "Beinvenido, ").
 		AppendJsPlaceholderReferenceForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "placeholder").
@@ -251,7 +249,7 @@ func TestJsMessage_GenderedMessageAsStringInvalidCall(t *testing.T) {
 	genderedMsg := NewJsMessage_Builder().
 		SetKey("MSG_KEY").
 		SetId("1234567890").
-		SetDesc(jutil.StringPtr("A welcome message.")).
+		SetDescString("A welcome message.").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_MASCULINE).
 		AppendStringPartForGender(JsMessage_GrammaticalGenderCase_MASCULINE, "Bienvenido, ").
 		AddGenderedMessageKey(JsMessage_GrammaticalGenderCase_FEMININE).

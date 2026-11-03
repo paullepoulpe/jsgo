@@ -801,11 +801,7 @@ func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) 
 	if docInfo == nil {
 		return "", false
 	}
-	lic := docInfo.GetLicense()
-	if lic == nil {
-		return "", false
-	}
-	return *lic, true
+	return docInfo.License()
 }
 
 // Compiler_CodeBuilder stores a buffer of text to which more can be

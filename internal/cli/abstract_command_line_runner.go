@@ -910,8 +910,8 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *jscomp.Result, ch
 				defer abstractCommandLineRunner_closeWriter(eeOut)
 				// Java: Writer.append(null) appends "null".
 				externExport := "null"
-				if result.ExternExport != nil {
-					externExport = *result.ExternExport
+				if ee, ok := result.ExternExportString(); ok {
+					externExport = ee
 				}
 				eeOut.AppendCharSequence(externExport)
 			}()

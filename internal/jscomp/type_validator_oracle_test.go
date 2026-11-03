@@ -88,29 +88,29 @@ func (d *tvDump) buildExtraTypes() {
 	str := d.nat(rhino.JSTypeNative_STRING_TYPE)
 	numberOrUndefined := r.CreateUnionType(number, d.nat(rhino.JSTypeNative_VOID_TYPE))
 
-	i2Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I2")).WithSourceNode(raiFn("I2")).Build()
+	i2Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName("I2").WithSourceNode(raiFn("I2")).Build()
 	i2Ctor.GetPrototype().DefineDeclaredProperty("m", number, rhino.NilNode)
 	i2Ctor.GetPrototype().DefineDeclaredProperty("opt", numberOrUndefined, rhino.NilNode)
 	i2 := i2Ctor.GetInstanceType()
 	i2.DefineDeclaredProperty("own", str, rhino.NilNode)
 
 	badImplCtor := r.CreateConstructorType(
-		jutil.StringPtr("BadImpl"), raiFn("BadImpl"), r.CreateParameters(), nil, nil, false)
+		"BadImpl", raiFn("BadImpl"), r.CreateParameters(), nil, nil, false)
 	badImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
 
 	wrongImplCtor := r.CreateConstructorType(
-		jutil.StringPtr("WrongImpl"), raiFn("WrongImpl"), r.CreateParameters(), nil, nil, false)
+		"WrongImpl", raiFn("WrongImpl"), r.CreateParameters(), nil, nil, false)
 	wrongImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
 	wrongImplCtor.GetPrototype().DefineDeclaredProperty("m", str, rhino.NilNode)
 	wrongImplCtor.GetInstanceType().DefineDeclaredProperty("own", number, rhino.NilNode)
 
 	goodImplCtor := r.CreateConstructorType(
-		jutil.StringPtr("GoodImpl"), raiFn("GoodImpl"), r.CreateParameters(), nil, nil, false)
+		"GoodImpl", raiFn("GoodImpl"), r.CreateParameters(), nil, nil, false)
 	goodImplCtor.SetImplementedInterfaces([]rhino.ObjectType{i2})
 	goodImplCtor.GetPrototype().DefineDeclaredProperty("m", number, rhino.NilNode)
 	goodImplCtor.GetInstanceType().DefineDeclaredProperty("own", str, rhino.NilNode)
 
-	i3Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName(jutil.StringPtr("I3")).WithSourceNode(raiFn("I3")).Build()
+	i3Ctor := rhino.FunctionType_Builder_(r).ForInterface().WithName("I3").WithSourceNode(raiFn("I3")).Build()
 	i3Ctor.SetExtendedInterfaces([]rhino.ObjectType{i2})
 	i3Ctor.GetPrototype().DefineDeclaredProperty("n", str, rhino.NilNode)
 
@@ -118,7 +118,7 @@ func (d *tvDump) buildExtraTypes() {
 	concreteMethod := rhino.FunctionType_Builder_(r).WithReturnType(number).Build()
 	absCtor := rhino.FunctionType_Builder_(r).
 		ForConstructor().
-		WithName(jutil.StringPtr("Abs")).
+		WithName("Abs").
 		WithSourceNode(raiFn("Abs")).
 		WithIsAbstract(true).
 		Build()
@@ -126,23 +126,23 @@ func (d *tvDump) buildExtraTypes() {
 	absCtor.GetPrototype().DefineDeclaredProperty("cm", concreteMethod, rhino.NilNode)
 	abs2Ctor := rhino.FunctionType_Builder_(r).
 		ForConstructor().
-		WithName(jutil.StringPtr("Abs2")).
+		WithName("Abs2").
 		WithSourceNode(raiFn("Abs2")).
 		WithIsAbstract(true).
 		Build()
 	abs2Ctor.SetPrototypeBasedOn(absCtor.GetInstanceType())
 	abs2Ctor.GetPrototype().DefineDeclaredProperty("am2", abstractMethod, rhino.NilNode)
 	concreteCtor := r.CreateConstructorType(
-		jutil.StringPtr("Concrete"), raiFn("Concrete"), r.CreateParameters(), nil, nil, false)
+		"Concrete", raiFn("Concrete"), r.CreateParameters(), nil, nil, false)
 	concreteCtor.SetPrototypeBasedOn(abs2Ctor.GetInstanceType())
 	concreteCtor.GetPrototype().DefineDeclaredProperty("am2", concreteMethod, rhino.NilNode)
 	concrete2Ctor := r.CreateConstructorType(
-		jutil.StringPtr("Concrete2"), raiFn("Concrete2"), r.CreateParameters(), nil, nil, false)
+		"Concrete2", raiFn("Concrete2"), r.CreateParameters(), nil, nil, false)
 	concrete2Ctor.SetPrototypeBasedOn(absCtor.GetInstanceType())
 	concrete2Ctor.GetPrototype().DefineDeclaredProperty("am", concreteMethod, rhino.NilNode)
 
 	structCtor := r.CreateConstructorType(
-		jutil.StringPtr("Struct"), raiFn("Struct"), r.CreateParameters(), nil, nil, false)
+		"Struct", raiFn("Struct"), r.CreateParameters(), nil, nil, false)
 	structCtor.SetStruct()
 	structCtor.GetPrototype().DefineDeclaredProperty("s", number, rhino.NilNode)
 
@@ -385,7 +385,7 @@ func (d *tvDump) scenarios() {
 		closer := r.GetResolver().OpenForDefinition()
 		defer closer.Close()
 		ctor := func(name string) rhino.FunctionType {
-			return r.CreateConstructorType(jutil.StringPtr(name), raiFn(name), r.CreateParameters(), nil, nil, false)
+			return r.CreateConstructorType(name, raiFn(name), r.CreateParameters(), nil, nil, false)
 		}
 		aCtor := ctor("SA")
 		bCtor := ctor("SB")

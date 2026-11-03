@@ -34,14 +34,15 @@ func TestDiagnosticGroup_Registration(t *testing.T) {
 func TestDiagnosticGroup_Basics(t *testing.T) {
 	a := DiagnosticType_Warning("JSC_DG_A", "a")
 	b := DiagnosticType_Warning("JSC_DG_B", "b")
-	g1 := NewDiagnosticGroupWithName(jsaStr("g1"), a, b, a)
+	g1 := NewDiagnosticGroupNamed("g1", a, b, a)
 	jsaEq(t, len(g1.GetTypes()), 2)
 	jsaTrue(t, g1.MatchesType(DiagnosticType_Warning("JSC_DG_A", "other format")))
 	jsaTrue(t, g1.Matches(JSError_Make(b)))
 	jsaEq(t, g1.String(), "DiagnosticGroup<g1>")
 	composite := NewDiagnosticGroupFromGroups(g1, NewDiagnosticGroup(DiagnosticType_Error("JSC_DG_C", "c")))
 	jsaEq(t, len(composite.GetTypes()), 3)
-	jsaTrue(t, composite.GetName() == nil)
+	_, hasCompositeName := composite.Name()
+	jsaFalse(t, hasCompositeName)
 	jsaTrue(t, DiagnosticGroup_ForType(a) == DiagnosticGroup_ForType(a))
 	jsaFalse(t, DiagnosticGroup_ForType(a).MatchesType(b))
 	jsaFalse(t, g1.MatchesType(nil))
@@ -66,7 +67,7 @@ func TestDiagnosticGroup_Basics(t *testing.T) {
 
 func TestDiagnosticGroup_ValueCopyEquality(t *testing.T) {
 	dt := DiagnosticType_Warning("JSC_DG_COPY", "copy test")
-	orig := NewDiagnosticGroupWithName(jsaStr("copyGroup"), dt)
+	orig := NewDiagnosticGroupNamed("copyGroup", dt)
 	copied := *orig
 
 	jsaTrue(t, orig.Equals(&copied))
@@ -75,7 +76,7 @@ func TestDiagnosticGroup_ValueCopyEquality(t *testing.T) {
 	jsaEq(t, orig.HashCode(), (&copied).HashCode())
 	jsaTrue(t, jutil.ObjectsEquals(orig, &copied))
 
-	other := NewDiagnosticGroupWithName(jsaStr("copyGroup"), dt)
+	other := NewDiagnosticGroupNamed("copyGroup", dt)
 	jsaFalse(t, orig.Equals(other))
 
 	jsaEq(t, jutil.ObjectHashCode(orig), jutil.ObjectHashCode(&copied))

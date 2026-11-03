@@ -224,9 +224,8 @@ func (r *ReplaceStrings) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 		calledFn := ast.MustInvocation(n).Callee().Node()
 
 		// Look for calls to static functions.
-		name := calledFn.GetOriginalQualifiedName()
-		if name != nil {
-			config := r.findMatching(*name, n)
+		if name, ok := calledFn.OriginalQualifiedName(); ok {
+			config := r.findMatching(name, n)
 			if config != nil {
 				r.DoSubstitutions(t, config, n)
 				return

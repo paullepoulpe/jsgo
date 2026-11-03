@@ -120,14 +120,6 @@ func (e *Export) HasClosureNamespace() bool { return e.present&exportHasClosureN
 // Java: Export.mutated()
 func (e *Export) Mutated() bool { return e.mutated }
 
-// modules_nullableString is String.valueOf for a nullable String.
-func modules_nullableString(s *string) string {
-	if s == nil {
-		return "null"
-	}
-	return *s
-}
-
 // modules_optString formats an unboxed optional string as "null" when absent.
 func modules_optString(s string, ok bool) string {
 	if !ok {

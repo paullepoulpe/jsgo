@@ -51,25 +51,25 @@ func depsGeneratorTest_loader(roots ...string) *ModuleLoader {
 		Build()
 }
 
-func (x *depsGeneratorTest) assertOutput(output *string, expected string) {
+func (x *depsGeneratorTest) assertOutput(output string, ok bool, expected string) {
 	x.t.Helper()
-	if output == nil || *output != expected {
-		x.t.Errorf("output = %s\nwant %q", depsGeneratorTest_str(output), expected)
+	if !ok || output != expected {
+		x.t.Errorf("output = %s\nwant %q", depsGeneratorTest_str(output, ok), expected)
 	}
 }
 
-func (x *depsGeneratorTest) assertNotEmpty(output *string, message string) {
+func (x *depsGeneratorTest) assertNotEmpty(output string, ok bool, message string) {
 	x.t.Helper()
-	if output == nil || *output == "" {
-		x.t.Errorf("%s: output = %s", message, depsGeneratorTest_str(output))
+	if !ok || output == "" {
+		x.t.Errorf("%s: output = %s", message, depsGeneratorTest_str(output, ok))
 	}
 }
 
-func depsGeneratorTest_str(s *string) string {
-	if s == nil {
+func depsGeneratorTest_str(s string, ok bool) string {
+	if !ok {
 		return "null"
 	}
-	return "\"" + *s + "\""
+	return "\"" + s + "\""
 }
 
 // TODO(johnplaisted): This should eventually be an error. For now people are
@@ -90,20 +90,20 @@ func TestDepsGenerator_Es6ModuleWithGoogProvide(t *testing.T) {
 		"/base/javascript/closure",
 		x.errorManager,
 		depsGeneratorTest_loader("/base/"))
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	x.assertWarnings(
 		"File cannot be a combination of goog.provide, goog.module, and/or ES6 " +
 			"module: javascript/foo/foo.js")
 
 	// Write the output.
-	x.assertNotEmpty(output, "There should be output")
+	x.assertNotEmpty(output, ok, "There should be output")
 
 	// Write the expected output.
 	expected := "goog.addDependency('../foo/foo.js', ['my.namespace'], ['goog/es6.js'], {'lang': 'es6', 'module': 'es6'});\n" +
 		"goog.addDependency('goog/es6.js', [], [], {'lang': 'es6', 'module': 'es6'});\n"
 
-	x.assertOutput(output, expected)
+	x.assertOutput(output, ok, expected)
 }
 
 func TestDepsGenerator_Es6Modules(t *testing.T) {
@@ -119,18 +119,18 @@ func TestDepsGenerator_Es6Modules(t *testing.T) {
 		"/base/javascript/closure",
 		x.errorManager,
 		depsGeneratorTest_loader("/base/"))
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	x.assertNoWarnings()
 
 	// Write the output.
-	x.assertNotEmpty(output, "There should be output")
+	x.assertNotEmpty(output, ok, "There should be output")
 
 	// Write the expected output.
 	expected := "goog.addDependency('../foo/foo.js', [], ['goog/es6.js'], {'lang': 'es6', 'module': 'es6'});\n" +
 		"goog.addDependency('goog/es6.js', [], [], {'lang': 'es6', 'module': 'es6'});\n"
 
-	x.assertOutput(output, expected)
+	x.assertOutput(output, ok, expected)
 }
 
 func TestDepsGenerator_Es6ModuleDeclareModuleId(t *testing.T) {
@@ -150,18 +150,18 @@ func TestDepsGenerator_Es6ModuleDeclareModuleId(t *testing.T) {
 		"/base/javascript/closure",
 		x.errorManager,
 		depsGeneratorTest_loader("/base/"))
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	x.assertNoWarnings()
 
 	// Write the output.
-	x.assertNotEmpty(output, "There should be output")
+	x.assertNotEmpty(output, ok, "There should be output")
 
 	// Write the expected output.
 	expected := "goog.addDependency('../foo/foo.js', ['my.namespace'], [], {'lang': 'es6', 'module': 'es6'});\n" +
 		"goog.addDependency('goog/googmodule.js', ['my.goog.module'], ['my.namespace'], {'lang': 'es6', 'module': 'goog'});\n"
 
-	x.assertOutput(output, expected)
+	x.assertOutput(output, ok, expected)
 }
 
 // Unit test for an issue run into by
@@ -185,14 +185,14 @@ func TestDepsGenerator_Es6ModuleScanDeps(t *testing.T) {
 		x.errorManager,
 		depsGeneratorTest_loader("."))
 
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	// Make sure that there are no spurious errors.
 	x.assertNoWarnings()
 
 	expected := "goog.addDependency('../../../src/css-parse.js', [], [], {'lang': 'es6', 'module': 'es6'});\n" +
 		"goog.addDependency('../../../src/apply-shim-utils.js', [], ['../../../src/css-parse.js'], {'lang': 'es6', 'module': 'es6'});\n"
-	x.assertOutput(output, expected)
+	x.assertOutput(output, ok, expected)
 }
 
 // Ensures that deps files are handled correctly both when listed as deps and
@@ -248,10 +248,10 @@ func TestDepsGenerator_WithDepsAndSources(t *testing.T) {
 		x.errorManager,
 		depsGeneratorTest_loader("/base/"))
 
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	x.assertNoWarnings()
-	x.assertOutput(output, expected)
+	x.assertOutput(output, ok, expected)
 
 	// Repeat the test with the deps files listed as sources.
 	// The only difference should be the addition of addDependency() calls for
@@ -269,10 +269,10 @@ func TestDepsGenerator_WithDepsAndSources(t *testing.T) {
 			"goog.addDependency('../../my-project/deps2.js', [], []);\n" +
 			expected
 
-	output = depsGenerator.ComputeDependencyCalls()
+	output, ok = depsGenerator.ComputeDependencyCalls()
 
 	x.assertNoWarnings()
-	x.assertOutput(output, expectedWithDepsAsSources)
+	x.assertOutput(output, ok, expectedWithDepsAsSources)
 }
 
 // Ensures that everything still works when both a deps.js and a
@@ -304,9 +304,9 @@ func TestDepsGenerator_DepsAsSrcs(t *testing.T) {
 		x.errorManager,
 		depsGeneratorTest_loader("/base//"))
 
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
-	x.assertNotEmpty(output, "There should be output")
+	x.assertNotEmpty(output, ok, "There should be output")
 	x.assertNoWarnings()
 }
 
@@ -323,15 +323,15 @@ func TestDepsGenerator_Externs(t *testing.T) {
 		"/base/javascript/closure",
 		x.errorManager,
 		depsGeneratorTest_loader("/base/"))
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	x.assertNoWarnings()
 
-	x.assertNotEmpty(output, "There should be output")
+	x.assertNotEmpty(output, ok, "There should be output")
 
 	expected := "goog.addDependency('../foo/nonexterns.js', [], []);\n"
 
-	x.assertOutput(output, expected)
+	x.assertOutput(output, ok, expected)
 }
 
 func depsGeneratorTest_assertContains(t *testing.T, result string, want string, contains bool) {
@@ -389,15 +389,12 @@ func (x *depsGeneratorTest) testMergeStrategyHelper(mergeStrategy DepsGenerator_
 		x.errorManager,
 		depsGeneratorTest_loader("/base/"))
 
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	x.assertNoWarnings()
-	x.assertNotEmpty(output, "There should be output files")
+	x.assertNotEmpty(output, ok, "There should be output files")
 
-	if output == nil {
-		return ""
-	}
-	return *output
+	return output
 }
 
 // Java: DepsGeneratorTest.doErrorMessagesRun(List<SourceFile>, List<SourceFile>, boolean, String...)
@@ -411,15 +408,15 @@ func (x *depsGeneratorTest) doErrorMessagesRun(
 		"/javascript/closure",
 		x.errorManager,
 		depsGeneratorTest_loader(""))
-	output := depsGenerator.ComputeDependencyCalls()
+	output, ok := depsGenerator.ComputeDependencyCalls()
 
 	if fatal {
-		if output != nil {
-			x.t.Errorf("No output should have been created: %q", *output)
+		if ok {
+			x.t.Errorf("No output should have been created: %q", output)
 		}
 		x.assertErrors(errorMessages...)
 	} else {
-		if output == nil {
+		if !ok {
 			x.t.Errorf("Output should have been created.")
 		}
 		x.assertWarnings(errorMessages...)
@@ -481,9 +478,9 @@ func TestDepsGenerator_DuplicateProvidesIgnoredIfInClosureDirectory(t *testing.T
 		x.errorManager,
 		depsGeneratorTest_loader("."))
 
-	output := worker.ComputeDependencyCalls()
+	output, ok := worker.ComputeDependencyCalls()
 
-	x.assertNotEmpty(output, "Output should have been created.")
+	x.assertNotEmpty(output, ok, "Output should have been created.")
 	x.assertNoWarnings()
 }
 

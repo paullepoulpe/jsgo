@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -105,8 +106,8 @@ func buildFormatOracle() string {
 	for _, s := range strs {
 		stringsNode.AddChildToBack(IR_String(s))
 	}
-	stringsNode.AddChildToBack(Node_NewTemplateLitString(jutil.StringPtr("cooked"), "raw"))
-	stringsNode.AddChildToBack(Node_NewTemplateLitString(nil, "\\u{bad"))
+	stringsNode.AddChildToBack(Node_NewTemplateLitString(base.SomeString("cooked"), "raw"))
+	stringsNode.AddChildToBack(Node_NewTemplateLitString(base.NoString(), "\\u{bad"))
 	stringsNode.AddChildToBack(Node_NewBigInt(jutil.NewBigIntegerFromString("12345678901234567890")))
 	o.tree("strings", stringsNode)
 
@@ -406,7 +407,8 @@ func buildFormatOracle() string {
 	q := IR_Getprop(IR_Getprop(IR_ThisNode(), "a"), "b")
 	q.GetFirstChild().SetOriginalName(jutil.StringPtr("origA"))
 	o.rec("qname", *q.GetQualifiedName())
-	o.rec("origQname", *q.GetOriginalQualifiedName())
+	origQname, _ := q.OriginalQualifiedName()
+	o.rec("origQname", origQname)
 	o.rec("qobj", q.GetQualifiedNameObject().Join())
 	o.rec("of", strings.Join(QualifiedName_Of("x.y.z").Components(), "|"))
 	o.rec("propList", constName.GetPropListDebugString())

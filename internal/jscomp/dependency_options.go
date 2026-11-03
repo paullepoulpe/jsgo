@@ -21,6 +21,7 @@ package jscomp
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -269,7 +270,7 @@ func DependencyOptions_FromFlags(
 	dependencyModeFlag *DependencyOptions_DependencyMode,
 	entryPointFlag []string,
 	closureEntryPointFlag []string,
-	commonJsEntryModuleFlag *string,
+	commonJsEntryModuleFlag base.OptString,
 	manageClosureDependenciesFlag bool,
 	onlyClosureDependenciesFlag bool) *DependencyOptions {
 
@@ -277,7 +278,7 @@ func DependencyOptions_FromFlags(
 		return dependencyModeFlag != nil && *dependencyModeFlag == m
 	}
 
-	hasEntryPoint := commonJsEntryModuleFlag != nil ||
+	hasEntryPoint := commonJsEntryModuleFlag.IsPresent() ||
 		len(entryPointFlag) != 0 ||
 		len(closureEntryPointFlag) != 0
 
@@ -303,7 +304,7 @@ func DependencyOptions_FromFlags(
 		panic(NewFlagUsageException("--closure_entry_point cannot be used with --entry_point."))
 	}
 
-	if commonJsEntryModuleFlag != nil &&
+	if commonJsEntryModuleFlag.IsPresent() &&
 		(len(entryPointFlag) != 0 || len(closureEntryPointFlag) != 0) {
 		panic(NewFlagUsageException(
 			"--common_js_entry_module cannot be used with either --entry_point or " +
@@ -341,8 +342,8 @@ func DependencyOptions_FromFlags(
 	}
 
 	var entryPointsBuilder []*ModuleIdentifier
-	if commonJsEntryModuleFlag != nil {
-		entryPointsBuilder = append(entryPointsBuilder, ModuleIdentifier_ForFile(*commonJsEntryModuleFlag))
+	if commonJsEntryModule, ok := commonJsEntryModuleFlag.Get(); ok {
+		entryPointsBuilder = append(entryPointsBuilder, ModuleIdentifier_ForFile(commonJsEntryModule))
 	}
 	for _, entryPoint := range entryPointFlag {
 		entryPointsBuilder = append(entryPointsBuilder, ModuleIdentifier_ForFlagValue(entryPoint))

@@ -24,6 +24,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -66,7 +67,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle() {
 			"<translation id=\"3945720239421293834\"></translation>\n" +
 			"</translationbundle>"
 	stream := bytes.NewReader([]byte(xtb))
-	bundle := NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 
 	message := bundle.GetMessage("7639678437384034548")
 	AssertThat(message.AsJsMessageString()).IsEqualTo("descargar")
@@ -98,7 +99,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle_genderedMessageVariantsWithoutPlace
 			"OTHER } }\">Te damos la bienvenida! - OTHER</branch></translation>\n" +
 			"</translationbundle>\n"
 	stream := bytes.NewReader([]byte(xtb))
-	bundle := NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 
 	message := bundle.GetMessage("7639678437384034548")
 	// Testing invalid calls to asJsMessageString() as it should call
@@ -153,7 +154,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle_genderedMessageVariantsWithPlacehol
 			"\n" +
 			"</translationbundle>\n"
 	stream := bytes.NewReader([]byte(xtb))
-	bundle := NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 
 	message := bundle.GetMessage("7639678437384034548")
 	// Testing invalid calls to asJsMessageString() as it should call
@@ -213,7 +214,7 @@ func (c *XtbMessageBundleTest) TestXtbBundleWithIcu_genderedMessageVariantsWithP
 			"\n" +
 			"</translationbundle>\n"
 	stream := bytes.NewReader([]byte(xtb))
-	bundle := NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 
 	message := bundle.GetMessage("7639678437384034548")
 
@@ -271,7 +272,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle_genderedMessageVariantsWithInvalidG
 	stream := bytes.NewReader([]byte(xtb))
 
 	e :=
-		AssertThrows[jutil.IIllegalStateException](func() { NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID)) })
+		AssertThrows[jutil.IIllegalStateException](func() { NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID)) })
 	AssertThat(e.GetMessage()).
 		Contains(
 			"Gender case must be one of the following: MASCULINE, FEMININE, NEUTER, or OTHER.")
@@ -292,7 +293,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle_mixedPlaceholders() {
 			"<translation id=\"123456\">{USER_GENDER,select,female{Hello <ph name=\"USER_IDENTIFIER\"/>.}male{Hello <ph name=\"USER_IDENTIFIER\"/>.}other{Hello <ph name=\"USER_IDENTIFIER\"/>.}}</translation>\n" +
 			"<translation id=\"123457\"><ph name=\"START_PARAGRAPH\"/>p1<ph name=\"END_PARAGRAPH\"/><ph name=\"START_PARAGRAPH\"/>p1<ph name=\"END_PARAGRAPH\"/></translation></translationbundle>"
 	stream := bytes.NewReader([]byte(xtbWithMixedPlaceholders))
-	bundle := NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 
 	AssertThat(slices.Collect(bundle.GetAllMessages())).HasSize(2)
 	icuMsg := bundle.GetMessage("123456")
@@ -342,7 +343,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle_icuPluralWithAndWithoutPhex() {
 			"<translation id=\"987654\">{NUM,plural, =1{Setting: {START_STRONG}{UDC_SETTING}{END_STRONG} Products: {START_STRONG}{PRODUCT_LIST}{END_STRONG}.}other{Settings: {START_STRONG}{UDC_SETTING_LIST}{END_STRONG} Products: {START_STRONG}{PRODUCT_LIST}{END_STRONG}.}}</translation>\n" +
 			"</translationbundle>"
 	stream := bytes.NewReader([]byte(xtb))
-	bundle := NewXtbMessageBundle(stream, jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(stream, base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 
 	AssertThat(slices.Collect(bundle.GetAllMessages())).HasSize(2)
 	AssertThat(bundle.GetMessage("123456").AsIcuMessageString()).
@@ -375,7 +376,7 @@ func (c *XtbMessageBundleTest) TestXtbBundle_withStandardInternalDtdSubset() {
   <translation id="42" desc="greeting">Salut <ph name="USER_NAME" />!</translation>
 </translationbundle>
 `
-	bundle := NewXtbMessageBundle(bytes.NewReader([]byte(xtb)), jutil.StringPtr(xtbMessageBundleTest_PROJECT_ID))
+	bundle := NewXtbMessageBundleOpt(bytes.NewReader([]byte(xtb)), base.SomeString(xtbMessageBundleTest_PROJECT_ID))
 	AssertThat(slices.Collect(bundle.GetAllMessages())).HasSize(1)
 	msg := bundle.GetMessage("42")
 	AssertThat(msg).IsNotNull()

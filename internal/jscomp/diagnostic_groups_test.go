@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -73,9 +72,11 @@ func (c *DiagnosticGroupsTest) TestLintChecksGroupIsDisjointFromEveryOtherGroup(
 			group == DiagnosticGroups_LINT_VAR_DECLARATIONS {
 			continue
 		}
+		lintName, _ := lintChecks.Name()
+		groupName, _ := group.Name()
 		AssertWithMessage(
 			"DiagnosticTypes common to DiagnosticGroups %s and %s",
-			lintChecks.GetName(), group.GetName()).
+			lintName, groupName).
 			That(diagnosticGroupsTest_intersection(lintChecks, group)).
 			IsEmpty()
 	}
@@ -84,7 +85,8 @@ func (c *DiagnosticGroupsTest) TestLintChecksGroupIsDisjointFromEveryOtherGroup(
 // Java: DiagnosticGroupsTest.conformanceErrorsCannotBeDowngraded()
 func (c *DiagnosticGroupsTest) TestConformanceErrorsCannotBeDowngraded() {
 	for group := range DiagnosticGroups_GetRegisteredGroups().Values() {
-		AssertWithMessage("Group '%s' should not include JSC_CONFORMANCE_ERROR", group.GetName()).
+		groupName, _ := group.Name()
+		AssertWithMessage("Group '%s' should not include JSC_CONFORMANCE_ERROR", groupName).
 			That(group.GetTypes()).
 			DoesNotContain(CheckConformance_CONFORMANCE_ERROR)
 	}
@@ -126,14 +128,14 @@ func (c *DiagnosticGroupsTest) TestDiagnosticGroupPathSuppressingWarningsGuard()
 			DiagnosticGroups_LINT_CHECKS, "suppress_me")
 
 	lintCheck := DiagnosticGroups_LINT_CHECKS.GetTypes()[0]
-	errorInPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, lintCheck)
+	errorInPath := JSError_MakeAtSourceLocation("some/path/suppress_me/file.js", -1, -1, lintCheck)
 	lvl, ok := guard.Level(errorInPath)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should suppress in matching path").
 		That(ok && lvl == CheckLevel_OFF).
 		IsTrue()
 
-	errorInOtherPath := JSError_MakeWithSourceLocation(jutil.StringPtr("some/other/file.js"), -1, -1, lintCheck)
+	errorInOtherPath := JSError_MakeAtSourceLocation("some/other/file.js", -1, -1, lintCheck)
 	_, ok = guard.Level(errorInOtherPath)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should not suppress in other path").
@@ -141,7 +143,7 @@ func (c *DiagnosticGroupsTest) TestDiagnosticGroupPathSuppressingWarningsGuard()
 		IsFalse()
 
 	otherErrorInPath :=
-		JSError_MakeWithSourceLocation(jutil.StringPtr("some/path/suppress_me/file.js"), -1, -1, DiagnosticType_Error("FOO", "foo"))
+		JSError_MakeAtSourceLocation("some/path/suppress_me/file.js", -1, -1, DiagnosticType_Error("FOO", "foo"))
 	_, ok = guard.Level(otherErrorInPath)
 	AssertWithMessage(
 		"DiagnosticGroupPathSuppressingWarningsGuard should not suppress unrelated errors").

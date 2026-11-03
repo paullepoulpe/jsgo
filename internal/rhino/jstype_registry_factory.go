@@ -36,6 +36,7 @@
 package rhino
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -294,10 +295,10 @@ func (r *JSTypeRegistry) CreateRecordType(props jutil.MapSource[string, JSType])
 // CreateObjectType creates an object type.
 //
 // Java: JSTypeRegistry.createObjectType(String, ObjectType)
-func (r *JSTypeRegistry) CreateObjectType(name *string, implicitPrototype ObjectType) ObjectType {
+func (r *JSTypeRegistry) CreateObjectType(name base.OptString, implicitPrototype ObjectType) ObjectType {
 	builder := PrototypeObjectType_Builder{
 		registry:          r,
-		classNameID:       rhinoStringIDFromPtr(name),
+		classNameID:       rhinoStringIDFromOpt(name),
 		implicitPrototype: implicitPrototype,
 		templateTypeMap:   r.GetEmptyTemplateTypeMap(),
 	}
@@ -346,7 +347,7 @@ func (r *JSTypeRegistry) ResetImplicitPrototype(type_ JSType, newImplicitProto O
 //
 // Java: JSTypeRegistry.createConstructorType(String, Node, List<FunctionType.Parameter>, JSType, ImmutableList<TemplateType>, boolean)
 func (r *JSTypeRegistry) CreateConstructorType(
-	name *string,
+	name string,
 	source Node,
 	parameters []FunctionType_Parameter,
 	returnType JSType,
@@ -445,11 +446,11 @@ func (r *JSTypeRegistry) CreateTemplatizedType(baseType ObjectType, templatizedT
 //
 // Java: JSTypeRegistry.createNamedType(StaticTypedScope, String, String, int, int)
 func (r *JSTypeRegistry) CreateNamedType(
-	scope StaticTypedScope, reference string, sourceName *string, lineno int, charno int) *NamedType {
-	return r.createNamedTypeByID(scope, reference, rhinoStringIDFromPtr(sourceName), lineno, charno)
+	scope StaticTypedScope, reference string, sourceName base.OptString, lineno int, charno int) *NamedType {
+	return r.createNamedTypeByID(scope, reference, rhinoStringIDFromOpt(sourceName), lineno, charno)
 }
 
-// CreateNamedTypeOpt creates a named type without allocating a *string for sourceName.
+// CreateNamedTypeOpt creates a named type from an unboxed optional sourceName.
 func (r *JSTypeRegistry) CreateNamedTypeOpt(
 	scope StaticTypedScope, reference string, sourceName string, hasSourceName bool, lineno int, charno int) *NamedType {
 	var id rhinoStringID

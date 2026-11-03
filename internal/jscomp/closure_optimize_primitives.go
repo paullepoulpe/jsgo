@@ -134,7 +134,11 @@ func (c *ClosureOptimizePrimitives) processRenamePropertyCall(call ast.Call) {
 	}
 
 	newTarget := rhino.IR_Name(NodeUtil_JSC_PROPERTY_NAME_FN).Srcref(nameNode)
-	newTarget.SetOriginalName(nameNode.GetOriginalQualifiedName())
+	if orig, ok := nameNode.OriginalQualifiedName(); ok {
+		newTarget.SetOriginalNameString(orig)
+	} else {
+		newTarget.SetOriginalName(nil)
+	}
 
 	call.SetCallee(ast.MustExpr(newTarget))
 	call.SetFreeCall(true)

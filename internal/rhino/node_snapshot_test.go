@@ -645,17 +645,14 @@ func TestNodeOriginalQualifiedNameIterative(t *testing.T) {
 	}
 
 	emptyName := IR_Name("")
-	if emptyName.GetOriginalQualifiedName() != nil {
-		t.Fatal("expected nil for empty NAME")
-	}
 	if _, ok := emptyName.OriginalQualifiedName(); ok {
 		t.Fatal("expected ok=false for empty NAME")
 	}
 
 	renamedEmptyOrig := IR_Name("cur")
 	renamedEmptyOrig.SetOriginalNameString("")
-	if renamedEmptyOrig.GetOriginalQualifiedName() != nil {
-		t.Fatal("expected nil when OriginalName is empty string")
+	if _, ok := renamedEmptyOrig.OriginalQualifiedName(); ok {
+		t.Fatal("expected ok=false when OriginalName is empty string")
 	}
 
 	thisProp := IR_Getprop(NewNode(Token_THIS), "renamedProp")
@@ -665,8 +662,8 @@ func TestNodeOriginalQualifiedNameIterative(t *testing.T) {
 	}
 
 	superProp := IR_Getprop(NewNode(Token_SUPER), "m")
-	if got := superProp.GetOriginalQualifiedName(); got == nil || *got != "super.m" {
-		t.Fatalf("superProp.GetOriginalQualifiedName() = %v, want \"super.m\"", got)
+	if got, ok := superProp.OriginalQualifiedName(); !ok || got != "super.m" {
+		t.Fatalf("superProp.OriginalQualifiedName() = (%q, %v), want (\"super.m\", true)", got, ok)
 	}
 
 	// Build a 24-segment GETPROP chain (exceeding the [8]string stack buffer)
@@ -686,21 +683,14 @@ func TestNodeOriginalQualifiedNameIterative(t *testing.T) {
 		}
 	}
 	want := strings.Join(wantParts, ".")
-	gotPtr := cur.GetOriginalQualifiedName()
-	if gotPtr == nil || *gotPtr != want {
-		t.Fatalf("GetOriginalQualifiedName() = %v, want %q", gotPtr, want)
-	}
 	if gotStr, ok := cur.OriginalQualifiedName(); !ok || gotStr != want {
 		t.Fatalf("OriginalQualifiedName() = (%q, %v), want (%q, true)", gotStr, ok, want)
 	}
 
-	// Deep chain rooted at a non-qualified CALL node must return nil / false.
+	// Deep chain rooted at a non-qualified CALL node must return false.
 	badCur := IR_Call(IR_Name("fn"))
 	for i := range 12 {
 		badCur = IR_Getprop(badCur, fmt.Sprintf("seg%d", i))
-	}
-	if badCur.GetOriginalQualifiedName() != nil {
-		t.Fatal("expected nil for GETPROP chain rooted at CALL")
 	}
 	if _, ok := badCur.OriginalQualifiedName(); ok {
 		t.Fatal("expected ok=false for GETPROP chain rooted at CALL")

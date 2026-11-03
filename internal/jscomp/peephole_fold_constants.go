@@ -674,7 +674,7 @@ func (p *PeepholeFoldConstants) FoldAddTemplateLiterals(oldNode rhino.Node, left
 	cooked := lastLeftCooked + firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
-			&cooked,
+			base.SomeString(cooked),
 			lastLeft.GetRawString()+firstRight.GetRawString())
 	mergeNode.SrcrefTreeIfMissing(lastLeft)
 
@@ -792,7 +792,7 @@ func (p *PeepholeFoldConstants) TryFoldTemplateLiteralSubstitutions(n rhino.Node
 						combinedCooked := curCooked + strValue + nextNextCooked
 						combinedRaw := curRaw + strValue + nextNextRaw
 
-						newStringNode := rhino.IR_TemplateLiteralString(&combinedCooked, combinedRaw)
+						newStringNode := rhino.IR_TemplateLiteralString(base.SomeString(combinedCooked), combinedRaw)
 						newStringNode.SrcrefTree(cur)
 
 						cur.ReplaceWith(newStringNode)
@@ -841,7 +841,7 @@ func (p *PeepholeFoldConstants) FoldTemplateLiteralAndConstant(oldNode rhino.Nod
 	cooked := lastLeftCooked + rightStr
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
-			&cooked, lastLeft.GetRawString()+rightStr)
+			base.SomeString(cooked), lastLeft.GetRawString()+rightStr)
 	mergeNode.SrcrefTreeIfMissing(lastLeft)
 
 	lastLeft.ReplaceWith(mergeNode)
@@ -862,7 +862,7 @@ func (p *PeepholeFoldConstants) FoldConstantAndTemplateLiteral(oldNode rhino.Nod
 	cooked := leftStr + firstRightCooked
 	mergeNode :=
 		rhino.IR_TemplateLiteralString(
-			&cooked, leftStr+firstRight.GetRawString())
+			base.SomeString(cooked), leftStr+firstRight.GetRawString())
 	mergeNode.SrcrefTreeIfMissing(firstRight)
 
 	firstRight.ReplaceWith(mergeNode)

@@ -44,6 +44,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -690,12 +691,11 @@ func TestNodeAndJSTypeZeroOverheadStringAccessors(t *testing.T) {
 		t.Fatalf("OriginalName() = (%q, %v), want (\"origX\", true)", orig, ok)
 	}
 
-	cooked := "a\nb"
-	sub := Node_NewTemplateLitString(&cooked, `a\nb`)
+	sub := Node_NewTemplateLitString(base.SomeString("a\nb"), `a\nb`)
 	if s, ok := sub.CookedString(); !ok || s != "a\nb" {
 		t.Fatalf("CookedString() = (%q, %v), want (\"a\\nb\", true)", s, ok)
 	}
-	invalidSub := Node_NewTemplateLitString(nil, `\u{`)
+	invalidSub := Node_NewTemplateLitString(base.NoString(), `\u{`)
 	if s, ok := invalidSub.CookedString(); ok || s != "" {
 		t.Fatalf("invalid CookedString() = (%q, %v), want (\"\", false)", s, ok)
 	}

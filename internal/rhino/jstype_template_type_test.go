@@ -66,7 +66,7 @@ func TestTemplateType_TemplateTypes_boundedByUnknown_areNotEqual(t *testing.T) {
 func TestTemplateType_TemplateTypes_boundedByNominalTypes_areNotEqual(t *testing.T) {
 	s := newTemplateTypeTest(t)
 	fooType :=
-		s.Registry.CreateObjectType(ptr("Foo"), s.Registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
+		s.Registry.CreateObjectType(someStr("Foo"), s.Registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
 	t1 := NewTemplateTypeWithBound(s.Registry, "T", fooType)
 	t2 := NewTemplateTypeWithBound(s.Registry, "T", fooType)
 
@@ -80,7 +80,7 @@ func TestTemplateType_TemplateTypes_boundedByNominalTypes_areNotEqual(t *testing
 func TestTemplateType_ProxiesOf_templateTypes_boundedByNominalTypes_areNotEqual(t *testing.T) {
 	s := newTemplateTypeTest(t)
 	fooType :=
-		s.Registry.CreateObjectType(ptr("Foo"), s.Registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
+		s.Registry.CreateObjectType(someStr("Foo"), s.Registry.GetNativeObjectType(JSTypeNative_OBJECT_TYPE))
 
 	t1 := NewTemplateTypeWithBound(s.Registry, "T", fooType)
 	t2 := NewTemplateTypeWithBound(s.Registry, "T", fooType)

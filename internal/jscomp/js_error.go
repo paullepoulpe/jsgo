@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -93,18 +94,15 @@ func newJSError(
 func NewJSError(
 	type_ *DiagnosticType,
 	description string,
-	sourceName *string,
+	sourceName base.OptString,
 	lineno int,
 	charno int,
 	length int,
 	node rhino.Node,
 	defaultLevel CheckLevel,
 	requirement *Requirement) *JSError {
-	var src string
-	if sourceName != nil {
-		src = *sourceName
-	}
-	return newJSError(type_, description, src, sourceName != nil, lineno, charno, length, node, defaultLevel, requirement)
+	src, hasSrc := sourceName.Get()
+	return newJSError(type_, description, src, hasSrc, lineno, charno, length, node, defaultLevel, requirement)
 }
 
 // Java: JSError.type()
@@ -186,6 +184,14 @@ func JSError_Make(type_ *DiagnosticType, arguments ...string) *JSError {
 // Java: JSError.make(String, int, int, DiagnosticType, String...)
 func JSError_MakeWithSourceLocation(
 	sourceName *string, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
+	return JSError_MakeWithOptSourceLocation(
+		base.OptStringFromPtr(sourceName), lineno, charno, type_, arguments...)
+}
+
+// JSError_MakeWithOptSourceLocation creates a JSError at an optional source
+// location without pointer boxing.
+func JSError_MakeWithOptSourceLocation(
+	sourceName base.OptString, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
@@ -194,7 +200,7 @@ func JSError_MakeWithSourceLocation(
 }
 
 // JSError_MakeAtSourceLocation creates a JSError at a non-null source location
-// without boxing sourceName into a *string.
+// without boxing sourceName.
 func JSError_MakeAtSourceLocation(
 	sourceName string, lineno int, charno int, type_ *DiagnosticType, arguments ...string) *JSError {
 	if type_ == nil {
@@ -211,8 +217,9 @@ func JSError_MakeWithNode(n rhino.Node, type_ *DiagnosticType, arguments ...stri
 	if type_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
-	return NewJSError(
-		type_, type_.Format(arguments...), n.GetSourceFileName(), n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, nil)
+	src, hasSrc := n.SourceFileName()
+	return newJSError(
+		type_, type_.Format(arguments...), src, hasSrc, n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, nil)
 }
 
 // JSError_MakeWithNodeRange creates a JSError from a file and Node position:
@@ -230,8 +237,9 @@ func JSError_MakeWithNodeRange(start rhino.Node, end rhino.Node, type_ *Diagnost
 	if endOffset != -1 && startOffset != -1 {
 		length = (endOffset + end.GetLength()) - startOffset
 	}
-	return NewJSError(
-		type_, type_.Format(arguments...), start.GetSourceFileName(), start.GetLineno(), start.GetCharno(), length, start, type_.level, nil)
+	src, hasSrc := start.SourceFileName()
+	return newJSError(
+		type_, type_.Format(arguments...), src, hasSrc, start.GetLineno(), start.GetCharno(), length, start, type_.level, nil)
 }
 
 // JSError_MakeWithRequirement creates a JSError from a requirement, file and
@@ -244,8 +252,9 @@ func JSError_MakeWithRequirement(
 		panic(jutil.NewNullPointerExceptionMsg("type"))
 	}
 	jutil.CheckNotNull(requirement)
-	return NewJSError(
-		type_, type_.Format(arguments...), n.GetSourceFileName(), n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, requirement)
+	src, hasSrc := n.SourceFileName()
+	return newJSError(
+		type_, type_.Format(arguments...), src, hasSrc, n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, requirement)
 }
 
 // JSErrorBuilder builds a JSError (JSError.Builder).
@@ -286,8 +295,8 @@ func NewJSErrorBuilder(type_ *DiagnosticType, args ...string) *JSErrorBuilder {
 func (b *JSErrorBuilder) SetNode(n rhino.Node) *JSErrorBuilder {
 	jutil.CheckStateMsg(!b.hasSourceName, "Cannot provide a Node when there's already a source name")
 	b.n = n
-	if src := n.GetSourceFileName(); src != nil {
-		b.sourceName = *src
+	if src, ok := n.SourceFileName(); ok {
+		b.sourceName = src
 		b.hasSourceName = true
 	}
 	b.lineno = n.GetLineno()
@@ -316,14 +325,13 @@ func (b *JSErrorBuilder) SetLevel(level CheckLevel) *JSErrorBuilder {
 //
 // Java: JSError.Builder.setSourceLocation(String, int, int)
 func (b *JSErrorBuilder) SetSourceLocation(sourceName *string, lineno int, charno int) *JSErrorBuilder {
+	return b.SetOptSourceLocation(base.OptStringFromPtr(sourceName), lineno, charno)
+}
+
+// SetOptSourceLocation sets the optional source location without pointer boxing.
+func (b *JSErrorBuilder) SetOptSourceLocation(sourceName base.OptString, lineno int, charno int) *JSErrorBuilder {
 	jutil.CheckStateMsg(b.n.IsNil(), "Cannot provide a source location when there is already a Node")
-	if sourceName != nil {
-		b.sourceName = *sourceName
-		b.hasSourceName = true
-	} else {
-		b.sourceName = ""
-		b.hasSourceName = false
-	}
+	b.sourceName, b.hasSourceName = sourceName.Get()
 	b.lineno = lineno
 	b.charno = charno
 	return b

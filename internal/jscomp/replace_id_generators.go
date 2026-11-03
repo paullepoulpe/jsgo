@@ -41,6 +41,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
@@ -482,7 +483,7 @@ func (g *replaceIdGeneratorsPass) maybeReplaceTaggedTemplateLit(
 			}
 			rename := g.getObfuscatedName(child, callName, nameGenerator, cooked)
 			newTemplateLit.AddChildToBack(
-				rhino.IR_TemplateLiteralString(&rename, rename).SrcrefIfMissing(child))
+				rhino.IR_TemplateLiteralString(base.SomeString(rename), rename).SrcrefIfMissing(child))
 		} else {
 			subExpr := part.MustTemplateLitSub().Expr().Detach().Node()
 			newTemplateLit.AddChildToBack(

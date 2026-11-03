@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -105,7 +106,7 @@ var processTweaks_TweakFunction_names = [...]string{
 // indexed by ordinal.
 type processTweaks_TweakFunction_fields struct {
 	name             string
-	expectedTypeName *string
+	expectedTypeName base.OptString
 	validNodeTypeA   rhino.Token
 	validNodeTypeB   rhino.Token
 	registerFunction ProcessTweaks_TweakFunction
@@ -140,24 +141,24 @@ func (f ProcessTweaks_TweakFunction) String() string { return f.Name() }
 
 // Java: ProcessTweaks.TweakFunction(String, String, Token)
 func newProcessTweaks_TweakFunction(name string, expectedTypeName string, validNodeTypeA rhino.Token) processTweaks_TweakFunction_fields {
-	return newProcessTweaks_TweakFunctionWithAll(name, &expectedTypeName, validNodeTypeA, rhino.Token_EMPTY, processTweaks_TweakFunction_null)
+	return newProcessTweaks_TweakFunctionWithAll(name, base.SomeString(expectedTypeName), validNodeTypeA, rhino.Token_EMPTY, processTweaks_TweakFunction_null)
 }
 
 // Java: ProcessTweaks.TweakFunction(String, String, Token, Token)
 func newProcessTweaks_TweakFunctionWithTypeB(
 	name string, expectedTypeName string, validNodeTypeA rhino.Token, validNodeTypeB rhino.Token) processTweaks_TweakFunction_fields {
-	return newProcessTweaks_TweakFunctionWithAll(name, &expectedTypeName, validNodeTypeA, validNodeTypeB, processTweaks_TweakFunction_null)
+	return newProcessTweaks_TweakFunctionWithAll(name, base.SomeString(expectedTypeName), validNodeTypeA, validNodeTypeB, processTweaks_TweakFunction_null)
 }
 
 // Java: ProcessTweaks.TweakFunction(String, TweakFunction)
 func newProcessTweaks_TweakFunctionWithRegisterFunction(name string, registerFunction ProcessTweaks_TweakFunction) processTweaks_TweakFunction_fields {
-	return newProcessTweaks_TweakFunctionWithAll(name, nil, rhino.Token_EMPTY, rhino.Token_EMPTY, registerFunction)
+	return newProcessTweaks_TweakFunctionWithAll(name, base.NoString(), rhino.Token_EMPTY, rhino.Token_EMPTY, registerFunction)
 }
 
 // Java: ProcessTweaks.TweakFunction(String, String, Token, Token, TweakFunction)
 func newProcessTweaks_TweakFunctionWithAll(
 	name string,
-	expectedTypeName *string,
+	expectedTypeName base.OptString,
 	validNodeTypeA rhino.Token,
 	validNodeTypeB rhino.Token,
 	registerFunction ProcessTweaks_TweakFunction) processTweaks_TweakFunction_fields {
@@ -194,7 +195,12 @@ func (f ProcessTweaks_TweakFunction) GetName() string {
 }
 
 // Java: ProcessTweaks.TweakFunction.getExpectedTypeName()
-func (f ProcessTweaks_TweakFunction) GetExpectedTypeName() *string {
+func (f ProcessTweaks_TweakFunction) GetExpectedTypeName() (string, bool) {
+	return processTweaks_TweakFunction_table[f].expectedTypeName.Get()
+}
+
+// ExpectedTypeName returns the optional expected type name.
+func (f ProcessTweaks_TweakFunction) ExpectedTypeName() base.OptString {
 	return processTweaks_TweakFunction_table[f].expectedTypeName
 }
 
@@ -480,7 +486,7 @@ func (i *ProcessTweaks_TweakInfo) EmitAllTypeWarnings() {
 						ProcessTweaks_INVALID_TWEAK_DEFAULT_VALUE_WARNING,
 						i.tweakId,
 						registerFunc.GetName(),
-						jutil.ToJavaString(registerFunc.GetExpectedTypeName())))
+						registerFunc.ExpectedTypeName().String()))
 			}
 		} else if tweakFunc.IsGetterFunction() {
 			// For getter calls, ensure the correct getter was used.

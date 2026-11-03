@@ -107,6 +107,15 @@ func (f *FunctionInjector) canInlineReference(
 	return f.canInlineReferenceAsStatementBlock(ref, fnNode, aliasCount, summary)
 }
 
+func isThisArg(arg ast.Arg) bool {
+	expr, ok := arg.AsExpr()
+	if !ok {
+		return false
+	}
+	_, isThis := expr.AsThis()
+	return isThis
+}
+
 // IsSupportedCallType: only ".call" calls and direct calls to functions are
 // supported.
 //
@@ -116,11 +125,11 @@ func (f *FunctionInjector) canInlineReference(
 // Java: FunctionInjector.isSupportedCallType(Node, Node)
 func (f *FunctionInjector) IsSupportedCallType(callNode rhino.Node, fnNode rhino.Node) bool {
 	call := ast.MustNormalOrOptChainCall(callNode)
-	if call.Callee().Token() != rhino.Token_NAME {
+	if _, isName := call.Callee().AsName(); !isName {
 		if NodeUtil_IsFunctionObjectCall(callNode) {
-			if !f.assumeStrictThis && !fnNode.IsArrowFunction() {
+			if !f.assumeStrictThis && !ast.MustFunction(fnNode).IsArrow() {
 				thisValue, ok := call.FirstArg()
-				if !ok || thisValue.Token() != rhino.Token_THIS {
+				if !ok || !isThisArg(thisValue) {
 					return false
 				}
 			}
@@ -137,7 +146,7 @@ func FunctionInjector_HasSpreadCallArgument(callNode rhino.Node) bool {
 	call, ok := ast.AsNormalOrOptChainCall(callNode)
 	jutil.CheckArgumentMsg1(ok, "%s", callNode)
 	for arg := range call.Args() {
-		if arg.Token() == rhino.Token_ITER_SPREAD {
+		if _, isSpread := arg.AsIterSpread(); isSpread {
 			return true
 		}
 	}
@@ -217,10 +226,13 @@ func (f *FunctionInjector) canInlineReferenceAsStatementBlock(
 
 func functionInjector_countShallowReturns(n rhino.Node) int {
 	count := 0
-	if n.IsReturn() {
+	if _, isReturn := ast.AsReturn(n); isReturn {
 		count++
 	}
-	if n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(n.GetParent())) {
+	_, isRoot := ast.AsRoot(n)
+	_, isBlock := ast.AsBlock(n)
+	_, isFn := ast.AsFunction(n)
+	if isRoot || isBlock || (!isFn && NodeUtil_IsShallowStatementTree(n.GetParent())) {
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			count += functionInjector_countShallowReturns(c)
 		}
@@ -228,16 +240,21 @@ func functionInjector_countShallowReturns(n rhino.Node) int {
 	return count
 }
 
+func isEvalName(n rhino.Node) bool {
+	_, isName := ast.AsName(n)
+	return isName && n.GetStringID() == calleeEvalIdentID
+}
+
 func functionInjector_referencesEval(n rhino.Node, rootFn rhino.Node) bool {
-	if n.IsName() && n.GetStringID() == calleeEvalIdentID {
+	if isEvalName(n) {
 		return true
 	}
-	if n.IsFunction() && n != rootFn {
+	if _, isFn := ast.AsFunction(n); isFn && n != rootFn {
 		return false
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
-			if c.IsName() && c.GetStringID() == calleeEvalIdentID {
+			if isEvalName(c) {
 				return true
 			}
 			continue
@@ -256,7 +273,8 @@ func functionInjector_referencesEval(n rhino.Node, rootFn rhino.Node) bool {
 //
 // Java: FunctionInjector.referencesEval(Node)
 func (f *FunctionInjector) ReferencesEval(fn rhino.Node) bool {
-	jutil.CheckState(fn.IsFunction())
+	_, isFn := ast.AsFunction(fn)
+	jutil.CheckState(isFn)
 
 	info := f.fnInfoCache[fn]
 	if info.evalState != 0 {
@@ -293,7 +311,7 @@ func functionInjector_findInnerFunctions(n rhino.Node, containerFn rhino.Node, f
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
-			if c.IsMemberFieldDef() && !c.IsStaticMember() {
+			if field, isField := ast.AsMemberFieldDef(c); isField && !field.IsStatic() {
 				if count == 0 {
 					first = c
 				}
@@ -322,7 +340,8 @@ func functionInjector_findInnerFunctions(n rhino.Node, containerFn rhino.Node, f
 //
 // Java: FunctionInjector.innerFunctionOf(Node)
 func (f *FunctionInjector) innerFunctionOf(containerFn rhino.Node) (uint8, rhino.Node) {
-	jutil.CheckState(containerFn.IsFunction())
+	_, isFn := ast.AsFunction(containerFn)
+	jutil.CheckState(isFn)
 
 	info := f.fnInfoCache[containerFn]
 	if info.innerState != fnInnerUnknown {
@@ -430,11 +449,11 @@ func (f *FunctionInjector) canInlineReferenceDirectly(
 	// Functions called via 'call' and 'apply' have a this-object as
 	// the first parameter, but this is not part of the called function's
 	// parameter list.
-	if call.Callee().Token() != rhino.Token_NAME {
+	if _, isName := call.Callee().AsName(); !isName {
 		if NodeUtil_IsFunctionObjectCall(callNode) {
 			// TODO(johnlenz): Support replace this with a value.
 			thisArg, ok := call.FirstArg()
-			if !fnNode.IsArrowFunction() && (!ok || thisArg.Token() != rhino.Token_THIS) {
+			if !ast.MustFunction(fnNode).IsArrow() && (!ok || !isThisArg(thisArg)) {
 				return FunctionInjector_CanInlineResult_NO
 			}
 		} else {
@@ -598,8 +617,13 @@ func functionInjector_inlineCostDelta(
 	costDeltaFunctionOverhead :=
 		15 + commaCount + (paramCount * InlineCostEstimator_ESTIMATED_IDENTIFIER_COST)
 
-	block := fn.Body().Node()
-	if !block.HasChildren() {
+	body := fn.Body()
+	if block, ok := body.AsBlock(); ok {
+		if !block.HasStatements() {
+			// Assume the inline cost is zero for empty functions.
+			return -costDeltaFunctionOverhead
+		}
+	} else if !body.Node().HasChildren() {
 		// Assume the inline cost is zero for empty functions.
 		return -costDeltaFunctionOverhead
 	}

@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -724,7 +725,7 @@ func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) rhin
 }
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
-func (f *IRFactory) NewTemplateLitStringNode(cooked *string, raw string) rhino.Node {
+func (f *IRFactory) NewTemplateLitStringNode(cooked base.OptString, raw string) rhino.Node {
 	return f.alloc.Alloc().InitTemplateLitStringFromTemplate(cooked, raw, f.templateNode)
 }
 

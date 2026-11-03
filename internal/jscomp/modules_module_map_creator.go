@@ -126,6 +126,11 @@ func (m *Module) ClosureNamespace() *string {
 	return &m.closureNamespace
 }
 
+// ClosureNamespaceOk returns the unboxed closureNamespace and whether it was set.
+func (m *Module) ClosureNamespaceOk() (string, bool) {
+	return m.closureNamespace, m.hasClosureNamespace
+}
+
 // ClosureNamespaceString returns the unboxed closureNamespace string ("" when absent).
 func (m *Module) ClosureNamespaceString() string { return m.closureNamespace }
 

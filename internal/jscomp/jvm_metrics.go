@@ -23,6 +23,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -35,14 +36,24 @@ const (
 
 // Java: JvmMetrics.maybeWriteJvmMetrics(PrintStream, String)
 func JvmMetrics_MaybeWriteJvmMetrics(out io.Writer, options *string) {
-	if options == nil {
+	JvmMetrics_MaybeWriteJvmMetricsOpt(out, base.OptStringFromPtr(options))
+}
+
+// JvmMetrics_MaybeWriteJvmMetricsOpt writes JVM metrics when options is present.
+func JvmMetrics_MaybeWriteJvmMetricsOpt(out io.Writer, options base.OptString) {
+	opts, ok := options.Get()
+	if !ok {
 		return
 	}
+	JvmMetrics_WriteJvmMetrics(out, opts)
+}
 
+// JvmMetrics_WriteJvmMetrics writes JVM metrics for non-null options.
+func JvmMetrics_WriteJvmMetrics(out io.Writer, options string) {
 	verboseMode := false
 	prettyMode := false
 
-	st := jvmMetrics_tokenize(*options, ":")
+	st := jvmMetrics_tokenize(options, ":")
 
 	// options are grouped in order 'detail:format:types'
 	if len(st) > 0 {
@@ -132,19 +143,18 @@ func jvmMetrics_writeOverallMemoryUsage(out io.Writer, used, maxBytes int64, pre
 	}
 }
 
-func jvmMetrics_writePoolMemoryUsage(out io.Writer, used, peakUsed, maxBytes int64, prefix *string, pretty bool) {
+func jvmMetrics_writePoolMemoryUsage(out io.Writer, used, peakUsed, maxBytes int64, prefix string, pretty bool) {
 	if pretty {
 		io.WriteString(out, jutil.StringFormat("\t\tavailable         : %s\n", jvmMetrics_formatBytes(maxBytes)))
 		io.WriteString(out, jutil.StringFormat("\t\tpeak              : %s\n", jvmMetrics_formatBytes(peakUsed)))
 		io.WriteString(out, jutil.StringFormat("\t\tcurrent           : %s\n", jvmMetrics_formatBytes(used)))
 	} else {
-		var p any = prefix
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-available-bytes : %d", p, maxBytes)))
+			jutil.StringFormat("%s-available-bytes : %d", prefix, maxBytes)))
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-peak-bytes : %d", p, peakUsed)))
+			jutil.StringFormat("%s-peak-bytes : %d", prefix, peakUsed)))
 		jvmMetrics_println(out, jvmMetrics_normalizeTabularColonPos(
-			jutil.StringFormat("%s-current-bytes : %d", p, used)))
+			jutil.StringFormat("%s-current-bytes : %d", prefix, used)))
 	}
 }
 
@@ -164,18 +174,17 @@ func jvmMetrics_writeMemoryMetrics(out io.Writer, verbose, pretty bool, ms *runt
 		const poolName = "Go heap"
 		if pretty {
 			jvmMetrics_println(out, "\tPool "+poolName)
-			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, nil, true)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, "", true)
 		} else {
 			prefix := "mem-pool-" + jvmMetrics_normalizeName(poolName)
-			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, &prefix, false)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, prefix, false)
 		}
 	} else {
 		if pretty {
 			io.WriteString(out, jutil.StringFormat("\tAggregate of %d memory pools\n", 1))
-			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, nil, true)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, "", true)
 		} else {
-			prefix := "mem"
-			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, &prefix, false)
+			jvmMetrics_writePoolMemoryUsage(out, heapUsed, heapUsed, heapMax, "mem", false)
 		}
 	}
 }

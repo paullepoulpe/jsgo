@@ -354,8 +354,7 @@ func typeAdapters_JSON_ELEMENT_Write(out *JsonWriter, value JsonElement) {
 		} else if v.IsBoolean() {
 			out.ValueBoolean(v.GetAsBoolean())
 		} else {
-			s := v.GetAsString()
-			out.ValueString(&s)
+			out.ValueString(v.GetAsString())
 		}
 	case *JsonArray:
 		out.BeginArray()
@@ -513,10 +512,14 @@ func (g *Gson) writeValue(out *JsonWriter, value any) {
 	}
 	switch v := value.(type) {
 	case string:
-		out.ValueString(&v)
+		out.ValueString(v)
 		return
 	case *string:
-		out.ValueString(v)
+		if v == nil {
+			out.NullValue()
+		} else {
+			out.ValueString(*v)
+		}
 		return
 	case bool:
 		out.ValueBoolean(v)
@@ -537,8 +540,7 @@ func (g *Gson) writeValue(out *JsonWriter, value any) {
 		out.ValueNumber(gson_javaInteger(v))
 		return
 	case uint16:
-		s := StringFromChar(v)
-		out.ValueString(&s)
+		out.ValueString(StringFromChar(v))
 		return
 	case float64:
 		gson_checkValidFloatingPoint(v)
@@ -563,7 +565,7 @@ func (g *Gson) writeValue(out *JsonWriter, value any) {
 		out.BeginArray()
 		for i := range v {
 			if len(g.factoriesToBeAdded) == 0 {
-				out.ValueString(&v[i])
+				out.ValueString(v[i])
 			} else {
 				g.writeValue(out, v[i])
 			}
@@ -580,7 +582,7 @@ func (g *Gson) writeValue(out *JsonWriter, value any) {
 			if element == nil {
 				out.NullValue()
 			} else if len(g.factoriesToBeAdded) == 0 {
-				out.ValueString(element)
+				out.ValueString(*element)
 			} else {
 				g.writeValue(out, *element)
 			}
@@ -627,22 +629,19 @@ func (g *Gson) writeValue(out *JsonWriter, value any) {
 func (g *Gson) writeReflectValue(out *JsonWriter, rv reflect.Value) {
 	switch rv.Kind() {
 	case reflect.String:
-		s := rv.String()
-		out.ValueString(&s)
+		out.ValueString(rv.String())
 	case reflect.Bool:
 		out.ValueBoolean(rv.Bool())
 	case reflect.Int32:
 		if s, ok := rv.Interface().(fmt.Stringer); ok && rv.Type().PkgPath() != "" {
-			name := s.String()
-			out.ValueString(&name)
+			out.ValueString(s.String())
 			return
 		}
 		out.ValueNumber(gson_javaInteger(rv.Int()))
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int64:
 		out.ValueNumber(gson_javaInteger(rv.Int()))
 	case reflect.Uint16:
-		s := StringFromChar(uint16(rv.Uint()))
-		out.ValueString(&s)
+		out.ValueString(StringFromChar(uint16(rv.Uint())))
 	case reflect.Float64:
 		d := rv.Float()
 		gson_checkValidFloatingPoint(d)
@@ -897,7 +896,7 @@ type IEOFException interface {
 // newEOFException is new EOFException(String).
 func newEOFException(message string) *eofException {
 	e := &eofException{}
-	InitThrowable(e, "java.io.EOFException", msgPtr(message), nil)
+	initThrowableMsg(e, "java.io.EOFException", message, true, nil)
 	return e
 }
 
@@ -908,7 +907,7 @@ type malformedJsonException struct{ IOException }
 // newMalformedJsonException is new MalformedJsonException(String).
 func newMalformedJsonException(msg string) *malformedJsonException {
 	e := &malformedJsonException{}
-	InitThrowable(e, GsonPackage+".stream.MalformedJsonException", msgPtr(msg), nil)
+	initThrowableMsg(e, GsonPackage+".stream.MalformedJsonException", msg, true, nil)
 	return e
 }
 
@@ -930,14 +929,14 @@ type jsonSyntaxException struct{ jsonParseException }
 // newJsonSyntaxException is new JsonSyntaxException(String).
 func newJsonSyntaxException(msg string) *jsonSyntaxException {
 	e := &jsonSyntaxException{}
-	InitThrowable(e, GsonPackage+".JsonSyntaxException", msgPtr(msg), nil)
+	initThrowableMsg(e, GsonPackage+".JsonSyntaxException", msg, true, nil)
 	return e
 }
 
 // NewJsonSyntaxExceptionWithCause is new JsonSyntaxException(Throwable).
 func NewJsonSyntaxExceptionWithCause(cause Throwable) IJsonParseException {
 	e := &jsonSyntaxException{}
-	InitThrowable(e, GsonPackage+".JsonSyntaxException", nil, cause)
+	initThrowableMsg(e, GsonPackage+".JsonSyntaxException", "", false, cause)
 	return e
 }
 
@@ -947,7 +946,7 @@ type jsonIOException struct{ jsonParseException }
 // newJsonIOExceptionWithCause is new JsonIOException(Throwable).
 func newJsonIOExceptionWithCause(cause Throwable) *jsonIOException {
 	e := &jsonIOException{}
-	InitThrowable(e, GsonPackage+".JsonIOException", nil, cause)
+	initThrowableMsg(e, GsonPackage+".JsonIOException", "", false, cause)
 	return e
 }
 

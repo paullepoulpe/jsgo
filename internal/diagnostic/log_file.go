@@ -212,6 +212,15 @@ func (l LogFile) LogJsonSupplier(value func() any) LogFile {
 	return l.logInternal(LogsGson_ToJson(value()))
 }
 
+// LogJsonOf logs the JSON representation of value() without requiring a
+// func() any supplier wrapper at typed call sites.
+func LogJsonOf[T any](l LogFile, value func() T) LogFile {
+	if l.writer == nil {
+		return l
+	}
+	return l.logInternal(LogsGson_ToJson(value()))
+}
+
 // LogJsonProducer streams JSON to the file through a JsonWriter. Like
 // Java's try-with-resources, closing the JsonWriter closes the file's
 // writer.
@@ -318,8 +327,6 @@ var LogsGson_GSON = jutil.NewGsonBuilder().
 // logsGson_ableTypeAdapter is the anonymous TypeAdapter<Able>.
 type logsGson_ableTypeAdapter struct{}
 
-var logsGsonNullLiteral = "null"
-
 func isNullLogsGsonValue(v any) bool {
 	if v == nil {
 		return true
@@ -353,7 +360,7 @@ func isNullLogsGsonValue(v any) bool {
 
 func writeNestedLogsGson(out *jutil.JsonWriter, v any) {
 	if isNullLogsGsonValue(v) {
-		out.JsonValue(&logsGsonNullLiteral)
+		out.JsonValue("null")
 		return
 	}
 	LogsGson_GSON.ToJsonWriter(v, out)

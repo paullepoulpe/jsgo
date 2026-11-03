@@ -90,16 +90,14 @@ func (c *CheckProvidesSorted) GetFirstNode() rhino.Node { return c.firstNode }
 // Java: CheckProvidesSorted.getLastNode()
 func (c *CheckProvidesSorted) GetLastNode() rhino.Node { return c.lastNode }
 
-// GetReplacement returns a textual replacement yielding a canonical version
-// of the provides.
+// Replacement returns the canonical provides replacement when NeedsFix() is true.
 //
 // Java: CheckProvidesSorted.getReplacement()
-func (c *CheckProvidesSorted) GetReplacement() *string {
+func (c *CheckProvidesSorted) Replacement() (string, bool) {
 	if !c.needsFix {
-		return nil
+		return "", false
 	}
-	s := c.replacement
-	return &s
+	return c.replacement, true
 }
 
 // NeedsFix returns whether the provides need to be fixed, i.e., whether they

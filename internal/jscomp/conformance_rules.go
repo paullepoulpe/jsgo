@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -624,15 +625,18 @@ func ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(jsdoc *rhino.JSDocInfo)
 // Java: ConformanceRules.ConformanceUtil.getValueFromGlobalName(Scope, GlobalNamespace, String)
 func ConformanceRules_ConformanceUtil_GetValueFromGlobalName(
 	scope *Scope, gns *GlobalNamespace, qualifiedName *string) *string {
-	var qname string
-	hasQName := qualifiedName != nil
-	if hasQName {
-		qname = *qualifiedName
-	}
-	if s, ok := conformanceValueFromGlobalName(scope, gns, qname, hasQName); ok {
+	if s, ok := ConformanceRules_ConformanceUtil_ValueFromGlobalName(scope, gns, base.OptStringFromPtr(qualifiedName)); ok {
 		return &s
 	}
 	return nil
+}
+
+// ConformanceRules_ConformanceUtil_ValueFromGlobalName resolves the constant string
+// value assigned to an optional global qualified name without pointer boxing.
+func ConformanceRules_ConformanceUtil_ValueFromGlobalName(
+	scope *Scope, gns *GlobalNamespace, qualifiedName base.OptString) (string, bool) {
+	qname, hasQName := qualifiedName.Get()
+	return conformanceValueFromGlobalName(scope, gns, qname, hasQName)
 }
 
 type conformanceVisitSet struct {
@@ -704,6 +708,13 @@ func ConformanceRules_ConformanceUtil_InferStringValue(
 		return &s
 	}
 	return nil
+}
+
+// ConformanceRules_ConformanceUtil_InferStringValueOk infers a constant string
+// value for node without pointer boxing.
+func ConformanceRules_ConformanceUtil_InferStringValueOk(
+	scope *Scope, node rhino.Node, globalNamespaceSupplier func() *GlobalNamespace) (string, bool) {
+	return inferConformanceStringValue(scope, node, globalNamespaceSupplier)
 }
 
 func inferConformanceStringValue(

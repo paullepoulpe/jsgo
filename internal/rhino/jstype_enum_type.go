@@ -40,7 +40,6 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // EnumType is an enum type representing a branded collection of elements.
@@ -83,10 +82,13 @@ func NewEnumType_Builder(registry *JSTypeRegistry) *EnumType_Builder {
 }
 
 // Java: EnumType.Builder.setName(String)
-func (b *EnumType_Builder) SetName(x *string) *EnumType_Builder {
-	b.classNameID = rhinoStringPoolIntern("enum{" + jutil.ToJavaString(x) + "}")
-	b.elementNameID = rhinoStringIDFromPtr(x)
-	return b
+func (b *EnumType_Builder) SetName(x string) *EnumType_Builder {
+	return b.SetOptionalName(x, true)
+}
+
+// SetNameOpt sets or clears the enum name from an OptString.
+func (b *EnumType_Builder) SetNameOpt(x base.OptString) *EnumType_Builder {
+	return b.SetOptionalName(x.Get())
 }
 
 // SetOptionalName sets the enum name without allocating a *string.
@@ -143,8 +145,14 @@ func (b *EnumType_Builder) SetSource(x Node) *EnumType_Builder {
 // declared.
 //
 // Java: EnumType.Builder.setGoogModuleId(String)
-func (b *EnumType_Builder) SetGoogModuleId(x *string) *EnumType_Builder {
-	b.googModuleID = rhinoStringIDFromPtr(x)
+func (b *EnumType_Builder) SetGoogModuleId(x string) *EnumType_Builder {
+	b.googModuleID = rhinoStringPoolIntern(x)
+	return b
+}
+
+// SetGoogModuleIdOpt sets or clears the goog.module ID from an OptString.
+func (b *EnumType_Builder) SetGoogModuleIdOpt(x base.OptString) *EnumType_Builder {
+	b.googModuleID = rhinoStringIDFromOpt(x)
 	return b
 }
 
@@ -291,8 +299,11 @@ func (t *EnumType) GetSource() Node {
 }
 
 // Java: EnumType.getGoogModuleId()
-func (t *EnumType) GetGoogModuleId() *string {
-	return strpool.StringPtr(t.googModuleID)
+func (t *EnumType) GoogModuleId() (string, bool) {
+	if t.googModuleID == 0 {
+		return "", false
+	}
+	return rhinoStringFromID(t.googModuleID), true
 }
 
 // Java: EnumType.resolveInternal(ErrorReporter)

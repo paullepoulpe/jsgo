@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -95,19 +95,16 @@ var eightLocaleFixtures = append(slices.Clone(fiveLocaleFixtures),
 
 func buildLocaleXtbBundle(projectID string, lf batchLocaleFixture) *XtbMessageBundle {
 	idGen := NewGoogleJsMessageIdGeneratorForProject(projectID)
-	welcomeMeaning := "MSG_WELCOME"
-	welcomeID := idGen.GenerateId(&welcomeMeaning, []JsMessage_Part{
+	welcomeID := idGen.GenerateIdForMeaning("MSG_WELCOME", []JsMessage_Part{
 		JsMessage_StringPart_Create("Welcome back, "),
 		JsMessage_PlaceholderReference_CreateForCanonicalName("USER_NAME"),
 		JsMessage_StringPart_Create("!"),
 	})
-	cartMeaning := "MSG_CART"
-	cartID := idGen.GenerateId(&cartMeaning, []JsMessage_Part{
+	cartID := idGen.GenerateIdForMeaning("MSG_CART", []JsMessage_Part{
 		JsMessage_StringPart_Create("Items in cart: "),
 		JsMessage_PlaceholderReference_CreateForCanonicalName("ITEM_COUNT"),
 	})
-	ctaMeaning := "checkout_cta"
-	ctaID := idGen.GenerateId(&ctaMeaning, []JsMessage_Part{
+	ctaID := idGen.GenerateIdForMeaning("checkout_cta", []JsMessage_Part{
 		JsMessage_StringPart_Create("Complete purchase"),
 	})
 
@@ -123,13 +120,13 @@ func buildLocaleXtbBundle(projectID string, lf batchLocaleFixture) *XtbMessageBu
 		cartID, lf.cart,
 		ctaID, lf.cta,
 	)
-	return NewXtbMessageBundle(strings.NewReader(xtb), jutil.StringPtr(projectID))
+	return NewXtbMessageBundleOpt(strings.NewReader(xtb), base.SomeString(projectID))
 }
 
 func buildEmptyStage2XtbBundle(projectID string) *XtbMessageBundle {
 	const emptyXtb = `<?xml version="1.0" encoding="UTF-8"?>
 <translationbundle lang="en"></translationbundle>`
-	return NewXtbMessageBundle(strings.NewReader(emptyXtb), jutil.StringPtr(projectID))
+	return NewXtbMessageBundleOpt(strings.NewReader(emptyXtb), base.SomeString(projectID))
 }
 
 func makeMultiChunkSources(extraModules int) ([]*SourceFile, []*JSChunk) {

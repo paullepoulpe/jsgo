@@ -483,27 +483,22 @@ func (i *JSDocInfo) GetParameterNames() *jutil.OrderedSet[string] {
 	return jutil.NewOrderedSet[string]()
 }
 
-// GetParameterNameAt returns the nth name in the defined parameters. The
+// ParameterNameAt returns the nth name in the defined parameters. The
 // iteration order is the order in which parameters are defined in the
 // JSDoc, rather than the order in which the function declares them.
 //
 // Java: JSDocInfo.getParameterNameAt(int)
-func (i *JSDocInfo) GetParameterNameAt(index int) *string {
-	name, ok := i.GetParameterNameValueAt(index)
-	if !ok {
-		return nil
-	}
-	return &name
-}
-
-// GetParameterNameValueAt returns the nth defined parameter name without
-// allocating a *string pointer.
-func (i *JSDocInfo) GetParameterNameValueAt(index int) (string, bool) {
+func (i *JSDocInfo) ParameterNameAt(index int) (string, bool) {
 	params := i.GetParameterEntries()
 	if index < 0 || index >= len(params) {
 		return "", false
 	}
 	return params[index].Name, true
+}
+
+// GetParameterNameValueAt returns the nth defined parameter name.
+func (i *JSDocInfo) GetParameterNameValueAt(index int) (string, bool) {
+	return i.ParameterNameAt(index)
 }
 
 // GetParameterTypeAt returns the nth defined parameter type expression in JSDoc

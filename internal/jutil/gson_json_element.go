@@ -196,13 +196,14 @@ func (o *JsonObject) Remove(property string) JsonElement {
 
 // AddPropertyString adds a string member.
 //
-// Java: JsonObject.addProperty(String, String)
-func (o *JsonObject) AddPropertyString(property string, value *string) {
-	if value == nil {
-		o.Add(property, JsonNull_INSTANCE)
-	} else {
-		o.Add(property, NewJsonPrimitiveString(*value))
-	}
+// Java: JsonObject.addProperty(String, String) (non-null; use AddPropertyNull for null)
+func (o *JsonObject) AddPropertyString(property, value string) {
+	o.Add(property, NewJsonPrimitiveString(value))
+}
+
+// AddPropertyNull adds a null member.
+func (o *JsonObject) AddPropertyNull(property string) {
+	o.Add(property, JsonNull_INSTANCE)
 }
 
 // EntrySet iterates the members in insertion order.
@@ -330,13 +331,14 @@ func (a *JsonArray) Add(element JsonElement) {
 
 // AddString appends a string element.
 //
-// Java: JsonArray.add(String)
-func (a *JsonArray) AddString(s *string) {
-	if s == nil {
-		a.elements = append(a.elements, JsonNull_INSTANCE)
-	} else {
-		a.elements = append(a.elements, NewJsonPrimitiveString(*s))
-	}
+// Java: JsonArray.add(String) (non-null; use AddNull for null)
+func (a *JsonArray) AddString(s string) {
+	a.elements = append(a.elements, NewJsonPrimitiveString(s))
+}
+
+// AddNull appends a null element.
+func (a *JsonArray) AddNull() {
+	a.elements = append(a.elements, JsonNull_INSTANCE)
 }
 
 // Size is the number of elements.

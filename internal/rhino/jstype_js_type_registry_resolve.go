@@ -566,52 +566,47 @@ func (r *JSTypeRegistry) GetReadableTypeNameNoDeref(n Node) string {
 }
 
 // Java: JSTypeRegistry.getSimpleReadableJSTypeName(JSType)
-func JSTypeRegistry_GetSimpleReadableJSTypeName(type_ JSType) *string {
+func JSTypeRegistry_SimpleReadableJSTypeName(type_ JSType) (string, bool) {
 	if ((uint32(1) << (type_.GetJSTypeBase().objFlags & objKindMask)) & jsKindNonObjectMask) != 0 {
-		s := type_.String()
-		return &s
+		return type_.String(), true
 	} else if type_.IsFunctionPrototypeType() {
-		s := type_.String()
-		return &s
+		return type_.String(), true
 	} else if _, ok := type_.(ObjectType); ok {
 		if !JSTypeRegistry_IsReadableObjectType(type_.ToMaybeObjectType()) {
-			return nil
+			return "", false
 		}
 
 		source := type_.ToObjectType().GetConstructor().GetSource()
 		if !source.IsNil() {
 			jutil.CheckStateMsg1(source.IsFunction() || source.IsClass(), "%s", source)
 			if readable, ok := source.GetFirstChild().OriginalName(); ok {
-				return &readable
+				return readable, true
 			}
 		}
-		s := type_.String()
-		return &s
+		return type_.String(), true
 
 	} else if unionType, ok := type_.(*UnionType); ok {
 		alts := unionType.GetAlternates()
 		if len(alts) == 0 {
-			u := "null)"
-			return &u
+			return "null)", true
 		}
 		var sb strings.Builder
 		for i, alternate := range alts {
-			name := JSTypeRegistry_GetSimpleReadableJSTypeName(alternate)
-			if name == nil {
-				return nil
+			name, ok := JSTypeRegistry_SimpleReadableJSTypeName(alternate)
+			if !ok {
+				return "", false
 			}
 			if i == 0 {
 				sb.WriteByte('(')
 			} else {
 				sb.WriteByte('|')
 			}
-			sb.WriteString(*name)
+			sb.WriteString(name)
 		}
 		sb.WriteByte(')')
-		u := sb.String()
-		return &u
+		return sb.String(), true
 	}
-	return nil
+	return "", false
 }
 
 // GetReadableJSTypeName: given a node, get a human-readable name for the
@@ -636,9 +631,8 @@ func (r *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string 
 		}
 	}
 
-	name := JSTypeRegistry_GetSimpleReadableJSTypeName(type_)
-	if name != nil {
-		return *name
+	if name, ok := JSTypeRegistry_SimpleReadableJSTypeName(type_); ok {
+		return name
 	}
 
 	// If we're analyzing a GETPROP, the property may be inherited by the

@@ -23,6 +23,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -7630,7 +7631,7 @@ func (c *TypedScopeCreatorTest) TestClassExtendsForwardReference_forwardReferenc
 	func() {
 		closer := c.registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
-		namedMiddleType = c.registry.CreateNamedType(c.globalScope, "Middle", nil, -1, -1)
+		namedMiddleType = c.registry.CreateNamedType(c.globalScope, "Middle", base.NoString(), -1, -1)
 
 		AssertThat(namedMiddleType.IsResolved()).IsFalse()
 		AssertThat(namedMiddleType.LoosenTypecheckingDueToForwardReferencedSupertype()).IsFalse()
@@ -7892,17 +7893,17 @@ func (c *TypedScopeCreatorTest) TestGoogModuleIdAttachment_underGoogModule() {
 				"  SCOPED_CAST: /** @type {function()} */ (function() { });\n" +
 				"}\n"))
 
-	c.AssertAttachedGoogModuleId("CLASS", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("IFACE", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("FUNC", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("ENUM", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("CAST", nil)
+	c.AssertAttachedGoogModuleId("CLASS", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("IFACE", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("FUNC", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("ENUM", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("CAST", base.NoString())
 
-	c.AssertAttachedGoogModuleId("SCOPED_CLASS", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_IFACE", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_FUNC", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_ENUM", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_CAST", nil)
+	c.AssertAttachedGoogModuleId("SCOPED_CLASS", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_IFACE", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_FUNC", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_ENUM", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_CAST", base.NoString())
 }
 
 // Java: TypedScopeCreatorTest.testGoogModuleIdAttachment_underGoogLoadModule()
@@ -7933,17 +7934,17 @@ func (c *TypedScopeCreatorTest) TestGoogModuleIdAttachment_underGoogLoadModule()
 				"  return exports;\n" +
 				"})\n"))
 
-	c.AssertAttachedGoogModuleId("CLASS1", jutil.StringPtr("my.module.1"))
-	c.AssertAttachedGoogModuleId("IFACE1", jutil.StringPtr("my.module.1"))
-	c.AssertAttachedGoogModuleId("FUNC1", jutil.StringPtr("my.module.1"))
-	c.AssertAttachedGoogModuleId("ENUM1", jutil.StringPtr("my.module.1"))
-	c.AssertAttachedGoogModuleId("CAST1", nil)
+	c.AssertAttachedGoogModuleId("CLASS1", base.SomeString("my.module.1"))
+	c.AssertAttachedGoogModuleId("IFACE1", base.SomeString("my.module.1"))
+	c.AssertAttachedGoogModuleId("FUNC1", base.SomeString("my.module.1"))
+	c.AssertAttachedGoogModuleId("ENUM1", base.SomeString("my.module.1"))
+	c.AssertAttachedGoogModuleId("CAST1", base.NoString())
 
-	c.AssertAttachedGoogModuleId("CLASS2", jutil.StringPtr("my.module.2"))
-	c.AssertAttachedGoogModuleId("IFACE2", jutil.StringPtr("my.module.2"))
-	c.AssertAttachedGoogModuleId("FUNC2", jutil.StringPtr("my.module.2"))
-	c.AssertAttachedGoogModuleId("ENUM2", jutil.StringPtr("my.module.2"))
-	c.AssertAttachedGoogModuleId("CAST2", nil)
+	c.AssertAttachedGoogModuleId("CLASS2", base.SomeString("my.module.2"))
+	c.AssertAttachedGoogModuleId("IFACE2", base.SomeString("my.module.2"))
+	c.AssertAttachedGoogModuleId("FUNC2", base.SomeString("my.module.2"))
+	c.AssertAttachedGoogModuleId("ENUM2", base.SomeString("my.module.2"))
+	c.AssertAttachedGoogModuleId("CAST2", base.NoString())
 }
 
 // Java: TypedScopeCreatorTest.testGoogModuleIdAttachment_underGoogProvide()
@@ -7966,17 +7967,17 @@ func (c *TypedScopeCreatorTest) TestGoogModuleIdAttachment_underGoogProvide() {
 				"  SCOPED_CAST: /** @type {function()} */ (function() { });\n" +
 				"}\n"))
 
-	c.AssertAttachedGoogModuleId("CLASS", nil)
-	c.AssertAttachedGoogModuleId("IFACE", nil)
-	c.AssertAttachedGoogModuleId("FUNC", nil)
-	c.AssertAttachedGoogModuleId("ENUM", nil)
-	c.AssertAttachedGoogModuleId("CAST", nil)
+	c.AssertAttachedGoogModuleId("CLASS", base.NoString())
+	c.AssertAttachedGoogModuleId("IFACE", base.NoString())
+	c.AssertAttachedGoogModuleId("FUNC", base.NoString())
+	c.AssertAttachedGoogModuleId("ENUM", base.NoString())
+	c.AssertAttachedGoogModuleId("CAST", base.NoString())
 
-	c.AssertAttachedGoogModuleId("SCOPED_CLASS", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_IFACE", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_FUNC", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_ENUM", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_CAST", nil)
+	c.AssertAttachedGoogModuleId("SCOPED_CLASS", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_IFACE", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_FUNC", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_ENUM", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_CAST", base.NoString())
 }
 
 // Java: TypedScopeCreatorTest.testGoogModuleIdAttachment_underEsModule()
@@ -7999,17 +8000,17 @@ func (c *TypedScopeCreatorTest) TestGoogModuleIdAttachment_underEsModule() {
 				"  SCOPED_CAST: /** @type {function()} */ (function() { });\n" +
 				"}\n"))
 
-	c.AssertAttachedGoogModuleId("CLASS", nil)
-	c.AssertAttachedGoogModuleId("IFACE", nil)
-	c.AssertAttachedGoogModuleId("FUNC", nil)
-	c.AssertAttachedGoogModuleId("ENUM", nil)
-	c.AssertAttachedGoogModuleId("CAST", nil)
+	c.AssertAttachedGoogModuleId("CLASS", base.NoString())
+	c.AssertAttachedGoogModuleId("IFACE", base.NoString())
+	c.AssertAttachedGoogModuleId("FUNC", base.NoString())
+	c.AssertAttachedGoogModuleId("ENUM", base.NoString())
+	c.AssertAttachedGoogModuleId("CAST", base.NoString())
 
-	c.AssertAttachedGoogModuleId("SCOPED_CLASS", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_IFACE", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_FUNC", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_ENUM", nil)
-	c.AssertAttachedGoogModuleId("SCOPED_CAST", nil)
+	c.AssertAttachedGoogModuleId("SCOPED_CLASS", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_IFACE", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_FUNC", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_ENUM", base.NoString())
+	c.AssertAttachedGoogModuleId("SCOPED_CAST", base.NoString())
 }
 
 // Java: TypedScopeCreatorTest.testGoogModuleIdAttachment_underGoogDeclareModuleId()
@@ -8033,28 +8034,28 @@ func (c *TypedScopeCreatorTest) TestGoogModuleIdAttachment_underGoogDeclareModul
 				"  SCOPED_CAST: /** @type {function()} */ (function() { });\n" +
 				"}\n"))
 
-	c.AssertAttachedGoogModuleId("CLASS", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("IFACE", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("FUNC", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("ENUM", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("CAST", nil)
+	c.AssertAttachedGoogModuleId("CLASS", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("IFACE", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("FUNC", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("ENUM", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("CAST", base.NoString())
 
-	c.AssertAttachedGoogModuleId("SCOPED_CLASS", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_IFACE", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_FUNC", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_ENUM", jutil.StringPtr("my.module"))
-	c.AssertAttachedGoogModuleId("SCOPED_CAST", nil)
+	c.AssertAttachedGoogModuleId("SCOPED_CLASS", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_IFACE", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_FUNC", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_ENUM", base.SomeString("my.module"))
+	c.AssertAttachedGoogModuleId("SCOPED_CAST", base.NoString())
 }
 
 // Java: TypedScopeCreatorTest.assertAttachedGoogModuleId(String, String)
-func (c *TypedScopeCreatorTest) AssertAttachedGoogModuleId(label string, expectedId *string) {
+func (c *TypedScopeCreatorTest) AssertAttachedGoogModuleId(label string, expectedId base.OptString) {
 	type_ := c.GetLabeledStatement(label).statementNode.GetOnlyChild().GetJSType()
 
-	var actualId *string
+	var actualId base.OptString
 	if type_.IsFunctionType() {
-		actualId = type_.ToMaybeFunctionType().GetGoogModuleId()
+		actualId = optStringOf(type_.ToMaybeFunctionType().GoogModuleId())
 	} else if type_.IsEnumType() {
-		actualId = type_.ToMaybeEnumType().GetGoogModuleId()
+		actualId = optStringOf(type_.ToMaybeEnumType().GoogModuleId())
 	} else {
 		panic(jutil.NewAssertionError(jutil.ToJavaString(type_)))
 	}

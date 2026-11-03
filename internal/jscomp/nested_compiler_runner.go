@@ -133,8 +133,7 @@ func (r *NestedCompilerRunner) initializeCompiler() {
 		NodeUtil_CollectExternVariableNames(r.original, r.original.GetRoot().GetFirstChild())
 	r.shadowCompiler.AddExportedNames(externNames)
 	r.shadowCompiler.SetExternPropSet(r.original.GetExternPropSet())
-	debugMessage := "<shadow AST compilation>"
-	r.shadowCompiler.SetDebugMessage(&debugMessage)
+	r.shadowCompiler.SetDebugMessage("<shadow AST compilation>")
 
 	chunks := r.createChunks()
 	r.shadowCompiler.InitChunks([]*SourceFile{}, chunks, r.shadowOptions)

@@ -75,27 +75,26 @@ func (e *ExtraRequireRemover) Process(externs rhino.Node, root rhino.Node) {
 // Ex: `goog.require('foo.bar');` will return `foo.bar`
 //
 // Java: ExtraRequireRemover.extractNamespace(Node, QualifiedName...)
-func (e *ExtraRequireRemover) ExtractNamespace(call rhino.Node, primitiveNames ...rhino.QualifiedName) *string {
+func (e *ExtraRequireRemover) ExtractNamespace(call rhino.Node, primitiveNames ...rhino.QualifiedName) (string, bool) {
 	callExpr, ok := ast.AsCall(call)
 	if !ok {
-		return nil
+		return "", false
 	}
 	calleeProp, ok := callExpr.Callee().AsGetProp()
 	if !ok {
-		return nil
+		return "", false
 	}
 	callee := calleeProp.Node()
 	for _, primitiveName := range primitiveNames {
 		if primitiveName.Matches(callee) {
 			if target, ok := callExpr.FirstArg(); ok {
 				if targetLit, ok := target.AsStringLit(); ok {
-					s := targetLit.Value()
-					return &s
+					return targetLit.Value(), true
 				}
 			}
 		}
 	}
-	return nil
+	return "", false
 }
 
 var extraRequireRemover_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
@@ -106,7 +105,7 @@ var extraRequireRemover_GOOG_FORWARD_DECLARE = rhino.QualifiedName_Of("goog.forw
 // goog.requireType nodes
 //
 // Java: ExtraRequireRemover.extractNamespaceIfRequire(Node)
-func (e *ExtraRequireRemover) ExtractNamespaceIfRequire(call rhino.Node) *string {
+func (e *ExtraRequireRemover) ExtractNamespaceIfRequire(call rhino.Node) (string, bool) {
 	return e.ExtractNamespace(call, extraRequireRemover_GOOG_REQUIRE, extraRequireRemover_GOOG_REQUIRE_TYPE, extraRequireRemover_GOOG_FORWARD_DECLARE)
 }
 
@@ -302,9 +301,8 @@ var extraRequireRemover_GOOG_MODULE_GET = rhino.QualifiedName_Of("goog.module.ge
 //
 // Java: ExtraRequireRemover.visitCallNode(Node, Node)
 func (e *ExtraRequireRemover) VisitCallNode(call rhino.Node, parent rhino.Node) {
-	required := e.ExtractNamespaceIfRequire(call)
-	if required != nil {
-		e.VisitGoogRequire(*required, call, parent)
+	if required, ok := e.ExtractNamespaceIfRequire(call); ok {
+		e.VisitGoogRequire(required, call, parent)
 		return
 	}
 

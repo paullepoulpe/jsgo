@@ -90,7 +90,7 @@ func polymerMatchesNameOrProp(n rhino.Node, name string) bool {
 	if n.MatchesName(name) {
 		return true
 	}
-	if originalQualifiedName := n.GetOriginalQualifiedName(); originalQualifiedName != nil && name == *originalQualifiedName {
+	if originalQualifiedName, ok := n.OriginalQualifiedName(); ok && name == originalQualifiedName {
 		return true
 	}
 	gp, ok := ast.AsGetProp(n)

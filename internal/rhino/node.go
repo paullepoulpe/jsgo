@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -357,10 +358,10 @@ func newNode_StringNode(token Token, str string) Node {
 }
 
 // Java: Node.TemplateLiteralSubstringNode(String, String)
-func newNode_TemplateLiteralSubstringNode(cooked *string, raw string) Node {
+func newNode_TemplateLiteralSubstringNode(cooked base.OptString, raw string) Node {
 	n := NewNode(Token_TEMPLATELIT_STRING)
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.initTemplateLitPayload(rhinoStringIDFromPtr(cooked), strpool.Intern(raw))
+	n.initTemplateLitPayload(rhinoStringIDFromOpt(cooked), strpool.Intern(raw))
 	return n
 }
 
@@ -559,7 +560,7 @@ func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
 }
 
 // InitTemplateLitStringFromTemplate initializes a zero Node from a slab as a TemplateLiteralSubstringNode with template properties.
-func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, template Node) Node {
+func (n Node) InitTemplateLitStringFromTemplate(cooked base.OptString, raw string, template Node) Node {
 	n.rec().token = Token_TEMPLATELIT_STRING
 	n.rec().linenoCharno = -1
 	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
@@ -567,7 +568,7 @@ func (n Node) InitTemplateLitStringFromTemplate(cooked *string, raw string, temp
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	n.initTemplateLitPayload(rhinoStringIDFromPtr(cooked), strpool.Intern(raw))
+	n.initTemplateLitPayload(rhinoStringIDFromOpt(cooked), strpool.Intern(raw))
 	return n
 }
 
@@ -643,7 +644,7 @@ func Node_NewStringWithToken(token Token, str string) Node {
 }
 
 // Java: Node.newTemplateLitString(String, String)
-func Node_NewTemplateLitString(cooked *string, raw string) Node {
+func Node_NewTemplateLitString(cooked base.OptString, raw string) Node {
 	return newNode_TemplateLiteralSubstringNode(cooked, raw)
 }
 

@@ -35,6 +35,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
@@ -467,7 +468,6 @@ func (d *typeAlgebraDump) build() {
 func (d *typeAlgebraDump) buildTypes() {
 	registry := d.registry
 	scope := d.scope
-	s := jutil.StringPtr
 	for _, n := range JSTypeNative_values() {
 		d.add("native:"+n.String(), d.nat(n))
 	}
@@ -490,7 +490,7 @@ func (d *typeAlgebraDump) buildTypes() {
 
 	// Classes, interfaces and inheritance.
 	fooCtor := registry.CreateConstructorType(
-		s("Foo"), taFn("Foo"), registry.CreateParameters(number), nil, nil, false)
+		"Foo", taFn("Foo"), registry.CreateParameters(number), nil, nil, false)
 	foo := fooCtor.GetInstanceType()
 	fooCtor.GetPrototype().DefineDeclaredProperty("bar", number, NilNode)
 	foo.DefineDeclaredProperty("baz", string_, NilNode)
@@ -501,7 +501,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("Foo.prototype", fooCtor.GetPrototype())
 
 	subFooCtor := registry.CreateConstructorType(
-		s("SubFoo"), taFn("SubFoo"), registry.CreateParameters(), nil, nil, false)
+		"SubFoo", taFn("SubFoo"), registry.CreateParameters(), nil, nil, false)
 	subFooCtor.SetPrototypeBasedOn(foo)
 	subFoo := subFooCtor.GetInstanceType()
 	subFoo.DefineDeclaredProperty("qux", bool_, NilNode)
@@ -510,14 +510,14 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("ctor:SubFoo", subFooCtor)
 	d.add("SubFoo.prototype", subFooCtor.GetPrototype())
 
-	iCtor := FunctionType_Builder_(registry).ForInterface().WithName(s("I")).WithSourceNode(taFn("I")).Build()
+	iCtor := FunctionType_Builder_(registry).ForInterface().WithName("I").WithSourceNode(taFn("I")).Build()
 	iCtor.GetPrototype().DefineDeclaredProperty("bar", number, NilNode)
 	iface := iCtor.GetInstanceType()
 	registry.DeclareType(scope, "I", iface)
 	d.add("I", iface)
 	d.add("ctor:I", iCtor)
 
-	jCtor := FunctionType_Builder_(registry).ForInterface().WithName(s("J")).WithSourceNode(taFn("J")).Build()
+	jCtor := FunctionType_Builder_(registry).ForInterface().WithName("J").WithSourceNode(taFn("J")).Build()
 	jCtor.SetExtendedInterfaces([]ObjectType{iface})
 	jCtor.GetPrototype().DefineDeclaredProperty("jay", string_, NilNode)
 	jface := jCtor.GetInstanceType()
@@ -525,14 +525,14 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("ctor:J", jCtor)
 
 	implCtor := registry.CreateConstructorType(
-		s("Impl"), taFn("Impl"), registry.CreateParameters(), nil, nil, false)
+		"Impl", taFn("Impl"), registry.CreateParameters(), nil, nil, false)
 	implCtor.SetImplementedInterfaces([]ObjectType{jface})
 	implCtor.GetPrototype().DefineDeclaredProperty("bar", number, NilNode)
 	impl := implCtor.GetInstanceType()
 	registry.DeclareType(scope, "Impl", impl)
 	d.add("Impl", impl)
 
-	recCtor := FunctionType_Builder_(registry).ForInterface().WithName(s("Rec")).WithSourceNode(taFn("Rec")).Build()
+	recCtor := FunctionType_Builder_(registry).ForInterface().WithName("Rec").WithSourceNode(taFn("Rec")).Build()
 	recCtor.SetImplicitMatch(true)
 	recCtor.GetPrototype().DefineDeclaredProperty("bar", number, NilNode)
 	recCtor.GetPrototype().DefineDeclaredProperty("opt", registry.CreateOptionalType(string_), NilNode)
@@ -545,7 +545,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.tKey = tKey
 	boxCtor := FunctionType_Builder_(registry).
 		ForConstructor().
-		WithName(s("Box")).
+		WithName("Box").
 		WithSourceNode(taFn("Box")).
 		WithParametersOfList(registry.CreateParameters(tKey)).
 		WithTemplateKeys(tKey).
@@ -562,23 +562,23 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("Box<string>.value", boxString.GetPropertyType("value"))
 
 	structCtor := registry.CreateConstructorType(
-		s("Struct"), taFn("Struct"), registry.CreateParameters(), nil, nil, false)
+		"Struct", taFn("Struct"), registry.CreateParameters(), nil, nil, false)
 	structCtor.SetStruct()
 	structCtor.GetPrototype().DefineDeclaredProperty("s", number, NilNode)
 	d.add("Struct", structCtor.GetInstanceType())
 	dictCtor := registry.CreateConstructorType(
-		s("Dict"), taFn("Dict"), registry.CreateParameters(), nil, nil, false)
+		"Dict", taFn("Dict"), registry.CreateParameters(), nil, nil, false)
 	dictCtor.SetDict()
 	d.add("Dict", dictCtor.GetInstanceType())
 	abstractCtor := registry.CreateConstructorType(
-		s("Abs"), taFn("Abs"), registry.CreateParameters(), nil, nil, true)
+		"Abs", taFn("Abs"), registry.CreateParameters(), nil, nil, true)
 	abstractCtor.SetImplementedInterfaces([]ObjectType{iface})
 	d.add("Abs", abstractCtor.GetInstanceType())
 	subStructCtor := registry.CreateConstructorType(
-		s("SubStruct"), taFn("SubStruct"), registry.CreateParameters(), nil, nil, false)
+		"SubStruct", taFn("SubStruct"), registry.CreateParameters(), nil, nil, false)
 	subStructCtor.SetPrototypeBasedOn(structCtor.GetInstanceType())
 	d.add("SubStruct", subStructCtor.GetInstanceType())
-	anonCtor := registry.CreateConstructorType(s(""), NilNode, registry.CreateParameters(), nil, nil, false)
+	anonCtor := registry.CreateConstructorType("", NilNode, registry.CreateParameters(), nil, nil, false)
 	d.add("anonCtor", anonCtor)
 	d.add("anonInstance", anonCtor.GetInstanceType())
 	structuralCtor := FunctionType_Builder_(registry).ForConstructor().WithTypeOfThis(foo).Build()
@@ -590,7 +590,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("objlit", lit)
 	emptyLit := registry.CreateAnonymousObjectType(nil)
 	d.add("emptyObjlit", emptyLit)
-	named := registry.CreateObjectType(s("Named"), object)
+	named := registry.CreateObjectType(base.SomeString("Named"), object)
 	named.DefineDeclaredProperty("n", number, NilNode)
 	d.add("Named", named)
 
@@ -721,23 +721,23 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("toBuilder(SubFoo)", subFooCtor.ToBuilder().Build())
 
 	// Enums.
-	eNum := EnumType_Builder_(registry).SetName(s("E")).SetElementType(number).SetSource(NilNode).Build()
+	eNum := EnumType_Builder_(registry).SetName("E").SetElementType(number).SetSource(NilNode).Build()
 	eNum.DefineElement("A", NilNode)
 	eNum.DefineElement("B", NilNode)
 	registry.DeclareType(scope, "E", eNum.GetElementsType())
 	registry.IdentifyNonNullableName(scope, "E")
 	d.add("enum E", eNum)
 	d.add("E", eNum.GetElementsType())
-	eStr := EnumType_Builder_(registry).SetName(s("S")).SetElementType(string_).Build()
+	eStr := EnumType_Builder_(registry).SetName("S").SetElementType(string_).Build()
 	eStr.DefineElement("X", NilNode)
 	d.add("enum S", eStr)
 	d.add("S", eStr.GetElementsType())
-	eFoo := EnumType_Builder_(registry).SetName(s("EF")).SetElementType(foo).Build()
+	eFoo := EnumType_Builder_(registry).SetName("EF").SetElementType(foo).Build()
 	eFoo.DefineElement("F", NilNode)
 	d.add("enum EF", eFoo)
 	d.add("EF", eFoo.GetElementsType())
 	eUnion := EnumType_Builder_(registry).
-		SetName(s("EU")).
+		SetName("EU").
 		SetElementType(registry.CreateUnionType(number, string_)).
 		Build()
 	d.add("EU", eUnion.GetElementsType())
@@ -773,10 +773,10 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("proxy(number)", NewProxyObjectType(registry, number))
 	d.add("proxy(Foo)", NewProxyObjectType(registry, foo))
 	d.add("proxy(number|string)", NewProxyObjectType(registry, registry.CreateUnionType(number, string_)))
-	d.add("named:Foo", registry.CreateNamedType(scope, "Foo", s("src.js"), 1, 2))
-	d.add("named:Missing", registry.CreateNamedType(scope, "Missing", s("src.js"), 3, 4))
-	d.add("named:Forwarded", registry.CreateNamedType(scope, "Forwarded", s("src.js"), 5, 6))
-	d.add("named:Box", registry.CreateNamedType(scope, "Box", s("src.js"), 7, 8))
+	d.add("named:Foo", registry.CreateNamedType(scope, "Foo", base.SomeString("src.js"), 1, 2))
+	d.add("named:Missing", registry.CreateNamedType(scope, "Missing", base.SomeString("src.js"), 3, 4))
+	d.add("named:Forwarded", registry.CreateNamedType(scope, "Forwarded", base.SomeString("src.js"), 5, 6))
+	d.add("named:Box", registry.CreateNamedType(scope, "Box", base.SomeString("src.js"), 7, 8))
 	d.add("noResolved", NewNoResolvedType(registry, "NR", []JSType{}))
 	iter := taAdd(d, "knownSymbol", NewKnownSymbolType(registry, "Symbol.iterator"))
 	withSym := registry.CreateAnonymousObjectType(nil)
@@ -788,7 +788,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	vKey := registry.CreateTemplateType("V")
 	pairCtor := FunctionType_Builder_(registry).
 		ForInterface().
-		WithName(s("Pair")).
+		WithName("Pair").
 		WithSourceNode(taFn("Pair")).
 		WithTemplateKeys(kKey, vKey).
 		Build()
@@ -805,7 +805,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("{k:string}", registry.CreateRecordType(taRecord("k", string_)))
 
 	strBoxCtor := registry.CreateConstructorType(
-		s("StrBox"), taFn("StrBox"), registry.CreateParameters(), nil, nil, false)
+		"StrBox", taFn("StrBox"), registry.CreateParameters(), nil, nil, false)
 	strBoxCtor.SetPrototypeBasedOn(boxString)
 	registry.DeclareType(scope, "StrBox", strBoxCtor.GetInstanceType())
 	d.add("StrBox", strBoxCtor.GetInstanceType())
@@ -814,7 +814,7 @@ func (d *typeAlgebraDump) buildTypes() {
 	elKey := registry.CreateTemplateType("EL")
 	listCtor := FunctionType_Builder_(registry).
 		ForInterface().
-		WithName(s("List")).
+		WithName("List").
 		WithSourceNode(taFn("List")).
 		WithTemplateKeys(elKey).
 		Build()
@@ -862,16 +862,16 @@ func (d *typeAlgebraDump) buildTypes() {
 	d.add("T|K|V", registry.CreateUnionType(tKey, kKey, vKey))
 
 	// Forward references, resolved when the resolver closes.
-	late := registry.CreateNamedType(scope, "Late", s("src.js"), 9, 10)
+	late := registry.CreateNamedType(scope, "Late", base.SomeString("src.js"), 9, 10)
 	late.DefineDeclaredProperty("lateProp", number, NilNode)
 	d.add("named:Late", late)
-	lateMissing := registry.CreateNamedType(scope, "LateMissing", s("src.js"), 11, 12)
+	lateMissing := registry.CreateNamedType(scope, "LateMissing", base.SomeString("src.js"), 11, 12)
 	lateMissing.DefineDeclaredProperty("p", number, NilNode)
 	d.add("named:LateMissing", lateMissing)
 	d.add("Box<Late>", registry.CreateTemplatizedType(box, late))
 	d.add("Late|null", registry.CreateNullableType(late))
 	lateCtor := registry.CreateConstructorType(
-		s("Late"), taFn("Late"), registry.CreateParameters(), nil, nil, false)
+		"Late", taFn("Late"), registry.CreateParameters(), nil, nil, false)
 	registry.DeclareType(scope, "Late", lateCtor.GetInstanceType())
 	d.add("Late", lateCtor.GetInstanceType())
 

@@ -193,8 +193,10 @@ func JsdocUtil_GetJSDocForRhs(rhs rhino.Node, oldJSDoc *rhino.JSDocInfo) *rhino.
 			return jsdocUtil_getConstJSDocOfNode(oldJSDoc, rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String("RegExp")))
 		}
 	case NodeUtil_ValueType_UNDETERMINED:
-		if oldJSDoc != nil && oldJSDoc.GetDescription() != nil {
-			return jsdocUtil_getConstJSDoc(oldJSDoc, "string")
+		if oldJSDoc != nil {
+			if _, ok := oldJSDoc.Description(); ok {
+				return jsdocUtil_getConstJSDoc(oldJSDoc, "string")
+			}
 		}
 	}
 	if rhs.IsCast() {

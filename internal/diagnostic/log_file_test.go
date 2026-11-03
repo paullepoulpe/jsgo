@@ -56,8 +56,6 @@ type producerFunc func(w *jutil.JsonWriter)
 
 func (f producerFunc) WriteJson(w *jutil.JsonWriter) { f(w) }
 
-func ptr(s string) *string { return &s }
-
 func TestLogFileMatchesJava(t *testing.T) {
 	want, err := os.ReadFile("testdata/log_file.txt")
 	if err != nil {
@@ -103,7 +101,7 @@ func TestLogFileMatchesJava(t *testing.T) {
 	s.step("logJson(producer)", func() any {
 		return log.LogJsonProducer(producerFunc(func(w *jutil.JsonWriter) {
 			w.BeginObject()
-			w.Name("a<").BeginArray().ValueNumber(jutil.NewLazilyParsedNumber("1")).ValueString(ptr("<x>")).NullValue().EndArray()
+			w.Name("a<").BeginArray().ValueNumber(jutil.NewLazilyParsedNumber("1")).ValueString("<x>").NullValue().EndArray()
 			w.Name("n").NullValue()
 			w.EndObject()
 		}))
