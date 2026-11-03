@@ -89,6 +89,17 @@ func (b *EnumType_Builder) SetName(x *string) *EnumType_Builder {
 	return b
 }
 
+// SetOptionalName sets the enum name without allocating a *string.
+func (b *EnumType_Builder) SetOptionalName(name string, ok bool) *EnumType_Builder {
+	b.classNameID = rhinoStringPoolIntern("enum{" + jutil.FormatOptionalString(name, ok) + "}")
+	if !ok {
+		b.elementNameID = 0
+	} else {
+		b.elementNameID = rhinoStringPoolIntern(name)
+	}
+	return b
+}
+
 // Java: PrototypeObjectType.Builder.setImplicitPrototype(ObjectType)
 func (b *EnumType_Builder) SetImplicitPrototype(x ObjectType) *EnumType_Builder {
 	b.implicitPrototype = x
@@ -248,13 +259,10 @@ func (t *EnumType) AppendTo(sb *TypeStringBuilder) {
 }
 
 // DisplayName returns the element type's display name without allocating a *string.
+//
+// Java: EnumType.getDisplayName()
 func (t *EnumType) DisplayName() (string, bool) {
 	return t.elementType.DisplayName()
-}
-
-// Java: EnumType.getDisplayName()
-func (t *EnumType) GetDisplayName() *string {
-	return t.elementType.GetDisplayName()
 }
 
 // Java: EnumType.getConstructor()

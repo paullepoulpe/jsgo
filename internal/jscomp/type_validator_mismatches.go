@@ -172,7 +172,7 @@ func (v *TypeValidator) ExpectInterfaceProperty(
 				n,
 				TypeValidator_INTERFACE_METHOD_NOT_IMPLEMENTED,
 				propName.HumanReadableName(),
-				jutil.ToJavaString(implementedInterface.GetReferenceName()),
+				jutil.FormatOptionalString(implementedInterface.ReferenceName()),
 				instance.String()))
 	} else {
 		local := propSlot.GetOwnerInstanceType().Equals(instance)
@@ -223,7 +223,7 @@ func (v *TypeValidator) CheckPropertyType(
 		n,
 		diagnostic,
 		propertyName.HumanReadableName(),
-		jutil.ToJavaString(parent.GetReferenceName()),
+		jutil.FormatOptionalString(parent.ReferenceName()),
 		required.String(),
 		found.String(),
 		instance.String())
@@ -361,7 +361,7 @@ func (v *TypeValidator) RegisterMismatchAndReport(found rhino.JSType, required r
 //
 // Java: TypeValidator.formatNodeLocation(Node)
 func TypeValidator_FormatNodeLocation(node rhino.Node) string {
-	return jutil.ToJavaString(node.GetSourceFileName()) + ":" +
+	return jutil.FormatOptionalString(node.SourceFileName()) + ":" +
 		strconv.Itoa(node.GetLineno()) + ":" + strconv.Itoa(node.GetCharno())
 }
 
@@ -442,16 +442,12 @@ func TypeValidator_HasDuplicateDeclarationSuppression(compiler AbstractCompiler,
 }
 
 func makeDupVarDeclProbeError(decl rhino.Node) *JSError {
-	var src string
-	srcPtr := decl.GetSourceFileName()
-	if srcPtr != nil {
-		src = *srcPtr
-	}
+	src, hasSrc := decl.SourceFileName()
 	return &JSError{
 		type_:         TypeValidator_DUP_VAR_DECLARATION,
 		description:   TypeValidator_DUP_VAR_DECLARATION.Format("dummy", "dummy"),
 		sourceName:    src,
-		hasSourceName: srcPtr != nil,
+		hasSourceName: hasSrc,
 		lineno:        decl.GetLineno(),
 		charno:        decl.GetCharno(),
 		length:        decl.GetLength(),
@@ -488,8 +484,8 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 		}
 		return 0, false
 	case *DiagnosticGroupPathSuppressingWarningsGuard:
-		src := decl.GetSourceFileName()
-		if src == nil || !strings.Contains(*src, g.part) {
+		src, ok := decl.SourceFileName()
+		if !ok || !strings.Contains(src, g.part) {
 			return 0, false
 		}
 		if g.group.MatchesType(TypeValidator_DUP_VAR_DECLARATION) {
@@ -498,15 +494,10 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 		return 0, false
 	case *ByPathWarningsGuard:
 		if TypeValidator_DUP_VAR_DECLARATION.level != CheckLevel_ERROR {
-			if errorPath := decl.GetSourceFileName(); errorPath != nil {
-				src := *errorPath
-				inPath := false
-				for _, path := range g.paths {
-					if strings.Contains(src, path) {
-						inPath = true
-						break
-					}
-				}
+			if src, ok := decl.SourceFileName(); ok {
+				inPath := slices.ContainsFunc(g.paths, func(path string) bool {
+					return strings.Contains(src, path)
+				})
 				if inPath == g.include {
 					return g.level, true
 				}
@@ -516,7 +507,7 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 	case *ShowByPathWarningsGuard:
 		return dupVarDeclGuardLevel(g.warningsGuard, decl, lazyErr)
 	case *CheckTypeSummaryWarningsGuard:
-		if src := decl.GetSourceFileName(); src != nil && strings.HasSuffix(*src, ".i.js") {
+		if src, ok := decl.SourceFileName(); ok && strings.HasSuffix(src, ".i.js") {
 			return g.level, true
 		}
 		return 0, false
@@ -537,9 +528,9 @@ func dupVarDeclGuardLevel(guard WarningsGuard, decl rhino.Node, lazyErr **JSErro
 
 func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) (CheckLevel, bool) {
 	node := decl
-	src := decl.GetSourceFileName()
-	if node.IsNil() && src != nil {
-		if sn := g.compiler.GetScriptNode(*src); !sn.IsNil() {
+	src, hasSrc := decl.SourceFileName()
+	if node.IsNil() && hasSrc {
+		if sn := g.compiler.GetScriptNode(src); !sn.IsNil() {
 			jutil.CheckState(sn.IsScript())
 			node = sn
 		}
@@ -567,8 +558,8 @@ func dupVarDeclSuppressDocLevel(g *SuppressDocWarningsGuard, decl rhino.Node) (C
 			}
 		}
 	}
-	if src != nil {
-		if scriptNode := g.compiler.GetScriptNode(*src); !scriptNode.IsNil() {
+	if hasSrc {
+		if scriptNode := g.compiler.GetScriptNode(src); !scriptNode.IsNil() {
 			jutil.CheckState(scriptNode.IsScript())
 			if info := scriptNode.GetJSDocInfo(); info != nil {
 				return dupVarDeclLevelFromInfo(g, info)
@@ -680,7 +671,7 @@ func (v *TypeValidator) checkWellFormedTemplatizedInstance(n rhino.Node, type_ *
 						n,
 						RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR,
 						assignedType.String(),
-						jutil.ToJavaString(templateType.GetReferenceName()),
+						jutil.FormatOptionalString(templateType.ReferenceName()),
 						templateType.GetBound().String()))
 				return false
 			}

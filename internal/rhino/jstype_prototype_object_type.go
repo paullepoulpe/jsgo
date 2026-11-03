@@ -39,7 +39,6 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // PrototypeObjectTypeBase holds PrototypeObjectType's fields and methods;
@@ -504,6 +503,8 @@ func (p *PrototypeObjectTypeBase) HasReferenceName() bool {
 }
 
 // ReferenceName returns the reference name of p without allocating a *string.
+//
+// Java: PrototypeObjectType.getReferenceName()
 func (p *PrototypeObjectTypeBase) ReferenceName() (string, bool) {
 	if p.classNameID != 0 {
 		return rhinoStringFromID(p.classNameID), true
@@ -515,17 +516,6 @@ func (p *PrototypeObjectTypeBase) ReferenceName() (string, bool) {
 		return "null.prototype", true
 	}
 	return "", false
-}
-
-// Java: PrototypeObjectType.getReferenceName()
-func (p *PrototypeObjectTypeBase) GetReferenceName() *string {
-	if p.classNameID != 0 {
-		return strpool.StringPtr(p.classNameID)
-	}
-	if name, ok := p.ReferenceName(); ok {
-		return &name
-	}
-	return nil
 }
 
 // Java: PrototypeObjectType.isAnonymous()

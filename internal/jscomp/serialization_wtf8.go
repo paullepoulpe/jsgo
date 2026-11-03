@@ -35,7 +35,7 @@ const wtf8_CONTINUATION_MASK = 0x3F
 //
 // Java: Wtf8.encodeToWtf8(String)
 func Wtf8_EncodeToWtf8(s string) []byte {
-	if jutil.IsASCII(s) {
+	if jutil.IsCanonicalWTF8(s) {
 		return []byte(s)
 	}
 	units := jutil.StringToUTF16(s)

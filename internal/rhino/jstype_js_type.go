@@ -73,7 +73,6 @@ type JSType interface {
 	// Java: JSType.getJSDocInfo()
 	GetJSDocInfo() *JSDocInfo
 	// Java: JSType.getDisplayName()
-	GetDisplayName() *string
 	DisplayName() (string, bool)
 	ReferenceName() (string, bool)
 	// Java: JSType.hasDisplayName()
@@ -583,20 +582,11 @@ func (t *JSTypeBase) GetJSDocInfo() *JSDocInfo {
 	return nil
 }
 
-// GetDisplayName returns a user meaningful label for the JSType instance.
-// For example, Functions and Enums will return their declaration name (if
-// they have one). Some types will not have a meaningful display name. Calls
-// to hasDisplayName() will return true IFF getDisplayName() will return null
-// or a zero length string.
-//
-// Returns the display name of the type, or null if one is not available.
+// DisplayName returns a user-meaningful label for the JSType, or ("", false)
+// if one is not available. For example, Functions and Enums return their
+// declaration name (if they have one).
 //
 // Java: JSType.getDisplayName()
-func (t *JSTypeBase) GetDisplayName() *string {
-	return nil
-}
-
-// DisplayName returns a user-meaningful label for the JSType without allocating a *string.
 func (t *JSTypeBase) DisplayName() (string, bool) {
 	return "", false
 }

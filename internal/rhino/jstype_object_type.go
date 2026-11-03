@@ -80,7 +80,6 @@ type ObjectType interface {
 	GetTemplateTypes() []JSType
 	SetJSDocInfo(info *JSDocInfo)
 	DetectInheritanceCycle() bool
-	GetReferenceName() *string
 	ReferenceName() (string, bool)
 	HasReferenceName() bool
 	GetNormalizedReferenceName() string
@@ -351,25 +350,14 @@ func (o *ObjectTypeBase) GetNormalizedReferenceName() string {
 }
 
 // DisplayName returns the normalized reference name of o without allocating a *string.
+//
+// Java: ObjectType.getDisplayName()
 func (o *ObjectTypeBase) DisplayName() (string, bool) {
 	name, ok := o.selfObj().ReferenceName()
 	if !ok {
 		return "", false
 	}
 	return normalizeReferenceName(name), true
-}
-
-// Java: ObjectType.getDisplayName()
-func (o *ObjectTypeBase) GetDisplayName() *string {
-	name := o.selfObj().GetReferenceName()
-	if name == nil {
-		return nil
-	}
-	if jutil.StringIndexOfChar(*name, '(') == -1 {
-		return name
-	}
-	norm := normalizeReferenceName(*name)
-	return &norm
 }
 
 // ObjectType_CreateDelegateSuffix creates a suffix for a proxy delegate.

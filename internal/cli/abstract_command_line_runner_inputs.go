@@ -45,6 +45,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -108,32 +109,45 @@ var defaultExterns_BROWSER_EXTERN_DEP_ORDER = []string{
 	"w3c_rtc.js",
 }
 
-func defaultExterns_prepareExterns(
+type cachedBuiltinExtern struct {
+	path   string
+	reload func() string
+}
+
+var (
+	builtinExternsBrowserOnce sync.Once
+	builtinExternsBrowser     []cachedBuiltinExtern
+
+	builtinExternsCustomOnce sync.Once
+	builtinExternsCustom     []cachedBuiltinExtern
+)
+
+func defaultExterns_prepareExternSpecs(
 	env jscomp.CompilerOptions_Environment,
-	externs map[string]*jscomp.SourceFile,
+	externs map[string]cachedBuiltinExtern,
 	externOrder []string,
-) []*jscomp.SourceFile {
-	out := make([]*jscomp.SourceFile, 0, len(externs))
+) []cachedBuiltinExtern {
+	out := make([]cachedBuiltinExtern, 0, len(externs))
 
 	for _, key := range defaultExterns_BUILTIN_LANG_EXTERNS {
-		sf, ok := externs[key]
+		spec, ok := externs[key]
 		jutil.CheckStateMsg1(ok, "Externs must contain builtin: %s", key)
 		delete(externs, key)
-		out = append(out, sf)
+		out = append(out, spec)
 	}
 
 	if env == jscomp.CompilerOptions_Environment_BROWSER {
 		for _, key := range defaultExterns_BROWSER_EXTERN_DEP_ORDER {
-			sf, ok := externs[key]
+			spec, ok := externs[key]
 			jutil.CheckStateMsg2(ok,
 				"Externs must contain builtin for env %s: %s", env, key)
 			delete(externs, key)
-			out = append(out, sf)
+			out = append(out, spec)
 		}
 
 		for _, key := range externOrder {
-			if sf, ok := externs[key]; ok {
-				out = append(out, sf)
+			if spec, ok := externs[key]; ok {
+				out = append(out, spec)
 			}
 		}
 	}
@@ -141,17 +155,14 @@ func defaultExterns_prepareExterns(
 	return out
 }
 
-// AbstractCommandLineRunner_GetBuiltinExterns returns a mutable list.
-//
-// Java: AbstractCommandLineRunner.getBuiltinExterns(CompilerOptions.Environment)
-func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Environment) []*jscomp.SourceFile {
+func loadBuiltinExternSpecs(env jscomp.CompilerOptions_Environment) []cachedBuiltinExtern {
 	input := abstractCommandLineRunner_getExternsInput()
 	zipReader, err := zip.NewReader(bytes.NewReader(input), int64(len(input)))
 	if err != nil {
 		panic(jutil.NewZipException(err.Error()))
 	}
 	envPrefix := asciiLower(env.String()) + "/"
-	mapFromExternsZip := make(map[string]*jscomp.SourceFile, len(zipReader.File))
+	mapFromExternsZip := make(map[string]cachedBuiltinExtern, len(zipReader.File))
 	externOrder := make([]string, 0, len(zipReader.File))
 	for _, entry := range zipReader.File {
 		filename := entry.Name
@@ -169,30 +180,56 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Envi
 		if _, exists := mapFromExternsZip[filename]; !exists {
 			externOrder = append(externOrder, filename)
 		}
+		entryStream, err := entry.Open()
+		if err != nil {
+			panic(jutil.NewZipException(err.Error()))
+		}
+		b, readErr := io.ReadAll(entryStream)
+		_ = entryStream.Close()
+		if readErr != nil {
+			panic(jutil.IOExceptionFromError(readErr, ""))
+		}
+		code := jutil.StandardCharsets_UTF_8.Decode(b)
 		// Give the files an odd prefix, so that they do not conflict
 		// with the user's files.
-		//
-		// Go-only: performance — the content is read from the zip
-		// (embedded in the binary) when needed, and again if needed
-		// after parsing dropped it (Java: withContentFromStream, which
-		// keeps it for the whole compilation).
-		mapFromExternsZip[filename] = jscomp.SourceFile_Builder_().
-			WithPath("externs.zip//" + filename).
-			WithReloadableContent(func() string {
-				entryStream, err := entry.Open()
-				if err != nil {
-					panic(jutil.NewZipException(err.Error()))
-				}
-				defer entryStream.Close()
-				b, err := io.ReadAll(entryStream)
-				if err != nil {
-					panic(jutil.IOExceptionFromError(err, ""))
-				}
-				return jutil.StandardCharsets_UTF_8.Decode(b)
-			}).
+		mapFromExternsZip[filename] = cachedBuiltinExtern{
+			path:   "externs.zip//" + filename,
+			reload: func() string { return code },
+		}
+	}
+	return defaultExterns_prepareExternSpecs(env, mapFromExternsZip, externOrder)
+}
+
+func getBuiltinExternSpecs(env jscomp.CompilerOptions_Environment) []cachedBuiltinExtern {
+	switch env {
+	case jscomp.CompilerOptions_Environment_BROWSER:
+		builtinExternsBrowserOnce.Do(func() {
+			builtinExternsBrowser = loadBuiltinExternSpecs(env)
+		})
+		return builtinExternsBrowser
+	case jscomp.CompilerOptions_Environment_CUSTOM:
+		builtinExternsCustomOnce.Do(func() {
+			builtinExternsCustom = loadBuiltinExternSpecs(env)
+		})
+		return builtinExternsCustom
+	default:
+		return loadBuiltinExternSpecs(env)
+	}
+}
+
+// AbstractCommandLineRunner_GetBuiltinExterns returns a mutable list.
+//
+// Java: AbstractCommandLineRunner.getBuiltinExterns(CompilerOptions.Environment)
+func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Environment) []*jscomp.SourceFile {
+	specs := getBuiltinExternSpecs(env)
+	out := make([]*jscomp.SourceFile, len(specs))
+	for i := range specs {
+		out[i] = jscomp.SourceFile_Builder_().
+			WithPath(specs[i].path).
+			WithReloadableContent(specs[i].reload).
 			Build()
 	}
-	return defaultExterns_prepareExterns(env, mapFromExternsZip, externOrder)
+	return out
 }
 
 // Java: AbstractCommandLineRunner.getExternsInput()
@@ -366,6 +403,29 @@ func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
 	return inputs
 }
 
+type sourceFileLookupFunc func(
+	filename string,
+	charset *jutil.Charset,
+	kind rhino.StaticSourceFile_SourceKind,
+) (*jscomp.SourceFile, bool)
+
+func (r *AbstractCommandLineRunnerBase) newSourceFile(
+	filename string,
+	charset *jutil.Charset,
+	kind rhino.StaticSourceFile_SourceKind,
+) *jscomp.SourceFile {
+	if r.sourceFileCache != nil {
+		if sf, ok := r.sourceFileCache(filename, charset, kind); ok {
+			return sf
+		}
+	}
+	b := jscomp.SourceFile_Builder_().WithKind(kind).WithPath(filename)
+	if charset != nil {
+		b.WithCharset(charset)
+	}
+	return b.Build()
+}
+
 func (r *AbstractCommandLineRunnerBase) createInputs(
 	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
 	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
@@ -386,7 +446,7 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 		file := files[i]
 		filename := file.value
 		if file.flag == AbstractCommandLineRunner_JsSourceType_JS_ZIP {
-			if r.config.typedAstListInputFilename != nil {
+			if r.config.typedAstListInputFilename.IsPresent() {
 				return nil, jscomp.NewFlagUsageException("Can't use TypedASTs with --zip.")
 			}
 
@@ -412,14 +472,9 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 			if file.flag == AbstractCommandLineRunner_JsSourceType_WEAKDEP {
 				kind = rhino.StaticSourceFile_SourceKind_WEAK
 			}
-			inputs = append(inputs,
-				jscomp.SourceFile_Builder_().
-					WithKind(kind).
-					WithCharset(r.inputCharset).
-					WithPath(filename).
-					Build())
+			inputs = append(inputs, r.newSourceFile(filename, r.inputCharset, kind))
 		} else {
-			if r.config.typedAstListInputFilename != nil {
+			if r.config.typedAstListInputFilename.IsPresent() {
 				return nil, jscomp.NewFlagUsageException("Can't use TypedASTs with stdin.")
 			}
 			if !allowStdIn {
@@ -851,11 +906,11 @@ func (r *AbstractCommandLineRunnerBase) RestoreState(filename string) {
 //
 // Java: AbstractCommandLineRunner.saveState()
 func (r *AbstractCommandLineRunnerBase) SaveState() {
-	if r.config.GetSaveCompilationStateToFilename() == nil {
+	filename, ok := r.config.saveCompilationStateToFilename.Get()
+	if !ok {
 		// nothing to save to.
 		return
 	}
-	filename := *r.config.GetSaveCompilationStateToFilename()
 	serializedOutputStream, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
 		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST, filename))

@@ -150,7 +150,7 @@ func (c *ConstCheck) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 			} else if var_ != nil && var_.IsGoogModuleExports() && !c.addInitializedConstant(var_) {
 				c.compiler.Report(
 					JSError_MakeWithNode(n, ConstCheck_CONST_REASSIGNED_VALUE_ERROR, "exports",
-						jutil.ToJavaString(n.GetSourceFileName())))
+						jutil.FormatOptionalString(n.SourceFileName())))
 			}
 		}
 	case rhino.Token_INC, rhino.Token_DEC:
@@ -182,7 +182,7 @@ func (c *ConstCheck) ReportError(n rhino.Node, var_ *Var, name string) {
 	info := NodeUtil_GetBestJSDocInfo(n)
 	if info == nil || !info.HasSuppression("const") {
 		declNode := var_.GetNode()
-		declaredPosition := jutil.ToJavaString(declNode.GetSourceFileName()) + ":" +
+		declaredPosition := jutil.FormatOptionalString(declNode.SourceFileName()) + ":" +
 			strconv.Itoa(declNode.GetLineno())
 		c.compiler.Report(JSError_MakeWithNode(n, ConstCheck_CONST_REASSIGNED_VALUE_ERROR, name, declaredPosition))
 	}

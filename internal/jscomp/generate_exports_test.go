@@ -30,8 +30,8 @@ type GenerateExportsTest struct {
 	CompilerTestCaseBase
 
 	allowNonGlobalExports  bool
-	exportSymbolFunction   *string
-	exportPropertyFunction *string
+	exportSymbolFunction   string
+	exportPropertyFunction string
 }
 
 const generateExportsTest_EXTERNS = `/** @const */ var goog = {};
@@ -60,8 +60,8 @@ func (c *GenerateExportsTest) GetProcessor(compiler *Compiler) CompilerPass {
 func (c *GenerateExportsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.allowNonGlobalExports = true
-	c.exportSymbolFunction = jutil.StringPtr("goog.exportSymbol")
-	c.exportPropertyFunction = jutil.StringPtr("goog.exportProperty")
+	c.exportSymbolFunction = "goog.exportSymbol"
+	c.exportPropertyFunction = "goog.exportProperty"
 	// TODO(b/76025401): since this pass sometimes runs after typechecking,
 	// verify it correctly propagates type information.
 	// enableTypeCheck();
@@ -730,13 +730,13 @@ func (c *GenerateExportsTest) TestRequiresExportPropertyDefinition() {
 
 // Java: GenerateExportsTest.testRequiresExportSymbolConvention_ifUsesExport()
 func (c *GenerateExportsTest) TestRequiresExportSymbolConvention_ifUsesExport() {
-	c.exportSymbolFunction = nil
+	c.exportSymbolFunction = ""
 
 	c.Test(
 		c.Srcs("/** @export */ function Foo() {}"), c.Error(GenerateExports_MISSING_EXPORT_CONVENTION))
 
-	c.exportSymbolFunction = jutil.StringPtr("exportSymbol")
-	c.exportPropertyFunction = nil
+	c.exportSymbolFunction = "exportSymbol"
+	c.exportPropertyFunction = ""
 
 	c.Test(
 		c.Srcs("/** @export */ function Foo() {}"), c.Error(GenerateExports_MISSING_EXPORT_CONVENTION))
@@ -744,7 +744,7 @@ func (c *GenerateExportsTest) TestRequiresExportSymbolConvention_ifUsesExport() 
 
 // Java: GenerateExportsTest.testDoesNotRequireExportSymbolConvention_ifNoExports()
 func (c *GenerateExportsTest) TestDoesNotRequireExportSymbolConvention_ifNoExports() {
-	c.exportSymbolFunction = nil
+	c.exportSymbolFunction = ""
 
 	c.TestSame(c.Srcs("function Foo() {}"))
 }

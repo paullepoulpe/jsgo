@@ -2848,7 +2848,7 @@ SPECIALIZED: f(10);
 	var specializedFn rhino.FunctionType = c.GetLabeledStatement("SPECIALIZED").statementNode.GetFirstFirstChild().GetJSType().
 		ToMaybeFunctionType()
 	AssertThat(specializedFn).IsNotEqualTo(templateFn)
-	AssertThat(specializedFn.GetReferenceName()).IsEqualTo(templateFn.GetReferenceName())
+	AssertThat(optStr(specializedFn.ReferenceName())).IsEqualTo(optStr(templateFn.ReferenceName()))
 	AssertThat(specializedFn.GetSource()).IsEqualTo(templateFn.GetSource())
 	AssertThat(specializedFn.GetGoogModuleId()).IsEqualTo(templateFn.GetGoogModuleId())
 }

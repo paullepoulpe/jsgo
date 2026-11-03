@@ -729,9 +729,9 @@ func (c *CheckAccessControls) IsPackageAccessAllowed(var_ *Var, name rhino.Node)
 	}
 
 	codingConvention := c.compiler.GetCodingConvention()
-	srcPackage := codingConvention.GetPackageName(varSrc)
-	refPackage := codingConvention.GetPackageName(refSrc)
-	return srcPackage != nil && refPackage != nil && *srcPackage == *refPackage
+	srcPackage, srcOk := codingConvention.GetPackageName(varSrc)
+	refPackage, refOk := codingConvention.GetPackageName(refSrc)
+	return srcOk && refOk && srcPackage == refPackage
 }
 
 // CheckFinalClassOverrides checks if a constructor is trying to override a

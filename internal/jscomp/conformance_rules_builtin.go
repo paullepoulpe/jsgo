@@ -786,9 +786,7 @@ func nonConformingTypePart(type_ rhino.JSType) (string, bool) {
 		}
 	} else if type_.IsNoResolvedType() {
 		if objType := type_.ToObjectType(); objType != nil {
-			if refName := objType.GetReferenceName(); refName != nil {
-				return *refName, true
-			}
+			return objType.ReferenceName()
 		}
 	}
 	return "", false

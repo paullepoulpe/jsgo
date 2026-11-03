@@ -114,7 +114,9 @@ func (h *JSTypeColorIdHasher) HashObjectType(type_ rhino.ObjectType) colors.Colo
 
 // Java: JSTypeColorIdHasher.putReferenceNameType(Hasher, ObjectType)
 func (h *JSTypeColorIdHasher) PutReferenceNameType(hasher *jutil.FarmHashFingerprint64Hasher, type_ rhino.ObjectType) {
-	JSTypeColorIdHasher_PutUtf8(hasher, *type_.GetReferenceName())
+	refName, ok := type_.ReferenceName()
+	jutil.CheckState(ok)
+	JSTypeColorIdHasher_PutUtf8(hasher, refName)
 
 	sourceRef := JSTypeColorIdHasher_SourceRefFor(type_)
 	if sourceRef == nil {

@@ -529,9 +529,9 @@ func (c *CheckAccessControls) CheckPackagePropertyVisibility(
 	referenceSource rhino.StaticSourceFile,
 	definingSource rhino.StaticSourceFile) {
 	codingConvention := c.compiler.GetCodingConvention()
-	refPackage := codingConvention.GetPackageName(referenceSource)
-	defPackage := codingConvention.GetPackageName(definingSource)
-	if refPackage == nil || defPackage == nil || *refPackage != *defPackage {
+	refPackage, refOk := codingConvention.GetPackageName(referenceSource)
+	defPackage, defOk := codingConvention.GetPackageName(definingSource)
+	if !refOk || !defOk || refPackage != defPackage {
 		c.compiler.Report(
 			JSError_MakeWithNode(
 				propRef.sourceNode,

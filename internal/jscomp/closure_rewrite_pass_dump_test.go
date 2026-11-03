@@ -326,7 +326,7 @@ func (d *closureRewriteDump) dump(header string, inputs []*SourceFile) {
 	})
 	for _, allowNonGlobalExports := range []bool{false, true} {
 		d.pass(inputs, parseDiags, "generateExports nonGlobal="+strconv.FormatBool(allowNonGlobalExports), func(compiler *Compiler, externs rhino.Node, js rhino.Node, extra *[]string) {
-			g := NewGenerateExports(compiler, allowNonGlobalExports, jutil.StringPtr("goog.exportSymbol"), jutil.StringPtr("goog.exportProperty"))
+			g := NewGenerateExports(compiler, allowNonGlobalExports, "goog.exportSymbol", "goog.exportProperty")
 			g.Process(externs, js)
 			*extra = append(*extra, "exported "+g.GetExportedVariableNames().String())
 		})

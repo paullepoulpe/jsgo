@@ -73,3 +73,10 @@ func Fact_SimpleFact(key string) Fact {
 func show(v any) string {
 	return testjunit.Show(v)
 }
+
+func optStr(s string, ok bool) any {
+	if !ok {
+		return nil
+	}
+	return s
+}

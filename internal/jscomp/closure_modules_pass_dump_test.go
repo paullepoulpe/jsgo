@@ -242,9 +242,7 @@ func (d *closureModulesDump) dumpFile(rel string, src string, sampled bool) {
 		NewProcessTweaks(compiler, true).Process(externs, js)
 	})
 	d.pass(rel, src, parseDiags, "exportTestFunctions", func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
-		exportSymbol := "goog.exportSymbol"
-		exportProperty := "goog.exportProperty"
-		NewExportTestFunctions(compiler, &exportSymbol, &exportProperty).Process(externs, js)
+		NewExportTestFunctions(compiler, "goog.exportSymbol", "goog.exportProperty").Process(externs, js)
 	})
 	for _, allowLocalExports := range []bool{false, true} {
 		d.pass(rel, src, parseDiags, "findExportableNodes local="+strconv.FormatBool(allowLocalExports), func(compiler *Compiler, externs, js rhino.Node, extra *[]string) {
@@ -290,7 +288,7 @@ func (d *closureModulesDump) conventions(js rhino.Node) {
 	closureModulesLine(sb, "## conventions")
 	c := CodingConventions_GetDefault()
 	for script := js.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-		closureModulesLine(sb, "package "+jutil.ToJavaString(c.GetPackageName(script.GetStaticSourceFile())))
+		closureModulesLine(sb, "package "+jutil.FormatOptionalString(c.GetPackageName(script.GetStaticSourceFile())))
 	}
 	NodeUtil_VisitPreOrder(js, func(n rhino.Node) { d.conventionsAt(c, n) })
 }

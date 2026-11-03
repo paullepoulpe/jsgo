@@ -204,7 +204,7 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *OrderedSet[s
 			parent = scopeIndex[s.GetParent().GetRootNode()]
 		}
 		out = append(out, fmt.Sprintf("S %d %d %s %s:%d:%d",
-			i, parent, r.GetToken(), jutil.ToJavaString(r.GetSourceFileName()), r.GetLineno(), r.GetCharno()))
+			i, parent, r.GetToken(), jutil.FormatOptionalString(r.SourceFileName()), r.GetLineno(), r.GetCharno()))
 		for v := range s.GetVarIterable() {
 			line := typedScopeDump_varLine(v)
 			if i == 0 && baseline != nil && baseline.Contains(line) {
@@ -220,7 +220,7 @@ func typedScopeDump(externs string, inputs []*SourceFile, baseline *OrderedSet[s
 		if isGlobal {
 			rowLabel = "GLOBAL"
 		} else {
-			rowLabel = jutil.ToJavaString(rowKey.GetSourceFileName()) + ":" + typedScopeDump_pos(rowKey)
+			rowLabel = jutil.FormatOptionalString(rowKey.SourceFileName()) + ":" + typedScopeDump_pos(rowKey)
 			if _, ok := scopeIndex[rowKey]; !ok {
 				rowLabel += "!"
 			}
@@ -285,7 +285,7 @@ func typedScopeDump_nodeTypes(out []string, n rhino.Node) []string {
 	type_ := n.GetJSType()
 	if type_ != nil && !typedScopeDump_isLiteral(n.GetToken()) {
 		out = append(out, fmt.Sprintf("N %s %s:%d:%d | %s", n.GetToken(),
-			jutil.ToJavaString(n.GetSourceFileName()), n.GetLineno(), n.GetCharno(), typedScopeDump_typeString(type_)))
+			jutil.FormatOptionalString(n.SourceFileName()), n.GetLineno(), n.GetCharno(), typedScopeDump_typeString(type_)))
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		out = typedScopeDump_nodeTypes(out, c)

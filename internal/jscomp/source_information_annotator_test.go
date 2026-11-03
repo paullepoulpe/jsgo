@@ -40,17 +40,17 @@ func TestSourceInformationAnnotatorTest(t *testing.T) {
 }
 
 func sourceInformationAnnotatorTestOriginalName(n rhino.Node) string {
-	if n.GetOriginalName() == nil {
+	orig, ok := n.OriginalName()
+	if !ok {
 		return "<null>"
 	}
-	return *n.GetOriginalName()
+	return orig
 }
 
 func (c *SourceInformationAnnotatorTest) TestPreserveAnnotatedName() {
 	root := rhino.NewNode(rhino.Token_SCRIPT)
 	name := rhino.Node_NewString("foo")
-	bar := "bar"
-	name.SetOriginalName(&bar)
+	name.SetOriginalNameString("bar")
 	root.AddChildToBack(name)
 
 	NodeTraversal_Traverse(NewCompiler(), root, SourceInformationAnnotator_Create())
@@ -94,7 +94,7 @@ func (c *SourceInformationAnnotatorTest) TestDoesNotSetOriginalStringName() {
 	// No need for the original name because strings are almost never
 	// mangled by JSCompiler and source information mapping "identifier"s
 	// don't care about raw strings.
-	if string_.GetOriginalName() != nil {
-		c.t.Errorf("original name: got %s, want null", *string_.GetOriginalName())
+	if orig, ok := string_.OriginalName(); ok {
+		c.t.Errorf("original name: got %s, want null", orig)
 	}
 }

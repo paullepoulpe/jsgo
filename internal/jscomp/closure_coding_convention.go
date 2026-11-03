@@ -38,12 +38,13 @@ var ClosureCodingConvention_OBJECTLIT_EXPECTED = DiagnosticType_Warning(
 	"JSC_REFLECT_OBJECTLIT_EXPECTED",
 	"Object literal expected as second argument")
 
-const closureAbstractMethodName = "goog.abstractMethod"
-
-var (
+const (
+	closureAbstractMethodName     = "goog.abstractMethod"
 	closureExportPropertyFunction = "goog.exportProperty"
 	closureExportSymbolFunction   = "goog.exportSymbol"
+)
 
+var (
 	googForwardDeclareQ               = rhino.QualifiedName_Of("goog.forwardDeclare")
 	googAddSingletonGetterQ           = rhino.QualifiedName_Of("goog.addSingletonGetter")
 	googAddSingletonGetterMangledQ    = rhino.QualifiedName_Of("goog$addSingletonGetter")
@@ -218,12 +219,12 @@ func extractGoogCallPropAndArg(node rhino.Node, parent rhino.Node) (string, stri
 	return callee.Property(), target.Value(), true
 }
 
-func (c *ClosureCodingConvention) GetExportPropertyFunction() *string {
-	return &closureExportPropertyFunction
+func (c *ClosureCodingConvention) GetExportPropertyFunction() (string, bool) {
+	return closureExportPropertyFunction, true
 }
 
-func (c *ClosureCodingConvention) GetExportSymbolFunction() *string {
-	return &closureExportSymbolFunction
+func (c *ClosureCodingConvention) GetExportSymbolFunction() (string, bool) {
+	return closureExportSymbolFunction, true
 }
 
 func (c *ClosureCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) (string, bool) {

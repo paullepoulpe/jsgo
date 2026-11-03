@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/args4j"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -65,10 +66,11 @@ type commandLineRunner_Flags struct {
 	externs                            []string
 	js                                 []string
 	unusedJsZip                        []string
+	unusedOptString                    string
 	jsOutputFile                       string
 	chunk                              []string
-	filenameToSaveTo                   *string
-	filenameToRestoreFrom              *string
+	filenameToSaveTo                   base.OptString
+	filenameToRestoreFrom              base.OptString
 	segmentOfCompilationToRun          jscomp.CompilerOptions_SegmentOfCompilationToRun
 	variableMapOutputFile              string
 	instrumentationMappingOutputFile   string
@@ -96,6 +98,8 @@ type commandLineRunner_Flags struct {
 	compilationLevel                   string
 	numParallelThreads                 int
 	fastMode                           bool
+	binarySaveState                    bool
+	persistentWorker                   bool
 	maxOptimizationLoopIterations      int
 	checksOnly                         bool
 	incrementalCheckMode               jscomp.CompilerOptions_IncrementalCheckMode
@@ -104,7 +108,7 @@ type commandLineRunner_Flags struct {
 	assumeFunctionWrapper              bool
 	warningLevel                       jscomp.WarningLevel
 	debug                              bool
-	typedAstOutputFile                 *string
+	typedAstOutputFile                 base.OptString
 	generateExports                    bool
 	exportLocalPropertyDefinitions     bool
 	formatting                         []CommandLineRunner_FormattingOption
@@ -122,14 +126,14 @@ type commandLineRunner_Flags struct {
 	languageOut                        string
 	version                            bool
 	translationsFile                   string
-	translationsProject                *string
+	translationsProject                base.OptString
 	flagFiles                          []string
 	warningsAllowlistFile              string
 	hideWarningsFor                    []string
 	extraAnnotationName                []string
 	tracerMode                         jscomp.CompilerOptions_TracerMode
-	renamePrefix                       *string
-	renamePrefixNamespace              *string
+	renamePrefix                       base.OptString
+	renamePrefixNamespace              base.OptString
 	conformanceConfigs                 []string
 	environment                        jscomp.CompilerOptions_Environment
 	jsonStreamMode                     jscomp.CompilerOptions_JsonStreamMode
@@ -143,7 +147,7 @@ type commandLineRunner_Flags struct {
 	printSourceAfterEachPass           bool
 	moduleResolutionMode               jscomp.ModuleLoader_ResolutionMode
 	browserResolverPrefixReplacements  *jutil.OrderedMap[string, *string]
-	packageJsonEntryNames              *string
+	packageJsonEntryNames              base.OptString
 	errorFormat                        AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption
 	renaming                           bool
 	helpMarkdown                       bool
@@ -151,7 +155,7 @@ type commandLineRunner_Flags struct {
 	productionInstrumentationArrayName string
 	chunkOutputType                    jscomp.CompilerOptions_ChunkOutputType
 	allowDynamicImport                 bool
-	dynamicImportAlias                 *string
+	dynamicImportAlias                 base.OptString
 	assumeStaticInheritanceIsNotUsed   bool
 	assumeNoPrototypeMethodEnumeration bool
 	variableMapInputFile               string
@@ -280,10 +284,10 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.String(&f.jsOutputFile)},
 		{Option: &args4j.Option{Name: "--chunk", Usage: "A JavaScript chunk specification. The format is <name>:<num-js-files>[:[<dep>,...][:]]]. Chunk names must be unique. Each dep is the name of a chunk that this chunk depends on. Chunks must be listed in dependency order, and JS source files must be listed in the corresponding order. Where --chunk flags occur in relation to --js flags is unimportant. <num-js-files> may be set to 'auto' for the first chunk if it has no dependencies. Provide the value 'auto' to trigger chunk creation from CommonJS modules."},
 			Field: args4j.StringSlice(&f.chunk)},
-		{Option: &args4j.Option{Name: "--filename_to_save_to", Hidden: true, Usage: "Filename to save state so that the compilation can be resumed later."},
-			Field: args4j.NullableString(&f.filenameToSaveTo)},
-		{Option: &args4j.Option{Name: "--filename_to_restore_from", Hidden: true, Usage: "Filename where a compilation state was previously saved."},
-			Field: args4j.NullableString(&f.filenameToRestoreFrom)},
+		{Option: &args4j.Option{Name: "--filename_to_save_to", Hidden: true, Handler: newOptStringOptionHandler(&f.filenameToSaveTo), Usage: "Filename to save state so that the compilation can be resumed later."},
+			Field: args4j.String(&f.unusedOptString)},
+		{Option: &args4j.Option{Name: "--filename_to_restore_from", Hidden: true, Handler: newOptStringOptionHandler(&f.filenameToRestoreFrom), Usage: "Filename where a compilation state was previously saved."},
+			Field: args4j.String(&f.unusedOptString)},
 		{Option: &args4j.Option{Name: "--segment_of_compilation_to_run", Hidden: true, Usage: "Which segment of the compilation to run."},
 			Field: args4j.ScalarField(commandLineRunner_CompilerOptions_SegmentOfCompilationToRun_class, &f.segmentOfCompilationToRun)},
 		{Option: &args4j.Option{Name: "--variable_renaming_report", Usage: "File where the serialized version of the variable renaming map produced should be saved"},
@@ -338,6 +342,10 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.Int(&f.numParallelThreads)},
 		{Option: &args4j.Option{Name: "--fast_mode", Hidden: true, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Enable Go-to-Go deterministic fast mode."},
 			Field: args4j.Bool(&f.fastMode)},
+		{Option: &args4j.Option{Name: "--binary_save_state", Hidden: true, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Write flat binary compiler state snapshots in --filename_to_save_to."},
+			Field: args4j.Bool(&f.binarySaveState)},
+		{Option: &args4j.Option{Name: "--persistent_worker", Hidden: true, Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Run as a Bazel JSON persistent worker reading WorkRequests from stdin."},
+			Field: args4j.Bool(&f.persistentWorker)},
 		// Go-only: CompilerOptions.setMaxOptimizationLoopIterations, which Java's CLI does not
 		// expose. The output is Java's with that option set (tools/bench/java/MaxLoopRunner.java).
 		{Option: &args4j.Option{Name: "--max_optimization_loop_iterations", Hidden: true, Handler: args4j.NewIntOptionHandler, Usage: "Stop each code-removal optimization loop after this many iterations (0: no limit)."},
@@ -356,8 +364,8 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.ScalarField(commandLineRunner_WarningLevel_class, &f.warningLevel)},
 		{Option: &args4j.Option{Name: "--debug", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Enable debugging options. Property renaming uses long mangled names which can be mapped back to the original name."},
 			Field: args4j.Bool(&f.debug)},
-		{Option: &args4j.Option{Name: "--typed_ast_output_file", Hidden: true, Usage: "Sets file to output in-progress typedAST format. DO NOT USE!"},
-			Field: args4j.NullableString(&f.typedAstOutputFile)},
+		{Option: &args4j.Option{Name: "--typed_ast_output_file", Hidden: true, Handler: newOptStringOptionHandler(&f.typedAstOutputFile), Usage: "Sets file to output in-progress typedAST format. DO NOT USE!"},
+			Field: args4j.String(&f.unusedOptString)},
 		{Option: &args4j.Option{Name: "--generate_exports", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Generates export code for those marked with @export"},
 			Field: args4j.Bool(&f.generateExports)},
 		{Option: &args4j.Option{Name: "--export_local_property_definitions", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Generates export code for local properties marked with @export"},
@@ -392,8 +400,8 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.Bool(&f.version)},
 		{Option: &args4j.Option{Name: "--translations_file", Hidden: true, Usage: "Source of translated messages. Currently only supports XTB."},
 			Field: args4j.String(&f.translationsFile)},
-		{Option: &args4j.Option{Name: "--translations_project", Hidden: true, Usage: "Scopes all translations to the specified project.When specified, we will use different message ids so that messages in different projects can have different translations."},
-			Field: args4j.NullableString(&f.translationsProject)},
+		{Option: &args4j.Option{Name: "--translations_project", Hidden: true, Handler: newOptStringOptionHandler(&f.translationsProject), Usage: "Scopes all translations to the specified project.When specified, we will use different message ids so that messages in different projects can have different translations."},
+			Field: args4j.String(&f.unusedOptString)},
 		{Option: &args4j.Option{Name: "--flagfile", Hidden: true, Usage: "A file (or files) containing additional command-line options."},
 			Field: args4j.StringSlice(&f.flagFiles)},
 		{Option: &args4j.Option{Name: "--warnings_allowlist_file", Aliases: []string{"--warnings_whitelist_file"}, Usage: "A file containing warnings to suppress. Each line should be of the form\n<file-name>:<line-number>?  <warning-description>"},
@@ -404,10 +412,10 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.StringSlice(&f.extraAnnotationName)},
 		{Option: &args4j.Option{Name: "--tracer_mode", Hidden: true, Usage: "Shows the duration of each compiler pass and the impact to the compiled output size. Options: ALL, AST_SIZE, RAW_SIZE, TIMING_ONLY, OFF"},
 			Field: args4j.ScalarField(commandLineRunner_CompilerOptions_TracerMode_class, &f.tracerMode)},
-		{Option: &args4j.Option{Name: "--rename_variable_prefix", Usage: "Specifies a prefix that will be prepended to all variables."},
-			Field: args4j.NullableString(&f.renamePrefix)},
-		{Option: &args4j.Option{Name: "--rename_prefix_namespace", Usage: "Specifies the name of an object that will be used to store all non-extern globals"},
-			Field: args4j.NullableString(&f.renamePrefixNamespace)},
+		{Option: &args4j.Option{Name: "--rename_variable_prefix", Handler: newOptStringOptionHandler(&f.renamePrefix), Usage: "Specifies a prefix that will be prepended to all variables."},
+			Field: args4j.String(&f.unusedOptString)},
+		{Option: &args4j.Option{Name: "--rename_prefix_namespace", Handler: newOptStringOptionHandler(&f.renamePrefixNamespace), Usage: "Specifies the name of an object that will be used to store all non-extern globals"},
+			Field: args4j.String(&f.unusedOptString)},
 		{Option: &args4j.Option{Name: "--conformance_configs", Usage: "A list of JS Conformance configurations in text protocol buffer format."},
 			Field: args4j.StringSlice(&f.conformanceConfigs)},
 		{Option: &args4j.Option{Name: "--env", Usage: "Determines the set of builtin externs to load. Options: BROWSER, CUSTOM. Defaults to BROWSER."},
@@ -434,8 +442,8 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.ScalarField(commandLineRunner_ModuleLoader_ResolutionMode_class, &f.moduleResolutionMode)},
 		{Option: &args4j.Option{Name: "--browser_resolver_prefix_replacements", Usage: "Prefixes to replace in ES6 import paths before resolving. module_resolution must be BROWSER_WITH_TRANSFORMED_PREFIXES to take effect."},
 			Field: args4j.OrderedStringMap(&f.browserResolverPrefixReplacements)},
-		{Option: &args4j.Option{Name: "--package_json_entry_names", Usage: "Ordered list of entries to look for in package.json files when processing modules with the NODE module resolution strategy (i.e. esnext:main,browser,main). Defaults to a list with the following entries: \"browser\", \"module\", \"main\"."},
-			Field: args4j.NullableString(&f.packageJsonEntryNames)},
+		{Option: &args4j.Option{Name: "--package_json_entry_names", Handler: newOptStringOptionHandler(&f.packageJsonEntryNames), Usage: "Ordered list of entries to look for in package.json files when processing modules with the NODE module resolution strategy (i.e. esnext:main,browser,main). Defaults to a list with the following entries: \"browser\", \"module\", \"main\"."},
+			Field: args4j.String(&f.unusedOptString)},
 		{Option: &args4j.Option{Name: "--error_format", Usage: "Specifies format for error messages."},
 			Field: args4j.ScalarField(commandLineRunner_AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_class, &f.errorFormat)},
 		{Option: &args4j.Option{Name: "--renaming", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Disables variable renaming. Cannot be used with ADVANCED optimizations."},
@@ -450,8 +458,8 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 			Field: args4j.ScalarField(commandLineRunner_CompilerOptions_ChunkOutputType_class, &f.chunkOutputType)},
 		{Option: &args4j.Option{Name: "--allow_dynamic_import", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Indicates that the compiler should allow dynamic import expressions. Dynamic import expressions are not yet fully supported and may lead to broken output code."},
 			Field: args4j.Bool(&f.allowDynamicImport)},
-		{Option: &args4j.Option{Name: "--dynamic_import_alias", Usage: "Instructs the compiler to replace dynamic imports expressions with a function call using the specified name. Allows dynamic import expressions to be externally polyfilled when the output language level does not natively support them. An alias of 'import' is allowed."},
-			Field: args4j.NullableString(&f.dynamicImportAlias)},
+		{Option: &args4j.Option{Name: "--dynamic_import_alias", Handler: newOptStringOptionHandler(&f.dynamicImportAlias), Usage: "Instructs the compiler to replace dynamic imports expressions with a function call using the specified name. Allows dynamic import expressions to be externally polyfilled when the output language level does not natively support them. An alias of 'import' is allowed."},
+			Field: args4j.String(&f.unusedOptString)},
 		{Option: &args4j.Option{Name: "--assume_static_inheritance_is_not_used", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Assume that static (class-side) inheritance is not being used and that static methods will not be referenced via `this` or through subclasses. This enables optimizations that could break code that did those things."},
 			Field: args4j.Bool(&f.assumeStaticInheritanceIsNotUsed)},
 		{Option: &args4j.Option{Name: "--assume_no_prototype_method_enumeration", Handler: newCommandLineRunner_Flags_BooleanOptionHandler, Usage: "Assume that prototype method enumeration is not being used. This allows the compiler to move a prototype method declaration into a deeper chunk without creating stub functions in a parent chunk."},
@@ -947,7 +955,23 @@ func (f *commandLineRunner_Flags) trySplitPipeParts(input []string, flagName str
 func (f *commandLineRunner_Flags) GetPackageJsonEntryNames() []string {
 	// Go-only: language-adapter — Guava Splitter.on(',') is strings.Split on
 	// the ASCII separator.
-	return strings.Split(*f.packageJsonEntryNames, ",")
+	return strings.Split(f.packageJsonEntryNames.ValueOrEmpty(), ",")
+}
+
+type optStringFlagSetter struct {
+	target *base.OptString
+}
+
+func (*optStringFlagSetter) IsMultiValued() bool { return false }
+func (*optStringFlagSetter) DefaultHandler() args4j.OptionHandlerClass {
+	return args4j.NewStringOptionHandler
+}
+func (s *optStringFlagSetter) AddTypedValue(v string) { *s.target = base.SomeString(v) }
+
+func newOptStringOptionHandler(target *base.OptString) args4j.OptionHandlerClass {
+	return func(parser *args4j.CmdLineParser, option *args4j.OptionDef, _ args4j.Setter) *args4j.OptionHandler {
+		return args4j.NewStringOptionHandler(parser, option, &optStringFlagSetter{target: target})
+	}
 }
 
 // commandLineRunner_Flags_BooleanOptionHandler is our own option parser to

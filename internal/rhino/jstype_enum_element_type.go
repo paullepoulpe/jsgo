@@ -189,16 +189,13 @@ func (t *EnumElementType) HasReferenceName() bool {
 }
 
 // ReferenceName returns the enum element reference name without allocating a *string.
+//
+// Java: EnumElementType.getReferenceName()
 func (t *EnumElementType) ReferenceName() (string, bool) {
 	if t.nameID == 0 {
 		return "", false
 	}
 	return strpool.String(t.nameID), true
-}
-
-// Java: EnumElementType.getReferenceName()
-func (t *EnumElementType) GetReferenceName() *string {
-	return strpool.StringPtr(t.nameID)
 }
 
 // Java: EnumElementType.defineProperty(Property.Key, JSType, boolean, Node)

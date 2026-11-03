@@ -37,7 +37,6 @@ package rhino
 
 import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // NamedType is a named reference to some other type. This provides a
@@ -210,16 +209,13 @@ func (t *NamedType) GetReferencedType() JSType {
 }
 
 // ReferenceName returns the unresolved/named reference name without allocating a *string.
+//
+// Java: NamedType.getReferenceName()
 func (t *NamedType) ReferenceName() (string, bool) {
 	if t.referenceID == 0 {
 		return "", false
 	}
 	return rhinoStringFromID(t.referenceID), true
-}
-
-// Java: NamedType.getReferenceName()
-func (t *NamedType) GetReferenceName() *string {
-	return strpool.StringPtr(t.referenceID)
 }
 
 func (t *NamedType) referenceString() string {

@@ -225,7 +225,7 @@ func NewProperty_StringKeyByID(id uint32) Property_Key {
 // queries without interning unseen ASCII strings.
 func propertyKeyLookup(s string) Property_Key {
 	id := strpool.Lookup(s)
-	if id == 0 && !propMapIsASCII(s) {
+	if id == 0 && !jutil.IsASCII(s) {
 		id = rhinoStringPoolIntern(s)
 	}
 	return Property_Key{stringID: id}

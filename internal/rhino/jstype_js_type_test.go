@@ -77,6 +77,13 @@ func newJsTypeTest(t *testing.T) *jsTypeTest {
 	return s
 }
 
+func optStr(s string, ok bool) any {
+	if !ok {
+		return nil
+	}
+	return s
+}
+
 /**
 * A non exhaustive list of representative types used to test simple properties that should hold
 * for all types (such as the reflexivity of subtyping).
@@ -290,7 +297,7 @@ func TestJSType_UniversalConstructorType(t *testing.T) {
 	// toString
 	s.AssertThat(s.FUNCTION_TYPE.String()).IsEqualTo("Function")
 	s.AssertThat(s.FUNCTION_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.FUNCTION_TYPE.GetDisplayName()).IsEqualTo("Function")
+	s.AssertThat(optStr(s.FUNCTION_TYPE.DisplayName())).IsEqualTo("Function")
 
 	// getPropertyType
 	s.AssertTypeEquals(s.UNKNOWN_TYPE, s.FUNCTION_TYPE.GetPropertyType("anyProperty"))
@@ -415,7 +422,7 @@ func TestJSType_NoObjectType(t *testing.T) {
 	// toString
 	s.AssertThat(s.NO_OBJECT_TYPE.String()).IsEqualTo("NoObject")
 	s.AssertThat(s.NO_OBJECT_TYPE.HasDisplayName()).IsFalse()
-	s.AssertThat(s.NO_OBJECT_TYPE.GetDisplayName()).IsNull()
+	s.AssertThat(optStr(s.NO_OBJECT_TYPE.DisplayName())).IsNull()
 
 	// getPropertyType
 	s.AssertTypeEquals(s.NO_TYPE,
@@ -535,7 +542,7 @@ func TestJSType_NoType(t *testing.T) {
 
 	// toString
 	s.AssertThat(s.NO_TYPE.String()).IsEqualTo("None")
-	s.AssertThat(s.NO_TYPE.GetDisplayName()).IsNull()
+	s.AssertThat(optStr(s.NO_TYPE.DisplayName())).IsNull()
 	s.AssertThat(s.NO_TYPE.HasDisplayName()).IsFalse()
 
 	// getPropertyType
@@ -658,7 +665,7 @@ func TestJSType_NoResolvedType(t *testing.T) {
 
 	// toString
 	s.AssertThat(noResolvedFooType.String()).IsEqualTo("NoResolvedType<Foo>")
-	s.AssertThat(noResolvedFooType.GetDisplayName()).IsEqualTo("Foo")
+	s.AssertThat(optStr(noResolvedFooType.DisplayName())).IsEqualTo("Foo")
 	s.AssertThat(noResolvedFooType.HasDisplayName()).IsTrue()
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, noResolvedFooType)
@@ -822,7 +829,7 @@ func TestJSType_ArrayType(t *testing.T) {
 	// toString
 	s.AssertThat(s.ARRAY_TYPE.String()).IsEqualTo("Array")
 	s.AssertThat(s.ARRAY_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.ARRAY_TYPE.GetDisplayName()).IsEqualTo("Array")
+	s.AssertThat(optStr(s.ARRAY_TYPE.DisplayName())).IsEqualTo("Array")
 
 	s.AssertThat(s.ARRAY_TYPE.IsNativeObjectType()).IsTrue()
 
@@ -939,7 +946,7 @@ func TestJSType_UnknownType(t *testing.T) {
 	// toString
 	s.AssertThat(s.UNKNOWN_TYPE.String()).IsEqualTo("?")
 	s.AssertThat(s.UNKNOWN_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.UNKNOWN_TYPE.GetDisplayName()).IsEqualTo("Unknown")
+	s.AssertThat(optStr(s.UNKNOWN_TYPE.DisplayName())).IsEqualTo("Unknown")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.UNKNOWN_TYPE)
 	s.AssertThat(s.UNKNOWN_TYPE.IsNominalConstructorOrInterface()).IsFalse()
@@ -956,7 +963,7 @@ func TestJSType_CheckedUnknownType(t *testing.T) {
 	// toString
 	s.AssertThat(s.CHECKED_UNKNOWN_TYPE.String()).IsEqualTo("??")
 	s.AssertThat(s.CHECKED_UNKNOWN_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.CHECKED_UNKNOWN_TYPE.GetDisplayName()).IsEqualTo("Unknown")
+	s.AssertThat(optStr(s.CHECKED_UNKNOWN_TYPE.DisplayName())).IsEqualTo("Unknown")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.CHECKED_UNKNOWN_TYPE)
 	s.AssertThat(s.CHECKED_UNKNOWN_TYPE.IsNominalConstructorOrInterface()).IsFalse()
@@ -1084,7 +1091,7 @@ func TestJSType_AllType(t *testing.T) {
 	s.AssertThat(s.ALL_TYPE.String()).IsEqualTo("*")
 
 	s.AssertThat(s.ALL_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.ALL_TYPE.GetDisplayName()).IsEqualTo("<Any Type>")
+	s.AssertThat(optStr(s.ALL_TYPE.DisplayName())).IsEqualTo("<Any Type>")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.ALL_TYPE)
 	s.AssertThat(s.ALL_TYPE.IsNominalConstructorOrInterface()).IsFalse()
@@ -1374,7 +1381,7 @@ func TestJSType_NumberObjectType(t *testing.T) {
 	// toString
 	s.AssertThat(s.NUMBER_OBJECT_TYPE.String()).IsEqualTo("Number")
 	s.AssertThat(s.NUMBER_OBJECT_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.NUMBER_OBJECT_TYPE.GetDisplayName()).IsEqualTo("Number")
+	s.AssertThat(optStr(s.NUMBER_OBJECT_TYPE.DisplayName())).IsEqualTo("Number")
 
 	s.AssertThat(s.NUMBER_OBJECT_TYPE.IsNativeObjectType()).IsTrue()
 
@@ -1505,7 +1512,7 @@ func TestJSType_NumberValueType(t *testing.T) {
 	// toString
 	s.AssertThat(s.NUMBER_TYPE.String()).IsEqualTo("number")
 	s.AssertThat(s.NUMBER_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.NUMBER_TYPE.GetDisplayName()).IsEqualTo("number")
+	s.AssertThat(optStr(s.NUMBER_TYPE.DisplayName())).IsEqualTo("number")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.NUMBER_TYPE)
 	s.AssertThat(s.NUMBER_TYPE.IsNominalConstructorOrInterface()).IsFalse()
@@ -1649,7 +1656,7 @@ func TestJSType_NullType(t *testing.T) {
 	// toString
 	s.AssertThat(s.NULL_TYPE.String()).IsEqualTo("null")
 	s.AssertThat(s.NULL_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.NULL_TYPE.GetDisplayName()).IsEqualTo("null")
+	s.AssertThat(optStr(s.NULL_TYPE.DisplayName())).IsEqualTo("null")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.NULL_TYPE)
 
@@ -1861,7 +1868,7 @@ func TestJSType_DateType(t *testing.T) {
 	// toString
 	s.AssertThat(s.DATE_TYPE.String()).IsEqualTo("Date")
 	s.AssertThat(s.DATE_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.DATE_TYPE.GetDisplayName()).IsEqualTo("Date")
+	s.AssertThat(optStr(s.DATE_TYPE.DisplayName())).IsEqualTo("Date")
 
 	s.AssertThat(s.DATE_TYPE.IsNativeObjectType()).IsTrue()
 
@@ -2000,7 +2007,7 @@ func TestJSType_RegExpType(t *testing.T) {
 	// toString
 	s.AssertThat(s.REGEXP_TYPE.String()).IsEqualTo("RegExp")
 	s.AssertThat(s.REGEXP_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.REGEXP_TYPE.GetDisplayName()).IsEqualTo("RegExp")
+	s.AssertThat(optStr(s.REGEXP_TYPE.DisplayName())).IsEqualTo("RegExp")
 
 	s.AssertThat(s.REGEXP_TYPE.IsNativeObjectType()).IsTrue()
 
@@ -2158,7 +2165,7 @@ func TestJSType_StringObjectType(t *testing.T) {
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.STRING_OBJECT_TYPE)
 
 	s.AssertThat(s.STRING_OBJECT_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.STRING_OBJECT_TYPE.GetDisplayName()).IsEqualTo("String")
+	s.AssertThat(optStr(s.STRING_OBJECT_TYPE.DisplayName())).IsEqualTo("String")
 	s.AssertThat(s.STRING_OBJECT_TYPE.IsNominalConstructorOrInterface()).IsFalse()
 	s.AssertThat(s.STRING_OBJECT_TYPE.GetConstructor().IsNominalConstructorOrInterface()).IsTrue()
 }
@@ -2265,7 +2272,7 @@ func TestJSType_StringValueType(t *testing.T) {
 	// toString
 	s.AssertThat(s.STRING_TYPE.String()).IsEqualTo("string")
 	s.AssertThat(s.STRING_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.STRING_TYPE.GetDisplayName()).IsEqualTo("string")
+	s.AssertThat(optStr(s.STRING_TYPE.DisplayName())).IsEqualTo("string")
 
 	// findPropertyType
 	s.AssertTypeEquals(s.NUMBER_TYPE, s.STRING_TYPE.FindPropertyType("length"))
@@ -2369,7 +2376,7 @@ func TestJSType_SymbolValueType(t *testing.T) {
 	// toString
 	s.AssertThat(s.SYMBOL_TYPE.String()).IsEqualTo("symbol")
 	s.AssertThat(s.SYMBOL_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.SYMBOL_TYPE.GetDisplayName()).IsEqualTo("symbol")
+	s.AssertThat(optStr(s.SYMBOL_TYPE.DisplayName())).IsEqualTo("symbol")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.SYMBOL_TYPE)
 }
@@ -2459,7 +2466,7 @@ func TestJSType_SymbolObjectType(t *testing.T) {
 	// toString
 	s.AssertThat(s.SYMBOL_OBJECT_TYPE.String()).IsEqualTo("Symbol")
 	s.AssertThat(s.SYMBOL_OBJECT_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.SYMBOL_OBJECT_TYPE.GetDisplayName()).IsEqualTo("Symbol")
+	s.AssertThat(optStr(s.SYMBOL_OBJECT_TYPE.DisplayName())).IsEqualTo("Symbol")
 
 	s.AssertThat(s.SYMBOL_OBJECT_TYPE.IsNativeObjectType()).IsTrue()
 
@@ -2701,7 +2708,7 @@ func TestJSType_FunctionType(t *testing.T) {
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.functionType)
 
-	s.AssertThat(FunctionType_Builder_(s.Registry).WithName(ptr("aFunctionName")).Build().GetDisplayName()).
+	s.AssertThat(optStr(FunctionType_Builder_(s.Registry).WithName(ptr("aFunctionName")).Build().DisplayName())).
 		IsEqualTo("aFunctionName")
 }
 
@@ -3489,7 +3496,7 @@ func TestJSType_BooleanValueType(t *testing.T) {
 	// toString
 	s.AssertThat(s.BOOLEAN_TYPE.String()).IsEqualTo("boolean")
 	s.AssertThat(s.BOOLEAN_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.BOOLEAN_TYPE.GetDisplayName()).IsEqualTo("boolean")
+	s.AssertThat(optStr(s.BOOLEAN_TYPE.DisplayName())).IsEqualTo("boolean")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.BOOLEAN_TYPE)
 }
@@ -3577,7 +3584,7 @@ func TestJSType_BooleanObjectType(t *testing.T) {
 	// toString
 	s.AssertThat(s.BOOLEAN_OBJECT_TYPE.String()).IsEqualTo("Boolean")
 	s.AssertThat(s.BOOLEAN_OBJECT_TYPE.HasDisplayName()).IsTrue()
-	s.AssertThat(s.BOOLEAN_OBJECT_TYPE.GetDisplayName()).IsEqualTo("Boolean")
+	s.AssertThat(optStr(s.BOOLEAN_OBJECT_TYPE.DisplayName())).IsEqualTo("Boolean")
 
 	s.AssertThat(s.BOOLEAN_OBJECT_TYPE.IsNativeObjectType()).IsTrue()
 
@@ -3670,14 +3677,14 @@ func TestJSType_EnumType(t *testing.T) {
 	// toString
 	s.AssertThat(enumType.String()).IsEqualTo("enum{Enum}")
 	s.AssertThat(enumType.HasDisplayName()).IsTrue()
-	s.AssertThat(enumType.GetDisplayName()).IsEqualTo("Enum")
+	s.AssertThat(optStr(enumType.DisplayName())).IsEqualTo("Enum")
 
-	s.AssertThat(
+	s.AssertThat(optStr(
 		EnumType_Builder_(s.Registry).
 			SetName(ptr("AnotherEnum")).
 			SetElementType(s.NUMBER_TYPE).
 			Build().
-			GetDisplayName()).
+			DisplayName())).
 		IsEqualTo("AnotherEnum")
 	s.AssertThat(EnumType_Builder_(s.Registry).SetElementType(s.NUMBER_TYPE).Build().HasDisplayName()).
 		IsFalse()
@@ -3770,7 +3777,7 @@ func TestJSType_EnumElementType(t *testing.T) {
 	// toString
 	s.AssertThat(s.elementsType.String()).IsEqualTo("Enum<number>")
 	s.AssertThat(s.elementsType.HasDisplayName()).IsTrue()
-	s.AssertThat(s.elementsType.GetDisplayName()).IsEqualTo("Enum")
+	s.AssertThat(optStr(s.elementsType.DisplayName())).IsEqualTo("Enum")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, s.elementsType)
 }
@@ -3854,9 +3861,9 @@ func TestJSType_ObjectType(t *testing.T) {
 
 	// toString
 	s.AssertThat(objectType.String()).IsEqualTo("{...}")
-	s.AssertThat(objectType.GetDisplayName()).IsNull()
+	s.AssertThat(optStr(objectType.DisplayName())).IsNull()
 	s.AssertType(objectType).GetReferenceNameIsNull()
-	s.AssertThat(PrototypeObjectType_Builder_(s.Registry).SetName(ptr("anObject")).Build().GetDisplayName()).
+	s.AssertThat(optStr(PrototypeObjectType_Builder_(s.Registry).SetName(ptr("anObject")).Build().DisplayName())).
 		IsEqualTo("anObject")
 
 	rhinotesting.Asserts_AssertResolvesToSame(s.T, objectType)

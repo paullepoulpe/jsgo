@@ -45,7 +45,6 @@ import (
 
 var (
 	defaultCodingConvention CodingConvention = &CodingConventions_DefaultCodingConvention{}
-	emptyPackageName                         = ""
 
 	defaultAssertionFunctions = []*CodingConvention_AssertionFunctionSpec{
 		newAssertionSpecPrimitive(
@@ -125,14 +124,13 @@ func (d *CodingConventions_DefaultCodingConvention) IsFunctionCallThatAlwaysThro
 	return false
 }
 
-func (d *CodingConventions_DefaultCodingConvention) GetPackageName(source rhino.StaticSourceFile) *string {
+func (d *CodingConventions_DefaultCodingConvention) GetPackageName(source rhino.StaticSourceFile) (string, bool) {
 	name := source.GetName()
 	lastSlash := strings.LastIndexByte(name, '/')
 	if lastSlash < 0 {
-		return &emptyPackageName
+		return "", true
 	}
-	pkg := name[:lastSlash]
-	return &pkg
+	return name[:lastSlash], true
 }
 
 func (d *CodingConventions_DefaultCodingConvention) IsExportedWithLocal(name string, local bool) bool {
@@ -165,12 +163,12 @@ func (d *CodingConventions_DefaultCodingConvention) IsSuperClassReference(proper
 	return false
 }
 
-func (d *CodingConventions_DefaultCodingConvention) GetExportPropertyFunction() *string {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) GetExportPropertyFunction() (string, bool) {
+	return "", false
 }
 
-func (d *CodingConventions_DefaultCodingConvention) GetExportSymbolFunction() *string {
-	return nil
+func (d *CodingConventions_DefaultCodingConvention) GetExportSymbolFunction() (string, bool) {
+	return "", false
 }
 
 func (d *CodingConventions_DefaultCodingConvention) IdentifyTypeDeclarationCall(n rhino.Node) (string, bool) {

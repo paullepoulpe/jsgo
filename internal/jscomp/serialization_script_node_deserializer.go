@@ -36,6 +36,7 @@ import (
 type ScriptNodeDeserializer struct {
 	sourceFile       *SourceFile
 	scriptBytes      []byte
+	binaryScript     []byte // Go-only: non-nil when loaded from flat binary SaveState
 	sourceMappingURL string
 	colorPoolShard   *ColorPool_ShardView // Optional: nil when absent
 	stringPool       *StringPool
@@ -70,6 +71,9 @@ func (d *ScriptNodeDeserializer) DeserializeNew() rhino.Node {
 // DeserializeNewWithAllocator deserializes a new SCRIPT tree allocating all
 // nodes from alloc (or the current store's global counter when alloc is nil).
 func (d *ScriptNodeDeserializer) DeserializeNewWithAllocator(alloc *rhino.NodeAllocator) rhino.Node {
+	if d.binaryScript != nil {
+		return d.deserializeBinaryWithAllocator(alloc)
+	}
 	r := newScriptNodeDeserializer_Runner(d)
 	r.alloc = alloc
 	return r.Run()

@@ -99,13 +99,16 @@ func (s *SymbolTable_Symbol) GetDeclarationNode() rhino.Node {
 	return s.declaration.GetNode()
 }
 
+// SourceFileName returns the source file name of this symbol's declaration, or
+// ("", false) if absent.
+//
 // Java: SymbolTable.Symbol.getSourceFileName()
-func (s *SymbolTable_Symbol) GetSourceFileName() *string {
+func (s *SymbolTable_Symbol) SourceFileName() (string, bool) {
 	n := s.GetDeclarationNode()
 	if n.IsNil() {
-		return nil
+		return "", false
 	}
-	return n.GetSourceFileName()
+	return n.SourceFileName()
 }
 
 // Java: SymbolTable.Symbol.getPropertyScope()
@@ -175,7 +178,7 @@ func (s *SymbolTable_Symbol) String() string {
 	if !n.IsNil() {
 		lineNo = n.GetLineno()
 	}
-	return s.GetName() + "@" + symbolTable_nullableString(s.GetSourceFileName()) + ":" + strconv.Itoa(lineNo)
+	return s.GetName() + "@" + jutil.FormatOptionalString(s.SourceFileName()) + ":" + strconv.Itoa(lineNo)
 }
 
 // SymbolTable_Reference is a reference.
@@ -224,14 +227,8 @@ func NewSymbolTable_SymbolScope(
 		typeOfThis: typeOfThis,
 		mySymbol:   mySymbol,
 	}
-	if parent == nil {
-		s.scopeDepth = 0
-	} else {
+	if parent != nil {
 		s.scopeDepth = parent.GetScopeDepth() + 1
-	}
-	if parent == nil {
-		s.indexInParent = 0
-	} else {
 		s.indexInParent = parent.numberOfChildScopes
 		parent.numberOfChildScopes++
 	}
@@ -297,17 +294,11 @@ func (s *SymbolTable_SymbolScope) GetQualifiedSlot(name string) *SymbolTable_Sym
 
 // Java: SymbolTable.SymbolScope.getSlot(String)
 func (s *SymbolTable_SymbolScope) GetSlot(name string) *SymbolTable_Symbol {
-	own := s.GetOwnSlot(name)
-	if own != nil {
+	if own := s.GetOwnSlot(name); own != nil {
 		return own
 	}
-
-	var ancestor *SymbolTable_Symbol
 	if s.parent != nil {
-		ancestor = s.parent.GetSlot(name)
-	}
-	if ancestor != nil {
-		return ancestor
+		return s.parent.GetSlot(name)
 	}
 	return nil
 }
@@ -379,7 +370,7 @@ func (s *SymbolTable_SymbolScope) String() string {
 		} else if s.IsLexicalScope() {
 			type_ = "LexicalScope"
 		}
-		return type_ + "@" + symbolTable_nullableString(n.GetSourceFileName()) + ":" + strconv.Itoa(n.GetLineno())
+		return type_ + "@" + jutil.FormatOptionalString(n.SourceFileName()) + ":" + strconv.Itoa(n.GetLineno())
 	} else {
 		sym := "null"
 		if s.GetSymbolForScope() != nil {

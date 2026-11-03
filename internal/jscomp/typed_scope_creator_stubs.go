@@ -22,9 +22,17 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
+
+func optStringOf(s string, ok bool) base.OptString {
+	if !ok {
+		return base.NoString()
+	}
+	return base.SomeString(s)
+}
 
 // AssertDefinitionNode asserts that it's OK to define this node's name. The
 // node should have a source name and be of the specified type.
@@ -125,7 +133,7 @@ func (b *TypedScopeCreator_scopeBuilder) DefineVarChild(declarationInfo *rhino.J
 			if objPat, ok := ast.AsObjectPattern(pattern); ok {
 				for prop := range objPat.Props() {
 					if sk, ok := prop.AsStringKey(); ok {
-						b.DefineModuleImport(sk.Value().Node(), defaultImport, jutil.StringPtr(sk.Key()), scope)
+						b.DefineModuleImport(sk.Value().Node(), defaultImport, base.SomeString(sk.Key()), scope)
 					}
 				}
 			}
@@ -235,8 +243,8 @@ func (b *TypedScopeCreator_scopeBuilder) DefineClassLiteral(n rhino.Node) {
 	// Any of these may be null.
 	lValue := NodeUtil_GetBestLValue(n)
 	info := NodeUtil_GetBestJSDocInfo(n)
-	className := NodeUtil_GetBestLValueName(lValue)
-	classTypeIdentifier := b.GetBestTypeName(lValue, className)
+	className, hasClassName := NodeUtil_BestLValueName(lValue)
+	classTypeIdentifier := b.bestTypeNameString(lValue, className)
 
 	// Create the type and assign it on the CLASS node.
 	classType := b.CreateClassTypeFromNodes(n, classTypeIdentifier, className, info, lValue)
@@ -246,10 +254,12 @@ func (b *TypedScopeCreator_scopeBuilder) DefineClassLiteral(n rhino.Node) {
 	// declaration. Otherwise, the declaration will happen in other
 	// code paths.
 	if NodeUtil_IsClassDeclaration(n) {
-		jutil.CheckNotNull(className)
+		if !hasClassName {
+			panic(jutil.NewNullPointerException())
+		}
 		b.defineSlot(typedScopeSlotSpec{
 			declNode:                ast.MustClass(n).NameNode(),
-			varName:                 *className,
+			varName:                 className,
 			scope:                   b.currentScope,
 			type_:                   classType,
 			allowLaterTypeInference: classType == nil,
@@ -258,12 +268,13 @@ func (b *TypedScopeCreator_scopeBuilder) DefineClassLiteral(n rhino.Node) {
 }
 
 // Java: TypedScopeCreator.AbstractScopeBuilder.getBestTypeName(Node, String)
-func (b *TypedScopeCreator_scopeBuilder) GetBestTypeName(lvalue rhino.Node, syntacticLvalueName *string) *string {
-	if syntacticLvalueName == nil {
-		return nil
+func (b *TypedScopeCreator_scopeBuilder) GetBestTypeName(lvalue rhino.Node, syntacticLvalueName base.OptString) base.OptString {
+	name, ok := syntacticLvalueName.Get()
+	if !ok {
+		return base.NoString()
 	}
-	if replaced, changed := b.replaceGoogModuleExportsName(lvalue, *syntacticLvalueName); changed {
-		return &replaced
+	if replaced, changed := b.replaceGoogModuleExportsName(lvalue, name); changed {
+		return base.SomeString(replaced)
 	}
 	return syntacticLvalueName
 }
@@ -285,14 +296,14 @@ func (b *TypedScopeCreator_scopeBuilder) DefineFunctionLiteral(n rhino.Node) {
 	// Any of these may be null.
 	lValue := NodeUtil_GetBestLValue(n)
 	info := NodeUtil_GetBestJSDocInfo(n)
-	var functionName *string
+	var functionName base.OptString
 	if !lValue.IsNil() && lValue.IsGetProp() {
-		if origName := n.GetOriginalName(); origName != nil && lValue.MatchesQualifiedName(*origName) {
-			functionName = origName
+		if origName, ok := n.OriginalName(); ok && lValue.MatchesQualifiedName(origName) {
+			functionName = base.SomeString(origName)
 		}
 	}
-	if functionName == nil {
-		functionName = NodeUtil_GetBestLValueName(lValue)
+	if !functionName.IsPresent() {
+		functionName = optStringOf(NodeUtil_BestLValueName(lValue))
 	}
 	functionType := b.CreateFunctionTypeFromNodes(n, functionName, info, lValue)
 
@@ -303,9 +314,13 @@ func (b *TypedScopeCreator_scopeBuilder) DefineFunctionLiteral(n rhino.Node) {
 	// declaration. Otherwise, the declaration will happen in other
 	// code paths.
 	if NodeUtil_IsFunctionDeclaration(n) {
+		fnName, ok := functionName.Get()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 		b.defineSlot(typedScopeSlotSpec{
 			declNode:                ast.MustFunction(n).NameNode().Node(),
-			varName:                 *functionName,
+			varName:                 fnName,
 			scope:                   b.currentScope,
 			type_:                   functionType,
 			allowLaterTypeInference: functionType == nil,
@@ -322,7 +337,7 @@ func (b *TypedScopeCreator_scopeBuilder) DefineFunctionLiteral(n rhino.Node) {
 func (b *TypedScopeCreator_scopeBuilder) DefineName(name rhino.Node, value rhino.Node, scope *TypedScope, info *rhino.JSDocInfo) {
 	if ModuleImportResolver_IsGoogModuleDependencyCall(value) {
 		b.DefineModuleImport(
-			name, b.outer.moduleImportResolver.GetClosureNamespaceTypeFromCall(value), nil, scope)
+			name, b.outer.moduleImportResolver.GetClosureNamespaceTypeFromCall(value), base.NoString(), scope)
 		return
 	}
 	type_ := b.GetDeclaredType(info, name, value /* declaredRValueTypeSupplier= */, nil)
@@ -358,7 +373,7 @@ func (b *TypedScopeCreator_scopeBuilder) DefineName(name rhino.Node, value rhino
 func (b *TypedScopeCreator_scopeBuilder) DefineModuleImport(
 	localNameNode rhino.Node,
 	importedModuleObject ScopedName,
-	optionalProperty *string,
+	optionalProperty base.OptString,
 	scopeToDeclareIn *TypedScope) {
 	if importedModuleObject == nil {
 		// We could not find the module defining this import. If the compiler is assuming forward
@@ -366,10 +381,12 @@ func (b *TypedScopeCreator_scopeBuilder) DefineModuleImport(
 		// NoResolvedType. Otherwise, fall back to unknownType to avoid spurious type check errors.
 		var fallbackType rhino.JSType
 		if b.outer.compiler.GetOptions().AssumeForwardDeclaredForMissingTypes() {
-			fallbackType = b.outer.typeRegistry.CreateNamedType(
+			srcFile, hasSrcFile := localNameNode.SourceFileName()
+			fallbackType = b.outer.typeRegistry.CreateNamedTypeOpt(
 				b.currentScope,
 				localNameNode.GetString(),
-				localNameNode.GetSourceFileName(),
+				srcFile,
+				hasSrcFile,
 				localNameNode.GetLineno(),
 				localNameNode.GetCharno())
 		} else {
@@ -387,12 +404,12 @@ func (b *TypedScopeCreator_scopeBuilder) DefineModuleImport(
 	}
 
 	var exportedName ScopedName
-	if optionalProperty == nil {
+	if prop, ok := optionalProperty.Get(); !ok {
 		exportedName = importedModuleObject
 	} else {
 		// If this is a destucuring-style import, find its type.
 		exportedName = ScopedName_Of(
-			importedModuleObject.GetName()+"."+*optionalProperty,
+			importedModuleObject.GetName()+"."+prop,
 			importedModuleObject.GetScopeRoot())
 	}
 	// Try getting the actual scope. The scope will be null in the following cases:

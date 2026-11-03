@@ -198,7 +198,7 @@ func (c *GoogleCodingConventionTest) TestPackageNames() {
 // Java: GoogleCodingConventionTest.assertPackageName(String, String)
 func (c *GoogleCodingConventionTest) AssertPackageName(filename string, expectedPackageName string) {
 	var sourceFile rhino.StaticSourceFile = SourceFile_FromCode(filename, "")
-	AssertThat(c.conv.GetPackageName(sourceFile)).IsEqualTo(expectedPackageName)
+	AssertThat(optStr(c.conv.GetPackageName(sourceFile))).IsEqualTo(expectedPackageName)
 }
 
 // Java: GoogleCodingConventionTest.assertNotClassDefining(String)

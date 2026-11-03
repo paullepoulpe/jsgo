@@ -227,7 +227,8 @@ func (b *TypedScopeCreator_scopeBuilder) DeclareTemplatesInFunctionBody(function
 		if !ownerNode.IsNil() {
 			ownerKeys := b.FindOwnerTypeKeys(ownerNode)
 			for _, templateKey := range ownerKeys {
-				addTemplateName(*templateKey.GetReferenceName())
+				name, _ := templateKey.ReferenceName()
+				addTemplateName(name)
 			}
 		}
 	}

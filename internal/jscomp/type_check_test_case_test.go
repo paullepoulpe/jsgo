@@ -79,13 +79,14 @@ func TypeCheckTestCase_GetInstanceType(js1Node rhino.Node) rhino.ObjectType {
 
 // Java: TypeCheckTestCase.checkObjectType(ObjectType, String, JSType)
 func (b *TypeCheckTestCaseBase) CheckObjectType(objectType rhino.ObjectType, propertyName string, expectedType rhino.JSType) {
+	refName := jutil.FormatOptionalString(objectType.ReferenceName())
 	AssertWithMessage(
-		"Expected %s to have property %s", jutil.ToJavaString(objectType.GetReferenceName()), propertyName).
+		"Expected %s to have property %s", refName, propertyName).
 		That(objectType.HasProperty(propertyName)).
 		IsTrue()
 	b.AssertTypeEqualsMsg(
 		"Expected "+
-			jutil.ToJavaString(objectType.GetReferenceName())+
+			refName+
 			"'s property "+
 			propertyName+
 			" to have type "+

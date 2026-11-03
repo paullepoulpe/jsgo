@@ -164,7 +164,7 @@ func (c *GoogleCodingConvention) IsClassFactoryCall(callNode rhino.Node) bool {
 // GetPackageName returns the package directory path of source, stripping any
 // Bazel "-out/.../(bin|genfiles)/" prefix and trailing "/(test|tests|testing)"
 // parent directory.
-func (c *GoogleCodingConvention) GetPackageName(source rhino.StaticSourceFile) *string {
+func (c *GoogleCodingConvention) GetPackageName(source rhino.StaticSourceFile) (string, bool) {
 	name := source.GetName()
 	if !strings.ContainsAny(name, "\r\n") {
 		if outIdx := strings.Index(name, "-out/"); outIdx >= 0 {
@@ -182,7 +182,7 @@ func (c *GoogleCodingConvention) GetPackageName(source rhino.StaticSourceFile) *
 
 	lastSlash := strings.LastIndexByte(name, '/')
 	if lastSlash < 0 {
-		return &emptyPackageName
+		return "", true
 	}
 	pkg := name[:lastSlash]
 	if lastSlash+1 < len(name) && !strings.ContainsAny(name, "\r\n") {
@@ -193,5 +193,5 @@ func (c *GoogleCodingConvention) GetPackageName(source rhino.StaticSourceFile) *
 			}
 		}
 	}
-	return &pkg
+	return pkg, true
 }

@@ -220,21 +220,16 @@ func (t *BooleanType) AutoboxesTo() JSType {
 }
 
 // DisplayName returns "boolean" without allocating a *string.
-func (t *BooleanType) DisplayName() (string, bool) {
-	return jsType_displayName_boolean, true
-}
-
+//
 // Java: BooleanType.getDisplayName()
-func (t *BooleanType) GetDisplayName() *string {
-	return &jsType_displayName_boolean
+func (t *BooleanType) DisplayName() (string, bool) {
+	return "boolean", true
 }
 
 // Java: BooleanType.getPossibleToBooleanOutcomes()
 func (t *BooleanType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
-
-var jsType_displayName_boolean = "boolean"
 
 // NumberType is the number type.
 type NumberType struct {
@@ -288,13 +283,10 @@ func (t *NumberType) MatchesObjectContext() bool {
 }
 
 // DisplayName returns "number" without allocating a *string.
-func (t *NumberType) DisplayName() (string, bool) {
-	return jsType_displayName_number, true
-}
-
+//
 // Java: NumberType.getDisplayName()
-func (t *NumberType) GetDisplayName() *string {
-	return &jsType_displayName_number
+func (t *NumberType) DisplayName() (string, bool) {
+	return "number", true
 }
 
 // Java: NumberType.getPossibleToBooleanOutcomes()
@@ -306,8 +298,6 @@ func (t *NumberType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 func (t *NumberType) AutoboxesTo() JSType {
 	return t.GetNativeType(JSTypeNative_NUMBER_OBJECT_TYPE)
 }
-
-var jsType_displayName_number = "number"
 
 // StringType is the string type.
 type StringType struct {
@@ -361,13 +351,10 @@ func (t *StringType) MatchesObjectContext() bool {
 }
 
 // DisplayName returns "string" without allocating a *string.
-func (t *StringType) DisplayName() (string, bool) {
-	return jsType_displayName_string, true
-}
-
+//
 // Java: StringType.getDisplayName()
-func (t *StringType) GetDisplayName() *string {
-	return &jsType_displayName_string
+func (t *StringType) DisplayName() (string, bool) {
+	return "string", true
 }
 
 // Java: StringType.autoboxesTo()
@@ -379,8 +366,6 @@ func (t *StringType) AutoboxesTo() JSType {
 func (t *StringType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_BOTH
 }
-
-var jsType_displayName_string = "string"
 
 // BigIntType is the bigint type.
 type BigIntType struct {
@@ -434,13 +419,10 @@ func (t *BigIntType) MatchesObjectContext() bool {
 }
 
 // DisplayName returns "bigint" without allocating a *string.
-func (t *BigIntType) DisplayName() (string, bool) {
-	return jsType_displayName_bigint, true
-}
-
+//
 // Java: BigIntType.getDisplayName()
-func (t *BigIntType) GetDisplayName() *string {
-	return &jsType_displayName_bigint
+func (t *BigIntType) DisplayName() (string, bool) {
+	return "bigint", true
 }
 
 // Java: BigIntType.getPossibleToBooleanOutcomes()
@@ -452,8 +434,6 @@ func (t *BigIntType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 func (t *BigIntType) AutoboxesTo() JSType {
 	return t.GetNativeType(JSTypeNative_BIGINT_OBJECT_TYPE)
 }
-
-var jsType_displayName_bigint = "bigint"
 
 // NullType is the null type.
 type NullType struct {
@@ -519,21 +499,16 @@ func (t *NullType) TestForEquality(that JSType) base.Tri {
 }
 
 // DisplayName returns "null" without allocating a *string.
-func (t *NullType) DisplayName() (string, bool) {
-	return jsType_displayName_null, true
-}
-
+//
 // Java: NullType.getDisplayName()
-func (t *NullType) GetDisplayName() *string {
-	return &jsType_displayName_null
+func (t *NullType) DisplayName() (string, bool) {
+	return "null", true
 }
 
 // Java: NullType.getPossibleToBooleanOutcomes()
 func (t *NullType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_FALSE
 }
-
-var jsType_displayName_null = "null"
 
 // VoidType is the void type.
 type VoidType struct {
@@ -600,21 +575,16 @@ func (t *VoidType) IsExplicitlyVoidable() bool {
 }
 
 // DisplayName returns "undefined" without allocating a *string.
-func (t *VoidType) DisplayName() (string, bool) {
-	return jsType_displayName_undefined, true
-}
-
+//
 // Java: VoidType.getDisplayName()
-func (t *VoidType) GetDisplayName() *string {
-	return &jsType_displayName_undefined
+func (t *VoidType) DisplayName() (string, bool) {
+	return "undefined", true
 }
 
 // Java: VoidType.getPossibleToBooleanOutcomes()
 func (t *VoidType) GetPossibleToBooleanOutcomes() BooleanLiteralSet {
 	return BooleanLiteralSet_FALSE
 }
-
-var jsType_displayName_undefined = "undefined"
 
 // SymbolTypeBase holds SymbolType's methods; plain symbol types are
 // *SymbolTypeBase values.
@@ -681,16 +651,11 @@ func (t *SymbolTypeBase) MatchesObjectContext() bool {
 }
 
 // DisplayName returns "symbol" without allocating a *string.
-func (t *SymbolTypeBase) DisplayName() (string, bool) {
-	return jsType_displayName_symbol, true
-}
-
+//
 // Java: SymbolType.getDisplayName()
-func (t *SymbolTypeBase) GetDisplayName() *string {
-	return &jsType_displayName_symbol
+func (t *SymbolTypeBase) DisplayName() (string, bool) {
+	return "symbol", true
 }
-
-var jsType_displayName_symbol = "symbol"
 
 // Java: SymbolType.autoboxesTo()
 func (t *SymbolTypeBase) AutoboxesTo() JSType {
@@ -728,11 +693,8 @@ func (t *KnownSymbolType) GetTypeClass() JSTypeClass {
 }
 
 // DisplayName returns the known symbol's name without allocating a *string.
+//
+// Java: KnownSymbolType.getDisplayName()
 func (t *KnownSymbolType) DisplayName() (string, bool) {
 	return t.name, true
-}
-
-// Java: KnownSymbolType.getDisplayName()
-func (t *KnownSymbolType) GetDisplayName() *string {
-	return &t.name
 }

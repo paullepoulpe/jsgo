@@ -51,9 +51,7 @@ func TestExportTestFunctionsTest(t *testing.T) {
 
 // Java: ExportTestFunctionsTest.getProcessor(Compiler)
 func (c *ExportTestFunctionsTest) GetProcessor(compiler *Compiler) CompilerPass {
-	exportSymbolFunction := "google_exportSymbol"
-	exportPropertyFunction := "google_exportProperty"
-	return NewExportTestFunctions(compiler, &exportSymbolFunction, &exportPropertyFunction)
+	return NewExportTestFunctions(compiler, "google_exportSymbol", "google_exportProperty")
 }
 
 // Java: ExportTestFunctionsTest.testFunctionsAreExported()

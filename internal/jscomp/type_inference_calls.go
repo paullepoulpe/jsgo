@@ -439,7 +439,8 @@ func (ti *TypeInference) evaluateTypeTransformations(
 						}
 					}
 					if !dup {
-						typeVars = append(typeVars, ttlTypeVar{name: *key.GetReferenceName(), typ: values[j]})
+						keyName, _ := key.ReferenceName()
+						typeVars = append(typeVars, ttlTypeVar{name: keyName, typ: values[j]})
 					}
 				}
 			}
@@ -454,7 +455,7 @@ func (ti *TypeInference) evaluateTypeTransformations(
 			}
 		}
 		// Add the transformed type to the type variables
-		refName := *type_.GetReferenceName()
+		refName, _ := type_.ReferenceName()
 		updated := false
 		for i := range typeVars {
 			if typeVars[i].name == refName {

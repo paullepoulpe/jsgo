@@ -30,7 +30,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/args4j"
-	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -303,11 +302,7 @@ func readUTF8FileLossy(path string) (string, error) {
 	return jutil.StandardCharsets_UTF_8.Decode(b), nil
 }
 
-func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) error {
-	rawContent, err := readUTF8FileStrict(jutil.Path_Of(flagFileString).String())
-	if err != nil {
-		return err
-	}
+func tokenizeFlagFileContent(rawContent string) []string {
 	content := strings.TrimPrefix(rawContent, "\uFEFF")
 
 	var tokens []string
@@ -344,6 +339,15 @@ func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) error {
 	if len(token) != 0 {
 		tokens = append(tokens, string(token))
 	}
+	return tokens
+}
+
+func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) error {
+	rawContent, err := readUTF8FileStrict(jutil.Path_Of(flagFileString).String())
+	if err != nil {
+		return err
+	}
+	tokens := tokenizeFlagFileContent(rawContent)
 
 	r.flags.flagFiles = []string{}
 
@@ -493,7 +497,6 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		r.runCompiler = true
 
 		config := r.GetCommandLineConfig()
-		outputChunkDependencies := flags.outputChunkDependencies
 		config.printVersion = flags.version
 		config.printTree = flags.printTree
 		config.printTreeJson = flags.printTreeJson
@@ -531,7 +534,12 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		config.SetOutputManifest([]string{flags.outputManifest})
 		config.outputBundles = bundleFiles
 		config.skipNormalOutputs = skipNormalOutputs
-		config.outputChunkDependencies = &outputChunkDependencies
+		if flags.outputChunkDependencies != "" {
+			outputChunkDependencies := flags.outputChunkDependencies
+			config.outputChunkDependencies = &outputChunkDependencies
+		} else {
+			config.outputChunkDependencies = nil
+		}
 		config.processCommonJSModules = flags.processCommonJsModules
 		config.moduleRoots = flags.moduleRoot
 		config.warningsAllowFile = flags.warningsAllowlistFile
@@ -544,17 +552,17 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		switch segmentOfCompilationToRun {
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_CHECKS:
 			jutil.CheckStateMsg(
-				flags.filenameToRestoreFrom == nil,
+				!flags.filenameToRestoreFrom.IsPresent(),
 				"Cannot restore and run CHECKS segment of compilation")
-			config.SetSaveCompilationStateToFilename(flags.filenameToSaveTo, 1)
+			config.setSaveCompilationStateOpt(flags.filenameToSaveTo, 1)
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS:
-			config.SetContinueSavedCompilationFileName(flags.filenameToRestoreFrom, 1)
-			config.SetSaveCompilationStateToFilename(flags.filenameToSaveTo, 2)
+			config.setContinueSavedCompilationOpt(flags.filenameToRestoreFrom, 1)
+			config.setSaveCompilationStateOpt(flags.filenameToSaveTo, 2)
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_FINALIZATIONS:
 			jutil.CheckStateMsg(
-				flags.filenameToSaveTo == nil,
+				!flags.filenameToSaveTo.IsPresent(),
 				"Cannot run FINALIZATIONS segment of compilation and then save the result")
-			config.SetContinueSavedCompilationFileName(flags.filenameToRestoreFrom, 2)
+			config.setContinueSavedCompilationOpt(flags.filenameToRestoreFrom, 2)
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_ENTIRE_COMPILATION:
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg(
@@ -629,6 +637,9 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	if flags.fastMode {
 		options.SetFastMode(true)
 	}
+	if flags.binarySaveState {
+		options.SetBinarySaveState(true)
+	}
 	if flags.maxOptimizationLoopIterations > 0 {
 		options.SetMaxOptimizationLoopIterations(flags.maxOptimizationLoopIterations)
 	}
@@ -655,8 +666,8 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 		options.SetAssumeGlobalScopeIsIsolated(true)
 	}
 
-	if flags.typedAstOutputFile != nil {
-		options.SetTypedAstOutputFile(jutil.Path_Of(*flags.typedAstOutputFile))
+	if path, ok := flags.typedAstOutputFile.Get(); ok {
+		options.SetTypedAstOutputFile(jutil.Path_Of(path))
 	}
 	options.SetGenerateExports(flags.generateExports)
 	options.SetExportLocalPropertyDefinitions(flags.exportLocalPropertyDefinitions)
@@ -686,9 +697,9 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 
 	options.SetRemoveJ2clAsserts(flags.removeJ2cLAsserts)
 
-	options.SetRenamePrefixOpt(base.OptStringFromPtr(flags.renamePrefix))
+	options.SetRenamePrefixOpt(flags.renamePrefix)
 
-	options.SetRenamePrefixNamespaceOpt(base.OptStringFromPtr(flags.renamePrefixNamespace))
+	options.SetRenamePrefixNamespaceOpt(flags.renamePrefixNamespace)
 
 	options.SetPreserveTypeAnnotations(flags.preserveTypeAnnotations)
 
@@ -709,7 +720,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Reading XTB file", ioErr))
 		}
 		defer stream.Close()
-		options.SetMessageBundle(jscomp.NewXtbMessageBundle(stream, flags.translationsProject))
+		options.SetMessageBundle(jscomp.NewXtbMessageBundle(stream, flags.translationsProject.Ptr()))
 	} else if jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS == level {
 		// In SIMPLE or WHITESPACE mode, if the user hasn't specified a
 		// translations file, they might reasonably try to write their own
@@ -734,7 +745,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetBrowserResolverPrefixReplacements(
 		commandLineRunner_immutableMapCopyOf(flags.browserResolverPrefixReplacements))
 
-	if flags.packageJsonEntryNames != nil {
+	if flags.packageJsonEntryNames.IsPresent() {
 		options.SetPackageJsonEntryNames(flags.GetPackageJsonEntryNames())
 	}
 
@@ -766,12 +777,12 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetInstrumentForCoverageOption(flags.instrumentCodeParsed)
 	options.SetProductionInstrumentationArrayName(flags.productionInstrumentationArrayName)
 	options.SetAllowDynamicImport(flags.allowDynamicImport)
-	options.SetDynamicImportAliasOpt(base.OptStringFromPtr(flags.dynamicImportAlias))
+	options.SetDynamicImportAliasOpt(flags.dynamicImportAlias)
 	options.SetAssumeStaticInheritanceIsNotUsed(flags.assumeStaticInheritanceIsNotUsed)
 	options.SetCrossChunkCodeMotionNoStubMethods(flags.assumeNoPrototypeMethodEnumeration)
 
 	if flags.chunkOutputType == jscomp.CompilerOptions_ChunkOutputType_ES_MODULES {
-		if flags.renamePrefixNamespace != nil {
+		if flags.renamePrefixNamespace.IsPresent() {
 			panic(jscomp.NewFlagUsageException(
 				"Expected --rename_prefix_namespace not to be specified when " +
 					"--chunk_output_type is set to ES_MODULES."))
@@ -961,6 +972,14 @@ func CommandLineRunner_Main(args []string) {
 	// disable any logging messages that can interfere with standard error reporting
 	if commandLineRunner_phaseLogger != nil {
 		commandLineRunner_phaseLogger.SetLevel(jutil.Level_OFF)
+	}
+	if startupArgs, ok := parsePersistentWorkerStartupArgs(args); ok {
+		if err := runPersistentWorker(startupArgs, os.Stdin, os.Stdout); err != nil {
+			jutil.System_Err().Println(err.Error())
+			jutil.System_Err().Flush()
+			jutil.System_Exit(-1)
+		}
+		return
 	}
 	runner := NewCommandLineRunner(args)
 	if runner.ShouldRunCompiler() {

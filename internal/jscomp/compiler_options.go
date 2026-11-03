@@ -555,6 +555,8 @@ type CompilerOptions struct {
 	es6ModuleTranspilation CompilerOptions_Es6ModuleTranspilation
 	// Go-only: fast mode (Go-to-Go deterministic across thread counts, relaxed Java map order)
 	fastMode bool
+	// Go-only: opt-in flat binary SaveState format (auto-detected on RestoreState)
+	binarySaveState bool
 }
 
 // Initializes compiler options. All options are disabled by default.

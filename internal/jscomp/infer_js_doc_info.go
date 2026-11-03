@@ -370,7 +370,7 @@ func inferJSDocInfo_isReferenceNameOf(type_ rhino.ObjectType, n rhino.Node) bool
 	if !type_.HasReferenceName() || n.IsNil() {
 		return false
 	}
-	refName := *type_.GetReferenceName()
+	refName, _ := type_.ReferenceName()
 	if n.IsName() {
 		return n.GetString() == refName
 	}

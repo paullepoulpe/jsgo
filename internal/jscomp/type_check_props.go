@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -551,13 +552,10 @@ func (tc *TypeCheck) CheckInterfaceConflictProperties(
 	properties *propertyKeyMap,
 	currentProperties *propertyKeyMap,
 	interfaceType rhino.ObjectType) {
-	implicitProto := interfaceType.GetImplicitPrototype()
 	var currentPropertyNames []rhino.Property_Key
-	if implicitProto == nil {
-		// This can be the case if interfaceType is proxy to a non-existent
+	if implicitProto := interfaceType.GetImplicitPrototype(); implicitProto != nil {
+		// implicitProto can be nil if interfaceType is proxy to a non-existent
 		// object (which is a bad type annotation, but shouldn't crash).
-		currentPropertyNames = nil
-	} else {
 		currentPropertyNames = implicitProto.GetOwnPropertyKeys()
 	}
 	for _, name := range currentPropertyNames {
@@ -711,13 +709,9 @@ func (tc *TypeCheck) CheckConstructor(n rhino.Node, functionType rhino.FunctionT
 				if len(implementedInterfaces) > 1 {
 					// Disallow implementing both `Foo<string>` and `Foo<number>`, for example.
 					baseInterface = tc.NormalizeTemplatizedType(baseInterface)
-					duplicate := false
-					for _, prev := range seen {
-						if prev == baseInterface || prev.Equals(baseInterface) {
-							duplicate = true
-							break
-						}
-					}
+					duplicate := slices.ContainsFunc(seen, func(prev rhino.JSType) bool {
+						return prev == baseInterface || prev.Equals(baseInterface)
+					})
 					if duplicate {
 						tc.Report(n, TypeCheck_SAME_INTERFACE_MULTIPLE_IMPLEMENTS, baseInterface.String())
 					} else {
@@ -803,9 +797,8 @@ func (tc *TypeCheck) CheckInterface(n rhino.Node, functionType rhino.FunctionTyp
 // Java: TypeCheck.getBestFunctionName(Node)
 func (tc *TypeCheck) GetBestFunctionName(n rhino.Node) string {
 	jutil.CheckState(n.IsClass() || n.IsFunction())
-	name := NodeUtil_GetBestLValueName(NodeUtil_GetBestLValue(n))
-	if name != nil {
-		return *name
+	if name, ok := NodeUtil_BestLValueName(NodeUtil_GetBestLValue(n)); ok {
+		return name
 	}
-	return "<anonymous@" + jutil.ToJavaString(n.GetSourceFileName()) + ":" + strconv.Itoa(n.GetLineno()) + ">"
+	return "<anonymous@" + jutil.FormatOptionalString(n.SourceFileName()) + ":" + strconv.Itoa(n.GetLineno()) + ">"
 }

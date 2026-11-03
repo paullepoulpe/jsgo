@@ -21,6 +21,7 @@ package cli
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -56,9 +57,9 @@ type AbstractCommandLineRunner_CommandLineConfig struct {
 
 	jsOutputFile string
 
-	// When non-null specifies a file containing saved compiler state to
+	// When present specifies a file containing saved compiler state to
 	// restore and continue compiling.
-	continueSavedCompilationFileName *string
+	continueSavedCompilationFileName base.OptString
 
 	// When > 0 indicates the stage at which compilation stopped for the
 	// compilation state that is being restored from a save file.
@@ -70,9 +71,9 @@ type AbstractCommandLineRunner_CommandLineConfig struct {
 
 	stage2SegmentOfCompilationToRun jscomp.CompilerOptions_SegmentOfCompilationToRun
 
-	typedAstListInputFilename *string
+	typedAstListInputFilename base.OptString
 
-	saveCompilationStateToFilename *string
+	saveCompilationStateToFilename base.OptString
 
 	chunk []string
 
@@ -224,7 +225,12 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetMixedJsSources(mixedJsS
 // Java: AbstractCommandLineRunner.CommandLineConfig.setContinueSavedCompilationFileName(String, int)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetContinueSavedCompilationFileName(
 	fileName *string, restoredCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
-	if fileName != nil {
+	return c.setContinueSavedCompilationOpt(base.OptStringFromPtr(fileName), restoredCompilationStage)
+}
+
+func (c *AbstractCommandLineRunner_CommandLineConfig) setContinueSavedCompilationOpt(
+	fileName base.OptString, restoredCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
+	if fileName.IsPresent() {
 		jutil.CheckArgumentMsg1(
 			restoredCompilationStage > 0 && restoredCompilationStage < 3,
 			"invalid compilation stage: %s",
@@ -237,13 +243,13 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetContinueSavedCompilatio
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.shouldSaveAfterStage1()
 func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldSaveAfterStage1() bool {
-	if c.saveCompilationStateToFilename != nil && c.saveAfterCompilationStage == 1 {
+	if c.saveCompilationStateToFilename.IsPresent() && c.saveAfterCompilationStage == 1 {
 		jutil.CheckStateMsg1(
 			c.restoredCompilationStage < 0,
 			"cannot perform stage 1 after restoring from stage %s",
 			c.restoredCompilationStage)
 		jutil.CheckStateMsg(
-			c.continueSavedCompilationFileName == nil,
+			!c.continueSavedCompilationFileName.IsPresent(),
 			"cannot restore a saved compilation and also save after stage 1")
 		return true
 	}
@@ -252,7 +258,7 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldSaveAfterStage1() bo
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.getContinueSavedCompilationFileName()
 func (c *AbstractCommandLineRunner_CommandLineConfig) GetContinueSavedCompilationFileName() *string {
-	return c.continueSavedCompilationFileName
+	return c.continueSavedCompilationFileName.Ptr()
 }
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.shouldRestoreAndPerformStages2And3()
@@ -267,7 +273,7 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreAndPerformSta
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.shouldContinueCompilation()
 func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldContinueCompilation() bool {
-	if c.continueSavedCompilationFileName != nil {
+	if c.continueSavedCompilationFileName.IsPresent() {
 		jutil.CheckStateMsg1(
 			c.restoredCompilationStage > 0 && c.restoredCompilationStage < 3,
 			"invalid restored compilation stage: %s",
@@ -280,7 +286,7 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldContinueCompilation(
 // Java: AbstractCommandLineRunner.CommandLineConfig.shouldRestoreTypedAstsPerformStage2AndSave()
 func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreTypedAstsPerformStage2AndSave() bool {
 	// We have a typed ast input list to parse
-	return c.typedAstListInputFilename != nil &&
+	return c.typedAstListInputFilename.IsPresent() &&
 		// we want to stop and save after optimizations
 		c.saveAfterCompilationStage == 2
 }
@@ -288,7 +294,7 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreTypedAstsPerf
 // Java: AbstractCommandLineRunner.CommandLineConfig.shouldRestoreTypedAstsPerformStages2And3()
 func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldRestoreTypedAstsPerformStages2And3() bool {
 	// We have a typed ast input list to parse
-	return c.typedAstListInputFilename != nil &&
+	return c.typedAstListInputFilename.IsPresent() &&
 		// we do not want to stop and save after optimizations
 		c.saveAfterCompilationStage == -1
 }
@@ -344,6 +350,11 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) ShouldAlwaysGatherSourceMa
 // Java: AbstractCommandLineRunner.CommandLineConfig.setSaveCompilationStateToFilename(String, int)
 func (c *AbstractCommandLineRunner_CommandLineConfig) SetSaveCompilationStateToFilename(
 	fileName *string, saveAfterCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
+	return c.setSaveCompilationStateOpt(base.OptStringFromPtr(fileName), saveAfterCompilationStage)
+}
+
+func (c *AbstractCommandLineRunner_CommandLineConfig) setSaveCompilationStateOpt(
+	fileName base.OptString, saveAfterCompilationStage int) *AbstractCommandLineRunner_CommandLineConfig {
 	c.saveCompilationStateToFilename = fileName
 	c.saveAfterCompilationStage = saveAfterCompilationStage
 	return c
@@ -351,7 +362,7 @@ func (c *AbstractCommandLineRunner_CommandLineConfig) SetSaveCompilationStateToF
 
 // Java: AbstractCommandLineRunner.CommandLineConfig.getSaveCompilationStateToFilename()
 func (c *AbstractCommandLineRunner_CommandLineConfig) GetSaveCompilationStateToFilename() *string {
-	return c.saveCompilationStateToFilename
+	return c.saveCompilationStateToFilename.Ptr()
 }
 
 // SetStage2SegmentOfCompilationToRun configures which Stage 2 segment

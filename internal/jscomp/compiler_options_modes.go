@@ -67,6 +67,21 @@ func CompilerOptions_IsFastMode(o *CompilerOptions) bool {
 	return o != nil && o.fastMode
 }
 
+// SetBinarySaveState enables or disables the opt-in flat binary SaveState format.
+func (o *CompilerOptions) SetBinarySaveState(enable bool) {
+	o.binarySaveState = enable
+}
+
+// isBinarySaveState reports whether the opt-in flat binary SaveState format is enabled.
+func (o *CompilerOptions) isBinarySaveState() bool {
+	return o != nil && o.binarySaveState
+}
+
+// CompilerOptions_IsBinarySaveState reports whether the opt-in flat binary SaveState format is enabled.
+func CompilerOptions_IsBinarySaveState(o *CompilerOptions) bool {
+	return o != nil && o.binarySaveState
+}
+
 // Java: CompilerOptions.setCodingConvention(CodingConvention)
 func (o *CompilerOptions) SetCodingConvention(codingConvention CodingConvention) {
 	o.codingConvention = codingConvention

@@ -335,10 +335,18 @@ func StringSubstringFrom(s string, begin int) string {
 }
 
 // hasSurrogateByte reports whether s contains 0xED, the lead byte of every
-// 3-byte WTF-8 lone-surrogate sequence (ED A0..BF 80..BF). When false, s is
-// canonical UTF-8 with no unpaired surrogates.
+// 3-byte WTF-8 lone-surrogate sequence (ED A0..BF 80..BF). When false, s has
+// no unpaired surrogates.
 func hasSurrogateByte(s string) bool {
 	return strings.IndexByte(s, 0xED) >= 0
+}
+
+// IsCanonicalWTF8 reports whether s is valid canonical UTF-8 (containing
+// neither 3-byte WTF-8 lone surrogates nor malformed UTF-8 bytes). On the set
+// of canonical UTF-8 strings, byte equality and Java UTF-16 code-unit equality
+// (StringCompareTo == 0) are identical.
+func IsCanonicalWTF8(s string) bool {
+	return isASCII(s) || utf8.ValidString(s)
 }
 
 func utf16Index(us, usub []uint16) int {
@@ -497,14 +505,84 @@ func StringCompareTo(a, b string) int {
 			return StringLength(a[n:])
 		}
 	}
-	ua, ub := StringToUTF16(a), StringToUTF16(b)
-	m := min(len(ua), len(ub))
-	for k := 0; k < m; k++ {
-		if ua[k] != ub[k] {
-			return int(ua[k]) - int(ub[k])
+	return stringCompareUTF16From(a, b, i)
+}
+
+// stringCompareUTF16From compares a and b in Java UTF-16 code-unit order
+// without heap allocations, given that a[:diff] == b[:diff].
+func stringCompareUTF16From(a, b string, diff int) int {
+	// Step back across any continuation bytes in the shared prefix so start
+	// sits on an exact decodeWTF8 boundary (0, ASCII, or lead byte >= 0xC0) in
+	// both strings.
+	start := diff
+	if start > 0 && a[start-1] >= 0x80 {
+		start--
+		for start > 0 && a[start]&0xC0 == 0x80 {
+			start--
 		}
 	}
-	return len(ua) - len(ub)
+	ia, ib := start, start
+	pendA, pendB := int32(-1), int32(-1)
+	for {
+		var ua uint16
+		hasA := true
+		if pendA >= 0 {
+			ua = uint16(pendA)
+			pendA = -1
+		} else if ia < len(a) {
+			r, sz := decodeWTF8(a[ia:])
+			ia += sz
+			if r >= 0x10000 {
+				hi, lo := utf16.EncodeRune(r)
+				ua = uint16(hi)
+				pendA = int32(uint16(lo))
+			} else {
+				ua = uint16(r)
+			}
+		} else {
+			hasA = false
+		}
+
+		var ub uint16
+		hasB := true
+		if pendB >= 0 {
+			ub = uint16(pendB)
+			pendB = -1
+		} else if ib < len(b) {
+			r, sz := decodeWTF8(b[ib:])
+			ib += sz
+			if r >= 0x10000 {
+				hi, lo := utf16.EncodeRune(r)
+				ub = uint16(hi)
+				pendB = int32(uint16(lo))
+			} else {
+				ub = uint16(r)
+			}
+		} else {
+			hasB = false
+		}
+
+		if !hasA {
+			if !hasB {
+				return 0
+			}
+			rem := 1 + StringLength(b[ib:])
+			if pendB >= 0 {
+				rem++
+			}
+			return -rem
+		}
+		if !hasB {
+			rem := 1 + StringLength(a[ia:])
+			if pendA >= 0 {
+				rem++
+			}
+			return rem
+		}
+		if ua != ub {
+			return int(ua) - int(ub)
+		}
+	}
 }
 
 // StringHashCode is Java's String.hashCode().

@@ -449,14 +449,6 @@ func (f *FunctionTypeBase) referenceNameID() rhinoStringID {
 	return 0
 }
 
-// Java: PrototypeObjectType.getReferenceName() / NoObjectType.getReferenceName()
-func (f *FunctionTypeBase) GetReferenceName() *string {
-	if f.isNoObjectOrNo() {
-		return nil
-	}
-	return f.PrototypeObjectTypeBase.GetReferenceName()
-}
-
 // Java: PrototypeObjectType.matchesNumberContext() / NoObjectType.matchesNumberContext()
 func (f *FunctionTypeBase) MatchesNumberContext() bool {
 	if f.isNoObjectOrNo() {

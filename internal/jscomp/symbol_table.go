@@ -301,8 +301,8 @@ func (t *SymbolTable) GetGlobalScope() *SymbolTable_SymbolScope {
 func (t *SymbolTable) GetSymbolDeclaredBy(fn rhino.FunctionType) *SymbolTable_Symbol {
 	jutil.CheckState(fn.IsConstructor() || fn.IsInterface())
 	instanceType := fn.GetInstanceType()
-	if refName := instanceType.GetReferenceName(); refName != nil {
-		return t.GetSymbolForName(fn.GetSource(), *refName)
+	if refName, ok := instanceType.ReferenceName(); ok {
+		return t.GetSymbolForName(fn.GetSource(), refName)
 	}
 	return nil
 }
@@ -311,8 +311,8 @@ func (t *SymbolTable) GetSymbolDeclaredBy(fn rhino.FunctionType) *SymbolTable_Sy
 //
 // Java: SymbolTable.getSymbolDeclaredBy(EnumType)
 func (t *SymbolTable) GetSymbolDeclaredByEnum(enumType *rhino.EnumType) *SymbolTable_Symbol {
-	if refName := enumType.GetElementsType().GetReferenceName(); refName != nil {
-		return t.GetSymbolForName(enumType.GetSource(), *refName)
+	if refName, ok := enumType.GetElementsType().ReferenceName(); ok {
+		return t.GetSymbolForName(enumType.GetSource(), refName)
 	}
 	return nil
 }
@@ -336,8 +336,8 @@ func (t *SymbolTable) GetSymbolForInstancesOf(sym *SymbolTable_Symbol) *SymbolTa
 func (t *SymbolTable) GetSymbolForInstancesOfFunction(fn rhino.FunctionType) *SymbolTable_Symbol {
 	jutil.CheckState(fn.IsConstructor() || fn.IsInterface())
 	pType := fn.GetPrototype()
-	if refName := pType.GetReferenceName(); refName != nil {
-		return t.GetSymbolForName(fn.GetSource(), *refName)
+	if refName, ok := pType.ReferenceName(); ok {
+		return t.GetSymbolForName(fn.GetSource(), refName)
 	}
 	return nil
 }
@@ -367,7 +367,7 @@ func (t *SymbolTable) GetSymbolForName(source rhino.Node, name string) *SymbolTa
 		// - the symbol is just `Pinky`. So we need to remove module name to be able to find the
 		// symbol in module scope.
 		var metadata *ModuleMetadataMap_ModuleMetadata
-		if sourceFileName, ok := symbolTable_nodeSourceName(scope.GetRootNode()); ok && t.compiler != nil {
+		if sourceFileName, ok := scope.GetRootNode().SourceFileName(); ok && t.compiler != nil {
 			metadata = t.compiler.GetModuleMetadataMap().ModuleByPath(sourceFileName)
 		}
 		if metadata != nil {
@@ -568,11 +568,7 @@ func (t *SymbolTable) toDebugString(
 		builder.WriteString("  Ref ")
 		builder.WriteString(strconv.Itoa(refCount))
 		builder.WriteString(": ")
-		if srcName, ok := symbolTable_nodeSourceName(node); ok {
-			builder.WriteString(srcName)
-		} else {
-			builder.WriteString("null")
-		}
+		builder.WriteString(jutil.FormatOptionalString(node.SourceFileName()))
 		builder.WriteString(" line: ")
 		builder.WriteString(strconv.Itoa(node.GetLineno()))
 		builder.WriteString(" col: ")
@@ -729,23 +725,6 @@ func (t *SymbolTable) addAnonymousFunctionsInScope(scope *SymbolTable_SymbolScop
 			scope.SetSymbolForScope(anonymousFunctionSymbol)
 		}
 	}
-}
-
-func symbolTable_nodeSourceName(n rhino.Node) (string, bool) {
-	if s := n.GetSourceFileName(); s != nil {
-		return *s, true
-	}
-	return "", false
-}
-
-// symbolTable_nullableString is String.valueOf of a nullable String.
-//
-// Go-only: language-adapter — Java string concatenation of a null String.
-func symbolTable_nullableString(s *string) string {
-	if s == nil {
-		return "null"
-	}
-	return *s
 }
 
 // SymbolTable_AddSymbolsFrom makes sure all the symbols and references in
@@ -971,8 +950,8 @@ func (t *SymbolTable) initOrderings() {
 	}
 
 	t.nodeOrdering = func(a, b rhino.Node) int {
-		aName, aOk := symbolTable_nodeSourceName(a)
-		bName, bOk := symbolTable_nodeSourceName(b)
+		aName, aOk := a.SourceFileName()
+		bName, bOk := b.SourceFileName()
 		result := t.sourceNameOrdering(aName, aOk, bName, bOk)
 		if result != 0 {
 			return result

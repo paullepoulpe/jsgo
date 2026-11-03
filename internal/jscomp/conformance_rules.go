@@ -727,8 +727,8 @@ func ConformanceRules_ConformanceUtil_IsXid(type_ rhino.JSType) bool {
 	if enumElTy == nil {
 		return false
 	}
-	refName := enumElTy.GetEnumType().GetReferenceName()
-	return refName != nil && *refName == "enum{xid.String}"
+	refName, ok := enumElTy.GetEnumType().ReferenceName()
+	return ok && refName == "enum{xid.String}"
 }
 
 // Java: ConformanceRules.ConformanceUtil.isEventHandlerAttrName(String)

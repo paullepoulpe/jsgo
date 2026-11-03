@@ -528,9 +528,10 @@ func (f *FunctionTypeBuilder) BuildTemplateTypesFromJSDocInfo(info *rhino.JSDocI
 
 	for _, template := range templates {
 		if template.ContainsCycle() {
+			refName, _ := template.ReferenceName()
 			f.ReportError(
 				RhinoErrorReporter_CYCLIC_INHERITANCE_ERROR,
-				"Cycle detected in inheritance chain of type "+*template.GetReferenceName())
+				"Cycle detected in inheritance chain of type "+refName)
 		}
 	}
 

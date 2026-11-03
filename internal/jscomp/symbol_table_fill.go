@@ -222,7 +222,7 @@ func (t *SymbolTable) needsPropertyScope(sym *SymbolTable_Symbol) bool {
 	}
 
 	// Anonymous objects
-	if type_.GetReferenceName() == nil {
+	if _, ok := type_.ReferenceName(); !ok {
 		return true
 	}
 
@@ -872,13 +872,13 @@ func (t *SymbolTable) mergeExternSymbolsDuplicatedOnWindow() {
 		if isNilSourceFile(sf) || !sf.IsExtern() {
 			continue
 		}
-		sourceFilePtr := declNode.GetSourceFileName()
-		if sourceFilePtr == nil {
+		sourceFile, ok := declNode.SourceFileName()
+		if !ok {
 			// Java: Table.put(null, ...) throws NullPointerException.
 			panic(jutil.NewNullPointerException())
 		}
 		key := externSymbolPosKey{
-			sourceFile: *sourceFilePtr,
+			sourceFile: sourceFile,
 			position:   declNode.GetSourcePosition(),
 		}
 		existingSymbol, ok := externSymbols[key]

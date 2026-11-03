@@ -99,9 +99,12 @@ func newConformanceRules_BannedDependency(compiler AbstractCompiler, requirement
 // Java: ConformanceRules.BannedDependency.checkConformance(NodeTraversal, Node)
 func (r *ConformanceRules_BannedDependency) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	if n.IsScript() {
-		srcFile := *n.GetSourceFileName()
-		for i := 0; i < len(r.paths); i++ {
-			if strings.HasPrefix(srcFile, r.paths[i]) {
+		srcFile, ok := n.SourceFileName()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		for _, path := range r.paths {
+			if strings.HasPrefix(srcFile, path) {
 				return ConformanceRules_ConformanceResult_VIOLATION
 			}
 		}
@@ -138,7 +141,10 @@ func newConformanceRules_BannedDependencyRegex(compiler AbstractCompiler, requir
 // Java: ConformanceRules.BannedDependencyRegex.checkConformance(NodeTraversal, Node)
 func (r *ConformanceRules_BannedDependencyRegex) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	if n.IsScript() {
-		srcFile := *n.GetSourceFileName()
+		srcFile, ok := n.SourceFileName()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 		if r.pathRegexp != nil && r.pathRegexp.Find(srcFile) {
 			return ConformanceRules_ConformanceResult_VIOLATION
 		}
@@ -228,8 +234,11 @@ func ConformanceRules_BannedName_IsRootOfQualifiedNameGlobal(t *NodeTraversal, n
 	if rootNode.IsName() {
 		v = t.GetScope().GetVarByID(rootNode.GetStringID())
 	} else {
-		rootName := rootNode.GetQualifiedName()
-		v = t.GetScope().GetVar(*rootName)
+		rootName, ok := rootNode.GetQualifiedNameString()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		v = t.GetScope().GetVar(rootName)
 	}
 	return v != nil && v.IsGlobal()
 }
@@ -432,12 +441,7 @@ func (r *ConformanceRules_BannedProperty) MatchTypes(foundType rhino.JSType, che
 // Java: ConformanceRules.BannedProperty.matchesPrototype(JSType, JSType)
 func (r *ConformanceRules_BannedProperty) MatchesPrototype(type_ rhino.JSType, maybePrototype rhino.JSType) bool {
 	methodClassObjectType := type_.ToMaybeObjectType()
-	if methodClassObjectType != nil {
-		if methodClassObjectType.GetImplicitPrototype().Equals(maybePrototype) {
-			return true
-		}
-	}
-	return false
+	return methodClassObjectType != nil && methodClassObjectType.GetImplicitPrototype().Equals(maybePrototype)
 }
 
 // Java: ConformanceRules.BannedProperty.extractType(Node)

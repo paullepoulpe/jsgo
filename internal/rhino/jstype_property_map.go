@@ -85,9 +85,10 @@ type PropertyMap struct {
 
 	// Go-only: language-adapter — EMPTY_MAP is built from ImmutableMaps,
 	// whose put() throws UnsupportedOperationException.
-	immutable   bool
-	sorted      bool
-	hasNonASCII bool
+	immutable       bool
+	sorted          bool
+	hasNonASCII     bool
+	hasNonCanonical bool // true if any key is not valid canonical UTF-8 (lone surrogates or ill-formed UTF-8)
 }
 
 // entries is the slice of own string properties.
@@ -113,13 +114,11 @@ func (m *PropertyMap) ensureExt() *propMapExt {
 	return m.ext
 }
 
-func propMapIsASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] >= 0x80 {
-			return false
-		}
+func propMapKeyFlags(s string) (ascii, canonical bool) {
+	if jutil.IsASCII(s) {
+		return true, true
 	}
-	return true
+	return false, jutil.IsCanonicalWTF8(s)
 }
 
 // Java: PropertyMap.EMPTY_MAP
@@ -284,33 +283,29 @@ func (m *PropertyMap) FindClosestByKey(name Property_Key) *Property_OwnedPropert
 	return NewProperty_OwnedProperty(owner, prop)
 }
 
-func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) *Property {
-	if len(m.entries()) == 0 {
-		return nil
-	}
-	if !m.hasNonASCII {
-		if id == 0 {
-			return nil
-		}
-		if m.ext != nil && m.ext.byID != nil {
-			return m.ext.byID[id]
-		}
-		for _, p := range m.entries() {
-			if p.nameID == id {
-				return p
-			}
-		}
-		return nil
-	}
-	if propertyName == "" && id != 0 {
-		propertyName = rhinoStringFromID(id)
-	}
+func (m *PropertyMap) scanNonCanonicalByString(propertyName string) *Property {
 	for _, p := range m.entries() {
-		if (id != 0 && p.nameID == id) || jutil.StringCompareTo(rhinoStringFromID(p.nameID), propertyName) == 0 {
+		if jutil.StringCompareTo(rhinoStringFromID(p.nameID), propertyName) == 0 {
 			return p
 		}
 	}
 	return nil
+}
+
+func (m *PropertyMap) getOwnPropertyByID(propertyName string, id rhinoStringID) *Property {
+	if len(m.entries()) == 0 {
+		return nil
+	}
+	if id != 0 {
+		return m.GetOwnPropertyByID(id)
+	}
+	if !m.hasNonASCII {
+		return nil
+	}
+	if !m.hasNonCanonical && jutil.IsCanonicalWTF8(propertyName) {
+		return nil
+	}
+	return m.scanNonCanonicalByString(propertyName)
 }
 
 // GetOwnPropertyByID looks up an own string property by its interned rhinoStringID.
@@ -318,18 +313,25 @@ func (m *PropertyMap) GetOwnPropertyByID(id rhinoStringID) *Property {
 	if id == 0 || len(m.entries()) == 0 {
 		return nil
 	}
-	if !m.hasNonASCII {
-		if m.ext != nil && m.ext.byID != nil {
-			return m.ext.byID[id]
+	if m.ext != nil && m.ext.byID != nil {
+		if p := m.ext.byID[id]; p != nil {
+			return p
 		}
+	} else {
 		for _, p := range m.entries() {
 			if p.nameID == id {
 				return p
 			}
 		}
+	}
+	if !m.hasNonASCII {
 		return nil
 	}
-	return m.getOwnPropertyByID("", id)
+	s := rhinoStringFromID(id)
+	if !m.hasNonCanonical && jutil.IsCanonicalWTF8(s) {
+		return nil
+	}
+	return m.scanNonCanonicalByString(s)
 }
 
 // Java: PropertyMap.getOwnProperty(String)
@@ -611,12 +613,12 @@ func (m *PropertyMap) PutProperty(name string, newProp *Property) {
 }
 
 func (m *PropertyMap) putPropertyWithID(name string, nameID rhinoStringID, newProp *Property) {
-	isASCII := !m.hasNonASCII && propMapIsASCII(name)
+	isASCII, isCanonical := propMapKeyFlags(name)
 	var oldProp *Property
 	oldIdx := -1
-	if m.ext != nil && m.ext.byID != nil && isASCII {
+	if m.ext != nil && m.ext.byID != nil {
 		oldProp = m.ext.byID[nameID]
-	} else if !m.hasNonASCII && isASCII {
+	} else {
 		for i, p := range m.entries() {
 			if p.nameID == nameID {
 				oldProp = p
@@ -624,9 +626,10 @@ func (m *PropertyMap) putPropertyWithID(name string, nameID rhinoStringID, newPr
 				break
 			}
 		}
-	} else {
+	}
+	if oldProp == nil && m.hasNonASCII && (m.hasNonCanonical || !isCanonical) {
 		for i, p := range m.entries() {
-			if p.nameID == nameID || jutil.StringCompareTo(rhinoStringFromID(p.nameID), name) == 0 {
+			if jutil.StringCompareTo(rhinoStringFromID(p.nameID), name) == 0 {
 				oldProp = p
 				oldIdx = i
 				break
@@ -646,25 +649,30 @@ func (m *PropertyMap) putPropertyWithID(name string, nameID rhinoStringID, newPr
 	if m.immutable {
 		panic(jutil.NewUnsupportedOperationException())
 	}
+	if !isASCII {
+		m.hasNonASCII = true
+	}
+	if !isCanonical {
+		m.hasNonCanonical = true
+	}
 	if oldProp != nil {
+		if m.ext != nil && m.ext.byID != nil {
+			if oldProp.nameID != nameID {
+				delete(m.ext.byID, oldProp.nameID)
+			}
+			m.ext.byID[nameID] = newProp
+		}
 		if oldIdx >= 0 {
 			m.entries()[oldIdx] = newProp
 		} else {
-			m.ext.byID[nameID] = newProp
 			for i, p := range m.entries() {
-				if p.nameID == nameID {
+				if p.nameID == oldProp.nameID {
 					m.entries()[i] = newProp
 					break
 				}
 			}
 		}
 		return
-	}
-	if !isASCII && !m.hasNonASCII {
-		m.hasNonASCII = true
-		if m.ext != nil {
-			m.ext.byID = nil
-		}
 	}
 	if len(m.entries()) == 0 {
 		m.sorted = true
@@ -673,15 +681,13 @@ func (m *PropertyMap) putPropertyWithID(name string, nameID rhinoStringID, newPr
 		m.noteUnsorted()
 	}
 	m.setEntries(append(m.entries(), newProp))
-	if !m.hasNonASCII {
-		if m.ext != nil && m.ext.byID != nil {
-			m.ext.byID[nameID] = newProp
-		} else if len(m.entries()) > 24 {
-			ext := m.ensureExt()
-			ext.byID = make(map[rhinoStringID]*Property, 32)
-			for _, p := range m.entries() {
-				ext.byID[p.nameID] = p
-			}
+	if m.ext != nil && m.ext.byID != nil {
+		m.ext.byID[nameID] = newProp
+	} else if len(m.entries()) > 24 {
+		ext := m.ensureExt()
+		ext.byID = make(map[rhinoStringID]*Property, 32)
+		for _, p := range m.entries() {
+			ext.byID[p.nameID] = p
 		}
 	}
 }

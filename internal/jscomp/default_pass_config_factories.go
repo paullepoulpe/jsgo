@@ -100,7 +100,9 @@ var (
 	})
 	defaultPass_generateExports = NewPassFactory(PassNames_GENERATE_EXPORTS, func(c AbstractCompiler) CompilerPass {
 		conv := c.GetCodingConvention()
-		pass := NewGenerateExports(c, c.GetOptions().ShouldExportLocalPropertyDefinitions(), conv.GetExportSymbolFunction(), conv.GetExportPropertyFunction())
+		exportSym, _ := conv.GetExportSymbolFunction()
+		exportProp, _ := conv.GetExportPropertyFunction()
+		pass := NewGenerateExports(c, c.GetOptions().ShouldExportLocalPropertyDefinitions(), exportSym, exportProp)
 		return CompilerPassFunc(func(externs, root rhino.Node) {
 			pass.Process(externs, root)
 			c.AddExportedNames(pass.GetExportedVariableNames())
@@ -109,8 +111,10 @@ var (
 	defaultPass_generateIjs         = passFactoryOf("generateIjs", NewConvertToTypedInterface)
 	defaultPass_removeExtraRequires = passFactoryOf("removeExtraRequires", NewExtraRequireRemover)
 	defaultPass_exportTestFunctions = NewPassFactory(PassNames_EXPORT_TEST_FUNCTIONS, func(c AbstractCompiler) CompilerPass {
-		if conv := c.GetCodingConvention(); conv.GetExportSymbolFunction() != nil {
-			return NewExportTestFunctions(c, conv.GetExportSymbolFunction(), conv.GetExportPropertyFunction())
+		conv := c.GetCodingConvention()
+		if exportSym, ok := conv.GetExportSymbolFunction(); ok {
+			exportProp, _ := conv.GetExportPropertyFunction()
+			return NewExportTestFunctions(c, exportSym, exportProp)
 		}
 		return NewErrorPass(c, defaultPassConfig_GENERATE_EXPORTS_ERROR)
 	})

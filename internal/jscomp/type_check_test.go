@@ -11798,7 +11798,7 @@ var a = new A();
 	var aType rhino.JSType = p.scope.GetVar("a").GetType()
 	IsInstanceOf[rhino.ObjectType](AssertThat(aType))
 	var aObjectType rhino.ObjectType = aType.(rhino.ObjectType)
-	AssertThat(aObjectType.GetConstructor().GetReferenceName()).IsEqualTo("A")
+	AssertThat(optStr(aObjectType.GetConstructor().ReferenceName())).IsEqualTo("A")
 }
 
 // Java: TypeCheckTest.testNew7()
@@ -13168,7 +13168,7 @@ func (c *TypeCheckTest) TestConstructorType7() {
 	var type_ rhino.JSType = p.scope.GetVar("A").GetType()
 	IsInstanceOf[rhino.FunctionType](AssertThat(type_))
 	var fType rhino.FunctionType = type_.(rhino.FunctionType)
-	AssertThat(fType.GetReferenceName()).IsEqualTo("A")
+	AssertThat(optStr(fType.ReferenceName())).IsEqualTo("A")
 }
 
 // Java: TypeCheckTest.testConstructorType8()
@@ -13519,7 +13519,7 @@ function foo() { return new goog.MyClass(); }
 	rhinotesting.IsInstanceOf[rhino.FunctionType](TypeSubject_AssertType(typeOfFoo).Subject)
 	var retType rhino.JSType = (typeOfFoo.(rhino.FunctionType)).GetReturnType()
 	rhinotesting.IsInstanceOf[rhino.ObjectType](TypeSubject_AssertType(retType).Subject)
-	AssertThat((retType.(rhino.ObjectType)).GetReferenceName()).IsEqualTo("goog.MyClass")
+	AssertThat(optStr((retType.(rhino.ObjectType)).ReferenceName())).IsEqualTo("goog.MyClass")
 }
 
 // Java: TypeCheckTest.testComplexNamespace()
@@ -15213,7 +15213,7 @@ func (c *TypeCheckTest) TestResolutionViaRegistry5() {
 		GetJSType()
 	AssertThat(type_.IsUnknownType()).IsFalse()
 	IsInstanceOf[rhino.FunctionType](AssertThat(type_))
-	AssertThat((type_.(rhino.FunctionType)).GetInstanceType().GetReferenceName()).IsEqualTo("u.T")
+	AssertThat(optStr((type_.(rhino.FunctionType)).GetInstanceType().ReferenceName())).IsEqualTo("u.T")
 }
 
 // Java: TypeCheckTest.testGatherProperyWithoutAnnotation1()

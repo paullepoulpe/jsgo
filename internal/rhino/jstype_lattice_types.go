@@ -86,16 +86,11 @@ func (t *AllType) AppendTo(sb *TypeStringBuilder) {
 }
 
 // DisplayName returns "<Any Type>" without allocating a *string.
-func (t *AllType) DisplayName() (string, bool) {
-	return allType_displayName, true
-}
-
+//
 // Java: AllType.getDisplayName()
-func (t *AllType) GetDisplayName() *string {
-	return &allType_displayName
+func (t *AllType) DisplayName() (string, bool) {
+	return "<Any Type>", true
 }
-
-var allType_displayName = "<Any Type>"
 
 // Java: AllType.hasDisplayName()
 func (t *AllType) HasDisplayName() bool {
@@ -218,35 +213,20 @@ func (t *UnknownType) GetConstructor() FunctionType {
 }
 
 // ReferenceName returns "?" or "??" without allocating a *string.
+//
+// Java: UnknownType.getReferenceName()
 func (t *UnknownType) ReferenceName() (string, bool) {
 	if t.isChecked {
-		return unknownType_checkedName, true
+		return "??", true
 	}
-	return unknownType_name, true
+	return "?", true
 }
-
-// Java: UnknownType.getReferenceName()
-func (t *UnknownType) GetReferenceName() *string {
-	if t.isChecked {
-		return &unknownType_checkedName
-	}
-	return &unknownType_name
-}
-
-var (
-	unknownType_checkedName = "??"
-	unknownType_name        = "?"
-	unknownType_displayName = "Unknown"
-)
 
 // DisplayName returns "Unknown" without allocating a *string.
-func (t *UnknownType) DisplayName() (string, bool) {
-	return unknownType_displayName, true
-}
-
+//
 // Java: UnknownType.getDisplayName()
-func (t *UnknownType) GetDisplayName() *string {
-	return &unknownType_displayName
+func (t *UnknownType) DisplayName() (string, bool) {
+	return "Unknown", true
 }
 
 // Java: UnknownType.hasDisplayName()
@@ -367,13 +347,10 @@ func (t *NoResolvedType) GetTypeClass() JSTypeClass {
 }
 
 // ReferenceName returns the forward-declared reference name without allocating a *string.
+//
+// Java: NoResolvedType.getReferenceName()
 func (t *NoResolvedType) ReferenceName() (string, bool) {
 	return t.referenceName, true
-}
-
-// Java: NoResolvedType.getReferenceName()
-func (t *NoResolvedType) GetReferenceName() *string {
-	return &t.referenceName
 }
 
 // Java: NoResolvedType.getTemplateTypes()

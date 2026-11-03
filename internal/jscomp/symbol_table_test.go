@@ -420,10 +420,11 @@ func (c *SymbolTableTest) VerifySymbolReferencedInSecondFile(firstFile string, s
 	table := c.CreateSymbolTableFromManySources(firstFile, secondFile)
 	symbol :=
 		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool {
-			return *s.GetSourceFileName() == "file1.js" && s.GetName() == symbolName
+			src, ok := s.SourceFileName()
+			return ok && src == "file1.js" && s.GetName() == symbolName
 		})
 	for ref := range table.GetReferences(symbol) {
-		if *ref.GetNode().GetSourceFileName() == "file2.js" {
+		if src, ok := ref.GetNode().SourceFileName(); ok && src == "file2.js" {
 			return
 		}
 	}
@@ -481,9 +482,12 @@ const {one} = goog.requireType('some.foo');
 exports.one = 1;
 `)
 	symbol :=
-		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool { return *s.GetSourceFileName() == "file2.js" && s.GetName() == "one" })
+		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool {
+			src, ok := s.SourceFileName()
+			return ok && src == "file2.js" && s.GetName() == "one"
+		})
 	for ref := range table.GetReferences(symbol) {
-		if *ref.GetNode().GetSourceFileName() == "file1.js" {
+		if src, ok := ref.GetNode().SourceFileName(); ok && src == "file1.js" {
 			return
 		}
 	}
@@ -681,7 +685,7 @@ Color.RED;
 		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool { return s.GetName() == "RED" })
 	// Make sure that RED belongs to the scope of Color that is defined in the first file and not
 	// third. Because the third file also has "Color" enum that has the same type.
-	AssertThat(table.GetScope(red).GetSymbolForScope().GetSourceFileName()).IsEqualTo("file1.js")
+	AssertThat(optStr(table.GetScope(red).GetSymbolForScope().SourceFileName())).IsEqualTo("file1.js")
 	AssertThat(table.GetReferences(red)).HasSize(4)
 }
 
@@ -703,7 +707,7 @@ Color.RED;
 `)
 	red :=
 		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool { return s.GetName() == "RED" })
-	AssertThat(table.GetScope(red).GetSymbolForScope().GetSourceFileName()).IsEqualTo("file1.js")
+	AssertThat(optStr(table.GetScope(red).GetSymbolForScope().SourceFileName())).IsEqualTo("file1.js")
 	AssertThat(table.GetReferences(red)).HasSize(3)
 }
 
@@ -719,7 +723,7 @@ const /** !foo.bar.Color */ color =
 `)
 	red :=
 		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool { return s.GetName() == "RED" })
-	AssertThat(table.GetScope(red).GetSymbolForScope().GetSourceFileName()).IsEqualTo("file1.js")
+	AssertThat(optStr(table.GetScope(red).GetSymbolForScope().SourceFileName())).IsEqualTo("file1.js")
 	AssertThat(table.GetReferences(red)).HasSize(2)
 	AssertThat(table.GetReferences(c.GetGlobalVar(table, "foo.bar.Color"))).HasSize(3)
 }
@@ -738,7 +742,7 @@ const /** !foo.bar.Color */ color =
 		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool { return s.GetName() == "RED" })
 	// Make sure that RED belongs to the scope of Color that is defined in the first file and not
 	// third. Because the third file also has "Color" enum that has the same type.
-	AssertThat(table.GetScope(red).GetSymbolForScope().GetSourceFileName()).IsEqualTo("file1.js")
+	AssertThat(optStr(table.GetScope(red).GetSymbolForScope().SourceFileName())).IsEqualTo("file1.js")
 	AssertThat(table.GetReferences(red)).HasSize(2)
 	colorEnum :=
 		symbolTableTest_findFirst(table.GetAllSymbols(), func(s *SymbolTable_Symbol) bool { return s.GetName() == "Color" })
@@ -1156,7 +1160,7 @@ func (c *SymbolTableTest) TestReferencesInJSDocType2() {
 		ref := refs[i]
 		AssertThat(ref.GetNode().IsFromExterns()).IsEqualTo(i != last)
 		if !ref.GetNode().IsFromExterns() {
-			AssertThat(ref.GetNode().GetSourceFileName()).IsEqualTo("in1")
+			AssertThat(optStr(ref.GetNode().SourceFileName())).IsEqualTo("in1")
 		}
 	}
 }
@@ -1210,7 +1214,7 @@ func (c *SymbolTableTest) TestReferencesInJSDocName() {
 
 	AssertThat(refs[0].GetNode().GetCharno()).IsEqualTo(jutil.StringIndexOf(code, "x) {"))
 	AssertThat(refs[1].GetNode().GetCharno()).IsEqualTo(jutil.StringIndexOf(code, "x */"))
-	AssertThat(refs[0].GetNode().GetSourceFileName()).IsEqualTo("in1")
+	AssertThat(optStr(refs[0].GetNode().SourceFileName())).IsEqualTo("in1")
 }
 
 // Java: SymbolTableTest.testLocalQualifiedNamesInLocalScopes()
@@ -1549,7 +1553,7 @@ func (c *SymbolTableTest) TestSymbolForScopeOfNatives() {
 	AssertThat(c.GetGlobalVar(table, "String.prototype.slice")).IsEqualTo(scope)
 
 	proto := c.GetGlobalVar(table, "String.prototype")
-	AssertThat(proto.GetDeclaration().GetNode().GetSourceFileName()).IsEqualTo("externs1")
+	AssertThat(optStr(proto.GetDeclaration().GetNode().SourceFileName())).IsEqualTo("externs1")
 }
 
 // Java: SymbolTableTest.testJSDocNameVisibility()

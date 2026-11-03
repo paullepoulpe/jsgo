@@ -39,12 +39,16 @@ import (
 type SourceInformationAnnotator struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	sourceFileToCheck *string // nil is null
+	sourceFileToCheck string
+	checkSourceFile   bool
 }
 
 // Java: SourceInformationAnnotator(String)
-func NewSourceInformationAnnotator(sourceFileToCheck *string) *SourceInformationAnnotator {
-	return &SourceInformationAnnotator{sourceFileToCheck: sourceFileToCheck}
+func NewSourceInformationAnnotator(sourceFileToCheck string, checkSourceFile bool) *SourceInformationAnnotator {
+	return &SourceInformationAnnotator{
+		sourceFileToCheck: sourceFileToCheck,
+		checkSourceFile:   checkSourceFile,
+	}
 }
 
 // SourceInformationAnnotator_Create returns an annotator that sets the
@@ -52,7 +56,7 @@ func NewSourceInformationAnnotator(sourceFileToCheck *string) *SourceInformation
 //
 // Java: SourceInformationAnnotator.create()
 func SourceInformationAnnotator_Create() *SourceInformationAnnotator {
-	return NewSourceInformationAnnotator(nil)
+	return NewSourceInformationAnnotator("", false)
 }
 
 // SourceInformationAnnotator_CreateWithAnnotationChecks returns an annotator
@@ -61,15 +65,15 @@ func SourceInformationAnnotator_Create() *SourceInformationAnnotator {
 //
 // Java: SourceInformationAnnotator.createWithAnnotationChecks(String)
 func SourceInformationAnnotator_CreateWithAnnotationChecks(sourceFile string) *SourceInformationAnnotator {
-	return NewSourceInformationAnnotator(&sourceFile)
+	return NewSourceInformationAnnotator(sourceFile, true)
 }
 
 // Java: SourceInformationAnnotator.visit(NodeTraversal, Node, Node)
 func (a *SourceInformationAnnotator) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	// Verify the source file is annotated.
-	if a.sourceFileToCheck != nil {
-		sourceFileName := n.GetSourceFileName()
-		jutil.CheckState(sourceFileName != nil && *a.sourceFileToCheck == *sourceFileName)
+	if a.checkSourceFile {
+		sourceFileName, ok := n.SourceFileName()
+		jutil.CheckState(ok && a.sourceFileToCheck == sourceFileName)
 	}
 
 	// Annotate the original name.
@@ -99,7 +103,7 @@ func (a *SourceInformationAnnotator) AnnotateTree(n rhino.Node) {
 }
 
 func annotateFunctionOriginalName(n rhino.Node) {
-	if n.GetOriginalName() != nil {
+	if _, ok := n.OriginalName(); ok {
 		return
 	}
 	parent := n.GetParent()
@@ -152,8 +156,8 @@ func SourceInformationAnnotator_IsStringNodeRequiringOriginalName(node rhino.Nod
 
 // Java: SourceInformationAnnotator.setOriginalName(Node, String)
 func SourceInformationAnnotator_SetOriginalName(n rhino.Node, name string) {
-	if name != "" && n.GetOriginalName() == nil {
-		n.SetOriginalName(&name)
+	if _, ok := n.OriginalName(); name != "" && !ok {
+		n.SetOriginalNameString(name)
 	}
 }
 
@@ -163,7 +167,7 @@ func SourceInformationAnnotator_SetOriginalName(n rhino.Node, name string) {
 //
 // Java: SourceInformationAnnotator.setOriginalName(Node, Node)
 func SourceInformationAnnotator_SetOriginalNameFromNode(n rhino.Node, name rhino.Node) {
-	if name.GetString() != "" && n.GetOriginalName() == nil {
+	if _, ok := n.OriginalName(); name.GetString() != "" && !ok {
 		n.SetOriginalNameFromName(name)
 	}
 }

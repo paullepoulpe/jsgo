@@ -164,20 +164,13 @@ func (p *ProxyObjectTypeBase) SetValidator(validator func(JSType) bool) bool {
 }
 
 // ReferenceName returns the referenced object type's reference name without allocating a *string.
+//
+// Java: ProxyObjectType.getReferenceName()
 func (p *ProxyObjectTypeBase) ReferenceName() (string, bool) {
 	if p.referencedObjType == nil {
 		return "", true
 	}
 	return p.referencedObjType.ReferenceName()
-}
-
-// Java: ProxyObjectType.getReferenceName()
-func (p *ProxyObjectTypeBase) GetReferenceName() *string {
-	if p.referencedObjType == nil {
-		empty := ""
-		return &empty
-	}
-	return p.referencedObjType.GetReferenceName()
 }
 
 // Java: ProxyObjectType.matchesNumberContext()

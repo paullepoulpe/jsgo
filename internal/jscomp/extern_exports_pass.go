@@ -373,8 +373,13 @@ func NewExternExportsPass(compiler AbstractCompiler) *ExternExportsPass {
 // Java: ExternExportsPass.initExportMethods()
 func (p *ExternExportsPass) InitExportMethods() {
 	convention := p.compiler.GetCodingConvention()
-	p.exportSymbolFunction = *jutil.CheckNotNull(convention.GetExportSymbolFunction())     // goog.exportSymbol(name, value)
-	p.exportPropertyFunction = *jutil.CheckNotNull(convention.GetExportPropertyFunction()) // goog.exportProperty(owner, name, value)
+	exportSym, hasSym := convention.GetExportSymbolFunction()
+	exportProp, hasProp := convention.GetExportPropertyFunction()
+	if !hasSym || !hasProp {
+		panic(jutil.NewNullPointerException())
+	}
+	p.exportSymbolFunction = exportSym    // goog.exportSymbol(name, value)
+	p.exportPropertyFunction = exportProp // goog.exportProperty(owner, name, value)
 }
 
 // Java: ExternExportsPass.process(Node, Node)

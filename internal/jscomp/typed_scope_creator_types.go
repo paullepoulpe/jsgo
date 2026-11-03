@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -45,13 +46,6 @@ func (b *TypedScopeCreator_scopeBuilder) ShouldUseFunctionLiteralType(type_ rhin
 	return b.IsLValueRootedInGlobalScope(lValue) || !type_.IsReturnTypeInferred()
 }
 
-func derefOptString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func (b *TypedScopeCreator_scopeBuilder) bestTypeNameString(lvalue rhino.Node, syntacticName string) string {
 	if syntacticName == "" {
 		return ""
@@ -69,8 +63,8 @@ func (b *TypedScopeCreator_scopeBuilder) bestTypeNameString(lvalue rhino.Node, s
 // Java: TypedScopeCreator.AbstractScopeBuilder.createClassTypeFromNodes(Node, String, String, JSDocInfo, Node)
 func (b *TypedScopeCreator_scopeBuilder) CreateClassTypeFromNodes(
 	clazz rhino.Node,
-	name *string,
-	syntacticName *string,
+	name string,
+	syntacticName string,
 	info *rhino.JSDocInfo,
 	lvalueNode rhino.Node) rhino.FunctionType {
 	cls := ast.MustClass(clazz)
@@ -80,9 +74,9 @@ func (b *TypedScopeCreator_scopeBuilder) CreateClassTypeFromNodes(
 		declarationScope = b.GetLValueRootScope(lvalueNode)
 	}
 	var builder FunctionTypeBuilder
-	builder.InitFunctionTypeBuilder(derefOptString(name), b.outer.compiler, clazz, b.currentScope)
+	builder.InitFunctionTypeBuilder(name, b.outer.compiler, clazz, b.currentScope)
 	builder.UsingClassSyntax()
-	builder.SetSyntacticFunctionName(derefOptString(syntacticName))
+	builder.SetSyntacticFunctionName(syntacticName)
 	builder.SetAstContents(clazz, false)
 	builder.SetDeclarationScope(declarationScope)
 	builder.InferKind(info)
@@ -186,11 +180,13 @@ func (b *TypedScopeCreator_scopeBuilder) FindSuperClassFromNodes(extendsNode rhi
 			}
 			// If that doesn't work, then fall back on the registry
 			if ctorType == nil {
+				srcFile, hasSrcFile := extendsNode.SourceFileName()
 				return rhino.ObjectType_Cast(
 					b.outer.typeRegistry.GetTypeWithLocation(
 						b.currentScope,
 						superclass,
-						extendsNode.GetSourceFileName(),
+						srcFile,
+						hasSrcFile,
 						extendsNode.GetLineno(),
 						extendsNode.GetCharno()))
 			}
@@ -293,7 +289,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetCtorForGoogModuleGet(extendsNode rhi
 // Java: TypedScopeCreator.AbstractScopeBuilder.createFunctionTypeFromNodes(Node, String, JSDocInfo, Node)
 func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 	rValue rhino.Node,
-	name *string,
+	name base.OptString,
 	info *rhino.JSDocInfo,
 	lvalueNode rhino.Node) rhino.FunctionType {
 	// Check for an alias.
@@ -304,8 +300,8 @@ func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 				aliasedType := var_.GetType().ToMaybeFunctionType()
 				if aliasedType.IsConstructor() || aliasedType.IsInterface() {
 					// TODO(nick): Remove this. This should already be handled by normal type resolution.
-					if name != nil {
-						b.outer.typeRegistry.DeclareType(b.currentScope, *name, aliasedType.GetInstanceType())
+					if fnName, ok := name.Get(); ok {
+						b.outer.typeRegistry.DeclareType(b.currentScope, fnName, aliasedType.GetInstanceType())
 					}
 					b.CheckFunctionAliasAnnotations(lvalueNode, aliasedType, info)
 					return aliasedType
@@ -368,11 +364,12 @@ func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 	} else {
 		var ownerName string
 		var hasOwnerName bool
-		if name != nil {
+		fnName, hasFnName := name.Get()
+		if hasFnName {
 			if gp, ok := ast.AsGetProp(lvalueNode); ok && ownerNode == gp.Object().Node() {
 				propName = gp.Property()
-				if len(*name) > len(propName)+1 && (*name)[len(*name)-len(propName)-1] == '.' {
-					ownerName = (*name)[:len(*name)-len(propName)-1]
+				if len(fnName) > len(propName)+1 && fnName[len(fnName)-len(propName)-1] == '.' {
+					ownerName = fnName[:len(fnName)-len(propName)-1]
 					hasOwnerName = true
 					hasPropName = true
 				}
@@ -386,11 +383,11 @@ func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 				rhino.ObjectType_Cast(rhino.StaticTypedScope_LookupQualifiedNameString(b.currentScope, ownerName))
 		}
 
-		if hasOwnerName && name != nil && !hasPropName {
+		if hasOwnerName && hasFnName && !hasPropName {
 			// TODO(b/111621092): Use the AST rather than manipulating strings here.
 			jutil.CheckStateMsg2(
-				jutil.StringStartsWith(*name, ownerName), "Expected \"%s\" to start with \"%s\"", *name, ownerName)
-			propName = jutil.StringSubstringFrom(*name, jutil.StringLength(ownerName)+1)
+				jutil.StringStartsWith(fnName, ownerName), "Expected \"%s\" to start with \"%s\"", fnName, ownerName)
+			propName = jutil.StringSubstringFrom(fnName, jutil.StringLength(ownerName)+1)
 			hasPropName = true
 		}
 	}
@@ -437,7 +434,7 @@ func (b *TypedScopeCreator_scopeBuilder) CreateFunctionTypeFromNodes(
 		_, hasNonEmptyReturn = b.outer.functionsWithNonEmptyReturns[fnRoot]
 	}
 
-	syntacticName := derefOptString(name)
+	syntacticName := name.ValueOrEmpty()
 	bestTypeName := b.bestTypeNameString(lvalueNode, syntacticName)
 	declarationScope := b.currentScope
 	if !lvalueNode.IsNil() {
@@ -534,7 +531,7 @@ func (b *TypedScopeCreator_scopeBuilder) CheckFunctionAliasAnnotations(n rhino.N
 		// externs mark most things as @constructor.  The load order is not always the same, so
 		// the error can show up in either the generated TS externs file or in our own extern.
 		(!n.IsFromExterns() || annotation == "@record") {
-		b.outer.Report(JSError_MakeWithNode(n, TypedScopeCreator_INCOMPATIBLE_ALIAS_ANNOTATION, annotation, jutil.ToJavaString(n.GetQualifiedName())))
+		b.outer.Report(JSError_MakeWithNode(n, TypedScopeCreator_INCOMPATIBLE_ALIAS_ANNOTATION, annotation, jutil.FormatOptionalString(n.GetQualifiedNameString())))
 	}
 }
 
@@ -600,7 +597,7 @@ func (b *TypedScopeCreator_scopeBuilder) FindOverriddenProperty(
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.createEnumTypeFromNodes(Node, String, Node, JSDocInfo)
 func (b *TypedScopeCreator_scopeBuilder) CreateEnumTypeFromNodes(
-	rValue rhino.Node, name *string, lValue rhino.Node, info *rhino.JSDocInfo) *rhino.EnumType {
+	rValue rhino.Node, name base.OptString, lValue rhino.Node, info *rhino.JSDocInfo) *rhino.EnumType {
 	jutil.CheckNotNull(info)
 	jutil.CheckState(info.HasEnumParameterType())
 	jutil.CheckStateMsg(
@@ -621,7 +618,7 @@ func (b *TypedScopeCreator_scopeBuilder) CreateEnumTypeFromNodes(
 
 	if enumType == nil {
 		enumType = rhino.EnumType_Builder_(b.outer.typeRegistry).
-			SetName(b.GetBestTypeName(lValue, name)).
+			SetOptionalName(b.GetBestTypeName(lValue, name).Get()).
 			SetOptionalGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(b.currentScope)).
 			SetSource(rValue).
 			SetElementType(info.GetEnumParameterType().Evaluate(b.currentScope, b.outer.typeRegistry)).
@@ -642,8 +639,8 @@ func (b *TypedScopeCreator_scopeBuilder) CreateEnumTypeFromNodes(
 		}
 	}
 
-	if name != nil {
-		b.outer.typeRegistry.DeclareType(b.currentScope, *name, enumType.GetElementsType())
+	if enumName, ok := name.Get(); ok {
+		b.outer.typeRegistry.DeclareType(b.currentScope, enumName, enumType.GetElementsType())
 	}
 
 	if rValue.IsNil() || !(rValue.IsObjectLit() || rValue.IsQualifiedName()) {
@@ -708,11 +705,12 @@ func (b *TypedScopeCreator_scopeBuilder) GetDeclaredType(
 			if !rValue.IsNil() && rValue.IsObjectLit() {
 				return rValue.GetJSType()
 			} else {
-				return b.CreateEnumTypeFromNodes(rValue, lValue.GetQualifiedName(), lValue, info)
+				return b.CreateEnumTypeFromNodes(rValue, optStringOf(lValue.GetQualifiedNameString()), lValue, info)
 			}
 		} else if info.IsConstructorOrInterface() {
+			lvalQname, hasLvalQname := lValue.GetQualifiedNameString()
 			fnType :=
-				b.CreateFunctionTypeFromNodes(rValue, lValue.GetQualifiedName(), info, lValue)
+				b.CreateFunctionTypeFromNodes(rValue, optStringOf(lvalQname, hasLvalQname), info, lValue)
 			if rValue.IsNil() && !lValue.IsFromExterns() {
 				diagnostic := TypedScopeCreator_IFACE_INITIALIZER
 				if fnType.IsConstructor() {
@@ -722,7 +720,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetDeclaredType(
 					JSError_MakeWithNode(
 						lValue,
 						diagnostic,
-						jutil.ToJavaString(lValue.GetQualifiedName())))
+						jutil.FormatOptionalString(lvalQname, hasLvalQname)))
 			}
 			return fnType
 		}
@@ -762,7 +760,7 @@ func (b *TypedScopeCreator_scopeBuilder) GetDeclaredType(
 	}
 
 	if info != nil && FunctionTypeBuilder_IsFunctionTypeDeclaration(info) {
-		fnName := lValue.GetQualifiedName()
+		fnName := optStringOf(lValue.GetQualifiedNameString())
 		return b.CreateFunctionTypeFromNodes(rhino.NilNode, fnName, info, lValue)
 	}
 

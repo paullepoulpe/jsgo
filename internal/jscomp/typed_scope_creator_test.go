@@ -1508,12 +1508,12 @@ func (c *TypedScopeCreatorTest) TestNamespacedEnum() {
 	x := typedScopeCreatorTest_cast[rhino.ObjectType](c.FindNameType("x", c.globalScope))
 	AssertThat(x.IsEnumType()).IsTrue()
 	AssertThat(x.HasProperty("TOGGLE")).IsTrue()
-	AssertThat(x.GetReferenceName()).IsEqualTo("enum{goog.ui.Zippy.EventType}")
+	AssertThat(optStr(x.ReferenceName())).IsEqualTo("enum{goog.ui.Zippy.EventType}")
 
 	y := typedScopeCreatorTest_cast[rhino.ObjectType](c.FindNameType("y", c.globalScope))
 	AssertThat(y.IsSubtypeOf(c.GetNativeType(rhino.JSTypeNative_STRING_TYPE))).IsTrue()
 	AssertThat(y.IsEnumElementType()).IsTrue()
-	AssertThat(y.GetReferenceName()).IsEqualTo("goog.ui.Zippy.EventType")
+	AssertThat(optStr(y.ReferenceName())).IsEqualTo("goog.ui.Zippy.EventType")
 }
 
 // Java: TypedScopeCreatorTest.testGlobalTypedefs1()
@@ -8156,7 +8156,7 @@ function markImplementor(ctor) {
 	nativeFnInstancePrototype :=
 		c.GetNativeObjectType(rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE)
 
-	AssertThat(ctorPrototypeType.ToObjectType().GetReferenceName()).IsEqualTo("?.prototype")
+	AssertThat(optStr(ctorPrototypeType.ToObjectType().ReferenceName())).IsEqualTo("?.prototype")
 	AssertThat(ctorPrototypeType).IsSameInstanceAs(nativeFnInstancePrototype)
 }
 
@@ -8186,7 +8186,7 @@ function markImplementor(ctor) {
 	nativeFnInstancePrototype :=
 		c.GetNativeObjectType(rhino.JSTypeNative_FUNCTION_INSTANCE_PROTOTYPE)
 
-	AssertThat(ctorPrototypeType.ToObjectType().GetReferenceName()).IsEqualTo("?.prototype")
+	AssertThat(optStr(ctorPrototypeType.ToObjectType().ReferenceName())).IsEqualTo("?.prototype")
 	AssertThat(ctorPrototypeType).IsSameInstanceAs(nativeFnInstancePrototype)
 }
 

@@ -68,23 +68,15 @@ var GenerateExports_MISSING_GOOG_FOR_EXPORT = DiagnosticType_Error(
 func NewGenerateExports(
 	compiler AbstractCompiler,
 	allowNonGlobalExports bool,
-	exportSymbolFunction *string,
-	exportPropertyFunction *string) *GenerateExports {
+	exportSymbolFunction string,
+	exportPropertyFunction string) *GenerateExports {
 	jutil.CheckNotNull(compiler)
-
-	var exportSym, exportProp string
-	if exportSymbolFunction != nil {
-		exportSym = *exportSymbolFunction
-	}
-	if exportPropertyFunction != nil {
-		exportProp = *exportPropertyFunction
-	}
 	return &GenerateExports{
 		compiler:               compiler,
 		allowNonGlobalExports:  allowNonGlobalExports,
-		exportSymbolFunction:   exportSym,
-		exportPropertyFunction: exportProp,
-		hasExportConvention:    exportSymbolFunction != nil && exportPropertyFunction != nil,
+		exportSymbolFunction:   exportSymbolFunction,
+		exportPropertyFunction: exportPropertyFunction,
+		hasExportConvention:    exportSymbolFunction != "" && exportPropertyFunction != "",
 	}
 }
 

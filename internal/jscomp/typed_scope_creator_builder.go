@@ -89,7 +89,7 @@ func (b *TypedScopeCreator_scopeBuilder) getOwnerLValueNameString(ownerNode rhin
 	if ownerNode.IsNil() {
 		return "", false
 	}
-	return nodeUtil_getBestLValueNameString(ownerNode)
+	return NodeUtil_BestLValueName(ownerNode)
 }
 
 func (b *TypedScopeCreator_scopeBuilder) deferAction(key rhino.Node, fn func()) {
@@ -414,7 +414,7 @@ func (b *TypedScopeCreator_scopeBuilder) DefineObjectLiteral(objectLit rhino.Nod
 	createEnumType := info != nil && info.HasEnumParameterType()
 	if createEnumType {
 		lValue := NodeUtil_GetBestLValue(objectLit)
-		lValueName := NodeUtil_GetBestLValueName(lValue)
+		lValueName := optStringOf(NodeUtil_BestLValueName(lValue))
 		type_ = b.CreateEnumTypeFromNodes(objectLit, lValueName, lValue, info)
 	}
 
@@ -444,7 +444,7 @@ func (b *TypedScopeCreator_scopeBuilder) ProcessObjectLitProperties(objLit rhino
 		return
 	}
 	objOwner := NodeUtil_GetBestLValue(objLit)
-	objOwnerName, hasObjOwnerName := nodeUtil_getBestLValueNameString(objOwner)
+	objOwnerName, hasObjOwnerName := NodeUtil_BestLValueName(objOwner)
 	var objRootScope *TypedScope
 	for member := range lit.Members() {
 		keyNode := member.Node()

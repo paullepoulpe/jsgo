@@ -21,6 +21,7 @@ package jscomp
 import (
 	"bufio"
 	"io"
+	"os"
 	"slices"
 	"strings"
 
@@ -279,6 +280,10 @@ func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 
 // Java: Compiler.saveState(OutputStream)
 func (c *Compiler) SaveState(outputStream io.Writer) {
+	if c.options.isBinarySaveState() || os.Getenv("JSGO_BINARY_SAVE_STATE") == "1" {
+		c.saveBinaryState(outputStream)
+		return
+	}
 	// Do not close the outputstream, caller is responsible for closing it.
 	c.runInCompilerThread(func() {
 		tracer := c.NewTracer("serializeCompilerState")
@@ -320,12 +325,21 @@ func (c *Compiler) RestoreState(inputStream io.Reader) {
 		tracer := c.NewTracer(PassNames_DESERIALIZE_COMPILER_STATE)
 		Compiler_logger.Fine("Deserializing the CompilerState")
 		nonClosingIn := NewCompiler_NonClosingInputStream(inputStream)
+		br := bufio.NewReaderSize(nonClosingIn, 64*1024)
+		hdr, peekErr := br.Peek(len(binarySaveStateMagic))
+		isBinary := peekErr == nil && string(hdr) == binarySaveStateMagic
+		var rawIn io.Reader = br
+		if isBinary {
+			c.readAndValidateBinaryStateHeader(br)
+		} else if peekErr != nil && peekErr != io.EOF {
+			rawIn = newReplayErrorReader(hdr, peekErr)
+		}
 		var decompressStream io.Reader
 		wrapper := c.options.GetStateDecompressionWrapper()
 		if wrapper != nil {
-			decompressStream = wrapper(nonClosingIn)
+			decompressStream = wrapper(rawIn)
 		} else {
-			decompressStream = jutil.NewGZIPInputStreamWithSize(nonClosingIn, 64*1024)
+			decompressStream = jutil.NewGZIPInputStreamWithSize(io.NopCloser(rawIn), 64*1024)
 		}
 		bufferedDecompressStream := compiler_newBufferedInputStream(decompressStream, 64*1024)
 		defer func() {
@@ -333,7 +347,11 @@ func (c *Compiler) RestoreState(inputStream io.Reader) {
 			Compiler_logger.Fine("Finished deserializing CompilerState")
 			c.StopTracer(tracer, PassNames_DESERIALIZE_COMPILER_STATE)
 		}()
-		c.deserializeCompilerState(bufferedDecompressStream)
+		if isBinary {
+			c.deserializeBinaryCompilerState(bufferedDecompressStream)
+		} else {
+			c.deserializeCompilerState(bufferedDecompressStream)
+		}
 	})
 
 	if c.tracker != nil {
@@ -341,20 +359,13 @@ func (c *Compiler) RestoreState(inputStream io.Reader) {
 	}
 }
 
-// deserializeCompilerState must be called from within a "compiler thread"
-// with a larger stack
-//
-// Java: Compiler.deserializeCompilerState(InputStream)
-func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
-	// Do not close the input stream, caller is responsible for closing it.
-	stateProto := compiler_parseDelimitedFrom(inputStream)
-
+func (c *Compiler) collectRestoreInputFiles() (externFiles, codeFiles map[string]*SourceFile, allInputFiles []*SourceFile) {
 	jutil.CheckNotNullMsg(
 		c.chunkGraph, "Did you forget to call .init or .initChunks before restoreState?")
 	allInputs := c.chunkGraph.GetAllInputs()
-	externFiles := make(map[string]*SourceFile, len(c.externs))
-	codeFiles := make(map[string]*SourceFile, len(allInputs))
-	allInputFiles := make([]*SourceFile, 0, len(allInputs)+len(c.externs))
+	externFiles = make(map[string]*SourceFile, len(c.externs))
+	codeFiles = make(map[string]*SourceFile, len(allInputs))
+	allInputFiles = make([]*SourceFile, 0, len(allInputs)+len(c.externs))
 	compiler_putOrThrow := func(m map[string]*SourceFile, k string, v *SourceFile) {
 		// ImmutableMap.Builder.buildOrThrow: duplicate keys are an error.
 		if _, dup := m[k]; dup {
@@ -372,6 +383,17 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 		allInputFiles = append(allInputFiles, sf)
 		compiler_putOrThrow(externFiles, extern.GetInputId().GetIdName(), sf)
 	}
+	return externFiles, codeFiles, allInputFiles
+}
+
+// deserializeCompilerState must be called from within a "compiler thread"
+// with a larger stack
+//
+// Java: Compiler.deserializeCompilerState(InputStream)
+func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
+	// Do not close the input stream, caller is responsible for closing it.
+	stateProto := compiler_parseDelimitedFrom(inputStream)
+	externFiles, codeFiles, allInputFiles := c.collectRestoreInputFiles()
 
 	deserializedAst := TypedAstDeserializer_DeserializeFullAst(
 		c,
@@ -382,6 +404,15 @@ func (c *Compiler) deserializeCompilerState(inputStream io.Reader) {
 		c.GetOptions().GetResolveSourceMapAnnotations(),
 		c.GetOptions().GetParseInlineSourceMaps())
 
+	c.applyDeserializedCompilerState(stateProto, externFiles, codeFiles, deserializedAst)
+}
+
+func (c *Compiler) applyDeserializedCompilerState(
+	stateProto *JSCompilerStateProto,
+	externFiles map[string]*SourceFile,
+	codeFiles map[string]*SourceFile,
+	deserializedAst *TypedAstDeserializer_DeserializedAst,
+) {
 	c.RestoreFromState(stateProto)
 
 	// Restore the chunk graph

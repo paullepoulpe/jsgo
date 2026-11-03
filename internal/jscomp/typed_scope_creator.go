@@ -638,11 +638,15 @@ func (c *TypedScopeCreator) AddWellKnownSymbols(scope *TypedScope) {
 // Java: TypedScopeCreator.declareNativeFunctionType(TypedScope, JSTypeNative)
 func (c *TypedScopeCreator) DeclareNativeFunctionType(scope *TypedScope, tId rhino.JSTypeNative) {
 	t := c.typeRegistry.GetNativeFunctionType(tId)
-	if inst := t.GetInstanceType(); inst != nil && inst.GetReferenceName() != nil {
-		TypedScopeCreator_DeclareNativeType(scope, *inst.GetReferenceName(), t)
+	if inst := t.GetInstanceType(); inst != nil {
+		if name, ok := inst.ReferenceName(); ok {
+			TypedScopeCreator_DeclareNativeType(scope, name, t)
+		}
 	}
-	if proto := t.GetPrototype(); proto != nil && proto.GetReferenceName() != nil {
-		TypedScopeCreator_DeclareNativeType(scope, *proto.GetReferenceName(), proto)
+	if proto := t.GetPrototype(); proto != nil {
+		if name, ok := proto.ReferenceName(); ok {
+			TypedScopeCreator_DeclareNativeType(scope, name, proto)
+		}
 	}
 }
 

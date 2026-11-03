@@ -762,13 +762,13 @@ func (r *JSTypeRegistry) getTypeWithLocationString(
 //
 // Java: JSTypeRegistry.getType(StaticTypedScope, String, String, int, int)
 func (r *JSTypeRegistry) GetTypeWithLocation(
-	scope StaticTypedScope, jsTypeName string, sourceName *string, lineno int, charno int) JSType {
+	scope StaticTypedScope, jsTypeName string, sourceName string, hasSourceName bool, lineno int, charno int) JSType {
 	if type_ := r.getTypeResolvedOrNil(scope, jsTypeName); type_ != nil {
 		return type_
 	}
 	// TODO(user): Each instance should support named type creation using
 	// interning.
-	return r.CreateNamedType(scope, jsTypeName, sourceName, lineno, charno)
+	return r.CreateNamedTypeOpt(scope, jsTypeName, sourceName, hasSourceName, lineno, charno)
 }
 
 // Java: JSTypeRegistry.evaluateTypeExpressionInGlobalScope(JSTypeExpression)

@@ -449,6 +449,16 @@ func (r *JSTypeRegistry) CreateNamedType(
 	return r.createNamedTypeByID(scope, reference, rhinoStringIDFromPtr(sourceName), lineno, charno)
 }
 
+// CreateNamedTypeOpt creates a named type without allocating a *string for sourceName.
+func (r *JSTypeRegistry) CreateNamedTypeOpt(
+	scope StaticTypedScope, reference string, sourceName string, hasSourceName bool, lineno int, charno int) *NamedType {
+	var id rhinoStringID
+	if hasSourceName {
+		id = rhinoStringPoolIntern(sourceName)
+	}
+	return r.createNamedTypeByID(scope, reference, id, lineno, charno)
+}
+
 func (r *JSTypeRegistry) createNamedTypeByID(
 	scope StaticTypedScope, reference string, sourceNameID rhinoStringID, lineno int, charno int) *NamedType {
 	b := NamedType_Builder{

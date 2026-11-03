@@ -53,19 +53,12 @@ const googTestingTestSuite = "goog.testing.testSuite"
 //
 // Java: ExportTestFunctions(AbstractCompiler, String, String)
 func NewExportTestFunctions(
-	compiler AbstractCompiler, exportSymbolFunction *string, exportPropertyFunction *string) *ExportTestFunctions {
+	compiler AbstractCompiler, exportSymbolFunction string, exportPropertyFunction string) *ExportTestFunctions {
 	jutil.CheckNotNull(compiler)
-	var exportSym, exportProp string
-	if exportSymbolFunction != nil {
-		exportSym = *exportSymbolFunction
-	}
-	if exportPropertyFunction != nil {
-		exportProp = *exportPropertyFunction
-	}
 	return &ExportTestFunctions{
 		compiler:               compiler,
-		exportSymbolFunction:   exportSym,
-		exportPropertyFunction: exportProp,
+		exportSymbolFunction:   exportSymbolFunction,
+		exportPropertyFunction: exportPropertyFunction,
 	}
 }
 

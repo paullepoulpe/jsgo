@@ -219,6 +219,8 @@ type AbstractCommandLineRunnerBase struct {
 	parsedChunkConformanceFiles map[string]string // nil is null
 
 	filesToStreamOut []*AbstractCommandLineRunner_JsonFileSpec
+
+	sourceFileCache sourceFileLookupFunc
 }
 
 var (
@@ -444,7 +446,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	} else {
 		entries := make([]kvEntry[*jscomp.SourceMapInput], len(config.sourceMapInputFiles))
 		for i, entry := range config.sourceMapInputFiles {
-			sourceMap := jscomp.SourceFile_Builder_().WithKind(rhino.StaticSourceFile_SourceKind_NON_CODE).WithPath(entry.Value).Build()
+			sourceMap := r.newSourceFile(entry.Value, nil, rhino.StaticSourceFile_SourceKind_NON_CODE)
 			entries[i] = kvEntry[*jscomp.SourceMapInput]{key: entry.Key, value: jscomp.NewSourceMapInput(sourceMap)}
 		}
 		options.SetInputSourceMaps(buildUniqueOrderedMap(entries))
@@ -575,7 +577,7 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	options := r.self.CreateOptions()
 	r.self.SetRunOptions(options)
 
-	typedAstListInputFilename := config.typedAstListInputFilename
+	typedAstListInputFilename, hasTypedAstListInput := config.typedAstListInputFilename.Get()
 
 	externs := r.self.CreateExterns(options)
 	var chunks []*jscomp.JSChunk
@@ -655,14 +657,14 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 			outputFileNames = append(outputFileNames, r.self.GetChunkOutputFileName(m))
 		}
 
-		if typedAstListInputFilename != nil {
-			r.InitChunksWithTypedAstFilesystem(externs, chunks, options, *typedAstListInputFilename)
+		if hasTypedAstListInput {
+			r.InitChunksWithTypedAstFilesystem(externs, chunks, options, typedAstListInputFilename)
 		} else {
 			r.compiler.InitChunks(externs, chunks, options)
 		}
 	} else {
-		if typedAstListInputFilename != nil {
-			r.InitWithTypedAstFilesystem(externs, sources, options, *typedAstListInputFilename)
+		if hasTypedAstListInput {
+			r.InitWithTypedAstFilesystem(externs, sources, options, typedAstListInputFilename)
 		} else {
 			r.compiler.Init(externs, sources, options)
 		}
@@ -723,7 +725,7 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	}
 
 	// We won't want to process results for cases where compilation is only partially done.
-	shouldProcessResults := config.GetSaveCompilationStateToFilename() == nil
+	shouldProcessResults := !config.saveCompilationStateToFilename.IsPresent()
 	var exitStatus int
 	if shouldProcessResults {
 		exitStatus = r.self.ProcessResults(result, chunks, options)
@@ -820,7 +822,7 @@ func (r *AbstractCommandLineRunnerBase) RunCompilerPasses() {
 func (r *AbstractCommandLineRunnerBase) InitializeStateBeforeCompilation() {
 	if r.config.restoredCompilationStage != -1 {
 		r.RestoreState(*r.config.GetContinueSavedCompilationFileName())
-	} else if r.config.typedAstListInputFilename != nil {
+	} else if r.config.typedAstListInputFilename.IsPresent() {
 		// we did this elsewhere
 	} else {
 		// parsing!

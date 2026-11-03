@@ -986,6 +986,14 @@ func taPtr[T any](p *T) any {
 	return p
 }
 
+// taOptStr maps an unboxed (string, bool) optional to string or nil (Java null).
+func taOptStr(s string, ok bool) any {
+	if !ok {
+		return nil
+	}
+	return s
+}
+
 // taNullableList maps a nil slice (Java null) to nil.
 func taNullableList[T any](l []T) any {
 	if l == nil {
@@ -1031,7 +1039,7 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 	})
 	d.fact("isStruct", func() any { return t.IsStruct() })
 	d.fact("isDict", func() any { return t.IsDict() })
-	d.fact("displayName", func() any { return t.GetDisplayName() })
+	d.fact("displayName", func() any { return taOptStr(t.DisplayName()) })
 	d.fact("autoboxesTo", func() any { return t.AutoboxesTo() })
 	d.fact("autobox", func() any { return t.Autobox() })
 	d.fact("dereference", func() any { return t.Dereference() })
@@ -1091,7 +1099,7 @@ func (d *typeAlgebraDump) unaryFacts(i int) {
 		return registry.GetReadableTypeName(n) + "/" + registry.GetReadableTypeNameNoDeref(n)
 	})
 	if o := t.ToMaybeObjectType(); o != nil {
-		d.fact("o.referenceName", func() any { return o.GetReferenceName() })
+		d.fact("o.referenceName", func() any { return taOptStr(o.ReferenceName()) })
 		d.fact("o.normalizedReferenceName", func() any {
 			if !o.HasReferenceName() {
 				return nil

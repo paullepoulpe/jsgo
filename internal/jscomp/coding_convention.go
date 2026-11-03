@@ -113,11 +113,11 @@ type CodingConvention interface {
 	// Java: CodingConvention.isExported(String)
 	IsExported(name string) bool
 
-	// GetPackageName returns the package name for the given source file, or
-	// null if no package name is known.
+	// GetPackageName returns the package name for the given source file and
+	// true, or ("", false) if no package name is known.
 	//
 	// Java: CodingConvention.getPackageName(StaticSourceFile)
-	GetPackageName(source rhino.StaticSourceFile) *string
+	GetPackageName(source rhino.StaticSourceFile) (string, bool)
 
 	// GetClassesDefinedByCall checks if the given method defines a subclass
 	// relationship, and if it does, returns information on that
@@ -144,17 +144,17 @@ type CodingConvention interface {
 	// Java: CodingConvention.isSuperClassReference(String)
 	IsSuperClassReference(propertyName string) bool
 
-	// GetExportPropertyFunction is the function name used when exporting
-	// properties. Signature: fn(object, publicName, symbol).
+	// GetExportPropertyFunction returns the function name used when exporting
+	// properties, or ("", false) if none. Signature: fn(object, publicName, symbol).
 	//
 	// Java: CodingConvention.getExportPropertyFunction()
-	GetExportPropertyFunction() *string
+	GetExportPropertyFunction() (string, bool)
 
-	// GetExportSymbolFunction is the function name used when exporting
-	// symbols. Signature: fn(publicPath, object).
+	// GetExportSymbolFunction returns the function name used when exporting
+	// symbols, or ("", false) if none. Signature: fn(publicPath, object).
 	//
 	// Java: CodingConvention.getExportSymbolFunction()
-	GetExportSymbolFunction() *string
+	GetExportSymbolFunction() (string, bool)
 
 	// IdentifyTypeDeclarationCall checks if the given CALL node is
 	// forward-declaring a single type, and returns its name and true if so.

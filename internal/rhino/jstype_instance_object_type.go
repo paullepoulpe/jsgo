@@ -151,12 +151,9 @@ func (t *InstanceObjectType) HasReferenceName() bool {
 	return t.constructor.HasReferenceName()
 }
 
-// Java: InstanceObjectType.getReferenceName()
-func (t *InstanceObjectType) GetReferenceName() *string {
-	return t.GetConstructor().GetReferenceName()
-}
-
 // ReferenceName returns the constructor's reference name without allocating a *string.
+//
+// Java: InstanceObjectType.getReferenceName()
 func (t *InstanceObjectType) ReferenceName() (string, bool) {
 	return t.GetConstructor().ReferenceName()
 }

@@ -63,7 +63,12 @@ type Pattern struct {
 	// resumed for a search starting past offset 0 (`^` cannot match),
 	// crlf for an input that ends in "\r\n" (see the anchors above).
 	// Variants that would be identical share one compiled regex.
-	searchers [2][2]searcher
+	searchers               [2][2]searcher
+	fullPrefilter           literalPrefilter
+	findPrefilter           literalPrefilter
+	matchesCore             *regexp.Regexp
+	matchesCoreMode         uint8
+	matchesCoreCanMatchTerm bool
 }
 
 // searcher is one unanchored translation of the pattern.
@@ -139,6 +144,7 @@ func patternCompile(regex string) *Pattern {
 		groups:  info.groups,
 		full:    compileTranslatedJavaRegex(regex, fullRe),
 	}
+	var search00 string
 	for resumed := range 2 {
 		for crlf := range 2 {
 			switch {
@@ -148,10 +154,14 @@ func patternCompile(regex string) *Pattern {
 				p.searchers[resumed][1] = p.searchers[resumed][0]
 			default:
 				t, ti := translateJavaRegex(regex, javaRegexMode{resumed: resumed == 1, crlf: crlf == 1})
+				if resumed == 0 && crlf == 0 {
+					search00 = t
+				}
 				p.searchers[resumed][crlf] = searcher{compileTranslatedJavaRegex(regex, t), ti.marks}
 			}
 		}
 	}
+	populatePatternFastPaths(p, whole, search00)
 	return p
 }
 
@@ -173,8 +183,12 @@ func (p *Pattern) searcherFor(input string, from int) searcher {
 // the Java pattern's groups, or nil. RE2's leftmost-first search picks the
 // match and submatches that Java's backtracking finds first.
 func (p *Pattern) findFrom(input string, from int) []int {
+	tail := input[from:]
+	if !p.findPrefilter.match(tail) {
+		return nil
+	}
 	s := p.searcherFor(input, from)
-	loc := s.re.FindStringSubmatchIndex(input[from:])
+	loc := s.re.FindStringSubmatchIndex(tail)
 	if loc == nil {
 		return nil
 	}
@@ -244,10 +258,37 @@ func (p *Pattern) Pattern() string { return p.pattern }
 func (p *Pattern) String() string { return p.pattern }
 
 // Matches is p.matcher(s).matches().
-func (p *Pattern) Matches(s string) bool { return p.full.MatchString(s) }
+func (p *Pattern) Matches(s string) bool {
+	if !p.fullPrefilter.match(s) {
+		return false
+	}
+	switch p.matchesCoreMode {
+	case matchesCoreDotAll:
+		if p.matchesCore == nil {
+			return true
+		}
+		return p.matchesCore.MatchString(s)
+	case matchesCoreJavaDot:
+		if !containsJavaLineTerminator(s) {
+			if p.matchesCore == nil {
+				return true
+			}
+			return p.matchesCore.MatchString(s)
+		}
+		if !p.matchesCoreCanMatchTerm {
+			return false
+		}
+	}
+	return p.full.MatchString(s)
+}
 
 // Find is p.matcher(s).find() from the start of s.
-func (p *Pattern) Find(s string) bool { return p.searcherFor(s, 0).re.MatchString(s) }
+func (p *Pattern) Find(s string) bool {
+	if !p.findPrefilter.match(s) {
+		return false
+	}
+	return p.searcherFor(s, 0).re.MatchString(s)
+}
 
 func unsupportedJavaRegex(regex, what string) {
 	panic(NewUnsupportedOperationExceptionMsg("Java regex construct not supported (" + what + "): " + regex))
@@ -673,6 +714,9 @@ func (m *Matcher) record(loc []int) bool {
 
 // Matches is Matcher.matches(): the entire input must match.
 func (m *Matcher) Matches() bool {
+	if !m.p.fullPrefilter.match(m.input) {
+		return m.record(nil)
+	}
 	return m.record(m.p.full.FindStringSubmatchIndex(m.input))
 }
 
