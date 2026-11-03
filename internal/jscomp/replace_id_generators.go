@@ -124,7 +124,7 @@ var replaceIdGeneratorsCreateTemplateTagFirstArg = rhino.QualifiedName_Of("$jsco
 func NewReplaceIdGenerators(
 	compiler AbstractCompiler,
 	templateLiteralsAreTranspiled bool,
-	idGens *jutil.LinkedHashMap[string, RenamingMap],
+	idGens *OrderedStringMap[RenamingMap],
 	generatePseudoNames bool,
 	previousMapSerialized *string,
 	xidHashFunction Xid_HashFunction) *ReplaceIdGenerators {

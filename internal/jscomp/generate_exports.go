@@ -36,7 +36,7 @@ type GenerateExports struct {
 
 	allowNonGlobalExports bool
 
-	exportedVariables *jutil.LinkedHashSet[string]
+	exportedVariables OrderedSet[string]
 }
 
 var _ CompilerPass = (*GenerateExports)(nil)
@@ -74,17 +74,21 @@ func NewGenerateExports(
 	exportPropertyFunction *string) *GenerateExports {
 	jutil.CheckNotNull(compiler)
 
-	g := &GenerateExports{exportedVariables: jutil.NewLinkedHashSet[string]()}
-	g.compiler = compiler
-	g.allowNonGlobalExports = allowNonGlobalExports
-	g.exportSymbolFunction = exportSymbolFunction
-	g.exportPropertyFunction = exportPropertyFunction
-	return g
+	return &GenerateExports{
+		compiler:               compiler,
+		allowNonGlobalExports:  allowNonGlobalExports,
+		exportSymbolFunction:   exportSymbolFunction,
+		exportPropertyFunction: exportPropertyFunction,
+	}
 }
 
 // Java: GenerateExports.getExportedVariableNames()
 func (g *GenerateExports) GetExportedVariableNames() *jutil.LinkedHashSet[string] {
-	return g.exportedVariables
+	exported := jutil.NewLinkedHashSetWithCapacity[string](g.exportedVariables.Size())
+	for name := range g.exportedVariables.All() {
+		exported.Add(name)
+	}
+	return exported
 }
 
 // Java: GenerateExports.process(Node, Node)
@@ -105,12 +109,12 @@ func (g *GenerateExports) Process(externs rhino.Node, root rhino.Node) {
 		}
 	}
 
-	for k, v := range es6Exports.All() {
-		g.AddExportForEs6Method(k, v)
+	for _, e := range es6Exports.Entries() {
+		g.AddExportForEs6Method(e.Key, e.Value)
 	}
 
-	for export, context := range exports.All() {
-		g.AddExportMethod(exports, export, context)
+	for _, e := range exports.Entries() {
+		g.AddExportMethod(exports, e.Key, e.Value)
 	}
 }
 
@@ -120,20 +124,14 @@ func (g *GenerateExports) Process(externs rhino.Node, root rhino.Node) {
 //
 // Java: GenerateExports.validateExportMethodsIncluded(Map<String, Node>, Map<Node, String>, Node)
 func (g *GenerateExports) ValidateExportMethodsIncluded(
-	exports *jutil.LinkedHashMap[string, rhino.Node], es6Exports *jutil.LinkedHashMap[rhino.Node, string], root rhino.Node) bool {
+	exports *OrderedStringMap[rhino.Node], es6Exports *OrderedMap[rhino.Node, string], root rhino.Node) bool {
 
 	// Pick an arbitrary @export to report the warning on.
 	var errorLocation rhino.Node
-	if !exports.IsEmpty() {
-		for v := range exports.Values() {
-			errorLocation = v
-			break
-		}
+	if entries := exports.Entries(); len(entries) > 0 {
+		errorLocation = entries[0].Value
 	} else {
-		for k := range es6Exports.Keys() {
-			errorLocation = k
-			break
-		}
+		errorLocation = es6Exports.Entries()[0].Key
 	}
 
 	if g.exportSymbolFunction == nil || g.exportPropertyFunction == nil {
@@ -240,7 +238,7 @@ func (g *GenerateExports) AddExportForEs6Method(memberFunction rhino.Node, owner
 // context the node on which the @export annotation was found.
 //
 // Java: GenerateExports.addExportMethod(Map<String, Node>, String, Node)
-func (g *GenerateExports) AddExportMethod(exports *jutil.LinkedHashMap[string, rhino.Node], export string, context rhino.Node) {
+func (g *GenerateExports) AddExportMethod(exports *OrderedStringMap[rhino.Node], export string, context rhino.Node) {
 	// We can export as a property if any of the following conditions holds:
 	// a) ES6 class members, which the above `addExportForEs6Method` handles
 	// b) this is a property on a name which is also being exported

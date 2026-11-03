@@ -118,7 +118,7 @@ func (c *Es6TranspilationIntegrationTest) GetProcessor(compiler *Compiler) Compi
 
 	passes.MaybeAdd(NewPassFactory("convertTypesToColors", func(ac AbstractCompiler) CompilerPass {
 		return NewConvertTypesToColors(
-			ac, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
+			ac, NewSerializationOptions().SetIncludeDebugInfo(true).Build())
 	}))
 
 	passes.MaybeAdd(NewPassFactory(PassNames_NORMALIZE, func(abstractCompiler AbstractCompiler) CompilerPass {

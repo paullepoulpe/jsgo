@@ -93,7 +93,7 @@ func compiler_fromProtoOfLifeCycleStage(stage LifeCycleStageProto) AbstractCompi
 
 // Java: Compiler.fromVariableMapEntries(List<VariableMapEntryProto>)
 func compiler_fromVariableMapEntries(entries []*VariableMapEntryProto) *VariableMap {
-	m := jutil.NewLinkedHashMap[string, string]()
+	m := NewOrderedStringMapWithCapacity[string](len(entries))
 	for _, entry := range entries {
 		m.Put(entry.GetOriginalName(), entry.GetNewName())
 	}

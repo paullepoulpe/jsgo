@@ -27,7 +27,7 @@ import (
 
 func TestStringPool_EmptyPool_fromBuilderOrConstant(t *testing.T) {
 	jsaAssertIsEmptyPool(t, StringPool_Empty())
-	jsaAssertIsEmptyPool(t, StringPool_Builder_().Build())
+	jsaAssertIsEmptyPool(t, NewStringPoolBuilder().Build())
 }
 
 func TestStringPool_EmptyPool_serializesToDefaultProto(t *testing.T) {
@@ -48,7 +48,7 @@ func jsaAssertIsEmptyPool(t *testing.T, pool *StringPool) {
 
 // Go-only: extra coverage — strings round-trip through the proto.
 func TestStringPool_RoundTrip(t *testing.T) {
-	b := StringPool_Builder_()
+	b := NewStringPoolBuilder()
 	a := b.Put("a")
 	x := b.Put(jutil.StringFromUTF16([]uint16{'x', 0xd800}))
 	jsaEq(t, b.Put("a"), a)

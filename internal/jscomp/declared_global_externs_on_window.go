@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -31,7 +30,7 @@ type DeclaredGlobalExternsOnWindow struct {
 	NodeTraversal_AbstractShallowStatementCallbackBase
 
 	compiler AbstractCompiler
-	nodes    *jutil.LinkedHashSet[rhino.Node]
+	nodes    OrderedSet[rhino.Node]
 
 	// Whether there is a "var window" declaration in the externs.
 	windowInExterns bool
@@ -40,14 +39,11 @@ type DeclaredGlobalExternsOnWindow struct {
 // Java: DeclaredGlobalExternsOnWindow.WINDOW_NAME
 const DeclaredGlobalExternsOnWindow_WINDOW_NAME = "window"
 
+var declaredGlobalExternsSuppressions = []string{"const", "duplicate"}
+
 // Java: DeclaredGlobalExternsOnWindow(AbstractCompiler)
 func NewDeclaredGlobalExternsOnWindow(compiler AbstractCompiler) *DeclaredGlobalExternsOnWindow {
-	d := &DeclaredGlobalExternsOnWindow{
-		nodes:           jutil.NewLinkedHashSet[rhino.Node](),
-		windowInExterns: false,
-	}
-	d.compiler = compiler
-	return d
+	return &DeclaredGlobalExternsOnWindow{compiler: compiler}
 }
 
 // Java: DeclaredGlobalExternsOnWindow.process(Node, Node)
@@ -115,7 +111,7 @@ func DeclaredGlobalExternsOnWindow_AddExtern(node rhino.Node, defineOnWindow boo
 		}
 
 		// TODO(blickly): Remove these suppressions when all externs declarations on window are gone.
-		builder.RecordSuppressions(jutil.NewLinkedHashSet("const", "duplicate"))
+		builder.RecordSuppressions(declaredGlobalExternsSuppressions)
 		jsDocInfo := builder.Build()
 		newNode.SetJSDocInfo(jsDocInfo)
 	}

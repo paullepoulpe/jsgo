@@ -339,13 +339,10 @@ func (c *Config) ToBuilder() *Config_Builder {
 	return &Config_Builder{cfg: *c}
 }
 
-// Config_Builder_ returns a builder with every property set to its default.
-//
-// Go-only: language-adapter — named with a trailing underscore because the
-// nested type Config_Builder has the same Go name.
+// NewConfigBuilder returns a builder with every property set to its default.
 //
 // Java: Config.builder()
-func Config_Builder_() *Config_Builder {
+func NewConfigBuilder() *Config_Builder {
 	return &Config_Builder{
 		cfg: Config{
 			languageMode:          Config_LanguageMode_UNSUPPORTED,

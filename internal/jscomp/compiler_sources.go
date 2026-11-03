@@ -175,13 +175,15 @@ func (c *Compiler) CreateConfig(mode parsing.Config_LanguageMode, strictMode par
 	if c.options.CanContinueAfterErrors() {
 		runMode = parsing.Config_RunMode_KEEP_GOING
 	}
-	return parsing.ParserRunner_CreateConfigWithModes(
-		mode,
-		c.options.IsParseJsDocDocumentation(),
-		runMode,
-		c.options.GetExtraAnnotationNames(),
-		c.options.GetParseInlineSourceMaps(),
-		strictMode)
+	cfg := parsing.ParserRunner_CreateConfigWithModes(
+		mode, c.options.IsParseJsDocDocumentation(), runMode, nil, c.options.GetParseInlineSourceMaps(), strictMode)
+	extra := c.options.GetExtraAnnotationNames()
+	if extra.IsEmpty() {
+		return cfg
+	}
+	merged := NewOrderedSet(cfg.AnnotationNames()...)
+	merged.AddAll(extra.ToSlice()...)
+	return cfg.ToBuilder().SetExtraAnnotationNames(merged.All()).Build()
 }
 
 // ------------------------------------------------------------------------

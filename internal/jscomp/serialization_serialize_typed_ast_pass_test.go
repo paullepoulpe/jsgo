@@ -42,7 +42,7 @@ type SerializeTypedAstPassTest struct {
 
 	astConsumer func(*TypedAst)
 	// individual test cases may override this
-	typesToForwardDeclare *jutil.LinkedHashSet[string]
+	typesToForwardDeclare OrderedSet[string]
 }
 
 // serializeTypedAstPassTest_protoFields names the fields that ProtoTruth's
@@ -78,7 +78,7 @@ func TestSerializeTypedAstPassTest(t *testing.T) {
 func (c *SerializeTypedAstPassTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableTypeCheck()
-	c.typesToForwardDeclare = jutil.NewLinkedHashSet[string]()
+	c.typesToForwardDeclare = OrderedSet[string]{}
 	c.EnableSourceInformationAnnotator()
 	c.EnableDebugLogging(true)
 }
@@ -86,7 +86,7 @@ func (c *SerializeTypedAstPassTest) SetUp() {
 // Java: SerializeTypedAstPassTest.getProcessor(Compiler)
 func (c *SerializeTypedAstPassTest) GetProcessor(compiler *Compiler) CompilerPass {
 	return NewSerializeTypedAstPass(
-		compiler, c.astConsumer, SerializationOptions_Builder_().SetIncludeDebugInfo(false).Build())
+		compiler, c.astConsumer, NewSerializationOptions().SetIncludeDebugInfo(false).Build())
 }
 
 // Java: SerializeTypedAstPassTest.createCompiler()

@@ -273,7 +273,7 @@ var (
 	defaultPass_processDefinesOptimize = createProcessDefines(ProcessDefines_Mode_OPTIMIZE)
 	defaultPass_stripCode              = NewPassFactory("stripCode", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return newStripCodeFromOrderedSets(c, opts.GetStripTypes(), opts.GetStripNameSuffixes(), opts.GetStripNamePrefixes(), opts.GetTweakProcessing().ShouldStrip())
+		return NewStripCode(c, opts.GetStripTypes(), opts.GetStripNameSuffixes(), opts.GetStripNamePrefixes(), opts.GetTweakProcessing().ShouldStrip())
 	})
 	defaultPass_checkConsts               = passFactoryOf("checkConsts", NewConstCheck)
 	defaultPass_rewriteCallerCodeLocation = passFactoryOf("rewriteCallerCodeLocation", NewRewriteCallerCodeLocation)
@@ -450,13 +450,13 @@ var (
 	})
 	defaultPass_removeCastNodes = passFactoryOf("removeCastNodes", NewRemoveCastNodes)
 	defaultPass_typesToColors   = actionPassFactory("typesToColors", func(c AbstractCompiler, externs, js rhino.Node) {
-		NewConvertTypesToColors(c, SerializationOptions_Builder_().SetIncludeDebugInfo(c.GetOptions().ShouldSerializeExtraDebugInfo()).Build()).Process(externs, js)
+		NewConvertTypesToColors(c, NewSerializationOptions().SetIncludeDebugInfo(c.GetOptions().ShouldSerializeExtraDebugInfo()).Build()).Process(externs, js)
 		c.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
 	})
 	defaultPass_serializeTypedAst = NewPassFactory("serializeTypedAst", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
 		return SerializeTypedAstPass_CreateFromPath(c, opts.GetTypedAstOutputFile(),
-			SerializationOptions_Builder_().SetIncludeDebugInfo(opts.ShouldSerializeExtraDebugInfo()).
+			NewSerializationOptions().SetIncludeDebugInfo(opts.ShouldSerializeExtraDebugInfo()).
 				SetRuntimeLibraries(c.GetRuntimeJsLibManager().GetInjectedLibraries()).Build())
 	})
 	defaultPass_removeUnnecessarySyntheticExterns = passFactoryOf("removeUnnecessarySyntheticExterns", NewRemoveUnnecessarySyntheticExterns)

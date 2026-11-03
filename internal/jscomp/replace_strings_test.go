@@ -22,7 +22,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -138,7 +137,7 @@ func (c *ReplaceStringsTest) GetProcessor(compiler *Compiler) CompilerPass {
 			sia := SourceInformationAnnotator_Create()
 			NodeTraversal_Traverse(compiler, js, sia)
 
-			NewDisambiguateProperties(compiler, jutil.NewLinkedHashSet[string]("foobar")).Process(externs, js)
+			NewDisambiguateProperties(compiler, NewOrderedSet[string]("foobar")).Process(externs, js)
 		}
 		c.pass.Process(externs, js)
 	})

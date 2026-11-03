@@ -44,26 +44,22 @@ type ExtraRequireRemover struct {
 
 	// Keys are the local name of a required namespace. Values are the
 	// goog.require CALL node.
-	requires *jutil.LinkedHashMap[string, rhino.Node]
+	requires OrderedMap[string, rhino.Node]
 
 	// Adding an entry to `usages` indicates that the name (either a fully
 	// qualified or local name) is used and can be required. Note that since
 	// `usages` are name-based and not scoped, any usage that shadows an
 	// unused require in that file will cause the extra require not to be
 	// removed.
-	usages *jutil.LinkedHashSet[string]
+	usages OrderedSet[string]
 }
 
-var extraRequireRemover_DEFAULT_EXTRA_NAMESPACES = jutil.NewLinkedHashSet(
+var extraRequireRemover_DEFAULT_EXTRA_NAMESPACES = NewOrderedSet(
 	"goog.testing.asserts", "goog.testing.jsunit", "goog.labs.testing.Environment")
 
 // Java: ExtraRequireRemover(AbstractCompiler)
 func NewExtraRequireRemover(compiler AbstractCompiler) *ExtraRequireRemover {
-	e := &ExtraRequireRemover{}
-	e.requires = jutil.NewLinkedHashMap[string, rhino.Node]()
-	e.usages = jutil.NewLinkedHashSet[string]()
-	e.compiler = compiler
-	return e
+	return &ExtraRequireRemover{compiler: compiler}
 }
 
 // Java: ExtraRequireRemover.process(Node, Node)

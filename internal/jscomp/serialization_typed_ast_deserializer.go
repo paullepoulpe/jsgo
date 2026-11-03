@@ -215,7 +215,7 @@ func newTypedAstDeserializer(
 		if existingColorPool != nil {
 			d.colorPoolBuilder = existingColorPool
 		} else {
-			d.colorPoolBuilder = ColorPool_Builder_()
+			d.colorPoolBuilder = NewColorPoolBuilder()
 		}
 	} else {
 		d.colorPoolBuilder = nil

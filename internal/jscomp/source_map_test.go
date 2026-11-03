@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap/sourcemaptesting"
 )
@@ -38,7 +37,7 @@ type SourceMapTest struct {
 	mappings []jscomp.SourceMap_LocationMapping
 	// Go-only: language-adapter — an ImmutableMap.Builder whose keys are
 	// never repeated here (buildOrThrow would throw on a repeat).
-	inputMaps *jutil.LinkedHashMap[string, *jscomp.SourceMapInput]
+	inputMaps *jscomp.OrderedStringMap[*jscomp.SourceMapInput]
 }
 
 // Java: SourceMapTest()
@@ -293,7 +292,7 @@ func (c *SourceMapTest) GetCompilerOptions() *jscomp.CompilerOptions {
 // Java: SourceMapTest.setUp()
 func (c *SourceMapTest) SetUp() {
 	c.SourceMapTestCaseBase.SetUp()
-	c.inputMaps = jutil.NewLinkedHashMap[string, *jscomp.SourceMapInput]()
+	c.inputMaps = jscomp.NewOrderedStringMap[*jscomp.SourceMapInput]()
 }
 
 // Java: SourceMapTest.checkSourceMap2(String, String, String, String, String)

@@ -77,7 +77,7 @@ func renamingDump_dumpVariant(sb *strings.Builder, variant string, externsFile, 
 		serializationDump_typeCheck(s.compiler, s.options)
 		NewRemoveCastNodes(s.compiler).Process(externsRoot, jsRoot)
 		NewConvertTypesToColors(
-			s.compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(false).Build()).
+			s.compiler, NewSerializationOptions().SetIncludeDebugInfo(false).Build()).
 			Process(externsRoot, jsRoot)
 		s.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
 		Normalize_CreateNormalizeForOptimizations(s.compiler).Process(externsRoot, jsRoot)

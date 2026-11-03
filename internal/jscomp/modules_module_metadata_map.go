@@ -357,7 +357,7 @@ func (t ModuleMetadataMap_ModuleType) Description() string {
 }
 
 // newModuleMetadataMapDirect constructs ModuleMetadataMap directly from native
-// OrderedStringMaps without any jutil.LinkedHashMap or jutil.LinkedHashSet allocations.
+// OrderedStringMaps without extra map/set wrapper allocations.
 func newModuleMetadataMapDirect(
 	byPath OrderedStringMap[*ModuleMetadataMap_ModuleMetadata],
 	byGoogNamespace OrderedStringMap[*ModuleMetadataMap_ModuleMetadata],
@@ -644,8 +644,10 @@ type ModuleMetadataMap_ModuleMetadata_Builder struct {
 	m *ModuleMetadataMap_ModuleMetadata
 }
 
+// NewModuleMetadataBuilder returns a builder for ModuleMetadata.
+//
 // Java: ModuleMetadataMap.ModuleMetadata.builder()
-func ModuleMetadataMap_ModuleMetadata_Builder_() ModuleMetadataMap_ModuleMetadata_Builder {
+func NewModuleMetadataBuilder() ModuleMetadataMap_ModuleMetadata_Builder {
 	return ModuleMetadataMap_ModuleMetadata_Builder{m: &ModuleMetadataMap_ModuleMetadata{}}
 }
 
@@ -683,12 +685,12 @@ func (b ModuleMetadataMap_ModuleMetadata_Builder) Build() *ModuleMetadataMap_Mod
 	return b.m
 }
 
-// ModuleByPath looks up metadata by module path in O(1) without materializing LinkedHashMap.
+// ModuleByPath looks up metadata by module path in O(1).
 func (m *ModuleMetadataMap) ModuleByPath(path string) *ModuleMetadataMap_ModuleMetadata {
 	return m.byPath.Get(path)
 }
 
-// ModuleByGoogNamespace looks up metadata by Closure namespace in O(1) without materializing LinkedHashMap.
+// ModuleByGoogNamespace looks up metadata by Closure namespace in O(1).
 func (m *ModuleMetadataMap) ModuleByGoogNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata {
 	return m.byGoogNamespace.Get(namespace)
 }

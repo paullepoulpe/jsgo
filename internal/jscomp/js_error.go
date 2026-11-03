@@ -246,8 +246,8 @@ func JSError_MakeWithRequirement(
 		type_, type_.Format(arguments...), n.GetSourceFileName(), n.GetLineno(), n.GetCharno(), n.GetLength(), n, type_.level, requirement)
 }
 
-// JSError_Builder is JSError.Builder.
-type JSError_Builder struct {
+// JSErrorBuilder builds a JSError (JSError.Builder).
+type JSErrorBuilder struct {
 	type_ *DiagnosticType
 	args  []string
 
@@ -260,8 +260,13 @@ type JSError_Builder struct {
 	hasSourceName bool
 }
 
-func newJSError_Builder(type_ *DiagnosticType, args ...string) *JSError_Builder {
-	return &JSError_Builder{
+// NewJSErrorBuilder creates a new builder (JSError.builder): type_ is the
+// associated DiagnosticType; args are the formatting arguments used to
+// format the DiagnosticType's description.
+//
+// Java: JSError.builder(DiagnosticType, String...)
+func NewJSErrorBuilder(type_ *DiagnosticType, args ...string) *JSErrorBuilder {
+	return &JSErrorBuilder{
 		type_:  type_,
 		args:   args,
 		level:  type_.level, // may be overwritten later
@@ -276,7 +281,7 @@ func newJSError_Builder(type_ *DiagnosticType, args ...string) *JSError_Builder 
 // Incompatible with SetSourceLocation.
 //
 // Java: JSError.Builder.setNode(Node)
-func (b *JSError_Builder) SetNode(n rhino.Node) *JSError_Builder {
+func (b *JSErrorBuilder) SetNode(n rhino.Node) *JSErrorBuilder {
 	jutil.CheckStateMsg(!b.hasSourceName, "Cannot provide a Node when there's already a source name")
 	b.n = n
 	if src := n.GetSourceFileName(); src != nil {
@@ -296,7 +301,7 @@ func (b *JSError_Builder) SetNode(n rhino.Node) *JSError_Builder {
 // default level of the DiagnosticType.
 //
 // Java: JSError.Builder.setLevel(CheckLevel)
-func (b *JSError_Builder) SetLevel(level CheckLevel) *JSError_Builder {
+func (b *JSErrorBuilder) SetLevel(level CheckLevel) *JSErrorBuilder {
 	b.level = level
 	return b
 }
@@ -308,7 +313,7 @@ func (b *JSError_Builder) SetLevel(level CheckLevel) *JSError_Builder {
 // Incompatible with SetNode.
 //
 // Java: JSError.Builder.setSourceLocation(String, int, int)
-func (b *JSError_Builder) SetSourceLocation(sourceName *string, lineno int, charno int) *JSError_Builder {
+func (b *JSErrorBuilder) SetSourceLocation(sourceName *string, lineno int, charno int) *JSErrorBuilder {
 	jutil.CheckStateMsg(b.n.IsNil(), "Cannot provide a source location when there is already a Node")
 	if sourceName != nil {
 		b.sourceName = *sourceName
@@ -323,19 +328,9 @@ func (b *JSError_Builder) SetSourceLocation(sourceName *string, lineno int, char
 }
 
 // Java: JSError.Builder.build()
-func (b *JSError_Builder) Build() *JSError {
+func (b *JSErrorBuilder) Build() *JSError {
 	return newJSError(
 		b.type_, b.type_.Format(b.args...), b.sourceName, b.hasSourceName, b.lineno, b.charno, b.length, b.n, b.level, nil)
-}
-
-// JSError_Builder_ creates a new builder (JSError.builder): type is the
-// associated DiagnosticType; arguments are the formatting arguments used to
-// Format the DiagnosticType's description.
-//
-// Go-only: language-adapter — the trailing underscore keeps the mechanical
-// name JSError_Builder for the nested Builder type.
-func JSError_Builder_(type_ *DiagnosticType, arguments ...string) *JSError_Builder {
-	return newJSError_Builder(type_, arguments...)
 }
 
 // String returns the default rendering of an error as text.
@@ -366,20 +361,18 @@ func (e *JSError) String() string {
 		charno
 }
 
-// Format formats a message at the given level; the result is nil (null)
-// for levels other than ERROR and WARNING.
+// Format formats a message at the given level, returning ("", false) for
+// levels other than ERROR and WARNING.
 //
 // Java: JSError.format(CheckLevel, MessageFormatter)
-func (e *JSError) Format(level CheckLevel, formatter MessageFormatter) *string {
+func (e *JSError) Format(level CheckLevel, formatter MessageFormatter) (string, bool) {
 	switch level {
 	case CheckLevel_ERROR:
-		s := formatter.FormatError(e)
-		return &s
+		return formatter.FormatError(e), true
 	case CheckLevel_WARNING:
-		s := formatter.FormatWarning(e)
-		return &s
+		return formatter.FormatWarning(e), true
 	default:
-		return nil
+		return "", false
 	}
 }
 

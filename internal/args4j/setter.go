@@ -164,7 +164,7 @@ func (s *intSetter) AddTypedValue(v int32)              { *s.p = int(v) }
 func (s *intSetter) defaultValueString() (string, bool) { return strconv.Itoa(*s.p), true }
 
 type mapSetter struct {
-	p **jutil.LinkedHashMap[string, *string]
+	p **jutil.OrderedMap[string, *string]
 }
 
 func (s *mapSetter) IsMultiValued() bool                { return false }
@@ -199,7 +199,7 @@ func NullableInt32(p **int32) *Field   { return NullableField(Int32Spec, p) }
 func String(p *string) *Field          { return ScalarField(StringSpec, p) }
 func NullableString(p **string) *Field { return NullableField(StringSpec, p) }
 func StringSlice(p *[]string) *Field   { return SliceField(StringSpec, p) }
-func LinkedStringMap(p **jutil.LinkedHashMap[string, *string]) *Field {
+func OrderedStringMap(p **jutil.OrderedMap[string, *string]) *Field {
 	return &Field{setter: &mapSetter{p: p}}
 }
 

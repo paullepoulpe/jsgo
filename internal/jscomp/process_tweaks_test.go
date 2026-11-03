@@ -30,8 +30,7 @@ import (
 type ProcessTweaksTest struct {
 	CompilerTestCaseBase
 
-	defaultValueOverrides *jutil.LinkedHashMap[string, rhino.Node]
-	stripTweaks           bool
+	stripTweaks bool
 }
 
 // Java: ProcessTweaksTest()
@@ -49,7 +48,6 @@ func TestProcessTweaksTest(t *testing.T) {
 func (c *ProcessTweaksTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableNormalize()
-	c.defaultValueOverrides = jutil.NewLinkedHashMap[string, rhino.Node]()
 	c.stripTweaks = false
 }
 

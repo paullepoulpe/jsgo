@@ -1429,7 +1429,7 @@ func (b *CompilerTestCaseBase) testInternalWithCompiler(
 					recentChange.Reset()
 					NewRemoveCastNodes(compiler).Process(externsRoot, mainRoot)
 					NewConvertTypesToColors(
-						compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build()).
+						compiler, NewSerializationOptions().SetIncludeDebugInfo(true).Build()).
 						Process(externsRoot, mainRoot)
 
 					compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)

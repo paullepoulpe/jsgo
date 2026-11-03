@@ -120,7 +120,7 @@ type AbstractCommandLineRunner interface {
 	// Java: AbstractCommandLineRunner.getChunkOutputFileName(JSChunk)
 	GetChunkOutputFileName(m *jscomp.JSChunk) string
 	// Java: AbstractCommandLineRunner.getChunkConformanceFileName(JSChunk)
-	GetChunkConformanceFileName(m *jscomp.JSChunk) *string
+	GetChunkConformanceFileName(m *jscomp.JSChunk) (string, bool)
 	// Java: AbstractCommandLineRunner.writeChunkOutput(String, Appendable, LicenseTracker, JSChunk)
 	WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk)
 	// Java: AbstractCommandLineRunner.writeOutput(Appendable, Compiler, LicenseTracker, JSChunk, String, String, Function<String, String>, String)
@@ -441,14 +441,14 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	options.SetApplyInputSourceMaps(config.applyInputSourceMaps)
 
 	if len(config.sourceMapInputFiles) == 0 {
-		options.SetInputSourceMaps(jutil.NewLinkedHashMap[string, *jscomp.SourceMapInput]())
+		options.SetInputSourceMaps(jutil.NewOrderedMap[string, *jscomp.SourceMapInput]())
 	} else {
 		entries := make([]kvEntry[*jscomp.SourceMapInput], len(config.sourceMapInputFiles))
 		for i, entry := range config.sourceMapInputFiles {
 			sourceMap := jscomp.SourceFile_Builder_().WithKind(rhino.StaticSourceFile_SourceKind_NON_CODE).WithPath(entry.Value).Build()
 			entries[i] = kvEntry[*jscomp.SourceMapInput]{key: entry.Key, value: jscomp.NewSourceMapInput(sourceMap)}
 		}
-		options.SetInputSourceMaps(buildUniqueLinkedMap(entries))
+		options.SetInputSourceMaps(buildUniqueOrderedMap(entries))
 	}
 
 	if config.variableMapInputFile != "" {
@@ -487,7 +487,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 
 	if config.jsonWarningsFile != "" {
 		options.AddReportGenerator(
-			jscomp.NewJsonErrorReportGenerator(jutil.NewPrintStreamFromFile(jutil.NewFile(config.jsonWarningsFile)), r.compiler))
+			jscomp.NewJsonErrorReportGenerator(jutil.NewPrintStream(r.FilenameToOutputStream(config.jsonWarningsFile)), r.compiler))
 	}
 
 	if config.errorFormat == AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_JSON {
@@ -643,13 +643,12 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 				}
 				smEntries = append(smEntries, kvEntry[*jscomp.SourceMapInput]{key: k, value: v})
 			}
-			options.SetInputSourceMaps(buildUniqueLinkedMap(smEntries))
+			options.SetInputSourceMaps(buildUniqueOrderedMap(smEntries))
 		}
 
-		r.compiler.InitWebpackMap(buildUniqueLinkedMap(webpackEntries))
+		r.compiler.InitWebpackMap(buildUniqueOrderedMap(webpackEntries))
 	} else {
-		emptyMap := jutil.NewLinkedHashMap[string, string]()
-		r.compiler.InitWebpackMap(emptyMap)
+		r.compiler.InitWebpackMap(&jutil.OrderedMap[string, string]{})
 	}
 
 	options.SetDoLateLocalization(config.ShouldDoLateLocalization())
@@ -1001,9 +1000,9 @@ func checkUniqueKeys[E any](entries []E, keyOf func(E) string, valOf func(E) str
 	}
 }
 
-func buildUniqueLinkedMap[V any](entries []kvEntry[V]) *jutil.LinkedHashMap[string, V] {
+func buildUniqueOrderedMap[V any](entries []kvEntry[V]) *jutil.OrderedMap[string, V] {
 	n := len(entries)
-	out := jutil.NewLinkedHashMapWithCapacity[string, V](n)
+	out := jutil.NewOrderedMapWithCapacity[string, V](n)
 	if n == 0 {
 		return out
 	}
@@ -1011,7 +1010,7 @@ func buildUniqueLinkedMap[V any](entries []kvEntry[V]) *jutil.LinkedHashMap[stri
 		func(e kvEntry[V]) string { return e.key },
 		func(e kvEntry[V]) string { return jutil.ToJavaString(e.value) })
 	for _, e := range entries {
-		out.Put(e.key, e.value)
+		out.PutNew(e.key, e.value)
 	}
 	return out
 }

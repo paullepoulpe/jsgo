@@ -117,7 +117,7 @@ func (c *TypedAstSerializerTest) GetProcessor(compiler *Compiler) CompilerPass {
 
 		typedAstSerializer := NewTypedAstSerializer(
 			compiler,
-			SerializationOptions_Builder_().
+			NewSerializationOptions().
 				SetIncludeDebugInfo(true).
 				SetRunValidation(true).
 				Build())
@@ -260,20 +260,22 @@ func (t *typedAstSerializerTest_Tester) test(code string) {
 	c := t.outer
 	c.TestSame(typedAstSerializerTest_CONSOLE_EXTERNS, c.Srcs(code))
 
-	stringPoolOffsets := jutil.NewLinkedHashMap[string, int]()
+	stringList := c.testResult.GetStringPool().GetStringsList()
+	stringPoolOffsets := make(map[string]int, len(stringList))
 	stringPool := StringPool_FromProto(c.testResult.GetStringPool())
-	for i := 0; i < len(c.testResult.GetStringPool().GetStringsList()); i++ {
-		stringPoolOffsets.Put(stringPool.Get(i), i)
+	for i := 0; i < len(stringList); i++ {
+		stringPoolOffsets[stringPool.Get(i)] = i
 	}
 	var expectedTypes []*TypeProto
 	for _, entry := range t.expectedTypes {
 		cp := *entry.proto
 		for _, propertyName := range entry.propertyNames {
+			offset, ok := stringPoolOffsets[propertyName]
 			jutil.CheckStateMsg1(
-				stringPoolOffsets.ContainsKey(propertyName),
+				ok,
 				"Missing property '%s' in string pool",
 				propertyName)
-			cp.ownProperty_ = append(cp.ownProperty_, int32(stringPoolOffsets.Get(propertyName)))
+			cp.ownProperty_ = append(cp.ownProperty_, int32(offset))
 		}
 		expectedTypes = append(expectedTypes, &TypeProto{
 			object_:   &cp,
@@ -312,13 +314,13 @@ func TestSerializeRoots_ParallelMatchesSingleThreadedByteForByte(t *testing.T) {
 		comp.Parse()
 		serializationDump_typeCheck(comp, opts)
 		NewRemoveCastNodes(comp).Process(comp.GetExternsRoot(), comp.GetJsRoot())
-		NewConvertTypesToColors(comp, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build()).
+		NewConvertTypesToColors(comp, NewSerializationOptions().SetIncludeDebugInfo(true).Build()).
 			Process(comp.GetExternsRoot(), comp.GetJsRoot())
 		comp.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
 
 		ser := NewTypedAstSerializer(
 			comp,
-			SerializationOptions_Builder_().SetIncludeDebugInfo(true).SetRunValidation(true).Build())
+			NewSerializationOptions().SetIncludeDebugInfo(true).SetRunValidation(true).Build())
 		ast := ser.SerializeRoots(comp.GetExternsRoot(), comp.GetJsRoot())
 		var streamed bytes.Buffer
 		if err := writeTypedAstListItemTo(ast, &streamed); err != nil {

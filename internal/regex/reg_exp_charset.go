@@ -176,9 +176,7 @@ func (c *RegExpTree_Charset) Simplify(flags string) RegExpTree {
 	}
 	best := c.ranges
 	if strings.IndexByte(flags, 'i') >= 0 {
-		// Java: Set<CharRanges> options = new LinkedHashSet<>();
-		// Go-only: language-adapter — a LinkedHashSet with CharRanges value
-		// equality, as an insertion-ordered slice.
+		// Deduplicate candidate CharRanges by value equality in insertion order.
 		var optionsBuf [7]*CharRanges
 		options := optionsBuf[:0]
 		add := func(option *CharRanges) {

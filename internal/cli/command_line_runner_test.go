@@ -1393,24 +1393,24 @@ func (c *CommandLineRunnerTest) TestSourceMapLocationsTranslations3() {
 }
 
 func (c *CommandLineRunnerTest) TestInputOneZip() {
-	zip1Contents := jutil.NewLinkedHashMap[string, string]()
+	zip1Contents := jutil.NewOrderedMap[string, string]()
 	zip1Contents.Put("run.js", "console.log(\"Hello World\");")
 	zipFile1 := c.createZipFile(zip1Contents)
 	c.compileFiles("console.log(\"Hello World\");", zipFile1)
 }
 
 func (c *CommandLineRunnerTest) TestInputMultipleZips() {
-	zip1Contents := jutil.NewLinkedHashMap[string, string]()
+	zip1Contents := jutil.NewOrderedMap[string, string]()
 	zip1Contents.Put("run.js", "console.log(\"Hello World\");")
 	zipFile1 := c.createZipFile(zip1Contents)
-	zip2Contents := jutil.NewLinkedHashMap[string, string]()
+	zip2Contents := jutil.NewOrderedMap[string, string]()
 	zip2Contents.Put("run1.js", "window.alert(\"Hi Browser\");")
 	zipFile2 := c.createZipFile(zip2Contents)
 	c.compileFiles("console.log(\"Hello World\");window.alert(\"Hi Browser\");", zipFile1, zipFile2)
 }
 
 func (c *CommandLineRunnerTest) TestInputMultipleContents() {
-	zip1Contents := jutil.NewLinkedHashMap[string, string]()
+	zip1Contents := jutil.NewOrderedMap[string, string]()
 	zip1Contents.Put("a.js", "console.log(\"File A\");")
 	zip1Contents.Put("b.js", "console.log(\"File B\");")
 	zip1Contents.Put("c.js", "console.log(\"File C\");")
@@ -1420,11 +1420,11 @@ func (c *CommandLineRunnerTest) TestInputMultipleContents() {
 }
 
 func (c *CommandLineRunnerTest) TestInputMultipleFiles() {
-	zip1Contents := jutil.NewLinkedHashMap[string, string]()
+	zip1Contents := jutil.NewOrderedMap[string, string]()
 	zip1Contents.Put("run.js", "console.log(\"Hello World\");")
 	zipFile1 := c.createZipFile(zip1Contents)
 	jsFile1 := c.createJsFile("testjsfile", "var a;")
-	zip2Contents := jutil.NewLinkedHashMap[string, string]()
+	zip2Contents := jutil.NewOrderedMap[string, string]()
 	zip2Contents.Put("run1.js", "window.alert(\"Hi Browser\");")
 	zipFile2 := c.createZipFile(zip2Contents)
 	c.compileFiles(
@@ -3495,7 +3495,7 @@ func (c *CommandLineRunnerTest) createCommandLineRunner(original []string) *Comm
 }
 
 // Java: CommandLineRunnerTest.createZipFile(Map<String, String>)
-func (c *CommandLineRunnerTest) createZipFile(entryContentsByName *jutil.LinkedHashMap[string, string]) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
+func (c *CommandLineRunnerTest) createZipFile(entryContentsByName *jutil.OrderedMap[string, string]) *AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType] {
 	dir, err := os.MkdirTemp("", "jscomp")
 	if err != nil {
 		panic(jutil.NewIOException(err.Error()))

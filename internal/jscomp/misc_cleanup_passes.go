@@ -140,7 +140,7 @@ type GatherRawExports struct {
 
 	compiler AbstractCompiler
 
-	exportedVariables *jutil.LinkedHashSet[string]
+	exportedVariables OrderedSet[string]
 }
 
 // TODO(johnlenz): "goog$global" should be part of a coding convention.
@@ -161,10 +161,7 @@ var gatherRawExports_GLOBAL_THIS_NAMES = []string{
 
 // Java: GatherRawExports(AbstractCompiler)
 func NewGatherRawExports(compiler AbstractCompiler) *GatherRawExports {
-	g := &GatherRawExports{}
-	g.exportedVariables = jutil.NewLinkedHashSet[string]()
-	g.compiler = compiler
-	return g
+	return &GatherRawExports{compiler: compiler}
 }
 
 // Java: GatherRawExports.process(Node, Node)
@@ -204,7 +201,11 @@ func GatherRawExports_IsGlobalThisObject(t *NodeTraversal, n rhino.Node) bool {
 
 // Java: GatherRawExports.getExportedVariableNames()
 func (g *GatherRawExports) GetExportedVariableNames() *jutil.LinkedHashSet[string] {
-	return g.exportedVariables
+	exported := jutil.NewLinkedHashSetWithCapacity[string](g.exportedVariables.Size())
+	for name := range g.exportedVariables.All() {
+		exported.Add(name)
+	}
+	return exported
 }
 
 // RemoveCastNodes normalizes all CAST nodes out of the AST.
@@ -273,15 +274,12 @@ func (c *RemoveCastNodes_RemoveCastsCallback) Visit(t *NodeTraversal, n rhino.No
 // allow mangling the name if it is not defined in externs.
 type RemoveUnnecessarySyntheticExterns struct {
 	compiler      AbstractCompiler
-	nodesToDetach *jutil.LinkedHashSet[rhino.Node]
+	nodesToDetach OrderedSet[rhino.Node]
 }
 
 // Java: RemoveUnnecessarySyntheticExterns(AbstractCompiler)
 func NewRemoveUnnecessarySyntheticExterns(compiler AbstractCompiler) *RemoveUnnecessarySyntheticExterns {
-	return &RemoveUnnecessarySyntheticExterns{
-		compiler:      compiler,
-		nodesToDetach: jutil.NewLinkedHashSet[rhino.Node](),
-	}
+	return &RemoveUnnecessarySyntheticExterns{compiler: compiler}
 }
 
 // Java: RemoveUnnecessarySyntheticExterns.process(Node, Node)

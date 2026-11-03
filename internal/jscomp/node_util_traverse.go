@@ -440,7 +440,7 @@ func NodeUtil_CountAstSize(n rhino.Node) int {
 
 // Java: NodeUtil.createConstantJsDoc()
 func NodeUtil_CreateConstantJsDoc() *rhino.JSDocInfo {
-	builder := rhino.JSDocInfo_Builder_()
+	builder := rhino.NewJSDocInfo_Builder()
 	builder.RecordConstancy()
 	return builder.Build()
 }
@@ -448,7 +448,7 @@ func NodeUtil_CreateConstantJsDoc() *rhino.JSDocInfo {
 var externVarNameVisitTokens = makeVisitTokenSet(rhino.Token_NAME, rhino.Token_IMPORT_STAR)
 
 type externVarNameCollector struct {
-	orderedSet  *jutil.LinkedHashSet[string]
+	orderedSet  *OrderedSet[string]
 	externNames map[string]struct{}
 	externIDs   map[strpool.ID]struct{}
 	reserved    stringMapSet
@@ -523,8 +523,8 @@ func collectExternVariableNamesInto(
 
 // Java: NodeUtil.collectExternVariableNames(AbstractCompiler, Node)
 func NodeUtil_CollectExternVariableNames(
-	compiler AbstractCompiler, externs rhino.Node) *jutil.LinkedHashSet[string] {
-	externsNames := jutil.NewLinkedHashSet[string]()
+	compiler AbstractCompiler, externs rhino.Node) *OrderedSet[string] {
+	externsNames := NewOrderedSet[string]()
 	cb := externVarNameCollector{orderedSet: externsNames}
 	b := NodeTraversal_Builder{
 		compiler: compiler,
@@ -549,12 +549,12 @@ func NodeUtil_GetAllVarNamesDeclaredInModule(
 	moduleNode rhino.Node,
 	compiler AbstractCompiler,
 	scopeCreator ScopeCreator,
-	globalScope *Scope) *jutil.LinkedHashSet[string] {
+	globalScope *Scope) *OrderedSet[string] {
 
 	jutil.CheckStateMsg(moduleNode.IsModuleBody(), "getAllVarsDeclaredInModule expects a module body node")
 	jutil.CheckStateMsg1(globalScope.IsGlobal(), "%s", globalScope)
 
-	nameVars := jutil.NewLinkedHashSet[string]()
+	nameVars := NewOrderedSet[string]()
 
 	finder := &nodeUtil_getAllVarNamesDeclaredInModule_finder{nameVars: nameVars}
 	NodeTraversal_Builder{
@@ -568,7 +568,7 @@ func NodeUtil_GetAllVarNamesDeclaredInModule(
 // nodeUtil_getAllVarNamesDeclaredInModule_finder is the anonymous
 // ScopedCallback of getAllVarNamesDeclaredInModule.
 type nodeUtil_getAllVarNamesDeclaredInModule_finder struct {
-	nameVars *jutil.LinkedHashSet[string]
+	nameVars *OrderedSet[string]
 }
 
 var _ nodeTraversal_noVisit = (*nodeUtil_getAllVarNamesDeclaredInModule_finder)(nil)

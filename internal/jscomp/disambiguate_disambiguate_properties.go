@@ -75,9 +75,9 @@ var DisambiguateProperties_PROPERTY_INVALIDATION = DiagnosticType_Error(
 
 // Java: DisambiguateProperties(AbstractCompiler, ImmutableSet<String>)
 func NewDisambiguateProperties(
-	compiler AbstractCompiler, propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]) *DisambiguateProperties {
+	compiler AbstractCompiler, propertiesThatMustDisambiguate *OrderedSet[string]) *DisambiguateProperties {
 	var mustDisambiguate map[string]struct{}
-	if propertiesThatMustDisambiguate != nil && !propertiesThatMustDisambiguate.IsEmpty() {
+	if !propertiesThatMustDisambiguate.IsEmpty() {
 		mustDisambiguate = make(map[string]struct{}, propertiesThatMustDisambiguate.Size())
 		for p := range propertiesThatMustDisambiguate.All() {
 			mustDisambiguate[p] = struct{}{}
@@ -179,7 +179,9 @@ func (d *DisambiguateProperties) Process(externs rhino.Node, root rhino.Node) {
 	}
 	d.compiler.ReportDisambiguatePropertiesSummary(trackerSummaryGenerator.BuildSummaryString)
 
-	renamingIndexLog.LogJsonSupplier(func() any { return DisambiguateProperties_BuildRenamingIndex(propIndex, renamer) })
+	renamingIndexLog.LogJsonSupplier(func() any {
+		return disambiguateProperties_renamingIndexJson{m: DisambiguateProperties_BuildRenamingIndex(propIndex, renamer)}
+	})
 	propIndex = nil
 	renamer = nil
 	d.LogForDiagnostics("mismatches", func() any { return d.registry.GetMismatchLocationsForDebugging().Inverse() })
@@ -254,9 +256,27 @@ func (d *DisambiguateProperties) CreateInvalidationError(prop *PropertyClusterin
 		additionalContext)
 }
 
+type disambiguateProperties_renamingIndexJson struct {
+	m *OrderedStringMap[any]
+}
+
+func (r disambiguateProperties_renamingIndexJson) WriteGson(out *jutil.JsonWriter) {
+	out.BeginObject()
+	for _, e := range r.m.Entries() {
+		out.Name(e.Key)
+		if e.Value == nil || jutil.IsNil(e.Value) {
+			nullLit := "null"
+			out.JsonValue(&nullLit)
+		} else {
+			diagnostic.LogsGson_GSON.ToJsonWriter(e.Value, out)
+		}
+	}
+	out.EndObject()
+}
+
 // Java: DisambiguateProperties.buildRenamingIndex(LinkedHashMap<String, PropertyClustering>, UseSiteRenamer)
 func DisambiguateProperties_BuildRenamingIndex(
-	props *propertyClusteringIndex, renamer *UseSiteRenamer) *jutil.LinkedHashMap[string, any] {
+	props *propertyClusteringIndex, renamer *UseSiteRenamer) *OrderedStringMap[any] {
 	newNames := renamer.GetRenamingIndex()
 	// collect(toImmutableSortedMap(naturalOrder(), getName, ...)): duplicate keys throw.
 	propVals := props.values()
@@ -279,9 +299,9 @@ func DisambiguateProperties_BuildRenamingIndex(
 		keys = append(keys, name)
 	}
 	slices.SortStableFunc(keys, jutil.StringCompareTo)
-	sorted := jutil.NewLinkedHashMap[string, any]()
+	sorted := NewOrderedStringMapWithCapacity[any](len(keys))
 	for _, key := range keys {
-		sorted.Put(key, byName[key])
+		sorted.PutNew(key, byName[key])
 	}
 	return sorted
 }

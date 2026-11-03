@@ -608,7 +608,7 @@ func (m *jsMessageObjectLiteralMap) checkForUnexpectedKeys(
 func (m *jsMessageObjectLiteralMap) checkForRequiredKeys(
 	requiredKeys *OrderedSet[string], errNode rhino.Node, errorPrefix string,
 ) *malformedMessageError {
-	for _, e := range requiredKeys.m.Entries() {
+	for _, e := range requiredKeys.Entries() {
 		if !m.nodes.ContainsKey(e.Key) {
 			return &malformedMessageError{msg: errorPrefix + e.Key, node: errNode}
 		}

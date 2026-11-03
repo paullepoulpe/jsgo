@@ -607,6 +607,6 @@ func (p polymerPassSuppressBehaviorsAndProtectKeys) addBehaviorSuppressions(beha
 // Java: PolymerPassSuppressBehaviorsAndProtectKeys.addSuppressionJsDocAnnotations(Node)
 func (p polymerPassSuppressBehaviorsAndProtectKeys) addSuppressionJsDocAnnotations(node rhino.Node) {
 	suppressDoc := rhino.JSDocInfo_Builder_MaybeCopyFrom(node.GetJSDocInfo())
-	suppressDoc.RecordSuppressionsSlice(polymerBehaviorSuppressions[:])
+	suppressDoc.RecordSuppressions(polymerBehaviorSuppressions[:])
 	node.SetJSDocInfo(suppressDoc.Build())
 }

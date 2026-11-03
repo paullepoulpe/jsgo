@@ -21,8 +21,6 @@ package jscomp
 import (
 	"slices"
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 type jsChunkTest struct {
@@ -52,9 +50,9 @@ func newJSChunkTest() *jsChunkTest {
 	return x
 }
 
-func jsChunkTest_assertSetEquals(t *testing.T, what string, got *jutil.LinkedHashSet[*JSChunk], want ...*JSChunk) {
+func jsChunkTest_assertSetEquals(t *testing.T, what string, got *OrderedSet[*JSChunk], want ...*JSChunk) {
 	t.Helper()
-	if !got.Equals(jutil.NewLinkedHashSet(want...)) {
+	if !got.Equals(NewOrderedSet(want...)) {
 		t.Errorf("%s: got %v, want %v", what, got, want)
 	}
 }

@@ -441,12 +441,12 @@ func (o *CompilerOptions) SetModuleResolutionMode(moduleResolutionMode ModuleLoa
 }
 
 // Java: CompilerOptions.getBrowserResolverPrefixReplacements()
-func (o *CompilerOptions) GetBrowserResolverPrefixReplacements() *jutil.LinkedHashMap[string, string] {
+func (o *CompilerOptions) GetBrowserResolverPrefixReplacements() *OrderedStringMap[string] {
 	return o.browserResolverPrefixReplacements
 }
 
 // Java: CompilerOptions.setBrowserResolverPrefixReplacements(ImmutableMap<String, String>)
-func (o *CompilerOptions) SetBrowserResolverPrefixReplacements(browserResolverPrefixReplacements *jutil.LinkedHashMap[string, string]) {
+func (o *CompilerOptions) SetBrowserResolverPrefixReplacements(browserResolverPrefixReplacements *OrderedStringMap[string]) {
 	o.browserResolverPrefixReplacements = browserResolverPrefixReplacements
 }
 

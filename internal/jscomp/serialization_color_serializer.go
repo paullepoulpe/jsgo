@@ -221,7 +221,7 @@ func (s *ColorSerializer) ownPropertyInt32s(color *colors.Color) []int32 {
 // Java: ColorSerializer.generateTypePool(Function<Color, ImmutableSet<Color>>, Function<Color, ImmutableSet<String>>)
 func (s *ColorSerializer) GenerateTypePool(
 	getDisambiguationSupertypesFn func(*colors.Color) []*colors.Color,
-	getMismatchSourceRefsFn func(*colors.Color) *jutil.LinkedHashSet[string]) *TypePool {
+	getMismatchSourceRefsFn func(*colors.Color) []string) *TypePool {
 	startIdx := TypePointers_UntrimOffset(0)
 	initialCap := max(0, len(s.colorsInSerializedOrder)-startIdx)
 	var types []*TypeProto
@@ -252,22 +252,23 @@ func (s *ColorSerializer) GenerateTypePool(
 		// because that's the way the Mismatch protos work.
 		// Construct entries only for those colors that we have actually
 		// serialized in order to save space.
-		srcRefToTypePointerList := jutil.NewLinkedHashMap[string, []int32]()
+		var srcRefToTypePointerList OrderedStringMap[[]int32]
 		for i, color := range s.colorsInSerializedOrder {
 			typePointer := int32(i)
-			for srcRef := range getMismatchSourceRefsFn(color).All() {
+			for _, srcRef := range getMismatchSourceRefsFn(color) {
 				srcRefToTypePointerList.Put(srcRef, append(srcRefToTypePointerList.Get(srcRef), typePointer))
 			}
 		}
 
 		// Now use the map to build the Mismatch protos and put them into the
 		// debug info.
-		mismatches := make([]*TypePool_DebugInfo_Mismatch, 0, srcRefToTypePointerList.Size())
-		for key, value := range srcRefToTypePointerList.All() {
-			mismatches = append(mismatches, &TypePool_DebugInfo_Mismatch{
-				sourceRef_:     key,
-				involvedColor_: value,
-			})
+		entries := srcRefToTypePointerList.Entries()
+		mismatches := make([]*TypePool_DebugInfo_Mismatch, len(entries))
+		for i, e := range entries {
+			mismatches[i] = &TypePool_DebugInfo_Mismatch{
+				sourceRef_:     e.Key,
+				involvedColor_: e.Value,
+			}
 		}
 		debugInfoProto = &TypePool_DebugInfo{
 			mismatch_: mismatches,

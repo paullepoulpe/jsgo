@@ -62,7 +62,7 @@ func init() {
 //
 // Java: SuppressDocWarningsGuard(AbstractCompiler, Map<String, DiagnosticGroup>)
 func NewSuppressDocWarningsGuard(
-	compiler AbstractCompiler, suppressors *jutil.LinkedHashMap[string, *DiagnosticGroup]) *SuppressDocWarningsGuard {
+	compiler AbstractCompiler, suppressors jutil.MapSource[string, *DiagnosticGroup]) *SuppressDocWarningsGuard {
 	return &SuppressDocWarningsGuard{
 		compiler:    compiler,
 		suppressors: SuppressDocWarningsGuard_CreateSuppressors(suppressors),
@@ -71,7 +71,7 @@ func NewSuppressDocWarningsGuard(
 
 // Java: SuppressDocWarningsGuard.createSuppressors(Map<String, DiagnosticGroup>)
 func SuppressDocWarningsGuard_CreateSuppressors(
-	suppressors *jutil.LinkedHashMap[string, *DiagnosticGroup]) map[string]*DiagnosticGroup {
+	suppressors jutil.MapSource[string, *DiagnosticGroup]) map[string]*DiagnosticGroup {
 	m := make(map[string]*DiagnosticGroup, suppressors.Size()+2)
 	for k, v := range suppressors.All() {
 		m[k] = v

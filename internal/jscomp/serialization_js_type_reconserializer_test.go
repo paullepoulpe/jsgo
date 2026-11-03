@@ -34,12 +34,12 @@ type JSTypeReconserializerTest struct {
 	CompilerTestCaseBase
 
 	// individual test cases may override this
-	typesToForwardDeclare   *jutil.LinkedHashSet[string]
+	typesToForwardDeclare   OrderedSet[string]
 	shouldSerializeProperty func(string) bool
 
 	typePool          *TypePool
 	stringPoolBuilder *StringPool_Builder
-	labelToPointer    *jutil.LinkedHashMap[string, int]
+	labelToPointer    map[string]int
 }
 
 // jsTypeReconserializerTest_field is an ObjectTypeProto field descriptor
@@ -89,7 +89,7 @@ func TestJSTypeReconserializerTest(t *testing.T) {
 func (c *JSTypeReconserializerTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
 	c.EnableTypeCheck()
-	c.typesToForwardDeclare = jutil.NewLinkedHashSet[string]()
+	c.typesToForwardDeclare = OrderedSet[string]{}
 	c.shouldSerializeProperty = func(propertyName string) bool { return true }
 	c.EnableSourceInformationAnnotator()
 }
@@ -109,15 +109,15 @@ func (f *jsTypeReconserializerTest_labelFinder) Visit(t *NodeTraversal, n rhino.
 
 		if n.GetParent().IsExprResult() && n.GetGrandparent().IsLabel() {
 			labelName := n.GetParent().GetPrevious().GetString()
-			f.outer.labelToPointer.Put(labelName, pointer)
+			f.outer.labelToPointer[labelName] = pointer
 		}
 	}
 }
 
 // Java: JSTypeReconserializerTest.getProcessor(Compiler)
 func (c *JSTypeReconserializerTest) GetProcessor(compiler *Compiler) CompilerPass {
-	c.stringPoolBuilder = StringPool_Builder_()
-	c.labelToPointer = jutil.NewLinkedHashMap[string, int]()
+	c.stringPoolBuilder = NewStringPoolBuilder()
+	c.labelToPointer = make(map[string]int)
 
 	return CompilerPassFunc(func(externs rhino.Node, root rhino.Node) {
 		serializer :=
@@ -128,7 +128,7 @@ func (c *JSTypeReconserializerTest) GetProcessor(compiler *Compiler) CompilerPas
 					Build(),
 				c.stringPoolBuilder,
 				c.shouldSerializeProperty,
-				SerializationOptions_Builder_().
+				NewSerializationOptions().
 					SetIncludeDebugInfo(true).
 					SetRunValidation(true).
 					Build())
@@ -236,7 +236,7 @@ FOO_PROTOTYPE: Foo.prototype;
 
 // Java: JSTypeReconserializerTest.testObjectTypeSerializationFormat_canAvoidSerializingProperty()
 func (c *JSTypeReconserializerTest) TestObjectTypeSerializationFormat_canAvoidSerializingProperty() {
-	propertiesToSerialize := jutil.NewLinkedHashSet("constructor", "serializeMe")
+	propertiesToSerialize := NewOrderedSet("constructor", "serializeMe")
 	c.shouldSerializeProperty = propertiesToSerialize.Contains
 
 	typePool :=
@@ -565,7 +565,7 @@ func (c *JSTypeReconserializerTest) TestDoesntSerializeNullOrUndefinedUnion() {
 //
 // Java: JSTypeReconserializerTest.doesntSerializeForwardDeclaredType()
 func (c *JSTypeReconserializerTest) TestDoesntSerializeForwardDeclaredType() {
-	c.typesToForwardDeclare = jutil.NewLinkedHashSet("forward.declared.TypeProto")
+	c.typesToForwardDeclare = *NewOrderedSet("forward.declared.TypeProto")
 	jsTypeReconserializerTest_assertThat(c.compileToTypes("var /** !forward.declared.TypeProto */ x;")).
 		IgnoringFieldDescriptors(JSTypeReconserializerTest_BRITTLE_TYPE_FIELDS...).
 		ContainsExactlyElementsIn(c.nativeObjects())
@@ -787,8 +787,9 @@ func (c *JSTypeReconserializerTest) findInStringPool(str string) int32 {
 //
 // Java: JSTypeReconserializerTest.pointerForLabel(String)
 func (c *JSTypeReconserializerTest) pointerForLabel(label string) int32 {
-	jutil.CheckStateMsg1(c.labelToPointer.ContainsKey(label), "Cannot find label %s", label)
-	return int32(c.labelToPointer.Get(label))
+	pointer, ok := c.labelToPointer[label]
+	jutil.CheckStateMsg1(ok, "Cannot find label %s", label)
+	return int32(pointer)
 }
 
 // Returns the types that are serialized for every compilation, even given an empty source

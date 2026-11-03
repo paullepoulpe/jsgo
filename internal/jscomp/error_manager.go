@@ -231,9 +231,11 @@ func NewLoggerErrorManager(logger *jutil.Logger) *LoggerErrorManager {
 func (m *LoggerErrorManager) Println(level CheckLevel, error *JSError) {
 	switch level {
 	case CheckLevel_ERROR:
-		m.logger.Severe(*error.Format(level, m.formatter))
+		s, _ := error.Format(level, m.formatter)
+		m.logger.Severe(s)
 	case CheckLevel_WARNING:
-		m.logger.Warning(*error.Format(level, m.formatter))
+		s, _ := error.Format(level, m.formatter)
+		m.logger.Warning(s)
 	case CheckLevel_OFF:
 	}
 }
@@ -259,7 +261,11 @@ func (m *LoggerErrorManager) PrintSummary() {
 }
 
 func printStreamPrintln(stream *jutil.PrintStream, formatter MessageFormatter, level CheckLevel, error *JSError) {
-	stream.PrintlnNullable(error.Format(level, formatter))
+	if s, ok := error.Format(level, formatter); ok {
+		stream.Println(s)
+	} else {
+		stream.Println("null")
+	}
 }
 
 func printStreamPrintSummary(stream *jutil.PrintStream, summaryDetailLevel int, manager ErrorManager) {

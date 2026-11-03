@@ -502,7 +502,7 @@ func trSectionNamed(name string) trSection {
 			c.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 			NewStripCode(
 				c,
-				jutil.NewLinkedHashSet(
+				NewOrderedSet(
 					"goog.debug.DebugWindow",
 					"goog.debug.FancyWindow",
 					"goog.debug.Formatter",
@@ -514,14 +514,14 @@ func trSectionNamed(name string) trSection {
 					"goog.net.BrowserChannel.LogSaver",
 					"goog.log",
 					"GA_GoogleDebugger"),
-				jutil.NewLinkedHashSet(
+				NewOrderedSet(
 					"logger",
 					"logger_",
 					"debugWindow",
 					"debugWindow_",
 					"logFormatter_",
 					"logBuffer_"),
-				jutil.NewLinkedHashSet("trace"),
+				NewOrderedSet("trace"),
 				true).
 				Process(c.GetExternsRoot(), c.GetJsRoot())
 			return c.GetJsRoot()
@@ -529,20 +529,17 @@ func trSectionNamed(name string) trSection {
 	case "ids":
 		return func(c *Compiler, r *[]string) rhino.Node {
 			idTestMap := &replaceIdGeneratorsTest_idTestMap{
-				map_: jutil.NewImmutableMapBuilder[string, string]().
-					Put("foo", ":foo:").
-					Put("bar", ":bar:").
-					BuildOrThrow(),
+				map_: jsaMap("foo", ":foo:", "bar", ":bar:"),
 			}
+			idGens := NewOrderedStringMapWithCapacity[RenamingMap](4)
+			idGens.PutNew("goog.events.getUniqueId", RenamingToken_INCONSISTENT)
+			idGens.PutNew("goog.place.getUniqueId", RenamingToken_INCONSISTENT)
+			idGens.PutNew("id", idTestMap)
+			idGens.PutNew("get.id", idTestMap)
 			pass := NewReplaceIdGenerators(
 				c,
 				/* templateLiteralsAreTranspiled= */ false,
-				jutil.NewImmutableMapBuilder[string, RenamingMap]().
-					Put("goog.events.getUniqueId", RenamingToken_INCONSISTENT).
-					Put("goog.place.getUniqueId", RenamingToken_INCONSISTENT).
-					Put("id", idTestMap).
-					Put("get.id", idTestMap).
-					BuildOrThrow(),
+				idGens,
 				/* generatePseudoNames= */ false,
 				/* previousMapSerialized= */ nil,
 				/* xidHashFunction= */ nil)

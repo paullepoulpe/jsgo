@@ -585,7 +585,7 @@ type PolymerBehaviorExtractor_BehaviorDefinition struct {
 	// Containing MODULE_BODY if this behavior is defined inside a module, otherwise null
 	behaviorModule rhino.Node
 
-	lazyModuleLocalNames *jutil.LinkedHashSet[string]
+	lazyModuleLocalNames *OrderedSet[string]
 }
 
 // Java: PolymerBehaviorExtractor.BehaviorDefinition(List<MemberDefinition>, List<MemberDefinition>, List<MemberDefinition>, boolean, FeatureSet, Node)
@@ -607,7 +607,7 @@ func NewPolymerBehaviorExtractor_BehaviorDefinition(
 }
 
 // Java: PolymerBehaviorExtractor.BehaviorDefinition.getModuleLocalNames(AbstractCompiler)
-func (d *PolymerBehaviorExtractor_BehaviorDefinition) GetModuleLocalNames(compiler AbstractCompiler) *jutil.LinkedHashSet[string] {
+func (d *PolymerBehaviorExtractor_BehaviorDefinition) GetModuleLocalNames(compiler AbstractCompiler) *OrderedSet[string] {
 	if d.lazyModuleLocalNames == nil {
 		d.lazyModuleLocalNames = d.accumulateModuleLocalVars(compiler)
 	}
@@ -615,7 +615,7 @@ func (d *PolymerBehaviorExtractor_BehaviorDefinition) GetModuleLocalNames(compil
 }
 
 // Java: PolymerBehaviorExtractor.BehaviorDefinition.accumulateModuleLocalVars(AbstractCompiler)
-func (d *PolymerBehaviorExtractor_BehaviorDefinition) accumulateModuleLocalVars(compiler AbstractCompiler) *jutil.LinkedHashSet[string] {
+func (d *PolymerBehaviorExtractor_BehaviorDefinition) accumulateModuleLocalVars(compiler AbstractCompiler) *OrderedSet[string] {
 	scopeCreator := NewSyntacticScopeCreator(compiler)
 	globalScope := Scope_CreateGlobalScope(d.behaviorModule.GetParent())
 	return NodeUtil_GetAllVarNamesDeclaredInModule(

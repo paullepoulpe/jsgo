@@ -326,7 +326,7 @@ func TestJsFileRegexParser_ParseEs6Module3(t *testing.T) {
 }
 
 func jsFileRegexParserTest_fooLoader() *ModuleLoader {
-	return ModuleLoader_Builder_().
+	return NewModuleLoaderBuilder().
 		SetModuleRoots([]string{"/foo"}).
 		SetInputs([]DependencyInfo{}).
 		SetFactory(BrowserModuleResolver_FACTORY).
@@ -403,7 +403,7 @@ func TestJsFileRegexParser_Es6ModuleWithDeclareModuleId(t *testing.T) {
 
 func TestJsFileRegexParser_Es6ModuleWithBrowserTransformedPrefixResolver(t *testing.T) {
 	x := newJsFileRegexParserTest(t)
-	loader := ModuleLoader_Builder_().
+	loader := NewModuleLoaderBuilder().
 		SetModuleRoots([]string{}).
 		SetInputs([]DependencyInfo{}).
 		SetFactory(

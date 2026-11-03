@@ -68,14 +68,6 @@ var JSChunkGraph_IMPLICIT_WEAK_ENTRY_POINT_ERROR = DiagnosticType_Warning(
 	"JSC_IMPLICIT_WEAK_ENTRY_POINT_ERROR",
 	"Implicit entry point input should not be weak: {0}")
 
-// NewJSChunkGraphFromArray creates a chunk graph from a list of chunks in
-// dependency order.
-//
-// Java: JSChunkGraph(JSChunk[])
-func NewJSChunkGraphFromArray(chunksInDepOrder []*JSChunk) *JSChunkGraph {
-	return NewJSChunkGraph(chunksInDepOrder)
-}
-
 // NewJSChunkGraph creates a chunk graph from a list of chunks in dependency
 // order.
 //
@@ -125,14 +117,6 @@ func tryNewJSChunkGraph(chunksInDepOrder []*JSChunk) (*JSChunkGraph, *JSChunkGra
 }
 
 // Java: JSChunkGraph.initChunksByDepth()
-func (g *JSChunkGraph) initChunksByDepth() [][]*JSChunk {
-	chunksByDepth, err := g.tryInitChunksByDepth()
-	if err != nil {
-		panic(err)
-	}
-	return chunksByDepth
-}
-
 func (g *JSChunkGraph) tryInitChunksByDepth() ([][]*JSChunk, *JSChunkGraph_ChunkDependenceException) {
 	tmpChunksByDepth := [][]*JSChunk{}
 	for chunkIndex := 0; chunkIndex < len(g.chunks); chunkIndex++ {

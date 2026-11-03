@@ -662,7 +662,7 @@ func (p *EsModuleProcessor) visitExportAllFrom(t *NodeTraversal, export ast.Expo
 	source, ok := export.Source()
 	jutil.CheckState(ok)
 	p.currentModuleBuilder.addExport(
-		Export_Builder_().
+		NewExportBuilder().
 			ModuleRequest(source.Value()).
 			ImportName("*").
 			ModulePath(t.GetInput().GetPath()).
@@ -685,7 +685,7 @@ func (p *EsModuleProcessor) visitExportDefault(t *NodeTraversal, export ast.Expo
 	}
 
 	if !p.currentModuleBuilder.addExport(
-		Export_Builder_().
+		NewExportBuilder().
 			ExportName(Export_DEFAULT).
 			LocalName(name).
 			ModulePath(t.GetInput().GetPath()).
@@ -700,7 +700,7 @@ func (p *EsModuleProcessor) visitExportFrom(t *NodeTraversal, export ast.Export,
 	for spec := range specs.Specs() {
 		exportedName := spec.Exported().Ident()
 		if !p.currentModuleBuilder.addExport(
-			Export_Builder_().
+			NewExportBuilder().
 				ExportName(exportedName).
 				ModuleRequest(moduleRequest).
 				ImportName(spec.Local().Ident()).
@@ -718,7 +718,7 @@ func (p *EsModuleProcessor) visitExportSpecs(t *NodeTraversal, export ast.Export
 	for spec := range specs.Specs() {
 		exportedName := spec.Exported().Ident()
 		if !p.currentModuleBuilder.addExport(
-			Export_Builder_().
+			NewExportBuilder().
 				ExportName(exportedName).
 				LocalName(spec.Local().Ident()).
 				ModulePath(t.GetInput().GetPath()).
@@ -733,7 +733,7 @@ func (p *EsModuleProcessor) visitExportSpecs(t *NodeTraversal, export ast.Export
 
 func (p *EsModuleProcessor) addLocalDeclExport(t *NodeTraversal, name string, nameNode rhino.Node, exportNode rhino.Node) {
 	if !p.currentModuleBuilder.addExport(
-		Export_Builder_().
+		NewExportBuilder().
 			ExportName(name).
 			LocalName(name).
 			ModulePath(t.GetInput().GetPath()).

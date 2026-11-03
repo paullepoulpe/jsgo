@@ -124,8 +124,8 @@ func (m *TemplateAstMatcher) IsLooseMatch() bool {
 // last matched template.
 //
 // Java: TemplateAstMatcher.getTemplateNodeToMatchMap()
-func (m *TemplateAstMatcher) GetTemplateNodeToMatchMap() *jutil.LinkedHashMap[string, rhino.Node] {
-	map_ := jutil.NewLinkedHashMap[string, rhino.Node]()
+func (m *TemplateAstMatcher) GetTemplateNodeToMatchMap() *OrderedStringMap[rhino.Node] {
+	map_ := NewOrderedStringMapWithCapacity[rhino.Node](len(m.templateParams) + len(m.templateLocals))
 
 	for i, name := range m.templateParams {
 		map_.Put(name, m.paramNodeMatches[i])

@@ -167,7 +167,7 @@ func replaceMessagesDump_dumpVariant(
 		serializationDump_typeCheck(s.compiler, s.options)
 		NewRemoveCastNodes(s.compiler).Process(externsRoot, jsRoot)
 		NewConvertTypesToColors(
-			s.compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(false).Build()).
+			s.compiler, NewSerializationOptions().SetIncludeDebugInfo(false).Build()).
 			Process(externsRoot, jsRoot)
 		s.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
 		before := len(s.errors.lines)

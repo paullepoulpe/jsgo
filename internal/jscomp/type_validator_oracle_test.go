@@ -449,7 +449,7 @@ func (d *tvDump) scenarios() {
 		}
 		if s == 5 {
 			info := rhino.JSDocInfo_Builder_()
-			info.RecordSuppressions(jutil.NewLinkedHashSet("duplicate"))
+			info.RecordSuppressions([]string{"duplicate"})
 			oldDecl.SetJSDocInfo(info.Build())
 		}
 		script.AddChildToBack(oldDecl)

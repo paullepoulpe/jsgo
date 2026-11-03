@@ -143,7 +143,7 @@ func TestJSTypeExpression_MakeOptionalArgAndVarArgsDoesNotMutateRoot(t *testing.
 	}
 
 	// replaceNamesWithUnknownType does not mutate the original root
-	replaced := expr.ReplaceNamesWithUnknownType(jutil.NewLinkedHashSet("foo"))
+	replaced := expr.ReplaceNamesWithUnknownType(jutil.NewOrderedSet("foo"))
 	if !replaced.GetRoot().GetParent().IsNil() {
 		t.Error("replaced root has a parent")
 	}

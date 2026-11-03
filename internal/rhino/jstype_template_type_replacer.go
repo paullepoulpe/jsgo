@@ -72,7 +72,7 @@ type TemplateTypeReplacer struct {
 //
 // Java: TemplateTypeReplacer.forInference(JSTypeRegistry, Map<TemplateType, JSType>)
 func TemplateTypeReplacer_ForInference(
-	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) *TemplateTypeReplacer {
+	registry *JSTypeRegistry, bindings jutil.MapSource[*TemplateType, JSType]) *TemplateTypeReplacer {
 	r := TemplateTypeReplacer_MakeForInference(registry, bindings)
 	return &r
 }
@@ -80,11 +80,11 @@ func TemplateTypeReplacer_ForInference(
 // TemplateTypeReplacer_MakeForInference creates a value replacer for use during
 // TypeInference without heap allocation.
 func TemplateTypeReplacer_MakeForInference(
-	registry *JSTypeRegistry, bindings *jutil.LinkedHashMap[*TemplateType, JSType]) TemplateTypeReplacer {
-	n := bindings.Size()
-	if n == 0 {
+	registry *JSTypeRegistry, bindings jutil.MapSource[*TemplateType, JSType]) TemplateTypeReplacer {
+	if jutil.IsNil(bindings) || bindings.Size() == 0 {
 		return MakeTemplateTypeReplacer(registry, registry.GetEmptyTemplateTypeMap(), true, true, true)
 	}
+	n := bindings.Size()
 	keys := make([]*TemplateType, 0, n)
 	values := make([]JSType, 0, n)
 	unknown := registry.GetNativeType(JSTypeNative_UNKNOWN_TYPE)

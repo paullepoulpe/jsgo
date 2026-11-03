@@ -331,7 +331,7 @@ func (c *closureModuleProcessingCallback) markExportsAssignmentInNamespace(expor
 	c.namespace.Put(
 		Export_NAMESPACE,
 		Binding_From(
-			Export_Builder_().
+			NewExportBuilder().
 				ExportName(Export_NAMESPACE).
 				ExportNode(exportsNode).
 				ModuleMetadata(c.metadata).
@@ -348,7 +348,7 @@ func (c *closureModuleProcessingCallback) addPropertyExport(exportedId string, p
 	c.namespace.Put(
 		exportedId,
 		Binding_From(
-			Export_Builder_().
+			NewExportBuilder().
 				ExportName(exportedId).
 				ExportNode(propNode).
 				ModuleMetadata(c.metadata).

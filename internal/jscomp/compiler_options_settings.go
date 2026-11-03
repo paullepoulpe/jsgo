@@ -767,7 +767,7 @@ func (o *CompilerOptions) ShouldGatherCssNames() bool {
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
 //
 // Java: CompilerOptions.setStripTypes(Set<String>)
-func (o *CompilerOptions) SetStripTypes(stripTypes *jutil.LinkedHashSet[string]) {
+func (o *CompilerOptions) SetStripTypes(stripTypes *OrderedSet[string]) {
 	copyIntoOrderedStringSet(&o.stripTypes, stripTypes)
 }
 
@@ -781,7 +781,7 @@ func (o *CompilerOptions) GetStripTypes() *OrderedSet[string] {
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
 //
 // Java: CompilerOptions.setStripNameSuffixes(Set<String>)
-func (o *CompilerOptions) SetStripNameSuffixes(stripNameSuffixes *jutil.LinkedHashSet[string]) {
+func (o *CompilerOptions) SetStripNameSuffixes(stripNameSuffixes *OrderedSet[string]) {
 	copyIntoOrderedStringSet(&o.stripNameSuffixes, stripNameSuffixes)
 }
 
@@ -793,7 +793,7 @@ func (o *CompilerOptions) GetStripNameSuffixes() *OrderedSet[string] {
 // @deprecated StripCode is deprecated. Code should be designed to be removed by other means.
 //
 // Java: CompilerOptions.setStripNamePrefixes(Set<String>)
-func (o *CompilerOptions) SetStripNamePrefixes(stripNamePrefixes *jutil.LinkedHashSet[string]) {
+func (o *CompilerOptions) SetStripNamePrefixes(stripNamePrefixes *OrderedSet[string]) {
 	copyIntoOrderedStringSet(&o.stripNamePrefixes, stripNamePrefixes)
 }
 
@@ -843,12 +843,12 @@ func (o *CompilerOptions) GetCssRenamingMap() CssRenamingMap {
 }
 
 // Java: CompilerOptions.setCssRenamingSkiplist(Set<String>)
-func (o *CompilerOptions) SetCssRenamingSkiplist(skiplist *jutil.LinkedHashSet[string]) {
+func (o *CompilerOptions) SetCssRenamingSkiplist(skiplist *OrderedSet[string]) {
 	o.cssRenamingSkiplist = cloneOrEmptyStringSet(skiplist)
 }
 
 // Java: CompilerOptions.getCssRenamingSkiplist()
-func (o *CompilerOptions) GetCssRenamingSkiplist() *jutil.LinkedHashSet[string] {
+func (o *CompilerOptions) GetCssRenamingSkiplist() *OrderedSet[string] {
 	return o.cssRenamingSkiplist
 }
 

@@ -141,8 +141,10 @@ type Export_Builder struct {
 	e Export
 }
 
+// NewExportBuilder returns a stack-allocated builder for Export.
+//
 // Java: Export.builder()
-func Export_Builder_() Export_Builder {
+func NewExportBuilder() Export_Builder {
 	return Export_Builder{}
 }
 

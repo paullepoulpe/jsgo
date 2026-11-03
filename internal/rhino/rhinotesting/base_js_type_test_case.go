@@ -129,7 +129,7 @@ func NewBaseJSTypeTestCaseWithRegistry(t testing.TB, registry *rhino.JSTypeRegis
 
 // Java: BaseJSTypeTestCase.resetRegistryWithForwardDeclaredName(String)
 func (b *BaseJSTypeTestCase) ResetRegistryWithForwardDeclaredName(name string) {
-	b.Registry = rhino.NewJSTypeRegistryWithForwardDeclaredTypes(b.ErrorReporter, jutil.NewLinkedHashSet(name))
+	b.Registry = rhino.NewJSTypeRegistryWithForwardDeclaredTypes(b.ErrorReporter, jutil.NewOrderedSet(name))
 	b.InitTypes()
 }
 

@@ -45,21 +45,21 @@ var checkClosureImportsTest_ES_MODULE_SRC = SourceFile_FromCode(checkClosureImpo
 
 const checkClosureImportsTest_TEST_CODE_PATH = "testcode"
 
-var checkClosureImportsTest_PROVIDES_SYMBOL_METADATA = ModuleMetadataMap_ModuleMetadata_Builder_().
+var checkClosureImportsTest_PROVIDES_SYMBOL_METADATA = NewModuleMetadataBuilder().
 	AddGoogNamespace("symbol").
 	ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
 	UsesClosure(true).
 	IsTestOnly(false).
 	Build()
 
-var checkClosureImportsTest_ES_MODULE_METADATA = ModuleMetadataMap_ModuleMetadata_Builder_().
+var checkClosureImportsTest_ES_MODULE_METADATA = NewModuleMetadataBuilder().
 	AddGoogNamespace("es.module").
 	ModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE).
 	UsesClosure(true).
 	IsTestOnly(false).
 	Build()
 
-var checkClosureImportsTest_EXTERN_METADATA = ModuleMetadataMap_ModuleMetadata_Builder_().
+var checkClosureImportsTest_EXTERN_METADATA = NewModuleMetadataBuilder().
 	ModuleType(ModuleMetadataMap_ModuleType_SCRIPT).
 	UsesClosure(false).
 	IsTestOnly(false).
@@ -102,7 +102,7 @@ func (c *CheckClosureImportsTest) GetOptions() *CompilerOptions {
 // Java: CheckClosureImportsTest.getProcessor(Compiler)
 func (c *CheckClosureImportsTest) GetProcessor(compiler *Compiler) CompilerPass {
 	testMetadata :=
-		ModuleMetadataMap_ModuleMetadata_Builder_().
+		NewModuleMetadataBuilder().
 			AddGoogNamespace("test").
 			ModuleType(c.moduleType).
 			UsesClosure(true).

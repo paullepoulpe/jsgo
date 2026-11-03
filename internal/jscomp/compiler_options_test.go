@@ -23,7 +23,6 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -293,7 +292,7 @@ func TestCompilerOptions_NoSharedMutableEmptyCollections(t *testing.T) {
 	}
 
 	// Also verify empty Set* calls do not alias across instances.
-	emptySet := jutil.NewLinkedHashSet[string]()
+	emptySet := NewOrderedSet[string]()
 	o1.SetIdGenerators(emptySet)
 	o2.SetIdGenerators(emptySet)
 	o1.GetIdGenerators().Put("gen", RenamingMap(RenamingToken_INCONSISTENT))

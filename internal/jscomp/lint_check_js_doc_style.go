@@ -185,7 +185,7 @@ func (c *CheckJSDocStyle) VisitFunction(t *NodeTraversal, fn ast.Function) {
 	} else {
 		if t.InGlobalScope() ||
 			hasInline ||
-			!jsDoc.GetParameterNames().IsEmpty() ||
+			jsDoc.GetParameterCount() > 0 ||
 			jsDoc.HasReturnType() ||
 			jsDoc.IsOverride() {
 			c.CheckParams(t, fn, jsDoc)
@@ -274,14 +274,18 @@ func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, fn ast.Function, jsDoc *
 		return
 	}
 
-	if jsDoc == nil || jsDoc.GetParameterNames().IsEmpty() {
+	if jsDoc == nil {
+		c.CheckInlineParams(t, fn)
+		return
+	}
+	params := jsDoc.GetParameterEntries()
+	if len(params) == 0 {
 		c.CheckInlineParams(t, fn)
 		return
 	}
 
 	paramList := fn.Params()
-	paramNames := jsDoc.GetParameterNames()
-	if !paramList.Node().HasXChildren(paramNames.Size()) {
+	if !paramList.Node().HasXChildren(len(params)) {
 		c.compiler.Report(
 			JSError_MakeWithNode(
 				paramList.Node(),
@@ -291,12 +295,11 @@ func (c *CheckJSDocStyle) CheckParams(t *NodeTraversal, fn ast.Function, jsDoc *
 	}
 
 	param := paramList.Node().GetFirstChild()
-	for name := range paramNames.All() {
+	for _, entry := range params {
 		if param.GetJSDocInfo() != nil {
 			t.Report(param, CheckJSDocStyle_MIXED_PARAM_JSDOC_STYLES)
 		}
-		paramType := jsDoc.GetParameterType(name)
-		if c.CheckParam(t, param, name, true, paramType) {
+		if c.CheckParam(t, param, entry.Name, true, entry.Type) {
 			return
 		}
 		param = param.GetNext()

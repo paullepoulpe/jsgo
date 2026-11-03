@@ -213,20 +213,21 @@ func (f ProcessTweaks_TweakFunction) CreateDefaultValueNode() rhino.Node {
 }
 
 // A map of function name -> TweakFunction.
-var processTweaks_TWEAK_FUNCTIONS_MAP = func() *jutil.LinkedHashMap[string, ProcessTweaks_TweakFunction] {
-	m := jutil.NewLinkedHashMap[string, ProcessTweaks_TweakFunction]()
-	for _, func_ := range ProcessTweaks_TweakFunction_values() {
-		m.Put(func_.GetName(), func_)
+var processTweaks_TWEAK_FUNCTIONS_MAP = func() map[string]ProcessTweaks_TweakFunction {
+	vals := ProcessTweaks_TweakFunction_values()
+	m := make(map[string]ProcessTweaks_TweakFunction, len(vals))
+	for _, func_ := range vals {
+		m[func_.GetName()] = func_
 	}
 	return m
 }()
 
 // Java: ProcessTweaks(AbstractCompiler, boolean)
 func NewProcessTweaks(compiler AbstractCompiler, stripTweaks bool) *ProcessTweaks {
-	p := &ProcessTweaks{}
-	p.compiler = compiler
-	p.stripTweaks = stripTweaks
-	return p
+	return &ProcessTweaks{
+		compiler:    compiler,
+		stripTweaks: stripTweaks,
+	}
 }
 
 // Java: ProcessTweaks.process(Node, Node)
@@ -242,8 +243,9 @@ func (p *ProcessTweaks) Process(externs rhino.Node, root rhino.Node) {
 // calls to getter functions with the tweak's default value.
 //
 // Java: ProcessTweaks.stripAllCalls(Map<String, TweakInfo>)
-func (p *ProcessTweaks) StripAllCalls(tweakInfos *jutil.LinkedHashMap[string, *ProcessTweaks_TweakInfo]) {
-	for tweakInfo := range tweakInfos.Values() {
+func (p *ProcessTweaks) StripAllCalls(tweakInfos *OrderedStringMap[*ProcessTweaks_TweakInfo]) {
+	for _, e := range tweakInfos.Entries() {
+		tweakInfo := e.Value
 		isRegistered := tweakInfo.IsRegistered()
 		for _, functionCall := range tweakInfo.functionCalls {
 			callNode := functionCall.callNode
@@ -280,23 +282,21 @@ func (p *ProcessTweaks) CollectTweaks(root rhino.Node) *ProcessTweaks_CollectTwe
 	pass := newProcessTweaks_CollectTweaks(p)
 	NodeTraversal_Traverse(p.compiler, root, pass)
 
-	tweakInfos := pass.allTweaks
-	for tweakInfo := range tweakInfos.Values() {
-		tweakInfo.EmitAllWarnings()
+	tweakInfos := &pass.allTweaks
+	for _, e := range tweakInfos.Entries() {
+		e.Value.EmitAllWarnings()
 	}
 	return newProcessTweaks_CollectTweaksResult(tweakInfos)
 }
 
 // ProcessTweaks_CollectTweaksResult is CollectTweaksResult.
 type ProcessTweaks_CollectTweaksResult struct {
-	tweakInfos *jutil.LinkedHashMap[string, *ProcessTweaks_TweakInfo]
+	tweakInfos *OrderedStringMap[*ProcessTweaks_TweakInfo]
 }
 
 // Java: ProcessTweaks.CollectTweaksResult(Map<String, TweakInfo>)
-func newProcessTweaks_CollectTweaksResult(tweakInfos *jutil.LinkedHashMap[string, *ProcessTweaks_TweakInfo]) *ProcessTweaks_CollectTweaksResult {
-	r := &ProcessTweaks_CollectTweaksResult{}
-	r.tweakInfos = tweakInfos
-	return r
+func newProcessTweaks_CollectTweaksResult(tweakInfos *OrderedStringMap[*ProcessTweaks_TweakInfo]) *ProcessTweaks_CollectTweaksResult {
+	return &ProcessTweaks_CollectTweaksResult{tweakInfos: tweakInfos}
 }
 
 // ProcessTweaks_CollectTweaks processes all calls to goog.tweak functions.
@@ -305,14 +305,12 @@ type ProcessTweaks_CollectTweaks struct {
 
 	outer *ProcessTweaks
 
-	allTweaks *jutil.LinkedHashMap[string, *ProcessTweaks_TweakInfo]
+	allTweaks OrderedStringMap[*ProcessTweaks_TweakInfo]
 }
 
 // Java: ProcessTweaks.CollectTweaks()
 func newProcessTweaks_CollectTweaks(outer *ProcessTweaks) *ProcessTweaks_CollectTweaks {
-	c := &ProcessTweaks_CollectTweaks{outer: outer}
-	c.allTweaks = jutil.NewLinkedHashMap[string, *ProcessTweaks_TweakInfo]()
-	return c
+	return &ProcessTweaks_CollectTweaks{outer: outer}
 }
 
 var processTweaksCollectVisitTokens = func() ast.TokenSet {
@@ -340,7 +338,7 @@ func (c *ProcessTweaks_CollectTweaks) Visit(t *NodeTraversal, n rhino.Node, pare
 	callName := n.GetFirstChild().GetQualifiedName()
 	tweakFunc := processTweaks_TweakFunction_null
 	if callName != nil {
-		if f, ok := processTweaks_TWEAK_FUNCTIONS_MAP.Lookup(*callName); ok {
+		if f, ok := processTweaks_TWEAK_FUNCTIONS_MAP[*callName]; ok {
 			tweakFunc = f
 		}
 	}

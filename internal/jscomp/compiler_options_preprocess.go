@@ -112,10 +112,11 @@ func (d defineReplacement) toNode() rhino.Node {
 // Returns the map of define replacements.
 //
 // Java: CompilerOptions.getDefineReplacements()
-func (o *CompilerOptions) GetDefineReplacements() *jutil.LinkedHashMap[string, rhino.Node] {
-	m := jutil.NewLinkedHashMapWithCapacity[string, rhino.Node](len(o.defineReplacements.entries))
-	for _, e := range o.defineReplacements.entries {
-		m.Put(e.Key, e.Value.toNode())
+func (o *CompilerOptions) GetDefineReplacements() *OrderedStringMap[rhino.Node] {
+	entries := o.defineReplacements.Entries()
+	m := NewOrderedStringMapWithCapacity[rhino.Node](len(entries))
+	for _, e := range entries {
+		m.PutNew(e.Key, e.Value.toNode())
 	}
 	return m
 }

@@ -46,7 +46,7 @@ func TestColorSerializer_GenerateEmptyTypePool(t *testing.T) {
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
-			SetSerializationMode(SerializationOptions_Builder_().SetIncludeDebugInfo(false).Build()).
+			SetSerializationMode(NewSerializationOptions().SetIncludeDebugInfo(false).Build()).
 			Init().
 			// don't add anything
 			GenerateTypePool(t),
@@ -316,7 +316,7 @@ func TestColorSerializer_SkipMismatches(t *testing.T) {
 
 	jsaCsAssertTypePool(t,
 		newJsaCsTester().
-			SetSerializationMode(SerializationOptions_Builder_().SetIncludeDebugInfo(false).Build()).
+			SetSerializationMode(NewSerializationOptions().SetIncludeDebugInfo(false).Build()).
 			Init().
 			AddColors(t, testColor1, testColor2, testColor3, testColor4).
 			AddMismatch(testMismatch1).
@@ -629,9 +629,9 @@ func jsaCsTestMismatch_Create(locationString string, testColors ...*jsaCsTestCol
 // jsaCsTester drives a ColorSerializer.
 type jsaCsTester struct {
 	// Simulates ColorRegistry#getDisambiguationSuperTypes()
-	subColorToSuperColorsMap *jutil.LinkedHashMap[*colors.Color, *jutil.LinkedHashSet[*colors.Color]]
+	subColorToSuperColorsMap jutil.OrderedSetMultimap[*colors.Color, *colors.Color]
 	// Simulates ColorRegistry#getMismatchLocationsForDebugging()
-	colorToMismatchLocationStringsMap *jutil.LinkedHashMap[*colors.Color, *jutil.LinkedHashSet[string]]
+	colorToMismatchLocationStringsMap jutil.OrderedSetMultimap[*colors.Color, string]
 	// Simulates StringPool.Builder#put()
 	stringToPoolOffsetMap map[string]int
 	// Test object
@@ -644,11 +644,9 @@ type jsaCsTester struct {
 
 func newJsaCsTester() *jsaCsTester {
 	return &jsaCsTester{
-		subColorToSuperColorsMap:          jutil.NewLinkedHashMap[*colors.Color, *jutil.LinkedHashSet[*colors.Color]](),
-		colorToMismatchLocationStringsMap: jutil.NewLinkedHashMap[*colors.Color, *jutil.LinkedHashSet[string]](),
-		stringToPoolOffsetMap:             map[string]int{},
-		serializationMode:                 SerializationOptions_Builder_().SetIncludeDebugInfo(true).SetRunValidation(true).Build(),
-		propertyNameFilter:                func(string) bool { return true },
+		stringToPoolOffsetMap: map[string]int{},
+		serializationMode:     NewSerializationOptions().SetIncludeDebugInfo(true).SetRunValidation(true).Build(),
+		propertyNameFilter:    func(string) bool { return true },
 	}
 }
 
@@ -685,23 +683,13 @@ func (s *jsaCsTester) AddPooledString(pooledString *jsaCsPooledString) *jsaCsTes
 }
 
 func (s *jsaCsTester) LinkSubColorToSuperColor(subColor, superColor *jsaCsTestColor) *jsaCsTester {
-	set, ok := s.subColorToSuperColorsMap.Lookup(subColor.color)
-	if !ok {
-		set = jutil.NewLinkedHashSet[*colors.Color]()
-		s.subColorToSuperColorsMap.Put(subColor.color, set)
-	}
-	set.Add(superColor.color)
+	s.subColorToSuperColorsMap.Put(subColor.color, superColor.color)
 	return s
 }
 
 func (s *jsaCsTester) AddMismatch(testMismatch *jsaCsTestMismatch) *jsaCsTester {
 	for _, color := range testMismatch.GetColors() {
-		set, ok := s.colorToMismatchLocationStringsMap.Lookup(color)
-		if !ok {
-			set = jutil.NewLinkedHashSet[string]()
-			s.colorToMismatchLocationStringsMap.Put(color, set)
-		}
-		set.Add(testMismatch.locationString)
+		s.colorToMismatchLocationStringsMap.Put(color, testMismatch.locationString)
 	}
 	return s
 }
@@ -736,15 +724,9 @@ func (s *jsaCsTester) GenerateTypePool(t *testing.T) *TypePool {
 	jutil.CheckNotNullMsg(s.colorSerializer, "call init() first")
 	return s.colorSerializer.GenerateTypePool(
 		func(subtypeColor *colors.Color) []*colors.Color {
-			if set, ok := s.subColorToSuperColorsMap.Lookup(subtypeColor); ok {
-				return set.ToSlice()
-			}
-			return nil
+			return s.subColorToSuperColorsMap.Get(subtypeColor)
 		},
-		func(color *colors.Color) *jutil.LinkedHashSet[string] {
-			if set, ok := s.colorToMismatchLocationStringsMap.Lookup(color); ok {
-				return set
-			}
-			return jutil.NewLinkedHashSet[string]()
+		func(color *colors.Color) []string {
+			return s.colorToMismatchLocationStringsMap.Get(color)
 		})
 }

@@ -23,8 +23,10 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/graph"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
+
+// PruningCountMap is an insertion-ordered map of file names to dependency counts.
+type PruningCountMap = OrderedStringMap[int]
 
 // PruningAnalysis performs analysis on pruned dependencies to identify which
 // root requirements are pulling in the most transitive files.
@@ -34,7 +36,7 @@ import (
 // compilation performance by reducing the number of inputs.
 type PruningAnalysis struct {
 	sorter      *SortedDependencies[*CompilerInput]
-	entryPoints *jutil.LinkedHashSet[*CompilerInput]
+	entryPoints OrderedSet[*CompilerInput]
 }
 
 // Limit the size of the "bottleneck" report to the top N files.
@@ -53,14 +55,14 @@ const pruningAnalysis_BOTTLENECK_THRESHOLD = 25
 //
 // Java: record PruningAnalysis.Result
 type PruningAnalysis_Result struct {
-	entryPointDependencyCount *jutil.LinkedHashMap[string, int]
-	bottleneckBlame           *jutil.LinkedHashMap[string, int]
+	entryPointDependencyCount *PruningCountMap
+	bottleneckBlame           *PruningCountMap
 }
 
 // Java: PruningAnalysis.Result(ImmutableMap<String, Integer>, ImmutableMap<String, Integer>)
 func NewPruningAnalysis_Result(
-	entryPointDependencyCount *jutil.LinkedHashMap[string, int],
-	bottleneckBlame *jutil.LinkedHashMap[string, int]) *PruningAnalysis_Result {
+	entryPointDependencyCount *PruningCountMap,
+	bottleneckBlame *PruningCountMap) *PruningAnalysis_Result {
 	return &PruningAnalysis_Result{
 		entryPointDependencyCount: entryPointDependencyCount,
 		bottleneckBlame:           bottleneckBlame,
@@ -68,12 +70,12 @@ func NewPruningAnalysis_Result(
 }
 
 // Java: PruningAnalysis.Result.entryPointDependencyCount()
-func (r *PruningAnalysis_Result) EntryPointDependencyCount() *jutil.LinkedHashMap[string, int] {
+func (r *PruningAnalysis_Result) EntryPointDependencyCount() *PruningCountMap {
 	return r.entryPointDependencyCount
 }
 
 // Java: PruningAnalysis.Result.bottleneckBlame()
-func (r *PruningAnalysis_Result) BottleneckBlame() *jutil.LinkedHashMap[string, int] {
+func (r *PruningAnalysis_Result) BottleneckBlame() *PruningCountMap {
 	return r.bottleneckBlame
 }
 
@@ -82,7 +84,7 @@ func newPruningAnalysis(
 	sorter *SortedDependencies[*CompilerInput], entryPoints []*CompilerInput) *PruningAnalysis {
 	return &PruningAnalysis{
 		sorter:      sorter,
-		entryPoints: jutil.NewLinkedHashSet(entryPoints...),
+		entryPoints: *NewOrderedSet(entryPoints...),
 	}
 }
 
@@ -104,16 +106,20 @@ func (a *PruningAnalysis) Analyze() *PruningAnalysis_Result {
 }
 
 // Java: PruningAnalysis.calculateTotalBlame()
-func (a *PruningAnalysis) CalculateTotalBlame() *jutil.LinkedHashMap[string, int] {
-	reachabilityPerEntryPoint := jutil.NewImmutableMapBuilder[string, int]()
+func (a *PruningAnalysis) CalculateTotalBlame() *PruningCountMap {
+	reachabilityPerEntryPoint := NewOrderedStringMapWithCapacity[int](a.entryPoints.Size())
+	seen := make(map[*CompilerInput]struct{})
 	for provider := range a.entryPoints.All() {
-		transitiveClosure := jutil.NewLinkedHashSet[*CompilerInput]()
-		transitiveClosure.AddAll(
-			a.sorter.GetStrongDependenciesOf([]*CompilerInput{provider} /* sorted= */, false)...)
-		transitiveClosure.AddAll(a.sorter.GetSortedWeakDependenciesOf([]*CompilerInput{provider})...)
-		reachabilityPerEntryPoint.Put(provider.GetName(), transitiveClosure.Size())
+		clear(seen)
+		for _, in := range a.sorter.GetStrongDependenciesOf([]*CompilerInput{provider} /* sorted= */, false) {
+			seen[in] = struct{}{}
+		}
+		for _, in := range a.sorter.GetSortedWeakDependenciesOf([]*CompilerInput{provider}) {
+			seen[in] = struct{}{}
+		}
+		reachabilityPerEntryPoint.Put(provider.GetName(), len(seen))
 	}
-	return reachabilityPerEntryPoint.BuildOrThrow()
+	return reachabilityPerEntryPoint
 }
 
 // Java: PruningAnalysis.VIRTUAL_ROOT
@@ -124,17 +130,10 @@ const pruningAnalysis_VIRTUAL_ROOT = "ENTRY POINTS ROOT"
 // pulled in by that bottleneck.
 //
 // Java: PruningAnalysis.calculateBottlenecks()
-func (a *PruningAnalysis) CalculateBottlenecks() *jutil.LinkedHashMap[string, int] {
+func (a *PruningAnalysis) CalculateBottlenecks() *PruningCountMap {
 	depGraph := a.BuildGraph()
 
 	dominatorTree := graph.DominatorTree_Compute[string, *string](depGraph, pruningAnalysis_VIRTUAL_ROOT)
-
-	bottleneckBlame := jutil.NewLinkedHashMap[string, int]()
-	for node, retainedCount := range dominatorTree.GetAllSubtreeSizes().All() {
-		if node != pruningAnalysis_VIRTUAL_ROOT && retainedCount > 1 {
-			bottleneckBlame.Put(node, retainedCount)
-		}
-	}
 
 	// bottleneckBlame.entrySet().stream()
 	//     .sorted(comparingInt(Map.Entry::getValue).reversed())
@@ -145,19 +144,21 @@ func (a *PruningAnalysis) CalculateBottlenecks() *jutil.LinkedHashMap[string, in
 		value int
 	}
 	var entries []entry
-	for k, v := range bottleneckBlame.All() {
-		entries = append(entries, entry{k, v})
+	for node, retainedCount := range dominatorTree.GetAllSubtreeSizes().All() {
+		if node != pruningAnalysis_VIRTUAL_ROOT && retainedCount > 1 {
+			entries = append(entries, entry{node, retainedCount})
+		}
 	}
 	// Stream.sorted is stable for ordered streams.
 	slices.SortStableFunc(entries, func(x, y entry) int { return cmp.Compare(y.value, x.value) })
 	if len(entries) > pruningAnalysis_BOTTLENECK_THRESHOLD {
 		entries = entries[:pruningAnalysis_BOTTLENECK_THRESHOLD]
 	}
-	result := jutil.NewImmutableMapBuilder[string, int]()
+	result := NewOrderedStringMapWithCapacity[int](len(entries))
 	for _, e := range entries {
 		result.Put(e.key, e.value)
 	}
-	return result.BuildOrThrow()
+	return result
 }
 
 // Java: PruningAnalysis.buildGraph()
@@ -165,7 +166,8 @@ func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
 	depGraph := graph.LinkedDirectedGraph_Create[string, *string]()
 	depGraph.CreateNode(pruningAnalysis_VIRTUAL_ROOT)
 
-	for _, input := range a.sorter.GetSortedList() {
+	sortedInputs := a.sorter.GetSortedList()
+	for _, input := range sortedInputs {
 		depGraph.CreateNode(input.GetName())
 	}
 
@@ -173,9 +175,10 @@ func (a *PruningAnalysis) BuildGraph() graph.DiGraph[string, *string] {
 		depGraph.Connect(pruningAnalysis_VIRTUAL_ROOT, nil, input.GetName())
 	}
 
-	for _, input := range a.sorter.GetSortedList() {
+	var depSymbols OrderedSet[string]
+	for _, input := range sortedInputs {
 		name := input.GetName()
-		depSymbols := jutil.NewLinkedHashSet[string]()
+		depSymbols.Clear()
 		for _, req := range input.GetRequires() {
 			depSymbols.Add(req.GetSymbol())
 		}

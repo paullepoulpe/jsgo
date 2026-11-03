@@ -38,7 +38,7 @@ import (
 type DisambiguatePropertiesTest struct {
 	CompilerTestCaseBase
 
-	propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]
+	propertiesThatMustDisambiguate *OrderedSet[string]
 }
 
 // Java: DisambiguatePropertiesTest.PROP_DEFINER_DEFINITION
@@ -53,7 +53,7 @@ goog.reflect.objectProperty = function(prop, obj) { return ''; };
 func NewDisambiguatePropertiesTest() *DisambiguatePropertiesTest {
 	c := &DisambiguatePropertiesTest{}
 	c.InitCompilerTestCaseBaseWithExterns(c, "")
-	c.propertiesThatMustDisambiguate = jutil.NewLinkedHashSet[string]()
+	c.propertiesThatMustDisambiguate = NewOrderedSet[string]()
 	return c
 }
 
@@ -897,7 +897,7 @@ goog.reflect.objectProperty('JSC$3_m', Foo.prototype);
 // Java: DisambiguatePropertiesTest.errorReported_forInvalidation_ofSpecifiedPropNames_oncePerName()
 func (c *DisambiguatePropertiesTest) TestErrorReported_forInvalidation_ofSpecifiedPropNames_oncePerName() {
 	c.AllowSourcelessWarnings()
-	c.propertiesThatMustDisambiguate = jutil.NewLinkedHashSet[string](
+	c.propertiesThatMustDisambiguate = NewOrderedSet[string](
 		"invalid0", //
 		"invalid1")
 
@@ -1285,7 +1285,7 @@ type disambiguatePropertiesTest_SilenceNoiseGuard struct {
 }
 
 // Java: DisambiguatePropertiesTest.SilenceNoiseGuard.RELEVANT_DIAGNOSTICS
-var disambiguatePropertiesTest_SilenceNoiseGuard_RELEVANT_DIAGNOSTICS = jutil.NewLinkedHashSet[*DiagnosticType](DisambiguateProperties_PROPERTY_INVALIDATION)
+var disambiguatePropertiesTest_SilenceNoiseGuard_RELEVANT_DIAGNOSTICS = NewOrderedSet[*DiagnosticType](DisambiguateProperties_PROPERTY_INVALIDATION)
 
 func newDisambiguatePropertiesTest_SilenceNoiseGuard() *disambiguatePropertiesTest_SilenceNoiseGuard {
 	return &disambiguatePropertiesTest_SilenceNoiseGuard{}

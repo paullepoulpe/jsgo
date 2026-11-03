@@ -750,7 +750,7 @@ func (r *PolymerClassRewriter) createExportsAndExterns(
 	r.appendPropertiesToBlock(cls.props, block, interfaceBasePath, true)
 
 	// Deduplicate behavior and element methods by name in first-seen key order
-	// with last-seen definition winning (matching Java LinkedHashMap.put).
+	// with last-seen definition winning.
 	var uniqueMethods OrderedStringMap[*PolymerPass_MemberDefinition]
 	for _, behavior := range cls.behaviors {
 		for _, method := range behavior.functionsToCopy {

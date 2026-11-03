@@ -156,16 +156,16 @@ func (s *AbstractStaticScopeBase) LookupQualifiedName(qname rhino.QualifiedName)
 
 // MapBasedScope is a scope based on a simple map of names to types.
 type MapBasedScope struct {
-	slots *jutil.LinkedHashMap[string, rhino.StaticTypedSlot]
+	slots jutil.OrderedMap[string, rhino.StaticTypedSlot]
 }
 
 // NewMapBasedScope returns a scope with one non-inferred slot per entry of
 // namesToTypes, in order.
 //
 // Java: MapBasedScope(Map<String, ? extends JSType>)
-func NewMapBasedScope(namesToTypes *jutil.LinkedHashMap[string, rhino.JSType]) *MapBasedScope {
-	s := &MapBasedScope{slots: jutil.NewLinkedHashMap[string, rhino.StaticTypedSlot]()}
-	if namesToTypes != nil {
+func NewMapBasedScope(namesToTypes jutil.MapSource[string, rhino.JSType]) *MapBasedScope {
+	s := &MapBasedScope{}
+	if !jutil.IsNil(namesToTypes) {
 		for name, type_ := range namesToTypes.All() {
 			s.slots.Put(name, rhino.NewSimpleSlot(name, type_, false))
 		}
@@ -176,16 +176,17 @@ func NewMapBasedScope(namesToTypes *jutil.LinkedHashMap[string, rhino.JSType]) *
 // NewMapBasedScopeOf builds a MapBasedScope from alternating names and
 // types, like ImmutableMap.of(k1, v1, k2, v2, ...).
 func NewMapBasedScopeOf(namesAndTypes ...any) *MapBasedScope {
-	m := jutil.NewLinkedHashMap[string, rhino.JSType]()
+	s := &MapBasedScope{}
 	for i := 0; i < len(namesAndTypes); i += 2 {
-		m.Put(namesAndTypes[i].(string), namesAndTypes[i+1].(rhino.JSType))
+		name := namesAndTypes[i].(string)
+		s.slots.Put(name, rhino.NewSimpleSlot(name, namesAndTypes[i+1].(rhino.JSType), false))
 	}
-	return NewMapBasedScope(m)
+	return s
 }
 
 // Java: MapBasedScope.emptyScope()
 func MapBasedScope_EmptyScope() *MapBasedScope {
-	return NewMapBasedScope(jutil.NewLinkedHashMap[string, rhino.JSType]())
+	return &MapBasedScope{}
 }
 
 // Java: AbstractStaticScope.getRootNode()
@@ -375,11 +376,11 @@ func Asserts_AssertEquivalenceOperations(t testing.TB, a rhino.JSType, b rhino.J
 type TestErrorReporter struct {
 	expectedErrors   []string
 	expectedWarnings []string
-	// Seen diagnostics are stored in a LinkedHashMap to deduplicate
+	// Seen diagnostics are stored in an OrderedMap to deduplicate
 	// identical diagnostics. The default
 	// com.google.javascript.jscomp.SortingErrorManager behaves in this way.
-	seenErrors   *jutil.LinkedHashMap[string, string]
-	seenWarnings *jutil.LinkedHashMap[string, string]
+	seenErrors   jutil.OrderedMap[string, string]
+	seenWarnings jutil.OrderedMap[string, string]
 }
 
 // NewTestErrorReporter returns a reporter that expects no diagnostics.
@@ -389,8 +390,6 @@ func NewTestErrorReporter() *TestErrorReporter {
 	return &TestErrorReporter{
 		expectedErrors:   []string{},
 		expectedWarnings: []string{},
-		seenErrors:       jutil.NewLinkedHashMap[string, string](),
-		seenWarnings:     jutil.NewLinkedHashMap[string, string](),
 	}
 }
 

@@ -63,7 +63,8 @@ var ModuleLoader_LOAD_WARNING = DiagnosticType_Error("JSC_JS_MODULE_LOAD_WARNING
 var ModuleLoader_INVALID_MODULE_PATH = DiagnosticType_Error(
 	"JSC_INVALID_MODULE_PATH", "Invalid module path \"{0}\" for resolution mode \"{1}\"")
 
-func ModuleLoader_Builder_() ModuleLoader_Builder {
+// NewModuleLoaderBuilder returns a new ModuleLoader_Builder with default settings.
+func NewModuleLoaderBuilder() ModuleLoader_Builder {
 	return ModuleLoader_Builder{
 		errorHandler: moduleLoader_NOOP_ERROR_HANDER,
 		pathResolver: ModuleLoader_PathResolver_RELATIVE,
@@ -458,7 +459,7 @@ var ModuleLoader_EMPTY = moduleLoader_NewEmpty()
 // handler on its loader, and on a shared one that would send a later
 // compiler's module errors to an earlier one.
 func moduleLoader_NewEmpty() *ModuleLoader {
-	return ModuleLoader_Builder_().
+	return NewModuleLoaderBuilder().
 		SetModuleRoots([]string{}).
 		SetInputs([]DependencyInfo{}).
 		SetFactory(BrowserModuleResolver_FACTORY).

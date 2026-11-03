@@ -137,9 +137,8 @@ func coreG3Fmt(v any) string {
 		// An enum whose toString() is not its name (e.g. Tri).
 		return e.Name()
 	}
-	typeName := rv.Type().String()
 	switch {
-	case strings.HasPrefix(typeName, "*jutil.LinkedHashMap["):
+	case rv.MethodByName("KeySlice").IsValid() && rv.MethodByName("Get").IsValid():
 		keys := rv.MethodByName("KeySlice").Call(nil)[0]
 		get := rv.MethodByName("Get")
 		parts := make([]string, keys.Len())
@@ -148,7 +147,7 @@ func coreG3Fmt(v any) string {
 			parts[i] = coreG3Fmt(k.Interface()) + "=" + coreG3Fmt(get.Call([]reflect.Value{k})[0].Interface())
 		}
 		return "{" + strings.Join(parts, ", ") + "}"
-	case strings.HasPrefix(typeName, "*jutil.LinkedHashSet["):
+	case rv.MethodByName("ToSlice").IsValid():
 		return coreG3FmtSlice(rv.MethodByName("ToSlice").Call(nil)[0])
 	case rv.Kind() == reflect.Slice:
 		return coreG3FmtSlice(rv)
@@ -174,8 +173,8 @@ func coreG3List(a string) []string {
 	return strings.Split(a, ",")
 }
 
-func coreG3Set(a string) *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet(coreG3List(a)...)
+func coreG3Set(a string) *OrderedSet[string] {
+	return NewOrderedSet(coreG3List(a)...)
 }
 
 func coreG3Nullable(a string) *string {

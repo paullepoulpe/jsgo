@@ -94,20 +94,20 @@ func jsaMlResolveJsModule(context *ModuleLoader_ModulePath, moduleAddress string
 }
 
 func TestModuleLoader_WindowsAddresses(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("js\\a.js", "js\\b.js")).SetFactory(NewNodeModuleResolver_Factory()).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("js\\a.js", "js\\b.js")).SetFactory(NewNodeModuleResolver_Factory()).Build()
 	jsaMlAssertUri(t, "js/a.js", loader.Resolve("js\\a.js"))
 	jsaMlAssertUri(t, "js/b.js", jsaMlResolveJsModule(loader.Resolve("js\\a.js"), "./b"))
 }
 
 func TestModuleLoader_JsExtensionNode(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("js/a.js", "js/b.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("js/a.js", "js/b.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "js/a.js", loader.Resolve("js/a.js"))
 	jsaMlAssertUri(t, "js/b.js", jsaMlResolveJsModule(loader.Resolve("js/a.js"), "./b"))
 	jsaMlAssertUri(t, "js/b.js", jsaMlResolveJsModule(loader.Resolve("js/a.js"), "./b.js"))
 }
 
 func TestModuleLoader_LocateJsNode(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "A/index.js", loader.Resolve("A/index.js"))
 	jsaMlAssertUri(t, "A/index.js", jsaMlResolveJsModule(loader.Resolve("B/index.js"), "../A"))
 	jsaMlAssertUri(t, "A/index.js", jsaMlResolveJsModule(loader.Resolve("B/index.js"), "../A/"))
@@ -120,7 +120,7 @@ func TestModuleLoader_LocateJsNode(t *testing.T) {
 
 func TestModuleLoader_LocateNodeModuleNode(t *testing.T) {
 	compilerInputs := jsaMlInputs("/A/index.js", "/A/index.json", "/node_modules/A/index.js", "/node_modules/A/foo.js", "/node_modules/A/node_modules/A/index.json", "/B/package.json", "/B/lib/b.js", "/node_modules/B/package.json", "/node_modules/B/lib/b.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve(" /foo.js"), "/A"))
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "/A/index.js"))
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "./A"))
@@ -137,14 +137,14 @@ func TestModuleLoader_LocateNodeModuleNode(t *testing.T) {
 }
 
 func TestModuleLoader_JsExtensionBrowser(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("js/a.js", "js/b.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("js/a.js", "js/b.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	jsaMlAssertUri(t, "js/a.js", loader.Resolve("js/a.js"))
 	jsaTrue(t, jsaMlResolveJsModule(loader.Resolve("js/a.js"), "./b") == nil)
 	jsaMlAssertUri(t, "js/b.js", jsaMlResolveJsModule(loader.Resolve("js/a.js"), "./b.js"))
 }
 
 func TestModuleLoader_LocateJsBrowser(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	jsaMlAssertUri(t, "A/index.js", loader.Resolve("A/index.js"))
 	jsaTrue(t, jsaMlResolveJsModule(loader.Resolve("B/index.js"), "../A") == nil)
 	jsaTrue(t, jsaMlResolveJsModule(loader.Resolve("B/index.js"), "../A/index") == nil)
@@ -161,7 +161,7 @@ func TestModuleLoader_LocateJsBrowser(t *testing.T) {
 
 func TestModuleLoader_LocateNodeModuleBrowser(t *testing.T) {
 	compilerInputs := jsaMlInputs("/A/index.js", "/A/index.json", "/node_modules/A/index.js", "/node_modules/A/foo.js", "/node_modules/A/node_modules/A/index.json", "/B/package.json", "/B/lib/b.js", "/node_modules/B/package.json", "/node_modules/B/lib/b.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	jsaTrue(t, jsaMlResolveJsModule(loader.Resolve("/foo.js"), "/A") == nil)
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "/A/index.js"))
 	jsaTrue(t, jsaMlResolveJsModule(loader.Resolve("/foo.js"), "./A") == nil)
@@ -178,7 +178,7 @@ func TestModuleLoader_LocateNodeModuleBrowser(t *testing.T) {
 }
 
 func TestModuleLoader_NormalizeUris(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"a", "b", "/c"}).SetInputs(jsaMlInputs()).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"a", "b", "/c"}).SetInputs(jsaMlInputs()).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	jsaMlAssertUri(t, "a.js", loader.Resolve("a/a.js"))
 	jsaMlAssertUri(t, "a.js", loader.Resolve("a.js"))
 	jsaMlAssertUri(t, "some.js", loader.Resolve("some.js"))
@@ -188,7 +188,7 @@ func TestModuleLoader_NormalizeUris(t *testing.T) {
 }
 
 func TestModuleLoader_DuplicateUris(t *testing.T) {
-	e := jsaThrows[jutil.Throwable](t, ModuleLoader_Builder_().SetModuleRoots([]string{"a", "b"}).SetInputs(jsaMlInputs("a/f.js", "b/f.js")).SetFactory(BrowserModuleResolver_FACTORY).jsaBuildFunc())
+	e := jsaThrows[jutil.Throwable](t, NewModuleLoaderBuilder().SetModuleRoots([]string{"a", "b"}).SetInputs(jsaMlInputs("a/f.js", "b/f.js")).SetFactory(BrowserModuleResolver_FACTORY).jsaBuildFunc())
 	if e != nil {
 		jsaTrue(t, strings.Contains(e.GetMessage(), "Duplicate module path"), e.GetMessage())
 	}
@@ -211,7 +211,7 @@ func TestModuleLoader_ToJSIdentifier(t *testing.T) {
 }
 
 func TestModuleLoader_EscapePath(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(jsaMlInputs("/has:special:chars.js")).SetFactory(BrowserModuleResolver_FACTORY).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).SetPathEscaper(ModuleLoader_PathEscaper_ESCAPE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(jsaMlInputs("/has:special:chars.js")).SetFactory(BrowserModuleResolver_FACTORY).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).SetPathEscaper(ModuleLoader_PathEscaper_ESCAPE).Build()
 	// : is escaped to -
 	jsaEq(t, loader.Resolve("file://my/file.js").String(), "file-//my/file.js")
 	jsaEq(t, jsaMlResolveJsModule(loader.Resolve("c"), "/has:special:chars.js").String(), "/has-special-chars.js")
@@ -219,14 +219,14 @@ func TestModuleLoader_EscapePath(t *testing.T) {
 
 func TestModuleLoader_DoNoEscapePath(t *testing.T) {
 	// : is a character that is escaped
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(jsaMlInputs("/has:special:chars.js")).SetFactory(BrowserModuleResolver_FACTORY).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).SetPathEscaper(ModuleLoader_PathEscaper_CANONICALIZE_ONLY).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(jsaMlInputs("/has:special:chars.js")).SetFactory(BrowserModuleResolver_FACTORY).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).SetPathEscaper(ModuleLoader_PathEscaper_CANONICALIZE_ONLY).Build()
 	jsaEq(t, loader.Resolve("file://my/file.js").String(), "file://my/file.js")
 	jsaEq(t, jsaMlResolveJsModule(loader.Resolve("c"), "/has:special:chars.js").String(), "/has:special:chars.js")
 }
 
 func TestModuleLoader_LocateNodeModulesNoLeadingSlash(t *testing.T) {
 	compilerInputs := jsaMlInputs("/A/index.js", "/A/index.json", "node_modules/A/index.js", "node_modules/A/foo.js", "node_modules/A/node_modules/A/index.json", "/B/package.json", "/B/lib/b.js", "node_modules/B/package.json", "node_modules/B/lib/b.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve(" /foo.js"), "/A"))
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "/A/index.js"))
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "./A"))
@@ -249,7 +249,7 @@ func TestModuleLoader_LocateNodeModulesBrowserFieldAdvancedUsage(t *testing.T) {
 	//                "replace/other.js": "with/alternative.js"}}
 	packageJsonMainEntries := jsaMap("/node_modules/mymodule/package.json", "/node_modules/mymodule/server.js", "/node_modules/mymodule/server.js", "/node_modules/mymodule/client.js", "/node_modules/mymodule/override/relative.js", "/node_modules/mymodule/./with/this.js", "/node_modules/mymodule/exclude/this.js", ModuleLoader_JSC_BROWSER_SKIPLISTED_MARKER, "/node_modules/mymodule/replace/other.js", "/node_modules/mymodule/with/alternative.js")
 	compilerInputs := jsaMlInputs("/node_modules/mymodule/package.json", "/node_modules/mymodule/client.js", "/node_modules/mymodule/with/alternative.js", "/node_modules/mymodule/with/this.js", "/foo.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(packageJsonMainEntries)).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(packageJsonMainEntries)).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "/node_modules/mymodule/client.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "mymodule"))
 	jsaMlAssertUri(t, "/node_modules/mymodule/with/alternative.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "mymodule/replace/other.js"))
 	jsaMlAssertUri(t, "/node_modules/mymodule/with/alternative.js", jsaMlResolveJsModule(loader.Resolve("/node_modules/mymodule/client.js"), "./replace/other.js"))
@@ -268,7 +268,7 @@ func TestModuleLoader_LocateNodeModuleWithMultipleRootsSimple(t *testing.T) {
 
 		// file that will be basis for resolving modules in this test.
 		"/foo.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"generated_files/"}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMap())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"generated_files/"}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMap())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "/node_modules/second.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "second"))
 }
 
@@ -289,7 +289,7 @@ func TestModuleLoader_LocateNodeModuleWithMultipleRoots(t *testing.T) {
 
 		// file that will be basis for resolving modules in this test.
 		"/foo.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"generated_files/"}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMap())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"generated_files/"}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMap())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	// 'first' and 'second' should resolve from foo.js
 	jsaMlAssertUri(t, "/node_modules/first.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "first"))
 	jsaMlAssertUri(t, "/node_modules/second.js", jsaMlResolveJsModule(loader.Resolve("/foo.js"), "second"))
@@ -299,7 +299,7 @@ func TestModuleLoader_LocateNodeModuleWithMultipleRoots(t *testing.T) {
 
 func TestModuleLoader_Webpack(t *testing.T) {
 	webpackModulesById := jsaMap("1", "A/index.js", "B/index.js", "B/index.js", "3", "app.js")
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(NewWebpackModuleResolver_Factory(webpackModulesById)).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(NewWebpackModuleResolver_Factory(webpackModulesById)).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 	jsaMlAssertUri(t, "/A/index.js", jsaMlResolveJsModule(loader.Resolve("A/index.js"), "1"))
 	jsaMlAssertUri(t, "/B/index.js", jsaMlResolveJsModule(loader.Resolve("A/index.js"), "B/index.js"))
 	jsaMlAssertUri(t, "/app.js", jsaMlResolveJsModule(loader.Resolve("A/index.js"), "3"))
@@ -317,21 +317,21 @@ func TestModuleLoader_Webpack(t *testing.T) {
 }
 
 func TestModuleLoader_BrowserWithPrefixReplacement(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/path/to/project0/index.js", "/path/to/project1/index.js", "app.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("@project0/", "/path/to/project0/", "+project1/", "/path/to/project1/", "@root/", "/"))).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/path/to/project0/index.js", "/path/to/project1/index.js", "app.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("@project0/", "/path/to/project0/", "+project1/", "/path/to/project1/", "@root/", "/"))).Build()
 	jsaMlAssertUri(t, "/path/to/project0/index.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "@project0/index.js"))
 	jsaMlAssertUri(t, "/path/to/project1/index.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "+project1/index.js"))
 	jsaMlAssertUri(t, "/app.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "@root/app.js"))
 }
 
 func TestModuleLoader_BrowserWithPrefixReplacementResolveModuleAsPath(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{".", "/path/to/project0/", "/path/to/project1/"}).SetInputs(jsaMlInputs()).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("@project0/", "/path/to/project0/", "+project1/", "/path/to/project1/", "@root/", "/"))).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{".", "/path/to/project0/", "/path/to/project1/"}).SetInputs(jsaMlInputs()).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("@project0/", "/path/to/project0/", "+project1/", "/path/to/project1/", "@root/", "/"))).Build()
 	jsaMlAssertUri(t, "index.js", loader.Resolve("fake.js").ResolveModuleAsPath("@project0/index.js"))
 	jsaMlAssertUri(t, "foo/bar/index.js", loader.Resolve("fake.js").ResolveModuleAsPath("+project1/foo/bar/index.js"))
 	jsaMlAssertUri(t, "@not/a/root/index.js", loader.Resolve("fake.js").ResolveModuleAsPath("@not/a/root/index.js"))
 }
 
 func TestModuleLoader_BrowserWithPrefixReplacementAppliedMostSpecificToLeast(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
 	jsaMlAssertUri(t, "/p0/p1/p2/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "0/p1/p2/file.js"))
 	jsaMlAssertUri(t, "/p0/p1/p2/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "0/1/p2/file.js"))
 	jsaMlAssertUri(t, "/p0/p1/p2/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "0/1/2/file.js"))
@@ -340,7 +340,7 @@ func TestModuleLoader_BrowserWithPrefixReplacementAppliedMostSpecificToLeast(t *
 func TestModuleLoader_BrowserWithPrefixReplacementInvalidPrefix(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/path/to/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("prefix/", "/path/to/"))).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/path/to/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("prefix/", "/path/to/"))).Build()
 	jsaMlAssertUri(t, "/path/to/file.js", jsaMlResolveJsModule(loader.Resolve("fake.js"), "prefix/file.js"))
 	jsaEq(t, len(errors), 0)
 	jsaMlResolveJsModule(loader.Resolve("fake.js"), "invalid/file.js")
@@ -349,7 +349,7 @@ func TestModuleLoader_BrowserWithPrefixReplacementInvalidPrefix(t *testing.T) {
 }
 
 func TestModuleLoader_CustomResolution(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(ModuleLoader_ModuleResolverFactoryFunc(func(modulePaths *OrderedSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("A/index.js", "B/index.js", "app.js")).SetFactory(ModuleLoader_ModuleResolverFactoryFunc(func(modulePaths *OrderedSet[string], moduleRootPaths []string, errorHandler ErrorHandler, pathEscaper ModuleLoader_PathEscaper) ModuleResolver {
 		return &jsaMlCustomResolver{
 			moduleResolverCommon: newModuleResolverCommon(modulePaths, moduleRootPaths, errorHandler, pathEscaper),
 		}
@@ -364,14 +364,14 @@ func TestModuleLoader_CustomResolution(t *testing.T) {
 }
 
 func TestModuleLoader_RootsAppliedMostSpecificFirst(t *testing.T) {
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{"/path/", "/path/to/project/", "/path/to/"}).SetInputs(jsaMlInputs()).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{"/path/", "/path/to/project/", "/path/to/"}).SetInputs(jsaMlInputs()).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	jsaMlAssertUri(t, "file.js", loader.Resolve("/path/to/project/file.js"))
 }
 
 func TestModuleLoader_BrowserResolverSilentHandlesExternalUrl(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js", "local/module.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js", "local/module.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	appPath := loader.Resolve("app.js")
 	result := appPath.ResolveJsModuleSilently("https://cdn.example.com/library.js")
 	jsaTrue(t, result == nil)
@@ -381,7 +381,7 @@ func TestModuleLoader_BrowserResolverSilentHandlesExternalUrl(t *testing.T) {
 func TestModuleLoader_BrowserResolverSilentHandlesBareModuleName(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	appPath := loader.Resolve("app.js")
 	jsaTrue(t, appPath.ResolveJsModuleSilently("react") == nil)
 	jsaTrue(t, appPath.ResolveJsModuleSilently("lodash") == nil)
@@ -392,7 +392,7 @@ func TestModuleLoader_BrowserResolverSilentHandlesBareModuleName(t *testing.T) {
 func TestModuleLoader_BrowserResolverSilentResolvesRelativePath(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js", "lib/utils.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js", "lib/utils.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	appPath := loader.Resolve("app.js")
 	result := appPath.ResolveJsModuleSilently("./lib/utils.js")
 	jsaTrue(t, result != nil)
@@ -403,7 +403,7 @@ func TestModuleLoader_BrowserResolverSilentResolvesRelativePath(t *testing.T) {
 func TestModuleLoader_BrowserResolverSilentHandlesUnresolvableRelativePath(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	appPath := loader.Resolve("app.js")
 	result := appPath.ResolveJsModuleSilently("./missing/module.js")
 	jsaTrue(t, result == nil)
@@ -413,7 +413,7 @@ func TestModuleLoader_BrowserResolverSilentHandlesUnresolvableRelativePath(t *te
 func TestModuleLoader_BrowserResolverDoesNotHandleUnresolvableRelativePath(t *testing.T) {
 	var errorsFromRegular []*JSError
 
-	regularLoader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errorsFromRegular)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
+	regularLoader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errorsFromRegular)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(BrowserModuleResolver_FACTORY).Build()
 	appPath1 := regularLoader.Resolve("app.js")
 	appPath1.ResolveJsModule("https://cdn.example.com/lib.js", "test.js", 1, 1)
 	jsaEq(t, len(errorsFromRegular), 1)
@@ -422,7 +422,7 @@ func TestModuleLoader_BrowserResolverDoesNotHandleUnresolvableRelativePath(t *te
 func TestModuleLoader_NodeResolverDoesNotHandleUnresolvableRelativePath(t *testing.T) {
 	var errorsFromRegular []*JSError
 
-	regularLoader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errorsFromRegular)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).Build()
+	regularLoader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errorsFromRegular)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).Build()
 	appPath := regularLoader.Resolve("app.js")
 	appPath.ResolveJsModule("https://cdn.example.com/lib.js", "test.js", 1, 1)
 	jsaEq(t, len(errorsFromRegular), 1)
@@ -431,7 +431,7 @@ func TestModuleLoader_NodeResolverDoesNotHandleUnresolvableRelativePath(t *testi
 func TestModuleLoader_NodeResolverSilentHandlesAmbiguousIdentifier(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).Build()
 	appPath := loader.Resolve("app.js")
 	result := appPath.ResolveJsModuleSilently("https://cdn.example.com/lib.js")
 	jsaTrue(t, result == nil)
@@ -441,7 +441,7 @@ func TestModuleLoader_NodeResolverSilentHandlesAmbiguousIdentifier(t *testing.T)
 func TestModuleLoader_NodeResolverSilentResolvesRelativePath(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js", "lib/utils.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("app.js", "lib/utils.js")).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).Build()
 	appPath := loader.Resolve("app.js")
 	result := appPath.ResolveJsModuleSilently("./lib/utils.js")
 	jsaTrue(t, result != nil)
@@ -452,7 +452,7 @@ func TestModuleLoader_NodeResolverSilentResolvesRelativePath(t *testing.T) {
 func TestModuleLoader_BrowserWithPrefixesSilentHandlesAmbiguousIdentifier(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
 	appPath := loader.Resolve("/p0/file.js")
 	result := appPath.ResolveJsModuleSilently("lodash")
 	jsaTrue(t, result == nil)
@@ -462,7 +462,7 @@ func TestModuleLoader_BrowserWithPrefixesSilentHandlesAmbiguousIdentifier(t *tes
 func TestModuleLoader_BrowserWithPrefixesSilentResolvesTransformedPrefixes(t *testing.T) {
 	var errors []*JSError
 
-	loader := ModuleLoader_Builder_().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
+	loader := NewModuleLoaderBuilder().SetErrorHandler(jsaMlCollect(&errors)).SetModuleRoots([]string{"."}).SetInputs(jsaMlInputs("/p0/p1/p2/file.js")).SetFactory(NewBrowserWithTransformedPrefixesModuleResolver_Factory(jsaMap("0/1/2/", "/p0/p1/p2/", "0/", "/p0/", "0/1/", "/p0/p1/"))).Build()
 	appPath := loader.Resolve("fake.js")
 	result := appPath.ResolveJsModuleSilently("0/1/2/file.js")
 	jsaTrue(t, result != nil)
@@ -480,7 +480,7 @@ func TestModuleLoader_RelativeIdentifierDotAndDotDot(t *testing.T) {
 func TestModuleLoader_LocateDotAndDotDotNode(t *testing.T) {
 	compilerInputs := jsaMlInputs("/app/index.js", "/app/sub/sub.js", "/app/sub/index.js", "/app/sub/sub2/sub2.js", "/B/package.json", "/B/lib/b.js", "/B/lib/index.js")
 
-	loader := ModuleLoader_Builder_().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
+	loader := NewModuleLoaderBuilder().SetModuleRoots([]string{}).SetInputs(compilerInputs).SetFactory(NewNodeModuleResolver_FactoryWithEntries(jsaMlPACKAGE_JSON_MAIN_ENTRIES())).SetPathResolver(ModuleLoader_PathResolver_RELATIVE).Build()
 
 	jsaMlAssertUri(t, "/app/sub/index.js", jsaMlResolveJsModule(loader.Resolve("/app/sub/sub.js"), "."))
 	jsaMlAssertUri(t, "/app/sub/index.js", jsaMlResolveJsModule(loader.Resolve("/app/sub/sub2/sub2.js"), ".."))

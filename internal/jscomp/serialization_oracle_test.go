@@ -109,7 +109,7 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 		if variant == "colors" {
 			NewRemoveCastNodes(s.compiler).Process(externsRoot, jsRoot)
 			NewConvertTypesToColors(
-				s.compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(false).Build()).
+				s.compiler, NewSerializationOptions().SetIncludeDebugInfo(false).Build()).
 				Process(externsRoot, jsRoot)
 			s.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_COLORS_AND_SIMPLIFIED_JSDOC)
 		}
@@ -121,7 +121,7 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 		SerializeTypedAstPass_CreateFromOutputStream(
 			s.compiler,
 			&out,
-			SerializationOptions_Builder_().
+			NewSerializationOptions().
 				SetIncludeDebugInfo(false).
 				SetRuntimeLibraries([]string{}).
 				Build()).
@@ -158,7 +158,7 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 			d.options.GetResolveSourceMapAnnotations(),
 			d.options.GetParseInlineSourceMaps())
 		var tree []string
-		colorsSeen := jutil.NewLinkedHashMap[colors.ColorId, *colors.Color]()
+		var colorsSeen OrderedMap[colors.ColorId, *colors.Color]
 		for _, f := range requiredInputFiles {
 			entry, ok := deserialized.filesystem[f]
 			if !ok {
@@ -166,10 +166,10 @@ func serializationDump_dumpVariant(sb *strings.Builder, variant string, externsF
 				continue
 			}
 			tree = append(tree, "script "+f.GetName())
-			tree = serializationDump_dumpTree(tree, colorsSeen, entry.DeserializeNew(), 0)
+			tree = serializationDump_dumpTree(tree, &colorsSeen, entry.DeserializeNew(), 0)
 		}
-		for c := range colorsSeen.Values() {
-			tree = append(tree, serializationDump_colorLine(c))
+		for _, e := range colorsSeen.Entries() {
+			tree = append(tree, serializationDump_colorLine(e.Value))
 		}
 		serializationDump_section(sb, "deserialized", tree, fullThis)
 	}, func(e jutil.IRuntimeException) {
@@ -234,7 +234,7 @@ func serializationDump_addLines(out []string, s string) []string {
 	return out
 }
 
-func serializationDump_dumpTree(out []string, colorsSeen *jutil.LinkedHashMap[colors.ColorId, *colors.Color], n rhino.Node, level int) []string {
+func serializationDump_dumpTree(out []string, colorsSeen *OrderedMap[colors.ColorId, *colors.Color], n rhino.Node, level int) []string {
 	line := strings.Repeat("    ", level) + n.ToStringWithFlags(true, true, false)
 	if c := n.GetColor(); c != nil {
 		line += " : " + c.GetId().String()
@@ -247,11 +247,10 @@ func serializationDump_dumpTree(out []string, colorsSeen *jutil.LinkedHashMap[co
 	return out
 }
 
-func serializationDump_collectColor(colorsSeen *jutil.LinkedHashMap[colors.ColorId, *colors.Color], c *colors.Color) {
-	if colorsSeen.ContainsKey(c.GetId()) {
+func serializationDump_collectColor(colorsSeen *OrderedMap[colors.ColorId, *colors.Color], c *colors.Color) {
+	if !colorsSeen.PutIfAbsent(c.GetId(), c) {
 		return
 	}
-	colorsSeen.Put(c.GetId(), c)
 	for _, x := range c.GetPrototypes() {
 		serializationDump_collectColor(colorsSeen, x)
 	}

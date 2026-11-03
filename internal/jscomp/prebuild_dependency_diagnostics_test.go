@@ -93,7 +93,7 @@ func TestPrebuildDependencyDiagnosticsPreserveHandlerAndGuardRouting(t *testing.
 					SimpleDependencyInfo_Builder_("first.js", "first.js").Build(),
 					SimpleDependencyInfo_Builder_("second.js", "second.js").Build(),
 				}
-				compiler.moduleLoader = ModuleLoader_Builder_().
+				compiler.moduleLoader = NewModuleLoaderBuilder().
 					SetModuleRoots([]string{"."}).SetInputs(known).
 					SetFactory(BrowserModuleResolver_FACTORY).
 					SetErrorHandler(compiler.AsErrorHandler()).Build()

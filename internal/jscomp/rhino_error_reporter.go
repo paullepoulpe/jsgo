@@ -243,7 +243,7 @@ func rhinoErrorReporter_makeError(
 		t = RhinoErrorReporter_PARSE_ERROR
 	}
 	builder :=
-		JSError_Builder_(t, message).
+		NewJSErrorBuilder(t, message).
 			SetSourceLocation(&sourceName, line, lineOffset)
 
 	// If a specific DiagnosticType is present, its default level overrides the defaultLevel

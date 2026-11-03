@@ -49,7 +49,7 @@ func NewDiagnosticGroups() *DiagnosticGroups {
 	return &DiagnosticGroups{}
 }
 
-var DiagnosticGroups_groupsByName = jutil.NewLinkedHashMap[string, *DiagnosticGroup]()
+var DiagnosticGroups_groupsByName OrderedStringMap[*DiagnosticGroup]
 
 // Java: DiagnosticGroups.registerDeprecatedGroup(String)
 func DiagnosticGroups_RegisterDeprecatedGroup(name string) *DiagnosticGroup {
@@ -93,8 +93,9 @@ func DiagnosticGroups_RegisterGroupOfGroups(name string, groups ...*DiagnosticGr
 // groups, indexed by name.
 //
 // Java: DiagnosticGroups.getRegisteredGroups()
-func DiagnosticGroups_GetRegisteredGroups() *jutil.LinkedHashMap[string, *DiagnosticGroup] {
-	return jutil.NewLinkedHashMapFrom(DiagnosticGroups_groupsByName)
+func DiagnosticGroups_GetRegisteredGroups() *OrderedStringMap[*DiagnosticGroup] {
+	cloned := DiagnosticGroups_groupsByName.Clone()
+	return &cloned
 }
 
 // DiagnosticGroups_ForName finds the diagnostic group registered under the

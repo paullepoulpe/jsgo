@@ -941,14 +941,14 @@ func (d *raiDump) runSerialization(typeStrings []string) {
 		d.line("location\t" + raiStr(key) + "\t" + sb.String())
 	}
 
-	stringPool := StringPool_Builder_()
+	stringPool := NewStringPoolBuilder()
 	propagate := func(name string) bool { return !strings.HasPrefix(name, "q") }
 	serializer := JSTypeReconserializer_Create(
 		r,
 		invalidating,
 		stringPool,
 		propagate,
-		SerializationOptions_Builder_().
+		NewSerializationOptions().
 			SetIncludeDebugInfo(true).
 			SetRunValidation(true).
 			Build())

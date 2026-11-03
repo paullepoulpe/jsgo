@@ -131,7 +131,7 @@ func (c *AstFactoryTest) parseAndAddColors(source string) rhino.Node {
 func (c *AstFactoryTest) parseAndAddColorsWithExterns(externs string, source string) rhino.Node {
 	c.parseAndAddTypesWithExterns(externs, source)
 	NewConvertTypesToColors(
-		c.compiler, SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build()).
+		c.compiler, NewSerializationOptions().SetIncludeDebugInfo(true).Build()).
 		Process(c.compiler.GetExternsRoot(), c.compiler.GetJsRoot())
 	return c.compiler.GetJsRoot()
 }

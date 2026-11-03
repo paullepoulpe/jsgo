@@ -278,11 +278,13 @@ func (r *JSTypeRegistry) BuildRecordTypeFromObject(objType ObjectType) JSType {
 }
 
 // Java: JSTypeRegistry.createRecordType(Map<String, ? extends JSType>)
-func (r *JSTypeRegistry) CreateRecordType(props *jutil.LinkedHashMap[string, JSType]) JSType {
+func (r *JSTypeRegistry) CreateRecordType(props jutil.MapSource[string, JSType]) JSType {
 	var builder RecordTypeBuilder
 	builder.init(r)
-	for k, v := range props.All() {
-		builder.AddProperty(k, v, NilNode)
+	if !jutil.IsNil(props) {
+		for k, v := range props.All() {
+			builder.AddProperty(k, v, NilNode)
+		}
 	}
 	return builder.Build()
 }
@@ -398,6 +400,11 @@ func (r *JSTypeRegistry) CreateTemplatizedTypeOfList(baseType ObjectType, templa
 	return NewTemplatizedType(r, baseType, templatizedTypes)
 }
 
+// TemplateTypeBindings provides template type to JSType bindings.
+type TemplateTypeBindings interface {
+	GetOrDefault(*TemplateType, JSType) JSType
+}
+
 // CreateTemplatizedTypeOfMap creates a templatized instance of the
 // specified type. Only ObjectTypes can currently be templatized; extend the
 // logic in this function when more types can be templatized.
@@ -409,7 +416,7 @@ func (r *JSTypeRegistry) CreateTemplatizedTypeOfList(baseType ObjectType, templa
 //
 // Java: JSTypeRegistry.createTemplatizedType(ObjectType, Map<TemplateType, JSType>)
 func (r *JSTypeRegistry) CreateTemplatizedTypeOfMap(
-	baseType ObjectType, templatizedTypes *jutil.LinkedHashMap[*TemplateType, JSType]) *TemplatizedType {
+	baseType ObjectType, templatizedTypes TemplateTypeBindings) *TemplatizedType {
 	unknownType := r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 	return r.CreateTemplatizedTypeOfList(
 		baseType,

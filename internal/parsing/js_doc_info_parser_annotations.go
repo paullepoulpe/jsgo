@@ -749,11 +749,11 @@ func (p *JsDocInfoParser) ParseSuppressTag(token JsDocToken) JsDocToken {
 	// Find the suppressions' description (if applicable).
 	if p.jsdocBuilder.ShouldParseDocumentation() && !p.LookAheadForAnnotation() {
 		suppressDescriptionInfo := p.ExtractMultilineTextualBlock(token)
-		p.jsdocBuilder.RecordSuppressionSliceWithDescription(suppressions, suppressDescriptionInfo.string_)
+		p.jsdocBuilder.RecordSuppressionsWithDescription(suppressions, suppressDescriptionInfo.string_)
 		token = suppressDescriptionInfo.token
 	} else {
 		token = p.EatUntilEOLIfNotAnnotationFrom(p.Next())
-		p.jsdocBuilder.RecordSuppressionSliceWithDescription(suppressions, "")
+		p.jsdocBuilder.RecordSuppressions(suppressions)
 	}
 	return token
 }
@@ -852,7 +852,7 @@ func (p *JsDocInfoParser) ParseModifiesTag(token JsDocToken) JsDocToken {
 			token = p.Next()
 			if p.jsdocBuilder.IsNoSideEffectsRecorded() {
 				p.AddParserWarning(rhino.Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES)
-			} else if !p.jsdocBuilder.RecordModifiesSlice(modifies) {
+			} else if !p.jsdocBuilder.RecordModifies(modifies) {
 				p.AddParserWarning(rhino.Msg_JSDOC_MODIFIES_DUPLICATE)
 			}
 		}

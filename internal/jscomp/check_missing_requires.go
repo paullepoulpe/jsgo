@@ -250,8 +250,8 @@ func (c *CheckMissingRequires) VisitJsDocInfo(t *NodeTraversal, currentModule *M
 	for _, name := range info.GetTemplateTypeNames() {
 		c.templateParamNames[name] = struct{}{}
 	}
-	for name := range info.GetTypeTransformations().Keys() {
-		c.templateParamNames[name] = struct{}{}
+	for _, tr := range info.GetTypeTransformationEntries() {
+		c.templateParamNames[tr.Name] = struct{}{}
 	}
 	if info.HasType() {
 		c.VisitJsDocExpr(t, currentModule, info.GetType(), CheckMissingRequires_Strength_WEAK_TYPE)

@@ -120,11 +120,11 @@ func (o *CompilerOptions) GetSummaryDetailLevel() int {
 
 // Java: CompilerOptions.setExtraAnnotationNames(Iterable<String>)
 func (o *CompilerOptions) SetExtraAnnotationNames(extraAnnotationNames []string) {
-	o.extraAnnotationNames = jutil.NewLinkedHashSet(extraAnnotationNames...)
+	o.extraAnnotationNames = NewOrderedSet(extraAnnotationNames...)
 }
 
 // Java: CompilerOptions.getExtraAnnotationNames()
-func (o *CompilerOptions) GetExtraAnnotationNames() *jutil.LinkedHashSet[string] {
+func (o *CompilerOptions) GetExtraAnnotationNames() *OrderedSet[string] {
 	return o.extraAnnotationNames
 }
 
@@ -264,14 +264,14 @@ func (o *CompilerOptions) GetAssumeStaticInheritanceIsNotUsed() bool {
 // Sets the list of properties that we report property invalidation errors for.
 //
 // Java: CompilerOptions.setPropertiesThatMustDisambiguate(Set<String>)
-func (o *CompilerOptions) SetPropertiesThatMustDisambiguate(names *jutil.LinkedHashSet[string]) {
+func (o *CompilerOptions) SetPropertiesThatMustDisambiguate(names *OrderedSet[string]) {
 	o.propertiesThatMustDisambiguate = cloneOrEmptyStringSet(names)
 }
 
 // Java: CompilerOptions.getPropertiesThatMustDisambiguate()
-func (o *CompilerOptions) GetPropertiesThatMustDisambiguate() *jutil.LinkedHashSet[string] {
+func (o *CompilerOptions) GetPropertiesThatMustDisambiguate() *OrderedSet[string] {
 	if o.propertiesThatMustDisambiguate == nil {
-		o.propertiesThatMustDisambiguate = jutil.NewLinkedHashSet[string]()
+		o.propertiesThatMustDisambiguate = NewOrderedSet[string]()
 	}
 	return o.propertiesThatMustDisambiguate
 }

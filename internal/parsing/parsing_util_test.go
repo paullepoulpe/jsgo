@@ -38,65 +38,65 @@ func parsingUtilTest_NAME_EQUALITY(n rhino.Node) *string {
 
 // Java: ParsingUtilTest.testNamePatternDeclaresName()
 func TestNamePatternDeclaresName(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "x", setOf("x"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "x", orderedSetOf("x"))
 
 	// assertThrows(AssertionError.class, ...)
-	if err := parsingUtilTest_patternDeclaresNames(t, "x", setOf("y")); err == nil {
+	if err := parsingUtilTest_patternDeclaresNames(t, "x", orderedSetOf("y")); err == nil {
 		t.Errorf("expected an AssertionError")
 	}
 }
 
 // Java: ParsingUtilTest.testEmptyPatternDeclaresNoNames()
 func TestEmptyPatternDeclaresNoNames(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "[]", setOf())
-	parsingUtilTest_assertPatternDeclaresNames(t, "{}", setOf())
-	parsingUtilTest_assertPatternDeclaresNames(t, "[,]", setOf())
+	parsingUtilTest_assertPatternDeclaresNames(t, "[]", orderedSetOf())
+	parsingUtilTest_assertPatternDeclaresNames(t, "{}", orderedSetOf())
+	parsingUtilTest_assertPatternDeclaresNames(t, "[,]", orderedSetOf())
 }
 
 // Java: ParsingUtilTest.testNamesDeclaredInArrayPattern()
 func TestNamesDeclaredInArrayPattern(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "[x]", setOf("x"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[x, y]", setOf("x", "y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[x, y, ...z]", setOf("x", "y", "z"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[...z]", setOf("z"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[[x, y]]", setOf("x", "y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[...[x, y]]", setOf("x", "y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[[x], [y]]", setOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[x]", orderedSetOf("x"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[x, y]", orderedSetOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[x, y, ...z]", orderedSetOf("x", "y", "z"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[...z]", orderedSetOf("z"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[[x, y]]", orderedSetOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[...[x, y]]", orderedSetOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[[x], [y]]", orderedSetOf("x", "y"))
 }
 
 // Java: ParsingUtilTest.testNamesDeclaredInObjectPattern()
 func TestNamesDeclaredInObjectPattern(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "{x}", setOf("x"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{x, y}", setOf("x", "y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{x, y, ...z}", setOf("x", "y", "z"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{...z}", setOf("z"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{x: y}", setOf("y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{[x]: y}", setOf("y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{[x()]: y}", setOf("y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{x}", orderedSetOf("x"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{x, y}", orderedSetOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{x, y, ...z}", orderedSetOf("x", "y", "z"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{...z}", orderedSetOf("z"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{x: y}", orderedSetOf("y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{[x]: y}", orderedSetOf("y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{[x()]: y}", orderedSetOf("y"))
 }
 
 // Java: ParsingUtilTest.testNamesDeclaredInDefaultValue()
 func TestNamesDeclaredInDefaultValue(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "x = 1", setOf("x"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "[x, y] = [1, 2]", setOf("x", "y"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "{x, y} = {x: 1, y: 2}", setOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "x = 1", orderedSetOf("x"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "[x, y] = [1, 2]", orderedSetOf("x", "y"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "{x, y} = {x: 1, y: 2}", orderedSetOf("x", "y"))
 }
 
 // Java: ParsingUtilTest.testNamesDeclaredInRest()
 func TestNamesDeclaredInRest(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "...x", setOf("x"))
-	parsingUtilTest_assertPatternDeclaresNames(t, "...[x, y, z]", setOf("x", "y", "z"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "...x", orderedSetOf("x"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "...[x, y, z]", orderedSetOf("x", "y", "z"))
 }
 
 // Java: ParsingUtilTest.testNamesDeclaredInParamList()
 func TestNamesDeclaredInParamList(t *testing.T) {
-	parsingUtilTest_assertPatternDeclaresNames(t, "x, y, z", setOf("x", "y", "z"))
+	parsingUtilTest_assertPatternDeclaresNames(t, "x, y, z", orderedSetOf("x", "y", "z"))
 	parsingUtilTest_assertPatternDeclaresNames(t,
-		"[x1, x2], {y1, y2}, z = 0", setOf("x1", "x2", "y1", "y2", "z"))
+		"[x1, x2], {y1, y2}, z = 0", orderedSetOf("x1", "x2", "y1", "y2", "z"))
 }
 
 // Java: ParsingUtilTest.assertPatternDeclaresNames(String, Set<String>)
-func parsingUtilTest_assertPatternDeclaresNames(t *testing.T, pattern string, expected *jutil.LinkedHashSet[string]) {
+func parsingUtilTest_assertPatternDeclaresNames(t *testing.T, pattern string, expected *jutil.OrderedSet[string]) {
 	t.Helper()
 	if err := parsingUtilTest_patternDeclaresNames(t, pattern, expected); err != nil {
 		t.Fatal(err)
@@ -107,9 +107,9 @@ func parsingUtilTest_assertPatternDeclaresNames(t *testing.T, pattern string, ex
 // assertPatternDeclaresNames, returning the AssertionError of
 // assertThat(seen).comparingElementsUsing(NAME_EQUALITY).containsExactlyElementsIn(expected)
 // instead of throwing it (so that assertThrows can be expressed).
-func parsingUtilTest_patternDeclaresNames(t *testing.T, pattern string, expected *jutil.LinkedHashSet[string]) error {
+func parsingUtilTest_patternDeclaresNames(t *testing.T, pattern string, expected *jutil.OrderedSet[string]) error {
 	t.Helper()
-	seen := jutil.NewLinkedHashSet[rhino.Node]()
+	seen := jutil.NewOrderedSet[rhino.Node]()
 	ParsingUtil_GetParamOrPatternNames(parsingUtilTest_parsePattern(t, pattern), func(n rhino.Node) { seen.Add(n) })
 
 	// containsExactlyElementsIn: every expected element corresponds to a

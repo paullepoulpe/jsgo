@@ -167,14 +167,14 @@ func runReferenceProtoRoundTrip(
 ) *colors.ColorRegistry {
 	externsAndJsRoot := jsRoot.GetParent()
 
-	stringPoolBuilder := StringPool_Builder_()
+	stringPoolBuilder := NewStringPoolBuilder()
 	serializeJstypes := SerializeTypesToPointers_Create(compiler, stringPoolBuilder, opts)
 	serializeJstypes.GatherTypesOnAst(externsAndJsRoot)
 
 	typePool := serializeJstypes.GetTypePool()
 	stringPool := stringPoolBuilder.Build()
 
-	colorPoolBuilder := ColorPool_Builder_()
+	colorPoolBuilder := NewColorPoolBuilder()
 	if initRuntimeLibs {
 		compiler.InitRuntimeLibraryTypedAsts(colorPoolBuilder)
 	}
@@ -337,7 +337,7 @@ processValue(instance, 42);
 		{name: "single_shard_no_runtime_libs", includeDebug: true, withRuntimeLibPool: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			opts := SerializationOptions_Builder_().
+			opts := NewSerializationOptions().
 				SetIncludeDebugInfo(tc.includeDebug).
 				SetRunValidation(tc.includeDebug).
 				Build()
@@ -353,7 +353,7 @@ processValue(instance, 42);
 				root := cDirect.GetJsRoot().GetParent()
 				ser := SerializeTypesToPointers_Create(cDirect, nil, opts)
 				ser.gatherTypesForColors(root)
-				cpb := ColorPool_Builder_()
+				cpb := NewColorPoolBuilder()
 				cpb.addJSTypeShard(ser.jstypeReconserializer)
 				cp := cpb.Build()
 				var cb ConvertTypesToColors_RemoveTypesAndApplyColors
@@ -393,13 +393,13 @@ func TestJSDocSerializer_NonOptimizationFastSkipZeroAllocs(t *testing.T) {
 	b.RecordParameter("x", jsDocSerializer_placeholderType)
 	b.RecordReturnType(jsDocSerializer_placeholderType)
 	b.RecordOverride()
-	b.RecordSuppressions(jutil.NewLinkedHashSet("checkTypes", "extraRequire"))
+	b.RecordSuppressions([]string{"checkTypes", "extraRequire"})
 	nonOptDoc := b.Build()
 	if nonOptDoc == nil {
 		t.Fatal("expected non-nil JSDocInfo")
 	}
 
-	pool := StringPool_Builder_()
+	pool := NewStringPoolBuilder()
 	if got := JSDocSerializer_ConvertJSDocInfoForOptimizations(nonOptDoc); got != nil {
 		t.Fatalf("expected nil converted JSDocInfo, got %v", got)
 	}
@@ -433,7 +433,7 @@ func TestJSDocSerializer_NonOptimizationFastSkipZeroAllocs(t *testing.T) {
 func TestTokenNodeKindTables_RoundTripAllValidKinds(t *testing.T) {
 	sf := SourceFile_FromCode("test.js", "")
 	tmpl := sf.getOrCreateSourceInfoTemplate()
-	spBuilder := StringPool_Builder_()
+	spBuilder := NewStringPoolBuilder()
 	numPtr := int32(spBuilder.Put("12345678901234567890"))
 	identPtr := int32(spBuilder.Put("propName"))
 	sp := spBuilder.Build()
@@ -444,7 +444,7 @@ func TestTokenNodeKindTables_RoundTripAllValidKinds(t *testing.T) {
 		filePool:   []*SourceFile{sf},
 	}
 	runner := newScriptNodeDeserializer_Runner(deser)
-	ser := NewTypedAstSerializer(nil, SerializationOptions_Builder_().Build())
+	ser := NewTypedAstSerializer(nil, NewSerializationOptions().Build())
 
 	for kind := NodeKind(1); kind < NodeKind_UNRECOGNIZED; kind++ {
 		strPtr := identPtr
@@ -498,7 +498,7 @@ var y = f(1);
 	c.ReportChangeToChangeScope(fn)
 	fn.Detach()
 
-	opts := SerializationOptions_Builder_().Build()
+	opts := NewSerializationOptions().Build()
 	NewConvertTypesToColors(c, opts).Process(c.GetExternsRoot(), c.GetJsRoot())
 
 	// The record type occurs only inside f, so it was never gathered.

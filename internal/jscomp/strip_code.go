@@ -93,7 +93,13 @@ func StripCode_ToStreamWithCollapsedVersions(s string) []string {
 	return possibleForms
 }
 
-func stripCode_expandCollapsedInto(dst *OrderedSet[string], capHint int, src iter.Seq[string], extra string) {
+func stripCode_expandCollapsedInto(dst *OrderedSet[string], src jutil.Set[string], extra string) {
+	var capHint int
+	var seq iter.Seq[string]
+	if src != nil && !jutil.IsNil(src) {
+		capHint = src.Size()
+		seq = src.All()
+	}
 	if extra != "" {
 		capHint++
 	}
@@ -106,8 +112,10 @@ func stripCode_expandCollapsedInto(dst *OrderedSet[string], capHint int, src ite
 			dst.Add(form)
 		}
 	}
-	for item := range src {
-		addCollapsed(item)
+	if seq != nil {
+		for item := range seq {
+			addCollapsed(item)
+		}
 	}
 	if extra != "" {
 		addCollapsed(extra)
@@ -120,7 +128,7 @@ func (s *StripCode) initDerivedLists() {
 	// names.
 	// TODO(johnlenz): I'm not sure what the original intent of "type prefix" stripping was.
 	// Verify that we can always assume a complete namespace and simplify this logic.
-	typeEntries := s.stripTypes.m.Entries()
+	typeEntries := s.stripTypes.Entries()
 	if len(typeEntries) > 0 {
 		s.stripTypePrefixesList = make([]string, 0, 2*len(typeEntries))
 		for _, e := range typeEntries {
@@ -131,7 +139,7 @@ func (s *StripCode) initDerivedLists() {
 
 	// Precalculate the lowercase versions of the string to avoid repeated
 	// lowercase conversions.
-	prefixEntries := s.stripNamePrefixes.m.Entries()
+	prefixEntries := s.stripNamePrefixes.Entries()
 	if len(prefixEntries) > 0 {
 		s.stripNamePrefixesLowerCaseList = make([]string, len(prefixEntries))
 		for i, e := range prefixEntries {
@@ -139,7 +147,7 @@ func (s *StripCode) initDerivedLists() {
 		}
 	}
 
-	suffixEntries := s.stripNameSuffixes.m.Entries()
+	suffixEntries := s.stripNameSuffixes.Entries()
 	if len(suffixEntries) > 0 {
 		s.stripNameSuffixesLowerCaseList = make([]string, len(suffixEntries))
 		for i, e := range suffixEntries {
@@ -153,36 +161,18 @@ func (s *StripCode) initDerivedLists() {
 // Java: StripCode(AbstractCompiler, ImmutableSet<String>, ImmutableSet<String>, ImmutableSet<String>, boolean)
 func NewStripCode(
 	compiler AbstractCompiler,
-	stripTypes *jutil.LinkedHashSet[string],
-	stripNameSuffixes *jutil.LinkedHashSet[string],
-	stripNamePrefixes *jutil.LinkedHashSet[string],
+	stripTypes jutil.Set[string],
+	stripNameSuffixes jutil.Set[string],
+	stripNamePrefixes jutil.Set[string],
 	enableTweakStripping bool) *StripCode {
 	s := &StripCode{compiler: compiler}
-	stripCode_expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes.Size(), stripNameSuffixes.All(), "")
-	stripCode_expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes.Size(), stripNamePrefixes.All(), "")
+	stripCode_expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes, "")
+	stripCode_expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes, "")
 	extraType := ""
 	if enableTweakStripping {
 		extraType = "goog.tweak"
 	}
-	stripCode_expandCollapsedInto(&s.stripTypes, stripTypes.Size(), stripTypes.All(), extraType)
-	s.initDerivedLists()
-	return s
-}
-
-func newStripCodeFromOrderedSets(
-	compiler AbstractCompiler,
-	stripTypes *OrderedSet[string],
-	stripNameSuffixes *OrderedSet[string],
-	stripNamePrefixes *OrderedSet[string],
-	enableTweakStripping bool) *StripCode {
-	s := &StripCode{compiler: compiler}
-	stripCode_expandCollapsedInto(&s.stripNameSuffixes, stripNameSuffixes.Size(), stripNameSuffixes.All(), "")
-	stripCode_expandCollapsedInto(&s.stripNamePrefixes, stripNamePrefixes.Size(), stripNamePrefixes.All(), "")
-	extraType := ""
-	if enableTweakStripping {
-		extraType = "goog.tweak"
-	}
-	stripCode_expandCollapsedInto(&s.stripTypes, stripTypes.Size(), stripTypes.All(), extraType)
+	stripCode_expandCollapsedInto(&s.stripTypes, stripTypes, extraType)
 	s.initDerivedLists()
 	return s
 }
@@ -210,19 +200,19 @@ func (s *StripCode) Process(externs rhino.Node, root rhino.Node) {
 func (s *StripCode) configRecord() string {
 	var builder strings.Builder
 	builder.WriteString("=== stripNameSuffixes ===\n")
-	for _, e := range s.stripNameSuffixes.m.Entries() {
+	for _, e := range s.stripNameSuffixes.Entries() {
 		builder.WriteString(e.Key)
 		builder.WriteByte('\n')
 	}
 	builder.WriteByte('\n')
 	builder.WriteString("=== stripNamePrefixes ===\n")
-	for _, e := range s.stripNamePrefixes.m.Entries() {
+	for _, e := range s.stripNamePrefixes.Entries() {
 		builder.WriteString(e.Key)
 		builder.WriteByte('\n')
 	}
 	builder.WriteByte('\n')
 	builder.WriteString("=== stripTypesList ===\n")
-	for _, e := range s.stripTypes.m.Entries() {
+	for _, e := range s.stripTypes.Entries() {
 		builder.WriteString(e.Key)
 		builder.WriteByte('\n')
 	}

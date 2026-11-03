@@ -205,7 +205,9 @@ func TestUnionTypeBuilder_RemovalOfIdenticalRecordTypes_beforeResolution(t *test
 	defer closer.Close()
 	{
 		// Create two identical anonymous record types
-		type_ := s.Registry.CreateRecordType(mapOf("prop", s.STRING_TYPE))
+		var props jutil.OrderedMap[string, JSType]
+		props.Put("prop", s.STRING_TYPE)
+		type_ := s.Registry.CreateRecordType(&props)
 
 		recordUnion = s.Registry.CreateUnionType(type_, type_, s.NULL_TYPE).(*UnionType)
 
@@ -221,8 +223,11 @@ func TestUnionTypeBuilder_RemovalOfDuplicateRecordTypes_deferredUntilResolution(
 		closer := s.Registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
 		// Create two identical anonymous record types
-		typeA := s.Registry.CreateRecordType(mapOf("prop", s.STRING_TYPE))
-		typeB := s.Registry.CreateRecordType(mapOf("prop", s.STRING_TYPE))
+		var propsA, propsB jutil.OrderedMap[string, JSType]
+		propsA.Put("prop", s.STRING_TYPE)
+		propsB.Put("prop", s.STRING_TYPE)
+		typeA := s.Registry.CreateRecordType(&propsA)
+		typeB := s.Registry.CreateRecordType(&propsB)
 
 		recordUnion = s.Registry.CreateUnionType(typeA, typeB).(*UnionType)
 

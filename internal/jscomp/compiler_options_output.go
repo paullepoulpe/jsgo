@@ -212,12 +212,12 @@ func (o *CompilerOptions) SetAlwaysGatherSourceMapInfo(shouldAlwaysGatherSourceM
 // @param inputSourceMaps the collection of input sourcemap files
 //
 // Java: CompilerOptions.setInputSourceMaps(ImmutableMap<String, SourceMapInput>)
-func (o *CompilerOptions) SetInputSourceMaps(inputSourceMaps *jutil.LinkedHashMap[string, *SourceMapInput]) {
+func (o *CompilerOptions) SetInputSourceMaps(inputSourceMaps *OrderedStringMap[*SourceMapInput]) {
 	o.inputSourceMaps = inputSourceMaps
 }
 
 // Java: CompilerOptions.getInputSourceMaps()
-func (o *CompilerOptions) GetInputSourceMaps() *jutil.LinkedHashMap[string, *SourceMapInput] {
+func (o *CompilerOptions) GetInputSourceMaps() *OrderedStringMap[*SourceMapInput] {
 	return o.inputSourceMaps
 }
 
@@ -268,19 +268,19 @@ func (o *CompilerOptions) ShouldReplaceIdGenerators() bool {
 // Sets the id generators to replace.
 //
 // Java: CompilerOptions.setIdGenerators(Set<String>)
-func (o *CompilerOptions) SetIdGenerators(idGenerators *jutil.LinkedHashSet[string]) {
+func (o *CompilerOptions) SetIdGenerators(idGenerators *OrderedSet[string]) {
 	jutil.CheckNotNull(idGenerators)
-	builder := jutil.NewLinkedHashMapWithCapacity[string, RenamingMap](idGenerators.Size())
+	builder := NewOrderedStringMapWithCapacity[RenamingMap](idGenerators.Size())
 	for name := range idGenerators.All() {
-		builder.Put(name, RenamingMap(RenamingToken_INCONSISTENT))
+		builder.PutNew(name, RenamingMap(RenamingToken_INCONSISTENT))
 	}
 	o.idGenerators = builder
 }
 
 // Java: CompilerOptions.getIdGenerators()
-func (o *CompilerOptions) GetIdGenerators() *jutil.LinkedHashMap[string, RenamingMap] {
+func (o *CompilerOptions) GetIdGenerators() *OrderedStringMap[RenamingMap] {
 	if o.idGenerators == nil {
-		o.idGenerators = jutil.NewLinkedHashMap[string, RenamingMap]()
+		o.idGenerators = NewOrderedStringMap[RenamingMap]()
 	}
 	return o.idGenerators
 }

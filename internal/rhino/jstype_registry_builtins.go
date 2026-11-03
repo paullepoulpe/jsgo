@@ -406,9 +406,9 @@ func (r *JSTypeRegistry) InitializeBuiltInTypes() {
 	r.RegisterNativeType(JSTypeNative_I_THENABLE_TYPE, ithenableType)
 
 	// Thenable is an @typedef
-	thenProps := jutil.NewLinkedHashMap[string, JSType]()
+	var thenProps jutil.OrderedMap[string, JSType]
 	thenProps.Put("then", unknownType)
-	thenableType := r.CreateRecordType(thenProps)
+	thenableType := r.CreateRecordType(&thenProps)
 	r.IdentifyNonNullableName(nil, "Thenable")
 	r.RegisterNativeType(JSTypeNative_THENABLE_TYPE, thenableType)
 

@@ -31,20 +31,15 @@ import (
 var defaultConformanceRemoveRegexFromPath = jutil.Pattern_Compile(
 	"^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?")
 
-func cloneOrEmptyStringSet(s *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
+func cloneOrEmptyStringSet(s *OrderedSet[string]) *OrderedSet[string] {
 	jutil.CheckNotNull(s)
-	if s.IsEmpty() {
-		return jutil.NewLinkedHashSet[string]()
-	}
-	return jutil.NewLinkedHashSet(s.ToSlice()...)
+	c := s.Clone()
+	return &c
 }
 
-func copyIntoOrderedStringSet(dst *OrderedSet[string], src *jutil.LinkedHashSet[string]) {
+func copyIntoOrderedStringSet(dst *OrderedSet[string], src *OrderedSet[string]) {
 	jutil.CheckNotNull(src)
-	dst.Clear()
-	for v := range src.All() {
-		dst.Add(v)
-	}
+	*dst = src.Clone()
 }
 
 // CompilerOptions holds the compiler options.
@@ -55,8 +50,8 @@ func copyIntoOrderedStringSet(dst *OrderedSet[string], src *jutil.LinkedHashSet[
 // field initializers run before the constructor body. Value types: a Java
 // String that may be null is a *string; Optional<Boolean> is base.Tri and
 // Optional<FeatureSet>/Optional<Pattern> are nil-able pointers (nil is
-// absent); ImmutableSet/Set are *jutil.LinkedHashSet, ImmutableMap/Map are
-// *jutil.LinkedHashMap and ImmutableList/List are slices; the @define
+// absent); ImmutableSet/Set are *OrderedSet, ImmutableMap/Map are
+// *OrderedMap and ImmutableList/List are slices; the @define
 // replacement values are bool, int32 (Integer), float64 (Double) or string.
 type CompilerOptions struct {
 	// Should the compiled output start with "'use strict';"?
@@ -122,7 +117,7 @@ type CompilerOptions struct {
 	checkTypes bool
 	// A set of extra annotation names which are accepted and silently ignored when encountered in a
 	// source file. Defaults to null which has the same effect as specifying an empty set.
-	extraAnnotationNames *jutil.LinkedHashSet[string]
+	extraAnnotationNames *OrderedSet[string]
 	// TODO(bradfordcsmith): Investigate how can we use multi-threads as default.
 	numParallelThreads int
 	// --------------------------------
@@ -244,7 +239,7 @@ type CompilerOptions struct {
 	// Rename unrelated properties to the same name to reduce code size.
 	ambiguateProperties bool
 	// Input sourcemap files, indexed by the JS files they refer to
-	inputSourceMaps *jutil.LinkedHashMap[string, *SourceMapInput]
+	inputSourceMaps *OrderedStringMap[*SourceMapInput]
 	// Input variable renaming map.
 	//
 	// During renaming, the compiler uses this map and the inputPropertyMap to try to preserve
@@ -324,12 +319,12 @@ type CompilerOptions struct {
 	// Map used in the renaming of CSS class names.
 	cssRenamingMap CssRenamingMap
 	// Skiplist used in the renaming of CSS class names.
-	cssRenamingSkiplist *jutil.LinkedHashSet[string]
+	cssRenamingSkiplist *OrderedSet[string]
 	// Replace id generators
 	replaceIdGenerators bool
 	// true by default for legacy reasons.
 	// Id generators to replace.
-	idGenerators *jutil.LinkedHashMap[string, RenamingMap]
+	idGenerators *OrderedStringMap[RenamingMap]
 	// Hash function to use for xid generation.
 	xidHashFunction Xid_HashFunction
 	// Hash function to use for generating chunk ID.
@@ -341,7 +336,7 @@ type CompilerOptions struct {
 	replaceStringsFunctionDescriptions []string
 	replaceStringsPlaceholderToken     string
 	// List of properties that we report invalidation errors for.
-	propertiesThatMustDisambiguate *jutil.LinkedHashSet[string]
+	propertiesThatMustDisambiguate *OrderedSet[string]
 	// Whether to enforce that the @requireInlining annotation works.
 	validateRequireInliningAnnotation base.Tri
 	// Rewrite CommonJS modules so that they can be concatenated together.
@@ -546,7 +541,7 @@ type CompilerOptions struct {
 	moduleResolutionMode ModuleLoader_ResolutionMode
 	// Map of prefix replacements for use when moduleResolutionMode is {@link
 	// ResolutionMode#BROWSER_WITH_TRANSFORMED_PREFIXES}.
-	browserResolverPrefixReplacements *jutil.LinkedHashMap[string, string]
+	browserResolverPrefixReplacements *OrderedStringMap[string]
 	pathEscaper                       ModuleLoader_PathEscaper
 	// Which entries to look for in package.json files when processing modules
 	packageJsonEntryNames  []string
@@ -580,7 +575,7 @@ func NewCompilerOptions() *CompilerOptions {
 		optimizeLetAndConst:                     true,
 		useSizeHeuristicToStopOptimizationLoop:  true,
 		collapsePropertiesLevel:                 CompilerOptions_PropertyCollapseLevel_NONE,
-		inputSourceMaps:                         jutil.NewLinkedHashMap[string, *SourceMapInput](),
+		inputSourceMaps:                         NewOrderedStringMap[*SourceMapInput](),
 		nameGenerator:                           NewDefaultNameGenerator(),
 		j2clPassMode:                            CompilerOptions_J2clPassMode_AUTO,
 		j2clMinifierEnabled:                     true,
@@ -614,7 +609,7 @@ func NewCompilerOptions() *CompilerOptions {
 		wrapGoogModulesForWhitespaceOnly:        true,
 		isStrictModeInput:                       base.Tri_UNKNOWN,
 		enableModuleRewriting:                   true,
-		browserResolverPrefixReplacements:       jutil.NewLinkedHashMap[string, string](),
+		browserResolverPrefixReplacements:       NewOrderedStringMap[string](),
 		packageJsonEntryNames:                   []string{"browser", "module", "main"},
 		unknownDefinesToIgnore:                  []string{},
 		inlineFunctionsLevel:                    CompilerOptions_Reach_NONE,

@@ -314,7 +314,7 @@ func JsDocInfoParser_ParseFileOverviewJsdoc(toParse string) *rhino.JSDocInfo {
 	return parser.GetFileOverviewJSDocInfo()
 }
 
-var jsDocInfoParser_defaultConfig = Config_Builder_().
+var jsDocInfoParser_defaultConfig = NewConfigBuilder().
 	SetLanguageMode(Config_LanguageMode_ECMASCRIPT3).
 	SetStrictMode(Config_StrictMode_SLOPPY).
 	SetClosurePrimitiveNames(slices.Values([]string{"testPrimitive"})).

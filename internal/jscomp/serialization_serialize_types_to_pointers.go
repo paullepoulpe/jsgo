@@ -241,11 +241,11 @@ func (s *SerializeTypesToPointers) logTypeMismatches(
 //
 // Java: private static class SerializeTypesToPointers.StreamObjectUuidsJson implements LogFile.StreamedJsonProducer
 type serializeTypesToPointers_StreamObjectUuidsJson struct {
-	allSerializedTypes *jutil.LinkedHashMap[string, []rhino.JSType]
+	allSerializedTypes *OrderedStringMap[[]rhino.JSType]
 }
 
 // Java: SerializeTypesToPointers.StreamObjectUuidsJson(ImmutableMap<String, Collection<JSType>>)
-func newSerializeTypesToPointers_StreamObjectUuidsJson(allSerializedTypes *jutil.LinkedHashMap[string, []rhino.JSType]) *serializeTypesToPointers_StreamObjectUuidsJson {
+func newSerializeTypesToPointers_StreamObjectUuidsJson(allSerializedTypes *OrderedStringMap[[]rhino.JSType]) *serializeTypesToPointers_StreamObjectUuidsJson {
 	return &serializeTypesToPointers_StreamObjectUuidsJson{allSerializedTypes: allSerializedTypes}
 }
 
@@ -253,13 +253,13 @@ func newSerializeTypesToPointers_StreamObjectUuidsJson(allSerializedTypes *jutil
 func (p *serializeTypesToPointers_StreamObjectUuidsJson) WriteJson(jsonWriter *jutil.JsonWriter) {
 	jsonWriter.BeginObject()
 	// allSerializedTypes.asMap().entrySet()
-	for key, types := range p.allSerializedTypes.All() {
-		jsonWriter.Name(key) // color id
+	for _, entry := range p.allSerializedTypes.Entries() {
+		jsonWriter.Name(entry.Key) // color id
 		jsonWriter.BeginArray()
 		// sort JSTypes by string representation
-		var jstypes []string
-		for _, jstype := range types {
-			jstypes = append(jstypes, jstype.String())
+		jstypes := make([]string, len(entry.Value))
+		for i, jstype := range entry.Value {
+			jstypes[i] = jstype.String()
 		}
 		slices.SortStableFunc(jstypes, jutil.StringCompareTo)
 		for _, typeName := range jstypes { // all corresponding JSTypes

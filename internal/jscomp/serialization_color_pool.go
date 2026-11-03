@@ -278,14 +278,16 @@ func (s *ColorPool_ShardView) String() string {
 	return jutil.ObjectToString("com.google.javascript.jscomp.serialization.ColorPool$ShardView", s)
 }
 
+// NewColorPoolBuilder returns a new ColorPool_Builder.
+//
 // Java: ColorPool.builder()
-func ColorPool_Builder_() *ColorPool_Builder {
+func NewColorPoolBuilder() *ColorPool_Builder {
 	return newColorPool_Builder()
 }
 
 // Java: ColorPool.fromOnlyShardForTesting(TypePool, StringPool)
 func ColorPool_FromOnlyShardForTesting(typePool *TypePool, stringPool *StringPool) *ColorPool {
-	return ColorPool_Builder_().AddShardAnd(typePool, stringPool).ForTesting().Build()
+	return NewColorPoolBuilder().AddShardAnd(typePool, stringPool).ForTesting().Build()
 }
 
 type colorPoolShardProto struct {

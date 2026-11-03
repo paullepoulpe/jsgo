@@ -55,7 +55,7 @@ func replaceIdGeneratorsTest_ptr(s string) *string { return &s }
 // replaceIdGeneratorsTest_idTestMap is the anonymous RenamingMap of
 // getProcessor.
 type replaceIdGeneratorsTest_idTestMap struct {
-	map_ *jutil.LinkedHashMap[string, string]
+	map_ *OrderedStringMap[string]
 }
 
 // Java: ReplaceIdGeneratorsTest.getProcessor(Compiler).new RenamingMap() {...}.get(String)
@@ -69,22 +69,19 @@ func (m *replaceIdGeneratorsTest_idTestMap) Get(value string) (string, bool) {
 // Java: ReplaceIdGeneratorsTest.getProcessor(Compiler)
 func (c *ReplaceIdGeneratorsTest) GetProcessor(compiler *Compiler) CompilerPass {
 	idTestMap := &replaceIdGeneratorsTest_idTestMap{
-		map_: jutil.NewImmutableMapBuilder[string, string]().
-			Put("foo", ":foo:").
-			Put("bar", ":bar:").
-			BuildOrThrow(),
+		map_: jsaMap("foo", ":foo:", "bar", ":bar:"),
 	}
+	idGens := NewOrderedStringMapWithCapacity[RenamingMap](4)
+	idGens.PutNew("goog.events.getUniqueId", RenamingToken_INCONSISTENT)
+	idGens.PutNew("goog.place.getUniqueId", RenamingToken_INCONSISTENT)
+	idGens.PutNew("id", idTestMap)
+	idGens.PutNew("get.id", idTestMap)
 	c.lastPass = NewReplaceIdGenerators(
 		compiler,
 		/* templateLiteralsAreTranspiled= */ compiler.
 			GetOptions().
 			NeedsTranspilationOf(parser.FeatureSet_Feature_TEMPLATE_LITERALS),
-		jutil.NewImmutableMapBuilder[string, RenamingMap]().
-			Put("goog.events.getUniqueId", RenamingToken_INCONSISTENT).
-			Put("goog.place.getUniqueId", RenamingToken_INCONSISTENT).
-			Put("id", idTestMap).
-			Put("get.id", idTestMap).
-			BuildOrThrow(),
+		idGens,
 		c.generatePseudoNames,
 		c.previousMappings,
 		/* xidHashFunction= */ nil)

@@ -535,7 +535,7 @@ func NewResult(
 //
 // Java: Result.pruneResultForPartialCompilation(Result)
 func Result_PruneResultForPartialCompilation(result *Result) *Result {
-	emptyVariableMap := NewVariableMap(jutil.NewLinkedHashMap[string, string]())
+	emptyVariableMap := NewVariableMap(NewOrderedStringMap[string]())
 	return NewResultWithAllMaps(
 		/* errors= */ result.Errors,
 		/* warnings= */ result.Warnings,

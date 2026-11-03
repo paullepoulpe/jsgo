@@ -73,7 +73,7 @@ func (c *SerializeAndDeserializeAstTest) GetProcessor(compiler *Compiler) Compil
 	return NewSerializeTypedAstPass(
 		compiler,
 		c.consumer,
-		SerializationOptions_Builder_().
+		NewSerializationOptions().
 			SetIncludeDebugInfo(false).
 			SetRuntimeLibraries(c.runtimeLibraries).
 			Build())
@@ -999,21 +999,24 @@ func (c *SerializeAndDeserializeAstTest) assertFeatureSetsOfScriptsMatch(oldRoot
 }
 
 // Java: SerializeAndDeserializeAstTest.getFeatureSetsOfScripts(Node)
-func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node) *jutil.LinkedHashMap[*SourceFile, parser.FeatureSet] {
-	builder := jutil.NewImmutableMapBuilder[*SourceFile, parser.FeatureSet]()
+func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node) *OrderedMap[*SourceFile, parser.FeatureSet] {
+	out := NewOrderedMap[*SourceFile, parser.FeatureSet]()
 	externsRoot := root.GetFirstChild()
 	sourceRoot := root.GetSecondChild()
-	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+	put := func(script rhino.Node) {
 		jutil.CheckState(script.IsScript())
-		builder.Put(
-			script.GetStaticSourceFile().(*SourceFile), serializeAndDeserializeAstTest_featureSet(script))
+		sf := script.GetStaticSourceFile().(*SourceFile)
+		if !out.PutIfAbsent(sf, serializeAndDeserializeAstTest_featureSet(script)) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("duplicate key: " + sf.GetName()))
+		}
+	}
+	for script := externsRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		put(script)
 	}
 	for script := sourceRoot.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
-		jutil.CheckState(script.IsScript())
-		builder.Put(
-			script.GetStaticSourceFile().(*SourceFile), serializeAndDeserializeAstTest_featureSet(script))
+		put(script)
 	}
-	return builder.BuildOrThrow()
+	return out
 }
 
 // serializeAndDeserializeAstTest_featureSet is the cast

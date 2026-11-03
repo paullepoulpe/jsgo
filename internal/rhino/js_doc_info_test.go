@@ -54,14 +54,14 @@ func assertNullTypeExpr(t *testing.T, what string, e *JSTypeExpression) {
 	}
 }
 
-func assertNotContains(t *testing.T, what string, set *jutil.LinkedHashSet[string], s string) {
+func assertNotContains(t *testing.T, what string, set *jutil.OrderedSet[string], s string) {
 	t.Helper()
 	if set.Contains(s) {
 		t.Errorf("%s %v contains %q", what, set, s)
 	}
 }
 
-func assertContains(t *testing.T, what string, set *jutil.LinkedHashSet[string], s string) {
+func assertContains(t *testing.T, what string, set *jutil.OrderedSet[string], s string) {
 	t.Helper()
 	if !set.Contains(s) {
 		t.Errorf("%s %v does not contain %q", what, set, s)
@@ -87,9 +87,7 @@ func TestJSDocInfo_VisibilityOrdinal(t *testing.T) {
 // JSTypeExpression
 func TestJSDocInfo_RemovesModuleLocalNames(t *testing.T) {
 	jsTypeExpression := createSampleTypeExpression()
-	mockedModuleLocals := jutil.NewLinkedHashSet[string]()
-	mockedModuleLocals.Add("Item")
-	mockedModuleLocals.Add("AnotherItem")
+	mockedModuleLocals := jutil.NewOrderedSet("Item", "AnotherItem")
 
 	newExpr := jsTypeExpression.ReplaceNamesWithUnknownType(mockedModuleLocals)
 	replacedNames := newExpr.GetAllTypeNames()
@@ -271,9 +269,7 @@ func TestJSDocInfo_JSDocInfoCloneAndReplaceNames_Params(t *testing.T) {
 	builder.RecordParameter("a", jsTypeExpression)
 	info := builder.Build()
 
-	mockedModuleLocals := jutil.NewLinkedHashSet[string]()
-	mockedModuleLocals.Add("Item")
-	mockedModuleLocals.Add("AnotherItem")
+	mockedModuleLocals := jutil.NewOrderedSet("Item", "AnotherItem")
 
 	cloned := info.CloneAndReplaceTypeNames(mockedModuleLocals)
 
@@ -304,9 +300,7 @@ func TestJSDocInfo_JSDocInfoCloneAndReplaceNames_Type(t *testing.T) {
 	builder.RecordType(jsTypeExpression)
 	info := builder.Build()
 
-	mockedModuleLocals := jutil.NewLinkedHashSet[string]()
-	mockedModuleLocals.Add("Item")
-	mockedModuleLocals.Add("AnotherItem")
+	mockedModuleLocals := jutil.NewOrderedSet("Item", "AnotherItem")
 
 	cloned := info.CloneAndReplaceTypeNames(mockedModuleLocals)
 
@@ -328,9 +322,7 @@ func TestJSDocInfo_JSDocInfoCloneAndReplaceNames_Type_RootReplacement(t *testing
 	builder.RecordType(jsTypeExpression)
 	info := builder.Build()
 
-	mockedModuleLocals := jutil.NewLinkedHashSet[string]()
-	mockedModuleLocals.Add("Item")
-	mockedModuleLocals.Add("AnotherItem")
+	mockedModuleLocals := jutil.NewOrderedSet("Item", "AnotherItem")
 
 	cloned := info.CloneAndReplaceTypeNames(mockedModuleLocals)
 
@@ -349,9 +341,7 @@ func TestJSDocInfo_JSDocInfoCloneAndReplaceNames_Type_SingleNode(t *testing.T) {
 	builder.RecordType(jsTypeExpression)
 	info := builder.Build()
 
-	mockedModuleLocals := jutil.NewLinkedHashSet[string]()
-	mockedModuleLocals.Add("Item")
-	mockedModuleLocals.Add("AnotherItem")
+	mockedModuleLocals := jutil.NewOrderedSet("Item", "AnotherItem")
 
 	cloned := info.CloneAndReplaceTypeNames(mockedModuleLocals)
 
@@ -385,10 +375,10 @@ func TestJSDocInfo_SetFileOverviewWithDocumentationOn(t *testing.T) {
 func TestJSDocInfo_SetSuppressions(t *testing.T) {
 	builder := JSDocInfo_Builder_()
 	builder.ParseDocumentation()
-	builder.RecordSuppressions(jutil.NewLinkedHashSet("sam", "bob"))
+	builder.RecordSuppressions([]string{"sam", "bob"})
 	builder.RecordSuppression("fred")
 	info := builder.Build()
-	if want := jutil.NewLinkedHashSet("bob", "sam", "fred"); !info.GetSuppressions().Equals(want) {
+	if want := jutil.NewOrderedSet("bob", "sam", "fred"); !info.GetSuppressions().Equals(want) {
 		t.Errorf("getSuppressions() = %v, want %v", info.GetSuppressions(), want)
 	}
 }
@@ -396,9 +386,9 @@ func TestJSDocInfo_SetSuppressions(t *testing.T) {
 func TestJSDocInfo_SetModifies(t *testing.T) {
 	builder := JSDocInfo_Builder_()
 	builder.ParseDocumentation()
-	builder.RecordModifies(jutil.NewLinkedHashSet("this"))
+	builder.RecordModifies([]string{"this"})
 	info := builder.Build()
-	if want := jutil.NewLinkedHashSet("this"); !info.GetModifies().Equals(want) {
+	if want := jutil.NewOrderedSet("this"); !info.GetModifies().Equals(want) {
 		t.Errorf("getModifies() = %v, want %v", info.GetModifies(), want)
 	}
 	if got := info.GetModifiesSlice(); !slices.Equal(got, []string{"this"}) {
@@ -407,9 +397,9 @@ func TestJSDocInfo_SetModifies(t *testing.T) {
 
 	builder = JSDocInfo_Builder_()
 	builder.ParseDocumentation()
-	builder.RecordModifies(jutil.NewLinkedHashSet("arguments"))
+	builder.RecordModifies([]string{"arguments"})
 	info = builder.Build()
-	if want := jutil.NewLinkedHashSet("arguments"); !info.GetModifies().Equals(want) {
+	if want := jutil.NewOrderedSet("arguments"); !info.GetModifies().Equals(want) {
 		t.Errorf("getModifies() = %v, want %v", info.GetModifies(), want)
 	}
 	if got := info.GetModifiesSlice(); !slices.Equal(got, []string{"arguments"}) {
@@ -418,8 +408,8 @@ func TestJSDocInfo_SetModifies(t *testing.T) {
 
 	builder = JSDocInfo_Builder_()
 	builder.ParseDocumentation()
-	if !builder.RecordModifiesSlice([]string{"this", "arguments", "this"}) {
-		t.Fatal("RecordModifiesSlice failed")
+	if !builder.RecordModifies([]string{"this", "arguments", "this"}) {
+		t.Fatal("RecordModifies failed")
 	}
 	info = builder.Build()
 	if got := info.GetModifiesSlice(); !slices.Equal(got, []string{"this", "arguments"}) {

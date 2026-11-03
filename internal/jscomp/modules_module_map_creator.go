@@ -279,7 +279,7 @@ func (m *fallbackMissingNonClosureModule) ResolveExportWithTraces(
 	exportStarSet map[UnresolvedModule]struct{}) *ResolveExportResult {
 	return ResolveExportResult_Of(
 		Binding_From(
-			Export_Builder_().
+			NewExportBuilder().
 				LocalName(exportName).
 				ModuleMetadata(m.metadata).
 				ModulePath(m.path).
@@ -713,7 +713,7 @@ func (m *nonEsModule) ResolveExportWithTraces(
 	if m.metadata.IsCommonJs() && exportName != "default" {
 		return ResolveExportResult_NOT_FOUND
 	}
-	b := Export_Builder_().
+	b := NewExportBuilder().
 		ExportName(exportName).
 		ModuleMetadata(m.metadata).
 		ModulePath(m.path)

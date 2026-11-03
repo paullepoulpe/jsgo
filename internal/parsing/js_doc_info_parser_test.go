@@ -44,9 +44,9 @@ type jsDocInfoParserTest struct {
 	*rhinotesting.BaseJSTypeTestCase
 	t *testing.T
 
-	extraAnnotations        *jutil.LinkedHashSet[string]
-	extraSuppressions       *jutil.LinkedHashSet[string]
-	extraPrimitives         *jutil.LinkedHashSet[string]
+	extraAnnotations        *jutil.OrderedSet[string]
+	extraSuppressions       *jutil.OrderedSet[string]
+	extraPrimitives         *jutil.OrderedSet[string]
 	allowClosureUnawareCode bool
 	prevLicense             *string
 	jsDocSourceKind         JsDocInfoParser_JsDocSourceKind
@@ -65,17 +65,14 @@ func newJsDocInfoParserTest(t *testing.T) *jsDocInfoParserTest {
 		nil,
 		true,
 		Config_StrictMode_SLOPPY)
-	jt.extraAnnotations = jutil.NewLinkedHashSet(defaultCfg.AnnotationNames()...)
-	jt.extraSuppressions = jutil.NewLinkedHashSet(ParserRunner_GetSuppressionNames().ToSlice()...)
+	jt.extraAnnotations = jutil.NewOrderedSet(defaultCfg.AnnotationNames()...)
+	jt.extraSuppressions = jutil.NewOrderedSet(ParserRunner_GetSuppressionNames().ToSlice()...)
 
 	jt.extraSuppressions.Add("x")
 	jt.extraSuppressions.Add("y")
 	jt.extraSuppressions.Add("z")
 
-	jt.extraPrimitives = jutil.NewLinkedHashSet[string]()
-	jt.extraPrimitives.Add("id")
-	jt.extraPrimitives.Add("idA")
-	jt.extraPrimitives.Add("idB")
+	jt.extraPrimitives = jutil.NewOrderedSet("id", "idA", "idB")
 
 	jt.jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_NORMAL
 	return jt
@@ -245,7 +242,7 @@ func (jt *jsDocInfoParserTest) assertAnnotationMarker(
 func (jt *jsDocInfoParserTest) parseFull(code string, warnings ...string) rhino.Node {
 	jt.t.Helper()
 	testErrorReporter := newTestErrorReporter().expectAllWarnings(warnings...)
-	config := Config_Builder_().
+	config := NewConfigBuilder().
 		SetExtraAnnotationNames(jt.extraAnnotations.All()).
 		SetJsDocParsingMode(Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE).
 		SetRunMode(Config_RunMode_KEEP_GOING).
@@ -320,7 +317,7 @@ func (jt *jsDocInfoParserTest) parseWith(
 			"@closureUnaware annotation is not allowed in this compilation")
 	}
 
-	config := Config_Builder_().
+	config := NewConfigBuilder().
 		SetExtraAnnotationNames(jt.extraAnnotations.All()).
 		SetJsDocParsingMode(parseDocumentation).
 		SetSuppressionNames(jt.extraSuppressions.All()).
@@ -395,18 +392,15 @@ type testErrorReporter struct {
 	expectedErrors   []string
 	expectedWarnings []string
 
-	// Seen diagnostics are stored in a LinkedHashMap to deduplicate identical
+	// Seen diagnostics are stored in an OrderedMap to deduplicate identical
 	// diagnostics. The default com.google.javascript.jscomp.SortingErrorManager
 	// behaves in this way.
-	seenErrors   *jutil.LinkedHashMap[string, string]
-	seenWarnings *jutil.LinkedHashMap[string, string]
+	seenErrors   jutil.OrderedMap[string, string]
+	seenWarnings jutil.OrderedMap[string, string]
 }
 
 func newTestErrorReporter() *testErrorReporter {
-	return &testErrorReporter{
-		seenErrors:   jutil.NewLinkedHashMap[string, string](),
-		seenWarnings: jutil.NewLinkedHashMap[string, string](),
-	}
+	return &testErrorReporter{}
 }
 
 func (r *testErrorReporter) Error(message string, sourceName string, line int, lineOffset int) {
@@ -445,9 +439,8 @@ func slicesOf(seq func(func(string) bool)) []string {
 	return out
 }
 
-// setOf is ImmutableSet.of(...).
-func setOf(elems ...string) *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet(elems...)
+func orderedSetOf(elems ...string) *jutil.OrderedSet[string] {
+	return jutil.NewOrderedSet(elems...)
 }
 
 // ---------------------------------------------------------------------------
@@ -618,7 +611,7 @@ func truthEntries(t *testing.T, v any) (keys, values []any) {
 	t.Helper()
 	if supps, ok := v.([]rhino.JSDocSuppression); ok {
 		for _, s := range supps {
-			keys = append(keys, setOf(s.Warnings...))
+			keys = append(keys, orderedSetOf(s.Warnings...))
 			values = append(values, s.Description)
 		}
 		return
@@ -2295,7 +2288,7 @@ func TestParseBadEnumNoCrash(t *testing.T) {
 func TestParseJsDocAfterEnum(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@enum {string} @suppress {x} */")
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x"))
 }
 
 func TestParseDesc1(t *testing.T) {
@@ -3646,7 +3639,7 @@ func TestAuthors(t *testing.T) {
 func TestSuppress1(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@suppress {x} */")
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x"))
 }
 
 func TestSuppressFollowedByAnnotationOnSameLine_parseTypesOnly(t *testing.T) {
@@ -3697,9 +3690,9 @@ func TestSuppressWithDescription(t *testing.T) {
 		// No description for `@suppress {z}`.
 		"@suppress {x,y} Some description.\n * @suppress {z}\n*/\n"
 	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("x", "y"), "Some description.")
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("z"), "")
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("x", "y"), "Some description.")
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("z"), "")
 }
 
 func TestSuppressWithDescription_multipleLines(t *testing.T) {
@@ -3708,9 +3701,9 @@ func TestSuppressWithDescription_multipleLines(t *testing.T) {
 		// No description for `@suppress {z}`.
 		"@suppress {x,y} Some description.\n * Spans across lines.\n * @suppress {z}\n*/\n"
 	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("x", "y"), "Some description. Spans across lines.")
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("z"), "")
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("x", "y"), "Some description. Spans across lines.")
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("z"), "")
 }
 
 func TestSuppressWithDescription_multipleLines_withOtherAnnotations(t *testing.T) {
@@ -3721,9 +3714,9 @@ func TestSuppressWithDescription_multipleLines_withOtherAnnotations(t *testing.T
 	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
 	assertThat(t, info.GetAuthors()).Contains("XYZ")
 	assertThat(t, info.IsOverride()).IsTrue()
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("x", "y"), "Some description. Spans across lines.")
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("z"), "")
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("x", "y"), "Some description. Spans across lines.")
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("z"), "")
 }
 
 // When exact warning is repeated in another @suppress annotation, JSDocInfoParser does not save
@@ -3733,8 +3726,8 @@ func TestSuppressWithDescription_repeatedWarnings1(t *testing.T) {
 	jsDocComment :=
 		"@suppress {x} Some description.\n * @suppress {x} Another description.\n*/\n"
 	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x"))
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsExactly(setOf("x"), "Some description.")
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x"))
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsExactly(orderedSetOf("x"), "Some description.")
 }
 
 // A different @suppress annotation containing a non-repeated warning, we store both annotations.
@@ -3743,22 +3736,22 @@ func TestSuppressWithDescription_repeatedWarnings2(t *testing.T) {
 	jsDocComment :=
 		"@suppress {x} Some description.\n * @suppress {x, y} Another description.\n*/\n"
 	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y"))
 	assertThat(t, info.GetSuppressionsAndTheirDescription()).HasSize(2)
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("x"), "Some description.")
-	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(setOf("x", "y"), "Another description.")
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("x"), "Some description.")
+	assertThat(t, info.GetSuppressionsAndTheirDescription()).ContainsEntry(orderedSetOf("x", "y"), "Another description.")
 }
 
 func TestSuppress2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@suppress {x|y|x|z} */")
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y", "z"))
 }
 
 func TestSuppress3(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@suppress {x,y} */")
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y"))
 }
 
 func TestSuppressMultiline(t *testing.T) {
@@ -3771,9 +3764,9 @@ func TestSuppressMultiline(t *testing.T) {
  */
 `
 	info := jt.parse(jsDocComment /* parseDocumentation= */, true)
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y", "z"))
 	assertThat(t, info.GetSuppressionsAndTheirDescription()).
-		ContainsExactly(setOf("x", "y", "z"), "Auto-added to unblock migration")
+		ContainsExactly(orderedSetOf("x", "y", "z"), "Auto-added to unblock migration")
 }
 
 func TestSuppressMultilineWithPipesAndLeadingSeparator(t *testing.T) {
@@ -3785,7 +3778,7 @@ func TestSuppressMultilineWithPipesAndLeadingSeparator(t *testing.T) {
  */
 `
 	info := jt.parse(jsDocComment)
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y", "z"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y", "z"))
 }
 
 func TestJsDocAfterSuppress(t *testing.T) {
@@ -3797,7 +3790,7 @@ func TestJsDocAfterSuppress(t *testing.T) {
 func TestMultipleSuppressTags(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@suppress {x} \n * @suppress {y} */")
-	assertThat(t, info.GetSuppressions()).IsEqualTo(setOf("x", "y"))
+	assertThat(t, info.GetSuppressions()).IsEqualTo(orderedSetOf("x", "y"))
 }
 
 func TestBadSuppress1(t *testing.T) {
@@ -3891,25 +3884,25 @@ func TestBadMods6(t *testing.T) {
 func TestModifies1(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@modifies {this} */")
-	assertThat(t, info.GetModifies()).IsEqualTo(setOf("this"))
+	assertThat(t, info.GetModifies()).IsEqualTo(orderedSetOf("this"))
 }
 
 func TestModifies2(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@modifies {arguments} */")
-	assertThat(t, info.GetModifies()).IsEqualTo(setOf("arguments"))
+	assertThat(t, info.GetModifies()).IsEqualTo(orderedSetOf("arguments"))
 }
 
 func TestModifies3(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@modifies {this|arguments} */")
-	assertThat(t, info.GetModifies()).IsEqualTo(setOf("this", "arguments"))
+	assertThat(t, info.GetModifies()).IsEqualTo(orderedSetOf("this", "arguments"))
 }
 
 func TestModifies4(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	info := jt.parse("@param {*} x\n * @modifies {x} */")
-	assertThat(t, info.GetModifies()).IsEqualTo(setOf("x"))
+	assertThat(t, info.GetModifies()).IsEqualTo(orderedSetOf("x"))
 }
 
 func TestModifies5(t *testing.T) {
@@ -3917,7 +3910,7 @@ func TestModifies5(t *testing.T) {
 	info :=
 		jt.parse(
 			"@param {*} x\n * @param {*} y\n * @modifies {x} */\n")
-	assertThat(t, info.GetModifies()).IsEqualTo(setOf("x"))
+	assertThat(t, info.GetModifies()).IsEqualTo(orderedSetOf("x"))
 }
 
 func TestModifies6(t *testing.T) {
@@ -3925,7 +3918,7 @@ func TestModifies6(t *testing.T) {
 	info :=
 		jt.parse(
 			"@param {*} x\n * @param {*} y\n * @modifies {x|y} */\n")
-	assertThat(t, info.GetModifies()).IsEqualTo(setOf("x", "y"))
+	assertThat(t, info.GetModifies()).IsEqualTo(orderedSetOf("x", "y"))
 }
 
 func TestBadModifies1(t *testing.T) {

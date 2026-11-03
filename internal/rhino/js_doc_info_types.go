@@ -81,8 +81,8 @@ func formatJsDocParams(s []JSDocParam) string {
 	return b.String()
 }
 
-func jsDocParamsToMap(s []JSDocParam) *jutil.LinkedHashMap[string, *JSTypeExpression] {
-	m := jutil.NewLinkedHashMapWithCapacity[string, *JSTypeExpression](len(s))
+func jsDocParamsToMap(s []JSDocParam) *jutil.OrderedMap[string, *JSTypeExpression] {
+	m := jutil.NewOrderedMapWithCapacity[string, *JSTypeExpression](len(s))
 	for _, p := range s {
 		m.Put(p.Name, p.Type)
 	}
@@ -104,8 +104,8 @@ func formatJsDocTypeTransforms(s []JSDocTypeTransform) string {
 	return b.String()
 }
 
-func jsDocTypeTransformsToMap(s []JSDocTypeTransform) *jutil.LinkedHashMap[string, Node] {
-	m := jutil.NewLinkedHashMapWithCapacity[string, Node](len(s))
+func jsDocTypeTransformsToMap(s []JSDocTypeTransform) *jutil.OrderedMap[string, Node] {
+	m := jutil.NewOrderedMapWithCapacity[string, Node](len(s))
 	for _, tr := range s {
 		m.Put(tr.Name, tr.TypeNode)
 	}
@@ -471,16 +471,16 @@ func (i *JSDocInfo) HasParameterType(parameter string) bool {
 // them. The returned set is immutable.
 //
 // Java: JSDocInfo.getParameterNames()
-func (i *JSDocInfo) GetParameterNames() *jutil.LinkedHashSet[string] {
+func (i *JSDocInfo) GetParameterNames() *jutil.OrderedSet[string] {
 	params := i.GetParameterEntries()
 	if len(params) > 0 {
-		set := jutil.NewLinkedHashSet[string]()
+		set := jutil.NewOrderedSetWithCapacity[string](len(params))
 		for _, p := range params {
 			set.Add(p.Name)
 		}
 		return set
 	}
-	return jutil.NewLinkedHashSet[string]()
+	return jutil.NewOrderedSet[string]()
 }
 
 // GetParameterNameAt returns the nth name in the defined parameters. The
@@ -560,16 +560,16 @@ func (i *JSDocInfo) HasTemplateTypeName(name string) bool {
 }
 
 // Java: JSDocInfo.getTemplateTypes()
-func (i *JSDocInfo) GetTemplateTypes() *jutil.LinkedHashMap[string, *JSTypeExpression] {
+func (i *JSDocInfo) GetTemplateTypes() *jutil.OrderedMap[string, *JSTypeExpression] {
 	params := i.GetTemplateTypeEntries()
 	if len(params) != 0 {
 		return jsDocParamsToMap(params)
 	}
-	return jutil.NewLinkedHashMap[string, *JSTypeExpression]()
+	return jutil.NewOrderedMap[string, *JSTypeExpression]()
 }
 
 // GetTypeTransformationEntries returns the ordered @template T := ... entries
-// without allocating a LinkedHashMap.
+// without allocating an OrderedMap.
 func (i *JSDocInfo) GetTypeTransformationEntries() []JSDocTypeTransform {
 	if i == nil {
 		return nil
@@ -580,10 +580,10 @@ func (i *JSDocInfo) GetTypeTransformationEntries() []JSDocTypeTransform {
 // GetTypeTransformations gets the type transformations.
 //
 // Java: JSDocInfo.getTypeTransformations()
-func (i *JSDocInfo) GetTypeTransformations() *jutil.LinkedHashMap[string, Node] {
+func (i *JSDocInfo) GetTypeTransformations() *jutil.OrderedMap[string, Node] {
 	entries := i.GetTypeTransformationEntries()
 	if len(entries) != 0 {
 		return jsDocTypeTransformsToMap(entries)
 	}
-	return jutil.NewLinkedHashMap[string, Node]()
+	return jutil.NewOrderedMap[string, Node]()
 }

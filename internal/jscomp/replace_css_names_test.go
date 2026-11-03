@@ -36,9 +36,9 @@ type ReplaceCssNamesTest struct {
 	useReplacementMap bool
 
 	// Map of replacements to use during the test.
-	replacementMap *jutil.LinkedHashMap[string, string]
+	replacementMap *OrderedStringMap[string]
 
-	replacementMapFull *jutil.LinkedHashMap[string, string]
+	replacementMapFull *OrderedStringMap[string]
 
 	renamingMap CssRenamingMap
 	skiplist    jutil.Set[string]
@@ -57,31 +57,29 @@ func NewReplaceCssNamesTest() *ReplaceCssNamesTest {
 goog.getCssName;
 goog.setCssNameMapping;
 `)
-	c.replacementMap = jutil.NewImmutableMapBuilder[string, string]().
-		Put("active", "a").
-		Put("buttonbar", "b").
-		Put("colorswatch", "c").
-		Put("disabled", "d").
-		Put("elephant", "e").
-		Put("footer", "f").
-		Put("goog", "g").
-		Put("fooStylesBar", "fsr").
-		Put("fooStylesBaz", "fsz").
-		Put("--foo-bar", "--fb").
-		Put("---foo-baz", "--fbz").
-		Put("--foo-bar-baz--qux", "--fbzq").
-		BuildOrThrow()
-	c.replacementMapFull = jutil.NewImmutableMapBuilder[string, string]().
-		Put("long-prefix", "h").
-		Put("suffix1", "i").
-		Put("unrelated-word", "k").
-		Put("unrelated", "l").
-		Put("long-suffix", "m").
-		Put("long-prefix-suffix1", "h-i").
-		Put("--foo-bar", "--fb").
-		Put("---foo-baz", "--fbz").
-		Put("--foo-bar-baz--qux", "--fbzq").
-		BuildOrThrow()
+	c.replacementMap = jsaMap(
+		"active", "a",
+		"buttonbar", "b",
+		"colorswatch", "c",
+		"disabled", "d",
+		"elephant", "e",
+		"footer", "f",
+		"goog", "g",
+		"fooStylesBar", "fsr",
+		"fooStylesBaz", "fsz",
+		"--foo-bar", "--fb",
+		"---foo-baz", "--fbz",
+		"--foo-bar-baz--qux", "--fbzq")
+	c.replacementMapFull = jsaMap(
+		"long-prefix", "h",
+		"suffix1", "i",
+		"unrelated-word", "k",
+		"unrelated", "l",
+		"long-suffix", "m",
+		"long-prefix-suffix1", "h-i",
+		"--foo-bar", "--fb",
+		"---foo-baz", "--fbz",
+		"--foo-bar-baz--qux", "--fbzq")
 	return c
 }
 

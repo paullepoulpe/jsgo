@@ -19,11 +19,7 @@
 
 package jscomp
 
-import (
-	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-)
+import "testing"
 
 // PruningAnalysisTest holds the unit tests of PruningAnalysis.
 type PruningAnalysisTest struct {
@@ -190,8 +186,8 @@ func (pt *PruningAnalysisTest) analyze(
 
 // pruningAnalysisTest_mapOf builds the expected map of Truth's
 // containsExactly(k0, v0, k1, v1, ...) / containsAtLeast(...) on a map.
-func pruningAnalysisTest_mapOf(kv ...any) *jutil.LinkedHashMap[string, int] {
-	m := jutil.NewLinkedHashMap[string, int]()
+func pruningAnalysisTest_mapOf(kv ...any) *OrderedStringMap[int] {
+	m := NewOrderedStringMapWithCapacity[int](len(kv) / 2)
 	for i := 0; i < len(kv); i += 2 {
 		m.Put(kv[i].(string), kv[i+1].(int))
 	}

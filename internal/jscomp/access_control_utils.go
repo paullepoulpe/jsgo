@@ -18,10 +18,12 @@
 
 package jscomp
 
-import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
-	"github.com/paullepoulpe/jsgo/internal/rhino"
-)
+import "github.com/paullepoulpe/jsgo/internal/rhino"
+
+// FileVisibilityMap looks up @fileoverview visibility annotations by source file.
+type FileVisibilityMap interface {
+	Lookup(rhino.StaticSourceFile) (rhino.JSDocInfo_Visibility, bool)
+}
 
 // AccessControlUtils holds helper functions for computing the visibility of
 // names and properties in JavaScript source code.
@@ -33,7 +35,7 @@ import (
 //
 // Go-only: language-adapter — a nullable Visibility is a
 // *rhino.JSDocInfo_Visibility (nil is Java null), and ImmutableMap.get
-// returning null is LinkedHashMap.Lookup reporting false.
+// returning null is FileVisibilityMap.Lookup reporting false.
 type AccessControlUtils struct{}
 
 // AccessControlUtils_GetEffectiveNameVisibility returns the effective
@@ -49,7 +51,7 @@ type AccessControlUtils struct{}
 // Java: AccessControlUtils.getEffectiveNameVisibility(Node, Var, ImmutableMap<StaticSourceFile, Visibility>)
 func AccessControlUtils_GetEffectiveNameVisibility(
 	name rhino.Node, var_ *Var,
-	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) rhino.JSDocInfo_Visibility {
+	fileVisibilityMap FileVisibilityMap) rhino.JSDocInfo_Visibility {
 	jsDocInfo := var_.GetJSDocInfo()
 	// Go-only: language-adapter — JSDocInfo.getVisibility() never returns
 	// null (it defaults to INHERITED), so Java's
@@ -63,7 +65,11 @@ func AccessControlUtils_GetEffectiveNameVisibility(
 	if raw != rhino.JSDocInfo_Visibility_INHERITED {
 		return raw
 	}
-	defaultVisibilityForFile, hasDefaultVisibilityForFile := fileVisibilityMap.Lookup(var_.GetSourceFile())
+	var defaultVisibilityForFile rhino.JSDocInfo_Visibility
+	var hasDefaultVisibilityForFile bool
+	if fileVisibilityMap != nil {
+		defaultVisibilityForFile, hasDefaultVisibilityForFile = fileVisibilityMap.Lookup(var_.GetSourceFile())
+	}
 	type_ := name.GetJSType()
 	createdFromGoogProvide := type_ != nil && type_.IsLiteralObject()
 	// Ignore @fileoverview visibility when computing the effective visibility
@@ -99,12 +105,14 @@ func AccessControlUtils_GetEffectiveNameVisibility(
 func AccessControlUtils_GetEffectivePropertyVisibility(
 	property rhino.Node,
 	referenceType rhino.ObjectType,
-	fileVisibilityMap *jutil.LinkedHashMap[rhino.StaticSourceFile, rhino.JSDocInfo_Visibility]) rhino.JSDocInfo_Visibility {
+	fileVisibilityMap FileVisibilityMap) rhino.JSDocInfo_Visibility {
 	propertyName := property.GetString()
 	definingSource := AccessControlUtils_GetDefiningSource(property, referenceType, propertyName)
 	var fileOverviewVisibility *rhino.JSDocInfo_Visibility
-	if v, ok := fileVisibilityMap.Lookup(definingSource); ok {
-		fileOverviewVisibility = &v
+	if fileVisibilityMap != nil {
+		if v, ok := fileVisibilityMap.Lookup(definingSource); ok {
+			fileOverviewVisibility = &v
+		}
 	}
 	parent := property.GetParent()
 	isOverride := parent.GetJSDocInfo() != nil &&

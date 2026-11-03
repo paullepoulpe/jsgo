@@ -134,8 +134,8 @@ type beanA struct {
 	boxed     *bool
 	out       string
 	prefix    *string
-	map_      *jutil.LinkedHashMap[string, *string]
-	nullMap   *jutil.LinkedHashMap[string, *string]
+	map_      *jutil.OrderedMap[string, *string]
+	nullMap   *jutil.OrderedMap[string, *string]
 	words     []string
 	noUsage   string
 	dep       *string
@@ -146,7 +146,7 @@ type beanA struct {
 }
 
 func newBeanA() *beanA {
-	return &beanA{zeta: "z", level: tLevel_DEFAULT, threads: 1, map_: jutil.NewLinkedHashMap[string, *string](), noUsage: "nu", unicode: "é"}
+	return &beanA{zeta: "z", level: tLevel_DEFAULT, threads: 1, map_: jutil.NewOrderedMap[string, *string](), noUsage: "nu", unicode: "é"}
 }
 
 func (b *beanA) Args4jFields() []AnnotatedField {
@@ -175,8 +175,8 @@ func (b *beanA) Args4jFields() []AnnotatedField {
 		{Option: &Option{Name: "--boxed", Usage: "A boxed Boolean"}, Field: NullableBool(&b.boxed)},
 		{Option: &Option{Name: "--out", MetaVar: "FILE", Usage: "Primary output filename. If not specified, output is written to stdout"}, Field: String(&b.out)},
 		{Option: &Option{Name: "--prefix", Usage: "A nullable string"}, Field: NullableString(&b.prefix)},
-		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: LinkedStringMap(&b.map_)},
-		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: LinkedStringMap(&b.nullMap)},
+		{Option: &Option{Name: "--map", Usage: "Prefixes to replace in ES6 import paths before resolving."}, Field: OrderedStringMap(&b.map_)},
+		{Option: &Option{Name: "--nullmap", Usage: "A map that starts null"}, Field: OrderedStringMap(&b.nullMap)},
 		{Option: &Option{Name: "--words", Handler: NewStringArrayOptionHandler, Usage: "Greedy words"}, Field: StringSlice(&b.words)},
 		{Option: &Option{Name: "--nousage"}, Field: String(&b.noUsage)},
 		{Option: &Option{Name: "--dep", Depends: []string{"--out"}, Usage: "Needs --out"}, Field: NullableString(&b.dep)},

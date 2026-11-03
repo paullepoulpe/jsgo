@@ -106,11 +106,12 @@ func (i *InjectClosureUnawareRuntimeLibraries) InjectLibrariesIntoMainAst() {
 // Java: InjectClosureUnawareRuntimeLibraries.injectFieldsIntoCallSites()
 func (i *InjectClosureUnawareRuntimeLibraries) InjectFieldsIntoCallSites() {
 	// stream().collect(toImmutableMap(ExternedField::qualifiedName, identity()))
-	fieldsByNameBuilder := jutil.NewImmutableMapBuilder[string, RuntimeJsLibManager_ExternedField]()
-	for _, field := range i.shadowCompiler.GetRuntimeJsLibManager().GetExternedFields() {
-		fieldsByNameBuilder.Put(field.QualifiedName(), field)
+	externedFields := i.shadowCompiler.GetRuntimeJsLibManager().GetExternedFields()
+	fieldsByName := NewOrderedStringMapWithCapacity[RuntimeJsLibManager_ExternedField](len(externedFields))
+	for _, field := range externedFields {
+		name := field.QualifiedName()
+		jutil.CheckArgumentMsg1(fieldsByName.PutIfAbsent(name, field), "duplicate key: %s", name)
 	}
-	fieldsByName := fieldsByNameBuilder.BuildOrThrow()
 
 	for _, callSite := range i.closureUnawareCalls {
 		toInject := InjectClosureUnawareRuntimeLibraries_GatherRuntimeFields(callSite.ClosureUnawareFunction(), fieldsByName)
@@ -121,7 +122,7 @@ func (i *InjectClosureUnawareRuntimeLibraries) InjectFieldsIntoCallSites() {
 // Java: InjectClosureUnawareRuntimeLibraries.injectAll(ClosureUnawareCallSite, Set<ExternedField>)
 func (i *InjectClosureUnawareRuntimeLibraries) InjectAll(
 	callSite *InjectClosureUnawareRuntimeLibraries_ClosureUnawareCallSite,
-	toInject *jutil.LinkedHashSet[RuntimeJsLibManager_ExternedField]) {
+	toInject *OrderedSet[RuntimeJsLibManager_ExternedField]) {
 	if toInject.IsEmpty() {
 		return
 	}
@@ -152,8 +153,8 @@ func (i *InjectClosureUnawareRuntimeLibraries) InjectAll(
 //
 // Java: InjectClosureUnawareRuntimeLibraries.gatherRuntimeFields(Node, ImmutableMap<String, ExternedField>)
 func InjectClosureUnawareRuntimeLibraries_GatherRuntimeFields(
-	root rhino.Node, allKnownFields *jutil.LinkedHashMap[string, RuntimeJsLibManager_ExternedField]) *jutil.LinkedHashSet[RuntimeJsLibManager_ExternedField] {
-	seen := jutil.NewLinkedHashSet[RuntimeJsLibManager_ExternedField]()
+	root rhino.Node, allKnownFields *OrderedStringMap[RuntimeJsLibManager_ExternedField]) *OrderedSet[RuntimeJsLibManager_ExternedField] {
+	seen := NewOrderedSet[RuntimeJsLibManager_ExternedField]()
 	NodeUtil_VisitPreOrder(root, func(n rhino.Node) {
 		if !n.IsName() {
 			return

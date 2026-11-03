@@ -456,5 +456,5 @@ func StrictModeCheck_IsFunctionType(n rhino.Node) bool {
 // Java: StrictModeCheck.report(Node, DiagnosticType, String...)
 func (c *StrictModeCheck) Report(n rhino.Node, diagnostic *DiagnosticType, args ...string) {
 	c.compiler.Report(
-		JSError_Builder_(diagnostic, args...).SetLevel(c.defaultLevel).SetNode(n).Build())
+		NewJSErrorBuilder(diagnostic, args...).SetLevel(c.defaultLevel).SetNode(n).Build())
 }

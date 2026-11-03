@@ -234,20 +234,19 @@ func (c *Compiler) OrderInputsWithLargeStack() {
 	})
 }
 
-func (c *Compiler) manageDependenciesForOrderInputs() (staleInputs bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch e := r.(type) {
-			case *SortedDependencies_MissingProvideException:
-				c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, e.GetMessage()))
-			case *JSChunkGraph_MissingChunkException:
-				c.Report(JSError_Make(Compiler_MISSING_CHUNK_ERROR, e.GetMessage()))
-			default:
-				panic(r)
-			}
+func (c *Compiler) manageDependenciesForOrderInputs() bool {
+	result, err := c.chunkGraph.TryManageDependencies(c, c.options.GetDependencyOptions())
+	if err != nil {
+		switch e := err.(type) {
+		case *SortedDependencies_MissingProvideException:
+			c.Report(JSError_Make(Compiler_MISSING_ENTRY_ERROR, e.GetMessage()))
+		case *JSChunkGraph_MissingChunkException:
+			c.Report(JSError_Make(Compiler_MISSING_CHUNK_ERROR, e.GetMessage()))
+		default:
+			panic(err)
 		}
-	}()
-	result := c.chunkGraph.ManageDependencies(c, c.options.GetDependencyOptions())
+		return false
+	}
 	c.maybeLogPruningAnalysis(result)
 	return true
 }
@@ -511,7 +510,7 @@ func (c *Compiler) repartitionInputs() {
 // package.json files.
 //
 // Java: Compiler.processJsonInputs(Iterable<CompilerInput>)
-func (c *Compiler) ProcessJsonInputs(inputsToProcess []*CompilerInput) *jutil.LinkedHashMap[string, string] {
+func (c *Compiler) ProcessJsonInputs(inputsToProcess []*CompilerInput) *OrderedStringMap[string] {
 	rewriteJson := NewRewriteJsonToModule(c)
 	for _, input := range inputsToProcess {
 		if !strings.HasSuffix(input.GetSourceFile().GetName(), ".json") {

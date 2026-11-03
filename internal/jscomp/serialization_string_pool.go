@@ -148,11 +148,10 @@ func encodeStringPoolShard(pool *rhino.RhinoStringPool_LazyInternedStringList, o
 	return spSize
 }
 
-// StringPool_Builder_ is StringPool.builder().
+// NewStringPoolBuilder returns a new StringPool_Builder.
 //
-// Go-only: language-adapter — the trailing underscore keeps the mechanical
-// name StringPool_Builder for the nested Builder type.
-func StringPool_Builder_() *StringPool_Builder {
+// Java: StringPool.builder()
+func NewStringPoolBuilder() *StringPool_Builder {
 	return newStringPool_Builder()
 }
 
@@ -231,4 +230,4 @@ func (b *StringPool_Builder) Build() *StringPool {
 	}
 }
 
-var stringPool_EMPTY = StringPool_Builder_().Build()
+var stringPool_EMPTY = NewStringPoolBuilder().Build()

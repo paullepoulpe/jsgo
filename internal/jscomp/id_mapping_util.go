@@ -80,18 +80,18 @@ func (s *IdMappingSection) Put(k, v string) {
 // generators and their ids and their replacements.
 //
 // Java: IdMappingUtil.generateSerializedIdMappings(Map<String, Map<String, String>>)
-func IdMappingUtil_GenerateSerializedIdMappings(idGeneratorMaps *jutil.LinkedHashMap[string, *jutil.LinkedHashMap[string, string]]) string {
+func IdMappingUtil_GenerateSerializedIdMappings(idGeneratorMaps *OrderedStringMap[*OrderedStringMap[string]]) string {
 	var sb strings.Builder
-	for key, value := range idGeneratorMaps.All() {
-		if !value.IsEmpty() {
+	for _, section := range idGeneratorMaps.Entries() {
+		if !section.Value.IsEmpty() {
 			sb.WriteByte('[')
-			sb.WriteString(key)
+			sb.WriteString(section.Key)
 			sb.WriteString("]\n\n")
 
-			for rKey, rValue := range value.All() {
-				sb.WriteString(rKey)
+			for _, entry := range section.Value.Entries() {
+				sb.WriteString(entry.Key)
 				sb.WriteByte(':')
-				sb.WriteString(rValue)
+				sb.WriteString(entry.Value)
 				sb.WriteByte('\n')
 			}
 			sb.WriteByte('\n')
@@ -178,10 +178,10 @@ func (mr *IdMappingUtil_MappingReader) GetLineIndex() int {
 }
 
 // Java: IdMappingUtil.parseSectionAsStream(InputStream, String)
-func IdMappingUtil_ParseSectionAsStream(stream io.Reader, sectionFilter string) *jutil.LinkedHashMap[string, string] {
+func IdMappingUtil_ParseSectionAsStream(stream io.Reader, sectionFilter string) *OrderedStringMap[string] {
 	// ImmutableMap.Builder.buildKeepingLast(): a repeated key keeps its first
-	// position and its last value, like LinkedHashMap.put.
-	mapBuilder := jutil.NewLinkedHashMap[string, string]()
+	// position and its last value.
+	mapBuilder := NewOrderedStringMap[string]()
 	br := jutil.NewBufferedReaderUTF8(stream)
 	mr := NewIdMappingUtil_MappingReader(br)
 	inSection := false

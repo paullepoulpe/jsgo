@@ -136,7 +136,7 @@ func (c *ConvertTypesToColors) Process(externs rhino.Node, root rhino.Node) {
 	serializeJstypes := SerializeTypesToPointers_Create(c.compiler, nil, c.serializationOptions)
 	serializeJstypes.gatherTypesForColors(externsAndJsRoot)
 
-	colorPoolBuilder := ColorPool_Builder_()
+	colorPoolBuilder := NewColorPoolBuilder()
 	c.compiler.InitRuntimeLibraryTypedAsts(colorPoolBuilder)
 	colorPoolBuilder.addJSTypeShard(serializeJstypes.jstypeReconserializer)
 

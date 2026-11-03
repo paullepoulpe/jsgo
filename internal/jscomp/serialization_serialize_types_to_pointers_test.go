@@ -62,7 +62,7 @@ func (c *SerializeTypesToPointersTest) SetUp() {
 	options.SetCheckTypes(true)
 	c.compiler = NewCompiler()
 	c.compiler.InitOptions(options)
-	c.stringPoolBuilder = StringPool_Builder_()
+	c.stringPoolBuilder = NewStringPoolBuilder()
 }
 
 // Java: SerializeTypesToPointersTest.outputsTypePointerForClass()
@@ -74,7 +74,7 @@ func (c *SerializeTypesToPointersTest) TestOutputsTypePointerForClass() {
 		SerializeTypesToPointers_Create(
 			c.compiler,
 			c.stringPoolBuilder,
-			SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
+			NewSerializationOptions().SetIncludeDebugInfo(true).Build())
 	serializer.GatherTypesOnAst(src)
 
 	AssertThat(serializeTypesToPointersTest_get(serializer.GetTypePointersByJstype(), fooCtorType)).IsNotNull()
@@ -98,7 +98,7 @@ func (c *SerializeTypesToPointersTest) TestSerializesPropertiesReferencedInSourc
 		SerializeTypesToPointers_Create(
 			c.compiler,
 			c.stringPoolBuilder,
-			SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
+			NewSerializationOptions().SetIncludeDebugInfo(true).Build())
 	serializer.GatherTypesOnAst(src)
 
 	AssertThat(serializeTypesToPointersTest_get(serializer.GetTypePointersByJstype(), fooPrototypeType)).IsNotNull()
@@ -124,7 +124,7 @@ func (c *SerializeTypesToPointersTest) TestDoesNotSerializePropertiesOnlyReferen
 		SerializeTypesToPointers_Create(
 			c.compiler,
 			c.stringPoolBuilder,
-			SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
+			NewSerializationOptions().SetIncludeDebugInfo(true).Build())
 	serializer.GatherTypesOnAst(root)
 
 	AssertThat(serializeTypesToPointersTest_get(serializer.GetTypePointersByJstype(), fooPrototypeType)).IsNotNull()
@@ -153,7 +153,7 @@ func (c *SerializeTypesToPointersTest) TestSerializePropertiesInNonTypeSummaryEx
 		SerializeTypesToPointers_Create(
 			c.compiler,
 			c.stringPoolBuilder,
-			SerializationOptions_Builder_().SetIncludeDebugInfo(true).Build())
+			NewSerializationOptions().SetIncludeDebugInfo(true).Build())
 	serializer.GatherTypesOnAst(root)
 
 	AssertThat(serializeTypesToPointersTest_get(serializer.GetTypePointersByJstype(), fooPrototypeType)).IsNotNull()

@@ -858,7 +858,7 @@ func (s *JSTypeReconserializer) finishColorPool() {
 // Only intended to be used for debug logging.
 //
 // Java: JSTypeReconserializer.getColorIdToJSTypeMapForDebugging()
-func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *jutil.LinkedHashMap[string, []rhino.JSType] {
+func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *OrderedStringMap[[]rhino.JSType] {
 	// note: returns JSType values instead of String values, even though all that's needed for
 	// debugging are the strings, to avoid the memory overhead of calculating all string
 	// representations at once
@@ -875,7 +875,7 @@ func (s *JSTypeReconserializer) GetColorIdToJSTypeMapForDebugging() *jutil.Linke
 		byId[idStr] = append(byId[idStr], record.jstypes...)
 	}
 	slices.Sort(keys)
-	colorIdToTypes := jutil.NewLinkedHashMapWithCapacity[string, []rhino.JSType](len(keys))
+	colorIdToTypes := NewOrderedStringMapWithCapacity[[]rhino.JSType](len(keys))
 	for _, k := range keys {
 		colorIdToTypes.Put(k, byId[k])
 	}

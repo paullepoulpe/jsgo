@@ -73,10 +73,10 @@ var (
 	parserRunner_closurePrimitives       map[string]struct{}
 	parserRunner_initOnce                sync.Once
 
-	parserRunner_reservedVars = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
+	parserRunner_reservedVars = sync.OnceValue(func() *jutil.OrderedSet[string] {
 		return parserRunner_extractList(ParserConfiguration_GetString("compiler.reserved.vars"))
 	})
-	parserRunner_suppressionNames = sync.OnceValue(func() *jutil.LinkedHashSet[string] {
+	parserRunner_suppressionNames = sync.OnceValue(func() *jutil.OrderedSet[string] {
 		return parserRunner_extractList(ParserConfiguration_GetString("jsdoc.suppressions"))
 	})
 )
@@ -86,13 +86,13 @@ func ParserRunner_CreateConfigWithModes(
 	languageMode Config_LanguageMode,
 	jsdocParsingMode Config_JsDocParsing,
 	runMode Config_RunMode,
-	extraAnnotationNames *jutil.LinkedHashSet[string],
+	extraAnnotationNames jutil.Set[string],
 	parseInlineSourceMaps bool,
 	strictMode Config_StrictMode) *Config {
 	ParserRunner_InitResourceConfig()
 	extra := parserRunner_defaultExtraAnnotations
 	var annotations map[string]Annotation
-	if extraAnnotationNames == nil || extraAnnotationNames.IsEmpty() {
+	if jutil.IsNil(extraAnnotationNames) || extraAnnotationNames.IsEmpty() {
 		annotations = parserRunner_defaultAnnotations
 	} else {
 		var custom []string
@@ -129,12 +129,12 @@ func ParserRunner_CreateConfigWithModes(
 }
 
 // Java: ParserRunner.getReservedVars()
-func ParserRunner_GetReservedVars() *jutil.LinkedHashSet[string] {
+func ParserRunner_GetReservedVars() *jutil.OrderedSet[string] {
 	return parserRunner_reservedVars()
 }
 
 // Java: ParserRunner.getSuppressionNames()
-func ParserRunner_GetSuppressionNames() *jutil.LinkedHashSet[string] {
+func ParserRunner_GetSuppressionNames() *jutil.OrderedSet[string] {
 	return parserRunner_suppressionNames()
 }
 
@@ -178,8 +178,8 @@ func parserRunner_extractSet(configProp string) map[string]struct{} {
 	return set
 }
 
-func parserRunner_extractList(configProp string) *jutil.LinkedHashSet[string] {
-	set := jutil.NewLinkedHashSetWithCapacity[string](strings.Count(configProp, ",") + 1)
+func parserRunner_extractList(configProp string) *jutil.OrderedSet[string] {
+	set := jutil.NewOrderedSetWithCapacity[string](strings.Count(configProp, ",") + 1)
 	for part := range strings.SplitSeq(configProp, ",") {
 		set.Add(parserRunner_trimWhitespace(part))
 	}

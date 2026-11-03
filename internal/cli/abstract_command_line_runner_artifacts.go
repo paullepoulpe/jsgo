@@ -283,8 +283,14 @@ func (r *AbstractCommandLineRunnerBase) OutputStringMap() {
 		if r.compiler.GetStringMap() == nil {
 			// Ensure an empty file is created if there is no string map.
 			// This avoids confusing some build tools that expect to see the file, even if it is empty.
-			if !jutil.NewFile(config.stringMapOutputPath).CreateNewFile() {
+			f, err := os.OpenFile(config.stringMapOutputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+			if err == nil {
+				_ = f.Close()
+			} else if errors.Is(err, os.ErrExist) {
 				panic(jutil.NewIOException("Could not create file: " + config.stringMapOutputPath))
+			} else {
+				reason := jutil.FileNotFoundExceptionFromError(err, "").GetMessage()
+				panic(jutil.NewIOException(strings.TrimSuffix(strings.TrimPrefix(reason, " ("), ")")))
 			}
 		} else {
 			r.compiler.GetStringMap().Save(config.stringMapOutputPath)

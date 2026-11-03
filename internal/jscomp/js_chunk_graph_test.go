@@ -64,7 +64,7 @@ func (x *jsChunkGraphTest) makeDeps() {
 }
 
 func (x *jsChunkGraphTest) makeGraph() {
-	x.graph = NewJSChunkGraphFromArray([]*JSChunk{x.chunkA, x.chunkB, x.chunkC, x.chunkD, x.chunkE, x.chunkF})
+	x.graph = NewJSChunkGraph([]*JSChunk{x.chunkA, x.chunkB, x.chunkC, x.chunkD, x.chunkE, x.chunkF})
 }
 
 func (x *jsChunkGraphTest) getWeakChunk() *JSChunk {
@@ -103,7 +103,7 @@ func TestJSChunkGraph_MakesWeakChunkIfNotPassed(t *testing.T) {
 	if !x.graph.GetChunksByName().ContainsKey(JSChunk_WEAK_CHUNK_NAME) {
 		t.Errorf("no weak chunk")
 	}
-	jsChunkGraphTest_containsExactly(t, "weak deps", x.getWeakChunk().GetAllDependencies().ToSlice(), x.allChunks()...)
+	jsChunkGraphTest_containsExactly(t, "weak deps", x.getWeakChunk().AllDependenciesSlice(), x.allChunks()...)
 }
 
 func (x *jsChunkGraphTest) newWeakChunk(withF bool) *JSChunk {
@@ -126,7 +126,7 @@ func TestJSChunkGraph_AcceptExistingWeakChunk(t *testing.T) {
 
 	weakChunk.AddSourceFile(SourceFile_FromCodeWithKind("weak", "", rhino.StaticSourceFile_SourceKind_WEAK))
 
-	graph := NewJSChunkGraphFromArray(append(x.allChunks(), weakChunk))
+	graph := NewJSChunkGraph(append(x.allChunks(), weakChunk))
 
 	assertEqual(t, "chunk count", graph.GetChunkCount(), 7)
 	assertEqual(t, "weak chunk", graph.GetChunkByName(JSChunk_WEAK_CHUNK_NAME), weakChunk)
@@ -139,7 +139,7 @@ func TestJSChunkGraph_ExistingWeakChunkMustHaveDependenciesOnAllOtherChunks(t *t
 	// Missing F
 
 	e := assertThrows[jutil.IIllegalStateException](t, func() {
-		NewJSChunkGraphFromArray(append(x.allChunks(), weakChunk))
+		NewJSChunkGraph(append(x.allChunks(), weakChunk))
 	})
 	assertEqual(t, "message", e.GetMessage(),
 		"A weak chunk already exists but it does not depend on every other chunk.")
@@ -153,7 +153,7 @@ func TestJSChunkGraph_WeakFileCannotExistOutsideWeakChunk(t *testing.T) {
 	x.chunkA.AddSourceFile(SourceFile_FromCodeWithKind("a", "", rhino.StaticSourceFile_SourceKind_WEAK))
 
 	e := assertThrows[jutil.IIllegalStateException](t, func() {
-		NewJSChunkGraphFromArray(append(x.allChunks(), weakChunk))
+		NewJSChunkGraph(append(x.allChunks(), weakChunk))
 	})
 
 	if !strings.Contains(e.GetMessage(), "Found these weak sources in other chunks:\n  a (in chunk chunkA)") {
@@ -169,7 +169,7 @@ func TestJSChunkGraph_StrongFileCannotExistInWeakChunk(t *testing.T) {
 	weakChunk.AddSourceFile(SourceFile_FromCodeWithKind("a", "", rhino.StaticSourceFile_SourceKind_STRONG))
 
 	e := assertThrows[jutil.IIllegalStateException](t, func() {
-		NewJSChunkGraphFromArray(append(x.allChunks(), weakChunk))
+		NewJSChunkGraph(append(x.allChunks(), weakChunk))
 	})
 	if !strings.Contains(e.GetMessage(), "Found these strong sources in the weak chunk:\n  a") {
 		t.Errorf("message %q", e.GetMessage())
@@ -208,7 +208,7 @@ func TestJSChunkGraph_SmallerTreeBeatsDeeperTree(t *testing.T) {
 	f.AddDependency(d)
 	g.AddDependency(d)
 	h.AddDependency(d)
-	graph := NewJSChunkGraphFromArray([]*JSChunk{a, b, c, d, e, f, g, h})
+	graph := NewJSChunkGraph([]*JSChunk{a, b, c, d, e, f, g, h})
 	// d is deeper, but it also has an extra dependent node, so b is the better choice.
 	x.assertSmallestCoveringSubtreeInGraph(b, graph, a, e, f, g)
 	// However, if the parent tree we're looking at is c, then b isn't an option
@@ -380,7 +380,7 @@ func TestJSChunkGraph_ManageDependenciesStrictWithEntryPoint(t *testing.T) {
 func TestJSChunkGraph_ManageDependenciesStrictForGoogRequireDynamic(t *testing.T) {
 	x := newJSChunkGraphTest(t)
 	chunkA := NewJSChunk("chunk")
-	x.graph = NewJSChunkGraphFromArray([]*JSChunk{chunkA})
+	x.graph = NewJSChunkGraph([]*JSChunk{chunkA})
 	inputs := []*CompilerInput{}
 	compilerInputA1 := NewCompilerInput(jsChunkGraphTest_code("a1", jsChunkGraphTest_list("a1"), jsChunkGraphTest_list()))
 	compilerInputA1.AddRequireDynamicImports("a2")
@@ -400,7 +400,7 @@ func TestJSChunkGraph_ManageDependenciesStrictForGoogRequireDynamic(t *testing.T
 func TestJSChunkGraph_ManageDependenciesStrictWithEntryPointWithDuplicates(t *testing.T) {
 	x := newJSChunkGraphTest(t)
 	a := NewJSChunk("a")
-	graph := NewJSChunkGraphFromArray([]*JSChunk{a})
+	graph := NewJSChunkGraph([]*JSChunk{a})
 
 	// Create all the input files.
 	inputs := []*CompilerInput{}
@@ -918,4 +918,31 @@ func (x *jsChunkGraphTest) assertTransitiveDepsDeepestFirst(m *JSChunk, deps ...
 	x.t.Helper()
 	actual := x.graph.GetTransitiveDepsDeepestFirst(m)
 	assertEqual(x.t, "transitive deps of "+m.GetName(), jutil.CollectionToString(actual), jutil.CollectionToString(deps))
+}
+
+func TestJSChunkGraph_TryManageDependenciesErrors(t *testing.T) {
+	x := newJSChunkGraphTest(t)
+	x.makeDeps()
+	x.makeGraph()
+	x.setUpManageDependenciesTest()
+
+	missingProvideOpts := DependencyOptions_PruneForEntryPoints(
+		[]*ModuleIdentifier{ModuleIdentifier_ForClosure("missing.namespace")})
+	if _, err := x.graph.TryManageDependencies(x.compiler, missingProvideOpts); err == nil {
+		t.Fatalf("expected MissingProvideException error, got nil")
+	} else if mp, ok := err.(*SortedDependencies_MissingProvideException); !ok {
+		t.Fatalf("expected *SortedDependencies_MissingProvideException, got %T: %v", err, err)
+	} else if mp.GetMessage() != "missing.namespace" {
+		t.Errorf("got message %q, want %q", mp.GetMessage(), "missing.namespace")
+	}
+
+	missingChunkOpts := DependencyOptions_PruneForEntryPoints(
+		[]*ModuleIdentifier{ModuleIdentifier_ForClosure("noSuchChunk:c2")})
+	if _, err := x.graph.TryManageDependencies(x.compiler, missingChunkOpts); err == nil {
+		t.Fatalf("expected MissingChunkException error, got nil")
+	} else if mc, ok := err.(*JSChunkGraph_MissingChunkException); !ok {
+		t.Fatalf("expected *JSChunkGraph_MissingChunkException, got %T: %v", err, err)
+	} else if mc.GetMessage() != "noSuchChunk" {
+		t.Errorf("got message %q, want %q", mc.GetMessage(), "noSuchChunk")
+	}
 }

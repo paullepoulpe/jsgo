@@ -124,15 +124,15 @@ func (c *CheckNullabilityModifiers) Visit(t *NodeTraversal, n rhino.Node, parent
 		for _, name := range info.GetTemplateTypeNames() {
 			c.addTemplateTypeName(name)
 		}
-		for name := range info.GetTypeTransformations().Keys() {
-			c.addTemplateTypeName(name)
+		for _, tr := range info.GetTypeTransformationEntries() {
+			c.addTemplateTypeName(tr.Name)
 		}
 		if info.HasType() {
 			c.HandleHasType(info.GetType(), n)
 		}
-		for param := range info.GetParameterNames().All() {
-			if info.HasParameterType(param) {
-				c.VisitTypeExpression(info.GetParameterType(param), false)
+		for _, param := range info.GetParameterEntries() {
+			if param.Type != nil {
+				c.VisitTypeExpression(param.Type, false)
 			}
 		}
 		if info.HasReturnType() {

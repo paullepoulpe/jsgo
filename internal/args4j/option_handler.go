@@ -242,7 +242,7 @@ func newMapOptionHandler(parser *CmdLineParser, option *OptionDef, setter Setter
 	return newBuiltinOptionHandler(parser, option, setter, "", func(h *OptionHandler, params Parameters) (int, *CmdLineException) {
 		m := *ms.p
 		if m == nil {
-			m = jutil.NewLinkedHashMap[string, *string]()
+			m = jutil.NewOrderedMap[string, *string]()
 			*ms.p = m
 		}
 		raw, err := params.TryGetParameter(0)

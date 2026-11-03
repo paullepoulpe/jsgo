@@ -29,7 +29,7 @@ package parsing
 //
 // The configuration is read back from the "# config", "# annotations",
 // "# suppressions" and "# primitives" header lines of the Java dump and
-// rebuilt with Config_Builder_; the Go dump prints the rebuilt Config's own
+// rebuilt with NewConfigBuilder; the Go dump prints the rebuilt Config's own
 // values, so a wrong reconstruction (or a wrong Config.buildAnnotations)
 // shows up as a diff on those lines.
 
@@ -84,7 +84,7 @@ func (r *jsdocRecordingReporter) Error(message string, sourceName string, line i
 // jsdocFileState is JsDocDump.FileState: the per-file state IRFactory keeps
 // for file-level JSDoc.
 type jsdocFileState struct {
-	licenseBuilder    *jutil.LinkedHashSet[string]
+	licenseBuilder    jutil.OrderedSet[string]
 	firstFileoverview *rhino.JSDocInfo
 }
 
@@ -108,8 +108,8 @@ func testNewParserConfig(config *Config) parser.Parser_Config {
 
 type jsdocDumpConfig struct {
 	*Config
-	suppressions *jutil.LinkedHashSet[string]
-	primitives   *jutil.LinkedHashSet[string]
+	suppressions *jutil.OrderedSet[string]
+	primitives   *jutil.OrderedSet[string]
 }
 
 // jsdocConfigFromDump rebuilds the parsing.Config described by the header of
@@ -128,7 +128,7 @@ func jsdocConfigFromDump(dump string) (jsdocDumpConfig, error) {
 	if len(f) != 5 {
 		return jsdocDumpConfig{}, fmt.Errorf("bad config line %q", header["config"])
 	}
-	b := Config_Builder_()
+	b := NewConfigBuilder()
 	for i := range config_LanguageMode_names {
 		if m := Config_LanguageMode(i); m.Name() == f[0] {
 			b.SetLanguageMode(m)
@@ -155,9 +155,9 @@ func jsdocConfigFromDump(dump string) (jsdocDumpConfig, error) {
 		k, _, _ := strings.Cut(kv, "=")
 		annotationNames = append(annotationNames, k)
 	}
-	suppressions := jutil.NewLinkedHashSet(jsdocSplitList(header["suppressions"], "[", "]")...)
-	primitives := jutil.NewLinkedHashSet(jsdocSplitList(header["primitives"], "[", "]")...)
-	b.SetExtraAnnotationNames(jutil.NewLinkedHashSet(annotationNames...).All())
+	suppressions := jutil.NewOrderedSet(jsdocSplitList(header["suppressions"], "[", "]")...)
+	primitives := jutil.NewOrderedSet(jsdocSplitList(header["primitives"], "[", "]")...)
+	b.SetExtraAnnotationNames(jutil.NewOrderedSet(annotationNames...).All())
 	b.SetSuppressionNames(suppressions.All())
 	b.SetClosurePrimitiveNames(primitives.All())
 	return jsdocDumpConfig{Config: b.Build(), suppressions: suppressions, primitives: primitives}, nil
@@ -232,7 +232,7 @@ func dumpJsDoc(name, src string, cfg jsdocDumpConfig) string {
 	sourceFile := rhino.NewSimpleSourceFile(name, rhino.StaticSourceFile_SourceKind_STRONG)
 	templateNode := rhino.NewNode(rhino.Token_SCRIPT)
 	templateNode.SetStaticSourceFile(sourceFile)
-	state := &jsdocFileState{licenseBuilder: jutil.NewLinkedHashSet[string]()}
+	state := &jsdocFileState{}
 
 	for i := range comments {
 		c := &comments[i]
@@ -359,7 +359,7 @@ func testHandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser, state *js
 	} else {
 		merged := state.firstFileoverview.ToBuilder()
 		if !newFileoverview.GetSuppressions().IsEmpty() {
-			merged.RecordSuppressions(newFileoverview.GetSuppressions())
+			merged.RecordSuppressions(newFileoverview.GetSuppressions().ToSlice())
 		}
 		if newFileoverview.IsExterns() {
 			merged.RecordExterns()

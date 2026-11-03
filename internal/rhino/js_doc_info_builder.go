@@ -121,7 +121,7 @@ func JSDocInfo_Builder_CopyFromWithNewType(info *JSDocInfo, typeExpression *JSTy
 // variables from another module.
 //
 // Java: JSDocInfo.Builder.maybeCopyFromAndReplaceNames(JSDocInfo, Set<String>)
-func JSDocInfo_Builder_MaybeCopyFromAndReplaceNames(info *JSDocInfo, moduleLocalNamesToReplace *jutil.LinkedHashSet[string]) *JSDocInfo_Builder {
+func JSDocInfo_Builder_MaybeCopyFromAndReplaceNames(info *JSDocInfo, moduleLocalNamesToReplace *jutil.OrderedSet[string]) *JSDocInfo_Builder {
 	if info != nil {
 		return JSDocInfo_Builder_CopyFromAndReplaceNames(info, moduleLocalNamesToReplace)
 	}
@@ -129,7 +129,7 @@ func JSDocInfo_Builder_MaybeCopyFromAndReplaceNames(info *JSDocInfo, moduleLocal
 }
 
 // Java: JSDocInfo.Builder.copyFromAndReplaceNames(JSDocInfo, Set<String>)
-func JSDocInfo_Builder_CopyFromAndReplaceNames(info *JSDocInfo, oldNames *jutil.LinkedHashSet[string]) *JSDocInfo_Builder {
+func JSDocInfo_Builder_CopyFromAndReplaceNames(info *JSDocInfo, oldNames *jutil.OrderedSet[string]) *JSDocInfo_Builder {
 	return info.CloneAndReplaceTypeNames(oldNames).ToBuilder() // TODO - populated
 }
 
@@ -440,27 +440,10 @@ func (b *JSDocInfo_Builder) recordSuppressionWarnings(warnings []string, descrip
 	}))
 }
 
-// RecordSuppressionSliceWithDescription records a parsed @suppress slice.
-func (b *JSDocInfo_Builder) RecordSuppressionSliceWithDescription(rawNames []string, description string) {
-	warnings := make([]string, 0, len(rawNames))
-	for _, raw := range rawNames {
-		s := strpool.String(strpool.Intern(raw))
-		if !slices.Contains(warnings, s) {
-			warnings = append(warnings, s)
-		}
-	}
-	b.recordSuppressionWarnings(warnings, description)
-}
-
-// RecordSuppressionsSlice records a slice of suppressed warnings without allocating a LinkedHashSet.
-func (b *JSDocInfo_Builder) RecordSuppressionsSlice(rawNames []string) {
-	b.RecordSuppressionSliceWithDescription(rawNames, "")
-}
-
 // Java: JSDocInfo.Builder.recordSuppressions(ImmutableSet<String>, String)
-func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *jutil.LinkedHashSet[string], description string) {
-	warnings := make([]string, 0, suppressions.Size())
-	for raw := range suppressions.All() {
+func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions []string, description string) {
+	warnings := make([]string, 0, len(suppressions))
+	for _, raw := range suppressions {
 		s := strpool.String(strpool.Intern(raw))
 		if !slices.Contains(warnings, s) {
 			warnings = append(warnings, s)
@@ -473,8 +456,7 @@ func (b *JSDocInfo_Builder) RecordSuppressionsWithDescription(suppressions *juti
 // adding to the set of already configured warnings.
 //
 // Java: JSDocInfo.Builder.recordSuppressions(Set<String>)
-func (b *JSDocInfo_Builder) RecordSuppressions(suppressions *jutil.LinkedHashSet[string]) {
-	jutil.CheckNotNull(suppressions)
+func (b *JSDocInfo_Builder) RecordSuppressions(suppressions []string) {
 	b.RecordSuppressionsWithDescription(suppressions, "")
 }
 
@@ -486,15 +468,7 @@ func (b *JSDocInfo_Builder) RecordSuppression(suppression string) {
 // RecordModifies records the list of modifies warnings.
 //
 // Java: JSDocInfo.Builder.recordModifies(Set<String>)
-func (b *JSDocInfo_Builder) RecordModifies(modifies *jutil.LinkedHashSet[string]) bool {
-	if b.HasAnySingletonSideEffectTags() {
-		return false
-	}
-	return b.PopulateProp(JSDocInfo_MODIFIES, internModifiesSet(modifies))
-}
-
-// RecordModifiesSlice records a parsed @modifies slice without allocating a LinkedHashSet.
-func (b *JSDocInfo_Builder) RecordModifiesSlice(modifies []string) bool {
+func (b *JSDocInfo_Builder) RecordModifies(modifies []string) bool {
 	if b.HasAnySingletonSideEffectTags() {
 		return false
 	}
@@ -843,44 +817,6 @@ func (b *JSDocInfo_Builder) PopulateProp(prop *JSDocInfo_Property, value any) bo
 	copy(b.entries[idx+1:], b.entries[idx:])
 	b.entries[idx] = value
 	return true
-}
-
-// Java: JSDocInfo.internSet(Set<String>)
-func JSDocInfo_InternSet(strings_ *jutil.LinkedHashSet[string]) *jutil.LinkedHashSet[string] {
-	interned := jutil.NewLinkedHashSet[string]()
-	for s := range strings_.All() {
-		interned.Add(strpool.String(strpool.Intern(s)))
-	}
-	return interned
-}
-
-func internModifiesSet(modifies *jutil.LinkedHashSet[string]) []string {
-	if modifies == nil || modifies.IsEmpty() {
-		return emptyStringSlice
-	}
-	switch modifies.Size() {
-	case 1:
-		for s := range modifies.All() {
-			return internSingleModifies(s)
-		}
-	case 2:
-		var a, b string
-		idx := 0
-		for s := range modifies.All() {
-			if idx == 0 {
-				a = s
-			} else {
-				b = s
-			}
-			idx++
-		}
-		return internTwoModifies(a, b)
-	}
-	out := make([]string, 0, modifies.Size())
-	for s := range modifies.All() {
-		out = append(out, strpool.String(strpool.Intern(s)))
-	}
-	return out
 }
 
 func internModifiesSlice(modifies []string) []string {

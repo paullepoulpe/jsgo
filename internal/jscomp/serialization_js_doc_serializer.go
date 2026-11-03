@@ -265,9 +265,9 @@ func jsDocSerializer_perFileClosureUnawareModeValueOf(name string) rhino.JSDocIn
 }
 
 var (
-	jsDocSerializer_modifiesArguments        = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("arguments"))
-	jsDocSerializer_modifiesThis             = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("this"))
-	jsDocSerializer_modifiesArgumentsAndThis = rhino.JSDocInfo_InternSet(jutil.NewLinkedHashSet("arguments", "this"))
+	jsDocSerializer_modifiesArguments        = []string{"arguments"}
+	jsDocSerializer_modifiesThis             = []string{"this"}
+	jsDocSerializer_modifiesArgumentsAndThis = []string{"arguments", "this"}
 	jsDocSerializer_throwsPlaceholder        = "{!" + jsDocSerializer_PLACEHOLDER_TYPE_NAME + "}"
 )
 
@@ -305,7 +305,7 @@ func jsDocSerializer_deserializeJsdocWithBuilder(
 }
 
 func jsDocSerializer_applyTagsToBuilder(kinds []int32, builder *rhino.JSDocInfo_Builder) {
-	// Bitmasks avoid allocating TreeSets/LinkedHashSets on the deserialization hot path
+	// Bitmasks avoid allocating sets on the deserialization hot path
 	// while preserving exact alphabetical TreeSet<String> order:
 	// modifies: bit 0 = "arguments", bit 1 = "this"
 	// suppressions: bit 0 = "messageConventions", bit 1 = "partialAlias", bit 2 = "untranspilableFeatures"
@@ -411,6 +411,6 @@ func jsDocSerializer_applyTagsToBuilder(kinds []int32, builder *rhino.JSDocInfo_
 		if (suppMask & 4) != 0 {
 			suppSlice = append(suppSlice, "untranspilableFeatures")
 		}
-		builder.RecordSuppressionSliceWithDescription(suppSlice, "")
+		builder.RecordSuppressions(suppSlice)
 	}
 }

@@ -220,38 +220,54 @@ func (c *JSChunk) GetSortedDependencyNames() []string {
 	return names
 }
 
-// GetAllDependencies returns the transitive closure of dependencies
-// starting from the dependencies of this chunk.
-//
-// Java: JSChunk.getAllDependencies()
-func (c *JSChunk) GetAllDependencies() *jutil.LinkedHashSet[*JSChunk] {
-	allDeps := jutil.NewLinkedHashSet[*JSChunk]()
-	allDeps.AddAll(c.deps...)
+// AllDependenciesSlice returns the transitive closure of dependencies starting
+// from the dependencies of this chunk, in insertion order.
+func (c *JSChunk) AllDependenciesSlice() []*JSChunk {
+	if len(c.deps) == 0 {
+		return nil
+	}
+	seen := make(map[*JSChunk]struct{}, len(c.deps)*2)
+	out := make([]*JSChunk, 0, len(c.deps)*2)
+	for _, dep := range c.deps {
+		if _, ok := seen[dep]; !ok {
+			seen[dep] = struct{}{}
+			out = append(out, dep)
+		}
+	}
 	// Go-only: language-adapter — the ArrayDeque used as a stack (push and
 	// pop at its head) is a slice whose top is its last element, so it
 	// starts as deps reversed.
-	stack := make([]*JSChunk, 0, len(c.deps))
-	for i := len(c.deps) - 1; i >= 0; i-- {
-		stack = append(stack, c.deps[i])
+	stack := make([]*JSChunk, len(c.deps))
+	for i, dep := range c.deps {
+		stack[len(c.deps)-1-i] = dep
 	}
 	for len(stack) != 0 {
 		chunk := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		chunkDeps := chunk.deps
-		for _, dep := range chunkDeps {
-			if allDeps.Add(dep) {
+		for _, dep := range chunk.deps {
+			if _, ok := seen[dep]; !ok {
+				seen[dep] = struct{}{}
+				out = append(out, dep)
 				stack = append(stack, dep)
 			}
 		}
 	}
-	return allDeps
+	return out
+}
+
+// GetAllDependencies returns the transitive closure of dependencies
+// starting from the dependencies of this chunk.
+//
+// Java: JSChunk.getAllDependencies()
+func (c *JSChunk) GetAllDependencies() *OrderedSet[*JSChunk] {
+	return NewOrderedSet(c.AllDependenciesSlice()...)
 }
 
 // GetThisAndAllDependencies returns this chunk and all of its dependencies
 // in one list.
 //
 // Java: JSChunk.getThisAndAllDependencies()
-func (c *JSChunk) GetThisAndAllDependencies() *jutil.LinkedHashSet[*JSChunk] {
+func (c *JSChunk) GetThisAndAllDependencies() *OrderedSet[*JSChunk] {
 	deps := c.GetAllDependencies()
 	deps.Add(c)
 	return deps

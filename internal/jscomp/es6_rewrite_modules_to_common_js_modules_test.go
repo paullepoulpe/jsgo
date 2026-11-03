@@ -20,7 +20,6 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"testing"
 )
 
@@ -29,7 +28,7 @@ type Es6RewriteModulesToCommonJsModulesTest struct {
 
 	moduleRoots        []string
 	resolutionMode     ModuleLoader_ResolutionMode
-	prefixReplacements *jutil.LinkedHashMap[string, string]
+	prefixReplacements *OrderedStringMap[string]
 	pathEscaper        ModuleLoader_PathEscaper
 }
 
@@ -50,7 +49,7 @@ func (c *Es6RewriteModulesToCommonJsModulesTest) SetUp() {
 	c.SetLanguage(CompilerOptions_LanguageMode_ECMASCRIPT_2015, CompilerOptions_LanguageMode_ECMASCRIPT5)
 	c.moduleRoots = []string{}
 	c.resolutionMode = ModuleLoader_ResolutionMode_BROWSER
-	c.prefixReplacements = esModulesTest_mapOf()
+	c.prefixReplacements = NewOrderedStringMap[string]()
 	c.pathEscaper = ModuleLoader_PathEscaper_ESCAPE
 }
 
@@ -524,7 +523,7 @@ func (c *Es6RewriteModulesToCommonJsModulesTest) TestImportPathDoesNotIncludeMod
 // Java: Es6RewriteModulesToCommonJsModulesTest.testImportPathWithBrowserPrefixReplacementResolution()
 func (c *Es6RewriteModulesToCommonJsModulesTest) TestImportPathWithBrowserPrefixReplacementResolution() {
 	c.resolutionMode = ModuleLoader_ResolutionMode_BROWSER_WITH_TRANSFORMED_PREFIXES
-	c.prefixReplacements = esModulesTest_mapOf("@root/", "")
+	c.prefixReplacements = jsaMap("@root/", "")
 
 	c.Test(
 		c.Srcs(SourceFile_FromCode("not/root/test.js", "import * as foo from '@root/foo.js';")),

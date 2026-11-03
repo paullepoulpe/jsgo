@@ -78,7 +78,7 @@ func NewJSTypeExpression(root Node, sourceName string) *JSTypeExpression {
 // with unknown.
 //
 // Java: JSTypeExpression.replaceNamesWithUnknownType(Set<String>)
-func (e *JSTypeExpression) ReplaceNamesWithUnknownType(names *jutil.LinkedHashSet[string]) *JSTypeExpression {
+func (e *JSTypeExpression) ReplaceNamesWithUnknownType(names *jutil.OrderedSet[string]) *JSTypeExpression {
 	oldExprRoot := e.root.CloneTree()
 	newExprRoot := JSTypeExpression_ReplaceNames(oldExprRoot, names)
 	newTypeExpression := NewJSTypeExpression(newExprRoot, e.sourceName)
@@ -93,7 +93,7 @@ func (e *JSTypeExpression) ReplaceNamesWithUnknownType(names *jutil.LinkedHashSe
 // after replacing the names.
 //
 // Java: JSTypeExpression.replaceNames(Node, Set<String>)
-func JSTypeExpression_ReplaceNames(n Node, names *jutil.LinkedHashSet[string]) Node {
+func JSTypeExpression_ReplaceNames(n Node, names *jutil.OrderedSet[string]) Node {
 	if n.IsNil() {
 		return NilNode
 	}
@@ -139,8 +139,8 @@ func (e *JSTypeExpression) GetAllTypeNodes() []Node {
 // GetAllTypeNames returns a set of all string names in this type expression.
 //
 // Java: JSTypeExpression.getAllTypeNames()
-func (e *JSTypeExpression) GetAllTypeNames() *jutil.LinkedHashSet[string] {
-	builder := jutil.NewLinkedHashSet[string]()
+func (e *JSTypeExpression) GetAllTypeNames() *jutil.OrderedSet[string] {
+	builder := jutil.NewOrderedSet[string]()
 	JSTypeExpression_VisitAllTypeNodes(e.root, func(n Node) { builder.Add(n.GetString()) })
 	return builder
 }
@@ -257,14 +257,14 @@ func (e *JSTypeExpression) IsExplicitUnknownTemplateBound() bool {
 // {{key : string }}) present in this JSTypeExpression.
 //
 // Java: JSTypeExpression.getRecordPropertyNames()
-func (e *JSTypeExpression) GetRecordPropertyNames() *jutil.LinkedHashSet[string] {
-	builder := jutil.NewLinkedHashSet[string]()
+func (e *JSTypeExpression) GetRecordPropertyNames() *jutil.OrderedSet[string] {
+	builder := jutil.NewOrderedSet[string]()
 	JSTypeExpression_GetRecordPropertyNamesRecursive(e.root, builder)
 	return builder
 }
 
 // Java: JSTypeExpression.getRecordPropertyNamesRecursive(Node, ImmutableSet.Builder<String>)
-func JSTypeExpression_GetRecordPropertyNamesRecursive(n Node, names *jutil.LinkedHashSet[string]) {
+func JSTypeExpression_GetRecordPropertyNamesRecursive(n Node, names *jutil.OrderedSet[string]) {
 	if n.IsNil() {
 		return
 	}

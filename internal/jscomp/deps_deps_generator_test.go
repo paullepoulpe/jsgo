@@ -42,7 +42,7 @@ func newDepsGeneratorTest(t *testing.T) *depsGeneratorTest {
 // .setInputs(of()).setFactory(BrowserModuleResolver.FACTORY)
 // .setPathResolver(PathResolver.ABSOLUTE).build().
 func depsGeneratorTest_loader(roots ...string) *ModuleLoader {
-	return ModuleLoader_Builder_().
+	return NewModuleLoaderBuilder().
 		SetErrorHandler(nil).
 		SetModuleRoots(roots).
 		SetInputs([]DependencyInfo{}).

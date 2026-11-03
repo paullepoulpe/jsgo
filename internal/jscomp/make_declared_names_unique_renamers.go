@@ -643,21 +643,21 @@ func (b *MakeDeclaredNamesUnique_BoilerplateRenamer) CreateForChildScope(
 // specific names. Wraps another renamer.
 type MakeDeclaredNamesUnique_TargettedRenamer struct {
 	delegate   MakeDeclaredNamesUnique_Renamer
-	targets    *jutil.LinkedHashSet[string]
+	targets    jutil.Set[string]
 	targetIDs  map[strpool.ID]struct{}
 	cachedSize int
 }
 
 // Java: MakeDeclaredNamesUnique.TargettedRenamer(MakeDeclaredNamesUnique.Renamer, Set<String>)
 func NewMakeDeclaredNamesUnique_TargettedRenamer(
-	delegate MakeDeclaredNamesUnique_Renamer, targets *jutil.LinkedHashSet[string]) *MakeDeclaredNamesUnique_TargettedRenamer {
+	delegate MakeDeclaredNamesUnique_Renamer, targets jutil.Set[string]) *MakeDeclaredNamesUnique_TargettedRenamer {
 	r := &MakeDeclaredNamesUnique_TargettedRenamer{delegate: delegate, targets: targets}
 	r.syncTargetIDs()
 	return r
 }
 
 func (r *MakeDeclaredNamesUnique_TargettedRenamer) syncTargetIDs() {
-	if r.targets == nil {
+	if jutil.IsNil(r.targets) {
 		return
 	}
 	n := r.targets.Size()

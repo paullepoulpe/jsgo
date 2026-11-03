@@ -1007,7 +1007,7 @@ func (c *Compiler) InitializeModuleLoader() {
 	for i, in := range inputs {
 		dependencyInfos[i] = in
 	}
-	c.moduleLoader = ModuleLoader_Builder_().
+	c.moduleLoader = NewModuleLoaderBuilder().
 		SetModuleRoots(c.options.GetModuleRoots()).
 		SetInputs(dependencyInfos).
 		SetFactory(moduleResolverFactory).

@@ -316,7 +316,7 @@ func buildEmptyJSDoc() *rhino.JSDocInfo {
 func buildNamespaceJSDoc() *rhino.JSDocInfo {
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordConstancy()
-	builder.RecordSuppressionsSlice(eepNamespaceSuppressionsList)
+	builder.RecordSuppressions(eepNamespaceSuppressionsList)
 	return builder.Build()
 }
 

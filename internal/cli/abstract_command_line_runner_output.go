@@ -19,6 +19,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
@@ -128,27 +130,30 @@ func (r *AbstractCommandLineRunnerBase) GetChunkOutputFileName(m *jscomp.JSChunk
 // chunk.
 //
 // Java: AbstractCommandLineRunner.getChunkConformanceFileName(JSChunk)
-func (r *AbstractCommandLineRunnerBase) GetChunkConformanceFileName(m *jscomp.JSChunk) *string {
+func (r *AbstractCommandLineRunnerBase) GetChunkConformanceFileName(m *jscomp.JSChunk) (string, bool) {
 	if r.parsedChunkConformanceFiles == nil {
 		r.parsedChunkConformanceFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkConformanceFiles)
 	}
-	if name, ok := r.parsedChunkConformanceFiles[m.GetName()]; ok {
-		return &name
-	}
-	return nil
+	name, ok := r.parsedChunkConformanceFiles[m.GetName()]
+	return name, ok
 }
 
 // Java: AbstractCommandLineRunner.writeChunkOutput(String, Appendable, LicenseTracker, JSChunk)
 func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk) {
 	if r.parsedChunkWrappers == nil {
 		r.parsedChunkWrappers = AbstractCommandLineRunner_ParseChunkWrappers(
-			r.config.chunkWrapper, append([]*jscomp.JSChunk{}, r.compiler.GetChunkGraph().GetAllChunks()...))
+			r.config.chunkWrapper, r.compiler.GetChunkGraph().GetAllChunks())
 	}
 
 	if !r.IsOutputInJson() {
 		abstractCommandLineRunner_maybeCreateDirsForPath(fileName)
 	}
-	baseName := jutil.NewFile(fileName).GetName()
+	var baseName string
+	if fileName != "" {
+		if b := filepath.Base(fileName); b != "/" {
+			baseName = b
+		}
+	}
 	r.self.WriteOutput(
 		out,
 		r.compiler,
@@ -260,10 +265,9 @@ func (r *AbstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
 //
 // Java: AbstractCommandLineRunner.maybeCreateDirsForPath(String)
 func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix string) {
-	if pathPrefix != "" {
-		parent := jutil.NewFile(pathPrefix).GetParentFile()
-		if parent != nil {
-			parent.Mkdirs()
+	if trimmed := strings.TrimRight(pathPrefix, "/"); trimmed != "" {
+		if dir := filepath.Dir(trimmed); dir != "." {
+			_ = os.MkdirAll(dir, 0o777)
 		}
 	}
 }

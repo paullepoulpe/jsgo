@@ -319,7 +319,7 @@ func (c *JsMessageVisitorTest) TestJsMessagesWithSrcMap() {
 
 	c.compilerOptions = NewCompilerOptions()
 	// NOTE: "testcode" is the file name used by c.compiler.ParseTestCode(code)
-	inputSourceMaps := jutil.NewLinkedHashMap[string, *SourceMapInput]()
+	inputSourceMaps := NewOrderedStringMap[*SourceMapInput]()
 	inputSourceMaps.Put(
 		"testcode",
 		NewSourceMapInput(SourceFile_FromCode("example.srcmap", output.String())))

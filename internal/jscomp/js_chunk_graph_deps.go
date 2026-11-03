@@ -61,6 +61,18 @@ func jsChunkGraph_moveMarkedWeakSources(weakChunk *JSChunk, inputs []*CompilerIn
 // Java: JSChunkGraph.manageDependencies(AbstractCompiler, DependencyOptions)
 func (g *JSChunkGraph) ManageDependencies(
 	compiler AbstractCompiler, dependencyOptions *DependencyOptions) *JSChunkGraph_DependencyManagementResult {
+	res, err := g.TryManageDependencies(compiler, dependencyOptions)
+	if err != nil {
+		panic(err)
+	}
+	return res
+}
+
+// TryManageDependencies applies the dependency options to the list of sources,
+// returning *SortedDependencies_MissingProvideException or
+// *JSChunkGraph_MissingChunkException as an error instead of panicking.
+func (g *JSChunkGraph) TryManageDependencies(
+	compiler AbstractCompiler, dependencyOptions *DependencyOptions) (*JSChunkGraph_DependencyManagementResult, error) {
 
 	// Make a copy since we're going to mutate the graph below.
 	originalInputs := g.GetAllInputs()
@@ -75,7 +87,10 @@ func (g *JSChunkGraph) ManageDependencies(
 
 	sorter := NewSortedDependencies[*CompilerInput](originalInputs)
 
-	entryPointInputs := g.createEntryPointInputs(compiler, dependencyOptions, originalInputs, sorter, inputIndex)
+	entryPointInputs, err := g.createEntryPointInputs(compiler, dependencyOptions, originalInputs, sorter, inputIndex)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build a map of symbols to their source file(s). While having multiple source files is invalid
 	// we leave that up to typechecking so that we avoid arbitrarily picking a file.
@@ -225,7 +240,7 @@ func (g *JSChunkGraph) ManageDependencies(
 	}
 
 	return NewJSChunkGraph_DependencyManagementResult(
-		slices.Clone(orderedInputs), sorter, jutil.NewLinkedHashSet(entryPointInputs.items...))
+		slices.Clone(orderedInputs), sorter, NewOrderedSet(entryPointInputs.items...)), nil
 }
 
 // JSChunkGraph_DependencyManagementResult is the result of
@@ -235,14 +250,14 @@ func (g *JSChunkGraph) ManageDependencies(
 type JSChunkGraph_DependencyManagementResult struct {
 	orderedInputs    []*CompilerInput
 	sorter           *SortedDependencies[*CompilerInput]
-	entryPointInputs *jutil.LinkedHashSet[*CompilerInput]
+	entryPointInputs *OrderedSet[*CompilerInput]
 }
 
 // Java: JSChunkGraph.DependencyManagementResult(ImmutableList<CompilerInput>, SortedDependencies<CompilerInput>, ImmutableSet<CompilerInput>)
 func NewJSChunkGraph_DependencyManagementResult(
 	orderedInputs []*CompilerInput,
 	sorter *SortedDependencies[*CompilerInput],
-	entryPointInputs *jutil.LinkedHashSet[*CompilerInput]) *JSChunkGraph_DependencyManagementResult {
+	entryPointInputs *OrderedSet[*CompilerInput]) *JSChunkGraph_DependencyManagementResult {
 	return &JSChunkGraph_DependencyManagementResult{
 		orderedInputs:    orderedInputs,
 		sorter:           sorter,
@@ -261,7 +276,7 @@ func (r *JSChunkGraph_DependencyManagementResult) Sorter() *SortedDependencies[*
 }
 
 // Java: JSChunkGraph.DependencyManagementResult.entryPointInputs()
-func (r *JSChunkGraph_DependencyManagementResult) EntryPointInputs() *jutil.LinkedHashSet[*CompilerInput] {
+func (r *JSChunkGraph_DependencyManagementResult) EntryPointInputs() *OrderedSet[*CompilerInput] {
 	return r.entryPointInputs
 }
 
@@ -335,7 +350,7 @@ func (g *JSChunkGraph) createEntryPointInputs(
 	dependencyOptions *DependencyOptions,
 	inputs []*CompilerInput,
 	sorter *SortedDependencies[*CompilerInput],
-	inputIndex map[*CompilerInput]int) *entryPointInputSet {
+	inputIndex map[*CompilerInput]int) (*entryPointInputSet, error) {
 	entryPointInputs := newEntryPointInputSet(inputIndex)
 	if dependencyOptions.ShouldPrune() {
 		// Some files implicitly depend on base.js without actually requiring anything.
@@ -367,8 +382,8 @@ func (g *JSChunkGraph) createEntryPointInputs(
 				if entryPointInput == nil {
 					entryPointInput = sorter.MaybeGetInputProviding(entryPoint.Name())
 					if entryPointInput == nil {
-						panic(NewSortedDependencies_MissingProvideExceptionWithCause(
-							entryPoint.Name(), NewSortedDependencies_MissingProvideException(entryPoint.Name())))
+						return nil, NewSortedDependencies_MissingProvideExceptionWithCause(
+							entryPoint.Name(), NewSortedDependencies_MissingProvideException(entryPoint.Name()))
 					}
 				}
 			} else {
@@ -380,12 +395,12 @@ func (g *JSChunkGraph) createEntryPointInputs(
 				}
 				chunk := chunksByName[entryPoint.ModuleName()]
 				if chunk == nil {
-					panic(NewJSChunkGraph_MissingChunkException(entryPoint.ModuleName()))
+					return nil, NewJSChunkGraph_MissingChunkException(entryPoint.ModuleName())
 				}
 				entryPointInput = sorter.MaybeGetInputProviding(entryPoint.ClosureNamespace())
 				if entryPointInput == nil {
-					panic(NewSortedDependencies_MissingProvideExceptionWithCause(
-						entryPoint.Name(), NewSortedDependencies_MissingProvideException(entryPoint.ClosureNamespace())))
+					return nil, NewSortedDependencies_MissingProvideExceptionWithCause(
+						entryPoint.Name(), NewSortedDependencies_MissingProvideException(entryPoint.ClosureNamespace()))
 				}
 				entryPointInput.OverrideChunk(chunk)
 			}
@@ -401,7 +416,7 @@ func (g *JSChunkGraph) createEntryPointInputs(
 	} else {
 		entryPointInputs.addAll(inputs)
 	}
-	return entryPointInputs
+	return entryPointInputs, nil
 }
 
 // Java: JSChunkGraph.toGraphvizGraph()

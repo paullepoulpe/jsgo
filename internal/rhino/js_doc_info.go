@@ -805,7 +805,7 @@ func (i *JSDocInfo) Clone() *JSDocInfo {
 // any type related annotation with unknown type.
 //
 // Java: JSDocInfo.cloneAndReplaceTypeNames(Set<String>)
-func (i *JSDocInfo) CloneAndReplaceTypeNames(names *jutil.LinkedHashSet[string]) *JSDocInfo {
+func (i *JSDocInfo) CloneAndReplaceTypeNames(names *jutil.OrderedSet[string]) *JSDocInfo {
 	return i.ToBuilderWithTransform(func(type_ *JSTypeExpression) *JSTypeExpression {
 		return type_.ReplaceNamesWithUnknownType(names)
 	}).Build()

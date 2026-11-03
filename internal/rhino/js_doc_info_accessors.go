@@ -106,11 +106,11 @@ func formatJsDocKVs(s []jsDocKV) string {
 	return b.String()
 }
 
-func jsDocStringSetFromSlice(s []string) *jutil.LinkedHashSet[string] {
+func jsDocStringSetFromSlice(s []string) *jutil.OrderedSet[string] {
 	if len(s) == 0 {
-		return jutil.NewLinkedHashSet[string]()
+		return jutil.NewOrderedSet[string]()
 	}
-	return jutil.NewLinkedHashSet(s...)
+	return jutil.NewOrderedSet(s...)
 }
 
 var (
@@ -144,12 +144,12 @@ func (i *JSDocInfo) suppressions() []JSDocSuppression {
 // GetSuppressions returns the set of suppressed warnings.
 //
 // Java: JSDocInfo.getSuppressions()
-func (i *JSDocInfo) GetSuppressions() *jutil.LinkedHashSet[string] {
+func (i *JSDocInfo) GetSuppressions() *jutil.OrderedSet[string] {
 	suppressions := i.suppressions()
 	if len(suppressions) == 0 {
-		return jutil.NewLinkedHashSet[string]()
+		return jutil.NewOrderedSet[string]()
 	}
-	names := jutil.NewLinkedHashSet[string]()
+	names := jutil.NewOrderedSet[string]()
 	for _, sup := range suppressions {
 		for _, name := range sup.Warnings {
 			names.Add(name)
@@ -204,7 +204,7 @@ func (i *JSDocInfo) GetSuppressionsAndTheirDescription() []JSDocSuppression {
 }
 
 // GetModifiesSlice returns the deduplicated @modifies annotations without
-// allocating a LinkedHashSet.
+// allocating an OrderedSet.
 func (i *JSDocInfo) GetModifiesSlice() []string {
 	if i == nil {
 		return nil
@@ -215,7 +215,7 @@ func (i *JSDocInfo) GetModifiesSlice() []string {
 // GetModifies returns the set of sideeffect notations.
 //
 // Java: JSDocInfo.getModifies()
-func (i *JSDocInfo) GetModifies() *jutil.LinkedHashSet[string] {
+func (i *JSDocInfo) GetModifies() *jutil.OrderedSet[string] {
 	return jsDocStringSetFromSlice(i.GetModifiesSlice())
 }
 

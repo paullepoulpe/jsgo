@@ -34,7 +34,7 @@ import (
 // cannot, so they return the rhino.StaticSlot holding the SimpleSlot.
 type PreprocessorSymbolTable struct {
 	// All preprocessor symbols are globals.
-	symbols *jutil.LinkedHashMap[string, rhino.SimpleSlot]
+	symbols OrderedStringMap[rhino.SimpleSlot]
 
 	refs map[string][]*PreprocessorSymbolTable_Reference
 
@@ -44,9 +44,8 @@ type PreprocessorSymbolTable struct {
 // Java: PreprocessorSymbolTable(Node)
 func NewPreprocessorSymbolTable(root rhino.Node) *PreprocessorSymbolTable {
 	return &PreprocessorSymbolTable{
-		symbols: jutil.NewLinkedHashMap[string, rhino.SimpleSlot](),
-		refs:    make(map[string][]*PreprocessorSymbolTable_Reference),
-		root:    root,
+		refs: make(map[string][]*PreprocessorSymbolTable_Reference),
+		root: root,
 	}
 }
 

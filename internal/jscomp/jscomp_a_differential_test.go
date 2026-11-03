@@ -642,7 +642,7 @@ func jsaDiffModuleSetup(d *jsaDiff, row []string, errors *[]string) *ModuleLoade
 	}
 	var loader *ModuleLoader
 	got := jsaSafe(func() string {
-		loader = ModuleLoader_Builder_().
+		loader = NewModuleLoaderBuilder().
 			SetModuleRoots(jsaSplit(row[3], ",")).
 			SetInputs(inputs).
 			SetFactory(jsaDiffModuleFactory(row[2])).
@@ -757,7 +757,7 @@ func jsaDiffDeps(t *testing.T, d *jsaDiff, row []string) {
 	d.check("deps", row, "maybeGetInputProviding/getInputsWithoutProvides", providing, row[6])
 }
 
-func jsaJavaSet(s *jutil.LinkedHashSet[string]) string {
+func jsaJavaSet(s *jutil.OrderedSet[string]) string {
 	if s == nil {
 		return "[]"
 	}
@@ -790,7 +790,7 @@ func jsaDiffJsdoc(t *testing.T, d *jsaDiff, row []string, index int) {
 		case 1:
 			b.RecordNoSideEffects()
 		case 2:
-			b.RecordModifies(jutil.NewLinkedHashSet("this", "arguments"))
+			b.RecordModifies([]string{"this", "arguments"})
 		case 3:
 			b.RecordDescription("desc " + c)
 		case 4:
@@ -798,9 +798,9 @@ func jsaDiffJsdoc(t *testing.T, d *jsaDiff, row []string, index int) {
 		case 5:
 			b.RecordAlternateMessageId("alt")
 		case 6:
-			b.RecordSuppressions(jutil.NewLinkedHashSet("partialAlias", "messageConventions"))
+			b.RecordSuppressions([]string{"partialAlias", "messageConventions"})
 		case 7:
-			b.RecordSuppressions(jutil.NewLinkedHashSet("untranspilableFeatures", "other"))
+			b.RecordSuppressions([]string{"untranspilableFeatures", "other"})
 		case 8:
 			b.RecordStableIdGenerator()
 		case 9:
@@ -828,7 +828,7 @@ func jsaDiffJsdoc(t *testing.T, d *jsaDiff, row []string, index int) {
 		}
 	}
 	info := b.Build()
-	pool := StringPool_Builder_()
+	pool := NewStringPoolBuilder()
 	var ser, de string
 	func() {
 		defer func() {

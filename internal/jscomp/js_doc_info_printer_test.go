@@ -21,7 +21,6 @@ package jscomp
 import (
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -56,8 +55,8 @@ func jsDocInfoPrinterTestType(s string, source string) *rhino.JSTypeExpression {
 	return rhino.NewJSTypeExpression(parsing.JsDocInfoParser_ParseTypeString(s), source)
 }
 
-func jsDocInfoPrinterTestSet(names ...string) *jutil.LinkedHashSet[string] {
-	return jutil.NewLinkedHashSet(names...)
+func jsDocInfoPrinterTestSet(names ...string) []string {
+	return names
 }
 
 func TestJSDocInfoPrinter_Basic(t *testing.T) {

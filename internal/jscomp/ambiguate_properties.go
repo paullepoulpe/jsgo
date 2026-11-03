@@ -78,7 +78,7 @@ type AmbiguateProperties struct {
 	colorRegistry *colors.ColorRegistry
 
 	// Map from original property name to new name. Only used by tests.
-	renamingMap *jutil.LinkedHashMap[string, string] // may be nil
+	renamingMap *OrderedStringMap[string] // may be nil
 
 	graphNodeFactory *ColorGraphNodeFactory // may be nil
 }
@@ -129,12 +129,12 @@ func AmbiguateProperties_MakePassForTesting(
 	externProperties jutil.Set[string]) *AmbiguateProperties {
 	ap := NewAmbiguateProperties(
 		compiler, reservedFirstCharacters, reservedNonFirstCharacters, externProperties)
-	ap.renamingMap = jutil.NewLinkedHashMap[string, string]()
+	ap.renamingMap = NewOrderedStringMap[string]()
 	return ap
 }
 
 // Java: AmbiguateProperties.getRenamingMap()
-func (a *AmbiguateProperties) GetRenamingMap() *jutil.LinkedHashMap[string, string] {
+func (a *AmbiguateProperties) GetRenamingMap() *OrderedStringMap[string] {
 	jutil.CheckNotNull(a.renamingMap)
 	return a.renamingMap
 }

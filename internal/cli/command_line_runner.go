@@ -432,7 +432,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	// field is a non-null String here.
 
 	if flags.outputWrapperFile != "" {
-		if wrapper, ioErr := readUTF8FileLossy(jutil.NewFile(flags.outputWrapperFile).GetPath()); ioErr != nil {
+		if wrapper, ioErr := readUTF8FileLossy(flags.outputWrapperFile); ioErr != nil {
 			r.ReportError("ERROR - invalid output_wrapper_file specified.")
 		} else {
 			flags.outputWrapper = wrapper
@@ -813,13 +813,13 @@ func commandLineRunner_j2clPassModeValueOf(name string) (jscomp.CompilerOptions_
 //
 // Go-only: language-adapter — args4j's MapOptionHandler stores String
 // values boxed (*string).
-func commandLineRunner_immutableMapCopyOf(m *jutil.LinkedHashMap[string, *string]) *jutil.LinkedHashMap[string, string] {
-	result := jutil.NewLinkedHashMapWithCapacity[string, string](m.Size())
+func commandLineRunner_immutableMapCopyOf(m *jutil.OrderedMap[string, *string]) *jutil.OrderedMap[string, string] {
+	result := jutil.NewOrderedMapWithCapacity[string, string](m.Size())
 	for k, v := range m.All() {
 		if v == nil {
 			panic(jutil.NewNullPointerExceptionMsg("null value in entry: " + k + "=null"))
 		}
-		result.Put(k, *v)
+		result.PutNew(k, *v)
 	}
 	return result
 }
@@ -913,7 +913,7 @@ func commandLineRunner_loadConformanceConfigs(configPaths []string) []*jscomp.Co
 
 // Java: CommandLineRunner.loadConformanceConfig(String)
 func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.Throwable) {
-	textProto, ioErr := readUTF8FileLossy(jutil.NewFile(configFile).GetPath())
+	textProto, ioErr := readUTF8FileLossy(configFile)
 	if ioErr != nil {
 		return nil, jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", ioErr)
 	}

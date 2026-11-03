@@ -29,11 +29,16 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 )
 
+// SuppressionNameSet reports whether a suppression tag name is valid in @suppress.
+type SuppressionNameSet interface {
+	Contains(string) bool
+}
+
 // DiagnosticToSuppressionMapper is used to print a map from diagnostic id to
 // suppression.
 type DiagnosticToSuppressionMapper struct {
-	validSuppressions *jutil.LinkedHashSet[string]
-	diagnosticGroups  *jutil.LinkedHashMap[string, *DiagnosticGroup]
+	validSuppressions SuppressionNameSet
+	diagnosticGroups  *OrderedStringMap[*DiagnosticGroup]
 }
 
 // DiagnosticToSuppressionMapper_OutputFormat
@@ -66,8 +71,15 @@ func (f DiagnosticToSuppressionMapper_OutputFormat) String() string {
 //
 // Java: DiagnosticToSuppressionMapper(Set<String>, ImmutableMap<String, DiagnosticGroup>)
 func NewDiagnosticToSuppressionMapper(
-	validSuppressions *jutil.LinkedHashSet[string], diagnosticGroups *jutil.LinkedHashMap[string, *DiagnosticGroup]) *DiagnosticToSuppressionMapper {
-	return &DiagnosticToSuppressionMapper{validSuppressions: validSuppressions, diagnosticGroups: diagnosticGroups}
+	validSuppressions SuppressionNameSet, diagnosticGroups jutil.MapSource[string, *DiagnosticGroup]) *DiagnosticToSuppressionMapper {
+	groups, ok := diagnosticGroups.(*OrderedStringMap[*DiagnosticGroup])
+	if !ok && !jutil.IsNil(diagnosticGroups) {
+		groups = NewOrderedStringMapWithCapacity[*DiagnosticGroup](diagnosticGroups.Size())
+		for k, v := range diagnosticGroups.All() {
+			groups.Put(k, v)
+		}
+	}
+	return &DiagnosticToSuppressionMapper{validSuppressions: validSuppressions, diagnosticGroups: groups}
 }
 
 // PrintSuppressions prints a sorted map of all valid suppressions to

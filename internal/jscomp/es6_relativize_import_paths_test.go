@@ -20,14 +20,13 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"testing"
 )
 
 type Es6RelativizeImportPathsTest struct {
 	CompilerTestCaseBase
 
-	prefixReplacements   *jutil.LinkedHashMap[string, string]
+	prefixReplacements   *OrderedStringMap[string]
 	moduleResolutionMode ModuleLoader_ResolutionMode
 	moduleRoots          []string
 }
@@ -45,7 +44,7 @@ func TestEs6RelativizeImportPathsTest(t *testing.T) {
 // Java: Es6RelativizeImportPathsTest.setUp()
 func (c *Es6RelativizeImportPathsTest) SetUp() {
 	c.CompilerTestCaseBase.SetUp()
-	c.prefixReplacements = esModulesTest_mapOf()
+	c.prefixReplacements = NewOrderedStringMap[string]()
 	c.moduleResolutionMode = ModuleLoader_ResolutionMode_BROWSER
 	c.moduleRoots = []string{}
 }
@@ -130,7 +129,7 @@ func (c *Es6RelativizeImportPathsTest) TestRootedPathsBecomeRelative() {
 // Java: Es6RelativizeImportPathsTest.testNonStandardResolutionBecomesRelative()
 func (c *Es6RelativizeImportPathsTest) TestNonStandardResolutionBecomesRelative() {
 	c.moduleResolutionMode = ModuleLoader_ResolutionMode_BROWSER_WITH_TRANSFORMED_PREFIXES
-	c.prefixReplacements = esModulesTest_mapOf("raw0/", "/mapped0/", "raw1/", "/mapped1/")
+	c.prefixReplacements = jsaMap("raw0/", "/mapped0/", "raw1/", "/mapped1/")
 
 	c.Test(
 		c.Srcs(SourceFile_FromCode("/file.js", "import 'raw0/foo.js';")),

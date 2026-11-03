@@ -57,12 +57,12 @@ type VariableMap struct {
 const variableMap_SEPARATOR = ':'
 
 // Java: VariableMap(Map<String, String>)
-func NewVariableMap(m *jutil.LinkedHashMap[string, string]) *VariableMap {
+func NewVariableMap(m jutil.MapSource[string, string]) *VariableMap {
 	n := m.Size()
 	origToNew := make(map[string]string, n)
 	newToOrig := make(map[string]string, n)
 	origKeys := make([]string, 0, n)
-	for k, v := range m.All() {
+	add := func(k, v string) {
 		if prevKey, dup := newToOrig[v]; dup {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"Multiple entries with same value: " + k + "=" + v + " and " + prevKey + "=" + v))
@@ -70,6 +70,15 @@ func NewVariableMap(m *jutil.LinkedHashMap[string, string]) *VariableMap {
 		origToNew[k] = v
 		newToOrig[v] = k
 		origKeys = append(origKeys, k)
+	}
+	if om, ok := m.(*OrderedStringMap[string]); ok {
+		for _, e := range om.Entries() {
+			add(e.Key, e.Value)
+		}
+	} else {
+		for k, v := range m.All() {
+			add(k, v)
+		}
 	}
 	return &VariableMap{
 		origToNew: origToNew,
@@ -129,11 +138,11 @@ func (vm *VariableMap) LookupSourceName(newName string) (string, bool) {
 // names to new names.
 //
 // Java: VariableMap.getOriginalNameToNewNameMap()
-func (vm *VariableMap) GetOriginalNameToNewNameMap() *jutil.LinkedHashMap[string, string] {
+func (vm *VariableMap) GetOriginalNameToNewNameMap() *OrderedStringMap[string] {
 	// ImmutableSortedMap.copyOf(map): natural (String.compareTo) key order.
 	keys := slices.Clone(vm.origKeys)
 	slices.SortFunc(keys, jutil.StringCompareTo)
-	out := jutil.NewLinkedHashMap[string, string]()
+	out := NewOrderedStringMapWithCapacity[string](len(keys))
 	for _, k := range keys {
 		out.Put(k, vm.origToNew[k])
 	}
@@ -144,8 +153,8 @@ func (vm *VariableMap) GetOriginalNameToNewNameMap() *jutil.LinkedHashMap[string
 // original names.
 //
 // Java: VariableMap.getNewNameToOriginalNameMap()
-func (vm *VariableMap) GetNewNameToOriginalNameMap() *jutil.LinkedHashMap[string, string] {
-	out := jutil.NewLinkedHashMap[string, string]()
+func (vm *VariableMap) GetNewNameToOriginalNameMap() *OrderedStringMap[string] {
+	out := NewOrderedStringMapWithCapacity[string](len(vm.origKeys))
 	for _, orig := range vm.origKeys {
 		out.Put(vm.origToNew[orig], orig)
 	}
@@ -360,13 +369,13 @@ func variableMap_unescape(value string) string {
 // object.
 //
 // Java: VariableMap.fromMap(Map<String, String>)
-func VariableMap_FromMap(m *jutil.LinkedHashMap[string, string]) *VariableMap {
+func VariableMap_FromMap(m jutil.MapSource[string, string]) *VariableMap {
 	return NewVariableMap(m)
 }
 
 // Java: VariableMap.toMap()
-func (vm *VariableMap) ToMap() *jutil.LinkedHashMap[string, string] {
-	out := jutil.NewLinkedHashMap[string, string]()
+func (vm *VariableMap) ToMap() *OrderedStringMap[string] {
+	out := NewOrderedStringMapWithCapacity[string](len(vm.origKeys))
 	for _, orig := range vm.origKeys {
 		out.Put(orig, vm.origToNew[orig])
 	}

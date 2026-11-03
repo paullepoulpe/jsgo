@@ -389,7 +389,7 @@ func (p *TypeTransformationParser) CheckParameterCount(expr rhino.Node, keyword 
 	return true
 }
 
-var typeTransformationParser_config = Config_Builder_().
+var typeTransformationParser_config = NewConfigBuilder().
 	SetLanguageMode(Config_LanguageMode_ES_NEXT).
 	SetStrictMode(Config_StrictMode_SLOPPY).
 	Build()

@@ -48,5 +48,6 @@ func TestIdMappingUtil_ParseSectionAsStream(t *testing.T) {
 	s := "[gen1]\nid1:data1\n[gen2]\nid2:data2"
 	result := IdMappingUtil_ParseSectionAsStream(strings.NewReader(s), "gen1")
 
-	assertEqual(t, "result", result.String(), "{id1=data1}")
+	assertEqual(t, "size", result.Size(), 1)
+	assertEqual(t, "id1", result.Get("id1"), "data1")
 }

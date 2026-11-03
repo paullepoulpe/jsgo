@@ -81,8 +81,6 @@ func oracleBangType(name string) *JSTypeExpression {
 	return NewJSTypeExpression(NewNodeWithChild(Token_BANG, Node_NewString(name)), "src.js")
 }
 
-func set(elems ...string) *jutil.LinkedHashSet[string] { return jutil.NewLinkedHashSet(elems...) }
-
 func buildFormatOracle() string {
 	o := &formatOracle{}
 
@@ -259,7 +257,7 @@ func buildFormatOracle() string {
 	b.RecordConstancy()
 	b.RecordDeprecated()
 	b.RecordDeprecationReason("old")
-	b.RecordSuppressionsWithDescription(set("visibility", "checkTypes"), "because")
+	b.RecordSuppressionsWithDescription([]string{"visibility", "checkTypes"}, "because")
 	b.RecordSuppression("missingRequire")
 	b.RecordNoInline()
 	b.RecordExport()
@@ -292,7 +290,7 @@ func buildFormatOracle() string {
 	f.RecordDescription("desc")
 	f.RecordMeaning("meaning")
 	f.RecordAlternateMessageId("alt")
-	f.RecordModifies(set("this", "arguments"))
+	f.RecordModifies([]string{"this", "arguments"})
 	f.RecordBlockDescription("block")
 	f.RecordOriginalCommentString("/** original */")
 	f.RecordOriginalCommentPosition(42)

@@ -248,12 +248,12 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 		}
 	}
 
-	typeTransformations := info.GetTypeTransformations()
-	if !typeTransformations.IsEmpty() {
+	typeTransformations := info.GetTypeTransformationEntries()
+	if len(typeTransformations) > 0 {
 		multiline = true
-		for name, value := range typeTransformations.All() {
-			tranformationDefinition := PrintCode(CodePrintConfig{Root: value})
-			parts = append(parts, "@template "+name+" := "+tranformationDefinition+" =:")
+		for _, tr := range typeTransformations {
+			tranformationDefinition := PrintCode(CodePrintConfig{Root: tr.TypeNode})
+			parts = append(parts, "@template "+tr.Name+" := "+tranformationDefinition+" =:")
 		}
 	}
 

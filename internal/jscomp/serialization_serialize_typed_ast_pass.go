@@ -151,8 +151,10 @@ func (o *SerializationOptions) RunValidation() bool { return o.runValidation }
 // Java: SerializationOptions.runtimeLibraries()
 func (o *SerializationOptions) RuntimeLibraries() []string { return o.runtimeLibraries }
 
-// SerializationOptions_Builder_ is SerializationOptions.builder().
-func SerializationOptions_Builder_() *SerializationOptions {
+// NewSerializationOptions returns a new SerializationOptions builder.
+//
+// Java: SerializationOptions.builder()
+func NewSerializationOptions() *SerializationOptions {
 	return &SerializationOptions{runtimeLibraries: emptyRuntimeLibraries}
 }
 

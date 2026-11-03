@@ -39,16 +39,16 @@ type FindExportableNodes struct {
 
 	// The set of node with @export annotations and their associated fully
 	// qualified names
-	exports *jutil.LinkedHashMap[string, rhino.Node]
+	exports OrderedStringMap[rhino.Node]
 
 	// The set of class member function nodes with @export annotations and
 	// the fully qualified name of the owning class (not including the member
 	// fn name).
-	es6ClassExports *jutil.LinkedHashMap[rhino.Node, string]
+	es6ClassExports OrderedMap[rhino.Node, string]
 
 	// The set of property names associated with @export annotations that do
 	// not have an associated fully qualified name.
-	localExports *jutil.LinkedHashSet[string]
+	localExports OrderedSet[string]
 
 	allowLocalExports bool
 }
@@ -64,13 +64,10 @@ var FindExportableNodes_EXPORT_ANNOTATION_NOT_ALLOWED = DiagnosticType_Error(
 
 // Java: FindExportableNodes(AbstractCompiler, boolean)
 func NewFindExportableNodes(compiler AbstractCompiler, allowLocalExports bool) *FindExportableNodes {
-	f := &FindExportableNodes{}
-	f.exports = jutil.NewLinkedHashMap[string, rhino.Node]()
-	f.es6ClassExports = jutil.NewLinkedHashMap[rhino.Node, string]()
-	f.localExports = jutil.NewLinkedHashSet[string]()
-	f.compiler = compiler
-	f.allowLocalExports = allowLocalExports
-	return f
+	return &FindExportableNodes{
+		compiler:          compiler,
+		allowLocalExports: allowLocalExports,
+	}
 }
 
 // Java: FindExportableNodes.visit(NodeTraversal, Node, Node)
@@ -211,18 +208,18 @@ func (f *FindExportableNodes) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 }
 
 // Java: FindExportableNodes.getExports()
-func (f *FindExportableNodes) GetExports() *jutil.LinkedHashMap[string, rhino.Node] {
-	return f.exports
+func (f *FindExportableNodes) GetExports() *OrderedStringMap[rhino.Node] {
+	return &f.exports
 }
 
 // Java: FindExportableNodes.getLocalExports()
-func (f *FindExportableNodes) GetLocalExports() *jutil.LinkedHashSet[string] {
-	return f.localExports
+func (f *FindExportableNodes) GetLocalExports() *OrderedSet[string] {
+	return &f.localExports
 }
 
 // Java: FindExportableNodes.getEs6ClassExports()
-func (f *FindExportableNodes) GetEs6ClassExports() *jutil.LinkedHashMap[rhino.Node, string] {
-	return f.es6ClassExports
+func (f *FindExportableNodes) GetEs6ClassExports() *OrderedMap[rhino.Node, string] {
+	return &f.es6ClassExports
 }
 
 // FindExportableNodes_Mode is the Mode enum.

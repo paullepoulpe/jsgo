@@ -34,7 +34,7 @@ import (
 type RewriteJsonToModule struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 
-	packageJsonMainEntries *jutil.LinkedHashMap[string, string]
+	packageJsonMainEntries OrderedStringMap[string]
 	compiler               AbstractCompiler
 }
 
@@ -45,15 +45,13 @@ var RewriteJsonToModule_JSON_UNEXPECTED_TOKEN = DiagnosticType_Error("JSC_JSON_U
 //
 // Java: RewriteJsonToModule(AbstractCompiler)
 func NewRewriteJsonToModule(compiler AbstractCompiler) *RewriteJsonToModule {
-	r := &RewriteJsonToModule{}
-	r.compiler = compiler
-	r.packageJsonMainEntries = jutil.NewLinkedHashMap[string, string]()
-	return r
+	return &RewriteJsonToModule{compiler: compiler}
 }
 
 // Java: RewriteJsonToModule.getPackageJsonMainEntries()
-func (r *RewriteJsonToModule) GetPackageJsonMainEntries() *jutil.LinkedHashMap[string, string] {
-	return jutil.NewLinkedHashMapFrom(r.packageJsonMainEntries)
+func (r *RewriteJsonToModule) GetPackageJsonMainEntries() *OrderedStringMap[string] {
+	cloned := r.packageJsonMainEntries.Clone()
+	return &cloned
 }
 
 // Process: module rewriting is done a on per-file basis prior to main

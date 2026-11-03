@@ -142,7 +142,7 @@ type commandLineRunner_Flags struct {
 	isolatePolyfills                   bool
 	printSourceAfterEachPass           bool
 	moduleResolutionMode               jscomp.ModuleLoader_ResolutionMode
-	browserResolverPrefixReplacements  *jutil.LinkedHashMap[string, *string]
+	browserResolverPrefixReplacements  *jutil.OrderedMap[string, *string]
 	packageJsonEntryNames              *string
 	errorFormat                        AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption
 	renaming                           bool
@@ -231,7 +231,7 @@ func newCommandLineRunner_Flags() *commandLineRunner_Flags {
 		entryPoint:                        []string{},
 		rewritePolyfills:                  true,
 		moduleResolutionMode:              jscomp.ModuleLoader_ResolutionMode_BROWSER,
-		browserResolverPrefixReplacements: jutil.NewLinkedHashMap[string, *string](),
+		browserResolverPrefixReplacements: jutil.NewOrderedMap[string, *string](),
 		errorFormat:                       AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_STANDARD,
 		renaming:                          true,
 		instrumentForCoverageOption:       "NONE",
@@ -433,7 +433,7 @@ func (f *commandLineRunner_Flags) Args4jFields() []args4j.AnnotatedField {
 		{Option: &args4j.Option{Name: "--module_resolution", Usage: "Specifies how the compiler locates modules. BROWSER requires all module imports to begin with a '.' or '/' and have a file extension. NODE uses the node module rules. WEBPACK looks up modules from a special lookup map."},
 			Field: args4j.ScalarField(commandLineRunner_ModuleLoader_ResolutionMode_class, &f.moduleResolutionMode)},
 		{Option: &args4j.Option{Name: "--browser_resolver_prefix_replacements", Usage: "Prefixes to replace in ES6 import paths before resolving. module_resolution must be BROWSER_WITH_TRANSFORMED_PREFIXES to take effect."},
-			Field: args4j.LinkedStringMap(&f.browserResolverPrefixReplacements)},
+			Field: args4j.OrderedStringMap(&f.browserResolverPrefixReplacements)},
 		{Option: &args4j.Option{Name: "--package_json_entry_names", Usage: "Ordered list of entries to look for in package.json files when processing modules with the NODE module resolution strategy (i.e. esnext:main,browser,main). Defaults to a list with the following entries: \"browser\", \"module\", \"main\"."},
 			Field: args4j.NullableString(&f.packageJsonEntryNames)},
 		{Option: &args4j.Option{Name: "--error_format", Usage: "Specifies format for error messages."},

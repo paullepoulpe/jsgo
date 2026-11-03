@@ -26,12 +26,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-func variableMapTestOf(kv ...string) *jutil.LinkedHashMap[string, string] {
-	b := jutil.NewImmutableMapBuilder[string, string]()
+func variableMapTestOf(kv ...string) *OrderedStringMap[string] {
+	m := NewOrderedStringMapWithCapacity[string](len(kv) / 2)
 	for i := 0; i < len(kv); i += 2 {
-		b.Put(kv[i], kv[i+1])
+		if !m.PutIfAbsent(kv[i], kv[i+1]) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("duplicate key: " + kv[i]))
+		}
 	}
-	return b.BuildOrThrow()
+	return m
 }
 
 func TestVariableMap_Cycle1(t *testing.T) {
@@ -40,7 +42,7 @@ func TestVariableMap_Cycle1(t *testing.T) {
 	variableMapCycleTest(t, variableMapTestOf("AAA", "a:a", "BBB", "b:b"))
 }
 
-func variableMapCycleTest(t *testing.T, m *jutil.LinkedHashMap[string, string]) {
+func variableMapCycleTest(t *testing.T, m *OrderedStringMap[string]) {
 	t.Helper()
 	in := NewVariableMap(m)
 	serialized := jutil.NewStringFromUTF8Bytes(in.ToBytes())
@@ -48,12 +50,12 @@ func variableMapCycleTest(t *testing.T, m *jutil.LinkedHashMap[string, string]) 
 	variableMapAssertMapsEquals(t, in.ToMap(), out.ToMap())
 }
 
-func variableMapAssertMapsEquals(t *testing.T, expected, result *jutil.LinkedHashMap[string, string]) {
+func variableMapAssertMapsEquals(t *testing.T, expected, result *OrderedStringMap[string]) {
 	t.Helper()
 	assertEqual(t, "size", result.Size(), expected.Size())
-	for key, value := range expected.All() {
-		if got, ok := result.Lookup(key); !ok || got != value {
-			t.Errorf("result %s does not contain %s=%s", result, key, value)
+	for _, e := range expected.Entries() {
+		if got, ok := result.Lookup(e.Key); !ok || got != e.Value {
+			t.Errorf("result %v does not contain %s=%s", result.Entries(), e.Key, e.Value)
 		}
 	}
 }

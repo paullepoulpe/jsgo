@@ -705,7 +705,7 @@ func (e *Es6RewriteModules) visitGoogModuleGet(t *NodeTraversal, getCall rhino.N
 }
 
 func (e *Es6RewriteModules) fallbackMetadataForNamespace(namespace string) *ModuleMetadataMap_ModuleMetadata {
-	builder := ModuleMetadataMap_ModuleMetadata_Builder_().
+	builder := NewModuleMetadataBuilder().
 		ModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE).
 		UsesClosure(true).
 		IsTestOnly(false)

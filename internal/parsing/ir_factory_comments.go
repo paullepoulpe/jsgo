@@ -149,7 +149,7 @@ func (f *IRFactory) HandlePossibleFileOverviewJsDoc(jsDocParser *JsDocInfoParser
 				}
 				return true
 			})
-			merged.RecordSuppressionsSlice(suppressions)
+			merged.RecordSuppressions(suppressions)
 		}
 		if newFileoverview.IsExterns() {
 			f.currentFileIsExterns = true

@@ -375,10 +375,7 @@ func (c *Compiler) ToSourceOfNode(n rhino.Node) string {
 var emptyLicenseSet = &OrderedSet[string]{}
 
 func resetOrderedSet[K comparable](s *OrderedSet[K]) {
-	clear(s.m.entries)
-	s.m.entries = s.m.entries[:0]
-	clear(s.m.index)
-	s.m.holes = 0
+	s.Clear()
 }
 
 func addAllOrderedSet[K comparable](dst, src *OrderedSet[K]) {

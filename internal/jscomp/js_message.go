@@ -453,7 +453,7 @@ func jsMessage_formatStringMap(m *OrderedStringMap[string]) string {
 }
 
 func jsMessage_formatStringSet(s *OrderedSet[string]) string {
-	entries := s.m.Entries()
+	entries := s.Entries()
 	if len(entries) == 0 {
 		return "[]"
 	}

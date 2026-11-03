@@ -22,7 +22,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -103,12 +102,12 @@ func TestJSDocSerializer_PreserveSupportsClosureUnaware_simple(t *testing.T) {
 func TestJSDocSerializer_SerializedFields(t *testing.T) {
 	builder := rhino.JSDocInfo_Builder_()
 	builder.RecordConstancy()
-	builder.RecordModifies(jutil.NewLinkedHashSet("this", "x"))
+	builder.RecordModifies([]string{"this", "x"})
 	builder.RecordDescription("desc")
 	builder.RecordMeaning("meaning")
-	builder.RecordSuppressions(jutil.NewLinkedHashSet("messageConventions", "partialAlias"))
+	builder.RecordSuppressions([]string{"messageConventions", "partialAlias"})
 	builder.RecordStableIdGenerator()
-	pool := StringPool_Builder_()
+	pool := NewStringPoolBuilder()
 	ser := JSDocSerializer_SerializeJsdoc(builder.Build(), pool)
 	jsaEq(t, ser.String(), "kind: JSDOC_CONST\nkind: JSDOC_ID_GENERATOR_STABLE\n"+
 		"kind: JSDOC_MODIFIES_THIS\nkind: JSDOC_MODIFIES_ARGUMENTS\nkind: JSDOC_SUPPRESS_PARTIAL_ALIAS\n"+
