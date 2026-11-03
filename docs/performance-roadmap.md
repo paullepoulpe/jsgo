@@ -3060,7 +3060,9 @@ seconds, then the mean of branch − base in ms and its paired 95% CI:
   them what this round brings the optimizations. It needs the forwarding
   registry to cover what holds nodes during the checks (no type holds a
   node yet at that point, but module metadata, the inputs' ASTs and JSDoc
-  do), or the IR factory to allocate parents before children.
+  do), or the IR factory to allocate parents before children. Tried in the
+  front-end layout round below: exact, the front end's walks 28–35%
+  cheaper, not merged.
 - **A cheaper mark.** Marking (60–145 ms at t=1) is a serial recursive walk;
   the skipped check paid it already, but a forced compaction at more points
   would pay it each time. Marking scripts on workers, each into its own
@@ -3514,6 +3516,331 @@ count to the statistics):
   for the call sites' scopes.
 - **`crossChunkCodeMotion`** costs 0.3 s per run on bundle-mega and moves
   nothing; a cheap precheck may pay more than an index (not measured).
+
+## Front-end layout round (2026-11-02/03): pre-order node layout for the checks and type inference
+
+Branch `fast/frontlayout` off `76012166` (main with the layout round, the
+variable-index step 1 and the v20261028 upgrade). 4-CPU Linux machine, Go
+1.27.3, shared with another agent and the coordinator's validations (timing
+under the exclusive lock; the container restarted twice during the round,
+and the second timing run is on a slower, noisier machine than the first:
+typed-full compat t=1 took 24.8 s in base against 23.5 s). The layout round
+renumbered the live nodes in pre-order after `typesToColors`, so the
+optimizations walk the tree nearly in address order; the front end (checks,
+type inference, the passes up to `typesToColors`) still ran on the parser's
+layout. This round gives the front end the pre-order layout, three ways.
+
+**Result: exact, the walks in the front end 28–35% cheaper, but no
+significant gain in wall time, so not proposed for merging.** Renumbering
+each parsed tree in place makes a bare walk in the front end 4.7–5.8 ns per
+node cheaper (3.1–4.9 ns with `NodeTraversal`). In the pass log the front
+end (end of parsing to `typesToColors`) saves 0.04–0.63 s per compile on
+the large tasks, resolved on two cells (typed-full compat t=1, −455 ms, CI
+−713…−196), while the renumbering adds 0.08–0.44 s to parsing, even at t=4
+(on bundle-mega, plotly's 1.5-million-node tree is renumbered on one
+worker). Whole compiles on the large tasks move by −4.1% to +3.3% at N=5,
+every interval including zero; a wall-only N=10 repeat resolves typed-full
+compat t=1 (−2.1%, CI −3.7…−0.6) and finds bundle-mega compat t=4 flat
+(−0.1%, CI −2.6…+2.5).
+Peak RSS does not move. Every run is byte-identical to Java, the
+validation passes, and the round found two holders missing from the
+compaction's registry (one of them breaks `--tracer_mode` on main: fixed,
+merged into the work branch as `a2f993cd`).
+
+### The parser's layout
+
+The IR builders take a node's children as arguments, so the parser makes
+the children, and gives them their ids, before their parent. Right after
+parsing, 37% of the pre-order successors are at the next id on typed-full,
+28% on typed-mega and 30% on bundle-mega, and the front end keeps that
+layout: it allocates few nodes (77,000 on typed-mega and 9,000 on
+bundle-mega between the end of parsing and `typesToColors`).
+
+### Three ways, in the order they were built
+
+1. **A compaction at the start of the checks** (commit `3063a6c7`,
+   replaced by the third). `Compiler.Check` compacted the parsed AST with
+   the layout round's `Permute`, before the checks' phase optimizer and
+   any type, scope or module map existed. It gives the front end the
+   layout (96–99% at the next id) but marks and copies the whole AST
+   serially before anything can run: 0.18–0.25 s on typed-full, 0.34–0.49 s
+   on typed-mega and 0.26–0.35 s on bundle-mega at t=1 (mark, copy and the
+   cold-data tables about a third each).
+2. **The parser reserves a node's id before its children**
+   (`IRFactory.reserveSlot`, commits `55808c83`, `cbec9abc`). `Transform`
+   reserves an id before it processes a tree; the first node made at that
+   level takes it (`nodeID`), so a parent made after its children still
+   gets an id before theirs. A function's name is made before the function
+   and a member definition after it: both take the reserved ids in
+   pre-order; parentheses and declarations hand their level's id on. The
+   order in which the parser transforms the trees, and so its diagnostics,
+   does not change. It costs nothing and gives 75–80% at the next id. What
+   is left is mostly binary expressions: `processBinaryExpressionHelper`
+   transforms the right operand before the left (an assignment's value
+   before its target), an order that is observable through diagnostics.
+3. **Each parsed tree renumbered in pre-order, in place**
+   (`rhino.RenumberPreorder`, `internal/rhino/node_renumber.go`, commits
+   `aad17752`, `cf774ff4`, `40f47dd7`). Right after the IR factory has
+   built a tree, the parser runner gives the tree's nodes the ids they
+   already occupy, in pre-order (each statement followed by its JSDoc type
+   expressions, documentation markers and node-valued props), on the parse
+   worker that made it, moving the records in place along the
+   permutation's cycles. Nothing but the parser runner holds a node of the
+   tree then (it takes the root's new id), so no registry is involved; a
+   tree that is not as expected (a link out of it, a field holding a node
+   out of it, columns set) is left as it is. Two traps: ids are permuted
+   within the tree's own set, so a field listed twice (a JSDoc type
+   expression shared by two JSDocInfos) must be forwarded in two phases;
+   and every tree's JSDoc shares one static type expression
+   (`JSTypeExpression_IMPLICIT_TEMPLATE_BOUND`), whose field must not be
+   written back, or parse workers race on it (`parallel_gate` under
+   `-race` caught it; the outputs were right). After parsing, 96–99% of
+   the pre-order successors are at the next id.
+
+Also in the compactor (`node_compact.go`), for every compaction: the trees
+hung off nodes are laid out after each statement instead of after each
+script (so that the old blocks of a large script are reused as the copy
+goes); the mark records the JSDoc fields that hold nodes as it meets them
+and the move forwards them in that order (it iterated a map of the
+JSDocInfos, in random order); the pre-order list is sized for every node
+(it grew, and copied itself, when more than 7/8 of the nodes were live, as
+at `typesToColors` on typed-full), and the new cold-data maps are sized for
+their entries. None of these was measured on its own.
+
+### What holds nodes right after parsing
+
+For the first way, a static scan (go/types, a scratch tool) from
+`Compiler` through every field type, with interfaces expanded to their
+implementations in `internal/...`, and of every package-level variable,
+listed the holders (census, `docs/memory-research/node-holder-census.md`,
+section 3.4):
+
+| holder | at the point | how |
+|---|---|---|
+| roots, `scriptNodeByFilename`, inputs' ASTs | set | forwarded (registry, as before) |
+| change timeline, diagnostics (`JSError.node`) | possibly set | forwarded (as before) |
+| `PerformanceTracker.externsRoot/jsRoot` (`--tracer_mode`) | set | **missing from the registry**: on main, `--tracer_mode=ALL` fails with a NullPointerException after the compaction at `typesToColors` (typed-app, verified). Forwarded at every compaction now (`a2f993cd`, with a test) |
+| JSDoc documentation markers (`nameNode`, `type_`), only when documentation is parsed (`--print_tree`) | set | **missing**: marked and forwarded with the type expressions now, at every compaction |
+| JSDoc type expressions, node-valued props | set | laid out with the tree, as before |
+| module metadata, module map, type registry, typed scopes, type validator, transpilation namespace, `lastInjectedLibrary`, phase optimizer | nil | — |
+| package-level variables | static store only | sentinels and templates, never compacted |
+| inputs pruned by dependency management | stale roots in unreachable `CompilerInput`s | nothing reads them |
+
+The registry also dereferenced the caller's local root pointers when they
+were nil, as the compaction at the end of the optimization stage passes
+them (a latent crash, never reached on the bench tasks; fixed in
+`a2f993cd`). The renumbering at parse needs none of the registry.
+
+### Does any output depend on node ids in the front end?
+
+No. The layout round's audit covered the code that runs after its
+compaction; the front end (the checks, `TypedScopeCreator`,
+`TypeInference`, the type system in `internal/rhino`, the conformance
+checks) is new territory, so it was repeated for it and backed by an
+experiment:
+
+- **The type-checked scan** (the layout round's scratch tool, rerun on
+  `76012166`) finds the same sites: no comparison, subtraction, integer
+  conversion or `ID()` call of a node outside `internal/rhino`'s store,
+  tables and compactor; the six sorts of node-bearing slices compare names,
+  positions or declaration kinds (in the type system, `PropertyMap` and
+  record types sort properties by name); the 13 ranges over node-keyed Go
+  maps are randomized by Go already (in the front end, the registry's
+  `scopedNameTable`, whose one ranging function has no caller, and type
+  inference's `inferredUnboundVars`, which it only clears).
+- **Hashes.** `HamtPMap`, the one collection that iterates in hash order,
+  is instantiated in the front end with keys `*TypedScope` (hashed by a
+  creation counter, `scopeID`) and strings, never nodes. `TypedVar`, `Var`
+  and `ScopedName` hash their scope root's id and only place entries in
+  jutil's insertion-ordered maps.
+- **The experiment.** A build that shuffles the new layout at random at
+  every compaction, including one at the start of the checks (a seeded
+  permutation of the copy order, so that ids and record order are random
+  from parsing on; not committed) ran the Java gate on the 11 bench tasks
+  at t=1 and t=4 with two seeds: **22/22 byte-identical to Java**. The
+  random layout costs a lot (typed-full 62 s instead of 28 s at t=1).
+- Ids already differ between t=1 and t>1 and from run to run at t>1, and
+  the gates compare those runs with Java.
+
+### The walk in the front end
+
+The layout round's probe (not committed), at eight points from the first
+check to `typesToColors`, t=1, exclusive lock, two runs; each cell is the
+mean over the points: bare walk / `NodeTraversal` with a no-op callback, ns
+per node / share of pre-order successors at the next id. The compaction at
+the start of the checks was measured in the first timing run.
+
+| task | parser's layout | reserved ids | compaction at the start of the checks | renumbered at parse |
+|---|---|---|---|---|
+| typed-full | 16.4 / 21.2 / 37% | 14.9 / 20.5 / 79% | 12.8 / 19.1 / 96% | 11.2 / 18.1 / 96% |
+| typed-mega | 16.6 / 21.6 / 28% | 15.3 / 20.8 / 77% | 13.2 / 19.1 / 97% | 10.8 / 16.7 / 96% |
+| bundle-mega | 17.0 / 22.2 / 30% | 15.2 / 21.4 / 75% | 13.7 / 19.5 / 99% | 12.3 / 18.9 / 99% |
+
+- The renumbering makes a walk in the front end 4.7–5.8 ns per node
+  cheaper bare and 3.1–4.9 ns with `NodeTraversal` (28–35% and 15–23%), and
+  the layout decays little to `typesToColors` (94–99%).
+- The reserved ids alone save 1.3–1.8 ns bare and under 1 ns with
+  `NodeTraversal`.
+- The renumbering costs 152–171 ms on typed-full, 278–293 ms on typed-mega
+  and 393 ms on bundle-mega at t=1 (summed over the trees; 165–188, 290 and
+  419–460 ms without the reserved ids, which shorten the permutation's
+  cycles). Nine of typed-mega's trees and four of bundle-mega's are left as
+  they were by the safety checks (which check failed was not looked into).
+
+### Measured (interleaved, N=5 blocks, wall time mean, paired 95% CI)
+
+Second run: base `76012166`, the branch at `40f47dd7` with the renumbering
+(R) and, in the same blocks, the same binary with `JSGO_PARSE_RENUMBER=0`
+(reserved ids only, S); `JSGO_PASS_LOG` on every run. **All 225 runs are
+byte-identical to the Java reference** (v20261028).
+
+Whole compile, base → R:
+
+| task | compat t=1 | compat t=4 | fast t=4 |
+|---|---|---|---|
+| typed-app | 4.46 → 3.63 s (−15.2%, CI −43.0…+26.3) | 3.35 → 3.36 s (+0.5%, CI −13.2…+16.3) | 3.26 → 3.03 s (−7.3%, CI −19.4…+6.7) |
+| bundle-advanced-ts | 16.95 → 16.52 s (−2.6%, CI −5.1…+0.1) | 16.40 → 16.47 s (+0.4%, CI −3.9…+4.9) | 16.04 → 15.37 s (−4.1%, CI −8.7…+0.7) |
+| typed-full | 24.80 → 24.28 s (−2.1%, CI −4.8…+0.7) | 20.22 → 19.47 s (−3.7%, CI −8.7…+1.6) | 18.02 → 18.02 s (+0.0%, CI −5.5…+5.9) |
+| typed-mega | 44.61 → 43.75 s (−1.9%, CI −11.3…+8.4) | 35.27 → 35.76 s (+1.4%, CI −5.9…+9.4) | 32.06 → 32.18 s (+0.4%, CI −3.1…+4.1) |
+| bundle-mega | 59.95 → 61.91 s (+3.3%, CI −1.6…+8.5) | 51.02 → 51.35 s (+0.8%, CI −8.9…+11.4) | 48.43 → 48.28 s (−0.3%, CI −5.5…+5.2) |
+
+(typed-app compat t=1: base's first run was cold after a restart, 7.3 s.)
+
+Pass log, base → R: parsing (the `parseInputs` section, which includes the
+renumbering), the front end (end of parsing to `typesToColors`) and the
+rest (end of `typesToColors` to `generateReport`); seconds, then the mean
+of R − base in ms and its 95% CI:
+
+| task | mode | parsing | parse end to `typesToColors` | end of `typesToColors` to `generateReport` |
+|---|---|---|---|---|
+| typed-app | compat t=1 | 0.65 → 0.55, −102 (−194…−9) | 1.41 → 1.35, −63 (−281…+154) | 1.84 → 1.56, −278 (−990…+435) |
+| typed-app | compat t=4 | 0.39 → 0.40, +12 (−100…+124) | 1.32 → 1.38, +69 (−239…+377) | 1.45 → 1.38, −63 (−240…+114) |
+| typed-app | fast t=4 | 0.39 → 0.39, +3 (−58…+64) | 1.32 → 1.18, −137 (−382…+108) | 1.37 → 1.28, −94 (−318…+130) |
+| bundle-advanced-ts | compat t=1 | 1.04 → 1.14, +96 (+15…+177) | 3.84 → 3.78, −69 (−437…+299) | 10.93 → 10.52, −416 (−655…−176) |
+| bundle-advanced-ts | compat t=4 | 0.81 → 0.92, +112 (+2…+222) | 4.05 → 3.70, −350 (−674…−26) | 10.45 → 10.82, +372 (−87…+830) |
+| bundle-advanced-ts | fast t=4 | 0.78 → 0.85, +77 (−76…+230) | 3.85 → 3.61, −238 (−601…+126) | 10.35 → 9.90, −448 (−803…−94) |
+| typed-full | compat t=1 | 1.94 → 2.09, +151 (−13…+316) | 6.73 → 6.28, −455 (−713…−196) | 14.71 → 14.51, −204 (−770…+362) |
+| typed-full | compat t=4 | 0.68 → 0.81, +127 (+35…+219) | 6.24 → 5.61, −628 (−1295…+40) | 12.08 → 11.82, −260 (−695…+175) |
+| typed-full | fast t=4 | 0.67 → 0.78, +114 (+49…+178) | 5.41 → 5.30, −111 (−528…+307) | 10.83 → 10.76, −71 (−939…+797) |
+| typed-mega | compat t=1 | 3.78 → 3.99, +214 (−313…+741) | 12.38 → 12.02, −355 (−1292…+581) | 25.70 → 24.95, −744 (−4028…+2540) |
+| typed-mega | compat t=4 | 1.29 → 1.55, +256 (+78…+434) | 11.44 → 11.40, −38 (−1428…+1351) | 20.22 → 20.43, +209 (−1189…+1608) |
+| typed-mega | fast t=4 | 1.35 → 1.48, +131 (−21…+282) | 10.24 → 9.99, −252 (−724…+220) | 18.26 → 18.55, +293 (−303…+888) |
+| bundle-mega | compat t=1 | 3.97 → 4.41, +439 (−180…+1059) | 14.16 → 14.01, −150 (−849…+550) | 37.13 → 38.73, +1601 (−1349…+4552) |
+| bundle-mega | compat t=4 | 2.10 → 2.49, +393 (+111…+676) | 13.64 → 13.36, −281 (−1620…+1057) | 31.32 → 31.58, +263 (−3258…+3785) |
+| bundle-mega | fast t=4 | 2.17 → 2.37, +194 (−107…+495) | 13.02 → 12.81, −216 (−1266…+834) | 29.59 → 29.48, −115 (−1544…+1315) |
+
+- **The front end saves 0.04–0.63 s** on bundle-advanced-ts, typed-full,
+  typed-mega and bundle-mega, resolved on typed-full at compat t=1 and
+  bundle-advanced-ts at compat t=4 (−350 ms, CI −674…−26); **parsing costs
+  0.08–0.44 s more**, resolved in 6 of the 12 cells,
+  including bundle-mega at t=4 (+393 ms): a large tree is renumbered on the
+  one worker that parsed it, on the parse's critical path.
+- What follows `typesToColors` should not move (the compaction there lays
+  out both builds alike); it reads −0.74 to +1.60 s, and two cells exclude
+  zero (bundle-advanced-ts −416 and −448 ms): that is this run's noise
+  floor for a segment, as large as the effect.
+- **The reserved ids alone** (S, same blocks): whole compiles −11% to
+  +2.1%, resolved only on typed-app at t=4 (compat −4.4%, CI −7.1…−1.5;
+  fast −11.0%, CI −17.9…−3.4; the first run also read typed-app fast t=4
+  −7.5%, CI −12.5…−2.3), and nothing on the large tasks.
+- **A wall-only repeat**, N=10, no pass log, on the two cells the earlier
+  rounds used (all 40 runs byte-identical to Java):
+  - typed-full compat t=1: 28.82 → 28.20 s, **−2.1% (CI −3.7…−0.6)**,
+    −0.62 s; peak RSS −1 MB (CI −17…+16);
+  - bundle-mega compat t=4: 54.07 → 54.00 s, −0.1% (CI −2.6…+2.5); peak
+    RSS −1 MB (CI −39…+37).
+
+  typed-full, many small typed scripts, gains what its front end saves;
+  on bundle-mega the renumbering of its huge trees on the parse workers
+  costs what its front end saves.
+- **Small tasks** (`small_ab.py`, one binary, R against both switches
+  off, N=5, same outputs): a 200-file sample of single-files +2.8% (CI
+  −2.0…+7.9), downlevel-simple −0.7% (CI −2.5…+1.1), bundle −0.5% (CI
+  −8.7…+8.5).
+- **Memory.** Peak RSS: −22 to +26 MB per cell, every interval including
+  zero. The renumbering's transient (two tables of a tree's id span) falls
+  at the end of parsing, far below the compile's peak, which is at the
+  end: VmRSS sampled every 20 ms on single runs of bundle-mega, the maximum
+  up to the end of parsing is 312 → 396 MB at t=1 and 374 → 486 MB at t=4,
+  the maximum over the front end 511 → 549 MB and 542 → 544 MB, the peak
+  906 → 915 MB and 949 → 928 MB.
+
+### Tried, not merged
+
+- **The compaction at the start of the checks** (`3063a6c7`). First run,
+  N=5, against base in the same blocks as the reserved ids alone (all 300
+  runs byte-identical to Java): the front end (including the compaction,
+  0.16–0.34 s) moved by −1.22 to −0.14 s on typed-full, typed-mega and
+  bundle-mega, resolved only on bundle-mega at compat t=1 (−993 ms, CI
+  −1895…−91); whole compiles −5.5% to +1.6%, resolved only on
+  bundle-advanced-ts at compat t=1 (−5.5%, CI −10.2…−0.6).
+- **Skipping the compaction after `typesToColors`** once the front end is
+  in pre-order (`JSGO_AST_T2C=threshold`, which skips it on the large
+  tasks, where 1.4–8% of the nodes are dead). First run, against the
+  compaction at the start of the checks with it: the loops are slower
+  without it on typed-full (+0.1 to +0.6 s), bundle-advanced-ts (+0.2 to
+  +0.3 s) and bundle-mega (+0.1 to +0.8 s), and the whole compile reads
+  +1.3% to +5.7% on 10 of the 15 cells (typed-full compat t=4 +5.3%, CI
+  +0.7…+10.2; typed-mega −2.1% to 0). The decay through the checks and transpilation and the
+  dropped JSDoc type trees still cost the optimizations more than the
+  compaction: **it stays, forced** (Question 5 of the brief).
+- **Renumbering with a copy of the records and pooled scratch**
+  (`aad17752`): the resident memory at the end of parsing rose from 312 to
+  577 MB on bundle-mega at t=1 and from 374 to 731 MB at t=4 (plotly's
+  tree alone is 48 MB of records). The in-place permutation (`cf774ff4`)
+  brought it to the figures above.
+
+### What is left
+
+- **Parsing's critical path.** The renumbering is cheap per node (70–90
+  ns) but sits on the worker that parsed each tree, so a huge script
+  (bundle-mega's plotly) delays the end of parsing at t=4. Renumbering the
+  large trees after the parse barrier, on all workers (stripes of a
+  tree), or the binary-expression ids below, would take it off that path.
+- **Reserved ids for binary expressions.** The parser transforms a binary
+  expression's right operand before its left one when no comment is
+  pending, so an assignment's target takes ids after its value: most of
+  the 20% of successors the reserved ids leave out of order. Reserving a
+  range for simple targets (`a.b.c`, whose size the parse tree gives)
+  before transforming the value would bring the reserved ids, which cost
+  nothing, close to the renumbering's layout.
+- **The noise floor.** At N=5 a segment of the pass log has a 95% interval
+  of ±0.3–1.5 s on the mega tasks, as large as the effect: the front end's
+  0.1–0.6 s needs N≥10 or a quieter machine to resolve.
+
+### Decision
+
+**Not proposed for merging as it is** (the branch stays as
+`fast/frontlayout`): the walks in the front end are 28–35% cheaper, but in
+wall time the front end's saving is about what the renumbering costs at
+parse. It is resolved on typed-full at compat t=1 (−2.1%, N=10), flat on
+bundle-mega at compat t=4, and it leans the wrong way on bundle-mega at
+compat t=1 (+3.3%, CI −1.6…+8.5, parsing +0.44 s), which no repeat
+resolved. Taking the large trees' renumbering off the parse's critical
+path (above) is the step that could make it a clean gain; until then
+`JSGO_PARSE_RENUMBER=0` keeps the reserved ids only. What is worth taking
+now:
+
+- `a2f993cd` (the tracker's roots and the nil local roots), merged into the
+  work branch already;
+- the documentation markers' forwarding (in `appendNodeSlots`,
+  `d73c4215`), which the compaction after `typesToColors` needs whenever
+  documentation is parsed;
+- the test fix for `TestCompactorPermuteMultiBlockReusesOldBlocks`, whose
+  assertion of block reuse with several workers depends on scheduling
+  (it failed once under `-race`).
+
+Validation of the branch (`40f47dd7`): the Java gate on the 11 bench tasks
+at t=1 and t=4, plus t=4 with the renumbering off and t=1 with both
+switches off: 44/44 byte-identical; the gate with `JSGO_PROPINDEX_VERIFY=1`
+at t=4: 11/11; fixtures: 2,974/2,976 (the usual two), and the same with
+verify; `parallel_gate.py` under `-race`: 54/54 (it failed 22/54 on
+`cf774ff4`, the shared static type expression above); `fast_mode_gate.py`:
+25/25 under `-race` and 7/7 large tasks; typed-full and
+bundle-advanced-ts fast t=4 under `-race`: no race; `make vet`; `go test
+./...`: everything but `TestTranspileBGolden`, which fails the same way on
+`76012166` and on the main candidate (a `RewritePolyfills` dump of two
+files).
 
 ## Smaller open items
 
