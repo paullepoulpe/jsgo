@@ -228,7 +228,13 @@ func TestCompactorPermuteMultiBlockReusesOldBlocks(t *testing.T) {
 			nodes := preorderNodes(newRoot)
 			checkConsecutive(t, "program", nodes, base)
 			keep := (k.Live + blockLen - 1) / blockLen
-			if k.NewBlocks+k.ReusedBlocks != keep || (tc.order == "local") != (k.ReusedBlocks > 0) {
+			// A block is reused only once all its live records are copied:
+			// in the "local" order that happens as the copy goes, but with
+			// several workers the first blocks are taken before any is
+			// free, so only one worker is sure to reuse one (the race
+			// detector's scheduling showed it).
+			reuses := k.ReusedBlocks > 0
+			if k.NewBlocks+k.ReusedBlocks != keep || (tc.order == "global" && reuses) || (tc.order == "local" && threads == 1 && !reuses) {
 				t.Fatalf("%d new and %d reused blocks for %d", k.NewBlocks, k.ReusedBlocks, keep)
 			}
 			if CurrentNodeStore().NodeCount() != k.Live || k.Live != len(nodes)+total/257+1 {
