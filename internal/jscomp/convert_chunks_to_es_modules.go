@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // ConvertChunksToESModules finds all references to global symbols in a
@@ -472,12 +473,12 @@ func (c *ConvertChunksToESModules) visitCallAndTraverse(t *NodeTraversal, call r
 
 func (c *ConvertChunksToESModules) visitName(t *NodeTraversal, nameNode rhino.Node, importType chunkImportType) bool {
 	jutil.CheckState(nameNode.IsName())
-	name := nameNode.GetString()
-	if name == "" {
+	id := nameNode.GetStringID()
+	if id <= strpool.EmptyID {
 		return false
 	}
 
-	v := t.GetScope().GetVar(name)
+	v := t.GetScope().GetVarByID(id)
 	if v == nil || !v.IsGlobal() {
 		return false
 	}
@@ -489,6 +490,7 @@ func (c *ConvertChunksToESModules) visitName(t *NodeTraversal, nameNode rhino.No
 	referencingChunk := t.GetChunk()
 
 	if definingChunk != referencingChunk {
+		name := v.GetName()
 		if NodeUtil_IsLhsOfAssign(nameNode) {
 			t.Report(
 				nameNode,

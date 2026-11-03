@@ -460,8 +460,12 @@ func (g *replaceIdGeneratorsPass) maybeReplaceTaggedTemplateLit(
 	}
 	if onlyPart, ok := tpl.OnlyPart(); ok {
 		strPart, isStr := onlyPart.AsTemplateLitString()
+		if !isStr {
+			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
+			return
+		}
 		cooked, hasCooked := strPart.Cooked()
-		if !isStr || !hasCooked {
+		if !hasCooked {
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
 			return
 		}
@@ -471,16 +475,26 @@ func (g *replaceIdGeneratorsPass) maybeReplaceTaggedTemplateLit(
 		return
 	}
 
+	// Validate all template parts up front before detaching substitution expressions
+	// or recording obfuscated names.
+	for part, ok := tpl.FirstPart(); ok; part, ok = part.Next() {
+		if strPart, isStr := part.AsTemplateLitString(); isStr {
+			if _, hasCooked := strPart.Cooked(); !hasCooked {
+				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
+				return
+			}
+		} else if !part.Node().IsTemplateLitSub() {
+			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
+			return
+		}
+	}
+
 	// Alternating sequence of template literals and expressions: preserve the call, obfuscate literals.
 	newTemplateLit := rhino.IR_TemplateLiteral()
 	for part, ok := tpl.FirstPart(); ok; part, ok = part.Next() {
 		child := part.Node()
 		if strPart, isStr := part.AsTemplateLitString(); isStr {
-			cooked, hasCooked := strPart.Cooked()
-			if !hasCooked {
-				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER))
-				return
-			}
+			cooked, _ := strPart.Cooked()
 			rename := g.getObfuscatedName(child, callName, nameGenerator, cooked)
 			newTemplateLit.AddChildToBack(
 				rhino.IR_TemplateLiteralString(base.SomeString(rename), rename).SrcrefIfMissing(child))
@@ -510,8 +524,12 @@ func (g *replaceIdGeneratorsPass) maybeReplaceCall(
 		t.ReportCodeChange()
 	} else if tpl, isTpl := firstArg.AsTemplateLit(); isTpl && tpl.NumParts() == 1 {
 		strPart, isStrPart := tpl.MustOnlyPart().AsTemplateLitString()
+		if !isStrPart {
+			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
+			return
+		}
 		cooked, hasCooked := strPart.Cooked()
-		if !isStrPart || !hasCooked {
+		if !hasCooked {
 			r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
 		} else {
 			rename := g.getObfuscatedName(arg, callName, nameGenerator, cooked)
@@ -529,7 +547,13 @@ func (g *replaceIdGeneratorsPass) maybeReplaceCall(
 				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_COMPUTED_PROP_NOT_SUPPORTED_IN_ID_GEN))
 				return
 			}
-
+			if key.IsSpread() {
+				r.compiler.Report(JSError_MakeWithNode(n, ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER))
+				return
+			}
+		}
+		for member, ok := objLit.FirstMember(); ok; member, ok = member.Next() {
+			key := member.Node()
 			rename := g.getObfuscatedName(key, callName, nameGenerator, key.GetString())
 			key.SetString(rename)
 			// Prevent standard renaming by marking the key as quoted.

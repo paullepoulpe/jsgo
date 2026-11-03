@@ -730,3 +730,210 @@ func BenchmarkPersistentWorkerVsCold(b *testing.B) {
 		}
 	})
 }
+
+func TestPersistentWorkerCapturesSystemOutAndSystemErrWithoutCorruptingJSON(t *testing.T) {
+	dir := t.TempDir()
+
+	ttlJS := filepath.Join(dir, "ttl.js")
+	ttlIn := writeFileWithDigest(t, ttlJS, `/**
+ * @template T := printType('TTL_STDOUT_MARKER:', 'number') =:
+ * @param {T} x
+ * @return {T}
+ */
+function ttlId(x) { return x; }
+ttlId(42);
+`)
+
+	badXtb := filepath.Join(dir, "broken.xtb")
+	if err := os.WriteFile(badXtb, []byte(`<translationbundle lang="fr"><translation id="1">unclosed`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	msgJS := filepath.Join(dir, "msg.js")
+	msgIn := writeFileWithDigest(t, msgJS, `var x = 1;`)
+	outJS := filepath.Join(dir, "out.js")
+
+	origOut := jutil.System_Out()
+	origErr := jutil.System_Err()
+	var leakedOut, leakedErr bytes.Buffer
+	sentinelOut := jutil.NewPrintStream(&leakedOut)
+	sentinelErr := jutil.NewPrintStream(&leakedErr)
+	jutil.System_SetOut(sentinelOut)
+	jutil.System_SetErr(sentinelErr)
+	defer func() {
+		jutil.System_SetOut(origOut)
+		jutil.System_SetErr(origErr)
+	}()
+
+	worker := NewPersistentWorker(nil)
+	reqBuf := encodeWorkRequests(t,
+		WorkRequest{
+			RequestId: 701,
+			Arguments: []string{
+				"--env=CUSTOM",
+				"--checks_only",
+				"--jscomp_warning=checkTypes",
+				"--js", ttlJS,
+			},
+			Inputs: []WorkerInput{ttlIn},
+		},
+		WorkRequest{
+			RequestId: 702,
+			Arguments: []string{
+				"--env=CUSTOM",
+				"--translations_file", badXtb,
+				"--js", msgJS,
+				"--js_output_file", outJS,
+			},
+			Inputs: []WorkerInput{msgIn},
+		},
+	)
+
+	var wireOut bytes.Buffer
+	if err := worker.Serve(reqBuf, &wireOut); err != nil {
+		t.Fatalf("worker.Serve: %v", err)
+	}
+
+	if leakedOut.Len() != 0 {
+		t.Fatalf("System_Out leaked outside WorkResponse JSON stream: %q", leakedOut.String())
+	}
+	if leakedErr.Len() != 0 {
+		t.Fatalf("System_Err leaked outside WorkResponse JSON stream: %q", leakedErr.String())
+	}
+	if jutil.System_Out() != sentinelOut || jutil.System_Err() != sentinelErr {
+		t.Fatalf("PersistentWorker failed to restore System_Out / System_Err after Serve")
+	}
+
+	resps := decodeWorkResponses(t, wireOut.String())
+	if len(resps) != 2 {
+		t.Fatalf("expected 2 WorkResponses, got %d", len(resps))
+	}
+	if resps[0].ExitCode != 0 || resps[0].RequestId != 701 {
+		t.Fatalf("req 701 unexpected response: %+v", resps[0])
+	}
+	if !strings.Contains(resps[0].Output, "TTL_STDOUT_MARKER:number") {
+		t.Fatalf("expected TTL printType output captured in WorkResponse.Output, got: %q", resps[0].Output)
+	}
+	if resps[1].ExitCode == 0 || resps[1].RequestId != 702 {
+		t.Fatalf("req 702 expected failure on malformed XTB, got: %+v", resps[1])
+	}
+	if !strings.Contains(resps[1].Output, "[Fatal Error]") {
+		t.Fatalf("expected xtbxml [Fatal Error] stderr captured in WorkResponse.Output, got: %q", resps[1].Output)
+	}
+}
+
+func TestPersistentWorkerSandboxDirResolutionAndCache(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chdir(origWD)
+	}()
+
+	root := t.TempDir()
+	sb1 := filepath.Join(root, "sandbox_1")
+	sb2 := filepath.Join(root, "sandbox_2")
+	for _, sb := range []string{sb1, sb2} {
+		if err := os.MkdirAll(filepath.Join(sb, "src"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(sb, "out"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	libCode := "var SHARED_PREFIX = 'sandbox_ok:';\n"
+	appCodeV1 := "console.log(SHARED_PREFIX + 1);\n"
+	appCodeV2 := "console.log(SHARED_PREFIX + 2);\n"
+
+	if err := os.WriteFile(filepath.Join(sb1, "src", "lib.js"), []byte(libCode), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sb1, "src", "app.js"), []byte(appCodeV1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Intentionally omit src/lib.js on disk in sb2 to verify cross-sandbox digest cache hit!
+	if err := os.WriteFile(filepath.Join(sb2, "src", "app.js"), []byte(appCodeV2), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	libDigest := sha256Hex([]byte(libCode))
+	appDigestV1 := sha256Hex([]byte(appCodeV1))
+	appDigestV2 := sha256Hex([]byte(appCodeV2))
+
+	worker := NewPersistentWorker(nil)
+
+	// Request 1 in sb1 using sandbox-relative paths in both Arguments and Inputs.
+	resp1 := worker.ExecuteRequest(&WorkRequest{
+		RequestId:  801,
+		SandboxDir: sb1,
+		Arguments: []string{
+			"--env=CUSTOM",
+			"--compilation_level=SIMPLE",
+			"--js", "src/lib.js",
+			"--js", "src/app.js",
+			"--js_output_file", "out/bundle.js",
+			"--create_source_map", "out/bundle.js.map",
+		},
+		Inputs: []WorkerInput{
+			{Path: "src/lib.js", Digest: libDigest},
+			{Path: "src/app.js", Digest: appDigestV1},
+		},
+	})
+	if resp1.ExitCode != 0 {
+		t.Fatalf("sandbox_1 request failed: %+v", resp1)
+	}
+	afterWD, err := os.Getwd()
+	if err != nil || afterWD != origWD {
+		t.Fatalf("cwd was not restored after SandboxDir request: got %q, want %q (err=%v)", afterWD, origWD, err)
+	}
+	out1, err := os.ReadFile(filepath.Join(sb1, "out", "bundle.js"))
+	if err != nil || !strings.Contains(string(out1), "sandbox_ok:") || !strings.Contains(string(out1), "+1") {
+		t.Fatalf("sandbox_1 bundle mismatch: %q, err=%v", string(out1), err)
+	}
+	map1, err := os.ReadFile(filepath.Join(sb1, "out", "bundle.js.map"))
+	if err != nil || !strings.Contains(string(map1), `"src/app.js"`) {
+		t.Fatalf("sandbox_1 source map should preserve relative path src/app.js, got: %q, err=%v", string(map1), err)
+	}
+
+	// Request 2 in sb2: src/lib.js served from digest cache, src/app.js read from sb2.
+	hitsBefore := worker.Cache().Stats().Hits
+	resp2 := worker.ExecuteRequest(&WorkRequest{
+		RequestId:  802,
+		SandboxDir: sb2,
+		Arguments: []string{
+			"--env=CUSTOM",
+			"--compilation_level=SIMPLE",
+			"--js", "src/lib.js",
+			"--js", "src/app.js",
+			"--js_output_file", "out/bundle.js",
+		},
+		Inputs: []WorkerInput{
+			{Path: "src/lib.js", Digest: libDigest},
+			{Path: filepath.Join(sb2, "src", "app.js"), Digest: appDigestV2},
+		},
+	})
+	if resp2.ExitCode != 0 {
+		t.Fatalf("sandbox_2 request failed: %+v", resp2)
+	}
+	if worker.Cache().Stats().Hits != hitsBefore+1 {
+		t.Fatalf("expected cache hit on src/lib.js across sandboxes, before=%d after=%d", hitsBefore, worker.Cache().Stats().Hits)
+	}
+	out2, err := os.ReadFile(filepath.Join(sb2, "out", "bundle.js"))
+	if err != nil || !strings.Contains(string(out2), "sandbox_ok:") || !strings.Contains(string(out2), "+2") {
+		t.Fatalf("sandbox_2 bundle mismatch: %q, err=%v", string(out2), err)
+	}
+
+	// Non-existent SandboxDir returns non-zero ExitCode cleanly and preserves cwd.
+	respBad := worker.ExecuteRequest(&WorkRequest{
+		RequestId:  803,
+		SandboxDir: filepath.Join(root, "does_not_exist"),
+		Arguments:  []string{"--js", "src/app.js"},
+	})
+	if respBad.ExitCode == 0 {
+		t.Fatalf("expected non-zero exit code for missing SandboxDir, got %+v", respBad)
+	}
+	if gotWD, _ := os.Getwd(); gotWD != origWD {
+		t.Fatalf("cwd changed after failed SandboxDir: got %q, want %q", gotWD, origWD)
+	}
+}

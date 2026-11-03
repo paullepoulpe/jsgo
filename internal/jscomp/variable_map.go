@@ -24,6 +24,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -193,17 +194,24 @@ func (vm *VariableMap) ToBytes() []byte {
 	// Go-only: language-adapter — the OutputStreamWriter's UTF-8 encoding
 	// of the whole text; no surrogate pair can straddle two writes, so
 	// encoding the concatenation is the same.
-	var sb strings.Builder
 	// The output order should be stable.
 	keys := slices.Clone(vm.origKeys)
 	slices.SortFunc(keys, jutil.StringCompareTo)
+	totalCap := 0
 	for _, key := range keys {
-		sb.WriteString(variableMap_escape(key))
-		sb.WriteByte(variableMap_SEPARATOR)
-		sb.WriteString(variableMap_escape(vm.origToNew[key]))
-		sb.WriteByte('\n')
+		totalCap += len(key) + len(vm.origToNew[key]) + 2
 	}
-	return jutil.StringGetBytesUTF8(sb.String())
+	buf := make([]byte, 0, totalCap)
+	for _, key := range keys {
+		buf = appendEscapedVariableMapField(buf, key)
+		buf = append(buf, variableMap_SEPARATOR)
+		buf = appendEscapedVariableMapField(buf, vm.origToNew[key])
+		buf = append(buf, '\n')
+	}
+	if utf8.Valid(buf) {
+		return buf
+	}
+	return jutil.StringGetBytesUTF8(string(buf))
 }
 
 // VariableMap_FromBytes deserializes the variable map from a byte array
@@ -292,9 +300,29 @@ func VariableMap_FromLines(s string) *VariableMap {
 	return vm
 }
 
+// appendEscapedVariableMapField appends value to buf with '\\', ':', and '\n'
+// escaped in a single pass without intermediate string allocations.
+//
 // Java: VariableMap.escape(String)
-func variableMap_escape(value string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(value, "\\", "\\\\"), ":", "\\:"), "\n", "\\n")
+func appendEscapedVariableMapField(buf []byte, s string) []byte {
+	last := 0
+	for i := 0; i < len(s); i++ {
+		var esc byte
+		switch s[i] {
+		case '\\':
+			esc = '\\'
+		case ':':
+			esc = ':'
+		case '\n':
+			esc = 'n'
+		default:
+			continue
+		}
+		buf = append(buf, s[last:i]...)
+		buf = append(buf, '\\', esc)
+		last = i + 1
+	}
+	return append(buf, s[last:]...)
 }
 
 // variableMap_findIndexOfUnescapedChar works on byte offsets (stopChar is

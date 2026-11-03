@@ -22846,3 +22846,53 @@ func (c *TypeCheckTest) TestClosureTypesMultipleWarnings(js string, descriptions
 		AssertThat(actualWarningDescriptions).IsEqualTo(NewOrderedSet(descriptions...))
 	}
 }
+
+// Go-only: regression test — a trailing @typeSummary script in --fast_mode must not clobber
+// tc.subtypingMode or validator.subtypingMode left by the last non-skipped script.
+func TestTypeCheckFastModeTrailingTypeSummarySubtypingMode(t *testing.T) {
+	runCheck := func(fastMode bool) (*TypeCheck, *Compiler) {
+		compiler := NewCompiler()
+		opts := NewCompilerOptions()
+		opts.SetCheckTypes(true)
+		opts.SetFastMode(fastMode)
+		if fastMode {
+			opts.SetNumParallelThreads(2)
+		}
+		// ParseInputs places @typeSummary scripts at the back of externsRoot, so an externsRoot
+		// containing [Extern.java.js, summary.i.js] with an empty jsRoot ends with a skipped
+		// @typeSummary script in parallel TypeCheck.
+		compiler.Init(
+			[]*SourceFile{SourceFile_FromCode("Extern.java.js", "/** @externs */ var ext;")},
+			[]*SourceFile{SourceFile_FromCode("summary.i.js", "/** @fileoverview @typeSummary */ var y;")},
+			opts)
+		root := compiler.ParseInputs()
+		if compiler.GetErrorCount() != 0 {
+			t.Fatalf("parse errors (fastMode=%v): %v", fastMode, compiler.GetErrors())
+		}
+		externsRoot := root.GetFirstChild()
+		jsRoot := externsRoot.GetNext()
+		rai := NewSemanticReverseAbstractInterpreter(compiler.GetTypeRegistry())
+		tc := NewTypeCheck(compiler, rai, compiler.GetTypeRegistry())
+		tc.ProcessForTesting(externsRoot, jsRoot)
+		if fastMode {
+			if _, n, ok := tc.canCheckInParallel(externsRoot); !ok || n < 2 {
+				t.Fatalf("expected canCheckInParallel(externsRoot)=true with >=2 workers, got ok=%v n=%d", ok, n)
+			}
+		}
+		return tc, compiler
+	}
+
+	seqTC, seqComp := runCheck(false)
+	fastTC, fastComp := runCheck(true)
+
+	if seqTC.subtypingMode != rhino.JSType_SubtypingMode_IGNORE_NULL_UNDEFINED {
+		t.Fatalf("expected sequential subtypingMode IGNORE_NULL_UNDEFINED, got %v", seqTC.subtypingMode)
+	}
+	if fastTC.subtypingMode != seqTC.subtypingMode {
+		t.Fatalf("fastMode tc.subtypingMode = %v, want %v", fastTC.subtypingMode, seqTC.subtypingMode)
+	}
+	if fastComp.GetTypeValidator().subtypingMode != seqComp.GetTypeValidator().subtypingMode {
+		t.Fatalf("fastMode validator.subtypingMode = %v, want %v",
+			fastComp.GetTypeValidator().subtypingMode, seqComp.GetTypeValidator().subtypingMode)
+	}
+}

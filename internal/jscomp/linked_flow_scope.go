@@ -62,6 +62,20 @@ type linkedFlowScopeArena struct {
 
 	scopeMapArena rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope]
 	slotMapArena  rhino.HamtPMapArena[string, rhino.JSType]
+
+	// Reusable join state and pre-bound method values so linkedFlowScope_JoinMap
+	// does not heap-allocate 2 closures per CFG branch join.
+	join            linkedFlowJoinState
+	reconcileScopes func(*TypedScope, *LinkedFlowScope_OverlayScope, *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope
+	reconcileSlots  func(string, rhino.JSType, rhino.JSType) rhino.JSType
+}
+
+type linkedFlowJoinState struct {
+	arena       *linkedFlowScopeArena
+	linkedA     *LinkedFlowScope
+	linkedB     *LinkedFlowScope
+	typedScopeA *TypedScope
+	typedScopeB *TypedScope
 }
 
 func (a *linkedFlowScopeArena) scopeMaps() *rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope] {
@@ -83,6 +97,7 @@ func (a *linkedFlowScopeArena) reset() {
 	a.slotMapArena.Reset()
 	a.scopes.Reset(nil)
 	a.overlays.Reset(nil)
+	a.join = linkedFlowJoinState{}
 }
 
 // trimLargeChunks resets a and drops the storage that a large CFG made the
@@ -602,114 +617,137 @@ func linkedFlowScope_JoinMap(
 	if arena == nil {
 		arena = linkedB.arena
 	}
-	return scopesA.
-		ReconcileMapWithArena(
-			arena.scopeMaps(),
-			scopesB,
-			func(scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope {
-				if scopeA == scopeB && linkedA.FlowsFromBottom() == linkedB.FlowsFromBottom() {
-					return scopeA
-				}
-				var slotsA, slotsB *rhino.HamtPMap[string, rhino.JSType]
-				if scopeA != nil {
-					slotsA = scopeA.slots
-				}
-				if scopeB != nil {
-					slotsB = scopeB.slots
-				}
-				// TODO(sdh): Simplify this logic: we want the best non-bottom scope we can get,
-				// for the purpose of (a) passing to the joined OverlayScope constructor, and
-				// (b) joining types only present in one scope.
-				var typedScopeA *TypedScope
-				if !linkedA.FlowsFromBottom() {
-					if scopeA != nil {
-						typedScopeA = scopeA.scope
-					} else {
-						typedScopeA = scopeB.scope
-					}
-				}
-				var typedScopeB *TypedScope
-				if !linkedB.FlowsFromBottom() {
-					if scopeB != nil {
-						typedScopeB = scopeB.scope
-					} else {
-						typedScopeB = scopeA.scope
-					}
-				}
-				bestScope := typedScopeA
-				if bestScope == nil {
-					bestScope = typedScopeB
-				}
-				if bestScope == nil {
-					if scopeA != nil {
-						bestScope = scopeA.scope
-					} else {
-						bestScope = scopeB.scope
-					}
-				}
-				var reconciledSlots *rhino.HamtPMap[string, rhino.JSType]
-				if slotsA == slotsB && typedScopeA == typedScopeB {
-					reconciledSlots = slotsA
-				} else {
-					reconciledSlots = slotsA.ReconcileMapWithArena(
-						arena.slotMaps(),
-						slotsB,
-						func(slotKey string, rawTypeA rhino.JSType, rawTypeB rhino.JSType) rhino.JSType {
-							// There are 5 different join cases:
-							// 1) The type is present in joinedScopeA, not in joinedScopeB,
-							//    and not in functionScope. Just use the one in A.
-							// 2) The type is present in joinedScopeB, not in joinedScopeA,
-							//    and not in functionScope. Just use the one in B.
-							// 3) The type is present in functionScope and joinedScopeA, but
-							//    not in joinedScopeB. Join the two types.
-							// 4) The type is present in functionScope and joinedScopeB, but
-							//    not in joinedScopeA. Join the two types.
-							// 5) The type is present in joinedScopeA and joinedScopeB. Join
-							//    the two types.
-							typeA := unwrapOverlayType(rawTypeA)
-							typeB := unwrapOverlayType(rawTypeB)
-							if typeB == nil {
-								var fnSlotType rhino.JSType
-								if typedScopeB != nil {
-									if fnSlot := typedScopeB.GetVar(slotKey); fnSlot != nil {
-										fnSlotType = fnSlot.GetType()
-									}
-								}
-								if fnSlotType == nil || fnSlotType == typeA {
-									// Case #1
-									return rawTypeA
-								}
-								// Case #3
-								return wrapOverlayType(typeA.GetLeastSupertype(fnSlotType))
-							} else if typeA == nil {
-								var fnSlotType rhino.JSType
-								if typedScopeA != nil {
-									if fnSlot := typedScopeA.GetVar(slotKey); fnSlot != nil {
-										fnSlotType = fnSlot.GetType()
-									}
-								}
-								if fnSlotType == nil || fnSlotType == typeB {
-									// Case #2
-									return rawTypeB
-								}
-								// Case #4
-								return wrapOverlayType(typeB.GetLeastSupertype(fnSlotType))
-							}
-							// Case #5
-							if typeA == typeB {
-								return rawTypeA
-							}
-							return wrapOverlayType(typeA.GetLeastSupertype(typeB))
-						})
-				}
-				if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
-					return scopeA
-				}
-				if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
-					return scopeB
-				}
-				return newLinkedFlowScope_OverlayScopeWithArena(arena, bestScope, reconciledSlots)
-			})
+	if arena != nil {
+		if arena.reconcileScopes == nil {
+			arena.reconcileScopes = arena.reconcileScopeEntry
+			arena.reconcileSlots = arena.join.reconcileSlotEntry
+		}
+		arena.join = linkedFlowJoinState{arena: arena, linkedA: linkedA, linkedB: linkedB}
+		res := scopesA.ReconcileMapWithArena(&arena.scopeMapArena, scopesB, arena.reconcileScopes)
+		arena.join = linkedFlowJoinState{}
+		return res
+	}
+	st := &linkedFlowJoinState{linkedA: linkedA, linkedB: linkedB}
+	return scopesA.ReconcileMapWithArena(nil, scopesB, func(scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope {
+		return st.reconcileScope(scopeKey, scopeA, scopeB, st.reconcileSlotEntry)
+	})
+}
+
+func (a *linkedFlowScopeArena) reconcileScopeEntry(
+	scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope,
+) *LinkedFlowScope_OverlayScope {
+	return a.join.reconcileScope(scopeKey, scopeA, scopeB, a.reconcileSlots)
+}
+
+func (st *linkedFlowJoinState) reconcileScope(
+	_ *TypedScope,
+	scopeA *LinkedFlowScope_OverlayScope,
+	scopeB *LinkedFlowScope_OverlayScope,
+	slotFn func(string, rhino.JSType, rhino.JSType) rhino.JSType,
+) *LinkedFlowScope_OverlayScope {
+	if scopeA == scopeB && st.linkedA.FlowsFromBottom() == st.linkedB.FlowsFromBottom() {
+		return scopeA
+	}
+	var slotsA, slotsB *rhino.HamtPMap[string, rhino.JSType]
+	if scopeA != nil {
+		slotsA = scopeA.slots
+	}
+	if scopeB != nil {
+		slotsB = scopeB.slots
+	}
+	// TODO(sdh): Simplify this logic: we want the best non-bottom scope we can get,
+	// for the purpose of (a) passing to the joined OverlayScope constructor, and
+	// (b) joining types only present in one scope.
+	var typedScopeA *TypedScope
+	if !st.linkedA.FlowsFromBottom() {
+		if scopeA != nil {
+			typedScopeA = scopeA.scope
+		} else {
+			typedScopeA = scopeB.scope
+		}
+	}
+	var typedScopeB *TypedScope
+	if !st.linkedB.FlowsFromBottom() {
+		if scopeB != nil {
+			typedScopeB = scopeB.scope
+		} else {
+			typedScopeB = scopeA.scope
+		}
+	}
+	bestScope := typedScopeA
+	if bestScope == nil {
+		bestScope = typedScopeB
+	}
+	if bestScope == nil {
+		if scopeA != nil {
+			bestScope = scopeA.scope
+		} else {
+			bestScope = scopeB.scope
+		}
+	}
+	var reconciledSlots *rhino.HamtPMap[string, rhino.JSType]
+	if slotsA == slotsB && typedScopeA == typedScopeB {
+		reconciledSlots = slotsA
+	} else {
+		st.typedScopeA = typedScopeA
+		st.typedScopeB = typedScopeB
+		reconciledSlots = slotsA.ReconcileMapWithArena(st.arena.slotMaps(), slotsB, slotFn)
+	}
+	if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
+		return scopeA
+	}
+	if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
+		return scopeB
+	}
+	return newLinkedFlowScope_OverlayScopeWithArena(st.arena, bestScope, reconciledSlots)
+}
+
+func (st *linkedFlowJoinState) reconcileSlotEntry(slotKey string, rawTypeA rhino.JSType, rawTypeB rhino.JSType) rhino.JSType {
+	// There are 5 different join cases:
+	// 1) The type is present in joinedScopeA, not in joinedScopeB,
+	//    and not in functionScope. Just use the one in A.
+	// 2) The type is present in joinedScopeB, not in joinedScopeA,
+	//    and not in functionScope. Just use the one in B.
+	// 3) The type is present in functionScope and joinedScopeA, but
+	//    not in joinedScopeB. Join the two types.
+	// 4) The type is present in functionScope and joinedScopeB, but
+	//    not in joinedScopeA. Join the two types.
+	// 5) The type is present in joinedScopeA and joinedScopeB. Join
+	//    the two types.
+	typeA := unwrapOverlayType(rawTypeA)
+	typeB := unwrapOverlayType(rawTypeB)
+	if typeB == nil {
+		var fnSlotType rhino.JSType
+		if st.typedScopeB != nil {
+			if fnSlot := st.typedScopeB.GetVar(slotKey); fnSlot != nil {
+				fnSlotType = fnSlot.GetType()
+			}
+		}
+		if fnSlotType == nil || fnSlotType == typeA {
+			// Case #1
+			return rawTypeA
+		}
+		// Case #3
+		return wrapOverlayType(typeA.GetLeastSupertype(fnSlotType))
+	} else if typeA == nil {
+		var fnSlotType rhino.JSType
+		if st.typedScopeA != nil {
+			if fnSlot := st.typedScopeA.GetVar(slotKey); fnSlot != nil {
+				fnSlotType = fnSlot.GetType()
+			}
+		}
+		if fnSlotType == nil || fnSlotType == typeB {
+			// Case #2
+			return rawTypeB
+		}
+		// Case #4
+		return wrapOverlayType(typeB.GetLeastSupertype(fnSlotType))
+	}
+	// Case #5
+	if typeA == typeB {
+		return rawTypeA
+	}
+	return wrapOverlayType(typeA.GetLeastSupertype(typeB))
 }
 
 // LinkedFlowScope_OverlayScope is the overlay of one syntactic scope.

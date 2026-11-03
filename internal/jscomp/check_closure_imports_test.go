@@ -972,3 +972,31 @@ func (c *CheckClosureImportsTest) Test_crossChunkGoogRequire_withExplicitChunkDe
 				AddChunk("goog.require('test');").
 				Build()))
 }
+
+// Go-only: regression test — filling an alias initialized with 0-arg or non-string
+// goog.forwardDeclare() must report JSC_INVALID_GET_ALIAS without panicking.
+func (c *CheckClosureImportsTest) Test_moduleGetFillInMalformedForwardDeclareIsError() {
+	c.moduleType = ModuleMetadataMap_ModuleType_GOOG_MODULE
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+let symbol = goog.forwardDeclare();
+() => symbol = goog.module.get('symbol');
+`)),
+		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_CALL),
+		c.Error(ClosureRewriteModule_INVALID_GET_ALIAS))
+
+	c.Test(
+		c.Srcs(
+			checkClosureImportsTest_PROVIDES_SYMBOL_SRC,
+			checkClosureImportsTest_makeTestFile(
+				`goog.module('test');
+let symbol = goog.forwardDeclare(123);
+() => symbol = goog.module.get('symbol');
+`)),
+		c.Error(CheckClosureImports_INVALID_CLOSURE_IMPORT_CALL),
+		c.Error(ClosureRewriteModule_INVALID_GET_ALIAS))
+}

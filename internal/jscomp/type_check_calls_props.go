@@ -551,7 +551,11 @@ func (tc *TypeCheck) VisitModuleBody(t *NodeTraversal, body ast.ModuleBody) {
 	if !associatedModule.Metadata().IsLegacyGoogModule() {
 		return
 	}
-	moduleName := rhino.QualifiedName_Of(*associatedModule.ClosureNamespace())
+	closureNs, ok := associatedModule.ClosureNamespaceOk()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
+	moduleName := rhino.QualifiedName_Of(closureNs)
 	// The first statement of a legacy goog.module is its goog.module call.
 	googModuleCall, ok := body.FirstStatement()
 	jutil.CheckState(ok)

@@ -637,6 +637,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 		return
 	}
 	list := a.outer.reservedNamesForScope[root]
+	hadPrior := len(list) > 0
 	if list == nil {
 		list = make([]string, 0, varCount)
 	}
@@ -657,7 +658,7 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 			}
 			a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: name, scopeRoot: root}] |= flags
 		}
-		if !slices.Contains(list, name) {
+		if !hadPrior || !slices.Contains(list, name) {
 			list = append(list, name)
 		}
 	}
@@ -798,8 +799,8 @@ func TypedScopeCreator_ContainingGoogModuleIdOf(scope *TypedScope) (string, bool
 		 * This module may not have a goog.module/goog.declareModuleId. Also don't crash if it's
 		 * malformed with multiple module IDs.
 		 */
-		if ns := module.ClosureNamespace(); ns != nil {
-			return *ns, true
+		if ns, ok := module.ClosureNamespaceOk(); ok {
+			return ns, true
 		}
 		for namespace := range metadata.GoogNamespaces().All() {
 			return namespace, true

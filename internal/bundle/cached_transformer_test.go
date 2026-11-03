@@ -18,7 +18,15 @@
 
 package bundle
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
+)
 
 var (
 	jsaCtFOO = NewSource(SourceConfig{Code: "foo"})
@@ -65,4 +73,58 @@ func TestCachedTransformer_Caches(t *testing.T) {
 	jsaTrue(t, cached.Transform(jsaCtFOO) == jsaCtBAR)
 	jsaTrue(t, cached.Transform(jsaCtFOO) == jsaCtBAR)
 	jsaEq(t, delegate.calls[jsaCtFOO], 1)
+}
+
+func TestOptionsCompilerSupplierConcurrentAndNodeStoreReset(t *testing.T) {
+	rhino.ResetNodeStore()
+	defer rhino.ResetNodeStore()
+
+	cached := NewCachedTransformerWithMaxSize(
+		NewTranspiler(NewCompilerSupplier(), "es6_runtime"),
+		64,
+	)
+
+	const workers = 8
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	errCh := make(chan error, workers)
+
+	for g := 0; g < workers; g++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			<-start
+			src := NewSource(SourceConfig{
+				Path: jutil.Path_Of(fmt.Sprintf("mod_%d.js", id)),
+				Code: fmt.Sprintf("class Box%d { get() { return [1, 2].map(x => x + %d); } }", id, id),
+			})
+			out := cached.Transform(src)
+			if !strings.Contains(out.Code(), fmt.Sprintf("Box%d", id)) {
+				errCh <- fmt.Errorf("worker %d unexpected output: %q", id, out.Code())
+			}
+		}(g)
+	}
+	close(start)
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		t.Fatal(err)
+	}
+
+	if !rhino.CurrentNodeStore().IsStatic() {
+		t.Fatalf("expected rhino.CurrentNodeStore().IsStatic() == true after standalone OptionsCompilerSupplier calls")
+	}
+
+	// Verify an already-active outer compilation NodeStore is NOT reset.
+	outer := rhino.NewNodeStore()
+	prev := rhino.SetCurrentNodeStore(outer)
+	defer rhino.SetCurrentNodeStore(prev)
+
+	res := NewCompilerSupplier().Compile("nested.js", "const y = () => 1;")
+	if len(res.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", res.Errors)
+	}
+	if rhino.CurrentNodeStore() != outer {
+		t.Fatalf("OptionsCompilerSupplier clobbered active outer NodeStore")
+	}
 }

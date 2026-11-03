@@ -486,11 +486,17 @@ func (p *ConvertToTypedInterface_PropagateConstJsdoc) Visit(t *NodeTraversal, n 
 			call := ast.MustCall(expr)
 			callee := call.Callee().Node()
 			if processConstJsdocCallback_GOOG_PROVIDE.Matches(callee) {
-				lastArg, _ := call.LastArg()
-				p.currentFile.MarkProvided(lastArg.Node().GetString())
+				if lastArg, ok := call.LastArg(); ok {
+					if str, ok := lastArg.AsStringLit(); ok {
+						p.currentFile.MarkProvided(str.Value())
+					}
+				}
 			} else if processConstJsdocCallback_GOOG_REQUIRE.Matches(callee) || processConstJsdocCallback_CJS_REQUIRE.Matches(callee) {
-				lastArg, _ := call.LastArg()
-				p.currentFile.RecordImport(lastArg.Node().GetString())
+				if lastArg, ok := call.LastArg(); ok {
+					if str, ok := lastArg.AsStringLit(); ok {
+						p.currentFile.RecordImport(str.Value())
+					}
+				}
 			} else if processConstJsdocCallback_GOOG_DEFINE.Matches(callee) {
 				p.currentFile.RecordDefine(expr)
 			}
@@ -913,7 +919,9 @@ func (f *FileInfo) RecordStringKeyDeclaration(stringKeyNode rhino.Node) {
 
 // Java: FileInfo.recordDefine(Node)
 func (f *FileInfo) RecordDefine(callNode rhino.Node) {
-	f.RecordDeclaration(PotentialDeclaration_FromDefine(callNode))
+	if decl := PotentialDeclaration_FromDefine(callNode); decl != nil {
+		f.RecordDeclaration(decl)
+	}
 }
 
 // Java: FileInfo.recordAliasDeclaration(Node)

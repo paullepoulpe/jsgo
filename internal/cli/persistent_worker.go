@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -296,6 +297,66 @@ func (w *PersistentWorker) Serve(in io.Reader, out io.Writer) error {
 	}
 }
 
+var workerExecMu sync.Mutex
+
+type workerSyncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *workerSyncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	n, err := b.buf.Write(p)
+	b.mu.Unlock()
+	return n, err
+}
+
+func registerWorkerInputDigest(
+	cache *WorkerDigestCache,
+	reqDigests map[string]string,
+	rawPath string,
+	digest string,
+	rawSandbox string,
+	absSandbox string,
+) {
+	normPath := jutil.ParsePathString(rawPath)
+	applyKey := func(k string, overwrite bool) {
+		if k == "" {
+			return
+		}
+		if digest == "" {
+			cache.InvalidatePath(k)
+			return
+		}
+		if !overwrite {
+			if _, exists := reqDigests[k]; exists {
+				return
+			}
+		}
+		cache.evictIfDigestMismatch(k, digest)
+		reqDigests[k] = digest
+	}
+	applyKey(normPath, true)
+	if absSandbox == "" {
+		return
+	}
+	sep := string(filepath.Separator)
+	if filepath.IsAbs(normPath) {
+		if rel, err := filepath.Rel(absSandbox, normPath); err == nil &&
+			rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+sep) {
+			applyKey(jutil.ParsePathString(rel), false)
+		}
+		return
+	}
+	applyKey(jutil.ParsePathString(filepath.Join(absSandbox, normPath)), false)
+	if rawSbNorm := jutil.ParsePathString(rawSandbox); rawSbNorm != "" && !filepath.IsAbs(rawSbNorm) {
+		if rel, err := filepath.Rel(rawSbNorm, normPath); err == nil &&
+			rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+sep) {
+			applyKey(jutil.ParsePathString(rel), false)
+		}
+	}
+}
+
 // ExecuteRequest runs a single Bazel WorkRequest hermetically and returns its WorkResponse.
 func (w *PersistentWorker) ExecuteRequest(req *WorkRequest) WorkResponse {
 	if req.Cancel {
@@ -305,39 +366,75 @@ func (w *PersistentWorker) ExecuteRequest(req *WorkRequest) WorkResponse {
 		}
 	}
 
+	workerExecMu.Lock()
+	defer workerExecMu.Unlock()
+
 	// Strictly reset the global NodeStore before AND after every compilation request
 	// so AST blocks never leak across requests and are immediately eligible for GC.
 	rhino.ResetNodeStore()
 	defer rhino.ResetNodeStore()
 
+	var absSandbox string
+	if req.SandboxDir != "" {
+		origDir, wdErr := os.Getwd()
+		if wdErr != nil {
+			return WorkResponse{
+				ExitCode:  1,
+				Output:    wdErr.Error() + "\n",
+				RequestId: req.RequestId,
+			}
+		}
+		var absErr error
+		absSandbox, absErr = filepath.Abs(req.SandboxDir)
+		if absErr != nil {
+			return WorkResponse{
+				ExitCode:  1,
+				Output:    absErr.Error() + "\n",
+				RequestId: req.RequestId,
+			}
+		}
+		if chErr := os.Chdir(absSandbox); chErr != nil {
+			return WorkResponse{
+				ExitCode:  1,
+				Output:    chErr.Error() + "\n",
+				RequestId: req.RequestId,
+			}
+		}
+		defer func() {
+			_ = os.Chdir(origDir)
+		}()
+	}
+
 	var reqDigests map[string]string
 	if len(req.Inputs) > 0 {
-		reqDigests = make(map[string]string, len(req.Inputs))
+		reqDigests = make(map[string]string, len(req.Inputs)*2)
 		for i := range req.Inputs {
 			inp := req.Inputs[i]
 			if inp.Path == "" {
 				continue
 			}
-			normPath := jutil.ParsePathString(inp.Path)
-			if inp.Digest == "" {
-				w.cache.InvalidatePath(normPath)
-				continue
-			}
-			w.cache.evictIfDigestMismatch(normPath, inp.Digest)
-			reqDigests[normPath] = inp.Digest
+			registerWorkerInputDigest(w.cache, reqDigests, inp.Path, inp.Digest, req.SandboxDir, absSandbox)
 		}
 	}
 
 	reqArgs := w.buildRequestArgs(req.Arguments)
 
-	var stdoutBuf bytes.Buffer
-	var stderrBuf bytes.Buffer
+	var stdoutBuf workerSyncBuffer
+	var stderrBuf workerSyncBuffer
 	outPS := jutil.NewPrintStream(&stdoutBuf)
 	errPS := jutil.NewPrintStream(&stderrBuf)
 	emptyIn := bytes.NewReader(nil)
 
 	exitCode := 0
+	prevOut := jutil.System_Out()
+	prevErr := jutil.System_Err()
+	jutil.System_SetOut(errPS)
+	jutil.System_SetErr(errPS)
 	func() {
+		defer func() {
+			jutil.System_SetOut(prevOut)
+			jutil.System_SetErr(prevErr)
+		}()
 		defer func() {
 			if rec := recover(); rec != nil {
 				thrown := jutil.AsThrowable(rec)
@@ -381,7 +478,7 @@ func (w *PersistentWorker) ExecuteRequest(req *WorkRequest) WorkResponse {
 
 	return WorkResponse{
 		ExitCode:  exitCode,
-		Output:    combineWorkerStreams(&stderrBuf, &stdoutBuf),
+		Output:    combineWorkerStreams(&stderrBuf.buf, &stdoutBuf.buf),
 		RequestId: req.RequestId,
 	}
 }

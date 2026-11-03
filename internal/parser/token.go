@@ -72,6 +72,11 @@ const (
 	tokenFlagTemplateHasError            uint8 = 1 << 6 // TemplateLiteralToken.ErrorLevel == ERROR
 )
 
+// tokenAuxOverflow is stored in Token.aux when the 1-based index into
+// Scanner.templateErrors reaches >= 0xFFFF; the exact 0-based index is stored
+// in Scanner.templateErrorOverflow keyed by Token.Location.Start.Offset.
+const tokenAuxOverflow uint16 = 0xFFFF
+
 // Token is a 16-byte pointer-free value representing any JavaScript token
 // (punctuation, keyword, identifier, number, bigint, string, regex, or
 // template literal portion). The zero value Token{} represents an absent
@@ -81,7 +86,7 @@ const (
 type Token struct {
 	Location SourceRange // 8 bytes (Start, End SourcePosition)
 	identID  strpool.ID  // 4 bytes (interned identifier ID, or standalone literal fallback)
-	aux      uint16      // 2 bytes (1-based index into Scanner.templateErrors when != 0)
+	aux      uint16      // 2 bytes (1-based index into Scanner.templateErrors when != 0; tokenAuxOverflow uses overflow map)
 	rawType  uint8       // 1 byte  (0 = null/absent; uint8(TokenType)+1 otherwise)
 	flags    uint8       // 1 byte
 }

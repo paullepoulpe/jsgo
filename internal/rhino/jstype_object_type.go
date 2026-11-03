@@ -235,44 +235,25 @@ func (o *ObjectTypeBase) SetJSDocInfo(info *JSDocInfo) {
 //
 // Java: ObjectType.detectImplicitPrototypeCycle()
 func (o *ObjectTypeBase) detectImplicitPrototypeCycle() bool {
-	// detecting cycle
-	// Go-only: the types visited by this call are kept in a local list, and
-	// the per-type flag is only written when a cycle is found (Java returns
-	// without clearing its marks then, and later calls see them) or cleared
-	// when such a leftover mark is on the chain. Same results as Java's flag
-	// walk, without writes in the common case, so concurrent readers do not
-	// interfere.
-	var inline [16]*ObjectTypeBase
-	visited := append(inline[:0], o)
-	leftover := o.hasFlag(jsTypeFlagVisited)
-	p := o.selfObj().GetImplicitPrototype()
-	for p != nil {
-		pb := p.GetObjectTypeBase()
-		seen := pb.hasFlag(jsTypeFlagVisited)
-		for _, v := range visited {
-			if v == pb {
-				seen = true
-				break
-			}
-		}
-		if seen {
-			for _, v := range visited {
-				v.setFlag(jsTypeFlagVisited)
-			}
+	// Go-only: 100% read-only Brent tortoise-and-hare pointer walk. Never
+	// reads or writes JSTypeBase.flags so concurrent readers in parallel
+	// passes cannot race or interfere with each other.
+	slow := o
+	fast := o.selfObj().GetImplicitPrototype()
+	power := 1
+	steps := 0
+	for fast != nil {
+		fb := fast.GetObjectTypeBase()
+		if slow == fb {
 			return true
 		}
-		visited = append(visited, pb)
-		p = p.GetImplicitPrototype()
-	}
-
-	// clean up
-	if leftover {
-		o.clearFlag(jsTypeFlagVisited)
-	}
-	for _, v := range visited[1:] {
-		if v.hasFlag(jsTypeFlagVisited) {
-			v.clearFlag(jsTypeFlagVisited)
+		if steps == power {
+			slow = fb
+			power <<= 1
+			steps = 0
 		}
+		fast = fast.GetImplicitPrototype()
+		steps++
 	}
 	return false
 }

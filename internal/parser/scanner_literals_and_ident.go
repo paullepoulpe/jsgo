@@ -664,13 +664,22 @@ func (s *Scanner) NextTemplateLiteralTokenShared(endType, middleType TokenType) 
 		if skipResult.hasLevel {
 			lvl = uint8(skipResult.errorLevel) + 1
 		}
+		errIdx := len(s.templateErrors)
 		s.templateErrors = append(s.templateErrors, TemplateTokenError{
 			Message:  skipResult.errorMessage,
 			Position: skipResult.position,
 			HasMsg:   skipResult.hasMsg,
 			Level:    lvl,
 		})
-		aux = uint16(len(s.templateErrors))
+		if errIdx+1 < int(tokenAuxOverflow) {
+			aux = uint16(errIdx + 1)
+		} else {
+			aux = tokenAuxOverflow
+			if s.templateErrorOverflow == nil {
+				s.templateErrorOverflow = make(map[int32]int)
+			}
+			s.templateErrorOverflow[startingPosition.Offset] = errIdx
+		}
 	}
 
 	switch s.PeekChar() {

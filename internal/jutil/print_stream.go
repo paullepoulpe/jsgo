@@ -1,10 +1,12 @@
 package jutil
 
 import (
-	"bytes"
+	"encoding/binary"
 	"io"
+	"math/bits"
 	"os"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 )
 
@@ -121,14 +123,44 @@ func (p *PrintStream) Close() {
 // one, may become a charset jutil lacks) is not checked here, so any other
 // codeset is taken as US-ASCII.
 
+type nativeCharsetCacheEntry struct {
+	lcAll   string
+	lcCtype string
+	lang    string
+	charset *Charset
+}
+
+var nativeCharsetCache atomic.Pointer[nativeCharsetCacheEntry]
+
 // System_NativeCharset is Charset.forName(System.getProperty(
 // "native.encoding")) for the process's locale.
 func System_NativeCharset() *Charset {
-	name := ""
-	for _, v := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
-		if name = os.Getenv(v); name != "" {
-			break
-		}
+	lcAll := os.Getenv("LC_ALL")
+	lcCtype := os.Getenv("LC_CTYPE")
+	langEnv := os.Getenv("LANG")
+	if cached := nativeCharsetCache.Load(); cached != nil &&
+		cached.lcAll == lcAll &&
+		cached.lcCtype == lcCtype &&
+		cached.lang == langEnv {
+		return cached.charset
+	}
+	cs := computeSystemNativeCharset(lcAll, lcCtype, langEnv)
+	nativeCharsetCache.Store(&nativeCharsetCacheEntry{
+		lcAll:   lcAll,
+		lcCtype: lcCtype,
+		lang:    langEnv,
+		charset: cs,
+	})
+	return cs
+}
+
+func computeSystemNativeCharset(lcAll, lcCtype, langEnv string) *Charset {
+	name := lcAll
+	if name == "" {
+		name = lcCtype
+	}
+	if name == "" {
+		name = langEnv
 	}
 	if name == "" || name == "C" || name == "POSIX" {
 		return StandardCharsets_US_ASCII
@@ -172,12 +204,112 @@ func nativeEncoding_normalizeCodeset(codeset string) string {
 	return sb.String()
 }
 
+const (
+	glibcLocArchiveMagic       uint32 = 0xde020109
+	glibcLocArchiveHeaderBytes        = 56 // sizeof(struct locarhead) = 14 * uint32
+	glibcLocArchiveEntryBytes         = 12 // sizeof(struct namehashent) = 3 * uint32
+	glibcLocArchiveMaxBuckets  uint32 = 1 << 20
+)
+
 func nativeEncoding_localeInstalled(normalized string) bool {
 	if st, err := os.Stat("/usr/lib/locale/" + normalized); err == nil && st.IsDir() {
 		return true
 	}
-	archive, err := os.ReadFile("/usr/lib/locale/locale-archive")
-	return err == nil && bytes.Contains(archive, append([]byte(normalized), 0))
+	f, err := os.Open("/usr/lib/locale/locale-archive")
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	var size int64 = -1
+	if st, err := f.Stat(); err == nil {
+		size = st.Size()
+	}
+	return localeArchiveContains(f, size, normalized)
+}
+
+// glibcArchiveHash implements glibc's compute_hashval (locale/hashval.h with
+// hashval_t = uint32_t).
+func glibcArchiveHash(key string) uint32 {
+	hval := uint32(len(key))
+	for i := 0; i < len(key); i++ {
+		hval = bits.RotateLeft32(hval, 9) + uint32(key[i])
+	}
+	if hval == 0 {
+		return ^uint32(0)
+	}
+	return hval
+}
+
+func readExactAt(r io.ReaderAt, buf []byte, off int64) bool {
+	if off < 0 {
+		return false
+	}
+	n, err := r.ReadAt(buf, off)
+	return n == len(buf) && (err == nil || err == io.EOF)
+}
+
+// localeArchiveContains probes glibc's binary locale-archive namehash table
+// via io.ReaderAt (matching _nl_load_locale_from_archive in locale/loadarchive.c)
+// without reading the multi-hundred-MiB archive into memory, verifying an exact
+// NUL-terminated locale name match at name_offset.
+func localeArchiveContains(r io.ReaderAt, archiveSize int64, normalized string) bool {
+	wantLen := len(normalized)
+	if wantLen == 0 || wantLen > 255 {
+		return false
+	}
+	var hdr [glibcLocArchiveHeaderBytes]byte
+	if !readExactAt(r, hdr[:], 0) {
+		return false
+	}
+	if binary.LittleEndian.Uint32(hdr[0:4]) != glibcLocArchiveMagic {
+		return false
+	}
+	namehashOffset := binary.LittleEndian.Uint32(hdr[8:12])
+	namehashSize := binary.LittleEndian.Uint32(hdr[16:20])
+	if namehashSize == 0 || namehashSize > glibcLocArchiveMaxBuckets {
+		return false
+	}
+	tableEnd := int64(namehashOffset) + int64(namehashSize)*glibcLocArchiveEntryBytes
+	if int64(namehashOffset) < glibcLocArchiveHeaderBytes || (archiveSize >= 0 && tableEnd > archiveSize) {
+		return false
+	}
+
+	hval := glibcArchiveHash(normalized)
+	idx := hval % namehashSize
+	incr := uint32(1)
+	if namehashSize > 2 {
+		incr = 1 + hval%(namehashSize-2)
+	}
+
+	var ent [glibcLocArchiveEntryBytes]byte
+	var nameBuf [256]byte
+	for probes := uint32(0); probes < namehashSize; probes++ {
+		entOff := int64(namehashOffset) + int64(idx)*glibcLocArchiveEntryBytes
+		if !readExactAt(r, ent[:], entOff) {
+			return false
+		}
+		entHash := binary.LittleEndian.Uint32(ent[0:4])
+		nameOff := binary.LittleEndian.Uint32(ent[4:8])
+		locrecOff := binary.LittleEndian.Uint32(ent[8:12])
+		if nameOff == 0 {
+			return false
+		}
+		if entHash == hval {
+			endOff := int64(nameOff) + int64(wantLen) + 1
+			if archiveSize < 0 || endOff <= archiveSize {
+				if readExactAt(r, nameBuf[:wantLen+1], int64(nameOff)) &&
+					nameBuf[wantLen] == 0 &&
+					string(nameBuf[:wantLen]) == normalized {
+					return locrecOff != 0
+				}
+			}
+		}
+		idx += incr
+		if idx >= namehashSize {
+			idx -= namehashSize
+		}
+	}
+	return false
 }
 
 // NewPrintStreamWithCharset is new PrintStream(out, true, cs), for cs

@@ -3952,3 +3952,18 @@ a.b.c = class {};
 }
 `))
 }
+
+// Go-only: regression test — empty-body goog.loadModule(function(exports) {}) must report
+// JSC_LOAD_MODULE_FN_MISSING_RETURN without SIGSEGV, and 0-param or expression-body arrow
+// functions in goog.loadModule must not panic or corrupt leaf AST nodes.
+func (c *ClosureRewriteModuleTest) TestGoogLoadModule_emptyBodyAndMalformedFunctions() {
+	c.runTypeCheck = false
+	c.DisableTypeInfoValidation()
+
+	c.TestError(
+		"goog.loadModule(function(exports) {});",
+		ClosureRewriteModule_LOAD_MODULE_FN_MISSING_RETURN)
+
+	c.TestSame("goog.loadModule(function() {});")
+	c.TestSame("goog.loadModule((exports) => exports);")
+}

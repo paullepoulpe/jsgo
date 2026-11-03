@@ -137,7 +137,12 @@ func PotentialDeclaration_FromDefine(callNode rhino.Node) *PotentialDeclaration 
 	parent := callNode.GetParent()
 	switch parent.GetToken() {
 	case rhino.Token_EXPR_RESULT:
-		return newPotentialDeclaration(potentialDeclDefine, call.MustFirstArg().Node().GetString(), callNode, rhs)
+		firstArg, ok := call.FirstArg()
+		str, isStr := firstArg.AsStringLit()
+		if !ok || !isStr {
+			return nil
+		}
+		return newPotentialDeclaration(potentialDeclDefine, str.Value(), callNode, rhs)
 	case rhino.Token_ASSIGN:
 		previous := ast.MustAssign(parent).Target().Node()
 		return newPotentialDeclaration(potentialDeclDefine, mustPotentialDeclQualifiedName(previous), previous, rhs)
@@ -342,7 +347,7 @@ func (d *PotentialDeclaration) simplifyThisProp(compiler AbstractCompiler) {
 
 func (d *PotentialDeclaration) simplifyDefine(compiler AbstractCompiler) {
 	info := d.GetJsDoc()
-	if info != nil && info.GetType() != nil {
+	if info != nil && info.GetType() != nil && !d.rhs.IsNil() {
 		newRhs := potentialDeclaration_makeEmptyValueNode(info.GetType())
 		if !newRhs.IsNil() {
 			d.rhs.ReplaceWith(newRhs)

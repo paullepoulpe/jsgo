@@ -20,10 +20,12 @@
 package jscomp
 
 import (
+	"io"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // ReplaceIdGeneratorsTest holds tests for ReplaceIdGenerators.
@@ -873,6 +875,95 @@ func (c *ReplaceIdGeneratorsTest) TestTTLCall_undeclaredVarDoesNotPanic() {
 		"/** @idGenerator {stable} */ function tagId(strings) {}\n"+
 			"function Foo() { tagId(undeclaredTemplateTagArg); }\n",
 		ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER)
+}
+
+func (c *ReplaceIdGeneratorsTest) TestObjectLit_spreadReportsErrorWithoutMutatingEarlierKeys() {
+	c.TestSame(
+		`/** @idGenerator {stable} */
+goog.id = function(x) {};
+var base = {a: 1};
+var things = goog.id({foo: 'bar', ...base});
+`,
+		ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER)
+	AssertThat(jutil.StringTrim(c.lastPass.GetSerializedIdMappings())).IsEqualTo("")
+	// Verify the live AST did not mutate earlier STRING_KEY 'foo' before failing on ...base.
+	var foundFoo bool
+	NodeUtil_VisitPreOrder(c.GetLastCompiler().GetJsRoot(), func(n rhino.Node) {
+		if n.IsStringKey() && n.GetString() == "foo" {
+			foundFoo = true
+		}
+	})
+	AssertThat(foundFoo).IsTrue()
+}
+
+func (c *ReplaceIdGeneratorsTest) TestTTLCall_multiPartInvalidEscapePreservesSubstitutions() {
+	c.TestSame(
+		"/** @idGenerator {stable} */ function tagId(strings, ...args) {}\n"+
+			"function Foo(x) { return tagId`valid${x}\\underline{u}`; }\n",
+		ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER)
+	AssertThat(jutil.StringTrim(c.lastPass.GetSerializedIdMappings())).IsEqualTo("")
+	// Verify TEMPLATELIT_SUB still retains its expression child (no 0-child AST corruption).
+	subCount := 0
+	NodeUtil_VisitPreOrder(c.GetLastCompiler().GetJsRoot(), func(n rhino.Node) {
+		if n.IsTemplateLitSub() {
+			subCount++
+			AssertThat(n.HasOneChild()).IsTrue()
+		}
+	})
+	AssertThat(subCount).IsEqualTo(1)
+}
+
+func TestReplaceIdGenerators_MalformedSinglePartTemplateLitDoesNotPanic(t *testing.T) {
+	for _, tagged := range []bool{false, true} {
+		compiler := NewCompilerWithOutStream(jutil.NewPrintStream(io.Discard))
+		opts := NewCompilerOptions()
+		opts.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+		opts.SetLanguageOut(CompilerOptions_LanguageMode_NO_TRANSPILE)
+		src := "/** @idGenerator {stable} */ function gen(x) {}\nfunction f(y) { gen(`ok`); }\n"
+		if tagged {
+			src = "/** @idGenerator {stable} */ function gen(x) {}\nfunction f(y) { gen`ok`; }\n"
+		}
+		compiler.Init(
+			[]*SourceFile{},
+			[]*SourceFile{SourceFile_FromCode("test.js", src)},
+			opts)
+		compiler.Parse()
+
+		// Replace the single TEMPLATELIT_STRING child with a TEMPLATELIT_SUB so
+		// AsTemplateLitString returns (_, false) on a 1-part TEMPLATELIT.
+		var tplNode rhino.Node
+		NodeUtil_VisitPreOrder(compiler.GetJsRoot(), func(n rhino.Node) {
+			if n.IsTemplateLit() {
+				tplNode = n
+			}
+		})
+		if tplNode.IsNil() {
+			t.Fatal("expected TEMPLATELIT node")
+		}
+		tplNode.DetachChildren()
+		tplNode.AddChildToBack(rhino.IR_TemplateLiteralSubstitution(rhino.IR_Name("y")))
+
+		pass := NewReplaceIdGenerators(
+			compiler,
+			false,
+			NewOrderedStringMap[RenamingMap](),
+			false,
+			"",
+			nil)
+		pass.Process(compiler.GetExternsRoot(), compiler.GetJsRoot())
+
+		warns := compiler.GetWarnings()
+		if len(warns) != 1 {
+			t.Fatalf("tagged=%v: got %d warnings (%v), want 1", tagged, len(warns), warns)
+		}
+		wantDiag := ReplaceIdGenerators_INVALID_GENERATOR_PARAMETER
+		if tagged {
+			wantDiag = ReplaceIdGenerators_INVALID_TEMPLATE_LITERAL_PARAMETER
+		}
+		if warns[0].GetType() != wantDiag {
+			t.Fatalf("tagged=%v: got diagnostic %v, want %v", tagged, warns[0].GetType(), wantDiag)
+		}
+	}
 }
 
 // Java: ReplaceIdGeneratorsTest.testMap(String, String, String)

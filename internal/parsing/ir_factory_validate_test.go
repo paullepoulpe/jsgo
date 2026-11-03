@@ -171,3 +171,78 @@ func TestParsingDefensiveClones(t *testing.T) {
 		t.Fatalf("Config_JsDocParsing_values() returned shared backing slice: got %v, want %v", modes2[0], origMode0)
 	}
 }
+
+func TestValidateBreakContinueDetachedAndParentlessFragments(t *testing.T) {
+	prev := rhino.SetCurrentNodeStore(rhino.NewNodeStore())
+	defer rhino.SetCurrentNodeStore(prev)
+
+	reporter := &recordingErrorReporter{}
+	factory := &IRFactory{
+		sourceName:    "fragment.js",
+		sourceFile:    rhino.NewSimpleSourceFile("fragment.js", rhino.StaticSourceFile_SourceKind_STRONG),
+		errorReporter: reporter,
+	}
+
+	// 1. Detached unlabeled break & unlabeled break inside standalone BLOCK (no SCRIPT/FUNCTION/CLASS_MEMBERS).
+	detachedBreak := rhino.NewNode(rhino.Token_BREAK)
+	factory.ValidateBreakContinue(detachedBreak)
+	if len(reporter.errors) != 1 || reporter.errors[0] != IRFactory_UNLABELED_BREAK {
+		t.Fatalf("detached break errors = %v, want [%q]", reporter.errors, IRFactory_UNLABELED_BREAK)
+	}
+
+	reporter.errors = nil
+	blockBreak := rhino.NewNode(rhino.Token_BREAK)
+	standaloneBlock1 := rhino.IR_BlockOfNode(blockBreak)
+	_ = standaloneBlock1
+	factory.ValidateBreakContinue(blockBreak)
+	if len(reporter.errors) != 1 || reporter.errors[0] != IRFactory_UNLABELED_BREAK {
+		t.Fatalf("standalone block break errors = %v, want [%q]", reporter.errors, IRFactory_UNLABELED_BREAK)
+	}
+
+	// 2. Detached unlabeled continue & unlabeled continue inside standalone BLOCK.
+	reporter.errors = nil
+	detachedCont := rhino.NewNode(rhino.Token_CONTINUE)
+	factory.ValidateBreakContinue(detachedCont)
+	if len(reporter.errors) != 1 || reporter.errors[0] != IRFactory_UNEXPECTED_CONTINUE {
+		t.Fatalf("detached continue errors = %v, want [%q]", reporter.errors, IRFactory_UNEXPECTED_CONTINUE)
+	}
+
+	reporter.errors = nil
+	blockCont := rhino.NewNode(rhino.Token_CONTINUE)
+	standaloneBlock2 := rhino.IR_BlockOfNode(blockCont)
+	_ = standaloneBlock2
+	factory.ValidateBreakContinue(blockCont)
+	if len(reporter.errors) != 1 || reporter.errors[0] != IRFactory_UNEXPECTED_CONTINUE {
+		t.Fatalf("standalone block continue errors = %v, want [%q]", reporter.errors, IRFactory_UNEXPECTED_CONTINUE)
+	}
+
+	// 3. Detached labeled break & labeled continue with missing label in standalone BLOCK.
+	reporter.errors = nil
+	labeledBreak := rhino.NewNodeWithChild(rhino.Token_BREAK, rhino.IR_LabelName("missingLbl"))
+	standaloneBlock3 := rhino.IR_BlockOfNode(labeledBreak)
+	_ = standaloneBlock3
+	factory.ValidateBreakContinue(labeledBreak)
+	if len(reporter.errors) != 1 || reporter.errors[0] != "undefined label \"missingLbl\"" {
+		t.Fatalf("standalone labeled break errors = %v", reporter.errors)
+	}
+
+	// 4. Standalone LABEL wrapping a non-loop BLOCK with labeled continue -> UNEXPECTED_LABELLED_CONTINUE.
+	reporter.errors = nil
+	badLabeledCont := rhino.NewNodeWithChild(rhino.Token_CONTINUE, rhino.IR_LabelName("blkLbl"))
+	labeledNonLoop := rhino.IR_Label(rhino.IR_LabelName("blkLbl"), rhino.IR_BlockOfNode(badLabeledCont))
+	_ = labeledNonLoop
+	factory.ValidateBreakContinue(badLabeledCont)
+	if len(reporter.errors) != 1 || reporter.errors[0] != IRFactory_UNEXPECTED_LABELLED_CONTINUE {
+		t.Fatalf("standalone non-loop labeled continue errors = %v, want [%q]", reporter.errors, IRFactory_UNEXPECTED_LABELLED_CONTINUE)
+	}
+
+	// 5. Standalone WHILE loop fragment without SCRIPT ancestor -> valid, 0 errors.
+	reporter.errors = nil
+	validBreak := rhino.NewNode(rhino.Token_BREAK)
+	standaloneWhile := rhino.NewNodeWith2Children(rhino.Token_WHILE, rhino.NewNode(rhino.Token_TRUE), rhino.IR_BlockOfNode(validBreak))
+	_ = standaloneWhile
+	factory.ValidateBreakContinue(validBreak)
+	if len(reporter.errors) != 0 {
+		t.Fatalf("expected 0 errors for break inside standalone WHILE, got %v", reporter.errors)
+	}
+}

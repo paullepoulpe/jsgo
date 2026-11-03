@@ -1,17 +1,18 @@
 package jscomp
 
 import (
-	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"reflect"
 	"testing"
-	"unsafe"
+
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 func TestCompactVarCrossClassEquality(t *testing.T) {
-	if unsafe.Sizeof(Var{}) != 32 {
-		t.Fatalf("Var has %d bytes, want 32", unsafe.Sizeof(Var{}))
+	if sz := reflect.TypeFor[Var]().Size(); sz != 32 {
+		t.Fatalf("Var has %d bytes, want 32", sz)
 	}
-	if unsafe.Sizeof(TypedVar{}) != 48 {
-		t.Fatalf("TypedVar has %d bytes, want 48", unsafe.Sizeof(TypedVar{}))
+	if sz := reflect.TypeFor[TypedVar]().Size(); sz != 48 {
+		t.Fatalf("TypedVar has %d bytes, want 48", sz)
 	}
 	root := rhino.IR_Root()
 	scope := Scope_CreateGlobalScope(root)

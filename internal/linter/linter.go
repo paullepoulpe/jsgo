@@ -23,11 +23,14 @@
 package linter
 
 import (
+	"sync"
+
 	"github.com/paullepoulpe/jsgo/internal/args4j"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
 	"github.com/paullepoulpe/jsgo/internal/refactoring"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // Linter is a tool for running just the lint checks which can be run on a
@@ -117,13 +120,31 @@ func newLinter(options *jscomp.CompilerOptions) *Linter {
 	return &Linter{options: options}
 }
 
+// linterMu serializes standalone Linter compilations so concurrent Linter calls
+// never race on the process-wide rhino NodeStore.
+var linterMu sync.Mutex
+
 // Java: Linter.lint(String)
 func (l *Linter) Lint(filename string) {
-	l.LintWithCompiler(jutil.Path_Of(filename), jscomp.NewCompilerWithOutStream(jutil.System_Out()))
+	linterMu.Lock()
+	defer linterMu.Unlock()
+	if rhino.CurrentNodeStore().IsStatic() {
+		defer rhino.ResetNodeStore()
+	}
+	l.lintWithCompilerLocked(jutil.Path_Of(filename), jscomp.NewCompilerWithOutStream(jutil.System_Out()))
 }
 
 // Java: Linter.lint(Path, Compiler)
 func (l *Linter) LintWithCompiler(path *jutil.Path, compiler *jscomp.Compiler) {
+	linterMu.Lock()
+	defer linterMu.Unlock()
+	if rhino.CurrentNodeStore().IsStatic() {
+		defer rhino.ResetNodeStore()
+	}
+	l.lintWithCompilerLocked(path, compiler)
+}
+
+func (l *Linter) lintWithCompilerLocked(path *jutil.Path, compiler *jscomp.Compiler) {
 	file := jscomp.SourceFile_FromFile(path.String())
 	compiler.SetPassConfig(NewLintPassConfig(l.options))
 	compiler.DisableThreads()
@@ -161,12 +182,17 @@ func (l *Linter) FixRepeatedlyWithUnfixableErrors(filename string, unfixableErro
 //
 // Java: Linter.fix(String, ImmutableSet<DiagnosticType>)
 func (l *Linter) fix(filename string, unfixableErrors []*jscomp.DiagnosticType) (bool, error) {
+	linterMu.Lock()
+	defer linterMu.Unlock()
+	if rhino.CurrentNodeStore().IsStatic() {
+		defer rhino.ResetNodeStore()
+	}
 	compiler := jscomp.NewCompilerWithOutStream(jutil.System_Out())
 	errorManager := refactoring.NewFixingErrorManagerWithUnfixableErrors(unfixableErrors)
 	compiler.SetErrorManager(errorManager)
 	errorManager.SetCompiler(compiler)
 
-	l.LintWithCompiler(jutil.Path_Of(filename), compiler)
+	l.lintWithCompilerLocked(jutil.Path_Of(filename), compiler)
 
 	fixes := errorManager.GetSureFixes()
 	if len(fixes) != 0 {

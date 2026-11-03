@@ -471,7 +471,10 @@ func (ti *TypeInference) UpdateModuleScope(module *Module, syntacticBlockScope *
 
 		// Update the global scope for the implicit assignment "legacy.module.id = exports;" created
 		// by `goog.module.declareLegacyNamespace();`
-		moduleId := *module.ClosureNamespace()
+		moduleId, ok := module.ClosureNamespaceOk()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
 		globalScope := syntacticBlockScope.GetGlobalScope()
 		globalVar := globalScope.GetVar(moduleId)
 		if globalVar.IsTypeInferred() {

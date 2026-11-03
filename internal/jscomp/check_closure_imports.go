@@ -386,8 +386,9 @@ func (k *CheckClosureImports_Checker) CheckGoogModuleGet(t *NodeTraversal, call 
 			return
 		}
 
-		lastArg, _ := ast.MustCall(aliasVarNodeRhs).LastArg()
-		if namespace != lastArg.Node().GetString() {
+		lastArg, ok := ast.MustCall(aliasVarNodeRhs).LastArg()
+		strLit, isStr := lastArg.AsStringLit()
+		if !ok || !isStr || namespace != strLit.Value() {
 			t.Report(call, ClosureRewriteModule_INVALID_GET_ALIAS)
 			return
 		}

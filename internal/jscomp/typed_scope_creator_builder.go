@@ -221,7 +221,10 @@ func (b *TypedScopeCreator_scopeBuilder) FinishDeclaringGoogModule() {
 		return
 	}
 	exportsVar := jutil.CheckNotNull(b.currentScope.GetSlot("exports")).(*TypedVar)
-	closureNs := *b.GetModule().ClosureNamespace()
+	closureNs, ok := b.GetModule().ClosureNamespaceOk()
+	if !ok {
+		panic(jutil.NewNullPointerException())
+	}
 
 	if b.GetModule().Metadata().IsLegacyGoogModule() {
 		b.outer.typeRegistry.RegisterLegacyClosureNamespace(closureNs)

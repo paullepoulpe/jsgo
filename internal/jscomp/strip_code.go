@@ -251,6 +251,12 @@ var stripCodeVisitTokens = func() ast.TokenSet {
 	s.Add(rhino.Token_ASSIGN_MUL)
 	s.Add(rhino.Token_ASSIGN_DIV)
 	s.Add(rhino.Token_ASSIGN_MOD)
+	s.Add(rhino.Token_ASSIGN_EXPONENT)
+	s.Add(rhino.Token_ASSIGN_OR)
+	s.Add(rhino.Token_ASSIGN_AND)
+	s.Add(rhino.Token_ASSIGN_COALESCE)
+	s.Add(rhino.Token_INC)
+	s.Add(rhino.Token_DEC)
 	s.Add(rhino.Token_OBJECTLIT)
 	s.Add(rhino.Token_EXPR_RESULT)
 	s.Add(rhino.Token_CLASS)
@@ -300,7 +306,13 @@ func (s *StripCode) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 		rhino.Token_ASSIGN_SUB,
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_DIV,
-		rhino.Token_ASSIGN_MOD:
+		rhino.Token_ASSIGN_MOD,
+		rhino.Token_ASSIGN_EXPONENT,
+		rhino.Token_ASSIGN_OR,
+		rhino.Token_ASSIGN_AND,
+		rhino.Token_ASSIGN_COALESCE,
+		rhino.Token_INC,
+		rhino.Token_DEC:
 		s.MaybeEliminateAssignmentByLvalueName(t, n, parent)
 	case rhino.Token_OBJECTLIT:
 		s.EliminateKeysWithStripNamesFromObjLit(n)
@@ -398,6 +410,10 @@ func (s *StripCode) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhin
 //
 // Java: Strip.maybeRemoveReferenceToRemovedVariable(NodeTraversal, Node, Node)
 func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	parent = n.GetParent()
+	if parent.IsNil() {
+		return
+	}
 	switch parent.GetToken() {
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		// This is a variable declaration, not a reference.
@@ -425,11 +441,18 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 		rhino.Token_ASSIGN_SUB,
 		rhino.Token_ASSIGN_MUL,
 		rhino.Token_ASSIGN_DIV,
-		rhino.Token_ASSIGN_MOD:
+		rhino.Token_ASSIGN_MOD,
+		rhino.Token_ASSIGN_EXPONENT,
+		rhino.Token_ASSIGN_OR,
+		rhino.Token_ASSIGN_AND,
+		rhino.Token_ASSIGN_COALESCE:
 		if s.IsReferenceToRemovedVar(n) {
 			assign := ast.MustAssignment(parent)
 			if assign.Target().Is(n) {
 				grandparent := parent.GetParent()
+				if grandparent.IsNil() {
+					return
+				}
 				if s.decisionsLog.IsLogging() {
 					s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": removing assignment to stripped var")
 				}
@@ -453,6 +476,23 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 				s.ReplaceWithNull(n)
 				t.ReportCodeChange()
 			}
+		}
+	case rhino.Token_INC, rhino.Token_DEC:
+		if s.IsReferenceToRemovedVar(n) {
+			grandparent := parent.GetParent()
+			if grandparent.IsNil() {
+				return
+			}
+			if s.decisionsLog.IsLogging() {
+				s.decisionsLog.LogString(qualifiedNameOrNull(n) + ": removing assignment to stripped var")
+			}
+			if grandparent.IsExprResult() {
+				greatGrandparent := grandparent.GetParent()
+				s.ReplaceWithEmpty(grandparent, greatGrandparent)
+			} else {
+				s.ReplaceWithNull(parent)
+			}
+			t.ReportCodeChange()
 		}
 	case rhino.Token_NEW, rhino.Token_CALL:
 		if !ast.MustCallOrNew(parent).Callee().Is(n) && s.IsReferenceToRemovedVar(n) {
@@ -516,8 +556,16 @@ func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhin
 			s.ReplaceWithEmpty(ancestor, ancestorParent)
 			break
 		}
-		if assign, ok := ast.AsAssign(ancestor); ok {
+		if assign, ok := ast.AsAssignment(ancestor); ok {
 			ancestor.ReplaceWith(assign.Value().Node().Detach())
+			break
+		}
+		if _, ok := ast.AsIncDec(ancestor); ok {
+			if ancestorParent.IsExprResult() {
+				s.ReplaceWithEmpty(ancestorParent, ancestorParent.GetParent())
+			} else {
+				s.ReplaceWithNull(ancestor)
+			}
 			break
 		}
 		if !NodeUtil_IsNormalGet(ancestor) && !ancestor.IsCall() {
@@ -538,14 +586,22 @@ func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhin
 //   - A field name that's a strip name
 //   - A qualified name that begins with a strip type
 //
-// t is the traversal, n an ASSIGN node, parent n's parent.
+// t is the traversal, n an assignment or inc/dec node, parent n's parent.
 //
 // Java: Strip.maybeEliminateAssignmentByLvalueName(NodeTraversal, Node, Node)
 func (s *StripCode) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	// ASSIGN
+	if parent.IsNil() || n.GetParent().IsNil() {
+		return
+	}
+	// ASSIGN* / INC / DEC
 	//   l-value
-	//   r-value
-	lvalue := ast.MustAssignment(n).Target().Node()
+	//   [r-value]
+	var lvalue rhino.Node
+	if incDec, ok := ast.AsIncDec(n); ok {
+		lvalue = incDec.Target().Node()
+	} else {
+		lvalue = ast.MustAssignment(n).Target().Node()
+	}
 	if s.NameIncludesFieldNameToStrip(lvalue) || s.QualifiedNameBeginsWithStripType(lvalue) {
 		// Limit to EXPR_RESULT because it is not
 		// safe to eliminate assignment in complex expressions,

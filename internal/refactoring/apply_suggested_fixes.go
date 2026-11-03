@@ -201,7 +201,7 @@ func validateReplacementRanges(sortedReplacements []*CodeReplacement, codeLen in
 		}
 		lastIndex = replacement.GetEndPosition()
 	}
-	if lastIndex < 0 {
+	if lastIndex < 0 || lastIndex > codeLen {
 		panic(jutil.NewIndexOutOfBoundsExceptionForRange(lastIndex, codeLen, codeLen))
 	}
 }

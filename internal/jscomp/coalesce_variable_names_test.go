@@ -1061,6 +1061,148 @@ func (c *CoalesceVariableNamesTest) TestDestructuringEvaluationOrder() {
 	c.TestSame("function f(param) { var a; [a = param] = (a = 5, {});  a; }")
 }
 
+func (c *CoalesceVariableNamesTest) TestClassStaticBlock_doesNotClobberOuterLocalsAndMarksCapturedEscaped() {
+	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	c.SetLanguageOut(CompilerOptions_LanguageMode_NO_TRANSPILE)
+
+	// Reproducer A1: `static { let b = 10; ... }` must not leak into outer function
+	// coalescing or get rewritten to `var`, while outer locals `a` and `d` still coalesce.
+	c.Test(
+		`function f() {
+  var a = 1;
+  use(a);
+  class C {
+    static {
+      let b = 10;
+      use(b);
+    }
+  }
+  var d = 2;
+  return use(C, d);
+}
+`,
+		`function f() {
+  var a = 1;
+  use(a);
+  class C {
+    static {
+      let b = 10;
+      use(b);
+    }
+  }
+  a = 2;
+  return use(C, a);
+}
+`)
+
+	// Same check under usePseudoName = true (NodeTraversal enterScopeWithCfg path),
+	// plus verifying a function nested inside `static {}` IS still coalesced.
+	c.usePseudoName = true
+	c.Test(
+		`function f() {
+  var a = 1;
+  use(a);
+  class C {
+    static {
+      let b = 10;
+      use(b);
+      (function() {
+        var inner1 = 1;
+        use(inner1);
+        var inner2 = 2;
+        return inner2;
+      })();
+    }
+  }
+  var d = 2;
+  return use(C, d);
+}
+`,
+		`function f() {
+  var a_d = 1;
+  use(a_d);
+  class C {
+    static {
+      let b = 10;
+      use(b);
+      (function() {
+        var inner1_inner2 = 1;
+        use(inner1_inner2);
+        inner1_inner2 = 2;
+        return inner1_inner2;
+      })();
+    }
+  }
+  a_d = 2;
+  return use(C, a_d);
+}
+`)
+	c.usePseudoName = false
+
+	// Reproducer A2: outer function local referenced inside `static {}` must be
+	// marked escaped so it is NOT coalesced with a subsequent outer local.
+	c.TestSame(
+		`function f() {
+  var captured = getVal();
+  class C {
+    static {
+      use(captured);
+    }
+  }
+  var after = 2;
+  return use(C, after);
+}
+`)
+}
+
+func (c *CoalesceVariableNamesTest) TestClassStaticBlock_uninitializedLetInsideLoopDoesNotCrash() {
+	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	c.SetLanguageOut(CompilerOptions_LanguageMode_NO_TRANSPILE)
+
+	// Reproducer B: uninitialized `let b;` inside `static {}` inside an outer loop
+	// is NOT in the outer function's CFG or loop scope and must not crash or mutate.
+	c.Test(
+		`function f(n) {
+  var x = 1;
+  use(x);
+  for (var i = 0; i < n; i++) {
+    class C {
+      static {
+        let b;
+        if (n) {
+          b = 2;
+        }
+        use(b);
+      }
+    }
+    use(C);
+  }
+  var y = 3;
+  return y;
+}
+`,
+		`function f(n) {
+  var x = 1;
+  use(x);
+  x = 0;
+  for (; x < n; x++) {
+    class C {
+      static {
+        let b;
+        if (n) {
+          b = 2;
+        }
+        use(b);
+      }
+    }
+    use(C);
+  }
+  x = 3;
+  return x;
+}
+`)
+}
+
 // We would normally coalesce 'key' with 'collidesWithKey', but in doing so we'd change the 'let'
 // on line 2 to a 'var' which would cause the inner function to capture the wrong value of 'val'.
 // Java: CoalesceVariableNamesTest.testCaptureLet()

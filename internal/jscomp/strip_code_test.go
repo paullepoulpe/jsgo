@@ -20,7 +20,11 @@
 package jscomp
 
 import (
+	"io"
+	"strings"
 	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // StripCodeTest holds tests for StripCode.
@@ -1280,4 +1284,122 @@ a$b$C.prototype.method = function() {
 }
 var a$b$C$logger_ = null;
 `)
+}
+
+func (c *StripCodeTest) TestModernAssignmentsAndUpdateOps() {
+	// Stripped local variable with ++, --, and property-target **= in normalized pipeline.
+	c.Test(
+		`var logger_ = goog.debug.Logger.getLogger();
+logger_++;
+--logger_;
+var b = logger_++;
+var d = --logger_;
+`,
+		`var b = null;
+var d = null;
+`)
+
+	// Stripped variable property chains on LHS of **=, ++, --.
+	c.Test(
+		`var logger_ = goog.debug.Logger.getLogger();
+logger_.prop **= sideEffect();
+logger_.prop++;
+--logger_.prop;
+var x = logger_.prop++;
+`,
+		`sideEffect();
+var x = null;
+`)
+
+	// Stripped field names and strip types on LHS of **=, ++, --.
+	c.Test(
+		`this.logger_ **= 2;
+this.logger_++;
+--this.logger_;
+goog.debug.Logger.count++;
+`,
+		"")
+
+	c.TestError("var x = (this.logger_ **= 2) + 1;", StripCode_STRIP_ASSIGNMENT_ERROR)
+	c.TestError("var x = (this.logger_++) + 1;", StripCode_STRIP_ASSIGNMENT_ERROR)
+}
+
+func TestStripCode_DirectModernAssignmentsAndUpdateOps(t *testing.T) {
+	// Exercise StripCode directly on raw **=, ||=, &&=, ??=, ++, -- AST nodes
+	// (e.g. **= produced by PeepholeFoldConstants after Normalize).
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{
+			name: "stripped_local_var",
+			src: `var stripMe_logger = goog.debug.Logger.getLogger();
+stripMe_logger **= 2;
+stripMe_logger ||= 3;
+stripMe_logger &&= 4;
+stripMe_logger ??= 5;
+stripMe_logger++;
+--stripMe_logger;
+var a = (stripMe_logger **= 2) + (stripMe_logger ??= 3);
+var b = stripMe_logger++;
+var d = --stripMe_logger;
+var e = (stripMe_logger **= 4) + stripMe_logger;
+`,
+			want: "var a=2+3;var b=null;var d=null;var e=4+null",
+		},
+		{
+			name: "stripped_var_prop_chain",
+			src: `var logger_ = goog.debug.Logger.getLogger();
+logger_.prop **= sideEffect();
+logger_.prop ||= fallback();
+logger_.prop &&= nextEffect();
+logger_.prop ??= otherEffect();
+logger_.prop++;
+--logger_.prop;
+var x = logger_.prop++;
+`,
+			want: "sideEffect();fallback();nextEffect();otherEffect();var x=null",
+		},
+		{
+			name: "stripped_field_names",
+			src: `this.logger_ **= 2;
+this.logger_ ||= 3;
+this.logger_ &&= 4;
+this.logger_ ??= 5;
+this.logger_++;
+--this.logger_;
+goog.debug.Logger.count++;
+`,
+			want: "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			compiler := NewCompilerWithOutStream(jutil.NewPrintStream(io.Discard))
+			opts := NewCompilerOptions()
+			opts.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+			opts.SetLanguageOut(CompilerOptions_LanguageMode_NO_TRANSPILE)
+			compiler.Init(
+				[]*SourceFile{},
+				[]*SourceFile{SourceFile_FromCode("test.js", tc.src)},
+				opts)
+			compiler.Parse()
+			compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
+
+			StripCodeTest_GetStripCodeInstance(compiler).Process(
+				compiler.GetExternsRoot(),
+				compiler.GetJsRoot())
+
+			if errs := compiler.GetErrors(); len(errs) != 0 {
+				t.Fatalf("unexpected errors: %v", errs)
+			}
+			NewAstValidator(compiler).ValidateRoot(compiler.GetRoot())
+			got := strings.TrimSpace(compiler.ToSourceOfNode(compiler.GetJsRoot()))
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

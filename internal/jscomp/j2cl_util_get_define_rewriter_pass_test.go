@@ -137,6 +137,15 @@ func (c *J2clUtilGetDefineRewriterPassTest) TestUtilGetDefine_notAStringLiteral(
 nativebootstrap.Util.$getDefine(defineName);
 `,
 		J2clUtilGetDefineRewriterPass_J2CL_SYSTEM_GET_PROPERTY_CONSTANT_NAME)
+	c.TestError(
+		"nativebootstrap.Util.$getDefine(42);",
+		J2clUtilGetDefineRewriterPass_J2CL_SYSTEM_GET_PROPERTY_CONSTANT_NAME)
+	c.TestError(
+		"nativebootstrap.Util.$getDefine(42, 'fallback');",
+		J2clUtilGetDefineRewriterPass_J2CL_SYSTEM_GET_PROPERTY_CONSTANT_NAME)
+	c.TestError(
+		"nativebootstrap.Util.$getDefine('a' + 'b');",
+		J2clUtilGetDefineRewriterPass_J2CL_SYSTEM_GET_PROPERTY_CONSTANT_NAME)
 }
 
 // Java: J2clUtilGetDefineRewriterPassTest.testAddSystemProperty_notDefined()

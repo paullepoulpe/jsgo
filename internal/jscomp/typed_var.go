@@ -40,14 +40,16 @@ import (
 // abstract_scope.go.
 //
 // Go-only: performance — the type is kept as its *JSTypeBase (the JSType is
-// its Self()): 48 bytes instead of 64, for the hundreds of thousands of
-// variables (most of them qualified names) the type checker declares.
+// its Self()) and pointer-bearing fields precede varCommon (ptrdata = 32,
+// size = 48 bytes instead of 64), for the hundreds of thousands of variables
+// (most of them qualified names, which must NOT be interned into strpool) the
+// type checker declares.
 type TypedVar struct {
-	varCommon
-
 	scope *TypedScope
-	name  string
 	type_ *rhino.JSTypeBase
+	name  string
+
+	varCommon
 }
 
 var (
@@ -81,10 +83,16 @@ func typedVar_isValidNameNodeToken(t rhino.Token) bool {
 // Java: TypedVar(boolean, String, Node, JSType, TypedScope, int, CompilerInput)
 func NewTypedVar(inferred bool, name string, nameNode rhino.Node, type_ rhino.JSType,
 	scope *TypedScope, index int, input *CompilerInput) *TypedVar {
+	return initTypedVar(&TypedVar{}, inferred, name, nameNode, type_, scope, index, input)
+}
+
+func initTypedVar(v *TypedVar, inferred bool, name string, nameNode rhino.Node, type_ rhino.JSType,
+	scope *TypedScope, index int, input *CompilerInput) *TypedVar {
 	if !nameNode.IsNil() && !typedVar_isValidNameNodeToken(nameNode.GetToken()) {
 		jutil.CheckArgumentMsg1(false, "Invalid name node token %s", nameNode.GetToken())
 	}
-	v := &TypedVar{scope: scope, name: name}
+	v.scope = scope
+	v.name = name
 	var isImplicit bool
 	if scope != nil {
 		if imp, ok := AbstractScope_ImplicitVar_Lookup(name); ok {

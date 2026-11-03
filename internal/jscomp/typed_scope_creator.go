@@ -90,7 +90,33 @@ type TypedScopeCreator struct {
 
 	builderPool []*TypedScopeCreator_scopeBuilder
 
+	// Go-only: performance — local TypedScopes, local TypedVars, temporary build
+	// states, and small var pointer slices are batch-allocated in chunks during
+	// Stage 1 (global/module scopes stay standalone so ClearTypedScopeCreator
+	// reclaims 100% of local slabs immediately).
+	scopeSlab jutil.Slab[TypedScope]
+	varSlab   jutil.Slab[TypedVar]
+	buildSlab jutil.Slab[typedScopeBuildState]
+	varLists  []*TypedVar
+
 	stage TypedScopeCreator_Stage
+}
+
+const typedScopeCreator_varListChunk = 508 // 4 KB with the 8-byte header of a pointerful allocation
+
+func (c *TypedScopeCreator) newVarListCap(n int) []*TypedVar {
+	if n <= 0 {
+		return nil
+	}
+	if n > typedScopeCreator_varListChunk/4 {
+		return make([]*TypedVar, 0, n)
+	}
+	if len(c.varLists) < n {
+		c.varLists = jutil.SlabChunk[*TypedVar](typedScopeCreator_varListChunk)
+	}
+	l := c.varLists[:0:n]
+	c.varLists = c.varLists[n:]
+	return l
 }
 
 var TypedScopeCreator_MALFORMED_TYPEDEF = DiagnosticType_Warning(
@@ -396,7 +422,7 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 			}
 		}
 
-		newScope = newTypedScopeOwnedReservedNames(typedParent, root, reservedNames, module)
+		newScope = newTypedScopeWithCreator(c, typedParent, root, reservedNames, module)
 	}
 
 	var kind scopeBuilderKind
@@ -718,6 +744,10 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	c.providedNamesFromCall = nil
 	c.providedNamesCount = 0
 	c.builderPool = nil
+	c.scopeSlab = jutil.Slab[TypedScope]{}
+	c.varSlab = jutil.Slab[TypedVar]{}
+	c.buildSlab = jutil.Slab[typedScopeBuildState]{}
+	c.varLists = nil
 	c.stage = TypedScopeCreator_Stage_FROZEN
 
 	// we must keep the 'memoized' set of TypedScopes around, since later passes will use it.
@@ -735,6 +765,10 @@ func (c *TypedScopeCreator) ClearCommonState() {
 	c.providedNamesFromCall = nil
 	c.providedNamesCount = 0
 	c.builderPool = nil
+	c.scopeSlab = jutil.Slab[TypedScope]{}
+	c.varSlab = jutil.Slab[TypedVar]{}
+	c.buildSlab = jutil.Slab[typedScopeBuildState]{}
+	c.varLists = nil
 }
 
 // TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable adds all enums and

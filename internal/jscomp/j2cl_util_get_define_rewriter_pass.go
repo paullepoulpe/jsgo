@@ -94,6 +94,9 @@ func (p *J2clUtilGetDefineRewriterPass) rewriteUtilGetDefine(t *NodeTraversal, c
 
 // Java: J2clUtilGetDefineRewriterPass.getDefineReplacement(Node, Node)
 func (p *J2clUtilGetDefineRewriterPass) getDefineReplacement(firstExpr rhino.Node, secondExpr rhino.Node) rhino.Node {
+	if firstExpr.IsNil() || !firstExpr.IsStringLit() {
+		return secondExpr
+	}
 	defineName := firstExpr.GetString()
 	if p.defines.Contains(defineName) {
 		define := NodeUtil_NewQName(p.compiler, ProcessDefines_GetGlobalDefineAlias(defineName))

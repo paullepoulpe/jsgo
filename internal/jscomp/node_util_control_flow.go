@@ -222,7 +222,7 @@ func NodeUtil_IsWithinLoop(n rhino.Node) bool {
 			return true
 		}
 
-		if parent.IsFunction() {
+		if parent.IsFunction() || NodeUtil_IsClassStaticBlock(parent) {
 			break
 		}
 	}

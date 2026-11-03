@@ -135,6 +135,10 @@ func cvnSubtreeHasShallowLocalDecl(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		return false
+	case rhino.Token_BLOCK:
+		if NodeUtil_IsClassStaticBlock(n) {
+			return false
+		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_CATCH:
 		return true
 	}
@@ -352,6 +356,10 @@ func (c *CoalesceVariableNames) visitCoalescedSubtree(
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
 		return 0
+	case rhino.Token_BLOCK:
+		if NodeUtil_IsClassStaticBlock(n) {
+			return 0
+		}
 	case rhino.Token_CLASS:
 		cls := ast.MustClass(n)
 		changes := c.visitCoalescedSubtree(cls.ExtendsNode(), n, state)
@@ -547,13 +555,22 @@ func (c *CoalesceVariableNames) ExitScope(t *NodeTraversal) {
 
 // Java: CoalesceVariableNames.enterScopeWithCfg(NodeTraversal)
 func (c *CoalesceVariableNames) enterScopeWithCfg(t *NodeTraversal) {
-	if !t.GetScopeRoot().IsFunction() {
+	scopeRoot := t.GetScopeRoot()
+	if NodeUtil_IsClassStaticBlock(scopeRoot) {
+		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)
+		c.activeStates = append(c.activeStates, nil)
+		c.liveness = nil
+		return
+	}
+	if !scopeRoot.IsFunction() {
 		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
 		return
 	}
 	fnScope := t.GetScope()
 	if fnScope.GetVarCount() >= LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE {
-		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
+		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)
+		c.activeStates = append(c.activeStates, nil)
+		c.liveness = nil
 		return
 	}
 	depth := len(c.activeStates)
@@ -564,7 +581,9 @@ func (c *CoalesceVariableNames) enterScopeWithCfg(t *NodeTraversal) {
 	allVarsDeclaredInFunction := state.varsFinder.collectWithLimit(
 		t.GetCompiler(), t.GetScopeCreator(), fnScope, LiveVariablesAnalysis_MAX_VARIABLES_TO_ANALYZE)
 	if allVarsDeclaredInFunction == nil {
-		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, false)
+		c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)
+		c.activeStates = append(c.activeStates, nil)
+		c.liveness = nil
 		return
 	}
 	c.shouldOptimizeScopeStack = append(c.shouldOptimizeScopeStack, true)

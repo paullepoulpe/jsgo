@@ -232,3 +232,64 @@ func TestTypedScopeVectors(t *testing.T) {
 		t.Errorf("differs from Java at %s", diff)
 	}
 }
+
+func TestTypedScopeReservedNamesO1AndSlabAllocs(t *testing.T) {
+	compiler := NewCompiler()
+	script := compiler.ParseTestCode("function f() {}")
+	root := rhino.IR_Root(rhino.IR_Root(), rhino.IR_Root(script))
+	fn := script.GetFirstChild()
+	body := fn.GetLastChild()
+
+	// Exercise large (> scopeSmallVars) reserved-names set and deterministic insertion order.
+	var names []string
+	for i := range 24 {
+		names = append(names, "resVar_"+strconv.Itoa(i))
+	}
+	global := TypedScope_CreateGlobalScope(root)
+	fnScope := NewTypedScope(global, fn)
+	blockScope := newTypedScopeOwnedReservedNames(fnScope, body, names, nil)
+	for _, name := range names {
+		if got := blockScope.GetTopmostScopeOfEventualDeclaration(name); got != blockScope {
+			t.Fatalf("GetTopmostScopeOfEventualDeclaration(%q) = %v, want blockScope", name, got)
+		}
+	}
+	// Declare all except index 5 and 19 in reverse order; ValidateCompletelyBuilt must report [resVar_5, resVar_19].
+	for i := len(names) - 1; i >= 0; i-- {
+		if i == 5 || i == 19 {
+			continue
+		}
+		blockScope.Declare(names[i], rhino.NilNode, nil, nil, true)
+	}
+	var gotErr string
+	jutil.Try(func() { blockScope.ValidateCompletelyBuilt() }, func(e jutil.Throwable) { gotErr = e.Error() })
+	if !strings.Contains(gotErr, "[resVar_5, resVar_19]") {
+		t.Fatalf("ValidateCompletelyBuilt error = %q, want [resVar_5, resVar_19]", gotErr)
+	}
+
+	// Verify slab batching on local TypedScopes: declaring 64 vars in a slab-backed local scope
+	// allocates only the slab chunk(s) and index table, far fewer than 1 heap alloc per TypedVar.
+	creator := NewTypedScopeCreator(compiler)
+	nameNodes := make([]rhino.Node, 64)
+	varNames := make([]string, 64)
+	for i := range 64 {
+		varNames[i] = "slabVar_" + strconv.Itoa(i)
+		nameNodes[i] = rhino.IR_Name(varNames[i])
+	}
+	var slabFnScope *TypedScope
+	allocs := testing.AllocsPerRun(20, func() {
+		creator.ClearCommonState()
+		s := newTypedScopeWithCreator(creator, global, fn, append([]string(nil), varNames...), nil)
+		for i := range 64 {
+			s.declareWithCreator(creator, varNames[i], nameNodes[i], nil, nil, true)
+		}
+		s.ValidateCompletelyBuilt()
+		slabFnScope = s
+	})
+	// Without slabs/varLists, 1 scope + 64 TypedVars + ClearCommonState + reservedSet + index > 80 allocs.
+	if allocs > 24 {
+		t.Fatalf("slab-backed local TypedScope 64-var build allocs = %v, want <= 24", allocs)
+	}
+	if slabFnScope.GetVarCount() != 64 {
+		t.Fatalf("slabFnScope var count = %d, want 64", slabFnScope.GetVarCount())
+	}
+}

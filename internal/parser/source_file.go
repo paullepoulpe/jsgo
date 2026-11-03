@@ -128,8 +128,11 @@ func (f *SourceFile) LineStarts() []int32 {
 }
 
 // FindLine returns the 0-based line index in starts containing offset o
-// (the largest k with starts[k] <= o).
+// (the largest k with starts[k] <= o, or 0 when o <= starts[0]).
 func FindLine(starts []int32, o int32) int {
+	if len(starts) == 0 || o <= starts[0] {
+		return 0
+	}
 	lo, hi := 0, len(starts)
 	for lo < hi {
 		mid := int(uint(lo+hi) >> 1)
@@ -167,12 +170,15 @@ func (f *SourceFile) Line(pos SourcePosition) int {
 // LineColumn returns the 0-based line and column of offset. A line ends
 // after a line terminator: \n, \r, \r\n, U+2028 or U+2029.
 func (f *SourceFile) LineColumn(offset int) (line, column int) {
+	if offset < 0 {
+		return 0, offset
+	}
 	f.linesOnce.Do(f.buildLineStarts)
 	starts := f.lineStarts
 	o := int32(offset)
 	i := int(f.lastLine.Load())
-	if i >= len(starts) || o < starts[i] || (i+1 < len(starts) && starts[i+1] <= o) {
-		if i+1 < len(starts) && starts[i+1] <= o && (i+2 >= len(starts) || o < starts[i+2]) {
+	if i < 0 || i >= len(starts) || o < starts[i] || (i+1 < len(starts) && starts[i+1] <= o) {
+		if i >= 0 && i+1 < len(starts) && starts[i+1] <= o && (i+2 >= len(starts) || o < starts[i+2]) {
 			i++ // the next line: the common case of a scan going forward
 		} else if i > 0 && i < len(starts) && o < starts[i] && starts[i-1] <= o {
 			i-- // previous line

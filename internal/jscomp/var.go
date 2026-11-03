@@ -57,9 +57,9 @@ const (
 
 // varCommon holds the shared pointer-free fields of Var and TypedVar.
 //
-// Go-only: performance — Var stores its name as an interned string ID and
-// TypedVar as a string; keeping the four 32-bit fields together (16 bytes)
-// lets Var fit in 32 bytes and TypedVar in 48 bytes.
+// Go-only: performance — Var and TypedVar store their names as interned
+// string IDs; keeping the four 32-bit fields together (16 bytes) lets Var
+// fit in 32 bytes and TypedVar in 40 bytes.
 type varCommon struct {
 	nameNode rhino.Node
 
@@ -210,9 +210,13 @@ func (b *varCommon) GetJSDocInfo() *rhino.JSDocInfo {
 
 // Java: AbstractVar.isDefaultParam()
 func (b *varCommon) IsDefaultParam() bool {
+	if b.nameNode.IsNil() {
+		return false
+	}
 	parent := b.nameNode.GetParent()
-	return parent.GetParent().IsParamList() && parent.IsDefaultValue() &&
-		parent.GetFirstChild() == b.nameNode
+	return !parent.IsNil() && parent.IsDefaultValue() &&
+		parent.GetFirstChild() == b.nameNode &&
+		!parent.GetParent().IsNil() && parent.GetParent().IsParamList()
 }
 
 const abstractVar_DECLARATION_TYPES_STR = "[PARAM_LIST, FUNCTION, VAR, CATCH, CONST, CLASS, LET, IMPORT]"

@@ -647,9 +647,9 @@ func (f *fnVarEscapedFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.
 	}
 
 	// Variable is referenced outside of declaration scope it is 'escaped'.
-	// Non-static class field initializers are evaluated at instance creation time
-	// (like closures), so variables referenced in non-static class fields must also be
-	// marked as escaped.
+	// Non-static class field initializers (evaluated at instance creation time)
+	// and ES2022 class static blocks (separate CFG/hoist scopes) also mark outer
+	// function variables referenced inside them as escaped.
 	if idx, ok := f.table.resolveExactVarIndex(var_); ok {
 		f.table.escaped.Set(idx)
 	}

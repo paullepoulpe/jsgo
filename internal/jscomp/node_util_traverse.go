@@ -746,8 +746,8 @@ func (f *nodeUtil_getAllVarsDeclaredInFunction_finder) ShouldTraverse(t *NodeTra
 	if n == fnRoot {
 		return true
 	}
-	if n.IsFunction() {
-		// Don't enter any new functions
+	if n.IsFunction() || NodeUtil_IsClassStaticBlock(n) {
+		// Don't enter any new functions or class static blocks
 		return false
 	}
 	if parent == fnRoot {

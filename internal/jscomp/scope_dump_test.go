@@ -457,7 +457,12 @@ func (d *scopeDumper) printVar(v *Var) {
 	scopeDumpFlag(&f, 'D', v.IsDefine)
 	scopeDumpFlag(&f, 'x', v.IsExtern)
 	scopeDumpFlag(&f, 'g', v.IsGlobal)
-	scopeDumpFlag(&f, 'd', v.IsDefaultParam)
+	// Java's AbstractVar.isDefaultParam throws NPE on null nameNode (or detached DEFAULT_VALUE parent), whereas Go returns false safely.
+	if n := v.GetNameNode(); n.IsNil() || (!n.GetParent().IsNil() && n.GetParent().IsDefaultValue() && n.GetParent().GetFirstChild() == n && n.GetParent().GetParent().IsNil()) {
+		f.WriteByte('!')
+	} else {
+		scopeDumpFlag(&f, 'd', v.IsDefaultParam)
+	}
 	doc := "0"
 	if v.GetJSDocInfo() != nil {
 		doc = "1"

@@ -121,7 +121,7 @@ func NewStringReader(s string) *StringReader {
 
 // Read is StringReader.read(char[], int, int).
 func (r *StringReader) Read(cbuf []uint16, off, length int) int {
-	if off < 0 || length < 0 || off+length > len(cbuf) {
+	if off < 0 || length < 0 || length > len(cbuf)-off {
 		panic(NewIndexOutOfBoundsException("Range [" + itoa(off) + ", " + itoa(off) + " + " + itoa(length) + ") out of bounds for length " + itoa(len(cbuf))))
 	}
 	if length == 0 {

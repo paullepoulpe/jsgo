@@ -93,8 +93,6 @@ func closureRewriteKeys[V any](m *OrderedStringMap[V]) string {
 	return "[" + strings.Join(m.KeySlice(), ", ") + "]"
 }
 
-func closureRewriteStr(s *string) string { return jutil.ToJavaString(s) }
-
 func closureRewriteOptStr(s string, ok bool) string { return modules_optString(s, ok) }
 
 func closureRewritePath(p *ModuleLoader_ModulePath) string {
@@ -114,7 +112,7 @@ func closureRewriteMetadata(md *ModuleMetadataMap_ModuleMetadata) string {
 func closureRewriteModule(m *Module) string {
 	return "path=" + closureRewritePath(m.Path()) +
 		" " + closureRewriteMetadata(m.Metadata()) +
-		" closureNamespace=" + closureRewriteStr(m.ClosureNamespace()) +
+		" closureNamespace=" + closureRewriteOptStr(m.ClosureNamespaceOk()) +
 		" namespace=" + closureRewriteKeys(m.NamespaceMap()) +
 		" boundNames=" + closureRewriteKeys(m.BoundNamesMap()) +
 		" localExports=" + closureRewriteKeys(m.LocalExportsMap())

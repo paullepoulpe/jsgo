@@ -115,18 +115,9 @@ func (m *Module) BoundNames() *OrderedStringMap[*Binding] { return m.boundNames 
 // LocalExportsMap returns the native OrderedStringMap of local exports.
 func (m *Module) LocalExportsMap() *OrderedStringMap[*Export] { return m.localNameToLocalExport }
 
-// ClosureNamespace returns an interior pointer to closureNamespace when
-// present, or nil when absent (zero extra heap allocation).
+// ClosureNamespaceOk returns the unboxed closureNamespace and whether it was set.
 //
 // Java: Module.closureNamespace()
-func (m *Module) ClosureNamespace() *string {
-	if !m.hasClosureNamespace {
-		return nil
-	}
-	return &m.closureNamespace
-}
-
-// ClosureNamespaceOk returns the unboxed closureNamespace and whether it was set.
 func (m *Module) ClosureNamespaceOk() (string, bool) {
 	return m.closureNamespace, m.hasClosureNamespace
 }

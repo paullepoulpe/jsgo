@@ -20,7 +20,6 @@ package jscomp
 
 import (
 	"iter"
-	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -91,15 +90,86 @@ func typedVarNameHash(v *TypedVar) uint32 { return scopeNameHash(v.name) }
 type typedScopeBuildState struct {
 	module *Module
 
-	// Will shrink over time; nil/empty slice is the ImmutableSet.of() sentinel.
-	reservedNames []string
+	// Reserved names awaiting declaration: insertion order in reservedOrder
+	// (consumed slots cleared to ""), plus an O(1) index map when > scopeSmallVars.
+	reservedOrder []string
+	reservedSet   map[string]int
+	reservedCount int
 }
 
-func (s *TypedScope) reservedNames() []string {
-	if s.build == nil {
-		return nil
+func (b *typedScopeBuildState) init(module *Module, reservedNames []string) {
+	b.module = module
+	b.reservedOrder = reservedNames
+	b.reservedCount = len(reservedNames)
+	if len(reservedNames) > scopeSmallVars {
+		m := make(map[string]int, len(reservedNames))
+		for i, name := range reservedNames {
+			if name != "" {
+				if _, dup := m[name]; !dup {
+					m[name] = i
+				} else {
+					b.reservedOrder[i] = ""
+					b.reservedCount--
+				}
+			} else {
+				b.reservedCount--
+			}
+		}
+		b.reservedSet = m
 	}
-	return s.build.reservedNames
+}
+
+func (b *typedScopeBuildState) consume(name string) bool {
+	if b == nil || b.reservedCount == 0 {
+		return false
+	}
+	if b.reservedSet != nil {
+		if idx, ok := b.reservedSet[name]; ok {
+			delete(b.reservedSet, name)
+			b.reservedOrder[idx] = ""
+			b.reservedCount--
+			return true
+		}
+		return false
+	}
+	for i, rn := range b.reservedOrder {
+		if rn == name {
+			b.reservedOrder[i] = ""
+			b.reservedCount--
+			return true
+		}
+	}
+	return false
+}
+
+func (b *typedScopeBuildState) contains(name string) bool {
+	if b == nil || b.reservedCount == 0 || name == "" {
+		return false
+	}
+	if b.reservedSet != nil {
+		_, ok := b.reservedSet[name]
+		return ok
+	}
+	for _, rn := range b.reservedOrder {
+		if rn == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *typedScopeBuildState) remainingStrings() []string {
+	out := make([]string, 0, b.reservedCount)
+	for _, rn := range b.reservedOrder {
+		if rn != "" {
+			out = append(out, rn)
+		}
+	}
+	return out
+}
+
+func (s *TypedScope) hasReservedNames() bool {
+	return s.build != nil && s.build.reservedCount > 0
 }
 
 // Equals implements jutil.Equaler using pointer identity (matching Java Object.equals).
@@ -119,22 +189,44 @@ func (s *TypedScope) HashCode() int32 {
 
 // Java: TypedScope(TypedScope, Node)
 func NewTypedScope(parent *TypedScope, rootNode rhino.Node) *TypedScope {
-	return newTypedScopeOwnedReservedNames(parent, rootNode, nil, nil)
+	return newTypedScopeWithCreator(nil, parent, rootNode, nil, nil)
 }
 
 func newTypedScopeOwnedReservedNames(
 	parent *TypedScope, rootNode rhino.Node, reservedNames []string, module *Module) *TypedScope {
-	s := &TypedScope{}
+	return newTypedScopeWithCreator(nil, parent, rootNode, reservedNames, module)
+}
+
+func newTypedScopeWithCreator(
+	c *TypedScopeCreator, parent *TypedScope, rootNode rhino.Node, reservedNames []string, module *Module) *TypedScope {
+	useLocalSlab := c != nil && !rootNode.IsNil() && !rootNode.IsRoot() && !rootNode.IsModuleBody()
+	var s *TypedScope
+	if useLocalSlab {
+		s = c.scopeSlab.New()
+	} else {
+		s = &TypedScope{}
+	}
 	s.initScopeCommon(rootNode)
 	s.scopeID = allocTypedScopeID()
 	if len(reservedNames) > 0 {
-		s.vars = make([]*TypedVar, 0, len(reservedNames))
+		if useLocalSlab {
+			s.vars = c.newVarListCap(len(reservedNames))
+		} else {
+			s.vars = make([]*TypedVar, 0, len(reservedNames))
+		}
 	}
 	checkChildScope(&s.scopeCommon, parent)
 	s.parent = parent
 	s.depth = parent.depth + 1
 	if len(reservedNames) > 0 || module != nil {
-		s.build = &typedScopeBuildState{module: module, reservedNames: reservedNames}
+		var b *typedScopeBuildState
+		if c != nil {
+			b = c.buildSlab.New()
+		} else {
+			b = &typedScopeBuildState{}
+		}
+		b.init(module, reservedNames)
+		s.build = b
 	}
 	s.initLookupChain(parent)
 	return s
@@ -156,7 +248,7 @@ func (s *TypedScope) initLookupChain(parent *TypedScope) {
 	default:
 		s.hasImplicitVars = false
 	}
-	if parent.scanDone && len(parent.vars) == 0 && len(parent.reservedNames()) == 0 && !parent.hasImplicitVars && !parent.IsHoistScope() {
+	if parent.scanDone && len(parent.vars) == 0 && !parent.hasReservedNames() && !parent.hasImplicitVars && !parent.IsHoistScope() {
 		s.lookupParent = parent.lookupParent
 	} else {
 		s.lookupParent = parent
@@ -196,15 +288,18 @@ func TypedScope_CreateLatticeBottom(rootNode rhino.Node) *TypedScope {
 //
 // Java: TypedScope.validateCompletelyBuilt()
 func (s *TypedScope) ValidateCompletelyBuilt() {
-	if reserved := s.reservedNames(); len(reserved) > 0 {
-		jutil.CheckStateMsg2(
-			false,
-			"Expected %s to have no reserved names, found: %s. This probably indicates a bug in"+
-				" TypedScopeCreator where it is failing to declare a variable.",
-			s,
-			"["+strings.Join(reserved, ", ")+"]")
+	if s.build != nil {
+		if s.build.reservedCount > 0 {
+			jutil.CheckStateMsg2(
+				false,
+				"Expected %s to have no reserved names, found: %s. This probably indicates a bug in"+
+					" TypedScopeCreator where it is failing to declare a variable.",
+				s,
+				"["+strings.Join(s.build.remainingStrings(), ", ")+"]")
+		}
+		*s.build = typedScopeBuildState{}
+		s.build = nil
 	}
-	s.build = nil
 }
 
 // IsBottom reports whether this is the bottom of the lattice.
@@ -273,26 +368,21 @@ func (s *TypedScope) GetTypeOfThis() rhino.JSType {
 // Java: TypedScope.declare(String, Node, JSType, CompilerInput, boolean)
 func (s *TypedScope) Declare(name string, nameNode rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
-	var_, _ := s.declareWithReserved(name, nameNode, type_, input, inferred)
+	var_, _ := s.declareWithCreator(nil, name, nameNode, type_, input, inferred)
 	return var_
 }
 
-func (s *TypedScope) declareWithReserved(name string, nameNode rhino.Node,
+func (s *TypedScope) declareWithCreator(c *TypedScopeCreator, name string, nameNode rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) (*TypedVar, bool) {
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
-	wasReserved := false
-	if reserved := s.reservedNames(); len(reserved) > 0 {
-		for i, rn := range reserved {
-			if rn == name {
-				wasReserved = true
-				copy(reserved[i:], reserved[i+1:])
-				reserved[len(reserved)-1] = ""
-				s.build.reservedNames = reserved[:len(reserved)-1]
-				break
-			}
-		}
+	wasReserved := s.build.consume(name)
+	var raw *TypedVar
+	if c != nil && s.parent != nil && !s.IsModuleScope() {
+		raw = c.varSlab.New()
+	} else {
+		raw = &TypedVar{}
 	}
-	var_ := NewTypedVar(inferred, name, nameNode, type_, s, len(s.vars), input)
+	var_ := initTypedVar(raw, inferred, name, nameNode, type_, s, len(s.vars), input)
 	if s.IsFunctionBlockScope() && s.parent.HasOwnSlot(name) && !s.HasOwnSlot(name) && !s.IsBleedingFunctionName(name) {
 		failIllegalShadow(var_.nameNode)
 	}
@@ -574,7 +664,7 @@ func (s *TypedScope) GetTypeThroughNamespace(moduleId string) rhino.JSType {
 // Java: TypedScope.getTopmostScopeOfEventualDeclaration(String)
 func (s *TypedScope) GetTopmostScopeOfEventualDeclaration(name string) rhino.StaticScope {
 	for cur := s; cur != nil; cur = cur.parent {
-		if cur.getOwnSlotV(name) != nil || slices.Contains(cur.reservedNames(), name) {
+		if cur.getOwnSlotV(name) != nil || cur.build.contains(name) {
 			return cur
 		}
 	}

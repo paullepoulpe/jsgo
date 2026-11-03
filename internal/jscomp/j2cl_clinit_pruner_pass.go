@@ -402,7 +402,12 @@ func isParameter(t *NodeTraversal, n rhino.Node) bool {
 	if !n.IsName() {
 		return false
 	}
-	return t.GetScope().GetVarByNode(n).GetParentNode().IsParamList()
+	v := t.GetScope().GetVarByNode(n)
+	if v == nil {
+		return false
+	}
+	parent := v.GetParentNode()
+	return !parent.IsNil() && parent.IsParamList()
 }
 
 func getCallOrNewNode(n rhino.Node) (ast.CallOrNew, bool) {

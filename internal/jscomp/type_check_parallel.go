@@ -83,19 +83,24 @@ func (tc *TypeCheck) checkParallel(node rhino.Node) bool {
 		return true
 	}
 
-	type itemResult struct {
+	type scriptTypeCheckResult struct {
 		mismatches             []TypeMismatch
 		typed, null, unknown   int
 		subtypingMode          rhino.JSType_SubtypingMode
 		validatorSubtypingMode rhino.JSType_SubtypingMode
+		skipped                bool
 	}
-	results := make([]itemResult, len(scripts))
+	results := make([]scriptTypeCheckResult, len(scripts))
 	// The workers report on declarations in other scripts too: their errors
 	// are pinned when the reports are replayed.
 	jsErrorPinsDeferred.Add(1)
 	defer jsErrorPinsDeferred.Add(-1)
 	runParallelWork(tc.compiler, numWorkers, len(scripts), func(int) (func(int, *recordingCompiler), func()) {
 		runItem := func(idx int, rc *recordingCompiler) {
+			if NodeUtil_IsFromTypeSummary(scripts[idx]) && !Platform_IsThreadInterrupted() {
+				results[idx] = scriptTypeCheckResult{skipped: true}
+				return
+			}
 			c := tc.cloneForWorker(rc)
 			wb := NodeTraversal_Builder{compiler: rc, callback: c, scopeCreator: tc.scopeCreator}
 			wt := acquireNodeTraversal(&wb)
@@ -112,13 +117,14 @@ func (tc *TypeCheck) checkParallel(node rhino.Node) bool {
 				wt.TraverseBranch(scripts[idx], node)
 				wt.PopScope()
 			}()
-			results[idx] = itemResult{
+			results[idx] = scriptTypeCheckResult{
 				mismatches:             c.validator.mismatches.mismatches,
 				typed:                  c.typedCount,
 				null:                   c.nullCount,
 				unknown:                c.unknownCount,
 				subtypingMode:          c.subtypingMode,
 				validatorSubtypingMode: c.validator.subtypingMode,
+				skipped:                NodeUtil_IsFromTypeSummary(scripts[idx]),
 			}
 		}
 		return runItem, nil
@@ -131,7 +137,7 @@ func (tc *TypeCheck) checkParallel(node rhino.Node) bool {
 		tc.typedCount += r.typed
 		tc.nullCount += r.null
 		tc.unknownCount += r.unknown
-		if i == len(results)-1 {
+		if !r.skipped {
 			tc.subtypingMode = r.subtypingMode
 			tc.validator.SetSubtypingMode(r.validatorSubtypingMode)
 		}

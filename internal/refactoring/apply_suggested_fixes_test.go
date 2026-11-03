@@ -79,9 +79,12 @@ func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_overlapsAreErrors_un
 
 // Java: ApplySuggestedFixesTest.testApplyCodeReplacements_noOverlapsSucceed()
 func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_noOverlapsSucceed() {
+	// Go-only: pass an 8-char input so the second replacement [5, 8) stays within
+	// len(code); out-of-bounds end > len(code) is rejected by validateReplacementRanges
+	// (covered by TestApplyCodeReplacements_endPastCodeLengthThrowsIndexOutOfBounds).
 	replacements :=
 		[]*CodeReplacement{CodeReplacement_Create(0, 3, ""), CodeReplacement_Create(5, 3, "")}
-	ApplyCodeReplacements(replacements, "abcdef")
+	ApplyCodeReplacements(replacements, "abcdefgh")
 }
 
 // Java: ApplySuggestedFixesTest.testApplyCodeReplacements()
@@ -291,4 +294,19 @@ func (c *ApplySuggestedFixesTest) TestApplyToFilesAndChoices() {
 	testjunit.AssertThat(len(choices)).IsEqualTo(2)
 	testjunit.AssertThat(choices[0][tmpFile]).IsEqualTo("var choiceA;")
 	testjunit.AssertThat(choices[1][tmpFile]).IsEqualTo("var choiceB;")
+}
+
+func (c *ApplySuggestedFixesTest) TestApplyCodeReplacements_endPastCodeLengthThrowsIndexOutOfBounds() {
+	// ASCII: start <= len(code), but start + length > len(code).
+	testjunit.AssertThrows[jutil.IIndexOutOfBoundsException](func() {
+		ApplyCodeReplacements([]*CodeReplacement{CodeReplacement_Create(4, 3, "x")}, "abcdef")
+	})
+	testjunit.AssertThrows[jutil.IIndexOutOfBoundsException](func() {
+		ApplyCodeReplacements([]*CodeReplacement{CodeReplacement_Create(6, 1, "x")}, "abcdef")
+	})
+
+	// Non-ASCII UTF-16: "a😀b" is 4 UTF-16 code units; end = 3 + 2 = 5 > 4.
+	testjunit.AssertThrows[jutil.IIndexOutOfBoundsException](func() {
+		ApplyCodeReplacements([]*CodeReplacement{CodeReplacement_Create(3, 2, "x")}, "a😀b")
+	})
 }

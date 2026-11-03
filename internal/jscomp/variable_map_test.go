@@ -171,3 +171,22 @@ func TestVariableMap_FromLines_leadingNewline(t *testing.T) {
 func TestVariableMap_FromLines_colonAtStartThrowsParseException(t *testing.T) {
 	assertThrows[*VariableMapParseError](t, func() { VariableMap_FromBytes([]byte(":foo\n")) })
 }
+
+func TestVariableMap_ToBytesEscapingAndSurrogates(t *testing.T) {
+	m := variableMapTestOf(
+		"plain", "p",
+		"a\\:b:c", "x:y\\z",
+		"λ:π", "α\\β",
+	)
+	variableMapCycleTest(t, m)
+
+	vm := NewVariableMap(variableMapTestOf("a\\:b\nc", "x\ny:z\\w"))
+	variableMapAssertBytesEqual(t, vm.ToBytes(), "a\\\\\\:b\\nc:x\\ny\\:z\\\\w\n")
+
+	// Unpaired WTF-8 surrogate must encode to '?' matching jutil.StringGetBytesUTF8.
+	unpaired := jutil.StringFromUTF16([]uint16{0xD800, ':', 'k'})
+	vmSurrogate := NewVariableMap(variableMapTestOf(unpaired, "v"))
+	if !bytes.Equal(vmSurrogate.ToBytes(), []byte("?\\:k:v\n")) {
+		t.Fatalf("got %q, want %q", vmSurrogate.ToBytes(), "?\\:k:v\n")
+	}
+}

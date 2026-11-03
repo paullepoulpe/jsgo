@@ -21,9 +21,11 @@ package bundle
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // CompilerBasedTransformer is a source transformer base struct. May also
@@ -126,8 +128,18 @@ func (s *OptionsCompilerSupplier) options() *jscomp.CompilerOptions {
 	return options
 }
 
+// compileMu serializes standalone single-file compilations so concurrent
+// CachedTransformer / CachingTranspiler cache misses never race on the
+// process-wide rhino NodeStore.
+var compileMu sync.Mutex
+
 // Compile compiles a single JS source file with the shared Symbol() externs.
 func (s *OptionsCompilerSupplier) Compile(path string, code string) *CompileResult {
+	compileMu.Lock()
+	defer compileMu.Unlock()
+	if rhino.CurrentNodeStore().IsStatic() {
+		defer rhino.ResetNodeStore()
+	}
 	compiler := jscomp.NewCompiler()
 	result := compiler.CompileOfSourceFiles(
 		compilerSupplierExterns,
@@ -152,6 +164,11 @@ func (s *OptionsCompilerSupplier) Compile(path string, code string) *CompileResu
 // Runtime compiles an empty input with library force-injected and returns the
 // emitted runtime JS code.
 func (s *OptionsCompilerSupplier) Runtime(library string) string {
+	compileMu.Lock()
+	defer compileMu.Unlock()
+	if rhino.CurrentNodeStore().IsStatic() {
+		defer rhino.ResetNodeStore()
+	}
 	compiler := jscomp.NewCompiler()
 	options := s.options()
 	options.SetForceLibraryInjection([]string{library})

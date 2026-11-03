@@ -52,14 +52,22 @@ type Scanner struct {
 	identCache [scannerIdentCacheMask + 1]strpool.ID
 
 	// Side table for rare TemplateLiteralToken diagnostics / non-start
-	// positions (indexed 1-based by Token.aux).
-	templateErrors []TemplateTokenError
+	// positions (indexed 1-based by Token.aux; entries >= tokenAuxOverflow are
+	// looked up by Token.Location.Start.Offset in templateErrorOverflow).
+	templateErrors        []TemplateTokenError
+	templateErrorOverflow map[int32]int
 }
 
 // TemplateError returns the diagnostic / error-position record for a
 // TemplateLiteralToken.
 func (s *Scanner) TemplateError(tok Token) TemplateTokenError {
 	if tok.aux == 0 || s == nil {
+		return TemplateTokenError{Position: tok.Location.Start}
+	}
+	if tok.aux == tokenAuxOverflow {
+		if idx, ok := s.templateErrorOverflow[tok.Location.Start.Offset]; ok {
+			return s.templateErrors[idx]
+		}
 		return TemplateTokenError{Position: tok.Location.Start}
 	}
 	return s.templateErrors[tok.aux-1]

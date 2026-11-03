@@ -281,7 +281,11 @@ func (b *TypedScopeCreator_scopeBuilder) GetBestTypeName(lvalue rhino.Node, synt
 
 func (b *TypedScopeCreator_scopeBuilder) replaceGoogModuleExportsName(lvalue rhino.Node, syntacticLvalueName string) (string, bool) {
 	if b.IsGoogModuleExports(lvalue) {
-		return jutil.StringReplace(syntacticLvalueName, "exports", *b.GetModule().ClosureNamespace()), true
+		closureNs, ok := b.GetModule().ClosureNamespaceOk()
+		if !ok {
+			panic(jutil.NewNullPointerException())
+		}
+		return jutil.StringReplace(syntacticLvalueName, "exports", closureNs), true
 	}
 	return syntacticLvalueName, false
 }
@@ -595,7 +599,7 @@ func (b *TypedScopeCreator_scopeBuilder) defineSlot(d typedScopeSlotSpec) {
 // Java: TypedScopeCreator.AbstractScopeBuilder.declare(TypedScope, String, Node, JSType, CompilerInput, boolean)
 func (b *TypedScopeCreator_scopeBuilder) Declare(
 	scope *TypedScope, name string, n rhino.Node, type_ rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
-	var_, wasReserved := scope.declareWithReserved(name, n, type_, input, inferred)
+	var_, wasReserved := scope.declareWithCreator(b.outer, name, n, type_, input, inferred)
 	if !scope.IsGlobal() {
 		var flags uint8
 		if len(b.outer.varFlags) > 0 {

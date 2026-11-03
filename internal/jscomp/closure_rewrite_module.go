@@ -564,7 +564,9 @@ func (u *closureUnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.N
 			return false
 		}
 		lastArg, _ := call.LastArg()
-		if function, ok := ast.AsFunction(lastArg.Node()); ok {
+		if function, ok := ast.AsFunction(lastArg.Node()); ok &&
+			function.Body().Node().IsBlock() &&
+			function.Params().Node().HasOneChild() {
 			parent.PutBooleanProp(rhino.Node_GOOG_MODULE, true)
 			functionNode := function.Node()
 			compiler.ReportFunctionDeleted(functionNode)
@@ -574,7 +576,7 @@ func (u *closureUnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.N
 			moduleBody.SetJSType(exportsParameter.GetJSType())
 			n.ReplaceWith(moduleBody)
 			returnNode := moduleBody.GetLastChild()
-			if !returnNode.IsReturn() {
+			if returnNode.IsNil() || !returnNode.IsReturn() {
 				compiler.Report(JSError_MakeWithNode(moduleBody, ClosureRewriteModule_LOAD_MODULE_FN_MISSING_RETURN))
 			} else {
 				returnNode.Detach()

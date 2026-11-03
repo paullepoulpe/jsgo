@@ -291,3 +291,42 @@ func TestLinkedFlowScopeSizeAndEntryLattice(t *testing.T) {
 		t.Fatalf("InferSlotType slot type = %v, want %v", got, numType)
 	}
 }
+
+func TestLinkedFlowScopeArenaZeroAllocs(t *testing.T) {
+	compiler := NewCompiler()
+	reg := compiler.GetTypeRegistry()
+	numType := reg.GetNativeType(rhino.JSTypeNative_NUMBER_TYPE)
+	strType := reg.GetNativeType(rhino.JSTypeNative_STRING_TYPE)
+	boolType := reg.GetNativeType(rhino.JSTypeNative_BOOLEAN_TYPE)
+	numOrStr := reg.CreateUnionType(numType, strType)
+
+	fn := rhino.IR_Function(rhino.IR_Name("f"), rhino.IR_ParamList(), rhino.IR_Block())
+	script := rhino.IR_Script()
+	script.AddChildToBack(fn)
+	root := rhino.IR_Root(script)
+	globalScope := TypedScope_CreateGlobalScope(root)
+	fnScope := NewTypedScope(globalScope, fn)
+	fnScope.Declare("x", rhino.IR_Name("x"), numOrStr, nil, true)
+	fnScope.Declare("y", rhino.IR_Name("y"), nil, nil, true)
+
+	var arena linkedFlowScopeArena
+	var joined *LinkedFlowScope
+	joinOp := NewLinkedFlowScope_FlowScopeJoinOp(compiler)
+
+	allocs := testing.AllocsPerRun(100, func() {
+		arena.reset()
+		entry := newLinkedFlowScopeWithArena(&arena, compiler, LinkedFlowScope_EMPTY_SCOPES, fnScope, fnScope)
+		branchA := entry.InferSlotType("x", numType).InferSlotType("y", boolType)
+		branchB := entry.InferSlotType("x", numOrStr)
+		joinOp.result = nil
+		joinOp.JoinFlow(branchA)
+		joinOp.JoinFlow(branchB)
+		joined = joinOp.Finish()
+		if _, _, ft, _, ok := joined.LookupSlotType("x"); !ok || ft != numOrStr {
+			t.Fatalf("joined LookupSlotType(x) = %v, %v; want %v, true", ft, ok, numOrStr)
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("warmed linkedFlowScopeArena infer+join+lookup allocs = %v, want 0", allocs)
+	}
+}

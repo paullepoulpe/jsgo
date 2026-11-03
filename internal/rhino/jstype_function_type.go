@@ -38,6 +38,7 @@ package rhino
 import (
 	"math"
 	"slices"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -56,7 +57,7 @@ type FunctionType = *FunctionTypeBase
 type functionTypeExt struct {
 	// The prototype property. This field is lazily initialized by
 	// #getPrototype().
-	prototypeSlot *Property
+	prototypeSlot atomic.Pointer[Property]
 
 	// The interfaces directly implemented by this function (for
 	// constructors) It is only relevant for constructors.
@@ -95,7 +96,7 @@ type FunctionTypeBase struct {
 	// The function node which this type represents. It may be null.
 	source Node
 
-	ext *functionTypeExt
+	ext atomic.Pointer[functionTypeExt]
 }
 
 func (f *FunctionTypeBase) isNo() bool {
@@ -108,22 +109,26 @@ func (f *FunctionTypeBase) isNoObjectOrNo() bool {
 }
 
 func (f *FunctionTypeBase) ensureExt() *functionTypeExt {
-	if f.ext == nil {
-		f.ext = &functionTypeExt{}
+	if ext := f.ext.Load(); ext != nil {
+		return ext
 	}
-	return f.ext
+	fresh := &functionTypeExt{}
+	if f.ext.CompareAndSwap(nil, fresh) {
+		return fresh
+	}
+	return f.ext.Load()
 }
 
 func (f *FunctionTypeBase) prototypeSlot() *Property {
-	if f.ext != nil {
-		return f.ext.prototypeSlot
+	if ext := f.ext.Load(); ext != nil {
+		return ext.prototypeSlot.Load()
 	}
 	return nil
 }
 
 func (f *FunctionTypeBase) setPrototypeSlot(slot *Property) {
-	if slot != nil || f.ext != nil {
-		f.ensureExt().prototypeSlot = slot
+	if slot != nil || f.ext.Load() != nil {
+		f.ensureExt().prototypeSlot.Store(slot)
 	}
 }
 
@@ -591,12 +596,16 @@ func (f *FunctionTypeBase) ForEachOwnPropertyName(fn func(string)) {
 
 // Java: FunctionType.getPropertyType(Property.Key)
 func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
-	if !f.HasOwnPropertyByKey(name) {
+	if !f.HasOwnPropertyByKey(name) && !f.isNoObjectOrNo() {
 		// Define the "call", "apply", and "bind" functions lazily.
 		isCall := name.Matches("call")
 		isBind := name.Matches("bind")
 		if isCall || isBind {
-			f.DefineDeclaredPropertyByKey(name, f.GetCallOrBindSignature(isCall), f.source)
+			sig := f.GetCallOrBindSignature(isCall)
+			if reg := f.GetRegistry(); reg != nil && reg.parallelReadOnly {
+				return sig
+			}
+			f.DefineDeclaredPropertyByKey(name, sig, f.source)
 		} else if name.Matches("apply") {
 			// Define the "apply" function lazily.
 			var builder FunctionParamBuilder
@@ -612,14 +621,15 @@ func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 
 			var fnBuilder FunctionType_Builder
 			fnBuilder.Init(f.GetRegistry())
-			f.DefineDeclaredPropertyByKey(
-				name,
-				fnBuilder.
-					WithParametersOfList(builder.Build()).
-					WithReturnType(f.GetReturnType()).
-					WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys()).
-					Build(),
-				f.source)
+			sig := fnBuilder.
+				WithParametersOfList(builder.Build()).
+				WithReturnType(f.GetReturnType()).
+				WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys()).
+				Build()
+			if reg := f.GetRegistry(); reg != nil && reg.parallelReadOnly {
+				return sig
+			}
+			f.DefineDeclaredPropertyByKey(name, sig, f.source)
 		}
 	}
 
@@ -852,16 +862,16 @@ func (f *FunctionTypeBase) GetSource() Node {
 }
 
 func (f *FunctionTypeBase) googModuleStringID() rhinoStringID {
-	if f.ext != nil {
-		return f.ext.googModuleID
+	if ext := f.ext.Load(); ext != nil {
+		return ext.googModuleID
 	}
 	return 0
 }
 
 // Java: FunctionType.getGoogModuleId()
 func (f *FunctionTypeBase) GoogModuleId() (string, bool) {
-	if f.ext != nil && f.ext.googModuleID != 0 {
-		return rhinoStringFromID(f.ext.googModuleID), true
+	if ext := f.ext.Load(); ext != nil && ext.googModuleID != 0 {
+		return rhinoStringFromID(ext.googModuleID), true
 	}
 	return "", false
 }
@@ -967,15 +977,16 @@ func (f *FunctionTypeBase) GetConstructorOnlyTemplateParameters() []*TemplateTyp
 }
 
 func (f *FunctionTypeBase) closurePrimitivePlus1() uint8 {
-	if f.ext != nil {
-		return f.ext.closurePrimitivePlus1
+	if ext := f.ext.Load(); ext != nil {
+		return ext.closurePrimitivePlus1
 	}
 	return 0
 }
 
 // HasClosurePrimitive reports whether this function has an associated @closurePrimitive identifier.
 func (f *FunctionTypeBase) HasClosurePrimitive() bool {
-	return f.ext != nil && f.ext.closurePrimitivePlus1 != 0
+	ext := f.ext.Load()
+	return ext != nil && ext.closurePrimitivePlus1 != 0
 }
 
 // GetClosurePrimitive returns the @closurePrimitive identifier associated
@@ -983,16 +994,16 @@ func (f *FunctionTypeBase) HasClosurePrimitive() bool {
 //
 // Java: FunctionType.getClosurePrimitive()
 func (f *FunctionTypeBase) GetClosurePrimitive() (ClosurePrimitive, bool) {
-	if f.ext != nil && f.ext.closurePrimitivePlus1 != 0 {
-		return ClosurePrimitive(f.ext.closurePrimitivePlus1 - 1), true
+	if ext := f.ext.Load(); ext != nil && ext.closurePrimitivePlus1 != 0 {
+		return ClosurePrimitive(ext.closurePrimitivePlus1 - 1), true
 	}
 	return 0, false
 }
 
 // Java: FunctionType.getCanonicalRepresentation()
 func (f *FunctionTypeBase) GetCanonicalRepresentation() FunctionType {
-	if f.ext != nil {
-		return f.ext.canonicalRepresentation
+	if ext := f.ext.Load(); ext != nil {
+		return ext.canonicalRepresentation
 	}
 	return nil
 }

@@ -2753,3 +2753,35 @@ func (c *ConvertToTypedInterfaceTest) TestEs2022ClassStaticBlockRemovedCleanly()
 }
 `)
 }
+
+// Go-only: regression test — 0-arg and non-string goog.provide(), goog.require(), and
+// goog.define() calls in .i.js mode must not panic or SIGSEGV.
+func (c *ConvertToTypedInterfaceTest) TestZeroArgAndNonStringClosurePrimitives() {
+	c.TestSame("goog.provide();")
+	c.TestSame("goog.provide(123);")
+	c.TestSame("goog.require();")
+	c.TestSame("goog.require(123);")
+	c.TestSame("/** @define {boolean} */ goog.define();")
+	c.TestSame("/** @define {boolean} */ goog.define(123);")
+	c.Test("/** @define {boolean} */ var x = goog.define();", "")
+}
+
+func TestGenerateIjsModeZeroArgClosurePrimitives(t *testing.T) {
+	compiler := NewCompiler()
+	options := NewCompilerOptions()
+	options.SetIncrementalChecks(CompilerOptions_IncrementalCheckMode_GENERATE_IJS)
+	result := compiler.Compile(
+		[]*SourceFile{},
+		[]*SourceFile{
+			SourceFile_FromCode(
+				"input.js",
+				`goog.provide();
+goog.require();
+/** @define {boolean} */ goog.define();
+`),
+		},
+		options)
+	if len(result.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", result.Errors)
+	}
+}

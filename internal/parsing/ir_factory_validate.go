@@ -240,8 +240,8 @@ func (f *IRFactory) ValidateBreakContinue(n rhino.Node) {
 	labelName := n.GetFirstChild()
 	if !labelName.IsNil() {
 		parent := n.GetParent()
-		for !parent.IsLabel() || !IRFactory_LabelsMatch(parent, labelName) {
-			if parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
+		for parent.IsNil() || !parent.IsLabel() || !IRFactory_LabelsMatch(parent, labelName) {
+			if parent.IsNil() || parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
 				// report missing label
 				f.errorReporter.Error(
 					jutil.StringFormat(IRFactory_UNDEFINED_LABEL, labelName.GetString()),
@@ -253,8 +253,8 @@ func (f *IRFactory) ValidateBreakContinue(n rhino.Node) {
 			parent = parent.GetParent()
 		}
 
-		if parent.IsLabel() && IRFactory_LabelsMatch(parent, labelName) {
-			if n.IsContinue() && !IRFactory_IsContinueTarget(parent.GetLastChild()) {
+		if !parent.IsNil() && parent.IsLabel() && IRFactory_LabelsMatch(parent, labelName) {
+			if n.IsContinue() && (parent.GetLastChild().IsNil() || !IRFactory_IsContinueTarget(parent.GetLastChild())) {
 				// report invalid continue target
 				f.errorReporter.Error(
 					IRFactory_UNEXPECTED_LABELLED_CONTINUE, f.sourceName, n.GetLineno(), n.GetCharno())
@@ -262,8 +262,8 @@ func (f *IRFactory) ValidateBreakContinue(n rhino.Node) {
 		}
 	} else if n.IsContinue() {
 		parent := n.GetParent()
-		for !IRFactory_IsContinueTarget(parent) {
-			if parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
+		for parent.IsNil() || !IRFactory_IsContinueTarget(parent) {
+			if parent.IsNil() || parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
 				// report invalid continue
 				f.errorReporter.Error(IRFactory_UNEXPECTED_CONTINUE, f.sourceName, n.GetLineno(), n.GetCharno())
 				break
@@ -272,8 +272,8 @@ func (f *IRFactory) ValidateBreakContinue(n rhino.Node) {
 		}
 	} else {
 		parent := n.GetParent()
-		for !IRFactory_IsBreakTarget(parent) {
-			if parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
+		for parent.IsNil() || !IRFactory_IsBreakTarget(parent) {
+			if parent.IsNil() || parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
 				// report invalid break
 				f.errorReporter.Error(IRFactory_UNLABELED_BREAK, f.sourceName, n.GetLineno(), n.GetCharno())
 				break

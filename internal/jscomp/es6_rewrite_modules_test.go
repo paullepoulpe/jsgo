@@ -1408,3 +1408,102 @@ func (c *Es6RewriteModulesTest) TestModuleRenaming() {
 /** @const */ var module$mod$app = {};
 `)))
 }
+
+// Go-only: regression test — goog.module.get targeting an ES6 module inside array destructuring
+// or nested inside a wrapper call must replace the call in-place without panicking or deleting
+// the enclosing expression.
+func (c *Es6RewriteModulesTest) TestGoogModuleGetForEs6Module_destructuringAndNestedCall() {
+	closureBase := SourceFile_FromCode("closure_base.js", testExternsBuilder_GetClosureExternsAsSource())
+	es6Mod := SourceFile_FromCode("es6_mod.js", "goog.declareModuleId('es6.mod'); export const x = 1;")
+	es6ModExpected := SourceFile_FromCode(
+		"es6_mod.js",
+		`const x$$module$es6_mod = 1;
+/** @const */ var module$es6_mod = {};
+/** @const */ module$es6_mod.x = x$$module$es6_mod;
+`)
+
+	c.Test(
+		c.Srcs(
+			closureBase,
+			es6Mod,
+			SourceFile_FromCode(
+				"caller.js",
+				`goog.module('my.caller');
+/** @param {!Object} o @return {{x: number}} */
+function wrap(o) { return {x: 0}; }
+function f() {
+  const [m] = [goog.module.get('es6.mod')];
+  const {x} = wrap(goog.module.get('es6.mod'));
+  return [m, x];
+}
+`)),
+		c.Expected(
+			closureBase,
+			es6ModExpected,
+			SourceFile_FromCode(
+				"caller.js",
+				`goog.module('my.caller');
+/** @param {!Object} o @return {{x: number}} */
+function wrap(o) { return {x: 0}; }
+function f() {
+  const [m] = [module$es6_mod];
+  const {x} = wrap(module$es6_mod);
+  return [m, x];
+}
+`)))
+}
+
+// Go-only: regression test — untyped Es6RewriteModules must also handle default-value object
+// destructuring (const {x = 2} = goog.module.get('es6.mod')), object rest, array destructuring,
+// and nested wrapper calls without panicking or deleting the wrapper call.
+func TestEs6RewriteModulesUntypedGoogModuleGetPatterns(t *testing.T) {
+	compiler := NewCompiler()
+	opts := NewCompilerOptions()
+	opts.SetPrettyPrint(true)
+	compiler.Init(
+		[]*SourceFile{SourceFile_FromCode("externs.js", testExternsBuilder_GetClosureExternsAsSource())},
+		[]*SourceFile{
+			SourceFile_FromCode("es6_mod.js", "goog.declareModuleId('es6.mod'); export const x = 1;"),
+			SourceFile_FromCode("caller.js", `goog.module('my.caller');
+function f(wrap) {
+  const [m] = [goog.module.get('es6.mod')];
+  const {...rest} = goog.module.get('es6.mod');
+  const {x = 2} = goog.module.get('es6.mod');
+  const {x: y} = wrap(goog.module.get('es6.mod'));
+  return [m, rest, x, y];
+}
+`),
+		},
+		opts)
+	root := compiler.ParseInputs()
+	if compiler.GetErrorCount() != 0 {
+		t.Fatalf("unexpected parse errors: %v", compiler.GetErrors())
+	}
+	externs := root.GetFirstChild()
+	jsRoot := externs.GetNext()
+	NewGatherModuleMetadata(compiler, false, ModuleLoader_ResolutionMode_BROWSER).Process(externs, jsRoot)
+	NewModuleMapCreator(compiler, compiler.GetModuleMetadataMap()).Process(externs, jsRoot)
+	NewEs6RewriteModules(compiler, compiler.GetModuleMetadataMap(), compiler.GetModuleMap(), nil, nil).Process(externs, jsRoot)
+	if compiler.GetErrorCount() != 0 {
+		t.Fatalf("unexpected rewrite errors: %v", compiler.GetErrors())
+	}
+	callerOut := compiler.ToSourceOfNode(jsRoot.GetLastChild())
+	expectedCaller := NewCompiler()
+	expectedCaller.Init(
+		[]*SourceFile{},
+		[]*SourceFile{SourceFile_FromCode("expected.js", `goog.module('my.caller');
+function f(wrap) {
+  const [m] = [module$es6_mod];
+  const {...rest} = module$es6_mod;
+  const {x = 2} = module$es6_mod;
+  const {x: y} = wrap(module$es6_mod);
+  return [m, rest, x, y];
+}
+`)},
+		opts)
+	expectedRoot := expectedCaller.ParseInputs()
+	wantOut := expectedCaller.ToSourceOfNode(expectedRoot.GetSecondChild().GetFirstChild())
+	if callerOut != wantOut {
+		t.Fatalf("caller output mismatch:\ngot:\n%s\nwant:\n%s", callerOut, wantOut)
+	}
+}

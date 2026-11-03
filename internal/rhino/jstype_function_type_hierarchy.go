@@ -74,25 +74,33 @@ func (f *FunctionTypeBase) GetPrototypeProperty() ObjectType {
 // Java: FunctionType.getPrototype()
 func (f *FunctionTypeBase) GetPrototype() ObjectType {
 	// lazy initialization of the prototype field
-	if f.prototypeSlot() == nil {
-		refName, ok := f.ReferenceName()
-		if !ok {
-			// Someone is trying to access the prototype of a structural function.
-			// We don't want to give real properties to this prototype, because
-			// then it would propagate to all structural functions.
-			f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), NilNode)
-		} else {
-			fields := PrototypeObjectType_Builder{
-				registry:          f.GetRegistry(),
-				classNameID:       rhinoStringPoolIntern(refName + ".prototype"),
-				implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
-				nativeType:        f.IsNativeObjectType(),
-				templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
-			}
-			f.SetPrototype(
-				NewPrototypeObjectType(&fields),
-				NilNode)
+	if slot := f.prototypeSlot(); slot != nil {
+		return slot.GetType().(ObjectType)
+	}
+	if reg := f.GetRegistry(); reg != nil && reg.parallelReadOnly {
+		reg.parallelMu.Lock()
+		defer reg.parallelMu.Unlock()
+		if slot := f.prototypeSlot(); slot != nil {
+			return slot.GetType().(ObjectType)
 		}
+	}
+	refName, ok := f.ReferenceName()
+	if !ok {
+		// Someone is trying to access the prototype of a structural function.
+		// We don't want to give real properties to this prototype, because
+		// then it would propagate to all structural functions.
+		f.SetPrototypeNoCheck(f.GetRegistry().GetNativeObjectType(JSTypeNative_UNKNOWN_TYPE), NilNode)
+	} else {
+		fields := PrototypeObjectType_Builder{
+			registry:          f.GetRegistry(),
+			classNameID:       rhinoStringPoolIntern(refName + ".prototype"),
+			implicitPrototype: f.GetRegistry().GetNativeObjectType(JSTypeNative_OBJECT_TYPE),
+			nativeType:        f.IsNativeObjectType(),
+			templateTypeMap:   f.GetRegistry().GetEmptyTemplateTypeMap(),
+		}
+		f.SetPrototype(
+			NewPrototypeObjectType(&fields),
+			NilNode)
 	}
 	return f.prototypeSlot().GetType().(ObjectType)
 }
@@ -184,14 +192,13 @@ func (f *FunctionTypeBase) SetPrototypeNoCheck(prototype ObjectType, propertyNod
 	if propertyNode.IsNil() {
 		slotNode = f.source
 	}
-	f.setPrototypeSlot(NewProperty("prototype", prototype, true, slotNode))
 	prototype.SetOwnerFunction(f)
-
 	if oldPrototype != nil {
 		// Disassociating the old prototype makes this easier to debug-- we
 		// don't have to worry about two prototypes running around.
 		oldPrototype.SetOwnerFunction(nil)
 	}
+	f.setPrototypeSlot(NewProperty("prototype", prototype, true, slotNode))
 
 	if replacedPrototype {
 		f.ClearCachedValues()
@@ -238,7 +245,7 @@ func (f *FunctionTypeBase) GetSuperClassConstructor() FunctionType {
 
 // Java: FunctionType.hasImplementedInterfaces()
 func (f *FunctionTypeBase) HasImplementedInterfaces() bool {
-	if f.ext != nil && len(f.ext.implementedInterfaces) != 0 {
+	if ext := f.ext.Load(); ext != nil && len(ext.implementedInterfaces) != 0 {
 		return true
 	}
 	var superCtor FunctionType
@@ -337,8 +344,8 @@ func (f *FunctionTypeBase) GetImplementedInterfaces() []ObjectType {
 //
 // Java: FunctionType.getOwnImplementedInterfaces()
 func (f *FunctionTypeBase) GetOwnImplementedInterfaces() []ObjectType {
-	if f.ext != nil && f.ext.implementedInterfaces != nil {
-		return f.ext.implementedInterfaces
+	if ext := f.ext.Load(); ext != nil && ext.implementedInterfaces != nil {
+		return ext.implementedInterfaces
 	}
 	return emptyObjectTypeSlice
 }
@@ -348,7 +355,7 @@ func (f *FunctionTypeBase) SetImplementedInterfaces(implementedInterfaces []Obje
 	jutil.CheckState(f.IsConstructor())
 
 	copied := functionTypeCopyOfObjectTypes(implementedInterfaces)
-	if len(copied) > 0 || f.ext != nil {
+	if len(copied) > 0 || f.ext.Load() != nil {
 		f.ensureExt().implementedInterfaces = copied
 	}
 	for _, type_ := range implementedInterfaces {
@@ -377,8 +384,8 @@ func functionTypeCopyOfObjectTypes(list []ObjectType) []ObjectType {
 //
 // Java: FunctionType.getExtendedInterfaces()
 func (f *FunctionTypeBase) GetExtendedInterfaces() []ObjectType {
-	if f.ext != nil && f.ext.extendedInterfaces != nil {
-		return f.ext.extendedInterfaces
+	if ext := f.ext.Load(); ext != nil && ext.extendedInterfaces != nil {
+		return ext.extendedInterfaces
 	}
 	return emptyObjectTypeSlice
 }
@@ -388,8 +395,8 @@ func (f *FunctionTypeBase) GetExtendedInterfaces() []ObjectType {
 //
 // Java: FunctionType.getExtendedInterfacesCount()
 func (f *FunctionTypeBase) GetExtendedInterfacesCount() int {
-	if f.ext != nil {
-		return len(f.ext.extendedInterfaces)
+	if ext := f.ext.Load(); ext != nil {
+		return len(ext.extendedInterfaces)
 	}
 	return 0
 }
@@ -399,7 +406,7 @@ func (f *FunctionTypeBase) SetExtendedInterfaces(extendedInterfaces []ObjectType
 	jutil.CheckState(f.IsInterface())
 
 	copied := functionTypeCopyOfObjectTypes(extendedInterfaces)
-	if len(copied) > 0 || f.ext != nil {
+	if len(copied) > 0 || f.ext.Load() != nil {
 		f.ensureExt().extendedInterfaces = copied
 	}
 	for _, extendedInterface := range extendedInterfaces {
@@ -662,17 +669,17 @@ func (f *FunctionTypeBase) ResolveInternal(reporter ErrorReporter) JSType {
 		}
 	}
 
-	if f.ext != nil {
-		if len(f.ext.implementedInterfaces) > 0 {
-			resolvedImplemented := f.ResolveTypeListHelper(f.ext.implementedInterfaces, reporter)
+	if ext := f.ext.Load(); ext != nil {
+		if len(ext.implementedInterfaces) > 0 {
+			resolvedImplemented := f.ResolveTypeListHelper(ext.implementedInterfaces, reporter)
 			if resolvedImplemented != nil {
-				f.ext.implementedInterfaces = resolvedImplemented
+				ext.implementedInterfaces = resolvedImplemented
 			}
 		}
-		if len(f.ext.extendedInterfaces) > 0 {
-			resolvedExtended := f.ResolveTypeListHelper(f.ext.extendedInterfaces, reporter)
+		if len(ext.extendedInterfaces) > 0 {
+			resolvedExtended := f.ResolveTypeListHelper(ext.extendedInterfaces, reporter)
 			if resolvedExtended != nil {
-				f.ext.extendedInterfaces = resolvedExtended
+				ext.extendedInterfaces = resolvedExtended
 			}
 		}
 	}
@@ -722,10 +729,14 @@ func (f *FunctionTypeBase) ResolveTypeListHelper(list []ObjectType, reporter Err
 //
 // Java: FunctionType.isAmbiguousConstructor()
 func (f *FunctionTypeBase) IsAmbiguousConstructor() bool {
-	if f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_UNKNOWN {
-		f.call.fnConstructorAmbiguity = f.CalculateConstructorAmbiguity()
+	ambiguity := f.call.fnConstructorAmbiguity
+	if ambiguity == FunctionType_ConstructorAmbiguity_UNKNOWN {
+		ambiguity = f.CalculateConstructorAmbiguity()
+		if reg := f.GetRegistry(); reg == nil || !reg.parallelReadOnly {
+			f.call.fnConstructorAmbiguity = ambiguity
+		}
 	}
-	return f.call.fnConstructorAmbiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
+	return ambiguity == FunctionType_ConstructorAmbiguity_IS_AMBIGUOUS_CONSTRUCTOR
 }
 
 // Java: FunctionType.CalculateConstructorAmbiguity()

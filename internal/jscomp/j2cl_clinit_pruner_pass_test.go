@@ -718,3 +718,33 @@ class otherClass {}
 }
 `)
 }
+
+func (c *J2clClinitPrunerPassTest) TestRedundantClinit_undeclaredGlobalAndArgumentsArgsDoNotPanic() {
+	c.TestSame(
+		`var Foo = function(a) {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo(window);
+};
+`)
+	c.TestSame(
+		`var Foo = function(a) {
+  Foo.$clinit();
+};
+Foo.ctor = function() {
+  Foo.$clinit();
+  return new Foo(arguments);
+};
+`)
+	c.TestSame(
+		`var Foo = function(a) {
+  Foo.$clinit();
+};
+Foo.ctor = function({a}) {
+  Foo.$clinit();
+  return new Foo(a);
+};
+`)
+}

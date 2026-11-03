@@ -332,7 +332,12 @@ func (c *InlineAndCollapseProperties_CollapseProperties) ShouldAddConstantName(d
 }
 
 func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p *GlobalNamespace_Name) bool {
-	if comp := c.outer.compiler; comp != nil && !comp.isParallelWorker() && comp.currentPassIndex <= 1 && !comp.options.isFastMode() {
+	if c.outer.decisionsLog.IsLogging() {
+		return false
+	}
+	// Standalone single-pass unit/oracle harnesses (outside PhaseOptimizer)
+	// assert exact per-scope change_time stamps from intermediate prefix flattenings.
+	if comp := c.outer.compiler; comp != nil && comp.phaseOptimizer == nil && !comp.isParallelWorker() && !comp.options.isFastMode() {
 		return false
 	}
 	isAllowedToCollapse :=
@@ -410,9 +415,11 @@ func flattenPrefixesHasWork(n *GlobalNamespace_Name) bool {
 	return nRefs > 1 || (nRefs == 1 && n.GetFirstRef() != decl)
 }
 
-// lazyOriginalName is the full original name of a property (e.g. "a.b.c.d"),
-// built from a prefix's original name and the property's extraDepth trailing
-// base names only when a reference actually gets flattened.
+// lazyOriginalName lazily builds the original name recorded on flattened
+// prefix references (e.g. baseOriginalName "a.b" + trailing base names "c", "d"
+// -> "a.bcd", without intervening dots, matching Java FlattenPrefixes
+// `originalName + p.getBaseName()` for sourcemap parity) only when a reference
+// actually gets flattened.
 type lazyOriginalName struct {
 	baseOriginalName string
 	name             *GlobalNamespace_Name
