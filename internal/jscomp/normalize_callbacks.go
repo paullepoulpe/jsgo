@@ -19,16 +19,89 @@
 package jscomp
 
 import (
+	"slices"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
+type normalizeLocalDedupAction struct {
+	nameNode    rhino.Node
+	varParent   rhino.Node
+	grandparent rhino.Node
+}
+
+type normalizeParallelScriptResult struct {
+	dedups          []normalizeLocalDedupAction
+	constNodes      []rhino.Node
+	skippedDupNames []rhino.Node
+}
+
+var (
+	propagateConstVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_NAME)
+		return s
+	}()
+
+	normalizeStatementsVisitTokens = func() ast.TokenSet {
+		var s ast.TokenSet
+		s.Add(rhino.Token_NAME)
+		s.Add(rhino.Token_IMPORT_STAR)
+		s.Add(rhino.Token_WHILE)
+		s.Add(rhino.Token_DESTRUCTURING_LHS)
+		s.Add(rhino.Token_ASSIGN_OR)
+		s.Add(rhino.Token_ASSIGN_AND)
+		s.Add(rhino.Token_ASSIGN_COALESCE)
+		s.Add(rhino.Token_ARRAYLIT)
+		s.Add(rhino.Token_CALL)
+		s.Add(rhino.Token_NEW)
+		s.Add(rhino.Token_OBJECTLIT)
+		s.Add(rhino.Token_OPTCHAIN_CALL)
+		s.Add(rhino.Token_PARAM_LIST)
+		return s
+	}()
+)
+
+type normalizeConstConvCache struct {
+	alwaysFalse bool
+	slots       [256]struct {
+		id  uint32
+		val bool
+	}
+}
+
+func newNormalizeConstConvCache(conv CodingConvention) normalizeConstConvCache {
+	_, isDefault := conv.(*CodingConventions_DefaultCodingConvention)
+	return normalizeConstConvCache{alwaysFalse: isDefault}
+}
+
+func (c *normalizeConstConvCache) isConstant(conv CodingConvention, id uint32, n rhino.Node) bool {
+	if c.alwaysFalse {
+		return false
+	}
+	if id != 0 {
+		slot := &c.slots[uint8(id^(id>>8))]
+		if slot.id == id {
+			return slot.val
+		}
+		val := conv.IsConstant(n.GetString())
+		slot.id = id
+		slot.val = val
+		return val
+	}
+	return conv.IsConstant(n.GetString())
+}
+
 func (*Normalize_PropagateConstantPropertyOverVars) onlyNameLeaves()                {}
 func (*Normalize_PropagateConstantPropertyOverVars) nodeTraversalNoShouldTraverse() {}
-func (*ValidityCheck_VerifyConstants) onlyNameLeaves()                              {}
-func (*ValidityCheck_VerifyConstants) nodeTraversalNoShouldTraverse()               {}
+func (*Normalize_PropagateConstantPropertyOverVars) visitTokens() *ast.TokenSet {
+	return &propagateConstVisitTokens
+}
+func (*ValidityCheck_VerifyConstants) onlyNameLeaves()                {}
+func (*ValidityCheck_VerifyConstants) nodeTraversalNoShouldTraverse() {}
 
 // Normalize_PropagateConstantPropertyOverVars propagates constant
 // annotations and IS_CONSTANT_NAME property over the Var graph.
@@ -40,15 +113,19 @@ type Normalize_PropagateConstantPropertyOverVars struct {
 	convention     CodingConvention
 	assertOnChange bool
 	varConst       map[*Var]bool
+	convCache      normalizeConstConvCache
+	parallelRes    *normalizeParallelScriptResult
 }
 
 // Java: Normalize.PropagateConstantPropertyOverVars(AbstractCompiler, boolean)
 func NewNormalize_PropagateConstantPropertyOverVars(
 	compiler AbstractCompiler, forbidChanges bool) *Normalize_PropagateConstantPropertyOverVars {
+	conv := compiler.GetCodingConvention()
 	p := &Normalize_PropagateConstantPropertyOverVars{
 		compiler:       compiler,
-		convention:     compiler.GetCodingConvention(),
+		convention:     conv,
 		assertOnChange: forbidChanges,
+		convCache:      newNormalizeConstConvCache(conv),
 	}
 	return p
 }
@@ -79,6 +156,9 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 	if !n.IsName() || n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		return
 	}
+	if p.parallelRes != nil && len(p.parallelRes.skippedDupNames) > 0 && slices.Contains(p.parallelRes.skippedDupNames, n) {
+		return
+	}
 	id := n.GetStringID()
 	if id <= strpool.EmptyID {
 		return
@@ -95,7 +175,7 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 				shouldBeConstant = true
 			} else if info := var_.GetJSDocInfo(); info != nil && info.IsConstant() {
 				shouldBeConstant = true
-			} else if p.convention.IsConstant(n.GetString()) {
+			} else if p.convCache.isConstant(p.convention, id, n) {
 				shouldBeConstant = true
 			}
 			if p.varConst == nil {
@@ -104,7 +184,7 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 			p.varConst[var_] = shouldBeConstant
 		}
 	} else {
-		shouldBeConstant = p.convention.IsConstant(n.GetString())
+		shouldBeConstant = p.convCache.isConstant(p.convention, id, n)
 	}
 	if shouldBeConstant {
 		if p.assertOnChange {
@@ -116,59 +196,16 @@ func (p *Normalize_PropagateConstantPropertyOverVars) Visit(t *NodeTraversal, n 
 					"  parent:" +
 					n.GetParent().ToStringTree()))
 		}
-		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+		if p.parallelRes != nil {
+			p.parallelRes.constNodes = append(p.parallelRes.constNodes, n)
+		} else {
+			n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+		}
 	}
 }
 
-type normalizePostOrderContext struct {
-	s *Normalize_NormalizeStatements
-	t *NodeTraversal
-}
-
-// normalizePreOrderVisitor lists what NormalizeStatements does to each kind of
-// node before its children are traversed, to add siblings or parents that the
-// traversal then visits (doStatementNormalizations, called from ShouldTraverse).
-//
-// Java: Normalize.NormalizeStatements.doStatementNormalizations(Node)
-var normalizePreOrderVisitor = ast.Visitor[*Normalize_NormalizeStatements]{
-	Root:       func(s *Normalize_NormalizeStatements, x ast.Root) { s.normalizeStatements(x.Node()) },
-	Script:     func(s *Normalize_NormalizeStatements, x ast.Script) { s.normalizeStatements(x.Node()) },
-	ModuleBody: func(s *Normalize_NormalizeStatements, x ast.ModuleBody) { s.normalizeStatements(x.Node()) },
-	Block:      (*Normalize_NormalizeStatements).normalizeBlock,
-	Label:      (*Normalize_NormalizeStatements).normalizeLabel,
-	Function:   (*Normalize_NormalizeStatements).normalizeFunction,
-	// Perform the split in pre-order traversal to accurately normalize destructuring
-	// declarations.
-	Export: (*Normalize_NormalizeStatements).SplitExportDeclaration,
-	AssignOp: func(s *Normalize_NormalizeStatements, x ast.AssignOp) {
-		// Logical assignments should be handled in visit(), not here
-		if !NodeUtil_IsLogicalAssignmentOp(x.Node()) {
-			s.NormalizeAssignShorthand(x)
-		}
-	},
-}
-
-// normalizePostOrderVisitor lists what NormalizeStatements does to each kind of
-// node after its children are traversed (Visit).
-//
-// Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
-var normalizePostOrderVisitor = ast.Visitor[normalizePostOrderContext]{
-	Name:             func(c normalizePostOrderContext, x ast.Name) { c.s.visitName(c.t, x) },
-	ImportStar:       func(c normalizePostOrderContext, x ast.ImportStar) { c.s.visitImportStar(c.t, x) },
-	While:            func(c normalizePostOrderContext, x ast.While) { c.s.visitWhile(x) },
-	DestructuringLhs: func(c normalizePostOrderContext, x ast.DestructuringLhs) { c.s.NormalizeDestructuringLhs(x) },
-	AssignOp: func(c normalizePostOrderContext, x ast.AssignOp) {
-		if NodeUtil_IsLogicalAssignmentOp(x.Node()) {
-			c.s.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(c.t, x.Node())
-		}
-	},
-	// The kinds that can have a trailing comma.
-	ArrayLit:     func(_ normalizePostOrderContext, x ast.ArrayLit) { x.Node().SetTrailingComma(false) },
-	Call:         func(_ normalizePostOrderContext, x ast.Call) { x.Node().SetTrailingComma(false) },
-	New:          func(_ normalizePostOrderContext, x ast.New) { x.Node().SetTrailingComma(false) },
-	ObjectLit:    func(_ normalizePostOrderContext, x ast.ObjectLit) { x.Node().SetTrailingComma(false) },
-	OptChainCall: func(_ normalizePostOrderContext, x ast.OptChainCall) { x.Node().SetTrailingComma(false) },
-	ParamList:    func(_ normalizePostOrderContext, x ast.ParamList) { x.Node().SetTrailingComma(false) },
+func (*Normalize_NormalizeStatements) visitTokens() *ast.TokenSet {
+	return &normalizeStatementsVisitTokens
 }
 
 // Normalize_NormalizeStatements simplifies the AST:
@@ -187,6 +224,7 @@ type Normalize_NormalizeStatements struct {
 	isNormalizedObfuscated                  bool
 	rewriteLogicalAssignmentOperatorsHelper *RewriteLogicalAssignmentOperatorsHelper
 	renamer                                 contextualRenamerState
+	convCache                               normalizeConstConvCache
 }
 
 // NewNormalize_NormalizeStatements: prefer using Normalize as a compiler
@@ -196,12 +234,14 @@ type Normalize_NormalizeStatements struct {
 func NewNormalize_NormalizeStatements(
 	compiler AbstractCompiler,
 	assertOnChange bool) *Normalize_NormalizeStatements {
+	conv := compiler.GetCodingConvention()
 	s := &Normalize_NormalizeStatements{
 		compiler:               compiler,
-		convention:             compiler.GetCodingConvention(),
+		convention:             conv,
 		assertOnChange:         assertOnChange,
 		isNormalizedObfuscated: compiler.GetLifeCycleStage().IsNormalizedObfuscated(),
 		astFactory:             compiler.CreateAstFactory(),
+		convCache:              newNormalizeConstConvCache(conv),
 	}
 	s.rewriteLogicalAssignmentOperatorsHelper =
 		NewRewriteLogicalAssignmentOperatorsHelper(
@@ -283,7 +323,7 @@ func (s *Normalize_NormalizeStatements) ExitScope(t *NodeTraversal) {
 
 // Java: Normalize.NormalizeStatements.shouldTraverse(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
-	if n.GetFirstChild().IsNil() {
+	if !normalizePreOrderTokens[uint8(n.GetToken())] || n.GetFirstChild().IsNil() {
 		return true
 	}
 
@@ -296,23 +336,47 @@ func (s *Normalize_NormalizeStatements) ShouldTraverse(t *NodeTraversal, n rhino
 	return true
 }
 
-// Visit runs the handler of normalizePostOrderVisitor for n's kind.
+// Visit runs post-order normalizations for n's token.
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node)
 func (s *Normalize_NormalizeStatements) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	normalizePostOrderVisitor.Visit(normalizePostOrderContext{s: s, t: t}, n)
+	switch n.GetToken() {
+	case rhino.Token_NAME:
+		s.visitName(t, ast.MustName(n), parent)
+	case rhino.Token_IMPORT_STAR:
+		s.visitImportStar(t, ast.MustImportStar(n))
+	case rhino.Token_WHILE:
+		s.visitWhile(ast.MustWhile(n))
+	case rhino.Token_DESTRUCTURING_LHS:
+		s.NormalizeDestructuringLhs(ast.MustDestructuringLhs(n))
+	case rhino.Token_ASSIGN_OR, rhino.Token_ASSIGN_AND, rhino.Token_ASSIGN_COALESCE:
+		s.rewriteLogicalAssignmentOperatorsHelper.VisitLogicalAssignmentOperator(t, n)
+	case rhino.Token_ARRAYLIT, rhino.Token_CALL, rhino.Token_NEW,
+		rhino.Token_OBJECTLIT, rhino.Token_OPTCHAIN_CALL, rhino.Token_PARAM_LIST:
+		n.SetTrailingComma(false)
+	}
 }
 
 // visitName renames x if it is shadowed and marks it constant when it is.
 //
 // Java: Normalize.NormalizeStatements.visit(NodeTraversal, Node, Node) (NAME)
-func (s *Normalize_NormalizeStatements) visitName(t *NodeTraversal, x ast.Name) {
-	s.renamer.renameNode(t, x.Node(), s.assertOnChange)
-	if x.Node().GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
+func (s *Normalize_NormalizeStatements) visitName(t *NodeTraversal, x ast.Name, parent rhino.Node) {
+	n := x.Node()
+	s.renamer.renameNode(t, n, s.assertOnChange)
+	if n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) {
 		return
 	}
-	s.AnnotateConstantsByConvention(x)
-	s.AnnotateFunctionExpressionNameAsConstant(x)
+	if !s.isNormalizedObfuscated && s.convCache.isConstant(s.convention, n.GetStringID(), n) {
+		jutil.CheckStateMsg1(!s.assertOnChange, "Not marked as constant when it should be: %s", n)
+		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+		return
+	}
+	if parent.IsNil() {
+		parent = n.GetParent()
+	}
+	if parent.IsFunction() && n == parent.GetFirstChild() && NodeUtil_IsFunctionExpression(parent) {
+		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+	}
 }
 
 // visitImportStar renames x if it is shadowed.
@@ -346,7 +410,7 @@ func (s *Normalize_NormalizeStatements) AnnotateConstantsByConvention(x ast.Name
 	}
 
 	n := x.Node()
-	if !n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) && s.convention.IsConstant(x.Ident()) {
+	if !n.GetBooleanProp(rhino.Node_IS_CONSTANT_NAME) && s.convCache.isConstant(s.convention, n.GetStringID(), n) {
 		jutil.CheckStateMsg1(!s.assertOnChange, "Not marked as constant when it should be: %s", n)
 		n.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
 	}
@@ -365,7 +429,8 @@ func (s *Normalize_NormalizeStatements) AnnotateFunctionExpressionNameAsConstant
 // Normalize_DuplicateDeclarationHandler is the ScopeCreator duplicate
 // declaration handler.
 type Normalize_DuplicateDeclarationHandler struct {
-	outer *Normalize
+	outer       *Normalize
+	parallelRes *normalizeParallelScriptResult
 
 	hasOkDuplicateDeclaration map[*Var]struct{}
 	okDupBuf                  [8]*Var
@@ -420,13 +485,32 @@ duplicateNotOk:
 		if v.GetParentNode().IsVar() {
 			s.Undeclare(v)
 			s.Declare(name, n, v.GetInput())
-			h.ReplaceVarWithAssignment(
+			h.recordOrReplaceVar(
 				v.GetNameNode(), v.GetParentNode(), v.GetParentNode().GetParent())
 		}
 	} else if parent.IsVar() {
 		jutil.CheckState(parent.HasOneChild())
-		h.ReplaceVarWithAssignment(n, parent, parent.GetParent())
+		h.recordOrReplaceVar(n, parent, parent.GetParent())
 	}
+}
+
+func (h *Normalize_DuplicateDeclarationHandler) recordOrReplaceVar(
+	n rhino.Node, parent rhino.Node, grandparent rhino.Node) {
+	if res := h.parallelRes; res != nil {
+		name, ok := ast.AsName(n)
+		jutil.CheckState(ok)
+		if _, hasInit := name.Init(); !hasInit {
+			jutil.CheckStateMsg1(NodeUtil_IsStatementBlock(grandparent), "%s", grandparent)
+			res.skippedDupNames = append(res.skippedDupNames, n)
+		}
+		res.dedups = append(res.dedups, normalizeLocalDedupAction{
+			nameNode:    n,
+			varParent:   parent,
+			grandparent: grandparent,
+		})
+		return
+	}
+	h.ReplaceVarWithAssignment(n, parent, grandparent)
 }
 
 // ReplaceVarWithAssignment removes the parent VAR. There is only one case

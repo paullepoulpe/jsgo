@@ -42,6 +42,70 @@ type typedScopeCreator_ScopedNameKey struct {
 	scopeRoot rhino.Node
 }
 
+type typedScopeOrderEntry struct {
+	node        rhino.Node
+	currentNode rhino.Node
+	script      rhino.Node
+	parentIdx   int32
+}
+
+type typedScopeReservedEntry struct {
+	root  rhino.Node
+	names []string
+}
+
+type typedScopeVarFlagEntry struct {
+	key   typedScopeCreator_ScopedNameKey
+	flags uint8
+}
+
+type typedScopeNonNullableCandidate struct {
+	nameQname          string
+	rvalQname          string
+	lookupRoot         rhino.Node
+	rvalLookupRoot     rhino.Node
+	hasLookupScope     bool
+	hasRvalLookupScope bool
+	isEnumOrTypedef    bool
+}
+
+type typedScopeFirstOrderScriptResult struct {
+	scopeCount        int
+	globalDeclEst     int
+	nonEmptyReturnFns []rhino.Node
+	reserved          []typedScopeReservedEntry
+	varFlags          []typedScopeVarFlagEntry
+	nonNullables      []typedScopeNonNullableCandidate
+	scopeOrder        []typedScopeOrderEntry
+}
+
+type staticScopeRootOnly struct {
+	root rhino.Node
+}
+
+func (s staticScopeRootOnly) GetRootNode() rhino.Node            { return s.root }
+func (s staticScopeRootOnly) GetParentScope() rhino.StaticScope  { return nil }
+func (s staticScopeRootOnly) GetSlot(string) rhino.StaticSlot    { return nil }
+func (s staticScopeRootOnly) GetOwnSlot(string) rhino.StaticSlot { return nil }
+func (s staticScopeRootOnly) GetTopmostScopeOfEventualDeclaration(string) rhino.StaticScope {
+	return nil
+}
+
+func staticScopeFromLookupRoot(hasScope bool, root rhino.Node) rhino.StaticScope {
+	if !hasScope {
+		return nil
+	}
+	return staticScopeRootOnly{root: root}
+}
+
+func captureLookupScopeRoot(scope rhino.StaticScope, qname string) (rhino.Node, bool) {
+	ls := rhino.JSTypeRegistry_GetLookupScope(scope, qname)
+	if ls == nil {
+		return rhino.NilNode, false
+	}
+	return ls.GetRootNode(), true
+}
+
 const (
 	typedScopeCreator_VarFlagEscaped           uint8 = 1 << 0
 	typedScopeCreator_VarFlagNotSingleAssigned uint8 = 1 << 1
@@ -101,6 +165,15 @@ type TypedScopeCreator struct {
 
 	stage                         TypedScopeCreator_Stage
 	hasUnevaluatedRecordEnumAlias bool
+	recordScopeOrder              bool
+	scopeOrder                    []typedScopeOrderEntry
+}
+
+func (c *TypedScopeCreator) takeScopeOrder() []typedScopeOrderEntry {
+	out := c.scopeOrder
+	c.scopeOrder = nil
+	c.recordScopeOrder = false
+	return out
 }
 
 const typedScopeCreator_varListChunk = 508 // 4 KB with the 8-byte header of a pointerful allocation
@@ -587,20 +660,11 @@ func (c *TypedScopeCreator) CreateInitialScope(root rhino.Node) *TypedScope {
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
 
 	// Gather global information used in typed scope creation.
-	scopeCreator := NewSyntacticScopeCreator(c.compiler)
-
-	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
-	analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry
-
-	(NodeTraversal_Builder{
-		compiler:     c.compiler,
-		callback:     analyzer,
-		scopeCreator: scopeCreator,
-	}).TraverseRoots(root.GetFirstChild(), root.GetLastChild())
+	globalDeclEstimate := c.runFirstOrderAnalysis(root)
 
 	c.GatherAllProvides(root)
 
-	globalVarCap := 48 + analyzer.globalDeclEstimate + c.providedNamesCount
+	globalVarCap := 48 + globalDeclEstimate + c.providedNamesCount
 	s := newGlobalTypedScopeWithCapacity(root, globalVarCap)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_ARRAY_FUNCTION_TYPE)
 	c.DeclareNativeFunctionType(s, rhino.JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE)
@@ -749,6 +813,8 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 	c.varSlab = jutil.Slab[TypedVar]{}
 	c.buildSlab = jutil.Slab[typedScopeBuildState]{}
 	c.varLists = nil
+	c.scopeOrder = nil
+	c.recordScopeOrder = false
 	c.stage = TypedScopeCreator_Stage_FROZEN
 
 	// we must keep the 'memoized' set of TypedScopes around, since later passes will use it.
@@ -786,6 +852,8 @@ func (c *TypedScopeCreator) ClearCommonState() {
 	c.varSlab = jutil.Slab[TypedVar]{}
 	c.buildSlab = jutil.Slab[typedScopeBuildState]{}
 	c.varLists = nil
+	c.scopeOrder = nil
+	c.recordScopeOrder = false
 	c.hasUnevaluatedRecordEnumAlias = false
 }
 
@@ -793,7 +861,8 @@ func (c *TypedScopeCreator) ClearCommonState() {
 // typedefs to the registry's list of non-nullable types.
 type TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	registry *rhino.JSTypeRegistry
+	registry    *rhino.JSTypeRegistry
+	parallelOut *[]typedScopeNonNullableCandidate
 }
 
 // Java: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable(JSTypeRegistry)
@@ -857,22 +926,63 @@ func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit(t *NodeT
 // Java: TypedScopeCreator.IdentifyEnumsAndTypedefsAsNonNullable.identifyEnumOrTypedefDeclaration(NodeTraversal, Node, Node, JSDocInfo)
 func (v *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) IdentifyEnumOrTypedefDeclaration(
 	t *NodeTraversal, nameNode rhino.Node, rvalue rhino.Node, info *rhino.JSDocInfo) {
+	isEnumOrTypedef := info != nil && (info.HasEnumParameterType() || info.HasTypedefType())
+	if !isEnumOrTypedef {
+		if rvalue.IsNil() || !rvalue.IsQualifiedName() || !nameNode.IsQualifiedName() ||
+			!NodeUtil_IsConstantDeclaration(info, nameNode) {
+			return
+		}
+		if v.parallelOut != nil {
+			nameQname, ok := nameNode.GetQualifiedNameString()
+			if !ok {
+				return
+			}
+			rvalQname, ok := rvalue.GetQualifiedNameString()
+			if !ok {
+				return
+			}
+			scope := t.resolveLookupScope(len(t.scopes) - 1)
+			lookupRoot, hasLookup := captureLookupScopeRoot(scope, nameQname)
+			rvalRoot, hasRval := captureLookupScopeRoot(scope, rvalQname)
+			*v.parallelOut = append(*v.parallelOut, typedScopeNonNullableCandidate{
+				nameQname:          nameQname,
+				rvalQname:          rvalQname,
+				lookupRoot:         lookupRoot,
+				rvalLookupRoot:     rvalRoot,
+				hasLookupScope:     hasLookup,
+				hasRvalLookupScope: hasRval,
+			})
+			return
+		}
+		rvalQname, ok := rvalue.GetQualifiedNameString()
+		if !ok {
+			return
+		}
+		scope := t.resolveLookupScope(len(t.scopes) - 1)
+		if !v.registry.IsNonNullableName(scope, rvalQname) {
+			return
+		}
+		if nameQname, ok := nameNode.GetQualifiedNameString(); ok {
+			v.registry.IdentifyNonNullableName(scope, nameQname)
+		}
+		return
+	}
 	nameQname, ok := nameNode.GetQualifiedNameString()
 	if !ok {
 		return
 	}
-	if info != nil && info.HasEnumParameterType() {
-		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), nameQname)
-	} else if info != nil && info.HasTypedefType() {
-		v.registry.IdentifyNonNullableName(t.resolveLookupScope(len(t.scopes)-1), nameQname)
-	} else if !rvalue.IsNil() && NodeUtil_IsConstantDeclaration(info, nameNode) {
-		if rvalQname, ok := rvalue.GetQualifiedNameString(); ok {
-			scope := t.resolveLookupScope(len(t.scopes) - 1)
-			if v.registry.IsNonNullableName(scope, rvalQname) {
-				v.registry.IdentifyNonNullableName(scope, nameQname)
-			}
-		}
+	scope := t.resolveLookupScope(len(t.scopes) - 1)
+	if v.parallelOut != nil {
+		lookupRoot, hasLookup := captureLookupScopeRoot(scope, nameQname)
+		*v.parallelOut = append(*v.parallelOut, typedScopeNonNullableCandidate{
+			nameQname:       nameQname,
+			lookupRoot:      lookupRoot,
+			hasLookupScope:  hasLookup,
+			isEnumOrTypedef: true,
+		})
+		return
 	}
+	v.registry.IdentifyNonNullableName(scope, nameQname)
 }
 
 // Java: TypedScopeCreator.getNativeType(JSTypeNative)

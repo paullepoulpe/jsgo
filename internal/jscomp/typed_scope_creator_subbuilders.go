@@ -561,6 +561,10 @@ type TypedScopeCreator_FirstOrderFunctionAnalyzer struct {
 	localVarState            map[*Var]uint8
 	localContainerDepth      int
 	globalDeclEstimate       int
+	scriptRes                *typedScopeFirstOrderScriptResult
+	workerGlobalScope        *Scope
+	scopeIdxStack            []int32
+	recordOrder              bool
 }
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer()
@@ -568,8 +572,186 @@ func NewTypedScopeCreator_FirstOrderFunctionAnalyzer(outer *TypedScopeCreator) *
 	return &TypedScopeCreator_FirstOrderFunctionAnalyzer{outer: outer}
 }
 
+type typedScopeFirstOrderWorker struct {
+	sc       *SyntacticScopeCreator
+	analyzer *TypedScopeCreator_FirstOrderFunctionAnalyzer
+}
+
+func (c *TypedScopeCreator) runFirstOrderAnalysis(root rhino.Node) int {
+	if comp := c.compiler; comp != nil && root.HasTwoChildren() {
+		externs := root.GetFirstChild()
+		jsRoot := root.GetLastChild()
+		var results []typedScopeFirstOrderScriptResult
+		recordOrder := c.recordScopeOrder
+		hasRegistry := c.typeRegistry != nil
+		ran := traverseScriptsParallel(comp, jsRoot, parallelScriptOptions[typedScopeFirstOrderWorker]{
+			hasExterns:              true,
+			externs:                 externs,
+			enableTypeRegistryReads: true,
+			prepare: func(_, itemCount int) bool {
+				results = make([]typedScopeFirstOrderScriptResult, itemCount)
+				return true
+			},
+			initWorker: func(_ int, rc *Compiler) typedScopeFirstOrderWorker {
+				gs := Scope_CreateGlobalScope(root)
+				gs.scanDone = true
+				analyzer := &TypedScopeCreator_FirstOrderFunctionAnalyzer{
+					workerGlobalScope: gs,
+					recordOrder:       recordOrder,
+				}
+				if hasRegistry {
+					analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry
+				}
+				return typedScopeFirstOrderWorker{
+					sc:       NewSyntacticScopeCreator(rc),
+					analyzer: analyzer,
+				}
+			},
+			runScript: func(state typedScopeFirstOrderWorker, idx int, parent rhino.Node, script rhino.Node, rc *Compiler) {
+				res := &results[idx]
+				a := state.analyzer
+				a.scriptRes = res
+				a.localContainerDepth = 0
+				if len(a.localVarState) > 0 {
+					clear(a.localVarState)
+				}
+				a.scopeIdxStack = a.scopeIdxStack[:0]
+				if hasRegistry {
+					a.identifyEnumsAndTypedefs.parallelOut = &res.nonNullables
+				}
+				t := acquireNodeTraversalDirect(rc, a, state.sc, false)
+				traverseScriptUnderRoot(t, root, parent, script, nil)
+				releaseNodeTraversal(t)
+				a.scriptRes = nil
+				a.identifyEnumsAndTypedefs.parallelOut = nil
+			},
+		})
+		if ran {
+			totalScopes := 1
+			totalGlobalDecl := 0
+			totalReserved := 0
+			totalVarFlags := 0
+			totalNonEmptyRet := 0
+			totalScopeOrder := 1
+			for i := range results {
+				res := &results[i]
+				totalScopes += res.scopeCount
+				totalGlobalDecl += res.globalDeclEst
+				totalReserved += len(res.reserved)
+				totalVarFlags += len(res.varFlags)
+				totalNonEmptyRet += len(res.nonEmptyReturnFns)
+				totalScopeOrder += len(res.scopeOrder)
+			}
+			if len(c.reservedNamesForScope) == 0 && totalReserved > 16 {
+				c.reservedNamesForScope = make(map[rhino.Node][]string, totalReserved)
+			}
+			if len(c.varFlags) == 0 && totalVarFlags > 16 {
+				c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8, totalVarFlags)
+			}
+			if len(c.functionsWithNonEmptyReturns) == 0 && totalNonEmptyRet > 16 {
+				c.functionsWithNonEmptyReturns = make(map[rhino.Node]struct{}, totalNonEmptyRet)
+			}
+			if recordOrder {
+				c.scopeOrder = make([]typedScopeOrderEntry, 0, totalScopeOrder)
+				c.scopeOrder = append(c.scopeOrder, typedScopeOrderEntry{
+					node:        root,
+					currentNode: root,
+					script:      rhino.NilNode,
+					parentIdx:   -1,
+				})
+			}
+			for i := range results {
+				res := &results[i]
+				for _, fn := range res.nonEmptyReturnFns {
+					c.functionsWithNonEmptyReturns[fn] = struct{}{}
+				}
+				for _, re := range res.reserved {
+					c.reservedNamesForScope[re.root] = re.names
+				}
+				for _, vf := range res.varFlags {
+					c.varFlags[vf.key] |= vf.flags
+				}
+				if hasRegistry {
+					for _, cand := range res.nonNullables {
+						lookupScope := staticScopeFromLookupRoot(cand.hasLookupScope, cand.lookupRoot)
+						if cand.isEnumOrTypedef {
+							c.typeRegistry.IdentifyNonNullableName(lookupScope, cand.nameQname)
+						} else {
+							rvalScope := staticScopeFromLookupRoot(cand.hasRvalLookupScope, cand.rvalLookupRoot)
+							if c.typeRegistry.IsNonNullableName(rvalScope, cand.rvalQname) {
+								c.typeRegistry.IdentifyNonNullableName(lookupScope, cand.nameQname)
+							}
+						}
+					}
+				}
+				if recordOrder && len(res.scopeOrder) > 0 {
+					baseOffset := int32(len(c.scopeOrder) - 1)
+					if baseOffset == 0 {
+						c.scopeOrder = append(c.scopeOrder, res.scopeOrder...)
+					} else {
+						for _, e := range res.scopeOrder {
+							if e.parentIdx > 0 {
+								e.parentIdx += baseOffset
+							}
+							c.scopeOrder = append(c.scopeOrder, e)
+						}
+					}
+				}
+			}
+			c.scopeCount += totalScopes
+			return totalGlobalDecl
+		}
+	}
+
+	scopeCreator := NewSyntacticScopeCreator(c.compiler)
+	analyzer := NewTypedScopeCreator_FirstOrderFunctionAnalyzer(c)
+	analyzer.identifyEnumsAndTypedefs.registry = c.typeRegistry
+	analyzer.recordOrder = c.recordScopeOrder
+	(NodeTraversal_Builder{
+		compiler:     c.compiler,
+		callback:     analyzer,
+		scopeCreator: scopeCreator,
+	}).TraverseRoots(root.GetFirstChild(), root.GetLastChild())
+	return analyzer.globalDeclEstimate
+}
+
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.enterScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTraversal) {
+	if res := a.scriptRes; res != nil {
+		if t.InGlobalScope() {
+			gs := a.workerGlobalScope
+			t.scopes[0].scope = gs
+			t.scopes[0].untypedScope = gs
+			t.scopes[0].lookupScope = gs
+			if a.recordOrder {
+				a.scopeIdxStack = append(a.scopeIdxStack[:0], 0)
+			}
+			return
+		}
+		res.scopeCount++
+		root := t.GetScopeRoot()
+		if a.recordOrder {
+			parentIdx := a.scopeIdxStack[len(a.scopeIdxStack)-1]
+			localOneBased := int32(len(res.scopeOrder) + 1)
+			res.scopeOrder = append(res.scopeOrder, typedScopeOrderEntry{
+				node:        root,
+				currentNode: t.GetCurrentNode(),
+				script:      t.currentScript,
+				parentIdx:   parentIdx,
+			})
+			a.scopeIdxStack = append(a.scopeIdxStack, localOneBased)
+		}
+		if fn, ok := ast.AsFunction(root); ok {
+			a.localContainerDepth++
+			if _, isBlock := fn.Body().AsBlock(); !isBlock {
+				res.nonEmptyReturnFns = append(res.nonEmptyReturnFns, root)
+			}
+		} else if root.IsModuleBody() || NodeUtil_IsClassStaticBlock(root) {
+			a.localContainerDepth++
+		}
+		return
+	}
+
 	a.outer.scopeCount++
 	if t.InGlobalScope() {
 		if t.scopes[0].untypedScope == nil {
@@ -579,9 +761,30 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTravers
 			t.scopes[0].untypedScope = gs
 			t.scopes[0].lookupScope = gs
 		}
+		if a.recordOrder {
+			root := t.GetScopeRoot()
+			a.outer.scopeOrder = append(a.outer.scopeOrder[:0], typedScopeOrderEntry{
+				node:        root,
+				currentNode: t.GetCurrentNode(),
+				script:      rhino.NilNode,
+				parentIdx:   -1,
+			})
+			a.scopeIdxStack = append(a.scopeIdxStack[:0], 0)
+		}
 		return
 	}
 	root := t.GetScopeRoot()
+	if a.recordOrder {
+		parentIdx := a.scopeIdxStack[len(a.scopeIdxStack)-1]
+		myIdx := int32(len(a.outer.scopeOrder))
+		a.outer.scopeOrder = append(a.outer.scopeOrder, typedScopeOrderEntry{
+			node:        root,
+			currentNode: t.GetCurrentNode(),
+			script:      t.currentScript,
+			parentIdx:   parentIdx,
+		})
+		a.scopeIdxStack = append(a.scopeIdxStack, myIdx)
+	}
 	if fn, ok := ast.AsFunction(root); ok {
 		a.localContainerDepth++
 		if _, isBlock := fn.Body().AsBlock(); !isBlock {
@@ -594,6 +797,9 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) EnterScope(t *NodeTravers
 
 // Java: TypedScopeCreator.FirstOrderFunctionAnalyzer.exitScope(NodeTraversal)
 func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversal) {
+	if a.recordOrder && len(a.scopeIdxStack) > 0 {
+		a.scopeIdxStack = a.scopeIdxStack[:len(a.scopeIdxStack)-1]
+	}
 	if t.InGlobalScope() {
 		return
 	}
@@ -608,6 +814,8 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 		}
 		scope = t.GetScope()
 	}
+	res := a.scriptRes
+	var localList []string
 	if scope.implicitVars != nil {
 		if ev := scope.implicitVars[AbstractScope_ImplicitVar_EXPORTS]; ev != nil {
 			h := a.localVarState[ev]
@@ -620,23 +828,41 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 				flags |= typedScopeCreator_VarFlagNotSingleAssigned
 			}
 			if flags != 0 {
-				a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: "exports", scopeRoot: root}] |= flags
+				key := typedScopeCreator_ScopedNameKey{name: "exports", scopeRoot: root}
+				if res != nil {
+					res.varFlags = append(res.varFlags, typedScopeVarFlagEntry{key: key, flags: flags})
+				} else {
+					a.outer.varFlags[key] |= flags
+				}
 			}
 			if (h & localVarAssignCountMask) == localVarAssignedOnce {
-				list := a.outer.reservedNamesForScope[root]
-				if list == nil {
-					list = make([]string, 0, scope.GetVarCount()+1)
+				if res != nil {
+					localList = make([]string, 0, scope.GetVarCount()+1)
+					localList = append(localList, "exports")
+				} else {
+					list := a.outer.reservedNamesForScope[root]
+					if list == nil {
+						list = make([]string, 0, scope.GetVarCount()+1)
+					}
+					list = append(list, "exports")
+					a.outer.reservedNamesForScope[root] = list
 				}
-				list = append(list, "exports")
-				a.outer.reservedNamesForScope[root] = list
 			}
 		}
 	}
 	varCount := scope.GetVarCount()
 	if varCount == 0 {
+		if res != nil && len(localList) > 0 {
+			res.reserved = append(res.reserved, typedScopeReservedEntry{root: root, names: localList})
+		}
 		return
 	}
-	list := a.outer.reservedNamesForScope[root]
+	var list []string
+	if res != nil {
+		list = localList
+	} else {
+		list = a.outer.reservedNamesForScope[root]
+	}
 	hadPrior := len(list) > 0
 	if list == nil {
 		list = make([]string, 0, varCount)
@@ -656,13 +882,22 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) ExitScope(t *NodeTraversa
 			if (h & localVarAssignCountMask) != localVarAssignedOnce {
 				flags |= typedScopeCreator_VarFlagNotSingleAssigned
 			}
-			a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: name, scopeRoot: root}] |= flags
+			key := typedScopeCreator_ScopedNameKey{name: name, scopeRoot: root}
+			if res != nil {
+				res.varFlags = append(res.varFlags, typedScopeVarFlagEntry{key: key, flags: flags})
+			} else {
+				a.outer.varFlags[key] |= flags
+			}
 		}
 		if !hadPrior || !slices.Contains(list, name) {
 			list = append(list, name)
 		}
 	}
-	a.outer.reservedNamesForScope[root] = list
+	if res != nil {
+		res.reserved = append(res.reserved, typedScopeReservedEntry{root: root, names: list})
+	} else {
+		a.outer.reservedNamesForScope[root] = list
+	}
 }
 
 const (
@@ -703,7 +938,11 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 	if t.InGlobalScope() {
 		switch n.GetToken() {
 		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST, rhino.Token_FUNCTION, rhino.Token_CLASS, rhino.Token_ASSIGN:
-			a.globalDeclEstimate++
+			if a.scriptRes != nil {
+				a.scriptRes.globalDeclEst++
+			} else {
+				a.globalDeclEstimate++
+			}
 		}
 		// The first-order function analyzer looks at two types of variables:
 		//
@@ -722,7 +961,11 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 			for i := len(t.scopes) - 1; i >= 0; i-- {
 				rootNode := t.scopes[i].node
 				if !NodeUtil_CreatesBlockScope(rootNode) {
-					a.outer.functionsWithNonEmptyReturns[rootNode] = struct{}{}
+					if a.scriptRes != nil {
+						a.scriptRes.nonEmptyReturnFns = append(a.scriptRes.nonEmptyReturnFns, rootNode)
+					} else {
+						a.outer.functionsWithNonEmptyReturns[rootNode] = struct{}{}
+					}
 					break
 				}
 			}
@@ -774,7 +1017,15 @@ func (a *TypedScopeCreator_FirstOrderFunctionAnalyzer) Visit(t *NodeTraversal, n
 					containerScope := scope.GetClosestContainerScope()
 					if !containerScope.HasSameContainerScope(ownerScope) {
 						qName, _ := n.GetQualifiedNameString()
-						a.outer.varFlags[typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}] |= typedScopeCreator_VarFlagEscaped
+						key := typedScopeCreator_ScopedNameKey{name: qName, scopeRoot: ownerScope.GetRootNode()}
+						if a.scriptRes != nil {
+							a.scriptRes.varFlags = append(a.scriptRes.varFlags, typedScopeVarFlagEntry{
+								key:   key,
+								flags: typedScopeCreator_VarFlagEscaped,
+							})
+						} else {
+							a.outer.varFlags[key] |= typedScopeCreator_VarFlagEscaped
+						}
 					}
 				}
 			}

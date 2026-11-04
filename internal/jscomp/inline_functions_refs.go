@@ -27,18 +27,47 @@ import (
 
 var inlineFnCallPropID = strpool.Intern("call")
 
+// ifNameBloom is a 4096-bit (512-byte) 2-probe Bloom filter over candidate
+// function interned StringIDs, allowing Phase 2 and Phase 4 to reject
+// non-candidate NAME tokens without touching Go maps.
+type ifNameBloom [64]uint64
+
+func (b *ifNameBloom) add(id uint32) {
+	h := id * 0x9e3779b1
+	h ^= h >> 16
+	b1 := h & 4095
+	b2 := (h >> 12) & 4095
+	b[b1>>6] |= uint64(1) << (b1 & 63)
+	b[b2>>6] |= uint64(1) << (b2 & 63)
+}
+
+func (b *ifNameBloom) mayContain(id uint32) bool {
+	h := id * 0x9e3779b1
+	h ^= h >> 16
+	b1 := h & 4095
+	b2 := (h >> 12) & 4095
+	return (b[b1>>6]&(uint64(1)<<(b1&63))) != 0 &&
+		(b[b2>>6]&(uint64(1)<<(b2&63))) != 0
+}
+
 // containingFnSizeCache remembers the AST size of the last enclosing function
 // measured, since consecutive call sites usually share one.
 type containingFnSizeCache struct {
-	fn   rhino.Node
-	size int
+	fn          rhino.Node
+	size        int
+	wrapperFn   rhino.Node
+	wrapperSize int
 }
 
 func (c *containingFnSizeCache) sizeOf(fn rhino.Node, limit int) int {
-	if fn != c.fn {
-		c.fn = fn
-		c.size = NodeUtil_CountAstSizeUpToLimit(fn, limit)
+	if fn == c.fn {
+		return c.size
 	}
+	if fn == c.wrapperFn {
+		return c.wrapperSize
+	}
+	c.fn = fn
+	c.size = NodeUtil_CountAstSizeUpToLimit(fn, limit)
 	return c.size
 }
 
@@ -88,6 +117,7 @@ var (
 // without interface or base-struct wrapper ceremony.
 type inlineCallVisitor struct {
 	namedFns        map[uint32]*InlineFunctions_FunctionState
+	namedBloom      *ifNameBloom
 	anonFns         map[rhino.Node]*InlineFunctions_FunctionState
 	onCallSite      func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
 	onName          func(n, parent rhino.Node)
@@ -213,19 +243,31 @@ func (v *inlineCallVisitor) Visit(t *NodeTraversal, n rhino.Node, parent rhino.N
 	}
 }
 
+func (v *inlineCallVisitor) lookupNamed(id uint32) *InlineFunctions_FunctionState {
+	if len(v.namedFns) == 0 || id == strpool.EmptyID {
+		return nil
+	}
+	if v.namedBloom != nil && !v.namedBloom.mayContain(id) {
+		return nil
+	}
+	return v.namedFns[id]
+}
+
 func (v *inlineCallVisitor) visitCallNode(t *NodeTraversal, n rhino.Node) {
 	child := ast.MustNormalOrOptChainCall(n).Callee()
 	var functionState *InlineFunctions_FunctionState
 	// NOTE: The normalization pass ensures that local names do not collide with global names.
 	if callee, ok := child.AsName(); ok {
-		functionState = v.namedFns[callee.Node().GetStringID()]
+		functionState = v.lookupNamed(callee.Node().GetStringID())
 	} else if child.Token() == rhino.Token_FUNCTION {
-		functionState = v.anonFns[child.Node()]
+		if len(v.anonFns) > 0 {
+			functionState = v.anonFns[child.Node()]
+		}
 	} else if NodeUtil_IsFunctionObjectCall(n) {
 		fnIdentifyingNode := child.MustNormalOrOptChainGet().Object()
 		if fnName, ok := fnIdentifyingNode.AsName(); ok {
-			functionState = v.namedFns[fnName.Node().GetStringID()]
-		} else if fnIdentifyingNode.Token() == rhino.Token_FUNCTION {
+			functionState = v.lookupNamed(fnName.Node().GetStringID())
+		} else if fnIdentifyingNode.Token() == rhino.Token_FUNCTION && len(v.anonFns) > 0 {
 			functionState = v.anonFns[fnIdentifyingNode.Node()]
 		}
 	}
@@ -328,11 +370,16 @@ func (r *inlineRefCollector) initSerial(f *InlineFunctions) {
 	r.outer = f
 	r.injector = f.injector
 	r.recordEvents = false
+	var onName func(n, parent rhino.Node)
+	if len(f.namedFns) > 0 {
+		onName = r.checkNameUsage
+	}
 	r.visitor = inlineCallVisitor{
 		namedFns:   f.namedFns,
+		namedBloom: f.activeNamedBloom(),
 		anonFns:    f.anonFns,
 		onCallSite: r.visitCallSite,
-		onName:     r.checkNameUsage,
+		onName:     onName,
 	}
 }
 
@@ -340,11 +387,16 @@ func (r *inlineRefCollector) initParallel(f *InlineFunctions, injector *Function
 	r.outer = f
 	r.injector = injector
 	r.recordEvents = true
+	var onName func(n, parent rhino.Node)
+	if len(f.namedFns) > 0 {
+		onName = r.checkNameUsage
+	}
 	r.visitor = inlineCallVisitor{
 		namedFns:   f.namedFns,
+		namedBloom: f.activeNamedBloom(),
 		anonFns:    f.anonFns,
 		onCallSite: r.visitCallSite,
-		onName:     r.checkNameUsage,
+		onName:     onName,
 	}
 }
 
@@ -473,7 +525,7 @@ func (r *inlineRefCollector) checkNameUsage(n rhino.Node, parent rhino.Node) {
 	jutil.CheckStateMsg1(n.IsName(), "%s", n)
 
 	id := n.GetStringID()
-	if id == strpool.EmptyID {
+	if id == strpool.EmptyID || (r.visitor.namedBloom != nil && !r.visitor.namedBloom.mayContain(id)) {
 		return
 	}
 

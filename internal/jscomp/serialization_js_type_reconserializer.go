@@ -80,6 +80,12 @@ type jsTypeDebugMismatch struct {
 	involvedPointers []int32
 }
 
+type jsTypePropPropagateCacheEntry struct {
+	prop  string
+	valid bool
+	allow bool
+}
+
 // JSTypeReconserializer takes JSTypes produced by JSCompiler's typechecker
 // and deduplicates and serializes them into the TypedAST colors format.
 //
@@ -123,9 +129,10 @@ type JSTypeReconserializer struct {
 	singleOwnPropFn     func(string)
 	multiOwnPropFn      func(string)
 
-	recordSlab   jutil.Slab[JSTypeReconserializer_SeenTypeRecord]
-	int32Slab    int32Slab
-	uuidByteSlab []byte
+	recordSlab         jutil.Slab[JSTypeReconserializer_SeenTypeRecord]
+	int32Slab          int32Slab
+	uuidByteSlab       []byte
+	propPropagateCache [256]jsTypePropPropagateCacheEntry
 
 	state JSTypeReconserializer_State
 }
@@ -260,6 +267,24 @@ func (s *JSTypeReconserializer) allocColorIdBytes(id colors.ColorId) []byte {
 
 func (s *JSTypeReconserializer) shouldPropagate(prop string) bool {
 	if s.allowedProperties != nil {
+		if s.state == JSTypeReconserializer_State_GENERATING_POOL {
+			n := len(prop)
+			var h uint8
+			if n > 0 {
+				h = uint8(n)*31 ^ prop[0]*17 ^ prop[n-1]
+				if n > 2 {
+					h ^= prop[n>>1] * 13
+				}
+			}
+			entry := &s.propPropagateCache[h]
+			if entry.valid && entry.prop == prop {
+				return entry.allow
+			}
+			id := strpool.Lookup(prop)
+			allow := id != 0 && s.allowedProperties.Get(int(id))
+			*entry = jsTypePropPropagateCacheEntry{prop: prop, valid: true, allow: allow}
+			return allow
+		}
 		id := strpool.Lookup(prop)
 		return id != 0 && s.allowedProperties.Get(int(id))
 	}
@@ -848,6 +873,7 @@ func (s *JSTypeReconserializer) prepareForColorPool() {
 }
 
 func (s *JSTypeReconserializer) finishColorPool() {
+	clear(s.propPropagateCache[:])
 	s.state = JSTypeReconserializer_State_FINISHED
 	s.CheckValidLinearTime()
 }

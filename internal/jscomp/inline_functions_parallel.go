@@ -21,7 +21,6 @@ package jscomp
 import (
 	"fmt"
 	"slices"
-	"strconv"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -30,19 +29,11 @@ import (
 
 type ifPhase1Worker struct {
 	outer        *InlineFunctions
+	workerIdx    int
 	scratch      *inlineCandidateScratch
 	localScratch inlineCandidateScratch
 	cands        []inlineCandidateAnalysis
 	current      rhino.Node // as InlineFunctions_FindCandidateFunctions.current
-}
-
-func (w *ifPhase1Worker) walk(n rhino.Node, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
-	defer func() {
-		if r := recover(); r != nil {
-			inlineFunctions_throwWalkException(w.outer.compiler, r, w.current, NodeUtil_GetEnclosingScript(w.current))
-		}
-	}()
-	inlineFunctions_walkCandidates(w.outer.compiler, n, parent, chunk, inLocalHoist, w.scratch, w.visitWalkNode)
 }
 
 func (w *ifPhase1Worker) visitWalkNode(n, parent rhino.Node, chunk *JSChunk, inLocalHoist bool) {
@@ -57,26 +48,34 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 	if f.compiler.IsDebugLoggingEnabled() {
 		return false
 	}
-	scripts, ok := collectRootScripts(root)
+	plan, numWorkers, ok := f.buildIfShardPlan(root, true)
 	if !ok {
-		return false
-	}
-	numWorkers := parallelThreadCount(f.compiler, len(scripts))
-	if numWorkers <= 1 {
 		return false
 	}
 	prewarmCompilerForParallelReads(f.compiler)
 
-	candsByScript := make([][]inlineCandidateAnalysis, len(scripts))
+	unitCount := len(plan.units)
+	candsByUnit := make([][]inlineCandidateAnalysis, unitCount)
 	var scratches []inlineCandidateScratch
+	var unitInners [][]rhino.Node
+	var unitAllUnchanged []bool
+	var unitWorkerIdx []int
 	if f.activeCache != nil {
 		scratches = f.activeCache.prepareWorkerScratches(numWorkers, f.sideEffectCfg)
+		if len(plan.unwrappedFns) > 0 {
+			unitInners = make([][]rhino.Node, unitCount)
+			unitAllUnchanged = make([]bool, unitCount)
+		}
+		if len(plan.unwrappedCalls) > 0 {
+			unitWorkerIdx = make([]int, unitCount)
+		}
 	}
+
 	runParallelWorkersIndexed(
-		len(scripts),
+		unitCount,
 		numWorkers,
 		func(wIdx int) ifPhase1Worker {
-			w := ifPhase1Worker{outer: f}
+			w := ifPhase1Worker{outer: f, workerIdx: wIdx}
 			if scratches != nil {
 				w.scratch = &scratches[wIdx]
 			} else {
@@ -86,12 +85,44 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 		},
 		func(w *ifPhase1Worker, idx int) {
 			w.cands = nil
+			w.current = rhino.NilNode
 			w.scratch.lastCheckedBlock = rhino.NilNode
-			w.walk(scripts[idx], root, nil, false)
-			candsByScript[idx] = w.cands
+			w.scratch.fnFrames = w.scratch.fnFrames[:0]
+			w.scratch.innerBuf = w.scratch.innerBuf[:0]
+			if unitWorkerIdx != nil {
+				unitWorkerIdx[idx] = w.workerIdx
+			}
+			inners, allUnchanged := w.runShardUnit(root, &plan.units[idx], plan.unwrappedFns)
+			if unitInners != nil {
+				unitInners[idx] = inners
+				unitAllUnchanged[idx] = allUnchanged
+			}
+			candsByUnit[idx] = w.cands
 		},
 		nil,
 	)
+
+	if scratches != nil && len(plan.unwrappedFns) > 0 {
+		var combinedInners []rhino.Node
+		for i := range plan.unwrappedFns {
+			uFn := &plan.unwrappedFns[i]
+			combinedInners = combinedInners[:0]
+			allUnchanged := true
+			for _, uIdx := range uFn.unitIndices {
+				if !unitAllUnchanged[uIdx] {
+					allUnchanged = false
+				}
+				if len(unitInners[uIdx]) > 0 {
+					combinedInners = append(combinedInners, unitInners[uIdx]...)
+				}
+			}
+			scratches[0].finishUnwrappedFunction(uFn.fnNode, combinedInners, allUnchanged)
+		}
+	}
+
+	if len(plan.unwrappedCalls) > 0 {
+		f.analyzeUnwrappedCallCandidates(plan.unwrappedCalls, scratches, unitWorkerIdx, candsByUnit)
+	}
 
 	if f.activeCache != nil {
 		totalLive := 0
@@ -108,8 +139,42 @@ func (f *InlineFunctions) findCandidateFunctionsParallel(root rhino.Node) bool {
 		}
 	}
 
-	f.applyParallelCandidates(candsByScript)
+	f.applyParallelCandidates(candsByUnit)
 	return true
+}
+
+func (f *InlineFunctions) analyzeUnwrappedCallCandidates(
+	calls []ifUnwrappedCall,
+	scratches []inlineCandidateScratch,
+	unitWorkerIdx []int,
+	candsByUnit [][]inlineCandidateAnalysis,
+) {
+	var currentCall, currentScript rhino.Node
+	defer func() {
+		if r := recover(); r != nil {
+			inlineFunctions_throwWalkException(f.compiler, r, currentCall, currentScript)
+		}
+	}()
+	for i := range calls {
+		uCall := &calls[i]
+		currentCall = uCall.call
+		currentScript = uCall.script
+		var s *inlineCandidateScratch
+		if scratches != nil {
+			if uCall.calleeIsUnwrapped {
+				s = &scratches[0]
+			} else {
+				jutil.CheckState(uCall.calleeUnitIdx >= 0)
+				s = &scratches[unitWorkerIdx[uCall.calleeUnitIdx]]
+			}
+		} else {
+			f.candScratch.lastCheckedBlock = rhino.NilNode
+			s = &f.candScratch
+		}
+		cand := s.analyzeCandidate(f, uCall.target, uCall.chunk, false, true)
+		cand.visited = uCall.call
+		candsByUnit[uCall.postCallSlot] = []inlineCandidateAnalysis{cand}
+	}
 }
 
 // applyParallelCandidates is the rest of Java's maybeAddFunction for the
@@ -140,55 +205,44 @@ func (f *InlineFunctions) applyParallelCandidates(candsByScript [][]inlineCandid
 }
 
 func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool {
-	var workerFnCaches []map[rhino.Node]functionInjectorFnInfo
-	var workerSideEffects []map[rhino.Node]calleeSideEffectSummary
-	var ifEventsByScript [][]ifPhase2Event
-
-	ok := traverseScriptsParallel(f.compiler, root, parallelScriptOptions[*inlineRefCollector]{
-		useSharedGlobalScope: true,
-		prepare: func(numWorkers, scriptCount int) bool {
-			if f.enforceMaxSizeAfterInlining {
-				for _, fs := range f.fns {
-					if fs.CanInline() && fs.bodyAstSize == 0 {
-						fnNode := fs.functionNode()
-						if !InlineFunctions_IsAlwaysInlinable(fnNode) {
-							fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
-						}
-					}
+	plan, numWorkers, ok := f.buildIfShardPlan(root, false)
+	if !ok {
+		return false
+	}
+	if f.enforceMaxSizeAfterInlining {
+		for _, fs := range f.fns {
+			if fs.CanInline() && fs.bodyAstSize == 0 {
+				fnNode := fs.functionNode()
+				if !InlineFunctions_IsAlwaysInlinable(fnNode) {
+					fs.bodyAstSize = int32(NodeUtil_CountAstSizeUpToLimit(ast.MustFunction(fnNode).Body().Node(), f.maxSizeAfterInlining))
 				}
 			}
-			workerFnCaches = make([]map[rhino.Node]functionInjectorFnInfo, numWorkers)
-			workerSideEffects = make([]map[rhino.Node]calleeSideEffectSummary, numWorkers)
-			ifEventsByScript = make([][]ifPhase2Event, scriptCount)
-			return true
-		},
-		initWorker: func(_ int, rc *Compiler) *inlineRefCollector {
-			cb := &inlineRefCollector{}
-			argInj := NewFunctionArgumentInjector(f.compiler.GetAstAnalyzer())
-			argInj.readOnlySummaries = true
-			inj := NewFunctionInjector(rc, FunctionInjectorOptions{
-				SafeNameIdSupplier: func() string {
-					id := cb.safeIdsCounter
-					cb.safeIdsCounter++
-					return strconv.Itoa(id)
-				},
-				AllowDecomposition:       f.injector.allowDecomposition,
-				AssumeStrictThis:         f.injector.assumeStrictThis,
-				FunctionArgumentInjector: argInj,
-			})
-			inj.seedCache = f.activeCache
-			inj.shareKnownConstantFunctionsFrom(f.injector)
-			cb.initParallel(f, inj)
-			return cb
-		},
-		callback: func(cb *inlineRefCollector, _ int, _, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
-			cb.resetForScript()
-			return &cb.visitor
-		},
-		afterScript: func(cb *inlineRefCollector, idx int, _, _ rhino.Node, _ *Compiler) {
-			ifEventsByScript[idx] = cb.events
-		},
-		finishWorker: func(workerID int, cb *inlineRefCollector) {
+		}
+	}
+
+	prewarmCompilerForParallelReads(f.compiler)
+	lazyGlobal := newLazyGlobalScope(f.compiler, root)
+	var globalEntry scopeStackEntry
+	hasGlobalEntry := false
+	if len(plan.unwrappedFns) > 0 || len(plan.unwrappedBlocks) > 0 {
+		gs := lazyGlobal.get()
+		globalEntry = makeFrozenScopeStackEntry(gs)
+		hasGlobalEntry = true
+		f.prebuildPhase2UnwrappedScopes(&plan, gs, globalEntry)
+	}
+
+	unitCount := len(plan.units)
+	workerFnCaches := make([]map[rhino.Node]functionInjectorFnInfo, numWorkers)
+	workerSideEffects := make([]map[rhino.Node]calleeSideEffectSummary, numWorkers)
+	ifEventsByUnit := make([][]ifPhase2Event, unitCount)
+
+	runParallelWork(f.compiler, numWorkers, unitCount, func(workerID int) (func(int, *recordingCompiler), func()) {
+		var cb *inlineRefCollector
+		var sc *SyntacticScopeCreator
+		cleanup := func() {
+			if cb == nil {
+				return
+			}
 			cb.injector.seedCache = nil
 			if len(cb.injector.fnInfoCache) != 0 {
 				workerFnCaches[workerID] = cb.injector.fnInfoCache
@@ -196,14 +250,27 @@ func (f *InlineFunctions) findCandidatesReferencesParallel(root rhino.Node) bool
 			if len(cb.injector.functionArgumentInjector.sideEffectCache) != 0 {
 				workerSideEffects[workerID] = cb.injector.functionArgumentInjector.sideEffectCache
 			}
-		},
-	})
-	if !ok {
-		return false
-	}
+		}
+		runItem := func(idx int, rc *recordingCompiler) {
+			if cb == nil {
+				cb = f.newPhase2WorkerCollector(rc)
+				sc = NewSyntacticScopeCreator(rc)
+			}
+			u := &plan.units[idx]
+			if len(u.preCompilerEvents) > 0 {
+				rc.parallelRecorder.events = append(rc.parallelRecorder.events, u.preCompilerEvents...)
+			}
+			cb.resetForScript()
+			t := acquireNodeTraversalDirect(rc, &cb.visitor, sc, false)
+			runPhase2ShardUnit(t, cb, root, lazyGlobal, globalEntry, hasGlobalEntry, u, plan.unwrappedBlocks, plan.unwrappedFns)
+			releaseNodeTraversal(t)
+			ifEventsByUnit[idx] = cb.events
+		}
+		return runItem, cleanup
+	}, false)
 
-	for idx := range ifEventsByScript {
-		f.replayPhase2Events(ifEventsByScript[idx])
+	for idx := range ifEventsByUnit {
+		f.replayPhase2Events(ifEventsByUnit[idx])
 	}
 
 	for _, cache := range workerFnCaches {

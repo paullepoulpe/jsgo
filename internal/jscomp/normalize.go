@@ -111,17 +111,98 @@ func (n *Normalize) Process(externs rhino.Node, root rhino.Node) {
 	}
 	b1.TraverseRoots(externs, root)
 
-	sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))
-	b2 := NodeTraversal_Builder{
-		compiler:     n.compiler,
-		callback:     NewNormalize_PropagateConstantPropertyOverVars(n.compiler, n.assertOnChange),
-		scopeCreator: sc2,
+	if !n.runPropagateAndDedupParallel(externs, root) {
+		sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(n.compiler, NewNormalize_DuplicateDeclarationHandler(n))
+		b2 := NodeTraversal_Builder{
+			compiler:     n.compiler,
+			callback:     NewNormalize_PropagateConstantPropertyOverVars(n.compiler, n.assertOnChange),
+			scopeCreator: sc2,
+		}
+		b2.TraverseRoots(externs, root)
 	}
-	b2.TraverseRoots(externs, root)
 
 	if !n.compiler.GetLifeCycleStage().IsNormalized() {
 		n.compiler.SetLifeCycleStage(AbstractCompiler_LifeCycleStage_NORMALIZED)
 	}
+}
+
+type normalizeParallelB2Worker struct {
+	sc    *SyntacticScopeCreator
+	dedup *Normalize_DuplicateDeclarationHandler
+	prop  *Normalize_PropagateConstantPropertyOverVars
+}
+
+func (n *Normalize) runPropagateAndDedupParallel(externs rhino.Node, root rhino.Node) bool {
+	comp := n.compiler
+	if comp == nil {
+		return false
+	}
+	scopeRoot := externs.GetParent()
+	if scopeRoot.IsNil() || root.GetParent() != scopeRoot {
+		return false
+	}
+	var sharedGlobal lazyGlobalScope
+	var mainDedup *Normalize_DuplicateDeclarationHandler
+	var results []normalizeParallelScriptResult
+	ran := traverseScriptsParallel(comp, root, parallelScriptOptions[normalizeParallelB2Worker]{
+		hasExterns:              true,
+		externs:                 externs,
+		enableTypeRegistryReads: true,
+		prepare: func(_, itemCount int) bool {
+			mainDedup = NewNormalize_DuplicateDeclarationHandler(n)
+			results = make([]normalizeParallelScriptResult, itemCount)
+			sc2 := NewSyntacticScopeCreatorWithRedeclarationHandler(comp, mainDedup)
+			propMain := NewNormalize_PropagateConstantPropertyOverVars(comp, n.assertOnChange)
+			t := acquireNodeTraversalDirect(comp, propMain, sc2, false)
+			defer releaseNodeTraversal(t)
+			var gs *Scope
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.ThrowUnexpectedException(jutil.AsThrowable(r))
+					}
+				}()
+				t.InitTraversal(scopeRoot)
+				t.currentNode = scopeRoot
+				gs = sc2.CreateScopeOfScope(scopeRoot, nil)
+			}()
+			freezeGlobalScopeForParallelReads(gs)
+			sharedGlobal.scope = gs
+			sharedGlobal.once.Do(func() {})
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) normalizeParallelB2Worker {
+			dedup := NewNormalize_DuplicateDeclarationHandler(nil)
+			return normalizeParallelB2Worker{
+				sc:    NewSyntacticScopeCreatorWithRedeclarationHandler(rc, dedup),
+				dedup: dedup,
+				prop:  NewNormalize_PropagateConstantPropertyOverVars(rc, n.assertOnChange),
+			}
+		},
+		runScript: func(state normalizeParallelB2Worker, idx int, parent rhino.Node, script rhino.Node, rc *Compiler) {
+			res := &results[idx]
+			state.dedup.parallelRes = res
+			state.prop.parallelRes = res
+			t := acquireNodeTraversalDirect(rc, state.prop, state.sc, false)
+			traverseScriptUnderRoot(t, scopeRoot, parent, script, &sharedGlobal)
+			releaseNodeTraversal(t)
+			state.dedup.parallelRes = nil
+			state.prop.parallelRes = nil
+		},
+	})
+	if !ran {
+		return false
+	}
+	for i := range results {
+		res := &results[i]
+		for _, d := range res.dedups {
+			mainDedup.ReplaceVarWithAssignment(d.nameNode, d.varParent, d.grandparent)
+		}
+		for _, cn := range res.constNodes {
+			cn.PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
+		}
+	}
+	return true
 }
 
 // SplitExportDeclaration splits ES6 export combined with a variable or
@@ -201,12 +282,50 @@ func (s *Normalize_NormalizeStatements) NormalizeBlocklessFunction(fn ast.Functi
 	s.ReportCodeChange("blockless arrow function", body)
 }
 
+var normalizePreOrderTokens = [256]bool{
+	rhino.Token_ROOT:            true,
+	rhino.Token_SCRIPT:          true,
+	rhino.Token_MODULE_BODY:     true,
+	rhino.Token_BLOCK:           true,
+	rhino.Token_LABEL:           true,
+	rhino.Token_FUNCTION:        true,
+	rhino.Token_EXPORT:          true,
+	rhino.Token_ASSIGN_BITOR:    true,
+	rhino.Token_ASSIGN_BITXOR:   true,
+	rhino.Token_ASSIGN_BITAND:   true,
+	rhino.Token_ASSIGN_LSH:      true,
+	rhino.Token_ASSIGN_RSH:      true,
+	rhino.Token_ASSIGN_URSH:     true,
+	rhino.Token_ASSIGN_ADD:      true,
+	rhino.Token_ASSIGN_SUB:      true,
+	rhino.Token_ASSIGN_MUL:      true,
+	rhino.Token_ASSIGN_DIV:      true,
+	rhino.Token_ASSIGN_MOD:      true,
+	rhino.Token_ASSIGN_EXPONENT: true,
+}
+
 // DoStatementNormalizations does normalizations that introduce new siblings
-// or parents: the handlers of normalizePreOrderVisitor.
+// or parents.
 //
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node)
 func (s *Normalize_NormalizeStatements) DoStatementNormalizations(_ *NodeTraversal, n rhino.Node) {
-	normalizePreOrderVisitor.Visit(s, n)
+	switch n.GetToken() {
+	case rhino.Token_ROOT, rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
+		s.normalizeStatements(n)
+	case rhino.Token_BLOCK:
+		s.normalizeBlock(ast.MustBlock(n))
+	case rhino.Token_LABEL:
+		s.normalizeLabel(ast.MustLabel(n))
+	case rhino.Token_FUNCTION:
+		s.normalizeFunction(ast.MustFunction(n))
+	case rhino.Token_EXPORT:
+		s.SplitExportDeclaration(ast.MustExport(n))
+	case rhino.Token_ASSIGN_BITOR, rhino.Token_ASSIGN_BITXOR, rhino.Token_ASSIGN_BITAND,
+		rhino.Token_ASSIGN_LSH, rhino.Token_ASSIGN_RSH, rhino.Token_ASSIGN_URSH,
+		rhino.Token_ASSIGN_ADD, rhino.Token_ASSIGN_SUB, rhino.Token_ASSIGN_MUL,
+		rhino.Token_ASSIGN_DIV, rhino.Token_ASSIGN_MOD, rhino.Token_ASSIGN_EXPONENT:
+		s.NormalizeAssignShorthand(ast.MustAssignOp(n))
+	}
 }
 
 // normalizeStatements normalizes the statements of n: a root, a script, a
@@ -214,8 +333,9 @@ func (s *Normalize_NormalizeStatements) DoStatementNormalizations(_ *NodeTravers
 //
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (ROOT, SCRIPT, MODULE_BODY, BLOCK)
 func (s *Normalize_NormalizeStatements) normalizeStatements(n rhino.Node) {
-	s.ExtractForInitializer(n, rhino.NilNode, rhino.NilNode)
-	s.SplitVarDeclarations(n)
+	if s.extractForInitializer(n, rhino.NilNode, rhino.NilNode) {
+		s.SplitVarDeclarations(n)
+	}
 }
 
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (BLOCK)
@@ -229,7 +349,7 @@ func (s *Normalize_NormalizeStatements) normalizeBlock(x ast.Block) {
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (LABEL)
 func (s *Normalize_NormalizeStatements) normalizeLabel(x ast.Label) {
 	s.NormalizeLabels(x)
-	s.ExtractForInitializer(x.Node(), rhino.NilNode, rhino.NilNode)
+	_ = s.extractForInitializer(x.Node(), rhino.NilNode, rhino.NilNode)
 }
 
 // Java: Normalize.NormalizeStatements.doStatementNormalizations(Node) (FUNCTION)
@@ -370,21 +490,43 @@ func (s *Normalize_NormalizeStatements) NormalizeLabels(label ast.Label) {
 //
 // Java: Normalize.NormalizeStatements.extractForInitializer(Node, Node, Node)
 func (s *Normalize_NormalizeStatements) ExtractForInitializer(n rhino.Node, before rhino.Node, beforeParent rhino.Node) {
+	_ = s.extractForInitializer(n, before, beforeParent)
+}
+
+func (s *Normalize_NormalizeStatements) extractForInitializer(n rhino.Node, before rhino.Node, beforeParent rhino.Node) bool {
+	needSplit := false
 	var next rhino.Node
 	for c := n.GetFirstChild(); !c.IsNil(); c = next {
 		next = c.GetNext()
-		insertBefore := before
-		insertBeforeParent := beforeParent
-		if insertBefore.IsNil() {
-			insertBefore = c
-			insertBeforeParent = n
-		}
-		if _, ok := ast.AsLabel(c); ok {
-			s.ExtractForInitializer(c, insertBefore, insertBeforeParent)
-		} else if loop, ok := ast.AsEnhancedFor(c); ok {
+		switch c.GetToken() {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			first := c.GetFirstChild()
+			if first.IsNil() {
+				if s.assertOnChange {
+					needSplit = true
+				}
+			} else if !first.GetNext().IsNil() {
+				needSplit = true
+			}
+		case rhino.Token_LABEL:
+			insertBefore := before
+			insertBeforeParent := beforeParent
+			if insertBefore.IsNil() {
+				insertBefore = c
+				insertBeforeParent = n
+			}
+			if s.extractForInitializer(c, insertBefore, insertBeforeParent) {
+				needSplit = true
+			}
+		case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
+			loop := ast.MustEnhancedFor(c)
 			decl, ok := loop.Target().AsNameDeclaration()
 			if !ok || decl.Token() != rhino.Token_VAR {
 				continue
+			}
+			insertBefore := before
+			if insertBefore.IsNil() {
+				insertBefore = c
 			}
 			lhs, ok := decl.FirstDeclarator()
 			jutil.CheckState(ok)
@@ -420,7 +562,8 @@ func (s *Normalize_NormalizeStatements) ExtractForInitializer(n rhino.Node, befo
 				decl.Node().InsertBefore(insertBefore)
 			}
 			s.ReportCodeChange("FOR-IN var declaration", n)
-		} else if forLoop, ok := ast.AsFor(c); ok {
+		case rhino.Token_FOR:
+			forLoop := ast.MustFor(c)
 			forInit, ok := forLoop.Init()
 			if !ok {
 				continue
@@ -428,6 +571,10 @@ func (s *Normalize_NormalizeStatements) ExtractForInitializer(n rhino.Node, befo
 			init := forInit.Node()
 			if init.IsLet() || init.IsConst() || init.IsClass() || init.IsFunction() {
 				continue
+			}
+			insertBefore := before
+			if insertBefore.IsNil() {
+				insertBefore = c
 			}
 
 			empty := rhino.IR_Empty()
@@ -439,6 +586,7 @@ func (s *Normalize_NormalizeStatements) ExtractForInitializer(n rhino.Node, befo
 			// but are handled differently.
 			if init.IsVar() {
 				newStatement = init
+				needSplit = true
 			} else {
 				newStatement = NodeUtil_NewExpr(init)
 			}
@@ -447,6 +595,7 @@ func (s *Normalize_NormalizeStatements) ExtractForInitializer(n rhino.Node, befo
 			s.ReportCodeChange("FOR initializer", n)
 		}
 	}
+	return needSplit
 }
 
 // SplitVarDeclarations splits a var (or let or const) node such as:

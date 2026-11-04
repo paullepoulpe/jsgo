@@ -89,32 +89,52 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot rhino.Node) *TypedScope
 	// ns.method();
 	// In this code, we need to build the symbol table for the inner scope in
 	// order to propagate the type of ns.method in the outer scope.
+	var entries []typedScopeOrderEntry
+	var scopes []*TypedScope
 	func() {
 		closer := p.registry.GetResolver().OpenForDefinition()
 		defer closer.Close()
 		jutil.CheckState(inferenceRoot.IsRoot())
 		jutil.CheckState(inferenceRoot.GetParent().IsNil())
 		jutil.CheckState(p.topScope == nil)
+		p.scopeCreator.recordScopeOrder = inferenceRoot.HasTwoChildren()
+		defer func() {
+			p.scopeCreator.recordScopeOrder = false
+			p.scopeCreator.scopeOrder = nil
+		}()
 		p.topScope = p.scopeCreator.CreateScope(inferenceRoot, nil).(*TypedScope)
+		entries = p.scopeCreator.takeScopeOrder()
 
-		var firstCb TypeInferencePass_FirstScopeBuildingCallback
-		b1 := NodeTraversal_Builder{
-			compiler:     p.compiler,
-			callback:     &firstCb,
-			scopeCreator: p.scopeCreator,
+		if len(entries) > 0 {
+			scopes = make([]*TypedScope, len(entries))
+			scopes[0] = p.topScope
+			p.buildAllScopesFromOrder(inferenceRoot, entries, scopes)
+		} else {
+			var firstCb TypeInferencePass_FirstScopeBuildingCallback
+			b1 := NodeTraversal_Builder{
+				compiler:     p.compiler,
+				callback:     &firstCb,
+				scopeCreator: p.scopeCreator,
+			}
+			b1.TraverseWithScope(inferenceRoot, p.topScope)
 		}
-		b1.TraverseWithScope(inferenceRoot, p.topScope)
 		p.scopeCreator.ResolveWeakImportsPreResolution()
 	}()
 	p.scopeCreator.FinishAndFreeze()
 
-	secondCb := TypeInferencePass_SecondScopeBuildingCallback{outer: p}
-	b2 := NodeTraversal_Builder{
-		compiler:     p.compiler,
-		callback:     &secondCb,
-		scopeCreator: p.scopeCreator,
+	if len(entries) > 0 {
+		p.inferAllScopesFromOrder(inferenceRoot, entries, scopes)
+		entries = nil
+		scopes = nil
+	} else {
+		secondCb := TypeInferencePass_SecondScopeBuildingCallback{outer: p}
+		b2 := NodeTraversal_Builder{
+			compiler:     p.compiler,
+			callback:     &secondCb,
+			scopeCreator: p.scopeCreator,
+		}
+		b2.TraverseWithScope(inferenceRoot, p.topScope)
 	}
-	b2.TraverseWithScope(inferenceRoot, p.topScope)
 
 	// Normalize TypedVars to have the '?' type instead of null after inference is complete. This
 	// currently cannot be done any earlier because it breaks inference of variables assigned in
@@ -248,4 +268,80 @@ func (p *TypeInferencePass) ComputeCfg(n rhino.Node) *ControlFlowGraph[rhino.Nod
 		n,
 		/* shouldTraverseFunctions= */ false,
 		/* edgeAnnotations= */ true)
+}
+
+var dummyTypeInferenceRecoverCallback TypeInferencePass_FirstScopeBuildingCallback
+
+func inferAllScopesRecover(compiler AbstractCompiler, curNode, curScript rhino.Node, r any) {
+	t := acquireNodeTraversalDirect(compiler, &dummyTypeInferenceRecoverCallback, nil, false)
+	defer releaseNodeTraversal(t)
+	t.currentNode = curNode
+	t.currentScript = curScript
+	t.ThrowUnexpectedException(jutil.AsThrowable(r))
+}
+
+func (p *TypeInferencePass) buildAllScopesFromOrder(
+	inferenceRoot rhino.Node,
+	entries []typedScopeOrderEntry,
+	scopes []*TypedScope,
+) {
+	curNode := inferenceRoot
+	var curScript rhino.Node
+	defer func() {
+		if r := recover(); r != nil {
+			inferAllScopesRecover(p.compiler, curNode, curScript, r)
+		}
+	}()
+	if Platform_IsThreadInterrupted() {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+	}
+	var lastScript rhino.Node
+	for i := 1; i < len(entries); i++ {
+		e := entries[i]
+		if e.script != lastScript {
+			lastScript = e.script
+			curScript = e.script
+			curNode = e.script
+			if Platform_IsThreadInterrupted() {
+				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+			}
+		}
+		curNode = e.currentNode
+		curScript = e.script
+		scopes[i] = p.scopeCreator.CreateScope(e.node, scopes[e.parentIdx]).(*TypedScope)
+	}
+}
+
+func (p *TypeInferencePass) inferAllScopesFromOrder(
+	inferenceRoot rhino.Node,
+	entries []typedScopeOrderEntry,
+	scopes []*TypedScope,
+) {
+	curNode := inferenceRoot
+	var curScript rhino.Node
+	defer func() {
+		if r := recover(); r != nil {
+			inferAllScopesRecover(p.compiler, curNode, curScript, r)
+		}
+	}()
+	if Platform_IsThreadInterrupted() {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+	}
+	var lastScript rhino.Node
+	for i, e := range entries {
+		if i > 0 && e.script != lastScript {
+			lastScript = e.script
+			curScript = e.script
+			curNode = e.script
+			if Platform_IsThreadInterrupted() {
+				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+			}
+		}
+		scope := scopes[i]
+		if scope.IsCfgRootScope() && !scope.IsModuleScope() {
+			curNode = e.currentNode
+			curScript = e.script
+			p.InferScope(e.currentNode, scope)
+		}
+	}
 }

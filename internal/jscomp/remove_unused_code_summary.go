@@ -79,17 +79,20 @@ func (s rucFnSummary) totalElements() uint32 {
 	return s.varLen + s.propLen + s.indepLen + s.polyLen
 }
 
+type rucDeferredFn struct {
+	fn  rhino.Node
+	sum rucFnSummary
+}
+
 func computeFnContextFlags(fn rhino.Node) rucFnSummaryFlags {
 	var flags rucFnSummaryFlags
 	if NodeUtil_IsGetOrSetKey(fn.GetParent()) {
 		flags |= rucSumFlagIsGetOrSetKey
 	}
-	if NodeUtil_IsFunctionExpression(fn) {
-		if _, hasName := ast.MustFunction(fn).Name(); hasName {
-			flags |= rucSumFlagNamedFnExpr
-			if NodeUtil_IsExpressionResultUsed(fn) {
-				flags |= rucSumFlagExprResultUsed
-			}
+	if _, hasName := ast.MustFunction(fn).Name(); hasName && NodeUtil_IsFunctionExpression(fn) {
+		flags |= rucSumFlagNamedFnExpr
+		if NodeUtil_IsExpressionResultUsed(fn) {
+			flags |= rucSumFlagExprResultUsed
 		}
 	}
 	return flags
@@ -102,15 +105,19 @@ func (s rucFnSummary) matchesContext(fn rhino.Node) bool {
 // rucFnSummaryCache persists clean function summaries across RemoveUnusedCode
 // iterations within the normalized unobfuscated optimization stage.
 type rucFnSummaryCache struct {
-	root            rhino.Node
-	compacts        int
-	opts            RemoveUnusedCodeOptions
-	hasAstAnalyzer  bool
-	astAnalyzerVal  AstAnalyzer
-	externProps     *ExternPropSet
-	accessorSummary *AccessorSummary
-	polyfills       *PolyfillUsageFinder_Polyfills
-	colorRegistry   *colors.ColorRegistry
+	root               rhino.Node
+	externsRoot        rhino.Node
+	externsScriptCount int
+	jsScriptCount      int
+	compacts           int
+	recMode            rucRecordMode
+	opts               RemoveUnusedCodeOptions
+	hasAstAnalyzer     bool
+	astAnalyzerVal     AstAnalyzer
+	externProps        *ExternPropSet
+	accessorSummary    *AccessorSummary
+	polyfills          *PolyfillUsageFinder_Polyfills
+	colorRegistry      *colors.ColorRegistry
 
 	recordedPolyBits smallBitSet
 
@@ -121,9 +128,14 @@ type rucFnSummaryCache struct {
 	polyNodeArena  []rhino.Node
 	deadElements   uint32
 
+	completed        bool
+	hadChangesDuring bool
+
 	// Diagnostic counters updated at the end of each run for unit tests.
-	lastReplayed int
-	lastDeferred int
+	lastReplayed        int
+	lastDeferred        int
+	lastIdempotentSkip  bool
+	idempotentSkipCount int
 }
 
 func (fc *rucFnSummaryCache) clearAll() {
@@ -293,20 +305,35 @@ func (r *RemoveUnusedCode) optionsSnapshot() RemoveUnusedCodeOptions {
 		RemoveUnusedPrototypeProperties:               r.removeUnusedPrototypeProperties,
 		RemoveUnusedThisProperties:                    r.removeUnusedThisProperties,
 		RemoveUnusedObjectDefinePropertiesDefinitions: r.removeUnusedObjectDefinePropertiesDefinitions,
-		RemoveUnusedPolyfills:                         r.removeUnusedPolyfills,
+		RemoveUnusedPolyfills:                         r.removesPolyfills(),
 		AssumeGettersArePure:                          r.assumeGettersArePure,
 		DisambiguateProperties:                        r.disambiguateProperties,
 	}
 }
 
-func (r *RemoveUnusedCode) beginSummaryRun(root rhino.Node) {
+func (r *RemoveUnusedCode) resolveExternsRoot(root rhino.Node) rhino.Node {
+	if !r.externs.IsNil() {
+		return r.externs
+	}
+	if parent := root.GetParent(); !parent.IsNil() {
+		if first := parent.GetFirstChild(); first != root {
+			return first
+		}
+	}
+	return rhino.NilNode
+}
+
+// beginSummaryRun prepares incremental function summary state for root and
+// reports whether the entire pass can exit immediately because zero AST scopes
+// changed since the end of a compatible, zero-change previous run.
+func (r *RemoveUnusedCode) beginSummaryRun(root rhino.Node) bool {
 	r.root = root
 	if r.removalLog.IsLogging() || r.unremovableLog.IsLogging() {
-		return
+		return false
 	}
 	c := r.incrCompiler()
 	if c == nil {
-		return
+		return false
 	}
 	if r.accessorSummary == nil {
 		r.accessorSummary = c.GetAccessorSummary()
@@ -324,6 +351,7 @@ func (r *RemoveUnusedCode) beginSummaryRun(root rhino.Node) {
 		c.rucGuarded = g
 	}
 
+	externsRoot := r.resolveExternsRoot(root)
 	opts := r.optionsSnapshot()
 	hasAnalyzer := r.astAnalyzer != nil
 	var analyzerVal AstAnalyzer
@@ -339,7 +367,9 @@ func (r *RemoveUnusedCode) beginSummaryRun(root rhino.Node) {
 	compatible := fc != nil &&
 		changedBefore != nil &&
 		fc.root == root &&
+		fc.externsRoot == externsRoot &&
 		fc.compacts == c.astCompact.count &&
+		fc.recMode == r.recMode &&
 		fc.opts == opts &&
 		fc.hasAstAnalyzer == hasAnalyzer &&
 		(!hasAnalyzer || fc.astAnalyzerVal == analyzerVal) &&
@@ -348,11 +378,36 @@ func (r *RemoveUnusedCode) beginSummaryRun(root rhino.Node) {
 		fc.polyfills == r.polyfillsFromTable &&
 		fc.colorRegistry == colorReg
 
+	if compatible && fc.completed && !fc.hadChangesDuring && len(changedBefore) == 0 &&
+		fc.externsScriptCount == countNodeChildren(externsRoot) &&
+		fc.jsScriptCount == countNodeChildren(root) {
+		fc.lastReplayed = 0
+		fc.lastDeferred = 0
+		fc.lastIdempotentSkip = true
+		fc.idempotentSkipCount++
+		g.fnCache = fc
+		if rucIncrVerify {
+			r.verifyIdempotentSkip(root)
+		}
+		return true
+	}
+
+	if compatible && len(changedBefore) > 0 && !externsRoot.IsNil() {
+		for _, n := range changedBefore {
+			if !rucScriptUnder(n, externsRoot).IsNil() {
+				compatible = false
+				break
+			}
+		}
+	}
+
 	var dirty map[rhino.Node]struct{}
 	if !compatible {
 		fc = &rucFnSummaryCache{
 			root:            root,
+			externsRoot:     externsRoot,
 			compacts:        c.astCompact.count,
+			recMode:         r.recMode,
 			opts:            opts,
 			hasAstAnalyzer:  hasAnalyzer,
 			astAnalyzerVal:  analyzerVal,
@@ -386,10 +441,12 @@ func (r *RemoveUnusedCode) beginSummaryRun(root rhino.Node) {
 	}
 
 	// Detach fnCache during execution so any panic leaves g.fnCache == nil.
+	fc.completed = false
 	g.fnCache = nil
 	r.fnCache = fc
 	r.dirtySubtreeRoots = dirty
 	r.recState = newRucRecorderState()
+	return false
 }
 
 func (r *RemoveUnusedCode) finishSummaryRun(extraRecs []*rucRecorderState) {
@@ -489,8 +546,13 @@ func (r *RemoveUnusedCode) finishSummaryRun(extraRecs []*rucRecorderState) {
 	fc.recordedPolyBits.w0 = r.savedPolyBits.w0
 	fc.recordedPolyBits.w1 = r.savedPolyBits.w1
 	fc.recordedPolyBits.ext = slices.Clone(r.savedPolyBits.ext)
+	fc.externsScriptCount = countNodeChildren(fc.externsRoot)
+	fc.jsScriptCount = countNodeChildren(fc.root)
+	fc.hadChangesDuring = len(changedDuring) > 0
+	fc.completed = true
 	fc.lastReplayed = r.replayedCount
 	fc.lastDeferred = r.deferredCount
+	fc.lastIdempotentSkip = false
 	fc.maybeCompactArenas()
 
 	g := c.rucGuarded
@@ -635,6 +697,58 @@ func (r *RemoveUnusedCode) allIndepPropsPinned(fc *rucFnSummaryCache, s rucFnSum
 	return true
 }
 
+func (r *RemoveUnusedCode) resolveReplayVars(parentScope *Scope, vars []uint32) bool {
+	r.replayVars = r.replayVars[:0]
+	for _, id := range vars {
+		v := parentScope.GetVarByID(id)
+		if v == nil {
+			clear(r.replayVars)
+			r.replayVars = r.replayVars[:0]
+			return false
+		}
+		r.replayVars = append(r.replayVars, v)
+	}
+	return true
+}
+
+func (r *RemoveUnusedCode) applyGlobalSummary(fc *rucFnSummaryCache, fn rhino.Node, s rucFnSummary, parentScope *Scope) bool {
+	vars := fc.varIDArena[s.varOff : s.varOff+s.varLen]
+	if !r.resolveReplayVars(parentScope, vars) {
+		return false
+	}
+	prevGlobal := r.activeGlobalRec
+	r.activeGlobalRec = nil
+	for _, v := range r.replayVars {
+		r.TraverseVar(v).pin(rucPinReferenceFound)
+	}
+	clear(r.replayVars)
+	r.replayVars = r.replayVars[:0]
+	for _, propID := range fc.propIDArena[s.propOff : s.propOff+s.propLen] {
+		r.markPropertyIDPinned(propID)
+	}
+	for _, n := range fc.polyNodeArena[s.polyOff : s.polyOff+s.polyLen] {
+		keyID := n.GetStringID()
+		if r.polyBits.Get(int(keyID)) {
+			r.considerPolyfillRef(keyID, n)
+		}
+	}
+	r.activeGlobalRec = prevGlobal
+	r.markFnReplayed(fn)
+	return true
+}
+
+func (r *RemoveUnusedCode) tryReplayDeferredSummary(d rucDeferredFn, globalScope *Scope) bool {
+	if r.summaryReplayDisabled || r.fnCache == nil || d.fn.IsDeleted() {
+		return false
+	}
+	fc := r.fnCache
+	s := d.sum
+	if !r.allIndepPropsPinned(fc, s) {
+		return false
+	}
+	return r.applyGlobalSummary(fc, d.fn, s, globalScope)
+}
+
 func (r *RemoveUnusedCode) tryReplayOrDeferFunction(fn rhino.Node, parentScope *Scope, allowDefer bool) bool {
 	if r.summaryReplayDisabled || r.fnCache == nil || fn.IsDeleted() || r.isDirtySubtree(fn) {
 		return false
@@ -667,50 +781,28 @@ func (r *RemoveUnusedCode) tryReplayOrDeferFunction(fn rhino.Node, parentScope *
 		}
 		if !r.allIndepPropsPinned(fc, s) {
 			if allowDefer {
-				r.deferredSummaryFns = append(r.deferredSummaryFns, fn)
+				r.deferredSummaryFns = append(r.deferredSummaryFns, rucDeferredFn{fn: fn, sum: s})
 				r.deferredCount++
 				return true
 			}
 			return false
 		}
-		vars := fc.varIDArena[s.varOff : s.varOff+s.varLen]
-		for _, id := range vars {
-			if parentScope.GetVarByID(id) == nil {
-				return false
-			}
-		}
-		prevGlobal := r.activeGlobalRec
-		r.activeGlobalRec = nil
-		for _, id := range vars {
-			r.TraverseVar(parentScope.GetVarByID(id)).pin(rucPinReferenceFound)
-		}
-		for _, propID := range fc.propIDArena[s.propOff : s.propOff+s.propLen] {
-			r.markPropertyIDPinned(propID)
-		}
-		for _, n := range fc.polyNodeArena[s.polyOff : s.polyOff+s.polyLen] {
-			keyID := n.GetStringID()
-			if r.polyBits.Get(int(keyID)) {
-				r.considerPolyfillRef(keyID, n)
-			}
-		}
-		r.activeGlobalRec = prevGlobal
-		r.markFnReplayed(fn)
-		return true
+		return r.applyGlobalSummary(fc, fn, s, parentScope)
 	}
 
 	if r.recMode == rucRecLocal {
 		if !isGlobalParent && s.varLen > 0 {
 			vars := fc.varIDArena[s.varOff : s.varOff+s.varLen]
-			for _, id := range vars {
-				if parentScope.GetVarByID(id) == nil {
-					return false
-				}
+			if !r.resolveReplayVars(parentScope, vars) {
+				return false
 			}
 			// Keep r.activeLocalRec active so pins on outer scopes propagate to
 			// any enclosing function currently being recorded.
-			for _, id := range vars {
-				r.TraverseVar(parentScope.GetVarByID(id)).pin(rucPinReferenceFound)
+			for _, v := range r.replayVars {
+				r.TraverseVar(v).pin(rucPinReferenceFound)
 			}
+			clear(r.replayVars)
+			r.replayVars = r.replayVars[:0]
 		}
 		r.markFnReplayed(fn)
 		return true
@@ -730,41 +822,47 @@ func (r *RemoveUnusedCode) markFnReplayed(fn rhino.Node) {
 }
 
 func (r *RemoveUnusedCode) drainWorklistAndDeferred(globalScope *Scope) {
+	deferHead := 0
+	lastCheckedPinEpoch := ^uint32(0)
 	for {
 		for !r.worklist.isEmpty() {
 			continuation := r.worklist.pop()
 			continuation.Apply(r)
 		}
-		if len(r.deferredSummaryFns) == 0 {
+		if deferHead >= len(r.deferredSummaryFns) {
+			r.deferredSummaryFns = r.deferredSummaryFns[:0]
 			return
 		}
 		if r.summaryReplayDisabled {
-			fns := r.deferredSummaryFns
+			fns := r.deferredSummaryFns[deferHead:]
 			r.deferredSummaryFns = nil
-			for _, fn := range fns {
-				r.traverseFunctionFull(fn, globalScope)
+			deferHead = 0
+			for _, d := range fns {
+				r.traverseFunctionFull(d.fn, globalScope)
 			}
 			continue
 		}
-		progressed := false
-		writeIdx := 0
-		for _, fn := range r.deferredSummaryFns {
-			if r.tryReplayOrDeferFunction(fn, globalScope, false) {
-				progressed = true
-			} else {
-				r.deferredSummaryFns[writeIdx] = fn
-				writeIdx++
+		if r.propPinEpoch != lastCheckedPinEpoch {
+			lastCheckedPinEpoch = r.propPinEpoch
+			progressed := false
+			writeIdx := deferHead
+			for i := deferHead; i < len(r.deferredSummaryFns); i++ {
+				d := r.deferredSummaryFns[i]
+				if r.tryReplayDeferredSummary(d, globalScope) {
+					progressed = true
+				} else {
+					r.deferredSummaryFns[writeIdx] = d
+					writeIdx++
+				}
+			}
+			r.deferredSummaryFns = r.deferredSummaryFns[:writeIdx]
+			if progressed || deferHead >= len(r.deferredSummaryFns) {
+				continue
 			}
 		}
-		r.deferredSummaryFns = r.deferredSummaryFns[:writeIdx]
-		if progressed {
-			continue
-		}
-		if len(r.deferredSummaryFns) > 0 {
-			fn := r.deferredSummaryFns[0]
-			r.deferredSummaryFns = r.deferredSummaryFns[1:]
-			r.traverseFunctionFull(fn, globalScope)
-		}
+		d := r.deferredSummaryFns[deferHead]
+		deferHead++
+		r.traverseFunctionFull(d.fn, globalScope)
 	}
 }
 
@@ -796,8 +894,6 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 			units = append(units[:mark], script)
 		}
 	}
-
-	r.beginSummaryRun(root)
 
 	workUnits := make([]rhino.Node, 0, len(units))
 	for _, u := range units {
@@ -878,6 +974,8 @@ func (r *RemoveUnusedCode) traverseLocalUnit(unit rhino.Node, globalScope *Scope
 	r.worklist.clear()
 	clear(r.extraContSlab)
 	r.extraContSlab = r.extraContSlab[:0]
+	clear(r.replayVars)
+	r.replayVars = r.replayVars[:0]
 	r.removables.Reset(nil)
 	r.varInfoSlab.Reset(nil)
 	r.polyfillSlab.Reset(nil)
@@ -902,7 +1000,9 @@ func (r *RemoveUnusedCode) verifySummaryReplay(node rhino.Node, scope *Scope) {
 	if !rucIncrVerify || r.replayedCount == 0 {
 		return
 	}
-	ref := NewRemoveUnusedCode(r.compiler, r.optionsSnapshot())
+	opts := r.optionsSnapshot()
+	opts.RemoveUnusedPolyfills = r.removeUnusedPolyfills
+	ref := NewRemoveUnusedCode(r.compiler, opts)
 	ref.externProperties = r.externProperties
 	ref.accessorSummary = r.accessorSummary
 	ref.cacheVarInfos = false
@@ -964,9 +1064,19 @@ func (r *RemoveUnusedCode) verifySummaryReplay(node rhino.Node, scope *Scope) {
 					ref.polyfillOrder[i].getName(), r.polyfillOrder[i].isRemovable, ref.polyfillOrder[i].isRemovable))
 			}
 		}
+		if ref.removeGlobals {
+			for _, fparamScope := range ref.allFunctionParamScopes {
+				if _, replayed := r.replayedFns[fparamScope.GetRootNode()]; replayed {
+					ref.assertParamScopeNoPendingChanges(fparamScope, "replayed global fn")
+				}
+			}
+		}
 		return
 	}
 
+	if len(ref.polyfillOrder) != 0 {
+		panic(fmt.Sprintf("RemoveUnusedCode verify: rucRecLocal found %d polyfill defs", len(ref.polyfillOrder)))
+	}
 	for _, vi := range ref.varInfos {
 		if r.wasEnclosedByReplayedFn(vi.var_.scope.rootNode) {
 			if !vi.IsRemovable() {

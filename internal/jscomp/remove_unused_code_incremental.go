@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: RemoveUnusedCode keeps what it learns between runs.
@@ -42,7 +44,17 @@ func rucIncrEnabled() bool {
 	return rucIncrEnv != "0"
 }
 
-const rucGuardedTimelineKey = "__removeUnusedCode_guardedUsages__"
+const (
+	rucGuardedTimelineKey  = "__removeUnusedCode_guardedUsages__"
+	rucPolyDefsTimelineKey = "__removeUnusedCode_polyDefs__"
+)
+
+type rucPolyDefsCache struct {
+	root        rhino.Node
+	compacts    int
+	byScript    map[rhino.Node]bool
+	polyScripts int
+}
 
 // rucGuardedCache holds the guarded polyfill usages of every script of one
 // root, per script.
@@ -55,6 +67,9 @@ type rucGuardedCache struct {
 	byScript      map[rhino.Node][]rhino.Node
 	// usages is the union of byScript, the set a run consults.
 	usages map[rhino.Node]bool
+
+	// Go-only: per-script $jscomp.polyfill definition presence cache.
+	polyDefs rucPolyDefsCache
 
 	// Go-only: function-level summary cache across RemoveUnusedCode runs
 	// (remove_unused_code_summary.go).
@@ -177,4 +192,218 @@ func rucScriptUnder(n, root rhino.Node) rhino.Node {
 		n = p
 	}
 	return rhino.NilNode
+}
+
+func (r *RemoveUnusedCode) initPolyfillSuppression(root rhino.Node) {
+	if !r.removeUnusedPolyfills || r.removalLog.IsLogging() || r.unremovableLog.IsLogging() {
+		return
+	}
+	r.root = root
+	c := r.incrCompiler()
+	if c == nil || root != c.GetJsRoot() {
+		return
+	}
+	if !r.hasAnyPolyfillDef(c, root) {
+		r.suppressPolyfillRemoval = true
+	}
+}
+
+func (r *RemoveUnusedCode) hasAnyPolyfillDef(c *Compiler, root rhino.Node) bool {
+	changed := c.changeTracker.GetChangedScopeNodesForPass(rucPolyDefsTimelineKey)
+	g := c.rucGuarded
+	if g == nil {
+		g = &rucGuardedCache{}
+		c.rucGuarded = g
+	}
+	p := &g.polyDefs
+	if p.byScript == nil || changed == nil || p.root != root || p.compacts != c.astCompact.count {
+		p.root = root
+		p.compacts = c.astCompact.count
+		p.byScript = make(map[rhino.Node]bool)
+		p.polyScripts = 0
+	} else {
+		for _, n := range changed {
+			if s := rucScriptUnder(n, root); !s.IsNil() {
+				if had, exists := p.byScript[s]; exists {
+					if had {
+						p.polyScripts--
+					}
+					delete(p.byScript, s)
+				}
+			}
+		}
+		// order-independent: removes detached scripts and subtracts 1 per script that had a polyfill def
+		for s, had := range p.byScript {
+			if s.GetParent() != root {
+				if had {
+					p.polyScripts--
+				}
+				delete(p.byScript, s)
+			}
+		}
+	}
+
+	var toScan []rhino.Node
+	for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+		if _, ok := p.byScript[s]; !ok {
+			toScan = append(toScan, s)
+		}
+	}
+	if len(toScan) > 0 {
+		results := make([]bool, len(toScan))
+		if numWorkers := parallelThreadCount(c, len(toScan)); numWorkers > 1 {
+			_ = c.ensureSync()
+			if wp := spawnIndexedWorkers(len(toScan), numWorkers, func(_ int, claim func() (int, bool)) {
+				for {
+					idx, ok := claim()
+					if !ok {
+						return
+					}
+					results[idx] = subtreeHasJscompPolyfillDef(toScan[idx])
+				}
+			}); wp != nil {
+				rethrowParallelPanic(c, wp)
+			}
+		} else {
+			for i, s := range toScan {
+				results[i] = subtreeHasJscompPolyfillDef(s)
+			}
+		}
+		for i, s := range toScan {
+			p.byScript[s] = results[i]
+			if results[i] {
+				p.polyScripts++
+			}
+		}
+	}
+
+	hasAny := p.polyScripts > 0
+	if rucIncrVerify {
+		want := subtreeHasJscompPolyfillDef(root)
+		if hasAny != want {
+			panic(fmt.Sprintf("RemoveUnusedCode: hasAnyPolyfillDef=%v, full scan=%v", hasAny, want))
+		}
+	}
+	return hasAny
+}
+
+func subtreeHasJscompPolyfillDef(n rhino.Node) bool {
+	tok := n.GetToken()
+	if tok == rhino.Token_CALL || tok == rhino.Token_OPTCHAIN_CALL {
+		if _, ok := isJscompPolyfillCall(ast.MustNormalOrOptChainCall(n)); ok {
+			return true
+		}
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if !c.GetFirstChild().IsNil() && subtreeHasJscompPolyfillDef(c) {
+			return true
+		}
+	}
+	return false
+}
+
+func countNodeChildren(n rhino.Node) int {
+	if n.IsNil() {
+		return 0
+	}
+	count := 0
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		count++
+	}
+	return count
+}
+
+func (r *RemoveUnusedCode) assertParamScopeNoPendingChanges(fparamScope *Scope, label string) {
+	fnNode := fparamScope.GetRootNode()
+	if NodeUtil_IsGetOrSetKey(fnNode.GetParent()) {
+		return
+	}
+	params := ast.MustFunction(fnNode).Params()
+	if last, ok := params.LastParam(); ok {
+		if argNode, removable := r.trailingParamBinding(last); removable {
+			if pat, isPattern := ast.AsPattern(argNode); isPattern {
+				if !pat.Node().HasChildren() {
+					panic(fmt.Sprintf("RemoveUnusedCode verify (%s): trailing empty pattern param removable in %v", label, fnNode))
+				}
+			} else if r.isParamVarRemovable(argNode, fparamScope, true) {
+				panic(fmt.Sprintf("RemoveUnusedCode verify (%s): trailing param %s removable in %v", label, ast.MustName(argNode).Ident(), fnNode))
+			}
+		}
+	}
+	for p := range params.Params() {
+		if p.IsUnused() {
+			continue
+		}
+		paramName, hasName := rucParamName(p)
+		if !hasName {
+			continue
+		}
+		if r.isParamVarRemovable(paramName.Node(), fparamScope, true) {
+			panic(fmt.Sprintf("RemoveUnusedCode verify (%s): unmarked unused param %s in %v", label, paramName.Ident(), fnNode))
+		}
+	}
+}
+
+func (r *RemoveUnusedCode) verifyIdempotentSkip(root rhino.Node) {
+	if !rucIncrVerify {
+		return
+	}
+	opts := r.optionsSnapshot()
+	opts.RemoveUnusedPolyfills = r.removeUnusedPolyfills
+	ref := NewRemoveUnusedCode(r.compiler, opts)
+	ref.externProperties = r.externProperties
+	ref.accessorSummary = r.accessorSummary
+	ref.cacheVarInfos = false
+	ref.summaryReplayDisabled = true
+	ref.recMode = rucRecNone
+	ref.root = root
+	ref.trackProps = ref.removesAnyProperties()
+	if ref.trackProps {
+		for _, id := range rucImplicitPropIDs {
+			ref.pinnedProps.Set(int(id))
+		}
+	}
+	ref.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 256)
+	scope := ref.createGlobalScope(root)
+	ref.worklist.push(RemoveUnusedCode_Continuation{node: root, scope: scope})
+	for !ref.worklist.isEmpty() {
+		cont := ref.worklist.pop()
+		cont.Apply(ref)
+	}
+
+	for _, vi := range ref.varInfos {
+		if !vi.IsRemovable() {
+			continue
+		}
+		for cur := vi.removables.head; cur != nil; cur = cur.nextInQueue {
+			if cur.remKind == remKindIndirectAssign &&
+				cur.indirectAssignRoot().GetParent().IsParamList() &&
+				!cur.indirectAssignRoot().IsDefaultValue() {
+				continue
+			}
+			panic(fmt.Sprintf("RemoveUnusedCode verify (idempotent skip): removable var %s (%s)", vi.var_.GetName(), cur.String()))
+		}
+		toRemove := vi.var_.GetNameNode().GetParent()
+		if fn, isFn := ast.AsFunction(toRemove); isFn && NodeUtil_IsFunctionExpression(fn.Node()) && !ref.preserveFunctionExpressionNames {
+			panic(fmt.Sprintf("RemoveUnusedCode verify (idempotent skip): removable fn expr name %s", vi.var_.GetName()))
+		}
+	}
+	if ref.trackProps {
+		for _, idx := range ref.propRemOrder {
+			entry := &ref.propEntries[idx]
+			if !entry.removables.isEmpty() {
+				panic(fmt.Sprintf("RemoveUnusedCode verify (idempotent skip): removable prop %s", strpool.String(entry.propID)))
+			}
+		}
+	}
+	for _, poly := range ref.polyfillOrder {
+		if poly.isRemovable {
+			panic(fmt.Sprintf("RemoveUnusedCode verify (idempotent skip): removable polyfill %s", poly.getName()))
+		}
+	}
+	if ref.removeGlobals {
+		for _, fparamScope := range ref.allFunctionParamScopes {
+			ref.assertParamScopeNoPendingChanges(fparamScope, "idempotent skip")
+		}
+	}
 }

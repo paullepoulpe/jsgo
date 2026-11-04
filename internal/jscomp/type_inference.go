@@ -189,10 +189,15 @@ func (ti *TypeInference) initTypeInference(
 	}
 	ti.bottomScope = &ti.bottomFlowScope
 
+	createsRootScope := NodeUtil_CreatesScope(rootNode)
+	var rootModule *Module
+	if createsRootScope {
+		rootModule = ModuleImportResolver_GetModuleFromScopeRoot(compiler.GetModuleMap(), compiler, rootNode)
+	}
 	if cfg.hasNodePriorities &&
 		!cfg.hasInnerScopeRoots &&
-		NodeUtil_CreatesScope(rootNode) &&
-		ModuleImportResolver_GetModuleFromScopeRoot(compiler.GetModuleMap(), compiler, rootNode) == nil {
+		createsRootScope &&
+		rootModule == nil {
 		if rootNode.IsFunction() {
 			if fnBody := ast.MustFunction(rootNode).Body().Node(); fnBody.IsBlock() {
 				if ModuleImportResolver_GetModuleFromScopeRoot(compiler.GetModuleMap(), compiler, fnBody) == nil {
@@ -212,6 +217,11 @@ func (ti *TypeInference) initTypeInference(
 			ti.fastFlowContainerUnboundDone = len(syntacticScope.vars) == 0
 			ti.fastFlowBodyUnboundDone = true
 		}
+	}
+	if !ti.fastFlowNoInnerScopes && createsRootScope && !rootNode.IsNil() {
+		ti.lastScopeRoot = rootNode
+		ti.lastModule = rootModule
+		ti.lastSyntacticBlockScope = syntacticScope
 	}
 }
 
@@ -472,7 +482,11 @@ func (ti *TypeInference) FlowThrough(n rhino.Node, input *LinkedFlowScope) *Link
 		syntacticBlockScope = ti.lastSyntacticBlockScope
 	} else {
 		module = ModuleImportResolver_GetModuleFromScopeRoot(ti.compiler.GetModuleMap(), ti.compiler, root)
-		syntacticBlockScope = ti.scopeCreator.CreateScopeOfNode(root)
+		if root == ti.containerScope.rootNode {
+			syntacticBlockScope = ti.containerScope
+		} else {
+			syntacticBlockScope = ti.scopeCreator.CreateScopeOfNode(root)
+		}
 		ti.lastScopeRoot = root
 		ti.lastModule = module
 		ti.lastSyntacticBlockScope = syntacticBlockScope

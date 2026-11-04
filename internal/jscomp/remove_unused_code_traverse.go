@@ -310,7 +310,7 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(callNode) {
 		// TODO(bradfordcsmith): Should also handle Object.create() and Object.defineProperty().
 		r.TraverseObjectDefinePropertiesCall(callNode, scope)
-	} else if firstArgStr, isPolyfill := isJscompPolyfillCall(call); r.removeUnusedPolyfills && isPolyfill {
+	} else if firstArgStr, isPolyfill := isJscompPolyfillCall(call); r.removesPolyfills() && isPolyfill {
 		polyfillName := firstArgStr.Value()
 		if calleeID := callee.GetStringID(); calleeID == rucCalleePolyfillTypedArrayMethodID ||
 			calleeID == rucCalleeJscompPolyfillTypedArrayMethodID {

@@ -66,8 +66,10 @@ type removeUnusedCodeState struct {
 	guardedUsagesComputed bool
 	// Go-only: the kept guarded usages, when the run uses them
 	// (remove_unused_code_incremental.go).
-	guardedCache *rucGuardedCache
-	root         rhino.Node
+	guardedCache            *rucGuardedCache
+	externs                 rhino.Node
+	root                    rhino.Node
+	suppressPolyfillRemoval bool
 
 	// Go-only: per-run function summary recording and replay state
 	// (remove_unused_code_summary.go).
@@ -76,12 +78,14 @@ type removeUnusedCodeState struct {
 	recState              *rucRecorderState
 	activeGlobalRec       *rucRecordingSummary
 	activeLocalRec        *rucRecordingSummary
-	deferredSummaryFns    []rhino.Node
+	deferredSummaryFns    []rucDeferredFn
+	replayVars            []*Var
 	savedPolyBits         smallBitSet
 	replayedFns           map[rhino.Node]struct{}
 	replayedCount         int
 	deferredCount         int
 	polyEpoch             uint32
+	propPinEpoch          uint32
 	recMode               rucRecordMode
 	summaryReplayDisabled bool
 
@@ -272,6 +276,10 @@ func (r *RemoveUnusedCode) removesAnyProperties() bool {
 		r.removeUnusedObjectDefinePropertiesDefinitions
 }
 
+func (r *RemoveUnusedCode) removesPolyfills() bool {
+	return r.removeUnusedPolyfills && !r.suppressPolyfillRemoval
+}
+
 func (r *RemoveUnusedCode) ensurePropEntry(id strpool.ID) uint32 {
 	if idx1 := r.propIdxByID[id]; idx1 != 0 {
 		return idx1 - 1
@@ -325,6 +333,7 @@ func (r *RemoveUnusedCode) Process(externs rhino.Node, root rhino.Node) {
 	}()
 	r.removalLog = removalLogFile // avoid passing the log file through a bunch of methods
 	r.unremovableLog = keepLogFile
+	r.externs = externs
 	r.TraverseAndRemoveUnusedReferences(root)
 }
 
@@ -372,10 +381,13 @@ func (r *RemoveUnusedCode) traverseRootAndRemoveVars(node rhino.Node, scope *Sco
 // Java: RemoveUnusedCode.traverseAndRemoveUnusedReferences(Node)
 func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 	r.root = root
+	r.initPolyfillSuppression(root)
+	if r.beginSummaryRun(root) {
+		return
+	}
 	if r.traverseAndRemoveLocalScriptsParallel(root) {
 		return
 	}
-	r.beginSummaryRun(root)
 	r.cacheVarInfos = r.compiler != nil && r.compiler.parallelRecorder == nil &&
 		!r.removalLog.IsLogging() && !r.unremovableLog.IsLogging()
 	r.trackProps = r.removesAnyProperties()
@@ -404,7 +416,7 @@ func (r *RemoveUnusedCode) canParallelizeLocalScripts() bool {
 		!r.removeUnusedPrototypeProperties &&
 		!r.removeUnusedThisProperties &&
 		!r.removeUnusedObjectDefinePropertiesDefinitions &&
-		!r.removeUnusedPolyfills &&
+		!r.removesPolyfills() &&
 		!r.removalLog.IsLogging() &&
 		!r.unremovableLog.IsLogging()
 }
@@ -441,6 +453,8 @@ func (r *RemoveUnusedCode) resetLocalScriptWorker() {
 	r.worklist.clear()
 	clear(r.extraContSlab)
 	r.extraContSlab = r.extraContSlab[:0]
+	clear(r.replayVars)
+	r.replayVars = r.replayVars[:0]
 	r.removables.Reset(nil)
 	r.varInfoSlab.Reset(nil)
 	r.polyfillSlab.Reset(nil)
@@ -632,6 +646,7 @@ func (r *RemoveUnusedCode) markPropertyIDPinned(id uint32) {
 		return
 	}
 	r.pinnedProps.Set(int(id))
+	r.propPinEpoch++
 	// Continue traversal of all of the property name's values and no longer consider them for
 	// removal.
 	if idx1 := r.propIdxByID[strpool.ID(id)]; idx1 != 0 {

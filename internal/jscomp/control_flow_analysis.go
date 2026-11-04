@@ -54,7 +54,8 @@ type ControlFlowAnalysis struct {
 
 	// Go-only: language-adapter — the LinkedIdentityHashMap is a Go map: it is
 	// only looked up, never iterated.
-	astPosition map[rhino.Node]int32
+	astPosition     map[rhino.Node]int32
+	astPositionPeak int
 
 	astPositionCounter int32
 	priorityCounter    int
@@ -117,9 +118,14 @@ type ControlFlowAnalysis struct {
 	finallyMap cfaFinallyMap
 }
 
-// cfaReuseMaxSize is the largest astPosition map or worklist that a
-// ControlFlowAnalysis keeps for its next CFG.
-const cfaReuseMaxSize = 1024
+// cfaReuseMaxSize is the largest worklist that a ControlFlowAnalysis keeps for
+// its next CFG; cfaAstPosReuseMaxSize bounds the peak size of a reused
+// astPosition map so clearing it stays cheap across thousands of small CFGs.
+const (
+	cfaReuseMaxSize       = 1024
+	cfaAstPosReuseMaxSize = 128
+	cfaAstPosInitCap      = 24
+)
 
 // ReusableCfg computes control flow graphs into storage that it reuses from
 // one graph to the next. A graph that it returns is valid until the next
@@ -217,7 +223,8 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowGr
 		c.rootFnBody = rhino.NilNode
 	}
 	if c.astPosition == nil {
-		c.astPosition = make(map[rhino.Node]int32)
+		c.astPosition = make(map[rhino.Node]int32, cfaAstPosInitCap)
+		c.astPositionPeak = 0
 	}
 	c.astPositionCounter = 0
 	entry := ControlFlowAnalysis_ComputeFallThrough(root)
@@ -253,8 +260,12 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowGr
 	}
 
 	// Free our large table now that it is no longer needed
-	if len(c.astPosition) > cfaReuseMaxSize {
+	if n := len(c.astPosition); n > c.astPositionPeak {
+		c.astPositionPeak = n
+	}
+	if c.astPositionPeak > cfaAstPosReuseMaxSize {
 		c.astPosition = nil
+		c.astPositionPeak = 0
 	} else {
 		clear(c.astPosition)
 	}

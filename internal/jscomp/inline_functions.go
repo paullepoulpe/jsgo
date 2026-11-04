@@ -42,14 +42,16 @@ type inlineFnKey struct {
 // inlineFunctionsRunState is the state of one run of InlineFunctions.Process,
 // dropped when the run ends.
 type inlineFunctionsRunState struct {
-	fnKeys      []inlineFnKey
-	anonOrder   []rhino.Node
-	constFnIDs  []uint32
-	calledIDs   smallIDSet
-	refsScratch []*FunctionInjector_Reference
-	movedArgs   map[rhino.Node]struct{}
-	references  jutil.Slab[FunctionInjector_Reference]    // one run's references die together
-	fnStates    jutil.Slab[InlineFunctions_FunctionState] // one run's function states die together
+	fnKeys        []inlineFnKey
+	anonOrder     []rhino.Node
+	constFnIDs    []uint32
+	calledIDs     smallIDSet
+	namedBloom    ifNameBloom
+	hasNamedBloom bool
+	refsScratch   []*FunctionInjector_Reference
+	movedArgs     map[rhino.Node]struct{}
+	references    jutil.Slab[FunctionInjector_Reference]    // one run's references die together
+	fnStates      jutil.Slab[InlineFunctions_FunctionState] // one run's function states die together
 }
 
 // InlineFunctions inlines functions that are divided into two types: "direct
@@ -155,6 +157,31 @@ func (f *InlineFunctions) removeKey(k inlineFnKey) {
 	}
 }
 
+func (f *InlineFunctions) rebuildNamedCandidateBloom() *ifNameBloom {
+	if len(f.namedFns) == 0 || f.runState == nil {
+		if f.runState != nil {
+			f.runState.hasNamedBloom = false
+		}
+		return nil
+	}
+	p := f.runState
+	p.namedBloom = ifNameBloom{}
+	for _, k := range p.fnKeys {
+		if k.anonNode.IsNil() {
+			p.namedBloom.add(k.nameID)
+		}
+	}
+	p.hasNamedBloom = true
+	return &p.namedBloom
+}
+
+func (f *InlineFunctions) activeNamedBloom() *ifNameBloom {
+	if f.runState != nil && f.runState.hasNamedBloom {
+		return &f.runState.namedBloom
+	}
+	return nil
+}
+
 func (f *InlineFunctions) functionStateName(fs *InlineFunctions_FunctionState) string {
 	if fs.target.name != "" {
 		return fs.target.name
@@ -258,6 +285,13 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	if len(f.fns) == 0 {
 		return // Nothing left to do.
 	}
+	if !f.compiler.IsDebugLoggingEnabled() {
+		f.TrimCandidatesNotMeetingMinimumRequirements()
+		if len(f.fns) == 0 {
+			return // Nothing left to do.
+		}
+	}
+	f.rebuildNamedCandidateBloom()
 	if !f.findCandidatesReferencesParallel(root) {
 		f.injector.seedCache = f.activeCache
 		sc := NewSyntacticScopeCreator(f.compiler)
@@ -300,6 +334,7 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	if !root.IsNil() {
 		callVisitor := inlineCallVisitor{
 			namedFns:        f.namedFns,
+			namedBloom:      f.rebuildNamedCandidateBloom(),
 			anonFns:         f.anonFns,
 			onCallSite:      f.inlineCallSite,
 			activeAncestors: f.buildPhase4ActiveAncestors(root),

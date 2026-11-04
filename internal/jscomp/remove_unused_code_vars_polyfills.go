@@ -118,9 +118,13 @@ func (v *RemoveUnusedCode_RealVarInfo) pin(reason rucPinReason) {
 }
 
 func (v *RemoveUnusedCode_RealVarInfo) pinAt(reason rucPinReason, reasonNode rhino.Node) {
-	if v.flags&rucVarFlagCanonical == 0 && v.outer.recMode != rucRecNone &&
+	if v.flags&rucVarFlagCanonical != 0 {
+		return
+	}
+	o := v.outer
+	if (o.activeGlobalRec != nil || o.activeLocalRec != nil) &&
 		reason != rucPinNotRemovingGlobals && reason != rucPinNotRemovingLocals {
-		v.outer.onVarPinned(v.var_)
+		o.onVarPinned(v.var_)
 	}
 	if v.flags&rucVarFlagEntirelyRemovable == 0 {
 		return
@@ -128,16 +132,16 @@ func (v *RemoveUnusedCode_RealVarInfo) pinAt(reason rucPinReason, reasonNode rhi
 	v.flags &^= rucVarFlagEntirelyRemovable
 	v.nonRemovableReason = reason
 	v.reasonNode = reasonNode
-	if v.outer.unremovableLog.IsLogging() {
-		v.outer.unremovableLog.LogString(v.formatUnremovableLog())
+	if o.unremovableLog.IsLogging() {
+		o.unremovableLog.LogString(v.formatUnremovableLog())
 	}
-	if v.outer.activeGlobalRec != nil && v.var_.IsGlobal() {
-		prev := v.outer.activeGlobalRec
-		v.outer.activeGlobalRec = nil
-		v.removables.drain(v.outer.ConsiderForIndependentRemoval)
-		v.outer.activeGlobalRec = prev
+	if o.activeGlobalRec != nil && v.var_.IsGlobal() {
+		prev := o.activeGlobalRec
+		o.activeGlobalRec = nil
+		v.removables.drain(o.ConsiderForIndependentRemoval)
+		o.activeGlobalRec = prev
 	} else {
-		v.removables.drain(v.outer.ConsiderForIndependentRemoval)
+		v.removables.drain(o.ConsiderForIndependentRemoval)
 	}
 }
 
