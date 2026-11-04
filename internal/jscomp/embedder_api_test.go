@@ -3,6 +3,7 @@ package jscomp_test
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -420,6 +421,95 @@ func TestRenderChunksPostProcessCompressAndRuntimeOverrides(t *testing.T) {
 		}
 		if string(raw) != rc.SourceMap {
 			t.Fatalf("chunk %d decompressed SourceMapBytes mismatch", i)
+		}
+	}
+}
+
+func TestRenderChunksLargeBaseStreamingAndOmitSourceMapString(t *testing.T) {
+	opts := jscomp.NewCompilerOptions()
+	opts.SetNumParallelThreads(4)
+	opts.SetSourceMapOutputPath("out.map")
+
+	const baseInputCount = 310 // Exceeds chunkRenderMaxBatchScripts (256) to exercise sub-batch streaming.
+	baseChunk := jscomp.NewJSChunk("base")
+	for i := range baseInputCount {
+		name := fmt.Sprintf("base_%03d.js", i)
+		code := fmt.Sprintf("/** @license SharedBaseLic */\nvar baseVar_%d = %d;\n", i, i)
+		if i%50 == 0 {
+			code = fmt.Sprintf("/** @license UniqueLic_%d */\nvar baseVar_%d = %d;\n", i, i, i)
+		}
+		baseChunk.Add(jscomp.NewCompilerInput(jscomp.SourceFile_FromCode(name, code)))
+	}
+
+	chunks := []*jscomp.JSChunk{baseChunk}
+	for cIdx := range 5 {
+		ch := jscomp.NewJSChunk(fmt.Sprintf("leaf_%d", cIdx))
+		ch.AddDependency(baseChunk)
+		ch.Add(jscomp.NewCompilerInput(jscomp.SourceFile_FromCode(
+			fmt.Sprintf("leaf_%d.js", cIdx),
+			fmt.Sprintf("/** @license SharedBaseLic */\nvar leafVar_%d = baseVar_0 + %d;\n", cIdx, cIdx),
+		)))
+		chunks = append(chunks, ch)
+	}
+
+	comp := jscomp.NewCompiler()
+	res := comp.CompileChunks([]*jscomp.SourceFile{}, chunks, opts)
+	if !res.Success {
+		t.Fatalf("CompileChunks failed: %v", res.Errors)
+	}
+
+	// Sequential reference rendering via ToSourceOfLicenseTrackerAndJSChunk + SourceMap.AppendTo.
+	seqLT := jscomp.NewCompiler_ChunkGraphAwareLicenseTracker(comp)
+	wantCode := make([]string, len(chunks))
+	wantMaps := make([]string, len(chunks))
+	for i, ch := range chunks {
+		comp.ResetAndInitializeSourceMap()
+		seqLT.SetCurrentChunkContext(ch)
+		wantCode[i] = comp.ToSourceOfLicenseTrackerAndJSChunk(seqLT, ch)
+		var sb strings.Builder
+		comp.GetSourceMap().AppendTo(&sb, ch.GetName()+".js")
+		wantMaps[i] = sb.String()
+	}
+
+	rendered, err := comp.RenderChunksAndSourceMaps(chunks, jscomp.RenderChunkOptions{
+		GenerateSourceMaps:  true,
+		OmitSourceMapString: true,
+		CompressSourceMapBytes: func(_ *jscomp.JSChunk, sm []byte) ([]byte, error) {
+			var buf bytes.Buffer
+			gz := gzip.NewWriter(&buf)
+			if _, wErr := gz.Write(sm); wErr != nil {
+				return nil, wErr
+			}
+			if cErr := gz.Close(); cErr != nil {
+				return nil, cErr
+			}
+			return buf.Bytes(), nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("RenderChunksAndSourceMaps error: %v", err)
+	}
+	if len(rendered) != len(chunks) {
+		t.Fatalf("len(rendered) = %d, want %d", len(rendered), len(chunks))
+	}
+	for i, rc := range rendered {
+		if rc.Code != wantCode[i] {
+			t.Fatalf("chunk %d (%s) JS mismatch:\ngot len=%d\nwant len=%d", i, chunks[i].GetName(), len(rc.Code), len(wantCode[i]))
+		}
+		if rc.SourceMap != "" {
+			t.Fatalf("chunk %d (%s) expected empty SourceMap when OmitSourceMapString=true, got %d bytes", i, chunks[i].GetName(), len(rc.SourceMap))
+		}
+		zr, zErr := gzip.NewReader(bytes.NewReader(rc.SourceMapBytes))
+		if zErr != nil {
+			t.Fatal(zErr)
+		}
+		raw, rErr := io.ReadAll(zr)
+		_ = zr.Close()
+		if rErr != nil {
+			t.Fatal(rErr)
+		}
+		if string(raw) != wantMaps[i] {
+			t.Fatalf("chunk %d (%s) source map mismatch against sequential reference", i, chunks[i].GetName())
 		}
 	}
 }

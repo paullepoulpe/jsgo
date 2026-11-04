@@ -1,6 +1,7 @@
 package jscomp
 
 import (
+	"bytes"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -55,6 +56,18 @@ type RenderChunkOptions struct {
 	// stores the result in RenderedChunk.SourceMapBytes.
 	CompressSourceMap func(chunk *JSChunk, sourceMap string) ([]byte, error)
 
+	// CompressSourceMapBytes, when non-nil and source maps are generated, is a
+	// zero-copy alternative to CompressSourceMap that receives a worker-owned
+	// []byte buffer valid for the duration of the callback and stores the result
+	// in RenderedChunk.SourceMapBytes.
+	CompressSourceMapBytes func(chunk *JSChunk, sourceMap []byte) ([]byte, error)
+
+	// OmitSourceMapString, when true alongside CompressSourceMap or
+	// CompressSourceMapBytes, omits populating RenderedChunk.SourceMap so
+	// multi-thousand-chunk builds do not retain uncompressed source map JSON
+	// strings in memory.
+	OmitSourceMapString bool
+
 	// NumWorkers overrides the worker pool size. When <= 0, uses
 	// c.GetOptions().GetNumParallelThreads() if > 1, or runtime.GOMAXPROCS(0).
 	NumWorkers int
@@ -99,7 +112,7 @@ func populateChunkSourceMap(sm *SourceMap, scripts []parallelPrintedScript) {
 	}
 }
 
-func renderChunkSourceMapString(
+func prepareChunkSourceMapOutput(
 	sm *SourceMap,
 	m *JSChunk,
 	wrapperPrefix func(*JSChunk) string,
@@ -110,11 +123,44 @@ func renderChunkSourceMapString(
 			sm.SetWrapperPrefix(prefix)
 		}
 	}
-	name := chunkFileName(m)
+	return chunkFileName(m)
+}
+
+func renderChunkSourceMapString(
+	sm *SourceMap,
+	m *JSChunk,
+	wrapperPrefix func(*JSChunk) string,
+	chunkFileName func(*JSChunk) string,
+) string {
+	name := prepareChunkSourceMapOutput(sm, m, wrapperPrefix, chunkFileName)
 	var mapBuf strings.Builder
+	if est := sm.EstimatedByteSize(); est > 0 {
+		mapBuf.Grow(est)
+	}
 	sm.AppendTo(&mapBuf, name)
 	return mapBuf.String()
 }
+
+func renderChunkSourceMapBytesInto(
+	buf *bytes.Buffer,
+	sm *SourceMap,
+	m *JSChunk,
+	wrapperPrefix func(*JSChunk) string,
+	chunkFileName func(*JSChunk) string,
+) []byte {
+	name := prepareChunkSourceMapOutput(sm, m, wrapperPrefix, chunkFileName)
+	buf.Reset()
+	if est := sm.EstimatedByteSize(); est > buf.Cap() {
+		buf.Grow(est - buf.Len())
+	}
+	sm.AppendTo(buf, name)
+	return buf.Bytes()
+}
+
+const (
+	chunkRenderMaxBatchChunks  = 64
+	chunkRenderMaxBatchScripts = 256
+)
 
 func (c *Compiler) renderChunksBatched(
 	activeChunks []*JSChunk,
@@ -126,32 +172,107 @@ func (c *Compiler) renderChunksBatched(
 	gatherSourceMap bool,
 	postProcessInput func(*CompilerInput, string) string,
 	onSeqChunk func(globalIdx, batchIdx int, m *JSChunk, code string),
-	onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap),
+	onParChunk func(workerIdx, globalIdx, batchIdx int, m *JSChunk, sm *SourceMap),
 ) error {
-	const batchSize = 256
 	chunkTracker, _ := lt.(*Compiler_ChunkGraphAwareLicenseTracker)
-	batchCap := min(len(activeChunks), batchSize)
-	scriptOffsets := make([]int, batchCap+1)
-	printer := newParallelScriptPrinter(c, numWorkers, onlyScript, gatherSourceMap, batchCap)
+	totalInputs := 0
+	for _, m := range activeChunks {
+		totalInputs += len(m.GetInputs())
+	}
+	scriptOffsets := make([]int, chunkRenderMaxBatchChunks+1)
+	printer := newParallelScriptPrinter(
+		c,
+		numWorkers,
+		onlyScript,
+		gatherSourceMap,
+		min(max(totalInputs, 1), chunkRenderMaxBatchScripts),
+	)
 	printer.postProcessInput = postProcessInput
 
 	var workerSM []*SourceMap
 	if gatherSourceMap && onParChunk != nil {
-		workerSM = make([]*SourceMap, min(numWorkers, batchCap))
+		workerSM = make([]*SourceMap, max(1, min(numWorkers, min(len(activeChunks), chunkRenderMaxBatchChunks))))
 		for w := range workerSM {
 			workerSM[w] = c.newWorkerSourceMap()
 		}
 	}
 
 	cb := NewCompiler_CodeBuilder()
-	for batchStart := 0; batchStart < len(activeChunks); batchStart += batchSize {
-		batchLen := min(batchSize, len(activeChunks)-batchStart)
+	for chunkIdx := 0; chunkIdx < len(activeChunks); {
+		firstChunk := activeChunks[chunkIdx]
+		if inputs := firstChunk.GetInputs(); len(inputs) > chunkRenderMaxBatchScripts {
+			// Stream large chunks (such as a multi-thousand-input base chunk) in
+			// bounded script sub-batches so per-script codeBytes and mapping slices
+			// never accumulate beyond chunkRenderMaxBatchScripts at once.
+			for _, in := range inputs {
+				if in.GetAstRoot(c).IsNil() {
+					return jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + firstChunk.GetName())
+				}
+			}
+			if resetLTPerChunk != nil {
+				resetLTPerChunk()
+			}
+			if chunkTracker != nil {
+				chunkTracker.SetCurrentChunkContext(firstChunk)
+			}
+			cb.ResetAll()
+			var sm *SourceMap
+			if gatherSourceMap && onParChunk != nil {
+				sm = workerSM[0]
+				if chunkIdx == len(activeChunks)-1 && c.sourceMap != nil {
+					sm = c.sourceMap
+				}
+				sm.Reset()
+			}
+			for inStart := 0; inStart < len(inputs); inStart += chunkRenderMaxBatchScripts {
+				subLen := min(chunkRenderMaxBatchScripts, len(inputs)-inStart)
+				slots := printer.ensureSlots(subLen)
+				for k := range subLen {
+					idx := inStart + k
+					if err := printer.setSlot(k, firstChunk.GetName(), inputs[idx], idx == 0); err != nil {
+						return err
+					}
+				}
+				if err := printer.printBatch(subLen); err != nil {
+					return err
+				}
+				for k := range subLen {
+					c.appendPrintedScriptToCodeBuilder(cb, lt, replay, inStart+k, &slots[k])
+					if sm != nil {
+						addPrintedScriptMappings(sm, &slots[k])
+					} else {
+						resetSourceAndMappings(&slots[k].sm)
+					}
+				}
+			}
+			code := cb.String()
+			onSeqChunk(chunkIdx, 0, firstChunk, code)
+			if onParChunk != nil {
+				parFailures := runParallelIndexedTasks(1, 1, func(w, _ int) {
+					onParChunk(w, chunkIdx, 0, firstChunk, sm)
+				})
+				if len(parFailures) > 0 && parFailures[0] != nil {
+					return parFailures[0]
+				}
+			}
+			chunkIdx++
+			continue
+		}
+
+		batchStart := chunkIdx
+		batchLen := 0
 		totalScripts := 0
-		for j := range batchLen {
-			scriptOffsets[j] = totalScripts
-			totalScripts += len(activeChunks[batchStart+j].GetInputs())
+		for batchStart+batchLen < len(activeChunks) && batchLen < chunkRenderMaxBatchChunks {
+			nIn := len(activeChunks[batchStart+batchLen].GetInputs())
+			if batchLen > 0 && totalScripts+nIn > chunkRenderMaxBatchScripts {
+				break
+			}
+			scriptOffsets[batchLen] = totalScripts
+			totalScripts += nIn
+			batchLen++
 		}
 		scriptOffsets[batchLen] = totalScripts
+		chunkIdx += batchLen
 
 		slots := printer.ensureSlots(totalScripts)
 		for j := range batchLen {
@@ -200,12 +321,16 @@ func (c *Compiler) renderChunksBatched(
 					}
 					populateChunkSourceMap(sm, slots[scriptOffsets[j]:scriptOffsets[j+1]])
 				}
-				onParChunk(globalIdx, j, m, sm)
+				onParChunk(w, globalIdx, j, m, sm)
 			})
 			for _, f := range parFailures {
 				if f != nil {
 					return f
 				}
+			}
+		} else {
+			for k := range totalScripts {
+				resetSourceAndMappings(&slots[k].sm)
 			}
 		}
 	}
@@ -268,9 +393,35 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 		chunkFileName = func(m *JSChunk) string { return m.GetName() + ".js" }
 	}
 
+	hasCompress := opts.CompressSourceMap != nil || opts.CompressSourceMapBytes != nil
+	omitString := opts.OmitSourceMapString && hasCompress
+	renderOneMap := func(sm *SourceMap, m *JSChunk, mapBuf *bytes.Buffer) (string, []byte, error) {
+		if opts.CompressSourceMapBytes != nil && omitString {
+			raw := renderChunkSourceMapBytesInto(mapBuf, sm, m, opts.WrapperPrefix, chunkFileName)
+			b, cErr := opts.CompressSourceMapBytes(m, raw)
+			if mapBuf.Cap() > 16<<20 {
+				*mapBuf = bytes.Buffer{}
+			}
+			return "", b, cErr
+		}
+		smText := renderChunkSourceMapString(sm, m, opts.WrapperPrefix, chunkFileName)
+		var smBytes []byte
+		var cErr error
+		if opts.CompressSourceMapBytes != nil {
+			smBytes, cErr = opts.CompressSourceMapBytes(m, []byte(smText))
+		} else if opts.CompressSourceMap != nil {
+			smBytes, cErr = opts.CompressSourceMap(m, smText)
+		}
+		if omitString {
+			smText = ""
+		}
+		return smText, smBytes, cErr
+	}
+
 	replay, onlyScript, canParallel := compiler_licenseTrackerReplay(lt)
 	rendered = make([]RenderedChunk, len(activeChunks))
 	if !canParallel {
+		var seqMapBuf bytes.Buffer
 		for j, m := range activeChunks {
 			inputs := m.GetInputs()
 			for _, in := range inputs {
@@ -296,12 +447,9 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 			var smText string
 			var smBytes []byte
 			if gatherSourceMap {
-				smText = renderChunkSourceMapString(c.GetSourceMap(), m, opts.WrapperPrefix, chunkFileName)
-				if opts.CompressSourceMap != nil {
-					smBytes, err = opts.CompressSourceMap(m, smText)
-					if err != nil {
-						return nil, err
-					}
+				smText, smBytes, err = renderOneMap(c.GetSourceMap(), m, &seqMapBuf)
+				if err != nil {
+					return nil, err
 				}
 			}
 			rendered[j] = RenderedChunk{Chunk: m, Code: code, SourceMap: smText, SourceMapBytes: smBytes}
@@ -310,22 +458,27 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	}
 
 	var parErrs []error
-	if gatherSourceMap && opts.CompressSourceMap != nil {
+	if gatherSourceMap && hasCompress {
 		parErrs = make([]error, len(activeChunks))
 	}
-	var onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap)
+	var workerMapBufs []bytes.Buffer
+	if gatherSourceMap && opts.CompressSourceMapBytes != nil && omitString {
+		workerMapBufs = make([]bytes.Buffer, max(1, numWorkers))
+	}
+	var onParChunk func(workerIdx, globalIdx, batchIdx int, m *JSChunk, sm *SourceMap)
 	if gatherSourceMap {
-		onParChunk = func(globalIdx, _ int, m *JSChunk, sm *SourceMap) {
-			smText := renderChunkSourceMapString(sm, m, opts.WrapperPrefix, chunkFileName)
-			rendered[globalIdx].SourceMap = smText
-			if opts.CompressSourceMap != nil {
-				b, cErr := opts.CompressSourceMap(m, smText)
-				if cErr != nil {
-					parErrs[globalIdx] = cErr
-					return
-				}
-				rendered[globalIdx].SourceMapBytes = b
+		onParChunk = func(w, globalIdx, _ int, m *JSChunk, sm *SourceMap) {
+			var mapBuf *bytes.Buffer
+			if len(workerMapBufs) > 0 {
+				mapBuf = &workerMapBufs[w]
 			}
+			smText, smBytes, cErr := renderOneMap(sm, m, mapBuf)
+			if cErr != nil {
+				parErrs[globalIdx] = cErr
+				return
+			}
+			rendered[globalIdx].SourceMap = smText
+			rendered[globalIdx].SourceMapBytes = smBytes
 		}
 	}
 	err = c.renderChunksBatched(
@@ -416,7 +569,7 @@ func (c *Compiler) OutputChunksParallel(
 		code        string
 		wrapper     string
 	}
-	writeTasks := make([]chunkWriteTask, min(len(activeChunks), 256))
+	writeTasks := make([]chunkWriteTask, min(len(activeChunks), chunkRenderMaxBatchChunks))
 
 	err := c.renderChunksBatched(
 		activeChunks,
@@ -442,7 +595,7 @@ func (c *Compiler) OutputChunksParallel(
 				wrapper:     wrapper,
 			}
 		},
-		func(_, j int, _ *JSChunk, sm *SourceMap) {
+		func(_, _, j int, _ *JSChunk, sm *SourceMap) {
 			t := &writeTasks[j]
 			defer func() {
 				*t = chunkWriteTask{}

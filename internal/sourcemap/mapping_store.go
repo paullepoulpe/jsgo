@@ -32,6 +32,7 @@ import (
 // Go-only: performance.
 type sourceMapGeneratorV3_mappingStore struct {
 	blocks [][]byte // full blocks, then cur
+	free   [][]byte // recycled 64 KiB blocks across Reset() calls
 	cur    []byte
 	n      int
 	last   SourceMapGeneratorV3_Mapping // the last mapping added
@@ -40,10 +41,24 @@ type sourceMapGeneratorV3_mappingStore struct {
 const (
 	sourceMapGeneratorV3_mappingBlockSize  = 64 << 10
 	sourceMapGeneratorV3_maxEncodedMapping = 8 * binary.MaxVarintLen64
+	sourceMapGeneratorV3_maxFreeBlocks     = 64
 )
 
 func (s *sourceMapGeneratorV3_mappingStore) reset() {
-	*s = sourceMapGeneratorV3_mappingStore{}
+	for _, blk := range s.blocks {
+		if len(s.free) >= sourceMapGeneratorV3_maxFreeBlocks {
+			break
+		}
+		s.free = append(s.free, blk[:0])
+	}
+	if s.cur != nil && len(s.free) < sourceMapGeneratorV3_maxFreeBlocks {
+		s.free = append(s.free, s.cur[:0])
+	}
+	clear(s.blocks)
+	s.blocks = s.blocks[:0]
+	s.cur = nil
+	s.n = 0
+	s.last = SourceMapGeneratorV3_Mapping{}
 }
 
 func (s *sourceMapGeneratorV3_mappingStore) add(m *SourceMapGeneratorV3_Mapping) {
@@ -51,7 +66,13 @@ func (s *sourceMapGeneratorV3_mappingStore) add(m *SourceMapGeneratorV3_Mapping)
 		if s.cur != nil {
 			s.blocks = append(s.blocks, s.cur)
 		}
-		s.cur = make([]byte, 0, sourceMapGeneratorV3_mappingBlockSize)
+		if nf := len(s.free); nf > 0 {
+			s.cur = s.free[nf-1]
+			s.free[nf-1] = nil
+			s.free = s.free[:nf-1]
+		} else {
+			s.cur = make([]byte, 0, sourceMapGeneratorV3_mappingBlockSize)
+		}
 	}
 	p := &s.last
 	b := s.cur

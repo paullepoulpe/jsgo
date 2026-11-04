@@ -108,8 +108,18 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.mappings.reset()
 	g.sourceFiles.reset()
 	g.symbolNames.reset()
-	g.addedSourceFiles = nil
-	g.addedSymbolNames = nil
+	if cap(g.addedSourceFiles) <= 16384 {
+		clear(g.addedSourceFiles)
+		g.addedSourceFiles = g.addedSourceFiles[:0]
+	} else {
+		g.addedSourceFiles = nil
+	}
+	if cap(g.addedSymbolNames) <= 16384 {
+		clear(g.addedSymbolNames)
+		g.addedSymbolNames = g.addedSymbolNames[:0]
+	} else {
+		g.addedSymbolNames = nil
+	}
 	g.sourceIdxToFileId = g.sourceIdxToFileId[:0]
 	clear(g.orderedSourceFiles)
 	g.orderedSourceFiles = g.orderedSourceFiles[:0]
@@ -118,6 +128,12 @@ func (g *SourceMapGeneratorV3) Reset() {
 	g.orderedSymbolNames = g.orderedSymbolNames[:0]
 	g.offsetPosition = NewFilePosition(0, 0)
 	g.prefixPosition = NewFilePosition(0, 0)
+}
+
+// EstimatedByteSize returns a conservative capacity hint for pre-sizing a
+// destination buffer before AppendTo.
+func (g *SourceMapGeneratorV3) EstimatedByteSize() int {
+	return 256 + g.mappings.n*5 + len(g.addedSourceFiles)*32 + len(g.addedSymbolNames)*10
 }
 
 // Validate sets whether to perform (potentially costly) validation on the

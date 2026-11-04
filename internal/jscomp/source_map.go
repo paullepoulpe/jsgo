@@ -394,6 +394,15 @@ func (s *SourceMap) AppendTo(out io.StringWriter, name string) {
 	s.AppendToOptional(out, sourcemap.SomeString(name))
 }
 
+// EstimatedByteSize returns a capacity hint for pre-sizing a destination
+// buffer before AppendTo.
+func (s *SourceMap) EstimatedByteSize() int {
+	if s == nil || s.generatorV3 == nil {
+		return 0
+	}
+	return s.generatorV3.EstimatedByteSize()
+}
+
 // Java: SourceMap.reset()
 func (s *SourceMap) Reset() {
 	s.generatorV3.Reset()
