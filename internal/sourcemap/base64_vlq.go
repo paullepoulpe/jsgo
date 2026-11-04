@@ -59,6 +59,9 @@ func Base64_ToBase64(value int32) uint16 {
 //
 // Java: Base64.fromBase64(char)
 func Base64_FromBase64(c uint16) int32 {
+	if int(c) >= len(Base64_BASE64_DECODE_MAP) {
+		panic(jutil.NewArrayIndexOutOfBoundsExceptionForLength(int(c), len(Base64_BASE64_DECODE_MAP)))
+	}
 	return int32(Base64_BASE64_DECODE_MAP[c])
 }
 

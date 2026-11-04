@@ -19,7 +19,6 @@
 package parsing
 
 import (
-	"math"
 	"math/big"
 	"strings"
 	"unicode/utf16"
@@ -358,9 +357,11 @@ func parseUTF16HexCodePoint(units []uint16, begin, end int) int32 {
 		if d < 0 {
 			return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
 		}
-		acc = acc*16 + uint64(d)
-		if acc > math.MaxInt32 {
-			return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
+		if acc <= 0x10ffff {
+			acc = acc*16 + uint64(d)
+			if acc > 0x10ffff {
+				acc = 0x110000
+			}
 		}
 	}
 	return int32(acc)

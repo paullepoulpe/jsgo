@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -63,18 +64,27 @@ func DestructuringGlobalNameExtractor_ReassignDestructringLvalue(
 	newNodes *astChangeSet,
 	ref *GlobalNamespace_Ref,
 	compiler AbstractCompiler) {
-	pattern := stringKey.GetParent()
+	sk := ast.MustStringKey(stringKey)
+	pattern := sk.Node().GetParent()
 	assignmentType := pattern.GetParent()
-	jutil.CheckStateMsg1(assignmentType.IsAssign() || assignmentType.IsDestructuringLhs(), "%s", assignmentType)
-	originalRvalue := pattern.GetNext()                // e.g. `original`
+	var originalRvalue rhino.Node
+	if assign, ok := ast.AsAssign(assignmentType); ok {
+		originalRvalue = assign.Value().Node()
+	} else if lhs, ok := ast.AsDestructuringLhs(assignmentType); ok {
+		initExpr, hasInit := lhs.Init()
+		jutil.CheckState(hasInit)
+		originalRvalue = initExpr.Node()
+	} else {
+		panic(jutil.NewIllegalStateExceptionMsg(assignmentType.String()))
+	}
 	jutil.CheckState(originalRvalue.IsQualifiedName()) // don't handle rvalues with side effects
 
 	// Create a new assignment using the provided qualified name, e.g. `const y = new.name;`
 	var lvalueToReassign rhino.Node
-	if stringKey.GetOnlyChild().IsDefaultValue() {
-		lvalueToReassign = stringKey.GetOnlyChild().GetFirstChild()
+	if dv, ok := sk.Value().AsDefaultValue(); ok {
+		lvalueToReassign = dv.Target().Node()
 	} else {
-		lvalueToReassign = stringKey.GetOnlyChild()
+		lvalueToReassign = sk.Value().Node()
 	}
 	if newNodes != nil {
 		newNodes.add(NewGlobalNamespace_RefBasedAstChange(ref, newName))
@@ -171,8 +181,11 @@ func DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern rhi
 		parent.ReplaceWith(newLvalue)
 		newLvalue.AddChildToBack(newRvalue)
 	} else {
-		pattern.GetNext().Detach()
-		pattern.Detach()
+		lhs := ast.MustDestructuringLhs(parent)
+		if initExpr, ok := lhs.Init(); ok {
+			initExpr.Detach()
+		}
+		lhs.Pattern().Detach()
 		parent.AddChildToBack(newLvalue)
 		parent.AddChildToBack(newRvalue)
 	}
@@ -187,8 +200,8 @@ func DestructuringGlobalNameExtractor_ReplaceDestructuringAssignment(pattern rhi
 // Java: DestructuringGlobalNameExtractor.makeNewRvalueForDestructuringKey(Node, Node, Set<AstChange>, Ref)
 func DestructuringGlobalNameExtractor_MakeNewRvalueForDestructuringKey(
 	stringKey rhino.Node, rvalue rhino.Node, newNodes *astChangeSet, ref *GlobalNamespace_Ref) rhino.Node {
-	if stringKey.GetOnlyChild().IsDefaultValue() {
-		defaultValue := stringKey.GetFirstChild().GetSecondChild().Detach()
+	if dv, ok := ast.MustStringKey(stringKey).Value().AsDefaultValue(); ok {
+		defaultValue := dv.Value().Detach().Node()
 		// Assume `rvalue` has no side effects since it's a qname, and we can create multiple
 		// references to it. This ignores getters/setters.
 		rvalueForSheq := rvalue.CloneTree()

@@ -156,38 +156,35 @@ func (p *PeepholeFoldConstants) TryFoldAdd(node rhino.Node, left rhino.Node, rig
 // rightmost left child leaf node which must be a string literal and the
 // leftmost right child leaf node if possible to do so in a type safe way.
 //
-// Go-only: the walks down chains of '+' test each node with IsAdd and step
-// to a child, which the typed view would spell as a conversion per step;
-// this keeps the rhino API.
-//
 // Java: PeepholeFoldConstants.tryFoldAdjacentLiteralLeaves(Node, Node, Node)
 func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 
 	// Find left child's rightmost leaf
-	leftParent := n
-	for left.IsAdd() {
+	_, leftParentIsAdd := ast.AsBinaryOf(n, rhino.Token_ADD)
+	for add, ok := ast.AsBinaryOf(left, rhino.Token_ADD); ok; add, ok = ast.AsBinaryOf(left, rhino.Token_ADD) {
 		// This had better be in a chain of '+' operations
-		leftParent = left
-		left = left.GetSecondChild()
+		leftParentIsAdd = true
+		left = add.Right().Node()
 	}
 
 	// Find right child's leftmost leaf
-	rightParent := n
-	for right.IsAdd() {
+	rightParent, rightParentIsAdd := ast.AsBinaryOf(n, rhino.Token_ADD)
+	for add, ok := ast.AsBinaryOf(right, rhino.Token_ADD); ok; add, ok = ast.AsBinaryOf(right, rhino.Token_ADD) {
 		// This had better be in a chain of '+' operations
-		rightParent = right
-		right = right.GetFirstChild()
+		rightParent, rightParentIsAdd = add, true
+		right = add.Left().Node()
 	}
 
 	// Try to fold if of the form:
 	// ... + <STRINGLITERAL> + <LITERAL>
 	// ... + <STRINGLITERAL> + (<LITERAL> + ...)
 	// aka. when the literal might be collapsible into the string
-	if leftParent.IsAdd() &&
-		left.IsStringLit() &&
-		rightParent.IsAdd() &&
+	leftStr, leftIsStr := ast.AsStringLit(left)
+	if leftParentIsAdd &&
+		leftIsStr &&
+		rightParentIsAdd &&
 		NodeUtil_IsLiteralValue(right /* includeFunctions= */, false) {
-		rightGrandparent := rightParent.GetParent()
+		rightGrandparentAdd, rightGrandparentIsAdd := ast.AsBinaryOf(rightParent.Node().GetParent(), rhino.Token_ADD)
 		// `rr` is righthand side term that `right` is being added to and is null if right is still
 		// the second child of `n` being added to `left` and non-null if it is in a nested add expr
 		rr := right.GetNext()
@@ -198,12 +195,11 @@ func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n rhino.Node, left 
 					// If right.getNext() isn't a string result, right must be a string to be folded
 					right.IsStringLit() &&
 					// Access the right grandparent safely...
-					!rightGrandparent.IsNil() &&
-					rightGrandparent.IsAdd() &&
+					rightGrandparentIsAdd &&
 					// The second child of `rightGrandparent` is what `right + rr` is being added to.
 					// If it exists, `right` can only be safely removed if `rr` is still treated as a
 					// string in the resulting addition.
-					NodeUtil_IsStringResult(rightGrandparent.GetSecondChild())) ||
+					NodeUtil_IsStringResult(rightGrandparentAdd.Right().Node())) ||
 				// Dangling literal term has no typecasting side effects; fold it!
 				(rr.IsNil())
 		if foldIsTypeSafe {
@@ -211,15 +207,15 @@ func (p *PeepholeFoldConstants) TryFoldAdjacentLiteralLeaves(n rhino.Node, left 
 			if !ok {
 				rightStr = "null"
 			}
-			result := left.GetString() + rightStr
+			result := leftStr.Value() + rightStr
 			// If the right parent is the root, shift the left parent up so as not to overwrite the tree
 			// Otherwise, shift the right parent up
-			if rightParent.GetSecondChild() == right {
+			if rightParent.Right().Is(right) {
 				left.ReplaceWith(rhino.IR_String(result))
-				p.Replace(rightParent, rightParent.GetFirstChild().CloneTreeWithTypeExprs(true))
+				p.Replace(rightParent.Node(), rightParent.Left().Node().CloneTreeWithTypeExprs(true))
 			} else {
 				left.ReplaceWith(rhino.IR_String(result))
-				p.Replace(rightParent, rightParent.GetSecondChild().CloneTreeWithTypeExprs(true))
+				p.Replace(rightParent.Node(), rightParent.Right().Node().CloneTreeWithTypeExprs(true))
 			}
 		}
 	}
@@ -644,16 +640,18 @@ func (p *PeepholeFoldConstants) TryFoldLeftChildOp(n rhino.Node, left rhino.Node
 		ll, lr := leftOp.Left().Node(), leftOp.Right().Node()
 
 		valueToCombine := ll
+		remainingChild := lr
 		replacement := p.PerformArithmeticOp(n, valueToCombine, right)
 		if replacement.IsNil() {
 			valueToCombine = lr
+			remainingChild = ll
 			replacement = p.PerformArithmeticOp(n, valueToCombine, right)
 		}
 		if !replacement.IsNil() {
 			// Remove the child that has been combined
 			valueToCombine.Detach()
 			// Replace the left op with the remaining child.
-			left.ReplaceWith(left.RemoveFirstChild())
+			left.ReplaceWith(remainingChild.Detach())
 			// New "-Infinity" node need location info explicitly
 			// added.
 			replacement.SrcrefTreeIfMissing(right)

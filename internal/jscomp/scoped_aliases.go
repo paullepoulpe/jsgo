@@ -496,8 +496,8 @@ func (s *ScopedAliases) ExitScope(t *NodeTraversal) {
 // Java: ScopedAliases.Traversal.reportInvalidVariables(NodeTraversal)
 func (s *ScopedAliases) reportInvalidVariables(t *NodeTraversal) {
 	scopeRoot := t.GetScopeRoot()
-	enclosingFunctionBody := ast.MustFunction(t.GetEnclosingFunction()).Body().Node()
-	if s.isGoogScopeFunctionBody(enclosingFunctionBody) &&
+	if enclosingFn, ok := ast.AsFunction(t.GetEnclosingFunction()); ok &&
+		s.isGoogScopeFunctionBody(enclosingFn.Body().Node()) &&
 		scopeRoot.IsBlock() &&
 		!scopeRoot.GetParent().IsFunction() {
 		for var_ := range t.GetScope().GetVarIterable() {
@@ -834,7 +834,8 @@ func (s *ScopedAliases) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node)
 		}
 	}
 
-	if s.isGoogScopeFunctionBody(ast.MustFunction(t.GetEnclosingFunction()).Body().Node()) {
+	if enclosingFn, ok := ast.AsFunction(t.GetEnclosingFunction()); ok &&
+		s.isGoogScopeFunctionBody(enclosingFn.Body().Node()) {
 		if aliasVar != nil && NodeUtil_IsLValue(n) {
 			if aliasVar.GetNode() == n {
 				// Return early, to ensure that we don't record this as an alias

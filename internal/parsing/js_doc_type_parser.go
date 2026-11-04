@@ -355,7 +355,7 @@ func (p *JsDocInfoParser) ParseNameExpression(token JsDocToken) rhino.Node {
 func (p *JsDocInfoParser) ParseTypeName(token JsDocToken) rhino.Node {
 	typeNameNode := p.ParseNameExpression(token)
 
-	if p.Match(JsDocToken_LEFT_ANGLE) {
+	if !typeNameNode.IsNil() && p.Match(JsDocToken_LEFT_ANGLE) {
 		p.Next()
 		p.SkipEOLs()
 		memberType := p.ParseTypeExpressionList(typeNameNode.GetString(), p.Next())

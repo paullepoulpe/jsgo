@@ -769,6 +769,12 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 		// codebase
 		!r.IsNonNullableName(jsTypeStaticScopeOrNil(scope), name) {
 		firstExtraTemplateParam := typeNode.GetFirstChild().GetChildAtIndex(requiredTemplateArgCount)
+		if firstExtraTemplateParam.IsNil() {
+			firstExtraTemplateParam = typeNode.GetFirstChild().GetLastChild()
+			if firstExtraTemplateParam.IsNil() {
+				firstExtraTemplateParam = typeNode
+			}
+		}
 		message := "Too many template parameters\nFound " +
 			jutil.ToJavaString(len(templateArgs)) +
 			", required at most " +

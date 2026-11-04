@@ -189,7 +189,7 @@ func (v *JsMessageVisitor) Process(externs rhino.Node, root rhino.Node) {
 	NodeTraversal_Traverse(v.compiler, root, v)
 
 	for msgNode := range v.googMsgNodes.All() {
-		calleeQName, _ := msgNode.GetFirstChild().GetQualifiedNameString()
+		calleeQName, _ := ast.MustCall(msgNode).Callee().Node().GetQualifiedNameString()
 		v.compiler.Report(
 			JSError_MakeWithNode(
 				msgNode, JsMessageVisitor_MESSAGE_NODE_IS_ORPHANED, calleeQName))
@@ -254,11 +254,11 @@ func (v *JsMessageVisitor) checkMessageInitialization(traversal *NodeTraversal, 
 		jsDocInfo = node.GetJSDocInfo()
 	case rhino.Token_STRING_KEY:
 		// Case: `var t = {MSG_HELLO: 'Message'}`;
-		if node.IsQuotedStringKey() || !node.HasChildren() || parent.IsObjectPattern() {
+		sk := ast.MustStringKey(node)
+		if sk.IsQuoted() || sk.Value().Node().IsNil() || parent.IsObjectPattern() {
 			return
 		}
 		jutil.CheckStateMsg1(parent.IsObjectLit(), "%s", parent)
-		sk := ast.MustStringKey(node)
 		possiblyObfuscatedMessageKey = sk.Key()
 		messageKeyFromLhs = possiblyObfuscatedMessageKey
 		if orig, ok := node.OriginalName(); ok {
@@ -575,14 +575,19 @@ func (v *JsMessageVisitor) checkIfMessageDuplicated(msgName string, msgNode rhin
 // Java: JsMessageVisitor.visitFallbackFunctionCall(NodeTraversal, Node)
 func (v *JsMessageVisitor) visitFallbackFunctionCall(t *NodeTraversal, call ast.Call) {
 	callNode := call.Node()
-	if !callNode.HasXChildren(3) ||
-		!jsMessageVisitor_isMessageIdentifier(callNode.GetSecondChild()) ||
-		!jsMessageVisitor_isMessageIdentifier(callNode.GetLastChild()) {
+	if call.NumArgs() != 2 {
+		v.compiler.Report(JSError_MakeWithNode(callNode, JsMessageVisitor_BAD_FALLBACK_SYNTAX))
+		return
+	}
+	firstArg := call.MustFirstArg().Node()
+	lastArg, _ := call.LastArg()
+	secondArg := lastArg.Node()
+	if !jsMessageVisitor_isMessageIdentifier(firstArg) ||
+		!jsMessageVisitor_isMessageIdentifier(secondArg) {
 		v.compiler.Report(JSError_MakeWithNode(callNode, JsMessageVisitor_BAD_FALLBACK_SYNTAX))
 		return
 	}
 
-	firstArg := callNode.GetSecondChild()
 	firstMessage := v.getJsMessageFromNode(t, firstArg)
 	if firstMessage == nil {
 		firstArgQName, _ := firstArg.GetQualifiedNameString()
@@ -590,7 +595,6 @@ func (v *JsMessageVisitor) visitFallbackFunctionCall(t *NodeTraversal, call ast.
 		return
 	}
 
-	secondArg := firstArg.GetNext()
 	secondMessage := v.getJsMessageFromNode(t, secondArg)
 	if secondMessage == nil {
 		secondArgQName, _ := secondArg.GetQualifiedNameString()

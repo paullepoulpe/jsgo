@@ -61,10 +61,10 @@ func isRemovableAssignNode(n rhino.Node) bool {
 func daeScanNode(n rhino.Node, compiler AbstractCompiler, candidates *[]rhino.Node) (hasFn bool, hasAssign bool) {
 	if fn, ok := ast.AsFunction(n); ok {
 		if fnBody, isBlock := fn.Body().AsBlock(); isBlock {
-			daeScanNode(fn.NameNode().Node(), compiler, candidates)
-			daeScanNode(fn.Params().Node(), compiler, candidates)
-			bodyHasFn := false
-			bodyHasAssign := false
+			nameFn, nameAssign := daeScanNode(fn.NameNode().Node(), compiler, candidates)
+			paramFn, paramAssign := daeScanNode(fn.Params().Node(), compiler, candidates)
+			bodyHasFn := nameFn || paramFn
+			bodyHasAssign := nameAssign || paramAssign
 			for c := fnBody.Node().GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				cFn, cAssign := daeScanNode(c, compiler, candidates)
 				if cFn {
@@ -162,6 +162,8 @@ func (d *DeadAssignmentsElimination) Process(externs rhino.Node, root rhino.Node
 		return
 	}
 
+	prewarmCompilerForParallelReads(d.compiler)
+	freezeGlobalScopeForParallelReads(dummyGlobal)
 	changeCounts := make([]int, len(candidates))
 	runParallelWorkersIndexed(
 		len(candidates),

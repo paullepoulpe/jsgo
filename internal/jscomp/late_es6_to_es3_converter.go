@@ -274,12 +274,17 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 		}
 	}
 
+	ensureArrowBlockBody(l.compiler, obj.Node())
 	statement := obj.Node()
 	for !NodeUtil_IsStatement(statement) {
 		statement = statement.GetParent()
 	}
 
 	isInsideLoopHeader := NodeUtil_IsLoopStructure(statement)
+	insertionPoint := statement
+	for !insertionPoint.IsNil() && !insertionPoint.GetParent().IsNil() && insertionPoint.GetParent().IsLabel() {
+		insertionPoint = insertionPoint.GetParent()
+	}
 
 	if isInsideLoopHeader {
 		placeholder := rhino.IR_Empty()
@@ -293,16 +298,16 @@ func (l *LateEs6ToEs3Converter) VisitObjectWithComputedProperty(t *NodeTraversal
 		placeholder.ReplaceWith(result)
 
 		var_ := rhino.IR_Var(l.astFactory.CreateName(objName, objectType))
-		var_.SrcrefTreeIfMissing(statement)
-		var_.InsertBefore(statement)
+		var_.SrcrefTreeIfMissing(insertionPoint)
+		var_.InsertBefore(insertionPoint)
 		l.compiler.ReportChangeToEnclosingScope(var_)
 	} else {
 		result.SrcrefTreeIfMissing(obj.Node())
 		obj.Node().ReplaceWith(result)
 
 		var_ := rhino.IR_VarWithValue(l.astFactory.CreateName(objName, objectType), obj.Node())
-		var_.SrcrefTreeIfMissing(statement)
-		var_.InsertBefore(statement)
+		var_.SrcrefTreeIfMissing(insertionPoint)
+		var_.InsertBefore(insertionPoint)
 		l.compiler.ReportChangeToEnclosingScope(var_)
 	}
 }

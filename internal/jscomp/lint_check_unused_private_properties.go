@@ -34,8 +34,15 @@ var checkUnusedPrivatePropertiesVisitTokens = makeVisitTokenSet(
 	rhino.Token_CLASS,
 )
 
-var _ nodeTraversal_visitTokens = (*CheckUnusedPrivateProperties)(nil)
+var (
+	_ nodeTraversal_visitTokens                         = (*CheckUnusedPrivateProperties)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*CheckUnusedPrivateProperties)(nil)
+)
 
+func (*CheckUnusedPrivateProperties) shouldTraverseOnlyScriptAndFunction() bool { return true }
+func (*CheckUnusedPrivateProperties) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckUnusedPrivateProperties(c)
+}
 func (*CheckUnusedPrivateProperties) visitTokens() *ast.TokenSet {
 	return &checkUnusedPrivatePropertiesVisitTokens
 }
@@ -100,6 +107,7 @@ func (c *CheckUnusedPrivateProperties) ShouldTraverse(t *NodeTraversal, n rhino.
 		c.used["constructor"] = true
 		clear(c.candidates)
 		c.candidates = c.candidates[:0]
+		clear(c.constructorsAndInterfaces)
 	}
 	return true
 }

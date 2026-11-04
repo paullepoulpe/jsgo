@@ -21,6 +21,7 @@ package sourcemap_test
 import (
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
@@ -52,4 +53,33 @@ func base64TestValue(t *testing.T, value int32) {
 	if got := sourcemap.Base64_FromBase64(sourcemap.Base64_ToBase64(value)); got != value {
 		t.Errorf("fromBase64(toBase64(%d)) = %d", value, got)
 	}
+}
+
+func TestBase64FromBase64OutOfBoundsAndInvalid(t *testing.T) {
+	if got := sourcemap.Base64_FromBase64('!'); got != -1 {
+		t.Fatalf("Base64_FromBase64('!') = %d, want -1", got)
+	}
+	for _, ch := range []uint16{256, 0x1234, 0xffff} {
+		func() {
+			defer func() {
+				r := recover()
+				if _, ok := r.(*jutil.ArrayIndexOutOfBoundsException); !ok {
+					t.Fatalf("Base64_FromBase64(0x%x) panic = %T (%v), want *jutil.ArrayIndexOutOfBoundsException", ch, r, r)
+				}
+			}()
+			sourcemap.Base64_FromBase64(ch)
+		}()
+	}
+
+	ci := &base64VLQTest_CharIteratorImpl{}
+	ci.set("\u0100")
+	func() {
+		defer func() {
+			r := recover()
+			if _, ok := r.(*jutil.ArrayIndexOutOfBoundsException); !ok {
+				t.Fatalf("Base64VLQ_Decode(\"\\u0100\") panic = %T (%v), want *jutil.ArrayIndexOutOfBoundsException", r, r)
+			}
+		}()
+		sourcemap.Base64VLQ_Decode(ci)
+	}()
 }

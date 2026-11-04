@@ -412,9 +412,71 @@ func (r *RemoveUnusedCode) resetLocalScriptWorker() {
 	r.polyfillSlab.Reset(nil)
 }
 
+func collectGlobalLocalScopeUnits(n rhino.Node, units *[]rhino.Node) bool {
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetFirstChild().IsNil() {
+			continue
+		}
+		switch c.GetToken() {
+		case rhino.Token_MODULE_BODY:
+			return false
+		case rhino.Token_FUNCTION, rhino.Token_CLASS,
+			rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
+			rhino.Token_SWITCH_BODY:
+			*units = append(*units, c)
+		case rhino.Token_BLOCK:
+			if !c.IsSyntheticBlock() {
+				*units = append(*units, c)
+			} else if !collectGlobalLocalScopeUnits(c, units) {
+				return false
+			}
+		default:
+			if !collectGlobalLocalScopeUnits(c, units) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (r *RemoveUnusedCode) traverseSingleScriptLocalUnitsParallel(root, script rhino.Node) bool {
+	if !script.GetFirstChild().IsNil() && script.GetFirstChild().IsModuleBody() {
+		return false
+	}
+	var units []rhino.Node
+	if !collectGlobalLocalScopeUnits(script, &units) || len(units) < 4 {
+		return false
+	}
+	numWorkers := parallelThreadCount(r.compiler, len(units))
+	if numWorkers <= 1 {
+		return false
+	}
+	globalScope := r.createGlobalScope(root)
+	freezeGlobalScopeForParallelReads(globalScope)
+	prewarmCompilerForParallelReads(r.compiler)
+	restore := enableParallelTypeRegistryReads(r.compiler)
+	defer restore()
+
+	runParallelWork(r.compiler, numWorkers, len(units), func(_ int) (func(int, *recordingCompiler), func()) {
+		var wr *RemoveUnusedCode
+		return func(idx int, rc *recordingCompiler) {
+			if wr == nil {
+				wr = r.newLocalScriptWorker(rc)
+			} else {
+				wr.resetLocalScriptWorker()
+			}
+			wr.traverseRootAndRemoveVars(units[idx], globalScope)
+		}, nil
+	}, false)
+	return true
+}
+
 func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node) bool {
 	if !r.canParallelizeLocalScripts() || root.GetParent().IsNil() {
 		return false
+	}
+	if scripts, ok := collectRootScripts(root); ok && len(scripts) == 1 {
+		return r.traverseSingleScriptLocalUnitsParallel(root, scripts[0])
 	}
 	var globalScope *Scope
 	return traverseScriptsParallel(r.compiler, root, parallelScriptOptions[*RemoveUnusedCode]{
@@ -458,6 +520,16 @@ func (r *RemoveUnusedCode) isParamVarRemovable(nameNode rhino.Node, fparamScope 
 	v := fparamScope.GetVarByNode(nameNode)
 	if v == nil {
 		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("%s", nameNode)))
+	}
+	if r.cacheVarInfos {
+		if c := v.rucInfo; c != 0 {
+			if c == rucVarInfoCanonical {
+				return false
+			}
+			if i := int(c - 1); i < len(r.varInfos) && r.varInfos[i].var_ == v {
+				return r.varInfos[i].IsRemovable()
+			}
+		}
 	}
 	isGlobal := v.IsGlobal()
 	if v.IsExtern() || r.isExportedByConvention(v.GetName(), !isGlobal) || v.IsArguments() {

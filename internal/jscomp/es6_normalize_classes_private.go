@@ -495,7 +495,7 @@ func (e *Es6NormalizeClasses) rewriteSuperReferencesInPrivateMember(fn ast.Funct
 
 func (e *Es6NormalizeClasses) rewriteSuperRefsInSubtree(
 	node rhino.Node, fnBody rhino.Node, isStatic bool, record *es6NormalizeClasses_ClassRecord) {
-	if !node.IsClass() {
+	if !node.IsClass() && !isObjectLitMethodOrAccessorFunction(node) {
 		for c := node.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
 			e.rewriteSuperRefsInSubtree(c, fnBody, isStatic, record)

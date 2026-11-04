@@ -224,7 +224,7 @@ func Matchers_ConstructorWithName(name string) Matcher {
 		} else {
 			target = node.GetFirstChild()
 		}
-		return (target.IsGetProp() || target.IsName()) && target.MatchesQualifiedName(name)
+		return !target.IsNil() && (target.IsGetProp() || target.IsName()) && target.MatchesQualifiedName(name)
 	}
 }
 

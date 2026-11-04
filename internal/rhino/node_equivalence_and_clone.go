@@ -419,6 +419,9 @@ func (n Node) getQualifiedNameString() (string, bool) {
 		return name, true
 	case Token_GETPROP:
 		first := n.firstNode()
+		if first.IsNil() {
+			return "", false
+		}
 		if !first.IsGetProp() {
 			left, ok := first.getQualifiedNameString()
 			if !ok {
@@ -435,6 +438,9 @@ func (n Node) getQualifiedNameString() (string, bool) {
 			parts = append(parts, p)
 			totalLen += 1 + len(p)
 			cur = cur.firstNode()
+			if cur.IsNil() {
+				return "", false
+			}
 		}
 		left, ok := cur.getQualifiedNameString()
 		if !ok {
@@ -498,6 +504,9 @@ func (n Node) originalQualifiedName() (string, bool) {
 		return name, true
 	case Token_GETPROP:
 		first := n.firstNode()
+		if first.IsNil() {
+			return "", false
+		}
 		if !first.IsGetProp() {
 			left, ok := first.originalQualifiedName()
 			if !ok {
@@ -514,6 +523,9 @@ func (n Node) originalQualifiedName() (string, bool) {
 			parts = append(parts, p)
 			totalLen += 1 + len(p)
 			cur = cur.firstNode()
+			if cur.IsNil() {
+				return "", false
+			}
 		}
 		left, ok := cur.originalQualifiedName()
 		if !ok {

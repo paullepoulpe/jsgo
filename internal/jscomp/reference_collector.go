@@ -21,10 +21,13 @@ package jscomp
 import (
 	"iter"
 	"slices"
+	"sync"
+	"weak"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // scopedVarKey is what makes two Vars equal (ScopedName equality).
@@ -105,6 +108,9 @@ type ReferenceCollector struct {
 
 	// Only collect references for filtered variables.
 	varFilter func(*Var) bool
+
+	// skipFn optionally skips traversing FUNCTION subtrees proven irrelevant by caller bloom filters.
+	skipFn func(rhino.Node) bool
 
 	// If true, hoisted function declarations are traversed when the function is
 	// first referenced. If false, hoisted functions are traversed in statement
@@ -516,6 +522,10 @@ func (c *ReferenceCollector) MaybeJumpToHoistedFunction(var_ *Var, t *NodeTraver
 	if !ok {
 		return
 	}
+	if c.skipFn != nil && c.skipFn(fnNode) {
+		c.blocks.markHoistedCollected(fnNode)
+		return
+	}
 	varScope := var_.getScopeS()
 
 	// If we're only traversing a narrow scope, do not try to climb outside.
@@ -627,6 +637,13 @@ func (c *ReferenceCollector) ShouldTraverse(nodeTraversal *NodeTraversal, n rhin
 		default:
 			return false
 		}
+	}
+
+	if c.skipFn != nil && n.IsFunction() && c.skipFn(n) {
+		if c.collectHoistedFunctionsInReferenceOrder && rcIsHoistedFunctionDeclaration(n) {
+			c.blocks.markHoistedCollected(n)
+		}
+		return false
 	}
 
 	// When collectHoistedFunctionsInReferenceOrder is true, we automatically
@@ -912,3 +929,159 @@ func (f ReferenceCollector_BehaviorFunc) AfterExitScope(t *NodeTraversal, refs *
 }
 
 var ReferenceCollector_DO_NOTHING_BEHAVIOR ReferenceCollector_Behavior = nil
+
+type rcNameBloom [8]uint64
+
+func (b *rcNameBloom) addID(id uint32) {
+	if id > uint32(strpool.EmptyID) {
+		h := scopeIDHash(id)
+		b[(h>>6)&7] |= uint64(1) << (h & 63)
+	}
+}
+
+func (b *rcNameBloom) hasID(id uint32) bool {
+	h := scopeIDHash(id)
+	return id > uint32(strpool.EmptyID) && b[(h>>6)&7]&(uint64(1)<<(h&63)) != 0
+}
+
+func (b *rcNameBloom) or(o *rcNameBloom) {
+	for i := range b {
+		b[i] |= o[i]
+	}
+}
+
+func (b *rcNameBloom) intersects(o *rcNameBloom) bool {
+	return (b[0]&o[0])|(b[1]&o[1])|(b[2]&o[2])|(b[3]&o[3])|(b[4]&o[4])|(b[5]&o[5])|(b[6]&o[6])|(b[7]&o[7]) != 0
+}
+
+type rcFnBloomEntry struct {
+	changeTime   int32
+	nameID       uint32
+	bodyBloom    rcNameBloom
+	hoistedBloom rcNameBloom
+}
+
+type rcFnBloomCache struct {
+	mu       sync.RWMutex
+	root     rhino.Node
+	compacts int
+	entries  map[rhino.Node]rcFnBloomEntry
+}
+
+var (
+	rcSharedFnBloomsMu   sync.Mutex
+	rcSharedFnBloomsNext int
+	rcSharedFnBlooms     [8]struct {
+		compiler weak.Pointer[Compiler]
+		cache    *rcFnBloomCache
+	}
+)
+
+func acquireRCFnBloomCache(c AbstractCompiler, root rhino.Node, fallback *rcFnBloomCache) *rcFnBloomCache {
+	if c == nil || c.parallelRecorder != nil || c.changeTracker == nil || root.IsNil() || root != c.GetJsRoot() {
+		return fallback
+	}
+	wp := weak.Make(c)
+	rcSharedFnBloomsMu.Lock()
+	defer rcSharedFnBloomsMu.Unlock()
+	freeIdx := -1
+	for i := range rcSharedFnBlooms {
+		if rcSharedFnBlooms[i].compiler == wp {
+			bc := rcSharedFnBlooms[i].cache
+			if bc.root != root || bc.compacts != c.astCompact.count {
+				bc.clear()
+				bc.root, bc.compacts = root, c.astCompact.count
+			}
+			return bc
+		}
+		if freeIdx < 0 && (rcSharedFnBlooms[i].cache == nil || rcSharedFnBlooms[i].compiler.Value() == nil) {
+			freeIdx = i
+		}
+	}
+	if freeIdx < 0 {
+		freeIdx = rcSharedFnBloomsNext & 7
+		rcSharedFnBloomsNext++
+	}
+	bc := &rcFnBloomCache{root: root, compacts: c.astCompact.count}
+	rcSharedFnBlooms[freeIdx].compiler, rcSharedFnBlooms[freeIdx].cache = wp, bc
+	return bc
+}
+
+func (c *rcFnBloomCache) clear() {
+	c.mu.Lock()
+	clear(c.entries)
+	c.mu.Unlock()
+}
+
+func (c *rcFnBloomCache) invalidateChanged(hasChangedDescendant map[rhino.Node]bool) {
+	c.mu.Lock()
+	if len(c.entries) > 0 {
+		// order-independent: deleting invalidated function keys from bloom cache map
+		for n := range hasChangedDescendant {
+			if n.IsFunction() {
+				delete(c.entries, n)
+			}
+		}
+	}
+	c.mu.Unlock()
+}
+
+func (c *rcFnBloomCache) get(fn rhino.Node) rcFnBloomEntry {
+	ct := fn.GetChangeTime()
+	c.mu.RLock()
+	e, ok := c.entries[fn]
+	c.mu.RUnlock()
+	if ok && e.changeTime == ct && !fn.IsDeleted() {
+		return e
+	}
+	c.mu.Lock()
+	if len(c.entries) > 65536 {
+		clear(c.entries)
+	} else if c.entries == nil {
+		c.entries = make(map[rhino.Node]rcFnBloomEntry, 256)
+	}
+	e = c.computeLocked(fn)
+	c.mu.Unlock()
+	return e
+}
+
+func (c *rcFnBloomCache) computeLocked(fn rhino.Node) rcFnBloomEntry {
+	ct := fn.GetChangeTime()
+	if e, ok := c.entries[fn]; ok && e.changeTime == ct && !fn.IsDeleted() {
+		return e
+	}
+	fnName := fn.GetFirstChild()
+	e := rcFnBloomEntry{changeTime: ct, nameID: fnName.GetStringID()}
+	for ch := fnName.GetNext(); !ch.IsNil(); ch = ch.GetNext() {
+		c.walkSubtreeLocked(ch, &e)
+	}
+	if !fn.IsDeleted() {
+		c.entries[fn] = e
+	}
+	return e
+}
+
+func (c *rcFnBloomCache) walkSubtreeLocked(n rhino.Node, dst *rcFnBloomEntry) {
+	if n.IsFunction() {
+		sub := c.computeLocked(n)
+		dst.bodyBloom.addID(sub.nameID)
+		dst.bodyBloom.or(&sub.bodyBloom)
+		dst.hoistedBloom.or(&sub.hoistedBloom)
+		if rcIsHoistedFunctionDeclaration(n) {
+			dst.hoistedBloom.addID(sub.nameID)
+		}
+		return
+	}
+	if tok := n.GetToken(); tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
+		dst.bodyBloom.addID(n.GetStringID())
+	}
+	for ch := n.GetFirstChild(); !ch.IsNil(); ch = ch.GetNext() {
+		if ch.GetFirstChild().IsNil() {
+			if tok := ch.GetToken(); tok == rhino.Token_NAME || tok == rhino.Token_IMPORT_STAR {
+				dst.bodyBloom.addID(ch.GetStringID())
+			}
+			continue
+		}
+		c.walkSubtreeLocked(ch, dst)
+	}
+}

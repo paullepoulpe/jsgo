@@ -119,9 +119,15 @@ func Pattern_Compile(regex string) *Pattern {
 		return &p
 	}
 	p := patternCompile(regex)
-	if patternCacheSize.Add(1) <= patternCacheLimit {
-		cached := *p
-		patternCache.Store(regex, &cached)
+	if patternCacheSize.Load() < patternCacheLimit {
+		if patternCacheSize.Add(1) <= patternCacheLimit {
+			cached := *p
+			if _, loaded := patternCache.LoadOrStore(regex, &cached); loaded {
+				patternCacheSize.Add(-1)
+			}
+		} else {
+			patternCacheSize.Add(-1)
+		}
 	}
 	return p
 }

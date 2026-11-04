@@ -655,9 +655,12 @@ func PeepholeMinimizeConditions_ConsumesDanglingElse(n ast.Statement) bool {
 		case rhino.Token_WITH:
 			with, _ := n.AsWith() // the case proves the kind
 			n = with.Body().AsStatement()
-		case rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN:
+		case rhino.Token_WHILE, rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF:
 			loop, _ := n.AsLoop() // the case proves the kind
 			n = loop.Body().AsStatement()
+		case rhino.Token_LABEL:
+			lbl, _ := n.AsLabel() // the case proves the kind
+			n = lbl.Body()
 		default:
 			return false
 		}

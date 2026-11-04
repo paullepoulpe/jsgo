@@ -92,11 +92,10 @@ func Normalize_IsFunctionExpressionNameNode(n rhino.Node) bool {
 }
 
 // normalizeIsFunctionExpressionName reports whether x is the name of a
-// function expression, including the empty name of an anonymous one (which
-// fn.Name() does not return: hence the first child).
+// function expression, including the empty name of an anonymous one.
 func normalizeIsFunctionExpressionName(x ast.Name) bool {
 	fn, ok := ast.AsFunction(x.Node().GetParent())
-	return ok && x.Is(fn.Node().GetFirstChild()) && NodeUtil_IsFunctionExpression(fn.Node())
+	return ok && x == fn.NameNode() && NodeUtil_IsFunctionExpression(fn.Node())
 }
 
 // Java: Normalize.process(Node, Node)
@@ -131,7 +130,7 @@ func (n *Normalize) Process(externs rhino.Node, root rhino.Node) {
 // Java: Normalize.NormalizeStatements.splitExportDeclaration(Node)
 func (s *Normalize_NormalizeStatements) SplitExportDeclaration(export ast.Export) {
 	n := export.Node()
-	if n.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
+	if export.IsDefault() {
 		return
 	}
 	var destructuringLhsNodes []ast.DestructuringLhs
@@ -145,8 +144,8 @@ func (s *Normalize_NormalizeStatements) SplitExportDeclaration(export ast.Export
 			NodeUtil_VisitLhsNodesInNode(c, func(name rhino.Node) { s.AddNameNodeToExportSpecs(exportSpecs, name) })
 			// Split up var declarations onto separate lines.
 			for d, ok := decl.FirstDeclarator(); ok; d, ok = decl.FirstDeclarator() {
-				d.Node().Detach()
-				newDeclaration := rhino.NewNodeWithChild(decl.Token(), d.Node()).Srcref(n)
+				d.Detach()
+				newDeclaration := ast.NewNameDeclaration(decl.Token(), d).Node().Srcref(n)
 				newDeclaration.InsertBefore(n)
 				if lhs, ok := d.AsDestructuringLhs(); ok {
 					// `export {a, b} = ...` changed to `var {a,b} = ...; export {a, b};`
@@ -155,8 +154,12 @@ func (s *Normalize_NormalizeStatements) SplitExportDeclaration(export ast.Export
 				}
 			}
 		} else {
-			// A function or class declaration: its first child is its name.
-			name := c.GetFirstChild()
+			var name rhino.Node
+			if fn, ok := ast.AsFunction(c); ok {
+				name = fn.NameNode().Node()
+			} else {
+				name = ast.MustClass(c).NameNode()
+			}
 			c.InsertBefore(n)
 			s.AddNameNodeToExportSpecs(exportSpecs, name)
 		}
@@ -461,15 +464,14 @@ func (s *Normalize_NormalizeStatements) SplitVarDeclarations(n rhino.Node) {
 	var next rhino.Node
 	for c := n.GetFirstChild(); !c.IsNil(); c = next {
 		next = c.GetNext()
-		if NodeUtil_IsNameDeclaration(c) {
-			if s.assertOnChange && !c.HasChildren() {
+		if decl, ok := ast.AsNameDeclaration(c); ok {
+			if s.assertOnChange && !decl.HasDeclarators() {
 				panic(jutil.NewIllegalStateExceptionMsg("Empty VAR node."))
 			}
 
-			for c.GetFirstChild() != c.GetLastChild() {
-				name := c.GetFirstChild()
-				name.Detach()
-				newVar := rhino.NewNodeWithChild(c.GetToken(), name).Srcref(n)
+			for first, ok := decl.FirstDeclarator(); ok && !first.IsLast(); first, ok = decl.FirstDeclarator() {
+				first.Detach()
+				newVar := ast.NewNameDeclaration(decl.Token(), first).Node().Srcref(n)
 				newVar.InsertBefore(c)
 				s.ReportCodeChange("VAR with multiple children", n)
 			}

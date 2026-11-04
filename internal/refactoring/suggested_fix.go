@@ -395,9 +395,15 @@ func suggestedFix_memberOrDeclaratorChild(n rhino.Node) rhino.Node {
 		return pkm.Value().Node()
 	}
 	if dlhs, ok := ast.AsDestructuringLhs(n); ok {
+		if initExpr, hasInit := dlhs.Init(); hasInit {
+			return initExpr.Node()
+		}
 		return dlhs.Pattern().Node()
 	}
 	if cp, ok := ast.AsComputedProp(n); ok {
+		if val, hasVal := cp.Value(); hasVal {
+			return val.Node()
+		}
 		return cp.Key().Node()
 	}
 	if sp, ok := ast.AsSpread(n); ok {

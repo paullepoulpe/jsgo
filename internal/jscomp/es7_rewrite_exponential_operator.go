@@ -120,9 +120,14 @@ func (e *Es7RewriteExponentialOperator) Visit(t *NodeTraversal, n rhino.Node, pa
 
 // Java: Es7RewriteExponentialOperator.visitExponentiationOperator(Node)
 func (e *Es7RewriteExponentialOperator) VisitExponentiationOperator(operator rhino.Node) {
+	bin := ast.MustBinary(operator)
+	leftExpr := bin.Left()
+	rightExpr := bin.Right()
+	baseArg := leftExpr.Detach().Node()
+	expArg := rightExpr.Detach().Node()
 	callClone := e.mathPowCall().CloneTree()
-	callClone.AddChildToBack(operator.RemoveFirstChild()) // Base argument.
-	callClone.AddChildToBack(operator.RemoveFirstChild()) // Exponent argument.
+	callClone.AddChildToBack(baseArg) // Base argument.
+	callClone.AddChildToBack(expArg)  // Exponent argument.
 
 	callClone.SrcrefTreeIfMissing(operator)
 	operator.ReplaceWith(callClone)
@@ -132,40 +137,55 @@ func (e *Es7RewriteExponentialOperator) VisitExponentiationOperator(operator rhi
 
 // Java: Es7RewriteExponentialOperator.visitExponentiationAssignmentOperator(NodeTraversal, Node)
 func (e *Es7RewriteExponentialOperator) VisitExponentiationAssignmentOperator(t *NodeTraversal, operator rhino.Node) {
-	enclosingStatement := NodeUtil_GetEnclosingStatement(operator)
+	assignOp := ast.MustAssignOp(operator)
+	leftExpr := assignOp.Target()
+	rightExpr := assignOp.Value()
+	left := leftExpr.Detach().Node()
+	right := rightExpr.Detach().Node()
 
-	left := operator.RemoveFirstChild()
+	for cast, ok := ast.AsCast(left); ok; cast, ok = ast.AsCast(left) {
+		left = cast.Expr().Detach().Node()
+	}
 
+	var enclosingStatement rhino.Node
 	var replacement rhino.Node
 
 	if left.IsName() {
-		replacement = e.HandleLHSName(operator, left)
+		enclosingStatement = statementInsertionPoint(operator)
+		replacement = e.HandleLHSName(operator, left, right)
 	} else {
-		jutil.CheckStateMsg1(left.IsGetProp() || left.IsGetElem(), "%s", left)
-		replacement = e.HandleLHSPropertyReference(t, operator, left, enclosingStatement)
+		enclosingStatement = ensureBlockBodyAndStatementInsertionPoint(e.compiler, operator)
+		get, ok := ast.AsNormalGet(left)
+		jutil.CheckStateMsg1(ok, "%s", left)
+		replacement = e.HandleLHSPropertyReference(t, operator, get, right, enclosingStatement)
 	}
 
 	operator.ReplaceWith(replacement)
 
-	e.compiler.ReportChangeToEnclosingScope(enclosingStatement)
+	if !enclosingStatement.IsNil() {
+		e.compiler.ReportChangeToEnclosingScope(enclosingStatement)
+	} else {
+		e.compiler.ReportChangeToEnclosingScope(replacement)
+	}
 }
 
 // Java: Es7RewriteExponentialOperator.handleLHSName(Node, Node)
-func (e *Es7RewriteExponentialOperator) HandleLHSName(operator rhino.Node, left rhino.Node) rhino.Node {
+func (e *Es7RewriteExponentialOperator) HandleLHSName(operator rhino.Node, left rhino.Node, right rhino.Node) rhino.Node {
 	// handle name case
 	// e.g. convert `name **= value` to
 	// `name = Math.pow(name, value)`
 	callClone := e.mathPowCall().CloneTree()
-	callClone.AddChildToBack(left.CloneTree())            // Base argument.
-	callClone.AddChildToBack(operator.RemoveFirstChild()) // Exponent argument.
+	callClone.AddChildToBack(left.CloneTree()) // Base argument.
+	callClone.AddChildToBack(right)            // Exponent argument.
 
 	return e.astFactory.CreateAssign(left, callClone).SrcrefTreeIfMissing(operator)
 }
 
 // Java: Es7RewriteExponentialOperator.handleLHSPropertyReference(NodeTraversal, Node, Node, Node)
 func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
-	t *NodeTraversal, operator rhino.Node, left rhino.Node, enclosingStatement rhino.Node) rhino.Node {
+	t *NodeTraversal, operator rhino.Node, get ast.NormalGet, right rhino.Node, enclosingStatement rhino.Node) rhino.Node {
 	// handle getprop case and getelem case
+	left := get.Node()
 	input := t.GetInput()
 	uniqueId := e.uniqueIdSupplier.GetUniqueId(input)
 	tempVarName := Es7RewriteExponentialOperator_TEMP_VAR_NAME_PREFIX + uniqueId
@@ -173,7 +193,12 @@ func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
 	var newLHS rhino.Node
 	var tempPropOrElem rhino.Node
 
-	objectNode := left.RemoveFirstChild()
+	getProp, isGetProp := get.AsGetProp()
+	var indexExpr ast.Expr
+	if !isGetProp {
+		indexExpr = get.MustGetElem().Index()
+	}
+	objectNode := get.Object().Detach().Node()
 
 	let := e.astFactory.CreateSingleLetNameDeclaration(tempVarName).SrcrefTree(operator)
 	let.InsertBefore(enclosingStatement)
@@ -182,12 +207,13 @@ func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
 	assignTemp :=
 		e.astFactory.CreateAssign(tempName, objectNode).Srcref(objectNode) // (tmp = someExpression)
 
-	if left.IsGetProp() {
+	if isGetProp {
 		// handle getprop case
 		// e.g. convert `(someExpression).property **= value` to
 		// let tmp;
 		// (tmp = someExpression).property = Math.pow(tmp.property, value);
-		propertyName := left.GetString()
+		propertyName := getProp.Property()
+		isPrivate := left.IsPrivateIdentifier()
 
 		tempPropOrElem =
 			e.astFactory.
@@ -197,16 +223,19 @@ func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
 			e.astFactory.
 				CreateGetProp(assignTemp, propertyName, AstFactory_Type_(left)).
 				Srcref(left) // ((tmp = someExpression).property)
+		if isPrivate {
+			tempPropOrElem.SetPrivateIdentifier()
+			newLHS.SetPrivateIdentifier()
+		}
 	} else {
 		// handle getelem case
 		// e.g. convert `someExpression[indexExpression] **= value` to
 		// let tmp;
 		// let tmpIndex;
 		// `(tmp = someExpression)[(tmpIndex = indexExpression)] = Math.pow(tmp[tmpIndex], value);`
-		jutil.CheckStateMsg1(left.IsGetElem(), "%s", left)
 		tempIndexVarName := Es7RewriteExponentialOperator_TEMP_INDEX_VAR_NAME_PREFIX + uniqueId
 
-		indexExprNode := left.GetLastChild().Detach()
+		indexExprNode := indexExpr.Detach().Node()
 
 		letIndex :=
 			e.astFactory.CreateSingleLetNameDeclaration(tempIndexVarName).SrcrefTree(operator)
@@ -235,8 +264,8 @@ func (e *Es7RewriteExponentialOperator) HandleLHSPropertyReference(
 				Srcref(left) // (tmp = someExpression)[tmpIndex = indexExpression]
 	}
 	callClone := e.mathPowCall().CloneTree()
-	callClone.AddChildToBack(tempPropOrElem.CloneTree())  // Base argument.
-	callClone.AddChildToBack(operator.RemoveFirstChild()) // Exponent argument.
+	callClone.AddChildToBack(tempPropOrElem.CloneTree()) // Base argument.
+	callClone.AddChildToBack(right)                      // Exponent argument.
 
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
 

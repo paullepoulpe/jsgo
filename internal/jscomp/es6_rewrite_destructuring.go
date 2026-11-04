@@ -1065,7 +1065,11 @@ func (e *Es6RewriteDestructuring) visitDestructuringPatternInEnhancedForWithOute
 	name := e.createTempVarNameNode(tempVarName, AstFactory_Type_(pattern))
 	decl := rhino.IR_Var(name)
 	decl.SrcrefTreeIfMissing(pattern)
-	decl.InsertBefore(forNode.Node())
+	insertionPoint := forNode.Node()
+	for !insertionPoint.IsNil() && !insertionPoint.GetParent().IsNil() && insertionPoint.GetParent().IsLabel() {
+		insertionPoint = insertionPoint.GetParent()
+	}
+	decl.InsertBefore(insertionPoint)
 	clonedName := name.CloneNode()
 	clonedName.SrcrefTreeIfMissing(pattern)
 	pattern.ReplaceWith(clonedName)

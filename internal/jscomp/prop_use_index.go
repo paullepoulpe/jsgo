@@ -447,6 +447,7 @@ func (ix *propUseIndex) indexRound(round []*piScope) {
 	}
 	workers := min(ix.threads, (len(round)+piParallelMin/2-1)/(piParallelMin/2))
 	recs := make([]piRecorder, workers)
+	prewarmCompilerForParallelReads(ix.c)
 	runParallelWorkersIndexed(
 		len(round),
 		workers,

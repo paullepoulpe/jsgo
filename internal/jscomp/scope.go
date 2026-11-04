@@ -43,6 +43,7 @@ import (
 // See NodeTraversal.
 type Scope struct {
 	scopeCommon
+	inferFrameIdx int32
 
 	implicitVars *[4]*Var
 	parent       *Scope
@@ -77,6 +78,7 @@ func newScopeWithParent(parent *Scope, rootNode rhino.Node) *Scope {
 // initScopeWithParent is newScopeWithParent on a zero Scope (one a
 // SyntacticScopeCreator's slab handed out).
 func initScopeWithParent(s *Scope, parent *Scope, rootNode rhino.Node) *Scope {
+	s.inferFrameIdx = -1
 	s.parent = parent
 	s.rootNode = rootNode
 	s.depth = parent.depth + 1
@@ -86,7 +88,7 @@ func initScopeWithParent(s *Scope, parent *Scope, rootNode rhino.Node) *Scope {
 
 // Java: Scope(Node)
 func newScope(rootNode rhino.Node) *Scope {
-	s := &Scope{}
+	s := &Scope{inferFrameIdx: -1}
 	s.initScopeCommon(rootNode)
 	s.CheckRootScope()
 	s.initLookupChain(nil)

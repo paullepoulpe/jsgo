@@ -198,7 +198,7 @@ func (e *Es6RewriteClass) VisitClass(t *NodeTraversal, cls ast.Class, parent rhi
 	newInfo := rhino.JSDocInfo_Builder_MaybeCopyFrom(classJSDoc)
 	newInfo.RecordConstructor()
 
-	enclosingStatement := NodeUtil_GetEnclosingStatement(classNode)
+	enclosingStatement := statementInsertionPoint(classNode)
 	if metadata.hasSuperClass() && !classNode.IsFromExterns() {
 		inheritsCall :=
 			rhino.IR_ExprResult(
@@ -659,6 +659,9 @@ func es6RewriteClassCreateMetadata(
 		return nil
 	}
 
+	for !insertionStart.IsNil() && !insertionStart.GetParent().IsNil() && insertionStart.GetParent().IsLabel() {
+		insertionStart = insertionStart.GetParent()
+	}
 	m.insertionPoint.node = insertionStart
 	m.astFactory = astFactory
 	m.definePropertiesObjForPrototype = rhino.NilNode

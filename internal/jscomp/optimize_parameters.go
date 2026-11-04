@@ -46,7 +46,13 @@ type OptimizeParameters struct {
 	fnNodes      []rhino.Node
 	defNodes     []rhino.Node
 	ttlList      []rhino.Node
+	synDefs      []optimizeParametersSynDef
 	fixedParams  []optimizeParametersParam
+}
+
+type optimizeParametersSynDef struct {
+	node   rhino.Node
+	fnExpr rhino.Node
 }
 
 type optimizeParametersParam struct {
@@ -86,6 +92,8 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rh
 		o.defNodes = o.defNodes[:0]
 		clear(o.ttlList)
 		o.ttlList = o.ttlList[:0]
+		clear(o.synDefs)
+		o.synDefs = o.synDefs[:0]
 		clear(o.fixedParams)
 		o.fixedParams = o.fixedParams[:0]
 	}()
@@ -363,30 +371,64 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 	definitions := o.defNodes[:0]
 	ttls := o.ttlList[:0]
 	seenCandidateUse := false
-	for _, n := range refs {
-		if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
-			seenCandidateUse = true
-		} else if parent := n.GetParent(); parent.IsTaggedTemplateLit() {
-			ttls = append(ttls, parent)
-		} else if o.isCandidateDefinition(n) {
-			definitions = append(definitions, n)
-		} else if !OptimizeCalls_IsAllowedReference(n) {
-			if o.decisionsLog.IsLogging() {
-				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, strpool.String(strpool.ID(keyID)), n.GetLocation())
+	if !o.decisionsLog.IsLogging() {
+		synDefs := o.synDefs[:0]
+		for _, n := range refs {
+			if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
+				seenCandidateUse = true
+			} else if parent := n.GetParent(); parent.IsTaggedTemplateLit() {
+				ttls = append(ttls, parent)
+			} else if fnExpr, ok := extractSyntacticCandidateDef(n); ok {
+				synDefs = append(synDefs, optimizeParametersSynDef{node: n, fnExpr: fnExpr})
+			} else if !OptimizeCalls_IsAllowedReference(n) {
+				o.ttlList = ttls[:0]
+				o.synDefs = synDefs[:0]
+				return false
 			}
-			o.defNodes = definitions
-			o.ttlList = ttls
+		}
+		if (!seenCandidateUse && len(ttls) == 0) || len(synDefs) == 0 {
+			o.ttlList = ttls[:0]
+			o.synDefs = synDefs[:0]
 			return false
 		}
-	}
-	o.defNodes = definitions
-	o.ttlList = ttls
-
-	if len(definitions) == 0 {
-		if o.decisionsLog.IsLogging() {
-			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, strpool.String(strpool.ID(keyID)))
+		for _, sd := range synDefs {
+			if o.allDefinitionsAreCandidateFunctions(sd.fnExpr) {
+				definitions = append(definitions, sd.node)
+			} else if !OptimizeCalls_IsAllowedReference(sd.node) {
+				o.defNodes = definitions[:0]
+				o.ttlList = ttls[:0]
+				o.synDefs = synDefs[:0]
+				return false
+			}
 		}
-		return false
+		o.synDefs = synDefs[:0]
+		o.defNodes = definitions
+		o.ttlList = ttls
+		if len(definitions) == 0 {
+			return false
+		}
+	} else {
+		for _, n := range refs {
+			if OptimizeCalls_ReferenceMap_IsNormalOrOptChainCallOrNewTarget(n) {
+				seenCandidateUse = true
+			} else if parent := n.GetParent(); parent.IsTaggedTemplateLit() {
+				ttls = append(ttls, parent)
+			} else if o.isCandidateDefinition(n) {
+				definitions = append(definitions, n)
+			} else if !OptimizeCalls_IsAllowedReference(n) {
+				o.decisionsLog.LogFormat("%s\t%s\tnot an allowed reference: %s", refKind, strpool.String(strpool.ID(keyID)), n.GetLocation())
+				o.defNodes = definitions
+				o.ttlList = ttls
+				return false
+			}
+		}
+		o.defNodes = definitions
+		o.ttlList = ttls
+
+		if len(definitions) == 0 {
+			o.decisionsLog.LogFormat("%s\t%s\tno definition found", refKind, strpool.String(strpool.ID(keyID)))
+			return false
+		}
 	}
 
 	if len(ttls) != 0 {
@@ -449,27 +491,31 @@ func (o *OptimizeParameters) convertTaggedTemplateLiteralToNormalCall(ttl ast.Ta
 	o.compiler.ReportChangeToEnclosingScope(callNode)
 }
 
+func extractSyntacticCandidateDef(n rhino.Node) (rhino.Node, bool) {
+	parent := n.GetParent()
+	if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
+		return parent, true
+	}
+	if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
+		return ast.MustAssign(parent).Value().Node(), true
+	}
+	if name, ok := ast.AsName(n); ok && n.HasChildren() {
+		init, _ := name.Init()
+		return init.Node(), true
+	}
+	if m, ok := ast.AsMemberFunctionDef(n); ok && parent.IsClassMembers() {
+		return m.Function().Node(), true
+	}
+	if cls, ok := ast.AsClass(parent); ok && cls.NameNode() == n {
+		return parent, true
+	}
+	return rhino.NilNode, false
+}
+
 // Java: OptimizeParameters.isCandidateDefinition(Node)
 func (o *OptimizeParameters) isCandidateDefinition(n rhino.Node) bool {
-	parent := n.GetParent()
-
-	var functionExpr rhino.Node
-	if parent.IsFunction() && NodeUtil_IsFunctionDeclaration(parent) {
-		functionExpr = parent
-	} else if OptimizeCalls_ReferenceMap_IsSimpleAssignmentTarget(n) {
-		functionExpr = ast.MustAssign(parent).Value().Node()
-	} else if name, ok := ast.AsName(n); ok && n.HasChildren() {
-		init, _ := name.Init()
-		functionExpr = init.Node()
-	} else if m, ok := ast.AsMemberFunctionDef(n); ok && parent.IsClassMembers() {
-		functionExpr = m.Function().Node()
-	} else if cls, ok := ast.AsClass(parent); ok && cls.NameNode() == n {
-		functionExpr = parent
-	} else {
-		return false
-	}
-
-	return o.allDefinitionsAreCandidateFunctions(functionExpr)
+	functionExpr, ok := extractSyntacticCandidateDef(n)
+	return ok && o.allDefinitionsAreCandidateFunctions(functionExpr)
 }
 
 // Java: OptimizeParameters.classContainsClassFieldWithRHSSideEffects(Node)

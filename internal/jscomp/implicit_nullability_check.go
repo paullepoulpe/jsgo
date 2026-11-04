@@ -122,6 +122,8 @@ func (r *ImplicitNullabilityCheck_Result) GetNode() rhino.Node {
 	return r.node
 }
 
+var emptyImplicitNullabilityResults = []*ImplicitNullabilityCheck_Result{}
+
 // ImplicitNullabilityCheck_FindImplicitNullabilityResults finds and returns
 // all the JSDoc nodes inside the given JSDoc object whose nullability is not
 // explict, using the NodeTraversal the necessary state (current scope,
@@ -131,10 +133,10 @@ func (r *ImplicitNullabilityCheck_Result) GetNode() rhino.Node {
 func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 	info *rhino.JSDocInfo, t *NodeTraversal) []*ImplicitNullabilityCheck_Result {
 	if info == nil {
-		return []*ImplicitNullabilityCheck_Result{}
+		return emptyImplicitNullabilityResults
 	}
 
-	builder := []*ImplicitNullabilityCheck_Result{}
+	var builder []*ImplicitNullabilityCheck_Result
 	for it := info.TypeExprIter(); it.Next(); {
 		typeRoot := it.Node()
 		NodeUtil_VisitPreOrderWithPred(
@@ -186,6 +188,9 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 			},
 			func(rhino.Node) bool { return true })
 	}
+	if builder == nil {
+		return emptyImplicitNullabilityResults
+	}
 	return builder
 }
 
@@ -195,6 +200,9 @@ func ImplicitNullabilityCheck_FindImplicitNullabilityResults(
 // Java: ImplicitNullabilityCheck.visit(NodeTraversal, Node, Node)
 func (c *ImplicitNullabilityCheck) Visit(t *NodeTraversal, n rhino.Node, p rhino.Node) {
 	info := n.GetJSDocInfo()
+	if info == nil {
+		return
+	}
 	for _, r := range ImplicitNullabilityCheck_FindImplicitNullabilityResults(info, t) {
 		stringNode := r.GetNode()
 		dt := ImplicitNullabilityCheck_IMPLICITLY_NONNULL_JSDOC

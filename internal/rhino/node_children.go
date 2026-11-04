@@ -63,12 +63,18 @@ func (n Node) GetFirstChild() Node {
 //
 // Java: Node.getFirstFirstChild()
 func (n Node) GetFirstFirstChild() Node {
-	return n.firstNode().firstNode()
+	if first := n.firstNode(); first != NilNode {
+		return first.firstNode()
+	}
+	return NilNode
 }
 
 // Java: Node.getSecondChild()
 func (n Node) GetSecondChild() Node {
-	return n.firstNode().nextNode()
+	if first := n.firstNode(); first != NilNode {
+		return first.nextNode()
+	}
+	return NilNode
 }
 
 // Java: Node.getLastChild()
@@ -87,10 +93,12 @@ func (n Node) GetNext() Node {
 
 // Java: Node.getPrevious()
 func (n Node) GetPrevious() Node {
-	if uint32(n) == n.parentNode().rec().first {
+	r := n.rec()
+	parent := Node(r.parent)
+	if parent == NilNode || uint32(n) == parent.rec().first {
 		return NilNode
 	}
-	return n.prevNode()
+	return Node(r.previous)
 }
 
 // GetChildAtIndex gets the ith child, note that this is O(N) where N is the
@@ -99,7 +107,7 @@ func (n Node) GetPrevious() Node {
 // Java: Node.getChildAtIndex(int)
 func (n Node) GetChildAtIndex(i int) Node {
 	c := n.firstNode()
-	for i > 0 {
+	for i > 0 && c != NilNode {
 		c = c.nextNode()
 		i--
 	}
@@ -508,19 +516,29 @@ func (n Node) IsDescendantOf(node Node) bool {
 
 // Java: Node.isOnlyChildOf(Node)
 func (n Node) IsOnlyChildOf(possibleParent Node) bool {
-	return possibleParent == n.GetParent() && n.GetPrevious().IsNil() && n.GetNext().IsNil()
+	if possibleParent == NilNode || n == NilNode {
+		return false
+	}
+	r := n.rec()
+	return r.parent == uint32(possibleParent) && r.next == 0 && possibleParent.rec().first == uint32(n)
 }
 
 // Java: Node.isFirstChildOf(Node)
 func (n Node) IsFirstChildOf(possibleParent Node) bool {
-	return possibleParent == n.GetParent() && n.GetPrevious().IsNil()
+	return possibleParent != NilNode && n != NilNode && n.rec().parent == uint32(possibleParent) && possibleParent.rec().first == uint32(n)
 }
 
 // Java: Node.isSecondChildOf(Node)
 func (n Node) IsSecondChildOf(possibleParent Node) bool {
-	previousNode := n.GetPrevious()
-
-	return !previousNode.IsNil() && previousNode.IsFirstChildOf(possibleParent)
+	if possibleParent == NilNode || n == NilNode {
+		return false
+	}
+	r := n.rec()
+	if r.parent != uint32(possibleParent) {
+		return false
+	}
+	first := possibleParent.rec().first
+	return uint32(n) != first && r.previous == first
 }
 
 // GetAncestors iterates all of the node's ancestors excluding itself.

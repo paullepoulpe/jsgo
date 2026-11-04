@@ -79,10 +79,17 @@ var _ nodeTraversal_visitTokens = (*Es6RewriteSpreadExpressions)(nil)
 
 // Java: Es6RewriteSpreadExpressions.visit(NodeTraversal, Node, Node)
 func (e *Es6RewriteSpreadExpressions) Visit(traversal *NodeTraversal, current rhino.Node, parent rhino.Node) {
-	token := current.GetToken()
-	if token == rhino.Token_ARRAYLIT || token == rhino.Token_NEW || token == rhino.Token_CALL {
-		for child := current.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			if child.IsSpread() {
+	switch current.GetToken() {
+	case rhino.Token_ARRAYLIT:
+		for elem := range ast.MustArrayLit(current).Elements() {
+			if _, ok := elem.AsIterSpread(); ok {
+				e.VisitArrayLitOrCallWithSpread(traversal, current)
+				break
+			}
+		}
+	case rhino.Token_NEW, rhino.Token_CALL:
+		for arg := range ast.MustCallOrNew(current).Args() {
+			if _, ok := arg.AsIterSpread(); ok {
 				e.VisitArrayLitOrCallWithSpread(traversal, current)
 				break
 			}
@@ -140,8 +147,8 @@ func (e *Es6RewriteSpreadExpressions) ExtractSpreadGroups(spreadParent rhino.Nod
 	var currGroup rhino.Node = rhino.NilNode
 
 	for currElement := spreadParent.RemoveFirstChild(); !currElement.IsNil(); currElement = spreadParent.RemoveFirstChild() {
-		if currElement.IsSpread() {
-			spreadExpression := currElement.RemoveFirstChild()
+		if spread, ok := ast.AsIterSpread(currElement); ok {
+			spreadExpression := spread.Expr().Detach().Node()
 			if spreadExpression.IsArrayLit() {
 				// We can expand an array literal spread in place.
 				if currGroup.IsNil() {
@@ -224,28 +231,30 @@ func (e *Es6RewriteSpreadExpressions) VisitArrayLitContainingSpread(spreadParent
 //
 // Java: Es6RewriteSpreadExpressions.visitCallContainingSpread(NodeTraversal, Node)
 func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal, spreadParent rhino.Node) {
-	jutil.CheckArgument(spreadParent.IsCall())
+	call := ast.MustCall(spreadParent)
 
-	callee := spreadParent.GetFirstChild()
+	callee := call.Callee().Node()
 	// ES6 classes must all be transpiled away before this pass runs.
 	jutil.CheckStateMsg(!callee.IsSuper(), "Cannot spread into super calls")
 	// Check if the callee has side effects before removing it from the AST (since some NodeUtil
 	// methods assume the node they are passed has a non-null parent).
 	calleeMayHaveSideEffects := e.compiler.GetAstAnalyzer().MayHaveSideEffects(callee)
+	onlyArg, hasOnlyArg := call.OnlyArg()
+	isSpreadOfArgs := hasOnlyArg && e.IsSpreadOfArguments(onlyArg.Node())
 	// Must remove callee before extracting argument groups.
 	callee.Detach()
 
-	for callee.IsCast() {
+	for cast, ok := ast.AsCast(callee); ok; cast, ok = ast.AsCast(callee) {
 		// Drop any CAST nodes. They're not needed anymore since this pass runs at the end of
 		// the checks phase, and they complicate detecting GETPROP/GETELEM callees.
-		callee = callee.RemoveFirstChild()
+		callee = cast.Expr().Detach().Node()
 	}
 	var joinedGroups rhino.Node
-	if spreadParent.HasOneChild() && e.IsSpreadOfArguments(spreadParent.GetOnlyChild()) {
+	if isSpreadOfArgs {
 		// Check for special case of `foo(...arguments)` and pass `arguments` directly to
 		// `foo.apply(null, arguments)`. We want to avoid calling $jscomp.arrayFromIterable(arguments)
 		// for this case, because it can have side effects, which prevents code removal.
-		joinedGroups = spreadParent.RemoveFirstChild().RemoveFirstChild()
+		joinedGroups = ast.MustIterSpread(onlyArg.Detach().Node()).Expr().Detach().Node()
 	} else {
 		groups := e.ExtractSpreadGroups(spreadParent)
 		jutil.CheckState(len(groups) != 0)
@@ -273,27 +282,28 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 			joinedGroups = e.astFactory.CreateCall(concat, Es6RewriteSpreadExpressions_arrayType, groups...)
 		}
 	}
-	isFreeCall := spreadParent.GetBooleanProp(rhino.Node_FREE_CALL)
+	isFreeCall := call.IsFreeCall()
+	calleeGet, isNormalGet := ast.AsNormalGet(callee)
 
 	var callToApply rhino.Node
-	if calleeMayHaveSideEffects && (callee.IsGetProp() || callee.IsGetElem()) && !isFreeCall {
+	if calleeMayHaveSideEffects && isNormalGet && !isFreeCall {
 		// foo().method(...[a, b, c]) or foo()['method'](...[a, b, c])
 		//   must convert to
 		// var freshVar;
 		// (freshVar = foo()).method.apply(freshVar, [a, b, c])
+		calleeObj := calleeGet.Object().Node()
 		freshVar :=
 			e.astFactory.CreateName(
 				Es6RewriteSpreadExpressions_FRESH_SPREAD_VAR+e.compiler.GetUniqueIdSupplier().GetUniqueId(t.GetInput()),
 				// Type of `foo()`.
-				AstFactory_Type_(callee.GetFirstChild()))
+				AstFactory_Type_(calleeObj))
 		freshVarDeclaration := rhino.IR_Var(freshVar.CloneTree())
 
-		statementContainingSpread := NodeUtil_GetEnclosingStatement(spreadParent)
+		statementContainingSpread := ensureBlockBodyAndStatementInsertionPoint(e.compiler, spreadParent)
 		freshVarDeclaration.SrcrefTreeIfMissing(statementContainingSpread)
 
 		freshVarDeclaration.InsertBefore(statementContainingSpread)
-		callee.AddChildToFront(
-			e.astFactory.CreateAssign(freshVar.CloneTree(), callee.RemoveFirstChild()))
+		callee.AddChildToFront(e.astFactory.CreateAssign(freshVar.CloneTree(), calleeGet.Object().Detach().Node()))
 
 		callToApply =
 			e.astFactory.CreateCallWithUnknownType(
@@ -306,8 +316,8 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 		// or
 		// foo(...[a, b, c]) -> foo.apply(null, [a, b, c])
 		var context rhino.Node
-		if (callee.IsGetProp() || callee.IsGetElem()) && !isFreeCall {
-			context = callee.GetFirstChild().CloneTree()
+		if isNormalGet && !isFreeCall {
+			context = calleeGet.Object().Node().CloneTree()
 		} else {
 			context = e.astFactory.CreateNull()
 		}
@@ -327,7 +337,8 @@ func (e *Es6RewriteSpreadExpressions) VisitCallContainingSpread(t *NodeTraversal
 
 // Java: Es6RewriteSpreadExpressions.isSpreadOfArguments(Node)
 func (e *Es6RewriteSpreadExpressions) IsSpreadOfArguments(n rhino.Node) bool {
-	return n.IsSpread() && n.GetOnlyChild().MatchesName("arguments")
+	spread, ok := ast.AsIterSpread(n)
+	return ok && spread.Expr().Node().MatchesName("arguments")
 }
 
 // VisitNewWithSpread processes new calls containing spreads.
@@ -339,10 +350,10 @@ func (e *Es6RewriteSpreadExpressions) IsSpreadOfArguments(n rhino.Node) bool {
 //
 // Java: Es6RewriteSpreadExpressions.visitNewWithSpread(Node)
 func (e *Es6RewriteSpreadExpressions) VisitNewWithSpread(spreadParent rhino.Node) {
-	jutil.CheckArgument(spreadParent.IsNew())
+	newExpr := ast.MustNew(spreadParent)
 
 	// Must remove callee before extracting argument groups.
-	callee := spreadParent.RemoveFirstChild()
+	callee := newExpr.Callee().Detach().Node()
 	groups := e.ExtractSpreadGroups(spreadParent)
 
 	// We need to generate

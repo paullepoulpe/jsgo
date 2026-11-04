@@ -33,9 +33,16 @@ var checkConstPrivatePropertiesVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-var _ nodeTraversal_visitTokens = (*CheckConstPrivateProperties)(nil)
+var (
+	_ nodeTraversal_visitTokens                         = (*CheckConstPrivateProperties)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*CheckConstPrivateProperties)(nil)
+)
 
-func (*CheckConstPrivateProperties) noVisitLeaves() {}
+func (*CheckConstPrivateProperties) noVisitLeaves()                            {}
+func (*CheckConstPrivateProperties) shouldTraverseOnlyScriptAndFunction() bool { return true }
+func (*CheckConstPrivateProperties) cloneForParallel(c *Compiler) NodeTraversal_Callback {
+	return NewCheckConstPrivateProperties(c)
+}
 func (*CheckConstPrivateProperties) visitTokens() *ast.TokenSet {
 	return &checkConstPrivatePropertiesVisitTokens
 }
@@ -43,7 +50,6 @@ func (*CheckConstPrivateProperties) visitTokens() *ast.TokenSet {
 // CheckConstPrivateProperties looks for properties that are not modified and
 // ensures they use the @const annotation.
 type CheckConstPrivateProperties struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler                  AbstractCompiler
 	candidates                []rhino.Node
 	modified                  map[string]bool
@@ -84,6 +90,17 @@ func (c *CheckConstPrivateProperties) ReportMissingConst(t *NodeTraversal) {
 	clear(c.candidates)
 	c.candidates = c.candidates[:0]
 	clear(c.modified)
+	clear(c.constructorsAndInterfaces)
+}
+
+func (c *CheckConstPrivateProperties) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsScript() {
+		clear(c.candidates)
+		c.candidates = c.candidates[:0]
+		clear(c.modified)
+		clear(c.constructorsAndInterfaces)
+	}
+	return true
 }
 
 // Java: CheckConstPrivateProperties.visit(NodeTraversal, Node, Node)

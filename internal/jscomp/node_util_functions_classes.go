@@ -226,6 +226,36 @@ func NodeUtil_ReferencesEnclosingReceiver(n rhino.Node) bool {
 		NodeUtil_MATCH_ANYTHING_BUT_NON_ARROW_FUNCTION)
 }
 
+// isObjectLitMethodOrAccessorFunction reports whether n is the FUNCTION node of
+// an object-literal concise method, getter, or setter (including computed
+// methods/accessors), which binds its own [[HomeObject]] for `super`.
+func isObjectLitMethodOrAccessorFunction(n rhino.Node) bool {
+	if !n.IsFunction() {
+		return false
+	}
+	parent := n.GetParent()
+	if parent.IsNil() {
+		return false
+	}
+	gp := parent.GetParent()
+	if gp.IsNil() || !gp.IsObjectLit() {
+		return false
+	}
+	switch parent.GetToken() {
+	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
+		return true
+	case rhino.Token_COMPUTED_PROP:
+		comp := ast.MustComputedProp(parent)
+		if !(comp.IsMethod() || comp.IsGetter() || comp.IsSetter()) {
+			return false
+		}
+		val, ok := comp.Value()
+		return ok && val.Is(n)
+	default:
+		return false
+	}
+}
+
 // NodeUtil_ReferencesSuper returns true if the current scope contains
 // references to the 'super' keyword. Note that if there are classes declared
 // inside the current class, super calls which reference those classes are
@@ -235,7 +265,9 @@ func NodeUtil_ReferencesEnclosingReceiver(n rhino.Node) bool {
 func NodeUtil_ReferencesSuper(n rhino.Node) bool {
 	curr := n.GetFirstChild()
 	for !curr.IsNil() {
-		if NodeUtil_Has(curr, (rhino.Node).IsSuper, func(node rhino.Node) bool { return !node.IsClass() }) {
+		if NodeUtil_Has(curr, (rhino.Node).IsSuper, func(node rhino.Node) bool {
+			return !node.IsClass() && !isObjectLitMethodOrAccessorFunction(node)
+		}) {
 			return true
 		}
 		curr = curr.GetNext()

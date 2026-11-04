@@ -631,6 +631,12 @@ func NodeUtil_FunctionHasInlineJsdocs(fn rhino.Node) bool {
 //
 // Java: NodeUtil.getBestLValue(Node)
 func NodeUtil_GetBestLValue(n rhino.Node) rhino.Node {
+	if n.IsNil() {
+		return rhino.NilNode
+	}
+	// Note: upstream Java NodeUtil.getBestLValue does not guard null parent
+	// (throwing NullPointerException at parent.isName(), asserted by
+	// TestNodeUtilSweepGolden on root SCRIPT nodes).
 	parent := n.GetParent()
 	if NodeUtil_IsFunctionDeclaration(n) {
 		return ast.MustFunction(n).NameNode().Node()
@@ -660,7 +666,13 @@ func NodeUtil_GetBestLValue(n rhino.Node) rhino.Node {
 //
 // Java: NodeUtil.getRValueOfLValue(Node)
 func NodeUtil_GetRValueOfLValue(n rhino.Node) rhino.Node {
+	if n.IsNil() {
+		return rhino.NilNode
+	}
 	parent := n.GetParent()
+	if parent.IsNil() {
+		return rhino.NilNode
+	}
 	switch ast.RoleIn(n, parent) {
 	case ast.RoleAssignTarget:
 		return ast.MustAssign(parent).Value().Node()

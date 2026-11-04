@@ -47,6 +47,8 @@ type InlineObjectLiterals struct {
 
 	scanState      iolCandidateScanner
 	scanner        *iolCandidateScanner
+	localBlooms    rcFnBloomCache
+	blooms         *rcFnBloomCache
 	useLocalPrefix bool
 	localPrefix    string
 	localCounter   int
@@ -62,8 +64,29 @@ func NewInlineObjectLiterals(compiler AbstractCompiler, safeNameIdSupplier func(
 	return &InlineObjectLiterals{compiler: compiler, safeNameIdSupplier: safeNameIdSupplier}
 }
 
+func makeIOLSkipFn(blooms *rcFnBloomCache, s *iolCandidateScanner) func(rhino.Node) bool {
+	if blooms == nil || s == nil || s.hasInvalidDecl {
+		return nil
+	}
+	active := s.candIDBloom
+	active.or(&s.hoistedFnBloom)
+	return func(fn rhino.Node) bool {
+		if s.hasCandSubtree[fn] {
+			return false
+		}
+		e := blooms.get(fn)
+		if (e.nameID > uint32(strpool.EmptyID) && s.candIDBloom.hasID(e.nameID)) || e.bodyBloom.intersects(&active) {
+			active.or(&e.hoistedBloom)
+			return false
+		}
+		return true
+	}
+}
+
 type iolCandidateScanner struct {
 	candidateBloom       uint64
+	candIDBloom          rcNameBloom
+	hoistedFnBloom       rcNameBloom
 	candidateScopeBlooms map[rhino.Node]uint64
 	fnHasOwnCandidate    map[rhino.Node]bool
 	hasCandSubtree       map[rhino.Node]bool
@@ -75,15 +98,11 @@ type iolCandidateScanner struct {
 
 func (s *iolCandidateScanner) reset() {
 	s.candidateBloom = 0
-	if len(s.candidateScopeBlooms) > 0 {
-		clear(s.candidateScopeBlooms)
-	}
-	if len(s.fnHasOwnCandidate) > 0 {
-		clear(s.fnHasOwnCandidate)
-	}
-	if len(s.hasCandSubtree) > 0 {
-		clear(s.hasCandSubtree)
-	}
+	s.candIDBloom = rcNameBloom{}
+	s.hoistedFnBloom = rcNameBloom{}
+	clear(s.candidateScopeBlooms)
+	clear(s.fnHasOwnCandidate)
+	clear(s.hasCandSubtree)
 	s.hasNonFnCandidate = false
 	s.anyCandFnInHoistedFn = false
 	s.hasInvalidDecl = false
@@ -97,19 +116,14 @@ func iolHasParamName(fnNode rhino.Node, nameID uint32) bool {
 		return false
 	}
 	for p := range fn.Params().Params() {
-		switch p.Token() {
-		case rhino.Token_NAME:
-			if p.Node().GetStringID() == nameID {
-				return true
-			}
-		case rhino.Token_DEFAULT_VALUE:
-			if target := p.MustDefaultValue().Target().Node(); target.IsName() && target.GetStringID() == nameID {
-				return true
-			}
-		case rhino.Token_ITER_REST:
-			if target := p.MustIterRest().Target().Node(); target.IsName() && target.GetStringID() == nameID {
-				return true
-			}
+		n := p.Node()
+		if p.Token() == rhino.Token_DEFAULT_VALUE {
+			n = p.MustDefaultValue().Target().Node()
+		} else if p.Token() == rhino.Token_ITER_REST {
+			n = p.MustIterRest().Target().Node()
+		}
+		if n.IsName() && n.GetStringID() == nameID {
+			return true
 		}
 	}
 	return false
@@ -129,13 +143,15 @@ func iolHasDirectNameDecl(block rhino.Node, nameID uint32, includeVar bool) bool
 	return false
 }
 
-func (s *iolCandidateScanner) addScopeCandidate(scopeRoot rhino.Node, mask uint64) {
+func (s *iolCandidateScanner) addScopeCandidate(scopeRoot rhino.Node, varNameID uint32) {
 	if s.candidateScopeBlooms == nil {
 		s.candidateScopeBlooms = make(map[rhino.Node]uint64, 16)
 		s.fnHasOwnCandidate = make(map[rhino.Node]bool, 16)
 		s.hasCandSubtree = make(map[rhino.Node]bool, 64)
 	}
+	mask := scopeBloomFromID(varNameID)
 	s.candidateBloom |= mask
+	s.candIDBloom.addID(varNameID)
 	s.candidateScopeBlooms[scopeRoot] |= mask
 	var ownerFn rhino.Node
 	for p := scopeRoot; !p.IsNil(); p = p.GetParent() {
@@ -166,6 +182,7 @@ func (s *iolCandidateScanner) addScopeCandidate(scopeRoot rhino.Node, mask uint6
 }
 
 func (s *iolCandidateScanner) mergeFrom(other *iolCandidateScanner) {
+	s.hoistedFnBloom.or(&other.hoistedFnBloom)
 	if other.hasInvalidDecl {
 		s.hasInvalidDecl = true
 	}
@@ -178,6 +195,7 @@ func (s *iolCandidateScanner) mergeFrom(other *iolCandidateScanner) {
 		s.hasCandSubtree = make(map[rhino.Node]bool, len(other.hasCandSubtree))
 	}
 	s.candidateBloom |= other.candidateBloom
+	s.candIDBloom.or(&other.candIDBloom)
 	if other.hasNonFnCandidate {
 		s.hasNonFnCandidate = true
 	}
@@ -238,13 +256,12 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 		}
 	}
 
-	mask := scopeBloomFromID(varNameID)
 	if isDecl {
 		if gp.IsVar() {
 			for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 				if NodeUtil_IsFunctionBlock(anc) || anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
 					if !NodeUtil_IsFunctionBlock(anc) || !iolHasParamName(anc.GetParent(), varNameID) {
-						s.addScopeCandidate(anc, mask)
+						s.addScopeCandidate(anc, varNameID)
 					}
 					break
 				}
@@ -252,7 +269,7 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 		} else {
 			for anc := gp.GetParent(); !anc.IsNil() && !anc.IsScript() && !anc.IsRoot(); anc = anc.GetParent() {
 				if (anc.IsBlock() && scanVarsBlockCreatesScope(anc)) || anc.IsSwitchBody() || NodeUtil_IsAnyFor(anc) || anc.IsModuleBody() {
-					s.addScopeCandidate(anc, mask)
+					s.addScopeCandidate(anc, varNameID)
 				}
 				if NodeUtil_IsFunctionBlock(anc) || anc.IsModuleBody() || NodeUtil_IsClassStaticBlock(anc) {
 					break
@@ -265,12 +282,12 @@ func (s *iolCandidateScanner) checkObjectLit(objLit rhino.Node) {
 				if NodeUtil_IsFunctionBlock(anc) && iolHasParamName(anc.GetParent(), varNameID) {
 					break
 				}
-				s.addScopeCandidate(anc, mask)
+				s.addScopeCandidate(anc, varNameID)
 				if iolHasDirectNameDecl(anc, varNameID, true) {
 					break
 				}
 			} else if (anc.IsBlock() && scanVarsBlockCreatesScope(anc)) || anc.IsSwitchBody() || NodeUtil_IsAnyFor(anc) {
-				s.addScopeCandidate(anc, mask)
+				s.addScopeCandidate(anc, varNameID)
 				if anc.IsBlock() && iolHasDirectNameDecl(anc, varNameID, false) {
 					break
 				}
@@ -283,6 +300,10 @@ func (s *iolCandidateScanner) checkNode(n rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_OBJECTLIT:
 		s.checkObjectLit(n)
+	case rhino.Token_FUNCTION:
+		if rcIsHoistedFunctionDeclaration(n) {
+			s.hoistedFnBloom.addID(n.GetFirstChild().GetStringID())
+		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			if !c.IsName() && !c.IsDestructuringLhs() {
@@ -305,23 +326,31 @@ func (s *iolCandidateScanner) scan(n rhino.Node) {
 	}
 }
 
-func (s *iolCandidateScanner) scanIncremental(root rhino.Node, directlyChanged, hasChangedDescendant map[rhino.Node]bool) {
+func (s *iolCandidateScanner) scanIncremental(root rhino.Node, hasChangedDescendant map[rhino.Node]bool) {
 	for scr := root.GetFirstChild(); !scr.IsNil(); scr = scr.GetNext() {
 		if scr.IsScript() && !hasChangedDescendant[scr] {
+			for c := scr.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				fn := c
+				if fn.IsExport() {
+					fn = fn.GetFirstChild()
+				}
+				if !fn.IsNil() && fn.IsFunction() && rcIsHoistedFunctionDeclaration(fn) {
+					s.hoistedFnBloom.addID(fn.GetFirstChild().GetStringID())
+				}
+			}
 			continue
 		}
-		s.scanIncrementalNode(scr, directlyChanged[scr], directlyChanged, hasChangedDescendant)
+		s.scanIncrementalNode(scr, hasChangedDescendant)
 	}
 }
 
-func (s *iolCandidateScanner) scanIncrementalNode(n rhino.Node, inDirectlyChanged bool, directlyChanged, hasChangedDescendant map[rhino.Node]bool) {
-	if inDirectlyChanged || directlyChanged[n] {
-		s.scan(n)
-		return
-	}
+func (s *iolCandidateScanner) scanIncrementalNode(n rhino.Node, hasChangedDescendant map[rhino.Node]bool) {
 	s.checkNode(n)
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.IsFunction() && !hasChangedDescendant[c] {
+			if rcIsHoistedFunctionDeclaration(c) {
+				s.hoistedFnBloom.addID(c.GetFirstChild().GetStringID())
+			}
 			continue
 		}
 		if c.GetFirstChild().IsNil() {
@@ -330,12 +359,11 @@ func (s *iolCandidateScanner) scanIncrementalNode(n rhino.Node, inDirectlyChange
 			}
 			continue
 		}
-		s.scanIncrementalNode(c, false, directlyChanged, hasChangedDescendant)
+		s.scanIncrementalNode(c, hasChangedDescendant)
 	}
 }
 
-func iolBuildChangedScopeSets(root rhino.Node, changed []rhino.Node) (map[rhino.Node]bool, map[rhino.Node]bool) {
-	var directlyChanged map[rhino.Node]bool
+func iolBuildChangedDescendantSet(root rhino.Node, changed []rhino.Node) map[rhino.Node]bool {
 	var hasChangedDescendant map[rhino.Node]bool
 	for _, ch := range changed {
 		if ch.IsNil() || ch.IsDeleted() {
@@ -351,41 +379,27 @@ func iolBuildChangedScopeSets(root rhino.Node, changed []rhino.Node) (map[rhino.
 		if !attached {
 			continue
 		}
-		if directlyChanged == nil {
-			directlyChanged = make(map[rhino.Node]bool, len(changed))
+		if hasChangedDescendant == nil {
 			hasChangedDescendant = make(map[rhino.Node]bool, len(changed)*4)
 		}
-		directlyChanged[ch] = true
-		for p := ch; !p.IsNil(); p = p.GetParent() {
-			if hasChangedDescendant[p] {
-				break
-			}
+		for p := ch; !p.IsNil() && !hasChangedDescendant[p]; p = p.GetParent() {
 			hasChangedDescendant[p] = true
 			if p == root {
 				break
 			}
 		}
 	}
-	return directlyChanged, hasChangedDescendant
+	return hasChangedDescendant
 }
 
 func (o *InlineObjectLiterals) scanFull(s *iolCandidateScanner, root rhino.Node) {
-	scripts, ok := collectRootScripts(root)
-	if ok && len(scripts) >= 8 {
+	if scripts, ok := collectRootScripts(root); ok && len(scripts) >= 8 {
 		if numWorkers := parallelThreadCount(o.compiler, len(scripts)); numWorkers > 1 {
 			prewarmCompilerForParallelReads(o.compiler)
 			shards := make([]iolCandidateScanner, numWorkers)
-			runParallelWorkersIndexed(
-				len(scripts),
-				numWorkers,
-				func(workerIdx int) *iolCandidateScanner {
-					return &shards[workerIdx]
-				},
-				func(w **iolCandidateScanner, itemIdx int) {
-					(*w).scan(scripts[itemIdx])
-				},
-				nil,
-			)
+			runParallelWorkersIndexed(len(scripts), numWorkers,
+				func(i int) *iolCandidateScanner { return &shards[i] },
+				func(w **iolCandidateScanner, idx int) { (*w).scan(scripts[idx]) }, nil)
 			for i := range shards {
 				s.mergeFrom(&shards[i])
 			}
@@ -396,6 +410,7 @@ func (o *InlineObjectLiterals) scanFull(s *iolCandidateScanner, root rhino.Node)
 }
 
 func (o *InlineObjectLiterals) scanCandidates(s *iolCandidateScanner, root rhino.Node) bool {
+	o.blooms = acquireRCFnBloomCache(o.compiler, root, &o.localBlooms)
 	c := o.compiler
 	if c != nil && c.parallelRecorder == nil && root.IsRoot() && root == c.GetJsRoot() {
 		if ct := c.GetChangeTracker(); ct != nil {
@@ -403,15 +418,17 @@ func (o *InlineObjectLiterals) scanCandidates(s *iolCandidateScanner, root rhino
 				if len(changed) == 0 {
 					return false
 				}
-				directlyChanged, hasChangedDescendant := iolBuildChangedScopeSets(root, changed)
-				if len(directlyChanged) == 0 {
+				hasChangedDescendant := iolBuildChangedDescendantSet(root, changed)
+				if len(hasChangedDescendant) == 0 {
 					return false
 				}
-				s.scanIncremental(root, directlyChanged, hasChangedDescendant)
+				o.blooms.invalidateChanged(hasChangedDescendant)
+				s.scanIncremental(root, hasChangedDescendant)
 				return s.candidateBloom != 0 || s.hasInvalidDecl
 			}
 		}
 	}
+	o.blooms.clear()
 	o.scanFull(s, root)
 	return s.candidateBloom != 0 || s.hasInvalidDecl
 }
@@ -505,6 +522,7 @@ func (o *InlineObjectLiterals) clearStaleVars() bool {
 
 func (o *InlineObjectLiterals) newFilteredCollector(sc *SyntacticScopeCreator) *ReferenceCollector {
 	rc := NewReferenceCollectorWithVarFilter(o.compiler, o, sc, o.varFilter)
+	rc.skipFn = makeIOLSkipFn(o.blooms, o.scanner)
 	rc.enableLocalReclamation(o.clearStaleVars)
 	return rc
 }
@@ -541,6 +559,7 @@ func (r *iolFnRunner) close() {
 type iolScopeBloomEntry struct {
 	scopeRoot rhino.Node
 	mask      uint64
+	idBloom   rcNameBloom
 }
 
 type iolCandCheckResult struct {
@@ -558,9 +577,10 @@ type iolReadOnlyChecker struct {
 	actionable bool
 }
 
-func newIOLReadOnlyChecker(compiler AbstractCompiler, s *iolCandidateScanner, root rhino.Node) *iolReadOnlyChecker {
+func newIOLReadOnlyChecker(compiler AbstractCompiler, s *iolCandidateScanner, blooms *rcFnBloomCache, root rhino.Node) *iolReadOnlyChecker {
 	c := &iolReadOnlyChecker{convention: compiler.GetCodingConvention(), scanner: s}
 	rc := NewReferenceCollectorWithVarFilter(compiler, c, NewSyntacticScopeCreator(compiler), c.varFilter)
+	rc.skipFn = makeIOLSkipFn(blooms, s)
 	rc.enableLocalReclamation(nil)
 	c.rc = rc
 	c.t = newIOLDummyTraversal(rc, root)
@@ -583,17 +603,19 @@ func (c *iolReadOnlyChecker) AfterExitScope(t *NodeTraversal, referenceMap *Refe
 		return
 	}
 	var actionableMask uint64
+	var idBloom rcNameBloom
 	for _, v := range scope.varList {
 		if v == nil || iolIsVarForbiddenByConvention(c.convention, v) {
 			continue
 		}
 		if info := referenceMap.GetReferences(v); info != nil && iolIsInlinableObject(info.references, &c.validProps) {
 			actionableMask |= scopeBloomFromID(v.nameID)
+			idBloom.addID(v.nameID)
 		}
 	}
 	if actionableMask != 0 {
 		c.actionable = true
-		c.scopes = append(c.scopes, iolScopeBloomEntry{scopeRoot: scope.GetRootNode(), mask: actionableMask})
+		c.scopes = append(c.scopes, iolScopeBloomEntry{scopeRoot: scope.GetRootNode(), mask: actionableMask, idBloom: idBloom})
 	}
 }
 
@@ -628,7 +650,7 @@ func (o *InlineObjectLiterals) filterActionableCandFns(
 	var workerScopes [][]iolScopeBloomEntry
 
 	numWorkers := 1
-	if n >= 8 {
+	if n >= 2 {
 		numWorkers = parallelThreadCount(o.compiler, n)
 	}
 	if numWorkers > 1 {
@@ -638,10 +660,9 @@ func (o *InlineObjectLiterals) filterActionableCandFns(
 			var checker *iolReadOnlyChecker
 			return func(fnIdx int, rc *recordingCompiler) {
 					if checker == nil {
-						checker = newIOLReadOnlyChecker(rc, s, root)
+						checker = newIOLReadOnlyChecker(rc, s, o.blooms, root)
 					}
-					act, start, size := checker.checkCandFn(s.candFns[fnIdx])
-					if act {
+					if act, start, size := checker.checkCandFn(s.candFns[fnIdx]); act {
 						results[fnIdx] = iolCandCheckResult{actionable: true, workerID: workerID, start: start, size: size}
 					}
 				}, func() {
@@ -652,7 +673,7 @@ func (o *InlineObjectLiterals) filterActionableCandFns(
 				}
 		}, false)
 	} else {
-		checker := newIOLReadOnlyChecker(o.compiler, s, root)
+		checker := newIOLReadOnlyChecker(o.compiler, s, o.blooms, root)
 		for fnIdx, candFn := range s.candFns {
 			if act, start, size := checker.checkCandFn(candFn); act {
 				results[fnIdx] = iolCandCheckResult{actionable: true, workerID: 0, start: start, size: size}
@@ -663,6 +684,7 @@ func (o *InlineObjectLiterals) filterActionableCandFns(
 	}
 
 	s.candidateBloom = 0
+	s.candIDBloom = rcNameBloom{}
 	clear(s.candidateScopeBlooms)
 	writeIdx := 0
 	anyHoisted := false
@@ -677,6 +699,7 @@ func (o *InlineObjectLiterals) filterActionableCandFns(
 		writeIdx++
 		for _, e := range workerScopes[res.workerID][res.start : res.start+res.size] {
 			s.candidateBloom |= e.mask
+			s.candIDBloom.or(&e.idBloom)
 			s.candidateScopeBlooms[e.scopeRoot] |= e.mask
 		}
 		script, inHoisted, inGlobalHoisted := iolInspectActionableFn(candFn)
@@ -721,10 +744,7 @@ func (o *InlineObjectLiterals) runFastCandFns(s *iolCandidateScanner, root rhino
 		var r iolFnRunner
 		return func(fnIdx int, rc *recordingCompiler) {
 				if r.iol == nil {
-					worker := &InlineObjectLiterals{
-						compiler:           rc,
-						safeNameIdSupplier: o.safeNameIdSupplier,
-					}
+					worker := &InlineObjectLiterals{compiler: rc, safeNameIdSupplier: o.safeNameIdSupplier, blooms: o.blooms}
 					r = newIOLFnRunner(worker, s, root, true)
 				}
 				r.traverseCandFn(s.candFns[fnIdx], runPrefix, fnIdx)
@@ -862,6 +882,7 @@ func iolIsInlinableObject(refs []*Reference, validProps *smallSet[strpool.ID]) b
 		parent := ref.GetParent()
 		grandparent := ref.GetGrandparent()
 
+		// Matches Java v20261028 NodeUtil.isNormalOrOptChainGetProp(parent) parity (b/571220152).
 		if gp, ok := ast.AsNormalOrOptChainGetProp(parent); ok {
 			if !gp.Object().Is(name) {
 				panic(jutil.NewIllegalStateException())

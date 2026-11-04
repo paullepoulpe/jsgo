@@ -265,6 +265,7 @@ func TestParseRegExpReturnsErrorWithoutPanic(t *testing.T) {
 	}{
 		{"foo\\", "", RegExpParseErrorStringIndexOutOfBounds, "Index 4 out of bounds for length 4"},
 		{"[\\", "", RegExpParseErrorStringIndexOutOfBounds, "Index 2 out of bounds for length 2"},
+		{"([abc", "", RegExpParseErrorIllegalArgument, "Unclosed parenthetical group: ([abc"},
 		{"(?<", "", RegExpParseErrorStringIndexOutOfBounds, "Index 3 out of bounds for length 3"},
 		{"[z-a]", "", RegExpParseErrorIndexOutOfBounds, "122 > 97"},
 		{"(foo", "", RegExpParseErrorIllegalArgument, "Unclosed parenthetical group: (foo"},
@@ -282,4 +283,13 @@ func TestParseRegExpReturnsErrorWithoutPanic(t *testing.T) {
 			t.Errorf("ParseRegExp(%q, %q) = (%v, %q), want (%v, %q)", tc.pattern, tc.flags, err, err.Error(), tc.kind, tc.wantMsg)
 		}
 	}
+}
+
+// Java RegExpTree.java (lines 385, 436) exits `while (pos < limit && pattern.charAt(pos) != ']')`
+// and executes `++pos` without throwing on top-level unclosed `[`; pinned by testdata/regexp_oracle.txt.gz.
+func TestUnclosedCharsetJavaParity(t *testing.T) {
+	assertRegexCompilesTo(t, "[abc", "", "[a-c]")
+	assertRegexCompilesTo(t, "[", "", "(?!)")
+	assertRegexCompilesTo(t, "[^", "", "[\\S\\s]")
+	assertRegexCompilesTo(t, "[a-", "", "[a-]")
 }

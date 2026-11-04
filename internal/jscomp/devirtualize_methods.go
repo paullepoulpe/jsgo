@@ -123,12 +123,25 @@ func (d *DevirtualizeMethods) processReferenceListByID(nameID uint32, sites []rh
 		return
 	}
 
+	// Check that this method is safe for devirtualization in increasing order of cost.
+	for _, c := range callSites {
+		call, ok := ast.AsCall(c.GetParent())
+		if !ok || !call.Callee().Is(c) {
+			// Accessing the property in any way besides CALL has issues:
+			//   - tear-off: invocations can't be tracked
+			//   - as constructor: unsupported rewrite
+			//   - as tagged template string: unsupported rewrite
+			//   - as optional chaining call: original invocation target may be null/undefined and
+			//     rewriting creates an unconditional call to a well-defined global function
+			return
+		}
+	}
+
 	// Use the first definition to ensure that all invocations are after the definition
 	// (temporally). It's possible that if class `A` is defined after class `B` there are calls to
 	// `A::foo` before `B::foo` is defined.
 	canonicalDefinitionSite := defSites[0]
 
-	// Check that this method is safe for devirtualization in increasing order of cost.
 	name := strpool.String(strpool.ID(nameID))
 	isExported := d.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false)
 	for _, s := range defSites {
@@ -141,25 +154,9 @@ func (d *DevirtualizeMethods) processReferenceListByID(nameID uint32, sites []rh
 			return
 		}
 	}
-	var chunkGraph *JSChunkGraph
-	var defChunk *JSChunk
-	haveDefChunk := false
+	chunkGraph := d.compiler.GetChunkGraph()
+	defChunk := d.chunkForNode(canonicalDefinitionSite)
 	for _, c := range callSites {
-		call, ok := ast.AsCall(c.GetParent())
-		if !ok || !call.Callee().Is(c) {
-			// Accessing the property in any way besides CALL has issues:
-			//   - tear-off: invocations can't be tracked
-			//   - as constructor: unsupported rewrite
-			//   - as tagged template string: unsupported rewrite
-			//   - as optional chaining call: original invocation target may be null/undefined and
-			//     rewriting creates an unconditional call to a well-defined global function
-			return
-		}
-		if !haveDefChunk {
-			chunkGraph = d.compiler.GetChunkGraph()
-			defChunk = d.chunkForNode(canonicalDefinitionSite)
-			haveDefChunk = true
-		}
 		if !d.isEligibleCallSiteChunk(c, chunkGraph, defChunk) {
 			return
 		}

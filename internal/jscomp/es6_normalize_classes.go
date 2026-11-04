@@ -391,7 +391,10 @@ func (e *Es6NormalizeClasses) ShouldExtractExtends(classNode ast.Class) bool {
 //
 // Java: Es6NormalizeClasses.canExtractExtendsSimply(Node)
 func (e *Es6NormalizeClasses) CanExtractExtendsSimply(classNode ast.Class) bool {
-	enclosingStatement := rhino.CheckNotNullMsg1(NodeUtil_GetEnclosingStatement(classNode.Node()), "%s", classNode.Node())
+	enclosingStatement := NodeUtil_GetEnclosingStatement(classNode.Node())
+	if enclosingStatement.IsNil() {
+		return false
+	}
 	if classNode.Is(enclosingStatement) {
 		// `class Foo extends some_expression {}`
 		return true
@@ -421,7 +424,7 @@ func (e *Es6NormalizeClasses) CanExtractExtendsSimply(classNode ast.Class) bool 
 func (e *Es6NormalizeClasses) extractExtends(t *NodeTraversal, classRecord *es6NormalizeClasses_ClassRecord) {
 	classNode := classRecord.classNode
 
-	statement := NodeUtil_GetEnclosingStatement(classNode.Node())
+	statement := ensureBlockBodyAndStatementInsertionPoint(e.compiler, classNode.Node())
 	originalExtends, ok := classNode.Extends()
 	if !ok {
 		return
@@ -500,11 +503,16 @@ func isQualifiedNameAssignStatement(n rhino.Node) bool {
 // Java: Es6NormalizeClasses.extractClass(NodeTraversal, ClassRecord)
 func (e *Es6NormalizeClasses) extractClass(t *NodeTraversal, classRecord *es6NormalizeClasses_ClassRecord) {
 	classNode := classRecord.classNode.Node()
+	ensureArrowBlockBody(e.compiler, classNode)
 	parent := classNode.GetParent()
 
 	info := NodeUtil_GetBestJSDocInfo(classNode)
 
 	statement := NodeUtil_GetEnclosingStatement(parent)
+	insertionPoint := statement
+	for !insertionPoint.IsNil() && !insertionPoint.GetParent().IsNil() && insertionPoint.GetParent().IsLabel() {
+		insertionPoint = insertionPoint.GetParent()
+	}
 	// class name node used as LHS in newly created assignment
 	classNameLhs := classRecord.CreateNewNameReferenceNode()
 	// class name node that replaces the class literal in the original statement
@@ -513,7 +521,7 @@ func (e *Es6NormalizeClasses) extractClass(t *NodeTraversal, classRecord *es6Nor
 	classDeclaration := rhino.IR_ConstNode(classNameLhs, classNode).SrcrefTreeIfMissing(classNode)
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, e.compiler)
 	classDeclaration.SetJSDocInfo(rhino.JSDocInfo_Builder_MaybeCopyFrom(info).Build())
-	classDeclaration.InsertBefore(statement)
+	classDeclaration.InsertBefore(insertionPoint)
 
 	// If the original statement was a variable declaration or qualified name assignment like:
 	// var ClassName = class {...
@@ -550,27 +558,30 @@ func (e *Es6NormalizeClasses) addAtConstructor(node rhino.Node) {
 //
 // Java: Es6NormalizeClasses.getStatementDeclaringClass(Node, Node)
 func (e *Es6NormalizeClasses) getStatementDeclaringClass(classNode ast.Class, classNameNode rhino.Node) rhino.Node {
+	var stmt rhino.Node
 	if NodeUtil_IsClassDeclaration(classNode.Node()) {
 		// `class C {}` -> can use `C.staticMember` to extract static fields
-		return classNode.Node()
-	}
-	parent := classNode.Node().GetParent()
-	if _, ok := ast.AsName(parent); ok && parent == classNameNode {
-		// `let C = class {};`
-		// We can use `C.staticMemberName = ...` to extract static fields
-		if stmt := classNameNode.GetParent(); !stmt.IsNil() && NodeUtil_IsStatement(stmt) {
-			return stmt
+		stmt = classNode.Node()
+	} else {
+		parent := classNode.Node().GetParent()
+		if _, ok := ast.AsName(parent); ok && parent == classNameNode {
+			// `let C = class {};`
+			// We can use `C.staticMemberName = ...` to extract static fields
+			if candidate := classNameNode.GetParent(); !candidate.IsNil() && NodeUtil_IsStatement(candidate) {
+				stmt = candidate
+			}
+		} else if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(classNameNode) {
+			if exprStmt, ok := ast.AsExprStmt(parent.GetParent()); ok && NodeUtil_IsStatement(exprStmt.Node()) {
+				// `something.C = class {}`
+				// we can use `something.C.staticMemberName = ...` to extract static fields
+				stmt = exprStmt.Node()
+			}
 		}
-		return rhino.NilNode
 	}
-	if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(classNameNode) {
-		if exprStmt, ok := ast.AsExprStmt(parent.GetParent()); ok && NodeUtil_IsStatement(exprStmt.Node()) {
-			// `something.C = class {}`
-			// we can use `something.C.staticMemberName = ...` to extract static fields
-			return exprStmt.Node()
-		}
+	for !stmt.IsNil() && !stmt.GetParent().IsNil() && stmt.GetParent().IsLabel() {
+		stmt = stmt.GetParent()
 	}
-	return rhino.NilNode
+	return stmt
 }
 
 // Java: Es6NormalizeClasses.visit(NodeTraversal, Node, Node)

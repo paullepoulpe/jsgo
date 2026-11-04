@@ -22,7 +22,6 @@ import (
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
@@ -212,21 +211,22 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		m := ast.MustMemberFunctionDef(n)
 		if parent := n.GetParent(); parent.IsClassMembers() {
 			classNode := parent.GetParent()
+			if assign, ok := ast.AsAssign(classNode.GetParent()); ok &&
+				assign.Value().Is(classNode) && !assign.Target().Node().IsQualifiedName() {
+				p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECTED_FUNCTION_ON_NON_QNAME))
+				return
+			}
 			if m.IsEs6Constructor() {
 				name, hasName = NodeUtil_GetName(classNode)
-			} else {
+			} else if className, ok := NodeUtil_GetName(classNode); ok {
 				midPart := ".prototype."
 				if m.IsStatic() {
 					midPart = "."
 				}
-				className := "null"
-				if s, ok := NodeUtil_GetName(classNode); ok {
-					className = s
-				}
 				name, hasName = className+midPart+m.Key(), true
 			}
 			fnNode = m.Function().Node()
-			injectAfter = NodeUtil_GetEnclosingStatement(classNode)
+			injectAfter = angularClassInjectionTarget(classNode)
 		}
 	}
 
@@ -235,21 +235,39 @@ func (p *AngularPass) addNode(n rhino.Node) {
 		p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECT_NON_FUNCTION_ERROR))
 		return
 	}
-	if injectAfter.GetParent().IsExport() {
+	if !injectAfter.IsNil() && !injectAfter.GetParent().IsNil() && injectAfter.GetParent().IsExport() {
 		// handle `export class Foo {` or `export function(`
 		injectAfter = injectAfter.GetParent()
 	}
-	if !NodeUtil_IsStatementBlock(injectAfter.GetParent()) {
+	if !hasName || injectAfter.IsNil() || injectAfter.GetParent().IsNil() || !NodeUtil_IsStatementBlock(injectAfter.GetParent()) {
 		p.compiler.Report(JSError_MakeWithNode(n, AngularPass_INJECT_IN_NON_GLOBAL_OR_BLOCK_ERROR))
 		return
 	}
-	jutil.CheckStateMsg(hasName, "expected injectable function to have a name")
 	p.injectables = append(p.injectables, angularInjectable{
 		name:         name,
 		node:         n,
 		functionNode: fn,
 		target:       injectAfter,
 	})
+}
+
+func angularClassInjectionTarget(classNode rhino.Node) rhino.Node {
+	cur := classNode
+	for {
+		assign, ok := ast.AsAssign(cur.GetParent())
+		if !ok || !assign.Value().Is(cur) {
+			break
+		}
+		cur = assign.Node()
+	}
+	parent := cur.GetParent()
+	if parent.IsName() && NodeUtil_IsNameDeclaration(parent.GetParent()) {
+		return parent.GetParent()
+	}
+	if cur != classNode && parent.IsExprResult() {
+		return parent
+	}
+	return cur
 }
 
 func unwrapAssignChain(n rhino.Node) rhino.Node {
