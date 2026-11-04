@@ -280,10 +280,11 @@ func (i *IsolatePolyfills) RewritePolyfill(polyfillUsage *PolyfillUsageFinder_Po
 //
 // Java: IsolatePolyfills.FILES_ALLOWED_UNQUALIFIED_POLYFILL_ACCESSES.contains(String)
 func isolatePolyfills_isAllowedUnqualifiedPolyfillFile(name string) bool {
+	dir := GetRuntimeLibDir()
 	switch name {
-	case AbstractCompiler_RUNTIME_LIB_DIR + "util/global.js",
-		AbstractCompiler_RUNTIME_LIB_DIR + "util/shouldpolyfill.js",
-		AbstractCompiler_RUNTIME_LIB_DIR + "es6/util/construct.js":
+	case dir + "util/global.js",
+		dir + "util/shouldpolyfill.js",
+		dir + "es6/util/construct.js":
 		return true
 	default:
 		return false

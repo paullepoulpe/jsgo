@@ -444,20 +444,6 @@ func SourceFileProto_ParseFrom(data []byte) *SourceFileProto {
 	return m
 }
 
-func ConformanceConfig_ParseFrom(data []byte) *ConformanceConfig {
-	m := &ConformanceConfig{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
-
-func Requirement_ParseFrom(data []byte) *Requirement {
-	m := &Requirement{}
-	r := protoReader{b: data}
-	m.mergeFromReader(&r)
-	return m
-}
-
 func OptimizationJsdoc_ParseFrom(data []byte) *OptimizationJsdoc {
 	m := &OptimizationJsdoc{}
 	r := protoReader{b: data}
@@ -472,16 +458,6 @@ func NodeKind_ForNumber(value int32) (NodeKind, bool) {
 		}
 	}
 	return 0, false
-}
-
-func (m *Requirement) ClearWhitelistEntry() *Requirement {
-	m.whitelistEntry_ = nil
-	return m
-}
-
-func (m *Requirement) ClearAllowlistEntry() *Requirement {
-	m.allowlistEntry_ = nil
-	return m
 }
 
 func SourceFileProto_FileOnDisk_GetDefaultInstance() *SourceFileProto_FileOnDisk {
@@ -540,56 +516,6 @@ func (m *SourceFileProto) SetNumBytesPlusOne(v int32) *SourceFileProto {
 
 func (m *SourceFileProto) SetNumLinesPlusOne(v int32) *SourceFileProto {
 	m.numLinesPlusOne_ = v
-	return m
-}
-
-func ConformanceViolationsProto_NewBuilder() *ConformanceViolationsProto {
-	return &ConformanceViolationsProto{}
-}
-
-func (m *ConformanceViolationsProto) GetViolations(index int) *ViolationProto {
-	return m.violations_[index]
-}
-
-func (m *ConformanceViolationsProto) GetViolationsCount() int { return len(m.violations_) }
-
-func (m *ConformanceViolationsProto) Build() *ConformanceViolationsProto {
-	m.cachedSize = 0
-	return m
-}
-
-func (m *ConformanceViolationsProto) AddViolations(v *ViolationProto) *ConformanceViolationsProto {
-	if v == nil {
-		panic(jutil.NewNullPointerException())
-	}
-	m.violations_ = append(m.violations_, v)
-	return m
-}
-
-func ViolationProto_NewBuilder() *ViolationProto { return &ViolationProto{} }
-
-func (m *ViolationProto) GetSourceName() string { return m.sourceName_ }
-
-func (m *ViolationProto) GetLineNumber() int32 { return m.lineNumber_ }
-
-func (m *ViolationProto) Build() *ViolationProto {
-	m.cachedSize = 0
-	return m
-}
-
-func (m *ViolationProto) SetSourceName(v string) *ViolationProto {
-	m.sourceName_ = v
-	m.bitField0_ |= 1 << 0
-	return m
-}
-
-func (m *ViolationProto) SetLineNumber(v int32) *ViolationProto {
-	m.lineNumber_ = v
-	return m
-}
-
-func (m *ViolationProto) SetCharNumber(v int32) *ViolationProto {
-	m.charNumber_ = v
 	return m
 }
 

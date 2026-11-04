@@ -417,6 +417,14 @@ func OptimizeCalls_ReferenceMap_AppendFunctionNodes(dst []rhino.Node, definition
 	return dst
 }
 
+// OptimizeCalls_GetSingleFunctionNode inspects definitionSites and returns
+// (fnNode, 1) when all sites resolve to a single callable function node,
+// (NilNode, 0) when none resolve to a function node, or (NilNode, count) with
+// count > 1 when multiple function nodes are present.
+func OptimizeCalls_GetSingleFunctionNode(definitionSites []rhino.Node) (rhino.Node, int) {
+	return optimizeCalls_getSingleFunctionNode(definitionSites)
+}
+
 func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.Node, int) {
 	var buf [2]rhino.Node
 	fns := buf[:0]
@@ -432,7 +440,14 @@ func optimizeCalls_getSingleFunctionNode(definitionSites []rhino.Node) (rhino.No
 	return rhino.NilNode, 0
 }
 
+// OptimizeCalls_AppendDefinitionFunctionNodesFor appends all callable function
+// nodes associated with definitionSite to fns and returns the updated slice.
+//
 // Java: OptimizeCalls.ReferenceMap.definitionFunctionNodesFor(Node)
+func OptimizeCalls_AppendDefinitionFunctionNodesFor(fns []rhino.Node, definitionSite rhino.Node) []rhino.Node {
+	return optimizeCalls_appendDefinitionFunctionNodesLimit(fns, definitionSite, 0)
+}
+
 func optimizeCalls_appendDefinitionFunctionNodesFor(fns []rhino.Node, definitionSite rhino.Node) []rhino.Node {
 	return optimizeCalls_appendDefinitionFunctionNodesLimit(fns, definitionSite, 0)
 }

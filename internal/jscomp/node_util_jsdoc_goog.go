@@ -57,7 +57,7 @@ func NodeUtil_IsInSyntheticScript(n rhino.Node) bool {
 	sourceFileName, ok := n.SourceFileName()
 	return ok &&
 		(strings.HasPrefix(sourceFileName, " [synthetic:") ||
-			strings.HasPrefix(sourceFileName, AbstractCompiler_RUNTIME_LIB_DIR))
+			strings.HasPrefix(sourceFileName, GetRuntimeLibDir()))
 }
 
 // NodeUtil_DeleteNode permanently deletes the given node from the AST, as

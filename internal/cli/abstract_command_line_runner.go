@@ -78,11 +78,23 @@ import (
 //	  }
 //	}
 //
-// runnerHooks defines the virtual hook methods on abstractCommandLineRunnerBase
-// that may be overridden by CommandLineRunner or custom test runners.
+// CompileMetricsRecorder records lifecycle and result metrics for a CLI
+// compilation action.
+//
+// Java: interface CompileMetricsRecorderInterface
+type CompileMetricsRecorder interface {
+	RecordActionStart()
+	RecordActionName(actionName string)
+	RecordStartState(compiler jscomp.AbstractCompiler)
+	RecordResultMetrics(compiler jscomp.AbstractCompiler, result *jscomp.Result)
+}
+
+// AbstractCommandLineRunner defines the virtual hook methods on
+// AbstractCommandLineRunnerBase that may be overridden by CommandLineRunner or
+// custom runners.
 //
 // Java: abstract class AbstractCommandLineRunner<A extends Compiler, B extends CompilerOptions>
-type runnerHooks interface {
+type AbstractCommandLineRunner interface {
 	CreateCompiler() *jscomp.Compiler
 	CreateOptions() *jscomp.CompilerOptions
 	CreateExterns(options *jscomp.CompilerOptions) []*jscomp.SourceFile
@@ -91,13 +103,28 @@ type runnerHooks interface {
 	AddAllowlistWarningsGuard(options *jscomp.CompilerOptions, allowlistFile *jutil.File)
 	CheckChunkName(name string)
 	GetVersionText() string
+	DoRun() int
+	SetRunOptions(options *jscomp.CompilerOptions)
+	ShouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool
 	WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk)
+	WriteOutput(
+		out jutil.Appendable,
+		compiler *jscomp.Compiler,
+		licenseTracker jscomp.CodePrinter_LicenseTracker,
+		chunk *jscomp.JSChunk,
+		wrapper string,
+		codePlaceholder string,
+		escaper func(string) string,
+		filename string,
+	)
 }
 
-// abstractCommandLineRunnerBase holds AbstractCommandLineRunner's fields and
-// base implementations.
-type abstractCommandLineRunnerBase struct {
-	self runnerHooks
+type runnerHooks = AbstractCommandLineRunner
+
+// AbstractCommandLineRunnerBase holds AbstractCommandLineRunner's fields and
+// base implementations for embedding in custom runners.
+type AbstractCommandLineRunnerBase struct {
+	self AbstractCommandLineRunner
 
 	config *AbstractCommandLineRunner_CommandLineConfig
 
@@ -138,10 +165,16 @@ type abstractCommandLineRunnerBase struct {
 
 	parsedChunkOutputFiles map[string]string // nil is null
 
+	parsedChunkConformanceFiles map[string]string // nil is null
+
 	filesToStreamOut []*AbstractCommandLineRunner_JsonFileSpec
 
 	sourceFileCache sourceFileLookupFunc
+
+	metricsRecorder CompileMetricsRecorder
 }
+
+type abstractCommandLineRunnerBase = AbstractCommandLineRunnerBase
 
 var (
 	// Java: AbstractCommandLineRunner.OUTPUT_SAME_AS_INPUT_ERROR
@@ -190,10 +223,15 @@ const defaultOutputMarker = "%output%"
 // Java: AbstractCommandLineRunner.OUTPUT_MARKER_JS_STRING
 const outputMarkerJsString = "%output|jsstring%"
 
-// initRunnerBase initializes the common runner base fields with the provided
-// streams and virtual hook target.
+// InitAbstractCommandLineRunnerBase initializes the common runner base fields
+// with the provided streams and virtual hook target.
 //
 // Java: AbstractCommandLineRunner(InputStream, PrintStream, PrintStream)
+func (r *abstractCommandLineRunnerBase) InitAbstractCommandLineRunnerBase(
+	self AbstractCommandLineRunner, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) {
+	r.initRunnerBase(self, in, out, err)
+}
+
 func (r *abstractCommandLineRunnerBase) initRunnerBase(
 	self runnerHooks, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) {
 	r.self = self
@@ -202,6 +240,31 @@ func (r *abstractCommandLineRunnerBase) initRunnerBase(
 	r.in = jutil.CheckNotNull(in)
 	r.defaultJsOutput = jutil.CheckNotNullPtr(out)
 	r.err = jutil.CheckNotNullPtr(err)
+}
+
+// GetErrorPrintStream returns the runner's error output PrintStream.
+//
+// Java: AbstractCommandLineRunner.getErrorPrintStream()
+func (r *abstractCommandLineRunnerBase) GetErrorPrintStream() *jutil.PrintStream {
+	return r.err
+}
+
+// SetCompiler overrides the underlying Compiler instance on the runner.
+func (r *abstractCommandLineRunnerBase) SetCompiler(compiler *jscomp.Compiler) {
+	r.compiler = compiler
+}
+
+// SetCompileMetricsRecorder installs an optional CompileMetricsRecorder for
+// DoRun lifecycle callbacks.
+func (r *abstractCommandLineRunnerBase) SetCompileMetricsRecorder(recorder CompileMetricsRecorder) {
+	r.metricsRecorder = recorder
+}
+
+// GetCompileMetricsRecorder returns the configured CompileMetricsRecorder, or nil.
+//
+// Java: AbstractCommandLineRunner.getCompileMetricsRecorder()
+func (r *abstractCommandLineRunnerBase) GetCompileMetricsRecorder() CompileMetricsRecorder {
+	return r.metricsRecorder
 }
 
 // EnableTestMode puts the command line runner into test mode. In test mode,
@@ -281,9 +344,13 @@ func checkNoDuplicateFlagFilenames(filenames []string, flagName string) {
 	}
 }
 
-// setRunOptions sets options based on the configurations set flags API.
+// SetRunOptions sets options based on the configurations set flags API.
 //
 // Java: AbstractCommandLineRunner.setRunOptions(CompilerOptions)
+func (r *abstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOptions) {
+	r.setRunOptions(options)
+}
+
 func (r *abstractCommandLineRunnerBase) setRunOptions(options *jscomp.CompilerOptions) {
 	config := r.config
 	diagnosticGroups := r.getDiagnosticGroups()
@@ -448,7 +515,7 @@ func (r *abstractCommandLineRunnerBase) tryDoRun() (result int, thrown jutil.Thr
 			thrown = jutil.AsThrowable(rec)
 		}
 	}()
-	return r.DoRun(), nil
+	return r.self.DoRun(), nil
 }
 
 // DoRun parses command-line arguments and runs the compiler. It returns the
@@ -456,6 +523,10 @@ func (r *abstractCommandLineRunnerBase) tryDoRun() (result int, thrown jutil.Thr
 //
 // Java: AbstractCommandLineRunner.doRun()
 func (r *abstractCommandLineRunnerBase) DoRun() int {
+	metricsRecorder := r.GetCompileMetricsRecorder()
+	if metricsRecorder != nil {
+		metricsRecorder.RecordActionStart()
+	}
 	config := r.config
 	if config.printVersion {
 		r.defaultJsOutput.Println(r.self.GetVersionText())
@@ -471,7 +542,7 @@ func (r *abstractCommandLineRunnerBase) DoRun() int {
 			newVerifyingErrorManager(r.compiler.GetErrorManager(), config.expectedDiagnostics))
 	}
 	options := r.self.CreateOptions()
-	r.setRunOptions(options)
+	r.self.SetRunOptions(options)
 
 	typedAstListInputFilename, hasTypedAstListInput := config.typedAstListInputFilename.Get()
 
@@ -574,9 +645,15 @@ func (r *abstractCommandLineRunnerBase) DoRun() int {
 
 	var result *jscomp.Result
 	if config.skipNormalOutputs {
+		if metricsRecorder != nil {
+			metricsRecorder.RecordActionName("skip normal outputs")
+		}
 		// TODO(bradfordcsmith): Should we be ignoring possible init/initChunks() errors here?
 		r.compiler.OrderInputsWithLargeStack()
 	} else if r.compiler.HasErrors() {
+		if metricsRecorder != nil {
+			metricsRecorder.RecordActionName("initialization errors occurred")
+		}
 		// init() or initChunks() encountered an error.
 		r.compiler.GenerateReport()
 		result = r.compiler.GetResult()
@@ -588,7 +665,7 @@ func (r *abstractCommandLineRunnerBase) DoRun() int {
 				r.compiler.GenerateReport()
 			}()
 			// This is the common case - we're actually compiling something.
-			r.performCompilation()
+			r.performCompilation(metricsRecorder)
 
 			// If we're finished with compilation (i.e. we're not saving state), /and/ the compiler was
 			// restored from a previous state, then we need to re-initialize the set of chunks.
@@ -618,19 +695,25 @@ func (r *abstractCommandLineRunnerBase) DoRun() int {
 	}
 
 	// We won't want to process results for cases where compilation is only partially done.
+	var exitStatus int
 	if !config.saveCompilationStateToFilename.IsPresent() {
-		return r.processResults(result, chunks, options)
+		exitStatus = r.processResults(result, chunks, options)
+	} else {
+		exitStatus = exitStatusForResult(result)
 	}
-	return exitStatusForResult(result)
+	if metricsRecorder != nil {
+		metricsRecorder.RecordResultMetrics(r.compiler, result)
+	}
+	return exitStatus
 }
 
-// Java: AbstractCommandLineRunner.performCompilation()
-func (r *abstractCommandLineRunnerBase) performCompilation() {
+// Java: AbstractCommandLineRunner.performCompilation(CompileMetricsRecorderInterface)
+func (r *abstractCommandLineRunnerBase) performCompilation(metricsRecorder CompileMetricsRecorder) {
 	// Parse, restore from a save file, or initialize from a TypedAST list.
 	r.initializeStateBeforeCompilation()
 
 	// Do the interesting work - checks, optimizations, etc.
-	r.runCompilerPasses()
+	r.runCompilerPasses(metricsRecorder)
 
 	// Save state unless there was an exception or error - we won't go on to the next stage if there
 	// was an error, and saving state itself might throw an exception if the compiler is in a bad
@@ -642,39 +725,58 @@ func (r *abstractCommandLineRunnerBase) performCompilation() {
 	r.compiler.PerformPostCompilationTasks()
 }
 
-// Java: AbstractCommandLineRunner.runCompilerPasses()
-func (r *abstractCommandLineRunnerBase) runCompilerPasses() {
+// Java: AbstractCommandLineRunner.runCompilerPasses(CompileMetricsRecorderInterface)
+func (r *abstractCommandLineRunnerBase) runCompilerPasses(metricsRecorder CompileMetricsRecorder) {
 	config := r.config
 	runStage1 := false
 	runStage2 := false
 	runStage3 := false
 	instrumentForCoverage := false
+	var actionMetricsName string
 	if r.compiler.GetOptions().GetInstrumentForCoverageOnly() {
+		actionMetricsName = "instrument for coverage"
 		instrumentForCoverage = true
 	} else if config.ShouldSaveAfterStage1() {
+		actionMetricsName = "stage 1"
 		runStage1 = true
 	} else if config.ShouldRestoreTypedAstsPerformStage2AndSave() {
+		actionMetricsName = "parse & optimize"
 		runStage2 = true
 	} else if config.ShouldRestoreTypedAstsPerformStages2And3() {
+		actionMetricsName = "skip-checks compile"
 		runStage2 = true
 		runStage3 = true
 	} else if config.ShouldRestoreAndPerformStage2AndSave() {
+		actionMetricsName = "stage 2/3"
 		runStage2 = true
 	} else if config.ShouldRestoreAndPerformStages2And3() {
+		actionMetricsName = "stage 2/2"
 		runStage2 = true
 		runStage3 = true
 	} else if config.ShouldRestoreAndPerformStage3() {
+		actionMetricsName = "stage 3/3"
 		runStage3 = true
 	} else {
 		// This is the code path taken when "building" a library by just checking it for errors
 		// and generating an .ijs file and also when doing a full compilation.
+		if r.compiler.GetOptions().IsChecksOnly() {
+			actionMetricsName = "checks-only"
+		} else {
+			actionMetricsName = "full compile"
+		}
 		runStage1 = true
 		runStage2 = true
 		runStage3 = true
 	}
 
+	if metricsRecorder != nil {
+		metricsRecorder.RecordActionName(actionMetricsName)
+	}
 	if r.compiler.HasErrors() {
 		return
+	}
+	if metricsRecorder != nil {
+		metricsRecorder.RecordStartState(r.compiler)
 	}
 	if runStage1 {
 		r.compiler.Stage1Passes()

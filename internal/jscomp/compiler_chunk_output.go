@@ -9,15 +9,18 @@ import (
 )
 
 // RenderedChunk holds the rendered JavaScript source and optional source map
-// for a single JSChunk.
+// (and optional worker-pool transformed/compressed source map bytes) for a
+// single JSChunk.
 type RenderedChunk struct {
-	Chunk     *JSChunk
-	Code      string
-	SourceMap string
+	Chunk          *JSChunk
+	Code           string
+	SourceMap      string
+	SourceMapBytes []byte
 }
 
 // RenderChunkOptions configures optional license tracking, source-map naming,
-// wrapper prefixing, and worker parallelism for Compiler.RenderChunksAndSourceMaps.
+// wrapper prefixing, per-input post-processing, source-map compression, and
+// worker parallelism for Compiler.RenderChunksAndSourceMaps.
 type RenderChunkOptions struct {
 	// LicenseTracker tracks emitted licenses across chunks in dependency order.
 	// When nil, NewCompiler_ChunkGraphAwareLicenseTracker(c) is used unless
@@ -42,6 +45,15 @@ type RenderChunkOptions struct {
 	// WrapperPrefix returns an optional prefix prepended before the chunk's JS
 	// code so the chunk's source map offsets are adjusted accordingly.
 	WrapperPrefix func(*JSChunk) string
+
+	// PostProcessInput, when non-nil, transforms each printed CompilerInput's
+	// generated JavaScript code in parallel before chunk concatenation.
+	PostProcessInput func(input *CompilerInput, code string) string
+
+	// CompressSourceMap, when non-nil and source maps are generated, transforms
+	// or compresses each chunk's rendered source map JSON on the worker pool and
+	// stores the result in RenderedChunk.SourceMapBytes.
+	CompressSourceMap func(chunk *JSChunk, sourceMap string) ([]byte, error)
 
 	// NumWorkers overrides the worker pool size. When <= 0, uses
 	// c.GetOptions().GetNumParallelThreads() if > 1, or runtime.GOMAXPROCS(0).
@@ -112,6 +124,7 @@ func (c *Compiler) renderChunksBatched(
 	replay func(string),
 	resetLTPerChunk func(),
 	gatherSourceMap bool,
+	postProcessInput func(*CompilerInput, string) string,
 	onSeqChunk func(globalIdx, batchIdx int, m *JSChunk, code string),
 	onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap),
 ) error {
@@ -120,6 +133,7 @@ func (c *Compiler) renderChunksBatched(
 	batchCap := min(len(activeChunks), batchSize)
 	scriptOffsets := make([]int, batchCap+1)
 	printer := newParallelScriptPrinter(c, numWorkers, onlyScript, gatherSourceMap, batchCap)
+	printer.postProcessInput = postProcessInput
 
 	var workerSM []*SourceMap
 	if gatherSourceMap && onParChunk != nil {
@@ -258,7 +272,8 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	rendered = make([]RenderedChunk, len(activeChunks))
 	if !canParallel {
 		for j, m := range activeChunks {
-			for _, in := range m.GetInputs() {
+			inputs := m.GetInputs()
+			for _, in := range inputs {
 				if in.GetAstRoot(c).IsNil() {
 					return nil, jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName())
 				}
@@ -272,20 +287,45 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 			if chunkTracker != nil {
 				chunkTracker.SetCurrentChunkContext(m)
 			}
-			code := c.ToSourceOfLicenseTrackerAndJSChunk(lt, m)
+			var code string
+			if opts.PostProcessInput != nil {
+				code = c.toSourceChunkSequentialWithPostProcess(lt, m, gatherSourceMap, opts.PostProcessInput)
+			} else {
+				code = c.ToSourceOfLicenseTrackerAndJSChunk(lt, m)
+			}
 			var smText string
+			var smBytes []byte
 			if gatherSourceMap {
 				smText = renderChunkSourceMapString(c.GetSourceMap(), m, opts.WrapperPrefix, chunkFileName)
+				if opts.CompressSourceMap != nil {
+					smBytes, err = opts.CompressSourceMap(m, smText)
+					if err != nil {
+						return nil, err
+					}
+				}
 			}
-			rendered[j] = RenderedChunk{Chunk: m, Code: code, SourceMap: smText}
+			rendered[j] = RenderedChunk{Chunk: m, Code: code, SourceMap: smText, SourceMapBytes: smBytes}
 		}
 		return rendered, nil
 	}
 
+	var parErrs []error
+	if gatherSourceMap && opts.CompressSourceMap != nil {
+		parErrs = make([]error, len(activeChunks))
+	}
 	var onParChunk func(globalIdx, batchIdx int, m *JSChunk, sm *SourceMap)
 	if gatherSourceMap {
 		onParChunk = func(globalIdx, _ int, m *JSChunk, sm *SourceMap) {
-			rendered[globalIdx].SourceMap = renderChunkSourceMapString(sm, m, opts.WrapperPrefix, chunkFileName)
+			smText := renderChunkSourceMapString(sm, m, opts.WrapperPrefix, chunkFileName)
+			rendered[globalIdx].SourceMap = smText
+			if opts.CompressSourceMap != nil {
+				b, cErr := opts.CompressSourceMap(m, smText)
+				if cErr != nil {
+					parErrs[globalIdx] = cErr
+					return
+				}
+				rendered[globalIdx].SourceMapBytes = b
+			}
 		}
 	}
 	err = c.renderChunksBatched(
@@ -296,6 +336,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 		replay,
 		resetLTPerChunk,
 		gatherSourceMap,
+		opts.PostProcessInput,
 		func(globalIdx, _ int, m *JSChunk, code string) {
 			rendered[globalIdx] = RenderedChunk{Chunk: m, Code: code}
 		},
@@ -304,7 +345,48 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	if err != nil {
 		return nil, err
 	}
+	for _, pErr := range parErrs {
+		if pErr != nil {
+			return nil, pErr
+		}
+	}
 	return rendered, nil
+}
+
+func (c *Compiler) toSourceChunkSequentialWithPostProcess(
+	lt CodePrinter_LicenseTracker,
+	chunk *JSChunk,
+	gatherSourceMap bool,
+	postProcess func(*CompilerInput, string) string,
+) string {
+	return Compiler_RunInCompilerThread(c, func() string {
+		inputs := chunk.GetInputs()
+		if len(inputs) == 0 {
+			return ""
+		}
+		cb := NewCompiler_CodeBuilder()
+		scratch, owned := c.acquirePrintScratch()
+		if owned {
+			defer c.sync.printScratchBusy.Store(false)
+		}
+		sm := CodePrinter_SourceAndMappings{bytesOnly: true}
+		for i, in := range inputs {
+			scriptNode := in.GetAstRoot(c)
+			c.printRootWithScratch(scriptNode, i == 0, gatherSourceMap, lt, &sm, scratch)
+			orig := string(sm.codeBytes)
+			if out := postProcess(in, orig); out != orig {
+				sm.codeBytes = append(sm.codeBytes[:0], out...)
+				sm.hasMetrics = false
+			}
+			startLine, startCol, emitted := c.appendSourceAndMetricsToCodeBuilderForChunk(cb, lt, i, scriptNode, &sm)
+			if emitted && gatherSourceMap {
+				addMappingsToSourceMap(c.sourceMap, startLine, startCol, &sm)
+			} else {
+				resetSourceAndMappings(&sm)
+			}
+		}
+		return cb.String()
+	})
 }
 
 // OutputChunksParallel renders non-weak chunks in bounded batches across
@@ -344,6 +426,7 @@ func (c *Compiler) OutputChunksParallel(
 		mlicenseTracker.trackLicensesForFileName,
 		nil,
 		gatherSourceMap,
+		nil,
 		func(_, j int, m *JSChunk, code string) {
 			chunkFilename := hooks.ChunkFileName(m)
 			hooks.EnsureDir(chunkFilename)

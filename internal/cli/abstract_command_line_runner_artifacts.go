@@ -38,15 +38,19 @@ func mustSourceMapOutputPath(options *jscomp.CompilerOptions) string {
 	return p
 }
 
-// shouldGenerateMapPerChunk returns true if and only if a source map file
+// ShouldGenerateMapPerChunk returns true if and only if a source map file
 // should be generated for each chunk, as opposed to one unified map. This is
 // specified by having the source map pattern include the %outname%
 // variable.
 //
 // Java: AbstractCommandLineRunner.shouldGenerateMapPerChunk(B)
-func (r *abstractCommandLineRunnerBase) shouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool {
+func (r *abstractCommandLineRunnerBase) ShouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool {
 	return options.ShouldGatherSourceMapInfo() &&
 		strings.Contains(mustSourceMapOutputPath(options), "%outname%")
+}
+
+func (r *abstractCommandLineRunnerBase) shouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool {
+	return r.self.ShouldGenerateMapPerChunk(options)
 }
 
 // openExternExportsStream returns a stream for outputting the generated

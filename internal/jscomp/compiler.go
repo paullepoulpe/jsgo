@@ -247,6 +247,11 @@ type Compiler struct {
 	// Conformance violations persisted across compilation stages.
 	conformanceViolations             []*ConformanceViolationsProto
 	unattributedConformanceViolations []*ViolationProto
+	conformanceViolationInterceptor   ConformanceViolationHandler
+
+	// Go-only: optional embedder metadata keyed by AST nodes and forwarded
+	// across AST compaction passes.
+	customNodeMetadata *OrderedMap[rhino.Node, any]
 
 	// Did any source file need any feature transpiled
 	transpiledFiles bool

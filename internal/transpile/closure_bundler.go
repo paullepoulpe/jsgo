@@ -39,6 +39,7 @@ type ClosureBundler struct {
 	hasSourceUrl   bool
 	path           string
 	embedSourcemap bool
+	inputMinifier  func(path, code string) string
 
 	// TODO(sdh): This cache should be moved out into a higher level, but is
 	// currently required due to the API that source maps must be accessible
@@ -120,6 +121,15 @@ func (b *ClosureBundler) WithPath(newPath string) *ClosureBundler {
 func (b *ClosureBundler) EmbedSourcemap() *ClosureBundler {
 	cp := *b
 	cp.embedSourcemap = true
+	return &cp
+}
+
+// WithInputMinifier returns a copy of b configured with an optional per-input
+// transform callback invoked on each bundled input's transpiled JavaScript
+// source (passing b.path and the code) before module/eval wrapping.
+func (b *ClosureBundler) WithInputMinifier(minifier func(path, code string) string) *ClosureBundler {
+	cp := *b
+	cp.inputMinifier = minifier
 	return &cp
 }
 
@@ -212,10 +222,18 @@ func (b *ClosureBundler) transpileWithTranspiler(s string, t Transpiler) string 
 	b.sourceMapCache.mu.Lock()
 	b.sourceMapCache.m[b.path] = result.SourceMap()
 	b.sourceMapCache.mu.Unlock()
+	out := result.Transpiled()
+	if b.inputMinifier != nil {
+		out = b.inputMinifier(b.path, out)
+		if b.embedSourcemap {
+			return NewTranspileResult(b.path, s, out, result.SourceMap()).EmbedSourcemapBase64().Transpiled()
+		}
+		return out
+	}
 	if b.embedSourcemap {
 		return result.EmbedSourcemapBase64().Transpiled()
 	}
-	return result.Transpiled()
+	return out
 }
 
 // Java: ClosureBundler.transpile(String)

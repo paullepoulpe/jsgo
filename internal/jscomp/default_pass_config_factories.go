@@ -470,9 +470,12 @@ var (
 	})
 	defaultPass_serializeTypedAst = NewPassFactory("serializeTypedAst", func(c AbstractCompiler) CompilerPass {
 		opts := c.GetOptions()
-		return SerializeTypedAstPass_CreateFromPath(c, opts.GetTypedAstOutputFile(),
-			NewSerializationOptions().SetIncludeDebugInfo(opts.ShouldSerializeExtraDebugInfo()).
-				SetRuntimeLibraries(c.GetRuntimeJsLibManager().GetInjectedLibraries()).Build())
+		serOpts := NewSerializationOptions().SetIncludeDebugInfo(opts.ShouldSerializeExtraDebugInfo()).
+			SetRuntimeLibraries(c.GetRuntimeJsLibManager().GetInjectedLibraries()).Build()
+		if out := opts.GetTypedAstOutputStream(); out != nil {
+			return SerializeTypedAstPass_CreateFromOutputStream(c, out, serOpts)
+		}
+		return SerializeTypedAstPass_CreateFromPath(c, opts.GetTypedAstOutputFile(), serOpts)
 	})
 	defaultPass_removeUnnecessarySyntheticExterns = passFactoryOf("removeUnnecessarySyntheticExterns", NewRemoveUnnecessarySyntheticExterns)
 	defaultPass_optimizeToEs6                     = passFactoryOf("optimizeToEs6", NewSubstituteEs6Syntax)

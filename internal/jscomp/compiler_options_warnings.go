@@ -228,7 +228,7 @@ func (o *CompilerOptions) ShouldProtectHiddenSideEffects() bool {
 	// TODO(lharker): would it make sense to make 'checksOnly' a tristate instead? either we're
 	// running only checks for refactoring; running checks to generate a .typedast; or running
 	// checks as part of a fully optimizing build?
-	return o.protectHiddenSideEffects && (!o.checksOnly || o.GetTypedAstOutputFile() != nil)
+	return o.protectHiddenSideEffects && (!o.checksOnly || o.HasTypedAstOutput())
 }
 
 // Java: CompilerOptions.setAssumeGettersArePure(boolean)

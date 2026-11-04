@@ -70,6 +70,7 @@ type CompilerOptions struct {
 	// and skip all other passes.
 	instrumentForCoverageOnly  bool
 	typedAstOutputFile         *jutil.Path
+	typedAstOutputStream       io.Writer
 	mergedPrecompiledLibraries bool
 	// Whether to infer consts. This should not be configurable by external clients. This is a
 	// transitional flag for a new type of const analysis.
@@ -557,6 +558,10 @@ type CompilerOptions struct {
 	fastMode bool
 	// Go-only: opt-in flat binary SaveState format (auto-detected on RestoreState)
 	binarySaveState bool
+	// Go-only: optional embedder hooks for filtering emitted @license/@preserve
+	// blocks and customizing options at the end of ReconcileOptionsWithGuards.
+	licenseFilter        func(string) bool
+	reconcileOptionsHook func(*CompilerOptions)
 }
 
 // Initializes compiler options. All options are disabled by default.

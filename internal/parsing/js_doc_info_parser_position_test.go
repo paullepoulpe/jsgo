@@ -29,8 +29,44 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parsing"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/rhino/rhinotesting"
 )
+
+func parseFullForPositionTest(t *testing.T, code string) rhino.Node {
+	t.Helper()
+	defaultCfg := parsing.ParserRunner_CreateConfigWithModes(
+		parsing.Config_LanguageMode_ECMASCRIPT3,
+		parsing.Config_JsDocParsing_TYPES_ONLY,
+		parsing.Config_RunMode_STOP_AFTER_ERROR,
+		nil,
+		true,
+		parsing.Config_StrictMode_SLOPPY)
+	extraAnnotations := jutil.NewOrderedSet(defaultCfg.AnnotationNames()...)
+	extraSuppressions := jutil.NewOrderedSet(parsing.ParserRunner_GetSuppressionNames().ToSlice()...)
+	extraSuppressions.Add("x")
+	extraSuppressions.Add("y")
+	extraSuppressions.Add("z")
+
+	testErrorReporter := rhinotesting.NewTestErrorReporter()
+	config := parsing.NewConfigBuilder().
+		SetExtraAnnotationNames(extraAnnotations.All()).
+		SetJsDocParsingMode(parsing.Config_JsDocParsing_INCLUDE_DESCRIPTIONS_NO_WHITESPACE).
+		SetRunMode(parsing.Config_RunMode_KEEP_GOING).
+		SetSuppressionNames(extraSuppressions.All()).
+		SetLanguageMode(parsing.Config_LanguageMode_ECMASCRIPT3).
+		SetParseInlineSourceMaps(true).
+		SetStrictMode(parsing.Config_StrictMode_SLOPPY).
+		Build()
+
+	result := parsing.ParserRunner_Parse(
+		rhino.NewSimpleSourceFile("source", rhino.StaticSourceFile_SourceKind_STRONG),
+		code,
+		config,
+		testErrorReporter)
+	testErrorReporter.VerifyHasEncounteredAllWarningsAndErrors(t)
+	return result.Ast
+}
 
 // Java: JsDocInfoParserTest.testJsDocInfoPosition()
 func TestJsDocInfoPosition(t *testing.T) {
@@ -39,7 +75,7 @@ func TestJsDocInfoPosition(t *testing.T) {
 		jscomp.SourceFile_FromCode(
 			"comment-position-test.js",
 			"   \n  /**\n   * A comment\n   */\n  function f(x) {}\n")
-	script := parsing.JsDocInfoParserTest_ParseFull(t, sourceFile.GetCode())
+	script := parseFullForPositionTest(t, sourceFile.GetCode())
 	jutil.CheckState(script.IsScript())
 	fn := script.GetFirstChild()
 	jutil.CheckState(fn.IsFunction())

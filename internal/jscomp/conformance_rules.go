@@ -55,6 +55,27 @@ func NewConformanceRules_ConformanceResultWithNote(level ConformanceRules_Confor
 	return &ConformanceRules_ConformanceResult{level: level, note: note}
 }
 
+// IsViolation reports whether r represents a definite or possible conformance violation.
+func (r *ConformanceRules_ConformanceResult) IsViolation() bool {
+	return r != nil && r.level != ConformanceRules_ConformanceLevel_CONFORMANCE
+}
+
+// GetLevel returns the conformance level of r.
+func (r *ConformanceRules_ConformanceResult) GetLevel() ConformanceRules_ConformanceLevel {
+	if r == nil {
+		return ConformanceRules_ConformanceLevel_CONFORMANCE
+	}
+	return r.level
+}
+
+// GetNote returns the optional violation-specific note attached to r.
+func (r *ConformanceRules_ConformanceResult) GetNote() string {
+	if r == nil {
+		return ""
+	}
+	return r.note
+}
+
 var ConformanceRules_ConformanceResult_CONFORMANCE = NewConformanceRules_ConformanceResult(ConformanceRules_ConformanceLevel_CONFORMANCE)
 
 var ConformanceRules_ConformanceResult_POSSIBLE_VIOLATION = NewConformanceRules_ConformanceResult(ConformanceRules_ConformanceLevel_POSSIBLE_VIOLATION)
@@ -155,9 +176,11 @@ func (a *conformanceAllowList) matches(path string) bool {
 		(a.regexp.Find(path) || (hasTsPath && a.regexp.Find(tsPath)))
 }
 
-// conformanceAbstractRule holds the common rule fields and helpers shared by
-// built-in and type-restriction conformance rules.
-type conformanceAbstractRule struct {
+// ConformanceRules_AbstractRule holds the common rule fields and helpers shared
+// by built-in, type-restriction, and embedder-registered custom conformance rules.
+//
+// Java: ConformanceRules.AbstractRule
+type ConformanceRules_AbstractRule struct {
 	compiler                  AbstractCompiler
 	message                   string
 	severity                  Requirement_Severity
@@ -174,15 +197,49 @@ type conformanceAbstractRule struct {
 	assertionFunctions *CodingConvention_AssertionFunctionLookup
 }
 
-func (b *conformanceAbstractRule) Check(
+type conformanceAbstractRule = ConformanceRules_AbstractRule
+
+func (b *ConformanceRules_AbstractRule) Check(
 	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
-	if result := b.checkConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
+	if result := b.checkConformance(t, n); result.IsViolation() {
 		b.Report(n, result, behavior)
 	}
 }
 
-func (*conformanceAbstractRule) GetPrecondition() CheckConformance_Precondition {
+func (*ConformanceRules_AbstractRule) GetPrecondition() CheckConformance_Precondition {
 	return CheckConformance_Precondition_CHECK_ALL
+}
+
+// GetCompiler returns the compiler associated with this rule.
+func (b *ConformanceRules_AbstractRule) GetCompiler() AbstractCompiler { return b.compiler }
+
+// GetRequirement returns the Requirement proto backing this rule.
+func (b *ConformanceRules_AbstractRule) GetRequirement() *Requirement { return b.requirement }
+
+// GetMessage returns the formatted diagnostic message for this rule.
+func (b *ConformanceRules_AbstractRule) GetMessage() string { return b.message }
+
+// GetSeverity returns the effective severity of this rule.
+func (b *ConformanceRules_AbstractRule) GetSeverity() Requirement_Severity { return b.severity }
+
+// InitRule initializes the common AbstractRule state and node-check callback.
+func (b *ConformanceRules_AbstractRule) InitRule(
+	compiler AbstractCompiler,
+	requirement *Requirement,
+	tsIsAllowlisted bool,
+	check func(*NodeTraversal, rhino.Node) *ConformanceRules_ConformanceResult,
+) error {
+	return b.initRule(compiler, requirement, tsIsAllowlisted, check)
+}
+
+// InitTypeRule initializes AbstractTypeRestrictionRule state and node-check callback.
+func (b *ConformanceRules_AbstractRule) InitTypeRule(
+	compiler AbstractCompiler,
+	requirement *Requirement,
+	tsIsAllowlisted bool,
+	check func(*NodeTraversal, rhino.Node) *ConformanceRules_ConformanceResult,
+) error {
+	return b.initTypeRule(compiler, requirement, tsIsAllowlisted, check)
 }
 
 // initRule initializes the common AbstractRule state and check callback.
@@ -335,8 +392,16 @@ func (b *conformanceAbstractRule) Report(
 	if allowlist != nil {
 		allowlistEntry = allowlist.allowlistEntry
 	}
-	shouldReport :=
-		b.compiler.
+	var shouldReport bool
+	if interceptor := b.compiler.GetConformanceViolationInterceptor(); interceptor != nil {
+		shouldReport = interceptor(
+			b.requirement,
+			allowlistEntry,
+			err,
+			behavior,
+			isAllowlisted)
+	} else {
+		shouldReport = b.compiler.
 			GetErrorManager().
 			// returns true even if the violation is allowlisted
 			ShouldReportConformanceViolation(
@@ -345,6 +410,7 @@ func (b *conformanceAbstractRule) Report(
 				err,
 				behavior,
 				isAllowlisted)
+	}
 
 	if shouldReport && !isAllowlisted {
 		b.compiler.Report(err)

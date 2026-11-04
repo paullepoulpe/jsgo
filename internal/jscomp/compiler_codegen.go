@@ -42,6 +42,7 @@ func (c *Compiler) ToSourceOfJSChunk(chunk *JSChunk) string {
 }
 
 type parallelPrintedScript struct {
+	input     *CompilerInput
 	root      rhino.Node
 	sm        CodePrinter_SourceAndMappings
 	rec       compiler_ParallelScriptLicenseRecorder
@@ -52,12 +53,13 @@ type parallelPrintedScript struct {
 }
 
 type parallelScriptPrinter struct {
-	compiler   *Compiler
-	numWorkers int
-	onlyScript bool
-	wantMap    bool
-	scratches  []codePrinterScratch
-	slots      []parallelPrintedScript
+	compiler         *Compiler
+	numWorkers       int
+	onlyScript       bool
+	wantMap          bool
+	postProcessInput func(*CompilerInput, string) string
+	scratches        []codePrinterScratch
+	slots            []parallelPrintedScript
 }
 
 func newParallelScriptPrinter(c *Compiler, numWorkers int, onlyScript, wantMap bool, initialSlots int) parallelScriptPrinter {
@@ -88,6 +90,7 @@ func (p *parallelScriptPrinter) setSlot(slotIdx int, chunkName string, in *Compi
 		return jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + chunkName)
 	}
 	s := &p.slots[slotIdx]
+	s.input = in
 	s.root = scriptNode
 	s.first = firstInChunk
 	s.startLine = 0
@@ -108,6 +111,13 @@ func (p *parallelScriptPrinter) printBatch(count int) error {
 		s.rec.Reset(p.onlyScript)
 		s.sm.mappings = s.sm.mappings[:0]
 		p.compiler.printRootWithScratch(s.root, s.first, p.wantMap, &s.rec, &s.sm, &p.scratches[w])
+		if p.postProcessInput != nil {
+			orig := string(s.sm.codeBytes)
+			if out := p.postProcessInput(s.input, orig); out != orig {
+				s.sm.codeBytes = append(s.sm.codeBytes[:0], out...)
+				s.sm.hasMetrics = false
+			}
+		}
 	})
 	for _, f := range failures {
 		if f != nil {
@@ -128,6 +138,7 @@ func (c *Compiler) appendPrintedScriptToCodeBuilder(
 	s.startLine, s.startCol, s.emitted = c.appendSourceAndMetricsToCodeBuilderForChunk(
 		cb, lt, inputSeqNum, s.root, &s.sm)
 	resetSourceCodeBytes(&s.sm)
+	s.input = nil
 	s.root = rhino.NilNode
 }
 
@@ -847,7 +858,14 @@ func compiler_getLicenseForFileName(compiler AbstractCompiler, fileName string) 
 	if docInfo == nil {
 		return "", false
 	}
-	return docInfo.License()
+	license, ok := docInfo.License()
+	if !ok {
+		return "", false
+	}
+	if opts := compiler.GetOptions(); opts != nil && opts.licenseFilter != nil && !opts.licenseFilter(license) {
+		return "", false
+	}
+	return license, true
 }
 
 // Compiler_CodeBuilder stores a buffer of text to which more can be

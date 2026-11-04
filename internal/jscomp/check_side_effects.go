@@ -186,7 +186,7 @@ func (c *CheckSideEffects) Visit(t *NodeTraversal, n rhino.Node, parent rhino.No
 		if !ok {
 			panic(jutil.NewNullPointerException())
 		}
-		if strings.HasPrefix(src, AbstractCompiler_RUNTIME_LIB_DIR) &&
+		if strings.HasPrefix(src, GetRuntimeLibDir()) &&
 			strings.HasPrefix(n.GetString(), "require ") {
 			return
 		}

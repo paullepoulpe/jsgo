@@ -152,12 +152,29 @@ func NewCommandLineRunnerWithOutAndErr(args []string, out *jutil.PrintStream, er
 
 // Java: CommandLineRunner(String[], InputStream, PrintStream, PrintStream)
 func NewCommandLineRunnerWithStreams(args []string, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) *CommandLineRunner {
-	r := &CommandLineRunner{
-		flags: newCommandLineRunner_Flags(),
-	}
-	r.initRunnerBase(r, in, out, err)
-	r.initConfigFromFlags(args, out, err)
+	r := &CommandLineRunner{}
+	r.InitCommandLineRunnerWithStreams(r, args, in, out, err)
 	return r
+}
+
+// InitCommandLineRunner initializes an embedded CommandLineRunner with self as
+// the virtual AbstractCommandLineRunner dispatch target using System streams.
+func (r *CommandLineRunner) InitCommandLineRunner(self AbstractCommandLineRunner, args []string) {
+	r.InitCommandLineRunnerWithStreams(self, args, jutil.System_In(), jutil.System_Out(), jutil.System_Err())
+}
+
+// InitCommandLineRunnerWithStreams initializes an embedded CommandLineRunner
+// with self as the virtual AbstractCommandLineRunner dispatch target.
+func (r *CommandLineRunner) InitCommandLineRunnerWithStreams(
+	self AbstractCommandLineRunner,
+	args []string,
+	in io.Reader,
+	out *jutil.PrintStream,
+	err *jutil.PrintStream,
+) {
+	r.flags = newCommandLineRunner_Flags()
+	r.initRunnerBase(self, in, out, err)
+	r.initConfigFromFlags(args, out, err)
 }
 
 // Java: CommandLineRunner.processArgs(String[])
@@ -912,15 +929,21 @@ func (r *CommandLineRunner) HasErrors() bool {
 // Java: CommandLineRunner.phaseLogger
 var phaseLogger = jutil.Logger_GetLogger("com.google.javascript.jscomp.PhaseOptimizer")
 
+// DisablePhaseLogger disables PhaseOptimizer logger output so logging messages
+// do not interfere with standard error reporting in custom CLI runners.
+func DisablePhaseLogger() {
+	if phaseLogger != nil {
+		phaseLogger.SetLevel(jutil.Level_OFF)
+	}
+}
+
 // CommandLineRunner_Main runs the Compiler. Exits cleanly in the event of an
 // error.
 //
 // Java: CommandLineRunner.main(String[])
 func CommandLineRunner_Main(args []string) {
 	// disable any logging messages that can interfere with standard error reporting
-	if phaseLogger != nil {
-		phaseLogger.SetLevel(jutil.Level_OFF)
-	}
+	DisablePhaseLogger()
 	if startupArgs, ok := parsePersistentWorkerStartupArgs(args); ok {
 		if err := runPersistentWorker(startupArgs, os.Stdin, os.Stdout); err != nil {
 			jutil.System_Err().Println(err.Error())

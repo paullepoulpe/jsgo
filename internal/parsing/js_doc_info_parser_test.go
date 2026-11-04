@@ -5998,15 +5998,6 @@ func TestAllowlistedAnnotations(t *testing.T) {
 // js_doc_info_parser_position_test.go: it reads positions through a jscomp
 // SourceFile, so it is in the external test package parsing_test.
 
-// JsDocInfoParserTest_ParseFull is parseFull(code) on a fresh test
-// instance, for the external test package.
-//
-// Go-only: test-helper — exported to parsing_test (see above).
-func JsDocInfoParserTest_ParseFull(t *testing.T, code string) rhino.Node {
-	t.Helper()
-	return newJsDocInfoParserTest(t).parseFull(code)
-}
-
 func TestGetOriginalCommentString(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	comment := "* @desc This is a comment */"

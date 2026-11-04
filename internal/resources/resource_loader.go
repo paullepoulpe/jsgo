@@ -24,7 +24,10 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
+	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -45,6 +48,57 @@ var classpath embed.FS
 var runtimeLibsTypedAst []byte
 
 const runtimeLibsTypedAstName = "runtime_libs.typedast"
+
+var (
+	overridesMu    sync.RWMutex
+	overridesMap   map[string][]byte
+	overridesEpoch atomic.Uint64
+)
+
+// RegisterOverride registers an in-memory resource override at path (with any
+// leading '/' stripped), taking precedence over embedded resources such as
+// "runtime_libs.typedast" or files under JsDir.
+func RegisterOverride(path string, data []byte) {
+	name := strings.TrimPrefix(path, "/")
+	cloned := slices.Clone(data)
+	if cloned == nil {
+		cloned = []byte{}
+	}
+	overridesMu.Lock()
+	if overridesMap == nil {
+		overridesMap = make(map[string][]byte)
+	}
+	overridesMap[name] = cloned
+	overridesEpoch.Add(1)
+	overridesMu.Unlock()
+}
+
+// UnregisterOverride removes any in-memory resource override registered at path.
+func UnregisterOverride(path string) {
+	name := strings.TrimPrefix(path, "/")
+	overridesMu.Lock()
+	if len(overridesMap) > 0 {
+		delete(overridesMap, name)
+		overridesEpoch.Add(1)
+	}
+	overridesMu.Unlock()
+}
+
+// ClearOverrides removes all registered in-memory resource overrides.
+func ClearOverrides() {
+	overridesMu.Lock()
+	if len(overridesMap) > 0 {
+		clear(overridesMap)
+		overridesEpoch.Add(1)
+	}
+	overridesMu.Unlock()
+}
+
+// OverridesEpoch returns a monotonic counter incremented whenever in-memory
+// resource overrides change.
+func OverridesEpoch() uint64 {
+	return overridesEpoch.Load()
+}
 
 // LoadBytes returns the bytes of the embedded resource at path (with an
 // optional leading '/' stripped), or an error wrapping fs.ErrNotExist.
@@ -79,6 +133,14 @@ func Exists(path string) bool {
 }
 
 func getResource(name string) ([]byte, bool) {
+	if overridesEpoch.Load() != 0 {
+		overridesMu.RLock()
+		data, ok := overridesMap[name]
+		overridesMu.RUnlock()
+		if ok {
+			return data, true
+		}
+	}
 	if name == runtimeLibsTypedAstName {
 		return runtimeLibsTypedAst, true
 	}

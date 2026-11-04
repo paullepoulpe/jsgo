@@ -38,6 +38,7 @@ package jscomp
 import (
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -127,15 +128,65 @@ type RuntimeJsLibManager_ResourceProvider func(resourceName string, path string)
 // Java: RuntimeJsLibManager.RUNTIME_LIB_DIR
 const RuntimeJsLibManager_RUNTIME_LIB_DIR = "src/com/google/javascript/jscomp/js/"
 
+type runtimeLibDirHolder struct {
+	dir string
+}
+
+var runtimeLibDirOverride atomic.Pointer[runtimeLibDirHolder]
+
+// SetRuntimeLibDir overrides the synthetic source-path directory prefix used
+// for injected Closure runtime libraries (defaulting to
+// RuntimeJsLibManager_RUNTIME_LIB_DIR when dir == ""). If non-empty and missing
+// a trailing '/', one is appended automatically.
+func SetRuntimeLibDir(dir string) {
+	if dir == "" || dir == RuntimeJsLibManager_RUNTIME_LIB_DIR {
+		runtimeLibDirOverride.Store(nil)
+		return
+	}
+	if !strings.HasSuffix(dir, "/") {
+		dir += "/"
+	}
+	runtimeLibDirOverride.Store(&runtimeLibDirHolder{dir: dir})
+}
+
+// GetRuntimeLibDir returns the active runtime library directory prefix.
+func GetRuntimeLibDir() string {
+	if p := runtimeLibDirOverride.Load(); p != nil {
+		return p.dir
+	}
+	return RuntimeJsLibManager_RUNTIME_LIB_DIR
+}
+
+type runtimeLibFieldsSnapshot struct {
+	epoch  uint64
+	fields map[string]string
+}
+
+var (
+	runtimeLibFieldsMu    sync.Mutex
+	runtimeLibFieldsCache atomic.Pointer[runtimeLibFieldsSnapshot]
+)
+
 // runtimeLibFieldsTable returns the read-only lookup table mapping
 // $jscomp field names to the runtime library path in which they're defined
 // (e.g. "inherits" -> "es6/util/inherits"). Nested properties such as
 // "$jscomp.a.b.c" are keyed by their top-level property ("a").
-//
-// Go-only: language-adapter — Java's FieldsTable holder class loads
-// INSTANCE lazily and thread-safely on first use via class initialization;
-// sync.OnceValue provides the equivalent race-free lazy singleton in Go.
-var runtimeLibFieldsTable = sync.OnceValue(loadRuntimeLibFields)
+// Automatically reloads when resources.RegisterOverride mutates resources.
+func runtimeLibFieldsTable() map[string]string {
+	epoch := resources.OverridesEpoch()
+	if snap := runtimeLibFieldsCache.Load(); snap != nil && snap.epoch == epoch {
+		return snap.fields
+	}
+	runtimeLibFieldsMu.Lock()
+	defer runtimeLibFieldsMu.Unlock()
+	epoch = resources.OverridesEpoch()
+	if snap := runtimeLibFieldsCache.Load(); snap != nil && snap.epoch == epoch {
+		return snap.fields
+	}
+	fields := loadRuntimeLibFields()
+	runtimeLibFieldsCache.Store(&runtimeLibFieldsSnapshot{epoch: epoch, fields: fields})
+	return fields
+}
 
 // Java: RuntimeJsLibManager.FieldsTable.loadFields()
 func loadRuntimeLibFields() map[string]string {
@@ -484,7 +535,7 @@ func (m *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, force b
 	}
 	m.RecordLibraryInjected(resourceName)
 
-	path := RuntimeJsLibManager_RUNTIME_LIB_DIR + resourceName + ".js"
+	path := GetRuntimeLibDir() + resourceName + ".js"
 	script := ast.MustScript(rhino.CheckNotNull(m.resourceProvider(resourceName, path)))
 
 	m.injectLibraryDependencies(script, force) // may also modify 'script'

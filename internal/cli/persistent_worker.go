@@ -307,6 +307,10 @@ type workerSyncBuffer struct {
 	buf bytes.Buffer
 }
 
+type workerSystemExit struct {
+	status int
+}
+
 func (b *workerSyncBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	n, err := b.buf.Write(p)
@@ -373,9 +377,16 @@ func (w *PersistentWorker) ExecuteRequest(req *WorkRequest) WorkResponse {
 	defer rhino.UnlockStandaloneStore()
 
 	// Strictly reset the global NodeStore before AND after every compilation request
-	// so AST blocks never leak across requests and are immediately eligible for GC.
+	// so AST blocks never leak across requests and are immediately eligible for GC,
+	// and rewind package-level rhino tables back to the post-init baseline.
 	rhino.ResetNodeStore()
-	defer rhino.ResetNodeStore()
+	if !rhino.HasStaticBaseline() {
+		rhino.CaptureStaticBaseline()
+	}
+	defer func() {
+		rhino.ResetNodeStore()
+		rhino.RewindStaticBaseline()
+	}()
 
 	var absSandbox string
 	if req.SandboxDir != "" {
@@ -431,15 +442,23 @@ func (w *PersistentWorker) ExecuteRequest(req *WorkRequest) WorkResponse {
 	exitCode := 0
 	prevOut := jutil.System_Out()
 	prevErr := jutil.System_Err()
+	prevExitHook := jutil.SetSystemExitHook(func(status int) {
+		panic(workerSystemExit{status: status})
+	})
 	jutil.System_SetOut(errPS)
 	jutil.System_SetErr(errPS)
 	func() {
 		defer func() {
+			jutil.SetSystemExitHook(prevExitHook)
 			jutil.System_SetOut(prevOut)
 			jutil.System_SetErr(prevErr)
 		}()
 		defer func() {
 			if rec := recover(); rec != nil {
+				if se, ok := rec.(workerSystemExit); ok {
+					exitCode = se.status
+					return
+				}
 				thrown := jutil.AsThrowable(rec)
 				if flagErr, ok := thrown.(jscomp.IFlagUsageException); ok {
 					errPS.Println(flagErr.GetMessage())

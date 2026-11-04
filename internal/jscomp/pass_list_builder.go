@@ -41,6 +41,34 @@ func (b *PassListBuilder) Build() []*PassFactory {
 	return append([]*PassFactory(nil), b.passes...)
 }
 
+// Len returns the number of pass factories currently in the builder.
+func (b *PassListBuilder) Len() int {
+	return len(b.passes)
+}
+
+// At returns the pass factory at index, panicking with IndexOutOfBoundsException
+// if index is out of range.
+func (b *PassListBuilder) At(index int) *PassFactory {
+	if index < 0 || index >= len(b.passes) {
+		panic(jutil.NewIndexOutOfBoundsException(
+			"Index: " + jutil.ToJavaString(index) + ", Size: " + jutil.ToJavaString(len(b.passes))))
+	}
+	return b.passes[index]
+}
+
+// InsertAt inserts factory at index (if its condition is nil or evaluates to
+// true), panicking with IndexOutOfBoundsException if index is out of [0, Len()].
+func (b *PassListBuilder) InsertAt(index int, factory *PassFactory) {
+	jutil.CheckNotNull(factory)
+	if index < 0 || index > len(b.passes) {
+		panic(jutil.NewIndexOutOfBoundsException(
+			"Index: " + jutil.ToJavaString(index) + ", Size: " + jutil.ToJavaString(len(b.passes))))
+	}
+	if factory.condition == nil || factory.condition(b.options) {
+		b.passes = passListBuilder_insert(b.passes, index, factory)
+	}
+}
+
 // Java: PassListBuilder.addAll(PassListBuilder)
 func (b *PassListBuilder) AddAll(other *PassListBuilder) {
 	// Don't bother to check conditions here as we assume that they were

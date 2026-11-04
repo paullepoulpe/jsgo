@@ -33,6 +33,10 @@ type DefaultPassConfig struct {
 	preprocessorSymbolTableFactory *PreprocessorSymbolTable_CachedInstanceFactory
 
 	inferTypes *PassFactory
+
+	checksDecorator        func(*PassListBuilder)
+	optimizationsDecorator func(*PassListBuilder)
+	finalizationsDecorator func(*PassListBuilder)
 }
 
 const (
@@ -85,6 +89,24 @@ func (c *DefaultPassConfig) GetBasePassConfig() PassConfig {
 
 func (c *DefaultPassConfig) GetPreprocessorSymbolTable() *PreprocessorSymbolTable {
 	return c.preprocessorSymbolTableFactory.GetInstanceOrNull()
+}
+
+// SetChecksDecorator installs an optional callback invoked with the checks
+// PassListBuilder before GetChecks validates and returns it.
+func (c *DefaultPassConfig) SetChecksDecorator(decorator func(*PassListBuilder)) {
+	c.checksDecorator = decorator
+}
+
+// SetOptimizationsDecorator installs an optional callback invoked with the
+// optimizations PassListBuilder before GetOptimizations returns it.
+func (c *DefaultPassConfig) SetOptimizationsDecorator(decorator func(*PassListBuilder)) {
+	c.optimizationsDecorator = decorator
+}
+
+// SetFinalizationsDecorator installs an optional callback invoked with the
+// finalizations PassListBuilder before GetFinalizations returns it.
+func (c *DefaultPassConfig) SetFinalizationsDecorator(decorator func(*PassListBuilder)) {
+	c.finalizationsDecorator = decorator
 }
 
 func (c *DefaultPassConfig) GetTranspileOnlyPasses() *PassListBuilder {
@@ -401,10 +423,13 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 	checks.MaybeAdd(defaultPass_gatherExternPropertiesCheck)
 	checks.MaybeAdd(emptyBeforeSerialization)
 
-	if options.GetTypedAstOutputFile() != nil {
+	if options.HasTypedAstOutput() {
 		checks.MaybeAdd(defaultPass_serializeTypedAst)
 	}
 
+	if c.checksDecorator != nil {
+		c.checksDecorator(checks)
+	}
 	checks.AssertAllOneTimePasses()
 	assertValidOrderForChecks(checks, closureRewriteModule, closurePrimitives, closureGoogScopeAliases)
 	return checks
@@ -413,6 +438,11 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 func (c *DefaultPassConfig) GetOptimizations() *PassListBuilder {
 	options := c.options
 	passes := NewPassListBuilder(options)
+	defer func() {
+		if c.optimizationsDecorator != nil {
+			c.optimizationsDecorator(passes)
+		}
+	}()
 
 	if options.IsPropertyRenamingOnlyCompilationMode() {
 		passes.MaybeAdd(defaultPass_removeUnnecessarySyntheticExterns)
@@ -449,6 +479,11 @@ func validateRenamePrefixNamespace(ns string) {
 func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 	options := c.options
 	passes := NewPassListBuilder(options)
+	defer func() {
+		if c.finalizationsDecorator != nil {
+			c.finalizationsDecorator(passes)
+		}
+	}()
 
 	if options.IsPropertyRenamingOnlyCompilationMode() {
 		if options.ShouldRewriteGlobalDeclarationsForTryCatchWrapping() || options.HasRenamePrefixNamespace() {

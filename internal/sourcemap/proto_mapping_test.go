@@ -2,43 +2,7 @@ package sourcemap
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
-
-// LookupMappingForDiff resolves (lineNumber, column) via GetMappingForLine and
-// additionally reports whether the underlying VLQ entry carried an explicit
-// name index (distinguishing an explicit empty-string name from UNMAPPED in the
-// differential oracle).
-func LookupMappingForDiff(c *SourceMapConsumerV3, lineNumber, column int) (*Mapping_OriginalMapping, bool) {
-	ln := int32(lineNumber) - 1
-	col := int32(column) - 1
-	if ln < 0 || int(ln) >= c.mappings.GetParsedLineCount() {
-		return nil, false
-	}
-	entries := c.mappings.line(int(ln))
-	if len(entries) == 0 || entries[0].genCol > col {
-		prevLine := int(ln)
-		for {
-			if prevLine == 0 {
-				return nil, false
-			}
-			prevLine--
-			if !c.mappings.lineIsEmpty(prevLine) {
-				break
-			}
-		}
-		prevEntries := c.mappings.line(prevLine)
-		e := &prevEntries[len(prevEntries)-1]
-		m := c.GetOriginalMappingForEntry(e, Mapping_OriginalMapping_Precision_APPROXIMATE_LINE)
-		return m, m != nil && e.nameId != SourceMapConsumerV3_UNMAPPED
-	}
-	index := sourceMapConsumerV3_search(entries, col, 0, len(entries)-1)
-	jutil.CheckStateMsg1(index >= 0, "unexpected:%s", index*c.mappings.entrySize)
-	e := &entries[index]
-	m := c.GetOriginalMappingForEntry(e, Mapping_OriginalMapping_Precision_EXACT)
-	return m, m != nil && e.nameId != SourceMapConsumerV3_UNMAPPED
-}
 
 func TestMappingOriginalMapping(t *testing.T) {
 	dm := Mapping_OriginalMapping_GetDefaultInstance()

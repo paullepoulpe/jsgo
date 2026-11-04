@@ -44,7 +44,10 @@ func System_SetErr(err *PrintStream) {
 	system_err = err
 }
 
-var system_atExit []func()
+var (
+	system_atExit   []func()
+	system_exitHook func(int)
+)
 
 // System_AtExit registers a callback to run before System_Exit calls os.Exit.
 func System_AtExit(fn func()) {
@@ -53,15 +56,41 @@ func System_AtExit(fn func()) {
 	system_atExit = append(system_atExit, fn)
 }
 
+// SetSystemExitHook installs an optional hook invoked by System_Exit(status)
+// after running any registered System_AtExit callbacks, instead of calling
+// os.Exit(status). Passing nil restores the default os.Exit behavior. It
+// returns the previously installed hook.
+func SetSystemExitHook(hook func(status int)) (prev func(status int)) {
+	system_mu.Lock()
+	prev = system_exitHook
+	system_exitHook = hook
+	system_mu.Unlock()
+	return prev
+}
+
+// GetSystemExitHook returns the currently installed System_Exit hook, or nil.
+func GetSystemExitHook() func(status int) {
+	system_mu.RLock()
+	hook := system_exitHook
+	system_mu.RUnlock()
+	return hook
+}
+
 // System_Exit is System.exit(int): terminates the process with the given
-// status (the shell sees its low 8 bits).
+// status (the shell sees its low 8 bits), or delegates to the installed
+// SetSystemExitHook if non-nil.
 func System_Exit(status int) {
 	system_mu.Lock()
 	hooks := system_atExit
 	system_atExit = nil
+	exitHook := system_exitHook
 	system_mu.Unlock()
 	for i := len(hooks) - 1; i >= 0; i-- {
 		hooks[i]()
+	}
+	if exitHook != nil {
+		exitHook(status)
+		return
 	}
 	os.Exit(status)
 }

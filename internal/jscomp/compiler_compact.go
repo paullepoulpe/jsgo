@@ -316,10 +316,68 @@ func (c *Compiler) forwardASTHolders(fwd func(rhino.Node) rhino.Node, externs, r
 		gn.forwardNodes(fwd)
 	}
 
-	// 7. Caller locals.
+	// 7. Embedder custom node metadata.
+	if c.customNodeMetadata != nil && !c.customNodeMetadata.IsEmpty() {
+		forwardCustomNodeMetadata(c.customNodeMetadata, fwd)
+	}
+
+	// 8. Caller locals.
 	if extra != nil {
 		extra(fwd)
 	}
+}
+
+func forwardCustomNodeMetadata(m *OrderedMap[rhino.Node, any], fwd func(rhino.Node) rhino.Node) {
+	raw := m.Entries()
+	changed := false
+	for i := range raw {
+		nk := fwd(raw[i].Key)
+		if nk != raw[i].Key {
+			changed = true
+		}
+		if forwardCustomMetadataValueInPlace(raw[i].Value, fwd) {
+			changed = true
+		}
+	}
+	if !changed {
+		return
+	}
+	snapshot := make([]jutil.OrderedMapEntry[rhino.Node, any], len(raw))
+	copy(snapshot, raw)
+	m.Clear()
+	for i := range snapshot {
+		nk := fwd(snapshot[i].Key)
+		nv, _ := forwardCustomMetadataValue(snapshot[i].Value, fwd)
+		m.Put(nk, nv)
+	}
+}
+
+func forwardCustomMetadataValueInPlace(v any, fwd func(rhino.Node) rhino.Node) bool {
+	switch tv := v.(type) {
+	case rhino.Node:
+		return fwd(tv) != tv
+	case []rhino.Node:
+		for i, n := range tv {
+			nn := fwd(n)
+			if nn != n {
+				tv[i] = nn
+			}
+		}
+		return false
+	case ASTNodeForwarder:
+		tv.ForwardASTNodes(fwd)
+		return false
+	default:
+		return false
+	}
+}
+
+func forwardCustomMetadataValue(v any, fwd func(rhino.Node) rhino.Node) (any, bool) {
+	if n, ok := v.(rhino.Node); ok {
+		nn := fwd(n)
+		return nn, nn != n
+	}
+	return v, false
 }
 
 // forwardNodes forwards every node the namespace holds (roots, Name

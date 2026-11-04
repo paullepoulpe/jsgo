@@ -576,8 +576,13 @@ func coreG3Getters() []coreG3Getter {
 	t := reflect.TypeOf((*CompilerOptions)(nil))
 	for i := 0; i < t.NumMethod(); i++ {
 		m := t.Method(i)
-		if m.Type.NumIn() != 1 || m.Name == "String" || m.Name == "HashCode" ||
-			m.Name == "HasExternExportsPath" || m.Name == "HasRenamePrefixNamespace" || m.Name == "HasSyntheticBlockStartMarker" {
+		switch m.Name {
+		case "String", "HashCode",
+			"HasExternExportsPath", "HasRenamePrefixNamespace", "HasSyntheticBlockStartMarker",
+			"GetTypedAstOutputStream", "HasTypedAstOutput", "GetLicenseFilter", "GetReconcileOptionsHook":
+			continue
+		}
+		if m.Type.NumIn() != 1 {
 			continue
 		}
 		isOptStringGetter := m.Type.NumOut() == 2 &&

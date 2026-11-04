@@ -312,6 +312,9 @@ func (c *Compiler) ReconcileOptionsWithGuards() {
 		options.SetWarningLevel(
 			DiagnosticGroups_ARTIFICIAL_FUNCTION_PURITY_VALIDATION, CheckLevel_ERROR)
 	}
+	if options.reconcileOptionsHook != nil {
+		options.reconcileOptionsHook(options)
+	}
 }
 
 func (c *Compiler) checkMissingTypedAstFile(file *SourceFile) {

@@ -112,6 +112,17 @@ func (r *abstractCommandLineRunnerBase) GetChunkOutputFileName(m *jscomp.JSChunk
 	return r.config.chunkOutputPathPrefix + m.GetName() + ".js"
 }
 
+// GetChunkConformanceFileName returns the conformance output file name for a
+// chunk, or "" if none was configured via --chunk_conformance_file.
+//
+// Java: AbstractCommandLineRunner.getChunkConformanceFileName(JSChunk)
+func (r *abstractCommandLineRunnerBase) GetChunkConformanceFileName(m *jscomp.JSChunk) string {
+	if r.parsedChunkConformanceFiles == nil {
+		r.parsedChunkConformanceFiles = parseChunkOutputFiles(r.config.chunkConformanceFiles)
+	}
+	return r.parsedChunkConformanceFiles[m.GetName()]
+}
+
 func chunkWrapperBaseName(fileName string) string {
 	if fileName != "" {
 		if b := filepath.Base(fileName); b != "/" {
@@ -132,7 +143,7 @@ func (r *abstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out ju
 		maybeCreateDirsForPath(fileName)
 	}
 	baseName := chunkWrapperBaseName(fileName)
-	r.writeOutput(
+	r.self.WriteOutput(
 		out,
 		r.compiler,
 		lt,
@@ -143,11 +154,23 @@ func (r *abstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out ju
 		fileName)
 }
 
-// writeOutput writes code to an output stream, optionally wrapping it in an
+// WriteOutput writes code to an output stream, optionally wrapping it in an
 // arbitrary wrapper that contains a placeholder where the code should be
 // inserted. If chunk is nil, it writes the entire AST.
 //
 // Java: AbstractCommandLineRunner.writeOutput(Appendable, Compiler, LicenseTracker, JSChunk, String, String, Function<String, String>, String)
+func (r *abstractCommandLineRunnerBase) WriteOutput(
+	out jutil.Appendable,
+	compiler *jscomp.Compiler,
+	licenseTracker jscomp.CodePrinter_LicenseTracker,
+	chunk *jscomp.JSChunk,
+	wrapper string,
+	codePlaceholder string,
+	escaper func(string) string,
+	filename string) {
+	r.writeOutput(out, compiler, licenseTracker, chunk, wrapper, codePlaceholder, escaper, filename)
+}
+
 func (r *abstractCommandLineRunnerBase) writeOutput(
 	out jutil.Appendable,
 	compiler *jscomp.Compiler,
@@ -290,7 +313,7 @@ func (r *abstractCommandLineRunnerBase) outputSingleBinary(options *jscomp.Compi
 	}
 
 	jsOutput := r.createDefaultOutput()
-	r.writeOutput(
+	r.self.WriteOutput(
 		jsOutput,
 		r.compiler,
 		// So long as the JSChunk arg is null the compiler will write all sources to jsOutput
@@ -311,7 +334,7 @@ func (r *abstractCommandLineRunnerBase) outputSingleBinary(options *jscomp.Compi
 func (r *abstractCommandLineRunnerBase) createJsonFile(options *jscomp.CompilerOptions, outputMarker string, escaper func(string) string) *AbstractCommandLineRunner_JsonFileSpec {
 	config := r.config
 	jsOutput := jutil.NewStringWriter()
-	r.writeOutput(
+	r.self.WriteOutput(
 		jsOutput,
 		r.compiler,
 		jscomp.NewCompiler_SingleBinaryLicenseTracker(r.compiler),
@@ -410,6 +433,7 @@ func (r *abstractCommandLineRunnerBase) outputChunkBinaryAndSourceMaps(
 
 	mlicenseTracker := jscomp.NewCompiler_ChunkGraphAwareLicenseTracker(r.compiler)
 	if !r.isOutputInJson() &&
+		isStandardRunner &&
 		!r.testMode &&
 		(!options.ShouldGatherSourceMapInfo() || r.shouldGenerateMapPerChunk(options)) &&
 		options.GetOutputJs() == jscomp.CompilerOptions_OutputJs_NORMAL &&

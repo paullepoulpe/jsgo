@@ -129,6 +129,42 @@ func (c *Compiler) AddUnattributedConformanceViolation(violation *ViolationProto
 	c.unattributedConformanceViolations = append(c.unattributedConformanceViolations, jutil.CheckNotNull(violation))
 }
 
+// SetConformanceViolationInterceptor installs an optional callback invoked by
+// conformance rule reporting before delegating to the Compiler's ErrorManager.
+func (c *Compiler) SetConformanceViolationInterceptor(h ConformanceViolationHandler) {
+	s := c.ensureSync()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c.conformanceViolationInterceptor = h
+}
+
+// GetConformanceViolationInterceptor returns the installed conformance
+// violation interceptor callback, or nil.
+func (c *Compiler) GetConformanceViolationInterceptor() ConformanceViolationHandler {
+	s := c.ensureSync()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return c.conformanceViolationInterceptor
+}
+
+// ASTNodeForwarder may be implemented by values stored in
+// Compiler.CustomNodeMetadata() so internal rhino.Node handles they hold are
+// forwarded across AST compaction passes.
+type ASTNodeForwarder interface {
+	ForwardASTNodes(fwd func(rhino.Node) rhino.Node)
+}
+
+// CustomNodeMetadata returns a lazily initialized ordered map keyed by AST
+// rhino.Node handles whose keys (and any rhino.Node, []rhino.Node, or
+// ASTNodeForwarder values) are automatically forwarded when the AST is
+// compacted between passes.
+func (c *Compiler) CustomNodeMetadata() *OrderedMap[rhino.Node, any] {
+	if c.customNodeMetadata == nil {
+		c.customNodeMetadata = NewOrderedMap[rhino.Node, any]()
+	}
+	return c.customNodeMetadata
+}
+
 // GetErrors returns the list of errors (never null).
 //
 // Java: Compiler.getErrors()

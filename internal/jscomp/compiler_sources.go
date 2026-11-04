@@ -900,7 +900,7 @@ func (c *Compiler) getNodeForRuntimeCodeInsertion() rhino.Node {
 	// For stage 2 optimizing builds, insert runtime libraries as actual code in the AST.
 	// For library builds that outputs a TypedAST, the runtime libraries are injected to a synthetic
 	// @typeSummary (.i.js) node so that the types are available.
-	if c.options.GetTypedAstOutputFile() == nil {
+	if !c.options.HasTypedAstOutput() {
 		return c.GetNodeForCodeInsertion(nil)
 	}
 	return c.GetSynthesizedTypeSummaryInput().GetAstRoot(c)

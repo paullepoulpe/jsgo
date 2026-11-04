@@ -20,6 +20,7 @@ package jscomp
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -333,13 +334,38 @@ func (r *conformanceBannedCodePatternRule) checkNode(t *NodeTraversal, n rhino.N
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
+var conformanceCustomRuleMu sync.RWMutex
+
+// RegisterCustomConformanceRule registers a custom CheckConformance_Rule
+// factory under javaClass (matching Requirement.java_class in ConformanceConfig).
+func RegisterCustomConformanceRule(
+	javaClass string,
+	factory func(AbstractCompiler, *Requirement) (CheckConformance_Rule, error),
+) {
+	jutil.CheckNotNull(factory)
+	conformanceCustomRuleMu.Lock()
+	defer conformanceCustomRuleMu.Unlock()
+	conformanceCustomRuleRegistry[javaClass] = factory
+}
+
+// UnregisterCustomConformanceRule removes a custom conformance rule factory
+// previously registered under javaClass.
+func UnregisterCustomConformanceRule(javaClass string) {
+	conformanceCustomRuleMu.Lock()
+	defer conformanceCustomRuleMu.Unlock()
+	delete(conformanceCustomRuleRegistry, javaClass)
+}
+
 func newConformanceRules_CustomRule(compiler AbstractCompiler, requirement *Requirement) (CheckConformance_Rule, error) {
 	if !requirement.HasJavaClass() {
 		return nil, errInvalidRequirementSpec("missing java_class")
 	}
-	factory, ok := conformanceCustomRuleRegistry[requirement.GetJavaClass()]
+	javaClass := requirement.GetJavaClass()
+	conformanceCustomRuleMu.RLock()
+	factory, ok := conformanceCustomRuleRegistry[javaClass]
+	conformanceCustomRuleMu.RUnlock()
 	if !ok {
-		return nil, errInvalidRequirementSpec("Unknown conformance rule: " + requirement.GetJavaClass())
+		return nil, errInvalidRequirementSpec("Unknown conformance rule: " + javaClass)
 	}
 	return factory(compiler, requirement)
 }
