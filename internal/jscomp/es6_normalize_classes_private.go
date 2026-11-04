@@ -264,11 +264,7 @@ func (e *Es6NormalizeClasses) rewritePrivateMemberAccess(
 			// declare a temporary variable (e.g. `let TMP;`) and evaluate the call using a comma
 			// expression:
 			// `(TMP = receiver, PRIVATE_MAP.get(TMP).member.call(TMP, ...args))`
-			tempName := e.GenerateUniqueTmpVarName(t)
-			insertionBlock := e.getDeclarationInsertionPoint(getPropNode, t)
-			decl := e.astFactory.CreateSingleLetNameDeclaration(tempName)
-			insertionBlock.AddChildToFront(decl.SrcrefTree(getPropNode))
-			NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
+			tempName := e.declareReceiverTemp(t, getPropNode, receiver)
 
 			tempNameNode1 := e.astFactory.CreateNameWithUnknownType(tempName).Srcref(getPropNode)
 			assign := e.astFactory.CreateAssign(tempNameNode1, receiver).Srcref(getPropNode)
@@ -349,6 +345,29 @@ func (e *Es6NormalizeClasses) rewritePrivateMemberAccess(
 	}
 }
 
+func (e *Es6NormalizeClasses) declareReceiverTemp(
+	t *NodeTraversal, getPropNode rhino.Node, receiver rhino.Node) string {
+	ensureArrowBlockBody(e.compiler, getPropNode)
+	tempName := e.GenerateUniqueTmpVarName(t)
+	insertionBlock := e.getDeclarationInsertionPoint(getPropNode, t)
+	decl := e.astFactory.CreateSingleLetNameDeclaration(tempName).
+		SrcrefTree(getPropNode).
+		SrcrefTreeIfMissing(receiver)
+	if insertionBlock.IsBlock() {
+		insertBefore := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(insertionBlock)
+		if !insertBefore.IsNil() {
+			decl.InsertBefore(insertBefore)
+		} else {
+			insertionBlock.AddChildToBack(decl)
+		}
+	} else {
+		insertionBlock.AddChildToFront(decl)
+	}
+	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
+	e.compiler.ReportChangeToEnclosingScope(decl)
+	return tempName
+}
+
 // extractReceiverTmpIfNecessary extracts a temporary variable declaration
 // for a side-effecting receiver in an optional chain.
 //
@@ -358,11 +377,7 @@ func (e *Es6NormalizeClasses) extractReceiverTmpIfNecessary(
 	if !isOptChain || !e.receiverNeedsTempVar(receiver) {
 		return ast.Assign{}, false
 	}
-	tempName := e.GenerateUniqueTmpVarName(t)
-	insertionBlock := e.getDeclarationInsertionPoint(getPropNode, t)
-	decl := e.astFactory.CreateSingleLetNameDeclaration(tempName)
-	insertionBlock.AddChildToFront(decl.SrcrefTree(getPropNode))
-	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
+	tempName := e.declareReceiverTemp(t, getPropNode, receiver)
 
 	tempNameNode := e.astFactory.CreateNameWithUnknownType(tempName).Srcref(getPropNode)
 	return ast.MustAssign(e.astFactory.CreateAssign(tempNameNode, receiver).Srcref(getPropNode)), true

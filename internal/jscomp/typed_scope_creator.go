@@ -99,7 +99,8 @@ type TypedScopeCreator struct {
 	buildSlab jutil.Slab[typedScopeBuildState]
 	varLists  []*TypedVar
 
-	stage TypedScopeCreator_Stage
+	stage                         TypedScopeCreator_Stage
+	hasUnevaluatedRecordEnumAlias bool
 }
 
 const typedScopeCreator_varListChunk = 508 // 4 KB with the 8-byte header of a pointerful allocation
@@ -755,13 +756,29 @@ func (c *TypedScopeCreator) FinishAndFreeze() {
 
 // Java: TypedScopeCreator.clearCommonState()
 func (c *TypedScopeCreator) ClearCommonState() {
-	c.reservedNamesForScope = make(map[rhino.Node][]string)
+	if c.reservedNamesForScope != nil {
+		clear(c.reservedNamesForScope)
+	} else {
+		c.reservedNamesForScope = make(map[rhino.Node][]string)
+	}
 	c.scopeCount = 0
-	c.functionsWithNonEmptyReturns = make(map[rhino.Node]struct{})
-	c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8)
+	if c.functionsWithNonEmptyReturns != nil {
+		clear(c.functionsWithNonEmptyReturns)
+	} else {
+		c.functionsWithNonEmptyReturns = make(map[rhino.Node]struct{})
+	}
+	if c.varFlags != nil {
+		clear(c.varFlags)
+	} else {
+		c.varFlags = make(map[typedScopeCreator_ScopedNameKey]uint8)
+	}
 	c.weakImports = nil
 	c.unresolvedNodes = nil
-	c.undeclaredNamesForClosure = make(map[rhino.Node]struct{})
+	if c.undeclaredNamesForClosure != nil {
+		clear(c.undeclaredNamesForClosure)
+	} else {
+		c.undeclaredNamesForClosure = make(map[rhino.Node]struct{})
+	}
 	c.providedNamesFromCall = nil
 	c.providedNamesCount = 0
 	c.builderPool = nil
@@ -769,6 +786,7 @@ func (c *TypedScopeCreator) ClearCommonState() {
 	c.varSlab = jutil.Slab[TypedVar]{}
 	c.buildSlab = jutil.Slab[typedScopeBuildState]{}
 	c.varLists = nil
+	c.hasUnevaluatedRecordEnumAlias = false
 }
 
 // TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable adds all enums and

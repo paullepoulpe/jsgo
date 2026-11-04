@@ -53,11 +53,12 @@ func NewEs6TemplateLiterals(compiler AbstractCompiler) *Es6TemplateLiterals {
 //
 // Java: Es6TemplateLiterals.visitTemplateLiteral(NodeTraversal, Node)
 func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Node) {
-	length := n.GetChildCount()
+	tpl := ast.MustTemplateLit(n)
+	length := tpl.NumParts()
 	if length == 0 {
 		n.ReplaceWith(e.astFactory.CreateString("\"\""))
 	} else {
-		firstTls, ok := ast.AsTemplateLitString(n.RemoveFirstChild())
+		firstTls, ok := tpl.MustFirstPart().Detach().AsTemplateLitString()
 		jutil.CheckState(ok)
 		firstCooked, hasFirstCooked := firstTls.Cooked()
 		jutil.CheckState(hasFirstCooked)
@@ -65,12 +66,12 @@ func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Nod
 		if length == 1 {
 			n.ReplaceWith(firstStr)
 		} else {
-			firstSub := ast.MustTemplateLitSub(n.RemoveFirstChild())
-			add := e.astFactory.CreateAdd(firstStr, firstSub.Expr().Node().Detach())
+			firstSub := tpl.MustFirstPart().Detach().MustTemplateLitSub()
+			add := e.astFactory.CreateAdd(firstStr, firstSub.Expr().Detach().Node())
 			for i := 2; i < length; i++ {
-				child := n.RemoveFirstChild()
+				part := tpl.MustFirstPart().Detach()
 				var right rhino.Node
-				if tls, isStr := ast.AsTemplateLitString(child); isStr {
+				if tls, isStr := part.AsTemplateLitString(); isStr {
 					cooked, hasCooked := tls.Cooked()
 					jutil.CheckState(hasCooked)
 					if cooked == "" {
@@ -78,12 +79,11 @@ func (e *Es6TemplateLiterals) VisitTemplateLiteral(t *NodeTraversal, n rhino.Nod
 					}
 					if i == 2 && firstCooked == "" {
 						// Translate `${hello} world` into `(hello + " world")` instead of `("" + hello + " world")`.
-						add = add.GetSecondChild().Detach()
+						add = ast.MustBinary(add).Right().Detach().Node()
 					}
 					right = e.astFactory.CreateString(cooked)
 				} else {
-					sub := ast.MustTemplateLitSub(child)
-					right = sub.Expr().Node().Detach()
+					right = part.MustTemplateLitSub().Expr().Detach().Node()
 				}
 				add = e.astFactory.CreateAdd(add, right)
 			}
@@ -128,8 +128,8 @@ func (e *Es6TemplateLiterals) VisitTaggedTemplateLiteral(t *NodeTraversal, n rhi
 	tagFnFirstArgDeclaration.InsertBefore(insertBefore)
 	t.ReportCodeChangeWithNode(tagFnFirstArgDeclaration)
 
-	tagFnFirstArg := tagFnFirstArgDeclaration.GetFirstChild().CloneNode()
-	call := e.astFactory.CreateCall(n.RemoveFirstChild(), AstFactory_Type_(n), tagFnFirstArg)
+	tagFnFirstArg := ast.MustNameDeclaration(tagFnFirstArgDeclaration).MustOnlyDeclarator().Node().CloneNode()
+	call := e.astFactory.CreateCall(tagged.Tag().Detach().Node(), AstFactory_Type_(n), tagFnFirstArg)
 	for part := range templateLit.Parts() {
 		if sub, isSub := part.AsTemplateLitSub(); isSub {
 			call.AddChildToBack(sub.Expr().Node().Detach())

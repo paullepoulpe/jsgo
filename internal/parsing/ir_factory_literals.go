@@ -20,6 +20,8 @@ package parsing
 
 import (
 	"math/big"
+	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -112,40 +114,17 @@ func (f *IRFactory) scanOrNormUTF16Units(src []uint16, inPlace bool) ([]uint16, 
 	return src, firstBackslash
 }
 
-// irFactory_substring is String.substring(begin, end) on a string given as
-// its UTF-16 code units.
-//
-// Go-only: language-adapter — Java String API on UTF-16 code units.
-func irFactory_substring(units []uint16, begin, end int) string {
-	if begin < 0 || end > len(units) || begin > end {
-		panic(jutil.NewStringIndexOutOfBoundsException(begin, end))
-	}
-	return jutil.StringFromUTF16(units[begin:end])
-}
-
-// irFactory_charAt is String.charAt(int) on a string given as its UTF-16
-// code units.
-//
-// Go-only: language-adapter — Java String API on UTF-16 code units.
-func irFactory_charAt(units []uint16, index int) uint16 {
-	if index < 0 || index >= len(units) {
+func utf16At(units []uint16, index int) uint16 {
+	if uint(index) >= uint(len(units)) {
 		panic(jutil.NewStringIndexOutOfBoundsException(index, len(units)))
 	}
 	return units[index]
 }
 
-// irFactory_indexOf is String.indexOf(int ch, int fromIndex) on a string
-// given as its UTF-16 code units.
-//
-// Go-only: language-adapter — Java String API on UTF-16 code units.
-func irFactory_indexOf(units []uint16, ch uint16, fromIndex int) int {
-	if fromIndex < 0 {
-		fromIndex = 0
-	}
-	for i := fromIndex; i < len(units); i++ {
-		if units[i] == ch {
-			return i
-		}
+func indexUTF16(units []uint16, ch uint16, fromIndex int) int {
+	from := max(fromIndex, 0)
+	if i := slices.Index(units[from:], ch); i >= 0 {
+		return from + i
 	}
 	return -1
 }
@@ -230,7 +209,7 @@ func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 			break
 		}
 	}
-	cur := irFactory_indexOf(units, '\\', 0)
+	cur := indexUTF16(units, '\\', 0)
 
 	result := f.resetLitUTF16Buf(len(units))
 	start := 1
@@ -238,7 +217,7 @@ func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 		result = append(result, units[start:cur]...)
 
 		cur++ // skip the escape char.
-		c := irFactory_charAt(units, cur)
+		c := utf16At(units, cur)
 		if isSignificantRegexEscape(c) {
 			result = append(result, '\\')
 		}
@@ -247,7 +226,7 @@ func (f *IRFactory) NormalizeRegex(token parser.Token) string {
 		result = append(result, c)
 
 		start = cur + 1
-		cur = irFactory_indexOf(units, '\\', start)
+		cur = indexUTF16(units, '\\', start)
 	}
 	if start > lastSlash {
 		panic(jutil.NewStringIndexOutOfBoundsException(start, lastSlash))
@@ -296,7 +275,7 @@ func (f *IRFactory) finishUTF16Norm(units []uint16, firstBackslash int, token pa
 		units = f.normalizeStringEscapesInto(units, firstBackslash, token, templateLiteral)
 	} else if !templateLiteral {
 		if len(units) < 2 {
-			return nil, irFactory_substring(units, 1, len(units)-1), true
+			panic(jutil.NewStringIndexOutOfBoundsException(1, len(units)-1))
 		}
 		units = units[1 : len(units)-1]
 	}
@@ -344,18 +323,13 @@ func parseUTF16HexCodePoint(units []uint16, begin, end int) int32 {
 	}
 	hexSlice := units[begin:end]
 	if len(hexSlice) == 0 {
-		return jutil.IntegerParseInt("", 0x10)
+		panic(jutil.NewNumberFormatException(`For input string: ""`))
 	}
 	var acc uint64
 	for _, u := range hexSlice {
-		var d int
-		if u < 0x80 {
-			d = int(asciiHexDigit[u])
-		} else {
-			d = jutil.CharacterDigit(u, 0x10)
-		}
+		d := hexVal(u)
 		if d < 0 {
-			return jutil.IntegerParseInt(irFactory_substring(units, begin, end), 0x10)
+			panic(jutil.NewNumberFormatException(`For input string: "` + string(appendUTF16ToWTF8(nil, hexSlice)) + `"`))
 		}
 		if acc <= 0x10ffff {
 			acc = acc*16 + uint64(d)
@@ -377,8 +351,8 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 	for cur != -1 {
 		result = append(result, units[start:cur]...)
 
-		cur += 1 // skip the escape char.
-		c := irFactory_charAt(units, cur)
+		cur++ // skip the escape char.
+		c := utf16At(units, cur)
 		switch c {
 		case 'b':
 			result = append(result, '\b')
@@ -441,11 +415,11 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 			cur += numDigits - 1
 		case 'x':
 			result = append(result,
-				uint16(IRFactory_Hexdigit(irFactory_charAt(units, cur+1))*0x10+IRFactory_Hexdigit(irFactory_charAt(units, cur+2))))
+				uint16(mustHexVal(utf16At(units, cur+1))*0x10+mustHexVal(utf16At(units, cur+2))))
 			cur += 2
 		case 'u':
 			var hexStart, hexEnd, escapeEnd int
-			if irFactory_charAt(units, cur+1) != '{' {
+			if utf16At(units, cur+1) != '{' {
 				// Simple escape with exactly four hex digits: \\uXXXX
 				hexStart = cur + 1
 				hexEnd = cur + 5
@@ -455,15 +429,7 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 				// \\u{XXXXXXX}
 				hexStart = cur + 2
 				hexEnd = hexStart
-				for {
-					ch := irFactory_charAt(units, hexEnd)
-					if ch < 0x80 {
-						if asciiHexDigit[ch] < 0 {
-							break
-						}
-					} else if jutil.CharacterDigit(ch, 0x10) < 0 {
-						break
-					}
+				for hexVal(utf16At(units, hexEnd)) >= 0 {
 					hexEnd++
 				}
 				escapeEnd = hexEnd + 1
@@ -492,7 +458,7 @@ func (f *IRFactory) normalizeStringEscapesInto(units []uint16, cur int, token pa
 			result = append(result, c)
 		}
 		start = cur + 1
-		cur = irFactory_indexOf(units, '\\', start)
+		cur = indexUTF16(units, '\\', start)
 	}
 	// skip the trailing quote.
 	end := len(units) - 1
@@ -522,7 +488,11 @@ func stripLiteralQuotes(value string, templateLiteral bool) string {
 	if n := len(value); n >= 2 && value[0] < 0x80 && value[n-1] < 0x80 {
 		return value[1 : n-1]
 	}
-	return jutil.StringSubstring(value, 1, jutil.StringLength(value)-1)
+	units := appendWTF8ToUTF16(nil, value)
+	if len(units) < 2 {
+		panic(jutil.NewStringIndexOutOfBoundsException(1, len(units)-1))
+	}
+	return string(appendUTF16ToWTF8(nil, units[1:len(units)-1]))
 }
 
 // irFactory_appendCodePoint is StringBuilder.append(Character.toChars(int)).
@@ -531,7 +501,7 @@ func stripLiteralQuotes(value string, templateLiteral bool) string {
 func irFactory_appendCodePoint(units []uint16, codePoint int32) []uint16 {
 	if codePoint < 0 || codePoint > 0x10ffff {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
-			"Not a valid Unicode code point: 0x" + strings.ToUpper(jutil.IntegerToHexString(codePoint))))
+			"Not a valid Unicode code point: 0x" + strings.ToUpper(strconv.FormatInt(int64(codePoint), 16))))
 	}
 	if codePoint < 0x10000 {
 		return append(units, uint16(codePoint))
@@ -609,7 +579,8 @@ func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.To
 	jutil.CheckState(value[0] != '-' && value[0] != '+')
 	if value[0] == '.' {
 		return jutil.DoubleParseDouble("0" + string(value))
-	} else if value[0] == '0' && length > 1 {
+	}
+	if value[0] == '0' && length > 1 {
 		switch value[1] {
 		case '.', 'e', 'E':
 			return jutil.DoubleParseDouble(string(value))
@@ -617,33 +588,32 @@ func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.To
 			f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_BINARY_LITERALS)
 			v := 0.0
 			for c := 2; c < length; c++ {
-				v = (v * 2) + float64(IRFactory_Binarydigit(uint16(value[c])))
+				v = (v * 2) + float64(digitVal(uint16(value[c]), '1'))
 			}
 			return v
 		case 'o', 'O':
 			f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_OCTAL_LITERALS)
 			v := 0.0
 			for c := 2; c < length; c++ {
-				v = (v * 8) + float64(IRFactory_Octaldigit(uint16(value[c])))
+				v = (v * 8) + float64(digitVal(uint16(value[c]), '7'))
 			}
 			return v
 		case 'x', 'X':
 			v := 0.0
 			for c := 2; c < length; c++ {
-				v = (v * 0x10) + float64(IRFactory_Hexdigit(uint16(value[c])))
+				v = (v * 0x10) + float64(mustHexVal(uint16(value[c])))
 			}
 			return v
 		case '0', '1', '2', '3', '4', '5', '6', '7':
 			v := 0.0
 			for c := 1; c < length; c++ {
 				digit := uint16(value[c])
-				if IRFactory_IsOctalDigit(digit) {
-					v = (v * 8) + float64(IRFactory_Octaldigit(digit))
-				} else {
+				if !IRFactory_IsOctalDigit(digit) {
 					f.errorReporter.Error(
 						IRFactory_INVALID_OCTAL_DIGIT, f.sourceName, f.LinenoOfPosition(location.Start), f.CharnoOfPosition(location.Start))
 					return 0
 				}
+				v = (v * 8) + float64(digit-'0')
 			}
 			if f.InStrictContext() {
 				f.errorReporter.Error(
@@ -667,26 +637,26 @@ func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.To
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected character in number literal: " + string(value[1:2])))
 		}
-	} else if length == 1 && value[0] == '0' {
-		return 0
-	} else {
-		if length <= 15 && value[0] >= '1' && value[0] <= '9' {
-			v := uint64(value[0] - '0')
-			allDigits := true
-			for i := 1; i < length; i++ {
-				d := value[i] - '0'
-				if d > 9 {
-					allDigits = false
-					break
-				}
-				v = v*10 + uint64(d)
-			}
-			if allDigits {
-				return float64(v)
-			}
-		}
-		return jutil.DoubleParseDouble(string(value))
 	}
+	if length == 1 && value[0] == '0' {
+		return 0
+	}
+	if length <= 15 && value[0] >= '1' && value[0] <= '9' {
+		v := uint64(value[0] - '0')
+		allDigits := true
+		for i := 1; i < length; i++ {
+			d := value[i] - '0'
+			if d > 9 {
+				allDigits = false
+				break
+			}
+			v = v*10 + uint64(d)
+		}
+		if allDigits {
+			return float64(v)
+		}
+	}
+	return jutil.DoubleParseDouble(string(value))
 }
 
 // NormalizeBigInt is the value of a BIGINT token.
@@ -701,7 +671,7 @@ func (f *IRFactory) NormalizeBigInt(token parser.Token) *big.Int {
 	if n < 0 {
 		panic(jutil.NewStringIndexOutOfBoundsException(0, n))
 	}
-	value = value[0:n]
+	value = value[:n]
 	if token.HasNumericSeparator() {
 		value = f.RemoveNumericSeparators(value, token)
 	}
@@ -724,9 +694,8 @@ func (f *IRFactory) NormalizeBigInt(token parser.Token) *big.Int {
 			panic(jutil.NewIllegalStateExceptionMsg(
 				"Unexpected character in bigint literal: " + value[1:2]))
 		}
-	} else {
-		return jutil.NewBigIntegerFromString(value)
 	}
+	return jutil.NewBigIntegerFromString(value)
 }
 
 func (f *IRFactory) stripNumericSeparators(value string, token parser.Token) ([]byte, bool) {
@@ -767,36 +736,38 @@ var asciiHexDigit = func() [256]int8 {
 	return t
 }()
 
-// Java: IRFactory.binarydigit(char)
-func IRFactory_Binarydigit(c uint16) int {
-	if c >= '0' && c <= '1' {
+func hexVal(c uint16) int {
+	if c < 256 {
+		return int(asciiHexDigit[c])
+	}
+	return -1
+}
+
+func digitVal(c, maxDigit uint16) int {
+	if c >= '0' && c <= maxDigit {
 		return int(c - '0')
 	}
-	panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + jutil.StringFromChar(c)))
+	panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + string(appendUTF16ToWTF8(nil, []uint16{c}))))
 }
+
+func mustHexVal(c uint16) int {
+	if d := hexVal(c); d >= 0 {
+		return d
+	}
+	panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + string(appendUTF16ToWTF8(nil, []uint16{c}))))
+}
+
+// Java: IRFactory.binarydigit(char)
+func IRFactory_Binarydigit(c uint16) int { return digitVal(c, '1') }
 
 // Java: IRFactory.isOctalDigit(char)
-func IRFactory_IsOctalDigit(c uint16) bool {
-	return c >= '0' && c <= '7'
-}
+func IRFactory_IsOctalDigit(c uint16) bool { return c >= '0' && c <= '7' }
 
 // Java: IRFactory.octaldigit(char)
-func IRFactory_Octaldigit(c uint16) int {
-	if IRFactory_IsOctalDigit(c) {
-		return int(c - '0')
-	}
-	panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + jutil.StringFromChar(c)))
-}
+func IRFactory_Octaldigit(c uint16) int { return digitVal(c, '7') }
 
 // Java: IRFactory.hexdigit(char)
-func IRFactory_Hexdigit(c uint16) int {
-	if c < 256 {
-		if d := asciiHexDigit[c]; d >= 0 {
-			return int(d)
-		}
-	}
-	panic(jutil.NewIllegalStateExceptionMsg("unexpected: " + jutil.StringFromChar(c)))
-}
+func IRFactory_Hexdigit(c uint16) int { return mustHexVal(c) }
 
 // Java: IRFactory.transformBooleanTokenType(TokenType)
 func IRFactory_TransformBooleanTokenType(token parser.TokenType) rhino.Token {

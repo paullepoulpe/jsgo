@@ -265,7 +265,7 @@ func (r *RewriteAsyncIteration) convertAsyncGenerator(originalFn ast.Function) {
 }
 
 func (r *RewriteAsyncIteration) convertAwaitOfAsyncGenerator(awaitNode rhino.Node) {
-	expression := awaitNode.RemoveFirstChild()
+	expression := ast.MustAwait(awaitNode).Value().Detach().Node()
 	rhino.CheckNotNullMsg(expression, "await needs an expression")
 	newActionRecord := r.newActionRecord(r.actionEnumAwait, expression).SrcrefTreeIfMissing(awaitNode)
 	awaitNode.AddChildToFront(newActionRecord)
@@ -274,7 +274,10 @@ func (r *RewriteAsyncIteration) convertAwaitOfAsyncGenerator(awaitNode rhino.Nod
 
 func (r *RewriteAsyncIteration) convertYieldOfAsyncGenerator(yieldNode rhino.Node) {
 	yd := ast.MustYield(yieldNode)
-	expression := yieldNode.RemoveFirstChild()
+	var expression rhino.Node
+	if val, ok := yd.Value(); ok {
+		expression = val.Detach().Node()
+	}
 	enumField := r.actionEnumYield
 	if yd.IsYieldAll() {
 		rhino.CheckNotNull(expression)
@@ -288,8 +291,10 @@ func (r *RewriteAsyncIteration) convertYieldOfAsyncGenerator(yieldNode rhino.Nod
 }
 
 func (r *RewriteAsyncIteration) convertReturnOfAsyncGenerator(returnNode rhino.Node) {
-	expression := returnNode.RemoveFirstChild()
-	if expression.IsNil() {
+	var expression rhino.Node
+	if val, ok := ast.MustReturn(returnNode).Value(); ok {
+		expression = val.Detach().Node()
+	} else {
 		expression = NodeUtil_NewUndefinedNode(rhino.NilNode)
 	}
 	newActionRecord := r.newActionRecord(r.actionEnumYield, expression).SrcrefTreeIfMissing(returnNode)
@@ -315,9 +320,10 @@ func (r *RewriteAsyncIteration) replaceForAwaitOf(ctx asyncIterContext, fao ast.
 		replacementPoint = forAwaitOfParent
 	}
 
-	lhs := forAwaitOf.RemoveFirstChild()
-	rhs := forAwaitOf.RemoveFirstChild()
-	originalBody := forAwaitOf.RemoveFirstChild()
+	lhs, rhs, originalBody := fao.Target().Node(), fao.Iterable().Node(), fao.Body().Node()
+	lhs.Detach()
+	rhs.Detach()
+	originalBody.Detach()
 
 	initializer := r.astFactory.
 		CreateSingleVarNameDeclarationWithValue(
@@ -344,13 +350,13 @@ func (r *RewriteAsyncIteration) replaceForAwaitOf(ctx asyncIterContext, fao ast.
 					r.astFactory.CreateName(resultTempName, iterableResultType),
 					"value",
 					resultType)))
-	} else if NodeUtil_IsNameDeclaration(lhs) {
-		declarationTarget := lhs.GetFirstChild()
-		if declarationTarget.IsName() {
+	} else if decl, ok := ast.AsNameDeclaration(lhs); ok {
+		declarator := decl.MustFirstDeclarator()
+		declarationTarget := declarator.Node()
+		if _, isName := declarator.AsName(); isName {
 			resultType = AstFactory_Type_(declarationTarget)
 		} else {
-			dlhs, ok := ast.AsDestructuringLhs(declarationTarget)
-			jutil.CheckStateMsg1(ok, "%s", declarationTarget)
+			dlhs := declarator.MustDestructuringLhs()
 			resultType = AstFactory_Type_(dlhs.Pattern().Node())
 		}
 		declarationTarget.AddChildToBack(

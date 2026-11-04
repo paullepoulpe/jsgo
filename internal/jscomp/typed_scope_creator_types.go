@@ -595,6 +595,21 @@ func (b *TypedScopeCreator_scopeBuilder) FindOverriddenProperty(
 	return result
 }
 
+func typeExprNodeContainsLC(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
+	if n.GetToken() == rhino.Token_LC {
+		return true
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if typeExprNodeContainsLC(c) {
+			return true
+		}
+	}
+	return false
+}
+
 // CreateEnumTypeFromNodes creates a new enum type, based on the given nodes.
 //
 // This handles two cases that are semantically very different, but are not
@@ -625,6 +640,9 @@ func (b *TypedScopeCreator_scopeBuilder) CreateEnumTypeFromNodes(
 			var_ := b.currentScope.GetVar(rvalQname)
 			if var_ != nil && var_.GetType() != nil && var_.GetType().IsEnumType() {
 				enumType = var_.GetType().ToMaybeEnumType()
+				if typeExprNodeContainsLC(info.GetEnumParameterType().GetRoot()) {
+					b.outer.hasUnevaluatedRecordEnumAlias = true
+				}
 			}
 		}
 	}

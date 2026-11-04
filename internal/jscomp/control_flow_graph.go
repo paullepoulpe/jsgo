@@ -41,7 +41,8 @@ type ControlFlowGraph[N comparable] struct {
 
 	entry *graph.LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 
-	hasNodePriorities bool
+	hasNodePriorities  bool
+	hasInnerScopeRoots bool
 }
 
 // NewControlFlowGraph is the constructor.
@@ -77,6 +78,7 @@ func (c *ControlFlowGraph[N]) reinitAst(entry N, edgeAnnotations bool) {
 func (c *ControlFlowGraph[N]) init(entry N, nodeAnnotations bool, edgeAnnotations bool, hasNodePriorities bool) {
 	c.Init(nodeAnnotations, edgeAnnotations)
 	c.hasNodePriorities = hasNodePriorities
+	c.hasInnerScopeRoots = false
 	var null N
 	c.implicitReturn = c.CreateLinkedDiGraphNode(null)
 	c.entry = c.CreateLinkedDiGraphNode(entry)

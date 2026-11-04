@@ -449,11 +449,14 @@ func (r *JSTypeRegistry) ResolveViaPropertyGivenSlot(slotType JSType, definition
 	// Translate "constructor" types to "instance" types.
 	if slotType == nil {
 		return nil
-	} else if slotType.IsFunctionType() && (slotType.IsConstructor() || slotType.IsInterface()) {
+	}
+	if slotType.IsFunctionType() && (slotType.IsConstructor() || slotType.IsInterface()) {
 		return jsTypeOrNil(slotType.ToMaybeFunctionType().GetInstanceType())
-	} else if slotType.IsNoObjectType() {
+	}
+	if slotType.IsNoObjectType() {
 		return r.GetNativeObjectType(JSTypeNative_NO_OBJECT_TYPE)
-	} else if enumType, ok := slotType.(*EnumType); ok {
+	}
+	if enumType, ok := slotType.(*EnumType); ok {
 		return enumType.GetElementsType()
 	}
 	return nil
@@ -569,9 +572,11 @@ func (r *JSTypeRegistry) GetReadableTypeNameNoDeref(n Node) string {
 func JSTypeRegistry_SimpleReadableJSTypeName(type_ JSType) (string, bool) {
 	if ((uint32(1) << (type_.GetJSTypeBase().objFlags & objKindMask)) & jsKindNonObjectMask) != 0 {
 		return type_.String(), true
-	} else if type_.IsFunctionPrototypeType() {
+	}
+	if type_.IsFunctionPrototypeType() {
 		return type_.String(), true
-	} else if _, ok := type_.(ObjectType); ok {
+	}
+	if _, ok := type_.(ObjectType); ok {
 		if !JSTypeRegistry_IsReadableObjectType(type_.ToMaybeObjectType()) {
 			return "", false
 		}
@@ -579,13 +584,15 @@ func JSTypeRegistry_SimpleReadableJSTypeName(type_ JSType) (string, bool) {
 		source := type_.ToObjectType().GetConstructor().GetSource()
 		if !source.IsNil() {
 			jutil.CheckStateMsg1(source.IsFunction() || source.IsClass(), "%s", source)
-			if readable, ok := source.GetFirstChild().OriginalName(); ok {
-				return readable, true
+			if first := source.GetFirstChild(); !first.IsNil() {
+				if readable, ok := first.OriginalName(); ok {
+					return readable, true
+				}
 			}
 		}
 		return type_.String(), true
-
-	} else if unionType, ok := type_.(*UnionType); ok {
+	}
+	if unionType, ok := type_.(*UnionType); ok {
 		alts := unionType.GetAlternates()
 		if len(alts) == 0 {
 			return "null)", true
@@ -638,7 +645,7 @@ func (r *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string 
 	// If we're analyzing a GETPROP, the property may be inherited by the
 	// prototype chain. So climb the prototype chain and find out where the
 	// property was originally defined.
-	if n.IsGetProp() {
+	if !n.IsNil() && n.IsGetProp() {
 		objectType := r.GetJSTypeOrUnknown(n.GetFirstChild()).Dereference()
 		if objectType != nil {
 			propName := n.GetString()
@@ -652,9 +659,12 @@ func (r *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string 
 		}
 	}
 
-	if qname, ok := n.QualifiedName(); ok {
-		return qname
-	} else if type_.IsFunctionType() {
+	if !n.IsNil() {
+		if qname, ok := n.QualifiedName(); ok {
+			return qname
+		}
+	}
+	if type_.IsFunctionType() {
 		// Don't show complex function names.
 		return "function"
 	}
@@ -665,11 +675,11 @@ func (r *JSTypeRegistry) GetReadableJSTypeName(n Node, dereference bool) string 
 func JSTypeRegistry_IsReadableObjectType(type_ ObjectType) bool {
 	if type_ == nil {
 		return false
-	} else if type_.IsInstanceType() {
+	}
+	if type_.IsInstanceType() || type_.IsFunctionPrototypeType() {
 		return true
-	} else if type_.IsFunctionPrototypeType() {
-		return true
-	} else if type_.IsEnumElementType() {
+	}
+	if type_.IsEnumElementType() {
 		// TODO(b/147236174): This case should be deleted as impossible.
 		return type_.ToMaybeEnumElementType().GetConstructor() != nil
 	}
@@ -678,6 +688,9 @@ func JSTypeRegistry_IsReadableObjectType(type_ ObjectType) bool {
 
 // Java: JSTypeRegistry.getJSTypeOrUnknown(Node)
 func (r *JSTypeRegistry) GetJSTypeOrUnknown(n Node) JSType {
+	if n.IsNil() {
+		return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
+	}
 	jsType := n.GetJSType()
 	if jsType == nil {
 		return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
@@ -831,29 +844,4 @@ func (c *JSTypeRegistry_ClosureNamespace) String() string {
 		"definitionNode=" + jutil.ToJavaString(c.definitionNode) + ", " +
 		"type=" + jutil.ToJavaString(c.type_) +
 		"}"
-}
-
-// Java: AutoValue_JSTypeRegistry_ClosureNamespace.equals(Object)
-func (c *JSTypeRegistry_ClosureNamespace) Equals(o any) bool {
-	if any(c) == o {
-		return true
-	}
-	if that, ok := o.(*JSTypeRegistry_ClosureNamespace); ok && that != nil {
-		return c.isLegacy == that.isLegacy &&
-			c.definitionNode == that.definitionNode &&
-			((c.type_ == nil && that.type_ == nil) || (c.type_ != nil && c.type_.Equals(that.type_)))
-	}
-	return false
-}
-
-// Java: AutoValue_JSTypeRegistry_ClosureNamespace.hashCode()
-func (c *JSTypeRegistry_ClosureNamespace) HashCode() int32 {
-	var h int32 = 1
-	h *= 1000003
-	h ^= jutil.ObjectHashCode(c.isLegacy)
-	h *= 1000003
-	h ^= jutil.ObjectHashCode(c.definitionNode)
-	h *= 1000003
-	h ^= jutil.ObjectHashCode(c.type_)
-	return h
 }

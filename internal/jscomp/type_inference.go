@@ -74,9 +74,14 @@ type TypeInference struct {
 	branchConditionOutcomes  TypeInference_BooleanOutcomePair
 	hasBranchOutcomes        bool
 
-	lastScopeRoot           rhino.Node
-	lastModule              *Module
-	lastSyntacticBlockScope *TypedScope
+	lastScopeRoot                rhino.Node
+	lastModule                   *Module
+	lastSyntacticBlockScope      *TypedScope
+	fastFlowBodyNode             rhino.Node
+	fastFlowBodyScope            *TypedScope
+	fastFlowNoInnerScopes        bool
+	fastFlowContainerUnboundDone bool
+	fastFlowBodyUnboundDone      bool
 }
 
 var TypeInference_REASSIGN_CLASS_PROTOTYPE = DiagnosticType_Error(
@@ -124,6 +129,11 @@ func (ti *TypeInference) initTypeInference(
 	ti.lastScopeRoot = rhino.NilNode
 	ti.lastModule = nil
 	ti.lastSyntacticBlockScope = nil
+	ti.fastFlowBodyNode = rhino.NilNode
+	ti.fastFlowBodyScope = nil
+	ti.fastFlowNoInnerScopes = false
+	ti.fastFlowContainerUnboundDone = false
+	ti.fastFlowBodyUnboundDone = false
 	ti.inferredUnboundVars.clear()
 	ti.optChainStack = ti.optChainStack[:0]
 	ti.hasBranchOutcomes = false
@@ -160,7 +170,7 @@ func (ti *TypeInference) initTypeInference(
 
 	rootNode := syntacticScope.GetRootNode()
 	clear(ti.bottomImplicitVars[:])
-	bottomID := ti.bottomTypedScope.scopeID
+	bottomID := ti.bottomTypedScope.id()
 	if bottomID == 0 {
 		bottomID = allocTypedScopeID()
 	}
@@ -178,6 +188,31 @@ func (ti *TypeInference) initTypeInference(
 		functionScope:  &ti.bottomTypedScope,
 	}
 	ti.bottomScope = &ti.bottomFlowScope
+
+	if cfg.hasNodePriorities &&
+		!cfg.hasInnerScopeRoots &&
+		NodeUtil_CreatesScope(rootNode) &&
+		ModuleImportResolver_GetModuleFromScopeRoot(compiler.GetModuleMap(), compiler, rootNode) == nil {
+		if rootNode.IsFunction() {
+			if fnBody := ast.MustFunction(rootNode).Body().Node(); fnBody.IsBlock() {
+				if ModuleImportResolver_GetModuleFromScopeRoot(compiler.GetModuleMap(), compiler, fnBody) == nil {
+					ti.fastFlowNoInnerScopes = true
+					ti.fastFlowBodyNode = fnBody
+					ti.fastFlowContainerUnboundDone = len(syntacticScope.vars) == 0
+				}
+			} else {
+				ti.fastFlowNoInnerScopes = true
+				ti.fastFlowBodyScope = syntacticScope
+				ti.fastFlowContainerUnboundDone = len(syntacticScope.vars) == 0
+				ti.fastFlowBodyUnboundDone = true
+			}
+		} else {
+			ti.fastFlowNoInnerScopes = true
+			ti.fastFlowBodyScope = syntacticScope
+			ti.fastFlowContainerUnboundDone = len(syntacticScope.vars) == 0
+			ti.fastFlowBodyUnboundDone = true
+		}
+	}
 }
 
 // GetCfg returns the control flow graph analyzed by TypeInference.
@@ -318,7 +353,7 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow *LinkedF
 	// For each local variable declared with the VAR keyword, the entry
 	// type is VOID.
 	var overlay *LinkedFlowScope_OverlayScope
-	var slots *rhino.HamtPMap[string, rhino.JSType]
+	var slots *flowSlotMap
 	var voidType rhino.JSType
 	for var_ := range scope.GetVarIterable() {
 		if !scope.IsDeclarativelyUnboundVarWithoutType(var_) || ti.IsUnflowable(var_) {
@@ -334,8 +369,14 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow *LinkedF
 			}
 		}
 		name := var_.GetName()
-		if slots.Get(name) != voidType {
-			slots = slots.PlusMapWithArena(flow.arena.slotMaps(), name, voidType)
+		var hash uint32
+		if nameNode := var_.GetNameNode(); nameNode.IsName() {
+			hash = flowSlotHashByID(nameNode.GetStringID(), name)
+		} else {
+			hash = flowSlotHash(name)
+		}
+		if slots.getWithHash(name, hash) != voidType {
+			slots = slots.PlusMapWithHash(flow.arena.slotMaps(), name, hash, voidType)
 		}
 	}
 	if voidType == nil {
@@ -347,8 +388,8 @@ func (ti *TypeInference) InferDeclarativelyUnboundVarsWithoutTypes(flow *LinkedF
 	if overlay == nil && slots.IsEmpty() {
 		return flow
 	}
-	newScope := newLinkedFlowScope_OverlayScopeWithArena(flow.arena, scope, slots)
-	var newScopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
+	newScope := newLinkedFlowScope_OverlayScopeWithArena(flow.arena, scope, slots, overlay != nil && overlay.hasQualifiedSlots)
+	var newScopes *flowScopeMap
 	if !newScope.slots.IsEmpty() {
 		newScopes = flow.scopes.PlusMapWithArena(flow.arena.scopeMaps(), scope, newScope)
 	} else {
@@ -368,6 +409,7 @@ func (ti *TypeInference) CreateInitialEstimateLattice() *LinkedFlowScope {
 // Java: TypeInference.createEntryLattice()
 func (ti *TypeInference) CreateEntryLattice() *LinkedFlowScope {
 	// only ever called once so we don't need to cache this computation
+	ti.fastFlowContainerUnboundDone = true
 	entryScope :=
 		ti.InferDeclarativelyUnboundVarsWithoutTypes(
 			newLinkedFlowScopeWithArena(&ti.flowScopeArena, ti.compiler, LinkedFlowScope_EMPTY_SCOPES, ti.containerScope, ti.containerScope))
@@ -390,6 +432,29 @@ func (ti *TypeInference) FlowThrough(n rhino.Node, input *LinkedFlowScope) *Link
 	// want to infer anything about this scope.
 	if input == ti.bottomScope {
 		return input
+	}
+
+	if ti.fastFlowNoInnerScopes {
+		if n == ti.containerScope.rootNode {
+			output := input.withTypedScope(ti.containerScope)
+			if !ti.fastFlowContainerUnboundDone {
+				ti.fastFlowContainerUnboundDone = true
+				output = ti.InferDeclarativelyUnboundVarsWithoutTypes(output)
+			}
+			return ti.Traverse(n, output)
+		}
+		bodyScope := ti.fastFlowBodyScope
+		if bodyScope == nil {
+			bodyScope = ti.scopeCreator.CreateScopeOfNode(ti.fastFlowBodyNode)
+			ti.fastFlowBodyScope = bodyScope
+			ti.fastFlowBodyUnboundDone = len(bodyScope.vars) == 0
+		}
+		output := input.withTypedScope(bodyScope)
+		if !ti.fastFlowBodyUnboundDone {
+			ti.fastFlowBodyUnboundDone = true
+			output = ti.InferDeclarativelyUnboundVarsWithoutTypes(output)
+		}
+		return ti.Traverse(n, output)
 	}
 
 	// This method also does some logic for ES modules right before and after entering/exiting the

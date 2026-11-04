@@ -484,7 +484,8 @@ func (tc *TypeCheck) CheckEnumAlias(
 	tc.validator.ExpectCanAssignTo(
 		nodeToWarn,
 		valueEnumPrimitiveType,
-		declInfo.GetEnumParameterType().Evaluate(t.GetTypedScope(), tc.typeRegistry),
+		declInfo.GetEnumParameterType().EvaluateWithReporter(
+			t.GetTypedScope(), tc.typeRegistry, RhinoErrorReporter_ForOldRhino(tc.compiler.asErrorHandler)),
 		"incompatible enum element types")
 }
 

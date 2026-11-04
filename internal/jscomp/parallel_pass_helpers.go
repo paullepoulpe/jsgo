@@ -1,6 +1,7 @@
 package jscomp
 
 import (
+	"math/bits"
 	"sync"
 	"sync/atomic"
 
@@ -134,12 +135,14 @@ const (
 	recordedEventFunctionDeleted
 	recordedEventReport
 	recordedEventAllowModules
+	recordedEventScriptFeatures
 )
 
 type recordedCompilerEvent struct {
-	kind recordedCompilerEventKind
-	node rhino.Node
-	err  *JSError
+	kind     recordedCompilerEventKind
+	node     rhino.Node
+	err      *JSError
+	features uint64
 }
 
 type parallelInternalError struct {
@@ -264,6 +267,33 @@ func (r *parallelRecorder) reportFunctionDeleted(node rhino.Node) {
 	})
 }
 
+func (r *parallelRecorder) recordScriptFeatures(c *Compiler, script rhino.Node, features uint64) {
+	jutil.CheckStateMsg1(script.IsScript(), "%s", script)
+	if features == 0 {
+		return
+	}
+	for w := features; w != 0; {
+		b := bits.TrailingZeros64(w)
+		w &^= uint64(1) << uint(b)
+		feature := parser.FeatureSet_Feature(b)
+		if feature != parser.FeatureSet_Feature_MODULES {
+			jutil.CheckStateMsg1(
+				c.GetAllowableFeatures().ContainsFeature(feature),
+				"Cannot add feature: %s. It is not supported in the output language, and either 1) its"+
+					" corresponding transpilation pass has already run or 2) transpilation of this"+
+					" feature is unsupported entirely",
+				feature)
+		} else {
+			c.SetAllowableFeatures(c.GetAllowableFeatures().With(feature))
+		}
+	}
+	r.events = append(r.events, recordedCompilerEvent{
+		kind:     recordedEventScriptFeatures,
+		node:     script,
+		features: features,
+	})
+}
+
 func (c *Compiler) setWorkerAllowableFeatures(featureSet parser.FeatureSet) {
 	if featureSet.ContainsFeature(parser.FeatureSet_Feature_MODULES) &&
 		featureSet.WithoutFeatures(parser.FeatureSet_Feature_MODULES) ==
@@ -292,6 +322,12 @@ func replayCompilerEvents(base *Compiler, events []recordedCompilerEvent) {
 			base.Report(ev.err)
 		case recordedEventAllowModules:
 			base.SetAllowableFeatures(base.GetAllowableFeatures().With(parser.FeatureSet_Feature_MODULES))
+		case recordedEventScriptFeatures:
+			for w := ev.features; w != 0; {
+				b := bits.TrailingZeros64(w)
+				w &^= uint64(1) << uint(b)
+				NodeUtil_AddFeatureToScript(ev.node, parser.FeatureSet_Feature(b), base)
+			}
 		}
 	}
 }

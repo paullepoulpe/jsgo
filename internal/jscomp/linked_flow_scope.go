@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // linkedFlowNullJSType is a sentinel stored in OverlayScope.slots when an
@@ -60,14 +61,12 @@ type linkedFlowScopeArena struct {
 	scopes   jutil.ReuseSlab[LinkedFlowScope]
 	overlays jutil.ReuseSlab[LinkedFlowScope_OverlayScope]
 
-	scopeMapArena rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope]
-	slotMapArena  rhino.HamtPMapArena[string, rhino.JSType]
+	scopeMapArena flowScopeMapArena
+	slotMapArena  flowSlotMapArena
 
-	// Reusable join state and pre-bound method values so linkedFlowScope_JoinMap
-	// does not heap-allocate 2 closures per CFG branch join.
-	join            linkedFlowJoinState
-	reconcileScopes func(*TypedScope, *LinkedFlowScope_OverlayScope, *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope
-	reconcileSlots  func(string, rhino.JSType, rhino.JSType) rhino.JSType
+	// Reusable join state so linkedFlowScope_JoinMap does not heap-allocate
+	// per CFG branch join.
+	join linkedFlowJoinState
 }
 
 type linkedFlowJoinState struct {
@@ -78,14 +77,14 @@ type linkedFlowJoinState struct {
 	typedScopeB *TypedScope
 }
 
-func (a *linkedFlowScopeArena) scopeMaps() *rhino.HamtPMapArena[*TypedScope, *LinkedFlowScope_OverlayScope] {
+func (a *linkedFlowScopeArena) scopeMaps() *flowScopeMapArena {
 	if a == nil {
 		return nil
 	}
 	return &a.scopeMapArena
 }
 
-func (a *linkedFlowScopeArena) slotMaps() *rhino.HamtPMapArena[string, rhino.JSType] {
+func (a *linkedFlowScopeArena) slotMaps() *flowSlotMapArena {
 	if a == nil {
 		return nil
 	}
@@ -120,7 +119,7 @@ type LinkedFlowScope struct {
 	inputProvider CompilerInputProvider
 
 	// Map from TypedScope to OverlayScope.
-	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
+	scopes *flowScopeMap
 
 	functionScope *TypedScope
 
@@ -136,7 +135,7 @@ type LinkedFlowScope struct {
 // Java: LinkedFlowScope(CompilerInputProvider, PMap<TypedScope, OverlayScope>, TypedScope, TypedScope)
 func newLinkedFlowScope(
 	inputProvider CompilerInputProvider,
-	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope],
+	scopes *flowScopeMap,
 	syntacticScope *TypedScope,
 	functionScope *TypedScope) *LinkedFlowScope {
 	return newLinkedFlowScopeWithArena(nil, inputProvider, scopes, syntacticScope, functionScope)
@@ -145,7 +144,7 @@ func newLinkedFlowScope(
 func newLinkedFlowScopeWithArena(
 	arena *linkedFlowScopeArena,
 	inputProvider CompilerInputProvider,
-	scopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope],
+	scopes *flowScopeMap,
 	syntacticScope *TypedScope,
 	functionScope *TypedScope) *LinkedFlowScope {
 	var s *LinkedFlowScope
@@ -169,7 +168,7 @@ func newLinkedFlowScopeWithArena(
 // these irrelevant types when checking equality and joining.
 //
 // Java: LinkedFlowScope.trimScopes(TypedScope)
-func (l *LinkedFlowScope) trimScopesMap(scope *TypedScope) *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
+func (l *LinkedFlowScope) trimScopesMap(scope *TypedScope) *flowScopeMap {
 	thisScope := l.syntacticScope
 	thatScope := scope
 	if thisScope == thatScope || l.scopes.IsEmpty() {
@@ -222,11 +221,32 @@ func LinkedFlowScope_CreateEntryLattice(
 func (l *LinkedFlowScope) InferSlotType(symbol string, type_ rhino.JSType) *LinkedFlowScope {
 	scope := l.GetOverlayScopeForName(symbol, true)
 	newScope := scope.Infer(symbol, type_)
+	return l.finishInferOverlay(scope, newScope)
+}
+
+// InferSlotTypeByID is InferSlotType for an interned strpool ID (e.g. a NAME node).
+func (l *LinkedFlowScope) InferSlotTypeByID(id uint32, symbol string, type_ rhino.JSType) *LinkedFlowScope {
+	if id == 0 || strings.IndexByte(symbol, '.') >= 0 {
+		return l.InferSlotType(symbol, type_)
+	}
+	rootVar := l.syntacticScope.getVarBySimpleID(id, symbol)
+	targetScope := l.functionScope
+	if rootVar != nil {
+		targetScope = rootVar.scope
+	}
+	scope := l.GetOverlayScopeForScope(targetScope, true)
+	newScope := scope.inferSimpleByID(id, symbol, type_)
+	return l.finishInferOverlay(scope, newScope)
+}
+
+func (l *LinkedFlowScope) finishInferOverlay(
+	scope *LinkedFlowScope_OverlayScope, newScope *LinkedFlowScope_OverlayScope,
+) *LinkedFlowScope {
 	if newScope == scope && !newScope.slots.IsEmpty() {
 		return l
 	}
 	// Aggressively remove empty scopes to maintain a reasonable equivalence.
-	var newScopes *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
+	var newScopes *flowScopeMap
 	if !newScope.slots.IsEmpty() {
 		newScopes = l.scopes.PlusMapWithArena(l.arena.scopeMaps(), scope.scope, newScope)
 	} else {
@@ -319,7 +339,34 @@ func (l *LinkedFlowScope) GetParentScope() rhino.StaticScope {
 //   - slotVar is the backing *TypedVar when unrefined, or nil when an overlay
 //     refinement overrides the slot.
 func (l *LinkedFlowScope) LookupSlotType(name string) (declaredVar *TypedVar, slotVar *TypedVar, flowType rhino.JSType, isInferred bool, ok bool) {
-	var_ := l.syntacticScope.GetVar(name)
+	syn := l.syntacticScope
+	if strings.IndexByte(name, '.') < 0 {
+		var_ := syn.lookupRootVar(name)
+		targetScope := l.functionScope
+		if var_ != nil {
+			targetScope = var_.scope
+		}
+		if scope := l.scopes.Get(targetScope); scope != nil {
+			if t := scope.slots.Get(name); t != nil {
+				return var_, nil, unwrapOverlayType(t), true, true
+			}
+			if var_ != nil {
+				return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
+			}
+			if scope.scope != syn {
+				if s := scope.scope.lookupRootVar(name); s != nil {
+					return nil, s, s.GetType(), s.IsTypeInferred(), true
+				}
+			}
+			return nil, nil, nil, false, false
+		}
+		if var_ != nil {
+			return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
+		}
+		return nil, nil, nil, false, false
+	}
+
+	var_ := syn.GetVar(name)
 	var scope *LinkedFlowScope_OverlayScope
 	if var_ == nil {
 		scope = l.GetOverlayScopeForName(name, false)
@@ -328,14 +375,18 @@ func (l *LinkedFlowScope) LookupSlotType(name string) (declaredVar *TypedVar, sl
 	}
 
 	if scope != nil {
-		if t := scope.slots.Get(name); t != nil {
-			return var_, nil, unwrapOverlayType(t), true, true
+		if scope.hasQualifiedSlots {
+			if t := scope.slots.Get(name); t != nil {
+				return var_, nil, unwrapOverlayType(t), true, true
+			}
 		}
 		if var_ != nil {
 			return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
 		}
-		if s := scope.scope.GetVar(name); s != nil {
-			return nil, s, s.GetType(), s.IsTypeInferred(), true
+		if scope.scope != syn {
+			if s := scope.scope.GetVar(name); s != nil {
+				return nil, s, s.GetType(), s.IsTypeInferred(), true
+			}
 		}
 		return nil, nil, nil, false, false
 	}
@@ -343,6 +394,88 @@ func (l *LinkedFlowScope) LookupSlotType(name string) (declaredVar *TypedVar, sl
 		return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
 	}
 	return nil, nil, nil, false, false
+}
+
+// LookupSlotTypeByID resolves an interned strpool ID's slot type and backing
+// *TypedVar without string allocation or repeated UTF-16 hashing.
+func (l *LinkedFlowScope) LookupSlotTypeByID(id uint32) (declaredVar *TypedVar, slotVar *TypedVar, flowType rhino.JSType, isInferred bool, ok bool) {
+	name := strpool.String(strpool.ID(id))
+	if strings.IndexByte(name, '.') >= 0 {
+		return l.LookupSlotType(name)
+	}
+	syn := l.syntacticScope
+	var_ := syn.getVarBySimpleID(id, name)
+	targetScope := l.functionScope
+	if var_ != nil {
+		targetScope = var_.scope
+	}
+	if scope := l.scopes.Get(targetScope); scope != nil {
+		if t := scope.slots.GetByID(id, name); t != nil {
+			return var_, nil, unwrapOverlayType(t), true, true
+		}
+		if var_ != nil {
+			return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
+		}
+		if scope.scope != syn {
+			if s := scope.scope.getVarBySimpleID(id, name); s != nil {
+				return nil, s, s.GetType(), s.IsTypeInferred(), true
+			}
+		}
+		return nil, nil, nil, false, false
+	}
+	if var_ != nil {
+		return var_, var_, var_.GetType(), var_.IsTypeInferred(), true
+	}
+	return nil, nil, nil, false, false
+}
+
+// LookupGetPropSlotType resolves a GETPROP node's qualified-name slot without
+// allocating a string when neither syntactic nor overlay scopes hold any
+// qualified slots on the target root scope. When fast-rejected, qName is ""
+// even when isQName is true; callers that still need the qualified name string
+// on a slot miss should compute n.GetQualifiedNameString() lazily.
+func (l *LinkedFlowScope) LookupGetPropSlotType(n rhino.Node) (
+	qName string, isQName bool, declaredVar *TypedVar, slotVar *TypedVar, flowType rhino.JSType, isInferred bool, ok bool,
+) {
+	root, valid := getPropQualifiedRoot(n)
+	if !valid {
+		return "", false, nil, nil, nil, false, false
+	}
+	syn := l.syntacticScope
+	var rootVar *TypedVar
+	mayHaveSynVar := syn.hasQualifiedVars()
+	if !mayHaveSynVar && syn.parent != nil {
+		rootVar = syn.lookupRootVarForQNameRoot(root)
+		if rootVar == nil {
+			mayHaveSynVar = syn.GetGlobalScope().hasQualifiedVars()
+		} else {
+			mayHaveSynVar = rootVar.scope.hasQualifiedVars()
+		}
+	}
+	if !mayHaveSynVar {
+		ovScope := l.functionScope
+		if syn.parent == nil {
+			rootVar = syn.lookupRootVarForQNameRoot(root)
+		}
+		if rootVar != nil {
+			ovScope = rootVar.scope
+		}
+		ov := l.scopes.Get(ovScope)
+		if ov == nil {
+			return "", true, nil, nil, nil, false, false
+		}
+		if !ov.hasQualifiedSlots {
+			if ov.scope == syn || rootVar != nil {
+				return "", true, nil, nil, nil, false, false
+			}
+			if _, mayHaveOvVar := ov.scope.HasQualifiedVarForGetProp(n); !mayHaveOvVar {
+				return "", true, nil, nil, nil, false, false
+			}
+		}
+	}
+	qName, _ = n.GetQualifiedNameString()
+	declaredVar, slotVar, flowType, isInferred, ok = l.LookupSlotType(qName)
+	return qName, true, declaredVar, slotVar, flowType, isInferred, ok
 }
 
 // HasSlot reports whether name resolves to a slot in l without allocating.
@@ -405,7 +538,7 @@ func (l *LinkedFlowScope) GetOverlayScopeForName(name string, create bool) *Link
 func (l *LinkedFlowScope) GetOverlayScopeForScope(scope *TypedScope, create bool) *LinkedFlowScope_OverlayScope {
 	overlay := l.scopes.Get(scope)
 	if overlay == nil && create {
-		overlay = newLinkedFlowScope_OverlayScopeWithArena(l.arena, scope, LinkedFlowScope_EMPTY_SLOTS)
+		overlay = newLinkedFlowScope_OverlayScopeWithArena(l.arena, scope, LinkedFlowScope_EMPTY_SLOTS, false)
 	}
 	return overlay
 }
@@ -572,7 +705,7 @@ func (l *LinkedFlowScope) EqualScope(that *LinkedFlowScope) bool {
 	// to propagate the entry lattice a little bit further than it
 	// really needs to. Everything will still come out ok.
 	return l.functionScope == that.functionScope &&
-		l.scopes.Equivalent(that.scopes, LinkedFlowScope_EqualScopes)
+		l.scopes.Equivalent(that.scopes)
 }
 
 // Java: LinkedFlowScope.equals(Object)
@@ -586,7 +719,7 @@ func LinkedFlowScope_EqualScopes(left *LinkedFlowScope_OverlayScope, right *Link
 	if left == right {
 		return true
 	}
-	return left.slots.Equivalent(right.slots, linkedFlowScope_EqualTypes)
+	return left.slots.Equivalent(right.slots)
 }
 
 // linkedFlowScope_EqualTypes determines whether two inferred slot types are
@@ -607,7 +740,7 @@ func linkedFlowScope_EqualTypes(rawA rhino.JSType, rawB rhino.JSType) bool {
 
 // Java: LinkedFlowScope.join(LinkedFlowScope, LinkedFlowScope, TypedScope)
 func linkedFlowScope_JoinMap(
-	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope] {
+	linkedA *LinkedFlowScope, linkedB *LinkedFlowScope, commonParent *TypedScope) *flowScopeMap {
 	scopesA := linkedA.trimScopesMap(commonParent)
 	scopesB := linkedB.trimScopesMap(commonParent)
 	if scopesA == scopesB && linkedA.FlowsFromBottom() == linkedB.FlowsFromBottom() {
@@ -618,37 +751,24 @@ func linkedFlowScope_JoinMap(
 		arena = linkedB.arena
 	}
 	if arena != nil {
-		if arena.reconcileScopes == nil {
-			arena.reconcileScopes = arena.reconcileScopeEntry
-			arena.reconcileSlots = arena.join.reconcileSlotEntry
-		}
 		arena.join = linkedFlowJoinState{arena: arena, linkedA: linkedA, linkedB: linkedB}
-		res := scopesA.ReconcileMapWithArena(&arena.scopeMapArena, scopesB, arena.reconcileScopes)
+		res := scopesA.ReconcileWithState(&arena.scopeMapArena, scopesB, &arena.join)
 		arena.join = linkedFlowJoinState{}
 		return res
 	}
-	st := &linkedFlowJoinState{linkedA: linkedA, linkedB: linkedB}
-	return scopesA.ReconcileMapWithArena(nil, scopesB, func(scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope) *LinkedFlowScope_OverlayScope {
-		return st.reconcileScope(scopeKey, scopeA, scopeB, st.reconcileSlotEntry)
-	})
-}
-
-func (a *linkedFlowScopeArena) reconcileScopeEntry(
-	scopeKey *TypedScope, scopeA *LinkedFlowScope_OverlayScope, scopeB *LinkedFlowScope_OverlayScope,
-) *LinkedFlowScope_OverlayScope {
-	return a.join.reconcileScope(scopeKey, scopeA, scopeB, a.reconcileSlots)
+	st := linkedFlowJoinState{linkedA: linkedA, linkedB: linkedB}
+	return scopesA.ReconcileWithState(nil, scopesB, &st)
 }
 
 func (st *linkedFlowJoinState) reconcileScope(
 	_ *TypedScope,
 	scopeA *LinkedFlowScope_OverlayScope,
 	scopeB *LinkedFlowScope_OverlayScope,
-	slotFn func(string, rhino.JSType, rhino.JSType) rhino.JSType,
 ) *LinkedFlowScope_OverlayScope {
 	if scopeA == scopeB && st.linkedA.FlowsFromBottom() == st.linkedB.FlowsFromBottom() {
 		return scopeA
 	}
-	var slotsA, slotsB *rhino.HamtPMap[string, rhino.JSType]
+	var slotsA, slotsB *flowSlotMap
 	if scopeA != nil {
 		slotsA = scopeA.slots
 	}
@@ -685,13 +805,13 @@ func (st *linkedFlowJoinState) reconcileScope(
 			bestScope = scopeB.scope
 		}
 	}
-	var reconciledSlots *rhino.HamtPMap[string, rhino.JSType]
+	var reconciledSlots *flowSlotMap
 	if slotsA == slotsB && typedScopeA == typedScopeB {
 		reconciledSlots = slotsA
 	} else {
 		st.typedScopeA = typedScopeA
 		st.typedScopeB = typedScopeB
-		reconciledSlots = slotsA.ReconcileMapWithArena(st.arena.slotMaps(), slotsB, slotFn)
+		reconciledSlots = slotsA.ReconcileWithState(st.arena.slotMaps(), slotsB, st)
 	}
 	if scopeA != nil && scopeA.scope == bestScope && reconciledSlots == scopeA.slots {
 		return scopeA
@@ -699,7 +819,8 @@ func (st *linkedFlowJoinState) reconcileScope(
 	if scopeB != nil && scopeB.scope == bestScope && reconciledSlots == scopeB.slots {
 		return scopeB
 	}
-	return newLinkedFlowScope_OverlayScopeWithArena(st.arena, bestScope, reconciledSlots)
+	hasQual := (scopeA != nil && scopeA.hasQualifiedSlots) || (scopeB != nil && scopeB.hasQualifiedSlots)
+	return newLinkedFlowScope_OverlayScopeWithArena(st.arena, bestScope, reconciledSlots, hasQual)
 }
 
 func (st *linkedFlowJoinState) reconcileSlotEntry(slotKey string, rawTypeA rhino.JSType, rawTypeB rhino.JSType) rhino.JSType {
@@ -752,9 +873,10 @@ func (st *linkedFlowJoinState) reconcileSlotEntry(slotKey string, rawTypeA rhino
 
 // LinkedFlowScope_OverlayScope is the overlay of one syntactic scope.
 type LinkedFlowScope_OverlayScope struct {
-	arena *linkedFlowScopeArena
-	scope *TypedScope
-	slots *rhino.HamtPMap[string, rhino.JSType]
+	arena             *linkedFlowScopeArena
+	scope             *TypedScope
+	slots             *flowSlotMap
+	hasQualifiedSlots bool
 }
 
 // Equals implements jutil.Equaler using pointer identity (matching Java Object.equals).
@@ -770,14 +892,15 @@ func NewLinkedFlowScope_OverlayScope(scope *TypedScope) *LinkedFlowScope_Overlay
 
 // Java: LinkedFlowScope.OverlayScope(TypedScope, PMap<String, OverlaySlot>)
 func newLinkedFlowScope_OverlayScopeWithSlots(
-	scope *TypedScope, slots *rhino.HamtPMap[string, rhino.JSType]) *LinkedFlowScope_OverlayScope {
-	return newLinkedFlowScope_OverlayScopeWithArena(nil, scope, slots)
+	scope *TypedScope, slots *flowSlotMap) *LinkedFlowScope_OverlayScope {
+	return newLinkedFlowScope_OverlayScopeWithArena(nil, scope, slots, false)
 }
 
 func newLinkedFlowScope_OverlayScopeWithArena(
 	arena *linkedFlowScopeArena,
 	scope *TypedScope,
-	slots *rhino.HamtPMap[string, rhino.JSType]) *LinkedFlowScope_OverlayScope {
+	slots *flowSlotMap,
+	hasQualifiedSlots bool) *LinkedFlowScope_OverlayScope {
 	jutil.CheckNotNull(scope)
 	var o *LinkedFlowScope_OverlayScope
 	if arena != nil {
@@ -788,6 +911,7 @@ func newLinkedFlowScope_OverlayScopeWithArena(
 	o.arena = arena
 	o.scope = scope
 	o.slots = slots
+	o.hasQualifiedSlots = hasQualifiedSlots
 	return o
 }
 
@@ -795,14 +919,29 @@ func newLinkedFlowScope_OverlayScopeWithArena(
 func (o *LinkedFlowScope_OverlayScope) Infer(name string, type_ rhino.JSType) *LinkedFlowScope_OverlayScope {
 	// TODO(sdh): variants that do or don't clobber properties (i.e. look up and modify instead)
 	wrapped := wrapOverlayType(type_)
-	if existing := o.slots.Get(name); existing == wrapped {
+	hash := flowSlotHash(name)
+	if existing := o.slots.getWithHash(name, hash); existing == wrapped {
 		return o
 	}
-	nextSlots := o.slots.PlusMapWithArena(o.arena.slotMaps(), name, wrapped)
+	nextSlots := o.slots.PlusMapWithHash(o.arena.slotMaps(), name, hash, wrapped)
 	if nextSlots == o.slots {
 		return o
 	}
-	return newLinkedFlowScope_OverlayScopeWithArena(o.arena, o.scope, nextSlots)
+	return newLinkedFlowScope_OverlayScopeWithArena(
+		o.arena, o.scope, nextSlots, o.hasQualifiedSlots || strings.IndexByte(name, '.') >= 0)
+}
+
+func (o *LinkedFlowScope_OverlayScope) inferSimpleByID(id uint32, name string, type_ rhino.JSType) *LinkedFlowScope_OverlayScope {
+	wrapped := wrapOverlayType(type_)
+	hash := flowSlotHashByID(id, name)
+	if existing := o.slots.getWithHash(name, hash); existing == wrapped {
+		return o
+	}
+	nextSlots := o.slots.PlusMapWithHash(o.arena.slotMaps(), name, hash, wrapped)
+	if nextSlots == o.slots {
+		return o
+	}
+	return newLinkedFlowScope_OverlayScopeWithArena(o.arena, o.scope, nextSlots, o.hasQualifiedSlots)
 }
 
 // GetSlot returns the overlay's slot for name, else the scope's (nil if
@@ -835,5 +974,5 @@ func (s *linkedFlowSlot) GetScope() rhino.StaticScope {
 	panic(jutil.NewUnsupportedOperationException())
 }
 
-var LinkedFlowScope_EMPTY_SCOPES *rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope]
-var LinkedFlowScope_EMPTY_SLOTS *rhino.HamtPMap[string, rhino.JSType]
+var LinkedFlowScope_EMPTY_SCOPES *flowScopeMap
+var LinkedFlowScope_EMPTY_SLOTS *flowSlotMap

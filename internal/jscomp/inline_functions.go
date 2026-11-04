@@ -299,9 +299,10 @@ func (f *InlineFunctions) Process(externs rhino.Node, root rhino.Node) {
 	f.DecomposeExpressions()
 	if !root.IsNil() {
 		callVisitor := inlineCallVisitor{
-			namedFns:   f.namedFns,
-			anonFns:    f.anonFns,
-			onCallSite: f.inlineCallSite,
+			namedFns:        f.namedFns,
+			anonFns:         f.anonFns,
+			onCallSite:      f.inlineCallSite,
+			activeAncestors: f.buildPhase4ActiveAncestors(root),
 		}
 		callVisitor.inlineWalkRoot(f.compiler, root)
 	}

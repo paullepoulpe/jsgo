@@ -19,6 +19,9 @@
 package jscomp
 
 import (
+	"strings"
+
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -68,7 +71,7 @@ func (r *RewriteJsonToModule) Process(externs rhino.Node, root rhino.Node) {
 func (r *RewriteJsonToModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		if !n.HasOneChild() {
+		if _, ok := ast.MustScript(n).OnlyItem(); !ok {
 			r.compiler.Report(JSError_MakeWithNode(n, RewriteJsonToModule_JSON_UNEXPECTED_TOKEN))
 		} else {
 			r.VisitScript(t, n)
@@ -76,7 +79,7 @@ func (r *RewriteJsonToModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		return
 	case rhino.Token_OBJECTLIT, rhino.Token_ARRAYLIT, rhino.Token_NUMBER, rhino.Token_TRUE, rhino.Token_FALSE, rhino.Token_NULL, rhino.Token_STRINGLIT:
 	case rhino.Token_STRING_KEY:
-		if !n.IsQuotedStringKey() || !n.HasOneChild() {
+		if sk := ast.MustStringKey(n); !sk.IsQuoted() || !n.HasOneChild() {
 			r.compiler.Report(JSError_MakeWithNode(n, RewriteJsonToModule_JSON_UNEXPECTED_TOKEN))
 		}
 	case rhino.Token_EXPR_RESULT:
@@ -105,7 +108,9 @@ func (r *RewriteJsonToModule) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 //
 // Java: RewriteJsonToModule.visitScript(NodeTraversal, Node)
 func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n rhino.Node) {
-	if !n.HasOneChild() || !n.GetFirstChild().IsExprResult() {
+	onlyItem, hasOnly := ast.MustScript(n).OnlyItem()
+	exprStmt, isExprStmt := onlyItem.AsExprStmt()
+	if !hasOnly || !isExprStmt {
 		r.compiler.Report(JSError_MakeWithNode(n, RewriteJsonToModule_JSON_UNEXPECTED_TOKEN))
 		return
 	}
@@ -115,8 +120,8 @@ func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n rhino.Node) {
 	jsdoc.RecordSuppression("undefinedVars")
 	n.SetJSDocInfo(jsdoc.Build())
 
-	jsonObject := n.GetFirstFirstChild().Detach()
-	n.RemoveFirstChild()
+	jsonObject := exprStmt.Expr().Detach().Node()
+	exprStmt.Detach()
 
 	moduleName := t.GetInput().GetPath().ToModuleName()
 
@@ -128,26 +133,22 @@ func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n rhino.Node) {
 			SrcrefTreeIfMissing(n))
 
 	inputPath := t.GetInput().GetSourceFile().GetName()
-	if jutil.StringEndsWith(inputPath, "/package.json") && jsonObject.IsObjectLit() {
-		possibleMainEntries := r.compiler.GetOptions().GetPackageJsonEntryNames()
-
-		for _, entryName := range possibleMainEntries {
-			entry := NodeUtil_GetFirstPropMatchingKey(jsonObject, entryName)
-
-			if !entry.IsNil() && (entry.IsStringLit() || entry.IsObjectLit()) {
-				dirName := jutil.StringSubstring(inputPath, 0, jutil.StringLength(inputPath)-jutil.StringLength("package.json"))
-
-				if entry.IsStringLit() {
-					r.packageJsonMainEntries.Put(inputPath, dirName+entry.GetString())
-					break
-				} else if entry.IsObjectLit() {
-					jutil.CheckStateMsg1(entryName == "browser", "%s", entryName)
-
-					// don't break if we're processing a browser field that is an object literal
-					// because one of its entries may override the package.json main, which
-					// we will get in the next iteration.
-					r.ProcessBrowserFieldAdvancedUsage(dirName, entry)
-				}
+	if jsonObjLit, isObjLit := ast.AsObjectLit(jsonObject); isObjLit && strings.HasSuffix(inputPath, "/package.json") {
+		dirName := inputPath[:len(inputPath)-len("package.json")]
+		for _, entryName := range r.compiler.GetOptions().GetPackageJsonEntryNames() {
+			entry := NodeUtil_GetFirstPropMatchingKey(jsonObjLit.Node(), entryName)
+			if entry.IsNil() {
+				continue
+			}
+			if strLit, ok := ast.AsStringLit(entry); ok {
+				r.packageJsonMainEntries.Put(inputPath, dirName+strLit.Value())
+				break
+			}
+			if entry.IsObjectLit() && entryName == "browser" {
+				// don't break if we're processing a browser field that is an object literal
+				// because one of its entries may override the package.json main, which
+				// we will get in the next iteration.
+				r.ProcessBrowserFieldAdvancedUsage(dirName, entry)
 			}
 		}
 	}
@@ -162,24 +163,25 @@ func (r *RewriteJsonToModule) VisitScript(t *NodeTraversal, n rhino.Node) {
 //
 // Java: RewriteJsonToModule.processBrowserFieldAdvancedUsage(String, Node)
 func (r *RewriteJsonToModule) ProcessBrowserFieldAdvancedUsage(dirName string, entry rhino.Node) {
-	for child := entry.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		value := child.GetFirstChild()
-
-		jutil.CheckState(child.IsStringKey() && (value.IsStringLit() || value.IsFalse()))
-
-		path := child.GetString()
-
-		if jutil.StringStartsWith(path, ModuleLoader_DEFAULT_FILENAME_PREFIX) {
-			path = jutil.StringSubstringFrom(path, jutil.StringLength(ModuleLoader_DEFAULT_FILENAME_PREFIX))
+	objLit, ok := ast.AsObjectLit(entry)
+	if !ok {
+		return
+	}
+	for member := range objLit.Members() {
+		strKey, ok := member.AsStringKey()
+		if !ok {
+			continue
 		}
-
+		value := strKey.Value().Node()
 		var replacement string
-		if value.IsStringLit() {
-			replacement = dirName + value.GetString()
-		} else {
+		if strLit, ok := ast.AsStringLit(value); ok {
+			replacement = dirName + strLit.Value()
+		} else if value.IsFalse() {
 			replacement = ModuleLoader_JSC_BROWSER_SKIPLISTED_MARKER
+		} else {
+			continue
 		}
-
+		path := strings.TrimPrefix(strKey.Key(), ModuleLoader_DEFAULT_FILENAME_PREFIX)
 		r.packageJsonMainEntries.Put(dirName+path, replacement)
 	}
 }

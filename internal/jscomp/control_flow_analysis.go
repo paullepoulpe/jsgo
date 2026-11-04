@@ -66,6 +66,7 @@ type ControlFlowAnalysis struct {
 	// analysis for the whole scope. This happens, for example, when running
 	// type inference on only the externs.
 	root       rhino.Node
+	rootFnBody rhino.Node
 	walkNode   rhino.Node
 	walkScript rhino.Node
 
@@ -154,6 +155,7 @@ func (rc *ReusableCfg) release() {
 	rc.cfa.compiler = nil
 	rc.cfa.cfg = nil
 	rc.cfa.root = rhino.NilNode
+	rc.cfa.rootFnBody = rhino.NilNode
 	rc.cfa.walkNode = rhino.NilNode
 	rc.cfa.walkScript = rhino.NilNode
 	rc.cfa.finallyMap.reset()
@@ -205,6 +207,15 @@ func (c *ControlFlowAnalysis) computeCfg(root rhino.Node, storage *ControlFlowGr
 	jutil.CheckArgumentMsg1(
 		NodeUtil_IsValidCfgRoot(root), "Unexpected control flow graph root %s", root)
 	c.root = root
+	if root.IsFunction() {
+		if body := ast.MustFunction(root).Body().Node(); body.IsBlock() {
+			c.rootFnBody = body
+		} else {
+			c.rootFnBody = rhino.NilNode
+		}
+	} else {
+		c.rootFnBody = rhino.NilNode
+	}
 	if c.astPosition == nil {
 		c.astPosition = make(map[rhino.Node]int32)
 	}
@@ -304,6 +315,9 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node) {
 		return
 	case rhino.Token_FUNCTION:
 		c.walkNode = n
+		if n != c.root && (c.shouldTraverseFunctions || (!parent.IsBlock() && !parent.IsScript() && !parent.IsModuleBody())) {
+			c.cfg.hasInnerScopeRoots = true
+		}
 		if c.shouldTraverse(n, parent) {
 			fn := ast.MustFunction(n)
 			c.walkBranch(fn.NameNode().Node(), n)
@@ -316,6 +330,7 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node) {
 	case rhino.Token_CLASS:
 		c.walkNode = n
 		if c.shouldTraverse(n, parent) {
+			c.cfg.hasInnerScopeRoots = true
 			cls := ast.MustClass(n)
 			c.walkBranch(cls.ExtendsNode(), n)
 			c.walkBranch(cls.NameNode(), n)
@@ -363,6 +378,9 @@ func (c *ControlFlowAnalysis) walkBranch(n, parent rhino.Node) {
 	c.walkNode = n
 	if !c.shouldTraverse(n, parent) {
 		return
+	}
+	if !c.cfg.hasInnerScopeRoots && n != c.root && n != c.rootFnBody && NodeUtil_CreatesScope(n) {
+		c.cfg.hasInnerScopeRoots = true
 	}
 	for child := n.GetFirstChild(); !child.IsNil(); {
 		next := child.GetNext()

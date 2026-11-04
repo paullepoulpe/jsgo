@@ -241,14 +241,29 @@ func (n Node) ToStringInto(sb *strings.Builder, printSource bool, printAnnotatio
 	}
 }
 
+func writeJsonPair(sb *strings.Builder, name, value string) {
+	sb.WriteByte('"')
+	sb.WriteString(name)
+	sb.WriteString(`":"`)
+	sb.WriteString(value)
+	sb.WriteByte('"')
+}
+
+func writeJsonPairRawValue(sb *strings.Builder, name, value string) {
+	sb.WriteByte('"')
+	sb.WriteString(name)
+	sb.WriteString(`":`)
+	sb.WriteString(value)
+}
+
 // Java: Node.createJsonPair(String, String)
 func Node_CreateJsonPair(name string, value string) string {
-	return "\"" + name + "\":\"" + value + "\""
+	return `"` + name + `":"` + value + `"`
 }
 
 // Java: Node.createJsonPairRawValue(String, String)
 func Node_CreateJsonPairRawValue(name string, value string) string {
-	return "\"" + name + "\":" + value
+	return `"` + name + `":` + value
 }
 
 // node_appender is Java's Appendable over an io.StringWriter: write errors
@@ -261,85 +276,89 @@ func (a node_appender) append(s string) {
 	}
 }
 
-// ToJson writes the JSON form of this node and its subtree.
-//
-// Java: Node.toJson(Appendable)
-func (n Node) ToJson(appendable io.StringWriter) {
-	sb := node_appender{appendable}
-	sb.append("{")
-	sb.append(Node_CreateJsonPair("token", n.rec().token.String()))
+func (n Node) toJsonInto(sb *strings.Builder) {
+	sb.WriteByte('{')
+	writeJsonPair(sb, "token", n.rec().token.String())
 	if n.nodeKind() == node_kindString {
-		sb.append(",")
-		sb.append(Node_CreateJsonPair("string", n.GetString()))
+		sb.WriteByte(',')
+		writeJsonPair(sb, "string", n.GetString())
 	} else if n.rec().token == Token_FUNCTION {
-		sb.append(",")
+		sb.WriteByte(',')
 		// In the case of JsDoc trees, the first child is often not a string
 		// which causes exceptions to be thrown when calling toString or
 		// toStringTree.
 		if n.rec().first == 0 || n.firstNode().rec().token != Token_NAME {
-			sb.append(Node_CreateJsonPair("functionName", "<invalid>"))
+			writeJsonPair(sb, "functionName", "<invalid>")
 		} else {
-			sb.append(Node_CreateJsonPair("functionName", n.firstNode().GetString()))
+			writeJsonPair(sb, "functionName", n.firstNode().GetString())
 		}
 	} else if n.rec().token == Token_NUMBER {
-		sb.append(",")
-		sb.append(Node_CreateJsonPair("number", jutil.DoubleToString(n.GetDouble())))
+		sb.WriteByte(',')
+		writeJsonPair(sb, "number", jutil.DoubleToString(n.GetDouble()))
 	}
 	lineno := n.GetLineno()
 	if lineno != -1 {
-		sb.append(",")
-		sb.append("\"sourceLocation\":{")
-		sb.append(Node_CreateJsonPairRawValue("line", strconv.Itoa(lineno)))
-		sb.append(",")
-		sb.append(Node_CreateJsonPairRawValue("col", strconv.Itoa(n.GetCharno())))
+		sb.WriteString(`,"sourceLocation":{`)
+		writeJsonPairRawValue(sb, "line", strconv.Itoa(lineno))
+		sb.WriteByte(',')
+		writeJsonPairRawValue(sb, "col", strconv.Itoa(n.GetCharno()))
 		if length := n.GetLength(); length != 0 {
-			sb.append(",")
-			sb.append(Node_CreateJsonPairRawValue("length", strconv.Itoa(length)))
+			sb.WriteByte(',')
+			writeJsonPairRawValue(sb, "length", strconv.Itoa(length))
 		}
-		sb.append("}")
+		sb.WriteByte('}')
 	}
 
 	if origID := n.node_originalNameID(); origID != 0 {
-		sb.append(",")
-		sb.append(Node_CreateJsonPair("original_name", strpool.String(origID)))
+		sb.WriteByte(',')
+		writeJsonPair(sb, "original_name", strpool.String(origID))
 	}
 
 	keys := n.GetSortedPropTypes()
 	if len(keys) != 0 {
-		sb.append(",")
-		sb.append("\"props\":{")
+		sb.WriteString(`,"props":{`)
 		for i := 0; i < len(keys); i++ {
 			type_ := Node_propValues[keys[i]]
 			x := n.LookupProperty(type_)
-			sb.append(
-				Node_CreateJsonPair(
-					jutil.StringToLowerCaseASCII(type_.String()),
-					jutil.StringReplace(jutil.StringReplace(x.String(), "\n", "\\n"), "\"", "\\\"")))
+			escaped := strings.ReplaceAll(strings.ReplaceAll(x.String(), "\n", `\n`), `"`, `\"`)
+			writeJsonPair(sb, jutil.StringToLowerCaseASCII(type_.String()), escaped)
 			if i+1 < len(keys) {
-				sb.append(",")
+				sb.WriteByte(',')
 			}
 		}
-		sb.append("}")
+		sb.WriteByte('}')
 	}
 
 	if n.tc() != 0 {
 		typeString := jutil.ToJavaString(n.typeOrColorValue())
-		sb.append(",")
-		sb.append(Node_CreateJsonPair("typeString", jutil.StringReplace(typeString, "\"", "\\\"")))
+		sb.WriteByte(',')
+		writeJsonPair(sb, "typeString", strings.ReplaceAll(typeString, `"`, `\"`))
 	}
 
 	if n.rec().first != 0 {
-		sb.append(",")
-		sb.append("\"children\":[")
+		sb.WriteString(`,"children":[`)
 		for child := n.firstNode(); !child.IsNil(); child = child.nextNode() {
-			child.ToJson(appendable)
+			child.toJsonInto(sb)
 			if child.rec().next != 0 {
-				sb.append(",")
+				sb.WriteByte(',')
 			}
 		}
-		sb.append("]")
+		sb.WriteByte(']')
 	}
-	sb.append("}")
+	sb.WriteByte('}')
+}
+
+// ToJson writes the JSON form of this node and its subtree.
+//
+// Java: Node.toJson(Appendable)
+func (n Node) ToJson(appendable io.StringWriter) {
+	if sb, ok := appendable.(*strings.Builder); ok {
+		n.toJsonInto(sb)
+		return
+	}
+	var sb strings.Builder
+	n.toJsonInto(&sb)
+	node_appender{appendable}.append(sb.String())
 }
 
 // Java: Node.toStringTree()
@@ -350,7 +369,7 @@ func (n Node) ToStringTree() string {
 // Java: Node.toStringTreeImpl()
 func (n Node) ToStringTreeImpl() string {
 	var s strings.Builder
-	n.AppendStringTree(&s)
+	appendStringTreeInto(n, 0, &s)
 	return s.String()
 }
 
@@ -359,21 +378,29 @@ func (n Node) AppendStringTree(appendable io.StringWriter) {
 	Node_ToStringTreeHelper(n, 0, appendable)
 }
 
+func appendStringTreeInto(n Node, level int, sb *strings.Builder) {
+	for range level {
+		sb.WriteString("    ")
+	}
+	n.ToStringInto(sb, true, true, true)
+	sb.WriteByte('\n')
+	for cursor := n.firstNode(); !cursor.IsNil(); cursor = cursor.nextNode() {
+		appendStringTreeInto(cursor, level+1, sb)
+	}
+	if shadow := n.GetClosureUnawareShadow(); !shadow.IsNil() {
+		appendStringTreeInto(shadow, level+1, sb)
+	}
+}
+
 // Java: Node.toStringTreeHelper(Node, int, Appendable)
 func Node_ToStringTreeHelper(n Node, level int, appendable io.StringWriter) {
-	sb := node_appender{appendable}
-	for i := 0; i != level; i++ {
-		sb.append("    ")
+	if sb, ok := appendable.(*strings.Builder); ok {
+		appendStringTreeInto(n, level, sb)
+		return
 	}
-	sb.append(n.String())
-	sb.append("\n")
-	for cursor := n.firstNode(); !cursor.IsNil(); cursor = cursor.nextNode() {
-		Node_ToStringTreeHelper(cursor, level+1, appendable)
-	}
-	shadow := n.GetClosureUnawareShadow()
-	if !shadow.IsNil() {
-		Node_ToStringTreeHelper(shadow, level+1, appendable)
-	}
+	var sb strings.Builder
+	appendStringTreeInto(n, level, &sb)
+	node_appender{appendable}.append(sb.String())
 }
 
 // Java: Node.appendJsonTree(Appendable)
@@ -605,22 +632,32 @@ func (n Node) copyLengthFrom(other Node) {
 	n.SetLength(other.GetLength())
 }
 
-// Java: Node.getLineno()
-func (n Node) GetLineno() int {
-	if n.rec().linenoCharno == -1 {
+// ExtractLineno extracts the line number from a packed linenoCharno value.
+func ExtractLineno(linenoCharno int32) int {
+	if linenoCharno == -1 {
 		return -1
 	}
-	return int(jutil.Ushr32(n.rec().linenoCharno, Node_CHARNO_BITS))
+	return int(uint32(linenoCharno) >> Node_CHARNO_BITS)
+}
+
+// ExtractCharno extracts the 0-based column number from a packed linenoCharno value.
+func ExtractCharno(linenoCharno int32) int {
+	if linenoCharno == -1 {
+		return -1
+	}
+	return int(linenoCharno & Node_MAX_COLUMN_NUMBER)
+}
+
+// Java: Node.getLineno()
+func (n Node) GetLineno() int {
+	return ExtractLineno(n.rec().linenoCharno)
 }
 
 // GetCharno returns the 0-based column number.
 //
 // Java: Node.getCharno()
 func (n Node) GetCharno() int {
-	if n.rec().linenoCharno == -1 {
-		return -1
-	}
-	return int(n.rec().linenoCharno & Node_MAX_COLUMN_NUMBER)
+	return ExtractCharno(n.rec().linenoCharno)
 }
 
 // Java: Node.getLocation()
@@ -680,7 +717,7 @@ func (n Node) SetLinenoCharno(lineno int, charno int) Node {
 	if charno > Node_MAX_COLUMN_NUMBER {
 		charno = Node_MAX_COLUMN_NUMBER
 	}
-	n.rec().linenoCharno = jutil.Shl32(int32(lineno), Node_CHARNO_BITS) | int32(charno)
+	n.rec().linenoCharno = int32(uint32(lineno)<<Node_CHARNO_BITS) | int32(charno)
 
 	return n
 }

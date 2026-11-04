@@ -102,6 +102,10 @@ type NamedType struct {
 	// Applies the "!" operator to the resolved type, which removes null and
 	// undefined
 	restrictByNull bool
+
+	// Go-only: optional worker-local ErrorReporter used when resolving a
+	// NamedType evaluated during parallel TypeCheck.
+	reporterOverride ErrorReporter
 }
 
 // Java: NamedType.TYPE_CLASS
@@ -138,6 +142,7 @@ func NewNamedType(builder *NamedType_Builder) *NamedType {
 	t.charno = int32(builder.charno)
 	t.templateTypes = builder.templateTypes
 	t.resolutionKind = builder.resolutionKind
+	t.reporterOverride = builder.reporter
 
 	t.GetRegistry().GetResolver().ResolveIfClosed(t, NamedType_TYPE_CLASS)
 	return t
@@ -255,6 +260,10 @@ func (t *NamedType) RecursionUnsafeHashCode(hs *JSTypeStack) int32 {
 //
 // Java: NamedType.resolveInternal(ErrorReporter)
 func (t *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
+	if t.reporterOverride != nil {
+		reporter = t.reporterOverride
+		t.reporterOverride = nil
+	}
 	var resolvedTypeArgs []JSType
 	if len(t.templateTypes) != 0 {
 		resolvedTypeArgs = make([]JSType, len(t.templateTypes))
@@ -544,6 +553,7 @@ func (t *NamedType) ToBuilder() *NamedType_Builder {
 	b.sourceNameID = t.sourceNameID
 	b.lineno = int(t.lineno)
 	b.charno = int(t.charno)
+	b.reporter = t.reporterOverride
 	return b
 }
 
@@ -554,6 +564,7 @@ type NamedType_Builder struct {
 	scope             StaticTypedScope
 	referencedType    JSType
 	templateTypes     []JSType
+	reporter          ErrorReporter
 	lineno            int
 	charno            int
 	sourceNameID      rhinoStringID
@@ -630,6 +641,12 @@ func (b *NamedType_Builder) SetReferencedType(referencedType JSType) *NamedType_
 // Java: NamedType.Builder.setRestrictByNull(boolean)
 func (b *NamedType_Builder) SetRestrictByNull(restrictByNull bool) *NamedType_Builder {
 	b.restrictByNull = restrictByNull
+	return b
+}
+
+// SetReporter sets an optional ErrorReporter override for resolving this NamedType.
+func (b *NamedType_Builder) SetReporter(reporter ErrorReporter) *NamedType_Builder {
+	b.reporter = reporter
 	return b
 }
 

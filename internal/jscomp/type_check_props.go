@@ -326,13 +326,13 @@ func (tc *TypeCheck) AllowLoosePropertyAccessOnNode(n rhino.Node) bool {
 	return NodeUtil_IsPropertyTest(tc.compiler, n) ||
 		NodeUtil_IsPropertyAbsenceTest(n) ||
 		// Stub property declaration
-		(n.IsQualifiedName() && parent.IsExprResult())
+		(parent.IsExprResult() && n.IsQualifiedName())
 }
 
 // Java: TypeCheck.isQNameAssignmentTarget(Node)
 func (tc *TypeCheck) IsQNameAssignmentTarget(n rhino.Node) bool {
 	assign, ok := ast.AsAssign(n.GetParent())
-	return n.IsQualifiedName() && ok && assign.Target().Is(n)
+	return ok && assign.Target().Is(n) && n.IsQualifiedName()
 }
 
 // Java: TypeCheck.getClosestPropertySuggestion(JSType, String, int)

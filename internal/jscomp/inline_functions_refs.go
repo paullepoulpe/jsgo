@@ -87,10 +87,11 @@ var (
 // inlineCallVisitor visits candidate call sites (and optionally NAME nodes)
 // without interface or base-struct wrapper ceremony.
 type inlineCallVisitor struct {
-	namedFns   map[uint32]*InlineFunctions_FunctionState
-	anonFns    map[rhino.Node]*InlineFunctions_FunctionState
-	onCallSite func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
-	onName     func(n, parent rhino.Node)
+	namedFns        map[uint32]*InlineFunctions_FunctionState
+	anonFns         map[rhino.Node]*InlineFunctions_FunctionState
+	onCallSite      func(t *NodeTraversal, callNode rhino.Node, fs *InlineFunctions_FunctionState)
+	onName          func(n, parent rhino.Node)
+	activeAncestors map[rhino.Node]struct{}
 
 	// inlineWalk's call being visited and its script (NodeTraversal's
 	// currentNode and currentScript), for inlineFunctions_throwWalkException.
@@ -118,7 +119,55 @@ func (v *inlineCallVisitor) visitTokens() *ast.TokenSet {
 // inlineWalkRoot is the NodeTraversal.traverse(compiler, root, new
 // CallVisitor(...)) of InlineFunctions.process: inlineWalk, with what a visit
 // throws rethrown as NodeTraversal does.
+var emptyInlineActiveAncestors = map[rhino.Node]struct{}{}
+
+func (f *InlineFunctions) buildPhase4ActiveAncestors(root rhino.Node) map[rhino.Node]struct{} {
+	totalRefs := 0
+	for _, fs := range f.fns {
+		if fs.CanInline() {
+			totalRefs += len(fs.GetReferences())
+		}
+	}
+	if totalRefs == 0 {
+		return emptyInlineActiveAncestors
+	}
+	active := make(map[rhino.Node]struct{}, totalRefs*6+8)
+	markUp := func(start rhino.Node) {
+		for cur := start; !cur.IsNil(); cur = cur.GetParent() {
+			if _, seen := active[cur]; seen {
+				return
+			}
+			active[cur] = struct{}{}
+			if cur == root {
+				return
+			}
+		}
+	}
+	for _, fs := range f.fns {
+		if !fs.CanInline() {
+			continue
+		}
+		for _, ref := range fs.GetReferences() {
+			if ref != nil && !ref.callNode.IsNil() {
+				markUp(ref.callNode)
+			}
+		}
+	}
+	return active
+}
+
+func (v *inlineCallVisitor) isActiveAncestor(n rhino.Node) bool {
+	if v.activeAncestors == nil {
+		return true
+	}
+	_, ok := v.activeAncestors[n]
+	return ok
+}
+
 func (v *inlineCallVisitor) inlineWalkRoot(compiler AbstractCompiler, root rhino.Node) {
+	if !v.isActiveAncestor(root) {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
 			inlineFunctions_throwWalkException(compiler, r, v.current, v.currentScript)
@@ -133,13 +182,15 @@ func (v *inlineCallVisitor) inlineWalk(n rhino.Node, parent rhino.Node) {
 		v.currentScript = n
 	case rhino.Token_CLASS_MEMBERS:
 		for ch, p := range ast.MustClassBody(n).EvalOrder() {
-			v.inlineWalk(ch, p)
+			if v.isActiveAncestor(ch) {
+				v.inlineWalk(ch, p)
+			}
 		}
 		return
 	}
 	for c := n.GetFirstChild(); !c.IsNil(); {
 		next := c.GetNext()
-		if !c.GetFirstChild().IsNil() {
+		if !c.GetFirstChild().IsNil() && v.isActiveAncestor(c) {
 			v.inlineWalk(c, n)
 		}
 		c = next

@@ -55,6 +55,10 @@ type rucGuardedCache struct {
 	byScript      map[rhino.Node][]rhino.Node
 	// usages is the union of byScript, the set a run consults.
 	usages map[rhino.Node]bool
+
+	// Go-only: function-level summary cache across RemoveUnusedCode runs
+	// (remove_unused_code_summary.go).
+	fnCache *rucFnSummaryCache
 }
 
 // incrCompiler returns the Compiler whose caches this run may use, or
@@ -127,17 +131,18 @@ func (r *RemoveUnusedCode) computeGuardedUsages() {
 	}
 	changed := c.changeTracker.GetChangedScopeNodesForPass(rucGuardedTimelineKey)
 	g := c.rucGuarded
-	if g == nil || changed == nil || g.root != r.root || g.compacts != c.astCompact.count || g.polyfills != r.polyfillsFromTable || g.disambiguate != r.disambiguateProperties || g.colorRegistry != r.polyfillUsageFinder.registry {
-		g = &rucGuardedCache{
-			root:          r.root,
-			polyfills:     r.polyfillsFromTable,
-			disambiguate:  r.disambiguateProperties,
-			colorRegistry: r.polyfillUsageFinder.registry,
-			compacts:      c.astCompact.count,
-			byScript:      make(map[rhino.Node][]rhino.Node),
-			usages:        make(map[rhino.Node]bool),
-		}
+	if g == nil {
+		g = &rucGuardedCache{}
 		c.rucGuarded = g
+	}
+	if g.byScript == nil || changed == nil || g.root != r.root || g.compacts != c.astCompact.count || g.polyfills != r.polyfillsFromTable || g.disambiguate != r.disambiguateProperties || g.colorRegistry != r.polyfillUsageFinder.registry {
+		g.root = r.root
+		g.polyfills = r.polyfillsFromTable
+		g.disambiguate = r.disambiguateProperties
+		g.colorRegistry = r.polyfillUsageFinder.registry
+		g.compacts = c.astCompact.count
+		g.byScript = make(map[rhino.Node][]rhino.Node)
+		g.usages = make(map[rhino.Node]bool)
 	} else {
 		for _, n := range changed {
 			if s := rucScriptUnder(n, r.root); !s.IsNil() {

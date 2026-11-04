@@ -328,8 +328,9 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 	parent := n.GetParent()
 	name, isName := ast.AsName(n)
 	strKey, isStringKey := ast.AsStringKey(n)
+	isObjectRest := n.GetToken() == rhino.Token_OBJECT_REST
 	_, isParentDecl := ast.AsNameDeclaration(parent)
-	if (isParentDecl && isName) || isStringKey {
+	if (isParentDecl && isName) || isStringKey || isObjectRest {
 		if !next.IsNil() {
 			length = SuggestedFix_GetStartPositionForNodeConsideringComments(next) - startPosition
 		} else {
@@ -337,8 +338,10 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 			if isName {
 				initExpr, _ := name.Init()
 				child = initExpr.Node()
-			} else {
+			} else if isStringKey {
 				child = strKey.Value().Node()
+			} else {
+				child = ast.MustObjectRest(n).Target().Node()
 			}
 			if !child.IsNil() {
 				length = (child.GetSourceOffset() + child.GetLength()) - startPosition

@@ -145,7 +145,7 @@ func (v *VariableReferenceCheck) Process(externs rhino.Node, root rhino.Node) {
 }
 
 func (v *VariableReferenceCheck) processParallel(externs rhino.Node, root rhino.Node) bool {
-	if rootCount, ok := countRootScripts(root); !ok || rootCount < 8 {
+	if rootCount, ok := countRootScripts(root); !ok || rootCount < 2 {
 		return false
 	}
 	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)

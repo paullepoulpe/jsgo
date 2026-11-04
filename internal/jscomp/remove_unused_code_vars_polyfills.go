@@ -78,6 +78,9 @@ func (v *RemoveUnusedCode_RealVarInfo) AddRemovable(removable *rucRemovable) {
 		v.outer.ConsiderForIndependentRemoval(removable)
 		return
 	}
+	if v.outer.recMode != rucRecNone {
+		v.outer.onVarMutated(v.var_)
+	}
 	if removable.IsVariableAssignment() {
 		if localValue := removable.GetLocalAssignedValue(); !localValue.IsNil() {
 			_, isFn := ast.AsFunction(localValue)
@@ -115,6 +118,10 @@ func (v *RemoveUnusedCode_RealVarInfo) pin(reason rucPinReason) {
 }
 
 func (v *RemoveUnusedCode_RealVarInfo) pinAt(reason rucPinReason, reasonNode rhino.Node) {
+	if v.flags&rucVarFlagCanonical == 0 && v.outer.recMode != rucRecNone &&
+		reason != rucPinNotRemovingGlobals && reason != rucPinNotRemovingLocals {
+		v.outer.onVarPinned(v.var_)
+	}
 	if v.flags&rucVarFlagEntirelyRemovable == 0 {
 		return
 	}
@@ -124,7 +131,14 @@ func (v *RemoveUnusedCode_RealVarInfo) pinAt(reason rucPinReason, reasonNode rhi
 	if v.outer.unremovableLog.IsLogging() {
 		v.outer.unremovableLog.LogString(v.formatUnremovableLog())
 	}
-	v.removables.drain(v.outer.ConsiderForIndependentRemoval)
+	if v.outer.activeGlobalRec != nil && v.var_.IsGlobal() {
+		prev := v.outer.activeGlobalRec
+		v.outer.activeGlobalRec = nil
+		v.removables.drain(v.outer.ConsiderForIndependentRemoval)
+		v.outer.activeGlobalRec = prev
+	} else {
+		v.removables.drain(v.outer.ConsiderForIndependentRemoval)
+	}
 }
 
 func (v *RemoveUnusedCode_RealVarInfo) formatUnremovableLog() string {
@@ -159,6 +173,9 @@ func (v *RemoveUnusedCode_RealVarInfo) formatUnremovableLog() string {
 // Java: RemoveUnusedCode.RealVarInfo.setHasNonLocalOrNonLiteralValue()
 func (v *RemoveUnusedCode_RealVarInfo) SetHasNonLocalOrNonLiteralValue() {
 	if v.flags&rucVarFlagCanonical == 0 {
+		if v.flags&rucVarFlagEntirelyRemovable != 0 && v.outer.recMode != rucRecNone {
+			v.outer.onVarMutated(v.var_)
+		}
 		v.flags |= rucVarFlagHasNonLocalOrNonLit
 	}
 }

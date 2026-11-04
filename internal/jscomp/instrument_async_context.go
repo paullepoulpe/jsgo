@@ -180,8 +180,13 @@ func (i *InstrumentAsyncContext) instrumentReentrance(t *NodeTraversal, n rhino.
 		return
 	}
 
+	var arg rhino.Node
+	if aw, ok := ast.AsAwait(n); ok {
+		arg = aw.Value().Node()
+	} else if val, hasVal := ast.MustYield(n).Value(); hasVal {
+		arg = val.Node()
+	}
 	placeholder := rhino.IR_Empty()
-	arg := n.GetFirstChild()
 	if arg.IsNil() {
 		n.AddChildToBack(functionContext.suspend(i.astFactory).SrcrefTreeIfMissing(n))
 	} else {
@@ -260,10 +265,11 @@ func (i *InstrumentAsyncContext) instrumentGeneratorFunction(t *NodeTraversal, f
 
 	generatorBody = i.addFinallySuspend(generatorBody, functionContext)
 	generatorBody.AddChildToFront(rhino.IR_ExprResult(functionContext.resume(i.astFactory)))
+	factorySuspendCall := i.createFactorySuspendCall(functionContext.factoryName)
 	newOuterBody := rhino.IR_BlockOfNodes(
-		i.createFactorySuspendCall(functionContext.factoryName),
+		factorySuspendCall,
 		rhino.IR_ReturnNodeWithExpr(i.astFactory.CreateCallWithUnknownType(inner)))
-	i.addSuspendResumeVarsAfter(newOuterBody.GetFirstChild(), functionContext)
+	i.addSuspendResumeVarsAfter(factorySuspendCall, functionContext)
 	f.AddChildToBack(newOuterBody.SrcrefTreeIfMissing(generatorBody))
 
 	thisContext := NewThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext(
@@ -286,12 +292,13 @@ func (i *InstrumentAsyncContext) instrumentGeneratorMethod(t *NodeTraversal, fn 
 		innerMethodNamePrefix = mfd.Key()
 	}
 	innerMethodName := innerMethodNamePrefix + "$jscomp$" + i.uniqueIdSupplier.GetUniqueId(t.GetInput())
-	outerParams := fn.Params().Node()
-	innerParams := outerParams.CloneTree()
+	outerParamList := fn.Params()
+	innerParamList := ast.MustParamList(outerParamList.Node().CloneTree())
+	innerParams := innerParamList.Node()
 
 	innerFactoryName := functionContext.factoryName
 	outerFactoryName := i.astFactory.CreateNameWithUnknownType(i.uniqueIdSupplier.UniqueVarName(asyncContextFactoryPrefix, t.GetInput()))
-	innerParams.AddChildToFront(innerFactoryName)
+	innerParamList.PrependParam(ast.MustParam(innerFactoryName))
 	unknownType := AstFactory_Type_(innerFactoryName)
 
 	generatorBody := i.addFinallySuspend(fn.Body().Node(), functionContext)
@@ -313,18 +320,17 @@ func (i *InstrumentAsyncContext) instrumentGeneratorMethod(t *NodeTraversal, fn 
 	innerCall := i.astFactory.CreateCallWithUnknownType(
 		i.astFactory.CreateGetProp(
 			i.astFactory.CreateThis(unknownType), innerMethodName, AstFactory_Type_(f)))
-	innerParam := innerParams.GetFirstChild()
+	innerParam := innerParamList.MustFirstParam()
 	innerCall.AddChildToBack(outerFactoryName.CloneTree())
-	innerParam = innerParam.GetNext()
-	if !innerParam.IsNil() && innerParam == argumentsParam {
+	if nextInner, ok := innerParam.Next(); ok && nextInner.Is(argumentsParam) {
 		innerCall.AddChildToBack(argumentsReference)
 	}
-	for outerParam := outerParams.GetFirstChild(); !outerParam.IsNil(); outerParam = outerParam.GetNext() {
-		argument, parameter := i.simplifyParameter(outerParam.CloneTree(), t)
-		oldOuterParam := outerParam
-		outerParam = parameter
-		oldOuterParam.ReplaceWith(outerParam)
+	for outerParam, hasParam := outerParamList.FirstParam(); hasParam; {
+		nextParam, hasNext := outerParam.Next()
+		argument, parameter := i.simplifyParameter(outerParam.Node().CloneTree(), t)
+		outerParam.ReplaceWith(ast.MustParam(parameter))
 		innerCall.AddChildToBack(argument)
+		outerParam, hasParam = nextParam, hasNext
 	}
 
 	newInnerMethod := i.astFactory.CreateFunction("", innerParams, generatorBody, AstFactory_Type_(f))
@@ -365,27 +371,28 @@ func (i *InstrumentAsyncContext) instrumentGeneratorMethod(t *NodeTraversal, fn 
 }
 
 func (i *InstrumentAsyncContext) simplifyParameter(param rhino.Node, t *NodeTraversal) (argument, parameter rhino.Node) {
-	switch {
-	case param.IsRest():
+	if rest, ok := ast.AsIterRest(param); ok {
 		NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_SPREAD_EXPRESSIONS, i.compiler)
-		arg, p := i.simplifyParameter(param.RemoveFirstChild(), t)
+		arg, p := i.simplifyParameter(rest.Target().Detach().Node(), t)
 		return rhino.IR_IterSpread(arg).SrcrefTreeIfMissing(param),
 			rhino.IR_IterRest(p).SrcrefTreeIfMissing(param)
-	case param.IsDefaultValue():
-		return i.simplifyParameter(param.RemoveFirstChild(), t)
-	case param.IsArrayPattern() || param.IsObjectPattern():
+	}
+	if defVal, ok := ast.AsDefaultValue(param); ok {
+		return i.simplifyParameter(defVal.Target().Detach().Node(), t)
+	}
+	if _, ok := ast.AsPattern(param); ok {
 		newParam := i.astFactory.
 			CreateName(i.uniqueIdSupplier.UniqueVarName("$jscomp$param$", t.GetInput()), AstFactory_Type_(param)).
 			SrcrefTreeIfMissing(param)
 		return newParam.CloneTree(), newParam
-	case param.IsName():
+	}
+	if nm, ok := ast.AsName(param); ok {
 		newParam := i.astFactory.
-			CreateName(i.uniqueIdSupplier.UniqueVarName(param.GetString()+"$jscomp$param$", t.GetInput()), AstFactory_Type_(param)).
+			CreateName(i.uniqueIdSupplier.UniqueVarName(nm.Ident()+"$jscomp$param$", t.GetInput()), AstFactory_Type_(param)).
 			SrcrefTreeIfMissing(param)
 		return newParam.CloneTree(), newParam
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg("Unexpected parameter: " + param.String()))
 	}
+	panic(jutil.NewIllegalStateExceptionMsg("Unexpected parameter: " + param.String()))
 }
 
 type asyncContextArgsRenamer struct {
@@ -420,9 +427,9 @@ func (r *asyncContextArgsRenamer) Visit(t *NodeTraversal, n rhino.Node, parent r
 
 func (i *InstrumentAsyncContext) instrumentAsyncFunction(fn ast.Function, functionContext *asyncContextFuncInfo) {
 	newBlock := i.addFinallySuspend(fn.Body().Node(), functionContext)
-	newBlock.AddChildToFront(
-		i.createFactoryCall(functionContext.factoryName).SrcrefTreeIfMissing(newBlock))
-	i.addSuspendResumeVarsAfter(newBlock.GetFirstChild(), functionContext)
+	factoryCall := i.createFactoryCall(functionContext.factoryName).SrcrefTreeIfMissing(newBlock)
+	newBlock.AddChildToFront(factoryCall)
+	i.addSuspendResumeVarsAfter(factoryCall, functionContext)
 	i.compiler.ReportChangeToChangeScope(fn.Node())
 }
 

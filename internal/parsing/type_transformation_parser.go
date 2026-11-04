@@ -111,31 +111,51 @@ var typeTransformationParser_Keywords_info = [...]struct {
 	minParamCount int
 	maxParamCount int
 	kind          TypeTransformationParser_OperationKind
+	validate      func(*TypeTransformationParser, rhino.Node) bool
 }{
-	{"ALL", "all", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"COND", "cond", 3, 3, TypeTransformationParser_OperationKind_OPERATION},
-	{"EQ", "eq", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"ISCTOR", "isCtor", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"ISDEFINED", "isDefined", 1, 1, TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE},
-	{"ISRECORD", "isRecord", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"ISTEMPLATIZED", "isTemplatized", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"ISUNKNOWN", "isUnknown", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"INSTANCEOF", "instanceOf", 1, 1, TypeTransformationParser_OperationKind_OPERATION},
-	{"MAPUNION", "mapunion", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"MAPRECORD", "maprecord", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"NONE", "none", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"PRINTTYPE", "printType", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"PROPTYPE", "propType", 2, 2, TypeTransformationParser_OperationKind_OPERATION},
-	{"RAWTYPEOF", "rawTypeOf", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"SUB", "sub", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE},
-	{"STREQ", "streq", 2, 2, TypeTransformationParser_OperationKind_STRING_PREDICATE},
-	{"RECORD", "record", 1, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"TEMPLATETYPEOF", "templateTypeOf", 2, 2, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"TYPE", "type", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"TYPEEXPR", "typeExpr", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"TYPEOFVAR", "typeOfVar", 1, 1, TypeTransformationParser_OperationKind_OPERATION},
-	{"UNION", "union", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
-	{"UNKNOWN", "unknown", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR},
+	{"ALL", "all", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"COND", "cond", 3, 3, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"EQ", "eq", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE, nil},
+	{"ISCTOR", "isCtor", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE, nil},
+	{"ISDEFINED", "isDefined", 1, 1, TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE, nil},
+	{"ISRECORD", "isRecord", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE, nil},
+	{"ISTEMPLATIZED", "isTemplatized", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE, nil},
+	{"ISUNKNOWN", "isUnknown", 1, 1, TypeTransformationParser_OperationKind_TYPE_PREDICATE, nil},
+	{"INSTANCEOF", "instanceOf", 1, 1, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"MAPUNION", "mapunion", 2, 2, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"MAPRECORD", "maprecord", 2, 2, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"NONE", "none", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"PRINTTYPE", "printType", 2, 2, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"PROPTYPE", "propType", 2, 2, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"RAWTYPEOF", "rawTypeOf", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"SUB", "sub", 2, 2, TypeTransformationParser_OperationKind_TYPE_PREDICATE, nil},
+	{"STREQ", "streq", 2, 2, TypeTransformationParser_OperationKind_STRING_PREDICATE, nil},
+	{"RECORD", "record", 1, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"TEMPLATETYPEOF", "templateTypeOf", 2, 2, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"TYPE", "type", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"TYPEEXPR", "typeExpr", 1, 1, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"TYPEOFVAR", "typeOfVar", 1, 1, TypeTransformationParser_OperationKind_OPERATION, nil},
+	{"UNION", "union", 2, TypeTransformationParser_VAR_ARGS, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+	{"UNKNOWN", "unknown", 0, 0, TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR, nil},
+}
+
+func init() {
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_ALL].validate = (*TypeTransformationParser).ValidAllTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_COND].validate = (*TypeTransformationParser).ValidConditionalExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_INSTANCEOF].validate = (*TypeTransformationParser).ValidInstanceOfExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_MAPUNION].validate = (*TypeTransformationParser).ValidMapunionExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_MAPRECORD].validate = (*TypeTransformationParser).ValidMaprecordExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_NONE].validate = (*TypeTransformationParser).ValidNoneTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_PRINTTYPE].validate = (*TypeTransformationParser).ValidPrintTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_PROPTYPE].validate = (*TypeTransformationParser).ValidPropTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_RAWTYPEOF].validate = (*TypeTransformationParser).ValidRawTypeOfTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_RECORD].validate = (*TypeTransformationParser).ValidRecordTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_TEMPLATETYPEOF].validate = (*TypeTransformationParser).ValidTemplateTypeOfExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_TYPE].validate = (*TypeTransformationParser).ValidTemplateTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_TYPEEXPR].validate = (*TypeTransformationParser).ValidNativeTypeExpr
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_TYPEOFVAR].validate = (*TypeTransformationParser).ValidTypeOfVarExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_UNION].validate = (*TypeTransformationParser).ValidUnionTypeExpression
+	typeTransformationParser_Keywords_info[TypeTransformationParser_Keywords_UNKNOWN].validate = (*TypeTransformationParser).ValidUnknownTypeExpression
 }
 
 var ttlKeywordsByName = func() map[string]TypeTransformationParser_Keywords {
@@ -345,7 +365,8 @@ func (p *TypeTransformationParser) IsTypeName(n rhino.Node) bool {
 
 // Java: TypeTransformationParser.isOperation(Node)
 func (p *TypeTransformationParser) IsOperation(n rhino.Node) bool {
-	return n.IsCall()
+	call, ok := ast.AsCall(n)
+	return ok && call.Callee().Node().IsName()
 }
 
 // IsValidExpression: a valid expression is either:
@@ -555,7 +576,7 @@ func (p *TypeTransformationParser) ValidRawTypeOfTypeExpression(expr rhino.Node)
 		return false
 	}
 	// The parameter must be a valid type expression
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 0)) {
+	if !p.ValidTypeTransformationExpression(ast.MustCall(expr).MustOnlyArg().Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_RAWTYPEOF.KeywordName())
 		return false
 	}
@@ -572,17 +593,20 @@ func (p *TypeTransformationParser) ValidTemplateTypeOfExpression(expr rhino.Node
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_TEMPLATETYPEOF) {
 		return false
 	}
+	typeArg := ast.MustCall(expr).MustFirstArg()
+	indexArg, _ := typeArg.Next()
 	// The parameter must be a valid type expression
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 0)) {
+	if !p.ValidTypeTransformationExpression(typeArg.Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_TEMPLATETYPEOF.KeywordName())
 		return false
 	}
-	if !p.GetCallArgument(expr, 1).IsNumber() {
+	indexNode := indexArg.Node()
+	if !indexNode.IsNumber() {
 		p.WarnInvalid("index")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_TEMPLATETYPEOF.KeywordName())
 		return false
 	}
-	index := p.GetCallArgument(expr, 1).GetDouble()
+	index := indexNode.GetDouble()
 	if math.IsNaN(index) || !base.JSCompDoubles_IsExactInt32(index) {
 		p.WarnInvalid("index")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_TEMPLATETYPEOF.KeywordName())
@@ -651,13 +675,18 @@ func (p *TypeTransformationParser) ValidNativeTypeExpr(expr rhino.Node) bool {
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_TYPEEXPR) {
 		return false
 	}
-	typeString := p.GetCallArgument(expr, 0)
+	typeString := ast.MustCall(expr).MustOnlyArg().Node()
 	if !typeString.IsStringLit() {
 		p.WarnInvalidExpression("native type")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_TYPEEXPR.KeywordName())
 		return false
 	}
 	typeExpr := JsDocInfoParser_ParseTypeString(typeString.GetString())
+	if typeExpr.IsNil() {
+		p.WarnInvalidExpression("native type")
+		p.WarnInvalidInside(TypeTransformationParser_Keywords_TYPEEXPR.KeywordName())
+		return false
+	}
 	typeString.Detach()
 	expr.AddChildToBack(typeExpr)
 	return true
@@ -669,30 +698,11 @@ func (p *TypeTransformationParser) ValidNativeTypeExpr(expr rhino.Node) bool {
 //
 // Java: TypeTransformationParser.validTypeExpression(Node)
 func (p *TypeTransformationParser) ValidTypeExpression(expr rhino.Node) bool {
-	name := p.GetCallName(expr)
-	keyword := p.NameToKeyword(name)
-	switch keyword {
-	case TypeTransformationParser_Keywords_TYPE:
-		return p.ValidTemplateTypeExpression(expr)
-	case TypeTransformationParser_Keywords_UNION:
-		return p.ValidUnionTypeExpression(expr)
-	case TypeTransformationParser_Keywords_NONE:
-		return p.ValidNoneTypeExpression(expr)
-	case TypeTransformationParser_Keywords_ALL:
-		return p.ValidAllTypeExpression(expr)
-	case TypeTransformationParser_Keywords_UNKNOWN:
-		return p.ValidUnknownTypeExpression(expr)
-	case TypeTransformationParser_Keywords_RAWTYPEOF:
-		return p.ValidRawTypeOfTypeExpression(expr)
-	case TypeTransformationParser_Keywords_TEMPLATETYPEOF:
-		return p.ValidTemplateTypeOfExpression(expr)
-	case TypeTransformationParser_Keywords_RECORD:
-		return p.ValidRecordTypeExpression(expr)
-	case TypeTransformationParser_Keywords_TYPEEXPR:
-		return p.ValidNativeTypeExpr(expr)
-	default:
+	keyword := p.NameToKeyword(p.GetCallName(expr))
+	if keyword.Kind() != TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR {
 		panic(jutil.NewIllegalStateExceptionMsg("Invalid type expression"))
 	}
+	return typeTransformationParser_Keywords_info[keyword].validate(p, expr)
 }
 
 // Java: TypeTransformationParser.validTypePredicate(Node, int)
@@ -816,16 +826,19 @@ func (p *TypeTransformationParser) ValidConditionalExpression(expr rhino.Node) b
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_COND) {
 		return false
 	}
+	condArg := ast.MustCall(expr).MustFirstArg()
+	thenArg, _ := condArg.Next()
+	elseArg, _ := thenArg.Next()
 	// Check for the validity of the boolean and the expressions
-	if !p.ValidBooleanExpression(p.GetCallArgument(expr, 0)) {
+	if !p.ValidBooleanExpression(condArg.Node()) {
 		p.WarnInvalidInside("conditional")
 		return false
 	}
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 1)) {
+	if !p.ValidTypeTransformationExpression(thenArg.Node()) {
 		p.WarnInvalidInside("conditional")
 		return false
 	}
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 2)) {
+	if !p.ValidTypeTransformationExpression(elseArg.Node()) {
 		p.WarnInvalidInside("conditional")
 		return false
 	}
@@ -844,20 +857,22 @@ func (p *TypeTransformationParser) ValidMapunionExpression(expr rhino.Node) bool
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_MAPUNION) {
 		return false
 	}
+	unionArg := ast.MustCall(expr).MustFirstArg()
+	mapFnArg, _ := unionArg.Next()
 	// The second child must be a valid union type expression
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 0)) {
+	if !p.ValidTypeTransformationExpression(unionArg.Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_MAPUNION.KeywordName())
 		return false
 	}
 	// The third child must be a function
-	if !p.GetCallArgument(expr, 1).IsFunction() {
+	mapFn, ok := ast.AsFunction(mapFnArg.Node())
+	if !ok {
 		p.WarnInvalid("map function")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_MAPUNION.KeywordName())
 		return false
 	}
-	mapFn := p.GetCallArgument(expr, 1)
 	// The map function must have only one parameter
-	mapFnParamCount := p.GetFunctionParamCount(mapFn)
+	mapFnParamCount := mapFn.Params().NumParams()
 	if mapFnParamCount < 1 {
 		p.WarnMissingParam("map function")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_MAPUNION.KeywordName())
@@ -869,8 +884,7 @@ func (p *TypeTransformationParser) ValidMapunionExpression(expr rhino.Node) bool
 		return false
 	}
 	// The body must be a valid type transformation expression
-	mapFnBody := p.GetFunctionBody(mapFn)
-	if !p.ValidTypeTransformationExpression(mapFnBody) {
+	if !p.ValidTypeTransformationExpression(mapFn.Body().Node()) {
 		p.WarnInvalidInside("map function body")
 		return false
 	}
@@ -889,20 +903,22 @@ func (p *TypeTransformationParser) ValidMaprecordExpression(expr rhino.Node) boo
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_MAPRECORD) {
 		return false
 	}
+	recordArg := ast.MustCall(expr).MustFirstArg()
+	mapFnArg, _ := recordArg.Next()
 	// The second child must be a valid expression
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 0)) {
+	if !p.ValidTypeTransformationExpression(recordArg.Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_MAPRECORD.KeywordName())
 		return false
 	}
 	// The third child must be a function
-	if !p.GetCallArgument(expr, 1).IsFunction() {
+	mapFn, ok := ast.AsFunction(mapFnArg.Node())
+	if !ok {
 		p.WarnInvalid("map function")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_MAPRECORD.KeywordName())
 		return false
 	}
-	mapFn := p.GetCallArgument(expr, 1)
 	// The map function must have exactly two parameters
-	mapFnParamCount := p.GetFunctionParamCount(mapFn)
+	mapFnParamCount := mapFn.Params().NumParams()
 	if mapFnParamCount < 2 {
 		p.WarnMissingParam("map function")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_MAPRECORD.KeywordName())
@@ -914,8 +930,7 @@ func (p *TypeTransformationParser) ValidMaprecordExpression(expr rhino.Node) boo
 		return false
 	}
 	// The body must be a valid type transformation expression
-	mapFnBody := p.GetFunctionBody(mapFn)
-	if !p.ValidTypeTransformationExpression(mapFnBody) {
+	if !p.ValidTypeTransformationExpression(mapFn.Body().Node()) {
 		p.WarnInvalidInside("map function body")
 		return false
 	}
@@ -933,7 +948,7 @@ func (p *TypeTransformationParser) ValidTypeOfVarExpression(expr rhino.Node) boo
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_TYPEOFVAR) {
 		return false
 	}
-	if !p.GetCallArgument(expr, 0).IsStringLit() {
+	if !ast.MustCall(expr).MustOnlyArg().Node().IsStringLit() {
 		p.WarnInvalid("name")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_TYPEOFVAR.KeywordName())
 		return false
@@ -952,7 +967,7 @@ func (p *TypeTransformationParser) ValidInstanceOfExpression(expr rhino.Node) bo
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_INSTANCEOF) {
 		return false
 	}
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 0)) {
+	if !p.ValidTypeTransformationExpression(ast.MustCall(expr).MustOnlyArg().Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_INSTANCEOF.KeywordName())
 		return false
 	}
@@ -966,12 +981,14 @@ func (p *TypeTransformationParser) ValidPrintTypeExpression(expr rhino.Node) boo
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_PRINTTYPE) {
 		return false
 	}
-	if !p.GetCallArgument(expr, 0).IsStringLit() {
+	msgArg := ast.MustCall(expr).MustFirstArg()
+	typeArg, _ := msgArg.Next()
+	if !msgArg.Node().IsStringLit() {
 		p.WarnInvalid("message")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_PRINTTYPE.KeywordName())
 		return false
 	}
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 1)) {
+	if !p.ValidTypeTransformationExpression(typeArg.Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_PRINTTYPE.KeywordName())
 		return false
 	}
@@ -985,12 +1002,14 @@ func (p *TypeTransformationParser) ValidPropTypeExpression(expr rhino.Node) bool
 	if !p.CheckParameterCount(expr, TypeTransformationParser_Keywords_PROPTYPE) {
 		return false
 	}
-	if !p.GetCallArgument(expr, 0).IsStringLit() {
+	propArg := ast.MustCall(expr).MustFirstArg()
+	typeArg, _ := propArg.Next()
+	if !propArg.Node().IsStringLit() {
 		p.WarnInvalid("property name")
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_PROPTYPE.KeywordName())
 		return false
 	}
-	if !p.ValidTypeTransformationExpression(p.GetCallArgument(expr, 1)) {
+	if !p.ValidTypeTransformationExpression(typeArg.Node()) {
 		p.WarnInvalidInside(TypeTransformationParser_Keywords_PROPTYPE.KeywordName())
 		return false
 	}
@@ -1002,26 +1021,11 @@ func (p *TypeTransformationParser) ValidPropTypeExpression(expr rhino.Node) bool
 //
 // Java: TypeTransformationParser.validOperationExpression(Node)
 func (p *TypeTransformationParser) ValidOperationExpression(expr rhino.Node) bool {
-	name := p.GetCallName(expr)
-	keyword := p.NameToKeyword(name)
-	switch keyword {
-	case TypeTransformationParser_Keywords_COND:
-		return p.ValidConditionalExpression(expr)
-	case TypeTransformationParser_Keywords_MAPUNION:
-		return p.ValidMapunionExpression(expr)
-	case TypeTransformationParser_Keywords_MAPRECORD:
-		return p.ValidMaprecordExpression(expr)
-	case TypeTransformationParser_Keywords_TYPEOFVAR:
-		return p.ValidTypeOfVarExpression(expr)
-	case TypeTransformationParser_Keywords_INSTANCEOF:
-		return p.ValidInstanceOfExpression(expr)
-	case TypeTransformationParser_Keywords_PRINTTYPE:
-		return p.ValidPrintTypeExpression(expr)
-	case TypeTransformationParser_Keywords_PROPTYPE:
-		return p.ValidPropTypeExpression(expr)
-	default:
+	keyword := p.NameToKeyword(p.GetCallName(expr))
+	if keyword.Kind() != TypeTransformationParser_OperationKind_OPERATION {
 		panic(jutil.NewIllegalStateExceptionMsg("Invalid type transformation operation"))
 	}
+	return typeTransformationParser_Keywords_info[keyword].validate(p, expr)
 }
 
 // ValidTypeTransformationExpression checks the structure of the AST of a
@@ -1037,12 +1041,12 @@ func (p *TypeTransformationParser) ValidTypeTransformationExpression(expr rhino.
 		return true
 	}
 	// Check for valid keyword
-	name := p.GetCallName(expr)
-	if !p.IsValidKeyword(name) {
+	name := ast.MustCall(expr).Callee().Node().GetString()
+	keyword, ok := ttlKeywordsByName[name]
+	if !ok {
 		p.WarnInvalidExpression("type transformation")
 		return false
 	}
-	keyword := p.NameToKeyword(name)
 	// Check the rest of the expression depending on the kind
 	switch keyword.Kind() {
 	case TypeTransformationParser_OperationKind_TYPE_CONSTRUCTOR:

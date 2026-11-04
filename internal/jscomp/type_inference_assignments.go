@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -325,8 +327,10 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 	switch target.GetToken() {
 	case rhino.Token_NAME:
 		name := ast.MustName(target)
-		varName := name.Ident()
-		var_ := TypeInference_GetDeclaredVar(scope, varName)
+		var var_ *TypedVar
+		if scope.syntacticScope != nil {
+			var_ = scope.syntacticScope.GetVarByID(target.GetStringID())
+		}
 		var varType rhino.JSType
 		if var_ != nil {
 			varType = var_.GetType()
@@ -423,8 +427,12 @@ func (ti *TypeInference) UpdateScopeForAssignmentWithUpdateNode(
 		}
 	case rhino.Token_GETPROP:
 		gp := ast.MustGetProp(target)
-		qualifiedName, isQName := target.GetQualifiedNameString()
-		if isQName {
+		isQName, mayHaveDecl := scope.syntacticScope.HasQualifiedVarForGetProp(target)
+		var qualifiedName string
+		if isQName && (!scope.functionScope.IsGlobal() || mayHaveDecl) {
+			qualifiedName, _ = target.GetQualifiedNameString()
+		}
+		if isQName && !scope.functionScope.IsGlobal() {
 			declaredSlotType := false
 			rawObjType := gp.Object().Node().GetJSType()
 			if rawObjType != nil {
@@ -561,13 +569,23 @@ func (ti *TypeInference) DefineDeclaredProperty(
 // Java: TypeInference.ensurePropertyDeclaredHelper(Node, ObjectType, FlowScope)
 func (ti *TypeInference) EnsurePropertyDeclaredHelper(
 	getprop rhino.Node, objectType rhino.ObjectType, scope *LinkedFlowScope) bool {
-	qName, isQName := getprop.GetQualifiedNameString()
+	isQName, mayHaveDecl := scope.syntacticScope.HasQualifiedVarForGetProp(getprop)
+	if !mayHaveDecl {
+		return false
+	}
+	qName, _ := getprop.GetQualifiedNameString()
 	return ti.ensurePropertyDeclaredHelper(getprop, qName, isQName, objectType, scope)
 }
 
 func (ti *TypeInference) ensurePropertyDeclaredHelper(
 	getprop rhino.Node, qName string, isQName bool, objectType rhino.ObjectType, scope *LinkedFlowScope) bool {
 	if isQName {
+		if _, mayHaveDecl := scope.syntacticScope.HasQualifiedVarForGetProp(getprop); !mayHaveDecl {
+			return false
+		}
+		if qName == "" {
+			qName, _ = getprop.GetQualifiedNameString()
+		}
 		propName := getprop.GetString()
 		var_ := TypeInference_GetDeclaredVar(scope, qName)
 		if var_ != nil && !var_.IsTypeInferred() {
@@ -678,8 +696,6 @@ func (ti *TypeInference) TraverseDestructuringPatternHelper(
 // Java: TypeInference.traverseName(Node, FlowScope)
 func (ti *TypeInference) TraverseName(n rhino.Node, scope *LinkedFlowScope) *LinkedFlowScope {
 	name := ast.MustName(n)
-	varName := name.Ident()
-	type_ := n.GetJSType()
 	if value, ok := name.Init(); ok {
 		// The only case where `value` isn't null is when we are in a name declaration/initialization
 		//     var x = 3;
@@ -687,12 +703,14 @@ func (ti *TypeInference) TraverseName(n rhino.Node, scope *LinkedFlowScope) *Lin
 		return ti.UpdateScopeForAssignment(scope, n, ti.GetJSType(value.Node()), TypeInference_AssignmentType_DECLARATION)
 	}
 
-	if NodeUtil_IsNameDeclaration(n.GetParent()) &&
+	type_ := n.GetJSType()
+	parent := n.GetParent()
+	if NodeUtil_IsNameDeclaration(parent) &&
 		TypeInference_IsPossibleMixinApplication(n /* rvalue= */, rhino.NilNode) {
 		TypeInference_AddMissingInterfaceProperties(type_)
 	}
 
-	if n.GetParent().IsLet() {
+	if parent.IsLet() {
 		// Whenever we see a LET, we're guaranteed it's not yet in the scope, and we don't need to
 		// worry about it being from an outer scope.  In this case, it has no child, so the actual
 		// type should be undefined, but we make a special allowance for type-annotated variables.
@@ -708,7 +726,7 @@ func (ti *TypeInference) TraverseName(n rhino.Node, scope *LinkedFlowScope) *Lin
 		scope = ti.UpdateScopeForAssignment(scope, n, resultType, TypeInference_AssignmentType_DECLARATION)
 		type_ = resultType
 	} else {
-		declaredVar, slotVar, flowType, isInferred, ok := scope.LookupSlotType(varName)
+		declaredVar, slotVar, flowType, isInferred, ok := scope.LookupSlotTypeByID(n.GetStringID())
 		if ok {
 			// There are two situations where we don't want to use type information
 			// from the scope, even if we have it.
@@ -730,15 +748,10 @@ func (ti *TypeInference) TraverseName(n rhino.Node, scope *LinkedFlowScope) *Lin
 			//
 			// In this case, we would infer the first reference to t as
 			// type {number}, even though it's undefined.
-			var maybeOuterVar *TypedVar
-			if isInferred && ti.containerScope.IsLocal() {
-				maybeOuterVar = ti.containerScope.GetParent().GetVar(varName)
-			}
-			// Go-only: language-adapter — Java's var.equals(maybeOuterVar) is
-			// TypedVar's identity equality; a null maybeOuterVar is never equal.
 			nonLocalInferredSlot :=
-				maybeOuterVar != nil && slotVar == maybeOuterVar &&
-					!maybeOuterVar.IsMarkedAssignedExactlyOnce()
+				isInferred && slotVar != nil &&
+					slotVar.scope.depth < ti.containerScope.depth &&
+					!slotVar.IsMarkedAssignedExactlyOnce()
 
 			if !unflowable && !nonLocalInferredSlot {
 				type_ = flowType
@@ -767,18 +780,30 @@ func (ti *TypeInference) TraverseImportSpec(scope *LinkedFlowScope, spec rhino.N
 // Java: TypeInference.redeclareSimpleVar(FlowScope, Node, JSType)
 func (ti *TypeInference) RedeclareSimpleVar(scope *LinkedFlowScope, nameNode rhino.Node, varType rhino.JSType) *LinkedFlowScope {
 	jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
-	varName := nameNode.GetString()
-	return ti.redeclareSimpleVar(scope, nameNode, TypeInference_GetDeclaredVar(scope, varName), varType)
+	var declaredVar *TypedVar
+	if scope.syntacticScope != nil {
+		declaredVar = scope.syntacticScope.GetVarByID(nameNode.GetStringID())
+	}
+	return ti.redeclareSimpleVar(scope, nameNode, declaredVar, varType)
 }
 
 func (ti *TypeInference) redeclareSimpleVar(scope *LinkedFlowScope, nameNode rhino.Node, declaredVar *TypedVar, varType rhino.JSType) *LinkedFlowScope {
 	jutil.CheckStateMsg1(nameNode.IsName(), "%s", nameNode)
-	varName := nameNode.GetString()
 	if varType == nil {
 		varType = ti.GetNativeType(rhino.JSTypeNative_UNKNOWN_TYPE)
 	}
 	if ti.IsUnflowable(declaredVar) {
 		return scope
+	}
+	id := nameNode.GetStringID()
+	varName := nameNode.GetString()
+	if id != 0 && strings.IndexByte(varName, '.') < 0 {
+		targetScope := scope.functionScope
+		if declaredVar != nil {
+			targetScope = declaredVar.scope
+		}
+		ov := scope.GetOverlayScopeForScope(targetScope, true)
+		return scope.finishInferOverlay(ov, ov.inferSimpleByID(id, varName, varType))
 	}
 	return scope.InferSlotType(varName, varType)
 }

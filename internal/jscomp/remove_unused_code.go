@@ -69,6 +69,22 @@ type removeUnusedCodeState struct {
 	guardedCache *rucGuardedCache
 	root         rhino.Node
 
+	// Go-only: per-run function summary recording and replay state
+	// (remove_unused_code_summary.go).
+	fnCache               *rucFnSummaryCache
+	dirtySubtreeRoots     map[rhino.Node]struct{}
+	recState              *rucRecorderState
+	activeGlobalRec       *rucRecordingSummary
+	activeLocalRec        *rucRecordingSummary
+	deferredSummaryFns    []rhino.Node
+	savedPolyBits         smallBitSet
+	replayedFns           map[rhino.Node]struct{}
+	replayedCount         int
+	deferredCount         int
+	polyEpoch             uint32
+	recMode               rucRecordMode
+	summaryReplayDisabled bool
+
 	allFunctionParamScopes []*Scope
 
 	extraContSlab []rucExtraCont
@@ -270,6 +286,9 @@ func (r *RemoveUnusedCode) ensurePropEntry(id strpool.ID) uint32 {
 }
 
 func (r *RemoveUnusedCode) considerPolyfillRef(keyID uint32, n rhino.Node) {
+	if r.activeGlobalRec != nil {
+		r.activeGlobalRec.addPolyNode(n)
+	}
 	idx1 := r.propIdxByID[strpool.ID(keyID)]
 	if idx1 == 0 {
 		return
@@ -323,13 +342,25 @@ func (r *RemoveUnusedCode) createGlobalScope(root rhino.Node) *Scope {
 }
 
 func (r *RemoveUnusedCode) traverseRootAndRemoveVars(node rhino.Node, scope *Scope) {
-	r.root = node
+	if r.root.IsNil() {
+		r.root = node
+	}
 	r.guardedUsagesComputed = false
 
 	r.worklist.push(RemoveUnusedCode_Continuation{node: node, scope: scope})
-	for !r.worklist.isEmpty() {
-		continuation := r.worklist.pop() // worklist.remove()
-		continuation.Apply(r)
+	r.drainWorklistAndDeferred(scope)
+
+	if rucIncrVerify && r.replayedCount > 0 {
+		r.verifySummaryReplay(node, scope)
+	}
+	if r.recMode != rucRecNone {
+		r.savedPolyBits.w0 = r.polyBits.w0
+		r.savedPolyBits.w1 = r.polyBits.w1
+		if len(r.polyBits.ext) > 0 {
+			r.savedPolyBits.ext = append(r.savedPolyBits.ext[:0], r.polyBits.ext...)
+		} else {
+			r.savedPolyBits.ext = r.savedPolyBits.ext[:0]
+		}
 	}
 
 	r.RemoveUnreferencedVarsAndPolyfills()
@@ -340,9 +371,11 @@ func (r *RemoveUnusedCode) traverseRootAndRemoveVars(node rhino.Node, scope *Sco
 //
 // Java: RemoveUnusedCode.traverseAndRemoveUnusedReferences(Node)
 func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
+	r.root = root
 	if r.traverseAndRemoveLocalScriptsParallel(root) {
 		return
 	}
+	r.beginSummaryRun(root)
 	r.cacheVarInfos = r.compiler != nil && r.compiler.parallelRecorder == nil &&
 		!r.removalLog.IsLogging() && !r.unremovableLog.IsLogging()
 	r.trackProps = r.removesAnyProperties()
@@ -363,6 +396,7 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 			r.removeUnreferencedFunctionArgsWithCompiler(r.compiler, fparamScope, false)
 		}
 	}
+	r.finishSummaryRun(nil)
 }
 
 func (r *RemoveUnusedCode) canParallelizeLocalScripts() bool {
@@ -410,6 +444,8 @@ func (r *RemoveUnusedCode) resetLocalScriptWorker() {
 	r.removables.Reset(nil)
 	r.varInfoSlab.Reset(nil)
 	r.polyfillSlab.Reset(nil)
+	r.activeLocalRec = nil
+	r.activeGlobalRec = nil
 }
 
 func collectGlobalLocalScopeUnits(n rhino.Node, units *[]rhino.Node) bool {
@@ -425,7 +461,7 @@ func collectGlobalLocalScopeUnits(n rhino.Node, units *[]rhino.Node) bool {
 			rhino.Token_SWITCH_BODY:
 			*units = append(*units, c)
 		case rhino.Token_BLOCK:
-			if !c.IsSyntheticBlock() {
+			if scanVarsBlockCreatesScope(c) && (NodeUtil_IsClassStaticBlock(c) || syntacticScopeHasBlockDecls(c)) {
 				*units = append(*units, c)
 			} else if !collectGlobalLocalScopeUnits(c, units) {
 				return false
@@ -437,63 +473,6 @@ func collectGlobalLocalScopeUnits(n rhino.Node, units *[]rhino.Node) bool {
 		}
 	}
 	return true
-}
-
-func (r *RemoveUnusedCode) traverseSingleScriptLocalUnitsParallel(root, script rhino.Node) bool {
-	if !script.GetFirstChild().IsNil() && script.GetFirstChild().IsModuleBody() {
-		return false
-	}
-	var units []rhino.Node
-	if !collectGlobalLocalScopeUnits(script, &units) || len(units) < 4 {
-		return false
-	}
-	numWorkers := parallelThreadCount(r.compiler, len(units))
-	if numWorkers <= 1 {
-		return false
-	}
-	globalScope := r.createGlobalScope(root)
-	freezeGlobalScopeForParallelReads(globalScope)
-	prewarmCompilerForParallelReads(r.compiler)
-	restore := enableParallelTypeRegistryReads(r.compiler)
-	defer restore()
-
-	runParallelWork(r.compiler, numWorkers, len(units), func(_ int) (func(int, *recordingCompiler), func()) {
-		var wr *RemoveUnusedCode
-		return func(idx int, rc *recordingCompiler) {
-			if wr == nil {
-				wr = r.newLocalScriptWorker(rc)
-			} else {
-				wr.resetLocalScriptWorker()
-			}
-			wr.traverseRootAndRemoveVars(units[idx], globalScope)
-		}, nil
-	}, false)
-	return true
-}
-
-func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node) bool {
-	if !r.canParallelizeLocalScripts() || root.GetParent().IsNil() {
-		return false
-	}
-	if scripts, ok := collectRootScripts(root); ok && len(scripts) == 1 {
-		return r.traverseSingleScriptLocalUnitsParallel(root, scripts[0])
-	}
-	var globalScope *Scope
-	return traverseScriptsParallel(r.compiler, root, parallelScriptOptions[*RemoveUnusedCode]{
-		enableTypeRegistryReads: true,
-		prepare: func(_, _ int) bool {
-			globalScope = r.createGlobalScope(root)
-			freezeGlobalScopeForParallelReads(globalScope)
-			return true
-		},
-		initWorker: func(_ int, rc *Compiler) *RemoveUnusedCode {
-			return r.newLocalScriptWorker(rc)
-		},
-		runScript: func(wr *RemoveUnusedCode, _ int, _ rhino.Node, script rhino.Node, _ *Compiler) {
-			wr.resetLocalScriptWorker()
-			wr.traverseRootAndRemoveVars(script, globalScope)
-		},
-	})
 }
 
 // trailingParamBinding returns what the parameter p binds: the name or
@@ -643,7 +622,13 @@ func (r *RemoveUnusedCode) CanRemoveParameters(parameterList rhino.Node) bool {
 }
 
 func (r *RemoveUnusedCode) markPropertyIDPinned(id uint32) {
-	if !r.trackProps || r.pinnedProps.Get(int(id)) {
+	if !r.trackProps {
+		return
+	}
+	if r.activeGlobalRec != nil && id != 0 {
+		r.activeGlobalRec.addPropID(id)
+	}
+	if r.pinnedProps.Get(int(id)) {
 		return
 	}
 	r.pinnedProps.Set(int(id))
@@ -671,6 +656,14 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 		removable.ApplyContinuations(r)
 		return
 	}
+	indep := r.IsIndependentlyRemovable(removable)
+	if r.activeGlobalRec != nil {
+		if indep {
+			r.activeGlobalRec.addIndepPropID(propID)
+		} else {
+			r.activeGlobalRec.addPropID(propID)
+		}
+	}
 	if r.pinnedProps.Get(int(propID)) {
 		// Referenced or exported, so not removable.
 		removable.ApplyContinuations(r)
@@ -686,7 +679,7 @@ func (r *RemoveUnusedCode) ConsiderForIndependentRemoval(removable *rucRemovable
 		}
 		r.propEntries[idx].checkedUnpinned = true
 	}
-	if r.IsIndependentlyRemovable(removable) {
+	if indep {
 		// Store for possible removal later.
 		if removable.flags&remFlagInPropList == 0 {
 			removable.flags |= remFlagInPropList
@@ -850,6 +843,9 @@ func (r *RemoveUnusedCode) TraverseVar(var_ *Var) *RemoveUnusedCode_RealVarInfo 
 		panic(jutil.NewNullPointerException())
 	}
 	if r.removeLocalVars && var_.IsArguments() {
+		if r.recMode == rucRecLocal {
+			r.onVarPinned(var_)
+		}
 		// If we are considering removing local variables, that includes parameters.
 		// If `arguments` is used in a function we must consider all parameters to be referenced.
 		functionScope := var_.scope.GetClosestHoistScope()
@@ -945,7 +941,7 @@ func (r *RemoveUnusedCode) GetVarInfo(var_ *Var) *RemoveUnusedCode_RealVarInfo {
 	}
 	varInfo := NewRemoveUnusedCode_RealVarInfo(r, var_)
 	if _, isParamList := ast.AsParamList(var_.GetParentNode()); isParamList {
-		varInfo.SetHasNonLocalOrNonLiteralValue()
+		varInfo.flags |= rucVarFlagHasNonLocalOrNonLit
 	}
 	// When trackProps is enabled, non-removable vars still need their own VarInfo
 	// to track assigned values for static property removal.

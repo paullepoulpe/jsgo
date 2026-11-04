@@ -78,7 +78,6 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 		return
 	}
 
-	references := NewOptimizeCalls_ReferenceMap()
 	sc := NewSyntacticScopeCreator(o.compiler)
 	releaseEarly := len(o.passes) == 1
 	if releaseEarly {
@@ -86,36 +85,65 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 			releaseEarly = false
 		}
 	}
-	cb := newOptimizeCallsRefCollector(o, references)
 	scopeRoot := externs.GetParent()
 	if scopeRoot.IsNil() {
 		failNodeTraversalNull()
 	}
 	jutil.CheckState(root.GetParent() == scopeRoot)
-	if ix := propUseIndexForOptimizeCalls(o, externs, root); ix != nil {
+	var references *OptimizeCalls_ReferenceMap
+	ix := propUseIndexForOptimizeCalls(o, externs, root)
+	if ix != nil {
 		// Go-only: performance — the map from the property-use index's
 		// records instead of a walk (prop_use_index_oc.go).
-		cb.setGlobalScope(sc.CreateScopeOfScope(scopeRoot, nil))
-		ix.fillOptimizeCalls(cb)
+		references = &OptimizeCalls_ReferenceMap{
+			scopeCreator: sc,
+			scopeRoot:    scopeRoot,
+			index:        ix,
+		}
+		var fallbackGlobal *Scope
+		if ix.canUseGlobalRefcounts() {
+			references.propIndex = ix
+		} else {
+			fallbackGlobal = sc.CreateScopeOfScope(scopeRoot, nil)
+			references.globalScope = fallbackGlobal
+		}
+		ix.fillOptimizeCalls(o, references, fallbackGlobal)
 		if propIndexVerify {
 			want := NewOptimizeCalls_ReferenceMap()
 			wcb := newOptimizeCallsRefCollector(o, want)
-			wcb.initGlobalScope(cb.globalScope)
+			gs := fallbackGlobal
+			if gs == nil {
+				gs = sc.CreateScopeOfScope(scopeRoot, nil)
+			}
+			wcb.initGlobalScope(gs)
 			wcb.traverseNode(externs)
 			wcb.traverseNode(root)
+			o.eliminateAccessorsFrom(want)
 			verifyOptimizeCallsMap(o.compiler, references, want)
+			if references.propIndex != nil {
+				ix.verifyGlobalScopeParity(gs)
+			}
 		}
 	} else {
+		references = NewOptimizeCalls_ReferenceMap()
+		cb := newOptimizeCallsRefCollector(o, references)
 		cb.initGlobalScope(sc.CreateScopeOfScope(scopeRoot, nil))
 		cb.traverseNode(externs)
 		cb.traverseNode(root)
+		o.eliminateAccessorsFrom(references)
 	}
 	if releaseEarly {
-		references.globalScope = nil
+		references.clearGlobalScope()
 	}
-	o.eliminateAccessorsFrom(references)
 
-	for _, pass := range o.passes {
+	if ix != nil {
+		ix.oc.beginPassLoop(o.compiler)
+		defer ix.oc.endPassLoop(o.compiler)
+	}
+	for i, pass := range o.passes {
+		if i > 0 && ix != nil {
+			ix.oc.syncLiveMutatedScopes(o.compiler)
+		}
 		pass.ProcessWithReferenceMap(externs, root, references)
 	}
 }
@@ -124,18 +152,24 @@ func (o *OptimizeCalls) Process(externs rhino.Node, root rhino.Node) {
 //
 // Java: OptimizeCalls.eliminateAccessorsFrom(ReferenceMap)
 func (o *OptimizeCalls) eliminateAccessorsFrom(references *OptimizeCalls_ReferenceMap) {
-	for _, id := range o.compiler.GetAccessorSummary().AccessorIDs() {
-		references.props.removeByID(strpool.ID(id))
+	if summary := o.compiler.GetAccessorSummary(); summary != nil {
+		for _, id := range summary.AccessorIDs() {
+			references.props.removeByID(strpool.ID(id))
+		}
 	}
 }
 
 // OptimizeCalls_ReferenceMap is a reference map for global symbols and
 // properties.
 type OptimizeCalls_ReferenceMap struct {
-	globalScope *Scope
-	names       optimizeCalls_refTable
-	props       optimizeCalls_refTable
-	refLists    jutil.Slab[optimizeCalls_refList] // one pass's lists die together
+	globalScope  *Scope
+	scopeCreator *SyntacticScopeCreator
+	scopeRoot    rhino.Node
+	propIndex    *propUseIndex // non-nil when B1 global refcounts are active
+	index        *propUseIndex // non-nil when filled from propUseIndex
+	names        optimizeCalls_refTable
+	props        optimizeCalls_refTable
+	refLists     jutil.Slab[optimizeCalls_refList] // one pass's lists die together
 }
 
 // Java: OptimizeCalls.ReferenceMap()
@@ -153,10 +187,16 @@ type optimizeCalls_refList struct {
 	buf   [4]rhino.Node
 }
 
+const optimizeCallsRemovedFlatID = strpool.ID(^uint32(0))
+
 type optimizeCalls_refTable struct {
-	byID  map[strpool.ID]*optimizeCalls_refList
-	order []strpool.ID
-	size  int
+	byID        map[strpool.ID]*optimizeCalls_refList
+	order       []strpool.ID
+	flatIDs     []strpool.ID
+	flatOffsets []int32
+	flatNodes   []rhino.Node
+	flatDirty   []bool
+	size        int
 }
 
 func (t *optimizeCalls_refTable) initWithCapacity(capHint int) {
@@ -169,6 +209,16 @@ func (t *optimizeCalls_refTable) Size() int     { return t.size }
 func (t *optimizeCalls_refTable) IsEmpty() bool { return t.size == 0 }
 
 func (t *optimizeCalls_refTable) removeByID(id strpool.ID) {
+	if t.byID == nil && len(t.flatOffsets) > 0 {
+		for i, fid := range t.flatIDs {
+			if fid == id {
+				t.flatIDs[i] = optimizeCallsRemovedFlatID
+				t.size--
+				return
+			}
+		}
+		return
+	}
 	if l := t.byID[id]; l != nil {
 		delete(t.byID, id)
 		l.nodes = nil
@@ -178,6 +228,20 @@ func (t *optimizeCalls_refTable) removeByID(id strpool.ID) {
 
 func (t *optimizeCalls_refTable) all() iter.Seq2[string, []rhino.Node] {
 	return func(yield func(string, []rhino.Node) bool) {
+		if t.byID == nil && len(t.flatOffsets) > 0 {
+			for i, id := range t.flatIDs {
+				if id == optimizeCallsRemovedFlatID {
+					continue
+				}
+				s, e := t.flatOffsets[i], t.flatOffsets[i+1]
+				if s < e {
+					if !yield(strpool.String(id), t.flatNodes[s:e:e]) {
+						return
+					}
+				}
+			}
+			return
+		}
 		for _, id := range t.order {
 			if l := t.byID[id]; l != nil {
 				if !yield(strpool.String(id), l.nodes) {
@@ -190,6 +254,20 @@ func (t *optimizeCalls_refTable) all() iter.Seq2[string, []rhino.Node] {
 
 func (t *optimizeCalls_refTable) allByID() iter.Seq2[uint32, []rhino.Node] {
 	return func(yield func(uint32, []rhino.Node) bool) {
+		if t.byID == nil && len(t.flatOffsets) > 0 {
+			for i, id := range t.flatIDs {
+				if id == optimizeCallsRemovedFlatID {
+					continue
+				}
+				s, e := t.flatOffsets[i], t.flatOffsets[i+1]
+				if s < e {
+					if !yield(uint32(id), t.flatNodes[s:e:e]) {
+						return
+					}
+				}
+			}
+			return
+		}
 		for _, id := range t.order {
 			if l := t.byID[id]; l != nil {
 				if !yield(uint32(id), l.nodes) {
@@ -200,7 +278,55 @@ func (t *optimizeCalls_refTable) allByID() iter.Seq2[uint32, []rhino.Node] {
 	}
 }
 
+func (t *optimizeCalls_refTable) forEachByID(fn func(id uint32, refs []rhino.Node, slotDirty bool)) {
+	if t.byID == nil && len(t.flatOffsets) > 0 {
+		for i, id := range t.flatIDs {
+			if id == optimizeCallsRemovedFlatID {
+				continue
+			}
+			s, e := t.flatOffsets[i], t.flatOffsets[i+1]
+			if s < e {
+				dirty := i < len(t.flatDirty) && t.flatDirty[i]
+				fn(uint32(id), t.flatNodes[s:e:e], dirty)
+			}
+		}
+		return
+	}
+	for _, id := range t.order {
+		if l := t.byID[id]; l != nil {
+			fn(uint32(id), l.nodes, true)
+		}
+	}
+}
+
+func (m *OptimizeCalls_ReferenceMap) materializeTable(data *optimizeCalls_refTable) {
+	flatIDs := data.flatIDs
+	flatOffsets := data.flatOffsets
+	flatNodes := data.flatNodes
+	data.flatIDs = nil
+	data.flatOffsets = nil
+	data.flatNodes = nil
+	data.flatDirty = nil
+	data.initWithCapacity(max(len(flatIDs), 64))
+	for i, id := range flatIDs {
+		if id == optimizeCallsRemovedFlatID {
+			continue
+		}
+		s, e := flatOffsets[i], flatOffsets[i+1]
+		if s < e {
+			refs := m.refLists.New()
+			refs.nodes = append(refs.buf[:0:len(refs.buf)], flatNodes[s:e]...)
+			data.byID[id] = refs
+			data.order = append(data.order, id)
+			data.size++
+		}
+	}
+}
+
 func (m *OptimizeCalls_ReferenceMap) addReferenceByID(data *optimizeCalls_refTable, id strpool.ID, n rhino.Node) {
+	if data.byID == nil {
+		m.materializeTable(data)
+	}
 	refs := data.byID[id]
 	if refs == nil {
 		refs = m.refLists.New()
@@ -229,7 +355,37 @@ func (m *OptimizeCalls_ReferenceMap) addPropReferenceByID(id strpool.ID, n rhino
 
 // Java: OptimizeCalls.ReferenceMap.getGlobalScope()
 func (m *OptimizeCalls_ReferenceMap) GetGlobalScope() *Scope {
+	if m.globalScope == nil && m.scopeCreator != nil && !m.scopeRoot.IsNil() {
+		m.globalScope = m.scopeCreator.CreateScopeOfScope(m.scopeRoot, nil)
+	}
 	return m.globalScope
+}
+
+// HasGlobalVarByID reports whether id is declared in the global scope
+// (including externs and implicit goog namespaces), without materializing
+// a full global Scope when propUseIndex refcounts are active.
+func (m *OptimizeCalls_ReferenceMap) HasGlobalVarByID(id uint32) bool {
+	if m.propIndex != nil {
+		return m.propIndex.hasGlobalVarByID(id)
+	}
+	if gs := m.GetGlobalScope(); gs != nil {
+		return gs.GetVarByID(id) != nil
+	}
+	return false
+}
+
+func (m *OptimizeCalls_ReferenceMap) clearGlobalScope() {
+	m.globalScope = nil
+	m.scopeCreator = nil
+	m.scopeRoot = rhino.NilNode
+}
+
+func (m *OptimizeCalls_ReferenceMap) forEachNameByID(fn func(id uint32, refs []rhino.Node, slotDirty bool)) {
+	m.names.forEachByID(fn)
+}
+
+func (m *OptimizeCalls_ReferenceMap) forEachPropByID(fn func(id uint32, refs []rhino.Node, slotDirty bool)) {
+	m.props.forEachByID(fn)
 }
 
 // Java: OptimizeCalls.ReferenceMap.getNameReferences()
@@ -641,6 +797,9 @@ func OptimizeCalls_MayBeOptimizableNameByID(compiler AbstractCompiler, id uint32
 	switch strpool.ID(id) {
 	case optimizeCallsPropNameFnID, optimizeCallsInheritsID, optimizeCallsJscompInheritsID, optimizeCallsGoogInheritsID:
 		return false
+	}
+	if compiler != nil && compiler.parallelRecorder == nil && compiler.propIndex != nil {
+		return compiler.propIndex.mayBeOptimizableNameByID(compiler, id)
 	}
 	return !compiler.GetCodingConvention().IsExported(strpool.String(strpool.ID(id)))
 }

@@ -207,7 +207,14 @@ func (e *JSTypeExpression) IsVarArgs() bool {
 //
 // Java: JSTypeExpression.evaluate(StaticTypedScope, JSTypeRegistry)
 func (e *JSTypeExpression) Evaluate(scope StaticTypedScope, registry *JSTypeRegistry) JSType {
-	type_ := registry.CreateTypeFromCommentNodeWithScope(e.root, e.sourceName, scope)
+	return e.EvaluateWithReporter(scope, registry, nil)
+}
+
+// EvaluateWithReporter evaluates the type expression into a JSType object,
+// routing any type-parse or resolution warnings through reporter when non-nil
+// (falling back to registry's ErrorReporter when reporter is nil).
+func (e *JSTypeExpression) EvaluateWithReporter(scope StaticTypedScope, registry *JSTypeRegistry, reporter ErrorReporter) JSType {
+	type_ := registry.CreateTypeFromCommentNodeWithScopeAndReporter(e.root, e.sourceName, scope, reporter)
 	e.root.SetJSType(type_)
 	return type_
 }

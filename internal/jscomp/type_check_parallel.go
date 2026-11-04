@@ -1,3 +1,19 @@
+/*
+ * Copyright 2006 The Closure Compiler Authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package jscomp
 
 import (
@@ -5,8 +21,8 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Go-only: fast mode (--fast_mode) runs TypeCheck's traversal one script per
-// worker goroutine.
+// Go-only: runs TypeCheck's traversal one script per worker goroutine whenever
+// multi-threaded compilation is enabled and all cross-script invariants hold.
 //
 // Type inference has finished and the TypedScopeCreator is frozen, so the
 // scopes, the type registry and the JSTypes are only read (the registry is
@@ -19,14 +35,13 @@ import (
 // mutates types, runs afterwards on the main goroutine as before.
 
 func (tc *TypeCheck) canCheckInParallel(node rhino.Node) ([]rhino.Node, int, bool) {
-	opts := tc.compiler.GetOptions()
-	if !opts.isFastMode() || tc.compiler.IsDebugLoggingEnabled() {
+	if tc.compiler.IsDebugLoggingEnabled() {
 		return nil, 0, false
 	}
 	if tc.scopeCreator == nil || tc.topScope == nil {
 		return nil, 0, false
 	}
-	if tc.scopeCreator.stage != TypedScopeCreator_Stage_FROZEN {
+	if tc.scopeCreator.stage != TypedScopeCreator_Stage_FROZEN || tc.scopeCreator.hasUnevaluatedRecordEnumAlias {
 		return nil, 0, false
 	}
 	scripts, ok := collectRootScripts(node)

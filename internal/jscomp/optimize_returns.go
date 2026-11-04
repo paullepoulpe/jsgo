@@ -55,6 +55,12 @@ func (o *OptimizeReturns) Process(externs rhino.Node, root rhino.Node) {
 	NewOptimizeCalls(o.compiler, false, o).Process(externs, root)
 }
 
+type optimizeReturnsCandidate struct {
+	id     uint32
+	isProp bool
+	refs   []rhino.Node
+}
+
 // Java: OptimizeReturns.process(Node, Node, ReferenceMap)
 func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino.Node, definitions *OptimizeCalls_ReferenceMap) {
 	logFile := o.compiler.CreateOrReopenIndexedLog("OptimizeReturns", "decisions.log")
@@ -65,34 +71,53 @@ func (o *OptimizeReturns) ProcessWithReferenceMap(externs rhino.Node, root rhino
 		o.fnNodes = o.fnNodes[:0]
 	}()
 	o.decisionsLog = logFile // avoid passing the log file through a bunch of methods
+	logging := o.decisionsLog.IsLogging()
+	ix := definitions.index
+	useClean := !logging && ix != nil
 	// Find all function nodes whose callers ignore the return values.
-	var toOptimize [][]rhino.Node
+	var toOptimize []optimizeReturnsCandidate
 
 	// Find all the candidates before modifying the AST.
-	for id, refs := range definitions.GetNameReferencesByID() {
+	definitions.forEachNameByID(func(id uint32, refs []rhino.Node, slotDirty bool) {
+		if useClean && ix.oc.canSkipClean(false, slotDirty, id, refs, ocCleanReturns) {
+			return
+		}
 		if o.isCandidateByID(id, refs) {
-			if o.decisionsLog.IsLogging() {
+			if logging {
 				o.decisionsLog.LogFormat("name %s\tremoving return value", strpool.String(strpool.ID(id)))
 			}
-			toOptimize = append(toOptimize, refs)
+			toOptimize = append(toOptimize, optimizeReturnsCandidate{id: id, isProp: false, refs: refs})
+		} else if useClean {
+			ix.oc.markClean(false, id, refs, ocCleanReturns)
 		}
-	}
+	})
 
-	for id, refs := range definitions.GetPropReferencesByID() {
+	definitions.forEachPropByID(func(id uint32, refs []rhino.Node, slotDirty bool) {
+		if useClean && ix.oc.canSkipClean(true, slotDirty, id, refs, ocCleanReturns) {
+			return
+		}
 		if o.isCandidateByID(id, refs) {
-			if o.decisionsLog.IsLogging() {
+			if logging {
 				o.decisionsLog.LogFormat("property %s\tremoving return value", strpool.String(strpool.ID(id)))
 			}
-			toOptimize = append(toOptimize, refs)
+			toOptimize = append(toOptimize, optimizeReturnsCandidate{id: id, isProp: true, refs: refs})
+		} else if useClean {
+			ix.oc.markClean(true, id, refs, ocCleanReturns)
 		}
-	}
+	})
 
 	// Now modify the AST
-	for _, refs := range toOptimize {
-		fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], refs)
+	for _, cand := range toOptimize {
+		fns := OptimizeCalls_ReferenceMap_AppendFunctionNodes(o.fnNodes[:0], cand.refs)
 		o.fnNodes = fns
+		anyChanged := false
 		for _, fn := range fns {
-			o.rewriteReturns(ast.MustFunction(fn))
+			if o.rewriteReturns(ast.MustFunction(fn), ix) {
+				anyChanged = true
+			}
+		}
+		if !anyChanged && useClean {
+			ix.oc.markClean(cand.isProp, cand.id, cand.refs, ocCleanReturns)
 		}
 	}
 }
@@ -198,17 +223,23 @@ func optimizeReturns_isCandidateFunction(e ast.Expr) bool {
 // becomes `foo(); return;` (peephole passes remove redundant trailing returns).
 //
 // Java: OptimizeReturns.rewriteReturns(Node)
-func (o *OptimizeReturns) rewriteReturns(fn ast.Function) {
+func (o *OptimizeReturns) rewriteReturns(fn ast.Function, ix *propUseIndex) bool {
+	if ix != nil && !ix.scopeHasValueReturn(fn.Node()) {
+		return false
+	}
 	body := fn.Body().Node()
-	o.rewriteReturnsInSubtree(body, body)
+	return o.rewriteReturnsInSubtree(body, body)
 }
 
-func (o *OptimizeReturns) rewriteReturnsInSubtree(n rhino.Node, body rhino.Node) {
+func (o *OptimizeReturns) rewriteReturnsInSubtree(n rhino.Node, body rhino.Node) bool {
+	changed := false
 	parent := n.GetParent()
 	if n.IsRoot() || n.IsBlock() || (!n.IsFunction() && NodeUtil_IsShallowStatementTree(parent)) {
 		for c := n.GetFirstChild(); !c.IsNil(); {
 			next := c.GetNext()
-			o.rewriteReturnsInSubtree(c, body)
+			if o.rewriteReturnsInSubtree(c, body) {
+				changed = true
+			}
 			c = next
 		}
 	}
@@ -222,8 +253,10 @@ func (o *OptimizeReturns) rewriteReturnsInSubtree(n rhino.Node, body rhino.Node)
 				NodeUtil_MarkFunctionsDeleted(result.Node(), o.compiler)
 			}
 			o.compiler.ReportChangeToEnclosingScope(body)
+			changed = true
 		}
 	}
+	return changed
 }
 
 // isRemovableValue removes only values that don't reference properties (object

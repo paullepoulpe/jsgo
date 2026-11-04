@@ -669,6 +669,9 @@ func (r *JSTypeRegistry) RegisterPropertyOnType(propertyName string, type_ JSTyp
 }
 
 func (r *JSTypeRegistry) registerPropertyOnTypeByID(id rhinoStringID, type_ JSType) {
+	if r.parallelReadOnly {
+		return
+	}
 	if type_.IsUnionType() {
 		for _, alternate := range type_.ToMaybeUnionType().GetAlternates() {
 			r.registerPropertyOnTypeByID(id, alternate)

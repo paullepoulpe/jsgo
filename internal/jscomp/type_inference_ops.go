@@ -518,7 +518,7 @@ func (ti *TypeInference) TraverseGetProp(n rhino.Node, scope *LinkedFlowScope) *
 func (ti *TypeInference) SetGetPropNodeTypeAfterChildrenTraversed(n rhino.Node, scopeAfterChildren *LinkedFlowScope) *LinkedFlowScope {
 	gp := ast.MustNormalOrOptChainGetProp(n)
 	objNode := gp.Object().Node()
-	n.SetJSType(ti.GetPropertyType(objNode.GetJSType(), gp.Property(), n, scopeAfterChildren))
+	n.SetJSType(ti.getPropertyTypeForGetProp(objNode.GetJSType(), n, scopeAfterChildren))
 	return ti.TightenTypeAfterDereference(objNode, scopeAfterChildren)
 }
 
@@ -540,25 +540,20 @@ func (ti *TypeInference) getBestLValueNameString(lValue rhino.Node) (string, boo
 	return lValue.GetQualifiedNameString()
 }
 
-// Java: TypeInference.getPropertyType(JSType, String, Node, FlowScope)
-func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, n rhino.Node, scope *LinkedFlowScope) rhino.JSType {
-	// We often have a couple of different types to choose from for the
-	// property. Ordered by accuracy, we have
-	// 1) A locally inferred qualified name (which is in the FlowScope)
-	// 2) A globally declared qualified name (which is in the FlowScope)
-	// 3) A property on the owner type (which is on objType)
-	// 4) A name in the type registry (as a last resort)
+func (ti *TypeInference) getPropertyTypeForGetProp(objType rhino.JSType, n rhino.Node, scope *LinkedFlowScope) rhino.JSType {
 	var propertyType rhino.JSType
 	isLocallyInferred := false
+	var qualifiedName string
+	var hasQName bool
 
-	// Scopes sometimes contain inferred type info about qualified names.
-	qualifiedName, hasQName := n.GetQualifiedNameString()
-	if hasQName {
-		if declaredVar, slotVar, varType, isInferred, ok := scope.LookupSlotType(qualifiedName); ok && varType != nil {
+	if n.IsGetProp() {
+		var declaredVar, slotVar *TypedVar
+		var varType rhino.JSType
+		var isInferred, ok bool
+		qualifiedName, hasQName, declaredVar, slotVar, varType, isInferred, ok = scope.LookupGetPropSlotType(n)
+		if ok && varType != nil {
 			isDeclared := !isInferred
 			if !isDeclared || varType.Equals(ti.unknownType) {
-				// Go-only: language-adapter — Java's `var != getDeclaredVar(...)` is an
-				// identity comparison; a null declared var differs from var.
 				isLocallyInferred = declaredVar == nil || slotVar != declaredVar
 			}
 			if isDeclared || isLocallyInferred {
@@ -568,18 +563,91 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 	}
 
 	if propertyType == nil && objType != nil {
-		var foundType rhino.JSType
-		if !n.IsNil() && (n.IsGetProp() || n.IsOptChainGetProp()) && n.GetString() == propName {
-			foundType = rhino.FindPropertyTypeByID(objType, n.GetStringID())
-		} else {
-			foundType = objType.FindPropertyType(propName)
-		}
-		if foundType != nil {
+		if foundType := rhino.FindPropertyTypeByID(objType, n.GetStringID()); foundType != nil {
 			propertyType = foundType
 		}
 	}
 
 	if (propertyType == nil || propertyType.IsUnknownType()) && hasQName {
+		if qualifiedName == "" {
+			qualifiedName, _ = n.GetQualifiedNameString()
+		}
+		regType := rhino.ObjectType_Cast(ti.registry.GetType(scope.GetDeclarationScope(), qualifiedName))
+		if regType != nil {
+			if ctor := regType.GetConstructor(); ctor != nil {
+				propertyType = ctor
+			} else {
+				propertyType = nil
+			}
+		}
+	}
+
+	if propertyType == nil {
+		return ti.unknownType
+	} else if isLocallyInferred && propertyType.Equals(ti.unknownType) {
+		return ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)
+	}
+	return propertyType
+}
+
+// Java: TypeInference.getPropertyType(JSType, String, Node, FlowScope)
+func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, n rhino.Node, scope *LinkedFlowScope) rhino.JSType {
+	// We often have a couple of different types to choose from for the
+	// property. Ordered by accuracy, we have
+	// 1) A locally inferred qualified name (which is in the FlowScope)
+	// 2) A globally declared qualified name (which is in the FlowScope)
+	// 3) A property on the owner type (which is on objType)
+	// 4) A name in the type registry (as a last resort)
+	if !n.IsNil() && (n.IsGetProp() || n.IsOptChainGetProp()) && n.GetString() == propName {
+		return ti.getPropertyTypeForGetProp(objType, n, scope)
+	}
+	var propertyType rhino.JSType
+	isLocallyInferred := false
+
+	// Scopes sometimes contain inferred type info about qualified names.
+	var qualifiedName string
+	var hasQName bool
+	if !n.IsNil() && n.IsGetProp() {
+		var declaredVar, slotVar *TypedVar
+		var varType rhino.JSType
+		var isInferred, ok bool
+		qualifiedName, hasQName, declaredVar, slotVar, varType, isInferred, ok = scope.LookupGetPropSlotType(n)
+		if ok && varType != nil {
+			isDeclared := !isInferred
+			if !isDeclared || varType.Equals(ti.unknownType) {
+				isLocallyInferred = declaredVar == nil || slotVar != declaredVar
+			}
+			if isDeclared || isLocallyInferred {
+				propertyType = varType
+			}
+		}
+	} else {
+		qualifiedName, hasQName = n.GetQualifiedNameString()
+		if hasQName {
+			if declaredVar, slotVar, varType, isInferred, ok := scope.LookupSlotType(qualifiedName); ok && varType != nil {
+				isDeclared := !isInferred
+				if !isDeclared || varType.Equals(ti.unknownType) {
+					// Go-only: language-adapter — Java's `var != getDeclaredVar(...)` is an
+					// identity comparison; a null declared var differs from var.
+					isLocallyInferred = declaredVar == nil || slotVar != declaredVar
+				}
+				if isDeclared || isLocallyInferred {
+					propertyType = varType
+				}
+			}
+		}
+	}
+
+	if propertyType == nil && objType != nil {
+		if foundType := objType.FindPropertyType(propName); foundType != nil {
+			propertyType = foundType
+		}
+	}
+
+	if (propertyType == nil || propertyType.IsUnknownType()) && hasQName {
+		if qualifiedName == "" {
+			qualifiedName, _ = n.GetQualifiedNameString()
+		}
 		// If we find this node in the registry, then we can infer its type.
 		regType :=
 			rhino.ObjectType_Cast(ti.registry.GetType(scope.GetDeclarationScope(), qualifiedName))
@@ -594,7 +662,7 @@ func (ti *TypeInference) GetPropertyType(objType rhino.JSType, propName string, 
 
 	if propertyType == nil {
 		return ti.unknownType
-	} else if propertyType.Equals(ti.unknownType) && isLocallyInferred {
+	} else if isLocallyInferred && propertyType.Equals(ti.unknownType) {
 		// If the type has been checked in this scope,
 		// then use CHECKED_UNKNOWN_TYPE instead to indicate that.
 		return ti.GetNativeType(rhino.JSTypeNative_CHECKED_UNKNOWN_TYPE)

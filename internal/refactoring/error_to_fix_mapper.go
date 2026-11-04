@@ -371,11 +371,11 @@ func (m *ErrorToFixMapper) GetFixForExtraRequire(error *jscomp.JSError) *Suggest
 	fix := NewSuggestedFix_Builder().AttachMatchedNodeInfo(node, m.compiler)
 	if !jscomp.NodeUtil_GetEnclosingType(node, rhino.Token_OBJECT_PATTERN).IsNil() {
 		fix.SetDescription("Delete unused symbol")
-		if _, ok := ast.AsStringKey(node); ok {
+		if _, ok := ast.AsObjectPatternProp(node); ok {
 			fix.Delete(node)
 		} else {
-			_, parentIsStringKey := ast.AsStringKey(node.GetParent())
-			jutil.CheckStateMsg1(parentIsStringKey, "%s", node.GetParent())
+			_, parentIsObjProp := ast.AsObjectPatternProp(node.GetParent())
+			jutil.CheckStateMsg1(parentIsObjProp, "%s", node.GetParent())
 			fix.Delete(node.GetParent())
 		}
 	} else {

@@ -462,6 +462,11 @@ func (r *JSTypeRegistry) CreateNamedTypeOpt(
 
 func (r *JSTypeRegistry) createNamedTypeByID(
 	scope StaticTypedScope, reference string, sourceNameID rhinoStringID, lineno int, charno int) *NamedType {
+	return r.createNamedTypeByIDWithReporter(scope, reference, sourceNameID, lineno, charno, nil)
+}
+
+func (r *JSTypeRegistry) createNamedTypeByIDWithReporter(
+	scope StaticTypedScope, reference string, sourceNameID rhinoStringID, lineno int, charno int, reporter ErrorReporter) *NamedType {
 	b := NamedType_Builder{
 		registry:          r,
 		referenceName:     reference,
@@ -472,10 +477,19 @@ func (r *JSTypeRegistry) createNamedTypeByID(
 		charno:            charno,
 		referencedType:    r.GetNativeType(JSTypeNative_UNKNOWN_TYPE),
 		templateTypes:     emptyJSTypeSlice,
+		reporter:          reporter,
 		resolutionKind:    NamedType_ResolutionKind_TYPE_NAME,
 		hasResolutionKind: true,
 	}
 	return NewNamedType(&b)
+}
+
+func (r *JSTypeRegistry) getTypeWithLocationStringAndReporter(
+	scope StaticTypedScope, jsTypeName string, sourceName string, lineno int, charno int, reporter ErrorReporter) JSType {
+	if type_ := r.getTypeResolvedOrNil(scope, jsTypeName); type_ != nil {
+		return type_
+	}
+	return r.createNamedTypeByIDWithReporter(scope, jsTypeName, rhinoStringPoolIntern(sourceName), lineno, charno, reporter)
 }
 
 // IdentifyNonNullableName identifies the name of a typedef or enum before
@@ -522,13 +536,23 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNode(n Node) JSType {
 //
 // Java: JSTypeRegistry.createTypeFromCommentNode(Node, String, StaticTypedScope)
 func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName string, scope StaticTypedScope) JSType {
+	return r.CreateTypeFromCommentNodeWithScopeAndReporter(n, sourceName, scope, r.reporter)
+}
+
+// CreateTypeFromCommentNodeWithScopeAndReporter creates a JSType from the nodes
+// representing a type, routing any warnings through reporter when non-nil.
+func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScopeAndReporter(
+	n Node, sourceName string, scope StaticTypedScope, reporter ErrorReporter) JSType {
+	if reporter == nil {
+		reporter = r.reporter
+	}
 	switch n.GetToken() {
 	case Token_LC:
 		// Record type.
-		return r.CreateRecordTypeFromNodes(n.GetFirstChild(), sourceName, scope)
+		return r.createRecordTypeFromNodesWithReporter(n.GetFirstChild(), sourceName, scope, reporter)
 	case Token_BANG:
 		// Not nullable
-		child := r.CreateTypeFromCommentNodeWithScope(n.GetFirstChild(), sourceName, scope)
+		child := r.CreateTypeFromCommentNodeWithScopeAndReporter(n.GetFirstChild(), sourceName, scope, reporter)
 		if namedType, ok := child.(*NamedType); ok {
 			return namedType.GetBangType()
 		}
@@ -539,15 +563,15 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 		if firstChild.IsNil() {
 			return r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)
 		}
-		return r.CreateNullableType(r.CreateTypeFromCommentNodeWithScope(firstChild, sourceName, scope))
+		return r.CreateNullableType(r.CreateTypeFromCommentNodeWithScopeAndReporter(firstChild, sourceName, scope, reporter))
 	case Token_EQUALS:
 		// Optional
 		// TODO(b/117162687): stop automatically converting {string=} to
 		// {(string|undefined)]}
-		return r.CreateOptionalType(r.CreateTypeFromCommentNodeWithScope(n.GetFirstChild(), sourceName, scope))
+		return r.CreateOptionalType(r.CreateTypeFromCommentNodeWithScopeAndReporter(n.GetFirstChild(), sourceName, scope, reporter))
 	case Token_ITER_REST:
 		// Var args
-		return r.CreateTypeFromCommentNodeWithScope(n.GetFirstChild(), sourceName, scope)
+		return r.CreateTypeFromCommentNodeWithScopeAndReporter(n.GetFirstChild(), sourceName, scope, reporter)
 	case Token_STAR:
 		// The AllType
 		return r.GetNativeType(JSTypeNative_ALL_TYPE)
@@ -556,7 +580,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 		var buf [8]JSType
 		builder := buf[:0]
 		for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-			builder = append(builder, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScope(child, sourceName, scope)))
+			builder = append(builder, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScopeAndReporter(child, sourceName, scope, reporter)))
 		}
 		return r.CreateUnionTypeOfList(builder)
 	case Token_EMPTY:
@@ -580,6 +604,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 				SetScope(scope).
 				SetResolutionKind(NamedType_ResolutionKind_TYPEOF).
 				SetErrorReportingLocationFrom(n).
+				SetReporter(reporter).
 				Build()
 		}
 		if type_.IsLiteralObject() {
@@ -587,17 +612,18 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 			type_ = NamedType_Builder_(r, "typeof "+name).
 				SetResolutionKind(NamedType_ResolutionKind_NONE).
 				SetReferencedType(scopeType).
+				SetReporter(reporter).
 				Build()
 		}
 		return type_
 	case Token_STRINGLIT:
-		nominalType := r.getTypeWithLocationString(scope, n.GetString(), sourceName, n.GetLineno(), n.GetCharno())
-		templateArgs := r.ParseTemplateArgs(nominalType, n, sourceName, scope)
+		nominalType := r.getTypeWithLocationStringAndReporter(scope, n.GetString(), sourceName, n.GetLineno(), n.GetCharno(), reporter)
+		templateArgs := r.parseTemplateArgsWithReporter(nominalType, n, sourceName, scope, reporter)
 
 		// Handle forward declared types
 		if nominalType.IsNamedType() && !nominalType.IsResolved() {
 			if templateArgs != nil {
-				nominalType = nominalType.ToMaybeNamedType().ToBuilder().SetTemplateTypes(templateArgs).Build()
+				nominalType = nominalType.ToMaybeNamedType().ToBuilder().SetTemplateTypes(templateArgs).SetReporter(reporter).Build()
 			}
 			return r.AddNullabilityBasedOnParseContext(n, nominalType, scope)
 		}
@@ -623,7 +649,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 		if current.IsThis() || current.IsNew() {
 			contextNode := current.GetFirstChild()
 
-			candidateThisType := r.CreateTypeFromCommentNodeWithScope(contextNode, sourceName, scope)
+			candidateThisType := r.CreateTypeFromCommentNodeWithScopeAndReporter(contextNode, sourceName, scope, reporter)
 
 			// Allow null/undefined 'this' types to indicate that the function is
 			// not called in a deliberate context, and 'this' access should raise
@@ -635,7 +661,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 			} else if current.IsNew() {
 				thisType = jsTypeOrNil(ObjectType_Cast(candidateThisType.RestrictByNotNullOrUndefined()))
 				if thisType == nil {
-					r.reporter.Warning(
+					reporter.Warning(
 						Msg_JSDOC_FUNCTION_NEWNOTOBJECT.Format(),
 						sourceName,
 						contextNode.GetLineno(),
@@ -658,14 +684,14 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 						paramBuilder.AddVarArgs(r.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 					} else {
 						paramBuilder.AddVarArgs(
-							r.CreateTypeFromCommentNodeWithScope(arg.GetFirstChild(), sourceName, scope))
+							r.CreateTypeFromCommentNodeWithScopeAndReporter(arg.GetFirstChild(), sourceName, scope, reporter))
 					}
 				} else {
-					type_ := r.CreateTypeFromCommentNodeWithScope(arg, sourceName, scope)
+					type_ := r.CreateTypeFromCommentNodeWithScopeAndReporter(arg, sourceName, scope, reporter)
 					if arg.GetToken() == Token_EQUALS {
 						addSuccess := paramBuilder.AddOptionalParam(type_)
 						if !addSuccess {
-							r.reporter.Warning(
+							reporter.Warning(
 								Msg_JSDOC_FUNCTION_VARARGS.Format(),
 								sourceName,
 								arg.GetLineno(),
@@ -679,7 +705,7 @@ func (r *JSTypeRegistry) CreateTypeFromCommentNodeWithScope(n Node, sourceName s
 			current = current.GetNext()
 		}
 
-		returnType := r.CreateTypeFromCommentNodeWithScope(current, sourceName, scope)
+		returnType := r.CreateTypeFromCommentNodeWithScopeAndReporter(current, sourceName, scope, reporter)
 
 		kind := FunctionType_Kind_ORDINARY
 		if isConstructor {
@@ -729,6 +755,14 @@ func (r *JSTypeRegistry) AddNullabilityBasedOnParseContext(n Node, type_ JSType,
 // Java: JSTypeRegistry.parseTemplateArgs(JSType, Node, String, StaticTypedScope)
 func (r *JSTypeRegistry) ParseTemplateArgs(
 	nominalType JSType, typeNode Node, sourceName string, scope StaticTypedScope) []JSType {
+	return r.parseTemplateArgsWithReporter(nominalType, typeNode, sourceName, scope, r.reporter)
+}
+
+func (r *JSTypeRegistry) parseTemplateArgsWithReporter(
+	nominalType JSType, typeNode Node, sourceName string, scope StaticTypedScope, reporter ErrorReporter) []JSType {
+	if reporter == nil {
+		reporter = r.reporter
+	}
 	typeList := typeNode.GetFirstChild()
 	if typeList.IsNil() {
 		return nil
@@ -750,7 +784,7 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 		templateArgs = append(templateArgs, r.GetNativeType(JSTypeNative_UNKNOWN_TYPE))
 	}
 	for templateNode := typeList.GetFirstChild(); !templateNode.IsNil(); templateNode = templateNode.GetNext() {
-		templateArgs = append(templateArgs, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScope(templateNode, sourceName, scope)))
+		templateArgs = append(templateArgs, jutil.CheckNotNull(r.CreateTypeFromCommentNodeWithScopeAndReporter(templateNode, sourceName, scope, reporter)))
 	}
 
 	if nominalType.IsNamedType() && !nominalType.IsResolved() {
@@ -779,7 +813,7 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 			jutil.ToJavaString(len(templateArgs)) +
 			", required at most " +
 			jutil.ToJavaString(requiredTemplateArgCount)
-		r.reporter.Warning(
+		reporter.Warning(
 			message,
 			sourceName,
 			firstExtraTemplateParam.GetLineno(),
@@ -797,6 +831,14 @@ func (r *JSTypeRegistry) ParseTemplateArgs(
 //
 // Java: JSTypeRegistry.createRecordTypeFromNodes(Node, String, StaticTypedScope)
 func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n Node, sourceName string, scope StaticTypedScope) JSType {
+	return r.createRecordTypeFromNodesWithReporter(n, sourceName, scope, r.reporter)
+}
+
+func (r *JSTypeRegistry) createRecordTypeFromNodesWithReporter(
+	n Node, sourceName string, scope StaticTypedScope, reporter ErrorReporter) JSType {
+	if reporter == nil {
+		reporter = r.reporter
+	}
 	var builder RecordTypeBuilder
 	builder.init(r)
 
@@ -825,7 +867,7 @@ func (r *JSTypeRegistry) CreateRecordTypeFromNodes(n Node, sourceName string, sc
 
 		if hasType {
 			// We have a declared type.
-			fieldType = r.CreateTypeFromCommentNodeWithScope(fieldTypeNode.GetLastChild(), sourceName, scope)
+			fieldType = r.CreateTypeFromCommentNodeWithScopeAndReporter(fieldTypeNode.GetLastChild(), sourceName, scope, reporter)
 		} else {
 			// Otherwise, the type is UNKNOWN.
 			fieldType = r.GetNativeType(JSTypeNative_UNKNOWN_TYPE)

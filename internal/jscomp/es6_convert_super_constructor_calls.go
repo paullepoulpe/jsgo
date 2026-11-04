@@ -115,7 +115,7 @@ func (e *Es6ConvertSuperConstructorCalls) ShouldTraverse(t *NodeTraversal, n rhi
 		e.constructorDataStack = append(e.constructorDataStack, es6ConstructorData{constructor: n})
 	} else if n.IsSuper() {
 		jutil.CheckStateMsg1(n.IsFirstChildOf(parent), "%s", parent)
-		if _, ok := ast.AsGetProp(parent); ok {
+		if _, ok := ast.AsNormalGet(parent); ok {
 			t.Report(n, TranspilationUtil_CANNOT_CONVERT_YET, "super access with no extends clause")
 			return false
 		}
@@ -177,18 +177,20 @@ func (e *Es6ConvertSuperConstructorCalls) visitSuper(t *NodeTraversal, construct
 
 func (e *Es6ConvertSuperConstructorCalls) replaceSuperCallsWithThis(superCalls []rhino.Node, thisType AstFactory_Type) {
 	for _, superCall := range superCalls {
-		var sideEffectArgs []rhino.Node
-		callee := superCall.RemoveFirstChild()
+		call := ast.MustCall(superCall)
+		callee := call.Callee().Node()
 		jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
-		for superCall.HasChildren() {
-			arg := superCall.RemoveFirstChild()
-			if _, ok := ast.AsSpread(arg); ok {
-				arg = arg.RemoveFirstChild()
+		var sideEffectArgs []rhino.Node
+		for arg, ok := call.FirstArg(); ok; arg, ok = call.FirstArg() {
+			argNode := arg.Detach().Node()
+			if spread, isSpread := ast.AsSpread(argNode); isSpread {
+				argNode = spread.Expr().Detach().Node()
 			}
-			if e.compiler.GetAstAnalyzer().MayHaveSideEffects(arg) {
-				sideEffectArgs = append(sideEffectArgs, arg)
+			if e.compiler.GetAstAnalyzer().MayHaveSideEffects(argNode) {
+				sideEffectArgs = append(sideEffectArgs, argNode)
 			}
 		}
+		callee.Detach()
 
 		replacement := e.astFactory.CreateThis(thisType).Srcref(superCall)
 		if len(sideEffectArgs) != 0 {
@@ -210,43 +212,46 @@ func (e *Es6ConvertSuperConstructorCalls) rewriteSuperCallsToJsCompConstructCall
 	thisType AstFactory_Type,
 	uniqueSuperThisName string,
 ) {
-	constructorBody := rhino.CheckNotNull(ast.MustFunction(constructor).Body().Node())
-	firstStatement := constructorBody.GetFirstChild()
-	rhino.CheckNotNullMsg(firstStatement, "Empty constructor body")
+	bodyBlock := ast.MustFunction(constructor).Body().MustBlock()
+	constructorBody := bodyBlock.Node()
+	firstStmt, _ := bodyBlock.FirstStatement()
+	firstStatement := rhino.CheckNotNullMsg(firstStmt.Node(), "Empty constructor body")
 	firstSuperCall := superCalls[0]
 
-	if exprStmt, ok := ast.AsExprStmt(firstStatement); ok &&
-		constructorBody.HasOneChild() &&
-		exprStmt.Expr().Node() == firstSuperCall {
-		jutil.CheckStateMsg1(len(superCalls) == 1, "%s", constructor)
-		firstStatement.ReplaceWith(
-			e.astFactory.CreateReturn(
-				e.createJSCompConstructorCall(superClassNameNode, firstSuperCall, thisType)))
-	} else {
-		typeOfThis := e.typeOfThisForConstructor(constructor)
-		e.updateThisToSuperThis(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
-		declaration := e.astFactory.
-			CreateSingleVarNameDeclaration(uniqueSuperThisName).
-			SrcrefTree(constructorBody)
-		insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
-		if !insertBeforePoint.IsNil() {
-			declaration.InsertBefore(insertBeforePoint)
-		} else {
-			constructorBody.AddChildToBack(declaration)
+	if onlyStmt, hasOnly := bodyBlock.OnlyStatement(); hasOnly {
+		if exprStmt, ok := onlyStmt.AsExprStmt(); ok && exprStmt.Expr().Is(firstSuperCall) {
+			jutil.CheckStateMsg1(len(superCalls) == 1, "%s", constructor)
+			firstStatement.ReplaceWith(
+				e.astFactory.CreateReturn(
+					e.createJSCompConstructorCall(superClassNameNode, firstSuperCall, thisType)))
+			e.compiler.ReportChangeToEnclosingScope(constructorBody)
+			return
 		}
+	}
 
-		constructorBody.AddChildToBack(
+	typeOfThis := e.typeOfThisForConstructor(constructor)
+	e.updateThisToSuperThis(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
+	declaration := e.astFactory.
+		CreateSingleVarNameDeclaration(uniqueSuperThisName).
+		SrcrefTree(constructorBody)
+	insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
+	if !insertBeforePoint.IsNil() {
+		declaration.InsertBefore(insertBeforePoint)
+	} else {
+		constructorBody.AddChildToBack(declaration)
+	}
+
+	constructorBody.AddChildToBack(
+		e.astFactory.
+			CreateReturn(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
+			SrcrefTree(constructorBody))
+	for _, superCall := range superCalls {
+		superCall.ReplaceWith(
 			e.astFactory.
-				CreateReturn(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
-				SrcrefTree(constructorBody))
-		for _, superCall := range superCalls {
-			superCall.ReplaceWith(
-				e.astFactory.
-					CreateAssign(
-						e.astFactory.CreateName(uniqueSuperThisName, typeOfThis).Srcref(superCall),
-						e.createJSCompConstructorCall(superClassNameNode, superCall, thisType)).
-					Srcref(superCall))
-		}
+				CreateAssign(
+					e.astFactory.CreateName(uniqueSuperThisName, typeOfThis).Srcref(superCall),
+					e.createJSCompConstructorCall(superClassNameNode, superCall, thisType)).
+				Srcref(superCall))
 	}
 	e.compiler.ReportChangeToEnclosingScope(constructorBody)
 }
@@ -291,51 +296,54 @@ func (e *Es6ConvertSuperConstructorCalls) rewriteSuperAndPreserveReturnedThis(
 			constructor, superCalls, superClassNameNode, thisType, uniqueSuperThisName)
 		return
 	}
-	constructorBody := rhino.CheckNotNull(ast.MustFunction(constructor).Body().Node())
-	firstStatement := constructorBody.GetFirstChild()
+	bodyBlock := ast.MustFunction(constructor).Body().MustBlock()
+	constructorBody := bodyBlock.Node()
 	firstSuperCall := superCalls[0]
 
-	if exprStmt, ok := ast.AsExprStmt(firstStatement); ok &&
-		constructorBody.HasOneChild() &&
-		exprStmt.Expr().Node() == firstSuperCall {
-		jutil.CheckStateMsg1(len(superCalls) == 1, "%s", constructor)
-		newReturn :=
-			e.astFactory.CreateOr(
-				e.createNewSuperCall(
-					superClassNameNode,
-					firstSuperCall,
-					AstFactory_Type_(firstSuperCall),
-					AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)),
-				e.astFactory.CreateThis(thisType))
-		firstStatement.ReplaceWith(rhino.IR_ReturnNodeWithExpr(newReturn).SrcrefTreeIfMissing(firstStatement))
+	if onlyStmt, hasOnly := bodyBlock.OnlyStatement(); hasOnly {
+		if exprStmt, ok := onlyStmt.AsExprStmt(); ok && exprStmt.Expr().Is(firstSuperCall) {
+			jutil.CheckStateMsg1(len(superCalls) == 1, "%s", constructor)
+			firstStatement := onlyStmt.Node()
+			newReturn :=
+				e.astFactory.CreateOr(
+					e.createNewSuperCall(
+						superClassNameNode,
+						firstSuperCall,
+						AstFactory_Type_(firstSuperCall),
+						AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN)),
+					e.astFactory.CreateThis(thisType))
+			firstStatement.ReplaceWith(rhino.IR_ReturnNodeWithExpr(newReturn).SrcrefTreeIfMissing(firstStatement))
+			e.compiler.ReportChangeToEnclosingScope(constructorBody)
+			return
+		}
+	}
+
+	typeOfThis := e.typeOfThisForConstructor(constructor)
+	declaration :=
+		rhino.IR_Var(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
+			SrcrefTree(constructorBody)
+	insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
+	if !insertBeforePoint.IsNil() {
+		declaration.InsertBefore(insertBeforePoint)
 	} else {
-		typeOfThis := e.typeOfThisForConstructor(constructor)
-		declaration :=
-			rhino.IR_Var(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
-				SrcrefTree(constructorBody)
-		insertBeforePoint := NodeUtil_GetInsertionPointAfterAllInnerFunctionDeclarations(constructorBody)
-		if !insertBeforePoint.IsNil() {
-			declaration.InsertBefore(insertBeforePoint)
-		} else {
-			constructorBody.AddChildToBack(declaration)
-		}
-		constructorBody.AddChildToBack(
-			rhino.IR_ReturnNodeWithExpr(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
-				SrcrefTree(constructorBody))
+		constructorBody.AddChildToBack(declaration)
+	}
+	constructorBody.AddChildToBack(
+		rhino.IR_ReturnNodeWithExpr(e.astFactory.CreateName(uniqueSuperThisName, typeOfThis)).
+			SrcrefTree(constructorBody))
 
-		e.updateThisToSuperThis(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
+	e.updateThisToSuperThis(typeOfThis, constructorBody, superCalls, uniqueSuperThisName)
 
-		for _, superCall := range superCalls {
-			newSuperCall :=
-				e.createNewSuperCall(
-					superClassNameNode, superCall, typeOfThis, AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN))
-			superCall.ReplaceWith(
-				e.astFactory.
-					CreateAssign(
-						e.astFactory.CreateName(uniqueSuperThisName, typeOfThis),
-						e.astFactory.CreateOr(newSuperCall, e.astFactory.CreateThis(typeOfThis))).
-					SrcrefTreeIfMissing(superCall))
-		}
+	for _, superCall := range superCalls {
+		newSuperCall :=
+			e.createNewSuperCall(
+				superClassNameNode, superCall, typeOfThis, AstFactory_Type_OfColor(colors.StandardColors_UNKNOWN))
+		superCall.ReplaceWith(
+			e.astFactory.
+				CreateAssign(
+					e.astFactory.CreateName(uniqueSuperThisName, typeOfThis),
+					e.astFactory.CreateOr(newSuperCall, e.astFactory.CreateThis(typeOfThis))).
+				SrcrefTreeIfMissing(superCall))
 	}
 	e.compiler.ReportChangeToEnclosingScope(constructorBody)
 }
@@ -382,8 +390,15 @@ func (e *Es6ConvertSuperConstructorCalls) isKnownToReturnOnlyUndefined(functionQ
 		declaredValue = rhino.CheckNotNull(init.Node())
 	} else if assign, ok := ast.AsAssign(declaration); ok && assign.Target().Node() == declaredVarOrProp {
 		declaredValue = rhino.CheckNotNull(assign.Value().Node())
-	} else if declaration.IsObjectLit() && declaredVarOrProp.HasOneChild() {
-		declaredValue = rhino.CheckNotNull(declaredVarOrProp.GetFirstChild())
+	} else if _, isObj := ast.AsObjectLit(declaration); isObj && declaredVarOrProp.HasOneChild() {
+		if pkm, ok := ast.AsPlainKeyMember(declaredVarOrProp); ok {
+			declaredValue = rhino.CheckNotNull(pkm.Value().Node())
+		} else if os, ok := ast.AsObjectSpread(declaredVarOrProp); ok {
+			declaredValue = rhino.CheckNotNull(os.Expr().Node())
+		} else {
+			panic(jutil.NewIllegalStateExceptionMsg(
+				"Unexpected declaration format:\n" + declaration.ToStringTree()))
+		}
 	} else {
 		panic(jutil.NewIllegalStateExceptionMsg(
 			"Unexpected declaration format:\n" + declaration.ToStringTree()))
@@ -434,19 +449,21 @@ func (e *Es6ConvertSuperConstructorCalls) createNewSuperCall(
 	resultType AstFactory_Type,
 ) rhino.Node {
 	jutil.CheckArgumentMsg1(superClassQNameNode.IsQualifiedName(), "%s", superClassQNameNode)
-	jutil.CheckArgumentMsg1(superCall.IsCall(), "%s", superCall)
+	call, isCall := ast.AsCall(superCall)
+	jutil.CheckArgumentMsg1(isCall, "%s", superCall)
 
-	callee := superCall.RemoveFirstChild()
+	callee := call.Callee().Node()
 	jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
 
 	var args []rhino.Node
 	hasSpreadArg := false
-	for superCall.HasChildren() {
-		arg := superCall.RemoveFirstChild()
-		_, isSpread := ast.AsSpread(arg)
+	for arg, ok := call.FirstArg(); ok; arg, ok = call.FirstArg() {
+		argNode := arg.Detach().Node()
+		_, isSpread := ast.AsSpread(argNode)
 		hasSpreadArg = hasSpreadArg || isSpread
-		args = append(args, arg)
+		args = append(args, argNode)
 	}
+	callee.Detach()
 
 	if hasSpreadArg {
 		superClassDotApply := e.astFactory.
@@ -455,8 +472,8 @@ func (e *Es6ConvertSuperConstructorCalls) createNewSuperCall(
 		newSuperCall := e.astFactory.CreateCall(superClassDotApply, resultType).Srcref(superCall)
 		newSuperCall.AddChildToBack(e.astFactory.CreateThis(thisType).Srcref(callee))
 		ast.MustCall(newSuperCall).SetFreeCall(false)
-		if isSingleSpreadOfArguments(args) {
-			newSuperCall.AddChildToBack(args[0].GetOnlyChild().Detach())
+		if argTarget, ok := singleSpreadOfArgumentsTarget(args); ok {
+			newSuperCall.AddChildToBack(argTarget.Detach())
 		} else {
 			newSuperCall.AddChildToBack(e.astFactory.CreateArraylitOfIterable(slices.Values(args)).Srcref(superCall))
 		}
@@ -479,9 +496,10 @@ func (e *Es6ConvertSuperConstructorCalls) createNewSuperCall(
 func (e *Es6ConvertSuperConstructorCalls) createJSCompConstructorCall(
 	superClassQNameNode rhino.Node, superCall rhino.Node, thisType AstFactory_Type) rhino.Node {
 	jutil.CheckArgumentMsg1(superClassQNameNode.IsQualifiedName(), "%s", superClassQNameNode)
-	jutil.CheckArgumentMsg1(superCall.IsCall(), "%s", superCall)
+	call, isCall := ast.AsCall(superCall)
+	jutil.CheckArgumentMsg1(isCall, "%s", superCall)
 
-	callee := rhino.CheckNotNullMsg1(superCall.RemoveFirstChild(), "%s", superCall)
+	callee := rhino.CheckNotNullMsg1(call.Callee().Node(), "%s", superCall)
 	jutil.CheckStateMsg1(callee.IsSuper(), "%s", callee)
 
 	jscompDotConstruct :=
@@ -489,12 +507,13 @@ func (e *Es6ConvertSuperConstructorCalls) createJSCompConstructorCall(
 	superClassQName := superClassQNameNode.CloneTree()
 
 	var superCallArgList []rhino.Node
-	for superCall.HasChildren() {
-		superCallArgList = append(superCallArgList, superCall.RemoveFirstChild())
+	for arg, ok := call.FirstArg(); ok; arg, ok = call.FirstArg() {
+		superCallArgList = append(superCallArgList, arg.Detach().Node())
 	}
+	callee.Detach()
 	var superArgs rhino.Node
-	if isSingleSpreadOfArguments(superCallArgList) {
-		superArgs = superCallArgList[0].GetOnlyChild().Detach()
+	if argTarget, ok := singleSpreadOfArgumentsTarget(superCallArgList); ok {
+		superArgs = argTarget.Detach()
 	} else {
 		superArgs = e.astFactory.CreateArraylitOfIterable(slices.Values(superCallArgList)).Srcref(superCall)
 	}
@@ -510,17 +529,20 @@ func (e *Es6ConvertSuperConstructorCalls) createJSCompConstructorCall(
 		Srcref(superCall)
 }
 
-func isSingleSpreadOfArguments(nodeList []rhino.Node) bool {
+func singleSpreadOfArgumentsTarget(nodeList []rhino.Node) (rhino.Node, bool) {
 	if len(nodeList) != 1 {
-		return false
+		return rhino.NilNode, false
 	}
-	_, isSpread := ast.AsSpread(nodeList[0])
-	return isSpread && nodeList[0].GetOnlyChild().MatchesName("arguments")
+	spread, isSpread := ast.AsSpread(nodeList[0])
+	if !isSpread || !spread.Expr().Node().MatchesName("arguments") {
+		return rhino.NilNode, false
+	}
+	return spread.Expr().Node(), true
 }
 
 func (e *Es6ConvertSuperConstructorCalls) replaceNativeErrorSuperCall(
 	superCall rhino.Node, newSuperCall rhino.Node, compilerInput *CompilerInput) {
-	superStatement := NodeUtil_GetEnclosingStatement(superCall)
+	superStatement := statementInsertionPoint(superCall)
 	body := superStatement.GetParent()
 	jutil.CheckStateMsg1(body.IsBlock(), "%s", body)
 

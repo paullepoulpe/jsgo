@@ -34,6 +34,24 @@ type RemoveUnusedCode_Continuation struct {
 
 // Java: RemoveUnusedCode.Continuation.apply()
 func (c RemoveUnusedCode_Continuation) Apply(outer *RemoveUnusedCode) {
+	switch outer.recMode {
+	case rucRecGlobal:
+		prev := outer.activeGlobalRec
+		outer.activeGlobalRec = outer.resolveGlobalRec(c.scope)
+		c.applyInner(outer)
+		outer.activeGlobalRec = prev
+		return
+	case rucRecLocal:
+		prev := outer.activeLocalRec
+		outer.activeLocalRec = outer.resolveLocalRec(c.scope)
+		c.applyInner(outer)
+		outer.activeLocalRec = prev
+		return
+	}
+	c.applyInner(outer)
+}
+
+func (c RemoveUnusedCode_Continuation) applyInner(outer *RemoveUnusedCode) {
 	if _, isFn := ast.AsFunction(c.node); isFn {
 		// Calling traverseNode here would create infinite recursion for a function declaration
 		outer.TraverseFunction(c.node, c.scope)

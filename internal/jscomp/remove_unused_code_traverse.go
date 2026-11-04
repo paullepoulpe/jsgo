@@ -49,9 +49,7 @@ func (r *RemoveUnusedCode) traverseNameReference(n rhino.Node, scope *Scope) {
 		jutil.CheckState(role != ast.RoleFunctionName && role != ast.RoleClassName)
 	}
 	varInfo := r.TraverseNameNode(n, scope)
-	if varInfo.IsRemovable() {
-		varInfo.pinAt(rucPinReferenceFound, n)
-	}
+	varInfo.pinAt(rucPinReferenceFound, n)
 }
 
 // TraverseNode traverses everything in the current scope and marks
@@ -319,6 +317,7 @@ func (r *RemoveUnusedCode) TraverseCall(callNode rhino.Node, scope *Scope) {
 			polyfillName = "TypedArray.prototype." + polyfillName
 		}
 		info := r.createPolyfillInfo(call, scope, polyfillName)
+		r.onPolyfillDefined(info.keyID)
 		r.polyBits.Set(int(info.keyID))
 		idx := r.ensurePropEntry(info.keyID)
 		entry := &r.propEntries[idx]
@@ -702,6 +701,33 @@ func (r *RemoveUnusedCode) TraverseChildren(n rhino.Node, scope *Scope) {
 //
 // Java: RemoveUnusedCode.traverseFunction(Node, Scope)
 func (r *RemoveUnusedCode) TraverseFunction(function rhino.Node, parentScope *Scope) {
+	if r.tryReplayOrDeferFunction(function, parentScope, true) {
+		return
+	}
+	r.traverseFunctionFull(function, parentScope)
+}
+
+func (r *RemoveUnusedCode) traverseFunctionFull(function rhino.Node, parentScope *Scope) {
+	switch r.recMode {
+	case rucRecGlobal:
+		if parentScope.IsGlobal() {
+			prev := r.activeGlobalRec
+			r.activeGlobalRec = r.beginFnRecord(function, parentScope)
+			r.traverseFunctionBody(function, parentScope)
+			r.activeGlobalRec = prev
+			return
+		}
+	case rucRecLocal:
+		prev := r.activeLocalRec
+		r.activeLocalRec = r.beginFnRecord(function, parentScope)
+		r.traverseFunctionBody(function, parentScope)
+		r.activeLocalRec = prev
+		return
+	}
+	r.traverseFunctionBody(function, parentScope)
+}
+
+func (r *RemoveUnusedCode) traverseFunctionBody(function rhino.Node, parentScope *Scope) {
 	fn, ok := ast.AsFunction(function)
 	jutil.CheckStateMsg1(ok, "%s", function)
 	bodyBlock, isBlock := fn.Body().AsBlock()

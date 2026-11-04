@@ -3,6 +3,7 @@ package jscomp
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -70,7 +71,11 @@ var (
 	propIndexReads atomic.Int64
 )
 
-const propIndexTimelineKey = "__propUseIndex__"
+const (
+	propIndexTimelineKey = "__propUseIndex__"
+	ocTimelineKey        = "__optimizeCalls__"
+	ocIntraTimelineKey   = "__optimizeCallsIntra__"
+)
 
 // The bits of an index item: what it is to its reader.
 const (
@@ -113,6 +118,7 @@ var piTokens = func() ast.TokenSet {
 		rhino.Token_CALL, rhino.Token_STRING_KEY, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF,
 		rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_MEMBER_FIELD_DEF,
 		rhino.Token_NAME, rhino.Token_SUPER, rhino.Token_OPTCHAIN_GETPROP,
+		rhino.Token_RETURN,
 	} {
 		s.Add(t)
 	}
@@ -144,12 +150,28 @@ type piKid struct {
 	s  *piScope
 }
 
+const (
+	piScopeFlagHasValueReturn uint8 = 1 << iota
+	piScopeFlagHasArgumentsName
+	piScopeFlagScriptIsExtern
+	piScopeFlagGlobalsApplied
+	piScopeFlagAppliedExtern
+)
+
 type piScope struct {
-	root  rhino.Node
-	items [piLists][]piItem
-	kids  []piKid
-	gen   uint32 // the update that last indexed it
-	mark  uint32 // the last sweep that reached it
+	root                rhino.Node
+	items               [piLists][]piItem
+	kids                []piKid
+	explicitGlobals     []uint32
+	implicitGoogGlobals []uint32
+	gen                 uint32 // the update that last indexed it
+	mark                uint32 // the last sweep that reached it
+	dirtyStamp          uint32
+	flags               uint8
+}
+
+type piGlobalCounts struct {
+	ext, js, goog int32
 }
 
 type propUseIndex struct {
@@ -160,6 +182,16 @@ type propUseIndex struct {
 	gen           uint32
 	sweeps        uint32
 	live          int // records reached by the last sweep
+
+	globalCounts        map[uint32]piGlobalCounts
+	globalNonExternBits []uint64
+	globalAnyBits       []uint64
+	globalAddedEpoch    uint32
+	building            bool
+
+	mayOptBits []uint64
+	mayOptConv CodingConvention
+	dirtyGen   uint32
 
 	conv    CodingConvention
 	threads int
@@ -255,6 +287,8 @@ func (c *Compiler) dropPropUseIndex() {
 	c.propIndex = nil
 	if c.changeTracker != nil {
 		c.changeTracker.changeTimeline.Unmark(propIndexTimelineKey)
+		c.changeTracker.changeTimeline.Unmark(ocTimelineKey)
+		c.changeTracker.changeTimeline.Unmark(ocIntraTimelineKey)
 	}
 }
 
@@ -324,7 +358,9 @@ func (ix *propUseIndex) build() {
 			work = append(work, ix.scopeFor(script))
 		}
 	}
+	ix.building = true
 	ix.indexAll(work)
+	ix.building = false
 	ix.live = len(ix.scopes)
 }
 
@@ -342,7 +378,8 @@ func (ix *propUseIndex) update(changed []rhino.Node) {
 	var work []*piScope
 	for _, n := range changed {
 		if !ix.attached(n) {
-			if _, ok := ix.scopes[n]; ok {
+			if s, ok := ix.scopes[n]; ok {
+				ix.unapplyScriptGlobals(s)
 				delete(ix.scopes, n)
 				ix.stats.dropped++
 			}
@@ -400,6 +437,12 @@ func (ix *propUseIndex) attached(n rhino.Node) bool {
 // are not worth starting.
 const piParallelMin = 64
 
+type piSavedScriptGlobals struct {
+	explicit     []uint32
+	implicitGoog []uint32
+	wasExtern    bool
+}
+
 // indexAll indexes the records of work (each once per update) and those of
 // the nested functions met for the first time, by rounds: each round indexes
 // its records (on the workers, when the compilation has several threads and
@@ -413,10 +456,27 @@ func (ix *propUseIndex) indexAll(work []*piScope) {
 			round = append(round, s)
 		}
 	}
+	var savedGlobals []piSavedScriptGlobals
 	for len(round) > 0 {
+		savedGlobals = savedGlobals[:0]
+		for _, s := range round {
+			if s.flags&piScopeFlagGlobalsApplied != 0 {
+				savedGlobals = append(savedGlobals, piSavedScriptGlobals{
+					explicit:     s.explicitGlobals,
+					implicitGoog: s.implicitGoogGlobals,
+					wasExtern:    s.flags&piScopeFlagAppliedExtern != 0,
+				})
+				s.explicitGlobals = nil
+				s.implicitGoogGlobals = nil
+				s.flags &^= piScopeFlagGlobalsApplied | piScopeFlagAppliedExtern
+			}
+		}
 		ix.indexRound(round)
 		var next []*piScope
 		for _, s := range round {
+			if s.root.IsScript() {
+				ix.applyScriptGlobals(s)
+			}
 			for i := range s.kids {
 				k := &s.kids[i]
 				kid := ix.scopes[k.n]
@@ -428,6 +488,10 @@ func (ix *propUseIndex) indexAll(work []*piScope) {
 				}
 				k.s = kid
 			}
+		}
+		for i := range savedGlobals {
+			g := &savedGlobals[i]
+			ix.subScriptGlobalSlices(g.explicit, g.implicitGoog, g.wasExtern)
 		}
 		round = next
 	}
@@ -483,6 +547,7 @@ func (ix *propUseIndex) sweep() {
 	// order-independent: deletes the records the roots do not reach
 	for n, s := range ix.scopes {
 		if s.mark != m {
+			ix.unapplyScriptGlobals(s)
 			delete(ix.scopes, n)
 			ix.stats.dropped++
 		} else {
@@ -517,6 +582,10 @@ func (r *piRecorder) index(s *piScope) {
 		r.lists[l] = r.lists[l][:0]
 	}
 	s.kids = s.kids[:0]
+	s.flags = 0
+	if s.root.IsScript() {
+		r.scanScriptGlobals(s)
+	}
 	r.cur = s
 	r.oc = propIndexOC && !NodeUtil_GetEnclosingScript(s.root).IsFromExterns()
 	NodeTraversal_Traverse(r.c, s.root, r)
@@ -530,6 +599,24 @@ func (r *piRecorder) index(s *piScope) {
 		}
 		copy(s.items[l], list)
 		r.items += len(list)
+	}
+}
+
+func (r *piRecorder) scanScriptGlobals(s *piScope) {
+	inp := r.c.GetInput(s.root.GetInputId())
+	if inp == nil || inp.IsExtern() {
+		s.flags |= piScopeFlagScriptIsExtern
+	}
+	s.explicitGlobals = s.explicitGlobals[:0]
+	s.implicitGoogGlobals = s.implicitGoogGlobals[:0]
+	sc := SyntacticScopeCreator{compiler: r.c}
+	gs := sc.CreateScopeOfScope(s.root, nil)
+	for _, v := range gs.varList {
+		if v.IsImplicitGoogNamespace() {
+			s.implicitGoogGlobals = append(s.implicitGoogGlobals, v.nameID)
+		} else {
+			s.explicitGlobals = append(s.explicitGlobals, v.nameID)
+		}
 	}
 }
 
@@ -556,6 +643,10 @@ func (r *piRecorder) Visit(t *NodeTraversal, n, parent rhino.Node) {
 	case rhino.Token_NAME:
 		if r.oc {
 			r.ocName(n)
+		}
+	case rhino.Token_RETURN:
+		if n.HasChildren() {
+			r.cur.flags |= piScopeFlagHasValueReturn
 		}
 	case rhino.Token_SUPER:
 		if r.oc {
@@ -741,6 +832,244 @@ func (ix *propUseIndex) verify(when string) {
 			fmt.Fprintf(&b, "  rebuilt: %s\n", piDescribe(w.it, w.owner))
 			panic(b.String())
 		}
+	}
+	ix.verifyGlobalsAndFlags(fresh, when)
+}
+
+func piBitGet(bits []uint64, id uint32) bool {
+	w := int(id >> 6)
+	return w < len(bits) && bits[w]&(uint64(1)<<(id&63)) != 0
+}
+
+func piBitSet(bits []uint64, id uint32) []uint64 {
+	w := int(id >> 6)
+	if w >= len(bits) {
+		bits = slices.Grow(bits, w+1-len(bits)+len(bits)/2)
+		bits = bits[:cap(bits)]
+	}
+	bits[w] |= uint64(1) << (id & 63)
+	return bits
+}
+
+func piBitClear(bits []uint64, id uint32) {
+	if w := int(id >> 6); w < len(bits) {
+		bits[w] &^= uint64(1) << (id & 63)
+	}
+}
+
+func (ix *propUseIndex) updateGlobalCount(id uint32, dExt, dJS, dGoog int32) (wasZero bool) {
+	if ix.globalCounts == nil {
+		ix.globalCounts = make(map[uint32]piGlobalCounts, 512)
+	}
+	c := ix.globalCounts[id]
+	wasZero = c.ext == 0 && c.js == 0 && c.goog == 0
+	c.ext += dExt
+	c.js += dJS
+	c.goog += dGoog
+	if c.ext == 0 && c.js == 0 && c.goog == 0 {
+		delete(ix.globalCounts, id)
+		piBitClear(ix.globalAnyBits, id)
+		piBitClear(ix.globalNonExternBits, id)
+	} else {
+		ix.globalCounts[id] = c
+		ix.globalAnyBits = piBitSet(ix.globalAnyBits, id)
+		if c.js > 0 && c.ext == 0 {
+			ix.globalNonExternBits = piBitSet(ix.globalNonExternBits, id)
+		} else {
+			piBitClear(ix.globalNonExternBits, id)
+		}
+	}
+	return wasZero
+}
+
+func (ix *propUseIndex) applyScriptGlobals(s *piScope) {
+	isExtern := s.flags&piScopeFlagScriptIsExtern != 0
+	addedNew := false
+	for _, id := range s.explicitGlobals {
+		var wasZero bool
+		if isExtern {
+			wasZero = ix.updateGlobalCount(id, 1, 0, 0)
+		} else {
+			wasZero = ix.updateGlobalCount(id, 0, 1, 0)
+		}
+		if !ix.building && wasZero {
+			addedNew = true
+		}
+	}
+	for _, id := range s.implicitGoogGlobals {
+		wasZero := ix.updateGlobalCount(id, 0, 0, 1)
+		if !ix.building && wasZero {
+			addedNew = true
+		}
+	}
+	s.flags |= piScopeFlagGlobalsApplied
+	if isExtern {
+		s.flags |= piScopeFlagAppliedExtern
+	} else {
+		s.flags &^= piScopeFlagAppliedExtern
+	}
+	if addedNew {
+		ix.globalAddedEpoch++
+	}
+}
+
+func (ix *propUseIndex) unapplyScriptGlobals(s *piScope) {
+	if s.flags&piScopeFlagGlobalsApplied == 0 {
+		return
+	}
+	wasExtern := s.flags&piScopeFlagAppliedExtern != 0
+	ix.subScriptGlobalSlices(s.explicitGlobals, s.implicitGoogGlobals, wasExtern)
+	s.explicitGlobals = nil
+	s.implicitGoogGlobals = nil
+	s.flags &^= piScopeFlagGlobalsApplied | piScopeFlagAppliedExtern
+}
+
+func (ix *propUseIndex) subScriptGlobalSlices(explicit, implicitGoog []uint32, wasExtern bool) {
+	if wasExtern {
+		for _, id := range explicit {
+			ix.updateGlobalCount(id, -1, 0, 0)
+		}
+	} else {
+		for _, id := range explicit {
+			ix.updateGlobalCount(id, 0, -1, 0)
+		}
+	}
+	for _, id := range implicitGoog {
+		ix.updateGlobalCount(id, 0, 0, -1)
+	}
+}
+
+func (ix *propUseIndex) canUseGlobalRefcounts() bool {
+	for script := ix.externs.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		s := ix.scopes[script]
+		if s == nil || s.flags&piScopeFlagScriptIsExtern == 0 {
+			return false
+		}
+	}
+	for script := ix.root.GetFirstChild(); !script.IsNil(); script = script.GetNext() {
+		s := ix.scopes[script]
+		if s == nil || s.flags&piScopeFlagScriptIsExtern != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (ix *propUseIndex) isGlobalNonExtern(id uint32) bool {
+	return piBitGet(ix.globalNonExternBits, id)
+}
+
+func (ix *propUseIndex) hasGlobalVarByID(id uint32) bool {
+	return piBitGet(ix.globalAnyBits, id)
+}
+
+func (ix *propUseIndex) scopeHasValueReturn(fn rhino.Node) bool {
+	s := ix.scopes[fn]
+	if s == nil {
+		return true
+	}
+	return s.flags&piScopeFlagHasValueReturn != 0
+}
+
+func (ix *propUseIndex) doesFunctionRefOwnArguments(fn rhino.Node) bool {
+	if fn.IsArrowFunction() {
+		return false
+	}
+	s := ix.scopes[fn]
+	if s == nil {
+		return NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn)
+	}
+	return piScopeRefsArguments(s)
+}
+
+func piScopeRefsArguments(s *piScope) bool {
+	if s.flags&piScopeFlagHasArgumentsName != 0 {
+		return true
+	}
+	for i := range s.kids {
+		k := &s.kids[i]
+		if k.n.IsArrowFunction() {
+			if k.s == nil {
+				if NodeUtil_ReferencesArgumentsHelper(k.n) {
+					return true
+				}
+			} else if piScopeRefsArguments(k.s) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (ix *propUseIndex) mayBeOptimizableNameByID(compiler AbstractCompiler, id uint32) bool {
+	conv := compiler.GetCodingConvention()
+	if ix.mayOptConv != conv {
+		clear(ix.mayOptBits)
+		ix.mayOptConv = conv
+	}
+	w := int(id >> 5)
+	shift := (id & 31) * 2
+	if w < len(ix.mayOptBits) {
+		switch (ix.mayOptBits[w] >> shift) & 3 {
+		case 1:
+			return true
+		case 2:
+			return false
+		}
+	} else {
+		ix.mayOptBits = slices.Grow(ix.mayOptBits, w+1-len(ix.mayOptBits)+len(ix.mayOptBits)/2)
+		ix.mayOptBits = ix.mayOptBits[:cap(ix.mayOptBits)]
+	}
+	ok := !conv.IsExported(strpool.String(strpool.ID(id)))
+	if ok {
+		ix.mayOptBits[w] |= uint64(1) << shift
+	} else {
+		ix.mayOptBits[w] |= uint64(2) << shift
+	}
+	return ok
+}
+
+func (ix *propUseIndex) verifyGlobalsAndFlags(fresh *propUseIndex, when string) {
+	maxID := max(
+		len(ix.globalNonExternBits)*64,
+		len(ix.globalAnyBits)*64,
+		len(fresh.globalNonExternBits)*64,
+		len(fresh.globalAnyBits)*64,
+	)
+	// order-independent: computes maximum ID across map keys for exhaustive parity check
+	for id := range ix.globalCounts {
+		if int(id)+1 > maxID {
+			maxID = int(id) + 1
+		}
+	}
+	// order-independent: computes maximum ID across map keys for exhaustive parity check
+	for id := range fresh.globalCounts {
+		if int(id)+1 > maxID {
+			maxID = int(id) + 1
+		}
+	}
+	for i := 0; i < maxID; i++ {
+		id := uint32(i)
+		g, w := ix.globalCounts[id], fresh.globalCounts[id]
+		if g != w {
+			panic(fmt.Sprintf("property use index globalCounts[%q] differs %s: got %+v, want %+v",
+				strpool.String(strpool.ID(id)), when, g, w))
+		}
+		if ix.isGlobalNonExtern(id) != fresh.isGlobalNonExtern(id) ||
+			ix.hasGlobalVarByID(id) != fresh.hasGlobalVarByID(id) {
+			panic(fmt.Sprintf("property use index global bits[%q] differ %s",
+				strpool.String(strpool.ID(id)), when))
+		}
+	}
+	const cmpMask = piScopeFlagHasValueReturn | piScopeFlagHasArgumentsName | piScopeFlagScriptIsExtern
+	for _, top := range [2]rhino.Node{ix.externs, ix.root} {
+		ix.eachScope(top, func(s *piScope) {
+			fs := fresh.scopes[s.root]
+			if fs == nil || (s.flags&cmpMask) != (fs.flags&cmpMask) {
+				panic(fmt.Sprintf("property use index scope flags differ %s at %s: got %08b, want %08b",
+					when, piPosition(s.root), s.flags&cmpMask, fs.flags&cmpMask))
+			}
+		})
 	}
 }
 

@@ -145,7 +145,7 @@ func (p *PeepholeOptimizationsPass) Process(externs rhino.Node, root rhino.Node)
 			if !parallel || !p.processFullRootParallel(root) {
 				NodeTraversal_Traverse(p.compiler, root, p)
 			}
-		} else if !parallel || !p.processChangedScopesParallel(changedScopeNodes) {
+		} else if !parallel || !p.processChangedScopesParallel(root, changedScopeNodes) {
 			NodeTraversal_TraverseScopeRoots(
 				p.compiler, changedScopeNodes, p, false /* traverseNested */)
 		}
@@ -189,24 +189,403 @@ func finishPeepholeWorker(_ int, workerPass *PeepholeOptimizationsPass) {
 	workerPass.EndTraversal()
 }
 
-func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) bool {
+type peepholeScopeOutcome struct {
+	events   []recordedCompilerEvent
+	panicVal any
+}
+
+type peepholeWaveCallback struct {
+	pass        *PeepholeOptimizationsPass
+	rootScope   rhino.Node
+	slotByScope map[rhino.Node]int
+	outcomes    []peepholeScopeOutcome
+	rc          *recordingCompiler
+	childPanic  any
+}
+
+var (
+	_ NodeTraversal_Callback                            = (*peepholeWaveCallback)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*peepholeWaveCallback)(nil)
+	_ nodeTraversal_visitTokens                         = (*peepholeWaveCallback)(nil)
+)
+
+func (*peepholeWaveCallback) shouldTraverseOnlyScriptAndFunction() bool { return true }
+
+func (w *peepholeWaveCallback) visitTokens() *ast.TokenSet { return w.pass.visitTokens() }
+
+func (w *peepholeWaveCallback) Visit(t *NodeTraversal, n, parent rhino.Node) {
+	if w.childPanic != nil {
+		return
+	}
+	w.pass.Visit(t, n, parent)
+}
+
+func (w *peepholeWaveCallback) ShouldTraverse(t *NodeTraversal, n, _ rhino.Node) bool {
+	if w.childPanic != nil {
+		return false
+	}
+	if n == w.rootScope || !n.IsFunction() {
+		return true
+	}
+	if slot, ok := w.slotByScope[n]; ok {
+		out := &w.outcomes[slot]
+		if len(out.events) > 0 {
+			w.rc.parallelRecorder.events = append(w.rc.parallelRecorder.events, out.events...)
+			out.events = nil
+		}
+		if out.panicVal != nil {
+			w.childPanic = out.panicVal
+			out.panicVal = nil
+			t.noVisit = true
+			t.noBranchShouldTraverse = false
+			return false
+		}
+	}
+	return false
+}
+
+type peepholeWorkerSlot struct {
+	rc     recordingCompiler
+	pass   *PeepholeOptimizationsPass
+	waveCb peepholeWaveCallback
+	ready  bool
+}
+
+func (s *peepholeWorkerSlot) prepare(p *PeepholeOptimizationsPass) {
+	if !s.ready {
+		initRecordingCompiler(&s.rc, p.compiler)
+		s.pass = p.newWorkerPass(&s.rc)
+		s.ready = true
+		return
+	}
+	resetRecordingCompiler(&s.rc, p.compiler)
+	s.pass.pendingFeatures = 0
+}
+
+func cleanupPeepholeWorkerPool(pool []peepholeWorkerSlot) {
+	for i := range pool {
+		if pool[i].ready {
+			finishPeepholeWorker(i, pool[i].pass)
+		}
+	}
+}
+
+func runPeepholeWave(
+	p *PeepholeOptimizationsPass,
+	pool []peepholeWorkerSlot,
+	itemCount int,
+	runItem func(slot *peepholeWorkerSlot, idx int),
+	afterItem func(slot *peepholeWorkerSlot, idx int, panicVal any),
+) {
+	if itemCount <= 0 {
+		return
+	}
+	if itemCount == 1 || len(pool) <= 1 {
+		slot := &pool[0]
+		for idx := 0; idx < itemCount; idx++ {
+			slot.prepare(p)
+			var itemPanic any
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						itemPanic = r
+					}
+				}()
+				runItem(slot, idx)
+			}()
+			if itemPanic != nil {
+				slot.pass.pendingFeatures = 0
+			}
+			afterItem(slot, idx, itemPanic)
+		}
+		return
+	}
+
+	numWorkers := min(len(pool), itemCount)
+	workerPanic := spawnIndexedWorkers(itemCount, numWorkers, func(wIdx int, claim func() (int, bool)) {
+		slot := &pool[wIdx]
+		for {
+			idx, ok := claim()
+			if !ok {
+				return
+			}
+			slot.prepare(p)
+			var itemPanic any
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						itemPanic = r
+					}
+				}()
+				runItem(slot, idx)
+			}()
+			if itemPanic != nil {
+				slot.pass.pendingFeatures = 0
+			}
+			afterItem(slot, idx, itemPanic)
+		}
+	})
+	if workerPanic != nil {
+		rethrowParallelPanic(p.compiler, workerPanic)
+	}
+}
+
+func peepholeHasHugeScript(compiler *Compiler, scripts []rhino.Node) bool {
+	for _, script := range scripts {
+		if script.GetChildCount() >= 512 {
+			return true
+		}
+		if compiler != nil {
+			if inp := compiler.GetInput(script.GetInputId()); inp != nil {
+				if sf := inp.GetSourceFile(); sf != nil {
+					if sf.numBytes >= 256*1024 || len(sf.lineOffsets) >= 4096 {
+						return true
+					}
+					if cp := sf.code.Load(); cp != nil && len(*cp) >= 256*1024 {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func peepholeNodeAttachedToRoot(n, root rhino.Node) bool {
+	if n.IsNil() || n.IsDeleted() {
+		return false
+	}
+	for anc := n; !anc.IsNil(); anc = anc.GetParent() {
+		if anc == root {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *PeepholeOptimizationsPass) traverseFullScriptsParallel(root rhino.Node) bool {
 	return traverseScriptsParallel(p.compiler, root, parallelScriptOptions[*PeepholeOptimizationsPass]{
 		initWorker:   func(_ int, rc *Compiler) *PeepholeOptimizationsPass { return p.newWorkerPass(rc) },
 		finishWorker: finishPeepholeWorker,
 	})
 }
 
-func (p *PeepholeOptimizationsPass) processChangedScopesParallel(changedScopeNodes []rhino.Node) bool {
-	return runParallelNodesByScript(p.compiler, len(changedScopeNodes), parallelNodeTask[*PeepholeOptimizationsPass]{
-		nodeAt:     func(idx int) rhino.Node { return changedScopeNodes[idx] },
-		initWorker: func(_ int, rc *Compiler) *PeepholeOptimizationsPass { return p.newWorkerPass(rc) },
-		runItem: func(workerPass *PeepholeOptimizationsPass, idx int, rc *Compiler) {
-			b := NodeTraversal_Builder{compiler: rc, callback: workerPass}
-			b.traverseScopedRoot(changedScopeNodes[idx], false)
-		},
-		onItemPanic:  func(workerPass *PeepholeOptimizationsPass) { workerPass.pendingFeatures = 0 },
-		finishWorker: finishPeepholeWorker,
-	})
+func (p *PeepholeOptimizationsPass) processFullRootParallel(root rhino.Node) bool {
+	scripts, ok := collectRootScripts(root)
+	if !ok || len(scripts) == 0 {
+		return false
+	}
+	opts := p.compiler.GetOptions()
+	if opts == nil || opts.GetNumParallelThreads() <= 1 {
+		return false
+	}
+	maxThreads := opts.GetNumParallelThreads()
+
+	if len(scripts) >= maxThreads*2 && !peepholeHasHugeScript(p.compiler, scripts) {
+		return p.traverseFullScriptsParallel(root)
+	}
+
+	var waves [][]rhino.Node
+	waves = append(waves, scripts)
+	totalFunctions := 0
+	var collectFns func(n rhino.Node, depth int)
+	collectFns = func(n rhino.Node, depth int) {
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			if c.IsFunction() {
+				totalFunctions++
+				for len(waves) <= depth {
+					waves = append(waves, nil)
+				}
+				waves[depth] = append(waves[depth], c)
+				collectFns(c, depth+1)
+				continue
+			}
+			if !c.GetFirstChild().IsNil() {
+				collectFns(c, depth)
+			}
+		}
+	}
+	for _, script := range scripts {
+		collectFns(script, 1)
+	}
+	if totalFunctions < 32 {
+		return p.traverseFullScriptsParallel(root)
+	}
+
+	maxWaveSize := 0
+	for _, w := range waves {
+		if len(w) > maxWaveSize {
+			maxWaveSize = len(w)
+		}
+	}
+	if maxWaveSize < 2 {
+		return p.traverseFullScriptsParallel(root)
+	}
+
+	totalScopes := len(scripts) + totalFunctions
+	outcomes := make([]peepholeScopeOutcome, totalScopes)
+	slotByScope := make(map[rhino.Node]int, totalScopes)
+	nextSlot := 0
+	for _, w := range waves {
+		for _, sc := range w {
+			slotByScope[sc] = nextSlot
+			nextSlot++
+		}
+	}
+
+	pool := make([]peepholeWorkerSlot, min(maxThreads, maxWaveSize))
+	defer cleanupPeepholeWorkerPool(pool)
+
+	jsErrorPinsDeferred.Add(1)
+	defer jsErrorPinsDeferred.Add(-1)
+
+	deepest := len(waves) - 1
+	for d := deepest; d >= 0; d-- {
+		wave := waves[d]
+		isLeafWave := d == deepest
+		runPeepholeWave(
+			p,
+			pool,
+			len(wave),
+			func(slot *peepholeWorkerSlot, idx int) {
+				u := wave[idx]
+				if isLeafWave {
+					b := NodeTraversal_Builder{compiler: &slot.rc, callback: slot.pass}
+					b.traverseScopedRoot(u, false)
+					return
+				}
+				slot.waveCb = peepholeWaveCallback{
+					pass:        slot.pass,
+					rootScope:   u,
+					slotByScope: slotByScope,
+					outcomes:    outcomes,
+					rc:          &slot.rc,
+				}
+				b := NodeTraversal_Builder{compiler: &slot.rc, callback: &slot.waveCb}
+				b.traverseScopedRoot(u, true)
+			},
+			func(slot *peepholeWorkerSlot, idx int, panicVal any) {
+				uSlot := slotByScope[wave[idx]]
+				outcomes[uSlot].events = slot.rc.takeEvents()
+				if !isLeafWave && slot.waveCb.childPanic != nil {
+					outcomes[uSlot].panicVal = slot.waveCb.childPanic
+					slot.waveCb.childPanic = nil
+				} else {
+					outcomes[uSlot].panicVal = panicVal
+				}
+			},
+		)
+	}
+
+	for i := 0; i < len(scripts); i++ {
+		if len(outcomes[i].events) != 0 {
+			replayCompilerEvents(p.compiler, outcomes[i].events)
+		}
+		if outcomes[i].panicVal != nil {
+			rethrowParallelPanic(p.compiler, outcomes[i].panicVal)
+		}
+	}
+	return true
+}
+
+func (p *PeepholeOptimizationsPass) processChangedScopesParallel(root rhino.Node, changedScopeNodes []rhino.Node) bool {
+	n := len(changedScopeNodes)
+	numThreads := parallelThreadCount(p.compiler, n)
+	if n < 2 || numThreads <= 1 {
+		return false
+	}
+
+	inChanged := make(map[rhino.Node]struct{}, n)
+	for _, sc := range changedScopeNodes {
+		inChanged[sc] = struct{}{}
+	}
+
+	var waves [][]int
+	for i, sc := range changedScopeNodes {
+		if sc.IsNil() || sc.IsDeleted() {
+			return false
+		}
+		ancCount := 0
+		reachedRoot := false
+		for anc := sc; !anc.IsNil(); anc = anc.GetParent() {
+			if anc == root {
+				reachedRoot = true
+				break
+			}
+			if anc != sc && ChangeTracker_IsChangeScopeRoot(anc) {
+				if _, ok := inChanged[anc]; ok {
+					ancCount++
+				}
+			}
+		}
+		if !reachedRoot {
+			return false
+		}
+		for len(waves) <= ancCount {
+			waves = append(waves, nil)
+		}
+		waves[ancCount] = append(waves[ancCount], i)
+	}
+
+	maxWaveSize := 0
+	for _, w := range waves {
+		if len(w) > maxWaveSize {
+			maxWaveSize = len(w)
+		}
+	}
+	if maxWaveSize < 2 {
+		return false
+	}
+
+	eventsByItem := make([][]recordedCompilerEvent, n)
+	panicsByItem := make([]any, n)
+	pool := make([]peepholeWorkerSlot, min(numThreads, maxWaveSize))
+	defer cleanupPeepholeWorkerPool(pool)
+
+	jsErrorPinsDeferred.Add(1)
+	defer jsErrorPinsDeferred.Add(-1)
+
+	var active []int
+	for wIdx, w := range waves {
+		if wIdx == 0 {
+			active = w
+		} else {
+			active = active[:0]
+			for _, origIdx := range w {
+				if peepholeNodeAttachedToRoot(changedScopeNodes[origIdx], root) {
+					active = append(active, origIdx)
+				}
+			}
+		}
+		if len(active) == 0 {
+			continue
+		}
+		runPeepholeWave(
+			p,
+			pool,
+			len(active),
+			func(slot *peepholeWorkerSlot, idx int) {
+				origIdx := active[idx]
+				b := NodeTraversal_Builder{compiler: &slot.rc, callback: slot.pass}
+				b.traverseScopedRoot(changedScopeNodes[origIdx], false)
+			},
+			func(slot *peepholeWorkerSlot, idx int, panicVal any) {
+				origIdx := active[idx]
+				eventsByItem[origIdx] = slot.rc.takeEvents()
+				panicsByItem[origIdx] = panicVal
+			},
+		)
+	}
+
+	for i := 0; i < n; i++ {
+		if len(eventsByItem[i]) != 0 {
+			replayCompilerEvents(p.compiler, eventsByItem[i])
+		}
+		if panicsByItem[i] != nil {
+			rethrowParallelPanic(p.compiler, panicsByItem[i])
+		}
+	}
+	return true
 }
 
 // Java: PeepholeOptimizationsPass.PeepCallback.visit(NodeTraversal, Node, Node)
@@ -215,10 +594,14 @@ func (p *PeepholeOptimizationsPass) Visit(t *NodeTraversal, n rhino.Node, parent
 	if p.pendingFeatures != 0 && (n.IsScript() || n == t.scopeTraversalRoot) {
 		script := t.GetCurrentScript()
 		jutil.CheckStateMsg1(script.IsScript(), "%s", script)
-		for w := p.pendingFeatures; w != 0; {
-			b := bits.TrailingZeros64(w)
-			w &^= uint64(1) << uint(b)
-			NodeUtil_AddFeatureToScript(script, parser.FeatureSet_Feature(b), p.compiler)
+		if p.compiler != nil && p.compiler.parallelRecorder != nil {
+			p.compiler.parallelRecorder.recordScriptFeatures(p.compiler, script, p.pendingFeatures)
+		} else {
+			for w := p.pendingFeatures; w != 0; {
+				b := bits.TrailingZeros64(w)
+				w &^= uint64(1) << uint(b)
+				NodeUtil_AddFeatureToScript(script, parser.FeatureSet_Feature(b), p.compiler)
+			}
 		}
 		p.pendingFeatures = 0
 	}

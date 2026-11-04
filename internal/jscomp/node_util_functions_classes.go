@@ -620,7 +620,7 @@ func NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn rhino.Node) bool {
 //
 // Java: NodeUtil.referencesArgumentsHelper(Node)
 func NodeUtil_ReferencesArgumentsHelper(node rhino.Node) bool {
-	if node.IsName() && node.GetString() == "arguments" {
+	if node.IsName() && node.GetStringID() == implicitArgumentsID {
 		return true
 	}
 

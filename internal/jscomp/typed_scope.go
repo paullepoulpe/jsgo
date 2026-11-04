@@ -28,12 +28,17 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
+const (
+	typedScopeHasQualifiedVarsBit uint32 = 1 << 31
+	typedScopeIDMask              uint32 = ^typedScopeHasQualifiedVarsBit
+)
+
 var nextTypedScopeID atomic.Uint32
 
 func allocTypedScopeID() uint32 {
-	id := nextTypedScopeID.Add(1)
+	id := nextTypedScopeID.Add(1) & typedScopeIDMask
 	if id == 0 {
-		id = nextTypedScopeID.Add(1)
+		id = nextTypedScopeID.Add(1) & typedScopeIDMask
 	}
 	return id
 }
@@ -59,6 +64,7 @@ func allocTypedScopeID() uint32 {
 // at the top of abstract_scope.go.
 type TypedScope struct {
 	scopeCommon
+	// Bits 0..30: immutable scope ID; bit 31: typedScopeHasQualifiedVarsBit.
 	scopeID uint32
 
 	implicitVars *[4]*TypedVar
@@ -178,12 +184,15 @@ func (s *TypedScope) Equals(other any) bool {
 	return ok && s == that
 }
 
+func (s *TypedScope) id() uint32             { return s.scopeID & typedScopeIDMask }
+func (s *TypedScope) hasQualifiedVars() bool { return s.scopeID&typedScopeHasQualifiedVarsBit != 0 }
+
 // HashCode implements jutil.Hasher using scopeID (matching Java Object.hashCode).
 func (s *TypedScope) HashCode() int32 {
 	if s == nil {
 		return 0
 	}
-	h := s.scopeID * 0x9e3779b1
+	h := s.id() * 0x9e3779b1
 	return int32(h ^ (h >> 16))
 }
 
@@ -375,6 +384,9 @@ func (s *TypedScope) Declare(name string, nameNode rhino.Node,
 func (s *TypedScope) declareWithCreator(c *TypedScopeCreator, name string, nameNode rhino.Node,
 	type_ rhino.JSType, input *CompilerInput, inferred bool) (*TypedVar, bool) {
 	jutil.CheckState(name != "") // Java: name != null && !name.isEmpty()
+	if strings.IndexByte(name, '.') >= 0 {
+		s.scopeID |= typedScopeHasQualifiedVarsBit
+	}
 	wasReserved := s.build.consume(name)
 	var raw *TypedVar
 	if c != nil && s.parent != nil && !s.IsModuleScope() {
@@ -577,6 +589,10 @@ var (
 	typedScopeSymbolID    = strpool.Intern("Symbol")
 	typedScopeSymbolHash  = scopeNameHash("Symbol")
 	typedScopeSymbolBloom = scopeBloomFromHash(typedScopeSymbolHash)
+	typedScopeThisHash    = scopeNameHash("this")
+	typedScopeThisBloom   = scopeBloomFromHash(typedScopeThisHash)
+	typedScopeSuperHash   = scopeNameHash("super")
+	typedScopeSuperBloom  = scopeBloomFromHash(typedScopeSuperHash)
 )
 
 // lookupRootVar is AbstractScope.getVar, for a name without dots.
@@ -602,6 +618,15 @@ func (s *TypedScope) lookupRootVarPrehashed(
 	return nil
 }
 
+func (s *TypedScope) getVarBySimpleID(id uint32, name string) *TypedVar {
+	if strpool.ID(id) == typedScopeSymbolID {
+		return s.lookupRootVarPrehashed("Symbol", typedScopeSymbolHash, typedScopeSymbolBloom, 0, false)
+	}
+	h := scopeNameHash(name)
+	imp, isImplicit := AbstractScope_ImplicitVar_LookupID(id)
+	return s.lookupRootVarPrehashed(name, h, scopeBloomFromHash(h), imp, isImplicit)
+}
+
 // GetVarByID returns the slot for an interned strpool ID.
 func (s *TypedScope) GetVarByID(id uint32) *TypedVar {
 	sid := strpool.ID(id)
@@ -612,9 +637,75 @@ func (s *TypedScope) GetVarByID(id uint32) *TypedVar {
 	if strings.IndexByte(name, '.') >= 0 {
 		return s.GetVar(name)
 	}
-	h := scopeNameHash(name)
-	imp, isImplicit := AbstractScope_ImplicitVar_LookupID(id)
-	return s.lookupRootVarPrehashed(name, h, scopeBloomFromHash(h), imp, isImplicit)
+	return s.getVarBySimpleID(id, name)
+}
+
+// getPropQualifiedRoot walks a GETPROP chain to its root node without string
+// allocation, matching Node.GetQualifiedNameString() token rules 1-for-1.
+func getPropQualifiedRoot(n rhino.Node) (rhino.Node, bool) {
+	cur := n.GetFirstChild()
+	for cur.IsGetProp() {
+		cur = cur.GetFirstChild()
+	}
+	switch cur.GetToken() {
+	case rhino.Token_NAME:
+		id := cur.GetStringID()
+		if id == 0 || strpool.ID(id) == strpool.EmptyID {
+			return rhino.NilNode, false
+		}
+		return cur, true
+	case rhino.Token_THIS, rhino.Token_SUPER:
+		return cur, true
+	default:
+		return rhino.NilNode, false
+	}
+}
+
+func (s *TypedScope) lookupRootVarForQNameRoot(root rhino.Node) *TypedVar {
+	switch root.GetToken() {
+	case rhino.Token_THIS:
+		return s.lookupRootVarPrehashed("this", typedScopeThisHash, typedScopeThisBloom, AbstractScope_ImplicitVar_THIS, true)
+	case rhino.Token_SUPER:
+		return s.lookupRootVarPrehashed("super", typedScopeSuperHash, typedScopeSuperBloom, AbstractScope_ImplicitVar_SUPER, true)
+	case rhino.Token_NAME:
+		id := root.GetStringID()
+		if strpool.ID(id) == typedScopeSymbolID {
+			return s.lookupRootVarPrehashed("Symbol", typedScopeSymbolHash, typedScopeSymbolBloom, 0, false)
+		}
+		name := strpool.String(strpool.ID(id))
+		if dot := strings.IndexByte(name, '.'); dot >= 0 {
+			return s.lookupRootVar(name[:dot])
+		}
+		h := scopeNameHash(name)
+		imp, isImplicit := AbstractScope_ImplicitVar_LookupID(id)
+		return s.lookupRootVarPrehashed(name, h, scopeBloomFromHash(h), imp, isImplicit)
+	default:
+		return nil
+	}
+}
+
+// HasQualifiedVarForGetProp reports (with zero allocations) whether getprop is
+// a valid qualified name and whether s or its target root scope contains any
+// declared qualified-name vars.
+func (s *TypedScope) HasQualifiedVarForGetProp(n rhino.Node) (isQName bool, mayHaveVar bool) {
+	root, ok := getPropQualifiedRoot(n)
+	if !ok {
+		return false, false
+	}
+	if s == nil {
+		return true, false
+	}
+	if s.hasQualifiedVars() {
+		return true, true
+	}
+	if s.parent == nil {
+		return true, false
+	}
+	rootVar := s.lookupRootVarForQNameRoot(root)
+	if rootVar == nil {
+		return true, s.GetGlobalScope().hasQualifiedVars()
+	}
+	return true, rootVar.scope.hasQualifiedVars()
 }
 
 // GetVar returns the slot for name, considering shadowing of qualified names.
@@ -625,20 +716,29 @@ func (s *TypedScope) GetVar(name string) *TypedVar {
 	if dot < 0 {
 		return s.lookupRootVar(name)
 	}
-	ownSlot := s.getOwnSlotV(name)
-	if ownSlot != nil {
-		// Micro-optimization: variables declared directly in this scope cannot have been shadowed.
-		return ownSlot
-	} else if s.parent == nil {
+	if s.hasQualifiedVars() {
+		if ownSlot := s.getOwnSlotV(name); ownSlot != nil {
+			// Micro-optimization: variables declared directly in this scope cannot have been shadowed.
+			return ownSlot
+		}
+	}
+	if s.parent == nil {
 		return nil
 	}
 	rootVar := s.lookupRootVar(name[:dot])
 	if rootVar == nil {
 		// Default to the global scope because externs may have qualified names with undeclared roots.
-		return s.parent.GetGlobalScope().getOwnSlotV(name)
+		gs := s.GetGlobalScope()
+		if !gs.hasQualifiedVars() {
+			return nil
+		}
+		return gs.getOwnSlotV(name)
 	}
 	// Qualified names 'a.b.c' are declared in the same scope as 'a', never a child scope, which
 	// is why calling `getOwnSlot` is sufficient.
+	if !rootVar.scope.hasQualifiedVars() {
+		return nil
+	}
 	return rootVar.scope.getOwnSlotV(name)
 }
 

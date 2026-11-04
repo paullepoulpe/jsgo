@@ -40,9 +40,11 @@ type OptimizeParameters struct {
 	compiler    AbstractCompiler
 	astAnalyzer *AstAnalyzer
 	globalScope *Scope
+	refMap      *OptimizeCalls_ReferenceMap
 
 	// Allocated & cleaned up by process()
 	decisionsLog diagnostic.LogFile
+	convertedTTL bool
 	fnNodes      []rhino.Node
 	defNodes     []rhino.Node
 	ttlList      []rhino.Node
@@ -86,6 +88,9 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rh
 	defer decisionsLog.Close()
 	defer func() {
 		o.decisionsLog = diagnostic.LogFile{}
+		o.refMap = nil
+		o.globalScope = nil
+		o.convertedTTL = false
 		clear(o.fnNodes)
 		o.fnNodes = o.fnNodes[:0]
 		clear(o.defNodes)
@@ -98,40 +103,11 @@ func (o *OptimizeParameters) ProcessWithReferenceMap(externs rhino.Node, root rh
 		o.fixedParams = o.fixedParams[:0]
 	}()
 	o.decisionsLog = decisionsLog
-	o.globalScope = refMap.GetGlobalScope()
-
-	var toOptimize [][]rhino.Node
-
-	for id, refs := range refMap.GetNameReferencesByID() {
-		if o.analyzeCandidateByID("name", id, refs) {
-			toOptimize = append(toOptimize, refs)
-		}
+	o.refMap = refMap
+	if refMap.propIndex == nil {
+		o.globalScope = refMap.GetGlobalScope()
 	}
-
-	for id, refs := range refMap.GetPropReferencesByID() {
-		if o.analyzeCandidateByID("property", id, refs) {
-			toOptimize = append(toOptimize, refs)
-		}
-	}
-
-	// NOTE: Optimizations must keep ReferenceMap consistent:
-	// 1. Optional-arg elimination only moves parameter names/defaults into bodies.
-	// 2. Constant-arg elimination only runs on single-definition functions, moving
-	//    arguments from call sites into the body.
-	// 3. Unused-arg elimination may delete references and therefore runs last.
-	for _, refs := range toOptimize {
-		o.tryEliminateOptionalArgs(refs)
-	}
-
-	for _, refs := range toOptimize {
-		o.tryEliminateConstantArgs(refs)
-	}
-
-	optimizer := optimizeParametersUnusedOptimizer{outer: o}
-	for _, refs := range toOptimize {
-		optimizer.tryEliminateUnusedArgs(refs)
-	}
-	optimizer.applyChanges()
+	o.runWithReferenceMap(refMap)
 }
 
 type optimizeParametersUnusedOptimizer struct {
@@ -182,6 +158,10 @@ func (u *optimizeParametersUnusedOptimizer) tryEliminateUnusedArgs(refs []rhino.
 	unused.FlipRange(0, maxFormalsCount)
 
 	if lowestUsedRest < maxFormalsCount && unused.Cardinality() == 0 {
+		return
+	}
+	if lowestUsedRest == math.MaxInt32 && unused.Cardinality() == 0 &&
+		!optimizeParameters_hasExtraOrTrailingUndefinedArg(refs, maxFormalsCount) {
 		return
 	}
 
@@ -465,6 +445,7 @@ func (o *OptimizeParameters) analyzeCandidateByID(refKind string, keyID uint32, 
 		for _, ttlNode := range ttls {
 			o.convertTaggedTemplateLiteralToNormalCall(ast.MustTaggedTemplateLit(ttlNode))
 		}
+		o.convertedTTL = true
 		clear(ttls)
 		o.ttlList = ttls[:0]
 	}
@@ -543,14 +524,14 @@ func (o *OptimizeParameters) allDefinitionsAreCandidateFunctions(n rhino.Node) b
 			return false
 		}
 		fn := ctor.Function()
-		return !NodeUtil_DoesFunctionReferenceOwnArgumentsObject(fn.Node()) &&
+		return !o.doesFnRefOwnArguments(fn.Node()) &&
 			!optimizeParameters_mayReferenceParamBeforeBody(fn) &&
 			!optimizeParameters_isUsedViaDotConstructor(fn.Node())
 
 	case rhino.Token_FUNCTION:
 		fn := ast.MustFunction(n)
 		return !NodeUtil_IsNamedFunctionExpression(n) &&
-			!NodeUtil_DoesFunctionReferenceOwnArgumentsObject(n) &&
+			!o.doesFnRefOwnArguments(n) &&
 			!optimizeParameters_mayReferenceParamBeforeBody(fn) &&
 			!optimizeParameters_isUsedViaDotConstructor(n)
 
@@ -854,7 +835,7 @@ func (o *OptimizeParameters) findFixedParameters(cur rhino.Node) bool {
 func (o *OptimizeParameters) buildInitialParameterList(cur rhino.Node) bool {
 	anyMovable := false
 	for !cur.IsNil() {
-		movable := optimizeParameters_isMovableValue(cur, o.globalScope)
+		movable := o.isMovableValue(cur)
 		p := optimizeParametersParam{arg: cur, shouldRemove: movable}
 		o.setParameterSideEffectInfo(&p, cur)
 		o.fixedParams = append(o.fixedParams, p)
@@ -879,7 +860,7 @@ func (o *OptimizeParameters) setParameterSideEffectInfo(p *optimizeParametersPar
 }
 
 // Java: OptimizeParameters.isMovableValue(Node, Scope)
-func optimizeParameters_isMovableValue(n rhino.Node, globalScope *Scope) bool {
+func (o *OptimizeParameters) isMovableValue(n rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_AWAIT, rhino.Token_YIELD, rhino.Token_THIS, rhino.Token_SUPER,
 		rhino.Token_ITER_SPREAD, rhino.Token_OBJECT_SPREAD, rhino.Token_NEW_TARGET, rhino.Token_IMPORT_META:
@@ -888,13 +869,13 @@ func optimizeParameters_isMovableValue(n rhino.Node, globalScope *Scope) bool {
 		return false
 	case rhino.Token_NAME:
 		id := n.GetStringID()
-		if id == uint32(idArguments) || globalScope.GetVarByID(id) == nil {
+		if id == uint32(idArguments) || !o.hasGlobalVarByID(id) {
 			return false
 		}
 	}
 
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-		if !optimizeParameters_isMovableValue(c, globalScope) {
+		if !o.isMovableValue(c) {
 			return false
 		}
 	}
@@ -958,7 +939,8 @@ func (o *OptimizeParameters) optimizeCallSite(parameters []optimizeParametersPar
 		if !p.shouldRemove {
 			continue
 		}
-		if callArgNode := OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(target, index); !callArgNode.IsNil() {
+		callArgNode := OptimizeCalls_ReferenceMap_GetArgumentForCallOrNewOrDotCall(target, index)
+		if !callArgNode.IsNil() {
 			NodeUtil_DeleteNode(callArgNode, o.compiler)
 		}
 
@@ -967,6 +949,9 @@ func (o *OptimizeParameters) optimizeCallSite(parameters []optimizeParametersPar
 			callMayMutateGlobalsOrThrow = true
 			call.SetSideEffectFlagsObject(
 				rhino.NewNode_SideEffectFlagsWithValue(call.GetSideEffectFlags()).SetMutatesGlobalState())
+			if callArgNode.IsNil() {
+				o.compiler.ReportChangeToEnclosingScope(call)
+			}
 		}
 	}
 }
