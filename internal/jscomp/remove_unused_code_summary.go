@@ -874,24 +874,32 @@ func (r *RemoveUnusedCode) canSkipGlobalLocalFunctionUnit(u rhino.Node) bool {
 	return ok && s.isValid() && s.isGlobalParent() && s.matchesContext(u)
 }
 
-func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node) bool {
+func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node) (bool, *Scope) {
 	if !r.canParallelizeLocalScripts() || root.GetParent().IsNil() {
-		return false
+		return false, nil
 	}
 	if r.compiler == nil || r.compiler.GetOptions() == nil || r.compiler.GetOptions().GetNumParallelThreads() <= 1 {
-		return false
+		return false, nil
 	}
 	scripts, ok := collectRootScripts(root)
 	if !ok || len(scripts) == 0 {
-		return false
+		return false, nil
 	}
 
+	globalScope := r.createGlobalScope(root)
 	var units []rhino.Node
 	for _, script := range scripts {
 		mark := len(units)
-		if (!script.GetFirstChild().IsNil() && script.GetFirstChild().IsModuleBody()) ||
-			!collectGlobalLocalScopeUnits(script, &units) {
+		if !script.GetFirstChild().IsNil() && script.GetFirstChild().IsModuleBody() {
 			units = append(units[:mark], script)
+			continue
+		}
+		switch collectGlobalLocalScopeUnits(script, globalScope, &units) {
+		case rucUnitsOK:
+		case rucUnitsWholeScript:
+			units = append(units[:mark], script)
+		case rucUnitsFallbackSerial:
+			return false, globalScope
 		}
 	}
 
@@ -906,11 +914,10 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 
 	if len(workUnits) == 0 {
 		if rucIncrVerify && r.replayedCount > 0 {
-			gs := r.createGlobalScope(root)
-			r.verifySummaryReplay(root, gs)
+			r.verifySummaryReplay(root, globalScope)
 		}
 		r.finishSummaryRun(nil)
-		return true
+		return true, globalScope
 	}
 
 	numWorkers := parallelThreadCount(r.compiler, len(workUnits))
@@ -919,15 +926,13 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 		if r.varByKey == nil {
 			r.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 256)
 		}
-		gs := r.createGlobalScope(root)
 		for _, u := range workUnits {
-			r.traverseLocalUnit(u, gs)
+			r.traverseLocalUnit(u, globalScope)
 		}
 		r.finishSummaryRun(nil)
-		return true
+		return true, globalScope
 	}
 
-	globalScope := r.createGlobalScope(root)
 	freezeGlobalScopeForParallelReads(globalScope)
 	prewarmCompilerForParallelReads(r.compiler)
 	restore := enableParallelTypeRegistryReads(r.compiler)
@@ -964,7 +969,7 @@ func (r *RemoveUnusedCode) traverseAndRemoveLocalScriptsParallel(root rhino.Node
 		r.replayedCount += n
 	}
 	r.finishSummaryRun(workerRecs)
-	return true
+	return true, globalScope
 }
 
 func (r *RemoveUnusedCode) traverseLocalUnit(unit rhino.Node, globalScope *Scope) {

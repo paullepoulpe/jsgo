@@ -385,7 +385,8 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 	if r.beginSummaryRun(root) {
 		return
 	}
-	if r.traverseAndRemoveLocalScriptsParallel(root) {
+	handled, scope := r.traverseAndRemoveLocalScriptsParallel(root)
+	if handled {
 		return
 	}
 	r.cacheVarInfos = r.compiler != nil && r.compiler.parallelRecorder == nil &&
@@ -396,7 +397,9 @@ func (r *RemoveUnusedCode) TraverseAndRemoveUnusedReferences(root rhino.Node) {
 			r.pinnedProps.Set(int(id))
 		}
 	}
-	scope := r.createGlobalScope(root)
+	if scope == nil {
+		scope = r.createGlobalScope(root)
+	}
 	if r.varByKey == nil {
 		r.varByKey = make(map[scopedVarKey]*RemoveUnusedCode_RealVarInfo, 1024)
 	}
@@ -462,14 +465,32 @@ func (r *RemoveUnusedCode) resetLocalScriptWorker() {
 	r.activeGlobalRec = nil
 }
 
-func collectGlobalLocalScopeUnits(n rhino.Node, units *[]rhino.Node) bool {
+type rucLocalUnitStatus uint8
+
+const (
+	rucUnitsOK rucLocalUnitStatus = iota
+	rucUnitsWholeScript
+	rucUnitsFallbackSerial
+)
+
+func collectGlobalLocalScopeUnits(n rhino.Node, globalScope *Scope, units *[]rhino.Node) rucLocalUnitStatus {
 	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 		if c.GetFirstChild().IsNil() {
+			if c.GetToken() == rhino.Token_NAME && globalScope.GetVarByID(c.GetStringID()) == nil {
+				return rucUnitsFallbackSerial
+			}
 			continue
 		}
 		switch c.GetToken() {
 		case rhino.Token_MODULE_BODY:
-			return false
+			return rucUnitsWholeScript
+		case rhino.Token_NAME:
+			if globalScope.GetVarByID(c.GetStringID()) == nil {
+				return rucUnitsFallbackSerial
+			}
+			if st := collectGlobalLocalScopeUnits(c, globalScope, units); st != rucUnitsOK {
+				return st
+			}
 		case rhino.Token_FUNCTION, rhino.Token_CLASS,
 			rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF,
 			rhino.Token_SWITCH_BODY:
@@ -477,16 +498,16 @@ func collectGlobalLocalScopeUnits(n rhino.Node, units *[]rhino.Node) bool {
 		case rhino.Token_BLOCK:
 			if scanVarsBlockCreatesScope(c) && (NodeUtil_IsClassStaticBlock(c) || syntacticScopeHasBlockDecls(c)) {
 				*units = append(*units, c)
-			} else if !collectGlobalLocalScopeUnits(c, units) {
-				return false
+			} else if st := collectGlobalLocalScopeUnits(c, globalScope, units); st != rucUnitsOK {
+				return st
 			}
 		default:
-			if !collectGlobalLocalScopeUnits(c, units) {
-				return false
+			if st := collectGlobalLocalScopeUnits(c, globalScope, units); st != rucUnitsOK {
+				return st
 			}
 		}
 	}
-	return true
+	return rucUnitsOK
 }
 
 // trailingParamBinding returns what the parameter p binds: the name or

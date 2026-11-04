@@ -694,3 +694,80 @@ chainPinB(new MultiWidget(5, 6, 7, 8));
 		}
 	}
 }
+
+func TestRound98_SimpleModeTopLevelNonIndexableNameThrowsNPEParity(t *testing.T) {
+	cases := []struct {
+		name    string
+		scripts []string
+		wantSub string
+	}{
+		{
+			name: "standalone_goog_provide_enum_zero_local_units",
+			scripts: []string{
+				"goog.provide('goog.a11y.aria.Role');\n" +
+					"/** @enum {string} */\n" +
+					"goog.a11y.aria.Role = {ALERT: 'alert', BUTTON: 'button'};\n",
+			},
+			wantSub: "NullPointerException: NAME goog",
+		},
+		{
+			name: "standalone_goog_provide_interface_multiple_local_units",
+			scripts: []string{
+				"goog.provide('goog.crypt.Hash');\n" +
+					"/** @constructor */\n" +
+					"goog.crypt.Hash = function() {};\n" +
+					"goog.crypt.Hash.prototype.reset = function() {};\n" +
+					"goog.crypt.Hash.prototype.update = function(bytes, opt_length) {};\n" +
+					"goog.crypt.Hash.prototype.digest = function() {};\n",
+			},
+			wantSub: "NullPointerException: NAME goog",
+		},
+		{
+			name: "multi_script_functions_then_standalone_goog_provide",
+			scripts: []string{
+				"function keepOne(x) { var dead1 = 1; return x + 1; }\n" +
+					"function keepTwo(x) { var dead2 = 2; return x + 2; }\n",
+				"goog.provide('goog.ui.ButtonSide');\n" +
+					"/** @enum {number} */\n" +
+					"goog.ui.ButtonSide = {NONE: 0, START: 1};\n",
+			},
+			wantSub: "NullPointerException: NAME goog",
+		},
+	}
+
+	compileCapturePanic := func(scripts []string, threads int) (panicked string) {
+		defer func() {
+			if r := recover(); r != nil {
+				panicked = fmt.Sprint(r)
+			}
+		}()
+		comp := NewCompiler()
+		o := NewCompilerOptions()
+		CompilationLevel_SIMPLE_OPTIMIZATIONS.SetOptionsForCompilationLevel(o)
+		o.SetClosurePass(true)
+		o.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_2020)
+		o.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2020)
+		if threads > 1 {
+			o.SetNumParallelThreads(threads)
+		}
+		ins := make([]*SourceFile, len(scripts))
+		for i, s := range scripts {
+			ins[i] = SourceFile_FromCode(fmt.Sprintf("in_%d.js", i), s)
+		}
+		comp.Compile([]*SourceFile{SourceFile_FromCode("externs.js", "")}, ins, o)
+		return ""
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			seqPanic := compileCapturePanic(tc.scripts, 1)
+			parPanic := compileCapturePanic(tc.scripts, 4)
+			if !strings.Contains(seqPanic, tc.wantSub) {
+				t.Fatalf("1-thread panic = %q, want substring %q", seqPanic, tc.wantSub)
+			}
+			if parPanic != seqPanic {
+				t.Fatalf("4-thread panic mismatch:\ngot:  %s\nwant: %s", parPanic, seqPanic)
+			}
+		})
+	}
+}
