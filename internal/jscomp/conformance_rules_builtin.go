@@ -26,16 +26,14 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Java: ConformanceRules.RestrictedNameCall.Restriction
-type ConformanceRules_RestrictedNameCall_Restriction struct {
+type restrictedNameCallSpec struct {
 	name               rhino.Node
 	restrictedCallType rhino.FunctionType
 }
 
-// Java: ConformanceRules.RestrictedNameCall(AbstractCompiler, Requirement)
-func newConformanceRules_RestrictedNameCall(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_RestrictedNameCall, error) {
-	r := &ConformanceRules_RestrictedNameCall{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRules_RestrictedNameCall(compiler AbstractCompiler, requirement *Requirement) (*conformanceRestrictedNameCallRule, error) {
+	r := &conformanceRestrictedNameCallRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	values := requirement.GetValueList()
@@ -43,7 +41,7 @@ func newConformanceRules_RestrictedNameCall(compiler AbstractCompiler, requireme
 		return nil, errInvalidRequirementSpec("missing value")
 	}
 
-	restrictions := make([]ConformanceRules_RestrictedNameCall_Restriction, 0, len(values))
+	restrictions := make([]restrictedNameCallSpec, 0, len(values))
 	for _, value := range values {
 		nameFromValue, restrictedDecl, ok := splitConformanceNameAndType(value)
 		if !ok {
@@ -54,7 +52,7 @@ func newConformanceRules_RestrictedNameCall(compiler AbstractCompiler, requireme
 			return nil, errInvalidRequirementSpec("bad prop value")
 		}
 
-		evaluated, err := conformanceRules_evaluateTypeString(compiler, restrictedDecl)
+		evaluated, err := evaluateConformanceTypeString(compiler, restrictedDecl)
 		if err != nil {
 			return nil, err
 		}
@@ -62,7 +60,7 @@ func newConformanceRules_RestrictedNameCall(compiler AbstractCompiler, requireme
 		if restrictedCallType == nil {
 			return nil, errInvalidRequirementSpec("invalid conformance type")
 		}
-		restrictions = append(restrictions, ConformanceRules_RestrictedNameCall_Restriction{
+		restrictions = append(restrictions, restrictedNameCallSpec{
 			name:               name,
 			restrictedCallType: restrictedCallType,
 		})
@@ -71,22 +69,19 @@ func newConformanceRules_RestrictedNameCall(compiler AbstractCompiler, requireme
 	return r, nil
 }
 
-// Java: ConformanceRules.RestrictedNameCall.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_RestrictedNameCall) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if ConformanceRules_ConformanceUtil_IsCallTarget(n) && n.IsQualifiedName() {
+func (r *conformanceRestrictedNameCallRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if !n.IsNil() && isConformanceCallTarget(n) {
 		for i := range r.restrictions {
 			res := &r.restrictions[i]
 
-			if n.MatchesQualifiedNameNode(res.name) {
-				if !ConformanceRules_ConformanceUtil_ValidateCall(
-					r.compiler, n.GetParent(), res.restrictedCallType, false) {
+			if n.IsQualifiedName() && n.MatchesQualifiedNameNode(res.name) {
+				if !validateConformanceCall(r.compiler, n.GetParent(), res.restrictedCallType, false) {
 					return ConformanceRules_ConformanceResult_VIOLATION
 				}
-			} else if gp, ok := ast.AsGetProp(n); ok &&
+			} else if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok &&
 				gp.Property() == "call" &&
 				gp.Object().Node().MatchesQualifiedNameNode(res.name) {
-				if !ConformanceRules_ConformanceUtil_ValidateCall(
-					r.compiler, n.GetParent(), res.restrictedCallType, true) {
+				if !validateConformanceCall(r.compiler, n.GetParent(), res.restrictedCallType, true) {
 					return ConformanceRules_ConformanceResult_VIOLATION
 				}
 			}
@@ -95,24 +90,21 @@ func (r *ConformanceRules_RestrictedNameCall) CheckConformance(t *NodeTraversal,
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_RestrictedMethodCall is the banned property call rule.
-type ConformanceRules_RestrictedMethodCall struct {
-	ConformanceRules_AbstractRule
+type conformanceRestrictedMethodCallRule struct {
+	conformanceAbstractRule
 
-	restrictions []ConformanceRules_RestrictedMethodCall_Restriction
+	restrictions []restrictedMethodCallSpec
 }
 
-// Java: ConformanceRules.RestrictedMethodCall.Restriction
-type ConformanceRules_RestrictedMethodCall_Restriction struct {
+type restrictedMethodCallSpec struct {
 	type_              rhino.JSType
 	property           string
 	restrictedCallType rhino.FunctionType
 }
 
-// Java: ConformanceRules.RestrictedMethodCall(AbstractCompiler, Requirement)
-func newConformanceRules_RestrictedMethodCall(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_RestrictedMethodCall, error) {
-	r := &ConformanceRules_RestrictedMethodCall{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRules_RestrictedMethodCall(compiler AbstractCompiler, requirement *Requirement) (*conformanceRestrictedMethodCallRule, error) {
+	r := &conformanceRestrictedMethodCallRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 
@@ -122,18 +114,18 @@ func newConformanceRules_RestrictedMethodCall(compiler AbstractCompiler, require
 	}
 
 	registry := compiler.GetTypeRegistry()
-	restrictions := make([]ConformanceRules_RestrictedMethodCall_Restriction, 0, len(values))
+	restrictions := make([]restrictedMethodCallSpec, 0, len(values))
 	for _, value := range values {
 		declName, restrictedDecl, ok := splitConformanceNameAndType(value)
 		if !ok {
 			return nil, errInvalidRequirementSpec("value should be in the form NAME:TYPE")
 		}
-		typeName, property, hasClassAndProp := conformanceRules_splitClassAndProperty(declName)
+		typeName, property, hasClassAndProp := splitConformanceClassAndProperty(declName)
 		if !hasClassAndProp {
 			return nil, errInvalidRequirementSpec("bad prop value")
 		}
 
-		evaluated, err := conformanceRules_evaluateTypeString(compiler, restrictedDecl)
+		evaluated, err := evaluateConformanceTypeString(compiler, restrictedDecl)
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +133,7 @@ func newConformanceRules_RestrictedMethodCall(compiler AbstractCompiler, require
 		if restrictedCallType == nil {
 			return nil, errInvalidRequirementSpec("invalid conformance type")
 		}
-		restrictions = append(restrictions, ConformanceRules_RestrictedMethodCall_Restriction{
+		restrictions = append(restrictions, restrictedMethodCallSpec{
 			type_:              registry.GetGlobalType(typeName),
 			property:           property,
 			restrictedCallType: restrictedCallType,
@@ -152,10 +144,9 @@ func newConformanceRules_RestrictedMethodCall(compiler AbstractCompiler, require
 	return r, nil
 }
 
-// Java: ConformanceRules.RestrictedMethodCall.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_RestrictedMethodCall) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	gp, ok := ast.AsGetProp(n)
-	if !ok || !ConformanceRules_ConformanceUtil_IsCallTarget(n) {
+func (r *conformanceRestrictedMethodCallRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	gp, ok := ast.AsNormalOrOptChainGetProp(n)
+	if !ok || !isConformanceCallTarget(n) {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
 
@@ -164,11 +155,10 @@ func (r *ConformanceRules_RestrictedMethodCall) CheckConformance(t *NodeTraversa
 		result := ConformanceRules_ConformanceResult_CONFORMANCE
 
 		if gp.Property() == res.property {
-			result = r.checkConformanceWithRestriction(t, gp, res, false)
+			result = r.checkMethodCall(t, gp, gp.Object().Node(), res, false)
 		} else if gp.Property() == "call" {
-			if inner, ok := gp.Object().AsGetProp(); ok && inner.Property() == res.property {
-				// handle .call invocation
-				result = r.checkConformanceWithRestriction(t, gp, res, true)
+			if inner, ok := gp.Object().AsNormalOrOptChainGetProp(); ok && inner.Property() == res.property {
+				result = r.checkMethodCall(t, gp, inner.Object().Node(), res, true)
 			}
 		}
 
@@ -180,27 +170,25 @@ func (r *ConformanceRules_RestrictedMethodCall) CheckConformance(t *NodeTraversa
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.RestrictedMethodCall.checkConformance(NodeTraversal, Node, Restriction, boolean)
-func (r *ConformanceRules_RestrictedMethodCall) checkConformanceWithRestriction(
-	t *NodeTraversal, gp ast.GetProp, res *ConformanceRules_RestrictedMethodCall_Restriction, isCallInvocation bool) *ConformanceRules_ConformanceResult {
+func (r *conformanceRestrictedMethodCallRule) checkMethodCall(
+	t *NodeTraversal,
+	gp ast.NormalOrOptChainGetProp,
+	lhs rhino.Node,
+	res *restrictedMethodCallSpec,
+	isCallInvocation bool,
+) *ConformanceRules_ConformanceResult {
 	registry := t.GetCompiler().GetTypeRegistry()
 	methodClassType := res.type_
-	lhs := gp.Object().Node()
-	if isCallInvocation {
-		lhs = ast.MustGetProp(lhs).Object().Node()
-	}
-	if methodClassType != nil && lhs.GetJSType() != nil {
+	if methodClassType != nil && !lhs.IsNil() && lhs.GetJSType() != nil {
 		targetType := lhs.GetJSType().RestrictByNotNullOrUndefined()
 		n := gp.Node()
-		if ConformanceRules_ConformanceUtil_IsLooseType(targetType) || ConformanceRules_IsLooseObject(targetType, registry) {
+		if isLooseConformanceType(targetType) || isLooseObjectType(targetType, registry) {
 			if r.reportLooseTypeViolations &&
-				!ConformanceRules_ConformanceUtil_ValidateCall(
-					r.compiler, n.GetParent(), res.restrictedCallType, isCallInvocation) {
-				return conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
+				!validateConformanceCall(r.compiler, n.GetParent(), res.restrictedCallType, isCallInvocation) {
+				return conformancePossibleViolationLooseTypes
 			}
 		} else if targetType.IsSubtypeOf(methodClassType) {
-			if !ConformanceRules_ConformanceUtil_ValidateCall(
-				r.compiler, n.GetParent(), res.restrictedCallType, isCallInvocation) {
+			if !validateConformanceCall(r.compiler, n.GetParent(), res.restrictedCallType, isCallInvocation) {
 				return ConformanceRules_ConformanceResult_VIOLATION
 			}
 		}
@@ -208,25 +196,21 @@ func (r *ConformanceRules_RestrictedMethodCall) checkConformanceWithRestriction(
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_RestrictedPropertyWrite is the restricted property write
-// rule.
-type ConformanceRules_RestrictedPropertyWrite struct {
-	ConformanceRules_AbstractRule
+type conformanceRestrictedPropertyWriteRule struct {
+	conformanceAbstractRule
 
-	restrictions []ConformanceRules_RestrictedPropertyWrite_Restriction
+	restrictions []restrictedPropertyWriteSpec
 }
 
-// Java: ConformanceRules.RestrictedPropertyWrite.Restriction
-type ConformanceRules_RestrictedPropertyWrite_Restriction struct {
+type restrictedPropertyWriteSpec struct {
 	type_          rhino.JSType
 	property       string
 	restrictedType rhino.JSType
 }
 
-// Java: ConformanceRules.RestrictedPropertyWrite(AbstractCompiler, Requirement)
-func newConformanceRules_RestrictedPropertyWrite(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_RestrictedPropertyWrite, error) {
-	r := &ConformanceRules_RestrictedPropertyWrite{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRules_RestrictedPropertyWrite(compiler AbstractCompiler, requirement *Requirement) (*conformanceRestrictedPropertyWriteRule, error) {
+	r := &conformanceRestrictedPropertyWriteRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 
@@ -236,21 +220,21 @@ func newConformanceRules_RestrictedPropertyWrite(compiler AbstractCompiler, requ
 	}
 
 	registry := compiler.GetTypeRegistry()
-	restrictions := make([]ConformanceRules_RestrictedPropertyWrite_Restriction, 0, len(values))
+	restrictions := make([]restrictedPropertyWriteSpec, 0, len(values))
 	for _, value := range values {
 		declName, restrictedDecl, ok := splitConformanceNameAndType(value)
 		if !ok {
 			return nil, errInvalidRequirementSpec("value should be in the form NAME:TYPE")
 		}
-		typeName, property, hasClassAndProp := conformanceRules_splitClassAndProperty(declName)
+		typeName, property, hasClassAndProp := splitConformanceClassAndProperty(declName)
 		if !hasClassAndProp {
 			return nil, errInvalidRequirementSpec("bad prop value")
 		}
-		restrictedType, err := conformanceRules_evaluateTypeString(compiler, restrictedDecl)
+		restrictedType, err := evaluateConformanceTypeString(compiler, restrictedDecl)
 		if err != nil {
 			return nil, err
 		}
-		restrictions = append(restrictions, ConformanceRules_RestrictedPropertyWrite_Restriction{
+		restrictions = append(restrictions, restrictedPropertyWriteSpec{
 			type_:          registry.GetGlobalType(typeName),
 			property:       property,
 			restrictedType: restrictedType,
@@ -261,8 +245,7 @@ func newConformanceRules_RestrictedPropertyWrite(compiler AbstractCompiler, requ
 	return r, nil
 }
 
-// Java: ConformanceRules.RestrictedPropertyWrite.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_RestrictedPropertyWrite) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *conformanceRestrictedPropertyWriteRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	if gp, ok := ast.AsGetProp(n); ok {
 		if asgn, isAssign := ast.AsAssign(n.GetParent()); isAssign && asgn.Target().Is(n) {
 			rhsType := asgn.Value().Node().GetJSType()
@@ -272,12 +255,12 @@ func (r *ConformanceRules_RestrictedPropertyWrite) CheckConformance(t *NodeTrave
 				var targetNotNullType rhino.JSType
 				for i := range r.restrictions {
 					res := &r.restrictions[i]
-					if prop == res.property && !rhsType.IsSubtypeOf(res.restrictedType) {
-						if ConformanceRules_ConformanceUtil_IsLooseType(targetType) {
+					if prop == res.property && res.restrictedType != nil && !rhsType.IsSubtypeOf(res.restrictedType) {
+						if isLooseConformanceType(targetType) {
 							if r.reportLooseTypeViolations {
-								return conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
+								return conformancePossibleViolationLooseTypes
 							}
-						} else {
+						} else if res.type_ != nil {
 							if targetNotNullType == nil {
 								targetNotNullType = targetType.RestrictByNotNullOrUndefined()
 							}
@@ -293,17 +276,15 @@ func (r *ConformanceRules_RestrictedPropertyWrite) CheckConformance(t *NodeTrave
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_BannedCodePattern is the banned code pattern rule.
-type ConformanceRules_BannedCodePattern struct {
-	ConformanceRules_AbstractRule
+type conformanceBannedCodePatternRule struct {
+	conformanceAbstractRule
 
 	restrictions []*TemplateAstMatcher
 }
 
-// Java: ConformanceRules.BannedCodePattern(AbstractCompiler, Requirement)
-func newConformanceRules_BannedCodePattern(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedCodePattern, error) {
-	r := &ConformanceRules_BannedCodePattern{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRules_BannedCodePattern(compiler AbstractCompiler, requirement *Requirement) (*conformanceBannedCodePatternRule, error) {
+	r := &conformanceBannedCodePatternRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 
@@ -332,8 +313,10 @@ func newConformanceRules_BannedCodePattern(compiler AbstractCompiler, requiremen
 	return r, nil
 }
 
-// Java: ConformanceRules.BannedCodePattern.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedCodePattern) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *conformanceBannedCodePatternRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if n.IsNil() {
+		return ConformanceRules_ConformanceResult_CONFORMANCE
+	}
 	possibleViolation := false
 	for _, matcher := range r.restrictions {
 		if matcher.Matches(n) {
@@ -345,25 +328,23 @@ func (r *ConformanceRules_BannedCodePattern) CheckConformance(t *NodeTraversal, 
 		}
 	}
 	if possibleViolation && r.reportLooseTypeViolations {
-		return conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
+		return conformancePossibleViolationLooseTypes
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.CustomRuleProxy(AbstractCompiler, Requirement)
 func newConformanceRules_CustomRule(compiler AbstractCompiler, requirement *Requirement) (CheckConformance_Rule, error) {
 	if !requirement.HasJavaClass() {
 		return nil, errInvalidRequirementSpec("missing java_class")
 	}
-	factory, ok := conformanceRules_customRuleRegistry[requirement.GetJavaClass()]
+	factory, ok := conformanceCustomRuleRegistry[requirement.GetJavaClass()]
 	if !ok {
 		return nil, errInvalidRequirementSpec("Unknown conformance rule: " + requirement.GetJavaClass())
 	}
 	return factory(compiler, requirement)
 }
 
-// Java: ConformanceRules.CustomRuleProxy.CUSTOM_RULE_REGISTRY
-var conformanceRules_customRuleRegistry = map[string]func(AbstractCompiler, *Requirement) (CheckConformance_Rule, error){
+var conformanceCustomRuleRegistry = map[string]func(AbstractCompiler, *Requirement) (CheckConformance_Rule, error){
 	"com.google.javascript.jscomp.ConformanceRules$NoOp": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
 		return newConformanceRules_NoOp(c, r)
 	},
@@ -398,34 +379,34 @@ var conformanceRules_customRuleRegistry = map[string]func(AbstractCompiler, *Req
 		return newConformanceRules_BannedCodePattern(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanForOf": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanForOf(c, r)
+		return newConformanceBanForOfRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$RequireUseStrict": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_RequireUseStrict(c, r)
+		return newConformanceRequireUseStrictRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanThrowOfNonErrorTypes": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanThrowOfNonErrorTypes(c, r)
+		return newConformanceBanThrowOfNonErrorTypesRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanNullDeref": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanNullDeref(c, r)
+		return newConformanceBanNullDerefRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanUnknownThis": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanUnknownThis(c, r)
+		return newConformanceBanUnknownThisRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanUnknownDirectThisPropsReferences": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanUnknownDirectThisPropsReferences(c, r)
+		return newConformanceBanUnknownDirectThisPropsRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanUnknownTypedClassPropsReferences(c, r)
+		return newConformanceBanUnknownTypedClassPropsRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanUnresolvedType": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanUnresolvedType(c, r)
+		return newConformanceBanUnresolvedTypeRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$StrictBanUnresolvedType": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_StrictBanUnresolvedType(c, r)
+		return newConformanceStrictBanUnresolvedTypeRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanGlobalVars": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanGlobalVars(c, r)
+		return newConformanceBanGlobalVarsRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BannedEnhance": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
 		return newConformanceRules_BannedEnhance(c, r)
@@ -434,56 +415,51 @@ var conformanceRules_customRuleRegistry = map[string]func(AbstractCompiler, *Req
 		return newConformanceRules_BannedModsRegex(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanCreateElement": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanCreateElement(c, r)
+		return newConformanceBanCreateElementRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanCreateDom": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanCreateDom(c, r)
+		return newConformanceBanCreateDomRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanElementSetAttribute(c, r)
+		return newConformanceBanElementSetAttributeRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanSettingAttributes(c, r)
+		return newConformanceBanSettingAttributesRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanExecCommand": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanExecCommand(c, r)
+		return newConformanceBanExecCommandRule(c, r)
 	},
 	"com.google.javascript.jscomp.ConformanceRules$BanStaticThis": func(c AbstractCompiler, r *Requirement) (CheckConformance_Rule, error) {
-		return newConformanceRules_BanStaticThis(c, r)
+		return newConformanceBanStaticThisRule(c, r)
 	},
 }
 
-// ConformanceRules_BanForOf bans for/of loops.
-type ConformanceRules_BanForOf struct {
-	ConformanceRules_AbstractRule
+type conformanceBanForOfRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.BanForOf(AbstractCompiler, Requirement)
-func newConformanceRules_BanForOf(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanForOf, error) {
-	r := &ConformanceRules_BanForOf{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceBanForOfRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanForOfRule, error) {
+	r := &conformanceBanForOfRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.BanForOf.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanForOf) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if n.IsForOf() || n.IsForAwaitOf() {
+func (r *conformanceBanForOfRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if _, ok := ast.AsForOfLoop(n); ok {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_RequireUseStrict is the require "use strict" rule.
-type ConformanceRules_RequireUseStrict struct {
-	ConformanceRules_AbstractRule
+type conformanceRequireUseStrictRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.RequireUseStrict(AbstractCompiler, Requirement)
-func newConformanceRules_RequireUseStrict(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_RequireUseStrict, error) {
-	r := &ConformanceRules_RequireUseStrict{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRequireUseStrictRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceRequireUseStrictRule, error) {
+	r := &conformanceRequireUseStrictRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	if len(requirement.GetValueList()) != 0 {
@@ -492,34 +468,29 @@ func newConformanceRules_RequireUseStrict(compiler AbstractCompiler, requirement
 	return r, nil
 }
 
-// Java: ConformanceRules.RequireUseStrict.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_RequireUseStrict) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if n.IsScript() && !n.IsUseStrict() {
+func (r *conformanceRequireUseStrictRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if _, ok := ast.AsScript(n); ok && !n.IsUseStrict() {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_BanThrowOfNonErrorTypes bans throw of non-error object
-// types.
-type ConformanceRules_BanThrowOfNonErrorTypes struct {
-	ConformanceRules_AbstractRule
+type conformanceBanThrowOfNonErrorTypesRule struct {
+	conformanceAbstractRule
 
 	errorObjType rhino.JSType
 }
 
-// Java: ConformanceRules.BanThrowOfNonErrorTypes(AbstractCompiler, Requirement)
-func newConformanceRules_BanThrowOfNonErrorTypes(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanThrowOfNonErrorTypes, error) {
-	r := &ConformanceRules_BanThrowOfNonErrorTypes{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceBanThrowOfNonErrorTypesRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanThrowOfNonErrorTypesRule, error) {
+	r := &conformanceBanThrowOfNonErrorTypesRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	r.errorObjType = compiler.GetTypeRegistry().GetGlobalType("Error")
 	return r, nil
 }
 
-// Java: ConformanceRules.BanThrowOfNonErrorTypes.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanThrowOfNonErrorTypes) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *conformanceBanThrowOfNonErrorTypesRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	if r.errorObjType != nil {
 		if th, ok := ast.AsThrow(n); ok {
 			thrown := th.Value().Node().GetJSType()
@@ -535,29 +506,26 @@ func (r *ConformanceRules_BanThrowOfNonErrorTypes) CheckConformance(t *NodeTrave
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_BanNullDeref bans dereferencing null or undefined types.
-type ConformanceRules_BanNullDeref struct {
-	ConformanceRules_AbstractRule
+type conformanceBanNullDerefRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.BanNullDeref(AbstractCompiler, Requirement)
-func newConformanceRules_BanNullDeref(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanNullDeref, error) {
-	r := &ConformanceRules_BanNullDeref{}
-	if err := r.initTypeRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceBanNullDerefRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanNullDerefRule, error) {
+	r := &conformanceBanNullDerefRule{}
+	if err := r.initTypeRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.BanNullDeref.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanNullDeref) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *conformanceBanNullDerefRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
 	var violation bool
 	if get, ok := ast.AsNormalGet(n); ok {
-		violation = r.ReportNode(get.Object().Node())
+		violation = r.isNullishDeref(get.Object().Node())
 	} else if cn, ok := ast.AsCallOrNew(n); ok && !n.IsOptChainCall() {
-		violation = r.ReportNode(cn.Callee().Node())
+		violation = r.isNullishDeref(cn.Callee().Node())
 	} else if bin, ok := ast.AsBinary(n); ok && bin.Token() == rhino.Token_IN {
-		violation = r.ReportNode(bin.Right().Node())
+		violation = r.isNullishDeref(bin.Right().Node())
 	}
 
 	if violation {
@@ -566,41 +534,42 @@ func (r *ConformanceRules_BanNullDeref) CheckConformance(t *NodeTraversal, n rhi
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BanNullDeref.report(Node)
-func (r *ConformanceRules_BanNullDeref) ReportNode(n rhino.Node) bool {
-	return n.GetJSType() != nil && isKnownNodeType(n) && r.InvalidDeref(n) && !r.IsAllowlistedType(n)
-}
-
-// Java: ConformanceRules.BanNullDeref.invalidDeref(Node)
-func (r *ConformanceRules_BanNullDeref) InvalidDeref(n rhino.Node) bool {
+func (r *conformanceBanNullDerefRule) isNullishDeref(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	type_ := n.GetJSType()
-	return !type_.IsAllType() && (type_.IsNullable() || type_.IsVoidable())
+	return type_ != nil &&
+		isKnownNodeType(n) &&
+		!type_.IsAllType() &&
+		(type_.IsNullable() || type_.IsVoidable()) &&
+		!r.isAllowlistedType(n)
 }
 
-// ConformanceRules_BanUnknownThis bans unknown "this" types.
-type ConformanceRules_BanUnknownThis struct {
-	ConformanceRules_AbstractRule
+type conformanceBanUnknownThisRule struct {
+	conformanceAbstractRule
 
 	reports map[rhino.Node]struct{}
 }
 
-// Java: ConformanceRules.BanUnknownThis(AbstractCompiler, Requirement)
-func newConformanceRules_BanUnknownThis(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanUnknownThis, error) {
-	r := &ConformanceRules_BanUnknownThis{
+func newConformanceBanUnknownThisRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanUnknownThisRule, error) {
+	r := &conformanceBanUnknownThisRule{
 		reports: make(map[rhino.Node]struct{}),
 	}
-	if err := r.initTypeRule(compiler, requirement, true, r.CheckConformance); err != nil {
+	if err := r.initTypeRule(compiler, requirement, true, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.BanUnknownThis.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanUnknownThis) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if n.IsThis() {
+func (r *conformanceBanUnknownThisRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if !n.IsNil() && n.IsThis() {
 		type_ := n.GetJSType()
-		if type_ != nil && type_.IsUnknownType() && !r.IsTypeImmediatelyTightened(n) {
-			root := t.GetScopeRoot()
+		if type_ != nil && type_.IsUnknownType() && !r.isTypeImmediatelyTightened(n) {
+			var root rhino.Node
+			if t != nil {
+				root = t.GetScopeRoot()
+			}
 			if _, reported := r.reports[root]; !reported {
 				r.reports[root] = struct{}{}
 				return ConformanceRules_ConformanceResult_VIOLATION
@@ -610,42 +579,38 @@ func (r *ConformanceRules_BanUnknownThis) CheckConformance(t *NodeTraversal, n r
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_BanUnknownDirectThisPropsReferences bans unknown type
-// references of the form "this.prop".
-type ConformanceRules_BanUnknownDirectThisPropsReferences struct {
-	ConformanceRules_AbstractRule
+// conformanceBanUnknownDirectThisPropsRule bans unknown-typed `this.prop` /
+// `this?.prop` references on a known `this` receiver.
+type conformanceBanUnknownDirectThisPropsRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.BanUnknownDirectThisPropsReferences(AbstractCompiler, Requirement)
-func newConformanceRules_BanUnknownDirectThisPropsReferences(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanUnknownDirectThisPropsReferences, error) {
-	r := &ConformanceRules_BanUnknownDirectThisPropsReferences{}
-	if err := r.initTypeRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceBanUnknownDirectThisPropsRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanUnknownDirectThisPropsRule, error) {
+	r := &conformanceBanUnknownDirectThisPropsRule{}
+	if err := r.initTypeRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.BanUnknownDirectThisPropsReferences.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanUnknownDirectThisPropsReferences) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if gp, ok := ast.AsGetProp(n); ok &&
-		ConformanceRules_BanUnknownDirectThisPropsReferences_IsKnownThis(gp.Object().Node()) &&
+func (r *conformanceBanUnknownDirectThisPropsRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok &&
+		isKnownThisNode(gp.Object().Node()) &&
 		isUnknownNodeType(n) &&
 		!isTemplateNodeType(n) &&
-		r.IsUsed(n) &&
-		!r.IsTypeImmediatelyTightened(n) &&
+		r.isNodeUsed(n) &&
+		!r.isTypeImmediatelyTightened(n) &&
 		!isExplicitlyUnknownProp(gp) {
 		return ConformanceRules_ConformanceResult_VIOLATION
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BanUnknownDirectThisPropsReferences.isKnownThis(Node)
-func ConformanceRules_BanUnknownDirectThisPropsReferences_IsKnownThis(n rhino.Node) bool {
-	return n.IsThis() && !isUnknownNodeType(n)
+func isKnownThisNode(n rhino.Node) bool {
+	return !n.IsNil() && n.IsThis() && !isUnknownNodeType(n)
 }
 
-// Java: ConformanceRules.BanUnknownDirectThisPropsReferences.isExplicitlyUnknown(Node)
-func isExplicitlyUnknownProp(gp ast.GetProp) bool {
+func isExplicitlyUnknownProp(gp ast.NormalOrOptChainGetProp) bool {
 	owner := rhino.ObjectType_Cast(gp.Object().Node().GetJSType())
 	if owner == nil {
 		return false
@@ -654,28 +619,26 @@ func isExplicitlyUnknownProp(gp ast.GetProp) bool {
 	return prop != nil && !prop.IsTypeInferred()
 }
 
-// ConformanceRules_BanUnknownTypedClassPropsReferences bans unknown type
-// references of the form "instance.prop".
-type ConformanceRules_BanUnknownTypedClassPropsReferences struct {
-	ConformanceRules_AbstractRule
+// conformanceBanUnknownTypedClassPropsRule bans unknown-typed `instance.prop` /
+// `instance?.prop` references on class/interface instances.
+type conformanceBanUnknownTypedClassPropsRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.BanUnknownTypedClassPropsReferences(AbstractCompiler, Requirement)
-func newConformanceRules_BanUnknownTypedClassPropsReferences(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanUnknownTypedClassPropsReferences, error) {
-	r := &ConformanceRules_BanUnknownTypedClassPropsReferences{}
-	if err := r.initTypeRule(compiler, requirement, true, r.CheckConformance); err != nil {
+func newConformanceBanUnknownTypedClassPropsRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanUnknownTypedClassPropsRule, error) {
+	r := &conformanceBanUnknownTypedClassPropsRule{}
+	if err := r.initTypeRule(compiler, requirement, true, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.BanUnknownTypedClassPropsReferences.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConformance(t *NodeTraversal, getprop rhino.Node) *ConformanceRules_ConformanceResult {
-	if gp, ok := ast.AsGetProp(getprop); ok &&
+func (r *conformanceBanUnknownTypedClassPropsRule) checkNode(t *NodeTraversal, getprop rhino.Node) *ConformanceRules_ConformanceResult {
+	if gp, ok := ast.AsNormalOrOptChainGetProp(getprop); ok &&
 		isUnknownNodeType(getprop) &&
-		r.IsUsed(getprop) &&
-		!r.IsTypeImmediatelyTightened(getprop) &&
-		r.IsCheckablePropertySource(gp.Object().Node()) &&
+		r.isNodeUsed(getprop) &&
+		!r.isTypeImmediatelyTightened(getprop) &&
+		r.isCheckablePropertySource(gp.Object().Node()) &&
 		!isTemplateNodeType(getprop) &&
 		!r.isDeclaredUnknown(gp) {
 		propName := gp.Property()
@@ -687,17 +650,18 @@ func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) CheckConformance(
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BanUnknownTypedClassPropsReferences.isCheckablePropertySource(Node)
-func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) IsCheckablePropertySource(n rhino.Node) bool {
+func (r *conformanceBanUnknownTypedClassPropsRule) isCheckablePropertySource(n rhino.Node) bool {
 	return isKnownNodeType(n) &&
 		!isTopNodeType(n) &&
-		r.IsClassType(n) &&
-		!r.IsNativeObjectType(n) &&
-		!r.IsAllowlistedType(n)
+		r.isClassType(n) &&
+		!r.isNativeObjectType(n) &&
+		!r.isAllowlistedType(n)
 }
 
-// Java: ConformanceRules.BanUnknownTypedClassPropsReferences.isClassType(Node)
-func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) IsClassType(n rhino.Node) bool {
+func (r *conformanceBanUnknownTypedClassPropsRule) isClassType(n rhino.Node) bool {
+	if n.IsNil() || n.GetJSType() == nil {
+		return false
+	}
 	type_ := n.GetJSType().RestrictByNotNullOrUndefined().ToMaybeObjectType()
 	if type_ == nil || !type_.IsInstanceType() {
 		return false
@@ -715,9 +679,12 @@ func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) IsClassType(n rhi
 		(!source.IsNil() && source.IsClass())
 }
 
-// Java: ConformanceRules.BanUnknownTypedClassPropsReferences.isDeclaredUnknown(Node)
-func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) isDeclaredUnknown(gp ast.GetProp) bool {
-	targetType := gp.Object().Node().GetJSType().RestrictByNotNullOrUndefined().ToMaybeObjectType()
+func (r *conformanceBanUnknownTypedClassPropsRule) isDeclaredUnknown(gp ast.NormalOrOptChainGetProp) bool {
+	objType := gp.Object().Node().GetJSType()
+	if objType == nil {
+		return false
+	}
+	targetType := objType.RestrictByNotNullOrUndefined().ToMaybeObjectType()
 	if targetType == nil {
 		return false
 	}
@@ -728,9 +695,13 @@ func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) isDeclaredUnknown
 	}
 
 	typeExprNode := info.GetType().GetRoot()
+	if typeExprNode.IsNil() {
+		return false
+	}
 	if typeExprNode.GetToken() == rhino.Token_QMARK && !typeExprNode.HasChildren() {
 		return true
 	} else if typeExprNode.GetToken() == rhino.Token_PIPE {
+		// JSDoc union type-AST node (`|`): check whether any branch is explicit `?`.
 		for child := range typeExprNode.Children() {
 			if child.GetToken() == rhino.Token_QMARK {
 				return true
@@ -741,26 +712,24 @@ func (r *ConformanceRules_BanUnknownTypedClassPropsReferences) isDeclaredUnknown
 	return false
 }
 
-// ConformanceRules_BanUnresolvedType bans accessing properties from objects
-// that are unresolved forward-declared type names.
-type ConformanceRules_BanUnresolvedType struct {
-	ConformanceRules_AbstractRule
+// conformanceBanUnresolvedTypeRule bans accessing properties on unresolved
+// forward-declared type names.
+type conformanceBanUnresolvedTypeRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.BanUnresolvedType(AbstractCompiler, Requirement)
-func newConformanceRules_BanUnresolvedType(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanUnresolvedType, error) {
-	r := &ConformanceRules_BanUnresolvedType{}
-	if err := r.initTypeRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceBanUnresolvedTypeRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanUnresolvedTypeRule, error) {
+	r := &conformanceBanUnresolvedTypeRule{}
+	if err := r.initTypeRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.BanUnresolvedType.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanUnresolvedType) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if gp, ok := ast.AsGetProp(n); ok {
+func (r *conformanceBanUnresolvedTypeRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok {
 		nonConformingPart, hasPart := nonConformingTypePart(gp.Object().Node().GetJSType())
-		if hasPart && !r.IsTypeImmediatelyTightened(n) {
+		if hasPart && !r.isTypeImmediatelyTightened(n) {
 			return NewConformanceRules_ConformanceResultWithNote(
 				ConformanceRules_ConformanceLevel_VIOLATION,
 				"Reference to type '"+nonConformingPart+"' never resolved.")
@@ -769,7 +738,6 @@ func (r *ConformanceRules_BanUnresolvedType) CheckConformance(t *NodeTraversal, 
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BanUnresolvedType.getNonConformingPart(JSType)
 func nonConformingTypePart(type_ rhino.JSType) (string, bool) {
 	if type_ == nil {
 		return "", false
@@ -792,42 +760,38 @@ func nonConformingTypePart(type_ rhino.JSType) (string, bool) {
 	return "", false
 }
 
-// ConformanceRules_StrictBanUnresolvedType bans any use of unresolved
-// forward-declared types.
-type ConformanceRules_StrictBanUnresolvedType struct {
-	ConformanceRules_AbstractRule
+type conformanceStrictBanUnresolvedTypeRule struct {
+	conformanceAbstractRule
 }
 
-// Java: ConformanceRules.StrictBanUnresolvedType(AbstractCompiler, Requirement)
-func newConformanceRules_StrictBanUnresolvedType(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_StrictBanUnresolvedType, error) {
-	r := &ConformanceRules_StrictBanUnresolvedType{}
-	if err := r.initTypeRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceStrictBanUnresolvedTypeRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceStrictBanUnresolvedTypeRule, error) {
+	r := &conformanceStrictBanUnresolvedTypeRule{}
+	if err := r.initTypeRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	return r, nil
 }
 
-// Java: ConformanceRules.StrictBanUnresolvedType.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_StrictBanUnresolvedType) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if nonConformingPart, ok := nonConformingTypePart(n.GetJSType()); ok && !r.IsTypeImmediatelyTightened(n) {
-		return NewConformanceRules_ConformanceResultWithNote(
-			ConformanceRules_ConformanceLevel_VIOLATION,
-			"Reference to type '"+nonConformingPart+"' never resolved.")
+func (r *conformanceStrictBanUnresolvedTypeRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if !n.IsNil() {
+		if nonConformingPart, ok := nonConformingTypePart(n.GetJSType()); ok && !r.isTypeImmediatelyTightened(n) {
+			return NewConformanceRules_ConformanceResultWithNote(
+				ConformanceRules_ConformanceLevel_VIOLATION,
+				"Reference to type '"+nonConformingPart+"' never resolved.")
+		}
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// ConformanceRules_BanGlobalVars bans global var declarations.
-type ConformanceRules_BanGlobalVars struct {
-	ConformanceRules_AbstractRule
+type conformanceBanGlobalVarsRule struct {
+	conformanceAbstractRule
 
 	allowlistedNames map[string]struct{}
 }
 
-// Java: ConformanceRules.BanGlobalVars(AbstractCompiler, Requirement)
-func newConformanceRules_BanGlobalVars(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BanGlobalVars, error) {
-	r := &ConformanceRules_BanGlobalVars{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceBanGlobalVarsRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanGlobalVarsRule, error) {
+	r := &conformanceBanGlobalVarsRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 
@@ -840,12 +804,13 @@ func newConformanceRules_BanGlobalVars(compiler AbstractCompiler, requirement *R
 	return r, nil
 }
 
-// Java: ConformanceRules.BanGlobalVars.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BanGlobalVars) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if t.InGlobalScope() &&
+func (r *conformanceBanGlobalVarsRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if !n.IsNil() &&
+		t != nil &&
+		t.InGlobalScope() &&
 		NodeUtil_IsDeclaration(n) &&
 		!n.GetBooleanProp(rhino.Node_IS_NAMESPACE) &&
-		!r.IsAllowlisted(n) {
+		!r.isAllowlisted(n) {
 		enclosingScript := NodeUtil_GetEnclosingScript(n)
 		if !enclosingScript.IsNil() &&
 			(enclosingScript.GetBooleanProp(rhino.Node_GOOG_MODULE) ||
@@ -858,14 +823,14 @@ func (r *ConformanceRules_BanGlobalVars) CheckConformance(t *NodeTraversal, n rh
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BanGlobalVars.isAllowlisted(Node)
-func (r *ConformanceRules_BanGlobalVars) IsAllowlisted(n rhino.Node) bool {
+func (r *conformanceBanGlobalVarsRule) isAllowlisted(n rhino.Node) bool {
 	if n.IsFromExterns() {
 		return true
 	}
 
 	if fn, ok := ast.AsFunction(n); ok {
-		return r.IsAllowlistedName(fn.NameNode().Ident())
+		name, hasName := fn.Name()
+		return hasName && r.isAllowlistedName(name.Ident())
 	}
 
 	if NodeUtil_IsNameDeclaration(n) {
@@ -873,7 +838,7 @@ func (r *ConformanceRules_BanGlobalVars) IsAllowlisted(n rhino.Node) bool {
 		NodeUtil_VisitLhsNodesInNode(
 			n,
 			func(name rhino.Node) {
-				if !r.IsAllowlistedName(name.GetString()) {
+				if ident, ok := ast.AsName(name); !ok || !r.isAllowlistedName(ident.Ident()) {
 					allowlisted = false
 				}
 			})
@@ -883,12 +848,11 @@ func (r *ConformanceRules_BanGlobalVars) IsAllowlisted(n rhino.Node) bool {
 	return false
 }
 
-// Java: ConformanceRules.BanGlobalVars.isAllowlistedName(String)
-func (r *ConformanceRules_BanGlobalVars) IsAllowlistedName(name string) bool {
+func (r *conformanceBanGlobalVarsRule) isAllowlistedName(name string) bool {
 	if _, ok := r.allowlistedNames[name]; ok {
 		return true
 	}
-	// names created by JSCompiler internals
+	// Names created by JSCompiler internals.
 	return name == "$jscomp" ||
 		strings.HasPrefix(name, "$jscomp$compprop") ||
 		ClosureRewriteModule_IsModuleContent(name) ||
@@ -896,18 +860,15 @@ func (r *ConformanceRules_BanGlobalVars) IsAllowlistedName(name string) bool {
 		ScopedAliases_IsScopedAliases(name)
 }
 
-// ConformanceRules_BannedEnhance checks that file does not include an
-// @enhance annotation for a banned namespace.
-type ConformanceRules_BannedEnhance struct {
-	ConformanceRules_AbstractRule
+type conformanceBannedEnhanceRule struct {
+	conformanceAbstractRule
 
 	bannedEnhancedNamespaces map[string]struct{}
 }
 
-// Java: ConformanceRules.BannedEnhance(AbstractCompiler, Requirement)
-func newConformanceRules_BannedEnhance(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedEnhance, error) {
-	r := &ConformanceRules_BannedEnhance{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRules_BannedEnhance(compiler AbstractCompiler, requirement *Requirement) (*conformanceBannedEnhanceRule, error) {
+	r := &conformanceBannedEnhanceRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 	values := requirement.GetValueList()
@@ -922,8 +883,10 @@ func newConformanceRules_BannedEnhance(compiler AbstractCompiler, requirement *R
 	return r, nil
 }
 
-// Java: ConformanceRules.BannedEnhance.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedEnhance) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *conformanceBannedEnhanceRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if n.IsNil() {
+		return ConformanceRules_ConformanceResult_CONFORMANCE
+	}
 	docInfo := n.GetJSDocInfo()
 	if docInfo == nil {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
@@ -940,23 +903,19 @@ func (r *ConformanceRules_BannedEnhance) CheckConformance(t *NodeTraversal, n rh
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BannedEnhance.getPrecondition()
-func (r *ConformanceRules_BannedEnhance) GetPrecondition() CheckConformance_Precondition {
+func (r *conformanceBannedEnhanceRule) GetPrecondition() CheckConformance_Precondition {
 	return checkConformance_PreconditionBannedEnhanceScript
 }
 
-// ConformanceRules_BannedModsRegex checks that file does not include an @mods
-// annotation for a banned namespace regex.
-type ConformanceRules_BannedModsRegex struct {
-	ConformanceRules_AbstractRule
+type conformanceBannedModsRegexRule struct {
+	conformanceAbstractRule
 
 	bannedModsRegex *jutil.Pattern
 }
 
-// Java: ConformanceRules.BannedModsRegex(AbstractCompiler, Requirement)
-func newConformanceRules_BannedModsRegex(compiler AbstractCompiler, requirement *Requirement) (*ConformanceRules_BannedModsRegex, error) {
-	r := &ConformanceRules_BannedModsRegex{}
-	if err := r.initRule(compiler, requirement, false, r.CheckConformance); err != nil {
+func newConformanceRules_BannedModsRegex(compiler AbstractCompiler, requirement *Requirement) (*conformanceBannedModsRegexRule, error) {
+	r := &conformanceBannedModsRegexRule{}
+	if err := r.initRule(compiler, requirement, false, r.checkNode); err != nil {
 		return nil, err
 	}
 
@@ -964,7 +923,7 @@ func newConformanceRules_BannedModsRegex(compiler AbstractCompiler, requirement 
 	if len(bannedModsRegexList) == 0 {
 		return nil, errInvalidRequirementSpec("missing value")
 	}
-	pattern, err := conformanceRules_buildPattern(bannedModsRegexList)
+	pattern, err := buildConformancePattern(bannedModsRegexList)
 	if err != nil {
 		return nil, err
 	}
@@ -972,8 +931,10 @@ func newConformanceRules_BannedModsRegex(compiler AbstractCompiler, requirement 
 	return r, nil
 }
 
-// Java: ConformanceRules.BannedModsRegex.checkConformance(NodeTraversal, Node)
-func (r *ConformanceRules_BannedModsRegex) CheckConformance(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+func (r *conformanceBannedModsRegexRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
+	if n.IsNil() {
+		return ConformanceRules_ConformanceResult_CONFORMANCE
+	}
 	docInfo := n.GetJSDocInfo()
 	if docInfo == nil {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
@@ -985,7 +946,6 @@ func (r *ConformanceRules_BannedModsRegex) CheckConformance(t *NodeTraversal, n 
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// Java: ConformanceRules.BannedModsRegex.getPrecondition()
-func (r *ConformanceRules_BannedModsRegex) GetPrecondition() CheckConformance_Precondition {
+func (r *conformanceBannedModsRegexRule) GetPrecondition() CheckConformance_Precondition {
 	return checkConformance_PreconditionBannedModsRegexScript
 }

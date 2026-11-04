@@ -566,7 +566,8 @@ func (n Node) GetProp(propType Node_Prop) any {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 	case propKindChangeTime:
-		if n.nodeKind() == node_kindNode && uint32(n.rec().payload) != 0 {
+		r := n.rec()
+		if node_kind(r.kindFlags&kindMask) == node_kindNode && r.payload != 0 {
 			panic(jutil.NewUnsupportedOperationException())
 		}
 	case propKindSourceFile:
@@ -575,7 +576,7 @@ func (n Node) GetProp(propType Node_Prop) any {
 		}
 		return nil
 	case propKindJSDoc:
-		if (n.props() & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags & propWordJSDoc) == 0 {
 			return nil
 		}
 		if jsdoc := n.inlineJSDoc(); jsdoc != nil {
@@ -599,6 +600,9 @@ func (n Node) GetProp(propType Node_Prop) any {
 // Java: Node.getBooleanProp(Prop)
 func (n Node) GetBooleanProp(propType Node_Prop) bool {
 	if mask := nodePropBitMask[propType]; mask != 0 {
+		if w := propWord(mask); w != 0 {
+			return n.rec().propFlags&w != 0
+		}
 		return (n.props() & mask) != 0
 	}
 	return n.GetIntProp(propType) != 0
@@ -620,18 +624,20 @@ func (n Node) GetIntProp(propType Node_Prop) int32 {
 		}
 		return 1
 	case propKindPackedInt:
-		if v := int32((n.props() & s.mask) >> s.shift); v != 0 {
+		r := n.rec()
+		if v := int32((uint64(r.propFlags) & s.mask) >> s.shift); v != 0 {
 			return v
 		}
-		if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
+		if (r.kindFlags & kindFlagHasExtra) == 0 {
 			return 0
 		}
 	case propKindChangeTime:
-		if n.nodeKind() == node_kindNode {
-			if v := int32(uint32(n.rec().payload)); v != 0 {
+		r := n.rec()
+		if node_kind(r.kindFlags&kindMask) == node_kindNode {
+			if v := int32(r.payload); v != 0 {
 				return v
 			}
-			if (n.rec().kindFlags & kindFlagHasExtra) == 0 {
+			if (r.kindFlags & kindFlagHasExtra) == 0 {
 				return 0
 			}
 		}
@@ -641,7 +647,7 @@ func (n Node) GetIntProp(propType Node_Prop) int32 {
 		}
 		return 0
 	case propKindJSDoc:
-		if (n.props() & propFlagHasJSDoc) == 0 {
+		if (n.rec().propFlags & propWordJSDoc) == 0 {
 			return 0
 		}
 		if n.inlineJSDoc() != nil {
@@ -679,12 +685,14 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 		n.orProps(s.mask)
 		n.rec().kindFlags |= kindFlagHasExtra
 	case propKindPackedInt:
-		n.andNotProps(s.mask)
-		n.rec().kindFlags |= kindFlagHasExtra
+		r := n.rec()
+		r.propFlags &^= propWord(s.mask)
+		r.kindFlags |= kindFlagHasExtra
 	case propKindChangeTime:
-		if n.nodeKind() == node_kindNode {
-			n.rec().payload = 0
-			n.rec().kindFlags |= kindFlagHasExtra
+		r := n.rec()
+		if node_kind(r.kindFlags&kindMask) == node_kindNode {
+			r.payload = 0
+			r.kindFlags |= kindFlagHasExtra
 		}
 	case propKindSourceFile:
 		n.rec().sourceFile = allocSourceFileID(value)
@@ -695,7 +703,7 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 			return
 		}
 		n.ensureExtBox().jsDocInfo = nil
-		n.orProps(propFlagHasJSDoc)
+		n.rec().propFlags |= propWordJSDoc
 	case propKindTypeCast:
 		if t, ok := value.(JSType); ok {
 			n.SetJSTypeBeforeCast(t)
@@ -709,6 +717,21 @@ func (n Node) PutProp(prop Node_Prop, value any) {
 // Java: Node.putBooleanProp(Prop, boolean)
 func (n Node) PutBooleanProp(propType Node_Prop, value bool) {
 	if mask := nodePropBitMask[propType]; mask != 0 {
+		if w := propWord(mask); w != 0 {
+			r := n.rec()
+			if value {
+				r.propFlags |= w
+			} else {
+				if r.propFlags&w == 0 {
+					return
+				}
+				r.propFlags &^= w
+			}
+			if r.kindFlags&kindFlagHasExtra != 0 {
+				n.removeColdProp(propType)
+			}
+			return
+		}
 		if value {
 			n.orProps(mask)
 		} else {
@@ -743,17 +766,23 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		}
 		n.rec().kindFlags |= kindFlagHasExtra
 	case propKindPackedInt:
+		r := n.rec()
 		if value&^int32(s.maxInline) == 0 {
-			n.setProps((n.props() &^ s.mask) | (uint64(value) << s.shift))
-			n.removeExtraColdProp(prop)
+			r.propFlags = (r.propFlags &^ propWord(s.mask)) | propWord(uint32(value)<<s.shift)
+			if r.kindFlags&kindFlagHasExtra != 0 {
+				n.removeColdProp(prop)
+			}
 			return
 		}
-		n.andNotProps(s.mask)
-		n.rec().kindFlags |= kindFlagHasExtra
+		r.propFlags &^= propWord(s.mask)
+		r.kindFlags |= kindFlagHasExtra
 	case propKindChangeTime:
-		if n.nodeKind() == node_kindNode {
-			n.rec().payload = uint32(value)
-			n.removeExtraColdProp(prop)
+		r := n.rec()
+		if node_kind(r.kindFlags&kindMask) == node_kindNode {
+			r.payload = uint32(value)
+			if r.kindFlags&kindFlagHasExtra != 0 {
+				n.removeColdProp(prop)
+			}
 			return
 		}
 	case propKindSourceFile:
@@ -761,7 +790,7 @@ func (n Node) PutIntProp(prop Node_Prop, value int32) {
 		panic(jutil.NewUnsupportedOperationException())
 	case propKindJSDoc:
 		n.ensureExtBox().jsDocInfo = nil
-		n.orProps(propFlagHasJSDoc)
+		n.rec().propFlags |= propWordJSDoc
 	case propKindTypeCast:
 		n.ensureExtBox().typeBeforeCast = 0
 	}
@@ -780,24 +809,31 @@ func (n Node) RemoveProp(prop Node_Prop) {
 		n.removeExtraColdProp(prop)
 		return
 	case propKindPackedInt:
-		n.andNotProps(s.mask)
-		n.removeExtraColdProp(prop)
+		r := n.rec()
+		r.propFlags &^= propWord(s.mask)
+		if r.kindFlags&kindFlagHasExtra != 0 {
+			n.removeColdProp(prop)
+		}
 		return
 	case propKindChangeTime:
-		if n.nodeKind() == node_kindNode {
-			n.rec().payload = 0
-			n.removeExtraColdProp(prop)
+		r := n.rec()
+		if node_kind(r.kindFlags&kindMask) == node_kindNode {
+			r.payload = 0
+			if r.kindFlags&kindFlagHasExtra != 0 {
+				n.removeColdProp(prop)
+			}
 			return
 		}
 	case propKindSourceFile:
 		n.rec().sourceFile = 0
 		return
 	case propKindJSDoc:
-		if (n.props() & propFlagHasJSDoc) == 0 {
+		r := n.rec()
+		if (r.propFlags & propWordJSDoc) == 0 {
 			return
 		}
-		n.andNotProps(propFlagHasJSDoc)
-		if (n.rec().kindFlags & kindFlagHasExtBox) == 0 {
+		r.propFlags &^= propWordJSDoc
+		if (r.kindFlags & kindFlagHasExtBox) == 0 {
 			n.setAux(nodeAux{})
 			return
 		}

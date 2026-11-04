@@ -199,7 +199,9 @@ func (m *ClosureRewriteModule) updateGoogRequire(t *NodeTraversal, require ast.C
 			prefix := m.currentScript.contentsPrefixOrNull()
 			for prop := range pattern.Props() {
 				importSpec := prop.Node()
-				jutil.CheckStateMsg1(importSpec.HasChildren(), "%s", importSpec)
+				if !importSpec.HasChildren() {
+					panic(jutil.NewIllegalStateExceptionMsg(importSpec.String()))
+				}
 				key := prop.MustStringKey()
 				importedProperty := key.Key()
 				aliasNode := key.Value().Node()
@@ -222,10 +224,9 @@ func (m *ClosureRewriteModule) updateGoogRequire(t *NodeTraversal, require ast.C
 				statementNode.Detach()
 			}
 		} else if targetIsNonLegacyGoogModule {
-			jutil.CheckStateMsg1(
-				m.isTopLevel(t, statementNode, closureScopeExecContext),
-				"Unexpected non-top-level require at %s",
-				call)
+			if !m.isTopLevel(t, statementNode, closureScopeExecContext) {
+				panic(jutil.NewIllegalStateExceptionMsg("Unexpected non-top-level require at " + call.String()))
+			}
 			if importHasAlias || !m.rewriteState.isLegacyModule(namespaceId) {
 				if !m.preserveSugar {
 					m.compiler.ReportChangeToEnclosingScope(statementNode)
@@ -272,10 +273,14 @@ func (m *ClosureRewriteModule) recordExportsPropertyAssignment(t *NodeTraversal,
 	}
 
 	parent := getProp.Node().GetParent()
-	jutil.CheckStateMsg1(parent.IsAssign() || parent.IsExprResult(), "%s", parent)
+	if !parent.IsAssign() && !parent.IsExprResult() {
+		panic(jutil.NewIllegalStateExceptionMsg(parent.String()))
+	}
 
 	exportsNameNode := getProp.Object().Node()
-	jutil.CheckStateMsg1(exportsNameNode.GetString() == "exports", "%s", exportsNameNode)
+	if exportsNameNode.GetString() != "exports" {
+		panic(jutil.NewIllegalStateExceptionMsg(exportsNameNode.String()))
+	}
 
 	if t.InModuleScope() {
 		exportName := getProp.Property()
@@ -304,7 +309,9 @@ func (m *ClosureRewriteModule) updateExportsPropertyAssignment(getProp ast.GetPr
 
 	getpropNode := getProp.Node()
 	parent := getpropNode.GetParent()
-	jutil.CheckStateMsg1(parent.IsAssign() || parent.IsExprResult(), "%s", parent)
+	if !parent.IsAssign() && !parent.IsExprResult() {
+		panic(jutil.NewIllegalStateExceptionMsg(parent.String()))
+	}
 
 	exportsNameNode := getProp.Object().Node()
 	jutil.CheckState(exportsNameNode.GetString() == "exports")
@@ -507,10 +514,9 @@ func (m *ClosureRewriteModule) maybeUpdateExportNameRef(t *NodeTraversal, n rhin
 }
 
 func (m *ClosureRewriteModule) updateModuleBody(moduleBody rhino.Node) {
-	jutil.CheckArgumentMsg1(
-		moduleBody.IsModuleBody() && moduleBody.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE),
-		"%s",
-		moduleBody)
+	if !moduleBody.IsModuleBody() || !moduleBody.GetParent().GetBooleanProp(rhino.Node_GOOG_MODULE) {
+		panic(jutil.NewIllegalArgumentExceptionMsg(moduleBody.String()))
+	}
 	moduleBody.SetToken(rhino.Token_BLOCK)
 	NodeUtil_TryMergeBlock(moduleBody, true)
 
@@ -580,7 +586,9 @@ func (m *ClosureRewriteModule) exportTheEmptyBinaryNamespaceAt(atNode rhino.Node
 
 // Java: ClosureRewriteModule.checkAndSetStrictModeDirective(NodeTraversal, Node)
 func ClosureRewriteModule_CheckAndSetStrictModeDirective(t *NodeTraversal, n rhino.Node) {
-	jutil.CheckStateMsg1(n.IsScript(), "%s", n)
+	if !n.IsScript() {
+		panic(jutil.NewIllegalStateExceptionMsg(n.String()))
+	}
 
 	if n.IsUseStrict() {
 		t.Report(n, ClosureRewriteModule_USELESS_USE_STRICT_DIRECTIVE)
@@ -610,11 +618,10 @@ func (m *ClosureRewriteModule) recordExportToInline(exportDefinition closureExpo
 	if m.currentScript.exportsToInlineVars == nil {
 		m.currentScript.exportsToInlineVars = make(map[*Var]struct{})
 	}
-	_, exists := m.currentScript.exportsToInlineVars[exportDefinition.nameDecl]
-	jutil.CheckStateMsg1(
-		!exists,
-		"Already found a mapping for inlining export: %s",
-		exportDefinition.nameDecl)
+	if _, exists := m.currentScript.exportsToInlineVars[exportDefinition.nameDecl]; exists {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"Already found a mapping for inlining export: " + exportDefinition.nameDecl.String()))
+	}
 	m.currentScript.exportsToInlineVars[exportDefinition.nameDecl] = struct{}{}
 	m.currentScript.exportsToInline = append(m.currentScript.exportsToInline, exportDefinition)
 

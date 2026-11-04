@@ -116,14 +116,28 @@ func failArgument(template string, args ...any) {
 }
 
 // IsNil reports whether v is Java null: a nil interface, a nil pointer,
-// map, slice, func or chan stored in an interface, or a node id whose IsNil
-// method says so (rhino.Node, which is nil when 0).
+// map, slice, func or chan stored in an interface, or a handle whose IsNil
+// method says so (such as rhino.Node, which is nil when 0).
 func IsNil(v any) bool {
 	switch x := v.(type) {
 	case nil:
 		return true
 	case string, int, int32, int64, int16, int8, uint, uint64, uint32, uint16, uint8, bool, float64, float32:
 		return false
+	case []string:
+		return x == nil
+	case []byte:
+		return x == nil
+	case []int:
+		return x == nil
+	case []int32:
+		return x == nil
+	case []any:
+		return x == nil
+	case map[string]string:
+		return x == nil
+	case map[string]any:
+		return x == nil
 	case *string:
 		return x == nil
 	case *int:
@@ -144,10 +158,15 @@ func isNilNonScalar(v any) bool {
 	if v == nil {
 		return true
 	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
+		return rv.IsNil()
+	}
 	if n, ok := v.(interface{ IsNil() bool }); ok {
 		return n.IsNil()
 	}
-	return reflectKindIsNil(reflect.ValueOf(v))
+	return false
 }
 
 func reflectKindIsNil(rv reflect.Value) bool {
@@ -159,36 +178,64 @@ func reflectKindIsNil(rv reflect.Value) bool {
 	}
 }
 
-//go:noinline
-func failNull() {
-	panic(&NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}})
-}
+var nullPointerErr = &NullPointerException{RuntimeException{ThrowableBase{className: "java.lang.NullPointerException"}}}
 
 // CheckNotNullPtr is Preconditions.checkNotNull(T) for a typed pointer without reflection.
 func CheckNotNullPtr[T any](p *T) *T {
 	if p == nil {
-		failNull()
+		panic(nullPointerErr)
 	}
 	return p
 }
 
 func isNilGeneric[T any](v T) bool {
-	switch any(v).(type) {
+	switch x := any(v).(type) {
 	case nil:
 		return true
 	case string, int, int32, int64, int16, int8, uint, uint64, uint32, uint16, uint8, bool, float64, float32:
 		return false
+	case []string:
+		return x == nil
+	case []byte:
+		return x == nil
+	case []int:
+		return x == nil
+	case []int32:
+		return x == nil
+	case []any:
+		return x == nil
+	case map[string]string:
+		return x == nil
+	case map[string]any:
+		return x == nil
+	case *string:
+		return x == nil
+	case *int:
+		return x == nil
+	case *int32:
+		return x == nil
+	case *int64:
+		return x == nil
+	case *bool:
+		return x == nil
+	case *float64:
+		return x == nil
 	}
-	if _, ok := any(v).(interface{ IsNil() bool }); ok {
-		return any(v).(interface{ IsNil() bool }).IsNil()
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface, reflect.UnsafePointer:
+		return rv.IsNil()
 	}
-	return reflectKindIsNil(reflect.ValueOf(v))
+	if n, ok := any(v).(interface{ IsNil() bool }); ok {
+		return n.IsNil()
+	}
+	return false
 }
 
 // CheckNotNull is Preconditions.checkNotNull(T).
 func CheckNotNull[T any](reference T) T {
 	if isNilGeneric(reference) {
-		failNull()
+		panic(nullPointerErr)
 	}
 	return reference
 }

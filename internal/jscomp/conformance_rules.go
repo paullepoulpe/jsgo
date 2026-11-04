@@ -29,11 +29,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// Java: ConformanceRules.ALL_TS_ALLOWLIST
-var allTSAllowlist = ConformanceRules_CreateTsAllowlist()
+var allTSAllowlist = createTsAllowlist()
 
-// Java: ConformanceRules.createTsAllowlist()
-func ConformanceRules_CreateTsAllowlist() *ConformanceRules_AllowList {
+func createTsAllowlist() *conformanceAllowList {
 	result, err := newConformanceAllowList(
 		[]string{}, []string{".*\\.closure\\.js", ".*\\.tsx\\.cl\\.js"})
 	if err != nil {
@@ -42,53 +40,40 @@ func ConformanceRules_CreateTsAllowlist() *ConformanceRules_AllowList {
 	return result
 }
 
-// ConformanceRules_ConformanceResult: classes extending AbstractRule must
-// return ConformanceResult from their checkConformance implementation. For
-// simple rules, the constants CONFORMANCE, POSSIBLE_VIOLATION, VIOLATION are
-// sufficient. However, for some rules additional clarification specific to
-// the violation instance is helpful, for that, an instance of this class can
-// be created to associate a note with the violation.
+// ConformanceRules_ConformanceResult represents the outcome of checking a node
+// against a conformance rule, optionally carrying a violation-specific note.
 type ConformanceRules_ConformanceResult struct {
 	level ConformanceRules_ConformanceLevel
 	note  string
 }
 
-// Java: ConformanceRules.ConformanceResult(ConformanceLevel)
 func NewConformanceRules_ConformanceResult(level ConformanceRules_ConformanceLevel) *ConformanceRules_ConformanceResult {
 	return NewConformanceRules_ConformanceResultWithNote(level, "")
 }
 
-// Java: ConformanceRules.ConformanceResult(ConformanceLevel, String)
 func NewConformanceRules_ConformanceResultWithNote(level ConformanceRules_ConformanceLevel, note string) *ConformanceRules_ConformanceResult {
 	return &ConformanceRules_ConformanceResult{level: level, note: note}
 }
 
-// For CONFORMANCE rules that don't generate notes:
-//
-// Java: ConformanceRules.ConformanceResult.CONFORMANCE
 var ConformanceRules_ConformanceResult_CONFORMANCE = NewConformanceRules_ConformanceResult(ConformanceRules_ConformanceLevel_CONFORMANCE)
 
-// Java: ConformanceRules.ConformanceResult.POSSIBLE_VIOLATION
 var ConformanceRules_ConformanceResult_POSSIBLE_VIOLATION = NewConformanceRules_ConformanceResult(ConformanceRules_ConformanceLevel_POSSIBLE_VIOLATION)
 
-// Java: ConformanceRules.ConformanceResult.POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES
-var conformanceRules_ConformanceResult_POSSIBLE_VIOLATION_DUE_TO_LOOSE_TYPES = NewConformanceRules_ConformanceResultWithNote(
+var conformancePossibleViolationLooseTypes = NewConformanceRules_ConformanceResultWithNote(
 	ConformanceRules_ConformanceLevel_POSSIBLE_VIOLATION,
 	"The type information available for this expression is too loose "+
 		"to ensure conformance.")
 
-// Java: ConformanceRules.ConformanceResult.VIOLATION
 var ConformanceRules_ConformanceResult_VIOLATION = NewConformanceRules_ConformanceResult(ConformanceRules_ConformanceLevel_VIOLATION)
 
-// ConformanceRules_ConformanceLevel is the possible check results.
+// ConformanceRules_ConformanceLevel enumerates the possible check outcomes.
 type ConformanceRules_ConformanceLevel int32
 
 const (
 	// Nothing interesting detected.
 	ConformanceRules_ConformanceLevel_CONFORMANCE ConformanceRules_ConformanceLevel = iota
 	// In the optionally typed world of the Closure Compiler type system
-	// it is possible that detect patterns that match with looser types
-	// that the target pattern.
+	// it is possible that patterns match with looser types than the target pattern.
 	ConformanceRules_ConformanceLevel_POSSIBLE_VIOLATION
 	// Definitely a violation.
 	ConformanceRules_ConformanceLevel_VIOLATION
@@ -96,18 +81,15 @@ const (
 
 var conformanceLevelNames = [...]string{"CONFORMANCE", "POSSIBLE_VIOLATION", "VIOLATION"}
 
-// String is Enum.name().
 func (l ConformanceRules_ConformanceLevel) String() string {
 	return conformanceLevelNames[l]
 }
 
-// Java: ConformanceRules.buildPattern(List<String>)
-func conformanceRules_buildPattern(reqPatterns []string) (*jutil.Pattern, error) {
+func buildConformancePattern(reqPatterns []string) (*jutil.Pattern, error) {
 	if len(reqPatterns) == 0 {
 		return nil, nil
 	}
 
-	// validate the patterns
 	for _, reqPattern := range reqPatterns {
 		if !jutil.IsValidPattern(reqPattern) {
 			return nil, errInvalidRequirementSpec("invalid regex pattern")
@@ -120,52 +102,44 @@ func conformanceRules_buildPattern(reqPatterns []string) (*jutil.Pattern, error)
 	return jutil.Pattern_Compile("(" + strings.Join(reqPatterns, "|") + ")"), nil
 }
 
-// Java: ConformanceRules.AllowList
-type ConformanceRules_AllowList struct {
+type conformanceAllowList struct {
 	prefixes       []string
 	regexp         *jutil.Pattern
 	allowlistEntry *RequirementScopeEntry
 }
 
-// Java: ConformanceRules.AllowList(List<String>, List<String>)
-func newConformanceAllowList(prefixes []string, regexps []string) (*ConformanceRules_AllowList, error) {
-	regexp, err := conformanceRules_buildPattern(regexps)
+func newConformanceAllowList(prefixes []string, regexps []string) (*conformanceAllowList, error) {
+	regexp, err := buildConformancePattern(regexps)
 	if err != nil {
 		return nil, err
 	}
-	return &ConformanceRules_AllowList{
+	return &conformanceAllowList{
 		prefixes: slices.Clone(prefixes),
 		regexp:   regexp,
 	}, nil
 }
 
-// Java: ConformanceRules.AllowList(RequirementScopeEntry)
-func newConformanceAllowListFromEntry(allowlistEntry *RequirementScopeEntry) (*ConformanceRules_AllowList, error) {
-	regexp, err := conformanceRules_buildPattern(allowlistEntry.GetRegexpList())
+func newConformanceAllowListFromEntry(allowlistEntry *RequirementScopeEntry) (*conformanceAllowList, error) {
+	regexp, err := buildConformancePattern(allowlistEntry.GetRegexpList())
 	if err != nil {
 		return nil, err
 	}
-	return &ConformanceRules_AllowList{
+	return &conformanceAllowList{
 		prefixes:       slices.Clone(allowlistEntry.GetPrefixList()),
 		regexp:         regexp,
 		allowlistEntry: allowlistEntry,
 	}, nil
 }
 
-// Matches returns true if the given path matches one of the prefixes or
-// regexps, and false otherwise.
-//
-// Java: ConformanceRules.AllowList.matches(String)
-func (a *ConformanceRules_AllowList) Matches(path string) bool {
-	// If the path ends with .closure.js or .tsx.cl.js, it is probably a tsickle-generated file,
-	// and there may be entries in the allow list for the TypeScript path
+// matches reports whether path (or its original `.ts`/`.tsx` counterpart for
+// tsickle-generated files) matches one of the allowlist prefixes or regexps.
+func (a *conformanceAllowList) matches(path string) bool {
 	var tsPath string
 	hasTsPath := false
-	if base, ok := strings.CutSuffix(path, ".closure.js"); ok {
-		tsPath = base + ".ts"
+	if stem, ok := strings.CutSuffix(path, ".closure.js"); ok {
+		tsPath = stem + ".ts"
 		hasTsPath = true
 	} else if strings.HasSuffix(path, ".tsx.cl.js") {
-		// TSX
 		tsPath = strings.TrimSuffix(path, ".cl.js")
 		hasTsPath = true
 	}
@@ -181,14 +155,14 @@ func (a *ConformanceRules_AllowList) Matches(path string) bool {
 		(a.regexp.Find(path) || (hasTsPath && a.regexp.Find(tsPath)))
 }
 
-// ConformanceRules_AbstractRule holds the common rule fields and helpers shared
-// by AbstractRule and AbstractTypeRestrictionRule subclasses.
-type ConformanceRules_AbstractRule struct {
+// conformanceAbstractRule holds the common rule fields and helpers shared by
+// built-in and type-restriction conformance rules.
+type conformanceAbstractRule struct {
 	compiler                  AbstractCompiler
 	message                   string
 	severity                  Requirement_Severity
-	allowlists                []*ConformanceRules_AllowList
-	onlyApplyTo               *ConformanceRules_AllowList
+	allowlists                []*conformanceAllowList
+	onlyApplyTo               *conformanceAllowList
 	reportLooseTypeViolations bool
 	typeMatchingStrategy      TypeMatchingStrategy
 	requirement               *Requirement
@@ -200,23 +174,19 @@ type ConformanceRules_AbstractRule struct {
 	assertionFunctions *CodingConvention_AssertionFunctionLookup
 }
 
-// Java: ConformanceRules.AbstractRule.check(NodeTraversal, Node, LibraryLevelNonAllowlistedConformanceViolationsBehavior)
-func (b *ConformanceRules_AbstractRule) Check(
+func (b *conformanceAbstractRule) Check(
 	t *NodeTraversal, n rhino.Node, behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
 	if result := b.checkConformance(t, n); result.level != ConformanceRules_ConformanceLevel_CONFORMANCE {
 		b.Report(n, result, behavior)
 	}
 }
 
-// Java: CheckConformance.Rule.getPrecondition() (default method)
-func (*ConformanceRules_AbstractRule) GetPrecondition() CheckConformance_Precondition {
+func (*conformanceAbstractRule) GetPrecondition() CheckConformance_Precondition {
 	return CheckConformance_Precondition_CHECK_ALL
 }
 
 // initRule initializes the common AbstractRule state and check callback.
-//
-// Java: ConformanceRules.AbstractRule(AbstractCompiler, Requirement)
-func (b *ConformanceRules_AbstractRule) initRule(
+func (b *conformanceAbstractRule) initRule(
 	compiler AbstractCompiler,
 	requirement *Requirement,
 	tsIsAllowlisted bool,
@@ -239,8 +209,7 @@ func (b *ConformanceRules_AbstractRule) initRule(
 		b.severity = requirement.GetSeverity()
 	}
 
-	// build allowlists
-	var allowlistsBuilder []*ConformanceRules_AllowList
+	var allowlistsBuilder []*conformanceAllowList
 	for _, entry := range requirement.GetWhitelistEntryList() {
 		allowlist, err := newConformanceAllowListFromEntry(entry)
 		if err != nil {
@@ -286,15 +255,13 @@ func (b *ConformanceRules_AbstractRule) initRule(
 		b.onlyApplyTo = nil
 	}
 	b.reportLooseTypeViolations = requirement.GetReportLooseTypeViolations()
-	b.typeMatchingStrategy = ConformanceRules_AbstractRule_GetTypeMatchingStrategy(requirement)
+	b.typeMatchingStrategy = conformanceTypeMatchingStrategy(requirement)
 	b.requirement = requirement
 	return nil
 }
 
 // initTypeRule initializes AbstractTypeRestrictionRule state and check callback.
-//
-// Java: ConformanceRules.AbstractTypeRestrictionRule(AbstractCompiler, Requirement)
-func (b *ConformanceRules_AbstractRule) initTypeRule(
+func (b *conformanceAbstractRule) initTypeRule(
 	compiler AbstractCompiler,
 	requirement *Requirement,
 	tsIsAllowlisted bool,
@@ -304,14 +271,13 @@ func (b *ConformanceRules_AbstractRule) initTypeRule(
 		return err
 	}
 	b.nativeObjectType = compiler.GetTypeRegistry().GetNativeType(rhino.JSTypeNative_OBJECT_TYPE)
-	b.allowlistedTypes = b.Union(requirement.GetValueList())
+	b.allowlistedTypes = b.unionTypes(requirement.GetValueList())
 	b.assertionFunctions =
 		CodingConvention_AssertionFunctionLookup_Of(compiler.GetCodingConvention().GetAssertionFunctions())
 	return nil
 }
 
-// Java: ConformanceRules.AbstractRule.getTypeMatchingStrategy(Requirement)
-func ConformanceRules_AbstractRule_GetTypeMatchingStrategy(requirement *Requirement) TypeMatchingStrategy {
+func conformanceTypeMatchingStrategy(requirement *Requirement) TypeMatchingStrategy {
 	switch requirement.GetTypeMatchingStrategy() {
 	case Requirement_TypeMatchingStrategy_LOOSE:
 		return TypeMatchingStrategy_LOOSE
@@ -326,28 +292,20 @@ func ConformanceRules_AbstractRule_GetTypeMatchingStrategy(requirement *Requirem
 	}
 }
 
-// FindAllowListForPath returns the first AllowList entry that matches the
-// given path, and null otherwise.
-//
-// Java: ConformanceRules.AbstractRule.findAllowListForPath(String)
-func (b *ConformanceRules_AbstractRule) FindAllowListForPath(path string) *ConformanceRules_AllowList {
-	pathRegex := b.compiler.GetOptions().GetConformanceRemoveRegexFromPath()
-	if pathRegex != nil {
+func (b *conformanceAbstractRule) findAllowListForPath(path string) *conformanceAllowList {
+	if pathRegex := b.compiler.GetOptions().GetConformanceRemoveRegexFromPath(); pathRegex != nil {
 		path = pathRegex.Matcher(path).ReplaceFirst("")
 	}
-
 	for _, allowlist := range b.allowlists {
-		if allowlist.Matches(path) {
+		if allowlist.matches(path) {
 			return allowlist
 		}
 	}
 	return nil
 }
 
-// Report reports a conformance warning for the given node.
-//
-// Java: ConformanceRules.AbstractRule.report(Node, ConformanceResult, LibraryLevelNonAllowlistedConformanceViolationsBehavior)
-func (b *ConformanceRules_AbstractRule) Report(
+// Report reports a conformance finding for node n if it is not allowlisted.
+func (b *conformanceAbstractRule) Report(
 	n rhino.Node,
 	result *ConformanceRules_ConformanceResult,
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
@@ -366,13 +324,13 @@ func (b *ConformanceRules_AbstractRule) Report(
 	}
 	err := JSError_MakeWithRequirement(b.requirement, n, msg, b.message, separator, result.note)
 
-	var allowlist *ConformanceRules_AllowList
+	var allowlist *conformanceAllowList
 	sourcePath, hasPath := NodeUtil_SourceName(n)
 	if hasPath {
-		allowlist = b.FindAllowListForPath(sourcePath)
+		allowlist = b.findAllowListForPath(sourcePath)
 	}
 	isAllowlisted :=
-		allowlist != nil || (b.onlyApplyTo != nil && (!hasPath || !b.onlyApplyTo.Matches(sourcePath)))
+		allowlist != nil || (b.onlyApplyTo != nil && (!hasPath || !b.onlyApplyTo.matches(sourcePath)))
 	var allowlistEntry *RequirementScopeEntry
 	if allowlist != nil {
 		allowlistEntry = allowlist.allowlistEntry
@@ -393,8 +351,10 @@ func (b *ConformanceRules_AbstractRule) Report(
 	}
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isAllowlistedType(Node)
-func (b *ConformanceRules_AbstractRule) IsAllowlistedType(n rhino.Node) bool {
+func (b *conformanceAbstractRule) isAllowlistedType(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	if b.allowlistedTypes != nil && n.GetJSType() != nil {
 		targetType := n.GetJSType().RestrictByNotNullOrUndefined()
 		if targetType.IsSubtypeOf(b.allowlistedTypes) {
@@ -404,33 +364,40 @@ func (b *ConformanceRules_AbstractRule) IsAllowlistedType(n rhino.Node) bool {
 	return false
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isKnown(Node)
 func isKnownNodeType(n rhino.Node) bool {
 	return !isUnknownNodeType(n) &&
 		!isBottomNodeType(n) &&
 		!isTemplateNodeType(n)
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isNativeObjectType(Node)
-func (b *ConformanceRules_AbstractRule) IsNativeObjectType(n rhino.Node) bool {
+func (b *conformanceAbstractRule) isNativeObjectType(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	type_ := n.GetJSType()
 	return type_ != nil && type_.RestrictByNotNullOrUndefined().Equals(b.nativeObjectType)
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isTop(Node)
 func isTopNodeType(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	type_ := n.GetJSType()
 	return type_ != nil && type_.IsAllType()
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isUnknown(Node)
 func isUnknownNodeType(n rhino.Node) bool {
+	if n.IsNil() {
+		return true
+	}
 	type_ := n.GetJSType()
 	return type_ == nil || type_.IsUnknownType()
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isTemplateType(Node)
 func isTemplateNodeType(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	type_ := n.GetJSType()
 	if type_ == nil {
 		return false
@@ -445,23 +412,23 @@ func isTemplateNodeType(n rhino.Node) bool {
 	return type_.IsTemplateType()
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isBottom(Node)
 func isBottomNodeType(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	type_ := n.GetJSType()
 	return type_ != nil && type_.RestrictByNotNullOrUndefined().IsEmptyType()
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.union(List<String>)
-func (b *ConformanceRules_AbstractRule) Union(typeNames []string) rhino.JSType {
+func (b *conformanceAbstractRule) unionTypes(typeNames []string) rhino.JSType {
 	registry := b.compiler.GetTypeRegistry()
 	var types []rhino.JSType
 
 	for _, typeName := range typeNames {
 		type_ := registry.GetGlobalType(typeName)
 		if type_ == nil {
-			// For a few types like `google3.javascript.apps.wiz.events.wiz_event.WizEvent`, we need
-			// to resolve via closure namespace. This is because the class type WizEvent is exported
-			// from a goog.module, so is not a global type name in the global type registry.
+			// Types exported from a goog.module (e.g. WizEvent) are resolved via Closure namespace
+			// rather than global type registry slots.
 			type_ = registry.ResolveViaClosureNamespace(typeName)
 		}
 		if type_ != nil {
@@ -474,9 +441,8 @@ func (b *ConformanceRules_AbstractRule) Union(typeNames []string) rhino.JSType {
 	return registry.CreateUnionTypeOfList(types)
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isAssertionCall(Node)
-func (b *ConformanceRules_AbstractRule) IsAssertionCall(n rhino.Node) bool {
-	if call, ok := ast.AsCall(n); ok {
+func (b *conformanceAbstractRule) isAssertionCall(n rhino.Node) bool {
+	if call, ok := ast.AsNormalOrOptChainCall(n); ok && b.assertionFunctions != nil {
 		callee := call.Callee().Node()
 		if callee.IsQualifiedName() {
 			return b.assertionFunctions.LookupByCallee(callee) != nil
@@ -485,18 +451,29 @@ func (b *ConformanceRules_AbstractRule) IsAssertionCall(n rhino.Node) bool {
 	return false
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isTypeImmediatelyTightened(Node)
-func (b *ConformanceRules_AbstractRule) IsTypeImmediatelyTightened(n rhino.Node) bool {
+func (b *conformanceAbstractRule) isTypeImmediatelyTightened(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
+	if n.GetJSTypeBeforeCast() != nil {
+		return true
+	}
 	parent := n.GetParent()
-	return b.IsAssertionCall(parent) ||
-		parent.IsTypeOf() ||
-		/* casted node */ n.GetJSTypeBeforeCast() != nil
+	if parent.IsNil() {
+		return false
+	}
+	if u, ok := ast.AsUnary(parent); ok && u.Token() == rhino.Token_TYPEOF {
+		return true
+	}
+	return b.isAssertionCall(parent)
 }
 
-// Java: ConformanceRules.AbstractTypeRestrictionRule.isUsed(Node)
-func (b *ConformanceRules_AbstractRule) IsUsed(n rhino.Node) bool {
+func (b *conformanceAbstractRule) isNodeUsed(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
 	parent := n.GetParent()
-	if parent.IsName() || NodeUtil_IsLhsByDestructuring(n) {
+	if parent.IsNil() || parent.IsName() || NodeUtil_IsLhsByDestructuring(n) {
 		return false
 	}
 
@@ -504,26 +481,26 @@ func (b *ConformanceRules_AbstractRule) IsUsed(n rhino.Node) bool {
 	// operation's result is used. e.g. for `a.b.c`:
 	//     USED: `alert(x = a.b.c);`
 	//   UNUSED: `x = a.b.c;`
-	if NodeUtil_IsAssignmentOp(parent) {
+	if asgn, ok := ast.AsAssignment(parent); ok {
+		if asgn.Node().GetParent().IsNil() {
+			return false
+		}
 		return NodeUtil_IsExpressionResultUsed(parent)
 	}
 
 	return NodeUtil_IsExpressionResultUsed(n)
 }
 
-// Java: ConformanceRules.ConformanceUtil.isCallTarget(Node)
-func ConformanceRules_ConformanceUtil_IsCallTarget(n rhino.Node) bool {
+func isConformanceCallTarget(n rhino.Node) bool {
 	role := ast.RoleOf(n)
-	return role == ast.RoleCallCallee || role == ast.RoleNewCallee
+	return role == ast.RoleCallCallee || role == ast.RoleOptChainCallCallee || role == ast.RoleNewCallee
 }
 
-// Java: ConformanceRules.ConformanceUtil.isLooseType(JSType)
-func ConformanceRules_ConformanceUtil_IsLooseType(type_ rhino.JSType) bool {
-	return type_.IsUnknownType() || type_.IsNoResolvedType() || type_.IsAllType()
+func isLooseConformanceType(type_ rhino.JSType) bool {
+	return type_ == nil || type_.IsUnknownType() || type_.IsNoResolvedType() || type_.IsAllType()
 }
 
-// Java: ConformanceRules.ConformanceUtil.evaluateTypeString(AbstractCompiler, String)
-func conformanceRules_evaluateTypeString(compiler AbstractCompiler, expression string) (rhino.JSType, error) {
+func evaluateConformanceTypeString(compiler AbstractCompiler, expression string) (rhino.JSType, error) {
 	typeNodes := parsing.JsDocInfoParser_ParseTypeString(expression)
 	if typeNodes.IsNil() {
 		return nil, errInvalidRequirementSpec("bad type expression")
@@ -532,22 +509,22 @@ func conformanceRules_evaluateTypeString(compiler AbstractCompiler, expression s
 	return compiler.GetTypeRegistry().EvaluateTypeExpressionInGlobalScope(typeExpr), nil
 }
 
-// ConformanceRules_ConformanceUtil_ValidateCall validates the parameters and
-// the 'this' type, of a new or call.
-//
-// Java: ConformanceRules.ConformanceUtil.validateCall(AbstractCompiler, Node, FunctionType, boolean)
-func ConformanceRules_ConformanceUtil_ValidateCall(
+// validateConformanceCall validates the parameters and receiver `this` type of
+// a call, optional-chain call, or `new` invocation against functionType.
+func validateConformanceCall(
 	compiler AbstractCompiler,
 	callOrNew rhino.Node,
 	functionType rhino.FunctionType,
 	isCallInvocation bool) bool {
-	cn := ast.MustCallOrNew(callOrNew)
+	cn, ok := ast.AsCallOrNew(callOrNew)
+	if !ok {
+		return true
+	}
 
 	return validateConformanceParameterList(compiler, cn, functionType, isCallInvocation) &&
 		validateConformanceCallThis(cn, functionType, isCallInvocation)
 }
 
-// Java: ConformanceRules.ConformanceUtil.validateThis(Node, FunctionType, boolean)
 func validateConformanceCallThis(
 	callOrNew ast.CallOrNew, functionType rhino.FunctionType, isCallInvocation bool) bool {
 	if _, isNew := callOrNew.AsNew(); isNew {
@@ -564,10 +541,8 @@ func validateConformanceCallThis(
 		if firstArg, ok := callOrNew.FirstArg(); ok {
 			thisNode = firstArg.Node()
 		}
-	} else if get, ok := ast.AsNormalGet(callOrNew.Callee().Node()); ok {
+	} else if get, ok := ast.AsNormalOrOptChainGet(callOrNew.Callee().Node()); ok {
 		thisNode = get.Object().Node()
-	} else {
-		thisNode = callOrNew.Callee().Node().GetFirstChild()
 	}
 	if thisNode.IsNil() || thisNode.GetJSType() == nil {
 		return false
@@ -576,7 +551,6 @@ func validateConformanceCallThis(
 	return thisNodeType.IsSubtypeOf(thisType)
 }
 
-// Java: ConformanceRules.ConformanceUtil.validateParameterList(AbstractCompiler, Node, FunctionType, boolean)
 func validateConformanceParameterList(
 	compiler AbstractCompiler,
 	callOrNew ast.CallOrNew,
@@ -585,6 +559,10 @@ func validateConformanceParameterList(
 	var argumentTypes []rhino.JSType
 	skippedThisArg := false
 	for arg := range callOrNew.Args() {
+		if arg.Node().IsSpread() {
+			// Runtime spread arity and positional element types cannot be verified statically.
+			return false
+		}
 		if isCallInvocation && !skippedThisArg {
 			skippedThisArg = true
 			continue
@@ -598,18 +576,23 @@ func validateConformanceParameterList(
 	return functionType.AcceptsArguments(argumentTypes)
 }
 
-func conformanceRules_splitClassAndProperty(specName string) (className string, propName string, ok bool) {
-	parts := strings.Split(specName, ".prototype.")
-	jutil.CheckState(len(parts) == 1 || len(parts) == 2)
-	if len(parts) == 2 {
-		return parts[0], parts[1], true
+func splitConformanceClassAndProperty(specName string) (className, propName string, ok bool) {
+	className, propName, ok = strings.Cut(specName, ".prototype.")
+	if !ok {
+		return "", "", false
 	}
-	return "", "", false
+	if strings.Contains(propName, ".prototype.") {
+		panic(jutil.NewIllegalStateExceptionMsg("unexpected multiple .prototype. segments: " + specName))
+	}
+	if className == "" || propName == "" {
+		return "", "", false
+	}
+	return className, propName, true
 }
 
 // splitConformanceNameAndType splits a "NAME:TYPE" requirement value at the
 // first colon, requiring a non-empty name prefix.
-func splitConformanceNameAndType(specName string) (name string, typeDecl string, ok bool) {
+func splitConformanceNameAndType(specName string) (name, typeDecl string, ok bool) {
 	name, typeDecl, ok = strings.Cut(specName, ":")
 	if !ok || name == "" {
 		return "", "", false
@@ -617,15 +600,12 @@ func splitConformanceNameAndType(specName string) (name string, typeDecl string,
 	return name, typeDecl, true
 }
 
-// Java: ConformanceRules.ConformanceUtil.isAnnotatedAsConst(JSDocInfo)
-func ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(jsdoc *rhino.JSDocInfo) bool {
+func isAnnotatedAsConst(jsdoc *rhino.JSDocInfo) bool {
 	return jsdoc != nil && jsdoc.IsConstant()
 }
 
 // ConformanceRules_ConformanceUtil_ValueFromGlobalName resolves the constant string
 // value assigned to an optional global qualified name without pointer boxing.
-//
-// Java: ConformanceRules.ConformanceUtil.getValueFromGlobalName(Scope, GlobalNamespace, String)
 func ConformanceRules_ConformanceUtil_ValueFromGlobalName(
 	scope *Scope, gns *GlobalNamespace, qualifiedName base.OptString) (string, bool) {
 	qname, hasQName := qualifiedName.Get()
@@ -673,6 +653,9 @@ func conformanceValueFromGlobalName(
 
 func conformanceValueFromGlobalNameVisited(
 	scope *Scope, gns *GlobalNamespace, qualifiedName string, hasQualifiedName bool, visited conformanceVisitSet) (string, bool) {
+	if gns == nil {
+		return "", false
+	}
 	var gn *GlobalNamespace_Name
 	if !hasQualifiedName {
 		gns.EnsureGenerated()
@@ -682,7 +665,7 @@ func conformanceValueFromGlobalNameVisited(
 	if gn == nil ||
 		gn.GetGlobalSets() != 1 ||
 		gn.GetTotalSets() != 1 ||
-		!ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(gn.GetJSDocInfo()) {
+		!isAnnotatedAsConst(gn.GetJSDocInfo()) {
 		return "", false
 	}
 	decl := gn.GetDeclaration()
@@ -696,8 +679,6 @@ func conformanceValueFromGlobalNameVisited(
 
 // ConformanceRules_ConformanceUtil_InferStringValueOk infers a constant string
 // value for node without pointer boxing.
-//
-// Java: ConformanceRules.ConformanceUtil.inferStringValue(Scope, Node, Supplier<GlobalNamespace>)
 func ConformanceRules_ConformanceUtil_InferStringValueOk(
 	scope *Scope, node rhino.Node, globalNamespaceSupplier func() *GlobalNamespace) (string, bool) {
 	return inferConformanceStringValue(scope, node, globalNamespaceSupplier)
@@ -725,7 +706,7 @@ func inferConformanceStringValueVisited(
 		if var_ == nil {
 			return "", false
 		}
-		if !var_.IsConst() && !ConformanceRules_ConformanceUtil_IsAnnotatedAsConst(var_.GetJSDocInfo()) {
+		if !var_.IsConst() && !isAnnotatedAsConst(var_.GetJSDocInfo()) {
 			return "", false
 		}
 		if !visited.add(var_.GetNameNode()) {
@@ -733,11 +714,11 @@ func inferConformanceStringValueVisited(
 		}
 		initialValue := var_.GetInitialValue()
 		return inferConformanceStringValueVisited(var_.GetScope().(*Scope), initialValue, globalNamespaceSupplier, visited)
-	case rhino.Token_GETPROP:
+	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		if !visited.add(node) {
 			return "", false
 		}
-		gp := ast.MustGetProp(node)
+		gp := ast.MustNormalOrOptChainGetProp(node)
 		type_ := node.GetJSType()
 		if type_ == nil {
 			return "", false
@@ -755,7 +736,7 @@ func inferConformanceStringValueVisited(
 				NodeUtil_GetFirstPropMatchingKey(enumSource, gp.Property()),
 				globalNamespaceSupplier,
 				visited)
-		} else if type_.IsString() {
+		} else if type_.IsString() && node.IsGetProp() && globalNamespaceSupplier != nil {
 			gns := globalNamespaceSupplier()
 			if gns == nil {
 				return "", false
@@ -764,14 +745,11 @@ func inferConformanceStringValueVisited(
 			return conformanceValueFromGlobalNameVisited(scope, gns, qname, hasQName, visited)
 		}
 		return "", false
-	default:
-		// Do nothing
 	}
 	return "", false
 }
 
-// Java: ConformanceRules.ConformanceUtil.isXid(JSType)
-func ConformanceRules_ConformanceUtil_IsXid(type_ rhino.JSType) bool {
+func isXidType(type_ rhino.JSType) bool {
 	if type_ == nil {
 		return false
 	}
@@ -783,12 +761,10 @@ func ConformanceRules_ConformanceUtil_IsXid(type_ rhino.JSType) bool {
 	return ok && refName == "enum{xid.String}"
 }
 
-// Java: ConformanceRules.ConformanceUtil.isEventHandlerAttrName(String)
-func ConformanceRules_ConformanceUtil_IsEventHandlerAttrName(attr string) bool {
+func isEventHandlerAttrName(attr string) bool {
 	return attr != "on" && strings.HasPrefix(attr, "on")
 }
 
-// Java: ConformanceRules.isLooseObject(JSType, JSTypeRegistry)
-func ConformanceRules_IsLooseObject(type_ rhino.JSType, registry *rhino.JSTypeRegistry) bool {
-	return type_.Equals(registry.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE))
+func isLooseObjectType(type_ rhino.JSType, registry *rhino.JSTypeRegistry) bool {
+	return type_ != nil && type_.Equals(registry.GetNativeType(rhino.JSTypeNative_OBJECT_TYPE))
 }

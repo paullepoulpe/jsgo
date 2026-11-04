@@ -45,11 +45,9 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// ConvertToTypedInterface: the goal of this pass is to shrink the AST,
-// preserving only typing, not behavior.
-//
-// To do this, it does things like removing function/method bodies, rvalues
-// that are not needed, expressions that are not declarations, etc.
+// ConvertToTypedInterface shrinks an AST into a `.i.js` type summary,
+// preserving typing rather than runtime behavior by stripping function/method
+// bodies, non-declaration statements, and unneeded initializer expressions.
 //
 // This is conceptually similar to the ijar tool[1] that bazel uses to shrink
 // jars into minimal versions that can be used equivalently for compilation
@@ -75,6 +73,18 @@ var ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE = DiagnosticType_Warning(
 		"If you can't yet migrate this file to goog.module, use a /** @private */"+
 		" declaration within the goog.provide namespace.")
 
+var (
+	IjsErrors_BAD_IJS_FILE_NAME = DiagnosticType_Error(
+		"JSC_BAD_IJS_FILE_NAME", "--ijs file name must end in .i.js: {0}")
+
+	IjsErrors_CONFLICTING_IJS_FILE = DiagnosticType_Warning(
+		"JSC_CONFLICTING_IJS_FILE",
+		"Found --ijs file in a conflict with --js or --weakdep file. This usually means the same"+
+			" file appears both in the srcs and the transitive deps of a build target.\n"+
+			"File 1: {0}\n"+
+			"File 2: {1}")
+)
+
 func isCallToPreserve(name string) bool {
 	switch name {
 	case "Polymer",
@@ -92,13 +102,11 @@ func isCallToPreserve(name string) bool {
 	return false
 }
 
-// Java: ConvertToTypedInterface(AbstractCompiler)
 func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterface {
 	return &ConvertToTypedInterface{compiler: compiler}
 }
 
-// Java: ConvertToTypedInterface.maybeReport(AbstractCompiler, Node, DiagnosticType, String...)
-func ConvertToTypedInterface_MaybeReport(
+func maybeReportIjsDiagnostic(
 	compiler AbstractCompiler, node rhino.Node, diagnostic *DiagnosticType, fillers ...string) {
 	if sourceName, ok := NodeUtil_SourceName(node); ok &&
 		(strings.HasSuffix(sourceName, "_test.js") ||
@@ -112,18 +120,16 @@ func ConvertToTypedInterface_MaybeReport(
 	compiler.Report(JSError_MakeWithNode(node, diagnostic, fillers...))
 }
 
-// Java: ConvertToTypedInterface.maybeWarnForConstWithoutExplicitType(AbstractCompiler, PotentialDeclaration)
-func ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(
-	compiler AbstractCompiler, decl *PotentialDeclaration) {
-	if decl.IsConstToBeInferred() &&
-		!decl.GetLhs().IsFromExterns() &&
-		!JsdocUtil_IsPrivate(decl.GetJsDoc()) {
+func maybeWarnForConstWithoutExplicitType(compiler AbstractCompiler, decl *potentialDeclaration) {
+	if decl.isConstToBeInferred() &&
+		!decl.lhs.IsFromExterns() &&
+		!isPrivateJSDoc(decl.jsdoc()) {
 
-		nameNode := decl.GetLhs()
+		nameNode := decl.lhs
 		if nameNode.GetJSType() == nil {
-			ConvertToTypedInterface_MaybeReport(compiler, nameNode, ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
+			maybeReportIjsDiagnostic(compiler, nameNode, ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
 		} else {
-			ConvertToTypedInterface_MaybeReport(
+			maybeReportIjsDiagnostic(
 				compiler,
 				nameNode,
 				ConvertToTypedInterface_CONSTANT_WITH_SUGGESTED_TYPE,
@@ -132,24 +138,27 @@ func ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(
 	}
 }
 
-// Java: ConvertToTypedInterface.process(Node, Node)
 func (c *ConvertToTypedInterface) Process(externs rhino.Node, root rhino.Node) {
-	for item := range ast.ReadAhead(ast.MustRoot(root).FirstItem()) {
-		c.ProcessFile(item.Node())
+	rootView, ok := ast.AsRoot(root)
+	if !ok {
+		return
+	}
+	for item := range ast.ReadAhead(rootView.FirstItem()) {
+		if script, isScript := item.AsScript(); isScript {
+			c.processFile(script)
+		}
 	}
 }
 
-// Java: ConvertToTypedInterface.processFile(Node)
-func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
-	jutil.CheckArgument(scriptNode.IsScript())
+func (c *ConvertToTypedInterface) processFile(script ast.Script) {
+	scriptNode := script.Node()
 	sourceFileName, _ := scriptNode.SourceFileName()
 	if AbstractCompiler_IsFillFileName(sourceFileName) {
-		scriptNode.Detach()
+		script.Detach()
 		return
 	}
 
-	scriptJsDoc := scriptNode.GetJSDocInfo()
-	if scriptJsDoc != nil && scriptJsDoc.IsClosureUnawareCode() {
+	if scriptJsDoc := scriptNode.GetJSDocInfo(); scriptJsDoc != nil && scriptJsDoc.IsClosureUnawareCode() {
 		// If we are generating type summary files, then those files won't contain the method content
 		// from within the closure-unaware section, and the entire file effectively becomes
 		// closure-aware again (as it is generated code that describes a module shape).
@@ -158,25 +167,22 @@ func (c *ConvertToTypedInterface) ProcessFile(scriptNode rhino.Node) {
 		scriptNode.SetJSDocInfo(scriptJsDocBuilder.Build())
 	}
 
-	currentFile := NewFileInfo(sourceFileName)
-	NodeTraversal_Traverse(c.compiler, scriptNode, ConvertToTypedInterface_RemoveNonDeclarations{})
-	NodeTraversal_Traverse(c.compiler, scriptNode, NewConvertToTypedInterface_PropagateConstJsdoc(currentFile))
-	NewConvertToTypedInterface_SimplifyDeclarations(c.compiler, currentFile).SimplifyAll()
+	currentFile := newIjsFileInfo(sourceFileName)
+	NodeTraversal_Traverse(c.compiler, scriptNode, ijsRemoveNonDeclarations{})
+	NodeTraversal_Traverse(c.compiler, scriptNode, &ijsPropagateConstJsdoc{currentFile: currentFile})
+	(&ijsSimplifyDeclarations{compiler: c.compiler, currentFile: currentFile}).simplifyAll()
 }
 
-// Java: ConvertToTypedInterface.findNameDeclaration(Scope, Node)
-func ConvertToTypedInterface_FindNameDeclaration(scope *Scope, rhs rhino.Node) *Var {
-	if !rhs.IsName() {
+func findNameDeclaration(scope *Scope, rhs rhino.Node) *Var {
+	if scope == nil || !rhs.IsName() {
 		return nil
 	}
 	return scope.GetVarByNode(rhs)
 }
 
-// ConvertToTypedInterface_RemoveNonDeclarations is the private static nested
-// callback ConvertToTypedInterface.RemoveNonDeclarations.
-type ConvertToTypedInterface_RemoveNonDeclarations struct{}
+type ijsRemoveNonDeclarations struct{}
 
-var convertToTypedInterfaceRemoveVisitTokens = func() ast.TokenSet {
+var ijsRemoveVisitTokens = func() ast.TokenSet {
 	var s ast.TokenSet
 	s.Add(rhino.Token_TRY)
 	s.Add(rhino.Token_LABEL)
@@ -197,11 +203,11 @@ var convertToTypedInterfaceRemoveVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (ConvertToTypedInterface_RemoveNonDeclarations) visitTokens() *ast.TokenSet {
-	return &convertToTypedInterfaceRemoveVisitTokens
+func (ijsRemoveNonDeclarations) visitTokens() *ast.TokenSet {
+	return &ijsRemoveVisitTokens
 }
 
-var convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE = rhino.QualifiedName_Of("goog.scope")
+var ijsGoogScopeQName = rhino.QualifiedName_Of("goog.scope")
 
 func preserveOrDelete(n rhino.Node, t *NodeTraversal, keep bool) bool {
 	if !keep {
@@ -210,11 +216,10 @@ func preserveOrDelete(n rhino.Node, t *NodeTraversal, keep bool) bool {
 	return keep
 }
 
-// Java: ConvertToTypedInterface.RemoveNonDeclarations.shouldTraverse(NodeTraversal, Node, Node)
-func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+func (ijsRemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
 	case rhino.Token_FUNCTION:
-		if !ClassUtil_IsConstructor(n) || !ClassUtil_HasNamedClass(n) {
+		if !isIjsConstructor(n) || !hasNamedClass(n) {
 			fnBody := ast.MustFunction(n).Body()
 			if block, ok := fnBody.AsBlock(); !ok || block.HasStatements() {
 				body := fnBody.Node()
@@ -225,28 +230,36 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 		}
 		return true
 	case rhino.Token_MEMBER_FIELD_DEF:
-		// We will remove fields in anonymous classes
-		return preserveOrDelete(n, t, ClassUtil_IsMemberFieldDefInsideClassWithName(n))
+		// Remove fields in anonymous classes.
+		return preserveOrDelete(n, t, isMemberFieldInsideNamedClass(n))
 	case rhino.Token_EXPR_RESULT:
 		expr := ast.MustExprStmt(n).Expr().Node()
 		switch expr.GetToken() {
 		case rhino.Token_CALL:
 			callee := ast.MustCall(expr).Callee().Node()
-			jutil.CheckState(!convertToTypedInterface_RemoveNonDeclarations_GOOG_SCOPE.Matches(callee))
+			if ijsGoogScopeQName.Matches(callee) {
+				panic(jutil.NewIllegalStateException())
+			}
 			qname, ok := callee.GetQualifiedNameString()
 			return preserveOrDelete(n, t, ok && isCallToPreserve(qname))
 		case rhino.Token_ASSIGN:
-			return preserveOrDelete(n, t, ConvertToTypedInterface_ShouldPreserveAssignment(expr, t))
+			return preserveOrDelete(n, t, shouldPreserveAssignment(expr, t))
 		case rhino.Token_GETPROP:
 			return preserveOrDelete(n, t, expr.IsQualifiedName() && expr.GetJSDocInfo() != nil)
 		case rhino.Token_GETELEM:
-			return preserveOrDelete(n, t, ConvertToTypedInterface_IsSymbolProp(ast.MustGetElem(expr).Index().Node()) && expr.GetJSDocInfo() != nil)
+			elem := ast.MustGetElem(expr)
+			return preserveOrDelete(
+				n,
+				t,
+				isSymbolProp(elem.Index().Node()) &&
+					elem.Object().Node().IsQualifiedName() &&
+					expr.GetJSDocInfo() != nil)
 		default:
 			NodeUtil_DeleteNode(n, t.GetCompiler())
 			return false
 		}
 	case rhino.Token_COMPUTED_PROP:
-		if ClassUtil_IsComputedMemberInsideClassWithName(n) {
+		if isComputedMemberInsideClass(n) {
 			return true
 		}
 		if val, ok := ast.MustComputedProp(n).Value(); !ok || !NodeUtil_IsLhsByDestructuring(val.Node()) {
@@ -254,9 +267,9 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 		}
 		return false
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		return preserveOrDelete(n, t, ClassUtil_IsComputedMemberInsideClassWithName(n))
+		return preserveOrDelete(n, t, isComputedMemberInsideClass(n))
 	case rhino.Token_THROW, rhino.Token_RETURN, rhino.Token_BREAK, rhino.Token_CONTINUE, rhino.Token_DEBUGGER, rhino.Token_EMPTY:
-		if NodeUtil_IsStatementParent(parent) {
+		if !parent.IsNil() && NodeUtil_IsStatementParent(parent) {
 			NodeUtil_DeleteNode(n, t.GetCompiler())
 		}
 		return false
@@ -282,18 +295,25 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 		NodeUtil_DeleteNode(ast.MustDo(n).Cond().Node(), t.GetCompiler())
 		return true
 	case rhino.Token_FOR:
-		// Intentionally mutates FOR into a temporary invalid child layout (like FOR_OF below)
-		// so Visit can splice remaining children (including EMPTY placeholders from DeleteNode) into parent.
-		compiler := t.GetCompiler()
-		initNode := n.GetFirstChild()
-		condNode := initNode.GetNext()
-		incrNode := condNode.GetNext()
-		bodyNode := incrNode.GetNext()
-		NodeUtil_DeleteNode(condNode, compiler)
-		NodeUtil_DeleteNode(incrNode, compiler)
-		initNode.Detach()
-		if initNode.IsVar() {
-			bodyNode.AddChildToFront(initNode)
+		var children [4]rhino.Node
+		i := 0
+		for child := range n.Children() {
+			if i < 4 {
+				children[i] = child
+			}
+			i++
+		}
+		if i == 4 {
+			compiler := t.GetCompiler()
+			initNode, condNode, incrNode, bodyNode := children[0], children[1], children[2], children[3]
+			NodeUtil_DeleteNode(condNode, compiler)
+			NodeUtil_DeleteNode(incrNode, compiler)
+			initNode.Detach()
+			if initNode.IsVar() {
+				bodyNode.AddChildToFront(initNode)
+			} else {
+				NodeUtil_MarkFunctionsDeleted(initNode, compiler)
+			}
 		}
 		return true
 	case rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR_IN:
@@ -302,11 +322,14 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 		NodeUtil_DeleteNode(collection.Node(), t.GetCompiler())
 		if initNode := target.Detach().Node(); initNode.IsVar() {
 			body.Node().AddChildToFront(initNode)
+		} else {
+			NodeUtil_MarkFunctionsDeleted(initNode, t.GetCompiler())
 		}
 		return true
 	case rhino.Token_CONST, rhino.Token_LET:
 		if !t.InGlobalScope() && !t.InModuleScope() {
 			NodeUtil_RemoveChild(parent, n)
+			NodeUtil_MarkFunctionsDeleted(n, t.GetCompiler())
 			t.ReportCodeChangeWithNode(parent)
 			return false
 		}
@@ -314,75 +337,73 @@ func (ConvertToTypedInterface_RemoveNonDeclarations) ShouldTraverse(t *NodeTrave
 	case rhino.Token_VAR:
 		if !t.InGlobalHoistScope() && !t.InModuleHoistScope() {
 			NodeUtil_RemoveChild(parent, n)
+			NodeUtil_MarkFunctionsDeleted(n, t.GetCompiler())
 			t.ReportCodeChangeWithNode(parent)
 			return false
 		}
 		return true
-	case rhino.Token_MODULE_BODY, rhino.Token_CLASS, rhino.Token_DEFAULT_CASE, rhino.Token_BLOCK, rhino.Token_EXPORT, rhino.Token_IMPORT:
+	case rhino.Token_BLOCK:
+		if !parent.IsNil() && parent.IsClassMembers() {
+			// ES2022 `static { ... }` class initialization blocks hold only runtime code.
+			NodeUtil_DeleteNode(n, t.GetCompiler())
+			return false
+		}
+		return true
+	case rhino.Token_MODULE_BODY, rhino.Token_CLASS, rhino.Token_DEFAULT_CASE, rhino.Token_EXPORT, rhino.Token_IMPORT:
 		return true
 	default:
-		jutil.CheckStateMsg1(!NodeUtil_IsStatement(n), "%s", n.GetToken())
+		if NodeUtil_IsStatement(n) {
+			panic(jutil.NewIllegalStateExceptionMsg(n.GetToken().String()))
+		}
 		return true
 	}
 }
 
-// Java: ConvertToTypedInterface.RemoveNonDeclarations.visit(NodeTraversal, Node, Node)
-func (ConvertToTypedInterface_RemoveNonDeclarations) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (ijsRemoveNonDeclarations) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_TRY, rhino.Token_LABEL, rhino.Token_DEFAULT_CASE, rhino.Token_CASE, rhino.Token_DO, rhino.Token_WHILE,
 		rhino.Token_FOR, rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_IF:
 		if n.HasParent() {
 			children := n.RemoveChildren()
 			parent.AddChildrenAfter(children, n)
-			// We don't need the special valid-AST-preserving behavior of `NodeUtil.removeChild()`
-			// here. We always want to remove exactly and only `n`, so we use `n.detach()`.
-			//
-			// Also, the shouldTraverse() method intentionally puts the AST in an invalid state
-			// by moving children to parents where they are not valid temporarily.
-			// `NodeUtil.removeChild()` would throw an exception here if it noticed the invalid AST
-			// state.
+			// ShouldTraverse intentionally leaves control-flow containers in a temporary
+			// non-standard layout before splicing hoisted VAR declarations into parent.
 			n.Detach()
 			t.ReportCodeChange()
 		}
 	case rhino.Token_SWITCH:
-		// shouldTraverse() removed the switch condition already, so we just need to handle the
-		// cases.
+		// ShouldTraverse already deleted the switch discriminant, leaving only SWITCH_BODY.
 		if n.HasParent() {
 			if !n.HasOneChild() {
-				jutil.CheckStateMsg1(false, "malfrmed sWITCH %s", n.ToStringTree())
+				panic(jutil.NewIllegalStateExceptionMsg("malformed SWITCH: " + n.ToStringTree()))
 			}
-			switchBody := ast.MustSwitchBody(n.GetOnlyChild())
-			children := switchBody.Node().RemoveChildren()
+			var bodyNode rhino.Node
+			for child := range n.Children() {
+				bodyNode = child
+			}
+			children := ast.MustSwitchBody(bodyNode).Node().RemoveChildren()
 			parent.AddChildrenAfter(children, n)
 			n.Detach()
 			t.ReportCodeChange()
 		}
 	case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
-		ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n, t)
+		splitNameDeclarations(ast.MustNameDeclaration(n), t)
 	case rhino.Token_BLOCK:
-		if parent.IsClassMembers() {
+		if !parent.IsNil() && parent.IsClassMembers() {
 			NodeUtil_DeleteNode(n, t.GetCompiler())
-		} else if !parent.IsFunction() {
+		} else if !parent.IsNil() && !parent.IsFunction() {
 			parent.AddChildrenAfter(n.RemoveChildren(), n)
 			n.Detach()
 			t.ReportCodeChangeWithNode(parent)
 		}
-	default:
 	}
 }
 
-// ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring
-// does three simplifications to const/let/var nodes.
-//
-//   - Splits them so that each declaration is a separate statement.
-//   - Removes non-import and non-alias destructuring statements, which we
-//     assume are not type declarations.
-//   - Moves inline JSDoc annotations onto the declaration nodes.
-//
-// Java: ConvertToTypedInterface.RemoveNonDeclarations.splitNameDeclarationsAndRemoveDestructuring(Node, NodeTraversal)
-func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemoveDestructuring(n rhino.Node, t *NodeTraversal) {
-	decl, ok := ast.AsNameDeclaration(n)
-	jutil.CheckArgument(ok)
+// splitNameDeclarations splits multi-declarator var/let/const statements into
+// separate single-declarator statements, merges inline JSDoc onto the
+// declaration node, and removes empty non-import destructuring patterns.
+func splitNameDeclarations(decl ast.NameDeclaration, t *NodeTraversal) {
+	n := decl.Node()
 	sharedJsdoc := n.GetJSDocInfo()
 	isExport := ast.RoleOf(n) == ast.RoleExportBody
 	statement := n
@@ -394,47 +415,56 @@ func ConvertToTypedInterface_RemoveNonDeclarations_SplitNameDeclarationsAndRemov
 		lhsToSplit := d.Node()
 		nameJsdoc := lhsToSplit.GetJSDocInfo()
 		lhsToSplit.SetJSDocInfo(nil)
-		mergedJsdoc := JsdocUtil_MergeJsdocs(sharedJsdoc, nameJsdoc)
+		mergedJsdoc := mergeIjsJSDocs(sharedJsdoc, nameJsdoc)
 		if decl.NumDeclarators() == 1 {
 			n.SetJSDocInfo(mergedJsdoc)
+			deleteIfEmptyNonImportDestructuring(d, statement, t)
 			return
 		}
-		// A name declaration with more than one LHS is split into separate declarations.
+		// A name declaration with more than one declarator is split into separate declarations.
+		nameDecl, ok := d.AsName()
+		if !ok {
+			d.Node().Detach()
+			panic(jutil.NewIllegalStateException())
+		}
 		var rhs rhino.Node
-		if lhsToSplit.HasChildren() {
-			rhs = lhsToSplit.RemoveFirstChild()
+		if init, hasInit := nameDecl.Init(); hasInit {
+			rhs = init.Detach().Node()
 		}
-		newDeclaration :=
-			NodeUtil_NewDeclaration(lhsToSplit.Detach(), rhs, decl.Token()).Srcref(n)
-		newDeclaration.SetJSDocInfo(mergedJsdoc)
+		newDeclNode := NodeUtil_NewDeclaration(nameDecl.Detach().Node(), rhs, decl.Token()).Srcref(n)
+		newDeclNode.SetJSDocInfo(mergedJsdoc)
+		newStmt := newDeclNode
 		if isExport {
-			newDeclaration = ast.NewExport(ast.MustExportBody(newDeclaration)).Node().Srcref(statement)
+			newStmt = ast.NewExport(ast.MustExportBody(newDeclNode)).Node().Srcref(statement)
 		}
-		newDeclaration.InsertAfter(statement)
+		newStmt.InsertAfter(statement)
 		t.ReportCodeChange()
 	}
 }
 
-var (
-	IjsErrors_BAD_IJS_FILE_NAME = DiagnosticType_Error("JSC_BAD_IJS_FILE_NAME", "--ijs file name must end in .i.js: {0}")
-
-	IjsErrors_CONFLICTING_IJS_FILE = DiagnosticType_Warning(
-		"JSC_CONFLICTING_IJS_FILE",
-		"Found --ijs file in a conflict with --js or --weakdep file. This usually means the same"+
-			" file appears both in the srcs and the transitive deps of a build target.\n"+
-			"File 1: {0}\n"+
-			"File 2: {1}")
-)
-
-// ConvertToTypedInterface_PropagateConstJsdoc is the private static nested
-// class ConvertToTypedInterface.PropagateConstJsdoc.
-type ConvertToTypedInterface_PropagateConstJsdoc struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-
-	currentFile *FileInfo
+func deleteIfEmptyNonImportDestructuring(d ast.Declarator, stmt rhino.Node, t *NodeTraversal) {
+	dlhs, ok := d.AsDestructuringLhs()
+	if !ok {
+		return
+	}
+	hasBinding := false
+	NodeUtil_VisitLhsNodesInNode(dlhs.Node(), func(rhino.Node) { hasBinding = true })
+	if hasBinding {
+		return
+	}
+	init, _ := dlhs.Init()
+	if !isImportRhs(init.Node()) {
+		NodeUtil_DeleteNode(stmt, t.GetCompiler())
+	}
 }
 
-var convertToTypedInterfacePropagateVisitTokens = func() ast.TokenSet {
+type ijsPropagateConstJsdoc struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
+	currentFile *ijsFileInfo
+}
+
+var ijsPropagateVisitTokens = func() ast.TokenSet {
 	var s ast.TokenSet
 	s.Add(rhino.Token_CLASS)
 	s.Add(rhino.Token_MEMBER_FIELD_DEF)
@@ -447,37 +477,37 @@ var convertToTypedInterfacePropagateVisitTokens = func() ast.TokenSet {
 	return s
 }()
 
-func (*ConvertToTypedInterface_PropagateConstJsdoc) visitTokens() *ast.TokenSet {
-	return &convertToTypedInterfacePropagateVisitTokens
+func (*ijsPropagateConstJsdoc) visitTokens() *ast.TokenSet {
+	return &ijsPropagateVisitTokens
 }
 
-var processConstJsdocCallback_GOOG_DEFINE = rhino.QualifiedName_Of("goog.define")
-var processConstJsdocCallback_GOOG_PROVIDE = rhino.QualifiedName_Of("goog.provide")
-var processConstJsdocCallback_GOOG_REQUIRE = rhino.QualifiedName_Of("goog.require")
-var processConstJsdocCallback_CJS_REQUIRE = rhino.QualifiedName_Of("require")
+var (
+	ijsGoogDefineQName  = rhino.QualifiedName_Of("goog.define")
+	ijsGoogProvideQName = rhino.QualifiedName_Of("goog.provide")
+	ijsCjsRequireQName  = rhino.QualifiedName_Of("require")
+)
 
-// Java: ConvertToTypedInterface.PropagateConstJsdoc(FileInfo)
-func NewConvertToTypedInterface_PropagateConstJsdoc(currentFile *FileInfo) *ConvertToTypedInterface_PropagateConstJsdoc {
-	return &ConvertToTypedInterface_PropagateConstJsdoc{currentFile: currentFile}
-}
-
-// Java: ProcessConstJsdocCallback.visit(NodeTraversal, Node, Node)
-func (p *ConvertToTypedInterface_PropagateConstJsdoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+func (p *ijsPropagateConstJsdoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	switch n.GetToken() {
 	case rhino.Token_CLASS:
-		if NodeUtil_IsStatementParent(parent) {
-			p.currentFile.RecordNameDeclaration(ast.MustClass(n).NameNode())
+		if !parent.IsNil() && NodeUtil_IsStatementParent(parent) {
+			if name, ok := ast.MustClass(n).Name(); ok && name.Ident() != "" {
+				p.currentFile.recordNameDeclaration(name.Node())
+			}
 		}
 	case rhino.Token_MEMBER_FIELD_DEF:
-		if !NodeUtil_GetRValueOfLValue(n).IsNil() {
-			p.ProcessDeclarationWithRhs(t, n)
+		field := ast.MustMemberFieldDef(n)
+		if _, hasVal := field.Value(); hasVal {
+			p.processDeclarationWithRhs(t, n)
 		}
-		p.currentFile.RecordMemberFieldDef(n)
+		p.currentFile.recordMemberFieldDef(field)
 	case rhino.Token_FUNCTION:
-		if NodeUtil_IsStatementParent(parent) {
-			p.currentFile.RecordNameDeclaration(ast.MustFunction(n).NameNode().Node())
-		} else if ClassUtil_IsClassMethod(n) && ClassUtil_HasNamedClass(n) {
-			p.currentFile.RecordMethod(n)
+		if !parent.IsNil() && NodeUtil_IsStatementParent(parent) {
+			if name, ok := ast.MustFunction(n).Name(); ok && name.Ident() != "" {
+				p.currentFile.recordNameDeclaration(name.Node())
+			}
+		} else if isClassMethod(n) && hasNamedClass(n) {
+			p.currentFile.recordMethod(ast.MustMemberFunctionDef(parent))
 		}
 	case rhino.Token_EXPR_RESULT:
 		expr := ast.MustExprStmt(n).Expr().Node()
@@ -485,105 +515,112 @@ func (p *ConvertToTypedInterface_PropagateConstJsdoc) Visit(t *NodeTraversal, n 
 		case rhino.Token_CALL:
 			call := ast.MustCall(expr)
 			callee := call.Callee().Node()
-			if processConstJsdocCallback_GOOG_PROVIDE.Matches(callee) {
+			if ijsGoogProvideQName.Matches(callee) {
 				if lastArg, ok := call.LastArg(); ok {
 					if str, ok := lastArg.AsStringLit(); ok {
-						p.currentFile.MarkProvided(str.Value())
+						p.currentFile.markProvided(str.Value())
 					}
 				}
-			} else if processConstJsdocCallback_GOOG_REQUIRE.Matches(callee) || processConstJsdocCallback_CJS_REQUIRE.Matches(callee) {
+			} else if ijsGoogRequireQName.Matches(callee) || ijsCjsRequireQName.Matches(callee) {
 				if lastArg, ok := call.LastArg(); ok {
 					if str, ok := lastArg.AsStringLit(); ok {
-						p.currentFile.RecordImport(str.Value())
+						p.currentFile.recordImport(str.Value())
 					}
 				}
-			} else if processConstJsdocCallback_GOOG_DEFINE.Matches(callee) {
-				p.currentFile.RecordDefine(expr)
+			} else if ijsGoogDefineQName.Matches(callee) {
+				p.currentFile.recordDefine(call)
 			}
 		case rhino.Token_ASSIGN:
 			assign := ast.MustAssign(expr)
-			p.RecordDeclaration(t, assign.Target().Node(), assign.Value().Node())
+			p.recordDeclaration(t, assign.Target().Node(), assign.Value().Node())
 		case rhino.Token_GETPROP:
-			p.currentFile.RecordNameDeclaration(expr)
+			p.currentFile.recordNameDeclaration(expr)
 		case rhino.Token_GETELEM:
 		default:
 			panic(jutil.NewIllegalArgumentExceptionMsg("Unexpected declaration: " + expr.String()))
 		}
 	case rhino.Token_VAR, rhino.Token_CONST, rhino.Token_LET:
 		d, ok := ast.MustNameDeclaration(n).OnlyDeclarator()
-		jutil.CheckStateMsg1(ok, "%s", n)
+		if !ok {
+			panic(jutil.NewIllegalStateExceptionMsg("expected single declarator"))
+		}
 		var rhs rhino.Node
-		if name, ok := d.AsName(); ok {
+		if name, isName := d.AsName(); isName {
 			init, _ := name.Init()
 			rhs = init.Node()
-		} else if dlhs, ok := d.AsDestructuringLhs(); ok {
+		} else if dlhs, isDlhs := d.AsDestructuringLhs(); isDlhs {
 			init, _ := dlhs.Init()
 			rhs = init.Node()
 		}
-		p.RecordDeclaration(t, d.Node(), rhs)
+		p.recordDeclaration(t, d.Node(), rhs)
 	case rhino.Token_STRING_KEY:
-		if parent.IsObjectLit() && n.HasOneChild() {
-			p.ProcessDeclarationWithRhs(t, n)
-			p.currentFile.RecordStringKeyDeclaration(n)
+		if !parent.IsNil() && parent.IsObjectLit() {
+			sk := ast.MustStringKey(n)
+			if !sk.Value().Node().IsNil() {
+				p.processDeclarationWithRhs(t, n)
+				p.currentFile.recordStringKeyDeclaration(sk)
+			}
 		}
 	}
 }
 
-// Java: ProcessConstJsdocCallback.recordDeclaration(NodeTraversal, Node, Node)
-func (p *ConvertToTypedInterface_PropagateConstJsdoc) RecordDeclaration(t *NodeTraversal, lhs rhino.Node, rhs rhino.Node) {
+func (p *ijsPropagateConstJsdoc) recordDeclaration(t *NodeTraversal, lhs, rhs rhino.Node) {
 	if call, ok := ast.AsCall(rhs); ok &&
-		processConstJsdocCallback_GOOG_DEFINE.Matches(call.Callee().Node()) &&
+		ijsGoogDefineQName.Matches(call.Callee().Node()) &&
 		lhs.IsQualifiedName() {
-		p.currentFile.RecordDefine(rhs)
+		p.currentFile.recordDefine(call)
 	} else if !lhs.IsGetElem() {
-		p.RecordNameDeclaration(lhs, rhs)
+		p.recordNameDeclaration(lhs, rhs)
 		if !lhs.IsDestructuringLhs() && !rhs.IsNil() {
-			p.ProcessDeclarationWithRhs(t, lhs)
+			p.processDeclarationWithRhs(t, lhs)
 		}
 	}
 }
 
-// Java: ProcessConstJsdocCallback.recordNameDeclaration(Node, Node)
-func (p *ConvertToTypedInterface_PropagateConstJsdoc) RecordNameDeclaration(lhs rhino.Node, rhs rhino.Node) {
-	jutil.CheckArgument(NodeUtil_IsNameDeclaration(lhs.GetParent()) || lhs.GetParent().IsAssign())
-	isImport := PotentialDeclaration_IsImportRhs(rhs)
-	isAlias := PotentialDeclaration_IsAliasDeclaration(lhs, rhs)
+func (p *ijsPropagateConstJsdoc) recordNameDeclaration(lhs, rhs rhino.Node) {
+	parent := lhs.GetParent()
+	if parent.IsNil() || (!NodeUtil_IsNameDeclaration(parent) && !parent.IsAssign()) {
+		panic(jutil.NewIllegalArgumentExceptionMsg("unexpected declaration parent"))
+	}
+	isImport := isImportRhs(rhs)
+	isAlias := isAliasDeclaration(lhs, rhs)
 	NodeUtil_VisitLhsNodesInNode(
-		lhs.GetParent(),
+		parent,
 		func(name rhino.Node) {
+			if !name.IsQualifiedName() {
+				return
+			}
 			if isAlias || isImport {
-				p.currentFile.RecordAliasDeclaration(name)
+				p.currentFile.recordAliasDeclaration(name)
 			} else {
-				p.currentFile.RecordNameDeclaration(name)
+				p.currentFile.recordNameDeclaration(name)
 			}
 		})
 }
 
-// Java: ProcessConstJsdocCallback.processDeclarationWithRhs(NodeTraversal, Node)
-func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessDeclarationWithRhs(t *NodeTraversal, lhs rhino.Node) {
-	jutil.CheckArgumentMsg1(lhs.IsQualifiedName() || lhs.IsStringKey() || lhs.IsMemberFieldDef(), "%s", lhs)
-	jutil.CheckStateMsg1(!NodeUtil_GetRValueOfLValue(lhs).IsNil(), "%s", lhs)
-	if PotentialDeclaration_IsConstToBeInferred(lhs) {
-		p.ProcessConstWithRhs(t, lhs)
+func (p *ijsPropagateConstJsdoc) processDeclarationWithRhs(t *NodeTraversal, lhs rhino.Node) {
+	if !lhs.IsQualifiedName() && !lhs.IsStringKey() && !lhs.IsMemberFieldDef() {
+		panic(jutil.NewIllegalArgumentExceptionMsg("unexpected declaration lhs: " + lhs.String()))
+	}
+	if NodeUtil_GetRValueOfLValue(lhs).IsNil() {
+		panic(jutil.NewIllegalStateExceptionMsg("missing rhs for declaration: " + lhs.String()))
+	}
+	if isConstNodeToBeInferred(lhs) {
+		p.processConstWithRhs(t, lhs)
 	}
 }
 
-// Java: ConvertToTypedInterface.PropagateConstJsdoc.processConstWithRhs(NodeTraversal, Node)
-func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessConstWithRhs(t *NodeTraversal, nameNode rhino.Node) {
-	jutil.CheckArgumentMsg1(
-		nameNode.IsQualifiedName() ||
-			nameNode.IsStringKey() ||
-			nameNode.IsDestructuringLhs() ||
-			nameNode.IsMemberFieldDef(),
-		"%s",
-		nameNode)
+func (p *ijsPropagateConstJsdoc) processConstWithRhs(t *NodeTraversal, nameNode rhino.Node) {
 	jsdocNode := NodeUtil_GetBestJSDocInfoNode(nameNode)
+	if jsdocNode.IsNil() {
+		return
+	}
 	originalJsdoc := jsdocNode.GetJSDocInfo()
 	rhs := NodeUtil_GetRValueOfLValue(nameNode)
-	newJsdoc := JsdocUtil_GetJSDocForRhs(rhs, originalJsdoc)
-	if newJsdoc == nil && ClassUtil_IsThisPropInsideClassWithName(nameNode) {
-		decl := ConvertToTypedInterface_FindNameDeclaration(t.GetScope(), rhs)
-		newJsdoc = JsdocUtil_GetJSDocForName(decl, originalJsdoc)
+	newJsdoc := jsdocForRhs(rhs, originalJsdoc)
+	if newJsdoc == nil && isThisPropInsideNamedClass(nameNode) {
+		decl := findNameDeclaration(t.GetScope(), rhs)
+		newJsdoc = jsdocForName(decl, originalJsdoc)
 	}
 	if newJsdoc != nil {
 		jsdocNode.SetJSDocInfo(newJsdoc)
@@ -591,156 +628,120 @@ func (p *ConvertToTypedInterface_PropagateConstJsdoc) ProcessConstWithRhs(t *Nod
 	}
 }
 
-// ConvertToTypedInterface_SimplifyDeclarations is the private static nested
-// class ConvertToTypedInterface.SimplifyDeclarations.
-type ConvertToTypedInterface_SimplifyDeclarations struct {
+type ijsSimplifyDeclarations struct {
 	compiler    AbstractCompiler
-	currentFile *FileInfo
+	currentFile *ijsFileInfo
 }
 
-// ConvertToTypedInterface_SimplifyDeclarations_TypingLevel lists the levels
-// of JSDoc, starting from those most likely to be on the canonical
-// declaration.
-//
-// Java: ConvertToTypedInterface.SimplifyDeclarations.TypingLevel
-type ConvertToTypedInterface_SimplifyDeclarations_TypingLevel int32
+// ijsTypingLevel orders declarations by JSDoc completeness so canonical typed
+// declarations win when deduplicating symbols.
+type ijsTypingLevel uint8
 
 const (
-	ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION ConvertToTypedInterface_SimplifyDeclarations_TypingLevel = iota
-	ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION
-	ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC
+	ijsTypingTypedJsdoc ijsTypingLevel = iota
+	ijsTypingUntypedJsdoc
+	ijsTypingNoJsdoc
 )
 
-var convertToTypedInterface_SimplifyDeclarations_TypingLevel_names = [...]string{
-	"TYPED_JSDOC_DECLARATION", "UNTYPED_JSDOC_DECLARATION", "NO_JSDOC",
-}
-
-// String is Enum.name().
-func (l ConvertToTypedInterface_SimplifyDeclarations_TypingLevel) String() string {
-	return convertToTypedInterface_SimplifyDeclarations_TypingLevel_names[l]
-}
-
-// Java: ConvertToTypedInterface.SimplifyDeclarations.countDots(String)
-func ConvertToTypedInterface_SimplifyDeclarations_CountDots(name string) int {
-	// '.' is ASCII: counting it in the WTF-8 bytes counts the UTF-16 units alike.
-	return strings.Count(name, ".")
-}
-
-// ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG is
-// comparing(SimplifyDeclarations::countDots).
-var ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG = func(a, b string) int {
-	return ConvertToTypedInterface_SimplifyDeclarations_CountDots(a) - ConvertToTypedInterface_SimplifyDeclarations_CountDots(b)
-}
-
-// convertToTypedInterface_SimplifyDeclarations_typingLevel is the key
-// extractor of DECLARATIONS_FIRST.
-func convertToTypedInterface_SimplifyDeclarations_typingLevel(decl *PotentialDeclaration) ConvertToTypedInterface_SimplifyDeclarations_TypingLevel {
-	jsdoc := decl.GetJsDoc()
+func declTypingLevel(decl *potentialDeclaration) ijsTypingLevel {
+	jsdoc := decl.jsdoc()
 	if jsdoc == nil {
-		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_NO_JSDOC
+		return ijsTypingNoJsdoc
 	}
 	if !jsdoc.HasTypeNodes() {
-		return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_UNTYPED_JSDOC_DECLARATION
+		return ijsTypingUntypedJsdoc
 	}
-	return ConvertToTypedInterface_SimplifyDeclarations_TypingLevel_TYPED_JSDOC_DECLARATION
+	return ijsTypingTypedJsdoc
 }
 
-// ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST is
-// comparing(decl -> <its TypingLevel>), enums comparing by ordinal.
-var ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST = func(a, b *PotentialDeclaration) int {
-	return int(convertToTypedInterface_SimplifyDeclarations_typingLevel(a)) - int(convertToTypedInterface_SimplifyDeclarations_typingLevel(b))
+func compareDeclarationsFirst(a, b *potentialDeclaration) int {
+	return int(declTypingLevel(a)) - int(declTypingLevel(b))
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations(AbstractCompiler, FileInfo)
-func NewConvertToTypedInterface_SimplifyDeclarations(compiler AbstractCompiler, currentFile *FileInfo) *ConvertToTypedInterface_SimplifyDeclarations {
-	s := &ConvertToTypedInterface_SimplifyDeclarations{}
-	s.compiler = compiler
-	s.currentFile = currentFile
-	return s
+func compareShortToLongQName(a, b string) int {
+	// '.' is ASCII: counting it in WTF-8 bytes counts UTF-16 units alike.
+	return strings.Count(a, ".") - strings.Count(b, ".")
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.removeDuplicateDeclarations()
-func (s *ConvertToTypedInterface_SimplifyDeclarations) RemoveDuplicateDeclarations() {
-	decls := s.currentFile.GetDeclarations()
-	entries := decls.Entries()
+func (s *ijsSimplifyDeclarations) removeDuplicateDeclarations() {
+	entries := s.currentFile.declarations.Entries()
 	for i := range entries {
 		name := entries[i].Key
 		if strings.HasPrefix(name, "this.") {
 			continue
 		}
 		declList := entries[i].Value
-		slices.SortStableFunc(declList, ConvertToTypedInterface_SimplifyDeclarations_DECLARATIONS_FIRST)
+		slices.SortStableFunc(declList, compareDeclarationsFirst)
 		if len(declList) > 1 {
-			// Don't remove the first declaration (at index 0)
+			// Retain the highest-ranked declaration at index 0 and remove duplicates.
 			entries[i].Value = declList[:1]
 			for _, decl := range declList[1:] {
-				decl.Remove(s.compiler)
+				decl.remove(s.compiler)
 			}
 		}
 	}
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.simplifyAll()
-func (s *ConvertToTypedInterface_SimplifyDeclarations) SimplifyAll() {
-	// Remove duplicate assignments to the same symbol
-	s.RemoveDuplicateDeclarations()
+func (s *ijsSimplifyDeclarations) simplifyAll() {
+	s.removeDuplicateDeclarations()
 
-	// Simplify all names in the top-level scope.
-	decls := s.currentFile.GetDeclarations()
-	seenNames := decls.KeySlice()
-	slices.SortStableFunc(seenNames, ConvertToTypedInterface_SimplifyDeclarations_SHORT_TO_LONG)
+	// Simplify all names in the top-level scope from shortest to longest qualified name.
+	seenNames := s.currentFile.declarations.KeySlice()
+	slices.SortStableFunc(seenNames, compareShortToLongQName)
 
 	for _, name := range seenNames {
-		for _, decl := range decls.Get(name) {
-			s.ProcessDeclaration(name, decl)
+		for _, decl := range s.currentFile.declarations.Get(name) {
+			s.processDeclaration(name, decl)
 		}
 	}
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.processDeclaration(String, PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessDeclaration(name string, decl *PotentialDeclaration) {
-	if s.ShouldRemove(name, decl) {
-		decl.Remove(s.compiler)
+func (s *ijsSimplifyDeclarations) processDeclaration(name string, decl *potentialDeclaration) {
+	if s.shouldRemove(name, decl) {
+		decl.remove(s.compiler)
 		return
 	}
 
-	if decl.BreakDownDestructure(s.compiler) {
-		ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
+	if decl.breakDownDestructure(s.compiler) {
+		maybeReportIjsDiagnostic(s.compiler, decl.lhs, ConvertToTypedInterface_CONSTANT_WITHOUT_EXPLICIT_TYPE)
 	}
 
-	if fn, ok := ast.AsFunction(decl.GetRhs()); ok {
-		s.ProcessFunction(fn)
-	} else if cls, ok := ast.AsClass(decl.GetRhs()); ok {
-		s.ProcessClass(cls)
+	if fn, ok := ast.AsFunction(decl.rhs); ok {
+		s.processFunction(fn)
+	} else if cls, ok := ast.AsClass(decl.rhs); ok {
+		s.processClass(cls)
 	}
-	s.SetUndeclaredToUnusableType(decl)
-	s.ElidePrivateMemberType(decl)
-	decl.Simplify(s.compiler)
+	s.setUndeclaredToUnusableType(decl)
+	s.elidePrivateMemberType(decl)
+	decl.simplify(s.compiler)
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.processClass(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(cls ast.Class) {
+func (s *ijsSimplifyDeclarations) processClass(cls ast.Class) {
 	for member := range ast.ReadAhead(cls.Body().FirstMember()) {
-		if _, ok := member.AsFieldDef(); ok {
-			// MEMBER_FIELD_DEF's are handled in ProcessConstJsdocCallback which is called in the
-			// traversal by its subclass PropogateConstJsdoc.
-			// If no jsdoc is present on the MEMBER_FIELD_DEF, we will be add a Jsdoc in
-			// `setUndeclaredToUnusableType()`.
-			// No further simplification is needed for MEMBER_FIELD_DEF's when we call
-			// `simplifyAll()` so we will break.
+		if cfd, ok := member.AsComputedFieldDef(); ok {
+			if val, hasVal := cfd.Value(); hasVal {
+				if fn, isFn := val.AsFunction(); isFn {
+					s.processFunction(fn)
+				} else if !isTypedIjsRhs(val.Node()) {
+					NodeUtil_DeleteNode(val.Node(), s.compiler)
+				}
+			}
+		} else if _, ok := member.AsMemberFieldDef(); ok {
+			// MEMBER_FIELD_DEF declarations are recorded in ijsPropagateConstJsdoc and
+			// simplified individually in simplifyAll.
 		} else if _, ok := member.AsEmpty(); ok {
-			// a lonely `;` in a class body can just be deleted.
+			NodeUtil_DeleteNode(member.Node(), s.compiler)
+		} else if _, ok := member.AsBlock(); ok {
 			NodeUtil_DeleteNode(member.Node(), s.compiler)
 		} else if method, ok := member.AsMethodDef(); ok {
-			s.ProcessFunction(method.Function())
+			s.processFunction(method.Function())
 		} else if cp, ok := member.AsComputedProp(); ok {
 			val, hasVal := cp.Value()
 			fn, isFn := ast.AsFunction(val.Node())
-			jutil.CheckStateMsg1(
-				hasVal && isFn,
-				"Non-function computed class member: %s",
-				member.Node())
-			s.ProcessFunction(fn)
+			if !hasVal || !isFn {
+				panic(jutil.NewIllegalStateExceptionMsg("Non-function computed class member"))
+			}
+			s.processFunction(fn)
 		} else {
 			panic(jutil.NewAssertionError(
 				member.Token().String() + " should not be handled by processClass"))
@@ -748,13 +749,11 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessClass(cls ast.Clas
 	}
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.processFunction(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunction(fn ast.Function) {
-	s.ProcessFunctionParameters(fn.Params())
+func (s *ijsSimplifyDeclarations) processFunction(fn ast.Function) {
+	s.processFunctionParameters(fn.Params())
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.processFunctionParameters(Node)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters(paramList ast.ParamList) {
+func (s *ijsSimplifyDeclarations) processFunctionParameters(paramList ast.ParamList) {
 	for param := range paramList.Params() {
 		if defVal, ok := param.AsDefaultValue(); ok {
 			rhs := defVal.Value()
@@ -770,67 +769,63 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ProcessFunctionParameters
 	}
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.rootName(String)
-func ConvertToTypedInterface_SimplifyDeclarations_RootName(qualifiedName string) string {
+func rootOfQualifiedName(qualifiedName string) string {
 	if prefix, _, ok := strings.Cut(qualifiedName, "."); ok {
 		return prefix
 	}
 	return qualifiedName
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.shouldRemove(String, PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldRemove(name string, decl *PotentialDeclaration) bool {
-	if decl.IsDetached() {
+func (s *ijsSimplifyDeclarations) shouldRemove(name string, decl *potentialDeclaration) bool {
+	if decl.isDetached() {
 		return true
 	}
-	if strings.HasPrefix(ConvertToTypedInterface_SimplifyDeclarations_RootName(name), "$jscomp") {
+	if strings.HasPrefix(rootOfQualifiedName(name), "$jscomp") {
 		// These are created by goog.scope processing, but clash with each other
 		// and should not be depended on.
-		if (!decl.GetRhs().IsNil() && decl.GetRhs().IsClass()) ||
-			(decl.GetJsDoc() != nil && decl.GetJsDoc().ContainsTypeDefinition()) {
-			ConvertToTypedInterface_MaybeReport(s.compiler, decl.GetLhs(), ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE)
+		if (!decl.rhs.IsNil() && decl.rhs.IsClass()) ||
+			(decl.jsdoc() != nil && decl.jsdoc().ContainsTypeDefinition()) {
+			maybeReportIjsDiagnostic(s.compiler, decl.lhs, ConvertToTypedInterface_GOOG_SCOPE_HIDDEN_TYPE)
 		}
 		return true
 	}
-	// This looks like an update rather than a declaration in this file.
+	// Looks like an update rather than a declaration in this file.
 	return !strings.HasPrefix(name, "this.") &&
-		!decl.IsDefiniteDeclaration(s.compiler) &&
-		!decl.GetLhs().IsMemberFieldDef() &&
-		!s.currentFile.IsPrefixProvided(name) &&
-		!s.currentFile.IsStrictPrefixDeclared(name)
+		!decl.isDefiniteDeclaration() &&
+		!decl.lhs.IsMemberFieldDef() &&
+		!s.currentFile.isPrefixProvided(name) &&
+		!s.currentFile.isStrictPrefixDeclared(name)
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.setUndeclaredToUnusableType(PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) SetUndeclaredToUnusableType(decl *PotentialDeclaration) {
-	nameNode := decl.GetLhs()
-	jsdoc := decl.GetJsDoc()
-	if decl.ShouldPreserve() ||
+func (s *ijsSimplifyDeclarations) setUndeclaredToUnusableType(decl *potentialDeclaration) {
+	nameNode := decl.lhs
+	jsdoc := decl.jsdoc()
+	if decl.shouldPreserve() ||
 		NodeUtil_IsNamespaceDecl(nameNode) ||
-		(!decl.GetRhs().IsNil() && NodeUtil_IsCallTo(decl.GetRhs(), "Symbol")) ||
-		(jsdoc != nil && jsdoc.ContainsDeclaration() && !decl.IsConstToBeInferred()) {
+		(!decl.rhs.IsNil() && NodeUtil_IsCallTo(decl.rhs, "Symbol")) ||
+		(jsdoc != nil && jsdoc.ContainsDeclaration() && !decl.isConstToBeInferred()) {
 		return
 	}
-	ConvertToTypedInterface_MaybeWarnForConstWithoutExplicitType(s.compiler, decl)
-	jsdocNode := NodeUtil_GetBestJSDocInfoNode(nameNode)
-	jsdocNode.SetJSDocInfo(JsdocUtil_GetUnusableTypeJSDoc(jsdoc))
-}
-
-// Java: ConvertToTypedInterface.SimplifyDeclarations.elidePrivateMemberType(PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ElidePrivateMemberType(decl *PotentialDeclaration) {
-	if s.ShouldElidePrivateMemberType(decl) {
-		jsdoc := decl.GetJsDoc()
-		jsdocNode := NodeUtil_GetBestJSDocInfoNode(decl.GetLhs())
-		jsdocNode.SetJSDocInfo(JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc))
+	maybeWarnForConstWithoutExplicitType(s.compiler, decl)
+	if jsdocNode := NodeUtil_GetBestJSDocInfoNode(nameNode); !jsdocNode.IsNil() {
+		jsdocNode.SetJSDocInfo(unusableTypeJSDoc(jsdoc))
 	}
 }
 
-// Java: ConvertToTypedInterface.SimplifyDeclarations.shouldElidePrivateMemberType(PotentialDeclaration)
-func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberType(decl *PotentialDeclaration) bool {
-	// TODO: b/465855752 - roll out elison for JS files as well after depot cleanup.
-	if !s.currentFile.IsFromTypeScript() {
+func (s *ijsSimplifyDeclarations) elidePrivateMemberType(decl *potentialDeclaration) {
+	if s.shouldElidePrivateMemberType(decl) {
+		if jsdocNode := NodeUtil_GetBestJSDocInfoNode(decl.lhs); !jsdocNode.IsNil() {
+			jsdocNode.SetJSDocInfo(replaceAnnotatedTypesWithUnusableType(decl.jsdoc()))
+		}
+	}
+}
+
+func (s *ijsSimplifyDeclarations) shouldElidePrivateMemberType(decl *potentialDeclaration) bool {
+	// TODO: b/465855752 - roll out elision for JS files as well after depot cleanup.
+	if !s.currentFile.isFromTypeScript {
 		return false
 	}
-	jsdoc := decl.GetJsDoc()
+	jsdoc := decl.jsdoc()
 	if jsdoc == nil || jsdoc.GetVisibility() != rhino.JSDocInfo_Visibility_PRIVATE {
 		return false
 	}
@@ -841,117 +836,86 @@ func (s *ConvertToTypedInterface_SimplifyDeclarations) ShouldElidePrivateMemberT
 		return false
 	}
 	// Simple name declarations marked @private are not really treated as private if exported from
-	// a goog.module. (Ultimately we should probably ban marking a local name @private so that we
-	// can drop this special case.)
-	if decl.GetLhs().IsName() {
+	// a goog.module.
+	if decl.lhs.IsName() {
 		return false
 	}
-	return JsdocUtil_HasAnnotatedType(jsdoc)
+	return hasAnnotatedType(jsdoc)
 }
 
-// Java: ConvertToTypedInterface.isSymbolProp(Node)
-func ConvertToTypedInterface_IsSymbolProp(lhs rhino.Node) bool {
+func isSymbolProp(lhs rhino.Node) bool {
 	prop, ok := ast.AsGetProp(lhs)
 	return ok && prop.Object().Node().MatchesName("Symbol")
 }
 
-// Java: ConvertToTypedInterface.shouldPreserveAssignment(Node, NodeTraversal)
-func ConvertToTypedInterface_ShouldPreserveAssignment(expr rhino.Node, t *NodeTraversal) bool {
+func shouldPreserveAssignment(expr rhino.Node, t *NodeTraversal) bool {
 	lhs := ast.MustAssignment(expr).Target().Node()
-	// Ignore assignments in function bodies, unless they're also a constructor with a this. prop.
+	// Ignore assignments in function bodies, unless they're also a constructor with a `this.prop`.
 	if !t.InGlobalHoistScope() && !t.InModuleHoistScope() {
-		return ClassUtil_IsThisPropInsideClassWithName(lhs)
+		return isThisPropInsideNamedClass(lhs)
 	}
 
-	// Well-known symbol properties, like Foo.prototype[Symbol.iterator] = function() {};
-	if elem, ok := ast.AsGetElem(lhs); ok && ConvertToTypedInterface_IsSymbolProp(elem.Index().Node()) {
+	// Well-known symbol properties, like `Foo.prototype[Symbol.iterator] = function() {};`.
+	if elem, ok := ast.AsGetElem(lhs); ok && isSymbolProp(elem.Index().Node()) {
 		return elem.Object().Node().IsQualifiedName()
 	}
-	// Assignments to names don't have global typechecking side-effects even within the 'hoist
-	// scope'
+	// Assignments to names don't have global typechecking side-effects even within the hoist scope.
 	if lhs.IsName() {
 		return t.InGlobalScope() || t.InModuleScope()
 	}
 	return lhs.IsQualifiedName()
 }
 
-// FileInfo is the class to keep track of what has been seen so far in a
-// given file.
-type FileInfo struct {
+// ijsFileInfo tracks provided namespaces, imports, and declarations seen in a single file.
+type ijsFileInfo struct {
 	providedNamespaces OrderedStringMap[struct{}]
 	requiredLocalNames OrderedStringMap[struct{}]
-	// MultimapBuilder.linkedHashKeys().arrayListValues().build()
-	declarations     OrderedStringMap[[]*PotentialDeclaration]
-	isFromTypeScript bool
+	declarations       OrderedStringMap[[]*potentialDeclaration]
+	isFromTypeScript   bool
 }
 
-// Java: FileInfo(String)
-func NewFileInfo(sourceFileName string) *FileInfo {
-	return &FileInfo{
+func newIjsFileInfo(sourceFileName string) *ijsFileInfo {
+	return &ijsFileInfo{
 		isFromTypeScript: strings.HasSuffix(sourceFileName, ".closure.js"),
 	}
 }
 
-// Java: FileInfo.isFromTypeScript()
-func (f *FileInfo) IsFromTypeScript() bool {
-	return f.isFromTypeScript
+func (f *ijsFileInfo) recordNameDeclaration(qualifiedNameNode rhino.Node) {
+	f.recordDeclaration(potentialDeclFromName(qualifiedNameNode))
 }
 
-// Java: FileInfo.recordNameDeclaration(Node)
-func (f *FileInfo) RecordNameDeclaration(qualifiedNameNode rhino.Node) {
-	f.RecordDeclaration(PotentialDeclaration_FromName(qualifiedNameNode))
+func (f *ijsFileInfo) recordMemberFieldDef(field ast.MemberFieldDef) {
+	f.recordDeclaration(potentialDeclFromMemberField(field))
 }
 
-// Java: FileInfo.recordMemberFieldDef(Node)
-func (f *FileInfo) RecordMemberFieldDef(fieldNode rhino.Node) {
-	f.RecordDeclaration(PotentialDeclaration_FromMemberFieldDef(fieldNode))
+func (f *ijsFileInfo) recordMethod(method ast.MemberFunctionDef) {
+	f.recordDeclaration(potentialDeclFromMethod(method))
 }
 
-// Java: FileInfo.recordMethod(Node)
-func (f *FileInfo) RecordMethod(functionNode rhino.Node) {
-	f.RecordDeclaration(PotentialDeclaration_FromMethod(functionNode))
+func (f *ijsFileInfo) recordStringKeyDeclaration(sk ast.StringKey) {
+	f.recordDeclaration(potentialDeclFromStringKey(sk))
 }
 
-// Java: FileInfo.recordStringKeyDeclaration(Node)
-func (f *FileInfo) RecordStringKeyDeclaration(stringKeyNode rhino.Node) {
-	f.RecordDeclaration(PotentialDeclaration_FromStringKey(stringKeyNode))
-}
-
-// Java: FileInfo.recordDefine(Node)
-func (f *FileInfo) RecordDefine(callNode rhino.Node) {
-	if decl := PotentialDeclaration_FromDefine(callNode); decl != nil {
-		f.RecordDeclaration(decl)
+func (f *ijsFileInfo) recordDefine(call ast.Call) {
+	if decl := potentialDeclFromDefine(call); decl != nil {
+		f.recordDeclaration(decl)
 	}
 }
 
-// Java: FileInfo.recordAliasDeclaration(Node)
-func (f *FileInfo) RecordAliasDeclaration(nameNode rhino.Node) {
-	f.RecordDeclaration(PotentialDeclaration_FromAlias(nameNode))
+func (f *ijsFileInfo) recordAliasDeclaration(nameNode rhino.Node) {
+	f.recordDeclaration(potentialDeclFromAlias(nameNode))
 }
 
-// Java: FileInfo.getDeclarations()
-func (f *FileInfo) GetDeclarations() *OrderedStringMap[[]*PotentialDeclaration] {
-	return &f.declarations
-}
-
-// Java: FileInfo.recordDeclaration(PotentialDeclaration)
-func (f *FileInfo) RecordDeclaration(decl *PotentialDeclaration) {
-	name := decl.GetFullyQualifiedName()
+func (f *ijsFileInfo) recordDeclaration(decl *potentialDeclaration) {
+	name := decl.fullyQualifiedName
 	f.declarations.Put(name, append(f.declarations.Get(name), decl))
 }
 
-// Java: FileInfo.recordImport(String)
-func (f *FileInfo) RecordImport(localName string) {
+func (f *ijsFileInfo) recordImport(localName string) {
 	f.requiredLocalNames.Put(localName, struct{}{})
 }
 
-// Java: FileInfo.isNameDeclared(String)
-func (f *FileInfo) IsNameDeclared(fullyQualifiedName string) bool {
-	return f.declarations.ContainsKey(fullyQualifiedName)
-}
-
-// Java: FileInfo.containsPrefix(String, Iterable<String>)
-func FileInfo_ContainsPrefix(fullyQualifiedName string, prefixNamespaces *OrderedStringMap[struct{}]) bool {
+func containsNamespacePrefix(fullyQualifiedName string, prefixNamespaces *OrderedStringMap[struct{}]) bool {
 	for _, entry := range prefixNamespaces.Entries() {
 		prefix := entry.Key
 		if fullyQualifiedName == prefix || strings.HasPrefix(fullyQualifiedName, prefix+".") {
@@ -961,18 +925,11 @@ func FileInfo_ContainsPrefix(fullyQualifiedName string, prefixNamespaces *Ordere
 	return false
 }
 
-// Java: FileInfo.isPrefixProvided(String)
-func (f *FileInfo) IsPrefixProvided(fullyQualifiedName string) bool {
-	return FileInfo_ContainsPrefix(fullyQualifiedName, &f.providedNamespaces)
+func (f *ijsFileInfo) isPrefixProvided(fullyQualifiedName string) bool {
+	return containsNamespacePrefix(fullyQualifiedName, &f.providedNamespaces)
 }
 
-// Java: FileInfo.isPrefixRequired(String)
-func (f *FileInfo) IsPrefixRequired(fullyQualifiedName string) bool {
-	return FileInfo_ContainsPrefix(fullyQualifiedName, &f.requiredLocalNames)
-}
-
-// Java: FileInfo.isStrictPrefixDeclared(String)
-func (f *FileInfo) IsStrictPrefixDeclared(fullyQualifiedName string) bool {
+func (f *ijsFileInfo) isStrictPrefixDeclared(fullyQualifiedName string) bool {
 	for _, entry := range f.declarations.Entries() {
 		if strings.HasPrefix(fullyQualifiedName, entry.Key+".") {
 			return true
@@ -981,20 +938,14 @@ func (f *FileInfo) IsStrictPrefixDeclared(fullyQualifiedName string) bool {
 	return false
 }
 
-// Java: FileInfo.markProvided(String)
-func (f *FileInfo) MarkProvided(providedName string) {
-	// checkNotNull(providedName): a Go string cannot be null.
+func (f *ijsFileInfo) markProvided(providedName string) {
 	f.providedNamespaces.Put(providedName, struct{}{})
 }
 
-// ClassUtil holds static utility methods for dealing with classes. The
-// primary benefit is for papering over the differences between ES6 class
-// syntax.
-//
-// Go-only: language-adapter — the Java class has only a private
-// constructor and static methods; it has no Go type.
-
-func classUtil_nodeName(n rhino.Node) (string, bool) {
+func ijsNodeQualifiedName(n rhino.Node) (string, bool) {
+	if n.IsNil() {
+		return "", false
+	}
 	nameNode := NodeUtil_GetNameNode(n)
 	if nameNode.IsNil() {
 		return "", false
@@ -1002,28 +953,14 @@ func classUtil_nodeName(n rhino.Node) (string, bool) {
 	return nameNode.GetQualifiedNameString()
 }
 
-// ClassUtil_IsThisPropInsideClassWithName returns whether the given node
-// represents a GETPROP with a first child THIS inside a named class.
-//
-// Java: ClassUtil.isThisPropInsideClassWithName(Node)
-func ClassUtil_IsThisPropInsideClassWithName(maybeGetProp rhino.Node) bool {
-	_, ok := classUtil_getClassNameOfThisProp(maybeGetProp)
+// isThisPropInsideNamedClass reports whether maybeGetProp is a `this.prop`
+// access inside a named class or constructor.
+func isThisPropInsideNamedClass(maybeGetProp rhino.Node) bool {
+	_, ok := classNameOfThisProp(maybeGetProp)
 	return ok
 }
 
-// ClassUtil_GetFullyQualifiedNameOfThisProp returns the fully qualified name
-// of a this.property inside a constructor. This method called should only
-// be called if `isThisPropInsideClassWithName` returns true.
-//
-// Java: ClassUtil.getFullyQualifiedNameOfThisProp(Node)
-func ClassUtil_GetFullyQualifiedNameOfThisProp(getProp rhino.Node) string {
-	className, ok := classUtil_getClassNameOfThisProp(getProp)
-	jutil.CheckArgument(ok)
-	return className + ".prototype." + getProp.GetString()
-}
-
-// Java: ClassUtil.getClassNameOfThisProp(Node)
-func classUtil_getClassNameOfThisProp(getprop rhino.Node) (string, bool) {
+func classNameOfThisProp(getprop rhino.Node) (string, bool) {
 	gp, ok := ast.AsGetProp(getprop)
 	if !ok || !gp.Object().Node().IsThis() {
 		return "", false
@@ -1032,98 +969,102 @@ func classUtil_getClassNameOfThisProp(getprop rhino.Node) (string, bool) {
 	if function.IsNil() {
 		return "", false
 	}
-	className, ok := classUtil_getMemberFunctionClassName(function)
+	className, ok := memberFunctionClassName(function)
 	if !ok || className == "" {
 		return "", false
 	}
 	return className, true
 }
 
-// ClassUtil_IsMemberFieldDefInsideClassWithName returns whether the given
-// node represents a MEMBER_FIELD_DEF that is inside a class with a name.
-//
-// Java: ClassUtil.isMemberFieldDefInsideClassWithName(Node)
-func ClassUtil_IsMemberFieldDefInsideClassWithName(fieldNode rhino.Node) bool {
-	_, ok := classUtil_getMemberFieldDefClassName(fieldNode)
-	return ok
+func isMemberFieldInsideNamedClass(fieldNode rhino.Node) bool {
+	field, ok := ast.AsMemberFieldDef(fieldNode)
+	if !ok {
+		return false
+	}
+	_, hasName := memberFieldClassName(field)
+	return hasName
 }
 
-// ClassUtil_IsComputedMemberInsideClassWithName returns whether the given
-// node represents a MEMBER_FIELD_DEF that is inside a class with a name.
-//
-// Java: ClassUtil.isComputedMemberInsideClassWithName(Node)
-func ClassUtil_IsComputedMemberInsideClassWithName(fieldNode rhino.Node) bool {
+func isComputedMemberInsideClass(fieldNode rhino.Node) bool {
 	cm, ok := ast.AsComputedMember(fieldNode)
-	return ok && ast.RoleOf(fieldNode) == ast.RoleClassBodyMembers && ConvertToTypedInterface_IsSymbolProp(cm.Key().Node())
+	return ok && ast.RoleOf(fieldNode) == ast.RoleClassBodyMembers && isSymbolProp(cm.Key().Node())
 }
 
-// ClassUtil_GetFullyQualifiedNameOfMemberFieldDef returns the fully
-// qualified name of a MEMBER_FIELD_DEF. It is invalid to call this method
-// for a field that belongs to a nameless class.
-//
-// Java: ClassUtil.getFullyQualifiedNameOfMemberFieldDef(Node)
-func ClassUtil_GetFullyQualifiedNameOfMemberFieldDef(fieldNode rhino.Node) string {
-	className, ok := classUtil_getMemberFieldDefClassName(fieldNode)
-	jutil.CheckArgument(ok)
-	field := ast.MustMemberFieldDef(fieldNode)
+func memberFieldQualifiedName(field ast.MemberFieldDef) string {
+	className, ok := memberFieldClassName(field)
+	if !ok {
+		panic(jutil.NewIllegalArgumentExceptionMsg("expected field inside named class"))
+	}
 	if field.IsStatic() {
 		return className + "." + field.Key()
 	}
 	return className + ".prototype." + field.Key()
 }
 
-// Java: ClassUtil.getMemberFieldDefClassName(Node)
-func classUtil_getMemberFieldDefClassName(fieldNode rhino.Node) (string, bool) {
-	jutil.CheckArgument(fieldNode.IsMemberFieldDef())
-	classNode, ok := ast.AsClass(fieldNode.GetGrandparent())
-	jutil.CheckState(ok)
-	return classUtil_nodeName(classNode.Node())
+func memberFieldClassName(field ast.MemberFieldDef) (string, bool) {
+	parent := field.Node().GetParent()
+	if parent.IsNil() {
+		return "", false
+	}
+	classNode, ok := ast.AsClass(parent.GetParent())
+	if !ok {
+		return "", false
+	}
+	return ijsNodeQualifiedName(classNode.Node())
 }
 
-// Java: ClassUtil.getFullyQualifiedNameOfMethod(Node)
-func ClassUtil_GetFullyQualifiedNameOfMethod(function rhino.Node) string {
-	jutil.CheckArgument(ClassUtil_IsClassMethod(function))
-	className, ok := classUtil_getMemberFunctionClassName(function)
-	jutil.CheckState(ok && className != "")
-	method := ast.MustMemberFunctionDef(function.GetParent())
+func classMethodQualifiedName(method ast.MemberFunctionDef) string {
+	fn := method.Function().Node()
+	if !isClassMethod(fn) {
+		panic(jutil.NewIllegalArgumentExceptionMsg("expected class method"))
+	}
+	className, ok := memberFunctionClassName(fn)
+	if !ok || className == "" {
+		panic(jutil.NewIllegalStateExceptionMsg("expected named class for method"))
+	}
 	if method.IsStatic() {
 		return className + "." + method.Key()
 	}
 	return className + ".prototype." + method.Key()
 }
 
-// Java: ClassUtil.isClassMethod(Node)
-func ClassUtil_IsClassMethod(functionNode rhino.Node) bool {
-	jutil.CheckArgument(functionNode.IsFunction())
+func isClassMethod(functionNode rhino.Node) bool {
+	if !functionNode.IsFunction() {
+		return false
+	}
 	return ast.RoleOf(functionNode) == ast.RoleMemberFunctionDefFunction &&
 		ast.RoleOf(functionNode.GetParent()) == ast.RoleClassBodyMembers
 }
 
-// ClassUtil_HasNamedClass checks whether the given constructor/member
-// function belongs to a named class, as opposed to an anonymous class.
-//
-// Java: ClassUtil.hasNamedClass(Node)
-func ClassUtil_HasNamedClass(functionNode rhino.Node) bool {
-	jutil.CheckArgument(functionNode.IsFunction())
-	_, ok := classUtil_getMemberFunctionClassName(functionNode)
+func hasNamedClass(functionNode rhino.Node) bool {
+	if !functionNode.IsFunction() {
+		return false
+	}
+	_, ok := memberFunctionClassName(functionNode)
 	return ok
 }
 
-// Java: ClassUtil.getMemberFunctionClassName(Node)
-func classUtil_getMemberFunctionClassName(functionNode rhino.Node) (string, bool) {
-	jutil.CheckArgument(functionNode.IsFunction())
-	if ClassUtil_IsClassMethod(functionNode) {
-		// ES6 class
-		classNode, ok := ast.AsClass(functionNode.GetGrandparent().GetParent())
-		jutil.CheckState(ok)
-		return classUtil_nodeName(classNode.Node())
+func memberFunctionClassName(functionNode rhino.Node) (string, bool) {
+	if !functionNode.IsFunction() {
+		return "", false
 	}
-	return classUtil_nodeName(functionNode)
+	if isClassMethod(functionNode) {
+		// ES6 class method: FUNCTION -> MEMBER_FUNCTION_DEF -> CLASS_MEMBERS -> CLASS.
+		classMembers := functionNode.GetGrandparent()
+		if classMembers.IsNil() {
+			return "", false
+		}
+		classNode, ok := ast.AsClass(classMembers.GetParent())
+		if !ok {
+			return "", false
+		}
+		return ijsNodeQualifiedName(classNode.Node())
+	}
+	return ijsNodeQualifiedName(functionNode)
 }
 
-// Java: ClassUtil.isConstructor(Node)
-func ClassUtil_IsConstructor(functionNode rhino.Node) bool {
-	if ClassUtil_IsClassMethod(functionNode) {
+func isIjsConstructor(functionNode rhino.Node) bool {
+	if isClassMethod(functionNode) {
 		return NodeUtil_IsEs6Constructor(functionNode)
 	}
 	jsdoc := NodeUtil_GetBestJSDocInfo(functionNode)

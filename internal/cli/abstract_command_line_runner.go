@@ -78,104 +78,26 @@ import (
 //	  }
 //	}
 //
-// Go-only: language-adapter — the type parameters <A extends Compiler, B
-// extends CompilerOptions> are *Compiler and *CompilerOptions: their only
-// instantiation is CommandLineRunner's, and Go cannot bound a type parameter
-// by the subclasses of a struct type.
+// runnerHooks defines the virtual hook methods on abstractCommandLineRunnerBase
+// that may be overridden by CommandLineRunner or custom test runners.
 //
 // Java: abstract class AbstractCommandLineRunner<A extends Compiler, B extends CompilerOptions>
-type AbstractCommandLineRunner interface {
-	// Java: AbstractCommandLineRunner.setExitCodeReceiver(Function<Integer, Void>)
-	SetExitCodeReceiver(newExitCodeReceiver func(int))
-	// Java: AbstractCommandLineRunner.isInTestMode()
-	IsInTestMode() bool
-	// Java: AbstractCommandLineRunner.getCommandLineConfig()
-	GetCommandLineConfig() *AbstractCommandLineRunner_CommandLineConfig
-	// Java: AbstractCommandLineRunner.createCompiler()
+type runnerHooks interface {
 	CreateCompiler() *jscomp.Compiler
-	// Java: AbstractCommandLineRunner.prepForBundleAndAppendTo(Appendable, CompilerInput, String)
-	PrepForBundleAndAppendTo(out jutil.Appendable, input *jscomp.CompilerInput, content string)
-	// Java: AbstractCommandLineRunner.appendRuntimeTo(Appendable)
-	AppendRuntimeTo(out jutil.Appendable)
-	// Java: AbstractCommandLineRunner.createOptions()
 	CreateOptions() *jscomp.CompilerOptions
-	// Java: AbstractCommandLineRunner.getDiagnosticGroups()
-	GetDiagnosticGroups() *jscomp.DiagnosticGroups
-	// Java: AbstractCommandLineRunner.addAllowlistWarningsGuard(CompilerOptions, File)
-	AddAllowlistWarningsGuard(options *jscomp.CompilerOptions, allowlistFile *jutil.File)
-	// Java: AbstractCommandLineRunner.setRunOptions(CompilerOptions)
-	SetRunOptions(options *jscomp.CompilerOptions)
-	// Java: AbstractCommandLineRunner.getVersionText()
-	GetVersionText() string
-	// Java: AbstractCommandLineRunner.parseJsonFilesFromInputStream()
-	ParseJsonFilesFromInputStream() []*AbstractCommandLineRunner_JsonFileSpec
-	// Java: AbstractCommandLineRunner.createInputs(List<FlagEntry<JsSourceType>>, List<JsonFileSpec>, boolean, List<JsChunkSpec>)
-	CreateInputsWithJsonFilesAndAllowStdIn(
-		files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
-		jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
-		allowStdIn bool,
-		jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) []*jscomp.SourceFile
-	// Java: AbstractCommandLineRunner.checkChunkName(String)
-	CheckChunkName(name string)
-	// Java: AbstractCommandLineRunner.getChunkOutputFileName(JSChunk)
-	GetChunkOutputFileName(m *jscomp.JSChunk) string
-	// Java: AbstractCommandLineRunner.getChunkConformanceFileName(JSChunk)
-	GetChunkConformanceFileName(m *jscomp.JSChunk) (string, bool)
-	// Java: AbstractCommandLineRunner.writeChunkOutput(String, Appendable, LicenseTracker, JSChunk)
-	WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk)
-	// Java: AbstractCommandLineRunner.writeOutput(Appendable, Compiler, LicenseTracker, JSChunk, String, String, Function<String, String>, String)
-	WriteOutput(
-		out jutil.Appendable,
-		compiler *jscomp.Compiler,
-		licenseTracker jscomp.CodePrinter_LicenseTracker,
-		chunk *jscomp.JSChunk,
-		wrapper string,
-		codePlaceholder string,
-		escaper func(string) string,
-		filename string)
-	// Java: AbstractCommandLineRunner.writeOutput(Appendable, Compiler, String, String, String, Function<String, String>, String)
-	WriteOutputOfCode(
-		out jutil.Appendable,
-		compiler *jscomp.Compiler,
-		code string,
-		wrapper string,
-		codePlaceholder string,
-		escaper func(string) string,
-		filename string)
-	// Java: AbstractCommandLineRunner.doRun()
-	DoRun() int
-	// Java: AbstractCommandLineRunner.processResults(Result, List<JSChunk>, B)
-	ProcessResults(result *jscomp.Result, chunks []*jscomp.JSChunk, options *jscomp.CompilerOptions) int
-	// Java: AbstractCommandLineRunner.getJavascriptEscaper()
-	GetJavascriptEscaper() func(string) string
-	// Java: AbstractCommandLineRunner.outputSingleBinary(B)
-	OutputSingleBinary(options *jscomp.CompilerOptions)
-	// Java: AbstractCommandLineRunner.createJsonFile(B, String, Function<String, String>)
-	CreateJsonFile(options *jscomp.CompilerOptions, outputMarker string, escaper func(string) string) *AbstractCommandLineRunner_JsonFileSpec
-	// Java: AbstractCommandLineRunner.outputJsonStream()
-	OutputJsonStream()
-	// Java: AbstractCommandLineRunner.createExterns(CompilerOptions)
 	CreateExterns(options *jscomp.CompilerOptions) []*jscomp.SourceFile
-	// Java: AbstractCommandLineRunner.shouldGenerateMapPerChunk(B)
-	ShouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool
-	// Java: AbstractCommandLineRunner.expandSourceMapPath(B, JSChunk)
-	ExpandSourceMapPath(options *jscomp.CompilerOptions, forChunk *jscomp.JSChunk) string
-	// Java: AbstractCommandLineRunner.filenameToOutputStream(String)
-	FilenameToOutputStream(fileName string) io.WriteCloser
-	// Java: AbstractCommandLineRunner.printChunkGraphJsonTo(Appendable)
-	PrintChunkGraphJsonTo(out jutil.Appendable)
-	// Java: AbstractCommandLineRunner.printChunkGraphManifestOrBundleTo(JSChunkGraph, Appendable, boolean)
-	PrintChunkGraphManifestOrBundleTo(graph *jscomp.JSChunkGraph, out jutil.Appendable, isManifest bool)
-	// Java: AbstractCommandLineRunner.printManifestTo(JSChunk, Appendable)
-	PrintManifestTo(chunk *jscomp.JSChunk, out jutil.Appendable)
-	// Java: AbstractCommandLineRunner.printBundleTo(JSChunk, Appendable)
-	PrintBundleTo(chunk *jscomp.JSChunk, out jutil.Appendable)
+	PrepForBundleAndAppendTo(out jutil.Appendable, input *jscomp.CompilerInput, content string)
+	AppendRuntimeTo(out jutil.Appendable)
+	AddAllowlistWarningsGuard(options *jscomp.CompilerOptions, allowlistFile *jutil.File)
+	CheckChunkName(name string)
+	GetVersionText() string
+	WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk)
 }
 
-// AbstractCommandLineRunnerBase holds AbstractCommandLineRunner's fields and
-// base implementations (PORTING.md §4).
-type AbstractCommandLineRunnerBase struct {
-	self AbstractCommandLineRunner
+// abstractCommandLineRunnerBase holds AbstractCommandLineRunner's fields and
+// base implementations.
+type abstractCommandLineRunnerBase struct {
+	self runnerHooks
 
 	config *AbstractCommandLineRunner_CommandLineConfig
 
@@ -216,8 +138,6 @@ type AbstractCommandLineRunnerBase struct {
 
 	parsedChunkOutputFiles map[string]string // nil is null
 
-	parsedChunkConformanceFiles map[string]string // nil is null
-
 	filesToStreamOut []*AbstractCommandLineRunner_JsonFileSpec
 
 	sourceFileCache sourceFileLookupFunc
@@ -229,14 +149,17 @@ var (
 		"JSC_OUTPUT_SAME_AS_INPUT_ERROR", "Bad output file (already listed as input file): {0}")
 
 	// Java: AbstractCommandLineRunner.COULD_NOT_SERIALIZE_AST
-	AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST = jscomp.DiagnosticType_Error("JSC_COULD_NOT_SERIALIZE_AST", "Could not serialize ast to: {0}")
+	couldNotSerializeAstError = jscomp.DiagnosticType_Error(
+		"JSC_COULD_NOT_SERIALIZE_AST", "Could not serialize ast to: {0}")
 
 	// Java: AbstractCommandLineRunner.COULD_NOT_DESERIALIZE_AST
-	AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST = jscomp.DiagnosticType_Error("JSC_COULD_NOT_DESERIALIZE_AST", "Could not deserialize ast from: {0}")
+	couldNotDeserializeAstError = jscomp.DiagnosticType_Error(
+		"JSC_COULD_NOT_DESERIALIZE_AST", "Could not deserialize ast from: {0}")
 
 	// Java: AbstractCommandLineRunner.NO_TREE_GENERATED_ERROR
-	AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR = jscomp.DiagnosticType_Error(
+	noTreeGeneratedError = jscomp.DiagnosticType_Error(
 		"JSC_NO_TREE_GENERATED_ERROR", "Code contains errors. No tree was generated.")
+
 	// Java: AbstractCommandLineRunner.INVALID_CHUNK_SOURCEMAP_PATTERN
 	AbstractCommandLineRunner_INVALID_CHUNK_SOURCEMAP_PATTERN = jscomp.DiagnosticType_Error(
 		"JSC_INVALID_CHUNK_SOURCEMAP_PATTERN",
@@ -254,35 +177,31 @@ var (
 )
 
 // Java: AbstractCommandLineRunner.WAITING_FOR_INPUT_WARNING
-const AbstractCommandLineRunner_WAITING_FOR_INPUT_WARNING = "The compiler is waiting for input via stdin."
+const waitingForInputWarning = "The compiler is waiting for input via stdin."
 
 // Use an 8MiB buffer since the concatenated TypedAst file can be very large.
 //
 // Java: AbstractCommandLineRunner.GZIPPED_TYPEDAST_BUFFER_SIZE
-const abstractCommandLineRunner_GZIPPED_TYPEDAST_BUFFER_SIZE = 8 * 1024 * 1024
+const gzippedTypedAstBufferSize = 8 * 1024 * 1024
 
 // Java: AbstractCommandLineRunner.OUTPUT_MARKER
-const AbstractCommandLineRunner_OUTPUT_MARKER = "%output%"
+const defaultOutputMarker = "%output%"
 
 // Java: AbstractCommandLineRunner.OUTPUT_MARKER_JS_STRING
-const abstractCommandLineRunner_OUTPUT_MARKER_JS_STRING = "%output|jsstring%"
+const outputMarkerJsString = "%output|jsstring%"
 
-// InitAbstractCommandLineRunnerBase is the Go form of the constructor
-// AbstractCommandLineRunner(InputStream, PrintStream, PrintStream), called
-// by subclasses (PORTING.md §4). The Java no-argument and (PrintStream,
-// PrintStream) constructors pass System.in, System.out and System.err for the
-// missing streams; callers pass jutil.System_In(), jutil.System_Out() and
-// jutil.System_Err().
+// initRunnerBase initializes the common runner base fields with the provided
+// streams and virtual hook target.
 //
 // Java: AbstractCommandLineRunner(InputStream, PrintStream, PrintStream)
-func (r *AbstractCommandLineRunnerBase) InitAbstractCommandLineRunnerBase(
-	self AbstractCommandLineRunner, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) {
+func (r *abstractCommandLineRunnerBase) initRunnerBase(
+	self runnerHooks, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) {
 	r.self = self
 	r.exitCodeReceiver = AbstractCommandLineRunner_SystemExitCodeReceiver_INSTANCE.Apply
 	r.config = NewAbstractCommandLineRunner_CommandLineConfig()
 	r.in = jutil.CheckNotNull(in)
-	r.defaultJsOutput = jutil.CheckNotNull(out)
-	r.err = jutil.CheckNotNull(err)
+	r.defaultJsOutput = jutil.CheckNotNullPtr(out)
+	r.err = jutil.CheckNotNullPtr(err)
 }
 
 // EnableTestMode puts the command line runner into test mode. In test mode,
@@ -295,12 +214,14 @@ func (r *AbstractCommandLineRunnerBase) InitAbstractCommandLineRunnerBase(
 // in non-test mode.
 //
 // Java: AbstractCommandLineRunner.enableTestMode(Supplier<List<SourceFile>>, Supplier<List<SourceFile>>, Supplier<List<JSChunk>>, Function<Integer, Void>)
-func (r *AbstractCommandLineRunnerBase) EnableTestMode(
+func (r *abstractCommandLineRunnerBase) EnableTestMode(
 	externsSupplier func() []*jscomp.SourceFile,
 	inputsSupplier func() []*jscomp.SourceFile,
 	chunksSupplier func() []*jscomp.JSChunk,
 	exitCodeReceiver func(int)) {
-	jutil.CheckArgument((inputsSupplier == nil) != (chunksSupplier == nil))
+	if (inputsSupplier == nil) == (chunksSupplier == nil) {
+		panic(jutil.NewIllegalArgumentException())
+	}
 	r.testMode = true
 	r.externsSupplierForTesting = externsSupplier
 	r.inputsSupplierForTesting = inputsSupplier
@@ -312,21 +233,17 @@ func (r *AbstractCommandLineRunnerBase) EnableTestMode(
 // problem during execution or 0i to indicate success.
 //
 // Java: AbstractCommandLineRunner.setExitCodeReceiver(Function<Integer, Void>)
-func (r *AbstractCommandLineRunnerBase) SetExitCodeReceiver(newExitCodeReceiver func(int)) {
-	r.exitCodeReceiver = jutil.CheckNotNull(newExitCodeReceiver)
+func (r *abstractCommandLineRunnerBase) SetExitCodeReceiver(newExitCodeReceiver func(int)) {
+	if newExitCodeReceiver == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	r.exitCodeReceiver = newExitCodeReceiver
 }
 
-// IsInTestMode returns whether we're in test mode.
-//
-// Java: AbstractCommandLineRunner.isInTestMode()
-func (r *AbstractCommandLineRunnerBase) IsInTestMode() bool {
-	return r.testMode
-}
-
-// IsOutputInJson returns whether output should be a JSON stream.
+// isOutputInJson returns whether output should be a JSON stream.
 //
 // Java: AbstractCommandLineRunner.isOutputInJson()
-func (r *AbstractCommandLineRunnerBase) IsOutputInJson() bool {
+func (r *abstractCommandLineRunnerBase) isOutputInJson() bool {
 	return r.config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_OUT ||
 		r.config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_BOTH
 }
@@ -335,30 +252,41 @@ func (r *AbstractCommandLineRunnerBase) IsOutputInJson() bool {
 // initialized.
 //
 // Java: AbstractCommandLineRunner.getCommandLineConfig()
-func (r *AbstractCommandLineRunnerBase) GetCommandLineConfig() *AbstractCommandLineRunner_CommandLineConfig {
+func (r *abstractCommandLineRunnerBase) GetCommandLineConfig() *AbstractCommandLineRunner_CommandLineConfig {
 	return r.config
 }
 
-// GetDiagnosticGroups returns the warning classes that are available from
+// getDiagnosticGroups returns the warning classes that are available from
 // the command-line.
 //
 // Java: AbstractCommandLineRunner.getDiagnosticGroups()
-func (r *AbstractCommandLineRunnerBase) GetDiagnosticGroups() *jscomp.DiagnosticGroups {
+func (r *abstractCommandLineRunnerBase) getDiagnosticGroups() *jscomp.DiagnosticGroups {
 	if r.compiler == nil {
 		return jscomp.NewDiagnosticGroups()
 	}
 	return r.compiler.GetDiagnosticGroups()
 }
 
-// SetRunOptions sets options based on the configurations set flags API.
-// Called during the run() run() method. If you want to ignore the flags
-// API, or interpret flags your own way, then you should override this
-// method.
+func checkNoDuplicateFlagFilenames(filenames []string, flagName string) {
+	if len(filenames) == 0 {
+		return
+	}
+	uniqueNames := make(map[string]struct{}, len(filenames))
+	for _, filename := range filenames {
+		if _, exists := uniqueNames[filename]; exists {
+			panic(jscomp.NewFlagUsageException(
+				flagName + " flags specify duplicate file names: " + filename))
+		}
+		uniqueNames[filename] = struct{}{}
+	}
+}
+
+// setRunOptions sets options based on the configurations set flags API.
 //
 // Java: AbstractCommandLineRunner.setRunOptions(CompilerOptions)
-func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOptions) {
+func (r *abstractCommandLineRunnerBase) setRunOptions(options *jscomp.CompilerOptions) {
 	config := r.config
-	diagnosticGroups := r.self.GetDiagnosticGroups()
+	diagnosticGroups := r.getDiagnosticGroups()
 
 	if config.ShouldSaveAfterStage1() || config.ShouldContinueCompilation() {
 		if options.IsChecksOnly() {
@@ -371,7 +299,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 		}
 	}
 
-	AbstractCommandLineRunner_SetWarningGuardOptions(options, config.warningGuards, diagnosticGroups)
+	setWarningGuardOptions(options, config.warningGuards, diagnosticGroups)
 
 	if config.warningsAllowFile != "" {
 		r.self.AddAllowlistWarningsGuard(options, jutil.NewFile(config.warningsAllowFile))
@@ -380,18 +308,18 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	if len(config.hideWarningsFor) != 0 {
 		options.AddWarningsGuard(
 			jscomp.NewShowByPathWarningsGuardWithPathsAndShowType(
-				append([]string{}, config.hideWarningsFor...),
+				slices.Clone(config.hideWarningsFor),
 				jscomp.ShowByPathWarningsGuard_ShowType_EXCLUDE))
 	}
 
-	define := append([]string{}, config.define...)
+	define := slices.Clone(config.define)
 	if config.browserFeaturesetYear != 0 {
 		if err := setBrowserFeaturesetYear(options, config.browserFeaturesetYear); err != nil {
 			panic(err)
 		}
 	}
 
-	AbstractCommandLineRunner_CreateDefineReplacements(define, options)
+	createDefineReplacements(define, options)
 
 	options.SetTweakProcessing(config.tweakProcessing)
 
@@ -405,26 +333,21 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 	options.SetSummaryDetailLevel(config.summaryDetailLevel)
 	options.SetTrustedStrings(true)
 
-	r.legacyOutputCharset = r.GetLegacyOutputCharset()
+	r.legacyOutputCharset = r.getLegacyOutputCharset()
 	options.SetOutputCharset(r.legacyOutputCharset)
-	r.outputCharset2 = r.GetOutputCharset2()
-	r.inputCharset = r.GetInputCharset()
+	r.outputCharset2 = r.getOutputCharset2()
+	r.inputCharset = r.getInputCharset()
 
-	if config.jsOutputFile != "" {
-		if config.skipNormalOutputs {
-			panic(jscomp.NewFlagUsageException(
-				"skip_normal_outputs and js_output_file cannot be used together."))
-		}
+	if config.jsOutputFile != "" && config.skipNormalOutputs {
+		panic(jscomp.NewFlagUsageException(
+			"skip_normal_outputs and js_output_file cannot be used together."))
 	}
-
 	if config.skipNormalOutputs && config.printAst {
 		panic(jscomp.NewFlagUsageException("skip_normal_outputs and print_ast cannot be used together."))
 	}
-
 	if config.skipNormalOutputs && config.printTree {
 		panic(jscomp.NewFlagUsageException("skip_normal_outputs and print_tree cannot be used together."))
 	}
-
 	if config.skipNormalOutputs && config.printTreeJson {
 		panic(jscomp.NewFlagUsageException(
 			"skip_normal_outputs and print_tree_json_path cannot be used together."))
@@ -432,7 +355,7 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 
 	if config.createSourceMap != "" {
 		options.SetSourceMapOutputPath(config.createSourceMap)
-	} else if r.IsOutputInJson() {
+	} else if r.isOutputInJson() {
 		options.SetSourceMapOutputPath("%outname%")
 	}
 	options.SetSourceMapDetailLevel(config.sourceMapDetailLevel)
@@ -460,27 +383,8 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 		options.SetInputPropertyMap(jscomp.VariableMap_Load(config.propertyMapInputFile))
 	}
 
-	if len(config.outputManifests) != 0 {
-		uniqueNames := make(map[string]struct{}, len(config.outputManifests))
-		for _, filename := range config.outputManifests {
-			if _, exists := uniqueNames[filename]; exists {
-				panic(jscomp.NewFlagUsageException(
-					"output_manifest flags specify duplicate file names: " + filename))
-			}
-			uniqueNames[filename] = struct{}{}
-		}
-	}
-
-	if len(config.outputBundles) != 0 {
-		uniqueNames := make(map[string]struct{}, len(config.outputBundles))
-		for _, filename := range config.outputBundles {
-			if _, exists := uniqueNames[filename]; exists {
-				panic(jscomp.NewFlagUsageException(
-					"output_bundle flags specify duplicate file names: " + filename))
-			}
-			uniqueNames[filename] = struct{}{}
-		}
-	}
+	checkNoDuplicateFlagFilenames(config.outputManifests, "output_manifest")
+	checkNoDuplicateFlagFilenames(config.outputBundles, "output_bundle")
 
 	options.SetProcessCommonJSModules(config.processCommonJSModules)
 	options.SetModuleRoots(config.moduleRoots)
@@ -488,11 +392,11 @@ func (r *AbstractCommandLineRunnerBase) SetRunOptions(options *jscomp.CompilerOp
 
 	if config.jsonWarningsFile != "" {
 		options.AddReportGenerator(
-			jscomp.NewJsonErrorReportGenerator(jutil.NewPrintStream(r.FilenameToOutputStream(config.jsonWarningsFile)), r.compiler))
+			jscomp.NewJsonErrorReportGenerator(jutil.NewPrintStream(r.filenameToOutputStream(config.jsonWarningsFile)), r.compiler))
 	}
 
 	if config.errorFormat == AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_JSON {
-		errorGenerator := jscomp.NewJsonErrorReportGenerator(r.GetErrorPrintStream(), r.compiler)
+		errorGenerator := jscomp.NewJsonErrorReportGenerator(r.err, r.compiler)
 		r.compiler.SetErrorManager(jscomp.NewSortingErrorManager([]jscomp.SortingErrorManager_ErrorReportGenerator{errorGenerator}))
 	}
 	if config.printTree || config.printTreeJson {
@@ -515,7 +419,7 @@ func setBrowserFeaturesetYear(options *jscomp.CompilerOptions, year int) *jscomp
 }
 
 // Java: AbstractCommandLineRunner.getCompiler()
-func (r *AbstractCommandLineRunnerBase) GetCompiler() *jscomp.Compiler {
+func (r *abstractCommandLineRunnerBase) GetCompiler() *jscomp.Compiler {
 	return r.compiler
 }
 
@@ -523,7 +427,7 @@ func (r *AbstractCommandLineRunnerBase) GetCompiler() *jscomp.Compiler {
 // compiler.
 //
 // Java: AbstractCommandLineRunner.run()
-func (r *AbstractCommandLineRunnerBase) Run() {
+func (r *abstractCommandLineRunnerBase) Run() {
 	result, err := r.tryDoRun()
 	if err != nil {
 		if e, ok := err.(jscomp.IFlagUsageException); ok {
@@ -538,28 +442,20 @@ func (r *AbstractCommandLineRunnerBase) Run() {
 	r.exitCodeReceiver(result)
 }
 
-func (r *AbstractCommandLineRunnerBase) tryDoRun() (result int, thrown jutil.Throwable) {
+func (r *abstractCommandLineRunnerBase) tryDoRun() (result int, thrown jutil.Throwable) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			thrown = jutil.AsThrowable(rec)
 		}
 	}()
-	return r.self.DoRun(), nil
-}
-
-// GetErrorPrintStream returns the PrintStream for writing errors associated
-// with this AbstractCommandLineRunner.
-//
-// Java: AbstractCommandLineRunner.getErrorPrintStream()
-func (r *AbstractCommandLineRunnerBase) GetErrorPrintStream() *jutil.PrintStream {
-	return r.err
+	return r.DoRun(), nil
 }
 
 // DoRun parses command-line arguments and runs the compiler. It returns the
 // system exit status.
 //
 // Java: AbstractCommandLineRunner.doRun()
-func (r *AbstractCommandLineRunnerBase) DoRun() int {
+func (r *abstractCommandLineRunnerBase) DoRun() int {
 	config := r.config
 	if config.printVersion {
 		r.defaultJsOutput.Println(r.self.GetVersionText())
@@ -572,21 +468,20 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	r.compiler = r.self.CreateCompiler()
 	if len(config.expectedDiagnostics) != 0 {
 		r.compiler.SetErrorManager(
-			NewVerifyingErrorManager(r.compiler.GetErrorManager(), config.expectedDiagnostics))
+			newVerifyingErrorManager(r.compiler.GetErrorManager(), config.expectedDiagnostics))
 	}
 	options := r.self.CreateOptions()
-	r.self.SetRunOptions(options)
+	r.setRunOptions(options)
 
 	typedAstListInputFilename, hasTypedAstListInput := config.typedAstListInputFilename.Get()
 
 	externs := r.self.CreateExterns(options)
 	var chunks []*jscomp.JSChunk
 
-	r.rootRelativePathsMap = r.ConstructRootRelativePathsMap()
+	r.rootRelativePathsMap = r.constructRootRelativePathsMap()
 
-	writeOutputToFile := config.jsOutputFile != ""
 	var outputFileNames []string
-	if writeOutputToFile {
+	if config.jsOutputFile != "" {
 		outputFileNames = append(outputFileNames, config.jsOutputFile)
 	}
 
@@ -608,7 +503,7 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 
 	if config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_IN ||
 		config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_BOTH {
-		jsonFiles = r.self.ParseJsonFilesFromInputStream()
+		jsonFiles = r.parseJsonFilesFromInputStream()
 		if jsonFiles == nil {
 			jsonFiles = []*AbstractCommandLineRunner_JsonFileSpec{}
 		}
@@ -635,14 +530,14 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 
 	r.compiler.InitOptions(options)
 
-	sources := r.CreateSourceInputs(jsChunkSpecs, config.mixedJsSources, jsonFiles, config.moduleRoots)
+	sources := r.createSourceInputs(jsChunkSpecs, config.mixedJsSources, jsonFiles, config.moduleRoots)
 
 	if len(jsChunkSpecs) != 0 {
-		if r.self.IsInTestMode() {
+		if r.testMode {
 			chunks = r.chunksSupplierForTesting()
 		} else {
-			if jscomp.CompilerOptions_JsonStreamMode_IN == config.jsonStreamMode ||
-				jscomp.CompilerOptions_JsonStreamMode_NONE == config.jsonStreamMode {
+			if config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_IN ||
+				config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_NONE {
 				for _, m := range jsChunkSpecs {
 					r.self.CheckChunkName(m.GetName())
 				}
@@ -651,20 +546,20 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 			for _, source := range sources {
 				inputs = append(inputs, jscomp.NewCompilerInput(source))
 			}
-			chunks = AbstractCommandLineRunner_CreateJsChunks(jsChunkSpecs, inputs)
+			chunks = createJsChunks(jsChunkSpecs, inputs)
 		}
 		for _, m := range chunks {
-			outputFileNames = append(outputFileNames, r.self.GetChunkOutputFileName(m))
+			outputFileNames = append(outputFileNames, r.GetChunkOutputFileName(m))
 		}
 
 		if hasTypedAstListInput {
-			r.InitChunksWithTypedAstFilesystem(externs, chunks, options, typedAstListInputFilename)
+			r.initChunksWithTypedAstFilesystem(externs, chunks, options, typedAstListInputFilename)
 		} else {
 			r.compiler.InitChunks(externs, chunks, options)
 		}
 	} else {
 		if hasTypedAstListInput {
-			r.InitWithTypedAstFilesystem(externs, sources, options, typedAstListInputFilename)
+			r.initWithTypedAstFilesystem(externs, sources, options, typedAstListInputFilename)
 		} else {
 			r.compiler.Init(externs, sources, options)
 		}
@@ -681,7 +576,6 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	if config.skipNormalOutputs {
 		// TODO(bradfordcsmith): Should we be ignoring possible init/initChunks() errors here?
 		r.compiler.OrderInputsWithLargeStack()
-		result = nil
 	} else if r.compiler.HasErrors() {
 		// init() or initChunks() encountered an error.
 		r.compiler.GenerateReport()
@@ -694,16 +588,15 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 				r.compiler.GenerateReport()
 			}()
 			// This is the common case - we're actually compiling something.
-			r.PerformCompilation()
+			r.performCompilation()
 
 			// If we're finished with compilation (i.e. we're not saving state), /and/ the compiler was
 			// restored from a previous state, then we need to re-initialize the set of chunks.
 			// TODO(lharker): figure out if this is still needed.
-			refresh := chunks != nil &&
+			if chunks != nil &&
 				config.restoredCompilationStage != -1 &&
-				config.saveAfterCompilationStage == -1
-			if refresh {
-				chunks = append([]*jscomp.JSChunk{}, r.compiler.GetChunks()...)
+				config.saveAfterCompilationStage == -1 {
+				chunks = slices.Clone(r.compiler.GetChunks())
 			}
 		}()
 		result = r.compiler.GetResult()
@@ -711,9 +604,9 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 
 	if createCommonJsModules {
 		// For CommonJS modules, construct chunks from actual inputs.
-		chunks = append([]*jscomp.JSChunk{}, r.compiler.GetChunks()...)
+		chunks = slices.Clone(r.compiler.GetChunks())
 		for _, c := range chunks {
-			outputFileNames = append(outputFileNames, r.self.GetChunkOutputFileName(c))
+			outputFileNames = append(outputFileNames, r.GetChunkOutputFileName(c))
 		}
 	}
 
@@ -725,36 +618,32 @@ func (r *AbstractCommandLineRunnerBase) DoRun() int {
 	}
 
 	// We won't want to process results for cases where compilation is only partially done.
-	shouldProcessResults := !config.saveCompilationStateToFilename.IsPresent()
-	var exitStatus int
-	if shouldProcessResults {
-		exitStatus = r.self.ProcessResults(result, chunks, options)
-	} else {
-		exitStatus = abstractCommandLineRunner_getExitStatusForResult(result)
+	if !config.saveCompilationStateToFilename.IsPresent() {
+		return r.processResults(result, chunks, options)
 	}
-	return exitStatus
+	return exitStatusForResult(result)
 }
 
 // Java: AbstractCommandLineRunner.performCompilation()
-func (r *AbstractCommandLineRunnerBase) PerformCompilation() {
+func (r *abstractCommandLineRunnerBase) performCompilation() {
 	// Parse, restore from a save file, or initialize from a TypedAST list.
-	r.InitializeStateBeforeCompilation()
+	r.initializeStateBeforeCompilation()
 
 	// Do the interesting work - checks, optimizations, etc.
-	r.RunCompilerPasses()
+	r.runCompilerPasses()
 
 	// Save state unless there was an exception or error - we won't go on to the next stage if there
 	// was an error, and saving state itself might throw an exception if the compiler is in a bad
 	// state.
 	if !r.compiler.HasErrors() {
-		r.SaveState()
+		r.saveState()
 	}
 	// Perform post-compilation tasks even if compiler.hasErrors()
 	r.compiler.PerformPostCompilationTasks()
 }
 
 // Java: AbstractCommandLineRunner.runCompilerPasses()
-func (r *AbstractCommandLineRunnerBase) RunCompilerPasses() {
+func (r *abstractCommandLineRunnerBase) runCompilerPasses() {
 	config := r.config
 	runStage1 := false
 	runStage2 := false
@@ -810,7 +699,7 @@ func (r *AbstractCommandLineRunnerBase) RunCompilerPasses() {
 	}
 }
 
-// InitializeStateBeforeCompilation is called at the beginning of
+// initializeStateBeforeCompilation is called at the beginning of
 // compilation to initialize the compiler state.
 //
 // Compiler state should be initialized no matter what the compilation stage
@@ -819,95 +708,88 @@ func (r *AbstractCommandLineRunnerBase) RunCompilerPasses() {
 // TypedASTs, or from restoring a previous compilation state.
 //
 // Java: AbstractCommandLineRunner.initializeStateBeforeCompilation()
-func (r *AbstractCommandLineRunnerBase) InitializeStateBeforeCompilation() {
+func (r *abstractCommandLineRunnerBase) initializeStateBeforeCompilation() {
 	if r.config.restoredCompilationStage != -1 {
 		fn, ok := r.config.continueSavedCompilationFileName.Get()
 		if !ok {
 			panic(jutil.NewNullPointerException())
 		}
-		r.RestoreState(fn)
-	} else if r.config.typedAstListInputFilename.IsPresent() {
-		// we did this elsewhere
-	} else {
-		// parsing!
+		r.restoreState(fn)
+	} else if !r.config.typedAstListInputFilename.IsPresent() {
 		r.compiler.ParseForCompilation()
 	}
 }
 
-// ProcessResults processes the results of the compile job, and returns an
+// processResults processes the results of the compile job, and returns an
 // error code.
 //
 // Java: AbstractCommandLineRunner.processResults(Result, List<JSChunk>, B)
-func (r *AbstractCommandLineRunnerBase) ProcessResults(result *jscomp.Result, chunks []*jscomp.JSChunk, options *jscomp.CompilerOptions) int {
+func (r *abstractCommandLineRunnerBase) processResults(result *jscomp.Result, chunks []*jscomp.JSChunk, options *jscomp.CompilerOptions) int {
 	config := r.config
 	if config.printAst {
 		if r.compiler.GetRoot().IsNil() {
 			return 1
-		} else {
-			jsOutput := r.CreateDefaultOutput()
-			cfg := r.compiler.ComputeCFG()
-			jscomp.DotFormatter_AppendDot(r.compiler.GetRoot().GetLastChild(), cfg, jsOutput)
-			jsOutput.AppendCharacter('\n')
-			abstractCommandLineRunner_closeAppendable(jsOutput)
-			return 0
 		}
+		jsOutput := r.createDefaultOutput()
+		cfg := r.compiler.ComputeCFG()
+		jscomp.DotFormatter_AppendDot(r.compiler.GetRoot().GetLastChild(), cfg, jsOutput)
+		jsOutput.AppendCharacter('\n')
+		closeAppendable(jsOutput)
+		return 0
 	}
 
 	if config.printTree {
 		if r.compiler.GetRoot().IsNil() {
-			r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR))
+			r.compiler.Report(jscomp.JSError_Make(noTreeGeneratedError))
 			return 1
-		} else {
-			jsOutput := r.CreateDefaultOutput()
-			r.compiler.GetJsRoot().AppendStringTree(jsOutput)
-			jsOutput.AppendCharSequence("\n")
-			abstractCommandLineRunner_closeAppendable(jsOutput)
-			return 0
 		}
+		jsOutput := r.createDefaultOutput()
+		r.compiler.GetJsRoot().AppendStringTree(jsOutput)
+		jsOutput.AppendCharSequence("\n")
+		closeAppendable(jsOutput)
+		return 0
 	}
 
 	if config.printTreeJson {
 		if r.compiler.GetRoot().IsNil() {
-			r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_NO_TREE_GENERATED_ERROR))
+			r.compiler.Report(jscomp.JSError_Make(noTreeGeneratedError))
 			return 1
-		} else {
-			jsOutput := r.CreateDefaultOutput()
-			r.compiler.GetJsRoot().AppendJsonTree(jsOutput)
-			abstractCommandLineRunner_closeAppendable(jsOutput)
-			return 0
 		}
+		jsOutput := r.createDefaultOutput()
+		r.compiler.GetJsRoot().AppendJsonTree(jsOutput)
+		closeAppendable(jsOutput)
+		return 0
 	}
 
 	if config.skipNormalOutputs {
 		// Output the manifest and bundle files if requested.
-		r.OutputManifest()
-		r.OutputBundle()
-		r.OutputChunkGraphJson()
+		r.outputManifest()
+		r.outputBundle()
+		r.outputChunkGraphJson()
 		return 0
-	} else if options.GetOutputJs() != jscomp.CompilerOptions_OutputJs_NONE && result.Success {
-		r.OutputChunkGraphJson()
+	}
+
+	if options.GetOutputJs() != jscomp.CompilerOptions_OutputJs_NONE && result.Success {
+		r.outputChunkGraphJson()
 		if chunks == nil {
-			r.self.OutputSingleBinary(options)
+			r.outputSingleBinary(options)
 
 			// Output the source map if requested.
 			// If output files are being written to stdout as a JSON string,
 			// outputSingleBinary will have added the sourcemap to the output file
-			if !r.IsOutputInJson() {
-				r.OutputSourceMap(options, config.jsOutputFile)
+			if !r.isOutputInJson() {
+				r.outputSourceMap(options, config.jsOutputFile)
 			}
-		} else {
-			error := r.OutputChunkBinaryAndSourceMaps(r.compiler.GetChunkGraph(), options)
-			if error != nil {
-				r.compiler.Report(jscomp.JSError_Make(error))
-				return 1
-			}
+		} else if diagErr := r.outputChunkBinaryAndSourceMaps(r.compiler.GetChunkGraph(), options); diagErr != nil {
+			r.compiler.Report(jscomp.JSError_Make(diagErr))
+			return 1
 		}
 
 		// Output the externs if required.
 		if options.HasExternExportsPath() {
 			func() {
-				eeOut := r.OpenExternExportsStream(options, config.jsOutputFile)
-				defer abstractCommandLineRunner_closeWriter(eeOut)
+				eeOut := r.openExternExportsStream(options, config.jsOutputFile)
+				defer closeBufferedWriter(eeOut)
 				// Java: Writer.append(null) appends "null".
 				externExport := "null"
 				if ee, ok := result.ExternExportString(); ok {
@@ -918,28 +800,28 @@ func (r *AbstractCommandLineRunnerBase) ProcessResults(result *jscomp.Result, ch
 		}
 
 		// Output the variable and property name maps if requested.
-		r.OutputNameMaps()
+		r.outputNameMaps()
 
 		// Output the ReplaceStrings map if requested
-		r.OutputStringMap()
+		r.outputStringMap()
 
 		// Output the manifest and bundle files if requested.
-		r.OutputManifest()
-		r.OutputBundle()
+		r.outputManifest()
+		r.outputBundle()
 
 		// Output the production instrumentation param mapping if requested.
-		r.OutputInstrumentationMapping()
+		r.outputInstrumentationMapping()
 
-		if r.IsOutputInJson() {
-			r.self.OutputJsonStream()
+		if r.isOutputInJson() {
+			r.outputJsonStream()
 		}
 	}
 
-	return abstractCommandLineRunner_getExitStatusForResult(result)
+	return exitStatusForResult(result)
 }
 
 // Java: AbstractCommandLineRunner.getExitStatusForResult(Result)
-func abstractCommandLineRunner_getExitStatusForResult(result *jscomp.Result) int {
+func exitStatusForResult(result *jscomp.Result) int {
 	// return 0 if no errors, the error count otherwise
 	return min(len(result.Errors), 0x7f)
 }
@@ -998,44 +880,42 @@ func buildUniqueOrderedMap[V any](entries []kvEntry[V]) *jutil.OrderedMap[string
 	return out
 }
 
-// VerifyingErrorManager is an ErrorManager that verifies expected
+// verifyingErrorManager is an ErrorManager that verifies expected
 // diagnostics and reports missing or unexpected ones.
 //
 // It wraps a delegate ErrorManager. Expected diagnostics (passed as regexes)
 // are swallowed if matched. Unexpected diagnostics are passed to the
 // delegate. At the end of compilation (when generateReport is called), any
 // unmatched expectations are reported as errors to the delegate.
-type VerifyingErrorManager struct {
+type verifyingErrorManager struct {
 	*jscomp.ThreadSafeDelegatingErrorManager
 	mu                    sync.Mutex
 	unmatchedExpectations []*jutil.Pattern
 	formatter             *jscomp.LightweightMessageFormatter
 }
 
-var _ jscomp.ErrorManager = (*VerifyingErrorManager)(nil)
+var _ jscomp.ErrorManager = (*verifyingErrorManager)(nil)
 
 // Java: VerifyingErrorManager(ErrorManager, List<String>)
-func NewVerifyingErrorManager(delegate jscomp.ErrorManager, expectedDiagnostics []string) *VerifyingErrorManager {
-	m := &VerifyingErrorManager{
+func newVerifyingErrorManager(delegate jscomp.ErrorManager, expectedDiagnostics []string) *verifyingErrorManager {
+	unmatched := make([]*jutil.Pattern, len(expectedDiagnostics))
+	for i, exp := range expectedDiagnostics {
+		unmatched[i] = jutil.Pattern_Compile(exp)
+	}
+	return &verifyingErrorManager{
 		ThreadSafeDelegatingErrorManager: jscomp.NewThreadSafeDelegatingErrorManager(delegate),
+		unmatchedExpectations:            unmatched,
+		formatter:                        jscomp.LightweightMessageFormatter_WithoutSource(),
 	}
-	m.formatter = jscomp.LightweightMessageFormatter_WithoutSource()
-	m.unmatchedExpectations = make([]*jutil.Pattern, 0, len(expectedDiagnostics))
-	for _, exp := range expectedDiagnostics {
-		m.unmatchedExpectations = append(m.unmatchedExpectations, jutil.Pattern_Compile(exp))
-	}
-	return m
 }
 
 // Java: VerifyingErrorManager.report(CheckLevel, JSError)
-func (m *VerifyingErrorManager) Report(level jscomp.CheckLevel, error *jscomp.JSError) {
+func (m *verifyingErrorManager) Report(level jscomp.CheckLevel, jsErr *jscomp.JSError) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	formattedError := m.FormatErrorForMatching(level, error)
+	formattedError := m.formatErrorForMatching(level, jsErr)
 
 	var matchedPattern *jutil.Pattern
-	// Go-only: language-adapter — the Iterator with remove() is an index
-	// loop over the slice; i is not advanced past a removed element.
 	for i := 0; i < len(m.unmatchedExpectations); {
 		p := m.unmatchedExpectations[i]
 		if p.Matcher(formattedError).Find() {
@@ -1065,26 +945,19 @@ func (m *VerifyingErrorManager) Report(level jscomp.CheckLevel, error *jscomp.JS
 	}
 
 	if matchedPattern == nil {
-		m.ThreadSafeDelegatingErrorManager.Report(level, error)
+		m.ThreadSafeDelegatingErrorManager.Report(level, jsErr)
 	}
 }
 
 // Java: VerifyingErrorManager.generateReport()
-func (m *VerifyingErrorManager) GenerateReport() {
+func (m *verifyingErrorManager) GenerateReport() {
 	m.mu.Lock()
 	m.reportMissingExpectationsLocked()
 	m.mu.Unlock()
 	m.ThreadSafeDelegatingErrorManager.GenerateReport()
 }
 
-// Java: VerifyingErrorManager.reportMissingExpectations()
-func (m *VerifyingErrorManager) ReportMissingExpectations() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.reportMissingExpectationsLocked()
-}
-
-func (m *VerifyingErrorManager) reportMissingExpectationsLocked() {
+func (m *verifyingErrorManager) reportMissingExpectationsLocked() {
 	for _, p := range m.unmatchedExpectations {
 		m.ThreadSafeDelegatingErrorManager.Report(
 			jscomp.CheckLevel_ERROR,
@@ -1094,9 +967,9 @@ func (m *VerifyingErrorManager) reportMissingExpectationsLocked() {
 }
 
 // Java: VerifyingErrorManager.formatErrorForMatching(CheckLevel, JSError)
-func (m *VerifyingErrorManager) FormatErrorForMatching(level jscomp.CheckLevel, error *jscomp.JSError) string {
+func (m *verifyingErrorManager) formatErrorForMatching(level jscomp.CheckLevel, jsErr *jscomp.JSError) string {
 	if level == jscomp.CheckLevel_ERROR {
-		return m.formatter.FormatError(error)
+		return m.formatter.FormatError(jsErr)
 	}
-	return m.formatter.FormatWarning(error)
+	return m.formatter.FormatWarning(jsErr)
 }

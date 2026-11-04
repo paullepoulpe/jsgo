@@ -30,7 +30,7 @@ package xtbxml
 //     that leaves at most one char in the buffer.
 //   - Names follow the character classes of XML 1.0 (Fourth Edition),
 //     Appendix B, not the Fifth Edition's ranges (determined black-box by
-//     trying every BMP character; see saxNameStartRanges).
+//     trying every BMP character; see nameStartRanges).
 //   - The limits of the JDK's secure processing: names of more than 1000
 //     chars and elements with more than 10000 attributes are errors.
 //
@@ -40,6 +40,7 @@ package xtbxml
 
 import (
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -47,28 +48,28 @@ import (
 )
 
 const (
-	saxStopEOF    = -1
-	saxStopBufEnd = -2
+	stopEOF    = -1
+	stopBufEnd = -2
 )
 
-const saxMsgEOFInEntity = "XML document structures must start and end within the same entity."
+const msgEOFInEntity = "XML document structures must start and end within the same entity."
 
-type saxEntityDecl struct {
+type dtdEntityDecl struct {
 	external bool
 	unparsed bool
 }
 
-type saxScanner struct {
-	in      *saxInput
+type scanner struct {
+	in      *charInput
 	handler ContentHandler
-	locator saxLocator
+	locator docLocator
 
 	text []uint16 // character data not yet reported
 	val  []uint16 // attribute value, PI data, literal being scanned
 
 	open            [][]uint16 // names of the open elements
 	openElemContent []bool     // whether each open element has element-only content
-	attrs           saxAttributes
+	attrs           elemAttributes
 
 	hasDecl    bool
 	inSubset   bool
@@ -80,20 +81,20 @@ type saxScanner struct {
 	sawDoctype     bool
 	externalSubset bool
 	standalone     bool
-	entities       map[string]saxEntityDecl
-	paramEntities  map[string]saxEntityDecl
+	entities       map[string]dtdEntityDecl
+	paramEntities  map[string]dtdEntityDecl
 	elementContent map[string]bool
-	attlists       map[string][]saxAttrDecl
+	attlists       map[string][]attrDecl
 	ended          bool
 	err            jutil.Throwable
 }
 
-func newSaxScanner(handler ContentHandler, src io.Reader) *saxScanner {
+func newScanner(handler ContentHandler, src io.Reader) *scanner {
 	if handler == nil {
 		handler = DefaultHandler{}
 	}
-	s := &saxScanner{handler: handler}
-	s.in = newSaxInput(s, src)
+	s := &scanner{handler: handler}
+	s.in = newCharInput(s, src)
 	s.locator.s = s
 	return s
 }
@@ -101,20 +102,20 @@ func newSaxScanner(handler ContentHandler, src io.Reader) *saxScanner {
 // ---------------------------------------------------------------------------
 // Errors.
 
-func (s *saxScanner) setErr(err jutil.Throwable) {
+func (s *scanner) setErr(err jutil.Throwable) {
 	if s.err == nil {
 		s.err = err
 	}
 }
 
-func (s *saxScanner) fatal(msg string) {
+func (s *scanner) fatal(msg string) {
 	s.fatalAt(msg, s.in.line, s.in.column)
 }
 
 // fatalAt reports the SAXParseException of a fatal error. With no
 // ErrorHandler, the JDK also prints the error on System.err; observed
 // behaviour (black-box): "[Fatal Error] :L:C: msg".
-func (s *saxScanner) fatalAt(msg string, line, column int) {
+func (s *scanner) fatalAt(msg string, line, column int) {
 	if s.err != nil {
 		return
 	}
@@ -124,8 +125,8 @@ func (s *saxScanner) fatalAt(msg string, line, column int) {
 
 // fatalOrEOF reports msg, or the end-of-input error when the input has
 // ended.
-func (s *saxScanner) fatalOrEOF(msg string) {
-	if s.peek() == saxStopEOF {
+func (s *scanner) fatalOrEOF(msg string) {
+	if s.peek() == stopEOF {
 		s.fatal(s.eofMessage())
 		return
 	}
@@ -135,24 +136,24 @@ func (s *saxScanner) fatalOrEOF(msg string) {
 // eofMessage is the error for an input that ends inside a construct.
 // Observed behaviour (black-box): inside the internal subset it is
 // "Premature end of file.".
-func (s *saxScanner) eofMessage() string {
+func (s *scanner) eofMessage() string {
 	if s.inSubset {
 		return "Premature end of file."
 	}
-	return saxMsgEOFInEntity
+	return msgEOFInEntity
 }
 
-func saxUnsupported(what string) {
+func panicUnsupported(what string) {
 	panic(jutil.NewUnsupportedOperationExceptionMsg("SAX parser: " + what + " not emulated"))
 }
 
-func saxHex(c int) string {
+func formatHex(c int) string {
 	return "0x" + strconv.FormatInt(int64(c), 16)
 }
 
-// saxGrouped formats n with comma thousands separators, as the JDK's
+// formatGroupedInt formats n with comma thousands separators, as the JDK's
 // messages print numbers (in an English locale).
-func saxGrouped(n int) string {
+func formatGroupedInt(n int) string {
 	t := strconv.Itoa(n)
 	var b strings.Builder
 	for i, c := range t {
@@ -167,18 +168,18 @@ func saxGrouped(n int) string {
 // ---------------------------------------------------------------------------
 // Character classes.
 
-func saxIsSpace(c int) bool {
+func isXMLSpace(c int) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
 }
 
-// saxIsXMLChar is production [2] Char for a BMP code unit (surrogates are
+// isXMLChar is production [2] Char for a BMP code unit (surrogates are
 // checked in pairs by the callers).
-func saxIsXMLChar(c int) bool {
+func isXMLChar(c int) bool {
 	return c == 0x9 || c == 0xA || c == 0xD || (c >= 0x20 && c <= 0xD7FF) || (c >= 0xE000 && c <= 0xFFFD)
 }
 
-// saxIsTextChar is a char that the character-data step scans through.
-func saxIsTextChar(c uint16) bool {
+// isTextChar is a char that the character-data step scans through.
+func isTextChar(c uint16) bool {
 	switch {
 	case c >= 0x20 && c <= 0xD7FF:
 		return c != '<' && c != '&' && c != ']'
@@ -190,13 +191,16 @@ func saxIsTextChar(c uint16) bool {
 	return false
 }
 
-func saxIsHighSurrogate(c int) bool { return c >= 0xD800 && c <= 0xDBFF }
-func saxIsLowSurrogate(c int) bool  { return c >= 0xDC00 && c <= 0xDFFF }
+func isHighSurrogate(c int) bool { return c >= 0xD800 && c <= 0xDBFF }
+func isLowSurrogate(c int) bool  { return c >= 0xDC00 && c <= 0xDFFF }
 
-var saxNameStartBits, saxNameCharBits = saxBuildNameBits(saxNameStartRanges[:]), saxBuildNameBits(saxNameCharRanges[:])
+var (
+	nameStartBits = buildNameBits(nameStartRanges[:])
+	nameCharBits  = buildNameBits(nameCharRanges[:])
+)
 
-func saxBuildNameBits(ranges []uint16) []uint64 {
-	bits := make([]uint64, 0x10000/64)
+func buildNameBits(ranges []uint16) [0x10000 / 64]uint64 {
+	var bits [0x10000 / 64]uint64
 	for i := 0; i < len(ranges); i += 2 {
 		for c := int(ranges[i]); c <= int(ranges[i+1]); c++ {
 			bits[c>>6] |= 1 << (c & 63)
@@ -205,12 +209,12 @@ func saxBuildNameBits(ranges []uint16) []uint64 {
 	return bits
 }
 
-func saxIsNameStart(c int) bool {
-	return c >= 0 && c < 0x10000 && saxNameStartBits[c>>6]&(1<<(c&63)) != 0
+func isNameStart(c int) bool {
+	return uint(c) < 0x10000 && nameStartBits[uint(c)>>6]&(1<<(uint(c)&63)) != 0
 }
 
-func saxIsNameChar(c int) bool {
-	return c >= 0 && c < 0x10000 && saxNameCharBits[c>>6]&(1<<(c&63)) != 0
+func isNameChar(c int) bool {
+	return uint(c) < 0x10000 && nameCharBits[uint(c)>>6]&(1<<(uint(c)&63)) != 0
 }
 
 // ---------------------------------------------------------------------------
@@ -218,14 +222,14 @@ func saxIsNameChar(c int) bool {
 // scanner does (see sax_input.go), because that decides where later
 // character data is cut.
 
-// peek returns the next char without consuming it, or saxStopEOF.
-func (s *saxScanner) peek() int {
+// peek returns the next char without consuming it, or stopEOF.
+func (s *scanner) peek() int {
 	if s.err != nil {
-		return saxStopEOF
+		return stopEOF
 	}
 	in := s.in
 	if (in.pos == in.count && in.load(in.pos) == 0) || s.err != nil {
-		return saxStopEOF
+		return stopEOF
 	}
 	return int(in.buf[in.pos])
 }
@@ -233,11 +237,11 @@ func (s *saxScanner) peek() int {
 // next consumes one char, normalizing a line end to '\n'. Observed
 // behaviour (black-box): a line end that is the last char of the buffer is
 // consumed, then kept in the buffer while more input is read.
-func (s *saxScanner) next() int {
+func (s *scanner) next() int {
 	in := s.in
 	c := s.peek()
 	switch c {
-	case saxStopEOF:
+	case stopEOF:
 	case '\n', '\r':
 		in.newline(1)
 		if in.pos == in.count {
@@ -254,7 +258,7 @@ func (s *saxScanner) next() int {
 }
 
 // skipChar consumes c (not a line end) if it is next.
-func (s *saxScanner) skipChar(c int) bool {
+func (s *scanner) skipChar(c int) bool {
 	if s.peek() != c {
 		return false
 	}
@@ -264,11 +268,11 @@ func (s *saxScanner) skipChar(c int) bool {
 
 // skipSpaces consumes white space (production [3] S); it reports whether
 // there was any.
-func (s *saxScanner) skipSpaces() bool {
-	if !saxIsSpace(s.peek()) {
+func (s *scanner) skipSpaces() bool {
+	if !isXMLSpace(s.peek()) {
 		return false
 	}
-	for saxIsSpace(s.peek()) {
+	for isXMLSpace(s.peek()) {
 		s.next()
 	}
 	return true
@@ -276,7 +280,7 @@ func (s *saxScanner) skipSpaces() bool {
 
 // skipUnits consumes str if it is next. It first makes sure the buffer
 // holds len(str) chars, reading into the free end of the buffer.
-func (s *saxScanner) skipUnits(str []uint16) bool {
+func (s *scanner) skipUnits(str []uint16) bool {
 	if s.err != nil {
 		return false
 	}
@@ -295,7 +299,7 @@ func (s *saxScanner) skipUnits(str []uint16) bool {
 	return true
 }
 
-func (s *saxScanner) skipASCII(str string) bool {
+func (s *scanner) skipASCII(str string) bool {
 	if s.err != nil {
 		return false
 	}
@@ -314,13 +318,13 @@ func (s *saxScanner) skipASCII(str string) bool {
 	return true
 }
 
-const saxMaxNameLength = 1000
+const maxNameLength = 1000
 
 // scanName scans a Name (production [5], Fourth Edition classes); it
 // returns nil when no name starts here. A name that reaches the end of
 // the buffer is kept in the buffer while more is read. Names longer than
 // 1000 chars hit the JDK's secure-processing limit.
-func (s *saxScanner) scanName() []uint16 {
+func (s *scanner) scanName() []uint16 {
 	if s.err != nil {
 		return nil
 	}
@@ -328,23 +332,23 @@ func (s *saxScanner) scanName() []uint16 {
 	if (in.pos == in.count && in.load(in.pos) == 0) || s.err != nil {
 		return nil
 	}
-	if !saxIsNameStart(int(in.buf[in.pos])) {
+	if !isNameStart(int(in.buf[in.pos])) {
 		return nil
 	}
 	start := in.pos
 	end := start + 1
 	for {
-		for end < in.count && saxIsNameChar(int(in.buf[end])) {
+		for end < in.count && isNameChar(int(in.buf[end])) {
 			end++
 		}
 		if end < in.count {
 			break
 		}
 		n := end - start
-		if n > saxMaxNameLength {
+		if n > maxNameLength {
 			// Observed behaviour (black-box): checked whenever the name
 			// reaches the end of the buffer, before reading more.
-			s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + saxGrouped(n) +
+			s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + formatGroupedInt(n) +
 				"\" that exceeds the \"1,000\" limit set by \"jaxp.properties\".")
 			return nil
 		}
@@ -358,10 +362,10 @@ func (s *saxScanner) scanName() []uint16 {
 			break
 		}
 	}
-	name := append([]uint16(nil), in.buf[start:end]...)
+	name := slices.Clone(in.buf[start:end])
 	in.advance(end - start)
-	if len(name) > saxMaxNameLength {
-		s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + saxGrouped(len(name)) +
+	if len(name) > maxNameLength {
+		s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + formatGroupedInt(len(name)) +
 			"\" that exceeds the \"1,000\" limit set by \"jaxp.properties\".")
 		return nil
 	}
@@ -370,9 +374,9 @@ func (s *saxScanner) scanName() []uint16 {
 
 // flushText reports the pending character data, routing whitespace-only runs
 // inside element-content elements to ContentHandler.IgnorableWhitespace.
-func (s *saxScanner) flushText() {
+func (s *scanner) flushText() {
 	if s.err == nil && len(s.text) > 0 {
-		if len(s.openElemContent) > 0 && s.openElemContent[len(s.openElemContent)-1] && saxAllSpaces(s.text) {
+		if len(s.openElemContent) > 0 && s.openElemContent[len(s.openElemContent)-1] && allXMLSpaces(s.text) {
 			s.handler.IgnorableWhitespace(s.text, 0, len(s.text))
 		} else {
 			s.handler.Characters(s.text, 0, len(s.text))
@@ -381,9 +385,9 @@ func (s *saxScanner) flushText() {
 	}
 }
 
-func saxAllSpaces(units []uint16) bool {
+func allXMLSpaces(units []uint16) bool {
 	for _, u := range units {
-		if !saxIsSpace(int(u)) {
+		if !isXMLSpace(int(u)) {
 			return false
 		}
 	}
@@ -393,7 +397,7 @@ func saxAllSpaces(units []uint16) bool {
 // ---------------------------------------------------------------------------
 // Document.
 
-func (s *saxScanner) parse() jutil.Throwable {
+func (s *scanner) parse() jutil.Throwable {
 	s.in.detectEncoding()
 	if s.err != nil {
 		return s.err
@@ -427,11 +431,11 @@ func (s *saxScanner) parse() jutil.Throwable {
 }
 
 // prolog scans Misc* (doctypedecl Misc*)? and the root element.
-func (s *saxScanner) prolog() {
+func (s *scanner) prolog() {
 	for s.err == nil {
 		s.skipSpaces()
 		c := s.peek()
-		if c == saxStopEOF {
+		if c == stopEOF {
 			s.fatal("Premature end of file.")
 			return
 		}
@@ -469,7 +473,7 @@ func (s *saxScanner) prolog() {
 				s.fatalOrEOF("The markup in the document preceding the root element must be well-formed.")
 				return
 			}
-		case saxIsNameStart(c):
+		case isNameStart(c):
 			s.element()
 			return
 		default:
@@ -480,11 +484,11 @@ func (s *saxScanner) prolog() {
 }
 
 // trailingMisc scans the Misc* after the root element.
-func (s *saxScanner) trailingMisc() {
+func (s *scanner) trailingMisc() {
 	for s.err == nil {
 		s.skipSpaces()
 		c := s.peek()
-		if c == saxStopEOF {
+		if c == stopEOF {
 			return
 		}
 		if c != '<' {
@@ -521,7 +525,7 @@ func (s *saxScanner) trailingMisc() {
 
 // element scans the root element: its start tag (the '<' is consumed and
 // a name start is next) and, unless it is empty, its content.
-func (s *saxScanner) element() {
+func (s *scanner) element() {
 	if s.startTag() || s.err != nil {
 		return
 	}
@@ -531,7 +535,7 @@ func (s *saxScanner) element() {
 // startTag scans a start tag or empty-element tag after '<' and reports
 // it; it returns whether the element was empty. Otherwise the element is
 // pushed on s.open.
-func (s *saxScanner) startTag() bool {
+func (s *scanner) startTag() bool {
 	nameUnits := s.scanName()
 	if s.err != nil {
 		return false
@@ -556,11 +560,11 @@ func (s *saxScanner) startTag() bool {
 			empty = true
 			break
 		}
-		if c == saxStopEOF {
+		if c == stopEOF {
 			s.fatal(s.eofMessage())
 			return false
 		}
-		if !sawSpace || !saxIsNameStart(c) {
+		if !sawSpace || !isNameStart(c) {
 			s.fatal("Element type \"" + name + "\" must be followed by either attribute specifications, \">\" or \"/>\".")
 			return false
 		}
@@ -586,13 +590,11 @@ func (s *saxScanner) startTag() bool {
 			return false
 		}
 		if s.isNonCDATAAttr(name, attr) {
-			value = saxNormalizeNonCDATA(value)
+			value = normalizeNonCDATA(value)
 		}
-		for _, n := range s.attrs.names {
-			if n == attr {
-				s.fatal("Attribute \"" + attr + "\" was already specified for element \"" + name + "\".")
-				return false
-			}
+		if slices.Contains(s.attrs.names, attr) {
+			s.fatal("Attribute \"" + attr + "\" was already specified for element \"" + name + "\".")
+			return false
 		}
 		if len(s.attrs.names) == 10000 {
 			s.fatal("JAXP00010002:  Element \"" + name + "\" has more than \"10,000\" attributes, \"10,000\" is the limit imposed by the JDK.")
@@ -624,7 +626,7 @@ func (s *saxScanner) startTag() bool {
 }
 
 // endTag scans an end tag after "</" and reports it.
-func (s *saxScanner) endTag() {
+func (s *scanner) endTag() {
 	nameUnits := s.open[len(s.open)-1]
 	name := jutil.StringFromUTF16(nameUnits)
 	if !s.skipUnits(nameUnits) {
@@ -642,13 +644,13 @@ func (s *saxScanner) endTag() {
 }
 
 // content scans the content of the root element up to its end tag.
-func (s *saxScanner) content() {
+func (s *scanner) content() {
 	for len(s.open) > 0 && s.err == nil {
 		// Observed behaviour (black-box): markup and references are
 		// recognized before a text step starts (so without its reading
 		// rule for the last char of the buffer).
 		c := s.peek()
-		if c != '<' && c != '&' && c != saxStopEOF {
+		if c != '<' && c != '&' && c != stopEOF {
 			c = s.textStep(true)
 		}
 		if s.err != nil {
@@ -663,7 +665,7 @@ func (s *saxScanner) content() {
 				s.flushText()
 				s.endTag()
 				continue
-			case saxStopEOF:
+			case stopEOF:
 				s.fatal(s.eofMessage())
 				return
 			}
@@ -673,11 +675,11 @@ func (s *saxScanner) content() {
 			s.in.advance(1)
 			s.flushText()
 			s.reference()
-		case saxStopEOF:
+		case stopEOF:
 			s.fatal(s.eofMessage())
 			return
 		default:
-			if c != ']' && c != '\n' && c != '\r' && c != saxStopBufEnd && !saxIsTextChar(uint16(c)) {
+			if c != ']' && c != '\n' && c != '\r' && c != stopBufEnd && !isTextChar(uint16(c)) {
 				s.otherChar(c)
 				s.flushText()
 				continue
@@ -691,7 +693,7 @@ func (s *saxScanner) content() {
 			if s.err != nil {
 				return
 			}
-			if c == saxStopEOF {
+			if c == stopEOF {
 				s.fatal(s.eofMessage())
 				return
 			}
@@ -705,19 +707,19 @@ func (s *saxScanner) content() {
 
 // textStep scans character data into s.text (see the file comment for
 // where it stops). It returns the char it stopped at (not consumed),
-// saxStopBufEnd at the end of the buffer, or saxStopEOF; after line ends
+// stopBufEnd at the end of the buffer, or stopEOF; after line ends
 // near the end of the buffer, '\n' unless '<' or a char that is not
 // character data follows.
-func (s *saxScanner) textStep(first bool) int {
+func (s *scanner) textStep(first bool) int {
 	in := s.in
 	if in.pos == in.count {
 		if in.load(in.pos) == 0 {
-			return saxStopEOF
+			return stopEOF
 		}
 	} else if in.pos == in.count-1 {
 		in.load(in.pos)
 		if s.err != nil {
-			return saxStopEOF
+			return stopEOF
 		}
 	}
 	if c := in.buf[in.pos]; c == '\n' || c == '\r' {
@@ -731,7 +733,7 @@ func (s *saxScanner) textStep(first bool) int {
 			// char when the line ends end the buffer.
 			if in.pos < in.count {
 				c := in.buf[in.pos]
-				if c == '<' || (!saxIsTextChar(c) && c != '&' && c != ']' && c != '\n' && c != '\r') {
+				if c == '<' || (!isTextChar(c) && c != '&' && c != ']' && c != '\n' && c != '\r') {
 					return int(c)
 				}
 			} else if first && in.load(in.pos) > 0 && in.buf[in.pos] == '<' {
@@ -742,7 +744,7 @@ func (s *saxScanner) textStep(first bool) int {
 	}
 	start := in.pos
 	end := start
-	for end < in.count && saxIsTextChar(in.buf[end]) {
+	for end < in.count && isTextChar(in.buf[end]) {
 		end++
 	}
 	s.text = append(s.text, in.buf[start:end]...)
@@ -753,7 +755,7 @@ func (s *saxScanner) textStep(first bool) int {
 		if first && in.load(in.pos) > 0 && in.buf[in.pos] == '<' {
 			return '<'
 		}
-		return saxStopBufEnd
+		return stopBufEnd
 	}
 	return int(in.buf[end])
 }
@@ -765,7 +767,7 @@ func (s *saxScanner) textStep(first bool) int {
 // minus the number of lone CRs (not followed by LF) in it, and stays that
 // far off for the rest of the line; except when the run stops with one
 // char left in the buffer.
-func (s *saxScanner) lineEnds(dst []uint16, repl uint16) ([]uint16, bool) {
+func (s *scanner) lineEnds(dst []uint16, repl uint16) ([]uint16, bool) {
 	in := s.in
 	lone := 0
 	stopped := false
@@ -800,7 +802,7 @@ func (s *saxScanner) lineEnds(dst []uint16, repl uint16) ([]uint16, bool) {
 }
 
 // brackets scans a run of ']' in character data; "]]>" is an error.
-func (s *saxScanner) brackets() {
+func (s *scanner) brackets() {
 	s.in.advance(1)
 	s.text = append(s.text, ']')
 	n := 1
@@ -817,7 +819,7 @@ func (s *saxScanner) brackets() {
 			s.fatal("The character sequence \"]]>\" must not appear in content unless used to mark the end of a CDATA section.")
 			return
 		}
-		if c == saxStopEOF {
+		if c == stopEOF {
 			s.fatal(s.eofMessage())
 		}
 		return
@@ -826,10 +828,10 @@ func (s *saxScanner) brackets() {
 
 // otherChar handles the char that stopped textStep when it is not markup:
 // a surrogate pair, or an invalid character.
-func (s *saxScanner) otherChar(c int) {
-	if saxIsHighSurrogate(c) {
+func (s *scanner) otherChar(c int) {
+	if isHighSurrogate(c) {
 		low := s.peekSecond()
-		if saxIsLowSurrogate(low) {
+		if isLowSurrogate(low) {
 			s.text = append(s.text, uint16(c), uint16(low))
 			s.in.advance(2)
 			return
@@ -837,37 +839,37 @@ func (s *saxScanner) otherChar(c int) {
 		s.loneHighSurrogate(c)
 		return
 	}
-	s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the element content of the document.")
+	s.fatal("An invalid XML character (Unicode: " + formatHex(c) + ") was found in the element content of the document.")
 }
 
 // loneHighSurrogate reports a high surrogate that is not followed by a low
 // one. Observed behaviour (black-box): in every construct, the JDK reports
 // it after consuming it, as found in element content; at the end of the
 // input it reports the end of input instead.
-func (s *saxScanner) loneHighSurrogate(c int) {
+func (s *scanner) loneHighSurrogate(c int) {
 	s.in.advance(1)
-	if s.peek() == saxStopEOF {
+	if s.peek() == stopEOF {
 		s.fatal(s.eofMessage())
 		return
 	}
-	s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the element content of the document.")
+	s.fatal("An invalid XML character (Unicode: " + formatHex(c) + ") was found in the element content of the document.")
 }
 
 // peekSecond returns the char after the next one, reading more input
 // (keeping the next char) when it is not in the buffer.
-func (s *saxScanner) peekSecond() int {
+func (s *scanner) peekSecond() int {
 	in := s.in
 	if in.pos+1 >= in.count {
 		in.load(in.pos)
 		if in.pos+1 >= in.count || s.err != nil {
-			return saxStopEOF
+			return stopEOF
 		}
 	}
 	return int(in.buf[in.pos+1])
 }
 
 // markup scans the markup after '<' in content (not an end tag).
-func (s *saxScanner) markup() {
+func (s *scanner) markup() {
 	c := s.peek()
 	switch {
 	case c == '!':
@@ -902,7 +904,7 @@ func (s *saxScanner) markup() {
 	case c == '?':
 		s.in.advance(1)
 		s.processingInstruction(true)
-	case saxIsNameStart(c):
+	case isNameStart(c):
 		s.startTag()
 	default:
 		s.fatalOrEOF("The content of elements must consist of well-formed character data or markup.")

@@ -43,7 +43,7 @@ func (p *ProcessDefines) CollectDefines(root rhino.Node) {
 		}
 
 		totalSets := name.GetTotalSets()
-		valueParent := processDefines_getValueParentForDefine(declaration)
+		valueParent := getValueParentForDefine(declaration)
 		var value rhino.Node
 		if assign, ok := ast.AsAssign(valueParent); ok {
 			value = assign.Value().Node()
@@ -91,10 +91,10 @@ func (p *ProcessDefines) CollectDefines(root rhino.Node) {
 			}
 		}
 	}
-	defineNames := make([]string, 0, len(processDefinesKnownDefineList)+len(p.defines))
-	defineNames = append(defineNames, processDefinesKnownDefineList[:]...)
+	defineNames := make([]string, 0, len(knownProcessDefinesList)+len(p.defines))
+	defineNames = append(defineNames, knownProcessDefinesList[:]...)
 	for _, def := range p.defines {
-		if _, known := processDefines_KNOWN_DEFINES[def.defineName]; !known {
+		if _, known := knownProcessDefines[def.defineName]; !known {
 			defineNames = append(defineNames, def.defineName)
 		}
 	}
@@ -133,7 +133,7 @@ func (p *ProcessDefines) SelectDefineDeclaration(name *GlobalNamespace_Name) *Gl
 }
 
 // Java: ProcessDefines.getValueParentForDefine(GlobalNamespace.Ref)
-func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) rhino.Node {
+func getValueParentForDefine(declaration *GlobalNamespace_Ref) rhino.Node {
 	// Note: this may be a NAME, a GETPROP, or even STRING_KEY or GETTER_DEF.
 	// We only care about the first two, in which case the parent should be
 	// either VAR/CONST or ASSIGN. We could accept STRING_KEY (i.e. `@define`
@@ -146,7 +146,9 @@ func processDefines_getValueParentForDefine(declaration *GlobalNamespace_Ref) rh
 		// Simple case of `var` or `const`. There's no reason to support `let`
 		// here, and we don't explicitly check that it's not `let` anywhere
 		// else.
-		jutil.CheckStateMsg1(declarationNode.IsName(), "%s", declarationNode)
+		if !declarationNode.IsName() {
+			panic(jutil.NewIllegalStateExceptionMsg(declarationNode.String()))
+		}
 		return declarationNode
 	} else if assign, ok := ast.AsAssign(declarationParent); ok && assign.Target().Is(declarationNode) {
 		// Assignment. Must either assign to a qualified name, or else be a
@@ -189,15 +191,30 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		return
 	}
 
+	constNamespace := p.namespace
+	if constNamespace != nil && constNamespace.forProcessDefines && !constNamespace.includeGlobalConsts {
+		constNamespace = NewGlobalNamespaceWithRoots(p.compiler, constNamespace.externsRoot, constNamespace.root)
+		constNamespace.forProcessDefines = true
+		constNamespace.processDefinesCheck = true
+		constNamespace.includeGlobalConsts = true
+		constNamespace.EnsureGenerated()
+		clear(defineNamesSet)
+		for _, define := range p.defines {
+			if mapped := constNamespace.LookupName(define.name.GetFullName()); mapped != nil {
+				defineNamesSet[mapped] = struct{}{}
+			}
+		}
+	}
+
 	var namesToCheck []*GlobalNamespace_Name
-	for name := range p.namespace.GetAllSymbols() {
-		if !processDefines_isGlobalConst(name) {
+	for name := range constNamespace.GetAllSymbols() {
+		if !isGlobalConstForDefines(name) {
 			continue
 		}
 		if _, isDef := defineNamesSet[name]; isDef {
 			continue
 		}
-		declValue := processDefines_getConstantDeclValue(name.getDeclarationRef().GetNode())
+		declValue := getConstantDeclValue(name.getDeclarationRef().GetNode())
 		if declValue.IsNil() {
 			continue
 		}
@@ -218,7 +235,7 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 		var namesToCheckAgain []*GlobalNamespace_Name
 
 		for _, name := range namesToCheck {
-			declValue := processDefines_getConstantDeclValue(name.getDeclarationRef().GetNode())
+			declValue := getConstantDeclValue(name.getDeclarationRef().GetNode())
 			switch p.IsValidDefineValue(declValue) {
 			case base.Tri_TRUE:
 				for ref := range name.Refs() {
@@ -246,7 +263,7 @@ func (p *ProcessDefines) ValidateDefineDeclarations() {
 	for _, define := range p.defines {
 		declarationNode := define.declaration.GetNode()
 
-		_, known := processDefines_KNOWN_DEFINES[define.defineName]
+		_, known := knownProcessDefines[define.defineName]
 		if !p.IsGoogDefineCall(define.value) &&
 			!known &&
 			!strings.HasPrefix(define.defineName, "$jscomp.") {
@@ -478,7 +495,7 @@ func (c *ProcessDefines_ClosureDefinesCollector) Visit(t *NodeTraversal, n rhino
 // Java: ProcessDefines.handleClosureDefinesValue(Node, Node, Node)
 func (p *ProcessDefines) HandleClosureDefinesValue(stringNode rhino.Node, valueNode rhino.Node, errorNode rhino.Node) {
 	if (stringNode.IsStringKey() || stringNode.IsStringLit()) &&
-		processDefines_isValidClosureDefinesValue(valueNode) {
+		isValidClosureDefinesValue(valueNode) {
 		key := stringNode.GetString()
 		if prev := p.replacementValuesFromClosureDefines.Put(key, valueNode); !prev.IsNil() {
 			p.compiler.Report(
@@ -494,7 +511,7 @@ func (p *ProcessDefines) HandleClosureDefinesValue(stringNode rhino.Node, valueN
 }
 
 // Java: ProcessDefines.isValidClosureDefinesValue(Node)
-func processDefines_isValidClosureDefinesValue(val rhino.Node) bool {
+func isValidClosureDefinesValue(val rhino.Node) bool {
 	// Values allowed in 'var CLOSURE_DEFINES = {'
 	// Must be a subset of the values allowed for <val> in
 	// /** @define {...} */ var DEF = <val>
@@ -520,7 +537,7 @@ func (p *ProcessDefines) HasValidValue(define *ProcessDefines_Define) bool {
 }
 
 // Java: ProcessDefines.isGlobalConst(GlobalNamespace.Name)
-func processDefines_isGlobalConst(name *GlobalNamespace_Name) bool {
+func isGlobalConstForDefines(name *GlobalNamespace_Name) bool {
 	if name.GetTotalSets() != 1 {
 		return false
 	}
@@ -590,7 +607,7 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 		if !p.IsGoogDefineCall(val) {
 			return base.Tri_FALSE
 		}
-		defaultValue, ok := processDefines_googDefineDefault(ast.MustCall(val))
+		defaultValue, ok := googDefineDefault(ast.MustCall(val))
 		if !ok {
 			// goog.define call with wrong arg count. Warn elsewhere and treat
 			// this call as valid.
@@ -603,12 +620,11 @@ func (p *ProcessDefines) IsValidDefineValue(val rhino.Node) base.Tri {
 	return base.Tri_FALSE
 }
 
-// processDefines_getConstantDeclValue checks whether the NAME node is
-// inside either a CONST or a @const VAR. Returns the RHS node if so,
-// otherwise returns NilNode.
+// getConstantDeclValue checks whether the NAME node is inside either a CONST
+// or a @const VAR. Returns the RHS node if so, otherwise returns NilNode.
 //
 // Java: ProcessDefines.getConstantDeclValue(Node)
-func processDefines_getConstantDeclValue(name rhino.Node) rhino.Node {
+func getConstantDeclValue(name rhino.Node) rhino.Node {
 	parent := name.GetParent()
 	if parent.IsNil() {
 		return rhino.NilNode
@@ -714,13 +730,6 @@ func (p *ProcessDefines) VerifyGoogDefine(callNode rhino.Node) bool {
 	return true
 }
 
-func processDefines_qualifiedNameOrNull(n rhino.Node) string {
-	if qname, ok := n.GetQualifiedNameString(); ok {
-		return qname
-	}
-	return "null"
-}
-
 // VerifyNotNull returns whether the argument checked out okay.
 //
 // Java: ProcessDefines.verifyNotNull(Node, Node)
@@ -730,7 +739,7 @@ func (p *ProcessDefines) VerifyNotNull(methodName rhino.Node, arg rhino.Node) bo
 			JSError_MakeWithNode(
 				methodName,
 				ClosurePrimitiveErrors_NULL_ARGUMENT_ERROR,
-				processDefines_qualifiedNameOrNull(methodName)))
+				qualifiedNameOrNull(methodName)))
 		return false
 	}
 	return true
@@ -745,7 +754,7 @@ func (p *ProcessDefines) VerifyIsLast(methodName rhino.Node, arg rhino.Node) boo
 			JSError_MakeWithNode(
 				methodName,
 				ClosurePrimitiveErrors_TOO_MANY_ARGUMENTS_ERROR,
-				processDefines_qualifiedNameOrNull(methodName)))
+				qualifiedNameOrNull(methodName)))
 		return false
 	}
 	return true
@@ -760,7 +769,7 @@ func (p *ProcessDefines) VerifyOfType(methodName rhino.Node, arg rhino.Node, des
 			JSError_MakeWithNode(
 				methodName,
 				ClosurePrimitiveErrors_INVALID_ARGUMENT_ERROR,
-				processDefines_qualifiedNameOrNull(methodName)))
+				qualifiedNameOrNull(methodName)))
 		return false
 	}
 	return true

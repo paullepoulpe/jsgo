@@ -55,35 +55,36 @@ import (
 )
 
 // Java: AbstractCommandLineRunner.setWarningGuardOptions(CompilerOptions, ArrayList<FlagEntry<CheckLevel>>, DiagnosticGroups)
-func AbstractCommandLineRunner_SetWarningGuardOptions(
+func setWarningGuardOptions(
 	options *jscomp.CompilerOptions,
 	warningGuards []*AbstractCommandLineRunner_FlagEntry[jscomp.CheckLevel],
 	diagnosticGroups *jscomp.DiagnosticGroups) {
-	if warningGuards != nil {
-		groupNames := jscomp.DiagnosticGroups_GetRegisteredGroups() // Java: .keySet()
-		for _, entry := range warningGuards {
-			if "*" == entry.value {
-				for groupName := range groupNames.Keys() {
-					if !jscomp.DiagnosticGroups_wildcardExcludedGroups.Contains(groupName) {
-						diagnosticGroups.SetWarningLevel(options, groupName, entry.flag)
-					}
+	if warningGuards == nil {
+		return
+	}
+	groupNames := jscomp.DiagnosticGroups_GetRegisteredGroups()
+	for _, entry := range warningGuards {
+		if entry.value == "*" {
+			for groupName := range groupNames.Keys() {
+				if !jscomp.DiagnosticGroups_wildcardExcludedGroups.Contains(groupName) {
+					diagnosticGroups.SetWarningLevel(options, groupName, entry.flag)
 				}
-			} else if groupNames.ContainsKey(entry.value) {
-				diagnosticGroups.SetWarningLevel(options, entry.value, entry.flag)
-			} else {
-				panic(jscomp.NewFlagUsageException("Unknown diagnostic group: '" + entry.value + "'"))
 			}
+		} else if groupNames.ContainsKey(entry.value) {
+			diagnosticGroups.SetWarningLevel(options, entry.value, entry.flag)
+		} else {
+			panic(jscomp.NewFlagUsageException("Unknown diagnostic group: '" + entry.value + "'"))
 		}
 	}
 }
 
 // Core language externs. When the environment is CUSTOM, only these externs
 // will be included.
-var defaultExterns_BUILTIN_LANG_EXTERNS = []string{"es3.js", "es5.js", "es6.js", "es6_typed_array.js", "es6_collections.js"}
+var builtinLangExterns = []string{"es3.js", "es5.js", "es6.js", "es6_typed_array.js", "es6_collections.js"}
 
 // Ordered browser externs. Externs not included in this list are added
 // last.
-var defaultExterns_BROWSER_EXTERN_DEP_ORDER = []string{
+var browserExternDepOrder = []string{
 	"intl.js",
 	"w3c_event.js",
 	"w3c_event3.js",
@@ -123,25 +124,29 @@ var (
 	builtinExternsCustom     []cachedBuiltinExtern
 )
 
-func defaultExterns_prepareExternSpecs(
+func prepareExternSpecs(
 	env jscomp.CompilerOptions_Environment,
 	externs map[string]cachedBuiltinExtern,
 	externOrder []string,
 ) []cachedBuiltinExtern {
 	out := make([]cachedBuiltinExtern, 0, len(externs))
 
-	for _, key := range defaultExterns_BUILTIN_LANG_EXTERNS {
+	for _, key := range builtinLangExterns {
 		spec, ok := externs[key]
-		jutil.CheckStateMsg1(ok, "Externs must contain builtin: %s", key)
+		if !ok {
+			panic(jutil.NewIllegalStateExceptionMsg("Externs must contain builtin: " + key))
+		}
 		delete(externs, key)
 		out = append(out, spec)
 	}
 
 	if env == jscomp.CompilerOptions_Environment_BROWSER {
-		for _, key := range defaultExterns_BROWSER_EXTERN_DEP_ORDER {
+		for _, key := range browserExternDepOrder {
 			spec, ok := externs[key]
-			jutil.CheckStateMsg2(ok,
-				"Externs must contain builtin for env %s: %s", env, key)
+			if !ok {
+				panic(jutil.NewIllegalStateExceptionMsg(
+					"Externs must contain builtin for env " + env.String() + ": " + key))
+			}
 			delete(externs, key)
 			out = append(out, spec)
 		}
@@ -157,7 +162,7 @@ func defaultExterns_prepareExternSpecs(
 }
 
 func loadBuiltinExternSpecs(env jscomp.CompilerOptions_Environment) []cachedBuiltinExtern {
-	input := abstractCommandLineRunner_getExternsInput()
+	input := resources.MustLoadBytes("externs.zip")
 	zipReader, err := zip.NewReader(bytes.NewReader(input), int64(len(input)))
 	if err != nil {
 		panic(jutil.NewZipException(err.Error()))
@@ -198,7 +203,7 @@ func loadBuiltinExternSpecs(env jscomp.CompilerOptions_Environment) []cachedBuil
 			reload: func() string { return code },
 		}
 	}
-	return defaultExterns_prepareExternSpecs(env, mapFromExternsZip, externOrder)
+	return prepareExternSpecs(env, mapFromExternsZip, externOrder)
 }
 
 func getBuiltinExternSpecs(env jscomp.CompilerOptions_Environment) []cachedBuiltinExtern {
@@ -218,10 +223,10 @@ func getBuiltinExternSpecs(env jscomp.CompilerOptions_Environment) []cachedBuilt
 	}
 }
 
-// AbstractCommandLineRunner_GetBuiltinExterns returns a mutable list.
+// getBuiltinExterns returns a fresh slice of reloadable SourceFiles for env.
 //
 // Java: AbstractCommandLineRunner.getBuiltinExterns(CompilerOptions.Environment)
-func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Environment) []*jscomp.SourceFile {
+func getBuiltinExterns(env jscomp.CompilerOptions_Environment) []*jscomp.SourceFile {
 	specs := getBuiltinExternSpecs(env)
 	out := make([]*jscomp.SourceFile, len(specs))
 	for i := range specs {
@@ -233,13 +238,8 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env jscomp.CompilerOptions_Envi
 	return out
 }
 
-// Java: AbstractCommandLineRunner.getExternsInput()
-func abstractCommandLineRunner_getExternsInput() []byte {
-	return resources.MustLoadBytes("externs.zip")
-}
-
 // Java: AbstractCommandLineRunner.parseJsonFilesFromInputStream()
-func (r *AbstractCommandLineRunnerBase) ParseJsonFilesFromInputStream() []*AbstractCommandLineRunner_JsonFileSpec {
+func (r *abstractCommandLineRunnerBase) parseJsonFilesFromInputStream() []*AbstractCommandLineRunner_JsonFileSpec {
 	var jsonFiles []*AbstractCommandLineRunner_JsonFileSpec
 	inReader := jutil.NewInputStreamReader(r.in, r.inputCharset)
 	defer inReader.Close()
@@ -354,61 +354,13 @@ func readJsonOptString(scanner *jutil.JsonScanner) (base.OptString, jutil.Throwa
 	}
 }
 
-// CreateInputs creates inputs from a list of files.
-//
-// files is a list of flag entries indicates js and zip file names;
-// allowStdIn whether '-' is allowed appear as a filename to represent stdin
-// (if true, '-' is only allowed to appear once); jsChunkSpecs a list chunk
-// specs. It returns an array of inputs.
-//
-// Java: AbstractCommandLineRunner.createInputs(List<FlagEntry<JsSourceType>>, boolean, List<JsChunkSpec>)
-func (r *AbstractCommandLineRunnerBase) CreateInputs(
-	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
-	allowStdIn bool,
-	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) []*jscomp.SourceFile {
-	return r.self.CreateInputsWithJsonFilesAndAllowStdIn(files /* jsonFiles= */, nil, allowStdIn, jsChunkSpecs)
-}
-
-// CreateInputsWithJsonFiles creates inputs from a list of source files and
-// json files.
-//
-// Java: AbstractCommandLineRunner.createInputs(List<FlagEntry<JsSourceType>>, List<JsonFileSpec>, List<JsChunkSpec>)
-func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFiles(
-	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
-	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
-	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) []*jscomp.SourceFile {
-	return r.self.CreateInputsWithJsonFilesAndAllowStdIn(files, jsonFiles /* allowStdIn= */, false, jsChunkSpecs)
-}
-
-// CreateInputsWithJsonFilesAndAllowStdIn creates inputs from a list of
-// source files, zips and json files.
-//
-// Can be overridden by subclasses who want to pull files from different
-// places.
-//
-// Go-only: language-adapter — a nil jsonFiles is Java's null list; an empty
-// one is passed as a non-nil empty slice.
-//
-// Java: AbstractCommandLineRunner.createInputs(List<FlagEntry<JsSourceType>>, List<JsonFileSpec>, boolean, List<JsChunkSpec>)
-func (r *AbstractCommandLineRunnerBase) CreateInputsWithJsonFilesAndAllowStdIn(
-	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
-	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
-	allowStdIn bool,
-	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec) []*jscomp.SourceFile {
-	inputs, flagErr := r.createInputs(files, jsonFiles, allowStdIn, jsChunkSpecs)
-	if flagErr != nil {
-		panic(flagErr)
-	}
-	return inputs
-}
-
 type sourceFileLookupFunc func(
 	filename string,
 	charset *jutil.Charset,
 	kind rhino.StaticSourceFile_SourceKind,
 ) (*jscomp.SourceFile, bool)
 
-func (r *AbstractCommandLineRunnerBase) newSourceFile(
+func (r *abstractCommandLineRunnerBase) newSourceFile(
 	filename string,
 	charset *jutil.Charset,
 	kind rhino.StaticSourceFile_SourceKind,
@@ -425,7 +377,7 @@ func (r *AbstractCommandLineRunnerBase) newSourceFile(
 	return b.Build()
 }
 
-func (r *AbstractCommandLineRunnerBase) createInputs(
+func (r *abstractCommandLineRunnerBase) createInputs(
 	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
 	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
 	allowStdIn bool,
@@ -449,15 +401,16 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 				return nil, jscomp.NewFlagUsageException("Can't use TypedASTs with --zip.")
 			}
 
-			if "-" != filename {
+			if filename != "-" {
 				newFiles := jscomp.SourceFile_FromZipFile(filename, r.inputCharset)
 				// Update the manifest maps for new zip entries.
 				if rootFilename, ok := r.rootRelativePathsMap[filename]; ok {
 					for _, zipEntry := range newFiles {
 						zipEntryName := zipEntry.GetName()
-						jutil.CheckState(strings.Contains(zipEntryName, filename))
-						zipmap := strings.ReplaceAll(zipEntryName, filename, rootFilename)
-						r.rootRelativePathsMap[zipEntryName] = zipmap
+						if !strings.Contains(zipEntryName, filename) {
+							panic(jutil.NewIllegalStateException())
+						}
+						r.rootRelativePathsMap[zipEntryName] = strings.ReplaceAll(zipEntryName, filename, rootFilename)
 					}
 				}
 
@@ -466,7 +419,7 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 					jsChunkSpec.numJsFiles += len(newFiles) - 1
 				}
 			}
-		} else if "-" != filename {
+		} else if filename != "-" {
 			kind := rhino.StaticSourceFile_SourceKind_STRONG
 			if file.flag == AbstractCommandLineRunner_JsSourceType_WEAKDEP {
 				kind = rhino.StaticSourceFile_SourceKind_WEAK
@@ -492,7 +445,7 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 					"Bundle files cannot be generated when the input is from stdin.")
 			}
 
-			r.err.Println(AbstractCommandLineRunner_WAITING_FOR_INPUT_WARNING)
+			r.err.Println(waitingForInputWarning)
 			inputs = append(inputs,
 				jscomp.SourceFile_Builder_().
 					WithPath("stdin").
@@ -509,23 +462,21 @@ func (r *AbstractCommandLineRunnerBase) createInputs(
 			}
 		}
 	}
-	if jsonFiles != nil {
-		for _, jsonFile := range jsonFiles {
-			if jsonFile == nil {
-				panic(jutil.NewHelpfulNullPointerException(
-					`Cannot invoke "com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getPath()" because "jsonFile" is null`))
-			}
-			p, hasPath := jsonFile.GetPath()
-			src, hasSrc := jsonFile.GetSrc()
-			if !hasPath {
-				panic(jutil.NewHelpfulNullPointerException(
-					`Cannot invoke "String.indexOf(String)" because "path" is null`))
-			}
-			if !hasSrc {
-				panic(jutil.NewNullPointerException())
-			}
-			inputs = append(inputs, jscomp.SourceFile_FromCode(p, src))
+	for _, jsonFile := range jsonFiles {
+		if jsonFile == nil {
+			panic(jutil.NewHelpfulNullPointerException(
+				`Cannot invoke "com.google.javascript.jscomp.AbstractCommandLineRunner$JsonFileSpec.getPath()" because "jsonFile" is null`))
 		}
+		p, hasPath := jsonFile.GetPath()
+		src, hasSrc := jsonFile.GetSrc()
+		if !hasPath {
+			panic(jutil.NewHelpfulNullPointerException(
+				`Cannot invoke "String.indexOf(String)" because "path" is null`))
+		}
+		if !hasSrc {
+			panic(jutil.NewNullPointerException())
+		}
+		inputs = append(inputs, jscomp.SourceFile_FromCode(p, src))
 	}
 
 	return inputs, nil
@@ -570,20 +521,16 @@ func collectJsonStreamMaps(jsonFiles []*AbstractCommandLineRunner_JsonFileSpec) 
 	return smEntries, webpackEntries
 }
 
-// DeduplicateIjsFiles removes input --ijs files whose basename matches an
-// input --js or --weakdep file. It throws FlagUsageException if there are
+// deduplicateIjsFiles removes input --ijs files whose basename matches an
+// input --js or --weakdep file. It panics with FlagUsageException if there are
 // both input --ijs files and chunk specs.
 //
-// Go-only: language-adapter — the Java method removes entries from the
-// caller's list through its iterator; files is a pointer to the caller's
-// slice.
-//
 // Java: AbstractCommandLineRunner.deduplicateIjsFiles(List<FlagEntry<JsSourceType>>, List<String>, boolean)
-func (r *AbstractCommandLineRunnerBase) DeduplicateIjsFiles(
+func deduplicateIjsFiles(
 	files *[]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
 	moduleRoots []string,
 	hasChunkSpecs bool) []*jscomp.JSError {
-	var errors []*jscomp.JSError
+	var jsErrors []*jscomp.JSError
 
 	// First pass: collect the (module root relative) names of --js and --weakdep files.
 	relativeToAbsoluteName := make(map[string]string, len(*files))
@@ -591,14 +538,12 @@ func (r *AbstractCommandLineRunnerBase) DeduplicateIjsFiles(
 		// TODO(tjgq): Handle zip files.
 		if file.flag == AbstractCommandLineRunner_JsSourceType_JS || file.flag == AbstractCommandLineRunner_JsSourceType_WEAKDEP {
 			absoluteName := file.value
-			relativeName := r.GetModuleRootRelativeName(absoluteName, moduleRoots)
+			relativeName := moduleRootRelativeName(absoluteName, moduleRoots)
 			relativeToAbsoluteName[relativeName] = absoluteName
 		}
 	}
 
-	// Second pass: drop --ijs files whose (module root relative) name matches a --js or --weakdep
-	// file.
-	// Go-only: language-adapter — Iterator.remove() as an index loop.
+	// Second pass: drop --ijs files whose (module root relative) name matches a --js or --weakdep file.
 	for i := 0; i < len(*files); {
 		file := (*files)[i]
 		if file.flag == AbstractCommandLineRunner_JsSourceType_IJS {
@@ -607,14 +552,14 @@ func (r *AbstractCommandLineRunnerBase) DeduplicateIjsFiles(
 			}
 			absoluteName := file.value
 			if !strings.HasSuffix(absoluteName, ".i.js") {
-				errors = append(errors, jscomp.JSError_Make(jscomp.IjsErrors_BAD_IJS_FILE_NAME, absoluteName))
+				jsErrors = append(jsErrors, jscomp.JSError_Make(jscomp.IjsErrors_BAD_IJS_FILE_NAME, absoluteName))
 				i++
 				continue
 			}
-			relativeName := r.GetModuleRootRelativeName(absoluteName, moduleRoots)
+			relativeName := moduleRootRelativeName(absoluteName, moduleRoots)
 			relativeNonIjsName := relativeName[:len(relativeName)-len(".i.js")]
 			if conflictingAbsName, ok := relativeToAbsoluteName[relativeNonIjsName]; ok {
-				errors = append(errors,
+				jsErrors = append(jsErrors,
 					jscomp.JSError_Make(
 						jscomp.IjsErrors_CONFLICTING_IJS_FILE,
 						conflictingAbsName,
@@ -626,11 +571,11 @@ func (r *AbstractCommandLineRunnerBase) DeduplicateIjsFiles(
 		i++
 	}
 
-	return errors
+	return jsErrors
 }
 
 // Java: AbstractCommandLineRunner.getModuleRootRelativeName(String, List<String>)
-func (r *AbstractCommandLineRunnerBase) GetModuleRootRelativeName(filename string, moduleRoots []string) string {
+func moduleRootRelativeName(filename string, moduleRoots []string) string {
 	for _, moduleRoot := range moduleRoots {
 		if strings.HasPrefix(filename, moduleRoot+"/") {
 			return filename[len(moduleRoot)+1:]
@@ -639,15 +584,15 @@ func (r *AbstractCommandLineRunnerBase) GetModuleRootRelativeName(filename strin
 	return filename
 }
 
-// CreateSourceInputs creates JS source code inputs from a list of files.
+// createSourceInputs creates JS source code inputs from a list of files.
 //
 // Java: AbstractCommandLineRunner.createSourceInputs(List<JsChunkSpec>, List<FlagEntry<JsSourceType>>, List<JsonFileSpec>, List<String>)
-func (r *AbstractCommandLineRunnerBase) CreateSourceInputs(
+func (r *abstractCommandLineRunnerBase) createSourceInputs(
 	jsChunkSpecs []*AbstractCommandLineRunner_JsChunkSpec,
 	files []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType],
 	jsonFiles []*AbstractCommandLineRunner_JsonFileSpec,
 	moduleRoots []string) []*jscomp.SourceFile {
-	if r.self.IsInTestMode() {
+	if r.testMode {
 		if r.inputsSupplierForTesting != nil {
 			return r.inputsSupplierForTesting()
 		}
@@ -659,27 +604,21 @@ func (r *AbstractCommandLineRunnerBase) CreateSourceInputs(
 			NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_JS, "-")}
 	}
 
-	for _, error := range r.DeduplicateIjsFiles(&files, moduleRoots, len(jsChunkSpecs) != 0) {
-		r.compiler.Report(error)
+	for _, jsErr := range deduplicateIjsFiles(&files, moduleRoots, len(jsChunkSpecs) != 0) {
+		r.compiler.Report(jsErr)
 	}
 
-	var result []*jscomp.SourceFile
-	var flagErr *jscomp.FlagUsageException
-	if jsonFiles != nil {
-		result, flagErr = r.createInputs(files, jsonFiles, false, jsChunkSpecs)
-	} else {
-		result, flagErr = r.createInputs(files, nil, true, jsChunkSpecs)
-	}
+	result, flagErr := r.createInputs(files, jsonFiles, jsonFiles == nil, jsChunkSpecs)
 	if flagErr != nil {
 		panic(jscomp.NewFlagUsageException("Bad --js flag. " + flagErr.GetMessage()))
 	}
 	return result
 }
 
-// CreateExternInputs creates JS extern inputs from a list of files.
+// createExternInputs creates JS extern inputs from a list of files.
 //
 // Java: AbstractCommandLineRunner.createExternInputs(List<String>)
-func (r *AbstractCommandLineRunnerBase) CreateExternInputs(files []string) []*jscomp.SourceFile {
+func (r *abstractCommandLineRunnerBase) createExternInputs(files []string) []*jscomp.SourceFile {
 	var externFiles []*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType]
 	if len(files) > 0 {
 		externFiles = make([]*AbstractCommandLineRunner_FlagEntry[AbstractCommandLineRunner_JsSourceType], len(files))
@@ -687,24 +626,20 @@ func (r *AbstractCommandLineRunnerBase) CreateExternInputs(files []string) []*js
 			externFiles[i] = NewAbstractCommandLineRunner_FlagEntry(AbstractCommandLineRunner_JsSourceType_EXTERN, file)
 		}
 	}
-	result, flagErr := r.createInputs(externFiles, nil, false, []*AbstractCommandLineRunner_JsChunkSpec{})
+	result, flagErr := r.createInputs(externFiles, nil, false, nil)
 	if flagErr != nil {
 		panic(jscomp.NewFlagUsageException("Bad --externs flag. " + flagErr.GetMessage()))
 	}
 	return result
 }
 
-// AbstractCommandLineRunner_CreateJsChunks creates chunk objects from a
-// list of chunk specifications.
-//
-// specs is a list of chunk specifications, not null or empty; inputs a list
-// of JS file paths, not null. It returns an array of chunk objects.
+// createJsChunks creates chunk objects from a list of chunk specifications.
 //
 // Java: AbstractCommandLineRunner.createJsChunks(List<JsChunkSpec>, List<CompilerInput>)
-func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner_JsChunkSpec, inputs []*jscomp.CompilerInput) []*jscomp.JSChunk {
-	jutil.CheckState(specs != nil)
-	jutil.CheckState(len(specs) != 0)
-	jutil.CheckState(inputs != nil)
+func createJsChunks(specs []*AbstractCommandLineRunner_JsChunkSpec, inputs []*jscomp.CompilerInput) []*jscomp.JSChunk {
+	if len(specs) == 0 || inputs == nil {
+		panic(jutil.NewIllegalStateException())
+	}
 
 	result := make([]*jscomp.JSChunk, 0, len(specs))
 	chunksByName := make(map[string]*jscomp.JSChunk, len(specs))
@@ -778,8 +713,7 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 			numJsFiles = numJsFilesLeft
 		}
 
-		chunkFiles := inputs[numJsFilesLeft-numJsFiles : numJsFilesLeft]
-		for _, input := range chunkFiles {
+		for _, input := range inputs[numJsFilesLeft-numJsFiles : numJsFilesLeft] {
 			chunk.Add(input)
 		}
 		numJsFilesLeft -= numJsFiles
@@ -791,7 +725,7 @@ func AbstractCommandLineRunner_CreateJsChunks(specs []*AbstractCommandLineRunner
 // CheckChunkName validates the chunk name. Can be overridden by subclasses.
 //
 // Java: AbstractCommandLineRunner.checkChunkName(String)
-func (r *AbstractCommandLineRunnerBase) CheckChunkName(name string) {
+func (r *abstractCommandLineRunnerBase) CheckChunkName(name string) {
 	if !rhino.TokenStream_IsJSIdentifier(name) {
 		panic(jscomp.NewFlagUsageException("Invalid chunk name: '" + name + "'"))
 	}
@@ -828,7 +762,7 @@ func openGzipFileForReading(filename string) (io.ReadCloser, error) {
 	if ioErr != nil {
 		return nil, ioErr
 	}
-	zr, err := gzip.NewReader(bufio.NewReaderSize(f, abstractCommandLineRunner_GZIPPED_TYPEDAST_BUFFER_SIZE))
+	zr, err := gzip.NewReader(bufio.NewReaderSize(f, gzippedTypedAstBufferSize))
 	if err != nil {
 		_ = f.Close()
 		return nil, err
@@ -851,166 +785,135 @@ func runCompilerIO(fn func()) (ioErr jutil.IIOException) {
 }
 
 // Java: AbstractCommandLineRunner.initWithTypedAstFilesystem(List<SourceFile>, List<SourceFile>, CompilerOptions, String)
-func (r *AbstractCommandLineRunnerBase) InitWithTypedAstFilesystem(
+func (r *abstractCommandLineRunnerBase) initWithTypedAstFilesystem(
 	externs []*jscomp.SourceFile,
 	sources []*jscomp.SourceFile,
 	options *jscomp.CompilerOptions,
 	filename string) {
 	typedAstListStream, err := openGzipFileForReading(filename)
 	if err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotDeserializeAstError, filename))
 		return
 	}
 	defer typedAstListStream.Close()
 	if err := runCompilerIO(func() {
 		r.compiler.InitWithTypedAstFilesystem(externs, sources, options, typedAstListStream)
 	}); err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotDeserializeAstError, filename))
 	}
 }
 
 // Java: AbstractCommandLineRunner.initChunksWithTypedAstFilesystem(List<SourceFile>, List<JSChunk>, CompilerOptions, String)
-func (r *AbstractCommandLineRunnerBase) InitChunksWithTypedAstFilesystem(
+func (r *abstractCommandLineRunnerBase) initChunksWithTypedAstFilesystem(
 	externs []*jscomp.SourceFile, chunks []*jscomp.JSChunk, options *jscomp.CompilerOptions, filename string) {
 	typedAstListStream, err := openGzipFileForReading(filename)
 	if err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotDeserializeAstError, filename))
 		return
 	}
 	defer typedAstListStream.Close()
 	if err := runCompilerIO(func() {
 		r.compiler.InitChunksWithTypedAstFilesystem(externs, chunks, options, typedAstListStream)
 	}); err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotDeserializeAstError, filename))
 	}
 }
 
 // Java: AbstractCommandLineRunner.restoreState(String)
-func (r *AbstractCommandLineRunnerBase) RestoreState(filename string) {
+func (r *abstractCommandLineRunnerBase) restoreState(filename string) {
 	serializedInputStream, ioErr := openFileForReading(filename)
 	if ioErr != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotDeserializeAstError, filename))
 		return
 	}
 	defer serializedInputStream.Close()
 	if err := runCompilerIO(func() {
 		r.compiler.RestoreState(serializedInputStream)
 	}); err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotDeserializeAstError, filename))
 	}
 }
 
-// SaveState is called at the end of compilation to save the compiler state
+// saveState is called at the end of compilation to save the compiler state
 // if applicable.
 //
 // Java: AbstractCommandLineRunner.saveState()
-func (r *AbstractCommandLineRunnerBase) SaveState() {
+func (r *abstractCommandLineRunnerBase) saveState() {
 	filename, ok := r.config.saveCompilationStateToFilename.Get()
 	if !ok {
-		// nothing to save to.
 		return
 	}
 	serializedOutputStream, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotSerializeAstError, filename))
 		return
 	}
 	defer serializedOutputStream.Close()
 	if err := runCompilerIO(func() {
 		r.compiler.SaveState(serializedOutputStream)
 	}); err != nil {
-		r.compiler.Report(jscomp.JSError_Make(AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST, filename))
+		r.compiler.Report(jscomp.JSError_Make(couldNotSerializeAstError, filename))
 	}
 }
 
-// GetInputCharset queries the flag for the input charset, and returns a
-// Charset object representing the selection. It throws FlagUsageException
-// if flag is not a valid Charset name.
-//
-// Java: AbstractCommandLineRunner.getInputCharset()
-func (r *AbstractCommandLineRunnerBase) GetInputCharset() *jutil.Charset {
+func (r *abstractCommandLineRunnerBase) resolveCharset(defaultCharset *jutil.Charset) *jutil.Charset {
 	if r.config.charset != "" {
 		if !jutil.Charset_IsSupported(r.config.charset) {
 			panic(jscomp.NewFlagUsageException(r.config.charset + " is not a valid charset name."))
 		}
 		return jutil.Charset_ForName(r.config.charset)
 	}
-	return jutil.StandardCharsets_UTF_8
+	return defaultCharset
 }
 
-// GetLegacyOutputCharset queries the flag for the output charset.
+// Java: AbstractCommandLineRunner.getInputCharset()
+func (r *abstractCommandLineRunnerBase) getInputCharset() *jutil.Charset {
+	return r.resolveCharset(jutil.StandardCharsets_UTF_8)
+}
+
+// getLegacyOutputCharset queries the flag for the output charset.
 //
 // Let the outputCharset be the same as the input charset... except if we're
 // reading in UTF-8 by default. By tradition, we've always output ASCII to
 // avoid various hiccups with different browsers, proxies and firewalls.
 //
-// It returns the charset to use when writing outputs (guaranteed to be a
-// supported charset) and throws FlagUsageException if flag is not a valid
-// Charset name.
-//
 // Java: AbstractCommandLineRunner.getLegacyOutputCharset()
-func (r *AbstractCommandLineRunnerBase) GetLegacyOutputCharset() *jutil.Charset {
-	if r.config.charset != "" {
-		if !jutil.Charset_IsSupported(r.config.charset) {
-			panic(jscomp.NewFlagUsageException(r.config.charset + " is not a valid charset name."))
-		}
-		return jutil.Charset_ForName(r.config.charset)
-	}
-	return jutil.StandardCharsets_US_ASCII
+func (r *abstractCommandLineRunnerBase) getLegacyOutputCharset() *jutil.Charset {
+	return r.resolveCharset(jutil.StandardCharsets_US_ASCII)
 }
 
-// GetOutputCharset2 queries the flag for the output charset. Defaults to
-// UTF-8. It throws FlagUsageException if flag is not a valid Charset name.
-//
 // Java: AbstractCommandLineRunner.getOutputCharset2()
-func (r *AbstractCommandLineRunnerBase) GetOutputCharset2() *jutil.Charset {
-	if r.config.charset != "" {
-		if !jutil.Charset_IsSupported(r.config.charset) {
-			panic(jscomp.NewFlagUsageException(r.config.charset + " is not a valid charset name."))
-		}
-		return jutil.Charset_ForName(r.config.charset)
-	}
-	return jutil.StandardCharsets_UTF_8
+func (r *abstractCommandLineRunnerBase) getOutputCharset2() *jutil.Charset {
+	return r.resolveCharset(jutil.StandardCharsets_UTF_8)
 }
 
 // Java: AbstractCommandLineRunner.createExterns(CompilerOptions)
-func (r *AbstractCommandLineRunnerBase) CreateExterns(options *jscomp.CompilerOptions) []*jscomp.SourceFile {
-	if r.self.IsInTestMode() {
+func (r *abstractCommandLineRunnerBase) CreateExterns(options *jscomp.CompilerOptions) []*jscomp.SourceFile {
+	if r.testMode {
 		return r.externsSupplierForTesting()
 	}
-	return r.CreateExternInputs(r.config.externs)
+	return r.createExternInputs(r.config.externs)
 }
 
-// AbstractCommandLineRunner_CreateDefineReplacements creates a map of
-// constant names to constant values from a textual description of the map.
-//
-// definitions is a list of overriding definitions for defines in the form
-// <name>[=<val>], where <val> is a number, boolean, or single-quoted string
-// without single quotes.
+// createDefineReplacements parses overriding definitions for defines in the
+// form <name>[=<val>], where <val> is a number, boolean, or quoted string.
 //
 // Java: AbstractCommandLineRunner.createDefineReplacements(List<String>, CompilerOptions)
-func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, options *jscomp.CompilerOptions) {
-	// Parse the definitions
+func createDefineReplacements(definitions []string, options *jscomp.CompilerOptions) {
 	for _, override := range definitions {
-		assignment := jutil.StringSplitLiteralLimit(override, "=", 2)
-		defName := assignment[0]
-
+		defName, defValue, hasEq := strings.Cut(override, "=")
 		if defName != "" {
-			defValue := "true"
-			if len(assignment) != 1 {
-				defValue = assignment[1]
+			if !hasEq {
+				defValue = "true"
 			}
 
-			isTrue := defValue == "true"
-			isFalse := defValue == "false"
-			if isTrue || isFalse {
-				options.SetDefineToBooleanLiteral(defName, isTrue)
+			if defValue == "true" || defValue == "false" {
+				options.SetDefineToBooleanLiteral(defName, defValue == "true")
 				continue
-			} else if len(defValue) > 1 &&
+			}
+			if len(defValue) > 1 &&
 				(defValue[0] == '\'' || defValue[0] == '"') &&
 				defValue[len(defValue)-1] == defValue[0] {
-				// If the value starts and ends with a single quote,
-				// we assume that it's a string.
 				maybeStringVal := defValue[1 : len(defValue)-1]
 				if strings.IndexByte(maybeStringVal, defValue[0]) == -1 {
 					options.SetDefineToStringLiteral(defName, maybeStringVal)
@@ -1021,7 +924,6 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, op
 					options.SetDefineToDoubleLiteral(defName, value)
 					continue
 				}
-
 				if defValue != "" {
 					options.SetDefineToStringLiteral(defName, defValue)
 					continue
@@ -1033,19 +935,18 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions []string, op
 	}
 }
 
-// ConstructRootRelativePathsMap constructs and returns the input root path
+// constructRootRelativePathsMap constructs and returns the input root path
 // map. The key is the exec path of each input file, and the value is the
 // corresponding root relative path.
 //
 // Java: AbstractCommandLineRunner.constructRootRelativePathsMap()
-func (r *AbstractCommandLineRunnerBase) ConstructRootRelativePathsMap() map[string]string {
+func (r *abstractCommandLineRunnerBase) constructRootRelativePathsMap() map[string]string {
 	rootRelativePathsMap := make(map[string]string, len(r.config.manifestMaps))
 	for _, mapString := range r.config.manifestMaps {
-		colonIndex := strings.IndexByte(mapString, ':')
-		jutil.CheckState(colonIndex > 0)
-		execPath := mapString[:colonIndex]
-		rootRelativePath := mapString[colonIndex+1:]
-		jutil.CheckState(strings.IndexByte(rootRelativePath, ':') == -1)
+		execPath, rootRelativePath, hasColon := strings.Cut(mapString, ":")
+		if !hasColon || execPath == "" || strings.IndexByte(rootRelativePath, ':') != -1 {
+			panic(jutil.NewIllegalStateException())
+		}
 		rootRelativePathsMap[execPath] = rootRelativePath
 	}
 	return rootRelativePathsMap

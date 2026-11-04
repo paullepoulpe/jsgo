@@ -34,6 +34,7 @@ package xtbxml
 
 import (
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -41,26 +42,26 @@ import (
 )
 
 const (
-	saxBufferChars    = 8192
-	saxFirstReadBytes = 32
+	inputBufferChars = 8192
+	firstReadBytes   = 32
 )
 
-type saxEncoding int
+type xmlEncoding int
 
 const (
-	saxEncUTF8 saxEncoding = iota
-	saxEncUTF16BE
-	saxEncUTF16LE
-	saxEncLatin1
-	saxEncASCII
-	// saxEncUTF8Lenient is the reader the JDK uses for a UTF-8 declared
+	encUTF8 xmlEncoding = iota
+	encUTF16BE
+	encUTF16LE
+	encLatin1
+	encASCII
+	// encUTF8Lenient is the reader the JDK uses for a UTF-8 declared
 	// by a Java-only alias ("UTF8"). Observed behaviour (black-box): its
 	// reads count chars, not bytes, and a malformed sequence becomes
 	// U+FFFD instead of an error: each maximal prefix of a well-formed
 	// sequence, or each other byte, gives one U+FFFD; an encoded surrogate
 	// (ED A0..BF xx) gives one for its three bytes.
-	saxEncUTF8Lenient
-	// saxEncUTF16BELenient and saxEncUTF16LELenient are the readers the
+	encUTF8Lenient
+	// encUTF16BELenient and encUTF16LELenient are the readers the
 	// JDK uses for a UTF-16 declared by a Java-only alias ("UTF16",
 	// "UnicodeBig", "UTF_16LE", ...). Observed behaviour (black-box): their
 	// reads count chars, not bytes, and malformed input becomes U+FFFD: a
@@ -68,26 +69,26 @@ const (
 	// after it (when that is not a low surrogate) give one, and so does
 	// what is left at the end of the input (an odd byte, or a high
 	// surrogate without a whole unit after it).
-	saxEncUTF16BELenient
-	saxEncUTF16LELenient
-	// saxEncUTF16Lenient and saxEncUTF16LELenientBOM are those readers for
+	encUTF16BELenient
+	encUTF16LELenient
+	// encUTF16Lenient and encUTF16LELenientBOM are those readers for
 	// the aliases that look for a byte order mark: when the first two
 	// bytes they read are one, it is dropped and sets the byte order;
 	// otherwise the order is big-endian or little-endian respectively.
-	saxEncUTF16Lenient
-	saxEncUTF16LELenientBOM
-	// saxEncASCIILenient is the reader for US-ASCII declared by a Java-only
+	encUTF16Lenient
+	encUTF16LELenientBOM
+	// encASCIILenient is the reader for US-ASCII declared by a Java-only
 	// alias ("ASCII7"). Observed behaviour (black-box): a byte above 0x7F
 	// becomes U+FFFD instead of an error.
-	saxEncASCIILenient
+	encASCIILenient
 )
 
-// saxInput is the decoded character buffer over a byte stream.
-type saxInput struct {
+// charInput is the decoded character buffer over a byte stream.
+type charInput struct {
 	src    io.Reader
 	ahead  []byte // bytes read for encoding detection, not yet decoded
 	srcEOF bool
-	enc    saxEncoding
+	enc    xmlEncoding
 	bomLen int
 
 	// deferred is a decoding error met by the last read after it had
@@ -106,13 +107,13 @@ type saxInput struct {
 	splitRead bool
 	declMode  bool
 
-	s *saxScanner
+	s *scanner
 }
 
-func newSaxInput(s *saxScanner, src io.Reader) *saxInput {
-	return &saxInput{
+func newCharInput(s *scanner, src io.Reader) *charInput {
+	return &charInput{
 		src:       src,
-		buf:       make([]uint16, saxBufferChars+2),
+		buf:       make([]uint16, inputBufferChars+2),
 		line:      1,
 		column:    1,
 		firstRead: true,
@@ -120,51 +121,50 @@ func newSaxInput(s *saxScanner, src io.Reader) *saxInput {
 	}
 }
 
-func (in *saxInput) failed() bool { return in.s.err != nil }
+func (in *charInput) failed() bool { return in.s.err != nil }
 
 // detectEncoding looks at the first bytes of a byte stream, as XML 1.0
 // Appendix F describes: a byte order mark, or the first characters of
 // "<?xml" in UTF-16. Everything else is read as UTF-8 until an encoding
 // declaration says otherwise.
-func (in *saxInput) detectEncoding() {
+func (in *charInput) detectEncoding() {
 	in.ahead = in.readRaw(4)
 	b := in.ahead
 	switch {
 	case len(b) >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF:
-		in.enc, in.bomLen = saxEncUTF8, 3
+		in.enc, in.bomLen = encUTF8, 3
 	case len(b) >= 2 && b[0] == 0xFE && b[1] == 0xFF:
-		in.enc, in.bomLen = saxEncUTF16BE, 2
+		in.enc, in.bomLen = encUTF16BE, 2
 	case len(b) >= 2 && b[0] == 0xFF && b[1] == 0xFE:
-		in.enc, in.bomLen = saxEncUTF16LE, 2
+		in.enc, in.bomLen = encUTF16LE, 2
 	case len(b) >= 4 && b[0] == 0x00 && b[1] == 0x3C && b[2] == 0x00 && b[3] == 0x3F:
-		in.enc = saxEncUTF16BE
+		in.enc = encUTF16BE
 	case len(b) >= 4 && b[0] == 0x3C && b[1] == 0x00 && b[2] == 0x3F && b[3] == 0x00:
-		in.enc = saxEncUTF16LE
+		in.enc = encUTF16LE
 	case len(b) >= 4 && ((b[0] == 0 && b[1] == 0) || (b[2] == 0 && b[3] == 0) ||
 		(b[0] == 0x4C && b[1] == 0x6F && b[2] == 0xA7 && b[3] == 0x94)):
 		panic(jutil.NewUnsupportedOperationExceptionMsg("SAX parser: UCS-4 and EBCDIC input are not emulated"))
 	default:
-		in.enc = saxEncUTF8
+		in.enc = encUTF8
 	}
 	in.ahead = in.ahead[in.bomLen:]
 }
 
 // readRaw reads up to n bytes, fewer only at the end of the stream.
-func (in *saxInput) readRaw(n int) []byte {
+func (in *charInput) readRaw(n int) []byte {
 	if n <= 0 || in.failed() {
 		return nil
 	}
 	if cap(in.raw) < n {
 		in.raw = make([]byte, n)
 	}
-	out := in.raw[:0]
-	for len(in.ahead) > 0 && len(out) < n {
-		out = append(out, in.ahead[0])
-		in.ahead = in.ahead[1:]
-	}
+	buf := in.raw[:n]
+	copied := copy(buf, in.ahead)
+	in.ahead = in.ahead[copied:]
+	out := buf[:copied]
 	for len(out) < n && !in.srcEOF {
-		m, err := in.src.Read(in.raw[len(out):n])
-		out = in.raw[:len(out)+m]
+		m, err := in.src.Read(buf[len(out):n])
+		out = buf[:len(out)+m]
 		if err == io.EOF {
 			in.srcEOF = true
 		} else if err != nil {
@@ -172,12 +172,15 @@ func (in *saxInput) readRaw(n int) []byte {
 			return nil
 		}
 	}
+	if len(out) == 0 {
+		return nil
+	}
 	// Return a copy the caller may keep while readRaw is called again for
 	// continuation bytes.
-	return append([]byte(nil), out...)
+	return slices.Clone(out)
 }
 
-func (in *saxInput) readByte() (byte, bool) {
+func (in *charInput) readByte() (byte, bool) {
 	b := in.readRaw(1)
 	if len(b) == 0 {
 		return 0, false
@@ -189,8 +192,8 @@ func (in *saxInput) readByte() (byte, bool) {
 // declaration named name. Observed behaviour (black-box): "UTF-16" keeps
 // the byte order of a stream detected as UTF-16; any other name switches
 // to its own decoder, whatever was detected.
-func (in *saxInput) setEncoding(enc saxEncoding, name string) {
-	if strings.EqualFold(name, "UTF-16") && (in.enc == saxEncUTF16BE || in.enc == saxEncUTF16LE) {
+func (in *charInput) setEncoding(enc xmlEncoding, name string) {
+	if strings.EqualFold(name, "UTF-16") && (in.enc == encUTF16BE || in.enc == encUTF16LE) {
 		return
 	}
 	in.enc = enc
@@ -198,7 +201,7 @@ func (in *saxInput) setEncoding(enc saxEncoding, name string) {
 
 // readChars appends decoded chars to buf[count:], reading about n bytes; it
 // returns the number of chars appended (0 at the end of the input).
-func (in *saxInput) readChars(n int) int {
+func (in *charInput) readChars(n int) int {
 	if in.failed() {
 		return 0
 	}
@@ -209,13 +212,13 @@ func (in *saxInput) readChars(n int) int {
 		return 0
 	}
 	switch in.enc {
-	case saxEncUTF8Lenient:
+	case encUTF8Lenient:
 		c := in.readLenientUTF8(n)
 		if in.failed() {
 			return 0
 		}
 		return c
-	case saxEncUTF16BELenient, saxEncUTF16LELenient, saxEncUTF16Lenient, saxEncUTF16LELenientBOM:
+	case encUTF16BELenient, encUTF16LELenient, encUTF16Lenient, encUTF16LELenientBOM:
 		c := in.readLenientUTF16(n)
 		if in.failed() {
 			return 0
@@ -223,10 +226,10 @@ func (in *saxInput) readChars(n int) int {
 		return c
 	}
 	start := in.count
-	if (in.enc == saxEncUTF16BE || in.enc == saxEncUTF16LE) && !in.splitRead {
+	if (in.enc == encUTF16BE || in.enc == encUTF16LE) && !in.splitRead {
 		// Observed behaviour (black-box): the UTF-16 reader reads two bytes
 		// per char asked for, at most 8192.
-		n = min(2*n, saxBufferChars)
+		n = min(2*n, inputBufferChars)
 	}
 	if in.splitRead {
 		// Observed behaviour (black-box): the first read decodes the bytes
@@ -256,23 +259,23 @@ func (in *saxInput) readChars(n int) int {
 
 // decodeBlock decodes bytes into buf; it returns false when it stopped at
 // a malformed sequence (the error then waits for the next read).
-func (in *saxInput) decodeBlock(bytes []byte, start int) bool {
+func (in *charInput) decodeBlock(bytes []byte, start int) bool {
 	for i := 0; i < len(bytes); {
 		var msg string
 		switch in.enc {
-		case saxEncUTF16BE, saxEncUTF16LE:
+		case encUTF16BE, encUTF16LE:
 			i, msg = in.decodeUTF16(bytes, i)
-		case saxEncLatin1:
+		case encLatin1:
 			in.put(uint16(bytes[i]))
 			i++
-		case saxEncASCIILenient:
+		case encASCIILenient:
 			if bytes[i] >= 0x80 {
 				in.put(0xFFFD)
 			} else {
 				in.put(uint16(bytes[i]))
 			}
 			i++
-		case saxEncASCII:
+		case encASCII:
 			if bytes[i] >= 0x80 {
 				msg = "Byte \"" + strconv.Itoa(int(bytes[i])) + "\" is not a member of the (7-bit) ASCII character set."
 			} else {
@@ -289,7 +292,7 @@ func (in *saxInput) decodeBlock(bytes []byte, start int) bool {
 			// Observed behaviour (black-box): a UTF-8 error waits for the
 			// next read when this one has chars to deliver, except the one
 			// about the planes of a 4-byte sequence; an ASCII one does not.
-			if in.count > start && in.enc == saxEncUTF8 && !strings.HasPrefix(msg, "High surrogate") {
+			if in.count > start && in.enc == encUTF8 && !strings.HasPrefix(msg, "High surrogate") {
 				in.deferred = msg
 				return false
 			}
@@ -300,7 +303,7 @@ func (in *saxInput) decodeBlock(bytes []byte, start int) bool {
 	return true
 }
 
-func (in *saxInput) put(c uint16) {
+func (in *charInput) put(c uint16) {
 	in.buf[in.count] = c
 	in.count++
 }
@@ -308,7 +311,7 @@ func (in *saxInput) put(c uint16) {
 // moreByte returns the byte at bytes[i], reading it from the stream when
 // the read block has ended (completion of a character that straddles the
 // end of the block).
-func (in *saxInput) moreByte(bytes *[]byte, i int) (byte, bool) {
+func (in *charInput) moreByte(bytes *[]byte, i int) (byte, bool) {
 	if i < len(*bytes) {
 		return (*bytes)[i], true
 	}
@@ -323,7 +326,7 @@ func (in *saxInput) moreByte(bytes *[]byte, i int) (byte, bool) {
 // decodeUTF8 decodes one character at bytes[i] per RFC 3629. The messages
 // for malformed input were determined black-box (they name the position of
 // the offending byte in its sequence).
-func (in *saxInput) decodeUTF8(bytes []byte, i int) (int, string) {
+func (in *charInput) decodeUTF8(bytes []byte, i int) (int, string) {
 	b0 := bytes[i]
 	if b0 < 0x80 {
 		in.put(uint16(b0))
@@ -348,7 +351,7 @@ func (in *saxInput) decodeUTF8(bytes []byte, i int) (int, string) {
 		if !ok {
 			return i, "Expected byte " + strconv.Itoa(k+1) + " of " + sizeText + "-byte UTF-8 sequence."
 		}
-		bad := b&0xC0 != 0x80
+		bad := !isUTF8Continuation(b)
 		if k == 1 {
 			switch {
 			case b0 == 0xE0 && b < 0xA0, b0 == 0xED && b >= 0xA0, b0 == 0xF0 && b < 0x90:
@@ -379,14 +382,14 @@ func (in *saxInput) decodeUTF8(bytes []byte, i int) (int, string) {
 	return i + size, ""
 }
 
-func (in *saxInput) decodeUTF16(bytes []byte, i int) (int, string) {
+func (in *charInput) decodeUTF16(bytes []byte, i int) (int, string) {
 	b1, ok := in.moreByte(&bytes, i+1)
 	if !ok {
 		// Observed behaviour (black-box): the JDK reports an odd byte at
 		// the end with this message (naming UTF-8).
 		return i, "Expected byte 2 of 2-byte UTF-8 sequence."
 	}
-	if in.enc == saxEncUTF16BE {
+	if in.enc == encUTF16BE {
 		in.put(uint16(bytes[i])<<8 | uint16(b1))
 	} else {
 		in.put(uint16(b1)<<8 | uint16(bytes[i]))
@@ -395,9 +398,9 @@ func (in *saxInput) decodeUTF16(bytes []byte, i int) (int, string) {
 }
 
 // readLenientUTF8 reads up to n chars with the lenient UTF-8 reader (see
-// saxEncUTF8Lenient). A supplementary character that does not fit is left
+// encUTF8Lenient). A supplementary character that does not fit is left
 // for the next read.
-func (in *saxInput) readLenientUTF8(n int) int {
+func (in *charInput) readLenientUTF8(n int) int {
 	start := in.count
 	for in.count-start < n {
 		var seq [4]byte
@@ -430,12 +433,12 @@ func (in *saxInput) readLenientUTF8(n int) int {
 		case b0 < 0x80:
 			units[0] = uint16(b0)
 		case b0 >= 0xC2 && b0 <= 0xDF:
-			if more(saxIsContinuation) {
+			if more(isUTF8Continuation) {
 				units[0] = uint16(b0&0x1F)<<6 | uint16(seq[1]&0x3F)
 			}
 		case b0 >= 0xE0 && b0 <= 0xEF:
-			if more(func(b byte) bool { return saxIsContinuation(b) && !(b0 == 0xE0 && b < 0xA0) }) &&
-				more(saxIsContinuation) {
+			if more(func(b byte) bool { return isUTF8Continuation(b) && !(b0 == 0xE0 && b < 0xA0) }) &&
+				more(isUTF8Continuation) {
 				c := uint16(b0&0x0F)<<12 | uint16(seq[1]&0x3F)<<6 | uint16(seq[2]&0x3F)
 				if c < 0xD800 || c > 0xDFFF {
 					units[0] = c
@@ -443,8 +446,8 @@ func (in *saxInput) readLenientUTF8(n int) int {
 			}
 		case b0 >= 0xF0 && b0 <= 0xF4:
 			if more(func(b byte) bool {
-				return saxIsContinuation(b) && !(b0 == 0xF0 && b < 0x90) && !(b0 == 0xF4 && b >= 0x90)
-			}) && more(saxIsContinuation) && more(saxIsContinuation) {
+				return isUTF8Continuation(b) && !(b0 == 0xF0 && b < 0x90) && !(b0 == 0xF4 && b >= 0x90)
+			}) && more(isUTF8Continuation) && more(isUTF8Continuation) {
 				cp := rune(b0&0x07)<<18 | rune(seq[1]&0x3F)<<12 | rune(seq[2]&0x3F)<<6 | rune(seq[3]&0x3F)
 				cp -= 0x10000
 				units[0], units[1] = uint16(0xD800+cp>>10), uint16(0xDC00+cp&0x3FF)
@@ -454,7 +457,7 @@ func (in *saxInput) readLenientUTF8(n int) int {
 		if in.count-start+size > n || eof && in.count > start {
 			// A sequence cut by the end of the input becomes U+FFFD in the
 			// next read.
-			in.ahead = append(append([]byte(nil), seq[:k]...), in.ahead...)
+			in.ahead = slices.Concat(seq[:k], in.ahead)
 			break
 		}
 		for _, u := range units[:size] {
@@ -464,24 +467,24 @@ func (in *saxInput) readLenientUTF8(n int) int {
 	return in.count - start
 }
 
-func saxIsContinuation(b byte) bool { return b&0xC0 == 0x80 }
+func isUTF8Continuation(b byte) bool { return b&0xC0 == 0x80 }
 
 // readLenientUTF16 reads up to n chars with a lenient UTF-16 reader (see
-// saxEncUTF16BELenient). A supplementary character that does not fit is
+// encUTF16BELenient). A supplementary character that does not fit is
 // left for the next read.
-func (in *saxInput) readLenientUTF16(n int) int {
-	if in.enc == saxEncUTF16Lenient || in.enc == saxEncUTF16LELenientBOM {
-		order := saxEncUTF16BELenient
-		if in.enc == saxEncUTF16LELenientBOM {
-			order = saxEncUTF16LELenient
+func (in *charInput) readLenientUTF16(n int) int {
+	if in.enc == encUTF16Lenient || in.enc == encUTF16LELenientBOM {
+		order := encUTF16BELenient
+		if in.enc == encUTF16LELenientBOM {
+			order = encUTF16LELenient
 		}
 		b0, ok0 := in.readByte()
 		b1, ok1 := in.readByte()
 		switch {
 		case ok1 && b0 == 0xFE && b1 == 0xFF:
-			order = saxEncUTF16BELenient
+			order = encUTF16BELenient
 		case ok1 && b0 == 0xFF && b1 == 0xFE:
-			order = saxEncUTF16LELenient
+			order = encUTF16LELenient
 		case ok1:
 			in.ahead = append([]byte{b0, b1}, in.ahead...)
 		case ok0:
@@ -503,7 +506,7 @@ func (in *saxInput) readLenientUTF16(n int) int {
 			return 0, false
 		}
 		got = append(got, b1)
-		if in.enc == saxEncUTF16LELenient {
+		if in.enc == encUTF16LELenient {
 			b0, b1 = b1, b0
 		}
 		return uint16(b0)<<8 | uint16(b1), true
@@ -518,28 +521,28 @@ func (in *saxInput) readLenientUTF16(n int) int {
 		if !whole && in.count > start {
 			// What is left at the end of the input becomes U+FFFD in the
 			// next read.
-			in.ahead = append(append([]byte(nil), got...), in.ahead...)
+			in.ahead = slices.Concat(got, in.ahead)
 			break
 		}
-		if !whole || saxIsLowSurrogate(int(u)) {
+		if !whole || isLowSurrogate(int(u)) {
 			in.put(0xFFFD)
 			continue
 		}
-		if !saxIsHighSurrogate(int(u)) {
+		if !isHighSurrogate(int(u)) {
 			in.put(u)
 			continue
 		}
 		low, whole := unit()
 		if !whole && in.count > start {
-			in.ahead = append(append([]byte(nil), got...), in.ahead...)
+			in.ahead = slices.Concat(got, in.ahead)
 			break
 		}
-		if !whole || !saxIsLowSurrogate(int(low)) {
+		if !whole || !isLowSurrogate(int(low)) {
 			in.put(0xFFFD)
 			continue
 		}
 		if in.count-start+2 > n {
-			in.ahead = append(append([]byte(nil), got...), in.ahead...)
+			in.ahead = slices.Concat(got, in.ahead)
 			break
 		}
 		in.put(u)
@@ -550,21 +553,21 @@ func (in *saxInput) readLenientUTF16(n int) int {
 
 // readSize is the number of bytes the next read asks for, given the number
 // of chars kept in the buffer.
-func (in *saxInput) readSize(kept int) int {
+func (in *charInput) readSize(kept int) int {
 	switch {
 	case in.firstRead:
 		in.firstRead = false
 		in.splitRead = true
-		return saxFirstReadBytes - in.bomLen
+		return firstReadBytes - in.bomLen
 	case in.declMode:
 		return 1
 	}
-	return saxBufferChars - kept
+	return inputBufferChars - kept
 }
 
 // load moves buf[keepFrom:count] to the front of the buffer and reads more
 // after it. It returns the number of chars read (0 at the end of input).
-func (in *saxInput) load(keepFrom int) int {
+func (in *charInput) load(keepFrom int) int {
 	kept := in.count - keepFrom
 	copy(in.buf, in.buf[keepFrom:in.count])
 	in.pos -= keepFrom
@@ -576,12 +579,12 @@ func (in *saxInput) load(keepFrom int) int {
 // loadMore makes room for more chars without dropping any: it reads into
 // the free end of the buffer, or, when the buffer is full, keeps the chars
 // from pos on (like load(pos)).
-func (in *saxInput) loadMore() int {
-	if in.count < saxBufferChars && !in.firstRead {
+func (in *charInput) loadMore() int {
+	if in.count < inputBufferChars && !in.firstRead {
 		if in.declMode {
 			return in.readChars(1)
 		}
-		return in.readChars(saxBufferChars - in.count)
+		return in.readChars(inputBufferChars - in.count)
 	}
 	return in.load(in.pos)
 }
@@ -589,64 +592,64 @@ func (in *saxInput) loadMore() int {
 // The position helpers below keep line and column in step with pos. A
 // newline is counted when the scanner consumes it.
 
-func (in *saxInput) advance(n int) {
+func (in *charInput) advance(n int) {
 	in.pos += n
 	in.column += n
 }
 
-func (in *saxInput) newline(n int) {
+func (in *charInput) newline(n int) {
 	in.pos += n
 	in.line++
 	in.column = 1
 }
 
-// saxEncodingByName maps an encoding name from an XML declaration to a
+// encodingByName maps an encoding name from an XML declaration to a
 // decoder. Names are compared case-insensitively, except that only
 // "UTF-16BE" and "UTF-16LE" in upper case get the JDK's own UTF-16 readers
 // (other spellings get the lenient ones). Only the names below are
 // emulated, each checked black-box for the reader the JDK picks for it; the
 // JDK knows many more.
-func saxEncodingByName(name string) (saxEncoding, bool) {
+func encodingByName(name string) (xmlEncoding, bool) {
 	switch name {
 	case "UTF-16BE":
-		return saxEncUTF16BE, true
+		return encUTF16BE, true
 	case "UTF-16LE":
-		return saxEncUTF16LE, true
+		return encUTF16LE, true
 	}
 	switch strings.ToUpper(name) {
 	case "UTF-8":
-		return saxEncUTF8, true
+		return encUTF8, true
 	case "UTF8":
-		return saxEncUTF8Lenient, true
+		return encUTF8Lenient, true
 	case "UTF-16":
-		return saxEncUTF16BE, true
+		return encUTF16BE, true
 	case "UTF16", "UTF_16", "UNICODE", "UNICODEBIG":
-		return saxEncUTF16Lenient, true
+		return encUTF16Lenient, true
 	case "UNICODELITTLE", "X-UTF-16LE-BOM":
-		return saxEncUTF16LELenientBOM, true
+		return encUTF16LELenientBOM, true
 	case "UTF-16BE", "UTF_16BE", "X-UTF-16BE", "UNICODEBIGUNMARKED":
-		return saxEncUTF16BELenient, true
+		return encUTF16BELenient, true
 	case "UTF-16LE", "UTF_16LE", "X-UTF-16LE", "UNICODELITTLEUNMARKED":
-		return saxEncUTF16LELenient, true
+		return encUTF16LELenient, true
 	case "ISO-8859-1", "ISO8859-1", "ISO_8859-1", "ISO8859_1", "ISO_8859_1", "ISO-IR-100", "LATIN1", "L1",
 		"CP819", "IBM819", "IBM-819", "CSISOLATIN1":
-		return saxEncLatin1, true
+		return encLatin1, true
 	case "US-ASCII", "ASCII", "US", "ISO646-US", "IBM367", "IBM-367", "CP367", "CSASCII", "ANSI_X3.4-1968",
 		"ANSI_X3.4-1986", "ISO-IR-6":
-		return saxEncASCII, true
+		return encASCII, true
 	case "ASCII7":
-		return saxEncASCIILenient, true
+		return encASCIILenient, true
 	}
 	return 0, false
 }
 
-// saxUnsupportedEncodingException is java.io.UnsupportedEncodingException.
-type saxUnsupportedEncodingException struct{ jutil.IOException }
+// unsupportedEncodingException is java.io.UnsupportedEncodingException.
+type unsupportedEncodingException struct{ jutil.IOException }
 
-// saxKnownEncoding reports whether name is a common encoding (IANA name)
+// isKnownUnsupportedEncoding reports whether name is a common encoding (IANA name)
 // that the JDK supports but this parser does not emulate; any other name
 // is treated as unknown to the JDK.
-func saxKnownEncoding(name string) bool {
+func isKnownUnsupportedEncoding(name string) bool {
 	// numbered reports whether n is prefix followed by digits only.
 	numbered := func(n, prefix string) bool {
 		rest, ok := strings.CutPrefix(n, prefix)
@@ -703,18 +706,18 @@ func saxKnownEncoding(name string) bool {
 //     instruction such as "<?xml-stylesheet"), the scan restarts at the
 //     beginning but keeps the five columns it skipped, so positions on
 //     line 1 are five columns too far.
-func (s *saxScanner) preScanDeclaration() {
+func (s *scanner) preScanDeclaration() {
 	in := s.in
 	if !s.skipASCII("<?xml") || s.err != nil {
 		return
 	}
 	eof := func() { s.fatalAt("Premature end of file.", -1, -1) }
 	c := s.peek()
-	if c == saxStopEOF {
+	if c == stopEOF {
 		eof()
 		return
 	}
-	if !saxIsSpace(c) {
+	if !isXMLSpace(c) {
 		in.pos = 0
 		return
 	}
@@ -724,7 +727,7 @@ func (s *saxScanner) preScanDeclaration() {
 	beyond := func() bool { return in.base+in.count > firstEnd }
 	spaces := func() bool {
 		s.skipSpaces()
-		if s.peek() == saxStopEOF {
+		if s.peek() == stopEOF {
 			eof()
 			return false
 		}
@@ -783,7 +786,7 @@ func (s *saxScanner) preScanDeclaration() {
 	b := in.buf[in.pos : in.pos+5]
 	quoted := (b[0] == '"' || b[0] == '\'') && b[4] == b[0]
 	if quoted && b[1] == '1' && b[2] == '.' && b[3] == '1' {
-		saxUnsupported("XML 1.1 documents are")
+		panicUnsupported("XML 1.1 documents are")
 	}
 	s.versionLoose = !beyond() && in.base+in.pos > len("<?xml version=")
 	if quoted && b[1] == '1' && b[2] == '.' && b[3] == '0' {
@@ -799,7 +802,7 @@ func (s *saxScanner) preScanDeclaration() {
 // xmlDecl scans the rest of the XML declaration (production [23]) from
 // where the pre-scan stopped (s.declStage: 0 before the first pseudo
 // attribute, 1 before the '=' of version, 2 before its value).
-func (s *saxScanner) xmlDecl() {
+func (s *scanner) xmlDecl() {
 	seen := 0
 	var encoding string
 	haveEncoding, haveStandalone := false, false
@@ -815,7 +818,7 @@ func (s *saxScanner) xmlDecl() {
 				sawSpace = s.skipSpaces() || seen == 1 && s.versionLoose
 			}
 			c := s.peek()
-			if c == '?' || c == saxStopEOF {
+			if c == '?' || c == stopEOF {
 				if seen == 0 {
 					s.fatal("The version is required in the XML declaration.")
 					return
@@ -862,19 +865,19 @@ func (s *saxScanner) xmlDecl() {
 		padded := seen != 0
 		for {
 			c := s.peek()
-			if c == saxStopEOF {
+			if c == stopEOF {
 				s.fatal(s.eofMessage())
 				return
 			}
-			if saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()) {
+			if isHighSurrogate(c) && isLowSurrogate(s.peekSecond()) {
 				value = append(value, uint16(c), s.in.buf[s.in.pos+1])
 				s.in.advance(2)
-			} else if saxIsHighSurrogate(c) {
+			} else if isHighSurrogate(c) {
 				s.loneHighSurrogate(c)
 				return
 			} else {
-				if !saxIsXMLChar(c) {
-					s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the XML declaration.")
+				if !isXMLChar(c) {
+					s.fatal("An invalid XML character (Unicode: " + formatHex(c) + ") was found in the XML declaration.")
 					return
 				}
 				if c = s.next(); c == quote {
@@ -883,7 +886,7 @@ func (s *saxScanner) xmlDecl() {
 				value = append(value, uint16(c))
 			}
 			if !padded && len(value) >= 4 {
-				for i := 0; i < s.versionPad; i++ {
+				for range s.versionPad {
 					value = append(value, ' ')
 				}
 				s.in.column += s.versionPad
@@ -931,19 +934,19 @@ func (s *saxScanner) xmlDecl() {
 	}
 	s.in.declMode = false
 	if haveEncoding {
-		if !saxIsEncName(encoding) {
+		if !isEncName(encoding) {
 			s.fatal("Invalid encoding name \"" + encoding + "\".")
 			return
 		}
-		enc, ok := saxEncodingByName(encoding)
+		enc, ok := encodingByName(encoding)
 		if !ok {
-			if saxKnownEncoding(encoding) {
-				saxUnsupported("encoding \"" + encoding + "\" is")
+			if isKnownUnsupportedEncoding(encoding) {
+				panicUnsupported("encoding \"" + encoding + "\" is")
 			}
 			// Observed behaviour (black-box): the JDK throws
 			// java.io.UnsupportedEncodingException for an encoding it does
 			// not know.
-			e := &saxUnsupportedEncodingException{}
+			e := &unsupportedEncodingException{}
 			jutil.InitThrowableMsg(e, "java.io.UnsupportedEncodingException", encoding, nil)
 			s.setErr(e)
 			return
@@ -952,8 +955,8 @@ func (s *saxScanner) xmlDecl() {
 	}
 }
 
-// saxIsEncName is production [81] EncName.
-func saxIsEncName(name string) bool {
+// isEncName is production [81] EncName.
+func isEncName(name string) bool {
 	if name == "" {
 		return false
 	}

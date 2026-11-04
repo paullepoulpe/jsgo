@@ -11,6 +11,7 @@ package xtbxml
 import (
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
@@ -50,17 +51,21 @@ func (e *SAXParseException) GetColumnNumber() int { return e.columnNumber }
 // "; lineNumber: L" and "; columnNumber: C" for the known ones, then
 // "; " and the message.
 func (e *SAXParseException) Error() string {
-	s := "org.xml.sax.SAXParseException"
+	var b strings.Builder
+	b.WriteString("org.xml.sax.SAXParseException")
 	if e.lineNumber != -1 {
-		s += "; lineNumber: " + strconv.Itoa(e.lineNumber)
+		b.WriteString("; lineNumber: ")
+		b.WriteString(strconv.Itoa(e.lineNumber))
 	}
 	if e.columnNumber != -1 {
-		s += "; columnNumber: " + strconv.Itoa(e.columnNumber)
+		b.WriteString("; columnNumber: ")
+		b.WriteString(strconv.Itoa(e.columnNumber))
 	}
 	if e.HasMessage() {
-		s += "; " + e.GetMessage()
+		b.WriteString("; ")
+		b.WriteString(e.GetMessage())
 	}
-	return s
+	return b.String()
 }
 
 // Locator is org.xml.sax.Locator.
@@ -71,19 +76,19 @@ type Locator interface {
 	GetColumnNumber() int
 }
 
-// saxLocator is the Locator given to the ContentHandler: the scanner's
+// docLocator is the Locator given to the ContentHandler: the scanner's
 // current position, and -1 once the document has ended.
-type saxLocator struct{ s *saxScanner }
+type docLocator struct{ s *scanner }
 
-func (l *saxLocator) GetPublicId() (string, bool) { return "", false }
-func (l *saxLocator) GetSystemId() (string, bool) { return "", false }
-func (l *saxLocator) GetLineNumber() int {
+func (l *docLocator) GetPublicId() (string, bool) { return "", false }
+func (l *docLocator) GetSystemId() (string, bool) { return "", false }
+func (l *docLocator) GetLineNumber() int {
 	if l.s.ended {
 		return -1
 	}
 	return l.s.in.line
 }
-func (l *saxLocator) GetColumnNumber() int {
+func (l *docLocator) GetColumnNumber() int {
 	if l.s.ended {
 		return -1
 	}
@@ -99,29 +104,29 @@ type Attributes interface {
 	Value(qName string) (string, bool)
 }
 
-// saxAttributes is the Attributes of a start tag, in document order.
-type saxAttributes struct {
+// elemAttributes is the Attributes of a start tag, in document order.
+type elemAttributes struct {
 	names  []string
 	values []string
 }
 
-func (a *saxAttributes) GetLength() int { return len(a.names) }
+func (a *elemAttributes) GetLength() int { return len(a.names) }
 
-func (a *saxAttributes) GetQName(index int) string {
+func (a *elemAttributes) GetQName(index int) string {
 	if index < 0 || index >= len(a.names) {
 		return ""
 	}
 	return a.names[index]
 }
 
-func (a *saxAttributes) GetValueAt(index int) string {
+func (a *elemAttributes) GetValueAt(index int) string {
 	if index < 0 || index >= len(a.values) {
 		return ""
 	}
 	return a.values[index]
 }
 
-func (a *saxAttributes) Value(qName string) (string, bool) {
+func (a *elemAttributes) Value(qName string) (string, bool) {
 	for i, n := range a.names {
 		if n == qName {
 			return a.values[i], true
@@ -161,5 +166,5 @@ func (DefaultHandler) SkippedEntity(string)                   {}
 // the JDK's SAXParser would throw at the first well-formedness, encoding, or
 // I/O error.
 func Parse(r io.Reader, handler ContentHandler) jutil.Throwable {
-	return newSaxScanner(handler, r).parse()
+	return newScanner(handler, r).parse()
 }

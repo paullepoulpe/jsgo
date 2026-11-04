@@ -19,92 +19,76 @@
 package jscomp
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// JsdocUtil holds static utility methods for dealing with inspecting and
-// constructing JSDoc objects.
-//
-// Go-only: language-adapter — the Java class has only a private
-// constructor and static members; it has no Go type.
+const ijsSyntheticFileName = "<synthetic>"
 
-const jsdocUtil_SYNTHETIC_FILE_NAME = "<synthetic>"
+var ijsSyntheticFile rhino.StaticSourceFile = rhino.NewSimpleSourceFile(
+	ijsSyntheticFileName, rhino.StaticSourceFile_SourceKind_EXTERN)
 
-var jsdocUtil_SYNTHETIC_FILE rhino.StaticSourceFile = rhino.NewSimpleSourceFile(jsdocUtil_SYNTHETIC_FILE_NAME, rhino.StaticSourceFile_SourceKind_EXTERN)
+var ijsSyntheticSrcInfoNode = rhino.NewNode(rhino.Token_EMPTY).SetStaticSourceFile(ijsSyntheticFile)
 
-var jsdocUtil_SYNTETIC_SRCINFO_NODE = rhino.NewNode(rhino.Token_EMPTY).SetStaticSourceFile(jsdocUtil_SYNTHETIC_FILE)
-
-// Java: JsdocUtil.isPrivate(JSDocInfo)
-func JsdocUtil_IsPrivate(jsdoc *rhino.JSDocInfo) bool {
+func isPrivateJSDoc(jsdoc *rhino.JSDocInfo) bool {
 	return jsdoc != nil && jsdoc.GetVisibility() == rhino.JSDocInfo_Visibility_PRIVATE
 }
 
-// Java: JsdocUtil.getUnusableTypeJSDoc(JSDocInfo)
-func JsdocUtil_GetUnusableTypeJSDoc(oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
-	return jsdocUtil_getConstJSDoc(oldJSDoc, "UnusableType")
+func unusableTypeJSDoc(oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+	return constJSDocWithTypeName(oldJSDoc, "UnusableType")
 }
 
-// Java: JsdocUtil.getQmarkTypeJSDoc()
-func JsdocUtil_GetQmarkTypeJSDoc() *rhino.JSDocInfo {
-	return jsdocUtil_makeBuilderWithType(nil, rhino.NewNode(rhino.Token_QMARK)).Build()
+func qmarkTypeJSDoc() *rhino.JSDocInfo {
+	return makeJSDocBuilderWithType(nil, rhino.NewNode(rhino.Token_QMARK)).Build()
 }
 
-// Java: JsdocUtil.makeBuilderWithType(JSDocInfo, Node)
-func jsdocUtil_makeBuilderWithType(oldJSDoc *rhino.JSDocInfo, typeAst rhino.Node) *rhino.JSDocInfo_Builder {
+func makeJSDocBuilderWithType(oldJSDoc *rhino.JSDocInfo, typeAst rhino.Node) *rhino.JSDocInfo_Builder {
 	builder := rhino.JSDocInfo_Builder_MaybeCopyFrom(oldJSDoc)
-	builder.RecordType(
-		rhino.NewJSTypeExpression(typeAst.SrcrefTree(jsdocUtil_SYNTETIC_SRCINFO_NODE), jsdocUtil_SYNTHETIC_FILE_NAME))
+	builder.RecordType(newSyntheticTypeExpr(typeAst))
 	return builder
 }
 
-// Java: JsdocUtil.replaceWithBottomType(JSTypeExpression)
-func jsdocUtil_replaceWithBottomType(original *rhino.JSTypeExpression) *rhino.JSTypeExpression {
-	if jsdocUtil_isUnknownType(original) {
+func replaceJSDocWithBottomType(original *rhino.JSTypeExpression) *rhino.JSTypeExpression {
+	if isUnknownTypeExpr(original) {
 		// Emitting the UnusableType can cause errors in code if overriding a property
 		// or method with a more specific type. There's no harm in preserving the `?`, since it's
 		// already loose in the original code.
 		return original
 	}
-	return jsdocUtil_newTypeExpr(rhino.Node_NewString("IjsNoneType"))
+	return newSyntheticTypeExpr(rhino.Node_NewString("IjsNoneType"))
 }
 
-// Java: JsdocUtil.replaceWithUnusableType(JSTypeExpression)
-func jsdocUtil_replaceWithUnusableType(original *rhino.JSTypeExpression) *rhino.JSTypeExpression {
-	if jsdocUtil_isUnknownType(original) {
+func replaceJSDocWithUnusableType(original *rhino.JSTypeExpression) *rhino.JSTypeExpression {
+	if isUnknownTypeExpr(original) {
 		// Emitting the UnusableType can cause errors in code if overriding a property
 		// or method with a more specific type. There's no harm in preserving the `?`, since it's
 		// already loose in the original code.
 		return original
 	}
-	return jsdocUtil_newTypeExpr(rhino.Node_NewString("UnusableType"))
+	return newSyntheticTypeExpr(rhino.Node_NewString("UnusableType"))
 }
 
-// Java: JsdocUtil.newTypeExpr(Node)
-func jsdocUtil_newTypeExpr(typeAst rhino.Node) *rhino.JSTypeExpression {
-	return rhino.NewJSTypeExpression(typeAst.SrcrefTree(jsdocUtil_SYNTETIC_SRCINFO_NODE), jsdocUtil_SYNTHETIC_FILE_NAME)
+func newSyntheticTypeExpr(typeAst rhino.Node) *rhino.JSTypeExpression {
+	return rhino.NewJSTypeExpression(typeAst.SrcrefTree(ijsSyntheticSrcInfoNode), ijsSyntheticFileName)
 }
 
-// Java: JsdocUtil.getConstJSDoc(JSDocInfo, String)
-func jsdocUtil_getConstJSDoc(oldJSDoc *rhino.JSDocInfo, contents string) *rhino.JSDocInfo {
-	return jsdocUtil_getConstJSDocOfNode(oldJSDoc, rhino.Node_NewString(contents))
+func constJSDocWithTypeName(oldJSDoc *rhino.JSDocInfo, contents string) *rhino.JSDocInfo {
+	return constJSDocWithTypeNode(oldJSDoc, rhino.Node_NewString(contents))
 }
 
-// Java: JsdocUtil.getConstJSDoc(JSDocInfo, Node)
-func jsdocUtil_getConstJSDocOfNode(oldJSDoc *rhino.JSDocInfo, typeAst rhino.Node) *rhino.JSDocInfo {
-	builder := jsdocUtil_makeBuilderWithType(oldJSDoc, typeAst)
+func constJSDocWithTypeNode(oldJSDoc *rhino.JSDocInfo, typeAst rhino.Node) *rhino.JSDocInfo {
+	builder := makeJSDocBuilderWithType(oldJSDoc, typeAst)
 	builder.RecordConstancy()
 	return builder.Build()
 }
 
-// Java: JsdocUtil.markConstant(JSDocInfo)
-func JsdocUtil_MarkConstant(oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+func markJSDocConstant(oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
 	builder := rhino.JSDocInfo_Builder_MaybeCopyFrom(oldJSDoc)
 	builder.RecordConstancy()
 	return builder.Build()
 }
 
-// Java: JsdocUtil.mergeJsdocs(JSDocInfo, JSDocInfo)
-func JsdocUtil_MergeJsdocs(classicJsdoc *rhino.JSDocInfo, inlineJsdoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+func mergeIjsJSDocs(classicJsdoc, inlineJsdoc *rhino.JSDocInfo) *rhino.JSDocInfo {
 	if inlineJsdoc == nil || !inlineJsdoc.HasType() {
 		return classicJsdoc
 	}
@@ -113,14 +97,16 @@ func JsdocUtil_MergeJsdocs(classicJsdoc *rhino.JSDocInfo, inlineJsdoc *rhino.JSD
 	return builder.Build()
 }
 
-// Java: JsdocUtil.replaceAnnotatedTypesWithUnusableType(JSDocInfo)
-func JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+func replaceAnnotatedTypesWithUnusableType(jsdoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+	if jsdoc == nil {
+		return nil
+	}
 	builder := rhino.JSDocInfo_Builder_()
 	if jsdoc.HasType() {
-		builder.RecordType(jsdocUtil_replaceWithUnusableType(jsdoc.GetType()))
+		builder.RecordType(replaceJSDocWithUnusableType(jsdoc.GetType()))
 	}
 	if jsdoc.HasReturnType() {
-		builder.RecordReturnType(jsdocUtil_replaceWithUnusableType(jsdoc.GetReturnType()))
+		builder.RecordReturnType(replaceJSDocWithUnusableType(jsdoc.GetReturnType()))
 	}
 	for i := 0; i < jsdoc.GetParameterCount(); i++ {
 		name, _ := jsdoc.GetParameterNameValueAt(i)
@@ -128,7 +114,7 @@ func JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc *rhino.JSDocInfo) *rh
 		if original == nil {
 			continue
 		}
-		newType := jsdocUtil_replaceWithBottomType(original)
+		newType := replaceJSDocWithBottomType(original)
 		if original.IsOptionalArg() {
 			newType = rhino.JSTypeExpression_MakeOptionalArg(newType)
 		} else if original.IsVarArgs() {
@@ -137,7 +123,7 @@ func JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc *rhino.JSDocInfo) *rh
 		builder.RecordParameter(name, newType)
 	}
 	if jsdoc.HasThisType() {
-		builder.RecordThisType(jsdocUtil_replaceWithUnusableType(jsdoc.GetThisType()))
+		builder.RecordThisType(replaceJSDocWithUnusableType(jsdoc.GetThisType()))
 	}
 	// NOTE: intentionally *not* replacing @enum, @extends, @implements & @typedef. We have decided
 	// that anything *declaring* a new type name should be preserved. For example - given:
@@ -153,14 +139,11 @@ func JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc *rhino.JSDocInfo) *rh
 	if jsdoc.IsConstant() {
 		builder.RecordConstancy()
 	}
-	// Go-only: language-adapter — getVisibility() never returns null (it
-	// returns INHERITED when unset), so Java's null check always passes.
 	builder.RecordVisibility(jsdoc.GetVisibility())
 	return builder.Build()
 }
 
-// Java: JsdocUtil.hasAnnotatedType(JSDocInfo)
-func JsdocUtil_HasAnnotatedType(jsdoc *rhino.JSDocInfo) bool {
+func hasAnnotatedType(jsdoc *rhino.JSDocInfo) bool {
 	if jsdoc == nil {
 		return false
 	}
@@ -173,41 +156,46 @@ func JsdocUtil_HasAnnotatedType(jsdoc *rhino.JSDocInfo) bool {
 		jsdoc.HasEnumParameterType()
 }
 
-// Java: JsdocUtil.getJSDocForRhs(Node, JSDocInfo)
-func JsdocUtil_GetJSDocForRhs(rhs rhino.Node, oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+func jsdocForRhs(rhs rhino.Node, oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+	if rhs.IsNil() {
+		return nil
+	}
 	switch NodeUtil_GetKnownValueType(rhs) {
 	case NodeUtil_ValueType_BOOLEAN:
-		return jsdocUtil_getConstJSDoc(oldJSDoc, "boolean")
+		return constJSDocWithTypeName(oldJSDoc, "boolean")
 	case NodeUtil_ValueType_NUMBER:
-		return jsdocUtil_getConstJSDoc(oldJSDoc, "number")
+		return constJSDocWithTypeName(oldJSDoc, "number")
 	case NodeUtil_ValueType_BIGINT:
-		return jsdocUtil_getConstJSDoc(oldJSDoc, "bigint")
+		return constJSDocWithTypeName(oldJSDoc, "bigint")
 	case NodeUtil_ValueType_STRING:
-		return jsdocUtil_getConstJSDoc(oldJSDoc, "string")
+		return constJSDocWithTypeName(oldJSDoc, "string")
 	case NodeUtil_ValueType_NULL:
-		return jsdocUtil_getConstJSDoc(oldJSDoc, "null")
+		return constJSDocWithTypeName(oldJSDoc, "null")
 	case NodeUtil_ValueType_VOID:
-		return jsdocUtil_getConstJSDoc(oldJSDoc, "void")
+		return constJSDocWithTypeName(oldJSDoc, "void")
 	case NodeUtil_ValueType_OBJECT:
 		if rhs.IsRegExp() {
-			return jsdocUtil_getConstJSDocOfNode(oldJSDoc, rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String("RegExp")))
+			return constJSDocWithTypeNode(oldJSDoc, rhino.NewNodeWithChild(rhino.Token_BANG, rhino.IR_String("RegExp")))
 		}
 	case NodeUtil_ValueType_UNDETERMINED:
 		if oldJSDoc != nil {
 			if _, ok := oldJSDoc.Description(); ok {
-				return jsdocUtil_getConstJSDoc(oldJSDoc, "string")
+				return constJSDocWithTypeName(oldJSDoc, "string")
 			}
 		}
 	}
-	if rhs.IsCast() {
-		return jsdocUtil_getConstJSDocOfNode(oldJSDoc, rhs.GetJSDocInfo().GetType().GetRoot())
+	if _, ok := ast.AsCast(rhs); ok {
+		if castDoc := rhs.GetJSDocInfo(); castDoc != nil && castDoc.HasType() {
+			if root := castDoc.GetType().GetRoot(); !root.IsNil() {
+				return constJSDocWithTypeNode(oldJSDoc, root.CloneTree())
+			}
+		}
 	}
 	return nil
 }
 
-// Java: JsdocUtil.getJSDocForName(Var, JSDocInfo)
-func JsdocUtil_GetJSDocForName(decl *Var, oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
-	if decl == nil {
+func jsdocForName(decl *Var, oldJSDoc *rhino.JSDocInfo) *rhino.JSDocInfo {
+	if decl == nil || decl.GetNameNode().IsNil() {
 		return nil
 	}
 	expr := NodeUtil_GetDeclaredTypeExpression(decl.GetNameNode())
@@ -215,9 +203,12 @@ func JsdocUtil_GetJSDocForName(decl *Var, oldJSDoc *rhino.JSDocInfo) *rhino.JSDo
 		return nil
 	}
 	typeAst := expr.GetRoot()
+	if typeAst.IsNil() {
+		return nil
+	}
 	switch typeAst.GetToken() {
 	case rhino.Token_EQUALS:
-		typeRoot := typeAst.GetFirstChild().CloneTree()
+		typeRoot := cloneJSDocOperandOrUnknown(typeAst)
 		if !decl.IsDefaultParam() {
 			typeRoot = rhino.NewNodeWith2Children(rhino.Token_PIPE, typeRoot, rhino.IR_String("undefined"))
 		}
@@ -226,16 +217,31 @@ func JsdocUtil_GetJSDocForName(decl *Var, oldJSDoc *rhino.JSDocInfo) *rhino.JSDo
 		newType := rhino.NewNode(rhino.Token_BANG)
 		array := rhino.IR_String("Array")
 		newType.AddChildToBack(array)
-		block := rhino.NewNodeWithChild(rhino.Token_BLOCK, typeAst.GetFirstChild().CloneTree())
+		block := rhino.NewNodeWithChild(rhino.Token_BLOCK, cloneJSDocOperandOrUnknown(typeAst))
 		array.AddChildToBack(block)
 		typeAst = newType
 	default:
+		typeAst = typeAst.CloneTree()
 	}
-	return jsdocUtil_getConstJSDocOfNode(oldJSDoc, typeAst)
+	return constJSDocWithTypeNode(oldJSDoc, typeAst)
 }
 
-// Java: JsdocUtil.isUnknownType(JSTypeExpression)
-func jsdocUtil_isUnknownType(type_ *rhino.JSTypeExpression) bool {
-	typeAst := type_.GetRoot()
-	return typeAst.GetToken() == rhino.Token_QMARK && !typeAst.HasChildren()
+// cloneJSDocOperandOrUnknown clones the inner JSDoc type node of an optional (`=`)
+// or rest (`...`) parameter annotation, falling back to `?` for untyped `@param {...}`.
+func cloneJSDocOperandOrUnknown(typeAst rhino.Node) rhino.Node {
+	for child := range typeAst.Children() {
+		if !child.IsEmpty() {
+			return child.CloneTree()
+		}
+		break
+	}
+	return rhino.NewNode(rhino.Token_QMARK)
+}
+
+func isUnknownTypeExpr(typeExpr *rhino.JSTypeExpression) bool {
+	if typeExpr == nil {
+		return false
+	}
+	typeAst := typeExpr.GetRoot()
+	return !typeAst.IsNil() && typeAst.GetToken() == rhino.Token_QMARK && !typeAst.HasChildren()
 }

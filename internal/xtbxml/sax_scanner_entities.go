@@ -7,7 +7,7 @@ import (
 )
 
 // reference scans a reference in content after '&' and reports it.
-func (s *saxScanner) reference() {
+func (s *scanner) reference() {
 	if s.peek() == '#' {
 		s.in.advance(1)
 		s.text = s.charRef(s.text)
@@ -24,7 +24,7 @@ func (s *saxScanner) reference() {
 		s.fatalOrEOF("The reference to entity \"" + name + "\" must end with the ';' delimiter.")
 		return
 	}
-	if c, ok := saxPredefined(name); ok {
+	if c, ok := predefinedEntity(name); ok {
 		s.text = append(s.text, c)
 		s.flushText()
 		return
@@ -44,11 +44,11 @@ func (s *saxScanner) reference() {
 		// entities feature is off): SAX reports them as skipped.
 		s.handler.SkippedEntity(name)
 	default:
-		saxUnsupported("references to internal entities are")
+		panicUnsupported("references to internal entities are")
 	}
 }
 
-func saxPredefined(name string) (uint16, bool) {
+func predefinedEntity(name string) (uint16, bool) {
 	switch name {
 	case "amp":
 		return '&', true
@@ -66,7 +66,7 @@ func saxPredefined(name string) (uint16, bool) {
 
 // charRef scans a character reference after "&#" (production [66]) and
 // appends the character to out.
-func (s *saxScanner) charRef(out []uint16) []uint16 {
+func (s *scanner) charRef(out []uint16) []uint16 {
 	hex := false
 	if s.peek() == 'x' {
 		s.in.advance(1)
@@ -134,7 +134,7 @@ func (s *saxScanner) charRef(out []uint16) []uint16 {
 
 // cdata scans a CDATA section after "<![CDATA[" and reports its text in
 // one characters() call.
-func (s *saxScanner) cdata() {
+func (s *scanner) cdata() {
 	data := s.scanUntil("]]>", "CDATA section", func(part []uint16) {
 		s.handler.Characters(part, 0, len(part))
 	})
@@ -144,7 +144,7 @@ func (s *saxScanner) cdata() {
 }
 
 // comment scans a comment after "<!--".
-func (s *saxScanner) comment() {
+func (s *scanner) comment() {
 	s.scanUntil("--", "comment", nil)
 	if s.err == nil && !s.skipChar('>') {
 		s.fatalOrEOF("The string \"--\" is not permitted within comments.")
@@ -153,7 +153,7 @@ func (s *saxScanner) comment() {
 
 // processingInstruction scans a processing instruction after "<?";
 // report says whether to report it (PIs in the internal subset are not).
-func (s *saxScanner) processingInstruction(report bool) {
+func (s *scanner) processingInstruction(report bool) {
 	targetUnits := s.scanName()
 	if targetUnits == nil {
 		s.fatalOrEOF("The processing instruction must begin with the name of the target.")
@@ -185,7 +185,7 @@ func (s *saxScanner) processingInstruction(report bool) {
 // keeping the unscanned chars, whenever fewer chars than the delimiter's
 // length are left in the buffer at a step start, or when the buffer ends
 // inside what could be the delimiter.
-func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint16 {
+func (s *scanner) scanUntil(delim, what string, flush func([]uint16)) []uint16 {
 	in := s.in
 	s.val = s.val[:0]
 	d0 := uint16(delim[0])
@@ -254,20 +254,20 @@ func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint1
 				in.advance(1)
 			case c == '\n' || c == '\r':
 				break chars
-			case saxIsXMLChar(int(c)):
+			case isXMLChar(int(c)):
 				s.val = append(s.val, c)
 				in.advance(1)
-			case saxIsHighSurrogate(int(c)) && saxIsLowSurrogate(s.peekSecond()):
+			case isHighSurrogate(int(c)) && isLowSurrogate(s.peekSecond()):
 				// Observed behaviour (black-box): a supplementary
 				// character ends the step.
 				s.val = append(s.val, c, in.buf[in.pos+1])
 				in.advance(2)
 				break chars
-			case saxIsHighSurrogate(int(c)):
+			case isHighSurrogate(int(c)):
 				s.loneHighSurrogate(int(c))
 				return nil
 			default:
-				s.fatal("An invalid XML character (Unicode: " + saxHex(int(c)) + ") was found in the " + what + ".")
+				s.fatal("An invalid XML character (Unicode: " + formatHex(int(c)) + ") was found in the " + what + ".")
 				return nil
 			}
 		}
@@ -281,7 +281,7 @@ func (s *saxScanner) scanUntil(delim, what string, flush func([]uint16)) []uint1
 // never called; the internal subset is scanned for its entity
 // declarations.
 
-func (s *saxScanner) doctype() {
+func (s *scanner) doctype() {
 	s.sawDoctype = true
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!DOCTYPE\" in the document type declaration.")
@@ -331,7 +331,7 @@ func (s *saxScanner) doctype() {
 			return
 		}
 		s.skipSpaces()
-		if s.peek() == saxStopEOF {
+		if s.peek() == stopEOF {
 			// Observed behaviour (black-box): reported without a position.
 			s.fatalAt("Premature end of file.", -1, -1)
 			return
@@ -342,7 +342,7 @@ func (s *saxScanner) doctype() {
 	}
 }
 
-func (s *saxScanner) systemLiteral() {
+func (s *scanner) systemLiteral() {
 	quote := s.peek()
 	if quote != '"' && quote != '\'' {
 		s.fatalOrEOF("The system identifier must begin with either a single or double quote character.")
@@ -352,11 +352,11 @@ func (s *saxScanner) systemLiteral() {
 	s.literal(quote)
 }
 
-func (s *saxScanner) pubidLiteral() {
+func (s *scanner) pubidLiteral() {
 	quote := s.peek()
 	if quote != '"' && quote != '\'' {
 		// Observed behaviour (black-box): reported after that char.
-		if s.next() == saxStopEOF {
+		if s.next() == stopEOF {
 			s.fatal(s.eofMessage())
 			return
 		}
@@ -371,12 +371,12 @@ func (s *saxScanner) pubidLiteral() {
 // Observed behaviour (black-box): it is read one char at a time (more input
 // is read only when the buffer is used up), and the char after a line end
 // counts two columns (after CR LF, the column is 2 at once).
-func (s *saxScanner) pubidChars(quote int) {
+func (s *scanner) pubidChars(quote int) {
 	in := s.in
 	bump := false
 	for {
 		c := s.peek()
-		if c == saxStopEOF {
+		if c == stopEOF {
 			s.fatal(s.eofMessage())
 			return
 		}
@@ -398,9 +398,9 @@ func (s *saxScanner) pubidChars(quote int) {
 			} else {
 				bump = true
 			}
-		case !saxIsPubidChar(c):
+		case !isPubidChar(c):
 			in.advance(1)
-			s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the public identifier.")
+			s.fatal("An invalid XML character (Unicode: " + formatHex(c) + ") was found in the public identifier.")
 			return
 		default:
 			in.advance(1)
@@ -413,7 +413,7 @@ func (s *saxScanner) pubidChars(quote int) {
 // data, with the same reading rule for the last char of the buffer and the
 // same line-end runs, and each '&', '<', ']' or '%' ends a step; it takes
 // the chars of production [2] Char in the BMP only.
-func (s *saxScanner) literal(quote int) {
+func (s *scanner) literal(quote int) {
 	in := s.in
 	for s.err == nil {
 		if in.pos == in.count {
@@ -446,8 +446,8 @@ func (s *saxScanner) literal(quote int) {
 			if c == '\n' || c == '\r' {
 				break
 			}
-			if !saxIsXMLChar(c) {
-				s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the system identifier.")
+			if !isXMLChar(c) {
+				s.fatal("An invalid XML character (Unicode: " + formatHex(c) + ") was found in the system identifier.")
 				return
 			}
 			in.advance(1)
@@ -458,24 +458,22 @@ func (s *saxScanner) literal(quote int) {
 	}
 }
 
-// saxIsPubidChar is production [13] PubidChar.
-func saxIsPubidChar(c int) bool {
-	switch {
-	case c == ' ' || c == '\n' || c == '\r':
-		return true
-	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+// isPubidChar is production [13] PubidChar.
+func isPubidChar(c int) bool {
+	switch c {
+	case ' ', '\n', '\r', '-', '\'', '(', ')', '+', ',', '.', '/', ':', '=', '?', ';', '!', '*', '#', '@', '$', '_', '%':
 		return true
 	}
-	return strings.ContainsRune("-'()+,./:=?;!*#@$_%", rune(c))
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
-func (s *saxScanner) internalSubset() {
+func (s *scanner) internalSubset() {
 	const notWellFormed = "The markup declarations contained or pointed to by the document type declaration must be well-formed."
 	for s.err == nil {
 		s.skipSpaces()
 		c := s.peek()
 		switch c {
-		case saxStopEOF:
+		case stopEOF:
 			s.fatalAt("Premature end of file.", -1, -1)
 			return
 		case ']':
@@ -488,7 +486,7 @@ func (s *saxScanner) internalSubset() {
 				return
 			}
 			if _, ok := s.paramEntities[name]; ok {
-				saxUnsupported("parameter entity references are")
+				panicUnsupported("parameter entity references are")
 			}
 			// Observed behaviour (black-box): a reference to an undeclared
 			// parameter entity is ignored.
@@ -538,7 +536,7 @@ func (s *saxScanner) internalSubset() {
 }
 
 // elementDecl scans an element type declaration (production [45]).
-func (s *saxScanner) elementDecl() {
+func (s *scanner) elementDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!ELEMENT\" in the element type declaration.")
 		return
@@ -607,7 +605,7 @@ func (s *saxScanner) elementDecl() {
 
 // childrenGroup scans the rest of a children content model group after
 // its '(' and white space (productions [47] to [50]).
-func (s *saxScanner) childrenGroup(name string) {
+func (s *scanner) childrenGroup(name string) {
 	if s.contentParticle(name); s.err != nil {
 		return
 	}
@@ -634,7 +632,7 @@ func (s *saxScanner) childrenGroup(name string) {
 	s.occurrence()
 }
 
-func (s *saxScanner) contentParticle(name string) {
+func (s *scanner) contentParticle(name string) {
 	if s.peek() == '(' {
 		s.in.advance(1)
 		s.skipSpaces()
@@ -648,14 +646,14 @@ func (s *saxScanner) contentParticle(name string) {
 	s.occurrence()
 }
 
-func (s *saxScanner) occurrence() {
+func (s *scanner) occurrence() {
 	if c := s.peek(); c == '?' || c == '*' || c == '+' {
 		s.in.advance(1)
 	}
 }
 
 // entityDecl scans an entity declaration (production [70]).
-func (s *saxScanner) entityDecl() {
+func (s *scanner) entityDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!ENTITY\" in the entity declaration.")
 		return
@@ -679,7 +677,7 @@ func (s *saxScanner) entityDecl() {
 		s.fatalOrEOF("White space is required between the entity name \"" + name + "\" and the definition in the entity declaration.")
 		return
 	}
-	decl := saxEntityDecl{}
+	decl := dtdEntityDecl{}
 	// Observed behaviour (black-box): the keywords are tried first (which
 	// reads ahead), then the quote.
 	switch {
@@ -711,7 +709,7 @@ func (s *saxScanner) entityDecl() {
 	default:
 		// Observed behaviour (black-box): the JDK reports the bare message
 		// key, after the char that is not a quote.
-		if s.next() == saxStopEOF {
+		if s.next() == stopEOF {
 			s.fatal(s.eofMessage())
 		} else {
 			s.fatal("OpenQuoteMissingInDecl")
@@ -742,18 +740,18 @@ func (s *saxScanner) entityDecl() {
 	}
 	if isParam {
 		if s.paramEntities == nil {
-			s.paramEntities = map[string]saxEntityDecl{}
+			s.paramEntities = map[string]dtdEntityDecl{}
 		}
 		if _, ok := s.paramEntities[name]; !ok {
 			s.paramEntities[name] = decl
 		}
 		return
 	}
-	if _, predefined := saxPredefined(name); predefined {
+	if _, predefined := predefinedEntity(name); predefined {
 		return
 	}
 	if s.entities == nil {
-		s.entities = map[string]saxEntityDecl{}
+		s.entities = map[string]dtdEntityDecl{}
 	}
 	if _, ok := s.entities[name]; !ok {
 		s.entities[name] = decl
@@ -770,7 +768,7 @@ func (s *saxScanner) entityDecl() {
 // own (like a line end left as the last char of the buffer: it is
 // consumed before more input is read), ends the step, and makes the next
 // char count two columns. A '<' or ']' also ends the step.
-func (s *saxScanner) entityValue(quote int) {
+func (s *scanner) entityValue(quote int) {
 	in := s.in
 	continued := false
 	for s.err == nil {
@@ -838,12 +836,12 @@ func (s *saxScanner) entityValue(quote int) {
 					return
 				}
 				break step
-			case saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()):
+			case isHighSurrogate(c) && isLowSurrogate(s.peekSecond()):
 				in.advance(2)
-			case saxIsHighSurrogate(c):
+			case isHighSurrogate(c):
 				s.loneHighSurrogate(c)
 				return
-			case saxIsXMLChar(c):
+			case isXMLChar(c):
 				in.advance(1)
 			default:
 				// Observed behaviour (black-box): the JDK reports the bare
@@ -858,7 +856,7 @@ func (s *saxScanner) entityValue(quote int) {
 // peReference scans a parameter entity reference after its '%' and
 // returns its name. In an entity value (inValue) any reference is an
 // error.
-func (s *saxScanner) peReference(inValue bool) string {
+func (s *scanner) peReference(inValue bool) string {
 	nameUnits := s.scanName()
 	if nameUnits == nil {
 		s.fatalOrEOF("The entity name must immediately follow the '%' in the parameter entity reference.")
@@ -877,7 +875,7 @@ func (s *saxScanner) peReference(inValue bool) string {
 }
 
 // notationDecl scans a notation declaration (production [82]).
-func (s *saxScanner) notationDecl() {
+func (s *scanner) notationDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!NOTATION\" in the notation declaration.")
 		return
@@ -926,13 +924,13 @@ func (s *saxScanner) notationDecl() {
 	}
 }
 
-// saxNameStartRanges and saxNameCharRanges are the inclusive ranges of the
+// nameStartRanges and nameCharRanges are the inclusive ranges of the
 // BMP chars that may start a Name and that may occur in one. Observed
 // behaviour (black-box): measured by parsing "<X/>" and "<aX/>" with the
 // JDK for every BMP char X; they are the Letter, '_' and ':' and the
 // NameChar classes of XML 1.0 (Fourth Edition), Appendix B. No
 // supplementary character is accepted.
-var saxNameStartRanges = [...]uint16{
+var nameStartRanges = [...]uint16{
 	0x003A, 0x003A, 0x0041, 0x005A, 0x005F, 0x005F, 0x0061, 0x007A, 0x00C0, 0x00D6,
 	0x00D8, 0x00F6, 0x00F8, 0x0131, 0x0134, 0x013E, 0x0141, 0x0148, 0x014A, 0x017E,
 	0x0180, 0x01C3, 0x01CD, 0x01F0, 0x01F4, 0x01F5, 0x01FA, 0x0217, 0x0250, 0x02A8,
@@ -977,7 +975,7 @@ var saxNameStartRanges = [...]uint16{
 	0xAC00, 0xD7A3,
 }
 
-var saxNameCharRanges = [...]uint16{
+var nameCharRanges = [...]uint16{
 	0x002D, 0x002E, 0x0030, 0x003A, 0x0041, 0x005A, 0x005F, 0x005F, 0x0061, 0x007A,
 	0x00B7, 0x00B7, 0x00C0, 0x00D6, 0x00D8, 0x00F6, 0x00F8, 0x0131, 0x0134, 0x013E,
 	0x0141, 0x0148, 0x014A, 0x017E, 0x0180, 0x01C3, 0x01CD, 0x01F0, 0x01F4, 0x01F5,

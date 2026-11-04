@@ -141,13 +141,15 @@ type GlobalNamespace struct {
 
 	forProcessDefines      bool
 	processDefinesCheck    bool
+	includeGlobalConsts    bool
 	hasNonScriptDefineCand bool
 	defineCandidateScripts map[rhino.Node]struct{}
 
 	// Go-only: performance — for ProcessDefines, the strpool IDs of leaf
-	// segments that can belong to a define or (in check mode) a global constant
-	// whose value a define may use; the namespace records no other names. nil
-	// when the namespace serves any other pass. See collectDefineCandidates.
+	// segments that can belong to a define or (when includeGlobalConsts is
+	// set) a global constant whose value a define may use; the namespace
+	// records no other names. nil when the namespace serves any other pass.
+	// See prepareDefineNamespace.
 	defineCandidateLeafIDs map[uint32]struct{}
 }
 
@@ -782,12 +784,28 @@ func (g *GlobalNamespace) ScanFromNode(builder *GlobalNamespace_BuildGlobalNames
 func (g *GlobalNamespace) ProcessNamespace() {
 	isInitial := !g.generated && g.childCount == 0 && g.nameMapByModule == nil
 	if g.forProcessDefines && isInitial {
-		g.collectDefineCandidates()
+		skipAll, traverseScripts := g.prepareDefineNamespace()
+		if skipAll {
+			g.generated = true
+			return
+		}
+		if traverseScripts != nil {
+			prevPred := g.shouldTraverseScript
+			g.shouldTraverseScript = func(s rhino.Node) bool {
+				_, ok := traverseScripts[s]
+				return ok
+			}
+			defer func() {
+				g.shouldTraverseScript = prevPred
+			}()
+		}
 	}
 	if len(g.childTable) == 0 {
-		capHint := g.estimateNameCapacity()
+		var capHint int
 		if g.defineCandidateLeafIDs != nil {
 			capHint = 2 * len(g.defineCandidateLeafIDs)
+		} else {
+			capHint = g.estimateNameCapacity()
 		}
 		if capHint > 64 {
 			g.initChildTable(capHint)
@@ -804,51 +822,6 @@ func (g *GlobalNamespace) ProcessNamespace() {
 	}
 
 	g.generated = true
-}
-
-// collectDefineCandidates fills defineCandidateLeafIDs: the leaf segment ID of
-// every NAME or GETPROP whose best JSDoc is @define, plus, in check mode,
-// every one whose best JSDoc is constant or that a `const` declares.
-//
-// ProcessDefines reads a name only when its declaration carries @define
-// (selectDefineDeclaration) or when it is a global constant with a `const`
-// or @const declaration (isGlobalConst + getConstantDeclValue), and then
-// only that name's own sets and gets. The names collected here are a
-// superset of those (local declarations and reads are not told apart), so
-// skipping every other name leaves ProcessDefines with the same defines,
-// the same constants and the same refs in the same order.
-//
-// Go-only: performance.
-func (g *GlobalNamespace) collectDefineCandidates() {
-	g.defineCandidateLeafIDs = make(map[uint32]struct{}, 1024)
-	check := g.processDefinesCheck
-	var walk func(n rhino.Node)
-	walk = func(n rhino.Node) {
-		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
-			walk(c)
-		}
-		switch n.GetToken() {
-		case rhino.Token_NAME:
-			if check && !n.GetParent().IsNil() && n.GetParent().IsConst() {
-				g.defineCandidateLeafIDs[n.GetStringID()] = struct{}{}
-				return
-			}
-		case rhino.Token_GETPROP:
-		default:
-			return
-		}
-		info := NodeUtil_GetBestJSDocInfo(n)
-		if info == nil || !(info.IsDefine() || (check && info.IsConstant())) {
-			return
-		}
-		if n.GetToken() == rhino.Token_NAME || n.IsQualifiedName() {
-			g.defineCandidateLeafIDs[n.GetStringID()] = struct{}{}
-		}
-	}
-	if g.HasExternsRoot() {
-		walk(g.externsRoot)
-	}
-	walk(g.root)
 }
 
 func (b *GlobalNamespace_BuildGlobalNamespace) skipsLeafID(leafID uint32) bool {
@@ -947,7 +920,9 @@ func (g *GlobalNamespace) GetNameFromModule(moduleMetadata *ModuleMetadataMap_Mo
 // Java: GlobalNamespace.declarationHasFollowingObjectSpreadSibling(Node)
 func (g *GlobalNamespace) DeclarationHasFollowingObjectSpreadSibling(declaration rhino.Node) bool {
 	objLit := declaration.GetParent()
-	jutil.CheckStateMsg1(objLit.IsObjectLit(), "%s", declaration)
+	if !objLit.IsObjectLit() {
+		panic(jutil.NewIllegalStateExceptionMsg(declaration.String()))
+	}
 
 	if g.spreadSiblingCache != nil {
 		if cached, ok := g.spreadSiblingCache[objLit]; ok && !cached {

@@ -136,7 +136,11 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	c.cccmLog = logFile
 	c.cccmLog.LogString("doing cccm")
 	// If there are <2 chunks, then we will never move anything, so we're done
-	if c.graph.GetChunkCount() > 1 {
+	if c.graph != nil && c.graph.GetChunkCount() > 1 {
+		if allRootScriptsInSingleStrongChunk(c.compiler, c.graph, root) &&
+			(!c.parentChunkCanSeeSymbolsDeclaredInChildren || !cccmContainsInstanceof(root)) {
+			return
+		}
 		referenceCollector :=
 			NewCrossChunkReferenceCollector(c.compiler, NewSyntacticScopeCreator(c.compiler))
 		referenceCollector.ProcessRoot(root)
@@ -147,6 +151,24 @@ func (c *CrossChunkCodeMotion) Process(externs rhino.Node, root rhino.Node) {
 	} else {
 		c.cccmLog.LogString("only one chunk exists")
 	}
+}
+
+func cccmContainsInstanceof(n rhino.Node) bool {
+	if n.IsNil() {
+		return false
+	}
+	if n.GetToken() == rhino.Token_INSTANCEOF {
+		return true
+	}
+	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.GetToken() == rhino.Token_INSTANCEOF {
+			return true
+		}
+		if !c.GetFirstChild().IsNil() && cccmContainsInstanceof(c) {
+			return true
+		}
+	}
+	return false
 }
 
 // Java: CrossChunkCodeMotion.addInstanceofGuards(Collection<GlobalSymbol>)
@@ -438,7 +460,9 @@ func (y *cccmSymbolCycle) addSymbol(symbol *cccmGlobalSymbol) {
 func (y *cccmSymbolCycle) moveDeclStmts() {
 	if len(y.symbolsSlice) == 1 {
 		symbol := y.symbolsSlice[0]
-		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
+		if symbol.isMoveDeclarationStatementsDone {
+			panic(jutil.NewIllegalStateExceptionMsg("duplicate attempt to move " + symbol.String()))
+		}
 		if len(symbol.dsgs) == 1 {
 			dsg := symbol.dsgs[0]
 			dsgCycle := &y.outer.scratchDsgCycle
@@ -488,7 +512,9 @@ func (y *cccmSymbolCycle) moveDeclStmts() {
 		return
 	}
 	for _, symbol := range y.symbolsSlice {
-		jutil.CheckStateMsg1(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol)
+		if symbol.isMoveDeclarationStatementsDone {
+			panic(jutil.NewIllegalStateExceptionMsg("duplicate attempt to move " + symbol.String()))
+		}
 	}
 	chunksWithImmovableReferences := &y.outer.scratchImmovableChunks
 	chunksWithImmovableReferences.ClearAll()
@@ -544,15 +570,15 @@ func mergeDescendingBy[T comparable](desc, asc []T, order func(T) int, strict bo
 		if od > oa {
 			result = append(result, d)
 			i++
-			jutil.CheckStateMsg(
-				i == len(desc) || order(desc[i]) < od || (!strict && order(desc[i]) == od),
-				errMsg)
+			if !(i == len(desc) || order(desc[i]) < od || (!strict && order(desc[i]) == od)) {
+				panic(jutil.NewIllegalStateExceptionMsg(errMsg))
+			}
 		} else {
 			result = append(result, a)
 			j--
-			jutil.CheckStateMsg(
-				j < 0 || order(asc[j]) < oa || (!strict && order(asc[j]) == oa),
-				errMsg)
+			if !(j < 0 || order(asc[j]) < oa || (!strict && order(asc[j]) == oa)) {
+				panic(jutil.NewIllegalStateExceptionMsg(errMsg))
+			}
 		}
 	}
 }
@@ -573,11 +599,15 @@ func (y *cccmSymbolCycle) dsgsLatestFirst() []*cccmDsg {
 
 // Java: CrossChunkCodeMotion.addGuardToInstanceofReference(Node)
 func (c *CrossChunkCodeMotion) addGuardToInstanceofRef(referenceNode rhino.Node) {
-	jutil.CheckStateMsg1(
-		c.isUnguardedInstanceofRef(referenceNode),
-		"instanceof Reference is already guarded: %s",
-		referenceNode)
-	instanceofBin := ast.MustBinary(rhino.CheckNotNull(referenceNode.GetParent()))
+	if !c.isUnguardedInstanceofRef(referenceNode) {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"instanceof Reference is already guarded: " + referenceNode.String()))
+	}
+	parent := referenceNode.GetParent()
+	if parent.IsNil() {
+		panic(jutil.NewNullPointerException())
+	}
+	instanceofBin := ast.MustBinary(parent)
 	instanceofNode := instanceofBin.Node()
 	referenceForTypeOf := ast.MustExpr(referenceNode.CloneNode())
 	tmp := rhino.IR_Block()
@@ -635,11 +665,10 @@ func (g *cccmDsg) addRefToGlobalSymbol(refSymbol *cccmGlobalSymbol) bool {
 func (g *cccmDsg) makeRefsImmovable() {
 	g.declaredGlobalSymbol.addImmovableRef(g.currentChunk)
 	for _, symbol := range g.referenced.items {
-		jutil.CheckStateMsg2(
-			!symbol.isMoveDeclarationStatementsDone,
-			"symbol %s moved before referring symbol %s",
-			symbol,
-			g.declaredGlobalSymbol)
+		if symbol.isMoveDeclarationStatementsDone {
+			panic(jutil.NewIllegalStateExceptionMsg(
+				"symbol " + symbol.String() + " moved before referring symbol " + g.declaredGlobalSymbol.String()))
+		}
 		symbol.addImmovableRef(g.currentChunk)
 	}
 }
@@ -696,7 +725,9 @@ func (o *cccmSymbolOrderer) orderAndCombine() {
 func (o *cccmSymbolOrderer) processGlobalSymbol(symbol *cccmGlobalSymbol) {
 	// preorderNumber is used to track whether we've already processed a DSG and the order in
 	// which they have been processed. It is initially -1.
-	jutil.CheckStateMsg1(symbol.preorderNumber < 0, "already processed: %s", symbol)
+	if symbol.preorderNumber >= 0 {
+		panic(jutil.NewIllegalStateExceptionMsg("already processed: " + symbol.String()))
+	}
 	symbol.preorderNumber = o.preorderCounter
 	o.preorderCounter++
 	o.componentRoots = append(o.componentRoots, symbol)       // could be the start of a new strongly connected component

@@ -29,76 +29,60 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/sourcemap"
 )
 
-// AbstractCommandLineRunner_ParseChunkWrappers parses chunk wrapper
-// specifications.
-//
-// specs is a list of chunk wrapper specifications, not null. The spec
-// format is: name:wrapper. Wrappers. chunks are the JS chunks whose
-// wrappers are specified. It returns a map from chunk name to chunk wrapper.
-// Chunks with no wrapper will have the empty string as their value in this
-// map.
+// parseChunkWrappers parses chunk wrapper specifications of the form
+// <name>:<wrapper>, returning a map from chunk name to chunk wrapper (or ""
+// for chunks with no wrapper).
 //
 // Java: AbstractCommandLineRunner.parseChunkWrappers(List<String>, Iterable<JSChunk>)
-func AbstractCommandLineRunner_ParseChunkWrappers(specs []string, chunks []*jscomp.JSChunk) map[string]string {
-	jutil.CheckState(specs != nil)
+func parseChunkWrappers(specs []string, chunks []*jscomp.JSChunk) map[string]string {
+	if specs == nil {
+		panic(jutil.NewIllegalStateException())
+	}
 
 	wrappers := make(map[string]string, len(chunks))
-
-	// Prepopulate the map with chunk names.
 	for _, c := range chunks {
 		wrappers[c.GetName()] = ""
 	}
 
 	for _, spec := range specs {
-		// Format is "<name>:<wrapper>".
-		pos := strings.IndexByte(spec, ':')
-		if pos == -1 {
+		name, wrapper, hasColon := strings.Cut(spec, ":")
+		if !hasColon {
 			panic(jscomp.NewFlagUsageException(
-				"Expected chunk wrapper to have " + "<name>:<wrapper> format: " + spec))
+				"Expected chunk wrapper to have <name>:<wrapper> format: " + spec))
 		}
-
-		// Parse chunk name.
-		name := spec[:pos]
 		if _, ok := wrappers[name]; !ok {
 			panic(jscomp.NewFlagUsageException("Unknown chunk: '" + name + "'"))
 		}
-		wrapper := spec[pos+1:]
-		// Support for %n% and %output%
 		wrapper = strings.ReplaceAll(strings.ReplaceAll(wrapper, "%output%", "%s"), "%n%", "\n")
 		if !strings.Contains(wrapper, "%s") {
 			panic(jscomp.NewFlagUsageException("No %s placeholder in chunk wrapper: '" + wrapper + "'"))
 		}
-
 		wrappers[name] = wrapper
 	}
 	return wrappers
 }
 
-// abstractCommandLineRunner_parseChunkOutputFiles parses chunk output name
-// specifications.
-//
-// specs is a list of chunk output name specifications, not null. The spec
-// format is: name:output_file. It returns a map from chunk name to chunk
-// output file name, if declared. Chunks with no predeclared output file name
-// will have no entry in this map.
+// parseChunkOutputFiles parses chunk output name specifications of the form
+// <name>:<output_file>, returning a map from chunk name to declared output
+// file name.
 //
 // Java: AbstractCommandLineRunner.parseChunkOutputFiles(List<String>)
-func abstractCommandLineRunner_parseChunkOutputFiles(specs []string) map[string]string {
-	jutil.CheckArgument(specs != nil)
-
+func parseChunkOutputFiles(specs []string) map[string]string {
+	if specs == nil {
+		panic(jutil.NewIllegalArgumentException())
+	}
 	if len(specs) == 0 {
 		return map[string]string{}
 	}
 
 	entries := make([]PipeFlagEntry, 0, len(specs))
 	for _, spec := range specs {
-		// Format is "<name>:<output_file>".
-		pos := strings.IndexByte(spec, ':')
-		if pos == -1 {
+		key, val, hasColon := strings.Cut(spec, ":")
+		if !hasColon {
 			panic(jscomp.NewFlagUsageException(
-				"Expected chunk_output_file to have " + "<name>:<output_file> format: " + spec))
+				"Expected chunk_output_file to have <name>:<output_file> format: " + spec))
 		}
-		entries = append(entries, PipeFlagEntry{Key: spec[:pos], Value: spec[pos+1:]})
+		entries = append(entries, PipeFlagEntry{Key: key, Value: val})
 	}
 	checkNoDuplicatePipeFlagKeys(entries)
 
@@ -118,26 +102,14 @@ func abstractCommandLineRunner_parseChunkOutputFiles(specs []string) map[string]
 // Otherwise, the output file name is <outputPathPrefix>/<chunkName>.js
 //
 // Java: AbstractCommandLineRunner.getChunkOutputFileName(JSChunk)
-func (r *AbstractCommandLineRunnerBase) GetChunkOutputFileName(m *jscomp.JSChunk) string {
+func (r *abstractCommandLineRunnerBase) GetChunkOutputFileName(m *jscomp.JSChunk) string {
 	if r.parsedChunkOutputFiles == nil {
-		r.parsedChunkOutputFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkOutputFiles)
+		r.parsedChunkOutputFiles = parseChunkOutputFiles(r.config.chunkOutputFiles)
 	}
 	if outputFile, ok := r.parsedChunkOutputFiles[m.GetName()]; ok {
 		return r.config.chunkOutputPathPrefix + outputFile
 	}
 	return r.config.chunkOutputPathPrefix + m.GetName() + ".js"
-}
-
-// GetChunkConformanceFileName returns the conformance file name for a
-// chunk.
-//
-// Java: AbstractCommandLineRunner.getChunkConformanceFileName(JSChunk)
-func (r *AbstractCommandLineRunnerBase) GetChunkConformanceFileName(m *jscomp.JSChunk) (string, bool) {
-	if r.parsedChunkConformanceFiles == nil {
-		r.parsedChunkConformanceFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkConformanceFiles)
-	}
-	name, ok := r.parsedChunkConformanceFiles[m.GetName()]
-	return name, ok
 }
 
 func chunkWrapperBaseName(fileName string) string {
@@ -150,17 +122,17 @@ func chunkWrapperBaseName(fileName string) string {
 }
 
 // Java: AbstractCommandLineRunner.writeChunkOutput(String, Appendable, LicenseTracker, JSChunk)
-func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk) {
+func (r *abstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out jutil.Appendable, lt jscomp.CodePrinter_LicenseTracker, m *jscomp.JSChunk) {
 	if r.parsedChunkWrappers == nil {
-		r.parsedChunkWrappers = AbstractCommandLineRunner_ParseChunkWrappers(
+		r.parsedChunkWrappers = parseChunkWrappers(
 			r.config.chunkWrapper, r.compiler.GetChunkGraph().GetAllChunks())
 	}
 
-	if !r.IsOutputInJson() {
-		abstractCommandLineRunner_maybeCreateDirsForPath(fileName)
+	if !r.isOutputInJson() {
+		maybeCreateDirsForPath(fileName)
 	}
 	baseName := chunkWrapperBaseName(fileName)
-	r.self.WriteOutput(
+	r.writeOutput(
 		out,
 		r.compiler,
 		lt,
@@ -171,14 +143,12 @@ func (r *AbstractCommandLineRunnerBase) WriteChunkOutput(fileName string, out ju
 		fileName)
 }
 
-// WriteOutput writes code to an output stream, optionally wrapping it in an
+// writeOutput writes code to an output stream, optionally wrapping it in an
 // arbitrary wrapper that contains a placeholder where the code should be
-// inserted.
-//
-// chunk is which chunk to write. If this is null, write the entire AST.
+// inserted. If chunk is nil, it writes the entire AST.
 //
 // Java: AbstractCommandLineRunner.writeOutput(Appendable, Compiler, LicenseTracker, JSChunk, String, String, Function<String, String>, String)
-func (r *AbstractCommandLineRunnerBase) WriteOutput(
+func (r *abstractCommandLineRunnerBase) writeOutput(
 	out jutil.Appendable,
 	compiler *jscomp.Compiler,
 	licenseTracker jscomp.CodePrinter_LicenseTracker,
@@ -187,11 +157,14 @@ func (r *AbstractCommandLineRunnerBase) WriteOutput(
 	codePlaceholder string,
 	escaper func(string) string,
 	filename string) {
-	if compiler.GetOptions().GetOutputJs() == jscomp.CompilerOptions_OutputJs_SENTINEL {
+	outputJs := compiler.GetOptions().GetOutputJs()
+	if outputJs == jscomp.CompilerOptions_OutputJs_SENTINEL {
 		out.AppendCharSequence("// No JS output because the compiler was run in checks-only mode.\n")
 		return
 	}
-	jutil.CheckState(compiler.GetOptions().GetOutputJs() == jscomp.CompilerOptions_OutputJs_NORMAL)
+	if outputJs != jscomp.CompilerOptions_OutputJs_NORMAL {
+		panic(jutil.NewIllegalStateException())
+	}
 
 	var code string
 	if chunk == nil {
@@ -199,22 +172,22 @@ func (r *AbstractCommandLineRunnerBase) WriteOutput(
 	} else {
 		code = compiler.ToSourceOfLicenseTrackerAndJSChunk(licenseTracker, chunk)
 	}
-	r.self.WriteOutputOfCode(out, compiler, code, wrapper, codePlaceholder, escaper, filename)
+	r.writeOutputOfCode(out, compiler, code, wrapper, codePlaceholder, escaper, filename)
 }
 
-// WriteOutputOfCode writes code to an output stream, optionally wrapping it
+// writeOutputOfCode writes code to an output stream, optionally wrapping it
 // in an arbitrary wrapper that contains a placeholder where the code should
 // be inserted.
 //
 // Java: AbstractCommandLineRunner.writeOutput(Appendable, Compiler, String, String, String, Function<String, String>, String)
-func (r *AbstractCommandLineRunnerBase) WriteOutputOfCode(
+func (r *abstractCommandLineRunnerBase) writeOutputOfCode(
 	out jutil.Appendable,
 	compiler *jscomp.Compiler,
 	code string,
 	wrapper string,
 	codePlaceholder string,
 	escaper func(string) string,
-	filename string) {
+	_ string) {
 	var sm *jscomp.SourceMap
 	if compiler != nil {
 		sm = compiler.GetSourceMap()
@@ -222,55 +195,47 @@ func (r *AbstractCommandLineRunnerBase) WriteOutputOfCode(
 	r.writeOutputOfCodeWithSourceMap(out, sm, code, wrapper, codePlaceholder, escaper)
 }
 
-func (r *AbstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
+func (r *abstractCommandLineRunnerBase) writeOutputOfCodeWithSourceMap(
 	out jutil.Appendable,
 	sm *jscomp.SourceMap,
 	code string,
 	wrapper string,
 	codePlaceholder string,
 	escaper func(string) string) {
-	pos := strings.Index(wrapper, codePlaceholder)
-	if pos != -1 {
-		prefix := ""
-
-		if pos > 0 {
-			prefix = wrapper[:pos]
+	if prefix, suffix, found := strings.Cut(wrapper, codePlaceholder); found {
+		if prefix != "" {
 			out.AppendCharSequence(prefix)
 		}
-
 		if escaper == nil {
 			out.AppendCharSequence(code)
 		} else {
 			out.AppendCharSequence(escaper(code))
 		}
-
-		suffixStart := pos + len(codePlaceholder)
-		if suffixStart != len(wrapper) {
-			// Something after placeholder?
-			out.AppendCharSequence(wrapper[suffixStart:])
+		if suffix != "" {
+			out.AppendCharSequence(suffix)
 		}
-		if r.self.GetCommandLineConfig().includeTrailingNewline {
+		if r.config.includeTrailingNewline {
 			out.AppendCharacter('\n')
 		}
-
 		// If we have a source map, adjust its offsets to match
 		// the code WITHIN the wrapper.
 		if sm != nil {
 			sm.SetWrapperPrefix(prefix)
 		}
-	} else {
-		out.AppendCharSequence(code)
-		if r.self.GetCommandLineConfig().includeTrailingNewline {
-			out.AppendCharacter('\n')
-		}
+		return
+	}
+
+	out.AppendCharSequence(code)
+	if r.config.includeTrailingNewline {
+		out.AppendCharacter('\n')
 	}
 }
 
-// abstractCommandLineRunner_maybeCreateDirsForPath creates any directories
-// necessary to write a file that will have a given path prefix.
+// maybeCreateDirsForPath creates any directories necessary to write a file
+// that will have a given path prefix.
 //
 // Java: AbstractCommandLineRunner.maybeCreateDirsForPath(String)
-func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix string) {
+func maybeCreateDirsForPath(pathPrefix string) {
 	if trimmed := strings.TrimRight(pathPrefix, "/"); trimmed != "" {
 		if dir := filepath.Dir(trimmed); dir != "." {
 			_ = os.MkdirAll(dir, 0o777)
@@ -279,9 +244,9 @@ func abstractCommandLineRunner_maybeCreateDirsForPath(pathPrefix string) {
 }
 
 // Java: AbstractCommandLineRunner.createDefaultOutput()
-func (r *AbstractCommandLineRunnerBase) CreateDefaultOutput() *cliBufferedWriter {
+func (r *abstractCommandLineRunnerBase) createDefaultOutput() *cliBufferedWriter {
 	if r.config.jsOutputFile != "" {
-		return r.FileNameToLegacyOutputWriter(r.config.jsOutputFile)
+		return r.fileNameToLegacyOutputWriter(r.config.jsOutputFile)
 	}
 	cs := r.legacyOutputCharset
 	if cs == nil {
@@ -291,7 +256,7 @@ func (r *AbstractCommandLineRunnerBase) CreateDefaultOutput() *cliBufferedWriter
 }
 
 // Java: AbstractCommandLineRunner.closeAppendable(Appendable)
-func abstractCommandLineRunner_closeAppendable(output jutil.Appendable) {
+func closeAppendable(output jutil.Appendable) {
 	if flushable, ok := output.(interface{ Flush() }); ok {
 		flushable.Flush()
 	}
@@ -301,55 +266,54 @@ func abstractCommandLineRunner_closeAppendable(output jutil.Appendable) {
 }
 
 // Java: AbstractCommandLineRunner.getJavascriptEscaper()
-func (r *AbstractCommandLineRunnerBase) GetJavascriptEscaper() func(string) string {
+func (r *abstractCommandLineRunnerBase) getJavascriptEscaper() func(string) string {
 	return jscomp.SourceCodeEscapers_JavascriptEscaper().Escape
 }
 
 // Java: AbstractCommandLineRunner.outputSingleBinary(B)
-func (r *AbstractCommandLineRunnerBase) OutputSingleBinary(options *jscomp.CompilerOptions) {
+func (r *abstractCommandLineRunnerBase) outputSingleBinary(options *jscomp.CompilerOptions) {
 	config := r.config
 	var escaper func(string) string
-	marker := AbstractCommandLineRunner_OUTPUT_MARKER
-	if strings.Contains(config.outputWrapper, abstractCommandLineRunner_OUTPUT_MARKER_JS_STRING) {
-		marker = abstractCommandLineRunner_OUTPUT_MARKER_JS_STRING
-		escaper = r.self.GetJavascriptEscaper()
+	marker := defaultOutputMarker
+	if strings.Contains(config.outputWrapper, outputMarkerJsString) {
+		marker = outputMarkerJsString
+		escaper = r.getJavascriptEscaper()
 	}
 
-	if r.IsOutputInJson() {
-		r.filesToStreamOut = append(r.filesToStreamOut, r.self.CreateJsonFile(options, marker, escaper))
-	} else {
-		if config.jsOutputFile != "" {
-			abstractCommandLineRunner_maybeCreateDirsForPath(config.jsOutputFile)
-		}
-
-		jsOutput := r.CreateDefaultOutput()
-		r.self.WriteOutput(
-			jsOutput,
-			r.compiler,
-			// So long as the JSChunk arg is null the compiler will write all sources to jsOutput
-			// Use single-binary license tracking to dedupe licenses among all the inputs
-			jscomp.NewCompiler_SingleBinaryLicenseTracker(r.compiler),
-			nil,
-			config.outputWrapper,
-			marker,
-			escaper,
-			config.jsOutputFile)
-		abstractCommandLineRunner_closeAppendable(jsOutput)
+	if r.isOutputInJson() {
+		r.filesToStreamOut = append(r.filesToStreamOut, r.createJsonFile(options, marker, escaper))
+		return
 	}
-}
 
-// CreateJsonFile saves the compiler output to a JsonFileSpec to be later
-// written to stdout.
-//
-// Java: AbstractCommandLineRunner.createJsonFile(B, String, Function<String, String>)
-func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerOptions, outputMarker string, escaper func(string) string) *AbstractCommandLineRunner_JsonFileSpec {
-	config := r.config
-	jsOutput := jutil.NewStringWriter()
-	r.self.WriteOutput(
+	if config.jsOutputFile != "" {
+		maybeCreateDirsForPath(config.jsOutputFile)
+	}
+
+	jsOutput := r.createDefaultOutput()
+	r.writeOutput(
 		jsOutput,
 		r.compiler,
 		// So long as the JSChunk arg is null the compiler will write all sources to jsOutput
 		// Use single-binary license tracking to dedupe licenses among all the inputs
+		jscomp.NewCompiler_SingleBinaryLicenseTracker(r.compiler),
+		nil,
+		config.outputWrapper,
+		marker,
+		escaper,
+		config.jsOutputFile)
+	closeAppendable(jsOutput)
+}
+
+// createJsonFile saves the compiler output to a JsonFileSpec to be later
+// written to stdout.
+//
+// Java: AbstractCommandLineRunner.createJsonFile(B, String, Function<String, String>)
+func (r *abstractCommandLineRunnerBase) createJsonFile(options *jscomp.CompilerOptions, outputMarker string, escaper func(string) string) *AbstractCommandLineRunner_JsonFileSpec {
+	config := r.config
+	jsOutput := jutil.NewStringWriter()
+	r.writeOutput(
+		jsOutput,
+		r.compiler,
 		jscomp.NewCompiler_SingleBinaryLicenseTracker(r.compiler),
 		nil,
 		config.outputWrapper,
@@ -364,7 +328,7 @@ func (r *AbstractCommandLineRunnerBase) CreateJsonFile(options *jscomp.CompilerO
 	jsonOutput := NewAbstractCommandLineRunner_JsonFileSpec(jsOutput.String(), path)
 
 	if options.ShouldGatherSourceMapInfo() {
-		smBuf := &strings.Builder{} // Go-only: language-adapter — StringBuilder as SourceMap.appendTo's Appendable
+		smBuf := &strings.Builder{}
 		if p, ok := jsonOutput.GetPath(); ok {
 			r.compiler.GetSourceMap().AppendTo(smBuf, p)
 		} else {
@@ -385,7 +349,7 @@ func writeJsonOptStringField(w *jutil.JsonWriter, name string, opt base.OptStrin
 }
 
 // Java: AbstractCommandLineRunner.outputJsonStream()
-func (r *AbstractCommandLineRunnerBase) OutputJsonStream() {
+func (r *abstractCommandLineRunnerBase) outputJsonStream() {
 	jsonWriter := jutil.NewJsonWriter(newCliBufferedWriter(
 		r.defaultJsOutput, nil, r.defaultJsOutput.Flush, jutil.StandardCharsets_UTF_8))
 	defer jsonWriter.Close()
@@ -413,35 +377,29 @@ func (r *AbstractCommandLineRunnerBase) OutputJsonStream() {
 }
 
 // Java: AbstractCommandLineRunner.outputChunkBinaryAndSourceMaps(JSChunkGraph, B)
-func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
+func (r *abstractCommandLineRunnerBase) outputChunkBinaryAndSourceMaps(
 	chunkGraph *jscomp.JSChunkGraph, options *jscomp.CompilerOptions) *jscomp.DiagnosticType {
 	config := r.config
 	chunks := chunkGraph.GetAllChunks()
-	r.parsedChunkWrappers = AbstractCommandLineRunner_ParseChunkWrappers(config.chunkWrapper, chunks)
-	if !r.IsOutputInJson() {
+	r.parsedChunkWrappers = parseChunkWrappers(config.chunkWrapper, chunks)
+	if !r.isOutputInJson() {
 		// make sure the method generates all dirs up to the latest /
-		abstractCommandLineRunner_maybeCreateDirsForPath(config.chunkOutputPathPrefix + "dummy")
+		maybeCreateDirsForPath(config.chunkOutputPathPrefix + "dummy")
 	}
 
-	// If the source map path is in fact a pattern for each
-	// chunk, create a stream per-chunk. Otherwise, create
-	// a single source map.
-	var mapFileOut *cliBufferedWriter
-
 	// When the json_streams flag is specified, sourcemaps are always generated
-	// per chunk
-	if !(r.self.ShouldGenerateMapPerChunk(options) ||
+	// per chunk.
+	if !(r.shouldGenerateMapPerChunk(options) ||
 		!options.ShouldGatherSourceMapInfo() ||
 		config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_OUT ||
 		config.jsonStreamMode == jscomp.CompilerOptions_JsonStreamMode_BOTH) {
-		// warn that this is not supported
 		return AbstractCommandLineRunner_INVALID_CHUNK_SOURCEMAP_PATTERN
 	}
 
 	_, isStandardRunner := r.self.(*CommandLineRunner)
-	if r.IsOutputInJson() &&
+	if r.isOutputInJson() &&
 		isStandardRunner &&
-		!r.self.IsInTestMode() &&
+		!r.testMode &&
 		r.compiler.GetSourceMap() != nil &&
 		options.GetOutputJs() == jscomp.CompilerOptions_OutputJs_NORMAL &&
 		options.GetNumParallelThreads() > 1 &&
@@ -451,46 +409,49 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 	}
 
 	mlicenseTracker := jscomp.NewCompiler_ChunkGraphAwareLicenseTracker(r.compiler)
-	if !r.IsOutputInJson() &&
-		!r.self.IsInTestMode() &&
-		(!options.ShouldGatherSourceMapInfo() || r.self.ShouldGenerateMapPerChunk(options)) &&
+	if !r.isOutputInJson() &&
+		!r.testMode &&
+		(!options.ShouldGatherSourceMapInfo() || r.shouldGenerateMapPerChunk(options)) &&
 		options.GetOutputJs() == jscomp.CompilerOptions_OutputJs_NORMAL &&
 		options.GetNumParallelThreads() > 1 &&
 		len(chunks) > 1 {
 		r.outputChunksParallel(chunks, options, mlicenseTracker)
 		return nil
 	}
+
+	var mapFileOut *cliBufferedWriter
 	for _, m := range chunks {
 		if m.GetName() == jscomp.JSChunk_WEAK_CHUNK_NAME {
 			// Skip the weak chunk, which is always empty.
 			continue
 		}
-		if r.IsOutputInJson() {
-			r.filesToStreamOut = append(r.filesToStreamOut, r.CreateJsonFileFromChunk(m))
-		} else {
-			if r.self.ShouldGenerateMapPerChunk(options) {
-				mapFileOut = r.FileNameToOutputWriter2(r.self.ExpandSourceMapPath(options, m))
-			}
+		if r.isOutputInJson() {
+			r.filesToStreamOut = append(r.filesToStreamOut, r.createJsonFileFromChunk(m))
+			continue
+		}
 
-			chunkFilename := r.self.GetChunkOutputFileName(m)
-			abstractCommandLineRunner_maybeCreateDirsForPath(chunkFilename)
-			func() {
-				writer := r.FileNameToLegacyOutputWriter(chunkFilename)
-				defer abstractCommandLineRunner_closeWriter(writer)
-				if options.ShouldGatherSourceMapInfo() {
-					r.compiler.ResetAndInitializeSourceMap()
-				}
-				mlicenseTracker.SetCurrentChunkContext(m)
-				r.self.WriteChunkOutput(chunkFilename, writer, mlicenseTracker, m)
-				if options.ShouldGatherSourceMapInfo() {
-					r.compiler.GetSourceMap().AppendTo(mapFileOut, chunkFilename)
-				}
-			}()
+		if r.shouldGenerateMapPerChunk(options) {
+			mapFileOut = r.fileNameToOutputWriter2(r.ExpandSourceMapPath(options, m))
+		}
 
-			if r.self.ShouldGenerateMapPerChunk(options) && mapFileOut != nil {
-				mapFileOut.Close()
-				mapFileOut = nil
+		chunkFilename := r.GetChunkOutputFileName(m)
+		maybeCreateDirsForPath(chunkFilename)
+		func() {
+			writer := r.fileNameToLegacyOutputWriter(chunkFilename)
+			defer closeBufferedWriter(writer)
+			if options.ShouldGatherSourceMapInfo() {
+				r.compiler.ResetAndInitializeSourceMap()
 			}
+			mlicenseTracker.SetCurrentChunkContext(m)
+			r.self.WriteChunkOutput(chunkFilename, writer, mlicenseTracker, m)
+			if options.ShouldGatherSourceMapInfo() {
+				r.compiler.GetSourceMap().AppendTo(mapFileOut, chunkFilename)
+			}
+		}()
+
+		if r.shouldGenerateMapPerChunk(options) && mapFileOut != nil {
+			mapFileOut.Close()
+			mapFileOut = nil
 		}
 	}
 
@@ -500,7 +461,7 @@ func (r *AbstractCommandLineRunnerBase) OutputChunkBinaryAndSourceMaps(
 	return nil
 }
 
-func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
+func (r *abstractCommandLineRunnerBase) outputChunksParallel(
 	chunks []*jscomp.JSChunk,
 	options *jscomp.CompilerOptions,
 	mlicenseTracker *jscomp.Compiler_ChunkGraphAwareLicenseTracker) {
@@ -515,18 +476,18 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 		return
 	}
 	if r.parsedChunkOutputFiles == nil {
-		r.parsedChunkOutputFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkOutputFiles)
+		r.parsedChunkOutputFiles = parseChunkOutputFiles(r.config.chunkOutputFiles)
 	}
 	createdDirs := make(map[string]struct{}, 16)
 	r.compiler.OutputChunksParallel(chunks, options, mlicenseTracker, jscomp.ParallelChunkOutputCallbacks{
 		ChunkFileName: func(m *jscomp.JSChunk) string {
-			return r.self.GetChunkOutputFileName(m)
+			return r.GetChunkOutputFileName(m)
 		},
 		SourceMapPath: func(m *jscomp.JSChunk) string {
 			if !options.ShouldGatherSourceMapInfo() {
 				return ""
 			}
-			return r.self.ExpandSourceMapPath(options, m)
+			return r.ExpandSourceMapPath(options, m)
 		},
 		WrapperTemplate: func(chunkName string) string {
 			return r.parsedChunkWrappers[chunkName]
@@ -541,28 +502,26 @@ func (r *AbstractCommandLineRunnerBase) outputChunksParallel(
 			}
 			if _, ok := createdDirs[dir]; !ok {
 				createdDirs[dir] = struct{}{}
-				abstractCommandLineRunner_maybeCreateDirsForPath(filename)
+				maybeCreateDirsForPath(filename)
 			}
 		},
 		WriteChunkWithMap: func(filename string, mapFilename string, sm *jscomp.SourceMap, code string, wrapper string) {
 			var mapFileOut *cliBufferedWriter
 			if mapFilename != "" {
-				mapFileOut = r.FileNameToOutputWriter2(mapFilename)
-				if mapFileOut != nil {
-					defer mapFileOut.Close()
-				}
+				mapFileOut = r.fileNameToOutputWriter2(mapFilename)
+				defer closeBufferedWriter(mapFileOut)
 			}
-			writer := r.FileNameToLegacyOutputWriter(filename)
-			defer abstractCommandLineRunner_closeWriter(writer)
+			writer := r.fileNameToLegacyOutputWriter(filename)
+			defer closeBufferedWriter(writer)
 			r.writeOutputOfCodeWithSourceMap(writer, sm, code, wrapper, "%s", nil)
 			if mapFileOut != nil {
 				sm.AppendTo(mapFileOut, filename)
 			}
 		},
 		WriteChunkNoMap: func(filename string, code string, wrapper string) {
-			writer := r.FileNameToLegacyOutputWriter(filename)
-			defer abstractCommandLineRunner_closeWriter(writer)
-			r.self.WriteOutputOfCode(writer, r.compiler, code, wrapper, "%s", nil, filename)
+			writer := r.fileNameToLegacyOutputWriter(filename)
+			defer closeBufferedWriter(writer)
+			r.writeOutputOfCode(writer, r.compiler, code, wrapper, "%s", nil, filename)
 		},
 	})
 }
@@ -592,7 +551,7 @@ func formatJsonChunkSrc(code, prefix, suffix string, includeTrailingNewline bool
 	return sb.String()
 }
 
-func (r *AbstractCommandLineRunnerBase) outputJsonChunksParallel(
+func (r *abstractCommandLineRunnerBase) outputJsonChunksParallel(
 	chunks []*jscomp.JSChunk,
 	options *jscomp.CompilerOptions,
 ) {
@@ -606,7 +565,7 @@ func (r *AbstractCommandLineRunnerBase) outputJsonChunksParallel(
 		return
 	}
 	if r.parsedChunkOutputFiles == nil {
-		r.parsedChunkOutputFiles = abstractCommandLineRunner_parseChunkOutputFiles(r.config.chunkOutputFiles)
+		r.parsedChunkOutputFiles = parseChunkOutputFiles(r.config.chunkOutputFiles)
 	}
 	metaByChunk := make(map[*jscomp.JSChunk]jsonChunkMeta, activeCount)
 	metas := make([]jsonChunkMeta, 0, activeCount)
@@ -614,17 +573,15 @@ func (r *AbstractCommandLineRunnerBase) outputJsonChunksParallel(
 		if m == nil || m.GetName() == jscomp.JSChunk_WEAK_CHUNK_NAME {
 			continue
 		}
-		filename := r.self.GetChunkOutputFileName(m)
+		filename := r.GetChunkOutputFileName(m)
 		wrapper := strings.ReplaceAll(
 			r.parsedChunkWrappers[m.GetName()],
 			"%basename%",
 			chunkWrapperBaseName(filename))
 		meta := jsonChunkMeta{filename: filename}
-		if pos := strings.Index(wrapper, "%s"); pos != -1 {
-			if pos > 0 {
-				meta.prefix = wrapper[:pos]
-			}
-			meta.suffix = wrapper[pos+len("%s"):]
+		if prefix, suffix, found := strings.Cut(wrapper, "%s"); found {
+			meta.prefix = prefix
+			meta.suffix = suffix
 		}
 		metaByChunk[m] = meta
 		metas = append(metas, meta)
@@ -645,7 +602,7 @@ func (r *AbstractCommandLineRunnerBase) outputJsonChunksParallel(
 		panic(err)
 	}
 
-	includeTrailingNewline := r.self.GetCommandLineConfig().includeTrailingNewline
+	includeTrailingNewline := r.config.includeTrailingNewline
 	if cap(r.filesToStreamOut)-len(r.filesToStreamOut) < len(rendered) {
 		grown := make([]*AbstractCommandLineRunner_JsonFileSpec, len(r.filesToStreamOut), len(r.filesToStreamOut)+len(rendered))
 		copy(grown, r.filesToStreamOut)
@@ -660,24 +617,21 @@ func (r *AbstractCommandLineRunnerBase) outputJsonChunksParallel(
 	}
 }
 
-// CreateJsonFileFromChunk converts the given output chunk to a JSONFileSpec
+// createJsonFileFromChunk converts the given output chunk to a JsonFileSpec
 // with associated sourcemap.
 //
 // Java: AbstractCommandLineRunner.createJsonFileFromChunk(JSChunk)
-func (r *AbstractCommandLineRunnerBase) CreateJsonFileFromChunk(chunk *jscomp.JSChunk) *AbstractCommandLineRunner_JsonFileSpec {
+func (r *abstractCommandLineRunnerBase) createJsonFileFromChunk(chunk *jscomp.JSChunk) *AbstractCommandLineRunner_JsonFileSpec {
 	r.compiler.ResetAndInitializeSourceMap()
 
-	filename := r.self.GetChunkOutputFileName(chunk)
+	filename := r.GetChunkOutputFileName(chunk)
 	output := jutil.NewStringWriter()
 	r.self.WriteChunkOutput(filename, output, jscomp.NewCompiler_ScriptNodeLicensesOnlyTracker(r.compiler), chunk)
 
 	jsonFile := NewAbstractCommandLineRunner_JsonFileSpec(output.String(), filename)
 
-	chunkSourceMap := &strings.Builder{} // Go-only: language-adapter — StringBuilder as SourceMap.appendTo's Appendable
-
-	chunkOutputFileName := r.self.GetChunkOutputFileName(chunk)
-	r.compiler.GetSourceMap().AppendTo(chunkSourceMap, chunkOutputFileName)
-
+	var chunkSourceMap strings.Builder
+	r.compiler.GetSourceMap().AppendTo(&chunkSourceMap, filename)
 	jsonFile.SetSourceMap(chunkSourceMap.String())
 
 	return jsonFile

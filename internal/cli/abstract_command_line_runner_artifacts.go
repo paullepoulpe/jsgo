@@ -38,26 +38,22 @@ func mustSourceMapOutputPath(options *jscomp.CompilerOptions) string {
 	return p
 }
 
-// ShouldGenerateMapPerChunk returns true if and only if a source map file
+// shouldGenerateMapPerChunk returns true if and only if a source map file
 // should be generated for each chunk, as opposed to one unified map. This is
 // specified by having the source map pattern include the %outname%
 // variable.
 //
 // Java: AbstractCommandLineRunner.shouldGenerateMapPerChunk(B)
-func (r *AbstractCommandLineRunnerBase) ShouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool {
+func (r *abstractCommandLineRunnerBase) shouldGenerateMapPerChunk(options *jscomp.CompilerOptions) bool {
 	return options.ShouldGatherSourceMapInfo() &&
 		strings.Contains(mustSourceMapOutputPath(options), "%outname%")
 }
 
-// OpenExternExportsStream returns a stream for outputting the generated
-// externs file.
-//
-// options are the options to the Compiler; path is the path of the
-// generated JS source file. It returns the stream or null if no extern-ed
-// exports are being generated.
+// openExternExportsStream returns a stream for outputting the generated
+// externs file, or nil if no extern-ed exports are being generated.
 //
 // Java: AbstractCommandLineRunner.openExternExportsStream(B, String)
-func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.CompilerOptions, path string) *cliBufferedWriter {
+func (r *abstractCommandLineRunnerBase) openExternExportsStream(options *jscomp.CompilerOptions, path string) *cliBufferedWriter {
 	exPath, ok := options.GetExternExportsPath()
 	if !ok {
 		return nil
@@ -69,13 +65,13 @@ func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.
 		if p, hasParent := outputFile.Parent(); hasParent {
 			parent = p
 		}
-		exPath = parent + string(rune(jutil.File_separatorChar)) + exPath
+		exPath = parent + jutil.File_separator + exPath
 	}
 
-	return r.FileNameToOutputWriter2(exPath)
+	return r.fileNameToOutputWriter2(exPath)
 }
 
-// ExpandCommandLinePath expands a file path specified on the command-line.
+// expandCommandLinePath expands a file path specified on the command-line.
 //
 // Most file paths on the command-line allow an %outname% placeholder. The
 // placeholder will expand to a different value depending on the current
@@ -89,10 +85,10 @@ func (r *AbstractCommandLineRunnerBase) OpenExternExportsStream(options *jscomp.
 // Otherwise, we'll use strategy #1 or #2 based on the current output mode.
 //
 // Java: AbstractCommandLineRunner.expandCommandLinePath(String, JSChunk)
-func (r *AbstractCommandLineRunnerBase) ExpandCommandLinePath(path string, forChunk *jscomp.JSChunk) string {
+func (r *abstractCommandLineRunnerBase) expandCommandLinePath(path string, forChunk *jscomp.JSChunk) string {
 	var sub string
 	if forChunk != nil {
-		sub = r.self.GetChunkOutputFileName(forChunk)
+		sub = r.GetChunkOutputFileName(forChunk)
 	} else if len(r.config.chunk) != 0 {
 		sub = r.config.chunkOutputPathPrefix
 	} else {
@@ -104,41 +100,39 @@ func (r *AbstractCommandLineRunnerBase) ExpandCommandLinePath(path string, forCh
 // ExpandSourceMapPath is the expansion function for source map.
 //
 // Java: AbstractCommandLineRunner.expandSourceMapPath(B, JSChunk)
-func (r *AbstractCommandLineRunnerBase) ExpandSourceMapPath(options *jscomp.CompilerOptions, forChunk *jscomp.JSChunk) string {
+func (r *abstractCommandLineRunnerBase) ExpandSourceMapPath(options *jscomp.CompilerOptions, forChunk *jscomp.JSChunk) string {
 	if !options.ShouldGatherSourceMapInfo() {
 		return ""
 	}
-	return r.ExpandCommandLinePath(mustSourceMapOutputPath(options), forChunk)
+	return r.expandCommandLinePath(mustSourceMapOutputPath(options), forChunk)
 }
 
-// FileNameToLegacyOutputWriter converts a file name into a Writer taking in
-// account the output charset.
+// fileNameToLegacyOutputWriter converts a file name into a Writer taking into
+// account the legacy output charset.
 //
 // Java: AbstractCommandLineRunner.fileNameToLegacyOutputWriter(String)
-func (r *AbstractCommandLineRunnerBase) FileNameToLegacyOutputWriter(fileName string) *cliBufferedWriter {
-	if r.self.IsInTestMode() {
+func (r *abstractCommandLineRunnerBase) fileNameToLegacyOutputWriter(fileName string) *cliBufferedWriter {
+	if r.testMode {
 		return newCliBufferedWriter(io.Discard, nil, nil, jutil.StandardCharsets_UTF_8)
 	}
-
-	return r.StreamToLegacyOutputWriter(r.self.FilenameToOutputStream(fileName))
+	return r.streamToLegacyOutputWriter(r.filenameToOutputStream(fileName))
 }
 
-// FileNameToOutputWriter2 converts a file name into a Writer taking in
-// account the output charset.
+// fileNameToOutputWriter2 converts a file name into a Writer taking into
+// account the newer output charset.
 //
 // Java: AbstractCommandLineRunner.fileNameToOutputWriter2(String)
-func (r *AbstractCommandLineRunnerBase) FileNameToOutputWriter2(fileName string) *cliBufferedWriter {
-	if r.self.IsInTestMode() {
+func (r *abstractCommandLineRunnerBase) fileNameToOutputWriter2(fileName string) *cliBufferedWriter {
+	if r.testMode {
 		return newCliBufferedWriter(io.Discard, nil, nil, jutil.StandardCharsets_UTF_8)
 	}
-
-	return r.StreamToOutputWriter2(r.self.FilenameToOutputStream(fileName))
+	return r.streamToOutputWriter2(r.filenameToOutputStream(fileName))
 }
 
-// FilenameToOutputStream converts a file name into an OutputStream.
+// filenameToOutputStream converts a file name into an OutputStream.
 //
 // Java: AbstractCommandLineRunner.filenameToOutputStream(String)
-func (r *AbstractCommandLineRunnerBase) FilenameToOutputStream(fileName string) io.WriteCloser {
+func (r *abstractCommandLineRunnerBase) filenameToOutputStream(fileName string) io.WriteCloser {
 	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
 		panic(jutil.FileNotFoundExceptionFromError(err, fileName))
@@ -146,115 +140,89 @@ func (r *AbstractCommandLineRunnerBase) FilenameToOutputStream(fileName string) 
 	return f
 }
 
-// StreamToLegacyOutputWriter creates a writer with the legacy output
-// charset.
+// streamToLegacyOutputWriter creates a writer with the legacy output charset.
 //
 // Java: AbstractCommandLineRunner.streamToLegacyOutputWriter(OutputStream)
-func (r *AbstractCommandLineRunnerBase) StreamToLegacyOutputWriter(stream io.WriteCloser) *cliBufferedWriter {
-	if r.legacyOutputCharset == nil {
-		return r.CreateWriter(stream, jutil.StandardCharsets_UTF_8)
+func (r *abstractCommandLineRunnerBase) streamToLegacyOutputWriter(stream io.WriteCloser) *cliBufferedWriter {
+	charset := r.legacyOutputCharset
+	if charset == nil {
+		charset = jutil.StandardCharsets_UTF_8
 	}
-	return r.CreateWriter(stream, r.legacyOutputCharset)
-}
-
-// StreamToOutputWriter2 creates a writer with the newer output charset.
-//
-// Java: AbstractCommandLineRunner.streamToOutputWriter2(OutputStream)
-func (r *AbstractCommandLineRunnerBase) StreamToOutputWriter2(stream io.WriteCloser) *cliBufferedWriter {
-	if r.outputCharset2 == nil {
-		return r.CreateWriter(stream, jutil.StandardCharsets_UTF_8)
-	}
-	return r.CreateWriter(stream, r.outputCharset2)
-}
-
-// CreateWriter creates a buffered Writer that writes to the given stream
-// using the given encoding.
-//
-// Java: AbstractCommandLineRunner.createWriter(OutputStream, Charset)
-func (r *AbstractCommandLineRunnerBase) CreateWriter(stream io.WriteCloser, charset *jutil.Charset) *cliBufferedWriter {
 	return newCliBufferedWriter(stream, stream, nil, charset)
 }
 
-// OutputSourceMap outputs the source map found in the compiler to the
+// streamToOutputWriter2 creates a writer with the newer output charset.
+//
+// Java: AbstractCommandLineRunner.streamToOutputWriter2(OutputStream)
+func (r *abstractCommandLineRunnerBase) streamToOutputWriter2(stream io.WriteCloser) *cliBufferedWriter {
+	charset := r.outputCharset2
+	if charset == nil {
+		charset = jutil.StandardCharsets_UTF_8
+	}
+	return newCliBufferedWriter(stream, stream, nil, charset)
+}
+
+// outputSourceMap outputs the source map found in the compiler to the
 // proper path if one exists.
 //
 // Java: AbstractCommandLineRunner.outputSourceMap(B, String)
-func (r *AbstractCommandLineRunnerBase) OutputSourceMap(options *jscomp.CompilerOptions, associatedName string) {
+func (r *abstractCommandLineRunnerBase) outputSourceMap(options *jscomp.CompilerOptions, associatedName string) {
 	if !options.ShouldGatherSourceMapInfo() ||
 		mustSourceMapOutputPath(options) == "/dev/null" {
 		return
 	}
 
-	outName := r.self.ExpandSourceMapPath(options, nil)
-	abstractCommandLineRunner_maybeCreateDirsForPath(outName)
-	out := r.FileNameToOutputWriter2(outName)
-	defer abstractCommandLineRunner_closeWriter(out)
+	outName := r.ExpandSourceMapPath(options, nil)
+	maybeCreateDirsForPath(outName)
+	out := r.fileNameToOutputWriter2(outName)
+	defer closeBufferedWriter(out)
 	r.compiler.GetSourceMap().AppendTo(out, associatedName)
 }
 
-// GetMapPath returns the path at which to output map file(s) based on the
-// path at which the JS binary will be placed. It returns the path in which
-// to place the generated map file(s).
+// getMapPath returns the path prefix in which to place generated map file(s)
+// based on the path at which the JS binary will be placed.
 //
 // Java: AbstractCommandLineRunner.getMapPath(String)
-func (r *AbstractCommandLineRunnerBase) GetMapPath(outputFile string) string {
-	basePath := ""
-
+func (r *abstractCommandLineRunnerBase) getMapPath(outputFile string) string {
 	if outputFile == "" {
 		// If we have a js_module_binary rule, output the maps
 		// at chunkname_props_map.out, etc.
 		if r.config.chunkOutputPathPrefix != "" {
-			basePath = r.config.chunkOutputPathPrefix
-		} else {
-			basePath = "jscompiler"
+			return r.config.chunkOutputPathPrefix
 		}
-	} else {
-		// Get the path of the output file.
-		file := jutil.NewFile(outputFile)
-
-		outputFileName := file.GetName()
-
-		// Strip the .js from the name.
-		if strings.HasSuffix(outputFileName, ".js") {
-			outputFileName = outputFileName[:len(outputFileName)-3]
-		}
-
-		if fileParent, hasParent := file.Parent(); !hasParent {
-			basePath = outputFileName
-		} else {
-			basePath = fileParent + string(rune(jutil.File_separatorChar)) + outputFileName
-		}
+		return "jscompiler"
 	}
 
-	return basePath
+	file := jutil.NewFile(outputFile)
+	outputFileName := strings.TrimSuffix(file.GetName(), ".js")
+	if fileParent, hasParent := file.Parent(); hasParent {
+		return fileParent + jutil.File_separator + outputFileName
+	}
+	return outputFileName
 }
 
-// OutputNameMaps outputs the variable and property name maps for the
+// outputNameMaps outputs the variable and property name maps for the
 // specified compiler if the proper FLAGS are set.
 //
 // Java: AbstractCommandLineRunner.outputNameMaps()
-func (r *AbstractCommandLineRunnerBase) OutputNameMaps() {
+func (r *abstractCommandLineRunnerBase) outputNameMaps() {
 	config := r.config
 
 	var propertyMapOutputPath string
 	var variableMapOutputPath string
 
-	// Check the create_name_map_files FLAG.
 	if config.createNameMapFiles {
-		basePath := r.GetMapPath(config.jsOutputFile)
-
+		basePath := r.getMapPath(config.jsOutputFile)
 		propertyMapOutputPath = basePath + "_props_map.out"
 		variableMapOutputPath = basePath + "_vars_map.out"
 	}
 
-	// Check the individual FLAGS.
 	if config.variableMapOutputFile != "" {
 		if variableMapOutputPath != "" {
 			panic(jscomp.NewFlagUsageException(
 				"The flags variable_map_output_file and " +
 					"create_name_map_files cannot both be used simultaneously."))
 		}
-
 		variableMapOutputPath = config.variableMapOutputFile
 	}
 
@@ -264,11 +232,9 @@ func (r *AbstractCommandLineRunnerBase) OutputNameMaps() {
 				"The flags property_map_output_file and " +
 					"create_name_map_files cannot both be used simultaneously."))
 		}
-
 		propertyMapOutputPath = config.propertyMapOutputFile
 	}
 
-	// Output the maps.
 	if variableMapOutputPath != "" && r.compiler.GetVariableMap() != nil {
 		r.compiler.GetVariableMap().Save(variableMapOutputPath)
 	}
@@ -278,64 +244,65 @@ func (r *AbstractCommandLineRunnerBase) OutputNameMaps() {
 	}
 }
 
-// OutputStringMap outputs the string map generated by the ReplaceStrings
+// outputStringMap outputs the string map generated by the ReplaceStrings
 // pass if an output path exists.
 //
 // Java: AbstractCommandLineRunner.outputStringMap()
-func (r *AbstractCommandLineRunnerBase) OutputStringMap() {
+func (r *abstractCommandLineRunnerBase) outputStringMap() {
 	config := r.config
-	if config.stringMapOutputPath != "" {
-		if r.compiler.GetStringMap() == nil {
-			// Ensure an empty file is created if there is no string map.
-			// This avoids confusing some build tools that expect to see the file, even if it is empty.
-			f, err := os.OpenFile(config.stringMapOutputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
-			if err == nil {
-				_ = f.Close()
-			} else if errors.Is(err, os.ErrExist) {
-				panic(jutil.NewIOException("Could not create file: " + config.stringMapOutputPath))
-			} else {
-				reason := jutil.FileNotFoundExceptionFromError(err, "").GetMessage()
-				panic(jutil.NewIOException(strings.TrimSuffix(strings.TrimPrefix(reason, " ("), ")")))
-			}
-		} else {
-			r.compiler.GetStringMap().Save(config.stringMapOutputPath)
-		}
+	if config.stringMapOutputPath == "" {
+		return
+	}
+	if r.compiler.GetStringMap() != nil {
+		r.compiler.GetStringMap().Save(config.stringMapOutputPath)
+		return
+	}
+	// Ensure an empty file is created if there is no string map.
+	// This avoids confusing some build tools that expect to see the file, even if it is empty.
+	f, err := os.OpenFile(config.stringMapOutputPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+	if err == nil {
+		_ = f.Close()
+	} else if errors.Is(err, os.ErrExist) {
+		panic(jutil.NewIOException("Could not create file: " + config.stringMapOutputPath))
+	} else {
+		reason := jutil.FileNotFoundExceptionFromError(err, "").GetMessage()
+		panic(jutil.NewIOException(strings.TrimSuffix(strings.TrimPrefix(reason, " ("), ")")))
 	}
 }
 
-// ShouldGenerateOutputPerChunk returns true if and only if a manifest or
+// shouldGenerateOutputPerChunk returns true if and only if a manifest or
 // bundle should be generated for each chunk, as opposed to one unified
 // manifest.
 //
 // Java: AbstractCommandLineRunner.shouldGenerateOutputPerChunk(String)
-func (r *AbstractCommandLineRunnerBase) ShouldGenerateOutputPerChunk(output string) bool {
+func (r *abstractCommandLineRunnerBase) shouldGenerateOutputPerChunk(output string) bool {
 	return len(r.config.chunk) != 0 && strings.Contains(output, "%outname%")
 }
 
 // Java: AbstractCommandLineRunner.outputManifest()
-func (r *AbstractCommandLineRunnerBase) OutputManifest() {
-	r.OutputManifestOrBundle(r.config.outputManifests, true)
+func (r *abstractCommandLineRunnerBase) outputManifest() {
+	r.outputManifestOrBundle(r.config.outputManifests, true)
 }
 
 // Java: AbstractCommandLineRunner.outputBundle()
-func (r *AbstractCommandLineRunnerBase) OutputBundle() {
-	r.OutputManifestOrBundle(r.config.outputBundles, false)
+func (r *abstractCommandLineRunnerBase) outputBundle() {
+	r.outputManifestOrBundle(r.config.outputBundles, false)
 }
 
 // Java: AbstractCommandLineRunner.outputInstrumentationMapping()
-func (r *AbstractCommandLineRunnerBase) OutputInstrumentationMapping() {
+func (r *abstractCommandLineRunnerBase) outputInstrumentationMapping() {
 	if r.config.instrumentationMappingFile != "" {
-		path := r.ExpandCommandLinePath(r.config.instrumentationMappingFile /* forChunk= */, nil)
+		path := r.expandCommandLinePath(r.config.instrumentationMappingFile, nil)
 		r.compiler.GetInstrumentationMapping().Save(path)
 	}
 }
 
-// OutputManifestOrBundle writes the manifest or bundle of all compiler
+// outputManifestOrBundle writes the manifest or bundle of all compiler
 // input files that were included as controlled by --dependency_mode, if
 // requested.
 //
 // Java: AbstractCommandLineRunner.outputManifestOrBundle(List<String>, boolean)
-func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []string, isManifest bool) {
+func (r *abstractCommandLineRunnerBase) outputManifestOrBundle(outputFiles []string, isManifest bool) {
 	if len(outputFiles) == 0 {
 		return
 	}
@@ -345,61 +312,61 @@ func (r *AbstractCommandLineRunnerBase) OutputManifestOrBundle(outputFiles []str
 			continue
 		}
 
-		if r.ShouldGenerateOutputPerChunk(output) {
+		if r.shouldGenerateOutputPerChunk(output) {
 			// Generate per-chunk manifests or bundles.
-			chunks := r.compiler.GetChunkGraph().GetAllChunks()
-			for _, chunk := range chunks {
+			for _, chunk := range r.compiler.GetChunkGraph().GetAllChunks() {
 				func() {
-					path := r.ExpandCommandLinePath(output, chunk)
-					out := r.FileNameToOutputWriter2(path)
-					defer abstractCommandLineRunner_closeWriter(out)
+					path := r.expandCommandLinePath(output, chunk)
+					out := r.fileNameToOutputWriter2(path)
+					defer closeBufferedWriter(out)
 					if isManifest {
-						r.self.PrintManifestTo(chunk, out)
+						r.printManifestTo(chunk, out)
 					} else {
-						r.self.PrintBundleTo(chunk, out)
+						r.printBundleTo(chunk, out)
 					}
 				}()
 			}
-		} else {
-			// Generate a single file manifest or bundle.
-			func() {
-				path := r.ExpandCommandLinePath(output, nil)
-				out := r.FileNameToOutputWriter2(path)
-				defer abstractCommandLineRunner_closeWriter(out)
-				if len(r.config.chunk) == 0 {
-					// For a single-chunk compilation, generate a single headerless manifest or bundle
-					// containing only the strong files.
-					chunk := r.compiler.GetChunkGraph().GetChunkByName(jscomp.JSChunk_STRONG_CHUNK_NAME)
-					if isManifest {
-						r.self.PrintManifestTo(chunk, out)
-					} else {
-						r.self.PrintBundleTo(chunk, out)
-					}
-				} else {
-					// For a multi-chunk compilation, generate a single manifest file with chunk headers.
-					r.self.PrintChunkGraphManifestOrBundleTo(r.compiler.GetChunkGraph(), out, isManifest)
-				}
-			}()
+			continue
 		}
+
+		// Generate a single file manifest or bundle.
+		func() {
+			path := r.expandCommandLinePath(output, nil)
+			out := r.fileNameToOutputWriter2(path)
+			defer closeBufferedWriter(out)
+			if len(r.config.chunk) == 0 {
+				// For a single-chunk compilation, generate a single headerless manifest or bundle
+				// containing only the strong files.
+				chunk := r.compiler.GetChunkGraph().GetChunkByName(jscomp.JSChunk_STRONG_CHUNK_NAME)
+				if isManifest {
+					r.printManifestTo(chunk, out)
+				} else {
+					r.printBundleTo(chunk, out)
+				}
+			} else {
+				// For a multi-chunk compilation, generate a single manifest file with chunk headers.
+				r.PrintChunkGraphManifestOrBundleTo(r.compiler.GetChunkGraph(), out, isManifest)
+			}
+		}()
 	}
 }
 
-// OutputChunkGraphJson creates a file containing the current chunk graph in
+// outputChunkGraphJson creates a file containing the current chunk graph in
 // JSON serialization.
 //
 // Java: AbstractCommandLineRunner.outputChunkGraphJson()
-func (r *AbstractCommandLineRunnerBase) OutputChunkGraphJson() {
+func (r *abstractCommandLineRunnerBase) outputChunkGraphJson() {
 	if r.config.outputChunkDependencies != "" {
-		out := r.FileNameToOutputWriter2(r.config.outputChunkDependencies)
-		defer abstractCommandLineRunner_closeWriter(out)
-		r.self.PrintChunkGraphJsonTo(out)
+		out := r.fileNameToOutputWriter2(r.config.outputChunkDependencies)
+		defer closeBufferedWriter(out)
+		r.PrintChunkGraphJsonTo(out)
 	}
 }
 
 // PrintChunkGraphJsonTo prints the current chunk graph as JSON.
 //
 // Java: AbstractCommandLineRunner.printChunkGraphJsonTo(Appendable)
-func (r *AbstractCommandLineRunnerBase) PrintChunkGraphJsonTo(out jutil.Appendable) {
+func (r *abstractCommandLineRunnerBase) PrintChunkGraphJsonTo(out jutil.Appendable) {
 	out.AppendCharSequence(r.compiler.GetChunkGraph().ToJson().String())
 }
 
@@ -407,7 +374,7 @@ func (r *AbstractCommandLineRunnerBase) PrintChunkGraphJsonTo(out jutil.Appendab
 // or bundle file.
 //
 // Java: AbstractCommandLineRunner.printChunkGraphManifestOrBundleTo(JSChunkGraph, Appendable, boolean)
-func (r *AbstractCommandLineRunnerBase) PrintChunkGraphManifestOrBundleTo(graph *jscomp.JSChunkGraph, out jutil.Appendable, isManifest bool) {
+func (r *abstractCommandLineRunnerBase) PrintChunkGraphManifestOrBundleTo(graph *jscomp.JSChunkGraph, out jutil.Appendable, isManifest bool) {
 	requiresNewline := false
 	for _, chunk := range graph.GetAllChunks() {
 		if !isManifest && chunk.IsWeak() {
@@ -428,19 +395,19 @@ func (r *AbstractCommandLineRunnerBase) PrintChunkGraphManifestOrBundleTo(graph 
 				deps = ":" + dependencies
 			}
 			out.AppendCharSequence("{" + chunk.GetName() + deps + "}\n")
-			r.self.PrintManifestTo(chunk, out)
+			r.printManifestTo(chunk, out)
 		} else {
-			r.self.PrintBundleTo(chunk, out)
+			r.printBundleTo(chunk, out)
 		}
 		requiresNewline = true
 	}
 }
 
-// PrintManifestTo prints a list of input names (using root-relative paths),
+// printManifestTo prints a list of input names (using root-relative paths),
 // delimited by newlines, to the manifest file.
 //
 // Java: AbstractCommandLineRunner.printManifestTo(JSChunk, Appendable)
-func (r *AbstractCommandLineRunnerBase) PrintManifestTo(chunk *jscomp.JSChunk, out jutil.Appendable) {
+func (r *abstractCommandLineRunnerBase) printManifestTo(chunk *jscomp.JSChunk, out jutil.Appendable) {
 	for _, input := range chunk.GetInputs() {
 		name := input.GetName()
 
@@ -458,18 +425,18 @@ func (r *AbstractCommandLineRunnerBase) PrintManifestTo(chunk *jscomp.JSChunk, o
 	}
 }
 
-// PrintBundleTo prints all the input contents, starting with a comment that
+// printBundleTo prints all the input contents, starting with a comment that
 // specifies the input file name (using root-relative paths) before each
 // file.
 //
 // Java: AbstractCommandLineRunner.printBundleTo(JSChunk, Appendable)
-func (r *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *jscomp.JSChunk, out jutil.Appendable) {
+func (r *abstractCommandLineRunnerBase) printBundleTo(chunk *jscomp.JSChunk, out jutil.Appendable) {
 	inputs := chunk.GetInputs()
 	options := r.compiler.GetOptions()
 	// Prebuild ASTs before they're needed in getLoadFlags, for performance and because
 	// StackOverflowErrors can be hit if not prebuilt.
 	if options.GetNumParallelThreads() > 1 {
-		jscomp.NewPrebuildAst(r.compiler, r.compiler.GetOptions().GetNumParallelThreads()).Prebuild(slices.Values(inputs))
+		jscomp.NewPrebuildAst(r.compiler, options.GetNumParallelThreads()).Prebuild(slices.Values(inputs))
 	}
 	if options.GetRuntimeLibraryMode() == jscomp.RuntimeJsLibManager_RuntimeLibraryMode_INJECT {
 		// ES6 modules will need a runtime in a bundle. Skip appending this runtime if there are no
@@ -494,7 +461,7 @@ func (r *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *jscomp.JSChunk, out
 			continue
 		}
 
-		displayName := input.GetName()
+		displayName := name
 		if rootRelativePath, ok := r.rootRelativePathsMap[name]; ok {
 			displayName = rootRelativePath
 		}
@@ -508,11 +475,8 @@ func (r *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *jscomp.JSChunk, out
 	}
 }
 
-// abstractCommandLineRunner_closeWriter is the close() of a
-// try-with-resources statement, which skips a null resource.
-//
-// Go-only: language-adapter — try-with-resources.
-func abstractCommandLineRunner_closeWriter(w *cliBufferedWriter) {
+// closeBufferedWriter closes w if non-nil.
+func closeBufferedWriter(w *cliBufferedWriter) {
 	if w != nil {
 		w.Close()
 	}

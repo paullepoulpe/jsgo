@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -391,12 +392,12 @@ func (c *Compiler) GetSourceMapping(
 	return &result
 }
 
-type compiler_lockedErrorManager struct {
+type lockedErrorManager struct {
 	ErrorManager
 	mu *sync.RWMutex
 }
 
-func (m compiler_lockedErrorManager) Report(level CheckLevel, err *JSError) {
+func (m lockedErrorManager) Report(level CheckLevel, err *JSError) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ErrorManager.Report(level, err)
@@ -441,7 +442,7 @@ func (c *Compiler) getSourceMappingValueCached(
 		consumer = sourceMap.parsedSourceMap
 	} else {
 		s := c.ensureSync()
-		consumer = sourceMap.GetSourceMap(compiler_lockedErrorManager{ErrorManager: c.errorManager, mu: &s.sourceMapMu})
+		consumer = sourceMap.GetSourceMap(lockedErrorManager{ErrorManager: c.errorManager, mu: &s.sourceMapMu})
 	}
 	if consumer == nil {
 		return sourcemap.Mapping_OriginalMapping{}, false, false
@@ -467,7 +468,7 @@ func (c *Compiler) getSourceMappingValueCached(
 		resultOriginalPath == resolvedCache.sourceMapPath {
 		relativePath = resolvedCache.relativePath
 	} else {
-		relativePath = compiler_resolveSibling(sourceMapOriginalPath, resultOriginalPath)
+		relativePath = resolveSourceMapSibling(sourceMapOriginalPath, resultOriginalPath)
 		source := c.GetSourceFileByName(relativePath)
 		if source == nil && resultOriginalPath != "" {
 			source = SourceMapResolver_GetRelativePath(
@@ -547,13 +548,13 @@ func (c *Compiler) GetNodeForCodeInsertion(chunk *JSChunk) rhino.Node {
 			panic(jutil.NewIllegalStateExceptionMsg("No inputs"))
 		}
 		firstInput := allInputs[0]
-		return compiler_checkNotModule(firstInput.GetAstRoot(c), "Cannot insert code into a module")
+		return checkScriptNotModule(firstInput.GetAstRoot(c), "Cannot insert code into a module", rhino.NilNode)
 	}
 
 	chunkInputs := chunk.GetInputs()
 	if len(chunkInputs) != 0 {
-		return compiler_checkNotModule(
-			chunkInputs[0].GetAstRoot(c), "Cannot insert code into a module")
+		return checkScriptNotModule(
+			chunkInputs[0].GetAstRoot(c), "Cannot insert code into a module", rhino.NilNode)
 	}
 	panic(jutil.NewIllegalStateExceptionMsg("Root chunk has no inputs"))
 }
@@ -820,8 +821,8 @@ func (c *Compiler) removeSyntheticCodeInputMerging(mergeContentIntoFirstInput bo
 		// If we've inserted anything into the synthetic AST, move it into the top of the next script.
 		next := astRoot.GetNext()
 		rhino.CheckNotNullMsg(next, "Must provide at least one source")
-		compiler_checkNotModule(
-			next, "Cannot remove synthetic code input until modules are rewritten: %s", next)
+		checkScriptNotModule(
+			next, "Cannot remove synthetic code input until modules are rewritten: ", next)
 		next.AddChildrenToFront(astRoot.RemoveChildren())
 		c.ReportChangeToChangeScope(next)
 	}
@@ -876,13 +877,12 @@ func (c *Compiler) loadResourceContents(resourceName string, path string) rhino.
 					" optimizations"))
 		}
 
-		sd := jutil.CheckNotNullMsg1(
-			c.runtimeLibraryTypedAsts[path],
-			strings.Join([]string{
-				"Missing precompiled .typedast for '%s'. If this file is newly added, ",
-				"you may need to regenerate runtime_libs.typedast.textproto",
-				""}, ""),
-			path)
+		sd := c.runtimeLibraryTypedAsts[path]
+		if sd == nil {
+			panic(jutil.NewNullPointerExceptionMsg(
+				"Missing precompiled .typedast for '" + path + "'. If this file is newly added, " +
+					"you may need to regenerate runtime_libs.typedast.textproto"))
+		}
 		return sd.DeserializeNew()
 	}
 	jutil.CheckStateMsg(
@@ -1012,7 +1012,7 @@ func (c *Compiler) SetModuleMap(moduleMap *ModuleMap) {
 	c.moduleMap = moduleMap
 }
 
-// compiler_resolveSibling is a simplistic implementation of the
+// resolveSourceMapSibling is a simplistic implementation of the
 // java.nio.file.Path resolveSibling method that always uses "/" regardless
 // of platform. This is required for consistency of path handling when
 // using input source maps, which are expected to always use "/".
@@ -1028,7 +1028,7 @@ func (c *Compiler) SetModuleMap(moduleMap *ModuleMap) {
 // directory as `fromPath`.
 //
 // Java: Compiler.resolveSibling(String, String)
-func compiler_resolveSibling(fromPath string, toPath string) string {
+func resolveSourceMapSibling(fromPath string, toPath string) string {
 	// If the destination is an absolute path, nothing to do.
 	if strings.HasPrefix(toPath, "/") {
 		return toPath
@@ -1089,12 +1089,17 @@ func (c *Compiler) ResetAndInitializeSourceMap() {
 }
 
 // Java: Compiler.checkNotModule(Node, String, Object...)
-func compiler_checkNotModule(script rhino.Node, msg string, args ...any) rhino.Node {
-	jutil.CheckArgumentMsg1(script.IsScript(), "%s", script)
-	if !script.HasOneChild() {
-		return script
+func checkScriptNotModule(script rhino.Node, msg string, detail rhino.Node) rhino.Node {
+	s, ok := ast.AsScript(script)
+	if !ok {
+		panic(jutil.NewIllegalArgumentExceptionMsg(script.String()))
 	}
-	jutil.CheckStateMsg(!script.GetFirstChild().IsModuleBody(), msg, args...)
+	if only, hasOnly := s.OnlyItem(); hasOnly && only.Token() == rhino.Token_MODULE_BODY {
+		if !detail.IsNil() {
+			msg += detail.String()
+		}
+		panic(jutil.NewIllegalStateExceptionMsg(msg))
+	}
 	return script
 }
 

@@ -269,7 +269,9 @@ func (c *CheckConformance) newCategory(rule CheckConformance_Rule, precondition 
 func (c *CheckConformance) addBannedPropertyTokens() {
 	c.activeTokens.Add(rhino.Token_STRING_KEY)
 	c.activeTokens.Add(rhino.Token_GETPROP)
+	c.activeTokens.Add(rhino.Token_OPTCHAIN_GETPROP)
 	c.activeTokens.Add(rhino.Token_GETELEM)
+	c.activeTokens.Add(rhino.Token_OPTCHAIN_GETELEM)
 	c.activeTokens.Add(rhino.Token_COMPUTED_PROP)
 }
 

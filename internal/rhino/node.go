@@ -315,8 +315,11 @@ func node_cast[T any](value any) T {
 //
 // Java: Node.NumberNode(double)
 func newNode_NumberNode(number float64) Node {
-	n := NewNode(Token_NUMBER)
-	n.rec().kindFlags = uint8(node_kindNumber)
+	n := allocNode()
+	nr := n.rec()
+	nr.token = Token_NUMBER
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindNumber)
 	n.SetDouble(number)
 	return n
 }
@@ -325,8 +328,11 @@ func newNode_NumberNode(number float64) Node {
 //
 // Java: Node.BigIntNode(BigInteger)
 func newNode_BigIntNode(bigint *big.Int) Node {
-	n := NewNode(Token_BIGINT)
-	n.rec().kindFlags = uint8(node_kindBigInt)
+	n := allocNode()
+	nr := n.rec()
+	nr.token = Token_BIGINT
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindBigInt)
 	n.SetBigInt(bigint)
 	return n
 }
@@ -335,23 +341,32 @@ func newNode_BigIntNode(bigint *big.Int) Node {
 //
 // Java: Node.StringNode(Token)
 func newNode_StringNodeForClone(token Token) Node {
-	n := NewNode(token)
-	n.rec().kindFlags = uint8(node_kindString)
+	n := allocNode()
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindString)
 	return n
 }
 
 // Java: Node.StringNode(Token, String)
 func newNode_StringNode(token Token, str string) Node {
-	n := NewNode(token)
-	n.rec().kindFlags = uint8(node_kindString)
-	n.SetString(str)
+	n := allocNode()
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindString)
+	nr.payload = uint32(strpool.Intern(str))
 	return n
 }
 
 // Java: Node.TemplateLiteralSubstringNode(String, String)
 func newNode_TemplateLiteralSubstringNode(cooked base.OptString, raw string) Node {
-	n := NewNode(Token_TEMPLATELIT_STRING)
-	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	n := allocNode()
+	nr := n.rec()
+	nr.token = Token_TEMPLATELIT_STRING
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindTemplateLiteralSubstring)
 	n.initTemplateLitPayload(rhinoStringIDFromOpt(cooked), strpool.Intern(raw))
 	return n
 }
@@ -359,8 +374,9 @@ func newNode_TemplateLiteralSubstringNode(cooked base.OptString, raw string) Nod
 // Java: Node(Token)
 func NewNode(token Token) Node {
 	n := allocNode()
-	n.rec().token = token
-	n.rec().linenoCharno = -1
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
 	return n
 }
 
@@ -372,127 +388,192 @@ func AllocNode() Node {
 
 // Init initializes a zero Node with token and default source position.
 func (n Node) Init(token Token) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
 	return n
 }
 
 // InitFromTemplate initializes a zero Node from a slab with token and template properties.
+// Template nodes carry only inline properties (SOURCE_FILE and hot boolean flags).
 func (n Node) InitFromTemplate(token Token, template Node) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
-	n.setPropsAndSourceFile(template)
-	if template.hasAux() {
-		n.copyTemplateColdProps(template)
-	}
+	nr, tr := n.rec(), template.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
 	return n
 }
 
 // InitWithChildFromTemplate initializes a zero Node from a slab with 1 child and template properties.
 func (n Node) InitWithChildFromTemplate(token Token, child Node, template Node) Node {
-	if child.rec().parent != 0 || child.rec().next != 0 || child.rec().previous != 0 || template.hasAux() {
+	nr, tr, cr := n.rec(), template.rec(), child.rec()
+	if (cr.parent|cr.next|cr.previous) != 0 ||
+		tr.propFlags&propWordJSDoc != 0 ||
+		tr.kindFlags >= kindFlagHasExtBox ||
+		(uint32(n)^uint32(child))&staticBit != 0 {
 		return n.initWithChildFromTemplateSlow(token, child, template)
 	}
-	n.rec().token = token
-	n.rec().linenoCharno = -1
-	n.setPropsAndSourceFile(template)
-	n.rec().first = n.ref(child)
-	child.rec().previous = child.ref(child)
-	child.rec().parent = child.ref(n)
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
+	nr.first = uint32(child)
+	cr.previous = uint32(child)
+	cr.parent = uint32(n)
 	return n
 }
 
 //go:noinline
 func (n Node) initWithChildFromTemplateSlow(token Token, child Node, template Node) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
 	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec().first = n.ref(child)
+	nr.first = n.ref(child)
 	child.CheckDetached()
-	child.rec().previous = child.ref(child)
-	child.rec().parent = child.ref(n)
+	cr := child.rec()
+	cr.previous = child.ref(child)
+	cr.parent = child.ref(n)
 	return n
 }
 
 // InitWith2ChildrenFromTemplate initializes a zero Node from a slab with 2 children and template properties.
 func (n Node) InitWith2ChildrenFromTemplate(token Token, left Node, right Node, template Node) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
+	nr, tr, lr := n.rec(), template.rec(), left.rec()
+	if (lr.parent|lr.next|lr.previous) != 0 || right == 0 || left == right ||
+		tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		return n.initWith2ChildrenFromTemplateSlow(token, left, right, template)
+	}
+	rr := right.rec()
+	if (rr.parent|rr.next|rr.previous) != 0 ||
+		((uint32(n)^uint32(left))|(uint32(n)^uint32(right)))&staticBit != 0 {
+		return n.initWith2ChildrenFromTemplateSlow(token, left, right, template)
+	}
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
+	nr.first = uint32(left)
+	lr.next = uint32(right)
+	lr.previous = uint32(right)
+	lr.parent = uint32(n)
+	rr.previous = uint32(left)
+	rr.parent = uint32(n)
+	return n
+}
+
+//go:noinline
+func (n Node) initWith2ChildrenFromTemplateSlow(token Token, left Node, right Node, template Node) Node {
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
 	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec().first = n.ref(left)
+	nr.first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec().next = left.ref(right)
-	left.rec().previous = left.ref(right)
-	left.rec().parent = left.ref(n)
+	lr := left.rec()
+	lr.next = left.ref(right)
+	lr.previous = left.ref(right)
+	lr.parent = left.ref(n)
 
 	right.CheckDetached()
-	right.rec().previous = right.ref(left)
-	right.rec().parent = right.ref(n)
+	rr := right.rec()
+	rr.previous = right.ref(left)
+	rr.parent = right.ref(n)
 	return n
 }
 
 // InitWith3ChildrenFromTemplate initializes a zero Node from a slab with 3 children and template properties.
 func (n Node) InitWith3ChildrenFromTemplate(token Token, left Node, mid Node, right Node, template Node) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
-	n.setPropsAndSourceFile(template)
-	if template.hasAux() {
-		n.copyTemplateColdProps(template)
+	nr, tr, lr := n.rec(), template.rec(), left.rec()
+	if (lr.parent|lr.next|lr.previous) != 0 || mid == 0 || right == 0 ||
+		left == mid || left == right || mid == right ||
+		tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		return n.initWith3ChildrenFromTemplateSlow(token, left, mid, right, template)
 	}
-	n.rec().first = n.ref(left)
-
-	left.CheckDetached()
-	left.rec().next = left.ref(mid)
-	left.rec().previous = left.ref(right)
-	left.rec().parent = left.ref(n)
-
-	mid.CheckDetached()
-	mid.rec().next = mid.ref(right)
-	mid.rec().previous = mid.ref(left)
-	mid.rec().parent = mid.ref(n)
-
-	right.CheckDetached()
-	right.rec().previous = right.ref(mid)
-	right.rec().parent = right.ref(n)
+	mr, rr := mid.rec(), right.rec()
+	if (mr.parent|mr.next|mr.previous|rr.parent|rr.next|rr.previous) != 0 ||
+		((uint32(n)^uint32(left))|(uint32(n)^uint32(mid))|(uint32(n)^uint32(right)))&staticBit != 0 {
+		return n.initWith3ChildrenFromTemplateSlow(token, left, mid, right, template)
+	}
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
+	nr.first = uint32(left)
+	lr.next = uint32(mid)
+	lr.previous = uint32(right)
+	lr.parent = uint32(n)
+	mr.next = uint32(right)
+	mr.previous = uint32(left)
+	mr.parent = uint32(n)
+	rr.previous = uint32(mid)
+	rr.parent = uint32(n)
 	return n
 }
 
 //go:noinline
-func (n Node) initStringPayloadAndCold(str string, template Node) {
+func (n Node) initWith3ChildrenFromTemplateSlow(token Token, left Node, mid Node, right Node, template Node) Node {
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	n.setPropsAndSourceFile(template)
 	if template.hasAux() {
 		n.copyTemplateColdProps(template)
 	}
-	n.rec().payload = uint32(strpool.Intern(str))
+	nr.first = n.ref(left)
+
+	left.CheckDetached()
+	lr := left.rec()
+	lr.next = left.ref(mid)
+	lr.previous = left.ref(right)
+	lr.parent = left.ref(n)
+
+	mid.CheckDetached()
+	mr := mid.rec()
+	mr.next = mid.ref(right)
+	mr.previous = mid.ref(left)
+	mr.parent = mid.ref(n)
+
+	right.CheckDetached()
+	rr := right.rec()
+	rr.previous = right.ref(mid)
+	rr.parent = right.ref(n)
+	return n
 }
 
 // InitStringFromTemplate initializes a zero Node from a slab as a StringNode with template properties.
 func (n Node) InitStringFromTemplate(token Token, str string, template Node) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
-	n.rec().kindFlags = uint8(node_kindString)
-	n.setPropsAndSourceFile(template)
-	n.initStringPayloadAndCold(str, template)
+	nr, tr := n.rec(), template.rec()
+	if tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		panic("rhino.Node: template node has cold properties")
+	}
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindString)
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
+	nr.payload = uint32(strpool.Intern(str))
 	return n
 }
 
 // InitStringIDFromTemplate is InitStringFromTemplate for a string already
-// interned (its pool id).
+// interned (its pool id). Template nodes carry only inline properties.
 func (n Node) InitStringIDFromTemplate(token Token, id rhinoStringID, template Node) Node {
-	n.rec().token = token
-	n.rec().linenoCharno = -1
-	n.rec().kindFlags = uint8(node_kindString)
-	n.setPropsAndSourceFile(template)
-	if template.hasAux() {
-		n.copyTemplateColdProps(template)
-	}
-	n.rec().payload = uint32(id)
+	nr, tr := n.rec(), template.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindString)
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
+	nr.payload = uint32(id)
 	return n
 }
 
@@ -500,15 +581,17 @@ func (n Node) InitStringIDFromTemplate(token Token, id rhinoStringID, template N
 //
 // Java: Node.newString(Token, RhinoStringPool.LazyInternedStringList, int), Node.StringNode(Token, RhinoStringPool.LazyInternedStringList, int)
 func (n Node) SetStringID(id rhinoStringID) Node {
-	n.rec().kindFlags |= uint8(node_kindString)
-	n.rec().payload = uint32(id)
+	nr := n.rec()
+	nr.kindFlags |= uint8(node_kindString)
+	nr.payload = uint32(id)
 	return n
 }
 
 // SetNumberRaw sets the float64 payload on a freshly initialized Node.
 func (n Node) SetNumberRaw(number float64) Node {
-	n.rec().kindFlags |= uint8(node_kindNumber)
-	n.rec().payload = numberPayload(number)
+	nr := n.rec()
+	nr.kindFlags |= uint8(node_kindNumber)
+	nr.payload = numberPayload(number)
 	return n
 }
 
@@ -521,13 +604,15 @@ func (n Node) InitTemplateLitStringFromStringPool(
 	rawOffset int,
 	template Node,
 ) Node {
-	n.rec().token = Token_TEMPLATELIT_STRING
-	n.rec().linenoCharno = -1
-	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.setPropsAndSourceFile(template)
-	if template.hasAux() {
-		n.copyTemplateColdProps(template)
+	nr, tr := n.rec(), template.rec()
+	if tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		panic("rhino.Node: template node has cold properties")
 	}
+	nr.token = Token_TEMPLATELIT_STRING
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
 	var cookedID rhinoStringID
 	if cookedOffsetOrNegativeOne != -1 {
 		cookedID = stringPool.GetID(cookedOffsetOrNegativeOne)
@@ -539,78 +624,155 @@ func (n Node) InitTemplateLitStringFromStringPool(
 
 // InitBigIntFromTemplate initializes a zero Node from a slab as a BigIntNode with template properties.
 func (n Node) InitBigIntFromTemplate(bigint *big.Int, template Node) Node {
-	n.rec().token = Token_BIGINT
-	n.rec().linenoCharno = -1
-	n.rec().kindFlags = uint8(node_kindBigInt)
-	n.setPropsAndSourceFile(template)
-	if template.hasAux() {
-		n.copyTemplateColdProps(template)
+	nr, tr := n.rec(), template.rec()
+	if tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		panic("rhino.Node: template node has cold properties")
 	}
+	nr.token = Token_BIGINT
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindBigInt)
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
 	n.SetBigInt(bigint)
 	return n
 }
 
 // InitTemplateLitStringFromTemplate initializes a zero Node from a slab as a TemplateLiteralSubstringNode with template properties.
 func (n Node) InitTemplateLitStringFromTemplate(cooked base.OptString, raw string, template Node) Node {
-	n.rec().token = Token_TEMPLATELIT_STRING
-	n.rec().linenoCharno = -1
-	n.rec().kindFlags = uint8(node_kindTemplateLiteralSubstring)
-	n.setPropsAndSourceFile(template)
-	if template.hasAux() {
-		n.copyTemplateColdProps(template)
+	nr, tr := n.rec(), template.rec()
+	if tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		panic("rhino.Node: template node has cold properties")
 	}
+	nr.token = Token_TEMPLATELIT_STRING
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindTemplateLiteralSubstring)
+	nr.sourceFile = tr.sourceFile
+	nr.propFlags = tr.propFlags
 	n.initTemplateLitPayload(rhinoStringIDFromOpt(cooked), strpool.Intern(raw))
 	return n
 }
 
 // Java: Node(Token, Node)
 func NewNodeWithChild(token Token, child Node) Node {
-	n := NewNode(token)
-	n.rec().first = n.ref(child)
+	n := allocNode()
+	nr, cr := n.rec(), child.rec()
+	if (cr.parent|cr.next|cr.previous) != 0 || (uint32(n)^uint32(child))&staticBit != 0 {
+		return n.initNewNodeWithChildSlow(token, child)
+	}
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.first = uint32(child)
+	cr.previous = uint32(child)
+	cr.parent = uint32(n)
+	return n
+}
 
+//go:noinline
+func (n Node) initNewNodeWithChildSlow(token Token, child Node) Node {
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.first = n.ref(child)
 	child.CheckDetached()
-	// child.next remains null;
-	child.rec().previous = child.ref(child)
-	child.rec().parent = child.ref(n)
+	cr := child.rec()
+	cr.previous = child.ref(child)
+	cr.parent = child.ref(n)
 	return n
 }
 
 // Java: Node(Token, Node, Node)
 func NewNodeWith2Children(token Token, left Node, right Node) Node {
-	n := NewNode(token)
-	n.rec().first = n.ref(left)
+	n := allocNode()
+	nr, lr := n.rec(), left.rec()
+	if (lr.parent|lr.next|lr.previous) != 0 || right == 0 || left == right {
+		return n.initNewNodeWith2ChildrenSlow(token, left, right)
+	}
+	rr := right.rec()
+	if (rr.parent|rr.next|rr.previous) != 0 ||
+		((uint32(n)^uint32(left))|(uint32(n)^uint32(right)))&staticBit != 0 {
+		return n.initNewNodeWith2ChildrenSlow(token, left, right)
+	}
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.first = uint32(left)
+	lr.next = uint32(right)
+	lr.previous = uint32(right)
+	lr.parent = uint32(n)
+	rr.previous = uint32(left)
+	rr.parent = uint32(n)
+	return n
+}
+
+//go:noinline
+func (n Node) initNewNodeWith2ChildrenSlow(token Token, left Node, right Node) Node {
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec().next = left.ref(right)
-	left.rec().previous = left.ref(right)
-	left.rec().parent = left.ref(n)
+	lr := left.rec()
+	lr.next = left.ref(right)
+	lr.previous = left.ref(right)
+	lr.parent = left.ref(n)
 
 	right.CheckDetached()
-	// right.next remains null;
-	right.rec().previous = right.ref(left)
-	right.rec().parent = right.ref(n)
+	rr := right.rec()
+	rr.previous = right.ref(left)
+	rr.parent = right.ref(n)
 	return n
 }
 
 // Java: Node(Token, Node, Node, Node)
 func NewNodeWith3Children(token Token, left Node, mid Node, right Node) Node {
-	n := NewNode(token)
-	n.rec().first = n.ref(left)
+	n := allocNode()
+	nr, lr := n.rec(), left.rec()
+	if (lr.parent|lr.next|lr.previous) != 0 || mid == 0 || right == 0 ||
+		left == mid || left == right || mid == right {
+		return n.initNewNodeWith3ChildrenSlow(token, left, mid, right)
+	}
+	mr, rr := mid.rec(), right.rec()
+	if (mr.parent|mr.next|mr.previous|rr.parent|rr.next|rr.previous) != 0 ||
+		((uint32(n)^uint32(left))|(uint32(n)^uint32(mid))|(uint32(n)^uint32(right)))&staticBit != 0 {
+		return n.initNewNodeWith3ChildrenSlow(token, left, mid, right)
+	}
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.first = uint32(left)
+	lr.next = uint32(mid)
+	lr.previous = uint32(right)
+	lr.parent = uint32(n)
+	mr.next = uint32(right)
+	mr.previous = uint32(left)
+	mr.parent = uint32(n)
+	rr.previous = uint32(mid)
+	rr.parent = uint32(n)
+	return n
+}
+
+//go:noinline
+func (n Node) initNewNodeWith3ChildrenSlow(token Token, left Node, mid Node, right Node) Node {
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.first = n.ref(left)
 
 	left.CheckDetached()
-	left.rec().next = left.ref(mid)
-	left.rec().previous = left.ref(right)
-	left.rec().parent = left.ref(n)
+	lr := left.rec()
+	lr.next = left.ref(mid)
+	lr.previous = left.ref(right)
+	lr.parent = left.ref(n)
 
 	mid.CheckDetached()
-	mid.rec().next = mid.ref(right)
-	mid.rec().previous = mid.ref(left)
-	mid.rec().parent = mid.ref(n)
+	mr := mid.rec()
+	mr.next = mid.ref(right)
+	mr.previous = mid.ref(left)
+	mr.parent = mid.ref(n)
 
 	right.CheckDetached()
-	// right.next remains null;
-	right.rec().previous = right.ref(mid)
-	right.rec().parent = right.ref(n)
+	rr := right.rec()
+	rr.previous = right.ref(mid)
+	rr.parent = right.ref(n)
 	return n
 }
 
@@ -646,23 +808,26 @@ func (n Node) GetToken() Token {
 
 // Java: Node.setToken(Token)
 func (n Node) SetToken(token Token) {
-	n.rec().token = token
-	n.rec().kindFlags &^= kindFlagNoBlockDecl
-	if n.rec().parent != 0 {
-		n.parentNode().rec().kindFlags &^= kindFlagNoBlockDecl
+	nr := n.rec()
+	nr.token = token
+	nr.kindFlags &^= kindFlagNoBlockDecl
+	if nr.parent != 0 {
+		Node(nr.parent).rec().kindFlags &^= kindFlagNoBlockDecl
 	}
 }
 
 // Java: Node.setClosureUnawareShadow(Node)
 func (n Node) SetClosureUnawareShadow(shadowRoot Node) {
-	jutil.CheckStateMsg(n.rec().first == 0, "Cannot set shadow root on a node with children")
-	jutil.CheckStateMsg(n.rec().token == Token_NAME, "Only NAME nodes can be used as shadows")
+	nr := n.rec()
+	jutil.CheckStateMsg(nr.first == 0, "Cannot set shadow root on a node with children")
+	jutil.CheckStateMsg(nr.token == Token_NAME, "Only NAME nodes can be used as shadows")
 	n.PutProp(Node_Prop_CLOSURE_UNAWARE_SHADOW, shadowRoot)
 }
 
 // Java: Node.getClosureUnawareShadow()
 func (n Node) GetClosureUnawareShadow() Node {
-	if n.rec().token != Token_NAME || (n.rec().kindFlags&kindFlagHasExtBox) == 0 {
+	nr := n.rec()
+	if nr.token != Token_NAME || (nr.kindFlags&kindFlagHasExtBox) == 0 {
 		// As checked in setClosureUnawareShadow, only NAME nodes can have shadow
 		// content. We short-circuit the getProp call here because that can be
 		// very expensive for nodes that have long proplists (and we know it
@@ -674,10 +839,11 @@ func (n Node) GetClosureUnawareShadow() Node {
 
 // Java: Node.setIsInClosureUnawareSubtree(boolean)
 func (n Node) SetIsInClosureUnawareSubtree(value bool) {
+	nr := n.rec()
 	hasOnlySourceFile := n.props() == 0 &&
 		n.typeBeforeCastBase() == nil &&
-		(n.nodeKind() != node_kindNode || uint32(n.rec().payload) == 0) &&
-		n.rec().sourceFile != 0 && n.coldPropListHead() == nil
+		(node_kind(nr.kindFlags&kindMask) != node_kindNode || nr.payload == 0) &&
+		nr.sourceFile != 0 && n.coldPropListHead() == nil
 	if !hasOnlySourceFile {
 		panic(jutil.NewIllegalArgumentExceptionMsg(
 			jutil.StringFormat(
@@ -690,7 +856,7 @@ func (n Node) SetIsInClosureUnawareSubtree(value bool) {
 
 // Java: Node.getIsInClosureUnawareSubtree()
 func (n Node) GetIsInClosureUnawareSubtree() bool {
-	return (n.props() & propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
+	return n.rec().propFlags&propWord(propFlag_IS_IN_CLOSURE_UNAWARE_SUBTREE) != 0
 }
 
 // nodeData is the record of an AST node (fields as declared in Java, plus

@@ -6,7 +6,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
-type saxAttrDecl struct {
+type attrDecl struct {
 	name       string
 	nonCDATA   bool
 	hasDefault bool
@@ -16,7 +16,7 @@ type saxAttrDecl struct {
 // attlistDecl scans an attribute-list declaration (XML 1.0 §3.3, production [52]),
 // recording the first declaration of each (element, attribute) pair for default
 // value injection and non-CDATA whitespace normalization.
-func (s *saxScanner) attlistDecl() {
+func (s *scanner) attlistDecl() {
 	if !s.skipSpaces() {
 		s.fatalOrEOF("White space is required after \"<!ATTLIST\" in the attribute-list declaration.")
 		return
@@ -58,7 +58,7 @@ func (s *saxScanner) attlistDecl() {
 		if s.err != nil {
 			return
 		}
-		s.recordAttrDecl(elem, saxAttrDecl{
+		s.recordAttrDecl(elem, attrDecl{
 			name:       attr,
 			nonCDATA:   nonCDATA,
 			hasDefault: hasDefault,
@@ -67,7 +67,7 @@ func (s *saxScanner) attlistDecl() {
 	}
 }
 
-func (s *saxScanner) scanAttType(elem, attr string) (nonCDATA bool) {
+func (s *scanner) scanAttType(elem, attr string) (nonCDATA bool) {
 	if s.skipChar('(') {
 		for {
 			s.skipSpaces()
@@ -127,7 +127,7 @@ func (s *saxScanner) scanAttType(elem, attr string) (nonCDATA bool) {
 	}
 }
 
-func (s *saxScanner) scanDefaultDecl(elem, attr string, nonCDATA bool) (bool, string) {
+func (s *scanner) scanDefaultDecl(elem, attr string, nonCDATA bool) (bool, string) {
 	switch {
 	case s.skipASCII("#REQUIRED"), s.skipASCII("#IMPLIED"):
 		return false, ""
@@ -148,28 +148,28 @@ func (s *saxScanner) scanDefaultDecl(elem, attr string, nonCDATA bool) (bool, st
 		return false, ""
 	}
 	if nonCDATA {
-		val = saxNormalizeNonCDATA(val)
+		val = normalizeNonCDATA(val)
 	}
 	return true, val
 }
 
-func (s *saxScanner) scanNmtoken() bool {
+func (s *scanner) scanNmtoken() bool {
 	in := s.in
 	if (in.pos == in.count && in.load(in.pos) == 0) || s.err != nil {
 		return false
 	}
-	if !saxIsNameChar(int(in.buf[in.pos])) {
+	if !isNameChar(int(in.buf[in.pos])) {
 		return false
 	}
 	n := 0
 	for {
 		start := in.pos
-		for in.pos < in.count && saxIsNameChar(int(in.buf[in.pos])) {
+		for in.pos < in.count && isNameChar(int(in.buf[in.pos])) {
 			in.advance(1)
 		}
 		n += in.pos - start
-		if n > saxMaxNameLength {
-			s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + saxGrouped(n) +
+		if n > maxNameLength {
+			s.fatal("JAXP00010005: The length of entity \"[xml]\" is \"" + formatGroupedInt(n) +
 				"\" that exceeds the \"1,000\" limit set by \"jaxp.properties\".")
 			return false
 		}
@@ -180,9 +180,9 @@ func (s *saxScanner) scanNmtoken() bool {
 	return s.err == nil
 }
 
-func (s *saxScanner) recordAttrDecl(elem string, decl saxAttrDecl) {
+func (s *scanner) recordAttrDecl(elem string, decl attrDecl) {
 	if s.attlists == nil {
-		s.attlists = make(map[string][]saxAttrDecl)
+		s.attlists = make(map[string][]attrDecl)
 	}
 	for _, existing := range s.attlists[elem] {
 		if existing.name == decl.name {
@@ -192,7 +192,7 @@ func (s *saxScanner) recordAttrDecl(elem string, decl saxAttrDecl) {
 	s.attlists[elem] = append(s.attlists[elem], decl)
 }
 
-func (s *saxScanner) isNonCDATAAttr(elem, attr string) bool {
+func (s *scanner) isNonCDATAAttr(elem, attr string) bool {
 	for _, d := range s.attlists[elem] {
 		if d.name == attr {
 			return d.nonCDATA
@@ -201,10 +201,10 @@ func (s *saxScanner) isNonCDATAAttr(elem, attr string) bool {
 	return false
 }
 
-// saxNormalizeNonCDATA applies the additional XML 1.0 §3.3.3 normalization step
+// normalizeNonCDATA applies the additional XML 1.0 §3.3.3 normalization step
 // for attributes whose declared type is not CDATA: discard leading and trailing
 // space (#x20) characters, and replace sequences of spaces with a single space.
-func saxNormalizeNonCDATA(v string) string {
+func normalizeNonCDATA(v string) string {
 	start := 0
 	for start < len(v) && v[start] == ' ' {
 		start++
@@ -245,7 +245,7 @@ func saxNormalizeNonCDATA(v string) string {
 // the normalization of XML 1.0 §3.3.3 for CDATA attributes: each white
 // space char (a line end counting as one) becomes a space, references are
 // replaced. It is scanned in the same steps as character data.
-func (s *saxScanner) attributeValue(quote int, elem, attr string) string {
+func (s *scanner) attributeValue(quote int, elem, attr string) string {
 	in := s.in
 	s.val = s.val[:0]
 	for s.err == nil {
@@ -288,7 +288,7 @@ func (s *saxScanner) attributeValue(quote int, elem, attr string) string {
 				bracket = true
 				break
 			}
-			if !saxIsTextChar(uint16(c)) {
+			if !isTextChar(uint16(c)) {
 				break
 			}
 			s.val = append(s.val, uint16(c))
@@ -305,14 +305,14 @@ func (s *saxScanner) attributeValue(quote int, elem, attr string) string {
 		case c == '&':
 			in.advance(1)
 			s.attributeReference(elem, attr)
-		case saxIsHighSurrogate(c) && saxIsLowSurrogate(s.peekSecond()):
+		case isHighSurrogate(c) && isLowSurrogate(s.peekSecond()):
 			s.val = append(s.val, uint16(c), in.buf[in.pos+1])
 			in.advance(2)
-		case saxIsHighSurrogate(c):
+		case isHighSurrogate(c):
 			s.loneHighSurrogate(c)
 			return ""
 		default:
-			s.fatal("An invalid XML character (Unicode: " + saxHex(c) + ") was found in the value of attribute \"" + attr + "\" and element is \"" + elem + "\".")
+			s.fatal("An invalid XML character (Unicode: " + formatHex(c) + ") was found in the value of attribute \"" + attr + "\" and element is \"" + elem + "\".")
 			return ""
 		}
 	}
@@ -320,7 +320,7 @@ func (s *saxScanner) attributeValue(quote int, elem, attr string) string {
 }
 
 // attributeReference scans a reference in an attribute value after '&'.
-func (s *saxScanner) attributeReference(elem, attr string) {
+func (s *scanner) attributeReference(elem, attr string) {
 	if s.peek() == '#' {
 		s.in.advance(1)
 		s.val = s.charRef(s.val)
@@ -336,7 +336,7 @@ func (s *saxScanner) attributeReference(elem, attr string) {
 		s.fatalOrEOF("The reference to entity \"" + name + "\" must end with the ';' delimiter.")
 		return
 	}
-	if c, ok := saxPredefined(name); ok {
+	if c, ok := predefinedEntity(name); ok {
 		s.val = append(s.val, c)
 		return
 	}
@@ -354,6 +354,6 @@ func (s *saxScanner) attributeReference(elem, attr string) {
 	case decl.external:
 		s.fatal("The external entity reference \"&" + name + ";\" is not permitted in an attribute value.")
 	default:
-		saxUnsupported("references to internal entities are")
+		panicUnsupported("references to internal entities are")
 	}
 }

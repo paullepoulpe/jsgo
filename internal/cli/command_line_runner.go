@@ -72,7 +72,7 @@ import (
 //
 // This class is totally not thread-safe.
 type CommandLineRunner struct {
-	AbstractCommandLineRunnerBase
+	abstractCommandLineRunnerBase
 
 	flags *commandLineRunner_Flags
 
@@ -87,20 +87,12 @@ type CommandLineRunner struct {
 	bundler *transpile.ClosureBundler // nil is null
 }
 
-var _ AbstractCommandLineRunner = (*CommandLineRunner)(nil)
-
-// Java: CommandLineRunner.OUTPUT_MARKER
-const CommandLineRunner_OUTPUT_MARKER = AbstractCommandLineRunner_OUTPUT_MARKER
-
-// UTF-8 BOM is 0xEF, 0xBB, 0xBF, of which character code is 65279.
-//
-// Java: CommandLineRunner.UTF8_BOM_CODE
-const CommandLineRunner_UTF8_BOM_CODE = 65279
+var _ runnerHooks = (*CommandLineRunner)(nil)
 
 // Allowable chunk name characters that aren't valid in a JS identifier
 //
 // Java: CommandLineRunner.extraChunkNameChars
-var commandLineRunner_extraChunkNameChars = jutil.Pattern_Compile("[-.]+")
+var extraChunkNameChars = jutil.Pattern_Compile("[-.]+")
 
 // CommandLineRunner_FormattingOption is the set of options that can be used
 // with the --formatting flag.
@@ -114,9 +106,9 @@ const (
 	CommandLineRunner_FormattingOption_SINGLE_QUOTES
 )
 
-var commandLineRunner_FormattingOption_names = [...]string{"PRETTY_PRINT", "PRINT_INPUT_DELIMITER", "SINGLE_QUOTES"}
+var formattingOptionNames = [...]string{"PRETTY_PRINT", "PRINT_INPUT_DELIMITER", "SINGLE_QUOTES"}
 
-var commandLineRunner_FormattingOption_all = [...]CommandLineRunner_FormattingOption{
+var formattingOptionAll = [...]CommandLineRunner_FormattingOption{
 	CommandLineRunner_FormattingOption_PRETTY_PRINT,
 	CommandLineRunner_FormattingOption_PRINT_INPUT_DELIMITER,
 	CommandLineRunner_FormattingOption_SINGLE_QUOTES,
@@ -124,12 +116,12 @@ var commandLineRunner_FormattingOption_all = [...]CommandLineRunner_FormattingOp
 
 // CommandLineRunner_FormattingOption_values is FormattingOption.values().
 func CommandLineRunner_FormattingOption_values() []CommandLineRunner_FormattingOption {
-	return slices.Clone(commandLineRunner_FormattingOption_all[:])
+	return slices.Clone(formattingOptionAll[:])
 }
 
 // String is Enum.name().
 func (o CommandLineRunner_FormattingOption) String() string {
-	return commandLineRunner_FormattingOption_names[o]
+	return formattingOptionNames[o]
 }
 
 // Java: CommandLineRunner.FormattingOption.applyToOptions(CompilerOptions)
@@ -160,24 +152,21 @@ func NewCommandLineRunnerWithOutAndErr(args []string, out *jutil.PrintStream, er
 
 // Java: CommandLineRunner(String[], InputStream, PrintStream, PrintStream)
 func NewCommandLineRunnerWithStreams(args []string, in io.Reader, out *jutil.PrintStream, err *jutil.PrintStream) *CommandLineRunner {
-	r := &CommandLineRunner{}
-	r.InitAbstractCommandLineRunnerBase(r, in, out, err)
-	r.flags = newCommandLineRunner_Flags()
-	r.errors = false
-	r.runCompiler = false
-	r.InitConfigFromFlags(args, out, err)
+	r := &CommandLineRunner{
+		flags: newCommandLineRunner_Flags(),
+	}
+	r.initRunnerBase(r, in, out, err)
+	r.initConfigFromFlags(args, out, err)
 	return r
 }
 
 // Java: CommandLineRunner.processArgs(String[])
-func commandLineRunner_processArgs(args []string) []string {
-	// Args4j has a different format that the old command-line parser.
-	// So we use some voodoo to get the args into the format that args4j
-	// expects.
+func processCommandLineArgs(args []string) []string {
+	// Normalize --flag=value arguments into separate tokens for args4j.
 	processedArgs := make([]string, 0, len(args))
 
 	for _, arg := range args {
-		if name, value, ok := commandLineRunner_matchArgPattern(arg); ok {
+		if name, value, ok := matchFlagAssignmentArg(arg); ok {
 			processedArgs = append(processedArgs, name)
 
 			if len(value) >= 2 &&
@@ -214,16 +203,9 @@ func containsJavaLineTerminator(s string) bool {
 	return false
 }
 
-// commandLineRunner_matchArgPattern is
-// Pattern.compile("(--?[a-zA-Z_]+)=(.*)", Pattern.DOTALL).matcher(arg)
-// .matches(), returning groups 1 and 2: one or two '-', then one or more
-// ASCII letters or '_' (which cannot match '=', so backtracking never
-// finds another split), then '=', then anything (DOTALL: line terminators
-// included).
-//
-// Go-only: language-adapter — Pattern.DOTALL, which jutil.Pattern does not
-// support.
-func commandLineRunner_matchArgPattern(arg string) (name, value string, ok bool) {
+// matchFlagAssignmentArg matches Pattern.compile("(--?[a-zA-Z_]+)=(.*)",
+// Pattern.DOTALL), returning the flag name and value after '='.
+func matchFlagAssignmentArg(arg string) (name, value string, ok bool) {
 	i := 0
 	if i < len(arg) && arg[i] == '-' {
 		i++
@@ -244,17 +226,10 @@ func commandLineRunner_matchArgPattern(arg string) (name, value string, ok bool)
 }
 
 // Java: CommandLineRunner.reportError(String)
-func (r *CommandLineRunner) ReportError(message string) {
+func (r *CommandLineRunner) reportError(message string) {
 	r.errors = true
 	r.errorStream.Println(message)
 	r.errorStream.Flush()
-}
-
-// Java: CommandLineRunner.processFlagFiles()
-func (r *CommandLineRunner) ProcessFlagFiles() {
-	if cmdErr := r.tryProcessFlagFiles(); cmdErr != nil {
-		panic(cmdErr)
-	}
 }
 
 func (r *CommandLineRunner) tryProcessFlagFiles() error {
@@ -263,20 +238,13 @@ func (r *CommandLineRunner) tryProcessFlagFiles() error {
 			var cmdErr *args4j.CmdLineException
 			var ioErr jutil.IIOException
 			if !errors.As(err, &cmdErr) && errors.As(err, &ioErr) {
-				r.ReportError("ERROR - " + flagFile + " read error.")
+				r.reportError("ERROR - " + flagFile + " read error.")
 				continue
 			}
 			return err
 		}
 	}
 	return nil
-}
-
-// Java: CommandLineRunner.processFlagFile(String)
-func (r *CommandLineRunner) ProcessFlagFile(flagFileString string) {
-	if err := r.tryProcessFlagFile(flagFileString); err != nil {
-		panic(err)
-	}
 }
 
 func readUTF8FileStrict(pathStr string) (string, error) {
@@ -348,11 +316,9 @@ func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) error {
 	if err != nil {
 		return err
 	}
-	tokens := tokenizeFlagFileContent(rawContent)
+	tokens := processCommandLineArgs(tokenizeFlagFileContent(rawContent))
 
 	r.flags.flagFiles = []string{}
-
-	tokens = commandLineRunner_processArgs(tokens)
 
 	// Command-line warning levels should override flag file settings,
 	// which means they should go last.
@@ -368,26 +334,23 @@ func (r *CommandLineRunner) tryProcessFlagFile(flagFileString string) error {
 
 	// Currently we are not supporting this (prevent direct/indirect loops)
 	if len(r.flags.flagFiles) != 0 {
-		r.ReportError("ERROR - Arguments in the file cannot contain " + "--flagfile option.")
+		r.reportError("ERROR - Arguments in the file cannot contain --flagfile option.")
 	}
 	return nil
 }
 
 // Java: CommandLineRunner.getVersionText()
 func (r *CommandLineRunner) GetVersionText() string {
-	return strings.Join([]string{
-		"Closure Compiler (http://github.com/google/closure-compiler)",
-		// CommandLineRunnerVersion refers to class created from CommandLineRunnerVersion.template
-		// with its static field COMPILER_VERSION substituted at build time.
-		"Version: " + jscomp.CommandLineRunnerVersion_COMPILER_VERSION}, "\n")
+	return "Closure Compiler (http://github.com/google/closure-compiler)\n" +
+		"Version: " + jscomp.CommandLineRunnerVersion_COMPILER_VERSION
 }
 
 // Java: CommandLineRunner.initConfigFromFlags(String[], PrintStream, PrintStream)
-func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintStream, err *jutil.PrintStream) {
+func (r *CommandLineRunner) initConfigFromFlags(args []string, out *jutil.PrintStream, err *jutil.PrintStream) {
 	flags := r.flags
 
 	r.errorStream = err
-	processedArgs := commandLineRunner_processArgs(args)
+	processedArgs := processCommandLineArgs(args)
 
 	flags.guardLevels = flags.guardLevels[:0]
 	flags.mixedJsSources = flags.mixedJsSources[:0]
@@ -413,9 +376,9 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	if cmdErr != nil {
 		var cle *args4j.CmdLineException
 		if errors.As(cmdErr, &cle) {
-			r.ReportError(cle.GetMessage())
+			r.reportError(cle.GetMessage())
 		} else {
-			r.ReportError(cmdErr.Error())
+			r.reportError(cmdErr.Error())
 		}
 	} else {
 		parseInlineSourceMaps = flags.parseInlineSourceMaps
@@ -431,27 +394,24 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 			"ERROR - both flags `--browser_featureset_year` and `--language_out` specified."))
 	}
 
-	// Java: if (flags.outputWrapper == null) flags.outputWrapper = ""; the
-	// field is a non-null String here.
-
 	if flags.outputWrapperFile != "" {
 		if wrapper, ioErr := readUTF8FileLossy(flags.outputWrapperFile); ioErr != nil {
-			r.ReportError("ERROR - invalid output_wrapper_file specified.")
+			r.reportError("ERROR - invalid output_wrapper_file specified.")
 		} else {
 			flags.outputWrapper = wrapper
 		}
 	}
 
 	if flags.outputWrapper != "" &&
-		!strings.Contains(flags.outputWrapper, CommandLineRunner_OUTPUT_MARKER) {
-		r.ReportError(
+		!strings.Contains(flags.outputWrapper, defaultOutputMarker) {
+		r.reportError(
 			"ERROR - invalid output_wrapper specified. Missing '" +
-				CommandLineRunner_OUTPUT_MARKER +
+				defaultOutputMarker +
 				"'.")
 	}
 
 	if flags.outputWrapper != "" && flags.isolationMode != jscomp.CompilerOptions_IsolationMode_NONE {
-		r.ReportError("--output_wrapper and --isolation_mode may not be used together.")
+		r.reportError("--output_wrapper and --isolation_mode may not be used together.")
 	}
 
 	if flags.isolationMode == jscomp.CompilerOptions_IsolationMode_IIFE {
@@ -463,7 +423,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	skipNormalOutputs := false
 	if flags.hasCompilationLevelParsed && flags.compilationLevelParsed == jscomp.CompilationLevel_BUNDLE {
 		if flags.jsOutputFile == "" {
-			r.ReportError("--compilation_level=BUNDLE cannot be used without a --js_output_file.")
+			r.reportError("--compilation_level=BUNDLE cannot be used without a --js_output_file.")
 		} else {
 			bundleFiles = []string{flags.jsOutputFile}
 			flags.jsOutputFile = ""
@@ -482,12 +442,12 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 
 	if !flags.renaming &&
 		flags.hasCompilationLevelParsed && flags.compilationLevelParsed == jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS {
-		r.ReportError("ERROR - renaming cannot be disabled when ADVANCED_OPTIMIZATIONS is used.")
+		r.reportError("ERROR - renaming cannot be disabled when ADVANCED_OPTIMIZATIONS is used.")
 	}
 
 	dependencyOptions, depErr := dependencyOptionsFromFlags(flags.dependencyMode, flags.entryPoint)
 	if depErr != nil {
-		r.ReportError(depErr.GetMessage())
+		r.reportError(depErr.GetMessage())
 	}
 
 	if r.errors {
@@ -497,7 +457,7 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 	} else {
 		r.runCompiler = true
 
-		config := r.GetCommandLineConfig()
+		config := r.config
 		config.printVersion = flags.version
 		config.printTree = flags.printTree
 		config.printTreeJson = flags.printTreeJson
@@ -547,17 +507,19 @@ func (r *CommandLineRunner) InitConfigFromFlags(args []string, out *jutil.PrintS
 		segmentOfCompilationToRun := flags.segmentOfCompilationToRun
 		switch segmentOfCompilationToRun {
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_CHECKS:
-			jutil.CheckStateMsg(
-				!flags.filenameToRestoreFrom.IsPresent(),
-				"Cannot restore and run CHECKS segment of compilation")
+			if flags.filenameToRestoreFrom.IsPresent() {
+				panic(jutil.NewIllegalStateExceptionMsg(
+					"Cannot restore and run CHECKS segment of compilation"))
+			}
 			config.setSaveCompilationStateOpt(flags.filenameToSaveTo, 1)
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS:
 			config.setContinueSavedCompilationOpt(flags.filenameToRestoreFrom, 1)
 			config.setSaveCompilationStateOpt(flags.filenameToSaveTo, 2)
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_FINALIZATIONS:
-			jutil.CheckStateMsg(
-				!flags.filenameToSaveTo.IsPresent(),
-				"Cannot run FINALIZATIONS segment of compilation and then save the result")
+			if flags.filenameToSaveTo.IsPresent() {
+				panic(jutil.NewIllegalStateExceptionMsg(
+					"Cannot run FINALIZATIONS segment of compilation and then save the result"))
+			}
 			config.setContinueSavedCompilationOpt(flags.filenameToRestoreFrom, 2)
 		case jscomp.CompilerOptions_SegmentOfCompilationToRun_ENTIRE_COMPILATION:
 		default:
@@ -576,7 +538,7 @@ func (r *CommandLineRunner) AddAllowlistWarningsGuard(options *jscomp.CompilerOp
 
 // Java: CommandLineRunner.checkChunkName(String)
 func (r *CommandLineRunner) CheckChunkName(name string) {
-	if !rhino.TokenStream_IsJSIdentifier(commandLineRunner_extraChunkNameChars.Matcher(name).ReplaceAll("_")) {
+	if !rhino.TokenStream_IsJSIdentifier(extraChunkNameChars.Matcher(name).ReplaceAll("_")) {
 		panic(jscomp.NewFlagUsageException("Invalid chunk name: '" + name + "'"))
 	}
 }
@@ -683,7 +645,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetChromePass(flags.chromePass)
 
 	if flags.j2clPassMode != "" {
-		j2clPassMode, ok := commandLineRunner_j2clPassModeValueOf(asciiUpper(flags.j2clPassMode))
+		j2clPassMode, ok := j2clPassModeValueOf(asciiUpper(flags.j2clPassMode))
 		if !ok {
 			panic(jscomp.NewFlagUsageException(
 				"Unknown J2clPassMode `" + flags.j2clPassMode + "' specified."))
@@ -717,7 +679,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 		}
 		defer stream.Close()
 		options.SetMessageBundle(jscomp.NewXtbMessageBundleOpt(stream, flags.translationsProject))
-	} else if jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS == level {
+	} else if level == jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS {
 		// In SIMPLE or WHITESPACE mode, if the user hasn't specified a
 		// translations file, they might reasonably try to write their own
 		// implementation of goog.getMsg that makes the substitution at
@@ -730,7 +692,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 		options.SetWarningLevel(jscomp.DiagnosticGroups_MSG_CONVENTIONS, jscomp.CheckLevel_OFF)
 	}
 
-	options.SetConformanceConfigs(commandLineRunner_loadConformanceConfigs(flags.conformanceConfigs))
+	options.SetConformanceConfigs(loadConformanceConfigs(flags.conformanceConfigs))
 
 	options.SetPrintSourceAfterEachPass(flags.printSourceAfterEachPass)
 	options.SetTracerMode(flags.tracerMode)
@@ -739,7 +701,7 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	options.SetSourceMapIncludeSourcesContent(flags.sourceMapIncludeSourcesContent)
 	options.SetModuleResolutionMode(flags.moduleResolutionMode)
 	options.SetBrowserResolverPrefixReplacements(
-		commandLineRunner_immutableMapCopyOf(flags.browserResolverPrefixReplacements))
+		copyNonEmptyOrderedMap(flags.browserResolverPrefixReplacements))
 
 	if flags.packageJsonEntryNames.IsPresent() {
 		options.SetPackageJsonEntryNames(flags.GetPackageJsonEntryNames())
@@ -802,9 +764,8 @@ func (r *CommandLineRunner) CreateOptions() *jscomp.CompilerOptions {
 	return options
 }
 
-// commandLineRunner_j2clPassModeValueOf looks up the J2clPassMode constant
-// with the given name.
-func commandLineRunner_j2clPassModeValueOf(name string) (jscomp.CompilerOptions_J2clPassMode, bool) {
+// j2clPassModeValueOf looks up the J2clPassMode constant with the given name.
+func j2clPassModeValueOf(name string) (jscomp.CompilerOptions_J2clPassMode, bool) {
 	for _, m := range jscomp.CompilerOptions_J2clPassMode_values() {
 		if m.String() == name {
 			return m, true
@@ -813,9 +774,9 @@ func commandLineRunner_j2clPassModeValueOf(name string) (jscomp.CompilerOptions_
 	return 0, false
 }
 
-// commandLineRunner_immutableMapCopyOf is ImmutableMap.copyOf(Map) of an
-// ordered Map<String, String>: its entries in insertion order.
-func commandLineRunner_immutableMapCopyOf(m *jutil.OrderedMap[string, string]) *jutil.OrderedMap[string, string] {
+// copyNonEmptyOrderedMap copies an ordered Map<String, String> in insertion
+// order, panicking with Guava ImmutableMap.copyOf's NPE message on empty values.
+func copyNonEmptyOrderedMap(m *jutil.OrderedMap[string, string]) *jutil.OrderedMap[string, string] {
 	result := jutil.NewOrderedMapWithCapacity[string, string](m.Size())
 	for k, v := range m.All() {
 		if v == "" {
@@ -828,11 +789,11 @@ func commandLineRunner_immutableMapCopyOf(m *jutil.OrderedMap[string, string]) *
 
 // Java: CommandLineRunner.createCompiler()
 func (r *CommandLineRunner) CreateCompiler() *jscomp.Compiler {
-	return jscomp.NewCompilerWithOutStream(r.GetErrorPrintStream())
+	return jscomp.NewCompilerWithOutStream(r.err)
 }
 
 // Java: CommandLineRunner.getBundler()
-func (r *CommandLineRunner) GetBundler() *transpile.ClosureBundler {
+func (r *CommandLineRunner) getBundler() *transpile.ClosureBundler {
 	if r.bundler != nil {
 		return r.bundler
 	}
@@ -862,23 +823,22 @@ func (r *CommandLineRunner) GetBundler() *transpile.ClosureBundler {
 
 // Java: CommandLineRunner.prepForBundleAndAppendTo(Appendable, CompilerInput, String)
 func (r *CommandLineRunner) PrepForBundleAndAppendTo(out jutil.Appendable, input *jscomp.CompilerInput, content string) {
-	r.GetBundler().WithPath(input.GetName()).AppendTo(out, input, content)
+	r.getBundler().WithPath(input.GetName()).AppendTo(out, input, content)
 }
 
 // Java: CommandLineRunner.appendRuntimeTo(Appendable)
 func (r *CommandLineRunner) AppendRuntimeTo(out jutil.Appendable) {
-	r.GetBundler().AppendRuntimeTo(out)
+	r.getBundler().AppendRuntimeTo(out)
 }
 
 // Java: CommandLineRunner.createExterns(CompilerOptions)
 func (r *CommandLineRunner) CreateExterns(options *jscomp.CompilerOptions) []*jscomp.SourceFile {
-	externs := r.AbstractCommandLineRunnerBase.CreateExterns(options)
-	if r.IsInTestMode() {
+	externs := r.abstractCommandLineRunnerBase.CreateExterns(options)
+	if r.testMode {
 		return externs
 	}
-	builtinExterns := AbstractCommandLineRunner_GetBuiltinExterns(options.GetEnvironment())
-	builtinExterns = append(builtinExterns, externs...)
-	return builtinExterns
+	builtinExterns := getBuiltinExterns(options.GetEnvironment())
+	return append(builtinExterns, externs...)
 }
 
 func dependencyOptionsFromFlags(
@@ -899,30 +859,26 @@ func dependencyOptionsFromFlags(
 }
 
 // Java: CommandLineRunner.loadConformanceConfigs(List<String>)
-func commandLineRunner_loadConformanceConfigs(configPaths []string) []*jscomp.ConformanceConfig {
+func loadConformanceConfigs(configPaths []string) []*jscomp.ConformanceConfig {
 	configs := make([]*jscomp.ConformanceConfig, 0, len(configPaths))
-
 	for _, configPath := range configPaths {
-		cfg, err := commandLineRunner_loadConformanceConfig(configPath)
+		cfg, err := loadConformanceConfig(configPath)
 		if err != nil {
 			panic(err)
 		}
 		configs = append(configs, cfg)
 	}
-
 	return configs
 }
 
 // Java: CommandLineRunner.loadConformanceConfig(String)
-func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.Throwable) {
+func loadConformanceConfig(configFile string) (*jscomp.ConformanceConfig, jutil.Throwable) {
 	textProto, ioErr := readUTF8FileLossy(configFile)
 	if ioErr != nil {
 		return nil, jutil.NewRuntimeExceptionWithMessageAndCause("Error loading conformance config", jutil.AsThrowable(ioErr))
 	}
 
 	builder := jscomp.ConformanceConfig_NewBuilder()
-
-	// Stripping the BOM if present.
 	textProto = strings.TrimPrefix(textProto, "\uFEFF")
 
 	if parseErr := jscomp.TextFormat_MergeErr(textProto, builder); parseErr != nil {
@@ -931,12 +887,11 @@ func commandLineRunner_loadConformanceConfig(configFile string) (*jscomp.Conform
 	return builder.Build(), nil
 }
 
-// Deprecated: use AbstractCommandLineRunner_GetBuiltinExterns(
-// CompilerOptions_Environment_BROWSER).
+// CommandLineRunner_GetDefaultExterns returns the default browser externs.
 //
 // Java: CommandLineRunner.getDefaultExterns()
 func CommandLineRunner_GetDefaultExterns() []*jscomp.SourceFile {
-	return AbstractCommandLineRunner_GetBuiltinExterns(jscomp.CompilerOptions_Environment_BROWSER)
+	return getBuiltinExterns(jscomp.CompilerOptions_Environment_BROWSER)
 }
 
 // ShouldRunCompiler returns whether the configuration is valid and
@@ -955,7 +910,7 @@ func (r *CommandLineRunner) HasErrors() bool {
 }
 
 // Java: CommandLineRunner.phaseLogger
-var commandLineRunner_phaseLogger = jutil.Logger_GetLogger("com.google.javascript.jscomp.PhaseOptimizer")
+var phaseLogger = jutil.Logger_GetLogger("com.google.javascript.jscomp.PhaseOptimizer")
 
 // CommandLineRunner_Main runs the Compiler. Exits cleanly in the event of an
 // error.
@@ -963,8 +918,8 @@ var commandLineRunner_phaseLogger = jutil.Logger_GetLogger("com.google.javascrip
 // Java: CommandLineRunner.main(String[])
 func CommandLineRunner_Main(args []string) {
 	// disable any logging messages that can interfere with standard error reporting
-	if commandLineRunner_phaseLogger != nil {
-		commandLineRunner_phaseLogger.SetLevel(jutil.Level_OFF)
+	if phaseLogger != nil {
+		phaseLogger.SetLevel(jutil.Level_OFF)
 	}
 	if startupArgs, ok := parsePersistentWorkerStartupArgs(args); ok {
 		if err := runPersistentWorker(startupArgs, os.Stdin, os.Stdout); err != nil {

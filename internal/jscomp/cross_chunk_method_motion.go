@@ -80,12 +80,17 @@ func NewCrossChunkMethodMotion(
 
 // Java: CrossChunkMethodMotion.process(Node, Node)
 func (m *CrossChunkMethodMotion) Process(externRoot rhino.Node, root rhino.Node) {
-	// If there are < 2 chunks, then we will never move anything,
+	// If there are < 2 active chunks, then we will never move anything,
 	// so we're done.
-	if m.chunkGraph.GetChunkCount() > 1 {
-		m.analyzer.Process(externRoot, root)
-		m.MoveMethods(m.analyzer.GetAllNameInfo())
+	if m.chunkGraph == nil || m.chunkGraph.GetChunkCount() <= 1 {
+		return
 	}
+	if m.compiler.GetLifeCycleStage().IsNormalized() &&
+		allRootScriptsInSingleStrongChunk(m.compiler, m.chunkGraph, root) {
+		return
+	}
+	m.analyzer.Process(externRoot, root)
+	m.MoveMethods(m.analyzer.GetAllNameInfo())
 }
 
 // MoveMethods moves methods deeper in the chunk graph when possible.
@@ -195,8 +200,9 @@ func (m *CrossChunkMethodMotion) tryToMovePrototypeMethod(
 			// Note that computed properties should have been filtered out by
 			// AnalyzePrototypeProperties, because they don't have a recognizable property name.
 			// Getters and setters are filtered out by the code above.
-			_, isAssign := ast.AsAssign(valueParent)
-			jutil.CheckStateMsg1(isAssign, "%s", valueParent)
+			if _, isAssign := ast.AsAssign(valueParent); !isAssign {
+				panic(jutil.NewIllegalStateExceptionMsg(valueParent.String()))
+			}
 			m.MovePrototypeDotMethodAssignment(destParent, value)
 		}
 	}
@@ -212,27 +218,37 @@ func (m *CrossChunkMethodMotion) movePrototypeObjectLiteralMember(
 	var functionNode rhino.Node
 	if isMethodShorthand {
 		mf, ok := ast.AsMemberFunctionDef(prop)
-		jutil.CheckStateMsg1(ok, "%s", prop)
+		if !ok {
+			panic(jutil.NewIllegalStateExceptionMsg(prop.String()))
+		}
 		functionNode = mf.Function().Node()
 	} else {
 		sk, ok := ast.AsStringKey(prop)
-		jutil.CheckStateMsg1(ok, "%s", prop)
+		if !ok {
+			panic(jutil.NewIllegalStateExceptionMsg(prop.String()))
+		}
 		fn, isFn := sk.Value().AsFunction()
-		jutil.CheckStateMsg1(isFn, "%s", sk.Value().Node())
+		if !isFn {
+			panic(jutil.NewIllegalStateExceptionMsg(sk.Value().Node().String()))
+		}
 		functionNode = fn.Node()
 	}
 	objLit, isObjLit := ast.AsObjectLit(prop.GetParent())
-	jutil.CheckStateMsg1(isObjLit, "%s", prop.GetParent())
+	if !isObjLit {
+		panic(jutil.NewIllegalStateExceptionMsg(prop.GetParent().String()))
+	}
 	prototypeObjectLiteral := objLit.Node()
 	assign, ok := ast.AsAssign(prototypeObjectLiteral.GetParent())
-	jutil.CheckStateMsg1(ok && assign.Value().Is(prototypeObjectLiteral), "%s", prototypeObjectLiteral.GetParent())
+	if !ok || !assign.Value().Is(prototypeObjectLiteral) {
+		panic(jutil.NewIllegalStateExceptionMsg(prototypeObjectLiteral.GetParent().String()))
+	}
 	ownerDotPrototype, isGetProp := assign.Target().AsGetProp()
 	ownerDotPrototypeNode := assign.Target().Node()
-	jutil.CheckStateMsg1(
-		isGetProp &&
-			ownerDotPrototypeNode.IsQualifiedName() &&
-			ownerDotPrototype.Node().GetStringID() == analyzeProtoPrototypeID,
-		"%s", ownerDotPrototypeNode)
+	if !isGetProp ||
+		!ownerDotPrototypeNode.IsQualifiedName() ||
+		ownerDotPrototype.Node().GetStringID() != analyzeProtoPrototypeID {
+		panic(jutil.NewIllegalStateExceptionMsg(ownerDotPrototypeNode.String()))
+	}
 	var originalScript rhino.Node
 	if isMethodShorthand {
 		originalScript = NodeUtil_GetEnclosingScript(prop)
@@ -289,12 +305,17 @@ func (m *CrossChunkMethodMotion) movePrototypeObjectLiteralMember(
 //
 // Java: CrossChunkMethodMotion.movePrototypeDotMethodAssignment(Node, Node)
 func (m *CrossChunkMethodMotion) MovePrototypeDotMethodAssignment(destParent rhino.Node, functionNode rhino.Node) {
-	_, isFn := ast.AsFunction(functionNode)
-	jutil.CheckStateMsg1(isFn, "%s", functionNode)
+	if _, isFn := ast.AsFunction(functionNode); !isFn {
+		panic(jutil.NewIllegalStateExceptionMsg(functionNode.String()))
+	}
 	assign, ok := ast.AsAssign(functionNode.GetParent())
-	jutil.CheckStateMsg1(ok && assign.Value().Is(functionNode), "%s", functionNode.GetParent())
+	if !ok || !assign.Value().Is(functionNode) {
+		panic(jutil.NewIllegalStateExceptionMsg(functionNode.GetParent().String()))
+	}
 	exprStmt, ok := ast.AsExprStmt(assign.Node().GetParent())
-	jutil.CheckStateMsg1(ok, "%s", assign.Node())
+	if !ok {
+		panic(jutil.NewIllegalStateExceptionMsg(assign.Node().String()))
+	}
 	definitionStatement := exprStmt.Node()
 
 	if m.noStubFunctions {
@@ -431,12 +452,18 @@ func unpackClassInstanceMethod(methodDefinition rhino.Node) (
 ) {
 	var ok bool
 	methodDef, ok = ast.AsMemberFunctionDef(methodDefinition)
-	jutil.CheckArgumentMsg1(ok, "%s", methodDefinition)
+	if !ok {
+		panic(jutil.NewIllegalArgumentExceptionMsg(methodDefinition.String()))
+	}
 	classBody, ok := ast.AsClassBody(methodDefinition.GetParent())
-	jutil.CheckStateMsg1(ok, "%s", methodDefinition.GetParent())
+	if !ok {
+		panic(jutil.NewIllegalStateExceptionMsg(methodDefinition.GetParent().String()))
+	}
 	classMembers = classBody.Node()
 	classView, ok := ast.AsClass(classMembers.GetParent())
-	jutil.CheckStateMsg1(ok, "%s", classMembers.GetParent())
+	if !ok {
+		panic(jutil.NewIllegalStateExceptionMsg(classMembers.GetParent().String()))
+	}
 	classNode = classView.Node()
 	originalScript = NodeUtil_GetEnclosingScript(methodDefinition)
 	return methodDef, classMembers, classNode, originalScript

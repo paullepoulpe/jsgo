@@ -26,15 +26,16 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // Go-only: this pass uses the typed AST view (internal/ast) where it reads
 // shapes: the default value of goog.define('name', value) (its second
-// argument, processDefines_googDefineDefault, where Java reads child 2 of
-// the call), the operands of the operators a define value may use, and the
-// CLOSURE_DEFINES declaration and assignments (shared by the Go-only walk
-// and Visit). The goog.define checks stay on rhino: they pass arguments
-// that may be missing to Java's verifyNotNull and verifyIsLast.
+// argument, googDefineDefault, where Java reads child 2 of the call), the
+// operands of the operators a define value may use, and the CLOSURE_DEFINES
+// declaration and assignments (shared by the Go-only walk and Visit). The
+// goog.define checks stay on rhino: they pass arguments that may be missing
+// to Java's verifyNotNull and verifyIsLast.
 
 // ProcessDefines processes variables annotated as `@define`. A define is a
 // special constant that may be overridden by later files and manipulated by
@@ -67,7 +68,7 @@ var _ CompilerPass = (*ProcessDefines)(nil)
 // Defines in this set will not be flagged with "unknown define" warnings.
 // There are flags that always set these defines, even when they might not be
 // in the binary.
-var processDefinesKnownDefineList = [...]string{
+var knownProcessDefinesList = [...]string{
 	"COMPILED",
 	"goog.DEBUG",
 	"$jscomp.ASSUME_ES5",
@@ -77,9 +78,9 @@ var processDefinesKnownDefineList = [...]string{
 	"$jscomp.INSTRUMENT_ASYNC_CONTEXT",
 }
 
-var processDefines_KNOWN_DEFINES = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(processDefinesKnownDefineList))
-	for _, d := range processDefinesKnownDefineList {
+var knownProcessDefines = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(knownProcessDefinesList))
+	for _, d := range knownProcessDefinesList {
 		m[d] = struct{}{}
 	}
 	return m
@@ -193,19 +194,19 @@ const (
 )
 
 var (
-	processDefines_Mode_names    = [...]string{"CHECK", "OPTIMIZE", "CHECK_AND_OPTIMIZE"}
-	processDefines_Mode_check    = [...]bool{true, false, true}
-	processDefines_Mode_optimize = [...]bool{false, true, true}
+	processDefinesModeNames    = [...]string{"CHECK", "OPTIMIZE", "CHECK_AND_OPTIMIZE"}
+	processDefinesModeCheck    = [...]bool{true, false, true}
+	processDefinesModeOptimize = [...]bool{false, true, true}
 )
 
 // Java: ProcessDefines.Mode.name()
-func (m ProcessDefines_Mode) String() string { return processDefines_Mode_names[m] }
+func (m ProcessDefines_Mode) String() string { return processDefinesModeNames[m] }
 
 // Check is the Mode.check field.
-func (m ProcessDefines_Mode) Check() bool { return processDefines_Mode_check[m] }
+func (m ProcessDefines_Mode) Check() bool { return processDefinesModeCheck[m] }
 
 // Optimize is the Mode.optimize field.
-func (m ProcessDefines_Mode) Optimize() bool { return processDefines_Mode_optimize[m] }
+func (m ProcessDefines_Mode) Optimize() bool { return processDefinesModeOptimize[m] }
 
 // Java: ProcessDefines.process(Node, Node)
 func (p *ProcessDefines) Process(externs rhino.Node, root rhino.Node) {
@@ -287,7 +288,9 @@ func (p *ProcessDefines) OverrideDefines() {
 				} else {
 					defineLhs = define.valueParent.CloneNode()
 				}
-				jutil.CheckStateMsg1(defineLhs.IsName() || defineLhs.IsQualifiedName(), "%s", defineLhs)
+				if !defineLhs.IsName() && !defineLhs.IsQualifiedName() {
+					panic(jutil.NewIllegalStateExceptionMsg(defineLhs.String()))
+				}
 				globalDefineVar :=
 					rhino.IR_VarWithValue(globalDefineName, defineLhs).SrcrefTreeIfMissing(define.valueParent)
 				globalDefineVar.InsertAfter(define.valueParent.GetParent())
@@ -300,7 +303,7 @@ func (p *ProcessDefines) OverrideDefines() {
 		// Sets.difference(Sets.union(flags, closureDefines),
 		//     Sets.union(Sets.union(KNOWN_DEFINES, defineByDefineName), ignore))
 		isUsed := func(k string) bool {
-			if _, known := processDefines_KNOWN_DEFINES[k]; known {
+			if _, known := knownProcessDefines[k]; known {
 				return true
 			}
 			if _, ok := p.defineByDefineName[k]; ok {
@@ -328,7 +331,7 @@ func ProcessDefines_GetGlobalDefineAlias(defineName string) string {
 	// code. Therefore we'll reference them directly.
 	// goog.LOCALE is a special case as it's not processed as a define, it is
 	// instead late-substituted.
-	if _, known := processDefines_KNOWN_DEFINES[defineName]; known || defineName == "goog.LOCALE" {
+	if _, known := knownProcessDefines[defineName]; known || defineName == "goog.LOCALE" {
 		return defineName
 	}
 	return "jscomp$defines$" + strings.ReplaceAll(defineName, ".", "$")
@@ -351,20 +354,19 @@ func (p *ProcessDefines) GetReplacementForDefine(define *ProcessDefines_Define) 
 	}
 
 	if p.IsGoogDefineCall(define.value) {
-		if defaultValue, ok := processDefines_googDefineDefault(ast.MustCall(define.value)); ok {
+		if defaultValue, ok := googDefineDefault(ast.MustCall(define.value)); ok {
 			return defaultValue.Node()
 		}
 	}
 	return rhino.NilNode
 }
 
-// processDefines_googDefineDefault returns the default value of
-// goog.define('name', value), its second argument; ok is false if the call
-// does not have exactly two.
+// googDefineDefault returns the default value of goog.define('name', value),
+// its second argument; ok is false if the call does not have exactly two.
 //
 // Go-only: Java's getChildCount() == 3 and getChildAtIndex(2) (the callee is
 // the first child).
-func processDefines_googDefineDefault(call ast.Call) (ast.Arg, bool) {
+func googDefineDefault(call ast.Call) (ast.Arg, bool) {
 	if call.NumArgs() != 2 {
 		return ast.Arg{}, false
 	}
@@ -456,4 +458,354 @@ func NewProcessDefines_Define(
 		valueParent: valueParent,
 		value:       value,
 	}
+}
+
+type gnDefineScript struct {
+	node   rhino.Node
+	isCode bool
+}
+
+const (
+	gnScriptTraverse uint8 = 1 << iota
+	gnScriptDefineCand
+)
+
+// prepareDefineNamespace populates defineCandidateLeafIDs (and, in check mode,
+// defineCandidateScripts) and identifies the subset of SCRIPT roots that can
+// contribute symbols or references to ProcessDefines.
+//
+// ProcessDefines inspects only global names whose global-scope declaration is
+// annotated @define (SelectDefineDeclaration) or, when a @define initializer
+// references another identifier, global constants declared at global hoist
+// scope (includeGlobalConsts). Neither kind of declaration can reside inside a
+// FUNCTION body or MODULE_BODY, so Pass 1 scans only top-level AST nodes.
+// Pass 2 then scans scripts in parallel to skip any script that contains none
+// of the candidate leaf IDs.
+//
+// Go-only: performance.
+func (g *GlobalNamespace) prepareDefineNamespace() (skipTraversal bool, traverseScripts map[rhino.Node]struct{}) {
+	g.defineCandidateLeafIDs = make(map[uint32]struct{}, 64)
+	scripts, ok := g.collectDefineScripts()
+	if !ok {
+		var stackBuf [64]rhino.Node
+		var idBuf [64]uint32
+		stack := stackBuf[:0]
+		ids := idBuf[:0]
+		if g.HasExternsRoot() {
+			ids, stack = collectScriptDefineLeafIDs(g.externsRoot, g.includeGlobalConsts, ids, stack)
+		}
+		ids, _ = collectScriptDefineLeafIDs(g.root, g.includeGlobalConsts, ids, stack)
+		for _, id := range ids {
+			g.addDefineCandidateLeafID(id)
+		}
+		return !g.processDefinesCheck && len(g.defineCandidateLeafIDs) == 0, nil
+	}
+	if len(scripts) == 0 {
+		return true, nil
+	}
+
+	numWorkers := parallelThreadCount(g.compiler, len(scripts))
+	if numWorkers > 1 && len(scripts) >= 8 {
+		perWorker := make([][]uint32, numWorkers)
+		if p := spawnIndexedWorkers(len(scripts), numWorkers, func(wIdx int, claim func() (int, bool)) {
+			var ids []uint32
+			var stack []rhino.Node
+			for {
+				idx, ok := claim()
+				if !ok {
+					break
+				}
+				ids, stack = collectScriptDefineLeafIDs(scripts[idx].node, g.includeGlobalConsts, ids, stack)
+			}
+			perWorker[wIdx] = ids
+		}); p != nil {
+			panic(p)
+		}
+		for _, ids := range perWorker {
+			for _, id := range ids {
+				g.addDefineCandidateLeafID(id)
+			}
+		}
+	} else {
+		var stackBuf [64]rhino.Node
+		var idBuf [64]uint32
+		stack := stackBuf[:0]
+		ids := idBuf[:0]
+		for i := range scripts {
+			ids, stack = collectScriptDefineLeafIDs(scripts[i].node, g.includeGlobalConsts, ids[:0], stack)
+			for _, id := range ids {
+				g.addDefineCandidateLeafID(id)
+			}
+		}
+	}
+
+	hasLeafCandidates := len(g.defineCandidateLeafIDs) > 0
+	if !g.processDefinesCheck && !hasLeafCandidates {
+		return true, nil
+	}
+
+	var bloom [256]uint64
+	if hasLeafCandidates {
+		// order-independent: bitwise OR of per-ID bloom filter bits is commutative.
+		for id := range g.defineCandidateLeafIDs {
+			bit := (id * 0x9e3779b1) >> 18
+			bloom[bit>>6] |= uint64(1) << (bit & 63)
+		}
+	}
+	matchesLeafID := func(id uint32, checkDots bool) bool {
+		if id <= strpool.EmptyID {
+			return false
+		}
+		bit := (id * 0x9e3779b1) >> 18
+		if bloom[bit>>6]&(uint64(1)<<(bit&63)) != 0 {
+			if _, ok := g.defineCandidateLeafIDs[id]; ok {
+				return true
+			}
+		}
+		if checkDots {
+			if s := strpool.String(strpool.ID(id)); strings.IndexByte(s, '.') >= 0 {
+				last := s[strings.LastIndexByte(s, '.')+1:]
+				if lid := uint32(strpool.Lookup(last)); lid > strpool.EmptyID {
+					lbit := (lid * 0x9e3779b1) >> 18
+					if bloom[lbit>>6]&(uint64(1)<<(lbit&63)) != 0 {
+						_, ok := g.defineCandidateLeafIDs[lid]
+						return ok
+					}
+				}
+			}
+		}
+		return false
+	}
+	provideMatchesLeafIDs := func(ns string) bool {
+		for {
+			seg, rest, hasMore := strings.Cut(ns, ".")
+			if lid := uint32(strpool.Lookup(seg)); lid > strpool.EmptyID {
+				bit := (lid * 0x9e3779b1) >> 18
+				if bloom[bit>>6]&(uint64(1)<<(bit&63)) != 0 {
+					if _, ok := g.defineCandidateLeafIDs[lid]; ok {
+						return true
+					}
+				}
+			}
+			if !hasMore {
+				return false
+			}
+			ns = rest
+		}
+	}
+	scanScript := func(s gnDefineScript, stack []rhino.Node) (uint8, []rhino.Node) {
+		checkCand := g.processDefinesCheck && s.isCode
+		if !hasLeafCandidates && !checkCand {
+			return 0, stack
+		}
+		needsTraverse := false
+		hasDefineCand := false
+		stack = append(stack[:0], s.node)
+		for len(stack) > 0 {
+			n := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			tok := n.GetToken()
+			if checkCand && !hasDefineCand {
+				if jsdoc := n.GetJSDocInfo(); jsdoc != nil && jsdoc.IsDefine() {
+					hasDefineCand = true
+				} else if tok == rhino.Token_CALL && processDefines_GOOG_DEFINE.Matches(ast.MustCall(n).Callee().Node()) {
+					hasDefineCand = true
+				} else if tok == rhino.Token_NAME && n.GetStringID() == gnClosureDefinesStrID {
+					hasDefineCand = true
+				}
+			}
+			if hasLeafCandidates && !needsTraverse {
+				switch tok {
+				case rhino.Token_NAME, rhino.Token_GETPROP:
+					if matchesLeafID(n.GetStringID(), true) {
+						needsTraverse = true
+					}
+				case rhino.Token_STRING_KEY,
+					rhino.Token_GETTER_DEF,
+					rhino.Token_SETTER_DEF,
+					rhino.Token_MEMBER_FUNCTION_DEF,
+					rhino.Token_MEMBER_FIELD_DEF:
+					if matchesLeafID(n.GetStringID(), false) {
+						needsTraverse = true
+					}
+				case rhino.Token_CALL:
+					parent := n.GetParent()
+					if parent.IsExprResult() {
+						call := ast.MustCall(n)
+						if GlobalNamespace_GOOG_PROVIDE.Matches(call.Callee().Node()) {
+							if arg, ok := call.FirstArg(); ok {
+								if str, ok := arg.AsStringLit(); ok {
+									if !parent.GetParent().IsScript() || provideMatchesLeafIDs(str.Value()) {
+										needsTraverse = true
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if (needsTraverse || !hasLeafCandidates) && (!checkCand || hasDefineCand) {
+				break
+			}
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				stack = append(stack, c)
+			}
+		}
+		var f uint8
+		if needsTraverse {
+			f |= gnScriptTraverse
+		}
+		if hasDefineCand {
+			f |= gnScriptDefineCand
+		}
+		return f, stack
+	}
+
+	flags := make([]uint8, len(scripts))
+	if numWorkers > 1 && len(scripts) >= 8 {
+		if p := spawnIndexedWorkers(len(scripts), numWorkers, func(_ int, claim func() (int, bool)) {
+			var stack []rhino.Node
+			for {
+				idx, ok := claim()
+				if !ok {
+					return
+				}
+				flags[idx], stack = scanScript(scripts[idx], stack)
+			}
+		}); p != nil {
+			panic(p)
+		}
+	} else {
+		var stackBuf [128]rhino.Node
+		stack := stackBuf[:0]
+		for i := range scripts {
+			flags[i], stack = scanScript(scripts[i], stack)
+		}
+	}
+
+	traverseCount := 0
+	for i, f := range flags {
+		if f&gnScriptTraverse != 0 {
+			traverseCount++
+		}
+		if f&gnScriptDefineCand != 0 {
+			if g.defineCandidateScripts == nil {
+				g.defineCandidateScripts = make(map[rhino.Node]struct{}, 8)
+			}
+			g.defineCandidateScripts[scripts[i].node] = struct{}{}
+		}
+	}
+	if traverseCount == 0 {
+		return true, nil
+	}
+	if traverseCount == len(scripts) && g.shouldTraverseScript == nil {
+		return false, nil
+	}
+	traverseScripts = make(map[rhino.Node]struct{}, traverseCount)
+	for i, f := range flags {
+		if f&gnScriptTraverse != 0 {
+			traverseScripts[scripts[i].node] = struct{}{}
+		}
+	}
+	return false, traverseScripts
+}
+
+func (g *GlobalNamespace) collectDefineScripts() ([]gnDefineScript, bool) {
+	rootCount, ok := countRootScripts(g.root)
+	if !ok {
+		return nil, false
+	}
+	extCount := 0
+	if g.HasExternsRoot() {
+		var okExt bool
+		extCount, okExt = countRootScripts(g.externsRoot)
+		if !okExt || g.externsRoot.GetParent().IsNil() || g.externsRoot.GetParent() != g.root.GetParent() {
+			return nil, false
+		}
+	}
+	if extCount+rootCount == 0 {
+		return nil, true
+	}
+	scripts := make([]gnDefineScript, 0, extCount+rootCount)
+	pred := g.shouldTraverseScript
+	if g.HasExternsRoot() {
+		for s := g.externsRoot.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+			if pred != nil && !pred(s) {
+				continue
+			}
+			scripts = append(scripts, gnDefineScript{node: s, isCode: !s.IsFromExterns()})
+		}
+	}
+	for s := g.root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+		if pred != nil && !pred(s) {
+			continue
+		}
+		scripts = append(scripts, gnDefineScript{node: s, isCode: !g.HasExternsRoot() || !s.IsFromExterns()})
+	}
+	return scripts, true
+}
+
+func (g *GlobalNamespace) addDefineCandidateLeafID(id uint32) {
+	if id <= strpool.EmptyID {
+		return
+	}
+	g.defineCandidateLeafIDs[id] = struct{}{}
+	if s := strpool.String(strpool.ID(id)); strings.IndexByte(s, '.') >= 0 {
+		if last := s[strings.LastIndexByte(s, '.')+1:]; last != "" {
+			g.defineCandidateLeafIDs[uint32(strpool.Intern(last))] = struct{}{}
+		}
+	}
+}
+
+func collectScriptDefineLeafIDs(root rhino.Node, includeConsts bool, out []uint32, stack []rhino.Node) ([]uint32, []rhino.Node) {
+	if root.IsNil() {
+		return out, stack
+	}
+	stack = append(stack[:0], root)
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch n.GetToken() {
+		case rhino.Token_MODULE_BODY:
+			continue
+		case rhino.Token_FUNCTION:
+			if !NodeUtil_IsFunctionExpression(n) {
+				if name := n.GetFirstChild(); name.IsName() {
+					stack = append(stack, name)
+				}
+			}
+			continue
+		case rhino.Token_NAME:
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				stack = append(stack, c)
+			}
+			parent := n.GetParent()
+			if parent.IsGetProp() {
+				continue
+			}
+			if includeConsts && !parent.IsNil() && parent.IsConst() {
+				out = append(out, n.GetStringID())
+				continue
+			}
+			if info := NodeUtil_GetBestJSDocInfo(n); info != nil && (info.IsDefine() || (includeConsts && info.IsConstant())) {
+				out = append(out, n.GetStringID())
+			}
+			continue
+		case rhino.Token_GETPROP:
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				stack = append(stack, c)
+			}
+			if n.GetParent().IsGetProp() {
+				continue
+			}
+			if info := NodeUtil_GetBestJSDocInfo(n); info != nil && (info.IsDefine() || (includeConsts && info.IsConstant())) && n.IsQualifiedName() {
+				out = append(out, n.GetStringID())
+			}
+			continue
+		}
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			stack = append(stack, c)
+		}
+	}
+	return out, stack
 }

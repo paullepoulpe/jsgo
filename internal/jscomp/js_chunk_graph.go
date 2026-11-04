@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // JSChunkGraph is a JSChunk dependency graph that assigns a depth to each
@@ -328,6 +329,49 @@ func (g *JSChunkGraph) GetChunksByName() *OrderedStringMap[*JSChunk] {
 // Java: JSChunkGraph.getChunkCount()
 func (g *JSChunkGraph) GetChunkCount() int {
 	return len(g.chunks)
+}
+
+// hasSingleActiveStrongChunk reports whether the chunk graph contains at most
+// one strong chunk and no populated weak chunk (including standard 1-chunk
+// builds where makeWeakChunk appends an empty $weak$ chunk).
+func (g *JSChunkGraph) hasSingleActiveStrongChunk() bool {
+	if g == nil {
+		return false
+	}
+	if len(g.chunks) <= 1 {
+		return true
+	}
+	return len(g.chunks) == 2 &&
+		!g.chunks[0].IsWeak() &&
+		g.chunks[1].IsWeak() &&
+		len(g.chunks[1].GetInputs()) == 0
+}
+
+func allRootScriptsInSingleStrongChunk(compiler AbstractCompiler, g *JSChunkGraph, root rhino.Node) bool {
+	if !g.hasSingleActiveStrongChunk() {
+		return false
+	}
+	if len(g.chunks) == 0 || root.IsNil() {
+		return true
+	}
+	if compiler == nil || !root.IsRoot() {
+		return false
+	}
+	rootChunk := g.chunks[0]
+	for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+		if !s.IsScript() {
+			return false
+		}
+		id := s.GetInputId()
+		if id == nil {
+			return false
+		}
+		in := compiler.GetInput(id)
+		if in == nil || in.GetChunk() != rootChunk {
+			return false
+		}
+	}
+	return true
 }
 
 // GetRootChunk gets the root chunk.

@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -69,8 +70,7 @@ func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 	// value is 0, where as in SourceFile we use "-1"
 	protoNumLines := int(protoSourceFile.GetNumLinesPlusOne()) - 1
 	protoNumBytes := int(protoSourceFile.GetNumBytesPlusOne()) - 1
-	jutil.CheckStateMsg1(protoNumLines >= -1, "protoNumLines must be >= -1: %s", protoNumLines)
-	jutil.CheckStateMsg1(protoNumBytes >= -1, "protoNumBytes must be >= -1: %s", protoNumBytes)
+	checkProtoLineAndByteCounts(protoNumLines, protoNumBytes)
 	// It's possible that this.numLines and protoNumLines are both not "-1"
 	// but contain conflicting values. This would happen if a file changes on
 	// disk after TypedAST proto serialization. We choose the proto value over
@@ -86,15 +86,23 @@ func (f *SourceFile) RestoreCachedStateFrom(protoSourceFile *SourceFileProto) {
 	f.isClosureUnawareCode = protoSourceFile.GetIsClosureUnawareCode()
 }
 
+func checkProtoLineAndByteCounts(protoNumLines, protoNumBytes int) {
+	if protoNumLines < -1 {
+		panic(jutil.NewIllegalStateExceptionMsg("protoNumLines must be >= -1: " + strconv.Itoa(protoNumLines)))
+	}
+	if protoNumBytes < -1 {
+		panic(jutil.NewIllegalStateExceptionMsg("protoNumBytes must be >= -1: " + strconv.Itoa(protoNumBytes)))
+	}
+}
+
 // Java: SourceFile.fromProto(SourceFileProto)
 func SourceFile_FromProto(protoSourceFile *SourceFileProto) *SourceFile {
-	sourceKind := sourceFile_getSourceKindFromProto(protoSourceFile)
-	sourceFile := sourceFile_fromProtoWithKind(protoSourceFile, sourceKind)
+	sourceKind := sourceKindFromProto(protoSourceFile)
+	sourceFile := sourceFileFromProtoWithKind(protoSourceFile, sourceKind)
 	// Restore the number of lines/bytes, which are offset by 1 in the proto.
 	protoNumLines := int(protoSourceFile.GetNumLinesPlusOne()) - 1
 	protoNumBytes := int(protoSourceFile.GetNumBytesPlusOne()) - 1
-	jutil.CheckStateMsg1(protoNumLines >= -1, "protoNumLines must be >= -1: %s", protoNumLines)
-	jutil.CheckStateMsg1(protoNumBytes >= -1, "protoNumBytes must be >= -1: %s", protoNumBytes)
+	checkProtoLineAndByteCounts(protoNumLines, protoNumBytes)
 	sourceFile.numLines = protoNumLines
 	sourceFile.numBytes = protoNumBytes
 	if protoSourceFile.GetIsClosureUnawareCode() {
@@ -104,7 +112,7 @@ func SourceFile_FromProto(protoSourceFile *SourceFileProto) *SourceFile {
 }
 
 // Java: SourceFile.fromProto(SourceFileProto, SourceKind)
-func sourceFile_fromProtoWithKind(
+func sourceFileFromProtoWithKind(
 	protoSourceFile *SourceFileProto,
 	sourceKind rhino.StaticSourceFile_SourceKind,
 ) *SourceFile {
@@ -120,7 +128,7 @@ func sourceFile_fromProtoWithKind(
 		}
 		var b SourceFile_Builder
 		b.kind = sourceKind
-		b.charset = sourceFile_toCharset(fileOnDisk.GetCharset())
+		b.charset = charsetFromProto(fileOnDisk.GetCharset())
 		return b.WithOriginalPath(protoSourceFile.GetFilename()).
 			WithPath(pathOnDisk).
 			Build()
@@ -128,7 +136,7 @@ func sourceFile_fromProtoWithKind(
 		zipEntry := protoSourceFile.GetZipEntry()
 		var b SourceFile_Builder
 		b.kind = sourceKind
-		b.charset = sourceFile_toCharset(zipEntry.GetCharset())
+		b.charset = charsetFromProto(zipEntry.GetCharset())
 		return b.WithOriginalPath(protoSourceFile.GetFilename()).
 			WithZipEntryPath(zipEntry.GetZipPath(), zipEntry.GetEntryName()).
 			Build()
@@ -144,7 +152,7 @@ func sourceFile_fromProtoWithKind(
 	panic(jutil.NewAssertionErrorNoMessage())
 }
 
-func sourceFile_getSourceKindFromProto(protoSourceFile *SourceFileProto) rhino.StaticSourceFile_SourceKind {
+func sourceKindFromProto(protoSourceFile *SourceFileProto) rhino.StaticSourceFile_SourceKind {
 	switch protoSourceFile.GetSourceKind() {
 	case SourceFileProto_SourceKind_EXTERN:
 		return rhino.StaticSourceFile_SourceKind_EXTERN
@@ -155,7 +163,7 @@ func sourceFile_getSourceKindFromProto(protoSourceFile *SourceFileProto) rhino.S
 	}
 }
 
-func sourceFile_toCharset(protoCharset string) *jutil.Charset {
+func charsetFromProto(protoCharset string) *jutil.Charset {
 	if protoCharset == "" {
 		return jutil.StandardCharsets_UTF_8
 	}
@@ -168,7 +176,7 @@ func sourceFile_toCharset(protoCharset string) *jutil.Charset {
 // Go-only: language-adapter — the trailing underscore keeps the mechanical
 // name SourceFile_Builder for the nested Builder type.
 func SourceFile_Builder_() *SourceFile_Builder {
-	return newSourceFile_Builder()
+	return newSourceFileBuilder()
 }
 
 // SourceFile_Builder is a builder interface for source files.
@@ -192,7 +200,7 @@ type SourceFile_Builder struct {
 	reloadableContent func() string
 }
 
-func newSourceFile_Builder() *SourceFile_Builder {
+func newSourceFileBuilder() *SourceFile_Builder {
 	return &SourceFile_Builder{kind: rhino.StaticSourceFile_SourceKind_STRONG, charset: jutil.StandardCharsets_UTF_8}
 }
 
@@ -215,12 +223,12 @@ func (b *SourceFile_Builder) WithCharset(charset *jutil.Charset) *SourceFile_Bui
 
 // Java: SourceFile.Builder.withPath(String)
 func (b *SourceFile_Builder) WithPath(path string) *SourceFile_Builder {
-	return b.WithPathInternal(path, nil)
+	return b.withPathInternal(path, nil)
 }
 
 // Java: SourceFile.Builder.withPath(Path)
 func (b *SourceFile_Builder) WithPathFromPath(path *jutil.Path) *SourceFile_Builder {
-	return b.WithPathInternal(path.String(), path)
+	return b.withPathInternal(path.String(), path)
 }
 
 // Java: SourceFile.Builder.withContent(String)
@@ -294,9 +302,9 @@ func (b *SourceFile_Builder) Build() *SourceFile {
 	if b.hasOriginalPath {
 		displayPath = b.originalPath
 	} else if !b.hasZipEntryPath {
-		displayPath = sourceFile_nullableStringVal(b.path, b.hasPath)
+		displayPath = nullableStringVal(b.path, b.hasPath)
 	} else {
-		displayPath = sourceFile_nullableStringVal(b.path, b.hasPath) + sourceFile_BANG_SLASH + b.zipEntryPath
+		displayPath = nullableStringVal(b.path, b.hasPath) + sourceFile_BANG_SLASH + b.zipEntryPath
 	}
 
 	if b.isStubSourceFileForAlreadyProvidedInput {
@@ -329,7 +337,7 @@ func (b *SourceFile_Builder) Build() *SourceFile {
 	return newOnDiskSourceFile(b.path, displayPath, b.charset, b.kind)
 }
 
-func sourceFile_nullableStringVal(s string, ok bool) string {
+func nullableStringVal(s string, ok bool) string {
 	if !ok {
 		return "null"
 	}
@@ -370,7 +378,7 @@ func newOnDiskSourceFileWithNormalizedPath(
 	return f
 }
 
-func (b *SourceFile_Builder) WithPathInternal(path string, pathWithFilesystem *jutil.Path) *SourceFile_Builder {
+func (b *SourceFile_Builder) withPathInternal(path string, pathWithFilesystem *jutil.Path) *SourceFile_Builder {
 	// Check if this path should be inferred as a ZIP entry path.
 	if strings.IndexByte(path, '!') >= 0 {
 		bangSlashIndex := strings.Index(path, sourceFile_BANG_SLASH)
@@ -534,10 +542,10 @@ func (l *SourceFile_CodeLoader_OnDisk) loadCode() (string, jutil.IIOException) {
 	if err != nil {
 		return "", jutil.IOExceptionFromError(err, l.relativePathStr).(jutil.IIOException)
 	}
-	return sourceFile_decodeStrictBytes(l.GetCharset(), b, l.relativePathStr)
+	return decodeStrictSourceBytes(l.GetCharset(), b, l.relativePathStr)
 }
 
-func sourceFile_decodeStrictBytes(cs *jutil.Charset, b []byte, path string) (string, jutil.IIOException) {
+func decodeStrictSourceBytes(cs *jutil.Charset, b []byte, path string) (string, jutil.IIOException) {
 	if cs == nil {
 		cs = jutil.StandardCharsets_UTF_8
 	}
@@ -663,14 +671,14 @@ func (l *SourceFile_CodeLoader_AtZip) toProtoLocation(fileName string) *SourceFi
 func (f *SourceFile) GetProto() *SourceFileProto {
 	p := f.loader.toProtoLocation(f.GetName())
 	p.filename_ = f.GetName()
-	p.sourceKind_ = sourceFile_sourceKindToProto(f.GetKind()).GetNumber()
+	p.sourceKind_ = sourceKindToProto(f.GetKind()).GetNumber()
 	p.isClosureUnawareCode_ = f.isClosureUnawareCode
 	p.numLinesPlusOne_ = int32(f.numLines + 1)
 	p.numBytesPlusOne_ = int32(f.numBytes + 1)
 	return p
 }
 
-func sourceFile_sourceKindToProto(sourceKind rhino.StaticSourceFile_SourceKind) SourceFileProto_SourceKind {
+func sourceKindToProto(sourceKind rhino.StaticSourceFile_SourceKind) SourceFileProto_SourceKind {
 	switch sourceKind {
 	case rhino.StaticSourceFile_SourceKind_EXTERN:
 		return SourceFileProto_SourceKind_EXTERN
