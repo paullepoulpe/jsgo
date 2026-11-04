@@ -195,7 +195,7 @@ func (c *CheckPrototypeProperties) Visit(unused *NodeTraversal, n rhino.Node, pa
 		}
 		// Note: Java calls assign.getFirstChild().getLastChild().getString(), which on a
 		// single-child GETPROP (MyClass.prototype.prop) reads the receiver's string ("prototype").
-		propName := assign.Target().Node().GetLastChild().GetString()
+		propName := ast.MustGetProp(ast.MustGetProp(assign.Target().Node()).Object().Node()).Property()
 		c.compiler.Report(JSError_MakeWithNode(assign.Node(), CheckPrototypeProperties_ILLEGAL_PROTOTYPE_MEMBER, propName))
 	}
 }
@@ -931,36 +931,54 @@ func (c *CheckNoMutatedEs6Exports) addExportedLocalName(id strpool.ID) {
 }
 
 func (c *CheckNoMutatedEs6Exports) VisitExport(export rhino.Node) {
-	if !export.HasOneChild() {
+	exp, ok := ast.AsExport(export)
+	if !ok {
 		return
 	}
-	first := export.GetFirstChild()
-	if first.IsExportSpecs() {
-		for exportSpec := first.GetFirstChild(); !exportSpec.IsNil(); exportSpec = exportSpec.GetNext() {
-			jutil.CheckState(exportSpec.HasTwoChildren())
-			c.addExportedLocalName(nodeStringID(exportSpec.GetFirstChild()))
+	if _, hasSource := exp.Source(); hasSource {
+		return
+	}
+	body := exp.Body()
+	if body.Node().IsNil() {
+		return
+	}
+	if specs, ok := body.AsExportSpecs(); ok {
+		for spec, ok := specs.FirstSpec(); ok; spec, ok = spec.Next() {
+			local := spec.Local()
+			exported := spec.Exported()
+			jutil.CheckState(!local.Node().IsNil() && !exported.Node().IsNil() && exported.Node().GetNext().IsNil())
+			c.addExportedLocalName(nodeStringID(local.Node()))
 		}
 		return
 	}
-	if export.GetBooleanProp(rhino.Node_EXPORT_ALL_FROM) {
+	if exp.IsAllFrom() {
 		return
 	}
-	if NodeUtil_IsNameDeclaration(first) {
-		NodeUtil_VisitLhsNodesInNode(first, func(lhs rhino.Node) {
+	if decl, ok := body.AsNameDeclaration(); ok {
+		NodeUtil_VisitLhsNodesInNode(decl.Node(), func(lhs rhino.Node) {
 			jutil.CheckState(lhs.IsName())
 			c.addExportedLocalName(nodeStringID(lhs))
 		})
-	} else if export.GetBooleanProp(rhino.Node_EXPORT_DEFAULT) {
-		if !first.IsClass() && !first.IsFunction() {
-			return
+	} else if exp.IsDefault() {
+		if cls, ok := body.AsClass(); ok {
+			if name, hasName := cls.Name(); hasName && !name.Node().IsNil() && name.Node().GetStringID() > strpool.EmptyID {
+				c.addExportedLocalName(nodeStringID(name.Node()))
+			}
+		} else if fn, ok := body.AsFunction(); ok {
+			if name, hasName := fn.Name(); hasName {
+				c.addExportedLocalName(nodeStringID(name.Node()))
+			}
 		}
-		nameNode := first.GetFirstChild()
-		if !nameNode.IsEmpty() && nameNode.GetStringID() > strpool.EmptyID {
-			c.addExportedLocalName(nodeStringID(nameNode))
-		}
+	} else if cls, ok := body.AsClass(); ok {
+		name, hasName := cls.Name()
+		jutil.CheckState(hasName && !name.Node().IsNil())
+		c.addExportedLocalName(nodeStringID(name.Node()))
+	} else if fn, ok := body.AsFunction(); ok {
+		name := fn.NameNode()
+		jutil.CheckState(!name.Node().IsNil())
+		c.addExportedLocalName(nodeStringID(name.Node()))
 	} else {
-		jutil.CheckState(first.IsClass() || first.IsFunction())
-		c.addExportedLocalName(nodeStringID(first.GetFirstChild()))
+		jutil.CheckState(false)
 	}
 }
 

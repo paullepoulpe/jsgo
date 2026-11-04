@@ -292,6 +292,15 @@ func (e *Es6NormalizeClasses) peekClassRecord() *es6NormalizeClasses_ClassRecord
 	return e.classStack[len(e.classStack)-1]
 }
 
+func (e *Es6NormalizeClasses) findClassRecord(classNode rhino.Node) *es6NormalizeClasses_ClassRecord {
+	for i := len(e.classStack) - 1; i >= 0; i-- {
+		if e.classStack[i].classNode.Is(classNode) {
+			return e.classStack[i]
+		}
+	}
+	return nil
+}
+
 // Java: Es6NormalizeClasses.shouldTraverse(NodeTraversal, Node, Node)
 func (e *Es6NormalizeClasses) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	switch n.GetToken() {
@@ -322,47 +331,46 @@ func (e *Es6NormalizeClasses) ShouldTraverse(t *NodeTraversal, n rhino.Node, par
 		//
 		// Go-only: Java first checks that the last child of the class is its body; the grammar
 		// says it always is.
-		for member := range cls.Body().Members() {
-			if Es6NormalizeClasses_IsPrivateMember(member.Node()) {
+		for member, ok := cls.Body().FirstMember(); ok; member, ok = member.Next() {
+			if isPrivateClassMember(member) {
 				record.RecordPrivateMember(member)
 			}
 		}
 		e.classStack = append(e.classStack, record)
 	case rhino.Token_COMPUTED_FIELD_DEF:
-		jutil.CheckState(len(e.classStack) != 0)
-		field := ast.MustComputedFieldDef(n).AsClassMember()
-		classRecord := e.peekClassRecord()
-		classRecord.MaybeRecordComputedPropWithSideEffects(field)
-		classRecord.RecordField(field)
-	case rhino.Token_MEMBER_FIELD_DEF:
-		jutil.CheckState(len(e.classStack) != 0)
-		field := ast.MustMemberFieldDef(n).AsClassMember()
-		classRecord := e.peekClassRecord()
-		if n.IsPrivateIdentifier() {
-			classRecord.RecordPrivateMember(field)
+		if classRecord := e.peekClassRecord(); classRecord != nil {
+			field := ast.MustComputedFieldDef(n).AsClassMember()
+			classRecord.MaybeRecordComputedPropWithSideEffects(field)
+			classRecord.RecordField(field)
 		}
-		classRecord.RecordField(field)
+	case rhino.Token_MEMBER_FIELD_DEF:
+		if classRecord := e.peekClassRecord(); classRecord != nil {
+			field := ast.MustMemberFieldDef(n).AsClassMember()
+			if n.IsPrivateIdentifier() {
+				classRecord.RecordPrivateMember(field)
+			}
+			classRecord.RecordField(field)
+		}
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
 		if n.IsPrivateIdentifier() {
-			jutil.CheckState(len(e.classStack) != 0)
-			// A private method or accessor is a class member: object literals have no private names.
-			e.peekClassRecord().RecordPrivateMember(ast.MustClassMember(n))
+			if classRecord := e.peekClassRecord(); classRecord != nil {
+				// A private method or accessor is a class member: object literals have no private names.
+				classRecord.RecordPrivateMember(ast.MustClassMember(n))
+			}
 		}
 	case rhino.Token_BLOCK:
-		if !NodeUtil_IsClassStaticBlock(n) {
-			break
+		if NodeUtil_IsClassStaticBlock(n) {
+			if classRecord := e.peekClassRecord(); classRecord != nil {
+				classRecord.RecordStaticBlock(ast.MustBlock(n))
+			}
 		}
-
-		jutil.CheckState(len(e.classStack) != 0)
-		e.peekClassRecord().RecordStaticBlock(ast.MustBlock(n))
 	// For example, a class method with a computed property name.
 	case rhino.Token_COMPUTED_PROP:
-		if !parent.IsClassMembers() {
-			break
+		if _, ok := ast.AsClassBody(parent); ok {
+			if classRecord := e.peekClassRecord(); classRecord != nil {
+				classRecord.MaybeRecordComputedPropWithSideEffects(ast.MustComputedProp(n).AsClassMember())
+			}
 		}
-
-		jutil.CheckState(len(e.classStack) != 0)
-		e.peekClassRecord().MaybeRecordComputedPropWithSideEffects(ast.MustComputedProp(n).AsClassMember())
 	default:
 	}
 	return true
@@ -410,12 +418,14 @@ func (e *Es6NormalizeClasses) CanExtractExtendsSimply(classNode ast.Class) bool 
 }
 
 // Java: Es6NormalizeClasses.extractExtends(NodeTraversal, ClassRecord)
-func (e *Es6NormalizeClasses) ExtractExtends(t *NodeTraversal, classRecord *es6NormalizeClasses_ClassRecord) {
+func (e *Es6NormalizeClasses) extractExtends(t *NodeTraversal, classRecord *es6NormalizeClasses_ClassRecord) {
 	classNode := classRecord.classNode
 
 	statement := NodeUtil_GetEnclosingStatement(classNode.Node())
 	originalExtends, ok := classNode.Extends()
-	jutil.CheckState(ok) // shouldExtractExtends: the class extends an expression
+	if !ok {
+		return
+	}
 
 	// If the extracted superclass is itself a named class expression, remove its inner name to
 	// avoid creating a new, useless variable in the scope.
@@ -423,8 +433,7 @@ func (e *Es6NormalizeClasses) ExtractExtends(t *NodeTraversal, classRecord *es6N
 		superClass.RemoveName()
 	}
 
-	nameNode := classRecord.normalizedNames.superClassNode
-	jutil.CheckState(!nameNode.IsNil())
+	nameNode := rhino.CheckNotNull(classRecord.normalizedNames.superClassNode)
 	originalExtends.Node().ReplaceWith(nameNode)
 	extendsAlias := rhino.IR_ConstNode(nameNode.CloneNode(), originalExtends.Node()).Srcref(originalExtends.Node())
 	extendsAlias.InsertBefore(statement)
@@ -433,11 +442,11 @@ func (e *Es6NormalizeClasses) ExtractExtends(t *NodeTraversal, classRecord *es6N
 	t.ReportCodeChangeWithNode(classNode.Node())
 }
 
-// PushDownNodeIntoNewIife replaces a node with an IIFE that returns that
+// pushDownNodeIntoNewIife replaces a node with an IIFE that returns that
 // node.
 //
 // Java: Es6NormalizeClasses.pushDownNodeIntoNewIife(Node)
-func (e *Es6NormalizeClasses) PushDownNodeIntoNewIife(n rhino.Node) {
+func (e *Es6NormalizeClasses) pushDownNodeIntoNewIife(n rhino.Node) {
 	// Create the shell of the IIFE.
 	functionBody := rhino.IR_Block()
 	arrowFn := rhino.IR_ArrowFunction(rhino.IR_Name(""), rhino.IR_ParamList(), functionBody).Srcref(n)
@@ -469,8 +478,7 @@ func (e *Es6NormalizeClasses) PushDownNodeIntoNewIife(n rhino.Node) {
 func (e *Es6NormalizeClasses) ShouldExtractClass(classNode ast.Class) bool {
 	parent := classNode.Node().GetParent()
 	if NodeUtil_IsClassDeclaration(classNode.Node()) ||
-		parent.IsName() ||
-		es6NormalizeClasses_isQualifiedNameAssignStatement(parent) {
+		(!parent.IsNil() && (parent.IsName() || isQualifiedNameAssignStatement(parent))) {
 		// No need to extract. Handled directly by Es6RewriteClass.
 		return false
 	}
@@ -478,16 +486,19 @@ func (e *Es6NormalizeClasses) ShouldExtractClass(classNode ast.Class) bool {
 	return true
 }
 
-// es6NormalizeClasses_isQualifiedNameAssignStatement reports whether n is
-// the assignment of an expression statement and assigns to a qualified
-// name: `some.qname = value;`.
-func es6NormalizeClasses_isQualifiedNameAssignStatement(n rhino.Node) bool {
+// isQualifiedNameAssignStatement reports whether n is the assignment of an
+// expression statement and assigns to a qualified name: `some.qname = value;`.
+func isQualifiedNameAssignStatement(n rhino.Node) bool {
 	assign, ok := ast.AsAssign(n)
-	return ok && assign.Target().Node().IsQualifiedName() && n.GetParent().IsExprResult()
+	if !ok || !assign.Target().Node().IsQualifiedName() {
+		return false
+	}
+	_, inExprStmt := ast.AsExprStmt(n.GetParent())
+	return inExprStmt
 }
 
 // Java: Es6NormalizeClasses.extractClass(NodeTraversal, ClassRecord)
-func (e *Es6NormalizeClasses) ExtractClass(t *NodeTraversal, classRecord *es6NormalizeClasses_ClassRecord) {
+func (e *Es6NormalizeClasses) extractClass(t *NodeTraversal, classRecord *es6NormalizeClasses_ClassRecord) {
 	classNode := classRecord.classNode.Node()
 	parent := classNode.GetParent()
 
@@ -513,52 +524,51 @@ func (e *Es6NormalizeClasses) ExtractClass(t *NodeTraversal, classRecord *es6Nor
 	// mistake an @abstract class alias for a removable abstract method definition.
 	if declaration, ok := ast.AsNameDeclaration(statement); ok {
 		if only, ok := declaration.OnlyDeclarator(); ok && only.Is(parent) {
-			e.AddAtConstructor(statement)
+			e.addAtConstructor(statement)
 		}
 	} else if exprStmt, ok := ast.AsExprStmt(statement); ok {
 		if assign, ok := exprStmt.Expr().AsAssign(); ok &&
 			assign.Target().Node().IsQualifiedName() &&
 			assign.Value().Is(classNameRhs) {
-			e.AddAtConstructor(assign.Node())
+			e.addAtConstructor(assign.Node())
 		}
 	}
 	e.compiler.ReportChangeToEnclosingScope(classDeclaration)
 }
 
-// AddAtConstructor adds at-constructor to the JSDoc of the given node.
+// addAtConstructor adds at-constructor to the JSDoc of the given node.
 //
 // Java: Es6NormalizeClasses.addAtConstructor(Node)
-func (e *Es6NormalizeClasses) AddAtConstructor(node rhino.Node) {
+func (e *Es6NormalizeClasses) addAtConstructor(node rhino.Node) {
 	builder := rhino.JSDocInfo_Builder_MaybeCopyFrom(node.GetJSDocInfo())
 	builder.RecordConstructor()
 	node.SetJSDocInfo(builder.Build())
 }
 
-// GetStatementDeclaringClass gets the location of the statement declaring
-// the class; nil if the class cannot be extracted.
+// getStatementDeclaringClass gets the location of the statement declaring
+// the class; NilNode if the class cannot be extracted.
 //
 // Java: Es6NormalizeClasses.getStatementDeclaringClass(Node, Node)
-func (e *Es6NormalizeClasses) GetStatementDeclaringClass(classNode ast.Class, classNameNode rhino.Node) rhino.Node {
+func (e *Es6NormalizeClasses) getStatementDeclaringClass(classNode ast.Class, classNameNode rhino.Node) rhino.Node {
 	if NodeUtil_IsClassDeclaration(classNode.Node()) {
 		// `class C {}` -> can use `C.staticMember` to extract static fields
-		jutil.CheckState(NodeUtil_IsStatement(classNode.Node()))
 		return classNode.Node()
 	}
 	parent := classNode.Node().GetParent()
-	if parent.IsName() {
+	if _, ok := ast.AsName(parent); ok && parent == classNameNode {
 		// `let C = class {};`
 		// We can use `C.staticMemberName = ...` to extract static fields
-		jutil.CheckState(parent == classNameNode)
-		jutil.CheckState(NodeUtil_IsStatement(classNameNode.GetParent()))
-		return classNameNode.GetParent()
+		if stmt := classNameNode.GetParent(); !stmt.IsNil() && NodeUtil_IsStatement(stmt) {
+			return stmt
+		}
+		return rhino.NilNode
 	}
-	if assign, ok := ast.AsAssign(parent); ok &&
-		assign.Target().Is(classNameNode) &&
-		parent.GetParent().IsExprResult() {
-		// `something.C = class {}`
-		// we can use `something.C.staticMemberName = ...` to extract static fields
-		jutil.CheckState(NodeUtil_IsStatement(classNameNode.GetGrandparent()))
-		return classNameNode.GetGrandparent()
+	if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(classNameNode) {
+		if exprStmt, ok := ast.AsExprStmt(parent.GetParent()); ok && NodeUtil_IsStatement(exprStmt.Node()) {
+			// `something.C = class {}`
+			// we can use `something.C.staticMemberName = ...` to extract static fields
+			return exprStmt.Node()
+		}
 	}
 	return rhino.NilNode
 }
@@ -568,18 +578,22 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	switch n.GetToken() {
 	case rhino.Token_IN:
 		if in := ast.MustBinary(n); e.transpilePrivateClassFields && in.Left().Node().IsPrivateIdentifier() {
-			e.RewritePrivateIn(t, in)
+			e.rewritePrivateIn(t, in)
 		}
 	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
 		if e.transpilePrivateClassFields && n.IsPrivateIdentifier() {
-			e.RewritePrivateGetProp(t, ast.MustNormalOrOptChainGetProp(n))
+			e.rewritePrivateGetProp(t, ast.MustNormalOrOptChainGetProp(n))
 		}
 	case rhino.Token_CLASS:
-		jutil.CheckState(len(e.classStack) != 0)
+		if len(e.classStack) == 0 {
+			panic(jutil.NewIllegalStateException())
+		}
 		currClassRecord := e.classStack[len(e.classStack)-1]
 		e.classStack[len(e.classStack)-1] = nil
 		e.classStack = e.classStack[:len(e.classStack)-1]
-		jutil.CheckStateMsg1(currClassRecord.classNode.Is(n), "unexpected node: %s", n)
+		if !currClassRecord.classNode.Is(n) {
+			panic(jutil.NewIllegalStateExceptionMsg("unexpected node: " + n.String()))
+		}
 		cls := currClassRecord.classNode
 
 		// First, rewrite complex extends expressions. This must happen before class extraction
@@ -589,12 +603,12 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 				// When a class is used in an expressions where adding an alias as the previous
 				// statement might change execution order of a side-effect causing statement, wrap the
 				// class in an IIFE so that decomposition can happen safely.
-				e.PushDownNodeIntoNewIife(n)
+				e.pushDownNodeIntoNewIife(n)
 
 				// The parent of the class has been updated so reflect that.
 				parent = n.GetParent()
 			}
-			e.ExtractExtends(t, currClassRecord)
+			e.extractExtends(t, currClassRecord)
 		}
 
 		// Second, extract the class itself if it's in an expression context or it needs a name.
@@ -602,23 +616,27 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 			if e.expressionDecomposer.CanExposeExpression(n) != ExpressionDecomposer_DecompositionType_MOVABLE {
 				// When class is not movable, we wrap it inside an IIFE. We have observed unsafe
 				// circumstances where decomposing causes issues so this is safer. See b/417772606.
-				e.PushDownNodeIntoNewIife(n)
+				e.pushDownNodeIntoNewIife(n)
 			}
-			e.ExtractClass(t, currClassRecord)
+			e.extractClass(t, currClassRecord)
 
 			// The parent of the class has been updated so reflect that.
 			parent = n.GetParent()
 		}
 
 		classNameNode := NodeUtil_GetNameNode(n)
-		jutil.CheckStateMsg1(!classNameNode.IsNil(), "Class missing a name: %s", n)
-		classInsertionPoint := e.GetStatementDeclaringClass(cls, classNameNode)
-		jutil.CheckStateMsg1(!classInsertionPoint.IsNil(), "Class was not extracted: %s", n)
+		if classNameNode.IsNil() {
+			panic(jutil.NewIllegalStateExceptionMsg("Class missing a name: " + n.String()))
+		}
+		classInsertionPoint := e.getStatementDeclaringClass(cls, classNameNode)
+		if classInsertionPoint.IsNil() {
+			panic(jutil.NewIllegalStateExceptionMsg("Class was not extracted: " + n.String()))
+		}
 
 		// For class expressions, remove the inner name if it's present.
 		// Note: Safe because we removed all static initialization logic, ensured the class has a
 		// name, and we replaced all references to the inner class name.
-		if currClassRecord.hasBindingIdentifier && (parent.IsName() || parent.IsAssign()) {
+		if currClassRecord.hasBindingIdentifier && !parent.IsNil() && (parent.IsName() || parent.IsAssign()) {
 			cls.RemoveName()
 			e.compiler.ReportChangeToEnclosingScope(n)
 		}
@@ -626,7 +644,7 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		if e.transpilePrivateClassFields &&
 			(currClassRecord.hasInstancePrivateMembers ||
 				currClassRecord.hasStaticPrivateMembers) {
-			e.InsertPrivateDeclarations(t, currClassRecord, classInsertionPoint)
+			e.insertPrivateDeclarations(t, currClassRecord, classInsertionPoint)
 		}
 
 		// Rewrite parts of the class based on the record.
@@ -637,15 +655,15 @@ func (e *Es6NormalizeClasses) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 		}
 		e.RewriteStaticMembers(t, currClassRecord, classInsertionPoint)
 	case rhino.Token_NAME:
-		e.MaybeUpdateClassSelfRef(t, ast.MustName(n))
+		e.maybeUpdateClassSelfRef(t, ast.MustName(n))
 	case rhino.Token_THIS, rhino.Token_SUPER:
-		e.VisitThisAndSuper(t, n)
+		e.visitThisAndSuper(t, n)
 	default:
 	}
 }
 
 // Java: Es6NormalizeClasses.maybeUpdateClassSelfRef(NodeTraversal, Node)
-func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast.Name) {
+func (e *Es6NormalizeClasses) maybeUpdateClassSelfRef(t *NodeTraversal, name ast.Name) {
 	if len(e.classStack) == 0 {
 		return
 	}
@@ -683,7 +701,7 @@ func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast
 	}
 }
 
-// VisitThisAndSuper visits `this` and `super` nodes in the class. Only
+// visitThisAndSuper visits `this` and `super` nodes in the class. Only
 // makes changes in static contexts and records super calls in the
 // constructor for later.
 //
@@ -697,43 +715,46 @@ func (e *Es6NormalizeClasses) MaybeUpdateClassSelfRef(t *NodeTraversal, name ast
 // still there.
 //
 // Java: Es6NormalizeClasses.visitThisAndSuper(NodeTraversal, Node)
-func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) {
-	if es6NormalizeClasses_isSuperCall(n.GetParent()) {
+func (e *Es6NormalizeClasses) visitThisAndSuper(t *NodeTraversal, n rhino.Node) {
+	if n.IsSuper() && ast.RoleIn(n, n.GetParent()) == ast.RoleCallCallee {
 		// super(...); calls are only legal in a constructor so we don't need to check for static
 		// context.
-		classRecord := e.peekClassRecord()
-		classRecord.superCalls = append(classRecord.superCalls, n.GetParent())
+		if classRecord := e.peekClassRecord(); classRecord != nil {
+			classRecord.superCalls = append(classRecord.superCalls, n.GetParent())
+		}
 		return
 	}
 	rootNode := t.GetClosestScopeRootNodeBindingThisOrSuper()
-	rootParent := rootNode.GetParent()
-	if rootNode.IsFunction() &&
-		(rootParent.IsMemberFunctionDef() ||
-			rootParent.IsComputedProp() ||
-			rootParent.IsGetterDef() ||
-			rootParent.IsSetterDef()) {
-		rootNode = rootParent
+	if rootNode.IsNil() {
+		return
 	}
-	inStaticBlock := rootNode.IsBlock() && rootNode.GetParent().IsClassMembers()
+	if rootNode.IsFunction() {
+		rootParent := rootNode.GetParent()
+		if _, ok := ast.AsMethodDef(rootParent); ok {
+			rootNode = rootParent
+		} else if _, ok := ast.AsComputedProp(rootParent); ok {
+			rootNode = rootParent
+		}
+	}
+	_, inClassMembers := ast.AsClassBody(rootNode.GetParent())
+	inStaticBlock := rootNode.IsBlock() && inClassMembers
 	if !rootNode.IsStaticMember() && !inStaticBlock {
 		return
 	}
 
 	// We always rewrite static this to the class name in a static initialization context so that we
 	// can normalize-away static initialization from field initializers and static blocks.
-	forceRewriteStaticThis := n.IsThis() && es6NormalizeClasses_isInStaticInitializationContext(rootNode)
+	forceRewriteStaticThis := n.IsThis() && isInStaticInitializationContext(rootNode)
 
 	if !e.doStaticInheritanceRewrites && !forceRewriteStaticThis {
 		return
 	}
 
 	classNode := rootNode.GetGrandparent()
-	classRecord := e.peekClassRecord()
-	jutil.CheckStateMsg2(
-		classRecord.classNode.Is(classNode),
-		"wrong class node: %s != %s",
-		classRecord.classNode.Node(),
-		classNode)
+	classRecord := e.findClassRecord(classNode)
+	if classRecord == nil {
+		panic(jutil.NewIllegalStateExceptionMsg("missing class record for: " + jutil.ToJavaString(classNode)))
+	}
 
 	var newNameNode rhino.Node
 	if forceRewriteStaticThis {
@@ -746,36 +767,30 @@ func (e *Es6NormalizeClasses) VisitThisAndSuper(t *NodeTraversal, n rhino.Node) 
 	}
 
 	if !newNameNode.IsNil() {
-		originalName, ok := n.QualifiedName()
-		if !ok {
-			panic(jutil.NewNullPointerException())
+		originalName := "super"
+		if n.IsThis() {
+			originalName = "this"
 		}
 		newNameNode.SrcrefTree(n).SetOriginalName(originalName)
 		n.ReplaceWith(newNameNode)
+		for _, rec := range e.classStack {
+			if rec.normalizedNames.superClassNode == n {
+				rec.normalizedNames.superClassNode = newNameNode
+			}
+		}
 		t.ReportCodeChangeWithNode(newNameNode)
 	}
 }
 
-// Java: Es6NormalizeClasses.isSuperCall(Node)
-func es6NormalizeClasses_isSuperCall(n rhino.Node) bool {
-	call, ok := ast.AsCall(n)
-	return ok && call.Callee().Node().IsSuper()
-}
-
-// es6NormalizeClasses_isInStaticInitializationContext assumes that we have
-// already filtered out non-static members and non-static blocks.
+// isInStaticInitializationContext assumes that we have already filtered out
+// non-static members and non-static blocks.
 //
 // Java: Es6NormalizeClasses.isInStaticInitializationContext(Node)
-func es6NormalizeClasses_isInStaticInitializationContext(rootNode rhino.Node) bool {
+func isInStaticInitializationContext(rootNode rhino.Node) bool {
 	switch rootNode.GetToken() {
 	case rhino.Token_MEMBER_FUNCTION_DEF, rhino.Token_COMPUTED_PROP, rhino.Token_GETTER_DEF, rhino.Token_SETTER_DEF:
-		jutil.CheckState(rootNode.IsStaticMember())
 		return false
-	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF:
-		jutil.CheckState(rootNode.IsStaticMember())
-		return true
-	case rhino.Token_BLOCK:
-		jutil.CheckState(rootNode.GetParent().IsClassMembers())
+	case rhino.Token_MEMBER_FIELD_DEF, rhino.Token_COMPUTED_FIELD_DEF, rhino.Token_BLOCK:
 		return true
 	default:
 		panic(jutil.NewIllegalArgumentExceptionMsg("invalid root " + jutil.ToJavaString(rootNode)))
@@ -909,14 +924,14 @@ func (e *Es6RenameReferences) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 	if e.hasFilter && !e.hasNameID(n.GetStringID()) {
 		return
 	}
-	e.RenameReference(t, n, n.GetString())
+	e.renameReference(t, n, n.GetString())
 }
 
-// RenameReference: t is the NodeTraversal; oldName is the root name of a
+// renameReference: t is the NodeTraversal; oldName is the root name of a
 // qualified name.
 //
 // Java: Es6RenameReferences.renameReference(NodeTraversal, Node, String)
-func (e *Es6RenameReferences) RenameReference(t *NodeTraversal, n rhino.Node, oldName string) {
+func (e *Es6RenameReferences) renameReference(t *NodeTraversal, n rhino.Node, oldName string) {
 	current := t.GetScope()
 	// You should be wondering:
 	//
@@ -953,10 +968,10 @@ type SynthesizeExplicitConstructors struct {
 
 // Java: SynthesizeExplicitConstructors(AbstractCompiler)
 func NewSynthesizeExplicitConstructors(compiler AbstractCompiler) *SynthesizeExplicitConstructors {
-	s := &SynthesizeExplicitConstructors{}
-	s.compiler = compiler
-	s.astFactory = compiler.CreateAstFactory()
-	return s
+	return &SynthesizeExplicitConstructors{
+		compiler:   compiler,
+		astFactory: compiler.CreateAstFactory(),
+	}
 }
 
 // SynthesizeClassConstructorIfMissing adds a synthetic constructor to the
@@ -964,17 +979,15 @@ func NewSynthesizeExplicitConstructors(compiler AbstractCompiler) *SynthesizeExp
 //
 // Java: SynthesizeExplicitConstructors.synthesizeClassConstructorIfMissing(NodeTraversal, Node)
 func (s *SynthesizeExplicitConstructors) SynthesizeClassConstructorIfMissing(t *NodeTraversal, classNode rhino.Node) {
-	cls, ok := ast.AsClass(classNode)
-	jutil.CheckArgument(ok)
+	cls := ast.MustClass(classNode)
 	if _, hasCtor := cls.Constructor(); !hasCtor {
-		s.AddSyntheticConstructor(t, classNode)
+		s.addSyntheticConstructor(t, cls)
 	}
 }
 
 // Java: SynthesizeExplicitConstructors.addSyntheticConstructor(NodeTraversal, Node)
-func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversal, classNode rhino.Node) {
-	cls := ast.MustClass(classNode)
-	classMembers := cls.Body().Node()
+func (s *SynthesizeExplicitConstructors) addSyntheticConstructor(t *NodeTraversal, cls ast.Class) {
+	classNode := cls.Node()
 	var memberDef rhino.Node
 	if superClassExpr, hasSuper := cls.Extends(); !hasSuper {
 		function := s.astFactory.CreateEmptyFunction(AstFactory_Type_(classNode))
@@ -982,17 +995,17 @@ func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversa
 		memberDef = s.astFactory.CreateMemberFunctionDef("constructor", function)
 	} else {
 		superClass := superClassExpr.Node()
-		jutil.CheckStateMsg1(
-			superClass.IsQualifiedName(),
-			"Expected Es6NormalizeClasses to make all extends clauses into qualified names, found %s",
-			superClass)
+		if !superClass.IsQualifiedName() {
+			panic(jutil.NewIllegalStateExceptionMsg(
+				"Expected Es6NormalizeClasses to make all extends clauses into qualified names, found " + superClass.String()))
+		}
 		body := rhino.IR_Block()
 
 		// If a class is defined in an externs file or as an interface, it's only a stub, not an
 		// implementation that should be instantiated.
 		// A call to super() shouldn't actually exist for these cases and is problematic to
 		// transpile, so don't generate it.
-		if !classNode.IsFromExterns() && !s.IsInterface(classNode) {
+		if !classNode.IsFromExterns() && !s.isInterface(classNode) {
 			// Generate required call to super()
 			// `super(...arguments);`
 			// Note that transpilation of spread args must occur after this pass for this to work.
@@ -1010,7 +1023,7 @@ func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversa
 	}
 	memberDef.SrcrefTreeIfMissing(classNode)
 	memberDef.MakeNonIndexableRecursive()
-	classMembers.AddChildToFront(memberDef)
+	cls.Body().PrependMember(ast.MustClassMember(memberDef))
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_MEMBER_DECLARATIONS, s.compiler)
 	// report newly created constructor
 	s.compiler.ReportChangeToChangeScope(ast.MustMemberFunctionDef(memberDef).Function().Node())
@@ -1019,7 +1032,7 @@ func (s *SynthesizeExplicitConstructors) AddSyntheticConstructor(t *NodeTraversa
 }
 
 // Java: SynthesizeExplicitConstructors.isInterface(Node)
-func (s *SynthesizeExplicitConstructors) IsInterface(classNode rhino.Node) bool {
+func (s *SynthesizeExplicitConstructors) isInterface(classNode rhino.Node) bool {
 	classJsDocInfo := NodeUtil_GetBestJSDocInfo(classNode)
 	return classJsDocInfo != nil && classJsDocInfo.IsInterface()
 }

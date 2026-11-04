@@ -115,6 +115,27 @@ func NewCheckJSDoc(compiler AbstractCompiler) *CheckJSDoc {
 
 // Java: CheckJSDoc.process(Node, Node)
 func (c *CheckJSDoc) Process(externs rhino.Node, root rhino.Node) {
+	if traverseScriptsParallel(c.compiler, root, parallelScriptOptions[*CheckJSDoc]{
+		hasExterns: true,
+		externs:    externs,
+		prepare: func(_, _ int) bool {
+			return externs != root &&
+				!externs.HasJSDocInfo() &&
+				!root.HasJSDocInfo() &&
+				!externs.GetParent().HasJSDocInfo()
+		},
+		initWorker: func(_ int, rc *Compiler) *CheckJSDoc {
+			return NewCheckJSDoc(rc)
+		},
+		callback: func(wc *CheckJSDoc, _ int, parent rhino.Node, _ rhino.Node, rc *Compiler) NodeTraversal_Callback {
+			wc.compiler = rc
+			wc.inExterns = parent == externs
+			return wc
+		},
+	}) {
+		c.inExterns = false
+		return
+	}
 	c.inExterns = true
 	NodeTraversal_Traverse(c.compiler, externs, c)
 	c.inExterns = false
@@ -133,7 +154,7 @@ func (c *CheckJSDoc) CheckJsDocInBlockComments(script rhino.Node) {
 	sf := jutil.CheckNotNullMsg1(script.GetStaticSourceFile(), "Missing StaticSourceFile on %s", script)
 
 	for _, comment := range c.compiler.GetComments(sf.GetName()) {
-		if comment.Type == parser.Comment_Type_BLOCK {
+		if comment.Type == parser.Comment_Type_BLOCK && strings.IndexByte(comment.Value, '@') >= 0 {
 			if checkJSDoc_COMMENT_PATTERN.Matcher(comment.Value).Find() {
 				c.compiler.Report(
 					JSError_MakeAtSourceLocation(

@@ -408,7 +408,7 @@ func (p *regExpParser) scanNamedGroupName() (string, *RegExpParseError) {
 	if err != nil {
 		return "", err
 	}
-	if !RegExpTree_IsIdentifierStart(first) {
+	if !isIdentifierStart(first) {
 		return "", p.tailError("Invalid capture group name: <", start)
 	}
 	end++
@@ -417,7 +417,7 @@ func (p *regExpParser) scanNamedGroupName() (string, *RegExpParseError) {
 		if ch == '>' {
 			p.pos = end + 1
 			return p.substring(start, end)
-		} else if RegExpTree_IsIdentifierPart(ch) {
+		} else if isIdentifierPart(ch) {
 			end++
 		} else {
 			return "", p.tailError("Invalid capture group name: <", start)
@@ -447,7 +447,7 @@ func (p *regExpParser) parseCharset() (RegExpTree, *RegExpParseError) {
 			if err != nil {
 				return nil, err
 			}
-			group := regExpTree_namedCharGroup(possibleGroupName)
+			group := namedCharGroup(possibleGroupName)
 			if group != nil {
 				p.pos++
 				ranges = ranges.Union(group)
@@ -684,7 +684,7 @@ func (p *regExpParser) parseEscape() (RegExpTree, *RegExpParseError) {
 		}
 		return NewRegExpTree_NamedBackReference(potentialName), nil
 	}
-	charGroup := regExpTree_namedCharGroup(ch)
+	charGroup := namedCharGroup(ch)
 	if charGroup != nil { // Handle \d, etc.
 		p.pos++
 		return NewRegExpTree_Charset(charGroup, CharRanges_EMPTY), nil
@@ -880,11 +880,11 @@ func (p *regExpParser) parseDecimalInt(start, end int) (int, bool) {
 	return int(v), true
 }
 
-// RegExpTree_IsIdentifierStart reports whether ch is a valid Javascript
-// identifier start character.
+// isIdentifierStart reports whether ch is a valid Javascript identifier start
+// character.
 //
 // Java: RegExpTree.isIdentifierStart(char)
-func RegExpTree_IsIdentifierStart(ch uint16) bool {
+func isIdentifierStart(ch uint16) bool {
 	// TODO(yitingwang) This and the one in Scanner.java should share the same implementation
 	// Most code is written in pure ASCII create a fast path here.
 	if ch <= 127 {
@@ -894,11 +894,10 @@ func RegExpTree_IsIdentifierStart(ch uint16) bool {
 	return jutil.CharacterIsLetter(ch)
 }
 
-// RegExpTree_IsIdentifierPart reports whether ch is allowed in Javascript
-// identifiers.
+// isIdentifierPart reports whether ch is allowed in Javascript identifiers.
 //
 // Java: RegExpTree.isIdentifierPart(char)
-func RegExpTree_IsIdentifierPart(ch uint16) bool {
+func isIdentifierPart(ch uint16) bool {
 	// TODO(yitingwang) This and the one in Scanner.java should share the same implementation
 	// Most code is written in pure ASCII create a fast path here.
 	if ch <= 127 {
@@ -914,5 +913,5 @@ func RegExpTree_IsIdentifierPart(ch uint16) bool {
 	// Connector punctuation (Pc)
 	// Zero Width Non-Joiner
 	// Zero Width Joiner
-	return RegExpTree_IsIdentifierStart(ch) || jutil.CharacterIsDigit(ch)
+	return isIdentifierStart(ch) || jutil.CharacterIsDigit(ch)
 }

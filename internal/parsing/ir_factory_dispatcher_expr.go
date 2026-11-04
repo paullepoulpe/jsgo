@@ -22,6 +22,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -116,15 +117,20 @@ func (f *IRFactory) ProcessFunctionCall(callNode *parser.CallExpressionTree) rhi
 //
 // Java: IRFactory.TransformDispatcher.annotateCalls(Node)
 func (f *IRFactory) AnnotateCalls(n rhino.Node) {
-	jutil.CheckStateMsg1(n.IsCall() || n.IsOptChainCall() || n.IsTaggedTemplateLit(), "%s", n)
+	inv, ok := ast.AsInvocation(n)
+	jutil.CheckStateMsg1(ok, "%s", n)
 
 	// Keep track of of the "this" context of a call.  A call without an
 	// explicit "this" is a free call.
-	callee := n.GetFirstChild()
+	callee := inv.Callee().Node()
 
 	// ignore cast nodes.
-	for callee.IsCast() {
-		callee = callee.GetFirstChild()
+	for {
+		cast, ok := ast.AsCast(callee)
+		if !ok {
+			break
+		}
+		callee = cast.Expr().Node()
 	}
 
 	if !f.IsNormalOrOptChainGet(callee) {
@@ -135,11 +141,11 @@ func (f *IRFactory) AnnotateCalls(n rhino.Node) {
 		// avoid changing the calling behavior.
 		n.PutBooleanProp(rhino.Node_FREE_CALL, true)
 
-		if callee.IsName() && callee.GetString() == "eval" {
+		if name, ok := ast.AsName(callee); ok && name.Ident() == "eval" {
 			// Keep track of the context in which eval is called. It is
 			// important to distinguish between "(0, eval)()" and "eval()".
 			callee.PutBooleanProp(rhino.Node_DIRECT_EVAL, true)
-		} else if callee.IsComma() && callee.GetFirstChild().IsNumber() {
+		} else if comma, ok := ast.AsBinaryOf(callee, rhino.Token_COMMA); ok && comma.Left().Node().IsNumber() {
 			// The input code may actually already contain calls of the form
 			// `(0, real.callee)(arg1, arg2)`. For example, the TypeScript
 			// compiler outputs code like this in some cases.
@@ -147,8 +153,8 @@ func (f *IRFactory) AnnotateCalls(n rhino.Node) {
 			// functions, though, so we will simplify these cases. The
 			// `FREE_CALL` property we've just applied will tell the code
 			// printer to put this wrapping back later.
-			realCallee := callee.GetSecondChild()
-			callee.ReplaceWith(realCallee.Detach())
+			realCallee := comma.Right().Detach()
+			callee.ReplaceWith(realCallee.Node())
 			// TODO(bradfordcsmith): Why do I get an NPE if I try to report
 			// this code change?
 		}
@@ -160,7 +166,8 @@ func (f *IRFactory) AnnotateCalls(n rhino.Node) {
 //
 // Java: IRFactory.TransformDispatcher.isNormalOrOptChainGet(Node)
 func (f *IRFactory) IsNormalOrOptChainGet(n rhino.Node) bool {
-	return n.IsGetProp() || n.IsGetElem() || n.IsOptChainGetProp() || n.IsOptChainGetElem()
+	_, ok := ast.AsNormalOrOptChainGet(n)
+	return ok
 }
 
 // AttachPossibleTrailingCommentsForArg attaches trailing comments
@@ -254,7 +261,7 @@ func (f *IRFactory) AddExtraTrailingComment(node rhino.Node, lastComment *rhino.
 
 		newlineComment := rhino.NewNonJSDocComment(
 			newStart, lastComment.GetEndPosition(), "\n"+lastComment.GetCommentString())
-		node.GetLastChild().SetTrailingNonJSDocComment(newlineComment)
+		lastChild.SetTrailingNonJSDocComment(newlineComment)
 		return
 	}
 
@@ -264,21 +271,24 @@ func (f *IRFactory) AddExtraTrailingComment(node rhino.Node, lastComment *rhino.
 		numWhiteSpace = int(lastComment.GetStartPosition().Column - currentComment.GetEndPosition().Column - 1)
 	}
 
+	curStr := currentComment.GetCommentString()
+	lastStr := lastComment.GetCommentString()
 	var comment strings.Builder
-	comment.WriteString(currentComment.GetCommentString())
-	for i := 0; i < numWhiteSpace; i++ {
-		comment.WriteString(" ")
+	comment.Grow(len(curStr) + max(numWhiteSpace, 0) + max(blankLines, 0) + len(lastStr))
+	comment.WriteString(curStr)
+	if numWhiteSpace > 0 {
+		comment.WriteString(strings.Repeat(" ", numWhiteSpace))
 	}
-	for i := 0; i < blankLines; i++ {
-		comment.WriteString("\n")
+	if blankLines > 0 {
+		comment.WriteString(strings.Repeat("\n", blankLines))
 	}
-	comment.WriteString(lastComment.GetCommentString())
+	comment.WriteString(lastStr)
 
 	allComments := rhino.NewNonJSDocComment(
 		currentComment.GetStartPosition(), lastComment.GetEndPosition(), comment.String())
 	allComments.SetEndsAsLineComment(lastComment.IsEndingAsLineComment())
 	allComments.SetIsInline(true)
-	node.GetLastChild().SetTrailingNonJSDocComment(allComments)
+	lastChild.SetTrailingNonJSDocComment(allComments)
 }
 
 // Java: IRFactory.TransformDispatcher.processOptChainFunctionCall(OptChainCallExpressionTree)
@@ -644,8 +654,8 @@ func (f *IRFactory) ProcessUpdateExpression(updateExpr *parser.UpdateExpressionT
 // Java: IRFactory.TransformDispatcher.createUpdateNode(Token, boolean, Node)
 func (f *IRFactory) CreateUpdateNode(type_ rhino.Token, postfix bool, operand rhino.Node) rhino.Node {
 	assignTarget := operand
-	if operand.IsCast() {
-		assignTarget = operand.GetFirstChild()
+	if cast, ok := ast.AsCast(operand); ok {
+		assignTarget = cast.Expr().Node()
 	}
 	if !assignTarget.IsValidAssignmentTarget() {
 		fix := "prefix"

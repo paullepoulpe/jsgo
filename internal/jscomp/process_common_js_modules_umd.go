@@ -171,7 +171,6 @@ func (p *ProcessCommonJSModules) removeWebpackModuleShim(root rhino.Node) {
 	if !ok {
 		return
 	}
-	call := iife.Node()
 
 	function, ok := iife.Callee().AsFunction()
 	if !ok {
@@ -195,16 +194,17 @@ func (p *ProcessCommonJSModules) removeWebpackModuleShim(root rhino.Node) {
 	// Java quirk kept: the argument is read by child index, which counts the
 	// callee; for a free call the index is one lower, so it reads the argument
 	// before the one of the `module` parameter.
-	argIndex := paramNumber + 1
-	if call.GetBooleanProp(rhino.Node_FREE_CALL) {
-		argIndex = paramNumber
+	argIdx := paramNumber
+	if iife.IsFreeCall() {
+		argIdx = paramNumber - 1
 	}
-	arg := call.GetChildAtIndex(argIndex)
-	if arg.IsNil() {
+	argView, ok := iife.AsCallOrNew().ArgAt(argIdx)
+	if !ok {
 		return
 	}
+	arg := argView.Node()
 
-	argCall, ok := ast.AsCall(arg)
+	argCall, ok := argView.AsCall()
 	if !ok {
 		return
 	}
@@ -405,18 +405,19 @@ func (f *commonJsFindImportsAndExports) replaceUmdPatterns() bool {
 					newStatements = mutator.MutateWithoutRenaming(
 						factoryLabel, inlinedFn.Node(), call, assignedName, false, false)
 					if assignedName != "" {
+						newStmtsBlock := ast.MustBlock(newStatements)
 						targetQName, _ := exprAssign.Target().Node().GetQualifiedNameString()
-						newName := rhino.IR_Var(
-							NodeUtil_NewNameWithOriginalName(compiler, assignedName, fn, targetQName)).
-							SrcrefTree(fn)
-						if first, ok := processCommonJSModules_firstAssignTo(newStatements, assignedName); ok {
-							newName.GetFirstChild().AddChildToFront(first.Value().Detach().Node())
-							newStatements.GetFirstChild().ReplaceWith(newName)
+						declNameNode := NodeUtil_NewNameWithOriginalName(compiler, assignedName, fn, targetQName)
+						newVar := rhino.IR_Var(declNameNode).SrcrefTree(fn)
+						declName := ast.MustName(declNameNode)
+						if firstStmt, firstAssign, ok := processCommonJSModules_firstAssignTo(newStmtsBlock, assignedName); ok {
+							declName.SetInit(firstAssign.Value().Detach())
+							firstStmt.ReplaceWith(ast.MustStatement(newVar))
 						} else {
-							newStatements.AddChildToFront(newName)
+							newStmtsBlock.PrependStatement(ast.MustStatement(newVar))
 						}
-						exprAssign.Value().Node().ReplaceWith(newName.GetFirstChild().CloneNode())
-						newStatements.AddChildToBack(exprStmt.Detach().Node())
+						exprAssign.SetValue(ast.MustExpr(declName.Node().CloneNode()))
+						newStmtsBlock.AppendStatement(exprStmt.Detach().AsStatement())
 					}
 				}
 			}
@@ -476,17 +477,21 @@ func processCommonJSModules_inlinedFactory(newStatements rhino.Node) (ast.Functi
 	return inlinedFn, exprStmt, ok
 }
 
-func processCommonJSModules_firstAssignTo(block rhino.Node, name string) (ast.Assign, bool) {
-	exprStmt, ok := ast.AsExprStmt(block.GetFirstChild())
+func processCommonJSModules_firstAssignTo(block ast.Block, name string) (ast.Statement, ast.Assign, bool) {
+	firstStmt, ok := block.FirstStatement()
 	if !ok {
-		return ast.Assign{}, false
+		return ast.Statement{}, ast.Assign{}, false
+	}
+	exprStmt, ok := firstStmt.AsExprStmt()
+	if !ok {
+		return ast.Statement{}, ast.Assign{}, false
 	}
 	assign, ok := exprStmt.Expr().AsAssign()
 	if !ok {
-		return ast.Assign{}, false
+		return ast.Statement{}, ast.Assign{}, false
 	}
 	target, ok := assign.Target().AsName()
-	return assign, ok && target.Ident() == name
+	return firstStmt, assign, ok && target.Ident() == name
 }
 
 func (p *ProcessCommonJSModules) reportNestedScopesDeleted(n rhino.Node) {

@@ -85,14 +85,13 @@ func decodeWTF8Rune(s string) (rune, int) {
 	return utf8.DecodeRuneInString(s)
 }
 
-// regExpTree_singleCharUnit reports whether t is a Text of length 1 UTF-16
-// code unit and returns that code unit without allocating.
-func regExpTree_singleCharUnit(t RegExpTree) (uint16, bool) {
-	text, ok := t.(*RegExpTree_Text)
-	if !ok || len(text.text) == 0 {
+// singleCharUnit reports whether t has length 1 UTF-16 code unit and returns
+// that code unit without allocating.
+func (t *RegExpTree_Text) singleCharUnit() (uint16, bool) {
+	s := t.text
+	if len(s) == 0 {
 		return 0, false
 	}
-	s := text.text
 	if len(s) == 1 {
 		return uint16(s[0]), true
 	}
@@ -106,13 +105,21 @@ func regExpTree_singleCharUnit(t RegExpTree) (uint16, bool) {
 	return 0, false
 }
 
-// regExpTree_isSingleCharText is `x instanceof Text text &&
-// text.text.length() == 1`.
-//
-// Go-only: language-adapter — pattern-matching instanceof as a helper.
-func regExpTree_isSingleCharText(t RegExpTree) bool {
-	_, ok := regExpTree_singleCharUnit(t)
+// isSingleChar reports whether t has length 1 UTF-16 code unit.
+func (t *RegExpTree_Text) isSingleChar() bool {
+	_, ok := t.singleCharUnit()
 	return ok
+}
+
+func isSingleCharOrCharset(t RegExpTree) bool {
+	switch node := t.(type) {
+	case *RegExpTree_Charset:
+		return true
+	case *RegExpTree_Text:
+		return node.isSingleChar()
+	default:
+		return false
+	}
 }
 
 func writeDecimalInt(sb *strings.Builder, n int) {
@@ -560,11 +567,11 @@ func (t *RegExpTree_Text) HasCapturingGroup() bool { return false }
 func (t *RegExpTree_Text) NumCapturingGroups() int { return 0 }
 func (t *RegExpTree_Text) Children() []RegExpTree  { return emptyRegExpChildren }
 
-// RegExpTree_Text_EscapeRegularCharOnto escapes ch onto sb. ch is the
-// code-unit to escape; next is the next code-unit or -1 if indeterminable.
+// escapeRegularCharOnto escapes ch onto sb. ch is the code-unit to escape;
+// next is the next code-unit or -1 if indeterminable.
 //
 // Java: Text.escapeRegularCharOnto(char, int, StringBuilder)
-func RegExpTree_Text_EscapeRegularCharOnto(ch uint16, next int, sb *strings.Builder) {
+func escapeRegularCharOnto(ch uint16, next int, sb *strings.Builder) {
 	switch ch {
 	case '$', '^', '*', '(', ')', '+', '[', '|', '.', '/', '?':
 		sb.WriteByte('\\')
@@ -577,7 +584,7 @@ func RegExpTree_Text_EscapeRegularCharOnto(ch uint16, next int, sb *strings.Buil
 		}
 		sb.WriteByte('{')
 	default:
-		RegExpTree_EscapeCharOnto(ch, sb)
+		escapeCharOnto(ch, sb)
 	}
 }
 
@@ -636,7 +643,7 @@ func (t *RegExpTree_Text) AppendSourceCode(sb *strings.Builder) {
 			if i+1 < n {
 				next = int(s[i+1])
 			}
-			RegExpTree_Text_EscapeRegularCharOnto(uint16(s[i]), next, sb)
+			escapeRegularCharOnto(uint16(s[i]), next, sb)
 		}
 		return
 	}
@@ -662,7 +669,7 @@ func (t *RegExpTree_Text) AppendSourceCode(sb *strings.Builder) {
 		if hasNext {
 			next = int(peekCh)
 		}
-		RegExpTree_Text_EscapeRegularCharOnto(ch, next, sb)
+		escapeRegularCharOnto(ch, next, sb)
 		ch, pos, pendingLo, ok = peekCh, nextPos, nextPendingLo, hasNext
 	}
 }
@@ -802,11 +809,10 @@ func (u *RegExpTree_UnicodePropertyEscape) HashCode() int32 {
 // Java: RegExpTree.toString()
 func (u *RegExpTree_UnicodePropertyEscape) String() string { return regExpTreeString(u) }
 
-// RegExpTree_EscapeCharOnto escapes a code unit for regular expression
-// source.
+// escapeCharOnto escapes a code unit for regular expression source.
 //
 // Java: RegExpTree.escapeCharOnto(char, StringBuilder)
-func RegExpTree_EscapeCharOnto(ch uint16, sb *strings.Builder) {
+func escapeCharOnto(ch uint16, sb *strings.Builder) {
 	const hexDigits = "0123456789abcdef"
 	switch ch {
 	case '\u0000':

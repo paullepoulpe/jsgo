@@ -97,7 +97,7 @@ var RegExpTree_NAMED_CHAR_GROUPS = []struct {
 	{'W', RegExpTree_INVERSE_WORD_CHARS},
 }
 
-func regExpTree_namedCharGroup(letter uint16) *CharRanges {
+func namedCharGroup(letter uint16) *CharRanges {
 	for _, g := range RegExpTree_NAMED_CHAR_GROUPS {
 		if g.letter == letter {
 			return g.ranges
@@ -140,29 +140,29 @@ func (c *RegExpTree_Charset) HasCapturingGroup() bool { return false }
 func (c *RegExpTree_Charset) NumCapturingGroups() int { return 0 }
 func (c *RegExpTree_Charset) Children() []RegExpTree  { return emptyRegExpChildren }
 
-// RegExpTree_Charset_ComplexityWordFolded is the complexity of ranges or of
-// its inverse, whichever is smaller.
+// complexityWordFolded is the complexity of ranges or of its inverse,
+// whichever is smaller.
 //
 // Java: Charset.complexityWordFolded(CharRanges)
-func RegExpTree_Charset_ComplexityWordFolded(ranges *CharRanges) int {
+func complexityWordFolded(ranges *CharRanges) int {
 	return min(
-		RegExpTree_Charset_ComplexityWordFoldedHelper(ranges),
-		1+RegExpTree_Charset_ComplexityWordFoldedHelper(CharRanges_ALL_CODE_UNITS.Difference(ranges)))
+		complexityWordFoldedHelper(ranges),
+		1+complexityWordFoldedHelper(CharRanges_ALL_CODE_UNITS.Difference(ranges)))
 }
 
-// RegExpTree_Charset_ComplexityWordFoldedHelper is the complexity of ranges,
-// using \w or \W where that is shorter.
+// complexityWordFoldedHelper is the complexity of ranges, using \w or \W where
+// that is shorter.
 //
 // Java: Charset.complexityWordFoldedHelper(CharRanges)
-func RegExpTree_Charset_ComplexityWordFoldedHelper(ranges *CharRanges) int {
-	complexity := RegExpTree_DecomposedCharset_Complexity(ranges)
+func complexityWordFoldedHelper(ranges *CharRanges) int {
+	complexity := decomposedCharsetComplexity(ranges)
 	if ranges.ContainsAll(RegExpTree_WORD_CHARS) {
-		complexity = min(complexity, 1+RegExpTree_DecomposedCharset_Complexity(ranges.Difference(RegExpTree_WORD_CHARS)))
+		complexity = min(complexity, 1+decomposedCharsetComplexity(ranges.Difference(RegExpTree_WORD_CHARS)))
 	}
 	if ranges.ContainsAll(RegExpTree_INVERSE_WORD_CHARS) {
 		complexity = min(
 			complexity,
-			1+RegExpTree_DecomposedCharset_Complexity(ranges.Difference(RegExpTree_INVERSE_WORD_CHARS)))
+			1+decomposedCharsetComplexity(ranges.Difference(RegExpTree_INVERSE_WORD_CHARS)))
 	}
 	return complexity
 }
@@ -203,10 +203,10 @@ func (c *RegExpTree_Charset) Simplify(flags string) RegExpTree {
 		add(c.ranges.Union(ucaseLettersToLower).Difference(ucaseLetters))
 		add(c.ranges.Union(lcaseLettersToUpper).Difference(lcaseLetters))
 
-		bestComplexity := RegExpTree_Charset_ComplexityWordFolded(c.ranges)
+		bestComplexity := complexityWordFolded(c.ranges)
 
 		for _, option := range options {
-			complexity := RegExpTree_Charset_ComplexityWordFolded(option)
+			complexity := complexityWordFolded(option)
 			if complexity < bestComplexity {
 				bestComplexity = complexity
 				best = option
@@ -252,11 +252,11 @@ func (c *RegExpTree_Charset) DecomposeRanges(ranges *CharRanges, inverted bool) 
 	for {
 		groupName := uint16(0)
 		var simplest *CharRanges
-		minComplexity := RegExpTree_DecomposedCharset_Complexity(ranges)
+		minComplexity := decomposedCharsetComplexity(ranges)
 		for _, g := range RegExpTree_NAMED_CHAR_GROUPS {
 			if ranges.ContainsAll(g.ranges) {
 				withoutGroup := ranges.Difference(g.ranges).Union(rangesInterIeExplicits)
-				complexity := RegExpTree_DecomposedCharset_Complexity(withoutGroup)
+				complexity := decomposedCharsetComplexity(withoutGroup)
 				if complexity < minComplexity {
 					simplest = withoutGroup
 					groupName = g.letter
@@ -361,7 +361,7 @@ func (d *RegExpTree_DecomposedCharset) Complexity() int {
 	if d.inverted {
 		inverted = 1
 	}
-	return inverted + jutil.StringLength(d.namedGroups) + RegExpTree_DecomposedCharset_Complexity(d.ranges)
+	return inverted + jutil.StringLength(d.namedGroups) + decomposedCharsetComplexity(d.ranges)
 }
 
 // AppendSourceCode emits the charset.
@@ -397,15 +397,15 @@ func (d *RegExpTree_DecomposedCharset) AppendSourceCode(sb *strings.Builder) {
 				// Put it at the end where it doesn't need escaping.
 				emitDashAtEnd = true
 			} else {
-				RegExpTree_DecomposedCharset_EscapeRangeCharOnto(start, rangesStartCharset, i == 0, i+1 == n, sb)
+				escapeRangeCharOnto(start, rangesStartCharset, i == 0, i+1 == n, sb)
 			}
 		case 1:
-			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(start, rangesStartCharset, i == 0, false, sb)
-			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(end, rangesStartCharset, false, i+1 == n, sb)
+			escapeRangeCharOnto(start, rangesStartCharset, i == 0, false, sb)
+			escapeRangeCharOnto(end, rangesStartCharset, false, i+1 == n, sb)
 		default:
-			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(start, rangesStartCharset, i == 0, false, sb)
+			escapeRangeCharOnto(start, rangesStartCharset, i == 0, false, sb)
 			sb.WriteByte('-')
-			RegExpTree_DecomposedCharset_EscapeRangeCharOnto(end, rangesStartCharset, false, true, sb)
+			escapeRangeCharOnto(end, rangesStartCharset, false, true, sb)
 		}
 	}
 	if emitDashAtEnd {
@@ -414,11 +414,10 @@ func (d *RegExpTree_DecomposedCharset) AppendSourceCode(sb *strings.Builder) {
 	sb.WriteByte(']')
 }
 
-// RegExpTree_DecomposedCharset_EscapeRangeCharOnto escapes a character that
-// appears in a charset.
+// escapeRangeCharOnto escapes a character that appears in a charset.
 //
 // Java: DecomposedCharset.escapeRangeCharOnto(char, boolean, boolean, boolean, StringBuilder)
-func RegExpTree_DecomposedCharset_EscapeRangeCharOnto(
+func escapeRangeCharOnto(
 	ch uint16, startIsFlush bool, atStart bool, atEnd bool, sb *strings.Builder) {
 	switch ch {
 	case '\b':
@@ -439,15 +438,14 @@ func RegExpTree_DecomposedCharset_EscapeRangeCharOnto(
 		sb.WriteByte('\\')
 		sb.WriteByte(byte(ch))
 	default:
-		RegExpTree_EscapeCharOnto(ch, sb)
+		escapeCharOnto(ch, sb)
 	}
 }
 
-// RegExpTree_DecomposedCharset_Complexity estimates the rendered length of
-// ranges.
+// decomposedCharsetComplexity estimates the rendered length of ranges.
 //
 // Java: DecomposedCharset.complexity(CharRanges)
-func RegExpTree_DecomposedCharset_Complexity(ranges *CharRanges) int {
+func decomposedCharsetComplexity(ranges *CharRanges) int {
 	complexity := 0
 	for i, n := 0, ranges.GetNumRanges(); i < n; i++ {
 		start := ranges.Start(i)

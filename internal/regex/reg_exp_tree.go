@@ -153,14 +153,14 @@ func (r *RegExpTree_Repetition) Simplify(flags string) RegExpTree {
 //
 // Java: Repetition.appendBodySourceCode(StringBuilder)
 func (r *RegExpTree_Repetition) AppendBodySourceCode(sb *strings.Builder) {
-	_, isAlternation := r.body.(*RegExpTree_Alternation)
-	_, isConcatenation := r.body.(*RegExpTree_Concatenation)
-	_, isRepetition := r.body.(*RegExpTree_Repetition)
-	_, isText := r.body.(*RegExpTree_Text)
-	if isAlternation ||
-		isConcatenation ||
-		isRepetition ||
-		(isText && !regExpTree_isSingleCharText(r.body) && r.body.(*RegExpTree_Text).text != "") {
+	parenthesize := false
+	switch b := r.body.(type) {
+	case *RegExpTree_Alternation, *RegExpTree_Concatenation, *RegExpTree_Repetition:
+		parenthesize = true
+	case *RegExpTree_Text:
+		parenthesize = b.text != "" && !b.isSingleChar()
+	}
+	if parenthesize {
 		sb.WriteString("(?:")
 		r.body.AppendSourceCode(sb)
 		sb.WriteByte(')')
@@ -169,11 +169,11 @@ func (r *RegExpTree_Repetition) AppendBodySourceCode(sb *strings.Builder) {
 	}
 }
 
-// RegExpTree_Repetition_SuffixLen is the length of the suffix that
-// AppendSourceCode renders for min and max.
+// repetitionSuffixLen is the length of the suffix that AppendSourceCode
+// renders for min and max.
 //
 // Java: Repetition.suffixLen(int, int)
-func RegExpTree_Repetition_SuffixLen(min_ int, max_ int) int {
+func repetitionSuffixLen(min_ int, max_ int) int {
 	// This mirrors the branches that renders a suffix in appendSourceCode below.
 	if max_ == javaIntegerMaxValue {
 		switch min_ {
@@ -181,7 +181,7 @@ func RegExpTree_Repetition_SuffixLen(min_ int, max_ int) int {
 			1: // +
 			return 1
 		default: // {3,}
-			return 3 + RegExpTree_Repetition_NumDecimalDigits(min_)
+			return 3 + numDecimalDigits(min_)
 		}
 	}
 	if min_ == 0 && max_ == 1 {
@@ -191,16 +191,15 @@ func RegExpTree_Repetition_SuffixLen(min_ int, max_ int) int {
 		if min_ == 1 {
 			return 0 // No suffix needed for {1}.
 		}
-		return 2 + RegExpTree_Repetition_NumDecimalDigits(min_) // {4}
+		return 2 + numDecimalDigits(min_) // {4}
 	}
-	return 3 + RegExpTree_Repetition_NumDecimalDigits(min_) + RegExpTree_Repetition_NumDecimalDigits(max_) // {2,7}
+	return 3 + numDecimalDigits(min_) + numDecimalDigits(max_) // {2,7}
 }
 
-// RegExpTree_Repetition_NumDecimalDigits is the number of decimal digits of
-// a non-negative n.
+// numDecimalDigits is the number of decimal digits of a non-negative n.
 //
 // Java: Repetition.numDecimalDigits(int)
-func RegExpTree_Repetition_NumDecimalDigits(n int) int {
+func numDecimalDigits(n int) int {
 	if n < 0 {
 		// Negative values should not be passed in.
 		panic(jutil.NewAssertionErrorNoMessage())
@@ -241,8 +240,8 @@ func (r *RegExpTree_Repetition) AppendSourceCode(sb *strings.Builder) {
 		if max_ == javaIntegerMaxValue {
 			expandedMax = max_
 		}
-		suffixLen := RegExpTree_Repetition_SuffixLen(min_, max_)
-		expandedSuffixLen := RegExpTree_Repetition_SuffixLen(expandedMin, expandedMax)
+		suffixLen := repetitionSuffixLen(min_, max_)
+		expandedSuffixLen := repetitionSuffixLen(expandedMin, expandedMax)
 		// Go-only: language-adapter — Java int arithmetic (wraps at 32 bits).
 		if int32(bodyLen)*int32(expanded)+int32(expandedSuffixLen) < int32(suffixLen) && !r.body.HasCapturingGroup() {
 			// a{2} -> aa
@@ -377,44 +376,51 @@ func (a *RegExpTree_Alternation) Simplify(flags string) RegExpTree {
 	}
 	// Collapse character alternatives into character sets.
 	for i, n := 0, len(alternatives); i < n; i++ {
-		alternative := alternatives[i]
-		_, isCharset := alternative.(*RegExpTree_Charset)
-		if regExpTree_isSingleCharText(alternative) || isCharset {
-			end := i
-			nCharsets := 0
-			for end < n {
-				follower := alternatives[end]
-				if _, ok := follower.(*RegExpTree_Charset); ok {
-					nCharsets++
-				} else if !regExpTree_isSingleCharText(follower) {
-					break
+		if !isSingleCharOrCharset(alternatives[i]) {
+			continue
+		}
+		end := i
+		nCharsets := 0
+	runLoop:
+		for end < n {
+			switch follower := alternatives[end].(type) {
+			case *RegExpTree_Charset:
+				nCharsets++
+			case *RegExpTree_Text:
+				if !follower.isSingleChar() {
+					break runLoop
 				}
-				end++
+			default:
+				break runLoop
 			}
-			if end-i >= 3 || (nCharsets != 0 && end-i >= 2) {
-				members := make([]int, end-i-nCharsets)
-				memberIdx := 0
-				chars := CharRanges_EMPTY
-				ieExplicits := CharRanges_EMPTY
-				charAlternatives := alternatives[i:end] // Java: alternatives.subList(i, end)
-				for _, charAlternative := range charAlternatives {
-					if ch, ok := regExpTree_singleCharUnit(charAlternative); ok {
+			end++
+		}
+		if end-i >= 3 || (nCharsets != 0 && end-i >= 2) {
+			members := make([]int, end-i-nCharsets)
+			memberIdx := 0
+			chars := CharRanges_EMPTY
+			ieExplicits := CharRanges_EMPTY
+			charAlternatives := alternatives[i:end] // Java: alternatives.subList(i, end)
+			for _, charAlternative := range charAlternatives {
+				switch alt := charAlternative.(type) {
+				case *RegExpTree_Text:
+					if ch, ok := alt.singleCharUnit(); ok {
 						members[memberIdx] = int(ch)
 						memberIdx++
 						if RegExpTree_IE_SPEC_ERRORS.Contains(int(ch)) {
 							ieExplicits = ieExplicits.Union(CharRanges_Inclusive(int(ch), int(ch)))
 						}
-					} else if cs, ok := charAlternative.(*RegExpTree_Charset); ok {
-						chars = chars.Union(cs.ranges)
-						ieExplicits = ieExplicits.Union(cs.ieExplicits)
 					}
+				case *RegExpTree_Charset:
+					chars = chars.Union(alt.ranges)
+					ieExplicits = ieExplicits.Union(alt.ieExplicits)
 				}
-				chars = chars.Union(CharRanges_WithMembers(members...))
-				// Java: charAlternatives.clear(); charAlternatives.add(...)
-				alternatives = slices.Replace(alternatives, i, end,
-					NewRegExpTree_Charset(chars, ieExplicits).Simplify(flags))
-				n = len(alternatives)
 			}
+			chars = chars.Union(CharRanges_WithMembers(members...))
+			// Java: charAlternatives.clear(); charAlternatives.add(...)
+			alternatives = slices.Replace(alternatives, i, end,
+				NewRegExpTree_Charset(chars, ieExplicits).Simplify(flags))
+			n = len(alternatives)
 		}
 	}
 	switch len(alternatives) {
@@ -430,7 +436,7 @@ func (a *RegExpTree_Alternation) Simplify(flags string) RegExpTree {
 		}
 	}
 	// TODO: maybe pull out common prefix or suffix
-	if regExpTree_listEquals(alternatives, a.alternatives) {
+	if regExpListEquals(alternatives, a.alternatives) {
 		return a
 	}
 	return &RegExpTree_Alternation{alternatives: alternatives}
@@ -512,7 +518,7 @@ func (a *RegExpTree_Alternation) AppendDebugInfo(sb *strings.Builder) {
 // Java: Alternation.equals(Object)
 func (a *RegExpTree_Alternation) Equals(o any) bool {
 	if alternation, ok := o.(*RegExpTree_Alternation); ok {
-		return a == alternation || regExpTree_listEquals(a.alternatives, alternation.alternatives)
+		return a == alternation || regExpListEquals(a.alternatives, alternation.alternatives)
 	}
 	return false
 }
@@ -521,16 +527,14 @@ func (a *RegExpTree_Alternation) Equals(o any) bool {
 //
 // Java: Alternation.hashCode()
 func (a *RegExpTree_Alternation) HashCode() int32 {
-	return 0x51b57cd1 ^ regExpTree_listHashCode(a.alternatives)
+	return 0x51b57cd1 ^ regExpListHashCode(a.alternatives)
 }
 
 // Java: RegExpTree.toString()
 func (a *RegExpTree_Alternation) String() string { return regExpTreeString(a) }
 
-// regExpTree_listEquals is List.equals on lists of RegExpTree.
-//
-// Go-only: language-adapter — java.util.List.equals.
-func regExpTree_listEquals(a, b []RegExpTree) bool {
+// regExpListEquals is List.equals on lists of RegExpTree.
+func regExpListEquals(a, b []RegExpTree) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -542,10 +546,8 @@ func regExpTree_listEquals(a, b []RegExpTree) bool {
 	return true
 }
 
-// regExpTree_listHashCode is List.hashCode on lists of RegExpTree.
-//
-// Go-only: language-adapter — java.util.List.hashCode.
-func regExpTree_listHashCode(l []RegExpTree) int32 {
+// regExpListHashCode is List.hashCode on lists of RegExpTree.
+func regExpListHashCode(l []RegExpTree) int32 {
 	hashCode := int32(1)
 	for _, e := range l {
 		hashCode = 31*hashCode + e.HashCode()
@@ -823,12 +825,12 @@ func NewRegExpTree_Concatenation(elements []RegExpTree) *RegExpTree_Concatenatio
 //
 // Java: Concatenation.simplify(String)
 func (c *RegExpTree_Concatenation) Simplify(flags string) RegExpTree {
-	s := RegExpTree_Concatenation_Simplifier{
+	s := concatenationSimplifier{
 		flags:      flags,
 		simplified: make([]RegExpTree, 0, len(c.elements)),
 	}
 	for _, element := range c.elements {
-		s.Simplify(element.Simplify(flags))
+		s.simplify(element.Simplify(flags))
 	}
 
 	switch len(s.simplified) {
@@ -841,40 +843,29 @@ func (c *RegExpTree_Concatenation) Simplify(flags string) RegExpTree {
 	}
 }
 
-// RegExpTree_Concatenation_Simplifier accumulates simplified elements.
+// concatenationSimplifier accumulates simplified elements.
 //
-// Java: local class Simplifier in Concatenation.simplify(String); the
-// captured flags are a constructor parameter.
-type RegExpTree_Concatenation_Simplifier struct {
+// Java: local class Simplifier in Concatenation.simplify(String).
+type concatenationSimplifier struct {
 	flags      string
 	simplified []RegExpTree
 }
 
-// NewRegExpTree_Concatenation_Simplifier constructs a Simplifier.
-//
-// Java: new Simplifier() (inside Concatenation.simplify)
-func NewRegExpTree_Concatenation_Simplifier(flags string) *RegExpTree_Concatenation_Simplifier {
-	return &RegExpTree_Concatenation_Simplifier{
-		flags:      flags,
-		simplified: []RegExpTree{},
-	}
-}
-
-// Simplify appends t, flattening and folding pairwise.
+// simplify appends t, flattening and folding pairwise.
 //
 // Java: Simplifier.simplify(RegExpTree)
-func (s *RegExpTree_Concatenation_Simplifier) Simplify(t RegExpTree) {
-	if concatenation, ok := t.(*RegExpTree_Concatenation); ok {
-		for _, child := range concatenation.elements {
-			s.Simplify(child)
+func (s *concatenationSimplifier) simplify(t RegExpTree) {
+	switch node := t.(type) {
+	case *RegExpTree_Concatenation:
+		for _, child := range node.elements {
+			s.simplify(child)
 		}
-	} else if _, ok := t.(*RegExpTree_Empty); ok {
+	case *RegExpTree_Empty:
 		// Do nothing
-	} else {
+	default:
 		lastIndex := len(s.simplified) - 1
 		if lastIndex >= 0 {
-			pairwise := s.SimplifyPairwise(s.simplified[lastIndex], t)
-			if pairwise != nil {
+			if pairwise := s.simplifyPairwise(s.simplified[lastIndex], t); pairwise != nil {
 				s.simplified[lastIndex] = pairwise
 				return
 			}
@@ -883,10 +874,10 @@ func (s *RegExpTree_Concatenation_Simplifier) Simplify(t RegExpTree) {
 	}
 }
 
-// SimplifyPairwise folds two adjacent elements, or returns nil.
+// simplifyPairwise folds two adjacent elements, or returns nil.
 //
 // Java: Simplifier.simplifyPairwise(RegExpTree, RegExpTree)
-func (s *RegExpTree_Concatenation_Simplifier) SimplifyPairwise(before RegExpTree, after RegExpTree) RegExpTree {
+func (s *concatenationSimplifier) simplifyPairwise(before RegExpTree, after RegExpTree) RegExpTree {
 	beforeText, ok1 := before.(*RegExpTree_Text)
 	afterText, ok2 := after.(*RegExpTree_Text)
 	if ok1 && ok2 {
@@ -990,17 +981,12 @@ func (c *RegExpTree_Concatenation) AppendSourceCode(sb *strings.Builder) {
 	// decimal digits written subsequently.
 	digitsMightBleed := false
 	for _, element := range c.elements {
-		parenthesize := false
-		_, isAlternation := element.(*RegExpTree_Alternation)
-		_, isConcatenation := element.(*RegExpTree_Concatenation)
-		if isAlternation || isConcatenation {
-			parenthesize = true
-		}
-		if parenthesize {
+		switch element.(type) {
+		case *RegExpTree_Alternation, *RegExpTree_Concatenation:
 			sb.WriteString("(?:")
 			element.AppendSourceCode(sb)
 			sb.WriteByte(')')
-		} else {
+		default:
 			start := sb.Len()
 			element.AppendSourceCode(sb)
 			if digitsMightBleed && sb.Len() > start {
@@ -1030,14 +1016,16 @@ func (c *RegExpTree_Concatenation) AppendSourceCode(sb *strings.Builder) {
 				}
 			}
 		}
-		backReference, isBackReference := element.(*RegExpTree_BackReference)
-		text, isText := element.(*RegExpTree_Text)
-		digitsMightBleed =
-			// \1(?:0) bleeds if there are 10 or more
-			// capturing groups preceding.
-			(isBackReference && backReference.groupIndex < 10) ||
-				// foo{(?:10}) bleeds.
-				(isText && strings.HasSuffix(text.text, "{"))
+		switch e := element.(type) {
+		case *RegExpTree_BackReference:
+			// \1(?:0) bleeds if there are 10 or more capturing groups preceding.
+			digitsMightBleed = e.groupIndex < 10
+		case *RegExpTree_Text:
+			// foo{(?:10}) bleeds.
+			digitsMightBleed = strings.HasSuffix(e.text, "{")
+		default:
+			digitsMightBleed = false
+		}
 	}
 }
 
@@ -1053,14 +1041,14 @@ func (c *RegExpTree_Concatenation) AppendDebugInfo(sb *strings.Builder) {
 // Java: Concatenation.equals(Object)
 func (c *RegExpTree_Concatenation) Equals(o any) bool {
 	concatenation, ok := o.(*RegExpTree_Concatenation)
-	return ok && regExpTree_listEquals(c.elements, concatenation.elements)
+	return ok && regExpListEquals(c.elements, concatenation.elements)
 }
 
 // HashCode hashes the elements.
 //
 // Java: Concatenation.hashCode()
 func (c *RegExpTree_Concatenation) HashCode() int32 {
-	return 0x20997e3e ^ regExpTree_listHashCode(c.elements)
+	return 0x20997e3e ^ regExpListHashCode(c.elements)
 }
 
 // Java: RegExpTree.toString()

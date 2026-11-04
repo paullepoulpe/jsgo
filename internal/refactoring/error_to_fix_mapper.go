@@ -19,6 +19,9 @@
 package refactoring
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -31,15 +34,14 @@ type ErrorToFixMapper struct {
 	metadataForEachScript map[rhino.Node]*ScriptMetadata
 }
 
-var errorToFixMapper_DID_YOU_MEAN = jutil.Pattern_Compile(".*Did you mean (.*)\\?")
-var errorToFixMapper_EARLY_REF = jutil.Pattern_Compile("Variable referenced before declaration: (.*)")
+var errorToFixMapper_DID_YOU_MEAN = regexp.MustCompile(`\A.*Did you mean (.*)\?\z`)
+var errorToFixMapper_EARLY_REF = regexp.MustCompile(`\AVariable referenced before declaration: (.*)\z`)
 
 // errorToFixMapper_MISSING_REQUIRE is
 // Pattern.compile("'([^']+)' references a .*", Pattern.DOTALL).
-var errorToFixMapper_MISSING_REQUIRE = jutil.Pattern_Compile(
-	"'([^']+)' references a (?:.|[\n\r\u0085  ])*")
-var errorToFixMapper_FULLY_QUALIFIED_NAME = jutil.Pattern_Compile("Reference to fully qualified import name '([^']+)'.*")
-var errorToFixMapper_USE_SHORT_NAME = jutil.Pattern_Compile(".*Please use the short name '(.*)' instead.")
+var errorToFixMapper_MISSING_REQUIRE = regexp.MustCompile(`(?s)\A'([^']+)' references a .*\z`)
+var errorToFixMapper_FULLY_QUALIFIED_NAME = regexp.MustCompile(`\AReference to fully qualified import name '([^']+)'.*\z`)
+var errorToFixMapper_USE_SHORT_NAME = regexp.MustCompile(`\A.*Please use the short name '(.*)' instead.\z`)
 
 // Java: ErrorToFixMapper(AbstractCompiler)
 func NewErrorToFixMapper(compiler jscomp.AbstractCompiler) *ErrorToFixMapper {
@@ -163,7 +165,7 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *jscomp.JSError) *Sugges
 		fix.InsertBeforeNodeWithSortKey(parent, var_, m.compiler, "1")
 	}
 
-	if !nameNode.GetNext().IsNil() {
+	if !name.AsDeclarator().IsLast() {
 		for _, n := range childrenOfAddedVarStatement {
 			fix.Delete(n)
 		}
@@ -176,19 +178,10 @@ func (m *ErrorToFixMapper) GetFixForRedeclaration(error *jscomp.JSError) *Sugges
 	return fix.Build()
 }
 
-func mustGroup(m *jutil.Matcher, group int) string {
-	s, ok := m.Group(group)
-	if !ok {
-		panic(jutil.NewNullPointerException())
-	}
-	return s
-}
-
 // Java: ErrorToFixMapper.getFixForEarlyReference(JSError)
 func (m *ErrorToFixMapper) GetFixForEarlyReference(error *jscomp.JSError) *SuggestedFix {
-	matcher := errorToFixMapper_EARLY_REF.Matcher(error.Description())
-	if matcher.Matches() {
-		name := mustGroup(matcher, 1)
+	if match := errorToFixMapper_EARLY_REF.FindStringSubmatch(error.Description()); match != nil {
+		name := match[1]
 		stmt := jscomp.NodeUtil_GetEnclosingStatement(error.Node())
 		return NewSuggestedFix_Builder().
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
@@ -215,14 +208,13 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 
 	scriptMetadata := m.GetMetadataForScript(script)
 
-	fullNameMatcher := errorToFixMapper_FULLY_QUALIFIED_NAME.Matcher(error.Description())
-	jutil.CheckStateMsg1(fullNameMatcher.Matches(), "%s", error.Description())
-	fullName := mustGroup(fullNameMatcher, 1)
+	fullNameMatch := errorToFixMapper_FULLY_QUALIFIED_NAME.FindStringSubmatch(error.Description())
+	jutil.CheckStateMsg1(fullNameMatch != nil, "%s", error.Description())
+	fullName := fullNameMatch[1]
 
-	shortNameMatcher := errorToFixMapper_USE_SHORT_NAME.Matcher(error.Description())
 	var shortName string
-	if shortNameMatcher.Matches() {
-		shortName = mustGroup(shortNameMatcher, 1)
+	if shortNameMatch := errorToFixMapper_USE_SHORT_NAME.FindStringSubmatch(error.Description()); shortNameMatch != nil {
+		shortName = shortNameMatch[1]
 	} else {
 		fix.AddGoogRequire(match, fullName, scriptMetadata)
 		var ok bool
@@ -239,7 +231,7 @@ func (m *ErrorToFixMapper) GetFixForReferenceToShortImportByLongName(error *jsco
 
 	return fix.Replace(
 		error.Node(),
-		jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(oldName, fullName, shortName)),
+		jscomp.NodeUtil_NewQName(m.compiler, strings.ReplaceAll(oldName, fullName, shortName)),
 		m.compiler).
 		Build()
 }
@@ -295,12 +287,7 @@ func (m *ErrorToFixMapper) GetFixForMissingSemicolon(error *jscomp.JSError) *Sug
 
 // Java: ErrorToFixMapper.getFixForMissingSuper(JSError)
 func (m *ErrorToFixMapper) GetFixForMissingSuper(error *jscomp.JSError) *SuggestedFix {
-	var body rhino.Node
-	if mfd, ok := ast.AsMemberFunctionDef(error.Node()); ok {
-		body = mfd.Function().Body().Node()
-	} else {
-		body = ast.MustFunction(error.Node().GetFirstChild()).Body().Node()
-	}
+	body := ast.MustMethodDef(error.Node()).Function().Body().Node()
 	return NewSuggestedFix_Builder().
 		AttachMatchedNodeInfo(error.Node(), m.compiler).
 		AddChildToFront(body, "super();").
@@ -309,9 +296,8 @@ func (m *ErrorToFixMapper) GetFixForMissingSuper(error *jscomp.JSError) *Suggest
 
 // Java: ErrorToFixMapper.getFixForInvalidSuper(JSError)
 func (m *ErrorToFixMapper) GetFixForInvalidSuper(error *jscomp.JSError) *SuggestedFix {
-	matcher := errorToFixMapper_DID_YOU_MEAN.Matcher(error.Description())
-	if matcher.Matches() {
-		superDotSuggestion := mustGroup(matcher, 1)
+	if match := errorToFixMapper_DID_YOU_MEAN.FindStringSubmatch(error.Description()); match != nil {
+		superDotSuggestion := match[1]
 		return NewSuggestedFix_Builder().
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
 			SetDescription("Call '"+superDotSuggestion+"' instead").
@@ -323,9 +309,8 @@ func (m *ErrorToFixMapper) GetFixForInvalidSuper(error *jscomp.JSError) *Suggest
 
 // Java: ErrorToFixMapper.getFixForInexistentProperty(JSError)
 func (m *ErrorToFixMapper) GetFixForInexistentProperty(error *jscomp.JSError) *SuggestedFix {
-	matcher := errorToFixMapper_DID_YOU_MEAN.Matcher(error.Description())
-	if matcher.Matches() {
-		suggestedPropName := mustGroup(matcher, 1)
+	if match := errorToFixMapper_DID_YOU_MEAN.FindStringSubmatch(error.Description()); match != nil {
+		suggestedPropName := match[1]
 		return NewSuggestedFix_Builder().
 			AttachMatchedNodeInfo(error.Node(), m.compiler).
 			SetDescription("Change property name to '"+suggestedPropName+"'").
@@ -337,9 +322,9 @@ func (m *ErrorToFixMapper) GetFixForInexistentProperty(error *jscomp.JSError) *S
 
 // Java: ErrorToFixMapper.getFixForMissingRequire(JSError, ImportType)
 func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, importType SuggestedFix_ImportType) *SuggestedFix {
-	regexMatcher := errorToFixMapper_MISSING_REQUIRE.Matcher(error.Description())
-	jutil.CheckStateMsg1(regexMatcher.Matches(), "Unexpected error description: %s", error.Description())
-	namespaceToRequire := mustGroup(regexMatcher, 1)
+	regexMatch := errorToFixMapper_MISSING_REQUIRE.FindStringSubmatch(error.Description())
+	jutil.CheckStateMsg1(regexMatch != nil, "Unexpected error description: %s", error.Description())
+	namespaceToRequire := regexMatch[1]
 
 	qName, ok := error.Node().QualifiedName()
 	if !ok {
@@ -347,7 +332,7 @@ func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, import
 	}
 
 	jutil.CheckStateMsg2(
-		jutil.StringStartsWith(qName, namespaceToRequire),
+		strings.HasPrefix(qName, namespaceToRequire),
 		"Expected error location %s to start with namespace <%s>",
 		error.Node(),
 		namespaceToRequire)
@@ -372,7 +357,7 @@ func (m *ErrorToFixMapper) GetFixForMissingRequire(error *jscomp.JSError, import
 	if alias, ok := scriptMetadata.GetAlias(namespaceToRequire); ok {
 		fix.Replace(
 			error.Node(),
-			jscomp.NodeUtil_NewQName(m.compiler, jutil.StringReplace(qName, namespaceToRequire, alias)),
+			jscomp.NodeUtil_NewQName(m.compiler, strings.ReplaceAll(qName, namespaceToRequire, alias)),
 			m.compiler)
 	}
 

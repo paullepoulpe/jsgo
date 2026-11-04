@@ -21,6 +21,7 @@ package parsing
 import (
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/dtoa"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -169,7 +170,7 @@ func (f *IRFactory) ProcessObjectPatternShorthandWithDefault(defaultParameter *p
 	defaultValueNode := f.ProcessDefaultParameter(defaultParameter)
 	// Store in AST as non-shorthand form & just note it was originally
 	// shorthand {name: /**inlineType */ name = default }
-	nameNode := defaultValueNode.GetFirstChild()
+	nameNode := ast.MustDefaultValue(defaultValueNode).Target().Node()
 	stringKeyNode := f.MaybeAddNonJsDocComment(
 		f.NewStringNodeWithToken(rhino.Token_STRING_KEY, nameNode.GetString()), defaultParameter.GetStart())
 	f.SetSourceInfoFromNode(stringKeyNode, nameNode)

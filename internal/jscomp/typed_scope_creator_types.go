@@ -19,7 +19,6 @@
 package jscomp
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -244,10 +243,14 @@ func (b *TypedScopeCreator_scopeBuilder) IsGoogModuleGetProperty(extendsClause r
 // Java: TypedScopeCreator.AbstractScopeBuilder.getCtorForGoogModuleGet(Node)
 func (b *TypedScopeCreator_scopeBuilder) GetCtorForGoogModuleGet(extendsNode rhino.Node) rhino.JSType {
 	call := extendsNode
-	properties := []string{}
+	var propBuf [8]string
+	properties := propBuf[:0]
+	propBytes := 0
 	for !call.IsCall() {
 		gp := ast.MustGetProp(call)
-		properties = slices.Insert(properties, 0, gp.Property())
+		prop := gp.Property()
+		properties = append(properties, prop)
+		propBytes += len(prop)
 		call = gp.Object().Node()
 	}
 	extendsCall := b.outer.moduleImportResolver.GetClosureNamespaceTypeFromCall(call)
@@ -260,8 +263,18 @@ func (b *TypedScopeCreator_scopeBuilder) GetCtorForGoogModuleGet(extendsNode rhi
 		// Handle invalid goog.module.get calls
 		return nil
 	}
-	properties = slices.Insert(properties, 0, extendsCall.GetName())
-	return rhino.StaticTypedScope_LookupQualifiedNameString(moduleScope, strings.Join(properties, "."))
+	baseName := extendsCall.GetName()
+	if len(properties) == 0 {
+		return rhino.StaticTypedScope_LookupQualifiedNameString(moduleScope, baseName)
+	}
+	var sb strings.Builder
+	sb.Grow(len(baseName) + len(properties) + propBytes)
+	sb.WriteString(baseName)
+	for i := len(properties) - 1; i >= 0; i-- {
+		sb.WriteByte('.')
+		sb.WriteString(properties[i])
+	}
+	return rhino.StaticTypedScope_LookupQualifiedNameString(moduleScope, sb.String())
 }
 
 // CreateFunctionTypeFromNodes creates a new function type, based on the

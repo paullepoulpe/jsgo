@@ -382,7 +382,7 @@ func (s *StripCode) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhin
 					// `var my$name = null;` is a bit easier to optimize away than
 					// `var my$name;`, because we can clearly see that it is initialized, so we have
 					// a value to inline in later passes.
-					nameNode.AddChildToFront(rhino.IR_NullNode().Srcref(nameNode))
+					nameDecl.SetInit(ast.MustExpr(rhino.IR_NullNode().Srcref(nameNode)))
 				}
 				t.ReportCodeChange()
 			} else {
@@ -396,7 +396,7 @@ func (s *StripCode) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhin
 			}
 		}
 	}
-	if !decl.HasDeclarators() {
+	if !decl.HasDeclarators() && !parent.IsNil() {
 		// Must also remove the VAR.
 		s.ReplaceWithEmpty(n, parent)
 		t.ReportCodeChange()
@@ -410,6 +410,9 @@ func (s *StripCode) RemoveVarDeclarationsByNameOrRvalue(t *NodeTraversal, n rhin
 //
 // Java: Strip.maybeRemoveReferenceToRemovedVariable(NodeTraversal, Node, Node)
 func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if n.IsNil() {
+		return
+	}
 	parent = n.GetParent()
 	if parent.IsNil() {
 		return
@@ -458,15 +461,18 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 				}
 				if grandparent.IsExprResult() {
 					// Remove the assignment.
-					greatGrandparent := grandparent.GetParent()
-					s.ReplaceWithEmpty(grandparent, greatGrandparent)
-					t.ReportCodeChange()
+					if greatGrandparent := grandparent.GetParent(); !greatGrandparent.IsNil() {
+						s.ReplaceWithEmpty(grandparent, greatGrandparent)
+						t.ReportCodeChange()
+					}
 				} else {
 					// Substitute the r-value for the assignment.
 					rvalue := assign.Value().Node()
-					rvalue.Detach()
-					parent.ReplaceWith(rvalue)
-					t.ReportCodeChange()
+					if !rvalue.IsNil() {
+						rvalue.Detach()
+						parent.ReplaceWith(rvalue)
+						t.ReportCodeChange()
+					}
 				}
 			} else {
 				// The var reference is the r-value. Replace it with null.
@@ -488,11 +494,14 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 			}
 			if grandparent.IsExprResult() {
 				greatGrandparent := grandparent.GetParent()
-				s.ReplaceWithEmpty(grandparent, greatGrandparent)
+				if !greatGrandparent.IsNil() {
+					s.ReplaceWithEmpty(grandparent, greatGrandparent)
+					t.ReportCodeChange()
+				}
 			} else {
 				s.ReplaceWithNull(parent)
+				t.ReportCodeChange()
 			}
-			t.ReportCodeChange()
 		}
 	case rhino.Token_NEW, rhino.Token_CALL:
 		if !ast.MustCallOrNew(parent).Callee().Is(n) && s.IsReferenceToRemovedVar(n) {
@@ -508,7 +517,8 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 		// The last child in a comma expression is its result, so we need to be careful replacing
 		// it with null. We don't want to replace the entire comma expression with null because
 		// there could be other elements in it with side-effects.
-		isLastChild := ast.MustBinary(parent).Right().Is(n)
+		bin, isBin := ast.AsBinary(parent)
+		isLastChild := isBin && bin.Right().Is(n)
 		// The only parent where replacing with null is an issue is likely where the comma
 		// expression is the first child (callee) of a CALL or NEW node.
 		callOrNew, isCallOrNew := ast.AsCallOrNew(grandparent)
@@ -539,6 +549,9 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 //
 // Java: Strip.replaceHighestNestedCallWithNull(NodeTraversal, Node, Node)
 func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhino.Node, parent rhino.Node) {
+	if node.IsNil() || parent.IsNil() {
+		return
+	}
 	ancestor := parent
 	ancestorChild := node
 	for {
@@ -547,28 +560,48 @@ func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhin
 			return // the call was already removed from the AST
 		}
 
-		if ancestor.GetFirstChild() != ancestorChild {
-			s.ReplaceWithNull(ancestorChild)
-			break
-		}
-		if ancestor.IsExprResult() {
-			// Remove the entire expression statement.
-			s.ReplaceWithEmpty(ancestor, ancestorParent)
-			break
-		}
-		if assign, ok := ast.AsAssignment(ancestor); ok {
-			ancestor.ReplaceWith(assign.Value().Node().Detach())
-			break
-		}
-		if _, ok := ast.AsIncDec(ancestor); ok {
-			if ancestorParent.IsExprResult() {
-				s.ReplaceWithEmpty(ancestorParent, ancestorParent.GetParent())
+		if exprStmt, ok := ast.AsExprStmt(ancestor); ok {
+			if exprStmt.Expr().Is(ancestorChild) {
+				// Remove the entire expression statement.
+				s.ReplaceWithEmpty(ancestor, ancestorParent)
 			} else {
-				s.ReplaceWithNull(ancestor)
+				s.ReplaceWithNull(ancestorChild)
 			}
 			break
 		}
-		if !NodeUtil_IsNormalGet(ancestor) && !ancestor.IsCall() {
+		if assign, ok := ast.AsAssignment(ancestor); ok {
+			if assign.Target().Is(ancestorChild) && !assign.Value().Node().IsNil() {
+				ancestor.ReplaceWith(assign.Value().Detach().Node())
+			} else {
+				s.ReplaceWithNull(ancestorChild)
+			}
+			break
+		}
+		if incDec, ok := ast.AsIncDec(ancestor); ok {
+			if incDec.Target().Is(ancestorChild) {
+				if ancestorParent.IsExprResult() {
+					if ggp := ancestorParent.GetParent(); !ggp.IsNil() {
+						s.ReplaceWithEmpty(ancestorParent, ggp)
+					}
+				} else {
+					s.ReplaceWithNull(ancestor)
+				}
+			} else {
+				s.ReplaceWithNull(ancestorChild)
+			}
+			break
+		}
+		if get, ok := ast.AsNormalGet(ancestor); ok {
+			if !get.Object().Is(ancestorChild) {
+				s.ReplaceWithNull(ancestorChild)
+				break
+			}
+		} else if call, ok := ast.AsCall(ancestor); ok {
+			if !call.Callee().Is(ancestorChild) {
+				s.ReplaceWithNull(ancestorChild)
+				break
+			}
+		} else {
 			s.ReplaceWithNull(ancestorChild)
 			break
 		}
@@ -590,7 +623,7 @@ func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhin
 //
 // Java: Strip.maybeEliminateAssignmentByLvalueName(NodeTraversal, Node, Node)
 func (s *StripCode) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if parent.IsNil() || n.GetParent().IsNil() {
+	if n.IsNil() || parent.IsNil() || n.GetParent().IsNil() {
 		return
 	}
 	// ASSIGN* / INC / DEC
@@ -599,8 +632,11 @@ func (s *StripCode) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhi
 	var lvalue rhino.Node
 	if incDec, ok := ast.AsIncDec(n); ok {
 		lvalue = incDec.Target().Node()
-	} else {
-		lvalue = ast.MustAssignment(n).Target().Node()
+	} else if assign, ok := ast.AsAssignment(n); ok {
+		lvalue = assign.Target().Node()
+	}
+	if lvalue.IsNil() {
+		return
 	}
 	if s.NameIncludesFieldNameToStrip(lvalue) || s.QualifiedNameBeginsWithStripType(lvalue) {
 		// Limit to EXPR_RESULT because it is not
@@ -646,6 +682,9 @@ func (s *StripCode) MaybeEliminateExpressionByName(n rhino.Node) {
 		return
 	}
 	expression := exprStmt.Expr().Node()
+	if expression.IsNil() {
+		return
+	}
 	if s.NameIncludesFieldNameToStrip(expression) ||
 		s.QualifiedNameBeginsWithStripType(expression) {
 		if s.decisionsLog.IsLogging() {
@@ -726,7 +765,8 @@ func (s *StripCode) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, classNo
 //
 // Java: Strip.isCallWhoseReturnValueShouldBeStripped(Node)
 func (s *StripCode) IsCallWhoseReturnValueShouldBeStripped(n rhino.Node) bool {
-	if n.IsNil() || (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
+	callOrNew, ok := ast.AsCallOrNew(n)
+	if !ok || callOrNew.Callee().Node().IsNil() {
 		return false
 	}
 
@@ -783,6 +823,9 @@ func (s *StripCode) qualifiedNameBeginsWithStripType(name string, hasName bool) 
 //
 // Java: Strip.isReferenceToRemovedVar(Node)
 func (s *StripCode) IsReferenceToRemovedVar(n rhino.Node) bool {
+	if _, ok := ast.AsName(n); !ok {
+		return false
+	}
 	_, ok := s.varsToRemove[n.GetStringID()]
 	return ok
 }
@@ -806,20 +849,25 @@ func (s *StripCode) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n rh
 	//     STRING (method name)
 	//   ... (arguments)
 
+	callOrNew, ok := ast.AsCallOrNew(n)
+	if !ok || callOrNew.Callee().Node().IsNil() {
+		return false
+	}
 	function := NodeUtil_GetCallTargetResolvingIndirectCalls(n)
 	if function.IsNil() || !function.IsQualifiedName() {
 		return false
 	}
 
-	if !parent.IsNil() && parent.IsName() {
-		grandparent := parent.GetParent()
-		if !grandparent.IsNil() && NodeUtil_IsNameDeclaration(grandparent) {
-			// The call's return value is being used to initialize a newly
-			// declared variable. We should leave the call intact for now.
-			// That way, when the traversal reaches the variable declaration,
-			// we'll recognize that the variable and all references to it need
-			// to be eliminated.
-			return false
+	if parentName, isName := ast.AsName(parent); isName {
+		if init, hasInit := parentName.Init(); hasInit && init.Is(n) {
+			if _, isDecl := ast.AsNameDeclaration(parent.GetParent()); isDecl {
+				// The call's return value is being used to initialize a newly
+				// declared variable. We should leave the call intact for now.
+				// That way, when the traversal reaches the variable declaration,
+				// we'll recognize that the variable and all references to it need
+				// to be eliminated.
+				return false
+			}
 		}
 	}
 

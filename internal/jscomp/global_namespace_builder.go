@@ -37,7 +37,7 @@ const (
 	gnObjLitDefineProperties
 )
 
-type globalNamespace_objLitCacheEntry struct {
+type gnObjLitCacheEntry struct {
 	prefix string
 	root   rhino.Node
 	scope  *Scope
@@ -60,7 +60,7 @@ type GlobalNamespace_BuildGlobalNamespace struct {
 	lastParentMeta *ModuleMetadataMap_ModuleMetadata
 	lastParentNode *GlobalNamespace_Name
 
-	objLitCache     map[rhino.Node]globalNamespace_objLitCacheEntry
+	objLitCache     map[rhino.Node]gnObjLitCacheEntry
 	confirmExisting bool
 }
 
@@ -69,13 +69,17 @@ func NewGlobalNamespace_BuildGlobalNamespace(outer *GlobalNamespace) *GlobalName
 	return &GlobalNamespace_BuildGlobalNamespace{outer: outer, curModuleRoot: rhino.NilNode, curMetadata: nil, confirmExisting: true}
 }
 
-func globalNamespace_topRootOfQName(n rhino.Node) (uint32, bool) {
+func gnTopRootOfQName(n rhino.Node) (uint32, bool) {
 	if n.IsNil() {
 		return 0, false
 	}
 	left := n
-	for left.IsGetProp() {
-		left = left.GetFirstChild()
+	for {
+		gp, ok := ast.AsGetProp(left)
+		if !ok {
+			break
+		}
+		left = gp.Object().Node()
 	}
 	switch left.GetToken() {
 	case rhino.Token_NAME:
@@ -102,9 +106,9 @@ func globalNamespace_topRootOfQName(n rhino.Node) (uint32, bool) {
 
 func (b *GlobalNamespace_BuildGlobalNamespace) putObjLitCache(objLit rhino.Node, prefix string, root rhino.Node, scope *Scope, state gnObjLitState) (string, rhino.Node, *Scope, gnObjLitState) {
 	if b.objLitCache == nil {
-		b.objLitCache = make(map[rhino.Node]globalNamespace_objLitCacheEntry, 16)
+		b.objLitCache = make(map[rhino.Node]gnObjLitCacheEntry, 16)
 	}
-	b.objLitCache[objLit] = globalNamespace_objLitCacheEntry{
+	b.objLitCache[objLit] = gnObjLitCacheEntry{
 		prefix: prefix,
 		root:   root,
 		scope:  scope,
@@ -113,17 +117,21 @@ func (b *GlobalNamespace_BuildGlobalNamespace) putObjLitCache(objLit rhino.Node,
 	return prefix, root, scope, state
 }
 
-func globalNamespace_hasPrototype(s string) bool {
+func gnHasPrototype(s string) bool {
 	return strings.HasSuffix(s, ".prototype") || strings.Contains(s, ".prototype.")
 }
 
-func globalNamespace_nodeHasPrototype(n rhino.Node) bool {
-	for cur := n; !cur.IsNil() && cur.IsGetProp(); cur = cur.GetFirstChild() {
+func gnNodeHasPrototype(n rhino.Node) bool {
+	for cur := n; ; {
+		gp, ok := ast.AsGetProp(cur)
+		if !ok {
+			return false
+		}
 		if cur.GetStringID() == gnPrototypeStrID {
 			return true
 		}
+		cur = gp.Object().Node()
 	}
-	return false
 }
 
 func (b *GlobalNamespace_BuildGlobalNamespace) metadataForRoot(root rhino.Node) *ModuleMetadataMap_ModuleMetadata {
@@ -136,10 +144,10 @@ func (b *GlobalNamespace_BuildGlobalNamespace) metadataForRoot(root rhino.Node) 
 func (b *GlobalNamespace_BuildGlobalNamespace) resolveTopLevelQName(
 	node rhino.Node, rejectProto bool, scope *Scope, t *NodeTraversal,
 ) (string, rhino.Node, bool) {
-	if rejectProto && globalNamespace_nodeHasPrototype(node) {
+	if rejectProto && gnNodeHasPrototype(node) {
 		return "", rhino.NilNode, false
 	}
-	topID, ok := globalNamespace_topRootOfQName(node)
+	topID, ok := gnTopRootOfQName(node)
 	if !ok {
 		return "", rhino.NilNode, false
 	}
@@ -148,7 +156,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveTopLevelQName(
 		return "", rhino.NilNode, false
 	}
 	qname, ok := node.GetQualifiedNameString()
-	if !ok || (rejectProto && globalNamespace_hasPrototype(qname)) {
+	if !ok || (rejectProto && gnHasPrototype(qname)) {
 		return "", rhino.NilNode, false
 	}
 	return qname, root, true
@@ -195,12 +203,20 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 	if owner.IsNil() {
 		objLitParent := objLit.GetParent()
 		if NodeUtil_IsObjectDefinePropertiesDefinition(objLitParent) {
-			receiverNode := ast.MustCall(objLitParent).MustFirstArg().Node()
-			qname, root, ok := b.resolveTopLevelQName(receiverNode, true, scope, t)
+			call, isCall := ast.AsCall(objLitParent)
+			if !isCall {
+				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
+			}
+			receiverArg, hasReceiver := call.FirstArg()
+			if !hasReceiver {
+				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
+			}
+			qname, root, ok := b.resolveTopLevelQName(receiverArg.Node(), true, scope, t)
 			if !ok {
 				return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 			}
-			jutil.CheckStateMsg1(objLit == receiverNode.GetNext(), "%s", objLitParent)
+			propsArg, hasProps := receiverArg.Next()
+			jutil.CheckStateMsg1(hasProps && propsArg.Is(objLit), "%s", objLitParent)
 			if scope == nil && !g.forProcessDefines {
 				scope = t.GetScope()
 			}
@@ -222,7 +238,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) resolveObjectLit(objLit rhino.Nod
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
 		ownerName := className + "." + owner.GetString()
-		if globalNamespace_hasPrototype(ownerName) {
+		if gnHasPrototype(ownerName) {
 			return b.putObjLitCache(objLit, "", rhino.NilNode, scope, gnObjLitInvalid)
 		}
 		if scope == nil && !g.forProcessDefines {
@@ -321,8 +337,12 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 		g.sourceKind = GlobalNamespace_SourceKind_CODE
 	}
 	if g.forProcessDefines && g.processDefinesCheck && g.sourceKind == GlobalNamespace_SourceKind_CODE {
+		isGoogDefineCall := false
+		if call, isCall := ast.AsCall(n); isCall {
+			isGoogDefineCall = processDefines_GOOG_DEFINE.Matches(call.Callee().Node())
+		}
 		if jsdoc := n.GetJSDocInfo(); (jsdoc != nil && jsdoc.IsDefine()) ||
-			(n.IsCall() && processDefines_GOOG_DEFINE.Matches(n.GetFirstChild())) ||
+			isGoogDefineCall ||
 			(n.IsName() && n.GetStringID() == gnClosureDefinesStrID) {
 			if !t.currentScript.IsNil() {
 				if g.defineCandidateScripts == nil {
@@ -359,9 +379,11 @@ func (b *GlobalNamespace_BuildGlobalNamespace) SetupModuleMetadata(moduleRoot rh
 	}
 	b.curModuleRoot = moduleRoot
 
-	b.curMetadata = jutil.CheckNotNull(
-		ModuleImportResolver_GetModuleFromScopeRoot(moduleMap, b.outer.compiler, moduleRoot).
-			Metadata())
+	meta := ModuleImportResolver_GetModuleFromScopeRoot(moduleMap, b.outer.compiler, moduleRoot).Metadata()
+	if meta == nil {
+		panic(jutil.NewNullPointerException())
+	}
+	b.curMetadata = meta
 	if b.curMetadata.IsGoogModule() {
 		b.GetOrCreateName("exports", b.curMetadata)
 	}
@@ -373,6 +395,9 @@ func (b *GlobalNamespace_BuildGlobalNamespace) Collect(scope *Scope, chunk *JSCh
 }
 
 func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSChunk, t *NodeTraversal, n rhino.Node) {
+	if n.IsNil() {
+		return
+	}
 	g := b.outer
 	parent := n.GetParent()
 
@@ -486,7 +511,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 		role := ast.RoleIn(n, parent)
 		if !g.forProcessDefines && (role == ast.RoleCallCallee || role == ast.RoleOptChainCallCallee) &&
 			b.IsObjectHasOwnPropertyCall(parent) {
-			qname, _ := n.GetFirstChild().GetQualifiedNameString()
+			qname, _ := ast.MustNormalOrOptChainGetProp(n).Object().Node().GetQualifiedNameString()
 			globalName := b.GetOrCreateName(qname, b.curMetadata)
 			globalName.SetBooleanProperty(GlobalNamespace_NameProp_IS_USED_HAS_OWN_PROPERTY)
 		}
@@ -574,10 +599,15 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 			hasDotInSeg := false
 			var protoTarget rhino.Node
 			left := n
-			for left.IsGetProp() {
+			for {
+				gp, ok := ast.AsGetProp(left)
+				if !ok {
+					break
+				}
+				obj := gp.Object().Node()
 				segID := left.GetStringID()
 				if segID == gnPrototypeStrID {
-					protoTarget = left.GetFirstChild()
+					protoTarget = obj
 					protoCut = segLen + 1
 				} else if !hasDotInSeg && strings.IndexByte(strpool.String(strpool.ID(segID)), '.') >= 0 {
 					hasDotInSeg = true
@@ -592,7 +622,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) collect(scope *Scope, chunk *JSCh
 					segExtra = append(segExtra, segID)
 				}
 				segLen++
-				left = left.GetFirstChild()
+				left = obj
 			}
 			if !left.IsName() {
 				return

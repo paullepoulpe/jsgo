@@ -193,12 +193,12 @@ func (g *SourceMapGeneratorV3) AddMappingPositions(
 		}
 
 		adjustedStart = NewFilePosition(
-			jutil.IntAdd(startPosition.GetLine(), offsetLine),
-			jutil.IntAdd(startPosition.GetColumn(), startOffsetPosition))
+			startPosition.GetLine()+offsetLine,
+			startPosition.GetColumn()+startOffsetPosition)
 
 		adjustedEnd = NewFilePosition(
-			jutil.IntAdd(endPosition.GetLine(), offsetLine),
-			jutil.IntAdd(endPosition.GetColumn(), endOffsetPosition))
+			endPosition.GetLine()+offsetLine,
+			endPosition.GetColumn()+endOffsetPosition)
 	}
 
 	// Validate the mappings are in a proper order.
@@ -419,7 +419,7 @@ func (g *SourceMapGeneratorV3) AppendToOptional(out io.StringWriter, name Option
 		g.appendToParallel(out, name)
 		return
 	}
-	maxLine := jutil.IntAdd(g.PrepMappings(), 1)
+	maxLine := g.PrepMappings() + 1
 
 	// Add the header fields.
 	appendString(out, "{\n")
@@ -723,7 +723,7 @@ func (g *SourceMapGeneratorV3) PrepMappings() int {
 	})
 
 	// Adjust for the prefix.
-	return jutil.IntAdd(maxLine, g.prefixPosition.GetLine())
+	return maxLine + g.prefixPosition.GetLine()
 }
 
 // AppendIndexMapTo appends the index source map to the given buffer.

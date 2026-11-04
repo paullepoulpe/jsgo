@@ -322,7 +322,8 @@ func (p *TypeTransformationParser) GetCallName(n rhino.Node) string {
 func (p *TypeTransformationParser) GetCallArgument(n rhino.Node, i int) rhino.Node {
 	call, ok := ast.AsCall(n)
 	jutil.CheckArgumentMsg1(ok, "Expected a call node, found %s", n)
-	return call.Node().GetChildAtIndex(i + 1)
+	arg, _ := call.AsCallOrNew().ArgAt(i)
+	return arg.Node()
 }
 
 // Java: TypeTransformationParser.getCallParamCount(Node)
@@ -603,11 +604,16 @@ func (p *TypeTransformationParser) ValidRecordParam(expr rhino.Node) bool {
 			if prop.Node().IsShorthandProperty() {
 				p.WarnInvalid("property, missing type")
 				return false
-			} else if sk, ok := prop.AsStringKey(); ok {
-				if !p.ValidTypeTransformationExpression(sk.Value().Node()) {
-					return false
-				}
-			} else if !p.ValidTypeTransformationExpression(prop.Node().GetFirstChild()) {
+			}
+			var val rhino.Node
+			if pkm, ok := prop.AsPlainKeyMember(); ok {
+				val = pkm.Value().Node()
+			} else if cp, ok := prop.AsComputedProp(); ok {
+				val = cp.Key().Node()
+			} else if os, ok := prop.AsObjectSpread(); ok {
+				val = os.Expr().Node()
+			}
+			if !p.ValidTypeTransformationExpression(val) {
 				return false
 			}
 		}

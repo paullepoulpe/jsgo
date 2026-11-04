@@ -21,6 +21,7 @@ package parsing
 import (
 	"slices"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -246,7 +247,8 @@ func (c *FeatureCollector) RecordScriptFeatures(contextStack []FeatureCollector_
 			c.AddScriptFeature(parser.FeatureSet_Feature_PUBLIC_CLASS_FIELDS)
 		}
 	case rhino.Token_IN:
-		if !node.GetFirstChild().IsNil() && node.GetFirstChild().IsPrivateIdentifier() {
+		left := ast.MustBinary(node).Left().Node()
+		if !left.IsNil() && left.IsPrivateIdentifier() {
 			c.AddScriptFeature(parser.FeatureSet_Feature_PRIVATE_ELEMENTS)
 		}
 	case rhino.Token_COMPUTED_FIELD_DEF:

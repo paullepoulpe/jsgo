@@ -19,6 +19,7 @@
 package parsing
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -233,32 +234,35 @@ func (f *IRFactory) ValidateNewDotTarget(n rhino.Node) {
 
 // Java: IRFactory.validateBreakContinue(Node)
 func (f *IRFactory) ValidateBreakContinue(n rhino.Node) {
-	if !n.IsBreak() && !n.IsContinue() {
+	jump, ok := ast.AsJump(n)
+	if !ok {
 		return
 	}
 
-	labelName := n.GetFirstChild()
-	if !labelName.IsNil() {
+	if labelName, hasLabel := jump.Label(); hasLabel {
 		parent := n.GetParent()
-		for parent.IsNil() || !parent.IsLabel() || !IRFactory_LabelsMatch(parent, labelName) {
+		for {
+			if lbl, isLabel := ast.AsLabel(parent); isLabel && IRFactory_LabelsMatch(lbl.Node(), labelName.Node()) {
+				if n.IsContinue() {
+					body := lbl.Body().Node()
+					if body.IsNil() || !IRFactory_IsContinueTarget(body) {
+						// report invalid continue target
+						f.errorReporter.Error(
+							IRFactory_UNEXPECTED_LABELLED_CONTINUE, f.sourceName, n.GetLineno(), n.GetCharno())
+					}
+				}
+				break
+			}
 			if parent.IsNil() || parent.IsFunction() || parent.IsScript() || parent.IsClassMembers() {
 				// report missing label
 				f.errorReporter.Error(
-					jutil.StringFormat(IRFactory_UNDEFINED_LABEL, labelName.GetString()),
+					jutil.StringFormat(IRFactory_UNDEFINED_LABEL, labelName.Ident()),
 					f.sourceName,
 					n.GetLineno(),
 					n.GetCharno())
 				break
 			}
 			parent = parent.GetParent()
-		}
-
-		if !parent.IsNil() && parent.IsLabel() && IRFactory_LabelsMatch(parent, labelName) {
-			if n.IsContinue() && (parent.GetLastChild().IsNil() || !IRFactory_IsContinueTarget(parent.GetLastChild())) {
-				// report invalid continue target
-				f.errorReporter.Error(
-					IRFactory_UNEXPECTED_LABELLED_CONTINUE, f.sourceName, n.GetLineno(), n.GetCharno())
-			}
 		}
 	} else if n.IsContinue() {
 		parent := n.GetParent()
@@ -307,20 +311,22 @@ func IRFactory_IsContinueTarget(n rhino.Node) bool {
 
 // Java: IRFactory.labelsMatch(Node, Node)
 func IRFactory_LabelsMatch(label rhino.Node, labelName rhino.Node) bool {
-	return label.GetFirstChild().GetString() == labelName.GetString()
+	name := ast.MustLabel(label).Name()
+	return !name.Node().IsNil() && name.Ident() == labelName.GetString()
 }
 
 // Java: IRFactory.validateLabel(Node)
 func (f *IRFactory) ValidateLabel(n rhino.Node) {
-	if !n.IsLabel() {
+	lbl, ok := ast.AsLabel(n)
+	if !ok {
 		return
 	}
 
-	labelName := n.GetFirstChild()
+	labelName := lbl.Name()
 	for parent := n.GetParent(); !parent.IsNil() && !parent.IsFunction(); parent = parent.GetParent() {
-		if parent.IsLabel() && IRFactory_LabelsMatch(parent, labelName) {
+		if parentLbl, isLabel := ast.AsLabel(parent); isLabel && IRFactory_LabelsMatch(parentLbl.Node(), labelName.Node()) {
 			f.errorReporter.Error(
-				jutil.StringFormat(IRFactory_DUPLICATE_LABEL, labelName.GetString()),
+				jutil.StringFormat(IRFactory_DUPLICATE_LABEL, labelName.Ident()),
 				f.sourceName,
 				n.GetLineno(),
 				n.GetCharno())
@@ -331,28 +337,30 @@ func (f *IRFactory) ValidateLabel(n rhino.Node) {
 
 // Java: IRFactory.validateParameters(Node)
 func (f *IRFactory) ValidateParameters(n rhino.Node) {
-	if !n.IsParamList() {
+	params, ok := ast.AsParamList(n)
+	if !ok {
 		return
 	}
-	first := n.GetFirstChild()
-	if first.IsNil() {
+	firstParam, ok := params.FirstParam()
+	if !ok {
 		return
 	}
-	if first.IsName() {
-		second := first.GetNext()
+	if firstName, isName := firstParam.AsName(); isName {
+		second := firstName.Node().GetNext()
 		if second.IsNil() {
 			return
 		}
 		var seen [8]string
-		seen[0] = first.GetString()
+		seen[0] = firstName.Ident()
 		count := 1
 		allSimple := true
 		for c := second; !c.IsNil(); c = c.GetNext() {
-			if !c.IsName() || count >= len(seen) {
+			name, ok := ast.AsName(c)
+			if !ok || count >= len(seen) {
 				allSimple = false
 				break
 			}
-			seen[count] = c.GetString()
+			seen[count] = name.Ident()
 			count++
 		}
 		if allSimple {
@@ -380,7 +388,8 @@ func (f *IRFactory) validateParametersSlow(n rhino.Node) {
 	var small [8]string
 	nSmall := 0
 	var seenMap map[string]struct{}
-	for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+	firstParam, _ := ast.MustParamList(n).FirstParam()
+	for c := firstParam.Node(); !c.IsNil(); c = c.GetNext() {
 		ParsingUtil_GetParamOrPatternNames(
 			c,
 			func(param rhino.Node) {

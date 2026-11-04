@@ -19,6 +19,7 @@
 package parsing
 
 import (
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -50,21 +51,26 @@ func (f *IRFactory) ProcessAstRoot(rootNode *parser.ProgramTree) rhino.Node {
 
 // Java: IRFactory.TransformDispatcher.isGoogModuleFile(Node)
 func (f *IRFactory) IsGoogModuleFile(scriptNode rhino.Node) bool {
-	jutil.CheckArgument(scriptNode.IsScript())
-	if !scriptNode.HasChildren() {
+	script, ok := ast.AsScript(scriptNode)
+	jutil.CheckArgument(ok)
+	first, ok := script.FirstItem()
+	if !ok {
 		return false
 	}
-	exprResult := scriptNode.GetFirstChild()
-	if !exprResult.IsExprResult() {
+	exprStmt, ok := first.AsExprStmt()
+	if !ok {
 		return false
 	}
-	call := exprResult.GetFirstChild()
-	if !call.IsCall() {
+	call, ok := exprStmt.Expr().AsCall()
+	if !ok {
 		return false
 	}
-	return IRFactory_GOOG_MODULE.Matches(call.GetFirstChild()) &&
-		call.HasTwoChildren() &&
-		call.GetSecondChild().IsStringLit()
+	arg, ok := call.OnlyArg()
+	if !ok {
+		return false
+	}
+	_, isStr := arg.AsStringLit()
+	return isStr && IRFactory_GOOG_MODULE.Matches(call.Callee().Node())
 }
 
 // ParseDirectives parses the directives, encodes them in the AST, and
@@ -78,20 +84,20 @@ func (f *IRFactory) IsGoogModuleFile(scriptNode rhino.Node) bool {
 func (f *IRFactory) ParseDirectives(node rhino.Node) {
 	useStrict := false
 	for {
-		statement := node.GetFirstChild()
-		if statement.IsNil() || !statement.IsExprResult() {
+		exprStmt, ok := ast.AsExprStmt(node.GetFirstChild())
+		if !ok {
 			break
 		}
 
-		directive := statement.GetFirstChild()
-		if !directive.IsStringLit() || directive.GetString() != "use strict" {
+		directive, ok := exprStmt.Expr().AsStringLit()
+		if !ok || directive.Value() != "use strict" {
 			break
 		}
 
 		useStrict = true
 		// TODO(nickreid): Should we also remove other directives that aren't
 		// "use strict"?
-		statement.Detach()
+		exprStmt.Detach()
 	}
 
 	if useStrict {
@@ -302,14 +308,16 @@ func (f *IRFactory) ValidatePrivatePropertyUsage(privatePropNames map[string]uin
 }
 
 func (f *IRFactory) validatePrivatePropertyUsage(scope *privatePropScope, classMembers rhino.Node) {
-	jutil.CheckState(classMembers.IsClassMembers())
-	if !classMembers.HasChildren() {
+	body, ok := ast.AsClassBody(classMembers)
+	jutil.CheckState(ok)
+	first, ok := body.FirstMember()
+	if !ok {
 		return
 	}
 
 	// Uses a stack object instead of recursion to avoid a stack overflow.
 	var visitStack []rhino.Node
-	visitStack = append(visitStack, classMembers.GetFirstChild())
+	visitStack = append(visitStack, first.Node())
 	for len(visitStack) != 0 {
 		node := visitStack[len(visitStack)-1]
 		visitStack = visitStack[:len(visitStack)-1]
@@ -340,10 +348,10 @@ func (f *IRFactory) validatePrivatePropertyUsage(scope *privatePropScope, classM
 		//   delete this.#privateProp
 		//   delete x.#privateProp
 		//   delete x?.#privateProp
-		if node.IsDelProp() {
-			firstChild := rhino.CheckNotNull(node.GetFirstChild())
-			if firstChild.IsPrivateIdentifier() &&
-				(firstChild.IsGetProp() || firstChild.IsOptChainGetProp()) {
+		if del, ok := ast.AsUnaryOf(node, rhino.Token_DELPROP); ok {
+			operand := rhino.CheckNotNull(del.Operand().Node())
+			if operand.IsPrivateIdentifier() &&
+				(operand.IsGetProp() || operand.IsOptChainGetProp()) {
 				f.errorReporter.Error(
 					"Private fields cannot be deleted", f.sourceName, node.GetLineno(), node.GetCharno())
 			}
@@ -376,7 +384,8 @@ func (f *IRFactory) validatePrivatePropertyUsage(scope *privatePropScope, classM
 // Java: IRFactory.TransformDispatcher.getPrivatePropsAndValidateUniqueness(Node)
 func (f *IRFactory) GetPrivatePropsAndValidateUniqueness(classMembers rhino.Node) map[string]uint8 {
 	var props map[string]uint8
-	for curNode := classMembers.GetFirstChild(); !curNode.IsNil(); curNode = curNode.GetNext() {
+	first, _ := ast.MustClassBody(classMembers).FirstMember()
+	for curNode := first.Node(); !curNode.IsNil(); curNode = curNode.GetNext() {
 		if !curNode.IsPrivateIdentifier() {
 			continue
 		}

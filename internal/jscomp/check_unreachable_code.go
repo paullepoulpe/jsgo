@@ -31,12 +31,13 @@ type CheckUnreachableCode struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 	cfgScopeStack
 
-	compiler             AbstractCompiler
-	reachability         graph.GraphReachability[rhino.Node, ControlFlowGraph_Branch]
-	hasUnreachableStack  []bool
-	hasUnreachableBuf    [8]bool
-	scriptCheckCfg       ReusableCfg
-	rootHasNoUnreachable bool
+	compiler            AbstractCompiler
+	reachability        graph.GraphReachability[rhino.Node, ControlFlowGraph_Branch]
+	hasUnreachableStack []bool
+	hasUnreachableBuf   [8]bool
+	scriptCheckCfg      ReusableCfg
+	parallelScript      rhino.Node
+	scriptFallsThrough  bool
 }
 
 // Java: CheckUnreachableCode.UNREACHABLE_CODE
@@ -151,9 +152,6 @@ func (c *CheckUnreachableCode) hasNoUnreachableCodeFast(scopeRoot rhino.Node) bo
 	case rhino.Token_SCRIPT, rhino.Token_MODULE_BODY:
 		return isStraightLineScript(scopeRoot)
 	case rhino.Token_ROOT:
-		if c.rootHasNoUnreachable {
-			return true
-		}
 		for item := range ast.MustRoot(scopeRoot).Items() {
 			script, ok := item.AsScript()
 			if !ok {
@@ -188,21 +186,49 @@ func (*CheckUnreachableCode) cloneForParallel(c *Compiler) NodeTraversal_Callbac
 	return NewCheckUnreachableCode(c)
 }
 
+func (c *CheckUnreachableCode) resetForParallelScript(script rhino.Node) {
+	c.resetCfgStack()
+	c.hasUnreachableStack = c.hasUnreachableBuf[:0]
+	c.parallelScript = script
+	c.scriptFallsThrough = false
+}
+
+func (c *CheckUnreachableCode) effectiveScopeRoot(scopeRoot rhino.Node) rhino.Node {
+	if !c.parallelScript.IsNil() && scopeRoot.IsRoot() {
+		return c.parallelScript
+	}
+	return scopeRoot
+}
+
 func (c *CheckUnreachableCode) EnterScope(t *NodeTraversal) {
-	c.pushScopeRoot(t.GetScopeRoot())
-	c.EnterScopeWithCfg(t)
+	scopeRoot := c.effectiveScopeRoot(t.GetScopeRoot())
+	c.pushScopeRoot(scopeRoot)
+	c.enterScopeWithCfgRoot(t, scopeRoot)
 }
 
 func (c *CheckUnreachableCode) ExitScope(t *NodeTraversal) {
-	c.ExitScopeWithCfg(t)
-	c.popScopeRoot(t.GetScopeRoot())
+	scopeRoot := c.effectiveScopeRoot(t.GetScopeRoot())
+	if !scopeRoot.IsNil() && scopeRoot == c.parallelScript {
+		if cfg := c.PeekCurrentScopeCfg(); cfg != nil {
+			c.scriptFallsThrough = cfg.GetImplicitReturn().GetAnnotation() == graph.GraphReachability_REACHABLE &&
+				!hasTopLevelReturn(scopeRoot)
+		}
+	}
+	c.exitScopeWithCfgRoot(t, scopeRoot)
+	c.popScopeRoot(scopeRoot)
 }
 
 // Java: CheckUnreachableCode.enterScopeWithCfg(NodeTraversal)
 func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
-	scopeRoot := t.GetScopeRoot()
+	c.enterScopeWithCfgRoot(t, c.effectiveScopeRoot(t.GetScopeRoot()))
+}
+
+func (c *CheckUnreachableCode) enterScopeWithCfgRoot(t *NodeTraversal, scopeRoot rhino.Node) {
 	if NodeUtil_IsValidCfgRoot(scopeRoot) {
 		if c.hasNoUnreachableCodeFast(scopeRoot) {
+			if !scopeRoot.IsNil() && scopeRoot == c.parallelScript {
+				c.scriptFallsThrough = true
+			}
 			c.hasUnreachableStack = append(c.hasUnreachableStack, false)
 			if t != nil && t.callback == c {
 				t.noShouldTraverse = true
@@ -221,7 +247,11 @@ func (c *CheckUnreachableCode) EnterScopeWithCfg(t *NodeTraversal) {
 
 // Java: CheckUnreachableCode.exitScopeWithCfg(NodeTraversal)
 func (c *CheckUnreachableCode) ExitScopeWithCfg(t *NodeTraversal) {
-	if NodeUtil_IsValidCfgRoot(t.GetScopeRoot()) && len(c.hasUnreachableStack) > 0 {
+	c.exitScopeWithCfgRoot(t, c.effectiveScopeRoot(t.GetScopeRoot()))
+}
+
+func (c *CheckUnreachableCode) exitScopeWithCfgRoot(t *NodeTraversal, scopeRoot rhino.Node) {
+	if NodeUtil_IsValidCfgRoot(scopeRoot) && len(c.hasUnreachableStack) > 0 {
 		c.hasUnreachableStack = c.hasUnreachableStack[:len(c.hasUnreachableStack)-1]
 		if t != nil && t.callback == c {
 			t.noShouldTraverse = c.CurrentScopeHasNoUnreachable()

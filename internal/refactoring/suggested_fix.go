@@ -326,18 +326,28 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 	}
 
 	parent := n.GetParent()
-	_, isNameInDecl := ast.AsNameDeclaration(parent)
-	isNameInDecl = isNameInDecl && n.IsName()
-	if isNameInDecl || n.IsStringKey() {
+	name, isName := ast.AsName(n)
+	strKey, isStringKey := ast.AsStringKey(n)
+	_, isParentDecl := ast.AsNameDeclaration(parent)
+	if (isParentDecl && isName) || isStringKey {
 		if !next.IsNil() {
 			length = SuggestedFix_GetStartPositionForNodeConsideringComments(next) - startPosition
-		} else if child := n.GetFirstChild(); !child.IsNil() {
-			length = (child.GetSourceOffset() + child.GetLength()) - startPosition
+		} else {
+			var child rhino.Node
+			if isName {
+				initExpr, _ := name.Init()
+				child = initExpr.Node()
+			} else {
+				child = strKey.Value().Node()
+			}
+			if !child.IsNil() {
+				length = (child.GetSourceOffset() + child.GetLength()) - startPosition
+			}
 		}
-		if !parent.IsNil() && parent.GetLastChild() == n && n != parent.GetFirstChild() {
+		if suggestedFix_isLastOfMultipleChildren(parent, n) {
 			previousSibling := n.GetPrevious()
 			prevEndNode := previousSibling
-			if child := previousSibling.GetFirstChild(); !child.IsNil() {
+			if child := suggestedFix_memberOrDeclaratorChild(previousSibling); !child.IsNil() {
 				prevEndNode = child
 			}
 			startPositionDiff := startPosition - (prevEndNode.GetSourceOffset() + prevEndNode.GetLength())
@@ -355,6 +365,48 @@ func (b *SuggestedFix_Builder) DeleteWithWhitespaceBefore(n rhino.Node, deleteWh
 	}
 	b.replacements.Put(requireSourceFileName(n), CodeReplacement_Create(startPosition, length, ""))
 	return b
+}
+
+func suggestedFix_isLastOfMultipleChildren(parent, n rhino.Node) bool {
+	if decl, ok := ast.AsNameDeclaration(parent); ok {
+		first, _ := decl.FirstDeclarator()
+		last, _ := decl.LastDeclarator()
+		return last.Is(n) && !first.Is(n)
+	}
+	if objLit, ok := ast.AsObjectLit(parent); ok {
+		first, _ := objLit.FirstMember()
+		last, _ := objLit.LastMember()
+		return last.Is(n) && !first.Is(n)
+	}
+	if objPat, ok := ast.AsObjectPattern(parent); ok {
+		first, _ := objPat.FirstProp()
+		last, _ := objPat.LastProp()
+		return last.Is(n) && !first.Is(n)
+	}
+	return false
+}
+
+func suggestedFix_memberOrDeclaratorChild(n rhino.Node) rhino.Node {
+	if name, ok := ast.AsName(n); ok {
+		initExpr, _ := name.Init()
+		return initExpr.Node()
+	}
+	if pkm, ok := ast.AsPlainKeyMember(n); ok {
+		return pkm.Value().Node()
+	}
+	if dlhs, ok := ast.AsDestructuringLhs(n); ok {
+		return dlhs.Pattern().Node()
+	}
+	if cp, ok := ast.AsComputedProp(n); ok {
+		return cp.Key().Node()
+	}
+	if sp, ok := ast.AsSpread(n); ok {
+		return sp.Expr().Node()
+	}
+	if rest, ok := ast.AsRest(n); ok {
+		return rest.Target().Node()
+	}
+	return rhino.NilNode
 }
 
 // Java: SuggestedFix.Builder.deleteWithoutRemovingWhitespaceBefore(Node)
@@ -687,10 +739,7 @@ func (b *SuggestedFix_Builder) AddImport(
 		return b
 	}
 
-	script := scriptMetadata.GetScript()
-	if script.HasChildren() && script.GetFirstChild().IsModuleBody() {
-		script = script.GetFirstChild()
-	}
+	container, firstStmt, topLevelStmts := suggestedFix_scriptTopLevel(scriptMetadata.GetScript())
 
 	var lastModuleOrProvideNode rhino.Node
 	var lastGoogRequireNode rhino.Node
@@ -699,12 +748,12 @@ func (b *SuggestedFix_Builder) AddImport(
 	modOrProvideMatcher := Matchers_GoogModuleOrProvide()
 	reqLikeMatcher := Matchers_GoogRequirelike()
 
-	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range topLevelStmts {
 		if modMatcher.Matches(child, metadata) {
 			lastModuleOrProvideNode = child
 		}
 		if exprStmt, ok := ast.AsExprStmt(child); ok {
-			if call, isCall := ast.AsCall(exprStmt.Expr().Node()); isCall {
+			if call, isCall := exprStmt.Expr().AsCall(); isCall {
 				callNode := call.Node()
 				if modOrProvideMatcher.Matches(callNode, metadata) {
 					lastModuleOrProvideNode = callNode
@@ -721,7 +770,7 @@ func (b *SuggestedFix_Builder) AddImport(
 			}
 		} else if decl, ok := ast.AsNameDeclaration(child); ok {
 			if firstDecl, hasDecl := decl.FirstDeclarator(); hasDecl {
-				if declName, isName := ast.AsName(firstDecl.Node()); isName {
+				if declName, isName := firstDecl.AsName(); isName {
 					if initExpr, hasInit := declName.Init(); hasInit &&
 						reqLikeMatcher.Matches(initExpr.Node(), metadata) {
 						lastGoogRequireNode = initExpr.Node()
@@ -759,11 +808,11 @@ func (b *SuggestedFix_Builder) AddImport(
 					namespace))
 			return b
 		}
-		if script.HasChildren() {
-			nodeToInsertBefore = script.GetFirstChild()
+		if !firstStmt.IsNil() {
+			nodeToInsertBefore = firstStmt
 		} else {
 			b.replacements.Put(
-				requireSourceFileName(script),
+				requireSourceFileName(container),
 				CodeReplacement_CreateWithSortKey(
 					0, 0, b.GenerateCode(metadata.GetCompiler(), newImportNode), namespace))
 			return b
@@ -772,6 +821,31 @@ func (b *SuggestedFix_Builder) AddImport(
 
 	return b.InsertBeforeNodeWithSortKey(
 		nodeToInsertBefore, newImportNode, metadata.GetCompiler(), namespace)
+}
+
+func suggestedFix_scriptTopLevel(script rhino.Node) (container rhino.Node, firstStmt rhino.Node, stmts iter.Seq[rhino.Node]) {
+	scriptView := ast.MustScript(script)
+	firstItem, ok := scriptView.FirstItem()
+	if !ok {
+		return script, rhino.NilNode, func(func(rhino.Node) bool) {}
+	}
+	if modBody, isMod := firstItem.AsModuleBody(); isMod {
+		first, _ := modBody.FirstStatement()
+		return modBody.Node(), first.Node(), func(yield func(rhino.Node) bool) {
+			for stmt := range modBody.Statements() {
+				if !yield(stmt.Node()) {
+					return
+				}
+			}
+		}
+	}
+	return script, firstItem.Node(), func(yield func(rhino.Node) bool) {
+		for item := range scriptView.Items() {
+			if !yield(item.Node()) {
+				return
+			}
+		}
+	}
 }
 
 // Java: SuggestedFix.Builder.removeGoogRequire(Match, String)
@@ -790,12 +864,10 @@ func SuggestedFix_Builder_FindGoogRequireNode(
 	if script.IsNil() {
 		return rhino.NilNode
 	}
-	if script.HasChildren() && script.GetFirstChild().IsModuleBody() {
-		script = script.GetFirstChild()
-	}
+	_, _, topLevelStmts := suggestedFix_scriptTopLevel(script)
 
 	nsMatcher := Matchers_GoogRequirelikeWithNamespace(namespace)
-	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range topLevelStmts {
 		if exprStmt, ok := ast.AsExprStmt(child); ok {
 			expr := exprStmt.Expr().Node()
 			if expr.IsCall() && nsMatcher.Matches(expr, metadata) {
@@ -804,10 +876,10 @@ func SuggestedFix_Builder_FindGoogRequireNode(
 		}
 	}
 
-	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+	for child := range topLevelStmts {
 		if decl, ok := ast.AsNameDeclaration(child); ok {
 			if firstDecl, hasDecl := decl.FirstDeclarator(); hasDecl {
-				if declName, isName := ast.AsName(firstDecl.Node()); isName {
+				if declName, isName := firstDecl.AsName(); isName {
 					if initExpr, hasInit := declName.Init(); hasInit &&
 						nsMatcher.Matches(initExpr.Node(), metadata) {
 						return child

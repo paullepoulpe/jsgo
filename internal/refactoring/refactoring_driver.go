@@ -41,6 +41,7 @@
 package refactoring
 
 import (
+	"regexp"
 	"slices"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -81,13 +82,13 @@ type Scanner interface {
 // Java: final class JsFlumeCallback implements NodeTraversal.Callback
 type JsFlumeCallback struct {
 	scanner            Scanner
-	includeFilePattern *jutil.Pattern // may be nil
+	includeFilePattern *regexp.Regexp // may be nil
 	matches            []*Match
 	fixes              []*SuggestedFix
 }
 
 // Java: JsFlumeCallback(Scanner, Pattern)
-func NewJsFlumeCallback(scanner Scanner, includeFilePattern *jutil.Pattern) *JsFlumeCallback {
+func NewJsFlumeCallback(scanner Scanner, includeFilePattern *regexp.Regexp) *JsFlumeCallback {
 	return &JsFlumeCallback{
 		scanner:            scanner,
 		includeFilePattern: includeFilePattern,
@@ -112,9 +113,9 @@ func (c *JsFlumeCallback) ShouldTraverse(nodeTraversal *jscomp.NodeTraversal, n 
 	if n.IsScript() {
 		filename, hasFilename := n.SourceFileName()
 		if c.includeFilePattern != nil &&
-			c.includeFilePattern.Pattern() != "" &&
+			c.includeFilePattern.String() != "" &&
 			hasFilename && filename != "" {
-			return c.includeFilePattern.Matcher(filename).Find()
+			return c.includeFilePattern.MatchString(filename)
 		}
 	}
 	return true
@@ -135,15 +136,16 @@ func (c *JsFlumeCallback) Visit(t *jscomp.NodeTraversal, n rhino.Node, parent rh
 //
 // Java: RefactoringUtils.isInClosurizedFile(Node, NodeMetadata)
 func RefactoringUtils_IsInClosurizedFile(node rhino.Node, metadata *NodeMetadata) bool {
-	script := jscomp.NodeUtil_GetEnclosingScript(node)
-	if script.IsNil() {
+	script, ok := ast.AsScript(jscomp.NodeUtil_GetEnclosingScript(node))
+	if !ok {
 		return false
 	}
 
 	reqMatcher := Matchers_GoogRequire()
 	modOrProvideMatcher := Matchers_GoogModuleOrProvide()
-	for child := script.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		if exprStmt, ok := ast.AsExprStmt(child); ok {
+	for item := range script.Items() {
+		child := item.Node()
+		if exprStmt, ok := item.AsExprStmt(); ok {
 			expr := exprStmt.Expr().Node()
 			if expr.IsCall() && (reqMatcher.Matches(expr, metadata) || modOrProvideMatcher.Matches(expr, metadata)) {
 				return true
@@ -181,7 +183,7 @@ func newRefactoringDriver(
 // fixes as a result. includeFilePattern may be nil.
 //
 // Java: RefactoringDriver.drive(Scanner, Pattern)
-func (d *RefactoringDriver) DriveWithIncludeFilePattern(scanner Scanner, includeFilePattern *jutil.Pattern) []*SuggestedFix {
+func (d *RefactoringDriver) DriveWithIncludeFilePattern(scanner Scanner, includeFilePattern *regexp.Regexp) []*SuggestedFix {
 	rhino.LockStandaloneStore()
 	defer rhino.UnlockStandaloneStore()
 	callback := NewJsFlumeCallback(scanner, includeFilePattern)

@@ -21,16 +21,15 @@ package jscomp
 import (
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/colors"
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
-// InsertPrivateDeclarations inserts declarations for the PrivateMap objects
+// insertPrivateDeclarations inserts declarations for the PrivateMap objects
 // before the class statement if the class contains private members.
 //
 // Java: Es6NormalizeClasses.insertPrivateDeclarations(NodeTraversal, ClassRecord, Node)
-func (e *Es6NormalizeClasses) InsertPrivateDeclarations(
+func (e *Es6NormalizeClasses) insertPrivateDeclarations(
 	t *NodeTraversal, record *es6NormalizeClasses_ClassRecord, classInsertionPoint rhino.Node) {
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_CONST_DECLARATIONS, e.compiler)
 	// Create const PRIVATE_MAP$uid = new $jscomp.PrivateMap() declaration for instance private
@@ -57,7 +56,7 @@ func (e *Es6NormalizeClasses) InsertPrivateDeclarations(
 					// Process private instance methods.
 					if fn, ok := es6NormalizeClasses_unmovedFunction(pm.methodNode.Node()); ok &&
 						pm.kind == es6NormalizeClasses_ClassRecord_PrivateMemberKind_METHOD {
-						e.RewriteSuperReferencesInPrivateMember(fn, pm.methodNode.Node().IsStaticMember(), record)
+						e.rewriteSuperReferencesInPrivateMember(fn, pm.methodNode.Node().IsStaticMember(), record)
 						fn.Detach()
 						pm.methodNode.Detach()
 						valProp := e.astFactory.CreateStringKey("value", fn.Node())
@@ -68,20 +67,20 @@ func (e *Es6NormalizeClasses) InsertPrivateDeclarations(
 						// Process private instance accessors (getters/setters).
 						descriptorLit := e.astFactory.CreateObjectLit()
 						if getFn, ok := es6NormalizeClasses_unmovedFunction(pm.getterNode.Node()); ok {
-							e.RewriteSuperReferencesInPrivateMember(getFn, pm.getterNode.Node().IsStaticMember(), record)
+							e.rewriteSuperReferencesInPrivateMember(getFn, pm.getterNode.Node().IsStaticMember(), record)
 							getFn.Detach()
 							pm.getterNode.Detach()
-							if e.RewriteThisToThisDotSelf(getFn) {
+							if e.rewriteThisToThisDotSelf(getFn) {
 								record.needsInstanceSelf = true
 							}
 							getProp := e.astFactory.CreateStringKey("get", getFn.Node())
 							descriptorLit.AddChildToBack(getProp)
 						}
 						if setFn, ok := es6NormalizeClasses_unmovedFunction(pm.setterNode.Node()); ok {
-							e.RewriteSuperReferencesInPrivateMember(setFn, pm.setterNode.Node().IsStaticMember(), record)
+							e.rewriteSuperReferencesInPrivateMember(setFn, pm.setterNode.Node().IsStaticMember(), record)
 							setFn.Detach()
 							pm.setterNode.Detach()
-							if e.RewriteThisToThisDotSelf(setFn) {
+							if e.rewriteThisToThisDotSelf(setFn) {
 								record.needsInstanceSelf = true
 							}
 							setProp := e.astFactory.CreateStringKey("set", setFn.Node())
@@ -125,11 +124,11 @@ func (e *Es6NormalizeClasses) InsertPrivateDeclarations(
 	}
 }
 
-// FindPrivateMember finds the private member declaration in the enclosing
+// findPrivateMember finds the private member declaration in the enclosing
 // class stack by its name (including the '#' prefix).
 //
 // Java: Es6NormalizeClasses.findPrivateMember(String)
-func (e *Es6NormalizeClasses) FindPrivateMember(name string) (*es6NormalizeClasses_ClassRecord, *es6NormalizeClasses_ClassRecord_PrivateMember, bool) {
+func (e *Es6NormalizeClasses) findPrivateMember(name string) (*es6NormalizeClasses_ClassRecord, *es6NormalizeClasses_ClassRecord_PrivateMember, bool) {
 	for i := len(e.classStack) - 1; i >= 0; i-- {
 		record := e.classStack[i]
 		if pm := record.GetPrivateMember(name); pm != nil {
@@ -139,18 +138,17 @@ func (e *Es6NormalizeClasses) FindPrivateMember(name string) (*es6NormalizeClass
 	return nil, nil, false
 }
 
-// RewritePrivateIn rewrites private identifier brand checks (e.g.
+// rewritePrivateIn rewrites private identifier brand checks (e.g.
 // `#field in obj`) to use `PRIVATE_MAP.has(obj)`.
 //
 // Java: Es6NormalizeClasses.rewritePrivateIn(NodeTraversal, Node)
-func (e *Es6NormalizeClasses) RewritePrivateIn(t *NodeTraversal, in ast.Binary) {
+func (e *Es6NormalizeClasses) rewritePrivateIn(t *NodeTraversal, in ast.Binary) {
 	inNode := in.Node()
-	jutil.CheckArgumentMsg1(inNode.IsIn(), "%s", inNode)
 	// The parser marks a name on the left of `in` as private: `#field in obj`.
 	left, right := ast.MustName(in.Left().Node()), in.Right()
-	record, pm, ok := e.FindPrivateMember(left.Ident())
+	record, pm, ok := e.findPrivateMember(left.Ident())
 	if !ok {
-		e.MaybeReportPrivatePropertiesCannotConvertYet(left.Node())
+		e.maybeReportPrivatePropertiesCannotConvertYet(left.Node())
 		return
 	}
 
@@ -170,7 +168,7 @@ func (e *Es6NormalizeClasses) RewritePrivateIn(t *NodeTraversal, in ast.Binary) 
 	t.ReportCodeChange()
 }
 
-// RewritePrivateGetProp rewrites private property accesses (e.g.
+// rewritePrivateGetProp rewrites private property accesses (e.g.
 // `obj.#field`) to use `PRIVATE_MAP.get(obj).field`.
 //
 // For non-static private methods:
@@ -186,11 +184,11 @@ func (e *Es6NormalizeClasses) RewritePrivateIn(t *NodeTraversal, in ast.Binary) 
 // lookup overhead.
 //
 // Java: Es6NormalizeClasses.rewritePrivateGetProp(NodeTraversal, Node)
-func (e *Es6NormalizeClasses) RewritePrivateGetProp(t *NodeTraversal, getProp ast.NormalOrOptChainGetProp) {
+func (e *Es6NormalizeClasses) rewritePrivateGetProp(t *NodeTraversal, getProp ast.NormalOrOptChainGetProp) {
 	getPropNode := getProp.Node()
-	record, pm, ok := e.FindPrivateMember(getProp.Property())
+	record, pm, ok := e.findPrivateMember(getProp.Property())
 	if !ok {
-		e.MaybeReportPrivatePropertiesCannotConvertYet(getPropNode)
+		e.maybeReportPrivatePropertiesCannotConvertYet(getPropNode)
 		return
 	}
 
@@ -202,10 +200,10 @@ func (e *Es6NormalizeClasses) RewritePrivateGetProp(t *NodeTraversal, getProp as
 		return
 	}
 
-	e.RewritePrivateMemberAccess(t, getProp, record, pm, getPropNode.GetParent())
+	e.rewritePrivateMemberAccess(t, getProp, record, pm, getPropNode.GetParent())
 }
 
-// RewritePrivateMemberAccess rewrites a private member access or
+// rewritePrivateMemberAccess rewrites a private member access or
 // invocation.
 //
 // Handles three primary cases:
@@ -227,7 +225,7 @@ func (e *Es6NormalizeClasses) RewritePrivateGetProp(t *NodeTraversal, getProp as
 //     const fn = obj == null ? void 0 : PRIVATE_MAP.get(obj).member;
 //
 // Java: Es6NormalizeClasses.rewritePrivateMemberAccess(NodeTraversal, Node, ClassRecord, ClassRecord.PrivateMember, Node)
-func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
+func (e *Es6NormalizeClasses) rewritePrivateMemberAccess(
 	t *NodeTraversal,
 	getProp ast.NormalOrOptChainGetProp,
 	record *es6NormalizeClasses_ClassRecord,
@@ -256,18 +254,18 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 	isDirectCall := isCall && call.Callee().Is(getPropNode)
 
 	if isDirectCall {
-		_, isOptChainCall := call.AsOptChainCall()
-		isOptionalCall := isOptChainCall && parent.IsOptionalChainStart()
+		optCall, isOptChainCall := call.AsOptChainCall()
+		isOptionalCall := isOptChainCall && optCall.IsStart()
 
 		parent.SetIsOptionalChainStart(false)
 
-		if e.ReceiverNeedsTempVar(receiver) {
+		if e.receiverNeedsTempVar(receiver) {
 			// If evaluating receiver twice could introduce side effects or alter execution state,
 			// declare a temporary variable (e.g. `let TMP;`) and evaluate the call using a comma
 			// expression:
 			// `(TMP = receiver, PRIVATE_MAP.get(TMP).member.call(TMP, ...args))`
 			tempName := e.GenerateUniqueTmpVarName(t)
-			insertionBlock := e.GetDeclarationInsertionPoint(getPropNode, t)
+			insertionBlock := e.getDeclarationInsertionPoint(getPropNode, t)
 			decl := e.astFactory.CreateSingleLetNameDeclaration(tempName)
 			insertionBlock.AddChildToFront(decl.SrcrefTree(getPropNode))
 			NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
@@ -282,7 +280,7 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 			getCall :=
 				e.astFactory.CreateCallWithUnknownType(getCallee, tempNameNode2).Srcref(getPropNode)
 			methodGetProp := e.astFactory.CreateGetPropWithUnknownType(getCall, memberPropName)
-			callCallee := e.CreateCallCallee(methodGetProp, isOptionalCall, getPropNode)
+			callCallee := e.createCallCallee(methodGetProp, isOptionalCall, getPropNode)
 			if callCallee.IsOptChainGetProp() {
 				parent.SetToken(rhino.Token_OPTCHAIN_CALL)
 			} else {
@@ -297,7 +295,7 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 			tempNameNode3.InsertAfter(callCallee)
 
 			resultExpr :=
-				e.WrapOptionalChainStartIfNecessary(receiver, parent, endOfSegment, isOptChain)
+				e.wrapOptionalChainStartIfNecessary(receiver, parent, endOfSegment, isOptChain)
 			placeholder := rhino.IR_Empty()
 			resultExpr.ReplaceWith(placeholder)
 			comma := e.astFactory.CreateComma(assign, resultExpr).Srcref(getPropNode)
@@ -314,7 +312,7 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 			receiverArg.SrcrefTree(getPropNode)
 
 			getPropNode.Detach()
-			callCallee := e.CreateCallCallee(methodGetProp, isOptionalCall, getPropNode)
+			callCallee := e.createCallCallee(methodGetProp, isOptionalCall, getPropNode)
 			if callCallee.IsOptChainGetProp() {
 				parent.SetToken(rhino.Token_OPTCHAIN_CALL)
 			} else {
@@ -323,27 +321,27 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 			callCallee.SrcrefTreeIfMissing(getPropNode)
 			parent.AddChildToFront(callCallee)
 			receiverArg.InsertAfter(callCallee)
-			e.WrapOptionalChainStartIfNecessary(receiver, parent, endOfSegment, isOptChain)
+			e.wrapOptionalChainStartIfNecessary(receiver, parent, endOfSegment, isOptChain)
 			t.ReportCodeChange()
 		}
 	} else {
 		// Indirect read, field access, or method tear-off (e.g., `const fn = this.#method` or
 		// `this.#field`):
 		// Rewritten to `PRIVATE_MAP.get(receiver).propertyName`.
-		assignComma := e.ExtractReceiverTmpIfNecessary(t, receiver, getPropNode, isOptChain)
-		if !assignComma.IsNil() {
-			receiver = assignComma.GetFirstChild().CloneTree()
+		assignTmp, hasTmp := e.extractReceiverTmpIfNecessary(t, receiver, getPropNode, isOptChain)
+		if hasTmp {
+			receiver = assignTmp.Target().Node().CloneTree()
 		}
 		getCall := e.astFactory.CreateCallWithUnknownType(getCallee, receiver)
 		methodGetProp := e.astFactory.CreateGetPropWithUnknownType(getCall, memberPropName)
 		getPropNode.ReplaceWith(methodGetProp.SrcrefTree(getPropNode))
 		result :=
-			e.WrapOptionalChainStartIfNecessary(receiver, methodGetProp, endOfSegment, isOptChain)
+			e.wrapOptionalChainStartIfNecessary(receiver, methodGetProp, endOfSegment, isOptChain)
 
-		if !assignComma.IsNil() {
+		if hasTmp {
 			placeholder := rhino.IR_Empty()
 			result.ReplaceWith(placeholder)
-			comma := e.astFactory.CreateComma(assignComma, result).Srcref(getPropNode)
+			comma := e.astFactory.CreateComma(assignTmp.Node(), result).Srcref(getPropNode)
 			placeholder.ReplaceWith(comma)
 		}
 
@@ -351,31 +349,31 @@ func (e *Es6NormalizeClasses) RewritePrivateMemberAccess(
 	}
 }
 
-// ExtractReceiverTmpIfNecessary extracts a temporary variable declaration
+// extractReceiverTmpIfNecessary extracts a temporary variable declaration
 // for a side-effecting receiver in an optional chain.
 //
 // Java: Es6NormalizeClasses.extractReceiverTmpIfNecessary(NodeTraversal, Node, Node, boolean)
-func (e *Es6NormalizeClasses) ExtractReceiverTmpIfNecessary(
-	t *NodeTraversal, receiver rhino.Node, getPropNode rhino.Node, isOptChain bool) rhino.Node {
-	if !isOptChain || !e.ReceiverNeedsTempVar(receiver) {
-		return rhino.NilNode
+func (e *Es6NormalizeClasses) extractReceiverTmpIfNecessary(
+	t *NodeTraversal, receiver rhino.Node, getPropNode rhino.Node, isOptChain bool) (ast.Assign, bool) {
+	if !isOptChain || !e.receiverNeedsTempVar(receiver) {
+		return ast.Assign{}, false
 	}
 	tempName := e.GenerateUniqueTmpVarName(t)
-	insertionBlock := e.GetDeclarationInsertionPoint(getPropNode, t)
+	insertionBlock := e.getDeclarationInsertionPoint(getPropNode, t)
 	decl := e.astFactory.CreateSingleLetNameDeclaration(tempName)
 	insertionBlock.AddChildToFront(decl.SrcrefTree(getPropNode))
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), parser.FeatureSet_Feature_LET_DECLARATIONS, e.compiler)
 
 	tempNameNode := e.astFactory.CreateNameWithUnknownType(tempName).Srcref(getPropNode)
-	return e.astFactory.CreateAssign(tempNameNode, receiver).Srcref(getPropNode)
+	return ast.MustAssign(e.astFactory.CreateAssign(tempNameNode, receiver).Srcref(getPropNode)), true
 }
 
-// WrapOptionalChainStartIfNecessary wraps an optional chained private
+// wrapOptionalChainStartIfNecessary wraps an optional chained private
 // member access with a nullish short-circuit check on the receiver,
 // climbing to the end of the current optional chain segment.
 //
 // Java: Es6NormalizeClasses.wrapOptionalChainStartIfNecessary(Node, Node, Node, boolean)
-func (e *Es6NormalizeClasses) WrapOptionalChainStartIfNecessary(
+func (e *Es6NormalizeClasses) wrapOptionalChainStartIfNecessary(
 	receiver rhino.Node, accessExpr rhino.Node, endOfSegment rhino.Node, isOptChain bool) rhino.Node {
 	if !isOptChain {
 		return accessExpr
@@ -403,21 +401,20 @@ func (e *Es6NormalizeClasses) WrapOptionalChainStartIfNecessary(
 	if !placeholder.GetParent().IsNil() {
 		placeholder.ReplaceWith(hook)
 	}
-	hookParent := hook.GetParent()
-	if !hookParent.IsNil() && (hookParent.IsCall() || hookParent.IsOptChainCall()) {
+	if parentCall, ok := ast.AsNormalOrOptChainCall(hook.GetParent()); ok {
 		hook.SetIsParenthesized(true)
-		if hookParent.GetFirstChild() == hook {
-			hookParent.PutBooleanProp(rhino.Node_FREE_CALL, true)
+		if parentCall.Callee().Is(hook) {
+			parentCall.SetFreeCall(true)
 		}
 	}
 	return hook
 }
 
-// CreateCallCallee creates the `.call` property access node for a private
+// createCallCallee creates the `.call` property access node for a private
 // method invocation.
 //
 // Java: Es6NormalizeClasses.createCallCallee(Node, boolean, Node)
-func (e *Es6NormalizeClasses) CreateCallCallee(methodGetProp rhino.Node, isOptionalCall bool, getPropNode rhino.Node) rhino.Node {
+func (e *Es6NormalizeClasses) createCallCallee(methodGetProp rhino.Node, isOptionalCall bool, getPropNode rhino.Node) rhino.Node {
 	if isOptionalCall {
 		return e.astFactory.CreateStartOptChainGetprop(methodGetProp, "call", AstFactory_Type_(getPropNode))
 	}
@@ -428,13 +425,13 @@ func es6NonClassOrNonArrowFnPred(n rhino.Node) bool {
 	return !n.IsClass() && (!n.IsFunction() || n.IsArrowFunction())
 }
 
-// RewriteThisToThisDotSelf rewrites top-level `this` references inside a
+// rewriteThisToThisDotSelf rewrites top-level `this` references inside a
 // private accessor body to `this.$self`.
 //
 // Returns true if any `this` reference was rewritten.
 //
 // Java: Es6NormalizeClasses.rewriteThisToThisDotSelf(Node)
-func (e *Es6NormalizeClasses) RewriteThisToThisDotSelf(fn ast.Function) bool {
+func (e *Es6NormalizeClasses) rewriteThisToThisDotSelf(fn ast.Function) bool {
 	return e.rewriteThisToThisDotSelfInSubtree(fn.Body().Node())
 }
 
@@ -481,11 +478,11 @@ func es6SubtreeHasThis(node rhino.Node) bool {
 	return false
 }
 
-// RewriteSuperReferencesInPrivateMember rewrites `super` references inside
+// rewriteSuperReferencesInPrivateMember rewrites `super` references inside
 // private methods or accessors into explicit target calls or Reflect calls.
 //
 // Java: Es6NormalizeClasses.rewriteSuperReferencesInPrivateMember(Node, ClassRecord)
-func (e *Es6NormalizeClasses) RewriteSuperReferencesInPrivateMember(fn ast.Function, isStatic bool, record *es6NormalizeClasses_ClassRecord) {
+func (e *Es6NormalizeClasses) rewriteSuperReferencesInPrivateMember(fn ast.Function, isStatic bool, record *es6NormalizeClasses_ClassRecord) {
 	if record.normalizedNames.SuperClassNode().IsNil() {
 		return
 	}
@@ -592,7 +589,7 @@ func (e *Es6NormalizeClasses) AddStaticPrivateMembers(
 			// PRIVATE$uid.method = function() {}).
 			if fn, ok := es6NormalizeClasses_unmovedFunction(pm.methodNode.Node()); ok &&
 				pm.kind == es6NormalizeClasses_ClassRecord_PrivateMemberKind_METHOD {
-				e.RewriteSuperReferencesInPrivateMember(fn, pm.methodNode.Node().IsStaticMember(), record)
+				e.rewriteSuperReferencesInPrivateMember(fn, pm.methodNode.Node().IsStaticMember(), record)
 				fn.Detach()
 				pm.methodNode.Detach()
 				lhs :=
@@ -607,17 +604,17 @@ func (e *Es6NormalizeClasses) AddStaticPrivateMembers(
 				// Object.defineProperty.
 				descriptorLit := e.astFactory.CreateObjectLit()
 				if getFn, ok := es6NormalizeClasses_unmovedFunction(pm.getterNode.Node()); ok {
-					e.RewriteSuperReferencesInPrivateMember(getFn, pm.getterNode.Node().IsStaticMember(), record)
+					e.rewriteSuperReferencesInPrivateMember(getFn, pm.getterNode.Node().IsStaticMember(), record)
 					getFn.Detach()
 					pm.getterNode.Detach()
-					e.RewriteThisToThisDotSelf(getFn)
+					e.rewriteThisToThisDotSelf(getFn)
 					descriptorLit.AddChildToBack(e.astFactory.CreateStringKey("get", getFn.Node()))
 				}
 				if setFn, ok := es6NormalizeClasses_unmovedFunction(pm.setterNode.Node()); ok {
-					e.RewriteSuperReferencesInPrivateMember(setFn, pm.setterNode.Node().IsStaticMember(), record)
+					e.rewriteSuperReferencesInPrivateMember(setFn, pm.setterNode.Node().IsStaticMember(), record)
 					setFn.Detach()
 					pm.setterNode.Detach()
-					e.RewriteThisToThisDotSelf(setFn)
+					e.rewriteThisToThisDotSelf(setFn)
 					descriptorLit.AddChildToBack(e.astFactory.CreateStringKey("set", setFn.Node()))
 				}
 				defineProp :=
@@ -640,45 +637,64 @@ func (e *Es6NormalizeClasses) AddStaticPrivateMembers(
 	}
 }
 
-// MaybeReportPrivatePropertiesCannotConvertYet reports that transpilation
+// maybeReportPrivatePropertiesCannotConvertYet reports that transpilation
 // of private class properties is not yet supported when attempting to
 // rewrite or normalize private identifiers. See b/236744850.
 //
 // Java: Es6NormalizeClasses.maybeReportPrivatePropertiesCannotConvertYet(Node)
-func (e *Es6NormalizeClasses) MaybeReportPrivatePropertiesCannotConvertYet(n rhino.Node) {
+func (e *Es6NormalizeClasses) maybeReportPrivatePropertiesCannotConvertYet(n rhino.Node) {
 	if e.transpilePrivateClassFields && n.IsPrivateIdentifier() {
 		TranspilationUtil_CannotConvertYet(e.compiler, n, "Private elements")
 	}
 }
 
-// ReceiverNeedsTempVar returns true if evaluating the receiver expression
+// receiverNeedsTempVar returns true if evaluating the receiver expression
 // twice could introduce side effects or alter state. Side-effect-free
 // receivers like `this` or simple variable names do not need a temp
 // variable.
 //
 // Java: Es6NormalizeClasses.receiverNeedsTempVar(Node)
-func (e *Es6NormalizeClasses) ReceiverNeedsTempVar(receiver rhino.Node) bool {
+func (e *Es6NormalizeClasses) receiverNeedsTempVar(receiver rhino.Node) bool {
 	return !receiver.IsThis() && !receiver.IsName()
 }
 
-// GetDeclarationInsertionPoint finds the enclosing block or script where
+// getDeclarationInsertionPoint finds the enclosing block or script where
 // temporary variable declarations (e.g. `let $jscomp$tmp$...`) can be
-// safely inserted.
+// safely inserted, climbing past any enclosing LABEL statements so a
+// declaration is never inserted directly as a child of a LABEL node.
 //
 // Java: Es6NormalizeClasses.getDeclarationInsertionPoint(Node, NodeTraversal)
-func (e *Es6NormalizeClasses) GetDeclarationInsertionPoint(n rhino.Node, t *NodeTraversal) rhino.Node {
+func (e *Es6NormalizeClasses) getDeclarationInsertionPoint(n rhino.Node, t *NodeTraversal) rhino.Node {
 	enclosingStmt := NodeUtil_GetEnclosingStatement(n)
-	if !enclosingStmt.IsNil() && !enclosingStmt.GetParent().IsNil() {
-		return enclosingStmt.GetParent()
+	for !enclosingStmt.IsNil() {
+		parent := enclosingStmt.GetParent()
+		if _, ok := ast.AsLabel(parent); ok {
+			enclosingStmt = parent
+			continue
+		}
+		if !parent.IsNil() {
+			return parent
+		}
+		break
 	}
 	return t.GetScopeRoot()
 }
 
-// Es6NormalizeClasses_IsPrivateMember returns true if the node represents a
+// isPrivateClassMember returns true if the class member node represents a
 // private member declaration (field, method, or accessor) with a private
 // identifier starting with '#'.
 //
 // Java: Es6NormalizeClasses.isPrivateMember(Node)
-func Es6NormalizeClasses_IsPrivateMember(n rhino.Node) bool {
-	return n.IsPrivateIdentifier() || (n.HasChildren() && n.GetFirstChild().IsPrivateIdentifier())
+func isPrivateClassMember(member ast.ClassMember) bool {
+	if member.Node().IsPrivateIdentifier() {
+		return true
+	}
+	if cm, ok := member.AsComputedMember(); ok {
+		return cm.Key().Node().IsPrivateIdentifier()
+	}
+	if mf, ok := member.AsMemberFieldDef(); ok {
+		val, hasVal := mf.Value()
+		return hasVal && val.Node().IsPrivateIdentifier()
+	}
+	return false
 }

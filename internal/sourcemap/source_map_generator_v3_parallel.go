@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Go-only: a parallel encoder for the "mappings" field, used when
@@ -225,7 +223,7 @@ func (g *SourceMapGeneratorV3) encodeChunk(cp *mappingCheckpoint, count int, max
 // appendToParallel is AppendToOptional with the parallel mappings encoder.
 func (g *SourceMapGeneratorV3) appendToParallel(out io.StringWriter, name OptionalString) {
 	rawMax, cps := g.prepMappingsParallel()
-	maxLine := jutil.IntAdd(jutil.IntAdd(rawMax, g.prefixPosition.GetLine()), 1)
+	maxLine := rawMax + g.prefixPosition.GetLine() + 1
 
 	appendString(out, "{\n")
 	SourceMapGeneratorV3_AppendFirstField(out, "version", "3")

@@ -61,6 +61,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -242,11 +243,7 @@ func ParserRunner_ParseWithAllocator(
 	if sourceFile != nil {
 		sourceName = sourceFile.GetName()
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception parsing \""+sourceName+"\"", jutil.AsThrowable(r)))
-		}
-	}()
+	defer parserRunner_recover(sourceName)
 	file := parser.NewSourceFile(sourceName, sourceString)
 	keepGoing := config.RunMode() == Config_RunMode_KEEP_GOING
 	es6ErrorReporter := ParserRunner_Es6ErrorReporter{
@@ -569,6 +566,12 @@ func propertiesHexDigit(c byte) int {
 	return -1
 }
 
+func parserRunner_recover(sourceName string) {
+	if r := recover(); r != nil {
+		panic(jutil.NewRuntimeExceptionWithMessageAndCause("Exception parsing \""+sourceName+"\"", jutil.AsThrowable(r)))
+	}
+}
+
 // ParsingUtil_GetParamOrPatternNames calls cb with all NAMEs declared in a
 // PARAM_LIST or destructuring pattern.
 func ParsingUtil_GetParamOrPatternNames(n rhino.Node, cb func(rhino.Node)) {
@@ -578,10 +581,15 @@ func ParsingUtil_GetParamOrPatternNames(n rhino.Node, cb func(rhino.Node)) {
 		// An empty node or assignment target means nothing declared here.
 	case rhino.Token_NAME:
 		cb(n)
-	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST, rhino.Token_STRING_KEY, rhino.Token_DEFAULT_VALUE:
-		ParsingUtil_GetParamOrPatternNames(n.GetFirstChild(), cb)
+	case rhino.Token_ITER_REST, rhino.Token_OBJECT_REST:
+		ParsingUtil_GetParamOrPatternNames(ast.MustRest(n).Target().Node(), cb)
+	case rhino.Token_STRING_KEY:
+		ParsingUtil_GetParamOrPatternNames(ast.MustStringKey(n).Value().Node(), cb)
+	case rhino.Token_DEFAULT_VALUE:
+		ParsingUtil_GetParamOrPatternNames(ast.MustDefaultValue(n).Target().Node(), cb)
 	case rhino.Token_COMPUTED_PROP:
-		ParsingUtil_GetParamOrPatternNames(n.GetSecondChild(), cb)
+		val, _ := ast.MustComputedProp(n).Value()
+		ParsingUtil_GetParamOrPatternNames(val.Node(), cb)
 	case rhino.Token_OBJECT_PATTERN, rhino.Token_ARRAY_PATTERN, rhino.Token_PARAM_LIST:
 		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 			ParsingUtil_GetParamOrPatternNames(c, cb)

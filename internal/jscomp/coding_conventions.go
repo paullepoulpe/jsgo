@@ -115,11 +115,21 @@ func (d *CodingConventions_DefaultCodingConvention) IsVarArgsParameter(parameter
 }
 
 func (d *CodingConventions_DefaultCodingConvention) IsFunctionCallThatAlwaysThrows(n rhino.Node) bool {
-	if NodeUtil_IsExprCall(n) {
-		if fnType := rhino.JSType_ToMaybeFunctionType(n.GetFirstFirstChild().GetJSType()); fnType != nil {
-			prim, ok := fnType.GetClosurePrimitive()
-			return ok && prim == rhino.ClosurePrimitive_ASSERTS_FAIL
-		}
+	stmt, ok := ast.AsExprStmt(n)
+	if !ok {
+		return false
+	}
+	call, ok := stmt.Expr().AsCall()
+	if !ok {
+		return false
+	}
+	callee := call.Callee().Node()
+	if callee.IsNil() {
+		return false
+	}
+	if fnType := rhino.JSType_ToMaybeFunctionType(callee.GetJSType()); fnType != nil {
+		prim, ok := fnType.GetClosurePrimitive()
+		return ok && prim == rhino.ClosurePrimitive_ASSERTS_FAIL
 	}
 	return false
 }
@@ -142,15 +152,27 @@ func (d *CodingConventions_DefaultCodingConvention) IsExported(name string) bool
 }
 
 func (d *CodingConventions_DefaultCodingConvention) GetClassesDefinedByCall(callNode rhino.Node) *CodingConvention_SubclassRelationship {
-	callName := callNode.GetFirstChild()
-	if (jscompInheritsQName.Matches(callName) || callName.MatchesName("$jscomp$inherits")) &&
-		callNode.HasXChildren(3) {
-		subclass := callName.GetNext()
-		superclass := subclass.GetNext()
-		// The StripCode pass may create $jscomp.inherits calls with NULL arguments.
-		if subclass.IsQualifiedName() && superclass.IsQualifiedName() {
-			return NewCodingConvention_SubclassRelationship(CodingConvention_SubclassType_INHERITS, subclass, superclass)
-		}
+	call, ok := ast.AsCallOrNew(callNode)
+	if !ok {
+		return nil
+	}
+	callName := call.Callee().Node()
+	if !jscompInheritsQName.Matches(callName) && !callName.MatchesName("$jscomp$inherits") {
+		return nil
+	}
+	subclassArg, ok := call.FirstArg()
+	if !ok {
+		return nil
+	}
+	superclassArg, ok := subclassArg.Next()
+	if !ok || !superclassArg.IsLast() {
+		return nil
+	}
+	subclass := subclassArg.Node()
+	superclass := superclassArg.Node()
+	// The StripCode pass may create $jscomp.inherits calls with NULL arguments.
+	if subclass.IsQualifiedName() && superclass.IsQualifiedName() {
+		return NewCodingConvention_SubclassRelationship(CodingConvention_SubclassType_INHERITS, subclass, superclass)
 	}
 	return nil
 }
@@ -192,12 +214,16 @@ func (d *CodingConventions_DefaultCodingConvention) ApplySingletonGetter(
 }
 
 func (d *CodingConventions_DefaultCodingConvention) IsPropertyTestFunction(call rhino.Node) bool {
-	callee := call.GetFirstChild()
-	if callee.IsGetProp() && nodeStringID(callee) == codingConvIsArrayID {
-		recv := callee.GetFirstChild()
-		return recv.IsName() && nodeStringID(recv) == codingConvArrayID
+	callView, ok := ast.AsCall(call)
+	if !ok {
+		return false
 	}
-	return false
+	callee, ok := callView.Callee().AsGetProp()
+	if !ok || nodeStringID(callee.Node()) != codingConvIsArrayID {
+		return false
+	}
+	recv := callee.Object().Node()
+	return recv.IsName() && nodeStringID(recv) == codingConvArrayID
 }
 
 func (d *CodingConventions_DefaultCodingConvention) IsPropertyRenameFunction(nameNode rhino.Node) bool {
@@ -218,28 +244,32 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino
 		return CodingConvention_Bind{}, false
 	}
 
+	callOrNew := call.AsCallOrNew()
 	callTarget := call.Callee().Node()
 	if callTarget.IsQualifiedName() && functionPrototypeBindCallQ.Matches(callTarget) {
-		fn := callTarget.GetNext()
-		if fn.IsNil() {
+		fn, ok := call.FirstArg()
+		if !ok {
 			return CodingConvention_Bind{}, false
 		}
-		thisValue := safeNextNode(fn)
-		parameters := safeNextNode(thisValue)
-		return NewCodingConvention_Bind(fn, thisValue, parameters), true
+		thisValue, _ := callOrNew.ArgAt(1)
+		parameters, _ := callOrNew.ArgAt(2)
+		return NewCodingConvention_Bind(fn.Node(), thisValue.Node(), parameters.Node()), true
 	}
 
-	if callTarget.IsGetProp() && nodeStringID(callTarget) == codingConvBindID {
-		maybeFn := callTarget.GetFirstChild()
+	if gp, ok := call.Callee().AsGetProp(); ok && nodeStringID(gp.Node()) == codingConvBindID {
+		maybeFn := gp.Object().Node()
+		if maybeFn.IsNil() {
+			return CodingConvention_Bind{}, false
+		}
 		maybeFnType := maybeFn.GetJSType()
 		var fnType rhino.FunctionType
 		if checkTypes && maybeFnType != nil {
 			fnType = maybeFnType.RestrictByNotNullOrUndefined().ToMaybeFunctionType()
 		}
 		if fnType != nil || maybeFn.IsFunction() {
-			thisValue := callTarget.GetNext()
-			parameters := safeNextNode(thisValue)
-			return NewCodingConvention_Bind(maybeFn, thisValue, parameters), true
+			thisValue, _ := callOrNew.ArgAt(0)
+			parameters, _ := callOrNew.ArgAt(1)
+			return NewCodingConvention_Bind(maybeFn, thisValue.Node(), parameters.Node()), true
 		}
 	}
 
@@ -248,13 +278,6 @@ func (d *CodingConventions_DefaultCodingConvention) DescribeFunctionBind(n rhino
 
 func (d *CodingConventions_DefaultCodingConvention) DescribeCachingCall(node rhino.Node) (CodingConvention_Cache, bool) {
 	return CodingConvention_Cache{}, false
-}
-
-func safeNextNode(n rhino.Node) rhino.Node {
-	if !n.IsNil() {
-		return n.GetNext()
-	}
-	return rhino.NilNode
 }
 
 // ChromeCodingConvention is the coding convention used by the Chrome team to
@@ -276,11 +299,12 @@ func (c *ChromeCodingConvention) IsExported(name string) bool {
 }
 
 func (c *ChromeCodingConvention) GetSingletonGetterClassName(callNode rhino.Node) (string, bool) {
-	callArg := callNode.GetFirstChild()
-	if !chromeAddSingletonGetterQ.Matches(callArg) || !callNode.HasTwoChildren() {
-		return c.CodingConvention.GetSingletonGetterClassName(callNode)
+	if call, ok := ast.AsCall(callNode); ok {
+		if arg, ok := call.OnlyArg(); ok && chromeAddSingletonGetterQ.Matches(call.Callee().Node()) {
+			return arg.Node().GetQualifiedNameString()
+		}
 	}
-	return callArg.GetNext().GetQualifiedNameString()
+	return c.CodingConvention.GetSingletonGetterClassName(callNode)
 }
 
 func (c *ChromeCodingConvention) ApplySingletonGetter(classType *rhino.NominalTypeBuilder, getterType rhino.FunctionType) {

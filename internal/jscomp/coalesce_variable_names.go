@@ -886,8 +886,9 @@ func (c *CoalesceVariableNames) processCfgNodeBits128(
 //
 // Java: CoalesceVariableNames.isInMultipleLvalueDecl(Var)
 func (c *CoalesceVariableNames) isInMultipleLvalueDecl(v *Var) bool {
-	if p := v.GetParentNode(); NodeUtil_IsNameDeclaration(p) {
-		return !p.HasOneChild()
+	if decl, ok := ast.AsNameDeclaration(v.GetParentNode()); ok {
+		_, only := decl.OnlyDeclarator()
+		return !only
 	}
 	declarationType, ok := v.DeclarationToken()
 	if !ok {
@@ -1007,7 +1008,10 @@ func (c *CoalesceVariableNames) isUninitializedLetInLoopBodyAndLive(nameNode rhi
 	}
 	jutil.CheckState(c.liveness != nil)
 	letNode := nameNode.GetParent()
-	cfgNode := jutil.CheckNotNull(c.liveness.GetCfg().Nodes.Get(letNode))
+	cfgNode := c.liveness.GetCfg().Nodes.Get(letNode)
+	if cfgNode == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	state := c.liveness.FlowStateAt(cfgNode.Index)
 	varIndex := c.liveness.getVarIndexByID(originalVar.nameID)
 	return varIndex >= 0 && state.GetOut().IsLive(varIndex)
@@ -1097,5 +1101,9 @@ func (l *coalesceLiveRangeChecker) setCrossingVariablesBits128(
 //
 // Java: CoalesceVariableNames.LiveRangeChecker.shouldVisit(Node)
 func shouldVisitForLiveRange(n rhino.Node) bool {
-	return n.IsName() || (n.HasChildren() && n.GetFirstChild().IsName())
+	if n.IsName() {
+		return true
+	}
+	assign, ok := ast.AsAssignment(n)
+	return ok && assign.Target().Node().IsName()
 }

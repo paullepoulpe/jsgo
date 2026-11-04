@@ -264,7 +264,7 @@ func (t *SourceMapGeneratorV3_MappingTraversal) finish(visit mappingRangeCallbac
 //
 // Java: SourceMapGeneratorV3.MappingTraversal.getAdjustedLine(FilePosition)
 func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedLine(p FilePosition) int {
-	return jutil.IntAdd(p.GetLine(), t.outer.prefixPosition.GetLine())
+	return p.GetLine() + t.outer.prefixPosition.GetLine()
 }
 
 func (t *SourceMapGeneratorV3_MappingTraversal) getAdjustedLine(rawLine int32) int {
@@ -281,7 +281,7 @@ func (t *SourceMapGeneratorV3_MappingTraversal) GetAdjustedCol(p FilePosition) i
 	if rawLine != 0 {
 		return rawCol
 	}
-	return jutil.IntAdd(rawCol, t.outer.prefixPosition.GetColumn())
+	return rawCol + t.outer.prefixPosition.GetColumn()
 }
 
 func (t *SourceMapGeneratorV3_MappingTraversal) getAdjustedCol(rawLine, rawCol int32) int {

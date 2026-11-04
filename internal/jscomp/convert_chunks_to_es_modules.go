@@ -177,9 +177,8 @@ func (c *ConvertChunksToESModules) convertChunkSourcesToModules() {
 				firstInputAstRoot := firstInput.GetAstRoot(c.compiler)
 				firstInputScriptFeatures := NodeUtil_GetFeatureSetOfScript(firstInputAstRoot)
 				combinedFeatureSet := firstInputScriptFeatures.Union(scriptFeatures)
-				astRoot.PutProp(rhino.Node_FEATURE_SET, combinedFeatureSet)
-				moduleBody := firstInputAstRoot.GetFirstChild()
-				jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
+				firstInputAstRoot.PutProp(rhino.Node_FEATURE_SET, combinedFeatureSet)
+				moduleBody := scriptModuleBody(firstInputAstRoot)
 				moduleBody.AddChildrenToBack(astRoot.RemoveChildren())
 				c.compiler.ReportChangeToEnclosingScope(firstInputAstRoot)
 				c.compiler.ReportChangeToChangeScope(astRoot)
@@ -188,26 +187,30 @@ func (c *ConvertChunksToESModules) convertChunkSourcesToModules() {
 	}
 }
 
+func scriptModuleBody(script rhino.Node) rhino.Node {
+	item, ok := ast.MustScript(script).FirstItem()
+	mod, isMod := item.AsModuleBody()
+	jutil.CheckState(ok && isMod)
+	return mod.Node()
+}
+
 func (c *ConvertChunksToESModules) addExportStatements() {
 	for _, chunk := range c.exportChunks {
 		exports := c.exportsByChunk[chunk]
 		firstInput := chunk.GetFirst()
-		moduleBody := firstInput.GetAstRoot(c.compiler).GetFirstChild()
-		jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
-		exportSpecs := rhino.NewNode(rhino.Token_EXPORT_SPECS)
+		moduleBody := scriptModuleBody(firstInput.GetAstRoot(c.compiler))
+		exportSpecs := ast.NewExportSpecs()
 		for _, name := range exports.names {
-			exportSpec := rhino.NewNode(rhino.Token_EXPORT_SPEC)
-			exportSpec.AddChildToFront(rhino.IR_Name(name))
-			exportSpec.AddChildToFront(rhino.IR_Name(name))
-			exportSpec.PutIntProp(rhino.Node_IS_SHORTHAND_PROPERTY, 1)
-			exportSpecs.AddChildToBack(exportSpec)
+			exportSpec := ast.NewExportSpec(ast.NewName(name), ast.NewName(name))
+			exportSpec.Node().PutIntProp(rhino.Node_IS_SHORTHAND_PROPERTY, 1)
+			exportSpecs.AppendSpec(exportSpec)
 		}
 		importsByChunk := c.importsByChunk[chunk]
 
 		// Force the chunk to parse as a module by adding an empty export spec when no actual
 		// static imports or exports exist
-		if exportSpecs.HasChildren() || importsByChunk == nil || len(importsByChunk.chunks) == 0 {
-			export := rhino.IR_Export(exportSpecs).SrcrefTree(moduleBody)
+		if exportSpecs.HasSpecs() || importsByChunk == nil || len(importsByChunk.chunks) == 0 {
+			export := ast.NewExport(exportSpecs.AsExportBody()).Node().SrcrefTree(moduleBody)
 			moduleBody.AddChildToBack(export)
 			c.compiler.ReportChangeToEnclosingScope(moduleBody)
 		}
@@ -286,21 +289,18 @@ func (c *ConvertChunksToESModules) addImportStatements() {
 		chunkImports := c.importsByChunk[importingChunk]
 		importStatements = importStatements[:0]
 		firstInput := importingChunk.GetFirst()
-		moduleBody := firstInput.GetAstRoot(c.compiler).GetFirstChild()
-		jutil.CheckState(!moduleBody.IsNil() && moduleBody.IsModuleBody())
+		moduleBody := scriptModuleBody(firstInput.GetAstRoot(c.compiler))
 		importingName := chunkFileName(importingChunk)
 
 		// For each distinct chunk where a referenced symbol is defined, create an import statement
 		// referencing the names.
 		for _, exportingChunk := range chunkImports.chunks {
 			importsForChunk := chunkImports.byChunk[exportingChunk]
-			importSpecs := rhino.NewNode(rhino.Token_IMPORT_SPECS)
+			importSpecs := ast.NewImportSpecs()
 			for _, name := range importsForChunk.names {
-				importSpec := rhino.NewNode(rhino.Token_IMPORT_SPEC)
-				importSpec.AddChildToFront(rhino.IR_Name(name))
-				importSpec.AddChildToFront(rhino.IR_Name(name))
-				importSpec.PutIntProp(rhino.Node_IS_SHORTHAND_PROPERTY, 1)
-				importSpecs.AddChildToBack(importSpec)
+				importSpec := ast.NewImportSpec(ast.NewName(name), ast.NewName(name))
+				importSpec.Node().PutIntProp(rhino.Node_IS_SHORTHAND_PROPERTY, 1)
+				importSpecs.AppendSpec(importSpec)
 			}
 			importStatement := rhino.NewNode(rhino.Token_IMPORT)
 			exportingName := chunkFileName(exportingChunk)
@@ -315,8 +315,8 @@ func (c *ConvertChunksToESModules) addImportStatements() {
 						exportingName))
 			}
 			importStatement.AddChildToFront(rhino.IR_String(importPath))
-			if importSpecs.HasChildren() {
-				importStatement.AddChildToFront(importSpecs)
+			if importSpecs.HasSpecs() {
+				importStatement.AddChildToFront(importSpecs.Node())
 			} else {
 				// Empty import of a dependent chunk for side effects: import './chunk.js'
 				importStatement.AddChildToFront(rhino.IR_Empty())
@@ -339,11 +339,14 @@ func (c *ConvertChunksToESModules) addImportStatements() {
 // Java: ConvertChunksToESModules.getDynamicImportCallbackModuleNamespace(AbstractCompiler, Node)
 func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 	compiler AbstractCompiler, call rhino.Node) rhino.Node {
-	_, isCall := ast.AsCall(call)
+	callView, isCall := ast.AsCall(call)
 	jutil.CheckState(isCall)
-	callbackFnNode := NodeUtil_GetArgumentForCallOrNew(call, 0)
-	callbackFn, isFn := ast.AsFunction(callbackFnNode)
-	if !isFn || callbackFn.Params().Node().HasChildren() {
+	var firstArg ast.Arg
+	if !callView.Callee().Node().IsNil() {
+		firstArg, _ = callView.FirstArg()
+	}
+	callbackFn, isFn := ast.AsFunction(firstArg.Node())
+	if !isFn || callbackFn.Params().HasParams() {
 		compiler.Report(
 			JSError_MakeWithNode(
 				call,
@@ -358,11 +361,13 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 	if _, ok := ast.AsName(callbackBody); ok {
 		return callbackBody
 	}
-	if block, ok := ast.AsBlock(callbackBody); ok && block.Node().HasOneChild() {
-		if ret, isRet := ast.AsReturn(block.Node().GetFirstChild()); isRet {
-			if val, hasVal := ret.Value(); hasVal {
-				if _, isName := ast.AsName(val.Node()); isName {
-					return val.Node()
+	if block, ok := ast.AsBlock(callbackBody); ok {
+		if stmt, hasOnly := block.OnlyStatement(); hasOnly {
+			if ret, isRet := stmt.AsReturn(); isRet {
+				if val, hasVal := ret.Value(); hasVal {
+					if _, isName := ast.AsName(val.Node()); isName {
+						return val.Node()
+					}
 				}
 			}
 		}
@@ -384,15 +389,15 @@ func ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(
 func (c *ConvertChunksToESModules) rewriteDynamicImportCallbacks() {
 	astFactory := c.compiler.CreateAstFactory()
 	for _, dynamicImportCallback := range c.dynamicImportCallbacks {
-		jutil.CheckState(dynamicImportCallback.IsCall())
+		callView, isCall := ast.AsCall(dynamicImportCallback)
+		jutil.CheckState(isCall)
 		moduleNamespace := ConvertChunksToESModules_GetDynamicImportCallbackModuleNamespace(c.compiler, dynamicImportCallback)
 		if moduleNamespace.IsNil() {
 			continue
 		}
-		callbackFn := NodeUtil_GetArgumentForCallOrNew(dynamicImportCallback, 0)
-		callbackParamList := NodeUtil_GetFunctionParameters(callbackFn)
+		callbackFn := ast.MustFunction(callView.MustFirstArg().Node())
 		importNamespaceParam := astFactory.CreateNameWithUnknownType("$").Srcref(moduleNamespace)
-		callbackParamList.AddChildToFront(importNamespaceParam)
+		callbackFn.Params().Node().AddChildToFront(importNamespaceParam)
 		c.compiler.ReportChangeToEnclosingScope(importNamespaceParam)
 
 		namespaceGetprop := astFactory.CreateGetPropWithUnknownType(
@@ -401,7 +406,7 @@ func (c *ConvertChunksToESModules) rewriteDynamicImportCallbacks() {
 
 		moduleNamespace.ReplaceWith(namespaceGetprop)
 		c.compiler.ReportChangeToEnclosingScope(namespaceGetprop)
-		innerCallback := callbackFn.Detach()
+		innerCallback := callbackFn.Detach().Node()
 		dynamicImportCallback.ReplaceWith(innerCallback)
 		c.compiler.ReportChangeToEnclosingScope(innerCallback)
 	}

@@ -39,6 +39,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
@@ -55,7 +56,7 @@ type RuntimeJsLibManager struct {
 	resourceProvider     RuntimeJsLibManager_ResourceProvider
 	nodeForCodeInsertion func() rhino.Node
 	injectedLibs         OrderedSet[string]
-	internedFields       OrderedStringMap[*RuntimeJsLibManager_InternalField]
+	internedFields       OrderedStringMap[*runtimeJsLibField]
 
 	lastInjectedLibrary rhino.Node
 }
@@ -126,7 +127,7 @@ type RuntimeJsLibManager_ResourceProvider func(resourceName string, path string)
 // Java: RuntimeJsLibManager.RUNTIME_LIB_DIR
 const RuntimeJsLibManager_RUNTIME_LIB_DIR = "src/com/google/javascript/jscomp/js/"
 
-// runtimeJsLibManager_FieldsTable returns the read-only lookup table mapping
+// runtimeLibFieldsTable returns the read-only lookup table mapping
 // $jscomp field names to the runtime library path in which they're defined
 // (e.g. "inherits" -> "es6/util/inherits"). Nested properties such as
 // "$jscomp.a.b.c" are keyed by their top-level property ("a").
@@ -134,26 +135,24 @@ const RuntimeJsLibManager_RUNTIME_LIB_DIR = "src/com/google/javascript/jscomp/js
 // Go-only: language-adapter — Java's FieldsTable holder class loads
 // INSTANCE lazily and thread-safely on first use via class initialization;
 // sync.OnceValue provides the equivalent race-free lazy singleton in Go.
-var runtimeJsLibManager_FieldsTable = sync.OnceValue(runtimeJsLibManager_FieldsTable_loadFields)
+var runtimeLibFieldsTable = sync.OnceValue(loadRuntimeLibFields)
 
 // Java: RuntimeJsLibManager.FieldsTable.loadFields()
-func runtimeJsLibManager_FieldsTable_loadFields() map[string]string {
+func loadRuntimeLibFields() map[string]string {
 	transpilationLibsTxt := resources.LoadText(resources.JsDir + "transpilation_libs.txt")
-	lines := strings.Split(transpilationLibsTxt, "\n")
-	allFields := make(map[string]string, len(lines))
+	allFields := make(map[string]string, strings.Count(transpilationLibsTxt, "\n")+1)
 	// Splitter.on('\n').omitEmptyStrings()
-	for _, line := range lines {
+	for rem := transpilationLibsTxt; rem != ""; {
+		var line string
+		line, rem, _ = strings.Cut(rem, "\n")
 		if line == "" {
 			continue
 		}
 		// Splitter.on(',').limit(2).splitToList(line)
-		tokens := strings.SplitN(line, ",", 2)
-		if len(tokens) != 2 {
-			// checkState(boolean, Object errorMessage)
-			panic(jutil.NewIllegalStateExceptionMsg(jutil.CollectionToString(tokens)))
+		fieldName, resourcePath, ok := strings.Cut(line, ",")
+		if !ok {
+			panic(jutil.NewIllegalStateExceptionMsg("[" + line + "]"))
 		}
-		fieldName := tokens[0]
-		resourcePath := tokens[1]
 		if prev, dup := allFields[fieldName]; dup {
 			panic(jutil.NewIllegalArgumentExceptionMsg(
 				"Multiple entries with same key: " + fieldName + "=" + resourcePath + " and " + fieldName + "=" + prev))
@@ -242,21 +241,23 @@ func (m *RuntimeJsLibManager) GetExternedFields() []RuntimeJsLibManager_Externed
 }
 
 // Java: RuntimeJsLibManager.createField(String)
-func (m *RuntimeJsLibManager) createField(fieldName string) *RuntimeJsLibManager_InternalField {
+func (m *RuntimeJsLibManager) createField(fieldName string) *runtimeJsLibField {
 	if fieldName == "" {
-		// checkArgument(boolean, Object errorMessage)
 		panic(jutil.NewIllegalArgumentExceptionMsg(fieldName))
 	}
 
-	parts := strings.Split(fieldName, ".")
-	jutil.CheckArgumentMsg1(len(parts) >= 2, "Field name must start with $jscomp., found %s", fieldName)
-	jutil.CheckArgumentMsg1(
-		parts[0] == "$jscomp", "Field name must start with $jscomp, found %s", fieldName)
-	propName := parts[1]
+	prefix, rest, hasDot := strings.Cut(fieldName, ".")
+	if !hasDot {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Field name must start with $jscomp., found " + fieldName))
+	}
+	if prefix != "$jscomp" {
+		panic(jutil.NewIllegalArgumentExceptionMsg("Field name must start with $jscomp, found " + fieldName))
+	}
+	propName, _, _ := strings.Cut(rest, ".")
 
-	resourceName, ok := runtimeJsLibManager_FieldsTable()[propName]
+	resourceName, ok := runtimeLibFieldsTable()[propName]
 	if !ok {
-		panic(jutil.NewNullPointerExceptionMsg(jutil.LenientFormat("Cannot find definition of %s", fieldName)))
+		panic(jutil.NewNullPointerExceptionMsg("Cannot find definition of " + fieldName))
 	}
 
 	var compiledName string
@@ -268,13 +269,13 @@ func (m *RuntimeJsLibManager) createField(fieldName string) *RuntimeJsLibManager
 		compiledName = fieldName
 	}
 
-	return newRuntimeJsLibManager_InternalField(m, resourceName, compiledName, fieldName)
+	return newRuntimeJsLibField(m, resourceName, compiledName, fieldName)
 }
 
-// RuntimeJsLibManager_InternalField is a $jscomp.* field (could be a
-// method, class, or any arbitrary value) that exists in some runtime
-// library under the js/ directory.
-type RuntimeJsLibManager_InternalField struct {
+// runtimeJsLibField is a $jscomp.* field (could be a method, class, or any
+// arbitrary value) that exists in some runtime library under the js/
+// directory.
+type runtimeJsLibField struct {
 	outer *RuntimeJsLibManager
 
 	// The file containing this field, e.g. "es6/generator".
@@ -292,9 +293,9 @@ type RuntimeJsLibManager_InternalField struct {
 }
 
 // Java: RuntimeJsLibManager.InternalField(String, String, String)
-func newRuntimeJsLibManager_InternalField(
-	outer *RuntimeJsLibManager, resourceName string, qualifiedName string, uncompiledName string) *RuntimeJsLibManager_InternalField {
-	return &RuntimeJsLibManager_InternalField{
+func newRuntimeJsLibField(
+	outer *RuntimeJsLibManager, resourceName string, qualifiedName string, uncompiledName string) *runtimeJsLibField {
+	return &runtimeJsLibField{
 		outer:          outer,
 		resourceName:   resourceName,
 		qualifiedName:  qualifiedName,
@@ -303,28 +304,30 @@ func newRuntimeJsLibManager_InternalField(
 }
 
 // Java: RuntimeJsLibManager.InternalField.isInjected()
-func (f *RuntimeJsLibManager_InternalField) isInjected() bool {
+func (f *runtimeJsLibField) isInjected() bool {
 	return f.injected
 }
 
 // Java: RuntimeJsLibManager.InternalField.markInjected()
-func (f *RuntimeJsLibManager_InternalField) markInjected() {
+func (f *runtimeJsLibField) markInjected() {
 	f.injected = true
 }
 
 // Java: RuntimeJsLibManager.InternalField.assertInjected()
-func (f *RuntimeJsLibManager_InternalField) AssertInjected() RuntimeJsLibManager_InjectedJsLibField {
+func (f *runtimeJsLibField) AssertInjected() RuntimeJsLibManager_InjectedJsLibField {
 	switch f.outer.mode {
 	case RuntimeJsLibManager_RuntimeLibraryMode_NO_OP, RuntimeJsLibManager_RuntimeLibraryMode_RECORD_ONLY:
 	case RuntimeJsLibManager_RuntimeLibraryMode_RECORD_AND_VALIDATE_FIELDS, RuntimeJsLibManager_RuntimeLibraryMode_INJECT,
 		RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES:
-		jutil.CheckStateMsg1(f.injected, "Field %s is not injected", f.uncompiledName)
+		if !f.injected {
+			panic(jutil.NewIllegalStateExceptionMsg("Field " + f.uncompiledName + " is not injected"))
+		}
 	}
 	return f
 }
 
 // Java: RuntimeJsLibManager.InternalField.matches(Node)
-func (f *RuntimeJsLibManager_InternalField) Matches(node rhino.Node) bool {
+func (f *runtimeJsLibField) Matches(node rhino.Node) bool {
 	return node.MatchesQualifiedName(f.qualifiedName)
 }
 
@@ -332,22 +335,22 @@ func (f *RuntimeJsLibManager_InternalField) Matches(node rhino.Node) bool {
 // already intern Fields by qualifiedName.
 
 // Java: RuntimeJsLibManager.InternalField.toString()
-func (f *RuntimeJsLibManager_InternalField) String() string {
-	return jutil.LenientFormat("Field<%s, %s>", f.uncompiledName, f.resourceName)
+func (f *runtimeJsLibField) String() string {
+	return "Field<" + f.uncompiledName + ", " + f.resourceName + ">"
 }
 
 // Java: RuntimeJsLibManager.InternalField.qualifiedName()
-func (f *RuntimeJsLibManager_InternalField) QualifiedName() string {
+func (f *runtimeJsLibField) QualifiedName() string {
 	return f.qualifiedName
 }
 
 // Java: RuntimeJsLibManager.InternalField.uncompiledName()
-func (f *RuntimeJsLibManager_InternalField) UncompiledName() string {
+func (f *runtimeJsLibField) UncompiledName() string {
 	return f.uncompiledName
 }
 
 // Java: RuntimeJsLibManager.InternalField.resourceName()
-func (f *RuntimeJsLibManager_InternalField) ResourceName() string {
+func (f *runtimeJsLibField) ResourceName() string {
 	return f.resourceName
 }
 
@@ -364,7 +367,7 @@ func (m *RuntimeJsLibManager) GetJsLibField(fieldName string) RuntimeJsLibManage
 }
 
 // Java: RuntimeJsLibManager.getJsLibFieldInternal(String)
-func (m *RuntimeJsLibManager) getJsLibFieldInternal(fieldName string) *RuntimeJsLibManager_InternalField {
+func (m *RuntimeJsLibManager) getJsLibFieldInternal(fieldName string) *runtimeJsLibField {
 	if f, ok := m.internedFields.Lookup(fieldName); ok {
 		return f
 	}
@@ -436,14 +439,13 @@ func (m *RuntimeJsLibManager) InjectLibForField(fieldName string) {
 	}
 	field.markInjected()
 	if m.mode == RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES {
-		externRoot := m.nodeForCodeInsertion()
+		externRoot := rhino.CheckNotNull(m.nodeForCodeInsertion())
 		if !externRoot.IsFromExterns() {
-			// checkState(boolean, Object errorMessage)
 			panic(jutil.NewIllegalStateExceptionMsg(externRoot.String()))
 		}
-		declaration := rhino.IR_Var(rhino.IR_Name(field.QualifiedName()))
-		declaration.GetFirstChild().PutBooleanProp(rhino.Node_IS_CONSTANT_NAME, true)
-		externRoot.AddChildToBack(declaration)
+		name := ast.NewName(field.QualifiedName())
+		name.SetConstantName(true)
+		externRoot.AddChildToBack(rhino.IR_Var(name.Node()))
 	}
 	m.EnsureLibraryInjected(field.resourceName /* force= */, false)
 }
@@ -482,30 +484,31 @@ func (m *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, force b
 	}
 	m.RecordLibraryInjected(resourceName)
 
-	path := strings.Join([]string{RuntimeJsLibManager_RUNTIME_LIB_DIR, resourceName, ".js"}, "")
-	ast := m.resourceProvider(resourceName, path)
+	path := RuntimeJsLibManager_RUNTIME_LIB_DIR + resourceName + ".js"
+	script := ast.MustScript(rhino.CheckNotNull(m.resourceProvider(resourceName, path)))
 
-	m.injectLibraryDependencies(ast, force) // may also modify 'ast'
-	return m.injectLibrary(ast)
+	m.injectLibraryDependencies(script, force) // may also modify 'script'
+	return m.injectLibrary(script)
 }
 
 // Java: RuntimeJsLibManager.injectLibrary(Node)
-func (m *RuntimeJsLibManager) injectLibrary(ast rhino.Node) rhino.Node {
-	if !ast.HasChildren() {
+func (m *RuntimeJsLibManager) injectLibrary(script ast.Script) rhino.Node {
+	lastItem, ok := script.LastItem()
+	if !ok {
 		// Require-only libraries may be empty at this point. Nothing to do
 		// here.
 		return m.lastInjectedLibrary
 	}
 
-	for child := ast.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		m.changeTracker.MarkNewScopesChanged(child)
+	for item, more := script.FirstItem(); more; item, more = item.Next() {
+		m.changeTracker.MarkNewScopesChanged(item.Node())
 	}
-	endOfLib := ast.GetLastChild()
-	firstChild := ast.RemoveChildren()
+	endOfLib := lastItem.Node()
+	firstChild := script.Node().RemoveChildren()
 
 	// Insert the code immediately after the last-inserted runtime library,
 	// if any.
-	parent := m.nodeForCodeInsertion()
+	parent := rhino.CheckNotNull(m.nodeForCodeInsertion())
 	if m.lastInjectedLibrary.IsNil() {
 		parent.AddChildrenToFront(firstChild)
 	} else {
@@ -518,11 +521,23 @@ func (m *RuntimeJsLibManager) injectLibrary(ast rhino.Node) rhino.Node {
 }
 
 // Java: RuntimeJsLibManager.injectLibraryDependencies(Node, boolean)
-func (m *RuntimeJsLibManager) injectLibraryDependencies(ast rhino.Node, force bool) {
+func (m *RuntimeJsLibManager) injectLibraryDependencies(script ast.Script, force bool) {
 	// Look for string literals of the form 'require foo bar'
 	// As we process each one, remove it from its parent.
-	for node := ast.GetFirstChild(); !node.IsNil() && node.IsExprResult() && node.GetFirstChild().IsStringLit(); node = ast.GetFirstChild() {
-		directive := node.GetFirstChild().GetString()
+	for {
+		item, ok := script.FirstItem()
+		if !ok {
+			break
+		}
+		exprStmt, ok := item.AsExprStmt()
+		if !ok {
+			break
+		}
+		strLit, ok := exprStmt.Expr().AsStringLit()
+		if !ok {
+			break
+		}
+		directive := strLit.Value()
 		kind, arg, hasArg := strings.Cut(directive, " ")
 		switch kind {
 		// 'use strict' is ignored (and deleted).
@@ -536,7 +551,7 @@ func (m *RuntimeJsLibManager) injectLibraryDependencies(ast rhino.Node, force bo
 		default:
 			panic(jutil.NewIllegalStateExceptionMsg("Bad directive: " + directive))
 		}
-		node.Detach()
+		item.Detach()
 	}
 }
 
@@ -562,7 +577,9 @@ type InjectRuntimeLibraries struct {
 
 // Java: InjectRuntimeLibraries(AbstractCompiler, ImmutableSet<String>)
 func NewInjectRuntimeLibraries(compiler AbstractCompiler, forceInjectedLibraries jutil.Set[string]) *InjectRuntimeLibraries {
-	jutil.CheckNotNull(forceInjectedLibraries)
+	if forceInjectedLibraries == nil {
+		panic(jutil.NewNullPointerException())
+	}
 	var libs []string
 	if n := forceInjectedLibraries.Size(); n > 0 {
 		libs = make([]string, 0, n)

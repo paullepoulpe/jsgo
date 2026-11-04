@@ -45,17 +45,17 @@ const (
 	CssRenamingMap_Style_BY_PART
 )
 
-var cssRenamingMap_Style_names = [...]string{"BY_WHOLE", "BY_PART"}
+var cssRenamingMapStyleNames = [...]string{"BY_WHOLE", "BY_PART"}
 
 // Name is Enum.name().
-func (s CssRenamingMap_Style) Name() string { return cssRenamingMap_Style_names[s] }
+func (s CssRenamingMap_Style) Name() string { return cssRenamingMapStyleNames[s] }
 
 // String is Enum.toString().
 func (s CssRenamingMap_Style) String() string { return s.Name() }
 
 // CssRenamingMap_Style_ValueOf is Style.valueOf(String).
 func CssRenamingMap_Style_ValueOf(name string) CssRenamingMap_Style {
-	for i, n := range cssRenamingMap_Style_names {
+	for i, n := range cssRenamingMapStyleNames {
 		if n == name {
 			return CssRenamingMap_Style(i)
 		}
@@ -310,8 +310,8 @@ func (inst *cssNameInstance) classesMemberName() string {
 	// 2. { Foo: expression ? … : goog.getCssName('foo') }
 	// Traversing our ancestry allows us to find the `Foo` string key in both cases.
 	for ancestor := inst.callNode.GetParent(); !ancestor.IsNil(); ancestor = ancestor.GetParent() {
-		if ancestor.IsStringKey() {
-			return inst.classesQName + "." + ancestor.GetString()
+		if sk, ok := ast.AsStringKey(ancestor); ok {
+			return inst.classesQName + "." + sk.Key()
 		}
 	}
 	panic(jutil.NewIllegalStateExceptionMsg(
@@ -319,81 +319,115 @@ func (inst *cssNameInstance) classesMemberName() string {
 }
 
 func (inst *cssNameInstance) cssClassName() string {
-	rhino.CheckNotNullMsg1(inst.callNode.GetParent(), "already replaced: %s", inst.callNode)
-	childCount := inst.callNode.GetChildCount()
-	firstArg := rhino.CheckNotNullMsg1(inst.callNode.GetSecondChild(), "%s", inst.callNode)
-	switch childCount {
-	case 2:
-		jutil.CheckStateMsg1(firstArg.IsStringLit(), "not a string literal: %s", firstArg)
-		return firstArg.GetString()
-	case 3:
-		secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
-		jutil.CheckStateMsg1(secondArg.IsStringLit(), "not a string literal: %s", secondArg)
-		return secondArg.GetString()
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg(
-			"invalid number of children: " + strconv.Itoa(childCount) + " for: " + inst.callNode.String()))
+	if inst.callNode.IsNil() || inst.callNode.GetParent().IsNil() {
+		panic(jutil.NewNullPointerExceptionMsg("already replaced: " + inst.callNode.String()))
 	}
+	call, ok := ast.AsCall(inst.callNode)
+	if !ok {
+		panic(jutil.NewIllegalStateExceptionMsg("not a call: " + inst.callNode.String()))
+	}
+	if call.Callee().Node().IsNil() {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"invalid number of children: " + strconv.Itoa(inst.callNode.GetChildCount()) + " for: " + inst.callNode.String()))
+	}
+	firstArg, hasFirst := call.FirstArg()
+	if !hasFirst {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"invalid number of children: " + strconv.Itoa(inst.callNode.GetChildCount()) + " for: " + inst.callNode.String()))
+	}
+	secondArg, hasSecond := firstArg.Next()
+	if !hasSecond {
+		strLit, isStr := firstArg.AsStringLit()
+		jutil.CheckStateMsg1(isStr, "not a string literal: %s", firstArg.Node())
+		return strLit.Value()
+	}
+	if _, hasThird := secondArg.Next(); hasThird {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"invalid number of children: " + strconv.Itoa(inst.callNode.GetChildCount()) + " for: " + inst.callNode.String()))
+	}
+	strLit, isStr := secondArg.AsStringLit()
+	jutil.CheckStateMsg1(isStr, "not a string literal: %s", secondArg.Node())
+	return strLit.Value()
 }
 
 func (r *ReplaceCssNames) replaceGetCssNameCall(callNode rhino.Node) {
-	rhino.CheckNotNullMsg1(callNode.GetParent(), "already replaced: %s", callNode)
-	childCount := callNode.GetChildCount()
-	switch childCount {
-	case 2:
-		// `goog.getCssName('some-literal')` -> `'mapped-literal'`
-		stringLitArg := rhino.CheckNotNullMsg1(callNode.GetSecondChild(), "%s", callNode)
-		jutil.CheckStateMsg1(stringLitArg.IsStringLit(), "not a string literal: %s", stringLitArg)
-		stringLitArg.Detach()
-		r.processStringNode(stringLitArg)
-		callNode.ReplaceWith(stringLitArg)
-		r.compiler.ReportChangeToEnclosingScope(stringLitArg)
-	case 3:
-		// `goog.getCssName(someExpr, 'some-literal')` -> `someExpr + '-mapped-literal'`
-		firstArg := rhino.CheckNotNullMsg1(callNode.GetSecondChild(), "%s", callNode)
-		secondArg := rhino.CheckNotNullMsg1(firstArg.GetNext(), "%s", firstArg)
-		firstArg.Detach()
-		secondArg.Detach()
-		r.processStringNode(secondArg)
-		secondArg.SetString("-" + secondArg.GetString())
-		replacement := r.astFactory.CreateAdd(firstArg, secondArg).Srcref(callNode)
-		callNode.ReplaceWith(replacement)
-		r.compiler.ReportChangeToEnclosingScope(replacement)
-	default:
-		panic(jutil.NewIllegalStateExceptionMsg(
-			"invalid number of children: " + strconv.Itoa(childCount) + " for: " + callNode.String()))
+	if callNode.IsNil() || callNode.GetParent().IsNil() {
+		panic(jutil.NewNullPointerExceptionMsg("already replaced: " + callNode.String()))
 	}
+	call, ok := ast.AsCall(callNode)
+	if !ok {
+		panic(jutil.NewIllegalStateExceptionMsg("not a call: " + callNode.String()))
+	}
+	if call.Callee().Node().IsNil() {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"invalid number of children: " + strconv.Itoa(callNode.GetChildCount()) + " for: " + callNode.String()))
+	}
+	firstArg, hasFirst := call.FirstArg()
+	if !hasFirst {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"invalid number of children: " + strconv.Itoa(callNode.GetChildCount()) + " for: " + callNode.String()))
+	}
+	secondArg, hasSecond := firstArg.Next()
+	if !hasSecond {
+		// `goog.getCssName('some-literal')` -> `'mapped-literal'`
+		strLit, isStr := firstArg.AsStringLit()
+		jutil.CheckStateMsg1(isStr, "not a string literal: %s", firstArg.Node())
+		stringLitNode := strLit.Detach().Node()
+		r.processStringNode(stringLitNode)
+		callNode.ReplaceWith(stringLitNode)
+		r.compiler.ReportChangeToEnclosingScope(stringLitNode)
+		return
+	}
+	if _, hasThird := secondArg.Next(); hasThird {
+		panic(jutil.NewIllegalStateExceptionMsg(
+			"invalid number of children: " + strconv.Itoa(callNode.GetChildCount()) + " for: " + callNode.String()))
+	}
+	// `goog.getCssName(someExpr, 'some-literal')` -> `someExpr + '-mapped-literal'`
+	strLit, isStr := secondArg.AsStringLit()
+	jutil.CheckStateMsg1(isStr, "not a string literal: %s", secondArg.Node())
+	firstArgNode := firstArg.Detach().Node()
+	secondArgNode := strLit.Detach().Node()
+	r.processStringNode(secondArgNode)
+	strLit.SetValue("-" + strLit.Value())
+	replacement := r.astFactory.CreateAdd(firstArgNode, secondArgNode).Srcref(callNode)
+	callNode.ReplaceWith(replacement)
+	r.compiler.ReportChangeToEnclosingScope(replacement)
 }
 
 func validateGetCssNameCall(callNode rhino.Node) *JSError {
-	childCount := callNode.GetChildCount()
-	switch childCount {
-	case 2:
-		// `goog.getCssName('css-name')`
-		stringLiteralArg := rhino.CheckNotNull(callNode.GetLastChild())
-		if !stringLiteralArg.IsStringLit() {
-			return JSError_MakeWithNode(
-				callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, stringLiteralArg.GetToken().String())
-		}
-		return nil
-	case 3:
-		// `goog.getCssName(BASE_CSS_NAME, 'css-suffix')`
-		firstArg := rhino.CheckNotNull(callNode.GetSecondChild())
-		secondArg := rhino.CheckNotNull(firstArg.GetNext())
-		if !secondArg.IsStringLit() {
-			return JSError_MakeWithNode(callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, secondArg.GetToken().String())
-		}
-		if firstArg.IsStringLit() {
-			return JSError_MakeWithNode(
-				callNode, ReplaceCssNames_UNEXPECTED_STRING_LITERAL_ERROR, firstArg.GetString(), secondArg.GetString())
-		}
-		if isGetCssNameCall(firstArg) {
-			return JSError_MakeWithNode(firstArg, ReplaceCssNames_NESTED_CALL_ERROR)
-		}
-		return nil
-	default:
-		return JSError_MakeWithNode(callNode, ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR, strconv.Itoa(childCount))
+	call, ok := ast.AsCall(callNode)
+	if !ok || call.Callee().Node().IsNil() {
+		return JSError_MakeWithNode(callNode, ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR, strconv.Itoa(callNode.GetChildCount()))
 	}
+	firstArg, hasFirst := call.FirstArg()
+	if !hasFirst {
+		return JSError_MakeWithNode(callNode, ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR, strconv.Itoa(callNode.GetChildCount()))
+	}
+	secondArg, hasSecond := firstArg.Next()
+	if !hasSecond {
+		// `goog.getCssName('css-name')`
+		if _, isStr := firstArg.AsStringLit(); !isStr {
+			return JSError_MakeWithNode(
+				callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, firstArg.Node().GetToken().String())
+		}
+		return nil
+	}
+	if _, hasThird := secondArg.Next(); hasThird {
+		return JSError_MakeWithNode(callNode, ReplaceCssNames_INVALID_NUM_ARGUMENTS_ERROR, strconv.Itoa(callNode.GetChildCount()))
+	}
+	// `goog.getCssName(BASE_CSS_NAME, 'css-suffix')`
+	secondStr, isSecondStr := secondArg.AsStringLit()
+	if !isSecondStr {
+		return JSError_MakeWithNode(callNode, ReplaceCssNames_STRING_LITERAL_EXPECTED_ERROR, secondArg.Node().GetToken().String())
+	}
+	if firstStr, isFirstStr := firstArg.AsStringLit(); isFirstStr {
+		return JSError_MakeWithNode(
+			callNode, ReplaceCssNames_UNEXPECTED_STRING_LITERAL_ERROR, firstStr.Value(), secondStr.Value())
+	}
+	if isGetCssNameCall(firstArg.Node()) {
+		return JSError_MakeWithNode(firstArg.Node(), ReplaceCssNames_NESTED_CALL_ERROR)
+	}
+	return nil
 }
 
 func (r *ReplaceCssNames) processStringNode(n rhino.Node) {
@@ -492,19 +526,19 @@ func (c *countCssNamesBySymbol) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 	if _, found := r.classesObjectsQualifiedNames[classesObjQName]; !found {
 		return
 	}
-	classNameNode := n.GetParent()
-	if !n.IsGetProp() || classNameNode.IsNil() || !classNameNode.IsGetProp() {
+	classNameProp, isParentGetProp := ast.AsGetProp(n.GetParent())
+	if _, isGetProp := ast.AsGetProp(n); !isGetProp || !isParentGetProp || !classNameProp.Object().Is(n) {
 		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_INVALID_USE_OF_CLASSES_OBJECT_ERROR))
 		return
 	}
-	classQName, ok := classNameNode.GetQualifiedNameString()
+	classQName, ok := classNameProp.Node().GetQualifiedNameString()
 	if !ok {
-		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameNode.GetString()))
+		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameProp.Property()))
 		return
 	}
 	className, defined := r.cssNamesBySymbol[classQName]
 	if !defined {
-		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameNode.GetString()))
+		r.compiler.Report(JSError_MakeWithNode(n, ReplaceCssNames_UNKNOWN_SYMBOL_ERROR, classNameProp.Property()))
 		return
 	}
 	if r.cssNameCollector != nil {
