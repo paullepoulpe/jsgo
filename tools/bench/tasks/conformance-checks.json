@@ -1,0 +1,92 @@
+{
+  "name": "conformance-checks",
+  "order": 14,
+  "title": "Stage-1 type + conformance checks",
+  "description": "Runs `--checks_only` with `--jscomp_warning=checkTypes` and a 40-rule two-layer JS Conformance suite (`conformance/base.textproto` + `conformance/project.textproto`: banned names/properties, restricted calls/writes, DOM security custom rules, type-based custom rules, `only_apply_to` scopes, and multi-entry `allowlist_entry` prefix/regexp rules) across all 1,818 files (28.5 MB) of `typed-full`.",
+  "mode": "`--checks_only`, `--jscomp_warning=checkTypes`, `--conformance_configs=conformance/base.textproto,conformance/project.textproto`",
+  "flags": [
+    "--checks_only",
+    "--dependency_mode=SORT_ONLY",
+    "--jscomp_warning=checkTypes",
+    "--jscomp_off=lintChecks",
+    "--jscomp_off=deprecated",
+    "--jscomp_off=missingPolyfill",
+    "--jscomp_off=visibility",
+    "--extra_annotation_name=listens",
+    "--extra_annotation_name=exportDoc",
+    "--extra_annotation_name=exportInterface",
+    "--conformance_configs=conformance/base.textproto",
+    "--conformance_configs=conformance/project.textproto",
+    "-D",
+    "COMPILED=true",
+    "-D",
+    "goog.ENABLE_DEBUG_LOADER=false",
+    "-D",
+    "goog.DEBUG=false",
+    "-D",
+    "goog.asserts.ENABLE_ASSERTS=false",
+    "-D",
+    "shaka.log.MAX_LOG_LEVEL=0",
+    "-D",
+    "shaka.Player.version=\"v5.3.1\""
+  ],
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js"
+      ]
+    },
+    {
+      "file": "inputs/shaka-player@5.3.1/dist/locales.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/externs/**/*.js",
+      "exclude": [
+        "mediasession.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/lib/**/*.js",
+      "exclude": [
+        "*/lib/debug/asserts.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/ui/**/*.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/third_party/**/*.js",
+      "exclude": [
+        "*/third_party/closure-uri/uri.js"
+      ]
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/core/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/blocks/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/generators/**/*.js"
+    },
+    {
+      "file": "app/notestore.js"
+    },
+    {
+      "file": "app/notesview.js"
+    },
+    {
+      "file": "app/main.js"
+    }
+  ],
+  "output_args": [],
+  "compare": [],
+  "warm_warmup": 1
+}

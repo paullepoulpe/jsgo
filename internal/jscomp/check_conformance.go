@@ -19,6 +19,7 @@
 package jscomp
 
 import (
+	"math/bits"
 	"strings"
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
@@ -26,6 +27,17 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
+
+type flatConformanceRule struct {
+	rule               CheckConformance_Rule
+	absRule            *ConformanceRules_AbstractRule
+	cat                *CheckConformance_Category
+	behavior           ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
+	catIdx             int
+	needPrecond        bool
+	canFilterPerScript bool
+	isBannedName       bool
+}
 
 // CheckConformance provides a framework for checking code against a set of
 // user configured conformance requirements Requirement. The requirements are
@@ -39,13 +51,27 @@ import (
 // Conformance violations are both reported as compiler errors, and are also
 // reported separately to the {cI gue@link ErrorManager}
 type CheckConformance struct {
-	compiler     AbstractCompiler
-	categories   []*CheckConformance_Category
-	activeTokens ast.TokenSet
-	hasAllTokens bool
+	compiler           AbstractCompiler
+	categories         []*CheckConformance_Category
+	activeTokens       ast.TokenSet
+	hasAllTokens       bool
+	flatRules          []flatConformanceRule
+	useMask64          bool
+	tokenMask0         [256]uint64
+	tokenMasks         [256][]uint64
+	scriptSourceFileID uint32
+	scriptSkipMask0    uint64
+	scriptSkipMask     []uint64
 }
 
-var _ nodeTraversal_visitTokens = (*CheckConformance)(nil)
+var (
+	_ nodeTraversal_visitTokens                         = (*CheckConformance)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*CheckConformance)(nil)
+)
+
+func (*CheckConformance) shouldTraverseOnlyScriptAndFunction() bool {
+	return true
+}
 
 func (c *CheckConformance) visitTokens() *ast.TokenSet {
 	if c.hasAllTokens {
@@ -180,6 +206,7 @@ func NewCheckConformanceWithConfigs(
 	c := &CheckConformance{compiler: compiler}
 	// Initialize the map of functions to inspect for renaming candidates.
 	c.categories = c.initRules(compiler, configs, reportingMode)
+	c.buildDispatchTables()
 	return c
 }
 
@@ -199,7 +226,11 @@ func (c *CheckConformance) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent
 	if !c.IsScriptOfInterest(t.GetInput().GetSourceFile()) {
 		return false
 	}
-	return !strings.HasSuffix(t.GetSourceName(), "tsmes.closure.js")
+	if strings.HasSuffix(t.GetSourceName(), "tsmes.closure.js") {
+		return false
+	}
+	c.updateScriptFilter(n)
+	return true
 }
 
 // Java: CheckConformance.isScriptOfInterest(SourceFile)
@@ -209,19 +240,357 @@ func (c *CheckConformance) IsScriptOfInterest(sf *SourceFile) bool {
 
 // Java: CheckConformance.visit(NodeTraversal, Node, Node)
 func (c *CheckConformance) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	/*
-	 * Use counted loops and backward iteration for performance.
-	 *
-	 * <p>These loops are run a huge number of times. The overhead of enhanced-for loops and even
-	 * calling size() can add seconds of build time to large projects.
-	 */
-	for cat := len(c.categories) - 1; cat >= 0; cat-- {
-		category := c.categories[cat]
-		if category.shouldCheck(n) {
-			rules := category.rules
-			for r := len(rules) - 1; r >= 0; r-- {
-				entry := rules[r]
-				entry.rule.Check(t, n, entry.behavior)
+	tok := uint8(n.GetToken())
+	if c.useMask64 {
+		mask := c.tokenMask0[tok]
+		if mask == 0 {
+			return
+		}
+		if c.scriptSkipMask0 != 0 && n.SourceFileID() == c.scriptSourceFileID {
+			mask &^= c.scriptSkipMask0
+			if mask == 0 {
+				return
+			}
+		}
+		var testedCats, passedCats uint64
+		for mask != 0 {
+			idx := bits.TrailingZeros64(mask)
+			mask &= mask - 1
+			c.runFlatRule(&c.flatRules[idx], t, n, &testedCats, &passedCats)
+		}
+		return
+	}
+	wordMasks := c.tokenMasks[tok]
+	if len(wordMasks) == 0 {
+		return
+	}
+	applySkip := len(c.scriptSkipMask) != 0 && n.SourceFileID() == c.scriptSourceFileID
+	var testedCats, passedCats uint64
+	for w, mask := range wordMasks {
+		if applySkip {
+			mask &^= c.scriptSkipMask[w]
+		}
+		base := w << 6
+		for mask != 0 {
+			idx := base + bits.TrailingZeros64(mask)
+			mask &= mask - 1
+			c.runFlatRule(&c.flatRules[idx], t, n, &testedCats, &passedCats)
+		}
+	}
+}
+
+func (c *CheckConformance) runFlatRule(
+	entry *flatConformanceRule,
+	t *NodeTraversal,
+	n rhino.Node,
+	testedCats, passedCats *uint64,
+) {
+	if entry.needPrecond {
+		if entry.catIdx < 64 {
+			catBit := uint64(1) << uint(entry.catIdx)
+			if *testedCats&catBit == 0 {
+				*testedCats |= catBit
+				if entry.cat.shouldCheck(n) {
+					*passedCats |= catBit
+				}
+			}
+			if *passedCats&catBit == 0 {
+				return
+			}
+		} else if !entry.cat.shouldCheck(n) {
+			return
+		}
+	}
+	if entry.absRule != nil {
+		if result := entry.absRule.checkConformance(t, n); result.IsViolation() {
+			entry.absRule.Report(n, result, entry.behavior)
+		}
+		return
+	}
+	entry.rule.Check(t, n, entry.behavior)
+}
+
+func (c *CheckConformance) updateScriptFilter(script rhino.Node) {
+	c.scriptSkipMask0 = 0
+	if len(c.scriptSkipMask) != 0 {
+		clear(c.scriptSkipMask)
+	}
+	sfID := script.SourceFileID()
+	c.scriptSourceFileID = sfID
+	if sfID == 0 || len(c.flatRules) == 0 || !hasDefaultConformanceReporting(c.compiler) {
+		return
+	}
+	rawPath, hasPath := script.SourceFileName()
+	if !hasPath {
+		return
+	}
+	rawTsPath, hasRawTsPath := splitConformanceTsPath(rawPath)
+	normPath := computeConformanceNormPath(c.compiler, rawPath)
+	normTsPath, hasNormTsPath := rawTsPath, hasRawTsPath
+	if normPath != rawPath {
+		normTsPath, hasNormTsPath = splitConformanceTsPath(normPath)
+	}
+	hasCustomBannedNameEval := CustomBannedNameEvaluator != nil
+	for i := range c.flatRules {
+		entry := &c.flatRules[i]
+		if !entry.canFilterPerScript || (entry.isBannedName && hasCustomBannedNameEval) {
+			continue
+		}
+		if entry.behavior == ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_RECORD_ONLY ||
+			entry.absRule.isExcludedOrAllowlisted(rawPath, rawTsPath, hasRawTsPath, normPath, normTsPath, hasNormTsPath, true) {
+			if c.useMask64 {
+				c.scriptSkipMask0 |= uint64(1) << uint(i)
+			} else {
+				c.scriptSkipMask[i>>6] |= uint64(1) << uint(i&63)
+			}
+		}
+	}
+}
+
+func categoryNeedsRuntimePrecond(cat *CheckConformance_Category) bool {
+	switch cat.kind {
+	case checkConformance_KindCheckAll:
+		return false
+	case checkConformance_KindNodePrecondition:
+		switch cat.nodePrecond {
+		case checkConformance_PreconditionBannedEnhanceScript, checkConformance_PreconditionBannedModsRegexScript:
+			return false
+		default:
+			return true
+		}
+	case checkConformance_KindBannedProperty:
+		return cat.bannedProp != ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY
+	default:
+		return true
+	}
+}
+
+func inspectConformanceRule(rule CheckConformance_Rule) (
+	tokens ast.TokenSet,
+	allTokens bool,
+	absRule *ConformanceRules_AbstractRule,
+	canFilterPerScript bool,
+	isBannedName bool,
+) {
+	switch r := rule.(type) {
+	case *conformanceNoOpRule:
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceInferredConstRule:
+		return tokens, true, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedDependencyRule:
+		tokens.Add(rhino.Token_SCRIPT)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedDependencyRegexRule:
+		tokens.Add(rhino.Token_SCRIPT)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedNameRule:
+		tokens.Add(rhino.Token_GETPROP)
+		tokens.Add(rhino.Token_NAME)
+		return tokens, false, &r.conformanceAbstractRule, true, true
+	case *ConformanceRules_BannedProperty:
+		if len(r.props) != 0 {
+			tokens.Add(rhino.Token_STRING_KEY)
+			tokens.Add(rhino.Token_GETPROP)
+			tokens.Add(rhino.Token_GETELEM)
+			tokens.Add(rhino.Token_COMPUTED_PROP)
+		}
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedStringRegexRule:
+		tokens.Add(rhino.Token_STRINGLIT)
+		tokens.Add(rhino.Token_TEMPLATELIT_STRING)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceRestrictedNameCallRule:
+		tokens.Add(rhino.Token_NAME)
+		tokens.Add(rhino.Token_GETPROP)
+		tokens.Add(rhino.Token_THIS)
+		tokens.Add(rhino.Token_SUPER)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceRestrictedMethodCallRule:
+		tokens.Add(rhino.Token_GETPROP)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceRestrictedPropertyWriteRule:
+		tokens.Add(rhino.Token_GETPROP)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedCodePatternRule:
+		for _, m := range r.restrictions {
+			start := m.templateStart
+			if start.IsNil() {
+				return tokens, true, &r.conformanceAbstractRule, true, false
+			}
+			switch start.GetToken() {
+			case templateTypeParam, templateStringLiteral:
+				return tokens, true, &r.conformanceAbstractRule, true, false
+			case templateLocalName:
+				tokens.Add(rhino.Token_NAME)
+			default:
+				tokens.Add(start.GetToken())
+			}
+		}
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanForOfRule:
+		tokens.Add(rhino.Token_FOR_OF)
+		tokens.Add(rhino.Token_FOR_AWAIT_OF)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceRequireUseStrictRule:
+		tokens.Add(rhino.Token_SCRIPT)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanThrowOfNonErrorTypesRule:
+		if r.errorObjType != nil {
+			tokens.Add(rhino.Token_THROW)
+		}
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanNullDerefRule:
+		tokens.Add(rhino.Token_GETPROP)
+		tokens.Add(rhino.Token_GETELEM)
+		tokens.Add(rhino.Token_CALL)
+		tokens.Add(rhino.Token_NEW)
+		tokens.Add(rhino.Token_IN)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanUnknownThisRule:
+		// BanUnknownThis deduplicates reports per scope root (including global scope),
+		// so keep it unfiltered across scripts while restricting it to THIS nodes.
+		tokens.Add(rhino.Token_THIS)
+		return tokens, false, &r.conformanceAbstractRule, false, false
+	case *conformanceBanUnknownDirectThisPropsRule:
+		tokens.Add(rhino.Token_GETPROP)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanUnknownTypedClassPropsRule:
+		tokens.Add(rhino.Token_GETPROP)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanUnresolvedTypeRule:
+		tokens.Add(rhino.Token_GETPROP)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceStrictBanUnresolvedTypeRule:
+		return tokens, true, &r.conformanceAbstractRule, true, false
+	case *conformanceBanGlobalVarsRule:
+		tokens.Add(rhino.Token_VAR)
+		tokens.Add(rhino.Token_LET)
+		tokens.Add(rhino.Token_CONST)
+		tokens.Add(rhino.Token_FUNCTION)
+		tokens.Add(rhino.Token_CLASS)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedEnhanceRule:
+		tokens.Add(rhino.Token_SCRIPT)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBannedModsRegexRule:
+		tokens.Add(rhino.Token_SCRIPT)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanCreateElementRule:
+		tokens.Add(rhino.Token_CALL)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanCreateDomRule:
+		tokens.Add(rhino.Token_CALL)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanElementSetAttributeRule:
+		tokens.Add(rhino.Token_CALL)
+		tokens.Add(rhino.Token_GETELEM)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanSettingAttributesRule:
+		tokens.Add(rhino.Token_CALL)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanExecCommandRule:
+		tokens.Add(rhino.Token_CALL)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	case *conformanceBanStaticThisRule:
+		tokens.Add(rhino.Token_THIS)
+		return tokens, false, &r.conformanceAbstractRule, true, false
+	default:
+		switch p := rule.GetPrecondition().(type) {
+		case checkConformance_NodePrecondition:
+			switch p {
+			case checkConformance_PreconditionBannedNameCandidate:
+				tokens.Add(rhino.Token_GETPROP)
+				tokens.Add(rhino.Token_NAME)
+				return tokens, false, nil, false, false
+			case checkConformance_PreconditionBannedEnhanceScript, checkConformance_PreconditionBannedModsRegexScript:
+				tokens.Add(rhino.Token_SCRIPT)
+				return tokens, false, nil, false, false
+			}
+		case ConformanceRules_BannedProperty_RequirementPrecondition:
+			if p == ConformanceRules_BannedProperty_RequirementPrecondition_BANNED_PROPERTY {
+				tokens.Add(rhino.Token_STRING_KEY)
+				tokens.Add(rhino.Token_GETPROP)
+				tokens.Add(rhino.Token_GETELEM)
+				tokens.Add(rhino.Token_COMPUTED_PROP)
+				return tokens, false, nil, false, false
+			}
+		}
+		return tokens, true, nil, false, false
+	}
+}
+
+func (c *CheckConformance) buildDispatchTables() {
+	c.activeTokens = ast.TokenSet{}
+	c.hasAllTokens = false
+	totalRules := 0
+	for _, cat := range c.categories {
+		totalRules += len(cat.rules)
+	}
+	if totalRules == 0 {
+		c.useMask64 = true
+		return
+	}
+
+	c.flatRules = make([]flatConformanceRule, 0, totalRules)
+	c.useMask64 = totalRules <= 64
+	numWords := (totalRules + 63) >> 6
+	var maskBacking []uint64
+	if !c.useMask64 {
+		c.scriptSkipMask = make([]uint64, numWords)
+		maskBacking = make([]uint64, 256*numWords)
+	}
+
+	for catIdx := len(c.categories) - 1; catIdx >= 0; catIdx-- {
+		cat := c.categories[catIdx]
+		needPrecond := categoryNeedsRuntimePrecond(cat)
+		rules := cat.rules
+		for rIdx := len(rules) - 1; rIdx >= 0; rIdx-- {
+			entry := rules[rIdx]
+			tokens, allTokens, absRule, canFilter, isBannedName := inspectConformanceRule(entry.rule)
+			flatIdx := len(c.flatRules)
+			c.flatRules = append(c.flatRules, flatConformanceRule{
+				rule:               entry.rule,
+				absRule:            absRule,
+				cat:                cat,
+				behavior:           entry.behavior,
+				catIdx:             catIdx,
+				needPrecond:        needPrecond,
+				canFilterPerScript: canFilter,
+				isBannedName:       isBannedName,
+			})
+			if allTokens {
+				c.hasAllTokens = true
+				if c.useMask64 {
+					bit := uint64(1) << uint(flatIdx)
+					for tok := range 256 {
+						c.tokenMask0[tok] |= bit
+					}
+				} else {
+					w, bit := flatIdx>>6, uint64(1)<<uint(flatIdx&63)
+					for tok := range 256 {
+						if c.tokenMasks[tok] == nil {
+							c.tokenMasks[tok] = maskBacking[tok*numWords : (tok+1)*numWords]
+						}
+						c.tokenMasks[tok][w] |= bit
+					}
+				}
+				continue
+			}
+			for wIdx, word := range tokens {
+				c.activeTokens[wIdx] |= word
+				baseTok := wIdx << 6
+				for word != 0 {
+					tok := baseTok + bits.TrailingZeros64(word)
+					word &= word - 1
+					if c.useMask64 {
+						c.tokenMask0[tok] |= uint64(1) << uint(flatIdx)
+					} else {
+						if c.tokenMasks[tok] == nil {
+							c.tokenMasks[tok] = maskBacking[tok*numWords : (tok+1)*numWords]
+						}
+						c.tokenMasks[tok][flatIdx>>6] |= uint64(1) << uint(flatIdx&63)
+					}
+				}
 			}
 		}
 	}

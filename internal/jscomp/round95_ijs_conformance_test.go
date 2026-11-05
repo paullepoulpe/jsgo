@@ -716,3 +716,88 @@ class StaticComp {
   static [k]() { return this; }
 }`, CheckConformance_CONFORMANCE_VIOLATION)
 }
+
+func TestConvertToTypedInterfaceParallelDeterministicParity(t *testing.T) {
+	files := []*SourceFile{
+		SourceFile_FromCode("mod_a.js", `goog.module('pkg.a');
+const b = goog.require('pkg.b');
+var unused = 1, /** @type {number} */ EXPORTED_NUM = 42;
+class Alpha {
+  constructor() {
+    /** @const */ this.num = EXPORTED_NUM;
+    /** @const */ this.dep = b;
+  }
+  /** @param {string} s @return {number} */
+  compute(s) { return s.length + this.num; }
+}
+exports = {Alpha, EXPORTED_NUM};
+`),
+		SourceFile_FromCode("mod_b.js", `goog.module('pkg.b');
+/** @enum {number} */
+const Mode = {FAST: 1, SAFE: 2};
+/** @typedef {{mode: !Mode, label: string}} */
+let Config;
+exports = {Mode, Config};
+`),
+		SourceFile_FromCode("legacy_ns.js", `goog.provide('legacy.ns');
+goog.provide('legacy.ns.Sub');
+/** @const */
+legacy.ns.Sub = class {
+  constructor() {
+    /** @type {boolean} */
+    this.ready = true;
+  }
+};
+/** @param {!legacy.ns.Sub} x @return {boolean} */
+legacy.ns.check = function(x) { return x.ready; };
+`),
+		SourceFile_FromCode("warn_case.js", `goog.module('pkg.warn');
+class Holder {
+  constructor() {
+    this.untypedProp = unknownFactory();
+  }
+}
+exports = Holder;
+`),
+	}
+
+	compileWithThreads := func(threads int) (string, []string) {
+		opts := NewCompilerOptions()
+		opts.SetIncrementalChecks(CompilerOptions_IncrementalCheckMode_GENERATE_IJS)
+		opts.SetCodingConvention(NewClosureCodingConvention())
+		opts.SetPrettyPrint(true)
+		opts.SetPreserveTypeAnnotations(true)
+		opts.SetNumParallelThreads(threads)
+
+		comp := NewCompiler()
+		var freshInputs []*SourceFile
+		for _, f := range files {
+			freshInputs = append(freshInputs, SourceFile_FromCode(f.GetName(), f.GetCode()))
+		}
+		res := comp.Compile([]*SourceFile{}, freshInputs, opts)
+		var diags []string
+		for _, e := range res.Errors {
+			diags = append(diags, e.String())
+		}
+		for _, w := range res.Warnings {
+			diags = append(diags, w.String())
+		}
+		return comp.ToSource(), diags
+	}
+
+	seqOut, seqDiags := compileWithThreads(1)
+	for range 4 {
+		parOut, parDiags := compileWithThreads(4)
+		if parOut != seqOut {
+			t.Fatalf("parallel GENERATE_IJS output mismatch:\ngot:\n%s\nwant:\n%s", parOut, seqOut)
+		}
+		if len(parDiags) != len(seqDiags) {
+			t.Fatalf("parallel GENERATE_IJS diag count = %d (%v), want %d (%v)", len(parDiags), parDiags, len(seqDiags), seqDiags)
+		}
+		for i := range seqDiags {
+			if parDiags[i] != seqDiags[i] {
+				t.Fatalf("parallel GENERATE_IJS diag[%d] = %q, want %q", i, parDiags[i], seqDiags[i])
+			}
+		}
+	}
+}

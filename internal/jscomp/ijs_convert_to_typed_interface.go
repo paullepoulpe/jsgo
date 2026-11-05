@@ -145,18 +145,31 @@ func (c *ConvertToTypedInterface) Process(externs rhino.Node, root rhino.Node) {
 	}
 	for item := range ast.ReadAhead(rootView.FirstItem()) {
 		if script, isScript := item.AsScript(); isScript {
-			c.processFile(script)
+			sourceFileName, _ := script.Node().SourceFileName()
+			if AbstractCompiler_IsFillFileName(sourceFileName) {
+				script.Detach()
+			}
+		}
+	}
+	if c.compiler != nil && traverseScriptsParallel(c.compiler, root, parallelScriptOptions[struct{}]{
+		enableTypeRegistryReads: true,
+		initWorker:              func(int, *Compiler) struct{} { return struct{}{} },
+		runScript: func(_ struct{}, _ int, _ rhino.Node, scriptNode rhino.Node, rc *Compiler) {
+			processIjsScript(rc, ast.MustScript(scriptNode))
+		},
+	}) {
+		return
+	}
+	for item := range ast.ReadAhead(rootView.FirstItem()) {
+		if script, isScript := item.AsScript(); isScript {
+			processIjsScript(c.compiler, script)
 		}
 	}
 }
 
-func (c *ConvertToTypedInterface) processFile(script ast.Script) {
+func processIjsScript(compiler AbstractCompiler, script ast.Script) {
 	scriptNode := script.Node()
 	sourceFileName, _ := scriptNode.SourceFileName()
-	if AbstractCompiler_IsFillFileName(sourceFileName) {
-		script.Detach()
-		return
-	}
 
 	if scriptJsDoc := scriptNode.GetJSDocInfo(); scriptJsDoc != nil && scriptJsDoc.IsClosureUnawareCode() {
 		// If we are generating type summary files, then those files won't contain the method content
@@ -168,9 +181,9 @@ func (c *ConvertToTypedInterface) processFile(script ast.Script) {
 	}
 
 	currentFile := newIjsFileInfo(sourceFileName)
-	NodeTraversal_Traverse(c.compiler, scriptNode, ijsRemoveNonDeclarations{})
-	NodeTraversal_Traverse(c.compiler, scriptNode, &ijsPropagateConstJsdoc{currentFile: currentFile})
-	(&ijsSimplifyDeclarations{compiler: c.compiler, currentFile: currentFile}).simplifyAll()
+	NodeTraversal_Traverse(compiler, scriptNode, ijsRemoveNonDeclarations{})
+	NodeTraversal_Traverse(compiler, scriptNode, &ijsPropagateConstJsdoc{currentFile: currentFile})
+	(&ijsSimplifyDeclarations{compiler: compiler, currentFile: currentFile}).simplifyAll()
 }
 
 func findNameDeclaration(scope *Scope, rhs rhino.Node) *Var {
@@ -671,8 +684,8 @@ func (s *ijsSimplifyDeclarations) removeDuplicateDeclarations() {
 			continue
 		}
 		declList := entries[i].Value
-		slices.SortStableFunc(declList, compareDeclarationsFirst)
 		if len(declList) > 1 {
+			slices.SortStableFunc(declList, compareDeclarationsFirst)
 			// Retain the highest-ranked declaration at index 0 and remove duplicates.
 			entries[i].Value = declList[:1]
 			for _, decl := range declList[1:] {
@@ -916,9 +929,14 @@ func (f *ijsFileInfo) recordImport(localName string) {
 }
 
 func containsNamespacePrefix(fullyQualifiedName string, prefixNamespaces *OrderedStringMap[struct{}]) bool {
-	for _, entry := range prefixNamespaces.Entries() {
-		prefix := entry.Key
-		if fullyQualifiedName == prefix || strings.HasPrefix(fullyQualifiedName, prefix+".") {
+	if prefixNamespaces.Size() == 0 {
+		return false
+	}
+	if prefixNamespaces.ContainsKey(fullyQualifiedName) {
+		return true
+	}
+	for i := 0; i < len(fullyQualifiedName); i++ {
+		if fullyQualifiedName[i] == '.' && prefixNamespaces.ContainsKey(fullyQualifiedName[:i]) {
 			return true
 		}
 	}
@@ -930,8 +948,11 @@ func (f *ijsFileInfo) isPrefixProvided(fullyQualifiedName string) bool {
 }
 
 func (f *ijsFileInfo) isStrictPrefixDeclared(fullyQualifiedName string) bool {
-	for _, entry := range f.declarations.Entries() {
-		if strings.HasPrefix(fullyQualifiedName, entry.Key+".") {
+	if f.declarations.Size() == 0 {
+		return false
+	}
+	for i := 0; i < len(fullyQualifiedName); i++ {
+		if fullyQualifiedName[i] == '.' && f.declarations.ContainsKey(fullyQualifiedName[:i]) {
 			return true
 		}
 	}

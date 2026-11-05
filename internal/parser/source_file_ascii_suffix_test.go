@@ -114,11 +114,6 @@ func verifySourceFileAgainstNaive(t *testing.T, label string, sf *SourceFile, co
 				}
 			}
 		}
-		if u16, ok := sf.UTF16Slice(start, end); ok {
-			if !slices.Equal(u16, ref.units[start:end]) {
-				t.Fatalf("%s: UTF16Slice(%d, %d) = %v, want %v", label, start, end, u16, ref.units[start:end])
-			}
-		}
 	}
 	if n <= 80 {
 		for start := 0; start <= n; start++ {
@@ -154,8 +149,8 @@ func TestSourceFileASCIISuffixAvoidsTailUTF16Allocation(t *testing.T) {
 	sf := NewSourceFile("header_copyright.js", src)
 	runtime.ReadMemStats(&after)
 
-	if len(sf.utf16Mid) != 1 {
-		t.Fatalf("len(sf.utf16Mid) = %d, want 1 (only '©')", len(sf.utf16Mid))
+	if sf.checkpoints != nil {
+		t.Fatalf("sf.checkpoints = %v, want nil for tiny middle span", sf.checkpoints)
 	}
 	// Ensure ASCIISlice succeeds zero-copy in the trailing suffix!
 	suffixStart := sf.asciiSuffixUTF16Start + 10
@@ -171,6 +166,32 @@ func TestSourceFileASCIISuffixAvoidsTailUTF16Allocation(t *testing.T) {
 		t.Fatalf("NewSourceFile allocated %d bytes for 198 KB trailing-ASCII file; expected < 16 KiB", allocBytes)
 	}
 	verifySourceFileAgainstNaive(t, "copyright-header-large-ascii-tail", sf, src)
+}
+
+func TestSourceFileNonASCIIMidAvoidsUTF16Allocation(t *testing.T) {
+	header := "// Copyright © 2026 Example Corp.\n"
+	body := strings.Repeat("const value_123 = 'hello world';\n", 6000) // ~198 KB pure ASCII
+	footer := "// End 🚀\n"
+	src := header + body + footer
+
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	sf := NewSourceFile("mid_non_ascii.js", src)
+	runtime.ReadMemStats(&after)
+
+	allocBytes := after.TotalAlloc - before.TotalAlloc
+	// Sparse checkpoints (~1 per 128 bytes = ~12.5 KiB) instead of ~400 KiB []uint16.
+	if allocBytes > 32<<10 {
+		t.Fatalf("NewSourceFile allocated %d bytes for 198 KB mid-ASCII file; expected < 32 KiB", allocBytes)
+	}
+	// Ensure ASCIISlice succeeds zero-copy even inside the middle span between © and 🚀!
+	midStart := sf.asciiPrefix + 50
+	slice, ok := sf.ASCIISlice(midStart, midStart+15)
+	if !ok || slice != sf.Substring(midStart, midStart+15) {
+		t.Fatalf("ASCIISlice in middle span = (%q, %v), want (%q, true)", slice, ok, sf.Substring(midStart, midStart+15))
+	}
+	verifySourceFileAgainstNaive(t, "copyright-and-emoji-footer", sf, src)
 }
 
 func TestSourceFileDifferentialEdgeCasesAndArtificialCRLFSplits(t *testing.T) {
@@ -206,7 +227,6 @@ func TestSourceFileDifferentialEdgeCasesAndArtificialCRLFSplits(t *testing.T) {
 	// White-box test: artificially force region splits directly between '\r' and '\n'
 	// at BOTH asciiPrefix and asciiSuffixUTF16Start to prove CRLF boundary handling.
 	rawCRLF := "ab\r\ncd\r\nef\r\ngh"
-	fullUnits := jutil.StringToUTF16(rawCRLF)
 	for p := 0; p <= len(rawCRLF); p++ {
 		for s := p; s <= len(rawCRLF); s++ {
 			artificial := &SourceFile{
@@ -216,7 +236,6 @@ func TestSourceFileDifferentialEdgeCasesAndArtificialCRLFSplits(t *testing.T) {
 				asciiSuffixUTF16Start: s,
 				asciiSuffixByteStart:  s,
 				utf16Len:              len(rawCRLF),
-				utf16Mid:              slices.Clone(fullUnits[p:s]),
 			}
 			verifySourceFileAgainstNaive(t, fmt.Sprintf("artificial_split_%d_%d", p, s), artificial, rawCRLF)
 		}
@@ -265,15 +284,15 @@ func scanAllTokensAndComments(code string, sf *SourceFile) ([]recordedTok, []rec
 }
 
 func makeForceUTF16SourceFile(name, code string) *SourceFile {
-	units := jutil.StringToUTF16(code)
+	midLen, cps := buildUTF16Checkpoints(code, 0, len(code))
 	return &SourceFile{
 		Name:                  name,
 		Contents:              code,
 		asciiPrefix:           0,
-		asciiSuffixUTF16Start: len(units),
+		asciiSuffixUTF16Start: midLen,
 		asciiSuffixByteStart:  len(code),
-		utf16Len:              len(units),
-		utf16Mid:              units,
+		utf16Len:              midLen,
+		checkpoints:           cps,
 	}
 }
 

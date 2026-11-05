@@ -107,6 +107,7 @@ def make_workspace(d, cache):
         "inputs": os.path.join(cache, "bench-inputs"),
         "corpus": os.path.join(cache, "corpus"),
         "app": os.path.join(HERE, "app"),
+        "conformance": os.path.join(HERE, "conformance"),
     }
     for name, target in links.items():
         p = os.path.join(d, name)
@@ -202,6 +203,21 @@ def artifacts(task, rundir, job_index, single):
             a[name] = os.path.join(rundir, name)
         return a
     return {k: os.path.join(rundir, f"{job_index}.{k}") for k in ("stdout", "stderr", "exit")}
+
+
+def strip_jvm_banner(path):
+    """Drops the JVM's own 'WARNING: ...' lines (e.g. JDK 26+ sun.misc.Unsafe deprecation banner)
+    from Java's stderr; Closure's diagnostics are 'file:line:col: WARNING - ...' and are kept."""
+    if not os.path.exists(path):
+        return
+    with open(path, "rb") as f:
+        data = f.read()
+    lines = data.split(b"\n")
+    kept = [l for l in lines if not l.startswith(b"WARNING: ")]
+    if len(kept) != len(lines):
+        shutil.copyfile(path, path + ".raw")
+        with open(path, "wb") as f:
+            f.write(b"\n".join(kept))
 
 
 def digest_artifacts(arts):
@@ -336,6 +352,8 @@ class Runner:
                 if os.path.exists(arts[k]):
                     os.remove(arts[k])
             r = run_proc(argv_of(args), rundir, env, arts["stdout"], arts["stderr"], self.args.nice)
+            if who == "java-cold":
+                strip_jvm_banner(arts["stderr"])
             with open(arts["exit"], "w") as f:
                 f.write(f"{r['exit']}\n")
             for k in ("wall_s", "user_s", "sys_s", "cpu_s"):
@@ -386,6 +404,8 @@ class Runner:
         r = run_proc(argv, rundir, self.java_env, os.path.join(rundir, "report.tsv"),
                      os.path.join(rundir, "driver.stderr"), a.nice)
         iters_out, peak = parse_batch_report(os.path.join(rundir, "report.tsv"))
+        for j in range(len(jobs)):
+            strip_jvm_banner(os.path.join(rundir, "batch", f"{j}.stderr"))
         # The driver's last iteration must reproduce Java cold run 1.
         ref_dir = os.path.join(tdir, "java-cold", "run-1")
         single = len(jobs) == 1

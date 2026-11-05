@@ -296,9 +296,6 @@ func (f *IRFactory) normalizeStringCore(token parser.Token, templateLiteral bool
 			}
 			units, firstBackslash := f.scanOrNormUTF16Units(appendWTF8ToUTF16(f.resetLitUnitsBuf(len(s)), s), true)
 			return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
-		} else if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
-			units, firstBackslash := f.scanOrNormUTF16Units(units, false)
-			return f.finishUTF16Norm(units, firstBackslash, token, templateLiteral)
 		}
 	}
 
@@ -540,26 +537,6 @@ func (f *IRFactory) NormalizeNumber(token parser.Token) float64 {
 				}
 			}
 			return normalizeNumber(f, s, token)
-		}
-		if units, ok := f.fileWithContent.UTF16Slice(startOff, endOff); ok {
-			b := f.resetLitByteBuf(len(units))
-			allASCII := true
-			for _, u := range units {
-				if u >= 0x80 {
-					allASCII = false
-					break
-				}
-				if u != '_' || !token.HasNumericSeparator() {
-					b = append(b, byte(u))
-				}
-			}
-			if allASCII {
-				f.litByteBuf = b
-				if token.HasNumericSeparator() {
-					f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_NUMERIC_SEPARATOR)
-				}
-				return normalizeNumber(f, b, token)
-			}
 		}
 	}
 

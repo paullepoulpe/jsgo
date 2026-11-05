@@ -61,8 +61,8 @@ const (
 	asciiFlagIdentPart
 )
 
-var asciiIdentFlags = func() [128]uint8 {
-	var t [128]uint8
+var asciiIdentFlags = func() [256]uint8 {
+	var t [256]uint8
 	for c := uint8('A'); c <= 'Z'; c++ {
 		t[c] = asciiFlagIdentStart | asciiFlagIdentPart
 	}

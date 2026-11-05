@@ -30,7 +30,7 @@ import bench  # noqa: E402
 DEFAULT_TASKS = "typed-app,downlevel-simple,checks-only,bundle,shaka-blockly"
 
 
-def run_jobs(argv0, jobs, task, rundir, cache, env, nice):
+def run_jobs(argv0, jobs, task, rundir, cache, env, nice, is_java=False):
     shutil.rmtree(rundir, ignore_errors=True)
     bench.make_workspace(rundir, cache)
     single = len(jobs) == 1
@@ -44,6 +44,8 @@ def run_jobs(argv0, jobs, task, rundir, cache, env, nice):
             jenv.pop("JSGO_MEMSTATS_ON")
             jenv["JSGO_MEMSTATS"] = statf
         r = bench.run_proc(argv0 + args, rundir, jenv, arts["stdout"], arts["stderr"], nice)
+        if is_java:
+            bench.strip_jvm_banner(arts["stderr"])
         with open(arts["exit"], "w") as f:
             f.write(f"{r['exit']}\n")
         tot["wall_s"] += r["wall_s"]
@@ -110,7 +112,7 @@ def main():
         ref = os.path.join(gdir, "run")
         if not os.path.exists(os.path.join(gdir, "done")):
             print(f"   ({name}: running Java for the reference)", flush=True)
-            run_jobs(["java", "-jar", jar], jobs, task, ref, cache, java_env, a.nice)
+            run_jobs(["java", "-jar", jar], jobs, task, ref, cache, java_env, a.nice, is_java=True)
             with open(os.path.join(gdir, "done"), "w") as f:
                 f.write("ok\n")
         for i in range(a.runs):

@@ -20,7 +20,10 @@ package parser
 
 import (
 	"strings"
+	"unicode/utf16"
+	"unicode/utf8"
 
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
@@ -34,20 +37,19 @@ const scannerIdentCacheMask = 127
 type Scanner struct {
 	errorReporter ErrorReporter
 	source        *SourceFile
-	// Go-only: language-adapter — the Java String contents, unwrapped from
-	// the SourceFile (see SourceFile.CharAt).
-	rawContents           string
-	asciiPrefix           int
-	asciiSuffixUTF16Start int
-	asciiSuffixByteStart  int
-	utf16Mid              []uint16
-	contentsLength        int
-	lookahead             []Token
-	lookaheadBuf          [8]Token
-	index                 int
-	commentRecorder       *Parser_CommentRecorder
-	typeParameterLevel    int
-	sawNumericSeparator   bool
+	// Go-only: language-adapter — Scanner advances a single byte cursor
+	// (byteIdx) over rawContents on all ASCII paths; current UTF-16 offset is
+	// byteIdx - utf16Delta (where utf16Delta only changes on non-ASCII chars).
+	rawContents         string
+	contentsLength      int
+	lookahead           []Token
+	lookaheadBuf        [8]Token
+	byteIdx             int
+	utf16Delta          int
+	lowSurrogate        uint16
+	commentRecorder     *Parser_CommentRecorder
+	typeParameterLevel  int
+	sawNumericSeparator bool
 
 	// L1 per-Scanner identifier intern cache avoiding strpool RWMutex/maphash
 	// on repeated identifier names within a file.
@@ -95,35 +97,24 @@ func (s *Scanner) newRegexToken(location SourceRange) Token {
 	return newScannerLiteralToken(TokenType_REGULAR_EXPRESSION, location, 0)
 }
 
-// charAt is contents.charAt(index), for a valid index (SourceFile.CharAt).
-func (s *Scanner) charAt(index int) uint16 {
-	if index < s.asciiPrefix {
-		return uint16(s.rawContents[index])
-	}
-	if index < s.asciiSuffixUTF16Start {
-		return s.utf16Mid[index-s.asciiPrefix]
-	}
-	return uint16(s.rawContents[s.asciiSuffixByteStart+(index-s.asciiSuffixUTF16Start)])
-}
-
-// asciiSpan maps a UTF-16 index inside either pure-ASCII span of rawContents
-// ([0, asciiPrefix) or [asciiSuffixUTF16Start, contentsLength)) to
-// (rawByteStart, rawByteLimit, rawDelta, true) where rawIdx - rawDelta
-// converts a byte offset back to a UTF-16 offset.
-func (s *Scanner) asciiSpan(index int) (rawStart, rawLimit, rawDelta int, ok bool) {
-	if index < s.asciiPrefix {
-		return index, s.asciiPrefix, 0, true
-	}
-	if index >= s.asciiSuffixUTF16Start && index < s.contentsLength {
-		delta := s.asciiSuffixByteStart - s.asciiSuffixUTF16Start
-		return index + delta, len(s.rawContents), delta, true
-	}
-	return 0, 0, 0, false
-}
-
 // sliceString is contents.substring(start, end).
 func (s *Scanner) sliceString(start, end int) string {
 	return s.source.Substring(start, end)
+}
+
+func (s *Scanner) syncBytePosition(offset int) {
+	if offset <= 0 {
+		s.byteIdx = offset
+		s.utf16Delta = 0
+		s.lowSurrogate = 0
+	} else if offset >= s.contentsLength {
+		s.byteIdx = len(s.rawContents) + (offset - s.contentsLength)
+		s.utf16Delta = len(s.rawContents) - s.contentsLength
+		s.lowSurrogate = 0
+	} else {
+		s.byteIdx, s.lowSurrogate = s.source.byteOffsetForUTF16(offset)
+		s.utf16Delta = s.byteIdx - offset
+	}
 }
 
 // NewScanner constructs a Scanner.
@@ -135,15 +126,9 @@ func NewScanner(errorReporter ErrorReporter, commentRecorder *Parser_CommentReco
 	s.errorReporter = errorReporter
 	s.commentRecorder = commentRecorder
 	s.source = file
-	// To help reason about the expected JVM performance unwrap "file" values.
-	// The scanner is key to the parsing speed.
 	s.rawContents = file.Contents
-	s.asciiPrefix = file.asciiPrefix
-	s.asciiSuffixUTF16Start = file.asciiSuffixUTF16Start
-	s.asciiSuffixByteStart = file.asciiSuffixByteStart
-	s.utf16Mid = file.utf16Mid
 	s.contentsLength = file.Length()
-	s.index = offset
+	s.syncBytePosition(offset)
 	s.typeParameterLevel = 0
 	return s
 }
@@ -160,7 +145,7 @@ func (s *Scanner) GetFile() *SourceFile {
 // Java: Scanner.getOffset()
 func (s *Scanner) GetOffset() int {
 	if len(s.lookahead) == 0 {
-		return s.index
+		return s.byteIdx - s.utf16Delta
 	}
 	return int(s.lookahead[0].Location.Start.Offset)
 }
@@ -170,7 +155,7 @@ func (s *Scanner) GetOffset() int {
 // Java: Scanner.setPosition(SourcePosition)
 func (s *Scanner) SetPosition(position SourcePosition) {
 	s.lookahead = s.lookahead[:0]
-	s.index = int(position.Offset)
+	s.syncBytePosition(int(position.Offset))
 }
 
 // GetPosition returns the position of the next token.
@@ -178,7 +163,7 @@ func (s *Scanner) SetPosition(position SourcePosition) {
 // Java: Scanner.getPosition()
 func (s *Scanner) GetPosition() SourcePosition {
 	if len(s.lookahead) == 0 {
-		return s.GetPositionAt(s.index)
+		return s.GetPositionAt(s.byteIdx - s.utf16Delta)
 	}
 	return s.lookahead[0].Location.Start
 }
@@ -194,7 +179,7 @@ func (s *Scanner) GetPositionAt(offset int) SourcePosition {
 //
 // Java: Scanner.getTokenRange(int)
 func (s *Scanner) GetTokenRange(startOffset int) SourceRange {
-	return NewSourceRange(NewSourcePosition(startOffset), NewSourcePosition(s.index))
+	return NewSourceRange(NewSourcePosition(startOffset), NewSourcePosition(s.byteIdx-s.utf16Delta))
 }
 
 // GetTokenRangeFromPosition: prefer this to GetTokenRange(int) when the
@@ -202,7 +187,7 @@ func (s *Scanner) GetTokenRange(startOffset int) SourceRange {
 //
 // Java: Scanner.getTokenRange(SourcePosition)
 func (s *Scanner) GetTokenRangeFromPosition(position SourcePosition) SourceRange {
-	return NewSourceRange(position, NewSourcePosition(s.index))
+	return NewSourceRange(position, NewSourcePosition(s.byteIdx-s.utf16Delta))
 }
 
 // NextToken consumes and returns the next token.
@@ -238,7 +223,7 @@ func (s *Scanner) ClearTokenLookahead() {
 func (s *Scanner) NextRegularExpressionLiteralToken() Token {
 	s.ClearTokenLookahead()
 
-	beginToken := s.index
+	beginToken := s.byteIdx - s.utf16Delta
 
 	// leading '/'
 	s.NextChar()
@@ -270,7 +255,7 @@ func (s *Scanner) NextRegularExpressionLiteralToken() Token {
 func (s *Scanner) NextTemplateLiteralToken() Token {
 	token := s.NextToken()
 	if s.IsAtEnd() || token.Type() != TokenType_CLOSE_CURLY {
-		s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Expected '}' after expression in template literal")
+		s.ReportErrorAtPosition(s.GetPositionAt(s.byteIdx-s.utf16Delta), "Expected '}' after expression in template literal")
 	}
 
 	return s.NextTemplateLiteralTokenShared(TokenType_TEMPLATE_TAIL, TokenType_TEMPLATE_MIDDLE)
@@ -389,7 +374,7 @@ func (s *Scanner) PeekTokenAt(index int) Token {
 
 // Java: Scanner.isAtEnd()
 func (s *Scanner) IsAtEnd() bool {
-	return !s.IsValidIndex(s.index)
+	return uint(s.byteIdx) >= uint(len(s.rawContents))
 }
 
 // Java: Scanner.isValidIndex(int)
@@ -403,40 +388,64 @@ func (s *Scanner) IsValidIndex(index int) bool {
 // any line terminators.
 //
 // Java: Scanner.skipWhitespace()
-func (s *Scanner) SkipWhitespace() bool {
-	foundLineTerminator := false
-	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
-		raw := s.rawContents
-		for rawIdx < rawLimit {
-			switch raw[rawIdx] {
-			case ' ', '\t', 0x0B, 0x0C:
-				rawIdx++
-			case '\n', '\r':
-				foundLineTerminator = true
-				rawIdx++
-			default:
-				s.index = rawIdx - rawDelta
-				return foundLineTerminator
-			}
-		}
-		s.index = rawIdx - rawDelta
-	}
-	contentsLength := s.contentsLength
-	for s.index < contentsLength {
-		ch := s.charAt(s.index)
-		if ch == ' ' || ch == '\t' {
-			s.index++
-			continue
-		}
+var asciiWSFlags = [256]uint8{
+	' ':  1,
+	'\t': 1,
+	0x0B: 1,
+	0x0C: 1,
+	'\n': 2,
+	'\r': 2,
+}
+
+//go:noinline
+func (s *Scanner) skipWhitespaceNonASCII(foundLineTerminator bool) bool {
+	for {
+		ch := s.PeekChar()
 		if !Scanner_IsWhitespace(ch) {
-			break
+			return foundLineTerminator
 		}
-		s.index++
+		s.NextChar()
 		if Scanner_IsLineTerminator(ch) {
 			foundLineTerminator = true
 		}
+		raw := s.rawContents
+		rawIdx := s.byteIdx
+		var wsMask uint8
+		for rawIdx < len(raw) {
+			f := asciiWSFlags[raw[rawIdx]]
+			if f == 0 {
+				break
+			}
+			wsMask |= f
+			rawIdx++
+		}
+		s.byteIdx = rawIdx
+		if wsMask&2 != 0 {
+			foundLineTerminator = true
+		}
+		if rawIdx >= len(raw) || raw[rawIdx] < 0x80 {
+			return foundLineTerminator
+		}
 	}
-	return foundLineTerminator
+}
+
+func (s *Scanner) SkipWhitespace() bool {
+	raw := s.rawContents
+	rawIdx := s.byteIdx
+	var wsMask uint8
+	for rawIdx < len(raw) {
+		f := asciiWSFlags[raw[rawIdx]]
+		if f == 0 {
+			break
+		}
+		wsMask |= f
+		rawIdx++
+	}
+	s.byteIdx = rawIdx
+	if rawIdx >= len(raw) || raw[rawIdx] < 0x80 {
+		return wsMask&2 != 0
+	}
+	return s.skipWhitespaceNonASCII(wsMask&2 != 0)
 }
 
 // Java: Scanner.peekWhitespace()
@@ -544,7 +553,7 @@ func (s *Scanner) SkipComment() bool {
 				return true
 			}
 		case '#':
-			if s.index == 0 && s.PeekCharAt(1) == '!' {
+			if s.byteIdx == 0 && s.PeekCharAt(1) == '!' {
 				s.SkipSingleLineCommentOfType(Comment_Type_SHEBANG)
 				return true
 			}
@@ -569,19 +578,37 @@ func (s *Scanner) SkipSingleLineComment() {
 
 // Java: Scanner.skipSingleLineComment(Comment.Type)
 func (s *Scanner) SkipSingleLineCommentOfType(type_ Comment_Type) {
-	startOffset := s.index
-	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
+	startByte := s.byteIdx
+	startOffset := startByte - s.utf16Delta
+	hasStartByte := s.lowSurrogate == 0
+	if hasStartByte {
 		raw := s.rawContents
-		for rawIdx < rawLimit && raw[rawIdx] != '\n' && raw[rawIdx] != '\r' {
+		rawIdx := startByte
+		for rawIdx < len(raw) {
+			b := raw[rawIdx]
+			if b >= 0x80 || b == '\n' || b == '\r' {
+				break
+			}
 			rawIdx++
 		}
-		s.index = rawIdx - rawDelta
+		s.byteIdx = rawIdx
+		if rawIdx >= len(raw) || raw[rawIdx] == '\n' || raw[rawIdx] == '\r' {
+			range_ := s.source.LineRange(startOffset, rawIdx-s.utf16Delta)
+			s.RecordComment(type_, range_, raw[startByte:rawIdx])
+			return
+		}
 	}
 	for !s.IsAtEnd() && !Scanner_IsLineTerminator(s.PeekChar()) {
 		s.NextChar()
 	}
-	range_ := s.source.LineRange(startOffset, s.index)
-	value := s.sliceString(startOffset, s.index)
+	endOffset := s.byteIdx - s.utf16Delta
+	range_ := s.source.LineRange(startOffset, endOffset)
+	var value string
+	if hasStartByte && s.lowSurrogate == 0 && utf8.ValidString(s.rawContents[startByte:s.byteIdx]) {
+		value = s.rawContents[startByte:s.byteIdx]
+	} else {
+		value = s.sliceString(startOffset, endOffset)
+	}
 	s.RecordComment(type_, range_, value)
 }
 
@@ -592,42 +619,57 @@ func (s *Scanner) RecordComment(type_ Comment_Type, range_ LineRange, value stri
 
 // Java: Scanner.skipMultiLineComment()
 func (s *Scanner) SkipMultiLineComment() {
-	startOffset := s.index
-	s.NextChar() // '/'
-	s.NextChar() // '*'
-	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
-		for rawIdx+1 < rawLimit {
-			rel := strings.IndexByte(s.rawContents[rawIdx:rawLimit-1], '*')
-			if rel < 0 {
-				rawIdx = rawLimit - 1
-				break
-			}
-			rawIdx += rel
-			if s.rawContents[rawIdx+1] == '/' {
-				break
-			}
-			rawIdx++
+	startByte := s.byteIdx
+	startOffset := startByte - s.utf16Delta
+	raw := s.rawContents
+	searchPos := startByte + 2
+	foundEnd := -1
+	for searchPos+1 < len(raw) {
+		rel := strings.IndexByte(raw[searchPos:len(raw)-1], '*')
+		if rel < 0 {
+			break
 		}
-		s.index = rawIdx - rawDelta
+		starIdx := searchPos + rel
+		if raw[starIdx+1] == '/' {
+			foundEnd = starIdx + 2
+			break
+		}
+		searchPos = starIdx + 1
 	}
-	for !s.IsAtEnd() && (s.PeekChar() != '*' || s.PeekCharAt(1) != '/') {
-		s.NextChar()
-	}
-	if !s.IsAtEnd() {
-		s.NextChar()
-		s.NextChar()
+	if foundEnd >= 0 {
+		s.byteIdx = foundEnd
+		s.lowSurrogate = 0
+		span := raw[startByte:foundEnd]
+		var endOffset int
+		var value string
+		if foundEnd <= s.source.asciiPrefix || startByte >= s.source.asciiSuffixByteStart || jutil.IsASCII(span) {
+			endOffset = startOffset + len(span)
+			value = span
+		} else {
+			uLen := utf16LenWTF8(span)
+			endOffset = startOffset + uLen
+			s.utf16Delta += len(span) - uLen
+			if utf8.ValidString(span) {
+				value = span
+			} else {
+				value = s.sliceString(startOffset, endOffset)
+			}
+		}
 		type_ := Comment_Type_BLOCK
-		if s.index-startOffset > 4 {
-			if s.charAt(startOffset+2) == '*' {
+		if endOffset-startOffset > 4 {
+			switch raw[startByte+2] {
+			case '*':
 				type_ = Comment_Type_JSDOC
-			} else if s.charAt(startOffset+2) == '!' {
+			case '!':
 				type_ = Comment_Type_IMPORTANT
 			}
 		}
-		range_ := s.source.LineRange(startOffset, s.index)
-		value := s.sliceString(startOffset, s.index)
+		range_ := s.source.LineRange(startOffset, endOffset)
 		s.RecordComment(type_, range_, value)
 	} else {
+		s.byteIdx = len(raw)
+		s.utf16Delta = len(raw) - s.contentsLength
+		s.lowSurrogate = 0
 		s.ReportError("unterminated comment")
 	}
 }
@@ -635,7 +677,7 @@ func (s *Scanner) SkipMultiLineComment() {
 // Java: Scanner.scanToken()
 func (s *Scanner) ScanToken() Token {
 	s.SkipComments()
-	beginToken := s.index
+	beginToken := s.byteIdx - s.utf16Delta
 	if s.IsAtEnd() {
 		return s.CreateToken(TokenType_END_OF_FILE, beginToken)
 	}
@@ -847,7 +889,7 @@ func (s *Scanner) ScanToken() Token {
 		// Shebang is not actually ever parsed here (when used correctly, it's handled above in the
 		// skipComments() call) so its token is an error.
 		if s.Peek('!') {
-			s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Shebang comment must be at the start of the file")
+			s.ReportErrorAtPosition(s.GetPositionAt(s.byteIdx-s.utf16Delta), "Shebang comment must be at the start of the file")
 			return s.CreateToken(TokenType_ERROR, beginToken)
 		}
 		// Handle private identifiers.
@@ -874,17 +916,53 @@ func (s *Scanner) CreateToken(type_ TokenType, beginToken int) Token {
 
 // Java: Scanner.getTokenString(int)
 func (s *Scanner) GetTokenString(beginIndex int) string {
-	return s.sliceString(beginIndex, s.index)
+	return s.sliceString(beginIndex, s.byteIdx-s.utf16Delta)
+}
+
+//go:noinline
+func (s *Scanner) nextNonASCII() uint16 {
+	if s.lowSurrogate != 0 {
+		ch := s.lowSurrogate
+		s.lowSurrogate = 0
+		s.byteIdx += 4
+		s.utf16Delta += 3
+		return ch
+	}
+	r, size := decodeWTF8At(s.rawContents, s.byteIdx)
+	if r >= 0x10000 {
+		hi, lo := utf16.EncodeRune(r)
+		s.lowSurrogate = uint16(lo)
+		s.utf16Delta--
+		return uint16(hi)
+	}
+	s.byteIdx += size
+	s.utf16Delta += size - 1
+	return uint16(r)
+}
+
+//go:noinline
+func (s *Scanner) peekNonASCII() uint16 {
+	if s.lowSurrogate != 0 {
+		return s.lowSurrogate
+	}
+	r, _ := decodeWTF8At(s.rawContents, s.byteIdx)
+	if r >= 0x10000 {
+		hi, _ := utf16.EncodeRune(r)
+		return uint16(hi)
+	}
+	return uint16(r)
 }
 
 // Java: Scanner.nextChar()
 func (s *Scanner) NextChar() uint16 {
-	if s.IsAtEnd() {
-		return 0
+	if uint(s.byteIdx) < uint(len(s.rawContents)) {
+		if b := s.rawContents[s.byteIdx]; b < 0x80 {
+			s.byteIdx++
+			return uint16(b)
+		}
+		return s.nextNonASCII()
 	}
-	ch := s.charAt(s.index)
-	s.index++
-	return ch
+	return 0
 }
 
 // Java: Scanner.peek(char)
@@ -894,15 +972,30 @@ func (s *Scanner) Peek(ch uint16) bool {
 
 // Java: Scanner.peekChar()
 func (s *Scanner) PeekChar() uint16 {
-	return s.PeekCharAt(0)
+	if uint(s.byteIdx) < uint(len(s.rawContents)) {
+		if b := s.rawContents[s.byteIdx]; b < 0x80 {
+			return uint16(b)
+		}
+		return s.peekNonASCII()
+	}
+	return 0
 }
 
 // Java: Scanner.peekChar(int)
 func (s *Scanner) PeekCharAt(offset int) uint16 {
-	if !s.IsValidIndex(s.index + offset) {
+	if offset == 0 {
+		return s.PeekChar()
+	}
+	if offset == 1 && s.byteIdx >= 0 && s.byteIdx+1 < len(s.rawContents) {
+		if s.rawContents[s.byteIdx] < 0x80 && s.rawContents[s.byteIdx+1] < 0x80 {
+			return uint16(s.rawContents[s.byteIdx+1])
+		}
+	}
+	target := (s.byteIdx - s.utf16Delta) + offset
+	if !s.IsValidIndex(target) {
 		return 0
 	}
-	return s.charAt(s.index + offset)
+	return s.source.CharAt(target)
 }
 
 // Java: Scanner.reportError(String, Object...)

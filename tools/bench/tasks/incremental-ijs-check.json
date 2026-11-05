@@ -1,0 +1,59 @@
+{
+  "name": "incremental-ijs-check",
+  "order": 13,
+  "title": "Incremental leaf typecheck against .i.js summaries",
+  "description": "Type-checks the leaf notes editor app (`app/notestore.js`, `app/notesview.js`, `app/main.js`) under `--checks_only --jscomp_warning=checkTypes` against 1,743 pre-generated `.i.js` (`@typeSummary`) dependency files (`inputs/ijs-typed-full/*.i.js`, 8.3 MB across Closure Library, Shaka Player, and Blockly) and library externs, modeling incremental Blaze/Bazel `JsChecker` targets.",
+  "mode": "`--checks_only`, `--jscomp_warning=checkTypes`, 1,743 `.i.js` type summaries + 3 leaf `--js` files",
+  "flags": [
+    "--checks_only",
+    "--jscomp_warning=checkTypes",
+    "--dependency_mode=SORT_ONLY",
+    "--hide_warnings_for=inputs/ijs-typed-full/",
+    "--jscomp_off=lintChecks",
+    "--jscomp_off=deprecated",
+    "--jscomp_off=visibility",
+    "--extra_annotation_name=listens",
+    "--extra_annotation_name=exportDoc",
+    "--extra_annotation_name=exportInterface",
+    "-D",
+    "COMPILED=true",
+    "-D",
+    "goog.ENABLE_DEBUG_LOADER=false",
+    "-D",
+    "goog.DEBUG=false",
+    "-D",
+    "goog.asserts.ENABLE_ASSERTS=false",
+    "-D",
+    "shaka.log.MAX_LOG_LEVEL=0",
+    "-D",
+    "shaka.Player.version=\"v5.3.1\""
+  ],
+  "inputs": [
+    {
+      "flag": "--externs",
+      "file": "inputs/closure-library@v20230802/closure/goog/testing/cspviolationobserver_externs.js"
+    },
+    {
+      "flag": "--externs",
+      "glob": "inputs/shaka-player@5.3.1/externs/**/*.js",
+      "exclude": [
+        "mediasession.js"
+      ]
+    },
+    {
+      "glob": "inputs/ijs-typed-full/*.i.js"
+    },
+    {
+      "file": "app/notestore.js"
+    },
+    {
+      "file": "app/notesview.js"
+    },
+    {
+      "file": "app/main.js"
+    }
+  ],
+  "output_args": [],
+  "compare": [],
+  "warm_warmup": 1
+}

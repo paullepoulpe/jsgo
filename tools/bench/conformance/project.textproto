@@ -1,0 +1,42 @@
+# Project-level conformance overrides and additional rules extending base.textproto.
+
+requirement: {
+  extends: "security:ban_inner_outer_html"
+  allowlist: "app/notesview.js"
+  allowlist_regexp: "^inputs/blockly@[^/]+/blocks/"
+}
+
+requirement: {
+  extends: "debug:ban_console"
+  allowlist_regexp: "^inputs/shaka-player@[^/]+/third_party/"
+}
+
+requirement: {
+  extends: "storage:ban_direct_local_storage"
+  allowlist: "app/notestore.js"
+}
+
+requirement: {
+  rule_id: "project:ban_xhr_open_sync"
+  type: BANNED_PROPERTY_CALL
+  value: "XMLHttpRequest.prototype.open"
+  severity: WARNING
+  error_message: "Use goog.net.XhrIo or fetch instead of raw XMLHttpRequest.open."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/net/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/" }
+}
+
+requirement: {
+  rule_id: "project:ban_navigator_useragent"
+  type: BANNED_PROPERTY_READ
+  value: "Navigator.prototype.userAgent"
+  value: "Navigator.prototype.vendor"
+  value: "Navigator.prototype.platform"
+  severity: WARNING
+  error_message: "Use goog.labs.userAgent or shaka.util.Platform instead of raw Navigator properties."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/labs/useragent/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/useragent/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/util/platform.js" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/core/utils/useragent.js" }
+}

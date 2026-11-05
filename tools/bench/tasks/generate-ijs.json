@@ -1,0 +1,71 @@
+{
+  "name": "generate-ijs",
+  "order": 12,
+  "title": "Stage-1 .i.js type-summary generation",
+  "description": "Generates `.i.js` (`@typeSummary`) declarations across all non-extern library sources of `typed-full` — Closure Library v20230802 (970 files), Shaka Player 5.3.1 (`lib/`, `ui/`, `third_party/`, `dist/locales.js`, 454 files), and Blockly 8.0.5 (`core/`, `blocks/`, `generators/`, 324 files) — 1,748 files (28.1 MB) into an 8.3 MB `out.i.js` type summary with `--incremental_check_mode=GENERATE_IJS` and preserved type annotations.",
+  "mode": "`--checks_only`, `--incremental_check_mode=GENERATE_IJS`, `--preserve_type_annotations`, `--formatting=PRETTY_PRINT`",
+  "flags": [
+    "--checks_only",
+    "--incremental_check_mode=GENERATE_IJS",
+    "--preserve_type_annotations",
+    "--formatting=PRETTY_PRINT",
+    "--language_out=ECMASCRIPT_NEXT",
+    "--env=CUSTOM",
+    "--dependency_mode=SORT_ONLY",
+    "--jscomp_off=lintChecks",
+    "--extra_annotation_name=listens",
+    "--extra_annotation_name=exportDoc",
+    "--extra_annotation_name=exportInterface"
+  ],
+  "inputs": [
+    {
+      "glob": "inputs/closure-library@v20230802/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js",
+        "*_externs.js"
+      ]
+    },
+    {
+      "glob": "inputs/closure-library@v20230802/third_party/closure/goog/**/*.js",
+      "exclude": [
+        "*_test.js",
+        "*_externs.js"
+      ]
+    },
+    {
+      "file": "inputs/shaka-player@5.3.1/dist/locales.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/lib/**/*.js",
+      "exclude": [
+        "*/lib/debug/asserts.js"
+      ]
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/ui/**/*.js"
+    },
+    {
+      "glob": "inputs/shaka-player@5.3.1/third_party/**/*.js",
+      "exclude": [
+        "*/third_party/closure-uri/uri.js",
+        "*/third_party/closure-uri/*"
+      ]
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/core/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/blocks/**/*.js"
+    },
+    {
+      "glob": "inputs/blockly@8.0.5/generators/**/*.js"
+    }
+  ],
+  "output_args": [
+    "--js_output_file=out.i.js"
+  ],
+  "compare": [
+    "out.i.js"
+  ],
+  "warm_warmup": 1
+}

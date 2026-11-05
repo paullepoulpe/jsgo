@@ -175,16 +175,14 @@ func (s *Scanner) SkipDecimalDigits() {
 // Java: Scanner.skipDecimalDigits(boolean)
 func (s *Scanner) SkipDecimalDigitsWithHasLeadingDigit(hasLeadingDigit bool) {
 	hasDigit := hasLeadingDigit
-	if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
-		raw := s.rawContents
-		startRaw := rawIdx
-		for rawIdx < rawLimit && raw[rawIdx] >= '0' && raw[rawIdx] <= '9' {
-			rawIdx++
-		}
-		if rawIdx > startRaw {
-			hasDigit = true
-			s.index = rawIdx - rawDelta
-		}
+	raw := s.rawContents
+	rawIdx := s.byteIdx
+	for rawIdx < len(raw) && raw[rawIdx] >= '0' && raw[rawIdx] <= '9' {
+		rawIdx++
+	}
+	if rawIdx > s.byteIdx {
+		hasDigit = true
+		s.byteIdx = rawIdx
 	}
 	ch := s.PeekChar()
 	for Scanner_IsDecimalDigit(ch) || ch == '_' {
@@ -327,7 +325,11 @@ func Scanner_ValueOfBinaryDigit(ch uint16) int {
 
 // Java: Scanner.scanIdentifierOrKeyword(int, char)
 func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
-	valueStartIndex := s.index - 1
+	valueStartIndex := (s.byteIdx - s.utf16Delta) - 1
+	asciiStartByte := -1
+	if ch < 0x80 {
+		asciiStartByte = s.byteIdx - 1
+	}
 
 	containsUnicodeEscape := ch == '\\'
 	bracedUnicodeEscape := false
@@ -336,28 +338,14 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 	if containsUnicodeEscape {
 		unicodeEscapeLen = 1
 	} else {
-		// Fast path for consecutive non-escaped identifier characters.
-		if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
-			raw := s.rawContents
-			for rawIdx < rawLimit && asciiIdentFlags[raw[rawIdx]]&asciiFlagIdentPart != 0 {
-				rawIdx++
-			}
-			s.index = rawIdx - rawDelta
+		// Fast path for consecutive non-escaped ASCII identifier characters
+		// (when lowSurrogate != 0, raw[s.byteIdx] >= 0xF0 so asciiIdentFlags == 0).
+		raw := s.rawContents
+		rawIdx := s.byteIdx
+		for rawIdx < len(raw) && asciiIdentFlags[raw[rawIdx]]&asciiFlagIdentPart != 0 {
+			rawIdx++
 		}
-		contentsLength := s.contentsLength
-		for s.index < contentsLength {
-			c := s.charAt(s.index)
-			if c <= 127 {
-				if asciiIdentFlags[c]&asciiFlagIdentPart != 0 {
-					s.index++
-					continue
-				}
-			} else if Identifiers_IsIdentifierPart(c) {
-				s.index++
-				continue
-			}
-			break
-		}
+		s.byteIdx = rawIdx
 	}
 
 	ch = s.PeekChar()
@@ -387,15 +375,27 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 		ch = s.PeekChar()
 	}
 
+	curIndex := s.byteIdx - s.utf16Delta
 	if !containsUnicodeEscape {
-		if isPrivateIdentifier && s.index == valueStartIndex+1 {
+		if isPrivateIdentifier && curIndex == valueStartIndex+1 {
 			s.ReportErrorAtPosition(s.GetPositionAt(beginToken), "Invalid usage of #")
 			return s.CreateToken(TokenType_ERROR, beginToken)
 		}
-		start := s.charAt(valueStartIndex)
-		if isPrivateIdentifier {
-			// Skip the leading # for name validation.
-			start = s.charAt(valueStartIndex + 1)
+		var value string
+		var start uint16
+		if asciiStartByte >= 0 && s.lowSurrogate == 0 && s.byteIdx-asciiStartByte == curIndex-valueStartIndex {
+			value = s.rawContents[asciiStartByte:s.byteIdx]
+			if isPrivateIdentifier {
+				start = uint16(value[1])
+			} else {
+				start = uint16(value[0])
+			}
+		} else {
+			start = s.source.CharAt(valueStartIndex)
+			if isPrivateIdentifier {
+				start = s.source.CharAt(valueStartIndex + 1)
+			}
+			value = s.sliceString(valueStartIndex, curIndex)
 		}
 		if !Identifiers_IsIdentifierStart(start) {
 			s.ReportErrorAtPosition(
@@ -405,52 +405,17 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 				int(start))
 			return s.CreateToken(TokenType_ERROR, beginToken)
 		}
-		loc := s.GetTokenRange(beginToken)
+		loc := NewSourceRange(NewSourcePosition(beginToken), NewSourcePosition(curIndex))
 		var flags uint8
 		if isPrivateIdentifier {
 			flags = tokenFlagPrivateIdent
-		}
-		var value string
-		if s.index <= s.asciiPrefix {
-			value = s.rawContents[valueStartIndex:s.index]
-		} else if valueStartIndex >= s.asciiSuffixUTF16Start {
-			rawStart := s.asciiSuffixByteStart + (valueStartIndex - s.asciiSuffixUTF16Start)
-			value = s.rawContents[rawStart : rawStart+(s.index-valueStartIndex)]
-		} else {
-			if valueStartIndex >= s.asciiPrefix && s.index <= s.asciiSuffixUTF16Start {
-				if n := s.index - valueStartIndex; n <= 64 {
-					mid := s.utf16Mid[valueStartIndex-s.asciiPrefix : s.index-s.asciiPrefix]
-					var buf [64]byte
-					allASCII := true
-					for i, u := range mid {
-						if u >= 0x80 {
-							allASCII = false
-							break
-						}
-						buf[i] = byte(u)
-					}
-					if allASCII {
-						b := buf[:n]
-						if !isPrivateIdentifier {
-							if k := keywords_getBytes(b); k != nil {
-								return NewToken(k.Type(), loc)
-							}
-						}
-						return newIdentifierTokenFromID(loc, s.internIdentBytes(b), flags)
-					}
-				}
-			}
-			value = s.sliceString(valueStartIndex, s.index)
-		}
-		if !isPrivateIdentifier {
-			if k := Keywords_Get(value); k != nil {
-				return NewToken(k.Type(), loc)
-			}
+		} else if k := Keywords_Get(value); k != nil {
+			return NewToken(k.Type(), loc)
 		}
 		return newIdentifierTokenFromID(loc, s.internIdent(value), flags)
 	}
 
-	value := s.sliceString(valueStartIndex, s.index)
+	value := s.sliceString(valueStartIndex, curIndex)
 	if isPrivateIdentifier && value == "#" {
 		s.ReportErrorAtPosition(s.GetPositionAt(beginToken), "Invalid usage of #")
 		return s.CreateToken(TokenType_ERROR, beginToken)
@@ -458,7 +423,7 @@ func (s *Scanner) ScanIdentifierOrKeyword(beginToken int, ch uint16) Token {
 
 	processed, ok := scanner_processUnicodeEscapes(value)
 	if !ok {
-		s.ReportErrorAtPosition(s.GetPositionAt(s.index), "Invalid escape sequence")
+		s.ReportErrorAtPosition(s.GetPositionAt(curIndex), "Invalid escape sequence")
 		return s.CreateToken(TokenType_ERROR, beginToken)
 	}
 	value = processed
@@ -592,23 +557,24 @@ func (s *Scanner) ScanStringLiteral(beginIndex int, terminator uint16) Token {
 
 	hasUnescapedUnicodeLineOrParagraphSeparator := false
 	for {
-		if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
-			raw := s.rawContents
-			term := byte(terminator)
-			for rawIdx < rawLimit {
-				b := raw[rawIdx]
-				if b == term || b == '\\' || b == '\n' || b == '\r' {
-					break
-				}
-				rawIdx++
+		raw := s.rawContents
+		rawIdx := s.byteIdx
+		term := byte(terminator)
+		for rawIdx < len(raw) {
+			b := raw[rawIdx]
+			if b >= 0x80 || b == term || b == '\\' || b == '\n' || b == '\r' {
+				break
 			}
-			s.index = rawIdx - rawDelta
-			if rawIdx < rawLimit && raw[rawIdx] == term {
-				s.index = rawIdx + 1 - rawDelta
-				return s.newStringLiteralToken(
-					s.GetTokenRangeFromPosition(startingPosition),
-					hasUnescapedUnicodeLineOrParagraphSeparator)
-			}
+			rawIdx++
+		}
+		if rawIdx > s.byteIdx {
+			s.byteIdx = rawIdx
+		}
+		if rawIdx < len(raw) && raw[rawIdx] == term {
+			s.byteIdx = rawIdx + 1
+			return s.newStringLiteralToken(
+				s.GetTokenRangeFromPosition(startingPosition),
+				hasUnescapedUnicodeLineOrParagraphSeparator)
 		}
 		if !s.PeekStringLiteralChar(terminator) {
 			break
@@ -644,7 +610,7 @@ func (s *Scanner) ScanTemplateLiteral(beginIndex int) Token {
 
 // Java: Scanner.nextTemplateLiteralTokenShared(TokenType, TokenType)
 func (s *Scanner) NextTemplateLiteralTokenShared(endType, middleType TokenType) Token {
-	beginIndex := s.index
+	beginIndex := s.byteIdx - s.utf16Delta
 	// Save the starting position to use with the multi-line safe version of getTokenRange().
 	startingPosition := s.GetPositionAt(beginIndex)
 	skipResult := s.SkipTemplateCharacters()
@@ -726,19 +692,18 @@ func (s *Scanner) SkipStringLiteralChar() bool {
 func (s *Scanner) SkipTemplateCharacters() Scanner_SkipTemplateCharactersResult {
 	result := Scanner_SkipTemplateCharactersResult{position: s.GetPosition()}
 	for !s.IsAtEnd() {
-		if rawIdx, rawLimit, rawDelta, ok := s.asciiSpan(s.index); ok {
-			raw := s.rawContents
-			for rawIdx < rawLimit {
-				b := raw[rawIdx]
-				if b == '`' || b == '\\' || b == '$' {
-					break
-				}
-				rawIdx++
-			}
-			s.index = rawIdx - rawDelta
-			if s.IsAtEnd() {
+		raw := s.rawContents
+		rawIdx := s.byteIdx
+		for rawIdx < len(raw) {
+			b := raw[rawIdx]
+			if b >= 0x80 || b == '`' || b == '\\' || b == '$' {
 				break
 			}
+			rawIdx++
+		}
+		s.byteIdx = rawIdx
+		if s.IsAtEnd() {
+			break
 		}
 		switch s.PeekChar() {
 		case '`':

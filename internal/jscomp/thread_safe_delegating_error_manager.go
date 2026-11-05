@@ -114,6 +114,12 @@ func (m *ThreadSafeDelegatingErrorManager) SetConformanceViolationHandler(h Conf
 	m.conformanceViolationHandler = h
 }
 
+func (m *ThreadSafeDelegatingErrorManager) hasDefaultConformanceReporting() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.conformanceViolationHandler == nil && isDefaultConformanceErrorManager(m.delegated)
+}
+
 // Java: ThreadSafeDelegatingErrorManager.shouldReportConformanceViolation(Requirement, Optional<RequirementScopeEntry>, JSError, LibraryLevelNonAllowlistedConformanceViolationsBehavior, boolean)
 func (m *ThreadSafeDelegatingErrorManager) ShouldReportConformanceViolation(
 	requirement *Requirement,

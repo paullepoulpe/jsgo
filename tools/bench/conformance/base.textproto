@@ -1,0 +1,453 @@
+# Representative org-wide JS Conformance configuration for Stage-1 benchmarking.
+# Exercises built-in requirement types, DOM security custom rules, type-based
+# custom rules, rule_id inheritance, only_apply_to scoping, and multi-entry
+# allowlist_entry blocks across 1,818 Closure / Shaka Player / Blockly / app files.
+
+requirement: {
+  rule_id: "security:ban_eval"
+  type: BANNED_NAME_CALL
+  value: "eval"
+  value: "Function"
+  value: "execScript"
+  severity: WARNING
+  error_message: "Dynamic code evaluation via eval/Function is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/json/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/module/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/testing/" }
+  allowlist_entry { regexp: "^inputs/closure-library@[^/]+/closure/goog/base\\.js$" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/generators/" }
+}
+
+requirement: {
+  rule_id: "security:ban_inner_outer_html"
+  type: BANNED_PROPERTY_WRITE
+  value: "Element.prototype.innerHTML"
+  value: "Element.prototype.outerHTML"
+  severity: WARNING
+  error_message: "Direct assignment to innerHTML/outerHTML is unsafe; use goog.dom.safe."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/ui/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/html/" }
+  allowlist_entry { regexp: "^inputs/blockly@[^/]+/core/" }
+  allowlist_entry { regexp: "^inputs/shaka-player@[^/]+/ui/" }
+}
+
+requirement: {
+  rule_id: "security:ban_document_write"
+  type: BANNED_PROPERTY_CALL
+  value: "Document.prototype.write"
+  value: "Document.prototype.writeln"
+  severity: WARNING
+  error_message: "Document.prototype.write/writeln is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/" }
+}
+
+requirement: {
+  rule_id: "security:ban_insert_adjacent_html"
+  type: BANNED_PROPERTY_CALL
+  value: "Element.prototype.insertAdjacentHTML"
+  severity: WARNING
+  error_message: "Element.prototype.insertAdjacentHTML is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+}
+
+requirement: {
+  rule_id: "security:ban_script_src_write"
+  type: BANNED_PROPERTY_NON_CONSTANT_WRITE
+  value: "HTMLScriptElement.prototype.src"
+  value: "HTMLScriptElement.prototype.text"
+  value: "HTMLScriptElement.prototype.textContent"
+  severity: WARNING
+  error_message: "Non-constant writes to HTMLScriptElement src/text require SafeScript/TrustedResourceUrl."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/jsloader.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/base.js" }
+}
+
+requirement: {
+  rule_id: "security:ban_iframe_src"
+  type: BANNED_PROPERTY_WRITE
+  value: "HTMLIFrameElement.prototype.src"
+  value: "HTMLIFrameElement.prototype.srcdoc"
+  severity: WARNING
+  error_message: "Assigning HTMLIFrameElement.src/srcdoc directly is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/history/" }
+}
+
+requirement: {
+  rule_id: "security:ban_location_assign"
+  type: BANNED_PROPERTY_CALL
+  value: "Location.prototype.assign"
+  value: "Location.prototype.replace"
+  severity: WARNING
+  error_message: "Location.assign/replace must go through goog.dom.safe."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/history/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/window/" }
+}
+
+requirement: {
+  rule_id: "security:ban_location_href_write"
+  type: BANNED_PROPERTY_WRITE
+  value: "Location.prototype.href"
+  value: "Window.prototype.location"
+  value: "Document.prototype.location"
+  severity: WARNING
+  error_message: "Direct assignment to location/location.href is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/window/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/history/" }
+}
+
+requirement: {
+  rule_id: "security:ban_window_open"
+  type: BANNED_PROPERTY_CALL
+  value: "Window.prototype.open"
+  severity: WARNING
+  error_message: "Direct Window.prototype.open calls are disallowed; use goog.window.open."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/window/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+}
+
+requirement: {
+  rule_id: "security:ban_dom_parser"
+  type: BANNED_PROPERTY_CALL
+  value: "DOMParser.prototype.parseFromString"
+  value: "Range.prototype.createContextualFragment"
+  severity: WARNING
+  error_message: "HTML parsing via DOMParser/createContextualFragment requires safe wrappers."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/safe.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/html/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/text/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/dash/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/util/xml_utils.js" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/core/utils/xml.js" }
+}
+
+requirement: {
+  rule_id: "security:ban_create_element"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanCreateElement"
+  value: "script"
+  value: "iframe"
+  value: "object"
+  value: "embed"
+  value: "base"
+  severity: WARNING
+  error_message: "Creating script/iframe/object/embed/base elements directly is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/history/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/ui/" }
+}
+
+requirement: {
+  rule_id: "security:ban_create_dom"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanCreateDom"
+  value: "script.src"
+  value: "iframe.src"
+  value: "iframe.srcdoc"
+  value: "embed.src"
+  value: "object.data"
+  severity: WARNING
+  error_message: "Creating dangerous elements via goog.dom.createDom is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/ui/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+}
+
+requirement: {
+  rule_id: "security:ban_element_set_attribute"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute"
+  value: "HTMLScriptElement"
+  value: "src"
+  severity: WARNING
+  error_message: "Setting dangerous attributes via setAttribute is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/ui/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/" }
+}
+
+requirement: {
+  rule_id: "security:ban_setting_attributes"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanSettingAttributes"
+  value: "Element.prototype.onclick"
+  value: "Element.prototype.onload"
+  value: "Element.prototype.onerror"
+  value: "HTMLIFrameElement.prototype.srcdoc"
+  severity: WARNING
+  error_message: "Setting inline event-handler or URL attributes via setAttribute is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/dom/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/a11y/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/ui/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/style/" }
+  allowlist_entry { regexp: "^inputs/blockly@[^/]+/core/" }
+  allowlist_entry { regexp: "^inputs/shaka-player@[^/]+/ui/" }
+}
+
+requirement: {
+  rule_id: "security:ban_exec_command"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanExecCommand"
+  severity: WARNING
+  error_message: "Document.prototype.execCommand with insertHTML is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+}
+
+requirement: {
+  rule_id: "security:restricted_set_timeout"
+  type: RESTRICTED_NAME_CALL
+  value: "setTimeout:function(Function, number=, ...*): number"
+  value: "setInterval:function(Function, number=, ...*): number"
+  value: "window.setTimeout:function(Function, number=, ...*): number"
+  value: "window.setInterval:function(Function, number=, ...*): number"
+  severity: WARNING
+  error_message: "setTimeout/setInterval must receive a Function callback, not a string."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/timer/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/async/" }
+}
+
+requirement: {
+  rule_id: "security:restricted_post_message"
+  type: RESTRICTED_METHOD_CALL
+  value: "Window.prototype.postMessage:function(*, string, Array<!Transferable>=): undefined"
+  severity: WARNING
+  error_message: "Window.postMessage requires an explicit targetOrigin string."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/xpc/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/messaging/" }
+}
+
+requirement: {
+  rule_id: "security:restricted_cookie_write"
+  type: BANNED_PROPERTY_WRITE
+  value: "Document.prototype.cookie"
+  severity: WARNING
+  error_message: "Direct Document.cookie writes are disallowed; use goog.net.Cookies."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/cookies.js" }
+}
+
+requirement: {
+  rule_id: "storage:ban_direct_local_storage"
+  type: BANNED_PROPERTY_READ
+  value: "Window.prototype.localStorage"
+  value: "Window.prototype.sessionStorage"
+  severity: WARNING
+  error_message: "Prefer goog.storage.mechanism.HTML5LocalStorage over direct Window.localStorage."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/storage/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/offline/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/core/" }
+}
+
+requirement: {
+  rule_id: "dom:ban_alert_prompt_confirm"
+  type: BANNED_NAME
+  value: "alert"
+  value: "confirm"
+  value: "prompt"
+  severity: WARNING
+  error_message: "Browser modal dialogs (alert/confirm/prompt) are disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/demos/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/core/dialog.js" }
+}
+
+requirement: {
+  rule_id: "dom:ban_window_alert_call"
+  type: BANNED_PROPERTY_CALL
+  value: "Window.prototype.alert"
+  value: "Window.prototype.confirm"
+  value: "Window.prototype.prompt"
+  severity: WARNING
+  error_message: "Window modal dialog calls are disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/demos/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/" }
+}
+
+requirement: {
+  rule_id: "dom:ban_callee_caller"
+  type: BANNED_PROPERTY
+  value: "Arguments.prototype.callee"
+  value: "Function.prototype.caller"
+  value: "Function.prototype.arguments"
+  severity: WARNING
+  error_message: "arguments.callee and Function.caller are disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/base.js" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/debug/" }
+}
+
+requirement: {
+  rule_id: "dom:ban_proto"
+  type: BANNED_PROPERTY
+  value: "Object.prototype.__proto__"
+  severity: WARNING
+  error_message: "Accessing __proto__ is disallowed; use Object.getPrototypeOf/setPrototypeOf."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/" }
+}
+
+requirement: {
+  rule_id: "debug:ban_console"
+  type: BANNED_NAME
+  value: "console"
+  severity: WARNING
+  error_message: "Use structured logging instead of direct console references."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/debug/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/log/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/base.js" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/debug/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/ui/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/" }
+}
+
+requirement: {
+  rule_id: "closure:ban_testing_deps_in_prod"
+  type: BANNED_DEPENDENCY_REGEX
+  value: "^inputs/closure-library@[^/]+/closure/goog/testing/"
+  severity: WARNING
+  error_message: "Production code must not depend on goog.testing."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/testing/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/labs/testing/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/tweak/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/net/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/db/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/crypt/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/useragent/" }
+}
+
+requirement: {
+  rule_id: "closure:ban_mochikit_dep"
+  type: BANNED_DEPENDENCY
+  value: "inputs/closure-library@v20230802/third_party/closure/goog/mochikit/async/deferred.js"
+  severity: WARNING
+  error_message: "Prefer goog.Promise or native Promise over legacy Deferred."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/" }
+}
+
+requirement: {
+  rule_id: "security:ban_javascript_url_strings"
+  type: BANNED_STRING_REGEX
+  value: "^\\s*javascript:"
+  severity: WARNING
+  error_message: "javascript: URL literals are disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/html/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/editor/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/ui/" }
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/closure/goog/uri/" }
+}
+
+requirement: {
+  rule_id: "types:ban_throw_non_error"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanThrowOfNonErrorTypes"
+  severity: WARNING
+  error_message: "Only Error instances may be thrown."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/" }
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/lib/util/error.js" }
+}
+
+requirement: {
+  rule_id: "types:ban_null_deref"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanNullDeref"
+  severity: WARNING
+  error_message: "Dereferencing a nullable or undefined expression is disallowed."
+  only_apply_to: "app/"
+  only_apply_to_regexp: "^inputs/shaka-player@[^/]+/ui/"
+  allowlist_entry { prefix: "inputs/shaka-player@5.3.1/ui/controls.js" }
+}
+
+requirement: {
+  rule_id: "types:ban_unknown_this"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanUnknownThis"
+  severity: WARNING
+  error_message: "References to `this` with unknown type are disallowed."
+  only_apply_to: "app/"
+  only_apply_to: "inputs/shaka-player@5.3.1/ui/"
+}
+
+requirement: {
+  rule_id: "types:ban_unknown_direct_this_props"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanUnknownDirectThisPropsReferences"
+  severity: WARNING
+  error_message: "Accessing unknown-typed properties on `this` is disallowed."
+  only_apply_to: "app/"
+  only_apply_to: "inputs/shaka-player@5.3.1/ui/"
+}
+
+requirement: {
+  rule_id: "types:ban_unknown_typed_class_props"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanUnknownTypedClassPropsReferences"
+  severity: WARNING
+  error_message: "Accessing explicitly unknown-typed class properties is disallowed."
+  only_apply_to: "app/"
+  only_apply_to: "inputs/shaka-player@5.3.1/ui/"
+}
+
+requirement: {
+  rule_id: "types:ban_unresolved_type"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanUnresolvedType"
+  severity: WARNING
+  error_message: "Referencing forward-declared / unresolved types is disallowed."
+  only_apply_to: "app/"
+  only_apply_to: "inputs/shaka-player@5.3.1/ui/"
+}
+
+requirement: {
+  rule_id: "types:ban_global_vars"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanGlobalVars"
+  severity: WARNING
+  error_message: "Mutable top-level global variables are disallowed in modules/apps."
+  only_apply_to: "app/"
+}
+
+requirement: {
+  rule_id: "types:ban_static_this"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanStaticThis"
+  severity: WARNING
+  error_message: "Using `this` inside static class methods is disallowed."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/" }
+  allowlist_entry { prefix: "inputs/blockly@8.0.5/" }
+}
+
+requirement: {
+  rule_id: "style:ban_for_of_in_legacy"
+  type: CUSTOM
+  java_class: "com.google.javascript.jscomp.ConformanceRules$BanForOf"
+  severity: WARNING
+  error_message: "for-of loops are disallowed in ES5-targeted core libraries without iterator polyfills."
+  only_apply_to: "inputs/blockly@8.0.5/blocks/"
+}
+
+requirement: {
+  rule_id: "pattern:ban_json_parse_any"
+  type: BANNED_CODE_PATTERN
+  value: "/** @param {string} s */ function template(s) { JSON.parse(s); }"
+  severity: WARNING
+  error_message: "Wrap JSON.parse calls in explicit schema validation."
+  only_apply_to: "app/"
+  only_apply_to: "inputs/shaka-player@5.3.1/ui/"
+}
+
+requirement: {
+  rule_id: "dom:restricted_tabindex_write"
+  type: RESTRICTED_PROPERTY_WRITE
+  value: "HTMLElement.prototype.tabIndex:number"
+  severity: WARNING
+  error_message: "HTMLElement.tabIndex must be assigned a number."
+  allowlist_entry { prefix: "inputs/closure-library@v20230802/" }
+}

@@ -19,12 +19,18 @@
 package parser
 
 import (
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
+
+const (
+	utf16CheckpointShift  = 5
+	utf16CheckpointStride = 1 << utf16CheckpointShift
 )
 
 // SourceFile is a source file.
@@ -37,14 +43,15 @@ type SourceFile struct {
 	// Go-only: language-adapter — Java indexes Contents by UTF-16 code unit
 	// (char). Both the leading pure-ASCII prefix [0, asciiPrefix) and trailing
 	// pure-ASCII suffix [asciiSuffixUTF16Start, utf16Len) (starting at byte
-	// asciiSuffixByteStart in Contents) are read in place; only the non-ASCII
-	// middle span is converted to UTF-16, once, into utf16Mid (nil for an
-	// all-ASCII file).
+	// asciiSuffixByteStart in Contents) map in O(1); any non-ASCII middle span
+	// uses an O(1)-indexed table of byte offsets every 32 UTF-16 code units
+	// (checkpoints[k] = byteOff, with bit 31 set if asciiPrefix + 32*k lands on
+	// the low surrogate of the 4-byte astral UTF-8 rune starting at byteOff).
 	asciiPrefix           int
 	asciiSuffixUTF16Start int
 	asciiSuffixByteStart  int
 	utf16Len              int
-	utf16Mid              []uint16
+	checkpoints           []uint32
 
 	// Go-only: performance — the offset at which each line starts, built on
 	// first use; positions are offsets (SourcePosition) and their lines and
@@ -52,6 +59,111 @@ type SourceFile struct {
 	linesOnce  sync.Once
 	lineStarts []int32
 	lastLine   atomic.Int32 // the line of the last lookup: lookups mostly move forward
+}
+
+func decodeWTF8At(s string, i int) (r rune, size int) {
+	c := s[i]
+	if c < 0x80 {
+		return rune(c), 1
+	}
+	// Generalized UTF-8 surrogate: ED A0..BF xx
+	if c == 0xED && i+3 <= len(s) && s[i+1] >= 0xA0 && s[i+1] <= 0xBF && s[i+2]&0xC0 == 0x80 {
+		return rune(c&0x0F)<<12 | rune(s[i+1]&0x3F)<<6 | rune(s[i+2]&0x3F), 3
+	}
+	return utf8.DecodeRuneInString(s[i:])
+}
+
+func utf16LenWTF8(s string) int {
+	p := jutil.ASCIIPrefixLen(s)
+	if p == len(s) {
+		return p
+	}
+	n := p
+	for i := p; i < len(s); {
+		for i+8 <= len(s) {
+			if (s[i] | s[i+1] | s[i+2] | s[i+3] | s[i+4] | s[i+5] | s[i+6] | s[i+7]) >= 0x80 {
+				break
+			}
+			i += 8
+			n += 8
+		}
+		if i < len(s) && s[i] < 0x80 {
+			i++
+			n++
+			continue
+		}
+		if i >= len(s) {
+			break
+		}
+		r, size := decodeWTF8At(s, i)
+		i += size
+		if r >= 0x10000 {
+			n += 2
+		} else {
+			n++
+		}
+	}
+	return n
+}
+
+func buildUTF16Checkpoints(contents string, startByte, endByte int) (midUTF16Len int, checkpoints []uint32) {
+	spanLen := endByte - startByte
+	if spanLen <= utf16CheckpointStride {
+		return utf16LenWTF8(contents[startByte:endByte]), nil
+	}
+	checkpoints = make([]uint32, 1, 1+spanLen/utf16CheckpointStride)
+	checkpoints[0] = uint32(startByte)
+	uRel := 0
+	nextU := utf16CheckpointStride
+	for i := startByte; i < endByte; {
+		for i+8 <= endByte && uRel+8 <= nextU {
+			if (contents[i] | contents[i+1] | contents[i+2] | contents[i+3] |
+				contents[i+4] | contents[i+5] | contents[i+6] | contents[i+7]) >= 0x80 {
+				break
+			}
+			i += 8
+			uRel += 8
+			if uRel == nextU {
+				checkpoints = append(checkpoints, uint32(i))
+				nextU += utf16CheckpointStride
+			}
+		}
+		for i < endByte && uRel < nextU && contents[i] < 0x80 {
+			i++
+			uRel++
+			if uRel == nextU {
+				checkpoints = append(checkpoints, uint32(i))
+				nextU += utf16CheckpointStride
+			}
+		}
+		if i >= endByte {
+			break
+		}
+		if contents[i] < 0x80 {
+			continue
+		}
+		r, size := decodeWTF8At(contents, i)
+		if r >= 0x10000 {
+			if uRel+1 == nextU {
+				checkpoints = append(checkpoints, uint32(i)|0x80000000)
+				nextU += utf16CheckpointStride
+			}
+			i += size
+			uRel += 2
+			if uRel == nextU {
+				checkpoints = append(checkpoints, uint32(i))
+				nextU += utf16CheckpointStride
+			}
+		} else {
+			i += size
+			uRel++
+			if uRel == nextU {
+				checkpoints = append(checkpoints, uint32(i))
+				nextU += utf16CheckpointStride
+			}
+		}
+	}
+	return uRel, checkpoints
 }
 
 func findASCIISuffixByteStart(s string, minIdx int) int {
@@ -85,11 +197,8 @@ func NewSourceFile(name, contents string) *SourceFile {
 		}
 	}
 	suffixByteStart := findASCIISuffixByteStart(contents, p+1)
-	mid := jutil.StringToUTF16(contents[p:suffixByteStart])
-	if cap(mid)-len(mid) > len(mid)/8 {
-		mid = slices.Clone(mid) // drop the slack of multi-byte characters
-	}
-	suffixUTF16Start := p + len(mid)
+	midUTF16Len, checkpoints := buildUTF16Checkpoints(contents, p, suffixByteStart)
+	suffixUTF16Start := p + midUTF16Len
 	return &SourceFile{
 		Name:                  name,
 		Contents:              contents,
@@ -97,8 +206,67 @@ func NewSourceFile(name, contents string) *SourceFile {
 		asciiSuffixUTF16Start: suffixUTF16Start,
 		asciiSuffixByteStart:  suffixByteStart,
 		utf16Len:              suffixUTF16Start + (len(contents) - suffixByteStart),
-		utf16Mid:              mid,
+		checkpoints:           checkpoints,
 	}
+}
+
+// byteOffsetForUTF16 maps a UTF-16 offset uOff in [0, f.utf16Len] to
+// (byteOff, lowSurrogate): if uOff lands on the trailing low surrogate of a
+// 4-byte supplementary rune, lowSurrogate != 0 and byteOff points at the lead
+// 0xF0..0xF4 byte of that 4-byte sequence; otherwise lowSurrogate == 0 and
+// byteOff is the exact byte boundary in f.Contents.
+func (f *SourceFile) byteOffsetForUTF16(uOff int) (byteOff int, lowSurrogate uint16) {
+	if uOff <= f.asciiPrefix {
+		return uOff, 0
+	}
+	if uOff >= f.asciiSuffixUTF16Start {
+		return f.asciiSuffixByteStart + (uOff - f.asciiSuffixUTF16Start), 0
+	}
+	uPos := f.asciiPrefix
+	bPos := f.asciiPrefix
+	s := f.Contents
+	if cps := f.checkpoints; len(cps) > 0 {
+		k := (uOff - f.asciiPrefix) >> utf16CheckpointShift
+		entry := cps[k]
+		bPos = int(entry & 0x7fffffff)
+		uPos = f.asciiPrefix + (k << utf16CheckpointShift)
+		if entry&0x80000000 != 0 {
+			if uPos == uOff {
+				r, _ := decodeWTF8At(s, bPos)
+				_, loSurr := utf16.EncodeRune(r)
+				return bPos, uint16(loSurr)
+			}
+			bPos += 4
+			uPos++
+		}
+	}
+	rem := uOff - uPos
+	if rem == 0 {
+		return bPos, 0
+	}
+	if bPos+rem <= len(s) && jutil.IsASCII(s[bPos:bPos+rem]) {
+		return bPos + rem, 0
+	}
+	for uPos < uOff {
+		if s[bPos] < 0x80 {
+			uPos++
+			bPos++
+			continue
+		}
+		r, size := decodeWTF8At(s, bPos)
+		if r >= 0x10000 {
+			if uPos+1 == uOff {
+				_, loSurr := utf16.EncodeRune(r)
+				return bPos, uint16(loSurr)
+			}
+			bPos += size
+			uPos += 2
+		} else {
+			bPos += size
+			uPos++
+		}
+	}
+	return bPos, 0
 }
 
 // Length is contents.length(): the number of UTF-16 code units.
@@ -115,37 +283,53 @@ func (f *SourceFile) CharAt(index int) uint16 {
 	if index < f.asciiPrefix {
 		return uint16(f.Contents[index])
 	}
-	if index < f.asciiSuffixUTF16Start {
-		return f.utf16Mid[index-f.asciiPrefix]
+	if index >= f.asciiSuffixUTF16Start {
+		return uint16(f.Contents[f.asciiSuffixByteStart+(index-f.asciiSuffixUTF16Start)])
 	}
-	return uint16(f.Contents[f.asciiSuffixByteStart+(index-f.asciiSuffixUTF16Start)])
+	bOff, loSurr := f.byteOffsetForUTF16(index)
+	if loSurr != 0 {
+		return loSurr
+	}
+	if f.Contents[bOff] < 0x80 {
+		return uint16(f.Contents[bOff])
+	}
+	r, _ := decodeWTF8At(f.Contents, bOff)
+	if r >= 0x10000 {
+		hi, _ := utf16.EncodeRune(r)
+		return uint16(hi)
+	}
+	return uint16(r)
 }
 
-// ASCIISlice returns the substring of Contents for [start, end) and true when
-// [start, end) lies entirely within the file's pure-ASCII prefix or trailing
-// pure-ASCII suffix, avoiding any allocation or UTF-16 decode.
+// ASCIISlice returns the zero-copy substring of Contents for [start, end) and
+// true when [start, end) consists solely of ASCII bytes (< 0x80).
 func (f *SourceFile) ASCIISlice(start, end int) (string, bool) {
-	if start < 0 || start > end {
+	if start < 0 || start > end || end > f.utf16Len {
 		return "", false
+	}
+	if start == end {
+		return "", true
 	}
 	if end <= f.asciiPrefix {
 		return f.Contents[start:end], true
 	}
-	if start >= f.asciiSuffixUTF16Start && end <= f.utf16Len {
+	if start >= f.asciiSuffixUTF16Start {
 		base := f.asciiSuffixByteStart + (start - f.asciiSuffixUTF16Start)
 		return f.Contents[base : base+(end-start)], true
 	}
-	return "", false
-}
-
-// UTF16Slice returns f's UTF-16 code units for [start, end) without allocating
-// when the range lies entirely within f's UTF-16 middle span.
-func (f *SourceFile) UTF16Slice(start, end int) ([]uint16, bool) {
-	p := f.asciiPrefix
-	if start >= p && end >= start && end <= f.asciiSuffixUTF16Start {
-		return f.utf16Mid[start-p : end-p], true
+	bStart, loStart := f.byteOffsetForUTF16(start)
+	if loStart != 0 {
+		return "", false
 	}
-	return nil, false
+	n := end - start
+	if bStart+n > len(f.Contents) {
+		return "", false
+	}
+	sub := f.Contents[bStart : bStart+n]
+	if !jutil.IsASCII(sub) {
+		return "", false
+	}
+	return sub, true
 }
 
 // Substring is contents.substring(start, end).
@@ -158,24 +342,58 @@ func (f *SourceFile) Substring(start, end int) string {
 	if start == end {
 		return ""
 	}
-	p := f.asciiPrefix
-	s := f.asciiSuffixUTF16Start
-	sb := f.asciiSuffixByteStart
-	switch {
-	case end <= p:
+	if end <= f.asciiPrefix {
 		return f.Contents[start:end]
-	case start >= s:
-		base := sb + (start - s)
-		return f.Contents[base : base+(end-start)]
-	case start >= p && end <= s:
-		return jutil.StringFromUTF16(f.utf16Mid[start-p : end-p])
-	case start < p && end <= s:
-		return f.Contents[start:p] + jutil.StringFromUTF16(f.utf16Mid[:end-p])
-	case start >= p:
-		return jutil.StringFromUTF16(f.utf16Mid[start-p:]) + f.Contents[sb:sb+(end-s)]
-	default:
-		return f.Contents[start:p] + jutil.StringFromUTF16(f.utf16Mid) + f.Contents[sb:sb+(end-s)]
 	}
+	if start >= f.asciiSuffixUTF16Start {
+		base := f.asciiSuffixByteStart + (start - f.asciiSuffixUTF16Start)
+		return f.Contents[base : base+(end-start)]
+	}
+	bStart, loStart := f.byteOffsetForUTF16(start)
+	if loStart == 0 {
+		n := end - start
+		if bStart+n <= len(f.Contents) && jutil.IsASCII(f.Contents[bStart:bStart+n]) {
+			return f.Contents[bStart : bStart+n]
+		}
+	}
+	bEnd, loEnd := f.byteOffsetForUTF16(end)
+	if loStart == 0 && loEnd == 0 {
+		sub := f.Contents[bStart:bEnd]
+		if utf8.ValidString(sub) {
+			return sub
+		}
+	}
+	units := make([]uint16, 0, end-start)
+	bPos := bStart
+	uRem := end - start
+	if loStart != 0 {
+		units = append(units, loStart)
+		bPos += 4
+		uRem--
+	}
+	for uRem > 0 {
+		if f.Contents[bPos] < 0x80 {
+			units = append(units, uint16(f.Contents[bPos]))
+			bPos++
+			uRem--
+			continue
+		}
+		r, size := decodeWTF8At(f.Contents, bPos)
+		bPos += size
+		if r >= 0x10000 {
+			hi, lo := utf16.EncodeRune(r)
+			units = append(units, uint16(hi))
+			uRem--
+			if uRem > 0 {
+				units = append(units, uint16(lo))
+				uRem--
+			}
+		} else {
+			units = append(units, uint16(r))
+			uRem--
+		}
+	}
+	return jutil.StringFromUTF16(units)
 }
 
 // LineStarts builds (if needed) and returns the table of 0-based UTF-16 line
@@ -252,58 +470,91 @@ func (f *SourceFile) LineColumn(offset int) (line, column int) {
 func (f *SourceFile) buildLineStarts() {
 	n := f.utf16Len
 	starts := make([]int32, 1, 1+n/32)
+	s := f.Contents
 	p := f.asciiPrefix
-	s := f.asciiSuffixUTF16Start
-	pos := 0
+	sb := f.asciiSuffixByteStart
+	sufU := f.asciiSuffixUTF16Start
+	bPos := 0
+	uPos := 0
 	if p > 0 {
-		ascii := f.Contents[:p]
+		ascii := s[:p]
 		if strings.IndexByte(ascii, '\r') < 0 {
-			for pos < p {
-				k := strings.IndexByte(ascii[pos:], '\n')
+			for bPos < p {
+				k := strings.IndexByte(ascii[bPos:], '\n')
 				if k < 0 {
 					break
 				}
-				pos += k + 1
-				starts = append(starts, int32(pos))
+				bPos += k + 1
+				starts = append(starts, int32(bPos))
 			}
-			pos = p
+			bPos = p
+			uPos = p
 		} else {
-			for pos < p {
-				switch ascii[pos] {
+			for bPos < p {
+				switch s[bPos] {
 				case '\n':
-					pos++
-					starts = append(starts, int32(pos))
+					bPos++
+					uPos++
+					starts = append(starts, int32(uPos))
 				case '\r':
-					pos++
-					if pos < n && f.CharAt(pos) == '\n' {
-						pos++
+					bPos++
+					uPos++
+					if bPos < len(s) && s[bPos] == '\n' {
+						bPos++
+						uPos++
 					}
-					starts = append(starts, int32(pos))
+					starts = append(starts, int32(uPos))
 				default:
-					pos++
+					bPos++
+					uPos++
 				}
 			}
 		}
 	}
-	mid := f.utf16Mid
-	for pos < s {
-		switch mid[pos-p] {
-		case '\n', 0x2028, 0x2029:
-			pos++
-			starts = append(starts, int32(pos))
-		case '\r':
-			pos++
-			if pos < n && f.CharAt(pos) == '\n' {
-				pos++
+	for bPos < sb {
+		for bPos+8 <= sb {
+			if uint8(s[bPos]-0x20) >= 0x60 || uint8(s[bPos+1]-0x20) >= 0x60 ||
+				uint8(s[bPos+2]-0x20) >= 0x60 || uint8(s[bPos+3]-0x20) >= 0x60 ||
+				uint8(s[bPos+4]-0x20) >= 0x60 || uint8(s[bPos+5]-0x20) >= 0x60 ||
+				uint8(s[bPos+6]-0x20) >= 0x60 || uint8(s[bPos+7]-0x20) >= 0x60 {
+				break
 			}
-			starts = append(starts, int32(pos))
-		default:
-			pos++
+			bPos += 8
+			uPos += 8
+		}
+		if bPos >= sb {
+			break
+		}
+		c := s[bPos]
+		if c < 0x80 {
+			bPos++
+			uPos++
+			switch c {
+			case '\n':
+				starts = append(starts, int32(uPos))
+			case '\r':
+				if bPos < len(s) && s[bPos] == '\n' {
+					bPos++
+					uPos++
+				}
+				starts = append(starts, int32(uPos))
+			}
+			continue
+		}
+		r, size := decodeWTF8At(s, bPos)
+		bPos += size
+		if r >= 0x10000 {
+			uPos += 2
+		} else {
+			uPos++
+			if r == 0x2028 || r == 0x2029 {
+				starts = append(starts, int32(uPos))
+			}
 		}
 	}
-	if pos < n {
-		suffix := f.Contents[f.asciiSuffixByteStart:]
-		rel := pos - s
+	if bPos < len(s) {
+		suffix := s[sb:]
+		rel := bPos - sb
 		if strings.IndexByte(suffix[rel:], '\r') < 0 {
 			for rel < len(suffix) {
 				k := strings.IndexByte(suffix[rel:], '\n')
@@ -311,20 +562,20 @@ func (f *SourceFile) buildLineStarts() {
 					break
 				}
 				rel += k + 1
-				starts = append(starts, int32(s+rel))
+				starts = append(starts, int32(sufU+rel))
 			}
 		} else {
 			for rel < len(suffix) {
 				switch suffix[rel] {
 				case '\n':
 					rel++
-					starts = append(starts, int32(s+rel))
+					starts = append(starts, int32(sufU+rel))
 				case '\r':
 					rel++
 					if rel < len(suffix) && suffix[rel] == '\n' {
 						rel++
 					}
-					starts = append(starts, int32(s+rel))
+					starts = append(starts, int32(sufU+rel))
 				default:
 					rel++
 				}

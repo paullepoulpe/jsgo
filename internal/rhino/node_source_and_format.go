@@ -474,6 +474,14 @@ func (n Node) SourceFileName() (string, bool) {
 	return sf.GetName(), true
 }
 
+// SourceFileID returns the internal source-file table ID of n, or 0 if unset.
+func (n Node) SourceFileID() uint32 {
+	if n.IsNil() {
+		return 0
+	}
+	return n.rec().sourceFile
+}
+
 // GetStaticSourceFile returns the source file associated with this input.
 //
 // Java: Node.getStaticSourceFile()

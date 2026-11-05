@@ -76,4 +76,6 @@ done
 if [[ ! -d "$cache/corpus" ]]; then
   bash tools/oracle/corpus.sh tools/oracle/corpus.txt "$cache/corpus" >/dev/null
 fi
+# The incremental-ijs-check task draws from pre-generated .i.js type summaries.
+python3 -I tools/bench/setup_ijs_bench.py "$out"
 echo "bench inputs ready in $out/"

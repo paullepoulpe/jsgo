@@ -152,19 +152,25 @@ func newConformanceAllowListFromEntry(allowlistEntry *RequirementScopeEntry) (*c
 	}, nil
 }
 
+func splitConformanceTsPath(path string) (tsPath string, hasTsPath bool) {
+	if stem, ok := strings.CutSuffix(path, ".closure.js"); ok {
+		return stem + ".ts", true
+	}
+	if strings.HasSuffix(path, ".tsx.cl.js") {
+		return strings.TrimSuffix(path, ".cl.js"), true
+	}
+	return "", false
+}
+
 // matches reports whether path (or its original `.ts`/`.tsx` counterpart for
 // tsickle-generated files) matches one of the allowlist prefixes or regexps.
 func (a *conformanceAllowList) matches(path string) bool {
-	var tsPath string
-	hasTsPath := false
-	if stem, ok := strings.CutSuffix(path, ".closure.js"); ok {
-		tsPath = stem + ".ts"
-		hasTsPath = true
-	} else if strings.HasSuffix(path, ".tsx.cl.js") {
-		tsPath = strings.TrimSuffix(path, ".cl.js")
-		hasTsPath = true
-	}
-	if a.prefixes != nil && path != "" {
+	tsPath, hasTsPath := splitConformanceTsPath(path)
+	return a.matchesWithTsPath(path, tsPath, hasTsPath)
+}
+
+func (a *conformanceAllowList) matchesWithTsPath(path, tsPath string, hasTsPath bool) bool {
+	if len(a.prefixes) != 0 && path != "" {
 		for _, prefix := range a.prefixes {
 			if strings.HasPrefix(path, prefix) || (hasTsPath && strings.HasPrefix(tsPath, prefix)) {
 				return true
@@ -176,6 +182,24 @@ func (a *conformanceAllowList) matches(path string) bool {
 		(a.regexp.Find(path) || (hasTsPath && a.regexp.Find(tsPath)))
 }
 
+func isDefaultConformanceErrorManager(em ErrorManager) bool {
+	switch m := em.(type) {
+	case *SortingErrorManager, *PrintStreamErrorManager, *LoggerErrorManager, *BlackHoleErrorManager:
+		return true
+	case *ThreadSafeDelegatingErrorManager:
+		return m.hasDefaultConformanceReporting()
+	default:
+		return false
+	}
+}
+
+func hasDefaultConformanceReporting(compiler AbstractCompiler) bool {
+	if compiler == nil || compiler.GetConformanceViolationInterceptor() != nil {
+		return false
+	}
+	return isDefaultConformanceErrorManager(compiler.GetErrorManager())
+}
+
 // ConformanceRules_AbstractRule holds the common rule fields and helpers shared
 // by built-in, type-restriction, and embedder-registered custom conformance rules.
 //
@@ -185,11 +209,22 @@ type ConformanceRules_AbstractRule struct {
 	message                   string
 	severity                  Requirement_Severity
 	allowlists                []*conformanceAllowList
+	combinedPrefixes          []string
+	combinedRegexps           []*jutil.Pattern
 	onlyApplyTo               *conformanceAllowList
 	reportLooseTypeViolations bool
 	typeMatchingStrategy      TypeMatchingStrategy
 	requirement               *Requirement
 	checkConformance          func(*NodeTraversal, rhino.Node) *ConformanceRules_ConformanceResult
+
+	// Cached path normalization for the most recently inspected source file.
+	cachedRawPath       string
+	cachedRawTsPath     string
+	cachedNormPath      string
+	cachedNormTsPath    string
+	hasCachedPath       bool
+	hasCachedRawTsPath  bool
+	hasCachedNormTsPath bool
 
 	// Type-restriction rule fields (populated by initTypeRule).
 	nativeObjectType   rhino.JSType
@@ -301,6 +336,16 @@ func (b *conformanceAbstractRule) initRule(
 		allowlistsBuilder = append(allowlistsBuilder, allowlist)
 	}
 	b.allowlists = allowlistsBuilder
+	var combinedPrefixes []string
+	var combinedRegexps []*jutil.Pattern
+	for _, al := range allowlistsBuilder {
+		combinedPrefixes = append(combinedPrefixes, al.prefixes...)
+		if al.regexp != nil {
+			combinedRegexps = append(combinedRegexps, al.regexp)
+		}
+	}
+	b.combinedPrefixes = combinedPrefixes
+	b.combinedRegexps = combinedRegexps
 
 	if len(requirement.GetOnlyApplyToList()) > 0 || len(requirement.GetOnlyApplyToRegexpList()) > 0 {
 		onlyApplyTo, err := newConformanceAllowList(requirement.GetOnlyApplyToList(), requirement.GetOnlyApplyToRegexpList())
@@ -349,12 +394,69 @@ func conformanceTypeMatchingStrategy(requirement *Requirement) TypeMatchingStrat
 	}
 }
 
-func (b *conformanceAbstractRule) findAllowListForPath(path string) *conformanceAllowList {
-	if pathRegex := b.compiler.GetOptions().GetConformanceRemoveRegexFromPath(); pathRegex != nil {
-		path = pathRegex.Matcher(path).ReplaceFirst("")
+func computeConformanceNormPath(compiler AbstractCompiler, rawPath string) string {
+	if compiler != nil {
+		if opts := compiler.GetOptions(); opts != nil {
+			if pathRegex := opts.GetConformanceRemoveRegexFromPath(); pathRegex != nil {
+				return pathRegex.Matcher(rawPath).ReplaceFirst("")
+			}
+		}
 	}
+	return rawPath
+}
+
+func (b *conformanceAbstractRule) ensureCachedPaths(rawPath string) {
+	if b.hasCachedPath && b.cachedRawPath == rawPath {
+		return
+	}
+	rawTsPath, hasRawTsPath := splitConformanceTsPath(rawPath)
+	normPath := computeConformanceNormPath(b.compiler, rawPath)
+	normTsPath, hasNormTsPath := rawTsPath, hasRawTsPath
+	if normPath != rawPath {
+		normTsPath, hasNormTsPath = splitConformanceTsPath(normPath)
+	}
+	b.cachedRawPath = rawPath
+	b.cachedRawTsPath = rawTsPath
+	b.cachedNormPath = normPath
+	b.cachedNormTsPath = normTsPath
+	b.hasCachedRawTsPath = hasRawTsPath
+	b.hasCachedNormTsPath = hasNormTsPath
+	b.hasCachedPath = true
+}
+
+func (b *conformanceAbstractRule) matchesAnyAllowlist(normPath, normTsPath string, hasNormTsPath bool) bool {
+	if len(b.combinedPrefixes) != 0 && normPath != "" {
+		for _, prefix := range b.combinedPrefixes {
+			if strings.HasPrefix(normPath, prefix) || (hasNormTsPath && strings.HasPrefix(normTsPath, prefix)) {
+				return true
+			}
+		}
+	}
+	for _, re := range b.combinedRegexps {
+		if re.Find(normPath) || (hasNormTsPath && re.Find(normTsPath)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *conformanceAbstractRule) isExcludedOrAllowlisted(
+	rawPath, rawTsPath string,
+	hasRawTsPath bool,
+	normPath, normTsPath string,
+	hasNormTsPath bool,
+	hasPath bool,
+) bool {
+	if b.onlyApplyTo != nil && (!hasPath || !b.onlyApplyTo.matchesWithTsPath(rawPath, rawTsPath, hasRawTsPath)) {
+		return true
+	}
+	return hasPath && b.matchesAnyAllowlist(normPath, normTsPath, hasNormTsPath)
+}
+
+func (b *conformanceAbstractRule) findAllowListForPath(rawPath string) *conformanceAllowList {
+	b.ensureCachedPaths(rawPath)
 	for _, allowlist := range b.allowlists {
-		if allowlist.matches(path) {
+		if allowlist.matchesWithTsPath(b.cachedNormPath, b.cachedNormTsPath, b.hasCachedNormTsPath) {
 			return allowlist
 		}
 	}
@@ -366,6 +468,39 @@ func (b *conformanceAbstractRule) Report(
 	n rhino.Node,
 	result *ConformanceRules_ConformanceResult,
 	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior) {
+	if hasDefaultConformanceReporting(b.compiler) {
+		if behavior == ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_RECORD_ONLY {
+			return
+		}
+		sourcePath, hasPath := NodeUtil_SourceName(n)
+		if hasPath {
+			b.ensureCachedPaths(sourcePath)
+			if b.isExcludedOrAllowlisted(
+				sourcePath, b.cachedRawTsPath, b.hasCachedRawTsPath,
+				b.cachedNormPath, b.cachedNormTsPath, b.hasCachedNormTsPath,
+				true,
+			) {
+				return
+			}
+		} else if b.onlyApplyTo != nil {
+			return
+		}
+		var msg *DiagnosticType
+		if b.severity == Requirement_Severity_ERROR {
+			msg = CheckConformance_CONFORMANCE_ERROR
+		} else if result.level == ConformanceRules_ConformanceLevel_VIOLATION {
+			msg = CheckConformance_CONFORMANCE_VIOLATION
+		} else {
+			msg = CheckConformance_CONFORMANCE_POSSIBLE_VIOLATION
+		}
+		separator := "\n"
+		if result.note == "" {
+			separator = ""
+		}
+		b.compiler.Report(JSError_MakeWithRequirement(b.requirement, n, msg, b.message, separator, result.note))
+		return
+	}
+
 	var msg *DiagnosticType
 	if b.severity == Requirement_Severity_ERROR {
 		// Always report findings that are errors, even if the types are too loose to be certain.
@@ -387,7 +522,7 @@ func (b *conformanceAbstractRule) Report(
 		allowlist = b.findAllowListForPath(sourcePath)
 	}
 	isAllowlisted :=
-		allowlist != nil || (b.onlyApplyTo != nil && (!hasPath || !b.onlyApplyTo.matches(sourcePath)))
+		allowlist != nil || (b.onlyApplyTo != nil && (!hasPath || !b.onlyApplyTo.matchesWithTsPath(sourcePath, b.cachedRawTsPath, b.hasCachedRawTsPath)))
 	var allowlistEntry *RequirementScopeEntry
 	if allowlist != nil {
 		allowlistEntry = allowlist.allowlistEntry

@@ -31,8 +31,10 @@ pinned release, v20261028, and its jar), the corpus, `bench-inputs/` and
 | File | What |
 |---|---|
 | `inputs.txt` | Third-party inputs, pinned by version and checksum: npm sha512 integrity, or git commit + tree + a sha256 of the file listing |
-| `fetch-inputs.sh` | Fetches and verifies them into `.cache/bench-inputs/<name>@<version>/`. Never commit them |
+| `fetch-inputs.sh` | Fetches and verifies them into `.cache/bench-inputs/<name>@<version>/`, and invokes `setup_ijs_bench.py` to materialize `.i.js` type summaries. Never commit them |
+| `setup_ijs_bench.py` | Materializes per-library `.i.js` (`@typeSummary`) files in `.cache/bench-inputs/ijs-typed-full/` for `incremental-ijs-check` |
 | `app/` | The typed sample app: original code, three files |
+| `conformance/` | Two-layer JS Conformance suite (`base.textproto` + `project.textproto`) for `conformance-checks` |
 | `tasks/*.json` | One file per task: the exact flags, inputs and outputs, identical for both compilers |
 | `tasks/single-files.txt` | The 1,000 files of the single-file task (`bench.py sample [--check]`) |
 | `java/CliBatch.java` | The warm Java driver: repeats the same `CommandLineRunner` invocations in one JVM |
@@ -123,6 +125,9 @@ Choices:
 | `bundle-advanced-ts` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (12.6 MB incl. `typescript.js`) | stdout, stderr, exit, `out.js`, `out.js.map` |
 | `typed-mega` | `ADVANCED`, `--jscomp_warning=checkTypes`, source map (4,385 files, 44.6 MB: 10 Closure `ADVANCED` codebases) | stdout, stderr, exit, `out.js`, `out.js.map` |
 | `bundle-mega` | `ADVANCED`, `--jscomp_warning=checkVars`, source map (26 UMD libraries, 36.1 MB) | stdout, stderr, exit, `out.js`, `out.js.map` |
+| `generate-ijs` | `--checks_only`, `--incremental_check_mode=GENERATE_IJS`, `--preserve_type_annotations`, `--formatting=PRETTY_PRINT` (1,748 files, 28.1 MB → 8.3 MB `out.i.js`) | stdout, stderr, exit, `out.i.js` |
+| `incremental-ijs-check` | `--checks_only`, `--jscomp_warning=checkTypes` (1,743 `.i.js` type summaries + 3 leaf `app/*.js` files) | stdout, stderr, exit |
+| `conformance-checks` | `--checks_only`, `--jscomp_warning=checkTypes`, `--conformance_configs=conformance/base.textproto,conformance/project.textproto` (1,818 files, 28.5 MB) | stdout, stderr, exit |
 
 Input paths are always relative: `inputs/…`, `app/…`, `corpus/…` and
 `node_modules/…`. Each compile runs in its own directory holding those
