@@ -86,7 +86,9 @@ func NewCheckSideEffects(compiler AbstractCompiler, report bool, protectSideEffe
 
 // Java: CheckSideEffects.process(Node, Node)
 func (c *CheckSideEffects) Process(externs rhino.Node, root rhino.Node) {
-	NodeTraversal_Traverse(c.compiler, externs, &CheckSideEffects_GetNoSideEffectExterns{c: c})
+	if !c.processExternsParallel(externs) {
+		NodeTraversal_Traverse(c.compiler, externs, &CheckSideEffects_GetNoSideEffectExterns{c: c})
+	}
 
 	if !c.processRootParallel(root) {
 		sc := NewSyntacticScopeCreator(c.compiler)
@@ -369,6 +371,101 @@ var checkSideEffectsNoSideEffectExternsTokens = func() ast.TokenSet {
 	s.Add(rhino.Token_NAME)
 	return s
 }()
+
+var checkSideEffectsNoSideEffectFnTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_FUNCTION)
+	return s
+}()
+
+type checkSideEffectsExternsWorker struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+
+	checkPreserve bool
+	names         []string
+	preserveSeen  bool
+}
+
+func (w *checkSideEffectsExternsWorker) visitTokens() *ast.TokenSet {
+	if w.checkPreserve {
+		return &checkSideEffectsNoSideEffectExternsTokens
+	}
+	return &checkSideEffectsNoSideEffectFnTokens
+}
+
+func (w *checkSideEffectsExternsWorker) Visit(_ *NodeTraversal, n rhino.Node, _ rhino.Node) {
+	if n.IsFunction() {
+		jsDoc := NodeUtil_GetBestJSDocInfo(n)
+		if jsDoc != nil && jsDoc.IsNoSideEffects() {
+			if name, ok := NodeUtil_GetNameString(n); ok {
+				w.names = append(w.names, name)
+			}
+		}
+		return
+	}
+	if w.checkPreserve && n.IsName() && n.GetStringID() == checkSideEffectsProtectorID {
+		w.preserveSeen = true
+	}
+}
+
+func (c *CheckSideEffects) processExternsParallel(externs rhino.Node) bool {
+	if c.compiler == nil || c.compiler.IsDebugLoggingEnabled() {
+		return false
+	}
+	checkPreserve := c.protectSideEffectFreeCode
+	var namesByScript [][]string
+	var preserveByScript []bool
+	ok := traverseScriptsParallel(c.compiler, externs, parallelScriptOptions[*checkSideEffectsExternsWorker]{
+		prepare: func(_, itemCount int) bool {
+			namesByScript = make([][]string, itemCount)
+			if checkPreserve {
+				preserveByScript = make([]bool, itemCount)
+			}
+			return true
+		},
+		initWorker: func(_ int, _ *Compiler) *checkSideEffectsExternsWorker {
+			return &checkSideEffectsExternsWorker{checkPreserve: checkPreserve}
+		},
+		runScript: func(w *checkSideEffectsExternsWorker, idx int, parent rhino.Node, script rhino.Node, rc *Compiler) {
+			w.names = w.names[:0]
+			w.preserveSeen = false
+			t := acquireNodeTraversalDirect(rc, w, ScopeCreator_ASSERT_NO_SCOPES_CREATED, false)
+			if !checkPreserve {
+				t.noVisitLeaves = true
+			}
+			traverseScriptUnderRoot(t, externs, parent, script, nil)
+			releaseNodeTraversal(t)
+			if len(w.names) > 0 {
+				copied := make([]string, len(w.names))
+				copy(copied, w.names)
+				namesByScript[idx] = copied
+			}
+			if checkPreserve && w.preserveSeen {
+				preserveByScript[idx] = true
+			}
+		},
+	})
+	if !ok {
+		return false
+	}
+	for _, names := range namesByScript {
+		for _, name := range names {
+			if c.noSideEffectExterns == nil {
+				c.noSideEffectExterns = make(map[string]struct{}, 16)
+			}
+			c.noSideEffectExterns[name] = struct{}{}
+		}
+	}
+	if checkPreserve {
+		for _, seen := range preserveByScript {
+			if seen {
+				c.preserveFunctionInjected = true
+				break
+			}
+		}
+	}
+	return true
+}
 
 var _ nodeTraversal_visitTokens = (*CheckSideEffects_GetNoSideEffectExterns)(nil)
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // TODO(nicksantos): Unify all the JSDocInfo stuff into one package, instead of
@@ -40,8 +41,9 @@ type JsDocInfoParser struct {
 	templateNode rhino.Node
 
 	// Go-only: performance — where the parser takes its node ids (nil: the
-	// store's counter; see IRFactory.alloc).
-	alloc *rhino.NodeAllocator
+	// store's counter; see IRFactory.alloc) and optional shared L1 string cache.
+	alloc    *rhino.NodeAllocator
+	strCache *[256]strpool.ID
 
 	// The DocInfo with the fileoverview tag for the whole file.
 	fileOverviewJSDocInfo *rhino.JSDocInfo
@@ -233,6 +235,9 @@ func (p *JsDocInfoParser) Init(
 		p.templateNode = rhino.IR_Script()
 	} else {
 		p.templateNode = templateNode
+	}
+	if p.alloc != nil {
+		p.alloc.SetTemplate(p.templateNode)
 	}
 	p.fileOverviewJSDocInfo = nil
 	p.state = JsDocInfoParser_State_SEARCHING_ANNOTATION

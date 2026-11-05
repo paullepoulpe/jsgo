@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"math/big"
 	"slices"
+	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/parser"
@@ -79,9 +80,11 @@ type IRFactory struct {
 	jsdocStream JsDocTokenStream
 	jsdocParser JsDocInfoParser
 
-	// Go-only: performance — where the factory takes its node ids (nil: the
-	// store's counter); a parse worker passes its own (rhino.NodeAllocator).
-	alloc *rhino.NodeAllocator
+	// Go-only: performance — where the factory takes its node ids; a parse
+	// worker passes its own (*rhino.NodeAllocator), and single-file callers use
+	// localAlloc so f.alloc is always non-nil.
+	alloc      *rhino.NodeAllocator
+	localAlloc rhino.NodeAllocator
 
 	// Tracks whether a class is currently in scope. Presently used to detect
 	// valid usage of private fields.
@@ -98,7 +101,7 @@ type IRFactory struct {
 	lastLine           int
 	includeAllComments bool
 	reservedMode       uint8 // 0 = ES3 (nil), 1 = ES5, 2 = ES5_STRICT
-	strCache           [128]strpool.ID
+	strCache           [256]strpool.ID
 	litUnitsBuf        []uint16
 	litUnitsScratch    [128]uint16
 	litUTF16Buf        []uint16
@@ -181,6 +184,39 @@ func (l IRFactory_LineAndColumn) CompareTo(o IRFactory_LineAndColumn) int {
 	return cmp.Compare(l.column, o.column)
 }
 
+var irFactoryPool = sync.Pool{
+	New: func() any {
+		return &IRFactory{}
+	},
+}
+
+func releaseIRFactory(f *IRFactory) {
+	f.sourceFile = nil
+	f.sourceName = ""
+	f.fileWithContent = nil
+	f.config = nil
+	f.errorReporter = nil
+	if len(f.licenses) != 0 {
+		clear(f.licenses)
+		f.licenses = f.licenses[:0]
+	}
+	f.firstFileoverview = nil
+	f.templateNode = rhino.NilNode
+	f.defaultTemplateNode = rhino.NilNode
+	f.closureUnawareTemplateNode = rhino.NilNode
+	f.jsdocTracker = IRFactory_CommentTracker{}
+	f.nonJsdocTracker = IRFactory_CommentTracker{}
+	f.resultNode = rhino.NilNode
+	f.closureUnawareRanges = f.closureUnawareRanges[:0]
+	f.jsdocStream.rawSource = ""
+	f.jsdocStream.string_ = ""
+	f.jsdocParser = JsDocInfoParser{}
+	f.localAlloc.Flush()
+	f.alloc = nil
+	f.lineStarts = nil
+	irFactoryPool.Put(f)
+}
+
 // Java: IRFactory(StaticSourceFile, Config, ErrorReporter, ImmutableList<Comment>, SourceFile, JsDocInfoParser.JsDocSourceKind)
 func NewIRFactory(
 	sourceFile rhino.StaticSourceFile,
@@ -190,14 +226,50 @@ func NewIRFactory(
 	fileWithContent *parser.SourceFile,
 	jsDocSourceKind JsDocInfoParser_JsDocSourceKind) *IRFactory {
 	f := &IRFactory{}
-	if nWords := (len(comments) + 63) / 64; nWords <= len(f.parsedCommentBitsBuf) {
+	f.initForFile(sourceFile, config, errorReporter, comments, fileWithContent, jsDocSourceKind, nil)
+	return f
+}
+
+func (f *IRFactory) setTemplateNode(tmpl rhino.Node) {
+	f.templateNode = tmpl
+	f.alloc.SetTemplate(tmpl)
+}
+
+func (f *IRFactory) initForFile(
+	sourceFile rhino.StaticSourceFile,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	comments []parser.Comment,
+	fileWithContent *parser.SourceFile,
+	jsDocSourceKind JsDocInfoParser_JsDocSourceKind,
+	alloc *rhino.NodeAllocator,
+) {
+	if alloc == nil {
+		alloc = &f.localAlloc
+	}
+	f.alloc = alloc
+	f.jsdocParser.alloc = alloc
+	f.jsdocParser.strCache = &f.strCache
+	nWords := (len(comments) + 63) / 64
+	if nWords <= len(f.parsedCommentBitsBuf) {
+		clear(f.parsedCommentBitsBuf[:nWords])
 		f.parsedCommentBits = f.parsedCommentBitsBuf[:nWords]
+	} else if cap(f.parsedCommentBits) >= nWords {
+		f.parsedCommentBits = f.parsedCommentBits[:nWords]
+		clear(f.parsedCommentBits)
 	} else {
 		f.parsedCommentBits = make([]uint64, nWords)
 	}
+	f.licenses = f.licenses[:0]
 	f.firstFileoverview = nil
+	f.closureUnawareTemplateNode = rhino.NilNode
+	f.closureUnawareRanges = f.closureUnawareRanges[:0]
 	f.currentFileIsExterns = false
 	f.features = parser.FeatureSet_BARE_MINIMUM
+	f.resultNode = rhino.NilNode
+	f.classScopeDepth = 0
+	f.privateIdLhsOfInDepth = 0
+	f.lastLine = 0
 
 	f.jsdocTracker = IRFactory_CommentTracker{index: -1, previousIndex: -1, source: comments, jsdocOnly: true}
 	f.jsdocTracker.Advance()
@@ -209,10 +281,12 @@ func NewIRFactory(
 	f.fileWithContent = fileWithContent
 	if fileWithContent != nil {
 		f.lineStarts = fileWithContent.LineStarts()
+	} else {
+		f.lineStarts = nil
 	}
 	// The template node properties are applied to all nodes in this transform.
 	f.defaultTemplateNode = f.CreateTemplateNode()
-	f.templateNode = f.defaultTemplateNode
+	f.setTemplateNode(f.defaultTemplateNode)
 
 	// Sometimes this will be null in tests.
 	if sourceFile == nil {
@@ -233,7 +307,6 @@ func NewIRFactory(
 		f.reservedMode = 1
 	}
 	f.jsDocSourceKind = jsDocSourceKind
-	return f
 }
 
 func (f *IRFactory) isReservedKeyword(identifier string) bool {
@@ -296,7 +369,7 @@ func (f *IRFactory) internStringBytes(b []byte) strpool.ID {
 // Java: IRFactory.createTemplateNode()
 func (f *IRFactory) CreateTemplateNode() rhino.Node {
 	// The Node type choice is arbitrary.
-	templateNode := rhino.NewNode(rhino.Token_SCRIPT)
+	templateNode := f.alloc.Alloc().Init(rhino.Token_SCRIPT)
 	templateNode.SetStaticSourceFile(f.sourceFile)
 	return templateNode
 }
@@ -305,7 +378,7 @@ func (f *IRFactory) CreateTemplateNode() rhino.Node {
 func (f *IRFactory) CreateClosureUnawareTemplateNode() rhino.Node {
 	// We clone the default template node, so that the source file property,
 	// and other potential properties are shared
-	closureUnawareTemplateNode := f.defaultTemplateNode.CloneNode()
+	closureUnawareTemplateNode := f.alloc.Alloc().InitFromTemplate(rhino.Token_SCRIPT, f.defaultTemplateNode)
 
 	// We add the IS_IN_CLOSURE_UNAWARE_SUBTREE property to the head of the
 	// property list.
@@ -320,26 +393,44 @@ func IRFactory_TransformTree(
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile) *IRFactory {
-	return irFactoryTransformTree(tree, sourceFile, config, errorReporter, file, nil)
+	f := &IRFactory{}
+	f.runTransformTree(tree, sourceFile, config, errorReporter, file, nil)
+	return f
 }
 
-// irFactoryTransformTree is IRFactory_TransformTree with the factory's
-// node allocator.
-func irFactoryTransformTree(
+func irFactoryTransformTreePooled(
 	tree *parser.ProgramTree,
 	sourceFile rhino.StaticSourceFile,
 	config *Config,
 	errorReporter rhino.ErrorReporter,
 	file *parser.SourceFile,
-	alloc *rhino.NodeAllocator) *IRFactory {
+	alloc *rhino.NodeAllocator,
+) (rhino.Node, parser.FeatureSet) {
+	f := irFactoryPool.Get().(*IRFactory)
+	defer releaseIRFactory(f)
+	f.runTransformTree(tree, sourceFile, config, errorReporter, file, alloc)
+	return f.resultNode, f.features
+}
+
+func (irFactory *IRFactory) runTransformTree(
+	tree *parser.ProgramTree,
+	sourceFile rhino.StaticSourceFile,
+	config *Config,
+	errorReporter rhino.ErrorReporter,
+	file *parser.SourceFile,
+	alloc *rhino.NodeAllocator,
+) {
+	if alloc == nil {
+		irFactory.localAlloc.ResetLocal()
+		defer irFactory.localAlloc.Flush()
+		alloc = &irFactory.localAlloc
+	}
 	jsDocSourceKind := JsDocInfoParser_JsDocSourceKind_NORMAL
 	if sourceFile != nil && sourceFile.IsTypeScriptSource() {
 		jsDocSourceKind = JsDocInfoParser_JsDocSourceKind_TSICKLE
 	}
-	irFactory := NewIRFactory(
-		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind)
-	irFactory.alloc = alloc
-	irFactory.jsdocParser.alloc = alloc
+	irFactory.initForFile(
+		sourceFile, config, errorReporter, tree.SourceComments, file, jsDocSourceKind, alloc)
 
 	// don't call transform as we don't want standard jsdoc handling.
 	n := irFactory.Process(tree)
@@ -373,8 +464,6 @@ func irFactoryTransformTree(
 
 	irFactory.ValidateAll(n)
 	irFactory.resultNode = n
-
-	return irFactory
 }
 
 // Java: IRFactory.getResultNode()
@@ -455,7 +544,7 @@ func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 		if f.closureUnawareTemplateNode.IsNil() {
 			f.closureUnawareTemplateNode = f.CreateClosureUnawareTemplateNode()
 		}
-		f.templateNode = f.closureUnawareTemplateNode
+		f.setTemplateNode(f.closureUnawareTemplateNode)
 		f.addClosureUnawareRange(
 			IRFactory_LineAndColumn_FromSourcePosition(startPos),
 			IRFactory_LineAndColumn_FromSourcePosition(f.linePos(loc.End)),
@@ -473,7 +562,7 @@ func (f *IRFactory) Transform(tree parser.ParseTree) rhino.Node {
 	}
 	if isRootOfClosureUnawareSubTree {
 		f.setSourceInfoAt(node, startPos, loc.End)
-		f.templateNode = f.defaultTemplateNode
+		f.setTemplateNode(f.defaultTemplateNode)
 		node = f.HideClosureUnawareCodeRoot(node)
 	}
 	f.setSourceInfoAt(node, startPos, loc.End)
@@ -639,10 +728,7 @@ func (f *IRFactory) MaybeWarnForFeatureNode(node rhino.Node, feature parser.Feat
 }
 
 func (f *IRFactory) setSourceInfoAt(node rhino.Node, startPos parser.LinePosition, end parser.SourcePosition) {
-	if node.GetLineno() == -1 {
-		node.SetLinenoCharno(int(startPos.Line)+1, int(startPos.Column))
-		node.SetLength(int(end.Offset - startPos.Offset))
-	}
+	node.SetSourceInfoIfUnset(int(startPos.Line)+1, int(startPos.Column), int(end.Offset-startPos.Offset))
 }
 
 // Java: IRFactory.setSourceInfo(Node, Node)
@@ -674,8 +760,7 @@ func (f *IRFactory) SetSourceInfoFromPositions(node rhino.Node, start parser.Sou
 		// node, but don't want the new node to get its parent's line number.
 		line, column := f.lineColumn(int(start.Offset))
 		// location lines start at zero, our AST starts at 1.
-		node.SetLinenoCharno(line+1, column)
-		f.SetLength(node, start, end)
+		node.SetSourceInfoIfUnset(line+1, column, int(end.Offset-start.Offset))
 	}
 }
 
@@ -696,32 +781,32 @@ func (f *IRFactory) SetLengthFrom(node rhino.Node, ref rhino.Node) {
 //
 // Java: IRFactory.newNode(Token)
 func (f *IRFactory) NewNode(type_ rhino.Token) rhino.Node {
-	return f.alloc.Alloc().InitFromTemplate(type_, f.templateNode)
+	return f.alloc.AllocCachedTemplate(type_)
 }
 
 // Java: IRFactory.newNode(Token, Node)
 func (f *IRFactory) NewNodeWithChild(type_ rhino.Token, child1 rhino.Node) rhino.Node {
-	return f.alloc.Alloc().InitWithChildFromTemplate(type_, child1, f.templateNode)
+	return f.alloc.AllocChildCachedTemplate(type_, child1, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node)
 func (f *IRFactory) NewNodeWith2Children(type_ rhino.Token, child1 rhino.Node, child2 rhino.Node) rhino.Node {
-	return f.alloc.Alloc().InitWith2ChildrenFromTemplate(type_, child1, child2, f.templateNode)
+	return f.alloc.Alloc2ChildrenCachedTemplate(type_, child1, child2, f.templateNode)
 }
 
 // Java: IRFactory.newNode(Token, Node, Node, Node)
 func (f *IRFactory) NewNodeWith3Children(type_ rhino.Token, child1 rhino.Node, child2 rhino.Node, child3 rhino.Node) rhino.Node {
-	return f.alloc.Alloc().InitWith3ChildrenFromTemplate(type_, child1, child2, child3, f.templateNode)
+	return f.alloc.Alloc3ChildrenCachedTemplate(type_, child1, child2, child3, f.templateNode)
 }
 
 // Java: IRFactory.newStringNode(String)
 func (f *IRFactory) NewStringNode(value string) rhino.Node {
-	return f.alloc.Alloc().InitStringIDFromTemplate(rhino.Token_STRINGLIT, f.internString(value), f.templateNode)
+	return f.alloc.AllocStringIDCachedTemplate(rhino.Token_STRINGLIT, f.internString(value))
 }
 
 // Java: IRFactory.newStringNode(Token, String)
 func (f *IRFactory) NewStringNodeWithToken(type_ rhino.Token, value string) rhino.Node {
-	return f.alloc.Alloc().InitStringIDFromTemplate(type_, f.internString(value), f.templateNode)
+	return f.alloc.AllocStringIDCachedTemplate(type_, f.internString(value))
 }
 
 // Java: IRFactory.newTemplateLitStringNode(String, String)
@@ -731,7 +816,7 @@ func (f *IRFactory) NewTemplateLitStringNode(cooked base.OptString, raw string) 
 
 // Java: IRFactory.newNumberNode(Double)
 func (f *IRFactory) NewNumberNode(value float64) rhino.Node {
-	return f.alloc.Alloc().InitFromTemplate(rhino.Token_NUMBER, f.templateNode).SetNumberRaw(value)
+	return f.alloc.AllocNumberCachedTemplate(value)
 }
 
 // Java: IRFactory.newBigIntNode(BigInteger)

@@ -468,7 +468,33 @@ type gnDefineScript struct {
 const (
 	gnScriptTraverse uint8 = 1 << iota
 	gnScriptDefineCand
+	gnScriptFuncCand
 )
+
+func mayBeGlobalSetInFunc(n, parent rhino.Node) bool {
+	if parent.IsNil() || parent.IsGetProp() {
+		return false
+	}
+	switch ast.RoleIn(n, parent) {
+	case ast.RoleAssignTarget,
+		ast.RoleAssignOpTarget,
+		ast.RoleIncDecTarget,
+		ast.RoleForInTarget,
+		ast.RoleForOfTarget,
+		ast.RoleForAwaitOfTarget:
+		return true
+	case ast.RoleStringKeyValue,
+		ast.RoleArrayPatternElements,
+		ast.RoleDefaultValueTarget,
+		ast.RoleDefaultValueValue,
+		ast.RoleComputedPropKey,
+		ast.RoleComputedPropValue,
+		ast.RoleIterRestTarget,
+		ast.RoleObjectRestTarget:
+		return n.IsName() && NodeUtil_IsLhsByDestructuring(n)
+	}
+	return false
+}
 
 // prepareDefineNamespace populates defineCandidateLeafIDs (and, in check mode,
 // defineCandidateScripts) and identifies the subset of SCRIPT roots that can
@@ -484,63 +510,71 @@ const (
 //
 // Go-only: performance.
 func (g *GlobalNamespace) prepareDefineNamespace() (skipTraversal bool, traverseScripts map[rhino.Node]struct{}) {
-	g.defineCandidateLeafIDs = make(map[uint32]struct{}, 64)
+	preSeeded := g.includeGlobalConsts && len(g.defineCandidateLeafIDs) > 0
+	if !preSeeded {
+		g.defineCandidateLeafIDs = make(map[uint32]struct{}, 64)
+	}
+	needCheckCand := g.processDefinesCheck && !g.includeGlobalConsts
 	scripts, ok := g.collectDefineScripts()
 	if !ok {
-		var stackBuf [64]rhino.Node
-		var idBuf [64]uint32
-		stack := stackBuf[:0]
-		ids := idBuf[:0]
-		if g.HasExternsRoot() {
-			ids, stack = collectScriptDefineLeafIDs(g.externsRoot, g.includeGlobalConsts, ids, stack)
+		if !preSeeded {
+			var stackBuf [64]rhino.Node
+			var idBuf [64]uint32
+			stack := stackBuf[:0]
+			ids := idBuf[:0]
+			if g.HasExternsRoot() {
+				ids, stack = collectScriptDefineLeafIDs(g.externsRoot, g.includeGlobalConsts, ids, stack)
+			}
+			ids, _ = collectScriptDefineLeafIDs(g.root, g.includeGlobalConsts, ids, stack)
+			for _, id := range ids {
+				g.addDefineCandidateLeafID(id)
+			}
 		}
-		ids, _ = collectScriptDefineLeafIDs(g.root, g.includeGlobalConsts, ids, stack)
-		for _, id := range ids {
-			g.addDefineCandidateLeafID(id)
-		}
-		return !g.processDefinesCheck && len(g.defineCandidateLeafIDs) == 0, nil
+		return !needCheckCand && len(g.defineCandidateLeafIDs) == 0, nil
 	}
 	if len(scripts) == 0 {
 		return true, nil
 	}
 
 	numWorkers := parallelThreadCount(g.compiler, len(scripts))
-	if numWorkers > 1 && len(scripts) >= 8 {
-		perWorker := make([][]uint32, numWorkers)
-		if p := spawnIndexedWorkers(len(scripts), numWorkers, func(wIdx int, claim func() (int, bool)) {
-			var ids []uint32
-			var stack []rhino.Node
-			for {
-				idx, ok := claim()
-				if !ok {
-					break
+	if !preSeeded {
+		if numWorkers > 1 && len(scripts) >= 8 {
+			perWorker := make([][]uint32, numWorkers)
+			if p := spawnIndexedWorkers(len(scripts), numWorkers, func(wIdx int, claim func() (int, bool)) {
+				var ids []uint32
+				var stack []rhino.Node
+				for {
+					idx, ok := claim()
+					if !ok {
+						break
+					}
+					ids, stack = collectScriptDefineLeafIDs(scripts[idx].node, g.includeGlobalConsts, ids, stack)
 				}
-				ids, stack = collectScriptDefineLeafIDs(scripts[idx].node, g.includeGlobalConsts, ids, stack)
+				perWorker[wIdx] = ids
+			}); p != nil {
+				panic(p)
 			}
-			perWorker[wIdx] = ids
-		}); p != nil {
-			panic(p)
-		}
-		for _, ids := range perWorker {
-			for _, id := range ids {
-				g.addDefineCandidateLeafID(id)
+			for _, ids := range perWorker {
+				for _, id := range ids {
+					g.addDefineCandidateLeafID(id)
+				}
 			}
-		}
-	} else {
-		var stackBuf [64]rhino.Node
-		var idBuf [64]uint32
-		stack := stackBuf[:0]
-		ids := idBuf[:0]
-		for i := range scripts {
-			ids, stack = collectScriptDefineLeafIDs(scripts[i].node, g.includeGlobalConsts, ids[:0], stack)
-			for _, id := range ids {
-				g.addDefineCandidateLeafID(id)
+		} else {
+			var stackBuf [64]rhino.Node
+			var idBuf [64]uint32
+			stack := stackBuf[:0]
+			ids := idBuf[:0]
+			for i := range scripts {
+				ids, stack = collectScriptDefineLeafIDs(scripts[i].node, g.includeGlobalConsts, ids[:0], stack)
+				for _, id := range ids {
+					g.addDefineCandidateLeafID(id)
+				}
 			}
 		}
 	}
 
 	hasLeafCandidates := len(g.defineCandidateLeafIDs) > 0
-	if !g.processDefinesCheck && !hasLeafCandidates {
+	if !needCheckCand && !hasLeafCandidates {
 		return true, nil
 	}
 
@@ -593,41 +627,67 @@ func (g *GlobalNamespace) prepareDefineNamespace() (skipTraversal bool, traverse
 			ns = rest
 		}
 	}
+	const (
+		popFuncSentinel   rhino.Node = 0
+		popModSentinel    rhino.Node = ^rhino.Node(0)
+		enterFuncSentinel rhino.Node = ^rhino.Node(1)
+	)
 	scanScript := func(s gnDefineScript, stack []rhino.Node) (uint8, []rhino.Node) {
-		checkCand := g.processDefinesCheck && s.isCode
+		checkCand := needCheckCand && s.isCode
 		if !hasLeafCandidates && !checkCand {
 			return 0, stack
 		}
 		needsTraverse := false
 		hasDefineCand := false
+		hasFuncCand := false
+		funcDepth := 0
+		modDepth := 0
 		stack = append(stack[:0], s.node)
 		for len(stack) > 0 {
 			n := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
+			if n == enterFuncSentinel {
+				funcDepth++
+				continue
+			}
+			if n == popFuncSentinel {
+				funcDepth--
+				continue
+			}
+			if n == popModSentinel {
+				modDepth--
+				continue
+			}
 			tok := n.GetToken()
+			inLocalFunc := funcDepth > 0 && modDepth == 0
 			if checkCand && !hasDefineCand {
-				if jsdoc := n.GetJSDocInfo(); jsdoc != nil && jsdoc.IsDefine() {
-					hasDefineCand = true
-				} else if tok == rhino.Token_CALL && processDefines_GOOG_DEFINE.Matches(ast.MustCall(n).Callee().Node()) {
-					hasDefineCand = true
-				} else if tok == rhino.Token_NAME && n.GetStringID() == gnClosureDefinesStrID {
-					hasDefineCand = true
+				if n.HasJSDocInfo() {
+					if jsdoc := n.GetJSDocInfo(); jsdoc != nil && jsdoc.IsDefine() {
+						hasDefineCand = true
+					}
+				}
+				if !hasDefineCand {
+					if tok == rhino.Token_CALL && processDefines_GOOG_DEFINE.Matches(ast.MustCall(n).Callee().Node()) {
+						hasDefineCand = true
+					} else if tok == rhino.Token_NAME && n.GetStringID() == gnClosureDefinesStrID {
+						hasDefineCand = true
+					}
 				}
 			}
-			if hasLeafCandidates && !needsTraverse {
+			if hasLeafCandidates && (!needsTraverse || (inLocalFunc && !hasFuncCand)) {
+				matched := false
 				switch tok {
 				case rhino.Token_NAME, rhino.Token_GETPROP:
-					if matchesLeafID(n.GetStringID(), true) {
-						needsTraverse = true
+					parent := n.GetParent()
+					if !parent.IsGetProp() && (!inLocalFunc || mayBeGlobalSetInFunc(n, parent)) {
+						matched = matchesLeafID(n.GetStringID(), true)
 					}
 				case rhino.Token_STRING_KEY,
 					rhino.Token_GETTER_DEF,
 					rhino.Token_SETTER_DEF,
 					rhino.Token_MEMBER_FUNCTION_DEF,
 					rhino.Token_MEMBER_FIELD_DEF:
-					if matchesLeafID(n.GetStringID(), false) {
-						needsTraverse = true
-					}
+					matched = matchesLeafID(n.GetStringID(), false)
 				case rhino.Token_CALL:
 					parent := n.GetParent()
 					if parent.IsExprResult() {
@@ -636,16 +696,57 @@ func (g *GlobalNamespace) prepareDefineNamespace() (skipTraversal bool, traverse
 							if arg, ok := call.FirstArg(); ok {
 								if str, ok := arg.AsStringLit(); ok {
 									if !parent.GetParent().IsScript() || provideMatchesLeafIDs(str.Value()) {
-										needsTraverse = true
+										matched = true
 									}
 								}
 							}
 						}
 					}
 				}
+				if matched {
+					needsTraverse = true
+					if inLocalFunc {
+						hasFuncCand = true
+					}
+				}
 			}
-			if (needsTraverse || !hasLeafCandidates) && (!checkCand || hasDefineCand) {
+			if (!hasLeafCandidates || (needsTraverse && hasFuncCand)) && (!checkCand || hasDefineCand) {
 				break
+			}
+			if tok == rhino.Token_MODULE_BODY {
+				modDepth++
+				stack = append(stack, popModSentinel)
+				for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+					stack = append(stack, c)
+				}
+				continue
+			}
+			if tok == rhino.Token_FUNCTION {
+				isBundledMod := NodeUtil_IsBundledGoogModuleCall(n.GetParent())
+				fnName := n.GetFirstChild()
+				if isBundledMod {
+					modDepth++
+					stack = append(stack, popModSentinel)
+					for c := fnName; !c.IsNil(); c = c.GetNext() {
+						stack = append(stack, c)
+					}
+				} else {
+					hasBodyChildren := false
+					for c := fnName.GetNext(); !c.IsNil(); c = c.GetNext() {
+						if !hasBodyChildren {
+							hasBodyChildren = true
+							stack = append(stack, popFuncSentinel)
+						}
+						stack = append(stack, c)
+					}
+					if hasBodyChildren {
+						stack = append(stack, enterFuncSentinel)
+					}
+					if !fnName.IsNil() {
+						stack = append(stack, fnName)
+					}
+				}
+				continue
 			}
 			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
 				stack = append(stack, c)
@@ -657,6 +758,9 @@ func (g *GlobalNamespace) prepareDefineNamespace() (skipTraversal bool, traverse
 		}
 		if hasDefineCand {
 			f |= gnScriptDefineCand
+		}
+		if hasFuncCand {
+			f |= gnScriptFuncCand
 		}
 		return f, stack
 	}
@@ -683,10 +787,14 @@ func (g *GlobalNamespace) prepareDefineNamespace() (skipTraversal bool, traverse
 		}
 	}
 
+	g.defineCandScriptsPopulated = true
 	traverseCount := 0
 	for i, f := range flags {
 		if f&gnScriptTraverse != 0 {
 			traverseCount++
+		}
+		if f&gnScriptFuncCand != 0 {
+			g.hasFuncDefineCand = true
 		}
 		if f&gnScriptDefineCand != 0 {
 			if g.defineCandidateScripts == nil {

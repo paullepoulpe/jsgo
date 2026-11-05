@@ -147,7 +147,8 @@ type NodeStore struct {
 	next   atomic.Uint32 // the next id to hand out
 	blocks []*nodeBlock  // block k holds ids base+k*blockLen...
 
-	mu sync.Mutex // guards block creation and the side tables' growth
+	mu           sync.Mutex // guards block publication and the side tables' growth
+	blockAllocMu sync.Mutex // serializes 576 KiB nodeBlock allocation without holding mu
 
 	tcs         []*nodeColumn  // the JSType/Color handle columns of the blocks (node_tables.go)
 	origNames   []*pagedColumn // the original-name columns of the blocks
@@ -319,44 +320,287 @@ func (s *NodeStore) alloc() Node {
 // goroutines do not share cache lines. A nil *NodeAllocator allocates from
 // the current store directly. Not safe for concurrent use.
 type NodeAllocator struct {
-	store     *NodeStore
-	next, end uint32
+	store          *NodeStore
+	blk            *nodeBlock
+	next, end      uint32
+	restEnd        uint32
+	tmplSourceFile uint32
+	tmplPropFlags  propWord
+	rangeSize      uint32
 }
 
 // nodeAllocatorRange is the number of ids a NodeAllocator reserves at a time.
-const nodeAllocatorRange = 1024
+const (
+	nodeAllocatorRange      = 1024
+	nodeAllocatorLocalRange = 256
+)
 
 // NewNodeAllocator returns an allocator for the current store.
 func NewNodeAllocator() *NodeAllocator {
-	return &NodeAllocator{store: current}
+	return &NodeAllocator{store: current, rangeSize: nodeAllocatorRange}
+}
+
+// ResetLocal configures an allocator for single-file use against the current
+// store; call Flush when done to return unused trailing ids.
+func (a *NodeAllocator) ResetLocal() {
+	*a = NodeAllocator{store: current, rangeSize: nodeAllocatorLocalRange}
+}
+
+// Flush returns any unused trailing ids of a's reservation to its store when no
+// concurrent reservation has advanced past restEnd, and clears a.
+func (a *NodeAllocator) Flush() {
+	if a.restEnd > a.next && a.store != nil {
+		a.store.next.CompareAndSwap(a.restEnd, a.next)
+	}
+	*a = NodeAllocator{}
+}
+
+// SetTemplate caches template's inline properties (SOURCE_FILE and hot boolean
+// flags) for Alloc*CachedTemplate calls.
+func (a *NodeAllocator) SetTemplate(template Node) {
+	if a == nil {
+		return
+	}
+	if template == 0 {
+		a.tmplSourceFile = 0
+		a.tmplPropFlags = 0
+		return
+	}
+	tr := template.rec()
+	if tr.propFlags&propWordJSDoc != 0 || tr.kindFlags >= kindFlagHasExtBox {
+		panic("rhino.NodeAllocator: template node has cold properties")
+	}
+	a.tmplSourceFile = tr.sourceFile
+	a.tmplPropFlags = tr.propFlags
 }
 
 // Alloc returns a new, zeroed node.
 func (a *NodeAllocator) Alloc() Node {
-	if a == nil || a.store == nil || a.store != current {
+	if a != nil && a.next < a.end {
+		id := a.next
+		a.next++
+		return Node(id)
+	}
+	return a.allocSlow()
+}
+
+// AllocCachedTemplate allocates a Node and initializes it with token and the
+// inline template properties cached by SetTemplate. Receiver a must be non-nil.
+func (a *NodeAllocator) AllocCachedTemplate(token Token) Node {
+	if a.next < a.end {
+		id := a.next
+		a.next++
+		nr := &a.blk[id&blockMask]
+		nr.token = token
+		nr.linenoCharno = -1
+		nr.sourceFile = a.tmplSourceFile
+		nr.propFlags = a.tmplPropFlags
+		return Node(id)
+	}
+	return a.allocCachedTemplateSlow(token)
+}
+
+// AllocStringIDCachedTemplate allocates a StringNode with strID and the inline
+// template properties cached by SetTemplate. Receiver a must be non-nil.
+func (a *NodeAllocator) AllocStringIDCachedTemplate(token Token, strID rhinoStringID) Node {
+	if a.next < a.end {
+		id := a.next
+		a.next++
+		nr := &a.blk[id&blockMask]
+		nr.token = token
+		nr.linenoCharno = -1
+		nr.kindFlags = uint8(node_kindString)
+		nr.sourceFile = a.tmplSourceFile
+		nr.propFlags = a.tmplPropFlags
+		nr.payload = uint32(strID)
+		return Node(id)
+	}
+	return a.allocStringIDCachedTemplateSlow(token, strID)
+}
+
+// AllocNumberCachedTemplate allocates a NumberNode with value and the inline
+// template properties cached by SetTemplate. Receiver a must be non-nil.
+func (a *NodeAllocator) AllocNumberCachedTemplate(value float64) Node {
+	p := numberPayload(value)
+	if a.next < a.end {
+		id := a.next
+		a.next++
+		nr := &a.blk[id&blockMask]
+		nr.token = Token_NUMBER
+		nr.linenoCharno = -1
+		nr.kindFlags = uint8(node_kindNumber)
+		nr.sourceFile = a.tmplSourceFile
+		nr.propFlags = a.tmplPropFlags
+		nr.payload = p
+		return Node(id)
+	}
+	return a.allocNumberPayloadCachedTemplateSlow(p)
+}
+
+// AllocChildCachedTemplate allocates a Node with 1 child and the inline
+// template properties cached by SetTemplate. Receiver a must be non-nil.
+func (a *NodeAllocator) AllocChildCachedTemplate(token Token, child Node, template Node) Node {
+	if a.next < a.end && (uint32(child)^a.next)>>blockShift == 0 {
+		cr := &a.blk[uint32(child)&blockMask]
+		if (cr.parent | cr.next | cr.previous) == 0 {
+			id := a.next
+			a.next++
+			nr := &a.blk[id&blockMask]
+			nr.token = token
+			nr.linenoCharno = -1
+			nr.sourceFile = a.tmplSourceFile
+			nr.propFlags = a.tmplPropFlags
+			nr.first = uint32(child)
+			cr.previous = uint32(child)
+			cr.parent = id
+			return Node(id)
+		}
+	}
+	return a.allocChildCachedTemplateSlow(token, child, template)
+}
+
+// Alloc2ChildrenCachedTemplate allocates a Node with 2 children and the inline
+// template properties cached by SetTemplate. Receiver a must be non-nil.
+func (a *NodeAllocator) Alloc2ChildrenCachedTemplate(token Token, left, right Node, template Node) Node {
+	if a.next < a.end &&
+		((uint32(left)^a.next)|(uint32(right)^a.next))>>blockShift == 0 && left != right {
+		lr, rr := &a.blk[uint32(left)&blockMask], &a.blk[uint32(right)&blockMask]
+		if (lr.parent | lr.next | lr.previous | rr.parent | rr.next | rr.previous) == 0 {
+			id := a.next
+			a.next++
+			nr := &a.blk[id&blockMask]
+			nr.token = token
+			nr.linenoCharno = -1
+			nr.sourceFile = a.tmplSourceFile
+			nr.propFlags = a.tmplPropFlags
+			nr.first = uint32(left)
+			lr.next = uint32(right)
+			lr.previous = uint32(right)
+			lr.parent = id
+			rr.previous = uint32(left)
+			rr.parent = id
+			return Node(id)
+		}
+	}
+	return a.alloc2ChildrenCachedTemplateSlow(token, left, right, template)
+}
+
+// Alloc3ChildrenCachedTemplate allocates a Node with 3 children and the inline
+// template properties cached by SetTemplate. Receiver a must be non-nil.
+func (a *NodeAllocator) Alloc3ChildrenCachedTemplate(token Token, left, mid, right Node, template Node) Node {
+	if a.next < a.end &&
+		((uint32(left)^a.next)|(uint32(mid)^a.next)|(uint32(right)^a.next))>>blockShift == 0 &&
+		left != mid && left != right && mid != right {
+		lr, mr, rr := &a.blk[uint32(left)&blockMask], &a.blk[uint32(mid)&blockMask], &a.blk[uint32(right)&blockMask]
+		if (lr.parent | lr.next | lr.previous | mr.parent | mr.next | mr.previous | rr.parent | rr.next | rr.previous) == 0 {
+			id := a.next
+			a.next++
+			nr := &a.blk[id&blockMask]
+			nr.token = token
+			nr.linenoCharno = -1
+			nr.sourceFile = a.tmplSourceFile
+			nr.propFlags = a.tmplPropFlags
+			nr.first = uint32(left)
+			lr.next = uint32(mid)
+			lr.previous = uint32(right)
+			lr.parent = id
+			mr.next = uint32(right)
+			mr.previous = uint32(left)
+			mr.parent = id
+			rr.previous = uint32(mid)
+			rr.parent = id
+			return Node(id)
+		}
+	}
+	return a.alloc3ChildrenCachedTemplateSlow(token, left, mid, right, template)
+}
+
+//go:noinline
+func (a *NodeAllocator) allocSlow() Node {
+	if a == nil || a.store == nil || a.store != current || a.rangeSize == 0 {
 		return allocNode()
 	}
-	if a.next == a.end {
-		a.reserve()
+	if a.next == a.restEnd {
+		s := a.store
+		n := a.rangeSize
+		if n == nodeAllocatorLocalRange {
+			cur := s.next.Load()
+			rem := ((cur | blockMask) + 1) - cur
+			if rem > 0 && rem < n {
+				n = rem
+			}
+		}
+		first := s.next.Add(n) - n
+		last := first + n - 1
+		for id := first; ; id = (id | blockMask) + 1 {
+			if nodeBlocks[id>>blockShift].Load() == nil {
+				s.addBlock(id)
+			}
+			if id>>blockShift == last>>blockShift {
+				break
+			}
+		}
+		a.next = first
+		a.restEnd = first + n
 	}
+	blkEnd := (a.next | blockMask) + 1
+	a.end = min(a.restEnd, blkEnd)
+	a.blk = nodeBlocks[a.next>>blockShift].Load()
 	id := a.next
 	a.next++
 	return Node(id)
 }
 
-func (a *NodeAllocator) reserve() {
-	s := a.store
-	first := s.next.Add(nodeAllocatorRange) - nodeAllocatorRange
-	last := first + nodeAllocatorRange - 1
-	for id := first; ; id = (id | blockMask) + 1 {
-		if nodeBlocks[id>>blockShift].Load() == nil {
-			s.addBlock(id)
-		}
-		if id>>blockShift == last>>blockShift {
-			break
-		}
-	}
-	a.next, a.end = first, first+nodeAllocatorRange
+//go:noinline
+func (a *NodeAllocator) allocCachedTemplateSlow(token Token) Node {
+	n := a.allocSlow()
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.sourceFile = a.tmplSourceFile
+	nr.propFlags = a.tmplPropFlags
+	return n
+}
+
+//go:noinline
+func (a *NodeAllocator) allocStringIDCachedTemplateSlow(token Token, strID rhinoStringID) Node {
+	n := a.allocSlow()
+	nr := n.rec()
+	nr.token = token
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindString)
+	nr.sourceFile = a.tmplSourceFile
+	nr.propFlags = a.tmplPropFlags
+	nr.payload = uint32(strID)
+	return n
+}
+
+//go:noinline
+func (a *NodeAllocator) allocNumberPayloadCachedTemplateSlow(payload uint32) Node {
+	n := a.allocSlow()
+	nr := n.rec()
+	nr.token = Token_NUMBER
+	nr.linenoCharno = -1
+	nr.kindFlags = uint8(node_kindNumber)
+	nr.sourceFile = a.tmplSourceFile
+	nr.propFlags = a.tmplPropFlags
+	nr.payload = payload
+	return n
+}
+
+//go:noinline
+func (a *NodeAllocator) allocChildCachedTemplateSlow(token Token, child Node, template Node) Node {
+	return a.Alloc().InitWithChildFromTemplate(token, child, template)
+}
+
+//go:noinline
+func (a *NodeAllocator) alloc2ChildrenCachedTemplateSlow(token Token, left, right Node, template Node) Node {
+	return a.Alloc().InitWith2ChildrenFromTemplate(token, left, right, template)
+}
+
+//go:noinline
+func (a *NodeAllocator) alloc3ChildrenCachedTemplateSlow(token Token, left, mid, right Node, template Node) Node {
+	return a.Alloc().InitWith3ChildrenFromTemplate(token, left, mid, right, template)
 }
 
 // addBlock creates the block of id (unless another goroutine just did).
@@ -366,16 +610,28 @@ func (s *NodeStore) addBlock(id uint32) {
 	if (s.static && id < staticBit) || (!s.static && id >= staticBit) {
 		panic(fmt.Sprintf("rhino.NodeStore: node id space exhausted (%d)", id))
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	blkIdx := id >> blockShift
+	if nodeBlocks[blkIdx].Load() != nil {
+		return
+	}
+	s.blockAllocMu.Lock()
+	defer s.blockAllocMu.Unlock()
+	if nodeBlocks[blkIdx].Load() != nil {
+		return
+	}
+
+	blk := new(nodeBlock)
 	k := int((id - s.base) >> blockShift)
+
+	s.mu.Lock()
 	for len(s.blocks) <= k {
 		s.blocks = append(s.blocks, nil)
 	}
 	if s.blocks[k] == nil {
-		s.blocks[k] = new(nodeBlock)
-		nodeBlocks[id>>blockShift].Store(s.blocks[k])
+		s.blocks[k] = blk
+		nodeBlocks[blkIdx].Store(blk)
 	}
+	s.mu.Unlock()
 }
 
 // contains reports whether id was handed out by s.

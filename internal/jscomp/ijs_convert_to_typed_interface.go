@@ -85,21 +85,30 @@ var (
 			"File 2: {1}")
 )
 
-func isCallToPreserve(name string) bool {
-	switch name {
-	case "Polymer",
-		"goog.addSingletonGetter",
-		"goog.define",
-		"goog.forwardDeclare",
-		"goog.module",
-		"goog.module.declareLegacyNamespace",
-		"goog.declareModuleId",
-		"goog.provide",
-		"goog.require",
-		"goog.requireType":
-		return true
+var (
+	ijsPolymerQName                    = rhino.QualifiedName_Of("Polymer")
+	ijsGoogAddSingletonGetterQName     = rhino.QualifiedName_Of("goog.addSingletonGetter")
+	ijsGoogModuleQName                 = rhino.QualifiedName_Of("goog.module")
+	ijsGoogDeclareLegacyNamespaceQName = rhino.QualifiedName_Of("goog.module.declareLegacyNamespace")
+	ijsGoogDeclareModuleIdQName        = rhino.QualifiedName_Of("goog.declareModuleId")
+)
+
+func isCalleeNodeToPreserve(callee rhino.Node) bool {
+	if callee.IsName() {
+		return ijsPolymerQName.Matches(callee)
 	}
-	return false
+	if !callee.IsGetProp() {
+		return false
+	}
+	return ijsGoogModuleQName.Matches(callee) ||
+		ijsGoogProvideQName.Matches(callee) ||
+		ijsGoogRequireQName.Matches(callee) ||
+		ijsGoogRequireTypeQName.Matches(callee) ||
+		ijsGoogForwardDeclareQName.Matches(callee) ||
+		ijsGoogDeclareModuleIdQName.Matches(callee) ||
+		ijsGoogDeclareLegacyNamespaceQName.Matches(callee) ||
+		ijsGoogDefineQName.Matches(callee) ||
+		ijsGoogAddSingletonGetterQName.Matches(callee)
 }
 
 func NewConvertToTypedInterface(compiler AbstractCompiler) *ConvertToTypedInterface {
@@ -190,7 +199,7 @@ func findNameDeclaration(scope *Scope, rhs rhino.Node) *Var {
 	if scope == nil || !rhs.IsName() {
 		return nil
 	}
-	return scope.GetVarByNode(rhs)
+	return scope.GetVarByID(rhs.GetStringID())
 }
 
 type ijsRemoveNonDeclarations struct{}
@@ -253,8 +262,7 @@ func (ijsRemoveNonDeclarations) ShouldTraverse(t *NodeTraversal, n rhino.Node, p
 			if ijsGoogScopeQName.Matches(callee) {
 				panic(jutil.NewIllegalStateException())
 			}
-			qname, ok := callee.GetQualifiedNameString()
-			return preserveOrDelete(n, t, ok && isCallToPreserve(qname))
+			return preserveOrDelete(n, t, isCalleeNodeToPreserve(callee))
 		case rhino.Token_ASSIGN:
 			return preserveOrDelete(n, t, shouldPreserveAssignment(expr, t))
 		case rhino.Token_GETPROP:
@@ -631,7 +639,7 @@ func (p *ijsPropagateConstJsdoc) processConstWithRhs(t *NodeTraversal, nameNode 
 	originalJsdoc := jsdocNode.GetJSDocInfo()
 	rhs := NodeUtil_GetRValueOfLValue(nameNode)
 	newJsdoc := jsdocForRhs(rhs, originalJsdoc)
-	if newJsdoc == nil && isThisPropInsideNamedClass(nameNode) {
+	if newJsdoc == nil && rhs.IsName() && isThisPropInsideNamedClass(nameNode) {
 		decl := findNameDeclaration(t.GetScope(), rhs)
 		newJsdoc = jsdocForName(decl, originalJsdoc)
 	}

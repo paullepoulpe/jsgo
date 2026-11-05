@@ -126,7 +126,13 @@ func (ti *TypeInference) UpdateDestructuringParameter(
 			entryFlowScope,
 			inferredType,
 			func(scope *LinkedFlowScope, lvalue rhino.Node, type_ rhino.JSType) *LinkedFlowScope {
-				var_ := jutil.CheckNotNullPtr(ti.containerScope.GetVar(lvalue.GetString()))
+				var var_ *TypedVar
+				if lvalue.IsName() {
+					var_ = ti.containerScope.GetVarByID(lvalue.GetStringID())
+				} else {
+					var_ = ti.containerScope.GetVar(lvalue.GetString())
+				}
+				jutil.CheckNotNullPtr(var_)
 				// This condition will trigger on cases like
 				//   (function f({x}) {})({x: 3})
 				// where `x` is of unknown type during the typed scope creation phase, but
@@ -161,7 +167,12 @@ func (ti *TypeInference) UpdateDestructuringParameter(
 // Java: TypeInference.updateNamedParameter(Node, boolean, JSType, FlowScope)
 func (ti *TypeInference) UpdateNamedParameter(
 	paramName rhino.Node, hasDefaultValue bool, inferredType rhino.JSType, entryFlowScope *LinkedFlowScope) *LinkedFlowScope {
-	var_ := ti.containerScope.GetVar(paramName.GetString())
+	var var_ *TypedVar
+	if paramName.IsName() {
+		var_ = ti.containerScope.GetVarByID(paramName.GetStringID())
+	} else {
+		var_ = ti.containerScope.GetVar(paramName.GetString())
+	}
 	if var_ == nil {
 		panic(jutil.NewNullPointerExceptionMsg(jutil.StringFormat("Missing var for parameter %s", paramName)))
 	}

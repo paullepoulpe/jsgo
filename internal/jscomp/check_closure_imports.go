@@ -31,10 +31,12 @@ import (
 // and are in an acceptable location (e.g. a goog.require cannot be within a
 // function).
 type CheckClosureImports struct {
-	compiler       AbstractCompiler
-	checker        *CheckClosureImports_Checker
-	namespacesSeen map[string]struct{}
-	chunkGraph     *JSChunkGraph
+	compiler         AbstractCompiler
+	checker          *CheckClosureImports_Checker
+	namespacesSeen   map[string]struct{}
+	chunkGraph       *JSChunkGraph
+	firstProviderIdx map[string]int
+	workerScriptIdx  int
 }
 
 var _ CompilerPass = (*CheckClosureImports)(nil)
@@ -191,6 +193,9 @@ func NewCheckClosureImports(compiler AbstractCompiler, moduleMetadataMap *Module
 
 // Java: CheckClosureImports.process(Node, Node)
 func (c *CheckClosureImports) Process(externs rhino.Node, root rhino.Node) {
+	if c.processParallel(externs, root) {
+		return
+	}
 	sc := NewSyntacticScopeCreator(c.compiler)
 	b := NodeTraversal_Builder{
 		compiler:     c.compiler,
@@ -199,6 +204,90 @@ func (c *CheckClosureImports) Process(externs rhino.Node, root rhino.Node) {
 	}
 	b.Traverse(externs)
 	b.Traverse(root)
+}
+
+func (c *CheckClosureImports) processParallel(externs rhino.Node, root rhino.Node) bool {
+	comp := c.compiler
+	if comp == nil || comp.IsDebugLoggingEnabled() {
+		return false
+	}
+	moduleMetadataMap := c.checker.moduleMetadataMap
+	if moduleMetadataMap == nil {
+		return false
+	}
+	var firstProviderIdx map[string]int
+	return traverseScriptsParallel(comp, root, parallelScriptOptions[*CheckClosureImports]{
+		hasExterns:           true,
+		externs:              externs,
+		useSharedGlobalScope: true,
+		prepare: func(_, itemCount int) bool {
+			_, items, ok := collectExternAndRootScripts(externs, root)
+			if !ok || len(items) != itemCount {
+				return false
+			}
+			scriptIdx := make(map[rhino.Node]int, itemCount)
+			firstProviderIdx = make(map[string]int, itemCount)
+			for idx, item := range items {
+				inp := comp.GetInput(item.script.GetInputId())
+				if inp == nil {
+					return false
+				}
+				mod := moduleMetadataMap.ModuleByPath(inp.GetPath().String())
+				if mod == nil {
+					return false
+				}
+				scriptIdx[item.script] = idx
+				for ns := range mod.GoogNamespaces().ElementSet().All() {
+					if prev, exists := firstProviderIdx[ns]; !exists || idx < prev {
+						firstProviderIdx[ns] = idx
+					}
+					c.namespacesSeen[ns] = struct{}{}
+				}
+			}
+			for _, md := range moduleMetadataMap.AllMetadataSlice() {
+				if md.GoogNamespaces().ElementSet().Size() == 0 {
+					continue
+				}
+				rn := md.RootNode()
+				if rn.IsNil() {
+					return false
+				}
+				s := rn
+				for !s.IsNil() && !s.IsScript() {
+					s = s.GetParent()
+				}
+				if idx, exists := scriptIdx[s]; exists {
+					for ns := range md.GoogNamespaces().ElementSet().All() {
+						if prev, exists := firstProviderIdx[ns]; !exists || idx < prev {
+							firstProviderIdx[ns] = idx
+						}
+						c.namespacesSeen[ns] = struct{}{}
+					}
+				}
+			}
+			return true
+		},
+		initWorker: func(_ int, rc *Compiler) *CheckClosureImports {
+			wc := &CheckClosureImports{
+				compiler:         rc,
+				namespacesSeen:   make(map[string]struct{}, 8),
+				chunkGraph:       c.chunkGraph,
+				firstProviderIdx: firstProviderIdx,
+			}
+			wc.checker = wc.NewChecker(rc, moduleMetadataMap)
+			return wc
+		},
+		callback: func(wc *CheckClosureImports, idx int, _ rhino.Node, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
+			wc.workerScriptIdx = idx
+			if len(wc.namespacesSeen) > 0 {
+				clear(wc.namespacesSeen)
+			}
+			wc.checker.currentModule = nil
+			wc.checker.scopeRoot = rhino.NilNode
+			wc.checker.inLoadModule = false
+			return wc.checker
+		},
+	})
 }
 
 var checkClosureImportsVisitTokens = func() ast.TokenSet {
@@ -513,7 +602,19 @@ func (k *CheckClosureImports_Checker) CheckImport(
 // Java: CheckClosureImports.verifyRequireOrder(String, Node, NodeTraversal, ModuleMetadata)
 func (c *CheckClosureImports) VerifyRequireOrder(
 	namespace string, call rhino.Node, t *NodeTraversal, requiredModule *ModuleMetadataMap_ModuleMetadata) {
-	if _, ok := c.namespacesSeen[namespace]; !ok {
+	var seen bool
+	if c.firstProviderIdx != nil {
+		if firstIdx, ok := c.firstProviderIdx[namespace]; ok {
+			if firstIdx < c.workerScriptIdx {
+				seen = true
+			} else if firstIdx == c.workerScriptIdx {
+				_, seen = c.namespacesSeen[namespace]
+			}
+		}
+	} else {
+		_, seen = c.namespacesSeen[namespace]
+	}
+	if !seen {
 		t.Report(call, CheckClosureImports_LATE_PROVIDE_ERROR, namespace)
 		return
 	}

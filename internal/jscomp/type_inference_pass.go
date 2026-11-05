@@ -21,6 +21,7 @@ package jscomp
 import (
 	"sort"
 
+	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -189,6 +190,9 @@ func (p *TypeInferencePass) InferAllScopes(inferenceRoot rhino.Node) *TypedScope
 
 // Java: TypeInferencePass.inferScope(Node, TypedScope)
 func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
+	if p.tryInferEmptyFunctionScope(n, scope) {
+		return
+	}
 	cfg := p.ComputeCfg(n)
 	typeInference := &p.reusableTypeInference
 	typeInference.initTypeInference(
@@ -214,6 +218,77 @@ func (p *TypeInferencePass) InferScope(n rhino.Node, scope *TypedScope) {
 		typeInference.ReleaseLargeBuffers()
 	}
 	p.reusableCfg.release()
+}
+
+func (p *TypeInferencePass) tryInferEmptyFunctionScope(n rhino.Node, scope *TypedScope) bool {
+	if p.stepCountHistogram != nil || p.compiler == nil || scope == nil || scope.GetRootNode() != n {
+		return false
+	}
+	fn, ok := ast.AsFunction(n)
+	if !ok {
+		return false
+	}
+	fnBody := fn.Body().Node()
+	if !fnBody.IsBlock() || fnBody.HasChildren() {
+		return false
+	}
+	if moduleMap := p.compiler.GetModuleMap(); moduleMap != nil {
+		if ModuleImportResolver_GetModuleFromScopeRoot(moduleMap, p.compiler, n) != nil ||
+			ModuleImportResolver_GetModuleFromScopeRoot(moduleMap, p.compiler, fnBody) != nil {
+			return false
+		}
+	}
+	if NodeUtil_IsBundledGoogModuleCall(n.GetParent()) {
+		return true
+	}
+	params := fn.Params()
+	paramsNode := params.Node()
+	if !paramsNode.HasChildren() {
+		return true
+	}
+	for c := paramsNode.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		switch c.GetToken() {
+		case rhino.Token_NAME:
+		case rhino.Token_ITER_REST:
+			if first := c.GetFirstChild(); first.IsNil() || !first.IsName() {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+
+	unknownType := p.registry.GetNativeObjectType(rhino.JSTypeNative_UNKNOWN_TYPE)
+	functionType := rhino.JSType_ToMaybeFunctionType(n.GetJSType())
+	for zp := range zipFunctionParams(params, functionType.GetParameters(), firstIIFEArg(fn)) {
+		inferredType := zp.param.Node().GetJSType()
+		if inferredType == nil {
+			inferredType = unknownType
+		}
+		if !zp.callArg.IsNil() {
+			if argType := zp.callArg.GetJSType(); argType != nil {
+				inferredType = argType
+			}
+		} else if paramType := zp.jsDocParam.GetJSType(); paramType != nil {
+			inferredType = paramType
+		}
+		if zp.isRest {
+			inferredType = p.registry.CreateTemplatizedType(
+				p.registry.GetNativeObjectType(rhino.JSTypeNative_ARRAY_TYPE),
+				inferredType,
+			)
+		}
+		astParam := zp.target.Node()
+		var_ := scope.GetVarByID(astParam.GetStringID())
+		if var_ == nil {
+			panic(jutil.NewNullPointerExceptionMsg(jutil.StringFormat("Missing var for parameter %s", astParam)))
+		}
+		astParam.SetJSType(inferredType)
+		if var_.IsTypeInferred() {
+			var_.SetType(inferredType)
+		}
+	}
+	return true
 }
 
 // TypeInferencePass_FirstScopeBuildingCallback creates every typed scope, in
@@ -287,6 +362,7 @@ func (p *TypeInferencePass) buildAllScopesFromOrder(
 ) {
 	curNode := inferenceRoot
 	var curScript rhino.Node
+	defer p.scopeCreator.setCurrentBuildScript(rhino.NilNode)
 	defer func() {
 		if r := recover(); r != nil {
 			inferAllScopesRecover(p.compiler, curNode, curScript, r)
@@ -302,6 +378,7 @@ func (p *TypeInferencePass) buildAllScopesFromOrder(
 			lastScript = e.script
 			curScript = e.script
 			curNode = e.script
+			p.scopeCreator.setCurrentBuildScript(e.script)
 			if Platform_IsThreadInterrupted() {
 				panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
 			}

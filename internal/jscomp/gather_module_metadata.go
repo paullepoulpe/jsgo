@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -40,16 +41,6 @@ type GatherModuleMetadata struct {
 	// its ModuleMetadata#googNamespaces(). These are not the same modules in
 	// modulesByPath.
 	modulesByGoogNamespace OrderedStringMap[*ModuleMetadataMap_ModuleMetadata]
-
-	// The current module being traversed, and the module it is nested under
-	// (at most two deep: a script and a goog.loadModule call).
-	currentModule *gatherModuleMetadataBuilder
-	parentModule  *gatherModuleMetadataBuilder
-	rootSlot      gatherModuleMetadataBuilder
-	nestedSlot    gatherModuleMetadataBuilder
-
-	// The call to goog.loadModule we are traversing.
-	loadModuleCall rhino.Node
 
 	compiler               AbstractCompiler
 	processCommonJsModules bool
@@ -115,7 +106,7 @@ func NewGatherModuleMetadata(
 // gatherModuleMetadataBuilder is the inner class
 // GatherModuleMetadata.ModuleMetadataBuilder.
 type gatherModuleMetadataBuilder struct {
-	outer                   *GatherModuleMetadata
+	compiler                AbstractCompiler
 	metadata                *ModuleMetadataMap_ModuleMetadata
 	declaredModuleId        rhino.Node
 	declaresLegacyNamespace rhino.Node
@@ -123,9 +114,9 @@ type gatherModuleMetadataBuilder struct {
 	hasModuleBody           bool
 }
 
-func (b *gatherModuleMetadataBuilder) reset(outer *GatherModuleMetadata, rootNode rhino.Node, path *ModuleLoader_ModulePath) {
+func (b *gatherModuleMetadataBuilder) reset(compiler AbstractCompiler, rootNode rhino.Node, path *ModuleLoader_ModulePath) {
 	*b = gatherModuleMetadataBuilder{
-		outer: outer,
+		compiler: compiler,
 		metadata: &ModuleMetadataMap_ModuleMetadata{
 			path:       path,
 			rootNode:   rootNode,
@@ -135,9 +126,9 @@ func (b *gatherModuleMetadataBuilder) reset(outer *GatherModuleMetadata, rootNod
 }
 
 // Java: GatherModuleMetadata.ModuleMetadataBuilder(Node, ModulePath)
-func newGatherModuleMetadataBuilder(outer *GatherModuleMetadata, rootNode rhino.Node, path *ModuleLoader_ModulePath) *gatherModuleMetadataBuilder {
+func newGatherModuleMetadataBuilder(compiler AbstractCompiler, rootNode rhino.Node, path *ModuleLoader_ModulePath) *gatherModuleMetadataBuilder {
 	b := &gatherModuleMetadataBuilder{}
-	b.reset(outer, rootNode, path)
+	b.reset(compiler, rootNode, path)
 	return b
 }
 
@@ -178,14 +169,14 @@ func (b *gatherModuleMetadataBuilder) build() *ModuleMetadataMap_ModuleMetadata 
 		}
 
 		if !b.declaredModuleId.IsNil() && b.metadata.moduleType != ModuleMetadataMap_ModuleType_ES6_MODULE {
-			b.outer.compiler.Report(JSError_MakeWithNode(b.declaredModuleId, GatherModuleMetadata_DECLARE_MODULE_ID_OUTSIDE_ES6_MODULE))
+			b.compiler.Report(JSError_MakeWithNode(b.declaredModuleId, GatherModuleMetadata_DECLARE_MODULE_ID_OUTSIDE_ES6_MODULE))
 		}
 
 		if !b.declaresLegacyNamespace.IsNil() {
 			if b.metadata.moduleType == ModuleMetadataMap_ModuleType_GOOG_MODULE {
 				b.metadata.moduleType = ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE
 			} else {
-				b.outer.compiler.Report(
+				b.compiler.Report(
 					JSError_MakeWithNode(b.declaresLegacyNamespace, ClosureCheckModule_DECLARE_LEGACY_NAMESPACE_IN_NON_MODULE))
 			}
 		}
@@ -210,11 +201,40 @@ var (
 	}()
 )
 
+type gatherMetaOpKind uint8
+
+const (
+	gatherMetaOpAddNamespace gatherMetaOpKind = iota
+	gatherMetaOpLeaveModule
+)
+
+type gatherMetaScriptOp struct {
+	kind       gatherMetaOpKind
+	eventIdx   int
+	module     *ModuleMetadataMap_ModuleMetadata
+	moduleType ModuleMetadataMap_ModuleType
+	namespace  string
+	node       rhino.Node
+	sourceName string
+	sameModDup bool
+	sameModTyp ModuleMetadataMap_ModuleType
+}
+
 // moduleMetadataFinder traverses the AST and builds ModuleMetadatas.
 //
 // Java: GatherModuleMetadata.Finder
 type moduleMetadataFinder struct {
-	outer *GatherModuleMetadata
+	outer          *GatherModuleMetadata
+	compiler       AbstractCompiler
+	langInFeatures parser.FeatureSet
+
+	currentModule  *gatherModuleMetadataBuilder
+	parentModule   *gatherModuleMetadataBuilder
+	rootSlot       gatherModuleMetadataBuilder
+	nestedSlot     gatherModuleMetadataBuilder
+	loadModuleCall rhino.Node
+
+	onOp func(gatherMetaScriptOp)
 
 	// Lazily allocated only if a $2etoggles goog.require is encountered.
 	toggleModuleIDs map[strpool.ID]struct{}
@@ -247,13 +267,13 @@ func (f *moduleMetadataFinder) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 		if call, ok := ast.AsCall(n); ok {
 			if gp, ok := call.Callee().AsGetProp(); ok && nodeStringID(gp.Node()) == gatherMetaLoadModuleID {
 				if base, ok := gp.Object().AsName(); ok && nodeStringID(base.Node()) == gatherMetaGoogID {
-					f.outer.loadModuleCall = n
+					f.loadModuleCall = n
 					f.enterModule(t, n, nil)
 				}
 			}
 		}
 	case rhino.Token_MODULE_BODY:
-		f.outer.currentModule.hasModuleBody = true
+		f.currentModule.hasModuleBody = true
 	case rhino.Token_DYNAMIC_IMPORT:
 		f.visitDynamicImport(ast.MustDynamicImport(n))
 	default:
@@ -264,8 +284,8 @@ func (f *moduleMetadataFinder) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 
 // Java: GatherModuleMetadata.Finder.visitImportOrExport(NodeTraversal, Node)
 func (f *moduleMetadataFinder) visitImportOrExport(t *NodeTraversal, importOrExport rhino.Node) {
-	jutil.CheckNotNull(f.outer.currentModule)
-	f.outer.currentModule.setModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE, t, importOrExport)
+	jutil.CheckNotNull(f.currentModule)
+	f.currentModule.setModuleType(ModuleMetadataMap_ModuleType_ES6_MODULE, t, importOrExport)
 	var source ast.StringLit
 	hasSource := false
 	if imp, ok := ast.AsImport(importOrExport); ok {
@@ -274,63 +294,72 @@ func (f *moduleMetadataFinder) visitImportOrExport(t *NodeTraversal, importOrExp
 		source, hasSource = exp.Source() // export ... from
 	}
 	if hasSource {
-		f.outer.currentModule.metadata.es6ImportSpecifiers.Add(source.Value())
+		f.currentModule.metadata.es6ImportSpecifiers.Add(source.Value())
 	}
 }
 
 // Java: GatherModuleMetadata.Finder.visitDynamicImport(Node)
 func (f *moduleMetadataFinder) visitDynamicImport(dynamicImport ast.DynamicImport) {
 	if specifier, ok := dynamicImport.Specifier().AsStringLit(); ok {
-		f.outer.currentModule.metadata.es6ImportSpecifiers.Add(specifier.Value())
+		f.currentModule.metadata.es6ImportSpecifiers.Add(specifier.Value())
 	}
 }
 
 // Java: GatherModuleMetadata.Finder.enterModule(NodeTraversal, Node, ModulePath)
 func (f *moduleMetadataFinder) enterModule(t *NodeTraversal, n rhino.Node, path *ModuleLoader_ModulePath) {
-	g := f.outer
 	var newModule *gatherModuleMetadataBuilder
-	if g.currentModule == nil {
-		g.rootSlot.reset(g, n, path)
-		newModule = &g.rootSlot
+	if f.currentModule == nil {
+		f.rootSlot.reset(f.compiler, n, path)
+		newModule = &f.rootSlot
 	} else {
-		if g.parentModule != nil {
+		if f.parentModule != nil {
 			t.Report(n, GatherModuleMetadata_INVALID_NESTED_LOAD_MODULE)
-			newModule = newGatherModuleMetadataBuilder(g, n, path)
+			newModule = newGatherModuleMetadataBuilder(f.compiler, n, path)
 		} else {
-			g.nestedSlot.reset(g, n, path)
-			newModule = &g.nestedSlot
+			f.nestedSlot.reset(f.compiler, n, path)
+			newModule = &f.nestedSlot
 		}
-		g.parentModule = g.currentModule
+		f.parentModule = f.currentModule
 	}
-	g.currentModule = newModule
+	f.currentModule = newModule
 }
 
 // Java: GatherModuleMetadata.Finder.leaveModule()
 func (f *moduleMetadataFinder) leaveModule() {
-	g := f.outer
-	jutil.CheckNotNull(g.currentModule)
-	module := g.currentModule.build()
+	jutil.CheckNotNull(f.currentModule)
+	module := f.currentModule.build()
+	if f.onOp != nil {
+		f.onOp(gatherMetaScriptOp{
+			kind:   gatherMetaOpLeaveModule,
+			module: module,
+		})
+	} else {
+		f.outer.recordBuiltModule(module)
+	}
+	if f.parentModule != nil {
+		f.parentModule.metadata.nestedModules = append(f.parentModule.metadata.nestedModules, module)
+	}
+	*f.currentModule = gatherModuleMetadataBuilder{}
+	f.currentModule = f.parentModule
+	f.parentModule = nil
+}
+
+func (g *GatherModuleMetadata) recordBuiltModule(module *ModuleMetadataMap_ModuleMetadata) {
 	if module.Path() != nil {
 		g.modulesByPath.Put(module.Path().String(), module)
 	}
 	for namespace := range module.GoogNamespaces().All() {
 		g.modulesByGoogNamespace.Put(namespace, module)
 	}
-	if g.parentModule != nil {
-		g.parentModule.metadata.nestedModules = append(g.parentModule.metadata.nestedModules, module)
-	}
-	*g.currentModule = gatherModuleMetadataBuilder{}
-	g.currentModule = g.parentModule
-	g.parentModule = nil
 }
 
 // Java: GatherModuleMetadata.Finder.visit(NodeTraversal, Node, Node)
 func (f *moduleMetadataFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if f.outer.processCommonJsModules && f.outer.currentModule != nil && f.outer.currentModule.isScript() {
+	if f.outer.processCommonJsModules && f.currentModule != nil && f.currentModule.isScript() {
 		// A common JS import (call to "require") does not force a module to be rewritten as
 		// commonJS. Only an export statement.
 		if ProcessCommonJSModules_IsCommonJsExport(t, n, f.outer.moduleResolutionMode) {
-			f.outer.currentModule.setModuleType(ModuleMetadataMap_ModuleType_COMMON_JS, t, n)
+			f.currentModule.setModuleType(ModuleMetadataMap_ModuleType_COMMON_JS, t, n)
 			return
 		}
 	}
@@ -341,9 +370,9 @@ func (f *moduleMetadataFinder) Visit(t *NodeTraversal, n rhino.Node, parent rhin
 	case rhino.Token_NAME:
 		f.visitName(t, n, parent)
 	case rhino.Token_CALL:
-		if f.outer.loadModuleCall == n {
+		if f.loadModuleCall == n {
 			f.leaveModule()
-			f.outer.loadModuleCall = rhino.NilNode
+			f.loadModuleCall = rhino.NilNode
 		} else {
 			f.visitGoogCall(t, ast.MustCall(n), parent)
 		}
@@ -393,7 +422,7 @@ func (f *moduleMetadataFinder) visitName(t *NodeTraversal, n rhino.Node, parent 
 		return
 	}
 
-	f.outer.currentModule.metadata.usesClosure = true
+	f.currentModule.metadata.usesClosure = true
 }
 
 // Java: GatherModuleMetadata.Finder.visitGoogCall(NodeTraversal, Node)
@@ -444,33 +473,33 @@ func (f *moduleMetadataFinder) visitGoogCall(t *NodeTraversal, call ast.Call, pa
 	// base.js in it, then it doesn't need base.js again.
 	if root == nil ||
 		NodeUtil_GetEnclosingScript(root.GetNameNode()) != NodeUtil_GetEnclosingScript(n) {
-		f.outer.currentModule.metadata.usesClosure = true
+		f.currentModule.metadata.usesClosure = true
 	}
 
 	switch {
 	case depth == 1:
 		switch prop {
 		case "provide":
-			f.outer.currentModule.setModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE, t, n)
+			f.currentModule.setModuleType(ModuleMetadataMap_ModuleType_GOOG_PROVIDE, t, n)
 			if namespace, ok := closureOnlyStringArg(call); ok {
-				f.addNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_PROVIDE, namespace, t, n)
+				f.addNamespace(f.currentModule, ModuleMetadataMap_ModuleType_GOOG_PROVIDE, namespace, t, n)
 			} else {
 				t.Report(n, ClosureRewriteModule_INVALID_PROVIDE_NAMESPACE)
-				f.outer.currentModule.metadata.usesClosure = false
+				f.currentModule.metadata.usesClosure = false
 			}
 		case "module":
-			f.outer.currentModule.setModuleType(ModuleMetadataMap_ModuleType_GOOG_MODULE, t, n)
+			f.currentModule.setModuleType(ModuleMetadataMap_ModuleType_GOOG_MODULE, t, n)
 			if namespace, ok := closureOnlyStringArg(call); ok {
-				f.addNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
+				f.addNamespace(f.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
 			} else {
 				t.Report(n, ClosureRewriteModule_INVALID_MODULE_ID_ARG)
-				f.outer.currentModule.metadata.usesClosure = false
+				f.currentModule.metadata.usesClosure = false
 			}
 		case "declareModuleId":
 			f.visitDeclareModuleId(t, call, n)
 		case "require":
 			if namespace, ok := closureOnlyStringArg(call); ok {
-				f.outer.currentModule.metadata.stronglyRequiredGoogNamespaces.Add(namespace)
+				f.currentModule.metadata.stronglyRequiredGoogNamespaces.Add(namespace)
 				if strings.HasSuffix(namespace, "$2etoggles") {
 					f.recordToggleRequire(t, n, parent)
 				}
@@ -479,25 +508,25 @@ func (f *moduleMetadataFinder) visitGoogCall(t *NodeTraversal, call ast.Call, pa
 			}
 		case "requireType":
 			if namespace, ok := closureOnlyStringArg(call); ok {
-				f.outer.currentModule.metadata.weaklyRequiredGoogNamespaces.Add(namespace)
+				f.currentModule.metadata.weaklyRequiredGoogNamespaces.Add(namespace)
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_REQUIRE_TYPE)
 			}
 		case "maybeRequireFrameworkInternalOnlyDoNotCallOrElse":
 			if namespace, ok := closureOnlyStringArg(call); ok {
-				f.outer.currentModule.metadata.maybeRequiredGoogNamespaces.Add(namespace)
+				f.currentModule.metadata.maybeRequiredGoogNamespaces.Add(namespace)
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_MAYBE_REQUIRE)
 			}
 		case "setTestOnly":
 			if _, isString := closureOnlyStringArg(call); !call.HasArgs() || isString {
-				f.outer.currentModule.metadata.isTestOnly = true
+				f.currentModule.metadata.isTestOnly = true
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_SET_TEST_ONLY)
 			}
 		case "requireDynamic":
 			if namespace, ok := closureOnlyStringArg(call); ok {
-				f.outer.currentModule.metadata.dynamicallyRequiredGoogNamespaces.Add(namespace)
+				f.currentModule.metadata.dynamicallyRequiredGoogNamespaces.Add(namespace)
 			} else {
 				t.Report(n, GatherModuleMetadata_INVALID_REQUIRE_DYNAMIC)
 			}
@@ -519,7 +548,7 @@ func (f *moduleMetadataFinder) visitGoogCall(t *NodeTraversal, call ast.Call, pa
 			}
 			f.addToggle(t, gp.Node(), gp.Property())
 		case "declareLegacyNamespace":
-			f.outer.currentModule.recordDeclareLegacyNamespace(n)
+			f.currentModule.recordDeclareLegacyNamespace(n)
 		case "declareNamespace":
 			// TODO(johnplaisted): Remove once clients have migrated to declareModuleId
 			f.visitDeclareModuleId(t, call, n)
@@ -528,12 +557,12 @@ func (f *moduleMetadataFinder) visitGoogCall(t *NodeTraversal, call ast.Call, pa
 }
 
 func (f *moduleMetadataFinder) visitDeclareModuleId(t *NodeTraversal, call ast.Call, n rhino.Node) {
-	if !f.outer.currentModule.declaredModuleId.IsNil() {
+	if !f.currentModule.declaredModuleId.IsNil() {
 		t.Report(n, GatherModuleMetadata_MULTIPLE_DECLARE_MODULE_NAMESPACE)
 	}
 	if namespace, ok := closureOnlyStringArg(call); ok {
-		f.outer.currentModule.recordDeclareModuleId(n)
-		f.addNamespace(f.outer.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
+		f.currentModule.recordDeclareModuleId(n)
+		f.addNamespace(f.currentModule, ModuleMetadataMap_ModuleType_GOOG_MODULE, namespace, t, n)
 	} else {
 		t.Report(n, GatherModuleMetadata_INVALID_DECLARE_MODULE_ID_CALL)
 	}
@@ -566,7 +595,7 @@ func (f *moduleMetadataFinder) recordToggleRequire(t *NodeTraversal, n rhino.Nod
 		}
 		f.toggleModules[nameVar] = struct{}{}
 		f.toggleModuleIDs[nameID] = struct{}{}
-	} else if f.outer.currentModule.metadata.moduleType != ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
+	} else if f.currentModule.metadata.moduleType != ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 		// Side-effect toggle-module imports are not allowed, since they don't actually do
 		// anything. We allow it in `goog.provide()` files because there's no other way to
 		// import, and since toggle modules don't declare a legacy namespace, it's unusable
@@ -582,7 +611,7 @@ func (f *moduleMetadataFinder) recordToggleRequire(t *NodeTraversal, n rhino.Nod
 func (f *moduleMetadataFinder) addToggle(t *NodeTraversal, n rhino.Node, name string) {
 	if strings.HasPrefix(name, gatherModuleMetadata_TOGGLE_NAME_PREFIX) {
 		toggleName := name[len(gatherModuleMetadata_TOGGLE_NAME_PREFIX):]
-		f.outer.currentModule.metadata.readToggles.Add(toggleName)
+		f.currentModule.metadata.readToggles.Add(toggleName)
 	} else {
 		t.Report(n, GatherModuleMetadata_INVALID_TOGGLE_USAGE, "all toggle names must start with `TOGGLE_`")
 	}
@@ -600,36 +629,65 @@ func (f *moduleMetadataFinder) addNamespace(
 	n rhino.Node) {
 	if moduleType == ModuleMetadataMap_ModuleType_GOOG_PROVIDE ||
 		moduleType == ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE {
-		if !NodeUtil_IsValidQualifiedNameFeatureSet(
-			f.outer.compiler.GetOptions().GetLanguageIn().ToFeatureSet(), namespace) {
-			f.outer.compiler.Report(JSError_MakeWithNode(n, GatherModuleMetadata_INVALID_NAMESPACE_OR_MODULE_ID, namespace))
+		if !NodeUtil_IsValidQualifiedNameFeatureSet(f.langInFeatures, namespace) {
+			f.compiler.Report(JSError_MakeWithNode(n, GatherModuleMetadata_INVALID_NAMESPACE_OR_MODULE_ID, namespace))
 		}
 	}
 	if moduleType == ModuleMetadataMap_ModuleType_GOOG_MODULE ||
 		moduleType == ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE {
 		// non-legacy goog.modules don't technically need to be valid qualified names
 		if !GatherModuleMetadata_IsValidModuleId(namespace) {
-			f.outer.compiler.Report(JSError_MakeWithNode(n, GatherModuleMetadata_INVALID_NAMESPACE_OR_MODULE_ID, namespace))
+			f.compiler.Report(JSError_MakeWithNode(n, GatherModuleMetadata_INVALID_NAMESPACE_OR_MODULE_ID, namespace))
 		}
 	}
 
+	sameModDup := module.metadata.googNamespaces.Contains(namespace)
+	sameModTyp := module.metadata.moduleType
+	sameModSrc := "null"
+	if sameModDup {
+		if src, ok := t.SourceNameOk(); ok {
+			sameModSrc = src
+		}
+	}
+	f.currentModule.metadata.googNamespaces.Add(namespace)
+	if f.onOp != nil {
+		f.onOp(gatherMetaScriptOp{
+			kind:       gatherMetaOpAddNamespace,
+			moduleType: moduleType,
+			namespace:  namespace,
+			node:       n,
+			sourceName: sameModSrc,
+			sameModDup: sameModDup,
+			sameModTyp: sameModTyp,
+		})
+		return
+	}
+	g := f.outer
+	g.checkDuplicateNamespace(moduleType, namespace, n, sameModDup, sameModTyp, sameModSrc)
+}
+
+func (g *GatherModuleMetadata) checkDuplicateNamespace(
+	moduleType ModuleMetadataMap_ModuleType,
+	namespace string,
+	n rhino.Node,
+	sameModDup bool,
+	sameModTyp ModuleMetadataMap_ModuleType,
+	sameModSrc string,
+) {
 	var existingType ModuleMetadataMap_ModuleType
 	hasExistingType := false
 	existingFileSource := "null"
-	if module.metadata.googNamespaces.Contains(namespace) {
-		existingType = module.metadata.moduleType
+	if sameModDup {
+		existingType = sameModTyp
 		hasExistingType = true
-		if src, ok := t.SourceNameOk(); ok {
-			existingFileSource = src
-		}
-	} else if existingModule := f.outer.modulesByGoogNamespace.Get(namespace); existingModule != nil {
+		existingFileSource = sameModSrc
+	} else if existingModule := g.modulesByGoogNamespace.Get(namespace); existingModule != nil {
 		existingType = existingModule.ModuleType()
 		hasExistingType = true
 		if src, ok := existingModule.RootNode().SourceFileName(); ok {
 			existingFileSource = src
 		}
 	}
-	f.outer.currentModule.metadata.googNamespaces.Add(namespace)
 	if hasExistingType {
 		switch existingType {
 		case ModuleMetadataMap_ModuleType_ES6_MODULE, ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
@@ -637,14 +695,14 @@ func (f *moduleMetadataFinder) addNamespace(
 			if moduleType == ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 				diagnostic = ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE
 			}
-			t.Report(n, diagnostic, namespace, existingFileSource)
+			g.compiler.Report(JSError_MakeWithNode(n, diagnostic, namespace, existingFileSource))
 			return
 		case ModuleMetadataMap_ModuleType_GOOG_PROVIDE:
 			diagnostic := ClosurePrimitiveErrors_DUPLICATE_NAMESPACE_AND_MODULE
 			if moduleType == ModuleMetadataMap_ModuleType_GOOG_PROVIDE {
 				diagnostic = ClosurePrimitiveErrors_DUPLICATE_NAMESPACE
 			}
-			t.Report(n, diagnostic, namespace, existingFileSource)
+			g.compiler.Report(JSError_MakeWithNode(n, diagnostic, namespace, existingFileSource))
 			return
 		case ModuleMetadataMap_ModuleType_COMMON_JS, ModuleMetadataMap_ModuleType_SCRIPT:
 		}
@@ -652,13 +710,154 @@ func (f *moduleMetadataFinder) addNamespace(
 	}
 }
 
+type gatherMetaScriptItem struct {
+	scopeRoot rhino.Node
+	script    rhino.Node
+	lazyScope *lazyGlobalScope
+}
+
+type gatherMetaWorkerState struct {
+	rc     Compiler
+	sc     *SyntacticScopeCreator
+	finder moduleMetadataFinder
+	curIdx int
+}
+
+func (g *GatherModuleMetadata) processParallel(externs rhino.Node, root rhino.Node) bool {
+	compiler := g.compiler
+	if compiler == nil || compiler.IsDebugLoggingEnabled() {
+		return false
+	}
+	extCount, okExt := 0, true
+	if !externs.IsNil() {
+		extCount, okExt = countRootScripts(externs)
+	}
+	rootCount, okRoot := 0, true
+	if !root.IsNil() {
+		rootCount, okRoot = countRootScripts(root)
+	}
+	if !okExt || !okRoot {
+		return false
+	}
+	total := extCount + rootCount
+	numWorkers := parallelThreadCount(compiler, total)
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(compiler)
+	langInFeatures := compiler.GetOptions().GetLanguageIn().ToFeatureSet()
+	var lazyExt, lazyRoot *lazyGlobalScope
+	if extCount > 0 {
+		lazyExt = newLazyGlobalScope(compiler, externs)
+	}
+	if rootCount > 0 {
+		lazyRoot = newLazyGlobalScope(compiler, root)
+	}
+	items := make([]gatherMetaScriptItem, 0, total)
+	if extCount > 0 {
+		for s := externs.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+			items = append(items, gatherMetaScriptItem{scopeRoot: externs, script: s, lazyScope: lazyExt})
+		}
+	}
+	if rootCount > 0 {
+		for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+			items = append(items, gatherMetaScriptItem{scopeRoot: root, script: s, lazyScope: lazyRoot})
+		}
+	}
+
+	eventsByItem := make([][]recordedCompilerEvent, len(items))
+	opsByItem := make([][]gatherMetaScriptOp, len(items))
+
+	panicsByItem, workerPanic := collectParallelWorkersDeferredPins(
+		len(items),
+		numWorkers,
+		func(_ int, w *gatherMetaWorkerState) {
+			initRecordingCompiler(&w.rc, compiler)
+			w.sc = NewSyntacticScopeCreator(&w.rc)
+			w.finder = moduleMetadataFinder{
+				outer:          g,
+				compiler:       &w.rc,
+				langInFeatures: langInFeatures,
+			}
+			w.finder.onOp = func(op gatherMetaScriptOp) {
+				op.eventIdx = len(w.rc.parallelRecorder.events)
+				opsByItem[w.curIdx] = append(opsByItem[w.curIdx], op)
+			}
+		},
+		func(w *gatherMetaWorkerState, idx int) {
+			resetRecordingCompiler(&w.rc, compiler)
+			w.curIdx = idx
+			w.finder.currentModule = nil
+			w.finder.parentModule = nil
+			w.finder.loadModuleCall = rhino.NilNode
+			if len(w.finder.toggleModuleIDs) > 0 {
+				clear(w.finder.toggleModuleIDs)
+				clear(w.finder.toggleModules)
+			}
+			item := items[idx]
+			wt := acquireNodeTraversalDirect(&w.rc, &w.finder, w.sc, false)
+			defer releaseNodeTraversal(wt)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						wt.ThrowUnexpectedException(jutil.AsThrowable(r))
+					}
+				}()
+				wt.lazyGlobalScope = item.lazyScope
+				wt.InitTraversal(item.scopeRoot)
+				wt.currentNode = item.scopeRoot
+				wt.PushScope(item.scopeRoot)
+				wt.TraverseBranch(item.script, item.scopeRoot)
+				wt.PopScope()
+			}()
+		},
+		func(w *gatherMetaWorkerState, idx int) {
+			eventsByItem[idx] = w.rc.takeEvents()
+		},
+		nil,
+		false,
+	)
+
+	for i := range items {
+		evs := eventsByItem[i]
+		evPos := 0
+		for _, op := range opsByItem[i] {
+			if op.eventIdx > evPos && evPos < len(evs) {
+				end := min(op.eventIdx, len(evs))
+				replayCompilerEvents(compiler, evs[evPos:end])
+				evPos = end
+			}
+			switch op.kind {
+			case gatherMetaOpAddNamespace:
+				g.checkDuplicateNamespace(op.moduleType, op.namespace, op.node, op.sameModDup, op.sameModTyp, op.sourceName)
+			case gatherMetaOpLeaveModule:
+				g.recordBuiltModule(op.module)
+			}
+		}
+		if evPos < len(evs) {
+			replayCompilerEvents(compiler, evs[evPos:])
+		}
+		if p := panicsByItem[i]; p != nil {
+			rethrowParallelPanic(compiler, p)
+		}
+	}
+	if workerPanic != nil {
+		rethrowParallelPanic(compiler, workerPanic)
+	}
+	return true
+}
+
 // Java: GatherModuleMetadata.process(Node, Node)
 func (g *GatherModuleMetadata) Process(externs rhino.Node, root rhino.Node) {
-	sc := NewSyntacticScopeCreator(g.compiler)
-	finder := moduleMetadataFinder{outer: g}
-	(NodeTraversal_Builder{compiler: g.compiler, scopeCreator: sc, callback: &finder}).Traverse(externs)
-	finder = moduleMetadataFinder{outer: g}
-	(NodeTraversal_Builder{compiler: g.compiler, scopeCreator: sc, callback: &finder}).Traverse(root)
+	if !g.processParallel(externs, root) {
+		langInFeatures := g.compiler.GetOptions().GetLanguageIn().ToFeatureSet()
+		sc := NewSyntacticScopeCreator(g.compiler)
+		finder := moduleMetadataFinder{outer: g, compiler: g.compiler, langInFeatures: langInFeatures}
+		(NodeTraversal_Builder{compiler: g.compiler, scopeCreator: sc, callback: &finder}).Traverse(externs)
+		finder = moduleMetadataFinder{outer: g, compiler: g.compiler, langInFeatures: langInFeatures}
+		(NodeTraversal_Builder{compiler: g.compiler, scopeCreator: sc, callback: &finder}).Traverse(root)
+	}
 	g.compiler.SetModuleMetadataMap(newModuleMetadataMapDirect(g.modulesByPath, g.modulesByGoogNamespace))
 }
 

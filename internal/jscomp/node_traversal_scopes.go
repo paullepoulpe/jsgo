@@ -758,6 +758,101 @@ func (t *NodeTraversal) TraverseAtScope(s AbstractScope) {
 	}
 }
 
+func (t *NodeTraversal) traverseAtKnownScriptScope(
+	s AbstractScope,
+	script rhino.Node,
+	inputId *rhino.InputId,
+	input *CompilerInput,
+) {
+	if Platform_IsThreadInterrupted() {
+		panic(jutil.NewRuntimeExceptionWithCause(jutil.NewInterruptedException()))
+	}
+	n := s.GetRootNode()
+	t.currentScript = script
+	t.inputId = inputId
+	t.compilerInput = input
+	t.sourceName = ""
+	t.hasSourceName = false
+	t.currentNode = n
+
+	switch n.GetToken() {
+	case rhino.Token_FUNCTION:
+		if t.shouldTraverseScriptOrFunction(n, rhino.NilNode) {
+			t.PushScopeOfScope(s)
+			fnName := n.GetFirstChild()
+			args := fnName.GetNext()
+			body := args.GetNext()
+			if !NodeUtil_IsFunctionDeclaration(n) {
+				t.TraverseBranch(fnName, n)
+			}
+			t.TraverseBranch(args, n)
+			t.TraverseBranch(body, n)
+			t.PopScope()
+			t.visitNode(n, rhino.NilNode)
+		}
+	case rhino.Token_CLASS:
+		if t.shouldTraverse(n, rhino.NilNode) {
+			t.PushScopeOfScope(s)
+			className := n.GetFirstChild()
+			body := n.GetLastChild()
+			if NodeUtil_IsClassExpression(n) {
+				t.TraverseBranch(className, n)
+			}
+			t.TraverseBranch(body, n)
+			t.PopScope()
+			t.visitNode(n, rhino.NilNode)
+		}
+	case rhino.Token_BLOCK, rhino.Token_SWITCH_BODY:
+		if t.shouldTraverse(n, rhino.NilNode) {
+			t.PushScopeOfScope(s)
+			t.TraverseChildren(n)
+			t.PopScope()
+			t.visitNode(n, rhino.NilNode)
+		}
+	case rhino.Token_MEMBER_FIELD_DEF:
+		t.PushScopeOfScope(s)
+		if t.shouldTraverse(n, rhino.NilNode) {
+			t.TraverseChildren(n)
+			t.visitNode(n, rhino.NilNode)
+		}
+		t.PopScope()
+	case rhino.Token_COMPUTED_FIELD_DEF:
+		t.PushScopeOfScope(s)
+		if t.shouldTraverse(n, rhino.NilNode) {
+			t.TraverseBranch(n.GetLastChild(), n)
+			t.visitNode(n, rhino.NilNode)
+		}
+		t.PopScope()
+	case rhino.Token_FOR_IN, rhino.Token_FOR_OF, rhino.Token_FOR_AWAIT_OF, rhino.Token_FOR:
+		if t.shouldTraverse(n, rhino.NilNode) {
+			t.PushScopeOfScope(s)
+			forAssignmentParam := n.GetFirstChild()
+			forIterableParam := forAssignmentParam.GetNext()
+			forBodyScope := forIterableParam.GetNext()
+			t.TraverseBranch(forAssignmentParam, n)
+			t.TraverseBranch(forIterableParam, n)
+			t.TraverseBranch(forBodyScope, n)
+			t.PopScope()
+			t.visitNode(n, rhino.NilNode)
+		}
+	default:
+		jutil.CheckStateMsg1(
+			isGlobalOrModuleAbstractScope(s), "Expected global or module scope. Got: (%s)", s)
+		t.traverseKnownModuleScope(n, s)
+	}
+}
+
+func (t *NodeTraversal) traverseKnownModuleScope(root rhino.Node, s AbstractScope) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.ThrowUnexpectedException(jutil.AsThrowable(r))
+		}
+	}()
+	t.PushScopeOfScope(s)
+	t.TraverseBranch(root, rhino.NilNode)
+	t.PopScope()
+}
+
 // NodeTraversal_TraverseAtScope traverses the given scope.
 //
 // Java: NodeTraversal.traverseAtScope(AbstractCompiler, Callback, AbstractScope<?, ?>)

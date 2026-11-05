@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // CollectDefines finds all defines, and creates a Define data structure for
@@ -193,10 +194,15 @@ func (p *ProcessDefines) CollectValidDefineValueExpressions() {
 
 	constNamespace := p.namespace
 	if constNamespace != nil && constNamespace.forProcessDefines && !constNamespace.includeGlobalConsts {
+		seededIDs, hasReachableConst := p.computeReachableDefineConstLeafIDs(constNamespace)
+		if !hasReachableConst {
+			return
+		}
 		constNamespace = NewGlobalNamespaceWithRoots(p.compiler, constNamespace.externsRoot, constNamespace.root)
 		constNamespace.forProcessDefines = true
 		constNamespace.processDefinesCheck = true
 		constNamespace.includeGlobalConsts = true
+		constNamespace.defineCandidateLeafIDs = seededIDs
 		constNamespace.EnsureGenerated()
 		clear(defineNamesSet)
 		for _, define := range p.defines {
@@ -773,4 +779,211 @@ func (p *ProcessDefines) VerifyOfType(methodName rhino.Node, arg rhino.Node, des
 		return false
 	}
 	return true
+}
+
+type defineConstDepEdge struct {
+	lhsID uint32
+	lhsD  uint32
+	rhs   []uint32
+}
+
+func addDefineConstLeafID(m map[uint32]struct{}, id uint32) bool {
+	if id <= strpool.EmptyID {
+		return false
+	}
+	added := false
+	if _, ok := m[id]; !ok {
+		m[id] = struct{}{}
+		added = true
+	}
+	if s := strpool.String(strpool.ID(id)); strings.IndexByte(s, '.') >= 0 {
+		if last := s[strings.LastIndexByte(s, '.')+1:]; last != "" {
+			lid := uint32(strpool.Intern(last))
+			if _, ok := m[lid]; !ok {
+				m[lid] = struct{}{}
+				added = true
+			}
+		}
+	}
+	return added
+}
+
+func leafIDAndDotTail(id uint32) (uint32, uint32) {
+	if id <= strpool.EmptyID {
+		return 0, 0
+	}
+	if s := strpool.String(strpool.ID(id)); strings.IndexByte(s, '.') >= 0 {
+		if last := s[strings.LastIndexByte(s, '.')+1:]; last != "" {
+			return id, uint32(strpool.Intern(last))
+		}
+	}
+	return id, 0
+}
+
+func (p *ProcessDefines) collectUnknownExprLeafIDs(val rhino.Node, out []uint32) []uint32 {
+	if val.IsNil() {
+		return out
+	}
+	switch val.GetToken() {
+	case rhino.Token_AND,
+		rhino.Token_OR,
+		rhino.Token_COALESCE,
+		rhino.Token_ADD,
+		rhino.Token_BITAND,
+		rhino.Token_BITOR,
+		rhino.Token_BITXOR,
+		rhino.Token_DIV,
+		rhino.Token_EQ,
+		rhino.Token_EXPONENT,
+		rhino.Token_GE,
+		rhino.Token_GT,
+		rhino.Token_LE,
+		rhino.Token_LSH,
+		rhino.Token_LT,
+		rhino.Token_MOD,
+		rhino.Token_MUL,
+		rhino.Token_NE,
+		rhino.Token_RSH,
+		rhino.Token_SHEQ,
+		rhino.Token_SHNE,
+		rhino.Token_SUB,
+		rhino.Token_URSH:
+		op := ast.MustBinary(val)
+		out = p.collectUnknownExprLeafIDs(op.Left().Node(), out)
+		return p.collectUnknownExprLeafIDs(op.Right().Node(), out)
+	case rhino.Token_HOOK:
+		hook := ast.MustHook(val)
+		out = p.collectUnknownExprLeafIDs(hook.Cond().Node(), out)
+		out = p.collectUnknownExprLeafIDs(hook.Then().Node(), out)
+		return p.collectUnknownExprLeafIDs(hook.Else().Node(), out)
+	case rhino.Token_NOT, rhino.Token_NEG, rhino.Token_POS, rhino.Token_BITNOT:
+		return p.collectUnknownExprLeafIDs(ast.MustUnary(val).Operand().Node(), out)
+	case rhino.Token_NAME, rhino.Token_GETPROP:
+		if val.IsQualifiedName() {
+			if _, ok := p.validDefineValueExpressions[val]; !ok {
+				out = append(out, val.GetStringID())
+			}
+		}
+		return out
+	case rhino.Token_CALL:
+		if p.IsGoogDefineCall(val) {
+			if defaultValue, ok := googDefineDefault(ast.MustCall(val)); ok {
+				return p.collectUnknownExprLeafIDs(defaultValue.Node(), out)
+			}
+		}
+	}
+	return out
+}
+
+func (p *ProcessDefines) collectTopLevelConstEdges(root rhino.Node, edges []defineConstDepEdge, stack []rhino.Node) ([]defineConstDepEdge, []rhino.Node) {
+	if root.IsNil() {
+		return edges, stack
+	}
+	stack = append(stack[:0], root)
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch n.GetToken() {
+		case rhino.Token_MODULE_BODY:
+			continue
+		case rhino.Token_FUNCTION:
+			if !NodeUtil_IsFunctionExpression(n) {
+				if name := n.GetFirstChild(); name.IsName() {
+					stack = append(stack, name)
+				}
+			}
+			continue
+		case rhino.Token_NAME, rhino.Token_GETPROP:
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				stack = append(stack, c)
+			}
+			if n.GetParent().IsGetProp() {
+				continue
+			}
+			if n.IsGetProp() && !n.IsQualifiedName() {
+				continue
+			}
+			declVal := getConstantDeclValue(n)
+			if declVal.IsNil() || p.IsValidDefineValue(declVal) == base.Tri_FALSE {
+				continue
+			}
+			lhsID, lhsD := leafIDAndDotTail(n.GetStringID())
+			if lhsID == 0 {
+				continue
+			}
+			rhs := p.collectUnknownExprLeafIDs(declVal, nil)
+			edges = append(edges, defineConstDepEdge{lhsID: lhsID, lhsD: lhsD, rhs: rhs})
+			continue
+		}
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			stack = append(stack, c)
+		}
+	}
+	return edges, stack
+}
+
+func (p *ProcessDefines) computeReachableDefineConstLeafIDs(primary *GlobalNamespace) (map[uint32]struct{}, bool) {
+	needed := make(map[uint32]struct{}, 16)
+	var rhsBuf [16]uint32
+	for _, define := range p.defines {
+		if !define.valueParent.IsNil() && !define.valueParent.IsFromExterns() && p.IsValidDefineValue(define.value) == base.Tri_UNKNOWN {
+			ids := p.collectUnknownExprLeafIDs(define.value, rhsBuf[:0])
+			for _, id := range ids {
+				addDefineConstLeafID(needed, id)
+			}
+		}
+	}
+	if len(needed) == 0 {
+		return nil, false
+	}
+
+	var stackBuf [64]rhino.Node
+	stack := stackBuf[:0]
+	var edges []defineConstDepEdge
+	if primary.HasExternsRoot() {
+		edges, stack = p.collectTopLevelConstEdges(primary.externsRoot, edges, stack)
+	}
+	edges, _ = p.collectTopLevelConstEdges(primary.root, edges, stack)
+	if len(edges) == 0 {
+		return nil, false
+	}
+
+	matchedAny := false
+	used := make([]bool, len(edges))
+	for {
+		progressed := false
+		for i := range edges {
+			if used[i] {
+				continue
+			}
+			e := &edges[i]
+			_, ok1 := needed[e.lhsID]
+			ok2 := e.lhsD != 0
+			if ok2 {
+				_, ok2 = needed[e.lhsD]
+			}
+			if !ok1 && !ok2 {
+				continue
+			}
+			used[i] = true
+			matchedAny = true
+			addDefineConstLeafID(needed, e.lhsID)
+			for _, rid := range e.rhs {
+				if addDefineConstLeafID(needed, rid) {
+					progressed = true
+				}
+			}
+		}
+		if !progressed {
+			break
+		}
+	}
+	if !matchedAny {
+		return nil, false
+	}
+	// order-independent: merges set keys into an unordered map[uint32]struct{}.
+	for id := range primary.defineCandidateLeafIDs {
+		needed[id] = struct{}{}
+	}
+	return needed, true
 }

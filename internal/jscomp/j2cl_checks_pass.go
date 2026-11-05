@@ -76,9 +76,15 @@ func (p *J2clChecksPass) Visit(_ *NodeTraversal, n rhino.Node, _ rhino.Node) {
 		if (firstJsType == nil && lastJsType == nil) || isNullOrVoidType(firstJsType) || isNullOrVoidType(lastJsType) {
 			return
 		}
+		firstSrc := j2clCtorSourceName(firstJsType)
+		lastSrc := j2clCtorSourceName(lastJsType)
+		if firstSrc == "" && lastSrc == "" {
+			return
+		}
 		for i := range j2clReferenceEqualityPatterns {
 			pat := &j2clReferenceEqualityPatterns[i]
-			if isJ2clFileType(firstJsType, pat.fileName) || isJ2clFileType(lastJsType, pat.fileName) {
+			if (firstSrc != "" && strings.HasSuffix(firstSrc, pat.fileName)) ||
+				(lastSrc != "" && strings.HasSuffix(lastSrc, pat.fileName)) {
 				p.compiler.Report(JSError_MakeWithNode(n, J2clChecksPass_J2CL_REFERENCE_EQUALITY, pat.typeName))
 			}
 		}
@@ -89,25 +95,46 @@ func isNullOrVoidType(jsType rhino.JSType) bool {
 	return jsType != nil && (jsType.IsNullType() || jsType.IsVoidType())
 }
 
-func isJ2clFileType(jsType rhino.JSType, fileName string) bool {
+func j2clCtorSourceName(jsType rhino.JSType) string {
 	if jsType == nil {
-		return false
+		return ""
 	}
 	objType := jsType.RestrictByNotNullOrUndefined().ToMaybeObjectType()
 	if objType == nil {
-		return false
+		return ""
 	}
 	ctor := objType.GetConstructor()
 	if ctor == nil {
-		return false
+		return ""
 	}
-	sourceName, ok := NodeUtil_SourceName(ctor.GetSource())
-	return ok && strings.HasSuffix(sourceName, fileName)
+	src := ctor.GetSource()
+	if src.IsNil() {
+		return ""
+	}
+	if sf := src.GetStaticSourceFile(); sf != nil {
+		return sf.GetName()
+	}
+	sourceName, ok := NodeUtil_SourceName(src)
+	if !ok {
+		return ""
+	}
+	return sourceName
 }
 
 // Java: J2clChecksPass.process(Node, Node)
 func (p *J2clChecksPass) Process(externs rhino.Node, root rhino.Node) {
-	if !root.IsNil() {
-		NodeTraversal_Traverse(p.compiler, root, p)
+	if root.IsNil() {
+		return
 	}
+	if comp := p.compiler; comp != nil && !comp.IsDebugLoggingEnabled() {
+		if traverseScriptsParallel(comp, root, parallelScriptOptions[*J2clChecksPass]{
+			enableTypeRegistryReads: true,
+			initWorker: func(_ int, rc *Compiler) *J2clChecksPass {
+				return &J2clChecksPass{compiler: rc}
+			},
+		}) {
+			return
+		}
+	}
+	NodeTraversal_Traverse(p.compiler, root, p)
 }

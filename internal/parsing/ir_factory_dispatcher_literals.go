@@ -72,7 +72,7 @@ func (f *IRFactory) ProcessObjectLitKey(
 	case parser.TokenType_BIGINT:
 		node = f.NewStringNodeWithToken(output, f.NormalizeBigInt(literal).String())
 	default:
-		node = f.alloc.Alloc().InitStringIDFromTemplate(output, f.normalizeStringToID(literal), f.templateNode)
+		node = f.alloc.AllocStringIDCachedTemplate(output, f.normalizeStringToID(literal))
 	}
 
 	if jsDocInfo != nil {
@@ -266,7 +266,7 @@ func (f *IRFactory) ProcessString(token parser.Token) rhino.Node {
 		comment = f.ParseNonJSDocCommentAt(startPos, true)
 	}
 
-	node := f.alloc.Alloc().InitStringIDFromTemplate(rhino.Token_STRINGLIT, f.normalizeStringToID(token), f.templateNode)
+	node := f.alloc.AllocStringIDCachedTemplate(rhino.Token_STRINGLIT, f.normalizeStringToID(token))
 
 	if comment != nil {
 		node.SetNonJSDocComment(comment)

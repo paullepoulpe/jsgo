@@ -575,7 +575,8 @@ func (r *conformanceBanNullDerefRule) isNullishDeref(n rhino.Node) bool {
 type conformanceBanUnknownThisRule struct {
 	conformanceAbstractRule
 
-	reports map[rhino.Node]struct{}
+	reports          map[rhino.Node]struct{}
+	onGlobalScopeHit func(n rhino.Node)
 }
 
 func newConformanceBanUnknownThisRule(compiler AbstractCompiler, requirement *Requirement) (*conformanceBanUnknownThisRule, error) {
@@ -598,6 +599,9 @@ func (r *conformanceBanUnknownThisRule) checkNode(t *NodeTraversal, n rhino.Node
 			}
 			if _, reported := r.reports[root]; !reported {
 				r.reports[root] = struct{}{}
+				if r.onGlobalScopeHit != nil && root.IsRoot() {
+					r.onGlobalScopeHit(n)
+				}
 				return ConformanceRules_ConformanceResult_VIOLATION
 			}
 		}

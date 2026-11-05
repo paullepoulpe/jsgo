@@ -67,6 +67,7 @@ type Es6RewriteModules struct {
 	moduleRequireRewriter es6RewriteModuleRequiresCallback
 	inlineAliasesCallback es6RewriteInlineAliasesCallback
 	globalVarRenamer      es6RenameGlobalVars
+	hasEs6GoogModules     bool
 }
 
 var (
@@ -166,13 +167,35 @@ func Es6RewriteModules_IsEs6ModuleRoot(scriptNode rhino.Node) bool {
 	return hasFirst && firstItem.Node().IsModuleBody()
 }
 
+func rootHasEs6ModuleScript(root rhino.Node) bool {
+	for s := root.GetFirstChild(); !s.IsNil(); s = s.GetNext() {
+		if !s.IsScript() || Es6RewriteModules_IsEs6ModuleRoot(s) {
+			return true
+		}
+	}
+	return false
+}
+
 // Java: Es6RewriteModules.process(Node, Node)
 func (e *Es6RewriteModules) Process(externs rhino.Node, root rhino.Node) {
 	jutil.CheckArgumentMsg1(externs.IsRoot(), "%s", externs)
 	jutil.CheckArgumentMsg1(root.IsRoot(), "%s", root)
-	NodeTraversal_TraverseRoots(e.compiler, e, externs, root)
+	hasEs6Goog := false
+	for _, entry := range e.moduleMetadataMap.GetModulesByGoogNamespace().Entries() {
+		if entry.Value != nil && entry.Value.IsEs6Module() {
+			hasEs6Goog = true
+			break
+		}
+	}
+	e.hasEs6GoogModules = hasEs6Goog
+	hasEs6Scripts := hasEs6Goog || rootHasEs6ModuleScript(externs) || rootHasEs6ModuleScript(root)
+	if hasEs6Scripts {
+		NodeTraversal_TraverseRoots(e.compiler, e, externs, root)
+	}
 	NodeUtil_RemoveFeatureFromAllScripts(root, parser.FeatureSet_Feature_MODULES, e.compiler)
-	GatherGetterAndSetterProperties_Update(e.compiler, externs, root)
+	if hasEs6Scripts || e.compiler.GetAccessorSummary() == nil {
+		GatherGetterAndSetterProperties_Update(e.compiler, externs, root)
+	}
 }
 
 func (e *Es6RewriteModules) clearPerFileState() {
@@ -375,10 +398,16 @@ func (*Es6RewriteModules) visitTokens() *ast.TokenSet { return &es6RewriteModule
 // Java: Es6RewriteModules.shouldTraverse(NodeTraversal, Node, Node)
 func (e *Es6RewriteModules) ShouldTraverse(nodeTraversal *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	if _, ok := ast.AsScript(n); ok {
+		isEs6Root := Es6RewriteModules_IsEs6ModuleRoot(n)
+		if !e.hasEs6GoogModules && !isEs6Root {
+			return false
+		}
 		// Trigger creation of the global scope before inserting any synthetic code.
 		nodeTraversal.GetScope()
-		e.requireRewriter.rewrite(n)
-		if Es6RewriteModules_IsEs6ModuleRoot(n) {
+		if e.hasEs6GoogModules {
+			e.requireRewriter.rewrite(n)
+		}
+		if isEs6Root {
 			e.clearPerFileState()
 		} else {
 			return false

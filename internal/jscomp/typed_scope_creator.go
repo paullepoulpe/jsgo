@@ -167,6 +167,38 @@ type TypedScopeCreator struct {
 	hasUnevaluatedRecordEnumAlias bool
 	recordScopeOrder              bool
 	scopeOrder                    []typedScopeOrderEntry
+
+	currentBuildScript          rhino.Node
+	currentBuildInputId         *rhino.InputId
+	currentBuildInput           *CompilerInput
+	currentBuildInputResolved   bool
+	currentBuildScriptHasSource bool
+}
+
+func (c *TypedScopeCreator) setCurrentBuildScript(script rhino.Node) {
+	if c.currentBuildScript == script {
+		return
+	}
+	c.currentBuildScript = script
+	if script.IsNil() {
+		c.currentBuildInputId = nil
+		c.currentBuildInput = nil
+		c.currentBuildInputResolved = false
+		c.currentBuildScriptHasSource = false
+		return
+	}
+	c.currentBuildInputId = script.GetInputId()
+	c.currentBuildInput = nil
+	c.currentBuildInputResolved = false
+	c.currentBuildScriptHasSource = script.GetStaticSourceFile() != nil
+}
+
+func (c *TypedScopeCreator) getCurrentBuildInput() *CompilerInput {
+	if !c.currentBuildInputResolved {
+		c.currentBuildInput = c.compiler.GetInput(c.currentBuildInputId)
+		c.currentBuildInputResolved = true
+	}
+	return c.currentBuildInput
 }
 
 func (c *TypedScopeCreator) takeScopeOrder() []typedScopeOrderEntry {
@@ -451,8 +483,12 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 	// show up in the type registry.
 	var newScope *TypedScope
 
-	module := ModuleImportResolver_GetModuleFromScopeRoot(c.moduleMap, c.compiler, root)
+	var module *Module
+	if root.IsModuleBody() || (root.IsBlock() && root.GetParent().IsFunction()) {
+		module = ModuleImportResolver_GetModuleFromScopeRoot(c.moduleMap, c.compiler, root)
+	}
 	if typedParent == nil {
+		defer c.setCurrentBuildScript(rhino.NilNode)
 		jutil.CheckStateMsg1(root.IsRoot(), "%s", root)
 		externsRoot := root.GetFirstChild()
 		jsRoot := root.GetSecondChild()
@@ -513,6 +549,16 @@ func (c *TypedScopeCreator) CreateScopeInternal(root rhino.Node, typedParent *Ty
 			inputId := jutil.CheckNotNullPtr(NodeUtil_GetInputId(root))
 			compilerInput := jutil.CheckNotNullPtr(c.compiler.GetInput(inputId))
 			compilerInput.SetTypedScope(newScope)
+		}
+	}
+	if typedParent != nil && module == nil {
+		if root.IsBlock() && !root.HasChildren() {
+			newScope.scanDone = true
+			return newScope
+		}
+		if kind == scopeBuilderFunction && c.tryBuildSimpleFunctionScope(root, newScope) {
+			newScope.scanDone = true
+			return newScope
 		}
 	}
 	scopeBuilder := c.acquireScopeBuilder(kind, newScope)

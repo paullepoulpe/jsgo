@@ -139,11 +139,13 @@ type GlobalNamespace struct {
 	multiRefs []globalNamespaceMultiRefs
 	jsDocs    []*rhino.JSDocInfo
 
-	forProcessDefines      bool
-	processDefinesCheck    bool
-	includeGlobalConsts    bool
-	hasNonScriptDefineCand bool
-	defineCandidateScripts map[rhino.Node]struct{}
+	forProcessDefines          bool
+	processDefinesCheck        bool
+	includeGlobalConsts        bool
+	hasNonScriptDefineCand     bool
+	defineCandScriptsPopulated bool
+	hasFuncDefineCand          bool
+	defineCandidateScripts     map[rhino.Node]struct{}
 
 	// Go-only: performance — for ProcessDefines, the strpool IDs of leaf
 	// segments that can belong to a define or (when includeGlobalConsts is

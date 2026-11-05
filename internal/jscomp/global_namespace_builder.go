@@ -329,6 +329,16 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 	if n.IsScript() && g.shouldTraverseScript != nil && !g.shouldTraverseScript(n) {
 		return false
 	}
+	if g.forProcessDefines &&
+		g.defineCandScriptsPopulated &&
+		!g.hasFuncDefineCand &&
+		b.curModuleRoot.IsNil() &&
+		!parent.IsNil() &&
+		parent.IsFunction() &&
+		!NodeUtil_IsBundledGoogModuleCall(parent.GetParent()) &&
+		!(n == parent.GetFirstChild() && n.IsName() && n.GetStringID() > strpool.EmptyID) {
+		return false
+	}
 	if g.HasExternsRoot() && n.IsScript() {
 		// When checking type-summary files, we want to consider them like normal code
 		// for some things (like alias inlining) but like externs for other things.
@@ -336,7 +346,7 @@ func (b *GlobalNamespace_BuildGlobalNamespace) ShouldTraverse(t *NodeTraversal, 
 	} else if n == g.root {
 		g.sourceKind = GlobalNamespace_SourceKind_CODE
 	}
-	if g.forProcessDefines && g.processDefinesCheck && g.sourceKind == GlobalNamespace_SourceKind_CODE {
+	if g.forProcessDefines && g.processDefinesCheck && !g.defineCandScriptsPopulated && !g.includeGlobalConsts && g.sourceKind == GlobalNamespace_SourceKind_CODE {
 		isGoogDefineCall := false
 		if call, isCall := ast.AsCall(n); isCall {
 			isGoogDefineCall = processDefines_GOOG_DEFINE.Matches(call.Callee().Node())

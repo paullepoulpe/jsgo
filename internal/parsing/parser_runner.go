@@ -259,10 +259,10 @@ func ParserRunner_ParseWithAllocator(
 	var topLevelStatementRanges []parser.SourceRange
 	features := p.GetFeatures()
 	if tree != nil && (!es6ErrorReporter.HadError() || keepGoing) {
-		factory := irFactoryTransformTree(
+		var factoryFeatures parser.FeatureSet
+		root, factoryFeatures = irFactoryTransformTreePooled(
 			tree, sourceFile, config, errorReporter, file, alloc)
-		root = factory.GetResultNode()
-		features = features.Union(factory.GetFeatures())
+		features = features.Union(factoryFeatures)
 		root.PutProp(rhino.Node_FEATURE_SET, features)
 
 		if config.JsDocParsingMode().ShouldParseDescriptions() {

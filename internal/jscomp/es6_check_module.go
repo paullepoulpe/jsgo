@@ -205,32 +205,110 @@ func googRequireTypeDeclarator(n rhino.Node) (ast.Declarator, bool) {
 	return d, true
 }
 
-func collectRequireTypeIDs(n rhino.Node, ids *map[uint32]struct{}) {
+func appendRequireTypeIDsFromNode(n rhino.Node, out []uint32) []uint32 {
 	if d, ok := googRequireTypeDeclarator(n); ok {
-		if *ids == nil {
-			*ids = make(map[uint32]struct{})
-		}
 		if name, ok := d.AsName(); ok {
-			(*ids)[name.Node().GetStringID()] = struct{}{}
+			out = append(out, name.Node().GetStringID())
 		} else if objPat, ok := d.MustDestructuringLhs().Pattern().AsObjectPattern(); ok {
 			for prop := range objPat.Props() {
 				if sk, ok := prop.AsStringKey(); ok {
 					if target, ok := sk.Value().AsName(); ok {
-						(*ids)[target.Node().GetStringID()] = struct{}{}
+						out = append(out, target.Node().GetStringID())
 					}
 				}
 			}
 		}
 	}
-	for child := n.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
-		collectRequireTypeIDs(child, ids)
+	return out
+}
+
+func collectScriptRequireTypeIDs(root rhino.Node, out []uint32, stack []rhino.Node) ([]uint32, []rhino.Node) {
+	stack = append(stack[:0], root)
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch n.GetToken() {
+		case rhino.Token_VAR, rhino.Token_LET, rhino.Token_CONST:
+			out = appendRequireTypeIDsFromNode(n, out)
+		}
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			stack = append(stack, c)
+		}
 	}
+	return out, stack
+}
+
+func collectAllRequireTypeIDs(compiler AbstractCompiler, root rhino.Node) map[uint32]struct{} {
+	if root.IsNil() {
+		return nil
+	}
+	scripts, ok := collectRootScripts(root)
+	if !ok {
+		var stackBuf [64]rhino.Node
+		ids, _ := collectScriptRequireTypeIDs(root, nil, stackBuf[:0])
+		if len(ids) == 0 {
+			return nil
+		}
+		m := make(map[uint32]struct{}, len(ids))
+		for _, id := range ids {
+			m[id] = struct{}{}
+		}
+		return m
+	}
+	if len(scripts) == 0 {
+		return nil
+	}
+	numWorkers := parallelThreadCount(compiler, len(scripts))
+	if numWorkers > 1 && len(scripts) >= 8 {
+		perWorker := make([][]uint32, numWorkers)
+		if p := spawnIndexedWorkers(len(scripts), numWorkers, func(wIdx int, claim func() (int, bool)) {
+			var ids []uint32
+			var stack []rhino.Node
+			for {
+				idx, ok := claim()
+				if !ok {
+					break
+				}
+				ids, stack = collectScriptRequireTypeIDs(scripts[idx], ids, stack)
+			}
+			perWorker[wIdx] = ids
+		}); p != nil {
+			panic(p)
+		}
+		total := 0
+		for _, ids := range perWorker {
+			total += len(ids)
+		}
+		if total == 0 {
+			return nil
+		}
+		m := make(map[uint32]struct{}, total)
+		for _, ids := range perWorker {
+			for _, id := range ids {
+				m[id] = struct{}{}
+			}
+		}
+		return m
+	}
+	var stackBuf [64]rhino.Node
+	var ids []uint32
+	stack := stackBuf[:0]
+	for _, s := range scripts {
+		ids, stack = collectScriptRequireTypeIDs(s, ids, stack)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	m := make(map[uint32]struct{}, len(ids))
+	for _, id := range ids {
+		m[id] = struct{}{}
+	}
+	return m
 }
 
 // Java: CheckTypeImportCodeReferences.process(Node, Node)
 func (c *CheckTypeImportCodeReferences) Process(externs rhino.Node, root rhino.Node) {
-	c.requireTypeIDs = nil
-	collectRequireTypeIDs(root, &c.requireTypeIDs)
+	c.requireTypeIDs = collectAllRequireTypeIDs(c.compiler, root)
 	if len(c.requireTypeIDs) == 0 {
 		return
 	}
@@ -262,6 +340,8 @@ func (c *CheckTypeImportCodeReferences) processParallel(root rhino.Node) bool {
 		},
 	})
 }
+
+func (*CheckTypeImportCodeReferences) onlyNameLeaves() {}
 
 func (*CheckTypeImportCodeReferences) visitTokens() *ast.TokenSet {
 	return &checkTypeImportCodeReferencesVisitTokens

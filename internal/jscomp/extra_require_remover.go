@@ -52,7 +52,7 @@ type ExtraRequireRemover struct {
 	// `usages` are name-based and not scoped, any usage that shadows an
 	// unused require in that file will cause the extra require not to be
 	// removed.
-	usages OrderedSet[string]
+	usages map[string]struct{}
 }
 
 var extraRequireRemover_DEFAULT_EXTRA_NAMESPACES = NewOrderedSet(
@@ -63,9 +63,34 @@ func NewExtraRequireRemover(compiler AbstractCompiler) *ExtraRequireRemover {
 	return &ExtraRequireRemover{compiler: compiler}
 }
 
+func (e *ExtraRequireRemover) addUsage(name string) {
+	if e.usages == nil {
+		e.usages = make(map[string]struct{}, 32)
+	}
+	e.usages[name] = struct{}{}
+}
+
+func (e *ExtraRequireRemover) hasUsage(name string) bool {
+	_, ok := e.usages[name]
+	return ok
+}
+
 // Java: ExtraRequireRemover.process(Node, Node)
 func (e *ExtraRequireRemover) Process(externs rhino.Node, root rhino.Node) {
 	e.Reset()
+	if c := e.compiler; c != nil && !c.IsDebugLoggingEnabled() {
+		if traverseScriptsParallel(c, root, parallelScriptOptions[*ExtraRequireRemover]{
+			initWorker: func(_ int, rc *Compiler) *ExtraRequireRemover {
+				return NewExtraRequireRemover(rc)
+			},
+			callback: func(w *ExtraRequireRemover, _ int, _ rhino.Node, _ rhino.Node, _ *Compiler) NodeTraversal_Callback {
+				w.Reset()
+				return w
+			},
+		}) {
+			return
+		}
+	}
 	NodeTraversal_Traverse(e.compiler, root, e)
 }
 
@@ -142,7 +167,7 @@ func (e *ExtraRequireRemover) Visit(t *NodeTraversal, n rhino.Node, parent rhino
 
 // Java: ExtraRequireRemover.reset()
 func (e *ExtraRequireRemover) Reset() {
-	e.usages.Clear()
+	clear(e.usages)
 	e.requires.Clear()
 }
 
@@ -171,7 +196,7 @@ func (e *ExtraRequireRemover) RemoveExtraRequiresInScript() {
 //
 // Java: ExtraRequireRemover.removeExtraRequire(Node, String)
 func (e *ExtraRequireRemover) RemoveExtraRequire(call rhino.Node, require string) {
-	if e.usages.Contains(require) {
+	if e.hasUsage(require) {
 		return
 	}
 
@@ -313,9 +338,21 @@ func (e *ExtraRequireRemover) VisitCallNode(call rhino.Node, parent rhino.Node) 
 	if extraRequireRemover_GOOG_MODULE_GET.Matches(callExpr.Callee().Node()) {
 		if arg0, ok := callExpr.FirstArg(); ok {
 			if lit, ok := arg0.AsStringLit(); ok {
-				e.usages.Add(lit.Value())
+				e.addUsage(lit.Value())
 			}
 		}
+	}
+}
+
+func (e *ExtraRequireRemover) addUsagesOfStringPrefixes(qname string) {
+	e.addUsage(qname)
+	for {
+		dot := strings.LastIndexByte(qname, '.')
+		if dot < 0 {
+			return
+		}
+		qname = qname[:dot]
+		e.addUsage(qname)
 	}
 }
 
@@ -329,17 +366,29 @@ func (e *ExtraRequireRemover) VisitCallNode(call rhino.Node, parent rhino.Node) 
 //
 // Java: ExtraRequireRemover.addUsagesOfAllPrefixes(QualifiedName)
 func (e *ExtraRequireRemover) AddUsagesOfAllPrefixes(qualifiedName rhino.QualifiedName) {
-	e.usages.Add(qualifiedName.Join())
+	e.addUsage(qualifiedName.Join())
 
 	for !qualifiedName.IsSimple() {
 		qualifiedName = qualifiedName.GetOwner()
-		e.usages.Add(qualifiedName.Join())
+		e.addUsage(qualifiedName.Join())
 	}
 }
 
 // Java: ExtraRequireRemover.visitQualifiedName(Node)
 func (e *ExtraRequireRemover) VisitQualifiedName(n rhino.Node) {
 	jutil.CheckArgumentMsg1(n.IsQualifiedName(), "%s", n)
+	if n.IsName() {
+		e.addUsage(n.GetString())
+		return
+	}
+	if s, ok := n.QualifiedName(); ok {
+		for cur := n; cur.IsGetProp(); cur = cur.GetFirstChild() {
+			e.addUsage(s)
+			s = s[:len(s)-len(cur.GetString())-1]
+		}
+		e.addUsage(s)
+		return
+	}
 	e.AddUsagesOfAllPrefixes(n.GetQualifiedNameObject())
 }
 
@@ -354,9 +403,9 @@ func (e *ExtraRequireRemover) MaybeAddJsDocUsages(n rhino.Node) {
 	}
 
 	for it := info.TypeExprIter(); it.Next(); {
-		for typeName := range it.Expr().GetAllTypeNames().All() {
-			e.AddUsagesOfAllPrefixes(rhino.QualifiedName_Of(typeName))
-		}
+		rhino.JSTypeExpression_VisitAllTypeNodes(it.Expr().GetRoot(), func(typeNode rhino.Node) {
+			e.addUsagesOfStringPrefixes(typeNode.GetString())
+		})
 	}
 }
 

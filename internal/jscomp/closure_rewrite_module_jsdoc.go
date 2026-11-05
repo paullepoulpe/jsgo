@@ -95,13 +95,16 @@ func (m *ClosureRewriteModule) visitJsdocTypeRef(t *NodeTraversal, typeRefNode r
 			newType += typeName[dot:]
 		}
 		m.safeSetString(typeRefNode, newType)
-	} else if len(m.rewriteState.scriptDescriptionsByGoogModuleNamespace) > 0 {
+	} else if len(m.rewriteState.nonLegacyModuleRoots) > 0 {
 		m.rewriteIfClosureNamespaceRefForRoot(t, typeName, rootOfType, typeRefNode)
 	}
 }
 
 func (m *ClosureRewriteModule) rewriteIfClosureNamespaceRefForRoot(
 	t *NodeTraversal, typeName, rootOfType string, typeRefNode rhino.Node) {
+	if _, ok := m.rewriteState.nonLegacyModuleRoots[rootOfType]; !ok {
+		return
+	}
 	prefixTypeName := typeName
 	suffix := ""
 

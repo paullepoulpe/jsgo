@@ -199,6 +199,9 @@ func (*closureProvideCollector) visitTokens() *ast.TokenSet {
 func (*closureProvideCollector) onlyNameLeaves() {}
 
 func (c *closureProvideCollector) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsScript() && n.IsFromExterns() && c.outer.providedNames.Len() == 1 && !scriptHasGoogOrModuleBody(n) {
+		return false
+	}
 	// Don't recurse into modules, which cannot have goog.provides. We do need to handle legacy
 	// goog.modules, but we do that quickly here rather than descending all the way into them.
 	// We completely ignore ES modules and CommonJS modules.
@@ -335,7 +338,12 @@ func (p *ProcessClosureProvidesAndRequires) handleStubDefinition(t *NodeTraversa
 		return
 	}
 	exprResult := exprStmt.Node()
-	isExternStub := exprResult.IsFromExterns()
+	var isExternStub bool
+	if !t.currentScript.IsNil() {
+		isExternStub = t.currentScript.IsFromExterns()
+	} else {
+		isExternStub = exprResult.IsFromExterns()
+	}
 	isTypedefStub := isTypedefStubDeclaration(exprResult)
 	// recognize @typedefs only if using this pass for typechecking via
 	// collectProvidedNames. We don't want rewriting to depend on @typedef annotations.

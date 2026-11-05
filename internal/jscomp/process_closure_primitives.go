@@ -183,6 +183,9 @@ func (*ProcessClosurePrimitives) visitTokens() *ast.TokenSet {
 
 // Java: ProcessClosurePrimitives.process(Node, Node)
 func (p *ProcessClosurePrimitives) Process(externs rhino.Node, root rhino.Node) {
+	if p.processParallel(externs, root) {
+		return
+	}
 	// Replace and validate other Closure primitives
 	NodeTraversal_TraverseRoots(p.compiler, p, externs, root)
 }

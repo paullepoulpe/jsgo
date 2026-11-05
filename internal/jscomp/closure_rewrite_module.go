@@ -285,6 +285,7 @@ type closureAliasName struct {
 
 type closureScriptDescription struct {
 	isModule               bool
+	hasGoogOrModuleBody    bool
 	declareLegacyNamespace bool
 	hasNamespaceId         bool
 	namespaceId            string // "a.b.c"
@@ -437,16 +438,18 @@ func (r *closureScriptRecorder) ShouldTraverse(t *NodeTraversal, n rhino.Node, p
 			m.recordGoogModuleGet(t, call)
 		}
 	case rhino.Token_CLASS, rhino.Token_FUNCTION:
-		if m.isTopLevel(t, n, closureScopeBlock) {
+		if m.currentScript.isModule && m.isTopLevel(t, n, closureScopeBlock) {
 			m.recordTopLevelClassOrFunctionName(n)
 		}
 	case rhino.Token_CONST, rhino.Token_LET, rhino.Token_VAR:
-		scopeType := closureScopeBlock
-		if n.IsVar() {
-			scopeType = closureScopeExecContext
-		}
-		if m.isTopLevel(t, n, scopeType) {
-			m.recordTopLevelVarNames(n)
+		if m.currentScript.isModule {
+			scopeType := closureScopeBlock
+			if n.IsVar() {
+				scopeType = closureScopeExecContext
+			}
+			if m.isTopLevel(t, n, scopeType) {
+				m.recordTopLevelVarNames(n)
+			}
 		}
 	case rhino.Token_GETPROP:
 		if getProp := ast.MustGetProp(n); m.currentScript.isModule && closureRewriteModule_isExportPropertyAssignment(t, getProp) {
@@ -470,6 +473,25 @@ func (r *closureScriptRecorder) Visit(t *NodeTraversal, n rhino.Node, parent rhi
 type closureGlobalRewriteState struct {
 	scriptDescriptionsByGoogModuleNamespace map[string]*closureScriptDescription
 	providedNamespaces                      map[string]struct{}
+	nonLegacyModuleRoots                    map[string]struct{}
+}
+
+func (g *closureGlobalRewriteState) populateNonLegacyModuleRoots() {
+	clear(g.nonLegacyModuleRoots)
+	// order-independent: populates an unordered set (map[string]struct{}) of root namespace segments.
+	for ns, desc := range g.scriptDescriptionsByGoogModuleNamespace {
+		if desc == nil || !desc.isModule || desc.declareLegacyNamespace || !desc.hasNamespaceId {
+			continue
+		}
+		root := ns
+		if dot := strings.IndexByte(ns, '.'); dot >= 0 {
+			root = ns[:dot]
+		}
+		if g.nonLegacyModuleRoots == nil {
+			g.nonLegacyModuleRoots = make(map[string]struct{}, len(g.scriptDescriptionsByGoogModuleNamespace))
+		}
+		g.nonLegacyModuleRoots[root] = struct{}{}
+	}
 }
 
 func (g *closureGlobalRewriteState) containsModule(namespaceId string) bool {
@@ -607,6 +629,56 @@ func (u *closureUnwrapGoogLoadModule) ShouldTraverse(t *NodeTraversal, n rhino.N
 	}
 }
 
+func scriptHasTopLevelGoogLoadModule(script rhino.Node) bool {
+	for c := script.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.IsExprResult() {
+			if call, ok := ast.MustExprStmt(c).Expr().AsCall(); ok &&
+				closureRewriteModule_GOOG_LOADMODULE.Matches(call.Callee().Node()) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func scriptHasModuleBodyChild(script rhino.Node) bool {
+	for c := script.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+		if c.IsModuleBody() {
+			return true
+		}
+	}
+	return false
+}
+
+func scriptHasGoogOrModuleBody(script rhino.Node) bool {
+	var stackBuf [64]rhino.Node
+	for top := script.GetFirstChild(); !top.IsNil(); top = top.GetNext() {
+		stack := append(stackBuf[:0], top)
+		for len(stack) > 0 {
+			n := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			switch n.GetToken() {
+			case rhino.Token_MODULE_BODY:
+				return true
+			case rhino.Token_NAME:
+				if nodeStringID(n) == rewriteGoogJsGoogID {
+					return true
+				}
+			}
+			// Push children in reverse order so left-most children (e.g. goog.provide/module/require)
+			// are popped and checked first.
+			start := len(stack)
+			for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+				stack = append(stack, c)
+			}
+			for l, r := start, len(stack)-1; l < r; l, r = l+1, r-1 {
+				stack[l], stack[r] = stack[r], stack[l]
+			}
+		}
+	}
+	return false
+}
+
 // Java: ClosureRewriteModule.process(Node, Node)
 func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 	sc := NewSyntacticScopeCreator(m.compiler)
@@ -634,7 +706,9 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 	for _, parent := range [2]rhino.Node{externs, root} {
 		for script := range parent.Children() {
 			jutil.CheckStateMsg1(script.IsScript(), "%s", script)
-			NodeTraversal_Traverse(m.compiler, script, &unwrap)
+			if scriptHasTopLevelGoogLoadModule(script) {
+				NodeTraversal_Traverse(m.compiler, script, &unwrap)
+			}
 
 			var desc *closureScriptDescription
 			if slabIdx < len(scriptSlab) {
@@ -646,9 +720,15 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 			m.pushScript(desc)
 
 			m.currentScript.rootNode = script
+			hasModBody := scriptHasModuleBodyChild(script)
+			m.currentScript.hasGoogOrModuleBody = hasModBody || scriptHasGoogOrModuleBody(script)
 			scriptDescriptions = append(scriptDescriptions, m.currentScript)
-			bPrep.Traverse(script)
-			bRec.Traverse(script)
+			if hasModBody {
+				bPrep.Traverse(script)
+			}
+			if m.currentScript.hasGoogOrModuleBody {
+				bRec.Traverse(script)
+			}
 			m.popScript()
 		}
 	}
@@ -657,14 +737,17 @@ func (m *ClosureRewriteModule) Process(externs rhino.Node, root rhino.Node) {
 	if m.compiler.HasHaltingErrors() {
 		return
 	}
+	m.rewriteState.populateNonLegacyModuleRoots()
 
-	updater := closureScriptUpdater{outer: m, scriptDescriptions: scriptDescriptions}
-	bUpd := NodeTraversal_Builder{
-		compiler:     m.compiler,
-		callback:     &updater,
-		scopeCreator: sc,
+	if !m.processPhase2Parallel(externs, root, scriptDescriptions) {
+		updater := closureScriptUpdater{outer: m, scriptDescriptions: scriptDescriptions}
+		bUpd := NodeTraversal_Builder{
+			compiler:     m.compiler,
+			callback:     &updater,
+			scopeCreator: sc,
+		}
+		bUpd.TraverseRoots(externs, root)
 	}
-	bUpd.TraverseRoots(externs, root)
 	m.declareSyntheticExterns()
 	for _, call := range m.googModuleGetCalls {
 		m.updateGoogModuleGetCall(call)
@@ -744,8 +827,9 @@ func (m *ClosureRewriteModule) preprocessExportDeclaration(t *NodeTraversal, n r
 
 func (m *ClosureRewriteModule) recordModuleBody(moduleRoot rhino.Node) {
 	m.pushScript(&closureScriptDescription{
-		rootNode: moduleRoot,
-		isModule: true,
+		rootNode:            moduleRoot,
+		isModule:            true,
+		hasGoogOrModuleBody: true,
 	})
 }
 

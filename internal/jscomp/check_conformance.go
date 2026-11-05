@@ -213,6 +213,9 @@ func NewCheckConformanceWithConfigs(
 // Java: CheckConformance.process(Node, Node)
 func (c *CheckConformance) Process(externs rhino.Node, root rhino.Node) {
 	if len(c.categories) != 0 {
+		if c.processParallel(externs, root) {
+			return
+		}
 		NodeTraversal_TraverseRoots(c.compiler, c, externs, root)
 	}
 }

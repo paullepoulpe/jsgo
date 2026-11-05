@@ -801,3 +801,351 @@ exports = Holder;
 		}
 	}
 }
+
+func TestRound95IjsConformance_ParallelCheckConformanceDeterminism(t *testing.T) {
+	cfgText := `
+requirement: {
+  type: BANNED_NAME
+  value: 'execScript'
+  error_message: 'no execScript'
+}
+requirement: {
+  type: BANNED_CODE_PATTERN
+  value: '/** @param {string} s */ function template(s) { window.alert(s); }'
+  error_message: 'no alert pattern'
+}
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanUnknownThis'
+  error_message: 'no unknown this'
+  allowlist: 'allowed_first.js'
+}
+requirement: {
+  type: CUSTOM
+  java_class: 'com.google.javascript.jscomp.ConformanceRules$BanElementSetAttribute'
+  value: 'src'
+  report_loose_type_violations: true
+  error_message: 'no setAttribute src'
+}
+requirement: {
+  type: RESTRICTED_METHOD_CALL
+  value: 'Element.prototype.setAttribute:function(string, string)'
+  error_message: 'setAttribute args must be strings'
+}
+`
+	builder := ConformanceConfig_NewBuilder()
+	if err := TextFormat_MergeErr(cfgText, builder); err != nil {
+		t.Fatalf("TextFormat_MergeErr: %v", err)
+	}
+	cfg := builder.Build()
+
+	externs := checkConformanceTest_EXTERNS + `
+/** @constructor */ function Arguments() {}
+/** @constructor */ function Element() {}
+/** @param {string=} name @param {*=} value */ Element.prototype.setAttribute = function(name, value) {};
+/** @param {string} s */ function execScript(s) {}
+/** @param {string} s */ window.alert = function(s) {};
+`
+	srcs := []*SourceFile{
+		SourceFile_FromCode("allowed_first.js", `
+/** @const {string} */ var GLOBAL_SRC_ATTR = 'src';
+var allowedGlobalThis = this;
+function allowedFn() { return this.x; }
+`),
+		SourceFile_FromCode("s1.js", `
+var globalThisHit1 = this;
+function badThis1() { return this.x + this.y; }
+execScript('1');
+`),
+		SourceFile_FromCode("s2.js", `
+/** @param {function(string):*} execScript */
+function shadowedExec(execScript) { return execScript('ok'); }
+window.alert('bad');
+`),
+		SourceFile_FromCode("s3.js", `
+/** @param {!Element} el */
+function domOps(el) {
+  el.setAttribute(GLOBAL_SRC_ATTR, 'https://example.com');
+  el.setAttribute('data-id', 123);
+}
+`),
+		SourceFile_FromCode("s4.js", `
+var globalThisHit2 = this;
+function badThis2() { return this.z; }
+`),
+	}
+
+	runWithThreads := func(threads int) []string {
+		opts := NewCompilerOptions()
+		opts.SetCheckTypes(true)
+		opts.SetChecksOnly(true)
+		opts.SetConformanceConfigs([]*ConformanceConfig{cfg})
+		opts.SetNumParallelThreads(threads)
+
+		comp := NewCompiler()
+		extInputs := []*SourceFile{SourceFile_FromCode("externs.js", externs)}
+		var freshSrcs []*SourceFile
+		for _, f := range srcs {
+			freshSrcs = append(freshSrcs, SourceFile_FromCode(f.GetName(), f.GetCode()))
+		}
+		res := comp.Compile(extInputs, freshSrcs, opts)
+		var diags []string
+		for _, e := range res.Errors {
+			diags = append(diags, e.String())
+		}
+		for _, w := range res.Warnings {
+			diags = append(diags, w.String())
+		}
+		return diags
+	}
+
+	seqDiags := runWithThreads(1)
+	if len(seqDiags) < 4 {
+		t.Fatalf("expected >= 4 conformance diagnostics, got %d: %v", len(seqDiags), seqDiags)
+	}
+	for range 4 {
+		parDiags := runWithThreads(4)
+		if len(parDiags) != len(seqDiags) {
+			t.Fatalf("parallel conformance diag count = %d (%v), want %d (%v)", len(parDiags), parDiags, len(seqDiags), seqDiags)
+		}
+		for i := range seqDiags {
+			if parDiags[i] != seqDiags[i] {
+				t.Fatalf("parallel conformance diag[%d] = %q, want %q", i, parDiags[i], seqDiags[i])
+			}
+		}
+	}
+}
+
+func TestRound95IjsConformance_ParallelConstCheckAndIjsDeterminism(t *testing.T) {
+	externs := checkConformanceTest_EXTERNS + `
+/** @const {number} */ var EXT_CONST;
+`
+	srcs := []*SourceFile{
+		SourceFile_FromCode("g1.js", `
+/** @const {number} */ var GLOBAL_K = 1;
+function f1() {
+  /** @const {number} */ var localA = 10;
+  localA = 20;
+  EXT_CONST = 2;
+  /** @const {number} */ var localB = 30;
+  localB++;
+}
+`),
+		SourceFile_FromCode("g2.js", `
+goog.provide('ns.alpha');
+/** @const {number} */ ns.alpha.X = 1;
+goog.scope(function() {
+  var a = ns.alpha;
+  /** @type {number} */
+  ns.alpha.Y = a.X;
+});
+GLOBAL_K = 99;
+`),
+		SourceFile_FromCode("m1.js", `
+goog.module('mod.one');
+const Alpha = goog.require('ns.alpha');
+/** @const {number} */ exports.val = Alpha.Y;
+`),
+		SourceFile_FromCode("m2.js", `
+goog.module('mod.two');
+const Alpha = goog.require('ns.alpha');
+const UnusedOne = goog.require('mod.one');
+/** @type {number} */ exports.out = Alpha.X;
+`),
+	}
+
+	runChecks := func(threads int) []string {
+		opts := NewCompilerOptions()
+		opts.SetCheckTypes(true)
+		opts.SetChecksOnly(true)
+		opts.SetClosurePass(true)
+		opts.SetWarningLevel(DiagnosticGroups_CONST, CheckLevel_WARNING)
+		opts.SetNumParallelThreads(threads)
+
+		comp := NewCompiler()
+		var fresh []*SourceFile
+		for _, f := range srcs {
+			fresh = append(fresh, SourceFile_FromCode(f.GetName(), f.GetCode()))
+		}
+		res := comp.Compile([]*SourceFile{SourceFile_FromCode("externs.js", externs)}, fresh, opts)
+		var diags []string
+		for _, e := range res.Errors {
+			diags = append(diags, e.String())
+		}
+		for _, w := range res.Warnings {
+			diags = append(diags, w.String())
+		}
+		return diags
+	}
+
+	seqDiags := runChecks(1)
+	if len(seqDiags) < 4 {
+		t.Fatalf("expected >= 4 const diagnostics, got %d: %v", len(seqDiags), seqDiags)
+	}
+	for range 4 {
+		parDiags := runChecks(4)
+		if len(parDiags) != len(seqDiags) {
+			t.Fatalf("parallel const diag count = %d (%v), want %d (%v)", len(parDiags), parDiags, len(seqDiags), seqDiags)
+		}
+		for i := range seqDiags {
+			if parDiags[i] != seqDiags[i] {
+				t.Fatalf("parallel const diag[%d] = %q, want %q", i, parDiags[i], seqDiags[i])
+			}
+		}
+	}
+
+	runIjs := func(threads int) string {
+		opts := NewCompilerOptions()
+		opts.SetIncrementalChecks(CompilerOptions_IncrementalCheckMode_GENERATE_IJS)
+		opts.SetClosurePass(true)
+		opts.SetPrettyPrint(true)
+		opts.SetNumParallelThreads(threads)
+
+		comp := NewCompiler()
+		var fresh []*SourceFile
+		for _, f := range srcs {
+			fresh = append(fresh, SourceFile_FromCode(f.GetName(), f.GetCode()))
+		}
+		comp.Compile([]*SourceFile{SourceFile_FromCode("externs.js", externs)}, fresh, opts)
+		return comp.ToSource()
+	}
+
+	seqIjs := runIjs(1)
+	for range 4 {
+		parIjs := runIjs(4)
+		if parIjs != seqIjs {
+			t.Fatalf("parallel GENERATE_IJS mismatch:\ngot:\n%s\nwant:\n%s", parIjs, seqIjs)
+		}
+	}
+}
+
+func TestRound95IjsConformance_ParallelGatherModuleMetadataDeterminism(t *testing.T) {
+	externs := `/** @const */ var goog = {};
+/** @param {string} ns */ goog.provide = function(ns) {};
+/** @param {string} ns */ goog.module = function(ns) {};
+goog.module.declareLegacyNamespace = function() {};
+/** @param {function(?): ?} fn */ goog.loadModule = function(fn) {};
+/** @param {string} ns @return {?} */ goog.require = function(ns) {};
+/** @param {string} ns */ goog.requireType = function(ns) {};
+`
+	srcs := []*SourceFile{
+		SourceFile_FromCode("f0.js", `goog.provide('dup.ns'); /** @const */ dup.ns.A = 1;`),
+		SourceFile_FromCode("f1.js", `goog.module('mod.leg'); goog.module.declareLegacyNamespace(); exports = {x: 1};`),
+		SourceFile_FromCode("f2.js", `goog.provide('dup.ns'); goog.requireType(123);`),
+		SourceFile_FromCode("f3.js", `goog.loadModule(function(exports) { 'use strict'; goog.module('mod.leg'); return exports; });`),
+		SourceFile_FromCode("f4.js", `goog.module('foo$2etoggles'); exports.TOGGLE_alpha = true;`),
+		SourceFile_FromCode("f5.js", `goog.module('use.toggles'); const t = goog.require('foo$2etoggles'); const v = t.TOGGLE_alpha; const bad = t.bad_name; exports = v;`),
+	}
+
+	run := func(threads int) []string {
+		opts := NewCompilerOptions()
+		opts.SetChecksOnly(true)
+		opts.SetClosurePass(true)
+		opts.SetNumParallelThreads(threads)
+
+		comp := NewCompiler()
+		var fresh []*SourceFile
+		for _, f := range srcs {
+			fresh = append(fresh, SourceFile_FromCode(f.GetName(), f.GetCode()))
+		}
+		res := comp.Compile([]*SourceFile{SourceFile_FromCode("externs.js", externs)}, fresh, opts)
+		var out []string
+		for _, e := range res.Errors {
+			out = append(out, "E:"+e.String())
+		}
+		for _, w := range res.Warnings {
+			out = append(out, "W:"+w.String())
+		}
+		if mm := comp.GetModuleMetadataMap(); mm != nil {
+			for k, m := range mm.GetModulesByPath().All() {
+				out = append(out, "P:"+k+":"+m.ModuleType().String())
+			}
+			for k, m := range mm.GetModulesByGoogNamespace().All() {
+				src, _ := m.RootNode().SourceFileName()
+				out = append(out, "N:"+k+":"+m.ModuleType().String()+":"+src)
+			}
+		}
+		return out
+	}
+
+	seq := run(1)
+	if len(seq) < 8 {
+		t.Fatalf("expected >= 8 diagnostics+metadata entries, got %d: %v", len(seq), seq)
+	}
+	for range 4 {
+		par := run(4)
+		if len(par) != len(seq) {
+			t.Fatalf("parallel count = %d (%v), want %d (%v)", len(par), par, len(seq), seq)
+		}
+		for i := range seq {
+			if par[i] != seq[i] {
+				t.Fatalf("entry[%d] = %q, want %q", i, par[i], seq[i])
+			}
+		}
+	}
+}
+
+func TestRound95IjsConformance_ParallelVarCheckDeterminism(t *testing.T) {
+	const externs = `/** @externs */
+var knownExtern = 1;
+/** @const */ var dupNs = dupNs || {};
+/** @const */ var dupNs = dupNs || {};
+orphanedExternProp.foo;
+`
+	var srcs []*SourceFile
+	for i := range 12 {
+		idx := string(rune('a' + i))
+		var code string
+		switch i % 4 {
+		case 0:
+			code = "function f_" + idx + "() { return sharedMissing + only_" + idx + " + typeof maybeGlobal; }\n"
+		case 1:
+			code = "var v_" + idx + " = sharedMissing + knownExtern;\n"
+		case 2:
+			code = "goog.provide('vc.ns." + idx + "');\nvc.ns." + idx + ".val = only_" + idx + " + sharedMissing;\n"
+		case 3:
+			code = "goog.module('vc.mod." + idx + "');\nexports = function() { return sharedMissing; };\n"
+		}
+		srcs = append(srcs, SourceFile_FromCode("vc_"+idx+".js", code))
+	}
+
+	run := func(threads int) []string {
+		opts := NewCompilerOptions()
+		opts.SetChecksOnly(true)
+		opts.SetClosurePass(true)
+		opts.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+		opts.SetWarningLevel(DiagnosticGroups_UNDEFINED_VARIABLES, CheckLevel_WARNING)
+		opts.SetNumParallelThreads(threads)
+
+		comp := NewCompiler()
+		var fresh []*SourceFile
+		for _, f := range srcs {
+			fresh = append(fresh, SourceFile_FromCode(f.GetName(), f.GetCode()))
+		}
+		res := comp.Compile([]*SourceFile{SourceFile_FromCode("externs.js", externs)}, fresh, opts)
+		var out []string
+		for _, e := range res.Errors {
+			out = append(out, "E:"+e.String())
+		}
+		for _, w := range res.Warnings {
+			out = append(out, "W:"+w.String())
+		}
+		return out
+	}
+
+	seq := run(1)
+	if len(seq) < 8 {
+		t.Fatalf("expected >= 8 diagnostics, got %d: %v", len(seq), seq)
+	}
+	for range 4 {
+		par := run(4)
+		if len(par) != len(seq) {
+			t.Fatalf("parallel count = %d (%v), want %d (%v)", len(par), par, len(seq), seq)
+		}
+		for i := range seq {
+			if par[i] != seq[i] {
+				t.Fatalf("entry[%d] = %q, want %q", i, par[i], seq[i])
+			}
+		}
+	}
+}

@@ -77,6 +77,12 @@ type TypeInference struct {
 	lastScopeRoot                rhino.Node
 	lastModule                   *Module
 	lastSyntacticBlockScope      *TypedScope
+	lastModuleExportsVar         *TypedVar
+	lastModuleExportsTarget      rhino.Node
+	lastModuleExportsType        rhino.JSType
+	lastLegacyModuleQName        rhino.QualifiedName
+	lastLegacyGlobalVar          *TypedVar
+	hasCachedLegacyQName         bool
 	fastFlowBodyNode             rhino.Node
 	fastFlowBodyScope            *TypedScope
 	fastFlowNoInnerScopes        bool
@@ -129,6 +135,12 @@ func (ti *TypeInference) initTypeInference(
 	ti.lastScopeRoot = rhino.NilNode
 	ti.lastModule = nil
 	ti.lastSyntacticBlockScope = nil
+	ti.lastModuleExportsVar = nil
+	ti.lastModuleExportsTarget = rhino.NilNode
+	ti.lastModuleExportsType = nil
+	ti.lastLegacyModuleQName = nil
+	ti.lastLegacyGlobalVar = nil
+	ti.hasCachedLegacyQName = false
 	ti.fastFlowBodyNode = rhino.NilNode
 	ti.fastFlowBodyScope = nil
 	ti.fastFlowNoInnerScopes = false
@@ -471,7 +483,16 @@ func (ti *TypeInference) FlowThrough(n rhino.Node, input *LinkedFlowScope) *Link
 	// scope rooted at the module. The reasoning for separating out this logic is that we can just
 	// ignore the actual AST nodes for IMPORT/EXPORT, in most cases, because we have already
 	// created an abstraction of imports and exports.
-	root := typeInference_getEnclosingScopeRoot(n)
+	var root rhino.Node
+	if !NodeUtil_CreatesScope(n) {
+		if parent := n.GetParent(); parent == ti.lastScopeRoot && !parent.IsNil() {
+			root = parent
+		} else {
+			root = typeInference_getEnclosingScopeRoot(parent)
+		}
+	} else {
+		root = n
+	}
 	// Inferred types of ES module imports/exports aren't knowable until after TypeInference runs.
 	// First update the type of all imports in the scope, then do flow-sensitive inference, then
 	// update the implicit '*exports*' object.
@@ -490,6 +511,12 @@ func (ti *TypeInference) FlowThrough(n rhino.Node, input *LinkedFlowScope) *Link
 		ti.lastScopeRoot = root
 		ti.lastModule = module
 		ti.lastSyntacticBlockScope = syntacticBlockScope
+		ti.lastModuleExportsVar = nil
+		ti.lastModuleExportsTarget = rhino.NilNode
+		ti.lastModuleExportsType = nil
+		ti.lastLegacyModuleQName = nil
+		ti.lastLegacyGlobalVar = nil
+		ti.hasCachedLegacyQName = false
 	}
 	if module != nil && module.Metadata().IsEs6Module() {
 		ti.moduleImportResolver.DeclareEsModuleImports(
@@ -523,44 +550,73 @@ func (ti *TypeInference) UpdateModuleScope(module *Module, syntacticBlockScope *
 			syntacticBlockScope)
 		return
 	case ModuleMetadataMap_ModuleType_GOOG_MODULE, ModuleMetadataMap_ModuleType_LEGACY_GOOG_MODULE:
-		exportsVar := jutil.CheckNotNullMsg1(
-			syntacticBlockScope.GetVarByID(implicitExportsID),
-			"Missing exports var for %s",
-			module.Metadata())
-		var exportsType rhino.JSType
-		if exportsVar.GetType() != nil {
-			exportsType = exportsVar.GetType()
+		useCache := module == ti.lastModule && syntacticBlockScope == ti.lastSyntacticBlockScope
+		var exportsVar *TypedVar
+		var exportsTarget rhino.Node
+		if useCache && ti.lastModuleExportsVar != nil {
+			exportsVar = ti.lastModuleExportsVar
+			exportsTarget = ti.lastModuleExportsTarget
 		} else {
+			exportsVar = jutil.CheckNotNullMsg1(
+				syntacticBlockScope.GetVarByID(implicitExportsID),
+				"Missing exports var for %s",
+				module.Metadata())
+			rootNode := syntacticBlockScope.GetRootNode()
+			if rootNode.IsModuleBody() {
+				exportsTarget = rootNode
+			} else {
+				// For goog.loadModule, give the `exports` parameter the correct type.
+				jutil.CheckStateMsg1(rootNode.IsBlock(), "%s", rootNode)
+				paramList := NodeUtil_GetFunctionParameters(rootNode.GetParent())
+				exportsTarget = paramList.GetOnlyChild()
+			}
+			if useCache {
+				ti.lastModuleExportsVar = exportsVar
+				ti.lastModuleExportsTarget = exportsTarget
+			}
+		}
+		rawExportsType := exportsVar.GetType()
+		exportsType := rawExportsType
+		if exportsType == nil {
 			exportsType = ti.unknownType
 		}
 		// Store the type of the namespace on the AST for the convenience of later passes that want
 		// to access it.
-		rootNode := syntacticBlockScope.GetRootNode()
-		if rootNode.IsModuleBody() {
-			rootNode.SetJSType(exportsType)
-		} else {
-			// For goog.loadModule, give the `exports` parameter the correct type.
-			jutil.CheckStateMsg1(rootNode.IsBlock(), "%s", rootNode)
-			paramList := NodeUtil_GetFunctionParameters(rootNode.GetParent())
-			paramList.GetOnlyChild().SetJSType(exportsType)
+		if !useCache || exportsType != ti.lastModuleExportsType {
+			exportsTarget.SetJSType(exportsType)
+			if useCache {
+				ti.lastModuleExportsType = exportsType
+			}
 		}
-		if !module.Metadata().IsLegacyGoogModule() || exportsVar.GetType() == nil {
+		if !module.Metadata().IsLegacyGoogModule() || rawExportsType == nil {
 			break
 		}
 
 		// Update the global scope for the implicit assignment "legacy.module.id = exports;" created
 		// by `goog.module.declareLegacyNamespace();`
-		moduleId, ok := module.ClosureNamespaceOk()
-		if !ok {
-			panic(jutil.NewNullPointerException())
-		}
 		globalScope := syntacticBlockScope.GetGlobalScope()
-		globalVar := globalScope.GetVar(moduleId)
+		var globalVar *TypedVar
+		var moduleQname rhino.QualifiedName
+		if useCache && ti.hasCachedLegacyQName {
+			globalVar = ti.lastLegacyGlobalVar
+			moduleQname = ti.lastLegacyModuleQName
+		} else {
+			moduleId, ok := module.ClosureNamespaceOk()
+			if !ok {
+				panic(jutil.NewNullPointerException())
+			}
+			globalVar = globalScope.GetVar(moduleId)
+			moduleQname = rhino.QualifiedName_Of(moduleId)
+			if useCache {
+				ti.lastLegacyGlobalVar = globalVar
+				ti.lastLegacyModuleQName = moduleQname
+				ti.hasCachedLegacyQName = true
+			}
+		}
 		if globalVar.IsTypeInferred() {
 			globalVar.SetType(exportsType)
 		}
 		// Update the property slot on the parent namespace.
-		moduleQname := rhino.QualifiedName_Of(moduleId)
 		if !moduleQname.IsSimple() {
 			parentType := globalScope.LookupQualifiedName(moduleQname.GetOwner())
 			var parentObjectType rhino.ObjectType

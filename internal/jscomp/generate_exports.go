@@ -86,10 +86,48 @@ func (g *GenerateExports) GetExportedVariableNames() *OrderedSet[string] {
 	return &exported
 }
 
+func scriptHasExportJSDoc(script rhino.Node) bool {
+	var stackBuf [64]rhino.Node
+	stack := append(stackBuf[:0], script)
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if n.HasJSDocInfo() {
+			if doc := n.GetJSDocInfo(); doc != nil && doc.IsExport() {
+				return true
+			}
+		}
+		for c := n.GetFirstChild(); !c.IsNil(); c = c.GetNext() {
+			stack = append(stack, c)
+		}
+	}
+	return false
+}
+
 // Java: GenerateExports.process(Node, Node)
 func (g *GenerateExports) Process(externs rhino.Node, root rhino.Node) {
 	findExportableNodes := NewFindExportableNodes(g.compiler, g.allowNonGlobalExports)
-	NodeTraversal_Traverse(g.compiler, root, findExportableNodes)
+	if scripts, ok := collectRootScripts(root); ok {
+		if matched, prefiltered := filterMatchingScriptsSlice(g.compiler, scripts, scriptHasExportJSDoc); prefiltered {
+			if len(matched) == 0 {
+				return
+			}
+			b := NodeTraversal_Builder{
+				compiler:     g.compiler,
+				scopeCreator: ScopeCreator_ASSERT_NO_SCOPES_CREATED,
+				callback:     findExportableNodes,
+			}
+			for _, script := range scripts {
+				if _, hit := matched[script]; hit {
+					b.Traverse(script)
+				}
+			}
+		} else {
+			NodeTraversal_Traverse(g.compiler, root, findExportableNodes)
+		}
+	} else {
+		NodeTraversal_Traverse(g.compiler, root, findExportableNodes)
+	}
 	exports := findExportableNodes.GetExports()
 	es6Exports := findExportableNodes.GetEs6ClassExports()
 	localExports := findExportableNodes.GetLocalExports()

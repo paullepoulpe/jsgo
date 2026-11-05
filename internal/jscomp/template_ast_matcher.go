@@ -265,6 +265,22 @@ func (m *TemplateAstMatcher) reset() {
 	clear(m.paramNodeMatches)
 }
 
+func (m *TemplateAstMatcher) cloneForWorker() *TemplateAstMatcher {
+	c := *m
+	c.isLooseMatch = false
+	if len(m.localVarMatches) > 0 {
+		c.localVarMatches = make([]base.OptString, len(m.localVarMatches))
+	} else {
+		c.localVarMatches = nil
+	}
+	if len(m.paramNodeMatches) > 0 {
+		c.paramNodeMatches = make([]rhino.Node, len(m.paramNodeMatches))
+	} else {
+		c.paramNodeMatches = nil
+	}
+	return &c
+}
+
 // createTemplateParameterNode creates a template parameter or string
 // literal template node.
 //

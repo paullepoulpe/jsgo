@@ -57,7 +57,7 @@ func (f *IRFactory) NewStringNodeFromIdentifier(
 		value = identifierToken.ValueID()
 	}
 
-	node := f.alloc.Alloc().InitStringIDFromTemplate(type_, value, f.templateNode)
+	node := f.alloc.AllocStringIDCachedTemplate(type_, value)
 	if identifierType == IRFactory_IdentifierType_CAN_BE_PRIVATE &&
 		identifierToken.IsPrivateIdentifier() {
 		node.SetPrivateIdentifier()

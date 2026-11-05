@@ -29,33 +29,60 @@ import (
 type closureScriptUpdater struct {
 	outer              *ClosureRewriteModule
 	scriptDescriptions []*closureScriptDescription
+	singleDescription  *closureScriptDescription
 }
 
 func (u *closureScriptUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
 	m := u.outer
 
+	if m.currentScript != nil && !m.currentScript.hasGoogOrModuleBody && !n.IsScript() {
+		if n.HasJSDocInfo() {
+			if info := n.GetJSDocInfo(); info != nil && info.HasTypeNodes() {
+				m.rewriteJsdocInfoWithTraversal(info, t)
+			}
+		}
+		return true
+	}
+
 	switch n.GetToken() {
 	case rhino.Token_SCRIPT:
-		if len(u.scriptDescriptions) == 0 {
-			panic(jutil.NewNoSuchElementException())
+		var currentDescription *closureScriptDescription
+		if u.singleDescription != nil {
+			currentDescription = u.singleDescription
+			u.singleDescription = nil
+		} else {
+			if len(u.scriptDescriptions) == 0 {
+				panic(jutil.NewNoSuchElementException())
+			}
+			currentDescription = u.scriptDescriptions[0]
+			u.scriptDescriptions[0] = nil
+			u.scriptDescriptions = u.scriptDescriptions[1:]
 		}
-		currentDescription := u.scriptDescriptions[0]
-		u.scriptDescriptions[0] = nil
-		u.scriptDescriptions = u.scriptDescriptions[1:]
 		jutil.CheckState(currentDescription.rootNode == n)
 		if n.IsFromExterns() && !NodeUtil_IsFromTypeSummary(n) {
+			return false
+		}
+		if !currentDescription.hasGoogOrModuleBody &&
+			len(m.rewriteState.nonLegacyModuleRoots) == 0 {
+			if len(m.syntheticExternNodes) > 0 && m.globalScope == nil {
+				m.globalScope = t.GetScope().GetGlobalScope()
+			}
 			return false
 		}
 
 		jutil.CheckState(len(m.scriptStack) == 0)
 		m.pushScript(currentDescription)
+		nonMod := !currentDescription.isModule && len(currentDescription.childScripts) == 0
+		t.noVisitLeaves = nonMod
+		t.onlyNameLeaves = !nonMod
 
 		// Capture the scope before doing any rewriting to the scope.
-		t.GetScope()
-
-		// Capture the global scope for later reference.
-		if m.globalScope == nil {
-			m.globalScope = t.GetScope().GetGlobalScope()
+		if currentDescription.hasGoogOrModuleBody || m.globalScope == nil {
+			s := t.GetScope()
+			// Capture the global scope for later reference.
+			if m.globalScope == nil {
+				m.globalScope = s.GetGlobalScope()
+			}
 		}
 	case rhino.Token_MODULE_BODY:
 		if parent.GetBooleanProp(rhino.Node_GOOG_MODULE) {
@@ -89,12 +116,14 @@ func (u *closureScriptUpdater) ShouldTraverse(t *NodeTraversal, n rhino.Node, pa
 		}
 	}
 
-	if info := n.GetJSDocInfo(); info != nil &&
-		(m.currentScript.isModule ||
-			len(m.currentScript.namesToInlineByAlias) > 0 ||
-			len(m.rewriteState.scriptDescriptionsByGoogModuleNamespace) > 0) &&
-		info.HasTypeNodes() {
-		m.rewriteJsdocInfoWithTraversal(info, t)
+	if n.HasJSDocInfo() {
+		if info := n.GetJSDocInfo(); info != nil &&
+			(m.currentScript.isModule ||
+				len(m.currentScript.namesToInlineByAlias) > 0 ||
+				len(m.rewriteState.nonLegacyModuleRoots) > 0) &&
+			info.HasTypeNodes() {
+			m.rewriteJsdocInfoWithTraversal(info, t)
+		}
 	}
 
 	return true

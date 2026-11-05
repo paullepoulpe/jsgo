@@ -99,15 +99,106 @@ func (r *RewriteCallerCodeLocation) Process(externs rhino.Node, root rhino.Node)
 	// Find all functions that have goog.callerLocation as a default parameter. We want to traverse
 	// the root node as well as the externs because the function that contains `goog.callerLocation`
 	// parameter could be an .i.js file in the externs node subtree.
-	find := findCallerLocationFunctions{r: r}
-	NodeTraversal_Traverse(r.compiler, r.compiler.GetRoot(), &find)
+	fullRoot := r.compiler.GetRoot()
+	matchingScripts, prefiltered := filterMatchingScriptsUnderRoot(r.compiler, fullRoot, subtreeContainsGoogCallerLocation)
+	if prefiltered && len(matchingScripts) == 0 {
+		return
+	}
+	find := findCallerLocationFunctions{r: r, matchingScripts: matchingScripts}
+	NodeTraversal_Traverse(r.compiler, fullRoot, &find)
 	if len(r.callerLocationFunctionNames) > 0 {
 		// Rewrite call-sites of functions that have goog.callerLocation as a default parameter. We
 		// want to traverse the root node as well as the externs to ensure the scope of the call-site
 		// is the same scope as the function with the `goog.callerLocation` parameter.
 		rewrite := rewriteCallerLocationCalls{r: r}
-		NodeTraversal_Traverse(r.compiler, r.compiler.GetRoot(), &rewrite)
+		NodeTraversal_Traverse(r.compiler, fullRoot, &rewrite)
 	}
+}
+
+func filterMatchingScriptsUnderRoot(
+	compiler *Compiler,
+	fullRoot rhino.Node,
+	match func(rhino.Node) bool,
+) (map[rhino.Node]struct{}, bool) {
+	if fullRoot.IsNil() || Platform_IsThreadInterrupted() {
+		return nil, false
+	}
+	var scripts []rhino.Node
+	if fullRoot.IsRoot() {
+		for child := fullRoot.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+			if child.IsScript() {
+				scripts = append(scripts, child)
+			} else if child.IsRoot() {
+				for sub := child.GetFirstChild(); !sub.IsNil(); sub = sub.GetNext() {
+					if !sub.IsScript() {
+						return nil, false
+					}
+					scripts = append(scripts, sub)
+				}
+			} else {
+				return nil, false
+			}
+		}
+	} else {
+		return nil, false
+	}
+	return filterMatchingScriptsSlice(compiler, scripts, match)
+}
+
+func filterMatchingScriptsSlice(
+	compiler *Compiler,
+	scripts []rhino.Node,
+	match func(rhino.Node) bool,
+) (map[rhino.Node]struct{}, bool) {
+	if Platform_IsThreadInterrupted() {
+		return nil, false
+	}
+	if len(scripts) == 0 {
+		return nil, true
+	}
+	numWorkers := parallelThreadCount(compiler, len(scripts))
+	if numWorkers <= 1 {
+		var set map[rhino.Node]struct{}
+		for _, script := range scripts {
+			if Platform_IsThreadInterrupted() {
+				return nil, false
+			}
+			if match(script) {
+				if set == nil {
+					set = make(map[rhino.Node]struct{}, 4)
+				}
+				set[script] = struct{}{}
+			}
+		}
+		return set, true
+	}
+	matched := make([]bool, len(scripts))
+	if p := spawnIndexedWorkers(len(scripts), numWorkers, func(_ int, claim func() (int, bool)) {
+		for {
+			idx, ok := claim()
+			if !ok {
+				return
+			}
+			if match(scripts[idx]) {
+				matched[idx] = true
+			}
+		}
+	}); p != nil {
+		rethrowParallelPanic(compiler, p)
+	}
+	if Platform_IsThreadInterrupted() {
+		return nil, false
+	}
+	var set map[rhino.Node]struct{}
+	for i, m := range matched {
+		if m {
+			if set == nil {
+				set = make(map[rhino.Node]struct{}, 4)
+			}
+			set[scripts[i]] = struct{}{}
+		}
+	}
+	return set, true
 }
 
 var (
@@ -125,12 +216,48 @@ var (
 )
 
 type findCallerLocationFunctions struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-	r *RewriteCallerCodeLocation
+	r               *RewriteCallerCodeLocation
+	matchingScripts map[rhino.Node]struct{}
 }
+
+func (*findCallerLocationFunctions) shouldTraverseOnlyScriptAndFunction() bool { return true }
 
 func (*findCallerLocationFunctions) visitTokens() *ast.TokenSet {
 	return &findCallerLocationFunctionsVisitTokens
+}
+
+func subtreeContainsGoogCallerLocation(root rhino.Node) bool {
+	for cur := root; !cur.IsNil(); {
+		if cur.IsGetProp() && RewriteCallerCodeLocation_GOOG_CALLER_LOCATION_QUALIFIED_NAME.Matches(cur) {
+			return true
+		}
+		if child := cur.GetFirstChild(); !child.IsNil() {
+			cur = child
+			continue
+		}
+		for cur != root {
+			if next := cur.GetNext(); !next.IsNil() {
+				cur = next
+				break
+			}
+			cur = cur.GetParent()
+		}
+		if cur == root {
+			break
+		}
+	}
+	return false
+}
+
+func (f *findCallerLocationFunctions) ShouldTraverse(_ *NodeTraversal, n rhino.Node, _ rhino.Node) bool {
+	if n.IsScript() {
+		if f.matchingScripts != nil {
+			_, ok := f.matchingScripts[n]
+			return ok
+		}
+		return subtreeContainsGoogCallerLocation(n)
+	}
+	return true
 }
 
 func (f *findCallerLocationFunctions) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {

@@ -60,7 +60,53 @@ type TypedScopeCreator_scopeBuilder struct {
 	// should be waited for before running.
 	deferredByNode map[rhino.Node][]*typedScopeDeferredAction
 	deferredOrder  []*typedScopeDeferredAction
+
+	traversal *NodeTraversal
 }
+
+var scopeBuilderFunctionVisitTokens = func() ast.TokenSet {
+	var s ast.TokenSet
+	s.Add(rhino.Token_NULL)
+	s.Add(rhino.Token_VOID)
+	s.Add(rhino.Token_STRINGLIT)
+	s.Add(rhino.Token_TEMPLATELIT_STRING)
+	s.Add(rhino.Token_NUMBER)
+	s.Add(rhino.Token_BIGINT)
+	s.Add(rhino.Token_TRUE)
+	s.Add(rhino.Token_FALSE)
+	s.Add(rhino.Token_REGEXP)
+	s.Add(rhino.Token_OBJECTLIT)
+	s.Add(rhino.Token_CLASS)
+	s.Add(rhino.Token_ARRAYLIT)
+	return s
+}()
+
+var scopeBuilderClassVisitTokens = func() ast.TokenSet {
+	s := scopeBuilderFunctionVisitTokens
+	s.Add(rhino.Token_NAME)
+	s.Add(rhino.Token_MEMBER_FUNCTION_DEF)
+	s.Add(rhino.Token_MEMBER_FIELD_DEF)
+	s.Add(rhino.Token_GETTER_DEF)
+	s.Add(rhino.Token_SETTER_DEF)
+	s.Add(rhino.Token_COMPUTED_FIELD_DEF)
+	s.Add(rhino.Token_COMPUTED_PROP)
+	return s
+}()
+
+var scopeBuilderNormalVisitTokens = func() ast.TokenSet {
+	s := scopeBuilderFunctionVisitTokens
+	s.Add(rhino.Token_CALL)
+	s.Add(rhino.Token_ASSIGN)
+	s.Add(rhino.Token_CATCH)
+	s.Add(rhino.Token_VAR)
+	s.Add(rhino.Token_LET)
+	s.Add(rhino.Token_CONST)
+	s.Add(rhino.Token_GETPROP)
+	s.Add(rhino.Token_GETELEM)
+	s.Add(rhino.Token_EXPR_RESULT)
+	s.Add(rhino.Token_EXPORT)
+	return s
+}()
 
 type typedScopeDeferredAction struct {
 	fn   func()
@@ -96,9 +142,26 @@ func (b *TypedScopeCreator_scopeBuilder) deferAction(key rhino.Node, fn func()) 
 	if b.deferredByNode == nil {
 		b.deferredByNode = make(map[rhino.Node][]*typedScopeDeferredAction)
 	}
+	if b.traversal != nil && key != b.currentScope.GetRootNode() {
+		b.traversal.visitTokens = nil
+	}
 	act := &typedScopeDeferredAction{fn: fn}
 	b.deferredByNode[key] = append(b.deferredByNode[key], act)
 	b.deferredOrder = append(b.deferredOrder, act)
+}
+
+func (b *TypedScopeCreator_scopeBuilder) flushDeferredActions(inputId *rhino.InputId) {
+	if len(b.deferredOrder) == 0 {
+		return
+	}
+	b.setInputId(inputId)
+	for i := 0; i < len(b.deferredOrder); i++ {
+		act := b.deferredOrder[i]
+		if !act.done {
+			act.done = true
+			act.fn()
+		}
+	}
 }
 
 func (b *TypedScopeCreator_scopeBuilder) setInputId(id *rhino.InputId) {
@@ -114,7 +177,11 @@ func (b *TypedScopeCreator_scopeBuilder) setInputId(id *rhino.InputId) {
 // Java: TypedScopeCreator.AbstractScopeBuilder.getCompilerInput()
 func (b *TypedScopeCreator_scopeBuilder) GetCompilerInput() *CompilerInput {
 	if !b.inputResolved {
-		b.input = b.outer.compiler.GetInput(b.inputId)
+		if b.inputId != nil && b.inputId == b.outer.currentBuildInputId {
+			b.input = b.outer.getCurrentBuildInput()
+		} else {
+			b.input = b.outer.compiler.GetInput(b.inputId)
+		}
 		b.inputResolved = true
 	}
 	return b.input
@@ -129,15 +196,91 @@ func (b *TypedScopeCreator_scopeBuilder) GetModule() *Module {
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.build()
 func (b *TypedScopeCreator_scopeBuilder) Build() {
-	b.InitializeModuleScope(b.currentScope.GetRootNode())
+	rootNode := b.currentScope.GetRootNode()
+	b.InitializeModuleScope(rootNode)
 
-	NodeTraversal_Builder{
-		compiler:     b.outer.compiler,
-		callback:     b,
-		scopeCreator: ScopeCreator_ASSERT_NO_SCOPES_CREATED,
-	}.TraverseAtScope(b.currentScope)
+	t := acquireNodeTraversalDirect(b.outer.compiler, b, ScopeCreator_ASSERT_NO_SCOPES_CREATED, false)
+	switch b.kind {
+	case scopeBuilderFunction:
+		t.visitTokens = &scopeBuilderFunctionVisitTokens
+	case scopeBuilderClass:
+		t.visitTokens = &scopeBuilderClassVisitTokens
+	default:
+		t.visitTokens = &scopeBuilderNormalVisitTokens
+	}
+	b.traversal = t
+	if !b.outer.currentBuildScript.IsNil() && !rootNode.IsRoot() {
+		var preInput *CompilerInput
+		if b.outer.currentBuildInputResolved {
+			preInput = b.outer.currentBuildInput
+		}
+		t.traverseAtKnownScriptScope(b.currentScope, b.outer.currentBuildScript, b.outer.currentBuildInputId, preInput)
+	} else {
+		t.TraverseAtScope(b.currentScope)
+	}
+	lastInputId := t.GetInputId()
+	b.traversal = nil
+	releaseNodeTraversal(t)
+	b.flushDeferredActions(lastInputId)
 
 	b.FinishDeclaringGoogModule()
+}
+
+func (c *TypedScopeCreator) tryBuildSimpleFunctionScope(root rhino.Node, newScope *TypedScope) bool {
+	fnName := root.GetFirstChild()
+	if !fnName.IsName() || fnName.HasChildren() {
+		return false
+	}
+	fn := ast.MustFunction(root)
+	body := fn.Body().Node()
+	if !body.IsBlock() || body.IsSyntheticBlock() {
+		return false
+	}
+	if NodeUtil_IsBundledGoogModuleCall(root.GetParent()) {
+		return false
+	}
+	for p := fn.Params().Node().GetFirstChild(); !p.IsNil(); p = p.GetNext() {
+		if p.IsName() {
+			if p.HasChildren() {
+				return false
+			}
+			continue
+		}
+		if p.IsRest() {
+			target := p.GetFirstChild()
+			if target.IsName() && !target.HasChildren() && target.GetNext().IsNil() {
+				continue
+			}
+		}
+		return false
+	}
+	var inputId *rhino.InputId
+	hasSourceName := false
+	if !c.currentBuildScript.IsNil() {
+		inputId = c.currentBuildInputId
+		hasSourceName = c.currentBuildScriptHasSource
+	} else {
+		for s := root.GetParent(); !s.IsNil(); s = s.GetParent() {
+			if s.IsScript() {
+				inputId = s.GetInputId()
+				hasSourceName = s.GetStaticSourceFile() != nil
+				break
+			}
+		}
+	}
+	if inputId == nil {
+		return false
+	}
+	if !hasSourceName {
+		hasSourceName = root.GetStaticSourceFile() != nil || NodeUtil_GetSourceFile(root) != nil
+	}
+	b := c.acquireScopeBuilder(scopeBuilderFunction, newScope)
+	b.inputId = inputId
+	b.hasSourceName = hasSourceName
+	b.HandleFunctionInputs()
+	b.flushDeferredActions(inputId)
+	c.releaseScopeBuilder(b)
+	return true
 }
 
 // InitializeModuleScope builds the beginning of a module-scope. This can be
@@ -282,11 +425,18 @@ func (b *TypedScopeCreator_scopeBuilder) FinishDeclaringGoogModule() {
 //
 // Java: TypedScopeCreator.AbstractScopeBuilder.shouldTraverse(NodeTraversal, Node, Node)
 func (b *TypedScopeCreator_scopeBuilder) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsScript() {
+		b.outer.setCurrentBuildScript(n)
+	}
 	b.setInputId(t.GetInputId())
 
 	if n.IsFunction() || n.IsScript() || (parent.IsNil() && b.inputId != nil) {
 		jutil.CheckNotNull(b.inputId)
-		b.hasSourceName = NodeUtil_GetSourceFile(n) != nil
+		if b.inputId == b.outer.currentBuildInputId && b.outer.currentBuildScriptHasSource {
+			b.hasSourceName = true
+		} else {
+			b.hasSourceName = n.GetStaticSourceFile() != nil || NodeUtil_GetSourceFile(n) != nil
+		}
 	}
 	if parent.IsNil() || b.InCurrentScope(t) {
 		b.visitPreorder(t, n, parent)

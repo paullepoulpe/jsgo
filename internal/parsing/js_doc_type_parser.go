@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 // JsDocInfoParser_ExtendedTypeInfo is a tuple for recording extended types
@@ -775,17 +776,39 @@ func (p *JsDocInfoParser) ParseFieldType(token JsDocToken) rhino.Node {
 
 // ParseFieldName parses
 // FieldName := NameExpression | StringLiteral | NumberLiteral | ReservedIdentifier
-//
+func (p *JsDocInfoParser) internString(s string) strpool.ID {
+	if len(s) == 0 {
+		return strpool.EmptyID
+	}
+	if p.strCache != nil && len(s) <= 32 {
+		slot := strpool.HashString(s) & uint64(len(p.strCache)-1)
+		if id := p.strCache[slot]; id != 0 && strpool.String(id) == s {
+			return id
+		}
+		id := strpool.Intern(s)
+		p.strCache[slot] = id
+		return id
+	}
+	return strpool.Intern(s)
+}
+
+func (p *JsDocInfoParser) allocStringNode(tok rhino.Token, s string) rhino.Node {
+	var n rhino.Node
+	if p.alloc != nil {
+		n = p.alloc.AllocStringIDCachedTemplate(tok, p.internString(s))
+	} else {
+		n = p.alloc.Alloc().InitStringFromTemplate(tok, s, p.templateNode)
+	}
+	n.SetSourceInfoIfUnset(p.stream.GetLineno(), p.stream.GetCharno(), jutil.StringLength(s))
+	return n
+}
+
 // Java: JsDocInfoParser.parseFieldName(JsDocToken)
 func (p *JsDocInfoParser) ParseFieldName(token JsDocToken) rhino.Node {
 	if token != JsDocToken_STRING {
 		return rhino.NilNode
 	}
-	s := p.stream.GetString()
-	n := p.alloc.Alloc().InitStringFromTemplate(rhino.Token_STRING_KEY, s, p.templateNode)
-	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
-	n.SetLength(jutil.StringLength(s))
-	return n
+	return p.allocStringNode(rhino.Token_STRING_KEY, p.stream.GetString())
 }
 
 // Java: JsDocInfoParser.wrapNode(Token, Node)
@@ -801,21 +824,24 @@ func (p *JsDocInfoParser) WrapNodeAt(type_ rhino.Token, n rhino.Node, lineno int
 	if n.IsNil() {
 		return rhino.NilNode
 	}
+	if p.alloc != nil {
+		return p.alloc.AllocChildCachedTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
+	}
 	return p.alloc.Alloc().InitWithChildFromTemplate(type_, n, p.templateNode).SetLinenoCharno(lineno, charno)
 }
 
 // Java: JsDocInfoParser.newNode(Token)
 func (p *JsDocInfoParser) NewNode(type_ rhino.Token) rhino.Node {
+	if p.alloc != nil {
+		return p.alloc.AllocCachedTemplate(type_).SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
+	}
 	return p.alloc.Alloc().InitFromTemplate(type_, p.templateNode).
 		SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
 }
 
 // Java: JsDocInfoParser.newStringNode(String)
 func (p *JsDocInfoParser) NewStringNode(s string) rhino.Node {
-	n := p.alloc.Alloc().InitStringFromTemplate(rhino.Token_STRINGLIT, s, p.templateNode)
-	n.SetLinenoCharno(p.stream.GetLineno(), p.stream.GetCharno())
-	n.SetLength(jutil.StringLength(s))
-	return n
+	return p.allocStringNode(rhino.Token_STRINGLIT, s)
 }
 
 // Java: JsDocInfoParser.reportTypeSyntaxWarning(Msg)

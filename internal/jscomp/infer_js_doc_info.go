@@ -151,7 +151,7 @@ func (p *InferJSDocInfo) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node
 
 // Java: InferJSDocInfo.inferJSDocForName(Node, Node)
 func (p *InferJSDocInfo) inferJSDocForName(n rhino.Node, parent rhino.Node) {
-	if parent.IsNil() {
+	if parent.IsNil() || (!n.HasJSDocInfo() && !parent.HasJSDocInfo()) {
 		return
 	}
 
@@ -259,6 +259,9 @@ func (p *InferJSDocInfo) inferJSDocForObjectKeyOrClassField(n rhino.Node, parent
 
 // Java: InferJSDocInfo.inferJSDocForProperty(Node, Node)
 func (p *InferJSDocInfo) inferJSDocForProperty(n rhino.Node, parent rhino.Node) {
+	if parent.IsNil() || (!n.HasJSDocInfo() && !parent.HasJSDocInfo()) {
+		return
+	}
 	// Infer JSDocInfo on properties.
 	// There are two ways to write doc comments on a property.
 	var typeDoc *rhino.JSDocInfo

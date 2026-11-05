@@ -56,8 +56,6 @@ var scopedAliasesJscompID = strpool.Intern("$jscomp")
 // goog.getBar is called only after 'alias' is defined. In practice, the
 // compiler will inline 'alias' anyway, at the risk of 'fixing' bad code.
 type ScopedAliases struct {
-	NodeTraversal_AbstractPostOrderCallbackBase
-
 	compiler                AbstractCompiler
 	preprocessorSymbolTable *PreprocessorSymbolTable
 	moduleMetadataMap       *ModuleMetadataMap
@@ -92,6 +90,8 @@ type ScopedAliases struct {
 
 	hasNamespaceShadows bool
 	hasErrors           bool
+
+	matchingScripts map[rhino.Node]struct{}
 
 	// The body of the function that is passed to goog.scope.
 	// Set when the traversal enters the body, and set back to NilNode when it exits.
@@ -162,7 +162,10 @@ var ScopedAliases_GOOG_SCOPE_NON_ALIAS_LOCAL = DiagnosticType_Error(
 var ScopedAliases_GOOG_SCOPE_INVALID_VARIABLE = DiagnosticType_Error(
 	"JSC_GOOG_SCOPE_INVALID_VARIABLE", "The variable {0} cannot be declared in this scope")
 
-var googModuleGetQName = rhino.QualifiedName_Of("goog.module.get")
+var (
+	googModuleGetQName = rhino.QualifiedName_Of("goog.module.get")
+	googScopeQName     = rhino.QualifiedName_Of(ScopedAliases_SCOPING_METHOD_NAME)
+)
 
 // ScopedAliases_InvalidModuleGetHandling is what to do with goog.module.get
 // calls importing an inexistent Closure namespace.
@@ -242,6 +245,7 @@ func (s *ScopedAliases) resetTraversalState() {
 	clear(s.forbiddenLocals)
 	s.hasNamespaceShadows = false
 	s.hasErrors = false
+	s.matchingScripts = nil
 	s.scopeFunctionBody = rhino.NilNode
 	s.uniqueIdInput = nil
 }
@@ -250,6 +254,16 @@ func (s *ScopedAliases) resetTraversalState() {
 func (s *ScopedAliases) Process(externs rhino.Node, root rhino.Node) {
 	s.resetTraversalState()
 	defer s.resetTraversalState()
+
+	if scripts, ok := collectRootScripts(root); ok {
+		matchingScripts, prefiltered := filterMatchingScriptsSlice(s.compiler, scripts, subtreeContainsGoogScopeCall)
+		if prefiltered {
+			if len(matchingScripts) == 0 {
+				return
+			}
+			s.matchingScripts = matchingScripts
+		}
+	}
 
 	NodeTraversal_Traverse(s.compiler, root, s)
 
@@ -433,10 +447,47 @@ func (s *ScopedAliases) isGoogScopeFunctionBody(n rhino.Node) bool {
 	return s.inGoogScopeBody() && n == s.scopeFunctionBody
 }
 
+func (*ScopedAliases) shouldTraverseOnlyScriptAndFunction() bool { return true }
+
+func subtreeContainsGoogScopeCall(root rhino.Node) bool {
+	for cur := root; !cur.IsNil(); {
+		if cur.IsCall() && googScopeQName.Matches(cur.GetFirstChild()) {
+			return true
+		}
+		if child := cur.GetFirstChild(); !child.IsNil() {
+			cur = child
+			continue
+		}
+		for cur != root {
+			if next := cur.GetNext(); !next.IsNil() {
+				cur = next
+				break
+			}
+			cur = cur.GetParent()
+		}
+		if cur == root {
+			break
+		}
+	}
+	return false
+}
+
+// Java: ScopedAliases.Traversal.shouldTraverse(NodeTraversal, Node, Node)
+func (s *ScopedAliases) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
+	if n.IsScript() && !s.inGoogScopeBody() {
+		if s.matchingScripts != nil {
+			_, ok := s.matchingScripts[n]
+			return ok
+		}
+		return subtreeContainsGoogScopeCall(n)
+	}
+	return true
+}
+
 // Java: ScopedAliases.Traversal.isCallToScopeMethod(Node)
 func isCallToScopeMethod(n rhino.Node) bool {
 	call, ok := ast.AsCall(n)
-	return ok && call.Callee().Node().MatchesQualifiedName(ScopedAliases_SCOPING_METHOD_NAME)
+	return ok && googScopeQName.Matches(call.Callee().Node())
 }
 
 // findScopeMethodCall: scopeRoot is the Node which is the root of the

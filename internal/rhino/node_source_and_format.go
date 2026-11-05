@@ -729,3 +729,24 @@ func (n Node) SetLinenoCharno(lineno int, charno int) Node {
 
 	return n
 }
+
+// SetSourceInfoIfUnset sets lineno, charno, and length on n in a single record
+// lookup when n's lineno is unset (-1).
+func (n Node) SetSourceInfoIfUnset(lineno, charno, length int) {
+	nr := n.rec()
+	if nr.linenoCharno != -1 {
+		return
+	}
+	if uint(lineno) < 0xFFFFF && uint(charno) <= Node_MAX_COLUMN_NUMBER && uint(length) < 0xFFFF && nr.length16 != 0xFFFF {
+		nr.linenoCharno = int32(uint32(lineno)<<Node_CHARNO_BITS) | int32(charno)
+		nr.length16 = uint16(length)
+		return
+	}
+	n.setSourceInfoSlow(lineno, charno, length)
+}
+
+//go:noinline
+func (n Node) setSourceInfoSlow(lineno, charno, length int) {
+	n.SetLinenoCharno(lineno, charno)
+	n.SetLength(length)
+}

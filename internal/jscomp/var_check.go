@@ -162,6 +162,15 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 			scopeCreator: scopeCreator,
 		}
 		b.Traverse(externs)
+		if v.processNonValidityParallel(externs, root, sc) {
+			for varName := range v.varsToDeclareInExterns.All() {
+				v.CreateSynthesizedExternVar(varName, false /* isFromUndefinedCodeRef */)
+			}
+			if v.dupHandler != nil {
+				v.dupHandler.RemoveDuplicates()
+			}
+			return
+		}
 	}
 
 	b := NodeTraversal_Builder{
@@ -178,6 +187,243 @@ func (v *VarCheck) Process(externs rhino.Node, root rhino.Node) {
 	if v.dupHandler != nil {
 		v.dupHandler.RemoveDuplicates()
 	}
+}
+
+type varCheckOpKind uint8
+
+const (
+	varCheckOpNilVar varCheckOpKind = iota + 1
+	varCheckOpWeakRef
+)
+
+type varCheckUndeclaredOp struct {
+	kind          varCheckOpKind
+	eventIdx      int
+	id            uint32
+	node          rhino.Node
+	inputIsExtern bool
+}
+
+type varCheckWorker struct {
+	NodeTraversal_AbstractPostOrderCallbackBase
+	rc               recordingCompiler
+	sc               *SyntacticScopeCreator
+	vc               VarCheck
+	dupHandler       VarCheck_RedeclarationCheckHandler
+	chunkGraph       *JSChunkGraph
+	localNilDeclared map[uint32]struct{}
+	curIdx           int
+	opsByItem        [][]varCheckUndeclaredOp
+}
+
+func (*varCheckWorker) onlyNameLeaves()            {}
+func (*varCheckWorker) visitTokens() *ast.TokenSet { return &varCheckVisitTokens }
+
+func (w *varCheckWorker) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
+	if !n.IsName() {
+		return
+	}
+	id := n.GetStringID()
+	if id == strpool.EmptyID {
+		jutil.CheckState(NodeUtil_IsFunctionExpression(parent) || NodeUtil_IsMethodDeclaration(parent))
+		return
+	}
+
+	var_ := t.LookupVarByID(id)
+	if var_ == nil {
+		if (NodeUtil_IsFunctionExpression(parent) || NodeUtil_IsClassExpression(parent)) &&
+			n.IsFirstChildOf(parent) {
+			return
+		}
+		if NodeUtil_IsNonlocalModuleExportName(n) {
+			return
+		}
+		if _, seen := w.localNilDeclared[id]; seen {
+			return
+		}
+		if w.localNilDeclared == nil {
+			w.localNilDeclared = make(map[uint32]struct{}, 8)
+		}
+		w.localNilDeclared[id] = struct{}{}
+		inp := t.GetInput()
+		w.opsByItem[w.curIdx] = append(w.opsByItem[w.curIdx], varCheckUndeclaredOp{
+			kind:          varCheckOpNilVar,
+			eventIdx:      len(w.rc.parallelRecorder.events),
+			id:            id,
+			node:          n,
+			inputIsExtern: inp != nil && inp.IsExtern(),
+		})
+		return
+	}
+
+	if var_.IsImplicitGoogNamespace() &&
+		var_.GetImplicitGoogNamespaceStrength() == rhino.StaticSourceFile_SourceKind_WEAK &&
+		VarCheck_StrengthOf(n) == rhino.StaticSourceFile_SourceKind_STRONG {
+		inp := t.GetInput()
+		w.opsByItem[w.curIdx] = append(w.opsByItem[w.curIdx], varCheckUndeclaredOp{
+			kind:          varCheckOpWeakRef,
+			eventIdx:      len(w.rc.parallelRecorder.events),
+			id:            id,
+			node:          n,
+			inputIsExtern: inp != nil && inp.IsExtern(),
+		})
+		return
+	}
+
+	currInput := t.GetInput()
+	varInput := var_.GetInput()
+	if currInput == varInput || currInput == nil || varInput == nil {
+		return
+	}
+
+	currChunk := currInput.GetChunk()
+	varChunk := varInput.GetChunk()
+	chunkGraph := w.chunkGraph
+	if varChunk != currChunk && varChunk != nil && currChunk != nil {
+		if varChunk.IsWeak() {
+			w.opsByItem[w.curIdx] = append(w.opsByItem[w.curIdx], varCheckUndeclaredOp{
+				kind:          varCheckOpWeakRef,
+				eventIdx:      len(w.rc.parallelRecorder.events),
+				id:            id,
+				node:          n,
+				inputIsExtern: currInput.IsExtern(),
+			})
+		}
+		if !chunkGraph.DependsOn(currChunk, varChunk) {
+			varName := n.GetString()
+			if t.InGlobalScope() {
+				if chunkGraph.DependsOn(varChunk, currChunk) {
+					t.Report(n, VarCheck_VIOLATED_CHUNK_DEP_ERROR, currChunk.GetName(), varChunk.GetName(), varName)
+				} else {
+					t.Report(n, VarCheck_MISSING_CHUNK_DEP_ERROR, currChunk.GetName(), varChunk.GetName(), varName)
+				}
+			} else {
+				t.Report(n, VarCheck_STRICT_CHUNK_DEP_ERROR, currChunk.GetName(), varChunk.GetName(), varName)
+			}
+		}
+	}
+}
+
+func (v *VarCheck) replayUndeclaredVariableRef(n rhino.Node, inputIsExtern bool) {
+	varName := n.GetString()
+	if n.GetParent().IsTypeOf() {
+	} else if varName == varCheck_JSCOMP_CLOSURE_UNAWARE_CODE_SHADOW_HOST_NAME {
+	} else if v.strictExternCheck && inputIsExtern {
+	} else {
+		v.compiler.Report(JSError_MakeWithNode(n, VarCheck_UNDEFINED_VAR_ERROR, varName))
+	}
+	if !v.varsToDeclareInExterns.Has(varName) {
+		v.CreateSynthesizedExternVar(varName, true)
+	}
+}
+
+func (v *VarCheck) processNonValidityParallel(externs rhino.Node, root rhino.Node, sc *SyntacticScopeCreator) bool {
+	compiler := v.compiler
+	if compiler == nil || compiler.IsDebugLoggingEnabled() {
+		return false
+	}
+	scopeRoot, items, ok := collectExternAndRootScripts(externs, root)
+	if !ok || len(items) == 0 {
+		return false
+	}
+	numWorkers := parallelThreadCount(compiler, len(items))
+	if numWorkers <= 1 {
+		return false
+	}
+
+	prewarmCompilerForParallelReads(compiler)
+	globalScope := sc.CreateScopeOfScope(scopeRoot, nil)
+	freezeGlobalScopeForParallelReads(globalScope)
+	lazyGlobal := &lazyGlobalScope{scope: globalScope}
+	lazyGlobal.once.Do(func() {})
+
+	chunkGraph := compiler.GetChunkGraph()
+	eventsByItem := make([][]recordedCompilerEvent, len(items))
+	opsByItem := make([][]varCheckUndeclaredOp, len(items))
+	dupsByItem := make([][]rhino.Node, len(items))
+
+	panicsByItem, workerPanic := collectParallelWorkersDeferredPins(
+		len(items),
+		numWorkers,
+		func(_ int, w *varCheckWorker) {
+			initRecordingCompiler(&w.rc, compiler)
+			w.vc = VarCheck{
+				compiler:          &w.rc,
+				strictExternCheck: v.strictExternCheck,
+			}
+			w.dupHandler = VarCheck_RedeclarationCheckHandler{outer: &w.vc}
+			w.sc = NewSyntacticScopeCreatorWithRedeclarationHandler(&w.rc, &w.dupHandler)
+			w.chunkGraph = chunkGraph
+			w.opsByItem = opsByItem
+		},
+		func(w *varCheckWorker, idx int) {
+			resetRecordingCompiler(&w.rc, compiler)
+			w.curIdx = idx
+			w.dupHandler.dupDeclNodes = w.dupHandler.dupDeclNodes[:0]
+			if len(w.localNilDeclared) > 0 {
+				clear(w.localNilDeclared)
+			}
+			item := items[idx]
+			wt := acquireNodeTraversalDirect(&w.rc, w, w.sc, false)
+			defer releaseNodeTraversal(wt)
+			traverseScriptUnderRoot(wt, scopeRoot, item.parent, item.script, lazyGlobal)
+		},
+		func(w *varCheckWorker, idx int) {
+			eventsByItem[idx] = w.rc.takeEvents()
+			if len(w.dupHandler.dupDeclNodes) > 0 {
+				dups := make([]rhino.Node, len(w.dupHandler.dupDeclNodes))
+				copy(dups, w.dupHandler.dupDeclNodes)
+				dupsByItem[idx] = dups
+			}
+		},
+		nil,
+		false,
+	)
+
+	var seenNilDeclared map[uint32]struct{}
+	for i := range items {
+		evs := eventsByItem[i]
+		evPos := 0
+		for _, op := range opsByItem[i] {
+			if op.eventIdx > evPos && evPos < len(evs) {
+				end := min(op.eventIdx, len(evs))
+				replayCompilerEvents(compiler, evs[evPos:end])
+				evPos = end
+			}
+			switch op.kind {
+			case varCheckOpNilVar:
+				if _, already := seenNilDeclared[op.id]; !already {
+					if seenNilDeclared == nil {
+						seenNilDeclared = make(map[uint32]struct{}, 8)
+					}
+					seenNilDeclared[op.id] = struct{}{}
+					v.replayUndeclaredVariableRef(op.node, op.inputIsExtern)
+					globalScope.Declare(op.node.GetString(), op.node, v.compiler.GetSynthesizedExternsInput())
+				}
+			case varCheckOpWeakRef:
+				v.replayUndeclaredVariableRef(op.node, op.inputIsExtern)
+			}
+		}
+		if evPos < len(evs) {
+			replayCompilerEvents(compiler, evs[evPos:])
+		}
+		if v.dupHandler != nil && len(dupsByItem[i]) > 0 {
+			v.dupHandler.dupDeclNodes = append(v.dupHandler.dupDeclNodes, dupsByItem[i]...)
+		}
+		if p := panicsByItem[i]; p != nil {
+			rethrowParallelPanic(compiler, p)
+		}
+	}
+	if workerPanic != nil {
+		rethrowParallelPanic(compiler, workerPanic)
+	}
+
+	for _, requiredSymbol := range varCheck_requiredSymbols {
+		if globalScope.GetVar(requiredSymbol) == nil {
+			v.varsToDeclareInExterns.Add(requiredSymbol)
+		}
+	}
+	return true
 }
 
 // processValidityParallel checks the scripts of the externs and the program
@@ -207,11 +453,16 @@ var varCheckVisitTokens = func() ast.TokenSet {
 
 func (*VarCheck) onlyNameLeaves()                                  {}
 func (*VarCheck) visitTokens() *ast.TokenSet                       { return &varCheckVisitTokens }
+func (*VarCheck_NameRefInExternsCheck) onlyNameLeaves()            {}
 func (*VarCheck_NameRefInExternsCheck) visitTokens() *ast.TokenSet { return &varCheckVisitTokens }
+func (*VarCheck_NameRefInExternsCheck) shouldTraverseOnlyScriptAndFunction() bool {
+	return true
+}
 
 var (
-	_ nodeTraversal_visitTokens = (*VarCheck)(nil)
-	_ nodeTraversal_visitTokens = (*VarCheck_NameRefInExternsCheck)(nil)
+	_ nodeTraversal_visitTokens                         = (*VarCheck)(nil)
+	_ nodeTraversal_visitTokens                         = (*VarCheck_NameRefInExternsCheck)(nil)
+	_ nodeTraversal_onlyScriptAndFunctionShouldTraverse = (*VarCheck_NameRefInExternsCheck)(nil)
 )
 
 // Java: VarCheck.visit(NodeTraversal, Node, Node)
