@@ -404,11 +404,20 @@ func (c *Compiler) ParseForCompilation() {
 // files to be read.
 //
 // TODO(bradfordcsmith): Rename this to parse()
-//
+func (c *Compiler) reportOptionWarnings() {
+	if c.options == nil {
+		return
+	}
+	for _, warning := range c.options.optionWarnings {
+		c.Report(JSError_Make(StrictWarningsGuard_UNRAISABLE_WARNING, warning))
+	}
+}
+
 // Java: Compiler.parseForCompilationInternal()
 func (c *Compiler) parseForCompilationInternal() {
 	CompilerOptionsPreprocessor_Preprocess(c.options)
 	c.MaybeSetTracker()
+	c.reportOptionWarnings()
 	c.ParseInputs()
 }
 
@@ -423,6 +432,7 @@ func (c *Compiler) parseForCompilationInternal() {
 //
 // Java: Compiler.parse()
 func (c *Compiler) Parse() {
+	c.reportOptionWarnings()
 	c.ParseInputs()
 }
 

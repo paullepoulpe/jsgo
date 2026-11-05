@@ -559,9 +559,14 @@ type CompilerOptions struct {
 	// Go-only: opt-in flat binary SaveState format (auto-detected on RestoreState)
 	binarySaveState bool
 	// Go-only: optional embedder hooks for filtering emitted @license/@preserve
-	// blocks and customizing options at the end of ReconcileOptionsWithGuards.
-	licenseFilter        func(string) bool
-	reconcileOptionsHook func(*CompilerOptions)
+	// blocks, customizing options/passes, and attaching extension metadata/warnings.
+	licenseFilter          func(string) bool
+	reconcileOptionsHook   func(*CompilerOptions)
+	checksDecorator        func(*DefaultPassConfig, *PassListBuilder)
+	optimizationsDecorator func(*DefaultPassConfig, *PassListBuilder)
+	finalizationsDecorator func(*DefaultPassConfig, *PassListBuilder)
+	extraOptions           map[string]any
+	optionWarnings         []string
 }
 
 // Initializes compiler options. All options are disabled by default.

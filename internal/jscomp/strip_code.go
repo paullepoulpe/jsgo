@@ -521,7 +521,7 @@ func (s *StripCode) MaybeRemoveReferenceToRemovedVariable(t *NodeTraversal, n rh
 		isLastChild := isBin && bin.Right().Is(n)
 		// The only parent where replacing with null is an issue is likely where the comma
 		// expression is the first child (callee) of a CALL or NEW node.
-		parentIsCallee := (grandparent.IsCall() || grandparent.IsNew()) && grandparent.GetFirstChild() == parent
+		parentIsCallee := !grandparent.IsNil() && (grandparent.IsCall() || grandparent.IsNew()) && grandparent.GetFirstChild() == parent
 		isSafeToRemove := !isLastChild || !parentIsCallee
 		if isSafeToRemove && s.IsReferenceToRemovedVar(n) {
 			if s.decisionsLog.IsLogging() {
@@ -764,7 +764,7 @@ func (s *StripCode) MaybeEliminateClassByNameOrExtends(t *NodeTraversal, classNo
 //
 // Java: Strip.isCallWhoseReturnValueShouldBeStripped(Node)
 func (s *StripCode) IsCallWhoseReturnValueShouldBeStripped(n rhino.Node) bool {
-	if (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
+	if n.IsNil() || (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
 		return false
 	}
 
@@ -847,7 +847,7 @@ func (s *StripCode) IsMethodOrCtorCallThatTriggersRemoval(t *NodeTraversal, n rh
 	//     STRING (method name)
 	//   ... (arguments)
 
-	if (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
+	if n.IsNil() || (!n.IsCall() && !n.IsNew()) || !n.HasChildren() {
 		return false
 	}
 	function := NodeUtil_GetCallTargetResolvingIndirectCalls(n)

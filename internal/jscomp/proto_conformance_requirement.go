@@ -30,6 +30,7 @@ const (
 	Requirement_Type_RESTRICTED_PROPERTY_WRITE
 	Requirement_Type_BANNED_STRING_REGEX
 	Requirement_Type_BANNED_MODS_REGEX
+	Requirement_Type_BANNED_SCRIPT_IMPORT
 )
 
 var requirement_Type_names = [...]string{
@@ -51,6 +52,7 @@ var requirement_Type_names = [...]string{
 	"RESTRICTED_PROPERTY_WRITE",
 	"BANNED_STRING_REGEX",
 	"BANNED_MODS_REGEX",
+	"BANNED_SCRIPT_IMPORT",
 }
 
 var requirement_Type_numbers = [...]int32{
@@ -72,9 +74,10 @@ var requirement_Type_numbers = [...]int32{
 	13,
 	17,
 	18,
+	19,
 }
 
-var requirement_Type_byNumber = [19]Requirement_Type{
+var requirement_Type_byNumber = [20]Requirement_Type{
 	-1,
 	Requirement_Type_CUSTOM,
 	Requirement_Type_BANNED_DEPENDENCY,
@@ -94,6 +97,7 @@ var requirement_Type_byNumber = [19]Requirement_Type{
 	Requirement_Type_BANNED_ENHANCE,
 	Requirement_Type_BANNED_STRING_REGEX,
 	Requirement_Type_BANNED_MODS_REGEX,
+	Requirement_Type_BANNED_SCRIPT_IMPORT,
 }
 
 // String is Enum.name().
@@ -108,14 +112,14 @@ func (e Requirement_Type) GetNumber() int32 {
 //
 // Java: Type.forNumber(int)
 func Requirement_Type_ForNumber(value int32) (Requirement_Type, bool) {
-	if uint32(value-1) < 18 {
+	if uint32(value-1) < 19 {
 		return requirement_Type_byNumber[value], true
 	}
 	return 0, false
 }
 
 func requirement_Type_fromNumber(value int32) Requirement_Type {
-	if uint32(value-1) < 18 {
+	if uint32(value-1) < 19 {
 		return requirement_Type_byNumber[value]
 	}
 	return Requirement_Type_CUSTOM

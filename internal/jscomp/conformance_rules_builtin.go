@@ -605,8 +605,8 @@ func (r *conformanceBanUnknownThisRule) checkNode(t *NodeTraversal, n rhino.Node
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-// conformanceBanUnknownDirectThisPropsRule bans unknown-typed `this.prop` /
-// `this?.prop` references on a known `this` receiver.
+// conformanceBanUnknownDirectThisPropsRule bans unknown-typed `this.prop`
+// references on a known `this` receiver.
 type conformanceBanUnknownDirectThisPropsRule struct {
 	conformanceAbstractRule
 }
@@ -620,7 +620,7 @@ func newConformanceBanUnknownDirectThisPropsRule(compiler AbstractCompiler, requ
 }
 
 func (r *conformanceBanUnknownDirectThisPropsRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok &&
+	if gp, ok := ast.AsGetProp(n); ok &&
 		isKnownThisNode(gp.Object().Node()) &&
 		isUnknownNodeType(n) &&
 		!isTemplateNodeType(n) &&
@@ -636,7 +636,7 @@ func isKnownThisNode(n rhino.Node) bool {
 	return !n.IsNil() && n.IsThis() && !isUnknownNodeType(n)
 }
 
-func isExplicitlyUnknownProp(gp ast.NormalOrOptChainGetProp) bool {
+func isExplicitlyUnknownProp(gp ast.GetProp) bool {
 	owner := rhino.ObjectType_Cast(gp.Object().Node().GetJSType())
 	if owner == nil {
 		return false
@@ -645,8 +645,8 @@ func isExplicitlyUnknownProp(gp ast.NormalOrOptChainGetProp) bool {
 	return prop != nil && !prop.IsTypeInferred()
 }
 
-// conformanceBanUnknownTypedClassPropsRule bans unknown-typed `instance.prop` /
-// `instance?.prop` references on class/interface instances.
+// conformanceBanUnknownTypedClassPropsRule bans unknown-typed `instance.prop`
+// references on class/interface instances.
 type conformanceBanUnknownTypedClassPropsRule struct {
 	conformanceAbstractRule
 }
@@ -660,7 +660,7 @@ func newConformanceBanUnknownTypedClassPropsRule(compiler AbstractCompiler, requ
 }
 
 func (r *conformanceBanUnknownTypedClassPropsRule) checkNode(t *NodeTraversal, getprop rhino.Node) *ConformanceRules_ConformanceResult {
-	if gp, ok := ast.AsNormalOrOptChainGetProp(getprop); ok &&
+	if gp, ok := ast.AsGetProp(getprop); ok &&
 		isUnknownNodeType(getprop) &&
 		r.isNodeUsed(getprop) &&
 		!r.isTypeImmediatelyTightened(getprop) &&
@@ -705,7 +705,7 @@ func (r *conformanceBanUnknownTypedClassPropsRule) isClassType(n rhino.Node) boo
 		(!source.IsNil() && source.IsClass())
 }
 
-func (r *conformanceBanUnknownTypedClassPropsRule) isDeclaredUnknown(gp ast.NormalOrOptChainGetProp) bool {
+func (r *conformanceBanUnknownTypedClassPropsRule) isDeclaredUnknown(gp ast.GetProp) bool {
 	objType := gp.Object().Node().GetJSType()
 	if objType == nil {
 		return false
@@ -753,7 +753,7 @@ func newConformanceBanUnresolvedTypeRule(compiler AbstractCompiler, requirement 
 }
 
 func (r *conformanceBanUnresolvedTypeRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok {
+	if gp, ok := ast.AsGetProp(n); ok {
 		nonConformingPart, hasPart := nonConformingTypePart(gp.Object().Node().GetJSType())
 		if hasPart && !r.isTypeImmediatelyTightened(n) {
 			return NewConformanceRules_ConformanceResultWithNote(

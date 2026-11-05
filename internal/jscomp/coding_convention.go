@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
@@ -417,6 +418,131 @@ func newAssertionSpecFunc(
 
 func (s *CodingConvention_AssertionFunctionSpec) GetAssertionKind() CodingConvention_AssertionFunctionSpec_AssertionKind {
 	return s.assertionKind
+}
+
+// GetFunctionName returns the assertion function's qualified name if present.
+//
+// Java: CodingConvention.AssertionFunctionSpec.getFunctionName()
+func (s *CodingConvention_AssertionFunctionSpec) GetFunctionName() base.OptString {
+	if s.hasFunctionName {
+		return base.SomeString(s.functionName)
+	}
+	return base.NoString()
+}
+
+// GetParamIndex returns the zero-based index of the asserted parameter.
+//
+// Java: CodingConvention.AssertionFunctionSpec.getParamIndex()
+func (s *CodingConvention_AssertionFunctionSpec) GetParamIndex() int {
+	return s.paramIndex
+}
+
+// Equals reports whether o is an equivalent CodingConvention_AssertionFunctionSpec.
+//
+// Java: CodingConvention.AssertionFunctionSpec.equals(Object)
+func (s *CodingConvention_AssertionFunctionSpec) Equals(o any) bool {
+	that, ok := o.(*CodingConvention_AssertionFunctionSpec)
+	return ok && s.equals(that)
+}
+
+// CodingConvention_AssertionFunctionSpec_Builder builds a
+// CodingConvention_AssertionFunctionSpec.
+//
+// Java: CodingConvention.AssertionFunctionSpec.Builder
+type CodingConvention_AssertionFunctionSpec_Builder struct {
+	functionName     string
+	hasFunctionName  bool
+	closurePrimitive rhino.ClosurePrimitive
+	hasPrimitive     bool
+	assertionKind    CodingConvention_AssertionFunctionSpec_AssertionKind
+	hasAssertionKind bool
+	paramIndex       int
+	hasParamIndex    bool
+}
+
+// CodingConvention_AssertionFunctionSpec_ForTruthy returns a builder for an
+// assertion function that checks truthiness of its parameter (default index 0).
+//
+// Java: CodingConvention.AssertionFunctionSpec.forTruthy()
+func CodingConvention_AssertionFunctionSpec_ForTruthy() *CodingConvention_AssertionFunctionSpec_Builder {
+	return &CodingConvention_AssertionFunctionSpec_Builder{
+		assertionKind:    CodingConvention_AssertionFunctionSpec_AssertionKind_TRUTHY,
+		hasAssertionKind: true,
+		paramIndex:       0,
+		hasParamIndex:    true,
+	}
+}
+
+// CodingConvention_AssertionFunctionSpec_ForMatchesReturn returns a builder for
+// an assertion function whose asserted parameter matches its return type.
+//
+// Java: CodingConvention.AssertionFunctionSpec.forMatchesReturn()
+func CodingConvention_AssertionFunctionSpec_ForMatchesReturn() *CodingConvention_AssertionFunctionSpec_Builder {
+	return &CodingConvention_AssertionFunctionSpec_Builder{
+		assertionKind:    CodingConvention_AssertionFunctionSpec_AssertionKind_MATCHES_RETURN_TYPE,
+		hasAssertionKind: true,
+		paramIndex:       0,
+		hasParamIndex:    true,
+	}
+}
+
+// SetFunctionName sets the function name on the builder.
+//
+// Java: CodingConvention.AssertionFunctionSpec.Builder.setFunctionName(String)
+func (b *CodingConvention_AssertionFunctionSpec_Builder) SetFunctionName(functionName string) *CodingConvention_AssertionFunctionSpec_Builder {
+	b.functionName = functionName
+	b.hasFunctionName = true
+	return b
+}
+
+// SetClosurePrimitive sets the ClosurePrimitive on the builder.
+//
+// Java: CodingConvention.AssertionFunctionSpec.Builder.setClosurePrimitive(ClosurePrimitive)
+func (b *CodingConvention_AssertionFunctionSpec_Builder) SetClosurePrimitive(primitive rhino.ClosurePrimitive) *CodingConvention_AssertionFunctionSpec_Builder {
+	b.closurePrimitive = primitive
+	b.hasPrimitive = true
+	return b
+}
+
+// SetParamIndex sets the zero-based asserted parameter index on the builder.
+//
+// Java: CodingConvention.AssertionFunctionSpec.Builder.setParamIndex(int)
+func (b *CodingConvention_AssertionFunctionSpec_Builder) SetParamIndex(paramIndex int) *CodingConvention_AssertionFunctionSpec_Builder {
+	b.paramIndex = paramIndex
+	b.hasParamIndex = true
+	return b
+}
+
+// Build validates and constructs the CodingConvention_AssertionFunctionSpec.
+//
+// Java: CodingConvention.AssertionFunctionSpec.Builder.build()
+func (b *CodingConvention_AssertionFunctionSpec_Builder) Build() *CodingConvention_AssertionFunctionSpec {
+	if !b.hasAssertionKind || !b.hasParamIndex {
+		var missing strings.Builder
+		if !b.hasAssertionKind {
+			missing.WriteString(" assertionKind")
+		}
+		if !b.hasParamIndex {
+			missing.WriteString(" paramIndex")
+		}
+		panic(jutil.NewIllegalStateExceptionMsg("Missing required properties:" + missing.String()))
+	}
+	jutil.CheckStateMsg(
+		b.hasFunctionName || b.hasPrimitive,
+		"Must provide a function name or ClosurePrimitive for each spec")
+	var qname rhino.QualifiedName
+	if b.hasFunctionName && strings.IndexByte(b.functionName, '.') >= 0 {
+		qname = rhino.QualifiedName_Of(b.functionName)
+	}
+	return &CodingConvention_AssertionFunctionSpec{
+		functionName:     b.functionName,
+		hasFunctionName:  b.hasFunctionName,
+		qname:            qname,
+		closurePrimitive: b.closurePrimitive,
+		hasPrimitive:     b.hasPrimitive,
+		assertionKind:    b.assertionKind,
+		paramIndex:       b.paramIndex,
+	}
 }
 
 // GetAssertedArg returns which argument is actually being asserted, or NilNode

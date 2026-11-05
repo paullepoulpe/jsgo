@@ -107,6 +107,7 @@ func compiler_fromVariableMapEntries(entries []*VariableMapEntryProto) *Variable
 //
 // Java: Compiler.getCompilerStateProtoBuilder()
 func (c *Compiler) GetCompilerStateProtoBuilder() *JSCompilerStateProto_Builder {
+	jutil.CheckState(c.customNodeMetadata == nil || c.customNodeMetadata.IsEmpty())
 	builder := JSCompilerStateProto_NewBuilder()
 
 	for feature := range c.allowableFeatures.All() {
@@ -269,6 +270,7 @@ func (c *Compiler) RestoreFromState(compilerState *JSCompilerStateProto) {
 
 	c.conformanceViolations = slices.Clone(compilerState.GetConformanceViolationsList())
 	c.unattributedConformanceViolations = slices.Clone(compilerState.GetUnattributedConformanceViolationsList())
+	c.customNodeMetadata = nil
 
 	// We don't save changeStamp, because its value turned out to be non-deterministic
 	// (Reasons for this are unknown.), and there's no benefit to saving it anyway.

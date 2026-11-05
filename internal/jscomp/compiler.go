@@ -245,9 +245,11 @@ type Compiler struct {
 	idGeneratorMap base.OptString
 
 	// Conformance violations persisted across compilation stages.
-	conformanceViolations             []*ConformanceViolationsProto
-	unattributedConformanceViolations []*ViolationProto
-	conformanceViolationInterceptor   ConformanceViolationHandler
+	conformanceViolations                    []*ConformanceViolationsProto
+	unattributedConformanceViolations        []*ViolationProto
+	conformanceViolationInterceptor          ConformanceViolationHandler
+	libraryLevelConformanceBehaviors         map[*Requirement]ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
+	libraryLevelConformanceBehaviorsByRuleId map[string]ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior
 
 	// Go-only: optional embedder metadata keyed by AST nodes and forwarded
 	// across AST compaction passes.
@@ -680,4 +682,52 @@ func (c *Compiler) SetExternPropSet(externPropSet *ExternPropSet) {
 	c.externPropSet = externPropSet
 	c.externProperties = nil
 	c.externPropSetSource = nil
+}
+
+// CssNames returns the set of CSS names collected during compilation, or nil.
+func (c *Compiler) CssNames() *OrderedSet[string] {
+	return c.cssNames
+}
+
+// RecordLibraryLevelConformanceBehavior records the library-level non-allowlisted
+// conformance violations behavior associated with requirement.
+func (c *Compiler) RecordLibraryLevelConformanceBehavior(
+	requirement *Requirement,
+	behavior ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
+) {
+	if requirement == nil {
+		return
+	}
+	if c.libraryLevelConformanceBehaviors == nil {
+		c.libraryLevelConformanceBehaviors = make(map[*Requirement]ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior)
+	}
+	c.libraryLevelConformanceBehaviors[requirement] = behavior
+	if requirement.HasRuleId() && requirement.GetRuleId() != "" {
+		if c.libraryLevelConformanceBehaviorsByRuleId == nil {
+			c.libraryLevelConformanceBehaviorsByRuleId = make(map[string]ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior)
+		}
+		c.libraryLevelConformanceBehaviorsByRuleId[requirement.GetRuleId()] = behavior
+	}
+}
+
+// LookupLibraryLevelConformanceBehavior looks up the library-level non-allowlisted
+// conformance violations behavior recorded for requirement (matching by pointer
+// identity first, then by non-empty rule_id).
+func (c *Compiler) LookupLibraryLevelConformanceBehavior(
+	requirement *Requirement,
+) (ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior, bool) {
+	if requirement == nil {
+		return ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED, false
+	}
+	if c.libraryLevelConformanceBehaviors != nil {
+		if b, ok := c.libraryLevelConformanceBehaviors[requirement]; ok {
+			return b, true
+		}
+	}
+	if requirement.HasRuleId() && requirement.GetRuleId() != "" && c.libraryLevelConformanceBehaviorsByRuleId != nil {
+		if b, ok := c.libraryLevelConformanceBehaviorsByRuleId[requirement.GetRuleId()]; ok {
+			return b, true
+		}
+	}
+	return ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED, false
 }

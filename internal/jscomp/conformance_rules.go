@@ -625,10 +625,6 @@ func validateConformanceParameterList(
 	var argumentTypes []rhino.JSType
 	skippedThisArg := false
 	for arg := range callOrNew.Args() {
-		if arg.Node().IsSpread() {
-			// Runtime spread arity and positional element types cannot be verified statically.
-			return false
-		}
 		if isCallInvocation && !skippedThisArg {
 			skippedThisArg = true
 			continue

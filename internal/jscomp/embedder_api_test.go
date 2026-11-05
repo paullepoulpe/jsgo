@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/internal/base"
 	"github.com/paullepoulpe/jsgo/internal/jscomp"
+	"github.com/paullepoulpe/jsgo/internal/jutil"
 	"github.com/paullepoulpe/jsgo/internal/resources"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
@@ -511,5 +513,324 @@ func TestRenderChunksLargeBaseStreamingAndOmitSourceMapString(t *testing.T) {
 		if string(raw) != wantMaps[i] {
 			t.Fatalf("chunk %d (%s) source map mismatch against sequential reference", i, chunks[i].GetName())
 		}
+	}
+}
+
+type simpleRenamingMap struct{}
+
+func (simpleRenamingMap) Get(value string) (string, bool) { return "id_" + value, true }
+
+func TestOptionsStageDecoratorsExtraOptionsWarningsAndStateMetadata(t *testing.T) {
+	opts := jscomp.NewCompilerOptions()
+	jscomp.CompilationLevel_ADVANCED_OPTIMIZATIONS.SetOptionsForCompilationLevel(opts)
+
+	jscomp.SetExtraOption(opts, "customKey", 42)
+	if v, ok := jscomp.ExtraOption(opts, "customKey"); !ok || v != 42 {
+		t.Fatalf("ExtraOption(customKey) = (%v, %v), want (42, true)", v, ok)
+	}
+	if _, ok := jscomp.ExtraOption(opts, "missing"); ok {
+		t.Fatal("expected missing key to return false")
+	}
+	snap := jscomp.ExtraOptionsSnapshot(opts)
+	snap["customKey"] = 99
+	if v, _ := jscomp.ExtraOption(opts, "customKey"); v != 42 {
+		t.Fatalf("ExtraOptionsSnapshot did not defensively copy map: got %v", v)
+	}
+
+	jscomp.AddOptionWarning(opts, "deprecated custom flag --foo")
+
+	var stages []string
+	jscomp.SetChecksDecorator(opts, func(pc *jscomp.DefaultPassConfig, b *jscomp.PassListBuilder) {
+		if pc == nil || b == nil {
+			t.Fatal("expected non-nil DefaultPassConfig and PassListBuilder")
+		}
+		b.InsertAt(b.Len(), jscomp.NewPassFactory("optChecksHook", func(jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.CompilerPassFunc(func(_, _ rhino.Node) {
+				stages = append(stages, "checks")
+			})
+		}))
+	})
+	jscomp.SetOptimizationsDecorator(opts, func(pc *jscomp.DefaultPassConfig, b *jscomp.PassListBuilder) {
+		b.InsertAt(b.Len(), jscomp.NewPassFactory("optOptHook", func(jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.CompilerPassFunc(func(_, _ rhino.Node) {
+				stages = append(stages, "optimizations")
+			})
+		}))
+	})
+	jscomp.SetFinalizationsDecorator(opts, func(pc *jscomp.DefaultPassConfig, b *jscomp.PassListBuilder) {
+		b.InsertAt(b.Len(), jscomp.NewPassFactory("optFinalHook", func(jscomp.AbstractCompiler) jscomp.CompilerPass {
+			return jscomp.CompilerPassFunc(func(_, _ rhino.Node) {
+				stages = append(stages, "finalizations")
+			})
+		}))
+	})
+
+	c := jscomp.NewCompiler()
+	res := c.Compile(
+		[]*jscomp.SourceFile{jscomp.SourceFile_FromCode("ext.js", "/** @externs */ var window;")},
+		[]*jscomp.SourceFile{jscomp.SourceFile_FromCode("in.js", "window['x'] = 1;\n")},
+		opts,
+	)
+	if !res.Success {
+		t.Fatalf("compile failed: %v", res.Errors)
+	}
+	if strings.Join(stages, ",") != "checks,optimizations,finalizations" {
+		t.Fatalf("stages = %v, want [checks optimizations finalizations]", stages)
+	}
+	foundOptWarn := false
+	for _, w := range res.Warnings {
+		if w.Type() == jscomp.StrictWarningsGuard_UNRAISABLE_WARNING && strings.Contains(w.Description(), "deprecated custom flag --foo") {
+			foundOptWarn = true
+		}
+	}
+	if !foundOptWarn {
+		t.Fatalf("expected UNRAISABLE_WARNING for AddOptionWarning, got %v", res.Warnings)
+	}
+
+	// Verify Compiler.Parse() also emits queued option warnings.
+	parseOpts := jscomp.NewCompilerOptions()
+	jscomp.AddOptionWarning(parseOpts, "parse-only warning")
+	cp := jscomp.NewCompiler()
+	cp.Init([]*jscomp.SourceFile{}, []*jscomp.SourceFile{jscomp.SourceFile_FromCode("p.js", "var p = 1;\n")}, parseOpts)
+	cp.Parse()
+	if len(cp.GetWarnings()) == 0 || !strings.Contains(cp.GetWarnings()[0].Description(), "parse-only warning") {
+		t.Fatalf("expected Parse() to emit option warning, got %v", cp.GetWarnings())
+	}
+
+	// Verify GetCompilerStateProtoBuilder rejects non-empty CustomNodeMetadata and RestoreFromState clears it.
+	c.CustomNodeMetadata().Put(c.GetRoot(), "non-serializable")
+	panicked := false
+	func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				if _, ok := rec.(jutil.IIllegalStateException); ok {
+					panicked = true
+					return
+				}
+				panic(rec)
+			}
+		}()
+		_ = c.GetCompilerStateProtoBuilder()
+	}()
+	if !panicked {
+		t.Fatal("expected GetCompilerStateProtoBuilder to panic when CustomNodeMetadata is non-empty")
+	}
+	c.CustomNodeMetadata().Clear()
+	stateProto := c.GetCompilerStateProtoBuilder().Build()
+	c.CustomNodeMetadata().Put(c.GetRoot(), "stale")
+	c.RestoreFromState(stateProto)
+	if !c.CustomNodeMetadata().IsEmpty() {
+		t.Fatal("expected RestoreFromState to reset CustomNodeMetadata")
+	}
+}
+
+func TestExportedOptionGettersSettersHashesAndAssertionBuilder(t *testing.T) {
+	opts := jscomp.NewCompilerOptions()
+	if got := jscomp.LanguageOutIsDefaultStrict(opts); got != base.Tri_UNKNOWN {
+		t.Fatalf("initial LanguageOutIsDefaultStrict = %v, want UNKNOWN", got)
+	}
+	opts.SetLanguageOut(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT_2015)
+	if got := jscomp.LanguageOutIsDefaultStrict(opts); got != base.Tri_TRUE {
+		t.Fatalf("ES2015 LanguageOutIsDefaultStrict = %v, want TRUE", got)
+	}
+	opts.SetLanguageOut(jscomp.CompilerOptions_LanguageMode_ECMASCRIPT3)
+	if got := jscomp.LanguageOutIsDefaultStrict(opts); got != base.Tri_FALSE {
+		t.Fatalf("ES3 LanguageOutIsDefaultStrict = %v, want FALSE", got)
+	}
+	opts.SetMaxOptimizationLoopIterations(7)
+	if got := jscomp.OptimizationLoopMaxIterations(opts); got != 7 {
+		t.Fatalf("OptimizationLoopMaxIterations = %d, want 7", got)
+	}
+	opts.SetPreserveClosurePrimitives(true)
+	if !jscomp.PreserveClosurePrimitives(opts) {
+		t.Fatal("PreserveClosurePrimitives = false, want true")
+	}
+	opts.SetEnableModuleRewriting(false)
+	if jscomp.EnableModuleRewriting(opts) {
+		t.Fatal("EnableModuleRewriting = true, want false")
+	}
+	opts.SetReplaceMessagesWithChromeI18n(true, base.SomeString("proj_123"))
+	enabled, proj := jscomp.ReplaceMessagesWithChromeI18n(opts)
+	if projStr, ok := proj.Get(); !enabled || !ok || projStr != "proj_123" {
+		t.Fatalf("ReplaceMessagesWithChromeI18n = (%v, %v)", enabled, proj)
+	}
+
+	cfg := jscomp.ConformanceConfig_NewBuilder().Build()
+	opts.SetConformanceConfigs([]*jscomp.ConformanceConfig{cfg})
+	opts.ClearConformanceConfigs()
+	if len(opts.GetConformanceConfigs()) != 0 {
+		t.Fatal("expected ClearConformanceConfigs to clear configs")
+	}
+
+	opts.SetExportTestFunctions(true)
+	if !opts.ShouldExportTestFunctions() {
+		t.Fatal("ShouldExportTestFunctions = false")
+	}
+	idMap := jscomp.NewOrderedStringMap[jscomp.RenamingMap]()
+	idMap.Put("myIdGen", simpleRenamingMap{})
+	opts.SetIdGeneratorsOfMap(idMap)
+	if opts.GetIdGenerators().Size() != 1 {
+		t.Fatalf("GetIdGenerators().Size() = %d, want 1", opts.GetIdGenerators().Size())
+	}
+	opts.SetInferConst(false)
+	if opts.ShouldInferConsts() {
+		t.Fatal("ShouldInferConsts = true, want false")
+	}
+	opts.SetJ2clMinifierEnabled(false)
+	if opts.IsJ2clMinifierEnabled() {
+		t.Fatal("IsJ2clMinifierEnabled = true, want false")
+	}
+	opts.SetOutputJsStringUsage(true)
+	if !opts.ShouldOutputJsStringUsage() {
+		t.Fatal("ShouldOutputJsStringUsage = false")
+	}
+	opts.SetParentChunkCanSeeSymbolsDeclaredInChildren(true)
+	if !opts.GetParentChunkCanSeeSymbolsDeclaredInChildren() {
+		t.Fatal("GetParentChunkCanSeeSymbolsDeclaredInChildren = false")
+	}
+	opts.SetPrintExterns(true)
+	if !opts.ShouldPrintExterns() {
+		t.Fatal("ShouldPrintExterns = false")
+	}
+	opts.SetPropertyRenamingOnlyCompilationMode(true)
+	if !opts.IsPropertyRenamingOnlyCompilationMode() {
+		t.Fatal("IsPropertyRenamingOnlyCompilationMode = false")
+	}
+	opts.SetReplaceStringsFunctionDescriptions([]string{"Error(?)"})
+	opts.SetReplaceStringsPlaceholderToken("`")
+	if len(opts.GetReplaceStringsFunctionDescriptions()) != 1 || opts.GetReplaceStringsPlaceholderToken() != "`" {
+		t.Fatal("ReplaceStrings setters mismatch")
+	}
+	opts.SetSerializeExtraDebugInfo(true)
+	if !opts.ShouldSerializeExtraDebugInfo() {
+		t.Fatal("ShouldSerializeExtraDebugInfo = false")
+	}
+	opts.SetStrictMessageReplacement(true)
+	if !opts.GetStrictMessageReplacement() {
+		t.Fatal("GetStrictMessageReplacement = false")
+	}
+
+	// Deterministic Jenkins lookup2 32-bit hash sanity check:
+	h1 := jscomp.JenkinsHash32WithSeed([]byte("hello.world"), 0)
+	h2 := jscomp.JenkinsHash32WithSeed([]byte("hello.world"), 3141592)
+	if h1 == 0 || h2 == 0 || h1 == h2 {
+		t.Fatalf("unexpected JenkinsHash32WithSeed values: h1=%d h2=%d", h1, h2)
+	}
+
+	// AssertionFunctionSpec builder & accessors:
+	spec1 := jscomp.CodingConvention_AssertionFunctionSpec_ForTruthy().
+		SetFunctionName("my.asserts.check").
+		SetParamIndex(1).
+		Build()
+	spec2 := jscomp.CodingConvention_AssertionFunctionSpec_ForTruthy().
+		SetFunctionName("my.asserts.check").
+		SetParamIndex(1).
+		Build()
+	fnName, hasFnName := spec1.GetFunctionName().Get()
+	if !hasFnName || fnName != "my.asserts.check" || spec1.GetParamIndex() != 1 || !spec1.Equals(spec2) {
+		t.Fatalf("unexpected AssertionFunctionSpec: %v", spec1)
+	}
+}
+
+func TestConformanceBannedScriptImportCssNamesAndLibraryBehavior(t *testing.T) {
+	if jscomp.Requirement_Type_BANNED_SCRIPT_IMPORT.GetNumber() != 19 {
+		t.Fatalf("BANNED_SCRIPT_IMPORT number = %d, want 19", jscomp.Requirement_Type_BANNED_SCRIPT_IMPORT.GetNumber())
+	}
+	reqBuilder := jscomp.Requirement_NewBuilder()
+	if err := jscomp.TextFormat_MergeErr(`
+type: BANNED_SCRIPT_IMPORT
+value: 'goog.net.jsloader.safeLoad'
+rule_id: 'ban_script_import'
+error_message: 'Script import forbidden'
+`, reqBuilder); err != nil {
+		t.Fatalf("TextFormat_MergeErr failed: %v", err)
+	}
+	cfg := jscomp.ConformanceConfig_NewBuilder().
+		AddRequirement(reqBuilder.Build()).
+		SetLibraryLevelNonAllowlistedConformanceViolationsBehavior(
+			jscomp.ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_RECORD_ONLY).
+		Build()
+	roundTripCfg, err := jscomp.ParseConformanceConfigBytes(cfg.ToByteArray())
+	if err != nil {
+		t.Fatalf("ParseConformanceConfigBytes: %v", err)
+	}
+	if roundTripCfg.GetRequirement(0).GetType() != jscomp.Requirement_Type_BANNED_SCRIPT_IMPORT {
+		t.Fatalf("round-tripped type = %v", roundTripCfg.GetRequirement(0).GetType())
+	}
+
+	var customEvalCalls int
+	jscomp.CustomBannedNameEvaluator = func(reqType jscomp.Requirement_Type, n rhino.Node) (*jscomp.ConformanceRules_ConformanceResult, bool) {
+		if reqType == jscomp.Requirement_Type_BANNED_SCRIPT_IMPORT {
+			customEvalCalls++
+			// Suppress safe call when first arg is literal 'allowlisted.js':
+			parent := n.GetParent()
+			if !parent.IsNil() && parent.IsCall() && parent.GetFirstChild() == n {
+				arg := n.GetNext()
+				if !arg.IsNil() && arg.IsStringLit() && arg.GetString() == "allowlisted.js" {
+					return jscomp.ConformanceRules_ConformanceResult_CONFORMANCE, true
+				}
+			}
+		}
+		return nil, false
+	}
+	defer func() { jscomp.CustomBannedNameEvaluator = nil }()
+
+	opts := jscomp.NewCompilerOptions()
+	opts.SetClosurePass(true)
+	opts.SetGatherCssNames(true)
+	opts.SetConformanceReportingMode(
+		jscomp.CompilerOptions_ConformanceReportingMode_RESPECT_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG)
+	opts.SetConformanceConfigs([]*jscomp.ConformanceConfig{roundTripCfg})
+
+	var recordedViolations int
+	c := jscomp.NewCompiler()
+	c.SetConformanceViolationInterceptor(func(
+		r *jscomp.Requirement,
+		_ *jscomp.RequirementScopeEntry,
+		_ *jscomp.JSError,
+		behavior jscomp.ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior,
+		_ bool,
+	) bool {
+		recordedViolations++
+		if behavior != jscomp.ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_RECORD_ONLY {
+			t.Fatalf("unexpected interceptor behavior: %v", behavior)
+		}
+		if got, ok := c.LookupLibraryLevelConformanceBehavior(r); !ok || got != behavior {
+			t.Fatalf("LookupLibraryLevelConformanceBehavior = (%v, %v), want (%v, true)", got, ok, behavior)
+		}
+		return false
+	})
+
+	res := c.Compile(
+		[]*jscomp.SourceFile{jscomp.SourceFile_FromCode("ext.js", `/** @externs */
+var goog = {};
+goog.getCssName = function(s) {};
+goog.net = {jsloader: {safeLoad: function(u) {}}};
+`)},
+		[]*jscomp.SourceFile{jscomp.SourceFile_FromCode("app.js", `
+var cls = goog.getCssName('btn-primary');
+goog.net.jsloader.safeLoad('allowlisted.js');
+goog.net.jsloader.safeLoad('untrusted.js');
+`)},
+		opts,
+	)
+	if !res.Success {
+		t.Fatalf("compile failed: %v", res.Errors)
+	}
+	if customEvalCalls != 2 || recordedViolations != 1 {
+		t.Fatalf("customEvalCalls=%d recordedViolations=%d, want 2 and 1", customEvalCalls, recordedViolations)
+	}
+	if c.CssNames() == nil || !c.CssNames().Has("btn-primary") {
+		t.Fatalf("expected CssNames() to contain 'btn-primary', got %v", c.CssNames())
+	}
+
+	// Explicit Record/Lookup test:
+	manualReq := jscomp.Requirement_NewBuilder().SetRuleId("manual_rule").Build()
+	c.RecordLibraryLevelConformanceBehavior(
+		manualReq,
+		jscomp.ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_REPORT_AS_BUILD_ERROR)
+	if b, ok := c.LookupLibraryLevelConformanceBehavior(manualReq); !ok ||
+		b != jscomp.ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_REPORT_AS_BUILD_ERROR {
+		t.Fatalf("manual LookupLibraryLevelConformanceBehavior = (%v, %v)", b, ok)
 	}
 }

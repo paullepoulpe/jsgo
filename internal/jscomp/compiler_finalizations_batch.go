@@ -545,6 +545,8 @@ func cloneCompilerOptions(src *CompilerOptions) *CompilerOptions {
 	}
 	dst.packageJsonEntryNames = slices.Clone(src.packageJsonEntryNames)
 	dst.unknownDefinesToIgnore = slices.Clone(src.unknownDefinesToIgnore)
+	dst.extraOptions = maps.Clone(src.extraOptions)
+	dst.optionWarnings = slices.Clone(src.optionWarnings)
 
 	return &dst
 }

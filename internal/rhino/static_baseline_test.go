@@ -106,4 +106,16 @@ func TestCaptureAndRewindStaticBaseline(t *testing.T) {
 			t.Fatalf("iter %d: len(numberTable.index) = %d, want %d", iter, gotNumIndexLen, baseNumberIndexLen)
 		}
 	}
+
+	// Verify RewindStaticBaseline() also resets an active per-compilation NodeStore
+	// without requiring a separate ResetNodeStore() call:
+	active := EnsureCompilationStore()
+	_ = IR_Name("activeCompilationNode")
+	if CurrentNodeStore() != active || active.IsStatic() {
+		t.Fatal("expected non-static active compilation NodeStore before RewindStaticBaseline")
+	}
+	RewindStaticBaseline()
+	if !CurrentNodeStore().IsStatic() {
+		t.Fatal("expected RewindStaticBaseline() to reset current NodeStore back to nil (static fallback)")
+	}
 }

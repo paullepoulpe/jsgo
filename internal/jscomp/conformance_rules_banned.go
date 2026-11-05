@@ -143,6 +143,12 @@ func (r *conformanceBannedDependencyRegexRule) checkNode(t *NodeTraversal, n rhi
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
+// CustomBannedNameEvaluator is an optional embedder hook invoked when a
+// BannedName rule (BANNED_NAME, BANNED_NAME_CALL, or BANNED_SCRIPT_IMPORT)
+// matches a global qualified name node. When handled is true, res is returned
+// directly; otherwise the default VIOLATION result is returned.
+var CustomBannedNameEvaluator func(reqType Requirement_Type, n rhino.Node) (res *ConformanceRules_ConformanceResult, handled bool)
+
 type conformanceBannedNameRule struct {
 	conformanceAbstractRule
 
@@ -198,6 +204,11 @@ func (r *conformanceBannedNameRule) checkNode(t *NodeTraversal, n rhino.Node) *C
 
 	for i := len(r.qualifiedNames) - 1; i >= 0; i-- {
 		if n.MatchesQualifiedNameNode(r.qualifiedNames[i]) {
+			if CustomBannedNameEvaluator != nil {
+				if res, handled := CustomBannedNameEvaluator(r.requirementType, n); handled {
+					return res
+				}
+			}
 			return ConformanceRules_ConformanceResult_VIOLATION
 		}
 	}

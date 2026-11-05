@@ -86,14 +86,16 @@ func captureStaticBaselineLocked() {
 	staticBaseline = snap
 }
 
-// RewindStaticBaseline rewinds package-level rhino tables (staticStore and
-// numberTable) back to the snapshot recorded by CaptureStaticBaseline. If
-// CaptureStaticBaseline has not yet been called, RewindStaticBaseline captures
-// the current state as the baseline and returns.
+// RewindStaticBaseline resets the current per-compilation NodeStore and rewinds
+// package-level rhino tables (staticStore and numberTable) back to the snapshot
+// recorded by CaptureStaticBaseline. If CaptureStaticBaseline has not yet been
+// called, RewindStaticBaseline resets the current NodeStore, captures the
+// current static state as the baseline, and returns.
 //
 // Callers must invoke RewindStaticBaseline only between compilations when no
 // compilation is actively mutating or reading per-request staticStore nodes.
 func RewindStaticBaseline() {
+	ResetNodeStore()
 	staticBaselineMu.Lock()
 	defer staticBaselineMu.Unlock()
 	if !staticBaseline.captured {

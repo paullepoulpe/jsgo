@@ -521,6 +521,9 @@ func (c *CheckConformance) mergeRequirements(
 		behavior := ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior_UNSPECIFIED
 		if isLibraryLevelConformanceReportingMode {
 			behavior = entry.behavior
+			if compiler != nil {
+				compiler.RecordLibraryLevelConformanceBehavior(requirement, behavior)
+			}
 		}
 		cleanedUpRootRequirements = append(cleanedUpRootRequirements, mergedRequirement{
 			requirement: requirement,
@@ -679,7 +682,8 @@ func checkConformance_initRule(compiler AbstractCompiler, requirement *Requireme
 	case Requirement_Type_BANNED_MODS_REGEX:
 		return newConformanceRules_BannedModsRegex(compiler, requirement)
 	case Requirement_Type_BANNED_NAME,
-		Requirement_Type_BANNED_NAME_CALL:
+		Requirement_Type_BANNED_NAME_CALL,
+		Requirement_Type_BANNED_SCRIPT_IMPORT:
 		return newConformanceRules_BannedName(compiler, requirement)
 	case Requirement_Type_BANNED_PROPERTY,
 		Requirement_Type_BANNED_PROPERTY_READ,

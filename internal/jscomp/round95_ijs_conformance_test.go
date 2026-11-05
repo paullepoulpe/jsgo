@@ -479,19 +479,35 @@ requirement: {
   value: 'C.prototype.inst:function(number)'
   error_message: 'inst requires a single number'
 }
+requirement: {
+  type: RESTRICTED_METHOD_CALL
+  value: 'TimerHost.prototype.setTimeout:function(Function, ...?)'
+  error_message: 'setTimeout requires leading Function'
+}
 `
 	decl := `/** @constructor */ function C() {}
 /** @param {...*} a */ C.m = function(a) {};
 /** @param {...*} a */ C.prototype.inst = function(a) {};
+/** @constructor */ function TimerHost() {}
+/** @param {...*} a */ TimerHost.prototype.setTimeout = function(a) {};
 `
 	c.TestNoWarning(decl + "C.m?.(1);")
 	c.TestWarning(decl+"C.m?.('bad');", CheckConformance_CONFORMANCE_VIOLATION)
 	c.TestWarning(decl+"C.m.call?.(C, 'bad');", CheckConformance_CONFORMANCE_VIOLATION)
 	c.TestWarning(decl+"C.m?.call(C, 'bad');", CheckConformance_CONFORMANCE_VIOLATION)
 
-	// Spread arguments must not silently satisfy `function(number)` as UNKNOWN_TYPE.
+	// Spread arguments match Java ConformanceRules.validateParameterList:
+	// SPREAD nodes carry null JSType (mapped to UNKNOWN_TYPE) while explicit
+	// positional arguments and max-arity bounds are still validated normally.
+	c.TestNoWarning(
+		decl + "function okTimeout(/** !TimerHost */ host, /** !Function */ fn, /** !Array<*> */ params) { host.setTimeout(fn, 10, ...params); }",
+	)
 	c.TestWarning(
-		decl+"/** @type {!Array<string>} */ const strs = ['bad']; C.m(...strs);",
+		decl+"function badTimeout(/** !TimerHost */ host, /** !Array<*> */ params) { host.setTimeout('notFn', 10, ...params); }",
+		CheckConformance_CONFORMANCE_VIOLATION,
+	)
+	c.TestWarning(
+		decl+"/** @type {!Array<number>} */ const nums = [2]; C.m(1, ...nums);",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
 	c.TestWarning(
@@ -513,7 +529,7 @@ requirement: {
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
 	c.TestWarning(
-		decl+"function bad4(/** !C */ x, /** !Array<string> */ strs) { x.inst(...strs); }",
+		decl+"function bad4(/** !C */ x, /** !Array<number> */ rest) { x.inst(1, ...rest); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
 }
@@ -639,7 +655,7 @@ function unsafe(/** ?Holder */ h) {
   return h.x;
 }`, CheckConformance_CONFORMANCE_VIOLATION)
 
-	// BanUnknownDirectThisPropsReferences catches `this?.unknownProp` when used.
+	// BanUnknownDirectThisPropsReferences catches `this.prop` when used, but not `this?.prop`.
 	c.configuration = `
 requirement: {
   type: CUSTOM
@@ -649,10 +665,14 @@ requirement: {
 `
 	c.TestWarning(`class WithUnknownThisProp {
   constructor() { this.prop; }
-  read() { alert(this?.prop); }
+  read() { alert(this.prop); }
 }`, CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning(`class WithOptChainThisProp {
+  constructor() { this.prop; }
+  read() { alert(this?.prop); }
+}`)
 
-	// BanUnknownTypedClassPropsReferences catches `inst?.unknownProp` on nullable class instances.
+	// BanUnknownTypedClassPropsReferences catches `inst.unknownProp`, but not `inst?.unknownProp` or `event?.data?.focusNext`.
 	c.configuration = `
 requirement: {
   type: CUSTOM
@@ -661,10 +681,17 @@ requirement: {
 }
 `
 	c.TestWarning(`class TypedCls {}
-function read(/** ?TypedCls */ inst) { alert(inst?.unknownProp); }
+function read(/** !TypedCls */ inst) { alert(inst.unknownProp); }
 `, CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning(`class TypedCls {}
+class CustomEvt { constructor() { /** @type {?} */ this.data = null; } }
+function read(/** ?TypedCls */ inst, /** ?CustomEvt */ event) {
+  alert(inst?.unknownProp);
+  alert(event?.data?.focusNext);
+}
+`)
 
-	// BanUnresolvedType catches `unresolved?.prop`.
+	// BanUnresolvedType catches `u.prop`, but not `u?.prop`.
 	c.configuration = `
 requirement: {
   type: CUSTOM
@@ -673,9 +700,13 @@ requirement: {
 }
 `
 	c.TestWarning(`goog.forwardDeclare('UnresolvedThing');
+/** @param {!UnresolvedThing} u */
+function readUnresolved(u) { return u.prop; }
+`, CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning(`goog.forwardDeclare('UnresolvedThing');
 /** @param {?UnresolvedThing} u */
 function readUnresolved(u) { return u?.prop; }
-`, CheckConformance_CONFORMANCE_VIOLATION)
+`)
 
 	// BanStaticThis catches `this` inside static computed class methods `static [k]() { ... }`.
 	c.configuration = `

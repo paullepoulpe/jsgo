@@ -226,6 +226,7 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 		checks.MaybeAdd(defaultPass_mergeSyntheticScript)
 		checks.MaybeAdd(defaultPass_gatherExternPropertiesCheck)
 		checks.MaybeAdd(emptyBeforeSerialization)
+		c.applyChecksDecorators(checks)
 		return checks
 	}
 
@@ -238,6 +239,7 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 			checks.MaybeAdd(defaultPass_whitespaceWrapGoogModules)
 		}
 		checks.MaybeAdd(defaultPass_removeSyntheticScript)
+		c.applyChecksDecorators(checks)
 		return checks
 	}
 
@@ -427,12 +429,19 @@ func (c *DefaultPassConfig) GetChecks() *PassListBuilder {
 		checks.MaybeAdd(defaultPass_serializeTypedAst)
 	}
 
-	if c.checksDecorator != nil {
-		c.checksDecorator(checks)
-	}
+	c.applyChecksDecorators(checks)
 	checks.AssertAllOneTimePasses()
 	assertValidOrderForChecks(checks, closureRewriteModule, closurePrimitives, closureGoogScopeAliases)
 	return checks
+}
+
+func (c *DefaultPassConfig) applyChecksDecorators(checks *PassListBuilder) {
+	if c.checksDecorator != nil {
+		c.checksDecorator(checks)
+	}
+	if c.options != nil && c.options.checksDecorator != nil {
+		c.options.checksDecorator(c, checks)
+	}
 }
 
 func (c *DefaultPassConfig) GetOptimizations() *PassListBuilder {
@@ -441,6 +450,9 @@ func (c *DefaultPassConfig) GetOptimizations() *PassListBuilder {
 	defer func() {
 		if c.optimizationsDecorator != nil {
 			c.optimizationsDecorator(passes)
+		}
+		if options != nil && options.optimizationsDecorator != nil {
+			options.optimizationsDecorator(c, passes)
 		}
 	}()
 
@@ -482,6 +494,9 @@ func (c *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 	defer func() {
 		if c.finalizationsDecorator != nil {
 			c.finalizationsDecorator(passes)
+		}
+		if options != nil && options.finalizationsDecorator != nil {
+			options.finalizationsDecorator(c, passes)
 		}
 	}()
 

@@ -64,4 +64,16 @@ function wrap(testNameProvider, obj) {
 	if sc.IsMethodOrCtorCallThatTriggersRemoval(nil, optChainCall, optChainCall.GetParent()) {
 		t.Fatalf("expected IsMethodOrCtorCallThatTriggersRemoval(OPTCHAIN_CALL) == false")
 	}
+
+	// Nil-node and detached-comma-parent guards:
+	if sc.IsCallWhoseReturnValueShouldBeStripped(rhino.NilNode) {
+		t.Fatalf("expected IsCallWhoseReturnValueShouldBeStripped(NilNode) == false")
+	}
+	if sc.IsMethodOrCtorCallThatTriggersRemoval(nil, rhino.NilNode, rhino.NilNode) {
+		t.Fatalf("expected IsMethodOrCtorCallThatTriggersRemoval(NilNode) == false")
+	}
+	left := rhino.IR_Number(0)
+	right := rhino.IR_Name("detachedLogger")
+	detachedComma := rhino.IR_Comma(left, right)
+	sc.MaybeRemoveReferenceToRemovedVariable(nil, right, detachedComma)
 }
