@@ -62,7 +62,7 @@ func newConformanceBanCreateElementRule(compiler AbstractCompiler, requirement *
 }
 
 func (r *conformanceBanCreateElementRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	if call, ok := ast.AsNormalOrOptChainCall(n); ok {
+	if call, ok := ast.AsCall(n); ok {
 		if firstArg, ok := call.FirstArg(); ok {
 			if tag, ok := ast.AsStringLit(firstArg.Node()); ok {
 				if _, banned := r.bannedTags[jutil.StringToLowerCaseASCII(tag.Value())]; banned {
@@ -74,8 +74,8 @@ func (r *conformanceBanCreateElementRule) checkNode(t *NodeTraversal, n rhino.No
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-func (r *conformanceBanCreateElementRule) checkCreateElement(call ast.NormalOrOptChainCall) *ConformanceRules_ConformanceResult {
-	target, ok := ast.AsNormalOrOptChainGetProp(call.Callee().Node())
+func (r *conformanceBanCreateElementRule) checkCreateElement(call ast.Call) *ConformanceRules_ConformanceResult {
+	target, ok := ast.AsGetProp(call.Callee().Node())
 	if !ok {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
@@ -230,7 +230,7 @@ func (r *conformanceBanCreateDomRule) checkNode(t *NodeTraversal, n rhino.Node) 
 func (r *conformanceBanCreateDomRule) tagNames(tag rhino.Node) (tagNames []string, isNull bool) {
 	if s, ok := ast.AsStringLit(tag); ok {
 		return []string{jutil.StringToLowerCaseRoot(s.Value())}, false
-	} else if gp, ok := ast.AsNormalOrOptChainGetProp(tag); ok && googDomTagNameQName.Matches(gp.Object().Node()) {
+	} else if gp, ok := ast.AsGetProp(tag); ok && googDomTagNameQName.Matches(gp.Object().Node()) {
 		return []string{jutil.StringToLowerCaseRoot(gp.Property())}, false
 	}
 	type_ := tag.GetJSType()
@@ -342,14 +342,14 @@ var htmlElementTagNames = map[string][]string{
 	"HTMLVideoElement":        {"video"},
 }
 
-func (r *conformanceBanCreateDomRule) asCreateDomCall(n rhino.Node) (ast.NormalOrOptChainCall, bool) {
-	call, ok := ast.AsNormalOrOptChainCall(n)
+func (r *conformanceBanCreateDomRule) asCreateDomCall(n rhino.Node) (ast.Call, bool) {
+	call, ok := ast.AsCall(n)
 	if !ok {
-		return ast.NormalOrOptChainCall{}, false
+		return ast.Call{}, false
 	}
-	target, ok := ast.AsNormalOrOptChainGetProp(call.Callee().Node())
+	target, ok := ast.AsGetProp(call.Callee().Node())
 	if !ok || target.Property() != "createDom" {
-		return ast.NormalOrOptChainCall{}, false
+		return ast.Call{}, false
 	}
 
 	srcObj := target.Object().Node()
@@ -357,15 +357,10 @@ func (r *conformanceBanCreateDomRule) asCreateDomCall(n rhino.Node) (ast.NormalO
 		return call, true
 	}
 	type_ := srcObj.GetJSType()
-	if type_ != nil && r.domHelperType != nil {
-		if call.Node().IsOptChainCall() || target.Node().IsOptChainGetProp() {
-			type_ = type_.RestrictByNotNullOrUndefined()
-		}
-		if type_.Equals(r.domHelperType) {
-			return call, true
-		}
+	if type_ != nil && r.domHelperType != nil && type_.Equals(r.domHelperType) {
+		return call, true
 	}
-	return ast.NormalOrOptChainCall{}, false
+	return ast.Call{}, false
 }
 
 // conformanceSecuritySensitiveAttributes checks attribute-name expressions
@@ -512,16 +507,16 @@ func (r *conformanceBanElementSetAttributeRule) getGlobalNamespace() *GlobalName
 }
 
 func (r *conformanceBanElementSetAttributeRule) checkNode(traversal *NodeTraversal, node rhino.Node) *ConformanceRules_ConformanceResult {
-	if call, ok := ast.AsNormalOrOptChainCall(node); ok {
+	if call, ok := ast.AsCall(node); ok {
 		return r.checkPropertyCall(traversal, call)
-	} else if ge, ok := ast.AsNormalOrOptChainGetElem(node); ok && NodeUtil_IsLValue(node) {
+	} else if ge, ok := ast.AsGetElem(node); ok && NodeUtil_IsLValue(node) {
 		return r.checkGetElement(traversal, ge)
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
 func (r *conformanceBanElementSetAttributeRule) checkPropertyCall(
-	traversal *NodeTraversal, call ast.NormalOrOptChainCall) *ConformanceRules_ConformanceResult {
+	traversal *NodeTraversal, call ast.Call) *ConformanceRules_ConformanceResult {
 	calledProperty, ok := r.bannedPropertyName(call)
 	if !ok {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
@@ -559,8 +554,8 @@ func (r *conformanceBanElementSetAttributeRule) checkPropertyCall(
 	return r.defaultDecisionForUncertainCases
 }
 
-func (r *conformanceBanElementSetAttributeRule) bannedPropertyName(call ast.NormalOrOptChainCall) (string, bool) {
-	target, ok := ast.AsNormalOrOptChainGetProp(call.Callee().Node())
+func (r *conformanceBanElementSetAttributeRule) bannedPropertyName(call ast.Call) (string, bool) {
+	target, ok := ast.AsGetProp(call.Callee().Node())
 	if !ok {
 		return "", false
 	}
@@ -579,7 +574,7 @@ func (r *conformanceBanElementSetAttributeRule) bannedPropertyName(call ast.Norm
 }
 
 func (r *conformanceBanElementSetAttributeRule) checkGetElement(
-	traversal *NodeTraversal, ge ast.NormalOrOptChainGetElem) *ConformanceRules_ConformanceResult {
+	traversal *NodeTraversal, ge ast.GetElem) *ConformanceRules_ConformanceResult {
 	key := ge.Index().Node()
 	var scope *Scope
 	if traversal != nil {
@@ -619,7 +614,7 @@ func (r *conformanceBanElementSetAttributeRule) checkGetElement(
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-func (r *conformanceBanElementSetAttributeRule) hasElementType(ge ast.NormalOrOptChainGetElem) bool {
+func (r *conformanceBanElementSetAttributeRule) hasElementType(ge ast.GetElem) bool {
 	objType := ge.Object().Node().GetJSType()
 	if objType == nil || r.elementType == nil {
 		return false
@@ -673,13 +668,13 @@ func newConformanceBanSettingAttributesRule(compiler AbstractCompiler, requireme
 }
 
 func (r *conformanceBanSettingAttributesRule) checkNode(traversal *NodeTraversal, node rhino.Node) *ConformanceRules_ConformanceResult {
-	if call, ok := ast.AsNormalOrOptChainCall(node); ok {
+	if call, ok := ast.AsCall(node); ok {
 		return r.checkPropertyCall(traversal, call)
 	}
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-func (r *conformanceBanSettingAttributesRule) checkPropertyCall(traversal *NodeTraversal, call ast.NormalOrOptChainCall) *ConformanceRules_ConformanceResult {
+func (r *conformanceBanSettingAttributesRule) checkPropertyCall(traversal *NodeTraversal, call ast.Call) *ConformanceRules_ConformanceResult {
 	if !r.matchesBannedProperty(call) {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
@@ -691,17 +686,14 @@ func (r *conformanceBanSettingAttributesRule) checkPropertyCall(traversal *NodeT
 	return defaultBannedSettingAttrs.checkAttributeName(traversal, firstArg.Node())
 }
 
-func (r *conformanceBanSettingAttributesRule) matchesBannedProperty(call ast.NormalOrOptChainCall) bool {
-	target, ok := ast.AsNormalOrOptChainGetProp(call.Callee().Node())
+func (r *conformanceBanSettingAttributesRule) matchesBannedProperty(call ast.Call) bool {
+	target, ok := ast.AsGetProp(call.Callee().Node())
 	if !ok {
 		return false
 	}
 	type_ := target.Object().Node().GetJSType()
 	if type_ == nil {
 		return false
-	}
-	if call.Node().IsOptChainCall() || target.Node().IsOptChainGetProp() {
-		type_ = type_.RestrictByNotNullOrUndefined()
 	}
 	propertyName := target.Property()
 	for i := range r.restrictions {
@@ -757,22 +749,22 @@ func (r *conformanceBanExecCommandRule) checkNode(traversal *NodeTraversal, node
 	return ConformanceRules_ConformanceResult_CONFORMANCE
 }
 
-func (r *conformanceBanExecCommandRule) asBannedExecCommandCall(node rhino.Node) (ast.NormalOrOptChainCall, bool) {
-	call, ok := ast.AsNormalOrOptChainCall(node)
+func (r *conformanceBanExecCommandRule) asBannedExecCommandCall(node rhino.Node) (ast.Call, bool) {
+	call, ok := ast.AsCall(node)
 	if !ok {
-		return ast.NormalOrOptChainCall{}, false
+		return ast.Call{}, false
 	}
-	target, ok := ast.AsNormalOrOptChainGetProp(call.Callee().Node())
+	target, ok := ast.AsGetProp(call.Callee().Node())
 	if !ok || target.Property() != "execCommand" {
-		return ast.NormalOrOptChainCall{}, false
+		return ast.Call{}, false
 	}
 	type_ := target.Object().Node().GetJSType()
 	if type_ == nil {
-		return ast.NormalOrOptChainCall{}, false
+		return ast.Call{}, false
 	}
 	documentType := r.compiler.GetTypeRegistry().GetGlobalType("Document")
 	if documentType == nil || !type_.RestrictByNotNullOrUndefined().IsSubtypeOf(documentType) {
-		return ast.NormalOrOptChainCall{}, false
+		return ast.Call{}, false
 	}
 	return call, true
 }

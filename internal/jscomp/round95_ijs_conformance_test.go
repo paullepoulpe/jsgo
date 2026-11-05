@@ -428,17 +428,23 @@ requirement: {
   error_message: 'danger call is banned'
 }
 `
-	c.TestWarning("eval?.();", CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestWarning("eval();", CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning("eval?.();")
 	c.TestNoWarning("const ref = eval;")
 	c.TestWarning(
 		`class Box { danger() {} }
 /** @param {!Box} b */
-function run(b) { b.danger?.(); }`,
+function run(b) { b.danger(); }`,
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
+	c.TestNoWarning(
+		`class Box { danger() {} }
+/** @param {!Box} b */
+function run(b) { b.danger?.(); }`,
+	)
 
-	// Standalone BANNED_PROPERTY / BANNED_PROPERTY_CALL rules (without any CHECK_ALL rule)
-	// must also register OPTCHAIN_GETPROP and OPTCHAIN_GETELEM in CheckConformance.activeTokens.
+	// Java ConformanceRules.BannedProperty / BannedPropertyCall only match
+	// STRING_KEY, GETPROP, GETELEM, and COMPUTED_PROP (not OPTCHAIN_GETPROP / OPTCHAIN_GETELEM).
 	c.configuration = `
 requirement: {
   type: BANNED_PROPERTY
@@ -452,18 +458,23 @@ requirement: {
   error_message: 'danger call is banned'
 }
 `
-	c.TestWarning("function f() { return arguments?.callee; }", CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestWarning("function f() { return arguments.callee; }", CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning("function f() { return arguments?.callee; }")
 	c.TestWarning(
+		`/** @dict */ class DictBox {}
+/** @param {!DictBox} d */
+function f(d) { return d['secret']; }`,
+		CheckConformance_CONFORMANCE_VIOLATION,
+	)
+	c.TestNoWarning(
 		`/** @dict */ class DictBox {}
 /** @param {?DictBox} d */
 function f(d) { return d?.['secret']; }`,
-		CheckConformance_CONFORMANCE_VIOLATION,
 	)
-	c.TestWarning(
+	c.TestNoWarning(
 		`class Box { danger() {} }
 /** @param {?Box} b */
 function run(b) { b?.danger(); }`,
-		CheckConformance_CONFORMANCE_VIOLATION,
 	)
 }
 
@@ -491,10 +502,11 @@ requirement: {
 /** @constructor */ function TimerHost() {}
 /** @param {...*} a */ TimerHost.prototype.setTimeout = function(a) {};
 `
+	c.TestWarning(decl+"C.m('bad');", CheckConformance_CONFORMANCE_VIOLATION)
 	c.TestNoWarning(decl + "C.m?.(1);")
-	c.TestWarning(decl+"C.m?.('bad');", CheckConformance_CONFORMANCE_VIOLATION)
-	c.TestWarning(decl+"C.m.call?.(C, 'bad');", CheckConformance_CONFORMANCE_VIOLATION)
-	c.TestWarning(decl+"C.m?.call(C, 'bad');", CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning(decl + "C.m?.('bad');")
+	c.TestNoWarning(decl + "C.m.call?.(C, 'bad');")
+	c.TestNoWarning(decl + "C.m?.call(C, 'bad');")
 
 	// Spread arguments match Java ConformanceRules.validateParameterList:
 	// SPREAD nodes carry null JSType (mapped to UNKNOWN_TYPE) while explicit
@@ -516,18 +528,9 @@ requirement: {
 	)
 
 	c.TestNoWarning(decl + "function ok(/** ?C */ x) { x?.inst(1); }")
-	c.TestWarning(
-		decl+"function bad1(/** ?C */ x) { x?.inst('bad'); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
-	c.TestWarning(
-		decl+"function bad2(/** !C */ x) { x.inst?.('bad'); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
-	c.TestWarning(
-		decl+"function bad3(/** ?C */ x) { x?.inst.call(x, 'bad'); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
+	c.TestNoWarning(decl + "function ok1(/** ?C */ x) { x?.inst('bad'); }")
+	c.TestNoWarning(decl + "function ok2(/** !C */ x) { x.inst?.('bad'); }")
+	c.TestNoWarning(decl + "function ok3(/** ?C */ x) { x?.inst.call(x, 'bad'); }")
 	c.TestWarning(
 		decl+"function bad4(/** !C */ x, /** !Array<number> */ rest) { x.inst(1, ...rest); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
@@ -570,71 +573,62 @@ requirement: {
   error_message: 'BanExecCommand'
 }
 `
-	// BanCreateElement: optional-chain violations and empty/spread non-crashes.
-	c.TestWarning("function f(/** ?Document */ doc) { doc?.createElement('script'); }", CheckConformance_CONFORMANCE_VIOLATION)
-	c.TestWarning("goog.dom?.createDom('script');", CheckConformance_CONFORMANCE_VIOLATION)
-	c.TestNoWarning("function f(/** ?Document */ doc, /** !Array<string> */ tags) { doc?.createElement(...tags); }")
-	c.TestNoWarning("function f(/** ?Document */ doc) { doc?.createElement(); }")
+	// BanCreateElement: optional-chain parity and empty/spread non-crashes.
+	c.TestWarning("function f(/** !Document */ doc) { doc.createElement('script'); }", CheckConformance_CONFORMANCE_VIOLATION)
+	c.TestNoWarning("function f(/** ?Document */ doc) { doc?.createElement('script'); }")
+	c.TestNoWarning("goog.dom?.createDom('script');")
+	c.TestNoWarning("function f(/** !Document */ doc, /** !Array<string> */ tags) { doc.createElement(...tags); }")
+	c.TestNoWarning("function f(/** !Document */ doc) { doc.createElement(); }")
 
-	// BanCreateDom: optional-chain, spread attrs under report_loose_type_violations, and constant template literal.
-	c.TestWarning(
-		"function f(/** string */ u) { goog.dom?.createDom('iframe', {'src': u}); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
-	c.TestWarning(
-		"function f(/** ?goog.dom.DomHelper */ dh, /** string */ u) { dh?.createDom('iframe', {'src': u}); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
+	// BanCreateDom: optional-chain parity, spread attrs under report_loose_type_violations, and constant template literal.
+	c.TestNoWarning("function f(/** string */ u) { goog.dom?.createDom('iframe', {'src': u}); }")
+	c.TestNoWarning("function f(/** ?goog.dom.DomHelper */ dh, /** string */ u) { dh?.createDom('iframe', {'src': u}); }")
 	c.TestWarning(
 		"function f(/** !Array<!Object> */ rest) { goog.dom.createDom('iframe', ...rest); }",
 		CheckConformance_CONFORMANCE_POSSIBLE_VIOLATION,
 	)
-	c.TestNoWarning("goog.dom?.createDom('iframe', {'src': `https://safe.example`});")
+	c.TestNoWarning("goog.dom.createDom('iframe', {'src': `https://safe.example`});")
 
-	// BanElementSetAttribute: optional-chain, template literal attr name, spread args, and 0-arg safety.
+	// BanElementSetAttribute: optional-chain parity, template literal attr name, spread args, and 0-arg safety.
+	c.TestNoWarning("function f(/** ?Element */ el, /** string */ u) { el?.setAttribute(`href`, u); }")
+	c.TestNoWarning("function f(/** ?Element */ el, /** string */ u) { el?.setAttributeNS(null, 'src', u); }")
+	c.TestNoWarning("function f(/** ?Element */ el, /** !Array<*> */ args) { el?.setAttribute(...args); }")
 	c.TestWarning(
-		"function f(/** ?Element */ el, /** string */ u) { el?.setAttribute(`href`, u); }",
+		"function f(/** !Element */ el, /** string */ u) { el.setAttribute(`href`, u); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
 	c.TestWarning(
-		"function f(/** ?Element */ el, /** string */ u) { el?.setAttributeNS(null, 'src', u); }",
+		"function f(/** !Element */ el, /** !Array<*> */ args) { el.setAttribute(...args); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
-	c.TestWarning(
-		"function f(/** ?Element */ el, /** !Array<*> */ args) { el?.setAttribute(...args); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
-	c.TestNoWarning("function f(/** ?Element */ el) { el?.setAttribute(); }")
+	c.TestNoWarning("function f(/** !Element */ el) { el.setAttribute(); }")
 
-	// BanSettingAttributes: optional-chain, event-handler attr, spread args, and 1-arg non-spread safety.
+	// BanSettingAttributes: optional-chain parity, event-handler attr, spread args, and 1-arg non-spread safety.
 	wrapperDecl := `class Wrapper {
   /** @param {...*} args */ attr(...args) {}
 }
 `
+	c.TestNoWarning(wrapperDecl + "function f(/** ?Wrapper */ w, /** string */ u) { w?.attr('href', u); }")
+	c.TestNoWarning(wrapperDecl + "function f(/** !Wrapper */ w, /** function() */ fn) { w.attr?.('onclick', fn); }")
+	c.TestNoWarning(wrapperDecl + "function f(/** ?Wrapper */ w, /** !Array<*> */ args) { w?.attr(...args); }")
 	c.TestWarning(
-		wrapperDecl+"function f(/** ?Wrapper */ w, /** string */ u) { w?.attr('href', u); }",
+		wrapperDecl+"function f(/** !Wrapper */ w, /** function() */ fn) { w.attr('onclick', fn); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
 	c.TestWarning(
-		wrapperDecl+"function f(/** !Wrapper */ w, /** function() */ fn) { w.attr?.('onclick', fn); }",
+		wrapperDecl+"function f(/** !Wrapper */ w, /** !Array<*> */ args) { w.attr(...args); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
-	c.TestWarning(
-		wrapperDecl+"function f(/** ?Wrapper */ w, /** !Array<*> */ args) { w?.attr(...args); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
-	c.TestNoWarning(wrapperDecl + "function f(/** ?Wrapper */ w) { w?.attr('href'); }")
+	c.TestNoWarning(wrapperDecl + "function f(/** !Wrapper */ w) { w.attr('href'); }")
 
-	// BanExecCommand: optional-chain, spread args, and 0-arg safety.
+	// BanExecCommand: optional-chain parity, spread args, and 0-arg safety.
+	c.TestNoWarning("function f(/** ?Document */ doc, /** string */ html) { doc?.execCommand('insertHTML', false, html); }")
+	c.TestNoWarning("function f(/** ?Document */ doc, /** !Array<*> */ args) { doc?.execCommand(...args); }")
 	c.TestWarning(
-		"function f(/** ?Document */ doc, /** string */ html) { doc?.execCommand('insertHTML', false, html); }",
+		"function f(/** !Document */ doc, /** !Array<*> */ args) { doc.execCommand(...args); }",
 		CheckConformance_CONFORMANCE_VIOLATION,
 	)
-	c.TestWarning(
-		"function f(/** ?Document */ doc, /** !Array<*> */ args) { doc?.execCommand(...args); }",
-		CheckConformance_CONFORMANCE_VIOLATION,
-	)
-	c.TestNoWarning("function f(/** ?Document */ doc) { doc?.execCommand(); }")
+	c.TestNoWarning("function f(/** !Document */ doc) { doc.execCommand(); }")
 }
 
 func (c *round95ConformanceCase) TestTypeRulesAndStaticComputedMethodThis() {

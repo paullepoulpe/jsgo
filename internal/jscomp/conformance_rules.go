@@ -508,7 +508,7 @@ func (b *conformanceAbstractRule) unionTypes(typeNames []string) rhino.JSType {
 }
 
 func (b *conformanceAbstractRule) isAssertionCall(n rhino.Node) bool {
-	if call, ok := ast.AsNormalOrOptChainCall(n); ok && b.assertionFunctions != nil {
+	if call, ok := ast.AsCall(n); ok && b.assertionFunctions != nil {
 		callee := call.Callee().Node()
 		if callee.IsQualifiedName() {
 			return b.assertionFunctions.LookupByCallee(callee) != nil
@@ -559,7 +559,7 @@ func (b *conformanceAbstractRule) isNodeUsed(n rhino.Node) bool {
 
 func isConformanceCallTarget(n rhino.Node) bool {
 	role := ast.RoleOf(n)
-	return role == ast.RoleCallCallee || role == ast.RoleOptChainCallCallee || role == ast.RoleNewCallee
+	return role == ast.RoleCallCallee || role == ast.RoleNewCallee
 }
 
 func isLooseConformanceType(type_ rhino.JSType) bool {
@@ -576,14 +576,14 @@ func evaluateConformanceTypeString(compiler AbstractCompiler, expression string)
 }
 
 // validateConformanceCall validates the parameters and receiver `this` type of
-// a call, optional-chain call, or `new` invocation against functionType.
+// a call or `new` invocation against functionType.
 func validateConformanceCall(
 	compiler AbstractCompiler,
 	callOrNew rhino.Node,
 	functionType rhino.FunctionType,
 	isCallInvocation bool) bool {
 	cn, ok := ast.AsCallOrNew(callOrNew)
-	if !ok {
+	if !ok || callOrNew.IsOptChainCall() {
 		return true
 	}
 
@@ -593,6 +593,9 @@ func validateConformanceCall(
 
 func validateConformanceCallThis(
 	callOrNew ast.CallOrNew, functionType rhino.FunctionType, isCallInvocation bool) bool {
+	if callOrNew.Node().IsOptChainCall() {
+		return false
+	}
 	if _, isNew := callOrNew.AsNew(); isNew {
 		return true
 	}
@@ -607,7 +610,7 @@ func validateConformanceCallThis(
 		if firstArg, ok := callOrNew.FirstArg(); ok {
 			thisNode = firstArg.Node()
 		}
-	} else if get, ok := ast.AsNormalOrOptChainGet(callOrNew.Callee().Node()); ok {
+	} else if get, ok := ast.AsNormalGet(callOrNew.Callee().Node()); ok {
 		thisNode = get.Object().Node()
 	}
 	if thisNode.IsNil() || thisNode.GetJSType() == nil {
@@ -776,11 +779,11 @@ func inferConformanceStringValueVisited(
 		}
 		initialValue := var_.GetInitialValue()
 		return inferConformanceStringValueVisited(var_.GetScope().(*Scope), initialValue, globalNamespaceSupplier, visited)
-	case rhino.Token_GETPROP, rhino.Token_OPTCHAIN_GETPROP:
+	case rhino.Token_GETPROP:
 		if !visited.add(node) {
 			return "", false
 		}
-		gp := ast.MustNormalOrOptChainGetProp(node)
+		gp := ast.MustGetProp(node)
 		type_ := node.GetJSType()
 		if type_ == nil {
 			return "", false
@@ -798,7 +801,7 @@ func inferConformanceStringValueVisited(
 				NodeUtil_GetFirstPropMatchingKey(enumSource, gp.Property()),
 				globalNamespaceSupplier,
 				visited)
-		} else if type_.IsString() && node.IsGetProp() && globalNamespaceSupplier != nil {
+		} else if type_.IsString() && globalNamespaceSupplier != nil {
 			gns := globalNamespaceSupplier()
 			if gns == nil {
 				return "", false

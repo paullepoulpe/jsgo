@@ -79,7 +79,7 @@ func (r *conformanceRestrictedNameCallRule) checkNode(t *NodeTraversal, n rhino.
 				if !validateConformanceCall(r.compiler, n.GetParent(), res.restrictedCallType, false) {
 					return ConformanceRules_ConformanceResult_VIOLATION
 				}
-			} else if gp, ok := ast.AsNormalOrOptChainGetProp(n); ok &&
+			} else if gp, ok := ast.AsGetProp(n); ok &&
 				gp.Property() == "call" &&
 				gp.Object().Node().MatchesQualifiedNameNode(res.name) {
 				if !validateConformanceCall(r.compiler, n.GetParent(), res.restrictedCallType, true) {
@@ -146,7 +146,7 @@ func newConformanceRules_RestrictedMethodCall(compiler AbstractCompiler, require
 }
 
 func (r *conformanceRestrictedMethodCallRule) checkNode(t *NodeTraversal, n rhino.Node) *ConformanceRules_ConformanceResult {
-	gp, ok := ast.AsNormalOrOptChainGetProp(n)
+	gp, ok := ast.AsGetProp(n)
 	if !ok || !isConformanceCallTarget(n) {
 		return ConformanceRules_ConformanceResult_CONFORMANCE
 	}
@@ -158,7 +158,7 @@ func (r *conformanceRestrictedMethodCallRule) checkNode(t *NodeTraversal, n rhin
 		if gp.Property() == res.property {
 			result = r.checkMethodCall(t, gp, gp.Object().Node(), res, false)
 		} else if gp.Property() == "call" {
-			if inner, ok := gp.Object().AsNormalOrOptChainGetProp(); ok && inner.Property() == res.property {
+			if inner, ok := gp.Object().AsGetProp(); ok && inner.Property() == res.property {
 				result = r.checkMethodCall(t, gp, inner.Object().Node(), res, true)
 			}
 		}
@@ -173,7 +173,7 @@ func (r *conformanceRestrictedMethodCallRule) checkNode(t *NodeTraversal, n rhin
 
 func (r *conformanceRestrictedMethodCallRule) checkMethodCall(
 	t *NodeTraversal,
-	gp ast.NormalOrOptChainGetProp,
+	gp ast.GetProp,
 	lhs rhino.Node,
 	res *restrictedMethodCallSpec,
 	isCallInvocation bool,

@@ -282,8 +282,6 @@ func (p ConformanceRules_BannedProperty_RequirementPrecondition) ShouldCheck(n r
 		case rhino.Token_STRING_KEY,
 			rhino.Token_GETPROP,
 			rhino.Token_GETELEM,
-			rhino.Token_OPTCHAIN_GETPROP,
-			rhino.Token_OPTCHAIN_GETELEM,
 			rhino.Token_COMPUTED_PROP:
 			return true
 		default:
@@ -440,7 +438,7 @@ func (r *ConformanceRules_BannedProperty) extractType(n rhino.Node) rhino.JSType
 	if n.IsNil() {
 		return nil
 	}
-	if get, ok := ast.AsNormalOrOptChainGet(n); ok {
+	if get, ok := ast.AsNormalGet(n); ok {
 		return get.Object().Node().GetJSType()
 	}
 	switch n.GetToken() {
@@ -463,7 +461,7 @@ func (r *ConformanceRules_BannedProperty) extractType(n rhino.Node) rhino.JSType
 }
 
 func (r *ConformanceRules_BannedProperty) extractName(n rhino.Node) (string, bool) {
-	if get, ok := ast.AsNormalOrOptChainGet(n); ok {
+	if get, ok := ast.AsNormalGet(n); ok {
 		return get.StaticPropertyName()
 	}
 	if sk, ok := ast.AsStringKey(n); ok {
