@@ -348,6 +348,45 @@ compilation benchmark (macOS arm64, Go 1.27.1 with `default.pgo`, OpenJDK
 | **`shaka-blockly`** | **8.6 MB, 847 files** (Shaka Player 5.3.1 + Blockly 8.0.5, 93.9% typed → 1.86 MB JS + 4.94 MB map) | **3.78 s** / **3.40 s** *(`3.34 s` fast)* | 12.50 s `[12.36, 12.56]` | 6.97 s `[6.95, 7.05]` | **3.67×** / **2.05×** *(`3.75×` / `2.09×`)* | **412 MiB** vs. 1,809 / 2,861 MiB *(peak 4,586)* (**4.39× / 6.94× lower**, **11.13×** vs. JVM peak) |
 | **`bundle-advanced`** | **5.4 MB, 11 UMD libraries** (three, lodash, react-dom, rxjs, d3, moment, vue, jquery, handlebars, immutable, underscore → 1.88 MB JS + 4.35 MB map) | **3.03 s** / **2.75 s** | 11.35 s `[11.25, 11.45]` | 5.79 s `[5.75, 5.82]` | **4.12×** / **2.10×** | **328 MiB** vs. 2,291 / 2,037 MiB *(peak 2,872)* (**6.98× / 6.21× lower**, **8.76×** vs. JVM peak) |
 
+### cd72a29e on JDK 27 (EPYC VPS)
+
+$N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `cd72a29e`: `645ecb68` plus `StripCode` optional-chaining (`OPTCHAIN_CALL`) parity and bounded `FINALIZATIONS` chunk/source-map rendering memory (256-script sub-batch streaming on large chunks, recycled 64 KiB `SourceMapGeneratorV3` varint blocks, and zero-copy `RenderChunkOptions.CompressSourceMapBytes` / `OmitSourceMapString`). Same machine, method, gate and Java (v20261028 on Temurin OpenJDK 27.0.1) as [the 645ecb68 section](#645ecb68-on-jdk-27-epyc-vps), at `--num_parallel_threads=4`, with `645ecb68` in the same blocks. Every `jsgo` run of both builds was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). After an unattended kernel-upgrade reboot (`Linux 7.0.0-42-generic`), the VPS returned from the slower host state of recent sections to quiet-host speeds across both Java and `645ecb68` (`googleapis` `164.7 s → 143.5 s` for `645ecb68`, `438.4 s → 370.1 s` for Java).
+
+#### 1. Production-Scale Staged Compilation (`googleapis-bench`: 43,917 Files, 35.6M Parsed AST Nodes, 7,460 Chunks)
+
+| Stage | `jsgo` (`t=4`) | Java (`t=4`, `-Xmx20g`) | Speedup vs. Java (`[95% CI]`) | `jsgo` Peak RSS | Java Peak RSS | Memory Ratio vs. Java (`[95% CI]`) |
+|---|---:|---:|---:|---:|---:|---:|
+| **`CHECKS`** | **71.96 s** | 163.3 s | **2.27× `[2.23, 2.31]`** | **5,648 MiB** | 15,402 MiB | **2.72× `[2.49, 2.98]`** |
+| **`OPTIMIZATIONS`** | **60.37 s** | 171.4 s | **2.84× `[2.80, 2.87]`** | **5,286 MiB** | 16,972 MiB | **3.21× `[3.01, 3.42]`** |
+| **`FINALIZATIONS`** | **10.50 s** | 35.42 s | **3.37× `[3.27, 3.48]`** | **1,377 MiB** | 7,263 MiB | **5.28× `[5.00, 5.58]`** |
+| **Total** | **142.8 s** | **370.1 s** | **2.59× `[2.58, 2.61]`** | **5,648 MiB** | **16,972 MiB** | **3.00× `[2.84, 3.18]`** |
+
+#### 2. Large & Mega Whole-Program `ADVANCED` Workloads
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`bundle-mega`** | ADV · 4.19M nodes | **32.86 s** / **25.41 s** | 81.37 s / 70.18 s | 3.20× `[3.16, 3.25]` | 2.76× `[2.67, 2.86]` | **970 MiB** vs. 3,797 / 5,913 MiB — **3.91× `[3.66, 4.18]`** |
+| **`typed-mega`** | ADV+types · 3.55M nodes | **22.32 s** / **16.10 s** | 63.45 s / 51.67 s | 3.94× `[3.70, 4.19]` | 3.21× `[3.11, 3.31]` | **733 MiB** vs. 2,038 / 4,237 MiB — **2.78× `[2.60, 2.96]`** |
+| **`typed-full`** | ADV+types · 1.90M nodes | **12.76 s** / **9.20 s** | 41.18 s / 30.82 s | 4.47× `[4.19, 4.78]` | 3.35× `[3.19, 3.52]` | **464 MiB** vs. 1,599 / 3,643 MiB — **3.45× `[3.23, 3.68]`** |
+| **`bundle-advanced-ts`** | ADV · 1.11M nodes | **9.16 s** / **7.80 s** | 27.68 s / 19.72 s | 3.55× `[3.44, 3.65]` | 2.53× `[2.46, 2.59]` | **308 MiB** vs. 1,715 / 3,644 MiB — **5.56× `[5.38, 5.74]`** |
+| **`shaka-blockly`** | ADV+types · 618k nodes | **5.46 s** / **3.85 s** | 20.53 s / 12.10 s | 5.33× `[5.30, 5.37]` | 3.14× `[2.98, 3.31]` | **235 MiB** vs. 1,467 / 1,622 MiB — **6.24× `[5.99, 6.50]`** |
+| **`bundle-advanced`** | ADV · 573k nodes | **4.57 s** / **3.15 s** | 16.99 s / 9.39 s | 5.40× `[5.29, 5.51]` | 2.98× `[2.91, 3.06]` | **207 MiB** vs. 1,575 / 1,987 MiB — **7.58× `[7.05, 8.16]`** |
+
+#### 3. Standard Whole-Program & CLI Suite
+
+| Benchmark | Mode & Parsed Nodes | `jsgo` (`t=1` / `t=4`) | Java `t=4` (Cold / Warm) | Speedup vs. Cold (`[95% CI]`) | Speedup vs. Warm (`[95% CI]`) | Peak RSS (`jsgo` vs. Cold / Warm) & Cold Ratio (`[95% CI]`) |
+|---|---|---:|---:|---:|---:|---:|
+| **`typed-app`** | ADV+types · 1.29M nodes | **1.79 s** / **1.31 s** | 8.50 s / 3.24 s | 6.50× `[6.08, 6.96]` | 2.48× `[2.27, 2.70]` | **128 MiB** vs. 719 / 1,596 MiB — **5.52× `[4.25, 7.19]`** |
+| **`checks-only`** | CHECKS+types · 1.29M nodes | **3.25 s** / **2.03 s** | 10.55 s / 5.17 s | 5.18× `[4.92, 5.46]` | 2.53× `[2.23, 2.88]` | **291 MiB** vs. 1,338 / 3,443 MiB — **4.58× `[4.19, 5.02]`** |
+| **`bundle`** | SIMPLE · 1.11M nodes | **5.58 s** / **4.39 s** | 19.39 s / 13.81 s | 4.41× `[4.30, 4.53]` | 3.14× `[3.05, 3.24]` | **234 MiB** vs. 1,653 / 1,872 MiB — **7.09× `[6.67, 7.53]`** |
+| **`single-files`** | 1,000 CLI runs, SIMPLE · 306k nodes | **105.4 s** | — / 161.0 s | — | 1.53× `[1.50, 1.56]` | **64 MiB** vs. — / 2,386 MiB — **37.0×** vs. batch |
+| **`downlevel-simple`** | SIMPLE→ES5 · 232k nodes | **1.21 s** / **1.03 s** | 6.68 s / 2.41 s | 6.51× `[6.19, 6.85]` | 2.34× `[2.07, 2.64]` | **120 MiB** vs. 617 / 1,531 MiB — **5.14× `[4.96, 5.33]`** |
+| **`downlevel-whitespace`** | WHITESPACE_ONLY→ES5 · 232k nodes | **0.63 s** / **0.56 s** | 4.05 s / 0.81 s | 7.13× `[5.42, 9.38]` | 1.44× `[1.28, 1.63]` | **98 MiB** vs. 504 / 1,449 MiB — **5.11× `[4.22, 6.19]`** |
+
+#### Against `645ecb68`
+
+Neutral across CLI workloads (`0.98×–1.02×` across all 12 tasks; `googleapis` 1.00× `[1.00, 1.01]`, `142.8 s` against `143.5 s`, with `FINALIZATIONS` peak RSS at `1,377 MiB` vs. `1,411 MiB` and `bundle` peak RSS at `234 MiB` vs. `258 MiB`) while bounding peak transient heap on multi-thousand-input root chunks and programmatic `RenderChunksAndSourceMaps` pipelines.
+
 ### 645ecb68 on JDK 27 (EPYC VPS)
 
 $N = 5$ counterbalanced interleaved suite with 95% CIs, at commit `645ecb68`: `1a98e8a3` plus rounds 97–98 and embedder/worker improvements (`3ac34a0e`: incremental `RemoveUnusedCode` function-summary replay & `SIMPLE` bundle sharding, CSR/incremental `OptimizeCalls`, wave-parallel `PeepholeOptimizationsPass`, default-mode script-parallel `TypeCheck`, non-generic HAMT `LinkedFlowScope`; `e7d9b311`: persistent-worker static-table rewind & embedder hooks; `b842912d`, `645ecb68`: `SIMPLE`-mode polyfill-free parallel `RemoveUnusedCode`, `InlineFunctions` script/IIFE/block sharding, parallel `ConvertTypesToColors`, `Normalize`, and `TypedScopeCreator.FirstOrderFunctionAnalyzer`). Same machine, method, gate and Java (v20261028 on Temurin OpenJDK 27.0.1) as [the 1a98e8a3 section](#1a98e8a3-on-jdk-27-epyc-vps), at `--num_parallel_threads=4`, with `1a98e8a3` in the same blocks. Every `jsgo` run of both builds was byte-identical to Java (in `single-files`, apart from the Java stack frames of the same 11 inputs on which both compilers crash). Java's cold times are within 9.6% of the previous section's on every task (5.1% above 1 s), and the same `1a98e8a3` binary within 6.0%.
