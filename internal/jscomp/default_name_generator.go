@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/DefaultNameGenerator.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/NameGenerator.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/DefaultNameGenerator.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/NameGenerator.java @ closure-compiler v20261104
 
 /*
  * Copyright 2005 The Closure Compiler Authors.

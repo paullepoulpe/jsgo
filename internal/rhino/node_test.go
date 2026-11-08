@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/NodeTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/NodeTest.java @ closure-compiler v20261104
 
 /*
  *
@@ -1127,4 +1127,49 @@ func TestNode_HasJSDocInfo(t *testing.T) {
 	assertTrue(t, "with extBox", n.HasJSDocInfo())
 	n.SetJSDocInfo(nil)
 	assertFalse(t, "after SetJSDocInfo(nil)", n.HasJSDocInfo())
+}
+
+func TestNode_ObjectValuedProps(t *testing.T) {
+	n := NewNode(Token_NAME)
+
+	reflected := new(int)
+	n.SetReflectedObject(reflected)
+	if n.GetReflectedObject() != reflected {
+		t.Fatalf("GetReflectedObject() = %v, want %v", n.GetReflectedObject(), reflected)
+	}
+
+	genericType := NewNode(Token_NAME)
+	n.SetGenericType(genericType)
+	if n.GetGenericType() != genericType {
+		t.Fatalf("GetGenericType() = %v, want %v", n.GetGenericType(), genericType)
+	}
+
+	implementsNode := NewNode(Token_NAME)
+	n.SetImplements(implementsNode)
+	if n.GetImplements() != implementsNode {
+		t.Fatalf("GetImplements() = %v, want %v", n.GetImplements(), implementsNode)
+	}
+
+	n.SetConstructSignature(true)
+	assertTrue(t, "GetConstructSignature() true", n.GetConstructSignature())
+	n.SetConstructSignature(false)
+	assertFalse(t, "GetConstructSignature() false", n.GetConstructSignature())
+
+	access := JSDocInfo_Visibility_PRIVATE
+	n.SetAccessModifier(access)
+	if got, ok := n.GetAccessModifier(); !ok || got != access {
+		t.Fatalf("GetAccessModifier() = (%v, %v), want (%v, true)", got, ok, access)
+	}
+
+	features := new(int)
+	n.SetFeatureSet(features)
+	if n.GetFeatureSet() != features {
+		t.Fatalf("GetFeatureSet() = %v, want %v", n.GetFeatureSet(), features)
+	}
+
+	evalNode := IR_Name("eval")
+	evalNode.PutBooleanProp(Node_Prop_DIRECT_EVAL, true)
+	assertTrue(t, "DIRECT_EVAL before remove", evalNode.GetBooleanProp(Node_Prop_DIRECT_EVAL))
+	evalNode.RemoveDirectEvalProp()
+	assertFalse(t, "DIRECT_EVAL after remove", evalNode.GetBooleanProp(Node_Prop_DIRECT_EVAL))
 }

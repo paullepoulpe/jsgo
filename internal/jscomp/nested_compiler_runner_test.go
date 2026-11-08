@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NestedCompilerRunnerTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/NestedCompilerRunnerTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/NestedCompilerRunnerTest.java)
 
 /*
@@ -260,9 +260,9 @@ func (c *NestedCompilerRunnerTest) createScript(code string) rhino.Node {
 	script.SetIsInClosureUnawareSubtree(true)
 	features := NodeUtil_GetFeatureSetOfScript(parsed)
 	if !features.IsZero() {
-		script.PutProp(rhino.Node_FEATURE_SET, features)
+		script.SetFeatureSet(features)
 	} else {
-		script.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM)
+		script.SetFeatureSet(parser.FeatureSet_BARE_MINIMUM)
 	}
 
 	script.AddChildrenToFront(parsed.RemoveChildren())

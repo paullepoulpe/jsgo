@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/PolymerPass.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/PolymerPassErrors.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/PolymerPassFindExterns.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/TagNameToType.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PolymerPass.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/PolymerPassErrors.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/PolymerPassFindExterns.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/TagNameToType.java @ closure-compiler v20261104
 
 /*
  * Copyright 2015 The Closure Compiler Authors.

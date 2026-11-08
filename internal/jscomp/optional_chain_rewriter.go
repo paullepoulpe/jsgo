@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/OptionalChainRewriter.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RewriteOptionalChainingOperator.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/OptionalChainRewriter.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RewriteOptionalChainingOperator.java @ closure-compiler v20261104
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -329,7 +329,7 @@ func (o *OptionalChainRewriter) GetSubExprNameNode(subExpr rhino.Node) rhino.Nod
 	tempVarName := o.DeclareTempVarName(subExpr)
 	placeholder := rhino.IR_Empty()
 	subExpr.ReplaceWith(placeholder)
-	subExpr.RemoveProp(rhino.Node_DIRECT_EVAL)
+	subExpr.RemoveDirectEvalProp()
 	replacement := o.astFactory.CreateAssignToName(tempVarName, subExpr).SrcrefTreeIfMissing(subExpr)
 	placeholder.ReplaceWith(replacement)
 	return ast.MustAssign(replacement).Target().Node().CloneNode()

@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/Es6RewriteModules.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/Es6RelativizeImportPaths.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Es6RewriteModules.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/Es6RelativizeImportPaths.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

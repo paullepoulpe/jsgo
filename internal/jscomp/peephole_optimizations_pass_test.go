@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeOptimizationsPassTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PeepholeOptimizationsPassTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/PeepholeOptimizationsPassTest.java)
 
 /*
@@ -303,7 +303,7 @@ func (c *PeepholeOptimizationsPassTest) TestAddFeatureToEnclosingScript() {
 	c.TestSame("(3 + 4); function sub() { return 3 - 4; }")
 	compiler := c.GetLastCompiler()
 	script := rhino.CheckNotNull(compiler.GetScriptNode("testcode"))
-	AssertThat(script.GetProp(rhino.Node_FEATURE_SET)).
+	AssertThat(script.GetFeatureSet()).
 		IsEqualTo(
 			parser.FeatureSet_BARE_MINIMUM.WithFeatures(
 				parser.FeatureSet_Feature_LET_DECLARATIONS, parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_CONST_DECLARATIONS))

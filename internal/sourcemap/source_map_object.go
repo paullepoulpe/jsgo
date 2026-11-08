@@ -1,4 +1,4 @@
-// Port of com/google/debugging/sourcemap/SourceMapObject.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/SourceMapObject.java @ closure-compiler v20261104
 
 /*
  * Copyright 2016 The Closure Compiler Authors.

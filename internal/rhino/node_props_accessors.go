@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/Node.java @ closure-compiler v20261104
 
 /*
  *
@@ -156,6 +156,80 @@ func (n Node) SetDeclaredTypeExpression(typeExpression Node) {
 // Java: Node.getDeclaredTypeExpression()
 func (n Node) GetDeclaredTypeExpression() Node {
 	return node_cast[Node](n.GetProp(Node_Prop_DECLARED_TYPE_EXPR))
+}
+
+// Java: Node.getReflectedObject()
+func (n Node) GetReflectedObject() any {
+	return n.GetProp(Node_Prop_REFLECTED_OBJECT)
+}
+
+// Java: Node.setReflectedObject(Object)
+func (n Node) SetReflectedObject(object any) {
+	n.PutProp(Node_Prop_REFLECTED_OBJECT, object)
+}
+
+// Java: Node.getGenericType()
+func (n Node) GetGenericType() Node {
+	return node_cast[Node](n.GetProp(Node_Prop_GENERIC_TYPE))
+}
+
+// Java: Node.setGenericType(Node)
+func (n Node) SetGenericType(node Node) {
+	if node.IsNil() {
+		n.RemoveProp(Node_Prop_GENERIC_TYPE)
+		return
+	}
+	n.PutProp(Node_Prop_GENERIC_TYPE, node)
+}
+
+// Java: Node.getImplements()
+func (n Node) GetImplements() Node {
+	return node_cast[Node](n.GetProp(Node_Prop_IMPLEMENTS))
+}
+
+// Java: Node.setImplements(Node)
+func (n Node) SetImplements(node Node) {
+	if node.IsNil() {
+		n.RemoveProp(Node_Prop_IMPLEMENTS)
+		return
+	}
+	n.PutProp(Node_Prop_IMPLEMENTS, node)
+}
+
+// Java: Node.getConstructSignature()
+func (n Node) GetConstructSignature() bool {
+	return n.GetBooleanProp(Node_Prop_CONSTRUCT_SIGNATURE)
+}
+
+// Java: Node.setConstructSignature(boolean)
+func (n Node) SetConstructSignature(value bool) {
+	n.PutBooleanProp(Node_Prop_CONSTRUCT_SIGNATURE, value)
+}
+
+// Java: Node.getAccessModifier()
+func (n Node) GetAccessModifier() (JSDocInfo_Visibility, bool) {
+	v, ok := n.GetProp(Node_Prop_ACCESS_MODIFIER).(JSDocInfo_Visibility)
+	return v, ok
+}
+
+// Java: Node.setAccessModifier(JSDocInfo.Visibility)
+func (n Node) SetAccessModifier(visibility JSDocInfo_Visibility) {
+	n.PutProp(Node_Prop_ACCESS_MODIFIER, visibility)
+}
+
+// Java: Node.getFeatureSet()
+func (n Node) GetFeatureSet() any {
+	return n.GetProp(Node_Prop_FEATURE_SET)
+}
+
+// Java: Node.setFeatureSet(Object)
+func (n Node) SetFeatureSet(featureSet any) {
+	n.PutProp(Node_Prop_FEATURE_SET, featureSet)
+}
+
+// Java: Node.removeDirectEvalProp()
+func (n Node) RemoveDirectEvalProp() {
+	n.RemoveProp(Node_Prop_DIRECT_EVAL)
 }
 
 // SetJSTypeBeforeCast sets the type of this node before casting.

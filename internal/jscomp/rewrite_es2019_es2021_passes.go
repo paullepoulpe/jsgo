@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/RewriteCatchWithNoBinding.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsPass.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RewriteNewDotTarget.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RewriteNullishCoalesceOperator.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/TranspilationUtil.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RewriteCatchWithNoBinding.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RewriteLogicalAssignmentOperatorsPass.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RewriteNewDotTarget.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RewriteNullishCoalesceOperator.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/TranspilationUtil.java @ closure-compiler v20261104
 
 /*
  * Copyright 2019 The Closure Compiler Authors.

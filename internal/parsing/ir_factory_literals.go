@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/IRFactory.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/IRFactory.java @ closure-compiler v20261104
 
 /*
  * Copyright 2013 The Closure Compiler Authors.
@@ -567,20 +567,20 @@ func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.To
 			for c := 2; c < length; c++ {
 				v = (v * 2) + float64(digitVal(uint16(value[c]), '1'))
 			}
-			return v
+			return roundLargeRadixLiteral(v, value[2:], 2)
 		case 'o', 'O':
 			f.MaybeWarnForFeatureToken(token, parser.FeatureSet_Feature_OCTAL_LITERALS)
 			v := 0.0
 			for c := 2; c < length; c++ {
 				v = (v * 8) + float64(digitVal(uint16(value[c]), '7'))
 			}
-			return v
+			return roundLargeRadixLiteral(v, value[2:], 8)
 		case 'x', 'X':
 			v := 0.0
 			for c := 2; c < length; c++ {
 				v = (v * 0x10) + float64(mustHexVal(uint16(value[c])))
 			}
-			return v
+			return roundLargeRadixLiteral(v, value[2:], 16)
 		case '0', '1', '2', '3', '4', '5', '6', '7':
 			v := 0.0
 			for c := 1; c < length; c++ {
@@ -605,7 +605,7 @@ func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.To
 					f.LinenoOfPosition(location.Start),
 					f.CharnoOfPosition(location.Start))
 			}
-			return v
+			return roundLargeRadixLiteral(v, value[1:], 8)
 		case '8', '9':
 			f.errorReporter.Error(
 				IRFactory_INVALID_OCTAL_DIGIT, f.sourceName, f.LinenoOfPosition(location.Start), f.CharnoOfPosition(location.Start))
@@ -634,6 +634,23 @@ func normalizeNumber[S ~string | ~[]byte](f *IRFactory, value S, token parser.To
 		}
 	}
 	return jutil.DoubleParseDouble(string(value))
+}
+
+// roundLargeRadixLiteral returns the value of a binary, octal, or hex integer
+// literal whose digits were accumulated into v one at a time.
+//
+// That accumulation is exact while the value stays below 2^53. Past that, every
+// step rounds and the error compounds, so the literal can land on a neighbor of
+// the correctly rounded double. For those, parse the full integer and round it
+// once, matching NormalizeBigInt.
+//
+// Java: IRFactory.roundLargeRadixLiteral(double, String, int)
+func roundLargeRadixLiteral[S ~string | ~[]byte](v float64, digits S, radix int) float64 {
+	if v < 0x1p53 {
+		return v
+	}
+	d, _ := jutil.NewBigIntegerFromStringRadix(string(digits), radix).Float64()
+	return d
 }
 
 // NormalizeBigInt is the value of a BIGINT token.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/ParserTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/ParserTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -5234,6 +5234,35 @@ func TestOctalLiterals(t *testing.T) {
 	pt.parse("0o0001;")
 }
 
+// Java: ParserTest.testLargeRadixLiteralsRoundOnce()
+func TestLargeRadixLiteralsRoundOnce(t *testing.T) {
+	pt := newParserTest(t)
+	parseNumberLiteral := func(source string) rhino.Node {
+		return pt.parse(source).GetOnlyChild().GetOnlyChild()
+	}
+
+	// 443538294610663463 needs 59 bits, so it cannot be accumulated digit by digit without
+	// rounding at every step. Its nearest double is 443538294610663488; rounding at each step
+	// instead lands on the neighboring double 443538294610663424.
+	expected := 443538294610663488.0
+	pt.mode = Config_LanguageMode_ECMASCRIPT_2015
+	assertNode(t, parseNumberLiteral("0x627c3ba9e8d1827;")).IsNumber(expected)
+	pt.expectFeatures(parser.FeatureSet_Feature_OCTAL_LITERALS)
+	assertNode(t, parseNumberLiteral("0o30476073523643214047;")).IsNumber(expected)
+	pt.expectFeatures(parser.FeatureSet_Feature_BINARY_LITERALS)
+	assertNode(t, parseNumberLiteral("0b11000100111110000111011101010011110100011010001100000100111;")).
+		IsNumber(expected)
+
+	pt.expectFeatures()
+	pt.strictMode = Config_StrictMode_SLOPPY
+	legacyOctal := pt.parseWarning(
+		"030476073523643214047;",
+		"Octal integer literals are not supported in strict mode.").
+		GetOnlyChild().
+		GetOnlyChild()
+	assertNode(t, legacyOctal).IsNumber(expected)
+}
+
 // Java: ParserTest.testOctalEscapes()
 func TestOctalEscapes(t *testing.T) {
 	pt := newParserTest(t)
@@ -5988,6 +6017,39 @@ func TestEs2018LiftIllegalEscapeSequenceRestrictionOnTaggedTemplates(t *testing.
 	pt.parseError("foo`\\unicode", "Unterminated template literal")
 	// normal template literals still throw error
 	pt.parseError("var bad = `\\unicode`;", "Hex digit expected")
+}
+
+// Java: ParserTest.testTemplateLiteralWithUnnecessaryEscapeFollowedByInvalidEscape()
+func TestTemplateLiteralWithUnnecessaryEscapeFollowedByInvalidEscape(t *testing.T) {
+	pt := newParserTest(t)
+
+	// b/576212117 (GitHub issue #4355): Unnecessary escape must not mask invalid escapes
+	// Tagged templates: invalid escape is allowed per ES2018, cooked string is null
+	n := pt.parse("tag`\\a\\uc1`")
+	taggedTemplateLit := n.GetFirstFirstChild()
+	assertNode(t, taggedTemplateLit).HasType(rhino.Token_TAGGED_TEMPLATELIT)
+	templateLit := taggedTemplateLit.GetSecondChild()
+	assertNode(t, templateLit).HasType(rhino.Token_TEMPLATELIT)
+	templateLitString := templateLit.GetFirstChild()
+	assertNode(t, templateLitString).HasType(rhino.Token_TEMPLATELIT_STRING)
+	_, hasCooked := templateLitString.CookedString()
+	assertThat(t, hasCooked).IsFalse()
+	assertThat(t, templateLitString.GetRawString()).IsEqualTo("\\a\\uc1")
+
+	pt.parse("tag`\\a\\xg`")
+	pt.parse("tag`\\a\\u{zz}`")
+	pt.parse("tag`\\q\\uc1`")
+	pt.parse("String.raw`{\\rtf1\\adeflang1025\\ansi\\ansicpg1252\\uc1`")
+
+	// Multiple portions
+	pt.parse("tag`\\a\\uc1${0}\\b\\uc2`")
+
+	// Untagged templates: parse error must be reported
+	pt.parseError("var s = `\\a\\uc1`;", "Hex digit expected")
+	pt.parseError("var s = `\\a\\xg`;", "Hex digit expected")
+	pt.parseError("var s = `\\a\\u{zz}`;", "Hex digit expected")
+	pt.parseError("var s = `\\a\\1`;", "Invalid escape sequence")
+	pt.parseError("var s = `\\a\\u{}`;", "Empty unicode escape")
 }
 
 // Java: ParserTest.testInvalidEscape()

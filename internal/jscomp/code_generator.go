@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodeGenerator.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CodeGenerator.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -443,8 +443,8 @@ func (g *CodeGenerator) OpRequiresParentheses(n rhino.Node, minPrecedence int, c
 		// ExponentiationExpression cannot expand to
 		//     UnaryExpression ** ExponentiationExpression
 		return true
-	} else if CodeGenerator_IsLogicalANDorLogicalORChildOfNullishCoalesce(n) ||
-		CodeGenerator_IsNullishCoalesceChildOfLogicalANDorLogicalOR(n) {
+	} else if g.isLogicalAndOrLogicalOrChildOfNullishCoalesce(n) ||
+		g.isNullishCoalesceChildOfLogicalAndOrLogicalOr(n) {
 		// precedence is not enough here since using && or || with ?? without
 		// parentheses is a syntax error as ?? expands directly to |
 		return true
@@ -456,19 +456,33 @@ func (g *CodeGenerator) OpRequiresParentheses(n rhino.Node, minPrecedence int, c
 	}
 }
 
-// Java: CodeGenerator.isLogicalANDorLogicalORChildOfNullishCoalesce(Node)
-func CodeGenerator_IsLogicalANDorLogicalORChildOfNullishCoalesce(n rhino.Node) bool {
+// Java: CodeGenerator.isLogicalAndOrLogicalOrChildOfNullishCoalesce(Node)
+func (g *CodeGenerator) isLogicalAndOrLogicalOrChildOfNullishCoalesce(n rhino.Node) bool {
+	expr := g.skipTransparentCasts(n)
 	parent := n.GetParent()
-	logicalANDorLogicalOR := n.IsAnd() || n.IsOr()
+	logicalAndOrLogicalOr := expr.IsAnd() || expr.IsOr()
 	childOfNullishCoalesce := !parent.IsNil() && parent.IsNullishCoalesce()
-	return logicalANDorLogicalOR && childOfNullishCoalesce
+	return logicalAndOrLogicalOr && childOfNullishCoalesce
 }
 
-// Java: CodeGenerator.isNullishCoalesceChildOfLogicalANDorLogicalOR(Node)
-func CodeGenerator_IsNullishCoalesceChildOfLogicalANDorLogicalOR(n rhino.Node) bool {
+// Java: CodeGenerator.isNullishCoalesceChildOfLogicalAndOrLogicalOr(Node)
+func (g *CodeGenerator) isNullishCoalesceChildOfLogicalAndOrLogicalOr(n rhino.Node) bool {
+	expr := g.skipTransparentCasts(n)
 	parent := n.GetParent()
-	childOfLogicalANDorLogicalOR := !parent.IsNil() && (parent.IsAnd() || parent.IsOr())
-	return n.IsNullishCoalesce() && childOfLogicalANDorLogicalOR
+	childOfLogicalAndOrLogicalOr := !parent.IsNil() && (parent.IsAnd() || parent.IsOr())
+	return expr.IsNullishCoalesce() && childOfLogicalAndOrLogicalOr
+}
+
+// skipTransparentCasts returns the expression printed for n, looking through
+// CAST nodes that are printed without their own parentheses (i.e. when type
+// annotations are not preserved).
+//
+// Java: CodeGenerator.skipTransparentCasts(Node)
+func (g *CodeGenerator) skipTransparentCasts(n rhino.Node) rhino.Node {
+	for !g.preserveTypeAnnotations && n.IsCast() {
+		n = n.GetFirstChild()
+	}
+	return n
 }
 
 // Java: CodeGenerator.isFirstOperandOfExponentiationExpression(Node)

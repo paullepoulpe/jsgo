@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/ijs/ConvertToTypedInterfaceTest.java)
 
 /*
@@ -21,8 +21,6 @@ package jscomp
 
 import (
 	"testing"
-
-	"github.com/paullepoulpe/jsgo/internal/jutil"
 )
 
 // Unit tests for ConvertToTypedInterface.
@@ -386,8 +384,8 @@ class Foo {
 `)
 }
 
-// Java: ConvertToTypedInterfaceTest.testPrivateClassMembers_knownBug()
-func (c *ConvertToTypedInterfaceTest) TestPrivateClassMembers_knownBug() {
+// Java: ConvertToTypedInterfaceTest.testPrivateClassMembers()
+func (c *ConvertToTypedInterfaceTest) TestPrivateClassMembers() {
 	// Expected behavior: the output is `expected`, with every private member still declared in the
 	// class body, because a private name is valid only there.
 	js := `class Foo {
@@ -414,14 +412,7 @@ func (c *ConvertToTypedInterfaceTest) TestPrivateClassMembers_knownBug() {
   get() {}
 }
 `
-	// TODO(b/236744850): `this.#b = 2` is moved out of `Foo` as a declaration.
-	// Current behavior: `#b;` is removed from `Foo`, and `this.#b = 2` becomes
-	//   `/** @const @type {number} */ Foo.prototype.#b;` after `Foo`. So `test(js, expected)`
-	//   fails.
-	// Why it's a bug: `Foo.prototype.#b` outside the body of `Foo` is a SyntaxError, so the
-	//   generated `.i.js` file can't be parsed.
-	ex := AssertThrows[*jutil.AssertionError](func() { c.Test(js, expected) })
-	AssertThat(ex.GetMessage()).Contains("Foo.prototype.#b;")
+	c.Test(js, expected)
 }
 
 // Java: ConvertToTypedInterfaceTest.testSameFieldDeclared()

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/bundle/Source.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/bundle/Source.java @ closure-compiler v20261104
 // (with the AutoValue-generated bundle/AutoValue_Source.java)
 
 /*

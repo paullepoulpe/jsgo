@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -470,6 +470,16 @@ func (e CompilerOptions_OptimizeLocalAccess) ShouldWrapReassignableSymbols() boo
 
 // Java: CompilerOptions.OptimizeLocalAccess.shouldPreserveLocalVarDeclarations()
 func (e CompilerOptions_OptimizeLocalAccess) ShouldPreserveLocalVarDeclarations() bool {
+	return e >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+}
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldRewriteCompoundAndIncrementWritesInPlace()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldRewriteCompoundAndIncrementWritesInPlace() bool {
+	return e >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+}
+
+// Java: CompilerOptions.OptimizeLocalAccess.shouldKeepLocalAliasForWrappedReassignables()
+func (e CompilerOptions_OptimizeLocalAccess) ShouldKeepLocalAliasForWrappedReassignables() bool {
 	return e >= CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
 }
 

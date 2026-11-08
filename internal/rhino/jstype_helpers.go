@@ -1,11 +1,11 @@
-// Port of com/google/javascript/rhino/jstype/EquivalenceMethod.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/jstype/JSTypeClass.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/jstype/BooleanLiteralSet.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/jstype/JSTypeIterations.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/NominalTypeBuilder.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/jstype/TypeStringBuilder.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/jstype/ContainsUpperBoundSuperTypeVisitor.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/jstype/CanCastToVisitor.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/jstype/EquivalenceMethod.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/jstype/JSTypeClass.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/jstype/BooleanLiteralSet.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/jstype/JSTypeIterations.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/NominalTypeBuilder.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/jstype/TypeStringBuilder.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/jstype/ContainsUpperBoundSuperTypeVisitor.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/jstype/CanCastToVisitor.java @ closure-compiler v20261104
 
 /*
  *

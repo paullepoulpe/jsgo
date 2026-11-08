@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/JSError.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/CheckLevel.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/JSError.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/CheckLevel.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.

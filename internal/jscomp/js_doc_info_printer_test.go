@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/JSDocInfoPrinterTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/JSDocInfoPrinterTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -442,6 +442,14 @@ func TestJSDocInfoPrinter_NgInject(t *testing.T) {
 	x := newJSDocInfoPrinterTest(t)
 	x.builder.RecordNgInject(true)
 	x.assertPrints("/** @ngInject */ ")
+}
+
+func TestJSDocInfoPrinter_LegacyNamedTsExport(t *testing.T) {
+	x := newJSDocInfoPrinterTest(t)
+	if !x.builder.RecordLegacyNamedTsExport() {
+		t.Fatal("RecordLegacyNamedTsExport() = false, want true")
+	}
+	x.assertPrints("/** @legacyNamedTsExport */ ")
 }
 
 func TestJSDocInfoPrinter_TsType(t *testing.T) {

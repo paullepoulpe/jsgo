@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/deps/JsFileRegexParser.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/JsFileRegexParser.java @ closure-compiler v20261104
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -75,7 +75,7 @@ var jsFileRegexParser_logger = jutil.Logger_GetLogger("com.google.javascript.jsc
 // TODO(johnplaisted): Remove declareNamespace.
 var jsFileRegexParser_GOOG_PROVIDE_REQUIRE_PATTERN = regexp.MustCompile(
 	`(?:^|;)(?:[\p{L}\p{Nl}\p{Nd}$_,:{}\t\n\x0B\f\r ]+=)?[\t\n\x0B\f\r ]*` +
-		`goog\.(?P<func>provide|module|require|requireType|addDependency|declareModuleId)` +
+		`goog\.(?P<func>provide|module|require|requireType|forwardDeclare|addDependency|declareModuleId)` +
 		`[\t\n\x0B\f\r ]*\([\t\n\x0B\f\r ]*(?P<args>[^\n\r\x{85}\x{2028}\x{2029}]*?)[\t\n\x0B\f\r ]*\)`)
 
 var (
@@ -295,7 +295,7 @@ func jsFileRegexParser_tryFastGoogCall(line string) (methodName, args string, ok
 	}
 	fn := rest[:fnEnd]
 	switch fn {
-	case "provide", "module", "require", "requireType", "addDependency", "declareModuleId":
+	case "provide", "module", "require", "requireType", "forwardDeclare", "addDependency", "declareModuleId":
 	default:
 		return "", "", false
 	}
@@ -341,7 +341,7 @@ func (p *JsFileRegexParser) recordGoogMatch(methodName, rawArgs string) string {
 	isModule := !isDeclareModuleNamespace && firstChar == 'm'
 	isProvide := firstChar == 'p'
 	providesNamespace := isProvide || isModule || isDeclareModuleNamespace
-	isRequire := firstChar == 'r'
+	isRequire := firstChar == 'r' || firstChar == 'f'
 
 	if isModule && !p.seenLoadModule {
 		providesNamespace = p.setModuleType(jsFileRegexParser_ModuleType_GOOG_MODULE)
@@ -360,7 +360,7 @@ func (p *JsFileRegexParser) recordGoogMatch(methodName, rawArgs string) string {
 		// the whole file text alive as long as the DependencyInfo.
 		arg := strings.Clone(parsed)
 		if isRequire {
-			if methodName == "requireType" {
+			if methodName == "requireType" || methodName == "forwardDeclare" {
 				p.typeRequires = append(p.typeRequires, arg)
 			} else if arg != "goog" {
 				p.requires = append(p.requires, DependencyInfo_Require_GoogRequireSymbol(arg))
@@ -407,6 +407,7 @@ func (p *JsFileRegexParser) parseLine(line string) (bool, string) {
 	lineHasProvidesOrRequiresWords :=
 		strings.Contains(line, "provide") ||
 			strings.Contains(line, "require") ||
+			strings.Contains(line, "forwardDeclare") ||
 			strings.Contains(line, "module") ||
 			strings.Contains(line, "addDependency") ||
 			strings.Contains(line, "declareModuleId")

@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/PolyfillUsageFinder.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/GuardedCallback.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PolyfillUsageFinder.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/GuardedCallback.java @ closure-compiler v20261104
 
 /*
  * Copyright 2020 The Closure Compiler Authors.

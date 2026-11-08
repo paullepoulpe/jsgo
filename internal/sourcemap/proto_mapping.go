@@ -1,6 +1,6 @@
 // Reconstruction of com.google.debugging.sourcemap.proto.Mapping (generated
 // by protoc from src/com/google/debugging/sourcemap/proto/mapping.proto) @
-// closure-compiler v20261028.
+// closure-compiler v20261104.
 //
 // Go-only: language-adapter — the Java class is protobuf-generated and not
 // part of the Java sources; it is represented here from mapping.proto as a

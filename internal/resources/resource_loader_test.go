@@ -18,12 +18,12 @@ var resourceLoaderVectors = []struct {
 	exists bool
 	result string
 }{
-	{JsDir + "polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
-	{JsDir + "transpilation_libs.txt", true, "len=3965 sha256=bb817d2962ab4d5e29948cc553a61aced001b7260136cc2ad51b76707867b22e"},
+	{JsDir + "polyfills.txt", true, "len=11999 sha256=d60dc4c89fdec3b0086e45775b23f513b7c1633e77351eb896086176c05e9c02"},
+	{JsDir + "transpilation_libs.txt", true, "len=4665 sha256=c5924f6ac0f7c9d6052e22c8bd53f8c22f0ff5820b4036429ea2175a6e9aa7fa"},
 	{JsDir + "es6_runtime.js", true, "len=1234 sha256=9cde552822c9a16038349459630de758cbff0ddd64e38c05e14c905e3b1e614b"},
 	{JsDir + "es6/util/arrayiterator.js", true, "len=1395 sha256=a2505a52eb1bae870a5975927ffdfa357c11de977612c9dceb6360e0d5b5c26a"},
 	{JsDir + "nonexistent.js", false, "java.lang.RuntimeException: No such resource: " + JsDir + "nonexistent.js"},
-	{"/" + JsDir + "polyfills.txt", true, "len=11721 sha256=8986c52293e50e1b416449301929f7ef97d3dab2c21702ee6c0b03f75ed08491"},
+	{"/" + JsDir + "polyfills.txt", true, "len=11999 sha256=d60dc4c89fdec3b0086e45775b23f513b7c1633e77351eb896086176c05e9c02"},
 	{JsDir + "../js/polyfills.txt", false, "java.lang.RuntimeException: No such resource: " + JsDir + "../js/polyfills.txt"},
 	{"com/google/javascript/jscomp/js//polyfills.txt", false, "java.lang.RuntimeException: No such resource: com/google/javascript/jscomp/js//polyfills.txt"},
 	{"./" + JsDir + "polyfills.txt", false, "java.lang.RuntimeException: No such resource: ./" + JsDir + "polyfills.txt"},
@@ -76,8 +76,8 @@ func TestEmbeddedResourcesAreValidUTF8(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 177 {
-		t.Errorf("%d embedded resources, want 177", n)
+	if n != 188 {
+		t.Errorf("%d embedded resources, want 188", n)
 	}
 }
 
@@ -87,8 +87,8 @@ func TestEmbeddedRuntimeLibsTypedAst(t *testing.T) {
 		t.Fatalf("runtime_libs.typedast: %v", err)
 	}
 	sum := sha256.Sum256(data)
-	if got := hex.EncodeToString(sum[:]); len(data) != 3540605 ||
-		got != "894791ed6d0069bbfba7a26410bfe4f2600a3bfe21f989967e10f8c42429b968" {
+	if got := hex.EncodeToString(sum[:]); len(data) != 3553011 ||
+		got != "7c959f81b86c60bbd3fce49ae8f9b6af8ac9b7299ebb2eef44a1f79b7ee8e21c" {
 		t.Errorf("runtime_libs.typedast: %d bytes, sha256 %s", len(data), got)
 	}
 }

@@ -1,4 +1,4 @@
-// Port of the storage of com/google/javascript/rhino/RhinoStringPool.java @ closure-compiler v20261028
+// Port of the storage of com/google/javascript/rhino/RhinoStringPool.java @ closure-compiler v20261104
 
 /*
  *

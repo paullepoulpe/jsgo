@@ -1,4 +1,4 @@
-// Part of com/google/javascript/rhino/testing/NodeSubject.java @ closure-compiler v20261028:
+// Part of com/google/javascript/rhino/testing/NodeSubject.java @ closure-compiler v20261104:
 // the methods ParserTest uses beyond those js_doc_info_parser_test.go defines
 // on nodeSubject.
 

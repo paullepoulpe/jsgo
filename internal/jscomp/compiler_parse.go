@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -437,6 +437,15 @@ func (c *Compiler) hoistIfExtern(input *CompilerInput) bool {
 
 		chunk := input.GetChunk()
 		if chunk != nil {
+			if c.hoistedExternsByChunk == nil {
+				c.hoistedExternsByChunk = make(map[*JSChunk]*OrderedSet[*CompilerInput])
+			}
+			set := c.hoistedExternsByChunk[chunk]
+			if set == nil {
+				set = &OrderedSet[*CompilerInput]{}
+				c.hoistedExternsByChunk[chunk] = set
+			}
+			set.Add(input)
 			chunk.Remove(input)
 		}
 

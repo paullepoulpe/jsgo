@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/ErrorManager.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/BasicErrorManager.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/LoggerErrorManager.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/PrintStreamErrorManager.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/PrintStreamErrorReportGenerator.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ErrorManager.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/BasicErrorManager.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/LoggerErrorManager.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/PrintStreamErrorManager.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/PrintStreamErrorReportGenerator.java @ closure-compiler v20261104
 
 /*
  * Copyright 2007 The Closure Compiler Authors.

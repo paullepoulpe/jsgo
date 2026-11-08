@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/JsMessageVisitor.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/JsMessageExtractor.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/JsMessageVisitor.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/JsMessageExtractor.java @ closure-compiler v20261104
 
 /*
  * Copyright 2008 The Closure Compiler Authors.

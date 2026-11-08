@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckJsDocTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CheckJsDocTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/CheckJsDocTest.java)
 
 /*
@@ -1134,6 +1134,21 @@ func (c *CheckJsDocTest) TestClosurePrimitive() {
 	c.TestSame("/** @closurePrimitive {asserts.fail} */ goog.asserts.fail = function() {};")
 	c.TestSame("/** @closurePrimitive {asserts.fail} */ let fail = function() {}")
 	c.TestWarning("/** @fileoverview @closurePrimitive {asserts.fail} */", CheckJSDoc_MISPLACED_ANNOTATION)
+}
+
+// Java: CheckJsDocTest.testLegacyNamedTsExport()
+func (c *CheckJsDocTest) TestLegacyNamedTsExport() {
+	c.TestSame("/** @legacyNamedTsExport */ goog.module('a');")
+	c.TestSame("/** @legacyNamedTsExport */ goog.provide('a');")
+	c.TestWarning(
+		"goog.module('a'); /** @legacyNamedTsExport */ exports = {};", CheckJSDoc_MISPLACED_ANNOTATION)
+	c.TestWarning("/** @legacyNamedTsExport */ var x = {};", CheckJSDoc_MISPLACED_ANNOTATION)
+	c.TestWarning("/** @legacyNamedTsExport */ function f() {}", CheckJSDoc_MISPLACED_ANNOTATION)
+	c.TestWarning(
+		`/** @fileoverview @legacyNamedTsExport */
+goog.module('a');
+`,
+		CheckJSDoc_MISPLACED_ANNOTATION)
 }
 
 // Java: CheckJsDocTest.testJsDocOnReturn()

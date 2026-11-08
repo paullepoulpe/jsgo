@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteDestructuring.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Es6RewriteDestructuring.java @ closure-compiler v20261104
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -44,10 +44,11 @@ import (
 // Es6RewriteDestructuring rewrites destructuring patterns and default
 // parameters to valid ES3 code or to a different form of destructuring.
 type Es6RewriteDestructuring struct {
-	compiler    AbstractCompiler
-	rewriteMode Es6RewriteDestructuring_ObjectDestructuringRewriteMode
-	astFactory  *AstFactory
-	namespace   rhino.StaticScope
+	compiler        AbstractCompiler
+	rewriteMode     Es6RewriteDestructuring_ObjectDestructuringRewriteMode
+	astFactory      *AstFactory
+	namespace       rhino.StaticScope
+	useJscompAssign bool
 
 	featuresToTriggerRunningPass parser.FeatureSet
 	featuresToMarkAsRemoved      parser.FeatureSet
@@ -102,6 +103,7 @@ func NewEs6RewriteDestructuring(
 	e.rewriteMode = rewriteMode
 	e.astFactory = e.compiler.CreateAstFactory()
 	e.namespace = e.compiler.GetTranspilationNamespace()
+	e.useJscompAssign = !e.compiler.GetOptions().GetOutputFeatureSet().Contains(parser.FeatureSet_ES2015)
 
 	switch e.rewriteMode {
 	case Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_ALL_OBJECT_PATTERNS:
@@ -622,12 +624,22 @@ func (e *Es6RewriteDestructuring) replaceObjectPattern(
 			// TODO(b/538156291): Properties already bound are still copied during Object.assign and
 			// then deleted, so getters for those properties may still be invoked during Object.assign.
 			// TODO(b/116532470): see if casting this to a more specific type fixes disambiguation
-			assignCall :=
-				e.astFactory.CreateCall(
-					e.astFactory.CreateQName(e.namespace, "Object.assign"),
-					AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT))
-			assignCall.AddChildToBack(e.astFactory.CreateObjectLit())
-			assignCall.AddChildToBack(e.createTempVarNameNode(tempVarName, tempVarType))
+			var assignCall rhino.Node
+			if e.useJscompAssign {
+				assignCall =
+					e.astFactory.CreateJscompAssignCall(
+						e.namespace,
+						AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT),
+						e.astFactory.CreateObjectLit(),
+						e.createTempVarNameNode(tempVarName, tempVarType))
+			} else {
+				assignCall =
+					e.astFactory.CreateObjectDotAssignCall(
+						e.namespace,
+						AstFactory_Type_OfColor(colors.StandardColors_TOP_OBJECT),
+						e.astFactory.CreateObjectLit(),
+						e.createTempVarNameNode(tempVarName, tempVarType))
+			}
 
 			restTempDecl := rhino.IR_VarWithValue(e.createTempVarNameNode(restTempVarName, tempVarType), assignCall)
 			restTempDecl.SrcrefTreeIfMissing(objectPattern.Node())

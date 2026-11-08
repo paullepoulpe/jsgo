@@ -1,6 +1,6 @@
 // Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java (with the
-// AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/serialization/MalformedTypedAstException.java @ closure-compiler v20261028
+// AutoValue-generated AutoValue_TypedAstDeserializer_DeserializedAst.java) @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/serialization/MalformedTypedAstException.java @ closure-compiler v20261104
 
 /*
  * Copyright 2021 The Closure Compiler Authors.

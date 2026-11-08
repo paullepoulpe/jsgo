@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/testing/TestExternsBuilder.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/testing/TestExternsBuilder.java @ closure-compiler v20261104
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -118,6 +118,12 @@ $jscomp.arrayFromIterator = function(iterator) {};
  * @return {!Promise<?>}
  */
 $jscomp.asyncExecutePromiseGeneratorFunction = function(generatorFunction) {};
+/**
+ * @param {!Object} target
+ * @param {...?Object} var_args
+ * @return {!Object}
+ */
+$jscomp.assign = function(target, var_args) {};
 /**
 * @type {!Global}
 */

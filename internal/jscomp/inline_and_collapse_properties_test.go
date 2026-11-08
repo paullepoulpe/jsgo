@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/InlineAndCollapsePropertiesTest.java)
 
 /*
@@ -1199,6 +1199,202 @@ func (c *InlineAndCollapsePropertiesTest) TestLocalAlias1() {
 	c.Test(
 		"var   a = {b: 3}; function f() { var x =    a; f(x?.b); }",
 		"var   a = {b: 3}; function f() { var x = null; f(a?.b); }")
+}
+
+// Java: InlineAndCollapsePropertiesTest.testLocalAliasInGetPropReceiver()
+func (c *InlineAndCollapsePropertiesTest) TestLocalAliasInGetPropReceiver() {
+	// Regression test for b/476221453
+	c.Test(
+		`class Main {}
+Main.prop = 1;
+function f() {
+  let tmp;
+  return (tmp = Main).prop ?? (tmp.prop = {});
+}
+`,
+		`class Main {}
+var Main$prop = 1;
+function f() {
+  let tmp;
+  return Main$prop ?? (Main$prop = {});
+}
+`)
+}
+
+// Java: InlineAndCollapsePropertiesTest.testGlobalAliasInConditionalGetPropReceiver_knownBug()
+func (c *InlineAndCollapsePropertiesTest) TestGlobalAliasInConditionalGetPropReceiver_knownBug() {
+	// Regression test for b/476221453
+	// TODO: b/476221453 - `(tmp = Main).prop` and `tmp.prop` should be collapsed to `Main$prop`.
+	c.Test(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+window.cond && ((tmp = Main).prop ?? (tmp.prop = {}));
+`,
+		`class Main {}
+var Main$prop = 1;
+let tmp;
+window.cond && ((tmp = Main).prop ?? (tmp.prop = {}));
+`)
+}
+
+// Java: InlineAndCollapsePropertiesTest.testLocalEs6ClassAliasInLoopCondition()
+func (c *InlineAndCollapsePropertiesTest) TestLocalEs6ClassAliasInLoopCondition() {
+	// Regression test for b/476221453
+	c.Test(
+		`class Main {}
+Main.prop = 1;
+function f() {
+  let tmp;
+  while ((tmp = Main).prop ?? (tmp.prop = {})) {
+    break;
+  }
+}
+`,
+		`class Main {}
+var Main$prop = 1;
+function f() {
+  let tmp;
+  for (; Main$prop ?? (Main$prop = {});) {
+    break;
+  }
+}
+`)
+}
+
+// Java: InlineAndCollapsePropertiesTest.testTopLevelBlockTwinAssignmentPreservesDeclarationOrder()
+func (c *InlineAndCollapsePropertiesTest) TestTopLevelBlockTwinAssignmentPreservesDeclarationOrder() {
+	// Regression test for b/476221453: when `(tmp = ns).sub = {x: 1}` is inlined to
+	// `ns.sub = {x: 1}`, `GlobalNamespace` must scan it before `tmp.sub = tmp.sub || {}` so that
+	// `var ns$sub = {x: 1}` is treated as the declaration of `ns$sub`.
+	c.Test(
+		`var ns = {};
+{
+  let tmp;
+  (tmp = ns).sub = {x: 1};
+  tmp.sub = tmp.sub || {};
+}
+use(ns.sub.x);
+`,
+		`{
+  let tmp;
+  var ns$sub = {x: 1};
+  ns$sub = ns$sub || {};
+}
+use(ns$sub.x);
+`)
+}
+
+// Java: InlineAndCollapsePropertiesTest.testLocalEs6ClassAliasInForDoWhileAndForOfHeaders()
+func (c *InlineAndCollapsePropertiesTest) TestLocalEs6ClassAliasInForDoWhileAndForOfHeaders() {
+	// Regression test for b/476221453 across `for` condition+update, `do-while`, and `for-of`.
+	c.Test(
+		`class Main {}
+Main.a = 1;
+Main.b = 2;
+Main.items = [];
+function f() {
+  let t1;
+  let t2;
+  let t3;
+  let t4;
+  for (; (t1 = Main).a ?? (t1.a = 10); (t2 = Main).b || (t2.b = 20)) {
+    break;
+  }
+  do {
+    break;
+  } while ((t3 = Main).a && (t3.a = 30));
+  for (const x of ((t4 = Main).items ?? (t4.items = [1]))) {
+    use(x);
+  }
+}
+use(Main.a, Main.b, Main.items);
+`,
+		`class Main {}
+var Main$a = 1;
+var Main$b = 2;
+var Main$items = [];
+function f() {
+  let t1;
+  let t2;
+  let t3;
+  let t4;
+  for (; Main$a ?? (Main$a = 10); Main$b || (Main$b = 20)) {
+    break;
+  }
+  do {
+    break;
+  } while (Main$a && (Main$a = 30));
+  for (const x of (Main$items ?? (Main$items = [1]))) {
+    use(x);
+  }
+}
+use(Main$a, Main$b, Main$items);
+`)
+}
+
+// Java: InlineAndCollapsePropertiesTest.testConstNamespaceAliasInLoopConditionBacksOffCollapse()
+func (c *InlineAndCollapsePropertiesTest) TestConstNamespaceAliasInLoopConditionBacksOffCollapse() {
+	// Unlike constructors/classes, a `@const` namespace in a loop header is not inlined, so
+	// GlobalNamespace sees the aliasing get on `ns`, emits `PARTIAL_NAMESPACE_WARNING` when `ns`
+	// contains a declared type, and backs off collapsing `ns.prop` everywhere (avoiding
+	// split-brain).
+	c.Test(
+		c.Srcs(
+			`/** @const */ var ns = {prop: 1};
+ns.Sub = class {};
+function f() {
+  let tmp;
+  while ((tmp = ns).prop ?? (tmp.prop = 2)) {
+    break;
+  }
+}
+use(ns.prop, new ns.Sub());
+`),
+		c.Expected(
+			`/** @const */ var ns = {prop: 1};
+ns.Sub = class {};
+function f() {
+  let tmp;
+  for (; (tmp = ns).prop ?? (tmp.prop = 2); ) {
+    break;
+  }
+}
+use(ns.prop, new ns.Sub());
+`),
+		c.Warning(InlineAndCollapseProperties_PARTIAL_NAMESPACE_WARNING))
+}
+
+// Java: InlineAndCollapsePropertiesTest.testStaticGetterSetterAndSideEffectingReceiverLogicalAssignment()
+func (c *InlineAndCollapsePropertiesTest) TestStaticGetterSetterAndSideEffectingReceiverLogicalAssignment() {
+	// Static getters/setters on a class must not be collapsed into plain variables, and a
+	// non-qualified receiver `(tmp = getMain())` must keep its single-evaluation temporary `tmp`.
+	c.Test(
+		`class Main {
+  static get prop() { return 1; }
+  static set prop(v) {}
+}
+function f() {
+  let tmp;
+  return (tmp = Main).prop ?? (tmp.prop = 2);
+}
+`,
+		`class Main {
+  static get prop() { return 1; }
+  static set prop(v) {}
+}
+function f() {
+  let tmp;
+  return Main.prop ?? (Main.prop = 2);
+}
+`)
+	c.TestSame(
+		`function getMain() { return {}; }
+function f() {
+  let tmp;
+  return (tmp = getMain()).prop ?? (tmp.prop = 2);
+}
+`)
 }
 
 // Java: InlineAndCollapsePropertiesTest.testLocalAlias2()
@@ -2980,16 +3176,15 @@ use(Y.prop);
 		InlineAndCollapseProperties_PARTIAL_NAMESPACE_WARNING)
 }
 
-// TODO(b/538122483): InlineAndCollapseProperties: handle destructuring patterns without creating
-// extra variables or losing side effects
 // Java: InlineAndCollapsePropertiesTest.testDestructuringQualifiedNameMultipleKeysEvaluatesOnce()
 func (c *InlineAndCollapsePropertiesTest) TestDestructuringQualifiedNameMultipleKeysEvaluatesOnce() {
 	c.Test(
 		`const {a, b} = this.validated;
 use(a, b);
 `,
-		`const a = this.validated.a;
-const b = this.validated.b;
+		`const destructuring$m1146332801$0 = this.validated;
+const a = destructuring$m1146332801$0.a;
+const b = destructuring$m1146332801$0.b;
 use(a, b);
 `)
 }
@@ -3005,16 +3200,12 @@ use(a);
 `)
 }
 
-// TODO(b/538122483): InlineAndCollapseProperties: handle destructuring patterns without creating
-// extra variables or losing side effects
 // Java: InlineAndCollapsePropertiesTest.testEmptyDestructuringPatternNotStripped()
 func (c *InlineAndCollapsePropertiesTest) TestEmptyDestructuringPatternNotStripped() {
 	c.Test("const {} = this.validated;", "")
 	c.Test("const {} = obj;", "")
 }
 
-// TODO(b/538122483): InlineAndCollapseProperties: handle destructuring patterns without creating
-// extra variables or losing side effects
 // Java: InlineAndCollapsePropertiesTest.testDestructuringQualifiedNameWithCollapsibleNamespace()
 func (c *InlineAndCollapsePropertiesTest) TestDestructuringQualifiedNameWithCollapsibleNamespace() {
 	c.Test(
@@ -3029,6 +3220,7 @@ use(a, b);
 `,
 		`var ns$sub$a = 1;
 var ns$sub$b = 2;
+const destructuring$m1146332801$0 = null;
 const a = null;
 const b = null;
 use(ns$sub$a, ns$sub$b);

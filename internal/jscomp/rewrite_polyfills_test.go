@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewritePolyfillsTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RewritePolyfillsTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/RewritePolyfillsTest.java)
 
 /*
@@ -641,22 +641,32 @@ func (c *RewritePolyfillsTest) TestForceInject_es2015_skipsEs2015Polyfills() {
 func (c *RewritePolyfillsTest) TestIteratorPolyfill() {
 	c.AddLibrary("Iterator", "es_next", "es3", testStringPtr("es6/iterator"))
 	c.AddLibrary("Iterator.from", "es_next", "es3", testStringPtr("es6/iterator/from"))
+	c.AddLibrary("Iterator.prototype.drop", "es_next", "es3", testStringPtr("es6/iterator/drop"))
 	c.AddLibrary("Iterator.prototype.every", "es_next", "es3", testStringPtr("es6/iterator/every"))
+	c.AddLibrary("Iterator.prototype.filter", "es_next", "es3", testStringPtr("es6/iterator/filter"))
 	c.AddLibrary("Iterator.prototype.find", "es_next", "es3", testStringPtr("es6/iterator/find"))
+	c.AddLibrary("Iterator.prototype.flatMap", "es_next", "es3", testStringPtr("es6/iterator/flatmap"))
 	c.AddLibrary("Iterator.prototype.forEach", "es_next", "es3", testStringPtr("es6/iterator/foreach"))
+	c.AddLibrary("Iterator.prototype.map", "es_next", "es3", testStringPtr("es6/iterator/map"))
 	c.AddLibrary("Iterator.prototype.reduce", "es_next", "es3", testStringPtr("es6/iterator/reduce"))
 	c.AddLibrary("Iterator.prototype.some", "es_next", "es3", testStringPtr("es6/iterator/some"))
+	c.AddLibrary("Iterator.prototype.take", "es_next", "es3", testStringPtr("es6/iterator/take"))
 	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", testStringPtr("es6/iterator/toarray"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES3)
 	c.TestInjects("Iterator;", "es6/iterator")
 	c.TestInjects("class MyIter extends Iterator {}", "es6/iterator")
 	c.TestInjects("Iterator.from(x);", "es6/iterator", "es6/iterator/from")
+	c.TestInjects("x.drop(1);", "es6/iterator/drop")
 	c.TestInjects("x.every(fn);", "es6/iterator/every")
+	c.TestInjects("x.filter(fn);", "es6/iterator/filter")
 	c.TestInjects("x.find(fn);", "es6/iterator/find")
+	c.TestInjects("x.flatMap(fn);", "es6/iterator/flatmap")
 	c.TestInjects("x.forEach(fn);", "es6/iterator/foreach")
+	c.TestInjects("x.map(fn);", "es6/iterator/map")
 	c.TestInjects("x.reduce(fn, 0);", "es6/iterator/reduce")
 	c.TestInjects("x.some(fn);", "es6/iterator/some")
+	c.TestInjects("x.take(1);", "es6/iterator/take")
 	c.TestInjects("x.toArray();", "es6/iterator/toarray")
 	c.TestDoesNotInject("")
 }
@@ -665,9 +675,14 @@ func (c *RewritePolyfillsTest) TestIteratorPolyfill() {
 func (c *RewritePolyfillsTest) TestIteratorPolyfill_typedReceiver() {
 	c.disambiguateProperties = true
 	c.AddLibrary("Iterator", "es_next", "es3", testStringPtr("es6/iterator"))
+	c.AddLibrary("Iterator.prototype.drop", "es_next", "es3", testStringPtr("es6/iterator/drop"))
 	c.AddLibrary("Iterator.prototype.every", "es_next", "es3", testStringPtr("es6/iterator/every"))
+	c.AddLibrary("Iterator.prototype.filter", "es_next", "es3", testStringPtr("es6/iterator/filter"))
 	c.AddLibrary("Iterator.prototype.find", "es_next", "es3", testStringPtr("es6/iterator/find"))
+	c.AddLibrary("Iterator.prototype.flatMap", "es_next", "es3", testStringPtr("es6/iterator/flatmap"))
+	c.AddLibrary("Iterator.prototype.map", "es_next", "es3", testStringPtr("es6/iterator/map"))
 	c.AddLibrary("Iterator.prototype.some", "es_next", "es3", testStringPtr("es6/iterator/some"))
+	c.AddLibrary("Iterator.prototype.take", "es_next", "es3", testStringPtr("es6/iterator/take"))
 	c.AddLibrary("Iterator.prototype.toArray", "es_next", "es3", testStringPtr("es6/iterator/toarray"))
 
 	c.SetLanguage(rewritePolyfillsTest_ES_2020, rewritePolyfillsTest_ES3)
@@ -680,7 +695,9 @@ func (c *RewritePolyfillsTest) TestIteratorPolyfill_typedReceiver() {
 
 	// 1. Receiver is a concrete class (Array) disjoint from Iterator: DO NOT inject
 	c.TestDoesNotInject("const arr = [1, 2, 3]; arr.toArray();")
-	c.TestDoesNotInject("const arr = [1, 2, 3]; arr.some(fn); arr.every(fn); arr.find(fn);")
+	c.TestDoesNotInject(
+		"const arr = [1, 2, 3]; arr.some(fn); arr.every(fn); arr.find(fn); arr.map(fn);" +
+			" arr.filter(fn); arr.flatMap(fn); arr.take(1); arr.drop(1);")
 
 	// 2. Receiver is a union of concrete classes disjoint from Iterator: DO NOT inject
 	c.TestDoesNotInject(

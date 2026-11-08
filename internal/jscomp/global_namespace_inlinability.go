@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/GlobalNamespace.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/GlobalNamespace.java @ closure-compiler v20261104
 
 /*
  * Copyright 2006 The Closure Compiler Authors.
@@ -623,13 +623,7 @@ func (n *GlobalNamespace_Name) IsDeclaredType() bool {
 
 // Java: GlobalNamespace.Name.isConstructor()
 func (n *GlobalNamespace_Name) IsConstructor() bool {
-	declNode := n.getDeclarationRef().node
-	rvalueNode := NodeUtil_GetRValueOfLValue(declNode)
-	jsdoc := NodeUtil_GetBestJSDocInfo(declNode)
-	return !rvalueNode.IsNil() &&
-		rvalueNode.IsFunction() &&
-		jsdoc != nil &&
-		jsdoc.IsConstructor()
+	return n.GetBooleanProperty(GlobalNamespace_NameProp_CONSTRUCTOR_TYPE)
 }
 
 // IsNamespaceObjectLit determines whether this name is a prefix of at least

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/TranspileAndOptimizeClosureUnawareTest.java)
 
 /*
@@ -383,14 +383,12 @@ class Child extends Parent {}
 return new Child();
 `)),
 		c.Expected(
-			// Note that Object.assign doesn't need to be injected because it's a polyfill, not a
-			// runtime library field.
 			`/** @fileoverview @closureUnaware */
 goog.module("test0");
 /** @closureUnaware */
-(function() {
-  return Object.assign({}, obj);
-}).call(undefined);
+(function(a) {
+  return a({}, obj);
+}).call(undefined, $jscomp.assign);
 `,
 			`/** @fileoverview @closureUnaware */
 goog.module("test1");
@@ -416,7 +414,7 @@ goog.module("test2");
 			"es6/util/construct",
 			"es6/util/inherits",
 			"es6/util/arrayfromiterable",
-			"es6/object/assign")
+			"es6/util/assign")
 }
 
 // Java: TranspileAndOptimizeClosureUnawareTest.classInheritance_usesReflectConstructForUnknownSuperclass()

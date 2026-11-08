@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ExtraRequireRemover.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ExtraRequireRemover.java @ closure-compiler v20261104
 
 /*
  * Copyright 2024 The Closure Compiler Authors.
@@ -219,8 +219,10 @@ func (e *ExtraRequireRemover) RemoveExtraRequire(call rhino.Node, require string
 	// ex: goog.require('foo');
 	if call.GetParent().IsExprResult() {
 		// all unaliased imports in goog.module are not pruned regardless of if they are used or
-		// not
-		if !call.GetGrandparent().IsModuleBody() {
+		// not, except in J2CL header files where they only exist for load ordering.
+		sfName, hasSf := call.SourceFileName()
+		if !call.GetGrandparent().IsModuleBody() ||
+			(hasSf && J2clSourceUtils_IsJ2clHeaderSource(sfName)) {
 			e.compiler.ReportChangeToEnclosingScope(call.GetParent())
 			call.GetParent().Detach()
 		}

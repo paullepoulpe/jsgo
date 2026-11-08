@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/JSDocInfoPrinter.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/JSDocInfoPrinter.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -547,6 +547,11 @@ func (p *JSDocInfoPrinter) Print(info *rhino.JSDocInfo) string {
 	if info.IsNgInject() {
 		w.startPart()
 		w.writeString("@ngInject")
+	}
+
+	if info.IsLegacyNamedTsExport() {
+		w.startPart()
+		w.writeString("@legacyNamedTsExport")
 	}
 
 	for _, tsType := range info.GetTsTypes() {

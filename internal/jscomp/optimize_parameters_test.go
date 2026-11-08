@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeParametersTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/OptimizeParametersTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/OptimizeParametersTest.java)
 
 /*
@@ -1824,6 +1824,122 @@ func (c *OptimizeParametersTest) TestNoRewriteTagged_methodCall() {
 			"  f: function(a, b, c) {}\n" +
 			"};\n" +
 			"obj.f`tagged`;\n")
+}
+
+// Java: OptimizeParametersTest.testNoRewriteTagged_computedMethodCall()
+func (c *OptimizeParametersTest) TestNoRewriteTagged_computedMethodCall() {
+	c.TestSame(
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+alert((0, k['m'])` + "`x`" + ` === void 0);
+alert(k['m']` + "`x`" + ` === k);
+`)
+}
+
+// Java: OptimizeParametersTest.testRewriteTagged_preservesFreeCallOnMethod()
+func (c *OptimizeParametersTest) TestRewriteTagged_preservesFreeCallOnMethod() {
+	c.Test(
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+alert((0, k.m)`+"`x`"+` === void 0);
+`,
+		`class K {
+  m() {
+    [];
+    return this;
+  }
+}
+const k = new K();
+alert((0, k.m)() === void 0);
+`)
+
+	c.Test(
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+(0, k.m)`+"`x${1}${alert()}`"+`;
+k.m();
+`,
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+(0, k.m)(alert());
+k.m();
+`)
+
+	c.Test(
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+alert((0, k?.m)`+"`x`"+` === void 0);
+`,
+		`class K {
+  m() {
+    [];
+    return this;
+  }
+}
+const k = new K();
+alert((0, k?.m)() === void 0);
+`)
+}
+
+// Java: OptimizeParametersTest.testRewriteTagged_preservesBoundThisOnMethod()
+func (c *OptimizeParametersTest) TestRewriteTagged_preservesBoundThisOnMethod() {
+	c.Test(
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+alert(k.m`+"`x`"+` === k);
+`,
+		`class K {
+  m() {
+    [];
+    return this;
+  }
+}
+const k = new K();
+alert(k.m() === k);
+`)
+
+	c.Test(
+		`class K {
+  m() {
+    return this;
+  }
+}
+const k = new K();
+alert((k?.m)`+"`x`"+` === k);
+`,
+		`class K {
+  m() {
+    [];
+    return this;
+  }
+}
+const k = new K();
+alert((k?.m)() === k);
+`)
 }
 
 // Java: OptimizeParametersTest.testSuperInvocation_preventsParamInlining_whenImplicit()

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/JsFileFullParserTest.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/deps/JsFileFullParserTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2019 The Closure Compiler Authors.

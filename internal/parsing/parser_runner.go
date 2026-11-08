@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/parsing/ParserRunner.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/ParserConfiguration.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/ParsingUtil.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/ParserRunner.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/ParserConfiguration.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/ParsingUtil.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -263,7 +263,7 @@ func ParserRunner_ParseWithAllocator(
 		root, factoryFeatures = irFactoryTransformTreePooled(
 			tree, sourceFile, config, errorReporter, file, alloc)
 		features = features.Union(factoryFeatures)
-		root.PutProp(rhino.Node_FEATURE_SET, features)
+		root.SetFeatureSet(features)
 
 		if config.JsDocParsingMode().ShouldParseDescriptions() {
 			comments = p.GetComments()

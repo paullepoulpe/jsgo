@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -642,7 +642,7 @@ func (o *CompilerOptions) String() string {
 	h.Add("maxFunctionSizeAfterInlining", o.maxFunctionSizeAfterInlining) // add(String, int): never omitted
 	h.Add("messageBundle", compilerOptions_valueOf(o.messageBundle))
 	h.Add("moduleRoots", compilerOptions_valueOf(o.moduleRoots))
-	h.Add("nameGenerator", compilerOptions_valueOf(o.nameGenerator))
+	h.Add("nameGenerator", compilerOptions_javaClassName(o.nameGenerator))
 	h.Add("numParallelThreads", o.numParallelThreads) // add(String, int): never omitted
 	h.AddBool("optimizeCalls", o.optimizeCalls)
 	h.AddBool("optimizeESClassConstructors", o.optimizeESClassConstructors)
@@ -804,8 +804,24 @@ func compilerOptions_isNil(value any) bool {
 		return v == nil
 	case *ComposeWarningsGuard:
 		return v == nil
+	case *DefaultNameGenerator:
+		return v == nil
+	case *RandomNameGenerator:
+		return v == nil
 	}
 	return false
+}
+
+func compilerOptions_javaClassName(value any) any {
+	if compilerOptions_isNil(value) {
+		return nil
+	}
+	typeName := fmt.Sprintf("%T", value)
+	typeName = strings.TrimPrefix(typeName, "*")
+	if dot := strings.LastIndexByte(typeName, '.'); dot >= 0 {
+		typeName = typeName[dot+1:]
+	}
+	return "com.google.javascript.jscomp." + strings.ReplaceAll(typeName, "_", "$")
 }
 
 // compilerOptions_optional is a present or absent Guava Optional.

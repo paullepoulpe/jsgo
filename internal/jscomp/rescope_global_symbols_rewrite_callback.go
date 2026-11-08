@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RescopeGlobalSymbolsRewriteCallback.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RescopeGlobalSymbolsRewriteCallback.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -28,8 +28,6 @@ import (
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
-const rescopeDisambiguationSuffix = "$"
-
 type rescopeChunkGlobal struct {
 	root rhino.Node
 	name rhino.Node
@@ -37,21 +35,21 @@ type rescopeChunkGlobal struct {
 
 // rescopeRewriteCallback is the node traversal callback to rewrite global
 // symbols as part of the RescopeGlobalSymbols pass.
+//
+// Java: RescopeGlobalSymbolsRewriteCallback
 type rescopeRewriteCallback struct {
-	compiler              AbstractCompiler
-	globalSymbolNamespace string
-	disambigPrefix        string
-	assumeCrossChunkNames bool
-	optimizeLocalAccess   CompilerOptions_OptimizeLocalAccess
-	externNames           map[strpool.ID]struct{}
-	symbolInfo            *rescopeSymbolInfo
+	compiler            AbstractCompiler
+	optimizeLocalAccess CompilerOptions_OptimizeLocalAccess
+	symbolInfo          *rescopeSymbolInfo
+	renameHelper        rescopeRenameHelper
 
 	preDeclarations []rescopeChunkGlobal
 	lhsScratch      []rhino.Node
 
 	localAliasesForUnwrappedCrossChunkNames map[*JSChunk]*OrderedSet[string]
 	chunksUsingCrossChunkSymbols            map[string]*OrderedSet[*JSChunk]
-	wrappedCrossChunkNames                  OrderedSet[string]
+	chunksUsingWrappedReassignableSymbols   map[string]*OrderedSet[*JSChunk]
+	chunksRequiringWrapperInitialization    map[string]*OrderedSet[*JSChunk]
 }
 
 var (
@@ -64,40 +62,20 @@ func (*rescopeRewriteCallback) onlyNameLeaves()            {}
 
 func newRescopeRewriteCallback(
 	compiler AbstractCompiler,
-	globalSymbolNamespace string,
-	assumeCrossChunkNames bool,
 	optimizeLocalAccess CompilerOptions_OptimizeLocalAccess,
-	externs rhino.Node,
-	symbolInfo *rescopeSymbolInfo) *rescopeRewriteCallback {
-	c := &rescopeRewriteCallback{
-		compiler:              compiler,
-		globalSymbolNamespace: globalSymbolNamespace,
-		disambigPrefix:        globalSymbolNamespace + rescopeDisambiguationSuffix,
-		assumeCrossChunkNames: assumeCrossChunkNames,
-		optimizeLocalAccess:   optimizeLocalAccess,
-		externNames:           collectExternVariableNameIDs(compiler, externs),
-		symbolInfo:            symbolInfo,
+	symbolInfo *rescopeSymbolInfo,
+	renameHelper rescopeRenameHelper,
+) *rescopeRewriteCallback {
+	return &rescopeRewriteCallback{
+		compiler:            compiler,
+		optimizeLocalAccess: optimizeLocalAccess,
+		symbolInfo:          symbolInfo,
+		renameHelper:        renameHelper,
 	}
-	c.collectWrappedCrossChunkNames()
-	return c
 }
 
 func (c *rescopeRewriteCallback) isCrossChunkName(name string) bool {
-	if c.assumeCrossChunkNames {
-		return true
-	}
-	if _, ok := c.symbolInfo.crossChunkNames[name]; ok {
-		return true
-	}
-	return c.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false)
-}
-
-func (c *rescopeRewriteCallback) isExternName(name string) bool {
-	if id := strpool.Lookup(name); id > strpool.EmptyID {
-		_, ok := c.externNames[id]
-		return ok
-	}
-	return false
+	return c.symbolInfo.crossChunkNames.Has(name)
 }
 
 func (c *rescopeRewriteCallback) isExternVar(id strpool.ID, scope *Scope) bool {
@@ -115,31 +93,10 @@ func (c *rescopeRewriteCallback) isExternVarResolved(id strpool.ID, v *Var) bool
 		return true
 	}
 	if v.IsGlobal() {
-		_, ok := c.externNames[id]
+		_, ok := c.symbolInfo.externNameIDs[id]
 		return ok
 	}
 	return false
-}
-
-func (c *rescopeRewriteCallback) collectWrappedCrossChunkNames() {
-	if !c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
-		return
-	}
-	for name := range c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.All() {
-		if !c.isExternName(name) {
-			c.wrappedCrossChunkNames.Add(name)
-		}
-	}
-	for name := range c.symbolInfo.crossChunkNamesUsedInNonDependentChunk.All() {
-		if !c.isExternName(name) {
-			c.wrappedCrossChunkNames.Add(name)
-		}
-	}
-	for name := range c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.All() {
-		if c.isCrossChunkName(name) && !c.isExternName(name) {
-			c.wrappedCrossChunkNames.Add(name)
-		}
-	}
 }
 
 func (c *rescopeRewriteCallback) ShouldTraverse(t *NodeTraversal, n rhino.Node, parent rhino.Node) bool {
@@ -191,61 +148,92 @@ func (c *rescopeRewriteCallback) globalVarStaysLocalInDefiningChunk(id strpool.I
 	if !c.optimizeLocalAccess.ShouldOptimize() {
 		return false
 	}
+	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() &&
+		c.symbolInfo.wrappedCrossChunkNames.Has(name) {
+		return c.renameHelper.hasUnwrappedLocalNameInDefiningChunk(name)
+	}
 	_, readInDefining := c.symbolInfo.globalNamesWithReadInDefiningChunk[name]
-	return !c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(name) &&
-		!c.wrappedCrossChunkNames.Has(name) &&
-		readInDefining
+	return !c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(name) && readInDefining
 }
 
 func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 	t *NodeTraversal, scope *Scope, declaration rhino.Node, allLhsNodes []rhino.Node, isGlobalDeclaration bool) {
 	input := t.GetInput()
-	preserveLocal := c.optimizeLocalAccess.ShouldPreserveLocalVarDeclarations() &&
-		!NodeUtil_IsAnyFor(declaration.GetParent())
-
 	var astRoot rhino.Node
-	recordLocalPreDecl := func(lhs rhino.Node) {
+	maybeAddPreDeclaration := func(lhs rhino.Node) {
 		id := nodeStringID(lhs)
 		name := lhs.GetString()
 		if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
+			localName := c.renameHelper.getLocalNameInDefiningChunk(name, isGlobalDeclaration)
 			if astRoot.IsNil() {
 				astRoot = input.GetAstRoot(c.compiler)
 			}
 			c.preDeclarations = append(c.preDeclarations,
-				rescopeChunkGlobal{root: astRoot, name: rhino.IR_Name(name).Srcref(lhs)})
+				rescopeChunkGlobal{root: astRoot, name: rhino.IR_Name(localName).Srcref(lhs)})
 		}
 	}
 
-	if preserveLocal {
+	if c.optimizeLocalAccess.ShouldPreserveLocalVarDeclarations() &&
+		!NodeUtil_IsAnyFor(declaration.GetParent()) {
+		changed := false
 		if isGlobalDeclaration &&
 			!declaration.IsVar() &&
-			c.containsRescopedOrInitializedVars(declaration, isGlobalDeclaration) {
+			c.containsNonLocalOrInitializedVars(scope, declaration, isGlobalDeclaration) {
 			declaration.SetToken(rhino.Token_VAR)
+			changed = true
 		}
-	} else if !c.optimizeLocalAccess.ShouldOptimize() ||
-		c.containsRescopedOrInitializedVars(declaration, isGlobalDeclaration) {
+		for decl := range ast.ReadAhead(ast.MustNameDeclaration(declaration).FirstDeclarator()) {
+			if nameDecl, ok := decl.AsName(); ok {
+				id := nodeStringID(nameDecl.Node())
+				if !c.globalVarStaysLocalInDefiningChunk(id, nameDecl.Ident(), scope) {
+					if init, hasInit := nameDecl.Init(); hasInit {
+						assign := rhino.IR_Assign(nameDecl.Node().CloneNode(), init.Detach().Node())
+						nameDecl.Node().ReplaceWith(assign)
+						assign.SetJSDocInfo(declaration.GetJSDocInfo())
+						changed = true
+					} else if c.isExternVar(id, scope) {
+						nameDecl.Detach()
+						changed = true
+					}
+				}
+			} else if dlhs, ok := decl.AsDestructuringLhs(); ok {
+				NodeUtil_VisitLhsNodesInNode(dlhs.Node(), maybeAddPreDeclaration)
+				pattern := dlhs.Pattern().Node()
+				init, hasInit := dlhs.Init()
+				if !hasInit {
+					panic(jutil.NewIllegalStateExceptionMsg(
+						"DESTRUCTURING_LHS should have two children: " + declaration.ToStringTree()))
+				}
+				rhs := init.Node()
+				pattern.Detach()
+				rhs.Detach()
+				assign := rhino.IR_Assign(pattern, rhs)
+				dlhs.Node().ReplaceWith(assign)
+				assign.SetJSDocInfo(declaration.GetJSDocInfo())
+				changed = true
+			}
+		}
+		if changed {
+			c.compiler.ReportChangeToEnclosingScope(declaration)
+		}
+		return
+	}
+
+	if !c.optimizeLocalAccess.ShouldOptimize() ||
+		c.containsNonLocalOrInitializedVars(scope, declaration, isGlobalDeclaration) {
 		for _, lhs := range allLhsNodes {
-			recordLocalPreDecl(lhs)
+			maybeAddPreDeclaration(lhs)
 		}
 	}
 
 	for decl := range ast.ReadAhead(ast.MustNameDeclaration(declaration).FirstDeclarator()) {
 		if nameDecl, ok := decl.AsName(); ok {
-			id := nodeStringID(nameDecl.Node())
-			if preserveLocal && c.globalVarStaysLocalInDefiningChunk(id, nameDecl.Ident(), scope) {
-				continue
-			}
 			if init, hasInit := nameDecl.Init(); hasInit {
 				assign := rhino.IR_Assign(nameDecl.Node().CloneNode(), init.Detach().Node())
 				nameDecl.Node().ReplaceWith(assign)
 				assign.SetJSDocInfo(declaration.GetJSDocInfo())
-			} else if preserveLocal && c.isExternVar(id, scope) {
-				nameDecl.Detach()
 			}
 		} else if dlhs, ok := decl.AsDestructuringLhs(); ok {
-			if preserveLocal {
-				NodeUtil_VisitLhsNodesInNode(dlhs.Node(), recordLocalPreDecl)
-			}
 			pattern := dlhs.Pattern().Node()
 			init, hasInit := dlhs.Init()
 			if !hasInit {
@@ -267,19 +255,15 @@ func (c *rescopeRewriteCallback) rewriteNameDeclaration(
 	c.compiler.ReportChangeToEnclosingScope(declaration)
 }
 
-func (c *rescopeRewriteCallback) containsRescopedOrInitializedVars(declaration rhino.Node, isGlobalDeclaration bool) bool {
-	for decl := range ast.MustNameDeclaration(declaration).Declarators() {
-		if name, ok := decl.AsName(); ok {
-			ident := name.Ident()
-			if isGlobalDeclaration &&
-				(c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(ident) ||
-					c.wrappedCrossChunkNames.Has(ident)) {
-				return true
-			}
-			if _, hasInit := name.Init(); hasInit {
-				return true
-			}
-		} else if _, ok := decl.AsDestructuringLhs(); ok {
+func (c *rescopeRewriteCallback) containsNonLocalOrInitializedVars(
+	scope *Scope, declaration rhino.Node, isGlobalDeclaration bool) bool {
+	for child := declaration.GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+		if isGlobalDeclaration &&
+			child.IsName() &&
+			!c.globalVarStaysLocalInDefiningChunk(nodeStringID(child), child.GetString(), scope) {
+			return true
+		}
+		if child.HasChildren() || child.IsDestructuringLhs() {
 			return true
 		}
 	}
@@ -298,15 +282,16 @@ func (c *rescopeRewriteCallback) ensureLocalAliasesForChunk(chunk *JSChunk) *Ord
 	return s
 }
 
-func (c *rescopeRewriteCallback) ensureChunksUsingCrossChunkSymbol(name string) *OrderedSet[*JSChunk] {
-	if s, ok := c.chunksUsingCrossChunkSymbols[name]; ok {
-		return s
-	}
-	if c.chunksUsingCrossChunkSymbols == nil {
-		c.chunksUsingCrossChunkSymbols = make(map[string]*OrderedSet[*JSChunk])
+func ensureChunkSetForSymbol(m *map[string]*OrderedSet[*JSChunk], name string) *OrderedSet[*JSChunk] {
+	if *m != nil {
+		if s, ok := (*m)[name]; ok {
+			return s
+		}
+	} else {
+		*m = make(map[string]*OrderedSet[*JSChunk])
 	}
 	s := &OrderedSet[*JSChunk]{}
-	c.chunksUsingCrossChunkSymbols[name] = s
+	(*m)[name] = s
 	return s
 }
 
@@ -315,20 +300,17 @@ func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, paren
 	if parent.IsFunction() && id <= strpool.EmptyID {
 		return
 	}
+	scope := t.GetScope()
 	var var_ *Var
 	if id > strpool.EmptyID {
-		var_ = t.GetScope().GetVarByID(uint32(id))
+		var_ = scope.GetVarByID(uint32(id))
 		if c.isExternVarResolved(id, var_) {
 			return
 		}
 	}
 
 	name := n.GetString()
-	if !var_.IsGlobal() &&
-		(name == c.globalSymbolNamespace || strings.HasPrefix(name, c.disambigPrefix)) {
-		n.SetString(name + rescopeDisambiguationSuffix)
-		c.compiler.ReportChangeToEnclosingScope(n)
-	}
+	c.renameHelper.maybeDisambiguateLocalVar(n, var_)
 
 	if !(var_.IsGlobal() && c.isCrossChunkName(name)) {
 		return
@@ -336,29 +318,29 @@ func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, paren
 
 	currentChunk := t.GetChunk()
 	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
-		c.ensureChunksUsingCrossChunkSymbol(name).Add(currentChunk)
-	}
-
-	if c.wrappedCrossChunkNames.Has(name) {
-		replacement := rhino.IR_Getprop(rhino.IR_Name(name), "_")
-		c.replaceSymbol(n, name, replacement)
-		return
+		ensureChunkSetForSymbol(&c.chunksUsingCrossChunkSymbols, name).Add(currentChunk)
 	}
 
 	if c.optimizeLocalAccess.ShouldOptimize() &&
 		!c.symbolInfo.crossChunkNamesWithWriteFromOtherChunk.Has(name) {
 		definingChunk := var_.GetInput().GetChunk()
 		if currentChunk == definingChunk {
-			if _, readInDefining := c.symbolInfo.globalNamesWithReadInDefiningChunk[name]; readInDefining {
-				if NodeUtil_IsLValue(n) && (!NodeUtil_IsNameDeclaration(parent) || n.HasChildren()) {
-					c.addGlobalNamespaceAlias(n, name)
+			if c.globalVarStaysLocalInDefiningChunk(id, name, scope) {
+				localName := c.renameHelper.maybeRenameGlobalInDefiningChunk(n)
+				if NodeUtil_IsLValueWrite(n) {
+					c.addGlobalNamespaceAlias(n, name, localName, currentChunk)
 				}
 				return
 			}
-			replacement := rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name)
-			c.replaceSymbol(n, name, replacement)
-			return
-		} else if c.optimizeLocalAccess.ShouldOptimizeAllChunks() {
+			if !c.optimizeLocalAccess.ShouldWrapReassignableSymbols() ||
+				!c.symbolInfo.wrappedCrossChunkNames.Has(name) {
+				replacement := rhino.IR_Getprop(rhino.IR_Name(c.symbolInfo.globalSymbolNamespace), name)
+				c.replaceSymbol(n, name, replacement)
+				return
+			}
+		} else if c.optimizeLocalAccess.ShouldOptimizeAllChunks() &&
+			(!c.optimizeLocalAccess.ShouldWrapReassignableSymbols() ||
+				!c.symbolInfo.wrappedCrossChunkNames.Has(name)) {
 			if !c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.Has(name) &&
 				c.compiler.GetChunkGraph().DependsOn(currentChunk, definingChunk) {
 				c.ensureLocalAliasesForChunk(currentChunk).Add(name)
@@ -367,14 +349,19 @@ func (c *rescopeRewriteCallback) visitName(t *NodeTraversal, n rhino.Node, paren
 		}
 	}
 
-	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
-		panic(jutil.NewIllegalStateExceptionMsg(
-			"Unexpected unaliased cross-chunk symbol under" +
-				" ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS: " +
-				name))
+	if !c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
+		replacement := rhino.IR_Getprop(rhino.IR_Name(c.symbolInfo.globalSymbolNamespace), name)
+		c.replaceSymbol(n, name, replacement)
+		return
 	}
 
-	replacement := rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name)
+	jutil.CheckStateMsg1(
+		c.symbolInfo.wrappedCrossChunkNames.Has(name),
+		"Unexpected unaliased cross-chunk symbol under ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS: %s",
+		name)
+	ensureChunkSetForSymbol(&c.chunksUsingWrappedReassignableSymbols, name).Add(currentChunk)
+	ensureChunkSetForSymbol(&c.chunksRequiringWrapperInitialization, name).Add(currentChunk)
+	replacement := rhino.IR_Getprop(rhino.IR_Name(name), "_")
 	c.replaceSymbol(n, name, replacement)
 }
 
@@ -391,32 +378,83 @@ func (c *rescopeRewriteCallback) replaceSymbol(node rhino.Node, name string, rep
 	c.compiler.ReportChangeToEnclosingScope(parent)
 }
 
-func (c *rescopeRewriteCallback) addGlobalNamespaceAlias(n rhino.Node, name string) {
+func (c *rescopeRewriteCallback) addGlobalNamespaceAlias(
+	n rhino.Node, name string, localName string, currentChunk *JSChunk) {
 	stmt := NodeUtil_GetEnclosingStatement(n)
 	if stmt.IsNil() {
 		return
 	}
+	globalTarget := rhino.IR_Getprop(rhino.IR_Name(c.symbolInfo.globalSymbolNamespace), name)
+	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() &&
+		c.symbolInfo.wrappedCrossChunkNames.Has(name) {
+		ensureChunkSetForSymbol(&c.chunksRequiringWrapperInitialization, name).Add(currentChunk)
+		globalTarget = rhino.IR_Getprop(globalTarget, "_")
+	}
 	parent := n.GetParent()
 	if assign, ok := ast.AsAssign(parent); ok && assign.Target().Is(n) {
 		rhs := assign.Value().Detach().Node()
-		globalNamespaceAssign := rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), rhs)
+		globalNamespaceAssign := rhino.IR_Assign(globalTarget, rhs)
 		globalNamespaceAssign.SrcrefTree(n)
 		parent.AddChildToBack(globalNamespaceAssign)
 		c.compiler.ReportChangeToEnclosingScope(parent)
 	} else if NodeUtil_IsNameDeclaration(parent) {
+		jutil.CheckStateMsg1(n.HasChildren(), "Expected initialized declaration for %s", n)
 		init, _ := ast.MustName(n).Init()
-		globalNamespaceAssign := rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), init.Detach().Node())
+		globalNamespaceAssign := rhino.IR_Assign(globalTarget, init.Detach().Node())
 		globalNamespaceAssign.SrcrefTree(n)
 		n.AddChildToBack(globalNamespaceAssign)
 		c.compiler.ReportChangeToEnclosingScope(n)
-	} else {
-		globalNamespaceAssign := rhino.IR_Assign(
-			rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), rhino.IR_Name(name))
+	} else if c.optimizeLocalAccess.ShouldRewriteCompoundAndIncrementWritesInPlace() &&
+		NodeUtil_IsCompoundAssignmentOp(parent) &&
+		parent.GetFirstChild() == n {
+		placeholder := rhino.IR_Empty()
+		parent.ReplaceWith(placeholder)
+		globalNamespaceAssign := rhino.IR_Assign(globalTarget.SrcrefTree(n), parent).Srcref(n)
+		placeholder.ReplaceWith(globalNamespaceAssign)
+		c.compiler.ReportChangeToEnclosingScope(globalNamespaceAssign)
+	} else if c.optimizeLocalAccess.ShouldRewriteCompoundAndIncrementWritesInPlace() &&
+		(parent.IsInc() || parent.IsDec()) {
+		if !parent.GetBooleanProp(rhino.Node_INCRDECR_PROP) {
+			placeholder := rhino.IR_Empty()
+			parent.ReplaceWith(placeholder)
+			globalNamespaceAssign := rhino.IR_Assign(globalTarget.SrcrefTree(n), parent).Srcref(n)
+			placeholder.ReplaceWith(globalNamespaceAssign)
+			c.compiler.ReportChangeToEnclosingScope(globalNamespaceAssign)
+		} else {
+			placeholder := rhino.IR_Empty()
+			parent.ReplaceWith(placeholder)
+			var globalUpdate rhino.Node
+			if parent.IsInc() {
+				globalUpdate = rhino.IR_Inc(globalTarget, false).SrcrefTree(n)
+			} else {
+				globalUpdate = rhino.IR_Dec(globalTarget, false).SrcrefTree(n)
+			}
+			comma := rhino.IR_Comma(globalUpdate, parent).Srcref(n)
+			placeholder.ReplaceWith(comma)
+			c.compiler.ReportChangeToEnclosingScope(comma)
+		}
+	} else if !c.optimizeLocalAccess.ShouldRewriteCompoundAndIncrementWritesInPlace() ||
+		rescopeIsSafeDestructuringWrite(n, stmt) {
+		globalNamespaceAssign := rhino.IR_Assign(globalTarget, rhino.IR_Name(localName))
 		aliasStatement := rhino.IR_ExprResult(globalNamespaceAssign)
 		aliasStatement.SrcrefTree(n)
 		aliasStatement.InsertAfter(stmt)
 		c.compiler.ReportChangeToEnclosingScope(stmt.GetParent())
+	} else {
+		panic(jutil.NewIllegalStateExceptionMsg("Unexpected unsafe write to local alias: " + n.String()))
 	}
+}
+
+func rescopeIsSafeDestructuringWrite(n rhino.Node, stmt rhino.Node) bool {
+	if !NodeUtil_IsLhsByDestructuring(n) || !NodeUtil_IsStatementBlock(stmt.GetParent()) {
+		return false
+	}
+	rootTarget := NodeUtil_GetRootTarget(n)
+	rootTargetParent := rootTarget.GetParent()
+	if !rootTargetParent.IsAssign() || rootTargetParent.GetParent() != stmt {
+		return false
+	}
+	return stmt.IsExprResult() || NodeUtil_IsNameDeclaration(stmt)
 }
 
 func (c *rescopeRewriteCallback) addDeclarations() {
@@ -447,14 +485,14 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappers() {
 	defaultRootChunk := chunks[0]
 
 	var wrapperAssignmentChunks map[string]*JSChunk
-	if !c.wrappedCrossChunkNames.IsEmpty() {
-		wrapperAssignmentChunks = make(map[string]*JSChunk, c.wrappedCrossChunkNames.Len())
-		for name := range c.wrappedCrossChunkNames.All() {
-			usingChunks := c.chunksUsingCrossChunkSymbols[name]
-			if usingChunks.IsEmpty() {
+	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() && !c.symbolInfo.wrappedCrossChunkNames.IsEmpty() {
+		wrapperAssignmentChunks = make(map[string]*JSChunk, c.symbolInfo.wrappedCrossChunkNames.Len())
+		for name := range c.symbolInfo.wrappedCrossChunkNames.All() {
+			chunksRequiringWrapper := c.chunksRequiringWrapperInitialization[name]
+			if chunksRequiringWrapper.IsEmpty() {
 				wrapperAssignmentChunks[name] = defaultRootChunk
 			} else {
-				wrapperAssignmentChunks[name] = chunkGraph.GetDeepestCommonDependencyInclusiveOfCollection(usingChunks.ToSlice())
+				wrapperAssignmentChunks[name] = chunkGraph.GetDeepestCommonDependencyInclusiveOfCollection(chunksRequiringWrapper.ToSlice())
 			}
 		}
 	}
@@ -494,17 +532,18 @@ func (c *rescopeRewriteCallback) getCleanupHelperPropertyName() string {
 
 func (c *rescopeRewriteCallback) declareCleanupHelper(cleanupHelperName string) {
 	script := c.compiler.GetNodeForCodeInsertion(nil)
+	globalSymbolNamespace := c.symbolInfo.globalSymbolNamespace
 	paramName := "a"
-	if c.globalSymbolNamespace == "a" {
+	if globalSymbolNamespace == "a" {
 		paramName = "b"
 	}
 	loopVar := "c"
-	if paramName != "b" && c.globalSymbolNamespace != "b" {
+	if paramName != "b" && globalSymbolNamespace != "b" {
 		loopVar = "b"
 	}
 	splitCall := rhino.IR_Call(rhino.IR_Getprop(rhino.IR_Name(paramName), "split"), rhino.IR_String(","))
 	deleteStmt := rhino.IR_ExprResult(
-		rhino.IR_Delprop(rhino.IR_Getelem(rhino.IR_Name(c.globalSymbolNamespace), rhino.IR_Name(loopVar))))
+		rhino.IR_Delprop(rhino.IR_Getelem(rhino.IR_Name(globalSymbolNamespace), rhino.IR_Name(loopVar))))
 	forOf := rhino.NewNodeWith3Children(
 		rhino.Token_FOR_OF,
 		rhino.IR_Let(rhino.IR_Name(loopVar)),
@@ -515,7 +554,7 @@ func (c *rescopeRewriteCallback) declareCleanupHelper(cleanupHelperName string) 
 		rhino.IR_ParamList(rhino.IR_Name(paramName)),
 		rhino.IR_BlockOfNode(forOf))
 	helperDecl := rhino.IR_ExprResult(
-		rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), cleanupHelperName), helperFn))
+		rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), cleanupHelperName), helperFn))
 	rescopeAddDeclaration(script, script.GetFirstChild(), helperDecl)
 	NodeUtil_MarkNewScopesChanged(helperFn, c.compiler)
 	NodeUtil_AddFeatureToScript(script, parser.FeatureSet_Feature_FOR_OF, c.compiler)
@@ -539,15 +578,16 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappersForChunk(
 	insertionPoint := script.GetFirstChild()
 	changed := false
 	usedCleanupHelper := false
+	globalSymbolNamespace := c.symbolInfo.globalSymbolNamespace
 
 	for name := range c.localAliasesForUnwrappedCrossChunkNames[chunk].All() {
 		allLocalAliases = append(allLocalAliases, name)
 	}
 
 	if c.optimizeLocalAccess.ShouldWrapReassignableSymbols() {
-		for name := range c.wrappedCrossChunkNames.All() {
+		for name := range c.symbolInfo.wrappedCrossChunkNames.All() {
 			assignmentChunk := wrapperAssignmentChunks[name]
-			usingChunks := c.chunksUsingCrossChunkSymbols[name]
+			usingChunks := c.chunksUsingWrappedReassignableSymbols[name]
 			usedHere := usingChunks.Has(chunk)
 			if chunk == assignmentChunk {
 				if usedHere {
@@ -556,13 +596,13 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappersForChunk(
 						insertionPoint,
 						rhino.IR_VarWithValue(
 							rhino.IR_Name(name),
-							rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), rhino.IR_Objectlit())))
+							rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), name), rhino.IR_Objectlit())))
 				} else {
 					rescopeAddDeclaration(
 						script,
 						insertionPoint,
 						rhino.IR_ExprResult(
-							rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name), rhino.IR_Objectlit())))
+							rhino.IR_Assign(rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), name), rhino.IR_Objectlit())))
 				}
 				changed = true
 			} else if usedHere {
@@ -596,12 +636,12 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappersForChunk(
 				objectPattern.AddChildToBack(stringKey)
 			}
 			rescopeAddDeclaration(
-				script, insertionPoint, rhino.IR_VarWithValue(objectPattern, rhino.IR_Name(c.globalSymbolNamespace)))
+				script, insertionPoint, rhino.IR_VarWithValue(objectPattern, rhino.IR_Name(globalSymbolNamespace)))
 			NodeUtil_AddFeatureToScript(script, parser.FeatureSet_Feature_OBJECT_DESTRUCTURING, c.compiler)
 			if len(aliasesToDelete) > 0 {
 				cleanupCall := rhino.IR_ExprResult(
 					rhino.IR_Call(
-						rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), cleanupHelperName),
+						rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), cleanupHelperName),
 						rhino.IR_String(strings.Join(aliasesToDelete, ","))))
 				rescopeAddDeclaration(script, insertionPoint, cleanupCall)
 				usedCleanupHelper = true
@@ -611,17 +651,17 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappersForChunk(
 				rescopeAddDeclaration(
 					script,
 					insertionPoint,
-					rhino.IR_VarWithValue(rhino.IR_Name(name), rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name)))
+					rhino.IR_VarWithValue(rhino.IR_Name(name), rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), name)))
 			}
 			for _, name := range aliasesToDelete {
 				rescopeAddDeclaration(
 					script,
 					insertionPoint,
-					rhino.IR_VarWithValue(rhino.IR_Name(name), rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name)))
+					rhino.IR_VarWithValue(rhino.IR_Name(name), rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), name)))
 				rescopeAddDeclaration(
 					script,
 					insertionPoint,
-					rhino.IR_ExprResult(rhino.IR_Delprop(rhino.IR_Getprop(rhino.IR_Name(c.globalSymbolNamespace), name))))
+					rhino.IR_ExprResult(rhino.IR_Delprop(rhino.IR_Getprop(rhino.IR_Name(globalSymbolNamespace), name))))
 			}
 		}
 		changed = true
@@ -635,6 +675,10 @@ func (c *rescopeRewriteCallback) declareLocalAliasesAndWrappersForChunk(
 
 func (c *rescopeRewriteCallback) canDeleteFromGlobalNamespace(currentChunk *JSChunk, name string) bool {
 	if c.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false) {
+		return false
+	}
+	if c.renameHelper.hasUnwrappedLocalNameInDefiningChunk(name) &&
+		c.symbolInfo.globalNamesWithInnerScopeWriteInDefiningChunk.Has(name) {
 		return false
 	}
 	usingChunks := c.chunksUsingCrossChunkSymbols[name]

@@ -5,7 +5,7 @@ ERROR 1:16@44 "Hex digit expected"
 ERROR 2:16@65 "Invalid escape sequence"
 ERROR 3:16@85 "Invalid escape sequence"
 ERROR 4:18@106 "Hex digit expected"
-WARNING 5:18@127 "Unnecessary escape: '\\q' is equivalent to just 'q'"
+ERROR 5:26@135 "Invalid escape sequence"
 ERROR 6:15@160 "Hex digit expected"
 # features "[]"
 # sourceMapURL null
@@ -114,9 +114,9 @@ ProgramTree PROGRAM 0:0@0-7:0@165
        elements=[1]
         TemplateLiteralPortionTree TEMPLATE_LITERAL_PORTION 5:10@119-5:34@143
          value=TemplateLiteralToken NO_SUBSTITUTION_TEMPLATE 5:10@119-5:34@143
-          errorLevel=WARNING
-          errorMessage="Unnecessary escape: '\\q' is equivalent to just 'q'"
-          errorPosition=5:18@127
+          errorLevel=ERROR
+          errorMessage="Invalid escape sequence"
+          errorPosition=5:26@135
           value="first \\q then \\1 second"
        operand=null
       lvalue=IdentifierExpressionTree IDENTIFIER_EXPRESSION 5:4@113-5:6@115

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/regex/CharRangesTest.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/regex/CharRangesTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

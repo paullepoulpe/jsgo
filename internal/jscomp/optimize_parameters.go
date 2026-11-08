@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/OptimizeParameters.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/OptimizeParameters.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -461,7 +461,10 @@ func (o *OptimizeParameters) convertTaggedTemplateLiteralToNormalCall(ttl ast.Ta
 	tpl := ttl.Template()
 	firstArg := rhino.IR_Arraylit().Srcref(tpl.Node())
 	callee.Detach()
-	callNode := NodeUtil_NewCallNode(callee.Node(), firstArg).Srcref(ttl.Node())
+	callNode := rhino.IR_Call(callee.Node(), firstArg).Srcref(ttl.Node())
+	callNode.PutBooleanProp(
+		rhino.Node_FREE_CALL,
+		ttl.Node().GetBooleanProp(rhino.Node_FREE_CALL) || !NodeUtil_IsNormalOrOptChainGet(callee.Node()))
 	for part := range ast.ReadAhead(tpl.FirstPart()) {
 		if sub, ok := part.AsTemplateLitSub(); ok {
 			arg := sub.Expr().Detach().Node()

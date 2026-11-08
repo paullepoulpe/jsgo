@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/JSChunk.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/JSChunk.java @ closure-compiler v20261104
 
 /*
  * Copyright 2005 The Closure Compiler Authors.

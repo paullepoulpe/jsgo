@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkCodeMotion.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CrossChunkCodeMotion.java @ closure-compiler v20261104
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -199,10 +199,17 @@ type cccmSymbolCollector struct {
 
 // Java: CrossChunkCodeMotion.GlobalSymbolCollector.collectGlobalSymbols(CrossChunkReferenceCollector)
 func (g *cccmSymbolCollector) collectGlobalSymbols(referenceCollector *CrossChunkReferenceCollector) []*cccmGlobalSymbol {
-	if n := len(referenceCollector.vars); n > 0 && len(g.symbolStack) == 0 {
+	rcVars := referenceCollector.referenceCollector.vars
+	if n := len(rcVars); n > 0 && len(g.symbolStack) == 0 {
 		g.symbolStack = make([]*cccmGlobalSymbol, 0, n)
 	}
-	if maxIdx := referenceCollector.maxVarIndex; maxIdx >= 0 && maxIdx < 1_000_000 {
+	maxIdx := -1
+	for _, v := range rcVars {
+		if idx := v.GetIndex(); idx > maxIdx {
+			maxIdx = idx
+		}
+	}
+	if maxIdx >= 0 && maxIdx < 1_000_000 {
 		g.symbolsByVarIndex = make([]*cccmGlobalSymbol, maxIdx+1)
 	}
 	for _, statement := range referenceCollector.GetTopLevelStatements() {

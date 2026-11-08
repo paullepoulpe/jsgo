@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/ijs/ClassUtil.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ijs/ConvertToTypedInterface.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/ijs/FileInfo.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/ijs/ClassUtil.java @ closure-compiler v20261104
 
 /*
  * Copyright 2016 The Closure Compiler Authors.
@@ -154,9 +154,14 @@ func (c *ConvertToTypedInterface) Process(externs rhino.Node, root rhino.Node) {
 	}
 	for item := range ast.ReadAhead(rootView.FirstItem()) {
 		if script, isScript := item.AsScript(); isScript {
-			sourceFileName, _ := script.Node().SourceFileName()
+			scriptNode := script.Node()
+			sourceFileName, _ := scriptNode.SourceFileName()
 			if AbstractCompiler_IsFillFileName(sourceFileName) {
 				script.Detach()
+				if c.compiler != nil {
+					c.compiler.ReportChangeToChangeScope(scriptNode)
+				}
+				scriptNode.SetDeleted(true)
 			}
 		}
 	}
@@ -992,6 +997,11 @@ func isThisPropInsideNamedClass(maybeGetProp rhino.Node) bool {
 func classNameOfThisProp(getprop rhino.Node) (string, bool) {
 	gp, ok := ast.AsGetProp(getprop)
 	if !ok || !gp.Object().Node().IsThis() {
+		return "", false
+	}
+	if getprop.IsPrivateIdentifier() {
+		// `C.prototype.#x` would be a SyntaxError, because a private name is valid only inside the
+		// class body.
 		return "", false
 	}
 	function := NodeUtil_GetEnclosingFunction(getprop)

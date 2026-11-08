@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/CheckDebuggerStatement.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/GatherRawExports.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RemoveCastNodes.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RemoveUnnecessarySyntheticExterns.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CheckDebuggerStatement.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/GatherRawExports.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RemoveCastNodes.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RemoveUnnecessarySyntheticExterns.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

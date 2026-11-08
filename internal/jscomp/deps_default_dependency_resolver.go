@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/deps/DefaultDependencyResolver.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/deps/DependencyFile.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/DefaultDependencyResolver.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/deps/DependencyFile.java @ closure-compiler v20261104
 
 /*
  * Copyright 2006 The Closure Compiler Authors.

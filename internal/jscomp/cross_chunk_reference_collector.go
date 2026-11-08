@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkReferenceCollector.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CrossChunkReferenceCollector.java @ closure-compiler v20261104
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -27,10 +27,6 @@ import (
 // CrossChunkReferenceCollector collects global variable references for use
 // by CrossChunkCodeMotion.
 type CrossChunkReferenceCollector struct {
-	vars         []*Var
-	varsByNameID map[uint32]*Var
-	maxVarIndex  int
-
 	stmtSlab jutil.Slab[CrossChunkReferenceCollector_TopLevelStatement]
 
 	// List of all top-level statements in the order they appear in the AST.
@@ -53,8 +49,7 @@ type CrossChunkReferenceCollector struct {
 // Java: CrossChunkReferenceCollector(AbstractCompiler, ScopeCreator)
 func NewCrossChunkReferenceCollector(compiler AbstractCompiler, creator ScopeCreator) *CrossChunkReferenceCollector {
 	c := &CrossChunkReferenceCollector{
-		compiler:    compiler,
-		maxVarIndex: -1,
+		compiler: compiler,
 	}
 	c.draftVal.nonDeclarationReferences = c.draftRefsBuf[:0]
 	c.draftVal.nonDeclarationVars = c.draftVarsBuf[:0]
@@ -72,9 +67,6 @@ func (c *CrossChunkReferenceCollector) shouldCollectVar(v *Var) bool {
 	// Only global, non-exported names can be moved
 	if !v.IsGlobal() {
 		return false
-	}
-	if _, ok := c.varsByNameID[v.nameID]; ok {
-		return true
 	}
 	return !c.compiler.GetCodingConvention().IsExportedWithLocal(v.GetName() /* local= */, false)
 }
@@ -132,9 +124,11 @@ func (c *CrossChunkReferenceCollector) GetReferences(v *Var) *ReferenceCollectio
 
 // Java: CrossChunkReferenceCollector.getGlobalVariableNamesMap()
 func (c *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() *OrderedStringMap[*Var] {
-	out := NewOrderedStringMapWithCapacity[*Var](len(c.vars))
-	for _, v := range c.vars {
-		out.Put(v.GetName(), v)
+	out := NewOrderedStringMapWithCapacity[*Var](len(c.referenceCollector.vars))
+	for v := range c.referenceCollector.GetAllSymbols() {
+		if !out.PutIfAbsent(v.GetName(), v) {
+			panic(jutil.NewIllegalArgumentExceptionMsg("Multiple entries with same key: " + v.GetName()))
+		}
 	}
 	return out
 }
@@ -166,20 +160,7 @@ func (b crossChunkTopLevelStatementBehavior) AfterVisitNode(t *NodeTraversal, n,
 		c.topLevelStatements = append(c.topLevelStatements, c.allocTopLevelStatement(draft))
 		c.topLevelStatementDraft = nil
 	} else if addedReference != nil && n.IsName() {
-		id := n.GetStringID()
 		v := addedReference.getSymbolV()
-		if existing, ok := c.varsByNameID[id]; ok {
-			jutil.CheckState(existing == v || (existing != nil && existing.Equals(v)))
-		} else {
-			if c.varsByNameID == nil {
-				c.varsByNameID = make(map[uint32]*Var, 64)
-			}
-			c.varsByNameID[id] = v
-			c.vars = append(c.vars, v)
-			if idx := v.GetIndex(); idx > c.maxVarIndex {
-				c.maxVarIndex = idx
-			}
-		}
 		if addedReference.GetNode() == draft.declaredNameNode {
 			draft.declaredNameReference = addedReference
 			draft.declaredVar = v

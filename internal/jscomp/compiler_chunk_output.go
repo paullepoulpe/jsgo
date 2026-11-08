@@ -177,7 +177,7 @@ func (c *Compiler) renderChunksBatched(
 	chunkTracker, _ := lt.(*Compiler_ChunkGraphAwareLicenseTracker)
 	totalInputs := 0
 	for _, m := range activeChunks {
-		totalInputs += len(m.GetInputs())
+		totalInputs += len(c.chunkInputsForOutput(m))
 	}
 	scriptOffsets := make([]int, chunkRenderMaxBatchChunks+1)
 	printer := newParallelScriptPrinter(
@@ -200,7 +200,7 @@ func (c *Compiler) renderChunksBatched(
 	cb := NewCompiler_CodeBuilder()
 	for chunkIdx := 0; chunkIdx < len(activeChunks); {
 		firstChunk := activeChunks[chunkIdx]
-		if inputs := firstChunk.GetInputs(); len(inputs) > chunkRenderMaxBatchScripts {
+		if inputs := c.chunkInputsForOutput(firstChunk); len(inputs) > chunkRenderMaxBatchScripts {
 			// Stream large chunks (such as a multi-thousand-input base chunk) in
 			// bounded script sub-batches so per-script codeBytes and mapping slices
 			// never accumulate beyond chunkRenderMaxBatchScripts at once.
@@ -263,7 +263,7 @@ func (c *Compiler) renderChunksBatched(
 		batchLen := 0
 		totalScripts := 0
 		for batchStart+batchLen < len(activeChunks) && batchLen < chunkRenderMaxBatchChunks {
-			nIn := len(activeChunks[batchStart+batchLen].GetInputs())
+			nIn := len(c.chunkInputsForOutput(activeChunks[batchStart+batchLen]))
 			if batchLen > 0 && totalScripts+nIn > chunkRenderMaxBatchScripts {
 				break
 			}
@@ -278,7 +278,7 @@ func (c *Compiler) renderChunksBatched(
 		for j := range batchLen {
 			m := activeChunks[batchStart+j]
 			base := scriptOffsets[j]
-			for i, in := range m.GetInputs() {
+			for i, in := range c.chunkInputsForOutput(m) {
 				if err := printer.setSlot(base+i, m.GetName(), in, i == 0); err != nil {
 					return err
 				}
@@ -361,7 +361,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	}
 	totalInputs := 0
 	for _, m := range activeChunks {
-		totalInputs += len(m.GetInputs())
+		totalInputs += len(c.chunkInputsForOutput(m))
 	}
 	numWorkers = max(1, min(numWorkers, max(len(activeChunks), totalInputs)))
 
@@ -423,7 +423,7 @@ func (c *Compiler) RenderChunksAndSourceMaps(
 	if !canParallel {
 		var seqMapBuf bytes.Buffer
 		for j, m := range activeChunks {
-			inputs := m.GetInputs()
+			inputs := c.chunkInputsForOutput(m)
 			for _, in := range inputs {
 				if in.GetAstRoot(c).IsNil() {
 					return nil, jutil.NewIllegalArgumentExceptionMsg("Bad chunk: " + m.GetName())
@@ -513,7 +513,7 @@ func (c *Compiler) toSourceChunkSequentialWithPostProcess(
 	postProcess func(*CompilerInput, string) string,
 ) string {
 	return Compiler_RunInCompilerThread(c, func() string {
-		inputs := chunk.GetInputs()
+		inputs := c.chunkInputsForOutput(chunk)
 		if len(inputs) == 0 {
 			return ""
 		}

@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/parsing/parser/PredefinedName.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/parser/Identifiers.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/parser/ClassOrObjectElementInfo.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/PredefinedName.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/parser/Identifiers.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/parser/ClassOrObjectElementInfo.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

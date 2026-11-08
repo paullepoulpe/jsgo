@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstFactory.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/AstFactory.java @ closure-compiler v20261104
 
 /*
  * Copyright 2018 The Closure Compiler Authors.
@@ -786,6 +786,17 @@ func (a *AstFactory) CreateObjectDotAssignCall(
 	}
 
 	return result
+}
+
+// CreateJscompAssignCall creates a call to $jscomp.assign that returns the specified type.
+//
+// Java: AstFactory.createJscompAssignCall(StaticScope, AstFactory.Type, Node...)
+func (a *AstFactory) CreateJscompAssignCall(
+	scope rhino.StaticScope, returnType AstFactory_Type, args ...rhino.Node) rhino.Node {
+	jscompAssign := a.runtimeJsLibManager.GetJsLibField("$jscomp.assign")
+	call := a.CreateCall(a.CreateQNameOfField(scope, jscompAssign), returnType, args...)
+	call.PutBooleanProp(rhino.Node_FREE_CALL, true)
+	return call
 }
 
 // Java: AstFactory.createNewNode(Node, Node...)

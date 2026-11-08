@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PruningAnalysisTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PruningAnalysisTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/PruningAnalysisTest.java)
 
 /*
@@ -76,15 +76,16 @@ func (pt *PruningAnalysisTest) TestWeakDependencies_included() {
 	AssertThat(result.EntryPointDependencyCount()).ContainsAtLeastEntriesIn(pruningAnalysisTest_mapOf("root1.js", 2))
 }
 
-// Java: PruningAnalysisTest.testForwardDeclare_notIncluded()
-func (pt *PruningAnalysisTest) TestForwardDeclare_notIncluded() {
-	// goog.forwardDeclare is NOT captured by JsFileRegexParser as a dependency.
-	root1 := pt.createInput("root1.js", "goog.provide('root1'); goog.forwardDeclare('missing');")
+// Java: PruningAnalysisTest.testForwardDeclare_included()
+func (pt *PruningAnalysisTest) TestForwardDeclare_included() {
+	root1 := pt.createInput(
+		"root1.js",
+		"goog.provide('root1'); goog.forwardDeclare('fwdDeclared'); goog.forwardDeclare('missing');")
 	fwdDeclared := pt.createInput("fwdDeclared.js", "goog.provide('fwdDeclared');")
 
 	result := pt.analyze([]*CompilerInput{root1}, root1, fwdDeclared)
 
-	AssertThat(result.EntryPointDependencyCount()).ContainsAtLeastEntriesIn(pruningAnalysisTest_mapOf("root1.js", 1))
+	AssertThat(result.EntryPointDependencyCount()).ContainsAtLeastEntriesIn(pruningAnalysisTest_mapOf("root1.js", 2))
 }
 
 // Java: PruningAnalysisTest.testOverlappingEntryPoints()

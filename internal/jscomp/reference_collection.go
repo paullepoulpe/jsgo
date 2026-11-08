@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ReferenceCollection.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ReferenceCollection.java @ closure-compiler v20261104
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -97,16 +97,32 @@ func (c *ReferenceCollection) IsWellDefined() bool {
 // IsEscaped reports whether the variable is escaped into an inner function.
 //
 // Java: ReferenceCollection.isEscaped()
+// IsEscaped reports whether the variable is escaped into an inner function or
+// deferred class field initializer.
+//
+// Java: ReferenceCollection.isEscaped()
 func (c *ReferenceCollection) IsEscaped() bool {
-	var hoistScope *Scope
+	var closureScope *Scope
 	for _, ref := range c.references {
-		if hoistScope == nil {
-			hoistScope = ref.scope.GetClosestHoistScope()
-		} else if hoistScope != ref.scope.GetClosestHoistScope() {
+		refClosureScope := getEnclosingClosureScope(ref.scope)
+		if closureScope == nil {
+			closureScope = refClosureScope
+		} else if closureScope != refClosureScope {
 			return true
 		}
 	}
 	return false
+}
+
+func getEnclosingClosureScope(scope *Scope) *Scope {
+	for s := scope; s != nil; s = s.GetParent() {
+		if s.IsHoistScope() ||
+			((s.IsMemberFieldDefScope() || s.IsComputedFieldDefRhsScope()) &&
+				!s.GetRootNode().IsStaticMember()) {
+			return s
+		}
+	}
+	return nil
 }
 
 // IsThisRebound reports whether `this` is rebound in any reference's scope

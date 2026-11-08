@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/CompilerOptionsTest.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/CompilerOptionsTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -21,6 +21,8 @@ package jscomp
 import (
 	"reflect"
 	"regexp"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/base"
@@ -245,6 +247,152 @@ func TestCompilerOptions_RequiresTypesForOptimization(t *testing.T) {
 	options.SetRemoveAbstractMethods(false)
 	options.SetRemoveClosureAsserts(true)
 	assertEqual(t, "requiresTypesForOptimization", options.RequiresTypesForOptimization(), true)
+}
+
+// Java: CompilerOptionsTest.testCollectionFieldsPreserveInsertionOrder()
+func TestCompilerOptions_CollectionFieldsPreserveInsertionOrder(t *testing.T) {
+	options := NewCompilerOptions()
+
+	types := NewOrderedSet[string]()
+	types.Add("typeB")
+	types.Add("typeA")
+	types.Add("typeC")
+	options.SetStripTypes(types)
+	if got := options.GetStripTypes().ToSlice(); !slices.Equal(got, []string{"typeB", "typeA", "typeC"}) {
+		t.Errorf("GetStripTypes() = %v, want [typeB typeA typeC]", got)
+	}
+
+	suffixes := NewOrderedSet[string]()
+	suffixes.Add("suffixB")
+	suffixes.Add("suffixA")
+	suffixes.Add("suffixC")
+	options.SetStripNameSuffixes(suffixes)
+	if got := options.GetStripNameSuffixes().ToSlice(); !slices.Equal(got, []string{"suffixB", "suffixA", "suffixC"}) {
+		t.Errorf("GetStripNameSuffixes() = %v, want [suffixB suffixA suffixC]", got)
+	}
+
+	prefixes := NewOrderedSet[string]()
+	prefixes.Add("prefixB")
+	prefixes.Add("prefixA")
+	prefixes.Add("prefixC")
+	options.SetStripNamePrefixes(prefixes)
+	if got := options.GetStripNamePrefixes().ToSlice(); !slices.Equal(got, []string{"prefixB", "prefixA", "prefixC"}) {
+		t.Errorf("GetStripNamePrefixes() = %v, want [prefixB prefixA prefixC]", got)
+	}
+
+	var ran []int
+	pass1 := CompilerPassFunc(func(externs, root rhino.Node) { ran = append(ran, 1) })
+	pass2 := CompilerPassFunc(func(externs, root rhino.Node) { ran = append(ran, 2) })
+	options.AddCustomPass(CustomPassExecutionTime_BEFORE_CHECKS, pass1)
+	options.AddCustomPass(CustomPassExecutionTime_BEFORE_CHECKS, pass2)
+	passes := options.GetCustomPassesAt(CustomPassExecutionTime_BEFORE_CHECKS)
+	if len(passes) != 2 {
+		t.Fatalf("len(GetCustomPassesAt) = %d, want 2", len(passes))
+	}
+	passes[0].Process(rhino.NilNode, rhino.NilNode)
+	passes[1].Process(rhino.NilNode, rhino.NilNode)
+	if !slices.Equal(ran, []int{1, 2}) {
+		t.Errorf("custom passes execution order = %v, want [1 2]", ran)
+	}
+}
+
+// Java: CompilerOptionsTest.testToStringDeterministicFormat()
+func TestCompilerOptions_ToStringDeterministicFormat(t *testing.T) {
+	options1 := NewCompilerOptions()
+	options1.SetDefineToBooleanLiteral("defineA", true)
+	options1.SetDefineToBooleanLiteral("defineB", false)
+	options1.SetStripTypes(NewOrderedSet("typeA", "typeB"))
+	options1.SetStripNameSuffixes(NewOrderedSet("suffixA", "suffixB"))
+	options1.SetStripNamePrefixes(NewOrderedSet("prefixA", "prefixB"))
+	options1.SetIdGenerators(NewOrderedSet("idGenA", "idGenB"))
+
+	options2 := NewCompilerOptions()
+	options2.SetDefineToBooleanLiteral("defineA", true)
+	options2.SetDefineToBooleanLiteral("defineB", false)
+	options2.SetStripTypes(NewOrderedSet("typeA", "typeB"))
+	options2.SetStripNameSuffixes(NewOrderedSet("suffixA", "suffixB"))
+	options2.SetStripNamePrefixes(NewOrderedSet("prefixA", "prefixB"))
+	options2.SetIdGenerators(NewOrderedSet("idGenA", "idGenB"))
+
+	s1 := options1.String()
+	s2 := options2.String()
+
+	if !strings.HasPrefix(s1, "CompilerOptions{") {
+		t.Errorf("s1 does not start with CompilerOptions{: %s", s1)
+	}
+	if !strings.HasSuffix(s1, "}") {
+		t.Errorf("s1 does not end with }: %s", s1)
+	}
+	if strings.Contains(s1, "@") {
+		t.Errorf("s1 contains @: %s", s1)
+	}
+	assertEqual(t, "s1 == s2", s1, s2)
+
+	expected := "CompilerOptions{aliasStringsMode=NONE, ambiguateProperties=false, angularPass=false," +
+		" assumeGettersArePure=true," +
+		" assumePropertiesAreStaticallyAnalyzable=true, assumeStrictThis=false," +
+		" browserResolverPrefixReplacements={}, checkDeterminism=false," +
+		" checkSuspiciousCode=false, checkSymbols=false, checkTypes=false, checksOnly=false," +
+		" chunksToPrintAfterEachPassRegexList=[], closurePass=false," +
+		" coalesceVariableNames=false, collapseAnonymousFunctions=false," +
+		" collapseObjectLiterals=false, collapseProperties=NONE," +
+		" collapseVariableDeclarations=false, colorizeErrorOutput=false," +
+		" computeFunctionSideEffects=false, conformanceConfigs=[]," +
+		" conformanceRemoveRegexFromPath=Optional.of(^((.*/)?google3/)?(/?(blaze|bazel)-out/[^/]+/(bin|genfiles)/)?)," +
+		" conformanceReportingMode=IGNORE_LIBRARY_LEVEL_BEHAVIOR_SPECIFIED_IN_CONFIG," +
+		" continueAfterErrors=false, convertToDottedProperties=false," +
+		" crossChunkCodeMotion=false, crossChunkCodeMotionNoStubMethods=false," +
+		" crossChunkMethodMotion=false, deadAssignmentElimination=false," +
+		" defineReplacements={defineA=TRUE, defineB=FALSE}," +
+		" dependencyOptions=DependencyOptions[mode=NONE, entryPoints=[]], devMode=OFF," +
+		" devirtualizeMethods=false, disambiguateProperties=false," +
+		" emitUseStrict=Optional.absent(), enableModuleRewriting=true, environment=BROWSER," +
+		" errorFormat=FULL, es6ModuleTranspilation=COMPILE," +
+		" es6SubclassTranspilation=CONCISE_UNSAFE, exportLocalPropertyDefinitions=true," +
+		" exportTestFunctions=false, extractPrototypeMemberDeclarations=OFF," +
+		" filesToPrintAfterEachPassRegexList=[], flowSensitiveInlineVariables=false," +
+		" foldConstants=false, forceLibraryInjection=[], gatherCssNames=false," +
+		" generateExports=true, generatePseudoNames=false, generateTypedExterns=false," +
+		" idGenerators={idGenA=INCONSISTENT, idGenB=INCONSISTENT}, incrementalCheckMode=OFF," +
+		" inferConsts=true, inferTypes=false, inlineConstantVars=false," +
+		" inlineFunctionsLevel=NONE, inlineGetters=false, inlineLocalVariables=false," +
+		" inlineProperties=false, inlineVariables=false, inputDelimiter=// Input %num%," +
+		" inputSourceMaps={}, instrumentForCoverageOnly=false," +
+		" instrumentForCoverageOption=NONE, isolatePolyfills=false, j2clMinifierEnabled=true," +
+		" j2clPassMode=AUTO, labelRenaming=false, languageIn=ECMASCRIPT_NEXT," +
+		" languageOutIsDefaultStrict=Optional.absent(), lineBreak=false," +
+		" lineLengthThreshold=500, markAsCompiled=false, maxFunctionSizeAfterInlining=-1," +
+		" moduleRoots=[./], nameGenerator=com.google.javascript.jscomp.DefaultNameGenerator," +
+		" numParallelThreads=1, optimizeCalls=false, optimizeESClassConstructors=false," +
+		" optimizeLocalAccessForGlobalSymbolNamespace=DISABLED," +
+		" outputFeatureSet=Optional.absent(), outputJs=NORMAL, outputJsStringUsage=false," +
+		" parentChunkCanSeeSymbolsDeclaredInChildren=false," +
+		" parseJsDocDocumentation=TYPES_ONLY, pathEscaper=ESCAPE, polymerPass=false," +
+		" preferSingleQuotes=false, preferStableNames=false," +
+		" preserveDetailedSourceInfo=false, preserveGoogProvidesAndRequires=false," +
+		" preserveNonJSDocComments=false, preserveTypeAnnotations=false, prettyPrint=false," +
+		" printConfig=false, printInputDelimiter=false, printSourceAfterEachPass=false," +
+		" processCommonJSModules=false, productionInstrumentationArrayName=," +
+		" propertiesThatMustDisambiguate=[], propertyRenaming=OFF," +
+		" propertyRenamingOnlyCompilationMode=false, protectHiddenSideEffects=false," +
+		" qnameUsesToPrintAfterEachPassRegexList=[], quoteKeywordProperties=false," +
+		" removeAbstractMethods=false, removeClosureAsserts=false, removeJ2clAsserts=true," +
+		" removeUnusedClassProperties=false, removeUnusedLocalVars=false," +
+		" removeUnusedPrototypeProperties=false, removeUnusedVars=false," +
+		" renamePrefixNamespaceAssumeCrossChunkNames=false, replaceIdGenerators=true," +
+		" replaceMessagesWithChromeI18n=false, replaceStringsFunctionDescriptions=[]," +
+		" replaceStringsPlaceholderToken=, reserveRawExports=false," +
+		" rewriteFunctionExpressions=false," +
+		" rewriteGlobalDeclarationsForTryCatchWrapping=false," +
+		" rewriteModulesBeforeTypechecking=false, rewritePolyfills=false," +
+		" runtimeLibraryMode=INJECT, skipNonTranspilationPasses=false," +
+		" smartNameRemoval=false, sourceMapDetailLevel=ALL, sourceMapFormat=DEFAULT," +
+		" sourceMapLocationMappings=[], strictMessageReplacement=false," +
+		" stripNamePrefixes=[prefixA, prefixB], stripNameSuffixes=[suffixA, suffixB]," +
+		" stripTypes=[typeA, typeB], summaryDetailLevel=1, tracer=OFF, trustedStrings=false," +
+		" tweakProcessing=OFF, useTypesForLocalOptimization=false, variableRenaming=OFF," +
+		" warningsGuard=, wrapGoogModulesForWhitespaceOnly=true}"
+	assertEqual(t, "CompilerOptions.String()", s1, expected)
 }
 
 func TestCompilerOptions_NoSharedMutableEmptyCollections(t *testing.T) {

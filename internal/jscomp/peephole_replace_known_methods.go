@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethods.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -375,6 +375,10 @@ func (p *PeepholeReplaceKnownMethods) TryFoldKnownMathMethods(call ast.Call, cal
 				(arg < 0.0 || (arg == 0.0 && int64(math.Float64bits(arg)) < 0)) {
 				// Go-only: language-adapter — the Go constant -0.0 is +0.
 				replacement, hasReplacement = math.Copysign(0, -1), true
+			} else if arg == math.Floor(arg) {
+				// Already an integer. Math.round(double) saturates at the long range, so it would
+				// turn e.g. 1e20 into 2^63.
+				replacement, hasReplacement = arg, true
 			} else {
 				replacement, hasReplacement = float64(base.MathRound(arg)), true
 			}

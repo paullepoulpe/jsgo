@@ -1,5 +1,5 @@
-// Port of com/google/debugging/sourcemap/Base64.java @ closure-compiler v20261028
-// Port of com/google/debugging/sourcemap/Base64VLQ.java @ closure-compiler v20261028
+// Port of com/google/debugging/sourcemap/Base64.java @ closure-compiler v20261104
+// Port of com/google/debugging/sourcemap/Base64VLQ.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

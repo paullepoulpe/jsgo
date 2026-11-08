@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/CompilerOptionsPreprocessor.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/FlagUsageException.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/Platform.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CompilerOptions.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/CompilerOptionsPreprocessor.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/FlagUsageException.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/Platform.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

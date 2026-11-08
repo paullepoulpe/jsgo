@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261104
 
 /*
  *
@@ -239,6 +239,15 @@ func (b *JSDocInfo_Builder) RecordNoCompile() bool {
 // Java: JSDocInfo.Builder.recordNoDts()
 func (b *JSDocInfo_Builder) RecordNoDts() bool {
 	return b.PopulateBit(JSDocInfo_Bit_NODTS, true)
+}
+
+// RecordLegacyNamedTsExport records that the JSDocInfo being built should have
+// its JSDocInfo#isLegacyNamedTsExport() flag set to `true`. Returns `true` if
+// the flag was recorded and `false` if it was already recorded.
+//
+// Java: JSDocInfo.Builder.recordLegacyNamedTsExport()
+func (b *JSDocInfo_Builder) RecordLegacyNamedTsExport() bool {
+	return b.PopulateBit(JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT, true)
 }
 
 // RecordNoCollapse records that the JSDocInfo being built should have its

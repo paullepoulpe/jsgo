@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/type/ClosureReverseAbstractInterpreter.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/type/Outcome.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/type/ChainableReverseAbstractInterpreter.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/type/ClosureReverseAbstractInterpreter.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/type/Outcome.java @ closure-compiler v20261104
 
 /*
  * Copyright 2007 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/deps/JsFileRegexParserTest.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/deps/JsFileRegexParserTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2008 The Closure Compiler Authors.
@@ -204,11 +204,12 @@ func TestJsFileRegexParser_ParseGoogModuleWithRequireType(t *testing.T) {
 		"const {",
 		"  D,",
 		"  E",
-		"}=goog.requireType(\"a.b.d\");")
+		"}=goog.requireType(\"a.b.d\");",
+		"let F=goog.forwardDeclare(\"a.b.F\");")
 
 	expected := jsFileRegexParserTest_builder().
 		SetProvides([]string{"yes1"}).
-		SetTypeRequires([]string{"yes2", "a.b.C", "a.b.d"}).
+		SetTypeRequires([]string{"yes2", "a.b.C", "a.b.d", "a.b.F"}).
 		SetLoadFlags(jsFileRegexParserTest_flags("module", "goog")).
 		Build()
 
@@ -221,11 +222,12 @@ func TestJsFileRegexParser_ParseScriptWithRequireType(t *testing.T) {
 	x := newJsFileRegexParserTest(t)
 	contents := jsFileRegexParserTest_lines(
 		"goog.provide('yes1');",
-		"goog.requireType('a.b.C');")
+		"goog.requireType('a.b.C');",
+		"goog.forwardDeclare('a.b.D');")
 
 	expected := jsFileRegexParserTest_builder().
 		SetProvides([]string{"yes1"}).
-		SetTypeRequires([]string{"a.b.C"}).
+		SetTypeRequires([]string{"a.b.C", "a.b.D"}).
 		Build()
 
 	result := x.parser.ParseFile(jsFileRegexParserTest_SRC_PATH, jsFileRegexParserTest_CLOSURE_PATH, contents)

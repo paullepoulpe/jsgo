@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CheckJSDoc.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CheckJSDoc.java @ closure-compiler v20261104
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -222,6 +222,7 @@ func (c *CheckJSDoc) Visit(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
 	c.ValidateTsType(n, info)
 	c.ValidateJsDocTypeNames(info)
 	c.ValidateIsUsedViaDotConstructor(n, info)
+	c.ValidateLegacyNamedTsExport(n, info)
 }
 
 // Java: CheckJSDoc.validateSuppress(Node, JSDocInfo)
@@ -915,5 +916,23 @@ func (c *CheckJSDoc) ValidateIsUsedViaDotConstructor(n rhino.Node, info *rhino.J
 	if !(n.IsFunction() && info.IsConstructor()) &&
 		!NodeUtil_IsEs6ConstructorMemberFunctionDef(n) {
 		c.Report(n, CheckJSDoc_MISPLACED_ANNOTATION, "usedViaDotConstructor", "must be on a constructor")
+	}
+}
+
+// ValidateLegacyNamedTsExport checks that @legacyNamedTsExport is only used on
+// a goog.module or goog.provide call.
+//
+// Java: CheckJSDoc.validateLegacyNamedTsExport(Node, JSDocInfo)
+func (c *CheckJSDoc) ValidateLegacyNamedTsExport(n rhino.Node, info *rhino.JSDocInfo) {
+	if info == nil || !info.IsLegacyNamedTsExport() {
+		return
+	}
+	parent := n.GetParent()
+	if !n.IsCall() || !(NodeUtil_IsGoogModuleCall(parent) || NodeUtil_IsGoogProvideCall(parent)) {
+		c.Report(
+			n,
+			CheckJSDoc_MISPLACED_ANNOTATION,
+			"@legacyNamedTsExport",
+			"must be on a goog.module or goog.provide call")
 	}
 }

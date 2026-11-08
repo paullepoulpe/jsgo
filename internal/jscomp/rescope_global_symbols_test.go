@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RescopeGlobalSymbolsTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RescopeGlobalSymbolsTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/RescopeGlobalSymbolsTest.java)
 
 /*
@@ -19,7 +19,11 @@
 
 package jscomp
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/paullepoulpe/jsgo/internal/jutil"
+)
 
 // RescopeGlobalSymbolsTest tests RescopeGlobalSymbols.
 //
@@ -86,8 +90,12 @@ func (c *RescopeGlobalSymbolsTest) TestLocalAccessOptimization_letNoInitializer(
 	c.optimizeLocalAccess = CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY
 	c.assumeCrossChunkNames = false
 	c.Test(
-		c.Srcs(JSChunkGraphBuilder_ForUnordered().AddChunk("let a; a = 1;").AddChunk("a;").Build()),
-		c.Expected("let a; a = _.a = 1;", "_.a;"))
+		c.Srcs(
+			JSChunkGraphBuilder_ForUnordered().
+				AddChunk("let a; a = 1; a + 1;").
+				AddChunk("a;").
+				Build()),
+		c.Expected("let a; a = _.a = 1; a + 1;", "_.a;"))
 }
 
 // Java: RescopeGlobalSymbolsTest.testLocalAccessOptimization_loopInitializerMixed()
@@ -397,10 +405,10 @@ func (c *RescopeGlobalSymbolsTest) TestLocalAccessOptimization_multipleWrites() 
 	c.Test(
 		c.Srcs(
 			JSChunkGraphBuilder_ForUnordered().
-				AddChunk("var a = 1; var b = 1; a = b = 2;").
+				AddChunk("var a = 1; var b = 1; a = b = 2; a + b;").
 				AddChunk("a; b;").
 				Build()),
-		c.Expected("var a, b; a = _.a = 1; b = _.b = 1; a = _.a = b = _.b = 2;", "_.a; _.b;"))
+		c.Expected("var a, b; a = _.a = 1; b = _.b = 1; a = _.a = b = _.b = 2; a + b;", "_.a; _.b;"))
 }
 
 // Java: RescopeGlobalSymbolsTest.testConstDeclarations()
@@ -1210,6 +1218,18 @@ func (c *RescopeGlobalSymbolsTest) TestAllChunksLocalAccessOptimization_reassign
 				AddChunk("a;").
 				Build()),
 		c.Expected("var a; a = _.a = 1; var f = function() { a = _.a = 2; }; a + 1;", "_.a;"))
+
+	// Writes inside an `if` block occur in a block scope (!t.inGlobalScope()), so other chunks do
+	// not alias `a` (`var {a} = _;`) and instead read `_.a` directly when `readA()` is called.
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("function readA() { return a; }").
+				AddChunk("var a = 1; if (a + 3) { a++; readA(); }").
+				Build()),
+		c.Expected(
+			"_.readA = function() { return _.a; };",
+			"var {readA} = _; var a; a = _.a = 1; if (a + 3) { a++; _.a = a; readA(); }"))
 }
 
 // Java: RescopeGlobalSymbolsTest.testAllChunksLocalAccessOptimization_reassignedInOtherChunk()
@@ -1307,11 +1327,12 @@ func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappingAndInitAssignment_mu
 	c.Test(
 		c.Srcs(
 			JSChunkGraphBuilder_ForChain().
-				AddChunk("var a = 1; var b = 1; a = b = 2;").
+				AddChunk("var a = 1; var b = 1; a = b = 2; a + b;").
 				AddChunk("a; b;").
 				Build()),
 		c.Expected(
-			"var a = _.a = 1; var b = _.b = 1; a = _.a = b = _.b = 2;", "var {a, b} = _; a; b;"))
+			"var a = _.a = 1; var b = _.b = 1; a = _.a = b = _.b = 2; a + b;",
+			"var {a, b} = _; a; b;"))
 }
 
 // Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappingAndInitAssignment_es5()
@@ -1360,8 +1381,8 @@ func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappingAndInitAssignment_fo
 				AddChunk("a; c;").
 				Build()),
 		c.Expected(
-			"var a = _.a = {}; var c = _.c = {}; var b; for (a._ = 0, b = 1, c._ = 2; a._ < 10;"+
-				" a._++) { b++; }",
+			"_.a = {}; var c = _.c = {}; var _a, b; for (_a = _.a._ = 0, b = 1, c._ = 2; _a < 10;"+
+				" ++_.a._, _a++) { b++; }",
 			"var {a, c} = _; a._; c._;"))
 }
 
@@ -1377,7 +1398,8 @@ func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappingAndInitAssignment_wr
 				AddChunk("a; b;").
 				Build()),
 		c.Expected(
-			"var b = _.b = {}; var a = _.a = 1; b._ = 2; var f = function() { b._ = 3; }; a + b._;",
+			"_.b = {}; var a = _.a = 1, _b = _.b._ = 2; var f = function() { _b = _.b._ = 3; }; a +"+
+				" _b;",
 			"var {a, b} = _; a; b._;"))
 }
 
@@ -1433,15 +1455,133 @@ func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappingAndInitAssignment_un
 				AddChunk("a;").
 				Build()),
 		c.Expected("var localVar = 1, a; a + 1;", "var {a} = _; a;"))
+
+	// Standalone statement writes: compound assignments, prefix/postfix increments/decrements,
+	// and destructuring assignments.
 	c.Test(
 		c.Srcs(
 			JSChunkGraphBuilder_ForChain().
-				AddChunk("var a = 1; a++; a += 2; [a] = [3];").
+				AddChunk("var a = 1; a++; ++a; a--; --a; a += 2; [a] = [3]; var [b] = [4]; b;").
+				AddChunk("a; b;").
+				Build()),
+		c.Expected(
+			"var a = _.a = 1, b; ++_.a, a++; _.a = ++a; --_.a, a--; _.a = --a; _.a = a += 2;"+
+				" [a] = [3]; _.a = a; [b] = [4]; _.b = b; b;",
+			"var {a, b} = _; a; b;"))
+
+	// Top-level writes inside expression contexts (binary, ternary, and control-flow conditions).
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk(
+					"var a = 1;"+
+						" var x = (a++) + (++a) + (a--) + (--a) + (a += 2);"+
+						" var y = a ? a++ : ++a;"+
+						" if (a += 3) {}"+
+						" while (a--) {}"+
+						" do {} while (--a);"+
+						" x + y;").
 				AddChunk("a;").
 				Build()),
 		c.Expected(
-			"var a = _.a = 1; a++; _.a = a; a += 2; _.a = a; [a] = [3]; _.a = a;",
+			"var a = _.a = 1;"+
+				" var x = (++_.a, a++) + (_.a = ++a) + (--_.a, a--) + (_.a = --a) + (_.a = a +="+
+				" 2);"+
+				" var y = a ? (++_.a, a++) : (_.a = ++a);"+
+				" if (_.a = a += 3) {}"+
+				" while (--_.a, a--) {}"+
+				" do {} while (_.a = --a);"+
+				" x + y;",
 			"var {a} = _; a;"))
+
+	// Function-scoped writes inside expression contexts (return statements and concise arrow
+	// bodies): because these writes occur in a nested scope (!t.inGlobalScope()), the symbol is
+	// wrapped in a holder object (a._), while keeping a direct local variable (_a) in the defining
+	// chunk.
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk(
+					"var a = 1;"+
+						" function postInc() { return a++; }"+
+						" function preInc() { return ++a; }"+
+						" function postDec() { return a--; }"+
+						" function preDec() { return --a; }"+
+						" var addAssign = () => a += 1;"+
+						" postInc() + preInc() + postDec() + preDec() + addAssign() + a;").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"_.a = {}; var _a = _.a._ = 1;"+
+				" var postInc = function() { return ++_.a._, _a++; };"+
+				" var preInc = function() { return _.a._ = ++_a; };"+
+				" var postDec = function() { return --_.a._, _a--; };"+
+				" var preDec = function() { return _.a._ = --_a; };"+
+				" var addAssign = () => _.a._ = _a += 1;"+
+				" postInc() + preInc() + postDec() + preDec() + addAssign() + _a;",
+			"var {a} = _; a._;"))
+
+	// Block-scoped writes (such as inside an `if` body) also have !t.inGlobalScope(), so the
+	// symbol is wrapped in a holder object (a._) and cross-chunk function calls inside the block
+	// observe the updated value.
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var a = 1; if (a + 3) { a++; }").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"_.a = {}; var _a = _.a._ = 1; if (_a + 3) { ++_.a._, _a++; }", "var {a} = _; a._;"))
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("function readA() { return a; }").
+				AddChunk("var a = 1; if (a + 3) { a++; readA(); }").
+				Build()),
+		c.Expected(
+			"var a = _.a = {}; _.readA = function() { return a._; };",
+			"var {readA} = _; var _a = _.a._ = 1; if (_a + 3) { ++_.a._, _a++; readA(); }"))
+	// Uninitialized var declarations followed by top-level compound assignment or increment.
+	c.Test(
+		c.Srcs(JSChunkGraphBuilder_ForChain().AddChunk("var a; a += 2; a;").AddChunk("a;").Build()),
+		c.Expected("var a; _.a = a += 2; a;", "var {a} = _; a;"))
+	c.Test(
+		c.Srcs(JSChunkGraphBuilder_ForChain().AddChunk("var a; a++; a;").AddChunk("a;").Build()),
+		c.Expected("var a; ++_.a, a++; a;", "var {a} = _; a;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testLocalAccessOptimization_uninitializedDeclarationWriteThrows()
+func (c *RescopeGlobalSymbolsTest) TestLocalAccessOptimization_uninitializedDeclarationWriteThrows() {
+	c.optimizeLocalAccess = CompilerOptions_OptimizeLocalAccess_DEFINING_CHUNK_ONLY
+	c.assumeCrossChunkNames = false
+	sources :=
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("for (var a of [1, 2]) {} a;").
+				AddChunk("a;").
+				Build())
+	expected := c.Expected("", "")
+	e := AssertThrows[jutil.IRuntimeException](func() { c.Test(sources, expected) })
+	IsInstanceOf[jutil.IIllegalStateException](AssertThat(e.GetCause()))
+	AssertThat(e.GetCause().GetMessage()).Contains("Expected initialized declaration for NAME a")
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappingAndInitAssignment_unsafeWriteToLocalAliasThrows()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappingAndInitAssignment_unsafeWriteToLocalAliasThrows() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	for _, chunk0 := range []string{
+		"var a; label: [a] = [1]; a;",
+		"var a; (([a] = [1]), 2); a;",
+		"var a; if (([a] = [1])) {} a;",
+	} {
+		sources := c.Srcs(JSChunkGraphBuilder_ForChain().AddChunk(chunk0).AddChunk("a;").Build())
+		expected := c.Expected("", "")
+		e := AssertThrows[jutil.IRuntimeException](func() { c.Test(sources, expected) })
+		IsInstanceOf[jutil.IIllegalStateException](AssertThat(e.GetCause()))
+		AssertThat(e.GetCause().GetMessage()).Contains("Unexpected unsafe write to local alias: NAME a")
+	}
 }
 
 // Java: RescopeGlobalSymbolsTest.testAllChunksLocalAccessOptimization_independentChunks()
@@ -1756,12 +1896,243 @@ func (c *RescopeGlobalSymbolsTest) TestDeleteGlobalsOnLastAccess_wrappedAndEarly
 	c.Test(
 		c.Srcs(
 			JSChunkGraphBuilder_ForChain().
-				AddChunk("function f() { return a; } var b = 1; b + 1;").
-				AddChunk("var a = 1; a + 1; b = 2; b;").
+				AddChunk(
+					"function f() { return a; } var b = 1; b + 1; var c = 1;"+
+						" function g() { c = 2; } c + 1;").
+				AddChunk("var a = 1; a + 1; b = 2; b; c;").
 				Build()),
 		c.Expected(
 			"_._ = function(a) { for (let b of a.split(',')) { delete _[b]; } };"+
-				" var b = _.b = {}; var a = _.a = {}; var f = function() { return a._; };"+
-				" b._ = 1; b._ + 1;",
-			"var {b, a} = _; _._('b,a');"+" a._ = 1; a._ + 1; b._ = 2; b._;"))
+				" var b = _.b = {}; var a = _.a = {}; _.c = {}; var f = function() { return a._;"+
+				" }; b._ = 1; b._ + 1; var _c = _.c._ = 1; var g = function() { _c = _.c._ = 2;"+
+				" }; _c + 1;",
+			"var {c, b} = _; _._('b'); var _a = _.a._ = 1; _a + 1; b._ = 2; b._; c._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutablesImproved_reassignedOutsideStaticExecution()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutablesImproved_reassignedOutsideStaticExecution() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var a = 1; function f() { a = 2; } a + 1;").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"_.a = {}; var _a = _.a._ = 1; var f = function() { _a = _.a._ = 2; }; _a + 1;",
+			"var {a} = _; a._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutablesImproved_parentAccessesChildHolder()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutablesImproved_parentAccessesChildHolder() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("function f() { return a; }").
+				AddChunk("var a = 1; function g() { a = 2; } a + 1;").
+				Build()),
+		c.Expected(
+			"var a = _.a = {}; var f = function() { return a._; };",
+			"var _a = _.a._ = 1; var g = function() { _a = _.a._ = 2; }; _a + 1;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutablesImproved_independentSiblingChunks()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutablesImproved_independentSiblingChunks() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForTree().
+				AddChunk("var x = 1;").
+				AddChunk("var a = 1; a + 1;").
+				AddChunk("function f() { return a; }").
+				Build()),
+		c.Expected(
+			"_.a = {}; var x = 1;",
+			"var _a = _.a._ = 1; _a + 1;",
+			"var {a} = _; var f = function() { return a._; };"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutablesImproved_externs()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutablesImproved_externs() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Externs("var window; var customExtern;"),
+		c.Srcs(
+			JSChunkGraphBuilder_ForTree().
+				AddChunk("window.onload = function() { return customExtern + a; };").
+				AddChunk("var a = customExtern; window.foo = a;").
+				AddChunk("customExtern = window.foo + a;").
+				Build()),
+		c.Expected(
+			"var a = _.a = {}; window.onload = function() { return customExtern + a._; };",
+			"var _a = _.a._ = customExtern; window.foo = _a;",
+			"var {a} = _; customExtern = window.foo + a._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutablesImproved_mixedWrappedAndUnwrappedLocalAliases()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutablesImproved_mixedWrappedAndUnwrappedLocalAliases() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var a = 1; a + 1; function f() { return b; }").
+				AddChunk("var b, c; b = 2; c = 3; a + b + c;").
+				Build()),
+		c.Expected(
+			"var b = _.b = {}; var a = _.a = 1; a + 1; var f = function() { return b._; };",
+			"var {a} = _; var _b, c; _b = _.b._ = 2; c = 3; a + _b + c;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_disambiguationWithDollarSuffixLocalVar()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_disambiguationWithDollarSuffixLocalVar() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var $ = 1; function f(_) { $ = 2; return _; } $;").
+				AddChunk("$;").
+				Build()),
+		c.Expected(
+			"_.$ = {}; var __$ = _.$._ = 1;"+
+				" var f = function(_$) { __$ = _.$._ = 2; return _$; }; __$;",
+			"var {$} = _; $._;"))
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk(
+					"var $ = 1, $$ = 2; function f(_, _$) { $ = 3; $$ = 4; return _ + _$; } $ +"+
+						" $$;").
+				AddChunk("$; $$;").
+				Build()),
+		c.Expected(
+			"_.$ = {}; _.$$ = {}; var __$ = _.$._ = 1, __$$ = _.$$._ = 2; var f = function(_$,"+
+				" _$$) { __$ = _.$._ = 3; __$$ = _.$$._ = 4; return _$ + _$$; }; __$ + __$$;",
+			"var {$, $$} = _; $._; $$._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_disambiguationWithExistingUnderscoreNames()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_disambiguationWithExistingUnderscoreNames() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Externs("var ___a;"),
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var a = 1; function f(_a) { a = 2; return _a; } a;").
+				AddChunk("function g(__a) { return a + __a; }").
+				Build()),
+		c.Expected(
+			"_.a = {}; var ____a = _.a._ = 1;"+
+				" var f = function(_a) { ____a = _.a._ = 2; return _a; }; ____a;",
+			"var {a} = _; var g = function(__a) { return a._ + __a; };"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_reassignedFunctionAndCompoundWriteInDefiningChunk()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_reassignedFunctionAndCompoundWriteInDefiningChunk() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk(
+					"var a = 1, b = 0, c = 0;"+
+						" function clinit() { clinit = function() {}; ++a; return b++; }"+
+						" const inc = () => c += 1;"+
+						" clinit(); a + b + c;").
+				AddChunk("clinit(); a; b; c;").
+				Build()),
+		c.Expected(
+			"_.clinit = {}; _.a = {}; _.b = {}; _.c = {};"+
+				" var _a = _.a._ = 1, _b = _.b._ = 0, _c = _.c._ = 0;"+
+				" var _clinit = _.clinit._ = function() {"+
+				" _clinit = _.clinit._ = function() {}; _.a._ = ++_a; return ++_.b._, _b++; };"+
+				" const inc = () => _.c._ = _c += 1;"+
+				" _clinit(); _a + _b + _c;",
+			"var {clinit, a, b, c} = _; clinit._(); a._; b._; c._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_uninitializedVarAndDisambiguationInDefiningChunk()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_uninitializedVarAndDisambiguationInDefiningChunk() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var a; var _a = 10; function init() { a = _a; } a;").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"_.a = {}; var __a; var _a = _._a = 10; var init = function() { __a = _.a._ = _a; };"+
+				" __a;",
+			"var {a} = _; a._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_writeOnlyInDefiningChunkNotUnwrapped()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_writeOnlyInDefiningChunkNotUnwrapped() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var a = 1; function init() { a = 2; }").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"var a = _.a = {}; a._ = 1; var init = function() { a._ = 2; };", "var {a} = _; a._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_nonMirrorableWriteInDefiningChunkNotUnwrapped()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_nonMirrorableWriteInDefiningChunkNotUnwrapped() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk(
+					"var a = 0, b = 0, c = 0; function setA() { return [a] = [1]; }"+
+						" function loopB() { for (b of [1, 2]) {} }"+
+						" function setC() { label: [c] = [1]; } a + b + c;").
+				AddChunk("a; b; c;").
+				Build()),
+		c.Expected(
+			"var a = _.a = {}; var b = _.b = {}; var c = _.c = {}; a._ = 0; b._ = 0; c._ = 0;"+
+				" var setA = function() { return [a._] = [1]; };"+
+				" var loopB = function() { for (b._ of [1, 2]) {} };"+
+				" var setC = function() { label: [c._] = [1]; }; a._ + b._ + c._;",
+			"var {a, b, c} = _; a._; b._; c._;"))
+}
+
+// Java: RescopeGlobalSymbolsTest.testAllChunksWithWrappedMutables_mirrorableDestructuringWriteInDefiningChunk()
+func (c *RescopeGlobalSymbolsTest) TestAllChunksWithWrappedMutables_mirrorableDestructuringWriteInDefiningChunk() {
+	c.optimizeLocalAccess =
+		CompilerOptions_OptimizeLocalAccess_ALL_CHUNKS_WITH_WRAPPED_REASSIGNABLE_SYMBOLS_IMPROVED
+	c.assumeCrossChunkNames = false
+	c.Test(
+		c.Srcs(
+			JSChunkGraphBuilder_ForChain().
+				AddChunk("var [a] = [1]; function setA() { [a] = [2]; } a;").
+				AddChunk("a;").
+				Build()),
+		c.Expected(
+			"_.a = {}; var _a; [_a] = [1]; _.a._ = _a;"+
+				" var setA = function() { [_a] = [2]; _.a._ = _a; }; _a;",
+			"var {a} = _; a._;"))
 }

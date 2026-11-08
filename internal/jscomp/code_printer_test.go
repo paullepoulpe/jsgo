@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodePrinterTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CodePrinterTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/CodePrinterTest.java)
 
 /*
@@ -3357,28 +3357,15 @@ func (c *CodePrinterTest) TestPrivateClassProperties_usage() {
 	c.AssertPrintSame("class C{static #f;static #m(){const t=this;#f in t}}")
 }
 
-// Java: CodePrinterTest.testPrivateClassProperties_nonLatinNames_knownBug()
-func (c *CodePrinterTest) TestPrivateClassProperties_nonLatinNames_knownBug() {
+// Java: CodePrinterTest.testPrivateClassProperties_nonLatinNames()
+func (c *CodePrinterTest) TestPrivateClassProperties_nonLatinNames() {
 	// Expected behavior: each input prints unchanged. Private names are never quoted, because a
 	// quoted name is a public property name. Non-Latin characters in method and field names are
 	// escaped, as in other identifiers.
-	//
-	// TODO(b/236744850): Private method and getter names with non-Latin characters are quoted.
-	// Current behavior: `#\u00f1(){}` prints as `"#\u00f1"(){}`, and `get #\u00fc(){return 1}`
-	//   prints as `get "#\u00fc"(){return 1}`.
-	// Why it's a bug: the quoted names declare public members, not the private `#\u00f1` and
-	//   `#\u00fc`. Then a use like `this.#\u00f1()` in the class is a SyntaxError, because
-	//   `#\u00f1` is no longer declared.
-	c.AssertPrint("class C{#\\u00f1(){}}", "class C{\"#\\u00f1\"(){}}")
-	c.AssertPrint("class C{get #\\u00fc(){return 1}}", "class C{get \"#\\u00fc\"(){return 1}}")
-	// TODO(b/236744850): Non-Latin characters in field names are not escaped.
-	// Current behavior: `#\u00e9=1;` and `\u00e9=1;` print with the character U+00E9 itself
-	//   instead of the escape `\u00e9`.
-	// Why it's a bug: other identifiers are always printed in ASCII. The command-line compiler
-	//   writes its output in US-ASCII by default, which turns U+00E9 into `?`, and `#?=1;` and
-	//   `?=1;` are SyntaxErrors.
-	c.AssertPrint("class C{#\\u00e9=1;}", "class C{#\u00e9=1;}")
-	c.AssertPrint("class C{\\u00e9=1;}", "class C{\u00e9=1;}")
+	c.AssertPrintSame("class C{#\\u00f1(){}}")
+	c.AssertPrintSame("class C{get #\\u00fc(){return 1}}")
+	c.AssertPrintSame("class C{#\\u00e9=1;}")
+	c.AssertPrintSame("class C{\\u00e9=1;}")
 }
 
 // Java: CodePrinterTest.testSuper()
@@ -4310,10 +4297,23 @@ func (c *CodePrinterTest) CheckWithOriginalName(code string, expectedCode string
 
 // Java: CodePrinterTest.testNullishCoalesceCastInOr()
 func (c *CodePrinterTest) TestNullishCoalesceCastInOr() {
-	// TODO(b/571641705): CodeGenerator omits required parentheses around ?? in CAST-wrapped logical expressions
 	c.AssertPrintNode(
-		"x??y||z",
+		"(x??y)||z",
 		rhino.IR_Or(rhino.NewNodeWithChild(rhino.Token_CAST, rhino.IR_Coalesce(rhino.IR_Name("x"), rhino.IR_Name("y"))), rhino.IR_Name("z")))
+}
+
+// Java: CodePrinterTest.testNullishCoalesceCastInAnd()
+func (c *CodePrinterTest) TestNullishCoalesceCastInAnd() {
+	c.AssertPrintNode(
+		"z&&(x??y)",
+		rhino.IR_And(rhino.IR_Name("z"), rhino.NewNodeWithChild(rhino.Token_CAST, rhino.IR_Coalesce(rhino.IR_Name("x"), rhino.IR_Name("y")))))
+}
+
+// Java: CodePrinterTest.testOrCastInNullishCoalesce()
+func (c *CodePrinterTest) TestOrCastInNullishCoalesce() {
+	c.AssertPrintNode(
+		"(x||y)??z",
+		rhino.IR_Coalesce(rhino.NewNodeWithChild(rhino.Token_CAST, rhino.IR_Or(rhino.IR_Name("x"), rhino.IR_Name("y"))), rhino.IR_Name("z")))
 }
 
 // Java: CodePrinterTest.testNullishCoalesceExtends()

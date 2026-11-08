@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Scanner.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/Scanner.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -709,10 +709,13 @@ func (s *Scanner) SkipTemplateCharacters() Scanner_SkipTemplateCharactersResult 
 		case '`':
 			return result
 		case '\\':
-			// There might be multiple errors. Take the first one but continue scanning
+			// There might be multiple errors or warnings. Take the first error, or the first
+			// warning if there are no errors, but continue scanning.
 			newError, hasErr := s.SkipTemplateLiteralEscapeSequence()
-			if hasErr && !result.HasError() {
-				result = newError
+			if hasErr {
+				if !result.HasMessage() || (!result.HasError() && newError.HasError()) {
+					result = newError
+				}
 			}
 		case '$':
 			if s.PeekCharAt(1) == '{' {
@@ -871,7 +874,12 @@ type Scanner_SkipTemplateCharactersResult struct {
 	hasLevel     bool
 }
 
+// Java: Scanner.SkipTemplateCharactersResult.hasMessage()
+func (r Scanner_SkipTemplateCharactersResult) HasMessage() bool {
+	return r.hasMsg
+}
+
 // Java: Scanner.SkipTemplateCharactersResult.hasError()
 func (r Scanner_SkipTemplateCharactersResult) HasError() bool {
-	return r.hasMsg
+	return r.hasLevel && r.errorLevel == TemplateLiteralToken_ErrorLevel_ERROR
 }

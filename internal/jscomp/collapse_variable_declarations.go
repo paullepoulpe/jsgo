@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CollapseVariableDeclarations.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CollapseVariableDeclarations.java @ closure-compiler v20261104
 
 /*
  * Copyright 2006 The Closure Compiler Authors.

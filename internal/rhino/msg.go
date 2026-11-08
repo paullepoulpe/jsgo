@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/Msg.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/Msg.java @ closure-compiler v20261104
 
 /*
  *
@@ -86,6 +86,7 @@ const (
 	Msg_JSDOC_INCOMPAT_TYPE
 	Msg_JSDOC_INCOMPAT_INLINING
 	Msg_JSDOC_INTERFACE_CONSTRUCTOR
+	Msg_JSDOC_LEGACY_TS_EXPORT
 	Msg_JSDOC_LENDS_INCOMPATIBLE
 	Msg_JSDOC_LENDS_MISSING
 	Msg_JSDOC_LOCALEFILE
@@ -198,6 +199,7 @@ var msg_names = [...]string{
 	"JSDOC_INCOMPAT_TYPE",
 	"JSDOC_INCOMPAT_INLINING",
 	"JSDOC_INTERFACE_CONSTRUCTOR",
+	"JSDOC_LEGACY_TS_EXPORT",
 	"JSDOC_LENDS_INCOMPATIBLE",
 	"JSDOC_LENDS_MISSING",
 	"JSDOC_LOCALEFILE",
@@ -310,6 +312,7 @@ var msg_texts = [...]string{
 	"type annotation incompatible with other annotations.",
 	"@requireInlining, @encourageInlining, and @noinline are mutually exclusive.",
 	"cannot be both an interface and a constructor.",
+	"extra @legacyNamedTsExport tag",
 	"@lends tag incompatible with other annotations.",
 	"missing object name in @lends tag.",
 	"extra @localeFile tag",

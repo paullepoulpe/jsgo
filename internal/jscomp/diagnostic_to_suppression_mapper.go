@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/DiagnosticToSuppressionMapper.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/MapDiagnosticToSuppression.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/DiagnosticToSuppressionMapper.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/MapDiagnosticToSuppression.java @ closure-compiler v20261104
 
 /*
  * Copyright 2019 The Closure Compiler Authors.

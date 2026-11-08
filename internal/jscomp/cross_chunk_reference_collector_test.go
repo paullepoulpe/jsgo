@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/CrossChunkReferenceCollectorTest.java)
 
 /*
@@ -27,11 +27,7 @@ import (
 )
 
 func crossChunkGlobalVariableNamesMap(c *CrossChunkReferenceCollector) *OrderedStringMap[*Var] {
-	out := NewOrderedStringMapWithCapacity[*Var](len(c.vars))
-	for _, v := range c.vars {
-		out.Put(v.GetName(), v)
-	}
-	return out
+	return c.GetGlobalVariableNamesMap()
 }
 
 type CrossChunkReferenceCollectorTest struct {

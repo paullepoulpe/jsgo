@@ -1,12 +1,12 @@
-// Port of com/google/javascript/jscomp/WarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/StrictWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/ClosureUnawareCodeWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/ijs/CheckTypeSummaryWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/ShowByPathWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/J2clSuppressWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/ByPathWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/DiagnosticGroupWarningsGuard.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/DiagnosticGroupPathSuppressingWarningsGuard.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/WarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/StrictWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/ClosureUnawareCodeWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/ijs/CheckTypeSummaryWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/ShowByPathWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/J2clSuppressWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/ByPathWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/DiagnosticGroupWarningsGuard.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/DiagnosticGroupPathSuppressingWarningsGuard.java @ closure-compiler v20261104
 
 /*
  * Copyright 2008 The Closure Compiler Authors.

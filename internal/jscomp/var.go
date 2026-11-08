@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/Var.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/AbstractVar.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Var.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/AbstractVar.java @ closure-compiler v20261104
 
 /*
  * Copyright 2015 The Closure Compiler Authors.

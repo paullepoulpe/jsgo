@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtilTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/NodeUtilTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -3094,6 +3094,28 @@ func nuh_assertDeclarationLValueNamedX(t *testing.T, js string) {
 func nuh_assertNotDeclarationLValueNamedX(t *testing.T, js string) {
 	x := nuh_getNameNode(t, nuParse(t, js), "x")
 	nuAssertThat(t, NodeUtil_IsDeclarationLValue(x)).IsFalse()
+}
+
+func TestNodeUtil_AssortedTests_TestIsLValueWrite(t *testing.T) {
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "var x = 1;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "let x = 1;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "const x = 1;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "x = 1;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "x += 1;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "x++;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "++x;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "var [x] = arr;"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "([x] = arr);"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "for (var x of arr) {}"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "for (let x in obj) {}"), "x"))).IsTrue()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "for (x of arr) {}"), "x"))).IsTrue()
+
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "var x;"), "x"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "let x;"), "x"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "for (var x; ; ) {}"), "x"))).IsFalse()
+	nuAssertThat(t, NodeUtil_IsLValueWrite(nuh_getNameNode(t, nuParse(t, "var a = x;"), "x"))).IsFalse()
+	// Detached declaration node where parent.getParent() is null.
+	nuAssertThat(t, NodeUtil_IsLValueWrite(rhino.IR_Var(rhino.IR_Name("x")).GetFirstChild())).IsFalse()
 }
 
 func TestNodeUtil_AssortedTests_TestIsDeclarationLValue(t *testing.T) {

@@ -1,7 +1,7 @@
-// Port of com/google/javascript/refactoring/RefactoringDriver.java @ closure-compiler v20261028
-// Port of com/google/javascript/refactoring/Scanner.java @ closure-compiler v20261028
-// Port of com/google/javascript/refactoring/JsFlumeCallback.java @ closure-compiler v20261028
-// Port of com/google/javascript/refactoring/RefactoringUtils.java @ closure-compiler v20261028
+// Port of com/google/javascript/refactoring/RefactoringDriver.java @ closure-compiler v20261104
+// Port of com/google/javascript/refactoring/Scanner.java @ closure-compiler v20261104
+// Port of com/google/javascript/refactoring/JsFlumeCallback.java @ closure-compiler v20261104
+// Port of com/google/javascript/refactoring/RefactoringUtils.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/NodeUtil.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -201,6 +201,23 @@ func NodeUtil_IsLValue(n rhino.Node) bool {
 	default:
 		return false
 	}
+}
+
+// NodeUtil_IsLValueWrite returns whether n is an L-value write to a variable or
+// property (including initialized declarations, assignments,
+// increments/decrements, destructuring patterns, and enhanced for-loop headers,
+// but excluding uninitialized variable declarations such as `var a;`).
+//
+// Java: NodeUtil.isLValueWrite(Node)
+func NodeUtil_IsLValueWrite(n rhino.Node) bool {
+	if !NodeUtil_IsLValue(n) {
+		return false
+	}
+	parent := n.GetParent()
+	grandparent := parent.GetParent()
+	return !NodeUtil_IsNameDeclaration(parent) ||
+		n.HasChildren() ||
+		(!grandparent.IsNil() && NodeUtil_IsEnhancedFor(grandparent))
 }
 
 // NodeUtil_IsDeclarationLValue determines whether this node is used as an

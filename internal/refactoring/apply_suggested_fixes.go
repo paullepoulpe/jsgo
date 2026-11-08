@@ -1,6 +1,6 @@
-// Port of com/google/javascript/refactoring/ApplySuggestedFixes.java @ closure-compiler v20261028
+// Port of com/google/javascript/refactoring/ApplySuggestedFixes.java @ closure-compiler v20261104
 // Port of com/google/javascript/refactoring/CodeReplacement.java (with the AutoValue-generated
-// AutoValue_CodeReplacement.java) @ closure-compiler v20261028
+// AutoValue_CodeReplacement.java) @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

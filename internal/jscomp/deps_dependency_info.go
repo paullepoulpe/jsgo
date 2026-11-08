@@ -1,9 +1,9 @@
-// Port of com/google/javascript/jscomp/deps/DependencyInfo.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/DependencyInfo.java @ closure-compiler v20261104
 // (with the AutoValue-generated deps/AutoValue_DependencyInfo_Require.java)
-// Port of com/google/javascript/jscomp/deps/DependencyResolver.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/deps/SourceFile.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/deps/ServiceException.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/deps/VirtualFile.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/deps/DependencyResolver.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/deps/SourceFile.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/deps/ServiceException.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/deps/VirtualFile.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

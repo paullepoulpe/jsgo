@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/Es6RewriteRestParameters.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/SubstituteEs6Syntax.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RewriteObjectSpread.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RewriteGlobalDeclarationsForTryCatchWrapping.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Es6RewriteBlockScopedFunctionDeclaration.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/Es6RewriteRestParameters.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/SubstituteEs6Syntax.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RewriteObjectSpread.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RewriteGlobalDeclarationsForTryCatchWrapping.java @ closure-compiler v20261104
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -358,8 +358,9 @@ type RewriteObjectSpread struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
 	compiler AbstractCompiler
 
-	astFactory *AstFactory
-	namespace  rhino.StaticScope
+	astFactory      *AstFactory
+	namespace       rhino.StaticScope
+	useJscompAssign bool
 }
 
 // Java: RewriteObjectSpread.transpiledFeatures
@@ -370,9 +371,10 @@ var rewriteObjectSpreadVisitTokens = makeVisitTokenSet(rhino.Token_OBJECTLIT)
 // Java: RewriteObjectSpread(AbstractCompiler)
 func NewRewriteObjectSpread(compiler AbstractCompiler) *RewriteObjectSpread {
 	return &RewriteObjectSpread{
-		compiler:   compiler,
-		astFactory: compiler.CreateAstFactory(),
-		namespace:  compiler.GetTranspilationNamespace(),
+		compiler:        compiler,
+		astFactory:      compiler.CreateAstFactory(),
+		namespace:       compiler.GetTranspilationNamespace(),
+		useJscompAssign: !compiler.GetOptions().GetOutputFeatureSet().Contains(parser.FeatureSet_ES2015),
 	}
 }
 
@@ -409,10 +411,14 @@ func (r *RewriteObjectSpread) VisitObject(obj ast.ObjectLit) {
 //
 // Java: RewriteObjectSpread.visitObjectWithSpread(Node)
 func (r *RewriteObjectSpread) VisitObjectWithSpread(obj ast.ObjectLit) {
-	// Add an empty target object literal so changes made by Object.assign will not affect any other
-	// variables.
-	result :=
-		r.astFactory.CreateObjectDotAssignCall(r.namespace, AstFactory_Type_(obj.Node()), r.astFactory.CreateObjectLit())
+	// Add an empty target object literal so changes made by Object.assign / $jscomp.assign will
+	// not affect any other variables.
+	var result rhino.Node
+	if r.useJscompAssign {
+		result = r.astFactory.CreateJscompAssignCall(r.namespace, AstFactory_Type_(obj.Node()), r.astFactory.CreateObjectLit())
+	} else {
+		result = r.astFactory.CreateObjectDotAssignCall(r.namespace, AstFactory_Type_(obj.Node()), r.astFactory.CreateObjectLit())
+	}
 
 	// An indicator whether the current last thing in the param list is an object literal to which
 	// properties may be added.  Initialized to null since nothing should be added to the empty

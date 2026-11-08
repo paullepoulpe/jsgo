@@ -17,7 +17,7 @@ const Path = "tools/oracle/pin.env"
 
 // Pin is the content of the pin file.
 type Pin struct {
-	// Version is the release tag (CLOSURE_VERSION), e.g. "v20261028".
+	// Version is the release tag (CLOSURE_VERSION), e.g. "v20261104".
 	Version string
 	// Jar is the oracle jar's file name in .cache/ (CLOSURE_JAR).
 	Jar string

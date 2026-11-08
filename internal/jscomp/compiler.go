@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -90,6 +90,8 @@ type Compiler struct {
 	inputsById map[string]*CompilerInput
 
 	scriptNodeByFilename map[string]rhino.Node
+
+	hoistedExternsByChunk map[*JSChunk]*OrderedSet[*CompilerInput]
 
 	// Go-only: AST compaction state (compiler_compact.go).
 	astCompact astCompaction

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineAndCollapseProperties.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineAndCollapseProperties.java @ closure-compiler v20261104
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -309,9 +309,13 @@ func InlineAndCollapseProperties_ReferencesCollapsibleProperty(
 		if ref.GetParent().IsNil() {
 			continue
 		}
-		if NodeUtil_IsNormalOrOptChainGetProp(ref.GetParent()) {
+		parent := ref.GetParent()
+		if parent.IsAssign() {
+			parent = parent.GetParent()
+		}
+		if NodeUtil_IsNormalOrOptChainGetProp(parent) {
 			// e.g. if the reference is "alias.b.someProp", this will be "b".
-			propertyName := ref.GetParent().GetString()
+			propertyName := parent.GetString()
 			// e.g. if the aliased name is "originalName", this will be "originalName.b".
 			originalProperty := aliasedName.LookupChild(propertyName)
 			// If the original property isn't in the namespace or can't be collapsed, keep going.

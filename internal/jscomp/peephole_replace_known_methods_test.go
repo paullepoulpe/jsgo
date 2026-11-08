@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/PeepholeReplaceKnownMethodsTest.java)
 
 /*
@@ -922,6 +922,12 @@ func (c *PeepholeReplaceKnownMethodsTest) TestFoldMathFunctions_round() {
 	c.Fold("x = Math.round(-0.0)", "x = -0.0")
 	c.Fold("x = Math.round(0.0)", "x = 0")
 	c.Fold("x = Math.round(-0.51)", "x = -1")
+	c.Fold("x = Math.round(1e20)", "x = 1e20")
+	c.Fold("x = Math.round(-1e20)", "x = -1e20")
+	c.Fold("x = Math.round(9.3e18)", "x = 9.3e18")
+	c.Fold("x = Math.round(1e300)", "x = 1e300")
+	// (Number.MAX_SAFE_INTEGER / 2) = (2^52 - 0.5): largest non-integral double before ULP >= 1.0.
+	c.Fold("x = Math.round(4503599627370495.5)", "x = 4503599627370496")
 }
 
 // Java: PeepholeReplaceKnownMethodsTest.testFoldMathFunctions_sign()

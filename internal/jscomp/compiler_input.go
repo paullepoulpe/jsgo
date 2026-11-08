@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CompilerInput.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CompilerInput.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.
@@ -546,7 +546,7 @@ func (f *CompilerInput_DepsFinder) VisitSubtree(n rhino.Node, parent rhino.Node)
 					f.requires = append(f.requires, DependencyInfo_Require_GoogRequireSymbol(lit.Value()))
 					return
 
-				case "requireType":
+				case "requireType", "forwardDeclare":
 					lit, ok := argument.AsStringLit()
 					if !ok {
 						return

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AstValidatorTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/AstValidatorTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/AstValidatorTest.java)
 
 /*
@@ -1692,7 +1692,7 @@ func (c *AstValidatorTest) TestValidFeatureInScript() {
 	n.SrcrefTree(n)
 	c.expectInvalid(n, astValidatorTest_Check_SCRIPT)
 
-	n.PutProp(rhino.Node_FEATURE_SET, parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_LET_DECLARATIONS))
+	n.SetFeatureSet(parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_LET_DECLARATIONS))
 	c.expectValid(n, astValidatorTest_Check_SCRIPT)
 
 	c.SetAcceptedLanguage(CompilerOptions_LanguageMode_ECMASCRIPT3) // resets compiler's allowable featureSet
@@ -1944,7 +1944,7 @@ func (c *AstValidatorTest) testFeatureValidation(code string, feature parser.Fea
 	currentFeatures := NodeUtil_GetFeatureSetOfScript(script)
 	AssertThat(currentFeatures.ContainsFeature(feature)).IsTrue()
 
-	script.PutProp(rhino.Node_FEATURE_SET, currentFeatures.WithoutFeatures(feature))
+	script.SetFeatureSet(currentFeatures.WithoutFeatures(feature))
 	c.expectInvalid(script, astValidatorTest_Check_SCRIPT)
 }
 

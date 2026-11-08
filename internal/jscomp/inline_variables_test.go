@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineVariablesTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineVariablesTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/InlineVariablesTest.java)
 
 /*
@@ -2573,5 +2573,85 @@ func (c *InlineVariablesTest) TestField_declaredConstAssignedInsideInstanceField
   alert(1);
   return new C();
 }
+`)
+}
+
+// Java: InlineVariablesTest.testNeverAssignedLetAndVar_referencedInEarlierHoistedFunction()
+func (c *InlineVariablesTest) TestNeverAssignedLetAndVar_referencedInEarlierHoistedFunction() {
+	// Baseline: when declared lexically before `isDebugMode`, never-assigned `let` folds to
+	// `void 0`.
+	c.Test(
+		`let googDebugOverride;
+function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+use(isDebugMode());
+use(isDebugMode());
+`,
+		`function isDebugMode() {
+  return void 0 ?? false;
+}
+use(isDebugMode());
+use(isDebugMode());
+`)
+
+	// TODO(b/581117790): InlineVariables fails to inline never-assigned `let` or `var` to `void 0`
+	// when a hoisted function declared earlier in AST order reads it, even when the function is
+	// only called after the declaration (because ReferenceCollector visits `isDebugMode` before
+	// `googDebugOverride`, causing StandardVarExpert#hasValidDeclaration to reject
+	// `references.get(0)`).
+	c.TestSame(
+		`function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+let googDebugOverride;
+use(isDebugMode());
+use(isDebugMode());
+`)
+	c.TestSame(
+		`function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+var googDebugOverride;
+use(isDebugMode());
+use(isDebugMode());
+`)
+
+	// Soundness guard: calling `isDebugMode()` before `let googDebugOverride;` executes throws a
+	// TDZ ReferenceError at runtime and must not be folded to `void 0`.
+	c.TestSame(
+		`function isDebugMode() {
+  return googDebugOverride ?? false;
+}
+use(isDebugMode());
+use(isDebugMode());
+let googDebugOverride;
+`)
+}
+
+// Java: InlineVariablesTest.testHoistedFunctionDeclaredBeforeInitializedVar()
+func (c *InlineVariablesTest) TestHoistedFunctionDeclaredBeforeInitializedVar() {
+	// Mirror of `testHoistedFunction6` with hoisted functions placed at the top of the scope.
+	// TODO(b/581117790): Because ReferenceCollector traverses `b` and `a` at their declaration
+	// sites rather than at `a()`, `debug` is not considered well-defined and fails to inline `1`.
+	c.TestSame(
+		`function b() { return debug; }
+function a() { return b(); }
+var debug = 1;
+a();
+a();
+`)
+}
+
+// Java: InlineVariablesTest.testNeverAssignedVar_referencedInEarlierArrowFunction()
+func (c *InlineVariablesTest) TestNeverAssignedVar_referencedInEarlierArrowFunction() {
+	// TODO(b/581117790): `var` has no temporal dead zone, so a never-assigned `var` is
+	// unconditionally `undefined` throughout its hoist scope, but StandardVarExpert assumes
+	// `references.get(0)` is the declaration and fails to inline `void 0`.
+	c.TestSame(
+		`const isDebugMode = () => googDebugOverride ?? false;
+var googDebugOverride;
+use(isDebugMode());
+use(isDebugMode());
 `)
 }

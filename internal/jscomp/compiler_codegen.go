@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Compiler.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -159,6 +159,27 @@ func addPrintedScriptMappings(sm *SourceMap, s *parallelPrintedScript) {
 	resetSourceAndMappings(&s.sm)
 }
 
+func (c *Compiler) chunkInputsForOutput(chunk *JSChunk) []*CompilerInput {
+	inputs := chunk.GetInputs()
+	if c.options == nil || !c.options.ShouldPrintExterns() || len(c.hoistedExternsByChunk) == 0 {
+		return inputs
+	}
+	extSet := c.hoistedExternsByChunk[chunk]
+	if extSet == nil || extSet.IsEmpty() {
+		return inputs
+	}
+	out := make([]*CompilerInput, 0, extSet.Len()+len(inputs))
+	for extIn := range extSet.All() {
+		out = append(out, extIn)
+	}
+	for _, in := range inputs {
+		if !AbstractCompiler_IsFillFileName(in.GetName()) {
+			out = append(out, in)
+		}
+	}
+	return out
+}
+
 // ToSourceOfLicenseTrackerAndJSChunk converts the parse tree for a chunk
 // back to JS code, using the given License Tracker to determine which
 // licenses should be emitted before the source code.
@@ -172,7 +193,7 @@ func addPrintedScriptMappings(sm *SourceMap, s *parallelPrintedScript) {
 func (c *Compiler) ToSourceOfLicenseTrackerAndJSChunk(licenseTracker CodePrinter_LicenseTracker, chunk *JSChunk) string {
 	return Compiler_RunInCompilerThread(c,
 		func() string {
-			inputs := chunk.GetInputs()
+			inputs := c.chunkInputsForOutput(chunk)
 			numInputs := len(inputs)
 			if numInputs == 0 {
 				return ""

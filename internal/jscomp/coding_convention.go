@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CodingConvention.java @ closure-compiler v20261104
 
 /*
  * Copyright 2007 The Closure Compiler Authors.

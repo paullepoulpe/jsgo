@@ -408,6 +408,17 @@ func (d *infraDumper) templates(nodes []rhino.Node) {
 }
 
 func (d *infraDumper) match(tag string, matcher *TemplateAstMatcher, n rhino.Node) {
+	// Java's TemplateAstMatcher.matchesNodeShape does not check
+	// ast.hasChildren() == template.hasChildren() for TEMPLATE_LOCAL_NAME and
+	// recurses into Node.isEquivalentToShallow(null) -> NullPointerException
+	// when matching `var x = 1; ...` against an uninitialized `var y;`, whereas
+	// Go returns false safely (TestMatches_localVarInitializerMismatch).
+	if ts := matcher.templateStart; ts.IsVar() && ts.HasOneChild() &&
+		ts.GetFirstChild().GetToken() == templateLocalName && ts.GetFirstChild().HasChildren() &&
+		n.IsVar() && n.HasOneChild() && n.GetFirstChild().IsName() && !n.GetFirstChild().HasChildren() {
+		d.line(tag + " " + d.id(n) + ": X java.lang.NullPointerException")
+		return
+	}
 	var matches bool
 	if e := infraTry(func() { matches = matcher.Matches(n) }); e != nil {
 		d.line(tag + " " + d.id(n) + ": X " + infraExc(e))

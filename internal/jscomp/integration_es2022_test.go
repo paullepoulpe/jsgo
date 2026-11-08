@@ -1,5 +1,5 @@
-// Port of test/com/google/javascript/jscomp/integration/ES2022IntegrationTest.java @ closure-compiler v20261028
-// Port of test/com/google/javascript/jscomp/integration/IntegrationTestCase.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/integration/ES2022IntegrationTest.java @ closure-compiler v20261104
+// Port of test/com/google/javascript/jscomp/integration/IntegrationTestCase.java @ closure-compiler v20261104
 
 /*
  * Copyright 2020 The Closure Compiler Authors.
@@ -1683,4 +1683,316 @@ console.log(new a().d());
 	// The failed `checkState` has no message, so check that it is the one in
 	// `CheckForReceiverAffectedByCollapse`.
 	AssertThat(strings.ToLower(stack)).Contains("checkforreceiveraffectedbycollapse")
+}
+
+func (c *ES2022IntegrationTest) es2021OptimizedWithoutTranspilationOptions() *CompilerOptions {
+	options := NewCompilerOptions()
+	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	options.SetDevMode(CompilerOptions_DevMode_EVERY_PASS)
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	WarningLevel_VERBOSE.SetOptionsForWarningLevel(options)
+	CompilationLevel_ADVANCED_OPTIMIZATIONS.SetOptionsForCompilationLevel(options)
+	CompilationLevel_ADVANCED_OPTIMIZATIONS.SetTypeBasedOptimizationOptions(options)
+	options.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	return options
+}
+
+func (c *ES2022IntegrationTest) es2021FullyOptimizedOptions() *CompilerOptions {
+	options := NewCompilerOptions()
+	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	options.SetDevMode(CompilerOptions_DevMode_EVERY_PASS)
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	WarningLevel_VERBOSE.SetOptionsForWarningLevel(options)
+	CompilationLevel_ADVANCED_OPTIMIZATIONS.SetOptionsForCompilationLevel(options)
+	CompilationLevel_ADVANCED_OPTIMIZATIONS.SetTypeBasedOptimizationOptions(options)
+	options.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2020)
+	return options
+}
+
+// Java: ES2021IntegrationTest.logicalAssignmentStaticClassPropertyNotTranspiledOutput()
+func (c *ES2022IntegrationTest) TestLogicalAssignmentStaticClassPropertyNotTranspiledOutput() {
+	options := c.es2021OptimizedWithoutTranspilationOptions()
+
+	c.Test(
+		options,
+		`class MyClass {}
+MyClass.myField = 1;
+alert(() => {
+  return (MyClass.myField ??= {});
+});
+alert(MyClass.myField);
+`,
+		`var a = 1;
+alert(() => a ??= {});
+alert(a);
+`)
+}
+
+// Java: ES2021IntegrationTest.logicalAssignmentStaticClassPropertyTranspiledOutput()
+func (c *ES2022IntegrationTest) TestLogicalAssignmentStaticClassPropertyTranspiledOutput() {
+	options := c.es2021FullyOptimizedOptions()
+
+	c.Test(
+		options,
+		`class MyClass {}
+MyClass.myField = 1;
+alert(() => {
+  return (MyClass.myField ??= {});
+});
+alert(MyClass.myField);
+`,
+		`var a = 1;
+alert(() => a ?? (a = {}));
+alert(a);
+`)
+}
+
+// Java: ES2021IntegrationTest.logicalAssignmentNamespacedStaticClassPropertyTranspiledOutput()
+func (c *ES2022IntegrationTest) TestLogicalAssignmentNamespacedStaticClassPropertyTranspiledOutput() {
+	options := c.es2021FullyOptimizedOptions()
+
+	c.Test(
+		options,
+		`const MyNs = {};
+MyNs.MyClass = class {};
+MyNs.MyClass.myField = 1;
+alert(() => {
+  return (MyNs.MyClass.myField ??= {});
+});
+alert(MyNs.MyClass.myField);
+`,
+		`var a = 1;
+alert(() => a ?? (a = {}));
+alert(a);
+`)
+}
+
+// Java: ES2021IntegrationTest.logicalAssignmentStaticClassPropertyGlobalConditionalOutput_knownBug()
+func (c *ES2022IntegrationTest) TestLogicalAssignmentStaticClassPropertyGlobalConditionalOutput_knownBug() {
+	options := c.es2021FullyOptimizedOptions()
+
+	// TODO: b/476221453 - `(c = a).a ?? (c.a = 3)` should be collapsed, preventing `MyClass.b`
+	// from being constant-inlined as `2` in `alert(2)`.
+	c.Test(
+		options,
+		`class MyClass {}
+MyClass.a = 1;
+MyClass.b = 2;
+alert(MyClass.a ||= (MyClass.b ??= 3));
+alert(MyClass.b);
+`,
+		`class a {}
+var b = 1;
+let c;
+alert(b || (b = (c = a).a ?? (c.a = 3)));
+alert(2);
+`)
+}
+
+// Java: ES2021IntegrationTest.logicalAssignmentStaticClassPropertyInLoopNotTranspiledOutput()
+func (c *ES2022IntegrationTest) TestLogicalAssignmentStaticClassPropertyInLoopNotTranspiledOutput() {
+	options := c.es2021OptimizedWithoutTranspilationOptions()
+
+	c.Test(
+		options,
+		`class MyClass {}
+MyClass.myField = 1;
+alert(() => {
+  while (MyClass.myField ??= {}) {
+    break;
+  }
+});
+alert(MyClass.myField);
+`,
+		`var a = 1;
+alert(() => {
+  for (; a ??= {};) {
+    break;
+  }
+});
+alert(a);
+`)
+}
+
+// Java: ES2021IntegrationTest.logicalAssignmentStaticClassPropertyInForDoWhileForOfTranspiledOutput()
+func (c *ES2022IntegrationTest) TestLogicalAssignmentStaticClassPropertyInForDoWhileForOfTranspiledOutput() {
+	options := c.es2021FullyOptimizedOptions()
+
+	c.Test(
+		options,
+		`class MyClass {}
+MyClass.a = 1;
+MyClass.b = 2;
+MyClass.items = [1];
+alert(() => {
+  for (; MyClass.a ??= 10; MyClass.b ||= 20) {
+    if (window.stop) break;
+  }
+  do {
+    if (window.stop) break;
+  } while (MyClass.a &&= 30);
+  for (const x of (MyClass.items ??= [])) {
+    alert(x);
+  }
+});
+alert([MyClass.a, MyClass.b, MyClass.items]);
+`,
+		`var b = 1, c = 2, d = [1];
+alert(() => {
+  for (; (b ?? (b = 10)) && !window.a; c || (c = 20)) {}
+  do {
+    if (window.a) break;
+  } while (b && (b = 30));
+  for (let e of d ?? (d = [])) {
+    alert(e);
+  }
+});
+alert([b, c, d]);
+`)
+}
+
+func (c *ES2022IntegrationTest) integrationTestCreateCompilerOptions() *CompilerOptions {
+	options := NewCompilerOptions()
+	options.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT3)
+	options.SetDevMode(CompilerOptions_DevMode_EVERY_PASS)
+	options.SetCodingConvention(NewGoogleCodingConvention())
+	options.renamePrefixNamespaceAssumeCrossChunkNames = true
+	options.SetAssumeGettersArePure(false)
+	options.SetPrettyPrint(true)
+	return options
+}
+
+// Java: IntegrationTest.testExtractPrototypeMemberDeclarationsAndAmbiguateProperties()
+func (c *ES2022IntegrationTest) TestExtractPrototypeMemberDeclarationsAndAmbiguateProperties() {
+	options := c.integrationTestCreateCompilerOptions()
+	options.SetCheckTypes(true)
+	options.SetExtractPrototypeMemberDeclarations(true)
+	options.SetAmbiguateProperties(true)
+	options.SetPropertyRenaming(PropertyRenamingPolicy_ALL_UNQUOTED)
+	options.SetVariableRenaming(VariableRenamingPolicy_ALL)
+
+	var code strings.Builder
+	code.WriteString("/** @constructor */ function Foo() {}\n")
+	for i := 0; i < 7; i++ {
+		fmt.Fprintf(&code, "Foo.prototype.fooM%d = function() {};\n", i)
+	}
+	code.WriteString("/** @constructor */ function Bar() {}\n")
+	for i := 0; i < 7; i++ {
+		fmt.Fprintf(&code, "Bar.prototype.barM%d = function() {};\n", i)
+	}
+
+	// TODO(b/575626948): AmbiguateProperties should ambiguate Foo and Bar prototype methods to the
+	// same property names (a..g) instead of distinct names (a..g and h..n).
+	var expected strings.Builder
+	expected.WriteString("var a; function b() {} a = b.prototype;")
+	for _, m := range []string{"h", "i", "j", "k", "l", "m", "n"} {
+		fmt.Fprintf(&expected, "a.%s=function(){};", m)
+	}
+	expected.WriteString("function c() {} a = c.prototype;")
+	for _, m := range []string{"a", "b", "c", "d", "e", "f", "g"} {
+		fmt.Fprintf(&expected, "a.%s=function(){};", m)
+	}
+
+	c.Test(options, code.String(), expected.String())
+}
+
+// Java: IntegrationTest.testGenerateIjsWithHoistedExternsInChunks()
+func (c *ES2022IntegrationTest) TestGenerateIjsWithHoistedExternsInChunks() {
+	options := c.integrationTestCreateCompilerOptions()
+	options.SetIncrementalChecks(CompilerOptions_IncrementalCheckMode_GENERATE_IJS)
+
+	compiler := c.CompileSources(
+		options,
+		[]string{
+			"/** @externs */ /** @constructor */ function MyExternType() {}",
+			"/** @type {!MyExternType} */ var x = new MyExternType();",
+		})
+	c.CheckUnexpectedErrorsOrWarnings(compiler, 0)
+
+	chunks := compiler.GetChunks()
+	AssertThat(compiler.ToSourceOfJSChunk(chunks[0])).
+		IsEqualTo(
+			"/** @fileoverview @typeSummary */\n" +
+				"/** @externs */ \n" +
+				"/** @constructor */ \n" +
+				"function MyExternType() {\n" +
+				"}\n" +
+				";")
+	AssertThat(compiler.ToSourceOfJSChunk(chunks[1])).
+		IsEqualTo(
+			"/** @fileoverview @typeSummary */\n" +
+				"/** @type {!MyExternType} */ \n" +
+				"var x;\n")
+}
+
+// Java: IntegrationTest.testUnusedTestOnlyOverride_compileToZeroDependsOnDeclarationOrder()
+func (c *ES2022IntegrationTest) TestUnusedTestOnlyOverride_compileToZeroDependsOnDeclarationOrder() {
+	options := c.integrationTestCreateCompilerOptions()
+	CompilationLevel_ADVANCED_OPTIMIZATIONS.SetOptionsForCompilationLevel(options)
+	options.SetLanguageIn(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	options.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_NEXT)
+	options.SetDefineToBooleanLiteral("DEBUG", false)
+
+	// When `let debugOverride;` precedes `isDebugMode()` and `assertInRealm()`, RemoveUnusedCode
+	// strips `TEST_ONLY`, InlineVariables folds `debugOverride` to `void 0`, `assertInRealm`
+	// simplifies to an empty function, and the entire bundle compiles to zero bytes.
+	c.Test(
+		options,
+		`/** @define {boolean} */
+const DEBUG = true;
+let debugOverride;
+function isDebugMode() {
+  return debugOverride ?? DEBUG;
+}
+function assertInRealm(name) {
+  if (isDebugMode() && !window['inRealm']) {
+    throw new Error(`+"`Assertion failed for ${name}: must run inside child realm.`"+`);
+  }
+}
+const TEST_ONLY = {
+  setDebug(val) {
+    debugOverride = val;
+  },
+};
+assertInRealm('ext-a');
+assertInRealm('ext-b');
+`,
+		"")
+
+	// TODO(b/581117790): Moving `let debugOverride;` below `assertInRealm()` (above `TEST_ONLY`)
+	// deadlocks InlineFunctions and InlineVariables even though `TEST_ONLY` is completely stripped
+	// by RemoveUnusedCode and `debugOverride` has zero remaining assignments: multi-call
+	// `assertInRealm` is too large for InlineFunctions to inline before its body shrinks, while
+	// InlineVariables refuses to fold `debugOverride` to `void 0` because ReferenceCollector
+	// visits `assertInRealm` (declared above `let debugOverride;`) before `let debugOverride;`.
+	c.Test(
+		options,
+		`/** @define {boolean} */
+const DEBUG = true;
+function isDebugMode() {
+  return debugOverride ?? DEBUG;
+}
+function assertInRealm(name) {
+  if (isDebugMode() && !window['inRealm']) {
+    throw new Error(`+"`Assertion failed for ${name}: must run inside child realm.`"+`);
+  }
+}
+let debugOverride;
+const TEST_ONLY = {
+  setDebug(val) {
+    debugOverride = val;
+  },
+};
+assertInRealm('ext-a');
+assertInRealm('ext-b');
+`,
+		`function a(b) {
+  if ((c ?? !1) && !window.inRealm) {
+    throw Error(`+"`Assertion failed for ${b}: must run inside child realm.`"+`);
+  }
+}
+let c;
+a("ext-a");
+a("ext-b");
+`)
 }

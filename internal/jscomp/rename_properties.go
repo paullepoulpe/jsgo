@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/RemovePropertyRenamingCalls.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RenameProperties.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/RemovePropertyRenamingCalls.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.

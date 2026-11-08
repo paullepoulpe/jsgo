@@ -1,5 +1,5 @@
 // Package rhinotesting is the Go port of com.google.javascript.rhino.testing
-// (closure-compiler v20261028): the base test case and Truth subjects used by
+// (closure-compiler v20261104): the base test case and Truth subjects used by
 // the rhino and jscomp unit tests.
 package rhinotesting
 

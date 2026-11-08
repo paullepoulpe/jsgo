@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/Es6RewriteRestParametersTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/Es6RewriteRestParametersTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/Es6RewriteRestParametersTest.java)
 
 /*

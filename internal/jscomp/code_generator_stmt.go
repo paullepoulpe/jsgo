@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/CodeGenerator.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/CodeGenerator.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -451,8 +451,14 @@ func (g *CodeGenerator) addMemberDef(node rhino.Node, type_ rhino.Token) {
 	jutil.CheckStateMsg1(fnNameNode.Ident() == "", "%s", fn.Node())
 
 	name := method.Key()
-	if !method.IsQuoted() &&
-		(rhino.TokenStream_IsJSIdentifier(name) || node.IsPrivateIdentifier()) &&
+	if node.IsPrivateIdentifier() {
+		// Never quote a private name (falling through to `addJsString` when `!isLatin(name)`
+		// would turn `#π() {}` into a quoted public method `"#\u03c0"() {}`). Non-Latin
+		// characters are Unicode-escaped via `addIdentifier`.
+		g.AddIdentifier(name)
+		g.MaybeAddGenericTypes(fnNameNode.Node())
+	} else if !method.IsQuoted() &&
+		rhino.TokenStream_IsJSIdentifier(name) &&
 		NodeUtil_IsLatin(name) {
 		g.Add(name)
 		g.MaybeAddGenericTypes(fnNameNode.Node())
@@ -473,7 +479,8 @@ func (g *CodeGenerator) addFieldDef(field ast.FieldDef, type_ rhino.Token) {
 		g.Add("static ")
 	}
 	if type_ == rhino.Token_MEMBER_FIELD_DEF {
-		g.Add(ast.MustMemberFieldDef(node).Key())
+		// Escape non-Latin characters as in other identifiers.
+		g.AddIdentifier(ast.MustMemberFieldDef(node).Key())
 	} else {
 		g.Add("[")
 		// Must use addExpr() with a priority of 1, because comma

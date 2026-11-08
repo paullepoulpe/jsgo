@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/JsDocInfoParser.java @ closure-compiler v20261104
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -597,6 +597,11 @@ func (p *JsDocInfoParser) ParseAnnotation(token JsDocToken, extendedTypes *[]JsD
 	case Annotation_NO_DTS:
 		if !p.jsdocBuilder.RecordNoDts() {
 			p.AddParserWarning(rhino.Msg_JSDOC_NODTS)
+		}
+		return p.EatUntilEOLIfNotAnnotation()
+	case Annotation_LEGACY_NAMED_TS_EXPORT:
+		if !p.jsdocBuilder.RecordLegacyNamedTsExport() {
+			p.AddParserWarning(rhino.Msg_JSDOC_LEGACY_TS_EXPORT)
 		}
 		return p.EatUntilEOLIfNotAnnotation()
 	case Annotation_NO_COLLAPSE:

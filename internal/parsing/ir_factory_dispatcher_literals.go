@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/IRFactory.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/IRFactory.java @ closure-compiler v20261104
 
 /*
  * Copyright 2013 The Closure Compiler Authors.

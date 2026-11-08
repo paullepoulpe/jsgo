@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/Annotation.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/Annotation.java @ closure-compiler v20261104
 
 /*
  * Copyright 2010 The Closure Compiler Authors.
@@ -50,6 +50,7 @@ const (
 	Annotation_INTERFACE
 	Annotation_JSX
 	Annotation_JSX_FRAGMENT
+	Annotation_LEGACY_NAMED_TS_EXPORT
 	Annotation_LENDS
 	Annotation_LICENSE // same as preserve
 	Annotation_LOG_TYPE_IN_COMPILER
@@ -139,6 +140,7 @@ var annotation_names = [...]string{
 	"INTERFACE",
 	"JSX",
 	"JSX_FRAGMENT",
+	"LEGACY_NAMED_TS_EXPORT",
 	"LENDS",
 	"LICENSE",
 	"LOG_TYPE_IN_COMPILER",
@@ -235,6 +237,7 @@ var Annotation_recognizedAnnotations = map[string]Annotation{
 	"inheritDoc":               Annotation_INHERIT_DOC,
 	"interface":                Annotation_INTERFACE,
 	"record":                   Annotation_RECORD,
+	"legacyNamedTsExport":      Annotation_LEGACY_NAMED_TS_EXPORT,
 	"lends":                    Annotation_LENDS,
 	"license":                  Annotation_LICENSE,
 	"logTypeInCompiler":        Annotation_LOG_TYPE_IN_COMPILER,

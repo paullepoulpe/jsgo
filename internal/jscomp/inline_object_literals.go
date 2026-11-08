@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineObjectLiterals.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineObjectLiterals.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -23,6 +23,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/internal/ast"
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/parser"
 	"github.com/paullepoulpe/jsgo/internal/rhino"
 	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
@@ -1062,11 +1063,12 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 	o.computeVarList(referenceInfo)
 
 	var vnode rhino.Node
+	isBlockScoped := v.IsLet() || v.IsConst()
 	defined := referenceInfo.IsWellDefined() && NodeUtil_IsNameDeclaration(init.GetParent())
 	if defined {
 		vnode = init.GetParent()
 		o.fillInitialValues(init)
-	} else if v.GetParentNode().IsLet() || v.GetParentNode().IsConst() {
+	} else if isBlockScoped {
 		scopeRoot := v.GetScope().(*Scope).GetRootNode()
 		vnode = scopeRoot.GetFirstChild()
 		if !NodeUtil_IsStatement(vnode) && NodeUtil_IsStatement(scopeRoot) {
@@ -1081,13 +1083,31 @@ func (o *InlineObjectLiterals) splitObject(v *Var, init *Reference, referenceInf
 	jutil.CheckStateMsg1(NodeUtil_IsStatement(vnode), "%s", vnode)
 
 	slots := o.propSlots.values()
+	if isBlockScoped && len(slots) > 0 {
+		script := NodeUtil_GetEnclosingScript(vnode)
+		if !script.IsNil() {
+			if o.compiler != nil && o.compiler.parallelRecorder != nil {
+				o.compiler.parallelRecorder.recordScriptFeatures(
+					o.compiler, script, uint64(1)<<uint(parser.FeatureSet_Feature_LET_DECLARATIONS))
+			} else {
+				NodeUtil_AddFeatureToScript(script, parser.FeatureSet_Feature_LET_DECLARATIONS, o.compiler)
+			}
+		}
+	}
+
 	for i := range slots {
 		slot := &slots[i]
 		val := slot.initVal
-		newVarNode := NodeUtil_NewVarNode(slot.varName, val)
+		lhs := rhino.IR_Name(slot.varName)
+		declarationType := rhino.Token_VAR
+		if isBlockScoped {
+			declarationType = rhino.Token_LET
+		}
+		var newVarNode rhino.Node
 		if val.IsNil() {
-			newVarNode.SrcrefTreeIfMissing(vnode)
+			newVarNode = rhino.IR_Declaration(lhs, declarationType).SrcrefTreeIfMissing(vnode)
 		} else {
+			newVarNode = rhino.IR_DeclarationWithValue(lhs, val, declarationType).SrcrefTreeIfMissing(val)
 			o.recordStaleVarReferencesInTree(val, v.GetScope().(*Scope))
 		}
 		newVarNode.InsertBefore(vnode)

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/InjectTranspilationRuntimeLibrariesTest.java)
 
 /*
@@ -85,16 +85,30 @@ func (c *InjectTranspilationRuntimeLibrariesTest) TestEmptyInjected() {
 	AssertThat(injected).IsEmpty()
 }
 
-// Java: InjectTranspilationRuntimeLibrariesTest.testMakeIteratorAndObjectAssignInjectedForObjectPatternRest()
-func (c *InjectTranspilationRuntimeLibrariesTest) TestMakeIteratorAndObjectAssignInjectedForObjectPatternRest() {
+// Java: InjectTranspilationRuntimeLibrariesTest.testMakeIteratorAndAssignInjectedForObjectPatternRest()
+func (c *InjectTranspilationRuntimeLibrariesTest) TestMakeIteratorAndAssignInjectedForObjectPatternRest() {
 	injected := c.ParseAndRunInjectionPass("const {a, ...rest} = something();")
-	AssertThat(injected).ContainsExactly("es6/util/makeiterator", "es6/object/assign")
+	AssertThat(injected).ContainsExactly("es6/util/makeiterator", "es6/util/assign")
 }
 
-// Java: InjectTranspilationRuntimeLibrariesTest.testObjectAssignInjectedForObjectSpread()
-func (c *InjectTranspilationRuntimeLibrariesTest) TestObjectAssignInjectedForObjectSpread() {
+// Java: InjectTranspilationRuntimeLibrariesTest.testMakeIteratorAndAssignInjectedForObjectPatternRest_es6Out_doesNotInjectAssign()
+func (c *InjectTranspilationRuntimeLibrariesTest) TestMakeIteratorAndAssignInjectedForObjectPatternRest_es6Out_doesNotInjectAssign() {
+	c.languageOut = CompilerOptions_LanguageMode_ECMASCRIPT_2015
+	injected := c.ParseAndRunInjectionPass("const {a, ...rest} = something();")
+	AssertThat(injected).ContainsExactly("es6/util/makeiterator")
+}
+
+// Java: InjectTranspilationRuntimeLibrariesTest.testAssignInjectedForObjectSpread_es5Out()
+func (c *InjectTranspilationRuntimeLibrariesTest) TestAssignInjectedForObjectSpread_es5Out() {
 	injected := c.ParseAndRunInjectionPass("const obj = {a, ...rest};")
-	AssertThat(injected).ContainsExactly("es6/object/assign")
+	AssertThat(injected).ContainsExactly("es6/util/assign")
+}
+
+// Java: InjectTranspilationRuntimeLibrariesTest.testAssignInjectedForObjectSpread_es6Out_doesNotInjectAssign()
+func (c *InjectTranspilationRuntimeLibrariesTest) TestAssignInjectedForObjectSpread_es6Out_doesNotInjectAssign() {
+	c.languageOut = CompilerOptions_LanguageMode_ECMASCRIPT_2015
+	injected := c.ParseAndRunInjectionPass("const obj = {a, ...rest};")
+	AssertThat(injected).IsEmpty()
 }
 
 // Java: InjectTranspilationRuntimeLibrariesTest.testForOf_injectsMakeIterator()

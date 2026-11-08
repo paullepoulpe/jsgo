@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261104
 
 /*
  *
@@ -467,6 +467,10 @@ const (
 	JSDocInfo_Bit_WIZ_CALLBACK
 	JSDocInfo_Bit_LOG_TYPE_IN_COMPILER
 	JSDocInfo_Bit_CLOSURE_UNAWARE_CONFIG
+
+	// Overrides the syntactic classification of a goog.module/goog.provide namespace as named
+	// exports for TypeScript.
+	JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT
 )
 
 var jsdocInfo_Bit_names = [...]string{
@@ -478,7 +482,7 @@ var jsdocInfo_Bit_names = [...]string{
 	"REQUIRE_INLINING", "ENCOURAGE_INLINING", "NG_INJECT", "WIZ_ACTION", "POLYMER_BEHAVIOR",
 	"POLYMER", "CUSTOM_ELEMENT", "MIXIN_CLASS", "MIXIN_FUNCTION", "SASS_GENERATED_CSS_TS",
 	"CLOSURE_UNAWARE_CODE", "PROVIDE_GOOG", "PROVIDE_ALREADY_PROVIDED", "WIZ_CALLBACK",
-	"LOG_TYPE_IN_COMPILER", "CLOSURE_UNAWARE_CONFIG",
+	"LOG_TYPE_IN_COMPILER", "CLOSURE_UNAWARE_CONFIG", "LEGACY_NAMED_TS_EXPORT",
 }
 
 // Name is Enum.name().

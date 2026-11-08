@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/serialization/TypedAstDeserializer.java @ closure-compiler v20261104
 
 /*
  * Copyright 2021 The Closure Compiler Authors.

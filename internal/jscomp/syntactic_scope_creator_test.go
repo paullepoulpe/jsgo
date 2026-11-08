@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/SyntacticScopeCreatorTest.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/SyntacticScopeCreatorTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.

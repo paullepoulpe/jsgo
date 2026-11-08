@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RescopeGlobalSymbols.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RescopeGlobalSymbols.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.
@@ -92,26 +92,30 @@ func (r *RescopeGlobalSymbols) Process(externs rhino.Node, root rhino.Node) {
 	// Find global names that are used in more than one chunk and names that
 	// may refer to functions that reference `this`.
 	analyzer := rescopeAnalyzeNamesCallback{
-		compiler:             r.compiler,
-		trackLocalAccessSets: r.optimizeLocalAccess.ShouldOptimize(),
+		compiler:              r.compiler,
+		assumeCrossChunkNames: r.assumeCrossChunkNames,
+		trackLocalAccessSets:  r.optimizeLocalAccess.ShouldOptimize(),
+		renameHelperBuilder:   newRescopeRenameHelperBuilder(r.compiler, r.globalSymbolNamespace, r.optimizeLocalAccess),
 		info: rescopeSymbolInfo{
-			crossChunkNames:     make(map[string]struct{}),
-			maybeReferencesThis: make(map[string]struct{}),
+			globalSymbolNamespace: r.globalSymbolNamespace,
+			externNameIDs:         collectExternVariableNameIDs(r.compiler, externs),
+			maybeReferencesThis:   make(map[string]struct{}),
 		},
 	}
 	if analyzer.trackLocalAccessSets {
 		analyzer.info.globalNamesWithReadInDefiningChunk = make(map[string]struct{})
+		analyzer.info.globalNamesWithUnsafeWriteForLocalAliasInDefiningChunk = make(map[string]struct{})
 	}
 	NodeTraversal_Traverse(r.compiler, root, &analyzer)
+	analyzer.info.populateWrappedCrossChunkNames()
+	renameHelper := analyzer.renameHelperBuilder.build(&analyzer.info)
 
 	// Rewrite all references to be property accesses of the single symbol.
 	rewriteScope := newRescopeRewriteCallback(
 		r.compiler,
-		r.globalSymbolNamespace,
-		r.assumeCrossChunkNames,
 		r.optimizeLocalAccess,
-		externs,
-		&analyzer.info)
+		&analyzer.info,
+		renameHelper)
 	NodeTraversal_Traverse(r.compiler, root, rewriteScope)
 
 	// Remove the var/let/const from statements in global scope if the declared
@@ -177,22 +181,15 @@ func (c *rescopeGlobalDeclsCallback) Visit(t *NodeTraversal, n rhino.Node, paren
 	c.compiler.ReportChangeToEnclosingScope(parent)
 }
 
-type rescopeSymbolInfo struct {
-	crossChunkNames                               map[string]struct{}
-	crossChunkNamesWithWriteFromOtherChunk        OrderedSet[string]
-	crossChunkNamesUsedInNonDependentChunk        OrderedSet[string]
-	globalNamesWithReadInDefiningChunk            map[string]struct{}
-	globalNamesWithInnerScopeWriteInDefiningChunk OrderedSet[string]
-	maybeReferencesThis                           map[string]struct{}
-}
-
 // rescopeAnalyzeNamesCallback combines FindCrossChunkNamesCallback and
 // FindNamesReferencingThis into a single post-order pass over NAME nodes.
 type rescopeAnalyzeNamesCallback struct {
 	NodeTraversal_AbstractPostOrderCallbackBase
-	compiler             AbstractCompiler
-	trackLocalAccessSets bool
-	info                 rescopeSymbolInfo
+	compiler              AbstractCompiler
+	assumeCrossChunkNames bool
+	trackLocalAccessSets  bool
+	renameHelperBuilder   rescopeRenameHelperBuilder
+	info                  rescopeSymbolInfo
 }
 
 var rescopeNameVisitTokens = func() ast.TokenSet {
@@ -218,61 +215,103 @@ func (c *rescopeAnalyzeNamesCallback) Visit(t *NodeTraversal, n rhino.Node, pare
 	if id <= strpool.EmptyID {
 		return
 	}
-	v := t.GetScope().GetVarByID(id)
-	if v == nil || !v.IsGlobal() {
-		return
+	name := n.GetString()
+	var v *Var
+	var resolved bool
+	getVar := func() *Var {
+		if !resolved {
+			v = t.GetScope().GetVarByID(id)
+			resolved = true
+		}
+		return v
 	}
-	name := v.GetName()
-	c.visitCrossChunkName(t, nameNode, n, name, v, parent)
-	c.visitMaybeReferencesThis(nameNode, n, name, v, parent)
+	c.visitCrossChunkName(t, n, name, getVar, parent)
+	c.visitMaybeReferencesThis(nameNode, n, name, getVar, parent)
 }
 
 func (c *rescopeAnalyzeNamesCallback) visitCrossChunkName(
-	t *NodeTraversal, nameNode ast.Name, n rhino.Node, name string, v *Var, parent rhino.Node) {
-	if !c.trackLocalAccessSets {
-		if _, exists := c.info.crossChunkNames[name]; exists {
-			return
-		}
+	t *NodeTraversal, n rhino.Node, name string, getVar func() *Var, parent rhino.Node) {
+	if !c.trackLocalAccessSets && c.info.crossChunkNames.Has(name) {
+		return
 	}
+	c.renameHelperBuilder.recordExistingName(name)
+	v := getVar()
 	if v == nil || !v.IsGlobal() {
 		return
 	}
 
+	if c.assumeCrossChunkNames ||
+		c.compiler.GetCodingConvention().IsExportedWithLocal(name /* local= */, false) {
+		c.info.crossChunkNames.Add(name)
+	}
+
 	input := v.GetInput()
-	_, hasInit := nameNode.Init()
 
 	if c.trackLocalAccessSets &&
 		!t.InGlobalScope() &&
 		(input == nil || input.GetChunk() == t.GetChunk()) &&
-		NodeUtil_IsLValue(n) &&
-		(!NodeUtil_IsNameDeclaration(parent) || hasInit) {
+		NodeUtil_IsLValueWrite(n) {
 		c.info.globalNamesWithInnerScopeWriteInDefiningChunk.Add(name)
 	}
 
 	if input == nil {
-		c.info.crossChunkNames[name] = struct{}{}
+		c.info.crossChunkNames.Add(name)
 		return
 	}
 	if input.GetChunk() != t.GetChunk() {
-		c.info.crossChunkNames[name] = struct{}{}
+		c.info.crossChunkNames.Add(name)
 		if c.trackLocalAccessSets {
-			if NodeUtil_IsLValue(n) && (!NodeUtil_IsNameDeclaration(parent) || hasInit) {
+			if NodeUtil_IsLValueWrite(n) {
 				c.info.crossChunkNamesWithWriteFromOtherChunk.Add(name)
 			}
 			if !c.compiler.GetChunkGraph().DependsOn(t.GetChunk(), input.GetChunk()) {
 				c.info.crossChunkNamesUsedInNonDependentChunk.Add(name)
 			}
 		}
-	} else if c.trackLocalAccessSets && n != v.GetNameNode() {
-		c.info.globalNamesWithReadInDefiningChunk[name] = struct{}{}
+	} else if c.trackLocalAccessSets {
+		if rescopeIsReadReference(n) {
+			c.info.globalNamesWithReadInDefiningChunk[name] = struct{}{}
+		}
+		if NodeUtil_IsLValueWrite(n) && !rescopeIsWriteSafeForLocalAliasMirroring(n, parent) {
+			c.info.globalNamesWithUnsafeWriteForLocalAliasInDefiningChunk[name] = struct{}{}
+		}
 	}
 }
 
-func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
-	nameNode ast.Name, n rhino.Node, name string, v *Var, parent rhino.Node) {
-	if v == nil || !v.IsGlobal() {
-		return
+func rescopeIsReadReference(n rhino.Node) bool {
+	if !NodeUtil_IsLValue(n) {
+		return true
 	}
+	parent := n.GetParent()
+	return NodeUtil_IsCompoundAssignmentOp(parent) || parent.IsInc() || parent.IsDec()
+}
+
+func rescopeIsWriteSafeForLocalAliasMirroring(n rhino.Node, parent rhino.Node) bool {
+	if (NodeUtil_IsAssignmentOp(parent) && parent.GetFirstChild() == n) ||
+		parent.IsInc() ||
+		parent.IsDec() {
+		return true
+	}
+	if NodeUtil_IsNameDeclaration(parent) {
+		return !NodeUtil_IsEnhancedFor(parent.GetParent())
+	}
+	if NodeUtil_IsLhsByDestructuring(n) {
+		rootTarget := NodeUtil_GetRootTarget(n)
+		rootTargetParent := rootTarget.GetParent()
+		if rootTargetParent.IsDestructuringLhs() {
+			declaration := rootTargetParent.GetParent()
+			return NodeUtil_IsStatementBlock(declaration.GetParent())
+		}
+		if rootTargetParent.IsAssign() && rootTargetParent.GetFirstChild() == rootTarget {
+			exprResult := rootTargetParent.GetParent()
+			return exprResult.IsExprResult() && NodeUtil_IsStatementBlock(exprResult.GetParent())
+		}
+	}
+	return false
+}
+
+func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
+	nameNode ast.Name, n rhino.Node, name string, getVar func() *Var, parent rhino.Node) {
 	var value rhino.Node
 	switch ast.RoleIn(n, parent) {
 	case ast.RoleAssignTarget:
@@ -288,6 +327,10 @@ func (c *rescopeAnalyzeNamesCallback) visitMaybeReferencesThis(
 		return
 	}
 	if _, already := c.info.maybeReferencesThis[name]; already {
+		return
+	}
+	v := getVar()
+	if v == nil || !v.IsGlobal() {
 		return
 	}
 	if value.IsNil() || !value.IsFunction() || NodeUtil_ReferencesOwnReceiver(value) {

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/AggressiveInlineAliasesTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/AggressiveInlineAliasesTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/AggressiveInlineAliasesTest.java)
 
 /*
@@ -836,7 +836,7 @@ function f() {
 		`/** @constructor */ var Main = function() {};
 Main.doSomething = function(i) {}
 function f() {
-  if (tmp = Main) { // Don't set "tmp = null" because that would change control flow.
+  if (Main) {
     Main.doSomething(6);
   }
   var tmp;
@@ -859,10 +859,358 @@ function f() {
 		`/** @constructor */ var Main = function() {};
 Main.doSomething = function(i) {}
 function f() {
-  var a = tmp = Main; // Don't set "tmp = null" because that would mess up a's value.
+  var a = null;
   Main.doSomething(6);
-  a.doSomething(7); // Main doesn't get inlined here, which makes collapsing unsafe.
+  Main.doSomething(7);
   var tmp;
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testLocalAliasInGetPropReceiver()
+func (c *AggressiveInlineAliasesTest) TestLocalAliasInGetPropReceiver() {
+	// Regression test for b/476221453: logical assignment `Main.prop ??= ...` normalizes to
+	// `let tmp; (tmp = Main).prop ?? (tmp.prop = ...);`.
+	c.Test(
+		`class Main {}
+Main.prop = 1;
+function f() {
+  let tmp;
+  return (tmp = Main).prop ?? (tmp.prop = {});
+}
+`,
+		`class Main {}
+Main.prop = 1;
+function f() {
+  let tmp;
+  return Main.prop ?? (Main.prop = {});
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testLocalAliasInGetPropReceiverWithZeroReadsNested()
+func (c *AggressiveInlineAliasesTest) TestLocalAliasInGetPropReceiverWithZeroReadsNested() {
+	// Regression test for b/476221453: `t1` has 0 separate read references (its only use is the
+	// `(t1 = ...)` assignment expression result), and inlining `t1` exposes `(t2 = A).b.p` for
+	// the next iteration.
+	c.Test(
+		`const A = {b: {p: 1}};
+function f() {
+  let t1;
+  let t2;
+  use((t1 = (t2 = A).b).p);
+}
+`,
+		`const A = {b: {p: 1}};
+function f() {
+  let t1;
+  let t2;
+  use(A.b.p);
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalAliasInConditionalGetPropReceiver_knownBug()
+func (c *AggressiveInlineAliasesTest) TestGlobalAliasInConditionalGetPropReceiver_knownBug() {
+	// Regression test for b/476221453: in global scope, `window.cond && (Main.prop ??= {})`
+	// normalizes to `let tmp; window.cond && ((tmp = Main).prop ?? (tmp.prop = {}));`.
+	// TODO: b/476221453 - `tmp` should be inlined to `Main`.
+	c.Test(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+window.cond && ((tmp = Main).prop ?? (tmp.prop = {}));
+`,
+		`class Main {}
+Main.prop = 1;
+let tmp;
+window.cond && ((tmp = Main).prop ?? (tmp.prop = {}));
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testLocalEs6ClassAliasInLoopCondition()
+func (c *AggressiveInlineAliasesTest) TestLocalEs6ClassAliasInLoopCondition() {
+	// Regression test for b/476221453: `while (Main.prop ??= {})` normalizes `let tmp;`
+	// outside the loop and `(tmp = Main).prop ?? (tmp.prop = {})` inside the loop condition.
+	c.Test(
+		`class Main {}
+Main.prop = 1;
+function f() {
+  let tmp;
+  while ((tmp = Main).prop ?? (tmp.prop = {})) {
+    break;
+  }
+}
+`,
+		`class Main {}
+Main.prop = 1;
+function f() {
+  let tmp;
+  for (; Main.prop ?? (Main.prop = {});) {
+    break;
+  }
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testUnsafeCtorAliasingInGetPropReceiverInLoop()
+func (c *AggressiveInlineAliasesTest) TestUnsafeCtorAliasingInGetPropReceiverInLoop() {
+	// Regression test for b/476221453: `referencesCollapsibleProperty` should unwrap `ASSIGN` when
+	// checking `(tmp = Main).doSomething(5)` after `partiallyInlineAlias` backs off.
+	c.TestWarning(
+		`/** @constructor */ var Main = function() {};
+Main.doSomething = function() {};
+function f() {
+  var tmp;
+  for (let i = 0; i < n(); i++) {
+    use(tmp);
+    (tmp = Main).doSomething(5);
+  }
+}
+`,
+		InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING)
+}
+
+// Java: AggressiveInlineAliasesTest.testLocalEs6ClassAliasInForDoWhileAndForOfHeaders()
+func (c *AggressiveInlineAliasesTest) TestLocalEs6ClassAliasInForDoWhileAndForOfHeaders() {
+	// Regression test for b/476221453 across `for` condition+update, `do-while`, and `for-of`.
+	c.Test(
+		`class Main {}
+Main.a = 1;
+Main.b = 2;
+Main.items = [];
+function f() {
+  let t1;
+  let t2;
+  let t3;
+  let t4;
+  for (; (t1 = Main).a ?? (t1.a = 10); (t2 = Main).b || (t2.b = 20)) {
+    break;
+  }
+  do {
+    break;
+  } while ((t3 = Main).a && (t3.a = 30));
+  for (const x of ((t4 = Main).items ?? (t4.items = [1]))) {
+    use(x);
+  }
+}
+`,
+		`class Main {}
+Main.a = 1;
+Main.b = 2;
+Main.items = [];
+function f() {
+  let t1;
+  let t2;
+  let t3;
+  let t4;
+  for (; Main.a ?? (Main.a = 10); Main.b || (Main.b = 20)) {
+    break;
+  }
+  do {
+    break;
+  } while (Main.a && (Main.a = 30));
+  for (const x of (Main.items ?? (Main.items = [1]))) {
+    use(x);
+  }
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testUnsafeCtorAliasingOnEs6ClassAndEnumInLoop()
+func (c *AggressiveInlineAliasesTest) TestUnsafeCtorAliasingOnEs6ClassAndEnumInLoop() {
+	// Regression test for b/476221453: `name.isConstructor()` in `inlineAliasIfPossible` checks
+	// `referencesCollapsibleProperty` and reports `UNSAFE_CTOR_ALIASING` for ES6 classes (but not
+	// `@enum`s, which keep their object literal keys when aliased) when `partiallyInlineAlias`
+	// backs off due to a read before the loop assignment.
+	c.TestWarning(
+		`class Main {
+  static doSomething(x) {}
+}
+function f() {
+  var tmp;
+  for (let i = 0; i < n(); i++) {
+    use(tmp);
+    (tmp = Main).doSomething(5);
+  }
+}
+`,
+		InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING)
+	c.Test(
+		`/** @enum {number} */
+const MyEnum = { A: 1 };
+function f() {
+  var tmp;
+  for (let i = 0; i < n(); i++) {
+    use(tmp);
+    use((tmp = MyEnum).A);
+  }
+}
+`,
+		`/** @enum {JSDocSerializer_placeholder_type} */
+const MyEnum = { A: 1 };
+function f() {
+  var tmp;
+  for (let i = 0; i < n(); i++) {
+    use(tmp);
+    use((tmp = MyEnum).A);
+  }
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalCtorAliasReadBeforeAssignment()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalCtorAliasReadBeforeAssignment() {
+	// If a global variable `tmp` is read BEFORE a conditional constructor assignment
+	// `window.cond && ((tmp = Main).prop = 2)`, it must not be inlined into the earlier read.
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+use(tmp);
+window.cond && ((tmp = Main).prop = 2);
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalConstNamespaceAlias_knownBug()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalConstNamespaceAlias_knownBug() {
+	// Regression test for b/476221453: Global conditional logical assignment on a `@const`
+	// namespace.
+	// TODO: b/476221453 - `tmp` should be inlined to `ns`.
+	c.TestSame(
+		`/** @const */ const ns = {prop: 1};
+let tmp;
+window.cond && ((tmp = ns).prop ?? (tmp.prop = 2));
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalPropertyLhsAliasNotInlined()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalPropertyLhsAliasNotInlined() {
+	// Covers `if (!lvalue.isName()) { return false; }` in `isConditionallyInlineableGlobalAlias`.
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+const holder = {};
+window.cond && ((holder.tmp = Main).prop ?? (holder.tmp.prop = 2));
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalNonDeclaredTypeAliasInLoopNotInlined()
+func (c *AggressiveInlineAliasesTest) TestGlobalNonDeclaredTypeAliasInLoopNotInlined() {
+	// Covers `if (!allowLoop && NodeUtil.isLoopStructure(curr)) { return false; }` in
+	// `isConditionallyInlineableGlobalAlias`.
+	c.Test(
+		`/** @const */ const ns = {prop: 1};
+let tmp;
+while ((tmp = ns).prop ?? (tmp.prop = 2)) {
+  break;
+}
+`,
+		`/** @const */ const ns = {prop: 1};
+let tmp;
+for (; (tmp = ns).prop ?? (tmp.prop = 2);) {
+  break;
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalAliasEscapedInNestedFunctionNotInlined()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalAliasEscapedInNestedFunctionNotInlined() {
+	// Covers `ref.scope.getClosestHoistScope() != aliasHoistScope` in
+	// `areAllRefsExecutedAfterInitInBlock` (both on a direct ref and on a property ref).
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+function readTmp() {
+  return tmp;
+}
+window.cond && ((tmp = Main).prop ?? (tmp.prop = 2));
+readTmp();
+`)
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+function readTmpProp() {
+  return tmp.prop;
+}
+window.cond && ((tmp = Main).prop ?? (tmp.prop = 2));
+readTmpProp();
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalAliasReadInSubsequentStatementNotInlined()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalAliasReadInSubsequentStatementNotInlined() {
+	// Covers `ReferenceCollector.isBlockBoundary` being true on the first hop
+	// (`window.inner && (tmp = Main)`) and `isExecutedAfterInitInBlock` scanning past an
+	// intermediate statement (`alert(1)`) before encountering `use(tmp.prop)` outside the
+	// conditional.
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+if (window.cond) {
+  window.inner && (tmp = Main);
+  alert(1);
+  use(tmp.prop);
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalAliasAcrossBasicBlockBoundariesNotInlined()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalAliasAcrossBasicBlockBoundariesNotInlined() {
+	// Covers destructuring RHS-before-LHS evaluation order in `isExecutedAfterInitInBlock` and
+	// `SWITCH_BODY` in `ReferenceCollector.isBlockBoundary`: an alias assigned inside a computed
+	// destructuring key or switch `case` expression does not dominate sibling evaluations in the
+	// outer block.
+	c.TestSame(
+		`class Main {}
+Main.key = 'a';
+Main.prop = 1;
+let tmp;
+if (window.cond) {
+  let {[(tmp = Main).key]: x = tmp.prop} = {a: tmp.prop};
+  use(x);
+}
+`)
+	c.TestSame(
+		`class Main {}
+Main.key = 'a';
+Main.prop = 1;
+let tmp;
+let x;
+if (window.cond) {
+  ({[(tmp = Main).key]: x} = {a: tmp.prop});
+  use(x);
+}
+`)
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+switch (window.x) {
+  case (tmp = Main).prop:
+  case 2:
+    use(tmp.prop);
+    break;
+}
+`)
+}
+
+// Java: AggressiveInlineAliasesTest.testGlobalConditionalAliasWithIntermediateStatementInBlock_knownBug()
+func (c *AggressiveInlineAliasesTest) TestGlobalConditionalAliasWithIntermediateStatementInBlock_knownBug() {
+	// Covers `for (Node sibling = initChild.getNext(); ...)` advancing past an intermediate
+	// sibling statement when `initChild` is an unconditional statement in a conditional block.
+	// TODO: b/476221453 - `(tmp = Main)` and `tmp.prop` should be inlined to `Main.prop`.
+	c.TestSame(
+		`class Main {}
+Main.prop = 1;
+let tmp;
+if (window.cond) {
+  (tmp = Main).prop = 2;
+  alert(1);
+  use(tmp.prop);
 }
 `)
 }
@@ -1621,7 +1969,9 @@ function f() {
 
 // Java: AggressiveInlineAliasesTest.testLocalAliasInChainedAssignment()
 func (c *AggressiveInlineAliasesTest) TestLocalAliasInChainedAssignment() {
-	c.TestSame("var a = { b: 3 }; function f() { var c; var d = c = a; a.b; d.b; }")
+	c.Test(
+		"var a = { b: 3 }; function f() { var c; var d = c = a; a.b; d.b; }",
+		"var a = { b: 3 }; function f() { var c; var d = null; a.b; a.b; }")
 }
 
 // Java: AggressiveInlineAliasesTest.testMisusedConstructorTag()
@@ -3094,6 +3444,15 @@ func (c *AggressiveInlineAliasesTest) ValidateGlobalNamespace(passGlobalNamespac
 		AssertWithMessage("%s: canCollapseOrInlineChildNames()", fullName).
 			That(actualName.CanCollapseOrInlineChildNames()).
 			IsEqualTo(expectedName.CanCollapseOrInlineChildNames())
+		if expectedName.GetDeclaration() == nil {
+			AssertWithMessage("%s: getDeclaration()", fullName).
+				That(actualName.GetDeclaration()).
+				IsNull()
+		} else {
+			AssertWithMessage("%s: getDeclaration().getNode()", fullName).
+				That(actualName.GetDeclaration().GetNode()).
+				IsEqualTo(expectedName.GetDeclaration().GetNode())
+		}
 	}
 	// Verify that no names in the actual name forest are not present in the expected name forest
 	for _, actualName := range passGlobalNamespace.GetNameForest() {

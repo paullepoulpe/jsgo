@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeFoldConstants.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PeepholeFoldConstants.java @ closure-compiler v20261104
 
 /*
  * Copyright 2004 The Closure Compiler Authors.
@@ -393,7 +393,13 @@ func (p *PeepholeFoldConstants) PerformBigIntArithmeticOp(n rhino.Node, left rhi
 			}
 			return rhino.NilNode
 		case rhino.Token_MOD:
-			return PeepholeFoldConstants_BigintNode(jutil.BigIntegerMod(lVal, rVal), n)
+			// Use BigInteger.remainder instead of BigInteger.mod because BigInteger.mod() always
+			// returns a non-negative result, whereas JS % keeps the sign of the dividend.
+			if !jutil.BigIntegerEquals(rVal, jutil.BigInteger_ZERO) {
+				return PeepholeFoldConstants_BigintNode(new(big.Int).Rem(lVal, rVal), n)
+			} else {
+				return rhino.NilNode
+			}
 		case rhino.Token_BITAND:
 			return PeepholeFoldConstants_BigintNode(new(big.Int).And(lVal, rVal), n)
 		case rhino.Token_BITOR:

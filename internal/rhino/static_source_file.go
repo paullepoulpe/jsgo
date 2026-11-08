@@ -1,5 +1,5 @@
-// Port of com/google/javascript/rhino/StaticSourceFile.java @ closure-compiler v20261028
-// Port of com/google/javascript/rhino/SourcePosition.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/StaticSourceFile.java @ closure-compiler v20261104
+// Port of com/google/javascript/rhino/SourcePosition.java @ closure-compiler v20261104
 
 /*
  *

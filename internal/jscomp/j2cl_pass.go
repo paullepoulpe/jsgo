@@ -1,7 +1,7 @@
-// Port of com/google/javascript/jscomp/J2clPass.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/J2clAssertRemovalPass.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/J2clStringValueOfRewriterPass.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/J2clPass.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/J2clAssertRemovalPass.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/J2clStringValueOfRewriterPass.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/J2clUndefinedChecksRewriterPass.java @ closure-compiler v20261104
 
 /*
  * Copyright 2015 The Closure Compiler Authors.
@@ -107,6 +107,15 @@ func J2clSourceUtils_IsInsideJ2clSource(node rhino.Node) bool {
 		return false
 	}
 	return J2clSourceUtils_IsJ2clSourceOfNode(scriptNode)
+}
+
+// J2clSourceUtils_IsJ2clHeaderSource reports whether sourceFileName is a J2CL
+// header file (*.java.js, excluding *.impl.java.js).
+//
+// Java: J2clSourceUtils.isJ2clHeaderSource(String)
+func J2clSourceUtils_IsJ2clHeaderSource(sourceFileName string) bool {
+	return strings.HasSuffix(sourceFileName, ".java.js") &&
+		!strings.HasSuffix(sourceFileName, ".impl.java.js")
 }
 
 // J2clSourceFileChecker checks whether there are J2CL generated source files

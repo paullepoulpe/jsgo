@@ -1,6 +1,6 @@
-// Port of com/google/javascript/jscomp/SourceMap.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/SourceMapInput.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/SourceMapResolver.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/SourceMap.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/SourceMapInput.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/SourceMapResolver.java @ closure-compiler v20261104
 
 /*
  * Copyright 2009 The Closure Compiler Authors.

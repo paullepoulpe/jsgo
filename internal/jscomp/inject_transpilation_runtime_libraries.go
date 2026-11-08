@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InjectTranspilationRuntimeLibraries.java @ closure-compiler v20261104
 
 /*
  * Copyright 2014 The Closure Compiler Authors.
@@ -111,13 +111,7 @@ func (i *InjectTranspilationRuntimeLibraries) Process(externs rhino.Node, root r
 	if (mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_OBJECT_LITERALS_WITH_SPREAD) ||
 		mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_OBJECT_PATTERN_REST)) &&
 		!outputFeatures.Contains(parser.FeatureSet_ES2015) {
-		// We need `Object.assign` to transpile `obj = {a, ...rest};` or `const {a, ...rest} = obj;`,
-		// but the output language level doesn't indicate that it is guaranteed to be present, so
-		// we'll include our polyfill.
-		// Use "ensureLibraryInjected" instead of "injectLibForField" because we're injecting the
-		// polyfill
-		// for Object.assign, which is thus not an actual $jscomp.* method we can lookup.
-		i.runtimeLibs.EnsureLibraryInjected("es6/object/assign", false /* force= */)
+		i.runtimeLibs.InjectLibForField("$jscomp.assign")
 	}
 
 	if mustBeCompiledAway.ContainsFeature(parser.FeatureSet_Feature_CLASS_GETTER_SETTER) {

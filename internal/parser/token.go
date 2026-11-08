@@ -1,8 +1,8 @@
-// Port of com/google/javascript/jscomp/parsing/parser/Token.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/parser/IdentifierToken.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/parser/LiteralToken.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/parser/Token.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/parser/IdentifierToken.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/parser/LiteralToken.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/parser/StringLiteralToken.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/parsing/parser/TemplateLiteralToken.java @ closure-compiler v20261104
 
 /*
  * Copyright 2011 The Closure Compiler Authors.

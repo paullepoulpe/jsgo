@@ -1,4 +1,4 @@
-// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261028
+// Port of com/google/javascript/rhino/JSDocInfo.java @ closure-compiler v20261104
 
 /*
  *
@@ -585,6 +585,19 @@ func (i *JSDocInfo) IsNoCompile() bool {
 // Java: JSDocInfo.isNoDts()
 func (i *JSDocInfo) IsNoDts() bool {
 	return i.CheckBit(JSDocInfo_Bit_NODTS)
+}
+
+// IsLegacyNamedTsExport returns whether the `@legacyNamedTsExport` annotation
+// is present on this JSDocInfo.
+//
+// On a goog.module or goog.provide call, this overrides the syntactic
+// classification of the namespace as a set of named exports for TypeScript, for
+// code where it can't match Clutz's type-based classification. It has no effect
+// elsewhere.
+//
+// Java: JSDocInfo.isLegacyNamedTsExport()
+func (i *JSDocInfo) IsLegacyNamedTsExport() bool {
+	return i.CheckBit(JSDocInfo_Bit_LEGACY_NAMED_TS_EXPORT)
 }
 
 // IsNoCollapse returns whether the `@nocollapse` annotation is present on

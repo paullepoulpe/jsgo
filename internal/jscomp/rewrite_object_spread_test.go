@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/RewriteObjectSpreadTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/RewriteObjectSpreadTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/RewriteObjectSpreadTest.java)
 
 /*
@@ -34,7 +34,7 @@ type RewriteObjectSpreadTest struct {
 // Java: RewriteObjectSpreadTest()
 func NewRewriteObjectSpreadTest() *RewriteObjectSpreadTest {
 	c := &RewriteObjectSpreadTest{}
-	c.InitCompilerTestCaseBaseWithExterns(c, NewTestExternsBuilder().AddObject().Build())
+	c.InitCompilerTestCaseBaseWithExterns(c, NewTestExternsBuilder().AddObject().AddJSCompLibraries().Build())
 	return c
 }
 
@@ -68,7 +68,16 @@ func (c *RewriteObjectSpreadTest) EnableTypeCheckBeforePass() {
 
 // Java: RewriteObjectSpreadTest.getProcessor(Compiler)
 func (c *RewriteObjectSpreadTest) GetProcessor(compiler *Compiler) CompilerPass {
-	return NewRewriteObjectSpread(compiler)
+	optimizer := NewPhaseOptimizer(compiler, nil)
+	optimizer.AddOneTimePass(
+		CompilerTestCase_MakePassFactory("injectTranspilationRuntimeLibraries", func(comp AbstractCompiler) CompilerPass {
+			return NewInjectTranspilationRuntimeLibraries(comp)
+		}))
+	optimizer.AddOneTimePass(
+		CompilerTestCase_MakePassFactory("rewriteObjectSpread", func(comp AbstractCompiler) CompilerPass {
+			return NewRewriteObjectSpread(comp)
+		}))
+	return optimizer
 }
 
 // Java: RewriteObjectSpreadTest.testObjectLiteralWithSpread()
@@ -87,6 +96,12 @@ func (c *RewriteObjectSpreadTest) TestObjectLiteralWithSpread() {
 	c.Test(
 		"({type : 'object', ...spread && spread});",
 		"Object.assign({}, {type:'object'}, spread && spread);")
+}
+
+// Java: RewriteObjectSpreadTest.testObjectLiteralWithSpread_es5Out_emitsJscompAssign()
+func (c *RewriteObjectSpreadTest) TestObjectLiteralWithSpread_es5Out_emitsJscompAssign() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT5)
+	c.Test("({first, ...spread});", "(0, $jscomp.assign)({}, {first}, spread)")
 }
 
 // Java: RewriteObjectSpreadTest.testTyping_ofSpreadResult_isObject()

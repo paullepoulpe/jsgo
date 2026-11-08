@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/PeepholeFoldConstantsTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/PeepholeFoldConstantsTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/PeepholeFoldConstantsTest.java)
 
 /*
@@ -1332,6 +1332,12 @@ func (c *PeepholeFoldConstantsTest) TestFoldBigIntArithmetic() {
 	c.Test("x = 2n * 3n", "x = 6n")
 	c.Test("x = 6n / 2n", "x = 3n")
 	c.Test("x = 3n % 2n", "x = 1n")
+	c.Test("x = -5n % 3n", "x = -2n")
+	c.Test("x = 5n % -3n", "x = 2n")
+	c.Test("x = -5n % -3n", "x = -2n")
+	c.TestSame("x = 1n % 0n")
+	c.Test("x = 0n % -3n", "x = 0n")
+	c.TestSame("x = 0n % 0n")
 	c.Test("x = 2n ** 3n", "x = 8n")
 	// The compiler is not designed to fold expressions with an exponent > 2147483647
 	c.Test("x = 1n ** 2147483647n", "x = 1n")

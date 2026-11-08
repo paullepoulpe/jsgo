@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineAndCollapseProperties.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineAndCollapseProperties.java @ closure-compiler v20261104
 
 /*
  * Copyright 2021 The Closure Compiler Authors.
@@ -45,6 +45,7 @@ type aggressiveInlineAliases struct {
 	scopeCollectors map[rhino.Node]*ReferenceCollector
 	cachedVarNames  map[uint32]struct{}
 	newNodes        astChangeSet
+	readNodes       astChangeSet
 
 	codeChanged bool
 }
@@ -480,8 +481,8 @@ func (a *aggressiveInlineAliases) inlineAliasIfPossible(name *GlobalNamespace_Na
 			(aliasRefs.IsAssignedOnceInLifetime() ||
 				a.isInlineableModuleExportsAlias(name, aliasRefs)) {
 			// The alias is well-formed, so do the inlining now.
-			newNodes := &a.newNodes
-			newNodes.reset()
+			readNodes := &a.readNodes
+			readNodes.reset()
 			size := len(aliasRefs.references)
 			// It's initialized on either the first or second reference.
 			firstRead := 2
@@ -491,11 +492,17 @@ func (a *aggressiveInlineAliases) inlineAliasIfPossible(name *GlobalNamespace_Na
 			collector.forgetVar(aliasVar)
 			for i := firstRead; i < size; i++ {
 				aliasRef := aliasRefs.references[i]
-				newNodes.add(a.replaceAliasReference(alias, aliasRef))
+				readNodes.add(a.replaceAliasReference(alias, aliasRef))
 			}
 
-			// just set the original alias to null.
-			a.tryReplacingAliasingAssignment(alias, name, lhsNode)
+			// Replace the aliasing assignment before scanning readNodes so that any new reference
+			// at the initialization site is scanned into GlobalNamespace before subsequent reads.
+			newNodes := &a.newNodes
+			newNodes.reset()
+			a.replaceAliasingAssignment(alias, name, lhsNode, newNodes)
+			for _, ch := range readNodes.items {
+				newNodes.add(ch)
+			}
 
 			// Inlining the variable may have introduced new references
 			// to descendants of `name`. So those need to be collected now.
@@ -557,8 +564,8 @@ func (a *aggressiveInlineAliases) partiallyInlineAlias(
 		}
 	}
 
-	newNodes := &a.newNodes
-	newNodes.reset()
+	readNodes := &a.readNodes
+	readNodes.reset()
 	alreadySeenInitialAlias := false
 	foundNonReplaceableAlias := false
 	replacedAny := false
@@ -582,7 +589,7 @@ func (a *aggressiveInlineAliases) partiallyInlineAlias(
 			// never reassigned.
 			a.codeChanged = true
 			replacedAny = true
-			newNodes.add(a.replaceAliasReference(alias, aliasRef))
+			readNodes.add(a.replaceAliasReference(alias, aliasRef))
 		} else {
 			foundNonReplaceableAlias = true
 		}
@@ -592,9 +599,14 @@ func (a *aggressiveInlineAliases) partiallyInlineAlias(
 		collector.forgetVar(aliasVar)
 	}
 
+	newNodes := &a.newNodes
+	newNodes.reset()
 	// We removed all references to the alias, so remove the original aliasing assignment.
 	if !foundNonReplaceableAlias {
-		a.tryReplacingAliasingAssignment(alias, aliasingName, aliasLhsNode)
+		a.replaceAliasingAssignment(alias, aliasingName, aliasLhsNode, newNodes)
+	}
+	for _, ch := range readNodes.items {
+		newNodes.add(ch)
 	}
 
 	if a.codeChanged {
@@ -605,28 +617,34 @@ func (a *aggressiveInlineAliases) partiallyInlineAlias(
 	return !foundNonReplaceableAlias
 }
 
-// tryReplacingAliasingAssignment replaces the rhs of an aliasing assignment
-// with null, unless the assignment result is used in a complex expression.
+// replaceAliasingAssignment replaces the rhs of an aliasing assignment
+// with null, unless the assignment result is used in a complex expression,
+// in which case it replaces the entire assignment with the rhs.
 //
-// Java: InlineAndCollapseProperties.AggressiveInlineAliases.tryReplacingAliasingAssignment(Ref, Name, Node)
-func (a *aggressiveInlineAliases) tryReplacingAliasingAssignment(
-	alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode rhino.Node) bool {
+// Java: InlineAndCollapseProperties.AggressiveInlineAliases.replaceAliasingAssignment(Ref, Name, Node, Set<AstChange>)
+func (a *aggressiveInlineAliases) replaceAliasingAssignment(
+	alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode rhino.Node, newNodes *astChangeSet) {
 	// either VAR/CONST/LET or ASSIGN.
 	assignment := aliasLhsNode.GetParent()
 	_, isDecl := ast.AsNameDeclaration(assignment)
 	if !isDecl && NodeUtil_IsExpressionResultUsed(assignment) {
-		// e.g. don't change "if (alias = someVariable)" to "if (alias = null)"
-		// TODO(lharker): instead replace the entire assignment with the RHS - "alias = x" becomes
-		// "x"
-		return false
+		// e.g. change "if (alias = someVariable)" to "if (someVariable)", or
+		// "(alias = someVariable).prop" to "someVariable.prop"
+		jutil.CheckStateMsg1(assignment.IsAssign(), "%s", assignment)
+		assignmentParent := assignment.GetParent()
+		rhs := alias.GetNode().Detach()
+		a.noteMutatedQName(rhs)
+		assignment.ReplaceWith(rhs)
+		newNodes.add(NewGlobalNamespace_RefBasedAstChange(alias, rhs))
+		a.outer.compiler.ReportChangeToEnclosingScope(assignmentParent)
+	} else {
+		aliasParent := alias.GetNode().GetParent()
+		a.noteMutatedQName(alias.GetNode())
+		alias.GetNode().ReplaceWith(rhino.IR_NullNode())
+		a.outer.compiler.ReportChangeToEnclosingScope(aliasParent)
 	}
-	aliasParent := alias.GetNode().GetParent()
-	a.noteMutatedQName(alias.GetNode())
-	alias.GetNode().ReplaceWith(rhino.IR_NullNode())
 	aliasName.RemoveRef(alias)
 	a.codeChanged = true
-	a.outer.compiler.ReportChangeToEnclosingScope(aliasParent)
-	return true
 }
 
 // replaceAliasReference: alias is a GlobalNamespace.Ref of the variable
@@ -708,8 +726,10 @@ func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamesp
 
 		// Rewrite all references to the aliasing name, except for the initialization & any cross-
 		// chunk references if they exist.
-		newNodes := a.rewriteAliasReferences(aliasingName, alias, aliasInlinability)
-		a.rewriteAliasProps(aliasingName, alias.GetNode(), 0, newNodes)
+		readNodes := a.rewriteAliasReferences(aliasingName, alias, aliasInlinability)
+		a.rewriteAliasProps(aliasingName, alias.GetNode(), 0, readNodes)
+		newNodes := &a.newNodes
+		newNodes.reset()
 
 		if aliasInlinability.ShouldRemoveDeclaration() {
 			// Rewrite the initialization of the alias.
@@ -729,7 +749,7 @@ func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamesp
 				// Remove the ref to 'aliasing.name' entirely
 				aliasingName.RemoveRef(aliasInitialization)
 				// Force GlobalNamespace to revisit the new reference to 'aliased.name' and update its
-				// internal state.
+				// internal state before scanning subsequent read references.
 				newNodes.add(NewGlobalNamespace_RefBasedAstChange(alias, alias.GetNode()))
 				a.outer.compiler.ReportChangeToEnclosingScope(aliasGrandparent)
 			} else {
@@ -746,6 +766,9 @@ func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamesp
 			name.RemoveRef(alias)
 		}
 
+		for _, ch := range readNodes.items {
+			newNodes.add(ch)
+		}
 		// Inlining the variable may have introduced new references
 		// to descendants of `name`. So those need to be collected now.
 		namespace.ScanNewNodes(newNodes)
@@ -761,7 +784,7 @@ func (a *aggressiveInlineAliases) inlineGlobalAliasIfPossible(name *GlobalNamesp
 // Java: InlineAndCollapseProperties.AggressiveInlineAliases.rewriteAliasReferences(Name, Ref, Inlinability)
 func (a *aggressiveInlineAliases) rewriteAliasReferences(
 	aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) *astChangeSet {
-	newNodes := &a.newNodes
+	newNodes := &a.readNodes
 	newNodes.reset()
 	var refsBuf [8]*GlobalNamespace_Ref
 	refs := aliasingName.snapshotRefs(&refsBuf)
@@ -1009,7 +1032,18 @@ func (r *rewriteSimpleDestructuringAliases) Visit(t *NodeTraversal, n rhino.Node
 	if !ok {
 		return
 	}
-	expandObjectPattern(t, n, objectPattern, rhs)
+	insertionPoint := n
+	if !rhs.IsName() && objectPattern.Node().HasMoreThanOneChild() {
+		uniqueId := t.GetCompiler().GetUniqueIdSupplier().GetUniqueId(t.GetInput())
+		tempName := ast.NewName("destructuring$" + uniqueId)
+		tempName.SetConstantName(true)
+		tempNameNode := tempName.Node().Srcref(rhs)
+		tempConstNode := rhino.IR_ConstNode(tempNameNode, rhs.Detach()).Srcref(objectPattern.Node())
+		tempConstNode.InsertAfter(insertionPoint)
+		insertionPoint = tempConstNode
+		rhs = tempNameNode.CloneNode()
+	}
+	expandObjectPattern(t, insertionPoint, objectPattern, rhs)
 	n.Detach()
 	t.ReportCodeChange()
 }

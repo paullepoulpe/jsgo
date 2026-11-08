@@ -1,14 +1,14 @@
-// Port of com/google/javascript/jscomp/graph/AdjacencyGraph.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/Annotatable.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/Annotation.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/DiGraph.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/Graph.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/GraphNode.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/GraphvizGraph.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/LatticeElement.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/StandardUnionFind.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/UndiGraph.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/graph/UnionFind.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/graph/AdjacencyGraph.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/Annotatable.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/Annotation.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/DiGraph.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/Graph.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/GraphNode.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/GraphvizGraph.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/LatticeElement.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/StandardUnionFind.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/UndiGraph.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/graph/UnionFind.java @ closure-compiler v20261104
 
 /*
  * Copyright 2008 The Closure Compiler Authors.

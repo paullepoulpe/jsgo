@@ -1,4 +1,4 @@
-// Port of com/google/javascript/refactoring/testing/SuggestedFixes.java @ closure-compiler v20261028
+// Port of com/google/javascript/refactoring/testing/SuggestedFixes.java @ closure-compiler v20261104
 // (src/com/google/javascript/refactoring/testing/SuggestedFixes.java, a JUnit/Truth test utility)
 
 /*

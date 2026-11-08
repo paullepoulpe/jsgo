@@ -1,5 +1,5 @@
-// Port of com/google/javascript/jscomp/js/RuntimeJsLibManager.java @ closure-compiler v20261028
-// Port of com/google/javascript/jscomp/InjectRuntimeLibraries.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/js/RuntimeJsLibManager.java @ closure-compiler v20261104
+// Port of com/google/javascript/jscomp/InjectRuntimeLibraries.java @ closure-compiler v20261104
 
 /*
  * Copyright 2025 The Closure Compiler Authors.

@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/InlineObjectLiteralsTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/InlineObjectLiteralsTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/InlineObjectLiteralsTest.java)
 
 /*
@@ -133,7 +133,7 @@ func (c *InlineObjectLiteralsTest) TestNoCrashInliningObjectLiteral_conditionalA
 	src := "{let a;if(Math.random()){a={x:''};console.log(a.x)}};"
 	expected :=
 		"{\n" +
-			"  var JSCompiler_object_inline_x_0;\n" +
+			"  let JSCompiler_object_inline_x_0;\n" +
 			"  if (Math.random()) {\n" +
 			"    JSCompiler_object_inline_x_0 = '', true;\n" +
 			"    console.log(JSCompiler_object_inline_x_0);\n" +
@@ -160,7 +160,7 @@ func (c *InlineObjectLiteralsTest) TestNoCrashInliningObjectLiteral_unconditiona
 	src := "{let a; a={x:\"\"};console.log(a.x);}"
 	expected :=
 		"{\n" +
-			"  var JSCompiler_object_inline_x_0;\n" +
+			"  let JSCompiler_object_inline_x_0;\n" +
 			"  JSCompiler_object_inline_x_0 = \"\", true;\n" +
 			"  console.log(JSCompiler_object_inline_x_0);\n" +
 			"}\n"
@@ -226,8 +226,8 @@ func (c *InlineObjectLiteralsTest) TestObject6_let() {
 	c.TestLocal(
 		"for (let i = 0; i < 5; i++) { let a = {i:i,x:x}; f(a.i, a.x); }",
 		"for (let i = 0; i < 5; i++) {\n"+
-			"  var JSCompiler_object_inline_i_0=i;\n"+
-			"  var JSCompiler_object_inline_x_1=x;\n"+
+			"  let JSCompiler_object_inline_i_0=i;\n"+
+			"  let JSCompiler_object_inline_x_1=x;\n"+
 			"  f(JSCompiler_object_inline_i_0,JSCompiler_object_inline_x_1)\n"+
 			"}\n")
 	c.TestLocal(
@@ -253,8 +253,8 @@ func (c *InlineObjectLiteralsTest) TestObjectSwitch() {
 			"    }\n"+
 			"}\n",
 		"let x;\n"+
-			"var JSCompiler_object_inline_i_0;\n"+
-			"var JSCompiler_object_inline_x_1;\n"+
+			"let JSCompiler_object_inline_i_0;\n"+
+			"let JSCompiler_object_inline_x_1;\n"+
 			" switch (x) {\n"+
 			"   case 'h':\n"+
 			"    if (Math.random() > .5) {\n"+
@@ -276,8 +276,8 @@ func (c *InlineObjectLiteralsTest) TestObjectSwitch() {
 			"     break;\n"+
 			"}\n",
 		"let x;\n"+
-			"var JSCompiler_object_inline_i_0;\n"+
-			"var JSCompiler_object_inline_x_1;\n"+
+			"let JSCompiler_object_inline_i_0;\n"+
+			"let JSCompiler_object_inline_x_1;\n"+
 			" switch (x) {\n"+
 			" case 'h':\n"+
 			" case 'i':\n"+
@@ -299,8 +299,8 @@ func (c *InlineObjectLiteralsTest) TestObjectSwitch() {
 			"    }\n"+
 			"}\n",
 		"let x;\n"+
-			"var JSCompiler_object_inline_i_0;\n"+
-			"var JSCompiler_object_inline_x_1;\n"+
+			"let JSCompiler_object_inline_i_0;\n"+
+			"let JSCompiler_object_inline_x_1;\n"+
 			" switch (x) {\n"+
 			" case 'h':\n"+
 			"  if (Math.random() > .5) {\n"+
@@ -322,8 +322,8 @@ func (c *InlineObjectLiteralsTest) TestObjectSwitch() {
 			"    ({x:x} = f(z.i, z.x));\n"+
 			"    break;\n"+
 			"}\n",
-		"var JSCompiler_object_inline_i_0;\n"+
-			"var JSCompiler_object_inline_x_1;\n"+
+		"let JSCompiler_object_inline_i_0;\n"+
+			"let JSCompiler_object_inline_x_1;\n"+
 			"let x;\n"+
 			" switch (x) {\n"+
 			" case 'h':\n"+
@@ -606,8 +606,8 @@ func (c *InlineObjectLiteralsTest) TestObject26() {
 func (c *InlineObjectLiteralsTest) TestInlineObjectWithLet() {
 	c.TestLocal(
 		"let a = {x:x(), y:y()}; f(a.x, a.y);",
-		"var JSCompiler_object_inline_x_0=x();\n"+
-			"var JSCompiler_object_inline_y_1=y();\n"+
+		"let JSCompiler_object_inline_x_0=x();\n"+
+			"let JSCompiler_object_inline_y_1=y();\n"+
 			"f(JSCompiler_object_inline_x_0, JSCompiler_object_inline_y_1);\n")
 }
 
@@ -615,8 +615,8 @@ func (c *InlineObjectLiteralsTest) TestInlineObjectWithLet() {
 func (c *InlineObjectLiteralsTest) TestInlineObjectWithConst() {
 	c.TestLocal(
 		"const a = {x:x(), y:y()}; f(a.x, a.y);",
-		"var JSCompiler_object_inline_x_0=x();\n"+
-			"var JSCompiler_object_inline_y_1=y();\n"+
+		"let JSCompiler_object_inline_x_0=x();\n"+
+			"let JSCompiler_object_inline_y_1=y();\n"+
 			"f(JSCompiler_object_inline_x_0, JSCompiler_object_inline_y_1);\n")
 }
 
@@ -955,7 +955,6 @@ func (c *InlineObjectLiteralsTest) TestObject1_optChainContinues() {
 
 // Java: InlineObjectLiteralsTest.testClassField_perIterationLetCapture()
 func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture() {
-	// TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
 	c.TestLocal(
 		`for (let i = 0; i < 2; i++) {
@@ -964,7 +963,7 @@ func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture() {
 }
 `,
 		`for (let i = 0; i < 2; i++) {
-  var JSCompiler_object_inline_a_0 = i;
+  let JSCompiler_object_inline_a_0 = i;
   arr.push(class {
     x = JSCompiler_object_inline_a_0;
   });
@@ -974,7 +973,6 @@ func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture() {
 
 // Java: InlineObjectLiteralsTest.testClassField_perIterationLetCapture_arrowControl()
 func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture_arrowControl() {
-	// TODO(b/572003863): let/const object literal in a loop body is split into function-scoped vars
 	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
 	c.TestLocal(
 		`for (let i = 0; i < 2; i++) {
@@ -983,9 +981,75 @@ func (c *InlineObjectLiteralsTest) TestClassField_perIterationLetCapture_arrowCo
 }
 `,
 		`for (let i = 0; i < 2; i++) {
-  var JSCompiler_object_inline_a_0 = i;
+  let JSCompiler_object_inline_a_0 = i;
   arr.push(() => {
     return JSCompiler_object_inline_a_0;
+  });
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testClassField_perIterationConstAndComputedFieldCapture()
+func (c *InlineObjectLiteralsTest) TestClassField_perIterationConstAndComputedFieldCapture() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.TestLocal(
+		`for (let i = 0; i < 2; i++) {
+  const o = {a: i};
+  arr.push(class { x = o.a; [k] = o.a; });
+}
+`,
+		`for (let i = 0; i < 2; i++) {
+  let JSCompiler_object_inline_a_0 = i;
+  arr.push(class {
+    x = JSCompiler_object_inline_a_0;
+    [k] = JSCompiler_object_inline_a_0;
+  });
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testPerIterationConstMutatedAndAddedPropertyCapture()
+func (c *InlineObjectLiteralsTest) TestPerIterationConstMutatedAndAddedPropertyCapture() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.TestLocal(
+		`for (const i of items) {
+  const o = {a: i};
+  o.a = i + 1;
+  o.b = i + 2;
+  arr.push(function() { return o.a + o.b; });
+}
+`,
+		`for (const i of items) {
+  let JSCompiler_object_inline_a_0 = i;
+  let JSCompiler_object_inline_b_1;
+  JSCompiler_object_inline_a_0 = i + 1;
+  JSCompiler_object_inline_b_1 = i + 2;
+  arr.push(function() {
+    return JSCompiler_object_inline_a_0 + JSCompiler_object_inline_b_1;
+  });
+}
+`)
+}
+
+// Java: InlineObjectLiteralsTest.testPerIterationUninitializedLetCapture()
+func (c *InlineObjectLiteralsTest) TestPerIterationUninitializedLetCapture() {
+	c.SetLanguageOut(CompilerOptions_LanguageMode_ECMASCRIPT_2022)
+	c.TestLocal(
+		`for (let i = 0; i < 2; i++) {
+  let o;
+  if (c) {
+    o = {a: i};
+  }
+  arr.push(class { x = o.a; });
+}
+`,
+		`for (let i = 0; i < 2; i++) {
+  let JSCompiler_object_inline_a_0;
+  if (c) {
+    JSCompiler_object_inline_a_0 = i, true;
+  }
+  arr.push(class {
+    x = JSCompiler_object_inline_a_0;
   });
 }
 `)

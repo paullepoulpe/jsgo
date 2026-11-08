@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ExtraRequireRemoverTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ExtraRequireRemoverTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/ExtraRequireRemoverTest.java)
 
 /*
@@ -294,4 +294,41 @@ goog.module.get(123);
 goog.module.get();
 goog.module.get(123);
 `)
+}
+
+// Java: ExtraRequireRemoverTest.testJ2clHeader_unaliasedGoogRequireIsPruned()
+func (c *ExtraRequireRemoverTest) TestJ2clHeader_unaliasedGoogRequireIsPruned() {
+	c.Test(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo/Bar.java.js",
+				`goog.module('foo.Bar');
+
+goog.require('a.b.C');
+goog.require('x.y.Z');
+
+const Bar = goog.require('foo.Bar$impl');
+exports = Bar;
+`)),
+		c.Expected(
+			`goog.module('foo.Bar');
+
+const Bar = goog.require('foo.Bar$impl');
+exports = Bar;
+`))
+}
+
+// Java: ExtraRequireRemoverTest.testJ2clImpl_unaliasedGoogRequireIsNotPruned()
+func (c *ExtraRequireRemoverTest) TestJ2clImpl_unaliasedGoogRequireIsNotPruned() {
+	c.TestSame(
+		c.Srcs(
+			SourceFile_FromCode(
+				"foo/Bar.impl.java.js",
+				`goog.module('foo.Bar$impl');
+
+goog.require('a.b.C');
+
+const Bar = goog.require('foo.Bar$impl');
+exports = Bar;
+`)))
 }

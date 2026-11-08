@@ -1,4 +1,4 @@
-// Port of test/com/google/javascript/jscomp/ReferenceCollectorTest.java @ closure-compiler v20261028
+// Port of test/com/google/javascript/jscomp/ReferenceCollectorTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2017 The Closure Compiler Authors.
@@ -176,6 +176,39 @@ new Foo();
 
 				assertEqual(t, "isAssignedOnceInLifetime", x.IsAssignedOnceInLifetime(), true)
 				assertEqual(t, "isWellDefined", x.IsWellDefined(), true)
+			}
+		}))
+}
+
+func (c *ReferenceCollectorTest) TestClassField_referencingGlobalVariable_escapeIffInstanceFields() {
+	t := c.T()
+	c.testBehavior(
+		`const instance1 = 0;
+const instance2 = 1;
+const static1 = 2;
+const static2 = 3;
+const computedKeyRef = 4;
+class Foo {
+  instance1 = instance1;
+  ['instance2'] = instance2;
+  static static1 = static1;
+  static ['static2'] = static2;
+  [computedKeyRef] = 0;
+}
+`,
+		ReferenceCollector_BehaviorFunc(func(nt *NodeTraversal, rm *ReferenceCollector) {
+			if nt.GetScope().IsGlobal() {
+				instance1 := rm.GetReferences(nt.GetScope().GetVar("instance1"))
+				instance2 := rm.GetReferences(nt.GetScope().GetVar("instance2"))
+				static1 := rm.GetReferences(nt.GetScope().GetVar("static1"))
+				static2 := rm.GetReferences(nt.GetScope().GetVar("static2"))
+				computedKeyRef := rm.GetReferences(nt.GetScope().GetVar("computedKeyRef"))
+
+				assertEqual(t, "instance1.isEscaped", instance1.IsEscaped(), true)
+				assertEqual(t, "instance2.isEscaped", instance2.IsEscaped(), true)
+				assertEqual(t, "static1.isEscaped", static1.IsEscaped(), false)
+				assertEqual(t, "static2.isEscaped", static2.IsEscaped(), false)
+				assertEqual(t, "computedKeyRef.isEscaped", computedKeyRef.IsEscaped(), false)
 			}
 		}))
 }
@@ -596,6 +629,39 @@ func (c *ReferenceCollectorTest) TestBehavior_hoistedFunctionsInReferenceOrder_t
 	// Then `var z = 1;` is visited.
 	// The declaration `function f() { ... }` is skipped in the outer traversal.
 	AssertThat(visitedReferenceNames).ContainsExactly("z", "f", "z").InOrder()
+}
+
+func (c *ReferenceCollectorTest) TestBehavior_hoistedFunctionsInReferenceOrder_declaredBeforeFirstCall() {
+	t := c.T()
+	var visitedReferenceNames []string
+	c.collectHoistedFunctionsInReferenceOrder = true
+	c.testBehavior(
+		`function f() {
+  return z;
+}
+let z;
+f();
+`,
+		referenceCollectorTest_nodeBehavior{
+			afterVisitNode: func(nt *NodeTraversal, n, parent rhino.Node, addedReference *Reference) {
+				if addedReference != nil {
+					visitedReferenceNames = append(visitedReferenceNames, addedReference.GetNode().GetString())
+				}
+			},
+			afterExitScope: func(nt *NodeTraversal, referenceMap *ReferenceCollector) {
+				if nt.GetScope().IsGlobal() {
+					z := referenceMap.GetReferences(nt.GetScope().GetVar("z"))
+					// TODO(b/581117790): Even with collectHoistedFunctionsInReferenceOrder = true,
+					// shouldTraverse() traverses `function f()` immediately on first AST encounter when
+					// `f` has not been referenced yet, recording the read of `z` inside `f()` before
+					// `let z;` rather than deferring traversal of `f()` until its first reference at
+					// `f();`.
+					assertSliceEqual(t, "isDeclaration", referenceCollectorTest_isDeclarations(z), []bool{false, true})
+				}
+			},
+		})
+
+	AssertThat(visitedReferenceNames).ContainsExactly("f", "z", "z", "f").InOrder()
 }
 
 func (c *ReferenceCollectorTest) TestBehavior_hoistedFunctionsInReferenceOrder_false() {

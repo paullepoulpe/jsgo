@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/parsing/JsDocInfoParserTest.java @ closure-compiler v20261104
 
 /*
  * Copyright 2007 The Closure Compiler Authors.
@@ -2402,6 +2402,18 @@ func TestParseAlternateMessageId3(t *testing.T) {
 func TestParseAlternateMessageId4(t *testing.T) {
 	jt := newJsDocInfoParserTest(t)
 	jt.parse("@alternateMessageId  A\n * @alternateMessageId B  */", "extra @alternateMessageId tag")
+}
+
+func TestParseLegacyNamedTsExport(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	doc := jt.parse("@legacyNamedTsExport*/")
+	assertThat(t, doc.IsLegacyNamedTsExport()).IsTrue()
+}
+
+func TestParseLegacyNamedTsExport_duplicate(t *testing.T) {
+	jt := newJsDocInfoParserTest(t)
+	doc := jt.parse("@legacyNamedTsExport\n@legacyNamedTsExport*/", "extra @legacyNamedTsExport tag")
+	assertThat(t, doc.IsLegacyNamedTsExport()).IsTrue()
 }
 
 func TestParseClosurePrimitive(t *testing.T) {

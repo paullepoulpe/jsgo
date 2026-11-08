@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/serialization/SerializeAndDeserializeAstTest.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/serialization/SerializeAndDeserializeAstTest.java @ closure-compiler v20261104
 // (test/com/google/javascript/jscomp/serialization/SerializeAndDeserializeAstTest.java)
 
 /*
@@ -835,9 +835,9 @@ func (c *SerializeAndDeserializeAstTest) TestShadowAsts_featuresSetOnMainAstScri
 	// At present, the main advantage of doing so seems to be a potential performance gain because
 	// transpilation passes on the main AST can skip any features only in the shadow AST, but we
 	// don't expect that performance gain to be significant.
-	AssertThat(mainScript.GetProp(rhino.Node_FEATURE_SET)).
+	AssertThat(mainScript.GetFeatureSet()).
 		IsEqualTo(parser.FeatureSet_BARE_MINIMUM.With(parser.FeatureSet_Feature_CONST_DECLARATIONS))
-	AssertThat(shadowScript.GetProp(rhino.Node_FEATURE_SET)).IsNull()
+	AssertThat(shadowScript.GetFeatureSet()).IsNull()
 }
 
 // Java: SerializeAndDeserializeAstTest.includesRuntimeLibraryPaths()
@@ -1025,11 +1025,11 @@ func (c *SerializeAndDeserializeAstTest) getFeatureSetsOfScripts(root rhino.Node
 }
 
 // serializeAndDeserializeAstTest_featureSet is the cast
-// (FeatureSet) script.getProp(Node.FEATURE_SET), null included.
+// (FeatureSet) script.getFeatureSet(), null included.
 //
 // Go-only: language-adapter — a Go type assertion panics on a nil interface.
 func serializeAndDeserializeAstTest_featureSet(script rhino.Node) parser.FeatureSet {
-	featureSet, _ := script.GetProp(rhino.Node_FEATURE_SET).(parser.FeatureSet)
+	featureSet, _ := script.GetFeatureSet().(parser.FeatureSet)
 	return featureSet
 }
 

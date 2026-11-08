@@ -1,4 +1,4 @@
-// Port of com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java @ closure-compiler v20261028
+// Port of com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java @ closure-compiler v20261104
 
 /*
  * Copyright 2024 The Closure Compiler Authors.
