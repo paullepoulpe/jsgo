@@ -274,15 +274,29 @@ func (p *parallelFastGzipOutputStream) flushBatch() {
 		}
 	} else {
 		var wg sync.WaitGroup
+		var panicOnce sync.Once
+		var firstPanic any
 		wg.Add(n)
 		for i := 0; i < n; i++ {
 			idx := i
 			go func() {
 				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						panicOnce.Do(func() { firstPanic = r })
+					}
+				}()
 				p.workers[idx].compressMember(p.batch[idx])
 			}()
 		}
 		wg.Wait()
+		if firstPanic != nil {
+			for i := 0; i < n; i++ {
+				p.batch[i] = nil
+			}
+			p.batch = p.batch[:0]
+			panic(firstPanic)
+		}
 		for i := 0; i < n; i++ {
 			if _, err := p.out.Write(p.workers[i].outBuf.Bytes()); err != nil {
 				panic(jutil.NewIOException(err.Error()))

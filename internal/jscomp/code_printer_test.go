@@ -4318,16 +4318,19 @@ func (c *CodePrinterTest) TestOrCastInNullishCoalesce() {
 
 // Java: CodePrinterTest.testNullishCoalesceExtends()
 func (c *CodePrinterTest) TestNullishCoalesceExtends() {
-	// TODO(b/571641705): CodeGenerator omits required parentheses around ?? in class extends clauses
 	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
-	AssertThat(c.PrintNode(c.Parse("class C extends (a ?? b) {}"))).IsEqualTo("class C extends a??b{}")
+	AssertThat(c.PrintNode(c.Parse("class C extends (a ?? b) {}"))).IsEqualTo("class C extends(a??b){}")
+	AssertThat(c.PrintNode(c.Parse("class C extends (a || b) {}"))).IsEqualTo("class C extends(a||b){}")
+	AssertThat(c.PrintNode(c.Parse("class C extends (a ? B : D) {}"))).IsEqualTo("class C extends(a?B:D){}")
+	AssertThat(c.PrintNode(c.Parse("class C extends new Factory {}"))).IsEqualTo("class C extends new Factory{}")
+	AssertThat(c.PrintNode(c.Parse("class C extends new Factory() {}"))).IsEqualTo("class C extends new Factory{}")
+	AssertThat(c.PrintNode(c.Parse("class C extends getBase() {}"))).IsEqualTo("class C extends getBase(){}")
 }
 
 // Java: CodePrinterTest.testNullishCoalesceAssignExtends()
 func (c *CodePrinterTest) TestNullishCoalesceAssignExtends() {
-	// TODO(b/571641705): CodeGenerator omits required parentheses around ??= in class extends clauses
 	c.languageMode = CompilerOptions_LanguageMode_ECMASCRIPT_NEXT
-	AssertThat(c.PrintNode(c.Parse("class C extends (a ??= b) {}"))).IsEqualTo("class C extends a??=b{}")
+	AssertThat(c.PrintNode(c.Parse("class C extends (a ??= b) {}"))).IsEqualTo("class C extends(a??=b){}")
 }
 
 func TestCodeGeneratorStreamingEscapeAndZeroAlloc(t *testing.T) {

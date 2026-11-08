@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
+	"github.com/paullepoulpe/jsgo/internal/rhino"
 )
 
 // CollapsePropertiesTest tests InlineAndCollapseProperties.CollapseProperties.
@@ -4452,4 +4453,64 @@ a.b.c = function(){};
 /** @const */ var module$mod1$default = 123;
 `))
 	c.Test(c.Srcs(inputs), c.Expected(expected))
+}
+
+func TestCollapsePropertiesWillFlattenReferencesGatedStrictlyOnFastMode(t *testing.T) {
+	const code = `
+var ns = {};
+ns.sub = {};
+ns.sub.leaf = 42;
+function readLeaf() { return ns.sub.leaf; }
+alert(readLeaf());
+`
+	runAndCollectStamp := func(withPhaseOpt bool, fastMode bool) (string, int) {
+		rhino.ResetNodeStore()
+		c := NewCompiler()
+		opts := NewCompilerOptions()
+		opts.SetFastMode(fastMode)
+		c.Init(
+			[]*SourceFile{SourceFile_FromCode("externs.js", "function alert(x) {}\n")},
+			[]*SourceFile{SourceFile_FromCode("in.js", code)},
+			opts,
+		)
+		c.ParseForCompilation()
+		if c.HasErrors() {
+			t.Fatalf("parse errors: %v", c.GetErrors())
+		}
+		if withPhaseOpt {
+			c.phaseOptimizer = NewPhaseOptimizer(c, nil)
+		}
+		pass := NewInlineAndCollapseProperties(c, InlineAndCollapsePropertiesOptions{
+			PropertyCollapseLevel:    CompilerOptions_PropertyCollapseLevel_ALL,
+			ChunkOutputType:          CompilerOptions_ChunkOutputType_GLOBAL_NAMESPACE,
+			HaveModulesBeenRewritten: false,
+			ModuleResolutionMode:     ModuleLoader_ResolutionMode_BROWSER,
+		})
+		pass.Process(c.externsRoot, c.jsRoot)
+		var fnStamp int
+		for child := c.jsRoot.GetFirstChild().GetFirstChild(); !child.IsNil(); child = child.GetNext() {
+			if child.IsFunction() {
+				fnStamp = int(child.GetChangeTime())
+			}
+		}
+		return c.ToSource(), fnStamp
+	}
+
+	srcDirect, stampDirect := runAndCollectStamp(false, false)
+	srcPhaseOpt, stampPhaseOpt := runAndCollectStamp(true, false)
+	if srcDirect != srcPhaseOpt {
+		t.Fatalf("source mismatch between standalone and PhaseOptimizer non-fast runs:\ndirect:   %s\nphaseOpt: %s", srcDirect, srcPhaseOpt)
+	}
+	if stampDirect != stampPhaseOpt {
+		t.Fatalf("function scope change_time stamp mismatch when fastMode=false: direct=%d vs phaseOptimizer=%d (willFlattenReferences diverged on phaseOptimizer != nil)",
+			stampDirect, stampPhaseOpt)
+	}
+
+	srcFast, stampFast := runAndCollectStamp(true, true)
+	if srcFast != srcDirect {
+		t.Fatalf("fastMode source mismatch:\nfast:   %s\ndirect: %s", srcFast, srcDirect)
+	}
+	if stampFast >= stampDirect {
+		t.Fatalf("expected fastMode=true to skip intermediate prefix flattening stamps (got fast=%d, non-fast=%d)", stampFast, stampDirect)
+	}
 }

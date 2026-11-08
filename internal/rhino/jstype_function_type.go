@@ -594,46 +594,74 @@ func (f *FunctionTypeBase) ForEachOwnPropertyName(fn func(string)) {
 	})
 }
 
+const (
+	lazyFnPropApply uint8 = 0
+	lazyFnPropBind  uint8 = 1
+	lazyFnPropCall  uint8 = 2
+)
+
+var (
+	fnPropKeyApply     = NewProperty_StringKey("apply")
+	fnPropKeyBind      = NewProperty_StringKey("bind")
+	fnPropKeyCall      = NewProperty_StringKey("call")
+	fnPropKeyPrototype = NewProperty_StringKey("prototype")
+)
+
 // Java: FunctionType.getPropertyType(Property.Key)
 func (f *FunctionTypeBase) GetPropertyTypeByKey(name Property_Key) JSType {
 	if !f.HasOwnPropertyByKey(name) && !f.isNoObjectOrNo() {
 		// Define the "call", "apply", and "bind" functions lazily.
-		isCall := name.Matches("call")
-		isBind := name.Matches("bind")
+		isCall := name == fnPropKeyCall
+		isBind := name == fnPropKeyBind
 		if isCall || isBind {
+			if reg := f.GetRegistry(); reg != nil && reg.parallelReadOnly {
+				kind := lazyFnPropBind
+				if isCall {
+					kind = lazyFnPropCall
+				}
+				if sig := reg.lookupParallelFnProp(f, kind); sig != nil {
+					return sig
+				}
+				sig := f.GetCallOrBindSignature(isCall)
+				return reg.recordParallelFnProp(f, kind, sig)
+			}
 			sig := f.GetCallOrBindSignature(isCall)
-			if reg := f.GetRegistry(); reg != nil && reg.parallelReadOnly {
-				return sig
-			}
 			f.DefineDeclaredPropertyByKey(name, sig, f.source)
-		} else if name.Matches("apply") {
-			// Define the "apply" function lazily.
-			var builder FunctionParamBuilder
-			builder.Init(f.GetRegistry(), 2)
-
-			// ECMA-262 says that apply's second argument must be an Array or an
-			// arguments object. We don't model the arguments object, so let's
-			// just be forgiving for now.
-			// TODO(nicksantos): Model the Arguments object.
-			builder.AddOptionalParam(f.GetRegistry().CreateNullableType(f.GetTypeOfThis()))
-			builder.AddOptionalParam(
-				f.GetRegistry().CreateNullableType(f.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE)))
-
-			var fnBuilder FunctionType_Builder
-			fnBuilder.Init(f.GetRegistry())
-			sig := fnBuilder.
-				WithParametersOfList(builder.Build()).
-				WithReturnType(f.GetReturnType()).
-				WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys()).
-				Build()
+		} else if name == fnPropKeyApply {
 			if reg := f.GetRegistry(); reg != nil && reg.parallelReadOnly {
-				return sig
+				if sig := reg.lookupParallelFnProp(f, lazyFnPropApply); sig != nil {
+					return sig
+				}
+				sig := f.buildApplySignature()
+				return reg.recordParallelFnProp(f, lazyFnPropApply, sig)
 			}
-			f.DefineDeclaredPropertyByKey(name, sig, f.source)
+			f.DefineDeclaredPropertyByKey(name, f.buildApplySignature(), f.source)
 		}
 	}
 
 	return f.PrototypeObjectTypeBase.GetPropertyTypeByKey(name)
+}
+
+func (f *FunctionTypeBase) buildApplySignature() JSType {
+	// Define the "apply" function lazily.
+	var builder FunctionParamBuilder
+	builder.Init(f.GetRegistry(), 2)
+
+	// ECMA-262 says that apply's second argument must be an Array or an
+	// arguments object. We don't model the arguments object, so let's
+	// just be forgiving for now.
+	// TODO(nicksantos): Model the Arguments object.
+	builder.AddOptionalParam(f.GetRegistry().CreateNullableType(f.GetTypeOfThis()))
+	builder.AddOptionalParam(
+		f.GetRegistry().CreateNullableType(f.GetRegistry().GetNativeType(JSTypeNative_OBJECT_TYPE)))
+
+	var fnBuilder FunctionType_Builder
+	fnBuilder.Init(f.GetRegistry())
+	return fnBuilder.
+		WithParametersOfList(builder.Build()).
+		WithReturnType(f.GetReturnType()).
+		WithTemplateKeysOfList(f.GetTemplateTypeMap().GetTemplateKeys()).
+		Build()
 }
 
 // GetBindReturnType gets the return value of calling "bind" on this function

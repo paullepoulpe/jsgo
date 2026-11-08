@@ -1745,11 +1745,24 @@ func (c *ProcessCommonJSModulesTest) TestFindModuleDependencies() {
 }
 
 func (c *ProcessCommonJSModulesTest) TestMultipleAssignmentsWithGlobalExportsDecl() {
+	c.TestModules(
+		"test.js",
+		`var exports = {};
+/** @constructor */ function Hello() {}
+module.exports = Hello;
+`,
+		`/** @const */ var module$test = {};
+/** @const @constructor */ module$test.default = function() {};
+var exports = {};
+`)
+
+	// Undeclared top-level `exports = ...` (not `exports = module.exports`) still
+	// triggers JSC_COMMONJS_SUSPICIOUS_EXPORTS_ASSIGNMENT.
 	chunk := NewJSChunk("out")
 	chunk.AddSourceFile(
 		SourceFile_FromCode(
 			"test",
-			`var exports = {};
+			`exports = {};
 /** @constructor */ function Hello() {}
 module.exports = Hello;
 `))

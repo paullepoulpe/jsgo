@@ -20,6 +20,8 @@
 package jscomp
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -1053,4 +1055,29 @@ func (c *InlineObjectLiteralsTest) TestPerIterationUninitializedLetCapture() {
   });
 }
 `)
+}
+
+func (c *InlineObjectLiteralsTest) TestSaturatedScopeBloomDoesNotBypassNonCandidateEscapedRef() {
+	var inSb, outSb strings.Builder
+	inSb.WriteString("function f(k, cond, sink) {\n")
+	outSb.WriteString("function f(k, cond, sink) {\n")
+	for i := 0; i < 48; i++ {
+		idx := strconv.Itoa(i)
+		inSb.WriteString("  var c" + idx + " = {p: " + idx + "}; sink(c" + idx + ".p);\n")
+		outSb.WriteString("  var JSCompiler_object_inline_p_" + idx + " = " + idx + "; sink(JSCompiler_object_inline_p_" + idx + ");\n")
+	}
+	// `keepObj` is assigned inside a `for` initializer (so `checkObjectLit` does not record it
+	// in `candIDBloom`), while `check()` escapes `keepObj` via `'a' in keepObj`.
+	bodyTail := `  var keepObj;
+  function check() {
+    return 'a' in keepObj;
+  }
+  for (keepObj = {a: 1}; cond(); ) {
+    sink(check());
+  }
+}
+`
+	inSb.WriteString(bodyTail)
+	outSb.WriteString(bodyTail)
+	c.Test(inSb.String(), outSb.String())
 }

@@ -546,8 +546,10 @@ func (p *PeepholeOptimizationsPass) processChangedScopesParallel(root rhino.Node
 	defer jsErrorPinsDeferred.Add(-1)
 
 	var active []int
-	for wIdx, w := range waves {
-		if wIdx == 0 {
+	deepest := len(waves) - 1
+	for wIdx := deepest; wIdx >= 0; wIdx-- {
+		w := waves[wIdx]
+		if wIdx == deepest {
 			active = w
 		} else {
 			active = active[:0]

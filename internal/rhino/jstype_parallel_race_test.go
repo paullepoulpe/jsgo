@@ -254,3 +254,105 @@ func TestFunctionTypeGetPrototypeAndGetSlotConcurrentParallelReadOnly(t *testing
 		}
 	}
 }
+
+func TestParallelReadOnlyFlushesFunctionCallBindApplyOwnPropertiesDeterministically(t *testing.T) {
+	buildFns := func() (*JSTypeRegistry, []FunctionType) {
+		reg := NewJSTypeRegistry(parallelRaceNoopReporter{})
+		numType := reg.GetNativeType(JSTypeNative_NUMBER_TYPE)
+		strType := reg.GetNativeType(JSTypeNative_STRING_TYPE)
+		fns := make([]FunctionType, 8)
+		for i := range fns {
+			var pb FunctionParamBuilder
+			pb.Init(reg, 1)
+			pb.AddRequiredParams(numType)
+			var fb FunctionType_Builder
+			fb.Init(reg)
+			fns[i] = fb.
+				WithName(fmt.Sprintf("fn%d", i)).
+				WithParametersOfList(pb.Build()).
+				WithReturnType(strType).
+				Build()
+		}
+		return reg, fns
+	}
+
+	// Reference sequential run (--num_parallel_threads=1 equivalent):
+	_, seqFns := buildFns()
+	seqSigs := make([][3]JSType, len(seqFns))
+	for i, fn := range seqFns {
+		seqSigs[i][0] = fn.GetPropertyType("apply")
+		seqSigs[i][1] = fn.GetPropertyType("bind")
+		seqSigs[i][2] = fn.GetPropertyType("call")
+	}
+
+	// Concurrent parallelReadOnly run where workers hit call/bind/apply in varied orders:
+	parReg, parFns := buildFns()
+	const workers = 12
+	workerSigs := make([][][3]JSType, workers)
+	for w := range workers {
+		workerSigs[w] = make([][3]JSType, len(parFns))
+	}
+
+	parReg.SetParallelReadOnly(true)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for w := range workers {
+		wg.Add(1)
+		go func(worker int) {
+			defer wg.Done()
+			<-start
+			for step := range len(parFns) {
+				idx := (step + worker) % len(parFns)
+				fn := parFns[idx]
+				switch (worker + step) % 3 {
+				case 0:
+					workerSigs[worker][idx][2] = fn.GetPropertyType("call")
+					workerSigs[worker][idx][1] = fn.GetPropertyType("bind")
+					workerSigs[worker][idx][0] = fn.GetPropertyType("apply")
+				case 1:
+					workerSigs[worker][idx][1] = fn.GetPropertyType("bind")
+					workerSigs[worker][idx][0] = fn.GetPropertyType("apply")
+					workerSigs[worker][idx][2] = fn.GetPropertyType("call")
+				default:
+					workerSigs[worker][idx][0] = fn.GetPropertyType("apply")
+					workerSigs[worker][idx][2] = fn.GetPropertyType("call")
+					workerSigs[worker][idx][1] = fn.GetPropertyType("bind")
+				}
+			}
+		}(w)
+	}
+	close(start)
+	wg.Wait()
+	parReg.SetParallelReadOnly(false)
+
+	for i, fn := range parFns {
+		wantNames := seqFns[i].GetOwnPropertyNames()
+		gotNames := fn.GetOwnPropertyNames()
+		if len(gotNames) != len(wantNames) {
+			t.Fatalf("fn[%d] own properties = %v, want %v", i, gotNames, wantNames)
+		}
+		for k := range wantNames {
+			if gotNames[k] != wantNames[k] {
+				t.Fatalf("fn[%d] own property[%d] = %q, want %q", i, k, gotNames[k], wantNames[k])
+			}
+		}
+		for _, prop := range []string{"apply", "bind", "call"} {
+			if !fn.HasOwnProperty(prop) {
+				t.Fatalf("fn[%d] missing flushed own property %q after SetParallelReadOnly(false)", i, prop)
+			}
+		}
+		// Every worker and post-flush lookup must observe the exact same signature pointer:
+		flushedApply := fn.GetPropertyType("apply")
+		flushedBind := fn.GetPropertyType("bind")
+		flushedCall := fn.GetPropertyType("call")
+		for w := range workers {
+			if workerSigs[w][i][0] != flushedApply || workerSigs[w][i][1] != flushedBind || workerSigs[w][i][2] != flushedCall {
+				t.Fatalf("fn[%d] worker %d observed non-canonical lazy signature pointer", i, w)
+			}
+		}
+		if flushedApply.String() != seqSigs[i][0].String() || flushedBind.String() != seqSigs[i][1].String() || flushedCall.String() != seqSigs[i][2].String() {
+			t.Fatalf("fn[%d] flushed signatures (%v, %v, %v) differ from sequential signatures (%v, %v, %v)",
+				i, flushedApply, flushedBind, flushedCall, seqSigs[i][0], seqSigs[i][1], seqSigs[i][2])
+		}
+	}
+}

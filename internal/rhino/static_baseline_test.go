@@ -118,4 +118,19 @@ func TestCaptureAndRewindStaticBaseline(t *testing.T) {
 	if !CurrentNodeStore().IsStatic() {
 		t.Fatal("expected RewindStaticBaseline() to reset current NodeStore back to nil (static fallback)")
 	}
+
+	// Verify strpool shards are also rewound by CaptureStaticBaseline / RewindStaticBaseline:
+	baseAnchor := rhinoStringPoolIntern("rhino_baseline_strpool_anchor")
+	CaptureStaticBaseline()
+	baseStrpool := staticBaseline.strpool
+	for i := range 1500 {
+		_ = rhinoStringPoolIntern("rhino_ephemeral_req_ident_" + string(rune('a'+(i%26))) + "_" + string(rune('0'+(i/26))))
+	}
+	RewindStaticBaseline()
+	if got := staticBaseline.strpool; got != baseStrpool {
+		t.Fatalf("strpool baseline mutated: %v != %v", got, baseStrpool)
+	}
+	if rhinoStringFromID(baseAnchor) != "rhino_baseline_strpool_anchor" {
+		t.Fatalf("baseline strpool anchor lost after RewindStaticBaseline")
+	}
 }

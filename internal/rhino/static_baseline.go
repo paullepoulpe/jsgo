@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/paullepoulpe/jsgo/internal/colors"
+	"github.com/paullepoulpe/jsgo/internal/strpool"
 )
 
 type staticBaselineSnapshot struct {
@@ -23,6 +24,7 @@ type staticBaselineSnapshot struct {
 	bigIntsCount     uint32
 
 	numberNext uint32
+	strpool    strpool.BaselineSnapshot
 }
 
 var (
@@ -83,14 +85,16 @@ func captureStaticBaselineLocked() {
 	snap.numberNext = numberTable.next
 	numberTable.mu.Unlock()
 
+	snap.strpool = strpool.CaptureBaseline()
+
 	staticBaseline = snap
 }
 
 // RewindStaticBaseline resets the current per-compilation NodeStore and rewinds
-// package-level rhino tables (staticStore and numberTable) back to the snapshot
-// recorded by CaptureStaticBaseline. If CaptureStaticBaseline has not yet been
-// called, RewindStaticBaseline resets the current NodeStore, captures the
-// current static state as the baseline, and returns.
+// package-level rhino/strpool tables (staticStore, numberTable, and strpool)
+// back to the snapshot recorded by CaptureStaticBaseline. If CaptureStaticBaseline
+// has not yet been called, RewindStaticBaseline resets the current NodeStore,
+// captures the current static state as the baseline, and returns.
 //
 // Callers must invoke RewindStaticBaseline only between compilations when no
 // compilation is actively mutating or reading per-request staticStore nodes.
@@ -106,6 +110,7 @@ func RewindStaticBaseline() {
 
 	rewindStaticStore(&snap)
 	numberTable.rewind(snap.numberNext)
+	strpool.RewindBaseline(snap.strpool)
 }
 
 func rewindStaticStore(snap *staticBaselineSnapshot) {

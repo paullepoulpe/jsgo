@@ -718,11 +718,23 @@ func TestBinarySaveState_TruncatedCorruptAndVersionErrors(t *testing.T) {
 	// 7. Oversized section size & table count sanity caps reject corrupt headers without OOM.
 	{
 		mut := bytes.Clone(validRaw)
-		// Offset 16 is uint32(len(stateBytes)): set to > 512 MiB cap.
-		binary.LittleEndian.PutUint32(mut[16:20], uint32(maxBinarySaveStateSectionBytes+1))
+		// Offset 16 is uint32(len(stateBytes)): set to 0xFFFFFFFF (4 GiB - 1) on a tiny buffer;
+		// the 4 MiB probe in (*binaryStreamReader).bytes rejects on unexpected EOF without OOM.
+		binary.LittleEndian.PutUint32(mut[16:20], ^uint32(0))
 		caught := catchRestoreThrowable(t, externCode, scriptCodes, true, bytes.NewReader(mut))
 		if !hasIOExceptionCause(caught) {
 			t.Fatalf("oversized section length: got %T (%v), want IOException cause", caught, caught)
+		}
+	}
+	{
+		var srCaught any
+		func() {
+			defer func() { srCaught = recover() }()
+			sr := &binaryStreamReader{r: bytes.NewReader(nil)}
+			_ = sr.bytes(maxBinarySaveStateSectionBytes + 1)
+		}()
+		if srCaught == nil || !hasIOExceptionCause(jutil.AsThrowable(srCaught)) {
+			t.Fatalf("section > maxBinarySaveStateSectionBytes: got %T (%v), want IOException cause", srCaught, srCaught)
 		}
 	}
 	{
@@ -745,8 +757,9 @@ func TestBinarySaveState_TruncatedCorruptAndVersionErrors(t *testing.T) {
 		{"zero-nodes", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
 		{"unknown-flags", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x00, 0x80}},
 		{"bad-kind", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0x00, 0x00}},
-		{"oob-str-ptr", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, byte(binNodeValString), 0x00, 99, 0, 0, 0}},
-		{"bad-root-endIdx", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, byte(binNodeHasChildren), 0x00, 5, 0, 0, 0}},
+		{"oob-str-ptr", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, byte(binNodeValString), 0x00, 99}},
+		{"bad-root-endIdx", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, byte(binNodeHasChildren), 0x00, 5}},
+		{"varint-overflow", []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, byte(binNodeValString), 0x00, 0xff, 0xff, 0xff, 0xff, 0x1f}},
 	} {
 		_ = NewCompiler()
 		sd := &ScriptNodeDeserializer{
@@ -762,6 +775,94 @@ func TestBinarySaveState_TruncatedCorruptAndVersionErrors(t *testing.T) {
 		if _, ok := sdCaught.(*MalformedTypedAstException); !ok {
 			t.Fatalf("corrupt binaryScript %s: got %T (%v), want *MalformedTypedAstException", tc.name, sdCaught, sdCaught)
 		}
+	}
+}
+
+func TestBinaryStreamReaderBytesBoundedChunksAndVarintScriptRoundTrip(t *testing.T) {
+	// 1. Payload > 4 MiB allocates exact slice capacity without bytes.Buffer doublings.
+	const payloadSize = 6<<20 + 12345
+	payload := make([]byte, payloadSize)
+	for i := range payload {
+		payload[i] = byte((i*31 + 17) & 0xff)
+	}
+	sr := &binaryStreamReader{r: bytes.NewReader(payload)}
+	got := sr.bytes(uint64(payloadSize))
+	if len(got) != payloadSize || cap(got) != payloadSize {
+		t.Fatalf("sr.bytes(%d): len=%d cap=%d, want exact %d (no bytes.Buffer doubling slack)",
+			payloadSize, len(got), cap(got), payloadSize)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatal("sr.bytes(>4MiB) payload mismatch")
+	}
+
+	// 2. Truncated > 4 MiB streams (both before and after the 4 MiB probe) fail cleanly with IOException.
+	for _, truncLen := range []int{1024, 5 << 20} {
+		var caught any
+		func() {
+			defer func() { caught = recover() }()
+			r := &binaryStreamReader{r: bytes.NewReader(payload[:truncLen])}
+			_ = r.bytes(uint64(payloadSize))
+		}()
+		if caught == nil || !hasIOExceptionCause(jutil.AsThrowable(caught)) {
+			t.Fatalf("truncLen=%d: got %T (%v), want IOException", truncLen, caught, caught)
+		}
+	}
+
+	// 3. Multi-byte varint script fields (> 200 strings, JSDoc tags/descriptions, cooked + raw-only templates).
+	var sb strings.Builder
+	sb.WriteString("/** @fileoverview @license Apache-2.0 */\n")
+	sb.WriteString("function tag(s, ...v) { return s.raw[0] + (v[0] ?? ''); }\n")
+	for i := 0; i < 220; i++ {
+		fmt.Fprintf(&sb, "/** @desc desc_%d @meaning mean_%d */ var MSG_VAR_%d = `val_%d_${%d}`;\n", i, i, i, i, i)
+	}
+	sb.WriteString("export const rawEsc = tag`\\unicode_${MSG_VAR_219}`;\n")
+
+	externCode := "/** @externs */\nfunction alert(x) {}\n"
+	scriptCodes := []string{sb.String()}
+
+	cSave := NewCompiler()
+	optsSave := newBinaryStateTestOptions(true, 2)
+	extSave, chunksSave := makeBinaryStateChunks(externCode, scriptCodes)
+	cSave.InitChunks(extSave, chunksSave, optsSave)
+	cSave.ParseForCompilation()
+	if cSave.HasErrors() {
+		t.Fatalf("parse errors: %v", cSave.GetErrors())
+	}
+	cSave.Stage1Passes()
+	if cSave.HasErrors() {
+		t.Fatalf("stage1 errors: %v", cSave.GetErrors())
+	}
+	var saved bytes.Buffer
+	cSave.SaveState(&saved)
+
+	cProto := NewCompiler()
+	optsProto := newBinaryStateTestOptions(false, 2)
+	extProto, chunksProto := makeBinaryStateChunks(externCode, scriptCodes)
+	cProto.InitChunks(extProto, chunksProto, optsProto)
+	cProto.ParseForCompilation()
+	cProto.Stage1Passes()
+	var savedProto bytes.Buffer
+	cProto.SaveState(&savedProto)
+
+	compileRestored := func(data []byte) string {
+		c := NewCompiler()
+		opts := newBinaryStateTestOptions(false, 2)
+		ext, ch := makeBinaryStateChunks(externCode, scriptCodes)
+		c.InitChunks(ext, ch, opts)
+		c.RestoreState(bytes.NewReader(data))
+		c.Stage2Passes(CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS)
+		c.Stage3Passes()
+		c.PerformPostCompilationTasks()
+		if c.HasErrors() {
+			t.Fatalf("restored compile errors: %v", c.GetErrors())
+		}
+		return c.ToSource()
+	}
+
+	gotBin := compileRestored(saved.Bytes())
+	wantProto := compileRestored(savedProto.Bytes())
+	if gotBin != wantProto {
+		t.Fatalf("varint binary SaveState output mismatch vs protobuf:\ngot:\n%s\nwant:\n%s", gotBin, wantProto)
 	}
 }
 

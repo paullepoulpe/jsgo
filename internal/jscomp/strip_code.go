@@ -622,7 +622,7 @@ func (s *StripCode) ReplaceHighestNestedCallWithNull(t *NodeTraversal, node rhin
 //
 // Java: Strip.maybeEliminateAssignmentByLvalueName(NodeTraversal, Node, Node)
 func (s *StripCode) MaybeEliminateAssignmentByLvalueName(t *NodeTraversal, n rhino.Node, parent rhino.Node) {
-	if n.IsNil() || parent.IsNil() || n.GetParent().IsNil() {
+	if n.IsNil() || parent.IsNil() {
 		return
 	}
 	// ASSIGN* / INC / DEC

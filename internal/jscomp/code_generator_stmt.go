@@ -356,9 +356,13 @@ func (g *CodeGenerator) addClass(cls ast.Class, context CodeGenerator_Context) {
 
 	if superClass, ok := cls.Extends(); ok {
 		g.Add("extends")
-		// Parentheses are required for a comma expression or an
-		// assignment expression.
-		g.AddExpr(superClass.Node(), 1, CodeGenerator_Context_OTHER)
+		// ClassHeritage[Yield, Await] : extends LeftHandSideExpression[?Yield, ?Await]
+		superNode := superClass.Node()
+		minPrec := NodeUtil_Precedence(rhino.Token_CALL)
+		if g.skipTransparentCasts(superNode).IsNew() {
+			minPrec = NodeUtil_Precedence(rhino.Token_NEW)
+		}
+		g.AddExpr(superNode, minPrec, CodeGenerator_Context_OTHER)
 	}
 
 	interfaces := codeGenerator_nodeProp(cls.Node().GetProp(rhino.Node_IMPLEMENTS))

@@ -19,6 +19,8 @@
 package jscomp
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/paullepoulpe/jsgo/internal/jutil"
@@ -738,4 +740,39 @@ func TestJsFileRegexParser_Es6AndWrappedGoogModuleIsError(t *testing.T) {
 	if len(warnings) != 1 || warnings[0].Type() != ModuleLoader_MODULE_CONFLICT {
 		t.Errorf("warnings: got %v, want exactly one MODULE_CONFLICT", warnings)
 	}
+}
+
+func TestJsFileRegexParser_ShortcutModeForwardDeclareDoesNotDropSubsequentRequires(t *testing.T) {
+	x := newJsFileRegexParserTest(t)
+	x.parser.SetShortcutMode(true)
+	contents := jsFileRegexParserTest_lines(
+		"goog.provide('my.ns');",
+		"goog.forwardDeclare('fwd.TypeA');",
+		"const FwdB = goog.forwardDeclare('fwd.TypeB');",
+		"goog.require('dep.afterForwardDeclare');",
+		"goog.requireType('dep.typeAfterForwardDeclare');",
+		"var unrelatedCode = 1;",
+		"goog.require('dep.afterCodeIgnoredInShortcutMode');")
+
+	expected := jsFileRegexParserTest_builder().
+		SetProvides([]string{"my.ns"}).
+		SetRequires([]*DependencyInfo_Require{jsFileRegexParserTest_goog("dep.afterForwardDeclare")}).
+		SetTypeRequires([]string{"fwd.TypeA", "fwd.TypeB", "dep.typeAfterForwardDeclare"}).
+		Build()
+
+	result := x.parser.ParseFile(jsFileRegexParserTest_SRC_PATH, jsFileRegexParserTest_CLOSURE_PATH, contents)
+	x.assertDeps(expected, result)
+
+	// Also verify AST-based CompilerInput dependency extraction records goog.forwardDeclare in typeRequires.
+	compiler := NewCompiler()
+	compiler.InitOptions(NewCompilerOptions())
+	sf := SourceFile_FromCode(jsFileRegexParserTest_SRC_PATH, strings.Join([]string{
+		"goog.provide('my.ns');",
+		"goog.forwardDeclare('fwd.TypeA');",
+		"goog.require('dep.afterForwardDeclare');",
+	}, "\n"))
+	ci := NewCompilerInput(sf)
+	ci.SetCompiler(compiler)
+	_ = ci.GetAstRoot(compiler)
+	assertEqual(t, "CompilerInput.GetTypeRequires", slices.Equal(ci.GetTypeRequires(), []string{"fwd.TypeA"}), true)
 }

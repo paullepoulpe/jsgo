@@ -38,8 +38,8 @@ const (
 	binarySaveStateMagic           = "JSGOSAV1"
 	binarySaveStateHeaderSize      = 16
 	binarySaveStateVersion         = uint32(1)
-	binarySaveStateFormatTag       = uint32(0x4a53_4201) // "JSB\x01": flat binary AST arena v1
-	maxBinarySaveStateSectionBytes = 512 << 20           // 512 MiB sanity cap per binary section
+	binarySaveStateFormatTag       = uint32(0x4a53_4202) // "JSB\x02": flat binary AST arena v2
+	maxBinarySaveStateSectionBytes = uint64(16) << 30    // 16 GiB sanity cap per binary section
 	maxBinarySaveStateCount        = 64 << 20            // 64M entries sanity cap per table
 )
 
@@ -62,7 +62,7 @@ const (
 	binNodeHasJsdoc    uint16 = 1 << 11
 	binNodeHasSource   uint16 = 1 << 12
 	binNodeKnownFlags  uint16 = 0x1FFF
-	binNodeMaxBytes           = 47 // 3-byte header + max(8 val, 4 endIdx, 4 line, 4 col, 8 props, 4 type, 4 orig, 4 jsdoc, 4 sf)
+	binNodeMaxBytes           = 64 // 3-byte header + max(10 val, 5 endIdx, 4 line, 4 col, 8 props, 5 type, 5 orig, 5 jsdoc, 5 sf)
 )
 
 type replayErrorReader struct {
@@ -231,7 +231,7 @@ func (c *Compiler) writeBinaryTypedAstPayload(bw *bufio.Writer, stateBytes []byt
 	for i := 1; i <= numStrings; i++ {
 		totalStringBytes += uint64(len(strpool.String(ids[i])))
 	}
-	if totalStringBytes > maxBinarySaveStateSectionBytes {
+	if totalStringBytes > math.MaxUint32 {
 		panic(jutil.NewIllegalStateExceptionMsg("String table exceeds maximum binary SaveState size"))
 	}
 	w.u32(uint32(s.stringPool.maxLength))
@@ -278,7 +278,7 @@ func (c *Compiler) writeBinaryTypedAstPayload(bw *bufio.Writer, stateBytes []byt
 		totalSourceMapURLBytes += uint64(len(sc.sourceMappingURL))
 		totalScriptBytes += uint64(len(sc.data))
 	}
-	if totalSourceMapURLBytes > maxBinarySaveStateSectionBytes || totalScriptBytes > maxBinarySaveStateSectionBytes {
+	if totalSourceMapURLBytes > math.MaxUint32 || totalScriptBytes > maxBinarySaveStateSectionBytes {
 		panic(jutil.NewIllegalStateExceptionMsg("Script arena exceeds maximum binary SaveState size"))
 	}
 	w.u32(uint32(totalSourceMapURLBytes))
@@ -374,7 +374,7 @@ func unmarshalBinaryTypePool(data []byte) *TypePool {
 
 func encodeBinaryScript(enc *scriptWireEncoder, scratch *[]byte, byteSlab *[]byte) binaryEncodedScript {
 	nodes, jsdocs, jsdocKinds := enc.nodes, enc.jsdocs, enc.jsdocKinds
-	maxBytes := 12 + len(jsdocs)*28 + len(jsdocKinds)*4 + len(nodes)*binNodeMaxBytes
+	maxBytes := 12 + len(jsdocs)*35 + len(jsdocKinds)*5 + len(nodes)*binNodeMaxBytes
 	if cap(*scratch) < maxBytes {
 		*scratch = make([]byte, max(maxBytes, 64*1024))
 	}
@@ -384,20 +384,22 @@ func encodeBinaryScript(enc *scriptWireEncoder, scratch *[]byte, byteSlab *[]byt
 	binary.LittleEndian.PutUint32(buf[8:12], uint32(len(jsdocKinds)))
 	pos := 12
 
+	putUvar32 := func(v uint32) {
+		pos += binary.PutUvarint(buf[pos:], uint64(v))
+	}
+
 	for i := range jsdocs {
 		d := &jsdocs[i]
-		binary.LittleEndian.PutUint32(buf[pos:], d.kindOff)
-		binary.LittleEndian.PutUint32(buf[pos+4:], d.kindLen)
-		binary.LittleEndian.PutUint32(buf[pos+8:], uint32(d.licensePtr))
-		binary.LittleEndian.PutUint32(buf[pos+12:], uint32(d.descPtr))
-		binary.LittleEndian.PutUint32(buf[pos+16:], uint32(d.meaningPtr))
-		binary.LittleEndian.PutUint32(buf[pos+20:], uint32(d.altMsgPtr))
-		binary.LittleEndian.PutUint32(buf[pos+24:], uint32(d.cuModePtr))
-		pos += 28
+		putUvar32(d.kindOff)
+		putUvar32(d.kindLen)
+		putUvar32(uint32(d.licensePtr))
+		putUvar32(uint32(d.descPtr))
+		putUvar32(uint32(d.meaningPtr))
+		putUvar32(uint32(d.altMsgPtr))
+		putUvar32(uint32(d.cuModePtr))
 	}
 	for _, k := range jsdocKinds {
-		binary.LittleEndian.PutUint32(buf[pos:], uint32(k))
-		pos += 4
+		putUvar32(uint32(k))
 	}
 
 	putRelDelta := func(v int32, shift uint) uint16 {
@@ -413,12 +415,11 @@ func encodeBinaryScript(enc *scriptWireEncoder, scratch *[]byte, byteSlab *[]byt
 		pos += 4
 		return 2 << shift
 	}
-	putOptU32 := func(cond bool, bit uint16, v uint32) uint16 {
+	putOptUvar32 := func(cond bool, bit uint16, v uint32) uint16 {
 		if !cond {
 			return 0
 		}
-		binary.LittleEndian.PutUint32(buf[pos:], v)
-		pos += 4
+		pos += binary.PutUvarint(buf[pos:], uint64(v))
 		return bit
 	}
 
@@ -432,18 +433,18 @@ func encodeBinaryScript(enc *scriptWireEncoder, scratch *[]byte, byteSlab *[]byt
 		switch fn.valCase {
 		case astValCase_String:
 			flags |= binNodeValString
-			binary.LittleEndian.PutUint32(buf[pos:], uint32(fn.valBits))
-			pos += 4
+			putUvar32(uint32(fn.valBits))
 		case astValCase_Double:
 			flags |= binNodeValDouble
 			binary.LittleEndian.PutUint64(buf[pos:], fn.valBits)
 			pos += 8
 		case astValCase_Template:
 			flags |= binNodeValTemplate
-			binary.LittleEndian.PutUint64(buf[pos:], fn.valBits)
-			pos += 8
+			rawPtr, cookedPtr := fn.templatePointers()
+			putUvar32(uint32(rawPtr))
+			putUvar32(uint32(cookedPtr + 1))
 		}
-		flags |= putOptU32(fn.endIdx != uint32(idx+1), binNodeHasChildren, fn.endIdx)
+		flags |= putOptUvar32(fn.endIdx != uint32(idx+1), binNodeHasChildren, fn.endIdx)
 		flags |= putRelDelta(fn.relLine, binNodeLineShift)
 		flags |= putRelDelta(fn.relCol, binNodeColShift)
 		if fn.boolProps != 0 {
@@ -461,10 +462,10 @@ func encodeBinaryScript(enc *scriptWireEncoder, scratch *[]byte, byteSlab *[]byt
 				pos += 8
 			}
 		}
-		flags |= putOptU32(fn.hasType, binNodeHasType, uint32(fn.typePtr))
-		flags |= putOptU32(fn.origName != 0, binNodeHasOrigName, uint32(fn.origName))
-		flags |= putOptU32(fn.jsdocIdx >= 0, binNodeHasJsdoc, uint32(fn.jsdocIdx))
-		flags |= putOptU32(fn.sourceFile != 0, binNodeHasSource, uint32(fn.sourceFile))
+		flags |= putOptUvar32(fn.hasType, binNodeHasType, uint32(fn.typePtr))
+		flags |= putOptUvar32(fn.origName != 0, binNodeHasOrigName, uint32(fn.origName))
+		flags |= putOptUvar32(fn.jsdocIdx >= 0, binNodeHasJsdoc, uint32(fn.jsdocIdx))
+		flags |= putOptUvar32(fn.sourceFile != 0, binNodeHasSource, uint32(fn.sourceFile))
 
 		buf[hdrPos] = uint8(kindOrd)
 		binary.LittleEndian.PutUint16(buf[hdrPos+1:], flags)
@@ -516,23 +517,33 @@ func (sr *binaryStreamReader) count() uint32 {
 	return n
 }
 
+const (
+	binaryStreamDirectAllocMaxBytes = 4 << 20
+	binaryStreamReadChunkBytes      = 16 << 20
+)
+
 func (sr *binaryStreamReader) bytes(n uint64) []byte {
 	if n == 0 {
 		return nil
 	}
-	if n > maxBinarySaveStateSectionBytes {
+	if n > maxBinarySaveStateSectionBytes || n > uint64(math.MaxInt) {
 		binaryFail("Binary compiler state section exceeds maximum size")
 	}
-	if n <= 4<<20 {
+	if n <= binaryStreamDirectAllocMaxBytes {
 		buf := make([]byte, int(n))
 		sr.readFull(buf)
 		return buf
 	}
-	var out bytes.Buffer
-	if copied, err := io.CopyN(&out, sr.r, int64(n)); err != nil || uint64(copied) != n {
-		binaryFail("Truncated binary compiler state")
+	first := make([]byte, binaryStreamDirectAllocMaxBytes)
+	sr.readFull(first)
+	buf := make([]byte, int(n))
+	copy(buf, first)
+	for off := len(first); off < len(buf); {
+		end := min(off+binaryStreamReadChunkBytes, len(buf))
+		sr.readFull(buf[off:end])
+		off = end
 	}
-	return out.Bytes()
+	return buf
 }
 
 func (sr *binaryStreamReader) readScratch(scratch *[]byte, n uint64) []byte {
@@ -822,8 +833,29 @@ func (r *binSliceReader) u64(msg string) uint64 {
 	return binary.LittleEndian.Uint64(r.b[r.need(8, msg):])
 }
 
+func (r *binSliceReader) uvarint32(truncMsg string) uint32 {
+	p := r.pos
+	b := r.b
+	if p < len(b) && b[p] < 0x80 {
+		r.pos = p + 1
+		return uint32(b[p])
+	}
+	v, n := binary.Uvarint(b[p:])
+	if n <= 0 {
+		if n == 0 {
+			r.fail(truncMsg)
+		}
+		r.fail("Overflow in binary script varint")
+	}
+	if v > math.MaxUint32 {
+		r.fail("Overflow in binary script uint32 varint")
+	}
+	r.pos = p + n
+	return uint32(v)
+}
+
 func (r *binSliceReader) strPtr(poolLen uint32, truncMsg, oobMsg string) int32 {
-	u := r.u32(truncMsg)
+	u := r.uvarint32(truncMsg)
 	if u >= poolLen {
 		r.fail(oobMsg)
 	}
@@ -873,14 +905,58 @@ func (d *ScriptNodeDeserializer) deserializeBinaryWithAllocator(alloc *rhino.Nod
 	if nodeCount == 0 || nodeCount > maxBinarySaveStateCount || jsdocCount > maxBinarySaveStateCount || jsdocKindCount > maxBinarySaveStateCount {
 		binaryFail("Invalid binary script header counts")
 	}
-	headerAndJsdocBytes := uint64(12) + uint64(jsdocCount)*28 + uint64(jsdocKindCount)*4
-	if headerAndJsdocBytes > uint64(len(b)) {
+	if uint64(12)+uint64(jsdocCount)*7+uint64(jsdocKindCount) > uint64(len(b)) {
 		binaryFail("Truncated binary script jsdoc table")
 	}
 
-	const jsdocOff = 12
-	jsdocKindsOff := jsdocOff + int(jsdocCount)*28
-	rd := binSliceReader{b: b, pos: int(headerAndJsdocBytes)}
+	rd := binSliceReader{b: b, pos: 12}
+	internedStrings := d.stringPool.GetInternedStrings()
+	stringPoolLen := uint32(internedStrings.Len())
+
+	var jsdocStack [16]flatJsdoc
+	var jsdocs []flatJsdoc
+	if jsdocCount > 0 {
+		if jsdocCount <= uint32(len(jsdocStack)) {
+			jsdocs = jsdocStack[:jsdocCount]
+		} else {
+			jsdocs = make([]flatJsdoc, jsdocCount)
+		}
+		for ji := uint32(0); ji < jsdocCount; ji++ {
+			kindOff := rd.uvarint32("Truncated binary script jsdoc table")
+			kindLen := rd.uvarint32("Truncated binary script jsdoc table")
+			licPtr := rd.uvarint32("Truncated binary script jsdoc table")
+			descPtr := rd.uvarint32("Truncated binary script jsdoc table")
+			meanPtr := rd.uvarint32("Truncated binary script jsdoc table")
+			altPtr := rd.uvarint32("Truncated binary script jsdoc table")
+			cuPtr := rd.uvarint32("Truncated binary script jsdoc table")
+			if uint64(kindOff)+uint64(kindLen) > uint64(jsdocKindCount) ||
+				licPtr >= stringPoolLen || descPtr >= stringPoolLen ||
+				meanPtr >= stringPoolLen || altPtr >= stringPoolLen || cuPtr >= stringPoolLen {
+				rd.fail("Binary OptimizationJsdoc entry out of bounds")
+			}
+			jsdocs[ji] = flatJsdoc{
+				kindOff:    kindOff,
+				kindLen:    kindLen,
+				licensePtr: int32(licPtr),
+				descPtr:    int32(descPtr),
+				meaningPtr: int32(meanPtr),
+				altMsgPtr:  int32(altPtr),
+				cuModePtr:  int32(cuPtr),
+			}
+		}
+	}
+	var jsdocKindStack [32]int32
+	var jsdocKinds []int32
+	if jsdocKindCount > 0 {
+		if jsdocKindCount <= uint32(len(jsdocKindStack)) {
+			jsdocKinds = jsdocKindStack[:jsdocKindCount]
+		} else {
+			jsdocKinds = make([]int32, jsdocKindCount)
+		}
+		for ki := uint32(0); ki < jsdocKindCount; ki++ {
+			jsdocKinds[ki] = int32(rd.uvarint32("Truncated binary script jsdoc kinds"))
+		}
+	}
 
 	var featureCollector parsing.FeatureCollector
 	featureCollector.Reset()
@@ -889,9 +965,6 @@ func (d *ScriptNodeDeserializer) deserializeBinaryWithAllocator(alloc *rhino.Nod
 	var frameBuf [64]binaryParentFrame
 	stack := frameBuf[:0]
 	var jsdocBuilder rhino.JSDocInfo_Builder
-	var jsdocKindBuf [16]int32
-	internedStrings := d.stringPool.GetInternedStrings()
-	stringPoolLen := uint32(internedStrings.Len())
 	rootTmpl := d.sourceFile.getOrCreateSourceInfoTemplate()
 	var previousLine, previousColumn int
 	var scriptNode rhino.Node
@@ -931,16 +1004,18 @@ func (d *ScriptNodeDeserializer) deserializeBinaryWithAllocator(alloc *rhino.Nod
 		case binNodeValDouble:
 			doubleVal = math.Float64frombits(rd.u64("Truncated binary AstNode double value"))
 		case binNodeValTemplate:
-			vb := rd.u64("Truncated binary AstNode template value")
-			templateRawPtr, templateCookedPtr = int32(vb>>32), int32(vb)
-			if uint32(templateRawPtr) >= stringPoolLen || (templateCookedPtr != -1 && uint32(templateCookedPtr) >= stringPoolLen) {
+			rawU := rd.uvarint32("Truncated binary AstNode template value")
+			cookedPlus1 := rd.uvarint32("Truncated binary AstNode template value")
+			templateRawPtr = int32(rawU)
+			templateCookedPtr = int32(cookedPlus1) - 1
+			if rawU >= stringPoolLen || (cookedPlus1 != 0 && cookedPlus1-1 >= stringPoolLen) {
 				rd.fail("Binary AstNode template pointer out of bounds")
 			}
 		}
 
 		endIdx := idx + 1
 		if flags&binNodeHasChildren != 0 {
-			endIdx = rd.u32("Truncated binary AstNode endIdx")
+			endIdx = rd.uvarint32("Truncated binary AstNode endIdx")
 		}
 		switch {
 		case idx == 0 && endIdx != nodeCount:
@@ -975,20 +1050,20 @@ func (d *ScriptNodeDeserializer) deserializeBinaryWithAllocator(alloc *rhino.Nod
 				rd.fail("Invalid negative binary AstNode boolProps")
 			}
 			if hasType {
-				typeVal = int32(rd.u32("Truncated binary AstNode typePtr"))
+				typeVal = int32(rd.uvarint32("Truncated binary AstNode typePtr"))
 			}
 			if flags&binNodeHasOrigName != 0 {
 				origNamePtr = rd.strPtr(stringPoolLen, "Truncated binary AstNode origName", "Binary AstNode origName pointer out of bounds")
 			}
 			if flags&binNodeHasJsdoc != 0 {
-				u := rd.u32("Truncated binary AstNode jsdocIdx")
+				u := rd.uvarint32("Truncated binary AstNode jsdocIdx")
 				if u >= jsdocCount {
 					rd.fail("Binary AstNode jsdocIdx out of bounds")
 				}
 				jsdocIdx = int32(u)
 			}
 			if flags&binNodeHasSource != 0 {
-				sourceFile = rd.u32("Truncated binary AstNode sourceFile")
+				sourceFile = rd.uvarint32("Truncated binary AstNode sourceFile")
 				if sourceFile == 0 || int(sourceFile) > len(d.filePool) {
 					rd.fail("Binary AstNode sourceFile out of bounds")
 				}
@@ -1025,29 +1100,14 @@ func (d *ScriptNodeDeserializer) deserializeBinaryWithAllocator(alloc *rhino.Nod
 			n.DeserializeProperties(d.FilterOutCastProp(boolProps), curTemplate.GetIsInClosureUnawareSubtree())
 		}
 		if jsdocIdx >= 0 {
-			jOff := jsdocOff + int(jsdocIdx)*28
-			kindOff, kindLen := binary.LittleEndian.Uint32(b[jOff:]), binary.LittleEndian.Uint32(b[jOff+4:])
-			licPtr, descPtr := binary.LittleEndian.Uint32(b[jOff+8:]), binary.LittleEndian.Uint32(b[jOff+12:])
-			meanPtr, altPtr := binary.LittleEndian.Uint32(b[jOff+16:]), binary.LittleEndian.Uint32(b[jOff+20:])
-			cuPtr := binary.LittleEndian.Uint32(b[jOff+24:])
-			if uint64(kindOff)+uint64(kindLen) > uint64(jsdocKindCount) ||
-				licPtr >= stringPoolLen || descPtr >= stringPoolLen ||
-				meanPtr >= stringPoolLen || altPtr >= stringPoolLen || cuPtr >= stringPoolLen {
-				rd.fail("Binary OptimizationJsdoc entry out of bounds")
-			}
-			var kinds []int32
-			if kindLen <= uint32(len(jsdocKindBuf)) {
-				kinds = jsdocKindBuf[:kindLen]
-			} else {
-				kinds = make([]int32, kindLen)
-			}
-			kBase := jsdocKindsOff + int(kindOff)*4
-			for ki := uint32(0); ki < kindLen; ki++ {
-				kinds[ki] = int32(binary.LittleEndian.Uint32(b[kBase+int(ki)*4:]))
-			}
+			jd := &jsdocs[jsdocIdx]
 			jsdoc := OptimizationJsdoc{
-				kind_: kinds, licenseTextPointer_: int32(licPtr), descriptionPointer_: int32(descPtr),
-				meaningPointer_: int32(meanPtr), alternateMessageIdPointer_: int32(altPtr), closureUnawareModePointer_: int32(cuPtr),
+				kind_:                      jsdocKinds[jd.kindOff : jd.kindOff+jd.kindLen],
+				licenseTextPointer_:        jd.licensePtr,
+				descriptionPointer_:        jd.descPtr,
+				meaningPointer_:            jd.meaningPtr,
+				alternateMessageIdPointer_: jd.altMsgPtr,
+				closureUnawareModePointer_: jd.cuModePtr,
 			}
 			n.SetJSDocInfo(jsDocSerializer_deserializeJsdocWithBuilder(&jsdoc, d.stringPool, &jsdocBuilder))
 		}

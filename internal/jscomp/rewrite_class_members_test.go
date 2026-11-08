@@ -6733,14 +6733,48 @@ class C {
   }
 }
 `
-	// TODO(b/236744850): `Es6NormalizeClasses` crashes on a computed field whose key reads `#x`.
-	// Current behavior: `Es6NormalizeClasses` takes `[o.#x] = 1` for a private member of the
-	//   inner class, and fails a `checkArgument` in `recordPrivateMember`. `test(js, expected)`
-	//   throws an internal compiler error caused by an IllegalArgumentException.
-	// Why it's a bug: the compiler crashes on valid code.
-	ex := AssertThrows[jutil.IRuntimeException](func() { c.Test(js, expected) })
-	AssertThat(ex.GetMessage()).Contains("INTERNAL COMPILER ERROR")
-	IsInstanceOf[jutil.IIllegalArgumentException](AssertThat(ex.GetCause()))
+	c.Test(js, expected)
+
+	// Also verify computed method keys (`[this.#k]() {}`) and public fields
+	// initialized from private identifiers (`y = this.#x;`) are not misclassified
+	// as private member declarations on the class.
+	c.Test(
+		`class Outer {
+  #k = 'm';
+  make() {
+    return /** @unrestricted */ class {
+      #x = 42;
+      y = this.#x;
+      [this.#k]() {
+        return this.y;
+      }
+    };
+  }
+}`,
+		`const PRIVATE_MAP$1 = new $jscomp.PrivateMap();
+class Outer {
+  constructor() {
+    const PRIVATE$5 = Object.create(null);
+    PRIVATE_MAP$1.set(this, PRIVATE$5);
+    PRIVATE$5.k = 'm';
+  }
+  make() {
+    const PRIVATE_MAP$2 = new $jscomp.PrivateMap();
+    var COMP_FIELD$3 = PRIVATE_MAP$1.get(this).k;
+    const CLASS_DECL$0 = class {
+      constructor() {
+        const PRIVATE$4 = Object.create(null);
+        PRIVATE_MAP$2.set(this, PRIVATE$4);
+        PRIVATE$4.x = 42;
+        this.y = PRIVATE_MAP$2.get(this).x;
+      }
+      [COMP_FIELD$3]() {
+        return this.y;
+      }
+    };
+    return CLASS_DECL$0;
+  }
+}`)
 }
 
 // Java: RewriteClassMembersTest.testLogicalAssignmentToPrivateField_knownBug()

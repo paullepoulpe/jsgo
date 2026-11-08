@@ -94,9 +94,125 @@ type shard struct {
 }
 
 var (
-	shards [numShards]shard
-	seed   = maphash.MakeSeed()
+	shards      [numShards]shard
+	seed        = maphash.MakeSeed()
+	rewindEpoch atomic.Uint64
 )
+
+// BaselineSnapshot records the per-shard watermark of interned strings at a
+// post-init baseline so RewindBaseline can reclaim per-request strings.
+type BaselineSnapshot [numShards]uint32
+
+// Epoch returns a monotonically increasing generation bumped whenever
+// RewindBaseline rewinds any shard, allowing pooled L1 ID caches (e.g.
+// IRFactory) to invalidate stale IDs across worker requests.
+func Epoch() uint64 {
+	return rewindEpoch.Load()
+}
+
+// CaptureBaseline snapshots the current per-shard string counts.
+func CaptureBaseline() BaselineSnapshot {
+	var snap BaselineSnapshot
+	for i := range shards {
+		s := &shards[i]
+		s.mu.RLock()
+		snap[i] = s.nextLocalIdx
+		s.mu.RUnlock()
+	}
+	return snap
+}
+
+// RewindBaseline rewinds every shard back to snap, clearing post-baseline
+// string references, releasing chunks allocated past snap, and shrinking
+// bloated hash tables. Callers must invoke RewindBaseline only when no
+// concurrent compilation is reading or interning post-baseline IDs.
+func RewindBaseline(snap BaselineSnapshot) {
+	rewound := false
+	for i := range shards {
+		if shards[i].rewind(snap[i]) {
+			rewound = true
+		}
+	}
+	if rewound {
+		rewindEpoch.Add(1)
+	}
+}
+
+func (s *shard) rewind(baseIdx uint32) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	curIdx := s.nextLocalIdx
+	if curIdx <= baseIdx {
+		return false
+	}
+
+	firstDropChunk := (baseIdx + chunkMask) >> chunkShift
+	lastUsedChunk := (curIdx - 1) >> chunkShift
+	for c := firstDropChunk; c <= lastUsedChunk; c++ {
+		s.chunks[c].Store(nil)
+	}
+	if baseIdx&chunkMask != 0 {
+		tailChunkIdx := baseIdx >> chunkShift
+		if chunk := s.chunks[tailChunkIdx].Load(); chunk != nil {
+			endOff := min(uint32(chunkSize), curIdx-(tailChunkIdx<<chunkShift))
+			clear(chunk[baseIdx&chunkMask : endOff])
+		}
+	}
+
+	s.nextLocalIdx = baseIdx
+	s.count = baseIdx
+
+	if baseIdx == 0 {
+		if len(s.table) > 128 {
+			s.table = nil
+		} else {
+			clear(s.table)
+		}
+		return true
+	}
+
+	wantCap := 128
+	for int(baseIdx)*4 > wantCap*3 {
+		wantCap *= 2
+	}
+	if len(s.table) > wantCap*2 {
+		newTable := make([]uint64, wantCap)
+		mask := uint32(wantCap - 1)
+		for _, entry := range s.table {
+			if entry == 0 || uint32(entry)-1 >= baseIdx {
+				continue
+			}
+			slot := uint32(entry>>32) & mask
+			for newTable[slot] != 0 {
+				slot = (slot + 1) & mask
+			}
+			newTable[slot] = entry
+		}
+		s.table = newTable
+		return true
+	}
+
+	var stackBuf [256]uint64
+	survivors := stackBuf[:0]
+	if int(baseIdx) > len(stackBuf) {
+		survivors = make([]uint64, 0, baseIdx)
+	}
+	for _, entry := range s.table {
+		if entry != 0 && uint32(entry)-1 < baseIdx {
+			survivors = append(survivors, entry)
+		}
+	}
+	clear(s.table)
+	mask := uint32(len(s.table) - 1)
+	for _, entry := range survivors {
+		slot := uint32(entry>>32) & mask
+		for s.table[slot] != 0 {
+			slot = (slot + 1) & mask
+		}
+		s.table[slot] = entry
+	}
+	return true
+}
 
 func hash(s string) uint64 {
 	return maphash.String(seed, s)
@@ -214,7 +330,11 @@ func String(id ID) string {
 	idx := uint32(id - 2)
 	s := &shards[idx&(numShards-1)]
 	localIdx := idx >> 6
-	return s.chunks[localIdx>>chunkShift].Load()[localIdx&chunkMask]
+	chunk := s.chunks[localIdx>>chunkShift].Load()
+	if chunk == nil {
+		return ""
+	}
+	return chunk[localIdx&chunkMask]
 }
 
 func Lookup(str string) ID {

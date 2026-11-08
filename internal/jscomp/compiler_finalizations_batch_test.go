@@ -762,3 +762,58 @@ func BenchmarkFinalizationsBatchVsSeparate(b *testing.B) {
 		}
 	})
 }
+
+func TestRunFinalizationsBatchPreservesAndClonesCustomNodeMetadata(t *testing.T) {
+	savedState := compileStages1And2ToBytes(t, 2)
+	specs := make([]FinalizationLocaleSpec, 3)
+	for i := range specs {
+		lf := fiveLocaleFixtures[i]
+		specs[i] = FinalizationLocaleSpec{
+			Locale:        lf.locale,
+			MessageBundle: buildLocaleXtbBundle(batchTestProjectID, lf),
+		}
+	}
+
+	rhino.ResetNodeStore()
+	c := NewCompiler()
+	c.SetErrorManager(NewBlackHoleErrorManager())
+	externs, chunks := makeMultiChunkSources(2)
+	c.InitChunks(externs, chunks, makeStageOptions())
+
+	keyA := rhino.IR_Name("sentinelA")
+	keyB := rhino.IR_Name("sentinelB")
+	valSlice := []rhino.Node{rhino.IR_Number(1), rhino.IR_Number(2)}
+	c.CustomNodeMetadata().Put(keyA, "initial-tag")
+	c.CustomNodeMetadata().Put(keyB, valSlice)
+
+	seenLocales := 0
+	err := c.RunFinalizationsBatch(
+		bytes.NewReader(savedState),
+		specs,
+		func(idx int, _ FinalizationLocaleSpec, comp *Compiler) error {
+			seenLocales++
+			meta := comp.CustomNodeMetadata()
+			if !meta.ContainsKey(keyA) || meta.Get(keyA) != "initial-tag" {
+				return fmt.Errorf("locale %d: CustomNodeMetadata[keyA] = (%v, %v), want (\"initial-tag\", true)", idx, meta.Get(keyA), meta.ContainsKey(keyA))
+			}
+			if !meta.ContainsKey(keyB) {
+				return fmt.Errorf("locale %d: missing CustomNodeMetadata[keyB]", idx)
+			}
+			gotSlice := meta.Get(keyB).([]rhino.Node)
+			if len(gotSlice) != 2 || gotSlice[0].GetDouble() != 1 || gotSlice[1].GetDouble() != 2 {
+				return fmt.Errorf("locale %d: unexpected slice metadata %v", idx, gotSlice)
+			}
+			// Mutate both map entries and slice elements in-place; must not leak to later locales.
+			meta.Put(keyA, fmt.Sprintf("mutated-%d", idx))
+			meta.Put(rhino.IR_Name(fmt.Sprintf("extra-%d", idx)), idx)
+			gotSlice[0] = rhino.IR_Number(999)
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("RunFinalizationsBatch with pre-populated CustomNodeMetadata failed: %v", err)
+	}
+	if seenLocales != len(specs) {
+		t.Fatalf("seenLocales = %d, want %d", seenLocales, len(specs))
+	}
+}

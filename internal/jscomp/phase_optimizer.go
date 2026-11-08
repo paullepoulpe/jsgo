@@ -596,12 +596,19 @@ func countAstSizes(nodes []rhino.Node, workers int) []int {
 	partial := make([][]int, workers)
 	var next atomic.Int64
 	var wg sync.WaitGroup
+	var panicOnce sync.Once
+	var firstPanic any
 	const chunk = 16
 	for w := 0; w < workers; w++ {
 		partial[w] = make([]int, len(nodes))
 		wg.Add(1)
 		go func(acc []int) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					panicOnce.Do(func() { firstPanic = r })
+				}
+			}()
 			for {
 				start := int(next.Add(chunk)) - chunk
 				if start >= len(frontier) {
@@ -615,6 +622,9 @@ func countAstSizes(nodes []rhino.Node, workers int) []int {
 		}(partial[w])
 	}
 	wg.Wait()
+	if firstPanic != nil {
+		panic(firstPanic)
+	}
 	for _, acc := range partial {
 		for i, v := range acc {
 			sizes[i] += v

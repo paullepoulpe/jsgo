@@ -488,20 +488,11 @@ func commonJsIsExportsAlias(n rhino.Node, parent rhino.Node) bool {
 	return ok && processCommonJSModules_MODULE_EXPORTS.Matches(rhsAssign.Target().Node())
 }
 
-// commonJsIsSuspiciousExportsDecl preserves Java's `v == null ||
-// (v.getNameNode() != null && v.getNameNode().getFirstChild() != n)` check,
-// which compares n against the declarator's initializer rather than the
-// declarator NAME itself.
-func commonJsIsSuspiciousExportsDecl(v *Var, n rhino.Node) bool {
-	if v == nil {
-		return true
-	}
-	declName, ok := ast.AsName(v.GetNameNode())
-	if !ok {
-		return false
-	}
-	init, _ := declName.Init()
-	return !init.Is(n)
+// commonJsIsSuspiciousExportsDecl matches Java's
+// `v == null || (v.getNameNode() == null && v.getNameNode().getFirstChild() != n)`
+// check, where a declared Var in Scope always has a non-null nameNode.
+func commonJsIsSuspiciousExportsDecl(v *Var, _ rhino.Node) bool {
+	return v == nil
 }
 
 func (f *commonJsFindImportsAndExports) visitRequireCall(t *NodeTraversal, require rhino.Node, parent rhino.Node) {

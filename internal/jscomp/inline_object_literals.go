@@ -491,6 +491,9 @@ func iolVarFilter(s *iolCandidateScanner, v *Var) bool {
 	if parent.IsNil() || !NodeUtil_IsNameDeclaration(parent) {
 		return false
 	}
+	if !s.hasInvalidDecl && !s.candIDBloom.hasID(v.nameID) {
+		return false
+	}
 	bloom := scopeBloomFromID(v.nameID)
 	return (s.candidateBloom&bloom) == bloom && (s.candidateScopeBlooms[v.scope.GetRootNode()]&bloom) == bloom
 }

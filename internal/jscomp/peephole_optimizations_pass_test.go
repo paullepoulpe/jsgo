@@ -308,3 +308,60 @@ func (c *PeepholeOptimizationsPassTest) TestAddFeatureToEnclosingScript() {
 			parser.FeatureSet_BARE_MINIMUM.WithFeatures(
 				parser.FeatureSet_Feature_LET_DECLARATIONS, parser.FeatureSet_Feature_CLASSES, parser.FeatureSet_Feature_CONST_DECLARATIONS))
 }
+
+func TestProcessChangedScopesParallelBottomUpWaveOrderMatchesSequential(t *testing.T) {
+	runSingleIteration := func(threads int) (string, int) {
+		rhino.ResetNodeStore()
+		c := NewCompiler()
+		opts := NewCompilerOptions()
+		opts.SetNumParallelThreads(threads)
+		srcs := []*SourceFile{
+			SourceFile_FromCode("s1.js", "if (false) { (function() { return 1 << 0.5; })(); } var a = 3 + 4;\n"),
+			SourceFile_FromCode("s2.js", "if (false) { (function() { return 2 << 0.5; })(); } var b = 5 + 6;\n"),
+		}
+		c.Init([]*SourceFile{SourceFile_FromCode("externs.js", "")}, srcs, opts)
+		c.ParseInputs()
+		if c.HasErrors() {
+			t.Fatalf("parse errors: %v", c.GetErrors())
+		}
+
+		pass := NewPeepholeOptimizationsPass(
+			c,
+			"peepholeBottomUpTest",
+			NewPeepholeFoldConstants(true, false),
+			NewPeepholeRemoveDeadCode(),
+		)
+		pass.SetRetraverseOnChange(false)
+
+		// Establish an initial timeline baseline for this pass so the next Process()
+		// call takes the incremental changedScopeNodes path (processChangedScopesParallel)
+		// instead of full-tree traversal.
+		_ = c.GetChangeTracker().GetChangedScopeNodesForPass("peepholeBottomUpTest")
+
+		// Mark inner FUNCTION scopes and outer SCRIPT scopes in post-order ([fn, sc]),
+		// matching how earlier post-order passes report scope changes to ChangeTracker.
+		for sc := c.jsRoot.GetFirstChild(); !sc.IsNil(); sc = sc.GetNext() {
+			// SCRIPT -> IF -> BLOCK -> EXPR_RESULT -> CALL -> FUNCTION
+			ifNode := sc.GetFirstChild()
+			fn := ifNode.GetSecondChild().GetFirstChild().GetFirstChild().GetFirstChild()
+			if !fn.IsFunction() {
+				t.Fatalf("expected FUNCTION node, got %v", fn)
+			}
+			c.ReportChangeToChangeScope(fn)
+			c.ReportChangeToChangeScope(sc)
+		}
+
+		pass.Process(c.externsRoot, c.jsRoot)
+		return c.ToSource(), len(c.GetWarnings())
+	}
+
+	wantSeq, wantWarns := runSingleIteration(1)
+	gotPar, gotWarns := runSingleIteration(4)
+	if gotPar != wantSeq {
+		t.Fatalf("parallel changed-scope peephole source mismatch:\nthreads=4: %q\nthreads=1: %q", gotPar, wantSeq)
+	}
+	if gotWarns != wantWarns || gotWarns != 2 {
+		t.Fatalf("parallel changed-scope peephole warning count = %d, want sequential %d (expected 2 inner-scope fractional-shift warnings before outer dead-code elimination)",
+			gotWarns, wantWarns)
+	}
+}

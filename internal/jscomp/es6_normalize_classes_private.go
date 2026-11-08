@@ -701,15 +701,5 @@ func (e *Es6NormalizeClasses) getDeclarationInsertionPoint(n rhino.Node, t *Node
 //
 // Java: Es6NormalizeClasses.isPrivateMember(Node)
 func isPrivateClassMember(member ast.ClassMember) bool {
-	if member.Node().IsPrivateIdentifier() {
-		return true
-	}
-	if cm, ok := member.AsComputedMember(); ok {
-		return cm.Key().Node().IsPrivateIdentifier()
-	}
-	if mf, ok := member.AsMemberFieldDef(); ok {
-		val, hasVal := mf.Value()
-		return hasVal && val.Node().IsPrivateIdentifier()
-	}
-	return false
+	return member.Node().IsPrivateIdentifier()
 }

@@ -159,6 +159,7 @@ func (c *Compiler) compactAST(after string, force bool, externs, root *rhino.Nod
 		return
 	}
 	c.inlineFnCache = nil
+	c.propIndex = nil
 	threads := 1
 	if c.options != nil && c.options.GetNumParallelThreads() > 1 {
 		threads = c.options.GetNumParallelThreads()
@@ -414,6 +415,7 @@ func (g *GlobalNamespace) forwardNodes(fwd func(rhino.Node) rhino.Node) {
 			for _, v := range s.varList {
 				if v != nil {
 					v.nameNode = fwd(v.nameNode)
+					v.nameHash = 0
 				}
 			}
 		}

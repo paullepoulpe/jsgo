@@ -84,6 +84,8 @@ type finalizationsCheckpoint struct {
 	inputSourceMaps     map[string]*SourceMapInput
 	inputSourceMapOrder []string
 
+	customNodeMetadata *OrderedMap[rhino.Node, any]
+
 	astCompactNested bool
 	errorSnap        sortingErrorManagerCheckpoint
 }
@@ -118,7 +120,11 @@ func (c *Compiler) RunFinalizationsBatch(
 		}
 	}
 
+	preCustomMeta := cloneCustomNodeMetadata(c.customNodeMetadata)
 	c.RestoreState(savedState)
+	if preCustomMeta != nil && (c.customNodeMetadata == nil || c.customNodeMetadata.IsEmpty()) {
+		c.customNodeMetadata = preCustomMeta
+	}
 	if c.HasErrors() {
 		return fmt.Errorf("jscomp: compiler has %d error(s) after RestoreState", c.GetErrorCount())
 	}
@@ -152,7 +158,10 @@ func (c *Compiler) RunFinalizationsBatch(
 func (c *Compiler) captureFinalizationsCheckpoint() *finalizationsCheckpoint {
 	store := rhino.CurrentNodeStore()
 	nodeSnap := store.Snapshot()
+	customNodeMetadata := cloneCustomNodeMetadata(c.customNodeMetadata)
+	c.customNodeMetadata = nil
 	stateProto := c.GetCompilerStateProtoBuilder().Build()
+	c.customNodeMetadata = cloneCustomNodeMetadata(customNodeMetadata)
 	baseOptions := cloneCompilerOptions(c.options)
 
 	externs := make([]finalizationInputCheckpoint, len(c.externs))
@@ -228,6 +237,7 @@ func (c *Compiler) captureFinalizationsCheckpoint() *finalizationsCheckpoint {
 		lastInjectedLibrary: lastInjected,
 		inputSourceMaps:     maps.Clone(c.inputSourceMaps),
 		inputSourceMapOrder: slices.Clone(c.inputSourceMapOrder),
+		customNodeMetadata:  customNodeMetadata,
 		astCompactNested:    c.astCompact.nested,
 		errorSnap:           captureSortingErrorManager(c.errorManager),
 	}
@@ -258,6 +268,7 @@ func (c *Compiler) rewindToFinalizationsCheckpoint(cp *finalizationsCheckpoint) 
 
 	// Restore scalar/collection compiler fields from the post-RestoreState proto.
 	c.RestoreFromState(cp.stateProto)
+	c.customNodeMetadata = cloneCustomNodeMetadata(cp.customNodeMetadata)
 
 	// Restore externProperties, ColorRegistry, AST roots, externs, and chunkGraph.
 	if cp.externProperties != nil {
@@ -549,6 +560,20 @@ func cloneCompilerOptions(src *CompilerOptions) *CompilerOptions {
 	dst.optionWarnings = slices.Clone(src.optionWarnings)
 
 	return &dst
+}
+
+func cloneCustomNodeMetadata(src *OrderedMap[rhino.Node, any]) *OrderedMap[rhino.Node, any] {
+	if src == nil {
+		return nil
+	}
+	cloned := src.Clone()
+	raw := cloned.Entries()
+	for i := range raw {
+		if nodes, ok := raw[i].Value.([]rhino.Node); ok {
+			cloned.Put(raw[i].Key, slices.Clone(nodes))
+		}
+	}
+	return &cloned
 }
 
 func cloneDefaultNameGenerator(src *DefaultNameGenerator) *DefaultNameGenerator {

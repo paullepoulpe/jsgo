@@ -335,9 +335,7 @@ func (c *InlineAndCollapseProperties_CollapseProperties) willFlattenReferences(p
 	if c.outer.decisionsLog.IsLogging() {
 		return false
 	}
-	// Standalone single-pass unit/oracle harnesses (outside PhaseOptimizer)
-	// assert exact per-scope change_time stamps from intermediate prefix flattenings.
-	if comp := c.outer.compiler; comp != nil && comp.phaseOptimizer == nil && !comp.isParallelWorker() && !comp.options.isFastMode() {
+	if comp := c.outer.compiler; comp == nil || comp.options == nil || !comp.options.isFastMode() {
 		return false
 	}
 	isAllowedToCollapse :=

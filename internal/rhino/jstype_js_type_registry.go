@@ -405,6 +405,9 @@ type JSTypeRegistry struct {
 	objectDocInfo        map[*ObjectTypeBase]*JSDocInfo
 	parallelReadOnly     bool
 	parallelMu           sync.Mutex
+	parallelFnPropsMu    sync.Mutex
+	parallelFnProps      map[*FunctionTypeBase][3]JSType
+	parallelFnOrder      []*FunctionTypeBase
 }
 
 // SetParallelReadOnly toggles concurrent read-only query mode on JSTypeRegistry,
@@ -428,8 +431,58 @@ func (r *JSTypeRegistry) SetParallelReadOnly(enabled bool) bool {
 	if prev && !enabled {
 		// Prototype changes made in the mode did not bump the generation.
 		r.leastSupertypeGen++
+		r.flushParallelFnProps()
 	}
 	return prev
+}
+
+func (r *JSTypeRegistry) lookupParallelFnProp(fn *FunctionTypeBase, kind uint8) JSType {
+	r.parallelFnPropsMu.Lock()
+	entry := r.parallelFnProps[fn]
+	r.parallelFnPropsMu.Unlock()
+	return entry[kind]
+}
+
+func (r *JSTypeRegistry) recordParallelFnProp(fn *FunctionTypeBase, kind uint8, sig JSType) JSType {
+	r.parallelFnPropsMu.Lock()
+	defer r.parallelFnPropsMu.Unlock()
+	if r.parallelFnProps == nil {
+		r.parallelFnProps = make(map[*FunctionTypeBase][3]JSType, 16)
+	}
+	entry, exists := r.parallelFnProps[fn]
+	if entry[kind] != nil {
+		return entry[kind]
+	}
+	entry[kind] = sig
+	r.parallelFnProps[fn] = entry
+	if !exists {
+		r.parallelFnOrder = append(r.parallelFnOrder, fn)
+	}
+	return sig
+}
+
+func (r *JSTypeRegistry) flushParallelFnProps() {
+	r.parallelFnPropsMu.Lock()
+	order := r.parallelFnOrder
+	props := r.parallelFnProps
+	r.parallelFnOrder = nil
+	r.parallelFnProps = nil
+	r.parallelFnPropsMu.Unlock()
+	if len(order) == 0 {
+		return
+	}
+	keys := [3]Property_Key{fnPropKeyApply, fnPropKeyBind, fnPropKeyCall}
+	for _, fn := range order {
+		entry := props[fn]
+		for k := range 3 {
+			if sig := entry[k]; sig != nil && !fn.HasOwnPropertyByKey(keys[k]) {
+				fn.DefineDeclaredPropertyByKey(keys[k], sig, fn.source)
+			}
+		}
+		if pm := fn.GetPropertyMap(); pm != nil {
+			pm.ensureSorted()
+		}
+	}
 }
 
 func (r *JSTypeRegistry) getObjectDocInfo(o *ObjectTypeBase) *JSDocInfo {

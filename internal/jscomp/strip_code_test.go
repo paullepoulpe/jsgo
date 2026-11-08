@@ -1403,3 +1403,12 @@ goog.debug.Logger.count++;
 		})
 	}
 }
+
+func (c *StripCodeTest) TestStripAssignmentWhenBothLhsAndRhsMatchStripRules() {
+	c.Test(
+		"var a = {}; a.logger_ = goog.log.getLogger('my.component')('init');",
+		"var a = {};")
+	c.Test(
+		"goog.debug.Logger.default_ = goog.debug.LogManager.getRoot()('boot');",
+		"")
+}

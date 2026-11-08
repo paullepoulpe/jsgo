@@ -97,3 +97,40 @@ func TestShardCapacityGuardAndUnlockOnPanic(t *testing.T) {
 	}
 	s.mu.Unlock()
 }
+
+func TestCaptureAndRewindBaselineReclaimsSlotsAndChunks(t *testing.T) {
+	baseID := Intern("strpool_baseline_permanent_anchor")
+	snap := CaptureBaseline()
+	epochBefore := Epoch()
+
+	for round := range 4 {
+		var roundIDs [2500]ID
+		for i := range roundIDs {
+			s := "strpool_ephemeral_" + strconv.Itoa(round) + "_" + strconv.Itoa(i)
+			roundIDs[i] = Intern(s)
+		}
+		if Lookup("strpool_ephemeral_"+strconv.Itoa(round)+"_0") == 0 {
+			t.Fatalf("round %d: expected ephemeral string in table before rewind", round)
+		}
+
+		RewindBaseline(snap)
+
+		if got := CaptureBaseline(); got != snap {
+			t.Fatalf("round %d: CaptureBaseline() after rewind = %v, want %v", round, got, snap)
+		}
+		if Lookup("strpool_ephemeral_"+strconv.Itoa(round)+"_0") != 0 {
+			t.Fatalf("round %d: ephemeral string still present in Lookup after rewind", round)
+		}
+		if String(baseID) != "strpool_baseline_permanent_anchor" || Lookup("strpool_baseline_permanent_anchor") != baseID {
+			t.Fatalf("round %d: baseline anchor corrupted across rewind", round)
+		}
+		// Stale IDs whose chunks were dropped must return "" rather than panicking.
+		for _, stale := range roundIDs {
+			_ = String(stale)
+		}
+	}
+
+	if Epoch() == epochBefore {
+		t.Fatal("expected Epoch() to advance after RewindBaseline")
+	}
+}

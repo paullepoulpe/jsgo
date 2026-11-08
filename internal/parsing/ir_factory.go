@@ -101,6 +101,7 @@ type IRFactory struct {
 	lastLine           int
 	includeAllComments bool
 	reservedMode       uint8 // 0 = ES3 (nil), 1 = ES5, 2 = ES5_STRICT
+	strCacheEpoch      uint64
 	strCache           [256]strpool.ID
 	litUnitsBuf        []uint16
 	litUnitsScratch    [128]uint16
@@ -407,6 +408,10 @@ func irFactoryTransformTreePooled(
 	alloc *rhino.NodeAllocator,
 ) (rhino.Node, parser.FeatureSet) {
 	f := irFactoryPool.Get().(*IRFactory)
+	if ep := strpool.Epoch(); f.strCacheEpoch != ep {
+		clear(f.strCache[:])
+		f.strCacheEpoch = ep
+	}
 	defer releaseIRFactory(f)
 	f.runTransformTree(tree, sourceFile, config, errorReporter, file, alloc)
 	return f.resultNode, f.features
