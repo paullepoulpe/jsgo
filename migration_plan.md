@@ -317,6 +317,8 @@ Even with a conservative `+10%–18%` allowance `(estimated)` over measured `L0_
 
 ## 8. Post-Flip Optimization Roadmap in Go: Necessity Evaluation & Empirical ROI Ranking
 
+*(See companion report [`post_flip_optimizations.md`](post_flip_optimizations.md) for the percentage-first summary, cross-optimization interaction study, complete per-task matrices, and `JSGO_PASS_LOG` breakdowns.)*
+
 ### 8.1 Necessity Evaluation at Cutover: `0` of `23` Required
 
 > [!IMPORTANT]
