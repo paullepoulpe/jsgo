@@ -20110,9 +20110,6 @@ public final class RuntimeCollectionsBindings {
         \tif allocCap > 4 {
         \t\ts.order = make([]T, 0, allocCap)
         \t}
-        \tif allocCap > orderedSetIndexThreshold {
-        \t\ts.idx = make(map[T]int32, allocCap)
-        \t}
         \treturn s
         }
 
@@ -20244,7 +20241,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \ts.order = append(s.order, v)
         \tif len(s.order) > orderedSetIndexThreshold {
-        \t\tm := make(map[T]int32, max(16, cap(s.order)))
+        \t\tm := make(map[T]int32, min(max(16, cap(s.order)), 256))
         \t\tfor i, x := range s.order {
         \t\t\tm[x] = int32(i + 1)
         \t\t}
@@ -20284,8 +20281,11 @@ public final class RuntimeCollectionsBindings {
         \ts.holes++
         \tlive := int32(len(s.order)) - s.holes
         \tif live == 0 {
+        \t\tclear(s.order)
         \t\ts.order = s.order[:0]
-        \t\ts.idx = nil
+        \t\tif len(s.idx) != 0 {
+        \t\t\tclear(s.idx)
+        \t\t}
         \t\ts.holes = 0
         \t\ts.firstIdx = 0
         \t} else if len(s.order) > 16 && int(live)*2 < len(s.order) {
@@ -20320,11 +20320,30 @@ public final class RuntimeCollectionsBindings {
         \tif s == nil {
         \t\tThrowNPE()
         \t}
-        \tif s.order != nil {
-        \t\tclear(s.order)
-        \t\ts.order = s.order[:0]
+        \tn := len(s.order)
+        \tif n == 0 {
+        \t\tif len(s.idx) != 0 {
+        \t\t\tclear(s.idx)
+        \t\t}
+        \t\ts.holes = 0
+        \t\ts.firstIdx = 0
+        \t\treturn
         \t}
-        \ts.idx = nil
+        \tif s.idx != nil && len(s.idx) != 0 {
+        \t\tlive := n - int(s.holes)
+        \t\tif live > 0 && live <= 32 && n-int(s.firstIdx) <= 64 && cap(s.order) >= 128 {
+        \t\t\tfor i := int(s.firstIdx); i < n; i++ {
+        \t\t\t\tdelete(s.idx, s.order[i])
+        \t\t\t}
+        \t\t\tif len(s.idx) != 0 {
+        \t\t\t\tclear(s.idx)
+        \t\t\t}
+        \t\t} else {
+        \t\t\tclear(s.idx)
+        \t\t}
+        \t}
+        \tclear(s.order)
+        \ts.order = s.order[:0]
         \ts.holes = 0
         \ts.firstIdx = 0
         }
@@ -21349,7 +21368,7 @@ public final class RuntimeCollectionsBindings {
         \t\treturn OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
         \t}
         \tif capHint <= 65536 {
-        \t\tif n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= int(capHint) {
+        \t\tif n := len(p.large); n > 0 {
         \t\t\tb := p.large[n-1]
         \t\t\tp.large[n-1] = orderedMapBuf[K, V]{}
         \t\t\tp.large = p.large[:n-1]
@@ -21357,7 +21376,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
         \t\t}
         \t\tif capHint <= 2048 {
-        \t\t\tif n := len(p.med); n > 0 && cap(p.med[n-1].entries)*2 >= int(capHint) {
+        \t\t\tif n := len(p.med); n > 0 {
         \t\t\t\tb := p.med[n-1]
         \t\t\t\tp.med[n-1] = orderedMapBuf[K, V]{}
         \t\t\t\tp.med = p.med[:n-1]
@@ -21397,11 +21416,11 @@ public final class RuntimeCollectionsBindings {
         \t\t\tm = p.hugeFree[n-1]
         \t\t\tp.hugeFree[n-1] = nil
         \t\t\tp.hugeFree = p.hugeFree[:n-1]
-        \t\t} else if n := len(p.largeFree); n > 0 && cap(p.largeFree[n-1].entries)*2 >= allocCap {
+        \t\t} else if n := len(p.largeFree); n > 0 {
         \t\t\tm = p.largeFree[n-1]
         \t\t\tp.largeFree[n-1] = nil
         \t\t\tp.largeFree = p.largeFree[:n-1]
-        \t\t} else if n := len(p.smallFree); n > 0 && p.smallFree[n-1].entries == nil {
+        \t\t} else if n := len(p.smallFree); n > 0 {
         \t\t\tm = p.smallFree[n-1]
         \t\t\tp.smallFree[n-1] = nil
         \t\t\tp.smallFree = p.smallFree[:n-1]
@@ -21427,16 +21446,10 @@ public final class RuntimeCollectionsBindings {
         \tif m == nil {
         \t\tm = &OrderedMap[K, V]{}
         \t}
-        \tif allocCap >= 64 && cap(m.entries)*2 < allocCap {
-        \t\tif old := m.entries; cap(old) >= 64 {
-        \t\t\tReleasePooledSlice(old)
-        \t\t}
+        \tif allocCap >= 64 && cap(m.entries) < 64 {
         \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
         \t} else if cap(m.entries) == 0 && allocCap > 0 {
         \t\tm.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
-        \t}
-        \tif m.idx == nil && allocCap > orderedMapIndexThreshold {
-        \t\tm.idx = make(map[K]int32, allocCap)
         \t}
         \treturn m
         }
@@ -21593,9 +21606,6 @@ public final class RuntimeCollectionsBindings {
         \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
         \t} else if allocCap > 8 {
         \t\tm.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
-        \t}
-        \tif allocCap > orderedMapIndexThreshold {
-        \t\tm.idx = make(map[K]int32, allocCap)
         \t}
         \treturn m
         }
@@ -21754,13 +21764,9 @@ public final class RuntimeCollectionsBindings {
         \told := m.entries
         \toldLen := len(old)
         \toldCap := cap(old)
-        \tvar newCap int
-        \tif oldCap < 8 {
-        \t\tnewCap = max(oldCap*2, 4)
-        \t} else if oldCap < 1024 {
-        \t\tnewCap = oldCap * 4
-        \t} else {
-        \t\tnewCap = oldCap * 2
+        \tnewCap := oldCap * 2
+        \tif newCap < 4 {
+        \t\tnewCap = 4
         \t}
         \tif newCap <= oldLen {
         \t\tnewCap = oldLen + 1
@@ -21812,7 +21818,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tm.appendEntry(OrderedMapEntry[K, V]{Key: k, Val: v})
         \tif len(m.entries) > orderedMapIndexThreshold {
-        \t\tidx := make(map[K]int32, max(32, cap(m.entries)))
+        \t\tidx := make(map[K]int32, min(max(24, cap(m.entries)), 256))
         \t\tfor i := range m.entries {
         \t\t\tidx[m.entries[i].Key] = int32(i + 1)
         \t\t}
@@ -23101,7 +23107,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn CustomOrderedMap[K, V]{entries: b.entries[:0], buckets: b.buckets}
         \t\t}
         \t}
-        \tif n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= min(int(capHint), 262144) {
+        \tif n := len(p.large); n > 0 {
         \t\tb := p.large[n-1]
         \t\tp.large[n-1] = customOrderedMapBuf[K, V]{}
         \t\tp.large = p.large[:n-1]
@@ -23235,17 +23241,6 @@ public final class RuntimeCollectionsBindings {
         \t\tm.entries = AcquirePooledSlice[CustomMapEntry[K, V]](allocCap)
         \t} else if allocCap > 8 {
         \t\tm.entries = make([]CustomMapEntry[K, V], 0, allocCap)
-        \t}
-        \tif allocCap > orderedMapIndexThreshold {
-        \t\tbCap := 32
-        \t\tfor (bCap*3)/4 < allocCap {
-        \t\t\tbCap *= 2
-        \t\t}
-        \t\tif bCap >= 64 {
-        \t\t\tm.buckets = AcquirePooledSlice[int32](bCap)[:bCap]
-        \t\t} else {
-        \t\t\tm.buckets = make([]int32, bCap)
-        \t\t}
         \t}
         \treturn m
         }
@@ -23458,13 +23453,9 @@ public final class RuntimeCollectionsBindings {
         \told := m.entries
         \toldLen := len(old)
         \toldCap := cap(old)
-        \tvar newCap int
-        \tif oldCap < 8 {
-        \t\tnewCap = max(oldCap*2, 4)
-        \t} else if oldCap < 1024 {
-        \t\tnewCap = oldCap * 4
-        \t} else {
-        \t\tnewCap = oldCap * 2
+        \tnewCap := oldCap * 2
+        \tif newCap < 4 {
+        \t\tnewCap = 4
         \t}
         \tif newCap <= oldLen {
         \t\tnewCap = oldLen + 1
@@ -23528,11 +23519,7 @@ public final class RuntimeCollectionsBindings {
         \t\tm.appendEntry(CustomMapEntry[K, V]{Key: k, Val: v, Hash: h})
         \t\tlive := int32(len(m.entries)) - m.holes
         \t\tif int(live) > (len(m.buckets)*3)/4 {
-        \t\t\tnewBk := len(m.buckets) * 2
-        \t\t\tif len(m.buckets) < 1024 {
-        \t\t\t\tnewBk = len(m.buckets) * 4
-        \t\t\t}
-        \t\t\tm.rehash(newBk)
+        \t\t\tm.rehash(len(m.buckets) * 2)
         \t\t} else {
         \t\t\tpos := int32(len(m.entries))
         \t\t\tm.entries[pos-1].HashNext = m.buckets[slot]

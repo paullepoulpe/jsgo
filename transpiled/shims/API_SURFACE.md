@@ -10,7 +10,7 @@ All 12 shim packages are clean-room (`PORTING.md` compliant), pure Go (zero `"un
 
 | Java Package(s) | Go Shim Package | Purpose |
 |---|---|---|
-| `com.google.javascript.rhino.Node` arena storage | `shims/nodestore` | Handle-based 40-byte SoA AST `Node` arena (`NodeStore`, `Node`, `StringID`, `HandleTable[P]`) |
+| `com.google.javascript.rhino.Node` arena storage | `shims/nodestore` | Handle-based 32-byte `noscan` SoA AST `Node` arena (`NodeStore`, `Node`, `NodeColumn`, `StringID`, `AnyTable`) |
 | `java.lang.*`, `java.util.Objects` | `shims/javalang` | WTF-8/UTF-16 `String`, `Character`, `Double`/`Integer`/`Long` math & formatting, `Object`, `Class`, `System`, `Throwable` hierarchy |
 | `java.util.*` | `shims/javautil` | Deterministic `LinkedHashMap`/`HashMap`/`IdentityHashMap`, `LinkedHashSet`/`HashSet`, `TreeMap`, `TreeSet`, `ArrayList`, `ArrayDeque`, `PriorityQueue`, `BitSet`, `Optional`, `Random`, `Comparator`, `Collections` |
 | `java.io.*` | `shims/javaio` | `InputStream`/`OutputStream`, `Reader`/`Writer` (`uint16` UTF-16 buffers), `File`, `PrintStream`, `IOException` hierarchy |
@@ -35,8 +35,8 @@ All 12 shim packages are clean-room (`PORTING.md` compliant), pure Go (zero `"un
 ## 3. Package-by-Package Exported Symbols
 
 ### 3.1 `shims/nodestore`
-- **Core types**: `NodeStore`, `Node` (`uint32` handle, `0` = null), `NodeData`, `NodeAux`, `StringID`, `HandleTable[P]`, `NodeAllocator`, `BaselineSnapshot`.
-- **Constructors & lifecycle**: `NewNodeStore() *NodeStore`, `ResetNodeStore()`, `LockStandaloneStore()`, `UnlockStandaloneStore()`, `Epoch() uint64`, `RewindBaseline(BaselineSnapshot)`.
+- **Core types**: `NodeStore`, `Node` (`uint32` handle, `0` = null), `NodeData` (32-byte `noscan`), `NodeBlock` (`[16384]NodeData`), `NodeColumn` (`[16384]uint32`), `StringID`, `AnyTable`, `TCHandleHolder`, `SourceFileHandleHolder`, `JSDocHandleHolder`, `BaselineSnapshot`.
+- **Constructors, string pool & lifecycle**: `NewNodeStore() *NodeStore`, `EnsureCompilationStore()`, `ResetNodeStore()`, `LockStandaloneStore()`, `UnlockStandaloneStore()`, `Intern(string) StringID`, `InternOwned(string) StringID`, `SealActivePoolChunks()`, `FlushFastAlloc()`, `Epoch() uint64`, `RewindBaseline(BaselineSnapshot)`.
 - **Source position sentinel**: Unknown line/column returns `-1` (`GetLineno()`, `GetCharno()`, `GetSourceOffset()`), matching `com.google.javascript.rhino.Node`.
 
 ### 3.2 `shims/javalang`
@@ -87,7 +87,7 @@ All 12 shim packages are clean-room (`PORTING.md` compliant), pure Go (zero `"un
   - `Comparator[T]` & `Collections_*`: `NaturalOrder`, `ReverseOrder`, `Comparing`, `NullsFirst`, `NullsLast`; `Collections_Sort`, `Collections_Reverse`, `Collections_Shuffle`, `Collections_BinarySearch`, `Collections_Disjoint`, `Collections_Min`, `Collections_Max`, `Collections_EmptyList/Set/Map`, `Collections_Singleton/List/Map`, `Collections_UnmodifiableList/Set/Map`.
 
 ### 3.4 `shims/javaio`
-- **Byte streams**: `InputStream`, `OutputStream`, `ReaderInputStream` (`NewReaderInputStream`), `ByteArrayInputStream` (`NewByteArrayInputStream`), `ByteArrayOutputStream` (`NewByteArrayOutputStream`, `ToByteArray`, `ToString`, `Size`, `Reset`), `FileInputStream` (`NewFileInputStream`, `NewFileInputStreamFromFile`), `FileOutputStream` (`NewFileOutputStream`, `NewFileOutputStreamFromFile`, `NewFileOutputStreamFromOSFile`), `BufferedInputStream` (`NewBufferedInputStream`), `BufferedOutputStream` (`NewBufferedOutputStream`), `ReadAllBytes(io.Reader) ([]byte, error)`.
+- **Byte streams**: `InputStream`, `OutputStream`, `ReaderInputStream` (`NewReaderInputStream`), `ByteArrayInputStream` (`NewByteArrayInputStream`), `ByteArrayOutputStream` (`NewByteArrayOutputStream`, `ToByteArray`, `ToString`, `Size`, `Reset`), `FileInputStream` (`NewFileInputStream`, `NewFileInputStreamFromFile` — direct blocking Unix `syscall.Read` bypassing poller overhead), `FileOutputStream` (`NewFileOutputStream`, `NewFileOutputStreamFromFile`, `NewFileOutputStreamFromOSFile` — direct blocking Unix `syscall.Write`), `BufferedInputStream` (`NewBufferedInputStream`, 64 KiB pooled buffer), `BufferedOutputStream` (`NewBufferedOutputStream`, 64 KiB pooled buffer), `ReadAllBytes(io.Reader) ([]byte, error)`.
 - **Character streams (`uint16` UTF-16)**: `Reader` (`Read(cbuf []uint16, off, length int) int`, `Close() error`), `Writer` (`Write(string)`, `AppendCharSequence(string)`, `AppendCharacter(uint16)`, `Flush()`, `Close()`), `StringReader` (`NewStringReader`), `StringWriter` (`NewStringWriter`, `ToString`), `InputStreamReader` (`NewInputStreamReader`, `NewInputStreamReaderCharset`, `ReadAllString`), `OutputStreamWriter` (`NewOutputStreamWriter`, `NewOutputStreamWriterCharset`), `BufferedReader` (`NewBufferedReader`, `ReadLine() (string, error)`), `BufferedWriter` (`NewBufferedWriter`, `NewLine()`).
 - **`File` & `PrintStream` & Exceptions**:
   - `File`: `NewFile(string)`, `NewFileParentChild(parent, child string)`, `CreateTempFile(prefix, suffix string)`, `GetPath`, `GetName`, `GetParent() string`, `Parent() (string, bool)`, `GetParentFile`, `GetAbsolutePath`, `GetCanonicalPath`, `Exists`, `IsDirectory`, `IsFile`, `Mkdir`, `Mkdirs`, `Delete`, `ListFiles`.

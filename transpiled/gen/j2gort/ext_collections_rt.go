@@ -16765,9 +16765,6 @@ func NewOrderedSetCap[T comparable](cap int32) OrderedSet[T] {
 	if allocCap > 4 {
 		s.order = make([]T, 0, allocCap)
 	}
-	if allocCap > orderedSetIndexThreshold {
-		s.idx = make(map[T]int32, allocCap)
-	}
 	return s
 }
 
@@ -16899,7 +16896,7 @@ func (s *OrderedSet[T]) Add(v T) bool {
 	}
 	s.order = append(s.order, v)
 	if len(s.order) > orderedSetIndexThreshold {
-		m := make(map[T]int32, max(16, cap(s.order)))
+		m := make(map[T]int32, min(max(16, cap(s.order)), 256))
 		for i, x := range s.order {
 			m[x] = int32(i + 1)
 		}
@@ -16939,8 +16936,11 @@ func (s *OrderedSet[T]) Remove(v T) bool {
 	s.holes++
 	live := int32(len(s.order)) - s.holes
 	if live == 0 {
+		clear(s.order)
 		s.order = s.order[:0]
-		s.idx = nil
+		if len(s.idx) != 0 {
+			clear(s.idx)
+		}
 		s.holes = 0
 		s.firstIdx = 0
 	} else if len(s.order) > 16 && int(live)*2 < len(s.order) {
@@ -16975,11 +16975,30 @@ func (s *OrderedSet[T]) Clear() {
 	if s == nil {
 		ThrowNPE()
 	}
-	if s.order != nil {
-		clear(s.order)
-		s.order = s.order[:0]
+	n := len(s.order)
+	if n == 0 {
+		if len(s.idx) != 0 {
+			clear(s.idx)
+		}
+		s.holes = 0
+		s.firstIdx = 0
+		return
 	}
-	s.idx = nil
+	if s.idx != nil && len(s.idx) != 0 {
+		live := n - int(s.holes)
+		if live > 0 && live <= 32 && n-int(s.firstIdx) <= 64 && cap(s.order) >= 128 {
+			for i := int(s.firstIdx); i < n; i++ {
+				delete(s.idx, s.order[i])
+			}
+			if len(s.idx) != 0 {
+				clear(s.idx)
+			}
+		} else {
+			clear(s.idx)
+		}
+	}
+	clear(s.order)
+	s.order = s.order[:0]
 	s.holes = 0
 	s.firstIdx = 0
 }
@@ -17999,7 +18018,7 @@ func AcquireOrderedMapCap[K comparable, V any](capHint int32) OrderedMap[K, V] {
 		return OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
 	}
 	if capHint <= 65536 {
-		if n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= int(capHint) {
+		if n := len(p.large); n > 0 {
 			b := p.large[n-1]
 			p.large[n-1] = orderedMapBuf[K, V]{}
 			p.large = p.large[:n-1]
@@ -18007,7 +18026,7 @@ func AcquireOrderedMapCap[K comparable, V any](capHint int32) OrderedMap[K, V] {
 			return OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
 		}
 		if capHint <= 2048 {
-			if n := len(p.med); n > 0 && cap(p.med[n-1].entries)*2 >= int(capHint) {
+			if n := len(p.med); n > 0 {
 				b := p.med[n-1]
 				p.med[n-1] = orderedMapBuf[K, V]{}
 				p.med = p.med[:n-1]
@@ -18047,11 +18066,11 @@ func AcquireOrderedMapPtrCap[K comparable, V any](capHint int32) *OrderedMap[K, 
 			m = p.hugeFree[n-1]
 			p.hugeFree[n-1] = nil
 			p.hugeFree = p.hugeFree[:n-1]
-		} else if n := len(p.largeFree); n > 0 && cap(p.largeFree[n-1].entries)*2 >= allocCap {
+		} else if n := len(p.largeFree); n > 0 {
 			m = p.largeFree[n-1]
 			p.largeFree[n-1] = nil
 			p.largeFree = p.largeFree[:n-1]
-		} else if n := len(p.smallFree); n > 0 && p.smallFree[n-1].entries == nil {
+		} else if n := len(p.smallFree); n > 0 {
 			m = p.smallFree[n-1]
 			p.smallFree[n-1] = nil
 			p.smallFree = p.smallFree[:n-1]
@@ -18077,16 +18096,10 @@ func AcquireOrderedMapPtrCap[K comparable, V any](capHint int32) *OrderedMap[K, 
 	if m == nil {
 		m = &OrderedMap[K, V]{}
 	}
-	if allocCap >= 64 && cap(m.entries)*2 < allocCap {
-		if old := m.entries; cap(old) >= 64 {
-			ReleasePooledSlice(old)
-		}
+	if allocCap >= 64 && cap(m.entries) < 64 {
 		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
 	} else if cap(m.entries) == 0 && allocCap > 0 {
 		m.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
-	}
-	if m.idx == nil && allocCap > orderedMapIndexThreshold {
-		m.idx = make(map[K]int32, allocCap)
 	}
 	return m
 }
@@ -18243,9 +18256,6 @@ func NewOrderedMapCap[K comparable, V any](cap int32) OrderedMap[K, V] {
 		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
 	} else if allocCap > 8 {
 		m.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
-	}
-	if allocCap > orderedMapIndexThreshold {
-		m.idx = make(map[K]int32, allocCap)
 	}
 	return m
 }
@@ -18404,13 +18414,9 @@ func (m *OrderedMap[K, V]) appendEntryGrow(e OrderedMapEntry[K, V]) {
 	old := m.entries
 	oldLen := len(old)
 	oldCap := cap(old)
-	var newCap int
-	if oldCap < 8 {
-		newCap = max(oldCap*2, 4)
-	} else if oldCap < 1024 {
-		newCap = oldCap * 4
-	} else {
-		newCap = oldCap * 2
+	newCap := oldCap * 2
+	if newCap < 4 {
+		newCap = 4
 	}
 	if newCap <= oldLen {
 		newCap = oldLen + 1
@@ -18462,7 +18468,7 @@ func (m *OrderedMap[K, V]) PutOk(k K, v V) (V, bool) {
 	}
 	m.appendEntry(OrderedMapEntry[K, V]{Key: k, Val: v})
 	if len(m.entries) > orderedMapIndexThreshold {
-		idx := make(map[K]int32, max(32, cap(m.entries)))
+		idx := make(map[K]int32, min(max(24, cap(m.entries)), 256))
 		for i := range m.entries {
 			idx[m.entries[i].Key] = int32(i + 1)
 		}
@@ -20303,7 +20309,7 @@ func AcquireCustomOrderedMapCap[K FastCustomKeyComparable, V any](capHint int32)
 			return CustomOrderedMap[K, V]{entries: b.entries[:0], buckets: b.buckets}
 		}
 	}
-	if n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= min(int(capHint), 262144) {
+	if n := len(p.large); n > 0 {
 		b := p.large[n-1]
 		p.large[n-1] = customOrderedMapBuf[K, V]{}
 		p.large = p.large[:n-1]
@@ -20437,17 +20443,6 @@ func NewCustomOrderedMapCap[K FastCustomKeyComparable, V any](cap int32) CustomO
 		m.entries = AcquirePooledSlice[CustomMapEntry[K, V]](allocCap)
 	} else if allocCap > 8 {
 		m.entries = make([]CustomMapEntry[K, V], 0, allocCap)
-	}
-	if allocCap > orderedMapIndexThreshold {
-		bCap := 32
-		for (bCap*3)/4 < allocCap {
-			bCap *= 2
-		}
-		if bCap >= 64 {
-			m.buckets = AcquirePooledSlice[int32](bCap)[:bCap]
-		} else {
-			m.buckets = make([]int32, bCap)
-		}
 	}
 	return m
 }
@@ -20660,13 +20655,9 @@ func (m *CustomOrderedMap[K, V]) appendEntryGrow(e CustomMapEntry[K, V]) {
 	old := m.entries
 	oldLen := len(old)
 	oldCap := cap(old)
-	var newCap int
-	if oldCap < 8 {
-		newCap = max(oldCap*2, 4)
-	} else if oldCap < 1024 {
-		newCap = oldCap * 4
-	} else {
-		newCap = oldCap * 2
+	newCap := oldCap * 2
+	if newCap < 4 {
+		newCap = 4
 	}
 	if newCap <= oldLen {
 		newCap = oldLen + 1
@@ -20730,11 +20721,7 @@ func (m *CustomOrderedMap[K, V]) PutOk(k K, v V) (V, bool) {
 		m.appendEntry(CustomMapEntry[K, V]{Key: k, Val: v, Hash: h})
 		live := int32(len(m.entries)) - m.holes
 		if int(live) > (len(m.buckets)*3)/4 {
-			newBk := len(m.buckets) * 2
-			if len(m.buckets) < 1024 {
-				newBk = len(m.buckets) * 4
-			}
-			m.rehash(newBk)
+			m.rehash(len(m.buckets) * 2)
 		} else {
 			pos := int32(len(m.entries))
 			m.entries[pos-1].HashNext = m.buckets[slot]

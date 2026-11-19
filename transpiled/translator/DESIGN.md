@@ -156,6 +156,22 @@ type Node nodestore.Node // uint32 index into thread/compilation-scoped 36-byte 
   - `transpiled/shims/javaio`: `System.out`/`err`, `InputStream`/`Reader`/`PrintStream` core bridges.
   - `transpiled/shims/resources`: Embedded Closure externs, polyfill tables, and `.properties` lookup via `Class.getResourceAsStream`, `Class.getResource`, and `ResourceLoader`.
   - `j2gort/runtime.go`: Self-contained Guava `Preconditions` + `Strings.lenientFormat`, boxed primitives (`BoxInt`, `BoxDouble` with `IsNaN`/`IsInfinite`, etc.), `EnumBase`, `NullString`, reentrant `LockMonitor`, `Arraycopy`, and checked cast/array helpers.
-- **Pruned External Bindings (`j2gort/ext_bindings.go`)**:
+- **Pruned External Bindings (`j2gort/ext_bindings.go` & `j2gort/ext_collections_rt.go`)**:
   - Every external JDK / Guava (`ImmutableList`, `ImmutableMap`, `ImmutableSet`, `Multimap`, `Sets`, `Iterables`, etc.) / Gson / Protobuf / Re2j type and method referenced by Closure's 815 files has a strongly-typed Go struct/interface + constructor/method signature emitted into `j2gort/ext_bindings.go`, pruned strictly to `TypeResolver.isNeededExternalSig` so `go build ./...` succeeds across all 18 packages with zero unused bloat.
-  - Core collection types (`ArrayList`, `LinkedHashMap`, `LinkedHashSet`, `ArrayDeque`, `ImmutableList`, `ImmutableSet`, `ImmutableMap`, `Optional`, `BigInteger`, `Pattern`/`Matcher`, `StringBuilder`) include working backing implementations in `j2gort/ext_bindings.go`; remaining specialized Guava/Gson/Protobuf stubs in `ext_bindings.go` provide exact typed hook points to delegate into `transpiled/shims/{javautil,guava,gson,protobuf,javazip,javanio}` during M2/M3 end-to-end pass execution.
+  - Generic, zero-boxing native Go collections (`OrderedMap[K, V]`, `CustomOrderedMap[K, V]`, `IdentityOrderedMap[K, V]`, `PlainMap[K, V]`, `OrderedSet[T]`, `PlainSet[T]`, `Deque[T]`, `LocalStringBuilder`, `Slab[T]`, `PooledSlab[T]`, `AcquirePooledSlice[T]`, `CheckNotNullGeneric[T]`, `IsNullGeneric[T]`) are emitted into `j2gort/ext_collections_rt.go` with slice/map pooling and 0 `"unsafe"` imports.
+
+## 7. Idempotent Go-to-Go AST Post-Passes (`transpiled/translator/passes/`)
+
+After `j2go` emits raw, buildable Go (`jsgo_raw`), `cmd/gopasses` runs 11 modular Go-to-Go AST + `go/types` optimization passes (`AllPasses()` in `registry.go`) to fixed point (verified for **100% second-run idempotency**, `Run 2 == 0 sites`, with post-pass `go/types` verification after every pass):
+
+1. **`native_slice_lowering`**: Lowers non-escaping `ArrayList` locals, unexported struct fields, and slice-accumulator parameters to native `[]T` slices.
+2. **`native_set_lowering`**: Lowers non-escaping `HashSet`/`LinkedHashSet` locals, fields, and `Set`-returning helpers to `j2gort.OrderedSet[T]` (and order-insensitive `HashSet`s to Go `map[T]struct{}` `PlainSet[T]`).
+3. **`native_map_lowering`**: Lowers non-escaping `HashMap`/`LinkedHashMap`/`IdentityHashMap` locals and fields to `j2gort.OrderedMap[K, V]`, `CustomOrderedMap[K, V]`, `IdentityOrderedMap[K, V]`, or non-iterated `PlainMap[K, V]`.
+4. **`immutable_list_lowering`**: Lowers `ImmutableList` fields, locals, getters, and local `ImmutableList.Builder` pipelines directly to native `[]T` slices.
+5. **`native_deque_lowering`**: Lowers `ArrayDeque`/`Deque`/`Queue` locals and fields to ring-buffer `j2gort.Deque[T]`.
+6. **`string_builder_lowering`**: Lowers non-escaping `StringBuilder` locals to stack-buffered `j2gort.LocalStringBuilder`.
+7. **`slab_alloc_lowering`**: Lowers high-frequency AST, `JSType`, `Scope`, `TypedScope`, `Var`, `TypedVar`, `Reference`, CFG/DFA graph node/edge, and pass-internal struct allocations onto contiguous `j2gort.Slab[T]` / `PooledSlab[T]` arenas with deterministic `ReleaseSlabs_()` cleanup and Cache-Line-0 hot-field packing.
+8. **`node_traversal_lowering`**: Pools `jscomp.NodeTraversal` instances, embeds `[12]`-deep scope stacks, and reuses `SyntacticScopeCreator`.
+9. **`dead_cast_cleanup`**: Strips redundant self-conversions (`T(x)`, `AsIface[T](x)`).
+10. **`abstract_base_devirt`**: Devirtualizes non-overridden abstract-class interface calls (`JSType`, `ObjectType`, `AbstractScope`, `AbstractVar`, `CompilerInput`, etc.) through `*<I>Base` receivers and fields.
+11. **`j2gort_peephole`**: Eliminates redundant `Cast*`/`AsIface`/`Box*`/`StrVal`/`CheckNotNull*`/`StringEquals`/`IfaceEquals` wrappers, unwraps zero-arg statement and call-argument IIFEs, and lowers `rhino.Node` accessors to inlineable `nodestore` intrinsics.

@@ -1587,11 +1587,13 @@ func (n Node) SetTC(h uint32) {
 
 // OrigNameID returns the original name interned StringID for node n.
 func (n Node) OrigNameID() StringID {
-	if r := &nodeReadBlocks[n>>blockShift].Load()[n&blockMask]; r.KindFlags&kindFlagAnyOrigName != 0 {
-		if r.KindFlags >= kindFlagInlineOrigName {
-			return StringID(r.Payload)
+	if blk := nodeBlocks[n>>blockShift].Load(); blk != nil {
+		if r := &blk[n&blockMask]; r.KindFlags&kindFlagAnyOrigName != 0 {
+			if r.KindFlags >= kindFlagInlineOrigName {
+				return StringID(r.Payload)
+			}
+			return StringID(origNameField[n>>blockShift].Load()[n&blockMask])
 		}
-		return StringID(origNameField[n>>blockShift].Load()[n&blockMask])
 	}
 	return 0
 }

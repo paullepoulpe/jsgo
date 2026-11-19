@@ -65,11 +65,7 @@ type nodeBlock = NodeBlock
 
 // Global 2-level directory mapping block index to block pointer.
 // Access compiles to 2 pointer dereferences with 0 mutex contention.
-var (
-	nodeBlocks     [numBlocks]atomic.Pointer[nodeBlock]
-	nodeReadBlocks [numBlocks]atomic.Pointer[nodeBlock]
-	zeroNodeBlock  nodeBlock
-)
+var nodeBlocks [numBlocks]atomic.Pointer[nodeBlock]
 
 // NodeStore manages memory blocks and handle assignment for a compilation unit.
 type NodeStore struct {
@@ -136,11 +132,6 @@ var (
 )
 
 func init() {
-	for i := range nodeReadBlocks {
-		if nodeReadBlocks[i].Load() == nil {
-			nodeReadBlocks[i].Store(&zeroNodeBlock)
-		}
-	}
 	initLen16Top()
 	nextBlock.Store(1) // block 0 is never used: ID 0 is NilNode
 	current.Store(staticStore)
@@ -193,14 +184,12 @@ func (s *NodeStore) register() {
 	castBitField.register(first, s.castBits)
 	for k, b := range s.blocks {
 		nodeBlocks[first+uint32(k)].Store(b)
-		nodeReadBlocks[first+uint32(k)].Store(b)
 	}
 }
 
 func (s *NodeStore) unregister() {
 	first := s.base >> blockShift
 	for k, b := range s.blocks {
-		nodeReadBlocks[first+uint32(k)].CompareAndSwap(b, &zeroNodeBlock)
 		nodeBlocks[first+uint32(k)].CompareAndSwap(b, nil)
 	}
 	tcField.unregister(first, s.tcs)
@@ -597,7 +586,6 @@ func (s *NodeStore) addBlock(id uint32) *nodeBlock {
 				s.blocks[idx] = b
 				if current.Load() == s {
 					nodeBlocks[first+uint32(idx)].Store(b)
-					nodeReadBlocks[first+uint32(idx)].Store(b)
 				}
 			}
 		}
@@ -618,7 +606,6 @@ func (s *NodeStore) addBlock(id uint32) *nodeBlock {
 		s.blocks[blkIdx] = blk
 		if s.static || current.Load() == s {
 			nodeBlocks[id>>blockShift].Store(blk)
-			nodeReadBlocks[id>>blockShift].Store(blk)
 		}
 	}
 	s.mu.Unlock()
