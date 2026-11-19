@@ -235,7 +235,7 @@ func (this_ *CheckRequiresSorted) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	_ = n
 	_ = parent
 	if n.IsScript() {
-		this_.priv_CheckRequiresSorted_checkCanonical_6594(t)
+		this_.priv_CheckRequiresSorted_checkCanonical_6608(t)
 		return
 	}
 	var callNode pkg_rhino.Node = pkg_rhino.Node(0)
@@ -306,7 +306,7 @@ func CheckRequiresSorted_ParseImport(callNode pkg_rhino.Node) *CheckRequiresSort
 }
 
 // Java method: CheckRequiresSorted.checkCanonical(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *CheckRequiresSorted) priv_CheckRequiresSorted_checkCanonical_6594(t *NodeTraversal) {
+func (this_ *CheckRequiresSorted) priv_CheckRequiresSorted_checkCanonical_6608(t *NodeTraversal) {
 	_ = t
 	var canonicalImports j2gort.Ext_java_util_List = CheckRequiresSorted_CanonicalizeImports(this_.importsByNamespace)
 	_ = canonicalImports
@@ -719,7 +719,7 @@ func (this_ *CheckRequiresSorted_DestructuringBinding) CompareTo(arg_9 any) int3
 }
 
 // Java method: DestructuringBinding.isCanonical()
-func (this_ *CheckRequiresSorted_DestructuringBinding) priv_DestructuringBinding_isCanonical_6595() bool {
+func (this_ *CheckRequiresSorted_DestructuringBinding) priv_DestructuringBinding_isCanonical_6609() bool {
 	return (!(func() bool {
 		sr_10 := this_.ExportedName()
 		se_11 := this_.LocalName()
@@ -729,7 +729,7 @@ func (this_ *CheckRequiresSorted_DestructuringBinding) priv_DestructuringBinding
 
 // Java method: DestructuringBinding.canonicalizeShorthandProperties()
 func (this_ *CheckRequiresSorted_DestructuringBinding) CanonicalizeShorthandProperties() *CheckRequiresSorted_DestructuringBinding {
-	if this_.priv_DestructuringBinding_isCanonical_6595() {
+	if this_.priv_DestructuringBinding_isCanonical_6609() {
 		return this_
 	} else {
 		return CheckRequiresSorted_DestructuringBinding_Of(this_.ExportedName(), this_.LocalName(), true)
@@ -881,7 +881,7 @@ func (this_ *CheckRequiresSorted_ImportStatement) Upgrade(otherPrimitive CheckRe
 }
 
 // Java method: ImportStatement.formatWithoutDoc()
-func (this_ *CheckRequiresSorted_ImportStatement) priv_ImportStatement_formatWithoutDoc_6604() string {
+func (this_ *CheckRequiresSorted_ImportStatement) priv_ImportStatement_formatWithoutDoc_6618() string {
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
 	if !(this_.IsStandalone()) {
@@ -921,7 +921,7 @@ func (this_ *CheckRequiresSorted_ImportStatement) priv_ImportStatement_formatWit
 	if !(this_.IsStandalone()) {
 		sb.Append_1_string(" = ")
 	}
-	sb.Append_1_any_9887(j2gort.BoxNullableVal(this_.Primitive()))
+	sb.Append_1_any_9903(j2gort.BoxNullableVal(this_.Primitive()))
 	sb.Append_1_string("('")
 	sb.Append_1_string(this_.Namespace())
 	sb.Append_1_string("');")
@@ -950,7 +950,7 @@ func (this_ *CheckRequiresSorted_ImportStatement) Format() string {
 			}
 		}
 	}
-	sb.AppendStr(this_.priv_ImportStatement_formatWithoutDoc_6604())
+	sb.AppendStr(this_.priv_ImportStatement_formatWithoutDoc_6618())
 	return sb.String()
 }
 
@@ -958,7 +958,7 @@ func (this_ *CheckRequiresSorted_ImportStatement) Format() string {
 func (this_ *CheckRequiresSorted_ImportStatement) CompareTo(arg_15 any) int32 {
 	other := j2gort.CastPtr[CheckRequiresSorted_ImportStatement](arg_15)
 	_ = other
-	return j2gort.JStrCompareTo(this_.priv_ImportStatement_formatWithoutDoc_6604(), other.priv_ImportStatement_formatWithoutDoc_6604())
+	return j2gort.JStrCompareTo(this_.priv_ImportStatement_formatWithoutDoc_6618(), other.priv_ImportStatement_formatWithoutDoc_6618())
 }
 
 func (this_ *CheckRequiresSorted_ImportStatement) Nodes() j2gort.Ext_com_google_common_collect_ImmutableList {

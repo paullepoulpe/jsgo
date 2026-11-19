@@ -151,12 +151,10 @@ func InitRewriteCallerCodeLocation(this_ *RewriteCallerCodeLocation, compiler Ab
 	this_.initFields_RewriteCallerCodeLocation()
 	this_.compiler = compiler
 	this_.astFactory = compiler.CreateAstFactory()
-	this_.callerLocationFunctionNames = j2gort.NewOrderedMap[string, *RewriteCallerCodeLocation_FunctionVarAndParamPosition](
-
-	// Java method: RewriteCallerCodeLocation.process(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-	)
+	this_.callerLocationFunctionNames = j2gort.NewOrderedMap[string, *RewriteCallerCodeLocation_FunctionVarAndParamPosition]()
 }
 
+// Java method: RewriteCallerCodeLocation.process(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
 func (this_ *RewriteCallerCodeLocation) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
@@ -249,17 +247,17 @@ func (this_ *RewriteCallerCodeLocation_FindCallerLocationFunctions) Visit_3(t *N
 	_ = t
 	_ = n
 	_ = parent
-	if this_.priv_FindCallerLocationFunctions_isGoogCallerLocationMisused_4983(n, parent) {
+	if this_.priv_FindCallerLocationFunctions_isGoogCallerLocationMisused_4992(n, parent) {
 		this_.outer_.compiler.Report_1(JSError_Make_3(parent.GetParent(), StaticGet_RewriteCallerCodeLocation_JSC_CALLER_LOCATION_MISUSE_ERROR(), []string{}))
 		return
 	}
 	if n.IsParamList() {
-		this_.priv_FindCallerLocationFunctions_visitParamListAndAddCallerLocationFunctionNames_4984(n, t)
+		this_.priv_FindCallerLocationFunctions_visitParamListAndAddCallerLocationFunctionNames_4993(n, t)
 	}
 }
 
 // Java method: FindCallerLocationFunctions.isGoogCallerLocationMisused(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *RewriteCallerCodeLocation_FindCallerLocationFunctions) priv_FindCallerLocationFunctions_isGoogCallerLocationMisused_4983(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
+func (this_ *RewriteCallerCodeLocation_FindCallerLocationFunctions) priv_FindCallerLocationFunctions_isGoogCallerLocationMisused_4992(n pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = n
 	_ = parent
 	if !(StaticGet_RewriteCallerCodeLocation_GOOG_CALLER_LOCATION_QUALIFIED_NAME().Matches(n)) {
@@ -278,7 +276,7 @@ func (this_ *RewriteCallerCodeLocation_FindCallerLocationFunctions) priv_FindCal
 }
 
 // Java method: FindCallerLocationFunctions.visitParamListAndAddCallerLocationFunctionNames(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *RewriteCallerCodeLocation_FindCallerLocationFunctions) priv_FindCallerLocationFunctions_visitParamListAndAddCallerLocationFunctionNames_4984(n pkg_rhino.Node, t *NodeTraversal) {
+func (this_ *RewriteCallerCodeLocation_FindCallerLocationFunctions) priv_FindCallerLocationFunctions_visitParamListAndAddCallerLocationFunctionNames_4993(n pkg_rhino.Node, t *NodeTraversal) {
 	_ = n
 	_ = t
 	if !(n.IsParamList()) {
@@ -383,12 +381,12 @@ func (this_ *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) Visit
 	_ = n
 	_ = parent
 	if n.IsCall() {
-		this_.priv_RewriteCallerLocationFunctionCalls_visitCallNodeAndRewrite_4985(n, t)
+		this_.priv_RewriteCallerLocationFunctionCalls_visitCallNodeAndRewrite_4994(n, t)
 	}
 }
 
 // Java method: RewriteCallerLocationFunctionCalls.visitCallNodeAndRewrite(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) priv_RewriteCallerLocationFunctionCalls_visitCallNodeAndRewrite_4985(n pkg_rhino.Node, t *NodeTraversal) {
+func (this_ *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) priv_RewriteCallerLocationFunctionCalls_visitCallNodeAndRewrite_4994(n pkg_rhino.Node, t *NodeTraversal) {
 	_ = n
 	_ = t
 	var firstChild pkg_rhino.Node = n.GetFirstChild()
@@ -424,14 +422,14 @@ func (this_ *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) priv_
 		}
 		return
 	}
-	var xidCall pkg_rhino.Node = this_.priv_RewriteCallerLocationFunctionCalls_createGoogXidFilePathNode_4986(n)
+	var xidCall pkg_rhino.Node = this_.priv_RewriteCallerLocationFunctionCalls_createGoogXidFilePathNode_4995(n)
 	_ = xidCall
 	this_.outer_.compiler.ReportChangeToEnclosingScope(n)
 	n.AddChildToBack(xidCall)
 }
 
 // Java method: RewriteCallerLocationFunctionCalls.createGoogXidFilePathNode(com.google.javascript.rhino.Node n)
-func (this_ *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) priv_RewriteCallerLocationFunctionCalls_createGoogXidFilePathNode_4986(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RewriteCallerCodeLocation_RewriteCallerLocationFunctionCalls) priv_RewriteCallerLocationFunctionCalls_createGoogXidFilePathNode_4995(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	var googNode pkg_rhino.Node = pkg_rhino.IR_Name("goog")
 	_ = googNode

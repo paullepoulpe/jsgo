@@ -116,12 +116,10 @@ func clinitSlow_PolymerBehaviorExtractor() {
 func (this_ *PolymerBehaviorExtractor) initFields_PolymerBehaviorExtractor() {
 	_ = this_
 	this_.resolveMemoized = j2gort.AsIface[j2gort.Ext_com_google_common_collect_Table](j2gort.Ext_com_google_common_collect_HashBasedTable_Create_0())
-	this_.globalResolveMemoized = j2gort.NewOrderedMap[string, *PolymerBehaviorExtractor_ResolveBehaviorNameResult](
-
-	// Java constructor: PolymerBehaviorExtractor(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.GlobalNamespace globalNames, com.google.javascript.jscomp.modules.ModuleMetadataMap moduleMetadataMap, com.google.javascript.jscomp.modules.ModuleMap moduleMap)
-	)
+	this_.globalResolveMemoized = j2gort.NewOrderedMap[string, *PolymerBehaviorExtractor_ResolveBehaviorNameResult]()
 }
 
+// Java constructor: PolymerBehaviorExtractor(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.GlobalNamespace globalNames, com.google.javascript.jscomp.modules.ModuleMetadataMap moduleMetadataMap, com.google.javascript.jscomp.modules.ModuleMap moduleMap)
 func NewPolymerBehaviorExtractor(compiler AbstractCompiler, globalNames *GlobalNamespace, moduleMetadataMap *ModuleMetadataMap, moduleMap *ModuleMap) *PolymerBehaviorExtractor {
 	clinit_PolymerBehaviorExtractor()
 	this_ := &PolymerBehaviorExtractor{}
@@ -173,9 +171,9 @@ func (this_ *PolymerBehaviorExtractor) ExtractBehaviors(behaviorArray pkg_rhino.
 			var resolveResult *PolymerBehaviorExtractor_ResolveBehaviorNameResult = nil
 			_ = resolveResult
 			if PolymerBehaviorExtractor_IsGoogModuleGetCall(behaviorName) {
-				resolveResult = this_.priv_PolymerBehaviorExtractor_resolveGoogModuleGet_4382(behaviorName.GetSecondChild().GetString())
+				resolveResult = this_.priv_PolymerBehaviorExtractor_resolveGoogModuleGet_4391(behaviorName.GetSecondChild().GetString())
 			} else {
-				resolveResult = this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(PolymerBehaviorExtractor_GetQualifiedNameThroughCast(behaviorName), moduleMetadata)
+				resolveResult = this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(PolymerBehaviorExtractor_GetQualifiedNameThroughCast(behaviorName), moduleMetadata)
 			}
 			{
 				var iifeCond_1 bool
@@ -212,7 +210,7 @@ func (this_ *PolymerBehaviorExtractor) ExtractBehaviors(behaviorArray pkg_rhino.
 }
 
 // Java method: PolymerBehaviorExtractor.resolveBehaviorName(java.lang.@org.jspecify.annotations.Nullable String name, com.google.javascript.jscomp.modules.ModuleMetadataMap.@org.jspecify.annotations.Nullable ModuleMetadata moduleMetadata)
-func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(name string, moduleMetadata ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(name string, moduleMetadata ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	_ = name
 	_ = moduleMetadata
 	if name == j2gort.NullString {
@@ -226,7 +224,7 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBeha
 		memoized = this_.globalResolveMemoized.Get(name)
 	}
 	if memoized == nil {
-		memoized = j2gort.CheckNotNullPtr(this_.priv_PolymerBehaviorExtractor_resolveBehaviorNameInternal_4380(name, moduleMetadata))
+		memoized = j2gort.CheckNotNullPtr(this_.priv_PolymerBehaviorExtractor_resolveBehaviorNameInternal_4389(name, moduleMetadata))
 		if moduleMetadata != nil && !moduleMetadata.IsJavaNil_() {
 			this_.resolveMemoized.Put(j2gort.BoxString(name), moduleMetadata, j2gort.PtrToAny(memoized))
 		} else {
@@ -237,15 +235,15 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBeha
 }
 
 // Java method: PolymerBehaviorExtractor.resolveBehaviorNameInternal(java.lang.String name, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata moduleMetadata)
-func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBehaviorNameInternal_4380(name string, moduleMetadata ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBehaviorNameInternal_4389(name string, moduleMetadata ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	_ = name
 	_ = moduleMetadata
-	var result *PolymerBehaviorExtractor_ResolveBehaviorNameResult = this_.priv_PolymerBehaviorExtractor_getNameIfModuleImport_4383(name, moduleMetadata)
+	var result *PolymerBehaviorExtractor_ResolveBehaviorNameResult = this_.priv_PolymerBehaviorExtractor_getNameIfModuleImport_4392(name, moduleMetadata)
 	_ = result
 	if result != nil {
 		return result
 	}
-	var legacyResolve *PolymerBehaviorExtractor_ResolveBehaviorNameResult = this_.priv_PolymerBehaviorExtractor_resolveReferenceToLegacyGoogModule_4381(name)
+	var legacyResolve *PolymerBehaviorExtractor_ResolveBehaviorNameResult = this_.priv_PolymerBehaviorExtractor_resolveReferenceToLegacyGoogModule_4390(name)
 	_ = legacyResolve
 	if legacyResolve != nil {
 		return legacyResolve
@@ -304,7 +302,7 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBeha
 		_ = declarationScope
 		var m *Module = ModuleImportResolver_GetModuleFromScopeRoot(this_.compiler.GetModuleMap(), Upcast_CompilerInputProvider(this_.compiler), declarationScope.GetRootNode_0())
 		_ = m
-		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(PolymerBehaviorExtractor_GetQualifiedNameThroughCast(rValue), func() ModuleMetadataMap_ModuleMetadata {
+		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(PolymerBehaviorExtractor_GetQualifiedNameThroughCast(rValue), func() ModuleMetadataMap_ModuleMetadata {
 			if m != nil {
 				return m.Metadata()
 			}
@@ -320,7 +318,7 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveBeha
 }
 
 // Java method: PolymerBehaviorExtractor.resolveReferenceToLegacyGoogModule(java.lang.String name)
-func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveReferenceToLegacyGoogModule_4381(name string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveReferenceToLegacyGoogModule_4390(name string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	_ = name
 	var dot int32 = j2gort.JStrLen(name)
 	_ = dot
@@ -340,7 +338,7 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveRefe
 		} else {
 			rest = j2gort.JStrSubFrom(name, dot)
 		}
-		var result *PolymerBehaviorExtractor_ResolveBehaviorNameResult = this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(("exports" + j2gort.StrValString(rest)), metadata)
+		var result *PolymerBehaviorExtractor_ResolveBehaviorNameResult = this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(("exports" + j2gort.StrValString(rest)), metadata)
 		_ = result
 		{
 			var iifeCond_1 bool
@@ -371,23 +369,23 @@ func PolymerBehaviorExtractor_IsGoogModuleGetCall(callNode pkg_rhino.Node) bool 
 }
 
 // Java method: PolymerBehaviorExtractor.resolveGoogModuleGet(java.lang.String moduleNamespace)
-func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveGoogModuleGet_4382(moduleNamespace string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveGoogModuleGet_4391(moduleNamespace string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	_ = moduleNamespace
 	var closureModule ModuleMetadataMap_ModuleMetadata = j2gort.AsIface[ModuleMetadataMap_ModuleMetadata](j2gort.MapGetStr(this_.moduleMetadataMap.GetModulesByGoogNamespace(), moduleNamespace))
 	_ = closureModule
 	if closureModule == nil || closureModule.IsJavaNil_() {
 		return StaticGet_PolymerBehaviorExtractor_FAILED_RESOLVE_RESULT()
 	} else if closureModule.GetModuleMetadataMap_ModuleMetadataBase().IsGoogProvide() {
-		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(moduleNamespace, nil)
+		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(moduleNamespace, nil)
 	}
 	if !(closureModule.GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule()) {
 		j2gort.CheckStateMsg(false, closureModule)
 	}
-	return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379("exports", closureModule)
+	return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388("exports", closureModule)
 }
 
 // Java method: PolymerBehaviorExtractor.getNameIfModuleImport(java.lang.String name, com.google.javascript.jscomp.modules.ModuleMetadataMap.ModuleMetadata metadata)
-func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_getNameIfModuleImport_4383(name string, metadata ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_getNameIfModuleImport_4392(name string, metadata ModuleMetadataMap_ModuleMetadata) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	_ = name
 	_ = metadata
 	if (metadata == nil || metadata.IsJavaNil_()) || (!(metadata.GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) && !(metadata.GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule())) {
@@ -423,7 +421,7 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_getNameIfMo
 		rest = j2gort.JStrSubFrom(name, dot)
 	}
 	if b.IsModuleNamespace() {
-		return this_.priv_PolymerBehaviorExtractor_resolveModuleNamespaceBinding_4384(b, rest)
+		return this_.priv_PolymerBehaviorExtractor_resolveModuleNamespaceBinding_4393(b, rest)
 	}
 	var importMetadata ModuleMetadataMap_ModuleMetadata = b.OriginatingExport().ModuleMetadata()
 	_ = importMetadata
@@ -440,17 +438,17 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_getNameIfMo
 		}
 		originatingName = (j2gort.StrValString(b.ClosureNamespace()) + "." + j2gort.StrValString(b.OriginatingExport().ExportName()) + j2gort.StrValString(rest))
 	}
-	return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(originatingName, importMetadata)
+	return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(originatingName, importMetadata)
 }
 
 // Java method: PolymerBehaviorExtractor.resolveModuleNamespaceBinding(com.google.javascript.jscomp.modules.Binding b, java.lang.String rest)
-func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveModuleNamespaceBinding_4384(b *Binding, rest string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
+func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveModuleNamespaceBinding_4393(b *Binding, rest string) *PolymerBehaviorExtractor_ResolveBehaviorNameResult {
 	_ = b
 	_ = rest
 	if b.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule() {
-		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379(("exports" + j2gort.StrValString(rest)), b.Metadata())
+		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388(("exports" + j2gort.StrValString(rest)), b.Metadata())
 	} else if b.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogProvide() {
-		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379((j2gort.StrValString(b.ClosureNamespace()) + j2gort.StrValString(rest)), b.Metadata())
+		return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388((j2gort.StrValString(b.ClosureNamespace()) + j2gort.StrValString(rest)), b.Metadata())
 	}
 	if !(b.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsEs6Module()) {
 		j2gort.CheckState(false)
@@ -475,7 +473,7 @@ func (this_ *PolymerBehaviorExtractor) priv_PolymerBehaviorExtractor_resolveModu
 	if (exportBinding == nil) || !(exportBinding.IsCreatedByEsExport()) {
 		return StaticGet_PolymerBehaviorExtractor_FAILED_RESOLVE_RESULT()
 	}
-	return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4379((j2gort.StrValString(exportBinding.OriginatingExport().LocalName()) + j2gort.StrValString(func() string {
+	return this_.priv_PolymerBehaviorExtractor_resolveBehaviorName_4388((j2gort.StrValString(exportBinding.OriginatingExport().LocalName()) + j2gort.StrValString(func() string {
 		if dot == int32(-1) {
 			return ""
 		}
@@ -680,13 +678,13 @@ func InitPolymerBehaviorExtractor_BehaviorDefinition(this_ *PolymerBehaviorExtra
 func (this_ *PolymerBehaviorExtractor_BehaviorDefinition) GetModuleLocalNames(compiler AbstractCompiler) j2gort.Ext_java_util_Set {
 	_ = compiler
 	if this_.lazyModuleLocalNames == nil {
-		this_.lazyModuleLocalNames = this_.priv_BehaviorDefinition_accumulateModuleLocalVars_4386(compiler)
+		this_.lazyModuleLocalNames = this_.priv_BehaviorDefinition_accumulateModuleLocalVars_4395(compiler)
 	}
 	return this_.lazyModuleLocalNames
 }
 
 // Java method: BehaviorDefinition.accumulateModuleLocalVars(com.google.javascript.jscomp.AbstractCompiler compiler)
-func (this_ *PolymerBehaviorExtractor_BehaviorDefinition) priv_BehaviorDefinition_accumulateModuleLocalVars_4386(compiler AbstractCompiler) j2gort.Ext_java_util_Set {
+func (this_ *PolymerBehaviorExtractor_BehaviorDefinition) priv_BehaviorDefinition_accumulateModuleLocalVars_4395(compiler AbstractCompiler) j2gort.Ext_java_util_Set {
 	_ = compiler
 	clinit_SyntacticScopeCreator()
 	var val_7 SyntacticScopeCreator

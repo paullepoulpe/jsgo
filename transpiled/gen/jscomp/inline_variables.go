@@ -396,6 +396,15 @@ func allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative(beh_ 
 		if expert.isWellDefined == 1 && expert.isAssignedOnceInLifetime == 1 {
 			return StaticGet_InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS()
 		}
+		if beh_.activeRefMap_ != nil {
+			if expert.isWellDefined == 1 {
+				return &staticIvLazyNegWellDef_
+			}
+			if expert.isAssignedOnceInLifetime == 1 {
+				return &staticIvLazyNegAssignedOnce_
+			}
+			return &staticIvLazyNegUnknown_
+		}
 		a_ := beh_.outer_.slab_InlineVariables_InlineVarAnalysis.Alloc()
 		a_.kind = int8(2)
 		a_.lazyRefInfo_ = expert.referenceInfo
@@ -973,7 +982,7 @@ func (this_ *InlineVariables_VarExpert) ReanalyzeAfterAliasedVar(aliasedVar *Var
 	if (this_.isDeclaredOrInferredConstant && initialValueAnalysis.IsImmutableValue()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3374() {
 		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 	}
-	if ((initialValueAnalysis.IsAlias() && j2gort.ObjEqCustomPtr(aliasedVar, initialValueAnalysis.GetAliasedVar())) && aliasedVarAnalysis.IsSafeToInlineAliases()) && this_.IsWellDefinedAssignedOnce() {
+	if ((initialValueAnalysis.IsAlias() && j2gort.ObjEqCustomPtr(aliasedVar, initialValueAnalysis.GetAliasedVar())) && isSafeToInlineAliasesIv_(this_.behavior, aliasedVar, aliasedVarAnalysis)) && this_.IsWellDefinedAssignedOnce() {
 		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 	}
 	return this_.priv_VarExpert_analyzeWithInitialValue_3385(initialization, initValue, initialValueAnalysis)
@@ -1096,6 +1105,7 @@ type InlineVariables_InliningBehavior struct {
 	varToAliasRetryHandlersMap        *SimpleMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler] `gson:"varToAliasRetryHandlersMap"`
 	idHash_                           atomic.Int32
 	scratchVarExpert_                 InlineVariables_VarExpert
+	activeRefMap_                     ReferenceMap
 	scratchLocalScope_                NodeIterators_FunctionlessLocalScope
 	scratchLocalVarMotion_            NodeIterators_LocalVarMotion
 }
@@ -1161,6 +1171,8 @@ func (this_ *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, 
 func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesForScope_3393(t *NodeTraversal, referenceMap ReferenceMap) {
 	_ = t
 	_ = referenceMap
+	this_.activeRefMap_ = referenceMap
+
 	this_.currentScopeHandledVarAnalysesMap.Clear()
 	var mayBeAParameterModifiedViaArguments bool = this_.priv_InliningBehavior_varsInThisScopeMayBeModifiedUsingArguments_3394(t.GetScope(), referenceMap)
 	_ = mayBeAParameterModifiedViaArguments
@@ -1198,14 +1210,19 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesFo
 			}
 		}
 	}
+	this_.currentScopeHandledVarAnalysesMap.Clear()
+	if this_.outer_ != nil {
+		this_.outer_.slab_InlineVariables_InlineVarAnalysis.Reset()
+	}
 	if this_.varToAliasRetryHandlersMap.IsEmpty() {
-		this_.currentScopeHandledVarAnalysesMap.Clear()
+
 		if this_.outer_ != nil {
 			this_.outer_.slab_InlineVariables_VarExpert.Reset()
-			this_.outer_.slab_InlineVariables_InlineVarAnalysis.Reset()
+
 			this_.outer_.slab_InlineVariables_InliningBehavior_AliasInlineRetryHandler.Reset()
 		}
 	}
+	this_.activeRefMap_ = nil
 
 }
 
@@ -1628,4 +1645,39 @@ func (this_ *InlineVariables) ReleaseSlabs_() {
 	this_.slab_InlineVariables_VarExpert.Release()
 	this_.slab_InlineVariables_InlineVarAnalysis.Release()
 	this_.slab_InlineVariables_InliningBehavior_AliasInlineRetryHandler.Release()
+}
+
+var (
+	staticIvLazyNegUnknown_      = InlineVariables_InlineVarAnalysis{kind: int8(2), lazyWellDefined_: int8(-1), lazyAssignedOnce_: int8(-1)}
+	staticIvLazyNegWellDef_      = InlineVariables_InlineVarAnalysis{kind: int8(2), lazyWellDefined_: int8(1), lazyAssignedOnce_: int8(-1)}
+	staticIvLazyNegAssignedOnce_ = InlineVariables_InlineVarAnalysis{kind: int8(2), lazyWellDefined_: int8(-1), lazyAssignedOnce_: int8(1)}
+)
+
+func isSafeToInlineAliasesIv_(beh_ *InlineVariables_InliningBehavior, aliasedVar *Var, analysis *InlineVariables_InlineVarAnalysis) bool {
+	if analysis == &staticIvLazyNegUnknown_ || analysis == &staticIvLazyNegWellDef_ || analysis == &staticIvLazyNegAssignedOnce_ {
+		if beh_ == nil || beh_.activeRefMap_ == nil || aliasedVar == nil {
+			return false
+		}
+		var rc *ReferenceCollection
+		if rcCol, ok := beh_.activeRefMap_.(*ReferenceCollector); ok && rcCol != nil {
+			rc = rcCol.referenceMap.Get(aliasedVar)
+		} else {
+			rc, _ = beh_.activeRefMap_.GetReferences(j2gort.PtrToAny(aliasedVar)).(*ReferenceCollection)
+		}
+		if rc == nil {
+			return false
+		}
+		if rc.ivSafeAliases_ != 0 {
+			return rc.ivSafeAliases_ == 2
+		}
+		ok := (analysis == &staticIvLazyNegWellDef_ || rc.IsWellDefined()) &&
+			(analysis == &staticIvLazyNegAssignedOnce_ || rc.IsAssignedOnceInLifetime())
+		if ok {
+			rc.ivSafeAliases_ = 2
+		} else {
+			rc.ivSafeAliases_ = 1
+		}
+		return ok
+	}
+	return analysis.IsSafeToInlineAliases()
 }

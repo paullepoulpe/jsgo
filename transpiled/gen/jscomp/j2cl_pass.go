@@ -230,12 +230,10 @@ func (this_ *J2clPass_ClassStaticFunctionsInliner) GetOuter_() *J2clPass  { retu
 
 func (this_ *J2clPass_ClassStaticFunctionsInliner) initFields_J2clPass_ClassStaticFunctionsInliner() {
 	_ = this_
-	this_.fnsToInlineByQualifiedName = j2gort.NewOrderedMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction](
-
-	// Java constructor: ClassStaticFunctionsInliner(com.google.javascript.rhino.Node root, java.util.List<com.google.javascript.jscomp.J2clPass.InlineSpec> inlineSpecs)
-	)
+	this_.fnsToInlineByQualifiedName = j2gort.NewOrderedMap[string, *J2clPass_ClassStaticFunctionsInliner_InlinableFunction]()
 }
 
+// Java constructor: ClassStaticFunctionsInliner(com.google.javascript.rhino.Node root, java.util.List<com.google.javascript.jscomp.J2clPass.InlineSpec> inlineSpecs)
 func NewJ2clPass_ClassStaticFunctionsInliner(outer_ *J2clPass, root pkg_rhino.Node, inlineSpecs j2gort.Ext_java_util_List) *J2clPass_ClassStaticFunctionsInliner {
 	this_ := &J2clPass_ClassStaticFunctionsInliner{}
 	this_.outer_ = outer_

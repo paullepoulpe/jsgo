@@ -38,8 +38,8 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.ClosureExportTypeClassifier
 type ClosureExportTypeClassifier struct {
-	topLevelNames     j2gort.Ext_java_util_Map  `gson:"topLevelNames"`
-	forcedNamedExport j2gort.OrderedSet[string] `gson:"forcedNamedExport"`
+	topLevelNames     j2gort.OrderedMap[string, *ClosureExportTypeClassifier_NameInfo] `gson:"topLevelNames"`
+	forcedNamedExport j2gort.OrderedSet[string]                                        `gson:"forcedNamedExport"`
 	idHash_           atomic.Int32
 }
 
@@ -70,7 +70,7 @@ func StaticGet_ClosureExportTypeClassifier_EXPORTS() string        { return "exp
 func StaticGet_ClosureExportTypeClassifier_MAX_ALIAS_DEPTH() int32 { return int32(4) }
 func (this_ *ClosureExportTypeClassifier) initFields_ClosureExportTypeClassifier() {
 	_ = this_
-	this_.topLevelNames = j2gort.NewExt_java_util_LinkedHashMap()
+	this_.topLevelNames = j2gort.NewOrderedMap[string, *ClosureExportTypeClassifier_NameInfo]()
 	this_.forcedNamedExport = j2gort.NewOrderedSet[string]()
 }
 
@@ -104,7 +104,7 @@ func ClosureExportTypeClassifier_Classify(moduleRoot pkg_rhino.Node, googNamespa
 		})
 	}
 	ClosureExportTypeClassifier_ForEachTopLevelStatement(moduleRoot, iifeArg_1)
-	var info *ClosureExportTypeClassifier_NameInfo = j2gort.CastPtr[ClosureExportTypeClassifier_NameInfo](j2gort.MapGetStr(classifier.topLevelNames, "exports"))
+	var info *ClosureExportTypeClassifier_NameInfo = classifier.topLevelNames.Get("exports")
 	_ = info
 	if classifier.forcedNamedExport.Contains(googNamespace) || (classifier.priv_ClosureExportTypeClassifier_kindOfName_1173(info, int32(0)) == StaticGet_ClosureExportTypeClassifier_Kind_NAMESPACE()) {
 		return StaticGet_ClosureExportTypeClassifier_TsExportType_NAMED()
@@ -122,7 +122,7 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_addGo
 		r_4 := info
 		r_4.isGoogModuleExports = true
 	}
-	j2gort.MapPutStr(this_.topLevelNames, "exports", info)
+	this_.topLevelNames.Put("exports", info)
 }
 
 // Java static method: ClosureExportTypeClassifier.forEachTopLevelStatement(com.google.javascript.rhino.Node moduleRoot, java.util.function.Consumer<com.google.javascript.rhino.Node> callback)
@@ -280,14 +280,7 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_visit
 // Java method: ClosureExportTypeClassifier.getOrCreate(java.lang.String name)
 func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_getOrCreate_1172(name string) *ClosureExportTypeClassifier_NameInfo {
 	_ = name
-	{
-		m_15 := this_.topLevelNames
-		k_16 := name
-		if v_17, ok_18 := j2gort.MapTryGetComputeStr(m_15, k_16); ok_18 {
-			return j2gort.CastPtr[ClosureExportTypeClassifier_NameInfo](v_17)
-		}
-		return j2gort.CastPtr[ClosureExportTypeClassifier_NameInfo](j2gort.MapComputeIfAbsentStr(m_15, k_16, lambdaSingleton_closure_export_type_classifier_1))
-	}
+	return j2gort.OrderedMapComputeIfAbsentFn(&this_.topLevelNames, name, nil, lambdaSingleton_closure_export_type_classifier_1)
 }
 
 // Java method: ClosureExportTypeClassifier.kindOfName(com.google.javascript.jscomp.ClosureExportTypeClassifier.NameInfo info, int depth)
@@ -349,14 +342,16 @@ func (this_ *ClosureExportTypeClassifier) priv_ClosureExportTypeClassifier_kindO
 		if depth >= int32(4) {
 			return StaticGet_ClosureExportTypeClassifier_Kind_NOT_NAMESPACE()
 		}
-		var aliased *ClosureExportTypeClassifier_NameInfo = j2gort.CastPtr[ClosureExportTypeClassifier_NameInfo](j2gort.MapGetStr(this_.topLevelNames, value.GetString()))
+		var aliased *ClosureExportTypeClassifier_NameInfo = this_.topLevelNames.Get(value.GetString())
 		_ = aliased
 		{
+
 			if aliased == nil {
 				return StaticGet_ClosureExportTypeClassifier_Kind_NOT_NAMESPACE()
 			}
 			return this_.priv_ClosureExportTypeClassifier_kindOfName_1173(aliased, (depth + int32(1)))
 		}
+
 	case int32(101) /* Token.CAST */ :
 		return this_.priv_ClosureExportTypeClassifier_kindOfValue_1174(value.GetFirstChild(), value.GetJSDocInfo(), depth)
 	default:

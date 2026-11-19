@@ -191,74 +191,74 @@ func InitJsDocInfoParser(this_ *JsDocInfoParser, stream *JsDocTokenStream, comme
 }
 
 // Java method: JsDocInfoParser.addParserWarning(com.google.javascript.rhino.Msg msg, java.lang.String messageArg)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7034(msg pkg_rhino.Msg, messageArg string) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7048(msg pkg_rhino.Msg, messageArg string) {
 	_ = msg
 	_ = messageArg
-	this_.priv_JsDocInfoParser_addParserWarning_7035(msg, messageArg, this_.stream.GetLineno(), this_.stream.GetCharno())
+	this_.priv_JsDocInfoParser_addParserWarning_7049(msg, messageArg, this_.stream.GetLineno(), this_.stream.GetCharno())
 }
 
 // Java method: JsDocInfoParser.addParserWarning(com.google.javascript.rhino.Msg msg, java.lang.String messageArg, int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7035(msg pkg_rhino.Msg, messageArg string, lineno int32, charno int32) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7049(msg pkg_rhino.Msg, messageArg string, lineno int32, charno int32) {
 	_ = msg
 	_ = messageArg
 	_ = lineno
 	_ = charno
-	this_.errorReporter.Warning(msg.Format_1([]any{j2gort.BoxString(messageArg)}), this_.priv_JsDocInfoParser_getSourceName_7049(), lineno, charno)
+	this_.errorReporter.Warning(msg.Format_1([]any{j2gort.BoxString(messageArg)}), this_.priv_JsDocInfoParser_getSourceName_7063(), lineno, charno)
 }
 
 // Java method: JsDocInfoParser.addParserWarning(com.google.javascript.rhino.Msg msg)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7036(msg pkg_rhino.Msg) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7050(msg pkg_rhino.Msg) {
 	_ = msg
-	this_.priv_JsDocInfoParser_addParserWarning_7037(msg, this_.stream.GetLineno(), this_.stream.GetCharno())
+	this_.priv_JsDocInfoParser_addParserWarning_7051(msg, this_.stream.GetLineno(), this_.stream.GetCharno())
 }
 
 // Java method: JsDocInfoParser.addParserWarning(com.google.javascript.rhino.Msg msg, int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7037(msg pkg_rhino.Msg, lineno int32, charno int32) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addParserWarning_7051(msg pkg_rhino.Msg, lineno int32, charno int32) {
 	_ = msg
 	_ = lineno
 	_ = charno
-	this_.errorReporter.Warning(msg.Format_0(), this_.priv_JsDocInfoParser_getSourceName_7049(), lineno, charno)
+	this_.errorReporter.Warning(msg.Format_0(), this_.priv_JsDocInfoParser_getSourceName_7063(), lineno, charno)
 }
 
 // Java method: JsDocInfoParser.addTypeWarning(com.google.javascript.rhino.Msg msg, java.lang.String messageArg)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7038(msg pkg_rhino.Msg, messageArg string) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7052(msg pkg_rhino.Msg, messageArg string) {
 	_ = msg
 	_ = messageArg
-	this_.priv_JsDocInfoParser_addTypeWarning_7039(msg, messageArg, this_.stream.GetLineno(), this_.stream.GetCharno())
+	this_.priv_JsDocInfoParser_addTypeWarning_7053(msg, messageArg, this_.stream.GetLineno(), this_.stream.GetCharno())
 }
 
 // Java method: JsDocInfoParser.addTypeWarning(com.google.javascript.rhino.Msg msg, java.lang.String messageArg, int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7039(msg pkg_rhino.Msg, messageArg string, lineno int32, charno int32) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7053(msg pkg_rhino.Msg, messageArg string, lineno int32, charno int32) {
 	_ = msg
 	_ = messageArg
 	_ = lineno
 	_ = charno
-	this_.errorReporter.Warning(("Bad type annotation. " + j2gort.StrValString(msg.Format_1([]any{j2gort.BoxString(messageArg)})) + " See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information."), this_.priv_JsDocInfoParser_getSourceName_7049(), lineno, charno)
+	this_.errorReporter.Warning(("Bad type annotation. " + j2gort.StrValString(msg.Format_1([]any{j2gort.BoxString(messageArg)})) + " See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information."), this_.priv_JsDocInfoParser_getSourceName_7063(), lineno, charno)
 }
 
 // Java method: JsDocInfoParser.addTypeWarning(com.google.javascript.rhino.Msg msg)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7040(msg pkg_rhino.Msg) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7054(msg pkg_rhino.Msg) {
 	_ = msg
-	this_.priv_JsDocInfoParser_addTypeWarning_7041(msg, this_.stream.GetLineno(), this_.stream.GetCharno())
+	this_.priv_JsDocInfoParser_addTypeWarning_7055(msg, this_.stream.GetLineno(), this_.stream.GetCharno())
 }
 
 // Java method: JsDocInfoParser.addTypeWarning(com.google.javascript.rhino.Msg msg, int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7041(msg pkg_rhino.Msg, lineno int32, charno int32) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addTypeWarning_7055(msg pkg_rhino.Msg, lineno int32, charno int32) {
 	_ = msg
 	_ = lineno
 	_ = charno
-	this_.errorReporter.Warning(("Bad type annotation. " + j2gort.StrValString(msg.Format_0()) + " See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information."), this_.priv_JsDocInfoParser_getSourceName_7049(), lineno, charno)
+	this_.errorReporter.Warning(("Bad type annotation. " + j2gort.StrValString(msg.Format_0()) + " See https://github.com/google/closure-compiler/wiki/Annotating-JavaScript-for-the-Closure-Compiler for more information."), this_.priv_JsDocInfoParser_getSourceName_7063(), lineno, charno)
 }
 
 // Java method: JsDocInfoParser.addMissingTypeWarning(int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addMissingTypeWarning_7042(lineno int32, charno int32) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_addMissingTypeWarning_7056(lineno int32, charno int32) {
 	_ = lineno
 	_ = charno
-	this_.errorReporter.Warning("Missing type declaration.", this_.priv_JsDocInfoParser_getSourceName_7049(), lineno, charno)
+	this_.errorReporter.Warning("Missing type declaration.", this_.priv_JsDocInfoParser_getSourceName_7063(), lineno, charno)
 }
 
 // Java method: JsDocInfoParser.setLicenseTextMonotonic(java.lang.String x)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_setLicenseTextMonotonic_7043(x string) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_setLicenseTextMonotonic_7057(x string) {
 	_ = x
 	j2gort.CheckNotNullString(x)
 	if !(this_.licenseText == j2gort.NullString) {
@@ -341,7 +341,7 @@ func (this_ *JsDocInfoParser) ClearForReuse() {
 }
 
 // Java method: JsDocInfoParser.getSourceName()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getSourceName_7049() string {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getSourceName_7063() string {
 	var sourceFile pkg_rhino.StaticSourceFile = this_.GetSourceFile()
 	_ = sourceFile
 	if sourceFile == nil || sourceFile.IsJavaNil_() {
@@ -353,16 +353,16 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getSourceName_7049() string {
 
 // Java method: JsDocInfoParser.parseInlineTypeDoc()
 func (this_ *JsDocInfoParser) ParseInlineTypeDoc() *pkg_rhino.JSDocInfo {
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	var token JsDocToken = this_.priv_JsDocInfoParser_next_7112()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	var token JsDocToken = this_.priv_JsDocInfoParser_next_7126()
 	_ = token
 	var lineno int32 = this_.stream.GetLineno()
 	_ = lineno
 	var startCharno int32 = this_.stream.GetCharno()
 	_ = startCharno
-	var typeAst pkg_rhino.Node = this_.priv_JsDocInfoParser_parseParamTypeExpression_7078(token)
+	var typeAst pkg_rhino.Node = this_.priv_JsDocInfoParser_parseParamTypeExpression_7092(token)
 	_ = typeAst
-	this_.priv_JsDocInfoParser_recordTypeNode_7051(lineno, startCharno, typeAst, (token == StaticGet_JsDocToken_LEFT_CURLY()))
+	this_.priv_JsDocInfoParser_recordTypeNode_7065(lineno, startCharno, typeAst, (token == StaticGet_JsDocToken_LEFT_CURLY()))
 	var expr pkg_rhino.JSTypeExpression = this_.CreateJSTypeExpression(typeAst)
 	_ = expr
 	if !(expr).IsJavaNil_() {
@@ -374,7 +374,7 @@ func (this_ *JsDocInfoParser) ParseInlineTypeDoc() *pkg_rhino.JSDocInfo {
 }
 
 // Java method: JsDocInfoParser.recordTypeNode(int lineno, int startCharno, com.google.javascript.rhino.Node typeAst, boolean matchingLC)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_recordTypeNode_7051(lineno int32, startCharno int32, typeAst pkg_rhino.Node, matchingLC bool) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_recordTypeNode_7065(lineno int32, startCharno int32, typeAst pkg_rhino.Node, matchingLC bool) {
 	_ = lineno
 	_ = startCharno
 	_ = typeAst
@@ -394,7 +394,7 @@ func JsDocInfoParser_ParseTypeString(typeString string) pkg_rhino.Node {
 	_ = typeString
 	var parser *JsDocInfoParser = JsDocInfoParser_GetParser(typeString)
 	_ = parser
-	return parser.priv_JsDocInfoParser_parseTopLevelTypeExpression_7081(parser.priv_JsDocInfoParser_next_7112())
+	return parser.priv_JsDocInfoParser_parseTopLevelTypeExpression_7095(parser.priv_JsDocInfoParser_next_7126())
 }
 
 // Java static method: JsDocInfoParser.parseJsdoc(java.lang.String toParse)
@@ -429,11 +429,11 @@ func JsDocInfoParser_GetParser(toParse string) *JsDocInfoParser {
 // Java method: JsDocInfoParser.parse()
 func (this_ *JsDocInfoParser) Parse() bool {
 	this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	var token JsDocToken = this_.priv_JsDocInfoParser_next_7112()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	var token JsDocToken = this_.priv_JsDocInfoParser_next_7126()
 	_ = token
 	if this_.jsdocBuilder.ShouldParseDocumentation() {
-		var blockInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractBlockComment_7074(token)
+		var blockInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractBlockComment_7088(token)
 		_ = blockInfo
 		token = blockInfo.token
 		if !(j2gort.CheckNotNullString(blockInfo.string_) == "") {
@@ -455,7 +455,7 @@ func (this_ *JsDocInfoParser) Parse() bool {
 		}
 	}()
 	{
-		return this_.priv_JsDocInfoParser_parseHelperLoop_7054(token, extendedTypes)
+		return this_.priv_JsDocInfoParser_parseHelperLoop_7068(token, extendedTypes)
 	}
 	panic("unreachable")
 }
@@ -463,14 +463,14 @@ func (this_ *JsDocInfoParser) Parse() bool {
 // Java method: JsDocInfoParser.parseImportantComment()
 func (this_ *JsDocInfoParser) ParseImportantComment() {
 	this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	var token JsDocToken = this_.priv_JsDocInfoParser_next_7112()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	var token JsDocToken = this_.priv_JsDocInfoParser_next_7126()
 	_ = token
-	var info JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineComment_7075(token, StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE(), false, true)
+	var info JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineComment_7089(token, StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE(), false, true)
 	_ = info
 	var license string = (" " + j2gort.StrValString(info.string_))
 	_ = license
-	this_.priv_JsDocInfoParser_setLicenseTextMonotonic_7043(license)
+	this_.priv_JsDocInfoParser_setLicenseTextMonotonic_7057(license)
 	if this_.jsdocBuilder.ShouldParseDocumentation() {
 		this_.jsdocBuilder.RecordBlockDescription(license)
 	} else {
@@ -479,7 +479,7 @@ func (this_ *JsDocInfoParser) ParseImportantComment() {
 }
 
 // Java method: JsDocInfoParser.parseHelperLoop(com.google.javascript.jscomp.parsing.JsDocToken token, java.util.ArrayList<com.google.javascript.jscomp.parsing.JsDocInfoParser.ExtendedTypeInfo> extendedTypes)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseHelperLoop_7054(token JsDocToken, extendedTypes j2gort.Ext_java_util_ArrayList) bool {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseHelperLoop_7068(token JsDocToken, extendedTypes j2gort.Ext_java_util_ArrayList) bool {
 	_ = token
 	_ = extendedTypes
 	for {
@@ -487,21 +487,21 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseHelperLoop_7054(token Js
 		case int32(14) /* JsDocToken.ANNOTATION */ :
 			if this_.state == StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION() {
 				this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_NEWLINE()
-				token = this_.priv_JsDocInfoParser_parseAnnotation_7055(token, extendedTypes)
+				token = this_.priv_JsDocInfoParser_parseAnnotation_7069(token, extendedTypes)
 			} else {
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			}
 		case int32(17) /* JsDocToken.EOC */ :
 			var success bool = true
 			_ = success
-			this_.priv_JsDocInfoParser_checkExtendedTypes_7058(extendedTypes)
-			if this_.priv_JsDocInfoParser_hasParsedFileOverviewDocInfo_7116() {
+			this_.priv_JsDocInfoParser_checkExtendedTypes_7072(extendedTypes)
+			if this_.priv_JsDocInfoParser_hasParsedFileOverviewDocInfo_7130() {
 				this_.fileOverviewJSDocInfo = this_.RetrieveAndResetParsedJSDocInfo()
 				var visibility pkg_rhino.JSDocInfo_Visibility = this_.fileOverviewJSDocInfo.GetVisibility()
 				_ = visibility
 				switch (visibility).Ordinal() {
 				case int32(0) /* Visibility.PRIVATE */, int32(2) /* Visibility.PROTECTED */ :
-					this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_BAD_FILEOVERVIEW_VISIBIIITY_ANNOTATION(), j2gort.Ext_com_google_common_base_Ascii_ToLowerCase_1_string(j2gort.CheckNotNullEnum(visibility).String()))
+					this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_BAD_FILEOVERVIEW_VISIBIIITY_ANNOTATION(), j2gort.Ext_com_google_common_base_Ascii_ToLowerCase_1_string(j2gort.CheckNotNullEnum(visibility).String()))
 					success = false
 				default:
 				}
@@ -509,20 +509,20 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseHelperLoop_7054(token Js
 			return success
 		case int32(0) /* JsDocToken.EOF */ :
 			this_.jsdocBuilder.Reset()
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_UNEXPECTED_EOF())
-			this_.priv_JsDocInfoParser_checkExtendedTypes_7058(extendedTypes)
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_UNEXPECTED_EOF())
+			this_.priv_JsDocInfoParser_checkExtendedTypes_7072(extendedTypes)
 			return false
 		case int32(1) /* JsDocToken.EOL */ :
 			if this_.state == StaticGet_JsDocInfoParser_State_SEARCHING_NEWLINE() {
 				this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()
 			}
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 		default:
 			if (token == StaticGet_JsDocToken_STAR()) && (this_.state == StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()) {
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			} else {
 				this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_NEWLINE()
-				token = this_.priv_JsDocInfoParser_eatTokensUntilEOL_7106()
+				token = this_.priv_JsDocInfoParser_eatTokensUntilEOL_7120()
 			}
 		}
 	}
@@ -530,7 +530,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseHelperLoop_7054(token Js
 }
 
 // Java method: JsDocInfoParser.parseAnnotation(com.google.javascript.jscomp.parsing.JsDocToken token, java.util.ArrayList<com.google.javascript.jscomp.parsing.JsDocInfoParser.ExtendedTypeInfo> extendedTypes)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token JsDocToken, extendedTypes j2gort.Ext_java_util_ArrayList) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7069(token JsDocToken, extendedTypes j2gort.Ext_java_util_ArrayList) JsDocToken {
 	_ = token
 	_ = extendedTypes
 	var type_ pkg_rhino.JSTypeExpression = (pkg_rhino.JSTypeExpression{})
@@ -544,10 +544,10 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 	var annotation Annotation = j2gort.Cast[Annotation](j2gort.MapGetStr(this_.annotations, annotationName))
 	_ = annotation
 	if this_.onlyParseLicenseJsDoc && !((annotation == StaticGet_Annotation_LICENSE()) || (annotation == StaticGet_Annotation_PRESERVE())) {
-		return this_.priv_JsDocInfoParser_next_7112()
+		return this_.priv_JsDocInfoParser_next_7126()
 	}
 	if (annotation == 0) || (j2gort.CheckNotNullString(annotationName) == "") {
-		this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_BAD_JSDOC_TAG(), annotationName)
+		this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_BAD_JSDOC_TAG(), annotationName)
 	} else {
 		this_.jsdocBuilder.MarkAnnotation(annotationName, lineno, charno)
 		var matchingRc bool = false
@@ -555,71 +555,71 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 		switch (annotation).Ordinal() {
 		case int32(38) /* Annotation.NG_INJECT */ :
 			if this_.jsdocBuilder.IsNgInjectRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NGINJECT_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NGINJECT_EXTRA())
 			} else {
 				this_.jsdocBuilder.RecordNgInject(true)
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(0) /* Annotation.ABSTRACT */ :
 			if !(this_.jsdocBuilder.RecordAbstract()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(2) /* Annotation.AUTHOR */ :
 			if this_.jsdocBuilder.ShouldParseDocumentation() {
-				var authorInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7070()
+				var authorInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7084()
 				_ = authorInfo
 				var author string = authorInfo.string_
 				_ = author
 				if j2gort.CheckNotNullString(author) == "" {
-					this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_AUTHORMISSING())
+					this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_AUTHORMISSING())
 				} else {
 					this_.jsdocBuilder.RecordAuthor(author)
 				}
 				token = authorInfo.token
 			} else {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 			}
 			return token
 		case int32(73) /* Annotation.UNRESTRICTED */ :
 			if !(this_.jsdocBuilder.RecordUnrestricted()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(64) /* Annotation.STRUCT */ :
 			if !(this_.jsdocBuilder.RecordStruct()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(12) /* Annotation.DICT */ :
 			if !(this_.jsdocBuilder.RecordDict()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(4) /* Annotation.COLLAPSIBLE_OR_BREAK_MY_CODE */ :
 			if !(this_.jsdocBuilder.RecordCollapsibleOrBreakMyCode()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_COLLAPSIBLEORBREAKMYCODE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_COLLAPSIBLEORBREAKMYCODE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(6) /* Annotation.CONSTRUCTOR */ :
 			if !(this_.jsdocBuilder.RecordConstructor()) {
 				if this_.jsdocBuilder.IsInterfaceRecorded() {
-					this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INTERFACE_CONSTRUCTOR())
+					this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INTERFACE_CONSTRUCTOR())
 				} else {
-					this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
+					this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
 				}
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(8) /* Annotation.RECORD */ :
 			if !(this_.jsdocBuilder.RecordImplicitMatch()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_RECORD())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_RECORD())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(10) /* Annotation.DEPRECATED */ :
 			if !(this_.jsdocBuilder.RecordDeprecated()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_DEPRECATED())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_DEPRECATED())
 			}
-			var reasonInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+			var reasonInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 			_ = reasonInfo
 			var reason string = reasonInfo.string_
 			_ = reason
@@ -631,18 +631,18 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 		case int32(25) /* Annotation.INTERFACE */ :
 			if !(this_.jsdocBuilder.RecordInterface()) {
 				if this_.jsdocBuilder.IsConstructorRecorded() {
-					this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INTERFACE_CONSTRUCTOR())
+					this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INTERFACE_CONSTRUCTOR())
 				} else {
-					this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
+					this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE())
 				}
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(11) /* Annotation.DESC */ :
 			if this_.jsdocBuilder.IsDescriptionRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_DESC_EXTRA())
-				return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_DESC_EXTRA())
+				return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 			} else {
-				var descriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+				var descriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 				_ = descriptionInfo
 				var description string = descriptionInfo.string_
 				_ = description
@@ -651,7 +651,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 				return token
 			}
 		case int32(76) /* Annotation.TS_TYPE */ :
-			var tsTypeInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+			var tsTypeInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 			_ = tsTypeInfo
 			var tsType string = tsTypeInfo.string_
 			_ = tsType
@@ -665,30 +665,30 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 		case int32(19) /* Annotation.FILE_OVERVIEW */ :
 			var fileOverview string = ""
 			_ = fileOverview
-			if this_.jsdocBuilder.ShouldParseDocumentation() && !(this_.priv_JsDocInfoParser_lookAheadForAnnotation_7120()) {
-				var fileOverviewInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7072(token, this_.priv_JsDocInfoParser_getWhitespaceOption_7073(StaticGet_JsDocInfoParser_WhitespaceOption_TRIM()), false)
+			if this_.jsdocBuilder.ShouldParseDocumentation() && !(this_.priv_JsDocInfoParser_lookAheadForAnnotation_7134()) {
+				var fileOverviewInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7086(token, this_.priv_JsDocInfoParser_getWhitespaceOption_7087(StaticGet_JsDocInfoParser_WhitespaceOption_TRIM()), false)
 				_ = fileOverviewInfo
 				fileOverview = fileOverviewInfo.string_
 				token = fileOverviewInfo.token
 			} else {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 			}
 			if !(this_.jsdocBuilder.RecordFileOverview(fileOverview)) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_FILEOVERVIEW_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_FILEOVERVIEW_EXTRA())
 			}
 			return token
 		case int32(30) /* Annotation.LICENSE */, int32(51) /* Annotation.PRESERVE */ :
-			var preserveInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7072(token, StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE(), true)
+			var preserveInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7086(token, StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE(), true)
 			_ = preserveInfo
 			var preserve string = preserveInfo.string_
 			_ = preserve
 			if j2gort.JStrLen(preserve) > int32(0) {
-				this_.priv_JsDocInfoParser_setLicenseTextMonotonic_7043(preserve)
+				this_.priv_JsDocInfoParser_setLicenseTextMonotonic_7057(preserve)
 			}
 			token = preserveInfo.token
 			return token
 		case int32(14) /* Annotation.ENHANCE */ :
-			var enhanceInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7070()
+			var enhanceInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7084()
 			_ = enhanceInfo
 			var enhance string = enhanceInfo.string_
 			_ = enhance
@@ -697,16 +697,16 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 			return token
 		case int32(37) /* Annotation.MODS */ :
 			if this_.jsdocBuilder.IsModsRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODS_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODS_EXTRA())
 			} else {
-				token = this_.priv_JsDocInfoParser_parseModsTag_7060(this_.priv_JsDocInfoParser_next_7112())
+				token = this_.priv_JsDocInfoParser_parseModsTag_7074(this_.priv_JsDocInfoParser_next_7126())
 			}
 			if (token != StaticGet_JsDocToken_EOC()) && (token != StaticGet_JsDocToken_EOF()) {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 			}
 			return token
 		case int32(15) /* Annotation.ENUM */ :
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			lineno = this_.stream.GetLineno()
 			charno = this_.stream.GetCharno()
 			type_ = (pkg_rhino.JSTypeExpression{})
@@ -717,51 +717,51 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 					var typeName string = typeNode.GetString()
 					_ = typeName
 					if !(j2gort.SetContainsStr(StaticGet_JsDocInfoParser_PrimitiveTypes(), typeName)) {
-						typeNode = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_BANG(), typeNode)
+						typeNode = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_BANG(), typeNode)
 					}
 				}
 				type_ = this_.CreateJSTypeExpression(typeNode)
 			} else {
-				this_.priv_JsDocInfoParser_restoreLookAhead_7108(token)
+				this_.priv_JsDocInfoParser_restoreLookAhead_7122(token)
 			}
 			if (type_).IsJavaNil_() {
-				type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_newStringNode_7101("number"))
+				type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_newStringNode_7115("number"))
 			}
 			if !(this_.jsdocBuilder.RecordEnumParameterType(type_)) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
+				this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(17) /* Annotation.EXTERNS */ :
 			if !(this_.jsdocBuilder.RecordExterns()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_EXTERNS())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_EXTERNS())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(41) /* Annotation.NO_COVERAGE */ :
 			if !(this_.jsdocBuilder.RecordNoCoverage()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOCOVERAGE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOCOVERAGE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(72) /* Annotation.TYPE_SUMMARY */ :
 			if !(this_.jsdocBuilder.RecordTypeSummary()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_TYPESUMMARY())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_TYPESUMMARY())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(16) /* Annotation.EXTENDS */, int32(22) /* Annotation.IMPLEMENTS */ :
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			token = this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			lineno = this_.stream.GetLineno()
 			charno = this_.stream.GetCharno()
 			matchingRc = false
 			if token == StaticGet_JsDocToken_LEFT_CURLY() {
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 				matchingRc = true
 			}
 			if token == StaticGet_JsDocToken_STRING() {
-				var typeNode_2 pkg_rhino.Node = this_.priv_JsDocInfoParser_parseAndRecordTypeNameNode_7066(token, lineno, charno, matchingRc)
+				var typeNode_2 pkg_rhino.Node = this_.priv_JsDocInfoParser_parseAndRecordTypeNameNode_7080(token, lineno, charno, matchingRc)
 				_ = typeNode_2
 				lineno = this_.stream.GetLineno()
 				charno = this_.stream.GetCharno()
-				typeNode_2 = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_BANG(), typeNode_2)
+				typeNode_2 = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_BANG(), typeNode_2)
 				type_ = this_.CreateJSTypeExpression(typeNode_2)
 				if annotation == StaticGet_Annotation_EXTENDS() {
 					extendedTypes.Add_1(j2gort.BoxNullableVal(NewJsDocInfoParser_ExtendedTypeInfo(type_, this_.stream.GetLineno(), this_.stream.GetCharno())))
@@ -770,218 +770,218 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 						j2gort.CheckState(false)
 					}
 					if !(this_.jsdocBuilder.RecordImplementedInterface(type_)) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_IMPLEMENTS_DUPLICATE(), lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_IMPLEMENTS_DUPLICATE(), lineno, charno)
 					}
 				}
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 				if matchingRc {
 					if token != StaticGet_JsDocToken_RIGHT_CURLY() {
-						this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+						this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 					} else {
-						token = this_.priv_JsDocInfoParser_next_7112()
+						token = this_.priv_JsDocInfoParser_next_7126()
 					}
 				} else if ((token != StaticGet_JsDocToken_EOL()) && (token != StaticGet_JsDocToken_EOF())) && (token != StaticGet_JsDocToken_EOC()) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_END_ANNOTATION_EXPECTED())
+					this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_END_ANNOTATION_EXPECTED())
 				}
 			} else if (token == StaticGet_JsDocToken_BANG()) || (token == StaticGet_JsDocToken_QMARK()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_IMPLEMENTS_EXTRAQUALIFIER(), lineno, charno)
+				this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_IMPLEMENTS_EXTRAQUALIFIER(), lineno, charno)
 			} else {
-				this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_NO_TYPE_NAME(), lineno, charno)
+				this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_NO_TYPE_NAME(), lineno, charno)
 			}
-			token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(token)
+			token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(token)
 			return token
 		case int32(29) /* Annotation.LENDS */ :
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
 			matchingRc = false
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_LEFT_CURLY()) {
-				token = this_.priv_JsDocInfoParser_next_7112()
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_LEFT_CURLY()) {
+				token = this_.priv_JsDocInfoParser_next_7126()
 				matchingRc = true
 			}
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
-				var lendsExpression pkg_rhino.JSTypeExpression = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_parseNameExpression_7086(this_.priv_JsDocInfoParser_next_7112()))
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
+				var lendsExpression pkg_rhino.JSTypeExpression = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_parseNameExpression_7100(this_.priv_JsDocInfoParser_next_7126()))
 				_ = lendsExpression
 				if !(this_.jsdocBuilder.RecordLends(lendsExpression)) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_LENDS_INCOMPATIBLE())
+					this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_LENDS_INCOMPATIBLE())
 				}
 			} else {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_LENDS_MISSING())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_LENDS_MISSING())
 			}
-			if matchingRc && !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+			if matchingRc && !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(33) /* Annotation.MEANING */ :
-			var meaningInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+			var meaningInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 			_ = meaningInfo
 			var meaning string = meaningInfo.string_
 			_ = meaning
 			token = meaningInfo.token
 			if !(this_.jsdocBuilder.RecordMeaning(meaning)) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MEANING_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MEANING_EXTRA())
 			}
 			return token
 		case int32(1) /* Annotation.ALTERNATE_MESSAGE_ID */ :
-			var alternateMessageIdInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7070()
+			var alternateMessageIdInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7084()
 			_ = alternateMessageIdInfo
 			var alternateMessageId string = alternateMessageIdInfo.string_
 			_ = alternateMessageId
 			token = alternateMessageIdInfo.token
 			if !(this_.jsdocBuilder.RecordAlternateMessageId(alternateMessageId)) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_ALTERNATEMESSAGEID_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_ALTERNATEMESSAGEID_EXTRA())
 			}
 			return token
 		case int32(3) /* Annotation.CLOSURE_PRIMITIVE */ :
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			return this_.priv_JsDocInfoParser_parseClosurePrimitiveTag_7061(this_.priv_JsDocInfoParser_next_7112())
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			return this_.priv_JsDocInfoParser_parseClosurePrimitiveTag_7075(this_.priv_JsDocInfoParser_next_7126())
 		case int32(40) /* Annotation.NO_COMPILE */ :
 			if !(this_.jsdocBuilder.RecordNoCompile()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOCOMPILE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOCOMPILE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(42) /* Annotation.NO_DTS */ :
 			if !(this_.jsdocBuilder.RecordNoDts()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NODTS())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NODTS())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(28) /* Annotation.LEGACY_NAMED_TS_EXPORT */ :
 			if !(this_.jsdocBuilder.RecordLegacyNamedTsExport()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_LEGACY_TS_EXPORT())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_LEGACY_TS_EXPORT())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(39) /* Annotation.NO_COLLAPSE */ :
 			if !(this_.jsdocBuilder.RecordNoCollapse()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOCOLLAPSE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOCOLLAPSE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(13) /* Annotation.ENCOURAGE_INLINING */ :
 			if !(this_.jsdocBuilder.RecordEncourageInlining()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_ENCOURAGE_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_ENCOURAGE_INLINING())
 			}
 			if this_.jsdocBuilder.IsRequireInlining() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
 			}
 			if this_.jsdocBuilder.IsNoInline() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(58) /* Annotation.REQUIRE_INLINING */ :
 			if !(this_.jsdocBuilder.RecordRequireInlining()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_REQUIRE_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_REQUIRE_INLINING())
 			}
 			if this_.jsdocBuilder.IsEncourageInlining() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
 			}
 			if this_.jsdocBuilder.IsNoInline() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(43) /* Annotation.NO_INLINE */ :
 			if !(this_.jsdocBuilder.RecordNoInline()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOINLINE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOINLINE())
 			}
 			if this_.jsdocBuilder.IsEncourageInlining() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
 			}
 			if this_.jsdocBuilder.IsRequireInlining() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_INLINING())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(54) /* Annotation.PROVIDE_GOOG */ :
 			if !(this_.jsdocBuilder.RecordProvideGoog()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_PROVIDE_GOOG())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_PROVIDE_GOOG())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(55) /* Annotation.PROVIDE_ALREADY_PROVIDED */ :
 			if !(this_.jsdocBuilder.RecordProvideAlreadyProvided()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_PROVIDE_ALREADY_PROVIDED())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_PROVIDE_ALREADY_PROVIDED())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(57) /* Annotation.PURE_OR_BREAK_MY_CODE */ :
 			if !(this_.jsdocBuilder.RecordPureOrBreakMyCode()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_PUREORBREAKMYCODE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_PUREORBREAKMYCODE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(24) /* Annotation.INHERIT_DOC */, int32(46) /* Annotation.OVERRIDE */ :
 			if !(this_.jsdocBuilder.RecordOverride()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_OVERRIDE())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_OVERRIDE())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(49) /* Annotation.POLYMER */ :
 			if this_.jsdocBuilder.IsPolymerRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_POLYMER_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_POLYMER_EXTRA())
 			} else {
 				this_.jsdocBuilder.RecordPolymer()
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(50) /* Annotation.POLYMER_BEHAVIOR */ :
 			if this_.jsdocBuilder.IsPolymerBehaviorRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_POLYMERBEHAVIOR_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_POLYMERBEHAVIOR_EXTRA())
 			} else {
 				this_.jsdocBuilder.RecordPolymerBehavior()
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(7) /* Annotation.CUSTOM_ELEMENT */ :
 			if this_.jsdocBuilder.IsCustomElementRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CUSTOMELEMENT_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CUSTOMELEMENT_EXTRA())
 			} else {
 				this_.jsdocBuilder.RecordCustomElement()
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(34) /* Annotation.MIXIN_CLASS */ :
 			if this_.jsdocBuilder.IsMixinClassRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MIXINCLASS_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MIXINCLASS_EXTRA())
 			} else {
 				this_.jsdocBuilder.RecordMixinClass()
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(35) /* Annotation.MIXIN_FUNCTION */ :
 			if this_.jsdocBuilder.IsMixinFunctionRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MIXINFUNCTION_EXTRA())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MIXINFUNCTION_EXTRA())
 			} else {
 				this_.jsdocBuilder.RecordMixinFunction()
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(60) /* Annotation.SASS_GENERATED_CSS_TS */ :
 			if this_.jsdocBuilder.IsSassGeneratedCssTsRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_SASS_GENERATED_CSS_TS())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_SASS_GENERATED_CSS_TS())
 			} else {
 				this_.jsdocBuilder.RecordSassGeneratedCssTs()
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(67) /* Annotation.CLOSURE_UNAWARE_CODE */ :
-			return this_.priv_JsDocInfoParser_parseClosureUnawareCode_7122()
+			return this_.priv_JsDocInfoParser_parseClosureUnawareCode_7136()
 		case int32(69) /* Annotation.THROWS */ :
 			lineno = this_.stream.GetLineno()
 			charno = this_.stream.GetCharno()
 			var throwsAnnotation string = ""
 			_ = throwsAnnotation
-			if !(this_.priv_JsDocInfoParser_lookAheadForAnnotation_7120()) {
-				var throwsInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+			if !(this_.priv_JsDocInfoParser_lookAheadForAnnotation_7134()) {
+				var throwsInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 				_ = throwsInfo
 				throwsAnnotation = javalang.StringTrim(j2gort.CheckNotNullString(throwsInfo.string_))
 				token = throwsInfo.token
 			}
 			if this_.jsdocBuilder.IsNoSideEffectsRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS(), lineno, charno)
+				this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS(), lineno, charno)
 			} else if !(this_.jsdocBuilder.RecordThrowsAnnotation(throwsAnnotation)) {
-				this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_THROWS(), lineno, charno)
+				this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_THROWS(), lineno, charno)
 			}
 			return token
 		case int32(48) /* Annotation.PARAM */ :
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			token = this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			lineno = this_.stream.GetLineno()
 			charno = this_.stream.GetCharno()
 			type_ = (pkg_rhino.JSTypeExpression{})
 			var hasParamType bool = false
 			_ = hasParamType
 			if token == StaticGet_JsDocToken_LEFT_CURLY() {
-				type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_parseAndRecordParamTypeNode_7067(token))
+				type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_parseAndRecordParamTypeNode_7081(token))
 				if (type_).IsJavaNil_() {
-					return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+					return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 				}
-				this_.priv_JsDocInfoParser_skipEOLs_7114()
-				token = this_.priv_JsDocInfoParser_next_7112()
+				this_.priv_JsDocInfoParser_skipEOLs_7128()
+				token = this_.priv_JsDocInfoParser_next_7126()
 				lineno = this_.stream.GetLineno()
 				charno = this_.stream.GetCharno()
 				hasParamType = true
@@ -991,47 +991,47 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 			var isBracketedParam bool = (StaticGet_JsDocToken_LEFT_SQUARE() == token)
 			_ = isBracketedParam
 			if isBracketedParam {
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			}
 			if StaticGet_JsDocToken_STRING() != token {
-				this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_MISSING_VARIABLE_NAME(), lineno, charno)
+				this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_MISSING_VARIABLE_NAME(), lineno, charno)
 			} else {
 				if !(hasParamType) {
-					this_.priv_JsDocInfoParser_addMissingTypeWarning_7042(this_.stream.GetLineno(), this_.stream.GetCharno())
+					this_.priv_JsDocInfoParser_addMissingTypeWarning_7056(this_.stream.GetLineno(), this_.stream.GetCharno())
 				}
 				name = this_.stream.GetString()
 				if isBracketedParam {
-					token = this_.priv_JsDocInfoParser_next_7112()
+					token = this_.priv_JsDocInfoParser_next_7126()
 					if StaticGet_JsDocToken_EQUALS() == token {
-						token = this_.priv_JsDocInfoParser_next_7112()
+						token = this_.priv_JsDocInfoParser_next_7126()
 						if StaticGet_JsDocToken_STRING() == token {
-							token = this_.priv_JsDocInfoParser_next_7112()
+							token = this_.priv_JsDocInfoParser_next_7126()
 						}
 					}
 					if StaticGet_JsDocToken_RIGHT_SQUARE() != token {
-						this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RB())
+						this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RB())
 					} else if !(type_).IsJavaNil_() {
 						type_ = pkg_rhino.JSTypeExpression_MakeOptionalArg(type_)
 					}
 				}
 				if !(pkg_rhino.TokenStream_IsJSIdentifier(name)) {
-					this_.priv_JsDocInfoParser_addParserWarning_7035(pkg_rhino.StaticGet_Msg_INVALID_VARIABLE_NAME(), name, lineno, charno)
+					this_.priv_JsDocInfoParser_addParserWarning_7049(pkg_rhino.StaticGet_Msg_INVALID_VARIABLE_NAME(), name, lineno, charno)
 					name = j2gort.NullString
 				} else if !(this_.jsdocBuilder.RecordParameter(name, type_)) {
 					if this_.jsdocBuilder.HasParameter(name) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7039(pkg_rhino.StaticGet_Msg_DUP_VARIABLE_NAME(), name, lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7053(pkg_rhino.StaticGet_Msg_DUP_VARIABLE_NAME(), name, lineno, charno)
 					} else {
-						this_.priv_JsDocInfoParser_addTypeWarning_7039(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), name, lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7053(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), name, lineno, charno)
 					}
 				}
 			}
 			if name == j2gort.NullString {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(token)
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(token)
 				return token
 			}
 			this_.jsdocBuilder.MarkName(name, this_.templateNode, lineno, charno)
 			if this_.jsdocBuilder.ShouldParseDocumentation() && (token != StaticGet_JsDocToken_ANNOTATION()) {
-				var paramDescriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+				var paramDescriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 				_ = paramDescriptionInfo
 				var paramDescription string = paramDescriptionInfo.string_
 				_ = paramDescription
@@ -1040,51 +1040,51 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 				}
 				token = paramDescriptionInfo.token
 			} else if (token != StaticGet_JsDocToken_EOC()) && (token != StaticGet_JsDocToken_EOF()) {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 			}
 			return token
 		case int32(44) /* Annotation.NO_SIDE_EFFECTS */ :
 			if this_.jsdocBuilder.IsModifiesRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES())
 			} else if this_.jsdocBuilder.IsThrowsRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_THROWS())
 			} else if !(this_.jsdocBuilder.RecordNoSideEffects()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(36) /* Annotation.MODIFIES */ :
-			token = this_.priv_JsDocInfoParser_parseModifiesTag_7062(this_.priv_JsDocInfoParser_next_7112())
+			token = this_.priv_JsDocInfoParser_parseModifiesTag_7076(this_.priv_JsDocInfoParser_next_7126())
 			return token
 		case int32(23) /* Annotation.IMPLICIT_CAST */ :
 			if !(this_.jsdocBuilder.RecordImplicitCast()) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_IMPLICITCAST())
+				this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_IMPLICITCAST())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(61) /* Annotation.SEE */ :
 			if this_.jsdocBuilder.ShouldParseDocumentation() {
-				var referenceInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7070()
+				var referenceInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractSingleLineBlock_7084()
 				_ = referenceInfo
 				var reference string = referenceInfo.string_
 				_ = reference
 				if j2gort.CheckNotNullString(reference) == "" {
-					this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_SEEMISSING())
+					this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_SEEMISSING())
 				} else {
 					this_.jsdocBuilder.RecordReference(reference)
 				}
 				token = referenceInfo.token
 			} else {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 			}
 			return token
 		case int32(65) /* Annotation.SUPPRESS */ :
-			token = this_.priv_JsDocInfoParser_parseSuppressTag_7059(this_.priv_JsDocInfoParser_next_7112())
+			token = this_.priv_JsDocInfoParser_parseSuppressTag_7073(this_.priv_JsDocInfoParser_next_7126())
 			return token
 		case int32(66) /* Annotation.TEMPLATE */ :
 			var boundTypeExpression pkg_rhino.JSTypeExpression = (pkg_rhino.JSTypeExpression{})
 			_ = boundTypeExpression
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_LEFT_CURLY()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_BOUNDEDGENERICS_USED(), lineno, charno)
-				var boundTypeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpressionAnnotation_7077(this_.priv_JsDocInfoParser_next_7112())
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_LEFT_CURLY()) {
+				this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_BOUNDEDGENERICS_USED(), lineno, charno)
+				var boundTypeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpressionAnnotation_7091(this_.priv_JsDocInfoParser_next_7126())
 				_ = boundTypeNode
 				if boundTypeNode != 0 {
 					boundTypeExpression = this_.CreateJSTypeExpression(boundTypeNode)
@@ -1092,9 +1092,9 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 			}
 			var templateNames []string = []string{}
 			_ = templateNames
-			if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COLON())) {
-				for doFirst_1 := true; doFirst_1 || (this_.priv_JsDocInfoParser_eatIfMatch_7111(StaticGet_JsDocToken_COMMA())); doFirst_1 = false {
-					var nameNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseNameExpression_7086(this_.priv_JsDocInfoParser_next_7112())
+			if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COLON())) {
+				for doFirst_1 := true; doFirst_1 || (this_.priv_JsDocInfoParser_eatIfMatch_7125(StaticGet_JsDocToken_COMMA())); doFirst_1 = false {
+					var nameNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseNameExpression_7100(this_.priv_JsDocInfoParser_next_7126())
 					_ = nameNode
 					var templateName string
 					_ = templateName
@@ -1110,76 +1110,76 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 			}
 			var ttlAst pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = ttlAst
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COLON()) {
-				var ttlExtraction JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7072(this_.priv_JsDocInfoParser_current_7113(), StaticGet_JsDocInfoParser_WhitespaceOption_TRIM(), false)
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COLON()) {
+				var ttlExtraction JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7086(this_.priv_JsDocInfoParser_current_7127(), StaticGet_JsDocInfoParser_WhitespaceOption_TRIM(), false)
 				_ = ttlExtraction
 				token = ttlExtraction.token
-				ttlAst = this_.priv_JsDocInfoParser_parseTtlAst_7056(ttlExtraction, lineno, charno)
+				ttlAst = this_.priv_JsDocInfoParser_parseTtlAst_7070(ttlExtraction, lineno, charno)
 			} else {
-				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(this_.priv_JsDocInfoParser_current_7113())
+				token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(this_.priv_JsDocInfoParser_current_7127())
 			}
 			switch int32(len(templateNames)) {
 			case int32(0):
-				this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_MISSING(), lineno, charno)
+				this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_MISSING(), lineno, charno)
 				return token
 			case int32(1):
 			default:
 				if !(boundTypeExpression).IsJavaNil_() || (ttlAst != 0) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_MULTIPLEDECLARATION(), lineno, charno)
+					this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_MULTIPLEDECLARATION(), lineno, charno)
 				}
 			}
 			if !(boundTypeExpression).IsJavaNil_() && (ttlAst != 0) {
-				this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_BOUNDSWITHTTL(), lineno, charno)
+				this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_BOUNDSWITHTTL(), lineno, charno)
 				return token
 			}
 			if ttlAst != 0 {
 				if !(this_.jsdocBuilder.RecordTypeTransformation(templateNames[int32(0)], ttlAst)) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
+					this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
 				}
 			} else if !(boundTypeExpression).IsJavaNil_() {
 				if !(this_.jsdocBuilder.RecordTemplateTypeName_2(templateNames[int32(0)], boundTypeExpression)) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
+					this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
 				}
 			} else {
 				for _, templateName_2 := range templateNames {
 					_ = templateName_2
 					if !(this_.jsdocBuilder.RecordTemplateTypeName_1(templateName_2)) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
 					}
 				}
 
 			}
 			return token
 		case int32(21) /* Annotation.IDGENERATOR */ :
-			token = this_.priv_JsDocInfoParser_parseIdGeneratorTag_7063(this_.priv_JsDocInfoParser_next_7112())
+			token = this_.priv_JsDocInfoParser_parseIdGeneratorTag_7077(this_.priv_JsDocInfoParser_next_7126())
 			return token
 		case int32(31) /* Annotation.LOG_TYPE_IN_COMPILER */ :
 			var unused bool = this_.jsdocBuilder.RecordLogTypeInCompiler()
 			_ = unused
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(45) /* Annotation.NOT_IMPLEMENTED */, int32(26) /* Annotation.JSX */, int32(27) /* Annotation.JSX_FRAGMENT */, int32(62) /* Annotation.SOY_MODULE */, int32(63) /* Annotation.SOY_TEMPLATE */, int32(77) /* Annotation.WIZ_ANALYZER */, int32(32) /* Annotation.MAY_HAVE_EXTRA_EDGE */ :
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(74) /* Annotation.USED_VIA_DOT_CONSTRUCTOR */ :
 			if !(this_.jsdocBuilder.RecordUsedViaDotConstructor()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_USEDVIADOTCONSTRUCTOR())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_USEDVIADOTCONSTRUCTOR())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(75) /* Annotation.WIZACTION */ :
 			if !(this_.jsdocBuilder.RecordWizaction()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_WIZACTION())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_WIZACTION())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(78) /* Annotation.WIZCALLBACK */ :
 			if !(this_.jsdocBuilder.RecordWizcallback()) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_WIZCALLBACK())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_WIZCALLBACK())
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		case int32(5) /* Annotation.CONSTANT */, int32(20) /* Annotation.FINAL */, int32(9) /* Annotation.DEFINE */, int32(18) /* Annotation.EXPORT */, int32(59) /* Annotation.RETURN */, int32(47) /* Annotation.PACKAGE */, int32(52) /* Annotation.PRIVATE */, int32(53) /* Annotation.PROTECTED */, int32(56) /* Annotation.PUBLIC */, int32(68) /* Annotation.THIS */, int32(70) /* Annotation.TYPE */, int32(71) /* Annotation.TYPEDEF */ :
 			lineno = this_.stream.GetLineno()
 			charno = this_.stream.GetCharno()
 			var typeNode_3 pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = typeNode_3
-			var hasType bool = this_.priv_JsDocInfoParser_lookAheadForType_7119()
+			var hasType bool = this_.priv_JsDocInfoParser_lookAheadForType_7133()
 			_ = hasType
 			var isAlternateTypeAnnotation bool = (((((((annotation == StaticGet_Annotation_PACKAGE()) || (annotation == StaticGet_Annotation_PRIVATE())) || (annotation == StaticGet_Annotation_PROTECTED())) || (annotation == StaticGet_Annotation_PUBLIC())) || (annotation == StaticGet_Annotation_CONSTANT())) || (annotation == StaticGet_Annotation_FINAL())) || (annotation == StaticGet_Annotation_EXPORT()))
 			_ = isAlternateTypeAnnotation
@@ -1187,14 +1187,14 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 			_ = canSkipTypeAnnotation
 			type_ = (pkg_rhino.JSTypeExpression{})
 			if (annotation == StaticGet_Annotation_RETURN()) && !(hasType) {
-				this_.priv_JsDocInfoParser_addMissingTypeWarning_7042(this_.stream.GetLineno(), this_.stream.GetCharno())
+				this_.priv_JsDocInfoParser_addMissingTypeWarning_7056(this_.stream.GetLineno(), this_.stream.GetCharno())
 			}
 			if hasType || !(canSkipTypeAnnotation) {
-				this_.priv_JsDocInfoParser_skipEOLs_7114()
-				token = this_.priv_JsDocInfoParser_next_7112()
+				this_.priv_JsDocInfoParser_skipEOLs_7128()
+				token = this_.priv_JsDocInfoParser_next_7126()
 				typeNode_3 = this_.ParseAndRecordTypeNode_1(token)
 				if annotation == StaticGet_Annotation_THIS() {
-					typeNode_3 = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_BANG(), typeNode_3)
+					typeNode_3 = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_BANG(), typeNode_3)
 				}
 				type_ = this_.CreateJSTypeExpression(typeNode_3)
 			}
@@ -1202,71 +1202,71 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 			_ = hasError
 			if !(hasError) {
 				if ((!(type_).IsJavaNil_() && isAlternateTypeAnnotation) || (annotation == StaticGet_Annotation_TYPE())) && !(this_.jsdocBuilder.RecordType(type_)) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
+					this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
 				}
-				var isAnnotationNext bool = this_.priv_JsDocInfoParser_lookAheadForAnnotation_7120()
+				var isAnnotationNext bool = this_.priv_JsDocInfoParser_lookAheadForAnnotation_7134()
 				_ = isAnnotationNext
 				switch (annotation).Ordinal() {
 				case int32(5) /* Annotation.CONSTANT */ :
 					if !(this_.jsdocBuilder.RecordConstancy()) {
-						this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CONST())
+						this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CONST())
 					}
 				case int32(20) /* Annotation.FINAL */ :
 					if !(this_.jsdocBuilder.RecordFinality()) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7040(pkg_rhino.StaticGet_Msg_JSDOC_FINAL())
+						this_.priv_JsDocInfoParser_addTypeWarning_7054(pkg_rhino.StaticGet_Msg_JSDOC_FINAL())
 					}
 				case int32(9) /* Annotation.DEFINE */ :
 					if !(this_.jsdocBuilder.RecordDefineType(type_)) {
-						this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_DEFINE(), lineno, charno)
+						this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_DEFINE(), lineno, charno)
 					}
 					if !(isAnnotationNext) {
-						return this_.priv_JsDocInfoParser_recordDescription_7057(token)
+						return this_.priv_JsDocInfoParser_recordDescription_7071(token)
 					}
 				case int32(18) /* Annotation.EXPORT */ :
 					if !(this_.jsdocBuilder.RecordExport()) {
-						this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_EXPORT(), lineno, charno)
+						this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_EXPORT(), lineno, charno)
 					}
 					if !(isAnnotationNext) {
-						return this_.priv_JsDocInfoParser_recordDescription_7057(token)
+						return this_.priv_JsDocInfoParser_recordDescription_7071(token)
 					}
 				case int32(52) /* Annotation.PRIVATE */ :
 					if !(this_.jsdocBuilder.RecordVisibility(pkg_rhino.StaticGet_JSDocInfo_Visibility_PRIVATE())) {
-						this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
+						this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
 					}
 					if !(isAnnotationNext) {
-						return this_.priv_JsDocInfoParser_recordDescription_7057(token)
+						return this_.priv_JsDocInfoParser_recordDescription_7071(token)
 					}
 				case int32(47) /* Annotation.PACKAGE */ :
 					if !(this_.jsdocBuilder.RecordVisibility(pkg_rhino.StaticGet_JSDocInfo_Visibility_PACKAGE())) {
-						this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
+						this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
 					}
 					if !(isAnnotationNext) {
-						return this_.priv_JsDocInfoParser_recordDescription_7057(token)
+						return this_.priv_JsDocInfoParser_recordDescription_7071(token)
 					}
 				case int32(53) /* Annotation.PROTECTED */ :
 					if !(this_.jsdocBuilder.RecordVisibility(pkg_rhino.StaticGet_JSDocInfo_Visibility_PROTECTED())) {
-						this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
+						this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
 					}
 					if !(isAnnotationNext) {
-						return this_.priv_JsDocInfoParser_recordDescription_7057(token)
+						return this_.priv_JsDocInfoParser_recordDescription_7071(token)
 					}
 				case int32(56) /* Annotation.PUBLIC */ :
 					if !(this_.jsdocBuilder.RecordVisibility(pkg_rhino.StaticGet_JSDocInfo_Visibility_PUBLIC())) {
-						this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
+						this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_EXTRA_VISIBILITY(), lineno, charno)
 					}
 					if !(isAnnotationNext) {
-						return this_.priv_JsDocInfoParser_recordDescription_7057(token)
+						return this_.priv_JsDocInfoParser_recordDescription_7071(token)
 					}
 				case int32(59) /* Annotation.RETURN */ :
 					if (type_).IsJavaNil_() {
-						type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_QMARK()))
+						type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_QMARK()))
 					}
 					if !(this_.jsdocBuilder.RecordReturnType(type_)) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
 						break
 					}
 					if this_.jsdocBuilder.ShouldParseDocumentation() && !(isAnnotationNext) {
-						var returnDescriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+						var returnDescriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 						_ = returnDescriptionInfo
 						var returnDescription string = returnDescriptionInfo.string_
 						_ = returnDescription
@@ -1275,28 +1275,28 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7055(token Js
 						}
 						token = returnDescriptionInfo.token
 					} else {
-						token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+						token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 					}
 					return token
 				case int32(68) /* Annotation.THIS */ :
 					if !(this_.jsdocBuilder.RecordThisType(type_)) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
 					}
 				case int32(71) /* Annotation.TYPEDEF */ :
 					if !(this_.jsdocBuilder.RecordTypedef(type_)) {
-						this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
+						this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
 					}
 				default:
 				}
 			}
-			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+			return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 		}
 	}
-	return this_.priv_JsDocInfoParser_next_7112()
+	return this_.priv_JsDocInfoParser_next_7126()
 }
 
 // Java method: JsDocInfoParser.parseTtlAst(com.google.javascript.jscomp.parsing.JsDocInfoParser.ExtractionInfo ttlExtraction, int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTtlAst_7056(ttlExtraction JsDocInfoParser_ExtractionInfo, lineno int32, charno int32) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTtlAst_7070(ttlExtraction JsDocInfoParser_ExtractionInfo, lineno int32, charno int32) pkg_rhino.Node {
 	_ = ttlExtraction
 	_ = lineno
 	_ = charno
@@ -1311,11 +1311,11 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTtlAst_7056(ttlExtractio
 	if endIndex >= int32(0) {
 		ttlExpression = j2gort.JStrSub(ttlExpression, int32(0), endIndex)
 	} else {
-		this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_MISSINGDELIMIIER(), lineno, charno)
+		this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_MISSINGDELIMIIER(), lineno, charno)
 	}
 	ttlExpression = javalang.StringTrim(j2gort.CheckNotNullString(ttlExpression))
 	if j2gort.CheckNotNullString(ttlExpression) == "" {
-		this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_EXPRESSIONMISSING(), lineno, charno)
+		this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_TYPETRANSFORMATION_EXPRESSIONMISSING(), lineno, charno)
 		return pkg_rhino.Node(0)
 	}
 	clinit_TypeTransformationParser()
@@ -1337,20 +1337,20 @@ func JsDocInfoParser_ValidTemplateTypeName(name string) bool {
 }
 
 // Java method: JsDocInfoParser.recordDescription(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_recordDescription_7057(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_recordDescription_7071(token JsDocToken) JsDocToken {
 	_ = token
 	if this_.jsdocBuilder.ShouldParseDocumentation() {
-		var descriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+		var descriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 		_ = descriptionInfo
 		token = descriptionInfo.token
 	} else {
-		token = this_.priv_JsDocInfoParser_eatTokensUntilEOL_7107(token)
+		token = this_.priv_JsDocInfoParser_eatTokensUntilEOL_7121(token)
 	}
 	return token
 }
 
 // Java method: JsDocInfoParser.checkExtendedTypes(java.util.ArrayList<com.google.javascript.jscomp.parsing.JsDocInfoParser.ExtendedTypeInfo> extendedTypes)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_checkExtendedTypes_7058(extendedTypes j2gort.Ext_java_util_ArrayList) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_checkExtendedTypes_7072(extendedTypes j2gort.Ext_java_util_ArrayList) {
 	_ = extendedTypes
 	if extendedTypes.Size() > int32(1) {
 		var isInterface bool = this_.jsdocBuilder.IsInterfaceRecorded()
@@ -1367,7 +1367,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_checkExtendedTypes_7058(exten
 
 		_ = isFromTsickle
 		if !(isInterface) && isFromTsickle {
-			var result bool = this_.jsdocBuilder.RecordBaseType(this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_BANG(), this_.priv_JsDocInfoParser_newStringNode_7101("JsDocInfoParser_TsickleMode_MissingSupertypePlaceholder")).SrcrefTree(j2gort.ListGetVal[JsDocInfoParser_ExtendedTypeInfo](extendedTypes, int32(0)).type_.GetRoot())))
+			var result bool = this_.jsdocBuilder.RecordBaseType(this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_BANG(), this_.priv_JsDocInfoParser_newStringNode_7115("JsDocInfoParser_TsickleMode_MissingSupertypePlaceholder")).SrcrefTree(j2gort.ListGetVal[JsDocInfoParser_ExtendedTypeInfo](extendedTypes, int32(0)).type_.GetRoot())))
 			_ = result
 			if !(result) {
 				j2gort.CheckStateStr(false, "Unexpected failure to record base type")
@@ -1385,11 +1385,11 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_checkExtendedTypes_7058(exten
 			_ = typeInfo
 			if this_.jsdocBuilder.IsInterfaceRecorded() {
 				if !(this_.jsdocBuilder.RecordExtendedInterface(typeInfo.type_)) {
-					this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_EXTENDS_DUPLICATE(), typeInfo.lineno, typeInfo.charno)
+					this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_EXTENDS_DUPLICATE(), typeInfo.lineno, typeInfo.charno)
 				}
 			} else {
 				if !(this_.jsdocBuilder.RecordBaseType(typeInfo.type_)) {
-					this_.priv_JsDocInfoParser_addTypeWarning_7041(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), typeInfo.lineno, typeInfo.charno)
+					this_.priv_JsDocInfoParser_addTypeWarning_7055(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), typeInfo.lineno, typeInfo.charno)
 				}
 			}
 		}
@@ -1397,49 +1397,49 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_checkExtendedTypes_7058(exten
 }
 
 // Java method: JsDocInfoParser.parseSuppressTag(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseSuppressTag_7059(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseSuppressTag_7073(token JsDocToken) JsDocToken {
 	_ = token
 	if token != StaticGet_JsDocToken_LEFT_CURLY() {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS())
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS())
 		return token
 	} else {
 		var suppressions j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 		_ = suppressions
 		for {
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
 				var name string = this_.stream.GetString()
 				_ = name
 				if !(j2gort.SetContainsStr(this_.suppressionNames, name)) {
-					this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS_UNKNOWN(), name)
+					this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS_UNKNOWN(), name)
 				}
 				j2gort.SetAddStr(suppressions, this_.stream.GetString())
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			} else {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS())
 				return token
 			}
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			if this_.priv_JsDocInfoParser_match_7110(StaticGet_JsDocToken_PIPE(), StaticGet_JsDocToken_COMMA()) {
-				token = this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			if this_.priv_JsDocInfoParser_match_7124(StaticGet_JsDocToken_PIPE(), StaticGet_JsDocToken_COMMA()) {
+				token = this_.priv_JsDocInfoParser_next_7126()
 			} else {
 				break
 			}
 		}
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 		if token != StaticGet_JsDocToken_RIGHT_CURLY() {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_SUPPRESS())
 			return token
 		}
-		if this_.jsdocBuilder.ShouldParseDocumentation() && !(this_.priv_JsDocInfoParser_lookAheadForAnnotation_7120()) {
-			var suppressDescriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token)
+		if this_.jsdocBuilder.ShouldParseDocumentation() && !(this_.priv_JsDocInfoParser_lookAheadForAnnotation_7134()) {
+			var suppressDescriptionInfo JsDocInfoParser_ExtractionInfo = this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token)
 			_ = suppressDescriptionInfo
 			var suppressDescription string = suppressDescriptionInfo.string_
 			_ = suppressDescription
 			this_.jsdocBuilder.RecordSuppressions_2(j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_Ext_java_util_Collection(suppressions), suppressDescription)
 			token = suppressDescriptionInfo.token
 		} else {
-			token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(this_.priv_JsDocInfoParser_next_7112())
+			token = this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(this_.priv_JsDocInfoParser_next_7126())
 			this_.jsdocBuilder.RecordSuppressions_1(suppressions)
 		}
 		return token
@@ -1447,88 +1447,88 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseSuppressTag_7059(token J
 }
 
 // Java method: JsDocInfoParser.parseModsTag(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseModsTag_7060(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseModsTag_7074(token JsDocToken) JsDocToken {
 	_ = token
 	if token != StaticGet_JsDocToken_LEFT_CURLY() {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODS())
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODS())
 		return token
 	}
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING())) {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODS())
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING())) {
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODS())
 		return token
 	}
 	var namespace string = this_.stream.GetString()
 	_ = namespace
-	token = this_.priv_JsDocInfoParser_next_7112()
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODS())
+	token = this_.priv_JsDocInfoParser_next_7126()
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODS())
 	} else {
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 		this_.jsdocBuilder.RecordMods(namespace)
 	}
 	return token
 }
 
 // Java method: JsDocInfoParser.parseClosurePrimitiveTag(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosurePrimitiveTag_7061(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosurePrimitiveTag_7075(token JsDocToken) JsDocToken {
 	_ = token
 	if token != StaticGet_JsDocToken_LEFT_CURLY() {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_LC())
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_LC())
 		return token
-	} else if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
+	} else if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
 		var name string = this_.stream.GetString()
 		_ = name
 		if !(j2gort.SetContainsStr(this_.closurePrimitiveNames, name)) {
-			this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_JSDOC_CLOSUREPRIMITIVE_INVALID(), name)
+			this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_JSDOC_CLOSUREPRIMITIVE_INVALID(), name)
 		} else if !(this_.jsdocBuilder.RecordClosurePrimitiveId(name)) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CLOSUREPRIMITIVE_EXTRA())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CLOSUREPRIMITIVE_EXTRA())
 		}
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 	} else {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CLOSUREPRIMITIVE_MISSING())
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CLOSUREPRIMITIVE_MISSING())
 		return token
 	}
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-		this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+		this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 	} else {
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 	}
-	return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104()
+	return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118()
 }
 
 // Java method: JsDocInfoParser.parseModifiesTag(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseModifiesTag_7062(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseModifiesTag_7076(token JsDocToken) JsDocToken {
 	_ = token
 	if token == StaticGet_JsDocToken_LEFT_CURLY() {
 		var modifies j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 		_ = modifies
 		for {
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
 				var name string = this_.stream.GetString()
 				_ = name
 				if !(j2gort.SetContainsStr(StaticGet_JsDocInfoParser_ModifiesAnnotationKeywords(), name)) && !(this_.jsdocBuilder.HasParameter(name)) {
-					this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES_UNKNOWN(), name)
+					this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES_UNKNOWN(), name)
 				}
 				j2gort.SetAddStr(modifies, this_.stream.GetString())
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			} else {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES())
 				return token
 			}
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_PIPE()) {
-				token = this_.priv_JsDocInfoParser_next_7112()
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_PIPE()) {
+				token = this_.priv_JsDocInfoParser_next_7126()
 			} else {
 				break
 			}
 		}
-		if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES())
+		if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES())
 		} else {
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			if this_.jsdocBuilder.IsNoSideEffectsRecorded() {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_NOSIDEEFFECTS_WITH_MODIFIES())
 			} else if !(this_.jsdocBuilder.RecordModifies(modifies)) {
-				this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES_DUPLICATE())
+				this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_MODIFIES_DUPLICATE())
 			}
 		}
 	}
@@ -1536,49 +1536,49 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseModifiesTag_7062(token J
 }
 
 // Java method: JsDocInfoParser.parseIdGeneratorTag(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseIdGeneratorTag_7063(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseIdGeneratorTag_7077(token JsDocToken) JsDocToken {
 	_ = token
 	var idgenKind string = "unique"
 	_ = idgenKind
 	if token == StaticGet_JsDocToken_LEFT_CURLY() {
-		if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
+		if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
 			var name string = this_.stream.GetString()
 			_ = name
 			if !(j2gort.SetContainsStr(StaticGet_JsDocInfoParser_IdGeneratorAnnotationKeywords(), name)) && !(this_.jsdocBuilder.HasParameter(name)) {
-				this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_UNKNOWN(), name)
+				this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_UNKNOWN(), name)
 			}
 			idgenKind = name
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 		} else {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_BAD())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_BAD())
 			return token
 		}
-		if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_BAD())
+		if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_BAD())
 		} else {
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 		}
 	}
 	switch j2gort.CheckNotNullString(idgenKind) {
 	case "unique":
 		if !(this_.jsdocBuilder.RecordIdGenerator()) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
 		}
 	case "consistent":
 		if !(this_.jsdocBuilder.RecordConsistentIdGenerator()) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
 		}
 	case "stable":
 		if !(this_.jsdocBuilder.RecordStableIdGenerator()) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
 		}
 	case "xid":
 		if !(this_.jsdocBuilder.RecordXidGenerator()) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
 		}
 	case "mapped":
 		if !(this_.jsdocBuilder.RecordMappedIdGenerator()) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_IDGEN_DUPLICATE())
 		}
 	}
 	return token
@@ -1587,11 +1587,11 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseIdGeneratorTag_7063(toke
 // Java method: JsDocInfoParser.parseAndRecordTypeNode(com.google.javascript.jscomp.parsing.JsDocToken token)
 func (this_ *JsDocInfoParser) ParseAndRecordTypeNode_1(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	return this_.priv_JsDocInfoParser_parseAndRecordTypeNode_7065(token, this_.stream.GetLineno(), this_.stream.GetCharno(), (token == StaticGet_JsDocToken_LEFT_CURLY()), false)
+	return this_.priv_JsDocInfoParser_parseAndRecordTypeNode_7079(token, this_.stream.GetLineno(), this_.stream.GetCharno(), (token == StaticGet_JsDocToken_LEFT_CURLY()), false)
 }
 
 // Java method: JsDocInfoParser.parseAndRecordTypeNode(com.google.javascript.jscomp.parsing.JsDocToken token, int lineno, int startCharno, boolean matchingLC, boolean onlyParseSimpleNames)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordTypeNode_7065(token JsDocToken, lineno int32, startCharno int32, matchingLC bool, onlyParseSimpleNames bool) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordTypeNode_7079(token JsDocToken, lineno int32, startCharno int32, matchingLC bool, onlyParseSimpleNames bool) pkg_rhino.Node {
 	_ = token
 	_ = lineno
 	_ = startCharno
@@ -1600,25 +1600,25 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordTypeNode_7065(t
 	var typeNode pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = typeNode
 	if onlyParseSimpleNames {
-		typeNode = this_.priv_JsDocInfoParser_parseTypeNameAnnotation_7080(token)
+		typeNode = this_.priv_JsDocInfoParser_parseTypeNameAnnotation_7094(token)
 	} else {
-		typeNode = this_.priv_JsDocInfoParser_parseTypeExpressionAnnotation_7077(token)
+		typeNode = this_.priv_JsDocInfoParser_parseTypeExpressionAnnotation_7091(token)
 	}
-	this_.priv_JsDocInfoParser_recordTypeNode_7051(lineno, startCharno, typeNode, matchingLC)
+	this_.priv_JsDocInfoParser_recordTypeNode_7065(lineno, startCharno, typeNode, matchingLC)
 	return typeNode
 }
 
 // Java method: JsDocInfoParser.parseAndRecordTypeNameNode(com.google.javascript.jscomp.parsing.JsDocToken token, int lineno, int startCharno, boolean matchingLC)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordTypeNameNode_7066(token JsDocToken, lineno int32, startCharno int32, matchingLC bool) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordTypeNameNode_7080(token JsDocToken, lineno int32, startCharno int32, matchingLC bool) pkg_rhino.Node {
 	_ = token
 	_ = lineno
 	_ = startCharno
 	_ = matchingLC
-	return this_.priv_JsDocInfoParser_parseAndRecordTypeNode_7065(token, lineno, startCharno, matchingLC, true)
+	return this_.priv_JsDocInfoParser_parseAndRecordTypeNode_7079(token, lineno, startCharno, matchingLC, true)
 }
 
 // Java method: JsDocInfoParser.parseAndRecordParamTypeNode(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordParamTypeNode_7067(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordParamTypeNode_7081(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if !(token == StaticGet_JsDocToken_LEFT_CURLY()) {
 		j2gort.CheckArgument(false)
@@ -1627,14 +1627,14 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAndRecordParamTypeNode_7
 	_ = lineno
 	var startCharno int32 = this_.stream.GetCharno()
 	_ = startCharno
-	var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseParamTypeExpressionAnnotation_7079(token)
+	var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseParamTypeExpressionAnnotation_7093(token)
 	_ = typeNode
-	this_.priv_JsDocInfoParser_recordTypeNode_7051(lineno, startCharno, typeNode, true)
+	this_.priv_JsDocInfoParser_recordTypeNode_7065(lineno, startCharno, typeNode, true)
 	return typeNode
 }
 
 // Java method: JsDocInfoParser.toString(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_toString_7068(token JsDocToken) string {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_toString_7082(token JsDocToken) string {
 	_ = token
 	switch (token).Ordinal() {
 	case int32(14) /* JsDocToken.ANNOTATION */ :
@@ -1685,44 +1685,44 @@ func (this_ *JsDocInfoParser) CreateJSTypeExpression(n pkg_rhino.Node) pkg_rhino
 	if n == 0 {
 		return (pkg_rhino.JSTypeExpression{})
 	} else {
-		return pkg_rhino.NewJSTypeExpression(n, this_.priv_JsDocInfoParser_getSourceName_7049())
+		return pkg_rhino.NewJSTypeExpression(n, this_.priv_JsDocInfoParser_getSourceName_7063())
 	}
 }
 
 // Java method: JsDocInfoParser.extractSingleLineBlock()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractSingleLineBlock_7070() JsDocInfoParser_ExtractionInfo {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractSingleLineBlock_7084() JsDocInfoParser_ExtractionInfo {
 	this_.stream.Update()
 	var lineno int32 = this_.stream.GetLineno()
 	_ = lineno
 	var charno int32 = (this_.stream.GetCharno() + int32(1))
 	_ = charno
-	var line string = javalang.StringTrim(j2gort.CheckNotNullString(this_.priv_JsDocInfoParser_getRemainingJSDocLine_7115()))
+	var line string = javalang.StringTrim(j2gort.CheckNotNullString(this_.priv_JsDocInfoParser_getRemainingJSDocLine_7129()))
 	_ = line
 	if j2gort.JStrLen(line) > int32(0) {
 		this_.jsdocBuilder.MarkText(line, lineno, charno, lineno, (charno + j2gort.JStrLen(line)))
 	}
-	return NewJsDocInfoParser_ExtractionInfo(line, this_.priv_JsDocInfoParser_next_7112())
+	return NewJsDocInfoParser_ExtractionInfo(line, this_.priv_JsDocInfoParser_next_7126())
 }
 
 // Java method: JsDocInfoParser.extractMultilineTextualBlock(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineTextualBlock_7071(token JsDocToken) JsDocInfoParser_ExtractionInfo {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineTextualBlock_7085(token JsDocToken) JsDocInfoParser_ExtractionInfo {
 	_ = token
-	return this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7072(token, this_.priv_JsDocInfoParser_getWhitespaceOption_7073(StaticGet_JsDocInfoParser_WhitespaceOption_SINGLE_LINE()), false)
+	return this_.priv_JsDocInfoParser_extractMultilineTextualBlock_7086(token, this_.priv_JsDocInfoParser_getWhitespaceOption_7087(StaticGet_JsDocInfoParser_WhitespaceOption_SINGLE_LINE()), false)
 }
 
 // Java method: JsDocInfoParser.extractMultilineTextualBlock(com.google.javascript.jscomp.parsing.JsDocToken token, com.google.javascript.jscomp.parsing.JsDocInfoParser.WhitespaceOption option, boolean includeAnnotations)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineTextualBlock_7072(token JsDocToken, option JsDocInfoParser_WhitespaceOption, includeAnnotations bool) JsDocInfoParser_ExtractionInfo {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineTextualBlock_7086(token JsDocToken, option JsDocInfoParser_WhitespaceOption, includeAnnotations bool) JsDocInfoParser_ExtractionInfo {
 	_ = token
 	_ = option
 	_ = includeAnnotations
 	if ((token == StaticGet_JsDocToken_EOC()) || (token == StaticGet_JsDocToken_EOL())) || (token == StaticGet_JsDocToken_EOF()) {
 		return NewJsDocInfoParser_ExtractionInfo("", token)
 	}
-	return this_.priv_JsDocInfoParser_extractMultilineComment_7075(token, option, true, includeAnnotations)
+	return this_.priv_JsDocInfoParser_extractMultilineComment_7089(token, option, true, includeAnnotations)
 }
 
 // Java method: JsDocInfoParser.getWhitespaceOption(com.google.javascript.jscomp.parsing.JsDocInfoParser.WhitespaceOption defaultValue)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getWhitespaceOption_7073(defaultValue JsDocInfoParser_WhitespaceOption) JsDocInfoParser_WhitespaceOption {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getWhitespaceOption_7087(defaultValue JsDocInfoParser_WhitespaceOption) JsDocInfoParser_WhitespaceOption {
 	_ = defaultValue
 	if this_.preserveWhitespace {
 		return StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE()
@@ -1732,13 +1732,13 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getWhitespaceOption_7073(defa
 }
 
 // Java method: JsDocInfoParser.extractBlockComment(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractBlockComment_7074(token JsDocToken) JsDocInfoParser_ExtractionInfo {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractBlockComment_7088(token JsDocToken) JsDocInfoParser_ExtractionInfo {
 	_ = token
-	return this_.priv_JsDocInfoParser_extractMultilineComment_7075(token, this_.priv_JsDocInfoParser_getWhitespaceOption_7073(StaticGet_JsDocInfoParser_WhitespaceOption_TRIM()), false, false)
+	return this_.priv_JsDocInfoParser_extractMultilineComment_7089(token, this_.priv_JsDocInfoParser_getWhitespaceOption_7087(StaticGet_JsDocInfoParser_WhitespaceOption_TRIM()), false, false)
 }
 
 // Java method: JsDocInfoParser.extractMultilineComment(com.google.javascript.jscomp.parsing.JsDocToken token, com.google.javascript.jscomp.parsing.JsDocInfoParser.WhitespaceOption option, boolean isMarker, boolean includeAnnotations)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7075(token JsDocToken, option JsDocInfoParser_WhitespaceOption, isMarker bool, includeAnnotations bool) JsDocInfoParser_ExtractionInfo {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7089(token JsDocToken, option JsDocInfoParser_WhitespaceOption, isMarker bool, includeAnnotations bool) JsDocInfoParser_ExtractionInfo {
 	_ = token
 	_ = option
 	_ = isMarker
@@ -1753,14 +1753,14 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7075(
 		this_.stream.Update()
 		startLineno = this_.stream.GetLineno()
 		startCharno = (this_.stream.GetCharno() + int32(1))
-		var line string = this_.priv_JsDocInfoParser_getRemainingJSDocLine_7115()
+		var line string = this_.priv_JsDocInfoParser_getRemainingJSDocLine_7129()
 		_ = line
 		if option != StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE() {
 			line = javalang.StringTrim(j2gort.CheckNotNullString(line))
 		}
 		builder.Append_1_string(line)
 		this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 	}
 	var ignoreStar bool = false
 	_ = ignoreStar
@@ -1773,18 +1773,18 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7075(
 				lineStartChar = (this_.stream.GetCharno() + int32(1))
 				ignoreStar = false
 			} else {
-				this_.priv_JsDocInfoParser_padLine_7076(builder, lineStartChar, option)
+				this_.priv_JsDocInfoParser_padLine_7090(builder, lineStartChar, option)
 				lineStartChar = int32(-1)
 				builder.Append_1_uint16(uint16(42))
 			}
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			for token == StaticGet_JsDocToken_STAR() {
 				if lineStartChar != int32(-1) {
-					this_.priv_JsDocInfoParser_padLine_7076(builder, lineStartChar, option)
+					this_.priv_JsDocInfoParser_padLine_7090(builder, lineStartChar, option)
 					lineStartChar = int32(-1)
 				}
 				builder.Append_1_uint16(uint16(42))
-				token = this_.priv_JsDocInfoParser_next_7112()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			}
 			continue
 		case int32(1) /* JsDocToken.EOL */ :
@@ -1793,7 +1793,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7075(
 			}
 			ignoreStar = true
 			lineStartChar = int32(0)
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			continue
 		default:
 			ignoreStar = false
@@ -1801,7 +1801,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7075(
 			var isEOC bool = (token == StaticGet_JsDocToken_EOC())
 			_ = isEOC
 			if !(isEOC) {
-				this_.priv_JsDocInfoParser_padLine_7076(builder, lineStartChar, option)
+				this_.priv_JsDocInfoParser_padLine_7090(builder, lineStartChar, option)
 				lineStartChar = int32(-1)
 			}
 			if ((token == StaticGet_JsDocToken_EOC()) || (token == StaticGet_JsDocToken_EOF())) || ((token == StaticGet_JsDocToken_ANNOTATION()) && !(includeAnnotations)) {
@@ -1819,21 +1819,21 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_extractMultilineComment_7075(
 				}
 				return NewJsDocInfoParser_ExtractionInfo(multilineText, token)
 			}
-			builder.Append_1_string(this_.priv_JsDocInfoParser_toString_7068(token))
-			var line_2 string = this_.priv_JsDocInfoParser_getRemainingJSDocLine_7115()
+			builder.Append_1_string(this_.priv_JsDocInfoParser_toString_7082(token))
+			var line_2 string = this_.priv_JsDocInfoParser_getRemainingJSDocLine_7129()
 			_ = line_2
 			if option != StaticGet_JsDocInfoParser_WhitespaceOption_PRESERVE() {
 				line_2 = JsDocInfoParser_TrimEnd(line_2)
 			}
 			builder.Append_1_string(line_2)
-			token = this_.priv_JsDocInfoParser_next_7112()
+			token = this_.priv_JsDocInfoParser_next_7126()
 		}
 	}
 	panic("unreachable")
 }
 
 // Java method: JsDocInfoParser.padLine(java.lang.StringBuilder builder, int lineStartChar, com.google.javascript.jscomp.parsing.JsDocInfoParser.WhitespaceOption option)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_padLine_7076(builder *j2gort.Ext_java_lang_StringBuilder, lineStartChar int32, option JsDocInfoParser_WhitespaceOption) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_padLine_7090(builder *j2gort.Ext_java_lang_StringBuilder, lineStartChar int32, option JsDocInfoParser_WhitespaceOption) {
 	_ = builder
 	_ = lineStartChar
 	_ = option
@@ -1876,137 +1876,137 @@ func JsDocInfoParser_TrimEnd(s string) string {
 }
 
 // Java method: JsDocInfoParser.parseTypeExpressionAnnotation(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpressionAnnotation_7077(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpressionAnnotation_7091(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token == StaticGet_JsDocToken_LEFT_CURLY() {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7081(this_.priv_JsDocInfoParser_next_7112())
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7095(this_.priv_JsDocInfoParser_next_7126())
 		_ = typeNode
 		if typeNode != 0 {
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
 				if typeNode.IsStringLit() && func() bool {
 					sr_7 := "import"
 					se_8 := typeNode.GetString()
 					return j2gort.CheckNotNullString(sr_7) == se_8
 				}() {
-					this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_IMPORT())
+					this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_IMPORT())
 				} else {
-					this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+					this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 				}
 			} else {
-				this_.priv_JsDocInfoParser_next_7112()
+				this_.priv_JsDocInfoParser_next_7126()
 			}
 		}
 		return typeNode
 	} else {
-		this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_BRACES())
-		return this_.priv_JsDocInfoParser_parseTypeExpression_7083(token)
+		this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_BRACES())
+		return this_.priv_JsDocInfoParser_parseTypeExpression_7097(token)
 	}
 }
 
 // Java method: JsDocInfoParser.parseParamTypeExpression(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParamTypeExpression_7078(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParamTypeExpression_7092(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	var restArg bool = false
 	_ = restArg
 	if token == StaticGet_JsDocToken_ITER_REST() {
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 		if token == StaticGet_JsDocToken_RIGHT_CURLY() {
-			this_.priv_JsDocInfoParser_restoreLookAhead_7108(token)
-			return this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_ITER_REST(), this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_EMPTY()))
+			this_.priv_JsDocInfoParser_restoreLookAhead_7122(token)
+			return this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_ITER_REST(), this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_EMPTY()))
 		}
 		restArg = true
 	}
-	var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7081(token)
+	var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7095(token)
 	_ = typeNode
 	if typeNode != 0 {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
 		if restArg {
-			typeNode = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_ITER_REST(), typeNode)
-		} else if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_EQUALS()) {
-			this_.priv_JsDocInfoParser_next_7112()
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			typeNode = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_EQUALS(), typeNode)
+			typeNode = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_ITER_REST(), typeNode)
+		} else if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_EQUALS()) {
+			this_.priv_JsDocInfoParser_next_7126()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			typeNode = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_EQUALS(), typeNode)
 		}
 	}
 	return typeNode
 }
 
 // Java method: JsDocInfoParser.parseParamTypeExpressionAnnotation(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParamTypeExpressionAnnotation_7079(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParamTypeExpressionAnnotation_7093(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if !(token == StaticGet_JsDocToken_LEFT_CURLY()) {
 		j2gort.CheckArgument(false)
 	}
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseParamTypeExpression_7078(this_.priv_JsDocInfoParser_next_7112())
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseParamTypeExpression_7092(this_.priv_JsDocInfoParser_next_7126())
 	_ = typeNode
 	if typeNode != 0 {
-		if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-			this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+		if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+			this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 		} else {
-			this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_next_7126()
 		}
 	}
 	return typeNode
 }
 
 // Java method: JsDocInfoParser.parseTypeNameAnnotation(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeNameAnnotation_7080(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeNameAnnotation_7094(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token == StaticGet_JsDocToken_LEFT_CURLY() {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeName_7087(this_.priv_JsDocInfoParser_next_7112())
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		var typeNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeName_7101(this_.priv_JsDocInfoParser_next_7126())
 		_ = typeNode
 		if typeNode != 0 {
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-				this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+				this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 			} else {
-				this_.priv_JsDocInfoParser_next_7112()
+				this_.priv_JsDocInfoParser_next_7126()
 			}
 		}
 		return typeNode
 	} else {
-		return this_.priv_JsDocInfoParser_parseTypeName_7087(token)
+		return this_.priv_JsDocInfoParser_parseTypeName_7101(token)
 	}
 }
 
 // Java method: JsDocInfoParser.parseTopLevelTypeExpression(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTopLevelTypeExpression_7081(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTopLevelTypeExpression_7095(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	var typeExpr pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpression_7083(token)
+	var typeExpr pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpression_7097(token)
 	_ = typeExpr
 	if typeExpr != 0 {
-		if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_PIPE()) {
-			this_.priv_JsDocInfoParser_next_7112()
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			token = this_.priv_JsDocInfoParser_next_7112()
-			return this_.priv_JsDocInfoParser_parseUnionTypeWithAlternate_7093(token, typeExpr)
+		if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_PIPE()) {
+			this_.priv_JsDocInfoParser_next_7126()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			token = this_.priv_JsDocInfoParser_next_7126()
+			return this_.priv_JsDocInfoParser_parseUnionTypeWithAlternate_7107(token, typeExpr)
 		}
 	}
 	return typeExpr
 }
 
 // Java method: JsDocInfoParser.parseTypeExpressionList(java.lang.String typeName, com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpressionList_7082(typeName string, token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpressionList_7096(typeName string, token JsDocToken) pkg_rhino.Node {
 	_ = typeName
 	_ = token
-	var typeExpr pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7081(token)
+	var typeExpr pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7095(token)
 	_ = typeExpr
 	if typeExpr == 0 {
 		return pkg_rhino.Node(0)
 	}
-	var typeList pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_BLOCK())
+	var typeList pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_BLOCK())
 	_ = typeList
 	var numTypeExprs int32 = int32(1)
 	_ = numTypeExprs
 	typeList.AddChildToBack(typeExpr)
-	for this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COMMA()) {
-		this_.priv_JsDocInfoParser_next_7112()
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		typeExpr = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7081(this_.priv_JsDocInfoParser_next_7112())
+	for this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COMMA()) {
+		this_.priv_JsDocInfoParser_next_7126()
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		typeExpr = this_.priv_JsDocInfoParser_parseTopLevelTypeExpression_7095(this_.priv_JsDocInfoParser_next_7126())
 		if typeExpr == 0 {
 			return pkg_rhino.Node(0)
 		}
@@ -2014,13 +2014,13 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpressionList_7082(
 		typeList.AddChildToBack(typeExpr)
 	}
 	if (j2gort.CheckNotNullString(typeName) == "Object") && (numTypeExprs == int32(1)) {
-		typeList.AddChildToFront(this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_QMARK()))
+		typeList.AddChildToFront(this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_QMARK()))
 	}
 	return typeList
 }
 
 // Java method: JsDocInfoParser.parseTypeExpression(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpression_7083(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpression_7097(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	var lineno int32 = this_.stream.GetLineno()
 	_ = lineno
@@ -2028,26 +2028,26 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpression_7083(toke
 	_ = charno
 	switch (token).Ordinal() {
 	case int32(18) /* JsDocToken.QMARK */ :
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 		if (((((((((token == StaticGet_JsDocToken_COMMA()) || (token == StaticGet_JsDocToken_EQUALS())) || (token == StaticGet_JsDocToken_RIGHT_SQUARE())) || (token == StaticGet_JsDocToken_RIGHT_CURLY())) || (token == StaticGet_JsDocToken_RIGHT_PAREN())) || (token == StaticGet_JsDocToken_PIPE())) || (token == StaticGet_JsDocToken_RIGHT_ANGLE())) || (token == StaticGet_JsDocToken_EOC())) || (token == StaticGet_JsDocToken_EOL())) || (token == StaticGet_JsDocToken_EOF()) {
-			this_.priv_JsDocInfoParser_restoreLookAhead_7108(token)
-			return this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_QMARK())
+			this_.priv_JsDocInfoParser_restoreLookAhead_7122(token)
+			return this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_QMARK())
 		}
-		return this_.priv_JsDocInfoParser_wrapNode_7099(pkg_rhino.StaticGet_Token_QMARK(), this_.priv_JsDocInfoParser_parseBasicTypeExpression_7085(token), lineno, charno)
+		return this_.priv_JsDocInfoParser_wrapNode_7113(pkg_rhino.StaticGet_Token_QMARK(), this_.priv_JsDocInfoParser_parseBasicTypeExpression_7099(token), lineno, charno)
 	case int32(19) /* JsDocToken.BANG */ :
-		return this_.priv_JsDocInfoParser_wrapNode_7099(pkg_rhino.StaticGet_Token_BANG(), this_.priv_JsDocInfoParser_parseBasicTypeExpression_7085(this_.priv_JsDocInfoParser_next_7112()), lineno, charno)
+		return this_.priv_JsDocInfoParser_wrapNode_7113(pkg_rhino.StaticGet_Token_BANG(), this_.priv_JsDocInfoParser_parseBasicTypeExpression_7099(this_.priv_JsDocInfoParser_next_7126()), lineno, charno)
 	default:
-		var basicTypeExpr pkg_rhino.Node = this_.priv_JsDocInfoParser_parseBasicTypeExpression_7085(token)
+		var basicTypeExpr pkg_rhino.Node = this_.priv_JsDocInfoParser_parseBasicTypeExpression_7099(token)
 		_ = basicTypeExpr
 		lineno = this_.stream.GetLineno()
 		charno = this_.stream.GetCharno()
 		if basicTypeExpr != 0 {
-			if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_QMARK()) {
-				this_.priv_JsDocInfoParser_next_7112()
-				return this_.priv_JsDocInfoParser_wrapNode_7099(pkg_rhino.StaticGet_Token_QMARK(), basicTypeExpr, lineno, charno)
-			} else if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_BANG()) {
-				this_.priv_JsDocInfoParser_next_7112()
-				return this_.priv_JsDocInfoParser_wrapNode_7099(pkg_rhino.StaticGet_Token_BANG(), basicTypeExpr, lineno, charno)
+			if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_QMARK()) {
+				this_.priv_JsDocInfoParser_next_7126()
+				return this_.priv_JsDocInfoParser_wrapNode_7113(pkg_rhino.StaticGet_Token_QMARK(), basicTypeExpr, lineno, charno)
+			} else if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_BANG()) {
+				this_.priv_JsDocInfoParser_next_7126()
+				return this_.priv_JsDocInfoParser_wrapNode_7113(pkg_rhino.StaticGet_Token_BANG(), basicTypeExpr, lineno, charno)
 			}
 		}
 		return basicTypeExpr
@@ -2056,52 +2056,52 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeExpression_7083(toke
 }
 
 // Java method: JsDocInfoParser.parseContextTypeExpression(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseContextTypeExpression_7084(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseContextTypeExpression_7098(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token == StaticGet_JsDocToken_QMARK() {
-		return this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_QMARK())
+		return this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_QMARK())
 	} else {
-		return this_.priv_JsDocInfoParser_parseBasicTypeExpression_7085(token)
+		return this_.priv_JsDocInfoParser_parseBasicTypeExpression_7099(token)
 	}
 }
 
 // Java method: JsDocInfoParser.parseBasicTypeExpression(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseBasicTypeExpression_7085(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseBasicTypeExpression_7099(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token == StaticGet_JsDocToken_STAR() {
-		return this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_STAR())
+		return this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_STAR())
 	} else if token == StaticGet_JsDocToken_LEFT_CURLY() {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		return this_.priv_JsDocInfoParser_parseRecordType_7094(this_.priv_JsDocInfoParser_next_7112())
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		return this_.priv_JsDocInfoParser_parseRecordType_7108(this_.priv_JsDocInfoParser_next_7126())
 	} else if token == StaticGet_JsDocToken_LEFT_PAREN() {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		return this_.priv_JsDocInfoParser_parseUnionType_7092(this_.priv_JsDocInfoParser_next_7112())
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		return this_.priv_JsDocInfoParser_parseUnionType_7106(this_.priv_JsDocInfoParser_next_7126())
 	} else if token == StaticGet_JsDocToken_STRING() {
 		var string_ string = this_.stream.GetString()
 		_ = string_
 		switch j2gort.CheckNotNullString(string_) {
 		case "function":
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			return this_.priv_JsDocInfoParser_parseFunctionType_7089(this_.priv_JsDocInfoParser_next_7112())
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			return this_.priv_JsDocInfoParser_parseFunctionType_7103(this_.priv_JsDocInfoParser_next_7126())
 		case "null", "undefined":
-			return this_.priv_JsDocInfoParser_newStringNode_7101(string_)
+			return this_.priv_JsDocInfoParser_newStringNode_7115(string_)
 		case "typeof":
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			return this_.priv_JsDocInfoParser_parseTypeofType_7088(this_.priv_JsDocInfoParser_next_7112())
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			return this_.priv_JsDocInfoParser_parseTypeofType_7102(this_.priv_JsDocInfoParser_next_7126())
 		default:
-			return this_.priv_JsDocInfoParser_parseTypeName_7087(token)
+			return this_.priv_JsDocInfoParser_parseTypeName_7101(token)
 		}
 		panic("unreachable switch expression")
 	}
-	this_.priv_JsDocInfoParser_restoreLookAhead_7108(token)
-	return this_.priv_JsDocInfoParser_reportGenericTypeSyntaxWarning_7103()
+	this_.priv_JsDocInfoParser_restoreLookAhead_7122(token)
+	return this_.priv_JsDocInfoParser_reportGenericTypeSyntaxWarning_7117()
 }
 
 // Java method: JsDocInfoParser.parseNameExpression(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseNameExpression_7086(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseNameExpression_7100(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token != StaticGet_JsDocToken_STRING() {
-		this_.priv_JsDocInfoParser_addParserWarning_7037(pkg_rhino.StaticGet_Msg_JSDOC_NAME_SYNTAX(), this_.stream.GetLineno(), this_.stream.GetCharno())
+		this_.priv_JsDocInfoParser_addParserWarning_7051(pkg_rhino.StaticGet_Msg_JSDOC_NAME_SYNTAX(), this_.stream.GetLineno(), this_.stream.GetCharno())
 		return pkg_rhino.Node(0)
 	}
 	var startLineno int32 = this_.stream.GetLineno()
@@ -2115,15 +2115,15 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseNameExpression_7086(toke
 
 	var endOffset int32 = this_.stream.GetCursor()
 	_ = endOffset
-	for this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_EOL()) && javalang.StringEndsWith(j2gort.CheckNotNullString(typeName.String()), ".") {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
-			this_.priv_JsDocInfoParser_next_7112()
+	for this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_EOL()) && javalang.StringEndsWith(j2gort.CheckNotNullString(typeName.String()), ".") {
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
+			this_.priv_JsDocInfoParser_next_7126()
 			endOffset = this_.stream.GetCursor()
 			typeName.AppendStr(this_.stream.GetString())
 		}
 	}
-	var str pkg_rhino.Node = this_.priv_JsDocInfoParser_newStringNode_7101(typeName.String())
+	var str pkg_rhino.Node = this_.priv_JsDocInfoParser_newStringNode_7115(typeName.String())
 	_ = str
 	str.SetLinenoCharno(startLineno, startCharno)
 	str.SetLength((endOffset - startOffset))
@@ -2131,59 +2131,59 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseNameExpression_7086(toke
 }
 
 // Java method: JsDocInfoParser.parseTypeName(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeName_7087(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeName_7101(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	var typeNameNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseNameExpression_7086(token)
+	var typeNameNode pkg_rhino.Node = this_.priv_JsDocInfoParser_parseNameExpression_7100(token)
 	_ = typeNameNode
-	if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_LEFT_ANGLE()) {
-		this_.priv_JsDocInfoParser_next_7112()
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		var memberType pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpressionList_7082(typeNameNode.GetString(), this_.priv_JsDocInfoParser_next_7112())
+	if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_LEFT_ANGLE()) {
+		this_.priv_JsDocInfoParser_next_7126()
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		var memberType pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpressionList_7096(typeNameNode.GetString(), this_.priv_JsDocInfoParser_next_7126())
 		_ = memberType
 		if memberType != 0 {
 			typeNameNode.AddChildToFront(memberType)
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_ANGLE())) {
-				return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_GT())
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_ANGLE())) {
+				return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_GT())
 			}
-			this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_next_7126()
 		}
 	}
 	return typeNameNode
 }
 
 // Java method: JsDocInfoParser.parseTypeofType(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeofType_7088(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseTypeofType_7102(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token == StaticGet_JsDocToken_LEFT_CURLY() {
-		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_UNNECESSARY_BRACES())
+		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_UNNECESSARY_BRACES())
 	}
-	var typeofType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_TYPEOF())
+	var typeofType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_TYPEOF())
 	_ = typeofType
-	var name pkg_rhino.Node = this_.priv_JsDocInfoParser_parseNameExpression_7086(token)
+	var name pkg_rhino.Node = this_.priv_JsDocInfoParser_parseNameExpression_7100(token)
 	_ = name
 	if name == 0 {
 		return pkg_rhino.Node(0)
 	}
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
 	typeofType.AddChildToFront(name)
 	return typeofType
 }
 
 // Java method: JsDocInfoParser.parseFunctionType(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFunctionType_7089(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFunctionType_7103(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token != StaticGet_JsDocToken_LEFT_PAREN() {
-		this_.priv_JsDocInfoParser_restoreLookAhead_7108(token)
-		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_LP())
+		this_.priv_JsDocInfoParser_restoreLookAhead_7122(token)
+		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_LP())
 	}
-	var functionType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_FUNCTION())
+	var functionType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_FUNCTION())
 	_ = functionType
 	var parameters pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = parameters
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_PAREN())) {
-		token = this_.priv_JsDocInfoParser_next_7112()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_PAREN())) {
+		token = this_.priv_JsDocInfoParser_next_7126()
 		var hasParams bool = true
 		_ = hasParams
 		if token == StaticGet_JsDocToken_STRING() {
@@ -2194,9 +2194,9 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFunctionType_7089(token 
 			var isNew bool = ("new" == tokenStr)
 			_ = isNew
 			if isThis || isNew {
-				if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COLON()) {
-					this_.priv_JsDocInfoParser_next_7112()
-					this_.priv_JsDocInfoParser_skipEOLs_7114()
+				if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COLON()) {
+					this_.priv_JsDocInfoParser_next_7126()
+					this_.priv_JsDocInfoParser_skipEOLs_7128()
 					var iifeArg_1 pkg_rhino.
 						Token
 				iifeSwitch_1:
@@ -2210,28 +2210,28 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFunctionType_7089(token 
 						iifeArg_1 = pkg_rhino.StaticGet_Token_NEW()
 						break iifeSwitch_1
 					}
-					var contextType pkg_rhino.Node = this_.priv_JsDocInfoParser_wrapNode_7098(iifeArg_1,
+					var contextType pkg_rhino.Node = this_.priv_JsDocInfoParser_wrapNode_7112(iifeArg_1,
 
-						this_.priv_JsDocInfoParser_parseContextTypeExpression_7084(this_.priv_JsDocInfoParser_next_7112()))
+						this_.priv_JsDocInfoParser_parseContextTypeExpression_7098(this_.priv_JsDocInfoParser_next_7126()))
 					_ = contextType
 					if contextType == 0 {
 						return pkg_rhino.Node(0)
 					}
 					functionType.AddChildToFront(contextType)
 				} else {
-					return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_COLON())
+					return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_COLON())
 				}
-				if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COMMA()) {
-					this_.priv_JsDocInfoParser_next_7112()
-					this_.priv_JsDocInfoParser_skipEOLs_7114()
-					token = this_.priv_JsDocInfoParser_next_7112()
+				if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COMMA()) {
+					this_.priv_JsDocInfoParser_next_7126()
+					this_.priv_JsDocInfoParser_skipEOLs_7128()
+					token = this_.priv_JsDocInfoParser_next_7126()
 				} else {
 					hasParams = false
 				}
 			}
 		}
 		if hasParams {
-			parameters = this_.priv_JsDocInfoParser_parseParametersType_7090(token)
+			parameters = this_.priv_JsDocInfoParser_parseParametersType_7104(token)
 			if parameters == 0 {
 				return pkg_rhino.Node(0)
 			}
@@ -2240,13 +2240,13 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFunctionType_7089(token 
 	if parameters != 0 {
 		functionType.AddChildToBack(parameters)
 	}
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_PAREN())) {
-		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RP())
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_PAREN())) {
+		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RP())
 	}
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	this_.priv_JsDocInfoParser_next_7112()
-	var resultType pkg_rhino.Node = this_.priv_JsDocInfoParser_parseResultType_7091()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	this_.priv_JsDocInfoParser_next_7126()
+	var resultType pkg_rhino.Node = this_.priv_JsDocInfoParser_parseResultType_7105()
 	_ = resultType
 	if resultType == 0 {
 		return pkg_rhino.Node(0)
@@ -2257,37 +2257,37 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFunctionType_7089(token 
 }
 
 // Java method: JsDocInfoParser.parseParametersType(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParametersType_7090(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParametersType_7104(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	var paramsType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_PARAM_LIST())
+	var paramsType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_PARAM_LIST())
 	_ = paramsType
 	var isVarArgs bool = false
 	_ = isVarArgs
 	var paramType pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = paramType
 	if token != StaticGet_JsDocToken_RIGHT_PAREN() {
-		for doFirst_9 := true; doFirst_9 || (this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COMMA())); doFirst_9 = false {
+		for doFirst_9 := true; doFirst_9 || (this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COMMA())); doFirst_9 = false {
 			if paramType != 0 {
-				this_.priv_JsDocInfoParser_next_7112()
-				this_.priv_JsDocInfoParser_skipEOLs_7114()
-				token = this_.priv_JsDocInfoParser_next_7112()
+				this_.priv_JsDocInfoParser_next_7126()
+				this_.priv_JsDocInfoParser_skipEOLs_7128()
+				token = this_.priv_JsDocInfoParser_next_7126()
 			}
 			if token == StaticGet_JsDocToken_ITER_REST() {
-				this_.priv_JsDocInfoParser_skipEOLs_7114()
-				if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_PAREN()) {
-					paramType = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_ITER_REST())
+				this_.priv_JsDocInfoParser_skipEOLs_7128()
+				if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_PAREN()) {
+					paramType = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_ITER_REST())
 				} else {
-					this_.priv_JsDocInfoParser_skipEOLs_7114()
-					paramType = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_ITER_REST(), this_.priv_JsDocInfoParser_parseTypeExpression_7083(this_.priv_JsDocInfoParser_next_7112()))
-					this_.priv_JsDocInfoParser_skipEOLs_7114()
+					this_.priv_JsDocInfoParser_skipEOLs_7128()
+					paramType = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_ITER_REST(), this_.priv_JsDocInfoParser_parseTypeExpression_7097(this_.priv_JsDocInfoParser_next_7126()))
+					this_.priv_JsDocInfoParser_skipEOLs_7128()
 				}
 				isVarArgs = true
 			} else {
-				paramType = this_.priv_JsDocInfoParser_parseTypeExpression_7083(token)
-				if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_EQUALS()) {
-					this_.priv_JsDocInfoParser_skipEOLs_7114()
-					this_.priv_JsDocInfoParser_next_7112()
-					paramType = this_.priv_JsDocInfoParser_wrapNode_7098(pkg_rhino.StaticGet_Token_EQUALS(), paramType)
+				paramType = this_.priv_JsDocInfoParser_parseTypeExpression_7097(token)
+				if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_EQUALS()) {
+					this_.priv_JsDocInfoParser_skipEOLs_7128()
+					this_.priv_JsDocInfoParser_next_7126()
+					paramType = this_.priv_JsDocInfoParser_wrapNode_7112(pkg_rhino.StaticGet_Token_EQUALS(), paramType)
 				}
 			}
 			if paramType == 0 {
@@ -2299,71 +2299,71 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseParametersType_7090(toke
 			}
 		}
 	}
-	if isVarArgs && this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COMMA()) {
-		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_FUNCTION_VARARGS())
+	if isVarArgs && this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COMMA()) {
+		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_FUNCTION_VARARGS())
 	}
 	return paramsType
 }
 
 // Java method: JsDocInfoParser.parseResultType()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseResultType_7091() pkg_rhino.Node {
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COLON())) {
-		return this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_EMPTY())
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseResultType_7105() pkg_rhino.Node {
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COLON())) {
+		return this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_EMPTY())
 	}
-	this_.priv_JsDocInfoParser_next_7112()
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) && func() bool {
+	this_.priv_JsDocInfoParser_next_7126()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) && func() bool {
 		sr_10 := "void"
 		se_11 := this_.stream.GetString()
 		return j2gort.CheckNotNullString(sr_10) == se_11
 	}() {
-		this_.priv_JsDocInfoParser_next_7112()
-		return this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_VOID())
+		this_.priv_JsDocInfoParser_next_7126()
+		return this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_VOID())
 	} else {
-		return this_.priv_JsDocInfoParser_parseTypeExpression_7083(this_.priv_JsDocInfoParser_next_7112())
+		return this_.priv_JsDocInfoParser_parseTypeExpression_7097(this_.priv_JsDocInfoParser_next_7126())
 	}
 }
 
 // Java method: JsDocInfoParser.parseUnionType(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseUnionType_7092(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseUnionType_7106(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	return this_.priv_JsDocInfoParser_parseUnionTypeWithAlternate_7093(token, pkg_rhino.Node(0))
+	return this_.priv_JsDocInfoParser_parseUnionTypeWithAlternate_7107(token, pkg_rhino.Node(0))
 }
 
 // Java method: JsDocInfoParser.parseUnionTypeWithAlternate(com.google.javascript.jscomp.parsing.JsDocToken token, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node alternate)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseUnionTypeWithAlternate_7093(token JsDocToken, alternate pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseUnionTypeWithAlternate_7107(token JsDocToken, alternate pkg_rhino.Node) pkg_rhino.Node {
 	_ = token
 	_ = alternate
-	var union pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_PIPE())
+	var union pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_PIPE())
 	_ = union
 	if alternate != 0 {
 		union.AddChildToBack(alternate)
 	}
 	var expr pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = expr
-	for doFirst_12 := true; doFirst_12 || (this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_PIPE())); doFirst_12 = false {
+	for doFirst_12 := true; doFirst_12 || (this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_PIPE())); doFirst_12 = false {
 		if expr != 0 {
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			token = this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			token = this_.priv_JsDocInfoParser_next_7126()
 			if !(token == StaticGet_JsDocToken_PIPE()) {
 				j2gort.CheckState(false)
 			}
-			this_.priv_JsDocInfoParser_skipEOLs_7114()
-			token = this_.priv_JsDocInfoParser_next_7112()
+			this_.priv_JsDocInfoParser_skipEOLs_7128()
+			token = this_.priv_JsDocInfoParser_next_7126()
 		}
-		expr = this_.priv_JsDocInfoParser_parseTypeExpression_7083(token)
+		expr = this_.priv_JsDocInfoParser_parseTypeExpression_7097(token)
 		if expr == 0 {
 			return pkg_rhino.Node(0)
 		}
 		union.AddChildToBack(expr)
 	}
 	if alternate == 0 {
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_PAREN())) {
-			return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RP())
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_PAREN())) {
+			return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RP())
 		}
-		this_.priv_JsDocInfoParser_next_7112()
+		this_.priv_JsDocInfoParser_next_7126()
 	}
 	if union.HasOneChild() {
 		var firstChild pkg_rhino.Node = union.GetFirstChild()
@@ -2375,33 +2375,33 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseUnionTypeWithAlternate_7
 }
 
 // Java method: JsDocInfoParser.parseRecordType(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseRecordType_7094(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseRecordType_7108(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	var recordType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_LC())
+	var recordType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_LC())
 	_ = recordType
-	var fieldTypeList pkg_rhino.Node = this_.priv_JsDocInfoParser_parseFieldTypeList_7095(token)
+	var fieldTypeList pkg_rhino.Node = this_.priv_JsDocInfoParser_parseFieldTypeList_7109(token)
 	_ = fieldTypeList
 	if fieldTypeList == 0 {
-		return this_.priv_JsDocInfoParser_reportGenericTypeSyntaxWarning_7103()
+		return this_.priv_JsDocInfoParser_reportGenericTypeSyntaxWarning_7117()
 	}
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY())) {
-		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY())) {
+		return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RC())
 	}
-	this_.priv_JsDocInfoParser_next_7112()
+	this_.priv_JsDocInfoParser_next_7126()
 	recordType.AddChildToBack(fieldTypeList)
 	return recordType
 }
 
 // Java method: JsDocInfoParser.parseFieldTypeList(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldTypeList_7095(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldTypeList_7109(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	var fieldTypeList pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_LB())
+	var fieldTypeList pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_LB())
 	_ = fieldTypeList
 	var names j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()
 	_ = names
 	for doFirst_13 := true; doFirst_13 || (true); doFirst_13 = false {
-		var fieldType pkg_rhino.Node = this_.priv_JsDocInfoParser_parseFieldType_7096(token)
+		var fieldType pkg_rhino.Node = this_.priv_JsDocInfoParser_parseFieldType_7110(token)
 		_ = fieldType
 		if fieldType == 0 {
 			return pkg_rhino.Node(0)
@@ -2416,42 +2416,42 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldTypeList_7095(token
 		if names.Add(name) {
 			fieldTypeList.AddChildToBack(fieldType)
 		} else {
-			this_.priv_JsDocInfoParser_addTypeWarning_7038(pkg_rhino.StaticGet_Msg_JSDOC_TYPE_RECORD_DUPLICATE(), name)
+			this_.priv_JsDocInfoParser_addTypeWarning_7052(pkg_rhino.StaticGet_Msg_JSDOC_TYPE_RECORD_DUPLICATE(), name)
 		}
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COMMA())) {
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COMMA())) {
 			break
 		}
-		this_.priv_JsDocInfoParser_next_7112()
-		this_.priv_JsDocInfoParser_skipEOLs_7114()
-		if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_RIGHT_CURLY()) {
+		this_.priv_JsDocInfoParser_next_7126()
+		this_.priv_JsDocInfoParser_skipEOLs_7128()
+		if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_RIGHT_CURLY()) {
 			break
 		}
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 	}
 	return fieldTypeList
 }
 
 // Java method: JsDocInfoParser.parseFieldType(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldType_7096(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldType_7110(token JsDocToken) pkg_rhino.Node {
 	_ = token
-	var fieldName pkg_rhino.Node = this_.priv_JsDocInfoParser_parseFieldName_7097(token)
+	var fieldName pkg_rhino.Node = this_.priv_JsDocInfoParser_parseFieldName_7111(token)
 	_ = fieldName
 	if fieldName == 0 {
 		return pkg_rhino.Node(0)
 	}
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_COLON())) {
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_COLON())) {
 		return fieldName
 	}
-	this_.priv_JsDocInfoParser_next_7112()
-	this_.priv_JsDocInfoParser_skipEOLs_7114()
-	var typeExpression pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpression_7083(this_.priv_JsDocInfoParser_next_7112())
+	this_.priv_JsDocInfoParser_next_7126()
+	this_.priv_JsDocInfoParser_skipEOLs_7128()
+	var typeExpression pkg_rhino.Node = this_.priv_JsDocInfoParser_parseTypeExpression_7097(this_.priv_JsDocInfoParser_next_7126())
 	_ = typeExpression
 	if typeExpression == 0 {
 		return pkg_rhino.Node(0)
 	}
-	var fieldType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7100(pkg_rhino.StaticGet_Token_COLON())
+	var fieldType pkg_rhino.Node = this_.priv_JsDocInfoParser_newNode_7114(pkg_rhino.StaticGet_Token_COLON())
 	_ = fieldType
 	fieldType.AddChildToBack(fieldName)
 	fieldType.AddChildToBack(typeExpression)
@@ -2459,7 +2459,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldType_7096(token JsD
 }
 
 // Java method: JsDocInfoParser.parseFieldName(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldName_7097(token JsDocToken) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldName_7111(token JsDocToken) pkg_rhino.Node {
 	_ = token
 	if token != StaticGet_JsDocToken_STRING() {
 		return pkg_rhino.Node(0)
@@ -2482,18 +2482,18 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseFieldName_7097(token JsD
 }
 
 // Java method: JsDocInfoParser.wrapNode(com.google.javascript.rhino.Token type, com.google.javascript.rhino.Node n)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_wrapNode_7098(type_ pkg_rhino.Token, n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_wrapNode_7112(type_ pkg_rhino.Token, n pkg_rhino.Node) pkg_rhino.Node {
 	_ = type_
 	_ = n
 	if n == 0 {
 		return pkg_rhino.Node(0)
 	} else {
-		return this_.priv_JsDocInfoParser_wrapNode_7099(type_, n, n.GetLineno(), n.GetCharno())
+		return this_.priv_JsDocInfoParser_wrapNode_7113(type_, n, n.GetLineno(), n.GetCharno())
 	}
 }
 
 // Java method: JsDocInfoParser.wrapNode(com.google.javascript.rhino.Token type, com.google.javascript.rhino.Node n, int lineno, int charno)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_wrapNode_7099(type_ pkg_rhino.Token, n pkg_rhino.Node, lineno int32, charno int32) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_wrapNode_7113(type_ pkg_rhino.Token, n pkg_rhino.Node, lineno int32, charno int32) pkg_rhino.Node {
 	if n == 0 {
 		return pkg_rhino.Node(0)
 	}
@@ -2505,7 +2505,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_wrapNode_7099(type_ pkg_rhino
 }
 
 // Java method: JsDocInfoParser.newNode(com.google.javascript.rhino.Token type)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_newNode_7100(type_ pkg_rhino.Token) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_newNode_7114(type_ pkg_rhino.Token) pkg_rhino.Node {
 	if this_.nodeAlloc_ != nil {
 		return pkg_rhino.Node(this_.nodeAlloc_.AllocNode1(uint8(type_)-1, nodestore.Node(this_.templateNode))).SetLinenoCharno(this_.stream.GetLineno(), this_.stream.GetCharno())
 	}
@@ -2514,7 +2514,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_newNode_7100(type_ pkg_rhino.
 }
 
 // Java method: JsDocInfoParser.newStringNode(java.lang.String s)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_newStringNode_7101(s string) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_newStringNode_7115(s string) pkg_rhino.Node {
 	var n pkg_rhino.Node
 	if this_.nodeAlloc_ != nil {
 		if s == j2gort.NullString {
@@ -2530,92 +2530,92 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_newStringNode_7101(s string) 
 }
 
 // Java method: JsDocInfoParser.reportTypeSyntaxWarning(com.google.javascript.rhino.Msg warning)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(warning pkg_rhino.Msg) pkg_rhino.Node {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(warning pkg_rhino.Msg) pkg_rhino.Node {
 	_ = warning
-	this_.priv_JsDocInfoParser_addTypeWarning_7041(warning, this_.stream.GetLineno(), this_.stream.GetCharno())
+	this_.priv_JsDocInfoParser_addTypeWarning_7055(warning, this_.stream.GetLineno(), this_.stream.GetCharno())
 	return pkg_rhino.Node(0)
 }
 
 // Java method: JsDocInfoParser.reportGenericTypeSyntaxWarning()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_reportGenericTypeSyntaxWarning_7103() pkg_rhino.Node {
-	return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7102(pkg_rhino.StaticGet_Msg_JSDOC_TYPE_SYNTAX())
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_reportGenericTypeSyntaxWarning_7117() pkg_rhino.Node {
+	return this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7116(pkg_rhino.StaticGet_Msg_JSDOC_TYPE_SYNTAX())
 }
 
 // Java method: JsDocInfoParser.eatUntilEOLIfNotAnnotation()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7104() JsDocToken {
-	return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(this_.priv_JsDocInfoParser_next_7112())
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7118() JsDocToken {
+	return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(this_.priv_JsDocInfoParser_next_7126())
 }
 
 // Java method: JsDocInfoParser.eatUntilEOLIfNotAnnotation(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(token JsDocToken) JsDocToken {
 	_ = token
 	if token == StaticGet_JsDocToken_ANNOTATION() {
 		this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()
 		return token
 	}
-	return this_.priv_JsDocInfoParser_eatTokensUntilEOL_7107(token)
+	return this_.priv_JsDocInfoParser_eatTokensUntilEOL_7121(token)
 }
 
 // Java method: JsDocInfoParser.eatTokensUntilEOL()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatTokensUntilEOL_7106() JsDocToken {
-	return this_.priv_JsDocInfoParser_eatTokensUntilEOL_7107(this_.priv_JsDocInfoParser_next_7112())
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatTokensUntilEOL_7120() JsDocToken {
+	return this_.priv_JsDocInfoParser_eatTokensUntilEOL_7121(this_.priv_JsDocInfoParser_next_7126())
 }
 
 // Java method: JsDocInfoParser.eatTokensUntilEOL(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatTokensUntilEOL_7107(token JsDocToken) JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatTokensUntilEOL_7121(token JsDocToken) JsDocToken {
 	_ = token
 	for doFirst_14 := true; doFirst_14 || (true); doFirst_14 = false {
 		if ((token == StaticGet_JsDocToken_EOL()) || (token == StaticGet_JsDocToken_EOC())) || (token == StaticGet_JsDocToken_EOF()) {
 			this_.state = StaticGet_JsDocInfoParser_State_SEARCHING_ANNOTATION()
 			return token
 		}
-		token = this_.priv_JsDocInfoParser_next_7112()
+		token = this_.priv_JsDocInfoParser_next_7126()
 	}
 	panic("unreachable")
 }
 
 // Java method: JsDocInfoParser.restoreLookAhead(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_restoreLookAhead_7108(token JsDocToken) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_restoreLookAhead_7122(token JsDocToken) {
 	_ = token
 	this_.unreadToken = token
 }
 
 // Java method: JsDocInfoParser.match(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_match_7109(token JsDocToken) bool {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_match_7123(token JsDocToken) bool {
 	_ = token
-	this_.unreadToken = this_.priv_JsDocInfoParser_next_7112()
+	this_.unreadToken = this_.priv_JsDocInfoParser_next_7126()
 	return (this_.unreadToken == token)
 }
 
 // Java method: JsDocInfoParser.match(com.google.javascript.jscomp.parsing.JsDocToken token1, com.google.javascript.jscomp.parsing.JsDocToken token2)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_match_7110(token1 JsDocToken, token2 JsDocToken) bool {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_match_7124(token1 JsDocToken, token2 JsDocToken) bool {
 	_ = token1
 	_ = token2
-	this_.unreadToken = this_.priv_JsDocInfoParser_next_7112()
+	this_.unreadToken = this_.priv_JsDocInfoParser_next_7126()
 	return ((this_.unreadToken == token1) || (this_.unreadToken == token2))
 }
 
 // Java method: JsDocInfoParser.eatIfMatch(com.google.javascript.jscomp.parsing.JsDocToken token)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatIfMatch_7111(token JsDocToken) bool {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_eatIfMatch_7125(token JsDocToken) bool {
 	_ = token
-	if this_.priv_JsDocInfoParser_match_7109(token) {
-		this_.priv_JsDocInfoParser_next_7112()
+	if this_.priv_JsDocInfoParser_match_7123(token) {
+		this_.priv_JsDocInfoParser_next_7126()
 		return true
 	}
 	return false
 }
 
 // Java method: JsDocInfoParser.next()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_next_7112() JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_next_7126() JsDocToken {
 	if this_.unreadToken == StaticGet_JsDocInfoParser_NO_UNREAD_TOKEN() {
 		return this_.stream.GetJsDocToken()
 	} else {
-		return this_.priv_JsDocInfoParser_current_7113()
+		return this_.priv_JsDocInfoParser_current_7127()
 	}
 }
 
 // Java method: JsDocInfoParser.current()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_current_7113() JsDocToken {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_current_7127() JsDocToken {
 	var t JsDocToken = this_.unreadToken
 	_ = t
 	this_.unreadToken = StaticGet_JsDocInfoParser_NO_UNREAD_TOKEN()
@@ -2623,17 +2623,17 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_current_7113() JsDocToken {
 }
 
 // Java method: JsDocInfoParser.skipEOLs()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_skipEOLs_7114() {
-	for this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_EOL()) {
-		this_.priv_JsDocInfoParser_next_7112()
-		if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STAR()) {
-			this_.priv_JsDocInfoParser_next_7112()
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_skipEOLs_7128() {
+	for this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_EOL()) {
+		this_.priv_JsDocInfoParser_next_7126()
+		if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STAR()) {
+			this_.priv_JsDocInfoParser_next_7126()
 		}
 	}
 }
 
 // Java method: JsDocInfoParser.getRemainingJSDocLine()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getRemainingJSDocLine_7115() string {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getRemainingJSDocLine_7129() string {
 	var result string = this_.stream.GetRemainingJSDocLine()
 	_ = result
 	this_.unreadToken = StaticGet_JsDocInfoParser_NO_UNREAD_TOKEN()
@@ -2641,7 +2641,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_getRemainingJSDocLine_7115() 
 }
 
 // Java method: JsDocInfoParser.hasParsedFileOverviewDocInfo()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_hasParsedFileOverviewDocInfo_7116() bool {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_hasParsedFileOverviewDocInfo_7130() bool {
 	return this_.jsdocBuilder.IsPopulatedWithFileOverview()
 }
 
@@ -2656,17 +2656,17 @@ func (this_ *JsDocInfoParser) GetFileOverviewJSDocInfo() *pkg_rhino.JSDocInfo {
 }
 
 // Java method: JsDocInfoParser.lookAheadForType()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadForType_7119() bool {
-	return this_.priv_JsDocInfoParser_lookAheadFor_7121(uint16(123))
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadForType_7133() bool {
+	return this_.priv_JsDocInfoParser_lookAheadFor_7135(uint16(123))
 }
 
 // Java method: JsDocInfoParser.lookAheadForAnnotation()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadForAnnotation_7120() bool {
-	return this_.priv_JsDocInfoParser_lookAheadFor_7121(uint16(64))
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadForAnnotation_7134() bool {
+	return this_.priv_JsDocInfoParser_lookAheadFor_7135(uint16(64))
 }
 
 // Java method: JsDocInfoParser.lookAheadFor(char expect)
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadFor_7121(expect uint16) bool {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadFor_7135(expect uint16) bool {
 	_ = expect
 	var matched bool = false
 	_ = matched
@@ -2688,17 +2688,17 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_lookAheadFor_7121(expect uint
 }
 
 // Java method: JsDocInfoParser.parseClosureUnawareCode()
-func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosureUnawareCode_7122() JsDocToken {
-	this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_INVALID())
-	if !(this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_LEFT_CURLY())) {
+func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosureUnawareCode_7136() JsDocToken {
+	this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_INVALID())
+	if !(this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_LEFT_CURLY())) {
 		if !(this_.jsdocBuilder.RecordClosureUnawareCode_0()) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_EXTRA())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_EXTRA())
 		}
-		return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(this_.priv_JsDocInfoParser_current_7113())
+		return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(this_.priv_JsDocInfoParser_current_7127())
 	}
-	var token JsDocToken = this_.priv_JsDocInfoParser_next_7112()
+	var token JsDocToken = this_.priv_JsDocInfoParser_next_7126()
 	_ = token
-	if this_.priv_JsDocInfoParser_match_7109(StaticGet_JsDocToken_STRING()) {
+	if this_.priv_JsDocInfoParser_match_7123(StaticGet_JsDocToken_STRING()) {
 		var value string = this_.stream.GetString()
 		_ = value
 		var mode pkg_rhino.JSDocInfo_PerFileClosureUnawareMode
@@ -2713,7 +2713,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosureUnawareCode_7122(
 				mode = pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_SIMPLE()
 				break iifeSwitch_2
 			default:
-				this_.priv_JsDocInfoParser_addParserWarning_7034(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CONFIG_INVALID_VALUE(), value)
+				this_.priv_JsDocInfoParser_addParserWarning_7048(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CONFIG_INVALID_VALUE(), value)
 				mode = pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_SIMPLE()
 				break iifeSwitch_2
 			}
@@ -2722,10 +2722,10 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosureUnawareCode_7122(
 
 		_ = mode
 		if !(this_.jsdocBuilder.RecordClosureUnawareCode_1(mode)) {
-			this_.priv_JsDocInfoParser_addParserWarning_7036(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_EXTRA())
+			this_.priv_JsDocInfoParser_addParserWarning_7050(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_EXTRA())
 		}
 	}
-	return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7105(token)
+	return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7119(token)
 }
 
 // Java enum: com.google.javascript.jscomp.parsing.JsDocInfoParser.State

@@ -151,11 +151,11 @@ func (this_ *MinimizeExitPoints) TryMinimizeExits(n pkg_rhino.Node, exitType pkg
 				_ = trueBlock
 				var falseBlock pkg_rhino.Node = trueBlock.GetNext()
 				_ = falseBlock
-				this_.priv_MinimizeExitPoints_tryMinimizeIfBlockExits_3880(trueBlock, falseBlock, ifTree, exitType, labelName)
+				this_.priv_MinimizeExitPoints_tryMinimizeIfBlockExits_3886(trueBlock, falseBlock, ifTree, exitType, labelName)
 				trueBlock = ifTree.GetSecondChild()
 				falseBlock = trueBlock.GetNext()
 				if ((falseBlock != 0)) {
-					this_.priv_MinimizeExitPoints_tryMinimizeIfBlockExits_3880(falseBlock, trueBlock, ifTree, exitType, labelName)
+					this_.priv_MinimizeExitPoints_tryMinimizeIfBlockExits_3886(falseBlock, trueBlock, ifTree, exitType, labelName)
 				}
 			}
 			if ((c == n.GetLastChild())) {
@@ -224,7 +224,7 @@ func (this_ *MinimizeExitPoints) TryMinimizeSwitchCaseExits(n pkg_rhino.Node, ex
 }
 
 // Java method: MinimizeExitPoints.tryMinimizeIfBlockExits(com.google.javascript.rhino.Node srcBlock, com.google.javascript.rhino.Node destBlock, com.google.javascript.rhino.Node ifNode, com.google.javascript.rhino.Token exitType, java.lang.@org.jspecify.annotations.Nullable String labelName)
-func (this_ *MinimizeExitPoints) priv_MinimizeExitPoints_tryMinimizeIfBlockExits_3880(srcBlock pkg_rhino.Node, destBlock pkg_rhino.Node, ifNode pkg_rhino.Node, exitType pkg_rhino.Token, labelName string) {
+func (this_ *MinimizeExitPoints) priv_MinimizeExitPoints_tryMinimizeIfBlockExits_3886(srcBlock pkg_rhino.Node, destBlock pkg_rhino.Node, ifNode pkg_rhino.Node, exitType pkg_rhino.Token, labelName string) {
 	_ = srcBlock
 	_ = destBlock
 	_ = ifNode

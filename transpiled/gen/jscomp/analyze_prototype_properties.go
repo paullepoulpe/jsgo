@@ -42,6 +42,7 @@ type AnalyzePrototypeProperties struct {
 	canModifyExterns       bool `gson:"canModifyExterns"`
 	anchorUnusedVars       bool `gson:"anchorUnusedVars"`
 	rootScopeUsesAreGlobal bool `gson:"rootScopeUsesAreGlobal"`
+	scopeCreator_          *SyntacticScopeCreator
 }
 
 func (this_ *AnalyzePrototypeProperties) BindSelf_(s any) {
@@ -127,8 +128,8 @@ func (this_ *AnalyzePrototypeProperties) initFields_AnalyzePrototypeProperties()
 	this_.globalNode = NewAnalyzePrototypeProperties_NameInfo(this_, "[global]")
 	this_.externNode = NewAnalyzePrototypeProperties_NameInfo(this_, "[extern]")
 	this_.anonymousNode = NewAnalyzePrototypeProperties_NameInfo(this_, "[anonymous]")
-	this_.propertyNameInfo = j2gort.NewOrderedMap[string, *AnalyzePrototypeProperties_NameInfo]()
-	this_.varNameInfo = j2gort.NewOrderedMap[string, *AnalyzePrototypeProperties_NameInfo](
+	this_.propertyNameInfo = j2gort.AcquireOrderedMap[string, *AnalyzePrototypeProperties_NameInfo]()
+	this_.varNameInfo = j2gort.AcquireOrderedMap[string, *AnalyzePrototypeProperties_NameInfo](
 
 	// Java constructor: AnalyzePrototypeProperties(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.JSChunkGraph chunkGraph, boolean canModifyExterns, boolean anchorUnusedVars, boolean rootScopeUsesAreGlobal)
 	)
@@ -193,9 +194,33 @@ func (this_ *AnalyzePrototypeProperties) Process_2(externRoot pkg_rhino.Node, ro
 		j2gort.CheckState(false)
 	}
 	if !(this_.canModifyExterns) {
-		NodeTraversal_Traverse(this_.compiler, externRoot, NewAnalyzePrototypeProperties_ProcessExternProperties(this_))
+		{
+			if this_.scopeCreator_ == nil {
+				this_.scopeCreator_ = NewSyntacticScopeCreator_1(this_.compiler)
+			}
+			clinit_NodeTraversal()
+			var ntbApp_ NodeTraversal_Builder
+			InitNodeTraversal_Builder(&ntbApp_)
+			(&ntbApp_).SetCompiler(this_.compiler)
+			(&ntbApp_).SetCallback_1_NodeTraversal_Callback(NewAnalyzePrototypeProperties_ProcessExternProperties(this_))
+			(&ntbApp_).SetScopeCreator(this_.scopeCreator_)
+			(&ntbApp_).Traverse(externRoot)
+		}
+
 	}
-	NodeTraversal_Traverse(this_.compiler, root, NewAnalyzePrototypeProperties_ProcessProperties(this_))
+	{
+		if this_.scopeCreator_ == nil {
+			this_.scopeCreator_ = NewSyntacticScopeCreator_1(this_.compiler)
+		}
+		clinit_NodeTraversal()
+		var ntbApp_ NodeTraversal_Builder
+		InitNodeTraversal_Builder(&ntbApp_)
+		(&ntbApp_).SetCompiler(this_.compiler)
+		(&ntbApp_).SetCallback_1_NodeTraversal_Callback(NewAnalyzePrototypeProperties_ProcessProperties(this_))
+		(&ntbApp_).SetScopeCreator(this_.scopeCreator_)
+		(&ntbApp_).Traverse(root)
+	}
+
 	var t *pkg_graph.FixedPointGraphTraversal[*AnalyzePrototypeProperties_NameInfo, *JSChunk] = pkg_graph.FixedPointGraphTraversal_NewTraversal[*AnalyzePrototypeProperties_NameInfo, *JSChunk](pkg_graph.ToIface_FixedPointGraphTraversal_EdgeCallback[*AnalyzePrototypeProperties_NameInfo, *JSChunk](NewAnalyzePrototypeProperties_PropagateReferences(this_)))
 	_ = t
 	t.ComputeFixedPoint_2_DiGraph_any_any__Ext_java_util_Set(j2gort.AsIface[pkg_graph.DiGraph[*AnalyzePrototypeProperties_NameInfo, *JSChunk]](this_.symbolGraph), j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_2(j2gort.PtrToAny(this_.externNode), j2gort.PtrToAny(this_.globalNode))))
@@ -1486,6 +1511,23 @@ func (this_ *AnalyzePrototypeProperties_NameInfo) GetDeepestCommonChunkRef() *JS
 // Java method: NameInfo.getDeclarations()
 func (this_ *AnalyzePrototypeProperties_NameInfo) GetDeclarations() j2gort.Ext_java_util_Deque {
 	return this_.declarations
+}
+func (this_ *AnalyzePrototypeProperties) ReleaseSlabs_() {
+	if this_ == nil {
+		return
+	}
+	if this_.symbolGraph != nil {
+		if r_, ok_ := any(this_.symbolGraph).(interface{ ReleaseSlabs_() }); ok_ {
+			r_.ReleaseSlabs_()
+		}
+		this_.symbolGraph = nil
+	}
+	this_.propertyNameInfo.ReleaseToPool()
+	this_.varNameInfo.ReleaseToPool()
+	if this_.scopeCreator_ != nil {
+		this_.scopeCreator_.ReleaseSlabs_()
+		this_.scopeCreator_ = nil
+	}
 }
 func (*AnalyzePrototypeProperties_ProcessExternProperties) AlwaysShouldTraverse_()      {}
 func (*AnalyzePrototypeProperties_ProcessExternProperties) CanReleaseSyntacticScopes_() {}

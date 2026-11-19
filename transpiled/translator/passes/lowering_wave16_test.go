@@ -92,15 +92,18 @@ func setupWave16J2gortOverlayWorkspace(t *testing.T) (tmpDir, repoRoot string) {
 	extraWrappers := `
 func (this_ *Ext_java_util_BitSet) Flip_1(arg0 int32) { bitSetOp_Flip_1(this_, arg0) }
 func (this_ *Ext_java_util_BitSet) Set_2_int32_bool(arg0 int32, arg1 bool) { bitSetOp_Set_2_int32_bool(this_, arg0, arg1) }
+func (this_ *Ext_java_util_BitSet) Set_3(arg0 int32, arg1 int32, arg2 bool) { bitSetOp_Set_3(this_, arg0, arg1, arg2) }
 func (this_ *Ext_java_util_BitSet) Clear_0()          { bitSetOp_Clear_0(this_) }
 func (this_ *Ext_java_util_BitSet) Clear_1(arg0 int32) { bitSetOp_Clear_1(this_, arg0) }
 func (this_ *Ext_java_util_BitSet) Clear_2(arg0 int32, arg1 int32) { bitSetOp_Clear_2(this_, arg0, arg1) }
 func (this_ *Ext_java_util_BitSet) Get_2(arg0 int32, arg1 int32) *Ext_java_util_BitSet { return bitSetOp_Get_2(this_, arg0, arg1) }
 func (this_ *Ext_java_util_BitSet) NextClearBit(arg0 int32) int32 { return bitSetOp_NextClearBit(this_, arg0) }
+func (this_ *Ext_java_util_BitSet) PreviousSetBit(arg0 int32) int32 { return bitSetOp_PreviousSetBit(this_, arg0) }
 func (this_ *Ext_java_util_BitSet) PreviousClearBit(arg0 int32) int32 { return bitSetOp_PreviousClearBit(this_, arg0) }
+func (this_ *Ext_java_util_BitSet) And(arg0 *Ext_java_util_BitSet) { bitSetOp_And(this_, arg0) }
 func (this_ *Ext_java_util_BitSet) Xor(arg0 *Ext_java_util_BitSet) { bitSetOp_Xor(this_, arg0) }
 `
-	for _, fnSig := range []string{"Flip_1(", "Set_2_int32_bool(", "Clear_0(", "Clear_1(", "Clear_2(", "Get_2(", "NextClearBit(", "PreviousClearBit(", "Xor("} {
+	for _, fnSig := range []string{"Flip_1(", "Set_2_int32_bool(", "Set_3(", "Clear_0(", "Clear_1(", "Clear_2(", "Get_2(", "NextClearBit(", "PreviousSetBit(", "PreviousClearBit(", "And(", "Xor("} {
 		if strings.Contains(extContent, "func (this_ *Ext_java_util_BitSet) "+fnSig) {
 			// Remove duplicate line from extraWrappers if already present in ext_bindings.go.
 			var kept []string

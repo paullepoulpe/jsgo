@@ -56,6 +56,31 @@ func NewVar(name string, nameNode pkg_rhino.Node, scope *Scope, index int32, inp
 	return this_
 }
 func allocOpt_Var(slab_ *j2gort.PooledSlab[Var], name string, nameNode pkg_rhino.Node, scope *Scope, index int32, input *CompilerInput, implicitGoogNamespaceDefinition pkg_rhino.Node) *Var {
+	if slab_ != nil && name != j2gort.NullString && scope != nil && index >= int32(-1) && implicitGoogNamespaceDefinition == 0 {
+		okNode_ := nameNode == 0
+		if !okNode_ {
+			switch nameNode.TokenSwitchOrd_() {
+			case int32(123), int32(32), int32(119):
+				okNode_ = true
+			}
+		}
+		if okNode_ {
+			this_ := slab_.Alloc()
+			this_.name = name
+			this_.scopeRoot = scope.rootNode
+			if nameNode != 0 {
+				this_.nameNode = nameNode
+			}
+			this_.scope = scope
+			if index != 0 {
+				this_.index = index
+			}
+			if input != nil {
+				this_.input = input
+			}
+			return this_
+		}
+	}
 	var this_ *Var
 	if slab_ != nil {
 		this_ = slab_.Alloc()

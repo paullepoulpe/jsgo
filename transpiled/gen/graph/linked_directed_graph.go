@@ -166,7 +166,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) ResetForReuse(useNodeAnnotations boo
 }
 
 // Java method: LinkedDirectedGraph.acquireEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> src, E edgeValue, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> dest)
-func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_acquireEdge_6357(src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
+func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_acquireEdge_6367(src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	_ = src
 	_ = edgeValue
 	_ = dest
@@ -191,7 +191,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) Connect_3_any_any_any(srcValue N, ed
 	_ = src
 	var dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E] = j2gort.CastPtr[LinkedDirectedGraph_LinkedDiGraphNode[N, E]](this_.GetNodeOrFail(destValue))
 	_ = dest
-	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6357(src, edgeValue, dest)
+	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6367(src, edgeValue, dest)
 	_ = edge
 	src.AddOutEdge(edge)
 	dest.AddInEdge(edge)
@@ -206,7 +206,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) Connect_3_DiGraph_DiGraphNode_any_an
 	_ = lSrc
 	var lDest *LinkedDirectedGraph_LinkedDiGraphNode[N, E] = j2gort.CastPtr[LinkedDirectedGraph_LinkedDiGraphNode[N, E]](dest)
 	_ = lDest
-	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6357(lSrc, edgeValue, lDest)
+	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6367(lSrc, edgeValue, lDest)
 	_ = edge
 	lSrc.AddOutEdge(edge)
 	lDest.AddInEdge(edge)
@@ -493,7 +493,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) GetEdgesInDirection(n1 N, n2 N) j2go
 func (this_ *LinkedDirectedGraphBase[N, E]) IsConnectedInDirection_2(source N, dest N) bool {
 	_ = source
 	_ = dest
-	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6362(source, j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), dest)
+	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6372(source, j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), dest)
 }
 
 // Java method: LinkedDirectedGraph.isConnectedInDirection(N source, E edgeValue, N dest)
@@ -501,7 +501,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) IsConnectedInDirection_3_any_any_any
 	_ = source
 	_ = edgeValue
 	_ = dest
-	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6362(source, j2gort.Ext_com_google_common_base_Predicates_EqualTo(j2gort.ToAny(edgeValue)), dest)
+	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6372(source, j2gort.Ext_com_google_common_base_Predicates_EqualTo(j2gort.ToAny(edgeValue)), dest)
 }
 
 // Java method: LinkedDirectedGraph.isConnectedInDirection(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> source, com.google.common.base.Predicate<E> edgeFilter, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> dest)
@@ -550,7 +550,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) IsConnectedInDirection_3_LinkedDirec
 }
 
 // Java method: LinkedDirectedGraph.isConnectedInDirection(N n1, com.google.common.base.Predicate<E> edgeMatcher, N n2)
-func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_isConnectedInDirection_6362(n1 N, edgeMatcher j2gort.Ext_com_google_common_base_Predicate, n2 N) bool {
+func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_isConnectedInDirection_6372(n1 N, edgeMatcher j2gort.Ext_com_google_common_base_Predicate, n2 N) bool {
 	_ = n1
 	_ = edgeMatcher
 	_ = n2
@@ -797,7 +797,14 @@ func NewLinkedDirectedGraph_LinkedDiGraphNode[N comparable, E any](nodeValue N, 
 }
 func allocPooled_LinkedDirectedGraph_LinkedDiGraphNode[N comparable, E any](slab_ *j2gort.PooledSlab[LinkedDirectedGraph_LinkedDiGraphNode[N, E]], nodeValue N, useAnnotation bool) *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
 	this_ := slab_.Alloc()
-	InitLinkedDirectedGraph_LinkedDiGraphNode[N, E](this_, nodeValue, useAnnotation)
+	this_.cachedId = j2gort.NullString
+	this_.priority = int32(-1)
+	this_.astPosition = int32(-1)
+	this_.dfaIndex = int32(-1)
+	this_.value = nodeValue
+	if useAnnotation {
+		this_.useAnnotation = true
+	}
 	return this_
 }
 
@@ -820,9 +827,17 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) Reinit(nodeValue N, us
 // Java method: LinkedDiGraphNode.clearForPool()
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) ClearForPool() {
 	this_.firstInEdge = nil
-	this_.inEdges = nil
+	if this_.inEdges != nil {
+		j2gort.ReleasePooledSlice(this_.inEdges)
+		this_.inEdges = nil
+	}
+
 	this_.firstOutEdge = nil
-	this_.outEdges = nil
+	if this_.outEdges != nil {
+		j2gort.ReleasePooledSlice(this_.outEdges)
+		this_.outEdges = nil
+	}
+
 	this_.value = func() N {
 		if _, ok_ := any((*N)(nil)).(*string); ok_ {
 			return any(j2gort.NullString).(N)
@@ -888,11 +903,17 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetInEdgeCount() int32
 // Java method: LinkedDiGraphNode.getInEdgeAt(int index)
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetInEdgeAt(index int32) DiGraph_DiGraphEdge[N, E] {
 	_ = index
+	return ToIface_DiGraph_DiGraphEdge[N, E](this_.GetLinkedInEdgeAt(index))
+}
+
+// Java method: LinkedDiGraphNode.getLinkedInEdgeAt(int index)
+func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetLinkedInEdgeAt(index int32) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
+	_ = index
 	if this_.inEdges != nil {
-		return ToIface_DiGraph_DiGraphEdge[N, E](this_.inEdges[index])
+		return this_.inEdges[index]
 	}
 	if (index == int32(0)) && (this_.firstInEdge != nil) {
-		return ToIface_DiGraph_DiGraphEdge[N, E](this_.firstInEdge)
+		return this_.firstInEdge
 	}
 	panic(j2gort.AsIface[javalang.IIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.IndexOutOfBoundsException", j2gort.ValueOfInt(index))))
 }
@@ -916,101 +937,97 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetOutEdgeCount() int3
 // Java method: LinkedDiGraphNode.getOutEdgeAt(int index)
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetOutEdgeAt(index int32) DiGraph_DiGraphEdge[N, E] {
 	_ = index
+	return ToIface_DiGraph_DiGraphEdge[N, E](this_.GetLinkedOutEdgeAt(index))
+}
+
+// Java method: LinkedDiGraphNode.getLinkedOutEdgeAt(int index)
+func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetLinkedOutEdgeAt(index int32) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
+	_ = index
 	if this_.outEdges != nil {
-		return ToIface_DiGraph_DiGraphEdge[N, E](this_.outEdges[index])
+		return this_.outEdges[index]
 	}
 	if (index == int32(0)) && (this_.firstOutEdge != nil) {
-		return ToIface_DiGraph_DiGraphEdge[N, E](this_.firstOutEdge)
+		return this_.firstOutEdge
 	}
 	panic(j2gort.AsIface[javalang.IIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.IndexOutOfBoundsException", j2gort.ValueOfInt(index))))
 }
 
 // Java method: LinkedDiGraphNode.addInEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge<N,E> edge)
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) AddInEdge(edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) {
-	_ = edge
 	if this_.inEdges != nil {
-		this_.inEdges = append(this_.inEdges, edge)
+		j2gort.AppendPooledSlice(&this_.inEdges, edge)
 	} else if this_.firstInEdge == nil {
 		this_.firstInEdge = edge
 	} else {
-		this_.inEdges = make([]*LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, int32(4))
-		this_.inEdges = append(this_.inEdges, this_.firstInEdge)
-		this_.inEdges = append(this_.inEdges, edge)
+		s_ := j2gort.AcquirePooledSlice[*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]](4)
+		s_ = append(s_, this_.firstInEdge, edge)
+		this_.inEdges = s_
 		this_.firstInEdge = nil
 	}
+
 }
 
 // Java method: LinkedDiGraphNode.addOutEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge<N,E> edge)
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) AddOutEdge(edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) {
-	_ = edge
 	if this_.outEdges != nil {
-		this_.outEdges = append(this_.outEdges, edge)
+		j2gort.AppendPooledSlice(&this_.outEdges, edge)
 	} else if this_.firstOutEdge == nil {
 		this_.firstOutEdge = edge
 	} else {
-		this_.outEdges = make([]*LinkedDirectedGraph_LinkedDiGraphEdge[N, E], 0, int32(4))
-		this_.outEdges = append(this_.outEdges, this_.firstOutEdge)
-		this_.outEdges = append(this_.outEdges, edge)
+		s_ := j2gort.AcquirePooledSlice[*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]](4)
+		s_ = append(s_, this_.firstOutEdge, edge)
+		this_.outEdges = s_
 		this_.firstOutEdge = nil
 	}
+
 }
 
 // Java method: LinkedDiGraphNode.removeInEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge<N,E> edge)
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) RemoveInEdge(edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) {
-	_ = edge
 	if this_.inEdges != nil {
-		{
-			var i int32 = int32(0)
-			_ = i
-			var size int32 = int32(len(this_.inEdges))
-			_ = size
-			for ; i < size; i = i + 1 {
-				if j2gort.CheckNotNullPtr(this_.inEdges[i]) == edge {
-					this_.inEdges = j2gort.SliceRemoveAt(this_.inEdges, i)
-					var remaining int32 = int32(len(this_.inEdges))
-					_ = remaining
-					if remaining == int32(1) {
-						this_.firstInEdge = this_.inEdges[int32(0)]
-						this_.inEdges = nil
-					} else if remaining == int32(0) {
-						this_.inEdges = nil
-					}
-					return
+		for i, size := int32(0), int32(len(this_.inEdges)); i < size; i++ {
+			if j2gort.CheckNotNullPtr(this_.inEdges[i]) == edge {
+				this_.inEdges = j2gort.SliceRemoveAt(this_.inEdges, i)
+				remaining := int32(len(this_.inEdges))
+				if remaining == 1 {
+					this_.firstInEdge = this_.inEdges[0]
+					j2gort.ReleasePooledSlice(this_.inEdges)
+					this_.inEdges = nil
+				} else if remaining == 0 {
+					j2gort.ReleasePooledSlice(this_.inEdges)
+					this_.inEdges = nil
 				}
+				return
 			}
 		}
-	} else if (this_.firstInEdge != nil) && (j2gort.CheckNotNullPtr(this_.firstInEdge) == edge) {
+	} else if this_.firstInEdge != nil && j2gort.CheckNotNullPtr(this_.firstInEdge) == edge {
 		this_.firstInEdge = nil
 	}
+
 }
 
 // Java method: LinkedDiGraphNode.removeOutEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge<N,E> edge)
 func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) RemoveOutEdge(edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) {
-	_ = edge
 	if this_.outEdges != nil {
-		{
-			var i int32 = int32(0)
-			_ = i
-			var size int32 = int32(len(this_.outEdges))
-			_ = size
-			for ; i < size; i = i + 1 {
-				if j2gort.CheckNotNullPtr(this_.outEdges[i]) == edge {
-					this_.outEdges = j2gort.SliceRemoveAt(this_.outEdges, i)
-					var remaining int32 = int32(len(this_.outEdges))
-					_ = remaining
-					if remaining == int32(1) {
-						this_.firstOutEdge = this_.outEdges[int32(0)]
-						this_.outEdges = nil
-					} else if remaining == int32(0) {
-						this_.outEdges = nil
-					}
-					return
+		for i, size := int32(0), int32(len(this_.outEdges)); i < size; i++ {
+			if j2gort.CheckNotNullPtr(this_.outEdges[i]) == edge {
+				this_.outEdges = j2gort.SliceRemoveAt(this_.outEdges, i)
+				remaining := int32(len(this_.outEdges))
+				if remaining == 1 {
+					this_.firstOutEdge = this_.outEdges[0]
+					j2gort.ReleasePooledSlice(this_.outEdges)
+					this_.outEdges = nil
+				} else if remaining == 0 {
+					j2gort.ReleasePooledSlice(this_.outEdges)
+					this_.outEdges = nil
 				}
+				return
 			}
 		}
-	} else if (this_.firstOutEdge != nil) && (j2gort.CheckNotNullPtr(this_.firstOutEdge) == edge) {
+	} else if this_.firstOutEdge != nil && j2gort.CheckNotNullPtr(this_.firstOutEdge) == edge {
 		this_.firstOutEdge = nil
 	}
+
 }
 
 // Java method: LinkedDiGraphNode.asSingletonList()
@@ -1214,7 +1231,13 @@ func NewLinkedDirectedGraph_LinkedDiGraphEdge[N comparable, E any](sourceNode *L
 }
 func allocPooled_LinkedDirectedGraph_LinkedDiGraphEdge[N comparable, E any](slab_ *j2gort.PooledSlab[LinkedDirectedGraph_LinkedDiGraphEdge[N, E]], sourceNode *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, destNode *LinkedDirectedGraph_LinkedDiGraphNode[N, E], useAnnotation bool) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	this_ := slab_.Alloc()
-	InitLinkedDirectedGraph_LinkedDiGraphEdge[N, E](this_, sourceNode, edgeValue, destNode, useAnnotation)
+	this_.dfaEdgeIndex = int32(-1)
+	this_.value = edgeValue
+	this_.sourceNode = sourceNode
+	this_.destNode = destNode
+	if useAnnotation {
+		this_.useAnnotation = true
+	}
 	return this_
 }
 
@@ -1273,9 +1296,19 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetSource() DiGraph_Di
 	return ToIface_DiGraph_DiGraphNode[N, E](this_.sourceNode)
 }
 
+// Java method: LinkedDiGraphEdge.getLinkedSource()
+func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetLinkedSource() *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
+	return this_.sourceNode
+}
+
 // Java method: LinkedDiGraphEdge.getDestination()
 func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetDestination() DiGraph_DiGraphNode[N, E] {
 	return ToIface_DiGraph_DiGraphNode[N, E](this_.destNode)
+}
+
+// Java method: LinkedDiGraphEdge.getLinkedDestination()
+func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetLinkedDestination() *LinkedDirectedGraph_LinkedDiGraphNode[N, E] {
+	return this_.destNode
 }
 
 // Java method: LinkedDiGraphEdge.getValue()
@@ -1350,6 +1383,16 @@ func (this_ *LinkedDirectedGraphBase[N, E]) ReleaseSlabs_() {
 		return
 	}
 	this_.slab_LinkedDirectedGraph_LinkedDiGraphEdge.Release()
-	this_.slab_LinkedDirectedGraph_LinkedDiGraphNode.Release()
+	this_.slab_LinkedDirectedGraph_LinkedDiGraphNode.ReleaseWith(func(n_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) {
+		if n_.inEdges != nil {
+			j2gort.ReleasePooledSlice(n_.inEdges)
+			n_.inEdges = nil
+		}
+		if n_.outEdges != nil {
+			j2gort.ReleasePooledSlice(n_.outEdges)
+			n_.outEdges = nil
+		}
+	})
+
 	this_.nodes.ReleaseToPool()
 }

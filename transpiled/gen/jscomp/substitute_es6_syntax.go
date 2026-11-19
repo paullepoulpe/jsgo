@@ -87,7 +87,7 @@ func (this_ *SubstituteEs6Syntax) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	switch n.TokenSwitchOrd_() {
 	case int32(73) /* Token.FUNCTION */ :
 		if n.IsArrowFunction() {
-			this_.priv_SubstituteEs6Syntax_maybeSimplifyArrowFunctionBody_5204(n, n.GetLastChild())
+			this_.priv_SubstituteEs6Syntax_maybeSimplifyArrowFunctionBody_5213(n, n.GetLastChild())
 		}
 	case int32(100) /* Token.STRING_KEY */ :
 		if n.GetFirstChild().IsName() && func() bool {
@@ -108,7 +108,7 @@ func (this_ *SubstituteEs6Syntax) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 }
 
 // Java method: SubstituteEs6Syntax.maybeSimplifyArrowFunctionBody(com.google.javascript.rhino.Node arrowFunction, com.google.javascript.rhino.Node body)
-func (this_ *SubstituteEs6Syntax) priv_SubstituteEs6Syntax_maybeSimplifyArrowFunctionBody_5204(arrowFunction pkg_rhino.Node, body pkg_rhino.Node) {
+func (this_ *SubstituteEs6Syntax) priv_SubstituteEs6Syntax_maybeSimplifyArrowFunctionBody_5213(arrowFunction pkg_rhino.Node, body pkg_rhino.Node) {
 	_ = arrowFunction
 	_ = body
 	if !(arrowFunction.IsArrowFunction()) {

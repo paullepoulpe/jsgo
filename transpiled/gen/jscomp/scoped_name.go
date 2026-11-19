@@ -128,13 +128,13 @@ func (this_ *ScopedNameBase) HashCode() int32 {
 	var h int32 = this_.cachedHashCode
 	_ = h
 	if ((h == int32(0))) {
-		return this_.priv_ScopedName_computeHashCode_5054()
+		return this_.priv_ScopedName_computeHashCode_5063()
 	}
 	return h
 }
 
 // Java method: ScopedName.computeHashCode()
-func (this_ *ScopedNameBase) priv_ScopedName_computeHashCode_5054() int32 {
+func (this_ *ScopedNameBase) priv_ScopedName_computeHashCode_5063() int32 {
 	var result int32 = (int32(31) + javalang.StringHashCode(j2gort.CheckNotNullString(this_.name)))
 	_ = result
 	var rootHash int32 = int32(0)

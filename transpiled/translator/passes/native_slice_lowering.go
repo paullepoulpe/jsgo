@@ -3941,7 +3941,7 @@ func unwrapEnclosingCheckNotNulls(expr ast.Expr, parents map[ast.Node]ast.Node, 
 			continue
 		}
 		if call, ok := parents[expr].(*ast.CallExpr); ok && len(call.Args) == 1 && !call.Ellipsis.IsValid() && call.Args[0] == expr {
-			if fnName, _, _, isJ2 := isJ2gortCall(call, info); isJ2 && (fnName == "CheckNotNull" || fnName == "CheckNotNullPtr" || fnName == "CheckNotNullIface") {
+			if fnName, _, _, isJ2 := isJ2gortCall(call, info); isJ2 && (fnName == "CheckNotNull" || fnName == "CheckNotNullPtr" || fnName == "CheckNotNullIface" || fnName == "CheckNotNullGeneric") {
 				expr = call
 				continue
 			}

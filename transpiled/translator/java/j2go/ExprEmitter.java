@@ -153,23 +153,11 @@ public final class ExprEmitter {
             + " }()";
       }
       if (resolver.isActiveTypeVariable(tm)) {
-        String goTv = resolver.goType(tm, ctx.imports);
-        String tmp = ctx.nextTemp("tv");
-        return "func() "
-            + goTv
-            + " { "
-            + tmp
-            + " := "
-            + emittedGo
-            + "; _ = "
-            + rt
-            + "CheckNotNull("
-            + rt
-            + "ToAny("
-            + tmp
-            + ")); return "
-            + tmp
-            + " }()";
+        if (emittedGo.equals("nil")) {
+          String goTv = resolver.goType(tm, ctx.imports);
+          return rt + "CheckNotNullGeneric(*new(" + goTv + "))";
+        }
+        return rt + "CheckNotNullGeneric(" + emittedGo + ")";
       }
       TypeMirror er = resolver.safeErasure(tm);
       if (er.getKind().isPrimitive()) {
@@ -2067,7 +2055,7 @@ public final class ExprEmitter {
             + "; return z_ }())";
       }
       if (resolver.isActiveTypeVariable(nonNullRaw)) {
-        return "(" + rtPrefix(ctx) + "ToAny(" + x + ")" + op + "nil)";
+        return "(" + (isEq ? "" : "!") + rtPrefix(ctx) + "IsNullGeneric(" + x + "))";
       }
       if (resolver.isValueEnumType(nonNullEr)) {
         return "(" + x + op + "0)";

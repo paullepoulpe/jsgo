@@ -206,25 +206,25 @@ func (this_ *SimpleTable[R, C, V]) Put(rowKey R, columnKey C, value V) V {
 		}
 		return tv_9
 	}()
-	func() V { tv_10 := value; _ = j2gort.CheckNotNull(j2gort.ToAny(tv_10)); return tv_10 }()
+	j2gort.CheckNotNullGeneric(value)
 	var row j2gort.Ext_java_util_Map
 iifeSwitch_2:
 	switch {
 	default:
-		m_11 := this_.rowMap
-		k_12 := j2gort.ToAny(rowKey)
-		if v_13, ok_14 := j2gort.MapTryGetComputeAny(m_11, k_12); ok_14 {
-			row = j2gort.AsIface[j2gort.Ext_java_util_Map](v_13)
+		m_10 := this_.rowMap
+		k_11 := j2gort.ToAny(rowKey)
+		if v_12, ok_13 := j2gort.MapTryGetComputeAny(m_10, k_11); ok_13 {
+			row = j2gort.AsIface[j2gort.Ext_java_util_Map](v_12)
 			break iifeSwitch_2
 		}
-		row = j2gort.AsIface[j2gort.Ext_java_util_Map](m_11.ComputeIfAbsent(k_12, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_15 any) any {
+		row = j2gort.AsIface[j2gort.Ext_java_util_Map](m_10.ComputeIfAbsent(k_11, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_14 any) any {
 			var k R
 		iifeSwitch_1:
 			switch {
 			default:
 
-				tv_16 := lp_15
-				if tv_16 == nil {
+				tv_15 := lp_14
+				if tv_15 == nil {
 					{
 						if _, ok_ := any((*R)(nil)).(*string); ok_ {
 							k = any(j2gort.NullString).(R)
@@ -235,7 +235,7 @@ iifeSwitch_2:
 						break iifeSwitch_1
 					}
 				}
-				k = j2gort.Cast[R](tv_16)
+				k = j2gort.Cast[R](tv_15)
 				break iifeSwitch_1
 			}
 			_ = k
@@ -246,8 +246,8 @@ iifeSwitch_2:
 
 	_ = row
 	{
-		tv_17 := row.Put_2(j2gort.ToAny(columnKey), j2gort.ToAny(value))
-		if tv_17 == nil {
+		tv_16 := row.Put_2(j2gort.ToAny(columnKey), j2gort.ToAny(value))
+		if tv_16 == nil {
 			{
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
 					return any(j2gort.NullString).(V)
@@ -256,7 +256,7 @@ iifeSwitch_2:
 				return z_
 			}
 		}
-		return j2gort.Cast[V](tv_17)
+		return j2gort.Cast[V](tv_16)
 	}
 }
 
@@ -279,8 +279,8 @@ func (this_ *SimpleTable[R, C, V]) Remove(rowKey any, columnKey any) V {
 iifeSwitch_3:
 	switch {
 	default:
-		tv_18 := row.Remove_1(columnKey)
-		if tv_18 == nil {
+		tv_17 := row.Remove_1(columnKey)
+		if tv_17 == nil {
 			{
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
 					removed = any(j2gort.NullString).(V)
@@ -291,7 +291,7 @@ iifeSwitch_3:
 				break iifeSwitch_3
 			}
 		}
-		removed = j2gort.Cast[V](tv_18)
+		removed = j2gort.Cast[V](tv_17)
 		break iifeSwitch_3
 	}
 	_ = removed
@@ -318,14 +318,14 @@ func (this_ *SimpleTable[R, C, V]) Column(columnKey C) j2gort.Ext_java_util_Map 
 	var col j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = col
 	{
-		cur_19 := j2gort.NewMapEntryCursor(this_.rowMap)
-		for cur_19.NextEntry() {
+		cur_18 := j2gort.NewMapEntryCursor(this_.rowMap)
+		for cur_18.NextEntry() {
 			var val V
 		iifeSwitch_4:
 			switch {
 			default:
-				tv_20 := j2gort.AsIface[j2gort.Ext_java_util_Map](cur_19.GetValue()).Get(j2gort.ToAny(columnKey))
-				if tv_20 == nil {
+				tv_19 := j2gort.AsIface[j2gort.Ext_java_util_Map](cur_18.GetValue()).Get(j2gort.ToAny(columnKey))
+				if tv_19 == nil {
 					{
 						if _, ok_ := any((*V)(nil)).(*string); ok_ {
 							val = any(j2gort.NullString).(V)
@@ -336,15 +336,15 @@ func (this_ *SimpleTable[R, C, V]) Column(columnKey C) j2gort.Ext_java_util_Map 
 						break iifeSwitch_4
 					}
 				}
-				val = j2gort.Cast[V](tv_20)
+				val = j2gort.Cast[V](tv_19)
 				break iifeSwitch_4
 			}
 			_ = val
-			if j2gort.ToAny(val) != nil {
+			if !j2gort.IsNullGeneric(val) {
 				func() V {
-					tv_22 := col.Put_2(j2gort.ToAny(func() R {
-						tv_21 := cur_19.GetKey()
-						if tv_21 == nil {
+					tv_21 := col.Put_2(j2gort.ToAny(func() R {
+						tv_20 := cur_18.GetKey()
+						if tv_20 == nil {
 							{
 								if _, ok_ := any((*R)(nil)).(*string); ok_ {
 									return any(j2gort.NullString).(R)
@@ -353,9 +353,9 @@ func (this_ *SimpleTable[R, C, V]) Column(columnKey C) j2gort.Ext_java_util_Map 
 								return z_
 							}
 						}
-						return j2gort.Cast[R](tv_21)
+						return j2gort.Cast[R](tv_20)
 					}()), j2gort.ToAny(val))
-					if tv_22 == nil {
+					if tv_21 == nil {
 						{
 							if _, ok_ := any((*V)(nil)).(*string); ok_ {
 								return any(j2gort.NullString).(V)
@@ -364,7 +364,7 @@ func (this_ *SimpleTable[R, C, V]) Column(columnKey C) j2gort.Ext_java_util_Map 
 							return z_
 						}
 					}
-					return j2gort.Cast[V](tv_22)
+					return j2gort.Cast[V](tv_21)
 				}()
 			}
 		}
@@ -387,10 +387,10 @@ func (this_ *SimpleTable[R, C, V]) ColumnKeySet() j2gort.Ext_java_util_Set {
 	var cols j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 	_ = cols
 	{
-		cur_23 := j2gort.NewMapValCursor(this_.rowMap)
-		for cur_23.HasNext() {
-			rawElem_24 := cur_23.Next()
-			row := j2gort.AsIface[j2gort.Ext_java_util_Map](rawElem_24)
+		cur_22 := j2gort.NewMapValCursor(this_.rowMap)
+		for cur_22.HasNext() {
+			rawElem_23 := cur_22.Next()
+			row := j2gort.AsIface[j2gort.Ext_java_util_Map](rawElem_23)
 			_ = row
 			cols.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Set](row.KeySet_0()))
 		}
@@ -403,10 +403,10 @@ func (this_ *SimpleTable[R, C, V]) Values() j2gort.Ext_java_util_Collection {
 	var vals j2gort.Ext_java_util_Collection = j2gort.NewExt_java_util_ArrayList_1_int32(this_.Size())
 	_ = vals
 	{
-		cur_25 := j2gort.NewMapValCursor(this_.rowMap)
-		for cur_25.HasNext() {
-			rawElem_26 := cur_25.Next()
-			row := j2gort.AsIface[j2gort.Ext_java_util_Map](rawElem_26)
+		cur_24 := j2gort.NewMapValCursor(this_.rowMap)
+		for cur_24.HasNext() {
+			rawElem_25 := cur_24.Next()
+			row := j2gort.AsIface[j2gort.Ext_java_util_Map](rawElem_25)
 			_ = row
 			vals.AddAll_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](row.Values()))
 		}
@@ -420,8 +420,8 @@ func (this_ *SimpleTable[R, C, V]) RowMap() j2gort.Ext_java_util_Map {
 }
 
 // Java method: SimpleTable.equals(java.lang.Object o)
-func (this_ *SimpleTable[R, C, V]) Equals(arg_27 any) bool {
-	o := arg_27
+func (this_ *SimpleTable[R, C, V]) Equals(arg_26 any) bool {
+	o := arg_26
 	_ = o
 	if j2gort.RefEquals(o, this_) {
 		return true
@@ -553,8 +553,8 @@ func (this_ *SimpleTable_SimpleCell[R, C, V]) GetValue() any {
 }
 
 // Java method: SimpleCell.equals(java.lang.Object o)
-func (this_ *SimpleTable_SimpleCell[R, C, V]) Equals(arg_28 any) bool {
-	o := arg_28
+func (this_ *SimpleTable_SimpleCell[R, C, V]) Equals(arg_27 any) bool {
+	o := arg_27
 	_ = o
 	if j2gort.RefEquals(o, this_) {
 		return true
@@ -570,11 +570,11 @@ func (this_ *SimpleTable_SimpleCell[R, C, V]) Equals(arg_28 any) bool {
 // Java method: SimpleCell.hashCode()
 func (this_ *SimpleTable_SimpleCell[R, C, V]) HashCode() int32 {
 	{
-		var oh_29 int32 = 1
-		oh_29 = 31*oh_29 + j2gort.ObjectHash(this_.rowKey)
-		oh_29 = 31*oh_29 + j2gort.ObjectHash(this_.columnKey)
-		oh_29 = 31*oh_29 + j2gort.ObjectHash(this_.value)
-		return oh_29
+		var oh_28 int32 = 1
+		oh_28 = 31*oh_28 + j2gort.ObjectHash(this_.rowKey)
+		oh_28 = 31*oh_28 + j2gort.ObjectHash(this_.columnKey)
+		oh_28 = 31*oh_28 + j2gort.ObjectHash(this_.value)
+		return oh_28
 	}
 }
 
@@ -624,14 +624,14 @@ func (this_ *SimpleTable__Anon_82[R, C, V]) Iterator() any {
 	var cells []*SimpleTable_SimpleCell[R, C, V] = j2gort.MakeNonNilSlice[*SimpleTable_SimpleCell[R, C, V]](this_.Size())
 	_ = cells
 	{
-		cur_30 := j2gort.NewMapEntryCursor(this_.outer_.rowMap)
-		for cur_30.NextEntry() {
+		cur_29 := j2gort.NewMapEntryCursor(this_.outer_.rowMap)
+		for cur_29.NextEntry() {
 			var r R
 		iifeSwitch_5:
 			switch {
 			default:
-				tv_31 := cur_30.GetKey()
-				if tv_31 == nil {
+				tv_30 := cur_29.GetKey()
+				if tv_30 == nil {
 					{
 						if _, ok_ := any((*R)(nil)).(*string); ok_ {
 							r = any(j2gort.NullString).(R)
@@ -642,20 +642,20 @@ func (this_ *SimpleTable__Anon_82[R, C, V]) Iterator() any {
 						break iifeSwitch_5
 					}
 				}
-				r = j2gort.Cast[R](tv_31)
+				r = j2gort.Cast[R](tv_30)
 				break iifeSwitch_5
 			}
 			_ = r
 			{
-				cur_32 := j2gort.NewMapEntryCursor(j2gort.AsIface[j2gort.Ext_java_util_Map](cur_30.GetValue()))
-				for cur_32.NextEntry() {
+				cur_31 := j2gort.NewMapEntryCursor(j2gort.AsIface[j2gort.Ext_java_util_Map](cur_29.GetValue()))
+				for cur_31.NextEntry() {
 					var iifeArg_1 C
 				iifeSwitch_6:
 					switch {
 					default:
 
-						tv_33 := cur_32.GetKey()
-						if tv_33 == nil {
+						tv_32 := cur_31.GetKey()
+						if tv_32 == nil {
 							{
 								if _, ok_ := any((*C)(nil)).(*string); ok_ {
 									iifeArg_1 = any(j2gort.NullString).(C)
@@ -666,7 +666,7 @@ func (this_ *SimpleTable__Anon_82[R, C, V]) Iterator() any {
 								break iifeSwitch_6
 							}
 						}
-						iifeArg_1 = j2gort.Cast[C](tv_33)
+						iifeArg_1 = j2gort.Cast[C](tv_32)
 						break iifeSwitch_6
 					}
 					var iifeArg_2 V
@@ -674,8 +674,8 @@ func (this_ *SimpleTable__Anon_82[R, C, V]) Iterator() any {
 					switch {
 					default:
 
-						tv_34 := cur_32.GetValue()
-						if tv_34 == nil {
+						tv_33 := cur_31.GetValue()
+						if tv_33 == nil {
 							{
 								if _, ok_ := any((*V)(nil)).(*string); ok_ {
 									iifeArg_2 = any(j2gort.NullString).(V)
@@ -686,7 +686,7 @@ func (this_ *SimpleTable__Anon_82[R, C, V]) Iterator() any {
 								break iifeSwitch_7
 							}
 						}
-						iifeArg_2 = j2gort.Cast[V](tv_34)
+						iifeArg_2 = j2gort.Cast[V](tv_33)
 						break iifeSwitch_7
 					}
 					cells = append(cells, NewSimpleTable_SimpleCell[R, C, V](r, iifeArg_1,

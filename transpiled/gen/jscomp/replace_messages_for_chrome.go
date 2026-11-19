@@ -110,7 +110,7 @@ func InitReplaceMessagesForChrome(this_ *ReplaceMessagesForChrome, compiler Abst
 }
 
 // Java method: ReplaceMessagesForChrome.getChromeI18nGetMessageNode(java.lang.String messageId)
-func (this_ *ReplaceMessagesForChrome) priv_ReplaceMessagesForChrome_getChromeI18nGetMessageNode_4891(messageId string) pkg_rhino.Node {
+func (this_ *ReplaceMessagesForChrome) priv_ReplaceMessagesForChrome_getChromeI18nGetMessageNode_4900(messageId string) pkg_rhino.Node {
 	_ = messageId
 	var getMessage pkg_rhino.Node = this_.astFactory.CreateQNameWithUnknownType_1_string("chrome.i18n.getMessage")
 	_ = getMessage
@@ -127,7 +127,7 @@ func (this_ *ReplaceMessagesForChrome) ProcessIcuTemplateDefinition(definition I
 func (this_ *ReplaceMessagesForChrome) ProcessJsMessageDefinition(definition JsMessageDefinition) {
 	_ = definition
 	this_.introducesRegexpSyntax = false
-	var newValue pkg_rhino.Node = this_.priv_ReplaceMessagesForChrome_getNewValueNode_4892(definition.GetMessage(), definition)
+	var newValue pkg_rhino.Node = this_.priv_ReplaceMessagesForChrome_getNewValueNode_4901(definition.GetMessage(), definition)
 	_ = newValue
 	definition.GetMessageNode().ReplaceWith(newValue)
 	if this_.introducesRegexpSyntax {
@@ -138,10 +138,10 @@ func (this_ *ReplaceMessagesForChrome) ProcessJsMessageDefinition(definition JsM
 }
 
 // Java method: ReplaceMessagesForChrome.getNewValueNode(com.google.javascript.jscomp.JsMessage message, com.google.javascript.jscomp.JsMessageDefinition definition)
-func (this_ *ReplaceMessagesForChrome) priv_ReplaceMessagesForChrome_getNewValueNode_4892(message *JsMessage, definition JsMessageDefinition) pkg_rhino.Node {
+func (this_ *ReplaceMessagesForChrome) priv_ReplaceMessagesForChrome_getNewValueNode_4901(message *JsMessage, definition JsMessageDefinition) pkg_rhino.Node {
 	_ = message
 	_ = definition
-	var newValueNode pkg_rhino.Node = this_.priv_ReplaceMessagesForChrome_getChromeI18nGetMessageNode_4891(message.GetId())
+	var newValueNode pkg_rhino.Node = this_.priv_ReplaceMessagesForChrome_getChromeI18nGetMessageNode_4900(message.GetId())
 	_ = newValueNode
 	var isHtml bool = definition.ShouldEscapeLessThan()
 	_ = isHtml

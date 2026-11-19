@@ -29,14 +29,14 @@ import (
 
 // Java class: com.google.javascript.jscomp.InstrumentAsyncContext
 type InstrumentAsyncContext struct {
-	start                 RuntimeJsLibManager_JsLibField    `gson:"start"`
-	compiler              AbstractCompiler                  `gson:"compiler"`
-	astFactory            *AstFactory                       `gson:"astFactory"`
-	uniqueIdSupplier      *UniqueIdSupplier                 `gson:"uniqueIdSupplier"`
-	tryFunctionStack      j2gort.Deque[pkg_rhino.Node]      `gson:"tryFunctionStack"`
-	needsInstrumentation  j2gort.Ext_java_util_Map          `gson:"needsInstrumentation"`
-	alreadyInstrumented   j2gort.OrderedSet[pkg_rhino.Node] `gson:"alreadyInstrumented"`
-	hasSuper              j2gort.OrderedSet[pkg_rhino.Node] `gson:"hasSuper"`
+	start                 RuntimeJsLibManager_JsLibField                                             `gson:"start"`
+	compiler              AbstractCompiler                                                           `gson:"compiler"`
+	astFactory            *AstFactory                                                                `gson:"astFactory"`
+	uniqueIdSupplier      *UniqueIdSupplier                                                          `gson:"uniqueIdSupplier"`
+	tryFunctionStack      j2gort.Deque[pkg_rhino.Node]                                               `gson:"tryFunctionStack"`
+	needsInstrumentation  j2gort.OrderedMap[pkg_rhino.Node, *InstrumentAsyncContext_FunctionContext] `gson:"needsInstrumentation"`
+	alreadyInstrumented   j2gort.OrderedSet[pkg_rhino.Node]                                          `gson:"alreadyInstrumented"`
+	hasSuper              j2gort.OrderedSet[pkg_rhino.Node]                                          `gson:"hasSuper"`
 	idHash_               atomic.Int32
 	shouldInstrumentAwait bool `gson:"shouldInstrumentAwait"`
 }
@@ -72,7 +72,7 @@ func StaticGet_InstrumentAsyncContext_RESUME() string  { return "\u1d43\u1d9cres
 func (this_ *InstrumentAsyncContext) initFields_InstrumentAsyncContext() {
 	_ = this_
 	this_.tryFunctionStack = j2gort.Deque[pkg_rhino.Node]{}
-	this_.needsInstrumentation = j2gort.NewExt_java_util_LinkedHashMap()
+	this_.needsInstrumentation = j2gort.NewOrderedMap[pkg_rhino.Node, *InstrumentAsyncContext_FunctionContext]()
 	this_.alreadyInstrumented = j2gort.NewOrderedSet[pkg_rhino.Node]()
 	this_.hasSuper = j2gort.NewOrderedSet[pkg_rhino.Node]()
 }
@@ -154,26 +154,13 @@ func (this_ *InstrumentAsyncContext) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 			var context *InstrumentAsyncContext_FunctionContext
 			_ = context
 			if n.IsGeneratorFunction() {
-			iifeSwitch_1:
-				switch {
-				default:
-
-					m_3 := this_.needsInstrumentation
-					k_4 := n
-					if v_5, ok_6 := j2gort.MapTryGetComputeNode(m_3, k_4); ok_6 {
-						context = j2gort.CastPtr[InstrumentAsyncContext_FunctionContext](v_5)
-						break iifeSwitch_1
-					}
-					context = j2gort.CastPtr[InstrumentAsyncContext_FunctionContext](j2gort.MapComputeIfAbsentNode(m_3, k_4, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_7 any) any {
-						unused := j2gort.CastNode[pkg_rhino.Node](lp_7)
-						_ = unused
-						return j2gort.PtrToAny(this_.priv_InstrumentAsyncContext_createNewFunctionContext_3424(t.GetInput()))
-					})))
-					break iifeSwitch_1
-				}
-
+				context = j2gort.OrderedMapComputeIfAbsent(&this_.needsInstrumentation, n, nil, func(lp_7 pkg_rhino.Node) *InstrumentAsyncContext_FunctionContext {
+					unused := lp_7
+					_ = unused
+					return this_.priv_InstrumentAsyncContext_createNewFunctionContext_3424(t.GetInput())
+				})
 			} else {
-				context = j2gort.CastPtr[InstrumentAsyncContext_FunctionContext](j2gort.MapGetNode(this_.needsInstrumentation, n))
+				context = this_.needsInstrumentation.Get(n)
 			}
 			if context == nil {
 				return
@@ -213,27 +200,14 @@ func (this_ *InstrumentAsyncContext) priv_InstrumentAsyncContext_instrumentReent
 	} else if parent.IsReturn() && (enclosingTry == 0) {
 		return
 	}
-	var functionContext *InstrumentAsyncContext_FunctionContext
-iifeSwitch_2:
-	switch {
-	default:
-		m_8 := this_.needsInstrumentation
-		k_9 := enclosingFunction
-		if v_10, ok_11 := j2gort.MapTryGetComputeNode(m_8, k_9); ok_11 {
-			functionContext = j2gort.CastPtr[InstrumentAsyncContext_FunctionContext](v_10)
-			break iifeSwitch_2
-		}
-		functionContext = j2gort.CastPtr[InstrumentAsyncContext_FunctionContext](j2gort.MapComputeIfAbsentNode(m_8, k_9, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_12 any) any {
-			unused := j2gort.CastNode[pkg_rhino.Node](lp_12)
-			_ = unused
-			return j2gort.PtrToAny(this_.priv_InstrumentAsyncContext_createNewFunctionContext_3424(t.GetInput()))
-		})))
-		break iifeSwitch_2
-	}
-
+	var functionContext *InstrumentAsyncContext_FunctionContext = j2gort.OrderedMapComputeIfAbsent(&this_.needsInstrumentation, enclosingFunction, nil, func(lp_12 pkg_rhino.Node) *InstrumentAsyncContext_FunctionContext {
+		unused := lp_12
+		_ = unused
+		return this_.priv_InstrumentAsyncContext_createNewFunctionContext_3424(t.GetInput())
+	})
 	_ = functionContext
 	if enclosingTry != 0 {
-		j2gort.MapPutNode(this_.needsInstrumentation, enclosingTry, j2gort.PtrToAny(functionContext))
+		this_.needsInstrumentation.Put(enclosingTry, functionContext)
 	}
 	if n.IsForAwaitOf() {
 		this_.InstrumentForAwaitOf(t, n, parent, functionContext)

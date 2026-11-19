@@ -1,0 +1,1804 @@
+diff --git a/com/google/javascript/jscomp/CoalesceVariableNames.java b/com/google/javascript/jscomp/CoalesceVariableNames.java
+index 1da692e..0d023fd 100644
+--- a/com/google/javascript/jscomp/CoalesceVariableNames.java
++++ b/com/google/javascript/jscomp/CoalesceVariableNames.java
+@@ -74,6 +74,7 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+   private final MemoizedScopeCreator scopeCreator;
+   private final Deque<GraphColoring<Var, Void>> colorings;
+   private final Deque<LiveVariablesAnalysis> liveAnalyses;
++  private final ArrayDeque<LiveVariablesAnalysis> freeLiveAnalyses = new ArrayDeque<>(8);
+   private final boolean usePseudoNames;
+   private final AstFactory astFactory;
+   private LiveVariablesAnalysis liveness;
+@@ -99,7 +100,10 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+     liveAnalyses = new ArrayDeque<>();
+     this.usePseudoNames = usePseudoNames;
+     this.astFactory = compiler.createAstFactory();
+-    this.scopeCreator = new MemoizedScopeCreator(new SyntacticScopeCreator(compiler), 256);
++    this.scopeCreator =
++        new MemoizedScopeCreator(
++            new SyntacticScopeCreator(compiler),
++            Math.max(1024, compiler.getNumberOfInputs() * 2));
+   }
+ 
+   @Override
+@@ -148,9 +152,16 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+     // live variables analysis is based off of the control flow graph
+     ControlFlowGraph<Node> cfg = getControlFlowGraph(compiler);
+ 
+-    liveness =
+-        new LiveVariablesAnalysis(
+-            cfg, scope, null, compiler, this.scopeCreator, allVarsDeclaredInFunction);
++    LiveVariablesAnalysis pooled = freeLiveAnalyses.pollLast();
++    if (pooled != null) {
++      pooled.resetForScope(
++          cfg, scope, null, compiler, this.scopeCreator, allVarsDeclaredInFunction);
++      liveness = pooled;
++    } else {
++      liveness =
++          new LiveVariablesAnalysis(
++              cfg, scope, null, compiler, this.scopeCreator, allVarsDeclaredInFunction);
++    }
+ 
+     if (FeatureSet.ES3.contains(compiler.getOptions().getOutputFeatureSet())) {
+       // If the function has exactly 2 params, mark them as escaped. This is a work-around for a
+@@ -186,7 +197,11 @@ class CoalesceVariableNames extends NodeTraversal.AbstractCfgCallback implements
+       return;
+     }
+     colorings.pop();
+-    liveAnalyses.pop();
++    LiveVariablesAnalysis finished = liveAnalyses.pop();
++    finished.clearScopeState();
++    if (freeLiveAnalyses.size() < 8) {
++      freeLiveAnalyses.addLast(finished);
++    }
+     liveness = liveAnalyses.peek();
+   }
+ 
+diff --git a/com/google/javascript/jscomp/DataFlowAnalysis.java b/com/google/javascript/jscomp/DataFlowAnalysis.java
+index 25d1ce9..990fab0 100644
+--- a/com/google/javascript/jscomp/DataFlowAnalysis.java
++++ b/com/google/javascript/jscomp/DataFlowAnalysis.java
+@@ -85,7 +85,7 @@ import org.jspecify.annotations.Nullable;
+ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+ 
+   private static final int MAX_FLOW_STATE_POOL_SIZE = 4096;
+-  private static final int MAX_POOLED_WORK_ELEMENTS_CAPACITY = 4096;
++  private static final int MAX_POOLED_WORK_ELEMENTS_CAPACITY = 16384;
+   private static final LinearFlowState<?> @Nullable [] FLOW_STATE_POOL =
+       new LinearFlowState<?>[MAX_FLOW_STATE_POOL_SIZE];
+   private static int flowStatePoolSize;
+@@ -334,14 +334,16 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+         // of nodes that this node affects.
+         if (forward) {
+           for (int i = 0, count = curNode.getOutEdgeCount(); i < count; i++) {
+-            LinkedDiGraphNode<N, Branch> nextNode = curNode.getOutEdgeAt(i).getDestination();
++            LinkedDiGraphNode<N, Branch> nextNode =
++                curNode.getLinkedOutEdgeAt(i).getLinkedDestination();
+             if (nextNode != implicitReturn) {
+               enqueueWorkNode(nextNode);
+             }
+           }
+         } else {
+           for (int i = 0, count = curNode.getInEdgeCount(); i < count; i++) {
+-            LinkedDiGraphNode<N, Branch> nextNode = curNode.getInEdgeAt(i).getSource();
++            LinkedDiGraphNode<N, Branch> nextNode =
++                curNode.getLinkedInEdgeAt(i).getLinkedSource();
+             if (nextNode != implicitReturn) {
+               enqueueWorkNode(nextNode);
+             }
+@@ -384,6 +386,10 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+    */
+   abstract L createEntryLattice();
+ 
++  private static int roundUpDfaCapacity(int minCap) {
++    return minCap <= 64 ? 64 : (Integer.highestOneBit(minCap - 1) << 1);
++  }
++
+   /** Initializes the work list and the control flow graph. */
+   @SuppressWarnings("unchecked")
+   private void initialize() {
+@@ -394,21 +400,11 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     }
+     int nodeCount = cfg.getNodeCount();
+     this.cfgNodeCount = nodeCount;
+-    if (this.ordered) {
+-      int cap = nodeCount > 4 ? nodeCount : 4;
+-      if (this.workElements == null || this.workElements.length < cap) {
+-        this.workElements = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[cap];
+-      }
+-    } else {
+-      int cap = 8;
+-      while (cap < nodeCount) {
+-        cap <<= 1;
+-      }
+-      if (this.workElements == null || this.workElements.length < cap) {
+-        this.workElements = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[cap];
+-      }
++    int cap = roundUpDfaCapacity(nodeCount);
++    if (this.workElements == null || this.workElements.length < cap) {
++      this.workElements = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[cap];
+     }
+-    int stateCap = nodeCount > 8 ? nodeCount : 8;
++    int stateCap = cap;
+     if (this.cfgNodes == null || this.cfgNodes.length < stateCap) {
+       this.cfgNodes = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[stateCap];
+     }
+@@ -428,30 +424,29 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     L[] inArr = this.stateIn;
+     L[] outArr = this.stateOut;
+     int[] stepsArr = this.stepCounts;
++    L initialEstimate = createInitialEstimateLattice();
+     for (int i = 0; i < nodeCount; i++) {
+       LinkedDiGraphNode<N, Branch> node = nodes[i];
+       node.setDfaIndex(i);
+       node.setInDfaQueue(false);
+-      L initIn = createInitialEstimateLattice();
+-      L initOut = createInitialEstimateLattice();
+-      inArr[i] = initIn;
+-      outArr[i] = initOut;
++      inArr[i] = initialEstimate;
++      outArr[i] = initialEstimate;
+       stepsArr[i] = 0;
+       if (recordAnnotations) {
+         Annotation existing = node.getAnnotation();
+         if (existing instanceof LinearFlowState<?> raw) {
+           @SuppressWarnings("unchecked")
+           LinearFlowState<L> reused = (LinearFlowState<L>) raw;
+-          reused.reinit(initIn, initOut);
++          reused.reinit(initialEstimate, initialEstimate);
+         } else {
+           LinearFlowState<?> rawPooled = popPooledFlowState();
+           if (rawPooled != null) {
+             @SuppressWarnings("unchecked")
+             LinearFlowState<L> pooled = (LinearFlowState<L>) rawPooled;
+-            pooled.reinit(initIn, initOut);
++            pooled.reinit(initialEstimate, initialEstimate);
+             node.setAnnotation(pooled);
+           } else {
+-            node.setAnnotation(new LinearFlowState<>(initIn, initOut));
++            node.setAnnotation(new LinearFlowState<>(initialEstimate, initialEstimate));
+           }
+         }
+       }
+@@ -466,7 +461,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+         totalEdges += nodes[i].getOutEdgeCount();
+       }
+       this.cfgEdgeCount = totalEdges;
+-      int edgeCap = totalEdges > 8 ? totalEdges : 8;
++      int edgeCap = roundUpDfaCapacity(totalEdges);
+       if (this.edgeState == null || this.edgeState.length < edgeCap) {
+         this.edgeState = (L[]) new LatticeElement[edgeCap];
+       } else if (prevEdgeCount > totalEdges) {
+@@ -477,9 +472,9 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       for (int i = 0; i < nodeCount; i++) {
+         LinkedDiGraphNode<N, Branch> node = nodes[i];
+         for (int j = 0, outCount = node.getOutEdgeCount(); j < outCount; j++) {
+-          LinkedDiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(j);
++          LinkedDiGraphEdge<N, Branch> outEdge = node.getLinkedOutEdgeAt(j);
+           outEdge.setDfaEdgeIndex(edgeIdx);
+-          edges[edgeIdx++] = this.createInitialEstimateLattice();
++          edges[edgeIdx++] = initialEstimate;
+         }
+       }
+     } else {
+@@ -498,7 +493,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   private boolean flow(LinkedDiGraphNode<N, Branch> node, int nodeIdx) {
+     if (this.forward) {
+       L outBefore = this.stateOut[nodeIdx];
+-      L outAfter = checkNotNull(flowThrough(node.getValue(), this.stateIn[nodeIdx]));
++      L outAfter = flowThrough(node.getValue(), this.stateIn[nodeIdx]);
+       this.stateOut[nodeIdx] = outAfter;
+       boolean changed = !isLatticeEqual(outBefore, outAfter);
+ 
+@@ -506,10 +501,10 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+         FlowBrancher<L> brancher = this.createFlowBrancher(node.getValue(), outAfter);
+         L[] edges = this.edgeState;
+         for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
+-          LinkedDiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(i);
++          LinkedDiGraphEdge<N, Branch> outEdge = node.getLinkedOutEdgeAt(i);
+           int edgeIdx = outEdge.getDfaEdgeIndex();
+           L outBranchBefore = edges[edgeIdx];
+-          L outBranchAfter = checkNotNull(brancher.branchFlow(outEdge.getValue()));
++          L outBranchAfter = brancher.branchFlow(outEdge.getValue());
+           edges[edgeIdx] = outBranchAfter;
+           if (!changed) {
+             changed = !isLatticeEqual(outBranchBefore, outBranchAfter);
+@@ -520,7 +515,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       return changed;
+     } else {
+       L inBefore = this.stateIn[nodeIdx];
+-      L inAfter = checkNotNull(flowThrough(node.getValue(), this.stateOut[nodeIdx]));
++      L inAfter = flowThrough(node.getValue(), this.stateOut[nodeIdx]);
+       this.stateIn[nodeIdx] = inAfter;
+       return !isLatticeEqual(inBefore, inAfter);
+     }
+@@ -535,7 +530,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   private void joinInputs(LinkedDiGraphNode<N, Branch> node, int nodeIdx) {
+     boolean forward = this.forward;
+     if (forward && cfg.getEntryNode() == node) {
+-      this.stateIn[nodeIdx] = checkNotNull(createEntryLattice());
++      this.stateIn[nodeIdx] = createEntryLattice();
+       return;
+     }
+ 
+@@ -546,16 +541,18 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+         return;
+       }
+       case 1 ->
+-          result = this.getInputFromEdge(forward ? node.getInEdgeAt(0) : node.getOutEdgeAt(0));
++          result =
++              this.getInputFromEdge(
++                  forward ? node.getLinkedInEdgeAt(0) : node.getLinkedOutEdgeAt(0));
+       default -> {
+         FlowJoiner<L> joiner = this.createFlowJoiner();
+         if (forward) {
+           for (int i = 0; i < edgeCount; i++) {
+-            joiner.joinFlow(this.getInputFromEdge(node.getInEdgeAt(i)));
++            joiner.joinFlow(this.getInputFromEdge(node.getLinkedInEdgeAt(i)));
+           }
+         } else {
+           for (int i = 0; i < edgeCount; i++) {
+-            joiner.joinFlow(this.getInputFromEdge(node.getOutEdgeAt(i)));
++            joiner.joinFlow(this.getInputFromEdge(node.getLinkedOutEdgeAt(i)));
+           }
+         }
+         result = joiner.finish();
+@@ -563,9 +560,9 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     }
+ 
+     if (forward) {
+-      this.stateIn[nodeIdx] = checkNotNull(result);
++      this.stateIn[nodeIdx] = result;
+     } else {
+-      this.stateOut[nodeIdx] = checkNotNull(result);
++      this.stateOut[nodeIdx] = result;
+     }
+   }
+ 
+@@ -573,9 +570,9 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     if (this.branched) {
+       return this.edgeState[edge.getDfaEdgeIndex()];
+     } else if (this.forward) {
+-      return this.stateOut[edge.getSource().getDfaIndex()];
++      return this.stateOut[edge.getLinkedSource().getDfaIndex()];
+     } else {
+-      LinkedDiGraphNode<N, Branch> node = edge.getDestination();
++      LinkedDiGraphNode<N, Branch> node = edge.getLinkedDestination();
+       if (node == this.cfg.getImplicitReturnNode()) {
+         return this.createEntryLattice();
+       }
+diff --git a/com/google/javascript/jscomp/DeadAssignmentsElimination.java b/com/google/javascript/jscomp/DeadAssignmentsElimination.java
+index c4803c4..669a7ce 100644
+--- a/com/google/javascript/jscomp/DeadAssignmentsElimination.java
++++ b/com/google/javascript/jscomp/DeadAssignmentsElimination.java
+@@ -123,12 +123,21 @@ class DeadAssignmentsElimination extends NodeTraversal.AbstractCfgCallback imple
+     SyntacticScopeCreator scopeCreator = new SyntacticScopeCreator(compiler);
+     AllVarsDeclaredInFunction allVarsDeclaredInFunction =
+         NodeUtil.getAllVarsDeclaredInFunction(compiler, scopeCreator, functionScope);
+-    liveness =
+-        new LiveVariablesAnalysis(
+-            cfg, functionScope, blockScope, compiler, scopeCreator, allVarsDeclaredInFunction);
+-    liveness.analyze();
+-    Map<String, Var> allVarsInFn = liveness.getAllVariables();
+-    tryRemoveDeadAssignments(t, cfg, allVarsInFn);
++    if (liveness == null) {
++      liveness =
++          new LiveVariablesAnalysis(
++              cfg, functionScope, blockScope, compiler, scopeCreator, allVarsDeclaredInFunction);
++    } else {
++      liveness.resetForScope(
++          cfg, functionScope, blockScope, compiler, scopeCreator, allVarsDeclaredInFunction);
++    }
++    try {
++      liveness.analyze();
++      Map<String, Var> allVarsInFn = liveness.getAllVariables();
++      tryRemoveDeadAssignments(t, cfg, allVarsInFn);
++    } finally {
++      liveness.clearScopeState();
++    }
+   }
+ 
+ 
+diff --git a/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java b/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+index ff4d908..da25692 100644
+--- a/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
++++ b/com/google/javascript/jscomp/FlowSensitiveInlineVariables.java
+@@ -77,8 +77,11 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+   // scope.
+   private ControlFlowGraph<Node> cfg;
+   private @Nullable LinkedHashSet<Candidate> candidates;
+-  private MustBeReachingVariableDef reachingDef;
+-  private MaybeReachingVariableUse reachingUses;
++  private @Nullable MustBeReachingVariableDef reachingDef;
++  private @Nullable MaybeReachingVariableUse reachingUses;
++  private @Nullable MustBeReachingVariableDef reusableReachingDef;
++  private @Nullable MaybeReachingVariableUse reusableReachingUses;
++  private final java.util.HashSet<Var> reusableEscaped = new java.util.HashSet<>();
+ 
+   private class SideEffectPredicate implements Predicate<Node> {
+     // Check if there are side effects affecting the value of any of these names
+@@ -187,7 +190,10 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+         ControlFlowAnalysis.computeCfgDirect(compiler, functionScopeRoot, false, true);
+     try {
+       cfg = localCfg;
+-      LinkedHashSet<Var> escaped = new LinkedHashSet<>();
++      java.util.HashSet<Var> escaped = this.reusableEscaped;
++      if (!escaped.isEmpty()) {
++        escaped.clear();
++      }
+       Scope scope = t.getScope();
+       AllVarsDeclaredInFunction allVarsDeclaredInFunction =
+           NodeUtil.getAllVarsDeclaredInFunction(compiler, scopeCreator, scope.getParent());
+@@ -195,7 +201,13 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+       DataFlowAnalysis.computeEscaped(
+           scope.getParent(), escaped, compiler, scopeCreator, allVarsInFn);
+ 
+-      reachingDef = new MustBeReachingVariableDef(cfg, compiler, escaped, allVarsInFn);
++      if (this.reusableReachingDef == null) {
++        this.reusableReachingDef =
++            new MustBeReachingVariableDef(cfg, compiler, escaped, allVarsInFn);
++      } else {
++        this.reusableReachingDef.resetForScope(cfg, escaped, allVarsInFn);
++      }
++      reachingDef = this.reusableReachingDef;
+       reachingDef.analyze();
+       candidates = null;
+ 
+@@ -204,7 +216,12 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+       NodeTraversal.traverse(compiler, t.getScopeRoot(), new GatherCandidates());
+ 
+       // Compute the backward reaching use. The CFG and per-function variable info can be reused.
+-      reachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
++      if (this.reusableReachingUses == null) {
++        this.reusableReachingUses = new MaybeReachingVariableUse(cfg, escaped, allVarsInFn);
++      } else {
++        this.reusableReachingUses.resetForScope(cfg, escaped, allVarsInFn);
++      }
++      reachingUses = this.reusableReachingUses;
+       reachingUses.analyze();
+       while (candidates != null && !candidates.isEmpty()) {
+         Candidate c = candidates.iterator().next();
+@@ -235,6 +252,15 @@ class FlowSensitiveInlineVariables implements CompilerPass, ScopedCallback {
+         }
+       }
+     } finally {
++      if (reachingDef != null) {
++        reachingDef.clearScopeState();
++      }
++      if (reachingUses != null) {
++        reachingUses.clearScopeState();
++      }
++      if (!this.reusableEscaped.isEmpty()) {
++        this.reusableEscaped.clear();
++      }
+       cfg = null;
+       reachingDef = null;
+       reachingUses = null;
+diff --git a/com/google/javascript/jscomp/LiveVariablesAnalysis.java b/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+index a33af3a..9d5961a 100644
+--- a/com/google/javascript/jscomp/LiveVariablesAnalysis.java
++++ b/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+@@ -25,8 +25,7 @@ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
+ import com.google.javascript.rhino.Node;
+ import java.util.BitSet;
+-import java.util.LinkedHashMap;
+-import java.util.LinkedHashSet;
++import java.util.HashSet;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
+@@ -331,25 +330,26 @@ class LiveVariablesAnalysis
+   }
+ 
+   // The scope of the function that we are analyzing.
+-  private final Scope jsScope;
++  private Scope jsScope;
+ 
+   // The scope of the body of the function that we are analyzing.
+-  private final Scope jsScopeChild;
+-  private final Set<Var> escaped;
++  private @Nullable Scope jsScopeChild;
++  private final HashSet<Var> escaped;
+ 
+-  // Maps the variable name to it's position
+-  // in this jsScope were we to combine the function and function body scopes. The Integer
+-  // represents the equivalent of the variable index property within a scope
+-  private final Map<String, Integer> scopeVariables;
++  private String[] varNames;
++  private boolean[] isLocalVar;
++  private boolean[] isEscapedIdx;
++  private String @Nullable [] nameTable;
++  private int @Nullable [] indexTable;
+ 
+   // obtain variables in the order in which they appear in the code
+-  private final List<Var> orderedVars;
++  private List<Var> orderedVars;
+ 
+-  private final Map<String, Var> allVarsInFn;
++  private Map<String, Var> allVarsInFn;
+ 
+-  private final LiveVariableLattice emptyLattice;
+-  private final LiveVariableLattice scratchGen;
+-  private final LiveVariableLattice scratchKill;
++  private LiveVariableLattice emptyLattice;
++  private LiveVariableLattice scratchGen;
++  private LiveVariableLattice scratchKill;
+   private @Nullable Consumer<Node> killLhsConsumer;
+   private @Nullable Consumer<Node> killDestructuringNameConsumer;
+ 
+@@ -376,14 +376,36 @@ class LiveVariablesAnalysis
+       ScopeCreator scopeCreator,
+       AllVarsDeclaredInFunction allVarsDeclaredInFunction) {
+     super(cfg);
++    this.escaped = new HashSet<>();
++    initForScope(jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction);
++  }
++
++  void resetForScope(
++      ControlFlowGraph<Node> cfg,
++      Scope jsScope,
++      @Nullable Scope jsScopeChild,
++      AbstractCompiler compiler,
++      ScopeCreator scopeCreator,
++      AllVarsDeclaredInFunction allVarsDeclaredInFunction) {
++    initCfg(cfg);
++    if (!this.escaped.isEmpty()) {
++      this.escaped.clear();
++    }
++    initForScope(jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction);
++  }
++
++  private void initForScope(
++      Scope jsScope,
++      @Nullable Scope jsScopeChild,
++      AbstractCompiler compiler,
++      ScopeCreator scopeCreator,
++      AllVarsDeclaredInFunction allVarsDeclaredInFunction) {
+     checkState(jsScope.isFunctionScope(), jsScope);
+ 
+     this.jsScope = jsScope;
+     this.jsScopeChild = jsScopeChild;
+-    this.escaped = new LinkedHashSet<>();
+     this.orderedVars = allVarsDeclaredInFunction.getAllVariablesInOrder();
+     int varCount = this.orderedVars.size();
+-    this.scopeVariables = new LinkedHashMap<>(varCount);
+     this.allVarsInFn = allVarsDeclaredInFunction.getAllVariables();
+     this.emptyLattice = new LiveVariableLattice(varCount);
+     this.scratchGen = new LiveVariableLattice(varCount);
+@@ -391,20 +413,93 @@ class LiveVariablesAnalysis
+ 
+     computeEscaped(jsScope, escaped, compiler, scopeCreator, allVarsInFn);
+ 
+-    addScopeVariables();
++    String[] names = new String[varCount];
++    boolean[] locals = new boolean[varCount];
++    boolean[] escapedArr = new boolean[varCount];
++    for (int i = 0; i < varCount; i++) {
++      Var v = this.orderedVars.get(i);
++      String name = v.getName();
++      names[i] = name;
++      Scope localScope = v.getScope();
++      final boolean local;
++      if (localScope.isFunctionBlockScope()) {
++        local = isDeclaredInFunctionBlockOrParameter(localScope, name);
++      } else if (localScope == jsScope && jsScopeChild != null) {
++        local = isDeclaredInFunctionBlockOrParameter(jsScopeChild, name);
++      } else {
++        local = localScope.hasOwnSlot(name);
++      }
++      locals[i] = local;
++      escapedArr[i] = this.escaped.contains(v);
++    }
++    this.varNames = names;
++    this.isLocalVar = locals;
++    this.isEscapedIdx = escapedArr;
++
++    if (varCount > 8) {
++      int cap = Integer.highestOneBit(varCount * 2 - 1) << 1;
++      int mask = cap - 1;
++      String[] keys = new String[cap];
++      int[] indices = new int[cap];
++      for (int j = 0; j < varCount; j++) {
++        String key = names[j];
++        int slot = key.hashCode() & mask;
++        while (true) {
++          String existing = keys[slot];
++          if (existing == null) {
++            keys[slot] = key;
++            indices[slot] = j;
++            break;
++          }
++          if (existing.equals(key)) {
++            indices[slot] = j;
++            break;
++          }
++          slot = (slot + 1) & mask;
++        }
++      }
++      this.nameTable = keys;
++      this.indexTable = indices;
++    } else {
++      this.nameTable = null;
++      this.indexTable = null;
++    }
++  }
++
++  void clearScopeState() {
++    releaseCfgReference();
++    this.jsScope = null;
++    this.jsScopeChild = null;
++    this.orderedVars = null;
++    this.allVarsInFn = null;
++    if (!this.escaped.isEmpty()) {
++      this.escaped.clear();
++    }
+   }
+ 
+-  /**
+-   * Parameters belong to the function scope, but variables defined in the function body belong to
+-   * the function body scope. Assign a unique index to each variable, regardless of which scope it's
+-   * in.
+-   */
+-  private void addScopeVariables() {
+-    int num = 0;
+-    for (Var v : orderedVars) {
+-      scopeVariables.put(v.getName(), num);
+-      num++;
++  private int lookupVarIndex(String name) {
++    String[] table = this.nameTable;
++    if (table != null) {
++      int mask = table.length - 1;
++      int slot = name.hashCode() & mask;
++      while (true) {
++        String k = table[slot];
++        if (k == null) {
++          return -1;
++        }
++        if (k.equals(name)) {
++          return this.indexTable[slot];
++        }
++        slot = (slot + 1) & mask;
++      }
++    }
++    String[] names = this.varNames;
++    for (int i = names.length - 1; i >= 0; i--) {
++      if (names[i].equals(name)) {
++        return i;
++      }
+     }
++    return -1;
+   }
+ 
+   public Set<? extends Var> getEscapedLocals() {
+@@ -420,7 +515,11 @@ class LiveVariablesAnalysis
+   }
+ 
+   public int getVarIndex(String var) {
+-    return scopeVariables.get(var);
++    int idx = lookupVarIndex(var);
++    if (idx < 0) {
++      throw new NullPointerException();
++    }
++    return idx;
+   }
+ 
+   @Override
+@@ -452,9 +551,10 @@ class LiveVariablesAnalysis
+ 
+     // Make kills conditional if the node can end abruptly by an exception.
+     boolean conditional = false;
+-    DiGraphNode<Node, Branch> cfgNode = getCfg().getNode(node);
++    com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<Node, Branch> cfgNode =
++        getCfg().getNode(node);
+     for (int i = 0, outCount = cfgNode.getOutEdgeCount(); i < outCount; i++) {
+-      if (Branch.ON_EX.equals(cfgNode.getOutEdgeAt(i).getValue())) {
++      if (Branch.ON_EX == cfgNode.getLinkedOutEdgeAt(i).getValue()) {
+         conditional = true;
+         break;
+       }
+@@ -620,32 +720,9 @@ class LiveVariablesAnalysis
+ 
+   private void addToSetIfLocal(Node node, LiveVariableLattice set) {
+     checkState(node.isName(), node);
+-    String name = node.getString();
+-
+-    Var var = allVarsInFn.get(name);
+-    if (var == null) {
+-      return;
+-    }
+-
+-    boolean local;
+-    Scope localScope = var.getScope();
+-    // add to the local set if the variable is declared in the function or function body because
+-    // ES6 separates the scope but if the variable is declared in the param it should be local
+-    // to the function body.
+-    if (localScope.isFunctionBlockScope()) {
+-      local = isDeclaredInFunctionBlockOrParameter(localScope, name);
+-    } else if (localScope == jsScope && jsScopeChild != null) {
+-      local = isDeclaredInFunctionBlockOrParameter(jsScopeChild, name);
+-    } else {
+-      local = localScope.hasOwnSlot(name);
+-    }
+-
+-    if (!local) {
+-      return;
+-    }
+-
+-    if (!escaped.contains(var)) {
+-      set.setLive(getVarIndex(var.getName()));
++    int idx = lookupVarIndex(node.getString());
++    if (idx >= 0 && this.isLocalVar[idx] && !this.isEscapedIdx[idx]) {
++      set.setLive(idx);
+     }
+   }
+ 
+@@ -676,7 +753,13 @@ class LiveVariablesAnalysis
+     Node paramList = NodeUtil.getFunctionParameters(jsScope.getRootNode());
+     for (Node param = paramList.getFirstChild(); param != null; param = param.getNext()) {
+       if (param.isName()) {
+-        escaped.add(jsScope.getVar(param.getString()));
++        String pname = param.getString();
++        Var pvar = jsScope.getVar(pname);
++        escaped.add(pvar);
++        int idx = lookupVarIndex(pname);
++        if (idx >= 0) {
++          this.isEscapedIdx[idx] = true;
++        }
+       }
+     }
+   }
+diff --git a/com/google/javascript/jscomp/MaybeReachingVariableUse.java b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+index 6710d5b..38c687a 100644
+--- a/com/google/javascript/jscomp/MaybeReachingVariableUse.java
++++ b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+@@ -69,17 +69,32 @@ import org.jspecify.annotations.Nullable;
+  */
+ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+   // The scope of the function that we are analyzing.
+-  private final int numVars;
+-  private final String[] varNames;
+-  private final boolean[] isEscaped;
+-  private final String @Nullable [] nameTable;
+-  private final int @Nullable [] indexTable;
+-  private final ReachingUses emptyLattice;
++  private int numVars;
++  private String[] varNames;
++  private boolean[] isEscaped;
++  private String @Nullable [] nameTable;
++  private int @Nullable [] indexTable;
++  private ReachingUses emptyLattice;
+   private @Nullable ReachingUses flowOutput;
+ 
+   MaybeReachingVariableUse(
+       ControlFlowGraph<Node> cfg, Set<Var> escaped, Map<String, Var> allVarsInFn) {
+     super(cfg);
++    initVars(escaped, allVarsInFn);
++  }
++
++  void resetForScope(ControlFlowGraph<Node> cfg, Set<Var> escaped, Map<String, Var> allVarsInFn) {
++    initCfg(cfg);
++    this.flowOutput = null;
++    initVars(escaped, allVarsInFn);
++  }
++
++  void clearScopeState() {
++    releaseCfgReference();
++    this.flowOutput = null;
++  }
++
++  private void initVars(Set<Var> escaped, Map<String, Var> allVarsInFn) {
+     int n = allVarsInFn.size();
+     this.numVars = n;
+     this.varNames = new String[n];
+diff --git a/com/google/javascript/jscomp/MemoizedScopeCreator.java b/com/google/javascript/jscomp/MemoizedScopeCreator.java
+index c5909d9..61826b5 100644
+--- a/com/google/javascript/jscomp/MemoizedScopeCreator.java
++++ b/com/google/javascript/jscomp/MemoizedScopeCreator.java
+@@ -19,8 +19,7 @@ package com.google.javascript.jscomp;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.javascript.rhino.Node;
+-import java.util.LinkedHashMap;
+-import java.util.Map;
++import java.util.HashMap;
+ 
+ /**
+  * Memoize a scope creator.
+@@ -34,7 +33,7 @@ import java.util.Map;
+  */
+ class MemoizedScopeCreator implements ScopeCreator {
+ 
+-  private final Map<Node, AbstractScope<?, ?>> scopesByScopeRoot;
++  private final HashMap<Node, AbstractScope<?, ?>> scopesByScopeRoot;
+   private final ScopeCreator delegate;
+ 
+   /**
+@@ -45,7 +44,7 @@ class MemoizedScopeCreator implements ScopeCreator {
+   }
+ 
+   MemoizedScopeCreator(ScopeCreator delegate, int expectedScopes) {
+-    this.scopesByScopeRoot = new LinkedHashMap<>(expectedScopes);
++    this.scopesByScopeRoot = new HashMap<>(expectedScopes);
+     this.delegate = delegate;
+   }
+ 
+diff --git a/com/google/javascript/jscomp/MustBeReachingVariableDef.java b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+index 6020524..0a21a59 100644
+--- a/com/google/javascript/jscomp/MustBeReachingVariableDef.java
++++ b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+@@ -47,14 +47,14 @@ final class MustBeReachingVariableDef
+ 
+   // The scope of the function that we are analyzing.
+   private final AbstractCompiler compiler;
+-  private final int numVars;
+-  private final String[] varNames;
+-  private final Var[] vars;
+-  private final boolean[] isEscaped;
+-  private final int[] paramIndices;
+-  private final String @Nullable [] nameTable;
+-  private final int @Nullable [] indexTable;
+-  private final MustDef emptyLattice;
++  private int numVars;
++  private String[] varNames;
++  private Var[] vars;
++  private boolean[] isEscaped;
++  private int[] paramIndices;
++  private String @Nullable [] nameTable;
++  private int @Nullable [] indexTable;
++  private MustDef emptyLattice;
+   private @Nullable MustDef flowOutput;
+   private @Nullable Definition currentDepTarget;
+ 
+@@ -81,6 +81,23 @@ final class MustBeReachingVariableDef
+       Map<String, Var> allVarsInFn) {
+     super(cfg);
+     this.compiler = compiler;
++    initVars(escaped, allVarsInFn);
++  }
++
++  void resetForScope(ControlFlowGraph<Node> cfg, Set<Var> escaped, Map<String, Var> allVarsInFn) {
++    initCfg(cfg);
++    this.flowOutput = null;
++    this.currentDepTarget = null;
++    initVars(escaped, allVarsInFn);
++  }
++
++  void clearScopeState() {
++    releaseCfgReference();
++    this.flowOutput = null;
++    this.currentDepTarget = null;
++  }
++
++  private void initVars(Set<Var> escaped, Map<String, Var> allVarsInFn) {
+     int n = allVarsInFn.size();
+     this.numVars = n;
+     this.varNames = new String[n];
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index aab0598..71cd947 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -168,14 +168,15 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+   private final ModuleMetadataMap metadataMap;
+   private final ModuleImportResolver moduleImportResolver;
+   private final boolean processClosurePrimitives;
+-  private final LinkedHashMap<Node, TypedScope> memoized = new LinkedHashMap<>(1024);
++  private final HashMap<Node, TypedScope> memoizedByNode;
++  private final ArrayList<TypedScope> memoizedScopes;
+ 
+   // Maps from scope root to declared variable names. Populated by FirstOrderFunctionAnalyzer to
+   // reserve names before the TypedScope is populated.
+   private HashMap<Node, String[]> reservedNamesForScope;
+ 
+   // Set of functions with non-empty returns, for passing to FunctionTypeBuilder.
+-  private HashSet<Node> functionsWithNonEmptyReturns = new HashSet<>();
++  private HashSet<Node> functionsWithNonEmptyReturns;
+ 
+   private final FunctionTypeBuilder[] fnTypeBuilderPool = new FunctionTypeBuilder[8];
+   private int fnTypeBuilderPoolTop = 0;
+@@ -498,7 +499,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+     void resolve() {
+       // resolvedScope may be null if this is importing a nonexistent module
+-      TypedScope resolvedScope = memoized.get(scopedImport.getScopeRoot());
++      TypedScope resolvedScope = memoizedByNode.get(scopedImport.getScopeRoot());
+       TypedVar requiredVar =
+           resolvedScope != null ? resolvedScope.getSlot(scopedImport.getName()) : null;
+ 
+@@ -567,13 +568,18 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         compiler.getModuleMetadataMap() != null
+             ? compiler.getModuleMetadataMap()
+             : new ModuleMetadataMap(ImmutableMap.of(), ImmutableMap.of());
++    int expectedScopes = Math.max(1024, compiler.getNumberOfInputs() * 3);
++    this.memoizedByNode = new HashMap<>(expectedScopes);
++    this.memoizedScopes = new ArrayList<>(expectedScopes);
+     this.moduleMap = compiler.getModuleMap();
+     this.moduleImportResolver =
+         new ModuleImportResolver(this.moduleMap, getNodeToScopeMapper(), typeRegistry);
+     this.processClosurePrimitives = !this.metadataMap.getModulesByGoogNamespace().isEmpty();
+ 
+-    // Reset state to empty collections.
++    // Reset state to pre-sized collections for building.
+     clearCommonState();
++    this.reservedNamesForScope = new HashMap<>(expectedScopes);
++    this.functionsWithNonEmptyReturns = new HashSet<>(expectedScopes / 2);
+   }
+ 
+   private void report(JSError error) {
+@@ -592,9 +598,11 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+ 
+   @Override
+   public Iterable<TypedVar> getAllSymbols() {
+-    ArrayList<TypedVar> vars = new ArrayList<>(memoized.size() * 2);
+-    for (TypedScope s : memoized.values()) {
+-      s.addVarsTo(vars);
++    ArrayList<TypedScope> scopes = this.memoizedScopes;
++    int n = scopes.size();
++    ArrayList<TypedVar> vars = new ArrayList<>(n * 2);
++    for (int i = 0; i < n; i++) {
++      scopes.get(i).addVarsTo(vars);
+     }
+     return vars;
+   }
+@@ -605,18 +613,24 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+    * <p>This method mostly exists in lieu of an interface representing root node -> scope.
+    */
+   public Function<Node, TypedScope> getNodeToScopeMapper() {
+-    return memoized::get;
++    return this.memoizedByNode::get;
+   }
+ 
+   Collection<TypedScope> getAllMemoizedScopes() {
+     // Return scopes in reverse order of creation so that IIFEs will
+     // come before the global scope.
+-    return Lists.reverse(ImmutableList.copyOf(memoized.values()));
++    return Lists.reverse(this.memoizedScopes);
++  }
++
++  private void recordMemoizedScope(Node root, TypedScope scope) {
++    if (this.memoizedByNode.put(root, scope) == null) {
++      this.memoizedScopes.add(scope);
++    }
+   }
+ 
+   /** Create a scope if it doesn't already exist, looking up in the map for the parent scope. */
+   TypedScope createScope(Node n) {
+-    TypedScope s = memoized.get(n);
++    TypedScope s = this.memoizedByNode.get(n);
+     return s != null
+         ? s
+         : createScope(n, createScope(NodeUtil.getEnclosingScopeRoot(n.getParent())));
+@@ -631,12 +645,12 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     checkArgument(parent == null || parent instanceof TypedScope);
+     TypedScope typedParent = (TypedScope) parent;
+ 
+-    TypedScope scope = memoized.get(root);
++    TypedScope scope = this.memoizedByNode.get(root);
+     if (scope != null) {
+       checkState(typedParent == scope.getParent());
+     } else {
+       scope = createScopeInternal(root, typedParent);
+-      memoized.put(root, scope);
++      recordMemoizedScope(root, scope);
+     }
+     return scope;
+   }
+@@ -1018,7 +1032,9 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     // Gather global information used in typed scope creation. Use a memoized scope creator because
+     // scope-building takes a nontrivial amount of time.
+     MemoizedScopeCreator scopeCreator =
+-        new MemoizedScopeCreator(new SyntacticScopeCreator(compiler), 2048);
++        new MemoizedScopeCreator(
++            new SyntacticScopeCreator(compiler),
++            Math.max(4096, compiler.getNumberOfInputs() * 2));
+ 
+     NodeTraversal.builder()
+         .setCompiler(compiler)
+@@ -1054,7 +1070,7 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     // Memoize the global scope so that module scope creation can access it. See
+     // AbstractScopeBuilder#shouldTraverse - modules are traversed early, as if they were always
+     // executed when control flow reaches the module body.
+-    memoized.put(root, s);
++    recordMemoizedScope(root, s);
+ 
+     return s;
+   }
+@@ -1142,7 +1158,9 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     }
+ 
+     // Resolve types and attach them to scope slots.
+-    for (TypedScope scope : getAllMemoizedScopes()) {
++    ArrayList<TypedScope> scopes = this.memoizedScopes;
++    for (int i = scopes.size() - 1; i >= 0; i--) {
++      TypedScope scope = scopes.get(i);
+       scope.resolveOwnVarTypes(typeParsingErrorReporter);
+       scope.validateCompletelyBuilt();
+     }
+@@ -2008,7 +2026,8 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       //   - Someone has required a module that does not exist at all.
+       //   - Someone has requireType'd or forwardDeclare'd a module that exists, but does not have
+       //     an associated scope yet.
+-      TypedScope exportScope = exportedScopeRoot != null ? memoized.get(exportedScopeRoot) : null;
++      TypedScope exportScope =
++          exportedScopeRoot != null ? memoizedByNode.get(exportedScopeRoot) : null;
+ 
+       // The scope is null for modules that were not visited yet.
+       if (exportScope != null) {
+@@ -2246,11 +2265,14 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+         call = call.getFirstChild();
+       }
+       ScopedName extendsCall = moduleImportResolver.getClosureNamespaceTypeFromCall(call);
+-      if (extendsCall == null || !memoized.containsKey(extendsCall.getScopeRoot())) {
++      if (extendsCall == null) {
+         // Handle invalid goog.module.get calls
+         return null;
+       }
+-      TypedScope moduleScope = memoized.get(extendsCall.getScopeRoot());
++      TypedScope moduleScope = memoizedByNode.get(extendsCall.getScopeRoot());
++      if (moduleScope == null) {
++        return null;
++      }
+       properties.add(0, extendsCall.getName());
+       return moduleScope.lookupQualifiedName(Joiner.on('.').join(properties));
+     }
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+index 4be742d..e3245a5 100644
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -583,6 +583,10 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+ 
+     @Override
+     public LinkedDiGraphEdge<N, E> getInEdgeAt(int index) {
++      return getLinkedInEdgeAt(index);
++    }
++
++    public LinkedDiGraphEdge<N, E> getLinkedInEdgeAt(int index) {
+       if (inEdges != null) {
+         return inEdges.get(index);
+       }
+@@ -599,6 +603,10 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+ 
+     @Override
+     public LinkedDiGraphEdge<N, E> getOutEdgeAt(int index) {
++      return getLinkedOutEdgeAt(index);
++    }
++
++    public LinkedDiGraphEdge<N, E> getLinkedOutEdgeAt(int index) {
+       if (outEdges != null) {
+         return outEdges.get(index);
+       }
+@@ -864,11 +872,19 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+       return sourceNode;
+     }
+ 
++    public LinkedDiGraphNode<N, E> getLinkedSource() {
++      return sourceNode;
++    }
++
+     @Override
+     public LinkedDiGraphNode<N, E> getDestination() {
+       return destNode;
+     }
+ 
++    public LinkedDiGraphNode<N, E> getLinkedDestination() {
++      return destNode;
++    }
++
+     @Override
+     public E getValue() {
+       return value;
+diff --git a/com/google/javascript/rhino/jstype/EnumElementType.java b/com/google/javascript/rhino/jstype/EnumElementType.java
+index 31ebc01..b3233df 100644
+--- a/com/google/javascript/rhino/jstype/EnumElementType.java
++++ b/com/google/javascript/rhino/jstype/EnumElementType.java
+@@ -74,6 +74,9 @@ public final class EnumElementType extends ObjectType {
+     this.primitiveObjectType = elementType.toObjectType();
+     this.name = name;
+     this.enumType = enumType;
++    if (elementType == null || elementType.getWellFormedTemplatizedKind() == 0) {
++      this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    }
+ 
+     registry.getResolver().resolveIfClosed(this, TYPE_CLASS);
+   }
+@@ -276,6 +279,11 @@ public final class EnumElementType extends ObjectType {
+   JSType resolveInternal(ErrorReporter reporter) {
+     primitiveType = primitiveType.resolve(reporter);
+     primitiveObjectType = ObjectType.cast(primitiveType);
++    if (primitiveType == null || primitiveType.getWellFormedTemplatizedKind() == 0) {
++      this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    } else {
++      this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    }
+     return this;
+   }
+ }
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index a91cdfd..d7b120b 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -460,10 +460,12 @@ final class EqualityChecker {
+           return false;
+         }
+       }
+-      return this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap());
++      return (left.typeKindMask & JSType.MAY_HAVE_NON_EMPTY_TEMPLATE_MAP_MASK) == 0
++          || this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap());
+     }
+ 
+-    if (!this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap())) {
++    if ((left.typeKindMask & JSType.MAY_HAVE_NON_EMPTY_TEMPLATE_MAP_MASK) != 0
++        && !this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap())) {
+       return false;
+     }
+ 
+@@ -656,12 +658,12 @@ final class EqualityChecker {
+ 
+     if (leftMap.hasFlatProps() && rightMap.hasFlatProps()) {
+       for (int i = 0; i < leftCount; i++) {
+-        if (rightMap.getOwnProperty(leftMap.getFlatPropAt(i).getName()) == null) {
++        if (rightMap.getOwnProperty(leftMap.getFlatPropNameAt(i)) == null) {
+           return false;
+         }
+       }
+       for (int i = 0; i < leftCount; i++) {
+-        String key = leftMap.getFlatPropAt(i).getName();
++        String key = leftMap.getFlatPropNameAt(i);
+         if (!this.areEqualCaching(left.getPropertyType(key), right.getPropertyType(key))) {
+           return false;
+         }
+diff --git a/com/google/javascript/rhino/jstype/FunctionType.java b/com/google/javascript/rhino/jstype/FunctionType.java
+index a364937..8699bfb 100644
+--- a/com/google/javascript/rhino/jstype/FunctionType.java
++++ b/com/google/javascript/rhino/jstype/FunctionType.java
+@@ -299,6 +299,8 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+       this.setPrototypeBasedOn(builder.setPrototypeBasedOn);
+     }
+ 
++    refreshWellFormedTemplatizedFlag();
++
+     if (builder.noTypeKind != NO_KIND_NORMAL) {
+       this.eagerlyResolveToSelf();
+     } else {
+@@ -306,6 +308,23 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+     }
+   }
+ 
++  private void refreshWellFormedTemplatizedFlag() {
++    JSType ret = this.returnType;
++    if (ret == null || ret.getWellFormedTemplatizedKind() != 0) {
++      this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++      return;
++    }
++    Parameter[] params = this.parameters;
++    for (int i = 0, len = params.length; i < len; i++) {
++      JSType pt = params[i].getJSType();
++      if (pt == null || pt.getWellFormedTemplatizedKind() != 0) {
++        this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++        return;
++      }
++    }
++    this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++  }
++
+   @Override
+   JSTypeClass getTypeClass() {
+     int m = this.typeKindMask;
+@@ -1412,7 +1431,9 @@ public final class FunctionType extends PrototypeObjectType implements JSType.Wi
+       }
+     }
+ 
+-    return super.resolveInternal(reporter);
++    JSType resolved = super.resolveInternal(reporter);
++    refreshWellFormedTemplatizedFlag();
++    return resolved;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index ef2ed34..5eb0b37 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -118,9 +118,13 @@ public abstract class JSType {
+   static final int KIND_INTERFACE = 1 << 23;
+   static final int KIND_ORDINARY_FUNCTION = 1 << 24;
+   static final int KIND_NATIVE_OBJECT = 1 << 25;
+-  static final int TYPE_CLASS_SHIFT = 26;
++  static final int KIND_HAS_NON_EMPTY_TEMPLATE_MAP = 1 << 26;
++  static final int TYPE_CLASS_SHIFT = 27;
+   private static final JSTypeClass[] TYPE_CLASSES = JSTypeClass.values();
+ 
++  static final int MAY_HAVE_NON_EMPTY_TEMPLATE_MAP_MASK =
++      KIND_HAS_NON_EMPTY_TEMPLATE_MAP | KIND_PROXY;
++
+   private static final int EMPTY_TYPE_MASK =
+       KIND_NO_TYPE | KIND_NO_OBJECT_TYPE | KIND_NO_RESOLVED_TYPE;
+ 
+@@ -154,14 +158,18 @@ public abstract class JSType {
+     this.typeKindMask = typeKindMask;
+     this.typeKindMask = typeKindMask | (getTypeClass().ordinal() << TYPE_CLASS_SHIFT);
+ 
+-    this.templateTypeMap =
++    TemplateTypeMap tm =
+         (templateTypeMap == null) ? registry.getEmptyTemplateTypeMap() : templateTypeMap;
++    this.templateTypeMap = tm;
++    if (tm != null && !tm.isEmpty()) {
++      this.typeKindMask |= KIND_HAS_NON_EMPTY_TEMPLATE_MAP;
++    }
+ 
+     registry.getResolver().addUnresolved(this);
+   }
+ 
+   final JSTypeClass fastTypeClass() {
+-    return TYPE_CLASSES[this.typeKindMask >> TYPE_CLASS_SHIFT];
++    return TYPE_CLASSES[this.typeKindMask >>> TYPE_CLASS_SHIFT];
+   }
+ 
+   public final int getKindMask() {
+@@ -782,6 +790,9 @@ public abstract class JSType {
+       other = registry.createTemplatizedType(other, ImmutableList.of());
+     }
+     templateTypeMap = other.getTemplateTypeMap().copyWithExtension(this.getTemplateTypeMap());
++    if (!templateTypeMap.isEmpty()) {
++      this.typeKindMask |= KIND_HAS_NON_EMPTY_TEMPLATE_MAP;
++    }
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/NamedType.java b/com/google/javascript/rhino/jstype/NamedType.java
+index bda4555..5471bbc 100644
+--- a/com/google/javascript/rhino/jstype/NamedType.java
++++ b/com/google/javascript/rhino/jstype/NamedType.java
+@@ -300,7 +300,9 @@ public final class NamedType extends ProxyObjectType {
+       // In some cases (e.g. typeof(ns) when the actual type is just a literal object), a NamedType
+       // is created solely for the purpose of naming an already-known type. When that happens,
+       // there's nothing to look up, so just resolve the referenced type.
+-      return super.resolveInternal(reporter);
++      JSType resolved = super.resolveInternal(reporter);
++      refreshWellFormedTemplatizedFlag();
++      return resolved;
+     }
+     checkState(
+         getReferencedType().isUnknownType(),
+@@ -330,11 +332,13 @@ public final class NamedType extends ProxyObjectType {
+       if (resultAsObject == null) {
+         // For non-object types there is no need to handle template parameters or
+         // interface aliases, so we can just return now.
++        refreshWellFormedTemplatizedFlag();
+         return result;
+       }
+ 
+       if (resolvedTypeArgs.isEmpty() || !resultAsObject.isRawTypeOfTemplatizedType()) {
+         // No template parameters need to be resolved.
++        refreshWellFormedTemplatizedFlag();
+         return result;
+       }
+ 
+@@ -348,9 +352,18 @@ public final class NamedType extends ProxyObjectType {
+       setReferencedType(result.resolve(reporter));
+     }
+ 
++    refreshWellFormedTemplatizedFlag();
+     return result;
+   }
+ 
++  private void refreshWellFormedTemplatizedFlag() {
++    if (getReferencedType().getWellFormedTemplatizedKind() == 0) {
++      this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    } else {
++      this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    }
++  }
++
+   /**
+    * Resolves a named type by looking it up in the registry.
+    * @return True if we resolved successfully.
+diff --git a/com/google/javascript/rhino/jstype/PropertyMap.java b/com/google/javascript/rhino/jstype/PropertyMap.java
+index 1bc0806..1b60f59 100644
+--- a/com/google/javascript/rhino/jstype/PropertyMap.java
++++ b/com/google/javascript/rhino/jstype/PropertyMap.java
+@@ -77,16 +77,24 @@ final class PropertyMap {
+   // just reference primary parents and secondary parents directly.
+   private @Nullable ObjectType parentSource = null;
+ 
++  private static final int MAP_THRESHOLD = 8;
++
+   /**
+-   * Storage for 3..16 own string properties in a flat {@code Property[]} array, spilling to
+-   * {@code map} only when > 16 distinct own string properties exist.
++   * Storage for >= 3 own string properties in insertion-order parallel {@code String[] names} and
++   * {@code Property[] items} arrays, plus a {@code HashMap} lookup index when > 8 properties exist.
+    */
+   private static final class PropStore {
+-    Property @Nullable [] items;
++    String[] names;
++    Property[] items;
+     int size;
+-    @Nullable LinkedHashMap<String, Property> map = null;
++    java.util.@Nullable HashMap<String, Property> map = null;
+ 
+     PropStore(Property p0, Property p1, Property p2) {
++      String[] nArr = new String[4];
++      nArr[0] = p0.getName();
++      nArr[1] = p1.getName();
++      nArr[2] = p2.getName();
++      this.names = nArr;
+       Property[] arr = new Property[4];
+       arr[0] = p0;
+       arr[1] = p1;
+@@ -346,18 +354,17 @@ final class PropertyMap {
+       }
+       return null;
+     }
+-    if (s.map == null) {
+-      Property[] items = s.items;
+-      for (int i = 0, n = s.size; i < n; i++) {
+-        Property p = items[i];
+-        String pn = p.getName();
+-        if (pn == propertyName || pn.equals(propertyName)) {
+-          return p;
+-        }
++    if (s.map != null) {
++      return s.map.get(propertyName);
++    }
++    String[] names = s.names;
++    for (int i = 0, n = s.size; i < n; i++) {
++      String pn = names[i];
++      if (pn == propertyName || pn.equals(propertyName)) {
++        return s.items[i];
+       }
+-      return null;
+     }
+-    return s.map.get(propertyName);
++    return null;
+   }
+ 
+   @Nullable Property getOwnProperty(Property.Key propertyName) {
+@@ -381,8 +388,7 @@ final class PropertyMap {
+   }
+ 
+   boolean hasFlatProps() {
+-    PropStore s = this.store;
+-    return s == null || s.map == null;
++    return true;
+   }
+ 
+   Property getFlatPropAt(int index) {
+@@ -393,6 +399,14 @@ final class PropertyMap {
+     return index == 0 ? this.prop0 : this.prop1;
+   }
+ 
++  String getFlatPropNameAt(int index) {
++    PropStore s = this.store;
++    if (s != null) {
++      return s.names[index];
++    }
++    return (index == 0 ? this.prop0 : this.prop1).getName();
++  }
++
+   @Nullable Property getInlineProp0() {
+     return this.prop0;
+   }
+@@ -409,7 +423,7 @@ final class PropertyMap {
+   int getOwnPropertiesCount() {
+     PropStore s = this.store;
+     if (s != null) {
+-      return s.map != null ? s.map.size() : s.size;
++      return s.size;
+     }
+     if (this.prop0 == null) {
+       return 0;
+@@ -420,17 +434,9 @@ final class PropertyMap {
+   int collectOwnPropertyNames(String[] out, int idx, boolean skipPrototype) {
+     PropStore s = this.store;
+     if (s != null) {
+-      if (s.map != null) {
+-        for (String key : s.map.keySet()) {
+-          if (!skipPrototype || !"prototype".equals(key)) {
+-            out[idx++] = key;
+-          }
+-        }
+-        return idx;
+-      }
+-      Property[] items = s.items;
++      String[] names = s.names;
+       for (int i = 0, n = s.size; i < n; i++) {
+-        String key = items[i].getName();
++        String key = names[i];
+         if (!skipPrototype || !"prototype".equals(key)) {
+           out[idx++] = key;
+         }
+@@ -457,13 +463,9 @@ final class PropertyMap {
+   void addOwnPropertyNamesTo(Set<String> out) {
+     PropStore s = this.store;
+     if (s != null) {
+-      if (s.map != null) {
+-        out.addAll(s.map.keySet());
+-        return;
+-      }
+-      Property[] items = s.items;
++      String[] names = s.names;
+       for (int i = 0, n = s.size; i < n; i++) {
+-        out.add(items[i].getName());
++        out.add(names[i]);
+       }
+       return;
+     }
+@@ -480,14 +482,11 @@ final class PropertyMap {
+   Set<String> getOwnPropertyNames() {
+     PropStore s = this.store;
+     if (s != null) {
+-      if (s.map != null) {
+-        return s.map.keySet();
+-      }
+       int n = s.size;
+-      Property[] items = s.items;
++      String[] names = s.names;
+       ImmutableSet.Builder<String> builder = ImmutableSet.builderWithExpectedSize(n);
+       for (int i = 0; i < n; i++) {
+-        builder.add(items[i].getName());
++        builder.add(names[i]);
+       }
+       return builder.build();
+     }
+@@ -636,51 +635,68 @@ final class PropertyMap {
+       return;
+     }
+ 
+-    if (s.map == null) {
+-      Property[] items = s.items;
+-      int n = s.size;
+-      for (int i = 0; i < n; i++) {
+-        Property existing = items[i];
+-        String en = existing.getName();
+-        if (en == name || en.equals(name)) {
+-          newProp.setJSDocInfo(existing.getJSDocInfo());
+-          items[i] = newProp;
+-          return;
+-        }
+-      }
+-      if (n < 16) {
++    if (s.map != null) {
++      Property oldProp = s.map.put(name, newProp);
++      if (oldProp == null) {
++        int n = s.size;
++        Property[] items = s.items;
++        String[] names = s.names;
+         if (n == items.length) {
+-          items = Arrays.copyOf(items, n * 2);
++          int newCap = n * 2;
++          items = Arrays.copyOf(items, newCap);
++          names = Arrays.copyOf(names, newCap);
+           s.items = items;
++          s.names = names;
+         }
++        names[n] = name;
+         items[n] = newProp;
+         s.size = n + 1;
+         this.incrementCachedKeySetCounter();
+-        return;
+-      }
+-      s.map = new LinkedHashMap<>(32);
+-      for (int i = 0; i < 16; i++) {
+-        Property existing = items[i];
+-        s.map.put(existing.getName(), existing);
++      } else {
++        // This is to keep previously inferred JsDoc info, e.g., in a replaceScript scenario.
++        newProp.setJSDocInfo(oldProp.getJSDocInfo());
++        Property[] items = s.items;
++        for (int i = 0, n = s.size; i < n; i++) {
++          if (items[i] == oldProp) {
++            items[i] = newProp;
++            break;
++          }
++        }
+       }
+-      s.map.put(name, newProp);
+-      s.items = null;
+-      s.size = 0;
+-      this.incrementCachedKeySetCounter();
+       return;
+     }
+ 
+-    Property oldProp = s.map.get(name);
+-
+-    if (oldProp == null) {
+-      // The cache is only invalidated if this is a new property name.
+-      this.incrementCachedKeySetCounter();
+-    } else {
+-      // This is to keep previously inferred JsDoc info, e.g., in a replaceScript scenario.
+-      newProp.setJSDocInfo(oldProp.getJSDocInfo());
++    String[] names = s.names;
++    Property[] items = s.items;
++    int n = s.size;
++    for (int i = 0; i < n; i++) {
++      String en = names[i];
++      if (en == name || en.equals(name)) {
++        Property existing = items[i];
++        newProp.setJSDocInfo(existing.getJSDocInfo());
++        items[i] = newProp;
++        return;
++      }
+     }
+-
+-    s.map.put(name, newProp);
++    if (n == items.length) {
++      int newCap = n * 2;
++      items = Arrays.copyOf(items, newCap);
++      names = Arrays.copyOf(names, newCap);
++      s.items = items;
++      s.names = names;
++    }
++    names[n] = name;
++    items[n] = newProp;
++    int newSize = n + 1;
++    s.size = newSize;
++    if (newSize > MAP_THRESHOLD) {
++      java.util.HashMap<String, Property> m = new java.util.HashMap<>(16);
++      for (int i = 0; i < newSize; i++) {
++        m.put(names[i], items[i]);
++      }
++      s.map = m;
++    }
++    this.incrementCachedKeySetCounter();
+   }
+ 
+   boolean removeProperty(String name) {
+@@ -708,33 +724,61 @@ final class PropertyMap {
+       }
+       return false;
+     }
+-    if (s.map == null) {
++    if (s.map != null) {
++      Property removed = s.map.remove(name);
++      if (removed == null) {
++        return false;
++      }
+       Property[] items = s.items;
++      String[] names = s.names;
+       int n = s.size;
+       for (int i = 0; i < n; i++) {
+-        String iname = items[i].getName();
+-        if (iname == name || iname.equals(name)) {
++        if (items[i] == removed) {
+           int last = n - 1;
+           for (int j = i; j < last; j++) {
+             items[j] = items[j + 1];
++            names[j] = names[j + 1];
+           }
+           items[last] = null;
++          names[last] = null;
+           s.size = last;
+-          if (last == 2) {
+-            this.prop0 = items[0];
+-            this.prop1 = items[1];
+-            this.store = null;
++          if (last <= MAP_THRESHOLD) {
++            s.map = null;
++            if (last == 2) {
++              this.prop0 = items[0];
++              this.prop1 = items[1];
++              this.store = null;
++            }
+           }
+-          this.incrementCachedKeySetCounter();
+-          return true;
++          break;
+         }
+       }
+-      return false;
+-    }
+-    if (s.map.remove(name) != null) {
+       this.incrementCachedKeySetCounter();
+       return true;
+     }
++    String[] names = s.names;
++    Property[] items = s.items;
++    int n = s.size;
++    for (int i = 0; i < n; i++) {
++      String iname = names[i];
++      if (iname == name || iname.equals(name)) {
++        int last = n - 1;
++        for (int j = i; j < last; j++) {
++          items[j] = items[j + 1];
++          names[j] = names[j + 1];
++        }
++        items[last] = null;
++        names[last] = null;
++        s.size = last;
++        if (last == 2) {
++          this.prop0 = items[0];
++          this.prop1 = items[1];
++          this.store = null;
++        }
++        this.incrementCachedKeySetCounter();
++        return true;
++      }
++    }
+     return false;
+   }
+ 
+@@ -763,12 +807,6 @@ final class PropertyMap {
+   void resolveOwnPropertyTypes(ErrorReporter reporter) {
+     PropStore s = this.store;
+     if (s != null) {
+-      if (s.map != null) {
+-        for (Property prop : s.map.values()) {
+-          prop.setType(JSType.safeResolve(prop.getType(), reporter));
+-        }
+-        return;
+-      }
+       Property[] items = s.items;
+       for (int i = 0, n = s.size; i < n; i++) {
+         Property prop = items[i];
+@@ -789,9 +827,6 @@ final class PropertyMap {
+   Iterable<Property> values() {
+     PropStore s = this.store;
+     if (s != null) {
+-      if (s.map != null) {
+-        return s.map.values();
+-      }
+       int n = s.size;
+       Property[] items = s.items;
+       ImmutableList.Builder<Property> builder = ImmutableList.builderWithExpectedSize(n);
+@@ -822,15 +857,9 @@ final class PropertyMap {
+     int h = 0;
+     PropStore s = this.store;
+     if (s != null) {
+-      if (s.map != null) {
+-        for (String key : s.map.keySet()) {
+-          h += key.hashCode();
+-        }
+-      } else {
+-        Property[] items = s.items;
+-        for (int i = 0, n = s.size; i < n; i++) {
+-          h += items[i].getName().hashCode();
+-        }
++      String[] names = s.names;
++      for (int i = 0, n = s.size; i < n; i++) {
++        h += names[i].hashCode();
+       }
+     } else if (this.prop0 != null) {
+       h = this.prop0.getName().hashCode();
+diff --git a/com/google/javascript/rhino/jstype/ProxyObjectType.java b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+index 7fb422f..92da6de 100644
+--- a/com/google/javascript/rhino/jstype/ProxyObjectType.java
++++ b/com/google/javascript/rhino/jstype/ProxyObjectType.java
+@@ -119,6 +119,7 @@ public class ProxyObjectType extends ObjectType {
+   final void setReferencedType(JSType referencedType) {
+     checkNotNull(referencedType);
+     this.referencedType = referencedType;
++    this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+     JSTypeResolver resolver = this.registry.getResolver();
+     if ((referencedType.jstypeFlags & JSTYPE_FLAG_OBJ_NOT_UNKNOWN) != 0
+         && resolver != null
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index e40d28d..daf191d 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -391,8 +391,6 @@ final class SubtypeChecker {
+   }
+ 
+   private boolean isObjectSubtypeHelper(ObjectType subtype, ObjectType supertype) {
+-    TemplateTypeMap subtypeParams = subtype.getTemplateTypeMap();
+-    TemplateTypeMap supertypeParams = supertype.getTemplateTypeMap();
+     boolean subAndSuperAreSameBaseType = false;
+     if (subtype.isTemplatizedType() && supertype.isTemplatizedType()) {
+       TemplatizedType templatizedSubType = subtype.toMaybeTemplatizedType();
+@@ -415,8 +413,8 @@ final class SubtypeChecker {
+      */
+     if (isBivariantType(supertype)) {
+       TemplateType key = subtype.registry.getObjectElementKey();
+-      JSType thisElement = subtypeParams.getResolvedTemplateType(key);
+-      JSType thatElement = supertypeParams.getResolvedTemplateType(key);
++      JSType thisElement = subtype.getTemplateTypeMap().getResolvedTemplateType(key);
++      JSType thatElement = supertype.getTemplateTypeMap().getResolvedTemplateType(key);
+ 
+       if (!this.meetVarianceConstraint(Variance.BIVARIANT, thisElement, thatElement)) {
+         return false;
+@@ -441,8 +439,8 @@ final class SubtypeChecker {
+           // structural subtyping generally doesn't really support covariance of generics, but
+           // Array and ReadonlyArray are a special case we want to support as it has been a problem
+           // in practice.
+-          JSType thisElement = subtypeParams.getResolvedTemplateType(covariantKey);
+-          JSType thatElement = supertypeParams.getResolvedTemplateType(covariantKey);
++          JSType thisElement = subtype.getTemplateTypeMap().getResolvedTemplateType(covariantKey);
++          JSType thatElement = supertype.getTemplateTypeMap().getResolvedTemplateType(covariantKey);
+           return this.meetVarianceConstraint(Variance.COVARIANT, thisElement, thatElement);
+         }
+         return this.isStructuralSubtypeHelper(
+@@ -458,8 +456,8 @@ final class SubtypeChecker {
+      */
+     if (!bivarantMatch) {
+       if (covariantKey != null) {
+-        JSType thisElement = subtypeParams.getResolvedTemplateType(covariantKey);
+-        JSType thatElement = supertypeParams.getResolvedTemplateType(covariantKey);
++        JSType thisElement = subtype.getTemplateTypeMap().getResolvedTemplateType(covariantKey);
++        JSType thatElement = supertype.getTemplateTypeMap().getResolvedTemplateType(covariantKey);
+         if (!this.meetVarianceConstraint(Variance.COVARIANT, thisElement, thatElement)) {
+           return false;
+         }
+@@ -511,7 +509,7 @@ final class SubtypeChecker {
+       if (ownMap.hasFlatProps()) {
+         for (int i = 0, n = ownMap.getOwnPropertiesCount(); i < n; i++) {
+           if (!checkPropertyPresence(
+-              ownMap.getFlatPropAt(i).getName(), subtype, supertype, optionality)) {
++              ownMap.getFlatPropNameAt(i), subtype, supertype, optionality)) {
+             return false;
+           }
+         }
+@@ -761,7 +759,8 @@ final class SubtypeChecker {
+   }
+ 
+   private boolean isTypeMapSubmap(ObjectType subtype, ObjectType supertype) {
+-    if (subtype.isFunctionPrototypeType()) {
++    if ((supertype.typeKindMask & JSType.MAY_HAVE_NON_EMPTY_TEMPLATE_MAP_MASK) == 0
++        || subtype.isFunctionPrototypeType()) {
+       // TODO(b/145609962): Prototype types never have template type maps, so the result is
+       // predetermined. We assume true for legacy reasons.
+       // TODO(b/145610392): It's unclear what the correct result should be.
+diff --git a/com/google/javascript/rhino/jstype/TemplateTypeMap.java b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+index c6afea1..c5486eb 100644
+--- a/com/google/javascript/rhino/jstype/TemplateTypeMap.java
++++ b/com/google/javascript/rhino/jstype/TemplateTypeMap.java
+@@ -106,6 +106,8 @@ public final class TemplateTypeMap {
+   private final byte ownValKind;
+   // bit 0: subMapStart(0) when base == null && size == 1; bits 1..2: resolvedValues state.
+   private byte flags;
++  private final int totalSize;
++  private final int totalValuesSize;
+ 
+   static final TemplateTypeMap createEmpty(JSTypeRegistry registry) {
+     // This method should only be called during registry initialization.
+@@ -122,6 +124,8 @@ public final class TemplateTypeMap {
+     this.extra = new Extra(registry, null, null, 0, null);
+     this.ownValKind = 0;
+     this.flags = (byte) (RESOLVED_SAME_AS_VALUES << RESOLVED_SHIFT);
++    this.totalSize = 0;
++    this.totalValuesSize = 0;
+   }
+ 
+   private TemplateTypeMap(
+@@ -139,6 +143,12 @@ public final class TemplateTypeMap {
+     this.extra = extra;
+     this.ownValKind = ownValKind;
+     this.flags = flags;
++    this.totalSize =
++        (base != null)
++            ? base.totalSize
++            : (key0 == null ? 0 : (extra != null && extra.keys != null ? extra.keys.length : 1));
++    int ownVals = ownValKind < 3 ? ownValKind : extra.ownValues.length;
++    this.totalValuesSize = (base != null) ? base.totalValuesSize + ownVals : ownVals;
+   }
+ 
+   private static TemplateTypeMap createSingleKey(TemplateType key, int subMapStartsMask) {
+@@ -487,7 +497,7 @@ public final class TemplateTypeMap {
+     int pos = dstOffset;
+     if (this.base != null) {
+       this.base.copyValuesInto(dst, pos);
+-      pos += this.base.getTemplateValuesSize();
++      pos += this.base.totalValuesSize;
+     }
+     switch (this.ownValKind) {
+       case 0 -> {}
+@@ -893,18 +903,11 @@ public final class TemplateTypeMap {
+   }
+ 
+   public int getTemplateKeysCount() {
+-    return size();
++    return this.totalSize;
+   }
+ 
+   public int size() {
+-    if (this.base != null) {
+-      return this.base.size();
+-    }
+-    if (this.key0 == null) {
+-      return 0;
+-    }
+-    Extra e = this.extra;
+-    return (e != null && e.keys != null) ? e.keys.length : 1;
++    return this.totalSize;
+   }
+ 
+   /**
+@@ -928,20 +931,14 @@ public final class TemplateTypeMap {
+     throw new IndexOutOfBoundsException(index);
+   }
+ 
+-  private int ownValuesSize() {
+-    int kind = this.ownValKind;
+-    return kind < 3 ? kind : this.extra.ownValues.length;
+-  }
+-
+   public int getTemplateValuesSize() {
+-    int own = ownValuesSize();
+-    return this.base != null ? this.base.getTemplateValuesSize() + own : own;
++    return this.totalValuesSize;
+   }
+ 
+   public JSType getTemplateValueAt(int index) {
+     int localIdx = index;
+     if (this.base != null) {
+-      int prefix = this.base.getTemplateValuesSize();
++      int prefix = this.base.totalValuesSize;
+       if (index < prefix) {
+         return this.base.getTemplateValueAt(index);
+       }
+@@ -1072,7 +1069,7 @@ public final class TemplateTypeMap {
+   }
+ 
+   private int numUnfilledTemplateKeys() {
+-    return size() - getTemplateValuesSize();
++    return this.totalSize - this.totalValuesSize;
+   }
+ 
+   /**
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index 442d284..ee31401 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -264,37 +264,48 @@ public final class UnionType extends JSType {
+       this.restAlternates = rest;
+     }
+     this.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild;
++    boolean wellFormedOk = this.alt0.getWellFormedTemplatizedKind() == 0;
++    if (n >= 2) {
++      wellFormedOk &= this.alt1.getWellFormedTemplatizedKind() == 0;
++    }
++    if (n >= 3) {
++      wellFormedOk &= this.alt2.getWellFormedTemplatizedKind() == 0;
++    }
++    if (n > 3 && wellFormedOk) {
++      JSType[] rest = this.restAlternates;
++      for (int i = 0, m = n - 3; i < m; i++) {
++        if (rest[i].getWellFormedTemplatizedKind() != 0) {
++          wellFormedOk = false;
++          break;
++        }
++      }
++    }
++    if (wellFormedOk) {
++      this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    } else {
++      this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    }
+     if (this.registry.isResolverClosed()) {
+       byte combined = JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+       combined &= this.alt0.jstypeFlags;
+-      boolean wellFormedOk = this.alt0.getWellFormedTemplatizedKind() == 0;
+       if (n >= 2) {
+         combined &= this.alt1.jstypeFlags;
+-        wellFormedOk &= this.alt1.getWellFormedTemplatizedKind() == 0;
+       }
+       if (n >= 3) {
+         combined &= this.alt2.jstypeFlags;
+-        wellFormedOk &= this.alt2.getWellFormedTemplatizedKind() == 0;
+       }
+-      if (n > 3 && (combined != 0 || wellFormedOk)) {
++      if (n > 3 && combined != 0) {
+         JSType[] rest = this.restAlternates;
+         for (int i = 0, m = n - 3; i < m; i++) {
+-          JSType r = rest[i];
+-          combined &= r.jstypeFlags;
+-          if (wellFormedOk && r.getWellFormedTemplatizedKind() != 0) {
+-            wellFormedOk = false;
++          combined &= rest[i].jstypeFlags;
++          if (combined == 0) {
++            break;
+           }
+         }
+       }
+       this.jstypeFlags = (byte) ((this.jstypeFlags & ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN) | combined);
+-      if (wellFormedOk) {
+-        this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+-      } else {
+-        this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+-      }
+     } else {
+       this.jstypeFlags &= ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+-      this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+     }
+   }
+ 

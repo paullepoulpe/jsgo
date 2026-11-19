@@ -81,12 +81,10 @@ func InitFileInstrumentationData(this_ *FileInstrumentationData, fileName string
 	this_.instrumentedBits = j2gort.NewExt_java_util_BitSet()
 	this_.branchPresent = j2gort.NewExt_java_util_BitSet()
 	this_.branchesInLine = j2gort.NewOrderedMap[int32, int32]()
-	this_.branchNodes = j2gort.NewCustomOrderedMap[*FileInstrumentationData_BranchIndexPair,
-
-		// Java method: FileInstrumentationData.getArrayName()
-		pkg_rhino.Node]()
+	this_.branchNodes = j2gort.NewCustomOrderedMap[*FileInstrumentationData_BranchIndexPair, pkg_rhino.Node]()
 }
 
+// Java method: FileInstrumentationData.getArrayName()
 func (this_ *FileInstrumentationData) GetArrayName() string {
 	return this_.arrayName
 }

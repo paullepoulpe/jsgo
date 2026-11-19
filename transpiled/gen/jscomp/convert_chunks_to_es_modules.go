@@ -63,10 +63,10 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.ConvertChunksToESModules
 type ConvertChunksToESModules struct {
-	compiler               AbstractCompiler         `gson:"compiler"`
-	crossChunkExports      j2gort.Ext_java_util_Map `gson:"crossChunkExports"`
-	crossChunkImports      j2gort.Ext_java_util_Map `gson:"crossChunkImports"`
-	dynamicImportCallbacks []pkg_rhino.Node         `gson:"dynamicImportCallbacks"`
+	compiler               AbstractCompiler                                      `gson:"compiler"`
+	crossChunkExports      j2gort.OrderedMap[*JSChunk, j2gort.Ext_java_util_Set] `gson:"crossChunkExports"`
+	crossChunkImports      j2gort.OrderedMap[*JSChunk, j2gort.Ext_java_util_Map] `gson:"crossChunkImports"`
+	dynamicImportCallbacks []pkg_rhino.Node                                      `gson:"dynamicImportCallbacks"`
 	idHash_                atomic.Int32
 }
 
@@ -153,8 +153,8 @@ func clinitSlow_ConvertChunksToESModules() {
 
 func (this_ *ConvertChunksToESModules) initFields_ConvertChunksToESModules() {
 	_ = this_
-	this_.crossChunkExports = j2gort.NewExt_java_util_LinkedHashMap()
-	this_.crossChunkImports = j2gort.NewExt_java_util_LinkedHashMap()
+	this_.crossChunkExports = j2gort.NewOrderedMap[*JSChunk, j2gort.Ext_java_util_Set]()
+	this_.crossChunkImports = j2gort.NewOrderedMap[*JSChunk, j2gort.Ext_java_util_Map]()
 	this_.dynamicImportCallbacks = []pkg_rhino.Node{}
 }
 
@@ -183,8 +183,8 @@ func (this_ *ConvertChunksToESModules) Process_2(externs pkg_rhino.Node, root pk
 			rawElem_2 := cur_1.Next()
 			chunk := j2gort.CastPtr[JSChunk](rawElem_2)
 			_ = chunk
-			if (!(this_.crossChunkExports.ContainsKey(j2gort.PtrToAny(chunk))) && !(this_.crossChunkImports.ContainsKey(j2gort.PtrToAny(chunk)))) && !(chunk.GetInputs().IsEmpty()) {
-				this_.crossChunkExports.Put_2(j2gort.PtrToAny(chunk), j2gort.NewExt_java_util_LinkedHashSet())
+			if (!(this_.crossChunkExports.ContainsKey(chunk)) && !(this_.crossChunkImports.ContainsKey(chunk))) && !(chunk.GetInputs().IsEmpty()) {
+				this_.crossChunkExports.Put(chunk, j2gort.NewExt_java_util_LinkedHashSet())
 			}
 		}
 	}
@@ -257,9 +257,9 @@ func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_convertChun
 // Java method: ConvertChunksToESModules.addExportStatements()
 func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addExportStatements_2227() {
 	{
-		cur_7 := j2gort.NewMapEntryCursor(this_.crossChunkExports)
+		cur_7 := this_.crossChunkExports.IterEntries()
 		for cur_7.NextEntry() {
-			var firstInput *CompilerInput = j2gort.CastPtr[JSChunk](cur_7.GetKey()).GetFirst()
+			var firstInput *CompilerInput = cur_7.Key().GetFirst()
 			_ = firstInput
 			var moduleBody pkg_rhino.Node = firstInput.GetAstRoot(this_.compiler).GetFirstChild()
 			_ = moduleBody
@@ -269,7 +269,7 @@ func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addExportSt
 			var exportSpecs pkg_rhino.Node = pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_EXPORT_SPECS())
 			_ = exportSpecs
 			{
-				cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](cur_7.GetValue())))
+				cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(cur_7.Value()))
 				for cur_8.HasNext() {
 					name := cur_8.NextStr()
 					_ = name
@@ -281,7 +281,7 @@ func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addExportSt
 					exportSpecs.AddChildToBack(exportSpec)
 				}
 			}
-			var importsByChunk j2gort.Ext_java_util_Map = j2gort.AsIface[j2gort.Ext_java_util_Map](this_.crossChunkImports.Get(j2gort.PtrToAny(j2gort.CastPtr[JSChunk](cur_7.GetKey()))))
+			var importsByChunk j2gort.Ext_java_util_Map = this_.crossChunkImports.Get(cur_7.Key())
 			_ = importsByChunk
 			if (exportSpecs.HasChildren() || (importsByChunk == nil)) || importsByChunk.IsEmpty() {
 				var export pkg_rhino.Node = pkg_rhino.IR_Export(exportSpecs).SrcrefTree(moduleBody)
@@ -303,11 +303,11 @@ func ConvertChunksToESModules_GetChunkName(chunk *JSChunk) string {
 // Java method: ConvertChunksToESModules.addImportStatements()
 func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addImportStatements_2228() {
 	{
-		cur_9 := j2gort.NewMapEntryCursor(this_.crossChunkImports)
+		cur_9 := this_.crossChunkImports.IterEntries()
 		for cur_9.NextEntry() {
 			var importStatements []pkg_rhino.Node = []pkg_rhino.Node{}
 			_ = importStatements
-			var importingChunk *JSChunk = j2gort.CastPtr[JSChunk](cur_9.GetKey())
+			var importingChunk *JSChunk = cur_9.Key()
 			_ = importingChunk
 			var firstInput *CompilerInput = importingChunk.GetFirst()
 			_ = firstInput
@@ -317,7 +317,7 @@ func (this_ *ConvertChunksToESModules) priv_ConvertChunksToESModules_addImportSt
 				j2gort.CheckState(false)
 			}
 			{
-				cur_10 := j2gort.NewMapEntryCursor(j2gort.AsIface[j2gort.Ext_java_util_Map](cur_9.GetValue()))
+				cur_10 := j2gort.NewMapEntryCursor(cur_9.Value())
 				for cur_10.NextEntry() {
 					var importSpecs pkg_rhino.Node = pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_IMPORT_SPECS())
 					_ = importSpecs
@@ -507,35 +507,11 @@ func (this_ *ConvertChunksToESModules) VisitName(t *NodeTraversal, nameNode pkg_
 		if NodeUtil_IsLhsOfAssign(nameNode) {
 			t.Report_3(nameNode, StaticGet_ConvertChunksToESModules_ASSIGNMENT_TO_IMPORT(), []string{nameNode.GetString(), ConvertChunksToESModules_GetChunkName(referencingChunk), ConvertChunksToESModules_GetChunkName(definingChunk)})
 		}
-		var namesToExport j2gort.Ext_java_util_Set
-	iifeSwitch_2:
-		switch {
-		default:
-			m_16 := this_.crossChunkExports
-			k_17 := j2gort.PtrToAny(definingChunk)
-			if v_18, ok_19 := j2gort.MapTryGetComputeAny(m_16, k_17); ok_19 {
-				namesToExport = j2gort.AsIface[j2gort.Ext_java_util_Set](v_18)
-				break iifeSwitch_2
-			}
-			namesToExport = j2gort.AsIface[j2gort.Ext_java_util_Set](m_16.ComputeIfAbsent(k_17, lambdaSingleton_convert_chunks_to_es_modules_1))
-			break iifeSwitch_2
-		}
+		var namesToExport j2gort.Ext_java_util_Set = j2gort.OrderedMapComputeIfAbsentFn(&this_.crossChunkExports, definingChunk, nil, lambdaSingleton_convert_chunks_to_es_modules_1)
 
 		_ = namesToExport
 		j2gort.SetAddStr(namesToExport, name)
-		var namesToImportByChunk j2gort.Ext_java_util_Map
-	iifeSwitch_3:
-		switch {
-		default:
-			m_21 := this_.crossChunkImports
-			k_22 := j2gort.PtrToAny(referencingChunk)
-			if v_23, ok_24 := j2gort.MapTryGetComputeAny(m_21, k_22); ok_24 {
-				namesToImportByChunk = j2gort.AsIface[j2gort.Ext_java_util_Map](v_23)
-				break iifeSwitch_3
-			}
-			namesToImportByChunk = j2gort.AsIface[j2gort.Ext_java_util_Map](m_21.ComputeIfAbsent(k_22, lambdaSingleton_convert_chunks_to_es_modules_2))
-			break iifeSwitch_3
-		}
+		var namesToImportByChunk j2gort.Ext_java_util_Map = j2gort.OrderedMapComputeIfAbsentFn(&this_.crossChunkImports, referencingChunk, nil, lambdaSingleton_convert_chunks_to_es_modules_2)
 
 		_ = namesToImportByChunk
 		if importType == StaticGet_ConvertChunksToESModules_ImportType_STATIC() {
@@ -749,21 +725,9 @@ func (this_ *ConvertChunksToESModules_FindCrossChunkReferences) VisitScript(t *N
 	_ = chunk
 	var chunkDependencies []*JSChunk = j2gort.ImmListToSliceNullable[*JSChunk](chunk.GetDependencies())
 	_ = chunkDependencies
-	this_.outer_.crossChunkExports.PutIfAbsent(j2gort.PtrToAny(chunk), j2gort.NewExt_java_util_LinkedHashSet())
+	this_.outer_.crossChunkExports.PutIfAbsent(chunk, j2gort.NewExt_java_util_LinkedHashSet())
 	if len(chunkDependencies) != 0 {
-		var namesToImportByChunk j2gort.Ext_java_util_Map
-	iifeSwitch_4:
-		switch {
-		default:
-			m_31 := this_.outer_.crossChunkImports
-			k_32 := j2gort.PtrToAny(chunk)
-			if v_33, ok_34 := j2gort.MapTryGetComputeAny(m_31, k_32); ok_34 {
-				namesToImportByChunk = j2gort.AsIface[j2gort.Ext_java_util_Map](v_33)
-				break iifeSwitch_4
-			}
-			namesToImportByChunk = j2gort.AsIface[j2gort.Ext_java_util_Map](m_31.ComputeIfAbsent(k_32, lambdaSingleton_convert_chunks_to_es_modules_4))
-			break iifeSwitch_4
-		}
+		var namesToImportByChunk j2gort.Ext_java_util_Map = j2gort.OrderedMapComputeIfAbsentFn(&this_.outer_.crossChunkImports, chunk, nil, lambdaSingleton_convert_chunks_to_es_modules_4)
 
 		_ = namesToImportByChunk
 		{

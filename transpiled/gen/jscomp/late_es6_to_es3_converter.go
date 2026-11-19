@@ -87,7 +87,7 @@ func clinitSlow_LateEs6ToEs3Converter() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_LateEs6ToEs3Converter, &clinitDone_LateEs6ToEs3Converter)
-	static_LateEs6ToEs3Converter_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})
+	static_LateEs6ToEs3Converter_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_COMPUTED_PROPERTIES(), pkg_parser.StaticGet_FeatureSet_Feature_MEMBER_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_TEMPLATE_LITERALS()})
 }
 
 func (this_ *LateEs6ToEs3Converter) initFields_LateEs6ToEs3Converter() {

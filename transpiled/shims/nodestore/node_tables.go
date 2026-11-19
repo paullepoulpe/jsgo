@@ -289,7 +289,10 @@ type NodeColumn [blockLen]uint32
 
 type columnField [numBlocks]atomic.Pointer[NodeColumn]
 
-var tcField columnField
+var (
+	tcField       columnField
+	origNameField columnField
+)
 
 func (f *columnField) Get(n Node) uint32 {
 	if c := f[n>>blockShift].Load(); c != nil {
@@ -322,15 +325,19 @@ func (f *columnField) setSlow(n Node, v uint32) {
 	c := f[n>>blockShift].Load()
 	if c == nil {
 		s := storeForNode(n)
-		if f != &tcField {
+		switch f {
+		case &tcField:
+			c = s.addColumn(f, &s.tcs, &s.tcSlab, uint32(n))
+		case &origNameField:
+			c = s.addColumn(f, &s.origNames, &s.origNameSlab, uint32(n))
+		default:
 			panic("nodestore: unknown columnField")
 		}
-		c = s.addColumn(f, &s.tcs, uint32(n))
 	}
 	c[n&blockMask] = v
 }
 
-func (s *NodeStore) addColumn(f *columnField, cols *[]*NodeColumn, id uint32) *NodeColumn {
+func (s *NodeStore) addColumn(f *columnField, cols *[]*NodeColumn, slab *[]NodeColumn, id uint32) *NodeColumn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := int((id - s.base) >> blockShift)
@@ -338,8 +345,19 @@ func (s *NodeStore) addColumn(f *columnField, cols *[]*NodeColumn, id uint32) *N
 		*cols = append(*cols, nil)
 	}
 	if (*cols)[k] == nil {
-		(*cols)[k] = new(NodeColumn)
-		f[id>>blockShift].Store((*cols)[k])
+		var col *NodeColumn
+		if len(*slab) > 0 {
+			col = &(*slab)[0]
+			*slab = (*slab)[1:]
+		} else if !s.static && k >= 2 {
+			bundle := new([4]NodeColumn)
+			col = &bundle[0]
+			*slab = bundle[1:]
+		} else {
+			col = new(NodeColumn)
+		}
+		(*cols)[k] = col
+		f[id>>blockShift].Store(col)
 	}
 	return (*cols)[k]
 }
@@ -353,103 +371,6 @@ func (f *columnField) register(first uint32, cols []*NodeColumn) {
 }
 
 func (f *columnField) unregister(first uint32, cols []*NodeColumn) {
-	for k, c := range cols {
-		if c != nil {
-			f[first+uint32(k)].CompareAndSwap(c, nil)
-		}
-	}
-}
-
-// --- Paged Columns ---
-
-const (
-	columnPageShift = 11
-	columnPageLen   = 1 << columnPageShift
-	columnPageMask  = columnPageLen - 1
-	pagesPerBlock   = blockLen / columnPageLen
-)
-
-type columnPage [columnPageLen]uint32
-type PagedColumn [pagesPerBlock]atomic.Pointer[columnPage]
-
-type pagedColumnField [numBlocks]atomic.Pointer[PagedColumn]
-
-var origNameField pagedColumnField
-
-func (f *pagedColumnField) get(n Node) uint32 {
-	if c := f[n>>blockShift].Load(); c != nil {
-		if p := c[(n&blockMask)>>columnPageShift].Load(); p != nil {
-			return p[n&columnPageMask]
-		}
-	}
-	return 0
-}
-
-func (f *pagedColumnField) set(n Node, v uint32) {
-	f.setFast(n, v, (*pagedColumnField).setSlow)
-}
-
-func (f *pagedColumnField) setFast(n Node, v uint32, slow func(*pagedColumnField, Node, uint32)) {
-	if c := f[n>>blockShift].Load(); c != nil {
-		if p := c[(n&blockMask)>>columnPageShift].Load(); p != nil {
-			if v != 0 || p[n&columnPageMask] != 0 {
-				p[n&columnPageMask] = v
-			}
-			return
-		}
-	}
-	if v != 0 {
-		slow(f, n, v)
-	}
-}
-
-//go:noinline
-func (f *pagedColumnField) setSlow(n Node, v uint32) {
-	if n == 0 {
-		_ = (*NodeData)(nil).Token
-	}
-	c := f[uint32(n)>>blockShift].Load()
-	if c == nil {
-		s := storeForNode(n)
-		if f != &origNameField {
-			panic("nodestore: unknown pagedColumnField")
-		}
-		c = s.addPagedColumn(f, &s.origNames, uint32(n))
-	}
-	pageIdx := (uint32(n) & blockMask) >> columnPageShift
-	p := c[pageIdx].Load()
-	if p == nil {
-		p = new(columnPage)
-		if !c[pageIdx].CompareAndSwap(nil, p) {
-			p = c[pageIdx].Load()
-		}
-	}
-	p[uint32(n)&columnPageMask] = v
-}
-
-func (s *NodeStore) addPagedColumn(f *pagedColumnField, cols *[]*PagedColumn, id uint32) *PagedColumn {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	k := int((id - s.base) >> blockShift)
-	for len(*cols) <= k {
-		*cols = append(*cols, nil)
-	}
-	if (*cols)[k] == nil {
-		(*cols)[k] = new(PagedColumn)
-		f[id>>blockShift].Store((*cols)[k])
-	}
-	return (*cols)[k]
-}
-
-func (f *pagedColumnField) register(first uint32, cols []*PagedColumn) {
-	for k, c := range cols {
-		if c != nil {
-			f[first+uint32(k)].Store(c)
-		}
-	}
-}
-
-func (f *pagedColumnField) unregister(first uint32, cols []*PagedColumn) {
 	for k, c := range cols {
 		if c != nil {
 			f[first+uint32(k)].CompareAndSwap(c, nil)
@@ -1666,23 +1587,13 @@ func (n Node) SetTC(h uint32) {
 
 // OrigNameID returns the original name interned StringID for node n.
 func (n Node) OrigNameID() StringID {
-	return origNameID(n, origNameIDSlow)
-}
-
-func origNameID(n Node, slow func(Node) StringID) StringID {
-	if blk := nodeBlocks[n>>blockShift].Load(); blk != nil {
-		if r := &blk[n&blockMask]; r.KindFlags&kindFlagAnyOrigName != 0 {
-			if int8(r.KindFlags) < 0 {
-				return StringID(r.Payload)
-			}
-			return slow(n)
+	if r := &nodeReadBlocks[n>>blockShift].Load()[n&blockMask]; r.KindFlags&kindFlagAnyOrigName != 0 {
+		if r.KindFlags >= kindFlagInlineOrigName {
+			return StringID(r.Payload)
 		}
+		return StringID(origNameField[n>>blockShift].Load()[n&blockMask])
 	}
 	return 0
-}
-
-func origNameIDSlow(n Node) StringID {
-	return StringID(origNameField.get(n))
 }
 
 // SetOrigNameID stores the original name interned StringID for node n.
@@ -1701,15 +1612,17 @@ func (n Node) SetOrigNameID(v StringID) {
 			return
 		}
 		rec.KindFlags = flags &^ kindFlagHasExtOrigName
-		if origNameField[uint32(n)>>blockShift].Load() != nil {
-			origNameField.set(n, 0)
+		if c := origNameField[n>>blockShift].Load(); c != nil {
+			c[n&blockMask] = 0
 		}
 		return
 	}
 	if flags&kindFlagsMask == 3 && uint32(v) == rec.Payload {
 		if flags&kindFlagInlineOrigName == 0 || flags&kindFlagHasExtOrigName != 0 {
 			if flags&kindFlagHasExtOrigName != 0 {
-				origNameField.set(n, 0)
+				if c := origNameField[n>>blockShift].Load(); c != nil {
+					c[n&blockMask] = 0
+				}
 			}
 			rec.KindFlags = (flags &^ kindFlagHasExtOrigName) | kindFlagInlineOrigName
 		}
@@ -1717,7 +1630,9 @@ func (n Node) SetOrigNameID(v StringID) {
 	}
 	if flags&(kindFlagsMask|kindFlagHasChangeTime) == 0 && (rec.Payload == 0 || flags&kindFlagInlineOrigName != 0) {
 		if flags&kindFlagHasExtOrigName != 0 {
-			origNameField.set(n, 0)
+			if c := origNameField[n>>blockShift].Load(); c != nil {
+				c[n&blockMask] = 0
+			}
 		}
 		rec.KindFlags = (flags &^ kindFlagHasExtOrigName) | kindFlagInlineOrigName
 		rec.Payload = uint32(v)
@@ -1729,7 +1644,7 @@ func (n Node) SetOrigNameID(v StringID) {
 		}
 		flags &^= kindFlagInlineOrigName
 	}
-	origNameField.set(n, uint32(v))
+	origNameField.Set(n, uint32(v))
 	rec.KindFlags = flags | kindFlagHasExtOrigName
 }
 
@@ -2413,8 +2328,12 @@ func setChangeTimeSlow(n Node, v int32) {
 	}
 	if flags&kindFlagsMask == 0 {
 		if flags&kindFlagInlineOrigName != 0 {
-			origNameField.set(n, rec.Payload)
-			flags = (flags &^ kindFlagInlineOrigName) | kindFlagHasExtOrigName
+			if rec.Payload != 0 {
+				origNameField.Set(n, rec.Payload)
+				flags = (flags &^ kindFlagInlineOrigName) | kindFlagHasExtOrigName
+			} else {
+				flags &^= kindFlagInlineOrigName
+			}
 			rec.Payload = uint32(v)
 			rec.KindFlags = flags | kindFlagHasChangeTime
 			s.setAuxChangeTime(uint32(n), 0)

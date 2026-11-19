@@ -422,12 +422,10 @@ func (*ExtractPrototypeMemberDeclarations_GatherExtractionInfo) Implements_jscom
 
 func (this_ *ExtractPrototypeMemberDeclarations_GatherExtractionInfo) initFields_ExtractPrototypeMemberDeclarations_GatherExtractionInfo() {
 	_ = this_
-	this_.instancesByChunk = j2gort.NewOrderedMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo](
-
-	// Java constructor: GatherExtractionInfo()
-	)
+	this_.instancesByChunk = j2gort.NewOrderedMap[*JSChunk, *ExtractPrototypeMemberDeclarations_ExtractionInstanceInfo]()
 }
 
+// Java constructor: GatherExtractionInfo()
 func NewExtractPrototypeMemberDeclarations_GatherExtractionInfo(outer_ *ExtractPrototypeMemberDeclarations) *ExtractPrototypeMemberDeclarations_GatherExtractionInfo {
 	this_ := &ExtractPrototypeMemberDeclarations_GatherExtractionInfo{}
 	this_.outer_ = outer_

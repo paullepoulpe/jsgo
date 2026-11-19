@@ -632,7 +632,8 @@ func (w *OutputStreamWriter) Close() {
 
 // BufferedWriter wraps a Writer with newline helper support.
 type BufferedWriter struct {
-	w Writer
+	w      Writer
+	closed bool
 }
 
 // NewBufferedWriter creates a BufferedWriter wrapping w.
@@ -661,6 +662,10 @@ func (b *BufferedWriter) Flush() {
 }
 
 func (b *BufferedWriter) Close() {
+	if b.closed {
+		return
+	}
+	b.closed = true
 	b.w.Flush()
 	b.w.Close()
 }

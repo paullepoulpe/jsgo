@@ -15003,10 +15003,17 @@ func MakeNonNilSlice[T any](cap int32) []T {
 }
 
 func CheckNotNullElem[T any](v T) T {
-	if isJavaNullMapVal(v) {
-		ThrowNPE()
-	}
+	checkNotNullGeneric(v)
 	return v
+}
+
+func CheckNotNullGeneric[T any](v T) T {
+	checkNotNullGeneric(v)
+	return v
+}
+
+func IsNullGeneric[T any](v T) bool {
+	return isJavaNullGeneric(v)
 }
 
 func ImmSliceCloneNonNull[T any](s []T) []T {
@@ -16754,8 +16761,12 @@ func NewOrderedSetCap[T comparable](cap int32) OrderedSet[T] {
 		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
 	}
 	var s OrderedSet[T]
-	if cap > 4 {
-		s.order = make([]T, 0, cap)
+	allocCap := min(int(cap), 262144)
+	if allocCap > 4 {
+		s.order = make([]T, 0, allocCap)
+	}
+	if allocCap > orderedSetIndexThreshold {
+		s.idx = make(map[T]int32, allocCap)
 	}
 	return s
 }
@@ -16888,7 +16899,7 @@ func (s *OrderedSet[T]) Add(v T) bool {
 	}
 	s.order = append(s.order, v)
 	if len(s.order) > orderedSetIndexThreshold {
-		m := make(map[T]int32, 16)
+		m := make(map[T]int32, max(16, cap(s.order)))
 		for i, x := range s.order {
 			m[x] = int32(i + 1)
 		}
@@ -17708,6 +17719,18 @@ func nullValKindOf[V any]() uint8 {
 	}
 }
 
+//go:noinline
+func checkNotNullGeneric[T any](v T) {
+	if isJavaNullGeneric(v) {
+		ThrowNPE()
+	}
+}
+
+//go:noinline
+func isJavaNullGeneric[V any](v V) bool {
+	return any(v) == nil || isJavaNullMapValNonNil(v)
+}
+
 func isJavaNullMapVal[V any](v V) bool {
 	return any(v) == nil || isJavaNullMapValNonNil(v)
 }
@@ -17718,14 +17741,27 @@ func isJavaNullMapValNonNil[V any](v V) bool {
 		return isJavaNullMapValSlow(v)
 	}
 	switch rt.Kind() {
-	case reflect.Pointer, reflect.Uint32, reflect.UnsafePointer:
+	case reflect.Pointer, reflect.UnsafePointer:
 		var zero V
 		return any(v) == any(zero)
+	case reflect.Uint32:
+		var zero V
+		if any(v) != any(zero) {
+			return false
+		}
+		return isZeroValJavaNull[V]()
+	case reflect.Interface:
+		if nc, ok := any(v).(jJavaNilChecker); ok {
+			return nc.IsJavaNil_()
+		}
+		return isJavaNullMapValSlow(v)
 	case reflect.String:
 		if s, ok := any(v).(string); ok {
 			return s == NullString
 		}
 		return false
+	case reflect.Slice, reflect.Map, reflect.Func, reflect.Chan:
+		return reflect.ValueOf(&v).Elem().IsNil()
 	case reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint64, reflect.Uintptr,
@@ -17737,7 +17773,10 @@ func isJavaNullMapValNonNil[V any](v V) bool {
 			return false
 		}
 		var zero V
-		return any(v) == any(zero)
+		if any(v) != any(zero) {
+			return false
+		}
+		return isZeroValJavaNull[V]()
 	case reflect.Struct:
 		if rt.Comparable() {
 			var zero V
@@ -17746,10 +17785,19 @@ func isJavaNullMapValNonNil[V any](v V) bool {
 			}
 			return isZeroStructJavaNull[V]()
 		}
+		if !rt.Implements(reflect.TypeFor[jJavaNilChecker]()) && !rt.Implements(reflect.TypeFor[jIsNiler]()) {
+			return false
+		}
 		return isJavaNullMapValSlow(v)
 	default:
 		return isJavaNullMapValSlow(v)
 	}
+}
+
+//go:noinline
+func isZeroValJavaNull[V any]() bool {
+	var zero V
+	return isJavaNullMapValSlow(zero)
 }
 
 //go:noinline
@@ -17951,7 +17999,7 @@ func AcquireOrderedMapCap[K comparable, V any](capHint int32) OrderedMap[K, V] {
 		return OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
 	}
 	if capHint <= 65536 {
-		if n := len(p.large); n > 0 {
+		if n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= int(capHint) {
 			b := p.large[n-1]
 			p.large[n-1] = orderedMapBuf[K, V]{}
 			p.large = p.large[:n-1]
@@ -17959,7 +18007,7 @@ func AcquireOrderedMapCap[K comparable, V any](capHint int32) OrderedMap[K, V] {
 			return OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
 		}
 		if capHint <= 2048 {
-			if n := len(p.med); n > 0 {
+			if n := len(p.med); n > 0 && cap(p.med[n-1].entries)*2 >= int(capHint) {
 				b := p.med[n-1]
 				p.med[n-1] = orderedMapBuf[K, V]{}
 				p.med = p.med[:n-1]
@@ -17990,24 +18038,25 @@ func AcquireOrderedMapPtrCap[K comparable, V any](capHint int32) *OrderedMap[K, 
 	if capHint < 0 {
 		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
 	}
+	allocCap := min(int(capHint), 262144)
 	p := getOrderedMapPtrPool[K, V]()
 	var m *OrderedMap[K, V]
 	p.mu.Lock()
-	if capHint >= 1024 {
+	if allocCap >= 1024 {
 		if n := len(p.hugeFree); n > 0 {
 			m = p.hugeFree[n-1]
 			p.hugeFree[n-1] = nil
 			p.hugeFree = p.hugeFree[:n-1]
-		} else if n := len(p.largeFree); n > 0 {
+		} else if n := len(p.largeFree); n > 0 && cap(p.largeFree[n-1].entries)*2 >= allocCap {
 			m = p.largeFree[n-1]
 			p.largeFree[n-1] = nil
 			p.largeFree = p.largeFree[:n-1]
-		} else if n := len(p.smallFree); n > 0 {
+		} else if n := len(p.smallFree); n > 0 && p.smallFree[n-1].entries == nil {
 			m = p.smallFree[n-1]
 			p.smallFree[n-1] = nil
 			p.smallFree = p.smallFree[:n-1]
 		}
-	} else if capHint > 256 {
+	} else if allocCap > 256 {
 		if n := len(p.largeFree); n > 0 {
 			m = p.largeFree[n-1]
 			p.largeFree[n-1] = nil
@@ -18028,13 +18077,16 @@ func AcquireOrderedMapPtrCap[K comparable, V any](capHint int32) *OrderedMap[K, 
 	if m == nil {
 		m = &OrderedMap[K, V]{}
 	}
-	if capHint >= 64 && cap(m.entries) < 64 {
-		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](int(capHint))
-	} else if cap(m.entries) == 0 && capHint > 0 {
-		m.entries = make([]OrderedMapEntry[K, V], 0, capHint)
+	if allocCap >= 64 && cap(m.entries)*2 < allocCap {
+		if old := m.entries; cap(old) >= 64 {
+			ReleasePooledSlice(old)
+		}
+		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
+	} else if cap(m.entries) == 0 && allocCap > 0 {
+		m.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
 	}
-	if m.idx == nil && int(capHint) > orderedMapIndexThreshold {
-		m.idx = make(map[K]int32, capHint)
+	if m.idx == nil && allocCap > orderedMapIndexThreshold {
+		m.idx = make(map[K]int32, allocCap)
 	}
 	return m
 }
@@ -18186,13 +18238,14 @@ func NewOrderedMapCap[K comparable, V any](cap int32) OrderedMap[K, V] {
 		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
 	}
 	var m OrderedMap[K, V]
-	if cap >= 64 {
-		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](int(cap))
-	} else if cap > 8 {
-		m.entries = make([]OrderedMapEntry[K, V], 0, cap)
+	allocCap := min(int(cap), 262144)
+	if allocCap >= 64 {
+		m.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
+	} else if allocCap > 8 {
+		m.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
 	}
-	if int(cap) > orderedMapIndexThreshold {
-		m.idx = make(map[K]int32, cap)
+	if allocCap > orderedMapIndexThreshold {
+		m.idx = make(map[K]int32, allocCap)
 	}
 	return m
 }
@@ -18351,9 +18404,13 @@ func (m *OrderedMap[K, V]) appendEntryGrow(e OrderedMapEntry[K, V]) {
 	old := m.entries
 	oldLen := len(old)
 	oldCap := cap(old)
-	newCap := oldCap * 2
-	if newCap < 4 {
-		newCap = 4
+	var newCap int
+	if oldCap < 8 {
+		newCap = max(oldCap*2, 4)
+	} else if oldCap < 1024 {
+		newCap = oldCap * 4
+	} else {
+		newCap = oldCap * 2
 	}
 	if newCap <= oldLen {
 		newCap = oldLen + 1
@@ -18405,7 +18462,7 @@ func (m *OrderedMap[K, V]) PutOk(k K, v V) (V, bool) {
 	}
 	m.appendEntry(OrderedMapEntry[K, V]{Key: k, Val: v})
 	if len(m.entries) > orderedMapIndexThreshold {
-		idx := make(map[K]int32, max(24, cap(m.entries)))
+		idx := make(map[K]int32, max(32, cap(m.entries)))
 		for i := range m.entries {
 			idx[m.entries[i].Key] = int32(i + 1)
 		}
@@ -20246,7 +20303,7 @@ func AcquireCustomOrderedMapCap[K FastCustomKeyComparable, V any](capHint int32)
 			return CustomOrderedMap[K, V]{entries: b.entries[:0], buckets: b.buckets}
 		}
 	}
-	if n := len(p.large); n > 0 {
+	if n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= min(int(capHint), 262144) {
 		b := p.large[n-1]
 		p.large[n-1] = customOrderedMapBuf[K, V]{}
 		p.large = p.large[:n-1]
@@ -20375,25 +20432,29 @@ func NewCustomOrderedMapCap[K FastCustomKeyComparable, V any](cap int32) CustomO
 		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
 	}
 	var m CustomOrderedMap[K, V]
-	if cap >= 64 {
-		m.entries = AcquirePooledSlice[CustomMapEntry[K, V]](int(cap))
-	} else if cap > 8 {
-		m.entries = make([]CustomMapEntry[K, V], 0, cap)
+	allocCap := min(int(cap), 262144)
+	if allocCap >= 64 {
+		m.entries = AcquirePooledSlice[CustomMapEntry[K, V]](allocCap)
+	} else if allocCap > 8 {
+		m.entries = make([]CustomMapEntry[K, V], 0, allocCap)
+	}
+	if allocCap > orderedMapIndexThreshold {
+		bCap := 32
+		for (bCap*3)/4 < allocCap {
+			bCap *= 2
+		}
+		if bCap >= 64 {
+			m.buckets = AcquirePooledSlice[int32](bCap)[:bCap]
+		} else {
+			m.buckets = make([]int32, bCap)
+		}
 	}
 	return m
 }
 
 func NewCustomOrderedMapPtrCap[K FastCustomKeyComparable, V any](cap int32) *CustomOrderedMap[K, V] {
-	if cap < 0 {
-		panic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
-	}
-	m := &CustomOrderedMap[K, V]{}
-	if cap >= 64 {
-		m.entries = AcquirePooledSlice[CustomMapEntry[K, V]](int(cap))
-	} else if cap > 8 {
-		m.entries = make([]CustomMapEntry[K, V], 0, cap)
-	}
-	return m
+	m := NewCustomOrderedMapCap[K, V](cap)
+	return &m
 }
 
 func CustomOrderedMapFromPtr[K FastCustomKeyComparable, V any](src *CustomOrderedMap[K, V]) CustomOrderedMap[K, V] {
@@ -20599,9 +20660,13 @@ func (m *CustomOrderedMap[K, V]) appendEntryGrow(e CustomMapEntry[K, V]) {
 	old := m.entries
 	oldLen := len(old)
 	oldCap := cap(old)
-	newCap := oldCap * 2
-	if newCap < 4 {
-		newCap = 4
+	var newCap int
+	if oldCap < 8 {
+		newCap = max(oldCap*2, 4)
+	} else if oldCap < 1024 {
+		newCap = oldCap * 4
+	} else {
+		newCap = oldCap * 2
 	}
 	if newCap <= oldLen {
 		newCap = oldLen + 1
@@ -20665,7 +20730,11 @@ func (m *CustomOrderedMap[K, V]) PutOk(k K, v V) (V, bool) {
 		m.appendEntry(CustomMapEntry[K, V]{Key: k, Val: v, Hash: h})
 		live := int32(len(m.entries)) - m.holes
 		if int(live) > (len(m.buckets)*3)/4 {
-			m.rehash(len(m.buckets) * 2)
+			newBk := len(m.buckets) * 2
+			if len(m.buckets) < 1024 {
+				newBk = len(m.buckets) * 4
+			}
+			m.rehash(newBk)
 		} else {
 			pos := int32(len(m.entries))
 			m.entries[pos-1].HashNext = m.buckets[slot]

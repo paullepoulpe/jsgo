@@ -342,7 +342,7 @@ func InitNodeIterators_FunctionlessLocalScope_1(this_ *NodeIterators_Functionles
 }
 
 // Java method: FunctionlessLocalScope.pushAncestor(com.google.javascript.rhino.Node n)
-func (this_ *NodeIterators_FunctionlessLocalScope) priv_FunctionlessLocalScope_pushAncestor_3940(n pkg_rhino.Node) {
+func (this_ *NodeIterators_FunctionlessLocalScope) priv_FunctionlessLocalScope_pushAncestor_3949(n pkg_rhino.Node) {
 	_ = n
 	var c int32 = this_.ancestorCount
 	_ = c
@@ -405,7 +405,7 @@ func (this_ *NodeIterators_FunctionlessLocalScope) NextNode() pkg_rhino.Node {
 			return current
 		}
 		current = nextSibling
-		this_.priv_FunctionlessLocalScope_pushAncestor_3940(current)
+		this_.priv_FunctionlessLocalScope_pushAncestor_3949(current)
 		if current.IsFunction() {
 			continue
 		}
@@ -413,7 +413,7 @@ func (this_ *NodeIterators_FunctionlessLocalScope) NextNode() pkg_rhino.Node {
 		_ = hitFunction
 		for current.HasChildren() {
 			current = current.GetFirstChild()
-			this_.priv_FunctionlessLocalScope_pushAncestor_3940(current)
+			this_.priv_FunctionlessLocalScope_pushAncestor_3949(current)
 			if current.IsFunction() {
 				hitFunction = true
 				break
@@ -529,7 +529,7 @@ func InitNodeIterators_LocalVarMotion(this_ *NodeIterators_LocalVarMotion, compi
 	this_.varName = nameNode.GetString()
 	this_.valueHasSideEffects = ((valueNode != 0) && compiler.GetAstAnalyzer().MayHaveSideEffects(valueNode))
 	this_.iterator = iterator
-	this_.priv_LocalVarMotion_advanceLookAhead_3949(true)
+	this_.priv_LocalVarMotion_advanceLookAhead_3958(true)
 }
 
 // Java static method: LocalVarMotion.forVar(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node name, com.google.javascript.rhino.Node var, com.google.javascript.rhino.Node block)
@@ -609,7 +609,7 @@ func (this_ *NodeIterators_LocalVarMotion) HasNext() bool {
 func (this_ *NodeIterators_LocalVarMotion) NextNode() pkg_rhino.Node {
 	var next pkg_rhino.Node = this_.lookAhead
 	_ = next
-	this_.priv_LocalVarMotion_advanceLookAhead_3949(false)
+	this_.priv_LocalVarMotion_advanceLookAhead_3958(false)
 	return next
 }
 
@@ -624,7 +624,7 @@ func (this_ *NodeIterators_LocalVarMotion) Remove() {
 }
 
 // Java method: LocalVarMotion.advanceLookAhead(boolean atStart)
-func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_3949(atStart bool) {
+func (this_ *NodeIterators_LocalVarMotion) priv_LocalVarMotion_advanceLookAhead_3958(atStart bool) {
 	_ = atStart
 	if !(atStart) {
 		if this_.lookAhead == 0 {

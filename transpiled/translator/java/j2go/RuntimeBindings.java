@@ -6156,8 +6156,8 @@ public final class RuntimeBindings {
         \t\tpanic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
         \t}
         \tif expected > 4 && s.mode == jSetModeEmpty {
-        \t\tif expected > 1024 {
-        \t\t\ts.capHint = 1024
+        \t\tif expected > 32767 {
+        \t\t\ts.capHint = 32767
         \t\t} else {
         \t\t\ts.capHint = int16(expected)
         \t\t}
@@ -6166,7 +6166,7 @@ public final class RuntimeBindings {
 
         func (s *JSetCore) initCap() int {
         \tif s.capHint > 4 {
-        \t\treturn min(int(s.capHint), 256)
+        \t\treturn int(s.capHint)
         \t}
         \treturn 4
         }
@@ -7906,8 +7906,8 @@ public final class RuntimeBindings {
         \t\tpanic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
         \t}
         \tif expected > 0 && (m.mode == jMapModeEmpty || m.mode == jMapModeNullOnly || m.mode == jMapModeNode1) {
-        \t\tif expected > 65536 {
-        \t\t\texpected = 65536
+        \t\tif expected > 262144 {
+        \t\t\texpected = 262144
         \t\t}
         \t\tif expected > m.capHint {
         \t\t\tm.capHint = expected
@@ -7928,14 +7928,14 @@ public final class RuntimeBindings {
 
         func (m *JMapCore) initCap() int {
         \tif m.capHint > 0 {
-        \t\treturn min(int(m.capHint), 65536)
+        \t\treturn min(int(m.capHint), 262144)
         \t}
         \treturn 4
         }
 
         func (m *JMapCore) strInitCap() int {
         \tif m.capHint > 0 {
-        \t\treturn min(int(m.capHint), 65536)
+        \t\treturn min(int(m.capHint), 262144)
         \t}
         \treturn 2
         }

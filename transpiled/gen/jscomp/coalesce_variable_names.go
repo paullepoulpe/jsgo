@@ -47,7 +47,8 @@ type CoalesceVariableNames struct {
 	compiler                 AbstractCompiler                                 `gson:"compiler"`
 	scopeCreator             *MemoizedScopeCreator                            `gson:"scopeCreator"`
 	colorings                j2gort.Deque[pkg_graph.GraphColoring[*Var, any]] `gson:"colorings"`
-	liveAnalyses             j2gort.Ext_java_util_Deque                       `gson:"liveAnalyses"`
+	liveAnalyses             j2gort.Deque[*LiveVariablesAnalysis]             `gson:"liveAnalyses"`
+	freeLiveAnalyses         j2gort.Deque[*LiveVariablesAnalysis]             `gson:"freeLiveAnalyses"`
 	astFactory               *AstFactory                                      `gson:"astFactory"`
 	liveness                 *LiveVariablesAnalysis                           `gson:"liveness"`
 	coloringTieBreaker       j2gort.Ext_java_util_Comparator                  `gson:"coloringTieBreaker"`
@@ -82,6 +83,7 @@ func (*CoalesceVariableNames) Implements_jscomp_NodeTraversal_Callback()        
 
 func (this_ *CoalesceVariableNames) initFields_CoalesceVariableNames() {
 	_ = this_
+	this_.freeLiveAnalyses = j2gort.NewDequeCap[*LiveVariablesAnalysis](int32(8))
 	this_.coloringTieBreaker = j2gort.Ext_java_util_Comparator_ComparingInt(j2gort.NewLambda_Ext_java_util_function_ToIntFunction(func(lp_1 any) int32 {
 		arg := j2gort.CastPtr[Var](lp_1)
 		_ = arg
@@ -108,10 +110,10 @@ func InitCoalesceVariableNames(this_ *CoalesceVariableNames, compiler AbstractCo
 	}
 	this_.compiler = compiler
 	this_.colorings = j2gort.Deque[pkg_graph.GraphColoring[*Var, any]]{}
-	this_.liveAnalyses = j2gort.NewExt_java_util_ArrayDeque()
+	this_.liveAnalyses = j2gort.Deque[*LiveVariablesAnalysis]{}
 	this_.usePseudoNames = usePseudoNames
 	this_.astFactory = compiler.CreateAstFactory()
-	this_.scopeCreator = NewMemoizedScopeCreator_2(NewSyntacticScopeCreator_1(compiler), int32(256))
+	this_.scopeCreator = NewMemoizedScopeCreator_2(NewSyntacticScopeCreator_1(compiler), max(int32(1024), (compiler.GetNumberOfInputs()*int32(2))))
 }
 
 // Java method: CoalesceVariableNames.process(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
@@ -119,11 +121,20 @@ func (this_ *CoalesceVariableNames) Process_2(externs pkg_rhino.Node, root pkg_r
 	_ = externs
 	_ = root
 	defer func() {
+		for !this_.colorings.IsEmpty() {
+			if c_ := this_.colorings.Pop(); c_ != nil {
+				if r_, ok_ := any(c_.GetGraph()).(interface{ ReleaseSlabs_() }); ok_ {
+					r_.ReleaseSlabs_()
+				}
+			}
+		}
+
 		for !this_.liveAnalyses.IsEmpty() {
-			if lv_, ok_ := this_.liveAnalyses.Pop().(*LiveVariablesAnalysis); ok_ && lv_ != nil {
+			if lv_ := this_.liveAnalyses.Pop(); lv_ != nil {
 				lv_.ReleaseSlabs_()
 			}
 		}
+		this_.freeLiveAnalyses.Clear()
 		this_.liveness = nil
 		if this_.scopeCreator != nil {
 			this_.scopeCreator.ReleaseSlabs_()
@@ -175,7 +186,14 @@ func (this_ *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 	}
 	var cfg ControlFlowGraph[pkg_rhino.Node] = this_.GetControlFlowGraph(this_.compiler)
 	_ = cfg
-	this_.liveness = NewLiveVariablesAnalysis(cfg, scope, nil, this_.compiler, ToIface_ScopeCreator(this_.scopeCreator), allVarsDeclaredInFunction)
+	var pooled *LiveVariablesAnalysis = this_.freeLiveAnalyses.PollLast()
+	_ = pooled
+	if pooled != nil {
+		pooled.ResetForScope(cfg, scope, nil, this_.compiler, ToIface_ScopeCreator(this_.scopeCreator), allVarsDeclaredInFunction)
+		this_.liveness = pooled
+	} else {
+		this_.liveness = NewLiveVariablesAnalysis(cfg, scope, nil, this_.compiler, ToIface_ScopeCreator(this_.scopeCreator), allVarsDeclaredInFunction)
+	}
 	if pkg_parser.StaticGet_FeatureSet_ES3().Contains_1_FeatureSet(this_.compiler.GetOptions().GetOutputFeatureSet()) {
 		var enclosingFunction pkg_rhino.Node = scope.GetRootNode_0()
 		_ = enclosingFunction
@@ -184,7 +202,7 @@ func (this_ *CoalesceVariableNames) EnterScopeWithCfg(t *NodeTraversal) {
 		}
 	}
 	this_.liveness.Analyze()
-	this_.liveAnalyses.Push(j2gort.PtrToAny(this_.liveness))
+	this_.liveAnalyses.Push(this_.liveness)
 	var interferenceGraph pkg_graph.UndiGraph[*Var, any] = this_.priv_CoalesceVariableNames_computeVariableNamesInterferenceGraph_1254(cfg, this_.liveness.GetEscapedLocals())
 	_ = interferenceGraph
 	var coloring pkg_graph.GraphColoring[*Var, any] = pkg_graph.ToIface_GraphColoring[*Var, any](pkg_graph.NewGraphColoring_GreedyGraphColoring_2[*Var, any](j2gort.AsIface[pkg_graph.AdjacencyGraph[*Var, any]](interferenceGraph), this_.coloringTieBreaker))
@@ -199,12 +217,20 @@ func (this_ *CoalesceVariableNames) ExitScopeWithCfg(t *NodeTraversal) {
 	if !(this_.shouldOptimizeScopeStack.Pop()) {
 		return
 	}
-	this_.colorings.Pop()
-	if poppedLiveness_, ok_ := this_.liveAnalyses.Pop().(*LiveVariablesAnalysis); ok_ && poppedLiveness_ != nil {
-		poppedLiveness_.ReleaseSlabs_()
+	poppedColoring_ := this_.colorings.Pop()
+	if poppedColoring_ != nil && !poppedColoring_.IsJavaNil_() {
+		if r_, ok_ := any(poppedColoring_.GetGraph()).(interface{ ReleaseSlabs_() }); ok_ {
+			r_.ReleaseSlabs_()
+		}
 	}
 
-	this_.liveness = j2gort.CastPtr[LiveVariablesAnalysis](this_.liveAnalyses.Peek())
+	var finished *LiveVariablesAnalysis = this_.liveAnalyses.Pop()
+	_ = finished
+	finished.ClearScopeState()
+	if this_.freeLiveAnalyses.Size() < int32(8) {
+		this_.freeLiveAnalyses.AddLast(finished)
+	}
+	this_.liveness = this_.liveAnalyses.Peek()
 }
 
 // Java method: CoalesceVariableNames.visit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)

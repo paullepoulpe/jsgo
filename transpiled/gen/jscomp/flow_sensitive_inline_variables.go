@@ -49,14 +49,17 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.FlowSensitiveInlineVariables
 type FlowSensitiveInlineVariables struct {
-	compiler            AbstractCompiler                                            `gson:"compiler"`
-	sideEffectPredicate *FlowSensitiveInlineVariables_SideEffectPredicate           `gson:"sideEffectPredicate"`
-	cfg                 ControlFlowGraph[pkg_rhino.Node]                            `gson:"cfg"`
-	candidates          *j2gort.OrderedSet[*FlowSensitiveInlineVariables_Candidate] `gson:"candidates"`
-	reachingDef         *MustBeReachingVariableDef                                  `gson:"reachingDef"`
-	reachingUses        *MaybeReachingVariableUse                                   `gson:"reachingUses"`
-	idHash_             atomic.Int32
-	slab_Candidate      j2gort.PooledSlab[FlowSensitiveInlineVariables_Candidate]
+	compiler             AbstractCompiler                                            `gson:"compiler"`
+	sideEffectPredicate  *FlowSensitiveInlineVariables_SideEffectPredicate           `gson:"sideEffectPredicate"`
+	cfg                  ControlFlowGraph[pkg_rhino.Node]                            `gson:"cfg"`
+	candidates           *j2gort.OrderedSet[*FlowSensitiveInlineVariables_Candidate] `gson:"candidates"`
+	reachingDef          *MustBeReachingVariableDef                                  `gson:"reachingDef"`
+	reachingUses         *MaybeReachingVariableUse                                   `gson:"reachingUses"`
+	reusableReachingDef  *MustBeReachingVariableDef                                  `gson:"reusableReachingDef"`
+	reusableReachingUses *MaybeReachingVariableUse                                   `gson:"reusableReachingUses"`
+	reusableEscaped      j2gort.Ext_java_util_HashSet                                `gson:"reusableEscaped"`
+	idHash_              atomic.Int32
+	slab_Candidate       j2gort.PooledSlab[FlowSensitiveInlineVariables_Candidate]
 }
 
 func (this_ *FlowSensitiveInlineVariables) BindSelf_(s any) {
@@ -87,6 +90,7 @@ func (*FlowSensitiveInlineVariables) Implements_jscomp_NodeTraversal_Callback() 
 
 func (this_ *FlowSensitiveInlineVariables) initFields_FlowSensitiveInlineVariables() {
 	_ = this_
+	this_.reusableEscaped = j2gort.NewExt_java_util_HashSet()
 }
 
 // Java constructor: FlowSensitiveInlineVariables(com.google.javascript.jscomp.AbstractCompiler compiler)
@@ -146,6 +150,15 @@ func (this_ *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	defer func() {
 		ru_ := this_.reachingUses
 
+		if this_.reachingDef != nil {
+			this_.reachingDef.ClearScopeState()
+		}
+		if this_.reachingUses != nil {
+			this_.reachingUses.ClearScopeState()
+		}
+		if !(this_.reusableEscaped.IsEmpty()) {
+			this_.reusableEscaped.Clear()
+		}
 		this_.cfg = nil
 		this_.reachingDef = nil
 		this_.reachingUses = nil
@@ -159,20 +172,33 @@ func (this_ *FlowSensitiveInlineVariables) EnterScope(t *NodeTraversal) {
 	}()
 	{
 		this_.cfg = localCfg
-		var escaped *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet()
+		var escaped j2gort.Ext_java_util_HashSet = this_.reusableEscaped
 		_ = escaped
+		if !(escaped.IsEmpty()) {
+			escaped.Clear()
+		}
 		var scope *Scope = t.GetScope()
 		_ = scope
 		var allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction = NodeUtil_GetAllVarsDeclaredInFunction(this_.compiler, ToIface_ScopeCreator(scopeCreator), j2gort.CastPtr[Scope](scope.GetParent()))
 		_ = allVarsDeclaredInFunction
 		var allVarsInFn j2gort.Ext_java_util_Map = allVarsDeclaredInFunction.GetAllVariables()
 		_ = allVarsInFn
-		DataFlowAnalysis_ComputeEscaped(j2gort.CastPtr[Scope](scope.GetParent()), escaped, this_.compiler, ToIface_ScopeCreator(scopeCreator), allVarsInFn)
-		this_.reachingDef = NewMustBeReachingVariableDef(this_.cfg, this_.compiler, escaped, allVarsInFn)
+		DataFlowAnalysis_ComputeEscaped(j2gort.CastPtr[Scope](scope.GetParent()), j2gort.AsIface[j2gort.Ext_java_util_Set](escaped), this_.compiler, ToIface_ScopeCreator(scopeCreator), allVarsInFn)
+		if this_.reusableReachingDef == nil {
+			this_.reusableReachingDef = NewMustBeReachingVariableDef(this_.cfg, this_.compiler, j2gort.AsIface[j2gort.Ext_java_util_Set](escaped), allVarsInFn)
+		} else {
+			this_.reusableReachingDef.ResetForScope(this_.cfg, j2gort.AsIface[j2gort.Ext_java_util_Set](escaped), allVarsInFn)
+		}
+		this_.reachingDef = this_.reusableReachingDef
 		this_.reachingDef.Analyze()
 		this_.candidates = nil
 		NodeTraversal_Traverse(this_.compiler, t.GetScopeRoot(), NewFlowSensitiveInlineVariables_GatherCandidates(this_))
-		this_.reachingUses = NewMaybeReachingVariableUse(this_.cfg, escaped, allVarsInFn)
+		if this_.reusableReachingUses == nil {
+			this_.reusableReachingUses = NewMaybeReachingVariableUse(this_.cfg, j2gort.AsIface[j2gort.Ext_java_util_Set](escaped), allVarsInFn)
+		} else {
+			this_.reusableReachingUses.ResetForScope(this_.cfg, j2gort.AsIface[j2gort.Ext_java_util_Set](escaped), allVarsInFn)
+		}
+		this_.reachingUses = this_.reusableReachingUses
 		this_.reachingUses.Analyze()
 		for (this_.candidates != nil) && !(this_.candidates.IsEmpty()) {
 			var c *FlowSensitiveInlineVariables_Candidate = this_.candidates.GetFirst()
@@ -261,7 +287,15 @@ func (this_ *FlowSensitiveInlineVariables) ExitScope(t *NodeTraversal) {
 func (this_ *FlowSensitiveInlineVariables) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	defer this_.ReleaseSlabs_()
+	defer func() {
+		if this_.reusableReachingUses != nil {
+			this_.reusableReachingUses.ReleaseSlabs_()
+			this_.reusableReachingUses = nil
+		}
+		this_.reusableReachingDef = nil
+		this_.ReleaseSlabs_()
+	}()
+
 	{
 		clinit_NodeTraversal()
 		var ntb_ NodeTraversal_Builder
@@ -1009,7 +1043,6 @@ func (this_ *FlowSensitiveInlineVariables) ReleaseSlabs_() {
 	this_.slab_Candidate.Release()
 }
 func (*FlowSensitiveInlineVariables) NoOpVisit_()                                                 {}
-func (*FlowSensitiveInlineVariables) CanReleaseSyntacticScopes_()                                 {}
 func (*FlowSensitiveInlineVariables_GatherCandidatesCfgNodeCallback) CanReleaseSyntacticScopes_() {}
 func (*FlowSensitiveInlineVariables_GatherCandidates) CanReleaseSyntacticScopes_()                {}
 func (*FlowSensitiveInlineVariables__Anon_43) CanReleaseSyntacticScopes_()                        {}

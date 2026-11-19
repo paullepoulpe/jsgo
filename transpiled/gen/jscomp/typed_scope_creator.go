@@ -36,7 +36,8 @@ type TypedScopeCreator struct {
 	moduleMap                    *ModuleMap                                     `gson:"moduleMap"`
 	metadataMap                  *ModuleMetadataMap                             `gson:"metadataMap"`
 	moduleImportResolver         *ModuleImportResolver                          `gson:"moduleImportResolver"`
-	memoized                     j2gort.OrderedMap[pkg_rhino.Node, *TypedScope] `gson:"memoized"`
+	memoizedByNode               j2gort.OrderedMap[pkg_rhino.Node, *TypedScope] `gson:"memoizedByNode"`
+	memoizedScopes               j2gort.Ext_java_util_ArrayList                 `gson:"memoizedScopes"`
 	reservedNamesForScope        j2gort.PlainMap[pkg_rhino.Node, []string]      `gson:"reservedNamesForScope"`
 	functionsWithNonEmptyReturns j2gort.PlainSet[pkg_rhino.Node]                `gson:"functionsWithNonEmptyReturns"`
 	fnTypeBuilderPool            []*FunctionTypeBuilder                         `gson:"fnTypeBuilderPool"`
@@ -760,8 +761,6 @@ func clinitSlow_TypedScopeCreator() {
 
 func (this_ *TypedScopeCreator) initFields_TypedScopeCreator() {
 	_ = this_
-	this_.memoized = j2gort.NewOrderedMapCap[pkg_rhino.Node, *TypedScope](int32(1024))
-	this_.functionsWithNonEmptyReturns = j2gort.NewPlainSetVal[pkg_rhino.Node]()
 	this_.fnTypeBuilderPool = make([]*FunctionTypeBuilder, int32(8))
 	this_.fnTypeBuilderPoolTop = int32(0)
 	this_.overflowPool = make([]*TypedScope_Overflow, int32(16))
@@ -823,14 +822,20 @@ func InitTypedScopeCreator_2(this_ *TypedScopeCreator, compiler AbstractCompiler
 	} else {
 		this_.metadataMap = NewModuleMetadataMap(j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()), j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.Ext_com_google_common_collect_ImmutableMap_Of_0()))
 	}
+	var expectedScopes int32 = max(int32(1024), (compiler.GetNumberOfInputs() * int32(3)))
+	_ = expectedScopes
+	this_.memoizedByNode = j2gort.NewOrderedMapCap[pkg_rhino.Node, *TypedScope](expectedScopes)
+	this_.memoizedScopes = j2gort.NewExt_java_util_ArrayList_1_int32(expectedScopes)
 	this_.moduleMap = compiler.GetModuleMap()
 	this_.moduleImportResolver = NewModuleImportResolver(this_.moduleMap, this_.GetNodeToScopeMapper(), this_.typeRegistry)
 	this_.processClosurePrimitives = !(this_.metadataMap.GetModulesByGoogNamespace().IsEmpty())
-	this_.priv_TypedScopeCreator_clearCommonState_5757()
+	this_.priv_TypedScopeCreator_clearCommonState_5767()
+	this_.reservedNamesForScope = j2gort.NewPlainMapCap[pkg_rhino.Node, []string](expectedScopes)
+	this_.functionsWithNonEmptyReturns = j2gort.NewPlainSetCap[pkg_rhino.Node]((expectedScopes / int32(2)))
 }
 
 // Java method: TypedScopeCreator.acquireFunctionTypeBuilder(java.lang.String fnName, com.google.javascript.rhino.Node errorRoot, com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireFunctionTypeBuilder_5733(fnName string, errorRoot pkg_rhino.Node, scope *TypedScope) *FunctionTypeBuilder {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireFunctionTypeBuilder_5742(fnName string, errorRoot pkg_rhino.Node, scope *TypedScope) *FunctionTypeBuilder {
 	_ = fnName
 	_ = errorRoot
 	_ = scope
@@ -854,7 +859,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireFunctionTypeBuilde
 }
 
 // Java method: TypedScopeCreator.releaseFunctionTypeBuilder(com.google.javascript.jscomp.FunctionTypeBuilder builder)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseFunctionTypeBuilder_5734(builder *FunctionTypeBuilder) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseFunctionTypeBuilder_5743(builder *FunctionTypeBuilder) {
 	_ = builder
 	builder.ClearForPool()
 	var top int32 = this_.fnTypeBuilderPoolTop
@@ -870,7 +875,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseFunctionTypeBuilde
 }
 
 // Java method: TypedScopeCreator.acquireOverflow()
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireOverflow_5735() *TypedScope_Overflow {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireOverflow_5744() *TypedScope_Overflow {
 	var top int32 = this_.overflowPoolTop
 	_ = top
 	if top > int32(0) {
@@ -890,7 +895,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireOverflow_5735() *T
 }
 
 // Java method: TypedScopeCreator.releaseOverflow(com.google.javascript.jscomp.TypedScope.Overflow overflow)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseOverflow_5736(overflow *TypedScope_Overflow) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseOverflow_5745(overflow *TypedScope_Overflow) {
 	_ = overflow
 	overflow.ResetForPool()
 	var top int32 = this_.overflowPoolTop
@@ -906,7 +911,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseOverflow_5736(over
 }
 
 // Java method: TypedScopeCreator.acquireNormalScopeBuilder(com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireNormalScopeBuilder_5737(scope *TypedScope) *TypedScopeCreator_NormalScopeBuilder {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireNormalScopeBuilder_5746(scope *TypedScope) *TypedScopeCreator_NormalScopeBuilder {
 	_ = scope
 	var top int32 = this_.normalScopeBuilderPoolTop
 	_ = top
@@ -928,7 +933,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireNormalScopeBuilder
 }
 
 // Java method: TypedScopeCreator.releaseNormalScopeBuilder(com.google.javascript.jscomp.TypedScopeCreator.NormalScopeBuilder builder)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseNormalScopeBuilder_5738(builder *TypedScopeCreator_NormalScopeBuilder) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseNormalScopeBuilder_5747(builder *TypedScopeCreator_NormalScopeBuilder) {
 	_ = builder
 	builder.ClearForPool()
 	var top int32 = this_.normalScopeBuilderPoolTop
@@ -944,7 +949,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseNormalScopeBuilder
 }
 
 // Java method: TypedScopeCreator.acquireFunctionScopeBuilder(com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireFunctionScopeBuilder_5739(scope *TypedScope) *TypedScopeCreator_FunctionScopeBuilder {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireFunctionScopeBuilder_5748(scope *TypedScope) *TypedScopeCreator_FunctionScopeBuilder {
 	_ = scope
 	var top int32 = this_.functionScopeBuilderPoolTop
 	_ = top
@@ -966,7 +971,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireFunctionScopeBuild
 }
 
 // Java method: TypedScopeCreator.releaseFunctionScopeBuilder(com.google.javascript.jscomp.TypedScopeCreator.FunctionScopeBuilder builder)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseFunctionScopeBuilder_5740(builder *TypedScopeCreator_FunctionScopeBuilder) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseFunctionScopeBuilder_5749(builder *TypedScopeCreator_FunctionScopeBuilder) {
 	_ = builder
 	builder.ClearForPool()
 	var top int32 = this_.functionScopeBuilderPoolTop
@@ -982,7 +987,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseFunctionScopeBuild
 }
 
 // Java method: TypedScopeCreator.acquireClassScopeBuilder(com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireClassScopeBuilder_5741(scope *TypedScope) *TypedScopeCreator_ClassScopeBuilder {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireClassScopeBuilder_5750(scope *TypedScope) *TypedScopeCreator_ClassScopeBuilder {
 	_ = scope
 	var top int32 = this_.classScopeBuilderPoolTop
 	_ = top
@@ -1004,7 +1009,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_acquireClassScopeBuilder_
 }
 
 // Java method: TypedScopeCreator.releaseClassScopeBuilder(com.google.javascript.jscomp.TypedScopeCreator.ClassScopeBuilder builder)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseClassScopeBuilder_5742(builder *TypedScopeCreator_ClassScopeBuilder) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseClassScopeBuilder_5751(builder *TypedScopeCreator_ClassScopeBuilder) {
 	_ = builder
 	builder.ClearForPool()
 	var top int32 = this_.classScopeBuilderPoolTop
@@ -1020,7 +1025,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_releaseClassScopeBuilder_
 }
 
 // Java method: TypedScopeCreator.report(com.google.javascript.jscomp.JSError error)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_report_5743(error_ *JSError) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_report_5752(error_ *JSError) {
 	_ = error_
 	this_.compiler.Report_1(error_)
 }
@@ -1041,16 +1046,17 @@ func (this_ *TypedScopeCreator) GetScope(arg_32 any) any {
 
 // Java method: TypedScopeCreator.getAllSymbols()
 func (this_ *TypedScopeCreator) GetAllSymbols() any {
-	var vars j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList_1_int32((this_.memoized.Size() * int32(2)))
+	var scopes j2gort.Ext_java_util_ArrayList = this_.memoizedScopes
+	_ = scopes
+	var n int32 = scopes.Size()
+	_ = n
+	var vars j2gort.Ext_java_util_ArrayList = j2gort.NewExt_java_util_ArrayList_1_int32((n * int32(2)))
 	_ = vars
 	{
-		cur_33 := this_.memoized.IterValues()
-		for cur_33.HasNext() {
-
-			s := cur_33.
-				Next()
-			_ = s
-			s.AddVarsTo(vars)
+		var i int32 = int32(0)
+		_ = i
+		for ; i < n; i = i + 1 {
+			j2gort.CastPtr[TypedScope](scopes.Get(i)).AddVarsTo(vars)
 		}
 	}
 	return vars
@@ -1060,21 +1066,30 @@ func (this_ *TypedScopeCreator) GetAllSymbols() any {
 func (this_ *TypedScopeCreator) GetNodeToScopeMapper() j2gort.Ext_java_util_function_Function {
 	{
 
-		bound_35 := &this_.memoized
-		return j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.OrderedMapGetNodeAny(bound_35, mrp0_) })
+		bound_33 := &this_.memoizedByNode
+		return j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.OrderedMapGetNodeAny(bound_33, mrp0_) })
 	}
 
 }
 
 // Java method: TypedScopeCreator.getAllMemoizedScopes()
 func (this_ *TypedScopeCreator) GetAllMemoizedScopes() j2gort.Ext_java_util_Collection {
-	return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_com_google_common_collect_Lists_Reverse(j2gort.AsIface[j2gort.Ext_java_util_List](this_.memoized.ValuesToImmutableList())))
+	return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_com_google_common_collect_Lists_Reverse(j2gort.AsIface[j2gort.Ext_java_util_List](this_.memoizedScopes)))
+}
+
+// Java method: TypedScopeCreator.recordMemoizedScope(com.google.javascript.rhino.Node root, com.google.javascript.jscomp.TypedScope scope)
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_recordMemoizedScope_5755(root pkg_rhino.Node, scope *TypedScope) {
+	_ = root
+	_ = scope
+	if this_.memoizedByNode.Put(root, scope) == nil {
+		this_.memoizedScopes.Add_1(j2gort.PtrToAny(scope))
+	}
 }
 
 // Java method: TypedScopeCreator.createScope(com.google.javascript.rhino.Node n)
 func (this_ *TypedScopeCreator) CreateScope_1(n pkg_rhino.Node) *TypedScope {
 	_ = n
-	var s *TypedScope = this_.memoized.Get(n)
+	var s *TypedScope = this_.memoizedByNode.Get(n)
 	_ = s
 	if s != nil {
 		return s
@@ -1092,33 +1107,33 @@ func (this_ *TypedScopeCreator) CreateScope_2_Node_AbstractScope(root pkg_rhino.
 	}
 	var typedParent *TypedScope = j2gort.CastPtr[TypedScope](parent)
 	_ = typedParent
-	var scope *TypedScope = this_.memoized.Get(root)
+	var scope *TypedScope = this_.memoizedByNode.Get(root)
 	_ = scope
 	if scope != nil {
 		if !(typedParent == j2gort.CastPtr[TypedScope](scope.GetParent())) {
 			j2gort.CheckState(false)
 		}
 	} else {
-		scope = this_.priv_TypedScopeCreator_createScopeInternal_5747(root, typedParent)
-		this_.memoized.Put(root, scope)
+		scope = this_.priv_TypedScopeCreator_createScopeInternal_5757(root, typedParent)
+		this_.priv_TypedScopeCreator_recordMemoizedScope_5755(root, scope)
 	}
 	return j2gort.PtrToAny(scope)
 }
 
 // Java method: TypedScopeCreator.createScopeInternal(com.google.javascript.rhino.Node root, com.google.javascript.jscomp.TypedScope typedParent)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_createScopeInternal_5747(root pkg_rhino.Node, typedParent *TypedScope) *TypedScope {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_createScopeInternal_5757(root pkg_rhino.Node, typedParent *TypedScope) *TypedScope {
 	_ = root
 	_ = typedParent
 	{
 		var iifeCond_1 bool
 		{
 
-			re_36 := this_.stage
-			ae_37 := StaticGet_TypedScopeCreator_Stage_BUILDING()
-			if re_36 == 0 {
+			re_34 := this_.stage
+			ae_35 := StaticGet_TypedScopeCreator_Stage_BUILDING()
+			if re_34 == 0 {
 				j2gort.ThrowNPE()
 			}
-			iifeCond_1 = re_36 == ae_37
+			iifeCond_1 = re_34 == ae_35
 		}
 		if !(iifeCond_1) {
 			j2gort.CheckStateFmt(false, "Cannot create scope for %s after TypedScopeCreator is frozen", j2gort.BoxNode(root))
@@ -1161,7 +1176,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_createScopeInternal_5747(
 			reservedNames = TypedScopeCreator_WithoutReservedExports(reservedNames)
 		}
 		if ((reservedNames != nil) && (int32(len(reservedNames)) != int32(0))) || (module != nil) {
-			pooledOverflow = this_.priv_TypedScopeCreator_acquireOverflow_5735()
+			pooledOverflow = this_.priv_TypedScopeCreator_acquireOverflow_5744()
 		}
 		newScope = allocPooled_TypedScope_5(&this_.tsArena_.slab_TypedScope, typedParent, root, reservedNames, module, pooledOverflow)
 		newScope.tsArena_ = this_.tsArena_
@@ -1173,13 +1188,13 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_createScopeInternal_5747(
 	var pooledClassBuilder *TypedScopeCreator_ClassScopeBuilder = nil
 	_ = pooledClassBuilder
 	if root.IsFunction() {
-		pooledFunctionBuilder = this_.priv_TypedScopeCreator_acquireFunctionScopeBuilder_5739(newScope)
+		pooledFunctionBuilder = this_.priv_TypedScopeCreator_acquireFunctionScopeBuilder_5748(newScope)
 		scopeBuilder = ToIface_TypedScopeCreator_AbstractScopeBuilder(pooledFunctionBuilder)
 	} else if (root.IsClass() || root.IsMemberFieldDef()) || root.IsComputedFieldDef() {
-		pooledClassBuilder = this_.priv_TypedScopeCreator_acquireClassScopeBuilder_5741(newScope)
+		pooledClassBuilder = this_.priv_TypedScopeCreator_acquireClassScopeBuilder_5750(newScope)
 		scopeBuilder = ToIface_TypedScopeCreator_AbstractScopeBuilder(pooledClassBuilder)
 	} else {
-		pooledNormalBuilder = this_.priv_TypedScopeCreator_acquireNormalScopeBuilder_5737(newScope)
+		pooledNormalBuilder = this_.priv_TypedScopeCreator_acquireNormalScopeBuilder_5746(newScope)
 		scopeBuilder = ToIface_TypedScopeCreator_AbstractScopeBuilder(pooledNormalBuilder)
 		if root.IsModuleBody() {
 			var inputId *pkg_rhino.InputId = j2gort.CheckNotNullPtr(NodeUtil_GetInputId(root))
@@ -1192,14 +1207,14 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_createScopeInternal_5747(
 	func() {
 		defer func() {
 			if pooledNormalBuilder != nil {
-				this_.priv_TypedScopeCreator_releaseNormalScopeBuilder_5738(pooledNormalBuilder)
+				this_.priv_TypedScopeCreator_releaseNormalScopeBuilder_5747(pooledNormalBuilder)
 			} else if pooledFunctionBuilder != nil {
-				this_.priv_TypedScopeCreator_releaseFunctionScopeBuilder_5740(pooledFunctionBuilder)
+				this_.priv_TypedScopeCreator_releaseFunctionScopeBuilder_5749(pooledFunctionBuilder)
 			} else if pooledClassBuilder != nil {
-				this_.priv_TypedScopeCreator_releaseClassScopeBuilder_5742(pooledClassBuilder)
+				this_.priv_TypedScopeCreator_releaseClassScopeBuilder_5751(pooledClassBuilder)
 			}
 			if (pooledOverflow != nil) && !(newScope.IsUsingOverflow(pooledOverflow)) {
-				this_.priv_TypedScopeCreator_releaseOverflow_5736(pooledOverflow)
+				this_.priv_TypedScopeCreator_releaseOverflow_5745(pooledOverflow)
 			}
 		}()
 		scopeBuilder.GetTypedScopeCreator_AbstractScopeBuilderBase().Build()
@@ -1352,9 +1367,9 @@ func TypedScopeCreator_WithReservedExports(reservedNames []string) []string {
 				var iifeCond_1 bool
 				{
 
-					sr_38 := "exports"
-					se_39 := reservedNames[i]
-					iifeCond_1 = j2gort.CheckNotNullString(sr_38) == se_39
+					sr_36 := "exports"
+					se_37 := reservedNames[i]
+					iifeCond_1 = j2gort.CheckNotNullString(sr_36) == se_37
 				}
 				if iifeCond_1 {
 					return reservedNames
@@ -1365,22 +1380,22 @@ func TypedScopeCreator_WithReservedExports(reservedNames []string) []string {
 	var out []string = j2gort.NewStringArray((int32(len(reservedNames)) + int32(1)))
 	_ = out
 	func() {
-		acSrc_40 := reservedNames
-		acSP_41 := int32(0)
-		acDst_42 := out
-		acDP_43 := int32(0)
-		acLen_44 := int32(len(reservedNames))
-		j2gort.CheckNotNullSlice(acSrc_40)
-		j2gort.CheckNotNullSlice(acDst_42)
-		if acSP_41 < 0 || acDP_43 < 0 || acLen_44 < 0 || int64(acSP_41)+int64(acLen_44) > int64(len(acSrc_40)) || int64(acDP_43)+int64(acLen_44) > int64(len(acDst_42)) {
+		acSrc_38 := reservedNames
+		acSP_39 := int32(0)
+		acDst_40 := out
+		acDP_41 := int32(0)
+		acLen_42 := int32(len(reservedNames))
+		j2gort.CheckNotNullSlice(acSrc_38)
+		j2gort.CheckNotNullSlice(acDst_40)
+		if acSP_39 < 0 || acDP_41 < 0 || acLen_42 < 0 || int64(acSP_39)+int64(acLen_42) > int64(len(acSrc_38)) || int64(acDP_41)+int64(acLen_42) > int64(len(acDst_40)) {
 			panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 		}
-		copy(acDst_42[int(acDP_43):int(acDP_43)+int(acLen_44)], acSrc_40[int(acSP_41):int(acSP_41)+int(acLen_44)])
+		copy(acDst_40[int(acDP_41):int(acDP_41)+int(acLen_42)], acSrc_38[int(acSP_39):int(acSP_39)+int(acLen_42)])
 	}()
 	{
-		a_45 := out
-		i_46 := int32(len(reservedNames))
-		a_45[i_46] = "exports"
+		a_43 := out
+		i_44 := int32(len(reservedNames))
+		a_43[i_44] = "exports"
 	}
 	return out
 }
@@ -1399,9 +1414,9 @@ func TypedScopeCreator_WithoutReservedExports(reservedNames []string) []string {
 				var iifeCond_1 bool
 				{
 
-					sr_47 := "exports"
-					se_48 := reservedNames[i]
-					iifeCond_1 = j2gort.CheckNotNullString(sr_47) == se_48
+					sr_45 := "exports"
+					se_46 := reservedNames[i]
+					iifeCond_1 = j2gort.CheckNotNullString(sr_45) == se_46
 				}
 				if iifeCond_1 {
 					foundIdx = i
@@ -1420,41 +1435,41 @@ func TypedScopeCreator_WithoutReservedExports(reservedNames []string) []string {
 	_ = out
 	if foundIdx > int32(0) {
 		func() {
-			acSrc_49 := reservedNames
-			acSP_50 := int32(0)
-			acDst_51 := out
-			acDP_52 := int32(0)
-			acLen_53 := foundIdx
-			j2gort.CheckNotNullSlice(acSrc_49)
-			j2gort.CheckNotNullSlice(acDst_51)
-			if acSP_50 < 0 || acDP_52 < 0 || acLen_53 < 0 || int64(acSP_50)+int64(acLen_53) > int64(len(acSrc_49)) || int64(acDP_52)+int64(acLen_53) > int64(len(acDst_51)) {
+			acSrc_47 := reservedNames
+			acSP_48 := int32(0)
+			acDst_49 := out
+			acDP_50 := int32(0)
+			acLen_51 := foundIdx
+			j2gort.CheckNotNullSlice(acSrc_47)
+			j2gort.CheckNotNullSlice(acDst_49)
+			if acSP_48 < 0 || acDP_50 < 0 || acLen_51 < 0 || int64(acSP_48)+int64(acLen_51) > int64(len(acSrc_47)) || int64(acDP_50)+int64(acLen_51) > int64(len(acDst_49)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_51[int(acDP_52):int(acDP_52)+int(acLen_53)], acSrc_49[int(acSP_50):int(acSP_50)+int(acLen_53)])
+			copy(acDst_49[int(acDP_50):int(acDP_50)+int(acLen_51)], acSrc_47[int(acSP_48):int(acSP_48)+int(acLen_51)])
 		}()
 	}
 	var tail int32 = ((int32(len(reservedNames)) - foundIdx) - int32(1))
 	_ = tail
 	if tail > int32(0) {
 		func() {
-			acSrc_54 := reservedNames
-			acSP_55 := (foundIdx + int32(1))
-			acDst_56 := out
-			acDP_57 := foundIdx
-			acLen_58 := tail
-			j2gort.CheckNotNullSlice(acSrc_54)
-			j2gort.CheckNotNullSlice(acDst_56)
-			if acSP_55 < 0 || acDP_57 < 0 || acLen_58 < 0 || int64(acSP_55)+int64(acLen_58) > int64(len(acSrc_54)) || int64(acDP_57)+int64(acLen_58) > int64(len(acDst_56)) {
+			acSrc_52 := reservedNames
+			acSP_53 := (foundIdx + int32(1))
+			acDst_54 := out
+			acDP_55 := foundIdx
+			acLen_56 := tail
+			j2gort.CheckNotNullSlice(acSrc_52)
+			j2gort.CheckNotNullSlice(acDst_54)
+			if acSP_53 < 0 || acDP_55 < 0 || acLen_56 < 0 || int64(acSP_53)+int64(acLen_56) > int64(len(acSrc_52)) || int64(acDP_55)+int64(acLen_56) > int64(len(acDst_54)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_56[int(acDP_57):int(acDP_57)+int(acLen_58)], acSrc_54[int(acSP_55):int(acSP_55)+int(acLen_58)])
+			copy(acDst_54[int(acDP_55):int(acDP_55)+int(acLen_56)], acSrc_52[int(acSP_53):int(acSP_53)+int(acLen_56)])
 		}()
 	}
 	return out
 }
 
 // Java method: TypedScopeCreator.markGoogModuleExportsAsConst(com.google.javascript.rhino.Node moduleBody)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_markGoogModuleExportsAsConst_5748(moduleBody pkg_rhino.Node) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_markGoogModuleExportsAsConst_5758(moduleBody pkg_rhino.Node) {
 	_ = moduleBody
 	{
 		var statement pkg_rhino.Node = moduleBody.GetFirstChild()
@@ -1484,7 +1499,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_markGoogModuleExportsAsCo
 }
 
 // Java method: TypedScopeCreator.gatherAllProvides(com.google.javascript.rhino.Node root)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_gatherAllProvides_5749(root pkg_rhino.Node) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_gatherAllProvides_5759(root pkg_rhino.Node) {
 	_ = root
 	if !(this_.processClosurePrimitives) {
 		return
@@ -1496,10 +1511,10 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_gatherAllProvides_5749(ro
 	var providedNames j2gort.Ext_java_util_Map = NewProcessClosureProvidesAndRequires(this_.compiler, true).CollectProvidedNames(externs, js)
 	_ = providedNames
 	{
-		cur_59 := j2gort.NewMapValCursor(providedNames)
-		for cur_59.HasNext() {
-			rawElem_60 := cur_59.Next()
-			name := j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](rawElem_60)
+		cur_57 := j2gort.NewMapValCursor(providedNames)
+		for cur_57.HasNext() {
+			rawElem_58 := cur_57.Next()
+			name := j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](rawElem_58)
 			_ = name
 			if name.HasImplicitInitialization() {
 				continue
@@ -1526,9 +1541,9 @@ func (this_ *TypedScopeCreator) CreateInitialScope(root pkg_rhino.Node) *TypedSc
 	if !(root.IsRoot()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(root))
 	}
-	var val_61 MemoizedScopeCreator
-	InitMemoizedScopeCreator_2(&val_61, NewSyntacticScopeCreator_1(this_.compiler), int32(2048))
-	var scopeCreator *MemoizedScopeCreator = &val_61
+	var val_59 MemoizedScopeCreator
+	InitMemoizedScopeCreator_2(&val_59, NewSyntacticScopeCreator_1(this_.compiler), max(int32(4096), (this_.compiler.GetNumberOfInputs()*int32(2))))
+	var scopeCreator *MemoizedScopeCreator = &val_59
 	_ = scopeCreator
 	defer scopeCreator.ReleaseSlabs_()
 
@@ -1553,33 +1568,33 @@ func (this_ *TypedScopeCreator) CreateInitialScope(root pkg_rhino.Node) *TypedSc
 	var s *TypedScope = allocPooledVia_TypedScope_CreateGlobalScope(&this_.tsArena_.slab_TypedScope, root)
 	_ = s
 	s.tsArena_ = this_.tsArena_
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_ARRAY_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_DATE_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_FUNCTION_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_GENERATOR_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_ITERABLE_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_ITERATOR_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_NUMBER_OBJECT_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_REGEXP_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_STRING_OBJECT_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeFunctionType_5752(s, pkg_rhino.StaticGet_JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE())
-	this_.priv_TypedScopeCreator_declareNativeValueType_5753(s, "undefined", pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
-	this_.priv_TypedScopeCreator_addWellKnownSymbols_5751(s)
-	this_.priv_TypedScopeCreator_gatherAllProvides_5749(root)
-	this_.memoized.Put(root, s)
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_ARRAY_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_BIGINT_OBJECT_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_OBJECT_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_DATE_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_FUNCTION_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_GENERATOR_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_ITERABLE_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_ITERATOR_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_NUMBER_OBJECT_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_OBJECT_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_REGEXP_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_STRING_OBJECT_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeFunctionType_5762(s, pkg_rhino.StaticGet_JSTypeNative_SYMBOL_OBJECT_FUNCTION_TYPE())
+	this_.priv_TypedScopeCreator_declareNativeValueType_5763(s, "undefined", pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+	this_.priv_TypedScopeCreator_addWellKnownSymbols_5761(s)
+	this_.priv_TypedScopeCreator_gatherAllProvides_5759(root)
+	this_.priv_TypedScopeCreator_recordMemoizedScope_5755(root, s)
 	return s
 }
 
 // Java method: TypedScopeCreator.addWellKnownSymbols(com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_addWellKnownSymbols_5751(scope *TypedScope) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_addWellKnownSymbols_5761(scope *TypedScope) {
 	_ = scope
 	{
-		cur_62 := j2gort.NewIterCursor(j2gort.CheckNotNull(StaticGet_TypedScopeCreator_WELL_KNOWN_SYMBOLS()))
-		for cur_62.HasNext() {
-			symbol := cur_62.NextStr()
+		cur_60 := j2gort.NewIterCursor(j2gort.CheckNotNull(StaticGet_TypedScopeCreator_WELL_KNOWN_SYMBOLS()))
+		for cur_60.HasNext() {
+			symbol := cur_60.NextStr()
 			_ = symbol
 			var type_ pkg_rhino.JSType = pkg_rhino.NewKnownSymbolType(this_.typeRegistry, symbol)
 			_ = type_
@@ -1589,7 +1604,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_addWellKnownSymbols_5751(
 }
 
 // Java method: TypedScopeCreator.declareNativeFunctionType(com.google.javascript.jscomp.TypedScope scope, com.google.javascript.rhino.jstype.JSTypeNative tId)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_declareNativeFunctionType_5752(scope *TypedScope, tId pkg_rhino.JSTypeNative) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_declareNativeFunctionType_5762(scope *TypedScope, tId pkg_rhino.JSTypeNative) {
 	_ = scope
 	_ = tId
 	var t *pkg_rhino.FunctionType = this_.typeRegistry.GetNativeFunctionType(tId)
@@ -1599,7 +1614,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_declareNativeFunctionType
 }
 
 // Java method: TypedScopeCreator.declareNativeValueType(com.google.javascript.jscomp.TypedScope scope, java.lang.String name, com.google.javascript.rhino.jstype.JSTypeNative tId)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_declareNativeValueType_5753(scope *TypedScope, name string, tId pkg_rhino.JSTypeNative) {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_declareNativeValueType_5763(scope *TypedScope, name string, tId pkg_rhino.JSTypeNative) {
 	_ = scope
 	_ = name
 	_ = tId
@@ -1643,22 +1658,24 @@ func (this_ *TypedScopeCreator) FinishAndFreeze() {
 		node.SetJSType(resolved)
 	}
 
+	var scopes j2gort.Ext_java_util_ArrayList = this_.memoizedScopes
+	_ = scopes
 	{
-		cur_66 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.GetAllMemoizedScopes()))
-		for cur_66.HasNext() {
-			rawElem_67 := cur_66.Next()
-			scope := j2gort.CastPtr[TypedScope](rawElem_67)
+		var i int32 = (scopes.Size() - int32(1))
+		_ = i
+		for ; i >= int32(0); i = i - 1 {
+			var scope *TypedScope = j2gort.CastPtr[TypedScope](scopes.Get(i))
 			_ = scope
 			scope.ResolveOwnVarTypes(this_.typeParsingErrorReporter)
 			scope.ValidateCompletelyBuilt()
 		}
 	}
-	this_.priv_TypedScopeCreator_clearCommonState_5757()
+	this_.priv_TypedScopeCreator_clearCommonState_5767()
 	this_.stage = StaticGet_TypedScopeCreator_Stage_FROZEN()
 }
 
 // Java method: TypedScopeCreator.clearCommonState()
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_clearCommonState_5757() {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_clearCommonState_5767() {
 	this_.reservedNamesForScope = j2gort.NewPlainMapVal[pkg_rhino.Node, []string]()
 	this_.functionsWithNonEmptyReturns = j2gort.NewPlainSetVal[pkg_rhino.Node]()
 	{
@@ -1666,9 +1683,9 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_clearCommonState_5757() {
 		_ = i
 		for ; i < this_.fnTypeBuilderPoolTop; i = i + 1 {
 			{
-				a_68 := this_.fnTypeBuilderPool
-				i_69 := i
-				a_68[i_69] = nil
+				a_64 := this_.fnTypeBuilderPool
+				i_65 := i
+				a_64[i_65] = nil
 			}
 		}
 	}
@@ -1678,9 +1695,9 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_clearCommonState_5757() {
 		_ = i_2
 		for ; i_2 < this_.overflowPoolTop; i_2 = i_2 + 1 {
 			{
-				a_70 := this_.overflowPool
-				i_71 := i_2
-				a_70[i_71] = nil
+				a_66 := this_.overflowPool
+				i_67 := i_2
+				a_66[i_67] = nil
 			}
 		}
 	}
@@ -1693,7 +1710,7 @@ func (this_ *TypedScopeCreator) priv_TypedScopeCreator_clearCommonState_5757() {
 }
 
 // Java method: TypedScopeCreator.getNativeType(com.google.javascript.rhino.jstype.JSTypeNative nativeType)
-func (this_ *TypedScopeCreator) priv_TypedScopeCreator_getNativeType_5758(nativeType pkg_rhino.JSTypeNative) pkg_rhino.JSType {
+func (this_ *TypedScopeCreator) priv_TypedScopeCreator_getNativeType_5768(nativeType pkg_rhino.JSTypeNative) pkg_rhino.JSType {
 	_ = nativeType
 	return this_.typeRegistry.GetNativeType(nativeType)
 }
@@ -1830,19 +1847,19 @@ func (this_ *TypedScopeCreator_ScopedVarStateTable) RecordAssigned(rootNode pkg_
 		_ = existingName
 		if existingName == j2gort.NullString {
 			{
-				a_72 := this_.keyNodes
+				a_68 := this_.keyNodes
+				i_69 := slot
+				a_68[i_69] = rootNode
+			}
+			{
+				a_70 := names
+				i_71 := slot
+				a_70[i_71] = name
+			}
+			{
+				a_72 := this_.states
 				i_73 := slot
-				a_72[i_73] = rootNode
-			}
-			{
-				a_74 := names
-				i_75 := slot
-				a_74[i_75] = name
-			}
-			{
-				a_76 := this_.states
-				i_77 := slot
-				a_76[i_77] = (int32(2) | (func() int32 {
+				a_72[i_73] = (int32(2) | (func() int32 {
 					if escaped {
 						return int32(1)
 					}
@@ -1851,15 +1868,15 @@ func (this_ *TypedScopeCreator_ScopedVarStateTable) RecordAssigned(rootNode pkg_
 			}
 			this_.size = this_.size + 1
 			if (this_.size * int32(4)) >= (int32(len(names)) * int32(3)) {
-				this_.priv_ScopedVarStateTable_rehash_5764((int32(len(names)) * int32(2)))
+				this_.priv_ScopedVarStateTable_rehash_5774((int32(len(names)) * int32(2)))
 			}
 			return
 		}
 		if (this_.keyNodes[slot] == rootNode) && (j2gort.CheckNotNullString(existingName) == name) {
 			{
-				a_78 := this_.states
-				i_79 := slot
-				a_78[i_79] = ((this_.states[slot] + int32(2)) | (func() int32 {
+				a_74 := this_.states
+				i_75 := slot
+				a_74[i_75] = ((this_.states[slot] + int32(2)) | (func() int32 {
 					if escaped {
 						return int32(1)
 					}
@@ -1894,30 +1911,30 @@ func (this_ *TypedScopeCreator_ScopedVarStateTable) RecordEscaped(rootNode pkg_r
 		_ = existingName
 		if existingName == j2gort.NullString {
 			{
-				a_80 := this_.keyNodes
+				a_76 := this_.keyNodes
+				i_77 := slot
+				a_76[i_77] = rootNode
+			}
+			{
+				a_78 := names
+				i_79 := slot
+				a_78[i_79] = name
+			}
+			{
+				a_80 := this_.states
 				i_81 := slot
-				a_80[i_81] = rootNode
-			}
-			{
-				a_82 := names
-				i_83 := slot
-				a_82[i_83] = name
-			}
-			{
-				a_84 := this_.states
-				i_85 := slot
-				a_84[i_85] = int32(1)
+				a_80[i_81] = int32(1)
 			}
 			this_.size = this_.size + 1
 			if (this_.size * int32(4)) >= (int32(len(names)) * int32(3)) {
-				this_.priv_ScopedVarStateTable_rehash_5764((int32(len(names)) * int32(2)))
+				this_.priv_ScopedVarStateTable_rehash_5774((int32(len(names)) * int32(2)))
 			}
 			return
 		}
 		if (this_.keyNodes[slot] == rootNode) && (j2gort.CheckNotNullString(existingName) == name) {
-			a_86 := this_.states
-			i_87 := slot
-			a_86[i_87] = (a_86[i_87] | int32(1))
+			a_82 := this_.states
+			i_83 := slot
+			a_82[i_83] = (a_82[i_83] | int32(1))
 			return
 		}
 		slot = ((slot + int32(1)) & mask)
@@ -1979,9 +1996,9 @@ func (this_ *TypedScopeCreator_ScopedVarStateTable) LookupDeclareAndDecrementAss
 			_ = count
 			if count > int32(0) {
 				{
-					a_88 := this_.states
-					i_89 := slot
-					a_88[i_89] = ((javalang.Shl32((count - int32(1)), int(int32(1)))) | escapedBit)
+					a_84 := this_.states
+					i_85 := slot
+					a_84[i_85] = ((javalang.Shl32((count - int32(1)), int(int32(1)))) | escapedBit)
 				}
 			}
 			return (escapedBit | (func() int32 {
@@ -1997,7 +2014,7 @@ func (this_ *TypedScopeCreator_ScopedVarStateTable) LookupDeclareAndDecrementAss
 }
 
 // Java method: ScopedVarStateTable.rehash(int newCap)
-func (this_ *TypedScopeCreator_ScopedVarStateTable) priv_ScopedVarStateTable_rehash_5764(newCap int32) {
+func (this_ *TypedScopeCreator_ScopedVarStateTable) priv_ScopedVarStateTable_rehash_5774(newCap int32) {
 	_ = newCap
 	var oldNodes []pkg_rhino.Node = this_.keyNodes
 	_ = oldNodes
@@ -2030,19 +2047,19 @@ func (this_ *TypedScopeCreator_ScopedVarStateTable) priv_ScopedVarStateTable_reh
 					slot = ((slot + int32(1)) & mask)
 				}
 				{
-					a_90 := newNodes
+					a_86 := newNodes
+					i_87 := slot
+					a_86[i_87] = node
+				}
+				{
+					a_88 := newNames
+					i_89 := slot
+					a_88[i_89] = name
+				}
+				{
+					a_90 := newStates
 					i_91 := slot
-					a_90[i_91] = node
-				}
-				{
-					a_92 := newNames
-					i_93 := slot
-					a_92[i_93] = name
-				}
-				{
-					a_94 := newStates
-					i_95 := slot
-					a_94[i_95] = oldStates[i]
+					a_90[i_91] = oldStates[i]
 				}
 			}
 		}
@@ -2219,7 +2236,7 @@ func InitTypedScopeCreator_WeakModuleImport(this_ *TypedScopeCreator_WeakModuleI
 
 // Java method: WeakModuleImport.resolve()
 func (this_ *TypedScopeCreator_WeakModuleImport) Resolve() {
-	var resolvedScope *TypedScope = this_.outer_.memoized.Get(this_.scopedImport.GetScopedNameBase().GetScopeRoot())
+	var resolvedScope *TypedScope = this_.outer_.memoizedByNode.Get(this_.scopedImport.GetScopedNameBase().GetScopeRoot())
 	_ = resolvedScope
 	var requiredVar *TypedVar
 	_ = requiredVar
@@ -2403,7 +2420,7 @@ func (this_ *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit_3(t 
 			var child pkg_rhino.Node = node.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				this_.priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5766(t, child, child.GetFirstChild(), NodeUtil_GetBestJSDocInfo(child))
+				this_.priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5776(t, child, child.GetFirstChild(), NodeUtil_GetBestJSDocInfo(child))
 			}
 		}
 	case int32(93) /* Token.EXPR_RESULT */ :
@@ -2412,16 +2429,16 @@ func (this_ *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) Visit_3(t 
 		if firstChild.IsAssign() {
 			var assign pkg_rhino.Node = firstChild
 			_ = assign
-			this_.priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5766(t, assign.GetFirstChild(), assign.GetSecondChild(), assign.GetJSDocInfo())
+			this_.priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5776(t, assign.GetFirstChild(), assign.GetSecondChild(), assign.GetJSDocInfo())
 		} else if firstChild.IsGetProp() {
-			this_.priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5766(t, firstChild, pkg_rhino.Node(0), firstChild.GetJSDocInfo())
+			this_.priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5776(t, firstChild, pkg_rhino.Node(0), firstChild.GetJSDocInfo())
 		}
 	default:
 	}
 }
 
 // Java method: IdentifyEnumsAndTypedefsAsNonNullable.identifyEnumOrTypedefDeclaration(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node nameNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rvalue, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5766(t *NodeTraversal, nameNode pkg_rhino.Node, rvalue pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *TypedScopeCreator_IdentifyEnumsAndTypedefsAsNonNullable) priv_IdentifyEnumsAndTypedefsAsNonNullable_identifyEnumOrTypedefDeclaration_5776(t *NodeTraversal, nameNode pkg_rhino.Node, rvalue pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = t
 	_ = nameNode
 	_ = rvalue
@@ -2598,7 +2615,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) GetModule() *Module {
 
 // Java method: AbstractScopeBuilder.build()
 func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) Build() {
-	this_.priv_AbstractScopeBuilder_initializeModuleScope_5773(this_.currentScope.GetRootNode_0())
+	this_.priv_AbstractScopeBuilder_initializeModuleScope_5783(this_.currentScope.GetRootNode_0())
 	{
 		clinit_NodeTraversal()
 		var ntb_ NodeTraversal_Builder
@@ -2608,11 +2625,11 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) Build() {
 		(&ntb_).SetScopeCreator(StaticGet_ScopeCreator_ASSERT_NO_SCOPES_CREATED())
 		(&ntb_).TraverseAtScope(ToIface_AbstractScope(this_.currentScope))
 	}
-	this_.priv_AbstractScopeBuilder_finishDeclaringGoogModule_5775()
+	this_.priv_AbstractScopeBuilder_finishDeclaringGoogModule_5785()
 }
 
 // Java method: AbstractScopeBuilder.initializeModuleScope(com.google.javascript.rhino.Node moduleBody)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_initializeModuleScope_5773(moduleBody pkg_rhino.Node) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_initializeModuleScope_5783(moduleBody pkg_rhino.Node) {
 	_ = moduleBody
 	if this_.GetModule() == nil {
 		return
@@ -2621,15 +2638,15 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	_ = moduleType
 	switch (moduleType).Ordinal() {
 	case int32(2) /* ModuleType.LEGACY_GOOG_MODULE */, int32(1) /* ModuleType.GOOG_MODULE */ :
-		this_.priv_AbstractScopeBuilder_declareExportsInGoogModuleScope_5774(this_.GetModule(), moduleBody)
-		this_.outer_.priv_TypedScopeCreator_markGoogModuleExportsAsConst_5748(moduleBody)
+		this_.priv_AbstractScopeBuilder_declareExportsInGoogModuleScope_5784(this_.GetModule(), moduleBody)
+		this_.outer_.priv_TypedScopeCreator_markGoogModuleExportsAsConst_5758(moduleBody)
 	case int32(0) /* ModuleType.ES6_MODULE */ :
 		var unresolvedImports j2gort.Ext_com_google_common_collect_ImmutableMap = this_.outer_.moduleImportResolver.DeclareEsModuleImports(this_.GetModule(), this_.currentScope, this_.outer_.compiler.GetInput(NodeUtil_GetInputId(moduleBody)))
 		_ = unresolvedImports
 		{
-			cur_96 := j2gort.NewMapEntryCursor(unresolvedImports)
-			for cur_96.NextEntry() {
-				this_.outer_.weakImports = append(this_.outer_.weakImports, NewTypedScopeCreator_WeakModuleImport(this_.outer_, pkg_rhino.Node(cur_96.KeyNode()), j2gort.AsIface[ScopedName](cur_96.GetValue()), this_.currentScope))
+			cur_92 := j2gort.NewMapEntryCursor(unresolvedImports)
+			for cur_92.NextEntry() {
+				this_.outer_.weakImports = append(this_.outer_.weakImports, NewTypedScopeCreator_WeakModuleImport(this_.outer_, pkg_rhino.Node(cur_92.KeyNode()), j2gort.AsIface[ScopedName](cur_92.GetValue()), this_.currentScope))
 			}
 		}
 	default:
@@ -2638,7 +2655,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.declareExportsInGoogModuleScope(com.google.javascript.jscomp.modules.Module googModule, com.google.javascript.rhino.Node moduleBody)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareExportsInGoogModuleScope_5774(googModule *Module, moduleBody pkg_rhino.Node) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareExportsInGoogModuleScope_5784(googModule *Module, moduleBody pkg_rhino.Node) {
 	_ = googModule
 	_ = moduleBody
 	{
@@ -2661,7 +2678,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.finishDeclaringGoogModule()
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_finishDeclaringGoogModule_5775() {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_finishDeclaringGoogModule_5785() {
 	if (this_.GetModule() == nil) || !(this_.GetModule().Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule()) {
 		return
 	}
@@ -2683,7 +2700,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 				this_.DeclarePropertyIfNamespaceType_6_ObjectType_Node_string_JSType_Node_JSDocInfo(parentType.GetJSTypeBase().ToMaybeObjectType(), exportsVar.GetNameNode(), j2gort.JStrSubFrom(moduleNamespace, (lastDot+int32(1))), exportsVar.GetType(), exportsVar.GetNameNode(), typeDoc)
 			}
 		}
-		this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5812(moduleNamespace, exportsVar.GetNameNode(), "exports", exportsVar.GetType(), this_.currentScope, j2gort.CastPtr[TypedScope](this_.currentScope.GetGlobalScope()))
+		this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5822(moduleNamespace, exportsVar.GetNameNode(), "exports", exportsVar.GetType(), this_.currentScope, j2gort.CastPtr[TypedScope](this_.currentScope.GetGlobalScope()))
 	} else {
 		this_.outer_.typeRegistry.RegisterNonLegacyClosureNamespace(this_.GetModule().ClosureNamespace(), exportsVar.GetNameNode(), exportsVar.GetType())
 	}
@@ -2713,7 +2730,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ShouldTraverse_3(t *Nod
 		j2gort.CheckNotNullPtr(this_.inputId)
 		this_.sourceName = NodeUtil_GetSourceName(n)
 	}
-	if (parent == 0) || this_.priv_AbstractScopeBuilder_inCurrentScope_5776(t) {
+	if (parent == 0) || this_.priv_AbstractScopeBuilder_inCurrentScope_5786(t) {
 		this_.self_.VisitPreorder(t, n, parent)
 		return true
 	} else if n.IsModuleBody() {
@@ -2727,7 +2744,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ShouldTraverse_3(t *Nod
 }
 
 // Java method: AbstractScopeBuilder.inCurrentScope(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_inCurrentScope_5776(t *NodeTraversal) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_inCurrentScope_5786(t *NodeTraversal) bool {
 	_ = t
 	return (t.GetScopeRoot() == this_.currentScope.GetRootNode_0())
 }
@@ -2749,20 +2766,20 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) Visit_3(t *NodeTraversa
 	if actions != nil {
 		if !(isScopeRoot) && j2gort.MultimapContainsKeyNode(actions, n) {
 			{
-				cur_97 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.MultimapRemoveAllNode(actions, n))))
-				for cur_97.HasNext() {
-					rawElem_98 := cur_97.Next()
-					action := j2gort.AsIface[j2gort.Ext_java_lang_Runnable](rawElem_98)
+				cur_93 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.MultimapRemoveAllNode(actions, n))))
+				for cur_93.HasNext() {
+					rawElem_94 := cur_93.Next()
+					action := j2gort.AsIface[j2gort.Ext_java_lang_Runnable](rawElem_94)
 					_ = action
 					action.Run()
 				}
 			}
 		} else if isScopeRoot && !(actions.IsEmpty()) {
 			{
-				cur_99 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](actions.Values())))
-				for cur_99.HasNext() {
-					rawElem_100 := cur_99.Next()
-					action_2 := j2gort.AsIface[j2gort.Ext_java_lang_Runnable](rawElem_100)
+				cur_95 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](actions.Values())))
+				for cur_95.HasNext() {
+					rawElem_96 := cur_95.Next()
+					action_2 := j2gort.AsIface[j2gort.Ext_java_lang_Runnable](rawElem_96)
 					_ = action_2
 					action_2.Run()
 				}
@@ -2790,39 +2807,39 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) AttachLiteralTypes(n pk
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(36) /* Token.NULL */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_NULL_TYPE()))
 	case int32(87) /* Token.VOID */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()))
 	case int32(35) /* Token.STRINGLIT */, int32(133) /* Token.TEMPLATELIT_STRING */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE()))
 	case int32(33) /* Token.NUMBER */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE()))
 	case int32(34) /* Token.BIGINT */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE()))
 	case int32(39) /* Token.TRUE */, int32(38) /* Token.FALSE */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE()))
 	case int32(42) /* Token.REGEXP */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_REGEXP_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_REGEXP_TYPE()))
 	case int32(47) /* Token.OBJECTLIT */ :
 		var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 		_ = info
 		if (info != nil) && info.HasLendsName() {
 			this_.DeferAction(NodeUtil_GetEnclosingStatement(n), j2gort.NewLambda_Ext_java_lang_Runnable(func() {
-				this_.priv_AbstractScopeBuilder_defineObjectLiteral_5780(n)
+				this_.priv_AbstractScopeBuilder_defineObjectLiteral_5790(n)
 			}))
 		} else {
-			this_.priv_AbstractScopeBuilder_defineObjectLiteral_5780(n)
+			this_.priv_AbstractScopeBuilder_defineObjectLiteral_5790(n)
 		}
 	case int32(105) /* Token.CLASS */ :
 		this_.DefineClassLiteral(n)
 	case int32(46) /* Token.ARRAYLIT */ :
-		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()))
+		n.SetJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_ARRAY_TYPE()))
 	default:
 	}
 }
 
 // Java method: AbstractScopeBuilder.defineObjectLiteral(com.google.javascript.rhino.Node objectLit)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_defineObjectLiteral_5780(objectLit pkg_rhino.Node) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_defineObjectLiteral_5790(objectLit pkg_rhino.Node) {
 	_ = objectLit
 	var type_ pkg_rhino.JSType = nil
 	_ = type_
@@ -2834,14 +2851,14 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		var lendsVar *TypedVar = this_.currentScope.LookupTypedVar(lendsName)
 		_ = lendsVar
 		if lendsVar == nil {
-			this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(objectLit, StaticGet_TypedScopeCreator_UNKNOWN_LENDS(), []string{lendsName}))
+			this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(objectLit, StaticGet_TypedScopeCreator_UNKNOWN_LENDS(), []string{lendsName}))
 		} else {
 			type_ = lendsVar.GetType()
 			if type_ == nil || type_.IsJavaNil_() {
 				type_ = pkg_rhino.Upcast_JSType(this_.outer_.unknownType)
 			}
 			if !(type_.GetJSTypeBase().IsSubtypeOf_1(this_.outer_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))) {
-				this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(objectLit, StaticGet_TypedScopeCreator_LENDS_ON_NON_OBJECT(), []string{lendsName, type_.GetJSTypeBase().String()}))
+				this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(objectLit, StaticGet_TypedScopeCreator_LENDS_ON_NON_OBJECT(), []string{lendsName, type_.GetJSTypeBase().String()}))
 				type_ = nil
 			} else {
 				objectLit.SetJSType(type_)
@@ -2856,7 +2873,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		_ = lValue
 		var lValueName string = NodeUtil_GetBestLValueName(lValue)
 		_ = lValueName
-		type_ = pkg_rhino.ToIface_JSType(this_.priv_AbstractScopeBuilder_createEnumTypeFromNodes_5805(objectLit, lValueName, lValue, info))
+		type_ = pkg_rhino.ToIface_JSType(this_.priv_AbstractScopeBuilder_createEnumTypeFromNodes_5815(objectLit, lValueName, lValue, info))
 	}
 	if type_ == nil || type_.IsJavaNil_() {
 		type_ = pkg_rhino.Upcast_JSType(this_.outer_.typeRegistry.CreateAnonymousObjectType(info))
@@ -2927,7 +2944,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitPropert
 				keyType = TypeCheck_GetObjectLitKeyTypeFromValueType(keyNode, valueType)
 			}
 			if qualifiedName != j2gort.NullString {
-				NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(keyNode).ForVariableName(qualifiedName).InScope(this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(keyNode)).WithType(keyType).AllowLaterTypeInference((keyType == nil || keyType.IsJavaNil_())).DefineSlot()
+				NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(keyNode).ForVariableName(qualifiedName).InScope(this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(keyNode)).WithType(keyType).AllowLaterTypeInference((keyType == nil || keyType.IsJavaNil_())).DefineSlot()
 			} else if keyType != nil && !keyType.IsJavaNil_() {
 				this_.outer_.SetDeferredType(keyNode, keyType)
 			}
@@ -2943,7 +2960,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ProcessObjectLitPropert
 }
 
 // Java method: AbstractScopeBuilder.getDeclaredTypeInAnnotation(com.google.javascript.rhino.Node node, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDeclaredTypeInAnnotation_5782(node pkg_rhino.Node, info *pkg_rhino.JSDocInfo) pkg_rhino.JSType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDeclaredTypeInAnnotation_5792(node pkg_rhino.Node, info *pkg_rhino.JSDocInfo) pkg_rhino.JSType {
 	_ = node
 	_ = info
 	if !(info.HasType()) {
@@ -2980,7 +2997,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) FindOwnerTemplateMap(no
 		var ownerVar *TypedVar = this_.currentScope.LookupTypedVar(ownerName)
 		_ = ownerVar
 		if ownerVar != nil {
-			var ownerType pkg_rhino.JSType = pkg_rhino.Upcast_JSType(this_.priv_AbstractScopeBuilder_getPrototypeOwnerType_5803(pkg_rhino.ObjectType_Cast(ownerVar.GetType())))
+			var ownerType pkg_rhino.JSType = pkg_rhino.Upcast_JSType(this_.priv_AbstractScopeBuilder_getPrototypeOwnerType_5813(pkg_rhino.ObjectType_Cast(ownerVar.GetType())))
 			_ = ownerType
 			if ownerType != nil && !ownerType.IsJavaNil_() {
 				return ownerType.GetTemplateTypeMap()
@@ -3006,8 +3023,8 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) AssertDefinitionNode(n 
 func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineCatch(n pkg_rhino.Node) {
 	_ = n
 	this_.AssertDefinitionNode(n, pkg_rhino.StaticGet_Token_CATCH())
-	NodeUtil_VisitLhsNodesInNode(n, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_101 any) {
-		catchName := j2gort.CastNode[pkg_rhino.Node](lp_101)
+	NodeUtil_VisitLhsNodesInNode(n, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_97 any) {
+		catchName := j2gort.CastNode[pkg_rhino.Node](lp_97)
 		_ = catchName
 		var type_ pkg_rhino.JSType = this_.GetDeclaredType(catchName.GetJSDocInfo(), catchName, pkg_rhino.Node(0), nil)
 		_ = type_
@@ -3027,7 +3044,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineAssignAsIfVarDecl
 	}
 	var rvalue pkg_rhino.Node = assignment.GetSecondChild()
 	_ = rvalue
-	this_.priv_AbstractScopeBuilder_defineName_5794(name, rvalue, j2gort.CastPtr[TypedScope](this_.currentScope.GetClosestHoistScope()), info)
+	this_.priv_AbstractScopeBuilder_defineName_5804(name, rvalue, j2gort.CastPtr[TypedScope](this_.currentScope.GetClosestHoistScope()), info)
 }
 
 // Java method: AbstractScopeBuilder.defineVars(com.google.javascript.rhino.Node n)
@@ -3049,7 +3066,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineVars(n pkg_rhino.
 		scope = this_.currentScope
 	}
 	if n.HasMoreThanOneChild() && (info != nil) {
-		this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(n, StaticGet_TypeCheck_MULTIPLE_VAR_DEF(), []string{}))
+		this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(n, StaticGet_TypeCheck_MULTIPLE_VAR_DEF(), []string{}))
 	}
 	{
 		var child pkg_rhino.Node = n.GetFirstChild()
@@ -3058,7 +3075,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineVars(n pkg_rhino.
 			this_.DefineVarChild(info, child, scope)
 		}
 	}
-	if n.HasOneChild() && this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5830(n.GetOnlyChild(), n.GetJSDocInfo()) {
+	if n.HasOneChild() && this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5840(n.GetOnlyChild(), n.GetJSDocInfo()) {
 		this_.DeclareTypedefType(n.GetOnlyChild(), n.GetJSDocInfo())
 	}
 }
@@ -3072,7 +3089,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarat
 		if declarationInfo == nil {
 			declarationInfo = child.GetJSDocInfo()
 		}
-		this_.priv_AbstractScopeBuilder_defineName_5794(child, child.GetFirstChild(), scope, declarationInfo)
+		this_.priv_AbstractScopeBuilder_defineName_5804(child, child.GetFirstChild(), scope, declarationInfo)
 	} else {
 		if !(child.IsDestructuringLhs()) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(child))
@@ -3088,7 +3105,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarat
 				var key pkg_rhino.Node = pattern.GetFirstChild()
 				_ = key
 				for ; key != 0; key = key.GetNext() {
-					this_.priv_AbstractScopeBuilder_defineModuleImport_5795(key.GetFirstChild(), defaultImport, key.GetString(), scope)
+					this_.priv_AbstractScopeBuilder_defineModuleImport_5805(key.GetFirstChild(), defaultImport, key.GetString(), scope)
 				}
 			}
 			return
@@ -3096,7 +3113,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarat
 		this_.DefineDestructuringPatternInVarDeclaration(pattern, scope, j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
 			return func() *TypedScopeCreator_RValueInfo {
 				if value != 0 {
-					return NewTypedScopeCreator_RValueInfo(this_.priv_AbstractScopeBuilder_getDeclaredRValueType_5818(pkg_rhino.Node(0), value), value.GetQualifiedNameObject())
+					return NewTypedScopeCreator_RValueInfo(this_.priv_AbstractScopeBuilder_getDeclaredRValueType_5828(pkg_rhino.Node(0), value), value.GetQualifiedNameObject())
 				}
 				return NewTypedScopeCreator_RValueInfo(pkg_rhino.Upcast_JSType(this_.outer_.unknownType), nil)
 			}()
@@ -3105,7 +3122,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineVarChild(declarat
 }
 
 // Java method: AbstractScopeBuilder.inferTypeForDestructuredTarget(com.google.javascript.jscomp.DestructuredTarget target, com.google.common.base.Supplier<com.google.javascript.jscomp.TypedScopeCreator.RValueInfo> patternTypeSupplier)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_inferTypeForDestructuredTarget_5789(target *DestructuredTarget, patternTypeSupplier j2gort.Ext_com_google_common_base_Supplier) *TypedScopeCreator_RValueInfo {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_inferTypeForDestructuredTarget_5799(target *DestructuredTarget, patternTypeSupplier j2gort.Ext_com_google_common_base_Supplier) *TypedScopeCreator_RValueInfo {
 	_ = target
 	_ = patternTypeSupplier
 	if !(target.HasStringKey()) || target.HasDefaultValue() {
@@ -3142,15 +3159,15 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineDestructuringPatt
 	_ = scope
 	_ = patternTypeSupplier
 	{
-		cur_102 := j2gort.NewIterCursor(j2gort.CheckNotNull(DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_Ext_com_google_common_base_Supplier_Node(this_.outer_.typeRegistry, j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
+		cur_98 := j2gort.NewIterCursor(j2gort.CheckNotNull(DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_Ext_com_google_common_base_Supplier_Node(this_.outer_.typeRegistry, j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
 			return j2gort.CastPtr[TypedScopeCreator_RValueInfo](patternTypeSupplier.Get()).type_
 		}), pattern)))
-		for cur_102.HasNext() {
-			rawElem_103 := cur_102.Next()
-			target := j2gort.CastPtr[DestructuredTarget](rawElem_103)
+		for cur_98.HasNext() {
+			rawElem_99 := cur_98.Next()
+			target := j2gort.CastPtr[DestructuredTarget](rawElem_99)
 			_ = target
 			var typeSupplier j2gort.Ext_com_google_common_base_Supplier = j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any {
-				return j2gort.PtrToAny(this_.priv_AbstractScopeBuilder_inferTypeForDestructuredTarget_5789(target, patternTypeSupplier))
+				return j2gort.PtrToAny(this_.priv_AbstractScopeBuilder_inferTypeForDestructuredTarget_5799(target, patternTypeSupplier))
 			})
 			_ = typeSupplier
 			if target.GetNode().IsDestructuringPattern() {
@@ -3186,9 +3203,9 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineClassLiteral(n pk
 	_ = info
 	var className string = NodeUtil_GetBestLValueName(lValue)
 	_ = className
-	var classTypeIdentifier string = this_.priv_AbstractScopeBuilder_getBestTypeName_5792(lValue, className)
+	var classTypeIdentifier string = this_.priv_AbstractScopeBuilder_getBestTypeName_5802(lValue, className)
 	_ = classTypeIdentifier
-	var classType *pkg_rhino.FunctionType = this_.priv_AbstractScopeBuilder_createClassTypeFromNodes_5797(n, classTypeIdentifier, className, info, lValue)
+	var classType *pkg_rhino.FunctionType = this_.priv_AbstractScopeBuilder_createClassTypeFromNodes_5807(n, classTypeIdentifier, className, info, lValue)
 	_ = classType
 	this_.outer_.SetDeferredType(n, pkg_rhino.ToIface_JSType(classType))
 	if NodeUtil_IsClassDeclaration(n) {
@@ -3198,7 +3215,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineClassLiteral(n pk
 }
 
 // Java method: AbstractScopeBuilder.getBestTypeName(com.google.javascript.rhino.Node lvalue, java.lang.@org.jspecify.annotations.Nullable String syntacticLvalueName)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getBestTypeName_5792(lvalue pkg_rhino.Node, syntacticLvalueName string) string {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getBestTypeName_5802(lvalue pkg_rhino.Node, syntacticLvalueName string) string {
 	_ = lvalue
 	_ = syntacticLvalueName
 	if syntacticLvalueName == j2gort.NullString {
@@ -3220,7 +3237,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n
 	_ = info
 	var functionName string = NodeUtil_GetBestLValueName(lValue)
 	_ = functionName
-	var functionType *pkg_rhino.FunctionType = this_.priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5801(n, functionName, info, lValue)
+	var functionType *pkg_rhino.FunctionType = this_.priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5811(n, functionName, info, lValue)
 	_ = functionType
 	this_.outer_.SetDeferredType(n, pkg_rhino.ToIface_JSType(functionType))
 	if NodeUtil_IsFunctionDeclaration(n) {
@@ -3229,13 +3246,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DefineFunctionLiteral(n
 }
 
 // Java method: AbstractScopeBuilder.defineName(com.google.javascript.rhino.Node name, com.google.javascript.rhino.Node value, com.google.javascript.jscomp.TypedScope scope, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_defineName_5794(name pkg_rhino.Node, value pkg_rhino.Node, scope *TypedScope, info *pkg_rhino.JSDocInfo) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_defineName_5804(name pkg_rhino.Node, value pkg_rhino.Node, scope *TypedScope, info *pkg_rhino.JSDocInfo) {
 	_ = name
 	_ = value
 	_ = scope
 	_ = info
 	if ModuleImportResolver_IsGoogModuleDependencyCall(value) {
-		this_.priv_AbstractScopeBuilder_defineModuleImport_5795(name, this_.outer_.moduleImportResolver.GetClosureNamespaceTypeFromCall(value), j2gort.NullString, scope)
+		this_.priv_AbstractScopeBuilder_defineModuleImport_5805(name, this_.outer_.moduleImportResolver.GetClosureNamespaceTypeFromCall(value), j2gort.NullString, scope)
 		return
 	}
 	var type_ pkg_rhino.JSType = this_.GetDeclaredType(info, name, value, nil)
@@ -3251,7 +3268,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.defineModuleImport(com.google.javascript.rhino.Node localNameNode, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable ScopedName importedModuleObject, java.lang.@org.jspecify.annotations.Nullable String optionalProperty, com.google.javascript.jscomp.TypedScope scopeToDeclareIn)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_defineModuleImport_5795(localNameNode pkg_rhino.Node, importedModuleObject ScopedName, optionalProperty string, scopeToDeclareIn *TypedScope) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_defineModuleImport_5805(localNameNode pkg_rhino.Node, importedModuleObject ScopedName, optionalProperty string, scopeToDeclareIn *TypedScope) {
 	_ = localNameNode
 	_ = importedModuleObject
 	_ = optionalProperty
@@ -3280,7 +3297,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	var exportScope *TypedScope
 	_ = exportScope
 	if exportedScopeRoot != 0 {
-		exportScope = this_.outer_.memoized.Get(exportedScopeRoot)
+		exportScope = this_.outer_.memoizedByNode.Get(exportedScopeRoot)
 	} else {
 		exportScope = nil
 	}
@@ -3288,7 +3305,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		var type_ pkg_rhino.JSType = exportScope.LookupQualifiedName_1_string(exportedQname)
 		_ = type_
 		if type_ != nil && !type_.IsJavaNil_() {
-			this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5812(localNameNode.GetQualifiedName(), localNameNode, exportedQname, type_, exportScope, this_.currentScope)
+			this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5822(localNameNode.GetQualifiedName(), localNameNode, exportedQname, type_, exportScope, this_.currentScope)
 			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(localNameNode).ForVariableName(localNameNode.GetString()).InScope(scopeToDeclareIn).WithType(type_).AllowLaterTypeInference((type_ == nil || type_.IsJavaNil_())).DefineSlot()
 			return
 		}
@@ -3304,7 +3321,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.shouldUseFunctionLiteralType(com.google.javascript.rhino.jstype.FunctionType type, com.google.javascript.rhino.JSDocInfo info, com.google.javascript.rhino.Node lValue)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_shouldUseFunctionLiteralType_5796(type_ *pkg_rhino.FunctionType, info *pkg_rhino.JSDocInfo, lValue pkg_rhino.Node) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_shouldUseFunctionLiteralType_5806(type_ *pkg_rhino.FunctionType, info *pkg_rhino.JSDocInfo, lValue pkg_rhino.Node) bool {
 	_ = type_
 	_ = info
 	_ = lValue
@@ -3314,11 +3331,11 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	if (lValue != 0) && NodeUtil_MayBeObjectLitKey(lValue) {
 		return false
 	}
-	return (this_.priv_AbstractScopeBuilder_isLValueRootedInGlobalScope_5808(lValue) || !(type_.IsReturnTypeInferred()))
+	return (this_.priv_AbstractScopeBuilder_isLValueRootedInGlobalScope_5818(lValue) || !(type_.IsReturnTypeInferred()))
 }
 
 // Java method: AbstractScopeBuilder.createClassTypeFromNodes(com.google.javascript.rhino.Node clazz, java.lang.@org.jspecify.annotations.Nullable String name, java.lang.@org.jspecify.annotations.Nullable String syntacticName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node lvalueNode)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_createClassTypeFromNodes_5797(clazz pkg_rhino.Node, name string, syntacticName string, info *pkg_rhino.JSDocInfo, lvalueNode pkg_rhino.Node) *pkg_rhino.FunctionType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_createClassTypeFromNodes_5807(clazz pkg_rhino.Node, name string, syntacticName string, info *pkg_rhino.JSDocInfo, lvalueNode pkg_rhino.Node) *pkg_rhino.FunctionType {
 	_ = clazz
 	_ = name
 	_ = syntacticName
@@ -3331,21 +3348,21 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	_ = classType
 	var constructor pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = constructor
-	var builder *FunctionTypeBuilder = this_.outer_.priv_TypedScopeCreator_acquireFunctionTypeBuilder_5733(name, clazz, this_.currentScope)
+	var builder *FunctionTypeBuilder = this_.outer_.priv_TypedScopeCreator_acquireFunctionTypeBuilder_5742(name, clazz, this_.currentScope)
 	_ = builder
 	func() {
 		defer func() {
-			this_.outer_.priv_TypedScopeCreator_releaseFunctionTypeBuilder_5734(builder)
+			this_.outer_.priv_TypedScopeCreator_releaseFunctionTypeBuilder_5743(builder)
 		}()
 		builder.UsingClassSyntax().SetSyntacticFunctionName(syntacticName).SetAstContents(clazz, false).SetDeclarationScope(func() *TypedScope {
 			if lvalueNode != 0 {
-				return this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(lvalueNode)
+				return this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(lvalueNode)
 			}
 			return this_.currentScope
 		}()).InferKind(info).InferTemplateTypeName(info, nil)
 		var extendsClause pkg_rhino.Node = clazz.GetSecondChild()
 		_ = extendsClause
-		var baseType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_findSuperClassFromNodes_5798(extendsClause, info)
+		var baseType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_findSuperClassFromNodes_5808(extendsClause, info)
 		_ = baseType
 		builder.InferInheritance(info, baseType)
 		constructor = NodeUtil_GetEs6ClassConstructorMemberFunctionDef(clazz)
@@ -3403,7 +3420,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.findSuperClassFromNodes(com.google.javascript.rhino.Node extendsNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_findSuperClassFromNodes_5798(extendsNode pkg_rhino.Node, info *pkg_rhino.JSDocInfo) pkg_rhino.ObjectType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_findSuperClassFromNodes_5808(extendsNode pkg_rhino.Node, info *pkg_rhino.JSDocInfo) pkg_rhino.ObjectType {
 	_ = extendsNode
 	_ = info
 	if extendsNode.IsEmpty() {
@@ -3428,11 +3445,11 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 			if ctorType == nil || ctorType.IsJavaNil_() {
 				return pkg_rhino.ObjectType_Cast(this_.outer_.typeRegistry.GetType_5(pkg_rhino.ToIface_StaticTypedScope(this_.currentScope), superclass, extendsNode.GetSourceFileName(), extendsNode.GetLineno(), extendsNode.GetCharno()))
 			}
-		} else if this_.priv_AbstractScopeBuilder_isGoogModuleGetProperty_5799(extendsNode) {
-			ctorType = this_.priv_AbstractScopeBuilder_getCtorForGoogModuleGet_5800(extendsNode)
+		} else if this_.priv_AbstractScopeBuilder_isGoogModuleGetProperty_5809(extendsNode) {
+			ctorType = this_.priv_AbstractScopeBuilder_getCtorForGoogModuleGet_5810(extendsNode)
 		} else {
 			if (info == nil) || !(info.HasBaseType()) {
-				this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(extendsNode, StaticGet_TypedScopeCreator_DYNAMIC_EXTENDS_WITHOUT_JSDOC(), []string{}))
+				this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(extendsNode, StaticGet_TypedScopeCreator_DYNAMIC_EXTENDS_WITHOUT_JSDOC(), []string{}))
 			}
 		}
 	}
@@ -3447,19 +3464,19 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.isGoogModuleGetProperty(com.google.javascript.rhino.Node extendsClause)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isGoogModuleGetProperty_5799(extendsClause pkg_rhino.Node) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isGoogModuleGetProperty_5809(extendsClause pkg_rhino.Node) bool {
 	_ = extendsClause
 	if extendsClause.IsCall() {
 		return ModuleImportResolver_IsGoogModuleDependencyCall(extendsClause)
 	} else if extendsClause.IsGetProp() {
-		return this_.priv_AbstractScopeBuilder_isGoogModuleGetProperty_5799(extendsClause.GetFirstChild())
+		return this_.priv_AbstractScopeBuilder_isGoogModuleGetProperty_5809(extendsClause.GetFirstChild())
 	} else {
 		return false
 	}
 }
 
 // Java method: AbstractScopeBuilder.getCtorForGoogModuleGet(com.google.javascript.rhino.Node extendsNode)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getCtorForGoogModuleGet_5800(extendsNode pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getCtorForGoogModuleGet_5810(extendsNode pkg_rhino.Node) pkg_rhino.JSType {
 	_ = extendsNode
 	var call pkg_rhino.Node = extendsNode
 	_ = call
@@ -3471,18 +3488,21 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	}
 	var extendsCall ScopedName = this_.outer_.moduleImportResolver.GetClosureNamespaceTypeFromCall(call)
 	_ = extendsCall
-	if (extendsCall == nil || extendsCall.IsJavaNil_()) || !(this_.outer_.memoized.ContainsKey(extendsCall.GetScopedNameBase().GetScopeRoot())) {
+	if extendsCall == nil || extendsCall.IsJavaNil_() {
 		return nil
 	}
 	base_extendsCall_ := extendsCall.GetScopedNameBase()
-	var moduleScope *TypedScope = this_.outer_.memoized.Get(base_extendsCall_.GetScopeRoot())
+	var moduleScope *TypedScope = this_.outer_.memoizedByNode.Get(base_extendsCall_.GetScopeRoot())
 	_ = moduleScope
+	if moduleScope == nil {
+		return nil
+	}
 	properties = j2gort.SliceInsertAt(properties, int32(0), base_extendsCall_.GetName())
 	return moduleScope.LookupQualifiedName_1_string(j2gort.Ext_com_google_common_base_Joiner_On_1_uint16(uint16(46)).Join_1_Ext_java_lang_Iterable(j2gort.SliceReadOnlyIterable(properties)))
 }
 
 // Java method: AbstractScopeBuilder.createFunctionTypeFromNodes(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rValue, java.lang.@org.jspecify.annotations.Nullable String name, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node lvalueNode)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5801(rValue pkg_rhino.Node, name string, info *pkg_rhino.JSDocInfo, lvalueNode pkg_rhino.Node) *pkg_rhino.FunctionType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5811(rValue pkg_rhino.Node, name string, info *pkg_rhino.JSDocInfo, lvalueNode pkg_rhino.Node) *pkg_rhino.FunctionType {
 	_ = rValue
 	_ = name
 	_ = info
@@ -3497,7 +3517,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 				if name != j2gort.NullString {
 					this_.outer_.typeRegistry.DeclareType(pkg_rhino.ToIface_StaticScope(this_.currentScope), name, pkg_rhino.Upcast_JSType(aliasedType.GetInstanceType()))
 				}
-				this_.priv_AbstractScopeBuilder_checkFunctionAliasAnnotations_5802(lvalueNode, aliasedType, info)
+				this_.priv_AbstractScopeBuilder_checkFunctionAliasAnnotations_5812(lvalueNode, aliasedType, info)
 				return aliasedType
 			}
 		}
@@ -3584,7 +3604,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 			ownerType = pkg_rhino.ObjectType_Cast(this_.currentScope.LookupQualifiedName_1_string(ownerName))
 		}
 	}
-	var prototypeOwner pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getPrototypeOwnerType_5803(ownerType)
+	var prototypeOwner pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getPrototypeOwnerType_5813(ownerType)
 	_ = prototypeOwner
 	var prototypeOwnerTypeMap *pkg_rhino.TemplateTypeMap = nil
 	_ = prototypeOwnerTypeMap
@@ -3594,13 +3614,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	var overriddenType *pkg_rhino.FunctionType = nil
 	_ = overriddenType
 	if (ownerType != nil && !ownerType.IsJavaNil_()) && (propName != j2gort.NullString) {
-		var overriddenPropType pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_findOverriddenProperty_5804(ownerType, propName, prototypeOwnerTypeMap)
+		var overriddenPropType pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_findOverriddenProperty_5814(ownerType, propName, prototypeOwnerTypeMap)
 		_ = overriddenPropType
 		if overriddenPropType != nil && !overriddenPropType.IsJavaNil_() {
 			if lvalueNode.IsGetterDef() {
 				overriddenType = this_.outer_.typeRegistry.CreateFunctionType_2_JSType_JSType(overriddenPropType, []pkg_rhino.JSType{})
 			} else if lvalueNode.IsSetterDef() {
-				overriddenType = this_.outer_.typeRegistry.CreateFunctionType_2_JSType_JSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()), []pkg_rhino.JSType{overriddenPropType})
+				overriddenType = this_.outer_.typeRegistry.CreateFunctionType_2_JSType_JSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE()), []pkg_rhino.JSType{overriddenPropType})
 			} else if overriddenPropType.GetJSTypeBase().IsFunctionType() {
 				overriddenType = overriddenPropType.ToMaybeFunctionType()
 			}
@@ -3608,19 +3628,19 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	}
 	var hasNonEmptyReturns bool = ((fnRoot != 0) && this_.outer_.functionsWithNonEmptyReturns.Contains(fnRoot))
 	_ = hasNonEmptyReturns
-	var bestTypeName string = this_.priv_AbstractScopeBuilder_getBestTypeName_5792(lvalueNode, name)
+	var bestTypeName string = this_.priv_AbstractScopeBuilder_getBestTypeName_5802(lvalueNode, name)
 	_ = bestTypeName
 	var fnType *pkg_rhino.FunctionType = nil
 	_ = fnType
-	var builder *FunctionTypeBuilder = this_.outer_.priv_TypedScopeCreator_acquireFunctionTypeBuilder_5733(bestTypeName, errorRoot, this_.currentScope)
+	var builder *FunctionTypeBuilder = this_.outer_.priv_TypedScopeCreator_acquireFunctionTypeBuilder_5742(bestTypeName, errorRoot, this_.currentScope)
 	_ = builder
 	func() {
 		defer func() {
-			this_.outer_.priv_TypedScopeCreator_releaseFunctionTypeBuilder_5734(builder)
+			this_.outer_.priv_TypedScopeCreator_releaseFunctionTypeBuilder_5743(builder)
 		}()
 		builder.SetSyntacticFunctionName(name).SetAstContents(fnRoot, hasNonEmptyReturns).SetDeclarationScope(func() *TypedScope {
 			if lvalueNode != 0 {
-				return this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(lvalueNode)
+				return this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(lvalueNode)
 			}
 			return this_.currentScope
 		}()).InferFromOverriddenFunction(overriddenType, parametersNode).InferKind(info).InferClosurePrimitive(info).InferTemplateTypeName(info, pkg_rhino.Upcast_JSType(prototypeOwner)).InferInheritance(info, nil)
@@ -3653,7 +3673,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.checkFunctionAliasAnnotations(com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.FunctionType type, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_checkFunctionAliasAnnotations_5802(n pkg_rhino.Node, type_ *pkg_rhino.FunctionType, info *pkg_rhino.JSDocInfo) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_checkFunctionAliasAnnotations_5812(n pkg_rhino.Node, type_ *pkg_rhino.FunctionType, info *pkg_rhino.JSDocInfo) {
 	_ = n
 	_ = type_
 	_ = info
@@ -3674,12 +3694,12 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		annotation = "@constructor"
 	}
 	if (annotation != j2gort.NullString) && (!(n.IsFromExterns()) || (j2gort.CheckNotNullString(annotation) == "@record")) {
-		this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(n, StaticGet_TypedScopeCreator_INCOMPATIBLE_ALIAS_ANNOTATION(), []string{annotation, n.GetQualifiedName()}))
+		this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(n, StaticGet_TypedScopeCreator_INCOMPATIBLE_ALIAS_ANNOTATION(), []string{annotation, n.GetQualifiedName()}))
 	}
 }
 
 // Java method: AbstractScopeBuilder.getPrototypeOwnerType(com.google.javascript.rhino.jstype.ObjectType ownerType)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getPrototypeOwnerType_5803(ownerType pkg_rhino.ObjectType) pkg_rhino.ObjectType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getPrototypeOwnerType_5813(ownerType pkg_rhino.ObjectType) pkg_rhino.ObjectType {
 	_ = ownerType
 	if (ownerType != nil && !ownerType.IsJavaNil_()) && ownerType.GetObjectTypeBase().IsFunctionPrototypeType() {
 		return pkg_rhino.ToIface_ObjectType(ownerType.GetOwnerFunction())
@@ -3688,7 +3708,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.findOverriddenProperty(com.google.javascript.rhino.jstype.ObjectType ownerType, java.lang.String propName, com.google.javascript.rhino.jstype.TemplateTypeMap typeMap)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_findOverriddenProperty_5804(ownerType pkg_rhino.ObjectType, propName string, typeMap *pkg_rhino.TemplateTypeMap) pkg_rhino.JSType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_findOverriddenProperty_5814(ownerType pkg_rhino.ObjectType, propName string, typeMap *pkg_rhino.TemplateTypeMap) pkg_rhino.JSType {
 	_ = ownerType
 	_ = propName
 	_ = typeMap
@@ -3700,10 +3720,10 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		result = propType
 	} else {
 		{
-			cur_104 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](ownerType.GetCtorImplementedInterfaces())))
-			for cur_104.HasNext() {
-				rawElem_105 := cur_104.Next()
-				iface := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_105)
+			cur_100 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](ownerType.GetCtorImplementedInterfaces())))
+			for cur_100.HasNext() {
+				rawElem_101 := cur_100.Next()
+				iface := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_101)
 				_ = iface
 				propType = iface.GetObjectTypeBase().GetPropertyType_1_string(propName)
 				if (propType != nil && !propType.IsJavaNil_()) && !(propType.GetJSTypeBase().IsUnknownType()) {
@@ -3720,7 +3740,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.createEnumTypeFromNodes(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rValue, java.lang.@org.jspecify.annotations.Nullable String name, com.google.javascript.rhino.Node lValue, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_createEnumTypeFromNodes_5805(rValue pkg_rhino.Node, name string, lValue pkg_rhino.Node, info *pkg_rhino.JSDocInfo) *pkg_rhino.EnumType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_createEnumTypeFromNodes_5815(rValue pkg_rhino.Node, name string, lValue pkg_rhino.Node, info *pkg_rhino.JSDocInfo) *pkg_rhino.EnumType {
 	_ = rValue
 	_ = name
 	_ = lValue
@@ -3742,13 +3762,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		}
 	}
 	if enumType == nil {
-		enumType = j2gort.CastPtr[pkg_rhino.EnumType](j2gort.CastPtr[pkg_rhino.EnumType_Builder](pkg_rhino.EnumType_S_Builder(this_.outer_.typeRegistry).SetName(this_.priv_AbstractScopeBuilder_getBestTypeName_5792(lValue, name))).SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(this_.currentScope)).SetSource(rValue).SetElementType(info.GetEnumParameterType().Evaluate(pkg_rhino.ToIface_StaticTypedScope(this_.currentScope), this_.outer_.typeRegistry)).Build())
+		enumType = j2gort.CastPtr[pkg_rhino.EnumType](j2gort.CastPtr[pkg_rhino.EnumType_Builder](pkg_rhino.EnumType_S_Builder(this_.outer_.typeRegistry).SetName(this_.priv_AbstractScopeBuilder_getBestTypeName_5802(lValue, name))).SetGoogModuleId(TypedScopeCreator_ContainingGoogModuleIdOf(this_.currentScope)).SetSource(rValue).SetElementType(info.GetEnumParameterType().Evaluate(pkg_rhino.ToIface_StaticTypedScope(this_.currentScope), this_.outer_.typeRegistry)).Build())
 		if (rValue != 0) && rValue.IsObjectLit() {
 			var key pkg_rhino.Node = rValue.GetFirstChild()
 			_ = key
 			for key != 0 {
 				if key.IsComputedProp() {
-					this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(key, StaticGet_TypedScopeCreator_INVALID_ENUM_KEY(), []string{}))
+					this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(key, StaticGet_TypedScopeCreator_INVALID_ENUM_KEY(), []string{}))
 					key = key.GetNext()
 					continue
 				}
@@ -3777,7 +3797,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 			iifeArg_2 = rValue
 			break iifeSwitch_2
 		}
-		this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(iifeArg_2,
+		this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(iifeArg_2,
 
 			StaticGet_TypedScopeCreator_ENUM_INITIALIZER(), []string{}))
 	}
@@ -3785,7 +3805,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.declare(com.google.javascript.jscomp.TypedScope scope, java.lang.String name, com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType type, com.google.javascript.jscomp.CompilerInput input, boolean inferred)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declare_5806(scope *TypedScope, name string, n pkg_rhino.Node, type_ pkg_rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declare_5816(scope *TypedScope, name string, n pkg_rhino.Node, type_ pkg_rhino.JSType, input *CompilerInput, inferred bool) *TypedVar {
 	_ = scope
 	_ = name
 	_ = n
@@ -3806,7 +3826,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.finishConstructorDefinition(com.google.javascript.rhino.Node declarationNode, java.lang.String variableName, com.google.javascript.rhino.jstype.FunctionType fnType, com.google.javascript.jscomp.TypedScope scopeToDeclareIn, com.google.javascript.jscomp.CompilerInput input)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_finishConstructorDefinition_5807(declarationNode pkg_rhino.Node, variableName string, fnType *pkg_rhino.FunctionType, scopeToDeclareIn *TypedScope, input *CompilerInput) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_finishConstructorDefinition_5817(declarationNode pkg_rhino.Node, variableName string, fnType *pkg_rhino.FunctionType, scopeToDeclareIn *TypedScope, input *CompilerInput) {
 	_ = declarationNode
 	_ = variableName
 	_ = fnType
@@ -3823,17 +3843,17 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	if (prototypeVar != nil) && (j2gort.CastPtr[TypedScope](prototypeVar.GetScope()) == scopeToDeclareIn) {
 		scopeToDeclareIn.Undeclare(ToIface_AbstractVar(prototypeVar))
 	}
-	scopeToDeclareIn.Declare(prototypeName, declarationNode, prototypeSlot.GetType(), input, ((superClassCtor == nil) || superClassCtor.GetInstanceType().GetObjectTypeBase().GetJSTypeBase().EqualsJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))))
+	scopeToDeclareIn.Declare(prototypeName, declarationNode, prototypeSlot.GetType(), input, ((superClassCtor == nil) || superClassCtor.GetInstanceType().GetObjectTypeBase().GetJSTypeBase().EqualsJSType(this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_OBJECT_TYPE()))))
 }
 
 // Java method: AbstractScopeBuilder.isLValueRootedInGlobalScope(com.google.javascript.rhino.Node n)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isLValueRootedInGlobalScope_5808(n pkg_rhino.Node) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isLValueRootedInGlobalScope_5818(n pkg_rhino.Node) bool {
 	_ = n
-	return this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(n).IsGlobal()
+	return this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(n).IsGlobal()
 }
 
 // Java method: AbstractScopeBuilder.getLValueRootScope(com.google.javascript.rhino.Node n)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getLValueRootScope_5809(n pkg_rhino.Node) *TypedScope {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getLValueRootScope_5819(n pkg_rhino.Node) *TypedScope {
 	_ = n
 	var root pkg_rhino.Node = NodeUtil_GetBestLValueRoot(n)
 	_ = root
@@ -3875,13 +3895,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(info *p
 	_ = rValue
 	_ = declaredRValueTypeSupplier
 	if (info != nil) && info.HasType() {
-		var type_ pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_getDeclaredTypeInAnnotation_5782(lValue, info)
+		var type_ pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_getDeclaredTypeInAnnotation_5792(lValue, info)
 		_ = type_
 		if (((type_.GetJSTypeBase().IsSymbol() && lValue.IsFromExterns()) && lValue.IsGetProp()) && lValue.GetFirstChild().MatchesName_1_string("Symbol")) && this_.currentScope.IsGlobal() {
 			return pkg_rhino.NewKnownSymbolType(this_.outer_.typeRegistry, lValue.GetQualifiedName())
 		}
 		return type_
-	} else if ((rValue != 0) && rValue.IsFunction()) && this_.priv_AbstractScopeBuilder_shouldUseFunctionLiteralType_5796(pkg_rhino.JSType_ToMaybeFunctionType(rValue.GetJSType()), info, lValue) {
+	} else if ((rValue != 0) && rValue.IsFunction()) && this_.priv_AbstractScopeBuilder_shouldUseFunctionLiteralType_5806(pkg_rhino.JSType_ToMaybeFunctionType(rValue.GetJSType()), info, lValue) {
 		return rValue.GetJSType()
 	} else if (rValue != 0) && rValue.IsClass() {
 		return rValue.GetJSType()
@@ -3890,13 +3910,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(info *p
 			if (rValue != 0) && rValue.IsObjectLit() {
 				return rValue.GetJSType()
 			} else {
-				return pkg_rhino.ToIface_JSType(this_.priv_AbstractScopeBuilder_createEnumTypeFromNodes_5805(rValue, lValue.GetQualifiedName(), lValue, info))
+				return pkg_rhino.ToIface_JSType(this_.priv_AbstractScopeBuilder_createEnumTypeFromNodes_5815(rValue, lValue.GetQualifiedName(), lValue, info))
 			}
 		} else if info.IsConstructorOrInterface() {
-			var fnType *pkg_rhino.FunctionType = this_.priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5801(rValue, lValue.GetQualifiedName(), info, lValue)
+			var fnType *pkg_rhino.FunctionType = this_.priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5811(rValue, lValue.GetQualifiedName(), info, lValue)
 			_ = fnType
 			if (rValue == 0) && !(lValue.IsFromExterns()) {
-				this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(lValue, func() *DiagnosticType {
+				this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(lValue, func() *DiagnosticType {
 					if fnType.IsConstructor() {
 						return StaticGet_TypedScopeCreator_CTOR_INITIALIZER()
 					}
@@ -3908,10 +3928,10 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(info *p
 	}
 	if ((lValue.IsExport() && lValue.GetBooleanProp(pkg_rhino.StaticGet_Node_EXPORT_DEFAULT())) || NodeUtil_IsConstantDeclaration(info, lValue)) || this_.IsGoogModuleExports(lValue) {
 		if rValue != 0 {
-			var rValueType pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_getDeclaredRValueType_5818(lValue, rValue)
+			var rValueType pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_getDeclaredRValueType_5828(lValue, rValue)
 			_ = rValueType
 			if rValue.IsQualifiedName() {
-				this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5812(lValue.GetQualifiedName(), lValue, rValue.GetQualifiedName(), rValueType, this_.currentScope, this_.currentScope)
+				this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5822(lValue.GetQualifiedName(), lValue, rValue.GetQualifiedName(), rValueType, this_.currentScope, this_.currentScope)
 			}
 			if rValueType != nil && !rValueType.IsJavaNil_() {
 				return rValueType
@@ -3921,7 +3941,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(info *p
 			_ = rvalueInfo
 			if rvalueInfo != nil {
 				if rvalueInfo.qualifiedName != nil && !rvalueInfo.qualifiedName.IsJavaNil_() {
-					this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5811(lValue, rvalueInfo.qualifiedName, rvalueInfo.type_, this_.currentScope)
+					this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5821(lValue, rvalueInfo.qualifiedName, rvalueInfo.type_, this_.currentScope)
 				}
 				if rvalueInfo.type_ != nil && !rvalueInfo.type_.IsJavaNil_() {
 					return rvalueInfo.type_
@@ -3935,25 +3955,25 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) GetDeclaredType(info *p
 	if (info != nil) && FunctionTypeBuilder_IsFunctionTypeDeclaration(info) {
 		var fnName string = lValue.GetQualifiedName()
 		_ = fnName
-		return pkg_rhino.ToIface_JSType(this_.priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5801(pkg_rhino.Node(0), fnName, info, lValue))
+		return pkg_rhino.ToIface_JSType(this_.priv_AbstractScopeBuilder_createFunctionTypeFromNodes_5811(pkg_rhino.Node(0), fnName, info, lValue))
 	}
-	if this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5830(lValue, info) {
-		return this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE())
+	if this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5840(lValue, info) {
+		return this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE())
 	}
 	return nil
 }
 
 // Java method: AbstractScopeBuilder.declareAliasTypeIfRvalueIsAliasable(com.google.javascript.rhino.Node lValue, com.google.javascript.rhino.@org.jspecify.annotations.Nullable QualifiedName rValue, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType rValueType, com.google.javascript.jscomp.TypedScope rValueLookupScope)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5811(lValue pkg_rhino.Node, rValue pkg_rhino.QualifiedName, rValueType pkg_rhino.JSType, rValueLookupScope *TypedScope) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5821(lValue pkg_rhino.Node, rValue pkg_rhino.QualifiedName, rValueType pkg_rhino.JSType, rValueLookupScope *TypedScope) {
 	_ = lValue
 	_ = rValue
 	_ = rValueType
 	_ = rValueLookupScope
-	this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5813(lValue.GetQualifiedName(), lValue, rValue, rValueType, rValueLookupScope, this_.currentScope)
+	this_.priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5823(lValue.GetQualifiedName(), lValue, rValue, rValueType, rValueLookupScope, this_.currentScope)
 }
 
 // Java method: AbstractScopeBuilder.declareAliasTypeIfRvalueIsAliasable(java.lang.@org.jspecify.annotations.Nullable String lValueName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node actualLvalueNode, java.lang.@org.jspecify.annotations.Nullable String rValueName, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType rValueType, com.google.javascript.jscomp.TypedScope rValueLookupScope, com.google.javascript.jscomp.TypedScope aliasDeclarationScope)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5812(lValueName string, actualLvalueNode pkg_rhino.Node, rValueName string, rValueType pkg_rhino.JSType, rValueLookupScope *TypedScope, aliasDeclarationScope *TypedScope) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5822(lValueName string, actualLvalueNode pkg_rhino.Node, rValueName string, rValueType pkg_rhino.JSType, rValueLookupScope *TypedScope, aliasDeclarationScope *TypedScope) {
 	_ = lValueName
 	_ = actualLvalueNode
 	_ = rValueName
@@ -3963,13 +3983,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	if rValueName == j2gort.NullString {
 		return
 	}
-	var definitionNode pkg_rhino.Node = this_.priv_AbstractScopeBuilder_getDefinitionNode_5816(rValueName, rValueLookupScope)
+	var definitionNode pkg_rhino.Node = this_.priv_AbstractScopeBuilder_getDefinitionNode_5826(rValueName, rValueLookupScope)
 	_ = definitionNode
-	this_.priv_AbstractScopeBuilder_finishDeclareAliasType_5814(lValueName, actualLvalueNode, definitionNode, rValueType, aliasDeclarationScope)
+	this_.priv_AbstractScopeBuilder_finishDeclareAliasType_5824(lValueName, actualLvalueNode, definitionNode, rValueType, aliasDeclarationScope)
 }
 
 // Java method: AbstractScopeBuilder.declareAliasTypeIfRvalueIsAliasable(java.lang.@org.jspecify.annotations.Nullable String lValueName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node actualLvalueNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable QualifiedName rValue, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType rValueType, com.google.javascript.jscomp.TypedScope rValueLookupScope, com.google.javascript.jscomp.TypedScope aliasDeclarationScope)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5813(lValueName string, actualLvalueNode pkg_rhino.Node, rValue pkg_rhino.QualifiedName, rValueType pkg_rhino.JSType, rValueLookupScope *TypedScope, aliasDeclarationScope *TypedScope) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_declareAliasTypeIfRvalueIsAliasable_5823(lValueName string, actualLvalueNode pkg_rhino.Node, rValue pkg_rhino.QualifiedName, rValueType pkg_rhino.JSType, rValueLookupScope *TypedScope, aliasDeclarationScope *TypedScope) {
 	_ = lValueName
 	_ = actualLvalueNode
 	_ = rValue
@@ -3979,13 +3999,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	if rValue == nil || rValue.IsJavaNil_() {
 		return
 	}
-	var definitionNode pkg_rhino.Node = this_.priv_AbstractScopeBuilder_getDefinitionNode_5817(rValue, rValueLookupScope)
+	var definitionNode pkg_rhino.Node = this_.priv_AbstractScopeBuilder_getDefinitionNode_5827(rValue, rValueLookupScope)
 	_ = definitionNode
-	this_.priv_AbstractScopeBuilder_finishDeclareAliasType_5814(lValueName, actualLvalueNode, definitionNode, rValueType, aliasDeclarationScope)
+	this_.priv_AbstractScopeBuilder_finishDeclareAliasType_5824(lValueName, actualLvalueNode, definitionNode, rValueType, aliasDeclarationScope)
 }
 
 // Java method: AbstractScopeBuilder.finishDeclareAliasType(java.lang.@org.jspecify.annotations.Nullable String lValueName, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node actualLvalueNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node definitionNode, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType rValueType, com.google.javascript.jscomp.TypedScope aliasDeclarationScope)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_finishDeclareAliasType_5814(lValueName string, actualLvalueNode pkg_rhino.Node, definitionNode pkg_rhino.Node, rValueType pkg_rhino.JSType, aliasDeclarationScope *TypedScope) {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_finishDeclareAliasType_5824(lValueName string, actualLvalueNode pkg_rhino.Node, definitionNode pkg_rhino.Node, rValueType pkg_rhino.JSType, aliasDeclarationScope *TypedScope) {
 	_ = lValueName
 	_ = actualLvalueNode
 	_ = definitionNode
@@ -4031,7 +4051,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) IsGoogModuleExports(lVa
 }
 
 // Java method: AbstractScopeBuilder.getDefinitionNode(java.lang.String qname, com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDefinitionNode_5816(qname string, scope *TypedScope) pkg_rhino.Node {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDefinitionNode_5826(qname string, scope *TypedScope) pkg_rhino.Node {
 	_ = qname
 	_ = scope
 	var lastDot int32 = j2gort.JStrLastIndexOfCp(qname, int32(uint16(46)))
@@ -4055,7 +4075,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.getDefinitionNode(com.google.javascript.rhino.QualifiedName qname, com.google.javascript.jscomp.TypedScope scope)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDefinitionNode_5817(qname pkg_rhino.QualifiedName, scope *TypedScope) pkg_rhino.Node {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDefinitionNode_5827(qname pkg_rhino.QualifiedName, scope *TypedScope) pkg_rhino.Node {
 	_ = qname
 	_ = scope
 	if qname.IsSimple() {
@@ -4077,7 +4097,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.getDeclaredRValueType(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node lValue, com.google.javascript.rhino.Node rValue)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDeclaredRValueType_5818(lValue pkg_rhino.Node, rValue pkg_rhino.Node) pkg_rhino.JSType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getDeclaredRValueType_5828(lValue pkg_rhino.Node, rValue pkg_rhino.Node) pkg_rhino.JSType {
 	_ = lValue
 	_ = rValue
 	var rValueInfo *pkg_rhino.JSDocInfo = rValue.GetJSDocInfo()
@@ -4094,16 +4114,16 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		return this_.currentScope.LookupQualifiedNameNode(rValue)
 	}
 	if NodeUtil_IsBooleanResult(rValue) {
-		return this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
+		return this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_BOOLEAN_TYPE())
 	}
 	if NodeUtil_IsNumericResult(rValue) {
-		return this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
+		return this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_NUMBER_TYPE())
 	}
 	if NodeUtil_IsBigIntResult(rValue) {
-		return this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE())
+		return this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_BIGINT_TYPE())
 	}
 	if NodeUtil_IsStringResult(rValue) {
-		return this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
+		return this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_STRING_TYPE())
 	}
 	if rValue.IsNew() && rValue.GetFirstChild().IsQualifiedName() {
 		var targetType pkg_rhino.JSType = this_.currentScope.LookupQualifiedNameNode(rValue.GetFirstChild())
@@ -4129,9 +4149,9 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 		var secondClause pkg_rhino.Node = firstClause.GetNext()
 		_ = secondClause
 		var namesMatch bool = (((firstClause.IsName() && (lValue != 0)) && lValue.IsName()) && func() bool {
-			sr_106 := firstClause.GetString()
-			se_107 := lValue.GetString()
-			return j2gort.CheckNotNullString(sr_106) == se_107
+			sr_102 := firstClause.GetString()
+			se_103 := lValue.GetString()
+			return j2gort.CheckNotNullString(sr_102) == se_103
 		}())
 		_ = namesMatch
 		if namesMatch {
@@ -4189,10 +4209,10 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) CheckForClassDefiningCa
 				this_.outer_.SetDeferredType(objectLiteralCast.objectNode, pkg_rhino.Upcast_JSType(type_))
 				objectLiteralCast.objectNode.PutBooleanProp(pkg_rhino.StaticGet_Node_REFLECTED_OBJECT(), true)
 			} else {
-				this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(n, StaticGet_TypedScopeCreator_CONSTRUCTOR_EXPECTED(), []string{}))
+				this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(n, StaticGet_TypedScopeCreator_CONSTRUCTOR_EXPECTED(), []string{}))
 			}
 		} else {
-			this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(n, objectLiteralCast.diagnosticType, []string{}))
+			this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(n, objectLiteralCast.diagnosticType, []string{}))
 		}
 	}
 }
@@ -4221,7 +4241,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareGetElem(inf
 	}
 	var ownerName string = ownerNode.GetQualifiedName()
 	_ = ownerName
-	var ownerType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getObjectSlot_5827(ownerName)
+	var ownerType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getObjectSlot_5837(ownerName)
 	_ = ownerType
 	if ownerType == nil || ownerType.IsJavaNil_() {
 		return
@@ -4236,7 +4256,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedNa
 	_ = n
 	_ = parent
 	_ = rhsValue
-	var isTypedef bool = this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5830(n, info)
+	var isTypedef bool = this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5840(n, info)
 	_ = isTypedef
 	if isTypedef {
 		this_.DeclareTypedefType(n, info)
@@ -4288,7 +4308,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedNa
 		}
 		return
 	}
-	var inferred bool = this_.priv_AbstractScopeBuilder_isQualifiedNameInferred_5822(ownerNode, ownerName, qName, propName, n, info, rhsValue, valueType)
+	var inferred bool = this_.priv_AbstractScopeBuilder_isQualifiedNameInferred_5832(ownerNode, ownerName, qName, propName, n, info, rhsValue, valueType)
 	_ = inferred
 	if !(inferred) {
 		if ownerName == j2gort.NullString {
@@ -4297,7 +4317,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedNa
 		if qName == j2gort.NullString {
 			qName = (j2gort.StrValString(ownerName) + "." + j2gort.StrValString(propName))
 		}
-		var ownerType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getObjectSlot_5827(ownerName)
+		var ownerType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getObjectSlot_5837(ownerName)
 		_ = ownerType
 		if ownerType != nil && !ownerType.IsJavaNil_() {
 			this_.DeclarePropertyIfNamespaceType_6_ObjectType_Node_string_JSType_Node_JSDocInfo(ownerType, ownerNode, propName, valueType, n, nil)
@@ -4305,13 +4325,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) MaybeDeclareQualifiedNa
 		var declareInScope bool = ((ownerType == nil || ownerType.IsJavaNil_()) || !(ownerType.GetObjectTypeBase().IsFunctionPrototypeType()))
 		_ = declareInScope
 		if declareInScope {
-			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(n).ForVariableName(qName).InScope(this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(n)).WithType(valueType).AllowLaterTypeInference(inferred).DefineSlot()
+			NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(n).ForVariableName(qName).InScope(this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(n)).WithType(valueType).AllowLaterTypeInference(inferred).DefineSlot()
 		}
 	}
 }
 
 // Java method: AbstractScopeBuilder.isQualifiedNameInferred(com.google.javascript.rhino.Node ownerNode, java.lang.@org.jspecify.annotations.Nullable String ownerName, java.lang.@org.jspecify.annotations.Nullable String qName, java.lang.String propName, com.google.javascript.rhino.Node n, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node rhsValue, com.google.javascript.rhino.jstype.JSType valueType)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isQualifiedNameInferred_5822(ownerNode pkg_rhino.Node, ownerName string, qName string, propName string, n pkg_rhino.Node, info *pkg_rhino.JSDocInfo, rhsValue pkg_rhino.Node, valueType pkg_rhino.JSType) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isQualifiedNameInferred_5832(ownerNode pkg_rhino.Node, ownerName string, qName string, propName string, n pkg_rhino.Node, info *pkg_rhino.JSDocInfo, rhsValue pkg_rhino.Node, valueType pkg_rhino.JSType) bool {
 	_ = ownerNode
 	_ = ownerName
 	_ = qName
@@ -4347,8 +4367,8 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 			return false
 		}
 	}
-	rhsValue = this_.priv_AbstractScopeBuilder_unwrapIfAssign_5823(rhsValue)
-	if ((info != nil) && ((((info.HasType() || info.HasEnumParameterType()) || this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5830(n, info)) || FunctionTypeBuilder_IsFunctionTypeDeclaration(info)) || ((rhsValue != 0) && rhsValue.IsFunction()))) || this_.priv_AbstractScopeBuilder_isTypedConstantDeclaration_5825(info, n, valueType) {
+	rhsValue = this_.priv_AbstractScopeBuilder_unwrapIfAssign_5833(rhsValue)
+	if ((info != nil) && ((((info.HasType() || info.HasEnumParameterType()) || this_.priv_AbstractScopeBuilder_isValidTypedefDeclaration_5840(n, info)) || FunctionTypeBuilder_IsFunctionTypeDeclaration(info)) || ((rhsValue != 0) && rhsValue.IsFunction()))) || this_.priv_AbstractScopeBuilder_isTypedConstantDeclaration_5835(info, n, valueType) {
 		return false
 	}
 	if (rhsValue == 0) || (!(rhsValue.IsFunction()) && !(rhsValue.IsClass())) {
@@ -4357,7 +4377,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	if !(n.IsUnscopedQualifiedName()) {
 		return true
 	}
-	var ownerScope *TypedScope = this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(n)
+	var ownerScope *TypedScope = this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(n)
 	_ = ownerScope
 	if qName == j2gort.NullString {
 		if ownerName == j2gort.NullString {
@@ -4368,7 +4388,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 	if (ownerScope != nil) && ownerScope.HasOwnSlot(qName) {
 		return true
 	}
-	if this_.priv_AbstractScopeBuilder_hasControlStructureAncestor_5826(n.GetParent()) {
+	if this_.priv_AbstractScopeBuilder_hasControlStructureAncestor_5836(n.GetParent()) {
 		return true
 	}
 	if (ownerScope != nil) && this_.outer_.scopedVarStates.IsEscaped(ownerScope.GetRootNode_0(), qName) {
@@ -4378,12 +4398,12 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.unwrapIfAssign(com.google.javascript.rhino.Node maybeAssign)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_unwrapIfAssign_5823(maybeAssign pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_unwrapIfAssign_5833(maybeAssign pkg_rhino.Node) pkg_rhino.Node {
 	_ = maybeAssign
 	if (maybeAssign == 0) || !(maybeAssign.IsAssign()) {
 		return maybeAssign
 	}
-	return this_.priv_AbstractScopeBuilder_unwrapIfAssign_5823(maybeAssign.GetSecondChild())
+	return this_.priv_AbstractScopeBuilder_unwrapIfAssign_5833(maybeAssign.GetSecondChild())
 }
 
 // Java method: AbstractScopeBuilder.declareProvidedNs(com.google.javascript.rhino.Node provideCall, com.google.javascript.jscomp.ProcessClosureProvidesAndRequires.ProvidedName providedName)
@@ -4407,7 +4427,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DeclareProvidedNs(provi
 }
 
 // Java method: AbstractScopeBuilder.isTypedConstantDeclaration(com.google.javascript.rhino.JSDocInfo info, com.google.javascript.rhino.Node n, com.google.javascript.rhino.jstype.JSType valueType)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isTypedConstantDeclaration_5825(info *pkg_rhino.JSDocInfo, n pkg_rhino.Node, valueType pkg_rhino.JSType) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isTypedConstantDeclaration_5835(info *pkg_rhino.JSDocInfo, n pkg_rhino.Node, valueType pkg_rhino.JSType) bool {
 	_ = info
 	_ = n
 	_ = valueType
@@ -4415,7 +4435,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.hasControlStructureAncestor(com.google.javascript.rhino.Node n)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_hasControlStructureAncestor_5826(n pkg_rhino.Node) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_hasControlStructureAncestor_5836(n pkg_rhino.Node) bool {
 	_ = n
 	for !(n.IsScript() || n.IsFunction()) {
 		if NodeUtil_IsControlStructure(n) {
@@ -4427,7 +4447,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.getObjectSlot(java.lang.String slotName)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getObjectSlot_5827(slotName string) pkg_rhino.ObjectType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getObjectSlot_5837(slotName string) pkg_rhino.ObjectType {
 	_ = slotName
 	var ownerVar *TypedVar = this_.currentScope.LookupTypedVar(slotName)
 	_ = ownerVar
@@ -4453,17 +4473,17 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuild
 }
 
 // Java method: AbstractScopeBuilder.getInheritedInterfacePropertyType(com.google.javascript.rhino.jstype.ObjectType obj, java.lang.String propName)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getInheritedInterfacePropertyType_5828(obj pkg_rhino.ObjectType, propName string) pkg_rhino.JSType {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_getInheritedInterfacePropertyType_5838(obj pkg_rhino.ObjectType, propName string) pkg_rhino.JSType {
 	_ = obj
 	_ = propName
 	if (obj != nil && !obj.IsJavaNil_()) && obj.GetObjectTypeBase().IsFunctionPrototypeType() {
 		var f *pkg_rhino.FunctionType = obj.GetOwnerFunction()
 		_ = f
 		{
-			cur_108 := j2gort.NewIterCursor(j2gort.CheckNotNull(f.GetImplementedInterfaces()))
-			for cur_108.HasNext() {
-				rawElem_109 := cur_108.Next()
-				i := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_109)
+			cur_104 := j2gort.NewIterCursor(j2gort.CheckNotNull(f.GetImplementedInterfaces()))
+			for cur_104.HasNext() {
+				rawElem_105 := cur_104.Next()
+				i := j2gort.AsIface[pkg_rhino.ObjectType](rawElem_105)
 				_ = i
 				if i.GetObjectTypeBase().HasProperty_1_string(propName) {
 					return i.GetObjectTypeBase().GetPropertyType_1_string(propName)
@@ -4486,9 +4506,9 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(
 	if this_.currentScope.HasOwnSlot(qName) {
 		return
 	}
-	var ownerType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getObjectSlot_5827(ownerName)
+	var ownerType pkg_rhino.ObjectType = this_.priv_AbstractScopeBuilder_getObjectSlot_5837(ownerName)
 	_ = ownerType
-	var inheritedType pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_getInheritedInterfacePropertyType_5828(ownerType, propName)
+	var inheritedType pkg_rhino.JSType = this_.priv_AbstractScopeBuilder_getInheritedInterfacePropertyType_5838(ownerType, propName)
 	_ = inheritedType
 	var stubType pkg_rhino.JSType
 	_ = stubType
@@ -4497,7 +4517,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(
 	} else {
 		stubType = inheritedType
 	}
-	NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(n).ReadVariableNameFromDeclarationNode().InScope(this_.priv_AbstractScopeBuilder_getLValueRootScope_5809(n)).WithType(stubType).AllowLaterTypeInference(true).DefineSlot()
+	NewTypedScopeCreator_AbstractScopeBuilder_SlotDefiner(this_.self_).ForDeclarationNode(n).ReadVariableNameFromDeclarationNode().InScope(this_.priv_AbstractScopeBuilder_getLValueRootScope_5819(n)).WithType(stubType).AllowLaterTypeInference(true).DefineSlot()
 	if (ownerType != nil && !ownerType.IsJavaNil_()) && (isExtern || ownerType.GetObjectTypeBase().IsFunctionPrototypeType()) {
 		ownerType.GetObjectTypeBase().DefineInferredProperty_3_string_JSType_Node(propName, stubType, n)
 	} else {
@@ -4511,7 +4531,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) ResolveStubDeclaration(
 }
 
 // Java method: AbstractScopeBuilder.isValidTypedefDeclaration(com.google.javascript.rhino.Node candidate, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info)
-func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isValidTypedefDeclaration_5830(candidate pkg_rhino.Node, info *pkg_rhino.JSDocInfo) bool {
+func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) priv_AbstractScopeBuilder_isValidTypedefDeclaration_5840(candidate pkg_rhino.Node, info *pkg_rhino.JSDocInfo) bool {
 	_ = candidate
 	_ = info
 	if (info == nil) || !(info.HasTypedefType()) {
@@ -4530,7 +4550,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilderBase) DeclareTypedefType(cand
 	var realType pkg_rhino.JSType = info.GetTypedefType().Evaluate(pkg_rhino.ToIface_StaticTypedScope(this_.currentScope), this_.outer_.typeRegistry)
 	_ = realType
 	if realType == nil || realType.IsJavaNil_() {
-		this_.outer_.priv_TypedScopeCreator_report_5743(JSError_Make_3(candidate, StaticGet_TypedScopeCreator_MALFORMED_TYPEDEF(), []string{typedef}))
+		this_.outer_.priv_TypedScopeCreator_report_5752(JSError_Make_3(candidate, StaticGet_TypedScopeCreator_MALFORMED_TYPEDEF(), []string{typedef}))
 	} else {
 		candidate.SetTypedefTypeProp(realType)
 	}
@@ -4734,13 +4754,13 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) DefineSlot() {
 		if this_.type_ != nil && !this_.type_.IsJavaNil_() {
 			this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().outer_.SetDeferredType(this_.declarationNode, this_.type_)
 		}
-		this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_declare_5806(scopeToDeclareIn, this_.variableName, this_.declarationNode, this_.type_, input, this_.allowLaterTypeInference)
+		this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_declare_5816(scopeToDeclareIn, this_.variableName, this_.declarationNode, this_.type_, input, this_.allowLaterTypeInference)
 	}
 	var fnType *pkg_rhino.FunctionType = pkg_rhino.JSType_ToMaybeFunctionType(this_.type_)
 	_ = fnType
 	if (fnType != nil) && !(this_.type_.GetJSTypeBase().IsEmptyType()) {
 		if fnType.IsConstructor() || fnType.IsInterface() {
-			this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_finishConstructorDefinition_5807(this_.declarationNode, this_.variableName, fnType, scopeToDeclareIn, input)
+			this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_finishConstructorDefinition_5817(this_.declarationNode, this_.variableName, fnType, scopeToDeclareIn, input)
 		}
 	}
 	if shouldDeclareOnGlobalThis {
@@ -4749,7 +4769,7 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) DefineSlot() {
 		if this_.allowLaterTypeInference {
 			globalThis.GetObjectTypeBase().DefineInferredProperty_3_string_JSType_Node(this_.variableName, func() pkg_rhino.JSType {
 				if this_.type_ == nil || this_.type_.IsJavaNil_() {
-					return this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE())
+					return this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_NO_TYPE())
 				}
 				return this_.type_
 			}(), this_.declarationNode)
@@ -4758,9 +4778,9 @@ func (this_ *TypedScopeCreator_AbstractScopeBuilder_SlotDefiner) DefineSlot() {
 		}
 	}
 	if (((isGlobalVar && func() bool {
-		sr_110 := "Window"
-		se_111 := this_.variableName
-		return j2gort.CheckNotNullString(sr_110) == se_111
+		sr_106 := "Window"
+		se_107 := this_.variableName
+		return j2gort.CheckNotNullString(sr_106) == se_107
 	}()) && (this_.type_ != nil && !this_.type_.IsJavaNil_())) && this_.type_.GetJSTypeBase().IsFunctionType()) && this_.type_.GetJSTypeBase().IsConstructor() {
 		var globalThisCtor *pkg_rhino.FunctionType = this_.outer_.GetTypedScopeCreator_AbstractScopeBuilderBase().outer_.typeRegistry.GetNativeObjectType(pkg_rhino.StaticGet_JSTypeNative_GLOBAL_THIS()).GetConstructor()
 		_ = globalThisCtor
@@ -4871,10 +4891,10 @@ func (this_ *TypedScopeCreator_NormalScopeBuilder) VisitPostorder(t *NodeTravers
 	case int32(93) /* Token.EXPR_RESULT */ :
 		if !(this_.outer_.providedNamesFromCall.IsEmpty()) && j2gort.MultimapContainsKeyNode(this_.outer_.providedNamesFromCall, n) {
 			{
-				cur_112 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.MultimapGetNode(this_.outer_.providedNamesFromCall, n))))
-				for cur_112.HasNext() {
-					rawElem_113 := cur_112.Next()
-					name := j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](rawElem_113)
+				cur_108 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.MultimapGetNode(this_.outer_.providedNamesFromCall, n))))
+				for cur_108.HasNext() {
+					rawElem_109 := cur_108.Next()
+					name := j2gort.CastPtr[ProcessClosureProvidesAndRequires_ProvidedName](rawElem_109)
 					_ = name
 					this_.DeclareProvidedNs(n, name)
 				}
@@ -5004,22 +5024,22 @@ func (this_ *TypedScopeCreator_FunctionScopeBuilder) DeclareParameters(functionN
 				var declaredType pkg_rhino.JSType
 				_ = declaredType
 				if jsdocParamIdx < jsdocParamLen {
-					declaredType = jsdocParameters[func() int32 { old_114 := jsdocParamIdx; nw_115 := old_114 + 1; jsdocParamIdx = nw_115; return old_114 }()].GetJSType()
+					declaredType = jsdocParameters[func() int32 { old_110 := jsdocParamIdx; nw_111 := old_110 + 1; jsdocParamIdx = nw_111; return old_110 }()].GetJSType()
 				} else {
 					declaredType = pkg_rhino.Upcast_JSType(this_.outer_.unknownType)
 				}
-				this_.priv_FunctionScopeBuilder_declareNamesInPositionalParameter_5845(astParameter, declaredType, iifeArgumentNode)
+				this_.priv_FunctionScopeBuilder_declareNamesInPositionalParameter_5855(astParameter, declaredType, iifeArgumentNode)
 				if iifeArgumentNode != 0 {
 					iifeArgumentNode = iifeArgumentNode.GetNext()
 				}
 			}
 		}
-		this_.priv_FunctionScopeBuilder_declareTemplatesInFunctionBody_5844(functionNode, functionType)
+		this_.priv_FunctionScopeBuilder_declareTemplatesInFunctionBody_5854(functionNode, functionType)
 	}
 }
 
 // Java method: FunctionScopeBuilder.declareTemplatesInFunctionBody(com.google.javascript.rhino.Node functionNode, com.google.javascript.rhino.jstype.FunctionType functionType)
-func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareTemplatesInFunctionBody_5844(functionNode pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
+func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareTemplatesInFunctionBody_5854(functionNode pkg_rhino.Node, functionType *pkg_rhino.FunctionType) {
 	_ = functionNode
 	_ = functionType
 	var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(functionNode)
@@ -5072,12 +5092,12 @@ func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_d
 	}
 	var input *CompilerInput = this_.GetCompilerInput()
 	_ = input
-	var voidType pkg_rhino.JSType = this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
+	var voidType pkg_rhino.JSType = this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_VOID_TYPE())
 	_ = voidType
 	{
-		cur_116 := templateNames.Iter()
-		for cur_116.HasNext() {
-			name := cur_116.
+		cur_112 := templateNames.Iter()
+		for cur_112.HasNext() {
+			name := cur_112.
 				Next()
 			_ = name
 			if !(this_.GetTypedScopeCreator_AbstractScopeBuilderBase().currentScope.CanDeclare(name)) {
@@ -5089,7 +5109,7 @@ func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_d
 }
 
 // Java method: FunctionScopeBuilder.declareNamesInPositionalParameter(com.google.javascript.rhino.Node astParameter, com.google.javascript.rhino.jstype.JSType declaredParameterType, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node iifeArgumentNode)
-func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareNamesInPositionalParameter_5845(astParameter pkg_rhino.Node, declaredParameterType pkg_rhino.JSType, iifeArgumentNode pkg_rhino.Node) {
+func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareNamesInPositionalParameter_5855(astParameter pkg_rhino.Node, declaredParameterType pkg_rhino.JSType, iifeArgumentNode pkg_rhino.Node) {
 	_ = astParameter
 	_ = declaredParameterType
 	_ = iifeArgumentNode
@@ -5116,7 +5136,7 @@ func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_d
 	}
 	switch astParameter.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */ :
-		this_.priv_FunctionScopeBuilder_declareSingleParameterName_5847(isInferred, astParameter, paramType)
+		this_.priv_FunctionScopeBuilder_declareSingleParameterName_5857(isInferred, astParameter, paramType)
 	case int32(125) /* Token.ITER_REST */ :
 		var param pkg_rhino.Node = astParameter.GetFirstChild()
 		_ = param
@@ -5125,40 +5145,40 @@ func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_d
 		var restParamType pkg_rhino.JSType = pkg_rhino.ToIface_JSType(this_.outer_.typeRegistry.CreateTemplatizedType_2_ObjectType_JSType(arrayType, []pkg_rhino.JSType{paramType}))
 		_ = restParamType
 		if param.IsName() {
-			this_.priv_FunctionScopeBuilder_declareSingleParameterName_5847(isInferred, astParameter.GetFirstChild(), restParamType)
+			this_.priv_FunctionScopeBuilder_declareSingleParameterName_5857(isInferred, astParameter.GetFirstChild(), restParamType)
 		} else {
-			this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5846(isInferred, param, restParamType)
+			this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5856(isInferred, param, restParamType)
 		}
 	case int32(134) /* Token.DEFAULT_VALUE */ :
 		var actualParam pkg_rhino.Node = astParameter.GetFirstChild()
 		_ = actualParam
 		if actualParam.IsName() {
-			this_.priv_FunctionScopeBuilder_declareSingleParameterName_5847(isInferred, actualParam, paramType)
+			this_.priv_FunctionScopeBuilder_declareSingleParameterName_5857(isInferred, actualParam, paramType)
 		} else {
-			this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5846(isInferred, actualParam, paramType)
+			this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5856(isInferred, actualParam, paramType)
 		}
 	case int32(102) /* Token.ARRAY_PATTERN */, int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5846(isInferred, astParameter, paramType)
+		this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5856(isInferred, astParameter, paramType)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected function parameter node "+j2gort.StrVal(astParameter))))
 	}
 }
 
 // Java method: FunctionScopeBuilder.declareDestructuringParameter(boolean isInferred, com.google.javascript.rhino.Node pattern, com.google.javascript.rhino.jstype.JSType patternType)
-func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareDestructuringParameter_5846(isInferred bool, pattern pkg_rhino.Node, patternType pkg_rhino.JSType) {
+func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareDestructuringParameter_5856(isInferred bool, pattern pkg_rhino.Node, patternType pkg_rhino.JSType) {
 	_ = isInferred
 	_ = pattern
 	_ = patternType
 	{
-		cur_117 := j2gort.NewIterCursor(j2gort.CheckNotNull(DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_JSType_Node(this_.outer_.typeRegistry, patternType, pattern)))
-		for cur_117.HasNext() {
-			rawElem_118 := cur_117.Next()
-			target := j2gort.CastPtr[DestructuredTarget](rawElem_118)
+		cur_113 := j2gort.NewIterCursor(j2gort.CheckNotNull(DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_JSType_Node(this_.outer_.typeRegistry, patternType, pattern)))
+		for cur_113.HasNext() {
+			rawElem_114 := cur_113.Next()
+			target := j2gort.CastPtr[DestructuredTarget](rawElem_114)
 			_ = target
 			var parameterType pkg_rhino.JSType = target.InferTypeWithoutUsingDefaultValue()
 			_ = parameterType
 			if target.GetNode().IsDestructuringPattern() {
-				this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5846(isInferred, target.GetNode(), parameterType)
+				this_.priv_FunctionScopeBuilder_declareDestructuringParameter_5856(isInferred, target.GetNode(), parameterType)
 			} else {
 				var paramName pkg_rhino.Node = target.GetNode()
 				_ = paramName
@@ -5175,14 +5195,14 @@ func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_d
 						isInferred = true
 					}
 				}
-				this_.priv_FunctionScopeBuilder_declareSingleParameterName_5847(isInferred, paramName, parameterType)
+				this_.priv_FunctionScopeBuilder_declareSingleParameterName_5857(isInferred, paramName, parameterType)
 			}
 		}
 	}
 }
 
 // Java method: FunctionScopeBuilder.declareSingleParameterName(boolean isInferred, com.google.javascript.rhino.Node name, com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareSingleParameterName_5847(isInferred bool, name pkg_rhino.Node, type_ pkg_rhino.JSType) {
+func (this_ *TypedScopeCreator_FunctionScopeBuilder) priv_FunctionScopeBuilder_declareSingleParameterName_5857(isInferred bool, name pkg_rhino.Node, type_ pkg_rhino.JSType) {
 	_ = isInferred
 	_ = name
 	_ = type_
@@ -5281,7 +5301,7 @@ func (this_ *TypedScopeCreator_ClassScopeBuilder) VisitPostorder(t *NodeTraversa
 // Java method: ClassScopeBuilder.defineMemberFunction(com.google.javascript.rhino.Node n)
 func (this_ *TypedScopeCreator_ClassScopeBuilder) DefineMemberFunction(n pkg_rhino.Node) {
 	_ = n
-	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5852(n)
+	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5862(n)
 	_ = ownerType
 	ownerType.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(n.GetString(), n.GetLastChild().GetJSType(), n)
 }
@@ -5299,15 +5319,15 @@ func (this_ *TypedScopeCreator_ClassScopeBuilder) DefineMemberField(n pkg_rhino.
 		if rhs == 0 {
 			rhsType = nil
 		} else {
-			rhsType = this_.TypedScopeCreator_AbstractScopeBuilderBase.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_getDeclaredRValueType_5818(pkg_rhino.Node(0), rhs)
+			rhsType = this_.TypedScopeCreator_AbstractScopeBuilderBase.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_getDeclaredRValueType_5828(pkg_rhino.Node(0), rhs)
 		}
 		if (rhsType != nil && !rhsType.IsJavaNil_()) && !(rhsType.GetJSTypeBase().IsUnknownType()) {
 			declaredType = rhsType
 		} else {
-			declaredType = this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())
+			declaredType = this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())
 		}
 	}
-	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5852(n)
+	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5862(n)
 	_ = ownerType
 	var propName string = n.GetString()
 	_ = propName
@@ -5338,15 +5358,15 @@ func (this_ *TypedScopeCreator_ClassScopeBuilder) DefineComputedMemberField(n pk
 		if rhs == 0 {
 			rhsType = nil
 		} else {
-			rhsType = this_.TypedScopeCreator_AbstractScopeBuilderBase.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_getDeclaredRValueType_5818(pkg_rhino.Node(0), rhs)
+			rhsType = this_.TypedScopeCreator_AbstractScopeBuilderBase.GetTypedScopeCreator_AbstractScopeBuilderBase().priv_AbstractScopeBuilder_getDeclaredRValueType_5828(pkg_rhino.Node(0), rhs)
 		}
 		if (rhsType != nil && !rhsType.IsJavaNil_()) && !(rhsType.GetJSTypeBase().IsUnknownType()) {
 			declaredType = rhsType
 		} else {
-			declaredType = this_.outer_.priv_TypedScopeCreator_getNativeType_5758(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())
+			declaredType = this_.outer_.priv_TypedScopeCreator_getNativeType_5768(pkg_rhino.StaticGet_JSTypeNative_ALL_TYPE())
 		}
 	}
-	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5852(n)
+	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5862(n)
 	_ = ownerType
 	ownerType.GetObjectTypeBase().DefineDeclaredProperty_3_Property_Key_JSType_Node(pkg_rhino.NewProperty_SymbolKey(keyType.ToMaybeKnownSymbolType()), declaredType, n)
 	n.SetJSType(declaredType)
@@ -5391,13 +5411,13 @@ func (this_ *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n pkg_rhino
 	default:
 		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", j2gort.BoxString(n.ToStringTree()))))
 	}
-	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5852(n)
+	var ownerType pkg_rhino.ObjectType = this_.priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5862(n)
 	_ = ownerType
 	ownerType.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(name, propertyType, n)
 }
 
 // Java method: ClassScopeBuilder.determineOwnerTypeForClassMember(com.google.javascript.rhino.Node member)
-func (this_ *TypedScopeCreator_ClassScopeBuilder) priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5852(member pkg_rhino.Node) pkg_rhino.ObjectType {
+func (this_ *TypedScopeCreator_ClassScopeBuilder) priv_ClassScopeBuilder_determineOwnerTypeForClassMember_5862(member pkg_rhino.Node) pkg_rhino.ObjectType {
 	_ = member
 	var ownerNode pkg_rhino.Node = member.GetGrandparent()
 	_ = ownerNode

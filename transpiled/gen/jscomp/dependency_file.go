@@ -86,12 +86,10 @@ func clinitSlow_DependencyFile() {
 
 func (this_ *DependencyFile) initFields_DependencyFile() {
 	_ = this_
-	this_.dependencies = j2gort.NewPlainMapVal[string, DependencyInfo](
-
-	// Java constructor: DependencyFile(com.google.javascript.jscomp.deps.SourceFile delegate)
-	)
+	this_.dependencies = j2gort.NewPlainMapVal[string, DependencyInfo]()
 }
 
+// Java constructor: DependencyFile(com.google.javascript.jscomp.deps.SourceFile delegate)
 func NewDependencyFile(delegate Deps_SourceFile) *DependencyFile {
 	clinit_DependencyFile()
 	this_ := &DependencyFile{}
@@ -123,7 +121,7 @@ func (this_ *DependencyFile) WasModified() bool {
 // Java method: DependencyFile.ensureUpToDate()
 func (this_ *DependencyFile) EnsureUpToDate() {
 	if this_.dependencies.IsEmpty() || this_.WasModified() {
-		this_.priv_DependencyFile_loadGraph_6084()
+		this_.priv_DependencyFile_loadGraph_6094()
 	}
 }
 
@@ -134,7 +132,7 @@ func (this_ *DependencyFile) GetDependencyInfo(symbol string) DependencyInfo {
 }
 
 // Java method: DependencyFile.loadGraph()
-func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6084() {
+func (this_ *DependencyFile) priv_DependencyFile_loadGraph_6094() {
 	this_.dependencies.Clear()
 	StaticGet_DependencyFile_Logger().Info_1_string("Loading dependency graph")
 	var errorManager ErrorManager = NewLoggerErrorManager_1(StaticGet_DependencyFile_Logger())

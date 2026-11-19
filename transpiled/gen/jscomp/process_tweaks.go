@@ -202,15 +202,15 @@ func InitProcessTweaks(this_ *ProcessTweaks, compiler AbstractCompiler, stripTwe
 func (this_ *ProcessTweaks) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	var result *ProcessTweaks_CollectTweaksResult = this_.priv_ProcessTweaks_collectTweaks_4562(root)
+	var result *ProcessTweaks_CollectTweaksResult = this_.priv_ProcessTweaks_collectTweaks_4571(root)
 	_ = result
 	if this_.stripTweaks {
-		this_.priv_ProcessTweaks_stripAllCalls_4561(result.tweakInfos)
+		this_.priv_ProcessTweaks_stripAllCalls_4570(result.tweakInfos)
 	}
 }
 
 // Java method: ProcessTweaks.stripAllCalls(java.util.Map<java.lang.String,com.google.javascript.jscomp.ProcessTweaks.TweakInfo> tweakInfos)
-func (this_ *ProcessTweaks) priv_ProcessTweaks_stripAllCalls_4561(tweakInfos *j2gort.OrderedMap[string, *ProcessTweaks_TweakInfo]) {
+func (this_ *ProcessTweaks) priv_ProcessTweaks_stripAllCalls_4570(tweakInfos *j2gort.OrderedMap[string, *ProcessTweaks_TweakInfo]) {
 	_ = tweakInfos
 	{
 		cur_3 := tweakInfos.IterValues()
@@ -252,7 +252,7 @@ func (this_ *ProcessTweaks) priv_ProcessTweaks_stripAllCalls_4561(tweakInfos *j2
 }
 
 // Java method: ProcessTweaks.collectTweaks(com.google.javascript.rhino.Node root)
-func (this_ *ProcessTweaks) priv_ProcessTweaks_collectTweaks_4562(root pkg_rhino.Node) *ProcessTweaks_CollectTweaksResult {
+func (this_ *ProcessTweaks) priv_ProcessTweaks_collectTweaks_4571(root pkg_rhino.Node) *ProcessTweaks_CollectTweaksResult {
 	_ = root
 	var pass *ProcessTweaks_CollectTweaks = NewProcessTweaks_CollectTweaks(this_)
 	_ = pass
@@ -578,12 +578,10 @@ func (*ProcessTweaks_CollectTweaks) Implements_jscomp_NodeTraversal_Callback()  
 
 func (this_ *ProcessTweaks_CollectTweaks) initFields_ProcessTweaks_CollectTweaks() {
 	_ = this_
-	this_.allTweaks = &j2gort.OrderedMap[string, *ProcessTweaks_TweakInfo]{
-
-		// Java constructor: CollectTweaks()
-	}
+	this_.allTweaks = &j2gort.OrderedMap[string, *ProcessTweaks_TweakInfo]{}
 }
 
+// Java constructor: CollectTweaks()
 func NewProcessTweaks_CollectTweaks(outer_ *ProcessTweaks) *ProcessTweaks_CollectTweaks {
 	this_ := &ProcessTweaks_CollectTweaks{}
 	this_.outer_ = outer_

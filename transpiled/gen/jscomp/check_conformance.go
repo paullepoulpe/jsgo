@@ -154,10 +154,10 @@ func clinitSlow_CheckConformance() {
 func (this_ *CheckConformance) initFields_CheckConformance() {
 	_ = this_
 	this_.mergedBehaviors = j2gort.NewExt_java_util_LinkedHashMap()
-	this_.ruleToBehavior = j2gort.NewOrderedMap[CheckConformance_Rule, *j2gort.
+	this_.ruleToBehavior = j2gort.NewOrderedMap[CheckConformance_Rule, *j2gort.Ext_com_google_javascript_jscomp_ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior](
 
-		// Java constructor: CheckConformance(com.google.javascript.jscomp.AbstractCompiler compiler)
-		Ext_com_google_javascript_jscomp_ConformanceConfig_LibraryLevelNonAllowlistedConformanceViolationsBehavior]()
+	// Java constructor: CheckConformance(com.google.javascript.jscomp.AbstractCompiler compiler)
+	)
 }
 
 func NewCheckConformance_1(compiler AbstractCompiler) *CheckConformance {

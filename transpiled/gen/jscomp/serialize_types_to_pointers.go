@@ -150,7 +150,7 @@ func (this_ *SerializeTypesToPointers) GatherTypesOnAst(root pkg_rhino.Node) {
 		}
 	}
 	this_.typePool = this_.jstypeReconserializer.GenerateTypePool()
-	this_.priv_SerializeTypesToPointers_logSerializationDebugInfo_7780(this_.jstypeReconserializer, this_.typePool)
+	this_.priv_SerializeTypesToPointers_logSerializationDebugInfo_7794(this_.jstypeReconserializer, this_.typePool)
 }
 
 // Java method: SerializeTypesToPointers.getTypePointersByJstype()
@@ -164,7 +164,7 @@ func (this_ *SerializeTypesToPointers) GetTypePool() *j2gort.Ext_com_google_java
 }
 
 // Java method: SerializeTypesToPointers.logSerializationDebugInfo(com.google.javascript.jscomp.serialization.JSTypeReconserializer serializer, com.google.javascript.jscomp.serialization.TypePool typePool)
-func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logSerializationDebugInfo_7780(serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) {
+func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logSerializationDebugInfo_7794(serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) {
 	_ = serializer
 	_ = typePool
 	func() {
@@ -183,14 +183,14 @@ func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logSerializ
 		defer j2gort.CloseResource(log_2)
 		if log_2.IsLogging() {
 			log_2.Log_1_Ext_java_util_function_Supplier(j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
-				return j2gort.BoxString(StaticGet_SerializeTypesToPointers_GSON().ToJson_1_any(this_.priv_SerializeTypesToPointers_logTypeMismatches_7781(this_.compiler.GetTypeMismatches(), serializer, typePool)))
+				return j2gort.BoxString(StaticGet_SerializeTypesToPointers_GSON().ToJson_1_any(this_.priv_SerializeTypesToPointers_logTypeMismatches_7795(this_.compiler.GetTypeMismatches(), serializer, typePool)))
 			}))
 		}
 	}()
 }
 
 // Java method: SerializeTypesToPointers.logTypeMismatches(java.lang.Iterable<com.google.javascript.jscomp.TypeMismatch> typeMismatches, com.google.javascript.jscomp.serialization.JSTypeReconserializer serializer, com.google.javascript.jscomp.serialization.TypePool typePool)
-func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logTypeMismatches_7781(typeMismatches j2gort.Ext_java_lang_Iterable, serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) j2gort.Ext_com_google_common_collect_ImmutableSortedSet {
+func (this_ *SerializeTypesToPointers) priv_SerializeTypesToPointers_logTypeMismatches_7795(typeMismatches j2gort.Ext_java_lang_Iterable, serializer *JSTypeReconserializer, typePool *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool) j2gort.Ext_com_google_common_collect_ImmutableSortedSet {
 	_ = typeMismatches
 	_ = serializer
 	_ = typePool
@@ -273,7 +273,7 @@ func (this_ *SerializeTypesToPointers_AstPropertySet) Add(name string) {
 			}
 			this_.size = this_.size + 1
 			if (this_.size * int32(4)) >= (int32(len(table)) * int32(3)) {
-				this_.priv_AstPropertySet_rehash_7784((int32(len(table)) * int32(2)))
+				this_.priv_AstPropertySet_rehash_7798((int32(len(table)) * int32(2)))
 			}
 			return
 		}
@@ -313,7 +313,7 @@ func (this_ *SerializeTypesToPointers_AstPropertySet) Contains(name string) bool
 }
 
 // Java method: AstPropertySet.rehash(int newCap)
-func (this_ *SerializeTypesToPointers_AstPropertySet) priv_AstPropertySet_rehash_7784(newCap int32) {
+func (this_ *SerializeTypesToPointers_AstPropertySet) priv_AstPropertySet_rehash_7798(newCap int32) {
 	_ = newCap
 	var oldTable []string = this_.keys
 	_ = oldTable

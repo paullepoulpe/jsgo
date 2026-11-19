@@ -118,19 +118,19 @@ func (this_ *NestedCompilerRunner) AddScript(shadowScript pkg_rhino.Node, unique
 
 // Java method: NestedCompilerRunner.compile()
 func (this_ *NestedCompilerRunner) Compile() {
-	this_.priv_NestedCompilerRunner_initializeCompiler_3935()
-	this_.priv_NestedCompilerRunner_runCompilation_3937()
-	this_.priv_NestedCompilerRunner_checkInvariants_3939()
+	this_.priv_NestedCompilerRunner_initializeCompiler_3944()
+	this_.priv_NestedCompilerRunner_runCompilation_3946()
+	this_.priv_NestedCompilerRunner_checkInvariants_3948()
 }
 
 // Java method: NestedCompilerRunner.initializeCompiler()
-func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_initializeCompiler_3935() {
+func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_initializeCompiler_3944() {
 	var externNames j2gort.Ext_com_google_common_collect_ImmutableSet = NodeUtil_CollectExternVariableNames(this_.original, this_.original.GetRoot().GetFirstChild())
 	_ = externNames
 	this_.shadowCompiler.AddExportedNames(j2gort.AsIface[j2gort.Ext_java_util_Set](externNames))
 	this_.shadowCompiler.SetExternProperties(this_.original.GetExternProperties())
 	this_.shadowCompiler.SetDebugMessage("<shadow AST compilation>")
-	var chunks j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_NestedCompilerRunner_createChunks_3936()
+	var chunks j2gort.Ext_com_google_common_collect_ImmutableList = this_.priv_NestedCompilerRunner_createChunks_3945()
 	_ = chunks
 	this_.shadowCompiler.InitChunks(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()), j2gort.AsIface[j2gort.Ext_java_util_List](chunks), this_.shadowOptions)
 	this_.shadowCompiler.SetPassConfig(this_.shadowPassConfig)
@@ -138,7 +138,7 @@ func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_initializeCompiler_
 }
 
 // Java method: NestedCompilerRunner.createChunks()
-func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_createChunks_3936() j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_createChunks_3945() j2gort.Ext_com_google_common_collect_ImmutableList {
 	this_.baseChunk.Add_1_CompilerInput(NewCompilerInput_1(SourceFile_FromCode_3("synthetic_base", "", pkg_rhino.StaticGet_StaticSourceFile_SourceKind_STRONG())))
 	var chunks *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{}).AddSelf_(j2gort.PtrToAny(this_.baseChunk))
 	_ = chunks
@@ -155,7 +155,7 @@ func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_createChunks_3936()
 }
 
 // Java method: NestedCompilerRunner.runCompilation()
-func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_runCompilation_3937() {
+func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_runCompilation_3946() {
 	switch (this_.mode).Ordinal() {
 	case int32(0) /* Mode.TRANSPILE_AND_OPTIMIZE */ :
 		{
@@ -164,25 +164,25 @@ func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_runCompilation_3937
 			InitVarCheck_1(&val_4, ToIface_AbstractCompiler(this_.shadowCompiler))
 			(&val_4).Process_2(this_.shadowCompiler.GetExternsRoot(), this_.shadowCompiler.GetJsRoot())
 		}
-		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3938()
+		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3947()
 		if this_.shadowCompiler.HasHaltingErrors() {
 			return
 		}
 		this_.shadowCompiler.Stage2Passes(StaticGet_CompilerOptions_SegmentOfCompilationToRun_OPTIMIZATIONS())
-		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3938()
+		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3947()
 		if this_.shadowCompiler.HasHaltingErrors() {
 			return
 		}
 		this_.shadowCompiler.Stage3Passes()
-		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3938()
+		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3947()
 	case int32(1) /* Mode.TRANSPILE_ONLY */ :
 		this_.shadowCompiler.TranspileAndDontCheck()
-		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3938()
+		this_.priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3947()
 	}
 }
 
 // Java method: NestedCompilerRunner.delegateDiagnosticsToOriginal()
-func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3938() {
+func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_delegateDiagnosticsToOriginal_3947() {
 	{
 		cur_5 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.shadowCompiler.GetErrors()))
 		for cur_5.HasNext() {
@@ -204,7 +204,7 @@ func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_delegateDiagnostics
 }
 
 // Java method: NestedCompilerRunner.checkInvariants()
-func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_checkInvariants_3939() {
+func (this_ *NestedCompilerRunner) priv_NestedCompilerRunner_checkInvariants_3948() {
 	if !(this_.baseChunk.GetInputs().Size() == int32(1)) {
 		j2gort.CheckStateFmt(false, "Expected exactly 1 base chunk input, got %s", this_.baseChunk.GetInputs())
 	}

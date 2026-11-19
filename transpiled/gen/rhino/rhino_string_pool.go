@@ -98,20 +98,16 @@ func RhinoStringPool_AddOrGet(s string) string {
 
 // Java static method: RhinoStringPool.fastHash32(java.lang.String s)
 func RhinoStringPool_FastHash32(s string) int32 {
-	_ = s
 	return j2gort.FastStrHash32(s)
 }
 
 // Java static method: RhinoStringPool.joinDollar(java.lang.String a, java.lang.String b)
 func RhinoStringPool_JoinDollar(a string, b string) string {
-	_ = a
-	_ = b
 	return nodestore.JoinDollar(a, b)
 }
 
 // Java static method: RhinoStringPool.internId(java.lang.String s)
 func RhinoStringPool_InternId(s string) int32 {
-	_ = s
 	if s == j2gort.NullString {
 		j2gort.ThrowNPE()
 	}
@@ -120,7 +116,6 @@ func RhinoStringPool_InternId(s string) int32 {
 
 // Java static method: RhinoStringPool.internOwnedId(java.lang.String s)
 func RhinoStringPool_InternOwnedId(s string) int32 {
-	_ = s
 	if s == j2gort.NullString {
 		j2gort.ThrowNPE()
 	}
@@ -129,7 +124,6 @@ func RhinoStringPool_InternOwnedId(s string) int32 {
 
 // Java static method: RhinoStringPool.stringById(int id)
 func RhinoStringPool_StringById(id int32) string {
-	_ = id
 	if id <= 0 {
 		return j2gort.NullString
 	}
@@ -138,9 +132,8 @@ func RhinoStringPool_StringById(id int32) string {
 
 // Java static method: RhinoStringPool.getNodeStringId(com.google.javascript.rhino.Node n)
 func RhinoStringPool_GetNodeStringId(n Node) int32 {
-	_ = n
 	if n == 0 {
-		panic(nodeNullPtrEx)
+		j2gort.ThrowNPE()
 	}
 	rec := nodestore.Node(n).Rec()
 	if rec.KindFlags&7 == 3 {
@@ -155,27 +148,22 @@ func RhinoStringPool_GetNodeStringId(n Node) int32 {
 
 // Java static method: RhinoStringPool.getNodeOrigNameId(com.google.javascript.rhino.Node n)
 func RhinoStringPool_GetNodeOrigNameId(n Node) int32 {
-	_ = n
 	if n == 0 {
-		panic(nodeNullPtrEx)
+		j2gort.ThrowNPE()
 	}
 	return int32(nodestore.Node(n).OrigNameID())
 }
 
 // Java static method: RhinoStringPool.setNodeOrigNameId(com.google.javascript.rhino.Node n, int id)
 func RhinoStringPool_SetNodeOrigNameId(n Node, id int32) {
-	_ = n
-	_ = id
 	if n == 0 {
-		panic(nodeNullPtrEx)
+		j2gort.ThrowNPE()
 	}
 	nodestore.Node(n).SetOrigNameID(nodestore.StringID(id))
 }
 
 // Java static method: RhinoStringPool.newStringNodeById(com.google.javascript.rhino.Token token, int strId)
 func RhinoStringPool_NewStringNodeById(token Token, strId int32) Node {
-	_ = token
-	_ = strId
 	tok_ := tokenToByte(token)
 	if strId <= 0 {
 		j2gort.ThrowNPE()

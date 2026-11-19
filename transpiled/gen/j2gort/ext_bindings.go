@@ -22950,7 +22950,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9887(any) any
+	Append_1_any_9903(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23013,7 +23013,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9887(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9903(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23751,7 +23751,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9887(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9903(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -26530,6 +26530,9 @@ func (this_ *Ext_java_util_ArrayDeque) RemoveLast() any {
 func (this_ *Ext_java_util_ArrayDeque) PollFirst() any {
 	return this_.dc().PollFirst()
 }
+func (this_ *Ext_java_util_ArrayDeque) PollLast() any {
+	return this_.dc().PollLast()
+}
 func (this_ *Ext_java_util_ArrayDeque) GetFirst() any {
 	return this_.dc().GetFirst()
 }
@@ -27015,6 +27018,7 @@ type Ext_java_util_Deque interface {
 	Ext_java_util_Queue
 	Ext_java_util_SequencedCollection
 	PollFirst() any
+	PollLast() any
 	PeekFirst() any
 	PeekLast() any
 	Push(any)
@@ -28586,6 +28590,12 @@ func (this_ *Ext_java_util_LinkedList) PollFirst() any {
 		return nil
 	}
 	return this_.lc().RemoveAt(0)
+}
+func (this_ *Ext_java_util_LinkedList) PollLast() any {
+	if this_.lc().IsEmpty() {
+		return nil
+	}
+	return this_.lc().RemoveAt(this_.lc().Size() - 1)
 }
 func (this_ *Ext_java_util_LinkedList) Push(arg0 any) {
 	this_.lc().AddAt(0, arg0)
@@ -35683,6 +35693,17 @@ func NewExt_java_util_HashMap() Ext_java_util_HashMap {
 }
 
 func InitExt_java_util_HashMap(this_ *Ext_java_util_HashMapBase) {
+}
+
+func NewExt_java_util_HashMap_1_int32(arg0 int32) Ext_java_util_HashMap {
+	obj := &Ext_java_util_HashMapBase{}
+	obj.BindExtSelf_(obj)
+	obj.inlineCore.InitExpectedSize(arg0)
+	return obj
+}
+
+func InitExt_java_util_HashMap_1_int32(this_ *Ext_java_util_HashMapBase, arg0 int32) {
+	this_.inlineCore.InitExpectedSize(arg0)
 }
 
 func NewExt_java_util_HashSet() Ext_java_util_HashSet {

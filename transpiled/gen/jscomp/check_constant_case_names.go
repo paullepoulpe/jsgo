@@ -144,7 +144,7 @@ func (this_ *CheckConstantCaseNames) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 	_ = n
 	_ = parent
 	if n.IsModuleBody() {
-		this_.priv_CheckConstantCaseNames_reportWarningsAndClear_6532()
+		this_.priv_CheckConstantCaseNames_reportWarningsAndClear_6546()
 		return
 	}
 	switch n.TokenSwitchOrd_() {
@@ -181,7 +181,7 @@ func (this_ *CheckConstantCaseNames) Visit_3(t *NodeTraversal, n pkg_rhino.Node,
 }
 
 // Java method: CheckConstantCaseNames.reportWarningsAndClear()
-func (this_ *CheckConstantCaseNames) priv_CheckConstantCaseNames_reportWarningsAndClear_6532() {
+func (this_ *CheckConstantCaseNames) priv_CheckConstantCaseNames_reportWarningsAndClear_6546() {
 	{
 		cur_2 := this_.invalidNamesPerModule.IterValues()
 		for cur_2.HasNext() {

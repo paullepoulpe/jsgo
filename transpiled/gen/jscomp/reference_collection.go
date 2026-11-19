@@ -26,12 +26,13 @@ import (
 
 // Java class: com.google.javascript.jscomp.ReferenceCollection
 type ReferenceCollection struct {
-	ref0    *Reference   `gson:"ref0"`
-	ref1    *Reference   `gson:"ref1"`
-	ref2    *Reference   `gson:"ref2"`
-	ref3    *Reference   `gson:"ref3"`
-	rest    []*Reference `gson:"rest"`
-	idHash_ atomic.Int32
+	ref0           *Reference   `gson:"ref0"`
+	ref1           *Reference   `gson:"ref1"`
+	ref2           *Reference   `gson:"ref2"`
+	ref3           *Reference   `gson:"ref3"`
+	rest           []*Reference `gson:"rest"`
+	idHash_        atomic.Int32
+	ivSafeAliases_ int8
 }
 
 func (this_ *ReferenceCollection) BindSelf_(s any) {
@@ -60,6 +61,7 @@ func (*ReferenceCollection) Implements_j2gort_Ext_java_lang_Iterable() {}
 
 func (this_ *ReferenceCollection) initFields_ReferenceCollection() {
 	_ = this_
+
 }
 
 // Java constructor: ReferenceCollection()
@@ -274,7 +276,7 @@ func (this_ *ReferenceCollection) IsThisRebound() bool {
 }
 
 // Java method: ReferenceCollection.isInitializingDeclarationAt(int index)
-func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingDeclarationAt_4656(index int32) bool {
+func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingDeclarationAt_4665(index int32) bool {
 	_ = index
 	var maybeInit *Reference = this_.Get(index)
 	_ = maybeInit
@@ -285,7 +287,7 @@ func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingDeclara
 }
 
 // Java method: ReferenceCollection.isInitializingAssignmentAt(int index)
-func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingAssignmentAt_4657(index int32) bool {
+func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingAssignmentAt_4666(index int32) bool {
 	_ = index
 	if (index < this_.Size()) && (index > int32(0)) {
 		var maybeDecl *Reference = this_.Get((index - int32(1)))
@@ -306,16 +308,16 @@ func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingAssignm
 
 // Java method: ReferenceCollection.getInitializingReference()
 func (this_ *ReferenceCollection) GetInitializingReference() *Reference {
-	if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4656(int32(0)) {
+	if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4665(int32(0)) {
 		return this_.Get(int32(0))
-	} else if this_.priv_ReferenceCollection_isInitializingAssignmentAt_4657(int32(1)) && this_.priv_ReferenceCollection_areInSameFile_4659(int32(0), int32(1)) {
+	} else if this_.priv_ReferenceCollection_isInitializingAssignmentAt_4666(int32(1)) && this_.priv_ReferenceCollection_areInSameFile_4668(int32(0), int32(1)) {
 		return this_.Get(int32(1))
 	}
 	return nil
 }
 
 // Java method: ReferenceCollection.areInSameFile(int idx0, int idx1)
-func (this_ *ReferenceCollection) priv_ReferenceCollection_areInSameFile_4659(idx0 int32, idx1 int32) bool {
+func (this_ *ReferenceCollection) priv_ReferenceCollection_areInSameFile_4668(idx0 int32, idx1 int32) bool {
 	_ = idx0
 	_ = idx1
 	return j2gort.ObjEqCustomPtr(this_.Get(idx0).GetInputId(), this_.Get(idx1).GetInputId())
@@ -329,7 +331,7 @@ func (this_ *ReferenceCollection) GetInitializingReferenceForConstants() *Refere
 		var i int32 = int32(0)
 		_ = i
 		for ; i < size; i = i + 1 {
-			if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4656(i) || this_.priv_ReferenceCollection_isInitializingAssignmentAt_4657(i) {
+			if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4665(i) || this_.priv_ReferenceCollection_isInitializingAssignmentAt_4666(i) {
 				return this_.Get(i)
 			}
 		}

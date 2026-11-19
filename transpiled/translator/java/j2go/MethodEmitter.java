@@ -1068,22 +1068,23 @@ public final class MethodEmitter {
           out.append("\tdefer unlock_()\n");
         }
       }
-      out.append(guards);
-
       ctx.expectedReturnType = retTm;
       ctx.returnWidenedToAny = false;
 
       if (tryEmitRhinoStringPoolStaticIntrinsic(mt, mtPath, typeEl, ee, out, ctx)) {
-        // Intrinsic body emitted directly above.
-      } else if (mt.getBody() != null) {
-        out.append(
-            stmtEmitter.emitBlockStatements(
-                mt.getBody(), new TreePath(mtPath, mt.getBody()), 1, ctx));
-        if (retTm != null && !endsWithGoTerminatingReturnOrThrow(mt.getBody())) {
-          out.append("\tpanic(\"unreachable\")\n");
+        // Intrinsic body emitted directly above (all parameters are referenced).
+      } else {
+        out.append(guards);
+        if (mt.getBody() != null) {
+          out.append(
+              stmtEmitter.emitBlockStatements(
+                  mt.getBody(), new TreePath(mtPath, mt.getBody()), 1, ctx));
+          if (retTm != null && !endsWithGoTerminatingReturnOrThrow(mt.getBody())) {
+            out.append("\tpanic(\"unreachable\")\n");
+          }
+        } else if (retTm != null) {
+          out.append("\treturn ").append(resolver.zeroValue(retTm, ctx.imports)).append('\n');
         }
-      } else if (retTm != null) {
-        out.append("\treturn ").append(resolver.zeroValue(retTm, ctx.imports)).append('\n');
       }
       out.append("}\n\n");
     } finally {
@@ -1178,7 +1179,7 @@ public final class MethodEmitter {
       String rt = rtPrefix(ctx);
       String ns = resolver.runtime.nodestoreAlias(ctx.imports);
       String nsPref = ns.isEmpty() ? "" : (ns + ".");
-      out.append("\tif ").append(p0).append(" == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append("\tif ").append(p0).append(" == 0 {\n\t\t").append(rt).append("ThrowNPE()\n\t}\n");
       out.append("\trec := ").append(nsPref).append("Node(").append(p0).append(").Rec()\n");
       out.append("\tif rec.KindFlags&7 == 3 {\n\t\treturn int32(rec.Payload)\n\t}\n");
       out.append("\ts := ").append(p0).append(".GetString()\n");
@@ -1191,9 +1192,10 @@ public final class MethodEmitter {
         && resolver.isNodeType(ee.getParameters().get(0).asType())
         && ee.getReturnType().getKind() == TypeKind.INT) {
       String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String rt = rtPrefix(ctx);
       String ns = resolver.runtime.nodestoreAlias(ctx.imports);
       String nsPref = ns.isEmpty() ? "" : (ns + ".");
-      out.append("\tif ").append(p0).append(" == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append("\tif ").append(p0).append(" == 0 {\n\t\t").append(rt).append("ThrowNPE()\n\t}\n");
       out.append("\treturn int32(").append(nsPref).append("Node(").append(p0).append(").OrigNameID())\n");
       return true;
     }
@@ -1204,9 +1206,10 @@ public final class MethodEmitter {
         && ee.getReturnType().getKind() == TypeKind.VOID) {
       String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
       String p1 = lookupParamLocal(mt, mtPath, 1, ctx);
+      String rt = rtPrefix(ctx);
       String ns = resolver.runtime.nodestoreAlias(ctx.imports);
       String nsPref = ns.isEmpty() ? "" : (ns + ".");
-      out.append("\tif ").append(p0).append(" == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append("\tif ").append(p0).append(" == 0 {\n\t\t").append(rt).append("ThrowNPE()\n\t}\n");
       out.append('\t').append(nsPref).append("Node(").append(p0).append(").SetOrigNameID(")
           .append(nsPref).append("StringID(").append(p1).append("))\n");
       return true;

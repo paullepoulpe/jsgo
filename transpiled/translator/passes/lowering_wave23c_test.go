@@ -2548,7 +2548,9 @@ func TestWave23C_RealGenDryRunAndIdempotency(t *testing.T) {
 	lugSrc, _ := os.ReadFile(filepath.Join(realGraphDir, "linked_undirected_graph.go"))
 	ldgSrc, _ := os.ReadFile(filepath.Join(realGraphDir, "linked_directed_graph.go"))
 	graphPreLowered := strings.Contains(string(lugSrc), "func (this_ *LinkedUndirectedGraph[N, E]) ReleaseSlabs_()") &&
-		(!hasSlabResetInGen || strings.Contains(string(ldgSrc), ".slab_LinkedDirectedGraph_LinkedDiGraphNode.Reset()"))
+		(!hasSlabResetInGen || strings.Contains(string(ldgSrc), ".slab_LinkedDirectedGraph_LinkedDiGraphNode.Reset()")) &&
+		strings.Contains(string(ldgSrc), "this_.dfaEdgeIndex = int32(-1)") &&
+		(!hasPooledSliceInGen || strings.Contains(string(ldgSrc), "ReleasePooledSlice(n_.inEdges)"))
 
 	gDry, err := passes.RunOnPackageDir(
 		realGraphDir,
@@ -2602,6 +2604,7 @@ func TestWave23C_RealGenDryRunAndIdempotency(t *testing.T) {
 	mcSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "minimized_condition.go"))
 	spSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "string_pool.go"))
 	jscompFullyLowered := strings.Contains(string(iolSrc), "slab_InlineObjectLiterals_InliningBehavior") &&
+		strings.Contains(string(sscSrc), "allocFastScopeChild_") &&
 		strings.Contains(string(ivSrc), "scratchVarExpert_") &&
 		strings.Contains(string(mcSrc), "lazyTok_") &&
 		strings.Contains(string(spSrc), "InternOwned(") &&

@@ -120,6 +120,9 @@ func InitEnumElementType(this_ *EnumElementType, registry *JSTypeRegistry, eleme
 	this_.primitiveObjectType = elementType.GetJSTypeBase().ToObjectType()
 	this_.name = name
 	this_.enumType = enumType
+	if (elementType == nil || elementType.IsJavaNil_()) || (elementType.GetJSTypeBase().GetWellFormedTemplatizedKind() == int32(0)) {
+		this_.GetJSTypeBase().protoFlags = int8((int32(this_.GetJSTypeBase().protoFlags) | int32(int8(-128))))
+	}
 	registry.GetResolver().ResolveIfClosed(ToIface_JSType(this_), StaticGet_EnumElementType_TYPE_CLASS())
 }
 
@@ -320,5 +323,10 @@ func (this_ *EnumElementType) ResolveInternal(reporter ErrorReporter) JSType {
 	_ = reporter
 	this_.primitiveType = this_.primitiveType.GetJSTypeBase().Resolve(reporter)
 	this_.primitiveObjectType = ObjectType_Cast(this_.primitiveType)
+	if (this_.primitiveType == nil || this_.primitiveType.IsJavaNil_()) || (this_.primitiveType.GetJSTypeBase().GetWellFormedTemplatizedKind() == int32(0)) {
+		this_.GetJSTypeBase().protoFlags = int8((int32(this_.GetJSTypeBase().protoFlags) | int32(int8(-128))))
+	} else {
+		this_.GetJSTypeBase().protoFlags = int8((int32(this_.GetJSTypeBase().protoFlags) & ^(int32(int8(-128)))))
+	}
 	return this_
 }

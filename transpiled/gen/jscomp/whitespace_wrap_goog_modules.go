@@ -78,13 +78,13 @@ func (this_ *WhitespaceWrapGoogModules) Process_2(externs pkg_rhino.Node, root p
 		_ = c
 		for ; (c != 0); c = c.GetNext() {
 			if !(c.IsScript()) { j2gort.CheckState(false) }
-			this_.priv_WhitespaceWrapGoogModules_visitScript_5896(c)
+			this_.priv_WhitespaceWrapGoogModules_visitScript_5906(c)
 		}
 	}
 }
 
 // Java method: WhitespaceWrapGoogModules.visitScript(com.google.javascript.rhino.Node scriptRoot)
-func (this_ *WhitespaceWrapGoogModules) priv_WhitespaceWrapGoogModules_visitScript_5896(scriptRoot pkg_rhino.Node) {
+func (this_ *WhitespaceWrapGoogModules) priv_WhitespaceWrapGoogModules_visitScript_5906(scriptRoot pkg_rhino.Node) {
 	_ = scriptRoot
 	if (!(NodeUtil_IsGoogModuleFile(scriptRoot))) {
 		return

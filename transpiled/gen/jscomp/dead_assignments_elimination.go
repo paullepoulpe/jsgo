@@ -85,7 +85,14 @@ func InitDeadAssignmentsElimination(this_ *DeadAssignmentsElimination, compiler 
 func (this_ *DeadAssignmentsElimination) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	defer this_.ReleaseSlabs_()
+	defer func() {
+		if this_.liveness != nil {
+			this_.liveness.ReleaseSlabs_()
+			this_.liveness = nil
+		}
+		this_.ReleaseSlabs_()
+	}()
+
 	j2gort.CheckNotNullNode(externs)
 	j2gort.CheckNotNullNode(root)
 	if !(this_.compiler.GetLifeCycleStage().IsNormalized()) {
@@ -171,21 +178,22 @@ func (this_ *DeadAssignmentsElimination) priv_DeadAssignmentsElimination_elimina
 	InitSyntacticScopeCreator_1(&val_3, this_.compiler)
 	var scopeCreator *SyntacticScopeCreator = &val_3
 	_ = scopeCreator
-	defer func() {
-		if this_.liveness != nil {
-			this_.liveness.ReleaseSlabs_()
-		}
-		this_.liveness = nil
-		scopeCreator.ReleaseSlabs_()
-	}()
-
 	var allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction = NodeUtil_GetAllVarsDeclaredInFunction(this_.compiler, scopeCreator, functionScope)
 	_ = allVarsDeclaredInFunction
-	this_.liveness = NewLiveVariablesAnalysis(cfg, functionScope, blockScope, this_.compiler, scopeCreator, allVarsDeclaredInFunction)
-	this_.liveness.Analyze()
-	var allVarsInFn j2gort.Ext_java_util_Map = this_.liveness.GetAllVariables()
-	_ = allVarsInFn
-	this_.priv_DeadAssignmentsElimination_tryRemoveDeadAssignments_2343(t, cfg, allVarsInFn)
+	if this_.liveness == nil {
+		this_.liveness = NewLiveVariablesAnalysis(cfg, functionScope, blockScope, this_.compiler, scopeCreator, allVarsDeclaredInFunction)
+	} else {
+		this_.liveness.ResetForScope(cfg, functionScope, blockScope, this_.compiler, scopeCreator, allVarsDeclaredInFunction)
+	}
+	defer func() {
+		this_.liveness.ClearScopeState()
+	}()
+	{
+		this_.liveness.Analyze()
+		var allVarsInFn j2gort.Ext_java_util_Map = this_.liveness.GetAllVariables()
+		_ = allVarsInFn
+		this_.priv_DeadAssignmentsElimination_tryRemoveDeadAssignments_2343(t, cfg, allVarsInFn)
+	}
 }
 
 // Java method: DeadAssignmentsElimination.isRemovableAssign(com.google.javascript.rhino.Node n)
@@ -677,5 +685,4 @@ func (this_ *DeadAssignmentsElimination) ReleaseSlabs_() {
 	}
 	this_.slab_BailoutInformation.Release()
 }
-func (*DeadAssignmentsElimination) AlwaysShouldTraverse_()      {}
-func (*DeadAssignmentsElimination) CanReleaseSyntacticScopes_() {}
+func (*DeadAssignmentsElimination) AlwaysShouldTraverse_() {}

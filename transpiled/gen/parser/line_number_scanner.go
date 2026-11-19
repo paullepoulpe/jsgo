@@ -93,7 +93,7 @@ func (this_ *LineNumberScanner) GetSourcePosition(offset int32) SourcePosition {
 		j2gort.CheckArgumentFmt(false, "Must call rewindTo before calling getSourcePosition for an earlier line (%s < %s)", j2gort.ValueOfInt(offset), j2gort.ValueOfInt(this_.lastLineStart))
 	}
 	for offset >= this_.nextLineStart {
-		this_.priv_LineNumberScanner_advanceLine_7230()
+		this_.priv_LineNumberScanner_advanceLine_7244()
 	}
 	var pos SourcePosition = NewSourcePosition(this_.sourceFile, offset, this_.lastLine, (offset - this_.lastLineStart))
 	_ = pos
@@ -118,12 +118,12 @@ func (this_ *LineNumberScanner) RewindTo(position SourcePosition) {
 		this_.nextLineStart = (position.offset - position.column)
 		this_.cachedOffset = int32(-1)
 		this_.cachedPosition = (SourcePosition{})
-		this_.priv_LineNumberScanner_advanceLine_7230()
+		this_.priv_LineNumberScanner_advanceLine_7244()
 	}
 }
 
 // Java method: LineNumberScanner.advanceLine()
-func (this_ *LineNumberScanner) priv_LineNumberScanner_advanceLine_7230() {
+func (this_ *LineNumberScanner) priv_LineNumberScanner_advanceLine_7244() {
 	this_.lastLine = this_.lastLine + 1
 	this_.lastLineStart = this_.nextLineStart
 	{

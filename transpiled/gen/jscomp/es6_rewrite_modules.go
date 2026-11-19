@@ -282,12 +282,10 @@ func (this_ *Es6RewriteModules) Process_2(externs pkg_rhino.Node, root pkg_rhino
 // Java method: Es6RewriteModules.clearPerFileState()
 func (this_ *Es6RewriteModules) priv_Es6RewriteModules_clearPerFileState_2731() {
 	this_.typedefs = &j2gort.OrderedSet[string]{}
-	this_.namesToInlineByAlias = &j2gort.OrderedMap[string, *ModuleRenaming_GlobalizedModuleName]{
-
-		// Java method: Es6RewriteModules.shouldTraverse(com.google.javascript.jscomp.NodeTraversal nodeTraversal, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-	}
+	this_.namesToInlineByAlias = &j2gort.OrderedMap[string, *ModuleRenaming_GlobalizedModuleName]{}
 }
 
+// Java method: Es6RewriteModules.shouldTraverse(com.google.javascript.jscomp.NodeTraversal nodeTraversal, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
 func (this_ *Es6RewriteModules) ShouldTraverse_3(nodeTraversal *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) bool {
 	_ = nodeTraversal
 	_ = n

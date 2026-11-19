@@ -29,21 +29,22 @@ import (
 
 // Java class: com.google.javascript.jscomp.ClosureRewriteModule
 type ClosureRewriteModule struct {
-	compiler                          AbstractCompiler                                      `gson:"compiler"`
-	astFactory                        *AstFactory                                           `gson:"astFactory"`
-	preprocessorSymbolTable           *PreprocessorSymbolTable                              `gson:"preprocessorSymbolTable"`
-	syntheticExterns                  j2gort.OrderedMap[string, pkg_rhino.Node]             `gson:"syntheticExterns"`
-	globalScope                       *Scope                                                `gson:"globalScope"`
-	scriptStack                       j2gort.Deque[*ClosureRewriteModule_ScriptDescription] `gson:"scriptStack"`
-	currentScript                     *ClosureRewriteModule_ScriptDescription               `gson:"currentScript"`
-	rewriteState                      *ClosureRewriteModule_GlobalRewriteState              `gson:"rewriteState"`
-	legacyScriptNamespacesAndPrefixes j2gort.OrderedSet[string]                             `gson:"legacyScriptNamespacesAndPrefixes"`
-	unrecognizedRequires              []*ClosureRewriteModule_UnrecognizedRequire           `gson:"unrecognizedRequires"`
-	googModuleGetCalls                []pkg_rhino.Node                                      `gson:"googModuleGetCalls"`
-	googRequireDynamicCalls           []pkg_rhino.Node                                      `gson:"googRequireDynamicCalls"`
-	globalTypedScope                  *TypedScope                                           `gson:"globalTypedScope"`
-	idHash_                           atomic.Int32
-	preserveSugar                     bool `gson:"preserveSugar"`
+	compiler                                    AbstractCompiler                                      `gson:"compiler"`
+	astFactory                                  *AstFactory                                           `gson:"astFactory"`
+	preprocessorSymbolTable                     *PreprocessorSymbolTable                              `gson:"preprocessorSymbolTable"`
+	syntheticExterns                            j2gort.OrderedMap[string, pkg_rhino.Node]             `gson:"syntheticExterns"`
+	globalScope                                 *Scope                                                `gson:"globalScope"`
+	scriptStack                                 j2gort.Deque[*ClosureRewriteModule_ScriptDescription] `gson:"scriptStack"`
+	currentScript                               *ClosureRewriteModule_ScriptDescription               `gson:"currentScript"`
+	rewriteState                                *ClosureRewriteModule_GlobalRewriteState              `gson:"rewriteState"`
+	legacyScriptNamespacesAndPrefixes           j2gort.OrderedSet[string]                             `gson:"legacyScriptNamespacesAndPrefixes"`
+	unrecognizedRequires                        []*ClosureRewriteModule_UnrecognizedRequire           `gson:"unrecognizedRequires"`
+	googModuleGetCalls                          []pkg_rhino.Node                                      `gson:"googModuleGetCalls"`
+	googRequireDynamicCalls                     []pkg_rhino.Node                                      `gson:"googRequireDynamicCalls"`
+	globalTypedScope                            *TypedScope                                           `gson:"globalTypedScope"`
+	idHash_                                     atomic.Int32
+	preserveSugar                               bool `gson:"preserveSugar"`
+	slab_ClosureRewriteModule_ScriptDescription j2gort.PooledSlab[ClosureRewriteModule_ScriptDescription]
 }
 
 func (this_ *ClosureRewriteModule) BindSelf_(s any) {
@@ -548,7 +549,16 @@ func (this_ *ClosureRewriteModule) Process_2(externs pkg_rhino.Node, root pkg_rh
 	defer func() {
 		this_.globalScope = nil
 		this_.currentScript = nil
+		if this_.rewriteState != nil {
+			this_.rewriteState.scriptDescriptionsByGoogModuleNamespace.Clear()
+		}
 		sc_.ReleaseSlabs_()
+		this_.scriptStack.Clear()
+		if this_.rewriteState != nil {
+			this_.rewriteState.scriptDescriptionsByGoogModuleNamespace.Clear()
+		}
+		this_.slab_ClosureRewriteModule_ScriptDescription.Release()
+
 	}()
 
 	var scriptDescriptions j2gort.Ext_java_util_Deque = j2gort.NewExt_java_util_ArrayDeque()
@@ -566,7 +576,7 @@ func (this_ *ClosureRewriteModule) Process_2(externs pkg_rhino.Node, root pkg_rh
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(script))
 					}
 					NodeTraversal_Traverse(this_.compiler, script, NewClosureRewriteModule_UnwrapGoogLoadModule(this_))
-					this_.priv_ClosureRewriteModule_pushScript_1222(NewClosureRewriteModule_ScriptDescription())
+					this_.priv_ClosureRewriteModule_pushScript_1222(allocPooled_ClosureRewriteModule_ScriptDescription(&this_.slab_ClosureRewriteModule_ScriptDescription))
 					{
 						r_2 := this_.currentScript
 						r_2.rootNode = script
@@ -689,7 +699,7 @@ func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_preprocessExportDec
 // Java method: ClosureRewriteModule.recordModuleBody(com.google.javascript.rhino.Node moduleRoot)
 func (this_ *ClosureRewriteModule) priv_ClosureRewriteModule_recordModuleBody_1191(moduleRoot pkg_rhino.Node) {
 	_ = moduleRoot
-	this_.priv_ClosureRewriteModule_pushScript_1222(NewClosureRewriteModule_ScriptDescription())
+	this_.priv_ClosureRewriteModule_pushScript_1222(allocPooled_ClosureRewriteModule_ScriptDescription(&this_.slab_ClosureRewriteModule_ScriptDescription))
 	{
 		r_8 := this_.currentScript
 		r_8.rootNode = moduleRoot
@@ -2512,6 +2522,12 @@ func InitClosureRewriteModule_AliasName(this_ *ClosureRewriteModule_AliasName, n
 
 // Java class: com.google.javascript.jscomp.ClosureRewriteModule.ScriptDescription
 type ClosureRewriteModule_ScriptDescription struct {
+	rootNode pkg_rhino.Node `gson:"rootNode"`
+
+	isModule                bool                                                                  `gson:"isModule"`
+	declareLegacyNamespace  bool                                                                  `gson:"declareLegacyNamespace"`
+	willCreateExportsObject bool                                                                  `gson:"willCreateExportsObject"`
+	hasCreatedExportObject  bool                                                                  `gson:"hasCreatedExportObject"`
 	namespaceId             string                                                                `gson:"namespaceId"`
 	contentsPrefix          string                                                                `gson:"contentsPrefix"`
 	topLevelNames           j2gort.OrderedSet[string]                                             `gson:"topLevelNames"`
@@ -2521,12 +2537,8 @@ type ClosureRewriteModule_ScriptDescription struct {
 	defaultExportLocalName  string                                                                `gson:"defaultExportLocalName"`
 	namedExports            j2gort.OrderedSet[string]                                             `gson:"namedExports"`
 	exportsToInline         j2gort.CustomOrderedMap[*Var, *ClosureRewriteModule_ExportDefinition] `gson:"exportsToInline"`
-	rootNode                pkg_rhino.Node                                                        `gson:"rootNode"`
-	idHash_                 atomic.Int32
-	isModule                bool `gson:"isModule"`
-	declareLegacyNamespace  bool `gson:"declareLegacyNamespace"`
-	willCreateExportsObject bool `gson:"willCreateExportsObject"`
-	hasCreatedExportObject  bool `gson:"hasCreatedExportObject"`
+
+	idHash_ atomic.Int32
 }
 
 func (this_ *ClosureRewriteModule_ScriptDescription) BindSelf_(s any) {
@@ -2561,14 +2573,17 @@ func (this_ *ClosureRewriteModule_ScriptDescription) initFields_ClosureRewriteMo
 	this_.namesToInlineByAlias = j2gort.NewOrderedMap[string, *ClosureRewriteModule_AliasName]()
 	this_.defaultExportLocalName = j2gort.NullString
 	this_.namedExports = j2gort.NewOrderedSet[string]()
-	this_.exportsToInline = j2gort.NewCustomOrderedMap[*Var, *ClosureRewriteModule_ExportDefinition](
-
-	// Java constructor: ScriptDescription()
-	)
+	this_.exportsToInline = j2gort.NewCustomOrderedMap[*Var, *ClosureRewriteModule_ExportDefinition]()
 }
 
+// Java constructor: ScriptDescription()
 func NewClosureRewriteModule_ScriptDescription() *ClosureRewriteModule_ScriptDescription {
 	this_ := &ClosureRewriteModule_ScriptDescription{}
+	InitClosureRewriteModule_ScriptDescription(this_)
+	return this_
+}
+func allocPooled_ClosureRewriteModule_ScriptDescription(slab_ *j2gort.PooledSlab[ClosureRewriteModule_ScriptDescription]) *ClosureRewriteModule_ScriptDescription {
+	this_ := slab_.Alloc()
 	InitClosureRewriteModule_ScriptDescription(this_)
 	return this_
 }

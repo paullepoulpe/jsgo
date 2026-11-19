@@ -104,7 +104,7 @@ func clinitSlow_Es6ConvertSuper() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6ConvertSuper, &clinitDone_Es6ConvertSuper)
-	static_Es6ConvertSuper_FEATURES_TO_RUN_FOR = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_CLASSES()})
+	static_Es6ConvertSuper_FEATURES_TO_RUN_FOR = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_CLASSES()})
 }
 
 func (this_ *Es6ConvertSuper) initFields_Es6ConvertSuper() {

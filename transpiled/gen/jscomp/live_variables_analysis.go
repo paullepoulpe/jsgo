@@ -31,8 +31,12 @@ type LiveVariablesAnalysis struct {
 	DataFlowAnalysisBase[pkg_rhino.Node, *LiveVariablesAnalysis_LiveVariableLattice]
 	jsScope                       *Scope                                     `gson:"jsScope"`
 	jsScopeChild                  *Scope                                     `gson:"jsScopeChild"`
-	escaped                       j2gort.Ext_java_util_Set                   `gson:"escaped"`
-	scopeVariables                j2gort.OrderedMap[string, int32]           `gson:"scopeVariables"`
+	escaped                       j2gort.Ext_java_util_HashSet               `gson:"escaped"`
+	varNames                      []string                                   `gson:"varNames"`
+	isLocalVar                    []bool                                     `gson:"isLocalVar"`
+	isEscapedIdx                  []bool                                     `gson:"isEscapedIdx"`
+	nameTable                     []string                                   `gson:"nameTable"`
+	indexTable                    []int32                                    `gson:"indexTable"`
 	orderedVars                   j2gort.Ext_java_util_List                  `gson:"orderedVars"`
 	allVarsInFn                   j2gort.Ext_java_util_Map                   `gson:"allVarsInFn"`
 	emptyLattice                  *LiveVariablesAnalysis_LiveVariableLattice `gson:"emptyLattice"`
@@ -88,43 +92,201 @@ func InitLiveVariablesAnalysis(this_ *LiveVariablesAnalysis, cfg ControlFlowGrap
 	_ = allVarsDeclaredInFunction
 	InitDataFlowAnalysis[pkg_rhino.Node, *LiveVariablesAnalysis_LiveVariableLattice](&this_.DataFlowAnalysisBase, cfg)
 	this_.initFields_LiveVariablesAnalysis()
+	this_.escaped = j2gort.NewExt_java_util_HashSet()
+	this_.priv_LiveVariablesAnalysis_initForScope_3793(jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction)
+}
+
+// Java method: LiveVariablesAnalysis.resetForScope(com.google.javascript.jscomp.ControlFlowGraph<com.google.javascript.rhino.Node> cfg, com.google.javascript.jscomp.Scope jsScope, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Scope jsScopeChild, com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.ScopeCreator scopeCreator, com.google.javascript.jscomp.NodeUtil.AllVarsDeclaredInFunction allVarsDeclaredInFunction)
+func (this_ *LiveVariablesAnalysis) ResetForScope(cfg ControlFlowGraph[pkg_rhino.Node], jsScope *Scope, jsScopeChild *Scope, compiler AbstractCompiler, scopeCreator ScopeCreator, allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
+	_ = cfg
+	_ = jsScope
+	_ = jsScopeChild
+	_ = compiler
+	_ = scopeCreator
+	_ = allVarsDeclaredInFunction
+	this_.ReleaseSlabs_()
+
+	this_.InitCfg(cfg)
+	if !(this_.escaped.IsEmpty()) {
+		this_.escaped.Clear()
+	}
+	this_.priv_LiveVariablesAnalysis_initForScope_3793(jsScope, jsScopeChild, compiler, scopeCreator, allVarsDeclaredInFunction)
+}
+
+// Java method: LiveVariablesAnalysis.initForScope(com.google.javascript.jscomp.Scope jsScope, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Scope jsScopeChild, com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.ScopeCreator scopeCreator, com.google.javascript.jscomp.NodeUtil.AllVarsDeclaredInFunction allVarsDeclaredInFunction)
+func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_initForScope_3793(jsScope *Scope, jsScopeChild *Scope, compiler AbstractCompiler, scopeCreator ScopeCreator, allVarsDeclaredInFunction *NodeUtil_AllVarsDeclaredInFunction) {
+	_ = jsScope
+	_ = jsScopeChild
+	_ = compiler
+	_ = scopeCreator
+	_ = allVarsDeclaredInFunction
 	if !(jsScope.IsFunctionScope()) {
 		j2gort.CheckStateMsg(false, j2gort.PtrToAny(jsScope))
 	}
 	this_.jsScope = jsScope
 	this_.jsScopeChild = jsScopeChild
-	this_.escaped = j2gort.NewExt_java_util_LinkedHashSet()
 	this_.orderedVars = allVarsDeclaredInFunction.GetAllVariablesInOrder()
 	var varCount int32 = this_.orderedVars.Size()
 	_ = varCount
-	this_.scopeVariables = j2gort.NewOrderedMapCap[string, int32](varCount)
 	this_.allVarsInFn = allVarsDeclaredInFunction.GetAllVariables()
 	this_.emptyLattice = allocPooled_LiveVariablesAnalysis_LiveVariableLattice_1_int32(&this_.slab_LiveVariableLattice, varCount)
 	this_.scratchGen = allocPooled_LiveVariablesAnalysis_LiveVariableLattice_1_int32(&this_.slab_LiveVariableLattice, varCount)
 	this_.scratchKill = allocPooled_LiveVariablesAnalysis_LiveVariableLattice_1_int32(&this_.slab_LiveVariableLattice, varCount)
-	DataFlowAnalysis_ComputeEscaped(jsScope, this_.escaped, compiler, scopeCreator, this_.allVarsInFn)
-	this_.priv_LiveVariablesAnalysis_addScopeVariables_3792()
-}
-
-// Java method: LiveVariablesAnalysis.addScopeVariables()
-func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_addScopeVariables_3792() {
-	var num int32 = int32(0)
-	_ = num
+	DataFlowAnalysis_ComputeEscaped(jsScope, j2gort.AsIface[j2gort.Ext_java_util_Set](this_.escaped), compiler, scopeCreator, this_.allVarsInFn)
+	var names []string = j2gort.NewStringArray(varCount)
+	_ = names
+	var locals []bool = make([]bool, varCount)
+	_ = locals
+	var escapedArr []bool = make([]bool, varCount)
+	_ = escapedArr
 	{
-		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.orderedVars))
-		for cur_1.HasNext() {
-			rawElem_2 := cur_1.Next()
-			v := j2gort.CastPtr[Var](rawElem_2)
+		var i int32 = int32(0)
+		_ = i
+		for ; i < varCount; i = i + 1 {
+			var v *Var = j2gort.CastPtr[Var](this_.orderedVars.Get(i))
 			_ = v
-			this_.scopeVariables.Put(v.GetName(), num)
-			num = num + 1
+			var name string = v.GetName()
+			_ = name
+			{
+				a_1 := names
+				i_2 := i
+				a_1[i_2] = name
+			}
+			var localScope *Scope = j2gort.CastPtr[Scope](v.GetScope())
+			_ = localScope
+			var local bool = false
+			_ = local
+			if localScope.IsFunctionBlockScope() {
+				local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
+			} else if (localScope == jsScope) && (jsScopeChild != nil) {
+				local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(jsScopeChild, name)
+			} else {
+				local = localScope.HasOwnSlot(name)
+			}
+			{
+				a_3 := locals
+				i_4 := i
+				a_3[i_4] = local
+			}
+			{
+				a_5 := escapedArr
+				i_6 := i
+				a_5[i_6] = this_.escaped.Contains(j2gort.PtrToAny(v))
+			}
 		}
 	}
+	this_.varNames = names
+	this_.isLocalVar = locals
+	this_.isEscapedIdx = escapedArr
+	if varCount > int32(8) {
+		var cap_ int32 = javalang.Shl32(j2gort.IntHighestOneBit(((varCount * int32(2)) - int32(1))), int(int32(1)))
+		_ = cap_
+		var mask int32 = (cap_ - int32(1))
+		_ = mask
+		var keys []string = j2gort.NewStringArray(cap_)
+		_ = keys
+		var indices []int32 = make([]int32, cap_)
+		_ = indices
+		{
+			var j int32 = int32(0)
+			_ = j
+			for ; j < varCount; j = j + 1 {
+				var key string = names[j]
+				_ = key
+				var slot int32 = (javalang.StringHashCode(j2gort.CheckNotNullString(key)) & mask)
+				_ = slot
+				for {
+					var existing string = keys[slot]
+					_ = existing
+					if existing == j2gort.NullString {
+						{
+							a_7 := keys
+							i_8 := slot
+							a_7[i_8] = key
+						}
+						{
+							a_9 := indices
+							i_10 := slot
+							a_9[i_10] = j
+						}
+						break
+					}
+					if j2gort.CheckNotNullString(existing) == key {
+						{
+							a_11 := indices
+							i_12 := slot
+							a_11[i_12] = j
+						}
+						break
+					}
+					slot = ((slot + int32(1)) & mask)
+				}
+			}
+		}
+		this_.nameTable = keys
+		this_.indexTable = indices
+	} else {
+		this_.nameTable = nil
+		this_.indexTable = nil
+	}
+}
+
+// Java method: LiveVariablesAnalysis.clearScopeState()
+func (this_ *LiveVariablesAnalysis) ClearScopeState() {
+	this_.ReleaseCfgReference()
+	this_.jsScope = nil
+	this_.jsScopeChild = nil
+	this_.orderedVars = nil
+	this_.allVarsInFn = nil
+	if !(this_.escaped.IsEmpty()) {
+		this_.escaped.Clear()
+	}
+	this_.emptyLattice = nil
+	this_.scratchGen = nil
+	this_.scratchKill = nil
+	this_.ReleaseSlabs_()
+
+}
+
+// Java method: LiveVariablesAnalysis.lookupVarIndex(java.lang.String name)
+func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_lookupVarIndex_3795(name string) int32 {
+	_ = name
+	var table []string = this_.nameTable
+	_ = table
+	if table != nil {
+		var mask int32 = (int32(len(table)) - int32(1))
+		_ = mask
+		var slot int32 = (javalang.StringHashCode(j2gort.CheckNotNullString(name)) & mask)
+		_ = slot
+		for {
+			var k string = table[slot]
+			_ = k
+			if k == j2gort.NullString {
+				return int32(-1)
+			}
+			if j2gort.CheckNotNullString(k) == name {
+				return this_.indexTable[slot]
+			}
+			slot = ((slot + int32(1)) & mask)
+		}
+	}
+	var names []string = this_.varNames
+	_ = names
+	{
+		var i int32 = (int32(len(names)) - int32(1))
+		_ = i
+		for ; i >= int32(0); i = i - 1 {
+			if j2gort.CheckNotNullString(names[i]) == name {
+				return i
+			}
+		}
+	}
+	return int32(-1)
 }
 
 // Java method: LiveVariablesAnalysis.getEscapedLocals()
 func (this_ *LiveVariablesAnalysis) GetEscapedLocals() j2gort.Ext_java_util_Set {
-	return this_.escaped
+	return j2gort.AsIface[j2gort.Ext_java_util_Set](this_.escaped)
 }
 
 // Java method: LiveVariablesAnalysis.getAllVariables()
@@ -140,19 +302,15 @@ func (this_ *LiveVariablesAnalysis) GetAllVariablesInOrder() j2gort.Ext_java_uti
 // Java method: LiveVariablesAnalysis.getVarIndex(java.lang.String var)
 func (this_ *LiveVariablesAnalysis) GetVarIndex(var_ string) int32 {
 	_ = var_
-	{
-
-		if v_, ok_ := this_.scopeVariables.GetOk(var_); ok_ {
-			return v_
-
-			// Java method: LiveVariablesAnalysis.isForward()
-		}
-		j2gort.ThrowNPE()
-		return 0
+	var idx int32 = this_.priv_LiveVariablesAnalysis_lookupVarIndex_3795(var_)
+	_ = idx
+	if idx < int32(0) {
+		panic(j2gort.AsIface[javalang.INullPointerException](j2gort.ConstructShimThrowable("java.lang.NullPointerException")))
 	}
-
+	return idx
 }
 
+// Java method: LiveVariablesAnalysis.isForward()
 func (this_ *LiveVariablesAnalysis) IsForward() bool {
 	return false
 }
@@ -184,7 +342,7 @@ func (this_ *LiveVariablesAnalysis) FlowThrough(node pkg_rhino.Node, input *Live
 	kill.ClearAll()
 	var conditional bool = false
 	_ = conditional
-	var cfgNode pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.ToIface_DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.GetCfg().GetNode(node)))
+	var cfgNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.GetCfg().GetNode(node))
 	_ = cfgNode
 	{
 		var i int32 = int32(0)
@@ -192,25 +350,13 @@ func (this_ *LiveVariablesAnalysis) FlowThrough(node pkg_rhino.Node, input *Live
 		var outCount int32 = cfgNode.GetOutEdgeCount()
 		_ = outCount
 		for ; i < outCount; i = i + 1 {
-			{
-				var iifeCond_1 bool
-				{
-
-					re_3 := StaticGet_ControlFlowGraph_Branch_ON_EX()
-					ae_4 := cfgNode.GetOutEdgeAt(i).GetValue()
-					if re_3 == 0 {
-						j2gort.ThrowNPE()
-					}
-					iifeCond_1 = re_3 == ae_4
-				}
-				if iifeCond_1 {
-					conditional = true
-					break
-				}
+			if StaticGet_ControlFlowGraph_Branch_ON_EX() == cfgNode.GetLinkedOutEdgeAt(i).GetValue() {
+				conditional = true
+				break
 			}
 		}
 	}
-	this_.priv_LiveVariablesAnalysis_computeGenKill_3799(node, gen, kill, conditional)
+	this_.priv_LiveVariablesAnalysis_computeGenKill_3802(node, gen, kill, conditional)
 	if ((input.overflow == nil) && (gen.overflow == nil)) && (kill.overflow == nil) {
 		var nextW0 int64 = ((input.w0 & ^(kill.w0)) | gen.w0)
 		_ = nextW0
@@ -234,14 +380,14 @@ func (this_ *LiveVariablesAnalysis) FlowThrough(node pkg_rhino.Node, input *Live
 }
 
 // Java method: LiveVariablesAnalysis.getKillLhsConsumer()
-func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_getKillLhsConsumer_3797() j2gort.Ext_java_util_function_Consumer {
+func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_getKillLhsConsumer_3800() j2gort.Ext_java_util_function_Consumer {
 	var c j2gort.Ext_java_util_function_Consumer = this_.killLhsConsumer
 	_ = c
 	if c == nil {
-		c = j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_6 any) {
-			lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_6)
+		c = j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_14 any) {
+			lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_14)
 			_ = lhsNode
-			this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3800(lhsNode, this_.scratchKill)
+			this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3803(lhsNode, this_.scratchKill)
 		})
 		this_.killLhsConsumer = c
 	}
@@ -249,15 +395,15 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_getKillLhsConsume
 }
 
 // Java method: LiveVariablesAnalysis.getKillDestructuringNameConsumer()
-func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_getKillDestructuringNameConsumer_3798() j2gort.Ext_java_util_function_Consumer {
+func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_getKillDestructuringNameConsumer_3801() j2gort.Ext_java_util_function_Consumer {
 	var c j2gort.Ext_java_util_function_Consumer = this_.killDestructuringNameConsumer
 	_ = c
 	if c == nil {
-		c = j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_7 any) {
-			child := j2gort.CastNode[pkg_rhino.Node](lp_7)
+		c = j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_15 any) {
+			child := j2gort.CastNode[pkg_rhino.Node](lp_15)
 			_ = child
 			if child.IsName() {
-				this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3800(child, this_.scratchKill)
+				this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3803(child, this_.scratchKill)
 			}
 		})
 		this_.killDestructuringNameConsumer = c
@@ -266,7 +412,7 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_getKillDestructur
 }
 
 // Java method: LiveVariablesAnalysis.computeGenKill(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.LiveVariablesAnalysis.LiveVariableLattice gen, com.google.javascript.jscomp.LiveVariablesAnalysis.LiveVariableLattice kill, boolean conditional)
-func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_3799(n pkg_rhino.Node, gen *LiveVariablesAnalysis_LiveVariableLattice, kill *LiveVariablesAnalysis_LiveVariableLattice, conditional bool) {
+func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_3802(n pkg_rhino.Node, gen *LiveVariablesAnalysis_LiveVariableLattice, kill *LiveVariablesAnalysis_LiveVariableLattice, conditional bool) {
 	_ = n
 	_ = gen
 	_ = kill
@@ -275,7 +421,7 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_37
 	case int32(94) /* Token.SCRIPT */, int32(89) /* Token.ROOT */, int32(73) /* Token.FUNCTION */, int32(90) /* Token.BLOCK */ :
 		return
 	case int32(78) /* Token.WHILE */, int32(79) /* Token.DO */, int32(74) /* Token.IF */, int32(80) /* Token.FOR */ :
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(NodeUtil_GetConditionExpression(n), gen, kill, conditional)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(NodeUtil_GetConditionExpression(n), gen, kill, conditional)
 		return
 	case int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */, int32(81) /* Token.FOR_IN */ :
 		var lhs pkg_rhino.Node = n.GetFirstChild()
@@ -283,7 +429,7 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_37
 		if NodeUtil_IsNameDeclaration(lhs) {
 			lhs = lhs.GetLastChild()
 		}
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(lhs, gen, kill, conditional)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(lhs, gen, kill, conditional)
 		return
 	case int32(111) /* Token.LET */, int32(97) /* Token.CONST */, int32(84) /* Token.VAR */ :
 		{
@@ -292,9 +438,9 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_37
 			for ; c != 0; c = c.GetNext() {
 				if c.IsName() {
 					if c.HasChildren() {
-						this_.priv_LiveVariablesAnalysis_computeGenKill_3799(c.GetFirstChild(), gen, kill, conditional)
+						this_.priv_LiveVariablesAnalysis_computeGenKill_3802(c.GetFirstChild(), gen, kill, conditional)
 						if !(conditional) {
-							this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3800(c, kill)
+							this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3803(c, kill)
 						}
 					}
 				} else {
@@ -302,38 +448,38 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_37
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(c))
 					}
 					if !(conditional) {
-						NodeUtil_VisitLhsNodesInNode(c, this_.priv_LiveVariablesAnalysis_getKillLhsConsumer_3797())
+						NodeUtil_VisitLhsNodesInNode(c, this_.priv_LiveVariablesAnalysis_getKillLhsConsumer_3800())
 					}
-					this_.priv_LiveVariablesAnalysis_computeGenKill_3799(c.GetFirstChild(), gen, kill, conditional)
-					this_.priv_LiveVariablesAnalysis_computeGenKill_3799(c.GetSecondChild(), gen, kill, conditional)
+					this_.priv_LiveVariablesAnalysis_computeGenKill_3802(c.GetFirstChild(), gen, kill, conditional)
+					this_.priv_LiveVariablesAnalysis_computeGenKill_3802(c.GetSecondChild(), gen, kill, conditional)
 				}
 			}
 		}
 		return
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */, int32(30) /* Token.OPTCHAIN_GETELEM */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetFirstChild(), gen, kill, conditional)
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetLastChild(), gen, kill, true)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetFirstChild(), gen, kill, conditional)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetLastChild(), gen, kill, true)
 		return
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetFirstChild(), gen, kill, conditional)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetFirstChild(), gen, kill, conditional)
 		{
 			var c_2 pkg_rhino.Node = n.GetSecondChild()
 			_ = c_2
 			for ; c_2 != 0; c_2 = c_2.GetNext() {
-				this_.priv_LiveVariablesAnalysis_computeGenKill_3799(c_2, gen, kill, true)
+				this_.priv_LiveVariablesAnalysis_computeGenKill_3802(c_2, gen, kill, true)
 			}
 		}
 		return
 	case int32(67) /* Token.HOOK */ :
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetFirstChild(), gen, kill, conditional)
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetSecondChild(), gen, kill, true)
-		this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetLastChild(), gen, kill, true)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetFirstChild(), gen, kill, conditional)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetSecondChild(), gen, kill, true)
+		this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetLastChild(), gen, kill, true)
 		return
 	case int32(32) /* Token.NAME */ :
 		if j2gort.CheckNotNullString(n.GetString()) == "arguments" {
 			this_.MarkAllParametersEscaped()
 		} else if !(NodeUtil_IsLhsByDestructuring(n)) {
-			this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3800(n, gen)
+			this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3803(n, gen)
 		}
 		return
 	default:
@@ -341,24 +487,24 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_37
 			var lhs_2 pkg_rhino.Node = n.GetFirstChild()
 			_ = lhs_2
 			if !(conditional) {
-				this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3800(lhs_2, kill)
+				this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3803(lhs_2, kill)
 			}
 			if !(n.IsAssign()) {
-				this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3800(lhs_2, gen)
+				this_.priv_LiveVariablesAnalysis_addToSetIfLocal_3803(lhs_2, gen)
 			}
-			this_.priv_LiveVariablesAnalysis_computeGenKill_3799(lhs_2.GetNext(), gen, kill, conditional)
+			this_.priv_LiveVariablesAnalysis_computeGenKill_3802(lhs_2.GetNext(), gen, kill, conditional)
 		} else if n.IsAssign() && n.GetFirstChild().IsDestructuringPattern() {
 			if !(conditional) {
-				NodeUtil_VisitLhsNodesInNode(n, this_.priv_LiveVariablesAnalysis_getKillDestructuringNameConsumer_3798())
+				NodeUtil_VisitLhsNodesInNode(n, this_.priv_LiveVariablesAnalysis_getKillDestructuringNameConsumer_3801())
 			}
-			this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetFirstChild(), gen, kill, conditional)
-			this_.priv_LiveVariablesAnalysis_computeGenKill_3799(n.GetSecondChild(), gen, kill, conditional)
+			this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetFirstChild(), gen, kill, conditional)
+			this_.priv_LiveVariablesAnalysis_computeGenKill_3802(n.GetSecondChild(), gen, kill, conditional)
 		} else {
 			{
 				var c_3 pkg_rhino.Node = n.GetFirstChild()
 				_ = c_3
 				for ; c_3 != 0; c_3 = c_3.GetNext() {
-					this_.priv_LiveVariablesAnalysis_computeGenKill_3799(c_3, gen, kill, conditional)
+					this_.priv_LiveVariablesAnalysis_computeGenKill_3802(c_3, gen, kill, conditional)
 				}
 			}
 		}
@@ -367,35 +513,16 @@ func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_computeGenKill_37
 }
 
 // Java method: LiveVariablesAnalysis.addToSetIfLocal(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.LiveVariablesAnalysis.LiveVariableLattice set)
-func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_addToSetIfLocal_3800(node pkg_rhino.Node, set *LiveVariablesAnalysis_LiveVariableLattice) {
+func (this_ *LiveVariablesAnalysis) priv_LiveVariablesAnalysis_addToSetIfLocal_3803(node pkg_rhino.Node, set *LiveVariablesAnalysis_LiveVariableLattice) {
 	_ = node
 	_ = set
 	if !(node.IsName()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(node))
 	}
-	var name string = node.GetString()
-	_ = name
-	var var_ *Var = j2gort.CastPtr[Var](j2gort.MapGetStr(this_.allVarsInFn, name))
-	_ = var_
-	if var_ == nil {
-		return
-	}
-	var local bool = false
-	_ = local
-	var localScope *Scope = j2gort.CastPtr[Scope](var_.GetScope())
-	_ = localScope
-	if localScope.IsFunctionBlockScope() {
-		local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(localScope, name)
-	} else if (localScope == this_.jsScope) && (this_.jsScopeChild != nil) {
-		local = LiveVariablesAnalysis_IsDeclaredInFunctionBlockOrParameter(this_.jsScopeChild, name)
-	} else {
-		local = localScope.HasOwnSlot(name)
-	}
-	if !(local) {
-		return
-	}
-	if !(this_.escaped.Contains(j2gort.PtrToAny(var_))) {
-		set.SetLive(this_.GetVarIndex(var_.GetName()))
+	var idx int32 = this_.priv_LiveVariablesAnalysis_lookupVarIndex_3795(node.GetString())
+	_ = idx
+	if ((idx >= int32(0)) && this_.isLocalVar[idx]) && !(this_.isEscapedIdx[idx]) {
+		set.SetLive(idx)
 	}
 }
 
@@ -418,7 +545,20 @@ func (this_ *LiveVariablesAnalysis) MarkAllParametersEscaped() {
 		_ = param
 		for ; param != 0; param = param.GetNext() {
 			if param.IsName() {
-				this_.escaped.Add_1(j2gort.PtrToAny(j2gort.CastPtr[Var](this_.jsScope.GetVar(param.GetString()))))
+				var pname string = param.GetString()
+				_ = pname
+				var pvar *Var = j2gort.CastPtr[Var](this_.jsScope.GetVar(pname))
+				_ = pvar
+				this_.escaped.Add_1(j2gort.PtrToAny(pvar))
+				var idx int32 = this_.priv_LiveVariablesAnalysis_lookupVarIndex_3795(pname)
+				_ = idx
+				if idx >= int32(0) {
+					{
+						a_16 := this_.isEscapedIdx
+						i_17 := idx
+						a_16[i_17] = true
+					}
+				}
 			}
 		}
 	}
@@ -603,7 +743,7 @@ func InitLiveVariablesAnalysis_LiveVariableLattice_1_LiveVariablesAnalysis_LiveV
 }
 
 // Java method: LiveVariableLattice.ensureOverflow()
-func (this_ *LiveVariablesAnalysis_LiveVariableLattice) priv_LiveVariableLattice_ensureOverflow_3802() *j2gort.Ext_java_util_BitSet {
+func (this_ *LiveVariablesAnalysis_LiveVariableLattice) priv_LiveVariableLattice_ensureOverflow_3805() *j2gort.Ext_java_util_BitSet {
 	var bs *j2gort.Ext_java_util_BitSet = this_.overflow
 	_ = bs
 	if bs == nil {
@@ -652,7 +792,7 @@ func (this_ *LiveVariablesAnalysis_LiveVariableLattice) SetLive(index int32) {
 	} else if index < int32(128) {
 		this_.w1 = (this_.w1 | (javalang.Shl64(int64(1), int((index - int32(64))))))
 	} else {
-		this_.priv_LiveVariableLattice_ensureOverflow_3802().Set_1(index)
+		this_.priv_LiveVariableLattice_ensureOverflow_3805().Set_1(index)
 	}
 }
 
@@ -687,7 +827,7 @@ func (this_ *LiveVariablesAnalysis_LiveVariableLattice) OrFrom(other *LiveVariab
 		this_.w0 = (this_.w0 | other.w0)
 		this_.w1 = (this_.w1 | other.w1)
 	} else {
-		var dst *j2gort.Ext_java_util_BitSet = this_.priv_LiveVariableLattice_ensureOverflow_3802()
+		var dst *j2gort.Ext_java_util_BitSet = this_.priv_LiveVariableLattice_ensureOverflow_3805()
 		_ = dst
 		if other.overflow != nil {
 			dst.Or(other.overflow)
@@ -753,15 +893,15 @@ func (this_ *LiveVariablesAnalysis_LiveVariableLattice) AndNotFrom(other *LiveVa
 }
 
 // Java method: LiveVariableLattice.equals(java.lang.Object other)
-func (this_ *LiveVariablesAnalysis_LiveVariableLattice) Equals(arg_8 any) bool {
-	other := arg_8
+func (this_ *LiveVariablesAnalysis_LiveVariableLattice) Equals(arg_18 any) bool {
+	other := arg_18
 	_ = other
 	j2gort.CheckNotNull(other)
 	var that *LiveVariablesAnalysis_LiveVariableLattice
 	_ = that
-	var ok_9 bool
-	that, ok_9 = j2gort.TryCast[*LiveVariablesAnalysis_LiveVariableLattice](other)
-	if !ok_9 {
+	var ok_19 bool
+	that, ok_19 = j2gort.TryCast[*LiveVariablesAnalysis_LiveVariableLattice](other)
+	if !ok_19 {
 		return false
 	}
 	return this_.EqualsLattice(that)

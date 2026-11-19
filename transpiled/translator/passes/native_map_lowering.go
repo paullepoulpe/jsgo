@@ -4151,6 +4151,7 @@ func classifyCandidateMapType(t types.Type) (isCand, isIdent, isHash bool) {
 }
 
 func classifyMapInitExpr(expr ast.Expr, info *types.Info) (kind mapInitKind, argExpr ast.Expr, isIdent, isHash, ok bool) {
+	expr = unwrapMapAdaptersDown(expr, info)
 	call, ok := stripParens(expr).(*ast.CallExpr)
 	if !ok || call.Ellipsis.IsValid() {
 		return 0, nil, false, false, false
@@ -6944,8 +6945,6 @@ func isSlabPooledOrderedMapField(owner *types.Named, fieldName string) bool {
 		return fieldName == "nodes"
 	case "Scope":
 		return fieldName == "vars"
-	case "MemoizedScopeCreator":
-		return fieldName == "scopesByScopeRoot" || fieldName == "scopes"
 	case "GlobalNamespace":
 		return fieldName == "nameMap" || fieldName == "nameMapByModule"
 	case "GlobalNamespace_ModuleNameMap":
@@ -6996,6 +6995,7 @@ func isJ2gortArrayListOrListValType(t types.Type) bool {
 }
 
 func isUnorderedHashMapCtorCall(expr ast.Expr, info *types.Info) bool {
+	expr = unwrapMapAdaptersDown(expr, info)
 	call, ok := stripParens(expr).(*ast.CallExpr)
 	if !ok || call.Ellipsis.IsValid() {
 		return false

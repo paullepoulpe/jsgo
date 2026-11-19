@@ -5545,8 +5545,8 @@ func (s *JSetCore) InitExpectedSize(expected int32) {
 		panic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
 	}
 	if expected > 4 && s.mode == jSetModeEmpty {
-		if expected > 1024 {
-			s.capHint = 1024
+		if expected > 32767 {
+			s.capHint = 32767
 		} else {
 			s.capHint = int16(expected)
 		}
@@ -5555,7 +5555,7 @@ func (s *JSetCore) InitExpectedSize(expected int32) {
 
 func (s *JSetCore) initCap() int {
 	if s.capHint > 4 {
-		return min(int(s.capHint), 256)
+		return int(s.capHint)
 	}
 	return 4
 }
@@ -7290,8 +7290,8 @@ func (m *JMapCore) InitExpectedSize(expected int32) {
 		panic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
 	}
 	if expected > 0 && (m.mode == jMapModeEmpty || m.mode == jMapModeNullOnly || m.mode == jMapModeNode1) {
-		if expected > 65536 {
-			expected = 65536
+		if expected > 262144 {
+			expected = 262144
 		}
 		if expected > m.capHint {
 			m.capHint = expected
@@ -7312,14 +7312,14 @@ func (m *JMapCore) InitAccessOrder(initialCap int32, loadFactor float32, accessO
 
 func (m *JMapCore) initCap() int {
 	if m.capHint > 0 {
-		return min(int(m.capHint), 65536)
+		return min(int(m.capHint), 262144)
 	}
 	return 4
 }
 
 func (m *JMapCore) strInitCap() int {
 	if m.capHint > 0 {
-		return min(int(m.capHint), 65536)
+		return min(int(m.capHint), 262144)
 	}
 	return 2
 }

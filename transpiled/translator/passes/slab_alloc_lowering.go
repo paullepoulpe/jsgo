@@ -825,6 +825,11 @@ func (p *SlabAllocLoweringPass) Apply(ctx *PassContext) (int, error) {
 		return count, err
 	}
 	count += w42Count
+	w43Count, err := applyWave43SlabLowerings(ctx, structByNamed, valueCopied, singletonStructs, ctorByFunc, existingPkgFuncs, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += w43Count
 
 	return count, nil
 }
@@ -1623,8 +1628,10 @@ func isSynthesizedSlabHelperFuncName(name string) bool {
 		strings.HasPrefix(name, "allocScratchVia_") ||
 		strings.HasPrefix(name, "allocReuseVia_") ||
 		strings.HasPrefix(name, "allocLazy_") ||
+		strings.HasPrefix(name, "allocFastScope") ||
 		strings.HasPrefix(name, "initReuse_") ||
 		name == "promoteIvScratchVarExpert_" ||
+		name == "isSafeToInlineAliasesIv_" ||
 		name == "acquirePooledParser_" ||
 		name == "releasePooledParser_" ||
 		strings.HasSuffix(name, "WithSlab_")
@@ -1809,6 +1816,23 @@ func structHasFieldNamed(named *types.Named, fieldName string) bool {
 	for i := 0; i < st.NumFields(); i++ {
 		if st.Field(i).Name() == fieldName {
 			return true
+		}
+	}
+	return false
+}
+
+func structHasSliceFieldNamed(named *types.Named, fieldName string) bool {
+	if named == nil {
+		return false
+	}
+	st, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		if st.Field(i).Name() == fieldName {
+			_, isSlice := types.Unalias(st.Field(i).Type()).(*types.Slice)
+			return isSlice
 		}
 	}
 	return false
@@ -6307,6 +6331,34 @@ func findOrderedMapFieldMeta(named *types.Named, preferredNames ...string) (fiel
 	return "", false, false
 }
 
+func findPlainMapFieldMeta(named *types.Named, preferredNames ...string) (fieldName string, isPtr bool, ok bool) {
+	if named == nil {
+		return "", false, false
+	}
+	st, isSt := named.Underlying().(*types.Struct)
+	if !isSt {
+		return "", false, false
+	}
+	for _, want := range preferredNames {
+		for i := 0; i < st.NumFields(); i++ {
+			f := st.Field(i)
+			if f.Name() != want {
+				continue
+			}
+			ft := types.Unalias(f.Type())
+			ptr := false
+			if p, isP := ft.(*types.Pointer); isP {
+				ptr = true
+				ft = types.Unalias(p.Elem())
+			}
+			if fn := namedOrigin(ft); fn != nil && fn.Obj() != nil && isJ2gortPkg(fn.Obj().Pkg()) && fn.Obj().Name() == "PlainMap" {
+				return want, ptr, true
+			}
+		}
+	}
+	return "", false, false
+}
+
 func findCustomOrderedMapFieldMeta(named *types.Named, wantField string) (isPtr bool, ok bool) {
 	if named == nil {
 		return false, false
@@ -6610,18 +6662,45 @@ func applySyntacticScopeAndMemoizedPoolingLowering(
 		mscMeta := structByNamed[mscNamed]
 		if mscMeta != nil && ctx.ShouldTransform(mscMeta.file) && structHasFieldNamed(mscNamed, "delegate") {
 			mscMapField, mscMapIsPtr, hasMscMap := findOrderedMapFieldMeta(mscNamed, "scopesByScopeRoot", "scopes")
+			mscPlainField, mscPlainIsPtr, hasMscPlain := findPlainMapFieldMeta(mscNamed, "scopesByScopeRoot", "scopes")
 			canReleaseMscMap := orderedMapHasRelease || (mscMapIsPtr && hasReleaseOrderedMap)
 			if hasMscMap && canReleaseMscMap {
 				for _, decl := range mscMeta.file.Decls {
 					fn, ok := decl.(*ast.FuncDecl)
-					if !ok || fn.Recv == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+					if !ok || fn.Body == nil || fn.Name == nil {
 						continue
 					}
-					rId := fn.Recv.List[0].Names[0]
-					if rv := varFromObj(info.Defs[rId]); rv != nil && ptrNamedOrigin(rv.Type()) == mscNamed && rId.Name != "_" {
-						count += rewriteFieldMapCtorToAcquire(ctx, mscMeta.file, fn.Body, rId.Name, mscMapField, "OrderedMap")
+					if fn.Recv != nil && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 {
+						rId := fn.Recv.List[0].Names[0]
+						if rv := varFromObj(info.Defs[rId]); rv != nil && ptrNamedOrigin(rv.Type()) == mscNamed && rId.Name != "_" {
+							count += rewriteFieldMapCtorToAcquire(ctx, mscMeta.file, fn.Body, rId.Name, mscMapField, "OrderedMap")
+						}
+					} else if fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "InitMemoizedScopeCreator") &&
+						fn.Type != nil && fn.Type.Params != nil && len(fn.Type.Params.List) >= 1 && len(fn.Type.Params.List[0].Names) == 1 {
+						p0 := fn.Type.Params.List[0].Names[0]
+						if pv := varFromObj(info.Defs[p0]); pv != nil && ptrNamedOrigin(pv.Type()) == mscNamed && p0.Name != "_" {
+							count += rewriteFieldMapCtorToAcquire(ctx, mscMeta.file, fn.Body, p0.Name, mscMapField, "OrderedMap")
+						}
 					}
 				}
+			}
+			plainZeroLine := func(recvExpr, fldName string, isPtr bool) string {
+				if isPtr {
+					return fmt.Sprintf("if %[1]s.%[2]s != nil {\n\t%[1]s.%[2]s.Clear()\n\t%[1]s.%[2]s = nil\n}", recvExpr, fldName)
+				}
+				if mscMeta.structAST != nil && mscMeta.structAST.Fields != nil {
+					for _, fld := range mscMeta.structAST.Fields.List {
+						for _, nm := range fld.Names {
+							if nm.Name == fldName && fld.Type != nil {
+								var tb bytes.Buffer
+								if err := printer.Fprint(&tb, ctx.Fset, fld.Type); err == nil && tb.Len() > 0 {
+									return fmt.Sprintf("%[1]s.%[2]s = %[3]s{}", recvExpr, fldName, tb.String())
+								}
+							}
+						}
+					}
+				}
+				return fmt.Sprintf("%[1]s.%[2]s.Clear()", recvExpr, fldName)
 			}
 			if existingMethods[mscNamed] == nil || !existingMethods[mscNamed]["ReleaseSlabs_"] {
 				j2Qual := ""
@@ -6647,6 +6726,8 @@ func applySyntacticScopeAndMemoizedPoolingLowering(
 							lines = append(lines, fmt.Sprintf("this_.%s.Clear()", mscMapField))
 						}
 					}
+				} else if hasMscPlain {
+					lines = append(lines, plainZeroLine("this_", mscPlainField, mscPlainIsPtr))
 				}
 				src := "package p\nfunc (this_ *MemoizedScopeCreator) ReleaseSlabs_() {\n" + strings.Join(lines, "\n") + "\n}\n"
 				pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
@@ -6660,7 +6741,11 @@ func applySyntacticScopeAndMemoizedPoolingLowering(
 				existingMethods[mscNamed]["ReleaseSlabs_"] = true
 				ctx.MarkFileModified(mscMeta.file)
 				count++
-			} else if hasMscMap {
+			} else if hasMscMap || hasMscPlain {
+				targetField := mscMapField
+				if !hasMscMap {
+					targetField = mscPlainField
+				}
 				relFn, relRecv := findPtrMethodDeclOnNamed(mscMeta.file, mscNamed, "ReleaseSlabs_", info)
 				if relFn == nil {
 					for _, decl := range mscMeta.file.Decls {
@@ -6674,20 +6759,24 @@ func applySyntacticScopeAndMemoizedPoolingLowering(
 						}
 					}
 				}
-				if relFn != nil && relRecv != "" && relRecv != "_" && !slabASTContainsIdent(relFn.Body, mscMapField) {
+				if relFn != nil && relRecv != "" && relRecv != "_" && !slabASTContainsIdent(relFn.Body, targetField) {
 					var mapRelLine string
-					if orderedMapHasRelease {
-						if mscMapIsPtr {
-							mapRelLine = fmt.Sprintf("if %[1]s.%[2]s != nil {\n\t%[1]s.%[2]s.ReleaseToPool()\n\t%[1]s.%[2]s = nil\n}", relRecv, mscMapField)
+					if hasMscMap {
+						if orderedMapHasRelease {
+							if mscMapIsPtr {
+								mapRelLine = fmt.Sprintf("if %[1]s.%[2]s != nil {\n\t%[1]s.%[2]s.ReleaseToPool()\n\t%[1]s.%[2]s = nil\n}", relRecv, mscMapField)
+							} else {
+								mapRelLine = fmt.Sprintf("%[1]s.%[2]s.ReleaseToPool()", relRecv, mscMapField)
+							}
 						} else {
-							mapRelLine = fmt.Sprintf("%[1]s.%[2]s.ReleaseToPool()", relRecv, mscMapField)
+							if mscMapIsPtr {
+								mapRelLine = fmt.Sprintf("if %[1]s.%[2]s != nil {\n\t%[1]s.%[2]s.Clear()\n\t%[1]s.%[2]s = nil\n}", relRecv, mscMapField)
+							} else {
+								mapRelLine = fmt.Sprintf("%[1]s.%[2]s.Clear()", relRecv, mscMapField)
+							}
 						}
 					} else {
-						if mscMapIsPtr {
-							mapRelLine = fmt.Sprintf("if %[1]s.%[2]s != nil {\n\t%[1]s.%[2]s.Clear()\n\t%[1]s.%[2]s = nil\n}", relRecv, mscMapField)
-						} else {
-							mapRelLine = fmt.Sprintf("%[1]s.%[2]s.Clear()", relRecv, mscMapField)
-						}
+						mapRelLine = plainZeroLine(relRecv, mscPlainField, mscPlainIsPtr)
 					}
 					pf, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+mapRelLine+"\n}\n", 0)
 					if err != nil {
@@ -22091,17 +22180,85 @@ func (this_ *LiveVariablesAnalysis) ReleaseSlabs_() {
 		count++
 	}
 
-	// Wire DeadAssignmentsElimination defer release right before `this_.liveness = nil`.
+	// Wire ResetForScope / ClearScopeState on LiveVariablesAnalysis (Patch 86 instance reuse across scopes).
+	for _, decl := range lvaMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Body == nil || fn.Name == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != lvaNamed {
+			continue
+		}
+		rName := rId.Name
+		switch fn.Name.Name {
+		case "ResetForScope":
+			if !slabASTContainsIdent(fn.Body, "ReleaseSlabs_") {
+				pf, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\n%[1]s.ReleaseSlabs_()\n}\n", rName), 0)
+				if pErr != nil {
+					return count, pErr
+				}
+				insIdx := 0
+				for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+					insIdx++
+				}
+				fn.Body.List = slices.Insert(fn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				ctx.MarkFileModified(lvaMeta.file)
+				count++
+			}
+		case "ClearScopeState":
+			if !slabASTContainsIdent(fn.Body, "ReleaseSlabs_") {
+				var clearLines []string
+				for _, fld := range []string{"emptyLattice", "scratchGen", "scratchKill"} {
+					if structHasFieldNamed(lvaNamed, fld) {
+						clearLines = append(clearLines, fmt.Sprintf("%s.%s = nil", rName, fld))
+					}
+				}
+				clearLines = append(clearLines, fmt.Sprintf("%s.ReleaseSlabs_()", rName))
+				pf, pErr := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(clearLines, "\n")+"\n}\n", 0)
+				if pErr != nil {
+					return count, pErr
+				}
+				fn.Body.List = append(fn.Body.List, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				ctx.MarkFileModified(lvaMeta.file)
+				count++
+			}
+		}
+	}
+
+	// Wire DeadAssignmentsElimination defer release right before `this_.liveness = nil` (and Process_2 cleanup when `liveness` is reused across functions).
 	if hasDaeCall {
 		daeMeta := structByNamed[daeNamed]
 		for _, decl := range daeMeta.file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Recv == nil || fn.Body == nil || fn.Name == nil ||
-				!strings.HasPrefix(fn.Name.Name, "priv_DeadAssignmentsElimination_eliminateDeadAssignments_") ||
 				len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
 				continue
 			}
-			rName := fn.Recv.List[0].Names[0].Name
+			rId := fn.Recv.List[0].Names[0]
+			if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != daeNamed {
+				continue
+			}
+			rName := rId.Name
+			if fn.Name.Name == "Process_2" && structHasFieldNamed(daeNamed, "liveness") {
+				if !bodyCallsRecvFieldMethod(fn.Body, rName, "liveness", "ReleaseSlabs_") {
+					pf, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\ndefer func() {\nif %[1]s.liveness != nil {\n%[1]s.liveness.ReleaseSlabs_()\n%[1]s.liveness = nil\n}\n}()\n}\n", rName), 0)
+					if pErr != nil {
+						return count, pErr
+					}
+					insIdx := 0
+					for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+						insIdx++
+					}
+					fn.Body.List = slices.Insert(fn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+					ctx.MarkFileModified(daeMeta.file)
+					count++
+				}
+				continue
+			}
+			if !strings.HasPrefix(fn.Name.Name, "priv_DeadAssignmentsElimination_eliminateDeadAssignments_") {
+				continue
+			}
 			injectedDae := false
 			for _, st := range fn.Body.List {
 				ds, isDS := st.(*ast.DeferStmt)
@@ -22157,7 +22314,11 @@ func (this_ *LiveVariablesAnalysis) ReleaseSlabs_() {
 				len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
 				continue
 			}
-			rName := fn.Recv.List[0].Names[0].Name
+			rId := fn.Recv.List[0].Names[0]
+			if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != cvnNamed {
+				continue
+			}
+			rName := rId.Name
 			switch fn.Name.Name {
 			case "ExitScopeWithCfg":
 				if slabASTContainsIdent(fn.Body, "poppedLiveness_") {
@@ -22211,10 +22372,16 @@ func (this_ *LiveVariablesAnalysis) ReleaseSlabs_() {
 					}
 					for j, dst := range fl.Body.List {
 						if isRecvFieldNilAssign(dst, rName, "liveness") {
-							stmtSrc := fmt.Sprintf("package p\nfunc f() {\nfor !%[1]s.liveAnalyses.IsEmpty() {\nif lv_, ok_ := %[1]s.liveAnalyses.Pop().(*LiveVariablesAnalysis); ok_ && lv_ != nil {\nlv_.ReleaseSlabs_()\n}\n}\n}\n", rName)
+							var drainLines []string
 							if popReturnsTyped {
-								stmtSrc = fmt.Sprintf("package p\nfunc f() {\nfor !%[1]s.liveAnalyses.IsEmpty() {\nif lv_ := %[1]s.liveAnalyses.Pop(); lv_ != nil {\nlv_.ReleaseSlabs_()\n}\n}\n}\n", rName)
+								drainLines = append(drainLines, fmt.Sprintf("for !%[1]s.liveAnalyses.IsEmpty() {\nif lv_ := %[1]s.liveAnalyses.Pop(); lv_ != nil {\nlv_.ReleaseSlabs_()\n}\n}", rName))
+							} else {
+								drainLines = append(drainLines, fmt.Sprintf("for !%[1]s.liveAnalyses.IsEmpty() {\nif lv_, ok_ := %[1]s.liveAnalyses.Pop().(*LiveVariablesAnalysis); ok_ && lv_ != nil {\nlv_.ReleaseSlabs_()\n}\n}", rName))
 							}
+							if structHasFieldNamed(cvnNamed, "freeLiveAnalyses") {
+								drainLines = append(drainLines, fmt.Sprintf("%[1]s.freeLiveAnalyses.Clear()", rName))
+							}
+							stmtSrc := "package p\nfunc f() {\n" + strings.Join(drainLines, "\n") + "\n}\n"
 							pf, pErr := parser.ParseFile(ctx.Fset, "", stmtSrc, 0)
 							if pErr != nil {
 								return count, pErr
@@ -25269,6 +25436,75 @@ func %[1]s(slab_ *%[2]s.PooledSlab[MaybeReachingVariableUse_ReachingUsesJoinOp],
 		return count, err
 	}
 	count += cRel
+
+	// Wire ResetForScope / ClearScopeState on MaybeReachingVariableUse (Patch 86 instance reuse across scopes).
+	for _, decl := range mrvuMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Body == nil || fn.Name == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != mrvuNamed {
+			continue
+		}
+		rName := rId.Name
+		switch fn.Name.Name {
+		case "ResetForScope":
+			if !slabASTContainsIdent(fn.Body, "ReleaseSlabs_") {
+				pf, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\n%s.ReleaseSlabs_()\n}\n", rName), 0)
+				if pErr != nil {
+					return count, pErr
+				}
+				insIdx := 0
+				for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+					insIdx++
+				}
+				fn.Body.List = slices.Insert(fn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				ctx.MarkFileModified(mrvuMeta.file)
+				count++
+			}
+		case "ClearScopeState":
+			if !slabASTContainsIdent(fn.Body, "ReleaseSlabs_") {
+				var clearLines []string
+				if structHasFieldNamed(mrvuNamed, "emptyLattice") {
+					clearLines = append(clearLines, fmt.Sprintf("%s.emptyLattice = nil", rName))
+				}
+				clearLines = append(clearLines, fmt.Sprintf("%s.ReleaseSlabs_()", rName))
+				pf, pErr := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(clearLines, "\n")+"\n}\n", 0)
+				if pErr != nil {
+					return count, pErr
+				}
+				fn.Body.List = append(fn.Body.List, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				ctx.MarkFileModified(mrvuMeta.file)
+				count++
+			}
+		}
+	}
+
+	// If FlowSensitiveInlineVariables caches reusableReachingUses / reusableReachingDef across functions, clear them on Process_2 exit.
+	if structHasFieldNamed(fsivNamed, "reusableReachingUses") || structHasFieldNamed(fsivNamed, "reusableReachingDef") {
+		if procFn, procRecv := findPtrMethodDeclOnNamed(fsivMeta.file, fsivNamed, "Process_2", info); procFn != nil && procFn.Body != nil && procRecv != "" &&
+			!slabASTContainsIdent(procFn.Body, "reusableReachingUses") && !slabASTContainsIdent(procFn.Body, "reusableReachingDef") {
+			var cleanupLines []string
+			if structHasFieldNamed(fsivNamed, "reusableReachingUses") {
+				cleanupLines = append(cleanupLines, fmt.Sprintf("if %[1]s.reusableReachingUses != nil {\n%[1]s.reusableReachingUses.ReleaseSlabs_()\n%[1]s.reusableReachingUses = nil\n}", procRecv))
+			}
+			if structHasFieldNamed(fsivNamed, "reusableReachingDef") {
+				cleanupLines = append(cleanupLines, fmt.Sprintf("%[1]s.reusableReachingDef = nil", procRecv))
+			}
+			pf, pErr := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\ndefer func() {\n"+strings.Join(cleanupLines, "\n")+"\n}()\n}\n", 0)
+			if pErr != nil {
+				return count, pErr
+			}
+			insIdx := 0
+			for insIdx < len(procFn.Body.List) && isBlankDiscardStmt(procFn.Body.List[insIdx]) {
+				insIdx++
+			}
+			procFn.Body.List = slices.Insert(procFn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+			ctx.MarkFileModified(fsivMeta.file)
+			count++
+		}
+	}
 
 	// Wire `ru_ := <recv>.reachingUses` before `<recv>.reachingUses = nil` and `if ru_ != nil { ru_.ReleaseSlabs_() }`
 	// at the end of EnterScope's defer closure (after ControlFlowAnalysis_ReleaseCfg(localCfg)).
@@ -29141,8 +29377,10 @@ func promoteIvScratchVarExpert_(beh_ *InlineVariables_InliningBehavior, exp_ *In
 		return true, nil
 	}
 
-	if okL, err := prependPromote(lazyNegAllocFn, 0, 1); err != nil || !okL {
-		return 0, err
+	if lazyNegAllocFn != nil && sawSafeAliasesExpertRead && w43ParamAtHasStarIdentType(lazyNegAllocFn, 1, "InlineVariables_VarExpert") {
+		if okL, err := prependPromote(lazyNegAllocFn, 0, 1); err != nil || !okL {
+			return 0, err
+		}
 	}
 	if okR, err := prependPromote(retryAllocFn, 0, 2); err != nil || !okR {
 		return 0, err
@@ -31218,4 +31456,2353 @@ func w42MatchesStandardFinishBuilderBody(body *ast.BlockStmt, recvName, paramNam
 	}
 	ret, okR := stmts[7].(*ast.ReturnStmt)
 	return okR && len(ret.Results) == 1 && isIdentNamed(ret.Results[0], paramName)
+}
+
+
+// =============================================================================
+// Wave 43B:
+//   1) InlineVariables: unconditional per-scope slab_InlineVariables_InlineVarAnalysis.Reset()
+//      in doInlinesForScope + zero-alloc CreateLazyNegative via ReferenceCollection.ivSafeAliases_
+//      and package-level static lazy-negative sentinels (graceful no-op if CreateLazyNegative
+//      is absent or changed).
+//   2) Scope Cache-Line 0 field packing + allocFastScopeChild_/allocFastScopeGlobal_ in
+//      SyntacticScopeCreator.CreateScope_2_Node_Scope + allocOpt_Var zeroed-slab fast path.
+//   3) ClosureRewriteModule_ScriptDescription Cache-Line 0 field packing + PooledSlab on
+//      ClosureRewriteModule with Process_2 defer cleanup.
+//   4) FIN Graph & Scope Slab Releases: CoalesceVariableNames.colorings.Pop() graph ReleaseSlabs_(),
+//      AnalyzePrototypeProperties + CrossChunkMethodMotion graph/map/scopeCreator ReleaseSlabs_(),
+//      and LinkedDirectedGraph fast slab node/edge init + pooled inEdges/outEdges slices.
+// =============================================================================
+
+func applyWave43SlabLowerings(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	count := 0
+
+	c1, err := applyWave43InlineVariablesZeroAllocLazyNegativeAndScopeReset(ctx, structByNamed, valueCopied, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += c1
+
+	c2, err := applyWave43FastScopeAndVarSlabInitLowering(ctx, structByNamed, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += c2
+
+	c3, err := applyWave43ClosureRewriteModuleScriptDescSlabLowering(ctx, structByNamed, valueCopied, singletonStructs, ctorByFunc, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += c3
+
+	c4, err := applyWave43FinGraphAndScopeSlabReleaseLowering(ctx, structByNamed, valueCopied, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += c4
+
+	return count, nil
+}
+
+// -----------------------------------------------------------------------------
+// Wave 43B.1: InlineVariables unconditional per-scope analysis slab reset +
+// zero-allocation CreateLazyNegative with ReferenceCollection.ivSafeAliases_.
+// -----------------------------------------------------------------------------
+
+func applyWave43InlineVariablesZeroAllocLazyNegativeAndScopeReset(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	info := ctx.Info
+	var ivNamed, ibNamed, ivaNamed, expNamed, rcNamed, rcColNamed, varNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "InlineVariables":
+			ivNamed = n
+		case "InlineVariables_InliningBehavior":
+			ibNamed = n
+		case "InlineVariables_InlineVarAnalysis":
+			ivaNamed = n
+		case "InlineVariables_VarExpert":
+			expNamed = n
+		case "ReferenceCollection":
+			rcNamed = n
+		case "ReferenceCollector":
+			rcColNamed = n
+		case "Var":
+			varNamed = n
+		}
+	}
+
+	count := 0
+
+	// Part A: Upgrade doInlinesForScope so currentScopeHandledVarAnalysesMap.Clear() and
+	// slab_InlineVariables_InlineVarAnalysis.Reset() run UNCONDITIONALLY at the end of every
+	// scope (even when varToAliasRetryHandlersMap is non-empty due to an outer-scope alias!).
+	if ivNamed != nil && ibNamed != nil && j2gortTypeHasMethod(ctx, "PooledSlab", "Reset") {
+		ivMeta := structByNamed[ivNamed]
+		ibMeta := structByNamed[ibNamed]
+		if ivMeta != nil && ibMeta != nil && ivMeta.file == ibMeta.file && ctx.ShouldTransform(ibMeta.file) &&
+			(ivMeta.slabFields["slab_InlineVariables_InlineVarAnalysis"] || hasASTFieldNamed(ivMeta.structAST, "slab_InlineVariables_InlineVarAnalysis")) &&
+			structHasFieldNamed(ibNamed, "outer_") &&
+			structHasFieldNamed(ibNamed, "currentScopeHandledVarAnalysesMap") {
+			for _, decl := range ibMeta.file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+					continue
+				}
+				if !strings.HasPrefix(fn.Name.Name, "priv_InliningBehavior_doInlinesForScope_") && fn.Name.Name != "doInlinesForScope" {
+					continue
+				}
+				rId := fn.Recv.List[0].Names[0]
+				if rv := varFromObj(info.Defs[rId]); rv == nil || ptrNamedOrigin(rv.Type()) != ibNamed || rId.Name == "_" {
+					continue
+				}
+				rName := rId.Name
+				if w43HasTopLevelUncondIvAnalysisSlabReset(fn.Body, rName) {
+					continue
+				}
+				upgraded, err := w43PromoteIvAnalysisSlabResetInDoInlines(ctx.Fset, fn.Body, rName)
+				if err != nil {
+					return count, err
+				}
+				if upgraded {
+					ctx.MarkFileModified(ibMeta.file)
+					count++
+				}
+			}
+		}
+	}
+
+	// Part B: Zero-allocation CreateLazyNegative via ReferenceCollection.ivSafeAliases_ +
+	// 3 static sentinels + activeRefMap_ on InlineVariables_InliningBehavior.
+	if ivNamed == nil || ibNamed == nil || ivaNamed == nil || expNamed == nil || rcNamed == nil || varNamed == nil {
+		return count, nil
+	}
+	if valueCopied[ibNamed] || valueCopied[expNamed] || valueCopied[rcNamed] {
+		return count, nil
+	}
+	ibMeta := structByNamed[ibNamed]
+	ivaMeta := structByNamed[ivaNamed]
+	rcMeta := structByNamed[rcNamed]
+	if ibMeta == nil || ivaMeta == nil || rcMeta == nil || !ctx.ShouldTransform(ibMeta.file) || !ctx.ShouldTransform(rcMeta.file) ||
+		!canEnsureJ2gortInFile(ibMeta.file, ctx) {
+		return count, nil
+	}
+	for _, f := range []string{"kind", "lazyWellDefined_", "lazyAssignedOnce_"} {
+		if ft := structFieldType(ivaNamed, f); ft != nil {
+			if !types.Identical(ft, types.Typ[types.Int8]) {
+				return count, nil
+			}
+		} else if !hasASTFieldNamed(ivaMeta.structAST, f) {
+			return count, nil
+		}
+	}
+	if bt := structFieldType(expNamed, "behavior"); bt == nil || ptrNamedOrigin(bt) != ibNamed {
+		return count, nil
+	}
+	if !w43HasZeroArgBoolMethod(rcNamed, ctx.Pkg, "IsWellDefined") ||
+		!w43HasZeroArgBoolMethod(rcNamed, ctx.Pkg, "IsAssignedOnceInLifetime") {
+		return count, nil
+	}
+
+	// Find allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative; graceful no-op if absent or changed.
+	const lazyNegHelper = "allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative"
+	var lazyNegFn *ast.FuncDecl
+	for _, decl := range ibMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if ok && fn.Recv == nil && fn.Name != nil && fn.Name.Name == lazyNegHelper && fn.Body != nil {
+			lazyNegFn = fn
+			break
+		}
+	}
+	if lazyNegFn == nil || slabASTContainsIdent(lazyNegFn.Body, "staticIvLazyNegUnknown_") {
+		return count, nil
+	}
+	if !w43ParamAtHasStarIdentType(lazyNegFn, 0, "InlineVariables_InliningBehavior") ||
+		!w43ParamAtHasStarIdentType(lazyNegFn, 1, "InlineVariables_VarExpert") {
+		return count, nil
+	}
+	lazyParamNames := extractFlatParamNames(lazyNegFn.Type.Params)
+	if len(lazyParamNames) != 2 || lazyParamNames[0] == "" || lazyParamNames[1] == "" {
+		return count, nil
+	}
+	behParam, expParam := lazyParamNames[0], lazyParamNames[1]
+
+	// Locate the inner Wave 42 fast-path `if` block inside lazyNegFn containing `slab_InlineVariables_InlineVarAnalysis.Alloc()`.
+	var lazyFastIfBody *ast.BlockStmt
+	var lazySlabAllocIdx int = -1
+	for _, st := range lazyNegFn.Body.List {
+		ifs, ok := st.(*ast.IfStmt)
+		if !ok || ifs.Body == nil {
+			continue
+		}
+		for j, bst := range ifs.Body.List {
+			if slabASTContainsIdent(bst, "slab_InlineVariables_InlineVarAnalysis") {
+				lazyFastIfBody = ifs.Body
+				lazySlabAllocIdx = j
+				break
+			}
+		}
+		if lazyFastIfBody != nil {
+			break
+		}
+	}
+	if lazyFastIfBody == nil || lazySlabAllocIdx < 0 {
+		return count, nil
+	}
+
+	// Locate 2-arg doInlinesForScope(t, referenceMap ReferenceMap) on InlineVariables_InliningBehavior.
+	var doInlinesFn *ast.FuncDecl
+	var doInlinesRecv, doInlinesRefMapParam string
+	for _, decl := range ibMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		if !strings.HasPrefix(fn.Name.Name, "priv_InliningBehavior_doInlinesForScope_") && fn.Name.Name != "doInlinesForScope" {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		if rv := varFromObj(info.Defs[rId]); rv == nil || ptrNamedOrigin(rv.Type()) != ibNamed || rId.Name == "_" {
+			continue
+		}
+		pNames := extractFlatParamNames(fn.Type.Params)
+		if len(pNames) != 2 || pNames[1] == "" || !w43ParamAtHasIdentType(fn, 1, "ReferenceMap") {
+			continue
+		}
+		if doInlinesFn != nil {
+			return count, nil
+		}
+		doInlinesFn = fn
+		doInlinesRecv = rId.Name
+		doInlinesRefMapParam = pNames[1]
+	}
+	if doInlinesFn == nil {
+		return count, nil
+	}
+
+	// Locate ReanalyzeAfterAliasedVar(aliasedVar *Var, aliasedVarAnalysis *InlineVariables_InlineVarAnalysis) on VarExpert,
+	// and verify NO external `.IsSafeToInlineAliases()` call exists outside ReanalyzeAfterAliasedVar.
+	var reanalyzeFn *ast.FuncDecl
+	var reanalyzeRecv, reanalyzeVarParam, reanalyzeAnalysisParam string
+	for _, decl := range ibMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || fn.Name.Name != "ReanalyzeAfterAliasedVar" ||
+			len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		if rv := varFromObj(info.Defs[rId]); rv == nil || ptrNamedOrigin(rv.Type()) != expNamed || rId.Name == "_" {
+			continue
+		}
+		pNames := extractFlatParamNames(fn.Type.Params)
+		if len(pNames) != 2 || pNames[0] == "" || pNames[1] == "" ||
+			!w43ParamAtHasStarIdentType(fn, 0, "Var") ||
+			!w43ParamAtHasStarIdentType(fn, 1, "InlineVariables_InlineVarAnalysis") {
+			return count, nil
+		}
+		reanalyzeFn = fn
+		reanalyzeRecv = rId.Name
+		reanalyzeVarParam = pNames[0]
+		reanalyzeAnalysisParam = pNames[1]
+	}
+	if reanalyzeFn == nil {
+		return count, nil
+	}
+
+	var safeCallInReanalyze *ast.CallExpr
+	badSafeCall := false
+	for _, file := range ctx.Files {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || fn.Name == nil {
+				continue
+			}
+			if fn.Name.Name == "isSafeToInlineAliasesIv_" {
+				continue
+			}
+			if fn.Recv != nil && len(fn.Recv.List) == 1 && recvStructTypeName(fn.Recv.List[0].Type) == "InlineVariables_InlineVarAnalysis" {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if badSafeCall || n == nil {
+					return false
+				}
+				call, isC := n.(*ast.CallExpr)
+				if !isC {
+					return true
+				}
+				sel, isS := stripParens(call.Fun).(*ast.SelectorExpr)
+				if !isS || sel.Sel == nil || sel.Sel.Name != "IsSafeToInlineAliases" {
+					return true
+				}
+				if fn != reanalyzeFn || len(call.Args) != 0 || call.Ellipsis.IsValid() ||
+					!isIdentNamed(stripParens(sel.X), reanalyzeAnalysisParam) || safeCallInReanalyze != nil {
+					badSafeCall = true
+					return false
+				}
+				safeCallInReanalyze = call
+				return true
+			})
+		}
+	}
+	if badSafeCall || safeCallInReanalyze == nil {
+		return count, nil
+	}
+
+	j2Qual, okQ := ensureJ2gortImportInFile(ibMeta.file, ctx)
+	if !okQ {
+		return count, nil
+	}
+
+	// Check whether ReferenceCollector.referenceMap has direct typed `.Get(*Var) *ReferenceCollection`.
+	hasDirectRcColGet := false
+	if rcColNamed != nil {
+		if rmT := structFieldType(rcColNamed, "referenceMap"); rmT != nil {
+			if mObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(rmT), true, ctx.Pkg, "Get"); mObj != nil {
+				if fnObj, okF := mObj.(*types.Func); okF {
+					if sig, okS := fnObj.Type().(*types.Signature); okS &&
+						sig.Params() != nil && sig.Params().Len() == 1 && ptrNamedOrigin(sig.Params().At(0).Type()) == varNamed &&
+						sig.Results() != nil && sig.Results().Len() == 1 && ptrNamedOrigin(sig.Results().At(0).Type()) == rcNamed {
+						hasDirectRcColGet = true
+					}
+				}
+			}
+		}
+	}
+
+	// 1. Add ivSafeAliases_ int8 to ReferenceCollection (fits in 4-byte trailing padding after atomic.Int32).
+	if !hasASTFieldNamed(rcMeta.structAST, "ivSafeAliases_") {
+		rcMeta.structAST.Fields.List = append(rcMeta.structAST.Fields.List, &ast.Field{
+			Names: []*ast.Ident{{Name: "ivSafeAliases_"}},
+			Type:  &ast.Ident{Name: "int8"},
+		})
+		ctx.MarkFileModified(rcMeta.file)
+		count++
+	}
+	for _, decl := range rcMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Name.Name != "initFields_ReferenceCollection" ||
+			fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rName := fn.Recv.List[0].Names[0].Name
+		if rName != "_" && !slabASTContainsIdent(fn.Body, "ivSafeAliases_") {
+			pf, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\n%s.ivSafeAliases_ = 0\n}\n", rName), 0)
+			if err != nil {
+				return count, err
+			}
+			fn.Body.List = append(fn.Body.List, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+			ctx.MarkFileModified(rcMeta.file)
+			count++
+		}
+	}
+
+	// 2. Add activeRefMap_ ReferenceMap to InlineVariables_InliningBehavior and set/clear in doInlinesForScope.
+	if !hasASTFieldNamed(ibMeta.structAST, "activeRefMap_") {
+		ibMeta.structAST.Fields.List = append(ibMeta.structAST.Fields.List, &ast.Field{
+			Names: []*ast.Ident{{Name: "activeRefMap_"}},
+			Type:  &ast.Ident{Name: "ReferenceMap"},
+		})
+		ctx.MarkFileModified(ibMeta.file)
+		count++
+	}
+	if !slabASTContainsIdent(doInlinesFn.Body, "activeRefMap_") {
+		insIdx := 0
+		for insIdx < len(doInlinesFn.Body.List) && isBlankDiscardStmt(doInlinesFn.Body.List[insIdx]) {
+			insIdx++
+		}
+		if !w43BlockHasReturnOutsideFuncLit(doInlinesFn.Body) {
+			pfSet, err1 := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\n%s.activeRefMap_ = %s\n}\n", doInlinesRecv, doInlinesRefMapParam), 0)
+			if err1 != nil {
+				return count, err1
+			}
+			pfClr, err2 := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\n%s.activeRefMap_ = nil\n}\n", doInlinesRecv), 0)
+			if err2 != nil {
+				return count, err2
+			}
+			doInlinesFn.Body.List = slices.Insert(doInlinesFn.Body.List, insIdx, pfSet.Decls[0].(*ast.FuncDecl).Body.List...)
+			doInlinesFn.Body.List = append(doInlinesFn.Body.List, pfClr.Decls[0].(*ast.FuncDecl).Body.List...)
+		} else {
+			pfSet, err1 := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\n%[1]s.activeRefMap_ = %[2]s\ndefer func() { %[1]s.activeRefMap_ = nil }()\n}\n", doInlinesRecv, doInlinesRefMapParam), 0)
+			if err1 != nil {
+				return count, err1
+			}
+			doInlinesFn.Body.List = slices.Insert(doInlinesFn.Body.List, insIdx, pfSet.Decls[0].(*ast.FuncDecl).Body.List...)
+		}
+		ctx.MarkFileModified(ibMeta.file)
+		count++
+	}
+
+	// 3. Inject zero-alloc sentinel return into allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative.
+	fastSnippet := fmt.Sprintf(`package p
+func f() {
+	if %[1]s.activeRefMap_ != nil {
+		if %[2]s.isWellDefined == 1 {
+			return &staticIvLazyNegWellDef_
+		}
+		if %[2]s.isAssignedOnceInLifetime == 1 {
+			return &staticIvLazyNegAssignedOnce_
+		}
+		return &staticIvLazyNegUnknown_
+	}
+}
+`, behParam, expParam)
+	fastPF, err := parser.ParseFile(ctx.Fset, "", fastSnippet, 0)
+	if err != nil {
+		return count, err
+	}
+	lazyFastIfBody.List = slices.Insert(lazyFastIfBody.List, lazySlabAllocIdx, fastPF.Decls[0].(*ast.FuncDecl).Body.List...)
+
+	// 4. Rewrite aliasedVarAnalysis.IsSafeToInlineAliases() -> isSafeToInlineAliasesIv_(this_.behavior, aliasedVar, aliasedVarAnalysis).
+	safeCallInReanalyze.Fun = &ast.Ident{NamePos: safeCallInReanalyze.Pos(), Name: "isSafeToInlineAliasesIv_"}
+	safeCallInReanalyze.Args = []ast.Expr{
+		&ast.SelectorExpr{X: &ast.Ident{Name: reanalyzeRecv}, Sel: &ast.Ident{Name: "behavior"}},
+		&ast.Ident{Name: reanalyzeVarParam},
+		&ast.Ident{Name: reanalyzeAnalysisParam},
+	}
+
+	// 5. Emit package-level sentinels + isSafeToInlineAliasesIv_ helper in ibMeta.file.
+	rcLookupBlock := fmt.Sprintf(`rc, _ = beh_.activeRefMap_.GetReferences(%s.PtrToAny(aliasedVar)).(*ReferenceCollection)`, j2Qual)
+	if hasDirectRcColGet {
+		rcLookupBlock = fmt.Sprintf(`if rcCol, ok := beh_.activeRefMap_.(*ReferenceCollector); ok && rcCol != nil {
+			rc = rcCol.referenceMap.Get(aliasedVar)
+		} else {
+			rc, _ = beh_.activeRefMap_.GetReferences(%s.PtrToAny(aliasedVar)).(*ReferenceCollection)
+		}`, j2Qual)
+	}
+	helperSrc := fmt.Sprintf(`package jscomp
+
+var (
+	staticIvLazyNegUnknown_      = InlineVariables_InlineVarAnalysis{kind: int8(2), lazyWellDefined_: int8(-1), lazyAssignedOnce_: int8(-1)}
+	staticIvLazyNegWellDef_      = InlineVariables_InlineVarAnalysis{kind: int8(2), lazyWellDefined_: int8(1), lazyAssignedOnce_: int8(-1)}
+	staticIvLazyNegAssignedOnce_ = InlineVariables_InlineVarAnalysis{kind: int8(2), lazyWellDefined_: int8(-1), lazyAssignedOnce_: int8(1)}
+)
+
+func isSafeToInlineAliasesIv_(beh_ *InlineVariables_InliningBehavior, aliasedVar *Var, analysis *InlineVariables_InlineVarAnalysis) bool {
+	if analysis == &staticIvLazyNegUnknown_ || analysis == &staticIvLazyNegWellDef_ || analysis == &staticIvLazyNegAssignedOnce_ {
+		if beh_ == nil || beh_.activeRefMap_ == nil || aliasedVar == nil {
+			return false
+		}
+		var rc *ReferenceCollection
+		%[1]s
+		if rc == nil {
+			return false
+		}
+		if rc.ivSafeAliases_ != 0 {
+			return rc.ivSafeAliases_ == 2
+		}
+		ok := (analysis == &staticIvLazyNegWellDef_ || rc.IsWellDefined()) &&
+			(analysis == &staticIvLazyNegAssignedOnce_ || rc.IsAssignedOnceInLifetime())
+		if ok {
+			rc.ivSafeAliases_ = 2
+		} else {
+			rc.ivSafeAliases_ = 1
+		}
+		return ok
+	}
+	return analysis.IsSafeToInlineAliases()
+}
+`, rcLookupBlock)
+	helperPF, err := parser.ParseFile(ctx.Fset, "", helperSrc, 0)
+	if err != nil {
+		return count, err
+	}
+	ibMeta.file.Decls = append(ibMeta.file.Decls, helperPF.Decls...)
+	existingPkgFuncs["isSafeToInlineAliasesIv_"] = true
+	ctx.MarkFileModified(ibMeta.file)
+	count++
+
+	return count, nil
+}
+
+func w43HasTopLevelUncondIvAnalysisSlabReset(body *ast.BlockStmt, recvName string) bool {
+	if body == nil {
+		return false
+	}
+	for _, st := range body.List {
+		ifs, ok := st.(*ast.IfStmt)
+		if !ok || ifs.Else != nil || ifs.Body == nil {
+			continue
+		}
+		bin, okB := stripParens(ifs.Cond).(*ast.BinaryExpr)
+		if !okB || bin.Op != token.NEQ || !isIdentNamed(bin.Y, "nil") || !w41IsRecvFieldSel(bin.X, recvName, "outer_") {
+			continue
+		}
+		if w36BodyCallsSlabReset(ifs.Body, "slab_InlineVariables_InlineVarAnalysis") {
+			return true
+		}
+	}
+	return false
+}
+
+func w43PromoteIvAnalysisSlabResetInDoInlines(fset *token.FileSet, body *ast.BlockStmt, recvName string) (bool, error) {
+	if body == nil {
+		return false, nil
+	}
+	isHandledClearStmt := func(st ast.Stmt) bool {
+		es, ok := st.(*ast.ExprStmt)
+		if !ok {
+			return false
+		}
+		call, okC := stripParens(es.X).(*ast.CallExpr)
+		if !okC || len(call.Args) != 0 {
+			return false
+		}
+		sel, okS := stripParens(call.Fun).(*ast.SelectorExpr)
+		return okS && sel.Sel != nil && sel.Sel.Name == "Clear" && w41IsRecvFieldSel(sel.X, recvName, "currentScopeHandledVarAnalysesMap")
+	}
+	isAnalysisSlabResetStmt := func(st ast.Stmt) bool {
+		es, ok := st.(*ast.ExprStmt)
+		if !ok {
+			return false
+		}
+		call, okC := stripParens(es.X).(*ast.CallExpr)
+		if !okC || len(call.Args) != 0 {
+			return false
+		}
+		sel, okS := stripParens(call.Fun).(*ast.SelectorExpr)
+		if !okS || sel.Sel == nil || sel.Sel.Name != "Reset" {
+			return false
+		}
+		slabSel, okSS := stripParens(sel.X).(*ast.SelectorExpr)
+		return okSS && slabSel.Sel != nil && slabSel.Sel.Name == "slab_InlineVariables_InlineVarAnalysis" &&
+			w41IsRecvFieldSel(slabSel.X, recvName, "outer_")
+	}
+
+	targetIdx := -1
+	for i := len(body.List) - 1; i >= 0; i-- {
+		ifs, ok := body.List[i].(*ast.IfStmt)
+		if !ok || ifs.Body == nil || ifs.Else != nil {
+			continue
+		}
+		call, okC := stripParens(ifs.Cond).(*ast.CallExpr)
+		if !okC || len(call.Args) != 0 {
+			continue
+		}
+		sel, okS := stripParens(call.Fun).(*ast.SelectorExpr)
+		if !okS || sel.Sel == nil || sel.Sel.Name != "IsEmpty" || !w41IsRecvFieldSel(sel.X, recvName, "varToAliasRetryHandlersMap") {
+			continue
+		}
+		targetIdx = i
+		var keptOuter []ast.Stmt
+		for _, inner := range ifs.Body.List {
+			if isHandledClearStmt(inner) {
+				continue
+			}
+			if innerIf, okII := inner.(*ast.IfStmt); okII && innerIf.Body != nil && innerIf.Else == nil {
+				var keptResets []ast.Stmt
+				for _, rst := range innerIf.Body.List {
+					if !isAnalysisSlabResetStmt(rst) {
+						keptResets = append(keptResets, rst)
+					}
+				}
+				innerIf.Body.List = keptResets
+				if len(keptResets) == 0 {
+					continue
+				}
+			}
+			keptOuter = append(keptOuter, inner)
+		}
+		ifs.Body.List = keptOuter
+		break
+	}
+
+	uncondSrc := fmt.Sprintf("package p\nfunc f() {\n%[1]s.currentScopeHandledVarAnalysesMap.Clear()\nif %[1]s.outer_ != nil {\n%[1]s.outer_.slab_InlineVariables_InlineVarAnalysis.Reset()\n}\n}\n", recvName)
+	pf, err := parser.ParseFile(fset, "", uncondSrc, 0)
+	if err != nil {
+		return false, err
+	}
+	uncondStmts := pf.Decls[0].(*ast.FuncDecl).Body.List
+	if targetIdx >= 0 {
+		ifs := body.List[targetIdx].(*ast.IfStmt)
+		if len(ifs.Body.List) == 0 {
+			body.List = slices.Replace(body.List, targetIdx, targetIdx+1, uncondStmts...)
+		} else {
+			body.List = slices.Insert(body.List, targetIdx, uncondStmts...)
+		}
+	} else {
+		body.List = append(body.List, uncondStmts...)
+	}
+	return true, nil
+}
+
+func w43ParamAtHasIdentType(fn *ast.FuncDecl, idx int, wantIdent string) bool {
+	if fn == nil || fn.Type == nil || fn.Type.Params == nil {
+		return false
+	}
+	cur := 0
+	for _, fld := range fn.Type.Params.List {
+		n := len(fld.Names)
+		if n == 0 {
+			n = 1
+		}
+		if idx < cur+n {
+			return isIdentNamed(stripParens(fld.Type), wantIdent)
+		}
+		cur += n
+	}
+	return false
+}
+
+func w43ParamAtHasStarIdentType(fn *ast.FuncDecl, idx int, wantIdent string) bool {
+	if fn == nil || fn.Type == nil || fn.Type.Params == nil {
+		return false
+	}
+	cur := 0
+	for _, fld := range fn.Type.Params.List {
+		n := len(fld.Names)
+		if n == 0 {
+			n = 1
+		}
+		if idx < cur+n {
+			st, ok := stripParens(fld.Type).(*ast.StarExpr)
+			return ok && isIdentNamed(stripParens(st.X), wantIdent)
+		}
+		cur += n
+	}
+	return false
+}
+
+func w43BlockHasReturnOutsideFuncLit(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		if _, isFL := n.(*ast.FuncLit); isFL {
+			return false
+		}
+		if _, isRet := n.(*ast.ReturnStmt); isRet {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func w43HasZeroArgBoolMethod(named *types.Named, pkg *types.Package, name string) bool {
+	if named == nil {
+		return false
+	}
+	obj, _, _ := types.LookupFieldOrMethod(types.NewPointer(named), true, pkg, name)
+	fn, ok := obj.(*types.Func)
+	if !ok || fn == nil {
+		return false
+	}
+	sig, okS := fn.Type().(*types.Signature)
+	return okS && sig.Params().Len() == 0 && sig.Results() != nil && sig.Results().Len() == 1 &&
+		types.Identical(sig.Results().At(0).Type(), types.Typ[types.Bool])
+}
+
+// -----------------------------------------------------------------------------
+// Wave 43B.2: Scope Cache-Line 0 field packing + allocFastScopeChild_/Global_
+// + allocOpt_Var zeroed-slab fast initialization.
+// -----------------------------------------------------------------------------
+
+func applyWave43FastScopeAndVarSlabInitLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	var scopeNamed, sscNamed, varNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "Scope":
+			scopeNamed = n
+		case "SyntacticScopeCreator":
+			sscNamed = n
+		case "Var":
+			varNamed = n
+		}
+	}
+
+	count := 0
+
+	// 1. Pack Scope's hot fields (AbstractScopeBase, parent, depth, varSlab_) into Cache Line 0 (0..64),
+	// and synthesize allocFastScopeGlobal_ / allocFastScopeChild_ for SyntacticScopeCreator.CreateScope_2_Node_Scope.
+	if scopeNamed != nil {
+		scopeMeta := structByNamed[scopeNamed]
+		if scopeMeta != nil && ctx.ShouldTransform(scopeMeta.file) && !w43HasUnkeyedCompositeLitForNamed(ctx, scopeNamed) {
+			if w43ReorderStructFieldsToFront(scopeMeta.structAST, []string{"AbstractScopeBase", "parent", "depth", "varSlab_"}) {
+				ctx.MarkFileModified(scopeMeta.file)
+				count++
+			}
+		}
+
+		if scopeMeta != nil && sscNamed != nil && ctx.ShouldTransform(scopeMeta.file) {
+			sscMeta := structByNamed[sscNamed]
+			if sscMeta != nil && ctx.ShouldTransform(sscMeta.file) && canEnsureJ2gortInFile(scopeMeta.file, ctx) {
+				cScope, err := w43ApplyFastSyntacticScopeCreateLowering(ctx, scopeMeta, sscMeta, scopeNamed, sscNamed, varNamed, existingPkgFuncs)
+				if err != nil {
+					return count, err
+				}
+				count += cScope
+			}
+		}
+	}
+
+	// 2. Fast-path allocOpt_Var on zeroed slab_.Alloc() memory.
+	if varNamed != nil && scopeNamed != nil {
+		varMeta := structByNamed[varNamed]
+		if varMeta != nil && ctx.ShouldTransform(varMeta.file) && canEnsureJ2gortInFile(varMeta.file, ctx) {
+			cVar, err := w43ApplyFastAllocOptVarLowering(ctx, varMeta, varNamed, scopeNamed)
+			if err != nil {
+				return count, err
+			}
+			count += cVar
+		}
+	}
+
+	return count, nil
+}
+
+func w43HasUnkeyedCompositeLitForNamed(ctx *PassContext, target *types.Named) bool {
+	if target == nil || ctx == nil || ctx.Info == nil {
+		return true
+	}
+	found := false
+	for _, file := range ctx.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			if found || n == nil {
+				return false
+			}
+			cl, ok := n.(*ast.CompositeLit)
+			if !ok || len(cl.Elts) == 0 {
+				return true
+			}
+			if _, isKV := cl.Elts[0].(*ast.KeyValueExpr); isKV {
+				return true
+			}
+			if tv, okT := ctx.Info.Types[cl]; okT && tv.Type != nil && namedOrigin(tv.Type) == target {
+				found = true
+				return false
+			}
+			return true
+		})
+	}
+	return found
+}
+
+func w43FieldEntryKey(f *ast.Field) (string, bool) {
+	if f == nil {
+		return "", false
+	}
+	if len(f.Names) == 1 && f.Names[0] != nil {
+		return f.Names[0].Name, true
+	}
+	if len(f.Names) == 0 {
+		if id, ok := stripParens(f.Type).(*ast.Ident); ok && id.Name != "" {
+			return id.Name, true
+		}
+	}
+	return "", false
+}
+
+func w43ReorderStructFieldsToFront(st *ast.StructType, frontOrder []string) bool {
+	if st == nil || st.Fields == nil || len(frontOrder) == 0 {
+		return false
+	}
+	fields := st.Fields.List
+	for _, f := range fields {
+		if len(f.Names) > 1 {
+			return false
+		}
+	}
+	byKey := make(map[string]*ast.Field, len(fields))
+	for _, f := range fields {
+		if k, ok := w43FieldEntryKey(f); ok {
+			if _, dup := byKey[k]; dup {
+				return false
+			}
+			byKey[k] = f
+		}
+	}
+	var front []*ast.Field
+	picked := make(map[*ast.Field]bool, len(frontOrder))
+	for _, want := range frontOrder {
+		f := byKey[want]
+		if f == nil {
+			return false
+		}
+		front = append(front, f)
+		picked[f] = true
+	}
+	alreadyOrdered := true
+	for i, wantF := range front {
+		if i >= len(fields) || fields[i] != wantF {
+			alreadyOrdered = false
+			break
+		}
+	}
+	if alreadyOrdered {
+		return false
+	}
+	out := make([]*ast.Field, 0, len(fields))
+	out = append(out, front...)
+	for _, f := range fields {
+		if !picked[f] {
+			out = append(out, f)
+		}
+	}
+	st.Fields.List = out
+	return true
+}
+
+func w43ApplyFastSyntacticScopeCreateLowering(
+	ctx *PassContext,
+	scopeMeta, sscMeta *slabStructMeta,
+	scopeNamed, sscNamed, varNamed *types.Named,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	if varNamed == nil {
+		return 0, nil
+	}
+	// Verify Scope embeds AbstractScopeBase with `self_ AbstractScope` and `rootNode` (basic uint32/integer Node),
+	// and Scope has `parent *Scope`, `depth int32`, and `varSlab_ *j2gort.PooledSlab[Var]`.
+	st, okSt := scopeNamed.Underlying().(*types.Struct)
+	if !okSt || st.NumFields() < 4 || !st.Field(0).Embedded() {
+		return 0, nil
+	}
+	asbNamed := namedOrigin(st.Field(0).Type())
+	if asbNamed == nil || asbNamed.Obj() == nil || asbNamed.Obj().Name() != "AbstractScopeBase" {
+		return 0, nil
+	}
+	selfT := structFieldType(asbNamed, "self_")
+	rootT := structFieldType(asbNamed, "rootNode")
+	if selfT == nil || rootT == nil || !types.AssignableTo(types.NewPointer(scopeNamed), selfT) {
+		return 0, nil
+	}
+	rootBasic, isBasicNode := rootT.Underlying().(*types.Basic)
+	if !isBasicNode || (rootBasic.Info()&types.IsInteger) == 0 {
+		return 0, nil
+	}
+	rootNamed := namedOrigin(rootT)
+	if rootNamed == nil || !w43HasZeroArgBoolMethod(rootNamed, ctx.Pkg, "IsRoot") || !w43HasZeroArgBoolMethod(rootNamed, ctx.Pkg, "IsScript") {
+		return 0, nil
+	}
+	if pt := structFieldType(scopeNamed, "parent"); pt == nil || ptrNamedOrigin(pt) != scopeNamed {
+		return 0, nil
+	}
+	if dt := structFieldType(scopeNamed, "depth"); dt == nil || !types.Identical(dt, types.Typ[types.Int32]) {
+		return 0, nil
+	}
+	if !hasASTFieldNamed(scopeMeta.structAST, "varSlab_") ||
+		!hasASTFieldNamed(sscMeta.structAST, "slab_Scope") ||
+		!hasASTFieldNamed(sscMeta.structAST, "slab_Var") {
+		return 0, nil
+	}
+	// Verify initFields_Scope has no non-blank statements and initFields_AbstractScope only zeroes implicitVars.
+	if !w43InitFieldsOnlyZeroOrNil(ctx, scopeMeta.file, "initFields_Scope", nil) {
+		return 0, nil
+	}
+	for _, f := range ctx.Files {
+		if !w43InitFieldsOnlyZeroOrNil(ctx, f, "initFields_AbstractScope", map[string]bool{"implicitVars": true}) {
+			return 0, nil
+		}
+	}
+	// Verify NodeUtil_CreatesScope(rootT) bool exists in ctx.Pkg.
+	csObj, okCS := ctx.Pkg.Scope().Lookup("NodeUtil_CreatesScope").(*types.Func)
+	if !okCS || csObj == nil {
+		return 0, nil
+	}
+	if csSig, okS := csObj.Type().(*types.Signature); !okS || csSig.Params().Len() != 1 || csSig.Results().Len() != 1 ||
+		!types.Identical(csSig.Params().At(0).Type(), rootT) || !types.Identical(csSig.Results().At(0).Type(), types.Typ[types.Bool]) {
+		return 0, nil
+	}
+
+	// Verify allocPooledVia_Scope_CreateGlobalScope and allocPooledVia_Scope_CreateChildScope exist in scopeMeta.file.
+	var childViaDecl *ast.FuncDecl
+	hasGlobalVia := false
+	for _, decl := range scopeMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil {
+			continue
+		}
+		switch fn.Name.Name {
+		case "allocPooledVia_Scope_CreateGlobalScope":
+			hasGlobalVia = true
+		case "allocPooledVia_Scope_CreateChildScope":
+			childViaDecl = fn
+		}
+	}
+	if !hasGlobalVia || childViaDecl == nil || childViaDecl.Type == nil || childViaDecl.Type.Params == nil || len(childViaDecl.Type.Params.List) < 3 {
+		return 0, nil
+	}
+
+	var nodeTypeBuf bytes.Buffer
+	lastParamFld := childViaDecl.Type.Params.List[len(childViaDecl.Type.Params.List)-1]
+	if err := printer.Fprint(&nodeTypeBuf, ctx.Fset, lastParamFld.Type); err != nil || nodeTypeBuf.Len() == 0 {
+		return 0, nil
+	}
+	nodeTypeStr := nodeTypeBuf.String()
+
+	j2Qual, okQ := ensureJ2gortImportInFile(scopeMeta.file, ctx)
+	if !okQ {
+		return 0, nil
+	}
+
+	count := 0
+	if !existingPkgFuncs["allocFastScopeChild_"] {
+		helperSrc := fmt.Sprintf(`package jscomp
+
+func allocFastScopeGlobal_(slab_ *%[1]s.PooledSlab[Scope], varSlab_ *%[1]s.PooledSlab[Var], rootNode %[2]s) *Scope {
+	if rootNode == 0 || !(rootNode.IsRoot() || rootNode.IsScript() || NodeUtil_CreatesScope(rootNode)) {
+		s_ := allocPooledVia_Scope_CreateGlobalScope(slab_, rootNode)
+		s_.varSlab_ = varSlab_
+		return s_
+	}
+	this_ := slab_.Alloc()
+	this_.self_ = this_
+	this_.rootNode = rootNode
+	this_.varSlab_ = varSlab_
+	return this_
+}
+
+func allocFastScopeChild_(slab_ *%[1]s.PooledSlab[Scope], varSlab_ *%[1]s.PooledSlab[Var], parent *Scope, rootNode %[2]s) *Scope {
+	if rootNode == 0 || parent == nil || !NodeUtil_CreatesScope(rootNode) || rootNode == parent.rootNode {
+		s_ := allocPooledVia_Scope_CreateChildScope(slab_, parent, rootNode)
+		s_.varSlab_ = varSlab_
+		return s_
+	}
+	this_ := slab_.Alloc()
+	this_.self_ = this_
+	this_.rootNode = rootNode
+	this_.parent = parent
+	this_.varSlab_ = varSlab_
+	this_.depth = parent.depth + 1
+	return this_
+}
+`, j2Qual, nodeTypeStr)
+		pf, err := parser.ParseFile(ctx.Fset, "", helperSrc, 0)
+		if err != nil {
+			return 0, err
+		}
+		var specs []funcInsertSpec
+		for _, d := range pf.Decls {
+			if fd, ok := d.(*ast.FuncDecl); ok {
+				specs = append(specs, funcInsertSpec{after: childViaDecl, decl: fd})
+			}
+		}
+		spliceSynthesizedDecls(scopeMeta.file, specs)
+		existingPkgFuncs["allocFastScopeGlobal_"] = true
+		existingPkgFuncs["allocFastScopeChild_"] = true
+		ctx.MarkFileModified(scopeMeta.file)
+		count++
+	}
+
+	// Rewrite SyntacticScopeCreator.CreateScope_2_Node_Scope to call allocFastScopeGlobal_ / allocFastScopeChild_ directly.
+	createFn, createRecv := findPtrMethodDeclOnNamed(sscMeta.file, sscNamed, "CreateScope_2_Node_Scope", ctx.Info)
+	if createFn != nil && createFn.Body != nil && createRecv != "" && !slabASTContainsIdent(createFn.Body, "allocFastScopeChild_") {
+		pNames := extractFlatParamNames(createFn.Type.Params)
+		if len(pNames) == 2 && pNames[0] != "" && pNames[1] != "" {
+			nParam, parentParam := pNames[0], pNames[1]
+			for i := 0; i+1 < len(createFn.Body.List); i++ {
+				ifs, okI := createFn.Body.List[i].(*ast.IfStmt)
+				as2, okA := createFn.Body.List[i+1].(*ast.AssignStmt)
+				if !okI || !okA || ifs.Body == nil || len(ifs.Body.List) != 1 {
+					continue
+				}
+				elseBlk, okE := ifs.Else.(*ast.BlockStmt)
+				if !okE || len(elseBlk.List) != 1 {
+					continue
+				}
+				scopeVarName, okG := w43MatchAssignCallName(ifs.Body.List[0], "allocPooledVia_Scope_CreateGlobalScope")
+				scopeVarName2, okC := w43MatchAssignCallName(elseBlk.List[0], "allocPooledVia_Scope_CreateChildScope")
+				if !okG || !okC || scopeVarName == "" || scopeVarName != scopeVarName2 {
+					continue
+				}
+				if as2.Tok != token.ASSIGN || len(as2.Lhs) != 1 || len(as2.Rhs) != 1 ||
+					!w41IsRecvFieldSel(as2.Lhs[0], scopeVarName, "varSlab_") {
+					continue
+				}
+				uRhs, okU := stripParens(as2.Rhs[0]).(*ast.UnaryExpr)
+				if !okU || uRhs.Op != token.AND || !w41IsRecvFieldSel(uRhs.X, createRecv, "slab_Var") {
+					continue
+				}
+				replSrc := fmt.Sprintf(`package p
+func f() {
+	if %[3]s == nil {
+		%[1]s = allocFastScopeGlobal_(&%[2]s.slab_Scope, &%[2]s.slab_Var, %[4]s)
+	} else {
+		%[1]s = allocFastScopeChild_(&%[2]s.slab_Scope, &%[2]s.slab_Var, %[3]s, %[4]s)
+	}
+}
+`, scopeVarName, createRecv, parentParam, nParam)
+				pf, err := parser.ParseFile(ctx.Fset, "", replSrc, 0)
+				if err != nil {
+					return count, err
+				}
+				createFn.Body.List = slices.Replace(createFn.Body.List, i, i+2, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				ctx.MarkFileModified(sscMeta.file)
+				count++
+				break
+			}
+		}
+	}
+
+	return count, nil
+}
+
+func w43InitFieldsOnlyZeroOrNil(ctx *PassContext, file *ast.File, methodName string, allowedNilFields map[string]bool) bool {
+	if file == nil {
+		return true
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Name.Name != methodName || fn.Body == nil ||
+			len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rName := fn.Recv.List[0].Names[0].Name
+		for _, st := range fn.Body.List {
+			if isBlankDiscardStmt(st) {
+				continue
+			}
+			as, okA := st.(*ast.AssignStmt)
+			if !okA || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+				return false
+			}
+			sel, okS := stripParens(as.Lhs[0]).(*ast.SelectorExpr)
+			if !okS || sel.Sel == nil || !isIdentNamed(sel.X, rName) {
+				return false
+			}
+			if allowedNilFields != nil && allowedNilFields[sel.Sel.Name] && isIdentNamed(as.Rhs[0], "nil") {
+				continue
+			}
+			return false
+		}
+	}
+	return true
+}
+
+func w43MatchAssignCallName(st ast.Stmt, wantCallee string) (string, bool) {
+	as, ok := st.(*ast.AssignStmt)
+	if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return "", false
+	}
+	lhsId, okL := stripParens(as.Lhs[0]).(*ast.Ident)
+	if !okL || lhsId.Name == "" || lhsId.Name == "_" {
+		return "", false
+	}
+	call, okC := stripParens(as.Rhs[0]).(*ast.CallExpr)
+	if !okC {
+		return "", false
+	}
+	return lhsId.Name, isIdentNamed(stripParens(call.Fun), wantCallee)
+}
+
+func w43ApplyFastAllocOptVarLowering(
+	ctx *PassContext,
+	varMeta *slabStructMeta,
+	varNamed, scopeNamed *types.Named,
+) (int, error) {
+	// Verify Var -> AbstractVarBase -> ScopedNameBase layout and Scope -> AbstractScopeBase.rootNode.
+	vst, okV := varNamed.Underlying().(*types.Struct)
+	if !okV || vst.NumFields() != 1 || !vst.Field(0).Embedded() {
+		return 0, nil
+	}
+	avbNamed := namedOrigin(vst.Field(0).Type())
+	if avbNamed == nil || avbNamed.Obj() == nil || avbNamed.Obj().Name() != "AbstractVarBase" {
+		return 0, nil
+	}
+	avSt, okAV := avbNamed.Underlying().(*types.Struct)
+	if !okAV || avSt.NumFields() < 6 || !avSt.Field(0).Embedded() {
+		return 0, nil
+	}
+	snbNamed := namedOrigin(avSt.Field(0).Type())
+	if snbNamed == nil || snbNamed.Obj() == nil || snbNamed.Obj().Name() != "ScopedNameBase" {
+		return 0, nil
+	}
+	if nt := structFieldType(snbNamed, "name"); nt == nil || !types.Identical(nt, types.Typ[types.String]) {
+		return 0, nil
+	}
+	srT := structFieldType(snbNamed, "scopeRoot")
+	nnT := structFieldType(avbNamed, "nameNode")
+	scT := structFieldType(avbNamed, "scope")
+	ixT := structFieldType(avbNamed, "index")
+	inT := structFieldType(avbNamed, "input")
+	if srT == nil || nnT == nil || scT == nil || ixT == nil || inT == nil ||
+		!types.Identical(srT, nnT) || !types.AssignableTo(types.NewPointer(scopeNamed), scT) ||
+		!types.Identical(ixT, types.Typ[types.Int32]) {
+		return 0, nil
+	}
+	sst, okSS := scopeNamed.Underlying().(*types.Struct)
+	if !okSS || sst.NumFields() < 1 || !sst.Field(0).Embedded() {
+		return 0, nil
+	}
+	asbNamed := namedOrigin(sst.Field(0).Type())
+	if asbNamed == nil || structFieldType(asbNamed, "rootNode") == nil ||
+		!types.Identical(structFieldType(asbNamed, "rootNode"), srT) {
+		return 0, nil
+	}
+	if !w43InitFieldsOnlyZeroOrNil(ctx, varMeta.file, "initFields_Var", nil) {
+		return 0, nil
+	}
+	for _, f := range ctx.Files {
+		if !w43InitFieldsOnlyZeroOrNil(ctx, f, "initFields_AbstractVar", nil) {
+			return 0, nil
+		}
+	}
+
+	var allocFn, initFn *ast.FuncDecl
+	for _, decl := range varMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		switch fn.Name.Name {
+		case "allocOpt_Var":
+			allocFn = fn
+		case "InitVar":
+			initFn = fn
+		}
+	}
+	if allocFn == nil || initFn == nil || slabASTContainsIdent(allocFn.Body, "okNode_") {
+		return 0, nil
+	}
+	pNames := extractFlatParamNames(allocFn.Type.Params)
+	initPNames := extractFlatParamNames(initFn.Type.Params)
+	if len(pNames) != 7 || len(initPNames) != 7 {
+		return 0, nil
+	}
+	for _, pn := range pNames {
+		if pn == "" {
+			return 0, nil
+		}
+	}
+	slabP, nameP, nameNodeP, scopeP, indexP, inputP, impGoogP := pNames[0], pNames[1], pNames[2], pNames[3], pNames[4], pNames[5], pNames[6]
+	initNameNodeP := initPNames[2]
+
+	// Extract the exact valid TokenSwitchOrd_() case expressions from InitVar so we never hardcode Token ordinals.
+	var validCaseExprs []string
+	for _, st := range initFn.Body.List {
+		ifs, ok := st.(*ast.IfStmt)
+		if !ok || ifs.Body == nil || len(ifs.Body.List) != 1 {
+			continue
+		}
+		sw, okSw := ifs.Body.List[0].(*ast.SwitchStmt)
+		if !okSw || sw.Body == nil || sw.Tag == nil {
+			continue
+		}
+		tCall, okC := stripParens(sw.Tag).(*ast.CallExpr)
+		if !okC || len(tCall.Args) != 0 {
+			continue
+		}
+		tSel, okS := stripParens(tCall.Fun).(*ast.SelectorExpr)
+		if !okS || tSel.Sel == nil || tSel.Sel.Name != "TokenSwitchOrd_" || !isIdentNamed(tSel.X, initNameNodeP) {
+			continue
+		}
+		for _, ccSt := range sw.Body.List {
+			cc, okCC := ccSt.(*ast.CaseClause)
+			if !okCC || len(cc.List) == 0 || len(cc.Body) != 0 {
+				continue
+			}
+			for _, ce := range cc.List {
+				var cb bytes.Buffer
+				if err := printer.Fprint(&cb, ctx.Fset, ce); err == nil && cb.Len() > 0 {
+					validCaseExprs = append(validCaseExprs, cb.String())
+				}
+			}
+		}
+	}
+	if len(validCaseExprs) == 0 {
+		return 0, nil
+	}
+
+	j2Qual, okQ := ensureJ2gortImportInFile(varMeta.file, ctx)
+	if !okQ {
+		return 0, nil
+	}
+
+	fastSrc := fmt.Sprintf(`package p
+func f() *Var {
+	if %[1]s != nil && %[2]s != %[8]s.NullString && %[4]s != nil && %[5]s >= int32(-1) && %[7]s == 0 {
+		okNode_ := %[3]s == 0
+		if !okNode_ {
+			switch %[3]s.TokenSwitchOrd_() {
+			case %[9]s:
+				okNode_ = true
+			}
+		}
+		if okNode_ {
+			this_ := %[1]s.Alloc()
+			this_.name = %[2]s
+			this_.scopeRoot = %[4]s.rootNode
+			if %[3]s != 0 {
+				this_.nameNode = %[3]s
+			}
+			this_.scope = %[4]s
+			if %[5]s != 0 {
+				this_.index = %[5]s
+			}
+			if %[6]s != nil {
+				this_.input = %[6]s
+			}
+			return this_
+		}
+	}
+	return nil
+}
+`, slabP, nameP, nameNodeP, scopeP, indexP, inputP, impGoogP, j2Qual, strings.Join(validCaseExprs, ", "))
+	pf, err := parser.ParseFile(ctx.Fset, "", fastSrc, 0)
+	if err != nil {
+		return 0, err
+	}
+	fnBody := pf.Decls[0].(*ast.FuncDecl).Body.List
+	allocFn.Body.List = append([]ast.Stmt{fnBody[0]}, allocFn.Body.List...)
+	ctx.MarkFileModified(varMeta.file)
+	return 1, nil
+}
+
+// -----------------------------------------------------------------------------
+// Wave 43B.3: ClosureRewriteModule_ScriptDescription Cache-Line 0 field packing
+// + PooledSlab on ClosureRewriteModule with Process_2 defer cleanup.
+// -----------------------------------------------------------------------------
+
+func applyWave43ClosureRewriteModuleScriptDescSlabLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	info := ctx.Info
+	var crmNamed, sdNamed, grsNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "ClosureRewriteModule":
+			crmNamed = n
+		case "ClosureRewriteModule_ScriptDescription":
+			sdNamed = n
+		case "ClosureRewriteModule_GlobalRewriteState":
+			grsNamed = n
+		}
+	}
+	if crmNamed == nil || sdNamed == nil {
+		return 0, nil
+	}
+	crmMeta := structByNamed[crmNamed]
+	sdMeta := structByNamed[sdNamed]
+	if crmMeta == nil || sdMeta == nil || crmMeta.file != sdMeta.file || !ctx.ShouldTransform(crmMeta.file) {
+		return 0, nil
+	}
+	if valueCopied[crmNamed] || valueCopied[sdNamed] || singletonStructs[crmNamed] || singletonStructs[sdNamed] {
+		return 0, nil
+	}
+
+	count := 0
+
+	// 1. Pack rootNode + hot bool flags into Cache Line 0 (offset 0) of ClosureRewriteModule_ScriptDescription
+	// so ScriptUpdater.ShouldTraverse_3 (`currentDescription.rootNode == n`) hits offset 0!
+	if !w43HasUnkeyedCompositeLitForNamed(ctx, sdNamed) {
+		if w43ReorderStructFieldsToFront(sdMeta.structAST, []string{
+			"rootNode",
+			"isModule",
+			"declareLegacyNamespace",
+			"willCreateExportsObject",
+			"hasCreatedExportObject",
+		}) {
+			ctx.MarkFileModified(sdMeta.file)
+			count++
+		}
+	}
+
+	// 2. Slab-pool ClosureRewriteModule_ScriptDescription on ClosureRewriteModule and release in Process_2 defer.
+	const slabField = "slab_ClosureRewriteModule_ScriptDescription"
+	const allocHelper = "allocPooled_ClosureRewriteModule_ScriptDescription"
+	if !hasOnlyFileInternalOrCompilerPassMethods(crmNamed, crmMeta.file, ctx.Files, ctx.Pkg, ctx.Info) ||
+		!canEnsureJ2gortInFile(crmMeta.file, ctx) || !j2gortPooledSlabHasRelease(ctx) {
+		return count, nil
+	}
+
+	var sdCtorMeta *slabCtorMeta
+	for _, cm := range ctorByFunc {
+		if cm.child == sdNamed && cm.fnObj != nil && cm.fnObj.Name() == "NewClosureRewriteModule_ScriptDescription" &&
+			cm.fnDecl != nil && cm.fnDecl.Type != nil && (cm.fnDecl.Type.Params == nil || len(cm.fnDecl.Type.Params.List) == 0) {
+			sdCtorMeta = cm
+			break
+		}
+	}
+	if sdCtorMeta == nil && !existingPkgFuncs[allocHelper] {
+		return count, nil
+	}
+
+	// Verify all NewClosureRewriteModule_ScriptDescription calls across ctx.Files are inside (*ClosureRewriteModule) methods,
+	// and GlobalRewriteState does not escape crmMeta.file.
+	badCaller := false
+	hasCrmCall := false
+	for _, file := range ctx.Files {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || fn.Name == nil || isSynthesizedSlabHelperFuncName(fn.Name.Name) {
+				continue
+			}
+			if sdCtorMeta != nil && fn == sdCtorMeta.fnDecl {
+				continue
+			}
+			var callerOwner *types.Named
+			if fn.Recv != nil && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 && fn.Recv.List[0].Names[0].Name != "_" {
+				if rv := varFromObj(info.Defs[fn.Recv.List[0].Names[0]]); rv != nil {
+					callerOwner = ptrNamedOrigin(rv.Type())
+				}
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if badCaller || n == nil {
+					return false
+				}
+				call, isC := n.(*ast.CallExpr)
+				if !isC {
+					return true
+				}
+				callee, _ := calleeFunc(call, info)
+				if callee == nil || callee.Name() != "NewClosureRewriteModule_ScriptDescription" {
+					return true
+				}
+				if callerOwner == crmNamed && len(call.Args) == 0 && !call.Ellipsis.IsValid() && isDirectIdentOrIndexedCall(call) {
+					hasCrmCall = true
+				} else {
+					badCaller = true
+					return false
+				}
+				return true
+			})
+		}
+	}
+	if badCaller || (!hasCrmCall && !existingPkgFuncs[allocHelper]) {
+		return count, nil
+	}
+
+	procFn, procRecv := findPtrMethodDeclOnNamed(crmMeta.file, crmNamed, "Process_2", info)
+	if procFn == nil || procFn.Body == nil || procRecv == "" {
+		return count, nil
+	}
+	var procDeferBody *ast.BlockStmt
+	for _, st := range procFn.Body.List {
+		ds, ok := st.(*ast.DeferStmt)
+		if !ok || ds.Call == nil || len(ds.Call.Args) != 0 {
+			continue
+		}
+		if fl, okF := stripParens(ds.Call.Fun).(*ast.FuncLit); okF && fl.Body != nil {
+			procDeferBody = fl.Body
+			break
+		}
+	}
+
+	nullStrFields, okFastInit := w43ExtractScriptDescNullStringInitFields(sdMeta.file, info)
+	j2Qual, okQ := ensureJ2gortImportInFile(crmMeta.file, ctx)
+	if !okQ {
+		return count, nil
+	}
+
+	if !ensurePooledSlabFieldOnMeta(ctx, crmMeta, slabField, sdNamed) {
+		return count, nil
+	}
+
+	if !existingPkgFuncs[allocHelper] && sdCtorMeta != nil {
+		var bodyLines []string
+		bodyLines = append(bodyLines, "this_ := slab_.Alloc()")
+		if okFastInit {
+			for _, nf := range nullStrFields {
+				bodyLines = append(bodyLines, fmt.Sprintf("this_.%s = %s.NullString", nf, j2Qual))
+			}
+		} else {
+			bodyLines = append(bodyLines, "InitClosureRewriteModule_ScriptDescription(this_)")
+		}
+		bodyLines = append(bodyLines, "return this_")
+		hSrc := fmt.Sprintf("package jscomp\nfunc %[1]s(slab_ *%[2]s.PooledSlab[ClosureRewriteModule_ScriptDescription]) *ClosureRewriteModule_ScriptDescription {\n\t%[3]s\n}\n",
+			allocHelper, j2Qual, strings.Join(bodyLines, "\n\t"))
+		pf, err := parser.ParseFile(ctx.Fset, "", hSrc, 0)
+		if err != nil {
+			return count, err
+		}
+		spliceSynthesizedDecls(crmMeta.file, []funcInsertSpec{{after: sdCtorMeta.fnDecl, decl: pf.Decls[0].(*ast.FuncDecl)}})
+		existingPkgFuncs[allocHelper] = true
+		ctx.MarkFileModified(crmMeta.file)
+		count++
+	}
+
+	// Rewrite NewClosureRewriteModule_ScriptDescription() calls in (*ClosureRewriteModule) methods.
+	for _, decl := range crmMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Body == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != crmNamed {
+			continue
+		}
+		rName := rId.Name
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			call, isC := n.(*ast.CallExpr)
+			if !isC || len(call.Args) != 0 || call.Ellipsis.IsValid() || !isDirectIdentOrIndexedCall(call) {
+				return true
+			}
+			callee, _ := calleeFunc(call, info)
+			if callee == nil || callee.Name() != "NewClosureRewriteModule_ScriptDescription" {
+				return true
+			}
+			rewriteDirectCalleeIdent(call, allocHelper)
+			call.Args = []ast.Expr{
+				&ast.UnaryExpr{
+					Op: token.AND,
+					X:  &ast.SelectorExpr{X: &ast.Ident{Name: rName}, Sel: &ast.Ident{Name: slabField}},
+				},
+			}
+			ctx.MarkFileModified(crmMeta.file)
+			count++
+			return true
+		})
+	}
+
+	// Inject cleanup + slab release into Process_2's defer block (creating one if none exists yet).
+	if procDeferBody == nil || !slabASTContainsIdent(procDeferBody, slabField) {
+		var deferLines []string
+		if procDeferBody == nil && structHasFieldNamed(crmNamed, "currentScript") {
+			deferLines = append(deferLines, fmt.Sprintf("%s.currentScript = nil", procRecv))
+		}
+		if structHasFieldNamed(crmNamed, "scriptStack") {
+			deferLines = append(deferLines, fmt.Sprintf("%s.scriptStack.Clear()", procRecv))
+		}
+		if grsNamed != nil && structHasFieldNamed(crmNamed, "rewriteState") &&
+			structHasFieldNamed(grsNamed, "scriptDescriptionsByGoogModuleNamespace") {
+			deferLines = append(deferLines, fmt.Sprintf("if %[1]s.rewriteState != nil {\n\t%[1]s.rewriteState.scriptDescriptionsByGoogModuleNamespace.Clear()\n}", procRecv))
+		}
+		deferLines = append(deferLines, fmt.Sprintf("%s.%s.Release()", procRecv, slabField))
+		if procDeferBody != nil {
+			pf, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(deferLines, "\n")+"\n}\n", 0)
+			if err != nil {
+				return count, err
+			}
+			procDeferBody.List = append(procDeferBody.List, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		} else {
+			pf, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\ndefer func() {\n"+strings.Join(deferLines, "\n")+"\n}()\n}\n", 0)
+			if err != nil {
+				return count, err
+			}
+			insIdx := 0
+			for insIdx < len(procFn.Body.List) && isBlankDiscardStmt(procFn.Body.List[insIdx]) {
+				insIdx++
+			}
+			procFn.Body.List = slices.Insert(procFn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		}
+		ctx.MarkFileModified(crmMeta.file)
+		count++
+	}
+
+	return count, nil
+}
+
+func w43ExtractScriptDescNullStringInitFields(file *ast.File, info *types.Info) ([]string, bool) {
+	if file == nil {
+		return nil, false
+	}
+	var initFieldsFn, initCtorFn *ast.FuncDecl
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		switch fn.Name.Name {
+		case "initFields_ClosureRewriteModule_ScriptDescription":
+			initFieldsFn = fn
+		case "InitClosureRewriteModule_ScriptDescription":
+			initCtorFn = fn
+		}
+	}
+	if initFieldsFn == nil || initCtorFn == nil || initFieldsFn.Recv == nil ||
+		len(initFieldsFn.Recv.List) != 1 || len(initFieldsFn.Recv.List[0].Names) != 1 {
+		return nil, false
+	}
+	// Verify InitClosureRewriteModule_ScriptDescription only calls initFields_ClosureRewriteModule_ScriptDescription.
+	nonBlank := 0
+	for _, st := range initCtorFn.Body.List {
+		if isBlankDiscardStmt(st) {
+			continue
+		}
+		nonBlank++
+		es, ok := st.(*ast.ExprStmt)
+		if !ok {
+			return nil, false
+		}
+		c, okC := stripParens(es.X).(*ast.CallExpr)
+		if !okC || len(c.Args) != 0 {
+			return nil, false
+		}
+		sel, okS := stripParens(c.Fun).(*ast.SelectorExpr)
+		if !okS || sel.Sel == nil || sel.Sel.Name != "initFields_ClosureRewriteModule_ScriptDescription" {
+			return nil, false
+		}
+	}
+	if nonBlank != 1 {
+		return nil, false
+	}
+
+	rName := initFieldsFn.Recv.List[0].Names[0].Name
+	var nullFields []string
+	for _, st := range initFieldsFn.Body.List {
+		if isBlankDiscardStmt(st) {
+			continue
+		}
+		as, ok := st.(*ast.AssignStmt)
+		if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+			return nil, false
+		}
+		lhsSel, okL := stripParens(as.Lhs[0]).(*ast.SelectorExpr)
+		if !okL || lhsSel.Sel == nil || !isIdentNamed(lhsSel.X, rName) {
+			return nil, false
+		}
+		rhs := stripParens(as.Rhs[0])
+		if rSel, okR := rhs.(*ast.SelectorExpr); okR && rSel.Sel != nil && rSel.Sel.Name == "NullString" {
+			nullFields = append(nullFields, lhsSel.Sel.Name)
+			continue
+		}
+		if cl, okCL := rhs.(*ast.CompositeLit); okCL && len(cl.Elts) == 0 {
+			continue
+		}
+		if call, okC := rhs.(*ast.CallExpr); okC && len(call.Args) == 0 && !call.Ellipsis.IsValid() {
+			fnName, _, _, isJ2 := isJ2gortCall(call, info)
+			if isJ2 && (fnName == "NewOrderedSet" || fnName == "NewOrderedMap" || fnName == "NewCustomOrderedMap" || fnName == "NewPlainMapVal" || fnName == "NewPlainSetVal") {
+				continue
+			}
+		}
+		return nil, false
+	}
+	return nullFields, true
+}
+
+// -----------------------------------------------------------------------------
+// Wave 43B.4: FIN Graph & Scope Slab Releases:
+//   a) CoalesceVariableNames.ExitScopeWithCfg + Process_2 colorings.Pop() graph ReleaseSlabs_()
+//   b) AnalyzePrototypeProperties + CrossChunkMethodMotion graph/map/scopeCreator ReleaseSlabs_()
+//   c) LinkedDirectedGraph fast slab node/edge init + pooled inEdges/outEdges slices
+// -----------------------------------------------------------------------------
+
+func applyWave43FinGraphAndScopeSlabReleaseLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	count := 0
+
+	cA, err := w43ApplyCoalesceColoringsGraphRelease(ctx, structByNamed)
+	if err != nil {
+		return count, err
+	}
+	count += cA
+
+	cB, err := w43ApplyAnalyzePrototypePropertiesRelease(ctx, structByNamed, valueCopied, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += cB
+
+	cC, err := w43ApplyLinkedDirectedGraphEdgeSliceAndFastInitLowering(ctx, structByNamed)
+	if err != nil {
+		return count, err
+	}
+	count += cC
+
+	return count, nil
+}
+
+func w43ApplyCoalesceColoringsGraphRelease(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+) (int, error) {
+	info := ctx.Info
+	var cvnNamed *types.Named
+	for n := range structByNamed {
+		if n != nil && n.Obj() != nil && n.Obj().Name() == "CoalesceVariableNames" {
+			cvnNamed = n
+			break
+		}
+	}
+	if cvnNamed == nil {
+		return 0, nil
+	}
+	cvnMeta := structByNamed[cvnNamed]
+	if cvnMeta == nil || !ctx.ShouldTransform(cvnMeta.file) || !structHasFieldNamed(cvnNamed, "colorings") {
+		return 0, nil
+	}
+
+	colType := structFieldType(cvnNamed, "colorings")
+	if colType == nil {
+		return 0, nil
+	}
+	popObj, _, _ := types.LookupFieldOrMethod(types.NewPointer(colType), true, ctx.Pkg, "Pop")
+	popFn, okPop := popObj.(*types.Func)
+	if !okPop || popFn == nil {
+		return 0, nil
+	}
+	popSig, okSig := popFn.Type().(*types.Signature)
+	if !okSig || popSig.Params().Len() != 0 || popSig.Results() == nil || popSig.Results().Len() != 1 {
+		return 0, nil
+	}
+	popElemT := popSig.Results().At(0).Type()
+	popHasGetGraph := false
+	if ggObj, _, _ := types.LookupFieldOrMethod(popElemT, true, ctx.Pkg, "GetGraph"); ggObj != nil {
+		if ggFn, okG := ggObj.(*types.Func); okG {
+			if ggSig, okGS := ggFn.Type().(*types.Signature); okGS && ggSig.Params().Len() == 0 && ggSig.Results() != nil && ggSig.Results().Len() == 1 {
+				popHasGetGraph = true
+			}
+		}
+	}
+
+	count := 0
+	for _, decl := range cvnMeta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Body == nil || fn.Name == nil ||
+			len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		rId := fn.Recv.List[0].Names[0]
+		if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != cvnNamed {
+			continue
+		}
+		rName := rId.Name
+		switch fn.Name.Name {
+		case "ExitScopeWithCfg":
+			if slabASTContainsIdent(fn.Body, "poppedColoring_") {
+				continue
+			}
+			for i, st := range fn.Body.List {
+				es, okE := st.(*ast.ExprStmt)
+				if !okE {
+					continue
+				}
+				call, okC := stripParens(es.X).(*ast.CallExpr)
+				if !okC || len(call.Args) != 0 {
+					continue
+				}
+				sel, okS := stripParens(call.Fun).(*ast.SelectorExpr)
+				if !okS || sel.Sel == nil || sel.Sel.Name != "Pop" || !w41IsRecvFieldSel(sel.X, rName, "colorings") {
+					continue
+				}
+				var stmtSrc string
+				if popHasGetGraph {
+					stmtSrc = fmt.Sprintf(`package p
+func f() {
+	if poppedColoring_ := %[1]s.colorings.Pop(); poppedColoring_ != nil {
+		if r_, ok_ := any(poppedColoring_.GetGraph()).(interface{ ReleaseSlabs_() }); ok_ {
+			r_.ReleaseSlabs_()
+		}
+	}
+}
+`, rName)
+				} else {
+					stmtSrc = fmt.Sprintf(`package p
+func f() {
+	if poppedColoring_, okC_ := any(%[1]s.colorings.Pop()).(interface{ GetGraph() any }); okC_ && poppedColoring_ != nil {
+		if r_, ok_ := poppedColoring_.GetGraph().(interface{ ReleaseSlabs_() }); ok_ {
+			r_.ReleaseSlabs_()
+		}
+	}
+}
+`, rName)
+				}
+				pf, err := parser.ParseFile(ctx.Fset, "", stmtSrc, 0)
+				if err != nil {
+					return count, err
+				}
+				fn.Body.List = slices.Replace(fn.Body.List, i, i+1, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				ctx.MarkFileModified(cvnMeta.file)
+				count++
+				break
+			}
+		case "Process_2":
+			for _, st := range fn.Body.List {
+				ds, isDS := st.(*ast.DeferStmt)
+				if !isDS || ds.Call == nil {
+					continue
+				}
+				fl, okF := stripParens(ds.Call.Fun).(*ast.FuncLit)
+				if !okF || fl.Body == nil || slabASTContainsIdent(fl.Body, "colorings") {
+					continue
+				}
+				var stmtSrc string
+				if popHasGetGraph {
+					stmtSrc = fmt.Sprintf(`package p
+func f() {
+	for !%[1]s.colorings.IsEmpty() {
+		if c_ := %[1]s.colorings.Pop(); c_ != nil {
+			if r_, ok_ := any(c_.GetGraph()).(interface{ ReleaseSlabs_() }); ok_ {
+				r_.ReleaseSlabs_()
+			}
+		}
+	}
+}
+`, rName)
+				} else {
+					stmtSrc = fmt.Sprintf(`package p
+func f() {
+	for !%[1]s.colorings.IsEmpty() {
+		if c_, okC_ := any(%[1]s.colorings.Pop()).(interface{ GetGraph() any }); okC_ && c_ != nil {
+			if r_, ok_ := c_.GetGraph().(interface{ ReleaseSlabs_() }); ok_ {
+				r_.ReleaseSlabs_()
+			}
+		}
+	}
+}
+`, rName)
+				}
+				pf, err := parser.ParseFile(ctx.Fset, "", stmtSrc, 0)
+				if err != nil {
+					return count, err
+				}
+				fl.Body.List = append(pf.Decls[0].(*ast.FuncDecl).Body.List, fl.Body.List...)
+				ctx.MarkFileModified(cvnMeta.file)
+				count++
+				break
+			}
+		}
+	}
+	return count, nil
+}
+
+func w43ApplyAnalyzePrototypePropertiesRelease(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	info := ctx.Info
+	var appNamed, ccmmNamed, sscNamed, ntbNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "AnalyzePrototypeProperties":
+			appNamed = n
+		case "CrossChunkMethodMotion":
+			ccmmNamed = n
+		case "SyntacticScopeCreator":
+			sscNamed = n
+		case "NodeTraversal_Builder":
+			ntbNamed = n
+		}
+	}
+	if appNamed == nil || ccmmNamed == nil || valueCopied[appNamed] || valueCopied[ccmmNamed] {
+		return 0, nil
+	}
+	appMeta := structByNamed[appNamed]
+	ccmmMeta := structByNamed[ccmmNamed]
+	if appMeta == nil || ccmmMeta == nil || !ctx.ShouldTransform(appMeta.file) || !ctx.ShouldTransform(ccmmMeta.file) {
+		return 0, nil
+	}
+	if at := structFieldType(ccmmNamed, "analyzer"); at == nil || ptrNamedOrigin(at) != appNamed {
+		return 0, nil
+	}
+	if !hasOnlyCompilerPassExportedMethods(ccmmNamed, ctx.Pkg) {
+		return 0, nil
+	}
+
+	// Verify every NewAnalyzePrototypeProperties* call in ctx.Files is inside (*CrossChunkMethodMotion) or InitCrossChunkMethodMotion*.
+	badCaller := false
+	hasCcmmCaller := false
+	for _, file := range ctx.Files {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || fn.Name == nil {
+				continue
+			}
+			isCcmm := false
+			if fn.Recv != nil && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 && fn.Recv.List[0].Names[0].Name != "_" {
+				if rv := varFromObj(info.Defs[fn.Recv.List[0].Names[0]]); rv != nil && ptrNamedOrigin(rv.Type()) == ccmmNamed {
+					isCcmm = true
+				}
+			} else if fn.Recv == nil && strings.HasPrefix(fn.Name.Name, "InitCrossChunkMethodMotion") {
+				isCcmm = true
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if badCaller || n == nil {
+					return false
+				}
+				call, isC := n.(*ast.CallExpr)
+				if !isC {
+					return true
+				}
+				callee, _ := calleeFunc(call, info)
+				if callee == nil || !strings.HasPrefix(callee.Name(), "NewAnalyzePrototypeProperties") ||
+					strings.HasPrefix(callee.Name(), "NewAnalyzePrototypeProperties_") {
+					return true
+				}
+				if isCcmm {
+					hasCcmmCaller = true
+				} else {
+					badCaller = true
+					return false
+				}
+				return true
+			})
+		}
+	}
+	if badCaller || !hasCcmmCaller {
+		return 0, nil
+	}
+
+	count := 0
+	orderedMapHasRelease := j2gortHasExport(ctx, "AcquireOrderedMap") && j2gortTypeHasMethod(ctx, "OrderedMap", "ReleaseToPool")
+	_, propIsPtr, hasPropMap := findOrderedMapFieldMeta(appNamed, "propertyNameInfo")
+	_, varIsPtr, hasVarMap := findOrderedMapFieldMeta(appNamed, "varNameInfo")
+
+	if orderedMapHasRelease && (hasPropMap || hasVarMap) {
+		for _, decl := range appMeta.file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || fn.Body == nil || fn.Name == nil || fn.Name.Name != "initFields_AnalyzePrototypeProperties" ||
+				len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+				continue
+			}
+			rId := fn.Recv.List[0].Names[0]
+			if rv := varFromObj(info.Defs[rId]); rv == nil || rId.Name == "_" || ptrNamedOrigin(rv.Type()) != appNamed {
+				continue
+			}
+			rName := rId.Name
+			if hasPropMap {
+				count += rewriteFieldMapCtorToAcquire(ctx, appMeta.file, fn.Body, rName, "propertyNameInfo", "OrderedMap")
+			}
+			if hasVarMap {
+				count += rewriteFieldMapCtorToAcquire(ctx, appMeta.file, fn.Body, rName, "varNameInfo", "OrderedMap")
+			}
+		}
+	}
+
+	// Give AnalyzePrototypeProperties an owned scopeCreator_ *SyntacticScopeCreator for its Process_2 traversals
+	// so all ~125K Scope + Var slab chunks are recycled once CrossChunkMethodMotion.moveMethods finishes!
+	sscHasRel := sscNamed != nil && ((existingMethods[sscNamed] != nil && existingMethods[sscNamed]["ReleaseSlabs_"]) ||
+		hasMethodNamed(types.NewPointer(sscNamed), ctx.Pkg, "ReleaseSlabs_"))
+	canWireAppScopeCreator := sscHasRel && ntbNamed != nil &&
+		ctx.Pkg.Scope().Lookup("NewSyntacticScopeCreator_1") != nil &&
+		ctx.Pkg.Scope().Lookup("InitNodeTraversal_Builder") != nil &&
+		ctx.Pkg.Scope().Lookup("clinit_NodeTraversal") != nil &&
+		hasMethodNamed(types.NewPointer(ntbNamed), ctx.Pkg, "SetCompiler") &&
+		hasMethodNamed(types.NewPointer(ntbNamed), ctx.Pkg, "SetCallback_1_NodeTraversal_Callback") &&
+		hasMethodNamed(types.NewPointer(ntbNamed), ctx.Pkg, "SetScopeCreator") &&
+		hasMethodNamed(types.NewPointer(ntbNamed), ctx.Pkg, "Traverse")
+
+	if canWireAppScopeCreator {
+		if !hasASTFieldNamed(appMeta.structAST, "scopeCreator_") {
+			appMeta.structAST.Fields.List = append(appMeta.structAST.Fields.List, &ast.Field{
+				Names: []*ast.Ident{{Name: "scopeCreator_"}},
+				Type:  &ast.StarExpr{X: &ast.Ident{Name: "SyntacticScopeCreator"}},
+			})
+			ctx.MarkFileModified(appMeta.file)
+			count++
+		}
+		appProcFn, appProcRecv := findPtrMethodDeclOnNamed(appMeta.file, appNamed, "Process_2", info)
+		if appProcFn != nil && appProcFn.Body != nil && appProcRecv != "" && !slabASTContainsIdent(appProcFn.Body, "scopeCreator_") {
+			rewroteTraverse := false
+			var walkErr error
+			ast.Inspect(appProcFn.Body, func(n ast.Node) bool {
+				if walkErr != nil || n == nil {
+					return false
+				}
+				blk, isBlk := n.(*ast.BlockStmt)
+				if !isBlk {
+					return true
+				}
+				for i := 0; i < len(blk.List); i++ {
+					es, okE := blk.List[i].(*ast.ExprStmt)
+					if !okE {
+						continue
+					}
+					call, okC := stripParens(es.X).(*ast.CallExpr)
+					if !okC || len(call.Args) != 3 || call.Ellipsis.IsValid() || !isIdentNamed(stripParens(call.Fun), "NodeTraversal_Traverse") {
+						continue
+					}
+					if !w41IsRecvFieldSel(call.Args[0], appProcRecv, "compiler") {
+						continue
+					}
+					var rootBuf, cbBuf bytes.Buffer
+					if printer.Fprint(&rootBuf, ctx.Fset, call.Args[1]) != nil || printer.Fprint(&cbBuf, ctx.Fset, call.Args[2]) != nil {
+						continue
+					}
+					replSrc := fmt.Sprintf(`package p
+func f() {
+	{
+		if %[1]s.scopeCreator_ == nil {
+			%[1]s.scopeCreator_ = NewSyntacticScopeCreator_1(%[1]s.compiler)
+		}
+		clinit_NodeTraversal()
+		var ntbApp_ NodeTraversal_Builder
+		InitNodeTraversal_Builder(&ntbApp_)
+		(&ntbApp_).SetCompiler(%[1]s.compiler)
+		(&ntbApp_).SetCallback_1_NodeTraversal_Callback(%[3]s)
+		(&ntbApp_).SetScopeCreator(%[1]s.scopeCreator_)
+		(&ntbApp_).Traverse(%[2]s)
+	}
+}
+`, appProcRecv, rootBuf.String(), cbBuf.String())
+					pf, pErr := parser.ParseFile(ctx.Fset, "", replSrc, 0)
+					if pErr != nil {
+						walkErr = pErr
+						return false
+					}
+					blk.List = slices.Replace(blk.List, i, i+1, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+					rewroteTraverse = true
+				}
+				return true
+			})
+			if walkErr != nil {
+				return count, walkErr
+			}
+			if rewroteTraverse {
+				ctx.MarkFileModified(appMeta.file)
+				count++
+			}
+		}
+	}
+
+	// Emit (*AnalyzePrototypeProperties).ReleaseSlabs_().
+	appAlreadyHasRel := (existingMethods[appNamed] != nil && existingMethods[appNamed]["ReleaseSlabs_"]) ||
+		hasMethodNamed(types.NewPointer(appNamed), ctx.Pkg, "ReleaseSlabs_") ||
+		slabFileHasPtrMethod(appMeta.file, "AnalyzePrototypeProperties", "ReleaseSlabs_")
+	if !appAlreadyHasRel {
+		var lines []string
+		lines = append(lines, "if this_ == nil {\n\treturn\n}")
+		if sgT := structFieldType(appNamed, "symbolGraph"); sgT != nil && types.AssignableTo(types.Typ[types.UntypedNil], sgT) {
+			lines = append(lines, "if this_.symbolGraph != nil {\n\tif r_, ok_ := any(this_.symbolGraph).(interface{ ReleaseSlabs_() }); ok_ {\n\t\tr_.ReleaseSlabs_()\n\t}\n\tthis_.symbolGraph = nil\n}")
+		}
+		if orderedMapHasRelease {
+			if hasPropMap {
+				if propIsPtr {
+					lines = append(lines, "if this_.propertyNameInfo != nil {\n\tthis_.propertyNameInfo.ReleaseToPool()\n\tthis_.propertyNameInfo = nil\n}")
+				} else {
+					lines = append(lines, "this_.propertyNameInfo.ReleaseToPool()")
+				}
+			}
+			if hasVarMap {
+				if varIsPtr {
+					lines = append(lines, "if this_.varNameInfo != nil {\n\tthis_.varNameInfo.ReleaseToPool()\n\tthis_.varNameInfo = nil\n}")
+				} else {
+					lines = append(lines, "this_.varNameInfo.ReleaseToPool()")
+				}
+			}
+		}
+		for _, fld := range appMeta.structAST.Fields.List {
+			for _, nm := range fld.Names {
+				if strings.HasPrefix(nm.Name, "slab_") {
+					lines = append(lines, fmt.Sprintf("this_.%s.Release()", nm.Name))
+				}
+			}
+		}
+		if hasASTFieldNamed(appMeta.structAST, "scopeCreator_") {
+			lines = append(lines, "if this_.scopeCreator_ != nil {\n\tthis_.scopeCreator_.ReleaseSlabs_()\n\tthis_.scopeCreator_ = nil\n}")
+		}
+		pf, err := parser.ParseFile(ctx.Fset, "", "package jscomp\nfunc (this_ *AnalyzePrototypeProperties) ReleaseSlabs_() {\n"+strings.Join(lines, "\n")+"\n}\n", 0)
+		if err != nil {
+			return count, err
+		}
+		appMeta.file.Decls = append(appMeta.file.Decls, pf.Decls[0])
+		if existingMethods[appNamed] == nil {
+			existingMethods[appNamed] = make(map[string]bool)
+		}
+		existingMethods[appNamed]["ReleaseSlabs_"] = true
+		ctx.MarkFileModified(appMeta.file)
+		count++
+	}
+
+	// Wire defer analyzer.ReleaseSlabs_() in CrossChunkMethodMotion.Process_2.
+	ccmmProcFn, ccmmRecv := findPtrMethodDeclOnNamed(ccmmMeta.file, ccmmNamed, "Process_2", info)
+	if ccmmProcFn != nil && ccmmProcFn.Body != nil && ccmmRecv != "" && !slabASTContainsIdent(ccmmProcFn.Body, "ReleaseSlabs_") {
+		insIdx := 0
+		for insIdx < len(ccmmProcFn.Body.List) && isBlankDiscardStmt(ccmmProcFn.Body.List[insIdx]) {
+			insIdx++
+		}
+		deferSrc := fmt.Sprintf("package p\nfunc f() {\ndefer func() {\n\tif %[1]s.analyzer != nil {\n\t\t%[1]s.analyzer.ReleaseSlabs_()\n\t\t%[1]s.analyzer = nil\n\t}\n}()\n}\n", ccmmRecv)
+		pf, err := parser.ParseFile(ctx.Fset, "", deferSrc, 0)
+		if err != nil {
+			return count, err
+		}
+		ccmmProcFn.Body.List = slices.Insert(ccmmProcFn.Body.List, insIdx, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+		ctx.MarkFileModified(ccmmMeta.file)
+		count++
+	}
+
+	return count, nil
+}
+
+func w43ApplyLinkedDirectedGraphEdgeSliceAndFastInitLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+) (int, error) {
+	var baseNamed, nodeNamed, edgeNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "LinkedDirectedGraphBase":
+			baseNamed = n
+		case "LinkedDirectedGraph_LinkedDiGraphNode":
+			nodeNamed = n
+		case "LinkedDirectedGraph_LinkedDiGraphEdge":
+			edgeNamed = n
+		}
+	}
+	if baseNamed == nil || nodeNamed == nil || edgeNamed == nil {
+		return 0, nil
+	}
+	baseMeta := structByNamed[baseNamed]
+	nodeMeta := structByNamed[nodeNamed]
+	edgeMeta := structByNamed[edgeNamed]
+	if baseMeta == nil || nodeMeta == nil || edgeMeta == nil ||
+		baseMeta.file != nodeMeta.file || baseMeta.file != edgeMeta.file ||
+		!ctx.ShouldTransform(baseMeta.file) || !canEnsureJ2gortInFile(baseMeta.file, ctx) {
+		return 0, nil
+	}
+	file := baseMeta.file
+	j2Qual, okQ := ensureJ2gortImportInFile(file, ctx)
+	if !okQ {
+		return 0, nil
+	}
+
+	count := 0
+
+	// 1. Direct zeroed-slab initialization in allocPooled_LinkedDirectedGraph_LinkedDiGraphNode & Edge.
+	if structHasFieldNamed(edgeNamed, "dfaEdgeIndex") && structHasFieldNamed(edgeNamed, "value") &&
+		structHasFieldNamed(edgeNamed, "sourceNode") && structHasFieldNamed(edgeNamed, "destNode") &&
+		structHasFieldNamed(edgeNamed, "useAnnotation") {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv != nil || fn.Name == nil || fn.Name.Name != "allocPooled_LinkedDirectedGraph_LinkedDiGraphEdge" || fn.Body == nil {
+				continue
+			}
+			if !slabASTContainsIdent(fn.Body, "InitLinkedDirectedGraph_LinkedDiGraphEdge") {
+				continue
+			}
+			pNames := extractFlatParamNames(fn.Type.Params)
+			if len(pNames) != 5 || pNames[0] == "" || pNames[1] == "" || pNames[2] == "" || pNames[3] == "" || pNames[4] == "" {
+				continue
+			}
+			src := fmt.Sprintf(`package p
+func f() {
+	this_ := %[1]s.Alloc()
+	this_.dfaEdgeIndex = int32(-1)
+	this_.value = %[3]s
+	this_.sourceNode = %[2]s
+	this_.destNode = %[4]s
+	if %[5]s {
+		this_.useAnnotation = true
+	}
+	return this_
+}
+`, pNames[0], pNames[1], pNames[2], pNames[3], pNames[4])
+			pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
+			if err != nil {
+				return count, err
+			}
+			fn.Body.List = pf.Decls[0].(*ast.FuncDecl).Body.List
+			ctx.MarkFileModified(file)
+			count++
+		}
+	}
+
+	if structHasFieldNamed(nodeNamed, "cachedId") && structHasFieldNamed(nodeNamed, "priority") &&
+		structHasFieldNamed(nodeNamed, "astPosition") && structHasFieldNamed(nodeNamed, "dfaIndex") &&
+		structHasFieldNamed(nodeNamed, "value") && structHasFieldNamed(nodeNamed, "useAnnotation") {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv != nil || fn.Name == nil || fn.Name.Name != "allocPooled_LinkedDirectedGraph_LinkedDiGraphNode" || fn.Body == nil {
+				continue
+			}
+			if !slabASTContainsIdent(fn.Body, "InitLinkedDirectedGraph_LinkedDiGraphNode") {
+				continue
+			}
+			pNames := extractFlatParamNames(fn.Type.Params)
+			if len(pNames) != 3 || pNames[0] == "" || pNames[1] == "" || pNames[2] == "" {
+				continue
+			}
+			src := fmt.Sprintf(`package p
+func f() {
+	this_ := %[1]s.Alloc()
+	this_.cachedId = %[4]s.NullString
+	this_.priority = int32(-1)
+	this_.astPosition = int32(-1)
+	this_.dfaIndex = int32(-1)
+	this_.value = %[2]s
+	if %[3]s {
+		this_.useAnnotation = true
+	}
+	return this_
+}
+`, pNames[0], pNames[1], pNames[2], j2Qual)
+			pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
+			if err != nil {
+				return count, err
+			}
+			fn.Body.List = pf.Decls[0].(*ast.FuncDecl).Body.List
+			ctx.MarkFileModified(file)
+			count++
+		}
+	}
+
+	// 2. Pool LinkedDiGraphNode.inEdges and outEdges via AcquirePooledSlice / AppendPooledSlice / ReleasePooledSlice
+	// and release them in LinkedDirectedGraphBase.ReleaseSlabs_() via ReleaseWith.
+	hasSlicePool := j2gortHasExport(ctx, "AcquirePooledSlice") &&
+		j2gortHasExport(ctx, "AppendPooledSlice") &&
+		j2gortHasExport(ctx, "ReleasePooledSlice") &&
+		j2gortTypeHasMethod(ctx, "PooledSlab", "ReleaseWith")
+	if !hasSlicePool || !structHasSliceFieldNamed(nodeNamed, "inEdges") || !structHasSliceFieldNamed(nodeNamed, "outEdges") ||
+		!structHasFieldNamed(nodeNamed, "firstInEdge") || !structHasFieldNamed(nodeNamed, "firstOutEdge") {
+		return count, nil
+	}
+	if nodeNamed.TypeParams() == nil || nodeNamed.TypeParams().Len() != 2 ||
+		baseNamed.TypeParams() == nil || baseNamed.TypeParams().Len() != 2 {
+		return count, nil
+	}
+
+	// Verify all methods on LinkedDirectedGraph_LinkedDiGraphNode that write inEdges/outEdges are ONLY
+	// AddInEdge, AddOutEdge, RemoveInEdge, RemoveOutEdge, and ClearForPool.
+	var addInFn, addOutFn, remInFn, remOutFn, clearFn, relSlabsFn *ast.FuncDecl
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Body == nil || fn.Name == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		switch recvStructTypeName(fn.Recv.List[0].Type) {
+		case "LinkedDirectedGraph_LinkedDiGraphNode":
+			switch fn.Name.Name {
+			case "AddInEdge":
+				addInFn = fn
+			case "AddOutEdge":
+				addOutFn = fn
+			case "RemoveInEdge":
+				remInFn = fn
+			case "RemoveOutEdge":
+				remOutFn = fn
+			case "ClearForPool":
+				clearFn = fn
+			default:
+				if w43BodyAssignsField(fn.Body, "inEdges") || w43BodyAssignsField(fn.Body, "outEdges") {
+					return count, nil
+				}
+			}
+		case "LinkedDirectedGraphBase":
+			if fn.Name.Name == "ReleaseSlabs_" {
+				relSlabsFn = fn
+			}
+		}
+	}
+	if addInFn == nil || addOutFn == nil || remInFn == nil || remOutFn == nil || clearFn == nil || relSlabsFn == nil {
+		return count, nil
+	}
+	if slabASTContainsIdent(addInFn.Body, "AcquirePooledSlice") {
+		return count, nil
+	}
+
+	tp0, tp1 := w43ExtractTwoRecvTypeParamNames(addInFn.Recv.List[0].Type)
+	if tp0 == "" || tp1 == "" {
+		return count, nil
+	}
+	addInP := extractFlatParamNames(addInFn.Type.Params)
+	addOutP := extractFlatParamNames(addOutFn.Type.Params)
+	remInP := extractFlatParamNames(remInFn.Type.Params)
+	remOutP := extractFlatParamNames(remOutFn.Type.Params)
+	if len(addInP) != 1 || addInP[0] == "" || len(addOutP) != 1 || addOutP[0] == "" ||
+		len(remInP) != 1 || remInP[0] == "" || len(remOutP) != 1 || remOutP[0] == "" {
+		return count, nil
+	}
+
+	replaceBody := func(fn *ast.FuncDecl, bodySrc string) error {
+		pf, pErr := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+bodySrc+"\n}\n", 0)
+		if pErr != nil {
+			return pErr
+		}
+		fn.Body.List = pf.Decls[0].(*ast.FuncDecl).Body.List
+		return nil
+	}
+
+	rAddIn := addInFn.Recv.List[0].Names[0].Name
+	if err := replaceBody(addInFn, fmt.Sprintf(`if %[1]s.inEdges != nil {
+	%[5]s.AppendPooledSlice(&%[1]s.inEdges, %[2]s)
+} else if %[1]s.firstInEdge == nil {
+	%[1]s.firstInEdge = %[2]s
+} else {
+	s_ := %[5]s.AcquirePooledSlice[*LinkedDirectedGraph_LinkedDiGraphEdge[%[3]s, %[4]s]](4)
+	s_ = append(s_, %[1]s.firstInEdge, %[2]s)
+	%[1]s.inEdges = s_
+	%[1]s.firstInEdge = nil
+}`, rAddIn, addInP[0], tp0, tp1, j2Qual)); err != nil {
+		return count, err
+	}
+
+	rAddOut := addOutFn.Recv.List[0].Names[0].Name
+	if err := replaceBody(addOutFn, fmt.Sprintf(`if %[1]s.outEdges != nil {
+	%[5]s.AppendPooledSlice(&%[1]s.outEdges, %[2]s)
+} else if %[1]s.firstOutEdge == nil {
+	%[1]s.firstOutEdge = %[2]s
+} else {
+	s_ := %[5]s.AcquirePooledSlice[*LinkedDirectedGraph_LinkedDiGraphEdge[%[3]s, %[4]s]](4)
+	s_ = append(s_, %[1]s.firstOutEdge, %[2]s)
+	%[1]s.outEdges = s_
+	%[1]s.firstOutEdge = nil
+}`, rAddOut, addOutP[0], tp0, tp1, j2Qual)); err != nil {
+		return count, err
+	}
+
+	rRemIn := remInFn.Recv.List[0].Names[0].Name
+	if err := replaceBody(remInFn, fmt.Sprintf(`if %[1]s.inEdges != nil {
+	for i, size := int32(0), int32(len(%[1]s.inEdges)); i < size; i++ {
+		if %[3]s.CheckNotNullPtr(%[1]s.inEdges[i]) == %[2]s {
+			%[1]s.inEdges = %[3]s.SliceRemoveAt(%[1]s.inEdges, i)
+			remaining := int32(len(%[1]s.inEdges))
+			if remaining == 1 {
+				%[1]s.firstInEdge = %[1]s.inEdges[0]
+				%[3]s.ReleasePooledSlice(%[1]s.inEdges)
+				%[1]s.inEdges = nil
+			} else if remaining == 0 {
+				%[3]s.ReleasePooledSlice(%[1]s.inEdges)
+				%[1]s.inEdges = nil
+			}
+			return
+		}
+	}
+} else if %[1]s.firstInEdge != nil && %[3]s.CheckNotNullPtr(%[1]s.firstInEdge) == %[2]s {
+	%[1]s.firstInEdge = nil
+}`, rRemIn, remInP[0], j2Qual)); err != nil {
+		return count, err
+	}
+
+	rRemOut := remOutFn.Recv.List[0].Names[0].Name
+	if err := replaceBody(remOutFn, fmt.Sprintf(`if %[1]s.outEdges != nil {
+	for i, size := int32(0), int32(len(%[1]s.outEdges)); i < size; i++ {
+		if %[3]s.CheckNotNullPtr(%[1]s.outEdges[i]) == %[2]s {
+			%[1]s.outEdges = %[3]s.SliceRemoveAt(%[1]s.outEdges, i)
+			remaining := int32(len(%[1]s.outEdges))
+			if remaining == 1 {
+				%[1]s.firstOutEdge = %[1]s.outEdges[0]
+				%[3]s.ReleasePooledSlice(%[1]s.outEdges)
+				%[1]s.outEdges = nil
+			} else if remaining == 0 {
+				%[3]s.ReleasePooledSlice(%[1]s.outEdges)
+				%[1]s.outEdges = nil
+			}
+			return
+		}
+	}
+} else if %[1]s.firstOutEdge != nil && %[3]s.CheckNotNullPtr(%[1]s.firstOutEdge) == %[2]s {
+	%[1]s.firstOutEdge = nil
+}`, rRemOut, remOutP[0], j2Qual)); err != nil {
+		return count, err
+	}
+
+	// Update ClearForPool: replace `this_.inEdges = nil` and `this_.outEdges = nil` with ReleasePooledSlice + nil.
+	rClear := clearFn.Recv.List[0].Names[0].Name
+	for i := 0; i < len(clearFn.Body.List); i++ {
+		as, ok := clearFn.Body.List[i].(*ast.AssignStmt)
+		if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 || !isIdentNamed(as.Rhs[0], "nil") {
+			continue
+		}
+		for _, edgeFld := range []string{"inEdges", "outEdges"} {
+			if w41IsRecvFieldSel(as.Lhs[0], rClear, edgeFld) {
+				pf, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf("package p\nfunc f() {\nif %[1]s.%[2]s != nil {\n\t%[3]s.ReleasePooledSlice(%[1]s.%[2]s)\n\t%[1]s.%[2]s = nil\n}\n}\n", rClear, edgeFld, j2Qual), 0)
+				if err != nil {
+					return count, err
+				}
+				clearFn.Body.List = slices.Replace(clearFn.Body.List, i, i+1, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				break
+			}
+		}
+	}
+
+	// Upgrade LinkedDirectedGraphBase.ReleaseSlabs_(): slab_LinkedDirectedGraph_LinkedDiGraphNode.Release() -> ReleaseWith(...)
+	rRel := relSlabsFn.Recv.List[0].Names[0].Name
+	bTp0, bTp1 := w43ExtractTwoRecvTypeParamNames(relSlabsFn.Recv.List[0].Type)
+	if bTp0 != "" && bTp1 != "" && !slabASTContainsIdent(relSlabsFn.Body, "ReleasePooledSlice") {
+		for i, st := range relSlabsFn.Body.List {
+			if isRecvSlabFieldReleaseStmt(st, rRel, "slab_LinkedDirectedGraph_LinkedDiGraphNode") {
+				relWithSrc := fmt.Sprintf(`package p
+func f() {
+	%[1]s.slab_LinkedDirectedGraph_LinkedDiGraphNode.ReleaseWith(func(n_ *LinkedDirectedGraph_LinkedDiGraphNode[%[2]s, %[3]s]) {
+		if n_.inEdges != nil {
+			%[4]s.ReleasePooledSlice(n_.inEdges)
+			n_.inEdges = nil
+		}
+		if n_.outEdges != nil {
+			%[4]s.ReleasePooledSlice(n_.outEdges)
+			n_.outEdges = nil
+		}
+	})
+}
+`, rRel, bTp0, bTp1, j2Qual)
+				pf, err := parser.ParseFile(ctx.Fset, "", relWithSrc, 0)
+				if err != nil {
+					return count, err
+				}
+				relSlabsFn.Body.List = slices.Replace(relSlabsFn.Body.List, i, i+1, pf.Decls[0].(*ast.FuncDecl).Body.List...)
+				break
+			}
+		}
+	}
+
+	ctx.MarkFileModified(file)
+	count++
+	return count, nil
+}
+
+func w43BodyAssignsField(body *ast.BlockStmt, fieldName string) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range x.Lhs {
+				if sel, ok := stripParens(lhs).(*ast.SelectorExpr); ok && sel.Sel != nil && sel.Sel.Name == fieldName {
+					found = true
+					return false
+				}
+			}
+		case *ast.UnaryExpr:
+			if x.Op == token.AND {
+				if sel, ok := stripParens(x.X).(*ast.SelectorExpr); ok && sel.Sel != nil && sel.Sel.Name == fieldName {
+					found = true
+					return false
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func w43ExtractTwoRecvTypeParamNames(recvType ast.Expr) (string, string) {
+	t := stripParens(recvType)
+	if st, ok := t.(*ast.StarExpr); ok {
+		t = stripParens(st.X)
+	}
+	ile, ok := t.(*ast.IndexListExpr)
+	if !ok || len(ile.Indices) != 2 {
+		return "", ""
+	}
+	id0, ok0 := stripParens(ile.Indices[0]).(*ast.Ident)
+	id1, ok1 := stripParens(ile.Indices[1]).(*ast.Ident)
+	if !ok0 || !ok1 || id0.Name == "" || id1.Name == "" {
+		return "", ""
+	}
+	return id0.Name, id1.Name
 }

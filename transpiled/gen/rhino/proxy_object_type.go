@@ -233,6 +233,7 @@ func (this_ *ProxyObjectTypeBase) SetReferencedType(referencedType JSType) {
 	_ = referencedType
 	j2gort.CheckNotNullIface(referencedType)
 	this_.referencedType = referencedType
+	this_.GetJSTypeBase().protoFlags = int8((int32(this_.GetJSTypeBase().protoFlags) & ^(int32(int8(-128)))))
 	var resolver *JSTypeResolver = this_.GetJSTypeBase().registry.GetResolver()
 	_ = resolver
 	if (((int32(referencedType.GetJSTypeBase().jstypeFlags) & int32(int8(32))) != int32(0)) && (resolver != nil)) && resolver.IsClosed() {

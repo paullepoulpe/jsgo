@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/paullepoulpe/jsgo/transpiled/shims/javaio"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javanio"
 )
 
@@ -648,6 +649,15 @@ func TestWave38CSyscallReadStringAndBufferedCharsetWriter(t *testing.T) {
 	wantWritten := strings.Repeat("0123456789", 4000) + "!hdr:" + bigChunk
 	if string(cw.buf) != wantWritten {
 		t.Fatalf("buffered charsetWriter content mismatch: len=%d want=%d", len(cw.buf), len(wantWritten))
+	}
+
+	// Empty 0-byte chunk via BufferedWriter: 0 underlying Write calls & idempotent BufferedWriter.Close()!
+	cwEmpty := &countingWriteCloser{}
+	bwEmpty := javaio.NewBufferedWriter(javanio.NewOutputStreamWriterWithCharset(cwEmpty, javanio.StandardCharsets_UTF_8))
+	bwEmpty.Close()
+	bwEmpty.Close()
+	if cwEmpty.writes != 0 || cwEmpty.closes != 1 {
+		t.Fatalf("empty BufferedWriter expected 0 writes and 1 close, got writes=%d closes=%d", cwEmpty.writes, cwEmpty.closes)
 	}
 
 	// Write after Close panics.

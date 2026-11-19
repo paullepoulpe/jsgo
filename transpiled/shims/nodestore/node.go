@@ -386,7 +386,7 @@ func materializeOrigNameSlow(n Node, rec *NodeData, old uint32) {
 		rec.Payload = 0
 	}
 	if old != 0 {
-		origNameField.set(n, old)
+		origNameField.Set(n, old)
 		rec.KindFlags = (rec.KindFlags &^ kindFlagInlineOrigName) | kindFlagHasExtOrigName
 	} else {
 		rec.KindFlags &^= kindFlagInlineOrigName

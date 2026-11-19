@@ -43,14 +43,16 @@ import (
 
 // Java class: com.google.javascript.rhino.jstype.TemplateTypeMap
 type TemplateTypeMap struct {
-	val0       JSType                 `gson:"val0"`
-	val1       JSType                 `gson:"val1"`
-	base       *TemplateTypeMap       `gson:"base"`
-	key0       *TemplateType          `gson:"key0"`
-	extra      *TemplateTypeMap_Extra `gson:"extra"`
-	idHash_    atomic.Int32
-	ownValKind int8 `gson:"ownValKind"`
-	flags      int8 `gson:"flags"`
+	val0            JSType                 `gson:"val0"`
+	val1            JSType                 `gson:"val1"`
+	base            *TemplateTypeMap       `gson:"base"`
+	key0            *TemplateType          `gson:"key0"`
+	extra           *TemplateTypeMap_Extra `gson:"extra"`
+	totalSize       int32                  `gson:"totalSize"`
+	totalValuesSize int32                  `gson:"totalValuesSize"`
+	idHash_         atomic.Int32
+	ownValKind      int8 `gson:"ownValKind"`
+	flags           int8 `gson:"flags"`
 }
 
 func (this_ *TemplateTypeMap) BindSelf_(s any) {
@@ -168,6 +170,8 @@ func InitTemplateTypeMap_1(this_ *TemplateTypeMap, registry *JSTypeRegistry) {
 	this_.extra = NewTemplateTypeMap_Extra(registry, nil, nil, int32(0), nil)
 	this_.ownValKind = int8(int32(0))
 	this_.flags = int8(2)
+	this_.totalSize = int32(0)
+	this_.totalValuesSize = int32(0)
 }
 
 // Java constructor: TemplateTypeMap(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable TemplateTypeMap base, com.google.javascript.rhino.jstype.TemplateType key0, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType val0, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType val1, byte ownValKind, byte flags, com.google.javascript.rhino.jstype.TemplateTypeMap.@org.jspecify.annotations.Nullable Extra extra)
@@ -194,6 +198,35 @@ func InitTemplateTypeMap_7(this_ *TemplateTypeMap, base *TemplateTypeMap, key0 *
 	this_.extra = extra
 	this_.ownValKind = ownValKind
 	this_.flags = flags
+	if base != nil {
+		this_.totalSize = base.totalSize
+	} else {
+		this_.totalSize = (func() int32 {
+			if key0 == nil {
+				return int32(0)
+			}
+			{
+
+				if (extra != nil) && (extra.keys != nil) {
+					return int32(len(extra.keys))
+				}
+				return int32(1)
+			}
+
+		}())
+	}
+	var ownVals int32
+	_ = ownVals
+	if int32(ownValKind) < int32(3) {
+		ownVals = int32(ownValKind)
+	} else {
+		ownVals = int32(len(extra.ownValues))
+	}
+	if base != nil {
+		this_.totalValuesSize = (base.totalValuesSize + ownVals)
+	} else {
+		this_.totalValuesSize = ownVals
+	}
 }
 
 // Java static method: TemplateTypeMap.createEmpty(com.google.javascript.rhino.jstype.JSTypeRegistry registry)
@@ -363,7 +396,7 @@ func TemplateTypeMap_CreateFromArrays(registry *JSTypeRegistry, templateKeys []*
 }
 
 // Java method: TemplateTypeMap.registry()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_registry_9516() *JSTypeRegistry {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_registry_9533() *JSTypeRegistry {
 	if this_.key0 != nil {
 		return this_.key0.GetJSTypeBase().registry
 	} else {
@@ -422,9 +455,9 @@ func TemplateTypeMap_CopyValuesListToArray(values j2gort.Ext_com_google_common_c
 }
 
 // Java method: TemplateTypeMap.subMapStartsMask32()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_subMapStartsMask32_9517() int32 {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_subMapStartsMask32_9534() int32 {
 	if this_.base != nil {
-		return this_.base.priv_TemplateTypeMap_subMapStartsMask32_9517()
+		return this_.base.priv_TemplateTypeMap_subMapStartsMask32_9534()
 	}
 	if this_.key0 == nil {
 		return int32(0)
@@ -442,9 +475,9 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_subMapStartsMask32_9517() int
 }
 
 // Java method: TemplateTypeMap.subMapStartsOverflowOrNull()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_subMapStartsOverflowOrNull_9518() *j2gort.Ext_java_util_BitSet {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_subMapStartsOverflowOrNull_9535() *j2gort.Ext_java_util_BitSet {
 	if this_.base != nil {
-		return this_.base.priv_TemplateTypeMap_subMapStartsOverflowOrNull_9518()
+		return this_.base.priv_TemplateTypeMap_subMapStartsOverflowOrNull_9535()
 	}
 	var e *TemplateTypeMap_Extra = this_.extra
 	_ = e
@@ -456,10 +489,10 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_subMapStartsOverflowOrNull_95
 }
 
 // Java method: TemplateTypeMap.isSubMapStart(int index)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_isSubMapStart_9519(index int32) bool {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_isSubMapStart_9536(index int32) bool {
 	_ = index
 	if this_.base != nil {
-		return this_.base.priv_TemplateTypeMap_isSubMapStart_9519(index)
+		return this_.base.priv_TemplateTypeMap_isSubMapStart_9536(index)
 	}
 	if this_.key0 == nil {
 		return false
@@ -520,7 +553,7 @@ func TemplateTypeMap_DefinitelyUnchangedByTotalReplacer(type_ JSType, isReplacem
 }
 
 // Java method: TemplateTypeMap.ensureResolvedValues()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_ensureResolvedValues_9520() []JSType {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_ensureResolvedValues_9537() []JSType {
 	var state int32 = ((javalang.Ushr32(int32(this_.flags), int(int32(1)))) & int32(3))
 	_ = state
 	if state == int32(1) {
@@ -529,7 +562,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_ensureResolvedValues_9520() [
 	if state == int32(2) {
 		return this_.extra.resolvedValues
 	}
-	var resolved []JSType = this_.priv_TemplateTypeMap_computeResolvedValues_9521()
+	var resolved []JSType = this_.priv_TemplateTypeMap_computeResolvedValues_9538()
 	_ = resolved
 	if resolved == nil {
 		this_.flags = int8(((int32(this_.flags) & ^(javalang.Shl32(int32(3), int(int32(1))))) | (javalang.Shl32(int32(1), int(int32(1))))))
@@ -550,7 +583,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_ensureResolvedValues_9520() [
 }
 
 // Java method: TemplateTypeMap.computeResolvedValues()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_computeResolvedValues_9521() []JSType {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_computeResolvedValues_9538() []JSType {
 	var nValues int32 = this_.GetTemplateValuesSize()
 	_ = nValues
 	if nValues == int32(0) {
@@ -560,7 +593,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_computeResolvedValues_9521() 
 	_ = resolvedValues
 	var replacer *TemplateTypeReplacer = nil
 	_ = replacer
-	var reg *JSTypeRegistry = this_.priv_TemplateTypeMap_registry_9516()
+	var reg *JSTypeRegistry = this_.priv_TemplateTypeMap_registry_9533()
 	_ = reg
 	defer func() {
 		if replacer != nil {
@@ -582,7 +615,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_computeResolvedValues_9521() 
 					if replacer == nil {
 						replacer = reg.AcquireTemplateTypeReplacer(this_, false, false, true)
 					}
-					var nextSubMap int32 = this_.priv_TemplateTypeMap_nextSubMapStart_9523((i + int32(1)))
+					var nextSubMap int32 = this_.priv_TemplateTypeMap_nextSubMapStart_9540((i + int32(1)))
 					_ = nextSubMap
 					replacer.SetKeyType(this_.GetTemplateKeyAt(i), nextSubMap)
 					resolved = replacer.Replace(templateValue)
@@ -620,7 +653,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_computeResolvedValues_9521() 
 }
 
 // Java method: TemplateTypeMap.getResolvedTemplateTypeAt(int index)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getResolvedTemplateTypeAt_9522(index int32) JSType {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getResolvedTemplateTypeAt_9539(index int32) JSType {
 	_ = index
 	var state int32 = ((javalang.Ushr32(int32(this_.flags), int(int32(1)))) & int32(3))
 	_ = state
@@ -638,7 +671,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getResolvedTemplateTypeAt_952
 	if rawVal.GetJSTypeBase().FastTypeClass() == StaticGet_JSTypeClass_TEMPLATE() {
 		var keyType *TemplateType = this_.GetTemplateKeyAt(index)
 		_ = keyType
-		var boundary int32 = this_.priv_TemplateTypeMap_nextSubMapStart_9523((index + int32(1)))
+		var boundary int32 = this_.priv_TemplateTypeMap_nextSubMapStart_9540((index + int32(1)))
 		_ = boundary
 		var seen0 *TemplateType = nil
 		_ = seen0
@@ -662,10 +695,10 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getResolvedTemplateTypeAt_952
 				if (((tt == seen0) || (tt == seen1)) || (tt == seen2)) || (tt == seen3) {
 					return ToIface_JSType(tt)
 				}
-				var targetIdx int32 = this_.priv_TemplateTypeMap_getTemplateTypeIndex_9551(tt)
+				var targetIdx int32 = this_.priv_TemplateTypeMap_getTemplateTypeIndex_9567(tt)
 				_ = targetIdx
 				if targetIdx == int32(-1) {
-					return this_.priv_TemplateTypeMap_registry_9516().GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+					return this_.priv_TemplateTypeMap_registry_9533().GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 				}
 				var next JSType = this_.GetTemplateValueAt(targetIdx)
 				_ = next
@@ -691,7 +724,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getResolvedTemplateTypeAt_952
 			}
 		}
 	}
-	var resolved []JSType = this_.priv_TemplateTypeMap_ensureResolvedValues_9520()
+	var resolved []JSType = this_.priv_TemplateTypeMap_ensureResolvedValues_9537()
 	_ = resolved
 	if resolved != nil {
 		return resolved[index]
@@ -701,22 +734,22 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getResolvedTemplateTypeAt_952
 }
 
 // Java method: TemplateTypeMap.nextSubMapStart(int index)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_nextSubMapStart_9523(index int32) int32 {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_nextSubMapStart_9540(index int32) int32 {
 	_ = index
 	var nKeys int32 = this_.Size()
 	_ = nKeys
-	for (index < nKeys) && !(this_.priv_TemplateTypeMap_isSubMapStart_9519(index)) {
+	for (index < nKeys) && !(this_.priv_TemplateTypeMap_isSubMapStart_9536(index)) {
 		index = index + 1
 	}
 	return index
 }
 
 // Java method: TemplateTypeMap.copyKeysInto(com.google.javascript.rhino.jstype.TemplateType[] dst, int dstOffset)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyKeysInto_9524(dst []*TemplateType, dstOffset int32) {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyKeysInto_9541(dst []*TemplateType, dstOffset int32) {
 	_ = dst
 	_ = dstOffset
 	if this_.base != nil {
-		this_.base.priv_TemplateTypeMap_copyKeysInto_9524(dst, dstOffset)
+		this_.base.priv_TemplateTypeMap_copyKeysInto_9541(dst, dstOffset)
 		return
 	}
 	if this_.key0 == nil {
@@ -748,14 +781,14 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyKeysInto_9524(dst []*Temp
 }
 
 // Java method: TemplateTypeMap.copyValuesInto(com.google.javascript.rhino.jstype.JSType[] dst, int dstOffset)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyValuesInto_9525(dst []JSType, dstOffset int32) {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyValuesInto_9542(dst []JSType, dstOffset int32) {
 	_ = dst
 	_ = dstOffset
 	var pos int32 = dstOffset
 	_ = pos
 	if this_.base != nil {
-		this_.base.priv_TemplateTypeMap_copyValuesInto_9525(dst, pos)
-		pos = (pos + this_.base.GetTemplateValuesSize())
+		this_.base.priv_TemplateTypeMap_copyValuesInto_9542(dst, pos)
+		pos = (pos + this_.base.totalValuesSize)
 	}
 	switch this_.ownValKind {
 	case int8(int32(0)):
@@ -799,7 +832,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyValuesInto_9525(dst []JST
 func (this_ *TemplateTypeMap) CopyFilledWithValues(values j2gort.Ext_com_google_common_collect_ImmutableList) *TemplateTypeMap {
 	_ = values
 	j2gort.CheckNotNull(values)
-	var unfilled int32 = this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9547()
+	var unfilled int32 = this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9563()
 	_ = unfilled
 	var valuesSize int32 = values.Size()
 	_ = valuesSize
@@ -896,17 +929,17 @@ func (this_ *TemplateTypeMap) AsKeysOnlySingleSubMap() *TemplateTypeMap {
 	}
 	var copiedKeys []*TemplateType = make([]*TemplateType, n)
 	_ = copiedKeys
-	this_.priv_TemplateTypeMap_copyKeysInto_9524(copiedKeys, int32(0))
-	return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9516(), copiedKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(1), nil)
+	this_.priv_TemplateTypeMap_copyKeysInto_9541(copiedKeys, int32(0))
+	return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9533(), copiedKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(1), nil)
 }
 
 // Java method: TemplateTypeMap.copyWithExtension(com.google.javascript.rhino.jstype.TemplateTypeMap extension)
 func (this_ *TemplateTypeMap) CopyWithExtension_1(extension *TemplateTypeMap) *TemplateTypeMap {
 	_ = extension
-	if extension.IsEmpty() && (this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9547() == int32(0)) {
+	if extension.IsEmpty() && (this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9563() == int32(0)) {
 		return this_
 	}
-	if this_.IsEmpty() && (this_.priv_TemplateTypeMap_registry_9516() == extension.priv_TemplateTypeMap_registry_9516()) {
+	if this_.IsEmpty() && (this_.priv_TemplateTypeMap_registry_9533() == extension.priv_TemplateTypeMap_registry_9533()) {
 		return extension
 	}
 	var extKeyCount int32 = extension.Size()
@@ -921,7 +954,7 @@ func (this_ *TemplateTypeMap) CopyWithExtension_1(extension *TemplateTypeMap) *T
 		extKeys = extension.extra.keys
 	} else {
 		extKeys = make([]*TemplateType, extKeyCount)
-		extension.priv_TemplateTypeMap_copyKeysInto_9524(extKeys, int32(0))
+		extension.priv_TemplateTypeMap_copyKeysInto_9541(extKeys, int32(0))
 	}
 	var extVals []JSType = nil
 	_ = extVals
@@ -931,16 +964,16 @@ func (this_ *TemplateTypeMap) CopyWithExtension_1(extension *TemplateTypeMap) *T
 		extVals = extension.extra.ownValues
 	} else {
 		extVals = make([]JSType, extValCount)
-		extension.priv_TemplateTypeMap_copyValuesInto_9525(extVals, int32(0))
+		extension.priv_TemplateTypeMap_copyValuesInto_9542(extVals, int32(0))
 	}
 	var extMask int32
 	_ = extMask
 	if extKeyCount <= int32(32) {
-		extMask = extension.priv_TemplateTypeMap_subMapStartsMask32_9517()
+		extMask = extension.priv_TemplateTypeMap_subMapStartsMask32_9534()
 	} else {
 		extMask = int32(0)
 	}
-	var extOverflow *j2gort.Ext_java_util_BitSet = extension.priv_TemplateTypeMap_subMapStartsOverflowOrNull_9518()
+	var extOverflow *j2gort.Ext_java_util_BitSet = extension.priv_TemplateTypeMap_subMapStartsOverflowOrNull_9535()
 	_ = extOverflow
 	if (extKeyCount > int32(32)) && (extOverflow == nil) {
 		extOverflow = j2gort.NewExt_java_util_BitSet_1(extKeyCount)
@@ -948,7 +981,7 @@ func (this_ *TemplateTypeMap) CopyWithExtension_1(extension *TemplateTypeMap) *T
 			var i int32 = int32(0)
 			_ = i
 			for ; i < extKeyCount; i = i + 1 {
-				if extension.priv_TemplateTypeMap_isSubMapStart_9519(i) {
+				if extension.priv_TemplateTypeMap_isSubMapStart_9536(i) {
 					if i < int32(32) {
 						extMask = (extMask | (javalang.Shl32(int32(1), int(i))))
 					} else {
@@ -958,7 +991,7 @@ func (this_ *TemplateTypeMap) CopyWithExtension_1(extension *TemplateTypeMap) *T
 			}
 		}
 	}
-	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(extKeys, extVals, extMask, extOverflow)
+	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(extKeys, extVals, extMask, extOverflow)
 }
 
 // Java method: TemplateTypeMap.copyWithExtensionKeysOnly(com.google.javascript.rhino.jstype.TemplateType[] keys)
@@ -968,10 +1001,10 @@ func (this_ *TemplateTypeMap) CopyWithExtensionKeysOnly(keys []*TemplateType) *T
 	var newKeyCount int32 = int32(len(keys))
 	_ = newKeyCount
 	if newKeyCount == int32(0) {
-		if this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9547() == int32(0) {
+		if this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9563() == int32(0) {
 			return this_
 		}
-		return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(StaticGet_TemplateTypeMap_EMPTY_KEYS(), StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(0), nil)
+		return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(StaticGet_TemplateTypeMap_EMPTY_KEYS(), StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(0), nil)
 	}
 	if this_.IsEmpty() && (newKeyCount == int32(1)) {
 		return TemplateTypeMap_CreateSingleKey(j2gort.CheckNotNullPtr(keys[int32(0)]), int32(1))
@@ -990,9 +1023,9 @@ func (this_ *TemplateTypeMap) CopyWithExtensionKeysOnly(keys []*TemplateType) *T
 		}
 	}
 	if this_.IsEmpty() {
-		return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9516(), safeKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(1), nil)
+		return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9533(), safeKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(1), nil)
 	}
-	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(safeKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(1), nil)
+	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(safeKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(1), nil)
 }
 
 // Java method: TemplateTypeMap.copyWithExtension(com.google.common.collect.ImmutableList<com.google.javascript.rhino.jstype.TemplateType> keys, com.google.common.collect.ImmutableList<com.google.javascript.rhino.jstype.JSType> values)
@@ -1011,10 +1044,10 @@ func (this_ *TemplateTypeMap) CopyWithExtension_2(keys j2gort.Ext_com_google_com
 		j2gort.CheckArgumentMsg(false, j2gort.ValueOfInt(extendedUnfilledCount))
 	}
 	if newKeyCount == int32(0) {
-		if this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9547() == int32(0) {
+		if this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9563() == int32(0) {
 			return this_
 		}
-		return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(StaticGet_TemplateTypeMap_EMPTY_KEYS(), StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(0), nil)
+		return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(StaticGet_TemplateTypeMap_EMPTY_KEYS(), StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(0), nil)
 	}
 	if this_.IsEmpty() && (newKeyCount == int32(1)) {
 		var k0 *TemplateType = j2gort.CheckNotNullPtr(j2gort.CastPtr[TemplateType](keys.Get(int32(0))))
@@ -1029,13 +1062,13 @@ func (this_ *TemplateTypeMap) CopyWithExtension_2(keys j2gort.Ext_com_google_com
 	var valArr []JSType = TemplateTypeMap_CopyValuesListToArray(values)
 	_ = valArr
 	if this_.IsEmpty() {
-		return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9516(), keyArr, valArr, int32(1), nil)
+		return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9533(), keyArr, valArr, int32(1), nil)
 	}
-	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(keyArr, valArr, int32(1), nil)
+	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(keyArr, valArr, int32(1), nil)
 }
 
 // Java method: TemplateTypeMap.copyWithExtensionArrays(com.google.javascript.rhino.jstype.TemplateType[] keys, com.google.javascript.rhino.jstype.JSType[] values, int newStartsMask, java.util.@org.jspecify.annotations.Nullable BitSet newStartsOverflow)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(keys []*TemplateType, values []JSType, newStartsMask int32, newStartsOverflow *j2gort.Ext_java_util_BitSet) *TemplateTypeMap {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9548(keys []*TemplateType, values []JSType, newStartsMask int32, newStartsOverflow *j2gort.Ext_java_util_BitSet) *TemplateTypeMap {
 	_ = keys
 	_ = values
 	_ = newStartsMask
@@ -1049,7 +1082,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(
 	if !(extendedUnfilledCount >= int32(0)) {
 		j2gort.CheckArgumentMsg(false, j2gort.ValueOfInt(extendedUnfilledCount))
 	}
-	if (this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9547() == int32(0)) && (newKeyCount == int32(0)) {
+	if (this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9563() == int32(0)) && (newKeyCount == int32(0)) {
 		return this_
 	}
 	var oldKeyCount int32 = this_.Size()
@@ -1066,7 +1099,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(
 		extendedKeys = keys
 	} else {
 		extendedKeys = make([]*TemplateType, totalKeys)
-		this_.priv_TemplateTypeMap_copyKeysInto_9524(extendedKeys, int32(0))
+		this_.priv_TemplateTypeMap_copyKeysInto_9541(extendedKeys, int32(0))
 		if newKeyCount > int32(0) {
 			func() {
 				acSrc_44 := keys
@@ -1089,7 +1122,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(
 	_ = extendedOverflow
 	if totalKeys <= int32(32) {
 		extendedOverflow = nil
-		var oldMask int32 = this_.priv_TemplateTypeMap_subMapStartsMask32_9517()
+		var oldMask int32 = this_.priv_TemplateTypeMap_subMapStartsMask32_9534()
 		_ = oldMask
 		if newKeyCount == int32(0) {
 			extendedMask = (oldMask & (func() int32 {
@@ -1119,7 +1152,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(
 			var i int32 = int32(0)
 			_ = i
 			for ; i < oldKeyCount; i = i + 1 {
-				if this_.priv_TemplateTypeMap_isSubMapStart_9519(i) {
+				if this_.priv_TemplateTypeMap_isSubMapStart_9536(i) {
 					if i < int32(32) {
 						extendedMask = (extendedMask | (javalang.Shl32(int32(1), int(i))))
 					} else {
@@ -1153,7 +1186,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(
 	}
 	var totalValues int32 = (oldKeyCount + newValCount)
 	_ = totalValues
-	var reg *JSTypeRegistry = this_.priv_TemplateTypeMap_registry_9516()
+	var reg *JSTypeRegistry = this_.priv_TemplateTypeMap_registry_9533()
 	_ = reg
 	if totalValues == int32(0) {
 		return TemplateTypeMap_CreateFromArrays(reg, extendedKeys, StaticGet_TemplateTypeMap_EMPTY_VALUES(), extendedMask, extendedOverflow)
@@ -1161,7 +1194,7 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_copyWithExtensionArrays_9531(
 	var extendedValues []JSType = make([]JSType, totalValues)
 	_ = extendedValues
 	if oldValCount > int32(0) {
-		this_.priv_TemplateTypeMap_copyValuesInto_9525(extendedValues, int32(0))
+		this_.priv_TemplateTypeMap_copyValuesInto_9542(extendedValues, int32(0))
 	}
 	{
 		var i_3 int32 = oldValCount
@@ -1218,7 +1251,7 @@ func (this_ *TemplateTypeMap) CopyWithoutKeys(removals j2gort.Ext_java_util_Set)
 	}
 	var targetSize int32 = (keyCount - removedCount)
 	_ = targetSize
-	var reg *JSTypeRegistry = this_.priv_TemplateTypeMap_registry_9516()
+	var reg *JSTypeRegistry = this_.priv_TemplateTypeMap_registry_9533()
 	_ = reg
 	if targetSize == int32(0) {
 		var empty *TemplateTypeMap = reg.GetEmptyTemplateTypeMap()
@@ -1250,7 +1283,7 @@ func (this_ *TemplateTypeMap) CopyWithoutKeys(removals j2gort.Ext_java_util_Set)
 					i_57 := i_2
 					a_56[i_57] = this_.GetTemplateKeyAt(i_2)
 				}
-				if this_.priv_TemplateTypeMap_isSubMapStart_9519(i_2) {
+				if this_.priv_TemplateTypeMap_isSubMapStart_9536(i_2) {
 					if i_2 < int32(32) {
 						newMask = (newMask | (javalang.Shl32(int32(1), int(i_2))))
 					} else {
@@ -1270,7 +1303,7 @@ func (this_ *TemplateTypeMap) CopyWithoutKeys(removals j2gort.Ext_java_util_Set)
 		for ; i_3 < keyCount; i_3 = i_3 + 1 {
 			var key *TemplateType = this_.GetTemplateKeyAt(i_3)
 			_ = key
-			inNewSubmap = (inNewSubmap || this_.priv_TemplateTypeMap_isSubMapStart_9519(i_3))
+			inNewSubmap = (inNewSubmap || this_.priv_TemplateTypeMap_isSubMapStart_9536(i_3))
 			if !(removals.Contains(j2gort.PtrToAny(key))) {
 				var dst int32 = (valCount + func() int32 { old_58 := newKeysSize; nw_59 := old_58 + 1; newKeysSize = nw_59; return old_58 }())
 				_ = dst
@@ -1299,7 +1332,7 @@ func (this_ *TemplateTypeMap) CopyWithoutKeys(removals j2gort.Ext_java_util_Set)
 		copiedVals = this_.extra.ownValues
 	} else {
 		copiedVals = make([]JSType, valCount)
-		this_.priv_TemplateTypeMap_copyValuesInto_9525(copiedVals, int32(0))
+		this_.priv_TemplateTypeMap_copyValuesInto_9542(copiedVals, int32(0))
 	}
 	return TemplateTypeMap_CreateFromArrays(reg, newKeys, copiedVals, newMask, newOverflow)
 }
@@ -1320,10 +1353,10 @@ func (this_ *TemplateTypeMap) CopyWithKeysFromAndValues(keysSource *TemplateType
 		j2gort.CheckArgumentMsg(false, j2gort.ValueOfInt(extendedUnfilledCount))
 	}
 	if newKeyCount == int32(0) {
-		if this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9547() == int32(0) {
+		if this_.priv_TemplateTypeMap_numUnfilledTemplateKeys_9563() == int32(0) {
 			return this_
 		}
-		return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(StaticGet_TemplateTypeMap_EMPTY_KEYS(), StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(0), nil)
+		return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(StaticGet_TemplateTypeMap_EMPTY_KEYS(), StaticGet_TemplateTypeMap_EMPTY_VALUES(), int32(0), nil)
 	}
 	if this_.IsEmpty() && (newKeyCount == int32(1)) {
 		var k0 *TemplateType = keysSource.GetTemplateKeyAt(int32(0))
@@ -1339,36 +1372,24 @@ func (this_ *TemplateTypeMap) CopyWithKeysFromAndValues(keysSource *TemplateType
 		keyArr = keysSource.extra.keys
 	} else {
 		keyArr = make([]*TemplateType, newKeyCount)
-		keysSource.priv_TemplateTypeMap_copyKeysInto_9524(keyArr, int32(0))
+		keysSource.priv_TemplateTypeMap_copyKeysInto_9541(keyArr, int32(0))
 	}
 	var valArr []JSType = TemplateTypeMap_CopyValuesListToArray(values)
 	_ = valArr
 	if this_.IsEmpty() {
-		return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9516(), keyArr, valArr, int32(1), nil)
+		return TemplateTypeMap_CreateFromArrays(this_.priv_TemplateTypeMap_registry_9533(), keyArr, valArr, int32(1), nil)
 	}
-	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9531(keyArr, valArr, int32(1), nil)
+	return this_.priv_TemplateTypeMap_copyWithExtensionArrays_9548(keyArr, valArr, int32(1), nil)
 }
 
 // Java method: TemplateTypeMap.getTemplateKeysCount()
 func (this_ *TemplateTypeMap) GetTemplateKeysCount() int32 {
-	return this_.Size()
+	return this_.totalSize
 }
 
 // Java method: TemplateTypeMap.size()
 func (this_ *TemplateTypeMap) Size() int32 {
-	if this_.base != nil {
-		return this_.base.Size()
-	}
-	if this_.key0 == nil {
-		return int32(0)
-	}
-	var e *TemplateTypeMap_Extra = this_.extra
-	_ = e
-	if (e != nil) && (e.keys != nil) {
-		return int32(len(e.keys))
-	} else {
-		return int32(1)
-	}
+	return this_.totalSize
 }
 
 // Java method: TemplateTypeMap.isEmpty()
@@ -1393,26 +1414,9 @@ func (this_ *TemplateTypeMap) GetTemplateKeyAt(index int32) *TemplateType {
 	panic(j2gort.AsIface[javalang.IIndexOutOfBoundsException](j2gort.ConstructShimThrowable("java.lang.IndexOutOfBoundsException", j2gort.ValueOfInt(index))))
 }
 
-// Java method: TemplateTypeMap.ownValuesSize()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_ownValuesSize_9538() int32 {
-	var kind int32 = int32(this_.ownValKind)
-	_ = kind
-	if kind < int32(3) {
-		return kind
-	} else {
-		return int32(len(this_.extra.ownValues))
-	}
-}
-
 // Java method: TemplateTypeMap.getTemplateValuesSize()
 func (this_ *TemplateTypeMap) GetTemplateValuesSize() int32 {
-	var own int32 = this_.priv_TemplateTypeMap_ownValuesSize_9538()
-	_ = own
-	if this_.base != nil {
-		return (this_.base.GetTemplateValuesSize() + own)
-	} else {
-		return own
-	}
+	return this_.totalValuesSize
 }
 
 // Java method: TemplateTypeMap.getTemplateValueAt(int index)
@@ -1421,7 +1425,7 @@ func (this_ *TemplateTypeMap) GetTemplateValueAt(index int32) JSType {
 	var localIdx int32 = index
 	_ = localIdx
 	if this_.base != nil {
-		var prefix int32 = this_.base.GetTemplateValuesSize()
+		var prefix int32 = this_.base.totalValuesSize
 		_ = prefix
 		if index < prefix {
 			return this_.base.GetTemplateValueAt(index)
@@ -1583,23 +1587,23 @@ func (this_ *TemplateTypeMap) GetTemplateKeyCountThisShouldAlwaysBeOneOrZeroButI
 }
 
 // Java method: TemplateTypeMap.numUnfilledTemplateKeys()
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_numUnfilledTemplateKeys_9547() int32 {
-	return (this_.Size() - this_.GetTemplateValuesSize())
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_numUnfilledTemplateKeys_9563() int32 {
+	return (this_.totalSize - this_.totalValuesSize)
 }
 
 // Java method: TemplateTypeMap.hasTemplateType(com.google.javascript.rhino.jstype.TemplateType key)
 func (this_ *TemplateTypeMap) HasTemplateType(key *TemplateType) bool {
 	_ = key
-	return (this_.priv_TemplateTypeMap_getTemplateTypeIndex_9551(key) != int32(-1))
+	return (this_.priv_TemplateTypeMap_getTemplateTypeIndex_9567(key) != int32(-1))
 }
 
 // Java method: TemplateTypeMap.getUnresolvedOriginalTemplateType(com.google.javascript.rhino.jstype.TemplateType key)
 func (this_ *TemplateTypeMap) GetUnresolvedOriginalTemplateType(key *TemplateType) JSType {
 	_ = key
-	var index int32 = this_.priv_TemplateTypeMap_getTemplateTypeIndex_9551(key)
+	var index int32 = this_.priv_TemplateTypeMap_getTemplateTypeIndex_9567(key)
 	_ = index
 	if index == int32(-1) {
-		return this_.priv_TemplateTypeMap_registry_9516().GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		return this_.priv_TemplateTypeMap_registry_9533().GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	} else {
 		return this_.GetTemplateValueAt(index)
 	}
@@ -1640,7 +1644,7 @@ func (this_ *TemplateTypeMap) GetLastTemplateTypeKeyByName(keyName string) *Temp
 }
 
 // Java method: TemplateTypeMap.getTemplateTypeIndex(com.google.javascript.rhino.jstype.TemplateType key)
-func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getTemplateTypeIndex_9551(key *TemplateType) int32 {
+func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getTemplateTypeIndex_9567(key *TemplateType) int32 {
 	_ = key
 	if this_.key0 == nil {
 		return int32(-1)
@@ -1683,12 +1687,12 @@ func (this_ *TemplateTypeMap) priv_TemplateTypeMap_getTemplateTypeIndex_9551(key
 // Java method: TemplateTypeMap.getResolvedTemplateType(com.google.javascript.rhino.jstype.TemplateType key)
 func (this_ *TemplateTypeMap) GetResolvedTemplateType(key *TemplateType) JSType {
 	_ = key
-	var index int32 = this_.priv_TemplateTypeMap_getTemplateTypeIndex_9551(key)
+	var index int32 = this_.priv_TemplateTypeMap_getTemplateTypeIndex_9567(key)
 	_ = index
 	if index == int32(-1) {
 		return this_.DefaultValueType(key)
 	}
-	return this_.priv_TemplateTypeMap_getResolvedTemplateTypeAt_9522(index)
+	return this_.priv_TemplateTypeMap_getResolvedTemplateTypeAt_9539(index)
 }
 
 // Java method: TemplateTypeMap.hasAnyTemplateTypesInternal()
@@ -1699,7 +1703,7 @@ func (this_ *TemplateTypeMap) HasAnyTemplateTypesInternal() bool {
 		var i int32 = int32(0)
 		_ = i
 		for ; i < nValues; i = i + 1 {
-			if this_.priv_TemplateTypeMap_getResolvedTemplateTypeAt_9522(i).GetJSTypeBase().HasAnyTemplateTypes() {
+			if this_.priv_TemplateTypeMap_getResolvedTemplateTypeAt_9539(i).GetJSTypeBase().HasAnyTemplateTypes() {
 				return true
 			}
 		}
@@ -1744,7 +1748,7 @@ func (this_ *TemplateTypeMap) String() string {
 			}()))
 			s = (j2gort.StrValString(s) + ",")
 			if i < nValues {
-				s = (j2gort.StrValString(s) + j2gort.StrVal(this_.priv_TemplateTypeMap_getResolvedTemplateTypeAt_9522(i)))
+				s = (j2gort.StrValString(s) + j2gort.StrVal(this_.priv_TemplateTypeMap_getResolvedTemplateTypeAt_9539(i)))
 			} else {
 				s = (j2gort.StrValString(s) + j2gort.StrVal(k.GetBound()))
 			}
@@ -1759,7 +1763,7 @@ func (this_ *TemplateTypeMap) String() string {
 func (this_ *TemplateTypeMap) DefaultValueType(type_ *TemplateType) JSType {
 	_ = type_
 	if type_.GetBound().GetJSTypeBase().IsUnknownType() {
-		return this_.priv_TemplateTypeMap_registry_9516().GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
+		return this_.priv_TemplateTypeMap_registry_9533().GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE())
 	} else {
 		return ToIface_JSType(type_)
 	}
@@ -1775,7 +1779,7 @@ func (this_ *TemplateTypeMap) GetIndicesOfSubmapsForTesting() j2gort.Ext_com_goo
 		var i int32 = int32(0)
 		_ = i
 		for ; i < n; i = i + 1 {
-			if this_.priv_TemplateTypeMap_isSubMapStart_9519(i) {
+			if this_.priv_TemplateTypeMap_isSubMapStart_9536(i) {
 				indices = append(indices, i)
 			}
 		}

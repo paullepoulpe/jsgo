@@ -144,11 +144,11 @@ func (this_ *ModuleImportResolver) GetClosureNamespaceTypeFromCall(googRequire p
 	}
 	var moduleId string = googRequire.GetSecondChild().GetString()
 	_ = moduleId
-	return this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3901(moduleId)
+	return this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3907(moduleId)
 }
 
 // Java method: ModuleImportResolver.getScopedNameForClosureNamespace(java.lang.String moduleId)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClosureNamespace_3901(moduleId string) ScopedName {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClosureNamespace_3907(moduleId string) ScopedName {
 	_ = moduleId
 	var module *Module = this_.moduleMap.GetClosureModule(moduleId)
 	_ = module
@@ -165,7 +165,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClo
 			return nil
 		}
 	case int32(1) /* ModuleType.GOOG_MODULE */, int32(2) /* ModuleType.LEGACY_GOOG_MODULE */ :
-		var scopeRoot pkg_rhino.Node = this_.priv_ModuleImportResolver_getGoogModuleScopeRoot_3902(module)
+		var scopeRoot pkg_rhino.Node = this_.priv_ModuleImportResolver_getGoogModuleScopeRoot_3908(module)
 		_ = scopeRoot
 		if scopeRoot != 0 {
 			return ScopedName_Of("exports", scopeRoot)
@@ -185,7 +185,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameForClo
 }
 
 // Java method: ModuleImportResolver.getGoogModuleScopeRoot(com.google.javascript.jscomp.modules.@org.jspecify.annotations.Nullable Module module)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getGoogModuleScopeRoot_3902(module *Module) pkg_rhino.Node {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getGoogModuleScopeRoot_3908(module *Module) pkg_rhino.Node {
 	_ = module
 	j2gort.CheckArgumentMsg(module.Metadata().GetModuleMetadataMap_ModuleMetadataBase().IsGoogModule(), module.Metadata())
 	var scriptNode pkg_rhino.Node = module.Metadata().RootNode()
@@ -223,7 +223,7 @@ func (this_ *ModuleImportResolver) DeclareEsModuleImports(module *Module, scope 
 			if !(binding.IsCreatedByEsImport()) {
 				continue
 			}
-			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3906(binding)
+			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3912(binding)
 			_ = export
 			var modScope *TypedScope = j2gort.CastPtr[TypedScope](this_.nodeToScopeMapper.Apply(j2gort.BoxNode(export.GetScopedNameBase().GetScopeRoot())))
 			_ = modScope
@@ -273,7 +273,7 @@ func (this_ *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace pkg_rhi
 			_ = binding
 			var bindingSourceNode pkg_rhino.Node = binding.SourceNode()
 			_ = bindingSourceNode
-			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3906(binding)
+			var export ScopedName = this_.priv_ModuleImportResolver_getScopedNameFromEsBinding_3912(binding)
 			_ = export
 			var originalScope *TypedScope
 			_ = originalScope
@@ -284,7 +284,7 @@ func (this_ *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace pkg_rhi
 			}
 			if originalScope == nil {
 				namespace.GetObjectTypeBase().DefineInferredProperty_3_string_JSType_Node(exportKey, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), bindingSourceNode)
-				this_.priv_ModuleImportResolver_updateAstForExport_3905(bindingSourceNode, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), nil)
+				this_.priv_ModuleImportResolver_updateAstForExport_3911(bindingSourceNode, this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), nil)
 				continue
 			}
 			var originalName *TypedVar = j2gort.CastPtr[TypedVar](originalScope.GetSlot(export.GetScopedNameBase().GetName()))
@@ -299,13 +299,13 @@ func (this_ *ModuleImportResolver) UpdateEsModuleNamespaceType(namespace pkg_rhi
 			} else {
 				namespace.GetObjectTypeBase().DefineDeclaredProperty_3_string_JSType_Node(exportKey, exportType, bindingSourceNode)
 			}
-			this_.priv_ModuleImportResolver_updateAstForExport_3905(bindingSourceNode, exportType, originalName.GetNameNode().GetTypedefTypeProp())
+			this_.priv_ModuleImportResolver_updateAstForExport_3911(bindingSourceNode, exportType, originalName.GetNameNode().GetTypedefTypeProp())
 		}
 	}
 }
 
 // Java method: ModuleImportResolver.updateAstForExport(com.google.javascript.rhino.Node bindingSourceNode, com.google.javascript.rhino.jstype.JSType exportType, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType typedefType)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_updateAstForExport_3905(bindingSourceNode pkg_rhino.Node, exportType pkg_rhino.JSType, typedefType pkg_rhino.JSType) {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_updateAstForExport_3911(bindingSourceNode pkg_rhino.Node, exportType pkg_rhino.JSType, typedefType pkg_rhino.JSType) {
 	_ = bindingSourceNode
 	_ = exportType
 	_ = typedefType
@@ -317,7 +317,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_updateAstForExport_
 }
 
 // Java method: ModuleImportResolver.getScopedNameFromEsBinding(com.google.javascript.jscomp.modules.Binding binding)
-func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEsBinding_3906(binding *Binding) ScopedName {
+func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEsBinding_3912(binding *Binding) ScopedName {
 	_ = binding
 	var name string
 	_ = name
@@ -355,7 +355,7 @@ func (this_ *ModuleImportResolver) priv_ModuleImportResolver_getScopedNameFromEs
 		}
 		return ScopedName_Of(name, iifeArg_1)
 	case int32(1) /* ModuleType.GOOG_MODULE */, int32(4) /* ModuleType.GOOG_PROVIDE */, int32(2) /* ModuleType.LEGACY_GOOG_MODULE */ :
-		var closureModuleObject ScopedName = this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3901(binding.ClosureNamespace())
+		var closureModuleObject ScopedName = this_.priv_ModuleImportResolver_getScopedNameForClosureNamespace_3907(binding.ClosureNamespace())
 		_ = closureModuleObject
 		if closureModuleObject == nil || closureModuleObject.IsJavaNil_() {
 			return ScopedName_Of(binding.ClosureNamespace(), pkg_rhino.Node(0))

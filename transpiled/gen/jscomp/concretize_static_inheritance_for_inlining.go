@@ -416,12 +416,10 @@ func (*ConcretizeStaticInheritanceForInlining_FindStaticMembers) Implements_jsco
 func (this_ *ConcretizeStaticInheritanceForInlining_FindStaticMembers) initFields_ConcretizeStaticInheritanceForInlining_FindStaticMembers() {
 	_ = this_
 	this_.inheritsCalls = []pkg_rhino.Node{}
-	this_.nodeOrder = j2gort.NewOrderedMap[pkg_rhino.Node, int32](
-
-	// Java constructor: FindStaticMembers()
-	)
+	this_.nodeOrder = j2gort.NewOrderedMap[pkg_rhino.Node, int32]()
 }
 
+// Java constructor: FindStaticMembers()
 func NewConcretizeStaticInheritanceForInlining_FindStaticMembers(outer_ *ConcretizeStaticInheritanceForInlining) *ConcretizeStaticInheritanceForInlining_FindStaticMembers {
 	this_ := &ConcretizeStaticInheritanceForInlining_FindStaticMembers{}
 	this_.outer_ = outer_

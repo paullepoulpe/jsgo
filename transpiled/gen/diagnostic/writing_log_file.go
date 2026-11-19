@@ -107,38 +107,38 @@ func WritingLogFile_Create(file j2gort.Ext_java_nio_file_Path) LogFile {
 // Java method: WritingLogFile.log(java.lang.Object value)
 func (this_ *WritingLogFile) Log_1_any(value any) LogFile {
 	_ = value
-	return this_.priv_WritingLogFile_logInternal_6191(javalang.ToJavaString(j2gort.CheckNotNull(value)))
+	return this_.priv_WritingLogFile_logInternal_6201(javalang.ToJavaString(j2gort.CheckNotNull(value)))
 }
 
 // Java method: WritingLogFile.log(java.lang.String value)
 func (this_ *WritingLogFile) Log_1_string(value string) LogFile {
 	_ = value
-	return this_.priv_WritingLogFile_logInternal_6191(value)
+	return this_.priv_WritingLogFile_logInternal_6201(value)
 }
 
 // Java method: WritingLogFile.log(java.util.function.Supplier<java.lang.String> value)
 func (this_ *WritingLogFile) Log_1_Ext_java_util_function_Supplier(value j2gort.Ext_java_util_function_Supplier) LogFile {
 	_ = value
-	return this_.priv_WritingLogFile_logInternal_6191(j2gort.CastString(value.Get()))
+	return this_.priv_WritingLogFile_logInternal_6201(j2gort.CastString(value.Get()))
 }
 
 // Java method: WritingLogFile.log(java.lang.String template, java.lang.Object[] values)
 func (this_ *WritingLogFile) Log_2(template string, values []any) LogFile {
 	_ = template
 	_ = values
-	return this_.priv_WritingLogFile_logInternal_6191(j2gort.Ext_java_lang_String_Format_2(template, values))
+	return this_.priv_WritingLogFile_logInternal_6201(j2gort.Ext_java_lang_String_Format_2(template, values))
 }
 
 // Java method: WritingLogFile.logJson(java.lang.Object value)
 func (this_ *WritingLogFile) LogJson_1_any(value any) LogFile {
 	_ = value
-	return this_.priv_WritingLogFile_logInternal_6191(LogsGson_ToJson(value))
+	return this_.priv_WritingLogFile_logInternal_6201(LogsGson_ToJson(value))
 }
 
 // Java method: WritingLogFile.logJson(java.util.function.Supplier<java.lang.Object> value)
 func (this_ *WritingLogFile) LogJson_1_Ext_java_util_function_Supplier(value j2gort.Ext_java_util_function_Supplier) LogFile {
 	_ = value
-	return this_.priv_WritingLogFile_logInternal_6191(LogsGson_ToJson(value.Get()))
+	return this_.priv_WritingLogFile_logInternal_6201(LogsGson_ToJson(value.Get()))
 }
 
 // Java method: WritingLogFile.logJson(com.google.javascript.jscomp.diagnostic.LogFile.StreamedJsonProducer producer)
@@ -167,7 +167,7 @@ func (this_ *WritingLogFile) LogJson_1_LogFile_StreamedJsonProducer(producer Log
 }
 
 // Java method: WritingLogFile.logInternal(java.lang.String value)
-func (this_ *WritingLogFile) priv_WritingLogFile_logInternal_6191(value string) LogFile {
+func (this_ *WritingLogFile) priv_WritingLogFile_logInternal_6201(value string) LogFile {
 	_ = value
 	func() {
 		defer func() {

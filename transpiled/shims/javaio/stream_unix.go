@@ -72,6 +72,9 @@ func readRawFD(fd int, p []byte) (int, error) {
 }
 
 func writeRawFD(fd int, p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	written := 0
 	for written < len(p) {
 		n, err := syscall.Write(fd, p[written:])

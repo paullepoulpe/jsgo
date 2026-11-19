@@ -432,12 +432,10 @@ func (*DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) Imple
 
 func (this_ *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal) initFields_DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal() {
 	_ = this_
-	this_.propertyMap = j2gort.NewOrderedMap[string, *DeadPropertyAssignmentElimination_Property](
-
-	// Java constructor: FindCandidateAssignmentTraversal(java.util.Set<java.lang.String> skiplistedPropNames)
-	)
+	this_.propertyMap = j2gort.NewOrderedMap[string, *DeadPropertyAssignmentElimination_Property]()
 }
 
+// Java constructor: FindCandidateAssignmentTraversal(java.util.Set<java.lang.String> skiplistedPropNames)
 func NewDeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal(skiplistedPropNames j2gort.Ext_java_util_Set) *DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal {
 	this_ := &DeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal{}
 	InitDeadPropertyAssignmentElimination_FindCandidateAssignmentTraversal(this_, skiplistedPropNames)

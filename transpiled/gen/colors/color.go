@@ -1099,13 +1099,13 @@ func (this_ *Color) SubtractNullOrVoid() *Color {
 	var cached *Color = this_.subtractNullOrVoid
 	_ = cached
 	if cached == nil {
-		return this_.priv_Color_computeSubtractNullOrVoid_5994()
+		return this_.priv_Color_computeSubtractNullOrVoid_6004()
 	}
 	return cached
 }
 
 // Java method: Color.computeSubtractNullOrVoid()
-func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5994() *Color {
+func (this_ *Color) priv_Color_computeSubtractNullOrVoid_6004() *Color {
 	{
 		if this_ == nil {
 			j2gort.ThrowNPE()
@@ -1406,14 +1406,14 @@ func (this_ *Color) HashCode() int32 {
 	var h int32 = this_.hashCode
 	_ = h
 	if h == int32(0) {
-		h = this_.priv_Color_computeHashCode_5998()
+		h = this_.priv_Color_computeHashCode_6008()
 		this_.hashCode = h
 	}
 	return h
 }
 
 // Java method: Color.computeHashCode()
-func (this_ *Color) priv_Color_computeHashCode_5998() int32 {
+func (this_ *Color) priv_Color_computeHashCode_6008() int32 {
 	var protoHash int32 = int32(0)
 	_ = protoHash
 	{

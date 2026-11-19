@@ -83,12 +83,10 @@ func InitCoverageInstrumentationPass_4(this_ *CoverageInstrumentationPass, compi
 	this_.reach = reach
 	this_.instrumentOption = instrumentOption
 	this_.productionInstrumentationArrayName = productionInstrumentationArrayName
-	this_.instrumentationData = j2gort.NewOrderedMap[string, *FileInstrumentationData](
-
-	// Java constructor: CoverageInstrumentationPass(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.instrumentation.CoverageInstrumentationPass.CoverageReach reach)
-	)
+	this_.instrumentationData = j2gort.NewOrderedMap[string, *FileInstrumentationData]()
 }
 
+// Java constructor: CoverageInstrumentationPass(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.instrumentation.CoverageInstrumentationPass.CoverageReach reach)
 func NewCoverageInstrumentationPass_2(compiler AbstractCompiler, reach CoverageInstrumentationPass_CoverageReach) *CoverageInstrumentationPass {
 	this_ := &CoverageInstrumentationPass{}
 	InitCoverageInstrumentationPass_2(this_, compiler, reach)
@@ -102,14 +100,14 @@ func InitCoverageInstrumentationPass_2(this_ *CoverageInstrumentationPass, compi
 }
 
 // Java method: CoverageInstrumentationPass.addHeaderCode(com.google.javascript.rhino.Node script)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addHeaderCode_6471(script pkg_rhino.Node) {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addHeaderCode_6485(script pkg_rhino.Node) {
 	_ = script
-	script.AddChildToFront(this_.priv_CoverageInstrumentationPass_createConditionalObjectDecl_6474("__jscov", script))
+	script.AddChildToFront(this_.priv_CoverageInstrumentationPass_createConditionalObjectDecl_6488("__jscov", script))
 	script.AddChildToFront(this_.compiler.ParseSyntheticCode("coverage_instrumentation_header", "(function(self) { if (!self.window) { self.window = self; self.window.top = self; }})(typeof self !== 'undefined' ? self : globalThis)").RemoveFirstChild().SrcrefTreeIfMissing(script))
 }
 
 // Java method: CoverageInstrumentationPass.addProductionHeaderCode(com.google.javascript.rhino.Node script, java.lang.String arrayName)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addProductionHeaderCode_6472(script pkg_rhino.Node, arrayName string) {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addProductionHeaderCode_6486(script pkg_rhino.Node, arrayName string) {
 	_ = script
 	_ = arrayName
 	var arrayLit pkg_rhino.Node = pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{})
@@ -122,7 +120,7 @@ func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_addPr
 }
 
 // Java method: CoverageInstrumentationPass.checkIfArrayNameExternDeclared(com.google.javascript.rhino.Node externsNode, java.lang.String arrayName)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6473(externsNode pkg_rhino.Node, arrayName string) {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6487(externsNode pkg_rhino.Node, arrayName string) {
 	_ = externsNode
 	_ = arrayName
 	if !(j2gort.SetContainsStr(NodeUtil_CollectExternVariableNames(this_.compiler, externsNode), arrayName)) {
@@ -143,7 +141,7 @@ func (this_ *CoverageInstrumentationPass) Process_2(externsNode pkg_rhino.Node, 
 			var productionCoverageInstrumentationCallback *ProductionCoverageInstrumentationCallback = &val_1
 			_ = productionCoverageInstrumentationCallback
 			NodeTraversal_Traverse(this_.compiler, rootNode, productionCoverageInstrumentationCallback)
-			this_.priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6473(externsNode, this_.productionInstrumentationArrayName)
+			this_.priv_CoverageInstrumentationPass_checkIfArrayNameExternDeclared_6487(externsNode, this_.productionInstrumentationArrayName)
 			var instrumentationMapping *VariableMap = productionCoverageInstrumentationCallback.GetInstrumentationMapping()
 			_ = instrumentationMapping
 			this_.compiler.SetInstrumentationMapping(instrumentationMapping)
@@ -159,15 +157,15 @@ func (this_ *CoverageInstrumentationPass) Process_2(externsNode pkg_rhino.Node, 
 			firstScript = firstScript.GetFirstChild()
 		}
 		if this_.instrumentOption == StaticGet_CompilerOptions_InstrumentOption_PRODUCTION() {
-			this_.priv_CoverageInstrumentationPass_addProductionHeaderCode_6472(firstScript, this_.productionInstrumentationArrayName)
+			this_.priv_CoverageInstrumentationPass_addProductionHeaderCode_6486(firstScript, this_.productionInstrumentationArrayName)
 		} else {
-			this_.priv_CoverageInstrumentationPass_addHeaderCode_6471(firstScript)
+			this_.priv_CoverageInstrumentationPass_addHeaderCode_6485(firstScript)
 		}
 	}
 }
 
 // Java method: CoverageInstrumentationPass.createConditionalObjectDecl(java.lang.String name, com.google.javascript.rhino.Node srcref)
-func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_createConditionalObjectDecl_6474(name string, srcref pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *CoverageInstrumentationPass) priv_CoverageInstrumentationPass_createConditionalObjectDecl_6488(name string, srcref pkg_rhino.Node) pkg_rhino.Node {
 	_ = name
 	_ = srcref
 	var jscovData pkg_rhino.Node = pkg_rhino.Node(0)

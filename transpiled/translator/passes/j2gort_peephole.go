@@ -363,7 +363,7 @@ func (p *J2gortPeepholePass) simplifySingleArgCall(
 			return inner, true
 		}
 
-	case "CheckNotNull", "CheckNotNullPtr", "CheckNotNullString", "CheckNotNullSlice", "CheckNotNullNode", "CheckNotNullIface":
+	case "CheckNotNull", "CheckNotNullPtr", "CheckNotNullString", "CheckNotNullSlice", "CheckNotNullNode", "CheckNotNullIface", "CheckNotNullGeneric":
 		if innerCall, ok := inner.(*ast.CallExpr); ok && len(innerCall.Args) == 1 && !innerCall.Ellipsis.IsValid() {
 			if innerFn, _, _, ok := isJ2gortCall(innerCall, info); ok && isCheckNotNullFuncName(innerFn) {
 				if hasExactIntrinsicType(innerCall, callType, info) {
@@ -940,7 +940,7 @@ func isGuaranteedNonNullString(expr ast.Expr, info *types.Info) bool {
 
 func isCheckNotNullFuncName(name string) bool {
 	switch name {
-	case "CheckNotNull", "CheckNotNullPtr", "CheckNotNullString", "CheckNotNullSlice", "CheckNotNullNode", "CheckNotNullIface":
+	case "CheckNotNull", "CheckNotNullPtr", "CheckNotNullString", "CheckNotNullSlice", "CheckNotNullNode", "CheckNotNullIface", "CheckNotNullGeneric":
 		return true
 	}
 	return false

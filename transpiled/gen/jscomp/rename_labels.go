@@ -257,15 +257,15 @@ func (this_ *RenameLabels_ProcessLabels) Visit_3(t *NodeTraversal, node pkg_rhin
 	_ = parent
 	switch node.TokenSwitchOrd_() {
 	case int32(92) /* Token.LABEL */ :
-		this_.priv_ProcessLabels_visitLabel_4807(t, node)
+		this_.priv_ProcessLabels_visitLabel_4816(t, node)
 	case int32(82) /* Token.BREAK */, int32(83) /* Token.CONTINUE */ :
-		this_.priv_ProcessLabels_visitBreakOrContinue_4806(t, node)
+		this_.priv_ProcessLabels_visitBreakOrContinue_4815(t, node)
 	default:
 	}
 }
 
 // Java method: ProcessLabels.visitBreakOrContinue(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitBreakOrContinue_4806(t *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitBreakOrContinue_4815(t *NodeTraversal, node pkg_rhino.Node) {
 	_ = t
 	_ = node
 	var nameNode pkg_rhino.Node = node.GetFirstChild()
@@ -296,7 +296,7 @@ func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitBreakOrContinue
 }
 
 // Java method: ProcessLabels.visitLabel(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitLabel_4807(t *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *RenameLabels_ProcessLabels) priv_ProcessLabels_visitLabel_4816(t *NodeTraversal, node pkg_rhino.Node) {
 	_ = t
 	_ = node
 	var nameNode pkg_rhino.Node = node.GetFirstChild()
@@ -423,12 +423,10 @@ func init() {
 
 func (this_ *RenameLabels_LabelNamespace) initFields_RenameLabels_LabelNamespace() {
 	_ = this_
-	this_.renameMap = j2gort.NewOrderedMap[string, *RenameLabels_LabelInfo](
-
-	// Java constructor: LabelNamespace()
-	)
+	this_.renameMap = j2gort.NewOrderedMap[string, *RenameLabels_LabelInfo]()
 }
 
+// Java constructor: LabelNamespace()
 func NewRenameLabels_LabelNamespace() *RenameLabels_LabelNamespace {
 	this_ := &RenameLabels_LabelNamespace{}
 	InitRenameLabels_LabelNamespace(this_)

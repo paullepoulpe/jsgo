@@ -164,11 +164,11 @@ func clinitSlow_ReportUntranspilableFeatures() {
 	defer j2gort.ExitClinit(&clinitState_ReportUntranspilableFeatures, &clinitDone_ReportUntranspilableFeatures)
 	static_ReportUntranspilableFeatures_UNTRANSPILABLE_FEATURE_PRESENT = DiagnosticType_Error("JSC_UNTRANSPILABLE", "Cannot convert feature \"{0}\" to targeted output language. Feature requires at minimum {1}.{2}")
 	static_ReportUntranspilableFeatures_UNSUPPORTED_FEATURE_PRESENT = DiagnosticType_Error("JSC_UNSUPPORTED", "The feature \"{0}\" is currently unsupported for transpilation.")
-	static_ReportUntranspilableFeatures_UNTRANSPILABLE_ES5_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), pkg_parser.StaticGet_FeatureSet_Feature_SETTER()})
-	static_ReportUntranspilableFeatures_UNTRANSPILABLE_2018_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_S(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE()})
+	static_ReportUntranspilableFeatures_UNTRANSPILABLE_ES5_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), pkg_parser.StaticGet_FeatureSet_Feature_SETTER()})
+	static_ReportUntranspilableFeatures_UNTRANSPILABLE_2018_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_S(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS(), pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE()})
 	static_ReportUntranspilableFeatures_UNTRANSPILABLE_2019_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_UNESCAPED_UNICODE_LINE_OR_PARAGRAPH_SEP())
 	static_ReportUntranspilableFeatures_UNTRANSPILABLE_2020_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_BIGINT())
-	static_ReportUntranspilableFeatures_UNTRANSPILABLE_2022_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_D(), pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT()})
+	static_ReportUntranspilableFeatures_UNTRANSPILABLE_2022_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_D(), pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT()})
 	static_ReportUntranspilableFeatures_ALL_UNTRANSPILABLE_FEATURES = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().Union(StaticGet_ReportUntranspilableFeatures_UNTRANSPILABLE_ES5_FEATURES()).Union(StaticGet_ReportUntranspilableFeatures_UNTRANSPILABLE_2018_FEATURES()).Union(StaticGet_ReportUntranspilableFeatures_UNTRANSPILABLE_2019_FEATURES()).Union(StaticGet_ReportUntranspilableFeatures_UNTRANSPILABLE_2022_FEATURES()).Union(StaticGet_ReportUntranspilableFeatures_UNTRANSPILABLE_2020_FEATURES())
 }
 
@@ -208,7 +208,7 @@ func (this_ *ReportUntranspilableFeatures) GetAdditionalFeaturesToRunOn() *pkg_p
 }
 
 // Java method: ReportUntranspilableFeatures.checkForUntranspilable(com.google.javascript.rhino.Node root)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForUntranspilable_4905(root pkg_rhino.Node) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForUntranspilable_4914(root pkg_rhino.Node) {
 	_ = root
 	switch root.TokenSwitchOrd_() {
 	case int32(42) /* Token.REGEXP */:
@@ -244,42 +244,42 @@ func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_che
 		}()
 		if tryFlow_1 == 1 { break }
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_S())) {
-			this_.priv_ReportUntranspilableFeatures_checkForRegExpSFlag_4907(root)
+			this_.priv_ReportUntranspilableFeatures_checkForRegExpSFlag_4916(root)
 		}
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND())) {
-			this_.priv_ReportUntranspilableFeatures_checkForLookbehind_4908(root, reg)
+			this_.priv_ReportUntranspilableFeatures_checkForLookbehind_4917(root, reg)
 		}
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS())) {
-			this_.priv_ReportUntranspilableFeatures_checkForNamedGroups_4909(root, reg)
+			this_.priv_ReportUntranspilableFeatures_checkForNamedGroups_4918(root, reg)
 		}
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE())) {
-			this_.priv_ReportUntranspilableFeatures_checkForUnicodePropertyEscape_4910(root, reg)
+			this_.priv_ReportUntranspilableFeatures_checkForUnicodePropertyEscape_4919(root, reg)
 		}
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_D())) {
-			this_.priv_ReportUntranspilableFeatures_checkForRegExpDFlag_4911(root)
+			this_.priv_ReportUntranspilableFeatures_checkForRegExpDFlag_4920(root)
 		}
 	case int32(34) /* Token.BIGINT */:
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_BIGINT())) {
-			this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_BIGINT(), root)
+			this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_BIGINT(), root)
 		}
 	case int32(95) /* Token.GETTER_DEF */:
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_GETTER())) {
-			this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), root)
+			this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_GETTER(), root)
 		}
 	case int32(96) /* Token.SETTER_DEF */:
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_SETTER())) {
-			this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_SETTER(), root)
+			this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_SETTER(), root)
 		}
 	case int32(115) /* Token.AWAIT */, int32(113) /* Token.FOR_AWAIT_OF */:
 		if (this_.untranspilableFeaturesToRemove.Contains_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT())) {
-			this_.priv_ReportUntranspilableFeatures_checkForTopLevelAwait_4912(root)
+			this_.priv_ReportUntranspilableFeatures_checkForTopLevelAwait_4921(root)
 		}
 	default:
 	}
 }
 
 // Java method: ReportUntranspilableFeatures.reportUntranspilable(com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature feature, com.google.javascript.rhino.Node node)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_reportUntranspilable_4906(feature *pkg_parser.FeatureSet_Feature, node pkg_rhino.Node) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_reportUntranspilable_4915(feature *pkg_parser.FeatureSet_Feature, node pkg_rhino.Node) {
 	_ = feature
 	_ = node
 	var minimumLanguageMode *pkg_parsing.Config_LanguageMode = pkg_parsing.Config_LanguageMode_MinimumRequiredFor(feature)
@@ -309,7 +309,7 @@ func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_rep
 }
 
 // Java method: ReportUntranspilableFeatures.checkForRegExpSFlag(com.google.javascript.rhino.Node regexpNode)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForRegExpSFlag_4907(regexpNode pkg_rhino.Node) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForRegExpSFlag_4916(regexpNode pkg_rhino.Node) {
 	_ = regexpNode
 	if !(regexpNode.IsRegExp()) { j2gort.CheckArgument(false) }
 	var flags string
@@ -320,42 +320,42 @@ func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_che
 		flags = ""
 	}
 	if ((j2gort.JStrIndexOf(flags, "s") >= 0)) {
-		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_S(), regexpNode)
+		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_S(), regexpNode)
 	}
 }
 
 // Java method: ReportUntranspilableFeatures.checkForLookbehind(com.google.javascript.rhino.Node regexpNode, com.google.javascript.jscomp.regex.RegExpTree tree)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForLookbehind_4908(regexpNode pkg_rhino.Node, tree pkg_regex.RegExpTree) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForLookbehind_4917(regexpNode pkg_rhino.Node, tree pkg_regex.RegExpTree) {
 	_ = regexpNode
 	_ = tree
 	if !((regexpNode != 0)) { j2gort.CheckArgument(false) }
 	if (ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree, lambdaSingleton_report_untranspilable_features_1)) {
-		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND(), regexpNode)
+		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_LOOKBEHIND(), regexpNode)
 	}
 }
 
 // Java method: ReportUntranspilableFeatures.checkForNamedGroups(com.google.javascript.rhino.Node regexpNode, com.google.javascript.jscomp.regex.RegExpTree tree)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForNamedGroups_4909(regexpNode pkg_rhino.Node, tree pkg_regex.RegExpTree) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForNamedGroups_4918(regexpNode pkg_rhino.Node, tree pkg_regex.RegExpTree) {
 	_ = regexpNode
 	_ = tree
 	if !((regexpNode != 0)) { j2gort.CheckArgument(false) }
 	if (ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree, lambdaSingleton_report_untranspilable_features_2)) {
-		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS(), regexpNode)
+		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_NAMED_GROUPS(), regexpNode)
 	}
 }
 
 // Java method: ReportUntranspilableFeatures.checkForUnicodePropertyEscape(com.google.javascript.rhino.Node regexpNode, com.google.javascript.jscomp.regex.RegExpTree tree)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForUnicodePropertyEscape_4910(regexpNode pkg_rhino.Node, tree pkg_regex.RegExpTree) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForUnicodePropertyEscape_4919(regexpNode pkg_rhino.Node, tree pkg_regex.RegExpTree) {
 	_ = regexpNode
 	_ = tree
 	if !((regexpNode != 0)) { j2gort.CheckArgument(false) }
 	if (ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree, lambdaSingleton_report_untranspilable_features_3)) {
-		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE(), regexpNode)
+		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_UNICODE_PROPERTY_ESCAPE(), regexpNode)
 	}
 }
 
 // Java method: ReportUntranspilableFeatures.checkForRegExpDFlag(com.google.javascript.rhino.Node regexpNode)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForRegExpDFlag_4911(regexpNode pkg_rhino.Node) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForRegExpDFlag_4920(regexpNode pkg_rhino.Node) {
 	_ = regexpNode
 	if !(regexpNode.IsRegExp()) { j2gort.CheckArgument(false) }
 	var flags string
@@ -366,17 +366,17 @@ func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_che
 		flags = ""
 	}
 	if ((j2gort.JStrIndexOf(flags, "d") >= 0)) {
-		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_D(), regexpNode)
+		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_REGEXP_FLAG_D(), regexpNode)
 	}
 }
 
 // Java method: ReportUntranspilableFeatures.checkForTopLevelAwait(com.google.javascript.rhino.Node awaitNode)
-func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForTopLevelAwait_4912(awaitNode pkg_rhino.Node) {
+func (this_ *ReportUntranspilableFeatures) priv_ReportUntranspilableFeatures_checkForTopLevelAwait_4921(awaitNode pkg_rhino.Node) {
 	_ = awaitNode
 	if !((awaitNode.IsAwait() || awaitNode.IsForAwaitOf())) { j2gort.CheckArgument(false) }
 	if ((NodeUtil_GetEnclosingFunction(awaitNode) == 0)) {
 		if !(NodeUtil_GetEnclosingScript(awaitNode).GetBooleanProp(pkg_rhino.StaticGet_Node_ES6_MODULE())) { j2gort.CheckArgumentStr(false, "Top-level await is only allowed in ES module sources") }
-		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4906(pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT(), awaitNode)
+		this_.priv_ReportUntranspilableFeatures_reportUntranspilable_4915(pkg_parser.StaticGet_FeatureSet_Feature_TOP_LEVEL_AWAIT(), awaitNode)
 	}
 }
 
@@ -405,7 +405,7 @@ func ReportUntranspilableFeatures_AnySubtreeMeetsPredicate(tree pkg_regex.RegExp
 // Java method: ReportUntranspilableFeatures.transpileSubtree(com.google.javascript.rhino.Node subtree)
 func (this_ *ReportUntranspilableFeatures) TranspileSubtree(subtree pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
-	this_.priv_ReportUntranspilableFeatures_checkForUntranspilable_4905(subtree)
+	this_.priv_ReportUntranspilableFeatures_checkForUntranspilable_4914(subtree)
 	return subtree
 }
 

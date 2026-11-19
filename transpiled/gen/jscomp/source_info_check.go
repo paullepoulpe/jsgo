@@ -171,13 +171,13 @@ func (this_ *SourceInfoCheck) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, p
 		var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 		_ = info
 		if info != nil {
-			this_.priv_SourceInfoCheck_checkJSDoc_5152(info)
+			this_.priv_SourceInfoCheck_checkJSDoc_5161(info)
 		}
 	}
 }
 
 // Java method: SourceInfoCheck.checkJSDoc(com.google.javascript.rhino.JSDocInfo info)
-func (this_ *SourceInfoCheck) priv_SourceInfoCheck_checkJSDoc_5152(info *pkg_rhino.JSDocInfo) {
+func (this_ *SourceInfoCheck) priv_SourceInfoCheck_checkJSDoc_5161(info *pkg_rhino.JSDocInfo) {
 	_ = info
 	{
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetTypeExpressions()))
@@ -190,7 +190,7 @@ func (this_ *SourceInfoCheck) priv_SourceInfoCheck_checkJSDoc_5152(info *pkg_rhi
 			} else {
 				NodeUtil_VisitPreOrder_2(expression.GetRoot(), func() NodeUtil_Visitor {
 					bound_3 := this_
-					return NewLambda_NodeUtil_Visitor(func(mrp0_ pkg_rhino.Node) { bound_3.priv_SourceInfoCheck_checkSourceFile_5153(mrp0_) })
+					return NewLambda_NodeUtil_Visitor(func(mrp0_ pkg_rhino.Node) { bound_3.priv_SourceInfoCheck_checkSourceFile_5162(mrp0_) })
 				}())
 			}
 		}
@@ -198,7 +198,7 @@ func (this_ *SourceInfoCheck) priv_SourceInfoCheck_checkJSDoc_5152(info *pkg_rhi
 }
 
 // Java method: SourceInfoCheck.checkSourceFile(com.google.javascript.rhino.Node n)
-func (this_ *SourceInfoCheck) priv_SourceInfoCheck_checkSourceFile_5153(n pkg_rhino.Node) {
+func (this_ *SourceInfoCheck) priv_SourceInfoCheck_checkSourceFile_5162(n pkg_rhino.Node) {
 	_ = n
 	var sourceName pkg_rhino.StaticSourceFile = n.GetStaticSourceFile()
 	_ = sourceName

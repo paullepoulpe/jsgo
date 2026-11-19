@@ -146,20 +146,20 @@ func (this_ *PeepholeReplaceKnownMethods) OptimizeSubtree(subtree pkg_rhino.Node
 		this_.ReportChangeToEnclosingScope(name)
 		return name
 	} else if subtree.IsCall() {
-		return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownMethods_4268(subtree)
+		return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownMethods_4277(subtree)
 	}
 	return subtree
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldKnownMethods(com.google.javascript.rhino.Node subtree)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownMethods_4268(subtree pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownMethods_4277(subtree pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	if !(subtree.IsCall()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(subtree))
 	}
-	subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldArrayJoin_4284(subtree)
+	subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldArrayJoin_4293(subtree)
 	if subtree.IsCall() {
-		subtree = this_.priv_PeepholeReplaceKnownMethods_tryToFoldArrayConcat_4294(subtree)
+		subtree = this_.priv_PeepholeReplaceKnownMethods_tryToFoldArrayConcat_4303(subtree)
 		if !(subtree.IsCall()) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(subtree))
 		}
@@ -169,24 +169,24 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 			if this_.IsASTNormalized() && callTarget.GetFirstChild().IsQualifiedName() {
 				switch j2gort.CheckNotNullString(callTarget.GetFirstChild().GetQualifiedName()) {
 				case "Array":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownArrayMethods_4269(subtree, callTarget)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownArrayMethods_4278(subtree, callTarget)
 				case "Math":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownMathMethods_4272(subtree, callTarget)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownMathMethods_4281(subtree, callTarget)
 				case "Number":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownNumberMethods_4271(subtree, callTarget)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownNumberMethods_4280(subtree, callTarget)
 				default:
 				}
 			}
-			subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownStringMethods_4273(subtree, callTarget)
+			subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownStringMethods_4282(subtree, callTarget)
 		} else if callTarget.IsName() {
-			subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownNumericMethods_4274(subtree, callTarget)
+			subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldKnownNumericMethods_4283(subtree, callTarget)
 		}
 	}
 	return subtree
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldKnownArrayMethods(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node callTarget)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownArrayMethods_4269(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownArrayMethods_4278(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = callTarget
 	if !(subtree.IsCall() && callTarget.IsGetProp()) {
@@ -204,7 +204,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 		this_.ReportChangeToEnclosingScope(arraylit)
 		return arraylit
 	case "isArray":
-		return this_.priv_PeepholeReplaceKnownMethods_tryFoldArrayIsArray_4270(subtree, callTarget)
+		return this_.priv_PeepholeReplaceKnownMethods_tryFoldArrayIsArray_4279(subtree, callTarget)
 	default:
 		return subtree
 	}
@@ -212,7 +212,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldArrayIsArray(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node callTarget)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldArrayIsArray_4270(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldArrayIsArray_4279(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = callTarget
 	if !(subtree.IsCall() && callTarget.IsGetProp()) {
@@ -251,7 +251,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldKnownNumberMethods(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node callTarget)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownNumberMethods_4271(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownNumberMethods_4280(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = callTarget
 	if !(subtree.IsCall() && callTarget.IsGetProp()) {
@@ -264,7 +264,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 		var firstArg pkg_rhino.Node = callTarget.GetNext()
 		_ = firstArg
 		if ((firstArg != 0) && firstArg.IsStringLit()) || NodeUtil_IsNumericLiteral(firstArg) {
-			return this_.priv_PeepholeReplaceKnownMethods_tryFoldParseNumber_4278(subtree, methodName, firstArg)
+			return this_.priv_PeepholeReplaceKnownMethods_tryFoldParseNumber_4287(subtree, methodName, firstArg)
 		}
 		return subtree
 	default:
@@ -310,7 +310,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldKnownMathMethods(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node callTarget)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownMathMethods_4272(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownMathMethods_4281(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = callTarget
 	if !(subtree.IsCall() && callTarget.IsGetProp()) {
@@ -431,7 +431,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldKnownStringMethods(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node callTarget)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownStringMethods_4273(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownStringMethods_4282(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = callTarget
 	if !(subtree.IsCall() && callTarget.IsGetProp()) {
@@ -447,44 +447,44 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 	_ = firstArg
 	if isStringLiteral {
 		if j2gort.CheckNotNullString(functionNameString) == "split" {
-			return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringSplit_4293(subtree, stringNode, firstArg)
+			return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringSplit_4302(subtree, stringNode, firstArg)
 		} else if firstArg == 0 {
 			switch j2gort.CheckNotNullString(functionNameString) {
 			case "toLowerCase":
-				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringToLowerCase_4275(subtree, stringNode)
+				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringToLowerCase_4284(subtree, stringNode)
 			case "toUpperCase":
-				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringToUpperCase_4276(subtree, stringNode)
+				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringToUpperCase_4285(subtree, stringNode)
 			case "trim", "trimStart", "trimEnd", "trimLeft", "trimRight":
-				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringTrim_4277(subtree, stringNode, functionNameString)
+				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringTrim_4286(subtree, stringNode, functionNameString)
 			case "at":
-				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringAt_4283(subtree, stringNode, pkg_rhino.Node(0))
+				return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringAt_4292(subtree, stringNode, pkg_rhino.Node(0))
 			default:
 			}
 		} else {
 			if NodeUtil_IsImmutableValue(firstArg) {
 				switch j2gort.CheckNotNullString(functionNameString) {
 				case "indexOf", "lastIndexOf":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringIndexOf_4279(subtree, functionNameString, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringIndexOf_4288(subtree, functionNameString, stringNode, firstArg)
 				case "includes":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringIncludes_4280(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringIncludes_4289(subtree, stringNode, firstArg)
 				case "startsWith":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringStartsWith_4281(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringStartsWith_4290(subtree, stringNode, firstArg)
 				case "endsWith":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringEndsWith_4282(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringEndsWith_4291(subtree, stringNode, firstArg)
 				case "at":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringAt_4283(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringAt_4292(subtree, stringNode, firstArg)
 				case "substr":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringSubstr_4285(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringSubstr_4294(subtree, stringNode, firstArg)
 				case "substring", "slice":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringSubstringOrSlice_4286(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringSubstringOrSlice_4295(subtree, stringNode, firstArg)
 				case "charAt":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringCharAt_4288(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringCharAt_4297(subtree, stringNode, firstArg)
 				case "charCodeAt":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringCharCodeAt_4291(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringCharCodeAt_4300(subtree, stringNode, firstArg)
 				case "replace":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringReplace_4289(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringReplace_4298(subtree, stringNode, firstArg)
 				case "replaceAll":
-					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringReplaceAll_4290(subtree, stringNode, firstArg)
+					return this_.priv_PeepholeReplaceKnownMethods_tryFoldStringReplaceAll_4299(subtree, stringNode, firstArg)
 				default:
 				}
 			}
@@ -505,13 +505,13 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 						var length int32 = maybeLengthOrEnd.IntValue()
 						_ = length
 						if (start >= int32(0)) && (length == int32(1)) {
-							return this_.priv_PeepholeReplaceKnownMethods_replaceWithCharAt_4287(subtree, callTarget, firstArg)
+							return this_.priv_PeepholeReplaceKnownMethods_replaceWithCharAt_4296(subtree, callTarget, firstArg)
 						}
 					case "substring", "slice":
 						var end int32 = maybeLengthOrEnd.IntValue()
 						_ = end
 						if (start >= int32(0)) && ((end - start) == int32(1)) {
-							return this_.priv_PeepholeReplaceKnownMethods_replaceWithCharAt_4287(subtree, callTarget, firstArg)
+							return this_.priv_PeepholeReplaceKnownMethods_replaceWithCharAt_4296(subtree, callTarget, firstArg)
 						}
 					default:
 					}
@@ -523,7 +523,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldKnownNumericMethods(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node callTarget)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownNumericMethods_4274(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldKnownNumericMethods_4283(subtree pkg_rhino.Node, callTarget pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = callTarget
 	if !(subtree.IsCall()) {
@@ -535,14 +535,14 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 		var firstArgument pkg_rhino.Node = callTarget.GetNext()
 		_ = firstArgument
 		if ((firstArgument != 0) && (firstArgument.IsStringLit() || NodeUtil_IsNumericLiteral(firstArgument))) && ((j2gort.CheckNotNullString(functionNameString) == "parseInt") || (j2gort.CheckNotNullString(functionNameString) == "parseFloat")) {
-			subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldParseNumber_4278(subtree, functionNameString, firstArgument)
+			subtree = this_.priv_PeepholeReplaceKnownMethods_tryFoldParseNumber_4287(subtree, functionNameString, firstArgument)
 		}
 	}
 	return subtree
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringToLowerCase(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node stringNode)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringToLowerCase_4275(subtree pkg_rhino.Node, stringNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringToLowerCase_4284(subtree pkg_rhino.Node, stringNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = stringNode
 	var lowered string = javalang.StringToLowerCaseASCII(stringNode.GetString())
@@ -555,7 +555,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringToUpperCase(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node stringNode)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringToUpperCase_4276(subtree pkg_rhino.Node, stringNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringToUpperCase_4285(subtree pkg_rhino.Node, stringNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = subtree
 	_ = stringNode
 	var upped string = javalang.StringToUpperCaseASCII(stringNode.GetString())
@@ -568,7 +568,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringTrim(com.google.javascript.rhino.Node subtree, com.google.javascript.rhino.Node stringNode, java.lang.String functionName)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringTrim_4277(subtree pkg_rhino.Node, stringNode pkg_rhino.Node, functionName string) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringTrim_4286(subtree pkg_rhino.Node, stringNode pkg_rhino.Node, functionName string) pkg_rhino.Node {
 	_ = subtree
 	_ = stringNode
 	_ = functionName
@@ -623,7 +623,7 @@ func PeepholeReplaceKnownMethods_NormalizeNumericString(input string) string {
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldParseNumber(com.google.javascript.rhino.Node n, java.lang.String functionName, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldParseNumber_4278(n pkg_rhino.Node, functionName string, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldParseNumber_4287(n pkg_rhino.Node, functionName string, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = functionName
 	_ = firstArg
@@ -843,7 +843,7 @@ func PeepholeReplaceKnownMethods_GetRadixDigit(c uint16, radix int32) int32 {
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringIndexOf(com.google.javascript.rhino.Node n, java.lang.String functionName, com.google.javascript.rhino.Node lstringNode, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringIndexOf_4279(n pkg_rhino.Node, functionName string, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringIndexOf_4288(n pkg_rhino.Node, functionName string, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = functionName
 	_ = lstringNode
@@ -894,7 +894,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringIncludes(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node lstringNode, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringIncludes_4280(n pkg_rhino.Node, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringIncludes_4289(n pkg_rhino.Node, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = lstringNode
 	_ = firstArg
@@ -940,7 +940,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringStartsWith(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node lstringNode, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringStartsWith_4281(n pkg_rhino.Node, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringStartsWith_4290(n pkg_rhino.Node, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = lstringNode
 	_ = firstArg
@@ -986,7 +986,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringEndsWith(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node lstringNode, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringEndsWith_4282(n pkg_rhino.Node, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringEndsWith_4291(n pkg_rhino.Node, lstringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = lstringNode
 	_ = firstArg
@@ -1040,7 +1040,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringAt(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringAt_4283(n pkg_rhino.Node, stringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringAt_4292(n pkg_rhino.Node, stringNode pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = firstArg
@@ -1099,7 +1099,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldArrayJoin(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldArrayJoin_4284(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldArrayJoin_4293(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
@@ -1230,7 +1230,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringSubstr(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringSubstr_4285(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringSubstr_4294(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1287,7 +1287,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringSubstringOrSlice(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringSubstringOrSlice_4286(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringSubstringOrSlice_4295(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1344,7 +1344,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.replaceWithCharAt(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node callTarget, com.google.javascript.rhino.Node firstArg)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_replaceWithCharAt_4287(n pkg_rhino.Node, callTarget pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_replaceWithCharAt_4296(n pkg_rhino.Node, callTarget pkg_rhino.Node, firstArg pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = callTarget
 	_ = firstArg
@@ -1355,7 +1355,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_repla
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringCharAt(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringCharAt_4288(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringCharAt_4297(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1387,7 +1387,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringReplace(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringReplace_4289(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringReplace_4298(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1431,7 +1431,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringReplaceAll(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringReplaceAll_4290(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringReplaceAll_4299(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1468,7 +1468,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringCharCodeAt(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringCharCodeAt_4291(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringCharCodeAt_4300(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1517,7 +1517,7 @@ func PeepholeReplaceKnownMethods_JsSplitMatch(stringValue string, startIndex int
 }
 
 // Java method: PeepholeReplaceKnownMethods.jsSplit(java.lang.String stringValue, java.lang.String separator, int limit)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_jsSplit_4292(stringValue string, separator string, limit int32) []string {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_jsSplit_4301(stringValue string, separator string, limit int32) []string {
 	_ = stringValue
 	_ = separator
 	_ = limit
@@ -1568,7 +1568,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_jsSpl
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringSplit(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringSplit_4293(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFoldStringSplit_4302(n pkg_rhino.Node, stringNode pkg_rhino.Node, arg1 pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	_ = stringNode
 	_ = arg1
@@ -1605,7 +1605,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 			}
 		}
 	}
-	var stringArray []string = this_.priv_PeepholeReplaceKnownMethods_jsSplit_4292(stringValue, separator, limit)
+	var stringArray []string = this_.priv_PeepholeReplaceKnownMethods_jsSplit_4301(stringValue, separator, limit)
 	_ = stringArray
 	var arrayOfStrings pkg_rhino.Node = pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{})
 	_ = arrayOfStrings
@@ -1622,7 +1622,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryToFoldArrayConcat(com.google.javascript.rhino.Node n)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryToFoldArrayConcat_4294(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryToFoldArrayConcat_4303(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(n))
@@ -1635,13 +1635,13 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryTo
 	if concatFunctionCall == nil || concatFunctionCall.IsJavaNil_() {
 		return n
 	}
-	concatFunctionCall = this_.priv_PeepholeReplaceKnownMethods_tryToRemoveArrayLiteralFromFrontOfConcat_4295(concatFunctionCall)
+	concatFunctionCall = this_.priv_PeepholeReplaceKnownMethods_tryToRemoveArrayLiteralFromFrontOfConcat_4304(concatFunctionCall)
 	j2gort.CheckNotNullIface(concatFunctionCall)
-	return this_.priv_PeepholeReplaceKnownMethods_tryToFoldConcatChaining_4296(concatFunctionCall)
+	return this_.priv_PeepholeReplaceKnownMethods_tryToFoldConcatChaining_4305(concatFunctionCall)
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryToRemoveArrayLiteralFromFrontOfConcat(com.google.javascript.jscomp.PeepholeReplaceKnownMethods.ConcatFunctionCall concatFunctionCall)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryToRemoveArrayLiteralFromFrontOfConcat_4295(concatFunctionCall PeepholeReplaceKnownMethods_ConcatFunctionCall) PeepholeReplaceKnownMethods_ConcatFunctionCall {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryToRemoveArrayLiteralFromFrontOfConcat_4304(concatFunctionCall PeepholeReplaceKnownMethods_ConcatFunctionCall) PeepholeReplaceKnownMethods_ConcatFunctionCall {
 	_ = concatFunctionCall
 	j2gort.CheckNotNullIface(concatFunctionCall)
 	base_concatFunctionCall_ := concatFunctionCall.GetPeepholeReplaceKnownMethods_ConcatFunctionCallBase()
@@ -1664,7 +1664,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryTo
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryToFoldConcatChaining(com.google.javascript.jscomp.PeepholeReplaceKnownMethods.ConcatFunctionCall concatFunctionCall)
-func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryToFoldConcatChaining_4296(concatFunctionCall PeepholeReplaceKnownMethods_ConcatFunctionCall) pkg_rhino.Node {
+func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryToFoldConcatChaining_4305(concatFunctionCall PeepholeReplaceKnownMethods_ConcatFunctionCall) pkg_rhino.Node {
 	_ = concatFunctionCall
 	j2gort.CheckNotNullIface(concatFunctionCall)
 	base_concatFunctionCall_ := concatFunctionCall.GetPeepholeReplaceKnownMethods_ConcatFunctionCallBase()

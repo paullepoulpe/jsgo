@@ -96,7 +96,7 @@ func clinitSlow_Es6RewriteBlockScopedDeclaration() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6RewriteBlockScopedDeclaration, &clinitDone_Es6RewriteBlockScopedDeclaration)
-	static_Es6RewriteBlockScopedDeclaration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})
+	static_Es6RewriteBlockScopedDeclaration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7232([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})
 }
 
 func (this_ *Es6RewriteBlockScopedDeclaration) initFields_Es6RewriteBlockScopedDeclaration() {
@@ -372,10 +372,10 @@ func (this_ *Es6RewriteBlockScopedDeclaration) priv_Es6RewriteBlockScopedDeclara
 type Es6RewriteBlockScopedDeclaration_LoopClosureTransformer struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
 	outer_                              *Es6RewriteBlockScopedDeclaration
-	loopObjectMap                       j2gort.Ext_java_util_Map                         `gson:"loopObjectMap"`
-	nodesRequiringLoopObjectsClosureMap j2gort.Ext_com_google_common_collect_SetMultimap `gson:"nodesRequiringLoopObjectsClosureMap"`
-	nodesHandledForLoopObjectClosure    j2gort.Ext_com_google_common_collect_SetMultimap `gson:"nodesHandledForLoopObjectClosure"`
-	referenceMap                        j2gort.Ext_com_google_common_collect_SetMultimap `gson:"referenceMap"`
+	loopObjectMap                       j2gort.OrderedMap[pkg_rhino.Node, *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject] `gson:"loopObjectMap"`
+	nodesRequiringLoopObjectsClosureMap j2gort.Ext_com_google_common_collect_SetMultimap                                                       `gson:"nodesRequiringLoopObjectsClosureMap"`
+	nodesHandledForLoopObjectClosure    j2gort.Ext_com_google_common_collect_SetMultimap                                                       `gson:"nodesHandledForLoopObjectClosure"`
+	referenceMap                        j2gort.Ext_com_google_common_collect_SetMultimap                                                       `gson:"referenceMap"`
 }
 
 func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) BindSelf_(s any) {
@@ -415,7 +415,7 @@ func StaticGet_Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LOOP_OBJE
 }
 func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) initFields_Es6RewriteBlockScopedDeclaration_LoopClosureTransformer() {
 	_ = this_
-	this_.loopObjectMap = j2gort.NewExt_java_util_LinkedHashMap()
+	this_.loopObjectMap = j2gort.NewOrderedMap[pkg_rhino.Node, *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject]()
 	this_.nodesRequiringLoopObjectsClosureMap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_SetMultimap](j2gort.Ext_com_google_common_collect_LinkedHashMultimap_Create_0())
 	this_.nodesHandledForLoopObjectClosure = j2gort.AsIface[j2gort.Ext_com_google_common_collect_SetMultimap](j2gort.Ext_com_google_common_collect_HashMultimap_Create_0())
 	this_.referenceMap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_SetMultimap](j2gort.Ext_com_google_common_collect_LinkedHashMultimap_Create_0())
@@ -504,24 +504,11 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) ShouldTrav
 			return true
 		}
 		j2gort.MultimapPutNode(this_.nodesHandledForLoopObjectClosure, nodeToWrapInClosure, j2gort.BoxString(name))
-		var object *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject
-	iifeSwitch_1:
-		switch {
-		default:
-			m_3 := this_.loopObjectMap
-			k_4 := loopNode
-			if v_5, ok_6 := j2gort.MapTryGetComputeNode(m_3, k_4); ok_6 {
-				object = j2gort.CastPtr[Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject](v_5)
-				break iifeSwitch_1
-			}
-			object = j2gort.CastPtr[Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject](j2gort.MapComputeIfAbsentNode(m_3, k_4, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_7 any) any {
-				k := j2gort.CastNode[pkg_rhino.Node](lp_7)
-				_ = k
-				return NewEs6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject(this_.priv_LoopClosureTransformer_createUniqueObjectName_2579(t.GetInput()))
-			})))
-			break iifeSwitch_1
-		}
-
+		var object *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject = j2gort.OrderedMapComputeIfAbsent(&this_.loopObjectMap, loopNode, nil, func(lp_7 pkg_rhino.Node) *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject {
+			k := lp_7
+			_ = k
+			return NewEs6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject(this_.priv_LoopClosureTransformer_createUniqueObjectName_2579(t.GetInput()))
+		})
 		_ = object
 		object.vars.Add(var_)
 		j2gort.MultimapPutNode(this_.nodesRequiringLoopObjectsClosureMap, nodeToWrapInClosure, j2gort.PtrToAny(object))
@@ -549,11 +536,12 @@ func (this_ *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer) priv_LoopC
 	var wrapperFunctions j2gort.OrderedSet[pkg_rhino.Node] = this_.priv_LoopClosureTransformer_createWrapperFunctions_2583()
 	_ = wrapperFunctions
 	{
-		cur_8 := j2gort.NewMapKeyCursor(this_.loopObjectMap)
+		cur_8 := this_.loopObjectMap.IterKeys()
 		for cur_8.HasNext() {
-			loopNode := pkg_rhino.Node(cur_8.NextNode())
+			loopNode := cur_8.
+				Next()
 			_ = loopNode
-			var loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject = j2gort.CastPtr[Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject](j2gort.MapGetNode(this_.loopObjectMap, loopNode))
+			var loopObject *Es6RewriteBlockScopedDeclaration_LoopClosureTransformer_LoopObject = this_.loopObjectMap.Get(loopNode)
 			_ = loopObject
 			var objectLitNextIteration pkg_rhino.Node = this_.outer_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{})
 			_ = objectLitNextIteration

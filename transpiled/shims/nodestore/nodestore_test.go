@@ -159,7 +159,7 @@ func TestPagedAnySideColumnsAndNilReset(t *testing.T) {
 	}
 
 	// Setting nil/0 on a freshly allocated node in an unmapped column must be a no-op
-	// without allocating NodeColumn / PagedColumn / propShards.
+	// without allocating NodeColumn / propShards.
 	n0 := s.Alloc()
 	n0.SetTypeOrColor(nil)
 	n0.SetPropList(nil)
@@ -607,11 +607,11 @@ func TestColumnPageNumBlockNoscanAndSourceFileHandleHolder(t *testing.T) {
 	if !hasGoPointers(reflect.TypeFor[*int]()) {
 		t.Fatalf("hasGoPointers[*int] sanity check failed")
 	}
-	if sz := reflect.TypeFor[columnPage]().Size(); sz != columnPageLen*4 {
-		t.Fatalf("expected columnPage size %d, got %d", columnPageLen*4, sz)
+	if sz := reflect.TypeFor[[4]NodeColumn]().Size(); sz != 4*blockLen*4 {
+		t.Fatalf("expected [4]NodeColumn slab size %d, got %d", 4*blockLen*4, sz)
 	}
-	if hasGoPointers(reflect.TypeFor[columnPage]()) {
-		t.Fatalf("columnPage contains Go pointers; noscan violation")
+	if hasGoPointers(reflect.TypeFor[[4]NodeColumn]()) {
+		t.Fatalf("[4]NodeColumn slab contains Go pointers; noscan violation")
 	}
 	if hasGoPointers(reflect.TypeFor[NodeColumn]()) {
 		t.Fatalf("NodeColumn contains Go pointers; noscan violation")
@@ -2940,7 +2940,7 @@ func TestWave23AOrigNameIsStringAndSetStringPayload(t *testing.T) {
 	alloc.InitLocal()
 	defer alloc.Flush()
 
-	// 1. StringNode SetOrigNameID(sameID) -> 0 origNameField / PagedColumn allocations, 0 heap allocs.
+	// 1. StringNode SetOrigNameID(sameID) -> 0 origNameField / NodeColumn allocations, 0 heap allocs.
 	const normCount = 2000 // spans > 30 64-node pages
 	normNodes := make([]Node, normCount)
 	for i := range normCount {
@@ -2976,7 +2976,7 @@ func TestWave23AOrigNameIsStringAndSetStringPayload(t *testing.T) {
 		t.Fatalf("expected 0 heap allocs when SetOrigNameID == StringNode Payload, got %v", normAllocs)
 	}
 	if len(s.origNames) != 0 {
-		t.Fatalf("SetOrigNameID(sameID) allocated %d origNames PagedColumns, want 0", len(s.origNames))
+		t.Fatalf("SetOrigNameID(sameID) allocated %d origNames NodeColumns, want 0", len(s.origNames))
 	}
 
 	// NullString StringNode (Payload == 0) + SetOrigNameID(0) must NOT set kindFlagInlineOrigName or allocate pages.
@@ -3062,21 +3062,21 @@ func TestWave23AOrigNameIsStringAndSetStringPayload(t *testing.T) {
 	// 3. SetOrigNameID(differentID) -> SetOrigNameID(sameAsPayload) -> SetOrigNameID(0) transitions.
 	nTrans := normNodes[12] // Payload == idFoo, currently kindFlagInlineOrigName
 	nTrans.SetOrigNameID(idBar)
-	if nTrans.OrigNameID() != idBar || nTrans.Rec().KindFlags&kindFlagInlineOrigName != 0 || origNameField.get(nTrans) != uint32(idBar) {
+	if nTrans.OrigNameID() != idBar || nTrans.Rec().KindFlags&kindFlagInlineOrigName != 0 || origNameField.Get(nTrans) != uint32(idBar) {
 		t.Fatalf("SetOrigNameID(differentID) mismatch: orig=%d rawFlags=0x%x col=%d",
-			nTrans.OrigNameID(), nTrans.Rec().KindFlags, origNameField.get(nTrans))
+			nTrans.OrigNameID(), nTrans.Rec().KindFlags, origNameField.Get(nTrans))
 	}
 	// Transition back to sameAsPayload: must clear origNameField slot to 0 and set kindFlagInlineOrigName!
 	nTrans.SetOrigNameID(idFoo)
-	if nTrans.OrigNameID() != idFoo || nTrans.Rec().KindFlags&kindFlagInlineOrigName == 0 || origNameField.get(nTrans) != 0 {
+	if nTrans.OrigNameID() != idFoo || nTrans.Rec().KindFlags&kindFlagInlineOrigName == 0 || origNameField.Get(nTrans) != 0 {
 		t.Fatalf("SetOrigNameID(sameAsPayload) did not clear origNameField & set flag: orig=%d rawFlags=0x%x col=%d",
-			nTrans.OrigNameID(), nTrans.Rec().KindFlags, origNameField.get(nTrans))
+			nTrans.OrigNameID(), nTrans.Rec().KindFlags, origNameField.Get(nTrans))
 	}
 	// Transition to 0: must clear flag and return 0!
 	nTrans.SetOrigNameID(0)
-	if nTrans.OrigNameID() != 0 || nTrans.Rec().KindFlags&kindFlagInlineOrigName != 0 || origNameField.get(nTrans) != 0 {
+	if nTrans.OrigNameID() != 0 || nTrans.Rec().KindFlags&kindFlagInlineOrigName != 0 || origNameField.Get(nTrans) != 0 {
 		t.Fatalf("SetOrigNameID(0) did not clear originalName: orig=%d rawFlags=0x%x col=%d",
-			nTrans.OrigNameID(), nTrans.Rec().KindFlags, origNameField.get(nTrans))
+			nTrans.OrigNameID(), nTrans.Rec().KindFlags, origNameField.Get(nTrans))
 	}
 
 	// 4. ClonePropsFrom + SetTemplate + cross-kind OrigNameID copying (StringNode same/diff & plain CALL Node).
@@ -3263,25 +3263,21 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 		fn()
 	}
 
-	// 1. 32-byte noscan NodeData layout + 2048-slot (8 KiB) PagedColumn verification.
+	// 1. 32-byte noscan NodeData layout + 64 KiB NodeColumn / 256 KiB [4]NodeColumn slab verification.
 	if sz := reflect.TypeFor[NodeData]().Size(); sz != 32 {
 		t.Fatalf("sizeof(NodeData) = %d, want 32", sz)
 	}
 	if hasGoPointers(reflect.TypeFor[NodeData]()) {
 		t.Fatalf("NodeData contains Go pointers")
 	}
-	if columnPageShift != 11 || columnPageLen != 2048 || pagesPerBlock != 8 {
-		t.Fatalf("unexpected PagedColumn geometry: shift=%d len=%d pages=%d",
-			columnPageShift, columnPageLen, pagesPerBlock)
+	if sz := reflect.TypeFor[NodeColumn]().Size(); sz != 65536 {
+		t.Fatalf("sizeof(NodeColumn) = %d, want 65536", sz)
 	}
-	if sz := reflect.TypeFor[columnPage]().Size(); sz != 8192 {
-		t.Fatalf("sizeof(columnPage) = %d, want 8192", sz)
+	if hasGoPointers(reflect.TypeFor[NodeColumn]()) {
+		t.Fatalf("NodeColumn contains Go pointers")
 	}
-	if hasGoPointers(reflect.TypeFor[columnPage]()) {
-		t.Fatalf("columnPage contains Go pointers")
-	}
-	if sz := reflect.TypeFor[PagedColumn]().Size(); sz != 8*8 {
-		t.Fatalf("sizeof(PagedColumn) = %d, want 64", sz)
+	if sz := reflect.TypeFor[[4]NodeColumn]().Size(); sz != 262144 {
+		t.Fatalf("sizeof([4]NodeColumn) = %d, want 262144", sz)
 	}
 
 	// NilNode NPE / nil parity.
@@ -3378,7 +3374,7 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 	idFn2 := Intern("wave24a_fn_orig_2")
 	idFn3 := Intern("wave24a_fn_orig_3")
 
-	// 4a. Pure inline ChangeTime and pure inline OrigNameID allocate ZERO PagedColumns!
+	// 4a. Pure inline ChangeTime and pure inline OrigNameID allocate ZERO NodeColumns!
 	fnCTOnly := AllocNodeToken(0, 52) // FUNCTION
 	fnCTOnly.SetLength(240)
 	fnCTOnly.SetChangeTime(19)
@@ -3396,11 +3392,11 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 	if fnOrigOnly.OrigNameID() != idFn1 || fnOrigOnly.ChangeTime() != 0 || fnOrigOnly.Length() != 180 {
 		t.Fatalf("fnOrigOnly mismatch: orig=%d ct=%d len=%d", fnOrigOnly.OrigNameID(), fnOrigOnly.ChangeTime(), fnOrigOnly.Length())
 	}
-	// Overwrite and clear inline OrigNameID & inline ChangeTime with 0 PagedColumns/aux!
+	// Overwrite and clear inline OrigNameID & inline ChangeTime with 0 NodeColumns/aux!
 	fnOrigOnly.SetOrigNameID(idFn2)
 	fnCTOnly.SetChangeTime(-42)
 	if fnOrigOnly.OrigNameID() != idFn2 || fnCTOnly.ChangeTime() != -42 || len(sPlain.origNames) != 0 || sPlain.auxLen() != 0 {
-		t.Fatalf("overwrite inline plain Payload allocated PagedColumns or aux")
+		t.Fatalf("overwrite inline plain Payload allocated NodeColumns or aux")
 	}
 	fnOrigOnly.SetOrigNameID(0)
 	fnCTOnly.SetChangeTime(0)
@@ -3429,8 +3425,8 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 		t.Fatalf("Order A after SetChangeTime(0): ct=%d orig=%d", fnOrderA.ChangeTime(), fnOrderA.OrigNameID())
 	}
 	fnOrderA.SetOrigNameID(idFn3)
-	if fnOrderA.OrigNameID() != idFn3 || fnOrderA.Rec().KindFlags&kindFlagInlineOrigName == 0 || origNameField.get(fnOrderA) != 0 {
-		t.Fatalf("Order A re-inlining OrigNameID failed: orig=%d col=%d", fnOrderA.OrigNameID(), origNameField.get(fnOrderA))
+	if fnOrderA.OrigNameID() != idFn3 || fnOrderA.Rec().KindFlags&kindFlagInlineOrigName == 0 || origNameField.Get(fnOrderA) != 0 {
+		t.Fatalf("Order A re-inlining OrigNameID failed: orig=%d col=%d", fnOrderA.OrigNameID(), origNameField.Get(fnOrderA))
 	}
 	fnOrderA.SetOrigNameID(0)
 	if fnOrderA.OrigNameID() != 0 || fnOrderA.Payload() != 0 {
@@ -3764,8 +3760,8 @@ func TestWave26AExtOrigNamePresenceGateAndJSDocCastCoexistence(t *testing.T) {
 	idBar := Intern("wave26a_bar")
 	idShort := Intern("a")
 
-	// Populate external origNameField on one node in page 0 of block 0 so both
-	// origNameField[block] and PagedColumn[page 0] are non-nil.
+	// Populate external origNameField on one node in block 0 so
+	// origNameField[block] is non-nil.
 	renamed := AllocNodeToken(3, 38)
 	renamed.SetStringPayload(idFoo)
 	renamed.SetOrigNameID(idFoo)
@@ -5218,41 +5214,105 @@ func TestWave39CHasNonNegativeLengthAnd16BlockSlab(t *testing.T) {
 	}
 }
 
-func TestWave41COrigNamePagedColumnLocalityAndconcurrentRace(t *testing.T) {
-	// Verify 64-byte single-cache-line PagedColumn + 8 KiB noscan columnPage geometry.
-	if columnPageShift != 11 || columnPageLen != 2048 || pagesPerBlock != 8 {
-		t.Fatalf("expected columnPageShift=11, len=2048, pagesPerBlock=8; got %d, %d, %d",
-			columnPageShift, columnPageLen, pagesPerBlock)
+func TestWave43COrigNameFlatColumnSlabBundlingAndConcurrentRace(t *testing.T) {
+	// Verify 64 KiB noscan NodeColumn + 256 KiB noscan [4]NodeColumn slab geometry.
+	if sz := reflect.TypeFor[NodeColumn]().Size(); sz != 65536 {
+		t.Fatalf("expected sizeof(NodeColumn) == 65536 (64 KiB), got %d", sz)
 	}
-	if sz := reflect.TypeFor[PagedColumn]().Size(); sz != 64 {
-		t.Fatalf("expected sizeof(PagedColumn) == 64 (1 cache line), got %d", sz)
+	if hasGoPointers(reflect.TypeFor[NodeColumn]()) {
+		t.Fatalf("NodeColumn contains Go pointers; noscan violation")
 	}
-	if sz := reflect.TypeFor[columnPage]().Size(); sz != 8192 {
-		t.Fatalf("expected sizeof(columnPage) == 8192 (8 KiB), got %d", sz)
+	if sz := reflect.TypeFor[[4]NodeColumn]().Size(); sz != 262144 {
+		t.Fatalf("expected sizeof([4]NodeColumn) == 262144 (256 KiB), got %d", sz)
+	}
+	if hasGoPointers(reflect.TypeFor[[4]NodeColumn]()) {
+		t.Fatalf("[4]NodeColumn slab contains Go pointers; noscan violation")
 	}
 
-	s := NewNodeStore()
-	prev := SetCurrentNodeStore(s)
+	// 1. Verify k < 2 uses single NodeColumn (0 leftover slab) while k >= 2 bundles [4]NodeColumn slabs.
+	sSlab := NewNodeStore()
+	prev := SetCurrentNodeStore(sSlab)
 	defer SetCurrentNodeStore(prev)
 
-	// Allocate 40,960 StringNodes spanning 2.5 blocks (20 pages of 2,048 nodes).
-	const total = 40_960
+	const numBlocksTest = 6
+	const totalSlabNodes = numBlocksTest * blockLen // 98,304 nodes across blocks 0..5
+	firstN := make([]Node, numBlocksTest)
+	for i := 0; i < totalSlabNodes; i++ {
+		n := AllocNodeToken(3, 38)
+		if i%blockLen == 0 {
+			firstN[i/blockLen] = n
+		}
+	}
+
+	idOrig := Intern("w43c_slab_orig")
+	idRen := Intern("w43c_slab_ren")
+	for b := range firstN {
+		firstN[b].SetStringPayload(idRen)
+	}
+
+	// Touch block 0 (< 2): single NodeColumn, slab remains empty.
+	firstN[0].SetOrigNameID(idOrig)
+	firstN[0].SetTC(100)
+	if len(sSlab.origNameSlab) != 0 || len(sSlab.tcSlab) != 0 {
+		t.Fatalf("k=0 should not pre-allocate [4]NodeColumn slab: origSlab=%d tcSlab=%d",
+			len(sSlab.origNameSlab), len(sSlab.tcSlab))
+	}
+
+	// Leave block 1 untouched; touch block 2 (>= 2): allocates [4]NodeColumn slab -> 3 free columns in slab!
+	// Pre-grow slice capacities so blocks 3..5 test pure 0-alloc slab consumption.
+	sSlab.mu.Lock()
+	for len(sSlab.origNames) < numBlocksTest {
+		sSlab.origNames = append(sSlab.origNames, nil)
+	}
+	for len(sSlab.tcs) < numBlocksTest {
+		sSlab.tcs = append(sSlab.tcs, nil)
+	}
+	sSlab.mu.Unlock()
+
+	firstN[2].SetOrigNameID(idOrig)
+	firstN[2].SetTC(200)
+	if len(sSlab.origNameSlab) != 3 || len(sSlab.tcSlab) != 3 {
+		t.Fatalf("k=2 expected 3 remaining columns in [4]NodeColumn slab, got orig=%d tc=%d",
+			len(sSlab.origNameSlab), len(sSlab.tcSlab))
+	}
+
+	slabAllocs := testing.AllocsPerRun(1, func() {
+		for b := 3; b <= 5; b++ {
+			firstN[b].SetOrigNameID(idOrig)
+			firstN[b].SetTC(uint32(b * 100))
+		}
+	})
+	if slabAllocs != 0 {
+		t.Fatalf("blocks 3..5 should consume [4]NodeColumn slab with 0 heap allocs, got %v", slabAllocs)
+	}
+	if len(sSlab.origNameSlab) != 0 || len(sSlab.tcSlab) != 0 {
+		t.Fatalf("expected [4]NodeColumn slab fully consumed after blocks 2..5, got orig=%d tc=%d",
+			len(sSlab.origNameSlab), len(sSlab.tcSlab))
+	}
+	if sSlab.origNames[1] != nil || sSlab.tcs[1] != nil {
+		t.Fatalf("untouched block 1 must remain nil: orig=%p tc=%p", sSlab.origNames[1], sSlab.tcs[1])
+	}
+
+	// 2. Concurrent writers + concurrent readers across 6 blocks (98,304 nodes) under -race.
+	s := NewNodeStore()
+	SetCurrentNodeStore(s)
+
+	const total = 6 * blockLen // 98,304 nodes across 6 blocks
 	nodes := make([]Node, total)
 	origIDs := make([]StringID, total)
 	shortID := Intern("a")
 	for i := 0; i < total; i++ {
-		origIDs[i] = Intern(fmt.Sprintf("w41c_orig_sym_%05d", i))
+		origIDs[i] = Intern(fmt.Sprintf("w43c_orig_sym_%05d", i))
 		n := AllocNodeToken(3, 38)
 		n.SetStringPayload(origIDs[i])
 		nodes[i] = n
 	}
 
-	// Leave page 5 (indices 10,240..12,287) untouched externally to verify sparse 8 KiB page laziness!
-	const untouchedPage = 5
-	const untouchedStart = untouchedPage * columnPageLen
-	const untouchedEnd = untouchedStart + columnPageLen
+	// Leave entire block 1 (indices 16,384..32,767) untouched externally to verify block-level laziness!
+	const untouchedBlock = 1
+	const untouchedStart = untouchedBlock * blockLen
+	const untouchedEnd = untouchedStart + blockLen
 
-	// Concurrent writers + concurrent readers across 16 goroutines under -race.
 	var wg sync.WaitGroup
 	const writers = 8
 	const readers = 8
@@ -5269,7 +5329,10 @@ func TestWave41COrigNamePagedColumnLocalityAndconcurrentRace(t *testing.T) {
 					return
 				default:
 				}
-				// Read untouched page slots concurrently while neighbor pages allocate & populate.
+				if NilNode.OrigNameID() != 0 {
+					t.Errorf("NilNode.OrigNameID() != 0")
+					return
+				}
 				for i := untouchedStart + r; i < untouchedEnd; i += 64 {
 					if got := nodes[i].OrigNameID(); got != 0 {
 						t.Errorf("untouched node %d returned OrigNameID=%d, want 0", i, got)
@@ -5293,7 +5356,7 @@ func TestWave41COrigNamePagedColumnLocalityAndconcurrentRace(t *testing.T) {
 				n := nodes[i]
 				switch i % 4 {
 				case 0:
-					// Inline OrigName == Payload -> rename Payload to migrate to external 8 KiB page!
+					// Inline OrigName == Payload -> rename Payload to migrate to 1-level origNameField!
 					n.SetOrigNameID(origIDs[i])
 					n.SetStringPayload(shortID)
 				case 1:
@@ -5325,15 +5388,15 @@ func TestWave41COrigNamePagedColumnLocalityAndconcurrentRace(t *testing.T) {
 	close(stopReaders)
 	wg.Wait()
 
-	// Verify untouched page 5 in s.origNames[0] remained completely unallocated (nil)!
-	if len(s.origNames) < 3 || s.origNames[0] == nil {
-		t.Fatalf("expected >= 3 PagedColumns in s.origNames, got %d", len(s.origNames))
+	// Verify untouched block 1 in s.origNames remained completely unallocated (nil)!
+	if len(s.origNames) < 6 || s.origNames[0] == nil || s.origNames[5] == nil {
+		t.Fatalf("expected >= 6 NodeColumns in s.origNames, got %d", len(s.origNames))
 	}
-	if s.origNames[0][untouchedPage].Load() != nil {
-		t.Fatalf("expected untouched 2048-node page %d to remain nil", untouchedPage)
+	if s.origNames[untouchedBlock] != nil {
+		t.Fatalf("expected untouched 16384-node block %d to remain nil", untouchedBlock)
 	}
 
-	// Parallel full-range read verification across all 40,960 nodes.
+	// Parallel full-range read verification across all 98,304 nodes.
 	wg.Add(writers)
 	for w := 0; w < writers; w++ {
 		w := w
@@ -5352,4 +5415,15 @@ func TestWave41COrigNamePagedColumnLocalityAndconcurrentRace(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	// Verify unregister/re-register preserves 1-level origNameField across store switches.
+	sOther := NewNodeStore()
+	SetCurrentNodeStore(sOther)
+	SetCurrentNodeStore(s)
+	if got := nodes[0].OrigNameID(); got != origIDs[0] {
+		t.Fatalf("after store re-register: nodes[0].OrigNameID()=%d, want %d", got, origIDs[0])
+	}
+	if got := nodes[5*blockLen+1].OrigNameID(); got != origIDs[5*blockLen+1] {
+		t.Fatalf("after store re-register: block 5 OrigNameID=%d, want %d", got, origIDs[5*blockLen+1])
+	}
 }

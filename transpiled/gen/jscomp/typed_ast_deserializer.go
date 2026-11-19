@@ -161,11 +161,11 @@ func TypedAstDeserializer_Deserialize(compiler AbstractCompiler, syntheticExtern
 	InitTypedAstDeserializer(&val_3, syntheticExterns, colorPool, requiredInputFiles, mode, includeTypeInformation)
 	var deserializer *TypedAstDeserializer = &val_3
 	_ = deserializer
-	deserializer.priv_TypedAstDeserializer_addToFilePool_7796(syntheticExterns.GetName(), syntheticExterns)
+	deserializer.priv_TypedAstDeserializer_addToFilePool_7810(syntheticExterns.GetName(), syntheticExterns)
 	scriptSourceFiles.ForEach_1(func() j2gort.Ext_java_util_function_BiConsumer {
 		bound_4 := deserializer
 		return j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(mrp0_ any, mrp1_ any) {
-			bound_4.priv_TypedAstDeserializer_addToFilePool_7796(j2gort.CastString(mrp0_), j2gort.CastPtr[SourceFile](mrp1_))
+			bound_4.priv_TypedAstDeserializer_addToFilePool_7810(j2gort.CastString(mrp0_), j2gort.CastPtr[SourceFile](mrp1_))
 		})
 	}())
 	{
@@ -188,11 +188,11 @@ func TypedAstDeserializer_Deserialize(compiler AbstractCompiler, syntheticExtern
 		bound_7 := NewTypedAstDeserializer_SyntheticExternsDeserializer(syntheticExterns, deserializer.syntheticExternsDeserializers)
 		return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxNode(bound_7.Deserialize()) })
 	}())
-	return deserializer.priv_TypedAstDeserializer_toDeserializedAst_7794()
+	return deserializer.priv_TypedAstDeserializer_toDeserializedAst_7808()
 }
 
 // Java method: TypedAstDeserializer.toDeserializedAst()
-func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toDeserializedAst_7794() TypedAstDeserializer_DeserializedAst {
+func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toDeserializedAst_7808() TypedAstDeserializer_DeserializedAst {
 	var registry j2gort.Ext_com_google_common_base_Optional
 	_ = registry
 	{
@@ -216,12 +216,12 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toDeserializedAst_7
 }
 
 // Java method: TypedAstDeserializer.deserializeTypedAst(com.google.javascript.jscomp.serialization.TypedAst typedAstProto, com.google.javascript.jscomp.AbstractCompiler compiler, boolean resolveSourceMapAnnotations, boolean parseInlineSourceMaps)
-func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_deserializeTypedAst_7795(typedAstProto *j2gort.Ext_com_google_javascript_jscomp_serialization_TypedAst, compiler AbstractCompiler, resolveSourceMapAnnotations bool, parseInlineSourceMaps bool) {
+func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_deserializeTypedAst_7809(typedAstProto *j2gort.Ext_com_google_javascript_jscomp_serialization_TypedAst, compiler AbstractCompiler, resolveSourceMapAnnotations bool, parseInlineSourceMaps bool) {
 	_ = typedAstProto
 	_ = compiler
 	_ = resolveSourceMapAnnotations
 	_ = parseInlineSourceMaps
-	var fileShard []*SourceFile = j2gort.ImmListToSliceNullable[*SourceFile](this_.priv_TypedAstDeserializer_toFileShard_7798(typedAstProto))
+	var fileShard []*SourceFile = j2gort.ImmListToSliceNullable[*SourceFile](this_.priv_TypedAstDeserializer_toFileShard_7812(typedAstProto))
 	_ = fileShard
 	{
 		var iifeCond_1 bool
@@ -288,13 +288,13 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_deserializeTypedAst
 			rawElem_18 := cur_17.Next()
 			lazyAst_2 := j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_LazyAst](rawElem_18)
 			_ = lazyAst_2
-			this_.priv_TypedAstDeserializer_initLazyAstDeserializer_7799(lazyAst_2, j2gort.ImmListFromTypedSlice(fileShard), colorShard, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+			this_.priv_TypedAstDeserializer_initLazyAstDeserializer_7813(lazyAst_2, j2gort.ImmListFromTypedSlice(fileShard), colorShard, stringShard, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 		}
 	}
 }
 
 // Java method: TypedAstDeserializer.addToFilePool(java.lang.String filename, com.google.javascript.jscomp.SourceFile file)
-func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_addToFilePool_7796(filename string, file *SourceFile) {
+func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_addToFilePool_7810(filename string, file *SourceFile) {
 	_ = filename
 	_ = file
 	this_.filePoolBuilder.Put(filename, file)
@@ -306,7 +306,7 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_addToFilePool_7796(
 }
 
 // Java method: TypedAstDeserializer.findExistingFile(java.lang.String filename)
-func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_findExistingFile_7797(filename string) *SourceFile {
+func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_findExistingFile_7811(filename string) *SourceFile {
 	_ = filename
 	var exact *SourceFile = this_.filePoolBuilder.Get(filename)
 	_ = exact
@@ -324,7 +324,7 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_findExistingFile_77
 }
 
 // Java method: TypedAstDeserializer.toFileShard(com.google.javascript.jscomp.serialization.TypedAst typedAstProto)
-func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toFileShard_7798(typedAstProto *j2gort.Ext_com_google_javascript_jscomp_serialization_TypedAst) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toFileShard_7812(typedAstProto *j2gort.Ext_com_google_javascript_jscomp_serialization_TypedAst) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = typedAstProto
 	var fileShardBuilder []*SourceFile = []*SourceFile{}
 	_ = fileShardBuilder
@@ -336,7 +336,7 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toFileShard_7798(ty
 		for ; i < protos.Size(); i = i + 1 {
 			var p *j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFileProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFileProto](protos.Get(i))
 			_ = p
-			var existingFile *SourceFile = this_.priv_TypedAstDeserializer_findExistingFile_7797(p.GetFilename())
+			var existingFile *SourceFile = this_.priv_TypedAstDeserializer_findExistingFile_7811(p.GetFilename())
 			_ = existingFile
 			if existingFile != nil {
 				existingFile.RestoreCachedStateFrom(p)
@@ -344,7 +344,7 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toFileShard_7798(ty
 			} else {
 				var protoFile *SourceFile = SourceFile_FromProto_1(p)
 				_ = protoFile
-				this_.priv_TypedAstDeserializer_addToFilePool_7796(p.GetFilename(), protoFile)
+				this_.priv_TypedAstDeserializer_addToFilePool_7810(p.GetFilename(), protoFile)
 				fileShardBuilder = append(fileShardBuilder, j2gort.CheckNotNullElem(protoFile))
 			}
 		}
@@ -353,7 +353,7 @@ func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_toFileShard_7798(ty
 }
 
 // Java method: TypedAstDeserializer.initLazyAstDeserializer(com.google.javascript.jscomp.serialization.LazyAst lazyAst, com.google.common.collect.ImmutableList<com.google.javascript.jscomp.SourceFile> fileShard, com.google.common.base.Optional<com.google.javascript.jscomp.serialization.ColorPool.ShardView> colorShard, com.google.javascript.jscomp.serialization.StringPool stringShard, com.google.javascript.jscomp.AbstractCompiler compiler, boolean resolveSourceMapAnnotations, boolean parseInlineSourceMaps)
-func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_initLazyAstDeserializer_7799(lazyAst *j2gort.Ext_com_google_javascript_jscomp_serialization_LazyAst, fileShard j2gort.Ext_com_google_common_collect_ImmutableList, colorShard j2gort.Ext_com_google_common_base_Optional, stringShard *StringPool, compiler AbstractCompiler, resolveSourceMapAnnotations bool, parseInlineSourceMaps bool) {
+func (this_ *TypedAstDeserializer) priv_TypedAstDeserializer_initLazyAstDeserializer_7813(lazyAst *j2gort.Ext_com_google_javascript_jscomp_serialization_LazyAst, fileShard j2gort.Ext_com_google_common_collect_ImmutableList, colorShard j2gort.Ext_com_google_common_base_Optional, stringShard *StringPool, compiler AbstractCompiler, resolveSourceMapAnnotations bool, parseInlineSourceMaps bool) {
 	_ = lazyAst
 	_ = fileShard
 	_ = colorShard
@@ -463,7 +463,7 @@ func TypedAstDeserializer_DeserializeTypedAsts(typedAstsStream j2gort.Ext_java_i
 			_ = typedAst
 			typedAstBuilder.Clear()
 			codedInput.ResetSizeCounter()
-			deserializer.priv_TypedAstDeserializer_deserializeTypedAst_7795(typedAst, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
+			deserializer.priv_TypedAstDeserializer_deserializeTypedAst_7809(typedAst, compiler, resolveSourceMapAnnotations, parseInlineSourceMaps)
 		}
 	}()
 }

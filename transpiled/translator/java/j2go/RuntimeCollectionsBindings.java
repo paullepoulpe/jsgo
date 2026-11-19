@@ -18354,10 +18354,17 @@ public final class RuntimeCollectionsBindings {
         }
 
         func CheckNotNullElem[T any](v T) T {
-        \tif isJavaNullMapVal(v) {
-        \t\tThrowNPE()
-        \t}
+        \tcheckNotNullGeneric(v)
         \treturn v
+        }
+
+        func CheckNotNullGeneric[T any](v T) T {
+        \tcheckNotNullGeneric(v)
+        \treturn v
+        }
+
+        func IsNullGeneric[T any](v T) bool {
+        \treturn isJavaNullGeneric(v)
         }
 
         func ImmSliceCloneNonNull[T any](s []T) []T {
@@ -20099,8 +20106,12 @@ public final class RuntimeCollectionsBindings {
         \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
         \t}
         \tvar s OrderedSet[T]
-        \tif cap > 4 {
-        \t\ts.order = make([]T, 0, cap)
+        \tallocCap := min(int(cap), 262144)
+        \tif allocCap > 4 {
+        \t\ts.order = make([]T, 0, allocCap)
+        \t}
+        \tif allocCap > orderedSetIndexThreshold {
+        \t\ts.idx = make(map[T]int32, allocCap)
         \t}
         \treturn s
         }
@@ -20233,7 +20244,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \ts.order = append(s.order, v)
         \tif len(s.order) > orderedSetIndexThreshold {
-        \t\tm := make(map[T]int32, 16)
+        \t\tm := make(map[T]int32, max(16, cap(s.order)))
         \t\tfor i, x := range s.order {
         \t\t\tm[x] = int32(i + 1)
         \t\t}
@@ -21058,6 +21069,18 @@ public final class RuntimeCollectionsBindings {
         \t}
         }
 
+        //go:noinline
+        func checkNotNullGeneric[T any](v T) {
+        \tif isJavaNullGeneric(v) {
+        \t\tThrowNPE()
+        \t}
+        }
+
+        //go:noinline
+        func isJavaNullGeneric[V any](v V) bool {
+        \treturn any(v) == nil || isJavaNullMapValNonNil(v)
+        }
+
         func isJavaNullMapVal[V any](v V) bool {
         \treturn any(v) == nil || isJavaNullMapValNonNil(v)
         }
@@ -21068,14 +21091,27 @@ public final class RuntimeCollectionsBindings {
         \t\treturn isJavaNullMapValSlow(v)
         \t}
         \tswitch rt.Kind() {
-        \tcase reflect.Pointer, reflect.Uint32, reflect.UnsafePointer:
+        \tcase reflect.Pointer, reflect.UnsafePointer:
         \t\tvar zero V
         \t\treturn any(v) == any(zero)
+        \tcase reflect.Uint32:
+        \t\tvar zero V
+        \t\tif any(v) != any(zero) {
+        \t\t\treturn false
+        \t\t}
+        \t\treturn isZeroValJavaNull[V]()
+        \tcase reflect.Interface:
+        \t\tif nc, ok := any(v).(jJavaNilChecker); ok {
+        \t\t\treturn nc.IsJavaNil_()
+        \t\t}
+        \t\treturn isJavaNullMapValSlow(v)
         \tcase reflect.String:
         \t\tif s, ok := any(v).(string); ok {
         \t\t\treturn s == NullString
         \t\t}
         \t\treturn false
+        \tcase reflect.Slice, reflect.Map, reflect.Func, reflect.Chan:
+        \t\treturn reflect.ValueOf(&v).Elem().IsNil()
         \tcase reflect.Bool,
         \t\treflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
         \t\treflect.Uint, reflect.Uint64, reflect.Uintptr,
@@ -21087,7 +21123,10 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn false
         \t\t}
         \t\tvar zero V
-        \t\treturn any(v) == any(zero)
+        \t\tif any(v) != any(zero) {
+        \t\t\treturn false
+        \t\t}
+        \t\treturn isZeroValJavaNull[V]()
         \tcase reflect.Struct:
         \t\tif rt.Comparable() {
         \t\t\tvar zero V
@@ -21096,10 +21135,19 @@ public final class RuntimeCollectionsBindings {
         \t\t\t}
         \t\t\treturn isZeroStructJavaNull[V]()
         \t\t}
+        \t\tif !rt.Implements(reflect.TypeFor[jJavaNilChecker]()) && !rt.Implements(reflect.TypeFor[jIsNiler]()) {
+        \t\t\treturn false
+        \t\t}
         \t\treturn isJavaNullMapValSlow(v)
         \tdefault:
         \t\treturn isJavaNullMapValSlow(v)
         \t}
+        }
+
+        //go:noinline
+        func isZeroValJavaNull[V any]() bool {
+        \tvar zero V
+        \treturn isJavaNullMapValSlow(zero)
         }
 
         //go:noinline
@@ -21301,7 +21349,7 @@ public final class RuntimeCollectionsBindings {
         \t\treturn OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
         \t}
         \tif capHint <= 65536 {
-        \t\tif n := len(p.large); n > 0 {
+        \t\tif n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= int(capHint) {
         \t\t\tb := p.large[n-1]
         \t\t\tp.large[n-1] = orderedMapBuf[K, V]{}
         \t\t\tp.large = p.large[:n-1]
@@ -21309,7 +21357,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn OrderedMap[K, V]{entries: b.entries[:0], idx: b.idx}
         \t\t}
         \t\tif capHint <= 2048 {
-        \t\t\tif n := len(p.med); n > 0 {
+        \t\t\tif n := len(p.med); n > 0 && cap(p.med[n-1].entries)*2 >= int(capHint) {
         \t\t\t\tb := p.med[n-1]
         \t\t\t\tp.med[n-1] = orderedMapBuf[K, V]{}
         \t\t\t\tp.med = p.med[:n-1]
@@ -21340,24 +21388,25 @@ public final class RuntimeCollectionsBindings {
         \tif capHint < 0 {
         \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", capHint)))
         \t}
+        \tallocCap := min(int(capHint), 262144)
         \tp := getOrderedMapPtrPool[K, V]()
         \tvar m *OrderedMap[K, V]
         \tp.mu.Lock()
-        \tif capHint >= 1024 {
+        \tif allocCap >= 1024 {
         \t\tif n := len(p.hugeFree); n > 0 {
         \t\t\tm = p.hugeFree[n-1]
         \t\t\tp.hugeFree[n-1] = nil
         \t\t\tp.hugeFree = p.hugeFree[:n-1]
-        \t\t} else if n := len(p.largeFree); n > 0 {
+        \t\t} else if n := len(p.largeFree); n > 0 && cap(p.largeFree[n-1].entries)*2 >= allocCap {
         \t\t\tm = p.largeFree[n-1]
         \t\t\tp.largeFree[n-1] = nil
         \t\t\tp.largeFree = p.largeFree[:n-1]
-        \t\t} else if n := len(p.smallFree); n > 0 {
+        \t\t} else if n := len(p.smallFree); n > 0 && p.smallFree[n-1].entries == nil {
         \t\t\tm = p.smallFree[n-1]
         \t\t\tp.smallFree[n-1] = nil
         \t\t\tp.smallFree = p.smallFree[:n-1]
         \t\t}
-        \t} else if capHint > 256 {
+        \t} else if allocCap > 256 {
         \t\tif n := len(p.largeFree); n > 0 {
         \t\t\tm = p.largeFree[n-1]
         \t\t\tp.largeFree[n-1] = nil
@@ -21378,13 +21427,16 @@ public final class RuntimeCollectionsBindings {
         \tif m == nil {
         \t\tm = &OrderedMap[K, V]{}
         \t}
-        \tif capHint >= 64 && cap(m.entries) < 64 {
-        \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](int(capHint))
-        \t} else if cap(m.entries) == 0 && capHint > 0 {
-        \t\tm.entries = make([]OrderedMapEntry[K, V], 0, capHint)
+        \tif allocCap >= 64 && cap(m.entries)*2 < allocCap {
+        \t\tif old := m.entries; cap(old) >= 64 {
+        \t\t\tReleasePooledSlice(old)
+        \t\t}
+        \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
+        \t} else if cap(m.entries) == 0 && allocCap > 0 {
+        \t\tm.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
         \t}
-        \tif m.idx == nil && int(capHint) > orderedMapIndexThreshold {
-        \t\tm.idx = make(map[K]int32, capHint)
+        \tif m.idx == nil && allocCap > orderedMapIndexThreshold {
+        \t\tm.idx = make(map[K]int32, allocCap)
         \t}
         \treturn m
         }
@@ -21536,13 +21588,14 @@ public final class RuntimeCollectionsBindings {
         \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
         \t}
         \tvar m OrderedMap[K, V]
-        \tif cap >= 64 {
-        \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](int(cap))
-        \t} else if cap > 8 {
-        \t\tm.entries = make([]OrderedMapEntry[K, V], 0, cap)
+        \tallocCap := min(int(cap), 262144)
+        \tif allocCap >= 64 {
+        \t\tm.entries = AcquirePooledSlice[OrderedMapEntry[K, V]](allocCap)
+        \t} else if allocCap > 8 {
+        \t\tm.entries = make([]OrderedMapEntry[K, V], 0, allocCap)
         \t}
-        \tif int(cap) > orderedMapIndexThreshold {
-        \t\tm.idx = make(map[K]int32, cap)
+        \tif allocCap > orderedMapIndexThreshold {
+        \t\tm.idx = make(map[K]int32, allocCap)
         \t}
         \treturn m
         }
@@ -21701,9 +21754,13 @@ public final class RuntimeCollectionsBindings {
         \told := m.entries
         \toldLen := len(old)
         \toldCap := cap(old)
-        \tnewCap := oldCap * 2
-        \tif newCap < 4 {
-        \t\tnewCap = 4
+        \tvar newCap int
+        \tif oldCap < 8 {
+        \t\tnewCap = max(oldCap*2, 4)
+        \t} else if oldCap < 1024 {
+        \t\tnewCap = oldCap * 4
+        \t} else {
+        \t\tnewCap = oldCap * 2
         \t}
         \tif newCap <= oldLen {
         \t\tnewCap = oldLen + 1
@@ -21755,7 +21812,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tm.appendEntry(OrderedMapEntry[K, V]{Key: k, Val: v})
         \tif len(m.entries) > orderedMapIndexThreshold {
-        \t\tidx := make(map[K]int32, max(24, cap(m.entries)))
+        \t\tidx := make(map[K]int32, max(32, cap(m.entries)))
         \t\tfor i := range m.entries {
         \t\t\tidx[m.entries[i].Key] = int32(i + 1)
         \t\t}
@@ -23044,7 +23101,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\treturn CustomOrderedMap[K, V]{entries: b.entries[:0], buckets: b.buckets}
         \t\t}
         \t}
-        \tif n := len(p.large); n > 0 {
+        \tif n := len(p.large); n > 0 && cap(p.large[n-1].entries)*2 >= min(int(capHint), 262144) {
         \t\tb := p.large[n-1]
         \t\tp.large[n-1] = customOrderedMapBuf[K, V]{}
         \t\tp.large = p.large[:n-1]
@@ -23173,25 +23230,29 @@ public final class RuntimeCollectionsBindings {
         \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
         \t}
         \tvar m CustomOrderedMap[K, V]
-        \tif cap >= 64 {
-        \t\tm.entries = AcquirePooledSlice[CustomMapEntry[K, V]](int(cap))
-        \t} else if cap > 8 {
-        \t\tm.entries = make([]CustomMapEntry[K, V], 0, cap)
+        \tallocCap := min(int(cap), 262144)
+        \tif allocCap >= 64 {
+        \t\tm.entries = AcquirePooledSlice[CustomMapEntry[K, V]](allocCap)
+        \t} else if allocCap > 8 {
+        \t\tm.entries = make([]CustomMapEntry[K, V], 0, allocCap)
+        \t}
+        \tif allocCap > orderedMapIndexThreshold {
+        \t\tbCap := 32
+        \t\tfor (bCap*3)/4 < allocCap {
+        \t\t\tbCap *= 2
+        \t\t}
+        \t\tif bCap >= 64 {
+        \t\t\tm.buckets = AcquirePooledSlice[int32](bCap)[:bCap]
+        \t\t} else {
+        \t\t\tm.buckets = make([]int32, bCap)
+        \t\t}
         \t}
         \treturn m
         }
 
         func NewCustomOrderedMapPtrCap[K FastCustomKeyComparable, V any](cap int32) *CustomOrderedMap[K, V] {
-        \tif cap < 0 {
-        \t\tpanic(javalang.NewIllegalArgumentException(fmt.Sprintf("Illegal initial capacity: %d", cap)))
-        \t}
-        \tm := &CustomOrderedMap[K, V]{}
-        \tif cap >= 64 {
-        \t\tm.entries = AcquirePooledSlice[CustomMapEntry[K, V]](int(cap))
-        \t} else if cap > 8 {
-        \t\tm.entries = make([]CustomMapEntry[K, V], 0, cap)
-        \t}
-        \treturn m
+        \tm := NewCustomOrderedMapCap[K, V](cap)
+        \treturn &m
         }
 
         func CustomOrderedMapFromPtr[K FastCustomKeyComparable, V any](src *CustomOrderedMap[K, V]) CustomOrderedMap[K, V] {
@@ -23397,9 +23458,13 @@ public final class RuntimeCollectionsBindings {
         \told := m.entries
         \toldLen := len(old)
         \toldCap := cap(old)
-        \tnewCap := oldCap * 2
-        \tif newCap < 4 {
-        \t\tnewCap = 4
+        \tvar newCap int
+        \tif oldCap < 8 {
+        \t\tnewCap = max(oldCap*2, 4)
+        \t} else if oldCap < 1024 {
+        \t\tnewCap = oldCap * 4
+        \t} else {
+        \t\tnewCap = oldCap * 2
         \t}
         \tif newCap <= oldLen {
         \t\tnewCap = oldLen + 1
@@ -23463,7 +23528,11 @@ public final class RuntimeCollectionsBindings {
         \t\tm.appendEntry(CustomMapEntry[K, V]{Key: k, Val: v, Hash: h})
         \t\tlive := int32(len(m.entries)) - m.holes
         \t\tif int(live) > (len(m.buckets)*3)/4 {
-        \t\t\tm.rehash(len(m.buckets) * 2)
+        \t\t\tnewBk := len(m.buckets) * 2
+        \t\t\tif len(m.buckets) < 1024 {
+        \t\t\t\tnewBk = len(m.buckets) * 4
+        \t\t\t}
+        \t\t\tm.rehash(newBk)
         \t\t} else {
         \t\t\tpos := int32(len(m.entries))
         \t\t\tm.entries[pos-1].HashNext = m.buckets[slot]

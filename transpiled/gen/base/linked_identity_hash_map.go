@@ -105,7 +105,7 @@ func (this_ *LinkedIdentityHashMap[K, V]) ComputeIfAbsent(key K, fn j2gort.Ext_j
 	_ = fn
 	var oldValue V = this_.Get(key)
 	_ = oldValue
-	if j2gort.ToAny(oldValue) != nil {
+	if !j2gort.IsNullGeneric(oldValue) {
 		return oldValue
 	}
 	var newValue V
@@ -142,7 +142,7 @@ func (this_ *LinkedIdentityHashMap[K, V]) Merge(key K, value V, fn j2gort.Ext_ja
 	_ = fn
 	var oldValue V = this_.Get(key)
 	_ = oldValue
-	if j2gort.ToAny(oldValue) == nil {
+	if j2gort.IsNullGeneric(oldValue) {
 		this_.Put(key, value)
 		return value
 	}

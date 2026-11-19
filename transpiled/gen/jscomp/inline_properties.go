@@ -88,12 +88,10 @@ func clinitSlow_InlineProperties() {
 
 func (this_ *InlineProperties) initFields_InlineProperties() {
 	_ = this_
-	this_.props = j2gort.NewOrderedMap[string, *InlineProperties_PropertyInfo](
-
-	// Java constructor: InlineProperties(com.google.javascript.jscomp.AbstractCompiler compiler)
-	)
+	this_.props = j2gort.NewOrderedMap[string, *InlineProperties_PropertyInfo]()
 }
 
+// Java constructor: InlineProperties(com.google.javascript.jscomp.AbstractCompiler compiler)
 func NewInlineProperties(compiler AbstractCompiler) *InlineProperties {
 	clinit_InlineProperties()
 	this_ := &InlineProperties{}

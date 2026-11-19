@@ -31,7 +31,7 @@ var lambdaSingleton_runtime_js_lib_manager_1 j2gort.Ext_java_util_function_Predi
 
 func init() {
 	lambdaSingleton_runtime_js_lib_manager_1 = j2gort.NewLambda_Ext_java_util_function_Predicate(func(mrp0_ any) bool {
-		return j2gort.CastPtr[RuntimeJsLibManager_InternalField](mrp0_).priv_InternalField_isInjected_6517()
+		return j2gort.CastPtr[RuntimeJsLibManager_InternalField](mrp0_).priv_InternalField_isInjected_6531()
 	})
 }
 
@@ -76,13 +76,11 @@ func StaticGet_RuntimeJsLibManager_RUNTIME_LIB_DIR() string {
 func (this_ *RuntimeJsLibManager) initFields_RuntimeJsLibManager() {
 	_ = this_
 	this_.injectedLibs = j2gort.NewExt_java_util_LinkedHashSet()
-	this_.internedFields = j2gort.NewOrderedMap[string, *RuntimeJsLibManager_InternalField](
-
-	// Java constructor: RuntimeJsLibManager(com.google.javascript.jscomp.ChangeTracker changeTracker, com.google.javascript.jscomp.js.RuntimeJsLibManager.RuntimeLibraryMode mode, com.google.javascript.jscomp.js.RuntimeJsLibManager.ResourceProvider resourceProvider, java.util.function.Supplier<com.google.javascript.rhino.Node> nodeForCodeInsertion)
-	)
+	this_.internedFields = j2gort.NewOrderedMap[string, *RuntimeJsLibManager_InternalField]()
 
 }
 
+// Java constructor: RuntimeJsLibManager(com.google.javascript.jscomp.ChangeTracker changeTracker, com.google.javascript.jscomp.js.RuntimeJsLibManager.RuntimeLibraryMode mode, com.google.javascript.jscomp.js.RuntimeJsLibManager.ResourceProvider resourceProvider, java.util.function.Supplier<com.google.javascript.rhino.Node> nodeForCodeInsertion)
 func NewRuntimeJsLibManager(changeTracker *ChangeTracker, mode RuntimeJsLibManager_RuntimeLibraryMode, resourceProvider RuntimeJsLibManager_ResourceProvider, nodeForCodeInsertion j2gort.Ext_java_util_function_Supplier) *RuntimeJsLibManager {
 	this_ := &RuntimeJsLibManager{}
 	InitRuntimeJsLibManager(this_, changeTracker, mode, resourceProvider, nodeForCodeInsertion)
@@ -136,7 +134,7 @@ func (this_ *RuntimeJsLibManager) GetExternedFields() j2gort.Ext_com_google_comm
 }
 
 // Java method: RuntimeJsLibManager.createField(java.lang.String fieldName)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_createField_6507(fieldName string) *RuntimeJsLibManager_InternalField {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_createField_6521(fieldName string) *RuntimeJsLibManager_InternalField {
 	_ = fieldName
 	if !(!(j2gort.CheckNotNullString(fieldName) == "")) {
 		j2gort.CheckArgumentStr(false, fieldName)
@@ -167,33 +165,31 @@ func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_createField_6507(fiel
 // Java method: RuntimeJsLibManager.getJsLibField(java.lang.String fieldName)
 func (this_ *RuntimeJsLibManager) GetJsLibField(fieldName string) RuntimeJsLibManager_JsLibField {
 	_ = fieldName
-	return ToIface_RuntimeJsLibManager_JsLibField(this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6509(fieldName))
+	return ToIface_RuntimeJsLibManager_JsLibField(this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6523(fieldName))
 }
 
 // Java method: RuntimeJsLibManager.getJsLibFieldInternal(java.lang.String fieldName)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_getJsLibFieldInternal_6509(fieldName string) *RuntimeJsLibManager_InternalField {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_getJsLibFieldInternal_6523(fieldName string) *RuntimeJsLibManager_InternalField {
 	_ = fieldName
-	var iifeArg_1 j2gort.
-		Ext_java_util_function_Function
 	{
 
 		bound_1 := this_
-		iifeArg_1 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-			return j2gort.PtrToAny(bound_1.priv_RuntimeJsLibManager_createField_6507(j2gort.CastString(mrp0_)))
+		return j2gort.OrderedMapComputeIfAbsent(&this_.internedFields, fieldName, nil, func(mrp0_ string) *RuntimeJsLibManager_InternalField {
+			return bound_1.priv_RuntimeJsLibManager_createField_6521(mrp0_)
 		})
 	}
-	return j2gort.OrderedMapComputeIfAbsentFn(&this_.internedFields, fieldName, nil, iifeArg_1)
+
 }
 
 // Java method: RuntimeJsLibManager.injectLibForField(java.lang.String fieldName)
 func (this_ *RuntimeJsLibManager) InjectLibForField(fieldName string) {
 	_ = fieldName
-	var field *RuntimeJsLibManager_InternalField = this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6509(fieldName)
+	var field *RuntimeJsLibManager_InternalField = this_.priv_RuntimeJsLibManager_getJsLibFieldInternal_6523(fieldName)
 	_ = field
-	if field.priv_InternalField_isInjected_6517() {
+	if field.priv_InternalField_isInjected_6531() {
 		return
 	}
-	field.priv_InternalField_markInjected_6518()
+	field.priv_InternalField_markInjected_6532()
 	if this_.mode == StaticGet_RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES() {
 		var externRoot pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.nodeForCodeInsertion.Get())
 		_ = externRoot
@@ -230,12 +226,12 @@ func (this_ *RuntimeJsLibManager) EnsureLibraryInjected(resourceName string, for
 	_ = path
 	var ast pkg_rhino.Node = this_.resourceProvider.Parse(resourceName, path)
 	_ = ast
-	this_.priv_RuntimeJsLibManager_injectLibraryDependencies_6513(ast, force)
-	return this_.priv_RuntimeJsLibManager_injectLibrary_6512(ast)
+	this_.priv_RuntimeJsLibManager_injectLibraryDependencies_6527(ast, force)
+	return this_.priv_RuntimeJsLibManager_injectLibrary_6526(ast)
 }
 
 // Java method: RuntimeJsLibManager.injectLibrary(com.google.javascript.rhino.Node ast)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibrary_6512(ast pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibrary_6526(ast pkg_rhino.Node) pkg_rhino.Node {
 	_ = ast
 	if !(ast.HasChildren()) {
 		return this_.lastInjectedLibrary
@@ -264,7 +260,7 @@ func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibrary_6512(as
 }
 
 // Java method: RuntimeJsLibManager.injectLibraryDependencies(com.google.javascript.rhino.Node ast, boolean force)
-func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibraryDependencies_6513(ast pkg_rhino.Node, force bool) {
+func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_injectLibraryDependencies_6527(ast pkg_rhino.Node, force bool) {
 	_ = ast
 	_ = force
 	{
@@ -635,12 +631,12 @@ func InitRuntimeJsLibManager_InternalField(this_ *RuntimeJsLibManager_InternalFi
 }
 
 // Java method: InternalField.isInjected()
-func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_isInjected_6517() bool {
+func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_isInjected_6531() bool {
 	return this_.injected
 }
 
 // Java method: InternalField.markInjected()
-func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_markInjected_6518() {
+func (this_ *RuntimeJsLibManager_InternalField) priv_InternalField_markInjected_6532() {
 	this_.injected = true
 }
 

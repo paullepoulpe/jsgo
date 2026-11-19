@@ -1210,7 +1210,7 @@ func (this_ *JsMessage_Builder) Build() *JsMessage {
 	{
 		cur_19 := this_.genderedMessageMap.IterEntries()
 		for cur_19.NextEntry() {
-			immutableGenderedPartsBuilder.Put_2(j2gort.BoxNullableVal(cur_19.Key()), j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_util_Collection(cur_19.Value()))
+			immutableGenderedPartsBuilder.Put_2(j2gort.BoxNullableVal(cur_19.Key()), j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_19.Value())))
 		}
 	}
 	var immutableGenderedMessageMap j2gort.Ext_com_google_common_collect_ImmutableMap = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](immutableGenderedPartsBuilder.BuildOrThrow())

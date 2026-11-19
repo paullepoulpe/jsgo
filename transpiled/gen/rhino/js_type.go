@@ -282,33 +282,34 @@ func StaticSet_JSType_CAN_CAST_TO_VISITOR(v *CanCastToVisitor) {
 	clinit_JSType()
 	static_JSType_CAN_CAST_TO_VISITOR = v
 }
-func StaticGet_JSType_KIND_PROXY() int32              { return int32(1) }
-func StaticGet_JSType_KIND_NO_TYPE() int32            { return int32(2) }
-func StaticGet_JSType_KIND_NO_OBJECT_TYPE() int32     { return int32(4) }
-func StaticGet_JSType_KIND_NO_RESOLVED_TYPE() int32   { return int32(8) }
-func StaticGet_JSType_KIND_ALL() int32                { return int32(16) }
-func StaticGet_JSType_KIND_CHECKED_UNKNOWN() int32    { return int32(32) }
-func StaticGet_JSType_KIND_UNION() int32              { return int32(64) }
-func StaticGet_JSType_KIND_FUNCTION() int32           { return int32(128) }
-func StaticGet_JSType_KIND_ENUM_ELEMENT() int32       { return int32(256) }
-func StaticGet_JSType_KIND_ENUM() int32               { return int32(512) }
-func StaticGet_JSType_KIND_NAMED() int32              { return int32(1024) }
-func StaticGet_JSType_KIND_RECORD() int32             { return int32(2048) }
-func StaticGet_JSType_KIND_TEMPLATIZED() int32        { return int32(4096) }
-func StaticGet_JSType_KIND_TEMPLATE() int32           { return int32(8192) }
-func StaticGet_JSType_KIND_NUMBER_VALUE() int32       { return int32(16384) }
-func StaticGet_JSType_KIND_STRING_VALUE() int32       { return int32(32768) }
-func StaticGet_JSType_KIND_BOOLEAN_VALUE() int32      { return int32(65536) }
-func StaticGet_JSType_KIND_NULL() int32               { return int32(131072) }
-func StaticGet_JSType_KIND_VOID() int32               { return int32(262144) }
-func StaticGet_JSType_KIND_BIGINT_VALUE() int32       { return int32(524288) }
-func StaticGet_JSType_KIND_SYMBOL_VALUE() int32       { return int32(1048576) }
-func StaticGet_JSType_KIND_KNOWN_SYMBOL_VALUE() int32 { return int32(2097152) }
-func StaticGet_JSType_KIND_CONSTRUCTOR() int32        { return int32(4194304) }
-func StaticGet_JSType_KIND_INTERFACE() int32          { return int32(8388608) }
-func StaticGet_JSType_KIND_ORDINARY_FUNCTION() int32  { return int32(16777216) }
-func StaticGet_JSType_KIND_NATIVE_OBJECT() int32      { return int32(33554432) }
-func StaticGet_JSType_TYPE_CLASS_SHIFT() int32        { return int32(26) }
+func StaticGet_JSType_KIND_PROXY() int32                      { return int32(1) }
+func StaticGet_JSType_KIND_NO_TYPE() int32                    { return int32(2) }
+func StaticGet_JSType_KIND_NO_OBJECT_TYPE() int32             { return int32(4) }
+func StaticGet_JSType_KIND_NO_RESOLVED_TYPE() int32           { return int32(8) }
+func StaticGet_JSType_KIND_ALL() int32                        { return int32(16) }
+func StaticGet_JSType_KIND_CHECKED_UNKNOWN() int32            { return int32(32) }
+func StaticGet_JSType_KIND_UNION() int32                      { return int32(64) }
+func StaticGet_JSType_KIND_FUNCTION() int32                   { return int32(128) }
+func StaticGet_JSType_KIND_ENUM_ELEMENT() int32               { return int32(256) }
+func StaticGet_JSType_KIND_ENUM() int32                       { return int32(512) }
+func StaticGet_JSType_KIND_NAMED() int32                      { return int32(1024) }
+func StaticGet_JSType_KIND_RECORD() int32                     { return int32(2048) }
+func StaticGet_JSType_KIND_TEMPLATIZED() int32                { return int32(4096) }
+func StaticGet_JSType_KIND_TEMPLATE() int32                   { return int32(8192) }
+func StaticGet_JSType_KIND_NUMBER_VALUE() int32               { return int32(16384) }
+func StaticGet_JSType_KIND_STRING_VALUE() int32               { return int32(32768) }
+func StaticGet_JSType_KIND_BOOLEAN_VALUE() int32              { return int32(65536) }
+func StaticGet_JSType_KIND_NULL() int32                       { return int32(131072) }
+func StaticGet_JSType_KIND_VOID() int32                       { return int32(262144) }
+func StaticGet_JSType_KIND_BIGINT_VALUE() int32               { return int32(524288) }
+func StaticGet_JSType_KIND_SYMBOL_VALUE() int32               { return int32(1048576) }
+func StaticGet_JSType_KIND_KNOWN_SYMBOL_VALUE() int32         { return int32(2097152) }
+func StaticGet_JSType_KIND_CONSTRUCTOR() int32                { return int32(4194304) }
+func StaticGet_JSType_KIND_INTERFACE() int32                  { return int32(8388608) }
+func StaticGet_JSType_KIND_ORDINARY_FUNCTION() int32          { return int32(16777216) }
+func StaticGet_JSType_KIND_NATIVE_OBJECT() int32              { return int32(33554432) }
+func StaticGet_JSType_KIND_HAS_NON_EMPTY_TEMPLATE_MAP() int32 { return int32(67108864) }
+func StaticGet_JSType_TYPE_CLASS_SHIFT() int32                { return int32(27) }
 
 var static_JSType_TYPE_CLASSES []JSTypeClass
 
@@ -320,6 +321,7 @@ func StaticSet_JSType_TYPE_CLASSES(v []JSTypeClass) {
 	clinit_JSType()
 	static_JSType_TYPE_CLASSES = v
 }
+func StaticGet_JSType_MAY_HAVE_NON_EMPTY_TEMPLATE_MAP_MASK() int32 { return int32(67108865) }
 func StaticGet_JSType_EMPTY_TYPE_MASK() int32                      { return int32(14) }
 func StaticGet_JSType_WELL_FORMED_TEMPLATIZED_ACTIVE_MASK() int32  { return int32(13760) }
 func StaticGet_JSType_NON_STRINGIFIABLE_KEY_CANDIDATE_MASK() int32 { return int32(16781377) }
@@ -382,18 +384,24 @@ func InitJSType_3(this_ *JSTypeBase, registry *JSTypeRegistry, templateTypeMap *
 		this_.typeId = int32(0)
 	}
 	this_.typeKindMask = typeKindMask
-	this_.typeKindMask = (typeKindMask | (javalang.Shl32((this_.self_.GetTypeClass()).Ordinal(), int(int32(26)))))
+	this_.typeKindMask = (typeKindMask | (javalang.Shl32((this_.self_.GetTypeClass()).Ordinal(), int(int32(27)))))
+	var tm *TemplateTypeMap
+	_ = tm
 	if templateTypeMap == nil {
-		this_.templateTypeMap = registry.GetEmptyTemplateTypeMap()
+		tm = registry.GetEmptyTemplateTypeMap()
 	} else {
-		this_.templateTypeMap = templateTypeMap
+		tm = templateTypeMap
+	}
+	this_.templateTypeMap = tm
+	if (tm != nil) && !(tm.IsEmpty()) {
+		this_.typeKindMask = (this_.typeKindMask | int32(67108864))
 	}
 	registry.GetResolver().AddUnresolved(this_.self_)
 }
 
 // Java method: JSType.fastTypeClass()
 func (this_ *JSTypeBase) FastTypeClass() JSTypeClass {
-	return StaticGet_JSType_TYPE_CLASSES()[javalang.Shr32(this_.typeKindMask, int(int32(26)))]
+	return StaticGet_JSType_TYPE_CLASSES()[javalang.Ushr32(this_.typeKindMask, int(int32(27)))]
 }
 
 // Java method: JSType.getKindMask()
@@ -1019,6 +1027,9 @@ func (this_ *JSTypeBase) MergeSupertypeTemplateTypes(other ObjectType) {
 		other = ToIface_ObjectType(this_.registry.CreateTemplatizedType_2_ObjectType_Ext_com_google_common_collect_ImmutableList(other, j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()))
 	}
 	this_.templateTypeMap = other.GetTemplateTypeMap().CopyWithExtension_1(this_.self_.GetTemplateTypeMap())
+	if !(this_.templateTypeMap.IsEmpty()) {
+		this_.typeKindMask = (this_.typeKindMask | int32(67108864))
+	}
 }
 
 // Java method: JSType.isObject()
@@ -1585,7 +1596,7 @@ func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9150() && base_that_.priv_JSType_isNullTypeOrVoidType_9150() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9165() && base_that_.priv_JSType_isNullTypeOrVoidType_9165() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1609,14 +1620,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9150() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9165() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9150() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9165() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 

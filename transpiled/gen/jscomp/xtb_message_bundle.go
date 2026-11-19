@@ -164,7 +164,7 @@ func (this_ *XtbMessageBundle) IdGenerator() JsMessage_IdGenerator {
 
 // Java method: XtbMessageBundle.getAllMessages()
 func (this_ *XtbMessageBundle) GetAllMessages() any {
-	return j2gort.Ext_com_google_common_collect_Iterables_S_UnmodifiableIterable_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.messages.LiveValues()))
+	return j2gort.Ext_com_google_common_collect_Iterables_S_UnmodifiableIterable_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.messages.LiveValues()))
 }
 
 // Java class: com.google.javascript.jscomp.XtbMessageBundle.Handler

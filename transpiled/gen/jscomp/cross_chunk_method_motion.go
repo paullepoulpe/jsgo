@@ -123,6 +123,13 @@ func InitCrossChunkMethodMotion(this_ *CrossChunkMethodMotion, compiler Abstract
 func (this_ *CrossChunkMethodMotion) Process_2(externRoot pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externRoot
 	_ = root
+	defer func() {
+		if this_.analyzer != nil {
+			this_.analyzer.ReleaseSlabs_()
+			this_.analyzer = nil
+		}
+	}()
+
 	if this_.chunkGraph.GetChunkCount() > int32(1) {
 		this_.analyzer.Process_2(externRoot, root)
 		this_.priv_CrossChunkMethodMotion_moveMethods_2271(this_.analyzer.GetAllNameInfo())

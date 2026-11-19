@@ -269,7 +269,7 @@ func (this_ *JSChunk) GetInputs() j2gort.Ext_com_google_common_collect_Immutable
 
 // Java method: JSChunk.getInputsIterable()
 func (this_ *JSChunk) GetInputsIterable() j2gort.Ext_java_lang_Iterable {
-	return j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.inputs.LiveValues())
+	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.inputs.LiveValues())
 }
 
 // Java method: JSChunk.getByName(java.lang.String name)

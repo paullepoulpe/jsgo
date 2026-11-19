@@ -107,13 +107,13 @@ func (this_ *RewriteNullishCoalesceOperator) Visit_3(t *NodeTraversal, n pkg_rhi
 	_ = n
 	_ = parent
 	if n.IsNullishCoalesce() {
-		this_.priv_RewriteNullishCoalesceOperator_visitNullishCoalesce_5009(t, n)
+		this_.priv_RewriteNullishCoalesceOperator_visitNullishCoalesce_5018(t, n)
 		t.ReportCodeChange_0()
 	}
 }
 
 // Java method: RewriteNullishCoalesceOperator.visitNullishCoalesce(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *RewriteNullishCoalesceOperator) priv_RewriteNullishCoalesceOperator_visitNullishCoalesce_5009(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *RewriteNullishCoalesceOperator) priv_RewriteNullishCoalesceOperator_visitNullishCoalesce_5018(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var tempVarName string = ("$jscomp$nullish$tmp" + j2gort.StrValString(this_.uniqueIdSupplier.GetUniqueId(t.GetInput())))
