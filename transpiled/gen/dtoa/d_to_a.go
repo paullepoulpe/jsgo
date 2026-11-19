@@ -607,10 +607,18 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		try_quick = false
 	}
 	leftright = true
-	ilim = func() int32 { var asgn_24 int32 = int32(0); ilim1 = asgn_24; return asgn_24 }()
+	{
+		var asgn_24 int32 = int32(0)
+		ilim1 = asgn_24
+		ilim = asgn_24
+	}
 	switch mode {
 	case int32(0), int32(1):
-		ilim = func() int32 { var asgn_25 int32 = int32(-1); ilim1 = asgn_25; return asgn_25 }()
+		{
+			var asgn_25 int32 = int32(-1)
+			ilim1 = asgn_25
+			ilim = asgn_25
+		}
 		i = int32(18)
 		ndigits = int32(0)
 	case int32(2):
@@ -620,11 +628,16 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		if ndigits <= int32(0) {
 			ndigits = int32(1)
 		}
-		ilim = func() int32 {
-			var asgn_26 int32 = func() int32 { var asgn_27 int32 = ndigits; i = asgn_27; return asgn_27 }()
+		{
+			var asgn_26 int32
+			{
+				var asgn_27 int32 = ndigits
+				i = asgn_27
+				asgn_26 = asgn_27
+			}
 			ilim1 = asgn_26
-			return asgn_26
-		}()
+			ilim = asgn_26
+		}
 	case int32(3):
 		leftright = false
 		fallthrough
@@ -693,11 +706,11 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		eps = ((float64(ieps) * d) + float64(7.0))
 		eps = DToA_SetWord0(eps, (DToA_Word0(eps) - ((int32(53) - int32(1)) * int32(1048576))))
 		if ilim == int32(0) {
-			l_S = func() *j2gort.Ext_java_math_BigInteger {
+			{
 				var asgn_29 *j2gort.Ext_java_math_BigInteger = nil
 				mhi = asgn_29
-				return asgn_29
-			}()
+				l_S = asgn_29
+			}
 			d = (d - float64(5.0))
 			if d > eps {
 				buf.Append_1_uint16(uint16(49))
@@ -805,11 +818,11 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 	if (be[int32(0)] >= int32(0)) && (k <= int32(14)) {
 		ds = StaticGet_DToA_Tens()[k]
 		if (ndigits < int32(0)) && (ilim <= int32(0)) {
-			l_S = func() *j2gort.Ext_java_math_BigInteger {
+			{
 				var asgn_32 *j2gort.Ext_java_math_BigInteger = nil
 				mhi = asgn_32
-				return asgn_32
-			}()
+				l_S = asgn_32
+			}
 			if ((ilim < int32(0)) || (d < (float64(int32(5)) * ds))) || (!(biasUp) && (d == (float64(int32(5)) * ds))) {
 				buf.SetLength(int32(0))
 				buf.Append_1_uint16(uint16(48))
@@ -856,11 +869,11 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 	}
 	m2 = b2
 	m5 = b5
-	mhi = func() *j2gort.Ext_java_math_BigInteger {
+	{
 		var asgn_33 *j2gort.Ext_java_math_BigInteger = nil
 		mlo = asgn_33
-		return asgn_33
-	}()
+		mhi = asgn_33
+	}
 	if leftright {
 		if mode < int32(2) {
 			if denorm {
@@ -1083,11 +1096,11 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 				}
 				b = b.Multiply(j2gort.Ext_java_math_BigInteger_ValueOf(int64(int32(10))))
 				if mlo == mhi {
-					mlo = func() *j2gort.Ext_java_math_BigInteger {
+					{
 						var asgn_42 *j2gort.Ext_java_math_BigInteger = mhi.Multiply(j2gort.Ext_java_math_BigInteger_ValueOf(int64(int32(10))))
 						mhi = asgn_42
-						return asgn_42
-					}()
+						mlo = asgn_42
+					}
 				} else {
 					mlo = mlo.Multiply(j2gort.Ext_java_math_BigInteger_ValueOf(int64(int32(10))))
 					mhi = mhi.Multiply(j2gort.Ext_java_math_BigInteger_ValueOf(int64(int32(10))))

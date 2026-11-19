@@ -92,19 +92,29 @@ func InitStandardUnionFind_1[E comparable](this_ *StandardUnionFind[E], other Un
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(other.Elements()))
 		for cur_1.HasNext() {
 			rawElem_2 := cur_1.Next()
-			elem := func() E {
+			var elem E
+		iifeSwitch_1:
+			switch {
+			default:
+
 				tv_3 := rawElem_2
 				if tv_3 == nil {
-					return func() E {
+					{
+
 						if _, ok_ := any((*E)(nil)).(*string); ok_ {
-							return any(j2gort.NullString).(E)
+							elem = any(j2gort.NullString).(E)
+							break iifeSwitch_1
 						}
 						var z_ E
-						return z_
-					}()
+						elem = z_
+						break iifeSwitch_1
+					}
+
 				}
-				return j2gort.Cast[E](tv_3)
-			}()
+				elem = j2gort.Cast[E](tv_3)
+				break iifeSwitch_1
+			}
+
 			_ = elem
 			this_.Union(other.Find(elem), elem)
 		}
@@ -124,19 +134,29 @@ func (this_ *StandardUnionFind[E]) AddAll(es j2gort.Ext_java_lang_Iterable) {
 		cur_4 := j2gort.NewIterCursor(j2gort.CheckNotNull(es))
 		for cur_4.HasNext() {
 			rawElem_5 := cur_4.Next()
-			e := func() E {
+			var e E
+		iifeSwitch_2:
+			switch {
+			default:
+
 				tv_6 := rawElem_5
 				if tv_6 == nil {
-					return func() E {
+					{
+
 						if _, ok_ := any((*E)(nil)).(*string); ok_ {
-							return any(j2gort.NullString).(E)
+							e = any(j2gort.NullString).(E)
+							break iifeSwitch_2
 						}
 						var z_ E
-						return z_
-					}()
+						e = z_
+						break iifeSwitch_2
+					}
+
 				}
-				return j2gort.Cast[E](tv_6)
-			}()
+				e = j2gort.Cast[E](tv_6)
+				break iifeSwitch_2
+			}
+
 			_ = e
 			this_.Add(e)
 		}

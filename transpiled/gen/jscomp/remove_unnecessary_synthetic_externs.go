@@ -168,11 +168,13 @@ func (this_ *RemoveUnnecessarySyntheticExterns_RedeclarationCheckHandler) OnRede
 	if !(s.IsGlobal()) {
 		j2gort.CheckArgumentFmt(false, "Unexpected non-global redeclaration %s in scope %s", j2gort.BoxNode(n), j2gort.PtrToAny(s))
 	}
-	var isSynthetic bool = func() bool {
+	var isSynthetic bool
+	{
 		rp_3 := input
 		ap_4 := this_.outer_.compiler.GetSynthesizedExternsInput()
-		return j2gort.CheckNotNullPtr(rp_3) == ap_4
-	}()
+		isSynthetic = j2gort.CheckNotNullPtr(rp_3) == ap_4
+	}
+
 	_ = isSynthetic
 	var origVar *Var = j2gort.CastPtr[Var](s.GetVar(name))
 	_ = origVar

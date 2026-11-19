@@ -1656,12 +1656,14 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) AddOne(name st
 		this_.counts.PutVoid(name, int32(1))
 		return int32(0)
 	}
-	var old int32 = func() int32 {
+	var old int32
+	{
 		if !prevOk_ {
 			j2gort.ThrowNPE()
 		}
-		return prev
-	}()
+		old = prev
+	}
+
 	_ = old
 	this_.counts.PutVoid(name, (old + int32(1)))
 	return old
@@ -1676,12 +1678,14 @@ func (this_ *MakeDeclaredNamesUnique_ContextualRenamer_NameUsage) AddOneIfPresen
 	if !prevOk_ {
 		return int32(-1)
 	}
-	var old int32 = func() int32 {
+	var old int32
+	{
 		if !prevOk_ {
 			j2gort.ThrowNPE()
 		}
-		return prev
-	}()
+		old = prev
+	}
+
 	_ = old
 	this_.counts.PutVoid(name, (old + int32(1)))
 	return old

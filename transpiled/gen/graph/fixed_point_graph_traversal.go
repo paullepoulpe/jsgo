@@ -220,19 +220,29 @@ func (this_ *FixedPointGraphTraversal[N, E]) ComputeFixedPoint_2_DiGraph_any_any
 				cur_3 := j2gort.NewIterCursor(j2gort.CheckNotNull(entrySet))
 				for cur_3.HasNext() {
 					rawElem_4 := cur_3.Next()
-					n := func() N {
+					var n N
+				iifeSwitch_1:
+					switch {
+					default:
+
 						tv_5 := rawElem_4
 						if tv_5 == nil {
-							return func() N {
+							{
+
 								if _, ok_ := any((*N)(nil)).(*string); ok_ {
-									return any(j2gort.NullString).(N)
+									n = any(j2gort.NullString).(N)
+									break iifeSwitch_1
 								}
 								var z_ N
-								return z_
-							}()
+								n = z_
+								break iifeSwitch_1
+							}
+
 						}
-						return j2gort.Cast[N](tv_5)
-					}()
+						n = j2gort.Cast[N](tv_5)
+						break iifeSwitch_1
+					}
+
 					_ = n
 					var node DiGraph_DiGraphNode[N, E] = j2gort.AsIface[DiGraph_DiGraphNode[N, E]](graph.GetNode(n))
 					_ = node
@@ -261,19 +271,29 @@ func (this_ *FixedPointGraphTraversal[N, E]) ComputeFixedPoint_2_DiGraph_any_any
 		cur_6 := j2gort.NewIterCursor(j2gort.CheckNotNull(entrySet))
 		for cur_6.HasNext() {
 			rawElem_7 := cur_6.Next()
-			n_2 := func() N {
+			var n_2 N
+		iifeSwitch_2:
+			switch {
+			default:
+
 				tv_8 := rawElem_7
 				if tv_8 == nil {
-					return func() N {
+					{
+
 						if _, ok_ := any((*N)(nil)).(*string); ok_ {
-							return any(j2gort.NullString).(N)
+							n_2 = any(j2gort.NullString).(N)
+							break iifeSwitch_2
 						}
 						var z_ N
-						return z_
-					}()
+						n_2 = z_
+						break iifeSwitch_2
+					}
+
 				}
-				return j2gort.Cast[N](tv_8)
-			}()
+				n_2 = j2gort.Cast[N](tv_8)
+				break iifeSwitch_2
+			}
+
 			_ = n_2
 			workSet.Add_1(j2gort.AsIface[DiGraph_DiGraphNode[N, E]](graph.GetNode(n_2)))
 		}

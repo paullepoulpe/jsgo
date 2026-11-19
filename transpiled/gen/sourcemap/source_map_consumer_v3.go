@@ -37,15 +37,15 @@ func init() {
 
 // Java class: com.google.debugging.sourcemap.SourceMapConsumerV3
 type SourceMapConsumerV3 struct {
-	sources              []string                                             `gson:"sources"`
-	sourcesContent       []string                                             `gson:"sourcesContent"`
-	names                []string                                             `gson:"names"`
-	file                 string                                               `gson:"file"`
-	mappings             *SourceMapConsumerV3_Mappings                        `gson:"mappings"`
-	reverseSourceMapping *j2gort.OrderedMap[string, j2gort.Ext_java_util_Map] `gson:"reverseSourceMapping"`
-	sourceRoot           string                                               `gson:"sourceRoot"`
-	extensions           j2gort.Ext_java_util_Map                             `gson:"extensions"`
-	lineCount            int32                                                `gson:"lineCount"`
+	sources              []string                      `gson:"sources"`
+	sourcesContent       []string                      `gson:"sourcesContent"`
+	names                []string                      `gson:"names"`
+	file                 string                        `gson:"file"`
+	mappings             *SourceMapConsumerV3_Mappings `gson:"mappings"`
+	reverseSourceMapping j2gort.Ext_java_util_Map      `gson:"reverseSourceMapping"`
+	sourceRoot           string                        `gson:"sourceRoot"`
+	extensions           j2gort.Ext_java_util_Map      `gson:"extensions"`
+	lineCount            int32                         `gson:"lineCount"`
 	idHash_              atomic.Int32
 }
 
@@ -285,7 +285,7 @@ func (this_ *SourceMapConsumerV3) GetReverseMapping(originalFile string, line in
 	if this_.reverseSourceMapping == nil {
 		this_.priv_SourceMapConsumerV3_createReverseMapping_21()
 	}
-	var sourceLineToCollectionMap j2gort.Ext_java_util_Map = this_.reverseSourceMapping.Get(originalFile)
+	var sourceLineToCollectionMap j2gort.Ext_java_util_Map = j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.MapGetStr(this_.reverseSourceMapping, originalFile))
 	_ = sourceLineToCollectionMap
 	if sourceLineToCollectionMap == nil {
 		return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Collections_EmptyList())
@@ -375,7 +375,7 @@ func (this_ *SourceMapConsumerV3) priv_SourceMapConsumerV3_getOriginalMappingFor
 
 // Java method: SourceMapConsumerV3.createReverseMapping()
 func (this_ *SourceMapConsumerV3) priv_SourceMapConsumerV3_createReverseMapping_21() {
-	this_.reverseSourceMapping = &j2gort.OrderedMap[string, j2gort.Ext_java_util_Map]{}
+	this_.reverseSourceMapping = j2gort.NewExt_java_util_LinkedHashMap()
 	{
 		var targetLine int32 = int32(0)
 		_ = targetLine
@@ -395,8 +395,19 @@ func (this_ *SourceMapConsumerV3) priv_SourceMapConsumerV3_createReverseMapping_
 					if (sourceFileId != int32(-1)) && (sourceLine != int32(-1)) {
 						var originalFile string = this_.sources[sourceFileId]
 						_ = originalFile
-						var lineToCollectionMap j2gort.Ext_java_util_Map = j2gort.OrderedMapComputeIfAbsentFn(this_.reverseSourceMapping, originalFile, nil, lambdaSingleton_source_map_consumer_v3_1)
-
+						var lineToCollectionMap j2gort.Ext_java_util_Map
+					iifeSwitch_1:
+						switch {
+						default:
+							m_16 := this_.reverseSourceMapping
+							k_17 := originalFile
+							if v_18, ok_19 := j2gort.MapTryGetComputeStr(m_16, k_17); ok_19 {
+								lineToCollectionMap = j2gort.AsIface[j2gort.Ext_java_util_Map](v_18)
+								break iifeSwitch_1
+							}
+							lineToCollectionMap = j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.MapComputeIfAbsentStr(m_16, k_17, lambdaSingleton_source_map_consumer_v3_1))
+							break iifeSwitch_1
+						}
 						_ = lineToCollectionMap
 						if !(lineToCollectionMap.ContainsKey(j2gort.ValueOfInt(sourceLine))) {
 							lineToCollectionMap.Put_2(j2gort.ValueOfInt(sourceLine), j2gort.NewExt_java_util_ArrayList_1_int32(int32(1)))

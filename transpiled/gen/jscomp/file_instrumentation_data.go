@@ -210,7 +210,8 @@ func (this_ *FileInstrumentationData) GetNumBranches(lineNumber int32) int32 {
 	if !numBranchesOk_ {
 		return int32(0)
 	} else {
-		return func() int32 {
+		{
+
 			if !numBranchesOk_ {
 				j2gort.ThrowNPE(
 
@@ -218,7 +219,8 @@ func (this_ *FileInstrumentationData) GetNumBranches(lineNumber int32) int32 {
 				)
 			}
 			return numBranches
-		}()
+		}
+
 	}
 }
 

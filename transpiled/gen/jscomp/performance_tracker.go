@@ -292,11 +292,13 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_recordParsingStop_4304(
 	{
 		r_14 := logStats
 		r_14.astSize = func() int32 {
-			var asgn_12 int32 = func() int32 {
+			var asgn_12 int32
+			{
 				var asgn_13 int32 = NodeUtil_CountAstSize(this_.jsRoot)
 				this_.astSize = asgn_13
-				return asgn_13
-			}()
+				asgn_12 = asgn_13
+			}
+
 			this_.initAstSize = asgn_12
 			return asgn_12
 		}()
@@ -309,7 +311,12 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_recordParsingStop_4304(
 	{
 		r_17 := logStats
 		r_17.size = func() int32 {
-			var asgn_15 int32 = func() int32 { var asgn_16 int32 = estimator.GetCodeSize(); this_.codeSize = asgn_16; return asgn_16 }()
+			var asgn_15 int32
+			{
+				var asgn_16 int32 = estimator.GetCodeSize()
+				this_.codeSize = asgn_16
+				asgn_15 = asgn_16
+			}
 			this_.initCodeSize = asgn_15
 			return asgn_15
 		}()
@@ -318,11 +325,13 @@ func (this_ *PerformanceTracker) priv_PerformanceTracker_recordParsingStop_4304(
 		{
 			r_20 := logStats
 			r_20.gzSize = func() int32 {
-				var asgn_18 int32 = func() int32 {
+				var asgn_18 int32
+				{
 					var asgn_19 int32 = estimator.GetZippedCodeSize()
 					this_.gzCodeSize = asgn_19
-					return asgn_19
-				}()
+					asgn_18 = asgn_19
+				}
+
 				this_.initGzCodeSize = asgn_18
 				return asgn_18
 			}()

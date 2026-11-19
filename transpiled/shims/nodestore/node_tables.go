@@ -363,7 +363,7 @@ func (f *columnField) unregister(first uint32, cols []*NodeColumn) {
 // --- Paged Columns ---
 
 const (
-	columnPageShift = 8
+	columnPageShift = 11
 	columnPageLen   = 1 << columnPageShift
 	columnPageMask  = columnPageLen - 1
 	pagesPerBlock   = blockLen / columnPageLen
@@ -377,27 +377,30 @@ type pagedColumnField [numBlocks]atomic.Pointer[PagedColumn]
 var origNameField pagedColumnField
 
 func (f *pagedColumnField) get(n Node) uint32 {
-	if c := f[uint32(n)>>blockShift].Load(); c != nil {
-		if p := c[(uint32(n)&blockMask)>>columnPageShift].Load(); p != nil {
-			return p[uint32(n)&columnPageMask]
+	if c := f[n>>blockShift].Load(); c != nil {
+		if p := c[(n&blockMask)>>columnPageShift].Load(); p != nil {
+			return p[n&columnPageMask]
 		}
 	}
 	return 0
 }
 
 func (f *pagedColumnField) set(n Node, v uint32) {
-	if c := f[uint32(n)>>blockShift].Load(); c != nil {
-		if p := c[(uint32(n)&blockMask)>>columnPageShift].Load(); p != nil {
-			if v != 0 || p[uint32(n)&columnPageMask] != 0 {
-				p[uint32(n)&columnPageMask] = v
+	f.setFast(n, v, (*pagedColumnField).setSlow)
+}
+
+func (f *pagedColumnField) setFast(n Node, v uint32, slow func(*pagedColumnField, Node, uint32)) {
+	if c := f[n>>blockShift].Load(); c != nil {
+		if p := c[(n&blockMask)>>columnPageShift].Load(); p != nil {
+			if v != 0 || p[n&columnPageMask] != 0 {
+				p[n&columnPageMask] = v
 			}
 			return
 		}
 	}
-	if v == 0 {
-		return
+	if v != 0 {
+		slow(f, n, v)
 	}
-	f.setSlow(n, v)
 }
 
 //go:noinline
@@ -1678,7 +1681,6 @@ func origNameID(n Node, slow func(Node) StringID) StringID {
 	return 0
 }
 
-//go:noinline
 func origNameIDSlow(n Node) StringID {
 	return StringID(origNameField.get(n))
 }

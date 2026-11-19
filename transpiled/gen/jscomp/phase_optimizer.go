@@ -275,13 +275,19 @@ func (this_ *PhaseOptimizer) HasScopeChanged(n pkg_rhino.Node) bool {
 	if !(this_.inLoop) {
 		return true
 	}
-	var timeOfLastRun int32 = func() int32 {
+	var timeOfLastRun int32
+iifeSwitch_1:
+	switch {
+	default:
 		if v_, ok_ := this_.lastRuns.GetOk(this_.currentPass); ok_ {
-			return v_
+			timeOfLastRun = v_
+			break iifeSwitch_1
 		}
 		j2gort.ThrowNPE()
-		return 0
-	}()
+		timeOfLastRun = 0
+		break iifeSwitch_1
+	}
+
 	_ = timeOfLastRun
 	return ((timeOfLastRun == int32(0)) || (n.GetChangeTime() > timeOfLastRun))
 }

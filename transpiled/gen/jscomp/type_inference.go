@@ -1504,7 +1504,11 @@ func (this_ *TypeInference) priv_TypeInference_traverseObjectLiteral_5506(n pkg_
 		var name pkg_rhino.Node = n.GetFirstChild()
 		_ = name
 		for ; name != 0; name = name.GetNext() {
-			spreadOperatorSeen = func() bool { ba_10 := spreadOperatorSeen; bb_11 := name.IsSpread(); return ba_10 || bb_11 }()
+			{
+				ba_10 := spreadOperatorSeen
+				bb_11 := name.IsSpread()
+				spreadOperatorSeen = ba_10 || bb_11
+			}
 			scope = this_.priv_TypeInference_traverseChildren_5525(name, scope)
 		}
 	}
@@ -2497,12 +2501,14 @@ func TypeInference_GetGetPropRootName(n pkg_rhino.Node) string {
 		}
 		var dot int32 = j2gort.JStrIndexOfCp(name, int32(uint16(46)))
 		_ = dot
-		return func() string {
+		{
+
 			if dot < int32(0) {
 				return name
 			}
 			return j2gort.JStrSub(name, int32(0), dot)
-		}()
+		}
+
 	case int32(37) /* Token.THIS */ :
 		return "this"
 	case int32(110) /* Token.SUPER */ :

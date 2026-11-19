@@ -434,7 +434,7 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParams_6545(t *NodeTrave
 	_ = t
 	_ = function
 	_ = jsDoc
-	if (jsDoc != nil) && (jsDoc.GetType() != (pkg_rhino.JSTypeExpression{})) {
+	if (jsDoc != nil) && !(jsDoc.GetType()).IsJavaNil_() {
 		return
 	}
 	var paramCountFromJsDoc int32
@@ -546,14 +546,14 @@ func (this_ *CheckJSDocStyle) priv_CheckJSDocStyle_checkParam_6547(t *NodeTraver
 	if !(nameOptional) {
 		return false
 	}
-	var jsDocOptional bool = ((paramType != (pkg_rhino.JSTypeExpression{})) && paramType.IsOptionalArg())
+	var jsDocOptional bool = (!(paramType).IsJavaNil_() && paramType.IsOptionalArg())
 	_ = jsDocOptional
 	if jsDocOptional {
 		return false
 	}
 	var errorSource pkg_rhino.Node
 	_ = errorSource
-	if paramType != (pkg_rhino.JSTypeExpression{}) {
+	if !(paramType).IsJavaNil_() {
 		errorSource = paramType.GetRoot()
 	} else {
 		errorSource = nodeToCheck

@@ -298,8 +298,12 @@ func SuspendSingleOwnerAlloc() {
 // called by the finishing worker/thread BEFORE signaling completion (e.g. closing
 // Future.done) to the waiting parent goroutine.
 func ResumeSingleOwnerAlloc() {
-	if fastSuspendCount.Add(-1) < 0 {
+	rem := fastSuspendCount.Add(-1)
+	if rem < 0 {
 		panic("nodestore: negative fastSuspendCount")
+	}
+	if rem == 0 {
+		SealActivePoolChunks()
 	}
 }
 

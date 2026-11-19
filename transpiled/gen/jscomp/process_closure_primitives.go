@@ -456,7 +456,7 @@ func (this_ *ProcessClosurePrimitives) priv_ProcessClosurePrimitives_checkPossib
 	}
 	var expr pkg_rhino.JSTypeExpression = info.GetType()
 	_ = expr
-	if expr == (pkg_rhino.JSTypeExpression{}) {
+	if (expr).IsJavaNil_() {
 		return
 	}
 	var n pkg_rhino.Node = expr.GetRoot()

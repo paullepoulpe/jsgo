@@ -199,12 +199,14 @@ func DataFlowAnalysis_PopPooledFlowState() *DataFlowAnalysis_LinearFlowState {
 	staticSyncMu_DataFlowAnalysis.Lock()
 	defer staticSyncMu_DataFlowAnalysis.Unlock()
 	if StaticGet_DataFlowAnalysis_FlowStatePoolSize() > int32(0) {
-		var idx int32 = func() int32 {
+		var idx int32
+		{
 			old_1 := StaticGet_DataFlowAnalysis_FlowStatePoolSize()
 			nw_2 := old_1 - 1
 			StaticSet_DataFlowAnalysis_FlowStatePoolSize(nw_2)
-			return nw_2
-		}()
+			idx = nw_2
+		}
+
 		_ = idx
 		var pooled *DataFlowAnalysis_LinearFlowState = StaticGet_DataFlowAnalysis_FLOW_STATE_POOL()[idx]
 		_ = pooled
@@ -433,43 +435,56 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_flow_2316(node pk
 	var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](node.GetAnnotation())
 	_ = state
 	if this_.forward {
-		var outBefore L = func() L {
+		var outBefore L
+	iifeSwitch_2:
+		switch {
+		default:
 			tv_20 := state.GetOut()
 			if tv_20 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
+						outBefore = any(j2gort.NullString).(L)
+						break iifeSwitch_2
 					}
 					var z_ L
-					return z_
-				}()
+					outBefore = z_
+					break iifeSwitch_2
+				}
+
 			}
-			return j2gort.Cast[L](tv_20)
-		}()
+			outBefore = j2gort.Cast[L](tv_20)
+			break iifeSwitch_2
+		}
+
 		_ = outBefore
 		state.priv_LinearFlowState_setOut_2332(j2gort.ToAny(this_.self_.FlowThrough(node.GetValue(), func() L {
 			tv_21 := state.GetIn()
 			if tv_21 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_21)
 		}())))
 		var changed bool = !(javalang.ObjectsEquals(j2gort.CheckNotNull(j2gort.ToAny(outBefore)), j2gort.ToAny(func() L {
 			tv_22 := state.GetOut()
 			if tv_22 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_22)
 		}())))
@@ -478,13 +493,15 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_flow_2316(node pk
 			var brancher DataFlowAnalysis_FlowBrancher[L] = this_.self_.CreateFlowBrancher(node.GetValue(), func() L {
 				tv_23 := state.GetOut()
 				if tv_23 == nil {
-					return func() L {
+					{
+
 						if _, ok_ := any((*L)(nil)).(*string); ok_ {
 							return any(j2gort.NullString).(L)
 						}
 						var z_ L
 						return z_
-					}()
+					}
+
 				}
 				return j2gort.Cast[L](tv_23)
 			}())
@@ -497,19 +514,28 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_flow_2316(node pk
 				for ; i < outCount; i = i + 1 {
 					var outEdge pkg_graph.DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch] = node.GetOutEdgeAt(i)
 					_ = outEdge
-					var outBranchBefore L = func() L {
+					var outBranchBefore L
+				iifeSwitch_1:
+					switch {
+					default:
 						tv_24 := outEdge.GetAnnotation()
 						if tv_24 == nil {
-							return func() L {
+							{
+
 								if _, ok_ := any((*L)(nil)).(*string); ok_ {
-									return any(j2gort.NullString).(L)
+									outBranchBefore = any(j2gort.NullString).(L)
+									break iifeSwitch_1
 								}
 								var z_ L
-								return z_
-							}()
+								outBranchBefore = z_
+								break iifeSwitch_1
+							}
+
 						}
-						return j2gort.Cast[L](tv_24)
-					}()
+						outBranchBefore = j2gort.Cast[L](tv_24)
+						break iifeSwitch_1
+					}
+
 					_ = outBranchBefore
 					var outBranchAfter L = brancher.BranchFlow(outEdge.GetValue())
 					_ = outBranchAfter
@@ -522,43 +548,56 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_flow_2316(node pk
 		}
 		return changed
 	} else {
-		var inBefore L = func() L {
+		var inBefore L
+	iifeSwitch_3:
+		switch {
+		default:
 			tv_25 := state.GetIn()
 			if tv_25 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
+						inBefore = any(j2gort.NullString).(L)
+						break iifeSwitch_3
 					}
 					var z_ L
-					return z_
-				}()
+					inBefore = z_
+					break iifeSwitch_3
+				}
+
 			}
-			return j2gort.Cast[L](tv_25)
-		}()
+			inBefore = j2gort.Cast[L](tv_25)
+			break iifeSwitch_3
+		}
+
 		_ = inBefore
 		state.priv_LinearFlowState_setIn_2330(j2gort.ToAny(this_.self_.FlowThrough(node.GetValue(), func() L {
 			tv_26 := state.GetOut()
 			if tv_26 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_26)
 		}())))
 		return !(javalang.ObjectsEquals(j2gort.CheckNotNull(j2gort.ToAny(inBefore)), j2gort.ToAny(func() L {
 			tv_27 := state.GetIn()
 			if tv_27 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_27)
 		}())))
@@ -583,13 +622,19 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_joinInputs_2317(n
 	} else {
 		edgeCount = node.GetOutEdgeCount()
 	}
-	var result L = func() L {
+	var result L
+iifeSwitch_4:
+	switch {
+	default:
 		if _, ok_ := any((*L)(nil)).(*string); ok_ {
-			return any(j2gort.NullString).(L)
+			result = any(j2gort.NullString).(L)
+			break iifeSwitch_4
 		}
 		var z_ L
-		return z_
-	}()
+		result = z_
+		break iifeSwitch_4
+	}
+
 	_ = result
 	switch edgeCount {
 	case int32(0):
@@ -634,35 +679,43 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_joinInputs_2317(n
 func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_getInputFromEdge_2318(edge pkg_graph.DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]) L {
 	_ = edge
 	if this_.branched {
-		return func() L {
+		{
+
 			tv_28 := edge.GetAnnotation()
 			if tv_28 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_28)
-		}()
+		}
+
 	} else if this_.forward {
 		var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](edge.GetSource().GetAnnotation())
 		_ = state
-		return func() L {
+		{
+
 			tv_29 := state.GetOut()
 			if tv_29 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_29)
-		}()
+		}
+
 	} else {
 		var node pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = edge.GetDestination()
 		_ = node
@@ -671,19 +724,23 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_getInputFromEdge_
 		}
 		var state_2 *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](node.GetAnnotation())
 		_ = state_2
-		return func() L {
+		{
+
 			tv_30 := state_2.GetIn()
 			if tv_30 == nil {
-				return func() L {
+				{
+
 					if _, ok_ := any((*L)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(L)
 					}
 					var z_ L
 					return z_
-				}()
+				}
+
 			}
 			return j2gort.Cast[L](tv_30)
-		}()
+		}
+
 	}
 }
 
@@ -755,29 +812,35 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_compareWorkNodes_
 	var pb int32 = b.GetPriority()
 	_ = pb
 	if this_.forward {
-		return (func() int32 {
+		{
+
 			if pa < pb {
 				return int32(-1)
 			}
-			return (func() int32 {
+			{
+
 				if pa == pb {
 					return int32(0)
 				}
 				return int32(1)
-			}())
-		}())
+			}
+		}
+
 	} else {
-		return (func() int32 {
+		{
+
 			if pb < pa {
 				return int32(-1)
 			}
-			return (func() int32 {
+			{
+
 				if pb == pa {
 					return int32(0)
 				}
 				return int32(1)
-			}())
-		}())
+			}
+		}
+
 	}
 }
 
@@ -794,7 +857,8 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2
 		var k int32 = this_.workSize
 		_ = k
 		if k == int32(len(elems)) {
-			elems = func() []pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
+			{
+
 				arrSrc_33 := elems
 				arrLen_34 := (int32(len(elems)) * int32(2))
 				j2gort.CheckNotNullSlice(arrSrc_33)
@@ -803,8 +867,9 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2
 				}
 				arrOut_35 := make([]pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], arrLen_34)
 				copy(arrOut_35, arrSrc_33)
-				return arrOut_35
-			}()
+				elems = arrOut_35
+			}
+
 			this_.workElements = elems
 		}
 		this_.workSize = (k + int32(1))
@@ -870,7 +935,13 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_dequeueWorkNode_2
 		var result pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[int32(0)]
 		_ = result
 		result.SetInDfaQueue(false)
-		var n int32 = func() int32 { old_44 := this_.workSize; nw_45 := old_44 - 1; this_.workSize = nw_45; return nw_45 }()
+		var n int32
+		{
+			old_44 := this_.workSize
+			nw_45 := old_44 - 1
+			this_.workSize = nw_45
+			n = nw_45
+		}
 		_ = n
 		var x pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[n]
 		_ = x

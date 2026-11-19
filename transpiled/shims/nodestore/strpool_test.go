@@ -539,6 +539,7 @@ func TestWave30CJoinDotNoStrPoolLeakAndAllocatorInternUnpin(t *testing.T) {
 			}
 		}
 	}()
+	SealActivePoolChunks()
 
 	runtime.GC()
 	runtime.GC()
@@ -1303,4 +1304,202 @@ func TestWave40CInternOwnedZeroCloneAndRewind(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestWave41CStrPoolZeroCloneInternAndUnpin(t *testing.T) {
+	baseSnap := CaptureBaseline()
+	defer RewindBaseline(baseSnap)
+
+	// 1. Verify normal Intern(sub) on unowned substrings does ZERO heap allocations per slot
+	// (no per-string strings.Clone!) and filling a 512-string <64 KiB chunk copies ONCE into slab!
+	const targetShard = uint32(23)
+	sh := &poolShards[targetShard]
+
+	// Advance shard 23 to exact chunk boundary (slot == 0) with ample hash-table headroom.
+	for n := 0; ; n++ {
+		sh.mu.RLock()
+		slot := sh.nextLocalIdx & strpoolChunkMask
+		hasTableHeadroom := len(sh.table) >= 2048 && int(sh.count+600)*4 <= len(sh.table)*3
+		sh.mu.RUnlock()
+		if slot == 0 && hasTableHeadroom {
+			break
+		}
+		cand := fmt.Sprintf("w41c_align_shard23_%06d", n)
+		if uint32(poolHash(cand))&(strpoolNumShards-1) == targetShard {
+			_ = Intern(cand)
+		}
+	}
+
+	// Pre-build a single backing string containing 512 unique 24-byte substrings hashing to shard 23.
+	var chunkSlices [strpoolChunkSize]string
+	{
+		var backing strings.Builder
+		backing.Grow(strpoolChunkSize * 24)
+		found := 0
+		for n := 0; found < strpoolChunkSize; n++ {
+			cand := fmt.Sprintf("w41c_noclone_s23_%07d", n)
+			if uint32(poolHash(cand))&(strpoolNumShards-1) == targetShard {
+				backing.WriteString(cand)
+				found++
+			}
+		}
+		src := backing.String()
+		for i := 0; i < strpoolChunkSize; i++ {
+			chunkSlices[i] = src[i*24 : (i+1)*24]
+		}
+	}
+
+	// Slot 0 allocates newUnsealedPoolChunk (1 alloc).
+	id0 := Intern(chunkSlices[0])
+	if String(id0) != chunkSlices[0] {
+		t.Fatalf("slot 0 mismatch: %q", String(id0))
+	}
+
+	// Slots 1..510 (510 unowned substring misses!) MUST do ZERO heap allocations (0 strings.Clone)!
+	idx := 1
+	midAllocs := testing.AllocsPerRun(500, func() {
+		// AllocsPerRun runs 1 warmup + 500 measured = 501 calls -> slots 1..501!
+		s := chunkSlices[idx]
+		idx++
+		id := Intern(s)
+		if String(id) != s {
+			t.Fatalf("slot %d mismatch", idx-1)
+		}
+	})
+	if midAllocs != 0 {
+		t.Fatalf("expected 0 heap allocs per Intern(unownedSlice) in active chunk, got %v", midAllocs)
+	}
+
+	// Finish slots 502..511 (seals chunk at slot 511 into single noscan slab) with <= 3 allocs total!
+	var mBefore, mAfter runtime.MemStats
+	runtime.ReadMemStats(&mBefore)
+	for ; idx < strpoolChunkSize; idx++ {
+		id := Intern(chunkSlices[idx])
+		if String(id) != chunkSlices[idx] {
+			t.Fatalf("tail slot %d mismatch", idx)
+		}
+	}
+	runtime.ReadMemStats(&mAfter)
+	if tailMallocs := mAfter.Mallocs - mBefore.Mallocs; tailMallocs > 6 {
+		t.Fatalf("expected chunk seal to allocate only poolChunk+slab, got %d mallocs", tailMallocs)
+	}
+
+	// 2. Verify unpinning across:
+	//    (a) partial active chunks via SealActivePoolChunks()
+	//    (b) >64 KiB partial active chunk via SealActivePoolChunks()
+	//    (c) >64 KiB full 512-string unsealable chunk on chunk fill!
+	SealActivePoolChunks()
+	runtime.GC()
+	runtime.GC()
+	var beforePin runtime.MemStats
+	runtime.ReadMemStats(&beforePin)
+
+	var checkIDs []StringID
+	var checkWants []string
+	const bigShard = uint32(29)
+	func() {
+		// (a) 24 partial substrings sliced from 24 * 256 KiB = 6 MiB buffers.
+		for i := 0; i < 24; i++ {
+			big := fmt.Sprintf("w41c_part_%02d_", i) + strings.Repeat("P", 256<<10)
+			sub := big[:13]
+			checkWants = append(checkWants, strings.Clone(sub))
+			checkIDs = append(checkIDs, Intern(sub))
+		}
+		// (b) >64 KiB partial active chunk in bigShard (e.g. 40 * 2 KiB = 80 KiB sliced from 128 KiB buffers).
+		var shardCount int
+		for n := 0; shardCount < 40; n++ {
+			hdr := fmt.Sprintf("w41c_gt64k_%05d_", n) + strings.Repeat("G", 2048)
+			if uint32(poolHash(hdr))&(strpoolNumShards-1) == bigShard {
+				big := hdr + strings.Repeat("Z", 128<<10)
+				sub := big[:len(hdr)]
+				checkWants = append(checkWants, strings.Clone(sub))
+				checkIDs = append(checkIDs, Intern(sub))
+				shardCount++
+			}
+		}
+	}()
+	// SealActivePoolChunks must unpin both normal partial chunks AND >64 KiB partial chunks!
+	SealActivePoolChunks()
+
+	// (c) Now push bigShard past 512 strings (>64 KiB full chunk seal fallback) using slices of 64 KiB buffers!
+	func() {
+		added := 0
+		for n := 0; added < 520; n++ {
+			hdr := fmt.Sprintf("w41c_full64k_%05d_", n) + strings.Repeat("F", 160)
+			if uint32(poolHash(hdr))&(strpoolNumShards-1) == bigShard {
+				big := hdr + strings.Repeat("W", 64<<10)
+				sub := big[:len(hdr)]
+				checkWants = append(checkWants, strings.Clone(sub))
+				checkIDs = append(checkIDs, Intern(sub))
+				added++
+			}
+		}
+	}()
+	SealActivePoolChunks()
+
+	runtime.GC()
+	runtime.GC()
+	var afterPin runtime.MemStats
+	runtime.ReadMemStats(&afterPin)
+	var pinDelta int64
+	if afterPin.HeapAlloc > beforePin.HeapAlloc {
+		pinDelta = int64(afterPin.HeapAlloc - beforePin.HeapAlloc)
+	}
+	// >44 MiB of temporary caller buffers were sliced; live retention must be tiny (< 3 MiB).
+	if pinDelta > 3<<20 {
+		t.Fatalf("caller buffers remained pinned after chunk fill + SealActivePoolChunks: grew %d bytes (%.2f MiB)",
+			pinDelta, float64(pinDelta)/(1<<20))
+	}
+	for i, id := range checkIDs {
+		if got := String(id); got != checkWants[i] {
+			t.Fatalf("checkIDs[%d] String(%d) len=%d, want len=%d", i, id, len(got), len(checkWants[i]))
+		}
+	}
+
+	// 3. Concurrent -race stress: writers (Intern/InternOwned/InternBytes), lock-free String() readers,
+	//    and concurrent SealActivePoolChunks() callers running simultaneously!
+	var wg sync.WaitGroup
+	stopSeal := make(chan struct{})
+	wg.Add(2)
+	for s := 0; s < 2; s++ {
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stopSeal:
+					return
+				default:
+					SealActivePoolChunks()
+					runtime.Gosched()
+				}
+			}
+		}()
+	}
+
+	const workers = 12
+	var workerWG sync.WaitGroup
+	workerWG.Add(workers)
+	for w := 0; w < workers; w++ {
+		w := w
+		go func() {
+			defer workerWG.Done()
+			for i := 0; i < 800; i++ {
+				buf := fmt.Sprintf("w41c_race_%d_%04d_pad", w%4, i)
+				sub := buf[:len(buf)-4]
+				id := Intern(sub)
+				if got := String(id); got != sub {
+					t.Errorf("concurrent String(%d) = %q, want %q", id, got, sub)
+					return
+				}
+				if Lookup(sub) != id {
+					t.Errorf("concurrent Lookup(%q) != %d", sub, id)
+					return
+				}
+			}
+		}()
+	}
+	workerWG.Wait()
+	close(stopSeal)
+	wg.Wait()
+	SealActivePoolChunks()
 }

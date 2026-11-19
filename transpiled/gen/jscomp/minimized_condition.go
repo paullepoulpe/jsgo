@@ -175,7 +175,7 @@ func (this_ *MinimizedCondition) GetMinimized(style MinimizedCondition_Minimizat
 }
 func (this_ *MinimizedCondition) getMinimizedWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode], style MinimizedCondition_MinimizationStyle) *MinimizedCondition_MeasuredNode {
 	_ = style
-	if ((style == StaticGet_MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED()) || this_.positive.node.IsNot()) || (this_.positive.length <= this_.negative.length) {
+	if ((style == StaticGet_MinimizedCondition_MinimizationStyle_PREFER_UNNEGATED()) || this_.positive.IsNot()) || (this_.positive.length <= this_.negative.length) {
 		return this_.positive
 	} else {
 		return this_.negative.addNotWithSlab_(slab_)
@@ -310,20 +310,27 @@ func minimizedConditionComputeWithSlab_(slabMeasured_ *j2gort.PooledSlab[Minimiz
 		_ = negative
 		return allocPooled_MinimizedCondition(slabMeasured_, slabCond_, positive, negative)
 	case int32(69), int32(68):
-		var complementNode pkg_rhino.Node = pkg_rhino.NewNode_1(func() pkg_rhino.Token {
+		var compLazyTok_ pkg_rhino.
+			Token
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if n.IsAnd() {
-				return pkg_rhino.StaticGet_Token_OR()
+				compLazyTok_ = pkg_rhino.StaticGet_Token_OR()
+				break iifeSwitch_1
 			}
-			return pkg_rhino.StaticGet_Token_AND()
-		}()).Srcref(n)
-		_ = complementNode
+			compLazyTok_ = pkg_rhino.StaticGet_Token_AND()
+			break iifeSwitch_1
+		}
+
 		var leftSubtree *MinimizedCondition = minimizedConditionComputeWithSlab_(slabMeasured_, slabCond_, n.GetFirstChild())
 		_ = leftSubtree
 		var rightSubtree *MinimizedCondition = minimizedConditionComputeWithSlab_(slabMeasured_, slabCond_, n.GetLastChild())
 		_ = rightSubtree
 		var posTree *MinimizedCondition_MeasuredNode = minimizedConditionMeasuredNodeAddNode3WithSlab_(slabMeasured_, n, leftSubtree.positive, rightSubtree.positive)
 		_ = posTree
-		var compTree *MinimizedCondition_MeasuredNode = minimizedConditionMeasuredNodeAddNode3WithSlab_(slabMeasured_, complementNode, leftSubtree.negative, rightSubtree.negative)
+		var compTree *MinimizedCondition_MeasuredNode = minimizedConditionMeasuredNodeAddLazyNode3WithSlab_(slabMeasured_, compLazyTok_, n, leftSubtree.negative, rightSubtree.negative)
 		_ = compTree
 		var positive_2 *MinimizedCondition_MeasuredNode = MinimizedCondition_PickBest(posTree, compTree.negateWithSlab_(slabMeasured_))
 		_ = positive_2
@@ -478,14 +485,16 @@ func init() {
 
 // Java class: com.google.javascript.jscomp.MinimizedCondition.MeasuredNode
 type MinimizedCondition_MeasuredNode struct {
-	c0         *MinimizedCondition_MeasuredNode `gson:"c0"`
-	c1         *MinimizedCondition_MeasuredNode `gson:"c1"`
-	c2         *MinimizedCondition_MeasuredNode `gson:"c2"`
-	node       pkg_rhino.Node                   `gson:"node"`
-	length     int32                            `gson:"length"`
-	childCount int32                            `gson:"childCount"`
-	idHash_    atomic.Int32
-	changed    bool `gson:"changed"`
+	c0          *MinimizedCondition_MeasuredNode `gson:"c0"`
+	c1          *MinimizedCondition_MeasuredNode `gson:"c1"`
+	c2          *MinimizedCondition_MeasuredNode `gson:"c2"`
+	node        pkg_rhino.Node                   `gson:"node"`
+	length      int32                            `gson:"length"`
+	childCount  int32                            `gson:"childCount"`
+	idHash_     atomic.Int32
+	changed     bool `gson:"changed"`
+	lazyTok_    pkg_rhino.Token
+	srcrefNode_ pkg_rhino.Node
 }
 
 func (this_ *MinimizedCondition_MeasuredNode) BindSelf_(s any) {
@@ -557,6 +566,18 @@ func allocPooled_MinimizedCondition_MeasuredNode(slab_ *j2gort.PooledSlab[Minimi
 	InitMinimizedCondition_MeasuredNode(this_, n, childCount, c0, c1, c2, len_, ch)
 	return this_
 }
+func allocLazy_MinimizedCondition_MeasuredNode(slab_ *j2gort.
+	PooledSlab[MinimizedCondition_MeasuredNode], tok_ pkg_rhino.Token, srcref_ pkg_rhino.Node, childCount int32, c0 *MinimizedCondition_MeasuredNode, c1 *MinimizedCondition_MeasuredNode, c2 *MinimizedCondition_MeasuredNode, len_ int32, ch bool,
+
+) *MinimizedCondition_MeasuredNode {
+	clinit_MinimizedCondition_MeasuredNode()
+	this_ := slab_.Alloc()
+	InitMinimizedCondition_MeasuredNode(this_, 0, childCount, c0, c1, c2, len_, ch)
+	this_.lazyTok_ = tok_
+	this_.srcrefNode_ = srcref_
+
+	return this_
+}
 
 func InitMinimizedCondition_MeasuredNode(this_ *MinimizedCondition_MeasuredNode, n pkg_rhino.Node, childCount int32, c0 *MinimizedCondition_MeasuredNode, c1 *MinimizedCondition_MeasuredNode, c2 *MinimizedCondition_MeasuredNode, len_ int32, ch bool) {
 	_ = n
@@ -574,6 +595,9 @@ func InitMinimizedCondition_MeasuredNode(this_ *MinimizedCondition_MeasuredNode,
 	this_.c2 = c2
 	this_.length = len_
 	this_.changed = ch
+	this_.lazyTok_ = 0
+	this_.srcrefNode_ = 0
+
 }
 
 // Java method: MeasuredNode.isChanged()
@@ -583,6 +607,10 @@ func (this_ *MinimizedCondition_MeasuredNode) IsChanged() bool {
 
 // Java method: MeasuredNode.isNot()
 func (this_ *MinimizedCondition_MeasuredNode) IsNot() bool {
+	if this_.lazyTok_ != 0 {
+		return this_.lazyTok_ == pkg_rhino.StaticGet_Token_NOT()
+	}
+
 	return this_.node.IsNot()
 }
 
@@ -633,7 +661,13 @@ func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_negate_3874() *M
 	panic("unreachable switch expression")
 }
 func (this_ *MinimizedCondition_MeasuredNode) negateWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode]) *MinimizedCondition_MeasuredNode {
-	switch this_.node.TokenSwitchOrd_() {
+	var ord_ int32
+	if this_.lazyTok_ != 0 {
+		ord_ = int32(this_.lazyTok_) - 1
+	} else {
+		ord_ = this_.node.TokenSwitchOrd_()
+	}
+	switch ord_ {
 	case int32(4):
 		return this_.updateTokenWithSlab_(slab_, pkg_rhino.StaticGet_Token_NE())
 	case int32(5):
@@ -672,22 +706,28 @@ func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_updateToken_3875
 }
 func (this_ *MinimizedCondition_MeasuredNode) updateTokenWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode], token pkg_rhino.Token) *MinimizedCondition_MeasuredNode {
 	_ = token
-	var newNode pkg_rhino.Node = pkg_rhino.NewNode_1(token).Srcref(this_.node)
-	_ = newNode
-	if this_.childCount >= int32(0) {
-		return allocPooled_MinimizedCondition_MeasuredNode(slab_, newNode, this_.childCount, this_.c0, this_.c1, this_.c2, this_.length, true)
+	src_ := this_.node
+	if src_ == 0 {
+		src_ = this_.srcrefNode_
 	}
-	var first pkg_rhino.Node = this_.node.GetFirstChild()
+	if this_.childCount >= int32(0) {
+		return allocLazy_MinimizedCondition_MeasuredNode(slab_, token, src_, this_.childCount, this_.c0, this_.c1, this_.c2, this_.length, true)
+	}
+	var first pkg_rhino.Node
+	if this_.node != 0 {
+		first = this_.node.GetFirstChild()
+	}
+
 	_ = first
 	if first == 0 {
-		return allocPooled_MinimizedCondition_MeasuredNode(slab_, newNode, int32(-1), nil, nil, nil, this_.length, true)
+		return allocLazy_MinimizedCondition_MeasuredNode(slab_, token, src_, int32(-1), nil, nil, nil, this_.length, true)
 	}
 	var second pkg_rhino.Node = first.GetNext()
 	_ = second
 	if !((second != 0) && (second.GetNext() == 0)) {
 		j2gort.CheckState(false)
 	}
-	return allocPooled_MinimizedCondition_MeasuredNode(slab_, newNode, int32(2), minimizedConditionMeasuredNodeForNodeWithSlab_(slab_, first), minimizedConditionMeasuredNodeForNodeWithSlab_(slab_, second), nil, this_.length, true)
+	return allocLazy_MinimizedCondition_MeasuredNode(slab_, token, src_, int32(2), minimizedConditionMeasuredNodeForNodeWithSlab_(slab_, first), minimizedConditionMeasuredNodeForNodeWithSlab_(slab_, second), nil, this_.length, true)
 }
 
 // Java method: MeasuredNode.addNot()
@@ -705,7 +745,12 @@ func (this_ *MinimizedCondition_MeasuredNode) addNotWithSlab_(slab_ *j2gort.Pool
 	if this_.IsLowerPrecedenceThan(StaticGet_MinimizedCondition_MeasuredNode_NOT_PRECEDENCE()) {
 		cost = (cost + int32(2))
 	}
-	return allocPooled_MinimizedCondition_MeasuredNode(slab_, pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_NOT()).Srcref(this_.node), int32(1), this_, nil, nil, cost, true)
+	src_ := this_.node
+	if src_ == 0 {
+		src_ = this_.srcrefNode_
+	}
+
+	return allocLazy_MinimizedCondition_MeasuredNode(slab_, pkg_rhino.StaticGet_Token_NOT(), src_, int32(1), this_, nil, nil, cost, true)
 }
 
 // Java method: MeasuredNode.change()
@@ -719,14 +764,20 @@ func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_change_3877() *M
 func (this_ *MinimizedCondition_MeasuredNode) changeWithSlab_(slab_ *j2gort.PooledSlab[MinimizedCondition_MeasuredNode]) *MinimizedCondition_MeasuredNode {
 	if this_.IsChanged() {
 		return this_
-	} else {
-		return allocPooled_MinimizedCondition_MeasuredNode(slab_, this_.node, this_.childCount, this_.c0, this_.c1, this_.c2, this_.length, true)
 	}
+	if this_.lazyTok_ != 0 {
+		return allocLazy_MinimizedCondition_MeasuredNode(slab_, this_.lazyTok_, this_.srcrefNode_, this_.childCount, this_.c0, this_.c1, this_.c2, this_.length, true)
+	}
+	return allocPooled_MinimizedCondition_MeasuredNode(slab_, this_.node, this_.childCount, this_.c0, this_.c1, this_.c2, this_.length, true)
 }
 
 // Java method: MeasuredNode.isLowerPrecedenceThan(int precedence)
 func (this_ *MinimizedCondition_MeasuredNode) IsLowerPrecedenceThan(precedence int32) bool {
 	_ = precedence
+	if this_.lazyTok_ != 0 {
+		return NodeUtil_Precedence(this_.lazyTok_) < precedence
+	}
+
 	return (NodeUtil_Precedence(this_.node.GetToken()) < precedence)
 }
 
@@ -804,6 +855,29 @@ func minimizedConditionMeasuredNodeAddNode3WithSlab_(slab_ *j2gort.PooledSlab[Mi
 		cost = (cost + int32(2))
 	}
 	return allocPooled_MinimizedCondition_MeasuredNode(slab_, parent, int32(2), child0, child1, nil, cost, (child0.changed || child1.changed))
+}
+func minimizedConditionMeasuredNodeAddLazyNode3WithSlab_(slab_ *j2gort.
+	PooledSlab[MinimizedCondition_MeasuredNode], compTok_ pkg_rhino.Token, srcref_ pkg_rhino.Node, child0 *MinimizedCondition_MeasuredNode, child1 *MinimizedCondition_MeasuredNode,
+
+) *MinimizedCondition_MeasuredNode {
+	clinit_MinimizedCondition_MeasuredNode()
+
+	_ = child0
+	_ = child1
+	var cost int32 = (child0.length + child1.length)
+	_ = cost
+	if compTok_ == pkg_rhino.StaticGet_Token_NOT() {
+		cost = cost + 1
+	}
+	var parentPrecedence int32 = NodeUtil_Precedence(compTok_)
+	_ = parentPrecedence
+	if child0.IsLowerPrecedenceThan(parentPrecedence) {
+		cost = (cost + int32(2))
+	}
+	if child1.IsLowerPrecedenceThan(parentPrecedence) {
+		cost = (cost + int32(2))
+	}
+	return allocLazy_MinimizedCondition_MeasuredNode(slab_, compTok_, srcref_, int32(2), child0, child1, nil, cost, (child0.changed || child1.changed))
 }
 
 // Java static method: MeasuredNode.addNode(com.google.javascript.rhino.Node parent, com.google.javascript.jscomp.MinimizedCondition.MeasuredNode child0, com.google.javascript.jscomp.MinimizedCondition.MeasuredNode child1, com.google.javascript.jscomp.MinimizedCondition.MeasuredNode child2)
@@ -903,6 +977,11 @@ func (this_ *MinimizedCondition_MeasuredNode) priv_MeasuredNode_safeDetach_3881(
 
 // Java method: MeasuredNode.buildReplacement()
 func (this_ *MinimizedCondition_MeasuredNode) BuildReplacement() pkg_rhino.Node {
+	if this_.node == 0 && this_.lazyTok_ != 0 {
+		this_.node = pkg_rhino.NewNode_1(this_.lazyTok_).Srcref(this_.srcrefNode_)
+		this_.lazyTok_ = 0
+	}
+
 	if this_.childCount >= int32(0) {
 		this_.node.DetachChildren()
 		if this_.childCount >= int32(1) {

@@ -26,9 +26,9 @@ import (
 
 // Java class: com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo
 type ClassOrObjectElementInfo struct {
-	start         SourcePosition `gson:"start"`
 	name          Token          `gson:"name"`
 	nameExpr      ParseTree      `gson:"nameExpr"`
+	start         SourcePosition `gson:"start"`
 	idHash_       atomic.Int32
 	isClassMember bool `gson:"isClassMember"`
 	isStatic      bool `gson:"isStatic"`
@@ -102,12 +102,12 @@ func (this_ *ClassOrObjectElementInfo) SetName(name Token) {
 
 // Java method: ClassOrObjectElementInfo.hasName()
 func (this_ *ClassOrObjectElementInfo) HasName() bool {
-	return (this_.name != (Token{}))
+	return !(this_.name).IsJavaNil_()
 }
 
 // Java method: ClassOrObjectElementInfo.getName()
 func (this_ *ClassOrObjectElementInfo) GetName() Token {
-	if this_.name == (Token{}) {
+	if (this_.name).IsJavaNil_() {
 		panic(j2gort.AsIface[javalang.INullPointerException](j2gort.ConstructShimThrowable("java.lang.NullPointerException")))
 	}
 	return this_.name
@@ -116,7 +116,7 @@ func (this_ *ClassOrObjectElementInfo) GetName() Token {
 // Java method: ClassOrObjectElementInfo.setNameExpr(com.google.javascript.jscomp.parsing.parser.trees.ParseTree nameExpr)
 func (this_ *ClassOrObjectElementInfo) SetNameExpr(nameExpr ParseTree) {
 	_ = nameExpr
-	if !(this_.name == (Token{})) {
+	if !((this_.name).IsJavaNil_()) {
 		j2gort.CheckState(false)
 	}
 	this_.nameExpr = nameExpr

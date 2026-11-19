@@ -23,7 +23,6 @@ import (
 
 // Java class: com.google.javascript.jscomp.parsing.parser.util.SourcePosition
 type SourcePosition struct {
-	source *SourceFile `gson:"source"`
 	offset int32 `gson:"offset"`
 	line int32 `gson:"line"`
 	column int32 `gson:"column"`
@@ -37,7 +36,6 @@ func (SourcePosition) JavaClassInfo_() (string, string) { return "com.google.jav
 func (SourcePosition) HasIdentityEquals_() {}
 func (this_ SourcePosition) IdentityHash_() int32 {
 	var h_ int32 = 1
-	{ hp_1 := this_.source; h_ = 31 * h_; if hp_1 != nil { h_ += j2gort.IdentityHash(hp_1) } }
 	h_ = 31*h_ + (this_.offset)
 	h_ = 31*h_ + (this_.line)
 	h_ = 31*h_ + (this_.column)
@@ -49,7 +47,6 @@ func init() {
 		return j2gort.InstanceOf[SourcePosition](v_)
 	})
 }
-func (this_ SourcePosition) FieldGet_source() *SourceFile { return this_.source }
 func (this_ SourcePosition) FieldGet_offset() int32 { return this_.offset }
 func (this_ SourcePosition) FieldGet_line() int32 { return this_.line }
 func (this_ SourcePosition) FieldGet_column() int32 { return this_.column }
@@ -58,7 +55,7 @@ func (this_ *SourcePosition) initFields_SourcePosition() {
 	_ = this_
 }
 
-// Java constructor: SourcePosition(com.google.javascript.jscomp.parsing.parser.SourceFile source, int offset, int line, int column)
+// Java constructor: SourcePosition(com.google.javascript.jscomp.parsing.parser.@org.jspecify.annotations.Nullable SourceFile source, int offset, int line, int column)
 func NewSourcePosition(source *SourceFile, offset int32, line int32, column int32) SourcePosition {
 	this_ := SourcePosition{}
 	InitSourcePosition(&this_, source, offset, line, column)
@@ -71,7 +68,6 @@ func InitSourcePosition(this_ *SourcePosition, source *SourceFile, offset int32,
 	_ = line
 	_ = column
 	this_.initFields_SourcePosition()
-	this_.source = source
 	this_.offset = offset
 	this_.line = line
 	this_.column = column
@@ -84,14 +80,6 @@ func (this_ SourcePosition) GetOffset() int32 {
 
 // Java method: SourcePosition.toString()
 func (this_ SourcePosition) String() string {
-	return j2gort.Ext_java_lang_String_Format_2("%s(%d, %d)", []any{j2gort.BoxString(this_.priv_SourcePosition_shortSourceName_7642()), j2gort.ValueOfInt((this_.line + int32(1))), j2gort.ValueOfInt((this_.column + int32(1)))})
-}
-
-// Java method: SourcePosition.shortSourceName()
-func (this_ SourcePosition) priv_SourcePosition_shortSourceName_7642() string {
-	if ((this_.source == nil)) {
-		return ""
-	}
-	return j2gort.CastString(j2gort.Ext_com_google_common_collect_Iterables_GetLast_1(j2gort.SplitterSplitStr(j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(47)), this_.source.name)))
+	return ("(" + j2gort.StrValInt32((this_.line + int32(1))) + ", " + j2gort.StrValInt32((this_.column + int32(1))) + ")")
 }
 

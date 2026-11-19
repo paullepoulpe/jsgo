@@ -28,7 +28,7 @@ import (
 // Java class: com.google.javascript.jscomp.J2clEqualitySameRewriterPass
 type J2clEqualitySameRewriterPass struct {
 	AbstractPeepholeOptimizationBase
-	useTypes bool `gson:"useTypes"`
+	useTypes            bool `gson:"useTypes"`
 	shouldRunJ2clPasses bool `gson:"shouldRunJ2clPasses"`
 }
 
@@ -37,7 +37,9 @@ func (this_ *J2clEqualitySameRewriterPass) BindSelf_(s any) {
 	this_.AbstractPeepholeOptimizationBase.BindSelf_(s)
 }
 func (this_ *J2clEqualitySameRewriterPass) IsJavaNil_() bool { return this_ == nil }
-func (*J2clEqualitySameRewriterPass) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.J2clEqualitySameRewriterPass", "J2clEqualitySameRewriterPass" }
+func (*J2clEqualitySameRewriterPass) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.J2clEqualitySameRewriterPass", "J2clEqualitySameRewriterPass"
+}
 func (this_ *J2clEqualitySameRewriterPass) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -81,20 +83,20 @@ func (this_ *J2clEqualitySameRewriterPass) BeginTraversal(compiler AbstractCompi
 // Java method: J2clEqualitySameRewriterPass.optimizeSubtree(com.google.javascript.rhino.Node node)
 func (this_ *J2clEqualitySameRewriterPass) OptimizeSubtree(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
-	if (!(this_.shouldRunJ2clPasses)) {
+	if !(this_.shouldRunJ2clPasses) {
 		return node
 	}
-	if (!(node.HasXChildren(int32(3)))) {
+	if !(node.HasXChildren(int32(3))) {
 		return node
 	}
 	var replacement pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = replacement
-	if (J2clEqualitySameRewriterPass_IsStringEqualsMethod(node)) {
+	if J2clEqualitySameRewriterPass_IsStringEqualsMethod(node) {
 		replacement = this_.priv_J2clEqualitySameRewriterPass_trySubstituteStringEquals_3471(node)
-	} else if (J2clEqualitySameRewriterPass_IsEqualitySameCall(node)) {
+	} else if J2clEqualitySameRewriterPass_IsEqualitySameCall(node) {
 		replacement = this_.priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3472(node)
 	}
-	if ((replacement == 0)) {
+	if replacement == 0 {
 		return node
 	}
 	replacement.SrcrefIfMissing(node)
@@ -108,7 +110,7 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_try
 	_ = callNode
 	var firstExprValue J2clEqualitySameRewriterPass_NodeValue = J2clEqualitySameRewriterPass_GetKnownLiteralValue(callNode.GetSecondChild())
 	_ = firstExprValue
-	if (((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()) || (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED()))) {
+	if (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()) || (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED()) {
 		return pkg_rhino.Node(0)
 	}
 	return this_.priv_J2clEqualitySameRewriterPass_trySubstituteEqualitySame_3472(callNode)
@@ -125,19 +127,21 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_try
 	_ = secondExpr
 	var secondExprValue J2clEqualitySameRewriterPass_NodeValue = J2clEqualitySameRewriterPass_GetKnownLiteralValue(secondExpr)
 	_ = secondExprValue
-	if (((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()) && (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()))) {
+	if (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()) && (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()) {
 		return pkg_rhino.Node(0)
 	}
-	if ((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED())) {
+	if firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED() {
 		return this_.priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3473(secondExpr, firstExpr)
 	}
-	if ((secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED())) {
+	if secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED() {
 		return this_.priv_J2clEqualitySameRewriterPass_rewriteNullCheck_3473(firstExpr, secondExpr)
 	}
-	if (((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()) || (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()))) {
+	if (firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()) || (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()) {
 		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3475(firstExpr, secondExpr)
 	}
-	if !(((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER()) || (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER()))) { j2gort.CheckState(false) }
+	if !((firstExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER()) || (secondExprValue == StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER())) {
+		j2gort.CheckState(false)
+	}
 	return this_.priv_J2clEqualitySameRewriterPass_rewriteNumberCheck_3476(firstExpr, secondExpr)
 }
 
@@ -147,7 +151,7 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rew
 	_ = nullExpression
 	expr.Detach()
 	nullExpression.Detach()
-	if ((this_.useTypes && this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3474(expr))) {
+	if this_.useTypes && this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3474(expr) {
 		return pkg_rhino.IR_Not(expr)
 	}
 	return pkg_rhino.IR_Eq(expr, nullExpression)
@@ -158,10 +162,10 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_can
 	_ = n
 	var color *pkg_colors.Color = n.GetColor()
 	_ = color
-	if ((color == nil)) {
+	if color == nil {
 		return false
 	}
-	if (color.IsUnion()) {
+	if color.IsUnion() {
 		color = color.SubtractNullOrVoid()
 	}
 	return (((!(color.IsUnion()) && !(color.IsPrimitive())) && !(color.Equals(j2gort.PtrToAny(pkg_colors.StaticGet_StandardColors_UNKNOWN())))) && !(color.Equals(j2gort.PtrToAny(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()))))
@@ -184,15 +188,15 @@ func (this_ *J2clEqualitySameRewriterPass) priv_J2clEqualitySameRewriterPass_rew
 	_ = firstValue
 	var secondValue *j2gort.BoxDouble = NodeUtil_GetNumberValue(secondExpr)
 	_ = secondValue
-	if (((firstValue != nil) && (secondValue != nil))) {
+	if (firstValue != nil) && (secondValue != nil) {
 		firstExpr.Detach()
 		secondExpr.Detach()
 		return NodeUtil_BooleanNode(firstValue.Equals(j2gort.PtrToAny(secondValue)))
 	}
-	if ((J2clEqualitySameRewriterPass_IsSafeNumber(firstValue) || J2clEqualitySameRewriterPass_IsSafeNumber(secondValue))) {
+	if J2clEqualitySameRewriterPass_IsSafeNumber(firstValue) || J2clEqualitySameRewriterPass_IsSafeNumber(secondValue) {
 		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3475(firstExpr, secondExpr)
 	}
-	if ((this_.useTypes && ((this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3474(firstExpr) || this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3474(secondExpr))))) {
+	if this_.useTypes && (this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3474(firstExpr) || this_.priv_J2clEqualitySameRewriterPass_canOnlyBeObject_3474(secondExpr)) {
 		return this_.priv_J2clEqualitySameRewriterPass_rewriteAsStrictEq_3475(firstExpr, secondExpr)
 	}
 	return pkg_rhino.Node(0)
@@ -208,15 +212,20 @@ func J2clEqualitySameRewriterPass_IsSafeNumber(d *j2gort.BoxDouble) bool {
 func J2clEqualitySameRewriterPass_GetKnownLiteralValue(n pkg_rhino.Node) J2clEqualitySameRewriterPass_NodeValue {
 	_ = n
 	switch (NodeUtil_GetKnownValueType(n)).Ordinal() {
-	case int32(2) /* ValueType.VOID */:
-		return func() J2clEqualitySameRewriterPass_NodeValue { if NodeUtil_CanBeSideEffected_1(n) { return StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN() }; return StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED() }()
-	case int32(1) /* ValueType.NULL */:
+	case int32(2) /* ValueType.VOID */ :
+		{
+			if NodeUtil_CanBeSideEffected_1(n) {
+				return StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()
+			}
+			return StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED()
+		}
+	case int32(1) /* ValueType.NULL */ :
 		return StaticGet_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED()
-	case int32(5) /* ValueType.STRING */, int32(6) /* ValueType.BOOLEAN */, int32(7) /* ValueType.OBJECT */, int32(4) /* ValueType.BIGINT */:
+	case int32(5) /* ValueType.STRING */, int32(6) /* ValueType.BOOLEAN */, int32(7) /* ValueType.OBJECT */, int32(4) /* ValueType.BIGINT */ :
 		return StaticGet_J2clEqualitySameRewriterPass_NodeValue_NON_NULL()
-	case int32(3) /* ValueType.NUMBER */:
+	case int32(3) /* ValueType.NUMBER */ :
 		return StaticGet_J2clEqualitySameRewriterPass_NodeValue_NUMBER()
-	case int32(0) /* ValueType.UNDETERMINED */:
+	case int32(0) /* ValueType.UNDETERMINED */ :
 		return StaticGet_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN()
 	}
 	panic("unreachable switch expression")
@@ -239,7 +248,7 @@ func J2clEqualitySameRewriterPass_HasName(fnName pkg_rhino.Node, className strin
 	_ = fnName
 	_ = className
 	_ = methodName
-	if (!(fnName.IsQualifiedName())) {
+	if !(fnName.IsQualifiedName()) {
 		return false
 	}
 	var originalQname string = fnName.GetOriginalQualifiedName()
@@ -251,10 +260,10 @@ func J2clEqualitySameRewriterPass_HasName(fnName pkg_rhino.Node, className strin
 type J2clEqualitySameRewriterPass_NodeValue uint8
 
 const (
-	enum_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN J2clEqualitySameRewriterPass_NodeValue = 1
+	enum_J2clEqualitySameRewriterPass_NodeValue_UNKNOWN           J2clEqualitySameRewriterPass_NodeValue = 1
 	enum_J2clEqualitySameRewriterPass_NodeValue_NULL_OR_UNDEFINED J2clEqualitySameRewriterPass_NodeValue = 2
-	enum_J2clEqualitySameRewriterPass_NodeValue_NUMBER J2clEqualitySameRewriterPass_NodeValue = 3
-	enum_J2clEqualitySameRewriterPass_NodeValue_NON_NULL J2clEqualitySameRewriterPass_NodeValue = 4
+	enum_J2clEqualitySameRewriterPass_NodeValue_NUMBER            J2clEqualitySameRewriterPass_NodeValue = 3
+	enum_J2clEqualitySameRewriterPass_NodeValue_NON_NULL          J2clEqualitySameRewriterPass_NodeValue = 4
 )
 
 var enumBaseTable_J2clEqualitySameRewriterPass_NodeValue = [...]j2gort.EnumBase{
@@ -294,12 +303,16 @@ func J2clEqualitySameRewriterPass_NodeValue_ValueOf(name string) J2clEqualitySam
 	panic(javalang.NewIllegalArgumentException("No enum constant com.google.javascript.jscomp.J2clEqualitySameRewriterPass.NodeValue." + name))
 }
 
-func (this_ J2clEqualitySameRewriterPass_NodeValue) IsJavaNil_() bool { return this_ == 0 }
-func (J2clEqualitySameRewriterPass_NodeValue) HasIdentityEquals_() {}
-func (J2clEqualitySameRewriterPass_NodeValue) Implements_j2gort_Ext_java_lang_Enum() {}
+func (this_ J2clEqualitySameRewriterPass_NodeValue) IsJavaNil_() bool                              { return this_ == 0 }
+func (J2clEqualitySameRewriterPass_NodeValue) HasIdentityEquals_()                                 {}
+func (J2clEqualitySameRewriterPass_NodeValue) Implements_j2gort_Ext_java_lang_Enum()               {}
 func (J2clEqualitySameRewriterPass_NodeValue) Implements_j2gort_Ext_java_lang_constant_Constable() {}
-func (this_ J2clEqualitySameRewriterPass_NodeValue) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase { return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()} }
-func (J2clEqualitySameRewriterPass_NodeValue) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.J2clEqualitySameRewriterPass$NodeValue", "NodeValue" }
+func (this_ J2clEqualitySameRewriterPass_NodeValue) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase {
+	return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()}
+}
+func (J2clEqualitySameRewriterPass_NodeValue) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.J2clEqualitySameRewriterPass$NodeValue", "NodeValue"
+}
 func (this_ J2clEqualitySameRewriterPass_NodeValue) GetEnumBase() *j2gort.EnumBase {
 	if this_ == 0 {
 		return nil
@@ -358,4 +371,3 @@ func init() {
 		return j2gort.InstanceOf[J2clEqualitySameRewriterPass_NodeValue](v_)
 	})
 }
-

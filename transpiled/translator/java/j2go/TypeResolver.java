@@ -5,12 +5,14 @@ import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.ConditionalExpressionTree;
 import com.sun.source.tree.DoWhileLoopTree;
 import com.sun.source.tree.EnhancedForLoopTree;
 import com.sun.source.tree.ExpressionStatementTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.ForLoopTree;
 import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.IfTree;
 import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberReferenceTree;
@@ -22,6 +24,7 @@ import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.ReturnTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.SynchronizedTree;
+import com.sun.source.tree.ThrowTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
@@ -231,6 +234,7 @@ public final class TypeResolver {
   private final Set<VariableElement> crossPkgReadFields = new LinkedHashSet<>();
   private final Set<VariableElement> crossPkgWriteFields = new LinkedHashSet<>();
   private final Map<VariableElement, String> fieldGoNames = new LinkedHashMap<>();
+  private final Map<TypeElement, String> valueStructEnumSentinelFields = new HashMap<>();
 
   // Constructor and method Go names / unified virtual slots
   private final Map<ExecutableElement, String> constructorGoNames = new LinkedHashMap<>();
@@ -345,6 +349,25 @@ public final class TypeResolver {
   public boolean hasValueStructValidFlag(TypeElement te) {
     return isNullableValueStructClass(te)
         && VALID_FLAG_VALUE_STRUCT_QUAL_NAMES.contains(te.getQualifiedName().toString());
+  }
+
+  public String getValueStructEnumSentinelFieldGoName(TypeElement te) {
+    return te != null ? valueStructEnumSentinelFields.get(te) : null;
+  }
+
+  public boolean hasValueStructSentinelNilCheck(TypeElement te) {
+    return hasValueStructValidFlag(te) || getValueStructEnumSentinelFieldGoName(te) != null;
+  }
+
+  public boolean hasValueStructSentinelNilCheck(TypeMirror tm) {
+    if (tm == null) {
+      return false;
+    }
+    TypeMirror er = safeErasure(tm);
+    if (er instanceof DeclaredType dt && dt.asElement() instanceof TypeElement te) {
+      return hasValueStructSentinelNilCheck(te);
+    }
+    return false;
   }
 
   public boolean isByteStringClass(TypeElement te) {
@@ -2077,6 +2100,7 @@ public final class TypeResolver {
 
     // Step 3: Assign field Go names, disambiguating shadowed fields across inheritance
     computeFieldNames();
+    computeValueStructEnumSentinels();
 
     // Step 4: Assign constructor, static method, and Union-Find virtual method signatures
     computeExecutableSignatures();
@@ -3625,6 +3649,182 @@ public final class TypeResolver {
         }
       }
     }
+  }
+
+  private void computeValueStructEnumSentinels() {
+    for (TypeElement te : planner.getAllSourceTypes()) {
+      if (!isNullableValueStructClass(te) || hasValueStructValidFlag(te)) {
+        continue;
+      }
+      ClassTree ct = typeElementClassTrees.get(te);
+      TreePath ctPath = trees.getPath(te);
+      if (ct == null || ctPath == null) {
+        continue;
+      }
+      List<MethodTree> ctors = new ArrayList<>();
+      Map<VariableElement, VariableTree> fieldTrees = new LinkedHashMap<>();
+      for (Tree member : ct.getMembers()) {
+        if (member instanceof MethodTree mt
+            && (mt.getReturnType() == null || mt.getName().contentEquals("<init>"))) {
+          ctors.add(mt);
+        } else if (member instanceof VariableTree vt) {
+          Element el = trees.getElement(new TreePath(ctPath, vt));
+          if (el instanceof VariableElement ve
+              && ve.getKind() == ElementKind.FIELD
+              && !ve.getModifiers().contains(Modifier.STATIC)) {
+            fieldTrees.put(ve, vt);
+          }
+        }
+      }
+      for (Map.Entry<VariableElement, VariableTree> entry : fieldTrees.entrySet()) {
+        VariableElement ve = entry.getKey();
+        VariableTree vt = entry.getValue();
+        if (!ve.getModifiers().contains(Modifier.FINAL) || !isValueEnumType(ve.asType())) {
+          continue;
+        }
+        boolean guaranteedNonNull = false;
+        if (vt.getInitializer() != null) {
+          TreePath initPath =
+              new TreePath(new TreePath(ctPath, vt), vt.getInitializer());
+          guaranteedNonNull = isGuaranteedNonNullEnumExpr(initPath, Set.of());
+        } else if (!ctors.isEmpty()) {
+          guaranteedNonNull = true;
+          for (MethodTree ctorMt : ctors) {
+            if (!ctorGuaranteesNonNullEnumField(new TreePath(ctPath, ctorMt), ctorMt, ve)) {
+              guaranteedNonNull = false;
+              break;
+            }
+          }
+        }
+        if (guaranteedNonNull) {
+          valueStructEnumSentinelFields.put(te, getFieldGoName(ve));
+          break;
+        }
+      }
+    }
+  }
+
+  private boolean ctorGuaranteesNonNullEnumField(
+      TreePath mtPath, MethodTree mt, VariableElement targetField) {
+    if (mt.getBody() == null) {
+      return false;
+    }
+    List<? extends StatementTree> stmts = mt.getBody().getStatements();
+    if (stmts.isEmpty()) {
+      return false;
+    }
+    TreePath bodyPath = new TreePath(mtPath, mt.getBody());
+    if (stmts.get(0) instanceof ExpressionStatementTree est0
+        && est0.getExpression() instanceof MethodInvocationTree call0
+        && call0.getMethodSelect() instanceof IdentifierTree id0
+        && id0.getName().contentEquals("this")) {
+      return true;
+    }
+    Set<Element> nullCheckedVars = new HashSet<>();
+    for (StatementTree st : stmts) {
+      TreePath stPath = new TreePath(bodyPath, st);
+      if (st instanceof ExpressionStatementTree est) {
+        TreePath exprPath = unwrapParensTreePath(new TreePath(stPath, est.getExpression()));
+        Tree expr = exprPath.getLeaf();
+        if (expr instanceof AssignmentTree at && at.getKind() == Tree.Kind.ASSIGNMENT) {
+          TreePath lhsPath = unwrapParensTreePath(new TreePath(exprPath, at.getVariable()));
+          if (targetField.equals(trees.getElement(lhsPath))) {
+            TreePath rhsPath = unwrapParensTreePath(new TreePath(exprPath, at.getExpression()));
+            return isGuaranteedNonNullEnumExpr(rhsPath, nullCheckedVars);
+          }
+        } else if (expr instanceof MethodInvocationTree mit
+            && isStaticNullCheckCall(exprPath)
+            && !mit.getArguments().isEmpty()) {
+          TreePath arg0Path = unwrapParensTreePath(new TreePath(exprPath, mit.getArguments().get(0)));
+          Element argEl = trees.getElement(arg0Path);
+          if (argEl != null) {
+            nullCheckedVars.add(argEl);
+          }
+        }
+      } else if (st instanceof IfTree ift && ift.getElseStatement() == null) {
+        Element guarded = extractIfNullThrowVar(stPath, ift);
+        if (guarded != null) {
+          nullCheckedVars.add(guarded);
+        }
+      }
+    }
+    return false;
+  }
+
+  private boolean isGuaranteedNonNullEnumExpr(
+      TreePath exprPath, Set<Element> nullCheckedVars) {
+    exprPath = unwrapParensTreePath(exprPath);
+    Tree leaf = exprPath.getLeaf();
+    Element el = trees.getElement(exprPath);
+    if (el instanceof VariableElement ve) {
+      if (ve.getKind() == ElementKind.ENUM_CONSTANT) {
+        return true;
+      }
+      if ((ve.getKind() == ElementKind.PARAMETER || ve.getKind() == ElementKind.LOCAL_VARIABLE)
+          && ve.getModifiers().contains(Modifier.FINAL)
+          && nullCheckedVars.contains(ve)) {
+        return true;
+      }
+      if (ve.getKind() == ElementKind.PARAMETER && nullCheckedVars.contains(ve)) {
+        return true;
+      }
+    }
+    if (leaf instanceof MethodInvocationTree && isStaticNullCheckCall(exprPath)) {
+      return true;
+    }
+    if (leaf instanceof ConditionalExpressionTree cet) {
+      return isGuaranteedNonNullEnumExpr(
+              new TreePath(exprPath, cet.getTrueExpression()), nullCheckedVars)
+          && isGuaranteedNonNullEnumExpr(
+              new TreePath(exprPath, cet.getFalseExpression()), nullCheckedVars);
+    }
+    return false;
+  }
+
+  private boolean isStaticNullCheckCall(TreePath callPath) {
+    Element el = trees.getElement(callPath);
+    if (el instanceof ExecutableElement ee
+        && ee.getModifiers().contains(Modifier.STATIC)
+        && !ee.getParameters().isEmpty()
+        && ee.getEnclosingElement() instanceof TypeElement owner) {
+      String oqn = owner.getQualifiedName().toString();
+      String mn = ee.getSimpleName().toString();
+      return (oqn.equals("com.google.common.base.Preconditions") && mn.equals("checkNotNull"))
+          || (oqn.equals("java.util.Objects") && mn.equals("requireNonNull"));
+    }
+    return false;
+  }
+
+  private Element extractIfNullThrowVar(TreePath ifPath, IfTree ift) {
+    StatementTree thenSt = ift.getThenStatement();
+    boolean throwsAlways = thenSt instanceof ThrowTree;
+    if (!throwsAlways && thenSt instanceof BlockTree bt && !bt.getStatements().isEmpty()) {
+      throwsAlways = bt.getStatements().get(0) instanceof ThrowTree;
+    }
+    if (!throwsAlways) {
+      return null;
+    }
+    TreePath condPath = unwrapParensTreePath(new TreePath(ifPath, ift.getCondition()));
+    if (!(condPath.getLeaf() instanceof BinaryTree bin) || bin.getKind() != Tree.Kind.EQUAL_TO) {
+      return null;
+    }
+    TreePath lp = unwrapParensTreePath(new TreePath(condPath, bin.getLeftOperand()));
+    TreePath rp = unwrapParensTreePath(new TreePath(condPath, bin.getRightOperand()));
+    TreePath varPath =
+        rp.getLeaf().getKind() == Tree.Kind.NULL_LITERAL
+            ? lp
+            : (lp.getLeaf().getKind() == Tree.Kind.NULL_LITERAL ? rp : null);
+    if (varPath == null || !(varPath.getLeaf() instanceof IdentifierTree)) {
+      return null;
+    }
+    return trees.getElement(varPath);
+  }
+
+  private static TreePath unwrapParensTreePath(TreePath tp) {
+    while (tp != null && tp.getLeaf() instanceof ParenthesizedTree pt) {
+      tp = new TreePath(tp, pt.getExpression());
+    }
+    return tp;
   }
 
   private void computeExecutableSignatures() {

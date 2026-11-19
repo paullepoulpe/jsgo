@@ -380,7 +380,7 @@ func (this_ *CheckMissingRequires) priv_CheckMissingRequires_visitJsDocInfo_1088
 		for ; i < paramCount; i = i + 1 {
 			var paramType pkg_rhino.JSTypeExpression = info.GetParameterTypeAt(i)
 			_ = paramType
-			if paramType != (pkg_rhino.JSTypeExpression{}) {
+			if !(paramType).IsJavaNil_() {
 				this_.priv_CheckMissingRequires_visitJsDocExpr_1089(t, currentModule, paramType, StaticGet_CheckMissingRequires_Strength_WEAK_TYPE())
 			}
 		}

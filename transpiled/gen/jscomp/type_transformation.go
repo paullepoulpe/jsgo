@@ -761,11 +761,13 @@ func (this_ *TypeTransformation) priv_TypeTransformation_evalStringPredicate_560
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(16) /* Keywords.STREQ */ :
-		return func() bool {
+		{
+
 			sr_10 := params[int32(0)]
 			se_11 := params[int32(1)]
 			return j2gort.CheckNotNullString(sr_10) == se_11
-		}()
+		}
+
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid string predicate in the type transformation")))
 	}

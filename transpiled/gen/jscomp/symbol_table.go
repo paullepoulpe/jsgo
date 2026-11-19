@@ -496,7 +496,7 @@ func (this_ *SymbolTable) priv_SymbolTable_toDebugStringTree_5216(builder *j2gor
 	_ = prefix
 	_ = scope
 	_ = childrenScopes
-	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_any_9859(j2gort.PtrToAny(scope))
+	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_any_9862(j2gort.PtrToAny(scope))
 	var childrenPrefix string = (j2gort.StrValString(prefix) + "    ")
 	_ = childrenPrefix
 	var printedSomething bool = false
@@ -558,7 +558,7 @@ func (this_ *SymbolTable) priv_SymbolTable_toDebugString_5218(builder *j2gort.Ex
 	_ = printScope
 	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_string("'")).Append_1_string(symbol.GetName())).Append_1_string("'")
 	if printScope {
-		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(" in ")).Append_1_any_9859(j2gort.PtrToAny(symbol.scope))
+		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(" in ")).Append_1_any_9862(j2gort.PtrToAny(symbol.scope))
 	}
 	builder.Append_1_uint16(uint16(10))
 	var refCount int32 = int32(0)
@@ -1628,7 +1628,8 @@ func (this_ *SymbolTable_Symbol) Equals(arg_71 any) bool {
 
 // Java method: Symbol.hashCode()
 func (this_ *SymbolTable_Symbol) HashCode() int32 {
-	return func() int32 {
+	{
+
 		var oh_73 int32 = 1
 		if this_.IsTypeInferred() {
 			oh_73 = 31*oh_73 + 1231
@@ -1657,7 +1658,8 @@ func (this_ *SymbolTable_Symbol) HashCode() int32 {
 			}
 		}
 		return oh_73
-	}()
+	}
+
 }
 
 // Java method: Symbol.getDeclaration()
@@ -1673,7 +1675,8 @@ func (this_ *SymbolTable_Symbol) GetFunctionType() *pkg_rhino.FunctionType {
 // Java method: Symbol.defineReferenceAt(com.google.javascript.rhino.Node n)
 func (this_ *SymbolTable_Symbol) DefineReferenceAt(n pkg_rhino.Node) *SymbolTable_Reference {
 	_ = n
-	return func() *SymbolTable_Reference {
+	{
+
 		m_77 := this_.references
 		k_78 := n
 		if v_79, ok_80 := j2gort.MapTryGetComputeNode(m_77, k_78); ok_80 {
@@ -1684,7 +1687,8 @@ func (this_ *SymbolTable_Symbol) DefineReferenceAt(n pkg_rhino.Node) *SymbolTabl
 			_ = k
 			return NewSymbolTable_Reference(this_, k)
 		})))
-	}()
+	}
+
 }
 
 // Java method: Symbol.setDeclaration(com.google.javascript.jscomp.SymbolTable.Reference ref)

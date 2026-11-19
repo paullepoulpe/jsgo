@@ -629,17 +629,24 @@ func (this_ *FunctionInjector) priv_FunctionInjector_getCallerFnState_2931(calle
 		this_.foundInnerFn = pkg_rhino.Node(0)
 		this_.foundInnerFnCount = int32(0)
 		this_.priv_FunctionInjector_scanInnerFunctions_2930(callerFn)
-		cached = func() pkg_rhino.Node {
+	iifeSwitch_1:
+		switch {
+		default:
+
 			switch this_.foundInnerFnCount {
 			case int32(0):
-				return StaticGet_FunctionInjector_NO_FUNCTIONS()
+				cached = StaticGet_FunctionInjector_NO_FUNCTIONS()
+				break iifeSwitch_1
 			case int32(1):
-				return this_.foundInnerFn
+				cached = this_.foundInnerFn
+				break iifeSwitch_1
 			default:
-				return StaticGet_FunctionInjector_MULTIPLE_FUNCTIONS()
+				cached = StaticGet_FunctionInjector_MULTIPLE_FUNCTIONS()
+				break iifeSwitch_1
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 		this_.foundInnerFn = pkg_rhino.Node(0)
 	}
 	this_.callerFnStateCache.Put(callerFn, cached)

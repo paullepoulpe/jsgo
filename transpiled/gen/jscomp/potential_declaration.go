@@ -808,7 +808,7 @@ func (this_ *PotentialDeclaration_DefineDeclaration) Simplify(compiler AbstractC
 	_ = compiler
 	var info *pkg_rhino.JSDocInfo = this_.GetJsDoc()
 	_ = info
-	if (info != nil) && (info.GetType() != (pkg_rhino.JSTypeExpression{})) {
+	if (info != nil) && !(info.GetType()).IsJavaNil_() {
 		var newRhs pkg_rhino.Node = PotentialDeclaration_DefineDeclaration_MakeEmptyValueNode(info.GetType())
 		_ = newRhs
 		if newRhs != 0 {

@@ -703,7 +703,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorPrope
 			}
 			var propType pkg_rhino.JSTypeExpression = PolymerPassStaticUtils_GetTypeFromProperty(prop, this_.compiler)
 			_ = propType
-			if propType == (pkg_rhino.JSTypeExpression{}) {
+			if (propType).IsJavaNil_() {
 				continue
 			}
 			var info *pkg_rhino.JSDocInfo = nil
@@ -741,7 +741,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendPropertiesToB
 			}
 			var propType pkg_rhino.JSTypeExpression = PolymerPassStaticUtils_GetTypeFromProperty(prop, this_.compiler)
 			_ = propType
-			if propType == (pkg_rhino.JSTypeExpression{}) {
+			if (propType).IsJavaNil_() {
 				continue
 			}
 			var info *pkg_rhino.JSDocInfo = nil
@@ -908,7 +908,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorMembe
 								param = next
 							}
 						}
-						if (behaviorFunction.info == nil) || (behaviorFunction.info.GetReturnType() == (pkg_rhino.JSTypeExpression{})) {
+						if (behaviorFunction.info == nil) || (behaviorFunction.info.GetReturnType()).IsJavaNil_() {
 							info.RecordReturnType(pkg_rhino.NewJSTypeExpression(pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_QMARK()).Srcref(fnValue), fnValue.GetSourceFileName()))
 						}
 					}
@@ -935,7 +935,7 @@ func (this_ *PolymerClassRewriter) priv_PolymerClassRewriter_appendBehaviorMembe
 					_ = info_2
 					if behaviorProp.name.IsGetterDef() {
 						info_2 = pkg_rhino.JSDocInfo_S_Builder().ParseDocumentation()
-						if (behaviorProp.info != nil) && (behaviorProp.info.GetReturnType() != (pkg_rhino.JSTypeExpression{})) {
+						if (behaviorProp.info != nil) && !(behaviorProp.info.GetReturnType()).IsJavaNil_() {
 							info_2.RecordType(behaviorProp.info.GetReturnType())
 							if behaviorProp.enclosingModule != 0 {
 								info_2 = pkg_rhino.JSDocInfo_Builder_MaybeCopyFromAndReplaceNames(info_2.Build_0(), behavior.GetModuleLocalNames(this_.compiler))

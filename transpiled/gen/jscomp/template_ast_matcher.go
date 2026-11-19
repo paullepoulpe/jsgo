@@ -446,11 +446,13 @@ func (this_ *TemplateAstMatcher) priv_TemplateAstMatcher_matchesNode_5330(templa
 		var previouslyMatched bool = (j2gort.ListGetStr(this_.localVarMatches, paramIndex_2) != j2gort.NullString)
 		_ = previouslyMatched
 		if previouslyMatched {
-			return func() bool {
+			{
+
 				sr_1 := ast.GetString()
 				se_2 := j2gort.ListGetStr(this_.localVarMatches, paramIndex_2)
 				return j2gort.CheckNotNullString(sr_1) == se_2
-			}()
+			}
+
 		} else {
 			var originalName string = ast.GetOriginalName()
 			_ = originalName

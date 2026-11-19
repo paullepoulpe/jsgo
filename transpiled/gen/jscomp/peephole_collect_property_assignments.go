@@ -392,7 +392,11 @@ func PeepholeCollectPropertyAssignments_MightContainForwardReference(node pkg_rh
 	_ = node
 	_ = varName
 	if node.IsName() {
-		return func() bool { sr_4 := varName; se_5 := node.GetString(); return j2gort.CheckNotNullString(sr_4) == se_5 }()
+		{
+			sr_4 := varName
+			se_5 := node.GetString()
+			return j2gort.CheckNotNullString(sr_4) == se_5
+		}
 	}
 	{
 		var child pkg_rhino.Node = node.GetFirstChild()

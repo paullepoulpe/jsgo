@@ -1610,27 +1610,37 @@ func (this_ *Es6NormalizeClasses) priv_Es6NormalizeClasses_rewriteStaticMembers_
 		} else {
 			var nameToUse pkg_rhino.Node = record.CreateNewNameReferenceNode().SrcrefTree(staticMember)
 			_ = nameToUse
-			var transpiledNode pkg_rhino.Node = func() pkg_rhino.Node {
+			var transpiledNode pkg_rhino.Node
+		iifeSwitch_1:
+			switch {
+			default:
 				switch staticMember.TokenSwitchOrd_() {
 				case int32(90) /* Token.BLOCK */ :
 					var block pkg_rhino.Node = staticMember.Detach()
 					_ = block
 					t.ReportCodeChange_0()
-					return func() pkg_rhino.Node {
+					{
+
 						if block.HasChildren() {
-							return block
+							transpiledNode = block
+							break iifeSwitch_1
 						}
-						return pkg_rhino.Node(0)
-					}()
+						transpiledNode = pkg_rhino.Node(0)
+						break iifeSwitch_1
+					}
+
 				case int32(108) /* Token.MEMBER_FIELD_DEF */ :
-					return this_.priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2520(nameToUse, staticMember, true)
+					transpiledNode = this_.priv_Es6NormalizeClasses_convNonCompFieldToGetProp_2520(nameToUse, staticMember, true)
+					break iifeSwitch_1
 				case int32(109) /* Token.COMPUTED_FIELD_DEF */ :
-					return this_.priv_Es6NormalizeClasses_convCompFieldToGetElem_2521(nameToUse, staticMember, true)
+					transpiledNode = this_.priv_Es6NormalizeClasses_convCompFieldToGetElem_2521(nameToUse, staticMember, true)
+					break iifeSwitch_1
 				default:
 					panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.StrVal(staticMember))))
 				}
 				panic("unreachable switch expression")
-			}()
+			}
+
 			_ = transpiledNode
 			if transpiledNode != 0 {
 				staticInitTempParent.AddChildToBack(transpiledNode)

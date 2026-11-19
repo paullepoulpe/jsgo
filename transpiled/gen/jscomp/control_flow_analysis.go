@@ -43,12 +43,14 @@ func init() {
 		if pa < pb {
 			return int32(-1)
 		} else {
-			return (func() int32 {
+			{
+
 				if pa == pb {
 					return int32(0)
 				}
 				return int32(1)
-			}())
+			}
+
 		}
 	})
 	lambdaSingleton_control_flow_analysis_2 = j2gort.NewLambda_Ext_java_util_Comparator(func(lp_102 any, lp_103 any) int32 {
@@ -63,12 +65,14 @@ func init() {
 		if pb < pa {
 			return int32(-1)
 		} else {
-			return (func() int32 {
+			{
+
 				if pb == pa {
 					return int32(0)
 				}
 				return int32(1)
-			}())
+			}
+
 		}
 	})
 }
@@ -250,12 +254,14 @@ func ControlFlowAnalysis_PopPooledAstCfg() *ControlFlowAnalysis_AstControlFlowGr
 	staticSyncMu_ControlFlowAnalysis.Lock()
 	defer staticSyncMu_ControlFlowAnalysis.Unlock()
 	if StaticGet_ControlFlowAnalysis_CfgPoolSize() > int32(0) {
-		var idx int32 = func() int32 {
+		var idx int32
+		{
 			old_1 := StaticGet_ControlFlowAnalysis_CfgPoolSize()
 			nw_2 := old_1 - 1
 			StaticSet_ControlFlowAnalysis_CfgPoolSize(nw_2)
-			return nw_2
-		}()
+			idx = nw_2
+		}
+
 		_ = idx
 		var pooled *ControlFlowAnalysis_AstControlFlowGraph = StaticGet_ControlFlowAnalysis_CFG_POOL()[idx]
 		_ = pooled
@@ -278,12 +284,15 @@ func ControlFlowAnalysis_PushPooledAstCfg(astCfg *ControlFlowAnalysis_AstControl
 	if StaticGet_ControlFlowAnalysis_CfgPoolSize() < int32(16) {
 		{
 			a_5 := StaticGet_ControlFlowAnalysis_CFG_POOL()
-			i_6 := func() int32 {
+			var i_6 int32
+			{
+
 				old_7 := StaticGet_ControlFlowAnalysis_CfgPoolSize()
 				nw_8 := old_7 + 1
 				StaticSet_ControlFlowAnalysis_CfgPoolSize(nw_8)
-				return old_7
-			}()
+				i_6 = old_7
+			}
+
 			a_5[i_6] = astCfg
 		}
 		return true
@@ -334,12 +343,14 @@ func ControlFlowAnalysis_AcquireCfa(compiler AbstractCompiler, shouldTraverseFun
 	_ = shouldTraverseFunctions
 	_ = edgeAnnotations
 	if StaticGet_ControlFlowAnalysis_CfaPoolSize() > int32(0) {
-		var idx int32 = func() int32 {
+		var idx int32
+		{
 			old_10 := StaticGet_ControlFlowAnalysis_CfaPoolSize()
 			nw_11 := old_10 - 1
 			StaticSet_ControlFlowAnalysis_CfaPoolSize(nw_11)
-			return nw_11
-		}()
+			idx = nw_11
+		}
+
 		_ = idx
 		var cfa *ControlFlowAnalysis = StaticGet_ControlFlowAnalysis_CFA_POOL()[idx]
 		_ = cfa
@@ -475,12 +486,15 @@ func ControlFlowAnalysis_ReleaseCfa(cfa *ControlFlowAnalysis) {
 	if StaticGet_ControlFlowAnalysis_CfaPoolSize() < int32(16) {
 		{
 			a_36 := StaticGet_ControlFlowAnalysis_CFA_POOL()
-			i_37 := func() int32 {
+			var i_37 int32
+			{
+
 				old_38 := StaticGet_ControlFlowAnalysis_CfaPoolSize()
 				nw_39 := old_38 + 1
 				StaticSet_ControlFlowAnalysis_CfaPoolSize(nw_39)
-				return old_38
-			}()
+				i_37 = old_38
+			}
+
 			a_36[i_37] = cfa
 		}
 	}
@@ -767,7 +781,13 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 	for heapSize > int32(0) {
 		var current pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = heap[int32(0)]
 		_ = current
-		var n int32 = func() int32 { old_70 := heapSize; nw_71 := old_70 - 1; heapSize = nw_71; return nw_71 }()
+		var n int32
+		{
+			old_70 := heapSize
+			nw_71 := old_70 - 1
+			heapSize = nw_71
+			n = nw_71
+		}
 		_ = n
 		var x pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = heap[n]
 		_ = x
@@ -837,7 +857,8 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 				var succ pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = current.GetOutEdgeAt(i).GetDestination()
 				_ = succ
 				if heapSize == int32(len(heap)) {
-					heap = func() []pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] {
+					{
+
 						arrSrc_80 := heap
 						arrLen_81 := (int32(len(heap)) * int32(2))
 						j2gort.CheckNotNullSlice(arrSrc_80)
@@ -846,8 +867,9 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 						}
 						arrOut_82 := make([]pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch], arrLen_81)
 						copy(arrOut_82, arrSrc_80)
-						return arrOut_82
-					}()
+						heap = arrOut_82
+					}
+
 					this_.workHeap = heap
 				}
 				if heapSize == int32(0) {
@@ -858,7 +880,13 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_prioritizeFromEntryNo
 					}
 					heapSize = int32(1)
 				} else {
-					var k_2 int32 = func() int32 { old_85 := heapSize; nw_86 := old_85 + 1; heapSize = nw_86; return old_85 }()
+					var k_2 int32
+					{
+						old_85 := heapSize
+						nw_86 := old_85 + 1
+						heapSize = nw_86
+						k_2 = old_85
+					}
 					_ = k_2
 					var succPos int32 = this_.priv_ControlFlowAnalysis_resolveAstPosition_2184(succ)
 					_ = succPos

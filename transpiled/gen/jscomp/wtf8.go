@@ -33,7 +33,9 @@ func (this_ *Wtf8) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *Wtf8) IsJavaNil_() bool { return this_ == nil }
-func (*Wtf8) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.serialization.Wtf8", "Wtf8" }
+func (*Wtf8) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.serialization.Wtf8", "Wtf8"
+}
 func (this_ *Wtf8) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -73,8 +75,8 @@ func Wtf8_IsAscii(s string, length int32) bool {
 	{
 		var i int32 = int32(0)
 		_ = i
-		for ; (i < length); i = i + 1 {
-			if ((int32(j2gort.JStrCharAt(s, i)) >= int32(128))) {
+		for ; i < length; i = i + 1 {
+			if int32(j2gort.JStrCharAt(s, i)) >= int32(128) {
 				return false
 			}
 		}
@@ -87,10 +89,10 @@ func Wtf8_EncodeToWtf8(s string) j2gort.Ext_com_google_protobuf_ByteString {
 	_ = s
 	var length int32 = j2gort.JStrLen(s)
 	_ = length
-	if ((length == int32(0))) {
+	if length == int32(0) {
 		return j2gort.Ext_com_google_protobuf_ByteString_F_EMPTY
 	}
-	if (Wtf8_IsAscii(s, length)) {
+	if Wtf8_IsAscii(s, length) {
 		return j2gort.Ext_com_google_protobuf_ByteString_CopyFromUtf8(s)
 	}
 	var output *j2gort.Ext_com_google_protobuf_ByteString_Output = j2gort.Ext_com_google_protobuf_ByteString_NewOutput_1(length)
@@ -98,24 +100,24 @@ func Wtf8_EncodeToWtf8(s string) j2gort.Ext_com_google_protobuf_ByteString {
 	{
 		var i int32 = int32(0)
 		_ = i
-		for ; (i < length); i = i + 1 {
+		for ; i < length; i = i + 1 {
 			var codepoint int32 = j2gort.JStrCodePointAt(s, i)
 			_ = codepoint
-			if ((codepoint < int32(128))) {
+			if codepoint < int32(128) {
 				output.Write_1_int32(codepoint)
-			} else if ((codepoint < int32(2048))) {
-				output.Write_1_int32((int32(192) | ((int32(31) & (javalang.Ushr32(codepoint, int(int32(6))))))))
-				output.Write_1_int32((int32(128) | ((int32(int8(63)) & codepoint))))
-			} else if ((codepoint < int32(65536))) {
-				output.Write_1_int32((int32(224) | ((int32(15) & (javalang.Ushr32(codepoint, int(int32(12))))))))
-				output.Write_1_int32((int32(128) | ((int32(int8(63)) & (javalang.Ushr32(codepoint, int(int32(6))))))))
-				output.Write_1_int32((int32(128) | ((int32(int8(63)) & codepoint))))
+			} else if codepoint < int32(2048) {
+				output.Write_1_int32((int32(192) | (int32(31) & (javalang.Ushr32(codepoint, int(int32(6)))))))
+				output.Write_1_int32((int32(128) | (int32(int8(63)) & codepoint)))
+			} else if codepoint < int32(65536) {
+				output.Write_1_int32((int32(224) | (int32(15) & (javalang.Ushr32(codepoint, int(int32(12)))))))
+				output.Write_1_int32((int32(128) | (int32(int8(63)) & (javalang.Ushr32(codepoint, int(int32(6)))))))
+				output.Write_1_int32((int32(128) | (int32(int8(63)) & codepoint)))
 			} else {
 				i = i + 1
-				output.Write_1_int32((int32(240) | ((int32(7) & (javalang.Ushr32(codepoint, int(int32(18))))))))
-				output.Write_1_int32((int32(128) | ((int32(int8(63)) & (javalang.Ushr32(codepoint, int(int32(12))))))))
-				output.Write_1_int32((int32(128) | ((int32(int8(63)) & (javalang.Ushr32(codepoint, int(int32(6))))))))
-				output.Write_1_int32((int32(128) | ((int32(int8(63)) & codepoint))))
+				output.Write_1_int32((int32(240) | (int32(7) & (javalang.Ushr32(codepoint, int(int32(18)))))))
+				output.Write_1_int32((int32(128) | (int32(int8(63)) & (javalang.Ushr32(codepoint, int(int32(12)))))))
+				output.Write_1_int32((int32(128) | (int32(int8(63)) & (javalang.Ushr32(codepoint, int(int32(6)))))))
+				output.Write_1_int32((int32(128) | (int32(int8(63)) & codepoint)))
 			}
 		}
 	}
@@ -131,14 +133,16 @@ func Wtf8_S_Decoder(maxLength int32) *Wtf8_Decoder {
 // Java class: com.google.javascript.jscomp.serialization.Wtf8.Decoder
 type Wtf8_Decoder struct {
 	codepointBuffer []int32 `gson:"codepointBuffer"`
-	idHash_ atomic.Int32
+	idHash_         atomic.Int32
 }
 
 func (this_ *Wtf8_Decoder) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *Wtf8_Decoder) IsJavaNil_() bool { return this_ == nil }
-func (*Wtf8_Decoder) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.serialization.Wtf8$Decoder", "Decoder" }
+func (*Wtf8_Decoder) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.serialization.Wtf8$Decoder", "Decoder"
+}
 func (this_ *Wtf8_Decoder) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -179,8 +183,8 @@ func Wtf8_Decoder_IsAsciiBytes(encoded j2gort.Ext_com_google_protobuf_ByteString
 	{
 		var i int32 = int32(0)
 		_ = i
-		for ; (i < length); i = i + 1 {
-			if ((int32(encoded.ByteAt(i)) < int32(0))) {
+		for ; i < length; i = i + 1 {
+			if int32(encoded.ByteAt(i)) < int32(0) {
 				return false
 			}
 		}
@@ -193,10 +197,10 @@ func (this_ *Wtf8_Decoder) Decode(encoded j2gort.Ext_com_google_protobuf_ByteStr
 	_ = encoded
 	var encodedByteCount int32 = encoded.Size()
 	_ = encodedByteCount
-	if ((encodedByteCount == int32(0))) {
+	if encodedByteCount == int32(0) {
 		return ""
 	}
-	if (Wtf8_Decoder_IsAsciiBytes(encoded, encodedByteCount)) {
+	if Wtf8_Decoder_IsAsciiBytes(encoded, encodedByteCount) {
 		return encoded.ToStringUtf8()
 	}
 	var codepointCount int32 = int32(0)
@@ -204,20 +208,20 @@ func (this_ *Wtf8_Decoder) Decode(encoded j2gort.Ext_com_google_protobuf_ByteStr
 	{
 		var i int32 = int32(0)
 		_ = i
-		for ; (i < encodedByteCount); i = i + 1 {
+		for ; i < encodedByteCount; i = i + 1 {
 			var b int8 = encoded.ByteAt(i)
 			_ = b
 			var codepoint int32 = int32(0)
 			_ = codepoint
-			if ((((int32(b) & int32(128))) == int32(0))) {
+			if (int32(b) & int32(128)) == int32(0) {
 				codepoint = int32(b)
-			} else if ((((int32(b) & int32(224))) == int32(192))) {
+			} else if (int32(b) & int32(224)) == int32(192) {
 				var firstByte int32 = (int32(31) & int32(b))
 				_ = firstByte
 				var secondByte int32 = (int32(encoded.ByteAt(func() int32 { old_1 := i; nw_2 := old_1 + 1; i = nw_2; return nw_2 }())) & int32(int8(63)))
 				_ = secondByte
 				codepoint = ((javalang.Shl32(firstByte, int(int32(6)))) | secondByte)
-			} else if ((((int32(b) & int32(240))) == int32(224))) {
+			} else if (int32(b) & int32(240)) == int32(224) {
 				var firstByte_2 int32 = (int32(15) & int32(b))
 				_ = firstByte_2
 				var secondByte_2 int32 = (int32(encoded.ByteAt(func() int32 { old_3 := i; nw_4 := old_3 + 1; i = nw_4; return nw_4 }())) & int32(int8(63)))
@@ -225,7 +229,7 @@ func (this_ *Wtf8_Decoder) Decode(encoded j2gort.Ext_com_google_protobuf_ByteStr
 				var thirdByte int32 = (int32(encoded.ByteAt(func() int32 { old_5 := i; nw_6 := old_5 + 1; i = nw_6; return nw_6 }())) & int32(int8(63)))
 				_ = thirdByte
 				codepoint = (((javalang.Shl32(firstByte_2, int(int32(12)))) | (javalang.Shl32(secondByte_2, int(int32(6))))) | thirdByte)
-			} else if ((((int32(b) & int32(248))) == int32(240))) {
+			} else if (int32(b) & int32(248)) == int32(240) {
 				var firstByte_3 int32 = (int32(7) & int32(b))
 				_ = firstByte_3
 				var secondByte_3 int32 = (int32(encoded.ByteAt(func() int32 { old_7 := i; nw_8 := old_7 + 1; i = nw_8; return nw_8 }())) & int32(int8(63)))
@@ -238,9 +242,19 @@ func (this_ *Wtf8_Decoder) Decode(encoded j2gort.Ext_com_google_protobuf_ByteStr
 			} else {
 				panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError")))
 			}
-			{ a_13 := this_.codepointBuffer; i_14 := func() int32 { old_15 := codepointCount; nw_16 := old_15 + 1; codepointCount = nw_16; return old_15 }(); a_13[i_14] = codepoint }
+			{
+				a_13 := this_.codepointBuffer
+				var i_14 int32
+				{
+
+					old_15 := codepointCount
+					nw_16 := old_15 + 1
+					codepointCount = nw_16
+					i_14 = old_15
+				}
+				a_13[i_14] = codepoint
+			}
 		}
 	}
 	return javalang.StringFromCodePoints(this_.codepointBuffer, int32(0), codepointCount)
 }
-

@@ -282,7 +282,8 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_604(n pkg_r
 	case int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(107) /* Token.MEMBER_FUNCTION_DEF */ :
 		return false
 	case int32(129) /* Token.COMPUTED_PROP */ :
-		return func() bool {
+		{
+
 			switch parent.TokenSwitchOrd_() {
 			case int32(106) /* Token.CLASS_MEMBERS */ :
 				return this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetFirstChild(), checkForNewObjects)
@@ -294,7 +295,8 @@ func (this_ *AstAnalyzer) priv_AstAnalyzer_checkForStateChangeHelper_604(n pkg_r
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Illegal COMPUTED_PROP parent "+j2gort.StrVal(parent))))
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	case int32(108) /* Token.MEMBER_FIELD_DEF */ :
 		return ((n.IsStaticMember() && n.HasChildren()) && this_.priv_AstAnalyzer_checkForStateChangeHelper_604(n.GetFirstChild(), checkForNewObjects))
 	case int32(109) /* Token.COMPUTED_FIELD_DEF */ :

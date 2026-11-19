@@ -192,6 +192,7 @@ func StringPool_S_Builder() *StringPool_Builder {
 type StringPool_Builder struct {
 	pool      []string `gson:"pool"`
 	table     []int64  `gson:"table"`
+	idToPool  []int32  `gson:"idToPool"`
 	maxLength int32    `gson:"maxLength"`
 	size      int32    `gson:"size"`
 	idHash_   atomic.Int32
@@ -224,6 +225,8 @@ func init() {
 func (this_ *StringPool_Builder) initFields_StringPool_Builder() {
 	_ = this_
 
+	this_.idToPool = make([]int32, int32(4096))
+
 }
 
 // Java constructor: Builder()
@@ -245,6 +248,65 @@ func InitStringPool_Builder(this_ *StringPool_Builder) {
 	this_.table = make([]int64, int32(2048))
 }
 
+// Java method: Builder.putNodeString(com.google.javascript.rhino.Node n)
+func (this_ *StringPool_Builder) PutNodeString(n pkg_rhino.Node) int32 {
+	_ = n
+	var id int32 = pkg_rhino.RhinoStringPool_GetNodeStringId(n)
+	_ = id
+	if id == int32(0) {
+		return this_.Put(n.GetString())
+	}
+	if id == int32(1) {
+		return int32(0)
+	}
+	return this_.PutByInternedId(id)
+}
+
+// Java method: Builder.putByInternedId(int id)
+func (this_ *StringPool_Builder) PutByInternedId(id int32) int32 {
+	_ = id
+	if id <= int32(1) {
+		return int32(0)
+	}
+	var map_ []int32 = this_.idToPool
+	_ = map_
+	if id < int32(len(map_)) {
+		var cached int32 = map_[id]
+		_ = cached
+		if cached != int32(0) {
+			return (cached - int32(1))
+		}
+	} else {
+		var newCap int32 = javalang.Shl32(int32(len(map_)), int(int32(1)))
+		_ = newCap
+		for newCap <= id {
+			newCap = javalang.Shl32(newCap, int(int32(1)))
+		}
+		{
+
+			arrSrc_7 := map_
+			arrLen_8 := newCap
+			j2gort.CheckNotNullSlice(arrSrc_7)
+			if arrLen_8 < 0 {
+				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
+			}
+			arrOut_9 := make([]int32, arrLen_8)
+			copy(arrOut_9, arrSrc_7)
+			map_ = arrOut_9
+		}
+
+		this_.idToPool = map_
+	}
+	var ptr int32 = this_.Put(j2gort.CheckNotNullString(pkg_rhino.RhinoStringPool_StringById(id)))
+	_ = ptr
+	{
+		a_10 := map_
+		i_11 := id
+		a_10[i_11] = (ptr + int32(1))
+	}
+	return ptr
+}
+
 // Java method: Builder.put(java.lang.String string)
 func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	_ = string_
@@ -262,7 +324,7 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	_ = slot
 	var entry int64 = int64(0)
 	_ = entry
-	for (func() int64 { var asgn_7 int64 = tbl[slot]; entry = asgn_7; return asgn_7 }()) != int64(0) {
+	for (func() int64 { var asgn_12 int64 = tbl[slot]; entry = asgn_12; return asgn_12 }()) != int64(0) {
 		if (int32((javalang.Ushr64(entry, int(int32(32)))))) == hash {
 			var idx int32 = ((int32(entry)) - int32(1))
 			_ = idx
@@ -274,28 +336,28 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	}
 	if this_.built {
 		this_.pool = func() []string {
-			arrSrc_8 := this_.pool
-			arrLen_9 := max(int32(len(this_.pool)), (this_.size + int32(16)))
-			j2gort.CheckNotNullSlice(arrSrc_8)
-			if arrLen_9 < 0 {
+			arrSrc_13 := this_.pool
+			arrLen_14 := max(int32(len(this_.pool)), (this_.size + int32(16)))
+			j2gort.CheckNotNullSlice(arrSrc_13)
+			if arrLen_14 < 0 {
 				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 			}
-			arrOut_10 := j2gort.NewStringArray(arrLen_9)
-			copy(arrOut_10, arrSrc_8)
-			return arrOut_10
+			arrOut_15 := j2gort.NewStringArray(arrLen_14)
+			copy(arrOut_15, arrSrc_13)
+			return arrOut_15
 		}()
 		this_.built = false
 	} else if this_.size == int32(len(this_.pool)) {
 		this_.pool = func() []string {
-			arrSrc_11 := this_.pool
-			arrLen_12 := (int32(len(this_.pool)) * int32(2))
-			j2gort.CheckNotNullSlice(arrSrc_11)
-			if arrLen_12 < 0 {
+			arrSrc_16 := this_.pool
+			arrLen_17 := (int32(len(this_.pool)) * int32(2))
+			j2gort.CheckNotNullSlice(arrSrc_16)
+			if arrLen_17 < 0 {
 				panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 			}
-			arrOut_13 := j2gort.NewStringArray(arrLen_12)
-			copy(arrOut_13, arrSrc_11)
-			return arrOut_13
+			arrOut_18 := j2gort.NewStringArray(arrLen_17)
+			copy(arrOut_18, arrSrc_16)
+			return arrOut_18
 		}()
 	}
 	var len_ int32 = j2gort.JStrLen(string_)
@@ -306,15 +368,15 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 	var id int32 = this_.size
 	_ = id
 	{
-		a_14 := this_.pool
-		i_15 := id
-		a_14[i_15] = string_
+		a_19 := this_.pool
+		i_20 := id
+		a_19[i_20] = string_
 	}
 	var newSize int32 = (id + int32(1))
 	_ = newSize
 	this_.size = newSize
 	if (javalang.Shl32(newSize, int(int32(2)))) > (int32(len(tbl)) * int32(3)) {
-		tbl = this_.priv_Builder_rehash_7769(javalang.Shl32(int32(len(tbl)), int(int32(1))))
+		tbl = this_.priv_Builder_rehash_7770(javalang.Shl32(int32(len(tbl)), int(int32(1))))
 		mask = (int32(len(tbl)) - int32(1))
 		slot = (hash & mask)
 		for tbl[slot] != int64(0) {
@@ -322,15 +384,15 @@ func (this_ *StringPool_Builder) Put(string_ string) int32 {
 		}
 	}
 	{
-		a_16 := tbl
-		i_17 := slot
-		a_16[i_17] = ((javalang.Shl64((int64(hash)), int(int32(32)))) | (int64(newSize) & int64(4294967295)))
+		a_21 := tbl
+		i_22 := slot
+		a_21[i_22] = ((javalang.Shl64((int64(hash)), int(int32(32)))) | (int64(newSize) & int64(4294967295)))
 	}
 	return id
 }
 
 // Java method: Builder.rehash(int newCap)
-func (this_ *StringPool_Builder) priv_Builder_rehash_7769(newCap int32) []int64 {
+func (this_ *StringPool_Builder) priv_Builder_rehash_7770(newCap int32) []int64 {
 	_ = newCap
 	var oldTbl []int64 = this_.table
 	_ = oldTbl
@@ -353,9 +415,9 @@ func (this_ *StringPool_Builder) priv_Builder_rehash_7769(newCap int32) []int64 
 					slot = ((slot + int32(1)) & newMask)
 				}
 				{
-					a_18 := newTbl
-					i_19 := slot
-					a_18[i_19] = entry
+					a_23 := newTbl
+					i_24 := slot
+					a_23[i_24] = entry
 				}
 			}
 		}
@@ -388,7 +450,7 @@ func (this_ *StringPool) internAt_(offset int32, alloc_ *nodestore.NodeAllocator
 		if s_ == j2gort.NullString {
 			return 0, false
 		}
-		id_ := alloc_.Intern(s_)
+		id_ := nodestore.InternOwned(s_)
 		this_.internedIDs_[offset].Store(uint32(id_))
 		return id_, true
 	}
@@ -396,5 +458,5 @@ func (this_ *StringPool) internAt_(offset int32, alloc_ *nodestore.NodeAllocator
 	if s_ == j2gort.NullString {
 		return 0, false
 	}
-	return alloc_.Intern(s_), true
+	return nodestore.InternOwned(s_), true
 }

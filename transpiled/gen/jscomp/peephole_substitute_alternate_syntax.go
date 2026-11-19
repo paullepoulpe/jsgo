@@ -147,12 +147,12 @@ func (this_ *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node pkg_rhino.N
 	case int32(0) /* Token.RETURN */ :
 		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReduceReturn_4291(node)
 	case int32(93) /* Token.EXPR_RESULT */ :
-		return func() pkg_rhino.Node {
+		{
 			if node.GetFirstChild().IsComma() {
 				return this_.priv_PeepholeSubstituteAlternateSyntax_trySplitComma_4288(node)
 			}
 			return node
-		}()
+		}
 	case int32(32) /* Token.NAME */ :
 		return this_.priv_PeepholeSubstituteAlternateSyntax_tryReplaceUndefined_4289(node)
 	case int32(46) /* Token.ARRAYLIT */ :
@@ -164,12 +164,12 @@ func (this_ *PeepholeSubstituteAlternateSyntax) OptimizeSubtree(node pkg_rhino.N
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */, int32(3) /* Token.BITAND */, int32(70) /* Token.COALESCE */ :
 		return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateAssociativeOperator_4284(node)
 	case int32(15) /* Token.MUL */ :
-		return func() pkg_rhino.Node {
+		{
 			if this_.MayHaveSideEffects(node) {
 				return node
 			}
 			return this_.priv_PeepholeSubstituteAlternateSyntax_tryRotateCommutativeOperator_4283(node)
-		}()
+		}
 	default:
 		return node
 	}
@@ -675,7 +675,14 @@ func (this_ *PeepholeSubstituteAlternateSyntax) priv_PeepholeSubstituteAlternate
 		for ; cur != 0; cur = cur.GetNext() {
 			{
 				a_3 := strings
-				i_4 := func() int32 { old_5 := idx; nw_6 := old_5 + 1; idx = nw_6; return old_5 }()
+				var i_4 int32
+				{
+
+					old_5 := idx
+					nw_6 := old_5 + 1
+					idx = nw_6
+					i_4 = old_5
+				}
 				a_3[i_4] = cur.GetString()
 			}
 		}

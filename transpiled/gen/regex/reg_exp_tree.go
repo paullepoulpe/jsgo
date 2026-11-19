@@ -1040,13 +1040,15 @@ func (this_ *RegExpTree_NamedBackReference) Equals(arg_11 any) bool {
 
 // Java method: NamedBackReference.hashCode()
 func (this_ *RegExpTree_NamedBackReference) HashCode() int32 {
-	return func() int32 {
+	{
+
 		hs_15 := this_.groupName
 		if hs_15 == j2gort.NullString {
 			return 0
 		}
 		return javalang.StringHashCode(hs_15)
-	}()
+	}
+
 }
 
 // Java class: com.google.javascript.jscomp.regex.RegExpTree.Text
@@ -1302,7 +1304,7 @@ func (this_ *RegExpTree_Repetition) Children() any {
 }
 
 // Java method: Repetition.appendBodySourceCode(java.lang.StringBuilder sb)
-func (this_ *RegExpTree_Repetition) priv_Repetition_appendBodySourceCode_7679(sb *j2gort.Ext_java_lang_StringBuilder) {
+func (this_ *RegExpTree_Repetition) priv_Repetition_appendBodySourceCode_7678(sb *j2gort.Ext_java_lang_StringBuilder) {
 	_ = sb
 	var text *RegExpTree_Text
 	_ = text
@@ -1360,7 +1362,7 @@ func (this_ *RegExpTree_Repetition) AppendSourceCode(sb *j2gort.Ext_java_lang_St
 	_ = sb
 	var bodyStart int32 = sb.Length()
 	_ = bodyStart
-	this_.priv_Repetition_appendBodySourceCode_7679(sb)
+	this_.priv_Repetition_appendBodySourceCode_7678(sb)
 	var bodyEnd int32 = sb.Length()
 	_ = bodyEnd
 	var bodyLen int32 = (bodyEnd - bodyStart)
@@ -1596,7 +1598,14 @@ func (this_ *RegExpTree_Alternation) Simplify(flags string) RegExpTree {
 								_ = ch
 								{
 									a_32 := members
-									i_33 := func() int32 { old_34 := memberIdx; nw_35 := old_34 + 1; memberIdx = nw_35; return old_34 }()
+									var i_33 int32
+									{
+
+										old_34 := memberIdx
+										nw_35 := old_34 + 1
+										memberIdx = nw_35
+										i_33 = old_34
+									}
 									a_32[i_33] = int32(ch)
 								}
 								if StaticGet_RegExpTree_IE_SPEC_ERRORS().Contains(int32(ch)) {
@@ -2269,7 +2278,8 @@ func (this_ *RegExpTree_UnicodePropertyEscape) Equals(arg_55 any) bool {
 
 // Java method: UnicodePropertyEscape.hashCode()
 func (this_ *RegExpTree_UnicodePropertyEscape) HashCode() int32 {
-	return func() int32 {
+	{
+
 		var oh_57 int32 = 1
 		if this_.negated {
 			oh_57 = 31*oh_57 + 1231
@@ -2291,7 +2301,8 @@ func (this_ *RegExpTree_UnicodePropertyEscape) HashCode() int32 {
 			}
 		}
 		return oh_57
-	}()
+	}
+
 }
 
 // Java class: com.google.javascript.jscomp.regex.RegExpTree.Charset
@@ -2419,7 +2430,7 @@ func (this_ *RegExpTree_Charset) IsCaseSensitive() bool {
 }
 
 // Java method: Charset.decompose(com.google.javascript.jscomp.regex.CharRanges ranges, boolean inverted)
-func (this_ *RegExpTree_Charset) priv_Charset_decompose_7680(ranges *CharRanges, inverted bool) *RegExpTree_DecomposedCharset {
+func (this_ *RegExpTree_Charset) priv_Charset_decompose_7679(ranges *CharRanges, inverted bool) *RegExpTree_DecomposedCharset {
 	_ = ranges
 	_ = inverted
 	var namedGroups j2gort.LocalStringBuilder
@@ -2467,14 +2478,14 @@ func (this_ *RegExpTree_Charset) Decompose_0() *RegExpTree_DecomposedCharset {
 	_ = negRanges
 	if !(this_.ieExplicits.IsEmpty()) {
 		if negRanges.Intersection(this_.ieExplicits).IsEmpty() {
-			return this_.priv_Charset_decompose_7680(this_.ranges, false)
+			return this_.priv_Charset_decompose_7679(this_.ranges, false)
 		} else if this_.ranges.Intersection(this_.ieExplicits).IsEmpty() {
-			return this_.priv_Charset_decompose_7680(negRanges, true)
+			return this_.priv_Charset_decompose_7679(negRanges, true)
 		}
 	}
-	var positive *RegExpTree_DecomposedCharset = this_.priv_Charset_decompose_7680(this_.ranges, false)
+	var positive *RegExpTree_DecomposedCharset = this_.priv_Charset_decompose_7679(this_.ranges, false)
 	_ = positive
-	var negative *RegExpTree_DecomposedCharset = this_.priv_Charset_decompose_7680(negRanges, true)
+	var negative *RegExpTree_DecomposedCharset = this_.priv_Charset_decompose_7679(negRanges, true)
 	_ = negative
 	if positive.Complexity() <= negative.Complexity() {
 		return positive
@@ -2496,7 +2507,7 @@ func (this_ *RegExpTree_Charset) AppendSourceCode(sb *j2gort.Ext_java_lang_Strin
 // Java method: Charset.appendDebugInfo(java.lang.StringBuilder sb)
 func (this_ *RegExpTree_Charset) AppendDebugInfo(sb *j2gort.Ext_java_lang_StringBuilder) {
 	_ = sb
-	sb.Append_1_any_9859(j2gort.PtrToAny(this_.ranges))
+	sb.Append_1_any_9862(j2gort.PtrToAny(this_.ranges))
 }
 
 // Java method: Charset.equals(java.lang.Object o)
@@ -3031,13 +3042,13 @@ topLoop:
 		_ = atom
 		switch ch {
 		case uint16(91):
-			atom = this_.priv_Parser_parseCharset_7672()
+			atom = this_.priv_Parser_parseCharset_7671()
 		case uint16(40):
-			atom = this_.priv_Parser_parseParenthetical_7670()
+			atom = this_.priv_Parser_parseParenthetical_7669()
 		case uint16(41):
 			break topLoop
 		case uint16(92):
-			atom = this_.priv_Parser_parseEscape_7674()
+			atom = this_.priv_Parser_parseEscape_7673()
 		case uint16(94), uint16(36):
 			atom = NewRegExpTree_Anchor(ch)
 			this_.pos = this_.pos + 1
@@ -3057,7 +3068,7 @@ topLoop:
 				case uint16(91), uint16(40), uint16(41), uint16(92), uint16(94), uint16(36), uint16(124), uint16(46), uint16(42), uint16(43), uint16(63), uint16(123):
 					break charsLoop
 				default:
-					if ((end + int32(1)) >= this_.limit) || !(this_.priv_Parser_isRepetitionStart_7677(j2gort.JStrCharAt(this_.cap_0_pattern, (end + int32(1))))) {
+					if ((end + int32(1)) >= this_.limit) || !(this_.priv_Parser_isRepetitionStart_7676(j2gort.JStrCharAt(this_.cap_0_pattern, (end + int32(1))))) {
 						end = end + 1
 					} else {
 						break charsLoop
@@ -3067,8 +3078,8 @@ topLoop:
 			atom = NewRegExpTree_Text(j2gort.JStrSub(this_.cap_0_pattern, start, end))
 			this_.pos = end
 		}
-		if (this_.pos < this_.limit) && this_.priv_Parser_isRepetitionStart_7677(j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)) {
-			atom = this_.priv_Parser_parseRepetition_7678(atom)
+		if (this_.pos < this_.limit) && this_.priv_Parser_isRepetitionStart_7676(j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)) {
+			atom = this_.priv_Parser_parseRepetition_7677(atom)
 		}
 		if preceder == nil || preceder.IsJavaNil_() {
 			preceder = atom
@@ -3096,7 +3107,7 @@ topLoop:
 }
 
 // Java method: Parser.parseParenthetical()
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseParenthetical_7670() RegExpTree {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseParenthetical_7669() RegExpTree {
 	if !(int32(j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)) == int32(uint16(40))) {
 		j2gort.CheckState(false)
 	}
@@ -3130,7 +3141,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseParenthetical_7670()
 					type_ = StaticGet_RegExpTree_ParentheticalType_NEGATIVE_LOOKBEHIND()
 				} else {
 					this_.pos = (this_.pos + int32(2))
-					captureName = this_.priv_Parser_scanNamedGroupName_7671()
+					captureName = this_.priv_Parser_scanNamedGroupName_7670()
 					this_.capturingGroupNames.Add(captureName)
 					type_ = StaticGet_RegExpTree_ParentheticalType_NAMED_GROUPS()
 				}
@@ -3176,7 +3187,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseParenthetical_7670()
 }
 
 // Java method: Parser.scanNamedGroupName()
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_scanNamedGroupName_7671() string {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_scanNamedGroupName_7670() string {
 	var start int32 = this_.pos
 	_ = start
 	var end int32 = this_.pos
@@ -3199,7 +3210,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_scanNamedGroupName_7671()
 }
 
 // Java method: Parser.parseCharset()
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseCharset_7672() RegExpTree {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseCharset_7671() RegExpTree {
 	if !(int32(j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)) == int32(uint16(91))) {
 		j2gort.CheckState(false)
 	}
@@ -3231,7 +3242,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseCharset_7672() RegEx
 				ranges = ranges.Union(group)
 				continue
 			}
-			start = this_.priv_Parser_parseEscapeChar_7673()
+			start = this_.priv_Parser_parseEscapeChar_7672()
 		} else {
 			start = int32(ch)
 			this_.pos = this_.pos + 1
@@ -3243,7 +3254,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseCharset_7672() RegEx
 			ch = j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)
 			if int32(ch) == int32(uint16(92)) {
 				this_.pos = this_.pos + 1
-				end = this_.priv_Parser_parseEscapeChar_7673()
+				end = this_.priv_Parser_parseEscapeChar_7672()
 			} else {
 				end = int32(ch)
 				this_.pos = this_.pos + 1
@@ -3267,7 +3278,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseCharset_7672() RegEx
 }
 
 // Java method: Parser.parseEscapeChar()
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscapeChar_7673() int32 {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscapeChar_7672() int32 {
 	var ch uint16 = j2gort.JStrCharAt(this_.cap_0_pattern, func() int32 { old_77 := this_.pos; nw_78 := old_77 + 1; this_.pos = nw_78; return old_77 }())
 	_ = ch
 	switch ch {
@@ -3282,16 +3293,18 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscapeChar_7673() in
 	case uint16(116):
 		return int32(uint16(9))
 	case uint16(117):
-		return func() int32 {
+		{
+
 			if ((j2gort.JStrIndexOf(this_.cap_1_flags, "u") >= 0) && (this_.pos < this_.limit)) && (int32(j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)) == int32(uint16(123))) {
-				return this_.priv_Parser_parseBracedUnicodeEscape_7676()
+				return this_.priv_Parser_parseBracedUnicodeEscape_7675()
 			}
-			return this_.priv_Parser_parseHex_7675(int32(4))
-		}()
+			return this_.priv_Parser_parseHex_7674(int32(4))
+		}
+
 	case uint16(118):
 		return int32(uint16(11))
 	case uint16(120):
-		return this_.priv_Parser_parseHex_7675(int32(2))
+		return this_.priv_Parser_parseHex_7674(int32(2))
 	default:
 		if (int32(uint16(48)) <= int32(ch)) && (int32(ch) <= int32(uint16(55))) {
 			var codeUnit uint16 = uint16((int32(ch) - int32(uint16(48))))
@@ -3325,7 +3338,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscapeChar_7673() in
 }
 
 // Java method: Parser.parseEscape()
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscape_7674() RegExpTree {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscape_7673() RegExpTree {
 	if !(int32(j2gort.JStrCharAt(this_.cap_0_pattern, this_.pos)) == int32(uint16(92))) {
 		j2gort.CheckState(false)
 	}
@@ -3404,7 +3417,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscape_7674() RegExp
 		}
 	} else if (((this_.lookForNamedCaptureBackreferences && (int32(ch) == int32(uint16(107)))) && ((this_.pos + int32(1)) < this_.limit)) && (int32(j2gort.JStrCharAt(this_.cap_0_pattern, (this_.pos+int32(1)))) == int32(uint16(60)))) && !(this_.capturingGroupNames.IsEmpty()) {
 		this_.pos = (this_.pos + int32(2))
-		var potentialName string = this_.priv_Parser_scanNamedGroupName_7671()
+		var potentialName string = this_.priv_Parser_scanNamedGroupName_7670()
 		_ = potentialName
 		if !(this_.capturingGroupNames.Contains(potentialName)) {
 			panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Invalid named capture referenced: "+j2gort.StrValString(j2gort.JStrSubFrom(this_.cap_0_pattern, start)))))
@@ -3417,12 +3430,12 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseEscape_7674() RegExp
 			this_.pos = this_.pos + 1
 			return NewRegExpTree_Charset(charGroup, StaticGet_CharRanges_EMPTY())
 		}
-		return NewRegExpTree_Text(javalang.StringFromUTF16(j2gort.BoxChar_ToChars_1(this_.priv_Parser_parseEscapeChar_7673())))
+		return NewRegExpTree_Text(javalang.StringFromUTF16(j2gort.BoxChar_ToChars_1(this_.priv_Parser_parseEscapeChar_7672())))
 	}
 }
 
 // Java method: Parser.parseHex(int n)
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseHex_7675(n int32) int32 {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseHex_7674(n int32) int32 {
 	_ = n
 	if (this_.pos + n) > this_.limit {
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Abbreviated hex escape "+j2gort.StrValString(j2gort.JStrSubFrom(this_.cap_0_pattern, this_.pos)))))
@@ -3453,7 +3466,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseHex_7675(n int32) in
 }
 
 // Java method: Parser.parseBracedUnicodeEscape()
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseBracedUnicodeEscape_7676() int32 {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseBracedUnicodeEscape_7675() int32 {
 	var openBrace int32 = this_.pos
 	_ = openBrace
 	if !(int32(j2gort.JStrCharAt(this_.cap_0_pattern, func() int32 { old_87 := this_.pos; nw_88 := old_87 + 1; this_.pos = nw_88; return old_87 }())) == int32(uint16(123))) {
@@ -3469,7 +3482,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseBracedUnicodeEscape_
 	} else if closeBrace == this_.pos {
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Empty unicode escape")))
 	}
-	var result int32 = this_.priv_Parser_parseHex_7675((closeBrace - this_.pos))
+	var result int32 = this_.priv_Parser_parseHex_7674((closeBrace - this_.pos))
 	_ = result
 	if result > int32(1114111) {
 		panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Unicode must be at most 0x10FFFF: "+j2gort.StrValString(j2gort.JStrSub(this_.cap_0_pattern, (openBrace+int32(1)), this_.pos)))))
@@ -3479,7 +3492,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseBracedUnicodeEscape_
 }
 
 // Java method: Parser.isRepetitionStart(char ch)
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_isRepetitionStart_7677(ch uint16) bool {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_isRepetitionStart_7676(ch uint16) bool {
 	_ = ch
 	switch ch {
 	case uint16(63), uint16(42), uint16(43), uint16(123):
@@ -3491,7 +3504,7 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_isRepetitionStart_7677(ch
 }
 
 // Java method: Parser.parseRepetition(com.google.javascript.jscomp.regex.RegExpTree body)
-func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseRepetition_7678(body RegExpTree) RegExpTree {
+func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseRepetition_7677(body RegExpTree) RegExpTree {
 	_ = body
 	if this_.pos == this_.limit {
 		return body
@@ -3536,7 +3549,11 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseRepetition_7678(body
 					if j2gort.InstanceOf[javalang.INumberFormatException](jex_90) {
 						ex := j2gort.AsIface[javalang.INumberFormatException](jex_90)
 						_ = ex
-						min_ = func() int32 { var asgn_91 int32 = int32(-1); max_ = asgn_91; return asgn_91 }()
+						{
+							var asgn_91 int32 = int32(-1)
+							max_ = asgn_91
+							min_ = asgn_91
+						}
 					} else {
 						panic(rec_89)
 					}
@@ -3549,12 +3566,18 @@ func (this_ *RegExpTree__Local_124_Parser) priv_Parser_parseRepetition_7678(body
 				return counts
 			}(), 10)
 			if comma >= int32(0) {
-				max_ = func() int32 {
+			iifeSwitch_1:
+				switch {
+				default:
+
 					if (comma + int32(1)) != j2gort.JStrLen(counts) {
-						return j2gort.ParseInt(j2gort.JStrSubFrom(counts, (comma+int32(1))), 10)
+						max_ = j2gort.ParseInt(j2gort.JStrSubFrom(counts, (comma+int32(1))), 10)
+						break iifeSwitch_1
 					}
-					return int32(2147483647)
-				}()
+					max_ = int32(2147483647)
+					break iifeSwitch_1
+				}
+
 			} else {
 				max_ = min_
 			}

@@ -182,12 +182,13 @@ func (this_ *AliasStrings) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pk
 				return
 			}
 		}
-		var varParent pkg_rhino.Node = func() pkg_rhino.Node {
+		var varParent pkg_rhino.Node
+		{
 			bound_1 := this_.compiler
-			return j2gort.OrderedMapComputeIfAbsent(&this_.chunkVarParentMap, chunk, pkg_rhino.Node(0), func(mrp0_ *JSChunk) pkg_rhino.Node {
+			varParent = j2gort.OrderedMapComputeIfAbsent(&this_.chunkVarParentMap, chunk, pkg_rhino.Node(0), func(mrp0_ *JSChunk) pkg_rhino.Node {
 				return bound_1.GetNodeForCodeInsertion(mrp0_)
 			})
-		}()
+		}
 
 		_ = varParent
 		{

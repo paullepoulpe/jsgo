@@ -231,7 +231,7 @@ func ParserRunner_Parse(sourceFile pkg_rhino.StaticSourceFile, sourceString stri
 		_ = file
 		var keepGoing bool = (config.RunMode() == StaticGet_Config_RunMode_KEEP_GOING())
 		_ = keepGoing
-		var es6ErrorReporter *ParserRunner_Es6ErrorReporter = NewParserRunner_Es6ErrorReporter(errorReporter, keepGoing)
+		var es6ErrorReporter *ParserRunner_Es6ErrorReporter = NewParserRunner_Es6ErrorReporter(errorReporter, file.FieldGet_name(), keepGoing)
 		_ = es6ErrorReporter
 		var es6config *pkg_parser.Parser_Config = ParserRunner_NewParserConfig(config)
 		_ = es6config
@@ -307,6 +307,7 @@ func ParserRunner_NewParserConfig(config Config) *pkg_parser.Parser_Config {
 type ParserRunner_Es6ErrorReporter struct {
 	pkg_parser.ErrorReporterBase
 	reporter        pkg_rhino.ErrorReporter `gson:"reporter"`
+	sourceName      string                  `gson:"sourceName"`
 	errorSeen       bool                    `gson:"errorSeen"`
 	reportAllErrors bool                    `gson:"reportAllErrors"`
 }
@@ -335,23 +336,26 @@ func (*ParserRunner_Es6ErrorReporter) Implements_parser_ErrorReporter() {}
 
 func (this_ *ParserRunner_Es6ErrorReporter) initFields_ParserRunner_Es6ErrorReporter() {
 	_ = this_
+	this_.sourceName = j2gort.NullString
 
 }
 
-// Java constructor: Es6ErrorReporter(com.google.javascript.rhino.ErrorReporter reporter, boolean reportAllErrors)
-func NewParserRunner_Es6ErrorReporter(reporter pkg_rhino.ErrorReporter, reportAllErrors bool) *ParserRunner_Es6ErrorReporter {
+// Java constructor: Es6ErrorReporter(com.google.javascript.rhino.ErrorReporter reporter, java.lang.String sourceName, boolean reportAllErrors)
+func NewParserRunner_Es6ErrorReporter(reporter pkg_rhino.ErrorReporter, sourceName string, reportAllErrors bool) *ParserRunner_Es6ErrorReporter {
 	this_ := &ParserRunner_Es6ErrorReporter{}
 	this_.BindSelf_(this_)
-	InitParserRunner_Es6ErrorReporter(this_, reporter, reportAllErrors)
+	InitParserRunner_Es6ErrorReporter(this_, reporter, sourceName, reportAllErrors)
 	return this_
 }
 
-func InitParserRunner_Es6ErrorReporter(this_ *ParserRunner_Es6ErrorReporter, reporter pkg_rhino.ErrorReporter, reportAllErrors bool) {
+func InitParserRunner_Es6ErrorReporter(this_ *ParserRunner_Es6ErrorReporter, reporter pkg_rhino.ErrorReporter, sourceName string, reportAllErrors bool) {
 	_ = reporter
+	_ = sourceName
 	_ = reportAllErrors
 	pkg_parser.InitErrorReporter(&this_.ErrorReporterBase)
 	this_.initFields_ParserRunner_Es6ErrorReporter()
 	this_.reporter = reporter
+	this_.sourceName = sourceName
 	this_.reportAllErrors = reportAllErrors
 }
 
@@ -361,7 +365,7 @@ func (this_ *ParserRunner_Es6ErrorReporter) ReportError_2(location pkg_parser.So
 	_ = message
 	if this_.reportAllErrors || !(this_.errorSeen) {
 		this_.errorSeen = true
-		this_.reporter.M_Error(message, location.FieldGet_source().FieldGet_name(), (location.FieldGet_line() + int32(1)), location.FieldGet_column())
+		this_.reporter.M_Error(message, this_.sourceName, (location.FieldGet_line() + int32(1)), location.FieldGet_column())
 	}
 }
 
@@ -369,7 +373,7 @@ func (this_ *ParserRunner_Es6ErrorReporter) ReportError_2(location pkg_parser.So
 func (this_ *ParserRunner_Es6ErrorReporter) ReportWarning_2(location pkg_parser.SourcePosition, message string) {
 	_ = location
 	_ = message
-	this_.reporter.Warning(message, location.FieldGet_source().FieldGet_name(), (location.FieldGet_line() + int32(1)), location.FieldGet_column())
+	this_.reporter.Warning(message, this_.sourceName, (location.FieldGet_line() + int32(1)), location.FieldGet_column())
 }
 
 // Java class: com.google.javascript.jscomp.parsing.ParserRunner.ParseResult

@@ -181,7 +181,7 @@ func (this_ *NamedType) GetBangType() JSType {
 			return this_.GetReferencedType().RestrictByNotNullOrUndefined()
 		}
 	}
-	return ToIface_JSType(this_.ToBuilder().priv_Builder_setRestrictByNull_9310(true).Build())
+	return ToIface_JSType(this_.ToBuilder().priv_Builder_setRestrictByNull_9313(true).Build())
 }
 
 // Java method: NamedType.getTemplateTypes()
@@ -224,7 +224,7 @@ func (this_ *NamedType) DefineProperty_4_Property_Key_JSType_bool_Node(propertyN
 }
 
 // Java method: NamedType.finishPropertyContinuations()
-func (this_ *NamedType) priv_NamedType_finishPropertyContinuations_9291() {
+func (this_ *NamedType) priv_NamedType_finishPropertyContinuations_9294() {
 	var referencedObjType ObjectType = this_.GetReferencedObjTypeInternal()
 	_ = referencedObjType
 	if ((referencedObjType != nil && !referencedObjType.IsJavaNil_()) && !(referencedObjType.GetObjectTypeBase().IsUnknownType())) && (this_.propertyContinuations != nil) {
@@ -354,13 +354,13 @@ func (this_ *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 	if this_.resolutionScope == nil || this_.resolutionScope.IsJavaNil_() {
 		return this_
 	}
-	var unused bool = (this_.priv_NamedType_resolveTypeof_9294(reporter) || this_.priv_NamedType_resolveViaRegistry_9293(reporter))
+	var unused bool = (this_.priv_NamedType_resolveTypeof_9297(reporter) || this_.priv_NamedType_resolveViaRegistry_9296(reporter))
 	_ = unused
 	this_.ProxyObjectTypeBase.ResolveInternal(reporter)
 	if this_.DetectInheritanceCycle() {
-		this_.priv_NamedType_handleTypeCycle_9296(reporter)
+		this_.priv_NamedType_handleTypeCycle_9299(reporter)
 	}
-	this_.priv_NamedType_finishPropertyContinuations_9291()
+	this_.priv_NamedType_finishPropertyContinuations_9294()
 	var result JSType = this_.GetReferencedType()
 	_ = result
 	if this_.IsSuccessfullyResolved() {
@@ -385,20 +385,20 @@ func (this_ *NamedType) ResolveInternal(reporter ErrorReporter) JSType {
 }
 
 // Java method: NamedType.resolveViaRegistry(com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_resolveViaRegistry_9293(reporter ErrorReporter) bool {
+func (this_ *NamedType) priv_NamedType_resolveViaRegistry_9296(reporter ErrorReporter) bool {
 	_ = reporter
 	var type_ JSType = this_.GetJSTypeBase().registry.GetType_2(Upcast_StaticScope(this_.resolutionScope), this_.reference)
 	_ = type_
 	if type_ == nil || type_.IsJavaNil_() {
-		this_.priv_NamedType_handleUnresolvedType_9299(reporter)
+		this_.priv_NamedType_handleUnresolvedType_9302(reporter)
 		return false
 	}
-	this_.priv_NamedType_setReferencedAndResolvedType_9295(type_, reporter)
+	this_.priv_NamedType_setReferencedAndResolvedType_9298(type_, reporter)
 	return true
 }
 
 // Java method: NamedType.resolveTypeof(com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_resolveTypeof_9294(reporter ErrorReporter) bool {
+func (this_ *NamedType) priv_NamedType_resolveTypeof_9297(reporter ErrorReporter) bool {
 	_ = reporter
 	{
 		var iifeCond_1 bool
@@ -428,7 +428,7 @@ func (this_ *NamedType) priv_NamedType_resolveTypeof_9294(reporter ErrorReporter
 			}
 		} else {
 			this_.Warning(reporter, "Missing type for `typeof` value. The value must be declared and const.")
-			this_.priv_NamedType_setReferencedAndResolvedType_9295(this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE()), reporter)
+			this_.priv_NamedType_setReferencedAndResolvedType_9298(this_.GetJSTypeBase().registry.GetNativeType(StaticGet_JSTypeNative_UNKNOWN_TYPE()), reporter)
 		}
 	} else {
 		if type_.GetJSTypeBase().IsLiteralObject() {
@@ -436,13 +436,13 @@ func (this_ *NamedType) priv_NamedType_resolveTypeof_9294(reporter ErrorReporter
 			_ = objlit
 			type_ = ToIface_JSType(NamedType_S_Builder(this_.GetJSTypeBase().registry, this_.GetReferenceName()).SetResolutionKind(StaticGet_NamedType_ResolutionKind_NONE()).SetReferencedType(objlit).Build())
 		}
-		this_.priv_NamedType_setReferencedAndResolvedType_9295(type_, reporter)
+		this_.priv_NamedType_setReferencedAndResolvedType_9298(type_, reporter)
 	}
 	return true
 }
 
 // Java method: NamedType.setReferencedAndResolvedType(com.google.javascript.rhino.jstype.JSType type, com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_setReferencedAndResolvedType_9295(type_ JSType, reporter ErrorReporter) {
+func (this_ *NamedType) priv_NamedType_setReferencedAndResolvedType_9298(type_ JSType, reporter ErrorReporter) {
 	_ = type_
 	_ = reporter
 	if this_.restrictByNull {
@@ -453,19 +453,19 @@ func (this_ *NamedType) priv_NamedType_setReferencedAndResolvedType_9295(type_ J
 		_ = unused
 	}
 	this_.SetReferencedType(type_)
-	this_.priv_NamedType_checkEnumElementCycle_9297(reporter)
-	this_.priv_NamedType_checkProtoCycle_9298(reporter)
+	this_.priv_NamedType_checkEnumElementCycle_9300(reporter)
+	this_.priv_NamedType_checkProtoCycle_9301(reporter)
 }
 
 // Java method: NamedType.handleTypeCycle(com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_handleTypeCycle_9296(reporter ErrorReporter) {
+func (this_ *NamedType) priv_NamedType_handleTypeCycle_9299(reporter ErrorReporter) {
 	_ = reporter
 	this_.SetReferencedType(Upcast_JSType(this_.GetJSTypeBase().registry.GetNativeObjectType(StaticGet_JSTypeNative_UNKNOWN_TYPE())))
 	this_.Warning(reporter, ("Cycle detected in inheritance chain of type " + j2gort.StrValString(this_.reference)))
 }
 
 // Java method: NamedType.checkEnumElementCycle(com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_checkEnumElementCycle_9297(reporter ErrorReporter) {
+func (this_ *NamedType) priv_NamedType_checkEnumElementCycle_9300(reporter ErrorReporter) {
 	_ = reporter
 	var referencedType JSType = this_.GetReferencedType()
 	_ = referencedType
@@ -474,22 +474,22 @@ func (this_ *NamedType) priv_NamedType_checkEnumElementCycle_9297(reporter Error
 	var ok_9 bool
 	enumElementType, ok_9 = j2gort.TryCast[*EnumElementType](referencedType)
 	if ok_9 && (j2gort.IfaceEquals[JSType](this_, enumElementType.GetPrimitiveType())) {
-		this_.priv_NamedType_handleTypeCycle_9296(reporter)
+		this_.priv_NamedType_handleTypeCycle_9299(reporter)
 	}
 }
 
 // Java method: NamedType.checkProtoCycle(com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_checkProtoCycle_9298(reporter ErrorReporter) {
+func (this_ *NamedType) priv_NamedType_checkProtoCycle_9301(reporter ErrorReporter) {
 	_ = reporter
 	var referencedType JSType = this_.GetReferencedType()
 	_ = referencedType
 	if referencedType == this_ || ((referencedType == nil || referencedType.IsJavaNil_()) && (this_ == nil || this_.IsJavaNil_())) {
-		this_.priv_NamedType_handleTypeCycle_9296(reporter)
+		this_.priv_NamedType_handleTypeCycle_9299(reporter)
 	}
 }
 
 // Java method: NamedType.handleUnresolvedType(com.google.javascript.rhino.ErrorReporter reporter)
-func (this_ *NamedType) priv_NamedType_handleUnresolvedType_9299(reporter ErrorReporter) {
+func (this_ *NamedType) priv_NamedType_handleUnresolvedType_9302(reporter ErrorReporter) {
 	_ = reporter
 	var isForwardDeclared bool = this_.GetJSTypeBase().registry.IsForwardDeclaredType(this_.reference)
 	_ = isForwardDeclared
@@ -503,7 +503,7 @@ func (this_ *NamedType) priv_NamedType_handleUnresolvedType_9299(reporter ErrorR
 		} else {
 			root = this_.reference
 		}
-		if this_.priv_NamedType_localVariableShadowsGlobalNamespace_9300(root) {
+		if this_.priv_NamedType_localVariableShadowsGlobalNamespace_9303(root) {
 			msg = (j2gort.StrValString(msg) + "\nIt's possible that a local variable called '" + j2gort.StrValString(root) + "' is shadowing the intended global namespace.")
 		} else if !(j2gort.IfaceEquals[StaticTypedSlot](j2gort.AsIface[StaticTypedSlot](this_.resolutionScope.GetSlot(root)), nil)) {
 			msg = (j2gort.StrValString(msg) + "\nIt's possible that '" + j2gort.StrValString(this_.reference) + "' refers to a value, not a type.")
@@ -519,7 +519,7 @@ func (this_ *NamedType) priv_NamedType_handleUnresolvedType_9299(reporter ErrorR
 }
 
 // Java method: NamedType.localVariableShadowsGlobalNamespace(java.lang.String root)
-func (this_ *NamedType) priv_NamedType_localVariableShadowsGlobalNamespace_9300(root string) bool {
+func (this_ *NamedType) priv_NamedType_localVariableShadowsGlobalNamespace_9303(root string) bool {
 	_ = root
 	var rootVar StaticSlot = Upcast_StaticSlot(j2gort.AsIface[StaticTypedSlot](this_.resolutionScope.GetSlot(root)))
 	_ = rootVar
@@ -580,7 +580,7 @@ func (this_ *NamedType) ToBuilder() *NamedType_Builder {
 	if !(!(this_.IsResolved())) {
 		j2gort.CheckStateStr(false, "Only call toBuilder on unresolved NamedTypes")
 	}
-	return NewNamedType_Builder(this_.GetJSTypeBase().registry, this_.reference).SetScope(this_.resolutionScope).SetResolutionKind(this_.resolutionKind).SetErrorReportingLocation(this_.sourceName, this_.lineno, this_.charno).SetTemplateTypes(j2gort.ImmListFromTypedSlice(this_.templateTypes)).SetReferencedType(this_.GetReferencedType()).priv_Builder_setRestrictByNull_9310(this_.restrictByNull)
+	return NewNamedType_Builder(this_.GetJSTypeBase().registry, this_.reference).SetScope(this_.resolutionScope).SetResolutionKind(this_.resolutionKind).SetErrorReportingLocation(this_.sourceName, this_.lineno, this_.charno).SetTemplateTypes(j2gort.ImmListFromTypedSlice(this_.templateTypes)).SetReferencedType(this_.GetReferencedType()).priv_Builder_setRestrictByNull_9313(this_.restrictByNull)
 }
 
 // Java class: com.google.javascript.rhino.jstype.NamedType.PropertyContinuation
@@ -865,7 +865,7 @@ func (this_ *NamedType_Builder) SetReferencedType(referencedType JSType) *NamedT
 }
 
 // Java method: Builder.setRestrictByNull(boolean restrictByNull)
-func (this_ *NamedType_Builder) priv_Builder_setRestrictByNull_9310(restrictByNull bool) *NamedType_Builder {
+func (this_ *NamedType_Builder) priv_Builder_setRestrictByNull_9313(restrictByNull bool) *NamedType_Builder {
 	_ = restrictByNull
 	this_.restrictByNull = restrictByNull
 	return this_

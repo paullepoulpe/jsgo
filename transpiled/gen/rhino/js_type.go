@@ -410,7 +410,7 @@ func (this_ *JSTypeBase) GetWellFormedTemplatizedKind() int32 {
 
 // Java method: JSType.markWellFormedTemplatizedOk()
 func (this_ *JSTypeBase) MarkWellFormedTemplatizedOk() {
-	if this_.IsResolved() && this_.registry.GetResolver().IsClosed() {
+	if this_.registry.IsResolverClosed() {
 		this_.protoFlags = int8((int32(this_.protoFlags) | int32(int8(-128))))
 	}
 }
@@ -968,7 +968,7 @@ func (this_ *JSTypeBase) HasAnyTemplateTypes() bool {
 	var result bool = this_.self_.HasAnyTemplateTypesInternal()
 	_ = result
 	this_.jstypeFlags = int8((int32(this_.jstypeFlags) & ^(int32(int8(4)))))
-	if this_.IsResolved() {
+	if this_.IsResolved() || this_.registry.IsResolverClosed() {
 		var code int32
 		_ = code
 		if result {
@@ -1322,14 +1322,16 @@ func (this_ *JSTypeBase) Dereference() ObjectType {
 // Java method: JSType.canTestForEqualityWith(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) CanTestForEqualityWith(that JSType) bool {
 	_ = that
-	return func() bool {
+	{
+
 		re_14 := this_.self_.TestForEquality(that)
 		ae_15 := pkg_base.StaticGet_Tri_UNKNOWN()
 		if re_14 == 0 {
 			j2gort.ThrowNPE()
 		}
 		return re_14 == ae_15
-	}()
+	}
+
 }
 
 // Java method: JSType.testForEquality(com.google.javascript.rhino.jstype.JSType that)
@@ -1575,7 +1577,7 @@ func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9124() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9124() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9126() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9126() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1599,14 +1601,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9124() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9126() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9124() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9126() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 

@@ -72,5 +72,5 @@ func InitBreakStatementTree(this_ *BreakStatementTree, location SourceRange, nam
 
 // Java method: BreakStatementTree.hasLabel()
 func (this_ *BreakStatementTree) HasLabel() bool {
-	return (this_.name != (Token{}))
+	return !(this_.name).IsJavaNil_()
 }

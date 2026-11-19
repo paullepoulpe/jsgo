@@ -204,26 +204,30 @@ func AstFactory_CreateFactoryWithColors(lifeCycleStage *AbstractCompiler_LifeCyc
 
 // Java method: AstFactory.isAddingTypes()
 func (this_ *AstFactory) IsAddingTypes() bool {
-	return func() bool {
+	{
+
 		re_1 := StaticGet_AstFactory_TypeMode_JSTYPE()
 		ae_2 := this_.typeMode
 		if re_1 == 0 {
 			j2gort.ThrowNPE()
 		}
 		return re_1 == ae_2
-	}()
+	}
+
 }
 
 // Java method: AstFactory.isAddingColors()
 func (this_ *AstFactory) IsAddingColors() bool {
-	return func() bool {
+	{
+
 		re_3 := StaticGet_AstFactory_TypeMode_COLOR()
 		ae_4 := this_.typeMode
 		if re_3 == 0 {
 			j2gort.ThrowNPE()
 		}
 		return re_3 == ae_4
-	}()
+	}
+
 }
 
 // Java method: AstFactory.assertNotAddingColors()
@@ -1711,7 +1715,10 @@ func (this_ *AstFactory) CreateJscompArrayFromIteratorCall(iterator pkg_rhino.No
 	_ = arrayFromIterator
 	var makeIteratorName pkg_rhino.Node = this_.CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibField(scope, arrayFromIterator)
 	_ = makeIteratorName
-	var resultType AstFactory_Type = func() AstFactory_Type {
+	var resultType AstFactory_Type
+iifeSwitch_1:
+	switch {
+	default:
 		switch (this_.typeMode).Ordinal() {
 		case int32(0) /* TypeMode.JSTYPE */ :
 			var iterableType pkg_rhino.JSType = iterator.GetJSType().GetTemplateTypeMap().GetResolvedTemplateType(this_.registry.GetIteratorValueTemplate())
@@ -1719,14 +1726,18 @@ func (this_ *AstFactory) CreateJscompArrayFromIteratorCall(iterator pkg_rhino.No
 			var makeIteratorType pkg_rhino.JSType = makeIteratorName.GetJSType()
 			_ = makeIteratorType
 			makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
-			return AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
+			resultType = AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
+			break iifeSwitch_1
 		case int32(1) /* TypeMode.COLOR */ :
-			return AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
+			resultType = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
+			break iifeSwitch_1
 		case int32(2) /* TypeMode.NONE */ :
-			return AstFactory_NoTypeInformation()
+			resultType = AstFactory_NoTypeInformation()
+			break iifeSwitch_1
 		}
 		panic("unreachable switch expression")
-	}()
+	}
+
 	_ = resultType
 	var call pkg_rhino.Node = this_.CreateCall(makeIteratorName, resultType, []pkg_rhino.Node{iterator})
 	_ = call
@@ -1744,7 +1755,10 @@ func (this_ *AstFactory) CreateJscompArrayFromIterableCall(iterable pkg_rhino.No
 	_ = makeIterableName
 	var resultType AstFactory_Type = nil
 	_ = resultType
-	resultType = func() AstFactory_Type {
+iifeSwitch_2:
+	switch {
+	default:
+
 		switch (this_.typeMode).Ordinal() {
 		case int32(0) /* TypeMode.JSTYPE */ :
 			var iterableType pkg_rhino.JSType = iterable.GetJSType().GetTemplateTypeMap().GetResolvedTemplateType(this_.registry.GetIterableValueTemplate())
@@ -1752,18 +1766,24 @@ func (this_ *AstFactory) CreateJscompArrayFromIterableCall(iterable pkg_rhino.No
 			var makeIterableType pkg_rhino.JSType = makeIterableName.GetJSType()
 			_ = makeIterableType
 			makeIterableName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIterableType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
-			return AstFactory_S_Type_1_JSType(makeIterableName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
+			resultType = AstFactory_S_Type_1_JSType(makeIterableName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
+			break iifeSwitch_2
 		case int32(1) /* TypeMode.COLOR */ :
-			return func() AstFactory_Type {
+			{
+
 				var asgn_20 AstFactory_Type = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
 				resultType = asgn_20
-				return asgn_20
-			}()
+				resultType = asgn_20
+				break iifeSwitch_2
+			}
+
 		case int32(2) /* TypeMode.NONE */ :
-			return AstFactory_NoTypeInformation()
+			resultType = AstFactory_NoTypeInformation()
+			break iifeSwitch_2
 		}
 		panic("unreachable switch expression")
-	}()
+	}
+
 	var call pkg_rhino.Node = this_.CreateCall(makeIterableName, resultType, []pkg_rhino.Node{iterable})
 	_ = call
 	call.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), true)

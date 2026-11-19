@@ -31,12 +31,12 @@ type Parser struct {
 	errorReporter                        ErrorReporter                                               `gson:"errorReporter"`
 	config                               *Parser_Config                                              `gson:"config"`
 	comments                             *j2gort.Ext_com_google_common_collect_ImmutableList_Builder `gson:"comments"`
-	lastCommentEndPosition               SourcePosition                                              `gson:"lastCommentEndPosition"`
 	features                             *FeatureSet                                                 `gson:"features"`
-	lastSourcePosition                   SourcePosition                                              `gson:"lastSourcePosition"`
 	sourceMapURL                         string                                                      `gson:"sourceMapURL"`
 	treeScratch                          []ParseTree                                                 `gson:"treeScratch"`
 	commaScratch                         []SourcePosition                                            `gson:"commaScratch"`
+	lastCommentEndPosition               SourcePosition                                              `gson:"lastCommentEndPosition"`
+	lastSourcePosition                   SourcePosition                                              `gson:"lastSourcePosition"`
 	treeScratchTop                       int32                                                       `gson:"treeScratchTop"`
 	commaScratchTop                      int32                                                       `gson:"commaScratchTop"`
 	idHash_                              atomic.Int32
@@ -729,7 +729,7 @@ func (this_ *Parser) priv_Parser_parseObjectLiteralMethodDeclaration_7241() Pars
 // Java method: Parser.parseMethodDeclaration(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
 func (this_ *Parser) priv_Parser_parseMethodDeclaration_7242(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR()) != (Token{}))
+	var isGenerator bool = !(this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR())).IsJavaNil_()
 	_ = isGenerator
 	this_.priv_Parser_parseClassElementName_7238(elementInfo)
 	return this_.priv_Parser_parseMethodDefinition_7240(elementInfo, isGenerator)
@@ -738,7 +738,7 @@ func (this_ *Parser) priv_Parser_parseMethodDeclaration_7242(elementInfo *ClassO
 // Java method: Parser.parseClassMemberDeclaration(com.google.javascript.jscomp.parsing.parser.ClassOrObjectElementInfo elementInfo)
 func (this_ *Parser) priv_Parser_parseClassMemberDeclaration_7243(elementInfo *ClassOrObjectElementInfo) ParseTree {
 	_ = elementInfo
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR()) != (Token{}))
+	var isGenerator bool = !(this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR())).IsJavaNil_()
 	_ = isGenerator
 	this_.priv_Parser_parseClassElementName_7238(elementInfo)
 	if this_.priv_Parser_peekType_7436(int32(0)) == StaticGet_TokenType_OPEN_PAREN() {
@@ -878,7 +878,7 @@ func (this_ *Parser) priv_Parser_parseFunctionDeclaration_7255() ParseTree {
 	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7427()
 	_ = start
 	this_.priv_Parser_eat_7425(StaticGet_Keywords_FUNCTION().type_)
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR()) != (Token{}))
+	var isGenerator bool = !(this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR())).IsJavaNil_()
 	_ = isGenerator
 	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_DECLARATION()).SetName(this_.priv_Parser_eatId_7422())
 	_ = builder
@@ -896,7 +896,7 @@ func (this_ *Parser) priv_Parser_parseFunctionExpression_7256() ParseTree {
 	var start SourcePosition = this_.priv_Parser_getTreeStartLocation_7427()
 	_ = start
 	this_.priv_Parser_eat_7425(StaticGet_Keywords_FUNCTION().type_)
-	var isGenerator bool = (this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR()) != (Token{}))
+	var isGenerator bool = !(this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR())).IsJavaNil_()
 	_ = isGenerator
 	var builder *FunctionDeclarationTree_Builder = allocPooledVia_FunctionDeclarationTree_S_Builder(&this_.slab_FunctionDeclarationTree_Builder, StaticGet_FunctionDeclarationTree_Kind_EXPRESSION()).SetName(this_.priv_Parser_eatIdOpt_7421())
 	_ = builder
@@ -1056,7 +1056,7 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 	_ = firstComma
 	var firstCommaPos SourcePosition
 	_ = firstCommaPos
-	if firstComma != (Token{}) {
+	if !(firstComma).IsJavaNil_() {
 		firstCommaPos = firstComma.GetStart()
 	} else {
 		firstCommaPos = this_.priv_Parser_getTreeEndLocation_7428()
@@ -1082,7 +1082,7 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 	_ = secondComma
 	var secondCommaPos SourcePosition
 	_ = secondCommaPos
-	if secondComma != (Token{}) {
+	if !(secondComma).IsJavaNil_() {
 		secondCommaPos = secondComma.GetStart()
 	} else {
 		secondCommaPos = this_.priv_Parser_getTreeEndLocation_7428()
@@ -1108,7 +1108,7 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 	_ = thirdComma
 	var thirdCommaPos SourcePosition
 	_ = thirdCommaPos
-	if thirdComma != (Token{}) {
+	if !(thirdComma).IsJavaNil_() {
 		thirdCommaPos = thirdComma.GetStart()
 	} else {
 		thirdCommaPos = this_.priv_Parser_getTreeEndLocation_7428()
@@ -1157,7 +1157,7 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 				var comma Token = this_.priv_Parser_eat_7425(StaticGet_TokenType_COMMA())
 				_ = comma
 				this_.priv_Parser_pushCommaScratch_7262(func() SourcePosition {
-					if comma != (Token{}) {
+					if !(comma).IsJavaNil_() {
 						return comma.GetStart()
 					}
 					return this_.priv_Parser_getTreeEndLocation_7428()
@@ -1172,7 +1172,8 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 			}
 		}
 		this_.priv_Parser_eat_7425(StaticGet_TokenType_CLOSE_PAREN())
-		var restParams []ParseTree = func() []ParseTree {
+		var restParams []ParseTree
+		{
 			arrSrc_19 := this_.treeScratch
 			arrFrom_20 := savedTreeTop
 			arrTo_21 := this_.treeScratchTop
@@ -1186,13 +1187,15 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 			arrLen_22 := arrTo_21 - arrFrom_20
 			arrOut_23 := make([]ParseTree, arrLen_22)
 			copy(arrOut_23, arrSrc_19[arrFrom_20:])
-			return arrOut_23
-		}()
+			restParams = arrOut_23
+		}
+
 		_ = restParams
 		var restCommas []SourcePosition
 		_ = restCommas
 		if commaCount > int32(3) {
-			restCommas = func() []SourcePosition {
+			{
+
 				arrSrc_24 := this_.commaScratch
 				arrFrom_25 := savedCommaTop
 				arrTo_26 := this_.commaScratchTop
@@ -1206,8 +1209,9 @@ func (this_ *Parser) priv_Parser_parseFormalParameterList_7263() *FormalParamete
 				arrLen_27 := arrTo_26 - arrFrom_25
 				arrOut_28 := make([]SourcePosition, arrLen_27)
 				copy(arrOut_28, arrSrc_24[arrFrom_25:])
-				return arrOut_28
-			}()
+				restCommas = arrOut_28
+			}
+
 		} else {
 			restCommas = nil
 		}
@@ -2100,7 +2104,7 @@ func (this_ *Parser) priv_Parser_parseArrayLiteral_7316() ParseTree {
 	}
 	this_.priv_Parser_eat_7425(StaticGet_TokenType_CLOSE_SQUARE())
 	this_.MaybeReportTrailingComma(trailingCommaToken)
-	return ToIface_ParseTree(allocPooled_ArrayLiteralExpressionTree(&this_.slab_ArrayLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7429(start), j2gort.ImmListFromTypedSlice(elements), (trailingCommaToken != (Token{}))))
+	return ToIface_ParseTree(allocPooled_ArrayLiteralExpressionTree(&this_.slab_ArrayLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7429(start), j2gort.ImmListFromTypedSlice(elements), !(trailingCommaToken).IsJavaNil_()))
 }
 
 // Java method: Parser.parseObjectLiteral()
@@ -2115,19 +2119,19 @@ func (this_ *Parser) priv_Parser_parseObjectLiteral_7317() ParseTree {
 	for (this_.priv_Parser_peek_7433(StaticGet_TokenType_ELLIPSIS()) || this_.priv_Parser_peekPropertyNameOrComputedProp_7319(int32(0))) || this_.priv_Parser_peek_7433(StaticGet_TokenType_STAR()) {
 		result = append(result, j2gort.CheckNotNullElem(this_.priv_Parser_parseObjectLiteralPropertyAssignment_7321()))
 		commaToken = this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_COMMA())
-		if commaToken == (Token{}) {
+		if (commaToken).IsJavaNil_() {
 			break
 		}
 	}
 	this_.priv_Parser_eat_7425(StaticGet_TokenType_CLOSE_CURLY())
 	this_.MaybeReportTrailingComma(commaToken)
-	return ToIface_ParseTree(allocPooled_ObjectLiteralExpressionTree(&this_.slab_ObjectLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7429(start), j2gort.ImmListFromTypedSlice(result), (commaToken != (Token{}))))
+	return ToIface_ParseTree(allocPooled_ObjectLiteralExpressionTree(&this_.slab_ObjectLiteralExpressionTree, this_.priv_Parser_getTreeLocation_7429(start), j2gort.ImmListFromTypedSlice(result), !(commaToken).IsJavaNil_()))
 }
 
 // Java method: Parser.maybeReportTrailingComma(com.google.javascript.jscomp.parsing.parser.Token commaToken)
 func (this_ *Parser) MaybeReportTrailingComma(commaToken Token) {
 	_ = commaToken
-	if commaToken != (Token{}) {
+	if !(commaToken).IsJavaNil_() {
 		this_.priv_Parser_recordFeatureUsed_7444(StaticGet_FeatureSet_Feature_TRAILING_COMMA())
 		if this_.config.warnTrailingCommas {
 			this_.errorReporter.GetErrorReporterBase().ReportWarning_3(commaToken.location.start, "Trailing comma is not legal in an ECMA-262 object initializer", []any{})
@@ -2250,7 +2254,7 @@ func (this_ *Parser) priv_Parser_eatPredefinedString_7326(string_ string) Token 
 	_ = string_
 	var token Token = this_.priv_Parser_eatId_7422()
 	_ = token
-	if (token == (Token{})) || !(token.ValueEquals(string_)) {
+	if (token).IsJavaNil_() || !(token.ValueEquals(string_)) {
 		this_.priv_Parser_reportExpectedError_7426(token, j2gort.BoxString(string_))
 		return (Token{})
 	}
@@ -2337,7 +2341,7 @@ func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyNameAssignment_7333()
 	_ = name
 	var colon Token = this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_COLON())
 	_ = colon
-	if colon == (Token{}) {
+	if (colon).IsJavaNil_() {
 		if name.type_ != StaticGet_TokenType_IDENTIFIER() {
 			this_.priv_Parser_reportExpectedError_7426(this_.priv_Parser_peekToken_7437(), j2gort.BoxNullableVal(StaticGet_TokenType_COLON()))
 		} else if name.IsKeyword() {
@@ -2353,7 +2357,7 @@ func (this_ *Parser) priv_Parser_parseObjectLiteralPropertyNameAssignment_7333()
 	}
 	var value ParseTree
 	_ = value
-	if colon == (Token{}) {
+	if (colon).IsJavaNil_() {
 		value = nil
 	} else {
 		value = this_.priv_Parser_parseAssignmentExpression_7340()
@@ -2707,7 +2711,7 @@ func (this_ *Parser) priv_Parser_parseYield_7358(expressionIn Parser_Expression)
 	var expression ParseTree = nil
 	_ = expression
 	if !(this_.priv_Parser_peekImplicitSemiColon_7411()) {
-		isYieldAll = (this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR()) != (Token{}))
+		isYieldAll = !(this_.priv_Parser_eatOpt_7415(StaticGet_TokenType_STAR())).IsJavaNil_()
 		if this_.priv_Parser_peekAssignmentExpression_7341() {
 			expression = this_.priv_Parser_parseAssignment_7342(expressionIn)
 		} else if isYieldAll {
@@ -3336,14 +3340,14 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 	_ = firstComma
 	var c0 SourcePosition
 	_ = c0
-	if firstComma != (Token{}) {
+	if !(firstComma).IsJavaNil_() {
 		c0 = firstComma.GetStart()
 	} else {
 		c0 = (SourcePosition{})
 	}
 	var commaCount int32
 	_ = commaCount
-	if firstComma != (Token{}) {
+	if !(firstComma).IsJavaNil_() {
 		commaCount = int32(1)
 	} else {
 		commaCount = int32(0)
@@ -3369,7 +3373,7 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 	_ = secondComma
 	var c1 SourcePosition = (SourcePosition{})
 	_ = c1
-	if secondComma != (Token{}) {
+	if !(secondComma).IsJavaNil_() {
 		var pos SourcePosition = secondComma.GetStart()
 		_ = pos
 		if commaCount == int32(0) {
@@ -3400,7 +3404,7 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 	_ = thirdComma
 	var c2 SourcePosition = (SourcePosition{})
 	_ = c2
-	if thirdComma != (Token{}) {
+	if !(thirdComma).IsJavaNil_() {
 		var pos_2 SourcePosition = thirdComma.GetStart()
 		_ = pos_2
 		if commaCount == int32(0) {
@@ -3453,7 +3457,7 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 			if !(this_.priv_Parser_peek_7433(StaticGet_TokenType_CLOSE_PAREN())) {
 				var comma Token = this_.priv_Parser_eat_7425(StaticGet_TokenType_COMMA())
 				_ = comma
-				if comma != (Token{}) {
+				if !(comma).IsJavaNil_() {
 					var pos_3 SourcePosition = comma.GetStart()
 					_ = pos_3
 					if commaCount == int32(0) {
@@ -3476,7 +3480,8 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 			}
 		}
 		this_.priv_Parser_eat_7425(StaticGet_TokenType_CLOSE_PAREN())
-		var restArgs []ParseTree = func() []ParseTree {
+		var restArgs []ParseTree
+		{
 			arrSrc_35 := this_.treeScratch
 			arrFrom_36 := savedTreeTop
 			arrTo_37 := this_.treeScratchTop
@@ -3490,13 +3495,15 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 			arrLen_38 := arrTo_37 - arrFrom_36
 			arrOut_39 := make([]ParseTree, arrLen_38)
 			copy(arrOut_39, arrSrc_35[arrFrom_36:])
-			return arrOut_39
-		}()
+			restArgs = arrOut_39
+		}
+
 		_ = restArgs
 		var restCommas []SourcePosition
 		_ = restCommas
 		if commaCount > int32(3) {
-			restCommas = func() []SourcePosition {
+			{
+
 				arrSrc_40 := this_.commaScratch
 				arrFrom_41 := savedCommaTop
 				arrTo_42 := this_.commaScratchTop
@@ -3510,8 +3517,9 @@ func (this_ *Parser) priv_Parser_parseArguments_7396() *ArgumentListTree {
 				arrLen_43 := arrTo_42 - arrFrom_41
 				arrOut_44 := make([]SourcePosition, arrLen_43)
 				copy(arrOut_44, arrSrc_40[arrFrom_41:])
-				return arrOut_44
-			}()
+				restCommas = arrOut_44
+			}
+
 		} else {
 			restCommas = nil
 		}
@@ -3606,7 +3614,7 @@ func (this_ *Parser) priv_Parser_parseArrayPattern_7404(kind Parser_PatternKind)
 		this_.priv_Parser_recordFeatureUsed_7444(StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST())
 		elements = append(elements, j2gort.CheckNotNullElem(this_.priv_Parser_parseIterRest_7402(kind)))
 	}
-	if this_.priv_Parser_eat_7425(StaticGet_TokenType_CLOSE_SQUARE()) == (Token{}) {
+	if (this_.priv_Parser_eat_7425(StaticGet_TokenType_CLOSE_SQUARE())).IsJavaNil_() {
 		return ToIface_ParseTree(allocPooled_MissingPrimaryExpressionTree(&this_.slab_MissingPrimaryExpressionTree, this_.priv_Parser_getTreeLocation_7429(this_.priv_Parser_getTreeStartLocation_7427())))
 	}
 	return ToIface_ParseTree(allocPooled_ArrayPatternTree(&this_.slab_ArrayPatternTree, this_.priv_Parser_getTreeLocation_7429(start), j2gort.ImmListFromTypedSlice(elements)))
@@ -3967,7 +3975,7 @@ func (this_ *Parser) priv_Parser_reportError_7439(token Token, message string, a
 	_ = token
 	_ = message
 	_ = arguments
-	if token == (Token{}) {
+	if (token).IsJavaNil_() {
 		this_.priv_Parser_reportError_7441(message, arguments)
 	} else {
 		this_.errorReporter.GetErrorReporterBase().ReportError_3(token.GetStart(), message, arguments)

@@ -104,23 +104,23 @@ func (this_ *AutoValue_CodingConvention_AssertionFunctionSpec) Equals(arg_1 any)
 			if this_.functionName == j2gort.NullString {
 				return (that.GetFunctionName() == j2gort.NullString)
 			}
-			return func() bool {
+			{
 				sr_2 := this_.functionName
 				se_3 := that.GetFunctionName()
 				return j2gort.CheckNotNullString(sr_2) == se_3
-			}()
+			}
 		}()) && (func() bool {
 			if this_.closurePrimitive == 0 {
 				return (that.GetClosurePrimitive() == 0)
 			}
-			return func() bool {
+			{
 				re_4 := this_.closurePrimitive
 				ae_5 := that.GetClosurePrimitive()
 				if re_4 == 0 {
 					j2gort.ThrowNPE()
 				}
 				return re_4 == ae_5
-			}()
+			}
 		}())) && func() bool {
 			re_6 := this_.assertionKind
 			ae_7 := that.GetAssertionKind()

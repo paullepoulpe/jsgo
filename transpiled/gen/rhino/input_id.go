@@ -40,15 +40,17 @@ import (
 
 // Java class: com.google.javascript.rhino.InputId
 type InputId struct {
-	id string `gson:"id"`
-	hashCode int32 `gson:"-"`
+	id       string `gson:"id"`
+	hashCode int32  `gson:"-"`
 }
 
 func (this_ *InputId) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *InputId) IsJavaNil_() bool { return this_ == nil }
-func (*InputId) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.InputId", "InputId" }
+func (*InputId) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.InputId", "InputId"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.rhino.InputId", "com.google.javascript.rhino.InputId", func(v_ any) bool {
 		return j2gort.InstanceOf[*InputId](v_)
@@ -72,7 +74,7 @@ func InitInputId(this_ *InputId, id string) {
 	_ = id
 	this_.initFields_InputId()
 	this_.id = id
-	if (id != j2gort.NullString) {
+	if id != j2gort.NullString {
 		this_.hashCode = javalang.StringHashCode(j2gort.CheckNotNullString(id))
 	} else {
 		this_.hashCode = int32(0)
@@ -86,7 +88,7 @@ func (this_ *InputId) GetIdName() string {
 
 // Java method: InputId.hashCode()
 func (this_ *InputId) HashCode() int32 {
-	if ((this_.id == j2gort.NullString)) {
+	if this_.id == j2gort.NullString {
 		panic(j2gort.AsIface[javalang.INullPointerException](j2gort.ConstructShimThrowable("java.lang.NullPointerException")))
 	}
 	return this_.hashCode
@@ -96,7 +98,7 @@ func (this_ *InputId) HashCode() int32 {
 func (this_ *InputId) Equals(arg_1 any) bool {
 	obj := arg_1
 	_ = obj
-	if (j2gort.RefEquals(this_, obj)) {
+	if j2gort.RefEquals(this_, obj) {
 		return true
 	}
 	var inputId *InputId
@@ -106,11 +108,14 @@ func (this_ *InputId) Equals(arg_1 any) bool {
 	if !ok_2 {
 		return false
 	}
-	return func() bool { sr_3 := this_.id; se_4 := inputId.id; return j2gort.CheckNotNullString(sr_3) == se_4 }()
+	{
+		sr_3 := this_.id
+		se_4 := inputId.id
+		return j2gort.CheckNotNullString(sr_3) == se_4
+	}
 }
 
 // Java method: InputId.toString()
 func (this_ *InputId) String() string {
 	return ("InputId: " + j2gort.StrValString(this_.GetIdName()))
 }
-

@@ -312,12 +312,13 @@ func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) Resolve_1_Export(e *Exp
 // Java method: ModuleRequestResolverImpl.resolveForClosure(java.lang.String namespace)
 func (this_ *ModuleMapCreator_ModuleRequestResolverImpl) priv_ModuleRequestResolverImpl_resolveForClosure_6750(namespace string) UnresolvedModule {
 	_ = namespace
-	return func() UnresolvedModule {
+	{
+
 		bound_9 := this_
 		return j2gort.OrderedMapComputeIfAbsent(&this_.outer_.unresolvedModulesByClosureNamespace, namespace, nil, func(mrp0_ string) UnresolvedModule {
 			return bound_9.priv_ModuleRequestResolverImpl_getFallbackForMissingClosureModule_6747(mrp0_)
 		})
-	}()
+	}
 
 }
 

@@ -654,11 +654,13 @@ func InitExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration(this_ *Ex
 // Java method: PrototypeMemberDeclaration.isSameClass(com.google.javascript.jscomp.ExtractPrototypeMemberDeclarations.PrototypeMemberDeclaration other)
 func (this_ *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) priv_PrototypeMemberDeclaration_isSameClass_2859(other *ExtractPrototypeMemberDeclarations_PrototypeMemberDeclaration) bool {
 	_ = other
-	return func() bool {
+	{
+
 		sr_16 := this_.qualifiedClassName
 		se_17 := other.qualifiedClassName
 		return j2gort.CheckNotNullString(sr_16) == se_17
-	}()
+	}
+
 }
 
 // Java static method: PrototypeMemberDeclaration.getPrototypeClassName(com.google.javascript.rhino.Node qName)

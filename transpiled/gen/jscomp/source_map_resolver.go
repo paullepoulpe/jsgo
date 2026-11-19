@@ -130,10 +130,10 @@ func SourceMapResolver_ExtractBase64String(url string) string {
 		if j2gort.SetContainsStr(StaticGet_SourceMapResolver_ACCEPTED_MEDIA_TYPES(), mediaType) {
 			var data []int8 = j2gort.Ext_com_google_common_io_BaseEncoding_Base64().Decode(j2gort.BoxString(j2gort.JStrSubFrom(url, (base64StartIndex + j2gort.JStrLen("base64,")))))
 			_ = data
-			return func() string {
+			{
 				b_1 := data
 				return j2gort.NewStringFromBytes(b_1, 0, int32(len(b_1)), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
-			}()
+			}
 		}
 	}
 	return j2gort.NullString

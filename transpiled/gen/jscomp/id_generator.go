@@ -75,7 +75,12 @@ func (this_ *IdGenerator) HasGeneratedAnyIds() bool {
 
 // Java method: IdGenerator.newId()
 func (this_ *IdGenerator) NewId() int32 {
-	return func() int32 { old_1 := this_.currentId; nw_2 := old_1 + 1; this_.currentId = nw_2; return old_1 }()
+	{
+		old_1 := this_.currentId
+		nw_2 := old_1 + 1
+		this_.currentId = nw_2
+		return old_1
+	}
 }
 
 // Java method: IdGenerator.getCurrentId()

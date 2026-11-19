@@ -701,11 +701,13 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_getBundler_1407() *Closur
 	}
 	var options *CompilerOptions = this_.CreateOptions()
 	_ = options
-	return func() *ClosureBundler {
+	{
+
 		var asgn_27 *ClosureBundler = NewClosureBundler_2(StaticGet_Transpile_Transpiler_NULL(), NewBaseTranspiler(NewBaseTranspiler_CompilerSupplier_4(StaticGet_CompilerOptions_LanguageMode_ECMASCRIPT_NEXT().ToFeatureSet().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_MODULES(), []*pkg_parser.FeatureSet_Feature{}), options.GetModuleResolutionMode(), moduleRoots, options.GetBrowserResolverPrefixReplacements()), ""))
 		this_.bundler = asgn_27
 		return asgn_27
-	}()
+	}
+
 }
 
 // Java method: CommandLineRunner.prepForBundleAndAppendTo(java.lang.Appendable out, com.google.javascript.jscomp.CompilerInput input, java.lang.String content)

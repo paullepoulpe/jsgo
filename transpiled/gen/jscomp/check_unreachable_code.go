@@ -184,7 +184,14 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 				_ = srcNode
 				{
 					a_6 := queue
-					i_7 := func() int32 { old_8 := head; nw_9 := old_8 + 1; head = nw_9; return old_8 }()
+					var i_7 int32
+					{
+
+						old_8 := head
+						nw_9 := old_8 + 1
+						head = nw_9
+						i_7 = old_8
+					}
 					a_6[i_7] = nil
 				}
 				{
@@ -204,7 +211,14 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 							}
 							{
 								a_10 := queue
-								i_11 := func() int32 { old_12 := tail; nw_13 := old_12 + 1; tail = nw_13; return old_12 }()
+								var i_11 int32
+								{
+
+									old_12 := tail
+									nw_13 := old_12 + 1
+									tail = nw_13
+									i_11 = old_12
+								}
 								a_10[i_11] = destNode
 							}
 						}
@@ -217,7 +231,14 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 				_ = srcNode_2
 				{
 					a_14 := queue
-					i_15 := func() int32 { old_16 := head; nw_17 := old_16 + 1; head = nw_17; return old_16 }()
+					var i_15 int32
+					{
+
+						old_16 := head
+						nw_17 := old_16 + 1
+						head = nw_17
+						i_15 = old_16
+					}
 					a_14[i_15] = nil
 				}
 				var srcValue pkg_rhino.Node = srcNode_2.GetValue()
@@ -241,7 +262,14 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_propagateReachabili
 							}
 							{
 								a_18 := queue
-								i_19 := func() int32 { old_20 := tail; nw_21 := old_20 + 1; tail = nw_21; return old_20 }()
+								var i_19 int32
+								{
+
+									old_20 := tail
+									nw_21 := old_20 + 1
+									tail = nw_21
+									i_19 = old_20
+								}
 								a_18[i_19] = destNode_2
 							}
 						}
@@ -276,17 +304,23 @@ func (this_ *CheckUnreachableCode) priv_CheckUnreachableCode_growQueue_1129(queu
 		j2gort.ArraysFillRangeZero(queue, active, tail)
 		return queue
 	}
-	var next []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = func() []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] {
+	var next []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]
+iifeSwitch_1:
+	switch {
+	default:
 		arr_27 := make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[any, any], (int32(len(queue)) * int32(2)))
 		if arr_27 == nil {
-			return nil
+			next = nil
+			break iifeSwitch_1
 		}
 		out_28 := make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch], len(arr_27))
 		for i_, el_29 := range arr_27 {
 			out_28[i_] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](el_29)
 		}
-		return out_28
-	}()
+		next = out_28
+		break iifeSwitch_1
+	}
+
 	_ = next
 	func() {
 		acSrc_30 := queue

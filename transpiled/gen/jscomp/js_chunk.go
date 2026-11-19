@@ -293,7 +293,11 @@ func (this_ *JSChunk) IsSynthetic() bool {
 
 // Java method: JSChunk.isWeak()
 func (this_ *JSChunk) IsWeak() bool {
-	return func() bool { sr_13 := this_.name; se_14 := "$weak$"; return j2gort.CheckNotNullString(sr_13) == se_14 }()
+	{
+		sr_13 := this_.name
+		se_14 := "$weak$"
+		return j2gort.CheckNotNullString(sr_13) == se_14
+	}
 }
 
 // Java method: JSChunk.toString()

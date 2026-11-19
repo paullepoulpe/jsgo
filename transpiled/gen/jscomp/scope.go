@@ -549,7 +549,14 @@ func (this_ *Scope) GetOwnVarNamesArray() []string {
 				_ = name
 				{
 					a_9 := out
-					i_10 := func() int32 { old_11 := i; nw_12 := old_11 + 1; i = nw_12; return old_11 }()
+					var i_10 int32
+					{
+
+						old_11 := i
+						nw_12 := old_11 + 1
+						i = nw_12
+						i_10 = old_11
+					}
 					a_9[i_10] = name
 				}
 			}

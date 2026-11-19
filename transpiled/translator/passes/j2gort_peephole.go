@@ -98,6 +98,7 @@ func (p *J2gortPeepholePass) Apply(ctx *PassContext) (int, error) {
 	total += p.rewriteNodeClearJSTypeAndJSDocFastPaths(ctx)
 	total += p.rewriteNodeHasNonNegativeLength(ctx)
 	total += p.rewriteIfCondIIFEs(ctx)
+	total += p.rewriteStmtValueIIFEs(ctx)
 	total += p.hoistStatelessNodeLambdas(ctx)
 	nuHasCount, err := p.rewriteNodeUtilHasNodeLambdas(ctx)
 	if err != nil {
@@ -9293,4 +9294,695 @@ func peepholeFieldListHasName(fl *ast.FieldList, name string) bool {
 		}
 	}
 	return false
+}
+
+// rewriteStmtValueIIFEs unwraps statement-level zero-arg single-unnamed-result closure IIFEs
+// (`var x T = func() T { ... }()`, `x := func() T { ... }()`, `x = func() T { ... }()`, and
+// `return func() T { ... }()`), eliminating non-inlined closure calls from Java switch
+// expressions and multi-statement value blocks while remaining 100% idempotent.
+func (p *J2gortPeepholePass) rewriteStmtValueIIFEs(ctx *PassContext) int {
+	if ctx == nil || ctx.Fset == nil {
+		return 0
+	}
+	total := 0
+	for _, file := range ctx.Files {
+		if !ctx.ShouldTransform(file) {
+			continue
+		}
+		if n := unwrapFileStmtValueIIFEs(file, ctx.Fset, ctx.Pkg, ctx.Info); n > 0 {
+			ctx.MarkFileModified(file)
+			total += n
+		}
+	}
+	return total
+}
+
+func fileHasFuncLit(file *ast.File) bool {
+	found := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		if _, ok := n.(*ast.FuncLit); ok {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Package, info *types.Info) int {
+	if file == nil || fset == nil || !fileHasFuncLit(file) {
+		return 0
+	}
+
+	usedIdents := make(map[string]bool)
+	ast.Inspect(file, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name != "" {
+			usedIdents[id.Name] = true
+		}
+		return true
+	})
+	nextSwitchIdx := 1
+	allocSwitchLabel := func(encLabels map[string]bool) string {
+		for {
+			lbl := fmt.Sprintf("iifeSwitch_%d", nextSwitchIdx)
+			nextSwitchIdx++
+			if !usedIdents[lbl] && !encLabels[lbl] {
+				usedIdents[lbl] = true
+				encLabels[lbl] = true
+				return lbl
+			}
+		}
+	}
+
+	count := 0
+	var walkFunc func(fnType *ast.FuncType, fnBody *ast.BlockStmt)
+	walkFunc = func(fnType *ast.FuncType, fnBody *ast.BlockStmt) {
+		if fnBody == nil {
+			return
+		}
+		// Walk nested FuncLits bottom-up first so inner IIFEs unwrap before enclosing IIFEs.
+		ast.Inspect(fnBody, func(n ast.Node) bool {
+			if n == nil {
+				return false
+			}
+			if fl, ok := n.(*ast.FuncLit); ok {
+				walkFunc(fl.Type, fl.Body)
+				return false
+			}
+			return true
+		})
+
+		encLabels := collectDirectLabelsInBlock(fnBody)
+		encHasDefer := hasDirectDeferInBlock(fnBody)
+		canUnwrapReturn := !encHasDefer && fnType != nil &&
+			fnType.Results != nil && len(fnType.Results.List) == 1 &&
+			len(fnType.Results.List[0].Names) == 0 && fnType.Results.List[0].Type != nil
+
+		var rewriteStmtList func(stmts []ast.Stmt) ([]ast.Stmt, bool)
+		var walkNodeStmts func(n ast.Node)
+
+		walkNodeStmts = func(n ast.Node) {
+			if n == nil {
+				return
+			}
+			switch x := n.(type) {
+			case *ast.FuncLit:
+				return
+			case *ast.BlockStmt:
+				for _, st := range x.List {
+					walkNodeStmts(st)
+				}
+				if upd, changed := rewriteStmtList(x.List); changed {
+					x.List = upd
+				}
+			case *ast.CaseClause:
+				for _, st := range x.Body {
+					walkNodeStmts(st)
+				}
+				if upd, changed := rewriteStmtList(x.Body); changed {
+					x.Body = upd
+				}
+			case *ast.CommClause:
+				for _, st := range x.Body {
+					walkNodeStmts(st)
+				}
+				if upd, changed := rewriteStmtList(x.Body); changed {
+					x.Body = upd
+				}
+			default:
+				ast.Inspect(x, func(child ast.Node) bool {
+					if child == nil || child == x {
+						return true
+					}
+					switch child.(type) {
+					case *ast.FuncLit:
+						return false
+					case *ast.BlockStmt, *ast.CaseClause, *ast.CommClause:
+						walkNodeStmts(child)
+						return false
+					}
+					return true
+				})
+			}
+		}
+
+		rewriteStmtList = func(stmts []ast.Stmt) ([]ast.Stmt, bool) {
+			var out []ast.Stmt
+			changed := false
+			for i, st := range stmts {
+				repl, okR := tryUnwrapStmtValueIIFE(
+					st, fnType, canUnwrapReturn, encLabels, allocSwitchLabel, fset, pkg, info,
+				)
+				if !okR {
+					if changed {
+						out = append(out, st)
+					}
+					continue
+				}
+				if !changed {
+					out = make([]ast.Stmt, 0, len(stmts)+len(repl))
+					out = append(out, stmts[:i]...)
+					changed = true
+				}
+				out = append(out, repl...)
+				count++
+			}
+			return out, changed
+		}
+
+		walkNodeStmts(fnBody)
+	}
+
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil {
+			walkFunc(fn.Type, fn.Body)
+		}
+	}
+	return count
+}
+
+func tryUnwrapStmtValueIIFE(
+	stmt ast.Stmt,
+	encFnType *ast.FuncType,
+	canUnwrapReturn bool,
+	encLabels map[string]bool,
+	allocSwitchLabel func(map[string]bool) string,
+	fset *token.FileSet,
+	pkg *types.Package,
+	info *types.Info,
+) ([]ast.Stmt, bool) {
+	switch s := stmt.(type) {
+	case *ast.DeclStmt:
+		gd, ok := s.Decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+			return nil, false
+		}
+		vs, ok := gd.Specs[0].(*ast.ValueSpec)
+		if !ok || len(vs.Names) != 1 || len(vs.Values) != 1 {
+			return nil, false
+		}
+		lhsIdent := vs.Names[0]
+		if lhsIdent == nil || lhsIdent.Name == "" || lhsIdent.Name == "_" {
+			return nil, false
+		}
+		fl, bodyLabels, ok := matchUnwrappableValueIIFECall(vs.Values[0], encLabels)
+		if !ok || iifeASTContainsIdentNamed(fl.Body, lhsIdent.Name) {
+			return nil, false
+		}
+		retTypeAST := fl.Type.Results.List[0].Type
+		if vs.Type != nil {
+			if !iifeTypesIdentical(vs.Type, retTypeAST, lhsIdent, true, fset, info) {
+				return nil, false
+			}
+		} else {
+			if info != nil {
+				if tv, okT := info.Types[retTypeAST]; !okT || tv.Type == nil {
+					return nil, false
+				}
+			}
+			clonedType, okC := cloneIIFETypeExpr(fset, retTypeAST)
+			if !okC {
+				return nil, false
+			}
+			vs.Type = clonedType
+		}
+		for lbl := range bodyLabels {
+			encLabels[lbl] = true
+		}
+		vs.Values = nil
+		bodyStmt := buildUnwrappedIIFEAssignBlock(fl.Body, lhsIdent.Name, encLabels, allocSwitchLabel)
+		return []ast.Stmt{s, bodyStmt}, true
+
+	case *ast.AssignStmt:
+		if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+			return nil, false
+		}
+		lhsIdent, ok := s.Lhs[0].(*ast.Ident)
+		if !ok || lhsIdent == nil || lhsIdent.Name == "" || lhsIdent.Name == "_" {
+			return nil, false
+		}
+		switch s.Tok {
+		case token.DEFINE:
+			if info != nil && info.Defs[lhsIdent] == nil {
+				return nil, false
+			}
+			fl, bodyLabels, ok := matchUnwrappableValueIIFECall(s.Rhs[0], encLabels)
+			if !ok || iifeASTContainsIdentNamed(fl.Body, lhsIdent.Name) {
+				return nil, false
+			}
+			retTypeAST := fl.Type.Results.List[0].Type
+			if info != nil {
+				if tv, okT := info.Types[retTypeAST]; !okT || tv.Type == nil {
+					return nil, false
+				}
+			}
+			clonedType, okC := cloneIIFETypeExpr(fset, retTypeAST)
+			if !okC {
+				return nil, false
+			}
+			for lbl := range bodyLabels {
+				encLabels[lbl] = true
+			}
+			varDecl := &ast.DeclStmt{
+				Decl: &ast.GenDecl{
+					Tok: token.VAR,
+					Specs: []ast.Spec{
+						&ast.ValueSpec{
+							Names: []*ast.Ident{lhsIdent},
+							Type:  clonedType,
+						},
+					},
+				},
+			}
+			bodyStmt := buildUnwrappedIIFEAssignBlock(fl.Body, lhsIdent.Name, encLabels, allocSwitchLabel)
+			return []ast.Stmt{varDecl, bodyStmt}, true
+
+		case token.ASSIGN:
+			if info == nil {
+				return nil, false
+			}
+			lhsVar, okV := info.Uses[lhsIdent].(*types.Var)
+			if !okV || lhsVar == nil || lhsVar.IsField() || lhsVar.Parent() == nil {
+				return nil, false
+			}
+			if pkg != nil && lhsVar.Parent() == pkg.Scope() {
+				return nil, false
+			}
+			fl, bodyLabels, ok := matchUnwrappableValueIIFECall(s.Rhs[0], encLabels)
+			if !ok {
+				return nil, false
+			}
+			retTV, okT := info.Types[fl.Type.Results.List[0].Type]
+			if !okT || retTV.Type == nil || !types.Identical(lhsVar.Type(), retTV.Type) {
+				return nil, false
+			}
+			if !iifeLocalVarUnshadowedInBody(fl.Body, lhsIdent.Name, lhsVar, info) {
+				return nil, false
+			}
+			for lbl := range bodyLabels {
+				encLabels[lbl] = true
+			}
+			bodyStmt := buildUnwrappedIIFEAssignBlock(fl.Body, lhsIdent.Name, encLabels, allocSwitchLabel)
+			return []ast.Stmt{bodyStmt}, true
+		}
+
+	case *ast.ReturnStmt:
+		if !canUnwrapReturn || len(s.Results) != 1 || encFnType == nil {
+			return nil, false
+		}
+		fl, bodyLabels, ok := matchUnwrappableValueIIFECall(s.Results[0], encLabels)
+		if !ok {
+			return nil, false
+		}
+		encRetAST := encFnType.Results.List[0].Type
+		flRetAST := fl.Type.Results.List[0].Type
+		if !iifeTypesIdentical(encRetAST, flRetAST, nil, false, fset, info) {
+			return nil, false
+		}
+		for lbl := range bodyLabels {
+			encLabels[lbl] = true
+		}
+		return []ast.Stmt{&ast.BlockStmt{List: fl.Body.List}}, true
+	}
+	return nil, false
+}
+
+func matchUnwrappableValueIIFECall(expr ast.Expr, encLabels map[string]bool) (*ast.FuncLit, map[string]bool, bool) {
+	call, ok := stripParens(expr).(*ast.CallExpr)
+	if !ok || call == nil || len(call.Args) != 0 || call.Ellipsis.IsValid() {
+		return nil, nil, false
+	}
+	fl, ok := stripParens(call.Fun).(*ast.FuncLit)
+	if !ok || fl == nil || fl.Type == nil || fl.Body == nil || len(fl.Body.List) == 0 {
+		return nil, nil, false
+	}
+	if fl.Type.TypeParams != nil && len(fl.Type.TypeParams.List) > 0 {
+		return nil, nil, false
+	}
+	if fl.Type.Params != nil && fl.Type.Params.NumFields() != 0 {
+		return nil, nil, false
+	}
+	if fl.Type.Results == nil || len(fl.Type.Results.List) != 1 ||
+		len(fl.Type.Results.List[0].Names) != 0 || fl.Type.Results.List[0].Type == nil {
+		return nil, nil, false
+	}
+
+	safe := true
+	hasReturn := false
+	var bodyLabels map[string]bool
+	ast.Inspect(fl.Body, func(n ast.Node) bool {
+		if !safe || n == nil {
+			return false
+		}
+		if nested, isFL := n.(*ast.FuncLit); isFL && nested != fl {
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.DeferStmt, *ast.GoStmt:
+			safe = false
+			return false
+		case *ast.BranchStmt:
+			if x.Tok == token.GOTO {
+				safe = false
+				return false
+			}
+		case *ast.LabeledStmt:
+			if x.Label == nil || x.Label.Name == "" || encLabels[x.Label.Name] || bodyLabels[x.Label.Name] {
+				safe = false
+				return false
+			}
+			if bodyLabels == nil {
+				bodyLabels = make(map[string]bool)
+			}
+			bodyLabels[x.Label.Name] = true
+		case *ast.ReturnStmt:
+			if len(x.Results) != 1 {
+				safe = false
+				return false
+			}
+			hasReturn = true
+		}
+		return true
+	})
+	if !safe || !hasReturn {
+		return nil, nil, false
+	}
+	return fl, bodyLabels, true
+}
+
+func buildUnwrappedIIFEAssignBlock(
+	body *ast.BlockStmt,
+	lhsName string,
+	encLabels map[string]bool,
+	allocSwitchLabel func(map[string]bool) string,
+) ast.Stmt {
+	if iifeStmtsAllReturnsTailOnly(body.List) {
+		rewriteIIFEDirectReturns(body, lhsName, "")
+		return &ast.BlockStmt{List: body.List}
+	}
+	lbl := allocSwitchLabel(encLabels)
+	rewriteIIFEDirectReturns(body, lhsName, lbl)
+	return &ast.LabeledStmt{
+		Label: &ast.Ident{Name: lbl},
+		Stmt: &ast.SwitchStmt{
+			Body: &ast.BlockStmt{
+				List: []ast.Stmt{
+					&ast.CaseClause{
+						Body: body.List,
+					},
+				},
+			},
+		},
+	}
+}
+
+func rewriteIIFEDirectReturns(body *ast.BlockStmt, lhsName, breakLabel string) {
+	var rewriteList func(stmts []ast.Stmt) []ast.Stmt
+	var walk func(n ast.Node)
+
+	walk = func(n ast.Node) {
+		if n == nil {
+			return
+		}
+		switch x := n.(type) {
+		case *ast.FuncLit:
+			return
+		case *ast.BlockStmt:
+			for _, st := range x.List {
+				walk(st)
+			}
+			x.List = rewriteList(x.List)
+		case *ast.CaseClause:
+			for _, st := range x.Body {
+				walk(st)
+			}
+			x.Body = rewriteList(x.Body)
+		case *ast.CommClause:
+			for _, st := range x.Body {
+				walk(st)
+			}
+			x.Body = rewriteList(x.Body)
+		default:
+			ast.Inspect(x, func(child ast.Node) bool {
+				if child == nil || child == x {
+					return true
+				}
+				switch child.(type) {
+				case *ast.FuncLit:
+					return false
+				case *ast.BlockStmt, *ast.CaseClause, *ast.CommClause:
+					walk(child)
+					return false
+				}
+				return true
+			})
+		}
+	}
+
+	rewriteList = func(stmts []ast.Stmt) []ast.Stmt {
+		var out []ast.Stmt
+		changed := false
+		for i, st := range stmts {
+			ret, isRet := st.(*ast.ReturnStmt)
+			if !isRet {
+				if changed {
+					out = append(out, st)
+				}
+				continue
+			}
+			if !changed {
+				out = make([]ast.Stmt, 0, len(stmts)+2)
+				out = append(out, stmts[:i]...)
+				changed = true
+			}
+			assign := &ast.AssignStmt{
+				Lhs: []ast.Expr{&ast.Ident{NamePos: ret.Return, Name: lhsName}},
+				Tok: token.ASSIGN,
+				Rhs: []ast.Expr{ret.Results[0]},
+			}
+			out = append(out, assign)
+			if breakLabel != "" {
+				out = append(out, &ast.BranchStmt{
+					TokPos: ret.Return,
+					Tok:    token.BREAK,
+					Label:  &ast.Ident{Name: breakLabel},
+				})
+			}
+		}
+		if changed {
+			return out
+		}
+		return stmts
+	}
+
+	walk(body)
+}
+
+func iifeStmtsAllReturnsTailOnly(stmts []ast.Stmt) bool {
+	if len(stmts) == 0 {
+		return true
+	}
+	for i := 0; i < len(stmts)-1; i++ {
+		if iifeNodeHasDirectReturn(stmts[i]) {
+			return false
+		}
+	}
+	last := stmts[len(stmts)-1]
+	if !iifeNodeHasDirectReturn(last) {
+		return true
+	}
+	switch s := last.(type) {
+	case *ast.ReturnStmt:
+		return len(s.Results) == 1
+	case *ast.BlockStmt:
+		return iifeStmtsAllReturnsTailOnly(s.List)
+	case *ast.IfStmt:
+		if !iifeStmtsAllReturnsTailOnly(s.Body.List) {
+			return false
+		}
+		if s.Else == nil {
+			return true
+		}
+		switch el := s.Else.(type) {
+		case *ast.BlockStmt:
+			return iifeStmtsAllReturnsTailOnly(el.List)
+		case *ast.IfStmt:
+			return iifeStmtsAllReturnsTailOnly([]ast.Stmt{el})
+		default:
+			return false
+		}
+	case *ast.SwitchStmt:
+		if s.Body == nil || switchHasDirectFallthrough(s.Body) {
+			return false
+		}
+		for _, raw := range s.Body.List {
+			cc, ok := raw.(*ast.CaseClause)
+			if !ok || !iifeStmtsAllReturnsTailOnly(cc.Body) {
+				return false
+			}
+		}
+		return true
+	case *ast.TypeSwitchStmt:
+		if s.Body == nil {
+			return false
+		}
+		for _, raw := range s.Body.List {
+			cc, ok := raw.(*ast.CaseClause)
+			if !ok || !iifeStmtsAllReturnsTailOnly(cc.Body) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func switchHasDirectFallthrough(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found || n == nil || n == body {
+			return n == body
+		}
+		switch x := n.(type) {
+		case *ast.FuncLit, *ast.SwitchStmt:
+			return false
+		case *ast.BranchStmt:
+			if x.Tok == token.FALLTHROUGH {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func iifeNodeHasDirectReturn(node ast.Node) bool {
+	found := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		switch n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func collectDirectLabelsInBlock(body *ast.BlockStmt) map[string]bool {
+	labels := make(map[string]bool)
+	ast.Inspect(body, func(n ast.Node) bool {
+		if n == nil {
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.LabeledStmt:
+			if x.Label != nil && x.Label.Name != "" {
+				labels[x.Label.Name] = true
+			}
+		}
+		return true
+	})
+	return labels
+}
+
+func hasDirectDeferInBlock(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		switch n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.DeferStmt:
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func iifeASTContainsIdentNamed(node ast.Node, name string) bool {
+	found := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+func iifeLocalVarUnshadowedInBody(body *ast.BlockStmt, name string, targetVar *types.Var, info *types.Info) bool {
+	ok := true
+	ast.Inspect(body, func(n ast.Node) bool {
+		if !ok || n == nil {
+			return false
+		}
+		if id, isId := n.(*ast.Ident); isId && id.Name == name {
+			if info.Defs[id] != nil || info.Uses[id] != targetVar {
+				ok = false
+				return false
+			}
+		}
+		return true
+	})
+	return ok
+}
+
+func cloneIIFETypeExpr(fset *token.FileSet, typeExpr ast.Expr) (ast.Expr, bool) {
+	var buf bytes.Buffer
+	if err := printer.Fprint(&buf, fset, typeExpr); err != nil {
+		return nil, false
+	}
+	cloned, err := parser.ParseExpr(buf.String())
+	if err != nil {
+		return nil, false
+	}
+	return cloned, true
+}
+
+func iifeTypesIdentical(lhsTypeAST, rhsTypeAST ast.Expr, lhsDefIdent *ast.Ident, useDef bool, fset *token.FileSet, info *types.Info) bool {
+	if info != nil {
+		var lhsT types.Type
+		if useDef && lhsDefIdent != nil {
+			if obj := info.Defs[lhsDefIdent]; obj != nil {
+				lhsT = obj.Type()
+			}
+		}
+		if lhsT == nil && lhsTypeAST != nil {
+			lhsT = info.Types[lhsTypeAST].Type
+		}
+		rhsT := info.Types[rhsTypeAST].Type
+		if lhsT != nil && rhsT != nil {
+			return types.Identical(lhsT, rhsT)
+		}
+		return false
+	}
+	var b1, b2 bytes.Buffer
+	if err := printer.Fprint(&b1, fset, lhsTypeAST); err != nil {
+		return false
+	}
+	if err := printer.Fprint(&b2, fset, rhsTypeAST); err != nil {
+		return false
+	}
+	return b1.String() == b2.String()
 }

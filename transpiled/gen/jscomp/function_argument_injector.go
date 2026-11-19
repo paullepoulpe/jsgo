@@ -434,7 +434,8 @@ func (this_ *FunctionArgumentInjector) FindModifiedParameters(fnNode pkg_rhino.N
 							a_8[i_9] = p3
 						}
 					} else if paramCount == int32(len(moreParams)) {
-						moreParams = func() []string {
+						{
+
 							arrSrc_10 := moreParams
 							arrLen_11 := (paramCount * int32(2))
 							j2gort.CheckNotNullSlice(arrSrc_10)
@@ -443,8 +444,9 @@ func (this_ *FunctionArgumentInjector) FindModifiedParameters(fnNode pkg_rhino.N
 							}
 							arrOut_12 := j2gort.NewStringArray(arrLen_11)
 							copy(arrOut_12, arrSrc_10)
-							return arrOut_12
-						}()
+							moreParams = arrOut_12
+						}
+
 					}
 					{
 						a_13 := moreParams

@@ -43,9 +43,9 @@ import (
 
 // Java class: com.google.javascript.rhino.NonJSDocComment
 type NonJSDocComment struct {
+	contents string `gson:"contents"`
 	startPosition pkg_parser.SourcePosition `gson:"startPosition"`
 	endPosition pkg_parser.SourcePosition `gson:"endPosition"`
-	contents string `gson:"contents"`
 	idHash_ atomic.Int32
 	endsAsLineComment bool `gson:"endsAsLineComment"`
 	isInline bool `gson:"isInline"`

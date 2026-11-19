@@ -239,7 +239,7 @@ func JsdocUtil_ReplaceAnnotatedTypesWithUnusableType(jsdoc *pkg_rhino.JSDocInfo)
 			_ = name
 			var original pkg_rhino.JSTypeExpression = jsdoc.GetParameterType(name)
 			_ = original
-			if original == (pkg_rhino.JSTypeExpression{}) {
+			if (original).IsJavaNil_() {
 				continue
 			}
 			var newType pkg_rhino.JSTypeExpression = JsdocUtil_ReplaceWithBottomType(original)
@@ -317,7 +317,7 @@ func JsdocUtil_GetJSDocForName(decl *Var, oldJSDoc *pkg_rhino.JSDocInfo) *pkg_rh
 	}
 	var expr pkg_rhino.JSTypeExpression = NodeUtil_GetDeclaredTypeExpression(decl.GetNameNode())
 	_ = expr
-	if expr == (pkg_rhino.JSTypeExpression{}) {
+	if (expr).IsJavaNil_() {
 		return nil
 	}
 	var typeAst pkg_rhino.Node = expr.GetRoot()

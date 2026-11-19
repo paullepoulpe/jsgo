@@ -1069,21 +1069,42 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 		if ha < hb {
 			{
 				a_58 := out
-				i_59 := func() int32 { old_60 := outIdx; nw_61 := old_60 + 1; outIdx = nw_61; return old_60 }()
+				var i_59 int32
+				{
+
+					old_60 := outIdx
+					nw_61 := old_60 + 1
+					outIdx = nw_61
+					i_59 = old_60
+				}
 				a_58[i_59] = na
 			}
 			ia = ia + 1
 		} else if hb < ha {
 			{
 				a_62 := out
-				i_63 := func() int32 { old_64 := outIdx; nw_65 := old_64 + 1; outIdx = nw_65; return old_64 }()
+				var i_63 int32
+				{
+
+					old_64 := outIdx
+					nw_65 := old_64 + 1
+					outIdx = nw_65
+					i_63 = old_64
+				}
 				a_62[i_63] = nb
 			}
 			ib = ib + 1
 		} else if na == nb {
 			{
 				a_66 := out
-				i_67 := func() int32 { old_68 := outIdx; nw_69 := old_68 + 1; outIdx = nw_69; return old_68 }()
+				var i_67 int32
+				{
+
+					old_68 := outIdx
+					nw_69 := old_68 + 1
+					outIdx = nw_69
+					i_67 = old_68
+				}
 				a_66[i_67] = na
 			}
 			ia = ia + 1
@@ -1105,7 +1126,14 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 				for ; k < endA; k = k + 1 {
 					{
 						a_70 := out
-						i_71 := func() int32 { old_72 := outIdx; nw_73 := old_72 + 1; outIdx = nw_73; return old_72 }()
+						var i_71 int32
+						{
+
+							old_72 := outIdx
+							nw_73 := old_72 + 1
+							outIdx = nw_73
+							i_71 = old_72
+						}
 						a_70[i_71] = a[k]
 					}
 				}
@@ -1131,7 +1159,14 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 					if !(dup) {
 						{
 							a_74 := out
-							i_75 := func() int32 { old_76 := outIdx; nw_77 := old_76 + 1; outIdx = nw_77; return old_76 }()
+							var i_75 int32
+							{
+
+								old_76 := outIdx
+								nw_77 := old_76 + 1
+								outIdx = nw_77
+								i_75 = old_76
+							}
 							a_74[i_75] = cand
 						}
 					}

@@ -24,21 +24,22 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
-
 var lambdaSingleton_xid_1 Xid_HashFunction
+
 func init() {
 	lambdaSingleton_xid_1 = NewLambda_Xid_HashFunction(func(mrp0_ string) int32 { return javalang.StringHashCode(j2gort.CheckNotNullString(mrp0_)) })
 }
+
 // Java class: com.google.javascript.jscomp.Xid
 type Xid struct {
-	hasher Xid_HashFunction `gson:"hasher"`
+	hasher  Xid_HashFunction `gson:"hasher"`
 	idHash_ atomic.Int32
 }
 
 func (this_ *Xid) BindSelf_(s any) {
 	_ = s
 }
-func (this_ *Xid) IsJavaNil_() bool { return this_ == nil }
+func (this_ *Xid) IsJavaNil_() bool           { return this_ == nil }
 func (*Xid) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.Xid", "Xid" }
 func (this_ *Xid) IdentityHash_() int32 {
 	if this_ == nil {
@@ -56,9 +57,15 @@ func init() {
 	})
 }
 
-func StaticGet_Xid_START_CHARS() string { return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" }
-func StaticGet_Xid_CHARS() string { return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" }
+func StaticGet_Xid_START_CHARS() string {
+	return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+}
+func StaticGet_Xid_CHARS() string {
+	return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+}
+
 var static_Xid_START_RADIX int32
+
 func StaticGet_Xid_START_RADIX() int32 {
 	clinit_Xid()
 	return static_Xid_START_RADIX
@@ -67,7 +74,9 @@ func StaticSet_Xid_START_RADIX(v int32) {
 	clinit_Xid()
 	static_Xid_START_RADIX = v
 }
+
 var static_Xid_RADIX int32
+
 func StaticGet_Xid_RADIX() int32 {
 	clinit_Xid()
 	return static_Xid_RADIX
@@ -76,8 +85,10 @@ func StaticSet_Xid_RADIX(v int32) {
 	clinit_Xid()
 	static_Xid_RADIX = v
 }
+
 var clinitDone_Xid uint32
 var clinitState_Xid j2gort.ClinitState
+
 func clinit_Xid() {
 	if atomic.LoadUint32(&clinitDone_Xid) != 0 {
 		return
@@ -147,13 +158,40 @@ func Xid_ToString(i int32) string {
 	_ = len_
 	var l int64 = (int64(i) - int64(int32(-2147483648)))
 	_ = l
-	{ a_1 := buf; i_2 := func() int32 { old_3 := len_; nw_4 := old_3 + 1; len_ = nw_4; return old_3 }(); a_1[i_2] = j2gort.JStrCharAt("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", int32(((l % int64(StaticGet_Xid_START_RADIX()))))) }
-	i = int32(((l / int64(StaticGet_Xid_START_RADIX()))))
-	for ((i > int32(0))) {
-		{ a_5 := buf; i_6 := func() int32 { old_7 := len_; nw_8 := old_7 + 1; len_ = nw_8; return old_7 }(); a_5[i_6] = j2gort.JStrCharAt("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", (i % StaticGet_Xid_RADIX())) }
+	{
+		a_1 := buf
+		var i_2 int32
+		{
+
+			old_3 := len_
+			nw_4 := old_3 + 1
+			len_ = nw_4
+			i_2 = old_3
+		}
+		a_1[i_2] = j2gort.JStrCharAt("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", int32((l % int64(StaticGet_Xid_START_RADIX()))))
+	}
+	i = int32((l / int64(StaticGet_Xid_START_RADIX())))
+	for i > int32(0) {
+		{
+			a_5 := buf
+			var i_6 int32
+			{
+
+				old_7 := len_
+				nw_8 := old_7 + 1
+				len_ = nw_8
+				i_6 = old_7
+			}
+			a_5[i_6] = j2gort.JStrCharAt("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", (i % StaticGet_Xid_RADIX()))
+		}
 		i = (i / StaticGet_Xid_RADIX())
 	}
-	return func() string { ca_9 := buf; co_10 := int32(0); cc_11 := len_; return javalang.StringFromUTF16(ca_9[co_10 : co_10+cc_11]) }()
+	{
+		ca_9 := buf
+		co_10 := int32(0)
+		cc_11 := len_
+		return javalang.StringFromUTF16(ca_9[co_10 : co_10+cc_11])
+	}
 }
 
 // Java interface: com.google.javascript.jscomp.Xid.HashFunction
@@ -162,6 +200,7 @@ type Xid_HashFunction interface {
 	IsJavaNil_() bool
 	M_HashCode(string) int32
 }
+
 func ToIface_Xid_HashFunction[T interface {
 	Xid_HashFunction
 	comparable
@@ -186,6 +225,7 @@ func init() {
 		return j2gort.InstanceOf[Xid_HashFunction](v_)
 	})
 }
+
 type lambda_Xid_HashFunction struct {
 	fn func(string) int32
 }
@@ -202,4 +242,3 @@ func (*lambda_Xid_HashFunction) Implements_jscomp_Xid_HashFunction() {}
 func (l *lambda_Xid_HashFunction) M_HashCode(p0_ string) int32 {
 	return l.fn(p0_)
 }
-

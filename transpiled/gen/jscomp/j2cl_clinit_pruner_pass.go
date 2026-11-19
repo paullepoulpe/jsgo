@@ -535,12 +535,14 @@ func (this_ *J2clClinitPrunerPass_LookAheadRedundantClinitPruner) priv_LookAhead
 	case int32(28) /* Token.CALL */, int32(23) /* Token.NEW */ :
 		return n
 	case int32(97) /* Token.CONST */, int32(111) /* Token.LET */, int32(84) /* Token.VAR */ :
-		return func() pkg_rhino.Node {
+		{
+
 			if n.HasOneChild() {
 				return this_.priv_LookAheadRedundantClinitPruner_getCallOrNewNode_3462(n.GetFirstFirstChild())
 			}
 			return pkg_rhino.Node(0)
-		}()
+		}
+
 	default:
 		return pkg_rhino.Node(0)
 	}

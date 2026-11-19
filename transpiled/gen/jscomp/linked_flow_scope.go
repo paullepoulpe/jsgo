@@ -932,12 +932,15 @@ func (this_ *LinkedFlowScope_Pool) AcquireFlowScope(inputProvider CompilerInputP
 		s = NewLinkedFlowScope()
 		{
 			a_15 := this_.flowScopes
-			i_16 := func() int32 {
+			var i_16 int32
+			{
+
 				old_17 := this_.flowScopeCount
 				nw_18 := old_17 + 1
 				this_.flowScopeCount = nw_18
-				return old_17
-			}()
+				i_16 = old_17
+			}
+
 			a_15[i_16] = s
 		}
 		this_.flowScopeAlloc = this_.flowScopeCount
@@ -981,12 +984,15 @@ func (this_ *LinkedFlowScope_Pool) AcquireOverlayScope(scope *TypedScope, slots 
 		s = NewLinkedFlowScope_OverlayScope()
 		{
 			a_24 := this_.overlayScopes
-			i_25 := func() int32 {
+			var i_25 int32
+			{
+
 				old_26 := this_.overlayScopeCount
 				nw_27 := old_26 + 1
 				this_.overlayScopeCount = nw_27
-				return old_26
-			}()
+				i_25 = old_26
+			}
+
 			a_24[i_25] = s
 		}
 		this_.overlayScopeAlloc = this_.overlayScopeCount
@@ -1027,12 +1033,15 @@ func (this_ *LinkedFlowScope_Pool) AcquireOverlaySlot(name string, type_ pkg_rhi
 		s = NewLinkedFlowScope_OverlaySlot()
 		{
 			a_33 := this_.overlaySlots
-			i_34 := func() int32 {
+			var i_34 int32
+			{
+
 				old_35 := this_.overlaySlotCount
 				nw_36 := old_35 + 1
 				this_.overlaySlotCount = nw_36
-				return old_35
-			}()
+				i_34 = old_35
+			}
+
 			a_33[i_34] = s
 		}
 		this_.overlaySlotAlloc = this_.overlaySlotCount
@@ -1613,24 +1622,36 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 		if a0 == nil {
 			aLen = int32(0)
 		} else {
-			aLen = (func() int32 {
+		iifeSwitch_1:
+			switch {
+			default:
+
 				if a1 == nil {
-					return int32(1)
+					aLen = int32(1)
+					break iifeSwitch_1
 				}
-				return int32(2)
-			}())
+				aLen = int32(2)
+				break iifeSwitch_1
+			}
+
 		}
 		var bLen int32
 		_ = bLen
 		if b0 == nil {
 			bLen = int32(0)
 		} else {
-			bLen = (func() int32 {
+		iifeSwitch_2:
+			switch {
+			default:
+
 				if b1 == nil {
-					return int32(1)
+					bLen = int32(1)
+					break iifeSwitch_2
 				}
-				return int32(2)
-			}())
+				bLen = int32(2)
+				break iifeSwitch_2
+			}
+
 		}
 		var k0a *LinkedFlowScope_OverlaySlot = nil
 		_ = k0a

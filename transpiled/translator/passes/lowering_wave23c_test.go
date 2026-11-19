@@ -2598,7 +2598,13 @@ func TestWave23C_RealGenDryRunAndIdempotency(t *testing.T) {
 	cfgSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "control_flow_graph.go"))
 	lvaSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "live_variables_analysis.go"))
 	pfiSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "pure_function_identifier.go"))
+	ivSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "inline_variables.go"))
+	mcSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "minimized_condition.go"))
+	spSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "string_pool.go"))
 	jscompFullyLowered := strings.Contains(string(iolSrc), "slab_InlineObjectLiterals_InliningBehavior") &&
+		strings.Contains(string(ivSrc), "scratchVarExpert_") &&
+		strings.Contains(string(mcSrc), "lazyTok_") &&
+		strings.Contains(string(spSrc), "InternOwned(") &&
 		strings.Contains(string(infSrc), "slab_InlineFunctions_Reference") &&
 		strings.Contains(string(dpaeSrc), "slab_DeadPropertyAssignmentElimination_Property") &&
 		strings.Contains(string(cfgSrc), "slab_LinearFlowState") &&

@@ -495,7 +495,7 @@ func (this_ *JSDocInfoPrinter) priv_JSDocInfoPrinter_buildParamType_3561(info *p
 	_ = name
 	var type_ pkg_rhino.JSTypeExpression = info.GetParameterType(name)
 	_ = type_
-	if type_ != (pkg_rhino.JSTypeExpression{}) {
+	if !(type_).IsJavaNil_() {
 		var p string = ("{" + j2gort.StrValString(this_.priv_JSDocInfoPrinter_typeNode_3562(type_.GetRoot())) + "} " + j2gort.StrValString(name) + j2gort.StrValString(func() string {
 			if this_.printDesc && (info.GetDescriptionForParameter(name) != j2gort.NullString) {
 				return info.GetDescriptionForParameter(name)

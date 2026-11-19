@@ -373,12 +373,12 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getStringFromBuffer_7111() 
 	if this_.rawTokenContiguous {
 		return j2gort.JStrSub(this_.sourceString, this_.rawTokenStart, (this_.rawTokenStart + top))
 	}
-	return func() string {
+	{
 		ca_4 := this_.stringBuffer
 		co_5 := int32(0)
 		cc_6 := top
 		return javalang.StringFromUTF16(ca_4[co_5 : co_5+cc_6])
-	}()
+	}
 }
 
 // Java method: JsDocTokenStream.addToString(int c)

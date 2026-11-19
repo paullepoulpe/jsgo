@@ -3263,25 +3263,25 @@ func TestWave24A36ByteLayoutInlinePayloadAndJSTypeBeforeCast(t *testing.T) {
 		fn()
 	}
 
-	// 1. 32-byte noscan NodeData layout + widened 256-slot (1 KiB) PagedColumn verification.
+	// 1. 32-byte noscan NodeData layout + 2048-slot (8 KiB) PagedColumn verification.
 	if sz := reflect.TypeFor[NodeData]().Size(); sz != 32 {
 		t.Fatalf("sizeof(NodeData) = %d, want 32", sz)
 	}
 	if hasGoPointers(reflect.TypeFor[NodeData]()) {
 		t.Fatalf("NodeData contains Go pointers")
 	}
-	if columnPageShift != 8 || columnPageLen != 256 || pagesPerBlock != 64 {
+	if columnPageShift != 11 || columnPageLen != 2048 || pagesPerBlock != 8 {
 		t.Fatalf("unexpected PagedColumn geometry: shift=%d len=%d pages=%d",
 			columnPageShift, columnPageLen, pagesPerBlock)
 	}
-	if sz := reflect.TypeFor[columnPage]().Size(); sz != 1024 {
-		t.Fatalf("sizeof(columnPage) = %d, want 1024", sz)
+	if sz := reflect.TypeFor[columnPage]().Size(); sz != 8192 {
+		t.Fatalf("sizeof(columnPage) = %d, want 8192", sz)
 	}
 	if hasGoPointers(reflect.TypeFor[columnPage]()) {
 		t.Fatalf("columnPage contains Go pointers")
 	}
-	if sz := reflect.TypeFor[PagedColumn]().Size(); sz != 64*8 {
-		t.Fatalf("sizeof(PagedColumn) = %d, want 512", sz)
+	if sz := reflect.TypeFor[PagedColumn]().Size(); sz != 8*8 {
+		t.Fatalf("sizeof(PagedColumn) = %d, want 64", sz)
 	}
 
 	// NilNode NPE / nil parity.
@@ -5216,4 +5216,140 @@ func TestWave39CHasNonNegativeLengthAnd16BlockSlab(t *testing.T) {
 	if got := negLenCount.Load(); got != baseNeg {
 		t.Fatalf("after concurrent clear, negLenCount = %d, want %d", got, baseNeg)
 	}
+}
+
+func TestWave41COrigNamePagedColumnLocalityAndconcurrentRace(t *testing.T) {
+	// Verify 64-byte single-cache-line PagedColumn + 8 KiB noscan columnPage geometry.
+	if columnPageShift != 11 || columnPageLen != 2048 || pagesPerBlock != 8 {
+		t.Fatalf("expected columnPageShift=11, len=2048, pagesPerBlock=8; got %d, %d, %d",
+			columnPageShift, columnPageLen, pagesPerBlock)
+	}
+	if sz := reflect.TypeFor[PagedColumn]().Size(); sz != 64 {
+		t.Fatalf("expected sizeof(PagedColumn) == 64 (1 cache line), got %d", sz)
+	}
+	if sz := reflect.TypeFor[columnPage]().Size(); sz != 8192 {
+		t.Fatalf("expected sizeof(columnPage) == 8192 (8 KiB), got %d", sz)
+	}
+
+	s := NewNodeStore()
+	prev := SetCurrentNodeStore(s)
+	defer SetCurrentNodeStore(prev)
+
+	// Allocate 40,960 StringNodes spanning 2.5 blocks (20 pages of 2,048 nodes).
+	const total = 40_960
+	nodes := make([]Node, total)
+	origIDs := make([]StringID, total)
+	shortID := Intern("a")
+	for i := 0; i < total; i++ {
+		origIDs[i] = Intern(fmt.Sprintf("w41c_orig_sym_%05d", i))
+		n := AllocNodeToken(3, 38)
+		n.SetStringPayload(origIDs[i])
+		nodes[i] = n
+	}
+
+	// Leave page 5 (indices 10,240..12,287) untouched externally to verify sparse 8 KiB page laziness!
+	const untouchedPage = 5
+	const untouchedStart = untouchedPage * columnPageLen
+	const untouchedEnd = untouchedStart + columnPageLen
+
+	// Concurrent writers + concurrent readers across 16 goroutines under -race.
+	var wg sync.WaitGroup
+	const writers = 8
+	const readers = 8
+	stopReaders := make(chan struct{})
+
+	for r := 0; r < readers; r++ {
+		r := r
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stopReaders:
+					return
+				default:
+				}
+				// Read untouched page slots concurrently while neighbor pages allocate & populate.
+				for i := untouchedStart + r; i < untouchedEnd; i += 64 {
+					if got := nodes[i].OrigNameID(); got != 0 {
+						t.Errorf("untouched node %d returned OrigNameID=%d, want 0", i, got)
+						return
+					}
+				}
+			}
+		}()
+	}
+
+	var writeWG sync.WaitGroup
+	writeWG.Add(writers)
+	for w := 0; w < writers; w++ {
+		w := w
+		go func() {
+			defer writeWG.Done()
+			for i := w; i < total; i += writers {
+				if i >= untouchedStart && i < untouchedEnd {
+					continue
+				}
+				n := nodes[i]
+				switch i % 4 {
+				case 0:
+					// Inline OrigName == Payload -> rename Payload to migrate to external 8 KiB page!
+					n.SetOrigNameID(origIDs[i])
+					n.SetStringPayload(shortID)
+				case 1:
+					// Direct external OrigName != Payload!
+					n.SetStringPayload(shortID)
+					n.SetOrigNameID(origIDs[i])
+				case 2:
+					// Inline OrigName == Payload (stays inline).
+					n.SetOrigNameID(origIDs[i])
+				case 3:
+					// Migrate to external, then clear back to 0, then set back to external.
+					n.SetOrigNameID(origIDs[i])
+					n.SetStringPayload(shortID)
+					n.SetOrigNameID(0)
+					if got := n.OrigNameID(); got != 0 {
+						t.Errorf("node %d after clear: OrigNameID=%d, want 0", i, got)
+						return
+					}
+					n.SetOrigNameID(origIDs[i])
+				}
+				if got := n.OrigNameID(); got != origIDs[i] {
+					t.Errorf("node %d: OrigNameID=%d, want %d", i, got, origIDs[i])
+					return
+				}
+			}
+		}()
+	}
+	writeWG.Wait()
+	close(stopReaders)
+	wg.Wait()
+
+	// Verify untouched page 5 in s.origNames[0] remained completely unallocated (nil)!
+	if len(s.origNames) < 3 || s.origNames[0] == nil {
+		t.Fatalf("expected >= 3 PagedColumns in s.origNames, got %d", len(s.origNames))
+	}
+	if s.origNames[0][untouchedPage].Load() != nil {
+		t.Fatalf("expected untouched 2048-node page %d to remain nil", untouchedPage)
+	}
+
+	// Parallel full-range read verification across all 40,960 nodes.
+	wg.Add(writers)
+	for w := 0; w < writers; w++ {
+		w := w
+		go func() {
+			defer wg.Done()
+			for i := w; i < total; i += writers {
+				want := origIDs[i]
+				if i >= untouchedStart && i < untouchedEnd {
+					want = 0
+				}
+				if got := nodes[i].OrigNameID(); got != want {
+					t.Errorf("verify node %d: OrigNameID=%d, want %d", i, got, want)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

@@ -274,11 +274,13 @@ func (this_ *JSChunkGraph) priv_JSChunkGraph_makeWeakChunk_3523(chunksInDepOrder
 				rawElem_13 := cur_12.Next()
 				chunk_2 := j2gort.CastPtr[JSChunk](rawElem_13)
 				_ = chunk_2
-				var isWeakChunk bool = func() bool {
+				var isWeakChunk bool
+				{
 					sr_14 := chunk_2.GetName()
 					se_15 := "$weak$"
-					return j2gort.CheckNotNullString(sr_14) == se_15
-				}()
+					isWeakChunk = j2gort.CheckNotNullString(sr_14) == se_15
+				}
+
 				_ = isWeakChunk
 				{
 					cur_16 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunk_2.GetInputs()))
@@ -1068,12 +1070,14 @@ func JSChunkGraph_DepthCompare(m1 *JSChunk, m2 *JSChunk) int32 {
 	if d1 < d2 {
 		return int32(-1)
 	} else {
-		return func() int32 {
+		{
+
 			if d2 == d1 {
 				return j2gort.JStrCompareTo(m1.GetName(), m2.GetName())
 			}
 			return int32(1)
-		}()
+		}
+
 	}
 }
 

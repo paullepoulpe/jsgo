@@ -139,7 +139,7 @@ func (this_ *ColorGraphNodeFactory) priv_ColorGraphNodeFactory_simplifyColor_622
 			}
 		}
 		return pkg_colors.Color_CreateUnion_1_Ext_java_util_Set(simplified)
-	} else if type_.GetBoxId() != (pkg_colors.ColorId{}) {
+	} else if !(type_.GetBoxId()).IsJavaNil_() {
 		return this_.registry.Get(type_.GetBoxId())
 	} else if type_.Equals(j2gort.PtrToAny(pkg_colors.StaticGet_StandardColors_NULL_OR_VOID())) {
 		return pkg_colors.StaticGet_StandardColors_UNKNOWN()

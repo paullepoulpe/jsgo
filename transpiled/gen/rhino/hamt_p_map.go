@@ -131,23 +131,23 @@ func (this_ *HamtPMap[K, V]) String() string {
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.NewExt_java_lang_StringBuilder().Append_1_string("{"))
 	_ = sb
 	if !(this_.IsEmpty()) {
-		this_.priv_HamtPMap_appendTo_7984(sb)
+		this_.priv_HamtPMap_appendTo_7985(sb)
 	}
 	return j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string("}")).String()
 }
 
 // Java method: HamtPMap.appendTo(java.lang.StringBuilder sb)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_appendTo_7984(sb *j2gort.Ext_java_lang_StringBuilder) {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_appendTo_7985(sb *j2gort.Ext_java_lang_StringBuilder) {
 	_ = sb
 	if sb.Length() > int32(1) {
 		sb.Append_1_string(", ")
 	}
-	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9859(j2gort.ToAny(this_.key))).Append_1_string(": ")).Append_1_any_9859(j2gort.ToAny(this_.value))
+	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9862(j2gort.ToAny(this_.key))).Append_1_string(": ")).Append_1_any_9862(j2gort.ToAny(this_.value))
 	if this_.children != nil {
 		for _, el_1 := range j2gort.CheckNotNullSlice(this_.children) {
 			child := el_1
 			_ = child
-			child.priv_HamtPMap_appendTo_7984(sb)
+			child.priv_HamtPMap_appendTo_7985(sb)
 		}
 	}
 }
@@ -181,15 +181,17 @@ func (this_ *HamtPMap[K, V]) Keys() j2gort.Ext_java_lang_Iterable {
 func (this_ *HamtPMap[K, V]) Get_1(key K) V {
 	_ = key
 	if !(this_.IsEmpty()) {
-		return this_.priv_HamtPMap_get_7995(key, HamtPMap_Hash[K](key))
+		return this_.priv_HamtPMap_get_7996(key, HamtPMap_Hash[K](key))
 	} else {
-		return func() V {
+		{
+
 			if _, ok_ := any((*V)(nil)).(*string); ok_ {
 				return any(j2gort.NullString).(V)
 			}
 			var z_ V
 			return z_
-		}()
+		}
+
 	}
 }
 
@@ -215,7 +217,7 @@ func (this_ *HamtPMap[K, V]) ContainsHash(keyHash int32) bool {
 		if (cur.mask & bucketMask) == int32(0) {
 			return false
 		}
-		cur = cur.children[cur.priv_HamtPMap_index_8005(bucketMask)]
+		cur = cur.children[cur.priv_HamtPMap_index_8006(bucketMask)]
 		h = HamtPMap_Shift(h)
 	}
 	return false
@@ -296,22 +298,29 @@ func HamtPMap_OfTwo[K comparable, V comparable](k1 K, v1 V, k2 K, v2 V) *HamtPMa
 		}
 		return javalang.ObjectsEquals(j2gort.ToAny(rk_5), j2gort.ToAny(ak_6))
 	}() {
-		var sameVal bool = func() bool {
+		var sameVal bool
+	iifeSwitch_1:
+		switch {
+		default:
 			rk_7 := v2
 			ak_8 := v1
 			if _, ok_ := any((*V)(nil)).(*string); ok_ {
 				_ = j2gort.CheckNotNullString(any(rk_7).(string))
-				return rk_7 == ak_8
+				sameVal = rk_7 == ak_8
+				break iifeSwitch_1
 			}
 			var z_ V
 			if rk_7 == z_ {
 				j2gort.ThrowNPE()
 			}
 			if rk_7 == ak_8 {
-				return true
+				sameVal = true
+				break iifeSwitch_1
 			}
-			return javalang.ObjectsEquals(j2gort.ToAny(rk_7), j2gort.ToAny(ak_8))
-		}()
+			sameVal = javalang.ObjectsEquals(j2gort.ToAny(rk_7), j2gort.ToAny(ak_8))
+			break iifeSwitch_1
+		}
+
 		_ = sameVal
 		return NewHamtPMap[K, V](func() K {
 			if sameVal {
@@ -349,13 +358,15 @@ func (this_ *HamtPMap[K, V]) RootKey() K {
 	if this_.present {
 		return this_.key
 	} else {
-		return func() K {
+		{
+
 			if _, ok_ := any((*K)(nil)).(*string); ok_ {
 				return any(j2gort.NullString).(K)
 			}
 			var z_ K
 			return z_
-		}()
+		}
+
 	}
 }
 
@@ -364,13 +375,15 @@ func (this_ *HamtPMap[K, V]) RootValue() V {
 	if this_.present {
 		return this_.value
 	} else {
-		return func() V {
+		{
+
 			if _, ok_ := any((*V)(nil)).(*string); ok_ {
 				return any(j2gort.NullString).(V)
 			}
 			var z_ V
 			return z_
-		}()
+		}
+
 	}
 }
 
@@ -390,7 +403,7 @@ func (this_ *HamtPMap[K, V]) ChildAt(index int32) *HamtPMap[K, V] {
 }
 
 // Java method: HamtPMap.get(K key, int hash)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_get_7995(key K, hash int32) V {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_get_7996(key K, hash int32) V {
 	_ = key
 	_ = hash
 	if (hash == this_.hash) && func() bool {
@@ -416,15 +429,17 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_get_7995(key K, hash int32) V {
 	var bucketMask int32 = javalang.Shl32(int32(1), int(bucket))
 	_ = bucketMask
 	if (this_.mask & bucketMask) != int32(0) {
-		return this_.children[this_.priv_HamtPMap_index_8005(bucketMask)].priv_HamtPMap_get_7995(key, HamtPMap_Shift(hash))
+		return this_.children[this_.priv_HamtPMap_index_8006(bucketMask)].priv_HamtPMap_get_7996(key, HamtPMap_Shift(hash))
 	} else {
-		return func() V {
+		{
+
 			if _, ok_ := any((*V)(nil)).(*string); ok_ {
 				return any(j2gort.NullString).(V)
 			}
 			var z_ V
 			return z_
-		}()
+		}
+
 	}
 }
 
@@ -447,14 +462,14 @@ func (this_ *HamtPMap[K, V]) Plus_2(key K, value V) PMap[K, V] {
 		return tv_11
 	}()
 	if !(this_.IsEmpty()) {
-		return ToIface_PMap[K, V](this_.priv_HamtPMap_plus_7997(key, HamtPMap_Hash[K](key), value))
+		return ToIface_PMap[K, V](this_.priv_HamtPMap_plus_7998(key, HamtPMap_Hash[K](key), value))
 	} else {
 		return ToIface_PMap[K, V](NewHamtPMap[K, V](key, HamtPMap_Hash[K](key), value, true, int32(0), nil))
 	}
 }
 
 // Java method: HamtPMap.plus(K key, int hash, V value)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_plus_7997(key K, hash int32, value V) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_plus_7998(key K, hash int32, value V) *HamtPMap[K, V] {
 	_ = key
 	_ = hash
 	_ = value
@@ -496,34 +511,34 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_plus_7997(key K, hash int32, value V)
 		}
 	}
 	if HamtPMap_CompareUnsigned(hash, this_.hash) < int32(0) {
-		return this_.priv_HamtPMap_replaceRoot_7998(key, hash, value)
+		return this_.priv_HamtPMap_replaceRoot_7999(key, hash, value)
 	}
 	var bucket int32 = HamtPMap_Bucket(hash)
 	_ = bucket
 	hash = HamtPMap_Shift(hash)
 	var bucketMask int32 = javalang.Shl32(int32(1), int(bucket))
 	_ = bucketMask
-	var index int32 = this_.priv_HamtPMap_index_8005(bucketMask)
+	var index int32 = this_.priv_HamtPMap_index_8006(bucketMask)
 	_ = index
 	if (this_.mask & bucketMask) != int32(0) {
 		var child *HamtPMap[K, V] = this_.children[index]
 		_ = child
-		var newChild *HamtPMap[K, V] = child.priv_HamtPMap_plus_7997(key, hash, value)
+		var newChild *HamtPMap[K, V] = child.priv_HamtPMap_plus_7998(key, hash, value)
 		_ = newChild
 		if child == newChild {
 			return this_
 		} else {
-			return this_.priv_HamtPMap_withChildren_8010(this_.mask, HamtPMap_ReplaceChild[K, V](this_.children, index, newChild))
+			return this_.priv_HamtPMap_withChildren_8011(this_.mask, HamtPMap_ReplaceChild[K, V](this_.children, index, newChild))
 		}
 	} else {
 		var newChild_2 *HamtPMap[K, V] = NewHamtPMap[K, V](key, hash, value, true, int32(0), nil)
 		_ = newChild_2
-		return this_.priv_HamtPMap_withChildren_8010((this_.mask | bucketMask), HamtPMap_InsertChild[K, V](this_.children, index, newChild_2))
+		return this_.priv_HamtPMap_withChildren_8011((this_.mask | bucketMask), HamtPMap_InsertChild[K, V](this_.children, index, newChild_2))
 	}
 }
 
 // Java method: HamtPMap.replaceRoot(K key, int hash, V value)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_replaceRoot_7998(key K, hash int32, value V) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_replaceRoot_7999(key K, hash int32, value V) *HamtPMap[K, V] {
 	_ = key
 	_ = hash
 	_ = value
@@ -533,12 +548,12 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_replaceRoot_7998(key K, hash int32, v
 	_ = leafHash
 	var bucketMask int32 = javalang.Shl32(int32(1), int(bucket))
 	_ = bucketMask
-	var index int32 = this_.priv_HamtPMap_index_8005(bucketMask)
+	var index int32 = this_.priv_HamtPMap_index_8006(bucketMask)
 	_ = index
 	var newChildren []*HamtPMap[K, V] = nil
 	_ = newChildren
 	if (this_.mask & bucketMask) != int32(0) {
-		newChildren = HamtPMap_ReplaceChild[K, V](this_.children, index, this_.children[index].priv_HamtPMap_plus_7997(this_.key, leafHash, this_.value))
+		newChildren = HamtPMap_ReplaceChild[K, V](this_.children, index, this_.children[index].priv_HamtPMap_plus_7998(this_.key, leafHash, this_.value))
 	} else {
 		var newChild *HamtPMap[K, V] = NewHamtPMap[K, V](this_.key, leafHash, this_.value, true, int32(0), nil)
 		_ = newChild
@@ -553,7 +568,7 @@ func (this_ *HamtPMap[K, V]) Minus(key K) PMap[K, V] {
 	if this_.IsEmpty() {
 		return ToIface_PMap[K, V](this_)
 	}
-	var result *HamtPMap[K, V] = this_.priv_HamtPMap_minusOrNull_8001(key, HamtPMap_Hash[K](key), nil)
+	var result *HamtPMap[K, V] = this_.priv_HamtPMap_minusOrNull_8002(key, HamtPMap_Hash[K](key), nil)
 	_ = result
 	if result != nil {
 		return ToIface_PMap[K, V](result)
@@ -566,14 +581,14 @@ func (this_ *HamtPMap[K, V]) Minus(key K) PMap[K, V] {
 func (this_ *HamtPMap[K, V]) MinusOrNull_1(key K) *HamtPMap[K, V] {
 	_ = key
 	if !(this_.IsEmpty()) {
-		return this_.priv_HamtPMap_minusOrNull_8001(key, HamtPMap_Hash[K](key), nil)
+		return this_.priv_HamtPMap_minusOrNull_8002(key, HamtPMap_Hash[K](key), nil)
 	} else {
 		return nil
 	}
 }
 
 // Java method: HamtPMap.minusOrNull(K key, int hash, com.google.javascript.rhino.HamtPMap.@org.jspecify.annotations.Nullable Holder<V> removed)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_minusOrNull_8001(key K, hash int32, removed *HamtPMap_Holder[V]) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_minusOrNull_8002(key K, hash int32, removed *HamtPMap_Holder[V]) *HamtPMap[K, V] {
 	_ = key
 	_ = hash
 	_ = removed
@@ -615,18 +630,18 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_minusOrNull_8001(key K, hash int32, r
 		return this_
 	}
 	hash = HamtPMap_Shift(hash)
-	var index int32 = this_.priv_HamtPMap_index_8005(bucketMask)
+	var index int32 = this_.priv_HamtPMap_index_8006(bucketMask)
 	_ = index
 	var child *HamtPMap[K, V] = this_.children[index]
 	_ = child
-	var newChild *HamtPMap[K, V] = child.priv_HamtPMap_minusOrNull_8001(key, hash, removed)
+	var newChild *HamtPMap[K, V] = child.priv_HamtPMap_minusOrNull_8002(key, hash, removed)
 	_ = newChild
 	if newChild == child {
 		return this_
 	} else if newChild == nil {
-		return this_.priv_HamtPMap_withChildren_8010((this_.mask & ^(bucketMask)), HamtPMap_DeleteChild[K, V](this_.children, index))
+		return this_.priv_HamtPMap_withChildren_8011((this_.mask & ^(bucketMask)), HamtPMap_DeleteChild[K, V](this_.children, index))
 	} else {
-		return this_.priv_HamtPMap_withChildren_8010(this_.mask, HamtPMap_ReplaceChild[K, V](this_.children, index, newChild))
+		return this_.priv_HamtPMap_withChildren_8011(this_.mask, HamtPMap_ReplaceChild[K, V](this_.children, index, newChild))
 	}
 }
 
@@ -681,7 +696,10 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 	if t1 == t2 {
 		return t1
 	} else if t1 == nil {
-		var newValue V = func() V {
+		var newValue V
+	iifeSwitch_2:
+		switch {
+		default:
 			tv_20 := joiner.Merge(t2.key, func() V {
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
 					return any(j2gort.NullString).(V)
@@ -693,14 +711,17 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 				if tv_20 == any(j2gort.NullString).(V) {
 					j2gort.ThrowNPE()
 				}
-				return tv_20
+				newValue = tv_20
+				break iifeSwitch_2
 			}
 			var z_ V
 			if tv_20 == z_ {
 				j2gort.ThrowNPE()
 			}
-			return tv_20
-		}()
+			newValue = tv_20
+			break iifeSwitch_2
+		}
+
 		_ = newValue
 		var childMask int32 = t2.mask
 		_ = childMask
@@ -768,7 +789,14 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 				if c != nil {
 					{
 						a_25 := copied
-						i_26 := func() int32 { old_27 := outIdx; nw_28 := old_27 + 1; outIdx = nw_28; return old_27 }()
+						var i_26 int32
+						{
+
+							old_27 := outIdx
+							nw_28 := old_27 + 1
+							outIdx = nw_28
+							i_26 = old_27
+						}
 						a_25[i_26] = c
 					}
 				} else {
@@ -802,7 +830,10 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 		_ = newChildren
 		return NewHamtPMap[K, V](t2.key, t2.hash, newValue, true, childMask, newChildren)
 	} else if t2 == nil {
-		var newValue_2 V = func() V {
+		var newValue_2 V
+	iifeSwitch_3:
+		switch {
+		default:
 			tv_31 := joiner.Merge(t1.key, t1.value, func() V {
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
 					return any(j2gort.NullString).(V)
@@ -814,14 +845,17 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 				if tv_31 == any(j2gort.NullString).(V) {
 					j2gort.ThrowNPE()
 				}
-				return tv_31
+				newValue_2 = tv_31
+				break iifeSwitch_3
 			}
 			var z_ V
 			if tv_31 == z_ {
 				j2gort.ThrowNPE()
 			}
-			return tv_31
-		}()
+			newValue_2 = tv_31
+			break iifeSwitch_3
+		}
+
 		_ = newValue_2
 		var childMask_2 int32 = t1.mask
 		_ = childMask_2
@@ -889,7 +923,14 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 				if c_2 != nil {
 					{
 						a_36 := copied_2
-						i_37 := func() int32 { old_38 := outIdx_2; nw_39 := old_38 + 1; outIdx_2 = nw_39; return old_38 }()
+						var i_37 int32
+						{
+
+							old_38 := outIdx_2
+							nw_39 := old_38 + 1
+							outIdx_2 = nw_39
+							i_37 = old_38
+						}
 						a_36[i_37] = c_2
 					}
 				} else {
@@ -931,7 +972,10 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 	_ = hashCmp
 	if ((((hashCmp != int32(0)) && (t1.mask == int32(0))) && (t2.mask == int32(0))) && t1.present) && t2.present {
 		if hashCmp < int32(0) {
-			var v1 V = func() V {
+			var v1 V
+		iifeSwitch_4:
+			switch {
+			default:
 				tv_42 := joiner.Merge(t1.key, t1.value, func() V {
 					if _, ok_ := any((*V)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(V)
@@ -943,16 +987,22 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 					if tv_42 == any(j2gort.NullString).(V) {
 						j2gort.ThrowNPE()
 					}
-					return tv_42
+					v1 = tv_42
+					break iifeSwitch_4
 				}
 				var z_ V
 				if tv_42 == z_ {
 					j2gort.ThrowNPE()
 				}
-				return tv_42
-			}()
+				v1 = tv_42
+				break iifeSwitch_4
+			}
+
 			_ = v1
-			var v2 V = func() V {
+			var v2 V
+		iifeSwitch_5:
+			switch {
+			default:
 				tv_43 := joiner.Merge(t2.key, func() V {
 					if _, ok_ := any((*V)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(V)
@@ -964,14 +1014,17 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 					if tv_43 == any(j2gort.NullString).(V) {
 						j2gort.ThrowNPE()
 					}
-					return tv_43
+					v2 = tv_43
+					break iifeSwitch_5
 				}
 				var z_ V
 				if tv_43 == z_ {
 					j2gort.ThrowNPE()
 				}
-				return tv_43
-			}()
+				v2 = tv_43
+				break iifeSwitch_5
+			}
+
 			_ = v2
 			var child *HamtPMap[K, V] = NewHamtPMap[K, V](t2.key, HamtPMap_Shift(t2.hash), v2, true, int32(0), nil)
 			_ = child
@@ -979,7 +1032,10 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 			_ = arr
 			return NewHamtPMap[K, V](t1.key, t1.hash, v1, true, javalang.Shl32(int32(1), int(HamtPMap_Bucket(t2.hash))), arr)
 		} else {
-			var v2_2 V = func() V {
+			var v2_2 V
+		iifeSwitch_6:
+			switch {
+			default:
 				tv_44 := joiner.Merge(t2.key, func() V {
 					if _, ok_ := any((*V)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(V)
@@ -991,16 +1047,22 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 					if tv_44 == any(j2gort.NullString).(V) {
 						j2gort.ThrowNPE()
 					}
-					return tv_44
+					v2_2 = tv_44
+					break iifeSwitch_6
 				}
 				var z_ V
 				if tv_44 == z_ {
 					j2gort.ThrowNPE()
 				}
-				return tv_44
-			}()
+				v2_2 = tv_44
+				break iifeSwitch_6
+			}
+
 			_ = v2_2
-			var v1_2 V = func() V {
+			var v1_2 V
+		iifeSwitch_7:
+			switch {
+			default:
 				tv_45 := joiner.Merge(t1.key, t1.value, func() V {
 					if _, ok_ := any((*V)(nil)).(*string); ok_ {
 						return any(j2gort.NullString).(V)
@@ -1012,14 +1074,17 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 					if tv_45 == any(j2gort.NullString).(V) {
 						j2gort.ThrowNPE()
 					}
-					return tv_45
+					v1_2 = tv_45
+					break iifeSwitch_7
 				}
 				var z_ V
 				if tv_45 == z_ {
 					j2gort.ThrowNPE()
 				}
-				return tv_45
-			}()
+				v1_2 = tv_45
+				break iifeSwitch_7
+			}
+
 			_ = v1_2
 			var child_2 *HamtPMap[K, V] = NewHamtPMap[K, V](t1.key, HamtPMap_Shift(t1.hash), v1_2, true, int32(0), nil)
 			_ = child_2
@@ -1033,10 +1098,10 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 	var hash int32 = t1.hash
 	_ = hash
 	if hashCmp < int32(0) {
-		t2 = t2.priv_HamtPMap_vacateRoot_8009()
+		t2 = t2.priv_HamtPMap_vacateRoot_8010()
 		sameChildrenAs2 = false
 	} else if hashCmp > int32(0) {
-		t1 = t1.priv_HamtPMap_vacateRoot_8009()
+		t1 = t1.priv_HamtPMap_vacateRoot_8010()
 		sameChildrenAs1 = false
 		key = t2.key
 		hash = t2.hash
@@ -1056,19 +1121,28 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 		}
 		return javalang.ObjectsEquals(j2gort.ToAny(rk_46), j2gort.ToAny(ak_47))
 	}()) {
-		t2 = t2.priv_HamtPMap_pivot_8007(t1.key, t1.hash)
+		t2 = t2.priv_HamtPMap_pivot_8008(t1.key, t1.hash)
 		sameChildrenAs2 = false
 	}
-	var newValue_3 V = func() V {
+	var newValue_3 V
+iifeSwitch_11:
+	switch {
+	default:
 		if _, ok_ := any((*V)(nil)).(*string); ok_ {
-			return any(j2gort.NullString).(V)
+			newValue_3 = any(j2gort.NullString).(V)
+			break iifeSwitch_11
 		}
 		var z_ V
-		return z_
-	}()
+		newValue_3 = z_
+		break iifeSwitch_11
+	}
+
 	_ = newValue_3
 	if !(t1.present) {
-		newValue_3 = func() V {
+	iifeSwitch_8:
+		switch {
+		default:
+
 			tv_48 := joiner.Merge(t2.key, func() V {
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
 					return any(j2gort.NullString).(V)
@@ -1080,16 +1154,22 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 				if tv_48 == any(j2gort.NullString).(V) {
 					j2gort.ThrowNPE()
 				}
-				return tv_48
+				newValue_3 = tv_48
+				break iifeSwitch_8
 			}
 			var z_ V
 			if tv_48 == z_ {
 				j2gort.ThrowNPE()
 			}
-			return tv_48
-		}()
+			newValue_3 = tv_48
+			break iifeSwitch_8
+		}
+
 	} else if !(t2.present) {
-		newValue_3 = func() V {
+	iifeSwitch_9:
+		switch {
+		default:
+
 			tv_49 := joiner.Merge(t1.key, t1.value, func() V {
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
 					return any(j2gort.NullString).(V)
@@ -1101,14 +1181,17 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 				if tv_49 == any(j2gort.NullString).(V) {
 					j2gort.ThrowNPE()
 				}
-				return tv_49
+				newValue_3 = tv_49
+				break iifeSwitch_9
 			}
 			var z_ V
 			if tv_49 == z_ {
 				j2gort.ThrowNPE()
 			}
-			return tv_49
-		}()
+			newValue_3 = tv_49
+			break iifeSwitch_9
+		}
+
 	} else if func() bool {
 		rk_50 := t1.value
 		ak_51 := t2.value
@@ -1127,27 +1210,41 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 	}() {
 		newValue_3 = t1.value
 	} else {
-		newValue_3 = func() V {
+	iifeSwitch_10:
+		switch {
+		default:
+
 			tv_52 := joiner.Merge(t1.key, t1.value, t2.value)
 			if _, ok_ := any((*V)(nil)).(*string); ok_ {
 				if tv_52 == any(j2gort.NullString).(V) {
 					j2gort.ThrowNPE()
 				}
-				return tv_52
+				newValue_3 = tv_52
+				break iifeSwitch_10
 			}
 			var z_ V
 			if tv_52 == z_ {
 				j2gort.ThrowNPE()
 			}
-			return tv_52
-		}()
+			newValue_3 = tv_52
+			break iifeSwitch_10
+		}
+
 	}
 	var origMask int32 = (t1.mask | t2.mask)
 	_ = origMask
 	var newMask int32 = origMask
 	_ = newMask
-	sameChildrenAs1 = func() bool { ba_53 := sameChildrenAs1; bb_54 := (newMask == t1.mask); return ba_53 && bb_54 }()
-	sameChildrenAs2 = func() bool { ba_55 := sameChildrenAs2; bb_56 := (newMask == t2.mask); return ba_55 && bb_56 }()
+	{
+		ba_53 := sameChildrenAs1
+		bb_54 := (newMask == t1.mask)
+		sameChildrenAs1 = ba_53 && bb_54
+	}
+	{
+		ba_55 := sameChildrenAs2
+		bb_56 := (newMask == t2.mask)
+		sameChildrenAs2 = ba_55 && bb_56
+	}
 	if origMask == int32(0) {
 		if (sameChildrenAs1 && t1.present) && func() bool {
 			rk_57 := t1.value
@@ -1214,14 +1311,22 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 		var childBit int32 = j2gort.IntLowestOneBit(mask)
 		_ = childBit
 		mask = (mask & ^(childBit))
-		var child1 *HamtPMap[K, V] = t1.priv_HamtPMap_getChild_8006(childBit)
+		var child1 *HamtPMap[K, V] = t1.priv_HamtPMap_getChild_8007(childBit)
 		_ = child1
-		var child2 *HamtPMap[K, V] = t2.priv_HamtPMap_getChild_8006(childBit)
+		var child2 *HamtPMap[K, V] = t2.priv_HamtPMap_getChild_8007(childBit)
 		_ = child2
 		var rec *HamtPMap[K, V] = HamtPMap_Reconcile[K, V](child1, child2, joiner)
 		_ = rec
-		sameChildrenAs1 = func() bool { ba_61 := sameChildrenAs1; bb_62 := (rec == child1); return ba_61 && bb_62 }()
-		sameChildrenAs2 = func() bool { ba_63 := sameChildrenAs2; bb_64 := (rec == child2); return ba_63 && bb_64 }()
+		{
+			ba_61 := sameChildrenAs1
+			bb_62 := (rec == child1)
+			sameChildrenAs1 = ba_61 && bb_62
+		}
+		{
+			ba_63 := sameChildrenAs2
+			bb_64 := (rec == child2)
+			sameChildrenAs2 = ba_63 && bb_64
+		}
 		if newChildren_3 == nil {
 			if rec == baseChildren[slotIdx] {
 				slotIdx = slotIdx + 1
@@ -1247,7 +1352,14 @@ func HamtPMap_Reconcile[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Hamt
 		if rec != nil {
 			{
 				a_67 := newChildren_3
-				i_68 := func() int32 { old_69 := index; nw_70 := old_69 + 1; index = nw_70; return old_69 }()
+				var i_68 int32
+				{
+
+					old_69 := index
+					nw_70 := old_69 + 1
+					index = nw_70
+					i_68 = old_69
+				}
 				a_67[i_68] = rec
 			}
 		} else {
@@ -1370,7 +1482,7 @@ func HamtPMap_Equivalent[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Ham
 		}
 		return javalang.ObjectsEquals(j2gort.ToAny(rk_77), j2gort.ToAny(ak_78))
 	}()) {
-		t2 = t2.priv_HamtPMap_pivot_8007(t1.key, t1.hash)
+		t2 = t2.priv_HamtPMap_pivot_8008(t1.key, t1.hash)
 		if !(t2.present) {
 			return false
 		}
@@ -1384,7 +1496,7 @@ func HamtPMap_Equivalent[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Ham
 		var childBit int32 = j2gort.IntLowestOneBit(mask)
 		_ = childBit
 		mask = (mask & ^(childBit))
-		if !(HamtPMap_Equivalent[K, V](t1.priv_HamtPMap_getChild_8006(childBit), t2.priv_HamtPMap_getChild_8006(childBit), equivalence)) {
+		if !(HamtPMap_Equivalent[K, V](t1.priv_HamtPMap_getChild_8007(childBit), t2.priv_HamtPMap_getChild_8007(childBit), equivalence)) {
 			return false
 		}
 	}
@@ -1392,16 +1504,16 @@ func HamtPMap_Equivalent[K comparable, V comparable](t1 *HamtPMap[K, V], t2 *Ham
 }
 
 // Java method: HamtPMap.index(int bit)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_index_8005(bit int32) int32 {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_index_8006(bit int32) int32 {
 	_ = bit
 	return j2gort.IntBitCount((this_.mask & (bit - int32(1))))
 }
 
 // Java method: HamtPMap.getChild(int bit)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_getChild_8006(bit int32) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_getChild_8007(bit int32) *HamtPMap[K, V] {
 	_ = bit
 	if (this_.mask & bit) != int32(0) {
-		return this_.children[this_.priv_HamtPMap_index_8005(bit)]
+		return this_.children[this_.priv_HamtPMap_index_8006(bit)]
 	} else {
 		return nil
 	}
@@ -1452,14 +1564,14 @@ func HamtPMap_CompareUnsigned(left int32, right int32) int32 {
 }
 
 // Java method: HamtPMap.pivot(K key, int hash)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8007(key K, hash int32) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8008(key K, hash int32) *HamtPMap[K, V] {
 	_ = key
 	_ = hash
-	return this_.priv_HamtPMap_pivot_8008(key, hash, nil, NewHamtPMap_Holder[V]())
+	return this_.priv_HamtPMap_pivot_8009(key, hash, nil, NewHamtPMap_Holder[V]())
 }
 
 // Java method: HamtPMap.pivot(K key, int hash, com.google.javascript.rhino.@org.jspecify.annotations.Nullable HamtPMap<K,V> parent, com.google.javascript.rhino.HamtPMap.Holder<V> result)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8008(key K, hash int32, parent *HamtPMap[K, V], result *HamtPMap_Holder[V]) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8009(key K, hash int32, parent *HamtPMap[K, V], result *HamtPMap_Holder[V]) *HamtPMap[K, V] {
 	_ = key
 	_ = hash
 	_ = parent
@@ -1501,11 +1613,11 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8008(key K, hash int32, parent 
 			var bucketMask int32 = javalang.Shl32(int32(1), int(searchBucket))
 			_ = bucketMask
 			if (this_.mask & bucketMask) != int32(0) {
-				var index int32 = this_.priv_HamtPMap_index_8005(bucketMask)
+				var index int32 = this_.priv_HamtPMap_index_8006(bucketMask)
 				_ = index
 				var child *HamtPMap[K, V] = newChildren[index]
 				_ = child
-				var newChild *HamtPMap[K, V] = child.priv_HamtPMap_pivot_8008(key, HamtPMap_Shift(hash), this_, result)
+				var newChild *HamtPMap[K, V] = child.priv_HamtPMap_pivot_8009(key, HamtPMap_Shift(hash), this_, result)
 				_ = newChild
 				newChildren = HamtPMap_ReplaceChild[K, V](newChildren, index, newChild)
 			}
@@ -1513,11 +1625,11 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8008(key K, hash int32, parent 
 			var searchMask int32 = javalang.Shl32(int32(1), int(searchBucket))
 			_ = searchMask
 			if (this_.mask & searchMask) != int32(0) {
-				var index_2 int32 = this_.priv_HamtPMap_index_8005(searchMask)
+				var index_2 int32 = this_.priv_HamtPMap_index_8006(searchMask)
 				_ = index_2
 				var child_2 *HamtPMap[K, V] = newChildren[index_2]
 				_ = child_2
-				var newChild_2 *HamtPMap[K, V] = child_2.priv_HamtPMap_minusOrNull_8001(key, HamtPMap_Shift(hash), result)
+				var newChild_2 *HamtPMap[K, V] = child_2.priv_HamtPMap_minusOrNull_8002(key, HamtPMap_Shift(hash), result)
 				_ = newChild_2
 				if newChild_2 != nil {
 					newChildren = HamtPMap_ReplaceChild[K, V](newChildren, index_2, newChild_2)
@@ -1533,7 +1645,7 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8008(key K, hash int32, parent 
 			if (this_.mask & replacementMask) != int32(0) {
 				var child_3 *HamtPMap[K, V] = newChildren[index_3]
 				_ = child_3
-				var newChild_3 *HamtPMap[K, V] = child_3.priv_HamtPMap_plus_7997(this_.key, HamtPMap_Shift(this_.hash), this_.value)
+				var newChild_3 *HamtPMap[K, V] = child_3.priv_HamtPMap_plus_7998(this_.key, HamtPMap_Shift(this_.hash), this_.value)
 				_ = newChild_3
 				newChildren = HamtPMap_ReplaceChild[K, V](newChildren, index_3, newChild_3)
 			} else {
@@ -1550,15 +1662,15 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_pivot_8008(key K, hash int32, parent 
 }
 
 // Java method: HamtPMap.vacateRoot()
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_vacateRoot_8009() *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_vacateRoot_8010() *HamtPMap[K, V] {
 	var bucket int32 = HamtPMap_Bucket(this_.hash)
 	_ = bucket
 	var bucketMask int32 = javalang.Shl32(int32(1), int(bucket))
 	_ = bucketMask
-	var index int32 = this_.priv_HamtPMap_index_8005(bucketMask)
+	var index int32 = this_.priv_HamtPMap_index_8006(bucketMask)
 	_ = index
 	if (this_.mask & bucketMask) != int32(0) {
-		var newChild *HamtPMap[K, V] = this_.children[index].priv_HamtPMap_plus_7997(this_.key, HamtPMap_Shift(this_.hash), this_.value)
+		var newChild *HamtPMap[K, V] = this_.children[index].priv_HamtPMap_plus_7998(this_.key, HamtPMap_Shift(this_.hash), this_.value)
 		_ = newChild
 		return NewHamtPMap[K, V](func() K {
 			if _, ok_ := any((*K)(nil)).(*string); ok_ {
@@ -1592,7 +1704,7 @@ func (this_ *HamtPMap[K, V]) priv_HamtPMap_vacateRoot_8009() *HamtPMap[K, V] {
 }
 
 // Java method: HamtPMap.withChildren(int mask, com.google.javascript.rhino.HamtPMap<K,V> @org.jspecify.annotations.Nullable [] children)
-func (this_ *HamtPMap[K, V]) priv_HamtPMap_withChildren_8010(mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
+func (this_ *HamtPMap[K, V]) priv_HamtPMap_withChildren_8011(mask int32, children []*HamtPMap[K, V]) *HamtPMap[K, V] {
 	_ = mask
 	_ = children
 	if (mask == this_.mask) && j2gort.SliceRefEquals(children, this_.children) {

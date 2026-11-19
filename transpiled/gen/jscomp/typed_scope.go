@@ -1470,7 +1470,14 @@ func (this_ *TypedScope_Overflow) InitReservedSet(set j2gort.Ext_java_util_Set) 
 				_ = s
 				{
 					a_62 := arr
-					i_63 := func() int32 { old_64 := i; nw_65 := old_64 + 1; i = nw_65; return old_64 }()
+					var i_63 int32
+					{
+
+						old_64 := i
+						nw_65 := old_64 + 1
+						i = nw_65
+						i_63 = old_64
+					}
 					a_62[i_63] = s
 				}
 			}

@@ -32,7 +32,9 @@ func (this_ *VirtualFile) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *VirtualFile) IsJavaNil_() bool { return this_ == nil }
-func (*VirtualFile) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.deps.VirtualFile", "VirtualFile" }
+func (*VirtualFile) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.deps.VirtualFile", "VirtualFile"
+}
 func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.deps.VirtualFile", "com.google.javascript.jscomp.deps.VirtualFile", func(v_ any) bool {
 		return j2gort.InstanceOf[*VirtualFile](v_)
@@ -78,7 +80,24 @@ func (this_ *VirtualFile) WasModified() bool {
 
 // Java method: VirtualFile.hashCode()
 func (this_ *VirtualFile) HashCode() int32 {
-	return func() int32 { var oh_1 int32 = 1; { hs_2 := this_.name; oh_1 = 31 * oh_1; if hs_2 != j2gort.NullString { oh_1 += javalang.StringHashCode(hs_2) } }; { hs_3 := this_.code; oh_1 = 31 * oh_1; if hs_3 != j2gort.NullString { oh_1 += javalang.StringHashCode(hs_3) } }; return oh_1 }()
+	{
+		var oh_1 int32 = 1
+		{
+			hs_2 := this_.name
+			oh_1 = 31 * oh_1
+			if hs_2 != j2gort.NullString {
+				oh_1 += javalang.StringHashCode(hs_2)
+			}
+		}
+		{
+			hs_3 := this_.code
+			oh_1 = 31 * oh_1
+			if hs_3 != j2gort.NullString {
+				oh_1 += javalang.StringHashCode(hs_3)
+			}
+		}
+		return oh_1
+	}
 }
 
 // Java method: VirtualFile.equals(java.lang.Object o)
@@ -94,4 +113,3 @@ func (this_ *VirtualFile) Equals(arg_4 any) bool {
 	}
 	return false
 }
-

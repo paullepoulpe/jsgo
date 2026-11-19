@@ -1797,7 +1797,11 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheri
 		_ = propSlot
 		var superClassHasProperty bool = ((propSlot != nil) && !(propSlot.IsOwnedByInterface()))
 		_ = superClassHasProperty
-		foundProperty = func() bool { ba_5 := foundProperty; bb_6 := superClassHasProperty; return ba_5 || bb_6 }()
+		{
+			ba_5 := foundProperty
+			bb_6 := superClassHasProperty
+			foundProperty = ba_5 || bb_6
+		}
 		if superClassHasProperty {
 			var superClass pkg_rhino.ObjectType = propSlot.GetOwnerInstanceType()
 			_ = superClass
@@ -1827,7 +1831,11 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheri
 			_ = propSlot_2
 			var interfaceHasProperty bool = (propSlot_2 != nil)
 			_ = interfaceHasProperty
-			foundProperty = func() bool { ba_9 := foundProperty; bb_10 := interfaceHasProperty; return ba_9 || bb_10 }()
+			{
+				ba_9 := foundProperty
+				bb_10 := interfaceHasProperty
+				foundProperty = ba_9 || bb_10
+			}
 			if interfaceHasProperty && !(TypeCheck_DeclaresOverride(info)) {
 				this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_HIDDEN_INTERFACE_PROPERTY(), []string{propertyName, propSlot_2.GetOwnerInstanceType().GetReferenceName()}))
 			}
@@ -1911,7 +1919,11 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheri
 		_ = propSlot
 		var superClassHasProperty bool = ((propSlot != nil) && !(propSlot.IsOwnedByInterface()))
 		_ = superClassHasProperty
-		foundProperty = func() bool { ba_11 := foundProperty; bb_12 := superClassHasProperty; return ba_11 || bb_12 }()
+		{
+			ba_11 := foundProperty
+			bb_12 := superClassHasProperty
+			foundProperty = ba_11 || bb_12
+		}
 		if superClassHasProperty {
 			var superClass pkg_rhino.ObjectType = propSlot.GetOwnerInstanceType()
 			_ = superClass
@@ -1941,7 +1953,11 @@ func (this_ *TypeCheck) priv_TypeCheck_checkDeclaredPropertyAgainstNominalInheri
 			_ = propSlot_2
 			var interfaceHasProperty bool = (propSlot_2 != nil)
 			_ = interfaceHasProperty
-			foundProperty = func() bool { ba_15 := foundProperty; bb_16 := interfaceHasProperty; return ba_15 || bb_16 }()
+			{
+				ba_15 := foundProperty
+				bb_16 := interfaceHasProperty
+				foundProperty = ba_15 || bb_16
+			}
 			if interfaceHasProperty && !(TypeCheck_DeclaresOverride(info)) {
 				this_.compiler.Report_1(JSError_Make_3(n, StaticGet_TypeCheck_HIDDEN_INTERFACE_PROPERTY(), []string{propertyName.HumanReadableName(), propSlot_2.GetOwnerInstanceType().GetReferenceName()}))
 			}
@@ -2382,14 +2398,16 @@ func (this_ *TypeCheck) priv_TypeCheck_reportMissingProperty_5422(objNode pkg_rh
 	base_objectType_ := objectType.GetJSTypeBase()
 	var lowConfidence bool = ((base_objectType_.IsUnknownType() || base_objectType_.IsAllType()) || isObjectType)
 	_ = lowConfidence
-	var isKnownToUnionMember bool = func() bool {
+	var isKnownToUnionMember bool
+	{
 		re_24 := kind
 		ae_25 := pkg_rhino.StaticGet_JSTypeRegistry_PropDefinitionKind_LOOSE_UNION()
 		if re_24 == 0 {
 			j2gort.ThrowNPE()
 		}
-		return re_24 == ae_25
-	}()
+		isKnownToUnionMember = re_24 == ae_25
+	}
+
 	_ = isKnownToUnionMember
 	var pair *TypeCheck_SuggestionPair = nil
 	_ = pair
@@ -3327,7 +3345,7 @@ func (this_ *TypeCheck) priv_TypeCheck_checkJsdocInfoContainsObjectWithBadKey_54
 func (this_ *TypeCheck) priv_TypeCheck_checkTypeContainsObjectWithBadKey_5460(n pkg_rhino.Node, type_ pkg_rhino.JSTypeExpression) {
 	_ = n
 	_ = type_
-	if (type_ != (pkg_rhino.JSTypeExpression{})) && !(j2gort.IfaceEquals[pkg_rhino.JSType](type_.GetRoot().GetJSType(), nil)) {
+	if !(type_).IsJavaNil_() && !(j2gort.IfaceEquals[pkg_rhino.JSType](type_.GetRoot().GetJSType(), nil)) {
 		var realType pkg_rhino.JSType = type_.GetRoot().GetJSType()
 		_ = realType
 		if !(realType.GetJSTypeBase().MayHaveNonStringifiableKey()) {

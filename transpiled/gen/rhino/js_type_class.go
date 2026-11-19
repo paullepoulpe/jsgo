@@ -44,31 +44,31 @@ import (
 type JSTypeClass uint8
 
 const (
-	enum_JSTypeClass_ALL JSTypeClass = 1
-	enum_JSTypeClass_ARROW JSTypeClass = 2
-	enum_JSTypeClass_BOOLEAN JSTypeClass = 3
-	enum_JSTypeClass_BIGINT JSTypeClass = 4
-	enum_JSTypeClass_ENUM JSTypeClass = 5
-	enum_JSTypeClass_ENUM_ELEMENT JSTypeClass = 6
-	enum_JSTypeClass_FUNCTION JSTypeClass = 7
-	enum_JSTypeClass_INSTANCE_OBJECT JSTypeClass = 8
-	enum_JSTypeClass_NAMED JSTypeClass = 9
-	enum_JSTypeClass_NO JSTypeClass = 10
-	enum_JSTypeClass_NO_OBJECT JSTypeClass = 11
-	enum_JSTypeClass_NO_RESOLVED JSTypeClass = 12
-	enum_JSTypeClass_NULL JSTypeClass = 13
-	enum_JSTypeClass_NUMBER JSTypeClass = 14
-	enum_JSTypeClass_PROTOTYPE_OBJECT JSTypeClass = 15
-	enum_JSTypeClass_PROXY_OBJECT JSTypeClass = 16
-	enum_JSTypeClass_RECORD JSTypeClass = 17
-	enum_JSTypeClass_STRING JSTypeClass = 18
-	enum_JSTypeClass_SYMBOL JSTypeClass = 19
+	enum_JSTypeClass_ALL               JSTypeClass = 1
+	enum_JSTypeClass_ARROW             JSTypeClass = 2
+	enum_JSTypeClass_BOOLEAN           JSTypeClass = 3
+	enum_JSTypeClass_BIGINT            JSTypeClass = 4
+	enum_JSTypeClass_ENUM              JSTypeClass = 5
+	enum_JSTypeClass_ENUM_ELEMENT      JSTypeClass = 6
+	enum_JSTypeClass_FUNCTION          JSTypeClass = 7
+	enum_JSTypeClass_INSTANCE_OBJECT   JSTypeClass = 8
+	enum_JSTypeClass_NAMED             JSTypeClass = 9
+	enum_JSTypeClass_NO                JSTypeClass = 10
+	enum_JSTypeClass_NO_OBJECT         JSTypeClass = 11
+	enum_JSTypeClass_NO_RESOLVED       JSTypeClass = 12
+	enum_JSTypeClass_NULL              JSTypeClass = 13
+	enum_JSTypeClass_NUMBER            JSTypeClass = 14
+	enum_JSTypeClass_PROTOTYPE_OBJECT  JSTypeClass = 15
+	enum_JSTypeClass_PROXY_OBJECT      JSTypeClass = 16
+	enum_JSTypeClass_RECORD            JSTypeClass = 17
+	enum_JSTypeClass_STRING            JSTypeClass = 18
+	enum_JSTypeClass_SYMBOL            JSTypeClass = 19
 	enum_JSTypeClass_WELL_KNOWN_SYMBOL JSTypeClass = 20
-	enum_JSTypeClass_TEMPLATE JSTypeClass = 21
-	enum_JSTypeClass_TEMPLATIZED JSTypeClass = 22
-	enum_JSTypeClass_UNION JSTypeClass = 23
-	enum_JSTypeClass_UNKNOWN JSTypeClass = 24
-	enum_JSTypeClass_VOID JSTypeClass = 25
+	enum_JSTypeClass_TEMPLATE          JSTypeClass = 21
+	enum_JSTypeClass_TEMPLATIZED       JSTypeClass = 22
+	enum_JSTypeClass_UNION             JSTypeClass = 23
+	enum_JSTypeClass_UNKNOWN           JSTypeClass = 24
+	enum_JSTypeClass_VOID              JSTypeClass = 25
 )
 
 var enumBaseTable_JSTypeClass = [...]j2gort.EnumBase{
@@ -198,15 +198,26 @@ func (this_ JSTypeClass) IsTypeOf(t JSType) bool {
 		j2gort.ThrowNPE()
 	}
 	_ = t
-	return func() bool { re_1 := this_; ae_2 := t.GetTypeClass(); if re_1 == 0 { j2gort.ThrowNPE() }; return re_1 == ae_2 }()
+	{
+		re_1 := this_
+		ae_2 := t.GetTypeClass()
+		if re_1 == 0 {
+			j2gort.ThrowNPE()
+		}
+		return re_1 == ae_2
+	}
 }
 
-func (this_ JSTypeClass) IsJavaNil_() bool { return this_ == 0 }
-func (JSTypeClass) HasIdentityEquals_() {}
-func (JSTypeClass) Implements_j2gort_Ext_java_lang_Enum() {}
+func (this_ JSTypeClass) IsJavaNil_() bool                              { return this_ == 0 }
+func (JSTypeClass) HasIdentityEquals_()                                 {}
+func (JSTypeClass) Implements_j2gort_Ext_java_lang_Enum()               {}
 func (JSTypeClass) Implements_j2gort_Ext_java_lang_constant_Constable() {}
-func (this_ JSTypeClass) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase { return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()} }
-func (JSTypeClass) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.jstype.JSTypeClass", "JSTypeClass" }
+func (this_ JSTypeClass) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase {
+	return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()}
+}
+func (JSTypeClass) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.jstype.JSTypeClass", "JSTypeClass"
+}
 func (this_ JSTypeClass) GetEnumBase() *j2gort.EnumBase {
 	if this_ == 0 {
 		return nil
@@ -264,4 +275,3 @@ func init() {
 		return j2gort.InstanceOf[JSTypeClass](v_)
 	})
 }
-

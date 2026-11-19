@@ -321,7 +321,14 @@ func (this_ *DefaultNameGenerator) ReserveCharacters(chars []uint16, reservedCha
 			_ = c
 			{
 				a_14 := result_2
-				i_15 := func() int32 { old_16 := index; nw_17 := old_16 + 1; index = nw_17; return old_16 }()
+				var i_15 int32
+				{
+
+					old_16 := index
+					nw_17 := old_16 + 1
+					index = nw_17
+					i_15 = old_16
+				}
 				a_14[i_15] = j2gort.CastPtr[DefaultNameGenerator_CharPriority](this_.priorityLookupMap.Get(j2gort.ValueOfChar(c)))
 			}
 		}

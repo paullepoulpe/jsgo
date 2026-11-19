@@ -1058,10 +1058,12 @@ func (this_ *TypedScopeCreator) GetAllSymbols() any {
 
 // Java method: TypedScopeCreator.getNodeToScopeMapper()
 func (this_ *TypedScopeCreator) GetNodeToScopeMapper() j2gort.Ext_java_util_function_Function {
-	return func() j2gort.Ext_java_util_function_Function {
+	{
+
 		bound_35 := &this_.memoized
 		return j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.OrderedMapGetNodeAny(bound_35, mrp0_) })
-	}()
+	}
+
 }
 
 // Java method: TypedScopeCreator.getAllMemoizedScopes()
@@ -5335,19 +5337,31 @@ func (this_ *TypedScopeCreator_ClassScopeBuilder) DefineGetterSetter(n pkg_rhino
 	_ = propertyType
 	switch n.TokenSwitchOrd_() {
 	case int32(95) /* Token.GETTER_DEF */ :
-		propertyType = func() pkg_rhino.JSType {
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if methodType.IsReturnTypeInferred() {
-				return pkg_rhino.Upcast_JSType(this_.outer_.unknownType)
+				propertyType = pkg_rhino.Upcast_JSType(this_.outer_.unknownType)
+				break iifeSwitch_1
 			}
-			return methodType.GetReturnType()
-		}()
+			propertyType = methodType.GetReturnType()
+			break iifeSwitch_1
+		}
+
 	case int32(96) /* Token.SETTER_DEF */ :
-		propertyType = func() pkg_rhino.JSType {
+	iifeSwitch_2:
+		switch {
+		default:
+
 			if methodType.GetParameterCount() == int32(0) {
-				return pkg_rhino.Upcast_JSType(this_.outer_.unknownType)
+				propertyType = pkg_rhino.Upcast_JSType(this_.outer_.unknownType)
+				break iifeSwitch_2
 			}
-			return methodType.GetParameter(int32(0)).GetJSType()
-		}()
+			propertyType = methodType.GetParameter(int32(0)).GetJSType()
+			break iifeSwitch_2
+		}
+
 	default:
 		panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", j2gort.BoxString(n.ToStringTree()))))
 	}

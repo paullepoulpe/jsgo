@@ -428,11 +428,13 @@ func (this_ *FunctionTypeBuilder) InferFromOverriddenFunction(oldType *pkg_rhino
 					}
 					paramBuilder.NewParameterFrom(pkg_rhino.FunctionType_Parameter_Create(oldParam.GetJSType(), isOptionalArg, isVarArgs))
 				} else {
-					warnedAboutArgList = func() bool {
+					{
+
 						ba_3 := warnedAboutArgList
 						bb_4 := this_.priv_FunctionTypeBuilder_addParameter_2992(paramBuilder, this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE()), warnedAboutArgList, ((this_.codingConvention.IsOptionalParameter(currentParam) || oldParamsListHitOptArgs) || currentParam.IsDefaultValue()), this_.codingConvention.IsVarArgsParameter(currentParam))
-						return ba_3 || bb_4
-					}()
+						warnedAboutArgList = ba_3 || bb_4
+					}
+
 				}
 			}
 		}
@@ -456,7 +458,7 @@ func (this_ *FunctionTypeBuilder) InferReturnType(info *pkg_rhino.JSDocInfo, fro
 		} else {
 			returnTypeExpr = info.GetReturnType()
 		}
-		if returnTypeExpr != (pkg_rhino.JSTypeExpression{}) {
+		if !(returnTypeExpr).IsJavaNil_() {
 			this_.returnType = returnTypeExpr.Evaluate(this_.templateScope, this_.typeRegistry)
 			this_.returnTypeInferred = false
 		}
@@ -751,7 +753,7 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 			}
 			var parameterType pkg_rhino.JSType = nil
 			_ = parameterType
-			if jsDocParamTypeExpr != (pkg_rhino.JSTypeExpression{}) {
+			if !(jsDocParamTypeExpr).IsJavaNil_() {
 				parameterType = jsDocParamTypeExpr.Evaluate(this_.templateScope, this_.typeRegistry)
 				isOptionalParam = (isOptionalParam || jsDocParamTypeExpr.IsOptionalArg())
 				isVarArgs = (isVarArgs || jsDocParamTypeExpr.IsVarArgs())
@@ -768,11 +770,13 @@ func (this_ *FunctionTypeBuilder) InferParameterTypes_2(paramsParent pkg_rhino.N
 			} else {
 				parameterType = this_.typeRegistry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 			}
-			warnedAboutArgList = func() bool {
+			{
+
 				ba_11 := warnedAboutArgList
 				bb_12 := this_.priv_FunctionTypeBuilder_addParameter_2992(builder, parameterType, warnedAboutArgList, isOptionalParam, isVarArgs)
-				return ba_11 || bb_12
-			}()
+				warnedAboutArgList = ba_11 || bb_12
+			}
+
 			if oldParamIdx < oldParamLen {
 				oldParameterType = oldParameters[func() int32 { old_13 := oldParamIdx; nw_14 := old_13 + 1; oldParamIdx = nw_14; return old_13 }()]
 			} else {

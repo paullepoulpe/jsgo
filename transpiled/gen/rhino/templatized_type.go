@@ -275,12 +275,14 @@ func (this_ *TemplatizedType) RecursionUnsafeHashCode() int32 {
 	if this_.isSpecializedOnlyWithUnknown {
 		return baseHash
 	}
-	return func() int32 {
+	{
+
 		var oh_5 int32 = 1
 		oh_5 = 31*oh_5 + j2gort.ObjectHash(j2gort.ImmListFromTypedSlice(this_.templateTypes))
 		oh_5 = 31*oh_5 + (baseHash)
 		return oh_5
-	}()
+	}
+
 }
 
 // Java method: TemplatizedType.visit(com.google.javascript.rhino.jstype.Visitor<T> visitor)

@@ -173,7 +173,7 @@ func (this_ *CheckNullabilityModifiers) Visit_3(t *NodeTraversal, n pkg_rhino.No
 			for ; i < paramCount; i = i + 1 {
 				var paramType pkg_rhino.JSTypeExpression = info.GetParameterTypeAt(i)
 				_ = paramType
-				if paramType != (pkg_rhino.JSTypeExpression{}) {
+				if !(paramType).IsJavaNil_() {
 					this_.priv_CheckNullabilityModifiers_visitTypeExpression_6560(paramType, false)
 				}
 			}

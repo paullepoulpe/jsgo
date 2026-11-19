@@ -129,26 +129,30 @@ func (this_ *Binding) IsMutated() bool {
 
 // Java method: Binding.isCreatedByEsImport()
 func (this_ *Binding) IsCreatedByEsImport() bool {
-	return func() bool {
+	{
+
 		re_1 := this_.CreatedBy()
 		ae_2 := StaticGet_Binding_CreatedBy_IMPORT()
 		if re_1 == 0 {
 			j2gort.ThrowNPE()
 		}
 		return re_1 == ae_2
-	}()
+	}
+
 }
 
 // Java method: Binding.isCreatedByEsExport()
 func (this_ *Binding) IsCreatedByEsExport() bool {
-	return func() bool {
+	{
+
 		re_3 := this_.CreatedBy()
 		ae_4 := StaticGet_Binding_CreatedBy_EXPORT()
 		if re_3 == 0 {
 			j2gort.ThrowNPE()
 		}
 		return re_3 == ae_4
-	}()
+	}
+
 }
 
 // Java method: Binding.isSomeImport()

@@ -427,14 +427,16 @@ func (this_ ScopedAliases_InvalidModuleGetHandling) ShouldGiveUniqueName() bool 
 	if this_ == 0 {
 		j2gort.ThrowNPE()
 	}
-	return func() bool {
+	{
+
 		re_5 := this_
 		ae_6 := StaticGet_ScopedAliases_InvalidModuleGetHandling_GIVE_UNIQUE_NAME()
 		if re_5 == 0 {
 			j2gort.ThrowNPE()
 		}
 		return re_5 == ae_6
-	}()
+	}
+
 }
 
 func (this_ ScopedAliases_InvalidModuleGetHandling) IsJavaNil_() bool                              { return this_ == 0 }

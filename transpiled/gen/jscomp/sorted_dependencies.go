@@ -175,12 +175,14 @@ func (this_ *SortedDependencies) priv_SortedDependencies_registerOrGetInputId_61
 		var entry int32 = this_.inputTable[slot]
 		_ = entry
 		if entry == int32(0) {
-			var id int32 = func() int32 {
+			var id int32
+			{
 				old_5 := this_.uniqueInputCount
 				nw_6 := old_5 + 1
 				this_.uniqueInputCount = nw_6
-				return old_5
-			}()
+				id = old_5
+			}
+
 			_ = id
 			{
 				a_7 := this_.uniqueInputs
@@ -713,7 +715,8 @@ func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6160() {
 						}
 						if !(alreadyPresent) {
 							if count == int32(len(dstIds)) {
-								dstIds = func() []int32 {
+								{
+
 									arrSrc_28 := dstIds
 									arrLen_29 := (count * int32(2))
 									j2gort.CheckNotNullSlice(arrSrc_28)
@@ -722,8 +725,9 @@ func (this_ *SortedDependencies) priv_SortedDependencies_processInputs_6160() {
 									}
 									arrOut_30 := make([]int32, arrLen_29)
 									copy(arrOut_30, arrSrc_28)
-									return arrOut_30
-								}()
+									dstIds = arrOut_30
+								}
+
 								{
 									a_31 := importedIdsById
 									i_32 := srcId

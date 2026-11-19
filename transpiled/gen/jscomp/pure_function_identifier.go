@@ -445,7 +445,14 @@ func (this_ *PureFunctionIdentifier) priv_PureFunctionIdentifier_appendSummaries
 			for ; i < addCount; i = i + 1 {
 				{
 					a_5 := out
-					i_6 := func() int32 { old_7 := outCount; nw_8 := old_7 + 1; outCount = nw_8; return old_7 }()
+					var i_6 int32
+					{
+
+						old_7 := outCount
+						nw_8 := old_7 + 1
+						outCount = nw_8
+						i_6 = old_7
+					}
 					a_5[i_6] = summariesForFunction.Get(i)
 				}
 			}
@@ -889,7 +896,8 @@ func (this_ *PureFunctionIdentifier_SummaryList) Add(summary *PureFunctionIdenti
 			r = make([]*PureFunctionIdentifier_AmbiguatedFunctionSummary, int32(4))
 			this_.rest = r
 		} else if (s - int32(1)) == int32(len(r)) {
-			r = func() []*PureFunctionIdentifier_AmbiguatedFunctionSummary {
+			{
+
 				arrSrc_20 := r
 				arrLen_21 := (int32(len(r)) * int32(2))
 				j2gort.CheckNotNullSlice(arrSrc_20)
@@ -898,8 +906,9 @@ func (this_ *PureFunctionIdentifier_SummaryList) Add(summary *PureFunctionIdenti
 				}
 				arrOut_22 := make([]*PureFunctionIdentifier_AmbiguatedFunctionSummary, arrLen_21)
 				copy(arrOut_22, arrSrc_20)
-				return arrOut_22
-			}()
+				r = arrOut_22
+			}
+
 			this_.rest = r
 		}
 		{
@@ -1154,12 +1163,18 @@ func (this_ *PureFunctionIdentifier_FunctionBodyAnalyzer) priv_FunctionBodyAnaly
 		switch node.TokenSwitchOrd_() {
 		case int32(51) /* Token.ASSIGN */ :
 			lhs = node.GetFirstChild()
-			rhsLocality = func() j2gort.Ext_java_util_function_Predicate {
+		iifeSwitch_1:
+			switch {
+			default:
+
 				if lhs.IsDestructuringPattern() {
-					return StaticGet_PureFunctionIdentifier_RHS_IS_NEVER_LOCAL()
+					rhsLocality = StaticGet_PureFunctionIdentifier_RHS_IS_NEVER_LOCAL()
+					break iifeSwitch_1
 				}
-				return StaticGet_PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE()
-			}()
+				rhsLocality = StaticGet_PureFunctionIdentifier_FIND_RHS_AND_CHECK_FOR_LOCAL_VALUE()
+				break iifeSwitch_1
+			}
+
 			NodeUtil_VisitLhsNodesInNode(node, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_25 any) {
 				lhsNode := j2gort.CastNode[pkg_rhino.Node](lp_25)
 				_ = lhsNode

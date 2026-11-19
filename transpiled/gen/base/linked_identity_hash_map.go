@@ -108,19 +108,28 @@ func (this_ *LinkedIdentityHashMap[K, V]) ComputeIfAbsent(key K, fn j2gort.Ext_j
 	if j2gort.ToAny(oldValue) != nil {
 		return oldValue
 	}
-	var newValue V = func() V {
+	var newValue V
+iifeSwitch_1:
+	switch {
+	default:
 		tv_3 := fn.Apply(j2gort.ToAny(key))
 		if tv_3 == nil {
-			return func() V {
+			{
+
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
-					return any(j2gort.NullString).(V)
+					newValue = any(j2gort.NullString).(V)
+					break iifeSwitch_1
 				}
 				var z_ V
-				return z_
-			}()
+				newValue = z_
+				break iifeSwitch_1
+			}
+
 		}
-		return j2gort.Cast[V](tv_3)
-	}()
+		newValue = j2gort.Cast[V](tv_3)
+		break iifeSwitch_1
+	}
+
 	_ = newValue
 	this_.Put(key, newValue)
 	return newValue
@@ -137,19 +146,28 @@ func (this_ *LinkedIdentityHashMap[K, V]) Merge(key K, value V, fn j2gort.Ext_ja
 		this_.Put(key, value)
 		return value
 	}
-	var mergeValue V = func() V {
+	var mergeValue V
+iifeSwitch_2:
+	switch {
+	default:
 		tv_4 := fn.Apply(j2gort.ToAny(oldValue), j2gort.ToAny(value))
 		if tv_4 == nil {
-			return func() V {
+			{
+
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
-					return any(j2gort.NullString).(V)
+					mergeValue = any(j2gort.NullString).(V)
+					break iifeSwitch_2
 				}
 				var z_ V
-				return z_
-			}()
+				mergeValue = z_
+				break iifeSwitch_2
+			}
+
 		}
-		return j2gort.Cast[V](tv_4)
-	}()
+		mergeValue = j2gort.Cast[V](tv_4)
+		break iifeSwitch_2
+	}
+
 	_ = mergeValue
 	this_.Put(key, mergeValue)
 	return mergeValue

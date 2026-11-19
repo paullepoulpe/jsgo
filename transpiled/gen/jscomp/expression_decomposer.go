@@ -546,17 +546,23 @@ func (this_ *ExpressionDecomposer) priv_ExpressionDecomposer_extractExpression_2
 		_ = spreadCopy
 		spreadCopy.AddChildToBack(replacementValueNode)
 		expr.ReplaceWith(spreadCopy)
-		tempNameValue = func() pkg_rhino.Node {
+	iifeSwitch_1:
+		switch {
+		default:
+
 			switch parent.TokenSwitchOrd_() {
 			case int32(46) /* Token.ARRAYLIT */, int32(28) /* Token.CALL */, int32(23) /* Token.NEW */ :
-				return this_.astFactory.CreateArraylit_1_Node([]pkg_rhino.Node{expr}).Srcref(expr.GetOnlyChild())
+				tempNameValue = this_.astFactory.CreateArraylit_1_Node([]pkg_rhino.Node{expr}).Srcref(expr.GetOnlyChild())
+				break iifeSwitch_1
 			case int32(47) /* Token.OBJECTLIT */ :
-				return this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{expr}).Srcref(expr.GetOnlyChild())
+				tempNameValue = this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{expr}).Srcref(expr.GetOnlyChild())
+				break iifeSwitch_1
 			default:
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected parent of SPREAD:"+j2gort.StrValString(parent.ToStringTree()))))
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	} else {
 		expr.ReplaceWith(replacementValueNode)
 		tempNameValue = expr

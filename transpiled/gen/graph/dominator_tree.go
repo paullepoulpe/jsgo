@@ -97,13 +97,15 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 			postOrderIndex.Put(func() N {
 				tv_1 := postOrder.Get(i)
 				if tv_1 == nil {
-					return func() N {
+					{
+
 						if _, ok_ := any((*N)(nil)).(*string); ok_ {
 							return any(j2gort.NullString).(N)
 						}
 						var z_ N
 						return z_
-					}()
+					}
+
 				}
 				return j2gort.Cast[N](tv_1)
 			}(), i)
@@ -112,13 +114,19 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 	var idomIndexes []int32 = make([]int32, numNodes)
 	_ = idomIndexes
 	j2gort.ArraysFillRange(idomIndexes, int32(0), numNodes, int32(-1))
-	var startNodeIndex int32 = func() int32 {
+	var startNodeIndex int32
+iifeSwitch_6:
+	switch {
+	default:
 		if v_, ok_ := postOrderIndex.GetOk(entry); ok_ {
-			return v_
+			startNodeIndex = v_
+			break iifeSwitch_6
 		}
 		j2gort.ThrowNPE()
-		return 0
-	}()
+		startNodeIndex = 0
+		break iifeSwitch_6
+	}
+
 	_ = startNodeIndex
 	{
 		a_2 := idomIndexes
@@ -133,19 +141,28 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 			var r int32 = (numNodes - int32(1))
 			_ = r
 			for ; r >= int32(0); r = r - 1 {
-				var node N = func() N {
+				var node N
+			iifeSwitch_1:
+				switch {
+				default:
 					tv_4 := postOrder.Get(r)
 					if tv_4 == nil {
-						return func() N {
+						{
+
 							if _, ok_ := any((*N)(nil)).(*string); ok_ {
-								return any(j2gort.NullString).(N)
+								node = any(j2gort.NullString).(N)
+								break iifeSwitch_1
 							}
 							var z_ N
-							return z_
-						}()
+							node = z_
+							break iifeSwitch_1
+						}
+
 					}
-					return j2gort.Cast[N](tv_4)
-				}()
+					node = j2gort.Cast[N](tv_4)
+					break iifeSwitch_1
+				}
+
 				_ = node
 				if func() bool {
 					rk_5 := node
@@ -165,13 +182,19 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 				}() {
 					continue
 				}
-				var nodeIdx int32 = func() int32 {
+				var nodeIdx int32
+			iifeSwitch_5:
+				switch {
+				default:
 					if v_, ok_ := postOrderIndex.GetOk(node); ok_ {
-						return v_
+						nodeIdx = v_
+						break iifeSwitch_5
 					}
 					j2gort.ThrowNPE()
-					return 0
-				}()
+					nodeIdx = 0
+					break iifeSwitch_5
+				}
+
 				_ = nodeIdx
 				var newIdomIdx int32 = int32(-1)
 				_ = newIdomIdx
@@ -192,12 +215,14 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 							}
 							return predIdx
 						}()] != int32(-1)) {
-							newIdomIdx = func() int32 {
+							{
+
 								if !predIdxOk_ {
 									j2gort.ThrowNPE()
 								}
-								return predIdx
-							}()
+								newIdomIdx = predIdx
+							}
+
 							break
 						}
 					}
@@ -249,47 +274,67 @@ func DominatorTree_Compute[N comparable, E any](graph DiGraph[N, E], entry N) *D
 		var i_2 int32 = int32(0)
 		_ = i_2
 		for ; i_2 < numNodes; i_2 = i_2 + 1 {
-			var node_2 N = func() N {
+			var node_2 N
+		iifeSwitch_3:
+			switch {
+			default:
 				tv_13 := postOrder.Get(i_2)
 				if tv_13 == nil {
-					return func() N {
+					{
+
 						if _, ok_ := any((*N)(nil)).(*string); ok_ {
-							return any(j2gort.NullString).(N)
+							node_2 = any(j2gort.NullString).(N)
+							break iifeSwitch_3
 						}
 						var z_ N
-						return z_
-					}()
+						node_2 = z_
+						break iifeSwitch_3
+					}
+
 				}
-				return j2gort.Cast[N](tv_13)
-			}()
+				node_2 = j2gort.Cast[N](tv_13)
+				break iifeSwitch_3
+			}
+
 			_ = node_2
 			var idomIdx int32 = idomIndexes[i_2]
 			_ = idomIdx
 			if (idomIdx != int32(-1)) && (i_2 != startNodeIndex) {
-				var idom N = func() N {
+				var idom N
+			iifeSwitch_2:
+				switch {
+				default:
 					tv_14 := postOrder.Get(idomIdx)
 					if tv_14 == nil {
-						return func() N {
+						{
+
 							if _, ok_ := any((*N)(nil)).(*string); ok_ {
-								return any(j2gort.NullString).(N)
+								idom = any(j2gort.NullString).(N)
+								break iifeSwitch_2
 							}
 							var z_ N
-							return z_
-						}()
+							idom = z_
+							break iifeSwitch_2
+						}
+
 					}
-					return j2gort.Cast[N](tv_14)
-				}()
+					idom = j2gort.Cast[N](tv_14)
+					break iifeSwitch_2
+				}
+
 				_ = idom
 				func() N {
 					tv_15 := idomsMap.Put_2(j2gort.ToAny(node_2), j2gort.ToAny(idom))
 					if tv_15 == nil {
-						return func() N {
+						{
+
 							if _, ok_ := any((*N)(nil)).(*string); ok_ {
 								return any(j2gort.NullString).(N)
 							}
 							var z_ N
 							return z_
-						}()
+						}
+
 					}
 					return j2gort.Cast[N](tv_15)
 				}()
@@ -360,19 +405,29 @@ func DominatorTree_ComputeSubtreeSizes[N comparable](node N, children j2gort.Ext
 			cur_18 := j2gort.NewIterCursor(j2gort.CheckNotNull(nodeChildren))
 			for cur_18.HasNext() {
 				rawElem_19 := cur_18.Next()
-				child := func() N {
+				var child N
+			iifeSwitch_4:
+				switch {
+				default:
+
 					tv_20 := rawElem_19
 					if tv_20 == nil {
-						return func() N {
+						{
+
 							if _, ok_ := any((*N)(nil)).(*string); ok_ {
-								return any(j2gort.NullString).(N)
+								child = any(j2gort.NullString).(N)
+								break iifeSwitch_4
 							}
 							var z_ N
-							return z_
-						}()
+							child = z_
+							break iifeSwitch_4
+						}
+
 					}
-					return j2gort.Cast[N](tv_20)
-				}()
+					child = j2gort.Cast[N](tv_20)
+					break iifeSwitch_4
+				}
+
 				_ = child
 				size = (size + DominatorTree_ComputeSubtreeSizes[N](child, children, sizes))
 			}
@@ -385,19 +440,23 @@ func DominatorTree_ComputeSubtreeSizes[N comparable](node N, children j2gort.Ext
 // Java method: DominatorTree.getImmediateDominator(N node)
 func (this_ *DominatorTree[N]) GetImmediateDominator(node N) N {
 	_ = node
-	return func() N {
+	{
+
 		tv_21 := this_.idoms.Get(j2gort.ToAny(node))
 		if tv_21 == nil {
-			return func() N {
+			{
+
 				if _, ok_ := any((*N)(nil)).(*string); ok_ {
 					return any(j2gort.NullString).(N)
 				}
 				var z_ N
 				return z_
-			}()
+			}
+
 		}
 		return j2gort.Cast[N](tv_21)
-	}()
+	}
+
 }
 
 // Java method: DominatorTree.getDominatedSubtreeSize(N node)

@@ -695,23 +695,29 @@ func CoalesceVariableNames_LiveRangeChecker_IsAssignTo(var_ *Var, n pkg_rhino.No
 	_ = parent
 	if n.IsName() {
 		if parent.IsParamList() {
-			return func() bool {
+			{
+
 				sr_15 := var_.GetName()
 				se_16 := n.GetString()
 				return j2gort.CheckNotNullString(sr_15) == se_16
-			}()
+			}
+
 		} else if NodeUtil_IsNameDeclaration(parent) && n.HasChildren() {
-			return func() bool {
+			{
+
 				sr_17 := var_.GetName()
 				se_18 := n.GetString()
 				return j2gort.CheckNotNullString(sr_17) == se_18
-			}()
+			}
+
 		} else if NodeUtil_IsLhsByDestructuring(n) {
-			return func() bool {
+			{
+
 				sr_19 := var_.GetName()
 				se_20 := n.GetString()
 				return j2gort.CheckNotNullString(sr_19) == se_20
-			}()
+			}
+
 		}
 	} else if NodeUtil_IsAssignmentOp(n) {
 		var name pkg_rhino.Node = n.GetFirstChild()

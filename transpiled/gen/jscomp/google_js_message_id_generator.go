@@ -169,10 +169,12 @@ func GoogleJsMessageIdGenerator_FP_Fingerprint_3(str []int8, start int32, limit 
 // Java static method: FP.fingerprint(java.lang.String str)
 func GoogleJsMessageIdGenerator_FP_Fingerprint_1(str string) int64 {
 	_ = str
-	var tmp []int8 = func() []int8 {
+	var tmp []int8
+	{
 		_ = j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8
-		return j2gort.JStrGetBytes(str)
-	}()
+		tmp = j2gort.JStrGetBytes(str)
+	}
+
 	_ = tmp
 	return GoogleJsMessageIdGenerator_FP_Fingerprint_3(tmp, int32(0), int32(len(tmp)))
 }

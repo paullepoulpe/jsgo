@@ -1117,8 +1117,11 @@ func TestScopeVarAndRefParity(t *testing.T) {
 		hasTrimStaleInGen := strings.Contains(j2AllSrc, "func TrimStaleSlabPools(")
 		hasPurgeInGen := strings.Contains(j2AllSrc, "func PurgeAllRuntimePools(")
 		hasRelJSTypesInNS := strings.Contains(nsAll.String(), "func ReleaseCurrentStoreJSTypes(")
+		hasInternOwnedInNS := strings.Contains(nsAll.String(), "func InternOwned(")
 		_ = hasTrimStaleInGen
 		_ = hasPurgeInGen
+		mcRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "minimized_condition.go"))
+		spRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "string_pool.go"))
 		pmcSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "peephole_minimize_conditions.go"))
 		ocSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "optimize_calls.go"))
 		mdnuRealSrc, _ := os.ReadFile(filepath.Join(realJscompDir, "make_declared_names_unique.go"))
@@ -1173,6 +1176,9 @@ func TestScopeVarAndRefParity(t *testing.T) {
 				!strings.Contains(string(pdRealSrc), "PurgeAllRuntimePools(") &&
 				strings.Contains(string(tasSrc), "PurgeAllRuntimePools("))) &&
 			(!hasRelJSTypesInNS || strings.Contains(string(cttcSrc), "ReleaseCurrentStoreJSTypes(")) &&
+			(!hasInternOwnedInNS || strings.Contains(string(spRealSrc), "InternOwned(")) &&
+			strings.Contains(string(ivSrc), "scratchVarExpert_") &&
+			strings.Contains(string(mcRealSrc), "lazyTok_") &&
 			(!hasAcquireCustomCapInGen || strings.Contains(string(rcSrc), "AcquireCustomOrderedMapCap"))
 		dryStats, err := passes.RunOnPackageDir(realJscompDir, []passes.Pass{passes.NewSlabAllocLoweringPass()}, passes.Options{DryRun: true})
 		if err != nil {

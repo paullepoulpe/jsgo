@@ -289,14 +289,15 @@ func (this_ *FeatureCollector) priv_FeatureCollector_recordScriptFeatures_6806(c
 		_ = isGetter
 		var isSetter bool = node.GetBooleanProp(pkg_rhino.StaticGet_Node_COMPUTED_PROP_SETTER())
 		_ = isSetter
-		var isClassMember bool = func() bool {
+		var isClassMember bool
+		{
 			re_17 := parentContext
 			ae_18 := StaticGet_FeatureCollector_FeatureContext_CLASS_MEMBERS()
 			if re_17 == 0 {
 				j2gort.ThrowNPE()
 			}
-			return re_17 == ae_18
-		}()
+			isClassMember = re_17 == ae_18
+		}
 		_ = isClassMember
 		if isGetter {
 			this_.priv_FeatureCollector_addScriptFeature_6808(pkg_parser.StaticGet_FeatureSet_Feature_GETTER())
@@ -388,7 +389,7 @@ func FeatureCollector_ContextFor(contextStack j2gort.Ext_java_util_List, node pk
 	case int32(86) /* Token.CATCH */ :
 		return StaticGet_FeatureCollector_FeatureContext_CATCH()
 	case int32(90) /* Token.BLOCK */ :
-		return func() FeatureCollector_FeatureContext {
+		{
 			{
 				var iifeCond_1 bool
 				{
@@ -405,7 +406,7 @@ func FeatureCollector_ContextFor(contextStack j2gort.Ext_java_util_List, node pk
 				}
 			}
 			return StaticGet_FeatureCollector_FeatureContext_BLOCK_SCOPE()
-		}()
+		}
 	case int32(73) /* Token.FUNCTION */ :
 		return StaticGet_FeatureCollector_FeatureContext_FUNCTION()
 	case int32(47) /* Token.OBJECTLIT */ :

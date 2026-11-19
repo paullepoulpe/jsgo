@@ -302,7 +302,8 @@ func (this_ *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node pkg_rhin
 		} else if id == int32(len(nodes)) {
 			var newCap int32 = (id * int32(2))
 			_ = newCap
-			nodes = func() []pkg_rhino.Node {
+			{
+
 				arrSrc_3 := nodes
 				arrLen_4 := newCap
 				j2gort.CheckNotNullSlice(arrSrc_3)
@@ -311,8 +312,9 @@ func (this_ *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node pkg_rhin
 				}
 				arrOut_5 := make([]pkg_rhino.Node, arrLen_4)
 				copy(arrOut_5, arrSrc_3)
-				return arrOut_5
-			}()
+				nodes = arrOut_5
+			}
+
 			this_.mappingNodes = nodes
 			this_.startLines = func() []int32 {
 				arrSrc_6 := this_.startLines
@@ -380,7 +382,8 @@ func (this_ *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node pkg_rhin
 		var stack []int32 = this_.openMappingStack
 		_ = stack
 		if depth == int32(len(stack)) {
-			stack = func() []int32 {
+			{
+
 				arrSrc_24 := stack
 				arrLen_25 := (depth * int32(2))
 				j2gort.CheckNotNullSlice(arrSrc_24)
@@ -389,8 +392,9 @@ func (this_ *CodePrinter_MappedCodePrinterBase) StartSourceMapping(node pkg_rhin
 				}
 				arrOut_26 := make([]int32, arrLen_25)
 				copy(arrOut_26, arrSrc_24)
-				return arrOut_26
-			}()
+				stack = arrOut_26
+			}
+
 			this_.openMappingStack = stack
 		}
 		{
@@ -433,7 +437,8 @@ func (this_ *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node pkg_rhino.
 		var compIds []int32 = this_.completeMappingIds
 		_ = compIds
 		if compIdx == int32(len(compIds)) {
-			compIds = func() []int32 {
+			{
+
 				arrSrc_33 := compIds
 				arrLen_34 := (compIdx * int32(2))
 				j2gort.CheckNotNullSlice(arrSrc_33)
@@ -442,8 +447,9 @@ func (this_ *CodePrinter_MappedCodePrinterBase) EndSourceMapping(node pkg_rhino.
 				}
 				arrOut_35 := make([]int32, arrLen_34)
 				copy(arrOut_35, arrSrc_33)
-				return arrOut_35
-			}()
+				compIds = arrOut_35
+			}
+
 			this_.completeMappingIds = compIds
 		}
 		{
@@ -628,7 +634,8 @@ func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int32 {
 	_ = lineStartPos
 	for lineEndPos > int32(-1) {
 		if count == int32(len(lengths)) {
-			lengths = func() []int32 {
+			{
+
 				arrSrc_56 := lengths
 				arrLen_57 := (count * int32(2))
 				j2gort.CheckNotNullSlice(arrSrc_56)
@@ -637,12 +644,20 @@ func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int32 {
 				}
 				arrOut_58 := make([]int32, arrLen_57)
 				copy(arrOut_58, arrSrc_56)
-				return arrOut_58
-			}()
+				lengths = arrOut_58
+			}
+
 		}
 		{
 			a_59 := lengths
-			i_60 := func() int32 { old_61 := count; nw_62 := old_61 + 1; count = nw_62; return old_61 }()
+			var i_60 int32
+			{
+
+				old_61 := count
+				nw_62 := old_61 + 1
+				count = nw_62
+				i_60 = old_61
+			}
 			a_59[i_60] = (lineEndPos - lineStartPos)
 		}
 		lineStartPos = (lineEndPos + int32(1))
@@ -651,7 +666,8 @@ func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int32 {
 	if count == int32(len(lengths)) {
 		return lengths
 	} else {
-		return func() []int32 {
+		{
+
 			arrSrc_63 := lengths
 			arrLen_64 := count
 			j2gort.CheckNotNullSlice(arrSrc_63)
@@ -661,7 +677,8 @@ func CodePrinter_MappedCodePrinter_ComputeLineLengths(code string) []int32 {
 			arrOut_65 := make([]int32, arrLen_64)
 			copy(arrOut_65, arrSrc_63)
 			return arrOut_65
-		}()
+		}
+
 	}
 }
 

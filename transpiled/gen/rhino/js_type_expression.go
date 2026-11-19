@@ -316,7 +316,7 @@ func (this_ JSTypeExpression) IsEquivalentTo(other JSTypeExpression) bool {
 		j2gort.ThrowNPE()
 	}
 	_ = other
-	return ((other != (JSTypeExpression{})) && this_.root.IsEquivalentTo_1(other.root))
+	return (!(other).IsJavaNil_() && this_.root.IsEquivalentTo_1(other.root))
 }
 
 // Java method: JSTypeExpression.getRoot()

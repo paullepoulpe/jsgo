@@ -495,11 +495,13 @@ func (this_ *PeepholeRemoveDeadCode) priv_PeepholeRemoveDeadCode_trySimplifyUnus
 			var child pkg_rhino.Node = tree.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				atFixedPoint = func() bool {
+				{
+
 					ba_3 := atFixedPoint
 					bb_4 := this_.priv_PeepholeRemoveDeadCode_trySimplifyUnusedResultInternal_4224(child, sideEffectRoots)
-					return ba_3 && bb_4
-				}()
+					atFixedPoint = ba_3 && bb_4
+				}
+
 			}
 		}
 		return atFixedPoint

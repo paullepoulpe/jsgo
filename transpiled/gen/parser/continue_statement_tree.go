@@ -72,5 +72,5 @@ func InitContinueStatementTree(this_ *ContinueStatementTree, location SourceRang
 
 // Java method: ContinueStatementTree.hasLabel()
 func (this_ *ContinueStatementTree) HasLabel() bool {
-	return (this_.name != (Token{}))
+	return !(this_.name).IsJavaNil_()
 }

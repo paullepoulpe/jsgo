@@ -392,7 +392,14 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_aliasAndInlineA
 							_ = newNode
 							{
 								a_5 := newAliases
-								i_6 := func() int32 { old_7 := aliasCount; nw_8 := old_7 + 1; aliasCount = nw_8; return old_7 }()
+								var i_6 int32
+								{
+
+									old_7 := aliasCount
+									nw_8 := old_7 + 1
+									aliasCount = nw_8
+									i_6 = old_7
+								}
 								a_5[i_6] = newNode
 							}
 							replacement = pkg_rhino.IR_Name(newName).SrcrefTree(newValue)
@@ -408,7 +415,14 @@ func (this_ *FunctionToBlockMutator) priv_FunctionToBlockMutator_aliasAndInlineA
 						_ = newNode_2
 						{
 							a_9 := newAliases
-							i_10 := func() int32 { old_11 := aliasCount; nw_12 := old_11 + 1; aliasCount = nw_12; return old_11 }()
+							var i_10 int32
+							{
+
+								old_11 := aliasCount
+								nw_12 := old_11 + 1
+								aliasCount = nw_12
+								i_10 = old_11
+							}
 							a_9[i_10] = newNode_2
 						}
 						paramToArgMap.SetArgAt(i, pkg_rhino.Node(0))

@@ -91,11 +91,13 @@ func (this_ *AutoValue_JSTypeRegistry_ClosureNamespace) Equals(arg_1 any) bool {
 			if this_.definitionNode == 0 {
 				return (that.DefinitionNode() == 0)
 			}
-			return func() bool {
+			{
+
 				rn_2 := this_.definitionNode
 				an_3 := that.DefinitionNode()
 				return j2gort.CheckNotNullNode(rn_2) == an_3
-			}()
+			}
+
 		}())) && (func() bool {
 			if this_.type_ == nil || this_.type_.IsJavaNil_() {
 				return j2gort.IfaceEquals[JSType](that.Type(), nil)

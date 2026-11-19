@@ -809,12 +809,14 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) InEdgeCount() int32 {
 	if this_.inEdges != nil {
 		return int32(len(this_.inEdges))
 	} else {
-		return (func() int32 {
+		{
+
 			if this_.firstInEdge != nil {
 				return int32(1)
 			}
 			return int32(0)
-		}())
+		}
+
 	}
 }
 
@@ -823,12 +825,14 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) OutEdgeCount() int32 {
 	if this_.outEdges != nil {
 		return int32(len(this_.outEdges))
 	} else {
-		return (func() int32 {
+		{
+
 			if this_.firstOutEdge != nil {
 				return int32(1)
 			}
 			return int32(0)
-		}())
+		}
+
 	}
 }
 
@@ -837,12 +841,14 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetInEdgeCount() int32
 	if this_.inEdges != nil {
 		return int32(len(this_.inEdges))
 	} else {
-		return (func() int32 {
+		{
+
 			if this_.firstInEdge != nil {
 				return int32(1)
 			}
 			return int32(0)
-		}())
+		}
+
 	}
 }
 
@@ -863,12 +869,14 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetOutEdgeCount() int3
 	if this_.outEdges != nil {
 		return int32(len(this_.outEdges))
 	} else {
-		return (func() int32 {
+		{
+
 			if this_.firstOutEdge != nil {
 				return int32(1)
 			}
 			return int32(0)
-		}())
+		}
+
 	}
 }
 

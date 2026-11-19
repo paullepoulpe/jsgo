@@ -24,6 +24,7 @@ import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -1072,43 +1073,8 @@ public final class MethodEmitter {
       ctx.expectedReturnType = retTm;
       ctx.returnWidenedToAny = false;
 
-      if (typeEl.getQualifiedName().contentEquals("com.google.javascript.rhino.RhinoStringPool")
-          && ee.getSimpleName().contentEquals("fastHash32")
-          && mt.getParameters().size() == 1
-          && resolver.isStringType(ee.getParameters().get(0).asType())) {
-        VariableElement pve =
-            (VariableElement)
-                resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(0)));
-        String pName = ctx.lookupLocalVar(pve);
-        out.append("\treturn ")
-            .append(rtPrefix(ctx))
-            .append("FastStrHash32(")
-            .append(pName)
-            .append(")\n");
-      } else if (typeEl
-              .getQualifiedName()
-              .contentEquals("com.google.javascript.rhino.RhinoStringPool")
-          && ee.getSimpleName().contentEquals("joinDollar")
-          && mt.getParameters().size() == 2
-          && resolver.isStringType(ee.getParameters().get(0).asType())
-          && resolver.isStringType(ee.getParameters().get(1).asType())) {
-        VariableElement pve0 =
-            (VariableElement)
-                resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(0)));
-        VariableElement pve1 =
-            (VariableElement)
-                resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(1)));
-        String p0 = ctx.lookupLocalVar(pve0);
-        String p1 = ctx.lookupLocalVar(pve1);
-        String ns = resolver.runtime.nodestoreAlias(ctx.imports);
-        String nsPref = ns.isEmpty() ? "" : (ns + ".");
-        out.append("\treturn ")
-            .append(nsPref)
-            .append("JoinDollar(")
-            .append(p0)
-            .append(", ")
-            .append(p1)
-            .append(")\n");
+      if (tryEmitRhinoStringPoolStaticIntrinsic(mt, mtPath, typeEl, ee, out, ctx)) {
+        // Intrinsic body emitted directly above.
       } else if (mt.getBody() != null) {
         out.append(
             stmtEmitter.emitBlockStatements(
@@ -1123,6 +1089,162 @@ public final class MethodEmitter {
     } finally {
       resolver.popTypeParamScope();
     }
+  }
+
+  private boolean tryEmitRhinoStringPoolStaticIntrinsic(
+      MethodTree mt,
+      TreePath mtPath,
+      TypeElement typeEl,
+      ExecutableElement ee,
+      StringBuilder out,
+      EmitContext ctx) {
+    if (!typeEl.getQualifiedName().contentEquals("com.google.javascript.rhino.RhinoStringPool")) {
+      return false;
+    }
+    String mName = ee.getSimpleName().toString();
+    int arity = mt.getParameters().size();
+    if (ee.getParameters().size() != arity) {
+      return false;
+    }
+    if (mName.equals("fastHash32")
+        && arity == 1
+        && resolver.isStringType(ee.getParameters().get(0).asType())) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      out.append("\treturn ").append(rtPrefix(ctx)).append("FastStrHash32(").append(p0).append(")\n");
+      return true;
+    }
+    if (mName.equals("joinDollar")
+        && arity == 2
+        && resolver.isStringType(ee.getParameters().get(0).asType())
+        && resolver.isStringType(ee.getParameters().get(1).asType())) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String p1 = lookupParamLocal(mt, mtPath, 1, ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\treturn ")
+          .append(nsPref)
+          .append("JoinDollar(")
+          .append(p0)
+          .append(", ")
+          .append(p1)
+          .append(")\n");
+      return true;
+    }
+    if (mName.equals("internId")
+        && arity == 1
+        && resolver.isStringType(ee.getParameters().get(0).asType())
+        && ee.getReturnType().getKind() == TypeKind.INT) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String rt = rtPrefix(ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif ").append(p0).append(" == ").append(rt).append("NullString {\n\t\t")
+          .append(rt).append("ThrowNPE()\n\t}\n");
+      out.append("\treturn int32(").append(nsPref).append("Intern(").append(p0).append("))\n");
+      return true;
+    }
+    if (mName.equals("internOwnedId")
+        && arity == 1
+        && resolver.isStringType(ee.getParameters().get(0).asType())
+        && ee.getReturnType().getKind() == TypeKind.INT) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String rt = rtPrefix(ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif ").append(p0).append(" == ").append(rt).append("NullString {\n\t\t")
+          .append(rt).append("ThrowNPE()\n\t}\n");
+      out.append("\treturn int32(").append(nsPref).append("InternOwned(").append(p0).append("))\n");
+      return true;
+    }
+    if (mName.equals("stringById")
+        && arity == 1
+        && ee.getParameters().get(0).asType().getKind() == TypeKind.INT
+        && resolver.isStringType(ee.getReturnType())) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String rt = rtPrefix(ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif ").append(p0).append(" <= 0 {\n\t\treturn ")
+          .append(rt).append("NullString\n\t}\n");
+      out.append("\treturn ").append(nsPref).append("String(")
+          .append(nsPref).append("StringID(").append(p0).append("))\n");
+      return true;
+    }
+    if (mName.equals("getNodeStringId")
+        && arity == 1
+        && resolver.isNodeType(ee.getParameters().get(0).asType())
+        && ee.getReturnType().getKind() == TypeKind.INT) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String rt = rtPrefix(ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif ").append(p0).append(" == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append("\trec := ").append(nsPref).append("Node(").append(p0).append(").Rec()\n");
+      out.append("\tif rec.KindFlags&7 == 3 {\n\t\treturn int32(rec.Payload)\n\t}\n");
+      out.append("\ts := ").append(p0).append(".GetString()\n");
+      out.append("\tif s == ").append(rt).append("NullString {\n\t\treturn 0\n\t}\n");
+      out.append("\treturn int32(").append(nsPref).append("Intern(s))\n");
+      return true;
+    }
+    if (mName.equals("getNodeOrigNameId")
+        && arity == 1
+        && resolver.isNodeType(ee.getParameters().get(0).asType())
+        && ee.getReturnType().getKind() == TypeKind.INT) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif ").append(p0).append(" == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append("\treturn int32(").append(nsPref).append("Node(").append(p0).append(").OrigNameID())\n");
+      return true;
+    }
+    if (mName.equals("setNodeOrigNameId")
+        && arity == 2
+        && resolver.isNodeType(ee.getParameters().get(0).asType())
+        && ee.getParameters().get(1).asType().getKind() == TypeKind.INT
+        && ee.getReturnType().getKind() == TypeKind.VOID) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String p1 = lookupParamLocal(mt, mtPath, 1, ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\tif ").append(p0).append(" == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append('\t').append(nsPref).append("Node(").append(p0).append(").SetOrigNameID(")
+          .append(nsPref).append("StringID(").append(p1).append("))\n");
+      return true;
+    }
+    if (mName.equals("newStringNodeById")
+        && arity == 2
+        && isRhinoTokenType(ee.getParameters().get(0).asType())
+        && ee.getParameters().get(1).asType().getKind() == TypeKind.INT
+        && resolver.isNodeType(ee.getReturnType())) {
+      String p0 = lookupParamLocal(mt, mtPath, 0, ctx);
+      String p1 = lookupParamLocal(mt, mtPath, 1, ctx);
+      String rt = rtPrefix(ctx);
+      String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+      String nsPref = ns.isEmpty() ? "" : (ns + ".");
+      out.append("\ttok_ := tokenToByte(").append(p0).append(")\n");
+      out.append("\tif ").append(p1).append(" <= 0 {\n\t\t").append(rt).append("ThrowNPE()\n\t}\n");
+      out.append("\traw_, rec_ := ").append(nsPref).append("AllocNodeFastRec()\n");
+      out.append("\trec_.Token = tok_\n");
+      out.append("\trec_.LinenoCharno = -1\n");
+      out.append("\trec_.KindFlags = 3\n");
+      out.append("\trec_.Payload = uint32(").append(p1).append(")\n");
+      out.append("\treturn Node(raw_)\n");
+      return true;
+    }
+    return false;
+  }
+
+  private String lookupParamLocal(MethodTree mt, TreePath mtPath, int idx, EmitContext ctx) {
+    VariableElement pve =
+        (VariableElement) resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(idx)));
+    return ctx.lookupLocalVar(pve);
+  }
+
+  private boolean isRhinoTokenType(TypeMirror tm) {
+    TypeMirror er = resolver.safeErasure(tm);
+    return er instanceof DeclaredType dt
+        && dt.asElement() instanceof TypeElement te
+        && te.getQualifiedName().contentEquals("com.google.javascript.rhino.Token");
   }
 
   private void emitInterfaceDefaultHelper(
@@ -1340,10 +1462,17 @@ public final class MethodEmitter {
     }
     out.append(" {\n");
 
+    String sentinelField = resolver.getValueStructEnumSentinelFieldGoName(typeEl);
     if (resolver.isValueEnum(typeEl)) {
       out.append("\tif this_ == 0 {\n\t\t").append(rtPrefix(ctx)).append("ThrowNPE()\n\t}\n");
     } else if (resolver.hasValueStructValidFlag(typeEl)) {
       out.append("\tif !this_.valid_ {\n\t\t").append(rtPrefix(ctx)).append("ThrowNPE()\n\t}\n");
+    } else if (sentinelField != null) {
+      out.append("\tif this_.")
+          .append(sentinelField)
+          .append(" == 0 {\n\t\t")
+          .append(rtPrefix(ctx))
+          .append("ThrowNPE()\n\t}\n");
     } else if (resolver.isNullableValueStructClass(typeEl)) {
       String goTypeName = resolver.planner.getGoTypeName(typeEl);
       String useParams =

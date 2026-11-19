@@ -833,15 +833,19 @@ func (this_ *Compiler) InitChunks(externs j2gort.Ext_java_util_List, chunks j2go
 		})
 	}(), this_.changeTracker, func() j2gort.Ext_java_util_function_Supplier {
 		if options.GetRuntimeLibraryMode() == StaticGet_RuntimeJsLibManager_RuntimeLibraryMode_EXTERN_FIELD_NAMES() {
-			return func() j2gort.Ext_java_util_function_Supplier {
+			{
+
 				bound_32 := this_
 				return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxNode(bound_32.priv_Compiler_getSynthesizedExternsRoot_1557()) })
-			}()
+			}
+
 		}
-		return func() j2gort.Ext_java_util_function_Supplier {
+		{
+
 			bound_33 := this_
 			return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxNode(bound_33.priv_Compiler_getNodeForRuntimeCodeInsertion_1560()) })
-		}()
+		}
+
 	}())
 }
 
@@ -1687,7 +1691,7 @@ func (this_ *Compiler) GetCurrentJsSource() string {
 			}
 		}
 		if builder.Length() == int32(0) {
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9859(fileNameRegexList)
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9862(fileNameRegexList)
 		}
 	}
 	if !(chunkNameRegexList.IsEmpty()) {
@@ -1893,12 +1897,14 @@ func (this_ *Compiler) GetUniqueIdSupplier() *UniqueIdSupplier {
 
 // Java method: Compiler.nextUniqueNameId()
 func (this_ *Compiler) priv_Compiler_nextUniqueNameId_1495() int32 {
-	return func() int32 {
+	{
+
 		old_77 := this_.uniqueNameId
 		nw_78 := old_77 + 1
 		this_.uniqueNameId = nw_78
 		return old_77
-	}()
+	}
+
 }
 
 // Java method: Compiler.getUniqueNameIdSupplier()

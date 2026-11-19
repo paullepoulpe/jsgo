@@ -628,6 +628,10 @@ public final class ExprEmitter {
             && !resolver.runtime.isShimException(dte)
             && resolver.types.isAssignable(
                 resolver.safeErasure(ser), resolver.safeErasure(der))) {
+          String nonNilCond =
+              resolver.hasValueStructSentinelNilCheck(ser)
+                  ? ("!" + tmp + ".IsJavaNil_()")
+                  : (tmp + " != (" + srcGo + "{})");
           return "func() "
               + dstGo
               + " { "
@@ -635,10 +639,8 @@ public final class ExprEmitter {
               + " := "
               + expr
               + "; if "
-              + tmp
-              + " != ("
-              + srcGo
-              + "{}) { return "
+              + nonNilCond
+              + " { return "
               + tmp
               + " }; return nil }()";
         }
@@ -1340,10 +1342,63 @@ public final class ExprEmitter {
   // --- Assignments & Increment/Decrement ---
 
   public String emitAssignmentStatement(AssignmentTree at, TreePath path, EmitContext ctx) {
+    String copyOrig = tryEmitNodeOriginalNameCopy(at, path, ctx);
+    if (copyOrig != null) {
+      return copyOrig;
+    }
     TreePath lhsPath = new TreePath(path, at.getVariable());
     TypeMirror lhsType = typeOf(lhsPath);
     String rhs = emitAs(at.getExpression(), path, lhsType, false, ctx);
     return writeLhs(lhsPath, rhs, ctx);
+  }
+
+  private String tryEmitNodeOriginalNameCopy(AssignmentTree at, TreePath path, EmitContext ctx) {
+    TreePath lhsPath = unwrapParens(new TreePath(path, at.getVariable()));
+    TreePath rhsPath = unwrapParens(new TreePath(path, at.getExpression()));
+    Element lhsEl = resolver.trees.getElement(lhsPath);
+    Element rhsEl = resolver.trees.getElement(rhsPath);
+    if (!(lhsEl instanceof VariableElement lhsVe)
+        || lhsVe.getKind() != ElementKind.FIELD
+        || lhsVe.getModifiers().contains(Modifier.STATIC)
+        || !lhsVe.getSimpleName().contentEquals("originalName")
+        || !(lhsVe.getEnclosingElement() instanceof TypeElement lhsOwner)
+        || !resolver.isNodeClass(lhsOwner)) {
+      return null;
+    }
+    if (!(rhsEl instanceof VariableElement rhsVe)
+        || rhsVe.getKind() != ElementKind.FIELD
+        || rhsVe.getModifiers().contains(Modifier.STATIC)
+        || !rhsVe.getSimpleName().contentEquals("originalName")
+        || !(rhsVe.getEnclosingElement() instanceof TypeElement rhsOwner)
+        || !resolver.isNodeClass(rhsOwner)) {
+      return null;
+    }
+    if (ctx.unitPlan == null
+        || !ctx.unitPlan.goPkg.equals(resolver.planner.getGoPkg(lhsOwner))) {
+      return null;
+    }
+    String dstGo = emitNodeFieldOwnerExpr(lhsPath, lhsOwner, ctx);
+    String srcGo = emitNodeFieldOwnerExpr(rhsPath, rhsOwner, ctx);
+    if (dstGo == null || srcGo == null) {
+      return null;
+    }
+    String dstRecv = isSimpleGoIdent(dstGo) ? dstGo : ("(" + dstGo + ")");
+    return dstRecv + ".nodeCopy_originalName(" + srcGo + ")";
+  }
+
+  private String emitNodeFieldOwnerExpr(
+      TreePath fieldAccessPath, TypeElement nodeOwner, EmitContext ctx) {
+    Tree leaf = fieldAccessPath.getLeaf();
+    if (leaf instanceof MemberSelectTree ms) {
+      if (isDirectCurrentReceiverExpr(ms.getExpression(), fieldAccessPath, ctx)) {
+        return ctx.receiverName;
+      }
+      return emitAs(ms.getExpression(), fieldAccessPath, nodeOwner.asType(), false, ctx);
+    }
+    if (leaf instanceof IdentifierTree) {
+      return ctx.receiverName;
+    }
+    return null;
   }
 
   private String emitAssignmentExpr(AssignmentTree at, TreePath path, EmitContext ctx) {
@@ -2021,6 +2076,9 @@ public final class ExprEmitter {
         return isEq ? "(" + x + ").IsJavaNil_()" : "!(" + x + ").IsJavaNil_()";
       }
       if (resolver.isValueStructType(nonNullEr)) {
+        if (resolver.hasValueStructSentinelNilCheck(nonNullEr)) {
+          return isEq ? "(" + x + ").IsJavaNil_()" : "!(" + x + ").IsJavaNil_()";
+        }
         String zero = "(" + resolver.goType(nonNullRaw, ctx.imports) + "{})";
         return "(" + x + op + zero + ")";
       }
@@ -6621,6 +6679,10 @@ public final class ExprEmitter {
         String goT = resolver.goType(raw0, ctx.imports);
         String aTmp = ctx.nextTemp("va");
         String bTmp = ctx.nextTemp("vb");
+        String nilCond =
+            resolver.hasValueStructSentinelNilCheck(t0)
+                ? (aTmp + ".IsJavaNil_() || " + bTmp + ".IsJavaNil_()")
+                : (aTmp + " == (" + goT + "{}) || " + bTmp + " == (" + goT + "{})");
         return "func() bool { "
             + aTmp
             + " := "
@@ -6634,14 +6696,8 @@ public final class ExprEmitter {
             + " == "
             + bTmp
             + " { return true }; if "
-            + aTmp
-            + " == ("
-            + goT
-            + "{}) || "
-            + bTmp
-            + " == ("
-            + goT
-            + "{}) { return false }; return "
+            + nilCond
+            + " { return false }; return "
             + aTmp
             + ".Equals("
             + bTmp
@@ -6824,15 +6880,17 @@ public final class ExprEmitter {
       if (resolver.isNullableValueStructClass(te) && hasConcreteValueStructHashCodeMethod(te)) {
         String goT = resolver.goType(rawTm, ctx.imports);
         String tmp = ctx.nextTemp("hv");
+        String nilCond =
+            resolver.hasValueStructSentinelNilCheck(te)
+                ? (tmp + ".IsJavaNil_()")
+                : (tmp + " == (" + goT + "{})");
         return "func() int32 { "
             + tmp
             + " := "
             + emitPath(argPath, ctx)
             + "; if "
-            + tmp
-            + " == ("
-            + goT
-            + "{}) { return 0 }; return "
+            + nilCond
+            + " { return 0 }; return "
             + tmp
             + ".HashCode() }()";
       }
@@ -7135,6 +7193,10 @@ public final class ExprEmitter {
       if (resolver.isNullableValueStructClass(te) && hasConcreteValueStructHashCodeMethod(te)) {
         String goT = resolver.goType(rawTm, ctx.imports);
         String tmp = ctx.nextTemp("hv");
+        String nonNilCond =
+            resolver.hasValueStructSentinelNilCheck(te)
+                ? ("!" + tmp + ".IsJavaNil_()")
+                : (tmp + " != (" + goT + "{})");
         sb.append("{ ")
             .append(tmp)
             .append(" := ")
@@ -7144,10 +7206,8 @@ public final class ExprEmitter {
             .append(" = 31 * ")
             .append(hVar)
             .append("; if ")
-            .append(tmp)
-            .append(" != (")
-            .append(goT)
-            .append("{}) { ")
+            .append(nonNilCond)
+            .append(" { ")
             .append(hVar)
             .append(" += ")
             .append(tmp)

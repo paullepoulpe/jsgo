@@ -630,7 +630,7 @@ func (this_ *SourceMap_PrefixLocationMapping) Equals(arg_5 any) bool {
 
 // Java method: PrefixLocationMapping.hashCode()
 func (this_ *SourceMap_PrefixLocationMapping) HashCode() int32 {
-	return func() int32 {
+	{
 		var oh_11 int32 = 1
 		{
 			hs_12 := this_.prefix
@@ -647,7 +647,7 @@ func (this_ *SourceMap_PrefixLocationMapping) HashCode() int32 {
 			}
 		}
 		return oh_11
-	}()
+	}
 }
 
 // Java class: com.google.javascript.jscomp.SourceMap.Mapping

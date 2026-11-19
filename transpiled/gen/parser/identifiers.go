@@ -32,7 +32,9 @@ func (this_ *Identifiers) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *Identifiers) IsJavaNil_() bool { return this_ == nil }
-func (*Identifiers) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.parsing.parser.Identifiers", "Identifiers" }
+func (*Identifiers) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.parsing.parser.Identifiers", "Identifiers"
+}
 func (this_ *Identifiers) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -67,8 +69,35 @@ func InitIdentifiers(this_ *Identifiers) {
 // Java static method: Identifiers.isIdentifierStart(char ch)
 func Identifiers_IsIdentifierStart(ch uint16) bool {
 	_ = ch
-	if ((int32(ch) <= int32(127))) {
-		return (func() bool { ba_9 := func() bool { ba_5 := (func() bool { ba_1 := (int32(ch) >= int32(uint16(65))); bb_2 := (int32(ch) <= int32(uint16(90))); return ba_1 && bb_2 }()); bb_6 := (func() bool { ba_3 := (int32(ch) >= int32(uint16(97))); bb_4 := (int32(ch) <= int32(uint16(122))); return ba_3 && bb_4 }()); return ba_5 || bb_6 }(); bb_10 := (func() bool { ba_7 := (int32(ch) == int32(uint16(95))); bb_8 := (int32(ch) == int32(uint16(36))); return ba_7 || bb_8 }()); return ba_9 || bb_10 }())
+	if int32(ch) <= int32(127) {
+		{
+			var ba_9 bool
+			{
+				var ba_5 bool
+				{
+
+					ba_1 := (int32(ch) >= int32(uint16(65)))
+					bb_2 := (int32(ch) <= int32(uint16(90)))
+					ba_5 = ba_1 && bb_2
+				}
+				var bb_6 bool
+				{
+
+					ba_3 := (int32(ch) >= int32(uint16(97)))
+					bb_4 := (int32(ch) <= int32(uint16(122)))
+					bb_6 = ba_3 && bb_4
+				}
+				ba_9 = ba_5 || bb_6
+			}
+			var bb_10 bool
+			{
+
+				ba_7 := (int32(ch) == int32(uint16(95)))
+				bb_8 := (int32(ch) == int32(uint16(36)))
+				bb_10 = ba_7 || bb_8
+			}
+			return ba_9 || bb_10
+		}
 	}
 	return j2gort.BoxChar_IsLetter_1_uint16(ch)
 }
@@ -76,9 +105,46 @@ func Identifiers_IsIdentifierStart(ch uint16) bool {
 // Java static method: Identifiers.isIdentifierPart(char ch)
 func Identifiers_IsIdentifierPart(ch uint16) bool {
 	_ = ch
-	if ((int32(ch) <= int32(127))) {
-		return (func() bool { ba_23 := func() bool { ba_19 := func() bool { ba_15 := (func() bool { ba_11 := (int32(ch) >= int32(uint16(65))); bb_12 := (int32(ch) <= int32(uint16(90))); return ba_11 && bb_12 }()); bb_16 := (func() bool { ba_13 := (int32(ch) >= int32(uint16(97))); bb_14 := (int32(ch) <= int32(uint16(122))); return ba_13 && bb_14 }()); return ba_15 || bb_16 }(); bb_20 := (func() bool { ba_17 := (int32(ch) >= int32(uint16(48))); bb_18 := (int32(ch) <= int32(uint16(57))); return ba_17 && bb_18 }()); return ba_19 || bb_20 }(); bb_24 := (func() bool { ba_21 := (int32(ch) == int32(uint16(95))); bb_22 := (int32(ch) == int32(uint16(36))); return ba_21 || bb_22 }()); return ba_23 || bb_24 }())
+	if int32(ch) <= int32(127) {
+		{
+			var ba_23 bool
+			{
+				var ba_19 bool
+				{
+					var ba_15 bool
+					{
+
+						ba_11 := (int32(ch) >= int32(uint16(65)))
+						bb_12 := (int32(ch) <= int32(uint16(90)))
+						ba_15 = ba_11 && bb_12
+					}
+					var bb_16 bool
+					{
+
+						ba_13 := (int32(ch) >= int32(uint16(97)))
+						bb_14 := (int32(ch) <= int32(uint16(122)))
+						bb_16 = ba_13 && bb_14
+					}
+					ba_19 = ba_15 || bb_16
+				}
+				var bb_20 bool
+				{
+
+					ba_17 := (int32(ch) >= int32(uint16(48)))
+					bb_18 := (int32(ch) <= int32(uint16(57)))
+					bb_20 = ba_17 && bb_18
+				}
+				ba_23 = ba_19 || bb_20
+			}
+			var bb_24 bool
+			{
+
+				ba_21 := (int32(ch) == int32(uint16(95)))
+				bb_22 := (int32(ch) == int32(uint16(36)))
+				bb_24 = ba_21 || bb_22
+			}
+			return ba_23 || bb_24
+		}
 	}
 	return (Identifiers_IsIdentifierStart(ch) || j2gort.BoxChar_IsDigit_1_uint16(ch))
 }
-

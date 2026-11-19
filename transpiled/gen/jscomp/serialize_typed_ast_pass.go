@@ -149,6 +149,7 @@ func (this_ *SerializeTypedAstPass) Process_2(externs pkg_rhino.Node, root pkg_r
 		InitRemoveCastNodes(&val_7, this_.compiler)
 		(&val_7).Process_2(externs, root)
 	}
+	clinit_TypedAstSerializer()
 	var val_8 TypedAstSerializer
 	InitTypedAstSerializer(&val_8, this_.compiler, this_.serializationOptions)
 	var serializer *TypedAstSerializer = &val_8

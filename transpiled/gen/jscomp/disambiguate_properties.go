@@ -273,12 +273,14 @@ func DisambiguateProperties_BuildRenamingIndex(props j2gort.Ext_java_util_List, 
 	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](j2gort.CastPtr[j2gort.Ext_com_google_common_collect_ImmutableSortedMap](props.Stream().Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSortedMap_ToImmutableSortedMap_3(j2gort.Ext_java_util_Comparator_NaturalOrder(), lambdaSingleton_disambiguate_properties_4, j2gort.NewLambda_Ext_java_util_function_Function(func(lp_12 any) any {
 		prop := j2gort.CastPtr[PropertyClustering](lp_12)
 		_ = prop
-		return func() any {
+		{
+
 			if prop.IsInvalidated() {
 				return prop.GetLastInvalidation()
 			}
 			return j2gort.Ext_com_google_common_collect_ImmutableSortedSet_CopyOf_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](j2gort.MultimapGetStr(newNames, prop.GetName())))
-		}()
+		}
+
 	})))))
 }
 

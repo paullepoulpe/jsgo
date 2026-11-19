@@ -29,12 +29,12 @@ type FormalParameterListTree struct {
 	param1           ParseTree        `gson:"param1"`
 	param2           ParseTree        `gson:"param2"`
 	restParameters   []ParseTree      `gson:"restParameters"`
-	comma0           SourcePosition   `gson:"comma0"`
-	comma1           SourcePosition   `gson:"comma1"`
-	comma2           SourcePosition   `gson:"comma2"`
 	restCommas       []SourcePosition `gson:"restCommas"`
 	parameterCount   int32            `gson:"parameterCount"`
 	commaCount       int32            `gson:"commaCount"`
+	comma0           SourcePosition   `gson:"comma0"`
+	comma1           SourcePosition   `gson:"comma1"`
+	comma2           SourcePosition   `gson:"comma2"`
 	hasTrailingComma bool             `gson:"hasTrailingComma"`
 }
 

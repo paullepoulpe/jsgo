@@ -27,12 +27,12 @@ import (
 type LineNumberScanner struct {
 	sourceFile     *SourceFile    `gson:"sourceFile"`
 	contents       string         `gson:"contents"`
-	cachedPosition SourcePosition `gson:"cachedPosition"`
 	sourceLength   int32          `gson:"sourceLength"`
 	lastLine       int32          `gson:"lastLine"`
 	lastLineStart  int32          `gson:"lastLineStart"`
 	nextLineStart  int32          `gson:"nextLineStart"`
 	cachedOffset   int32          `gson:"cachedOffset"`
+	cachedPosition SourcePosition `gson:"cachedPosition"`
 	idHash_        atomic.Int32
 }
 
@@ -112,9 +112,7 @@ func (this_ *LineNumberScanner) GetSourceRange(startOffset int32, endOffset int3
 // Java method: LineNumberScanner.rewindTo(com.google.javascript.jscomp.parsing.parser.util.SourcePosition position)
 func (this_ *LineNumberScanner) RewindTo(position SourcePosition) {
 	_ = position
-	if !(position.source == this_.sourceFile) {
-		j2gort.CheckArgument(false)
-	}
+	_ = position
 	if position.offset < this_.lastLineStart {
 		this_.lastLine = (position.line - int32(1))
 		this_.nextLineStart = (position.offset - position.column)

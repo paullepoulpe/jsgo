@@ -215,11 +215,13 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_pullDestructu
 				_ = isNoop
 				if !(nameOrPattern.IsName()) {
 				} else if defaultValue.IsName() {
-					isNoop = func() bool {
+					{
+
 						sr_5 := "undefined"
 						se_6 := defaultValue.GetString()
-						return j2gort.CheckNotNullString(sr_5) == se_6
-					}()
+						isNoop = j2gort.CheckNotNullString(sr_5) == se_6
+					}
+
 				} else if defaultValue.IsVoid() {
 					isNoop = NodeUtil_IsImmutableValue(defaultValue.GetFirstChild())
 				}
@@ -617,12 +619,18 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_deletionNodeF
 	_ = get
 	switch property.TokenSwitchOrd_() {
 	case int32(100) /* Token.STRING_KEY */ :
-		get = func() pkg_rhino.Node {
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if property.IsQuotedStringKey() {
-				return this_.astFactory.CreateGetElem(restTempVarNameNode, this_.astFactory.CreateString(property.GetString()))
+				get = this_.astFactory.CreateGetElem(restTempVarNameNode, this_.astFactory.CreateString(property.GetString()))
+				break iifeSwitch_1
 			}
-			return this_.astFactory.CreateGetPropWithUnknownType(restTempVarNameNode, property.GetString())
-		}()
+			get = this_.astFactory.CreateGetPropWithUnknownType(restTempVarNameNode, property.GetString())
+			break iifeSwitch_1
+		}
+
 	case int32(32) /* Token.NAME */ :
 		get = this_.astFactory.CreateGetElem(restTempVarNameNode, property)
 	default:

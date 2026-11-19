@@ -612,11 +612,13 @@ func IRFactory_LabelsMatch(label pkg_rhino.Node, labelName pkg_rhino.Node) bool 
 	clinit_IRFactory()
 	_ = label
 	_ = labelName
-	return func() bool {
+	{
+
 		sr_9 := label.GetFirstChild().GetString()
 		se_10 := labelName.GetString()
 		return j2gort.CheckNotNullString(sr_9) == se_10
-	}()
+	}
+
 }
 
 // Java method: IRFactory.validateLabel(com.google.javascript.rhino.Node n)
@@ -863,12 +865,14 @@ func (this_ *IRFactory) priv_IRFactory_validateParameters_6826(n pkg_rhino.Node)
 	var validator j2gort.Ext_java_util_function_Consumer = this_.cachedParamValidator
 	_ = validator
 	if validator == nil {
-		validator = func() j2gort.Ext_java_util_function_Consumer {
+		{
+
 			bound_31 := this_
-			return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
+			validator = j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
 				bound_31.priv_IRFactory_validateParamNodeCallback_6825(j2gort.CastNode[pkg_rhino.Node](mrp0_))
 			})
-		}()
+		}
+
 		this_.cachedParamValidator = validator
 	}
 	defer func() {
@@ -2496,7 +2500,7 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_processObje
 	_ = input
 	_ = output
 	_ = identifierType
-	if input == (pkg_parser.Token{}) {
+	if (input).IsJavaNil_() {
 		return this_.priv_TransformDispatcher_createMissingExpressionNode_6984()
 	}
 	if input.FieldGet_type_() == pkg_parser.StaticGet_TokenType_IDENTIFIER() {
@@ -2922,7 +2926,7 @@ func (this_ *IRFactory_TransformDispatcher) TransformOrEmpty_2_ParseTree_ParseTr
 func (this_ *IRFactory_TransformDispatcher) TransformOrEmpty_2_Token_ParseTree(token pkg_parser.Token, parent pkg_parser.ParseTree) pkg_rhino.Node {
 	_ = token
 	_ = parent
-	if token == (pkg_parser.Token{}) {
+	if (token).IsJavaNil_() {
 		var n pkg_rhino.Node = this_.outer_.NewNode_1(pkg_rhino.StaticGet_Token_EMPTY())
 		_ = n
 		this_.outer_.SetSourceInfo_2_Node_ParseTree(n, parent)
@@ -3166,7 +3170,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessFunction(functionTree *pkg_pa
 	_ = name
 	var newName pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = newName
-	if name != (pkg_parser.Token{}) {
+	if !(name).IsJavaNil_() {
 		newName = this_.ProcessNameWithInlineComments_2_Token_IRFactory_TransformDispatcher_IdentifierType(name, identifierType)
 	} else {
 		if isDeclaration || isMember {
@@ -3824,7 +3828,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessPropertyGet(getNode *pkg_pars
 	_ = leftChild
 	var propName pkg_parser.Token = getNode.FieldGet_memberName()
 	_ = propName
-	if propName == (pkg_parser.Token{}) {
+	if (propName).IsJavaNil_() {
 		return leftChild
 	}
 	var identifierType IRFactory_TransformDispatcher_IdentifierType
@@ -3850,7 +3854,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessOptChainPropertyGet(getNode *
 	_ = leftChild
 	var propName pkg_parser.Token = getNode.FieldGet_memberName()
 	_ = propName
-	if propName == (pkg_parser.Token{}) {
+	if (propName).IsJavaNil_() {
 		return leftChild
 	}
 	var identifierType IRFactory_TransformDispatcher_IdentifierType
@@ -4404,7 +4408,14 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePri
 	_ = stackTop
 	{
 		a_73 := visitStack
-		i_74 := func() int32 { old_75 := stackTop; nw_76 := old_75 + 1; stackTop = nw_76; return old_75 }()
+		var i_74 int32
+		{
+
+			old_75 := stackTop
+			nw_76 := old_75 + 1
+			stackTop = nw_76
+			i_74 = old_75
+		}
 		a_73[i_74] = classMembers.GetFirstChild()
 	}
 	for stackTop > int32(0) {
@@ -4442,7 +4453,8 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePri
 			_ = next
 			if next != 0 {
 				if stackTop == int32(len(visitStack)) {
-					visitStack = func() []pkg_rhino.Node {
+					{
+
 						arrSrc_81 := visitStack
 						arrLen_82 := (stackTop * int32(2))
 						j2gort.CheckNotNullSlice(arrSrc_81)
@@ -4451,18 +4463,27 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePri
 						}
 						arrOut_83 := make([]pkg_rhino.Node, arrLen_82)
 						copy(arrOut_83, arrSrc_81)
-						return arrOut_83
-					}()
+						visitStack = arrOut_83
+					}
+
 				}
 				{
 					a_84 := visitStack
-					i_85 := func() int32 { old_86 := stackTop; nw_87 := old_86 + 1; stackTop = nw_87; return old_86 }()
+					var i_85 int32
+					{
+
+						old_86 := stackTop
+						nw_87 := old_86 + 1
+						stackTop = nw_87
+						i_85 = old_86
+					}
 					a_84[i_85] = next
 				}
 			}
 			if node.HasChildren() {
 				if stackTop == int32(len(visitStack)) {
-					visitStack = func() []pkg_rhino.Node {
+					{
+
 						arrSrc_88 := visitStack
 						arrLen_89 := (stackTop * int32(2))
 						j2gort.CheckNotNullSlice(arrSrc_88)
@@ -4471,12 +4492,20 @@ func (this_ *IRFactory_TransformDispatcher) priv_TransformDispatcher_validatePri
 						}
 						arrOut_90 := make([]pkg_rhino.Node, arrLen_89)
 						copy(arrOut_90, arrSrc_88)
-						return arrOut_90
-					}()
+						visitStack = arrOut_90
+					}
+
 				}
 				{
 					a_91 := visitStack
-					i_92 := func() int32 { old_93 := stackTop; nw_94 := old_93 + 1; stackTop = nw_94; return old_93 }()
+					var i_92 int32
+					{
+
+						old_93 := stackTop
+						nw_94 := old_93 + 1
+						stackTop = nw_94
+						i_92 = old_93
+					}
 					a_91[i_92] = node.GetFirstChild()
 				}
 			}
@@ -4694,7 +4723,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessExportDecl(tree *pkg_parser.E
 	this_.outer_.SetSourceInfo_2_Node_ParseTree(decls, pkg_parser.ToIface_ParseTree(tree))
 	var export pkg_rhino.Node = this_.outer_.NewNode_2(pkg_rhino.StaticGet_Token_EXPORT(), decls)
 	_ = export
-	if tree.FieldGet_from() != (pkg_parser.Token{}) {
+	if !(tree.FieldGet_from()).IsJavaNil_() {
 		var from pkg_rhino.Node = this_.ProcessString(tree.FieldGet_from())
 		_ = from
 		export.AddChildToBack(from)
@@ -4711,7 +4740,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessExportSpec(tree *pkg_parser.E
 	_ = importedName
 	var exportSpec pkg_rhino.Node = this_.outer_.NewNode_2(pkg_rhino.StaticGet_Token_EXPORT_SPEC(), importedName)
 	_ = exportSpec
-	if tree.FieldGet_destinationName() == (pkg_parser.Token{}) {
+	if (tree.FieldGet_destinationName()).IsJavaNil_() {
 		exportSpec.SetShorthandProperty(true)
 		exportSpec.AddChildToBack(importedName.CloneTree_0())
 	} else {
@@ -4730,7 +4759,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessImportDecl(tree *pkg_parser.I
 	_ = firstChild
 	var secondChild pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = secondChild
-	if tree.FieldGet_nameSpaceImportIdentifier() == (pkg_parser.Token{}) {
+	if (tree.FieldGet_nameSpaceImportIdentifier()).IsJavaNil_() {
 		secondChild = this_.priv_TransformDispatcher_transformListOrEmpty_7008(pkg_rhino.StaticGet_Token_IMPORT_SPECS(), tree.FieldGet_importSpecifierList())
 		this_.outer_.SetSourceInfo_2_Node_ParseTree(secondChild, pkg_parser.ToIface_ParseTree(tree))
 	} else {
@@ -4749,7 +4778,7 @@ func (this_ *IRFactory_TransformDispatcher) ProcessImportSpec(tree *pkg_parser.I
 	_ = importedName
 	var importSpec pkg_rhino.Node = this_.outer_.NewNode_2(pkg_rhino.StaticGet_Token_IMPORT_SPEC(), importedName)
 	_ = importSpec
-	if tree.FieldGet_destinationName() == (pkg_parser.Token{}) {
+	if (tree.FieldGet_destinationName()).IsJavaNil_() {
 		importSpec.SetShorthandProperty(true)
 		importSpec.AddChildToBack(importedName.CloneTree_0())
 	} else {

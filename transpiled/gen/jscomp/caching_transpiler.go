@@ -169,7 +169,7 @@ func (this_ *CachingTranspiler_Key) Equals(arg_6 any) bool {
 
 // Java method: Key.hashCode()
 func (this_ *CachingTranspiler_Key) HashCode() int32 {
-	return func() int32 {
+	{
 		var oh_10 int32 = 1
 		oh_10 = 31*oh_10 + j2gort.ObjectHash(j2gort.PtrToAny(this_.path))
 		{
@@ -180,7 +180,7 @@ func (this_ *CachingTranspiler_Key) HashCode() int32 {
 			}
 		}
 		return oh_10
-	}()
+	}
 }
 
 // Java class:

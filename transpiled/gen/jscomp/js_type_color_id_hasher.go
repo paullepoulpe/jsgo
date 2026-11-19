@@ -120,7 +120,7 @@ func InitJSTypeColorIdHasher(this_ *JSTypeColorIdHasher, registry *pkg_rhino.JST
 }
 
 // Java method: JSTypeColorIdHasher.ensureCapacity(int additional)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7723(additional int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7722(additional int32) {
 	_ = additional
 	var needed int32 = (this_.scratchLen + additional)
 	_ = needed
@@ -147,9 +147,9 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7723(a
 }
 
 // Java method: JSTypeColorIdHasher.putInt(int v)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7724(v int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7723(v int32) {
 	_ = v
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7723(int32(4))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7722(int32(4))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -178,14 +178,14 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7724(v int32) 
 }
 
 // Java method: JSTypeColorIdHasher.putUtf8(java.lang.String s)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7725(s string) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7724(s string) {
 	_ = s
 	var sLen int32 = j2gort.JStrLen(s)
 	_ = sLen
 	if sLen == int32(0) {
 		return
 	}
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7723((sLen * int32(3)))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7722((sLen * int32(3)))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -199,18 +199,39 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7725(s string
 			if int32(c) < int32(128) {
 				{
 					a_13 := buf
-					i_14 := func() int32 { old_15 := pos; nw_16 := old_15 + 1; pos = nw_16; return old_15 }()
+					var i_14 int32
+					{
+
+						old_15 := pos
+						nw_16 := old_15 + 1
+						pos = nw_16
+						i_14 = old_15
+					}
 					a_13[i_14] = int8(c)
 				}
 			} else if int32(c) < int32(2048) {
 				{
 					a_17 := buf
-					i_18 := func() int32 { old_19 := pos; nw_20 := old_19 + 1; pos = nw_20; return old_19 }()
+					var i_18 int32
+					{
+
+						old_19 := pos
+						nw_20 := old_19 + 1
+						pos = nw_20
+						i_18 = old_19
+					}
 					a_17[i_18] = int8((int32(192) | (javalang.Ushr32(int32(c), int(int32(6))))))
 				}
 				{
 					a_21 := buf
-					i_22 := func() int32 { old_23 := pos; nw_24 := old_23 + 1; pos = nw_24; return old_23 }()
+					var i_22 int32
+					{
+
+						old_23 := pos
+						nw_24 := old_23 + 1
+						pos = nw_24
+						i_22 = old_23
+					}
 					a_21[i_22] = int8((int32(128) | (int32(c) & int32(63))))
 				}
 			} else if j2gort.BoxChar_IsSurrogate(c) {
@@ -223,22 +244,50 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7725(s string
 						i = i + 1
 						{
 							a_25 := buf
-							i_26 := func() int32 { old_27 := pos; nw_28 := old_27 + 1; pos = nw_28; return old_27 }()
+							var i_26 int32
+							{
+
+								old_27 := pos
+								nw_28 := old_27 + 1
+								pos = nw_28
+								i_26 = old_27
+							}
 							a_25[i_26] = int8((int32(240) | (javalang.Ushr32(cp, int(int32(18))))))
 						}
 						{
 							a_29 := buf
-							i_30 := func() int32 { old_31 := pos; nw_32 := old_31 + 1; pos = nw_32; return old_31 }()
+							var i_30 int32
+							{
+
+								old_31 := pos
+								nw_32 := old_31 + 1
+								pos = nw_32
+								i_30 = old_31
+							}
 							a_29[i_30] = int8((int32(128) | ((javalang.Ushr32(cp, int(int32(12)))) & int32(63))))
 						}
 						{
 							a_33 := buf
-							i_34 := func() int32 { old_35 := pos; nw_36 := old_35 + 1; pos = nw_36; return old_35 }()
+							var i_34 int32
+							{
+
+								old_35 := pos
+								nw_36 := old_35 + 1
+								pos = nw_36
+								i_34 = old_35
+							}
 							a_33[i_34] = int8((int32(128) | ((javalang.Ushr32(cp, int(int32(6)))) & int32(63))))
 						}
 						{
 							a_37 := buf
-							i_38 := func() int32 { old_39 := pos; nw_40 := old_39 + 1; pos = nw_40; return old_39 }()
+							var i_38 int32
+							{
+
+								old_39 := pos
+								nw_40 := old_39 + 1
+								pos = nw_40
+								i_38 = old_39
+							}
 							a_37[i_38] = int8((int32(128) | (cp & int32(63))))
 						}
 						continue
@@ -246,23 +295,51 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7725(s string
 				}
 				{
 					a_41 := buf
-					i_42 := func() int32 { old_43 := pos; nw_44 := old_43 + 1; pos = nw_44; return old_43 }()
+					var i_42 int32
+					{
+
+						old_43 := pos
+						nw_44 := old_43 + 1
+						pos = nw_44
+						i_42 = old_43
+					}
 					a_41[i_42] = int8(63)
 				}
 			} else {
 				{
 					a_45 := buf
-					i_46 := func() int32 { old_47 := pos; nw_48 := old_47 + 1; pos = nw_48; return old_47 }()
+					var i_46 int32
+					{
+
+						old_47 := pos
+						nw_48 := old_47 + 1
+						pos = nw_48
+						i_46 = old_47
+					}
 					a_45[i_46] = int8((int32(224) | (javalang.Ushr32(int32(c), int(int32(12))))))
 				}
 				{
 					a_49 := buf
-					i_50 := func() int32 { old_51 := pos; nw_52 := old_51 + 1; pos = nw_52; return old_51 }()
+					var i_50 int32
+					{
+
+						old_51 := pos
+						nw_52 := old_51 + 1
+						pos = nw_52
+						i_50 = old_51
+					}
 					a_49[i_50] = int8((int32(128) | ((javalang.Ushr32(int32(c), int(int32(6)))) & int32(63))))
 				}
 				{
 					a_53 := buf
-					i_54 := func() int32 { old_55 := pos; nw_56 := old_55 + 1; pos = nw_56; return old_55 }()
+					var i_54 int32
+					{
+
+						old_55 := pos
+						nw_56 := old_55 + 1
+						pos = nw_56
+						i_54 = old_55
+					}
 					a_53[i_54] = int8((int32(128) | (int32(c) & int32(63))))
 				}
 			}
@@ -279,7 +356,7 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 	}
 	var boxId pkg_colors.ColorId = this_.standardColorObjectIds.Get(type_)
 	_ = boxId
-	if boxId != (pkg_colors.ColorId{}) {
+	if !(boxId).IsJavaNil_() {
 		return boxId
 	}
 	this_.scratchLen = int32(0)
@@ -288,11 +365,11 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 		var fnType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
 		_ = fnType
 		if fnType.HasInstanceType() {
-			this_.priv_JSTypeColorIdHasher_putInt_7724(int32(-1937018661))
+			this_.priv_JSTypeColorIdHasher_putInt_7723(int32(-1937018661))
 		}
 	}
 	if base_type__.HasReferenceName() {
-		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7727(type_)
+		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7726(type_)
 	} else {
 		var ownProps j2gort.Ext_java_util_Set = type_.GetOwnPropertyNames()
 		_ = ownProps
@@ -304,7 +381,7 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 				for cur_57.HasNext() {
 					prop := cur_57.NextStr()
 					_ = prop
-					this_.priv_JSTypeColorIdHasher_putUtf8_7725(prop)
+					this_.priv_JSTypeColorIdHasher_putUtf8_7724(prop)
 				}
 			}
 		} else {
@@ -315,7 +392,7 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 				var i int32 = int32(0)
 				_ = i
 				for ; i < int32(len(sortedProps)); i = i + 1 {
-					this_.priv_JSTypeColorIdHasher_putUtf8_7725(sortedProps[i])
+					this_.priv_JSTypeColorIdHasher_putUtf8_7724(sortedProps[i])
 				}
 			}
 		}
@@ -324,21 +401,21 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 }
 
 // Java method: JSTypeColorIdHasher.putReferenceNameType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7727(type_ pkg_rhino.ObjectType) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7726(type_ pkg_rhino.ObjectType) {
 	_ = type_
-	this_.priv_JSTypeColorIdHasher_putUtf8_7725(type_.GetReferenceName())
+	this_.priv_JSTypeColorIdHasher_putUtf8_7724(type_.GetReferenceName())
 	var sourceRef pkg_rhino.JSType_WithSourceRef = JSTypeColorIdHasher_SourceRefFor(type_)
 	_ = sourceRef
 	if sourceRef == nil || sourceRef.IsJavaNil_() {
-		this_.priv_JSTypeColorIdHasher_putInt_7724(int32(1712056194))
+		this_.priv_JSTypeColorIdHasher_putInt_7723(int32(1712056194))
 		return
 	}
 	var moduleId string = sourceRef.GetGoogModuleId()
 	_ = moduleId
 	if moduleId == j2gort.NullString {
-		this_.priv_JSTypeColorIdHasher_putInt_7724(int32(630441471))
+		this_.priv_JSTypeColorIdHasher_putInt_7723(int32(630441471))
 	} else {
-		this_.priv_JSTypeColorIdHasher_putUtf8_7725(moduleId)
+		this_.priv_JSTypeColorIdHasher_putUtf8_7724(moduleId)
 	}
 }
 

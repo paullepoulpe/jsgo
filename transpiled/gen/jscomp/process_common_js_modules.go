@@ -1884,11 +1884,13 @@ func (this_ *ProcessCommonJSModules_RewriteModule) priv_RewriteModule_updateName
 	j2gort.CheckNotNullString(newName)
 	var newNameIsQualified bool = (j2gort.JStrIndexOfCp(newName, int32(uint16(46))) >= int32(0))
 	_ = newNameIsQualified
-	var newNameIsModuleExport bool = func() bool {
+	var newNameIsModuleExport bool
+	{
 		sr_50 := newName
 		se_51 := this_.outer_.GetBasePropertyImport_1(ProcessCommonJSModules_GetModuleName_1_CompilerInput(t.GetInput()))
-		return j2gort.CheckNotNullString(sr_50) == se_51
-	}()
+		newNameIsModuleExport = j2gort.CheckNotNullString(sr_50) == se_51
+	}
+
 	_ = newNameIsModuleExport
 	var newNameDeclaration *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(newName))
 	_ = newNameDeclaration

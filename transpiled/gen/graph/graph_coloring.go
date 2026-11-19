@@ -305,7 +305,8 @@ func (this_ *GraphColoring_GreedyGraphColoring[N, E]) Color() int32 {
 		}
 		count = count + 1
 	}
-	var map_ []N = func() []N {
+	var map_ []N
+	{
 		arr_8 := make([]N, count)
 		if _, ok_ := any((*N)(nil)).(*string); ok_ {
 			ns_ := any(j2gort.NullString).(N)
@@ -313,8 +314,8 @@ func (this_ *GraphColoring_GreedyGraphColoring[N, E]) Color() int32 {
 				arr_8[i_] = ns_
 			}
 		}
-		return arr_8
-	}()
+		map_ = arr_8
+	}
 	_ = map_
 	this_.GetGraphColoringBase().colorToNodeMap = map_
 	return count

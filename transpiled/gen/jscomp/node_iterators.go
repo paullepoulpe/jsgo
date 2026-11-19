@@ -349,7 +349,7 @@ func (this_ *NodeIterators_FunctionlessLocalScope) priv_FunctionlessLocalScope_p
 	var arr []pkg_rhino.Node = this_.ancestors
 	_ = arr
 	if c == int32(len(arr)) {
-		arr = func() []pkg_rhino.Node {
+		{
 			arrSrc_35 := arr
 			arrLen_36 := (c * int32(2))
 			j2gort.CheckNotNullSlice(arrSrc_35)
@@ -358,8 +358,8 @@ func (this_ *NodeIterators_FunctionlessLocalScope) priv_FunctionlessLocalScope_p
 			}
 			arrOut_37 := make([]pkg_rhino.Node, arrLen_36)
 			copy(arrOut_37, arrSrc_35)
-			return arrOut_37
-		}()
+			arr = arrOut_37
+		}
 		this_.ancestors = arr
 	}
 	{
@@ -380,12 +380,13 @@ func (this_ *NodeIterators_FunctionlessLocalScope) HasNext() bool {
 // Java method: FunctionlessLocalScope.nextNode()
 func (this_ *NodeIterators_FunctionlessLocalScope) NextNode() pkg_rhino.Node {
 	for {
-		var topIdx int32 = func() int32 {
+		var topIdx int32
+		{
 			old_40 := this_.ancestorCount
 			nw_41 := old_40 - 1
 			this_.ancestorCount = nw_41
-			return nw_41
-		}()
+			topIdx = nw_41
+		}
 		_ = topIdx
 		var current pkg_rhino.Node = this_.ancestors[topIdx]
 		_ = current

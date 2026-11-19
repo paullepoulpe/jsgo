@@ -189,12 +189,26 @@ func CharRanges_IntArrayToRanges(members []int32) []int32 {
 			if current_2 != (last_2 + int32(1)) {
 				{
 					a_3 := ranges
-					i_4 := func() int32 { old_5 := k; nw_6 := old_5 + 1; k = nw_6; return nw_6 }()
+					var i_4 int32
+					{
+
+						old_5 := k
+						nw_6 := old_5 + 1
+						k = nw_6
+						i_4 = nw_6
+					}
 					a_3[i_4] = (last_2 + int32(1))
 				}
 				{
 					a_7 := ranges
-					i_8 := func() int32 { old_9 := k; nw_10 := old_9 + 1; k = nw_10; return nw_10 }()
+					var i_8 int32
+					{
+
+						old_9 := k
+						nw_10 := old_9 + 1
+						k = nw_10
+						i_8 = nw_10
+					}
 					a_7[i_8] = current_2
 				}
 			}
@@ -202,7 +216,14 @@ func CharRanges_IntArrayToRanges(members []int32) []int32 {
 	}
 	{
 		a_11 := ranges
-		i_12 := func() int32 { old_13 := k; nw_14 := old_13 + 1; k = nw_14; return nw_14 }()
+		var i_12 int32
+		{
+
+			old_13 := k
+			nw_14 := old_13 + 1
+			k = nw_14
+			i_12 = nw_14
+		}
 		a_11[i_12] = (members[(nMembers-int32(1))] + int32(1))
 	}
 	return ranges
@@ -273,24 +294,52 @@ func (this_ *CharRanges) Union(other *CharRanges) *CharRanges {
 		if a1 < b0 {
 			{
 				a_15 := out
-				i_16 := func() int32 { old_17 := k; nw_18 := old_17 + 1; k = nw_18; return old_17 }()
+				var i_16 int32
+				{
+
+					old_17 := k
+					nw_18 := old_17 + 1
+					k = nw_18
+					i_16 = old_17
+				}
 				a_15[i_16] = a0
 			}
 			{
 				a_19 := out
-				i_20 := func() int32 { old_21 := k; nw_22 := old_21 + 1; k = nw_22; return old_21 }()
+				var i_20 int32
+				{
+
+					old_21 := k
+					nw_22 := old_21 + 1
+					k = nw_22
+					i_20 = old_21
+				}
 				a_19[i_20] = a1
 			}
 			i = (i + int32(2))
 		} else if b1 < a0 {
 			{
 				a_23 := out
-				i_24 := func() int32 { old_25 := k; nw_26 := old_25 + 1; k = nw_26; return old_25 }()
+				var i_24 int32
+				{
+
+					old_25 := k
+					nw_26 := old_25 + 1
+					k = nw_26
+					i_24 = old_25
+				}
 				a_23[i_24] = b0
 			}
 			{
 				a_27 := out
-				i_28 := func() int32 { old_29 := k; nw_30 := old_29 + 1; k = nw_30; return old_29 }()
+				var i_28 int32
+				{
+
+					old_29 := k
+					nw_30 := old_29 + 1
+					k = nw_30
+					i_28 = old_29
+				}
 				a_27[i_28] = b1
 			}
 			j = (j + int32(2))
@@ -314,12 +363,26 @@ func (this_ *CharRanges) Union(other *CharRanges) *CharRanges {
 			}
 			{
 				a_31 := out
-				i_32 := func() int32 { old_33 := k; nw_34 := old_33 + 1; k = nw_34; return old_33 }()
+				var i_32 int32
+				{
+
+					old_33 := k
+					nw_34 := old_33 + 1
+					k = nw_34
+					i_32 = old_33
+				}
 				a_31[i_32] = start
 			}
 			{
 				a_35 := out
-				i_36 := func() int32 { old_37 := k; nw_38 := old_37 + 1; k = nw_38; return old_37 }()
+				var i_36 int32
+				{
+
+					old_37 := k
+					nw_38 := old_37 + 1
+					k = nw_38
+					i_36 = old_37
+				}
 				a_35[i_36] = end
 			}
 		}
@@ -356,7 +419,8 @@ func (this_ *CharRanges) Union(other *CharRanges) *CharRanges {
 		k = (k + (n - j))
 	}
 	if k != int32(len(out)) {
-		var clipped []int32 = func() []int32 {
+		var clipped []int32
+		{
 			arrSrc_49 := out
 			arrLen_50 := k
 			j2gort.CheckNotNullSlice(arrSrc_49)
@@ -365,8 +429,9 @@ func (this_ *CharRanges) Union(other *CharRanges) *CharRanges {
 			}
 			arrOut_51 := make([]int32, arrLen_50)
 			copy(arrOut_51, arrSrc_49)
-			return arrOut_51
-		}()
+			clipped = arrOut_51
+		}
+
 		_ = clipped
 		out = clipped
 	}
@@ -440,12 +505,26 @@ func (this_ *CharRanges) Intersection(other *CharRanges) *CharRanges {
 					}
 					{
 						a_59 := intersection
-						i_60 := func() int32 { old_61 := intersectionIdx; nw_62 := old_61 + 1; intersectionIdx = nw_62; return old_61 }()
+						var i_60 int32
+						{
+
+							old_61 := intersectionIdx
+							nw_62 := old_61 + 1
+							intersectionIdx = nw_62
+							i_60 = old_61
+						}
 						a_59[i_60] = pos
 					}
 					{
 						a_63 := intersection
-						i_64 := func() int32 { old_65 := intersectionIdx; nw_66 := old_65 + 1; intersectionIdx = nw_66; return old_65 }()
+						var i_64 int32
+						{
+
+							old_65 := intersectionIdx
+							nw_66 := old_65 + 1
+							intersectionIdx = nw_66
+							i_64 = old_65
+						}
 						a_63[i_64] = end
 					}
 				}
@@ -454,7 +533,8 @@ func (this_ *CharRanges) Intersection(other *CharRanges) *CharRanges {
 		}
 	}
 	if intersectionIdx != int32(len(intersection)) {
-		var newArr_2 []int32 = func() []int32 {
+		var newArr_2 []int32
+		{
 			arrSrc_67 := intersection
 			arrLen_68 := intersectionIdx
 			j2gort.CheckNotNullSlice(arrSrc_67)
@@ -463,8 +543,9 @@ func (this_ *CharRanges) Intersection(other *CharRanges) *CharRanges {
 			}
 			arrOut_69 := make([]int32, arrLen_68)
 			copy(arrOut_69, arrSrc_67)
-			return arrOut_69
-		}()
+			newArr_2 = arrOut_69
+		}
+
 		_ = newArr_2
 		intersection = newArr_2
 	}
@@ -538,12 +619,26 @@ func (this_ *CharRanges) Difference(subtrahendRanges *CharRanges) *CharRanges {
 				}
 				{
 					a_77 := difference
-					i_78 := func() int32 { old_79 := dIdx; nw_80 := old_79 + 1; dIdx = nw_80; return old_79 }()
+					var i_78 int32
+					{
+
+						old_79 := dIdx
+						nw_80 := old_79 + 1
+						dIdx = nw_80
+						i_78 = old_79
+					}
 					a_77[i_78] = pos
 				}
 				{
 					a_81 := difference
-					i_82 := func() int32 { old_83 := dIdx; nw_84 := old_83 + 1; dIdx = nw_84; return old_83 }()
+					var i_82 int32
+					{
+
+						old_83 := dIdx
+						nw_84 := old_83 + 1
+						dIdx = nw_84
+						i_82 = old_83
+					}
 					a_81[i_82] = end
 				}
 			}
@@ -551,7 +646,8 @@ func (this_ *CharRanges) Difference(subtrahendRanges *CharRanges) *CharRanges {
 		}
 	}
 	if dIdx != int32(len(difference)) {
-		var newArr_2 []int32 = func() []int32 {
+		var newArr_2 []int32
+		{
 			arrSrc_85 := difference
 			arrLen_86 := dIdx
 			j2gort.CheckNotNullSlice(arrSrc_85)
@@ -560,8 +656,9 @@ func (this_ *CharRanges) Difference(subtrahendRanges *CharRanges) *CharRanges {
 			}
 			arrOut_87 := make([]int32, arrLen_86)
 			copy(arrOut_87, arrSrc_85)
-			return arrOut_87
-		}()
+			newArr_2 = arrOut_87
+		}
+
 		_ = newArr_2
 		difference = newArr_2
 	}

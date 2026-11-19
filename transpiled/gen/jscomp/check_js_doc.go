@@ -493,7 +493,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateAbstractJsDoc_1064(n pkg_rhino.
 		return
 	}
 	if n.IsGetProp() {
-		if !(n.GetFirstChild().IsThis() && (info.GetReturnType() != (pkg_rhino.JSTypeExpression{}))) {
+		if !(n.GetFirstChild().IsThis() && !(info.GetReturnType()).IsJavaNil_()) {
 			this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "abstract undeclared methods can only be written as class fields"})
 		} else if !((n.GetParent().IsExprResult() && n.GetGrandparent().IsBlock()) && n.GetParent().GetGrandparent().IsFunction()) {
 			this_.priv_CheckJSDoc_report_1071(n, StaticGet_CheckJSDoc_MISPLACED_ANNOTATION(), []string{"@abstract", "abstract methods without an initializer must be declared in a constructor function."})
@@ -750,7 +750,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateRestParameter_1073(restParam pk
 	} else {
 		paramTypeAnnotation = (pkg_rhino.JSTypeExpression{})
 	}
-	if (paramTypeAnnotation != (pkg_rhino.JSTypeExpression{})) && (paramTypeAnnotation.GetRoot().RawToken_() != uint8(125)) {
+	if !(paramTypeAnnotation).IsJavaNil_() && (paramTypeAnnotation.GetRoot().RawToken_() != uint8(125)) {
 		this_.compiler.Report_1(JSError_Make_3(restParam, StaticGet_CheckJSDoc_BAD_REST_PARAMETER_ANNOTATION(), []string{}))
 	}
 }
@@ -768,7 +768,7 @@ func (this_ *CheckJSDoc) priv_CheckJSDoc_validateDefaultValue_1074(n pkg_rhino.N
 		}
 		var typeExpr pkg_rhino.JSTypeExpression = info.GetType()
 		_ = typeExpr
-		if typeExpr == (pkg_rhino.JSTypeExpression{}) {
+		if (typeExpr).IsJavaNil_() {
 			return
 		}
 		var typeNode pkg_rhino.Node = typeExpr.GetRoot()

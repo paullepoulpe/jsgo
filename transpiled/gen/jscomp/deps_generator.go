@@ -228,10 +228,12 @@ func (this_ *DepsGenerator) ComputeDependencyCalls() string {
 	var output *j2gort.Ext_java_io_ByteArrayOutputStream = j2gort.NewExt_java_io_ByteArrayOutputStream()
 	_ = output
 	this_.priv_DepsGenerator_writeDepsContent_6098(depsFiles, jsFiles, j2gort.NewExt_java_io_PrintStream_1_Ext_java_io_OutputStream(output))
-	return func() string {
+	{
+
 		b_1 := output.ToByteArray()
 		return j2gort.NewStringFromBytes(b_1, 0, int32(len(b_1)), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
-	}()
+	}
+
 }
 
 // Java method: DepsGenerator.cleanUpDuplicatedFiles(java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> depsFiles, java.util.Map<java.lang.String,com.google.javascript.jscomp.deps.DependencyInfo> jsFiles)

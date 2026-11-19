@@ -604,24 +604,36 @@ func (this_ *AbstractCommandLineRunnerBase) GetVersionText() string {
 // Java static method: AbstractCommandLineRunner.getExternsInput()
 func AbstractCommandLineRunner_GetExternsInput() j2gort.Ext_java_io_InputStream {
 	clinit_AbstractCommandLineRunner()
-	var input j2gort.Ext_java_io_InputStream = func() j2gort.Ext_java_io_InputStream {
+	var input j2gort.Ext_java_io_InputStream
+iifeSwitch_2:
+	switch {
+	default:
 		if b_, ok_ := j2gort.ClassResourceBytes(j2gort.ClassLiteral("com.google.javascript.jscomp.AbstractCommandLineRunner", "AbstractCommandLineRunner"), "/externs.zip"); ok_ {
 			s_ := &j2gort.Ext_java_io_InputStreamBase{Core_: b_}
 			s_.Self_ = s_
-			return s_
+			input = s_
+			break iifeSwitch_2
 		}
-		return nil
-	}()
+		input = nil
+		break iifeSwitch_2
+	}
+
 	_ = input
 	if input == nil {
-		input = func() j2gort.Ext_java_io_InputStream {
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if b_, ok_ := j2gort.ClassResourceBytes(j2gort.ClassLiteral("com.google.javascript.jscomp.AbstractCommandLineRunner", "AbstractCommandLineRunner"), "externs.zip"); ok_ {
 				s_ := &j2gort.Ext_java_io_InputStreamBase{Core_: b_}
 				s_.Self_ = s_
-				return s_
+				input = s_
+				break iifeSwitch_1
 			}
-			return nil
-		}()
+			input = nil
+			break iifeSwitch_1
+		}
+
 	}
 	j2gort.CheckNotNull(input)
 	return input
@@ -1053,13 +1065,19 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 	_ = chunkIndex
 	for _, chunkName := range chunkNames {
 		_ = chunkName
-		var numJsFiles int32 = func() int32 {
+		var numJsFiles int32
+	iifeSwitch_3:
+		switch {
+		default:
 			if v_, ok_ := chunksFileCountMap.GetOk(chunkName); ok_ {
-				return v_
+				numJsFiles = v_
+				break iifeSwitch_3
 			}
 			j2gort.ThrowNPE()
-			return 0
-		}()
+			numJsFiles = 0
+			break iifeSwitch_3
+		}
+
 		_ = numJsFiles
 		var chunk_2 *JSChunk = j2gort.CastPtr[JSChunk](j2gort.MapGetStr(chunksByName, chunkName))
 		_ = chunk_2

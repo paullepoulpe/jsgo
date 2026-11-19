@@ -33,7 +33,8 @@ func init() {
 	lambdaSingleton_es6_convert_super_1 = j2gort.NewNodeLambda_Ext_com_google_common_base_Predicate(func(rawNode_1 uint32) bool {
 		n := pkg_rhino.Node(rawNode_1)
 		_ = n
-		return func() bool {
+		{
+
 			switch n.TokenSwitchOrd_() {
 			case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */, int32(129) /* Token.COMPUTED_PROP */ :
 				return true
@@ -41,7 +42,8 @@ func init() {
 				return false
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	})
 }
 

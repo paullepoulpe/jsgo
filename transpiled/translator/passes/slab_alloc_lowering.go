@@ -815,6 +815,11 @@ func (p *SlabAllocLoweringPass) Apply(ctx *PassContext) (int, error) {
 		return count, err
 	}
 	count += w40Count
+	w41Count, err := applyWave41SlabLowerings(ctx, structByNamed, valueCopied, existingPkgFuncs, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += w41Count
 
 	return count, nil
 }
@@ -1612,7 +1617,9 @@ func isSynthesizedSlabHelperFuncName(name string) bool {
 		strings.HasPrefix(name, "allocScratch_") ||
 		strings.HasPrefix(name, "allocScratchVia_") ||
 		strings.HasPrefix(name, "allocReuseVia_") ||
+		strings.HasPrefix(name, "allocLazy_") ||
 		strings.HasPrefix(name, "initReuse_") ||
+		name == "promoteIvScratchVarExpert_" ||
 		name == "acquirePooledParser_" ||
 		name == "releasePooledParser_" ||
 		strings.HasSuffix(name, "WithSlab_")
@@ -13356,9 +13363,17 @@ func applyStringPoolInternCacheLowering(
 	if spMeta == nil || spNamed == nil || nodestorePkg == nil || nodestorePkg.Scope().Lookup("Epoch") == nil {
 		return 0, false, nil
 	}
+	hasInternOwned := nodestorePkg.Scope().Lookup("InternOwned") != nil
 	file := spMeta.file
 	if hasASTFieldNamed(spMeta.structAST, "internedIDs_") {
-		return 0, slabFileHasPtrMethod(file, "StringPool", "internAt_"), nil
+		hasMethod := slabFileHasPtrMethod(file, "StringPool", "internAt_")
+		if hasMethod && hasInternOwned && ctx.ShouldTransform(file) {
+			if upgraded := upgradeStringPoolInternAtToInternOwned(ctx, file, nodestorePkg); upgraded {
+				ctx.MarkFileModified(file)
+				return 1, true, nil
+			}
+		}
+		return 0, hasMethod, nil
 	}
 	if !ctx.ShouldTransform(file) {
 		return 0, false, nil
@@ -13420,6 +13435,11 @@ func applyStringPoolInternCacheLowering(
 	}
 	initSPFn.Body.List = append(initSPFn.Body.List, initTailPF.Decls[0].(*ast.FuncDecl).Body.List...)
 
+	internCallExpr := "alloc_.Intern(s_)"
+	if hasInternOwned {
+		internCallExpr = nsQual + ".InternOwned(s_)"
+	}
+
 	methodPF, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(`package p
 
 func (this_ *StringPool) internAt_(offset int32, alloc_ *%[1]s.NodeAllocator) (%[1]s.StringID, bool) {
@@ -13434,7 +13454,7 @@ func (this_ *StringPool) internAt_(offset int32, alloc_ *%[1]s.NodeAllocator) (%
 		if s_ == %[2]s.NullString {
 			return 0, false
 		}
-		id_ := alloc_.Intern(s_)
+		id_ := %[3]s
 		this_.internedIDs_[offset].Store(uint32(id_))
 		return id_, true
 	}
@@ -13442,15 +13462,52 @@ func (this_ *StringPool) internAt_(offset int32, alloc_ *%[1]s.NodeAllocator) (%
 	if s_ == %[2]s.NullString {
 		return 0, false
 	}
-	return alloc_.Intern(s_), true
+	return %[3]s, true
 }
-`, nsQual, j2Qual), 0)
+`, nsQual, j2Qual, internCallExpr), 0)
 	if err != nil {
 		return 0, false, err
 	}
 	file.Decls = append(file.Decls, methodPF.Decls[0])
 	ctx.MarkFileModified(file)
 	return 1, true, nil
+}
+
+func upgradeStringPoolInternAtToInternOwned(ctx *PassContext, file *ast.File, nodestorePkg *types.Package) bool {
+	fn, _ := findPtrMethodDeclBySyntax(file, "StringPool", "internAt_")
+	if fn == nil || fn.Body == nil || fn.Type == nil {
+		return false
+	}
+	pNames := extractFlatParamNames(fn.Type.Params)
+	if len(pNames) < 2 || pNames[1] == "" || pNames[1] == "_" {
+		return false
+	}
+	allocParam := pNames[1]
+
+	var calls []*ast.SelectorExpr
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+			return true
+		}
+		sel, ok := stripParens(call.Fun).(*ast.SelectorExpr)
+		if ok && sel.Sel != nil && sel.Sel.Name == "Intern" && isIdentNamed(sel.X, allocParam) {
+			calls = append(calls, sel)
+		}
+		return true
+	})
+	if len(calls) == 0 {
+		return false
+	}
+	nsQual, ok := ensurePkgImportInFile(file, nodestorePkg.Path(), "nodestore", ctx)
+	if !ok {
+		return false
+	}
+	for _, sel := range calls {
+		sel.X = &ast.Ident{Name: nsQual}
+		sel.Sel = &ast.Ident{Name: "InternOwned"}
+	}
+	return true
 }
 
 func typeHasMethodNamed(t types.Type, pkg *types.Package, name string) bool {
@@ -28704,4 +28761,1078 @@ func (this_ *Compiler) maybeReleaseTypedScopeArena_() {
 	}
 
 	return count, nil
+}
+
+// -----------------------------------------------------------------------------
+// Wave 41:
+//  1) InlineVariables_InliningBehavior scratchVarExpert_ L1 reuse (eliminating
+//     per-var slab alloc + out-of-line InitInlineVariables_VarExpert_5 + cache misses)
+//  2) MinimizedCondition_MeasuredNode lazy token/srcref materialization (eliminating
+//     speculative rhino.NewNode_1 + Srcref allocations on rejected candidates)
+// -----------------------------------------------------------------------------
+
+func applyWave41SlabLowerings(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	if ctx == nil || ctx.Pkg == nil || ctx.Pkg.Name() != "jscomp" || ctx.Info == nil {
+		return 0, nil
+	}
+	count := 0
+	c1, err := applyWave41InlineVariablesScratchExpertLowering(ctx, structByNamed, valueCopied, existingPkgFuncs)
+	if err != nil {
+		return count, err
+	}
+	count += c1
+	c2, err := applyWave41MinimizedConditionLazyNodeLowering(ctx, structByNamed, valueCopied, existingPkgFuncs, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += c2
+	return count, nil
+}
+
+type w41PlainFieldSpec struct {
+	name     string
+	zeroExpr string
+}
+
+func w41ZeroExprForFieldType(t types.Type) (string, bool) {
+	if t == nil {
+		return "", false
+	}
+	switch u := types.Unalias(t).Underlying().(type) {
+	case *types.Pointer, *types.Slice, *types.Map, *types.Interface:
+		return "nil", true
+	case *types.Basic:
+		info := u.Info()
+		switch {
+		case info&types.IsBoolean != 0:
+			return "false", true
+		case info&types.IsInteger != 0 || info&types.IsFloat != 0:
+			return "0", true
+		case info&types.IsString != 0:
+			return `""`, true
+		}
+	}
+	return "", false
+}
+
+func applyWave41InlineVariablesScratchExpertLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+	existingPkgFuncs map[string]bool,
+) (int, error) {
+	var ivNamed, behNamed, expNamed, anaNamed *types.Named
+	for n := range structByNamed {
+		if n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "InlineVariables":
+			ivNamed = n
+		case "InlineVariables_InliningBehavior":
+			behNamed = n
+		case "InlineVariables_VarExpert":
+			expNamed = n
+		case "InlineVariables_InlineVarAnalysis":
+			anaNamed = n
+		}
+	}
+	if ivNamed == nil || behNamed == nil || expNamed == nil || anaNamed == nil {
+		return 0, nil
+	}
+	ivMeta := structByNamed[ivNamed]
+	behMeta := structByNamed[behNamed]
+	expMeta := structByNamed[expNamed]
+	anaMeta := structByNamed[anaNamed]
+	if ivMeta == nil || behMeta == nil || expMeta == nil || anaMeta == nil {
+		return 0, nil
+	}
+	ivFile := ivMeta.file
+	if behMeta.file != ivFile || expMeta.file != ivFile || anaMeta.file != ivFile ||
+		!ctx.ShouldTransform(ivFile) || valueCopied[behNamed] || valueCopied[expNamed] {
+		return 0, nil
+	}
+	if !ivMeta.slabFields["slab_InlineVariables_VarExpert"] && !hasASTFieldNamed(ivMeta.structAST, "slab_InlineVariables_VarExpert") {
+		return 0, nil
+	}
+	if hasASTFieldNamed(behMeta.structAST, "scratchVarExpert_") {
+		return 0, nil
+	}
+
+	expSt, ok := expNamed.Underlying().(*types.Struct)
+	if !ok {
+		return 0, nil
+	}
+	var plainFields []w41PlainFieldSpec
+	plainFieldSet := make(map[string]bool)
+	for i := 0; i < expSt.NumFields(); i++ {
+		f := expSt.Field(i)
+		if f.Embedded() {
+			return 0, nil
+		}
+		if f.Name() == "idHash_" {
+			continue
+		}
+		ze, okZ := w41ZeroExprForFieldType(f.Type())
+		if !okZ {
+			return 0, nil
+		}
+		plainFields = append(plainFields, w41PlainFieldSpec{name: f.Name(), zeroExpr: ze})
+		plainFieldSet[f.Name()] = true
+	}
+	if len(plainFields) == 0 {
+		return 0, nil
+	}
+
+	// Verify closed-world accesses to InlineVariables_InlineVarAnalysis.expert across ctx.Files.
+	anaSt, ok := anaNamed.Underlying().(*types.Struct)
+	if !ok {
+		return 0, nil
+	}
+	var anaExpertVar *types.Var
+	for i := 0; i < anaSt.NumFields(); i++ {
+		if f := anaSt.Field(i); f.Name() == "expert" {
+			anaExpertVar = f
+			break
+		}
+	}
+	if anaExpertVar == nil {
+		return 0, nil
+	}
+
+	info := ctx.Info
+	sawSafeAliasesExpertRead := false
+	for _, file := range ctx.Files {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Name == nil || fn.Body == nil {
+				continue
+			}
+			fnName := fn.Name.Name
+			okFn := true
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if !okFn || n == nil {
+					return false
+				}
+				sel, isS := n.(*ast.SelectorExpr)
+				if !isS || sel.Sel == nil || sel.Sel.Name != "expert" {
+					return true
+				}
+				if selInfo := info.Selections[sel]; selInfo != nil && selInfo.Obj() == anaExpertVar {
+					switch fnName {
+					case "InitInlineVariables_InlineVarAnalysis", "PerformInline":
+					case "IsSafeToInlineAliases":
+						sawSafeAliasesExpertRead = true
+					default:
+						okFn = false
+						return false
+					}
+				}
+				return true
+			})
+			if !okFn {
+				return 0, nil
+			}
+		}
+	}
+
+	var (
+		allocExp5Fn    *ast.FuncDecl
+		initExp5Fn     *ast.FuncDecl
+		initFieldsFn   *ast.FuncDecl
+		lazyNegAllocFn *ast.FuncDecl
+		retryAllocFn   *ast.FuncDecl
+		hasRetryCtor   bool
+	)
+	for _, decl := range ivFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		if fn.Recv == nil {
+			switch fn.Name.Name {
+			case "allocIvPooled_InlineVariables_VarExpert_5":
+				allocExp5Fn = fn
+			case "InitInlineVariables_VarExpert_5":
+				initExp5Fn = fn
+			case "allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative":
+				lazyNegAllocFn = fn
+			case "allocIvPooled_InlineVariables_InliningBehavior_AliasInlineRetryHandler":
+				retryAllocFn = fn
+			case "NewInlineVariables_InliningBehavior_AliasInlineRetryHandler":
+				hasRetryCtor = true
+			}
+			continue
+		}
+		if fn.Name.Name == "initFields_InlineVariables_VarExpert" && len(fn.Recv.List) == 1 && len(fn.Recv.List[0].Names) == 1 {
+			initFieldsFn = fn
+		}
+	}
+	if allocExp5Fn == nil || initExp5Fn == nil || initFieldsFn == nil {
+		return 0, nil
+	}
+	if sawSafeAliasesExpertRead && lazyNegAllocFn == nil {
+		return 0, nil
+	}
+	if hasRetryCtor && retryAllocFn == nil {
+		return 0, nil
+	}
+
+	// Verify allocIvPooled_InlineVariables_VarExpert_5 is only called in createVarExpert* / createExpert on behNamed.
+	for _, decl := range ivFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn == allocExp5Fn || fn.Body == nil {
+			continue
+		}
+		if !slabASTContainsIdent(fn.Body, "allocIvPooled_InlineVariables_VarExpert_5") {
+			continue
+		}
+		if fn.Recv == nil || (!strings.HasPrefix(fn.Name.Name, "priv_InliningBehavior_createVarExpert_") && fn.Name.Name != "createExpert") {
+			return 0, nil
+		}
+	}
+
+	allocParams := extractFlatParamNames(allocExp5Fn.Type.Params)
+	initParams := extractFlatParamNames(initExp5Fn.Type.Params)
+	initFieldsRecv := initFieldsFn.Recv.List[0].Names[0].Name
+	if len(allocParams) < 1 || len(initParams) != len(allocParams)+1 || initFieldsRecv == "" || initFieldsRecv == "_" {
+		return 0, nil
+	}
+	behParam := allocParams[0]
+	initSelf := initParams[0]
+	paramRename := make(map[string]string, len(allocParams))
+	for i, ap := range allocParams {
+		if ap == "" || ap == "_" || initParams[i+1] == "" || initParams[i+1] == "_" {
+			return 0, nil
+		}
+		paramRename[initParams[i+1]] = ap
+	}
+
+	extractFieldAssignLines := func(stmts []ast.Stmt, selfName string, allowInitFieldsCall bool, rename map[string]string, written map[string]bool) ([]string, bool) {
+		var lines []string
+		for _, st := range stmts {
+			if isBlankDiscardStmt(st) {
+				continue
+			}
+			if allowInitFieldsCall {
+				if es, isE := st.(*ast.ExprStmt); isE {
+					if c, isC := stripParens(es.X).(*ast.CallExpr); isC && len(c.Args) == 0 {
+						if sel, isS := stripParens(c.Fun).(*ast.SelectorExpr); isS &&
+							isIdentNamed(sel.X, selfName) && sel.Sel != nil && sel.Sel.Name == "initFields_InlineVariables_VarExpert" {
+							continue
+						}
+					}
+				}
+			}
+			as, isA := st.(*ast.AssignStmt)
+			if !isA || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+				return nil, false
+			}
+			sel, isS := stripParens(as.Lhs[0]).(*ast.SelectorExpr)
+			if !isS || !isIdentNamed(sel.X, selfName) || sel.Sel == nil || !plainFieldSet[sel.Sel.Name] {
+				return nil, false
+			}
+			if slabASTContainsIdent(as.Rhs[0], selfName) {
+				return nil, false
+			}
+			rhsCloned, okCl := cloneExprViaParse(ctx.Fset, as.Rhs[0])
+			if !okCl {
+				return nil, false
+			}
+			if len(rename) > 0 {
+				ast.Inspect(rhsCloned, func(n ast.Node) bool {
+					if id, okI := n.(*ast.Ident); okI {
+						if nw, okR := rename[id.Name]; okR {
+							id.Name = nw
+						}
+					}
+					return true
+				})
+			}
+			var rhsBuf bytes.Buffer
+			if err := printer.Fprint(&rhsBuf, ctx.Fset, rhsCloned); err != nil {
+				return nil, false
+			}
+			written[sel.Sel.Name] = true
+			lines = append(lines, fmt.Sprintf("this_.%s = %s", sel.Sel.Name, rhsBuf.String()))
+		}
+		return lines, true
+	}
+
+	writtenFields := make(map[string]bool, len(plainFields))
+	ifLines, okIF := extractFieldAssignLines(initFieldsFn.Body.List, initFieldsRecv, false, nil, writtenFields)
+	if !okIF {
+		return 0, nil
+	}
+	initLines, okIN := extractFieldAssignLines(initExp5Fn.Body.List, initSelf, true, paramRename, writtenFields)
+	if !okIN {
+		return 0, nil
+	}
+
+	var allocLines []string
+	allocLines = append(allocLines, fmt.Sprintf("if %[1]s == nil || %[1]s.outer_ == nil {\n\treturn NewInlineVariables_VarExpert_5(%[2]s)\n}",
+		behParam, strings.Join(allocParams, ", ")))
+	allocLines = append(allocLines, fmt.Sprintf("this_ := &%s.scratchVarExpert_", behParam))
+	for _, pf := range plainFields {
+		if !writtenFields[pf.name] {
+			allocLines = append(allocLines, fmt.Sprintf("this_.%s = %s", pf.name, pf.zeroExpr))
+		}
+	}
+	allocLines = append(allocLines, ifLines...)
+	allocLines = append(allocLines, initLines...)
+	allocLines = append(allocLines, "return this_")
+
+	allocPF, err := parser.ParseFile(ctx.Fset, "", "package p\nfunc f() {\n"+strings.Join(allocLines, "\n")+"\n}\n", 0)
+	if err != nil {
+		return 0, err
+	}
+
+	var copyLines []string
+	for _, pf := range plainFields {
+		copyLines = append(copyLines, fmt.Sprintf("\tdst_.%s = exp_.%s", pf.name, pf.name))
+	}
+	promoteSrc := fmt.Sprintf(`package p
+
+func promoteIvScratchVarExpert_(beh_ *InlineVariables_InliningBehavior, exp_ *InlineVariables_VarExpert) *InlineVariables_VarExpert {
+	if beh_ == nil || beh_.outer_ == nil || exp_ == nil || exp_ != &beh_.scratchVarExpert_ {
+		return exp_
+	}
+	dst_ := beh_.outer_.slab_InlineVariables_VarExpert.Alloc()
+%s
+	return dst_
+}
+`, strings.Join(copyLines, "\n"))
+	promotePF, err := parser.ParseFile(ctx.Fset, "", promoteSrc, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	prependPromote := func(fn *ast.FuncDecl, behIdx, expIdx int) (bool, error) {
+		if fn == nil {
+			return true, nil
+		}
+		pNames := extractFlatParamNames(fn.Type.Params)
+		if len(pNames) <= behIdx || len(pNames) <= expIdx || pNames[behIdx] == "" || pNames[expIdx] == "" {
+			return false, nil
+		}
+		stmtPF, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() {\n%[2]s = promoteIvScratchVarExpert_(%[1]s, %[2]s)\n}\n",
+			pNames[behIdx], pNames[expIdx],
+		), 0)
+		if pErr != nil {
+			return false, pErr
+		}
+		insIdx := 0
+		for insIdx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[insIdx]) {
+			insIdx++
+		}
+		fn.Body.List = slices.Insert(fn.Body.List, insIdx, stmtPF.Decls[0].(*ast.FuncDecl).Body.List...)
+		return true, nil
+	}
+
+	if okL, err := prependPromote(lazyNegAllocFn, 0, 1); err != nil || !okL {
+		return 0, err
+	}
+	if okR, err := prependPromote(retryAllocFn, 0, 2); err != nil || !okR {
+		return 0, err
+	}
+
+	behMeta.structAST.Fields.List = append(behMeta.structAST.Fields.List, &ast.Field{
+		Names: []*ast.Ident{{Name: "scratchVarExpert_"}},
+		Type:  &ast.Ident{Name: "InlineVariables_VarExpert"},
+	})
+	allocExp5Fn.Body.List = allocPF.Decls[0].(*ast.FuncDecl).Body.List
+	if !existingPkgFuncs["promoteIvScratchVarExpert_"] {
+		spliceSynthesizedDecls(ivFile, []funcInsertSpec{{after: allocExp5Fn, decl: promotePF.Decls[0].(*ast.FuncDecl)}})
+		existingPkgFuncs["promoteIvScratchVarExpert_"] = true
+	}
+	ctx.MarkFileModified(ivFile)
+	return 1, nil
+}
+
+func applyWave41MinimizedConditionLazyNodeLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	var mcNamed, mnNamed *types.Named
+	for n := range structByNamed {
+		if n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "MinimizedCondition":
+			mcNamed = n
+		case "MinimizedCondition_MeasuredNode":
+			mnNamed = n
+		}
+	}
+	if mcNamed == nil || mnNamed == nil {
+		return 0, nil
+	}
+	mcMeta := structByNamed[mcNamed]
+	mnMeta := structByNamed[mnNamed]
+	if mcMeta == nil || mnMeta == nil || mcMeta.file != mnMeta.file ||
+		!ctx.ShouldTransform(mcMeta.file) || valueCopied[mnNamed] {
+		return 0, nil
+	}
+	mcFile := mcMeta.file
+	if hasASTFieldNamed(mnMeta.structAST, "lazyTok_") {
+		return 0, nil
+	}
+
+	var rhinoQual string
+	for _, fld := range mnMeta.structAST.Fields.List {
+		for _, nm := range fld.Names {
+			if nm.Name == "node" {
+				if sel, ok := fld.Type.(*ast.SelectorExpr); ok && sel.Sel != nil && sel.Sel.Name == "Node" {
+					if id, okI := sel.X.(*ast.Ident); okI && id.Name != "" {
+						rhinoQual = id.Name
+					}
+				}
+			}
+		}
+	}
+	if rhinoQual == "" {
+		return 0, nil
+	}
+
+	var (
+		allocMNDecl       *ast.FuncDecl
+		mnInitDecl        *ast.FuncDecl
+		addNode3SlabDecl  *ast.FuncDecl
+		computeSlabDecl   *ast.FuncDecl
+		getMinSlabDecl    *ast.FuncDecl
+		isNotDecl         *ast.FuncDecl
+		lowerPrecDecl     *ast.FuncDecl
+		negateSlabDecl    *ast.FuncDecl
+		updateTokSlabDecl *ast.FuncDecl
+		addNotSlabDecl    *ast.FuncDecl
+		changeSlabDecl    *ast.FuncDecl
+		buildReplDecl     *ast.FuncDecl
+	)
+	for _, decl := range mcFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		if fn.Recv == nil {
+			switch fn.Name.Name {
+			case "allocPooled_MinimizedCondition_MeasuredNode":
+				allocMNDecl = fn
+			case "InitMinimizedCondition_MeasuredNode":
+				mnInitDecl = fn
+			case "minimizedConditionMeasuredNodeAddNode3WithSlab_":
+				addNode3SlabDecl = fn
+			case "minimizedConditionComputeWithSlab_":
+				computeSlabDecl = fn
+			}
+			continue
+		}
+		if len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		switch recvStructTypeName(fn.Recv.List[0].Type) {
+		case "MinimizedCondition":
+			if fn.Name.Name == "getMinimizedWithSlab_" {
+				getMinSlabDecl = fn
+			}
+		case "MinimizedCondition_MeasuredNode":
+			switch fn.Name.Name {
+			case "IsNot":
+				isNotDecl = fn
+			case "IsLowerPrecedenceThan":
+				lowerPrecDecl = fn
+			case "negateWithSlab_":
+				negateSlabDecl = fn
+			case "updateTokenWithSlab_":
+				updateTokSlabDecl = fn
+			case "addNotWithSlab_":
+				addNotSlabDecl = fn
+			case "changeWithSlab_":
+				changeSlabDecl = fn
+			case "BuildReplacement":
+				buildReplDecl = fn
+			}
+		}
+	}
+	if allocMNDecl == nil || mnInitDecl == nil || addNode3SlabDecl == nil || computeSlabDecl == nil ||
+		getMinSlabDecl == nil || isNotDecl == nil || negateSlabDecl == nil ||
+		updateTokSlabDecl == nil || addNotSlabDecl == nil || changeSlabDecl == nil || buildReplDecl == nil {
+		return 0, nil
+	}
+
+	// Build allocLazy_MinimizedCondition_MeasuredNode by cloning allocPooled_MinimizedCondition_MeasuredNode.
+	allocLazyDecl, err := cloneFuncDeclFresh(ctx.Fset, allocMNDecl)
+	if err != nil {
+		return 0, err
+	}
+	allocLazyDecl.Name.Name = "allocLazy_MinimizedCondition_MeasuredNode"
+	lazyParams := extractFlatParamNames(allocLazyDecl.Type.Params)
+	if len(lazyParams) != 8 {
+		return 0, nil
+	}
+	// Replace param 1 (`n <rhino>.Node`) with `tok_ <rhino>.Token, srcref_ <rhino>.Node`.
+	flatLazyFields := make([]*ast.Field, 0, 9)
+	paramPos := 0
+	for _, fld := range allocLazyDecl.Type.Params.List {
+		if len(fld.Names) == 0 {
+			return 0, nil
+		}
+		for _, nm := range fld.Names {
+			if paramPos == 1 {
+				flatLazyFields = append(flatLazyFields,
+					&ast.Field{
+						Names: []*ast.Ident{{Name: "tok_"}},
+						Type:  &ast.SelectorExpr{X: &ast.Ident{Name: rhinoQual}, Sel: &ast.Ident{Name: "Token"}},
+					},
+					&ast.Field{
+						Names: []*ast.Ident{{Name: "srcref_"}},
+						Type:  &ast.SelectorExpr{X: &ast.Ident{Name: rhinoQual}, Sel: &ast.Ident{Name: "Node"}},
+					},
+				)
+			} else {
+				cpType, okT := cloneExprViaParse(ctx.Fset, fld.Type)
+				if !okT {
+					return 0, nil
+				}
+				flatLazyFields = append(flatLazyFields, &ast.Field{
+					Names: []*ast.Ident{{Name: nm.Name}},
+					Type:  cpType,
+				})
+			}
+			paramPos++
+		}
+	}
+	allocLazyDecl.Type.Params.List = flatLazyFields
+
+	rewroteLazyInit := false
+	for i, st := range allocLazyDecl.Body.List {
+		es, isE := st.(*ast.ExprStmt)
+		if !isE {
+			continue
+		}
+		c, isC := stripParens(es.X).(*ast.CallExpr)
+		if !isC || !isIdentNamed(c.Fun, "InitMinimizedCondition_MeasuredNode") || len(c.Args) != 8 {
+			continue
+		}
+		selfId, okS := stripParens(c.Args[0]).(*ast.Ident)
+		if !okS || selfId.Name == "" {
+			return 0, nil
+		}
+		c.Args[1] = &ast.BasicLit{Kind: token.INT, Value: "0"}
+		setPF, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() {\n%[1]s.lazyTok_ = tok_\n%[1]s.srcrefNode_ = srcref_\n}\n",
+			selfId.Name,
+		), 0)
+		if pErr != nil {
+			return 0, pErr
+		}
+		allocLazyDecl.Body.List = slices.Insert(allocLazyDecl.Body.List, i+1, setPF.Decls[0].(*ast.FuncDecl).Body.List...)
+		rewroteLazyInit = true
+		break
+	}
+	if !rewroteLazyInit {
+		return 0, nil
+	}
+
+	// Build minimizedConditionMeasuredNodeAddLazyNode3WithSlab_ by cloning minimizedConditionMeasuredNodeAddNode3WithSlab_.
+	addLazy3Decl, err := cloneFuncDeclFresh(ctx.Fset, addNode3SlabDecl)
+	if err != nil {
+		return 0, err
+	}
+	addLazy3Decl.Name.Name = "minimizedConditionMeasuredNodeAddLazyNode3WithSlab_"
+	add3Params := extractFlatParamNames(addLazy3Decl.Type.Params)
+	if len(add3Params) != 4 || add3Params[1] == "" {
+		return 0, nil
+	}
+	parentParam := add3Params[1]
+	flatAdd3Fields := make([]*ast.Field, 0, 5)
+	pIdx := 0
+	for _, fld := range addLazy3Decl.Type.Params.List {
+		for _, nm := range fld.Names {
+			if pIdx == 1 {
+				flatAdd3Fields = append(flatAdd3Fields,
+					&ast.Field{
+						Names: []*ast.Ident{{Name: "compTok_"}},
+						Type:  &ast.SelectorExpr{X: &ast.Ident{Name: rhinoQual}, Sel: &ast.Ident{Name: "Token"}},
+					},
+					&ast.Field{
+						Names: []*ast.Ident{{Name: "srcref_"}},
+						Type:  &ast.SelectorExpr{X: &ast.Ident{Name: rhinoQual}, Sel: &ast.Ident{Name: "Node"}},
+					},
+				)
+			} else {
+				cpType, okT := cloneExprViaParse(ctx.Fset, fld.Type)
+				if !okT {
+					return 0, nil
+				}
+				flatAdd3Fields = append(flatAdd3Fields, &ast.Field{
+					Names: []*ast.Ident{{Name: nm.Name}},
+					Type:  cpType,
+				})
+			}
+			pIdx++
+		}
+	}
+	addLazy3Decl.Type.Params.List = flatAdd3Fields
+	// Remove `_ = <parentParam>` and rewrite `<parentParam>.IsNot()`, `<parentParam>.GetToken()`, and `allocPooled_...` inside addLazy3Decl.
+	filteredAdd3 := make([]ast.Stmt, 0, len(addLazy3Decl.Body.List))
+	for _, st := range addLazy3Decl.Body.List {
+		if as, isA := st.(*ast.AssignStmt); isA && len(as.Lhs) == 1 && len(as.Rhs) == 1 &&
+			isIdentNamed(as.Lhs[0], "_") && isIdentNamed(as.Rhs[0], parentParam) {
+			continue
+		}
+		filteredAdd3 = append(filteredAdd3, st)
+	}
+	addLazy3Decl.Body.List = filteredAdd3
+	parentsAdd3, _ := buildParentMap(addLazy3Decl.Body)
+	rewroteAdd3Ret := false
+	ast.Inspect(addLazy3Decl.Body, func(n ast.Node) bool {
+		call, isC := n.(*ast.CallExpr)
+		if !isC {
+			return true
+		}
+		if sel, isS := stripParens(call.Fun).(*ast.SelectorExpr); isS && isIdentNamed(sel.X, parentParam) && sel.Sel != nil && len(call.Args) == 0 {
+			switch sel.Sel.Name {
+			case "IsNot":
+				eqExpr := &ast.BinaryExpr{
+					X:  &ast.Ident{Name: "compTok_"},
+					Op: token.EQL,
+					Y: &ast.CallExpr{
+						Fun: &ast.SelectorExpr{
+							X:   &ast.Ident{Name: rhinoQual},
+							Sel: &ast.Ident{Name: "StaticGet_Token_NOT"},
+						},
+					},
+				}
+				if par := parentsAdd3[call]; par != nil {
+					replaceExprInParent(par, call, eqExpr, parentsAdd3)
+				}
+				return false
+			case "GetToken":
+				if par := parentsAdd3[call]; par != nil {
+					replaceExprInParent(par, call, &ast.Ident{Name: "compTok_"}, parentsAdd3)
+				}
+				return false
+			}
+		}
+		if isIdentNamed(call.Fun, "allocPooled_MinimizedCondition_MeasuredNode") && len(call.Args) == 8 && isIdentNamed(call.Args[1], parentParam) {
+			rewriteDirectCalleeIdent(call, "allocLazy_MinimizedCondition_MeasuredNode")
+			newArgs := make([]ast.Expr, 0, 9)
+			newArgs = append(newArgs, call.Args[0], &ast.Ident{Name: "compTok_"}, &ast.Ident{Name: "srcref_"})
+			newArgs = append(newArgs, call.Args[2:]...)
+			call.Args = newArgs
+			rewroteAdd3Ret = true
+			return false
+		}
+		return true
+	})
+	if !rewroteAdd3Ret || slabASTContainsIdent(addLazy3Decl.Body, parentParam) {
+		return 0, nil
+	}
+
+	// Verify addNotWithSlab_, updateTokenWithSlab_, and minimizedConditionComputeWithSlab_ match expected NewNode_1(...).Srcref(...) sites before mutating.
+	addNotRecv := addNotSlabDecl.Recv.List[0].Names[0].Name
+	addNotRetIdx := len(addNotSlabDecl.Body.List) - 1
+	if addNotRetIdx < 0 {
+		return 0, nil
+	}
+	addNotRet, okANR := addNotSlabDecl.Body.List[addNotRetIdx].(*ast.ReturnStmt)
+	if !okANR || len(addNotRet.Results) != 1 {
+		return 0, nil
+	}
+	addNotAllocCall, okANC := stripParens(addNotRet.Results[0]).(*ast.CallExpr)
+	if !okANC || !isIdentNamed(addNotAllocCall.Fun, "allocPooled_MinimizedCondition_MeasuredNode") || len(addNotAllocCall.Args) != 8 {
+		return 0, nil
+	}
+	addNotTokExpr, addNotSrcrefArg, okANS := w41MatchNewNode1Srcref(addNotAllocCall.Args[1], rhinoQual)
+	if !okANS || !w41IsRecvFieldSel(addNotSrcrefArg, addNotRecv, "node") {
+		return 0, nil
+	}
+
+	updRecv := updateTokSlabDecl.Recv.List[0].Names[0].Name
+	updParams := extractFlatParamNames(updateTokSlabDecl.Type.Params)
+	if len(updParams) != 2 || updParams[1] == "" {
+		return 0, nil
+	}
+	updTokParam := updParams[1]
+	updDeclIdx := -1
+	var updNewNodeVar string
+	for i, st := range updateTokSlabDecl.Body.List {
+		vName, rhs, okV := w41ExtractSingleVarInit(st)
+		if !okV {
+			continue
+		}
+		tokE, srcE, okM := w41MatchNewNode1Srcref(rhs, rhinoQual)
+		if okM && isIdentNamed(tokE, updTokParam) && w41IsRecvFieldSel(srcE, updRecv, "node") {
+			updDeclIdx = i
+			updNewNodeVar = vName
+			break
+		}
+	}
+	if updDeclIdx < 0 || updNewNodeVar == "" {
+		return 0, nil
+	}
+
+	compParams := extractFlatParamNames(computeSlabDecl.Type.Params)
+	if len(compParams) != 3 || compParams[2] == "" {
+		return 0, nil
+	}
+	compNodeParam := compParams[2]
+	var compTargetCase *ast.CaseClause
+	compDeclIdx := -1
+	var compNodeVar string
+	var compTokExpr ast.Expr
+	ast.Inspect(computeSlabDecl.Body, func(n ast.Node) bool {
+		if compTargetCase != nil || n == nil {
+			return false
+		}
+		cc, isCC := n.(*ast.CaseClause)
+		if !isCC {
+			return true
+		}
+		for i, st := range cc.Body {
+			vName, rhs, okV := w41ExtractSingleVarInit(st)
+			if !okV {
+				continue
+			}
+			tokE, srcE, okM := w41MatchNewNode1Srcref(rhs, rhinoQual)
+			if okM && isIdentNamed(srcE, compNodeParam) {
+				compTargetCase = cc
+				compDeclIdx = i
+				compNodeVar = vName
+				compTokExpr = tokE
+				return false
+			}
+		}
+		return true
+	})
+	if compTargetCase == nil || compDeclIdx < 0 || compNodeVar == "" || compTokExpr == nil {
+		return 0, nil
+	}
+
+	// All preconditions verified! Now apply the AST transformations cleanly.
+	mnMeta.structAST.Fields.List = append(mnMeta.structAST.Fields.List,
+		&ast.Field{
+			Names: []*ast.Ident{{Name: "lazyTok_"}},
+			Type:  &ast.SelectorExpr{X: &ast.Ident{Name: rhinoQual}, Sel: &ast.Ident{Name: "Token"}},
+		},
+		&ast.Field{
+			Names: []*ast.Ident{{Name: "srcrefNode_"}},
+			Type:  &ast.SelectorExpr{X: &ast.Ident{Name: rhinoQual}, Sel: &ast.Ident{Name: "Node"}},
+		},
+	)
+
+	// 1. InitMinimizedCondition_MeasuredNode: zero lazyTok_ & srcrefNode_.
+	mnInitParams := extractFlatParamNames(mnInitDecl.Type.Params)
+	if len(mnInitParams) >= 1 && mnInitParams[0] != "" {
+		pfI, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() {\n%[1]s.lazyTok_ = 0\n%[1]s.srcrefNode_ = 0\n}\n",
+			mnInitParams[0],
+		), 0)
+		if pErr != nil {
+			return 0, pErr
+		}
+		mnInitDecl.Body.List = append(mnInitDecl.Body.List, pfI.Decls[0].(*ast.FuncDecl).Body.List...)
+	}
+
+	// 2. IsNot(): check lazyTok_ != 0.
+	isNotRecv := isNotDecl.Recv.List[0].Names[0].Name
+	pfIsNot, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+		"package p\nfunc f() bool {\nif %[1]s.lazyTok_ != 0 {\n\treturn %[1]s.lazyTok_ == %[2]s.StaticGet_Token_NOT()\n}\n}\n",
+		isNotRecv, rhinoQual,
+	), 0)
+	if err != nil {
+		return 0, err
+	}
+	isNotDecl.Body.List = append(pfIsNot.Decls[0].(*ast.FuncDecl).Body.List, isNotDecl.Body.List...)
+
+	// 3. IsLowerPrecedenceThan (if present): check lazyTok_ != 0.
+	if lowerPrecDecl != nil {
+		lpRecv := lowerPrecDecl.Recv.List[0].Names[0].Name
+		lpParams := extractFlatParamNames(lowerPrecDecl.Type.Params)
+		if len(lpParams) == 1 && lpParams[0] != "" {
+			pfLP, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+				"package p\nfunc f() bool {\nif %[1]s.lazyTok_ != 0 {\n\treturn NodeUtil_Precedence(%[1]s.lazyTok_) < %[2]s\n}\n}\n",
+				lpRecv, lpParams[0],
+			), 0)
+			if pErr != nil {
+				return 0, pErr
+			}
+			insIdx := 0
+			for insIdx < len(lowerPrecDecl.Body.List) && isBlankDiscardStmt(lowerPrecDecl.Body.List[insIdx]) {
+				insIdx++
+			}
+			lowerPrecDecl.Body.List = slices.Insert(lowerPrecDecl.Body.List, insIdx, pfLP.Decls[0].(*ast.FuncDecl).Body.List...)
+		}
+	}
+
+	// 4. getMinimizedWithSlab_: rewrite `<recv>.positive.node.IsNot()` -> `<recv>.positive.IsNot()`.
+	getMinRecv := getMinSlabDecl.Recv.List[0].Names[0].Name
+	ast.Inspect(getMinSlabDecl.Body, func(n ast.Node) bool {
+		sel, isS := n.(*ast.SelectorExpr)
+		if !isS || sel.Sel == nil || sel.Sel.Name != "IsNot" {
+			return true
+		}
+		nodeSel, isNS := stripParens(sel.X).(*ast.SelectorExpr)
+		if isNS && nodeSel.Sel != nil && nodeSel.Sel.Name == "node" && w41IsRecvFieldSel(nodeSel.X, getMinRecv, "positive") {
+			sel.X = nodeSel.X
+		}
+		return true
+	})
+
+	// 5. negateWithSlab_: support both `this_.node.IsNot()` and `switch this_.node.TokenSwitchOrd_()`.
+	negRecv := negateSlabDecl.Recv.List[0].Names[0].Name
+	ast.Inspect(negateSlabDecl.Body, func(n ast.Node) bool {
+		sel, isS := n.(*ast.SelectorExpr)
+		if isS && sel.Sel != nil && sel.Sel.Name == "IsNot" && w41IsRecvFieldSel(sel.X, negRecv, "node") {
+			sel.X = &ast.Ident{Name: negRecv}
+		}
+		return true
+	})
+	for i, st := range negateSlabDecl.Body.List {
+		sw, isSW := st.(*ast.SwitchStmt)
+		if !isSW || sw.Init != nil || sw.Tag == nil {
+			continue
+		}
+		tagCall, isC := stripParens(sw.Tag).(*ast.CallExpr)
+		if !isC || len(tagCall.Args) != 0 {
+			continue
+		}
+		tagSel, isS := stripParens(tagCall.Fun).(*ast.SelectorExpr)
+		if isS && tagSel.Sel != nil && tagSel.Sel.Name == "TokenSwitchOrd_" && w41IsRecvFieldSel(tagSel.X, negRecv, "node") {
+			pfOrd, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+				"package p\nfunc f() {\nvar ord_ int32\nif %[1]s.lazyTok_ != 0 {\n\tord_ = int32(%[1]s.lazyTok_) - 1\n} else {\n\tord_ = %[1]s.node.TokenSwitchOrd_()\n}\n}\n",
+				negRecv,
+			), 0)
+			if pErr != nil {
+				return 0, pErr
+			}
+			sw.Tag = &ast.Ident{Name: "ord_"}
+			negateSlabDecl.Body.List = slices.Insert(negateSlabDecl.Body.List, i, pfOrd.Decls[0].(*ast.FuncDecl).Body.List...)
+			break
+		}
+	}
+
+	// 6. changeWithSlab_: preserve lazyTok_ & srcrefNode_ when cloning an unchanged lazy node.
+	chgRecv := changeSlabDecl.Recv.List[0].Names[0].Name
+	chgParams := extractFlatParamNames(changeSlabDecl.Type.Params)
+	if len(chgParams) >= 1 && chgParams[0] != "" {
+		pfChg, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() *MinimizedCondition_MeasuredNode {\nif %[1]s.IsChanged() {\n\treturn %[1]s\n}\nif %[1]s.lazyTok_ != 0 {\n\treturn allocLazy_MinimizedCondition_MeasuredNode(%[2]s, %[1]s.lazyTok_, %[1]s.srcrefNode_, %[1]s.childCount, %[1]s.c0, %[1]s.c1, %[1]s.c2, %[1]s.length, true)\n}\nreturn allocPooled_MinimizedCondition_MeasuredNode(%[2]s, %[1]s.node, %[1]s.childCount, %[1]s.c0, %[1]s.c1, %[1]s.c2, %[1]s.length, true)\n}\n",
+			chgRecv, chgParams[0],
+		), 0)
+		if pErr != nil {
+			return 0, pErr
+		}
+		changeSlabDecl.Body.List = pfChg.Decls[0].(*ast.FuncDecl).Body.List
+	}
+
+	// 7. addNotWithSlab_: handle direct `<recv>.node.GetToken()` if present, and replace final return with allocLazy_.
+	parentsAN, _ := buildParentMap(addNotSlabDecl.Body)
+	usedDirectGetTok := false
+	ast.Inspect(addNotSlabDecl.Body, func(n ast.Node) bool {
+		call, isC := n.(*ast.CallExpr)
+		if !isC || len(call.Args) != 0 {
+			return true
+		}
+		sel, isS := stripParens(call.Fun).(*ast.SelectorExpr)
+		if isS && sel.Sel != nil && sel.Sel.Name == "GetToken" && w41IsRecvFieldSel(sel.X, addNotRecv, "node") {
+			if par := parentsAN[call]; par != nil {
+				replaceExprInParent(par, call, &ast.Ident{Name: "curTok_"}, parentsAN)
+				usedDirectGetTok = true
+			}
+		}
+		return true
+	})
+	if usedDirectGetTok {
+		pfCurTok, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+			"package p\nfunc f() {\ncurTok_ := %[1]s.lazyTok_\nif curTok_ == 0 {\n\tcurTok_ = %[1]s.node.GetToken()\n}\n}\n",
+			addNotRecv,
+		), 0)
+		if pErr != nil {
+			return 0, pErr
+		}
+		addNotSlabDecl.Body.List = append(pfCurTok.Decls[0].(*ast.FuncDecl).Body.List, addNotSlabDecl.Body.List...)
+		addNotRetIdx = len(addNotSlabDecl.Body.List) - 1
+	}
+	rewriteDirectCalleeIdent(addNotAllocCall, "allocLazy_MinimizedCondition_MeasuredNode")
+	newANArgs := make([]ast.Expr, 0, 9)
+	newANArgs = append(newANArgs, addNotAllocCall.Args[0], addNotTokExpr, &ast.Ident{Name: "src_"})
+	newANArgs = append(newANArgs, addNotAllocCall.Args[2:]...)
+	addNotAllocCall.Args = newANArgs
+	pfANSrc, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+		"package p\nfunc f() {\nsrc_ := %[1]s.node\nif src_ == 0 {\n\tsrc_ = %[1]s.srcrefNode_\n}\n}\n",
+		addNotRecv,
+	), 0)
+	if err != nil {
+		return 0, err
+	}
+	addNotSlabDecl.Body.List = slices.Insert(addNotSlabDecl.Body.List, addNotRetIdx, pfANSrc.Decls[0].(*ast.FuncDecl).Body.List...)
+
+	// 8. updateTokenWithSlab_: replace `newNode` allocation with `src_` and rewrite `allocPooled_` -> `allocLazy_`.
+	pfUpdSrc, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+		"package p\nfunc f() {\nsrc_ := %[1]s.node\nif src_ == 0 {\n\tsrc_ = %[1]s.srcrefNode_\n}\n}\n",
+		updRecv,
+	), 0)
+	if err != nil {
+		return 0, err
+	}
+	updEnd := updDeclIdx + 1
+	if updEnd < len(updateTokSlabDecl.Body.List) {
+		if as, isA := updateTokSlabDecl.Body.List[updEnd].(*ast.AssignStmt); isA && len(as.Lhs) == 1 && len(as.Rhs) == 1 &&
+			isIdentNamed(as.Lhs[0], "_") && isIdentNamed(as.Rhs[0], updNewNodeVar) {
+			updEnd++
+		}
+	}
+	updateTokSlabDecl.Body.List = slices.Replace(updateTokSlabDecl.Body.List, updDeclIdx, updEnd, pfUpdSrc.Decls[0].(*ast.FuncDecl).Body.List...)
+	for i := 0; i < len(updateTokSlabDecl.Body.List); i++ {
+		fName, fRhs, okF := w41ExtractSingleVarInit(updateTokSlabDecl.Body.List[i])
+		if !okF {
+			continue
+		}
+		fCall, isFC := stripParens(fRhs).(*ast.CallExpr)
+		if !isFC || len(fCall.Args) != 0 {
+			continue
+		}
+		fSel, isFS := stripParens(fCall.Fun).(*ast.SelectorExpr)
+		if isFS && fSel.Sel != nil && fSel.Sel.Name == "GetFirstChild" && w41IsRecvFieldSel(fSel.X, updRecv, "node") {
+			pfFirst, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+				"package p\nfunc f() {\nvar %[1]s %[2]s.Node\nif %[3]s.node != 0 {\n\t%[1]s = %[3]s.node.GetFirstChild()\n}\n}\n",
+				fName, rhinoQual, updRecv,
+			), 0)
+			if pErr != nil {
+				return 0, pErr
+			}
+			updateTokSlabDecl.Body.List = slices.Replace(updateTokSlabDecl.Body.List, i, i+1, pfFirst.Decls[0].(*ast.FuncDecl).Body.List...)
+			break
+		}
+	}
+	ast.Inspect(updateTokSlabDecl.Body, func(n ast.Node) bool {
+		call, isC := n.(*ast.CallExpr)
+		if isC && isIdentNamed(call.Fun, "allocPooled_MinimizedCondition_MeasuredNode") && len(call.Args) == 8 && isIdentNamed(call.Args[1], updNewNodeVar) {
+			rewriteDirectCalleeIdent(call, "allocLazy_MinimizedCondition_MeasuredNode")
+			newArgs := make([]ast.Expr, 0, 9)
+			newArgs = append(newArgs, call.Args[0], &ast.Ident{Name: updTokParam}, &ast.Ident{Name: "src_"})
+			newArgs = append(newArgs, call.Args[2:]...)
+			call.Args = newArgs
+		}
+		return true
+	})
+
+	// 9. minimizedConditionComputeWithSlab_: rewrite complementNode + AddNode3WithSlab_ -> compLazyTok_ + AddLazyNode3WithSlab_.
+	compTokStmt := &ast.AssignStmt{
+		Lhs: []ast.Expr{&ast.Ident{Name: "compLazyTok_"}},
+		Tok: token.DEFINE,
+		Rhs: []ast.Expr{compTokExpr},
+	}
+	compEnd := compDeclIdx + 1
+	if compEnd < len(compTargetCase.Body) {
+		if as, isA := compTargetCase.Body[compEnd].(*ast.AssignStmt); isA && len(as.Lhs) == 1 && len(as.Rhs) == 1 &&
+			isIdentNamed(as.Lhs[0], "_") && isIdentNamed(as.Rhs[0], compNodeVar) {
+			compEnd++
+		}
+	}
+	compTargetCase.Body = slices.Replace(compTargetCase.Body, compDeclIdx, compEnd, ast.Stmt(compTokStmt))
+	for _, st := range compTargetCase.Body {
+		ast.Inspect(st, func(n ast.Node) bool {
+			call, isC := n.(*ast.CallExpr)
+			if isC && isIdentNamed(call.Fun, "minimizedConditionMeasuredNodeAddNode3WithSlab_") && len(call.Args) == 4 && isIdentNamed(call.Args[1], compNodeVar) {
+				rewriteDirectCalleeIdent(call, "minimizedConditionMeasuredNodeAddLazyNode3WithSlab_")
+				call.Args = []ast.Expr{
+					call.Args[0],
+					&ast.Ident{Name: "compLazyTok_"},
+					&ast.Ident{Name: compNodeParam},
+					call.Args[2],
+					call.Args[3],
+				}
+			}
+			return true
+		})
+	}
+
+	// 10. BuildReplacement: materialize lazyTok_ + srcrefNode_ on demand when building winning AST replacement.
+	brRecv := buildReplDecl.Recv.List[0].Names[0].Name
+	pfBR, err := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+		"package p\nfunc f() {\nif %[1]s.node == 0 && %[1]s.lazyTok_ != 0 {\n\t%[1]s.node = %[2]s.NewNode_1(%[1]s.lazyTok_).Srcref(%[1]s.srcrefNode_)\n\t%[1]s.lazyTok_ = 0\n}\n}\n",
+		brRecv, rhinoQual,
+	), 0)
+	if err != nil {
+		return 0, err
+	}
+	buildReplDecl.Body.List = append(pfBR.Decls[0].(*ast.FuncDecl).Body.List, buildReplDecl.Body.List...)
+
+	var specs []funcInsertSpec
+	if !existingPkgFuncs["allocLazy_MinimizedCondition_MeasuredNode"] {
+		specs = append(specs, funcInsertSpec{after: allocMNDecl, decl: allocLazyDecl})
+		existingPkgFuncs["allocLazy_MinimizedCondition_MeasuredNode"] = true
+	}
+	if !existingPkgFuncs["minimizedConditionMeasuredNodeAddLazyNode3WithSlab_"] {
+		specs = append(specs, funcInsertSpec{after: addNode3SlabDecl, decl: addLazy3Decl})
+		existingPkgFuncs["minimizedConditionMeasuredNodeAddLazyNode3WithSlab_"] = true
+	}
+	if len(specs) > 0 {
+		spliceSynthesizedDecls(mcFile, specs)
+	}
+	ctx.MarkFileModified(mcFile)
+	return 1, nil
+}
+
+func w41MatchNewNode1Srcref(expr ast.Expr, rhinoQual string) (tokExpr ast.Expr, srcrefArg ast.Expr, ok bool) {
+	srcrefCall, isC := stripParens(expr).(*ast.CallExpr)
+	if !isC || len(srcrefCall.Args) != 1 || srcrefCall.Ellipsis.IsValid() {
+		return nil, nil, false
+	}
+	srcrefSel, isS := stripParens(srcrefCall.Fun).(*ast.SelectorExpr)
+	if !isS || srcrefSel.Sel == nil || srcrefSel.Sel.Name != "Srcref" {
+		return nil, nil, false
+	}
+	nnCall, isNN := stripParens(srcrefSel.X).(*ast.CallExpr)
+	if !isNN || len(nnCall.Args) != 1 || nnCall.Ellipsis.IsValid() {
+		return nil, nil, false
+	}
+	nnSel, isNS := stripParens(nnCall.Fun).(*ast.SelectorExpr)
+	if !isNS || nnSel.Sel == nil || nnSel.Sel.Name != "NewNode_1" || !isIdentNamed(nnSel.X, rhinoQual) {
+		return nil, nil, false
+	}
+	return nnCall.Args[0], srcrefCall.Args[0], true
+}
+
+func w41IsRecvFieldSel(expr ast.Expr, recvName, fieldName string) bool {
+	sel, ok := stripParens(expr).(*ast.SelectorExpr)
+	return ok && sel.Sel != nil && sel.Sel.Name == fieldName && isIdentNamed(sel.X, recvName)
+}
+
+func w41ExtractSingleVarInit(stmt ast.Stmt) (string, ast.Expr, bool) {
+	switch s := stmt.(type) {
+	case *ast.DeclStmt:
+		gd, ok := s.Decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+			return "", nil, false
+		}
+		vs, ok := gd.Specs[0].(*ast.ValueSpec)
+		if !ok || len(vs.Names) != 1 || len(vs.Values) != 1 || vs.Names[0].Name == "" || vs.Names[0].Name == "_" {
+			return "", nil, false
+		}
+		return vs.Names[0].Name, vs.Values[0], true
+	case *ast.AssignStmt:
+		if s.Tok != token.DEFINE || len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+			return "", nil, false
+		}
+		id, ok := s.Lhs[0].(*ast.Ident)
+		if !ok || id.Name == "" || id.Name == "_" {
+			return "", nil, false
+		}
+		return id.Name, s.Rhs[0], true
+	}
+	return "", nil, false
 }

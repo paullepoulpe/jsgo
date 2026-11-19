@@ -618,7 +618,8 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatement) AddNonDeclarationRe
 			rest = make([]*Reference, int32(8))
 			this_.nonDeclRefsRest = rest
 		} else if idx == int32(len(rest)) {
-			rest = func() []*Reference {
+			{
+
 				arrSrc_26 := rest
 				arrLen_27 := (idx * int32(2))
 				j2gort.CheckNotNullSlice(arrSrc_26)
@@ -627,8 +628,9 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatement) AddNonDeclarationRe
 				}
 				arrOut_28 := make([]*Reference, arrLen_27)
 				copy(arrOut_28, arrSrc_26)
-				return arrOut_28
-			}()
+				rest = arrOut_28
+			}
+
 			this_.nonDeclRefsRest = rest
 		}
 		{

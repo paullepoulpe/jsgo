@@ -1,0 +1,878 @@
+diff --git a/com/google/javascript/jscomp/InlineAndCollapseProperties.java b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+index ae69b0bb..8a2e795b 100644
+--- a/com/google/javascript/jscomp/InlineAndCollapseProperties.java
++++ b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+@@ -1624,21 +1624,27 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * @param alias The flattened name (e.g. "a$b" or "a$b$c$d")
+      */
+     private final StringBuilder prefixOriginalNameBuf = new StringBuilder(64);
++    private int currentPrefixOrigNameId = 0;
+ 
+     private void flattenSingleDirectRef(
+-        Name n, Ref r, @Nullable Ref decl, String alias, String originalName, boolean isConstantName) {
+-      if (r == decl) {
+-        // Declarations are handled separately.
+-        return;
+-      }
++        Ref r,
++        String alias,
++        int aliasId,
++        String originalName,
++        int origNameId,
++        boolean isConstantName) {
+       Node rNode = r.getNode();
+       Node rParent = rNode.getParent();
+       // We shouldn't flatten a reference that's an object literal key, because duplicate keys
+       // show up as refs.
+       if (!NodeUtil.mayBeObjectLitKey(rNode)) {
+-        flattenNameRef(alias, rNode, rParent, originalName, isConstantName);
++        flattenNameRef(alias, aliasId, rNode, rParent, originalName, origNameId, isConstantName);
+       } else if (rNode.isStringKey() && rParent.isObjectPattern()) {
+-        Node newNode = IR.name(alias).srcref(rNode);
++        Node newNode =
++            (aliasId != 0
++                    ? RhinoStringPool.newStringNodeById(Token.NAME, aliasId)
++                    : IR.name(alias))
++                .srcref(rNode);
+         NodeUtil.copyNameAnnotations(rNode, newNode);
+         DestructuringGlobalNameExtractor.reassignDestructringLvalue(
+             rNode, newNode, null, r, compiler);
+@@ -1648,28 +1654,49 @@ class InlineAndCollapseProperties implements CompilerPass {
+     private void flattenReferencesTo(Name n, String alias) {
+       String originalName = n.getFullName();
+       Ref decl = n.getDeclaration();
++      Node declNode = decl != null ? decl.getNode() : null;
+       boolean isConstantName =
+-          shouldAddConstantName(decl != null ? decl.getNode() : null, alias);
++          declNode != null
++              ? shouldAddConstantName(declNode, alias)
++              : compiler.getCodingConvention().isConstant(alias);
++      int aliasId = RhinoStringPool.internOwnedId(alias);
++      if (aliasId != 0) {
++        checkState(
++            alias.indexOf('.') == -1,
++            "Invalid name '%s'. Did you mean to use NodeUtil.newQName?",
++            alias);
++      }
+       if (n.hasInlineRefs()) {
+         Ref r0 = n.inlineRef0();
+         Ref r1 = n.inlineRef1();
+-        Ref r2 = n.inlineRef2();
+-        Ref r3 = n.inlineRef3();
+-        if (r0 != null) {
+-          flattenSingleDirectRef(n, r0, decl, alias, originalName, isConstantName);
+-        }
+-        if (r1 != null) {
+-          flattenSingleDirectRef(n, r1, decl, alias, originalName, isConstantName);
+-        }
+-        if (r2 != null) {
+-          flattenSingleDirectRef(n, r2, decl, alias, originalName, isConstantName);
+-        }
+-        if (r3 != null) {
+-          flattenSingleDirectRef(n, r3, decl, alias, originalName, isConstantName);
++        if ((r0 != null && r0 != decl) || r1 != null) {
++          int origNameId = aliasId != 0 ? RhinoStringPool.internOwnedId(originalName) : 0;
++          Ref r2 = n.inlineRef2();
++          Ref r3 = n.inlineRef3();
++          if (r0 != null && r0 != decl) {
++            flattenSingleDirectRef(
++                r0, alias, aliasId, originalName, origNameId, isConstantName);
++          }
++          if (r1 != null && r1 != decl) {
++            flattenSingleDirectRef(
++                r1, alias, aliasId, originalName, origNameId, isConstantName);
++          }
++          if (r2 != null && r2 != decl) {
++            flattenSingleDirectRef(
++                r2, alias, aliasId, originalName, origNameId, isConstantName);
++          }
++          if (r3 != null && r3 != decl) {
++            flattenSingleDirectRef(
++                r3, alias, aliasId, originalName, origNameId, isConstantName);
++          }
+         }
+       } else {
++        int origNameId = aliasId != 0 ? RhinoStringPool.internOwnedId(originalName) : 0;
+         for (Ref r : n.getRefs()) {
+-          flattenSingleDirectRef(n, r, decl, alias, originalName, isConstantName);
++          if (r != decl) {
++            flattenSingleDirectRef(
++                r, alias, aliasId, originalName, origNameId, isConstantName);
++          }
+         }
+       }
+ 
+@@ -1684,7 +1711,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+         for (int i = 0, size = n.getPropCount(); i < size; i++) {
+           Name p = n.getPropAt(i);
+           prefixBuf.append(p.getBaseName());
+-          flattenPrefixes(alias, prefixBuf, p, 1, isConstantName);
++          flattenPrefixes(alias, aliasId, prefixBuf, p, 1, isConstantName);
+           prefixBuf.setLength(baseLen);
+         }
+       }
+@@ -1701,15 +1728,27 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * @param depth The difference in depth between the property name and the prefix name (e.g. 2)
+      */
+     private void flattenPrefixes(
+-        String alias, StringBuilder prefixBuf, Name n, int depth, boolean isConstantName) {
++        String alias,
++        int aliasId,
++        StringBuilder prefixBuf,
++        Name n,
++        int depth,
++        boolean isConstantName) {
+       // Only flatten the prefix of a name declaration if the name being
+       // initialized is fully qualified (i.e. not an object literal key).
+       String materializedOriginalName = null;
++      this.currentPrefixOrigNameId = 0;
+       Ref decl = n.getDeclaration();
+       if (decl != null && decl.getNode() != null && decl.getNode().isGetProp()) {
+         materializedOriginalName =
+             flattenNameRefAtDepth(
+-                alias, decl.getNode(), depth, prefixBuf, materializedOriginalName, isConstantName);
++                alias,
++                aliasId,
++                decl.getNode(),
++                depth,
++                prefixBuf,
++                materializedOriginalName,
++                isConstantName);
+       }
+ 
+       if (n.hasInlineRefs()) {
+@@ -1719,6 +1758,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+             materializedOriginalName =
+                 flattenNameRefAtDepth(
+                     alias,
++                    aliasId,
+                     r0.getNode(),
+                     depth,
+                     prefixBuf,
+@@ -1731,6 +1771,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+               materializedOriginalName =
+                   flattenNameRefAtDepth(
+                       alias,
++                      aliasId,
+                       r1.getNode(),
+                       depth,
+                       prefixBuf,
+@@ -1743,6 +1784,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+                 materializedOriginalName =
+                     flattenNameRefAtDepth(
+                         alias,
++                        aliasId,
+                         r2.getNode(),
+                         depth,
+                         prefixBuf,
+@@ -1754,6 +1796,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+                 materializedOriginalName =
+                     flattenNameRefAtDepth(
+                         alias,
++                        aliasId,
+                         r3.getNode(),
+                         depth,
+                         prefixBuf,
+@@ -1772,7 +1815,13 @@ class InlineAndCollapseProperties implements CompilerPass {
+ 
+           materializedOriginalName =
+               flattenNameRefAtDepth(
+-                  alias, r.getNode(), depth, prefixBuf, materializedOriginalName, isConstantName);
++                  alias,
++                  aliasId,
++                  r.getNode(),
++                  depth,
++                  prefixBuf,
++                  materializedOriginalName,
++                  isConstantName);
+         }
+       }
+ 
+@@ -1781,7 +1830,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+         for (int i = 0, size = n.getPropCount(); i < size; i++) {
+           Name p = n.getPropAt(i);
+           prefixBuf.append(p.getBaseName());
+-          flattenPrefixes(alias, prefixBuf, p, depth + 1, isConstantName);
++          flattenPrefixes(alias, aliasId, prefixBuf, p, depth + 1, isConstantName);
+           prefixBuf.setLength(prevLen);
+         }
+       }
+@@ -1796,6 +1845,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+      */
+     private @Nullable String flattenNameRefAtDepth(
+         String alias,
++        int aliasId,
+         Node n,
+         int depth,
+         StringBuilder prefixBuf,
+@@ -1813,10 +1863,22 @@ class InlineAndCollapseProperties implements CompilerPass {
+           n = n.getFirstChild();
+         }
+         if (n.isGetProp() && n.getFirstChild().isGetProp()) {
++          int origNameId = this.currentPrefixOrigNameId;
+           if (materializedOriginalName == null) {
+             materializedOriginalName = prefixBuf.toString();
++            if (aliasId != 0) {
++              origNameId = RhinoStringPool.internOwnedId(materializedOriginalName);
++              this.currentPrefixOrigNameId = origNameId;
++            }
+           }
+-          flattenNameRef(alias, n.getFirstChild(), n, materializedOriginalName, isConstantName);
++          flattenNameRef(
++              alias,
++              aliasId,
++              n.getFirstChild(),
++              n,
++              materializedOriginalName,
++              origNameId,
++              isConstantName);
+         }
+       }
+       return materializedOriginalName;
+@@ -1832,7 +1894,13 @@ class InlineAndCollapseProperties implements CompilerPass {
+      * @param isConstantName whether to annotate with {@link Node#IS_CONSTANT_NAME}
+      */
+     private void flattenNameRef(
+-        String alias, Node n, Node parent, String originalName, boolean isConstantName) {
++        String alias,
++        int aliasId,
++        Node n,
++        Node parent,
++        String originalName,
++        int origNameId,
++        boolean isConstantName) {
+       Preconditions.checkArgument(
+           n.isGetProp(), "Expected GETPROP, found %s. Node: %s", n.getToken(), n);
+ 
+@@ -1844,10 +1912,16 @@ class InlineAndCollapseProperties implements CompilerPass {
+       //     string c
+       // AFTER:
+       //   name a$b$c
+-      Node ref = NodeUtil.newName(compiler, alias, n, originalName).copyTypeFrom(n);
+-      NodeUtil.copyNameAnnotations(n, ref);
+-      if (isConstantName) {
+-        ref.putBooleanProp(Node.IS_CONSTANT_NAME, isConstantName);
++      final Node ref;
++      if (aliasId != 0) {
++        ref = RhinoStringPool.newStringNodeById(Token.NAME, aliasId).srcrefNoOrigName(n);
++        RhinoStringPool.setNodeOrigNameId(ref, origNameId);
++        ref.copyTypeFrom(n);
++      } else {
++        ref = NodeUtil.newName(compiler, alias, n, originalName).copyTypeFrom(n);
++      }
++      if (isConstantName || n.getBooleanProp(Node.IS_CONSTANT_NAME)) {
++        ref.putBooleanProp(Node.IS_CONSTANT_NAME, true);
+       }
+       if (NodeUtil.isNormalOrOptChainCall(parent) && n.isFirstChildOf(parent)) {
+         // The node was a call target. We are deliberately flattening these as
+@@ -2101,7 +2175,7 @@ class InlineAndCollapseProperties implements CompilerPass {
+         rvalue.detach();
+ 
+         Node nameNode =
+-            NodeUtil.newName(compiler, alias, ref.getNode().getAncestor(2), n.getFullName());
++            NodeUtil.newName(compiler, alias, grandparent, n.getFullName());
+ 
+         nameNode.putBooleanProp(Node.IS_CONSTANT_NAME, shouldAddConstantName(ref.getNode(), alias));
+ 
+diff --git a/com/google/javascript/jscomp/NodeUtil.java b/com/google/javascript/jscomp/NodeUtil.java
+index fe16ab58..cc24f45b 100644
+--- a/com/google/javascript/jscomp/NodeUtil.java
++++ b/com/google/javascript/jscomp/NodeUtil.java
+@@ -3746,15 +3746,20 @@ public final class NodeUtil {
+     return qName.substring(0, dot);
+   }
+ 
+-  private static Node newName(CodingConvention convention, String name) {
++  private static Node newNameWithoutLength(CodingConvention convention, String name) {
+     Node nameNode = IR.name(name);
+-    nameNode.setLength(name.length());
+     if (convention.isConstant(name)) {
+       nameNode.putBooleanProp(Node.IS_CONSTANT_NAME, true);
+     }
+     return nameNode;
+   }
+ 
++  private static Node newName(CodingConvention convention, String name) {
++    Node nameNode = newNameWithoutLength(convention, name);
++    nameNode.setLength(name.length());
++    return nameNode;
++  }
++
+   /**
+    * Creates a new node representing an *existing* name, copying over the source location
+    * information from the basis node.
+@@ -3768,7 +3773,7 @@ public final class NodeUtil {
+   }
+ 
+   static Node newName(CodingConvention convention, String name, Node srcref) {
+-    return newName(convention, name).srcref(srcref);
++    return newNameWithoutLength(convention, name).srcref(srcref);
+   }
+ 
+   /**
+@@ -3787,7 +3792,7 @@ public final class NodeUtil {
+ 
+   static Node newName(
+       CodingConvention convention, String name, Node basisNode, String originalName) {
+-    Node nameNode = newName(convention, name, basisNode);
++    Node nameNode = newNameWithoutLength(convention, name).srcrefNoOrigName(basisNode);
+     nameNode.setOriginalName(originalName);
+     return nameNode;
+   }
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index d8eab04e..20429503 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -1330,95 +1330,99 @@ class TypeValidator implements Serializable {
+   }
+ 
+   private boolean checkWellFormedTemplatizedType(Node node, JSType type, int kind) {
+-    boolean ok =
+-        switch (kind) {
+-          case JSType.KIND_FUNCTION -> {
+-            FunctionType fn = (FunctionType) type;
+-            FunctionType.Parameter[] params = fn.getParameterArray();
+-            boolean paramsOk = true;
+-            for (int i = 0, len = params.length; i < len; i++) {
+-              JSType paramType = params[i].getJSType();
+-              int paramKind = paramType.getWellFormedTemplatizedKind();
+-              if (paramKind != 0 && !checkWellFormedTemplatizedType(node, paramType, paramKind)) {
+-                paramsOk = false;
+-                break;
+-              }
+-            }
+-            if (!paramsOk) {
+-              yield false;
+-            }
+-            JSType retType = fn.getReturnType();
+-            int retKind = retType.getWellFormedTemplatizedKind();
+-            yield retKind == 0 || checkWellFormedTemplatizedType(node, retType, retKind);
+-          }
+-          case JSType.KIND_UNION -> {
+-            UnionType union = (UnionType) type;
+-            int alternateCount = union.getAlternatesCount();
+-            boolean unionOk = true;
+-            for (int i = 0; i < alternateCount; i++) {
+-              JSType alternative = union.getAlternateAt(i);
+-              int altKind = alternative.getWellFormedTemplatizedKind();
+-              if (altKind != 0 && !checkWellFormedTemplatizedType(node, alternative, altKind)) {
+-                unionOk = false;
+-                break;
+-              }
+-            }
+-            yield unionOk;
+-          }
+-          case JSType.KIND_TEMPLATIZED -> {
+-            TemplatizedType templatized = (TemplatizedType) type;
+-            TemplateTypeMap referencedTemplates =
+-                templatized.getReferencedType().getTemplateTypeMap();
+-            ImmutableList<JSType> templateTypes = templatized.getTemplateTypes();
+-            int refCount = referencedTemplates.size();
+-            boolean templatizedOk = true;
+-            for (int i = 0, len = templateTypes.size(); i < len; i++) {
+-              JSType assignedType = templateTypes.get(i);
+-              if (i < refCount) {
+-                TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
+-                if (!assignedType.isSubtype(templateType.getBound())) {
+-                  registerMismatchAndReport(
+-                      assignedType,
+-                      templateType.getBound(),
+-                      JSError.make(
+-                          node,
+-                          RhinoErrorReporter.BOUNDED_GENERIC_TYPE_ERROR,
+-                          assignedType.toString(),
+-                          templateType.getReferenceName(),
+-                          templateType.getBound().toString()));
+-                  templatizedOk = false;
+-                  break;
+-                }
+-              }
+-            }
+-            yield templatizedOk;
++    boolean ok;
++    switch (kind) {
++      case JSType.KIND_FUNCTION -> {
++        FunctionType fn = (FunctionType) type;
++        FunctionType.Parameter[] params = fn.getParameterArray();
++        boolean paramsOk = true;
++        for (int i = 0, len = params.length; i < len; i++) {
++          JSType paramType = params[i].getJSType();
++          int paramKind = paramType.getWellFormedTemplatizedKind();
++          if (paramKind != 0 && !checkWellFormedTemplatizedType(node, paramType, paramKind)) {
++            paramsOk = false;
++            break;
+           }
+-          case JSType.KIND_NAMED -> {
+-            NamedType named = (NamedType) type;
+-            JSType ref = named.getReferencedType();
+-            int refKind = ref.getWellFormedTemplatizedKind();
+-            yield refKind == 0 || checkWellFormedTemplatizedType(node, ref, refKind);
++        }
++        if (!paramsOk) {
++          ok = false;
++        } else {
++          JSType retType = fn.getReturnType();
++          int retKind = retType.getWellFormedTemplatizedKind();
++          ok = retKind == 0 || checkWellFormedTemplatizedType(node, retType, retKind);
++        }
++      }
++      case JSType.KIND_UNION -> {
++        UnionType union = (UnionType) type;
++        int alternateCount = union.getAlternatesCount();
++        boolean unionOk = true;
++        for (int i = 0; i < alternateCount; i++) {
++          JSType alternative = union.getAlternateAt(i);
++          int altKind = alternative.getWellFormedTemplatizedKind();
++          if (altKind != 0 && !checkWellFormedTemplatizedType(node, alternative, altKind)) {
++            unionOk = false;
++            break;
+           }
+-          case JSType.KIND_TEMPLATE -> {
+-            TemplateType templateType = (TemplateType) type;
+-            if (templateType.containsCycle()) {
+-              yield false;
+-            }
++        }
++        ok = unionOk;
++      }
++      case JSType.KIND_TEMPLATIZED -> {
++        TemplatizedType templatized = (TemplatizedType) type;
++        TemplateTypeMap referencedTemplates =
++            templatized.getReferencedType().getTemplateTypeMap();
++        ImmutableList<JSType> templateTypes = templatized.getTemplateTypes();
++        int refCount = referencedTemplates.size();
++        boolean templatizedOk = true;
++        for (int i = 0, len = templateTypes.size(); i < len; i++) {
++          JSType assignedType = templateTypes.get(i);
++          if (i < refCount) {
++            TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
+             JSType bound = templateType.getBound();
+-            int boundKind = bound.getWellFormedTemplatizedKind();
+-            yield boundKind == 0 || checkWellFormedTemplatizedType(node, bound, boundKind);
+-          }
+-          case JSType.KIND_ENUM_ELEMENT -> {
+-            EnumElementType enumElement = (EnumElementType) type;
+-            JSType prim = enumElement.getPrimitiveType();
+-            if (prim == null) {
+-              yield true;
++            if (!assignedType.isSubtype(bound)) {
++              registerMismatchAndReport(
++                  assignedType,
++                  bound,
++                  JSError.make(
++                      node,
++                      RhinoErrorReporter.BOUNDED_GENERIC_TYPE_ERROR,
++                      assignedType.toString(),
++                      templateType.getReferenceName(),
++                      bound.toString()));
++              templatizedOk = false;
++              break;
+             }
+-            int primKind = prim.getWellFormedTemplatizedKind();
+-            yield primKind == 0 || checkWellFormedTemplatizedType(node, prim, primKind);
+           }
+-          default -> true;
+-        };
++        }
++        ok = templatizedOk;
++      }
++      case JSType.KIND_NAMED -> {
++        NamedType named = (NamedType) type;
++        JSType ref = named.getReferencedType();
++        int refKind = ref.getWellFormedTemplatizedKind();
++        ok = refKind == 0 || checkWellFormedTemplatizedType(node, ref, refKind);
++      }
++      case JSType.KIND_TEMPLATE -> {
++        TemplateType templateType = (TemplateType) type;
++        if (templateType.containsCycle()) {
++          ok = false;
++        } else {
++          JSType bound = templateType.getBound();
++          int boundKind = bound.getWellFormedTemplatizedKind();
++          ok = boundKind == 0 || checkWellFormedTemplatizedType(node, bound, boundKind);
++        }
++      }
++      case JSType.KIND_ENUM_ELEMENT -> {
++        EnumElementType enumElement = (EnumElementType) type;
++        JSType prim = enumElement.getPrimitiveType();
++        if (prim == null) {
++          ok = true;
++        } else {
++          int primKind = prim.getWellFormedTemplatizedKind();
++          ok = primKind == 0 || checkWellFormedTemplatizedType(node, prim, primKind);
++        }
++      }
++      default -> ok = true;
++    }
+     if (ok) {
+       type.markWellFormedTemplatizedOk();
+     }
+diff --git a/com/google/javascript/jscomp/parsing/ParserRunner.java b/com/google/javascript/jscomp/parsing/ParserRunner.java
+index 4e7fbc2f..6f0d96e1 100644
+--- a/com/google/javascript/jscomp/parsing/ParserRunner.java
++++ b/com/google/javascript/jscomp/parsing/ParserRunner.java
+@@ -128,7 +128,7 @@ public final class ParserRunner {
+     try {
+       SourceFile file = new SourceFile(sourceName, sourceString);
+       boolean keepGoing = config.runMode() == RunMode.KEEP_GOING;
+-      Es6ErrorReporter es6ErrorReporter = new Es6ErrorReporter(errorReporter, keepGoing);
++      Es6ErrorReporter es6ErrorReporter = new Es6ErrorReporter(errorReporter, file.name, keepGoing);
+       com.google.javascript.jscomp.parsing.parser.Parser.Config es6config = newParserConfig(config);
+       Parser p = new Parser(es6config, es6ErrorReporter, file);
+       ProgramTree tree = p.parseProgram();
+@@ -186,11 +186,13 @@ public final class ParserRunner {
+   private static class Es6ErrorReporter
+       extends com.google.javascript.jscomp.parsing.parser.util.ErrorReporter {
+     private final ErrorReporter reporter;
++    private final String sourceName;
+     private boolean errorSeen = false;
+     private final boolean reportAllErrors;
+ 
+-    Es6ErrorReporter(ErrorReporter reporter, boolean reportAllErrors) {
++    Es6ErrorReporter(ErrorReporter reporter, String sourceName, boolean reportAllErrors) {
+       this.reporter = reporter;
++      this.sourceName = sourceName;
+       this.reportAllErrors = reportAllErrors;
+     }
+ 
+@@ -200,13 +202,13 @@ public final class ParserRunner {
+       // sometimes it is useful to keep going.
+       if (reportAllErrors || !errorSeen) {
+         errorSeen = true;
+-        this.reporter.error(message, location.source.name, location.line + 1, location.column);
++        this.reporter.error(message, this.sourceName, location.line + 1, location.column);
+       }
+     }
+ 
+     @Override
+     protected void reportWarning(SourcePosition location, String message) {
+-      this.reporter.warning(message, location.source.name, location.line + 1, location.column);
++      this.reporter.warning(message, this.sourceName, location.line + 1, location.column);
+     }
+   }
+ 
+diff --git a/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java b/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java
+index 6679f5cd..fadd9381 100644
+--- a/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java
++++ b/com/google/javascript/jscomp/parsing/parser/LineNumberScanner.java
+@@ -19,7 +19,6 @@ package com.google.javascript.jscomp.parsing.parser;
+ import com.google.common.base.Preconditions;
+ import com.google.javascript.jscomp.parsing.parser.util.SourcePosition;
+ import com.google.javascript.jscomp.parsing.parser.util.SourceRange;
+-import java.util.Objects;
+ import org.jspecify.annotations.Nullable;
+ 
+ /** Utility for finding line and column offsets within a source file. */
+@@ -72,7 +71,7 @@ final class LineNumberScanner {
+    * necessary if backing up to a previous line.
+    */
+   void rewindTo(SourcePosition position) {
+-    Preconditions.checkArgument(Objects.equals(position.source, sourceFile));
++    Preconditions.checkNotNull(position);
+     if (position.offset < lastLineStart) {
+       lastLine = position.line - 1;
+       nextLineStart = position.offset - position.column;
+diff --git a/com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java b/com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java
+index 40989d3e..f5be592f 100644
+--- a/com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java
++++ b/com/google/javascript/jscomp/parsing/parser/util/SourcePosition.java
+@@ -16,16 +16,13 @@
+ 
+ package com.google.javascript.jscomp.parsing.parser.util;
+ 
+-import com.google.common.base.Splitter;
+-import com.google.common.collect.Iterables;
+ import com.google.javascript.jscomp.parsing.parser.SourceFile;
+ import java.io.Serializable;
++import org.jspecify.annotations.Nullable;
+ 
+ /** A position in a source string - includes offset, line and column. */
+ public class SourcePosition implements Serializable {
+ 
+-  public final SourceFile source;
+-
+   public int getOffset() {
+     return offset;
+   }
+@@ -34,8 +31,7 @@ public class SourcePosition implements Serializable {
+   public final int line;
+   public final int column;
+ 
+-  public SourcePosition(SourceFile source, int offset, int line, int column) {
+-    this.source = source;
++  public SourcePosition(@Nullable SourceFile source, int offset, int line, int column) {
+     this.offset = offset;
+     this.line = line;
+     this.column = column;
+@@ -43,14 +39,6 @@ public class SourcePosition implements Serializable {
+ 
+   @Override
+   public String toString() {
+-    return String.format("%s(%d, %d)", shortSourceName(), line + 1, column + 1);
+-  }
+-
+-  private String shortSourceName() {
+-    if (source == null) {
+-      return "";
+-    }
+-
+-    return Iterables.getLast(Splitter.on('/').split(source.name));
++    return "(" + (line + 1) + ", " + (column + 1) + ")";
+   }
+ }
+diff --git a/com/google/javascript/jscomp/serialization/StringPool.java b/com/google/javascript/jscomp/serialization/StringPool.java
+index 7cd11d4a..48071191 100644
+--- a/com/google/javascript/jscomp/serialization/StringPool.java
++++ b/com/google/javascript/jscomp/serialization/StringPool.java
+@@ -90,6 +90,7 @@ public final class StringPool {
+     private String[] pool;
+     private int size;
+     private long[] table;
++    private int[] idToPool = new int[4096];
+     private boolean built = false;
+ 
+     private Builder() {
+@@ -99,6 +100,40 @@ public final class StringPool {
+       this.table = new long[2048];
+     }
+ 
++    public int putNodeString(com.google.javascript.rhino.Node n) {
++      int id = RhinoStringPool.getNodeStringId(n);
++      if (id == 0) {
++        return this.put(n.getString());
++      }
++      if (id == 1) {
++        return 0;
++      }
++      return this.putByInternedId(id);
++    }
++
++    public int putByInternedId(int id) {
++      if (id <= 1) {
++        return 0;
++      }
++      int[] map = this.idToPool;
++      if (id < map.length) {
++        int cached = map[id];
++        if (cached != 0) {
++          return cached - 1;
++        }
++      } else {
++        int newCap = map.length << 1;
++        while (newCap <= id) {
++          newCap <<= 1;
++        }
++        map = Arrays.copyOf(map, newCap);
++        this.idToPool = map;
++      }
++      int ptr = this.put(checkNotNull(RhinoStringPool.stringById(id)));
++      map[id] = ptr + 1;
++      return ptr;
++    }
++
+     /** Inserts the given string into the string pool if not present and returns its index */
+     public int put(String string) {
+       checkNotNull(string);
+diff --git a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+index d1ad5b71..32df3a3b 100644
+--- a/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
++++ b/com/google/javascript/jscomp/serialization/TypedAstSerializer.java
+@@ -32,6 +32,7 @@ import com.google.javascript.jscomp.colors.Color;
+ import com.google.javascript.jscomp.colors.ColorId;
+ import com.google.javascript.jscomp.colors.ColorRegistry;
+ import com.google.javascript.rhino.Node;
++import com.google.javascript.rhino.RhinoStringPool;
+ import com.google.javascript.rhino.jstype.JSType;
+ import java.util.ArrayDeque;
+ import java.util.LinkedHashMap;
+@@ -40,6 +41,8 @@ import org.jspecify.annotations.Nullable;
+ /** Transforms a compiler AST into a serialized TypedAst object. */
+ final class TypedAstSerializer {
+ 
++  private static final boolean NATIVE_STRING_IDS = RhinoStringPool.internId("_") != 0;
++
+   private final AbstractCompiler compiler;
+   private final SerializationOptions serializationMode;
+   private final StringPool.Builder stringPool = StringPool.builder();
+@@ -159,6 +162,7 @@ final class TypedAstSerializer {
+     builder.setBooleanProperties(n.serializeProperties());
+     int sourceFile = getSourceFilePointer(n);
+     builder.setSourceFile(sourceFile);
++    int origNameId = NATIVE_STRING_IDS ? RhinoStringPool.getNodeOrigNameId(n) : -1;
+ 
+     for (Node child = n.getFirstChild(); child != null; child = child.getNext()) {
+       builder.addChild(visit(child));
+@@ -180,7 +184,12 @@ final class TypedAstSerializer {
+     if (sourceFile != 0) {
+       subtreeSourceFiles.removeLast();
+     }
+-    setOriginalName(builder, n);
++    if (origNameId >= 0) {
++      builder.setOriginalNamePointer(
++          origNameId <= 1 ? 0 : this.stringPool.putByInternedId(origNameId));
++    } else {
++      setOriginalName(builder, n);
++    }
+ 
+     return builder.build();
+   }
+@@ -229,7 +238,7 @@ final class TypedAstSerializer {
+           SETTER_DEF,
+           LABEL_NAME,
+           IMPORT_STAR -> {
+-        builder.setStringValuePointer(this.stringPool.put(n.getString()));
++        builder.setStringValuePointer(this.stringPool.putNodeString(n));
+         return;
+       }
+       case TEMPLATELIT_STRING -> {
+diff --git a/com/google/javascript/rhino/Node.java b/com/google/javascript/rhino/Node.java
+index 29a76922..26ca0bab 100644
+--- a/com/google/javascript/rhino/Node.java
++++ b/com/google/javascript/rhino/Node.java
+@@ -3971,6 +3971,15 @@ public class Node {
+     return this;
+   }
+ 
++  /** Copy the source location from `other` onto `this` without copying `originalName`. */
++  @CanIgnoreReturnValue
++  public final Node srcrefNoOrigName(Node other) {
++    setStaticSourceFileFrom(other);
++    linenoCharno = other.linenoCharno;
++    length = other.length;
++    return this;
++  }
++
+   /** For all Nodes in the subtree of `this`, copy the source info from `other`. */
+   @CanIgnoreReturnValue
+   public final Node srcrefTree(Node other) {
+diff --git a/com/google/javascript/rhino/RhinoStringPool.java b/com/google/javascript/rhino/RhinoStringPool.java
+index b9394f2a..926adaa3 100644
+--- a/com/google/javascript/rhino/RhinoStringPool.java
++++ b/com/google/javascript/rhino/RhinoStringPool.java
+@@ -71,6 +71,41 @@ public final class RhinoStringPool {
+     return a + "$" + b;
+   }
+ 
++  public static int internId(String s) {
++    checkNotNull(s);
++    return 0;
++  }
++
++  public static int internOwnedId(String s) {
++    checkNotNull(s);
++    return 0;
++  }
++
++  public static @Nullable String stringById(int id) {
++    return id <= 0 ? null : "";
++  }
++
++  public static int getNodeStringId(Node n) {
++    checkNotNull(n);
++    return 0;
++  }
++
++  public static int getNodeOrigNameId(Node n) {
++    checkNotNull(n);
++    return 0;
++  }
++
++  public static void setNodeOrigNameId(Node n, int id) {
++    checkNotNull(n);
++    if (id <= 0) {
++      n.setOriginalName(null);
++    }
++  }
++
++  public static Node newStringNodeById(Token token, int strId) {
++    return Node.newString(token, "");
++  }
++
+   private RhinoStringPool() {}
+ 
+   /** Backed by a flat non-null string array for deserialized string pools. */
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index f0894489..062e8e50 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -176,7 +176,7 @@ public abstract class JSType {
+   }
+ 
+   public final void markWellFormedTemplatizedOk() {
+-    if (this.isResolved() && this.registry.getResolver().isClosed()) {
++    if (this.registry.isResolverClosed()) {
+       this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+     }
+   }
+@@ -722,8 +722,8 @@ public abstract class JSType {
+     boolean result = hasAnyTemplateTypesInternal();
+     this.jstypeFlags &= ~JSTYPE_FLAG_IN_TEMPLATED_VISIT;
+ 
+-    // Cache the result if the type has been resolved.
+-    if (this.isResolved()) {
++    // Cache the result if the type has been resolved or the resolver is closed.
++    if (this.isResolved() || this.registry.isResolverClosed()) {
+       int code = result ? 2 : 1;
+       this.jstypeFlags =
+           (byte) ((this.jstypeFlags & ~(0x3 << JSTYPE_TEMPLATE_CHECK_SHIFT))
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index 35ab7533..b508862a 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -2224,6 +2224,10 @@ public final class JSTypeRegistry {
+     return this.resolver;
+   }
+ 
++  public boolean isResolverClosed() {
++    return this.resolver != null && this.resolver.isClosed();
++  }
++
+   public JSType evaluateTypeExpressionInGlobalScope(JSTypeExpression expr) {
+     return expr.evaluate(null, this);
+   }
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index 74926869..442d2842 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -264,25 +264,37 @@ public final class UnionType extends JSType {
+       this.restAlternates = rest;
+     }
+     this.alternatesResolvedBeforeBuild = builder.alternatesResolvedBeforeBuild;
+-    JSTypeResolver resolver = this.registry.getResolver();
+-    if (resolver != null && resolver.isClosed()) {
++    if (this.registry.isResolverClosed()) {
+       byte combined = JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
+       combined &= this.alt0.jstypeFlags;
++      boolean wellFormedOk = this.alt0.getWellFormedTemplatizedKind() == 0;
+       if (n >= 2) {
+         combined &= this.alt1.jstypeFlags;
++        wellFormedOk &= this.alt1.getWellFormedTemplatizedKind() == 0;
+       }
+       if (n >= 3) {
+         combined &= this.alt2.jstypeFlags;
++        wellFormedOk &= this.alt2.getWellFormedTemplatizedKind() == 0;
+       }
+-      if (n > 3 && combined != 0) {
++      if (n > 3 && (combined != 0 || wellFormedOk)) {
+         JSType[] rest = this.restAlternates;
+         for (int i = 0, m = n - 3; i < m; i++) {
+-          combined &= rest[i].jstypeFlags;
++          JSType r = rest[i];
++          combined &= r.jstypeFlags;
++          if (wellFormedOk && r.getWellFormedTemplatizedKind() != 0) {
++            wellFormedOk = false;
++          }
+         }
+       }
+       this.jstypeFlags = (byte) ((this.jstypeFlags & ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN) | combined);
++      if (wellFormedOk) {
++        this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++      } else {
++        this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++      }
+     } else {
+       this.jstypeFlags &= ~JSTYPE_FLAG_OBJ_NOT_UNKNOWN;
++      this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+     }
+   }
+ 

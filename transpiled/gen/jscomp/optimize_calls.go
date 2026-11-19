@@ -490,7 +490,8 @@ func (this_ *OptimizeCalls_NodeList) Add(n pkg_rhino.Node) {
 		}
 	}
 	if s == int32(len(arr)) {
-		arr = func() []pkg_rhino.Node {
+		{
+
 			arrSrc_17 := arr
 			arrLen_18 := max(int32(8), (s * int32(2)))
 			j2gort.CheckNotNullSlice(arrSrc_17)
@@ -499,8 +500,9 @@ func (this_ *OptimizeCalls_NodeList) Add(n pkg_rhino.Node) {
 			}
 			arrOut_19 := make([]pkg_rhino.Node, arrLen_18)
 			copy(arrOut_19, arrSrc_17)
-			return arrOut_19
-		}()
+			arr = arrOut_19
+		}
+
 		this_.nodes = arr
 	}
 	{
@@ -571,7 +573,8 @@ func (this_ *OptimizeCalls_NodeList) AddAll(other *OptimizeCalls_NodeList) {
 		this_.n3 = pkg_rhino.Node(0)
 		this_.nodes = arr
 	} else if newSize > int32(len(arr)) {
-		arr = func() []pkg_rhino.Node {
+		{
+
 			arrSrc_30 := arr
 			arrLen_31 := max((int32(len(arr)) * int32(2)), newSize)
 			j2gort.CheckNotNullSlice(arrSrc_30)
@@ -580,8 +583,9 @@ func (this_ *OptimizeCalls_NodeList) AddAll(other *OptimizeCalls_NodeList) {
 			}
 			arrOut_32 := make([]pkg_rhino.Node, arrLen_31)
 			copy(arrOut_32, arrSrc_30)
-			return arrOut_32
-		}()
+			arr = arrOut_32
+		}
+
 		this_.nodes = arr
 	}
 	var otherArr []pkg_rhino.Node = other.nodes

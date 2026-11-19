@@ -1146,12 +1146,13 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_Declarati
 // Java method: DeclarationStatementGroupCycle.moveStatementsToChunk(com.google.javascript.jscomp.JSChunk preferredChunk)
 func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) priv_DeclarationStatementGroupCycle_moveStatementsToChunk_2265(preferredChunk *JSChunk) {
 	_ = preferredChunk
-	var destParent pkg_rhino.Node = func() pkg_rhino.Node {
+	var destParent pkg_rhino.Node
+	{
 		bound_57 := this_.outer_.compiler
-		return j2gort.OrderedMapComputeIfAbsent(&this_.outer_.chunkInsertionPointMap, preferredChunk, pkg_rhino.Node(0), func(mrp0_ *JSChunk) pkg_rhino.Node {
+		destParent = j2gort.OrderedMapComputeIfAbsent(&this_.outer_.chunkInsertionPointMap, preferredChunk, pkg_rhino.Node(0), func(mrp0_ *JSChunk) pkg_rhino.Node {
 			return bound_57.GetNodeForCodeInsertion(mrp0_)
 		})
-	}()
+	}
 
 	_ = destParent
 	var statementsLastFirst []*CrossChunkReferenceCollector_TopLevelStatement = []*CrossChunkReferenceCollector_TopLevelStatement{}

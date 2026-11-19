@@ -408,12 +408,14 @@ func (this_ *VariableReferenceCheck) priv_VariableReferenceCheck_checkEarlyRefer
 			if v.IsGoogModuleExports() {
 				return StaticGet_VariableReferenceCheck_EARLY_EXPORTS_REFERENCE()
 			}
-			return func() *DiagnosticType {
+			{
+
 				if ((v.IsLet() || v.IsConst()) || v.IsClass()) || v.IsParam() {
 					return StaticGet_VariableReferenceCheck_EARLY_REFERENCE_ERROR()
 				}
 				return StaticGet_VariableReferenceCheck_EARLY_REFERENCE()
-			}()
+			}
+
 		}(), []string{v.GetName()}))
 		return true
 	}

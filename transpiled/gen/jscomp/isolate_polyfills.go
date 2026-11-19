@@ -125,14 +125,16 @@ func InitIsolatePolyfills_2(this_ *IsolatePolyfills, compiler AbstractCompiler, 
 	this_.initFields_IsolatePolyfills()
 	this_.compiler = compiler
 	this_.polyfills = polyfills
-	var hasPropertyCollapsingRun bool = func() bool {
+	var hasPropertyCollapsingRun bool
+	{
 		re_1 := compiler.GetOptions().GetPropertyCollapseLevel()
 		ae_2 := StaticGet_CompilerOptions_PropertyCollapseLevel_ALL()
 		if re_1 == 0 {
 			j2gort.ThrowNPE()
 		}
-		return re_1 == ae_2
-	}()
+		hasPropertyCollapsingRun = re_1 == ae_2
+	}
+
 	_ = hasPropertyCollapsingRun
 	if hasPropertyCollapsingRun {
 		this_.jscompPolyfillsObject = IsolatePolyfills_CreateCollapsedName()

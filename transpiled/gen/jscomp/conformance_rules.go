@@ -68,7 +68,8 @@ var lambdaSingleton_conformance_rules_36 j2gort.Ext_java_util_function_Function
 func init() {
 	lambdaSingleton_conformance_rules_1 = NewLambda_CheckConformance_Precondition(func(n pkg_rhino.Node) bool {
 		_ = n
-		return func() bool {
+		{
+
 			switch n.TokenSwitchOrd_() {
 			case int32(26) /* Token.GETPROP */ :
 				return n.GetFirstChild().IsQualifiedName()
@@ -78,7 +79,8 @@ func init() {
 				return false
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	})
 	lambdaSingleton_conformance_rules_2 = NewLambda_ConformanceRules_CustomRuleProxy_CustomRuleFactory(func(mrp0_ AbstractCompiler, mrp1_ *j2gort.Ext_com_google_javascript_jscomp_Requirement) CheckConformance_Rule {
 		return NewConformanceRules_BanStaticThis(mrp0_, mrp1_)
@@ -1323,7 +1325,7 @@ func (this_ *ConformanceRules_InferredConstCheck) CheckConformance_2(t *NodeTrav
 	_ = n
 	var jsDoc *pkg_rhino.JSDocInfo = n.GetJSDocInfo()
 	_ = jsDoc
-	if ((jsDoc != nil) && jsDoc.HasConstAnnotation()) && (jsDoc.GetType() == (pkg_rhino.JSTypeExpression{})) {
+	if ((jsDoc != nil) && jsDoc.HasConstAnnotation()) && (jsDoc.GetType()).IsJavaNil_() {
 		if n.IsAssign() {
 			n = n.GetFirstChild()
 		}
@@ -1808,7 +1810,8 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractType_21
 	case int32(100) /* Token.STRING_KEY */, int32(129) /* Token.COMPUTED_PROP */ :
 		var parent pkg_rhino.Node = n.GetParent()
 		_ = parent
-		return func() pkg_rhino.JSType {
+		{
+
 			switch parent.TokenSwitchOrd_() {
 			case int32(103) /* Token.OBJECT_PATTERN */, int32(47) /* Token.OBJECTLIT */ :
 				return parent.GetJSType()
@@ -1818,7 +1821,8 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractType_21
 				panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError")))
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	default:
 		return nil
 	}
@@ -1834,21 +1838,25 @@ func (this_ *ConformanceRules_BannedProperty) priv_BannedProperty_extractName_21
 	case int32(27) /* Token.GETELEM */ :
 		var string_ pkg_rhino.Node = n.GetSecondChild()
 		_ = string_
-		return func() string {
+		{
+
 			if string_.IsStringLit() {
 				return string_.GetString()
 			}
 			return j2gort.NullString
-		}()
+		}
+
 	case int32(129) /* Token.COMPUTED_PROP */ :
 		var string__2 pkg_rhino.Node = n.GetFirstChild()
 		_ = string__2
-		return func() string {
+		{
+
 			if string__2.IsStringLit() {
 				return string__2.GetString()
 			}
 			return j2gort.NullString
-		}()
+		}
+
 	default:
 		return j2gort.NullString
 	}

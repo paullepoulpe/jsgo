@@ -459,36 +459,48 @@ func (this_ *ProcessClosureProvidesAndRequires) priv_ProcessClosureProvidesAndRe
 	if !(t.InGlobalHoistScope()) {
 		return
 	}
-	var name string = func() string {
+	var name string
+iifeSwitch_1:
+	switch {
+	default:
 		switch n.GetParent().TokenSwitchOrd_() {
 		case int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-			return func() string {
+			{
 				if t.InGlobalScope() {
-					return n.GetString()
+					name = n.GetString()
+					break iifeSwitch_1
 				}
-				return j2gort.NullString
-			}()
+				name = j2gort.NullString
+				break iifeSwitch_1
+			}
 		case int32(84) /* Token.VAR */ :
-			return n.GetString()
+			name = n.GetString()
+			break iifeSwitch_1
 		case int32(93) /* Token.EXPR_RESULT */ :
 			if !(n.IsAssign()) {
-				return j2gort.NullString
+				name = j2gort.NullString
+				break iifeSwitch_1
 			}
 			var target pkg_rhino.Node = n.GetFirstChild()
 			_ = target
 			var h int32 = target.HashQualifiedName()
 			_ = h
 			if (h == int32(0)) || !(this_.priv_ProcessClosureProvidesAndRequires_containsProvidedNameHash_4439(h)) {
-				return j2gort.NullString
+				name = j2gort.NullString
+				break iifeSwitch_1
 			}
-			return target.GetQualifiedName()
+			name = target.GetQualifiedName()
+			break iifeSwitch_1
 		case int32(105) /* Token.CLASS */, int32(73) /* Token.FUNCTION */ :
-			return j2gort.NullString
+			name = j2gort.NullString
+			break iifeSwitch_1
 		default:
-			return j2gort.NullString
+			name = j2gort.NullString
+			break iifeSwitch_1
 		}
 		panic("unreachable switch expression")
-	}()
+	}
+
 	_ = name
 	if name == j2gort.NullString {
 		return
@@ -1115,3 +1127,4 @@ func (this_ *ProcessClosureProvidesAndRequires_ProvidedName) String() string {
 	}
 	return j2gort.Ext_java_lang_String_Format_2("ProvidedName: %s, %s", []any{j2gort.BoxString(this_.namespace), j2gort.BoxString(explicitOrImplicit)})
 }
+func (*ProcessClosureProvidesAndRequires_CollectDefinitions) CanReleaseSyntacticScopes_() {}

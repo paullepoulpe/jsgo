@@ -102,19 +102,29 @@ func (this_ *LowestCommonAncestorFinder[N, E]) FindAll(roots j2gort.Ext_java_uti
 		cur_1 := j2gort.NewIterCursor(j2gort.CheckNotNull(roots))
 		for cur_1.HasNext() {
 			rawElem_2 := cur_1.Next()
-			root := func() N {
+			var root N
+		iifeSwitch_1:
+			switch {
+			default:
+
 				tv_3 := rawElem_2
 				if tv_3 == nil {
-					return func() N {
+					{
+
 						if _, ok_ := any((*N)(nil)).(*string); ok_ {
-							return any(j2gort.NullString).(N)
+							root = any(j2gort.NullString).(N)
+							break iifeSwitch_1
 						}
 						var z_ N
-						return z_
-					}()
+						root = z_
+						break iifeSwitch_1
+					}
+
 				}
-				return j2gort.Cast[N](tv_3)
-			}()
+				root = j2gort.Cast[N](tv_3)
+				break iifeSwitch_1
+			}
+
 			_ = root
 			var rootNode DiGraph_DiGraphNode[N, E] = j2gort.AsIface[DiGraph_DiGraphNode[N, E]](this_.graph.GetNode(root))
 			_ = rootNode

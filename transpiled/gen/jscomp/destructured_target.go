@@ -261,19 +261,23 @@ func (this_ *DestructuredTarget) priv_DestructuredTarget_inferObjectPatternKeyTy
 	case int32(100) /* Token.STRING_KEY */ :
 		var propertyType pkg_rhino.JSType = patternType.GetJSTypeBase().FindPropertyType_1_string(this_.objectPatternKey.GetString())
 		_ = propertyType
-		return func() pkg_rhino.JSType {
+		{
+
 			if propertyType != nil && !propertyType.IsJavaNil_() {
 				return propertyType
 			}
 			return this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
-		}()
+		}
+
 	case int32(129) /* Token.COMPUTED_PROP */ :
-		return func() pkg_rhino.JSType {
+		{
+
 			if patternType != nil && !patternType.IsJavaNil_() {
 				return patternType.GetTemplateTypeMap().GetResolvedTemplateType(this_.registry.GetObjectElementKey())
 			}
 			return this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
-		}()
+		}
+
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected key "+j2gort.StrVal(this_.objectPatternKey))))
 	}

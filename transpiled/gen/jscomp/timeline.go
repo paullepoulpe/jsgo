@@ -288,7 +288,11 @@ func (this_ *Timeline_Time) Equals(arg_10 any) bool {
 	var ok_11 bool
 	time, ok_11 = j2gort.TryCast[*Timeline_Time](anObject)
 	if ok_11 {
-		return func() bool { sr_12 := this_.name; se_13 := time.name; return j2gort.CheckNotNullString(sr_12) == se_13 }()
+		{
+			sr_12 := this_.name
+			se_13 := time.name
+			return j2gort.CheckNotNullString(sr_12) == se_13
+		}
 	}
 	return false
 }

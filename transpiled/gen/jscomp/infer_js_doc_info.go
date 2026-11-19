@@ -306,22 +306,26 @@ func InferJSDocInfo_IsReferenceNameOf(type_ pkg_rhino.ObjectType, nameNode pkg_r
 		return false
 	}
 	if nameNode.IsName() {
-		return func() bool {
+		{
+
 			sr_1 := refName
 			se_2 := nameNode.GetString()
 			return j2gort.CheckNotNullString(sr_1) == se_2
-		}()
+		}
+
 	}
 	var h int32 = nameNode.HashQualifiedName()
 	_ = h
 	if (h == int32(0)) || (h != pkg_rhino.Node_HashQualifiedNameString(refName)) {
 		return false
 	}
-	return func() bool {
+	{
+
 		sr_3 := refName
 		se_4 := nameNode.GetQualifiedName()
 		return j2gort.CheckNotNullString(sr_3) == se_4
-	}()
+	}
+
 }
 func (*InferJSDocInfo) AlwaysShouldTraverse_()      {}
 func (*InferJSDocInfo) CanReleaseSyntacticScopes_() {}

@@ -24,9 +24,9 @@ import (
 
 // Java class: com.google.javascript.jscomp.parsing.parser.Token
 type Token struct {
-	location SourceRange `gson:"location"`
 	value string `gson:"value"`
 	templateError *TemplateLiteralToken `gson:"templateError"`
+	location SourceRange `gson:"location"`
 	type_ TokenType `gson:"type"`
 	tokenFlags int8 `gson:"tokenFlags"`
 }
@@ -34,11 +34,11 @@ type Token struct {
 func (this_ Token) BindSelf_(s any) {
 	_ = s
 }
-func (this_ Token) IsJavaNil_() bool { return this_ == (Token{}) }
+func (this_ Token) IsJavaNil_() bool { return this_.type_ == 0 }
 func (Token) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.parsing.parser.Token", "Token" }
 func (Token) HasIdentityEquals_() {}
 func (this_ Token) IdentityHash_() int32 {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		return 0
 	}
 	var h_ int32 = 1
@@ -161,7 +161,7 @@ func Token_TemplateLiteral(type_ TokenType, value string, errorMsg string, error
 
 // Java method: Token.getStart()
 func (this_ Token) GetStart() SourcePosition {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return this_.location.start
@@ -169,7 +169,7 @@ func (this_ Token) GetStart() SourcePosition {
 
 // Java method: Token.isIdentifierToken()
 func (this_ Token) IsIdentifierToken() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return (((int32(this_.tokenFlags) & int32(int8(1)))) != int32(0))
@@ -177,7 +177,7 @@ func (this_ Token) IsIdentifierToken() bool {
 
 // Java method: Token.isLiteralToken()
 func (this_ Token) IsLiteralToken() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return (((int32(this_.tokenFlags) & int32(int8(2)))) != int32(0))
@@ -185,7 +185,7 @@ func (this_ Token) IsLiteralToken() bool {
 
 // Java method: Token.isStringLiteralToken()
 func (this_ Token) IsStringLiteralToken() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return (((int32(this_.tokenFlags) & int32(int8(4)))) != int32(0))
@@ -193,7 +193,7 @@ func (this_ Token) IsStringLiteralToken() bool {
 
 // Java method: Token.isTemplateLiteralToken()
 func (this_ Token) IsTemplateLiteralToken() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return (((int32(this_.tokenFlags) & int32(int8(8)))) != int32(0))
@@ -201,7 +201,7 @@ func (this_ Token) IsTemplateLiteralToken() bool {
 
 // Java method: Token.asIdentifier()
 func (this_ Token) AsIdentifier() Token {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if !((((int32(this_.tokenFlags) & int32(int8(1)))) != int32(0))) { j2gort.CheckState(false) }
@@ -210,7 +210,7 @@ func (this_ Token) AsIdentifier() Token {
 
 // Java method: Token.asLiteral()
 func (this_ Token) AsLiteral() Token {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if !((((int32(this_.tokenFlags) & int32(int8(2)))) != int32(0))) { j2gort.CheckState(false) }
@@ -219,7 +219,7 @@ func (this_ Token) AsLiteral() Token {
 
 // Java method: Token.isKeyword()
 func (this_ Token) IsKeyword() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return Keywords_IsKeyword_1_string(this_.value)
@@ -227,7 +227,7 @@ func (this_ Token) IsKeyword() bool {
 
 // Java method: Token.valueEquals(java.lang.String str)
 func (this_ Token) ValueEquals(str string) bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	_ = str
@@ -236,7 +236,7 @@ func (this_ Token) ValueEquals(str string) bool {
 
 // Java method: Token.getValue()
 func (this_ Token) GetValue() string {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if !((((int32(this_.tokenFlags) & int32(int8(16)))) == int32(0))) { j2gort.CheckState(false) }
@@ -245,7 +245,7 @@ func (this_ Token) GetValue() string {
 
 // Java method: Token.getMaybePrivateValue()
 func (this_ Token) GetMaybePrivateValue() string {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return this_.value
@@ -253,7 +253,7 @@ func (this_ Token) GetMaybePrivateValue() string {
 
 // Java method: Token.isPrivateIdentifier()
 func (this_ Token) IsPrivateIdentifier() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return (((int32(this_.tokenFlags) & int32(int8(16)))) != int32(0))
@@ -261,7 +261,7 @@ func (this_ Token) IsPrivateIdentifier() bool {
 
 // Java method: Token.hasUnescapedUnicodeLineOrParagraphSeparator()
 func (this_ Token) HasUnescapedUnicodeLineOrParagraphSeparator() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return (((int32(this_.tokenFlags) & int32(int8(32)))) != int32(0))
@@ -269,7 +269,7 @@ func (this_ Token) HasUnescapedUnicodeLineOrParagraphSeparator() bool {
 
 // Java method: Token.hasError()
 func (this_ Token) HasError() bool {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	return ((this_.templateError != nil) && func() bool { re_1 := StaticGet_TemplateLiteralToken_ErrorLevel_ERROR(); ae_2 := this_.templateError.errorLevel; if re_1 == 0 { j2gort.ThrowNPE() }; return re_1 == ae_2 }())
@@ -277,7 +277,7 @@ func (this_ Token) HasError() bool {
 
 // Java method: Token.getErrorMessage()
 func (this_ Token) GetErrorMessage() string {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if (this_.templateError == nil) {
@@ -289,7 +289,7 @@ func (this_ Token) GetErrorMessage() string {
 
 // Java method: Token.getErrorPosition()
 func (this_ Token) GetErrorPosition() SourcePosition {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if (this_.templateError == nil) {
@@ -301,7 +301,7 @@ func (this_ Token) GetErrorPosition() SourcePosition {
 
 // Java method: Token.getErrorLevel()
 func (this_ Token) GetErrorLevel() TemplateLiteralToken_ErrorLevel {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if (this_.templateError == nil) {
@@ -313,7 +313,7 @@ func (this_ Token) GetErrorLevel() TemplateLiteralToken_ErrorLevel {
 
 // Java method: Token.toString()
 func (this_ Token) String() string {
-	if this_ == (Token{}) {
+	if this_.type_ == 0 {
 		j2gort.ThrowNPE()
 	}
 	if ((((int32(this_.tokenFlags) & ((int32(int8(1)) | int32(int8(2)))))) != int32(0))) {

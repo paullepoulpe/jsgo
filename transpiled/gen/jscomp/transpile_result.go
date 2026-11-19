@@ -189,7 +189,7 @@ func (this_ *TranspileResult) Equals(arg_3 any) bool {
 
 // Java method: TranspileResult.hashCode()
 func (this_ *TranspileResult) HashCode() int32 {
-	return func() int32 {
+	{
 		var oh_11 int32 = 1
 		oh_11 = 31*oh_11 + j2gort.ObjectHash(j2gort.PtrToAny(this_.path))
 		{
@@ -214,7 +214,7 @@ func (this_ *TranspileResult) HashCode() int32 {
 			}
 		}
 		return oh_11
-	}()
+	}
 }
 
 // Java method: TranspileResult.toString()

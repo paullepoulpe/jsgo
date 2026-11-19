@@ -24,17 +24,19 @@ import (
 // Java class: com.google.javascript.jscomp.ByPathWarningsGuard
 type ByPathWarningsGuard struct {
 	WarningsGuardBase
-	paths j2gort.Ext_java_util_List `gson:"paths"`
-	level *CheckLevel `gson:"level"`
-	priority int32 `gson:"priority"`
-	include bool `gson:"include"`
+	paths    j2gort.Ext_java_util_List `gson:"paths"`
+	level    *CheckLevel               `gson:"level"`
+	priority int32                     `gson:"priority"`
+	include  bool                      `gson:"include"`
 }
 
 func (this_ *ByPathWarningsGuard) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *ByPathWarningsGuard) IsJavaNil_() bool { return this_ == nil }
-func (*ByPathWarningsGuard) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.ByPathWarningsGuard", "ByPathWarningsGuard" }
+func (*ByPathWarningsGuard) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.ByPathWarningsGuard", "ByPathWarningsGuard"
+}
 func (this_ *ByPathWarningsGuard) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -67,12 +69,16 @@ func InitByPathWarningsGuard(this_ *ByPathWarningsGuard, paths j2gort.Ext_java_u
 	_ = level
 	InitWarningsGuard(&this_.WarningsGuardBase)
 	this_.initFields_ByPathWarningsGuard()
-	if !((paths != nil)) { j2gort.CheckArgument(false) }
-	if !(((level == StaticGet_CheckLevel_OFF()) || (level == StaticGet_CheckLevel_ERROR()))) { j2gort.CheckArgument(false) }
+	if !(paths != nil) {
+		j2gort.CheckArgument(false)
+	}
+	if !((level == StaticGet_CheckLevel_OFF()) || (level == StaticGet_CheckLevel_ERROR())) {
+		j2gort.CheckArgument(false)
+	}
 	this_.paths = paths
 	this_.include = include
 	this_.level = level
-	if (level == StaticGet_CheckLevel_ERROR()) {
+	if level == StaticGet_CheckLevel_ERROR() {
 		this_.priority = (StaticGet_WarningsGuard_Priority_STRICT()).FieldGet_value()
 	} else {
 		this_.priority = (StaticGet_WarningsGuard_Priority_FILTER_BY_PATH()).FieldGet_value()
@@ -100,7 +106,7 @@ func (this_ *ByPathWarningsGuard) Level(error_ *JSError) *CheckLevel {
 	_ = errorPath
 	var defaultLevel *CheckLevel = error_.DefaultLevel()
 	_ = defaultLevel
-	if (((defaultLevel != StaticGet_CheckLevel_ERROR()) && (errorPath != j2gort.NullString))) {
+	if (defaultLevel != StaticGet_CheckLevel_ERROR()) && (errorPath != j2gort.NullString) {
 		var inPath bool = false
 		_ = inPath
 		{
@@ -108,10 +114,14 @@ func (this_ *ByPathWarningsGuard) Level(error_ *JSError) *CheckLevel {
 			for cur_1.HasNext() {
 				path := cur_1.NextStr()
 				_ = path
-				inPath = func() bool { ba_2 := inPath; bb_3 := (j2gort.JStrIndexOf(errorPath, j2gort.CheckNotNullString(path)) >= 0); return ba_2 || bb_3 }()
+				{
+					ba_2 := inPath
+					bb_3 := (j2gort.JStrIndexOf(errorPath, j2gort.CheckNotNullString(path)) >= 0)
+					inPath = ba_2 || bb_3
+				}
 			}
 		}
-		if ((inPath == this_.include)) {
+		if inPath == this_.include {
 			return this_.level
 		}
 	}
@@ -122,4 +132,3 @@ func (this_ *ByPathWarningsGuard) Level(error_ *JSError) *CheckLevel {
 func (this_ *ByPathWarningsGuard) GetPriority() int32 {
 	return this_.priority
 }
-

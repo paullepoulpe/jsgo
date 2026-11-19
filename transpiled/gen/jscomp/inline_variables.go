@@ -383,6 +383,8 @@ func InlineVariables_InlineVarAnalysis_CreateLazyNegative(expert *InlineVariable
 }
 func allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative(beh_ *InlineVariables_InliningBehavior, expert *InlineVariables_VarExpert) *InlineVariables_InlineVarAnalysis {
 	_ = expert
+	expert = promoteIvScratchVarExpert_(beh_, expert)
+
 	return allocIvPooled_InlineVariables_InlineVarAnalysis(beh_, int8(2), nil, expert, pkg_rhino.Node(0), nil, nil)
 }
 
@@ -564,9 +566,46 @@ func allocIvPooled_InlineVariables_VarExpert_5(behavior *InlineVariables_Inlinin
 	if behavior == nil || behavior.outer_ == nil {
 		return NewInlineVariables_VarExpert_5(behavior, v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
 	}
-	this_ := behavior.outer_.slab_InlineVariables_VarExpert.Alloc()
-	InitInlineVariables_VarExpert_5(this_, behavior, v, referenceInfo, isDeclaredOrInferredConstant, mayBeAParameterModifiedViaArguments)
+	this_ := &behavior.scratchVarExpert_
+	this_.isNeverAssigned = int8(-1)
+	this_.isWellDefined = int8(-1)
+	this_.isAssignedOnceInLifetime = int8(-1)
+	this_.isReferencedWeakly = int8(-1)
+	this_.isWellDefinedAssignedOnce = int8(-1)
+	this_.initializationReferenceKnown = false
+	this_.initializationReference = nil
+	this_.allReferencesAreValid = int8(-1)
+	this_.fixedAnalysis = nil
+	this_.behavior = behavior
+	this_.v = v
+	this_.referenceInfo = referenceInfo
+	this_.declaration = referenceInfo.
+		Get(int32(0))
+	this_.isDeclaredOrInferredConstant = isDeclaredOrInferredConstant
+	this_.mayBeAParameterModifiedViaArguments = mayBeAParameterModifiedViaArguments
 	return this_
+}
+func promoteIvScratchVarExpert_(beh_ *InlineVariables_InliningBehavior, exp_ *InlineVariables_VarExpert) *InlineVariables_VarExpert {
+	if beh_ == nil || beh_.outer_ == nil || exp_ == nil || exp_ != &beh_.scratchVarExpert_ {
+		return exp_
+	}
+	dst_ := beh_.outer_.slab_InlineVariables_VarExpert.Alloc()
+	dst_.fixedAnalysis = exp_.fixedAnalysis
+	dst_.behavior = exp_.behavior
+	dst_.v = exp_.v
+	dst_.referenceInfo = exp_.referenceInfo
+	dst_.declaration = exp_.declaration
+	dst_.initializationReference = exp_.initializationReference
+	dst_.isDeclaredOrInferredConstant = exp_.isDeclaredOrInferredConstant
+	dst_.mayBeAParameterModifiedViaArguments = exp_.mayBeAParameterModifiedViaArguments
+	dst_.isNeverAssigned = exp_.isNeverAssigned
+	dst_.isWellDefined = exp_.isWellDefined
+	dst_.isAssignedOnceInLifetime = exp_.isAssignedOnceInLifetime
+	dst_.isReferencedWeakly = exp_.isReferencedWeakly
+	dst_.isWellDefinedAssignedOnce = exp_.isWellDefinedAssignedOnce
+	dst_.initializationReferenceKnown = exp_.initializationReferenceKnown
+	dst_.allReferencesAreValid = exp_.allReferencesAreValid
+	return dst_
 }
 
 func InitInlineVariables_VarExpert_5(this_ *InlineVariables_VarExpert, behavior *InlineVariables_InliningBehavior, v *Var, referenceInfo *ReferenceCollection, isDeclaredOrInferredConstant bool, mayBeAParameterModifiedViaArguments bool) {
@@ -1013,6 +1052,7 @@ type InlineVariables_InliningBehavior struct {
 	currentScopeHandledVarAnalysesMap j2gort.CustomOrderedMap[*Var, *InlineVariables_InlineVarAnalysis]                `gson:"currentScopeHandledVarAnalysesMap"`
 	varToAliasRetryHandlersMap        *SimpleMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler] `gson:"varToAliasRetryHandlersMap"`
 	idHash_                           atomic.Int32
+	scratchVarExpert_                 InlineVariables_VarExpert
 	scratchLocalScope_                NodeIterators_FunctionlessLocalScope
 	scratchLocalVarMotion_            NodeIterators_LocalVarMotion
 }
@@ -1505,6 +1545,7 @@ func NewInlineVariables_InliningBehavior_AliasInlineRetryHandler(outer_ *InlineV
 	return this_
 }
 func allocIvPooled_InlineVariables_InliningBehavior_AliasInlineRetryHandler(outer_ *InlineVariables_InliningBehavior, v *Var, expert *InlineVariables_VarExpert) *InlineVariables_InliningBehavior_AliasInlineRetryHandler {
+	expert = promoteIvScratchVarExpert_(outer_, expert)
 	if outer_ == nil || outer_.outer_ == nil {
 		return NewInlineVariables_InliningBehavior_AliasInlineRetryHandler(outer_, v, expert)
 	}

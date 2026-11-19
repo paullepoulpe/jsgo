@@ -168,7 +168,14 @@ func InitMustBeReachingVariableDef(this_ *MustBeReachingVariableDef, cfg Control
 				if this_.vars[j].IsParam() {
 					{
 						a_8 := pIndices
-						i_9 := func() int32 { old_10 := p; nw_11 := old_10 + 1; p = nw_11; return old_10 }()
+						var i_9 int32
+						{
+
+							old_10 := p
+							nw_11 := old_10 + 1
+							p = nw_11
+							i_9 = old_10
+						}
 						a_8[i_9] = j
 					}
 				}

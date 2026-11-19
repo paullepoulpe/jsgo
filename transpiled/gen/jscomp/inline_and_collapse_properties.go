@@ -1479,6 +1479,7 @@ type InlineAndCollapseProperties_CollapseProperties struct {
 	outer_                     *InlineAndCollapseProperties
 	dynamicallyImportedModules j2gort.OrderedSet[string]           `gson:"dynamicallyImportedModules"`
 	prefixOriginalNameBuf      *j2gort.Ext_java_lang_StringBuilder `gson:"prefixOriginalNameBuf"`
+	currentPrefixOrigNameId    int32                               `gson:"currentPrefixOrigNameId"`
 	idHash_                    atomic.Int32
 }
 
@@ -1516,6 +1517,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) initFields_InlineAn
 	_ = this_
 	this_.dynamicallyImportedModules = j2gort.NewOrderedSet[string]()
 	this_.prefixOriginalNameBuf = j2gort.NewExt_java_lang_StringBuilder_1_int32(int32(64))
+
 }
 
 // Java constructor: CollapseProperties()
@@ -1851,25 +1853,27 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	return ((((info != nil) && info.IsConstant()) || declarationNode.GetBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME())) || this_.outer_.compiler.GetCodingConvention().IsConstant(collapsedName))
 }
 
-// Java method: CollapseProperties.flattenSingleDirectRef(com.google.javascript.jscomp.GlobalNamespace.Name n, com.google.javascript.jscomp.GlobalNamespace.Ref r, com.google.javascript.jscomp.GlobalNamespace.@org.jspecify.annotations.Nullable Ref decl, java.lang.String alias, java.lang.String originalName, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenSingleDirectRef_3244(n *GlobalNamespace_Name, r *GlobalNamespace_Ref, decl *GlobalNamespace_Ref, alias string, originalName string, isConstantName bool) {
-	_ = n
+// Java method: CollapseProperties.flattenSingleDirectRef(com.google.javascript.jscomp.GlobalNamespace.Ref r, java.lang.String alias, int aliasId, java.lang.String originalName, int origNameId, boolean isConstantName)
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenSingleDirectRef_3244(r *GlobalNamespace_Ref, alias string, aliasId int32, originalName string, origNameId int32, isConstantName bool) {
 	_ = r
-	_ = decl
 	_ = alias
+	_ = aliasId
 	_ = originalName
+	_ = origNameId
 	_ = isConstantName
-	if r == decl {
-		return
-	}
 	var rNode pkg_rhino.Node = r.GetNode()
 	_ = rNode
 	var rParent pkg_rhino.Node = rNode.GetParent()
 	_ = rParent
 	if !(NodeUtil_MayBeObjectLitKey(rNode)) {
-		this_.priv_CollapseProperties_flattenNameRef_3248(alias, rNode, rParent, originalName, isConstantName)
+		this_.priv_CollapseProperties_flattenNameRef_3248(alias, aliasId, rNode, rParent, originalName, origNameId, isConstantName)
 	} else if rNode.IsStringKey() && rParent.IsObjectPattern() {
-		var newNode pkg_rhino.Node = pkg_rhino.IR_Name(alias).Srcref(rNode)
+		var newNode pkg_rhino.Node = (func() pkg_rhino.Node {
+			if aliasId != int32(0) {
+				return pkg_rhino.RhinoStringPool_NewStringNodeById(pkg_rhino.StaticGet_Token_NAME(), aliasId)
+			}
+			return pkg_rhino.IR_Name(alias)
+		}()).Srcref(rNode)
 		_ = newNode
 		NodeUtil_CopyNameAnnotations(rNode, newNode)
 		DestructuringGlobalNameExtractor_ReassignDestructringLvalue(rNode, newNode, nil, r, this_.outer_.compiler)
@@ -1884,42 +1888,74 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	_ = originalName
 	var decl *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
 	_ = decl
-	var isConstantName bool = this_.priv_CollapseProperties_shouldAddConstantName_3243(func() pkg_rhino.Node {
-		if decl != nil {
-			return decl.GetNode()
-		}
-		return pkg_rhino.Node(0)
-	}(), alias)
+	var declNode pkg_rhino.Node
+	_ = declNode
+	if decl != nil {
+		declNode = decl.GetNode()
+	} else {
+		declNode = pkg_rhino.Node(0)
+	}
+	var isConstantName bool
 	_ = isConstantName
+	if declNode != 0 {
+		isConstantName = this_.priv_CollapseProperties_shouldAddConstantName_3243(declNode, alias)
+	} else {
+		isConstantName = this_.outer_.compiler.GetCodingConvention().IsConstant(alias)
+	}
+	var aliasId int32 = pkg_rhino.RhinoStringPool_InternOwnedId(alias)
+	_ = aliasId
+	if aliasId != int32(0) {
+		if !(j2gort.JStrIndexOfCp(alias, int32(uint16(46))) == int32(-1)) {
+			j2gort.CheckStateFmt(false, "Invalid name '%s'. Did you mean to use NodeUtil.newQName?", j2gort.BoxString(alias))
+		}
+	}
 	if n.HasInlineRefs() {
 		var r0 *GlobalNamespace_Ref = n.InlineRef0()
 		_ = r0
 		var r1 *GlobalNamespace_Ref = n.InlineRef1()
 		_ = r1
-		var r2 *GlobalNamespace_Ref = n.InlineRef2()
-		_ = r2
-		var r3 *GlobalNamespace_Ref = n.InlineRef3()
-		_ = r3
-		if r0 != nil {
-			this_.priv_CollapseProperties_flattenSingleDirectRef_3244(n, r0, decl, alias, originalName, isConstantName)
-		}
-		if r1 != nil {
-			this_.priv_CollapseProperties_flattenSingleDirectRef_3244(n, r1, decl, alias, originalName, isConstantName)
-		}
-		if r2 != nil {
-			this_.priv_CollapseProperties_flattenSingleDirectRef_3244(n, r2, decl, alias, originalName, isConstantName)
-		}
-		if r3 != nil {
-			this_.priv_CollapseProperties_flattenSingleDirectRef_3244(n, r3, decl, alias, originalName, isConstantName)
+		if ((r0 != nil) && (r0 != decl)) || (r1 != nil) {
+			var origNameId int32
+			_ = origNameId
+			if aliasId != int32(0) {
+				origNameId = pkg_rhino.RhinoStringPool_InternOwnedId(originalName)
+			} else {
+				origNameId = int32(0)
+			}
+			var r2 *GlobalNamespace_Ref = n.InlineRef2()
+			_ = r2
+			var r3 *GlobalNamespace_Ref = n.InlineRef3()
+			_ = r3
+			if (r0 != nil) && (r0 != decl) {
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r0, alias, aliasId, originalName, origNameId, isConstantName)
+			}
+			if (r1 != nil) && (r1 != decl) {
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r1, alias, aliasId, originalName, origNameId, isConstantName)
+			}
+			if (r2 != nil) && (r2 != decl) {
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r2, alias, aliasId, originalName, origNameId, isConstantName)
+			}
+			if (r3 != nil) && (r3 != decl) {
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r3, alias, aliasId, originalName, origNameId, isConstantName)
+			}
 		}
 	} else {
+		var origNameId_2 int32
+		_ = origNameId_2
+		if aliasId != int32(0) {
+			origNameId_2 = pkg_rhino.RhinoStringPool_InternOwnedId(originalName)
+		} else {
+			origNameId_2 = int32(0)
+		}
 		{
 			cur_33 := j2gort.NewIterCursor(j2gort.CheckNotNull(n.GetRefs()))
 			for cur_33.HasNext() {
 				rawElem_34 := cur_33.Next()
 				r := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_34)
 				_ = r
-				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(n, r, decl, alias, originalName, isConstantName)
+				if r != decl {
+					this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r, alias, aliasId, originalName, origNameId_2, isConstantName)
+				}
 			}
 		}
 	}
@@ -1939,50 +1975,52 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				var p *GlobalNamespace_Name = n.GetPropAt(i)
 				_ = p
 				prefixBuf.Append_1_string(p.GetBaseName())
-				this_.priv_CollapseProperties_flattenPrefixes_3246(alias, prefixBuf, p, int32(1), isConstantName)
+				this_.priv_CollapseProperties_flattenPrefixes_3246(alias, aliasId, prefixBuf, p, int32(1), isConstantName)
 				prefixBuf.SetLength(baseLen)
 			}
 		}
 	}
 }
 
-// Java method: CollapseProperties.flattenPrefixes(java.lang.String alias, java.lang.StringBuilder prefixBuf, com.google.javascript.jscomp.GlobalNamespace.Name n, int depth, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenPrefixes_3246(alias string, prefixBuf *j2gort.Ext_java_lang_StringBuilder, n *GlobalNamespace_Name, depth int32, isConstantName bool) {
+// Java method: CollapseProperties.flattenPrefixes(java.lang.String alias, int aliasId, java.lang.StringBuilder prefixBuf, com.google.javascript.jscomp.GlobalNamespace.Name n, int depth, boolean isConstantName)
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenPrefixes_3246(alias string, aliasId int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, n *GlobalNamespace_Name, depth int32, isConstantName bool) {
 	_ = alias
+	_ = aliasId
 	_ = prefixBuf
 	_ = n
 	_ = depth
 	_ = isConstantName
 	var materializedOriginalName string = j2gort.NullString
 	_ = materializedOriginalName
+	this_.currentPrefixOrigNameId = int32(0)
 	var decl *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
 	_ = decl
 	if ((decl != nil) && (decl.GetNode() != 0)) && decl.GetNode().IsGetProp() {
-		materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, decl.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+		materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, decl.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 	}
 	if n.HasInlineRefs() {
 		var r0 *GlobalNamespace_Ref = n.InlineRef0()
 		_ = r0
 		if r0 != nil {
 			if r0 != decl {
-				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, r0.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r0.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 			}
 			var r1 *GlobalNamespace_Ref = n.InlineRef1()
 			_ = r1
 			if r1 != nil {
 				if r1 != decl {
-					materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, r1.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+					materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r1.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 				}
 				var r2 *GlobalNamespace_Ref = n.InlineRef2()
 				_ = r2
 				if r2 != nil {
 					if r2 != decl {
-						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, r2.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r2.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 					}
 					var r3 *GlobalNamespace_Ref = n.InlineRef3()
 					_ = r3
 					if (r3 != nil) && (r3 != decl) {
-						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, r3.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r3.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 					}
 				}
 			}
@@ -1997,7 +2035,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				if r == decl {
 					continue
 				}
-				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, r.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 			}
 		}
 	}
@@ -2013,16 +2051,17 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				var p *GlobalNamespace_Name = n.GetPropAt(i)
 				_ = p
 				prefixBuf.Append_1_string(p.GetBaseName())
-				this_.priv_CollapseProperties_flattenPrefixes_3246(alias, prefixBuf, p, (depth + int32(1)), isConstantName)
+				this_.priv_CollapseProperties_flattenPrefixes_3246(alias, aliasId, prefixBuf, p, (depth + int32(1)), isConstantName)
 				prefixBuf.SetLength(prevLen)
 			}
 		}
 	}
 }
 
-// Java method: CollapseProperties.flattenNameRefAtDepth(java.lang.String alias, com.google.javascript.rhino.Node n, int depth, java.lang.StringBuilder prefixBuf, java.lang.@org.jspecify.annotations.Nullable String materializedOriginalName, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRefAtDepth_3247(alias string, n pkg_rhino.Node, depth int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, materializedOriginalName string, isConstantName bool) string {
+// Java method: CollapseProperties.flattenNameRefAtDepth(java.lang.String alias, int aliasId, com.google.javascript.rhino.Node n, int depth, java.lang.StringBuilder prefixBuf, java.lang.@org.jspecify.annotations.Nullable String materializedOriginalName, boolean isConstantName)
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRefAtDepth_3247(alias string, aliasId int32, n pkg_rhino.Node, depth int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, materializedOriginalName string, isConstantName bool) string {
 	_ = alias
+	_ = aliasId
 	_ = n
 	_ = depth
 	_ = prefixBuf
@@ -2046,30 +2085,44 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 			}
 		}
 		if n.IsGetProp() && n.GetFirstChild().IsGetProp() {
+			var origNameId int32 = this_.currentPrefixOrigNameId
+			_ = origNameId
 			if materializedOriginalName == j2gort.NullString {
 				materializedOriginalName = prefixBuf.String()
+				if aliasId != int32(0) {
+					origNameId = pkg_rhino.RhinoStringPool_InternOwnedId(materializedOriginalName)
+					this_.currentPrefixOrigNameId = origNameId
+				}
 			}
-			this_.priv_CollapseProperties_flattenNameRef_3248(alias, n.GetFirstChild(), n, materializedOriginalName, isConstantName)
+			this_.priv_CollapseProperties_flattenNameRef_3248(alias, aliasId, n.GetFirstChild(), n, materializedOriginalName, origNameId, isConstantName)
 		}
 	}
 	return materializedOriginalName
 }
 
-// Java method: CollapseProperties.flattenNameRef(java.lang.String alias, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent, java.lang.String originalName, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRef_3248(alias string, n pkg_rhino.Node, parent pkg_rhino.Node, originalName string, isConstantName bool) {
+// Java method: CollapseProperties.flattenNameRef(java.lang.String alias, int aliasId, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent, java.lang.String originalName, int origNameId, boolean isConstantName)
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRef_3248(alias string, aliasId int32, n pkg_rhino.Node, parent pkg_rhino.Node, originalName string, origNameId int32, isConstantName bool) {
 	_ = alias
+	_ = aliasId
 	_ = n
 	_ = parent
 	_ = originalName
+	_ = origNameId
 	_ = isConstantName
 	if !(n.IsGetProp()) {
 		j2gort.CheckArgumentFmt(false, "Expected GETPROP, found %s. Node: %s", j2gort.BoxNullableVal(n.GetToken()), j2gort.BoxNode(n))
 	}
-	var ref pkg_rhino.Node = NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, alias, n, originalName).CopyTypeFrom(n)
+	var ref pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = ref
-	NodeUtil_CopyNameAnnotations(n, ref)
-	if isConstantName {
-		ref.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), isConstantName)
+	if aliasId != int32(0) {
+		ref = pkg_rhino.RhinoStringPool_NewStringNodeById(pkg_rhino.StaticGet_Token_NAME(), aliasId).SrcrefNoOrigName(n)
+		pkg_rhino.RhinoStringPool_SetNodeOrigNameId(ref, origNameId)
+		ref.CopyTypeFrom(n)
+	} else {
+		ref = NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, alias, n, originalName).CopyTypeFrom(n)
+	}
+	if isConstantName || n.GetBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME()) {
+		ref.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 	}
 	if NodeUtil_IsNormalOrOptChainCall(parent) && n.IsFirstChildOf(parent) {
 		parent.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), true)
@@ -2283,7 +2336,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 		}
 		this_.outer_.compiler.ReportChangeToEnclosingScope(rvalue)
 		rvalue.Detach()
-		var nameNode pkg_rhino.Node = NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, alias, ref.GetNode().GetAncestor(int32(2)), n.GetFullName())
+		var nameNode pkg_rhino.Node = NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, alias, grandparent, n.GetFullName())
 		_ = nameNode
 		nameNode.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), this_.priv_CollapseProperties_shouldAddConstantName_3243(ref.GetNode(), alias))
 		var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(ref.GetNode().GetParent())

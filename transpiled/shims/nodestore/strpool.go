@@ -121,14 +121,16 @@ type strpoolShard struct {
 	table        []uint32 // open-addressed hash table, at most 3/4 full: (hash32 & 0xFFF00000) | (localIdx + 1)
 	count        uint32
 	nextLocalIdx uint32
+	hasUnpinned  atomic.Bool
 }
 
 var (
-	poolShards     [strpoolNumShards]strpoolShard
-	poolChunks     [strpoolMaxChunks * strpoolNumShards]atomic.Pointer[poolChunk]
-	emptyPoolChunk = &poolChunk{}
-	poolSeed       = maphash.MakeSeed()
-	rewindEpoch    atomic.Uint64
+	poolShards      [strpoolNumShards]strpoolShard
+	poolChunks      [strpoolMaxChunks * strpoolNumShards]atomic.Pointer[poolChunk]
+	emptyPoolChunk  = &poolChunk{}
+	poolSeed        = maphash.MakeSeed()
+	rewindEpoch     atomic.Uint64
+	poolHasUnpinned atomic.Bool
 )
 
 func init() {
@@ -280,11 +282,65 @@ func (s *strpoolShard) rewind(shardIdx, baseIdx uint32) bool {
 
 	s.nextLocalIdx = baseIdx
 	s.count = baseIdx
+	if baseIdx&strpoolChunkMask == 0 {
+		s.hasUnpinned.Store(false)
+	}
 	return true
 }
 
-// SealActivePoolChunks is retained as a no-op compatibility hook.
-func SealActivePoolChunks() {}
+// SealActivePoolChunks compacts any unowned string slices sitting in partial
+// active tail chunks into owned slab strings so caller buffers never remain
+// pinned across compilation passes.
+func SealActivePoolChunks() {
+	if !poolHasUnpinned.Load() || !poolHasUnpinned.Swap(false) {
+		return
+	}
+	for i := range poolShards {
+		poolShards[i].unpinActiveChunk(uint32(i))
+	}
+}
+
+func (s *strpoolShard) unpinActiveChunk(shardIdx uint32) {
+	if !s.hasUnpinned.Load() {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.hasUnpinned.Load() {
+		return
+	}
+	n := s.nextLocalIdx & strpoolChunkMask
+	if n == 0 {
+		s.hasUnpinned.Store(false)
+		return
+	}
+	flatIdx := poolChunkIndex(shardIdx, s.nextLocalIdx>>strpoolChunkShift)
+	chunk := poolChunks[flatIdx].Load()
+	if chunk == emptyPoolChunk || chunk.unsealed == nil {
+		s.hasUnpinned.Store(false)
+		return
+	}
+	ud := chunk.unsealed
+	total := 0
+	for i := uint32(0); i < n; i++ {
+		total += len(ud.raw[i])
+	}
+	var b strings.Builder
+	b.Grow(total)
+	for i := uint32(0); i < n; i++ {
+		b.WriteString(ud.raw[i])
+	}
+	slab := b.String()
+	u := newUnsealedPoolChunk()
+	pos := 0
+	for i := uint32(0); i < n; i++ {
+		ln := len(ud.raw[i])
+		u.data.raw[i] = slab[pos : pos+ln]
+		pos += ln
+	}
+	poolChunks[flatIdx].Store(&u.chunk)
+	s.hasUnpinned.Store(false)
+}
 
 func poolHash(s string) uint64 {
 	return maphash.String(poolSeed, s)
@@ -347,6 +403,7 @@ func (s *strpoolShard) allocString(shardIdx uint32, str string, owned bool) uint
 	chunk := poolChunks[flatIdx].Load()
 	if slot == strpoolChunkMask {
 		poolChunks[flatIdx].Store(sealPoolChunk(chunk, str))
+		s.hasUnpinned.Store(false)
 		return localIdx
 	}
 	var u *unsealedPoolData
@@ -357,13 +414,13 @@ func (s *strpoolShard) allocString(shardIdx uint32, str string, owned bool) uint
 	} else {
 		u = chunk.unsealed
 	}
-	if owned {
-		u.raw[slot] = str
-	} else {
-		u.raw[slot] = strings.Clone(str)
-	}
+	u.raw[slot] = str
 	if fresh != nil {
 		poolChunks[flatIdx].Store(&fresh.chunk)
+	}
+	if !owned && !s.hasUnpinned.Load() {
+		s.hasUnpinned.Store(true)
+		poolHasUnpinned.Store(true)
 	}
 	return localIdx
 }

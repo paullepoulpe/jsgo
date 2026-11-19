@@ -449,10 +449,12 @@ func init() {
 // Java static method: Transformer.of(java.util.function.Function<com.google.javascript.jscomp.bundle.Source,com.google.javascript.jscomp.bundle.Source> function)
 func Source_Transformer_Of(function j2gort.Ext_java_util_function_Function) Source_Transformer {
 	_ = function
-	return func() Source_Transformer {
+	{
+
 		bound_4 := function
 		return NewLambda_Source_Transformer(func(mrp0_ Source) Source { return j2gort.AsIface[Source](bound_4.Apply(mrp0_)) })
-	}()
+	}
+
 }
 
 // Java static method: Transformer.identity()
@@ -463,10 +465,12 @@ func Source_Transformer_Identity() Source_Transformer {
 // Java default interface method: Transformer.asFunction()
 func IfaceDefault_Source_Transformer_AsFunction(this_ Source_Transformer) j2gort.Ext_java_util_function_Function {
 	_ = this_
-	return func() j2gort.Ext_java_util_function_Function {
+	{
+
 		bound_5 := this_
 		return j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return bound_5.Transform(j2gort.AsIface[Source](mrp0_)) })
-	}()
+	}
+
 }
 
 // Java default interface method: Transformer.andThen(com.google.javascript.jscomp.bundle.Source.Transformer after)

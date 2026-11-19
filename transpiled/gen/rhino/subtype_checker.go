@@ -161,7 +161,7 @@ func InitSubtypeChecker_5(this_ *SubtypeChecker, registry *JSTypeRegistry, subty
 // Java method: SubtypeChecker.setSupertype(com.google.javascript.rhino.jstype.JSType value)
 func (this_ *SubtypeChecker) SetSupertype(value JSType) *SubtypeChecker {
 	_ = value
-	this_.priv_SubtypeChecker_checkHasNotRun_9457()
+	this_.priv_SubtypeChecker_checkHasNotRun_9460()
 	if this_.initialSupertype != nil && !this_.initialSupertype.IsJavaNil_() {
 		j2gort.CheckState(false)
 	}
@@ -172,7 +172,7 @@ func (this_ *SubtypeChecker) SetSupertype(value JSType) *SubtypeChecker {
 // Java method: SubtypeChecker.setSubtype(com.google.javascript.rhino.jstype.JSType value)
 func (this_ *SubtypeChecker) SetSubtype(value JSType) *SubtypeChecker {
 	_ = value
-	this_.priv_SubtypeChecker_checkHasNotRun_9457()
+	this_.priv_SubtypeChecker_checkHasNotRun_9460()
 	if this_.initialSubtype != nil && !this_.initialSubtype.IsJavaNil_() {
 		j2gort.CheckState(false)
 	}
@@ -183,7 +183,7 @@ func (this_ *SubtypeChecker) SetSubtype(value JSType) *SubtypeChecker {
 // Java method: SubtypeChecker.setUsingStructuralSubtyping(boolean value)
 func (this_ *SubtypeChecker) SetUsingStructuralSubtyping(value bool) *SubtypeChecker {
 	_ = value
-	this_.priv_SubtypeChecker_checkHasNotRun_9457()
+	this_.priv_SubtypeChecker_checkHasNotRun_9460()
 	if !(!(this_.hasUsingStructuralTyping)) {
 		j2gort.CheckState(false)
 	}
@@ -195,7 +195,7 @@ func (this_ *SubtypeChecker) SetUsingStructuralSubtyping(value bool) *SubtypeChe
 // Java method: SubtypeChecker.setSubtypingMode(com.google.javascript.rhino.jstype.JSType.SubtypingMode value)
 func (this_ *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *SubtypeChecker {
 	_ = value
-	this_.priv_SubtypeChecker_checkHasNotRun_9457()
+	this_.priv_SubtypeChecker_checkHasNotRun_9460()
 	if !(this_.subtypingMode == 0) {
 		j2gort.CheckState(false)
 	}
@@ -204,7 +204,7 @@ func (this_ *SubtypeChecker) SetSubtypingMode(value JSType_SubtypingMode) *Subty
 }
 
 // Java method: SubtypeChecker.checkHasNotRun()
-func (this_ *SubtypeChecker) priv_SubtypeChecker_checkHasNotRun_9457() {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_checkHasNotRun_9460() {
 	if !(!(this_.hasRun)) {
 		j2gort.CheckState(false)
 	}
@@ -221,18 +221,18 @@ func SubtypeChecker_Check(registry *JSTypeRegistry, subtype JSType, supertype JS
 	InitSubtypeChecker_5(&val_1, registry, subtype, supertype, isUsingStructuralTyping, subtypingMode)
 	var checker *SubtypeChecker = &val_1
 	_ = checker
-	return checker.priv_SubtypeChecker_isSubtypeCaching_9459(checker.initialSubtype, checker.initialSupertype)
+	return checker.priv_SubtypeChecker_isSubtypeCaching_9462(checker.initialSubtype, checker.initialSupertype)
 }
 
 // Java method: SubtypeChecker.check()
 func (this_ *SubtypeChecker) Check() bool {
-	this_.priv_SubtypeChecker_checkHasNotRun_9457()
+	this_.priv_SubtypeChecker_checkHasNotRun_9460()
 	this_.hasRun = true
-	return this_.priv_SubtypeChecker_isSubtypeCaching_9459(this_.initialSubtype, this_.initialSupertype)
+	return this_.priv_SubtypeChecker_isSubtypeCaching_9462(this_.initialSubtype, this_.initialSupertype)
 }
 
 // Java method: SubtypeChecker.isSubtypeCaching(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeCaching_9459(subtype JSType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeCaching_9462(subtype JSType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
 	j2gort.CheckNotNullIface(subtype)
@@ -245,14 +245,14 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeCaching_9459(subtype J
 	}
 	if this_.cacheSub == nil {
 		this_.recursionDepth = this_.recursionDepth + 1
-		var result bool = this_.priv_SubtypeChecker_isSubtypeDispatching_9464(subtype, supertype)
+		var result bool = this_.priv_SubtypeChecker_isSubtypeDispatching_9467(subtype, supertype)
 		_ = result
 		this_.recursionDepth = this_.recursionDepth - 1
 		return result
 	}
 	var h int32 = ((int32(31) * subtype.GetJSTypeBase().HashCode()) + supertype.GetJSTypeBase().HashCode())
 	_ = h
-	var existingIdx int32 = this_.priv_SubtypeChecker_findCachedEntry_9461(subtype, supertype, h)
+	var existingIdx int32 = this_.priv_SubtypeChecker_findCachedEntry_9464(subtype, supertype, h)
 	_ = existingIdx
 	if existingIdx >= int32(0) {
 		var st int8 = this_.cacheStatus[existingIdx]
@@ -267,9 +267,9 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeCaching_9459(subtype J
 		}
 		return (int32(st) == int32(int8(2)))
 	}
-	var idx int32 = this_.priv_SubtypeChecker_insertCachedEntry_9462(subtype, supertype, h)
+	var idx int32 = this_.priv_SubtypeChecker_insertCachedEntry_9465(subtype, supertype, h)
 	_ = idx
-	var result_2 bool = this_.priv_SubtypeChecker_isSubtypeDispatching_9464(subtype, supertype)
+	var result_2 bool = this_.priv_SubtypeChecker_isSubtypeDispatching_9467(subtype, supertype)
 	_ = result_2
 	{
 		a_4 := this_.cacheStatus
@@ -285,7 +285,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeCaching_9459(subtype J
 }
 
 // Java method: SubtypeChecker.matchesCachedKey(int idx, com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_matchesCachedKey_9460(idx int32, subtype JSType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_matchesCachedKey_9463(idx int32, subtype JSType, supertype JSType) bool {
 	_ = idx
 	_ = subtype
 	_ = supertype
@@ -297,7 +297,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_matchesCachedKey_9460(idx int32
 }
 
 // Java method: SubtypeChecker.findCachedEntry(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype, int h)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_findCachedEntry_9461(subtype JSType, supertype JSType, h int32) int32 {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_findCachedEntry_9464(subtype JSType, supertype JSType, h int32) int32 {
 	_ = subtype
 	_ = supertype
 	_ = h
@@ -310,7 +310,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_findCachedEntry_9461(subtype JS
 			var n int32 = this_.cacheSize
 			_ = n
 			for ; i < n; i = i + 1 {
-				if (this_.cacheHash[i] == h) && this_.priv_SubtypeChecker_matchesCachedKey_9460(i, subtype, supertype) {
+				if (this_.cacheHash[i] == h) && this_.priv_SubtypeChecker_matchesCachedKey_9463(i, subtype, supertype) {
 					return i
 				}
 			}
@@ -329,7 +329,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_findCachedEntry_9461(subtype JS
 		}
 		var i_2 int32 = (entry - int32(1))
 		_ = i_2
-		if (this_.cacheHash[i_2] == h) && this_.priv_SubtypeChecker_matchesCachedKey_9460(i_2, subtype, supertype) {
+		if (this_.cacheHash[i_2] == h) && this_.priv_SubtypeChecker_matchesCachedKey_9463(i_2, subtype, supertype) {
 			return i_2
 		}
 		slot = ((slot + int32(1)) & mask)
@@ -338,7 +338,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_findCachedEntry_9461(subtype JS
 }
 
 // Java method: SubtypeChecker.insertCachedEntry(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype, int h)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_insertCachedEntry_9462(subtype JSType, supertype JSType, h int32) int32 {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_insertCachedEntry_9465(subtype JSType, supertype JSType, h int32) int32 {
 	_ = subtype
 	_ = supertype
 	_ = h
@@ -415,9 +415,9 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_insertCachedEntry_9462(subtype 
 	this_.cacheSize = (idx + int32(1))
 	if this_.cacheSize > int32(8) {
 		if this_.cacheTable == nil {
-			this_.priv_SubtypeChecker_rehashCacheTable_9463(int32(32))
+			this_.priv_SubtypeChecker_rehashCacheTable_9466(int32(32))
 		} else if (this_.cacheSize * int32(4)) >= (int32(len(this_.cacheTable)) * int32(3)) {
-			this_.priv_SubtypeChecker_rehashCacheTable_9463((int32(len(this_.cacheTable)) * int32(2)))
+			this_.priv_SubtypeChecker_rehashCacheTable_9466((int32(len(this_.cacheTable)) * int32(2)))
 		} else {
 			var mask int32 = (int32(len(this_.cacheTable)) - int32(1))
 			_ = mask
@@ -437,7 +437,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_insertCachedEntry_9462(subtype 
 }
 
 // Java method: SubtypeChecker.rehashCacheTable(int newTableLen)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_rehashCacheTable_9463(newTableLen int32) {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_rehashCacheTable_9466(newTableLen int32) {
 	_ = newTableLen
 	var newTable []int32 = make([]int32, newTableLen)
 	_ = newTable
@@ -467,32 +467,32 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_rehashCacheTable_9463(newTableL
 }
 
 // Java method: SubtypeChecker.isSubtypeDispatching(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeDispatching_9464(subtype JSType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeDispatching_9467(subtype JSType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
 	switch (subtype.GetJSTypeBase().FastTypeClass()).Ordinal() {
 	case int32(5) /* JSTypeClass.ENUM_ELEMENT */ :
-		return this_.priv_SubtypeChecker_isEnumElementSubtype_9476(j2gort.CastPtr[EnumElementType](subtype), supertype)
+		return this_.priv_SubtypeChecker_isEnumElementSubtype_9479(j2gort.CastPtr[EnumElementType](subtype), supertype)
 	case int32(4) /* JSTypeClass.ENUM */ :
-		return this_.priv_SubtypeChecker_isEnumSubtype_9475(j2gort.CastPtr[EnumType](subtype), supertype)
+		return this_.priv_SubtypeChecker_isEnumSubtype_9478(j2gort.CastPtr[EnumType](subtype), supertype)
 	case int32(10) /* JSTypeClass.NO_OBJECT */, int32(9) /* JSTypeClass.NO */ :
-		return this_.priv_SubtypeChecker_isVariousBottomsSubtype_9473(subtype, supertype)
+		return this_.priv_SubtypeChecker_isVariousBottomsSubtype_9476(subtype, supertype)
 	case int32(6) /* JSTypeClass.FUNCTION */ :
-		return this_.priv_SubtypeChecker_isFunctionSubtype_9472(j2gort.CastPtr[FunctionType](subtype), supertype)
+		return this_.priv_SubtypeChecker_isFunctionSubtype_9475(j2gort.CastPtr[FunctionType](subtype), supertype)
 	case int32(20) /* JSTypeClass.TEMPLATE */ :
-		return this_.priv_SubtypeChecker_isTemplateSubtype_9478(j2gort.CastPtr[TemplateType](subtype), supertype)
+		return this_.priv_SubtypeChecker_isTemplateSubtype_9481(j2gort.CastPtr[TemplateType](subtype), supertype)
 	case int32(15) /* JSTypeClass.PROXY_OBJECT */ :
-		return this_.priv_SubtypeChecker_isProxyObjectSubtype_9477(j2gort.AsIface[ProxyObjectType](subtype), supertype)
+		return this_.priv_SubtypeChecker_isProxyObjectSubtype_9480(j2gort.AsIface[ProxyObjectType](subtype), supertype)
 	case int32(19) /* JSTypeClass.WELL_KNOWN_SYMBOL */ :
-		return this_.priv_SubtypeChecker_isWellKnownSymbolSubtype_9465(j2gort.CastPtr[KnownSymbolType](subtype), supertype)
+		return this_.priv_SubtypeChecker_isWellKnownSymbolSubtype_9468(j2gort.CastPtr[KnownSymbolType](subtype), supertype)
 	default:
-		return this_.priv_SubtypeChecker_isSubtypeHelper_9466(subtype, supertype)
+		return this_.priv_SubtypeChecker_isSubtypeHelper_9469(subtype, supertype)
 	}
 	panic("unreachable switch expression")
 }
 
 // Java method: SubtypeChecker.isWellKnownSymbolSubtype(com.google.javascript.rhino.jstype.KnownSymbolType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isWellKnownSymbolSubtype_9465(subtype *KnownSymbolType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isWellKnownSymbolSubtype_9468(subtype *KnownSymbolType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
 	base_supertype_ := supertype.GetJSTypeBase()
@@ -502,11 +502,11 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isWellKnownSymbolSubtype_9465(s
 	if base_supertype_.IsSymbolValueType() {
 		return true
 	}
-	return this_.priv_SubtypeChecker_isSubtypeHelper_9466(ToIface_JSType(subtype), supertype)
+	return this_.priv_SubtypeChecker_isSubtypeHelper_9469(ToIface_JSType(subtype), supertype)
 }
 
 // Java method: SubtypeChecker.isSubtypeHelper(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeHelper_9466(subtype JSType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeHelper_9469(subtype JSType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
 	if subtype == supertype || ((subtype == nil || subtype.IsJavaNil_()) && (supertype == nil || supertype.IsJavaNil_())) {
@@ -528,9 +528,9 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeHelper_9466(subtype JS
 		return true
 	}
 	if (subMask & int32(1024)) != int32(0) {
-		return this_.priv_SubtypeChecker_isSubtypeDispatching_9464(subtype.ToMaybeNamedType().GetReferencedType(), supertype)
+		return this_.priv_SubtypeChecker_isSubtypeDispatching_9467(subtype.ToMaybeNamedType().GetReferencedType(), supertype)
 	} else if (supMask & int32(1024)) != int32(0) {
-		return this_.priv_SubtypeChecker_isSubtypeDispatching_9464(subtype, supertype.ToMaybeNamedType().GetReferencedType())
+		return this_.priv_SubtypeChecker_isSubtypeDispatching_9467(subtype, supertype.ToMaybeNamedType().GetReferencedType())
 	}
 	if ((subMask & (int32(64) | int32(1))) != int32(0)) && base_subtype_.IsUnionType() {
 		var subUnion *UnionType = subtype.ToMaybeUnionType()
@@ -541,7 +541,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeHelper_9466(subtype JS
 			var i int32 = int32(0)
 			_ = i
 			for ; i < n; i = i + 1 {
-				if !(this_.priv_SubtypeChecker_isSubtypeCaching_9459(subUnion.GetAlternateAt(i), supertype)) {
+				if !(this_.priv_SubtypeChecker_isSubtypeCaching_9462(subUnion.GetAlternateAt(i), supertype)) {
 					return false
 				}
 			}
@@ -556,7 +556,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeHelper_9466(subtype JS
 			var i_2 int32 = int32(0)
 			_ = i_2
 			for ; i_2 < n_2; i_2 = i_2 + 1 {
-				if this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtype, superUnion.GetAlternateAt(i_2)) {
+				if this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtype, superUnion.GetAlternateAt(i_2)) {
 					return true
 				}
 			}
@@ -566,11 +566,11 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isSubtypeHelper_9466(subtype JS
 	if !(base_subtype_.IsObjectType()) || !(base_supertype_.IsObjectType()) {
 		return false
 	}
-	return this_.priv_SubtypeChecker_isObjectSubtypeHelper_9467(base_subtype_.AssertObjectType(), base_supertype_.AssertObjectType())
+	return this_.priv_SubtypeChecker_isObjectSubtypeHelper_9470(base_subtype_.AssertObjectType(), base_supertype_.AssertObjectType())
 }
 
 // Java method: SubtypeChecker.isObjectSubtypeHelper(com.google.javascript.rhino.jstype.ObjectType subtype, com.google.javascript.rhino.jstype.ObjectType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subtype ObjectType, supertype ObjectType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9470(subtype ObjectType, supertype ObjectType) bool {
 	_ = subtype
 	_ = supertype
 	var subtypeParams *TemplateTypeMap = subtype.GetTemplateTypeMap()
@@ -602,7 +602,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subt
 		_ = thisElement
 		var thatElement JSType = supertypeParams.GetResolvedTemplateType(key)
 		_ = thatElement
-		if !(this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_BIVARIANT(), thisElement, thatElement)) {
+		if !(this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_BIVARIANT(), thisElement, thatElement)) {
 			return false
 		}
 		bivarantMatch = true
@@ -615,14 +615,14 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subt
 		covariantKey = SubtypeChecker_GetTemplateKeyIfCovariantType(supertype)
 	}
 	if (!(subAndSuperAreSameBaseType) && this_.isUsingStructuralTyping) && supertype.IsStructuralType() {
-		if (covariantKey == this_.registry.GetReadonlyArrayElementKey()) && this_.priv_SubtypeChecker_isNativeArrayType_9471(subtype) {
+		if (covariantKey == this_.registry.GetReadonlyArrayElementKey()) && this_.priv_SubtypeChecker_isNativeArrayType_9474(subtype) {
 			var thisElement_2 JSType = subtypeParams.GetResolvedTemplateType(covariantKey)
 			_ = thisElement_2
 			var thatElement_2 JSType = supertypeParams.GetResolvedTemplateType(covariantKey)
 			_ = thatElement_2
-			return this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_COVARIANT(), thisElement_2, thatElement_2)
+			return this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_COVARIANT(), thisElement_2, thatElement_2)
 		}
-		return this_.priv_SubtypeChecker_isStructuralSubtypeHelper_9468(subtype, supertype, StaticGet_SubtypeChecker_PropertyOptionality_VOIDABLE_PROPS_ARE_OPTIONAL())
+		return this_.priv_SubtypeChecker_isStructuralSubtypeHelper_9471(subtype, supertype, StaticGet_SubtypeChecker_PropertyOptionality_VOIDABLE_PROPS_ARE_OPTIONAL())
 	}
 	if !(bivarantMatch) {
 		if covariantKey != nil {
@@ -630,10 +630,10 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subt
 			_ = thisElement_3
 			var thatElement_3 JSType = supertypeParams.GetResolvedTemplateType(covariantKey)
 			_ = thatElement_3
-			if !(this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_COVARIANT(), thisElement_3, thatElement_3)) {
+			if !(this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_COVARIANT(), thisElement_3, thatElement_3)) {
 				return false
 			}
-		} else if !(this_.priv_SubtypeChecker_isTypeMapSubmap_9479(subtype, supertype)) {
+		} else if !(this_.priv_SubtypeChecker_isTypeMapSubmap_9482(subtype, supertype)) {
 			return false
 		}
 	}
@@ -648,7 +648,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subt
 				rawElem_31 := cur_30.Next()
 				subtypeInterface := j2gort.AsIface[ObjectType](rawElem_31)
 				_ = subtypeInterface
-				if this_.priv_SubtypeChecker_isSubtypeCaching_9459(Upcast_JSType(subtypeInterface), Upcast_JSType(supertype)) {
+				if this_.priv_SubtypeChecker_isSubtypeCaching_9462(Upcast_JSType(subtypeInterface), Upcast_JSType(supertype)) {
 					return true
 				}
 			}
@@ -660,7 +660,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subt
 				rawElem_33 := cur_32.Next()
 				subtypeInterface_2 := j2gort.AsIface[ObjectType](rawElem_33)
 				_ = subtypeInterface_2
-				if this_.priv_SubtypeChecker_isSubtypeCaching_9459(Upcast_JSType(subtypeInterface_2), Upcast_JSType(supertype)) {
+				if this_.priv_SubtypeChecker_isSubtypeCaching_9462(Upcast_JSType(subtypeInterface_2), Upcast_JSType(supertype)) {
 					return true
 				}
 			}
@@ -670,7 +670,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isObjectSubtypeHelper_9467(subt
 }
 
 // Java method: SubtypeChecker.isStructuralSubtypeHelper(com.google.javascript.rhino.jstype.ObjectType subtype, com.google.javascript.rhino.jstype.ObjectType supertype, com.google.javascript.rhino.jstype.SubtypeChecker.PropertyOptionality optionality)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(subtype ObjectType, supertype ObjectType, optionality SubtypeChecker_PropertyOptionality) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9471(subtype ObjectType, supertype ObjectType, optionality SubtypeChecker_PropertyOptionality) bool {
 	_ = subtype
 	_ = supertype
 	_ = optionality
@@ -694,7 +694,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(
 				var n int32 = ownMap.GetOwnPropertiesCount()
 				_ = n
 				for ; i < n; i = i + 1 {
-					if !(this_.priv_SubtypeChecker_checkPropertyPresence_9469(ownMap.GetFlatPropAt(i).GetName(), subtype, supertype, optionality)) {
+					if !(this_.priv_SubtypeChecker_checkPropertyPresence_9472(ownMap.GetFlatPropAt(i).GetName(), subtype, supertype, optionality)) {
 						return false
 					}
 				}
@@ -705,7 +705,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(
 				for cur_34.HasNext() {
 					property := cur_34.NextStr()
 					_ = property
-					if !(this_.priv_SubtypeChecker_checkPropertyPresence_9469(property, subtype, supertype, optionality)) {
+					if !(this_.priv_SubtypeChecker_checkPropertyPresence_9472(property, subtype, supertype, optionality)) {
 						return false
 					}
 				}
@@ -720,7 +720,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(
 					_ = knownSymbolType
 					var knownSymbolTypeKey Property_Key = NewProperty_SymbolKey(knownSymbolType)
 					_ = knownSymbolTypeKey
-					if !(this_.priv_SubtypeChecker_checkPropertyPresence_9470(knownSymbolTypeKey, subtype, supertype, optionality)) {
+					if !(this_.priv_SubtypeChecker_checkPropertyPresence_9473(knownSymbolTypeKey, subtype, supertype, optionality)) {
 						return false
 					}
 				}
@@ -735,7 +735,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(
 		for cur_37.HasNext() {
 			property_2 := cur_37.NextStr()
 			_ = property_2
-			if !(this_.priv_SubtypeChecker_checkPropertyPresence_9469(property_2, subtype, supertype, optionality)) {
+			if !(this_.priv_SubtypeChecker_checkPropertyPresence_9472(property_2, subtype, supertype, optionality)) {
 				return false
 			}
 		}
@@ -748,7 +748,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(
 			_ = knownSymbolType_2
 			var knownSymbolTypeKey_2 Property_Key = NewProperty_SymbolKey(knownSymbolType_2)
 			_ = knownSymbolTypeKey_2
-			if !(this_.priv_SubtypeChecker_checkPropertyPresence_9470(knownSymbolTypeKey_2, subtype, supertype, optionality)) {
+			if !(this_.priv_SubtypeChecker_checkPropertyPresence_9473(knownSymbolTypeKey_2, subtype, supertype, optionality)) {
 				return false
 			}
 		}
@@ -757,7 +757,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isStructuralSubtypeHelper_9468(
 }
 
 // Java method: SubtypeChecker.checkPropertyPresence(java.lang.String propertyName, com.google.javascript.rhino.jstype.ObjectType subtype, com.google.javascript.rhino.jstype.ObjectType supertype, com.google.javascript.rhino.jstype.SubtypeChecker.PropertyOptionality optionality)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9469(propertyName string, subtype ObjectType, supertype ObjectType, optionality SubtypeChecker_PropertyOptionality) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9472(propertyName string, subtype ObjectType, supertype ObjectType, optionality SubtypeChecker_PropertyOptionality) bool {
 	_ = propertyName
 	_ = subtype
 	_ = supertype
@@ -768,7 +768,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9469(prop
 	if base_subtype_.HasProperty_1_string(propertyName) {
 		var subtypeProp JSType = base_subtype_.GetPropertyType_1_string(propertyName)
 		_ = subtypeProp
-		if !(this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtypeProp, supertypeProp)) {
+		if !(this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtypeProp, supertypeProp)) {
 			return false
 		}
 	} else if !(optionality.IsOptional(supertypeProp)) {
@@ -778,7 +778,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9469(prop
 }
 
 // Java method: SubtypeChecker.checkPropertyPresence(com.google.javascript.rhino.jstype.Property.Key propertyKey, com.google.javascript.rhino.jstype.ObjectType subtype, com.google.javascript.rhino.jstype.ObjectType supertype, com.google.javascript.rhino.jstype.SubtypeChecker.PropertyOptionality optionality)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9470(propertyKey Property_Key, subtype ObjectType, supertype ObjectType, optionality SubtypeChecker_PropertyOptionality) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9473(propertyKey Property_Key, subtype ObjectType, supertype ObjectType, optionality SubtypeChecker_PropertyOptionality) bool {
 	_ = propertyKey
 	_ = subtype
 	_ = supertype
@@ -788,7 +788,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9470(prop
 	if subtype.GetObjectTypeBase().HasProperty_1_Property_Key(propertyKey) {
 		var subtypeProp JSType = subtype.GetPropertyType_1_Property_Key(propertyKey)
 		_ = subtypeProp
-		if !(this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtypeProp, supertypeProp)) {
+		if !(this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtypeProp, supertypeProp)) {
 			return false
 		}
 	} else if !(optionality.IsOptional(supertypeProp)) {
@@ -798,7 +798,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_checkPropertyPresence_9470(prop
 }
 
 // Java method: SubtypeChecker.isNativeArrayType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isNativeArrayType_9471(type_ ObjectType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isNativeArrayType_9474(type_ ObjectType) bool {
 	_ = type_
 	var unwrapped ObjectType = SubtypeChecker_GetObjectTypeIfNative(type_)
 	_ = unwrapped
@@ -806,10 +806,10 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isNativeArrayType_9471(type_ Ob
 }
 
 // Java method: SubtypeChecker.isFunctionSubtype(com.google.javascript.rhino.jstype.FunctionType subtype, com.google.javascript.rhino.jstype.JSType nonFunctionSupertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isFunctionSubtype_9472(subtype *FunctionType, nonFunctionSupertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isFunctionSubtype_9475(subtype *FunctionType, nonFunctionSupertype JSType) bool {
 	_ = subtype
 	_ = nonFunctionSupertype
-	if this_.priv_SubtypeChecker_isSubtypeHelper_9466(ToIface_JSType(subtype), nonFunctionSupertype) {
+	if this_.priv_SubtypeChecker_isSubtypeHelper_9469(ToIface_JSType(subtype), nonFunctionSupertype) {
 		return true
 	}
 	if nonFunctionSupertype.GetJSTypeBase().IsFunctionType() {
@@ -821,26 +821,26 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isFunctionSubtype_9472(subtype 
 		if subtype.IsInterface() {
 			return false
 		}
-		return (this_.priv_SubtypeChecker_shouldTreatThisTypesAsCovariant_9481(subtype, supertype) && this_.priv_SubtypeChecker_isArrowTypeSubtype_9474(subtype, supertype))
+		return (this_.priv_SubtypeChecker_shouldTreatThisTypesAsCovariant_9484(subtype, supertype) && this_.priv_SubtypeChecker_isArrowTypeSubtype_9477(subtype, supertype))
 	}
-	return this_.priv_SubtypeChecker_isSubtypeCaching_9459(this_.registry.GetNativeType(StaticGet_JSTypeNative_FUNCTION_PROTOTYPE()), nonFunctionSupertype)
+	return this_.priv_SubtypeChecker_isSubtypeCaching_9462(this_.registry.GetNativeType(StaticGet_JSTypeNative_FUNCTION_PROTOTYPE()), nonFunctionSupertype)
 }
 
 // Java method: SubtypeChecker.isVariousBottomsSubtype(com.google.javascript.rhino.jstype.JSType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isVariousBottomsSubtype_9473(subtype JSType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isVariousBottomsSubtype_9476(subtype JSType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
-	if this_.priv_SubtypeChecker_isSubtypeHelper_9466(subtype, supertype) {
+	if this_.priv_SubtypeChecker_isSubtypeHelper_9469(subtype, supertype) {
 		return true
 	}
 	return (supertype.IsObject() && !(supertype.GetJSTypeBase().IsNoType()))
 }
 
 // Java method: SubtypeChecker.isArrowTypeSubtype(com.google.javascript.rhino.jstype.FunctionType subtype, com.google.javascript.rhino.jstype.FunctionType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isArrowTypeSubtype_9474(subtype *FunctionType, supertype *FunctionType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isArrowTypeSubtype_9477(subtype *FunctionType, supertype *FunctionType) bool {
 	_ = subtype
 	_ = supertype
-	if !(this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtype.GetReturnType(), supertype.GetReturnType())) {
+	if !(this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtype.GetReturnType(), supertype.GetReturnType())) {
 		return false
 	}
 	var subtypeParameters []FunctionType_Parameter = subtype.GetParameterArray()
@@ -875,7 +875,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isArrowTypeSubtype_9474(subtype
 		var supertypeParamType JSType = supertypeParam.GetJSType()
 		_ = supertypeParamType
 		if subtypeParamType != nil && !subtypeParamType.IsJavaNil_() {
-			if (supertypeParamType == nil || supertypeParamType.IsJavaNil_()) || !(this_.priv_SubtypeChecker_isSubtypeCaching_9459(supertypeParamType, subtypeParamType)) {
+			if (supertypeParamType == nil || supertypeParamType.IsJavaNil_()) || !(this_.priv_SubtypeChecker_isSubtypeCaching_9462(supertypeParamType, subtypeParamType)) {
 				return false
 			}
 		}
@@ -916,46 +916,46 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isArrowTypeSubtype_9474(subtype
 }
 
 // Java method: SubtypeChecker.isEnumSubtype(com.google.javascript.rhino.jstype.EnumType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isEnumSubtype_9475(subtype *EnumType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isEnumSubtype_9478(subtype *EnumType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
-	return ((supertype.GetJSTypeBase().EqualsJSType(this_.registry.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE())) || subtype.EqualsJSType(this_.registry.GetNativeType(StaticGet_JSTypeNative_OBJECT_PROTOTYPE()))) || this_.priv_SubtypeChecker_isSubtypeHelper_9466(ToIface_JSType(subtype), supertype))
+	return ((supertype.GetJSTypeBase().EqualsJSType(this_.registry.GetNativeType(StaticGet_JSTypeNative_OBJECT_TYPE())) || subtype.EqualsJSType(this_.registry.GetNativeType(StaticGet_JSTypeNative_OBJECT_PROTOTYPE()))) || this_.priv_SubtypeChecker_isSubtypeHelper_9469(ToIface_JSType(subtype), supertype))
 }
 
 // Java method: SubtypeChecker.isEnumElementSubtype(com.google.javascript.rhino.jstype.EnumElementType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isEnumElementSubtype_9476(subtype *EnumElementType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isEnumElementSubtype_9479(subtype *EnumElementType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
 	if supertype.GetJSTypeBase().IsEnumElementType() && (subtype.GetEnumType() == supertype.ToMaybeEnumElementType().GetEnumType()) {
-		return this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtype.GetPrimitiveType(), supertype.ToMaybeEnumElementType().GetPrimitiveType())
+		return this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtype.GetPrimitiveType(), supertype.ToMaybeEnumElementType().GetPrimitiveType())
 	}
-	if this_.priv_SubtypeChecker_isSubtypeHelper_9466(ToIface_JSType(subtype), supertype) {
+	if this_.priv_SubtypeChecker_isSubtypeHelper_9469(ToIface_JSType(subtype), supertype) {
 		return true
 	} else {
-		return this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtype.GetPrimitiveType(), supertype)
+		return this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtype.GetPrimitiveType(), supertype)
 	}
 }
 
 // Java method: SubtypeChecker.isProxyObjectSubtype(com.google.javascript.rhino.jstype.ProxyObjectType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isProxyObjectSubtype_9477(subtype ProxyObjectType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isProxyObjectSubtype_9480(subtype ProxyObjectType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
-	return this_.priv_SubtypeChecker_isSubtypeDispatching_9464(subtype.GetProxyObjectTypeBase().GetReferencedTypeInternal(), supertype)
+	return this_.priv_SubtypeChecker_isSubtypeDispatching_9467(subtype.GetProxyObjectTypeBase().GetReferencedTypeInternal(), supertype)
 }
 
 // Java method: SubtypeChecker.isTemplateSubtype(com.google.javascript.rhino.jstype.TemplateType subtype, com.google.javascript.rhino.jstype.JSType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isTemplateSubtype_9478(subtype *TemplateType, supertype JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isTemplateSubtype_9481(subtype *TemplateType, supertype JSType) bool {
 	_ = subtype
 	_ = supertype
 	if (!(subtype.GetBound().GetJSTypeBase().IsUnknownType()) && supertype.GetJSTypeBase().IsTemplateType()) && !(supertype.ToMaybeTemplateType().GetBound().GetJSTypeBase().IsUnknownType()) {
 		return (j2gort.Cast[ContainsUpperBoundSuperTypeVisitor_Result](subtype.Visit_1(NewContainsUpperBoundSuperTypeVisitor(supertype))) == StaticGet_ContainsUpperBoundSuperTypeVisitor_Result_PRESENT())
 	} else {
-		return this_.priv_SubtypeChecker_isProxyObjectSubtype_9477(ToIface_ProxyObjectType(subtype), supertype)
+		return this_.priv_SubtypeChecker_isProxyObjectSubtype_9480(ToIface_ProxyObjectType(subtype), supertype)
 	}
 }
 
 // Java method: SubtypeChecker.isTypeMapSubmap(com.google.javascript.rhino.jstype.ObjectType subtype, com.google.javascript.rhino.jstype.ObjectType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_isTypeMapSubmap_9479(subtype ObjectType, supertype ObjectType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_isTypeMapSubmap_9482(subtype ObjectType, supertype ObjectType) bool {
 	_ = subtype
 	_ = supertype
 	if subtype.GetObjectTypeBase().IsFunctionPrototypeType() {
@@ -987,7 +987,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isTypeMapSubmap_9479(subtype Ob
 			_ = subvalue
 			var supervalue JSType = supermap.GetResolvedTemplateType(key)
 			_ = supervalue
-			if !(this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_INVARIANT(), subvalue, supervalue)) {
+			if !(this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_INVARIANT(), subvalue, supervalue)) {
 				return false
 			}
 		}
@@ -996,19 +996,19 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_isTypeMapSubmap_9479(subtype Ob
 }
 
 // Java method: SubtypeChecker.meetVarianceConstraint(com.google.javascript.rhino.jstype.SubtypeChecker.Variance variance, com.google.javascript.rhino.jstype.JSType override, com.google.javascript.rhino.jstype.JSType reference)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_meetVarianceConstraint_9480(variance SubtypeChecker_Variance, override JSType, reference JSType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_meetVarianceConstraint_9483(variance SubtypeChecker_Variance, override JSType, reference JSType) bool {
 	_ = variance
 	_ = override
 	_ = reference
 	switch (variance).Ordinal() {
 	case int32(0) /* Variance.COVARIANT */ :
-		return this_.priv_SubtypeChecker_isSubtypeCaching_9459(override, reference)
+		return this_.priv_SubtypeChecker_isSubtypeCaching_9462(override, reference)
 	case int32(1) /* Variance.CONTRAVARIANT */ :
-		return this_.priv_SubtypeChecker_isSubtypeCaching_9459(reference, override)
+		return this_.priv_SubtypeChecker_isSubtypeCaching_9462(reference, override)
 	case int32(2) /* Variance.BIVARIANT */ :
-		return (this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_COVARIANT(), reference, override) || this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_CONTRAVARIANT(), reference, override))
+		return (this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_COVARIANT(), reference, override) || this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_CONTRAVARIANT(), reference, override))
 	case int32(3) /* Variance.INVARIANT */ :
-		return (this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_COVARIANT(), reference, override) && this_.priv_SubtypeChecker_meetVarianceConstraint_9480(StaticGet_SubtypeChecker_Variance_CONTRAVARIANT(), reference, override))
+		return (this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_COVARIANT(), reference, override) && this_.priv_SubtypeChecker_meetVarianceConstraint_9483(StaticGet_SubtypeChecker_Variance_CONTRAVARIANT(), reference, override))
 	}
 	panic("unreachable switch expression")
 }
@@ -1074,7 +1074,7 @@ func SubtypeChecker_GetTemplateKeyIfCovariantType(type_ ObjectType) *TemplateTyp
 }
 
 // Java method: SubtypeChecker.shouldTreatThisTypesAsCovariant(com.google.javascript.rhino.jstype.FunctionType subtype, com.google.javascript.rhino.jstype.FunctionType supertype)
-func (this_ *SubtypeChecker) priv_SubtypeChecker_shouldTreatThisTypesAsCovariant_9481(subtype *FunctionType, supertype *FunctionType) bool {
+func (this_ *SubtypeChecker) priv_SubtypeChecker_shouldTreatThisTypesAsCovariant_9484(subtype *FunctionType, supertype *FunctionType) bool {
 	_ = subtype
 	_ = supertype
 	if (!(j2gort.IfaceEquals[ObjectType](supertype.GetTypeOfThis().GetJSTypeBase().ToObjectType(), nil)) && (supertype.GetTypeOfThis().GetJSTypeBase().ToObjectType().GetConstructor() != nil)) && supertype.GetTypeOfThis().GetJSTypeBase().ToObjectType().GetConstructor().IsInterface() {
@@ -1083,7 +1083,7 @@ func (this_ *SubtypeChecker) priv_SubtypeChecker_shouldTreatThisTypesAsCovariant
 	var originalMode JSType_SubtypingMode = this_.subtypingMode
 	_ = originalMode
 	this_.subtypingMode = StaticGet_JSType_SubtypingMode_NORMAL()
-	var result bool = (this_.priv_SubtypeChecker_isSubtypeCaching_9459(supertype.GetTypeOfThis(), subtype.GetTypeOfThis()) || this_.priv_SubtypeChecker_isSubtypeCaching_9459(subtype.GetTypeOfThis(), supertype.GetTypeOfThis()))
+	var result bool = (this_.priv_SubtypeChecker_isSubtypeCaching_9462(supertype.GetTypeOfThis(), subtype.GetTypeOfThis()) || this_.priv_SubtypeChecker_isSubtypeCaching_9462(subtype.GetTypeOfThis(), supertype.GetTypeOfThis()))
 	_ = result
 	this_.subtypingMode = originalMode
 	return result

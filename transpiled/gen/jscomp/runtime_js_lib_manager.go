@@ -173,12 +173,13 @@ func (this_ *RuntimeJsLibManager) GetJsLibField(fieldName string) RuntimeJsLibMa
 // Java method: RuntimeJsLibManager.getJsLibFieldInternal(java.lang.String fieldName)
 func (this_ *RuntimeJsLibManager) priv_RuntimeJsLibManager_getJsLibFieldInternal_6489(fieldName string) *RuntimeJsLibManager_InternalField {
 	_ = fieldName
-	return func() *RuntimeJsLibManager_InternalField {
+	{
+
 		bound_1 := this_
 		return j2gort.OrderedMapComputeIfAbsent(&this_.internedFields, fieldName, nil, func(mrp0_ string) *RuntimeJsLibManager_InternalField {
 			return bound_1.priv_RuntimeJsLibManager_createField_6487(mrp0_)
 		})
-	}()
+	}
 
 }
 

@@ -287,7 +287,14 @@ func (this_ *SourceFile) priv_SourceFile_findLineOffsets_5099() {
 				}
 				{
 					a_14 := offsets
-					i_15 := func() int32 { old_16 := index; nw_17 := old_16 + 1; index = nw_17; return old_16 }()
+					var i_15 int32
+					{
+
+						old_16 := index
+						nw_17 := old_16 + 1
+						index = nw_17
+						i_15 = old_16
+					}
 					a_14[i_15] = (i + int32(1))
 				}
 			}

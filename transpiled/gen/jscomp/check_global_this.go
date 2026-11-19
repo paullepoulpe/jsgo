@@ -121,7 +121,7 @@ func (this_ *CheckGlobalThis) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.Nod
 		if jsDoc != nil {
 			var functionType pkg_rhino.JSTypeExpression = jsDoc.GetType()
 			_ = functionType
-			if functionType != (pkg_rhino.JSTypeExpression{}) {
+			if !(functionType).IsJavaNil_() {
 				var functionNode pkg_rhino.Node = functionType.GetRoot()
 				_ = functionNode
 				if (functionNode != 0) && functionNode.IsFunction() {

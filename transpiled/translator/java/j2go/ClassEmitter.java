@@ -1180,12 +1180,15 @@ public final class ClassEmitter {
     String binName = resolver.elements.getBinaryName(te).toString();
     String simpleName = te.getSimpleName().toString();
     if (resolver.isValueStructClass(te)) {
+      String sentinelField = resolver.getValueStructEnumSentinelFieldGoName(te);
       String nilBody =
           resolver.hasValueStructValidFlag(te)
               ? "!this_.valid_"
-              : (resolver.isNullableValueStructClass(te)
-                  ? ("this_ == (" + structName + "{})")
-                  : "false");
+              : (sentinelField != null
+                  ? ("this_." + sentinelField + " == 0")
+                  : (resolver.isNullableValueStructClass(te)
+                      ? ("this_ == (" + structName + "{})")
+                      : "false"));
       out.append("func (this_ ")
           .append(structName)
           .append(") IsJavaNil_() bool { return ")
@@ -1220,8 +1223,11 @@ public final class ClassEmitter {
       StringBuilder out,
       EmitContext fileCtx) {
     out.append("func (this_ ").append(structWithParams).append(") IdentityHash_() int32 {\n");
+    String sentinelField = resolver.getValueStructEnumSentinelFieldGoName(te);
     if (resolver.hasValueStructValidFlag(te)) {
       out.append("\tif !this_.valid_ {\n\t\treturn 0\n\t}\n");
+    } else if (sentinelField != null) {
+      out.append("\tif this_.").append(sentinelField).append(" == 0 {\n\t\treturn 0\n\t}\n");
     } else if (resolver.isNullableValueStructClass(te)) {
       out.append("\tif this_ == (").append(structWithParams).append("{}) {\n\t\treturn 0\n\t}\n");
     }
@@ -3941,6 +3947,9 @@ public final class ClassEmitter {
       out.append("\tif this_ == 0 { panic(nodeNullPtrEx) }\n");
       out.append("\tif v == ").append(rt).append("NullString {\n\t\t").append(nsPref).append("Node(this_).SetOrigNameID(0)\n\t} else {\n\t\t")
           .append(nsPref).append("Node(this_).SetOrigNameID(").append(nsPref).append("Intern(v))\n\t}\n}\n");
+      out.append("func (this_ Node) nodeCopy_originalName(other Node) {\n");
+      out.append("\tif this_ == 0 || other == 0 {\n\t\tpanic(nodeNullPtrEx)\n\t}\n");
+      out.append('\t').append(nsPref).append("Node(this_).SetOrigNameID(").append(nsPref).append("Node(other).OrigNameID())\n}\n");
 
       // `length` & `changeTime` stored in lock-free `nodestore` columns
       out.append("func (this_ Node) nodeGet_length() int32 {\n");
@@ -4881,12 +4890,15 @@ public final class ClassEmitter {
       nilGuard = "\tif this_ == 0 {\n\t\t" + rt + "ThrowNPE()\n\t}\n";
     } else if (resolver.isValueStructClass(typeEl)) {
       recvSpec = "(this_ " + goTypeName + useParams + ")";
+      String sentinelField = resolver.getValueStructEnumSentinelFieldGoName(typeEl);
       nilGuard =
           resolver.hasValueStructValidFlag(typeEl)
               ? ("\tif !this_.valid_ {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
-              : (resolver.isNullableValueStructClass(typeEl)
-                  ? ("\tif this_ == (" + goTypeName + useParams + "{}) {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
-                  : "");
+              : (sentinelField != null
+                  ? ("\tif this_." + sentinelField + " == 0 {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
+                  : (resolver.isNullableValueStructClass(typeEl)
+                      ? ("\tif this_ == (" + goTypeName + useParams + "{}) {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
+                      : ""));
     } else if (resolver.isSubclassed(typeEl)) {
       recvSpec = "(this_ *" + goTypeName + "Base" + useParams + ")";
       nilGuard = "\tif this_ == nil {\n\t\t" + rt + "ThrowNPE()\n\t}\n";
@@ -5093,12 +5105,15 @@ public final class ClassEmitter {
     String nilGuard;
     if (resolver.isValueStructClass(te)) {
       recvSpec = "(this_ " + structWithParams + ")";
+      String sentinelField = resolver.getValueStructEnumSentinelFieldGoName(te);
       nilGuard =
           resolver.hasValueStructValidFlag(te)
               ? ("\tif !this_.valid_ {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
-              : (resolver.isNullableValueStructClass(te)
-                  ? ("\tif this_ == (" + goName + useParams + "{}) {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
-                  : "");
+              : (sentinelField != null
+                  ? ("\tif this_." + sentinelField + " == 0 {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
+                  : (resolver.isNullableValueStructClass(te)
+                      ? ("\tif this_ == (" + goName + useParams + "{}) {\n\t\t" + rt + "ThrowNPE()\n\t}\n")
+                      : ""));
     } else {
       recvSpec = "(this_ *" + structWithParams + ")";
       nilGuard = "\tif this_ == nil {\n\t\t" + rt + "ThrowNPE()\n\t}\n";

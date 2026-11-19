@@ -140,7 +140,8 @@ func (this_ *LiveVariablesAnalysis) GetAllVariablesInOrder() j2gort.Ext_java_uti
 // Java method: LiveVariablesAnalysis.getVarIndex(java.lang.String var)
 func (this_ *LiveVariablesAnalysis) GetVarIndex(var_ string) int32 {
 	_ = var_
-	return func() int32 {
+	{
+
 		if v_, ok_ := this_.scopeVariables.GetOk(var_); ok_ {
 			return v_
 
@@ -148,7 +149,8 @@ func (this_ *LiveVariablesAnalysis) GetVarIndex(var_ string) int32 {
 		}
 		j2gort.ThrowNPE()
 		return 0
-	}()
+	}
+
 }
 
 func (this_ *LiveVariablesAnalysis) IsForward() bool {

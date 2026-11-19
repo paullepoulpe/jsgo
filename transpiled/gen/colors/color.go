@@ -123,7 +123,7 @@ func InitColor(this_ *Color, id ColorId, prototypes []*Color, instanceColors []*
 	_ = closureAssert
 	_ = unionElements
 	this_.initFields_Color()
-	if id == (ColorId{}) {
+	if (id).IsJavaNil_() {
 		panic(j2gort.AsIface[javalang.INullPointerException](j2gort.ConstructShimThrowable("java.lang.NullPointerException", "Null id")))
 	}
 	this_.id = id
@@ -298,7 +298,14 @@ func Color_ToUniqueColorArray(colors j2gort.Ext_java_util_Collection) []*Color {
 				j2gort.CheckNotNullPtr(c)
 				{
 					a_9 := out
-					i_10 := func() int32 { old_11 := i; nw_12 := old_11 + 1; i = nw_12; return old_11 }()
+					var i_10 int32
+					{
+
+						old_11 := i
+						nw_12 := old_11 + 1
+						i = nw_12
+						i_10 = old_11
+					}
 					a_9[i_10] = c
 				}
 			}
@@ -342,7 +349,14 @@ func Color_ToUniqueStringArray(strings j2gort.Ext_java_util_Collection) []string
 				j2gort.CheckNotNullString(s)
 				{
 					a_16 := out
-					i_17 := func() int32 { old_18 := i; nw_19 := old_18 + 1; i = nw_19; return old_18 }()
+					var i_17 int32
+					{
+
+						old_18 := i
+						nw_19 := old_18 + 1
+						i = nw_19
+						i_17 = old_18
+					}
 					a_16[i_17] = s
 				}
 			}
@@ -462,7 +476,14 @@ func Color_MergeColorArrays(a []*Color, b []*Color) []*Color {
 				if !(Color_ContainsColor(a, aLen, c)) {
 					{
 						a_26 := merged
-						i_27 := func() int32 { old_28 := pos; nw_29 := old_28 + 1; pos = nw_29; return old_28 }()
+						var i_27 int32
+						{
+
+							old_28 := pos
+							nw_29 := old_28 + 1
+							pos = nw_29
+							i_27 = old_28
+						}
 						a_26[i_27] = c
 					}
 				}
@@ -568,7 +589,14 @@ func Color_MergeStringArrays(a []string, b []string) []string {
 				if !(Color_ContainsString(a, aLen, s)) {
 					{
 						a_37 := merged
-						i_38 := func() int32 { old_39 := pos; nw_40 := old_39 + 1; pos = nw_40; return old_39 }()
+						var i_38 int32
+						{
+
+							old_39 := pos
+							nw_40 := old_39 + 1
+							pos = nw_40
+							i_38 = old_39
+						}
 						a_37[i_38] = s
 					}
 				}
@@ -765,9 +793,21 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 					}
 				}
 			}
-			isClosureAssert = func() bool { ba_57 := isClosureAssert; bb_58 := element.closureAssert; return ba_57 && bb_58 }()
-			isConstructor = func() bool { ba_59 := isConstructor; bb_60 := element.constructor; return ba_59 && bb_60 }()
-			isInvalidating = func() bool { ba_61 := isInvalidating; bb_62 := element.invalidating; return ba_61 || bb_62 }()
+			{
+				ba_57 := isClosureAssert
+				bb_58 := element.closureAssert
+				isClosureAssert = ba_57 && bb_58
+			}
+			{
+				ba_59 := isConstructor
+				bb_60 := element.constructor
+				isConstructor = ba_59 && bb_60
+			}
+			{
+				ba_61 := isInvalidating
+				bb_62 := element.invalidating
+				isInvalidating = ba_61 || bb_62
+			}
 			var elemOwnProps []string = element.ownProperties
 			_ = elemOwnProps
 			if int32(len(elemOwnProps)) > int32(0) {
@@ -850,7 +890,7 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 	if !(int32(len(result.unionElements)) > int32(1)) {
 		j2gort.CheckStateMsg(false, result)
 	}
-	if !(result.boxId == (ColorId{})) {
+	if !((result.boxId).IsJavaNil_()) {
 		j2gort.CheckStateMsg(false, result)
 	}
 	return result
@@ -924,9 +964,21 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 					}
 				}
 			}
-			isClosureAssert = func() bool { ba_75 := isClosureAssert; bb_76 := element.closureAssert; return ba_75 && bb_76 }()
-			isConstructor = func() bool { ba_77 := isConstructor; bb_78 := element.constructor; return ba_77 && bb_78 }()
-			isInvalidating = func() bool { ba_79 := isInvalidating; bb_80 := element.invalidating; return ba_79 || bb_80 }()
+			{
+				ba_75 := isClosureAssert
+				bb_76 := element.closureAssert
+				isClosureAssert = ba_75 && bb_76
+			}
+			{
+				ba_77 := isConstructor
+				bb_78 := element.constructor
+				isConstructor = ba_77 && bb_78
+			}
+			{
+				ba_79 := isInvalidating
+				bb_80 := element.invalidating
+				isInvalidating = ba_79 || bb_80
+			}
 			var elemOwnProps []string = element.ownProperties
 			_ = elemOwnProps
 			if int32(len(elemOwnProps)) > int32(0) {
@@ -1009,7 +1061,7 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 	if !(int32(len(result.unionElements)) > int32(1)) {
 		j2gort.CheckStateMsg(false, result)
 	}
-	if !(result.boxId == (ColorId{})) {
+	if !((result.boxId).IsJavaNil_()) {
 		j2gort.CheckStateMsg(false, result)
 	}
 	return result
@@ -1219,11 +1271,13 @@ func Color_SetEqualsStrings(a []string, b []string) bool {
 		return false
 	}
 	if len_ == int32(1) {
-		return func() bool {
+		{
+
 			sr_99 := a[int32(0)]
 			se_100 := b[int32(0)]
 			return j2gort.CheckNotNullString(sr_99) == se_100
-		}()
+		}
+
 	}
 	if len_ == int32(2) {
 		return ((func() bool {
@@ -1317,15 +1371,17 @@ func (this_ *Color) Equals(arg_111 any) bool {
 			_ = j2gort.CheckNotNullVal(rv_112)
 			return rv_112 == av_113
 		}() && (this_.invalidating == that.invalidating)) && (this_.propertiesKeepOriginalName == that.propertiesKeepOriginalName)) && (this_.constructor == that.constructor)) && (this_.closureAssert == that.closureAssert)) && (func() bool {
-			if this_.boxId == (ColorId{}) {
-				return (that.boxId == (ColorId{}))
+			if (this_.boxId).IsJavaNil_() {
+				return (that.boxId).IsJavaNil_()
 			}
-			return func() bool {
+			{
+
 				rv_114 := this_.boxId
 				av_115 := that.boxId
 				_ = j2gort.CheckNotNullVal(rv_114)
 				return rv_114 == av_115
-			}()
+			}
+
 		}())) && (this_.HashCode() == that.HashCode())) && Color_SetEqualsColors(this_.prototypes, that.prototypes)) && Color_SetEqualsColors(this_.instanceColors, that.instanceColors)) && Color_SetEqualsStrings(this_.ownProperties, that.ownProperties)) && Color_SetEqualsColors(this_.unionElements, that.unionElements))
 	}
 	return false
@@ -1421,7 +1477,7 @@ func (this_ *Color) priv_Color_computeHashCode_5983() int32 {
 	h_d = (h_d ^ ownPropHash)
 	h_d = (h_d * int32(1000003))
 	h_d = (h_d ^ func() int32 {
-		if this_.boxId == (ColorId{}) {
+		if (this_.boxId).IsJavaNil_() {
 			return int32(0)
 		}
 		return this_.boxId.HashCode()
@@ -1495,7 +1551,7 @@ func InitColor_Builder(this_ *Color_Builder) {
 // Java method: Builder.setId(com.google.javascript.jscomp.colors.ColorId id)
 func (this_ *Color_Builder) SetId(id ColorId) *Color_Builder {
 	_ = id
-	if id == (ColorId{}) {
+	if (id).IsJavaNil_() {
 		panic(j2gort.AsIface[javalang.INullPointerException](j2gort.ConstructShimThrowable("java.lang.NullPointerException", "Null id")))
 	}
 	this_.id = id
@@ -1635,10 +1691,10 @@ func (this_ *Color_Builder) SetInstanceColor(x *Color) *Color_Builder {
 
 // Java method: Builder.buildInternal()
 func (this_ *Color_Builder) BuildInternal() *Color {
-	if (((((int32(this_.set_d0) != int32(15)) || (this_.id == (ColorId{}))) || (this_.prototypes == nil)) || (this_.instanceColors == nil)) || (this_.ownProperties == nil)) || (this_.unionElements == nil) {
+	if (((((int32(this_.set_d0) != int32(15)) || (this_.id).IsJavaNil_()) || (this_.prototypes == nil)) || (this_.instanceColors == nil)) || (this_.ownProperties == nil)) || (this_.unionElements == nil) {
 		var missing *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 		_ = missing
-		if this_.id == (ColorId{}) {
+		if (this_.id).IsJavaNil_() {
 			missing.Append_1_string(" id")
 		}
 		if this_.prototypes == nil {
@@ -1677,7 +1733,7 @@ func (this_ *Color_Builder) Build() *Color {
 	if !(int32(len(result.unionElements)) == int32(0)) {
 		j2gort.CheckStateMsg(false, j2gort.PtrToAny(result))
 	}
-	if !(result.boxId == (ColorId{})) {
+	if !((result.boxId).IsJavaNil_()) {
 		j2gort.CheckStateMsg(false, j2gort.PtrToAny(result))
 	}
 	if !(!(j2gort.MapContainsEqVal(StaticGet_StandardColors_AXIOMATIC_COLORS(), result.id))) {

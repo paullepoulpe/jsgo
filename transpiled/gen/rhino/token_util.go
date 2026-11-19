@@ -56,7 +56,9 @@ func (this_ *TokenUtil) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *TokenUtil) IsJavaNil_() bool { return this_ == nil }
-func (*TokenUtil) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.TokenUtil", "TokenUtil" }
+func (*TokenUtil) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.TokenUtil", "TokenUtil"
+}
 func (this_ *TokenUtil) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -91,7 +93,7 @@ func InitTokenUtil(this_ *TokenUtil) {
 // Java static method: TokenUtil.isJSSpace(int c)
 func TokenUtil_IsJSSpace(c int32) bool {
 	_ = c
-	if ((c <= int32(127))) {
+	if c <= int32(127) {
 		return ((((c == int32(32)) || (c == int32(9))) || (c == int32(12))) || (c == int32(11)))
 	} else {
 		return ((c == int32(160)) || (j2gort.BoxChar_GetType_1_uint16(uint16(c)) == int32(int8(12))))
@@ -119,8 +121,12 @@ func TokenUtil_IsStrWhiteSpaceChar(c int32) pkg_base.Tri {
 	case int32(uint16(32)), int32(uint16(10)), int32(uint16(13)), int32(uint16(9)), int32(uint16(160)), int32(uint16(12)), int32(uint16(8232)), int32(uint16(8233)), int32(uint16(65279)):
 		return pkg_base.StaticGet_Tri_TRUE()
 	default:
-		return func() pkg_base.Tri { if ((j2gort.BoxChar_GetType_1_int32(c) == int32(int8(12)))) { return pkg_base.StaticGet_Tri_TRUE() }; return pkg_base.StaticGet_Tri_FALSE() }()
+		{
+			if j2gort.BoxChar_GetType_1_int32(c) == int32(int8(12)) {
+				return pkg_base.StaticGet_Tri_TRUE()
+			}
+			return pkg_base.StaticGet_Tri_FALSE()
+		}
 	}
 	panic("unreachable switch expression")
 }
-

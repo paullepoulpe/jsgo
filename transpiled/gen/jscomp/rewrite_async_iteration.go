@@ -396,12 +396,14 @@ func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_convertReturnOfAs
 func (this_ *RewriteAsyncIteration) priv_RewriteAsyncIteration_replaceForAwaitOf_4955(ctx *RewriteAsyncIteration_LexicalContext, forAwaitOf pkg_rhino.Node) {
 	_ = ctx
 	_ = forAwaitOf
-	var forAwaitId int32 = func() int32 {
+	var forAwaitId int32
+	{
 		old_5 := this_.nextForAwaitId
 		nw_6 := old_5 + 1
 		this_.nextForAwaitId = nw_6
-		return old_5
-	}()
+		forAwaitId = old_5
+	}
+
 	_ = forAwaitId
 	var iteratorTempName string = ("$jscomp$forAwait$tempIterator" + j2gort.StrValInt32(forAwaitId))
 	_ = iteratorTempName

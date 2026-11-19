@@ -425,7 +425,8 @@ func NodeUtil_GetBooleanValue(n pkg_rhino.Node) pkg_base.Tri {
 	case int32(19) /* Token.NOT */ :
 		return NodeUtil_GetBooleanValue(n.GetLastChild()).Not()
 	case int32(32) /* Token.NAME */ :
-		return func() pkg_base.Tri {
+		{
+
 			switch j2gort.CheckNotNullString(n.GetString()) {
 			case "undefined", "NaN":
 				return pkg_base.StaticGet_Tri_FALSE()
@@ -435,7 +436,8 @@ func NodeUtil_GetBooleanValue(n pkg_rhino.Node) pkg_base.Tri {
 				return pkg_base.StaticGet_Tri_UNKNOWN()
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	case int32(20) /* Token.BITNOT */, int32(21) /* Token.POS */, int32(22) /* Token.NEG */ :
 		var doubleVal *j2gort.BoxDouble = NodeUtil_GetNumberValue(n)
 		_ = doubleVal
@@ -561,23 +563,27 @@ func NodeUtil_GetStringValue(n pkg_rhino.Node) string {
 		var child_2 pkg_base.Tri = NodeUtil_GetBooleanValue(n.GetFirstChild())
 		_ = child_2
 		if child_2 != pkg_base.StaticGet_Tri_UNKNOWN() {
-			return func() string {
+			{
+
 				if child_2.ToBoolean(true) {
 					return "false"
 				}
 				return "true"
-			}()
+			}
+
 		}
 		return j2gort.NullString
 	case int32(46) /* Token.ARRAYLIT */ :
 		return NodeUtil_ArrayToString(n)
 	case int32(47) /* Token.OBJECTLIT */ :
-		return func() string {
+		{
+
 			if n.HasChildren() {
 				return j2gort.NullString
 			}
 			return "[object Object]"
-		}()
+		}
+
 	default:
 		return j2gort.NullString
 	}
@@ -648,12 +654,14 @@ func NodeUtil_DoGetNumberValue(n pkg_rhino.Node, numberConversions bool) *j2gort
 	case int32(32) /* Token.NAME */ :
 		switch j2gort.CheckNotNullString(n.GetString()) {
 		case "undefined":
-			return func() *j2gort.BoxDouble {
+			{
+
 				if numberConversions {
 					return j2gort.ValueOfDouble(math.NaN())
 				}
 				return nil
-			}()
+			}
+
 		case "NaN":
 			return j2gort.ValueOfDouble(math.NaN())
 		case "Infinity":
@@ -871,16 +879,19 @@ func NodeUtil_GetBigIntValue(n pkg_rhino.Node) *j2gort.Ext_java_math_BigInteger 
 	case int32(33) /* Token.NUMBER */ :
 		var val float64 = n.GetDouble()
 		_ = val
-		return func() *j2gort.Ext_java_math_BigInteger {
+		{
+
 			if pkg_base.JSCompDoubles_IsAtLeastIntegerPrecision(val) && pkg_base.JSCompDoubles_IsExactInt64(val) {
 				return j2gort.Ext_java_math_BigInteger_ValueOf(javalang.D2L(val))
 			}
 			return nil
-		}()
+		}
+
 	case int32(34) /* Token.BIGINT */ :
 		return n.GetBigInt()
 	case int32(38) /* Token.FALSE */, int32(19) /* Token.NOT */, int32(39) /* Token.TRUE */ :
-		return func() *j2gort.Ext_java_math_BigInteger {
+		{
+
 			switch (NodeUtil_GetBooleanValue(n)).Ordinal() {
 			case int32(2) /* Tri.TRUE */ :
 				return j2gort.Ext_java_math_BigInteger_F_ONE
@@ -890,7 +901,8 @@ func NodeUtil_GetBigIntValue(n pkg_rhino.Node) *j2gort.Ext_java_math_BigInteger 
 				return nil
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 	case int32(131) /* Token.TEMPLATELIT */ :
 		var string_ string = NodeUtil_GetStringValue(n)
 		_ = string_
@@ -903,30 +915,36 @@ func NodeUtil_GetBigIntValue(n pkg_rhino.Node) *j2gort.Ext_java_math_BigInteger 
 	case int32(22) /* Token.NEG */ :
 		var result *j2gort.Ext_java_math_BigInteger = NodeUtil_GetBigIntValue(n.GetOnlyChild())
 		_ = result
-		return func() *j2gort.Ext_java_math_BigInteger {
+		{
+
 			if result == nil {
 				return nil
 			}
 			return result.Negate()
-		}()
+		}
+
 	case int32(20) /* Token.BITNOT */ :
 		var result_2 *j2gort.Ext_java_math_BigInteger = NodeUtil_GetBigIntValue(n.GetOnlyChild())
 		_ = result_2
-		return func() *j2gort.Ext_java_math_BigInteger {
+		{
+
 			if result_2 == nil {
 				return nil
 			}
 			return result_2.Not()
-		}()
+		}
+
 	case int32(46) /* Token.ARRAYLIT */, int32(47) /* Token.OBJECTLIT */ :
 		var value string = NodeUtil_GetStringValue(n)
 		_ = value
-		return func() *j2gort.Ext_java_math_BigInteger {
+		{
+
 			if value != j2gort.NullString {
 				return NodeUtil_GetStringBigIntValue(value)
 			}
 			return nil
-		}()
+		}
+
 	case int32(87) /* Token.VOID */, int32(32) /* Token.NAME */, int32(36) /* Token.NULL */ :
 		return nil
 	default:
@@ -1057,21 +1075,25 @@ func NodeUtil_GetNameNode(n pkg_rhino.Node) pkg_rhino.Node {
 	case int32(51) /* Token.ASSIGN */ :
 		var firstChild pkg_rhino.Node = parent.GetFirstChild()
 		_ = firstChild
-		return func() pkg_rhino.Node {
+		{
+
 			if firstChild.IsQualifiedName() {
 				return firstChild
 			}
 			return pkg_rhino.Node(0)
-		}()
+		}
+
 	default:
 		var funNameNode pkg_rhino.Node = n.GetFirstChild()
 		_ = funNameNode
-		return func() pkg_rhino.Node {
+		{
+
 			if funNameNode.IsEmpty() || (j2gort.CheckNotNullString(funNameNode.GetString()) == "") {
 				return pkg_rhino.Node(0)
 			}
 			return funNameNode
-		}()
+		}
+
 	}
 	panic("unreachable switch expression")
 }
@@ -3848,16 +3870,25 @@ func NodeUtil_GetRootOfQualifiedName_1_string(qName string) string {
 	return j2gort.JStrSub(qName, int32(0), dot)
 }
 
-// Java static method: NodeUtil.newName(com.google.javascript.jscomp.CodingConvention convention, java.lang.String name)
-func NodeUtil_NewName_2(convention CodingConvention, name string) pkg_rhino.Node {
+// Java static method: NodeUtil.newNameWithoutLength(com.google.javascript.jscomp.CodingConvention convention, java.lang.String name)
+func NodeUtil_NewNameWithoutLength(convention CodingConvention, name string) pkg_rhino.Node {
 	_ = convention
 	_ = name
 	var nameNode pkg_rhino.Node = pkg_rhino.IR_Name(name)
 	_ = nameNode
-	nameNode.SetLength(j2gort.JStrLen(name))
 	if convention.IsConstant(name) {
 		nameNode.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), true)
 	}
+	return nameNode
+}
+
+// Java static method: NodeUtil.newName(com.google.javascript.jscomp.CodingConvention convention, java.lang.String name)
+func NodeUtil_NewName_2(convention CodingConvention, name string) pkg_rhino.Node {
+	_ = convention
+	_ = name
+	var nameNode pkg_rhino.Node = NodeUtil_NewNameWithoutLength(convention, name)
+	_ = nameNode
+	nameNode.SetLength(j2gort.JStrLen(name))
 	return nameNode
 }
 
@@ -3874,7 +3905,7 @@ func NodeUtil_NewName_3_CodingConvention_string_Node(convention CodingConvention
 	_ = convention
 	_ = name
 	_ = srcref
-	return NodeUtil_NewName_2(convention, name).Srcref(srcref)
+	return NodeUtil_NewNameWithoutLength(convention, name).Srcref(srcref)
 }
 
 // Java static method: NodeUtil.newName(com.google.javascript.jscomp.AbstractCompiler compiler, java.lang.String name, com.google.javascript.rhino.Node basisNode, java.lang.String originalName)
@@ -3892,7 +3923,7 @@ func NodeUtil_NewName_4_CodingConvention_string_Node_string(convention CodingCon
 	_ = name
 	_ = basisNode
 	_ = originalName
-	var nameNode pkg_rhino.Node = NodeUtil_NewName_3_CodingConvention_string_Node(convention, name, basisNode)
+	var nameNode pkg_rhino.Node = NodeUtil_NewNameWithoutLength(convention, name).SrcrefNoOrigName(basisNode)
 	_ = nameNode
 	nameNode.SetOriginalName(originalName)
 	return nameNode

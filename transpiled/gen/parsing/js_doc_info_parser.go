@@ -365,7 +365,7 @@ func (this_ *JsDocInfoParser) ParseInlineTypeDoc() *pkg_rhino.JSDocInfo {
 	this_.priv_JsDocInfoParser_recordTypeNode_7031(lineno, startCharno, typeAst, (token == StaticGet_JsDocToken_LEFT_CURLY()))
 	var expr pkg_rhino.JSTypeExpression = this_.CreateJSTypeExpression(typeAst)
 	_ = expr
-	if expr != (pkg_rhino.JSTypeExpression{}) {
+	if !(expr).IsJavaNil_() {
 		this_.jsdocBuilder.RecordType(expr)
 		this_.jsdocBuilder.RecordInlineType()
 		return this_.RetrieveAndResetParsedJSDocInfo()
@@ -724,7 +724,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 			} else {
 				this_.priv_JsDocInfoParser_restoreLookAhead_7088(token)
 			}
-			if type_ == (pkg_rhino.JSTypeExpression{}) {
+			if (type_).IsJavaNil_() {
 				type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_newStringNode_7081("number"))
 			}
 			if !(this_.jsdocBuilder.RecordEnumParameterType(type_)) {
@@ -977,7 +977,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 			_ = hasParamType
 			if token == StaticGet_JsDocToken_LEFT_CURLY() {
 				type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_parseAndRecordParamTypeNode_7047(token))
-				if type_ == (pkg_rhino.JSTypeExpression{}) {
+				if (type_).IsJavaNil_() {
 					return this_.priv_JsDocInfoParser_eatUntilEOLIfNotAnnotation_7084()
 				}
 				this_.priv_JsDocInfoParser_skipEOLs_7094()
@@ -1010,7 +1010,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 					}
 					if StaticGet_JsDocToken_RIGHT_SQUARE() != token {
 						this_.priv_JsDocInfoParser_reportTypeSyntaxWarning_7082(pkg_rhino.StaticGet_Msg_JSDOC_MISSING_RB())
-					} else if type_ != (pkg_rhino.JSTypeExpression{}) {
+					} else if !(type_).IsJavaNil_() {
 						type_ = pkg_rhino.JSTypeExpression_MakeOptionalArg(type_)
 					}
 				}
@@ -1124,11 +1124,11 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 				return token
 			case int32(1):
 			default:
-				if (boundTypeExpression != (pkg_rhino.JSTypeExpression{})) || (ttlAst != 0) {
+				if !(boundTypeExpression).IsJavaNil_() || (ttlAst != 0) {
 					this_.priv_JsDocInfoParser_addTypeWarning_7021(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_MULTIPLEDECLARATION(), lineno, charno)
 				}
 			}
-			if (boundTypeExpression != (pkg_rhino.JSTypeExpression{})) && (ttlAst != 0) {
+			if !(boundTypeExpression).IsJavaNil_() && (ttlAst != 0) {
 				this_.priv_JsDocInfoParser_addTypeWarning_7021(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_BOUNDSWITHTTL(), lineno, charno)
 				return token
 			}
@@ -1136,7 +1136,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 				if !(this_.jsdocBuilder.RecordTypeTransformation(templateNames[int32(0)], ttlAst)) {
 					this_.priv_JsDocInfoParser_addTypeWarning_7021(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
 				}
-			} else if boundTypeExpression != (pkg_rhino.JSTypeExpression{}) {
+			} else if !(boundTypeExpression).IsJavaNil_() {
 				if !(this_.jsdocBuilder.RecordTemplateTypeName_2(templateNames[int32(0)], boundTypeExpression)) {
 					this_.priv_JsDocInfoParser_addTypeWarning_7021(pkg_rhino.StaticGet_Msg_JSDOC_TEMPLATE_NAME_REDECLARATION(), lineno, charno)
 				}
@@ -1198,10 +1198,10 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 				}
 				type_ = this_.CreateJSTypeExpression(typeNode_3)
 			}
-			var hasError bool = ((type_ == (pkg_rhino.JSTypeExpression{})) && !(canSkipTypeAnnotation))
+			var hasError bool = ((type_).IsJavaNil_() && !(canSkipTypeAnnotation))
 			_ = hasError
 			if !(hasError) {
-				if (((type_ != (pkg_rhino.JSTypeExpression{})) && isAlternateTypeAnnotation) || (annotation == StaticGet_Annotation_TYPE())) && !(this_.jsdocBuilder.RecordType(type_)) {
+				if ((!(type_).IsJavaNil_() && isAlternateTypeAnnotation) || (annotation == StaticGet_Annotation_TYPE())) && !(this_.jsdocBuilder.RecordType(type_)) {
 					this_.priv_JsDocInfoParser_addTypeWarning_7021(pkg_rhino.StaticGet_Msg_JSDOC_INCOMPAT_TYPE(), lineno, charno)
 				}
 				var isAnnotationNext bool = this_.priv_JsDocInfoParser_lookAheadForAnnotation_7100()
@@ -1258,7 +1258,7 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseAnnotation_7035(token Js
 						return this_.priv_JsDocInfoParser_recordDescription_7037(token)
 					}
 				case int32(59) /* Annotation.RETURN */ :
-					if type_ == (pkg_rhino.JSTypeExpression{}) {
+					if (type_).IsJavaNil_() {
 						type_ = this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_newNode_7080(pkg_rhino.StaticGet_Token_QMARK()))
 					}
 					if !(this_.jsdocBuilder.RecordReturnType(type_)) {
@@ -1355,14 +1355,16 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_checkExtendedTypes_7038(exten
 	if extendedTypes.Size() > int32(1) {
 		var isInterface bool = this_.jsdocBuilder.IsInterfaceRecorded()
 		_ = isInterface
-		var isFromTsickle bool = func() bool {
+		var isFromTsickle bool
+		{
 			re_4 := this_.jsDocSourceKind
 			ae_5 := StaticGet_JsDocInfoParser_JsDocSourceKind_TSICKLE()
 			if re_4 == 0 {
 				j2gort.ThrowNPE()
 			}
-			return re_4 == ae_5
-		}()
+			isFromTsickle = re_4 == ae_5
+		}
+
 		_ = isFromTsickle
 		if !(isInterface) && isFromTsickle {
 			var result bool = this_.jsdocBuilder.RecordBaseType(this_.CreateJSTypeExpression(this_.priv_JsDocInfoParser_wrapNode_7078(pkg_rhino.StaticGet_Token_BANG(), this_.priv_JsDocInfoParser_newStringNode_7081("JsDocInfoParser_TsickleMode_MissingSupertypePlaceholder")).SrcrefTree(j2gort.ListGetVal[JsDocInfoParser_ExtendedTypeInfo](extendedTypes, int32(0)).type_.GetRoot())))
@@ -2689,18 +2691,25 @@ func (this_ *JsDocInfoParser) priv_JsDocInfoParser_parseClosureUnawareCode_7102(
 	if this_.priv_JsDocInfoParser_match_7089(StaticGet_JsDocToken_STRING()) {
 		var value string = this_.stream.GetString()
 		_ = value
-		var mode pkg_rhino.JSDocInfo_PerFileClosureUnawareMode = func() pkg_rhino.JSDocInfo_PerFileClosureUnawareMode {
+		var mode pkg_rhino.JSDocInfo_PerFileClosureUnawareMode
+	iifeSwitch_1:
+		switch {
+		default:
 			switch j2gort.CheckNotNullString(value) {
 			case "WHITESPACE":
-				return pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_WHITESPACE()
+				mode = pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_WHITESPACE()
+				break iifeSwitch_1
 			case "SIMPLE":
-				return pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_SIMPLE()
+				mode = pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_SIMPLE()
+				break iifeSwitch_1
 			default:
 				this_.priv_JsDocInfoParser_addParserWarning_7014(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CONFIG_INVALID_VALUE(), value)
-				return pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_SIMPLE()
+				mode = pkg_rhino.StaticGet_JSDocInfo_PerFileClosureUnawareMode_SIMPLE()
+				break iifeSwitch_1
 			}
 			panic("unreachable switch expression")
-		}()
+		}
+
 		_ = mode
 		if !(this_.jsdocBuilder.RecordClosureUnawareCode_1(mode)) {
 			this_.priv_JsDocInfoParser_addParserWarning_7016(pkg_rhino.StaticGet_Msg_JSDOC_CLOSURE_UNAWARE_CODE_EXTRA())

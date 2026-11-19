@@ -223,7 +223,14 @@ func ColorId_Union(ids j2gort.Ext_java_util_Set) ColorId {
 			_ = id
 			{
 				a_4 := sorted
-				i_5 := func() int32 { old_6 := index; nw_7 := old_6 + 1; index = nw_7; return old_6 }()
+				var i_5 int32
+				{
+
+					old_6 := index
+					nw_7 := old_6 + 1
+					index = nw_7
+					i_5 = old_6
+				}
 				a_4[i_5] = id.rightAligned
 			}
 		}

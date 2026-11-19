@@ -406,7 +406,7 @@ func InitSortingErrorManager_ErrorWithLevel(this_ *SortingErrorManager_ErrorWith
 
 // Java method: ErrorWithLevel.hashCode()
 func (this_ *SortingErrorManager_ErrorWithLevel) HashCode() int32 {
-	return func() int32 {
+	{
 		var oh_8 int32 = 1
 		{
 			hp_9 := this_.level
@@ -432,7 +432,7 @@ func (this_ *SortingErrorManager_ErrorWithLevel) HashCode() int32 {
 		oh_8 = 31*oh_8 + (this_.error_.GetLineNumber())
 		oh_8 = 31*oh_8 + (this_.error_.Charno())
 		return oh_8
-	}()
+	}
 }
 
 // Java method: ErrorWithLevel.equals(java.lang.Object obj)

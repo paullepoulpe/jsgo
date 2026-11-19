@@ -934,12 +934,14 @@ func GlobalNamespace_BuildGlobalNamespace_GetTopVarNameFromQualifiedNode(n pkg_r
 	case int32(32) /* Token.NAME */ :
 		var s string = cur.GetString()
 		_ = s
-		return func() string {
+		{
+
 			if j2gort.CheckNotNullString(s) == "" {
 				return j2gort.NullString
 			}
 			return GlobalNamespace_GetTopVarName(s)
-		}()
+		}
+
 	case int32(37) /* Token.THIS */ :
 		return "this"
 	case int32(110) /* Token.SUPER */ :
@@ -1890,7 +1892,8 @@ func (this_ *GlobalNamespace_Name) AddProperty(name string, sourceKind GlobalNam
 		}
 	}
 	if c == int32(len(arr)) {
-		arr = func() []*GlobalNamespace_Name {
+		{
+
 			arrSrc_21 := arr
 			arrLen_22 := (c * int32(2))
 			j2gort.CheckNotNullSlice(arrSrc_21)
@@ -1899,8 +1902,9 @@ func (this_ *GlobalNamespace_Name) AddProperty(name string, sourceKind GlobalNam
 			}
 			arrOut_23 := make([]*GlobalNamespace_Name, arrLen_22)
 			copy(arrOut_23, arrSrc_21)
-			return arrOut_23
-		}()
+			arr = arrOut_23
+		}
+
 		this_.props = arr
 	}
 	{

@@ -29,12 +29,12 @@ type ArgumentListTree struct {
 	arg1             ParseTree        `gson:"arg1"`
 	arg2             ParseTree        `gson:"arg2"`
 	restArguments    []ParseTree      `gson:"restArguments"`
-	comma0           SourcePosition   `gson:"comma0"`
-	comma1           SourcePosition   `gson:"comma1"`
-	comma2           SourcePosition   `gson:"comma2"`
 	restCommas       []SourcePosition `gson:"restCommas"`
 	argumentCount    int32            `gson:"argumentCount"`
 	commaCount       int32            `gson:"commaCount"`
+	comma0           SourcePosition   `gson:"comma0"`
+	comma1           SourcePosition   `gson:"comma1"`
+	comma2           SourcePosition   `gson:"comma2"`
 	hasTrailingComma bool             `gson:"hasTrailingComma"`
 }
 

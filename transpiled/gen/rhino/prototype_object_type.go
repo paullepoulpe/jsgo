@@ -64,7 +64,8 @@ func init() {
 		}
 		switch (thisProp.Key().Kind()).Ordinal() {
 		case int32(0) /* KeyKind.STRING */ :
-			return func() int32 {
+			{
+
 				switch (otherProp.Key().Kind()).Ordinal() {
 				case int32(0) /* KeyKind.STRING */ :
 					return j2gort.JStrCompareTo(thisProp.Key().M_String(), otherProp.Key().M_String())
@@ -72,9 +73,11 @@ func init() {
 					return int32(-1)
 				}
 				panic("unreachable switch expression")
-			}()
+			}
+
 		case int32(1) /* KeyKind.SYMBOL */ :
-			return func() int32 {
+			{
+
 				switch (otherProp.Key().Kind()).Ordinal() {
 				case int32(0) /* KeyKind.STRING */ :
 					return int32(1)
@@ -82,7 +85,8 @@ func init() {
 					return j2gort.JStrCompareTo(thisProp.Type().GetJSTypeBase().String(), otherProp.Type().GetJSTypeBase().String())
 				}
 				panic("unreachable switch expression")
-			}()
+			}
+
 		}
 		panic("unreachable switch expression")
 	})
@@ -454,12 +458,12 @@ func (this_ *PrototypeObjectTypeBase) SetPropertyNode_2_Property_Key_Node(proper
 
 // Java method: PrototypeObjectType.matchesNumberContext()
 func (this_ *PrototypeObjectTypeBase) MatchesNumberContext() bool {
-	return ((((this_.JSTypeBase.self_.IsNumberObjectType() || this_.JSTypeBase.self_.IsDateType()) || this_.JSTypeBase.self_.IsBooleanObjectType()) || this_.JSTypeBase.self_.IsStringObjectType()) || this_.priv_PrototypeObjectType_hasOverriddenNativeProperty_9419("valueOf"))
+	return ((((this_.JSTypeBase.self_.IsNumberObjectType() || this_.JSTypeBase.self_.IsDateType()) || this_.JSTypeBase.self_.IsBooleanObjectType()) || this_.JSTypeBase.self_.IsStringObjectType()) || this_.priv_PrototypeObjectType_hasOverriddenNativeProperty_9422("valueOf"))
 }
 
 // Java method: PrototypeObjectType.matchesStringContext()
 func (this_ *PrototypeObjectTypeBase) MatchesStringContext() bool {
-	return ((((((((this_.JSTypeBase.self_.IsTheObjectType() || this_.JSTypeBase.self_.IsStringObjectType()) || this_.JSTypeBase.self_.IsDateType()) || this_.JSTypeBase.self_.IsRegexpType()) || this_.JSTypeBase.self_.IsArrayType()) || this_.JSTypeBase.self_.IsNumberObjectType()) || this_.JSTypeBase.self_.IsBigIntObjectType()) || this_.JSTypeBase.self_.IsBooleanObjectType()) || this_.priv_PrototypeObjectType_hasOverriddenNativeProperty_9419("toString"))
+	return ((((((((this_.JSTypeBase.self_.IsTheObjectType() || this_.JSTypeBase.self_.IsStringObjectType()) || this_.JSTypeBase.self_.IsDateType()) || this_.JSTypeBase.self_.IsRegexpType()) || this_.JSTypeBase.self_.IsArrayType()) || this_.JSTypeBase.self_.IsNumberObjectType()) || this_.JSTypeBase.self_.IsBigIntObjectType()) || this_.JSTypeBase.self_.IsBooleanObjectType()) || this_.priv_PrototypeObjectType_hasOverriddenNativeProperty_9422("toString"))
 }
 
 // Java method: PrototypeObjectType.matchesSymbolContext()
@@ -468,7 +472,7 @@ func (this_ *PrototypeObjectTypeBase) MatchesSymbolContext() bool {
 }
 
 // Java method: PrototypeObjectType.hasOverriddenNativeProperty(java.lang.String propertyName)
-func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_hasOverriddenNativeProperty_9419(propertyName string) bool {
+func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_hasOverriddenNativeProperty_9422(propertyName string) bool {
 	_ = propertyName
 	if this_.IsNativeObjectType() {
 		return false
@@ -567,7 +571,7 @@ func (this_ *PrototypeObjectTypeBase) AppendTo(sb *TypeStringBuilder) {
 					sb.Append_1_string("...")
 					break
 				}
-				property.priv_PropertyForPrettyPrinting_appendTo_9434(sb)
+				property.priv_PropertyForPrettyPrinting_appendTo_9437(sb)
 				if i < properties.Size() {
 					sb.Append_1_string(",")
 					if multiline {
@@ -607,7 +611,7 @@ func (this_ *PrototypeObjectTypeBase) GetConstructor() *FunctionType {
 }
 
 // Java method: PrototypeObjectType.getImplicitPrototypeFallback()
-func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_getImplicitPrototypeFallback_9422() ObjectType {
+func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_getImplicitPrototypeFallback_9425() ObjectType {
 	var kind int32 = ((javalang.Ushr32(int32(this_.GetJSTypeBase().protoFlags), int(int32(3)))) & int32(3))
 	_ = kind
 	switch kind {
@@ -628,7 +632,7 @@ func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_getImplicitProtot
 }
 
 // Java method: PrototypeObjectType.setImplicitPrototypeFallback(com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable ObjectType implicitPrototype)
-func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_setImplicitPrototypeFallback_9423(implicitPrototype ObjectType) {
+func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_setImplicitPrototypeFallback_9426(implicitPrototype ObjectType) {
 	_ = implicitPrototype
 	var kind int32 = int32(0)
 	_ = kind
@@ -668,7 +672,7 @@ func (this_ *PrototypeObjectTypeBase) priv_PrototypeObjectType_setImplicitProtot
 
 // Java method: PrototypeObjectType.getImplicitPrototype()
 func (this_ *PrototypeObjectTypeBase) GetImplicitPrototype() ObjectType {
-	return this_.priv_PrototypeObjectType_getImplicitPrototypeFallback_9422()
+	return this_.priv_PrototypeObjectType_getImplicitPrototypeFallback_9425()
 }
 
 // Java method: PrototypeObjectType.setImplicitPrototype(com.google.javascript.rhino.jstype.ObjectType implicitPrototype)
@@ -677,9 +681,9 @@ func (this_ *PrototypeObjectTypeBase) SetImplicitPrototype(implicitPrototype Obj
 	if !(!(this_.self_PrototypeObjectType_().HasCachedValues())) {
 		j2gort.CheckState(false)
 	}
-	var hadPreviousPrototype bool = !(j2gort.IfaceEquals[ObjectType](this_.priv_PrototypeObjectType_getImplicitPrototypeFallback_9422(), nil))
+	var hadPreviousPrototype bool = !(j2gort.IfaceEquals[ObjectType](this_.priv_PrototypeObjectType_getImplicitPrototypeFallback_9425(), nil))
 	_ = hadPreviousPrototype
-	this_.priv_PrototypeObjectType_setImplicitPrototypeFallback_9423(implicitPrototype)
+	this_.priv_PrototypeObjectType_setImplicitPrototypeFallback_9426(implicitPrototype)
 	if hadPreviousPrototype {
 		this_.EnsurePropertyMap().SetParentSource(Upcast_ObjectType(this_.self_PrototypeObjectType_()))
 	}
@@ -777,7 +781,7 @@ func (this_ *PrototypeObjectTypeBase) ResolveInternal(reporter ErrorReporter) JS
 		var resolvedProto ObjectType = j2gort.AsIface[ObjectType](implicitPrototype.GetObjectTypeBase().Resolve(reporter))
 		_ = resolvedProto
 		if !(j2gort.InstanceOf[*InstanceObjectType](this_.self_PrototypeObjectType_())) {
-			this_.priv_PrototypeObjectType_setImplicitPrototypeFallback_9423(resolvedProto)
+			this_.priv_PrototypeObjectType_setImplicitPrototypeFallback_9426(resolvedProto)
 		}
 	}
 	if this_.properties != nil {
@@ -1150,7 +1154,7 @@ func InitPrototypeObjectType_PropertyForPrettyPrinting(this_ *PrototypeObjectTyp
 }
 
 // Java method: PropertyForPrettyPrinting.appendTo(com.google.javascript.rhino.jstype.TypeStringBuilder sb)
-func (this_ *PrototypeObjectType_PropertyForPrettyPrinting) priv_PropertyForPrettyPrinting_appendTo_9434(sb *TypeStringBuilder) {
+func (this_ *PrototypeObjectType_PropertyForPrettyPrinting) priv_PropertyForPrettyPrinting_appendTo_9437(sb *TypeStringBuilder) {
 	_ = sb
 	switch (this_.key.Kind()).Ordinal() {
 	case int32(0) /* KeyKind.STRING */ :
