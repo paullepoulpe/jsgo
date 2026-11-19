@@ -593,6 +593,7 @@ type lenOverflowRecord struct {
 var (
 	lenOverflowMu  sync.Mutex
 	lenOverflowTop [lenOverflowTopLen]atomic.Pointer[lenOverflowSub]
+	negLenCount    atomic.Uint32
 )
 
 func ensureLenOverflowSub(topIdx uint32) *lenOverflowSub {

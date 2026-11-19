@@ -22948,7 +22948,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9850(any) any
+	Append_1_any_9859(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -23031,7 +23031,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9850(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9859(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23769,7 +23769,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9850(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9859(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -26862,11 +26862,11 @@ func (b *Ext_java_util_Arrays) mc() *JMapCore {
 }
 
 type Ext_java_util_BitSet struct {
-	words []uint64  `gson:"-"`
-	buf   [8]uint64 `gson:"-"`
-	hi    [8]int32  `gson:"-"`
-	initW int32     `gson:"-"`
-	hiLen int32     `gson:"-"`
+	words []uint64              `gson:"-"`
+	buf   [bsInlineWords]uint64 `gson:"-"`
+	hi    [bsSparseCap]int32    `gson:"-"`
+	initW int32                 `gson:"-"`
+	hiLen int32                 `gson:"-"`
 }
 
 func (b *Ext_java_util_BitSet) IsJavaNil_() bool               { return b == nil }
@@ -27826,10 +27826,10 @@ func (this_ *Ext_java_util_HashSetBase) AddAll_1(arg0 Ext_java_util_Collection) 
 	return hashSetAddAll(this_, arg0)
 }
 func (this_ *Ext_java_util_HashSetBase) String() string {
-	return sliceJavaString(hashSetToArray(this_))
+	return hashSetString(this_)
 }
 func (this_ *Ext_java_util_HashSetBase) Stream() Ext_java_util_stream_Stream {
-	return streamFromSlice(hashSetToArray(this_))
+	return hashSetStream(this_)
 }
 func (this_ *Ext_java_util_HashSetBase) ForEach(arg0 Ext_java_util_function_Consumer) {
 	hashSetForEach(this_, arg0)
@@ -27843,6 +27843,18 @@ func (this_ *Ext_java_util_HashSetBase) fastSetJCore_() *JSetCore {
 		return nil
 	}
 	return &this_.inlineSet
+}
+func (this_ *Ext_java_util_HashSetBase) IterStrSlice_() ([]string, bool) {
+	if this_ == nil {
+		ThrowNPE()
+	}
+	if this_.Self_ != nil && this_.Self_ != Ext_java_util_AbstractCollection(this_) {
+		return nil, false
+	}
+	if this_.Core_ != nil {
+		return nil, false
+	}
+	return this_.inlineSet.DenseStrSlice()
 }
 func (this_ *Ext_java_util_HashSetBase) SetContainsStr_(k string) bool {
 	if this_ == nil {
@@ -28412,10 +28424,10 @@ func (this_ *Ext_java_util_LinkedHashSet) AddAll_1(arg0 Ext_java_util_Collection
 	return hashSetAddAll(&this_.Ext_java_util_HashSetBase, arg0)
 }
 func (this_ *Ext_java_util_LinkedHashSet) String() string {
-	return sliceJavaString(hashSetToArray(&this_.Ext_java_util_HashSetBase))
+	return hashSetString(&this_.Ext_java_util_HashSetBase)
 }
 func (this_ *Ext_java_util_LinkedHashSet) Stream() Ext_java_util_stream_Stream {
-	return streamFromSlice(hashSetToArray(&this_.Ext_java_util_HashSetBase))
+	return hashSetStream(&this_.Ext_java_util_HashSetBase)
 }
 func (this_ *Ext_java_util_LinkedHashSet) ForEach(arg0 Ext_java_util_function_Consumer) {
 	hashSetForEach(&this_.Ext_java_util_HashSetBase, arg0)
@@ -28426,6 +28438,15 @@ func (this_ *Ext_java_util_LinkedHashSet) fastSetJCore_() *JSetCore {
 		return nil
 	}
 	return &this_.inlineSet
+}
+func (this_ *Ext_java_util_LinkedHashSet) IterStrSlice_() ([]string, bool) {
+	if this_ == nil {
+		ThrowNPE()
+	}
+	if this_.Core_ != nil {
+		return nil, false
+	}
+	return this_.inlineSet.DenseStrSlice()
 }
 func (this_ *Ext_java_util_LinkedHashSet) SetContainsStr_(k string) bool {
 	if this_ == nil {

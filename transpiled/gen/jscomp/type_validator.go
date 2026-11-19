@@ -1318,111 +1318,130 @@ func (this_ *TypeValidator) priv_TypeValidator_checkWellFormedTemplatizedType_56
 	_ = node
 	_ = type_
 	_ = kind
-	switch kind {
-	case int32(128):
-		var fn *pkg_rhino.FunctionType = j2gort.CastPtr[pkg_rhino.FunctionType](type_)
-		_ = fn
-		var params []pkg_rhino.FunctionType_Parameter = fn.GetParameterArray()
-		_ = params
-		{
-			var i int32 = int32(0)
-			_ = i
-			var len_ int32 = int32(len(params))
-			_ = len_
-			for ; i < len_; i = i + 1 {
-				var paramType pkg_rhino.JSType = params[i].GetJSType()
-				_ = paramType
-				var paramKind int32 = paramType.GetJSTypeBase().GetWellFormedTemplatizedKind()
-				_ = paramKind
-				if (paramKind != int32(0)) && !(this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, paramType, paramKind)) {
-					return false
-				}
-			}
-		}
-		var retType pkg_rhino.JSType = fn.GetReturnType()
-		_ = retType
-		var retKind int32 = retType.GetJSTypeBase().GetWellFormedTemplatizedKind()
-		_ = retKind
-		return ((retKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, retType, retKind))
-	case int32(64):
-		var union *pkg_rhino.UnionType = j2gort.CastPtr[pkg_rhino.UnionType](type_)
-		_ = union
-		var alternateCount int32 = union.GetAlternatesCount()
-		_ = alternateCount
-		{
-			var i_2 int32 = int32(0)
-			_ = i_2
-			for ; i_2 < alternateCount; i_2 = i_2 + 1 {
-				var alternative pkg_rhino.JSType = union.GetAlternateAt(i_2)
-				_ = alternative
-				var altKind int32 = alternative.GetJSTypeBase().GetWellFormedTemplatizedKind()
-				_ = altKind
-				if (altKind != int32(0)) && !(this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, alternative, altKind)) {
-					return false
-				}
-			}
-		}
-		return true
-	case int32(4096):
-		var templatized *pkg_rhino.TemplatizedType = j2gort.CastPtr[pkg_rhino.TemplatizedType](type_)
-		_ = templatized
-		var referencedTemplates *pkg_rhino.TemplateTypeMap = templatized.GetReferencedType().GetTemplateTypeMap()
-		_ = referencedTemplates
-		var templateTypes []pkg_rhino.JSType = j2gort.CheckNotNullPtr(templatized).Slice_GetTemplateTypes()
-		_ = templateTypes
-		var refCount int32 = referencedTemplates.Size()
-		_ = refCount
-		{
-			var i_3 int32 = int32(0)
-			_ = i_3
-			var len__2 int32 = int32(len(templateTypes))
-			_ = len__2
-			for ; i_3 < len__2; i_3 = i_3 + 1 {
-				var assignedType pkg_rhino.JSType = templateTypes[i_3]
-				_ = assignedType
-				if i_3 < refCount {
-					var templateType *pkg_rhino.TemplateType = referencedTemplates.GetTemplateKeyAt(i_3)
-					_ = templateType
-					if !(assignedType.GetJSTypeBase().IsSubtype_1(templateType.GetBound())) {
-						this_.priv_TypeValidator_registerMismatchAndReport_5668(assignedType, templateType.GetBound(), JSError_Make_3(node, StaticGet_RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR(), []string{assignedType.GetJSTypeBase().String(), templateType.GetReferenceName(), templateType.GetBound().GetJSTypeBase().String()}))
-						return false
+	var ok bool = func() bool {
+		switch kind {
+		case int32(128):
+			var fn *pkg_rhino.FunctionType = j2gort.CastPtr[pkg_rhino.FunctionType](type_)
+			_ = fn
+			var params []pkg_rhino.FunctionType_Parameter = fn.GetParameterArray()
+			_ = params
+			var paramsOk bool = true
+			_ = paramsOk
+			{
+				var i int32 = int32(0)
+				_ = i
+				var len_ int32 = int32(len(params))
+				_ = len_
+				for ; i < len_; i = i + 1 {
+					var paramType pkg_rhino.JSType = params[i].GetJSType()
+					_ = paramType
+					var paramKind int32 = paramType.GetJSTypeBase().GetWellFormedTemplatizedKind()
+					_ = paramKind
+					if (paramKind != int32(0)) && !(this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, paramType, paramKind)) {
+						paramsOk = false
+						break
 					}
 				}
 			}
-		}
-		return true
-	case int32(1024):
-		var named *pkg_rhino.NamedType = j2gort.CastPtr[pkg_rhino.NamedType](type_)
-		_ = named
-		var ref pkg_rhino.JSType = named.GetReferencedType()
-		_ = ref
-		var refKind int32 = ref.GetJSTypeBase().GetWellFormedTemplatizedKind()
-		_ = refKind
-		return ((refKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, ref, refKind))
-	case int32(8192):
-		var templateType_2 *pkg_rhino.TemplateType = j2gort.CastPtr[pkg_rhino.TemplateType](type_)
-		_ = templateType_2
-		if templateType_2.ContainsCycle() {
-			return false
-		}
-		var bound pkg_rhino.JSType = templateType_2.GetBound()
-		_ = bound
-		var boundKind int32 = bound.GetJSTypeBase().GetWellFormedTemplatizedKind()
-		_ = boundKind
-		return ((boundKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, bound, boundKind))
-	case int32(256):
-		var enumElement *pkg_rhino.EnumElementType = j2gort.CastPtr[pkg_rhino.EnumElementType](type_)
-		_ = enumElement
-		var prim pkg_rhino.JSType = enumElement.GetPrimitiveType()
-		_ = prim
-		if prim == nil || prim.IsJavaNil_() {
+			if !(paramsOk) {
+				return false
+			}
+			var retType pkg_rhino.JSType = fn.GetReturnType()
+			_ = retType
+			var retKind int32 = retType.GetJSTypeBase().GetWellFormedTemplatizedKind()
+			_ = retKind
+			return ((retKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, retType, retKind))
+		case int32(64):
+			var union *pkg_rhino.UnionType = j2gort.CastPtr[pkg_rhino.UnionType](type_)
+			_ = union
+			var alternateCount int32 = union.GetAlternatesCount()
+			_ = alternateCount
+			var unionOk bool = true
+			_ = unionOk
+			{
+				var i_2 int32 = int32(0)
+				_ = i_2
+				for ; i_2 < alternateCount; i_2 = i_2 + 1 {
+					var alternative pkg_rhino.JSType = union.GetAlternateAt(i_2)
+					_ = alternative
+					var altKind int32 = alternative.GetJSTypeBase().GetWellFormedTemplatizedKind()
+					_ = altKind
+					if (altKind != int32(0)) && !(this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, alternative, altKind)) {
+						unionOk = false
+						break
+					}
+				}
+			}
+			return unionOk
+		case int32(4096):
+			var templatized *pkg_rhino.TemplatizedType = j2gort.CastPtr[pkg_rhino.TemplatizedType](type_)
+			_ = templatized
+			var referencedTemplates *pkg_rhino.TemplateTypeMap = templatized.GetReferencedType().GetTemplateTypeMap()
+			_ = referencedTemplates
+			var templateTypes []pkg_rhino.JSType = j2gort.CheckNotNullPtr(templatized).Slice_GetTemplateTypes()
+			_ = templateTypes
+			var refCount int32 = referencedTemplates.Size()
+			_ = refCount
+			var templatizedOk bool = true
+			_ = templatizedOk
+			{
+				var i_3 int32 = int32(0)
+				_ = i_3
+				var len__2 int32 = int32(len(templateTypes))
+				_ = len__2
+				for ; i_3 < len__2; i_3 = i_3 + 1 {
+					var assignedType pkg_rhino.JSType = templateTypes[i_3]
+					_ = assignedType
+					if i_3 < refCount {
+						var templateType *pkg_rhino.TemplateType = referencedTemplates.GetTemplateKeyAt(i_3)
+						_ = templateType
+						if !(assignedType.GetJSTypeBase().IsSubtype_1(templateType.GetBound())) {
+							this_.priv_TypeValidator_registerMismatchAndReport_5668(assignedType, templateType.GetBound(), JSError_Make_3(node, StaticGet_RhinoErrorReporter_BOUNDED_GENERIC_TYPE_ERROR(), []string{assignedType.GetJSTypeBase().String(), templateType.GetReferenceName(), templateType.GetBound().GetJSTypeBase().String()}))
+							templatizedOk = false
+							break
+						}
+					}
+				}
+			}
+			return templatizedOk
+		case int32(1024):
+			var named *pkg_rhino.NamedType = j2gort.CastPtr[pkg_rhino.NamedType](type_)
+			_ = named
+			var ref pkg_rhino.JSType = named.GetReferencedType()
+			_ = ref
+			var refKind int32 = ref.GetJSTypeBase().GetWellFormedTemplatizedKind()
+			_ = refKind
+			return ((refKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, ref, refKind))
+		case int32(8192):
+			var templateType_2 *pkg_rhino.TemplateType = j2gort.CastPtr[pkg_rhino.TemplateType](type_)
+			_ = templateType_2
+			if templateType_2.ContainsCycle() {
+				return false
+			}
+			var bound pkg_rhino.JSType = templateType_2.GetBound()
+			_ = bound
+			var boundKind int32 = bound.GetJSTypeBase().GetWellFormedTemplatizedKind()
+			_ = boundKind
+			return ((boundKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, bound, boundKind))
+		case int32(256):
+			var enumElement *pkg_rhino.EnumElementType = j2gort.CastPtr[pkg_rhino.EnumElementType](type_)
+			_ = enumElement
+			var prim pkg_rhino.JSType = enumElement.GetPrimitiveType()
+			_ = prim
+			if prim == nil || prim.IsJavaNil_() {
+				return true
+			}
+			var primKind int32 = prim.GetJSTypeBase().GetWellFormedTemplatizedKind()
+			_ = primKind
+			return ((primKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, prim, primKind))
+		default:
 			return true
 		}
-		var primKind int32 = prim.GetJSTypeBase().GetWellFormedTemplatizedKind()
-		_ = primKind
-		return ((primKind == int32(0)) || this_.priv_TypeValidator_checkWellFormedTemplatizedType_5672(node, prim, primKind))
-	default:
-		return true
+		panic("unreachable switch expression")
+	}()
+	_ = ok
+	if ok {
+		type_.GetJSTypeBase().MarkWellFormedTemplatizedOk()
 	}
-	panic("unreachable")
+	return ok
 }

@@ -5674,8 +5674,9 @@ public final class RuntimeBindings {
         type jTombstoneType struct{}
 
         var (
-        \tjTombstoneObj  any   = jTombstoneType{}
-        \temptyAnySlice_ []any = []any{}
+        \tjTombstoneObj  any      = jTombstoneType{}
+        \temptyAnySlice_ []any    = []any{}
+        \temptyStrSlice_ []string = []string{}
         )
 
         type jIdentityKey interface {
@@ -7246,11 +7247,7 @@ public final class RuntimeBindings {
         \t\t\tif str == jTombstoneStr {
         \t\t\t\tcontinue
         \t\t\t}
-        \t\t\tvar v any
-        \t\t\tif str != NullString {
-        \t\t\t\tv = str
-        \t\t\t}
-        \t\t\tif !fn(v) {
+        \t\t\tif !fn(BoxString(str)) {
         \t\t\t\treturn
         \t\t\t}
         \t\t}
@@ -7276,6 +7273,19 @@ public final class RuntimeBindings {
         \t\treturn true
         \t})
         \treturn out
+        }
+
+        func (s *JSetCore) DenseStrSlice() ([]string, bool) {
+        \tif s == nil {
+        \t\treturn nil, false
+        \t}
+        \tif s.live == 0 {
+        \t\treturn emptyStrSlice_, true
+        \t}
+        \tif s.mode == jSetModeStr && s.holes == 0 {
+        \t\treturn s.ext.(*jSetStrState).strs, true
+        \t}
+        \treturn nil, false
         }
 
         func (s *JSetCore) SetHash() int32 {
@@ -11224,11 +11234,7 @@ public final class RuntimeBindings {
         \t\t\tif e.key == jTombstoneStr {
         \t\t\t\tcontinue
         \t\t\t}
-        \t\t\tvar k any
-        \t\t\tif e.key != NullString {
-        \t\t\t\tk = e.key
-        \t\t\t}
-        \t\t\tif !fn(k, e.val) {
+        \t\t\tif !fn(BoxString(e.key), e.val) {
         \t\t\t\treturn
         \t\t\t}
         \t\t}
@@ -11333,6 +11339,23 @@ public final class RuntimeBindings {
         \t\treturn true
         \t})
         \treturn out
+        }
+
+        func (m *JMapCore) LiveStrKeys() ([]string, bool) {
+        \tif m == nil || m.Live == 0 {
+        \t\treturn nil, true
+        \t}
+        \tif m.mode != jMapModeStr {
+        \t\treturn nil, false
+        \t}
+        \tout := make([]string, 0, m.Live)
+        \tfor i := int(m.firstIdx); i < len(m.strEntries); i++ {
+        \t\tk := m.strEntries[i].key
+        \t\tif k != jTombstoneStr {
+        \t\t\tout = append(out, k)
+        \t\t}
+        \t}
+        \treturn out, true
         }
 
         func (m *JMapCore) LiveValues() []any {

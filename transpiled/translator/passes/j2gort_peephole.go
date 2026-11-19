@@ -96,6 +96,7 @@ func (p *J2gortPeepholePass) Apply(ctx *PassContext) (int, error) {
 	total += p.elideZeroedInitFieldsWrites(ctx)
 	total += p.rewriteNodeQualifiedNameJoinDot(ctx)
 	total += p.rewriteNodeClearJSTypeAndJSDocFastPaths(ctx)
+	total += p.rewriteNodeHasNonNegativeLength(ctx)
 	total += p.rewriteIfCondIIFEs(ctx)
 	total += p.hoistStatelessNodeLambdas(ctx)
 	nuHasCount, err := p.rewriteNodeUtilHasNodeLambdas(ctx)
@@ -8784,4 +8785,391 @@ func tryMakeUpcastCall(
 	}
 	info.Types[repl] = types.TypeAndValue{Type: callType}
 	return repl, true
+}
+
+func (p *J2gortPeepholePass) rewriteNodeHasNonNegativeLength(ctx *PassContext) int {
+	if ctx == nil || ctx.Pkg == nil || ctx.Info == nil || isJ2gortPkg(ctx.Pkg) {
+		return 0
+	}
+	info := ctx.Info
+	total := 0
+
+	for _, file := range ctx.Files {
+		if !ctx.ShouldTransform(file) || !peepholeASTContainsSelector(file, "GetLength") {
+			continue
+		}
+		parents, postOrder := buildParentMap(file)
+		facts := collectPeepholeFileFacts(file, info, parents)
+		consumed := make(map[ast.Node]bool)
+		fileCount := 0
+
+		for _, node := range postOrder {
+			bin, ok := node.(*ast.BinaryExpr)
+			if !ok || consumed[bin] {
+				continue
+			}
+			parent := parents[bin]
+			if parent == nil {
+				continue
+			}
+
+			var recvExpr ast.Expr
+			var rhinoPkg *types.Package
+			var negate bool
+			matched := false
+
+			switch bin.Op {
+			case token.GEQ:
+				if isZeroInt32OrUntypedConst(bin.Y, info) {
+					if rx, rPkg, okM := matchRhinoNodeGetLengthCall(bin.X, facts, info); okM {
+						recvExpr, rhinoPkg, negate, matched = rx, rPkg, false, true
+					}
+				}
+			case token.LEQ:
+				if isZeroInt32OrUntypedConst(bin.X, info) {
+					if rx, rPkg, okM := matchRhinoNodeGetLengthCall(bin.Y, facts, info); okM {
+						recvExpr, rhinoPkg, negate, matched = rx, rPkg, false, true
+					}
+				}
+			case token.LSS:
+				if isZeroInt32OrUntypedConst(bin.Y, info) {
+					if rx, rPkg, okM := matchRhinoNodeGetLengthCall(bin.X, facts, info); okM {
+						recvExpr, rhinoPkg, negate, matched = rx, rPkg, true, true
+					}
+				}
+			case token.GTR:
+				if isZeroInt32OrUntypedConst(bin.X, info) {
+					if rx, rPkg, okM := matchRhinoNodeGetLengthCall(bin.Y, facts, info); okM {
+						recvExpr, rhinoPkg, negate, matched = rx, rPkg, true, true
+					}
+				}
+			}
+			if !matched {
+				continue
+			}
+
+			nsPkg := findPeepholeNodestorePkg(file, ctx, rhinoPkg)
+			if !nodestoreNodeHasNonNegativeLength(nsPkg) {
+				continue
+			}
+			nsQual, okImp := ensurePeepholeNodestoreImport(file, nsPkg, ctx)
+			if !okImp || nsQual == "" {
+				continue
+			}
+
+			pos := bin.Pos()
+			nsConv := &ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X:   &ast.Ident{NamePos: pos, Name: nsQual},
+					Sel: &ast.Ident{NamePos: pos, Name: "Node"},
+				},
+				Args: []ast.Expr{recvExpr},
+			}
+			hasCall := ast.Expr(&ast.CallExpr{
+				Fun: &ast.SelectorExpr{
+					X:   nsConv,
+					Sel: &ast.Ident{NamePos: pos, Name: "HasNonNegativeLength"},
+				},
+			})
+
+			cur := ast.Expr(bin)
+			curParent := parent
+			for {
+				pe, isP := curParent.(*ast.ParenExpr)
+				if !isP || pe.X != cur {
+					break
+				}
+				cur = pe
+				curParent = parents[pe]
+			}
+			if _, isES := curParent.(*ast.ExprStmt); isES {
+				continue
+			}
+
+			if negate {
+				if un, isNot := curParent.(*ast.UnaryExpr); isNot && un.Op == token.NOT && un.X == cur {
+					if outer := parents[un]; outer != nil {
+						if _, isES := outer.(*ast.ExprStmt); !isES {
+							if replaceExprInParent(outer, un, hasCall, parents) {
+								consumed[bin] = true
+								consumed[cur] = true
+								consumed[un] = true
+								fileCount++
+								continue
+							}
+						}
+					}
+				}
+				repl := ast.Expr(&ast.UnaryExpr{OpPos: pos, Op: token.NOT, X: hasCall})
+				switch parent.(type) {
+				case *ast.SelectorExpr, *ast.CallExpr, *ast.IndexExpr, *ast.IndexListExpr, *ast.SliceExpr, *ast.TypeAssertExpr, *ast.StarExpr, *ast.UnaryExpr:
+					repl = &ast.ParenExpr{X: repl}
+				}
+				if replaceExprInParent(parent, bin, repl, parents) {
+					consumed[bin] = true
+					fileCount++
+				}
+			} else {
+				if un, isNot := curParent.(*ast.UnaryExpr); isNot && un.Op == token.NOT && un.X == cur && cur != bin {
+					if replaceExprInParent(un, cur, hasCall, parents) {
+						consumed[bin] = true
+						consumed[cur] = true
+						fileCount++
+						continue
+					}
+				}
+				if replaceExprInParent(parent, bin, hasCall, parents) {
+					consumed[bin] = true
+					fileCount++
+				}
+			}
+		}
+
+		if fileCount > 0 {
+			ctx.MarkFileModified(file)
+			total += fileCount
+		}
+	}
+
+	return total
+}
+
+func isZeroInt32OrUntypedConst(expr ast.Expr, info *types.Info) bool {
+	if expr == nil || info == nil || !isPureConstExpr(expr) || !isZeroConstExpr(expr, info) {
+		return false
+	}
+	tv, ok := info.Types[stripParens(expr)]
+	if !ok || tv.Type == nil {
+		return false
+	}
+	b, ok := types.Unalias(tv.Type).(*types.Basic)
+	if !ok {
+		return false
+	}
+	return b.Info()&types.IsInteger != 0
+}
+
+func matchRhinoNodeGetLengthCall(expr ast.Expr, facts *peepholeFileFacts, info *types.Info) (ast.Expr, *types.Package, bool) {
+	call, ok := stripParens(expr).(*ast.CallExpr)
+	if !ok || call.Ellipsis.IsValid() || len(call.Args) != 0 {
+		return nil, nil, false
+	}
+	sel, ok := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !ok || sel.Sel == nil || sel.Sel.Name != "GetLength" {
+		return nil, nil, false
+	}
+	callee, _ := calleeFunc(call, info)
+	if callee == nil || callee.Name() != "GetLength" {
+		return nil, nil, false
+	}
+	sig, ok := callee.Type().(*types.Signature)
+	if !ok || sig.Params().Len() != 0 || sig.Results() == nil || sig.Results().Len() != 1 ||
+		!types.Identical(sig.Results().At(0).Type(), types.Typ[types.Int32]) {
+		return nil, nil, false
+	}
+	recv := stripParens(sel.X)
+	recvT := info.TypeOf(recv)
+	if recvT == nil || !isNamedUint32NodeType(recvT) {
+		return nil, nil, false
+	}
+	named, ok := types.Unalias(recvT).(*types.Named)
+	if !ok || named.Obj() == nil || named.Obj().Name() != "Node" || named.Obj().Pkg() == nil ||
+		named.Obj().Pkg().Name() != "rhino" {
+		return nil, nil, false
+	}
+	if !isSideEffectFreePeepholeNodeExpr(recv, facts, info) {
+		return nil, nil, false
+	}
+	return recv, named.Obj().Pkg(), true
+}
+
+func isSideEffectFreePeepholeNodeExpr(expr ast.Expr, facts *peepholeFileFacts, info *types.Info) bool {
+	if expr == nil || info == nil {
+		return false
+	}
+	switch e := stripParens(expr).(type) {
+	case *ast.Ident:
+		_, isVar := info.Uses[e].(*types.Var)
+		return isVar
+	case *ast.SelectorExpr:
+		seln, ok := info.Selections[e]
+		if !ok || seln.Kind() != types.FieldVal {
+			return false
+		}
+		if seln.Indirect() {
+			return isGuaranteedNonNilForCheckNotNull(e.X, facts, info) && isSideEffectFreeStructBaseExpr(e.X, facts, info)
+		}
+		return isSideEffectFreeStructBaseExpr(e.X, facts, info)
+	case *ast.CallExpr:
+		if len(e.Args) == 1 && !e.Ellipsis.IsValid() {
+			if fnName, _, _, isJ2 := isJ2gortCall(e, info); isJ2 && (fnName == "CheckNotNullNode" || fnName == "CastNode") {
+				return isSideEffectFreePeepholeNodeExpr(e.Args[0], facts, info)
+			}
+		}
+	}
+	return false
+}
+
+func isSideEffectFreeStructBaseExpr(expr ast.Expr, facts *peepholeFileFacts, info *types.Info) bool {
+	if expr == nil || info == nil {
+		return false
+	}
+	switch e := stripParens(expr).(type) {
+	case *ast.Ident:
+		_, isVar := info.Uses[e].(*types.Var)
+		return isVar
+	case *ast.SelectorExpr:
+		seln, ok := info.Selections[e]
+		if !ok || seln.Kind() != types.FieldVal {
+			return false
+		}
+		if seln.Indirect() && !isGuaranteedNonNilForCheckNotNull(e.X, facts, info) {
+			return false
+		}
+		return isSideEffectFreeStructBaseExpr(e.X, facts, info)
+	}
+	return false
+}
+
+func findPeepholeNodestorePkg(file *ast.File, ctx *PassContext, rhinoPkg *types.Package) *types.Package {
+	if _, pkg := findNodestoreImportForFile(file, ctx); pkg != nil {
+		return pkg
+	}
+	if pkg := findNodestorePackage(ctx, rhinoPkg); pkg != nil {
+		return pkg
+	}
+	if ctx != nil && ctx.Importer != nil && rhinoPkg != nil {
+		rp := rhinoPkg.Path()
+		var cands []string
+		if strings.HasSuffix(rp, "/gen/rhino") {
+			cands = append(cands, strings.TrimSuffix(rp, "/gen/rhino")+"/shims/nodestore")
+		}
+		if strings.HasSuffix(rp, "/rhino") {
+			base := strings.TrimSuffix(rp, "/rhino")
+			cands = append(cands, base+"/nodestore", base+"/shims/nodestore")
+		}
+		for _, c := range cands {
+			if p, err := ctx.Importer.Import(c); err == nil && p != nil && p.Name() == "nodestore" {
+				return p
+			}
+		}
+	}
+	return nil
+}
+
+func nodestoreNodeHasNonNegativeLength(nsPkg *types.Package) bool {
+	if nsPkg == nil || nsPkg.Scope() == nil {
+		return false
+	}
+	obj := nsPkg.Scope().Lookup("Node")
+	if obj == nil || obj.Type() == nil {
+		return false
+	}
+	b, ok := obj.Type().Underlying().(*types.Basic)
+	if !ok || b.Kind() != types.Uint32 {
+		return false
+	}
+	mObj, _, _ := types.LookupFieldOrMethod(obj.Type(), false, nsPkg, "HasNonNegativeLength")
+	mFn, ok := mObj.(*types.Func)
+	if !ok {
+		return false
+	}
+	sig, ok := mFn.Type().(*types.Signature)
+	return ok && sig.Params().Len() == 0 && sig.Results() != nil && sig.Results().Len() == 1 &&
+		types.Identical(sig.Results().At(0).Type(), types.Typ[types.Bool])
+}
+
+func ensurePeepholeNodestoreImport(file *ast.File, nsPkg *types.Package, ctx *PassContext) (string, bool) {
+	if file == nil || nsPkg == nil || ctx == nil || ctx.Pkg == nsPkg {
+		return "", false
+	}
+	if qual, existing := findNodestoreImportForFile(file, ctx); qual != "" && existing == nsPkg {
+		return qual, true
+	}
+	alias := "nodestore"
+	if (ctx.Pkg != nil && ctx.Pkg.Scope() != nil && ctx.Pkg.Scope().Lookup(alias) != nil) ||
+		peepholeASTDeclaresIdent(file, alias) {
+		alias = "pkg_nodestore"
+		if (ctx.Pkg != nil && ctx.Pkg.Scope() != nil && ctx.Pkg.Scope().Lookup(alias) != nil) ||
+			peepholeASTDeclaresIdent(file, alias) {
+			return "", false
+		}
+	}
+	return ensurePkgImportInFile(file, nsPkg.Path(), alias, ctx)
+}
+
+func peepholeASTDeclaresIdent(file *ast.File, name string) bool {
+	if file == nil {
+		return false
+	}
+	declared := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		if declared || n == nil {
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.FuncDecl:
+			if x.Name != nil && x.Name.Name == name {
+				declared = true
+				return false
+			}
+			if peepholeFieldListHasName(x.Recv, name) || peepholeFieldListHasName(x.Type.Params, name) || peepholeFieldListHasName(x.Type.Results, name) {
+				declared = true
+				return false
+			}
+		case *ast.FuncLit:
+			if x.Type != nil && (peepholeFieldListHasName(x.Type.Params, name) || peepholeFieldListHasName(x.Type.Results, name)) {
+				declared = true
+				return false
+			}
+		case *ast.ValueSpec:
+			for _, id := range x.Names {
+				if id.Name == name {
+					declared = true
+					return false
+				}
+			}
+		case *ast.TypeSpec:
+			if x.Name != nil && x.Name.Name == name {
+				declared = true
+				return false
+			}
+		case *ast.AssignStmt:
+			if x.Tok == token.DEFINE {
+				for _, lhs := range x.Lhs {
+					if id, ok := stripParens(lhs).(*ast.Ident); ok && id.Name == name {
+						declared = true
+						return false
+					}
+				}
+			}
+		case *ast.RangeStmt:
+			if x.Tok == token.DEFINE {
+				if id, ok := x.Key.(*ast.Ident); ok && id.Name == name {
+					declared = true
+					return false
+				}
+				if id, ok := x.Value.(*ast.Ident); ok && id.Name == name {
+					declared = true
+					return false
+				}
+			}
+		}
+		return true
+	})
+	return declared
+}
+
+func peepholeFieldListHasName(fl *ast.FieldList, name string) bool {
+	if fl == nil {
+		return false
+	}
+	for _, f := range fl.List {
+		for _, id := range f.Names {
+			if id.Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }

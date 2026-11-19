@@ -43,20 +43,20 @@ func init() {
 	lambdaSingleton_strip_code_2 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return StripCode_ToStreamWithCollapsedVersions(j2gort.CastString(mrp0_)) })
 	lambdaSingleton_strip_code_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return StripCode_ToStreamWithCollapsedVersions(j2gort.CastString(mrp0_)) })
 	lambdaSingleton_strip_code_4 = j2gort.NewLambda_Ext_java_util_function_IntFunction(func(mrp0_ int32) any { return j2gort.SliceToAny(j2gort.NewStringArray(mrp0_)) })
-	lambdaSingleton_strip_code_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_7 any) any {
-		s := j2gort.CastString(lp_7)
+	lambdaSingleton_strip_code_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_1 any) any {
+		s := j2gort.CastString(lp_1)
 		_ = s
 		return j2gort.Ext_java_util_stream_Stream_Of_1_slice_any([]any{j2gort.StrValString(s) + ".", j2gort.StrValString(s) + "$"})
 	})
 	lambdaSingleton_strip_code_6 = j2gort.NewLambda_Ext_java_util_function_IntFunction(func(mrp0_ int32) any { return j2gort.SliceToAny(j2gort.NewStringArray(mrp0_)) })
-	lambdaSingleton_strip_code_7 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_11 any) any {
-		s := j2gort.CastString(lp_11)
+	lambdaSingleton_strip_code_7 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_5 any) any {
+		s := j2gort.CastString(lp_5)
 		_ = s
 		return j2gort.BoxString(javalang.StringToLowerCaseASCII(s))
 	})
 	lambdaSingleton_strip_code_8 = j2gort.NewLambda_Ext_java_util_function_IntFunction(func(mrp0_ int32) any { return j2gort.SliceToAny(j2gort.NewStringArray(mrp0_)) })
-	lambdaSingleton_strip_code_9 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_15 any) any {
-		s := j2gort.CastString(lp_15)
+	lambdaSingleton_strip_code_9 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_9 any) any {
+		s := j2gort.CastString(lp_9)
 		_ = s
 		return j2gort.BoxString(javalang.StringToLowerCaseASCII(s))
 	})
@@ -173,59 +173,39 @@ func InitStripCode(this_ *StripCode, compiler AbstractCompiler, stripTypes j2gor
 	}
 	var stripTypesAdjusted j2gort.Ext_com_google_common_collect_ImmutableSet = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](stripTypesStream.FlatMap(lambdaSingleton_strip_code_3).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableSet_ToImmutableSet()))
 	_ = stripTypesAdjusted
-	this_.stripTypesList = func() []string {
-		arr_4 := stripTypesAdjusted.ToArray_1_slice_any(func() []any {
-			arr_1 := j2gort.NewStringArray(int32(0))
-			if arr_1 == nil {
-				return nil
-			}
-			out_2 := make([]any, len(arr_1))
-			for i_, el_3 := range arr_1 {
-				out_2[i_] = j2gort.BoxString(el_3)
-			}
-			return out_2
-		}())
-		if arr_4 == nil {
-			return nil
-		}
-		out_5 := make([]string, len(arr_4))
-		for i_, el_6 := range arr_4 {
-			out_5[i_] = j2gort.CastString(el_6)
-		}
-		return out_5
-	}()
+	this_.stripTypesList = j2gort.ColToNewStringArray(stripTypesAdjusted)
 	this_.stripTypePrefixesList = func() []string {
-		arr_8 := stripTypesAdjusted.Stream().FlatMap(lambdaSingleton_strip_code_5).ToArray_1(lambdaSingleton_strip_code_4)
-		if arr_8 == nil {
+		arr_2 := stripTypesAdjusted.Stream().FlatMap(lambdaSingleton_strip_code_5).ToArray_1(lambdaSingleton_strip_code_4)
+		if arr_2 == nil {
 			return nil
 		}
-		out_9 := make([]string, len(arr_8))
-		for i_, el_10 := range arr_8 {
-			out_9[i_] = j2gort.CastString(el_10)
+		out_3 := make([]string, len(arr_2))
+		for i_, el_4 := range arr_2 {
+			out_3[i_] = j2gort.CastString(el_4)
 		}
-		return out_9
+		return out_3
 	}()
 	this_.stripNamePrefixesLowerCaseList = func() []string {
-		arr_12 := this_.stripNamePrefixes.Stream().Map(lambdaSingleton_strip_code_7).ToArray_1(lambdaSingleton_strip_code_6)
-		if arr_12 == nil {
+		arr_6 := this_.stripNamePrefixes.Stream().Map(lambdaSingleton_strip_code_7).ToArray_1(lambdaSingleton_strip_code_6)
+		if arr_6 == nil {
 			return nil
 		}
-		out_13 := make([]string, len(arr_12))
-		for i_, el_14 := range arr_12 {
-			out_13[i_] = j2gort.CastString(el_14)
+		out_7 := make([]string, len(arr_6))
+		for i_, el_8 := range arr_6 {
+			out_7[i_] = j2gort.CastString(el_8)
 		}
-		return out_13
+		return out_7
 	}()
 	this_.stripNameSuffixesLowerCaseList = func() []string {
-		arr_16 := this_.stripNameSuffixes.Stream().Map(lambdaSingleton_strip_code_9).ToArray_1(lambdaSingleton_strip_code_8)
-		if arr_16 == nil {
+		arr_10 := this_.stripNameSuffixes.Stream().Map(lambdaSingleton_strip_code_9).ToArray_1(lambdaSingleton_strip_code_8)
+		if arr_10 == nil {
 			return nil
 		}
-		out_17 := make([]string, len(arr_16))
-		for i_, el_18 := range arr_16 {
-			out_17[i_] = j2gort.CastString(el_18)
+		out_11 := make([]string, len(arr_10))
+		for i_, el_12 := range arr_10 {
+			out_11[i_] = j2gort.CastString(el_12)
 		}
-		return out_17
+		return out_11
 	}()
 }
 
@@ -244,9 +224,9 @@ func StripCode_ToStreamWithCollapsedVersions(s string) j2gort.Ext_java_util_stre
 		for ; i < int32(len(chars)); i = i + 1 {
 			if int32(chars[i]) == int32(uint16(46)) {
 				{
-					a_19 := chars
-					i_20 := i
-					a_19[i_20] = uint16(36)
+					a_13 := chars
+					i_14 := i
+					a_13[i_14] = uint16(36)
 				}
 				possibleForms.Add_1(javalang.StringFromUTF16(chars))
 			}
@@ -330,9 +310,9 @@ func (this_ *StripCode_StripCodeConfigRecord) Get() any {
 
 	builder.AppendStr("=== stripNameSuffixes ===\n")
 	{
-		cur_21 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.outer_.stripNameSuffixes))
-		for cur_21.HasNext() {
-			stripNameSuffix := cur_21.NextStr()
+		cur_15 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.outer_.stripNameSuffixes))
+		for cur_15.HasNext() {
+			stripNameSuffix := cur_15.NextStr()
 			_ = stripNameSuffix
 			builder.AppendStr(stripNameSuffix).AppendStr("\n")
 		}
@@ -340,24 +320,24 @@ func (this_ *StripCode_StripCodeConfigRecord) Get() any {
 	builder.AppendStr("\n")
 	builder.AppendStr("=== stripNamePrefixes ===\n")
 	{
-		cur_22 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.outer_.stripNamePrefixes))
-		for cur_22.HasNext() {
-			stripNamePrefix := cur_22.NextStr()
+		cur_16 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.outer_.stripNamePrefixes))
+		for cur_16.HasNext() {
+			stripNamePrefix := cur_16.NextStr()
 			_ = stripNamePrefix
 			builder.AppendStr(stripNamePrefix).AppendStr("\n")
 		}
 	}
 	builder.AppendStr("\n")
 	builder.AppendStr("=== stripTypesList ===\n")
-	for _, el_23 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypesList) {
-		stripType := el_23
+	for _, el_17 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypesList) {
+		stripType := el_17
 		_ = stripType
 		builder.AppendStr(stripType).AppendStr("\n")
 	}
 	builder.AppendStr("\n")
 	builder.AppendStr("=== stripTypePrefixesList ===\n")
-	for _, el_24 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypePrefixesList) {
-		stripNamePrefix_2 := el_24
+	for _, el_18 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypePrefixesList) {
+		stripNamePrefix_2 := el_18
 		_ = stripNamePrefix_2
 		builder.AppendStr(stripNamePrefix_2).AppendStr("\n")
 	}
@@ -784,16 +764,16 @@ func (this_ *StripCode_Strip) QualifiedNameBeginsWithStripType_1_Node(n pkg_rhin
 func (this_ *StripCode_Strip) QualifiedNameBeginsWithStripType_1_string(name string) bool {
 	_ = name
 	if name != j2gort.NullString {
-		for _, el_25 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypesList) {
-			type_ := el_25
+		for _, el_19 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypesList) {
+			type_ := el_19
 			_ = type_
 			if j2gort.CheckNotNullString(name) == type_ {
 				this_.priv_Strip_logStripName_5187(name, "equals strip type")
 				return true
 			}
 		}
-		for _, el_26 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypePrefixesList) {
-			type__2 := el_26
+		for _, el_20 := range j2gort.CheckNotNullSlice(this_.outer_.stripTypePrefixesList) {
+			type__2 := el_20
 			_ = type__2
 			if javalang.StringStartsWith(j2gort.CheckNotNullString(name), j2gort.CheckNotNullString(type__2)) {
 				this_.priv_Strip_logStripName_5187(name, "starts with strip type prefix")
@@ -910,8 +890,8 @@ func (this_ *StripCode_Strip) IsStripName(name string) bool {
 	}
 	var lcName string = javalang.StringToLowerCaseASCII(name)
 	_ = lcName
-	for _, el_27 := range j2gort.CheckNotNullSlice(this_.outer_.stripNamePrefixesLowerCaseList) {
-		stripName := el_27
+	for _, el_21 := range j2gort.CheckNotNullSlice(this_.outer_.stripNamePrefixesLowerCaseList) {
+		stripName := el_21
 		_ = stripName
 		if javalang.StringStartsWith(j2gort.CheckNotNullString(lcName), j2gort.CheckNotNullString(stripName)) {
 			if this_.decisionsLog.IsLogging() {
@@ -922,8 +902,8 @@ func (this_ *StripCode_Strip) IsStripName(name string) bool {
 			return true
 		}
 	}
-	for _, el_28 := range j2gort.CheckNotNullSlice(this_.outer_.stripNameSuffixesLowerCaseList) {
-		stripName_2 := el_28
+	for _, el_22 := range j2gort.CheckNotNullSlice(this_.outer_.stripNameSuffixesLowerCaseList) {
+		stripName_2 := el_22
 		_ = stripName_2
 		if javalang.StringEndsWith(j2gort.CheckNotNullString(lcName), j2gort.CheckNotNullString(stripName_2)) {
 			if this_.decisionsLog.IsLogging() {

@@ -317,27 +317,7 @@ func Color_ToUniqueColorArray(colors j2gort.Ext_java_util_Collection) []*Color {
 			unique.Add_1(j2gort.PtrToAny(c_2))
 		}
 	}
-	return func() []*Color {
-		arr_18 := unique.ToArray_1_slice_any(func() []any {
-			arr_15 := StaticGet_Color_EMPTY_COLORS()
-			if arr_15 == nil {
-				return nil
-			}
-			out_16 := make([]any, len(arr_15))
-			for i_, el_17 := range arr_15 {
-				out_16[i_] = j2gort.PtrToAny(el_17)
-			}
-			return out_16
-		}())
-		if arr_18 == nil {
-			return nil
-		}
-		out_19 := make([]*Color, len(arr_18))
-		for i_, el_20 := range arr_18 {
-			out_19[i_] = j2gort.CastPtr[Color](el_20)
-		}
-		return out_19
-	}()
+	return j2gort.ColToPtrArray[Color](unique, StaticGet_Color_EMPTY_COLORS())
 }
 
 // Java static method: Color.toUniqueStringArray(java.util.Collection<java.lang.String> strings)
@@ -355,15 +335,15 @@ func Color_ToUniqueStringArray(strings j2gort.Ext_java_util_Collection) []string
 		var i int32 = int32(0)
 		_ = i
 		{
-			cur_21 := j2gort.NewIterCursor(j2gort.CheckNotNull(strings))
-			for cur_21.HasNext() {
-				s := cur_21.NextStr()
+			cur_15 := j2gort.NewIterCursor(j2gort.CheckNotNull(strings))
+			for cur_15.HasNext() {
+				s := cur_15.NextStr()
 				_ = s
 				j2gort.CheckNotNullString(s)
 				{
-					a_22 := out
-					i_23 := func() int32 { old_24 := i; nw_25 := old_24 + 1; i = nw_25; return old_24 }()
-					a_22[i_23] = s
+					a_16 := out
+					i_17 := func() int32 { old_18 := i; nw_19 := old_18 + 1; i = nw_19; return old_18 }()
+					a_16[i_17] = s
 				}
 			}
 		}
@@ -372,35 +352,15 @@ func Color_ToUniqueStringArray(strings j2gort.Ext_java_util_Collection) []string
 	var unique *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet_1_int32(size)
 	_ = unique
 	{
-		cur_26 := j2gort.NewIterCursor(j2gort.CheckNotNull(strings))
-		for cur_26.HasNext() {
-			s_2 := cur_26.NextStr()
+		cur_20 := j2gort.NewIterCursor(j2gort.CheckNotNull(strings))
+		for cur_20.HasNext() {
+			s_2 := cur_20.NextStr()
 			_ = s_2
 			j2gort.CheckNotNullString(s_2)
 			j2gort.SetAddStr(unique, s_2)
 		}
 	}
-	return func() []string {
-		arr_30 := unique.ToArray_1_slice_any(func() []any {
-			arr_27 := StaticGet_Color_EMPTY_STRINGS()
-			if arr_27 == nil {
-				return nil
-			}
-			out_28 := make([]any, len(arr_27))
-			for i_, el_29 := range arr_27 {
-				out_28[i_] = j2gort.BoxString(el_29)
-			}
-			return out_28
-		}())
-		if arr_30 == nil {
-			return nil
-		}
-		out_31 := make([]string, len(arr_30))
-		for i_, el_32 := range arr_30 {
-			out_31[i_] = j2gort.CastString(el_32)
-		}
-		return out_31
-	}()
+	return j2gort.ColToStringArray(unique, StaticGet_Color_EMPTY_STRINGS())
 }
 
 // Java static method: Color.containsColor(com.google.javascript.jscomp.colors.Color[] arr, int limit, com.google.javascript.jscomp.colors.Color target)
@@ -479,17 +439,17 @@ func Color_MergeColorArrays(a []*Color, b []*Color) []*Color {
 		var merged []*Color = make([]*Color, (aLen + extra))
 		_ = merged
 		func() {
-			acSrc_33 := a
-			acSP_34 := int32(0)
-			acDst_35 := merged
-			acDP_36 := int32(0)
-			acLen_37 := aLen
-			j2gort.CheckNotNullSlice(acSrc_33)
-			j2gort.CheckNotNullSlice(acDst_35)
-			if acSP_34 < 0 || acDP_36 < 0 || acLen_37 < 0 || int64(acSP_34)+int64(acLen_37) > int64(len(acSrc_33)) || int64(acDP_36)+int64(acLen_37) > int64(len(acDst_35)) {
+			acSrc_21 := a
+			acSP_22 := int32(0)
+			acDst_23 := merged
+			acDP_24 := int32(0)
+			acLen_25 := aLen
+			j2gort.CheckNotNullSlice(acSrc_21)
+			j2gort.CheckNotNullSlice(acDst_23)
+			if acSP_22 < 0 || acDP_24 < 0 || acLen_25 < 0 || int64(acSP_22)+int64(acLen_25) > int64(len(acSrc_21)) || int64(acDP_24)+int64(acLen_25) > int64(len(acDst_23)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_35[int(acDP_36):int(acDP_36)+int(acLen_37)], acSrc_33[int(acSP_34):int(acSP_34)+int(acLen_37)])
+			copy(acDst_23[int(acDP_24):int(acDP_24)+int(acLen_25)], acSrc_21[int(acSP_22):int(acSP_22)+int(acLen_25)])
 		}()
 		var pos int32 = aLen
 		_ = pos
@@ -501,9 +461,9 @@ func Color_MergeColorArrays(a []*Color, b []*Color) []*Color {
 				_ = c
 				if !(Color_ContainsColor(a, aLen, c)) {
 					{
-						a_38 := merged
-						i_39 := func() int32 { old_40 := pos; nw_41 := old_40 + 1; pos = nw_41; return old_40 }()
-						a_38[i_39] = c
+						a_26 := merged
+						i_27 := func() int32 { old_28 := pos; nw_29 := old_28 + 1; pos = nw_29; return old_28 }()
+						a_26[i_27] = c
 					}
 				}
 			}
@@ -533,27 +493,7 @@ func Color_MergeColorArrays(a []*Color, b []*Color) []*Color {
 	if !(addedNew) {
 		return a
 	}
-	return func() []*Color {
-		arr_45 := set.ToArray_1_slice_any(func() []any {
-			arr_42 := StaticGet_Color_EMPTY_COLORS()
-			if arr_42 == nil {
-				return nil
-			}
-			out_43 := make([]any, len(arr_42))
-			for i_, el_44 := range arr_42 {
-				out_43[i_] = j2gort.PtrToAny(el_44)
-			}
-			return out_43
-		}())
-		if arr_45 == nil {
-			return nil
-		}
-		out_46 := make([]*Color, len(arr_45))
-		for i_, el_47 := range arr_45 {
-			out_46[i_] = j2gort.CastPtr[Color](el_47)
-		}
-		return out_46
-	}()
+	return j2gort.ColToPtrArray[Color](set, StaticGet_Color_EMPTY_COLORS())
 }
 
 // Java static method: Color.mergeStringArrays(java.lang.String[] a, java.lang.String[] b)
@@ -576,9 +516,9 @@ func Color_MergeStringArrays(a []string, b []string) []string {
 			var iifeCond_1 bool
 			{
 
-				sr_48 := a[int32(0)]
-				se_49 := b[int32(0)]
-				iifeCond_1 = j2gort.CheckNotNullString(sr_48) == se_49
+				sr_30 := a[int32(0)]
+				se_31 := b[int32(0)]
+				iifeCond_1 = j2gort.CheckNotNullString(sr_30) == se_31
 			}
 			if iifeCond_1 {
 				return a
@@ -605,17 +545,17 @@ func Color_MergeStringArrays(a []string, b []string) []string {
 		var merged []string = j2gort.NewStringArray((aLen + extra))
 		_ = merged
 		func() {
-			acSrc_50 := a
-			acSP_51 := int32(0)
-			acDst_52 := merged
-			acDP_53 := int32(0)
-			acLen_54 := aLen
-			j2gort.CheckNotNullSlice(acSrc_50)
-			j2gort.CheckNotNullSlice(acDst_52)
-			if acSP_51 < 0 || acDP_53 < 0 || acLen_54 < 0 || int64(acSP_51)+int64(acLen_54) > int64(len(acSrc_50)) || int64(acDP_53)+int64(acLen_54) > int64(len(acDst_52)) {
+			acSrc_32 := a
+			acSP_33 := int32(0)
+			acDst_34 := merged
+			acDP_35 := int32(0)
+			acLen_36 := aLen
+			j2gort.CheckNotNullSlice(acSrc_32)
+			j2gort.CheckNotNullSlice(acDst_34)
+			if acSP_33 < 0 || acDP_35 < 0 || acLen_36 < 0 || int64(acSP_33)+int64(acLen_36) > int64(len(acSrc_32)) || int64(acDP_35)+int64(acLen_36) > int64(len(acDst_34)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_52[int(acDP_53):int(acDP_53)+int(acLen_54)], acSrc_50[int(acSP_51):int(acSP_51)+int(acLen_54)])
+			copy(acDst_34[int(acDP_35):int(acDP_35)+int(acLen_36)], acSrc_32[int(acSP_33):int(acSP_33)+int(acLen_36)])
 		}()
 		var pos int32 = aLen
 		_ = pos
@@ -627,9 +567,9 @@ func Color_MergeStringArrays(a []string, b []string) []string {
 				_ = s
 				if !(Color_ContainsString(a, aLen, s)) {
 					{
-						a_55 := merged
-						i_56 := func() int32 { old_57 := pos; nw_58 := old_57 + 1; pos = nw_58; return old_57 }()
-						a_55[i_56] = s
+						a_37 := merged
+						i_38 := func() int32 { old_39 := pos; nw_40 := old_39 + 1; pos = nw_40; return old_39 }()
+						a_37[i_38] = s
 					}
 				}
 			}
@@ -659,71 +599,51 @@ func Color_MergeStringArrays(a []string, b []string) []string {
 	if !(addedNew) {
 		return a
 	}
-	return func() []string {
-		arr_62 := set.ToArray_1_slice_any(func() []any {
-			arr_59 := StaticGet_Color_EMPTY_STRINGS()
-			if arr_59 == nil {
-				return nil
-			}
-			out_60 := make([]any, len(arr_59))
-			for i_, el_61 := range arr_59 {
-				out_60[i_] = j2gort.BoxString(el_61)
-			}
-			return out_60
-		}())
-		if arr_62 == nil {
-			return nil
-		}
-		out_63 := make([]string, len(arr_62))
-		for i_, el_64 := range arr_62 {
-			out_63[i_] = j2gort.CastString(el_64)
-		}
-		return out_63
-	}()
+	return j2gort.ColToStringArray(set, StaticGet_Color_EMPTY_STRINGS())
 }
 
 // Java static method: Color.singleBuilder()
 func Color_SingleBuilder() *Color_Builder {
 	clinit_Color()
-	var val_65 Color_Builder
-	InitColor_Builder(&val_65)
-	var b *Color_Builder = &val_65
+	var val_41 Color_Builder
+	InitColor_Builder(&val_41)
+	var b *Color_Builder = &val_41
 	_ = b
 	{
-		r_66 := b
-		r_66.closureAssert = false
+		r_42 := b
+		r_42.closureAssert = false
 	}
 	{
-		r_67 := b
-		r_67.constructor = false
+		r_43 := b
+		r_43.constructor = false
 	}
 	{
-		r_68 := b
-		r_68.instanceColors = StaticGet_Color_EMPTY_COLORS()
+		r_44 := b
+		r_44.instanceColors = StaticGet_Color_EMPTY_COLORS()
 	}
 	{
-		r_69 := b
-		r_69.invalidating = false
+		r_45 := b
+		r_45.invalidating = false
 	}
 	{
-		r_70 := b
-		r_70.ownProperties = StaticGet_Color_EMPTY_STRINGS()
+		r_46 := b
+		r_46.ownProperties = StaticGet_Color_EMPTY_STRINGS()
 	}
 	{
-		r_71 := b
-		r_71.propertiesKeepOriginalName = false
+		r_47 := b
+		r_47.propertiesKeepOriginalName = false
 	}
 	{
-		r_72 := b
-		r_72.prototypes = StaticGet_Color_EMPTY_COLORS()
+		r_48 := b
+		r_48.prototypes = StaticGet_Color_EMPTY_COLORS()
 	}
 	{
-		r_73 := b
-		r_73.unionElements = StaticGet_Color_EMPTY_COLORS()
+		r_49 := b
+		r_49.unionElements = StaticGet_Color_EMPTY_COLORS()
 	}
 	{
-		r_74 := b
-		r_74.set_d0 = int8(int32(15))
+		r_50 := b
+		r_50.set_d0 = int8(int32(15))
 	}
 	return b
 }
@@ -806,14 +726,14 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 	var propertiesKeepOriginalName bool = false
 	_ = propertiesKeepOriginalName
 	{
-		cur_75 := j2gort.NewIterCursor(j2gort.CheckNotNull(elements))
-		for cur_75.HasNext() {
-			rawElem_76 := cur_75.Next()
-			element := j2gort.CastPtr[Color](rawElem_76)
+		cur_51 := j2gort.NewIterCursor(j2gort.CheckNotNull(elements))
+		for cur_51.HasNext() {
+			rawElem_52 := cur_51.Next()
+			element := j2gort.CastPtr[Color](rawElem_52)
 			_ = element
 			if element.IsUnion() {
-				for _, el_77 := range j2gort.CheckNotNullSlice(element.unionElements) {
-					nestedElement := el_77
+				for _, el_53 := range j2gort.CheckNotNullSlice(element.unionElements) {
+					nestedElement := el_53
 					_ = nestedElement
 					newElements.Add_1(j2gort.PtrToAny(nestedElement))
 				}
@@ -824,8 +744,8 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 			_ = elemInstanceColors
 			if int32(len(elemInstanceColors)) > int32(0) {
 				if instanceColorsBuilder != nil {
-					for _, el_78 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
-						c := el_78
+					for _, el_54 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
+						c := el_54
 						_ = c
 						instanceColorsBuilder.Add_1(j2gort.PtrToAny(c))
 					}
@@ -833,27 +753,27 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 					singleInstanceColors = elemInstanceColors
 				} else if !(Color_SetEqualsColors(singleInstanceColors, elemInstanceColors)) {
 					instanceColorsBuilder = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(singleInstanceColors)) + int32(len(elemInstanceColors))))
-					for _, el_79 := range j2gort.CheckNotNullSlice(singleInstanceColors) {
-						c_2 := el_79
+					for _, el_55 := range j2gort.CheckNotNullSlice(singleInstanceColors) {
+						c_2 := el_55
 						_ = c_2
 						instanceColorsBuilder.Add_1(j2gort.PtrToAny(c_2))
 					}
-					for _, el_80 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
-						c_3 := el_80
+					for _, el_56 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
+						c_3 := el_56
 						_ = c_3
 						instanceColorsBuilder.Add_1(j2gort.PtrToAny(c_3))
 					}
 				}
 			}
-			isClosureAssert = func() bool { ba_81 := isClosureAssert; bb_82 := element.closureAssert; return ba_81 && bb_82 }()
-			isConstructor = func() bool { ba_83 := isConstructor; bb_84 := element.constructor; return ba_83 && bb_84 }()
-			isInvalidating = func() bool { ba_85 := isInvalidating; bb_86 := element.invalidating; return ba_85 || bb_86 }()
+			isClosureAssert = func() bool { ba_57 := isClosureAssert; bb_58 := element.closureAssert; return ba_57 && bb_58 }()
+			isConstructor = func() bool { ba_59 := isConstructor; bb_60 := element.constructor; return ba_59 && bb_60 }()
+			isInvalidating = func() bool { ba_61 := isInvalidating; bb_62 := element.invalidating; return ba_61 || bb_62 }()
 			var elemOwnProps []string = element.ownProperties
 			_ = elemOwnProps
 			if int32(len(elemOwnProps)) > int32(0) {
 				if ownPropertiesBuilder != nil {
-					for _, el_87 := range j2gort.CheckNotNullSlice(elemOwnProps) {
-						p := el_87
+					for _, el_63 := range j2gort.CheckNotNullSlice(elemOwnProps) {
+						p := el_63
 						_ = p
 						j2gort.SetAddStr(ownPropertiesBuilder, p)
 					}
@@ -861,29 +781,29 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 					singleOwnProperties = elemOwnProps
 				} else if !(Color_SetEqualsStrings(singleOwnProperties, elemOwnProps)) {
 					ownPropertiesBuilder = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(singleOwnProperties)) + int32(len(elemOwnProps))))
-					for _, el_88 := range j2gort.CheckNotNullSlice(singleOwnProperties) {
-						p_2 := el_88
+					for _, el_64 := range j2gort.CheckNotNullSlice(singleOwnProperties) {
+						p_2 := el_64
 						_ = p_2
 						j2gort.SetAddStr(ownPropertiesBuilder, p_2)
 					}
-					for _, el_89 := range j2gort.CheckNotNullSlice(elemOwnProps) {
-						p_3 := el_89
+					for _, el_65 := range j2gort.CheckNotNullSlice(elemOwnProps) {
+						p_3 := el_65
 						_ = p_3
 						j2gort.SetAddStr(ownPropertiesBuilder, p_3)
 					}
 				}
 			}
 			propertiesKeepOriginalName = func() bool {
-				ba_90 := propertiesKeepOriginalName
-				bb_91 := element.propertiesKeepOriginalName
-				return ba_90 || bb_91
+				ba_66 := propertiesKeepOriginalName
+				bb_67 := element.propertiesKeepOriginalName
+				return ba_66 || bb_67
 			}()
 			var elemPrototypes []*Color = element.prototypes
 			_ = elemPrototypes
 			if int32(len(elemPrototypes)) > int32(0) {
 				if prototypesBuilder != nil {
-					for _, el_92 := range j2gort.CheckNotNullSlice(elemPrototypes) {
-						c_4 := el_92
+					for _, el_68 := range j2gort.CheckNotNullSlice(elemPrototypes) {
+						c_4 := el_68
 						_ = c_4
 						prototypesBuilder.Add_1(j2gort.PtrToAny(c_4))
 					}
@@ -891,13 +811,13 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 					singlePrototypes = elemPrototypes
 				} else if !(Color_SetEqualsColors(singlePrototypes, elemPrototypes)) {
 					prototypesBuilder = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(singlePrototypes)) + int32(len(elemPrototypes))))
-					for _, el_93 := range j2gort.CheckNotNullSlice(singlePrototypes) {
-						c_5 := el_93
+					for _, el_69 := range j2gort.CheckNotNullSlice(singlePrototypes) {
+						c_5 := el_69
 						_ = c_5
 						prototypesBuilder.Add_1(j2gort.PtrToAny(c_5))
 					}
-					for _, el_94 := range j2gort.CheckNotNullSlice(elemPrototypes) {
-						c_6 := el_94
+					for _, el_70 := range j2gort.CheckNotNullSlice(elemPrototypes) {
+						c_6 := el_70
 						_ = c_6
 						prototypesBuilder.Add_1(j2gort.PtrToAny(c_6))
 					}
@@ -908,101 +828,21 @@ func Color_CreateUnion_1_Ext_java_util_Set(elements j2gort.Ext_java_util_Set) *C
 	if newElements.Size() == int32(1) {
 		return j2gort.CastPtr[Color](j2gort.Ext_com_google_common_collect_Iterables_GetOnlyElement_1(newElements))
 	}
-	var builtUnionElements []*Color = func() []*Color {
-		arr_98 := newElements.ToArray_1_slice_any(func() []any {
-			arr_95 := StaticGet_Color_EMPTY_COLORS()
-			if arr_95 == nil {
-				return nil
-			}
-			out_96 := make([]any, len(arr_95))
-			for i_, el_97 := range arr_95 {
-				out_96[i_] = j2gort.PtrToAny(el_97)
-			}
-			return out_96
-		}())
-		if arr_98 == nil {
-			return nil
-		}
-		out_99 := make([]*Color, len(arr_98))
-		for i_, el_100 := range arr_98 {
-			out_99[i_] = j2gort.CastPtr[Color](el_100)
-		}
-		return out_99
-	}()
+	var builtUnionElements []*Color = j2gort.ColToPtrArray[Color](newElements, StaticGet_Color_EMPTY_COLORS())
 	_ = builtUnionElements
 	var result *Color = NewColor(ColorId_UnionFromColors(builtUnionElements), func() []*Color {
 		if prototypesBuilder != nil {
-			return func() []*Color {
-				arr_104 := prototypesBuilder.ToArray_1_slice_any(func() []any {
-					arr_101 := StaticGet_Color_EMPTY_COLORS()
-					if arr_101 == nil {
-						return nil
-					}
-					out_102 := make([]any, len(arr_101))
-					for i_, el_103 := range arr_101 {
-						out_102[i_] = j2gort.PtrToAny(el_103)
-					}
-					return out_102
-				}())
-				if arr_104 == nil {
-					return nil
-				}
-				out_105 := make([]*Color, len(arr_104))
-				for i_, el_106 := range arr_104 {
-					out_105[i_] = j2gort.CastPtr[Color](el_106)
-				}
-				return out_105
-			}()
+			return j2gort.ColToPtrArray[Color](prototypesBuilder, StaticGet_Color_EMPTY_COLORS())
 		}
 		return singlePrototypes
 	}(), func() []*Color {
 		if instanceColorsBuilder != nil {
-			return func() []*Color {
-				arr_110 := instanceColorsBuilder.ToArray_1_slice_any(func() []any {
-					arr_107 := StaticGet_Color_EMPTY_COLORS()
-					if arr_107 == nil {
-						return nil
-					}
-					out_108 := make([]any, len(arr_107))
-					for i_, el_109 := range arr_107 {
-						out_108[i_] = j2gort.PtrToAny(el_109)
-					}
-					return out_108
-				}())
-				if arr_110 == nil {
-					return nil
-				}
-				out_111 := make([]*Color, len(arr_110))
-				for i_, el_112 := range arr_110 {
-					out_111[i_] = j2gort.CastPtr[Color](el_112)
-				}
-				return out_111
-			}()
+			return j2gort.ColToPtrArray[Color](instanceColorsBuilder, StaticGet_Color_EMPTY_COLORS())
 		}
 		return singleInstanceColors
 	}(), isInvalidating, propertiesKeepOriginalName, isConstructor, func() []string {
 		if ownPropertiesBuilder != nil {
-			return func() []string {
-				arr_116 := ownPropertiesBuilder.ToArray_1_slice_any(func() []any {
-					arr_113 := StaticGet_Color_EMPTY_STRINGS()
-					if arr_113 == nil {
-						return nil
-					}
-					out_114 := make([]any, len(arr_113))
-					for i_, el_115 := range arr_113 {
-						out_114[i_] = j2gort.BoxString(el_115)
-					}
-					return out_114
-				}())
-				if arr_116 == nil {
-					return nil
-				}
-				out_117 := make([]string, len(arr_116))
-				for i_, el_118 := range arr_116 {
-					out_117[i_] = j2gort.CastString(el_118)
-				}
-				return out_117
-			}()
+			return j2gort.ColToStringArray(ownPropertiesBuilder, StaticGet_Color_EMPTY_STRINGS())
 		}
 		return singleOwnProperties
 	}(), (ColorId{}), isClosureAssert, builtUnionElements)
@@ -1051,8 +891,8 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 			var element *Color = j2gort.CheckNotNullPtr(elements[idx])
 			_ = element
 			if element.IsUnion() {
-				for _, el_119 := range j2gort.CheckNotNullSlice(element.unionElements) {
-					nestedElement := el_119
+				for _, el_71 := range j2gort.CheckNotNullSlice(element.unionElements) {
+					nestedElement := el_71
 					_ = nestedElement
 					newElements.Add_1(j2gort.PtrToAny(nestedElement))
 				}
@@ -1063,8 +903,8 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 			_ = elemInstanceColors
 			if int32(len(elemInstanceColors)) > int32(0) {
 				if instanceColorsBuilder != nil {
-					for _, el_120 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
-						c := el_120
+					for _, el_72 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
+						c := el_72
 						_ = c
 						instanceColorsBuilder.Add_1(j2gort.PtrToAny(c))
 					}
@@ -1072,27 +912,27 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 					singleInstanceColors = elemInstanceColors
 				} else if !(Color_SetEqualsColors(singleInstanceColors, elemInstanceColors)) {
 					instanceColorsBuilder = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(singleInstanceColors)) + int32(len(elemInstanceColors))))
-					for _, el_121 := range j2gort.CheckNotNullSlice(singleInstanceColors) {
-						c_2 := el_121
+					for _, el_73 := range j2gort.CheckNotNullSlice(singleInstanceColors) {
+						c_2 := el_73
 						_ = c_2
 						instanceColorsBuilder.Add_1(j2gort.PtrToAny(c_2))
 					}
-					for _, el_122 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
-						c_3 := el_122
+					for _, el_74 := range j2gort.CheckNotNullSlice(elemInstanceColors) {
+						c_3 := el_74
 						_ = c_3
 						instanceColorsBuilder.Add_1(j2gort.PtrToAny(c_3))
 					}
 				}
 			}
-			isClosureAssert = func() bool { ba_123 := isClosureAssert; bb_124 := element.closureAssert; return ba_123 && bb_124 }()
-			isConstructor = func() bool { ba_125 := isConstructor; bb_126 := element.constructor; return ba_125 && bb_126 }()
-			isInvalidating = func() bool { ba_127 := isInvalidating; bb_128 := element.invalidating; return ba_127 || bb_128 }()
+			isClosureAssert = func() bool { ba_75 := isClosureAssert; bb_76 := element.closureAssert; return ba_75 && bb_76 }()
+			isConstructor = func() bool { ba_77 := isConstructor; bb_78 := element.constructor; return ba_77 && bb_78 }()
+			isInvalidating = func() bool { ba_79 := isInvalidating; bb_80 := element.invalidating; return ba_79 || bb_80 }()
 			var elemOwnProps []string = element.ownProperties
 			_ = elemOwnProps
 			if int32(len(elemOwnProps)) > int32(0) {
 				if ownPropertiesBuilder != nil {
-					for _, el_129 := range j2gort.CheckNotNullSlice(elemOwnProps) {
-						p := el_129
+					for _, el_81 := range j2gort.CheckNotNullSlice(elemOwnProps) {
+						p := el_81
 						_ = p
 						j2gort.SetAddStr(ownPropertiesBuilder, p)
 					}
@@ -1100,29 +940,29 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 					singleOwnProperties = elemOwnProps
 				} else if !(Color_SetEqualsStrings(singleOwnProperties, elemOwnProps)) {
 					ownPropertiesBuilder = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(singleOwnProperties)) + int32(len(elemOwnProps))))
-					for _, el_130 := range j2gort.CheckNotNullSlice(singleOwnProperties) {
-						p_2 := el_130
+					for _, el_82 := range j2gort.CheckNotNullSlice(singleOwnProperties) {
+						p_2 := el_82
 						_ = p_2
 						j2gort.SetAddStr(ownPropertiesBuilder, p_2)
 					}
-					for _, el_131 := range j2gort.CheckNotNullSlice(elemOwnProps) {
-						p_3 := el_131
+					for _, el_83 := range j2gort.CheckNotNullSlice(elemOwnProps) {
+						p_3 := el_83
 						_ = p_3
 						j2gort.SetAddStr(ownPropertiesBuilder, p_3)
 					}
 				}
 			}
 			propertiesKeepOriginalName = func() bool {
-				ba_132 := propertiesKeepOriginalName
-				bb_133 := element.propertiesKeepOriginalName
-				return ba_132 || bb_133
+				ba_84 := propertiesKeepOriginalName
+				bb_85 := element.propertiesKeepOriginalName
+				return ba_84 || bb_85
 			}()
 			var elemPrototypes []*Color = element.prototypes
 			_ = elemPrototypes
 			if int32(len(elemPrototypes)) > int32(0) {
 				if prototypesBuilder != nil {
-					for _, el_134 := range j2gort.CheckNotNullSlice(elemPrototypes) {
-						c_4 := el_134
+					for _, el_86 := range j2gort.CheckNotNullSlice(elemPrototypes) {
+						c_4 := el_86
 						_ = c_4
 						prototypesBuilder.Add_1(j2gort.PtrToAny(c_4))
 					}
@@ -1130,13 +970,13 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 					singlePrototypes = elemPrototypes
 				} else if !(Color_SetEqualsColors(singlePrototypes, elemPrototypes)) {
 					prototypesBuilder = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(singlePrototypes)) + int32(len(elemPrototypes))))
-					for _, el_135 := range j2gort.CheckNotNullSlice(singlePrototypes) {
-						c_5 := el_135
+					for _, el_87 := range j2gort.CheckNotNullSlice(singlePrototypes) {
+						c_5 := el_87
 						_ = c_5
 						prototypesBuilder.Add_1(j2gort.PtrToAny(c_5))
 					}
-					for _, el_136 := range j2gort.CheckNotNullSlice(elemPrototypes) {
-						c_6 := el_136
+					for _, el_88 := range j2gort.CheckNotNullSlice(elemPrototypes) {
+						c_6 := el_88
 						_ = c_6
 						prototypesBuilder.Add_1(j2gort.PtrToAny(c_6))
 					}
@@ -1147,101 +987,21 @@ func Color_CreateUnionFromArrayInternal(elements []*Color) *Color {
 	if newElements.Size() == int32(1) {
 		return j2gort.CastPtr[Color](j2gort.Ext_com_google_common_collect_Iterables_GetOnlyElement_1(newElements))
 	}
-	var builtUnionElements []*Color = func() []*Color {
-		arr_140 := newElements.ToArray_1_slice_any(func() []any {
-			arr_137 := StaticGet_Color_EMPTY_COLORS()
-			if arr_137 == nil {
-				return nil
-			}
-			out_138 := make([]any, len(arr_137))
-			for i_, el_139 := range arr_137 {
-				out_138[i_] = j2gort.PtrToAny(el_139)
-			}
-			return out_138
-		}())
-		if arr_140 == nil {
-			return nil
-		}
-		out_141 := make([]*Color, len(arr_140))
-		for i_, el_142 := range arr_140 {
-			out_141[i_] = j2gort.CastPtr[Color](el_142)
-		}
-		return out_141
-	}()
+	var builtUnionElements []*Color = j2gort.ColToPtrArray[Color](newElements, StaticGet_Color_EMPTY_COLORS())
 	_ = builtUnionElements
 	var result *Color = NewColor(ColorId_UnionFromColors(builtUnionElements), func() []*Color {
 		if prototypesBuilder != nil {
-			return func() []*Color {
-				arr_146 := prototypesBuilder.ToArray_1_slice_any(func() []any {
-					arr_143 := StaticGet_Color_EMPTY_COLORS()
-					if arr_143 == nil {
-						return nil
-					}
-					out_144 := make([]any, len(arr_143))
-					for i_, el_145 := range arr_143 {
-						out_144[i_] = j2gort.PtrToAny(el_145)
-					}
-					return out_144
-				}())
-				if arr_146 == nil {
-					return nil
-				}
-				out_147 := make([]*Color, len(arr_146))
-				for i_, el_148 := range arr_146 {
-					out_147[i_] = j2gort.CastPtr[Color](el_148)
-				}
-				return out_147
-			}()
+			return j2gort.ColToPtrArray[Color](prototypesBuilder, StaticGet_Color_EMPTY_COLORS())
 		}
 		return singlePrototypes
 	}(), func() []*Color {
 		if instanceColorsBuilder != nil {
-			return func() []*Color {
-				arr_152 := instanceColorsBuilder.ToArray_1_slice_any(func() []any {
-					arr_149 := StaticGet_Color_EMPTY_COLORS()
-					if arr_149 == nil {
-						return nil
-					}
-					out_150 := make([]any, len(arr_149))
-					for i_, el_151 := range arr_149 {
-						out_150[i_] = j2gort.PtrToAny(el_151)
-					}
-					return out_150
-				}())
-				if arr_152 == nil {
-					return nil
-				}
-				out_153 := make([]*Color, len(arr_152))
-				for i_, el_154 := range arr_152 {
-					out_153[i_] = j2gort.CastPtr[Color](el_154)
-				}
-				return out_153
-			}()
+			return j2gort.ColToPtrArray[Color](instanceColorsBuilder, StaticGet_Color_EMPTY_COLORS())
 		}
 		return singleInstanceColors
 	}(), isInvalidating, propertiesKeepOriginalName, isConstructor, func() []string {
 		if ownPropertiesBuilder != nil {
-			return func() []string {
-				arr_158 := ownPropertiesBuilder.ToArray_1_slice_any(func() []any {
-					arr_155 := StaticGet_Color_EMPTY_STRINGS()
-					if arr_155 == nil {
-						return nil
-					}
-					out_156 := make([]any, len(arr_155))
-					for i_, el_157 := range arr_155 {
-						out_156[i_] = j2gort.BoxString(el_157)
-					}
-					return out_156
-				}())
-				if arr_158 == nil {
-					return nil
-				}
-				out_159 := make([]string, len(arr_158))
-				for i_, el_160 := range arr_158 {
-					out_159[i_] = j2gort.CastString(el_160)
-				}
-				return out_159
-			}()
+			return j2gort.ColToStringArray(ownPropertiesBuilder, StaticGet_Color_EMPTY_STRINGS())
 		}
 		return singleOwnProperties
 	}(), (ColorId{}), isClosureAssert, builtUnionElements)
@@ -1273,13 +1033,13 @@ func (this_ *Color) SubtractNullOrVoid() *Color {
 	var cached *Color = this_.subtractNullOrVoid
 	_ = cached
 	if cached == nil {
-		return this_.priv_Color_computeSubtractNullOrVoid_5973()
+		return this_.priv_Color_computeSubtractNullOrVoid_5981()
 	}
 	return cached
 }
 
 // Java method: Color.computeSubtractNullOrVoid()
-func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5973() *Color {
+func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5981() *Color {
 	{
 		if this_ == nil {
 			j2gort.ThrowNPE()
@@ -1333,32 +1093,32 @@ func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5973() *Color {
 				_ = remaining
 				if nullOrVoidIndex > int32(0) {
 					func() {
-						acSrc_161 := elems
-						acSP_162 := int32(0)
-						acDst_163 := remaining
-						acDP_164 := int32(0)
-						acLen_165 := nullOrVoidIndex
-						j2gort.CheckNotNullSlice(acSrc_161)
-						j2gort.CheckNotNullSlice(acDst_163)
-						if acSP_162 < 0 || acDP_164 < 0 || acLen_165 < 0 || int64(acSP_162)+int64(acLen_165) > int64(len(acSrc_161)) || int64(acDP_164)+int64(acLen_165) > int64(len(acDst_163)) {
+						acSrc_89 := elems
+						acSP_90 := int32(0)
+						acDst_91 := remaining
+						acDP_92 := int32(0)
+						acLen_93 := nullOrVoidIndex
+						j2gort.CheckNotNullSlice(acSrc_89)
+						j2gort.CheckNotNullSlice(acDst_91)
+						if acSP_90 < 0 || acDP_92 < 0 || acLen_93 < 0 || int64(acSP_90)+int64(acLen_93) > int64(len(acSrc_89)) || int64(acDP_92)+int64(acLen_93) > int64(len(acDst_91)) {
 							panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 						}
-						copy(acDst_163[int(acDP_164):int(acDP_164)+int(acLen_165)], acSrc_161[int(acSP_162):int(acSP_162)+int(acLen_165)])
+						copy(acDst_91[int(acDP_92):int(acDP_92)+int(acLen_93)], acSrc_89[int(acSP_90):int(acSP_90)+int(acLen_93)])
 					}()
 				}
 				if nullOrVoidIndex < (len_ - int32(1)) {
 					func() {
-						acSrc_166 := elems
-						acSP_167 := (nullOrVoidIndex + int32(1))
-						acDst_168 := remaining
-						acDP_169 := nullOrVoidIndex
-						acLen_170 := ((len_ - nullOrVoidIndex) - int32(1))
-						j2gort.CheckNotNullSlice(acSrc_166)
-						j2gort.CheckNotNullSlice(acDst_168)
-						if acSP_167 < 0 || acDP_169 < 0 || acLen_170 < 0 || int64(acSP_167)+int64(acLen_170) > int64(len(acSrc_166)) || int64(acDP_169)+int64(acLen_170) > int64(len(acDst_168)) {
+						acSrc_94 := elems
+						acSP_95 := (nullOrVoidIndex + int32(1))
+						acDst_96 := remaining
+						acDP_97 := nullOrVoidIndex
+						acLen_98 := ((len_ - nullOrVoidIndex) - int32(1))
+						j2gort.CheckNotNullSlice(acSrc_94)
+						j2gort.CheckNotNullSlice(acDst_96)
+						if acSP_95 < 0 || acDP_97 < 0 || acLen_98 < 0 || int64(acSP_95)+int64(acLen_98) > int64(len(acSrc_94)) || int64(acDP_97)+int64(acLen_98) > int64(len(acDst_96)) {
 							panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 						}
-						copy(acDst_168[int(acDP_169):int(acDP_169)+int(acLen_170)], acSrc_166[int(acSP_167):int(acSP_167)+int(acLen_170)])
+						copy(acDst_96[int(acDP_97):int(acDP_97)+int(acLen_98)], acSrc_94[int(acSP_95):int(acSP_95)+int(acLen_98)])
 					}()
 				}
 				cached = Color_CreateUnionFromArrayInternal(remaining)
@@ -1460,28 +1220,28 @@ func Color_SetEqualsStrings(a []string, b []string) bool {
 	}
 	if len_ == int32(1) {
 		return func() bool {
-			sr_171 := a[int32(0)]
-			se_172 := b[int32(0)]
-			return j2gort.CheckNotNullString(sr_171) == se_172
+			sr_99 := a[int32(0)]
+			se_100 := b[int32(0)]
+			return j2gort.CheckNotNullString(sr_99) == se_100
 		}()
 	}
 	if len_ == int32(2) {
 		return ((func() bool {
-			sr_173 := a[int32(0)]
-			se_174 := b[int32(0)]
-			return j2gort.CheckNotNullString(sr_173) == se_174
+			sr_101 := a[int32(0)]
+			se_102 := b[int32(0)]
+			return j2gort.CheckNotNullString(sr_101) == se_102
 		}() && func() bool {
-			sr_175 := a[int32(1)]
-			se_176 := b[int32(1)]
-			return j2gort.CheckNotNullString(sr_175) == se_176
+			sr_103 := a[int32(1)]
+			se_104 := b[int32(1)]
+			return j2gort.CheckNotNullString(sr_103) == se_104
 		}()) || (func() bool {
-			sr_177 := a[int32(0)]
-			se_178 := b[int32(1)]
-			return j2gort.CheckNotNullString(sr_177) == se_178
+			sr_105 := a[int32(0)]
+			se_106 := b[int32(1)]
+			return j2gort.CheckNotNullString(sr_105) == se_106
 		}() && func() bool {
-			sr_179 := a[int32(1)]
-			se_180 := b[int32(0)]
-			return j2gort.CheckNotNullString(sr_179) == se_180
+			sr_107 := a[int32(1)]
+			se_108 := b[int32(0)]
+			return j2gort.CheckNotNullString(sr_107) == se_108
 		}()))
 	}
 	var sameOrder bool = true
@@ -1494,9 +1254,9 @@ func Color_SetEqualsStrings(a []string, b []string) bool {
 				var iifeCond_1 bool
 				{
 
-					sr_181 := a[i]
-					se_182 := b[i]
-					iifeCond_1 = j2gort.CheckNotNullString(sr_181) == se_182
+					sr_109 := a[i]
+					se_110 := b[i]
+					iifeCond_1 = j2gort.CheckNotNullString(sr_109) == se_110
 				}
 				if !(iifeCond_1) {
 					sameOrder = false
@@ -1542,8 +1302,8 @@ func Color_SetEqualsStrings(a []string, b []string) bool {
 }
 
 // Java method: Color.equals(java.lang.@org.jspecify.annotations.Nullable Object o)
-func (this_ *Color) Equals(arg_183 any) bool {
-	o := arg_183
+func (this_ *Color) Equals(arg_111 any) bool {
+	o := arg_111
 	_ = o
 	if j2gort.RefEquals(o, this_) {
 		return true
@@ -1552,19 +1312,19 @@ func (this_ *Color) Equals(arg_183 any) bool {
 		var that *Color = j2gort.CastPtr[Color](o)
 		_ = that
 		return ((((((((((func() bool {
-			rv_184 := this_.id
-			av_185 := that.id
-			_ = j2gort.CheckNotNullVal(rv_184)
-			return rv_184 == av_185
+			rv_112 := this_.id
+			av_113 := that.id
+			_ = j2gort.CheckNotNullVal(rv_112)
+			return rv_112 == av_113
 		}() && (this_.invalidating == that.invalidating)) && (this_.propertiesKeepOriginalName == that.propertiesKeepOriginalName)) && (this_.constructor == that.constructor)) && (this_.closureAssert == that.closureAssert)) && (func() bool {
 			if this_.boxId == (ColorId{}) {
 				return (that.boxId == (ColorId{}))
 			}
 			return func() bool {
-				rv_186 := this_.boxId
-				av_187 := that.boxId
-				_ = j2gort.CheckNotNullVal(rv_186)
-				return rv_186 == av_187
+				rv_114 := this_.boxId
+				av_115 := that.boxId
+				_ = j2gort.CheckNotNullVal(rv_114)
+				return rv_114 == av_115
 			}()
 		}())) && (this_.HashCode() == that.HashCode())) && Color_SetEqualsColors(this_.prototypes, that.prototypes)) && Color_SetEqualsColors(this_.instanceColors, that.instanceColors)) && Color_SetEqualsStrings(this_.ownProperties, that.ownProperties)) && Color_SetEqualsColors(this_.unionElements, that.unionElements))
 	}
@@ -1576,14 +1336,14 @@ func (this_ *Color) HashCode() int32 {
 	var h int32 = this_.hashCode
 	_ = h
 	if h == int32(0) {
-		h = this_.priv_Color_computeHashCode_5977()
+		h = this_.priv_Color_computeHashCode_5985()
 		this_.hashCode = h
 	}
 	return h
 }
 
 // Java method: Color.computeHashCode()
-func (this_ *Color) priv_Color_computeHashCode_5977() int32 {
+func (this_ *Color) priv_Color_computeHashCode_5985() int32 {
 	var protoHash int32 = int32(0)
 	_ = protoHash
 	{

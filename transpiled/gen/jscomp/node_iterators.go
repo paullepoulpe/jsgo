@@ -163,6 +163,64 @@ func InitNodeIterators_FunctionlessLocalScope_3(this_ *NodeIterators_Functionles
 		}
 	}
 }
+func initReuse_NodeIterators_FunctionlessLocalScope_3(this_ *NodeIterators_FunctionlessLocalScope, a0 pkg_rhino.Node, a1 pkg_rhino.Node, a2 pkg_rhino.Node) {
+	_ = a0
+	_ = a1
+	_ = a2
+	this_.initFields_NodeIterators_FunctionlessLocalScope()
+	if len(this_.ancestors) < 16 || len(this_.ancestors) > 64 {
+		this_.ancestors = make([]pkg_rhino.Node, 16)
+	} else {
+		clear(this_.ancestors)
+	}
+	this_.idHash_.Store(0)
+	var valid int32 = int32(0)
+	_ = valid
+	if !(a0.IsFunction()) {
+		valid = int32(1)
+		if !(a1.IsFunction()) {
+			valid = int32(2)
+			if !(a2.IsFunction()) {
+				valid = int32(3)
+			}
+		}
+	}
+	this_.ancestorCount = valid
+	if valid == int32(3) {
+		{
+			a_1 := this_.ancestors
+			i_2 := int32(0)
+			a_1[i_2] = a2
+		}
+		{
+			a_3 := this_.ancestors
+			i_4 := int32(1)
+			a_3[i_4] = a1
+		}
+		{
+			a_5 := this_.ancestors
+			i_6 := int32(2)
+			a_5[i_6] = a0
+		}
+	} else if valid == int32(2) {
+		{
+			a_7 := this_.ancestors
+			i_8 := int32(0)
+			a_7[i_8] = a1
+		}
+		{
+			a_9 := this_.ancestors
+			i_10 := int32(1)
+			a_9[i_10] = a0
+		}
+	} else if valid == int32(1) {
+		{
+			a_11 := this_.ancestors
+			i_12 := int32(0)
+			a_11[i_12] = a0
+		}
+	}
+}
 
 // Java constructor: FunctionlessLocalScope(com.google.javascript.rhino.Node a0, com.google.javascript.rhino.Node a1, com.google.javascript.rhino.Node a2, com.google.javascript.rhino.Node a3)
 func NewNodeIterators_FunctionlessLocalScope_4(a0 pkg_rhino.Node, a1 pkg_rhino.Node, a2 pkg_rhino.Node, a3 pkg_rhino.Node) *NodeIterators_FunctionlessLocalScope {
@@ -487,6 +545,24 @@ func NodeIterators_LocalVarMotion_ForVar(compiler AbstractCompiler, name pkg_rhi
 	}
 	return NewNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope_3(name, var_, block))
 }
+func allocReuseVia_NodeIterators_LocalVarMotion_ForVar(lvm_ *NodeIterators_LocalVarMotion, fls_ *NodeIterators_FunctionlessLocalScope, compiler AbstractCompiler, name pkg_rhino.Node, var_ pkg_rhino.Node, block pkg_rhino.Node) *NodeIterators_LocalVarMotion {
+	_ = compiler
+	_ = name
+	_ = var_
+	_ = block
+	if !(NodeUtil_IsNameDeclaration(var_)) {
+		j2gort.CheckArgument(false)
+	}
+	if !(NodeUtil_IsStatement(var_)) {
+		j2gort.CheckArgument(false)
+	}
+	initReuse_NodeIterators_FunctionlessLocalScope_3(fls_, name, var_, block)
+	var zeroLvm_ NodeIterators_LocalVarMotion
+	*lvm_ = zeroLvm_
+	InitNodeIterators_LocalVarMotion(lvm_, compiler, name, fls_)
+	return lvm_
+
+}
 
 // Java static method: LocalVarMotion.forAssign(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.rhino.Node name, com.google.javascript.rhino.Node assign, com.google.javascript.rhino.Node expr, com.google.javascript.rhino.Node block)
 func NodeIterators_LocalVarMotion_ForAssign(compiler AbstractCompiler, name pkg_rhino.Node, assign pkg_rhino.Node, expr pkg_rhino.Node, block pkg_rhino.Node) *NodeIterators_LocalVarMotion {
@@ -502,6 +578,25 @@ func NodeIterators_LocalVarMotion_ForAssign(compiler AbstractCompiler, name pkg_
 		j2gort.CheckArgument(false)
 	}
 	return NewNodeIterators_LocalVarMotion(compiler, name, NewNodeIterators_FunctionlessLocalScope_3(assign, expr, block))
+}
+func allocReuseVia_NodeIterators_LocalVarMotion_ForAssign(lvm_ *NodeIterators_LocalVarMotion, fls_ *NodeIterators_FunctionlessLocalScope, compiler AbstractCompiler, name pkg_rhino.Node, assign pkg_rhino.Node, expr pkg_rhino.Node, block pkg_rhino.Node) *NodeIterators_LocalVarMotion {
+	_ = compiler
+	_ = name
+	_ = assign
+	_ = expr
+	_ = block
+	if !(assign.IsAssign()) {
+		j2gort.CheckArgument(false)
+	}
+	if !(expr.IsExprResult()) {
+		j2gort.CheckArgument(false)
+	}
+	initReuse_NodeIterators_FunctionlessLocalScope_3(fls_, assign, expr, block)
+	var zeroLvm_ NodeIterators_LocalVarMotion
+	*lvm_ = zeroLvm_
+	InitNodeIterators_LocalVarMotion(lvm_, compiler, name, fls_)
+	return lvm_
+
 }
 
 // Java method: LocalVarMotion.hasNext()

@@ -96,7 +96,7 @@ func clinitSlow_Es6RewriteBlockScopedDeclaration() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_Es6RewriteBlockScopedDeclaration, &clinitDone_Es6RewriteBlockScopedDeclaration)
-	static_Es6RewriteBlockScopedDeclaration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})
+	static_Es6RewriteBlockScopedDeclaration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7200([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS()})
 }
 
 func (this_ *Es6RewriteBlockScopedDeclaration) initFields_Es6RewriteBlockScopedDeclaration() {

@@ -143,7 +143,7 @@ func ColorPool_FromOnlyShardForTesting(typePool *j2gort.Ext_com_google_javascrip
 	clinit_ColorPool()
 	_ = typePool
 	_ = stringPool
-	return ColorPool_S_Builder().AddShardAnd(typePool, stringPool).priv_Builder_forTesting_7701().Build()
+	return ColorPool_S_Builder().AddShardAnd(typePool, stringPool).priv_Builder_forTesting_7709().Build()
 }
 
 // Java static method: ColorPool.createTrimmedOffsetToId(com.google.javascript.jscomp.serialization.TypePool typePool)
@@ -304,11 +304,11 @@ func (this_ *ColorPool_ShardView) GetColor(pointer int32) *pkg_colors.Color {
 	if !(this_.colorPool != nil) {
 		j2gort.CheckStateMsg(false, this_)
 	}
-	return this_.colorPool.GetColor(this_.priv_ShardView_getId_7698(pointer))
+	return this_.colorPool.GetColor(this_.priv_ShardView_getId_7706(pointer))
 }
 
 // Java method: ShardView.getId(int untrimmedOffset)
-func (this_ *ColorPool_ShardView) priv_ShardView_getId_7698(untrimmedOffset int32) pkg_colors.ColorId {
+func (this_ *ColorPool_ShardView) priv_ShardView_getId_7706(untrimmedOffset int32) pkg_colors.ColorId {
 	_ = untrimmedOffset
 	if TypePointers_IsAxiomatic(untrimmedOffset) {
 		return j2gort.CastPtr[pkg_colors.Color](StaticGet_TypePointers_OFFSET_TO_AXIOMATIC_COLOR().Get(untrimmedOffset)).GetId()
@@ -318,7 +318,7 @@ func (this_ *ColorPool_ShardView) priv_ShardView_getId_7698(untrimmedOffset int3
 }
 
 // Java method: ShardView.updateStateAfterColorPoolIsBuilt(com.google.javascript.jscomp.serialization.ColorPool colorPool)
-func (this_ *ColorPool_ShardView) priv_ShardView_updateStateAfterColorPoolIsBuilt_7699(colorPool *ColorPool) {
+func (this_ *ColorPool_ShardView) priv_ShardView_updateStateAfterColorPoolIsBuilt_7707(colorPool *ColorPool) {
 	_ = colorPool
 	this_.colorPool = colorPool
 	this_.typePool = nil
@@ -392,7 +392,7 @@ func (this_ *ColorPool_Builder) AddShardAnd(typePool *j2gort.Ext_com_google_java
 }
 
 // Java method: Builder.forTesting()
-func (this_ *ColorPool_Builder) priv_Builder_forTesting_7701() *ColorPool_Builder {
+func (this_ *ColorPool_Builder) priv_Builder_forTesting_7709() *ColorPool_Builder {
 	this_.forTesting = true
 	return this_
 }
@@ -432,7 +432,7 @@ func (this_ *ColorPool_Builder) AddShard(typePool *j2gort.Ext_com_google_javascr
 						rawElem_9 := cur_8.Next()
 						pointer := j2gort.CastPtr[j2gort.BoxInt](rawElem_9)
 						_ = pointer
-						this_.registry.AddMismatchLocation(shard.priv_ShardView_getId_7698(j2gort.UnboxInt(pointer)), m.GetSourceRef())
+						this_.registry.AddMismatchLocation(shard.priv_ShardView_getId_7706(j2gort.UnboxInt(pointer)), m.GetSourceRef())
 					}
 				}
 			}
@@ -446,7 +446,7 @@ func (this_ *ColorPool_Builder) Build() *ColorPool {
 	if !(this_.idToProto.IsEmpty()) {
 		j2gort.CheckStateStr(false, "build has already been called")
 	}
-	this_.priv_Builder_forEachShard_7704(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_10 any) {
+	this_.priv_Builder_forEachShard_7712(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_10 any) {
 		shard := j2gort.CastPtr[ColorPool_ShardView](lp_10)
 		_ = shard
 		{
@@ -474,7 +474,7 @@ func (this_ *ColorPool_Builder) Build() *ColorPool {
 			rawElem_14 := cur_13.Next()
 			id_2 := j2gort.Cast[pkg_colors.ColorId](rawElem_14)
 			_ = id_2
-			this_.priv_Builder_lookupOrReconcileColor_7705(id_2)
+			this_.priv_Builder_lookupOrReconcileColor_7713(id_2)
 		}
 	}
 	{
@@ -491,7 +491,7 @@ func (this_ *ColorPool_Builder) Build() *ColorPool {
 			)
 		}
 	}
-	this_.priv_Builder_forEachShard_7704(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_22 any) {
+	this_.priv_Builder_forEachShard_7712(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_22 any) {
 		shard := j2gort.CastPtr[ColorPool_ShardView](lp_22)
 		_ = shard
 		{
@@ -500,14 +500,14 @@ func (this_ *ColorPool_Builder) Build() *ColorPool {
 				rawElem_24 := cur_23.Next()
 				edge := j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_SubtypingEdge](rawElem_24)
 				_ = edge
-				this_.registry.AddDisambiguationEdge(this_.idToColor.Get(shard.priv_ShardView_getId_7698(ColorPool_ValidatePointer(edge.GetSubtype(), shard))), this_.idToColor.Get(shard.priv_ShardView_getId_7698(ColorPool_ValidatePointer(edge.GetSupertype(), shard))))
+				this_.registry.AddDisambiguationEdge(this_.idToColor.Get(shard.priv_ShardView_getId_7706(ColorPool_ValidatePointer(edge.GetSubtype(), shard))), this_.idToColor.Get(shard.priv_ShardView_getId_7706(ColorPool_ValidatePointer(edge.GetSupertype(), shard))))
 			}
 		}
 	}))
 	var shardViewsForTesting *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = shardViewsForTesting
 	if this_.forTesting {
-		this_.priv_Builder_forEachShard_7704(func() j2gort.Ext_java_util_function_Consumer {
+		this_.priv_Builder_forEachShard_7712(func() j2gort.Ext_java_util_function_Consumer {
 			bound_25 := shardViewsForTesting
 			return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) { bound_25.Add_1_any(mrp0_) })
 		}())
@@ -517,16 +517,16 @@ func (this_ *ColorPool_Builder) Build() *ColorPool {
 	InitColorPool(&val_26, &this_.idToColor, this_.registry.Build(), shardViewsForTesting.BuildImmList_())
 	var colorPool *ColorPool = &val_26
 	_ = colorPool
-	this_.priv_Builder_forEachShard_7704(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_27 any) {
+	this_.priv_Builder_forEachShard_7712(j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_27 any) {
 		shard := j2gort.CastPtr[ColorPool_ShardView](lp_27)
 		_ = shard
-		shard.priv_ShardView_updateStateAfterColorPoolIsBuilt_7699(colorPool)
+		shard.priv_ShardView_updateStateAfterColorPoolIsBuilt_7707(colorPool)
 	}))
 	return colorPool
 }
 
 // Java method: Builder.forEachShard(java.util.function.Consumer<com.google.javascript.jscomp.serialization.ColorPool.ShardView> fn)
-func (this_ *ColorPool_Builder) priv_Builder_forEachShard_7704(fn j2gort.Ext_java_util_function_Consumer) {
+func (this_ *ColorPool_Builder) priv_Builder_forEachShard_7712(fn j2gort.Ext_java_util_function_Consumer) {
 	_ = fn
 	this_.protoToShard.ForEach(j2gort.NewLambda_Ext_java_util_function_BiConsumer(func(lp_28 any, lp_29 any) {
 		unused := j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool](lp_28)
@@ -538,7 +538,7 @@ func (this_ *ColorPool_Builder) priv_Builder_forEachShard_7704(fn j2gort.Ext_jav
 }
 
 // Java method: Builder.lookupOrReconcileColor(com.google.javascript.jscomp.colors.ColorId id)
-func (this_ *ColorPool_Builder) priv_Builder_lookupOrReconcileColor_7705(id pkg_colors.ColorId) *pkg_colors.Color {
+func (this_ *ColorPool_Builder) priv_Builder_lookupOrReconcileColor_7713(id pkg_colors.ColorId) *pkg_colors.Color {
 	_ = id
 	j2gort.DequeAddLastColorIdVoid(this_.reconcilationDebugStack, id)
 	defer func() {
@@ -565,9 +565,9 @@ func (this_ *ColorPool_Builder) priv_Builder_lookupOrReconcileColor_7705(id pkg_
 		_ = result
 		switch j2gort.CheckNotNullPtr(sample.GetKindCase()).Ordinal() {
 		case int32(0) /* KindCase.OBJECT */ :
-			result = this_.priv_Builder_reconcileObjectProtos_7706(id, viewToProto)
+			result = this_.priv_Builder_reconcileObjectProtos_7714(id, viewToProto)
 		case int32(1) /* KindCase.UNION */ :
-			result = this_.priv_Builder_reconcileUnionProtos_7707(id, viewToProto)
+			result = this_.priv_Builder_reconcileUnionProtos_7715(id, viewToProto)
 		default:
 			panic(j2gort.AsIface[javalang.IAssertionError](j2gort.ConstructShimThrowable("java.lang.AssertionError", j2gort.PtrToAny(sample))))
 		}
@@ -581,7 +581,7 @@ func (this_ *ColorPool_Builder) priv_Builder_lookupOrReconcileColor_7705(id pkg_
 }
 
 // Java method: Builder.reconcileObjectProtos(com.google.javascript.jscomp.colors.ColorId id, java.util.Map<com.google.javascript.jscomp.serialization.ColorPool.ShardView,com.google.javascript.jscomp.serialization.TypeProto> viewToProto)
-func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_colors.ColorId, viewToProto j2gort.Ext_java_util_Map) *pkg_colors.Color {
+func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7714(id pkg_colors.ColorId, viewToProto j2gort.Ext_java_util_Map) *pkg_colors.Color {
 	_ = id
 	_ = viewToProto
 	var totalInstanceCount int32 = int32(0)
@@ -649,7 +649,7 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 				var n int32 = instanceTypeIds.Size()
 				_ = n
 				for ; i < n; i = i + 1 {
-					var instanceColor *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7705(shard.priv_ShardView_getId_7698(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](instanceTypeIds.Get(i)))))
+					var instanceColor *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7713(shard.priv_ShardView_getId_7706(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](instanceTypeIds.Get(i)))))
 					_ = instanceColor
 					if instanceColorsSet != nil {
 						instanceColorsSet.Add_1(j2gort.PtrToAny(instanceColor))
@@ -677,7 +677,7 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 				var n_2 int32 = prototypeIds.Size()
 				_ = n_2
 				for ; i_2 < n_2; i_2 = i_2 + 1 {
-					var prototypeColor *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7705(shard.priv_ShardView_getId_7698(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](prototypeIds.Get(i_2)))))
+					var prototypeColor *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7713(shard.priv_ShardView_getId_7706(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](prototypeIds.Get(i_2)))))
 					_ = prototypeColor
 					if prototypesSet != nil {
 						prototypesSet.Add_1(j2gort.PtrToAny(prototypeColor))
@@ -695,27 +695,7 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 	} else if instanceColorsSet == nil {
 		instanceColorsArr = []*pkg_colors.Color{singleInstanceColor}
 	} else {
-		instanceColorsArr = func() []*pkg_colors.Color {
-			arr_43 := instanceColorsSet.ToArray_1_slice_any(func() []any {
-				arr_40 := pkg_colors.StaticGet_Color_EMPTY_COLORS()
-				if arr_40 == nil {
-					return nil
-				}
-				out_41 := make([]any, len(arr_40))
-				for i_, el_42 := range arr_40 {
-					out_41[i_] = j2gort.PtrToAny(el_42)
-				}
-				return out_41
-			}())
-			if arr_43 == nil {
-				return nil
-			}
-			out_44 := make([]*pkg_colors.Color, len(arr_43))
-			for i_, el_45 := range arr_43 {
-				out_44[i_] = j2gort.CastPtr[pkg_colors.Color](el_45)
-			}
-			return out_44
-		}()
+		instanceColorsArr = j2gort.ColToPtrArray[pkg_colors.Color](instanceColorsSet, pkg_colors.StaticGet_Color_EMPTY_COLORS())
 	}
 	var prototypesArr []*pkg_colors.Color = nil
 	_ = prototypesArr
@@ -724,27 +704,7 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 	} else if prototypesSet == nil {
 		prototypesArr = []*pkg_colors.Color{singlePrototypeColor}
 	} else {
-		prototypesArr = func() []*pkg_colors.Color {
-			arr_49 := prototypesSet.ToArray_1_slice_any(func() []any {
-				arr_46 := pkg_colors.StaticGet_Color_EMPTY_COLORS()
-				if arr_46 == nil {
-					return nil
-				}
-				out_47 := make([]any, len(arr_46))
-				for i_, el_48 := range arr_46 {
-					out_47[i_] = j2gort.PtrToAny(el_48)
-				}
-				return out_47
-			}())
-			if arr_49 == nil {
-				return nil
-			}
-			out_50 := make([]*pkg_colors.Color, len(arr_49))
-			for i_, el_51 := range arr_49 {
-				out_50[i_] = j2gort.CastPtr[pkg_colors.Color](el_51)
-			}
-			return out_50
-		}()
+		prototypesArr = j2gort.ColToPtrArray[pkg_colors.Color](prototypesSet, pkg_colors.StaticGet_Color_EMPTY_COLORS())
 	}
 	var ownPropertiesArr []string = nil
 	_ = ownPropertiesArr
@@ -754,12 +714,12 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 		var onlyProp string = j2gort.NullString
 		_ = onlyProp
 		{
-			cur_52 := j2gort.NewMapEntryCursor(viewToProto)
-			for cur_52.NextEntry() {
-				var objProto_3 *j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](cur_52.GetValue()).GetObject()
+			cur_40 := j2gort.NewMapEntryCursor(viewToProto)
+			for cur_40.NextEntry() {
+				var objProto_3 *j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](cur_40.GetValue()).GetObject()
 				_ = objProto_3
 				if objProto_3.GetOwnPropertyCount() > int32(0) {
-					onlyProp = j2gort.CastPtr[ColorPool_ShardView](cur_52.GetKey()).stringPool.Get(objProto_3.GetOwnProperty(int32(0)))
+					onlyProp = j2gort.CastPtr[ColorPool_ShardView](cur_40.GetKey()).stringPool.Get(objProto_3.GetOwnProperty(int32(0)))
 					break
 				}
 			}
@@ -770,11 +730,11 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 		_ = ownPropsSet
 		ownPropsSet.Clear()
 		{
-			cur_53 := j2gort.NewMapEntryCursor(viewToProto)
-			for cur_53.NextEntry() {
-				var shard_2 *ColorPool_ShardView = j2gort.CastPtr[ColorPool_ShardView](cur_53.GetKey())
+			cur_41 := j2gort.NewMapEntryCursor(viewToProto)
+			for cur_41.NextEntry() {
+				var shard_2 *ColorPool_ShardView = j2gort.CastPtr[ColorPool_ShardView](cur_41.GetKey())
 				_ = shard_2
-				var objProto_4 *j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](cur_53.GetValue()).GetObject()
+				var objProto_4 *j2gort.Ext_com_google_javascript_jscomp_serialization_ObjectTypeProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](cur_41.GetValue()).GetObject()
 				_ = objProto_4
 				{
 					var i_3 int32 = int32(0)
@@ -787,34 +747,14 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileObjectProtos_7706(id pkg_c
 				}
 			}
 		}
-		ownPropertiesArr = func() []string {
-			arr_57 := ownPropsSet.ToArray_1_slice_any(func() []any {
-				arr_54 := pkg_colors.StaticGet_Color_EMPTY_STRINGS()
-				if arr_54 == nil {
-					return nil
-				}
-				out_55 := make([]any, len(arr_54))
-				for i_, el_56 := range arr_54 {
-					out_55[i_] = j2gort.BoxString(el_56)
-				}
-				return out_55
-			}())
-			if arr_57 == nil {
-				return nil
-			}
-			out_58 := make([]string, len(arr_57))
-			for i_, el_59 := range arr_57 {
-				out_58[i_] = j2gort.CastString(el_59)
-			}
-			return out_58
-		}()
+		ownPropertiesArr = j2gort.ColToStringArray(ownPropsSet, pkg_colors.StaticGet_Color_EMPTY_STRINGS())
 		ownPropsSet.Clear()
 	}
 	return pkg_colors.Color_SingleBuilder().SetId(id).SetInstanceColorsArray(instanceColorsArr).SetPrototypesArray(prototypesArr).SetOwnPropertiesArray(ownPropertiesArr).SetClosureAssert(isClosureAssert.ToBoolean(false)).SetConstructor(isConstructor).SetInvalidating(isInvalidating).SetPropertiesKeepOriginalName(propertiesKeepOriginalName).Build()
 }
 
 // Java method: Builder.reconcileUnionProtos(com.google.javascript.jscomp.colors.ColorId id, java.util.Map<com.google.javascript.jscomp.serialization.ColorPool.ShardView,com.google.javascript.jscomp.serialization.TypeProto> viewToProto)
-func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_colors.ColorId, viewToProto j2gort.Ext_java_util_Map) *pkg_colors.Color {
+func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7715(id pkg_colors.ColorId, viewToProto j2gort.Ext_java_util_Map) *pkg_colors.Color {
 	_ = id
 	_ = viewToProto
 	if viewToProto.Size() == int32(1) {
@@ -832,10 +772,10 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 		var memberCount int32 = unionMemberList.Size()
 		_ = memberCount
 		if memberCount == int32(2) {
-			var m0 *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7705(shard.priv_ShardView_getId_7698(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](unionMemberList.Get(int32(0))))))
+			var m0 *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7713(shard.priv_ShardView_getId_7706(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](unionMemberList.Get(int32(0))))))
 			_ = m0
 			MalformedTypedAstException_CheckWellFormed_3(!(m0.IsUnion()), "Reconciling union with non-union", j2gort.PtrToAny(proto))
-			var m1 *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7705(shard.priv_ShardView_getId_7698(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](unionMemberList.Get(int32(1))))))
+			var m1 *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7713(shard.priv_ShardView_getId_7706(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](unionMemberList.Get(int32(1))))))
 			_ = m1
 			MalformedTypedAstException_CheckWellFormed_3(!(m1.IsUnion()), "Reconciling union with non-union", j2gort.PtrToAny(proto))
 			var result *pkg_colors.Color = pkg_colors.Color_CreateUnion2(m0, m1)
@@ -844,10 +784,10 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 				var iifeCond_1 bool
 				{
 
-					rv_60 := id
-					av_61 := result.GetId()
-					_ = j2gort.CheckNotNullVal(rv_60)
-					iifeCond_1 = rv_60 == av_61
+					rv_42 := id
+					av_43 := result.GetId()
+					_ = j2gort.CheckNotNullVal(rv_42)
+					iifeCond_1 = rv_42 == av_43
 				}
 				if !(iifeCond_1) {
 					j2gort.CheckStateFmt(false, "%s == %s", j2gort.BoxNullableVal(id), j2gort.PtrToAny(result))
@@ -861,13 +801,13 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 			var i int32 = int32(0)
 			_ = i
 			for ; i < memberCount; i = i + 1 {
-				var member *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7705(shard.priv_ShardView_getId_7698(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](unionMemberList.Get(i)))))
+				var member *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7713(shard.priv_ShardView_getId_7706(j2gort.UnboxInt(j2gort.CastPtr[j2gort.BoxInt](unionMemberList.Get(i)))))
 				_ = member
 				MalformedTypedAstException_CheckWellFormed_3(!(member.IsUnion()), "Reconciling union with non-union", j2gort.PtrToAny(proto))
 				{
-					a_62 := members
-					i_63 := i
-					a_62[i_63] = member
+					a_44 := members
+					i_45 := i
+					a_44[i_45] = member
 				}
 			}
 		}
@@ -877,10 +817,10 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 			var iifeCond_1 bool
 			{
 
-				rv_64 := id
-				av_65 := result_2.GetId()
-				_ = j2gort.CheckNotNullVal(rv_64)
-				iifeCond_1 = rv_64 == av_65
+				rv_46 := id
+				av_47 := result_2.GetId()
+				_ = j2gort.CheckNotNullVal(rv_46)
+				iifeCond_1 = rv_46 == av_47
 			}
 			if !(iifeCond_1) {
 				j2gort.CheckStateFmt(false, "%s == %s", j2gort.BoxNullableVal(id), j2gort.PtrToAny(result_2))
@@ -891,11 +831,11 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 	var union *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet()
 	_ = union
 	{
-		cur_66 := j2gort.NewMapEntryCursor(viewToProto)
-		for cur_66.NextEntry() {
-			var shard_2 *ColorPool_ShardView = j2gort.CastPtr[ColorPool_ShardView](cur_66.GetKey())
+		cur_48 := j2gort.NewMapEntryCursor(viewToProto)
+		for cur_48.NextEntry() {
+			var shard_2 *ColorPool_ShardView = j2gort.CastPtr[ColorPool_ShardView](cur_48.GetKey())
 			_ = shard_2
-			var proto_2 *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](cur_66.GetValue())
+			var proto_2 *j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_TypeProto](cur_48.GetValue())
 			_ = proto_2
 			if !(proto_2.HasUnion()) {
 				j2gort.CheckStateMsg(false, j2gort.PtrToAny(proto_2))
@@ -910,9 +850,9 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 				for ; i_2 < n; i_2 = i_2 + 1 {
 					var memberPointer *j2gort.BoxInt = j2gort.CastPtr[j2gort.BoxInt](unionMemberList_2.Get(i_2))
 					_ = memberPointer
-					var memberId pkg_colors.ColorId = shard_2.priv_ShardView_getId_7698(j2gort.UnboxInt(memberPointer))
+					var memberId pkg_colors.ColorId = shard_2.priv_ShardView_getId_7706(j2gort.UnboxInt(memberPointer))
 					_ = memberId
-					var member_2 *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7705(memberId)
+					var member_2 *pkg_colors.Color = this_.priv_Builder_lookupOrReconcileColor_7713(memberId)
 					_ = member_2
 					MalformedTypedAstException_CheckWellFormed_3(!(member_2.IsUnion()), "Reconciling union with non-union", j2gort.PtrToAny(proto_2))
 					union.Add_1(j2gort.PtrToAny(member_2))
@@ -926,10 +866,10 @@ func (this_ *ColorPool_Builder) priv_Builder_reconcileUnionProtos_7707(id pkg_co
 		var iifeCond_1 bool
 		{
 
-			rv_67 := id
-			av_68 := result_3.GetId()
-			_ = j2gort.CheckNotNullVal(rv_67)
-			iifeCond_1 = rv_67 == av_68
+			rv_49 := id
+			av_50 := result_3.GetId()
+			_ = j2gort.CheckNotNullVal(rv_49)
+			iifeCond_1 = rv_49 == av_50
 		}
 		if !(iifeCond_1) {
 			j2gort.CheckStateFmt(false, "%s == %s", j2gort.BoxNullableVal(id), j2gort.PtrToAny(result_3))

@@ -112,7 +112,7 @@ func (this_ *CheckUselessBlocks) Process_2(externs pkg_rhino.Node, root pkg_rhin
 }
 
 // Java method: CheckUselessBlocks.isLoneBlock(com.google.javascript.rhino.Node n)
-func (this_ *CheckUselessBlocks) priv_CheckUselessBlocks_isLoneBlock_6591(n pkg_rhino.Node) bool {
+func (this_ *CheckUselessBlocks) priv_CheckUselessBlocks_isLoneBlock_6599(n pkg_rhino.Node) bool {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -123,7 +123,7 @@ func (this_ *CheckUselessBlocks) priv_CheckUselessBlocks_isLoneBlock_6591(n pkg_
 }
 
 // Java method: CheckUselessBlocks.allowLoneBlock(com.google.javascript.rhino.Node parent)
-func (this_ *CheckUselessBlocks) priv_CheckUselessBlocks_allowLoneBlock_6592(parent pkg_rhino.Node) {
+func (this_ *CheckUselessBlocks) priv_CheckUselessBlocks_allowLoneBlock_6600(parent pkg_rhino.Node) {
 	_ = parent
 	if this_.loneBlocks.IsEmpty() {
 		return
@@ -140,18 +140,18 @@ func (this_ *CheckUselessBlocks) ShouldTraverse_3(t *NodeTraversal, n pkg_rhino.
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(90) /* Token.BLOCK */ :
-		if this_.priv_CheckUselessBlocks_isLoneBlock_6591(n) {
+		if this_.priv_CheckUselessBlocks_isLoneBlock_6599(n) {
 			this_.loneBlocks.Push(j2gort.CheckNotNullNode(n))
 		}
 	case int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-		this_.priv_CheckUselessBlocks_allowLoneBlock_6592(parent)
+		this_.priv_CheckUselessBlocks_allowLoneBlock_6600(parent)
 	case int32(105) /* Token.CLASS */ :
 		if NodeUtil_IsClassDeclaration(n) {
-			this_.priv_CheckUselessBlocks_allowLoneBlock_6592(parent)
+			this_.priv_CheckUselessBlocks_allowLoneBlock_6600(parent)
 		}
 	case int32(73) /* Token.FUNCTION */ :
 		if NodeUtil_IsFunctionDeclaration(n) {
-			this_.priv_CheckUselessBlocks_allowLoneBlock_6592(parent)
+			this_.priv_CheckUselessBlocks_allowLoneBlock_6600(parent)
 		}
 	default:
 	}

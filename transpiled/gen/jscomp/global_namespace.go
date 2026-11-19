@@ -833,9 +833,10 @@ func (this_ *GlobalNamespace_RefBasedAstChange) String() string {
 // Java class: com.google.javascript.jscomp.GlobalNamespace.BuildGlobalNamespace
 type GlobalNamespace_BuildGlobalNamespace struct {
 	NodeTraversal_AbstractPreOrderCallbackBase
-	outer_        *GlobalNamespace
-	curMetadata   ModuleMetadataMap_ModuleMetadata `gson:"curMetadata"`
-	curModuleRoot pkg_rhino.Node                   `gson:"curModuleRoot"`
+	outer_                    *GlobalNamespace
+	curMetadata               ModuleMetadataMap_ModuleMetadata `gson:"curMetadata"`
+	curModuleRoot             pkg_rhino.Node                   `gson:"curModuleRoot"`
+	scratchObjLitKeyAnalysis_ GlobalNamespace_ObjLitStringKeyAnalysis
 }
 
 func (this_ *GlobalNamespace_BuildGlobalNamespace) BindSelf_(s any) {
@@ -1105,7 +1106,7 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_cre
 	var nameString string = NodeUtil_GetBestLValueName(stringKeyNode)
 	_ = nameString
 	if nameString != j2gort.NullString {
-		return GlobalNamespace_ObjLitStringKeyAnalysis_ForObjLitAssignment(nameString, this_.GetValueType(stringKeyNode.GetOnlyChild()))
+		return allocScratchVia_GlobalNamespace_ObjLitStringKeyAnalysis_ForObjLitAssignment(&this_.scratchObjLitKeyAnalysis_, nameString, this_.GetValueType(stringKeyNode.GetOnlyChild()))
 	} else {
 		var objLitNode pkg_rhino.Node = stringKeyNode.GetParent()
 		_ = objLitNode
@@ -1122,10 +1123,10 @@ func (this_ *GlobalNamespace_BuildGlobalNamespace) priv_BuildGlobalNamespace_cre
 					j2gort.CheckStateMsg(false, j2gort.BoxNode(objLitParentNode))
 				}
 				nameString = (j2gort.StrValString(receiverNode.GetQualifiedName()) + "." + j2gort.StrValString(stringKeyNode.GetString()))
-				return GlobalNamespace_ObjLitStringKeyAnalysis_ForObjectDefineProperty(nameString)
+				return allocScratchVia_GlobalNamespace_ObjLitStringKeyAnalysis_ForObjectDefineProperty(&this_.scratchObjLitKeyAnalysis_, nameString)
 			}
 		}
-		return GlobalNamespace_ObjLitStringKeyAnalysis_ForNonReference()
+		return allocScratchVia_GlobalNamespace_ObjLitStringKeyAnalysis_ForNonReference(&this_.scratchObjLitKeyAnalysis_)
 	}
 }
 
@@ -3789,6 +3790,12 @@ func NewGlobalNamespace_ObjLitStringKeyAnalysis(nameString string, nameType *Glo
 	InitGlobalNamespace_ObjLitStringKeyAnalysis(this_, nameString, nameType)
 	return this_
 }
+func allocScratch_GlobalNamespace_ObjLitStringKeyAnalysis(dst_ *GlobalNamespace_ObjLitStringKeyAnalysis, nameString string, nameType *GlobalNamespace_NameProp) *GlobalNamespace_ObjLitStringKeyAnalysis {
+	*dst_ = GlobalNamespace_ObjLitStringKeyAnalysis{}
+	this_ := dst_
+	InitGlobalNamespace_ObjLitStringKeyAnalysis(this_, nameString, nameType)
+	return this_
+}
 
 func InitGlobalNamespace_ObjLitStringKeyAnalysis(this_ *GlobalNamespace_ObjLitStringKeyAnalysis, nameString string, nameType *GlobalNamespace_NameProp) {
 	_ = nameString
@@ -3803,6 +3810,10 @@ func GlobalNamespace_ObjLitStringKeyAnalysis_ForObjectDefineProperty(nameString 
 	_ = nameString
 	return NewGlobalNamespace_ObjLitStringKeyAnalysis(j2gort.CheckNotNullString(nameString), StaticGet_GlobalNamespace_NameProp_GET_SET())
 }
+func allocScratchVia_GlobalNamespace_ObjLitStringKeyAnalysis_ForObjectDefineProperty(dst_ *GlobalNamespace_ObjLitStringKeyAnalysis, nameString string) *GlobalNamespace_ObjLitStringKeyAnalysis {
+	_ = nameString
+	return allocScratch_GlobalNamespace_ObjLitStringKeyAnalysis(dst_, j2gort.CheckNotNullString(nameString), StaticGet_GlobalNamespace_NameProp_GET_SET())
+}
 
 // Java static method: ObjLitStringKeyAnalysis.forObjLitAssignment(java.lang.String nameString, com.google.javascript.jscomp.GlobalNamespace.NameProp nameType)
 func GlobalNamespace_ObjLitStringKeyAnalysis_ForObjLitAssignment(nameString string, nameType *GlobalNamespace_NameProp) *GlobalNamespace_ObjLitStringKeyAnalysis {
@@ -3810,10 +3821,18 @@ func GlobalNamespace_ObjLitStringKeyAnalysis_ForObjLitAssignment(nameString stri
 	_ = nameType
 	return NewGlobalNamespace_ObjLitStringKeyAnalysis(j2gort.CheckNotNullString(nameString), nameType)
 }
+func allocScratchVia_GlobalNamespace_ObjLitStringKeyAnalysis_ForObjLitAssignment(dst_ *GlobalNamespace_ObjLitStringKeyAnalysis, nameString string, nameType *GlobalNamespace_NameProp) *GlobalNamespace_ObjLitStringKeyAnalysis {
+	_ = nameString
+	_ = nameType
+	return allocScratch_GlobalNamespace_ObjLitStringKeyAnalysis(dst_, j2gort.CheckNotNullString(nameString), nameType)
+}
 
 // Java static method: ObjLitStringKeyAnalysis.forNonReference()
 func GlobalNamespace_ObjLitStringKeyAnalysis_ForNonReference() *GlobalNamespace_ObjLitStringKeyAnalysis {
 	return NewGlobalNamespace_ObjLitStringKeyAnalysis(j2gort.NullString, StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT())
+}
+func allocScratchVia_GlobalNamespace_ObjLitStringKeyAnalysis_ForNonReference(dst_ *GlobalNamespace_ObjLitStringKeyAnalysis) *GlobalNamespace_ObjLitStringKeyAnalysis {
+	return allocScratch_GlobalNamespace_ObjLitStringKeyAnalysis(dst_, j2gort.NullString, StaticGet_GlobalNamespace_NameProp_OTHER_OBJECT())
 }
 
 func (this_ *GlobalNamespace_ObjLitStringKeyAnalysis) NameString() string { return this_.nameString }

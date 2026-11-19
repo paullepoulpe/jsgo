@@ -33,6 +33,7 @@ type SyntacticScopeCreator struct {
 	idHash_                       atomic.Int32
 	treatProvidesAsRedeclarations bool `gson:"treatProvidesAsRedeclarations"`
 	scannerInUse                  bool `gson:"scannerInUse"`
+	slab_Scope                    j2gort.PooledSlab[Scope]
 	slab_Var                      j2gort.PooledSlab[Var]
 }
 
@@ -155,9 +156,9 @@ func (this_ *SyntacticScopeCreator) CreateScope_2_Node_Scope(n pkg_rhino.Node, p
 	var scope *Scope
 	_ = scope
 	if parent == nil {
-		scope = Scope_CreateGlobalScope(n)
+		scope = allocPooledVia_Scope_CreateGlobalScope(&this_.slab_Scope, n)
 	} else {
-		scope = Scope_CreateChildScope(parent, n)
+		scope = allocPooledVia_Scope_CreateChildScope(&this_.slab_Scope, parent, n)
 	}
 	scope.varSlab_ = &this_.slab_Var
 	if !(this_.scannerInUse) {
@@ -634,5 +635,11 @@ func (this_ *SyntacticScopeCreator) ReleaseSlabs_() {
 	if this_ == nil {
 		return
 	}
+	this_.slab_Scope.ReleaseWith(func(s_ *Scope) {
+		if s_.vars != nil {
+			j2gort.ReleaseOrderedMap(s_.vars)
+			s_.vars = nil
+		}
+	})
 	this_.slab_Var.Release()
 }

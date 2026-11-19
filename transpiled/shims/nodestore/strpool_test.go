@@ -96,9 +96,10 @@ func TestStrPoolBaselineRewind(t *testing.T) {
 	}
 }
 
-// Compile-time signature check for JoinDot, JoinDot3, and JoinDot4.
+// Compile-time signature check for JoinDot, JoinDollar, JoinDot3, and JoinDot4.
 var (
 	_ func(string, string) string                 = JoinDot
+	_ func(string, string) string                 = JoinDollar
 	_ func(string, string, string) string         = JoinDot3
 	_ func(string, string, string, string) string = JoinDot4
 )
@@ -1041,4 +1042,141 @@ func TestWave37CStrPoolStagedBatchingAndJoinDot4WaySeenRing(t *testing.T) {
 	}); allocs != 0 {
 		t.Fatalf("expected 0 allocs after interleaved 2-hit admission via 4-way seen ring, got %v", allocs)
 	}
+}
+
+func TestWave39CJoinDollar(t *testing.T) {
+	pairs := [][2]string{
+		{"", ""},
+		{"", "b"},
+		{"a", ""},
+		{"goog", "foo"},
+		{"goog$foo", "bar"},
+		{"goog$foo$bar", "baz"},
+		{"module$exports$wiz$Controller", "INSTANCE"},
+		{"αβγ", "🚀"},
+		{strings.Repeat("a", 255), strings.Repeat("b", 256)}, // total 512 -> cached
+		{strings.Repeat("a", 256), strings.Repeat("b", 256)}, // total 513 -> uncached fallback
+		{strings.Repeat("q", 350), strings.Repeat("z", 350)}, // giant -> uncached fallback
+	}
+
+	// 1. Correctness, isolation from JoinDot, and zero strpool pollution.
+	baseSnap := CaptureBaseline()
+	for _, p := range pairs {
+		wantDollar := p[0] + "$" + p[1]
+		wantDot := p[0] + "." + p[1]
+		if got := JoinDollar(p[0], p[1]); got != wantDollar {
+			t.Fatalf("JoinDollar(%q, %q) = %q, want %q", p[0], p[1], got, wantDollar)
+		}
+		if got := JoinDot(p[0], p[1]); got != wantDot {
+			t.Fatalf("JoinDot(%q, %q) = %q, want %q", p[0], p[1], got, wantDot)
+		}
+	}
+	for i := 0; i < 2000; i++ {
+		_ = JoinDollar("w39c_alias_root", fmt.Sprintf("prop_%d", i))
+	}
+	if afterSnap := CaptureBaseline(); afterSnap != baseSnap {
+		t.Fatalf("JoinDollar polluted strpool: before=%v after=%v", baseSnap, afterSnap)
+	}
+	if Lookup(JoinDollar("w39c_unique_alias", "leaf")) != 0 {
+		t.Fatal("JoinDollar leaked output into strpool")
+	}
+
+	// 2. Zero allocations on warm cache hits (including chained collapsed-property joins).
+	_ = JoinDollar("", "")
+	_ = JoinDollar("goog", "foo")
+	_ = JoinDollar("goog$foo", "bar")
+	_ = JoinDollar("goog$foo$bar", "baz")
+	if allocs := testing.AllocsPerRun(200, func() {
+		s1 := JoinDollar("goog", "foo")
+		s2 := JoinDollar(s1, "bar")
+		s3 := JoinDollar(s2, "baz")
+		if s3 != "goog$foo$bar$baz" || JoinDollar("", "") != "$" {
+			t.Fatalf("chained JoinDollar mismatch: %q", s3)
+		}
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocs on warm JoinDollar hits, got %v", allocs)
+	}
+
+	// 3. Caller buffer unpinning (including empty-side slices).
+	runtime.GC()
+	runtime.GC()
+	var beforePin runtime.MemStats
+	runtime.ReadMemStats(&beforePin)
+	var kept []string
+	func() {
+		for i := 0; i < 120; i++ {
+			big := fmt.Sprintf("w39c_left_%03d$right_%03d_", i, i) + strings.Repeat("Y", 256<<10)
+			kept = append(kept, JoinDollar(big[:13], big[14:23]))
+			kept = append(kept, JoinDollar("", big[14:23]))
+			kept = append(kept, JoinDollar(big[:13], ""))
+		}
+	}()
+	runtime.GC()
+	runtime.GC()
+	var afterPin runtime.MemStats
+	runtime.ReadMemStats(&afterPin)
+	var pinDelta int64
+	if afterPin.HeapAlloc > beforePin.HeapAlloc {
+		pinDelta = int64(afterPin.HeapAlloc - beforePin.HeapAlloc)
+	}
+	if pinDelta > 4<<20 {
+		t.Fatalf("JoinDollar pinned caller buffers: delta = %d bytes", pinDelta)
+	}
+	runtime.KeepAlive(kept)
+
+	// 4. 4-way set-associative retention + 4-fingerprint scan resistance on colliding bucket keys.
+	seen := make(map[uint32][]string)
+	var col []string
+	for i := 0; i < 200000; i++ {
+		cand := fmt.Sprintf("goog$w39c$collide%06d", i)
+		h := poolHash(cand)*0x9E3779B97F4A7C15 ^ poolHash("INSTANCE")
+		idx := uint32(h >> (64 - joinDollarCacheBits))
+		list := append(seen[idx], cand)
+		seen[idx] = list
+		if len(list) == 5 {
+			col = list
+			break
+		}
+	}
+	if len(col) != 5 {
+		t.Fatal("failed to find 5 colliding JoinDollar keys")
+	}
+	for i := 0; i < 4; i++ {
+		_ = JoinDollar(col[i], "INSTANCE")
+	}
+	// Single 1-hit wonder on full 4-way bucket must NOT evict any of the 4 ways!
+	_ = JoinDollar(col[4], "INSTANCE")
+	if allocs := testing.AllocsPerRun(100, func() {
+		for i := 0; i < 4; i++ {
+			if JoinDollar(col[i], "INSTANCE") != col[i]+"$INSTANCE" {
+				t.Fatal("4-way JoinDollar entry evicted by 1-hit probe")
+			}
+		}
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocs across 4 resident JoinDollar ways after 1-hit probe, got %v", allocs)
+	}
+
+	// 5. Multi-goroutine -race stress test across 16 workers.
+	var wg sync.WaitGroup
+	const workers = 16
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		w := w
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 500; i++ {
+				a := fmt.Sprintf("goog$module%d", i%29)
+				b := fmt.Sprintf(" Export_%d", (w+i)%23)[1:]
+				if got := JoinDollar(a, b); got != a+"$"+b {
+					t.Errorf("JoinDollar mismatch: got %q, want %q", got, a+"$"+b)
+					return
+				}
+				if gotDot := JoinDot(a, b); gotDot != a+"."+b {
+					t.Errorf("JoinDot mismatch alongside JoinDollar: got %q", gotDot)
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

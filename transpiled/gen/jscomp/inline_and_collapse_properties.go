@@ -25,6 +25,7 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
 )
 
 // Java class: com.google.javascript.jscomp.InlineAndCollapseProperties
@@ -2576,12 +2577,14 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	if j2gort.JStrIndexOfCp(prop, int32(uint16(36))) != int32(-1) {
 		prop = javalang.StringReplace(prop, "$", "$0")
 	}
-	var result string = (j2gort.StrValString(root) + "$" + j2gort.StrValString(prop))
+	var base string = nodestore.JoinDollar(root, prop)
+	_ = base
+	var result string = base
 	_ = result
 	var id int32 = int32(1)
 	_ = id
 	for this_.outer_.namespace.ContainsName(result) {
-		result = (j2gort.StrValString(root) + "$" + j2gort.StrValString(prop) + "$" + j2gort.StrValInt32(id))
+		result = (j2gort.StrValString(base) + "$" + j2gort.StrValInt32(id))
 		id = id + 1
 	}
 	return result

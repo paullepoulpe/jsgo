@@ -3444,6 +3444,15 @@ public final class ExprEmitter {
           && ee.getParameters().size() == 1
           && resolver.isStringType(ee.getParameters().get(0).asType())) {
         rawCall = rtPrefix(ctx) + "FastStrHash32(" + args.get(0) + ")";
+      } else if (owner
+              .getQualifiedName()
+              .contentEquals("com.google.javascript.rhino.RhinoStringPool")
+          && mName.equals("joinDollar")
+          && args.size() == 2
+          && ee.getParameters().size() == 2
+          && resolver.isStringType(ee.getParameters().get(0).asType())
+          && resolver.isStringType(ee.getParameters().get(1).asType())) {
+        rawCall = nsPrefix(ctx) + "JoinDollar(" + args.get(0) + ", " + args.get(1) + ")";
       } else if (resolver.isSourceType(owner)) {
         String ownerPkg = resolver.planner.getGoPkg(owner);
         String alias = ctx.imports.ext(resolver.planner.getGoImportPath(ownerPkg), ownerPkg);
@@ -4924,6 +4933,59 @@ public final class ExprEmitter {
           String idxGo =
               emitAs(args.get(0), path, resolver.types.getPrimitiveType(TypeKind.INT), false, ctx);
           return rt + "ListGetVal[" + elemGo + "](" + recvGo + ", " + idxGo + ")";
+        }
+      }
+
+      if (m.equals("toArray")
+          && arity == 1
+          && ee.getParameters().size() == 1
+          && ee.getParameters().get(0).asType().getKind() == TypeKind.ARRAY
+          && !resolver.isSourceType(owner)
+          && isSubtypeOfQualified(owner, "java.util.Collection")) {
+        TypeMirror callRet = typeOf(path);
+        TreePath arg0Path = new TreePath(path, args.get(0));
+        TypeMirror arg0Tm = typeOf(arg0Path);
+        if (callRet instanceof ArrayType retAt && arg0Tm instanceof ArrayType argAt) {
+          Tree argLeaf = unwrapParens(arg0Path).getLeaf();
+          boolean isNewZeroArr =
+              argLeaf instanceof NewArrayTree nat
+                  && nat.getInitializers() == null
+                  && nat.getDimensions().size() == 1
+                  && unwrapParens(new TreePath(arg0Path, nat.getDimensions().get(0))).getLeaf()
+                      instanceof LiteralTree lt
+                  && Integer.valueOf(0).equals(lt.getValue());
+          if (resolver.isStringType(retAt.getComponentType())
+              && resolver.isStringType(argAt.getComponentType())) {
+            String recvGo =
+                recvPath != null ? emitPath(recvPath, ctx) : resolveImplicitThisValue(owner, ctx);
+            if (isNewZeroArr) {
+              return rt + "ColToNewStringArray(" + recvGo + ")";
+            }
+            return rt + "ColToStringArray(" + recvGo + ", " + emitPath(arg0Path, ctx) + ")";
+          }
+          if (!resolver.isActiveTypeVariable(retAt.getComponentType())
+              && !resolver.isActiveTypeVariable(argAt.getComponentType())) {
+            String retSliceGo = resolver.goType(callRet, ctx.imports);
+            String argSliceGo = resolver.goType(arg0Tm, ctx.imports);
+            if (retSliceGo.startsWith("[]*")
+                && retSliceGo.indexOf('*', 3) < 0
+                && retSliceGo.equals(argSliceGo)) {
+              String elemStructGo = retSliceGo.substring(3);
+              String recvGo =
+                  recvPath != null ? emitPath(recvPath, ctx) : resolveImplicitThisValue(owner, ctx);
+              if (isNewZeroArr) {
+                return rt + "ColToNewPtrArray[" + elemStructGo + "](" + recvGo + ")";
+              }
+              return rt
+                  + "ColToPtrArray["
+                  + elemStructGo
+                  + "]("
+                  + recvGo
+                  + ", "
+                  + emitPath(arg0Path, ctx)
+                  + ")";
+            }
+          }
         }
       }
     }
@@ -8576,6 +8638,22 @@ public final class ExprEmitter {
               resolver.elements.getTypeElement("java.lang.String").asType(),
               false,
               ctx)
+          + ")";
+    }
+
+    if (qn.equals("com.google.javascript.rhino.RhinoStringPool")
+        && m.equals("joinDollar")
+        && arity == 2
+        && ee.getParameters().size() == 2
+        && resolver.isStringType(ee.getParameters().get(0).asType())
+        && resolver.isStringType(ee.getParameters().get(1).asType())) {
+      TypeMirror strTm = resolver.elements.getTypeElement("java.lang.String").asType();
+      return nsPrefix(ctx)
+          + "JoinDollar("
+          + convert(rawParams.get(startIdx), rawParamTypes.get(startIdx), strTm, false, ctx)
+          + ", "
+          + convert(
+              rawParams.get(startIdx + 1), rawParamTypes.get(startIdx + 1), strTm, false, ctx)
           + ")";
     }
 

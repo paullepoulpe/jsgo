@@ -211,6 +211,28 @@ func (n Node) SetLinenoCharno(lineno, charno int) {
 	rec.LinenoCharno = int32((lineno << 12) | charno)
 }
 
+// HasNonNegativeLength reports whether n.Length() >= 0 without reading len16Top
+// when no active node has a negative length. Panics with runtime.Error on NilNode
+// to match rhino.Node.GetLength().
+func (n Node) HasNonNegativeLength() bool {
+	return hasNonNegativeLength(n, hasNonNegativeLengthSlow)
+}
+
+func hasNonNegativeLength(n Node, slow func(Node) bool) bool {
+	if n != 0 && negLenCount.Load() == 0 {
+		return true
+	}
+	return slow(n)
+}
+
+//go:noinline
+func hasNonNegativeLengthSlow(n Node) bool {
+	if n == 0 {
+		_ = (*NodeData)(nil).Token
+	}
+	return n.Length() >= 0
+}
+
 // Length returns the source code character length (0..65534 in len16Top, or from lenOverflowTop).
 func (n Node) Length() int32 {
 	return getNodeLength(n, getLengthOverflowSlow)
@@ -254,17 +276,26 @@ func setLengthSlow(n Node, v int32) {
 	pg := ensureLen16Page(n, idx)
 	off := uint32(n) & len16PageMask
 	s := storeForNode(n)
+	oldNeg := pg[off] == 0xFFFF && getLengthOverflowSlow(n) < 0
+	if !oldNeg && v < 0 {
+		s.negLenNodes.Add(1)
+		negLenCount.Add(1)
+	}
 	if uint32(v) < 0xFFFF {
 		if pg[off] == 0xFFFF {
 			setLenOverflow(n, 0)
 			s.setAuxLengthOverflow(uint32(n), 0)
 		}
 		pg[off] = uint16(v)
-		return
+	} else {
+		setLenOverflow(n, uint32(v))
+		s.setAuxLengthOverflow(uint32(n), v)
+		pg[off] = 0xFFFF
 	}
-	setLenOverflow(n, uint32(v))
-	s.setAuxLengthOverflow(uint32(n), v)
-	pg[off] = 0xFFFF
+	if oldNeg && v >= 0 {
+		s.negLenNodes.Add(^uint32(0))
+		negLenCount.Add(^uint32(0))
+	}
 }
 
 // SourceFile returns the source file identifier (0..65534 inline in SourceFile16, or from sfOverflowTop).

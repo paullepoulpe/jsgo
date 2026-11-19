@@ -26,6 +26,7 @@ import (
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/gson"
 	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
 )
 
 // Java class: com.google.javascript.jscomp.ProcessDefines
@@ -424,7 +425,7 @@ func ProcessDefines_GetGlobalDefineAlias(defineName string) string {
 	if j2gort.SetContainsStr(StaticGet_ProcessDefines_KNOWN_DEFINES(), defineName) || (j2gort.CheckNotNullString(defineName) == "goog.LOCALE") {
 		return defineName
 	}
-	return ("jscomp$defines$" + j2gort.StrValString(j2gort.JStrReplaceChar(defineName, uint16(46), uint16(36))))
+	return nodestore.JoinDollar("jscomp$defines", j2gort.JStrReplaceChar(defineName, uint16(46), uint16(36)))
 }
 
 // Java method: ProcessDefines.getReplacementForDefine(com.google.javascript.jscomp.ProcessDefines.Define define)

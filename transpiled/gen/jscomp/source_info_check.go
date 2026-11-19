@@ -22,6 +22,7 @@ import (
 
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
 )
 
 // Java class: com.google.javascript.jscomp.SourceInfoCheck
@@ -164,7 +165,7 @@ func (this_ *SourceInfoCheck) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, p
 	} else if this_.requiresLineNumbers {
 		if n.GetLineno() == int32(-1) {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_SourceInfoCheck_MISSING_LINE_INFO(), []string{n.ToStringTree()}))
-		} else if n.GetLength() < int32(0) {
+		} else if !nodestore.Node(n).HasNonNegativeLength() {
 			this_.compiler.Report_1(JSError_Make_3(n, StaticGet_SourceInfoCheck_MISSING_LENGTH(), []string{n.ToStringTree()}))
 		}
 		var info *pkg_rhino.JSDocInfo = n.GetJSDocInfo()

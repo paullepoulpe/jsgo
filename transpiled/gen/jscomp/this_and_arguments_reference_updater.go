@@ -23,6 +23,7 @@ import (
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_parser "github.com/paullepoulpe/jsgo/transpiled/gen/parser"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/nodestore"
 )
 
 // Java class: com.google.javascript.jscomp.ThisAndArgumentsReferenceUpdater
@@ -87,7 +88,7 @@ func (this_ *ThisAndArgumentsReferenceUpdater) Visit_3(t *NodeTraversal, n pkg_r
 	_ = parent
 	if n.IsThis() {
 		this_.context.SetNeedsThisVarWithType(AstFactory_S_Type_1_Node(n))
-		var name pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(("$jscomp$this" + "$" + j2gort.StrValString(this_.context.uniqueId)), this_.context.GetThisType()).Srcref(n)
+		var name pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(nodestore.JoinDollar("$jscomp$this", this_.context.uniqueId), this_.context.GetThisType()).Srcref(n)
 		_ = name
 		name.MakeNonIndexable()
 		if this_.compiler.GetOptions().PreservesDetailedSourceInfo() {
@@ -96,7 +97,7 @@ func (this_ *ThisAndArgumentsReferenceUpdater) Visit_3(t *NodeTraversal, n pkg_r
 		n.ReplaceWith(name)
 	} else if n.IsName() && (j2gort.CheckNotNullString(n.GetString()) == "arguments") {
 		this_.context.SetNeedsArgumentsVar()
-		var name_2 pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(("$jscomp$arguments" + "$" + j2gort.StrValString(this_.context.uniqueId)), AstFactory_S_Type_1_Node(n)).Srcref(n)
+		var name_2 pkg_rhino.Node = this_.astFactory.CreateName_2_string_AstFactory_Type(nodestore.JoinDollar("$jscomp$arguments", this_.context.uniqueId), AstFactory_S_Type_1_Node(n)).Srcref(n)
 		_ = name_2
 		if this_.compiler.GetOptions().PreservesDetailedSourceInfo() {
 			name_2.SetOriginalName("arguments")
@@ -203,7 +204,7 @@ func (this_ *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) AddVarDec
 	_ = astFactory
 	_ = script
 	if this_.needsThisVar {
-		var name pkg_rhino.Node = astFactory.CreateName_2_string_AstFactory_Type(("$jscomp$this" + "$" + j2gort.StrValString(this_.uniqueId)), this_.GetThisType())
+		var name pkg_rhino.Node = astFactory.CreateName_2_string_AstFactory_Type(nodestore.JoinDollar("$jscomp$this", this_.uniqueId), this_.GetThisType())
 		_ = name
 		var thisVar pkg_rhino.Node = pkg_rhino.IR_ConstNode(name, astFactory.CreateThis(this_.GetThisType()))
 		_ = thisVar
@@ -218,7 +219,7 @@ func (this_ *ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext) AddVarDec
 		compiler.ReportChangeToEnclosingScope(thisVar)
 	}
 	if this_.needsArgumentsVar {
-		var argumentsVar pkg_rhino.Node = astFactory.CreateArgumentsAliasDeclaration(("$jscomp$arguments" + "$" + j2gort.StrValString(this_.uniqueId)))
+		var argumentsVar pkg_rhino.Node = astFactory.CreateArgumentsAliasDeclaration(nodestore.JoinDollar("$jscomp$arguments", this_.uniqueId))
 		_ = argumentsVar
 		NodeUtil_AddFeatureToScript(script, pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), compiler)
 		ThisAndArgumentsReferenceUpdater_ThisAndArgumentsContext_InsertVarDeclaration(argumentsVar, this_.scopeBody)

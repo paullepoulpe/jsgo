@@ -81,6 +81,7 @@ type NodeStore struct {
 	origNames        []*PagedColumn
 	len16Pages       []len16Record
 	lengthOverflows  []lenOverflowRecord
+	negLenNodes      atomic.Uint32
 	sfOverflows      []sfOverflowRecord
 	castBits         []*castBitBlock
 	nums             numTable
@@ -163,6 +164,9 @@ func (s *NodeStore) setBase(base uint32) {
 }
 
 func (s *NodeStore) register() {
+	if neg := s.negLenNodes.Load(); neg != 0 {
+		negLenCount.Add(neg)
+	}
 	first := s.base >> blockShift
 	tcField.register(first, s.tcs)
 	for _, r := range s.len16Pages {
@@ -198,6 +202,9 @@ func (s *NodeStore) unregister() {
 		casSFOverflowPage(r.idx, r.page)
 	}
 	castBitField.unregister(first, s.castBits)
+	if neg := s.negLenNodes.Load(); neg != 0 {
+		negLenCount.Add(-neg)
+	}
 }
 
 func (s *NodeStore) blockEnd() uint32 {
@@ -559,6 +566,28 @@ func (s *NodeStore) addBlock(id uint32) *nodeBlock {
 	s.mu.Unlock()
 
 	active := !s.static && current.Load() == s
+	if active && blkIdx >= 8 {
+		chunk := new([16]nodeBlock)
+		first := s.base >> blockShift
+		s.mu.Lock()
+		for len(s.blocks) < blkIdx+16 {
+			s.blocks = append(s.blocks, nil)
+		}
+		for i := 0; i < 16; i++ {
+			idx := blkIdx + i
+			if s.blocks[idx] == nil {
+				b := &chunk[i]
+				s.blocks[idx] = b
+				if current.Load() == s {
+					nodeBlocks[first+uint32(idx)].Store(b)
+				}
+			}
+		}
+		blk := s.blocks[blkIdx]
+		s.mu.Unlock()
+		s.blockAllocMu.Unlock()
+		return blk
+	}
 	if active && blkIdx >= 2 {
 		chunk := new([4]nodeBlock)
 		first := s.base >> blockShift

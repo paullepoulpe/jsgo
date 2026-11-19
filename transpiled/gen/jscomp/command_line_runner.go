@@ -287,27 +287,7 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_processFlagFile_1405(flag
 		r_6 := this_.flags
 		r_6.flagFiles = j2gort.NewExt_java_util_ArrayList()
 	}
-	tokens = CommandLineRunner_ProcessArgs(func() []string {
-		arr_10 := tokens.ToArray_1_slice_any(func() []any {
-			arr_7 := j2gort.NewStringArray(int32(0))
-			if arr_7 == nil {
-				return nil
-			}
-			out_8 := make([]any, len(arr_7))
-			for i_, el_9 := range arr_7 {
-				out_8[i_] = j2gort.BoxString(el_9)
-			}
-			return out_8
-		}())
-		if arr_10 == nil {
-			return nil
-		}
-		out_11 := make([]string, len(arr_10))
-		for i_, el_12 := range arr_10 {
-			out_11[i_] = j2gort.CastString(el_12)
-		}
-		return out_11
-	}())
+	tokens = CommandLineRunner_ProcessArgs(j2gort.ColToNewStringArray(tokens))
 	var previousGuardLevels j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](StaticGet_CommandLineRunner_Flags_GuardLevels()))
 	_ = previousGuardLevels
 	var previousMixedJsSources j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](StaticGet_CommandLineRunner_Flags_MixedJsSources()))
@@ -349,19 +329,19 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(
 	_ = applyInputSourceMaps
 	func() {
 		defer func() {
-			if rec_13 := recover(); rec_13 != nil {
-				jex_14 := javalang.RecoverException(rec_13)
-				_ = jex_14
-				if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_14) {
-					e := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_14)
+			if rec_7 := recover(); rec_7 != nil {
+				jex_8 := javalang.RecoverException(rec_7)
+				_ = jex_8
+				if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_8) {
+					e := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_8)
 					_ = e
 					this_.priv_CommandLineRunner_reportError_1403(j2gort.ThrowableGetMessage(e))
-				} else if j2gort.InstanceOf[javaio.IIOException](jex_14) {
-					ioErr := j2gort.AsIface[javaio.IIOException](jex_14)
+				} else if j2gort.InstanceOf[javaio.IIOException](jex_8) {
+					ioErr := j2gort.AsIface[javaio.IIOException](jex_8)
 					_ = ioErr
 					this_.priv_CommandLineRunner_reportError_1403(("ERROR - ioException: " + j2gort.StrVal(ioErr)))
 				} else {
-					panic(rec_13)
+					panic(rec_7)
 				}
 			}
 		}()
@@ -375,8 +355,8 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(
 	}()
 	if this_.flags.processCommonJsModules {
 		{
-			r_15 := this_.flags
-			r_15.processClosurePrimitives = true
+			r_9 := this_.flags
+			r_9.processClosurePrimitives = true
 		}
 	}
 	if (j2gort.UnboxInt(this_.flags.browserFeaturesetYear) != int32(0)) && (this_.flags.languageOut != "ECMASCRIPT_NEXT") {
@@ -384,28 +364,28 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(
 	}
 	if this_.flags.outputWrapper == j2gort.NullString {
 		{
-			r_16 := this_.flags
-			r_16.outputWrapper = ""
+			r_10 := this_.flags
+			r_10.outputWrapper = ""
 		}
 	}
 	if (this_.flags.outputWrapperFile != j2gort.NullString) && !(j2gort.CheckNotNullString(this_.flags.outputWrapperFile) == "") {
 		func() {
 			defer func() {
-				if rec_17 := recover(); rec_17 != nil {
-					jex_18 := javalang.RecoverException(rec_17)
-					_ = jex_18
-					if j2gort.InstanceOf[javalang.IException](jex_18) {
-						e_2 := j2gort.AsIface[javalang.IException](jex_18)
+				if rec_11 := recover(); rec_11 != nil {
+					jex_12 := javalang.RecoverException(rec_11)
+					_ = jex_12
+					if j2gort.InstanceOf[javalang.IException](jex_12) {
+						e_2 := j2gort.AsIface[javalang.IException](jex_12)
 						_ = e_2
 						this_.priv_CommandLineRunner_reportError_1403("ERROR - invalid output_wrapper_file specified.")
 					} else {
-						panic(rec_17)
+						panic(rec_11)
 					}
 				}
 			}()
 			{
-				r_19 := this_.flags
-				r_19.outputWrapper = j2gort.Ext_com_google_common_io_Files_AsCharSource(j2gort.NewExt_java_io_File_1_string(this_.flags.outputWrapperFile), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8).Read()
+				r_13 := this_.flags
+				r_13.outputWrapper = j2gort.Ext_com_google_common_io_Files_AsCharSource(j2gort.NewExt_java_io_File_1_string(this_.flags.outputWrapperFile), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8).Read()
 			}
 		}()
 	}
@@ -417,8 +397,8 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(
 	}
 	if this_.flags.isolationMode == StaticGet_CompilerOptions_IsolationMode_IIFE() {
 		{
-			r_20 := this_.flags
-			r_20.outputWrapper = "(function(){%output%}).call(this);"
+			r_14 := this_.flags
+			r_14.outputWrapper = "(function(){%output%}).call(this);"
 		}
 	}
 	var bundleFiles j2gort.Ext_com_google_common_collect_ImmutableList = j2gort.Ext_com_google_common_collect_ImmutableList_Of_0()
@@ -431,8 +411,8 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(
 		} else {
 			bundleFiles = j2gort.ImmListOfStr1(this_.flags.jsOutputFile)
 			{
-				r_21 := this_.flags
-				r_21.jsOutputFile = ""
+				r_15 := this_.flags
+				r_15.jsOutputFile = ""
 			}
 			skipNormalOutputs = true
 		}
@@ -453,15 +433,15 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_initConfigFromFlags_1406(
 	_ = dependencyOptions
 	func() {
 		defer func() {
-			if rec_22 := recover(); rec_22 != nil {
-				jex_23 := javalang.RecoverException(rec_22)
-				_ = jex_23
-				if j2gort.InstanceOf[*FlagUsageException](jex_23) {
-					e_3 := j2gort.AsIface[*FlagUsageException](jex_23)
+			if rec_16 := recover(); rec_16 != nil {
+				jex_17 := javalang.RecoverException(rec_16)
+				_ = jex_17
+				if j2gort.InstanceOf[*FlagUsageException](jex_17) {
+					e_3 := j2gort.AsIface[*FlagUsageException](jex_17)
 					_ = e_3
 					this_.priv_CommandLineRunner_reportError_1403(j2gort.ThrowableGetMessage(e_3))
 				} else {
-					panic(rec_22)
+					panic(rec_16)
 				}
 			}
 		}()
@@ -518,9 +498,9 @@ func (this_ *CommandLineRunner) CheckChunkName(name string) {
 // Java method: CommandLineRunner.createOptions()
 func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 	clinit_CompilerOptions()
-	var val_24 CompilerOptions
-	InitCompilerOptions(&val_24)
-	var options *CompilerOptions = &val_24
+	var val_18 CompilerOptions
+	InitCompilerOptions(&val_18)
+	var options *CompilerOptions = &val_18
 	_ = options
 	if !(j2gort.CheckNotNullString(this_.flags.languageIn) == "") {
 		var languageMode CompilerOptions_LanguageMode = CompilerOptions_LanguageMode_FromString(this_.flags.languageIn)
@@ -576,10 +556,10 @@ func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 	_ = wLevel
 	wLevel.SetOptionsForWarningLevel(options)
 	{
-		cur_25 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.flags.formatting))
-		for cur_25.HasNext() {
-			rawElem_26 := cur_25.Next()
-			formattingOption := j2gort.Cast[CommandLineRunner_FormattingOption](rawElem_26)
+		cur_19 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.flags.formatting))
+		for cur_19.HasNext() {
+			rawElem_20 := cur_19.Next()
+			formattingOption := j2gort.Cast[CommandLineRunner_FormattingOption](rawElem_20)
 			_ = formattingOption
 			formattingOption.priv_FormattingOption_applyToOptions_1427(options)
 		}
@@ -591,15 +571,15 @@ func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 	if !(j2gort.CheckNotNullString(this_.flags.j2clPassMode) == "") {
 		func() {
 			defer func() {
-				if rec_27 := recover(); rec_27 != nil {
-					jex_28 := javalang.RecoverException(rec_27)
-					_ = jex_28
-					if j2gort.InstanceOf[javalang.IIllegalArgumentException](jex_28) {
-						ex := j2gort.AsIface[javalang.IIllegalArgumentException](jex_28)
+				if rec_21 := recover(); rec_21 != nil {
+					jex_22 := javalang.RecoverException(rec_21)
+					_ = jex_22
+					if j2gort.InstanceOf[javalang.IIllegalArgumentException](jex_22) {
+						ex := j2gort.AsIface[javalang.IIllegalArgumentException](jex_22)
 						_ = ex
 						panic(NewFlagUsageException(("Unknown J2clPassMode `" + j2gort.StrValString(this_.flags.j2clPassMode) + "' specified.")))
 					} else {
-						panic(rec_27)
+						panic(rec_21)
 					}
 				}
 			}()
@@ -621,15 +601,15 @@ func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 	if !(j2gort.CheckNotNullString(this_.flags.translationsFile) == "") {
 		func() {
 			defer func() {
-				if rec_29 := recover(); rec_29 != nil {
-					jex_30 := javalang.RecoverException(rec_29)
-					_ = jex_30
-					if j2gort.InstanceOf[javaio.IIOException](jex_30) {
-						e := j2gort.AsIface[javaio.IIOException](jex_30)
+				if rec_23 := recover(); rec_23 != nil {
+					jex_24 := javalang.RecoverException(rec_23)
+					_ = jex_24
+					if j2gort.InstanceOf[javaio.IIOException](jex_24) {
+						e := j2gort.AsIface[javaio.IIOException](jex_24)
 						_ = e
 						panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", "Reading XTB file", e)))
 					} else {
-						panic(rec_29)
+						panic(rec_23)
 					}
 				}
 			}()
@@ -650,15 +630,15 @@ func (this_ *CommandLineRunner) CreateOptions() *CompilerOptions {
 	if this_.flags.packageJsonEntryNames != j2gort.NullString {
 		func() {
 			defer func() {
-				if rec_31 := recover(); rec_31 != nil {
-					jex_32 := javalang.RecoverException(rec_31)
-					_ = jex_32
-					if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_32) {
-						e_2 := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_32)
+				if rec_25 := recover(); rec_25 != nil {
+					jex_26 := javalang.RecoverException(rec_25)
+					_ = jex_26
+					if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_26) {
+						e_2 := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_26)
 						_ = e_2
 						this_.priv_CommandLineRunner_reportError_1403("ERROR - invalid package_json_entry_names format specified.")
 					} else {
-						panic(rec_31)
+						panic(rec_25)
 					}
 				}
 			}()
@@ -722,9 +702,9 @@ func (this_ *CommandLineRunner) priv_CommandLineRunner_getBundler_1407() *Closur
 	var options *CompilerOptions = this_.CreateOptions()
 	_ = options
 	return func() *ClosureBundler {
-		var asgn_33 *ClosureBundler = NewClosureBundler_2(StaticGet_Transpile_Transpiler_NULL(), NewBaseTranspiler(NewBaseTranspiler_CompilerSupplier_4(StaticGet_CompilerOptions_LanguageMode_ECMASCRIPT_NEXT().ToFeatureSet().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_MODULES(), []*pkg_parser.FeatureSet_Feature{}), options.GetModuleResolutionMode(), moduleRoots, options.GetBrowserResolverPrefixReplacements()), ""))
-		this_.bundler = asgn_33
-		return asgn_33
+		var asgn_27 *ClosureBundler = NewClosureBundler_2(StaticGet_Transpile_Transpiler_NULL(), NewBaseTranspiler(NewBaseTranspiler_CompilerSupplier_4(StaticGet_CompilerOptions_LanguageMode_ECMASCRIPT_NEXT().ToFeatureSet().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_MODULES(), []*pkg_parser.FeatureSet_Feature{}), options.GetModuleResolutionMode(), moduleRoots, options.GetBrowserResolverPrefixReplacements()), ""))
+		this_.bundler = asgn_27
+		return asgn_27
 	}()
 }
 
@@ -764,21 +744,21 @@ func CommandLineRunner_LoadConformanceConfigs(configPaths j2gort.Ext_java_util_L
 	var configs *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = configs
 	{
-		cur_34 := j2gort.NewIterCursor(j2gort.CheckNotNull(configPaths))
-		for cur_34.HasNext() {
-			configPath := cur_34.NextStr()
+		cur_28 := j2gort.NewIterCursor(j2gort.CheckNotNull(configPaths))
+		for cur_28.HasNext() {
+			configPath := cur_28.NextStr()
 			_ = configPath
 			func() {
 				defer func() {
-					if rec_35 := recover(); rec_35 != nil {
-						jex_36 := javalang.RecoverException(rec_35)
-						_ = jex_36
-						if j2gort.InstanceOf[javaio.IIOException](jex_36) {
-							e := j2gort.AsIface[javaio.IIOException](jex_36)
+					if rec_29 := recover(); rec_29 != nil {
+						jex_30 := javalang.RecoverException(rec_29)
+						_ = jex_30
+						if j2gort.InstanceOf[javaio.IIOException](jex_30) {
+							e := j2gort.AsIface[javaio.IIOException](jex_30)
 							_ = e
 							panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", "Error loading conformance config", e)))
 						} else {
-							panic(rec_35)
+							panic(rec_29)
 						}
 					}
 				}()
@@ -802,15 +782,15 @@ func CommandLineRunner_LoadConformanceConfig(configFile string) *j2gort.Ext_com_
 	}
 	func() {
 		defer func() {
-			if rec_37 := recover(); rec_37 != nil {
-				jex_38 := javalang.RecoverException(rec_37)
-				_ = jex_38
-				if j2gort.InstanceOf[javalang.IException](jex_38) {
-					e := j2gort.AsIface[javalang.IException](jex_38)
+			if rec_31 := recover(); rec_31 != nil {
+				jex_32 := javalang.RecoverException(rec_31)
+				_ = jex_32
+				if j2gort.InstanceOf[javalang.IException](jex_32) {
+					e := j2gort.AsIface[javalang.IException](jex_32)
 					_ = e
 					panic(j2gort.AsIface[javalang.IRuntimeException](j2gort.ConstructShimThrowable("java.lang.RuntimeException", e)))
 				} else {
-					panic(rec_37)
+					panic(rec_31)
 				}
 			}
 		}()
@@ -847,9 +827,9 @@ func CommandLineRunner_FindJsFiles_2(patterns j2gort.Ext_java_util_Collection, s
 	var excludes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 	_ = excludes
 	{
-		cur_39 := j2gort.NewIterCursor(j2gort.CheckNotNull(patterns))
-		for cur_39.HasNext() {
-			pattern := cur_39.NextStr()
+		cur_33 := j2gort.NewIterCursor(j2gort.CheckNotNull(patterns))
+		for cur_33.HasNext() {
+			pattern := cur_33.NextStr()
 			_ = pattern
 			if !(j2gort.JStrIndexOf(pattern, "*") >= 0) && !(javalang.StringStartsWith(j2gort.CheckNotNullString(pattern), "!")) {
 				var matchedFile *j2gort.Ext_java_io_File = j2gort.NewExt_java_io_File_1_string(pattern)
@@ -1266,15 +1246,15 @@ func (this_ *CommandLineRunner_Flags) SetOption(name string, value string) bool 
 	case "--warning_level":
 		func() {
 			defer func() {
-				if rec_40 := recover(); rec_40 != nil {
-					jex_41 := javalang.RecoverException(rec_40)
-					_ = jex_41
-					if j2gort.InstanceOf[javalang.IIllegalArgumentException](jex_41) {
-						e := j2gort.AsIface[javalang.IIllegalArgumentException](jex_41)
+				if rec_34 := recover(); rec_34 != nil {
+					jex_35 := javalang.RecoverException(rec_34)
+					_ = jex_35
+					if j2gort.InstanceOf[javalang.IIllegalArgumentException](jex_35) {
+						e := j2gort.AsIface[javalang.IIllegalArgumentException](jex_35)
 						_ = e
 						panic(j2gort.NewExt_org_kohsuke_args4j_CmdLineException_2_Ext_org_kohsuke_args4j_CmdLineParser_Throwable(this_.parser, j2gort.AsIface[javalang.Throwable](e)))
 					} else {
-						panic(rec_40)
+						panic(rec_34)
 					}
 				}
 			}()
@@ -1318,8 +1298,8 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printUsage_1412(ps *j2gort.Ext_
 	var isFirst bool = true
 	_ = isFirst
 	{
-		cur_42 := j2gort.NewMapEntryCursor(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](StaticGet_CommandLineRunner_Flags_Categories().AsMap()))
-		for cur_42.NextEntry() {
+		cur_36 := j2gort.NewMapEntryCursor(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](StaticGet_CommandLineRunner_Flags_Categories().AsMap()))
+		for cur_36.NextEntry() {
 			var prefix string = "\n\n"
 			_ = prefix
 			var suffix string = ""
@@ -1328,7 +1308,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printUsage_1412(ps *j2gort.Ext_
 				isFirst = false
 				prefix = ""
 			}
-			if j2gort.CheckNotNullString(cur_42.KeyStr()) == "Warning and Error Management" {
+			if j2gort.CheckNotNullString(cur_36.KeyStr()) == "Warning and Error Management" {
 				if this_.helpMarkdown {
 					suffix = ("\n## Available Error Groups\n\n  - " + j2gort.StrValString(javalang.StringReplace("accessControls, checkPrototypalTypes, checkRegExp, checkTypes, checkVars, conformanceViolations, const, constantProperty, deprecated, deprecatedAnnotations, defineWithoutGoogDefine, duplicateMessage, es5Strict, externsValidation, functionParams, globalThis, invalidCasts, lintVarDeclarations, misplacedTypeAnnotation, missingCallToSuper, missingOverride, missingPolyfill, missingProperties, missingProvide, missingRequire, missingReturn, missingSourcesWarnings, moduleLoad, moduleImport, msgDescriptions, nonStandardJsDocs, partialAlias, polymer, reportUnknownTypes, strictCheckTypes, strictMissingProperties, strictModuleDepCheck, strictPrimitiveOperators, suspiciousCode, typeInvalidation, undefinedVars, underscore, unknownDefines, unusedLocalVariables, uselessCode, untranspilableFeatures,visibility, weakModuleGet", ", ", "\n  - ")))
 				} else {
@@ -1339,7 +1319,7 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printUsage_1412(ps *j2gort.Ext_
 				this_.maxLineLength = int32(5000)
 				this_.parser.SetUsageWidth(this_.maxLineLength)
 			}
-			this_.priv_Flags_printCategoryUsage_1413(cur_42.KeyStr(), j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_42.GetValue()), outputStream, prefix, suffix)
+			this_.priv_Flags_printCategoryUsage_1413(cur_36.KeyStr(), j2gort.AsIface[j2gort.Ext_java_util_Collection](cur_36.GetValue()), outputStream, prefix, suffix)
 		}
 	}
 	ps.Flush()
@@ -1354,14 +1334,14 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1413(categor
 	_ = suffix
 	func() {
 		defer func() {
-			if rec_43 := recover(); rec_43 != nil {
-				jex_44 := javalang.RecoverException(rec_43)
-				_ = jex_44
-				if j2gort.InstanceOf[javaio.IIOException](jex_44) {
-					e := j2gort.AsIface[javaio.IIOException](jex_44)
+			if rec_37 := recover(); rec_37 != nil {
+				jex_38 := javalang.RecoverException(rec_37)
+				_ = jex_38
+				if j2gort.InstanceOf[javaio.IIOException](jex_38) {
+					e := j2gort.AsIface[javaio.IIOException](jex_38)
 					_ = e
 				} else {
-					panic(rec_43)
+					panic(rec_37)
 				}
 			}
 		}()
@@ -1371,9 +1351,9 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1413(categor
 		if this_.helpMarkdown {
 			outputStream.Write_1_string(("# " + j2gort.StrValString(categoryName) + "\n"))
 			{
-				cur_45 := j2gort.NewIterCursor(j2gort.CheckNotNull(options))
-				for cur_45.HasNext() {
-					optionName := cur_45.NextStr()
+				cur_39 := j2gort.NewIterCursor(j2gort.CheckNotNull(options))
+				for cur_39.HasNext() {
+					optionName := cur_39.NextStr()
 					_ = optionName
 					var stringWriter *j2gort.Ext_java_io_StringWriter = j2gort.NewExt_java_io_StringWriter()
 					_ = stringWriter
@@ -1381,13 +1361,13 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1413(categor
 						_ = optionHandler
 						var namedOptionDef *j2gort.Ext_org_kohsuke_args4j_NamedOptionDef
 						_ = namedOptionDef
-						var ok_46 bool
-						namedOptionDef, ok_46 = j2gort.TryCast[*j2gort.Ext_org_kohsuke_args4j_NamedOptionDef](optionHandler.GetExt_org_kohsuke_args4j_spi_OptionHandlerBase().F_Option)
-						if ok_46 {
+						var ok_40 bool
+						namedOptionDef, ok_40 = j2gort.TryCast[*j2gort.Ext_org_kohsuke_args4j_NamedOptionDef](optionHandler.GetExt_org_kohsuke_args4j_spi_OptionHandlerBase().F_Option)
+						if ok_40 {
 							return (!(optionHandler.GetExt_org_kohsuke_args4j_spi_OptionHandlerBase().F_Option.Hidden()) && func() bool {
-								sr_47 := optionName
-								se_48 := j2gort.JStrReplaceFirst(namedOptionDef.Name(), "^--", "")
-								return j2gort.CheckNotNullString(sr_47) == se_48
+								sr_41 := optionName
+								se_42 := j2gort.JStrReplaceFirst(namedOptionDef.Name(), "^--", "")
+								return j2gort.CheckNotNullString(sr_41) == se_42
 							}())
 						}
 						return false
@@ -1414,9 +1394,9 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_printCategoryUsage_1413(categor
 				_ = optionHandler
 				var namedOptionDef *j2gort.Ext_org_kohsuke_args4j_NamedOptionDef
 				_ = namedOptionDef
-				var ok_49 bool
-				namedOptionDef, ok_49 = j2gort.TryCast[*j2gort.Ext_org_kohsuke_args4j_NamedOptionDef](optionHandler.GetExt_org_kohsuke_args4j_spi_OptionHandlerBase().F_Option)
-				if ok_49 {
+				var ok_43 bool
+				namedOptionDef, ok_43 = j2gort.TryCast[*j2gort.Ext_org_kohsuke_args4j_NamedOptionDef](optionHandler.GetExt_org_kohsuke_args4j_spi_OptionHandlerBase().F_Option)
+				if ok_43 {
 					return (!(optionHandler.GetExt_org_kohsuke_args4j_spi_OptionHandlerBase().F_Option.Hidden()) && options.Contains(j2gort.BoxString(j2gort.JStrReplaceFirst(namedOptionDef.Name(), "^--", ""))))
 				}
 				return false
@@ -1474,18 +1454,18 @@ func (this_ *CommandLineRunner_Flags) GetMixedJsSources() j2gort.Ext_java_util_L
 	var excludes j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()
 	_ = excludes
 	{
-		cur_50 := j2gort.NewIterCursor(j2gort.CheckNotNull(StaticGet_CommandLineRunner_Flags_MixedJsSources()))
-		for cur_50.HasNext() {
-			rawElem_51 := cur_50.Next()
-			source := j2gort.CastPtr[AbstractCommandLineRunner_FlagEntry](rawElem_51)
+		cur_44 := j2gort.NewIterCursor(j2gort.CheckNotNull(StaticGet_CommandLineRunner_Flags_MixedJsSources()))
+		for cur_44.HasNext() {
+			rawElem_45 := cur_44.Next()
+			source := j2gort.CastPtr[AbstractCommandLineRunner_FlagEntry](rawElem_45)
 			_ = source
 			if javalang.StringEndsWith(j2gort.CheckNotNullString(source.GetValue()), ".zip") {
 				mixedSources.Add_1(j2gort.PtrToAny(source))
 			} else if javalang.StringStartsWith(j2gort.CheckNotNullString(source.GetValue()), "!") {
 				{
-					cur_52 := j2gort.NewIterCursor(j2gort.CheckNotNull(CommandLineRunner_FindJsFiles_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.ImmListOfStr1(j2gort.JStrSubFrom(source.GetValue(), int32(1)))))))
-					for cur_52.HasNext() {
-						filename := cur_52.NextStr()
+					cur_46 := j2gort.NewIterCursor(j2gort.CheckNotNull(CommandLineRunner_FindJsFiles_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.ImmListOfStr1(j2gort.JStrSubFrom(source.GetValue(), int32(1)))))))
+					for cur_46.HasNext() {
+						filename := cur_46.NextStr()
 						_ = filename
 						excludes.Add(filename)
 						mixedSources.Remove_1_any(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_JS()), filename))
@@ -1493,9 +1473,9 @@ func (this_ *CommandLineRunner_Flags) GetMixedJsSources() j2gort.Ext_java_util_L
 				}
 			} else {
 				{
-					cur_53 := j2gort.NewIterCursor(j2gort.CheckNotNull(CommandLineRunner_FindJsFiles_2(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Collections_SingletonList(j2gort.BoxString(source.GetValue()))), true)))
-					for cur_53.HasNext() {
-						filename_2 := cur_53.NextStr()
+					cur_47 := j2gort.NewIterCursor(j2gort.CheckNotNull(CommandLineRunner_FindJsFiles_2(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Collections_SingletonList(j2gort.BoxString(source.GetValue()))), true)))
+					for cur_47.HasNext() {
+						filename_2 := cur_47.NextStr()
 						_ = filename_2
 						if !(excludes.Contains(filename_2)) {
 							mixedSources.Add_1(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_JS()), filename_2))
@@ -1508,9 +1488,9 @@ func (this_ *CommandLineRunner_Flags) GetMixedJsSources() j2gort.Ext_java_util_L
 	var fromArguments j2gort.Ext_java_util_List = CommandLineRunner_FindJsFiles_1(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.arguments))
 	_ = fromArguments
 	{
-		cur_54 := j2gort.NewIterCursor(j2gort.CheckNotNull(fromArguments))
-		for cur_54.HasNext() {
-			filename_3 := cur_54.NextStr()
+		cur_48 := j2gort.NewIterCursor(j2gort.CheckNotNull(fromArguments))
+		for cur_48.HasNext() {
+			filename_3 := cur_48.NextStr()
 			_ = filename_3
 			mixedSources.Add_1(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_JS()), filename_3))
 		}
@@ -1528,9 +1508,9 @@ func (this_ *CommandLineRunner_Flags) GetSourceMapLocationMappings() j2gort.Ext_
 	var split j2gort.Ext_com_google_common_collect_ImmutableMap = this_.priv_Flags_splitPipeParts_1418(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.sourceMapLocationMapping), "--source_map_location_mapping")
 	_ = split
 	{
-		cur_55 := j2gort.NewMapEntryCursor(split)
-		for cur_55.NextEntry() {
-			locationMappings = append(locationMappings, NewSourceMap_PrefixLocationMapping(cur_55.KeyStr(), j2gort.CastString(cur_55.GetValue())))
+		cur_49 := j2gort.NewMapEntryCursor(split)
+		for cur_49.NextEntry() {
+			locationMappings = append(locationMappings, NewSourceMap_PrefixLocationMapping(cur_49.KeyStr(), j2gort.CastString(cur_49.GetValue())))
 		}
 	}
 	return j2gort.ImmListFromTypedSlice(locationMappings)
@@ -1550,9 +1530,9 @@ func (this_ *CommandLineRunner_Flags) priv_Flags_splitPipeParts_1418(input j2gor
 	var splitter *j2gort.Ext_com_google_common_base_Splitter = j2gort.Ext_com_google_common_base_Splitter_On_1_uint16(uint16(124)).Limit(int32(2))
 	_ = splitter
 	{
-		cur_56 := j2gort.NewIterCursor(j2gort.CheckNotNull(input))
-		for cur_56.HasNext() {
-			inputSourceMap := cur_56.NextStr()
+		cur_50 := j2gort.NewIterCursor(j2gort.CheckNotNull(input))
+		for cur_50.HasNext() {
+			inputSourceMap := cur_50.NextStr()
 			_ = inputSourceMap
 			var parts j2gort.Ext_java_util_List = j2gort.SplitterSplitToListStr(splitter, inputSourceMap)
 			_ = parts
@@ -2842,15 +2822,15 @@ func (this_ *CommandLineRunner_Flags_BooleanOptionHandler) ParseArguments(params
 	_ = param
 	func() {
 		defer func() {
-			if rec_57 := recover(); rec_57 != nil {
-				jex_58 := javalang.RecoverException(rec_57)
-				_ = jex_58
-				if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_58) {
-					e := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_58)
+			if rec_51 := recover(); rec_51 != nil {
+				jex_52 := javalang.RecoverException(rec_51)
+				_ = jex_52
+				if j2gort.InstanceOf[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_52) {
+					e := j2gort.AsIface[j2gort.Ext_org_kohsuke_args4j_CmdLineException](jex_52)
 					_ = e
 					param = j2gort.NullString
 				} else {
-					panic(rec_57)
+					panic(rec_51)
 				}
 			}
 		}()
@@ -3215,15 +3195,15 @@ func (this_ *CommandLineRunner_Flags_MultiFlagSetter) GetType() *javalang.Class 
 }
 
 // Java method: MultiFlagSetter.addValue(java.lang.String value)
-func (this_ *CommandLineRunner_Flags_MultiFlagSetter) AddValue(arg_59 any) {
-	value := j2gort.CastString(arg_59)
+func (this_ *CommandLineRunner_Flags_MultiFlagSetter) AddValue(arg_53 any) {
+	value := j2gort.CastString(arg_53)
 	_ = value
 	var normalizedValue string = value
 	_ = normalizedValue
 	if (((value != j2gort.NullString) && (j2gort.JStrLen(value) > int32(0))) && ((j2gort.CheckNotNullString(j2gort.JStrSub(value, int32(0), int32(1))) == "'") || (j2gort.CheckNotNullString(j2gort.JStrSub(value, int32(0), int32(1))) == "\""))) && func() bool {
-		sr_60 := j2gort.JStrSubFrom(value, (j2gort.JStrLen(value) - int32(1)))
-		se_61 := j2gort.JStrSub(value, int32(0), int32(1))
-		return j2gort.CheckNotNullString(sr_60) == se_61
+		sr_54 := j2gort.JStrSubFrom(value, (j2gort.JStrLen(value) - int32(1)))
+		se_55 := j2gort.JStrSub(value, int32(0), int32(1))
+		return j2gort.CheckNotNullString(sr_54) == se_55
 	}() {
 		normalizedValue = j2gort.JStrSub(value, int32(1), (j2gort.JStrLen(value) - int32(1)))
 	}
@@ -3415,8 +3395,8 @@ func NewCommandLineRunner__Anon_11(cap_p_matcher j2gort.Ext_java_nio_file_PathMa
 }
 
 // Java method: .visitFile(java.nio.file.Path p, java.nio.file.attribute.BasicFileAttributes attrs)
-func (this_ *CommandLineRunner__Anon_11) VisitFile(arg_62 any, attrs j2gort.Ext_java_nio_file_attribute_BasicFileAttributes) *j2gort.Ext_java_nio_file_FileVisitResult {
-	p := j2gort.AsIface[j2gort.Ext_java_nio_file_Path](arg_62)
+func (this_ *CommandLineRunner__Anon_11) VisitFile(arg_56 any, attrs j2gort.Ext_java_nio_file_attribute_BasicFileAttributes) *j2gort.Ext_java_nio_file_FileVisitResult {
+	p := j2gort.AsIface[j2gort.Ext_java_nio_file_Path](arg_56)
 	_ = p
 	_ = attrs
 	if this_.cap_0_matcher.Matches(p) || this_.cap_0_matcher.Matches(p.Normalize()) {
@@ -3433,8 +3413,8 @@ func (this_ *CommandLineRunner__Anon_11) VisitFile(arg_62 any, attrs j2gort.Ext_
 }
 
 // Java method: .visitFileFailed(java.nio.file.Path file, java.io.IOException e)
-func (this_ *CommandLineRunner__Anon_11) VisitFileFailed(arg_63 any, e javaio.IIOException) *j2gort.Ext_java_nio_file_FileVisitResult {
-	file := j2gort.AsIface[j2gort.Ext_java_nio_file_Path](arg_63)
+func (this_ *CommandLineRunner__Anon_11) VisitFileFailed(arg_57 any, e javaio.IIOException) *j2gort.Ext_java_nio_file_FileVisitResult {
+	file := j2gort.AsIface[j2gort.Ext_java_nio_file_Path](arg_57)
 	_ = file
 	_ = e
 	return j2gort.Ext_java_nio_file_FileVisitResult_F_SKIP_SUBTREE

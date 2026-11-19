@@ -357,7 +357,7 @@ func (this_ *AmbiguateProperties) Process_2(externs pkg_rhino.Node, root pkg_rhi
 }
 
 // Java method: AmbiguateProperties.getProperty(java.lang.String name)
-func (this_ *AmbiguateProperties) priv_AmbiguateProperties_getProperty_6172(name string) *AmbiguateProperties_Property {
+func (this_ *AmbiguateProperties) priv_AmbiguateProperties_getProperty_6180(name string) *AmbiguateProperties_Property {
 	_ = name
 	var prop *AmbiguateProperties_Property = this_.propertyMap.Get(name)
 	_ = prop
@@ -369,7 +369,7 @@ func (this_ *AmbiguateProperties) priv_AmbiguateProperties_getProperty_6172(name
 }
 
 // Java method: AmbiguateProperties.getColor(com.google.javascript.rhino.Node n)
-func (this_ *AmbiguateProperties) priv_AmbiguateProperties_getColor_6173(n pkg_rhino.Node) *pkg_colors.Color {
+func (this_ *AmbiguateProperties) priv_AmbiguateProperties_getColor_6181(n pkg_rhino.Node) *pkg_colors.Color {
 	_ = n
 	var type_ *pkg_colors.Color = n.GetColor()
 	_ = type_
@@ -652,42 +652,42 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) Visit_3(t *No
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(26) /* Token.GETPROP */, int32(29) /* Token.OPTCHAIN_GETPROP */ :
-		this_.priv_ProcessPropertiesAndConstructors_processGetProp_6185(n)
+		this_.priv_ProcessPropertiesAndConstructors_processGetProp_6193(n)
 		return
 	case int32(28) /* Token.CALL */ :
-		this_.priv_ProcessPropertiesAndConstructors_processCall_6186(n)
+		this_.priv_ProcessPropertiesAndConstructors_processCall_6194(n)
 		return
 	case int32(32) /* Token.NAME */ :
 		if NodeUtil_IsNameDeclaration(parent) || parent.IsFunction() {
-			this_.outer_.graphNodeFactory.CreateNode(this_.outer_.priv_AmbiguateProperties_getColor_6173(n))
+			this_.outer_.graphNodeFactory.CreateNode(this_.outer_.priv_AmbiguateProperties_getColor_6181(n))
 		}
 		return
 	case int32(47) /* Token.OBJECTLIT */, int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_ProcessPropertiesAndConstructors_processObjectLitOrPattern_6188(n)
+		this_.priv_ProcessPropertiesAndConstructors_processObjectLitOrPattern_6196(n)
 		return
 	case int32(27) /* Token.GETELEM */ :
-		this_.priv_ProcessPropertiesAndConstructors_processGetElem_6189(n)
+		this_.priv_ProcessPropertiesAndConstructors_processGetElem_6197(n)
 		return
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_ProcessPropertiesAndConstructors_processClass_6190(n)
+		this_.priv_ProcessPropertiesAndConstructors_processClass_6198(n)
 		return
 	default:
 	}
 }
 
 // Java method: ProcessPropertiesAndConstructors.processGetProp(com.google.javascript.rhino.Node getProp)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processGetProp_6185(getProp pkg_rhino.Node) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processGetProp_6193(getProp pkg_rhino.Node) {
 	_ = getProp
-	var type_ *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6173(getProp.GetFirstChild())
+	var type_ *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6181(getProp.GetFirstChild())
 	_ = type_
-	this_.priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6191(getProp, type_)
+	this_.priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6199(getProp, type_)
 	if NodeUtil_IsLhsOfAssign(getProp) || NodeUtil_IsStatement(getProp.GetParent()) {
 		this_.outer_.graphNodeFactory.CreateNode(type_)
 	}
 }
 
 // Java method: ProcessPropertiesAndConstructors.processCall(com.google.javascript.rhino.Node call)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processCall_6186(call pkg_rhino.Node) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processCall_6194(call pkg_rhino.Node) {
 	_ = call
 	var target pkg_rhino.Node = call.GetFirstChild()
 	_ = target
@@ -700,7 +700,7 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 		if (propName == 0) || !(propName.IsStringLit()) {
 			return
 		}
-		var p *AmbiguateProperties_Property = this_.outer_.priv_AmbiguateProperties_getProperty_6172(propName.GetString())
+		var p *AmbiguateProperties_Property = this_.outer_.priv_AmbiguateProperties_getProperty_6180(propName.GetString())
 		_ = p
 		{
 			r_26 := p
@@ -709,7 +709,7 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 	} else if NodeUtil_IsObjectDefinePropertiesDefinition(call) {
 		var typeObj pkg_rhino.Node = call.GetSecondChild()
 		_ = typeObj
-		var type_ *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6173(typeObj)
+		var type_ *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6181(typeObj)
 		_ = type_
 		var objectLiteral pkg_rhino.Node = typeObj.GetNext()
 		_ = objectLiteral
@@ -720,14 +720,14 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 			var key pkg_rhino.Node = objectLiteral.GetFirstChild()
 			_ = key
 			for ; key != 0; key = key.GetNext() {
-				this_.priv_ProcessPropertiesAndConstructors_processObjectProperty_6187(objectLiteral, key, type_)
+				this_.priv_ProcessPropertiesAndConstructors_processObjectProperty_6195(objectLiteral, key, type_)
 			}
 		}
 	}
 }
 
 // Java method: ProcessPropertiesAndConstructors.processObjectProperty(com.google.javascript.rhino.Node objectLit, com.google.javascript.rhino.Node key, com.google.javascript.jscomp.colors.Color type)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processObjectProperty_6187(objectLit pkg_rhino.Node, key pkg_rhino.Node, type_ *pkg_colors.Color) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processObjectProperty_6195(objectLit pkg_rhino.Node, key pkg_rhino.Node, type_ *pkg_colors.Color) {
 	_ = objectLit
 	_ = key
 	_ = type_
@@ -743,7 +743,7 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 		if key.IsQuotedStringKey() {
 			j2gort.SetAddStr(this_.outer_.quotedNames, key.GetString())
 		} else {
-			this_.priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6191(key, type_)
+			this_.priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6199(key, type_)
 		}
 	case int32(126) /* Token.OBJECT_REST */, int32(128) /* Token.OBJECT_SPREAD */ :
 	default:
@@ -752,24 +752,24 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 }
 
 // Java method: ProcessPropertiesAndConstructors.processObjectLitOrPattern(com.google.javascript.rhino.Node objectLit)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processObjectLitOrPattern_6188(objectLit pkg_rhino.Node) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processObjectLitOrPattern_6196(objectLit pkg_rhino.Node) {
 	_ = objectLit
 	if objectLit.GetParent().IsCall() && NodeUtil_IsObjectDefinePropertiesDefinition(objectLit.GetParent()) {
 		return
 	}
-	var type_ *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6173(objectLit)
+	var type_ *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6181(objectLit)
 	_ = type_
 	{
 		var key pkg_rhino.Node = objectLit.GetFirstChild()
 		_ = key
 		for ; key != 0; key = key.GetNext() {
-			this_.priv_ProcessPropertiesAndConstructors_processObjectProperty_6187(objectLit, key, type_)
+			this_.priv_ProcessPropertiesAndConstructors_processObjectProperty_6195(objectLit, key, type_)
 		}
 	}
 }
 
 // Java method: ProcessPropertiesAndConstructors.processGetElem(com.google.javascript.rhino.Node n)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processGetElem_6189(n pkg_rhino.Node) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processGetElem_6197(n pkg_rhino.Node) {
 	_ = n
 	var child pkg_rhino.Node = n.GetLastChild()
 	_ = child
@@ -779,9 +779,9 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 }
 
 // Java method: ProcessPropertiesAndConstructors.processClass(com.google.javascript.rhino.Node classNode)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processClass_6190(classNode pkg_rhino.Node) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_processClass_6198(classNode pkg_rhino.Node) {
 	_ = classNode
-	var classConstructorType *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6173(classNode)
+	var classConstructorType *pkg_colors.Color = this_.outer_.priv_AmbiguateProperties_getColor_6181(classNode)
 	_ = classConstructorType
 	this_.outer_.graphNodeFactory.CreateNode(classConstructorType)
 	var possiblePrototypes []*pkg_colors.Color = classConstructorType.GetPrototypesArray()
@@ -828,28 +828,28 @@ func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessP
 				}
 				memberOwnerColor = classPrototype
 			}
-			this_.priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6191(member, memberOwnerColor)
+			this_.priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6199(member, memberOwnerColor)
 		}
 	}
 }
 
 // Java method: ProcessPropertiesAndConstructors.maybeMarkCandidate(com.google.javascript.rhino.Node n, com.google.javascript.jscomp.colors.Color type)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6191(n pkg_rhino.Node, type_ *pkg_colors.Color) {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_maybeMarkCandidate_6199(n pkg_rhino.Node, type_ *pkg_colors.Color) {
 	_ = n
 	_ = type_
 	var name string = n.GetString()
 	_ = name
 	if !(j2gort.SetContainsStr(this_.outer_.externedNames, name)) {
 		this_.outer_.stringNodesToRename = append(this_.outer_.stringNodesToRename, n)
-		this_.priv_ProcessPropertiesAndConstructors_recordProperty_6192(name, type_)
+		this_.priv_ProcessPropertiesAndConstructors_recordProperty_6200(name, type_)
 	}
 }
 
 // Java method: ProcessPropertiesAndConstructors.recordProperty(java.lang.String name, com.google.javascript.jscomp.colors.Color color)
-func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_recordProperty_6192(name string, color *pkg_colors.Color) *AmbiguateProperties_Property {
+func (this_ *AmbiguateProperties_ProcessPropertiesAndConstructors) priv_ProcessPropertiesAndConstructors_recordProperty_6200(name string, color *pkg_colors.Color) *AmbiguateProperties_Property {
 	_ = name
 	_ = color
-	var prop *AmbiguateProperties_Property = this_.outer_.priv_AmbiguateProperties_getProperty_6172(name)
+	var prop *AmbiguateProperties_Property = this_.outer_.priv_AmbiguateProperties_getProperty_6180(name)
 	_ = prop
 	prop.AddRelatedColor(color)
 	return prop

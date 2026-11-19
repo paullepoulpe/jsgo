@@ -126,20 +126,20 @@ func (this_ *TypeTransformationParser) GetTypeTransformationAst() pkg_rhino.Node
 }
 
 // Java method: TypeTransformationParser.addNewWarning(com.google.javascript.rhino.Msg messageId, java.lang.String messageArg)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_addNewWarning_7122(messageId pkg_rhino.Msg, messageArg string) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_addNewWarning_7130(messageId pkg_rhino.Msg, messageArg string) {
 	_ = messageId
 	_ = messageArg
 	this_.errorReporter.Warning(("Bad type annotation. " + j2gort.StrValString(messageId.Format_1([]any{j2gort.BoxString(messageArg)}))), this_.sourceFile.GetName(), this_.templateLineno, this_.templateCharno)
 }
 
 // Java method: TypeTransformationParser.nameToKeyword(java.lang.String s)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_nameToKeyword_7123(s string) *TypeTransformationParser_Keywords {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_nameToKeyword_7131(s string) *TypeTransformationParser_Keywords {
 	_ = s
 	return TypeTransformationParser_Keywords_ValueOf(j2gort.Ext_com_google_common_base_Ascii_ToUpperCase_1_string(s))
 }
 
 // Java method: TypeTransformationParser.isValidKeyword(java.lang.String name)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidKeyword_7124(name string) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidKeyword_7132(name string) bool {
 	_ = name
 	for _, el_1 := range j2gort.CheckNotNullSlice(TypeTransformationParser_Keywords_Values()) {
 		k := el_1
@@ -152,44 +152,44 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidKeyw
 }
 
 // Java method: TypeTransformationParser.isOperationKind(java.lang.String name, com.google.javascript.jscomp.parsing.TypeTransformationParser.OperationKind kind)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isOperationKind_7125(name string, kind TypeTransformationParser_OperationKind) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isOperationKind_7133(name string, kind TypeTransformationParser_OperationKind) bool {
 	_ = name
 	_ = kind
-	return (this_.priv_TypeTransformationParser_isValidKeyword_7124(name) && (this_.priv_TypeTransformationParser_nameToKeyword_7123(name).kind == kind))
+	return (this_.priv_TypeTransformationParser_isValidKeyword_7132(name) && (this_.priv_TypeTransformationParser_nameToKeyword_7131(name).kind == kind))
 }
 
 // Java method: TypeTransformationParser.isValidStringPredicate(java.lang.String name)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidStringPredicate_7126(name string) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidStringPredicate_7134(name string) bool {
 	_ = name
-	return this_.priv_TypeTransformationParser_isOperationKind_7125(name, StaticGet_TypeTransformationParser_OperationKind_STRING_PREDICATE())
+	return this_.priv_TypeTransformationParser_isOperationKind_7133(name, StaticGet_TypeTransformationParser_OperationKind_STRING_PREDICATE())
 }
 
 // Java method: TypeTransformationParser.isValidTypePredicate(java.lang.String name)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidTypePredicate_7127(name string) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidTypePredicate_7135(name string) bool {
 	_ = name
-	return this_.priv_TypeTransformationParser_isOperationKind_7125(name, StaticGet_TypeTransformationParser_OperationKind_TYPE_PREDICATE())
+	return this_.priv_TypeTransformationParser_isOperationKind_7133(name, StaticGet_TypeTransformationParser_OperationKind_TYPE_PREDICATE())
 }
 
 // Java method: TypeTransformationParser.isValidTypevarPredicate(java.lang.String name)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidTypevarPredicate_7128(name string) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidTypevarPredicate_7136(name string) bool {
 	_ = name
-	return this_.priv_TypeTransformationParser_isOperationKind_7125(name, StaticGet_TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE())
+	return this_.priv_TypeTransformationParser_isOperationKind_7133(name, StaticGet_TypeTransformationParser_OperationKind_TYPEVAR_PREDICATE())
 }
 
 // Java method: TypeTransformationParser.isBooleanOperation(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isBooleanOperation_7129(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isBooleanOperation_7137(n pkg_rhino.Node) bool {
 	_ = n
 	return ((n.IsAnd() || n.IsOr()) || n.IsNot())
 }
 
 // Java method: TypeTransformationParser.isValidPredicate(java.lang.String name)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidPredicate_7130(name string) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidPredicate_7138(name string) bool {
 	_ = name
-	return ((this_.priv_TypeTransformationParser_isValidStringPredicate_7126(name) || this_.priv_TypeTransformationParser_isValidTypePredicate_7127(name)) || this_.priv_TypeTransformationParser_isValidTypevarPredicate_7128(name))
+	return ((this_.priv_TypeTransformationParser_isValidStringPredicate_7134(name) || this_.priv_TypeTransformationParser_isValidTypePredicate_7135(name)) || this_.priv_TypeTransformationParser_isValidTypevarPredicate_7136(name))
 }
 
 // Java method: TypeTransformationParser.getFunctionParamCount(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getFunctionParamCount_7131(n pkg_rhino.Node) int32 {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getFunctionParamCount_7139(n pkg_rhino.Node) int32 {
 	_ = n
 	if !(n.IsFunction()) {
 		j2gort.CheckArgumentFmt(false, "Expected a function node, found %s", j2gort.BoxNode(n))
@@ -198,7 +198,7 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getFunction
 }
 
 // Java method: TypeTransformationParser.getFunctionBody(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getFunctionBody_7132(n pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getFunctionBody_7140(n pkg_rhino.Node) pkg_rhino.Node {
 	_ = n
 	if !(n.IsFunction()) {
 		j2gort.CheckArgumentFmt(false, "Expected a function node, found %s", j2gort.BoxNode(n))
@@ -207,7 +207,7 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getFunction
 }
 
 // Java method: TypeTransformationParser.getCallName(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallName_7133(n pkg_rhino.Node) string {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallName_7141(n pkg_rhino.Node) string {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckArgumentFmt(false, "Expected a call node, found %s", j2gort.BoxNode(n))
@@ -216,7 +216,7 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallName
 }
 
 // Java method: TypeTransformationParser.getCallArgument(com.google.javascript.rhino.Node n, int i)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallArgument_7134(n pkg_rhino.Node, i int32) pkg_rhino.Node {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallArgument_7142(n pkg_rhino.Node, i int32) pkg_rhino.Node {
 	_ = n
 	_ = i
 	if !(n.IsCall()) {
@@ -226,7 +226,7 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallArgu
 }
 
 // Java method: TypeTransformationParser.getCallParamCount(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallParamCount_7135(n pkg_rhino.Node) int32 {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallParamCount_7143(n pkg_rhino.Node) int32 {
 	_ = n
 	if !(n.IsCall()) {
 		j2gort.CheckArgumentFmt(false, "Expected a call node, found %s", j2gort.BoxNode(n))
@@ -235,71 +235,71 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_getCallPara
 }
 
 // Java method: TypeTransformationParser.isTypeVar(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isTypeVar_7136(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isTypeVar_7144(n pkg_rhino.Node) bool {
 	_ = n
 	return n.IsName()
 }
 
 // Java method: TypeTransformationParser.isTypeName(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isTypeName_7137(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isTypeName_7145(n pkg_rhino.Node) bool {
 	_ = n
 	return n.IsStringLit()
 }
 
 // Java method: TypeTransformationParser.isOperation(com.google.javascript.rhino.Node n)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isOperation_7138(n pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isOperation_7146(n pkg_rhino.Node) bool {
 	_ = n
 	return n.IsCall()
 }
 
 // Java method: TypeTransformationParser.isValidExpression(com.google.javascript.rhino.Node e)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidExpression_7139(e pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidExpression_7147(e pkg_rhino.Node) bool {
 	_ = e
-	return ((this_.priv_TypeTransformationParser_isTypeVar_7136(e) || this_.priv_TypeTransformationParser_isTypeName_7137(e)) || this_.priv_TypeTransformationParser_isOperation_7138(e))
+	return ((this_.priv_TypeTransformationParser_isTypeVar_7144(e) || this_.priv_TypeTransformationParser_isTypeName_7145(e)) || this_.priv_TypeTransformationParser_isOperation_7146(e))
 }
 
 // Java method: TypeTransformationParser.warnInvalid(java.lang.String msg)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnInvalid_7140(msg string) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnInvalid_7148(msg string) {
 	_ = msg
-	this_.priv_TypeTransformationParser_addNewWarning_7122(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_INVALID(), msg)
+	this_.priv_TypeTransformationParser_addNewWarning_7130(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_INVALID(), msg)
 }
 
 // Java method: TypeTransformationParser.warnInvalidExpression(java.lang.String msg)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnInvalidExpression_7141(msg string) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnInvalidExpression_7149(msg string) {
 	_ = msg
-	this_.priv_TypeTransformationParser_addNewWarning_7122(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_INVALID_EXPRESSION(), msg)
+	this_.priv_TypeTransformationParser_addNewWarning_7130(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_INVALID_EXPRESSION(), msg)
 }
 
 // Java method: TypeTransformationParser.warnMissingParam(java.lang.String msg)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnMissingParam_7142(msg string) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnMissingParam_7150(msg string) {
 	_ = msg
-	this_.priv_TypeTransformationParser_addNewWarning_7122(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_MISSING_PARAM(), msg)
+	this_.priv_TypeTransformationParser_addNewWarning_7130(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_MISSING_PARAM(), msg)
 }
 
 // Java method: TypeTransformationParser.warnExtraParam(java.lang.String msg)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnExtraParam_7143(msg string) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnExtraParam_7151(msg string) {
 	_ = msg
-	this_.priv_TypeTransformationParser_addNewWarning_7122(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_EXTRA_PARAM(), msg)
+	this_.priv_TypeTransformationParser_addNewWarning_7130(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_EXTRA_PARAM(), msg)
 }
 
 // Java method: TypeTransformationParser.warnInvalidInside(java.lang.String msg)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnInvalidInside_7144(msg string) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_warnInvalidInside_7152(msg string) {
 	_ = msg
-	this_.priv_TypeTransformationParser_addNewWarning_7122(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_INVALID_INSIDE(), msg)
+	this_.priv_TypeTransformationParser_addNewWarning_7130(pkg_rhino.StaticGet_Msg_JSDOC_TYPETRANSFORMATION_INVALID_INSIDE(), msg)
 }
 
 // Java method: TypeTransformationParser.checkParameterCount(com.google.javascript.rhino.Node expr, com.google.javascript.jscomp.parsing.TypeTransformationParser.Keywords keyword)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_checkParameterCount_7145(expr pkg_rhino.Node, keyword *TypeTransformationParser_Keywords) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_checkParameterCount_7153(expr pkg_rhino.Node, keyword *TypeTransformationParser_Keywords) bool {
 	_ = expr
 	_ = keyword
-	var paramCount int32 = this_.priv_TypeTransformationParser_getCallParamCount_7135(expr)
+	var paramCount int32 = this_.priv_TypeTransformationParser_getCallParamCount_7143(expr)
 	_ = paramCount
 	if paramCount < keyword.minParamCount {
-		this_.priv_TypeTransformationParser_warnMissingParam_7142(keyword.name)
+		this_.priv_TypeTransformationParser_warnMissingParam_7150(keyword.name)
 		return false
 	}
 	if paramCount > keyword.maxParamCount {
-		this_.priv_TypeTransformationParser_warnExtraParam_7143(keyword.name)
+		this_.priv_TypeTransformationParser_warnExtraParam_7151(keyword.name)
 		return false
 	}
 	return true
@@ -314,21 +314,21 @@ func (this_ *TypeTransformationParser) ParseTypeTransformation() bool {
 	var ast pkg_rhino.Node = result.ast
 	_ = ast
 	if (((ast == 0) || !(ast.IsScript())) || !(ast.HasChildren())) || !(ast.GetFirstChild().IsExprResult()) {
-		this_.priv_TypeTransformationParser_warnInvalidExpression_7141("type transformation")
+		this_.priv_TypeTransformationParser_warnInvalidExpression_7149("type transformation")
 		return false
 	}
 	var expr pkg_rhino.Node = ast.GetFirstFirstChild()
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(expr)) {
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(expr)) {
 		return false
 	}
-	this_.priv_TypeTransformationParser_fixTTLNodeLineNoCharNoAndLength_7147(expr)
+	this_.priv_TypeTransformationParser_fixTTLNodeLineNoCharNoAndLength_7155(expr)
 	this_.typeTransformationAst = expr
 	return true
 }
 
 // Java method: TypeTransformationParser.fixTTLNodeLineNoCharNoAndLength(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_fixTTLNodeLineNoCharNoAndLength_7147(expr pkg_rhino.Node) {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_fixTTLNodeLineNoCharNoAndLength_7155(expr pkg_rhino.Node) {
 	_ = expr
 	expr.SetLinenoCharno(this_.templateLineno, this_.templateCharno)
 	expr.SetLength(StaticGet_TypeTransformationParser_TTL_NODE_LENGTH())
@@ -336,32 +336,32 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_fixTTLNodeL
 		var child pkg_rhino.Node = expr.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			this_.priv_TypeTransformationParser_fixTTLNodeLineNoCharNoAndLength_7147(child)
+			this_.priv_TypeTransformationParser_fixTTLNodeLineNoCharNoAndLength_7155(child)
 		}
 	}
 }
 
 // Java method: TypeTransformationParser.validTemplateTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTemplateTypeExpression_7148(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTemplateTypeExpression_7156(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_TYPE())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_TYPE())) {
 		return false
 	}
-	var paramCount int32 = this_.priv_TypeTransformationParser_getCallParamCount_7135(expr)
+	var paramCount int32 = this_.priv_TypeTransformationParser_getCallParamCount_7143(expr)
 	_ = paramCount
-	var firstParam pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0))
+	var firstParam pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0))
 	_ = firstParam
-	if !(this_.priv_TypeTransformationParser_isTypeVar_7136(firstParam)) && !(this_.priv_TypeTransformationParser_isTypeName_7137(firstParam)) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("type name or type variable")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("template type operation")
+	if !(this_.priv_TypeTransformationParser_isTypeVar_7144(firstParam)) && !(this_.priv_TypeTransformationParser_isTypeName_7145(firstParam)) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("type name or type variable")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("template type operation")
 		return false
 	}
 	{
 		var i int32 = int32(1)
 		_ = i
 		for ; i < paramCount; i = i + 1 {
-			if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, i))) {
-				this_.priv_TypeTransformationParser_warnInvalidInside_7144("template type operation")
+			if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, i))) {
+				this_.priv_TypeTransformationParser_warnInvalidInside_7152("template type operation")
 				return false
 			}
 		}
@@ -370,19 +370,19 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTempla
 }
 
 // Java method: TypeTransformationParser.validUnionTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validUnionTypeExpression_7149(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validUnionTypeExpression_7157(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_UNION())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_UNION())) {
 		return false
 	}
-	var paramCount int32 = this_.priv_TypeTransformationParser_getCallParamCount_7135(expr)
+	var paramCount int32 = this_.priv_TypeTransformationParser_getCallParamCount_7143(expr)
 	_ = paramCount
 	{
 		var i int32 = int32(0)
 		_ = i
 		for ; i < paramCount; i = i + 1 {
-			if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, i))) {
-				this_.priv_TypeTransformationParser_warnInvalidInside_7144("union type")
+			if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, i))) {
+				this_.priv_TypeTransformationParser_warnInvalidInside_7152("union type")
 				return false
 			}
 		}
@@ -391,63 +391,63 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validUnionT
 }
 
 // Java method: TypeTransformationParser.validNoneTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validNoneTypeExpression_7150(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validNoneTypeExpression_7158(expr pkg_rhino.Node) bool {
 	_ = expr
-	return this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_NONE())
+	return this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_NONE())
 }
 
 // Java method: TypeTransformationParser.validAllTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validAllTypeExpression_7151(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validAllTypeExpression_7159(expr pkg_rhino.Node) bool {
 	_ = expr
-	return this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_ALL())
+	return this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_ALL())
 }
 
 // Java method: TypeTransformationParser.validUnknownTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validUnknownTypeExpression_7152(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validUnknownTypeExpression_7160(expr pkg_rhino.Node) bool {
 	_ = expr
-	return this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_UNKNOWN())
+	return this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_UNKNOWN())
 }
 
 // Java method: TypeTransformationParser.validRawTypeOfTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRawTypeOfTypeExpression_7153(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRawTypeOfTypeExpression_7161(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_RAWTYPEOF())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_RAWTYPEOF())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_RAWTYPEOF().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_RAWTYPEOF().name)
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validTemplateTypeOfExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTemplateTypeOfExpression_7154(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTemplateTypeOfExpression_7162(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF().name)
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)).IsNumber()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("index")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF().name)
+	if !(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)).IsNumber()) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("index")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF().name)
 		return false
 	}
-	var index float64 = this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)).GetDouble()
+	var index float64 = this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)).GetDouble()
 	_ = index
 	if math.IsNaN(index) || !(pkg_base.JSCompDoubles_IsExactInt32(index)) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("index")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF().name)
+		this_.priv_TypeTransformationParser_warnInvalid_7148("index")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_TEMPLATETYPEOF().name)
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validRecordParam(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRecordParam_7155(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRecordParam_7163(expr pkg_rhino.Node) bool {
 	_ = expr
 	if expr.IsObjectLit() {
 		{
@@ -455,31 +455,31 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRecord
 			_ = prop
 			for ; prop != 0; prop = prop.GetNext() {
 				if prop.IsShorthandProperty() {
-					this_.priv_TypeTransformationParser_warnInvalid_7140("property, missing type")
+					this_.priv_TypeTransformationParser_warnInvalid_7148("property, missing type")
 					return false
-				} else if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(prop.GetFirstChild())) {
+				} else if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(prop.GetFirstChild())) {
 					return false
 				}
 			}
 		}
-	} else if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(expr)) {
+	} else if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(expr)) {
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validRecordTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRecordTypeExpression_7156(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRecordTypeExpression_7164(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_RECORD())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_RECORD())) {
 		return false
 	}
 	{
 		var i int32 = int32(0)
 		_ = i
-		for ; i < this_.priv_TypeTransformationParser_getCallParamCount_7135(expr); i = i + 1 {
-			if !(this_.priv_TypeTransformationParser_validRecordParam_7155(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, i))) {
-				this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_RECORD().name)
+		for ; i < this_.priv_TypeTransformationParser_getCallParamCount_7143(expr); i = i + 1 {
+			if !(this_.priv_TypeTransformationParser_validRecordParam_7163(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, i))) {
+				this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_RECORD().name)
 				return false
 			}
 		}
@@ -488,16 +488,16 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validRecord
 }
 
 // Java method: TypeTransformationParser.validNativeTypeExpr(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validNativeTypeExpr_7157(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validNativeTypeExpr_7165(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_TYPEEXPR())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_TYPEEXPR())) {
 		return false
 	}
-	var typeString pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0))
+	var typeString pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0))
 	_ = typeString
 	if !(typeString.IsStringLit()) {
-		this_.priv_TypeTransformationParser_warnInvalidExpression_7141("native type")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_TYPEEXPR().name)
+		this_.priv_TypeTransformationParser_warnInvalidExpression_7149("native type")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_TYPEEXPR().name)
 		return false
 	}
 	var typeExpr pkg_rhino.Node = JsDocInfoParser_ParseTypeString(typeString.GetString())
@@ -508,31 +508,31 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validNative
 }
 
 // Java method: TypeTransformationParser.validTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeExpression_7158(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeExpression_7166(expr pkg_rhino.Node) bool {
 	_ = expr
-	var name string = this_.priv_TypeTransformationParser_getCallName_7133(expr)
+	var name string = this_.priv_TypeTransformationParser_getCallName_7141(expr)
 	_ = name
-	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7123(name)
+	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7131(name)
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(19) /* Keywords.TYPE */ :
-		return this_.priv_TypeTransformationParser_validTemplateTypeExpression_7148(expr)
+		return this_.priv_TypeTransformationParser_validTemplateTypeExpression_7156(expr)
 	case int32(22) /* Keywords.UNION */ :
-		return this_.priv_TypeTransformationParser_validUnionTypeExpression_7149(expr)
+		return this_.priv_TypeTransformationParser_validUnionTypeExpression_7157(expr)
 	case int32(11) /* Keywords.NONE */ :
-		return this_.priv_TypeTransformationParser_validNoneTypeExpression_7150(expr)
+		return this_.priv_TypeTransformationParser_validNoneTypeExpression_7158(expr)
 	case int32(0) /* Keywords.ALL */ :
-		return this_.priv_TypeTransformationParser_validAllTypeExpression_7151(expr)
+		return this_.priv_TypeTransformationParser_validAllTypeExpression_7159(expr)
 	case int32(23) /* Keywords.UNKNOWN */ :
-		return this_.priv_TypeTransformationParser_validUnknownTypeExpression_7152(expr)
+		return this_.priv_TypeTransformationParser_validUnknownTypeExpression_7160(expr)
 	case int32(14) /* Keywords.RAWTYPEOF */ :
-		return this_.priv_TypeTransformationParser_validRawTypeOfTypeExpression_7153(expr)
+		return this_.priv_TypeTransformationParser_validRawTypeOfTypeExpression_7161(expr)
 	case int32(18) /* Keywords.TEMPLATETYPEOF */ :
-		return this_.priv_TypeTransformationParser_validTemplateTypeOfExpression_7154(expr)
+		return this_.priv_TypeTransformationParser_validTemplateTypeOfExpression_7162(expr)
 	case int32(17) /* Keywords.RECORD */ :
-		return this_.priv_TypeTransformationParser_validRecordTypeExpression_7156(expr)
+		return this_.priv_TypeTransformationParser_validRecordTypeExpression_7164(expr)
 	case int32(20) /* Keywords.TYPEEXPR */ :
-		return this_.priv_TypeTransformationParser_validNativeTypeExpr_7157(expr)
+		return this_.priv_TypeTransformationParser_validNativeTypeExpr_7165(expr)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid type expression")))
 	}
@@ -540,15 +540,15 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeEx
 }
 
 // Java method: TypeTransformationParser.validTypePredicate(com.google.javascript.rhino.Node expr, int paramCount)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypePredicate_7159(expr pkg_rhino.Node, paramCount int32) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypePredicate_7167(expr pkg_rhino.Node, paramCount int32) bool {
 	_ = expr
 	_ = paramCount
 	{
 		var i int32 = int32(0)
 		_ = i
 		for ; i < paramCount; i = i + 1 {
-			if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, i))) {
-				this_.priv_TypeTransformationParser_warnInvalidInside_7144("boolean")
+			if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, i))) {
+				this_.priv_TypeTransformationParser_warnInvalidInside_7152("boolean")
 				return false
 			}
 		}
@@ -557,29 +557,29 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypePr
 }
 
 // Java method: TypeTransformationParser.isValidStringParam(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidStringParam_7160(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_isValidStringParam_7168(expr pkg_rhino.Node) bool {
 	_ = expr
 	if !(expr.IsName()) && !(expr.IsStringLit()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("string")
+		this_.priv_TypeTransformationParser_warnInvalid_7148("string")
 		return false
 	}
 	if j2gort.CheckNotNullString(expr.GetString()) == "" {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("string parameter")
+		this_.priv_TypeTransformationParser_warnInvalid_7148("string parameter")
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validStringPredicate(com.google.javascript.rhino.Node expr, int paramCount)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validStringPredicate_7161(expr pkg_rhino.Node, paramCount int32) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validStringPredicate_7169(expr pkg_rhino.Node, paramCount int32) bool {
 	_ = expr
 	_ = paramCount
 	{
 		var i int32 = int32(0)
 		_ = i
 		for ; i < paramCount; i = i + 1 {
-			if !(this_.priv_TypeTransformationParser_isValidStringParam_7160(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, i))) {
-				this_.priv_TypeTransformationParser_warnInvalidInside_7144("boolean")
+			if !(this_.priv_TypeTransformationParser_isValidStringParam_7168(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, i))) {
+				this_.priv_TypeTransformationParser_warnInvalidInside_7152("boolean")
 				return false
 			}
 		}
@@ -588,25 +588,25 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validString
 }
 
 // Java method: TypeTransformationParser.validTypevarParam(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypevarParam_7162(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypevarParam_7170(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_isTypeVar_7136(expr)) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("name")
+	if !(this_.priv_TypeTransformationParser_isTypeVar_7144(expr)) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("name")
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validTypevarPredicate(com.google.javascript.rhino.Node expr, int paramCount)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypevarPredicate_7163(expr pkg_rhino.Node, paramCount int32) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypevarPredicate_7171(expr pkg_rhino.Node, paramCount int32) bool {
 	_ = expr
 	_ = paramCount
 	{
 		var i int32 = int32(0)
 		_ = i
 		for ; i < paramCount; i = i + 1 {
-			if !(this_.priv_TypeTransformationParser_validTypevarParam_7162(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, i))) {
-				this_.priv_TypeTransformationParser_warnInvalidInside_7144("boolean")
+			if !(this_.priv_TypeTransformationParser_validTypevarParam_7170(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, i))) {
+				this_.priv_TypeTransformationParser_warnInvalidInside_7152("boolean")
 				return false
 			}
 		}
@@ -615,48 +615,48 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeva
 }
 
 // Java method: TypeTransformationParser.validBooleanOperation(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validBooleanOperation_7164(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validBooleanOperation_7172(expr pkg_rhino.Node) bool {
 	_ = expr
 	var valid bool = false
 	_ = valid
 	if expr.IsNot() {
-		valid = this_.priv_TypeTransformationParser_validBooleanExpression_7165(expr.GetFirstChild())
+		valid = this_.priv_TypeTransformationParser_validBooleanExpression_7173(expr.GetFirstChild())
 	} else {
-		valid = (this_.priv_TypeTransformationParser_validBooleanExpression_7165(expr.GetFirstChild()) && this_.priv_TypeTransformationParser_validBooleanExpression_7165(expr.GetSecondChild()))
+		valid = (this_.priv_TypeTransformationParser_validBooleanExpression_7173(expr.GetFirstChild()) && this_.priv_TypeTransformationParser_validBooleanExpression_7173(expr.GetSecondChild()))
 	}
 	if !(valid) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("boolean")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("boolean")
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validBooleanExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validBooleanExpression_7165(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validBooleanExpression_7173(expr pkg_rhino.Node) bool {
 	_ = expr
-	if this_.priv_TypeTransformationParser_isBooleanOperation_7129(expr) {
-		return this_.priv_TypeTransformationParser_validBooleanOperation_7164(expr)
+	if this_.priv_TypeTransformationParser_isBooleanOperation_7137(expr) {
+		return this_.priv_TypeTransformationParser_validBooleanOperation_7172(expr)
 	}
-	if !(this_.priv_TypeTransformationParser_isOperation_7138(expr)) {
-		this_.priv_TypeTransformationParser_warnInvalidExpression_7141("boolean")
+	if !(this_.priv_TypeTransformationParser_isOperation_7146(expr)) {
+		this_.priv_TypeTransformationParser_warnInvalidExpression_7149("boolean")
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_isValidPredicate_7130(this_.priv_TypeTransformationParser_getCallName_7133(expr))) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("boolean predicate")
+	if !(this_.priv_TypeTransformationParser_isValidPredicate_7138(this_.priv_TypeTransformationParser_getCallName_7141(expr))) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("boolean predicate")
 		return false
 	}
-	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7123(this_.priv_TypeTransformationParser_getCallName_7133(expr))
+	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7131(this_.priv_TypeTransformationParser_getCallName_7141(expr))
 	_ = keyword
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, keyword)) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, keyword)) {
 		return false
 	}
 	switch (keyword.kind).Ordinal() {
 	case int32(3) /* OperationKind.TYPE_PREDICATE */ :
-		return this_.priv_TypeTransformationParser_validTypePredicate_7159(expr, this_.priv_TypeTransformationParser_getCallParamCount_7135(expr))
+		return this_.priv_TypeTransformationParser_validTypePredicate_7167(expr, this_.priv_TypeTransformationParser_getCallParamCount_7143(expr))
 	case int32(2) /* OperationKind.STRING_PREDICATE */ :
-		return this_.priv_TypeTransformationParser_validStringPredicate_7161(expr, this_.priv_TypeTransformationParser_getCallParamCount_7135(expr))
+		return this_.priv_TypeTransformationParser_validStringPredicate_7169(expr, this_.priv_TypeTransformationParser_getCallParamCount_7143(expr))
 	case int32(4) /* OperationKind.TYPEVAR_PREDICATE */ :
-		return this_.priv_TypeTransformationParser_validTypevarPredicate_7163(expr, this_.priv_TypeTransformationParser_getCallParamCount_7135(expr))
+		return this_.priv_TypeTransformationParser_validTypevarPredicate_7171(expr, this_.priv_TypeTransformationParser_getCallParamCount_7143(expr))
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid boolean expression")))
 	}
@@ -664,187 +664,187 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validBoolea
 }
 
 // Java method: TypeTransformationParser.validConditionalExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validConditionalExpression_7166(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validConditionalExpression_7174(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_COND())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_COND())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validBooleanExpression_7165(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("conditional")
+	if !(this_.priv_TypeTransformationParser_validBooleanExpression_7173(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("conditional")
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("conditional")
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("conditional")
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(2)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("conditional")
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(2)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("conditional")
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validMapunionExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validMapunionExpression_7167(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validMapunionExpression_7175(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_MAPUNION())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_MAPUNION())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)).IsFunction()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("map function")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
+	if !(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)).IsFunction()) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("map function")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
 		return false
 	}
-	var mapFn pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1))
+	var mapFn pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1))
 	_ = mapFn
-	var mapFnParamCount int32 = this_.priv_TypeTransformationParser_getFunctionParamCount_7131(mapFn)
+	var mapFnParamCount int32 = this_.priv_TypeTransformationParser_getFunctionParamCount_7139(mapFn)
 	_ = mapFnParamCount
 	if mapFnParamCount < int32(1) {
-		this_.priv_TypeTransformationParser_warnMissingParam_7142("map function")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
+		this_.priv_TypeTransformationParser_warnMissingParam_7150("map function")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
 		return false
 	}
 	if mapFnParamCount > int32(1) {
-		this_.priv_TypeTransformationParser_warnExtraParam_7143("map function")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
+		this_.priv_TypeTransformationParser_warnExtraParam_7151("map function")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPUNION().name)
 		return false
 	}
-	var mapFnBody pkg_rhino.Node = this_.priv_TypeTransformationParser_getFunctionBody_7132(mapFn)
+	var mapFnBody pkg_rhino.Node = this_.priv_TypeTransformationParser_getFunctionBody_7140(mapFn)
 	_ = mapFnBody
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(mapFnBody)) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("map function body")
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(mapFnBody)) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("map function body")
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validMaprecordExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validMaprecordExpression_7168(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validMaprecordExpression_7176(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_MAPRECORD())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_MAPRECORD())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)).IsFunction()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("map function")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
+	if !(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)).IsFunction()) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("map function")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
 		return false
 	}
-	var mapFn pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1))
+	var mapFn pkg_rhino.Node = this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1))
 	_ = mapFn
-	var mapFnParamCount int32 = this_.priv_TypeTransformationParser_getFunctionParamCount_7131(mapFn)
+	var mapFnParamCount int32 = this_.priv_TypeTransformationParser_getFunctionParamCount_7139(mapFn)
 	_ = mapFnParamCount
 	if mapFnParamCount < int32(2) {
-		this_.priv_TypeTransformationParser_warnMissingParam_7142("map function")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
+		this_.priv_TypeTransformationParser_warnMissingParam_7150("map function")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
 		return false
 	}
 	if mapFnParamCount > int32(2) {
-		this_.priv_TypeTransformationParser_warnExtraParam_7143("map function")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
+		this_.priv_TypeTransformationParser_warnExtraParam_7151("map function")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_MAPRECORD().name)
 		return false
 	}
-	var mapFnBody pkg_rhino.Node = this_.priv_TypeTransformationParser_getFunctionBody_7132(mapFn)
+	var mapFnBody pkg_rhino.Node = this_.priv_TypeTransformationParser_getFunctionBody_7140(mapFn)
 	_ = mapFnBody
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(mapFnBody)) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144("map function body")
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(mapFnBody)) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152("map function body")
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validTypeOfVarExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeOfVarExpression_7169(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeOfVarExpression_7177(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_TYPEOFVAR())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_TYPEOFVAR())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)).IsStringLit()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("name")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_TYPEOFVAR().name)
+	if !(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)).IsStringLit()) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("name")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_TYPEOFVAR().name)
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validInstanceOfExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validInstanceOfExpression_7170(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validInstanceOfExpression_7178(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_INSTANCEOF())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_INSTANCEOF())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_INSTANCEOF().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_INSTANCEOF().name)
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validPrintTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validPrintTypeExpression_7171(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validPrintTypeExpression_7179(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_PRINTTYPE())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_PRINTTYPE())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)).IsStringLit()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("message")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_PRINTTYPE().name)
+	if !(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)).IsStringLit()) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("message")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_PRINTTYPE().name)
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_PRINTTYPE().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_PRINTTYPE().name)
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validPropTypeExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validPropTypeExpression_7172(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validPropTypeExpression_7180(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_checkParameterCount_7145(expr, StaticGet_TypeTransformationParser_Keywords_PROPTYPE())) {
+	if !(this_.priv_TypeTransformationParser_checkParameterCount_7153(expr, StaticGet_TypeTransformationParser_Keywords_PROPTYPE())) {
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(0)).IsStringLit()) {
-		this_.priv_TypeTransformationParser_warnInvalid_7140("property name")
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_PROPTYPE().name)
+	if !(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(0)).IsStringLit()) {
+		this_.priv_TypeTransformationParser_warnInvalid_7148("property name")
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_PROPTYPE().name)
 		return false
 	}
-	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7174(this_.priv_TypeTransformationParser_getCallArgument_7134(expr, int32(1)))) {
-		this_.priv_TypeTransformationParser_warnInvalidInside_7144(StaticGet_TypeTransformationParser_Keywords_PROPTYPE().name)
+	if !(this_.priv_TypeTransformationParser_validTypeTransformationExpression_7182(this_.priv_TypeTransformationParser_getCallArgument_7142(expr, int32(1)))) {
+		this_.priv_TypeTransformationParser_warnInvalidInside_7152(StaticGet_TypeTransformationParser_Keywords_PROPTYPE().name)
 		return false
 	}
 	return true
 }
 
 // Java method: TypeTransformationParser.validOperationExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validOperationExpression_7173(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validOperationExpression_7181(expr pkg_rhino.Node) bool {
 	_ = expr
-	var name string = this_.priv_TypeTransformationParser_getCallName_7133(expr)
+	var name string = this_.priv_TypeTransformationParser_getCallName_7141(expr)
 	_ = name
-	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7123(name)
+	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7131(name)
 	_ = keyword
 	switch j2gort.CheckNotNullPtr(keyword).Ordinal() {
 	case int32(1) /* Keywords.COND */ :
-		return this_.priv_TypeTransformationParser_validConditionalExpression_7166(expr)
+		return this_.priv_TypeTransformationParser_validConditionalExpression_7174(expr)
 	case int32(9) /* Keywords.MAPUNION */ :
-		return this_.priv_TypeTransformationParser_validMapunionExpression_7167(expr)
+		return this_.priv_TypeTransformationParser_validMapunionExpression_7175(expr)
 	case int32(10) /* Keywords.MAPRECORD */ :
-		return this_.priv_TypeTransformationParser_validMaprecordExpression_7168(expr)
+		return this_.priv_TypeTransformationParser_validMaprecordExpression_7176(expr)
 	case int32(21) /* Keywords.TYPEOFVAR */ :
-		return this_.priv_TypeTransformationParser_validTypeOfVarExpression_7169(expr)
+		return this_.priv_TypeTransformationParser_validTypeOfVarExpression_7177(expr)
 	case int32(8) /* Keywords.INSTANCEOF */ :
-		return this_.priv_TypeTransformationParser_validInstanceOfExpression_7170(expr)
+		return this_.priv_TypeTransformationParser_validInstanceOfExpression_7178(expr)
 	case int32(12) /* Keywords.PRINTTYPE */ :
-		return this_.priv_TypeTransformationParser_validPrintTypeExpression_7171(expr)
+		return this_.priv_TypeTransformationParser_validPrintTypeExpression_7179(expr)
 	case int32(13) /* Keywords.PROPTYPE */ :
-		return this_.priv_TypeTransformationParser_validPropTypeExpression_7172(expr)
+		return this_.priv_TypeTransformationParser_validPropTypeExpression_7180(expr)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid type transformation operation")))
 	}
@@ -852,28 +852,28 @@ func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validOperat
 }
 
 // Java method: TypeTransformationParser.validTypeTransformationExpression(com.google.javascript.rhino.Node expr)
-func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeTransformationExpression_7174(expr pkg_rhino.Node) bool {
+func (this_ *TypeTransformationParser) priv_TypeTransformationParser_validTypeTransformationExpression_7182(expr pkg_rhino.Node) bool {
 	_ = expr
-	if !(this_.priv_TypeTransformationParser_isValidExpression_7139(expr)) {
-		this_.priv_TypeTransformationParser_warnInvalidExpression_7141("type transformation")
+	if !(this_.priv_TypeTransformationParser_isValidExpression_7147(expr)) {
+		this_.priv_TypeTransformationParser_warnInvalidExpression_7149("type transformation")
 		return false
 	}
-	if this_.priv_TypeTransformationParser_isTypeVar_7136(expr) || this_.priv_TypeTransformationParser_isTypeName_7137(expr) {
+	if this_.priv_TypeTransformationParser_isTypeVar_7144(expr) || this_.priv_TypeTransformationParser_isTypeName_7145(expr) {
 		return true
 	}
-	var name string = this_.priv_TypeTransformationParser_getCallName_7133(expr)
+	var name string = this_.priv_TypeTransformationParser_getCallName_7141(expr)
 	_ = name
-	if !(this_.priv_TypeTransformationParser_isValidKeyword_7124(name)) {
-		this_.priv_TypeTransformationParser_warnInvalidExpression_7141("type transformation")
+	if !(this_.priv_TypeTransformationParser_isValidKeyword_7132(name)) {
+		this_.priv_TypeTransformationParser_warnInvalidExpression_7149("type transformation")
 		return false
 	}
-	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7123(name)
+	var keyword *TypeTransformationParser_Keywords = this_.priv_TypeTransformationParser_nameToKeyword_7131(name)
 	_ = keyword
 	switch (keyword.kind).Ordinal() {
 	case int32(0) /* OperationKind.TYPE_CONSTRUCTOR */ :
-		return this_.priv_TypeTransformationParser_validTypeExpression_7158(expr)
+		return this_.priv_TypeTransformationParser_validTypeExpression_7166(expr)
 	case int32(1) /* OperationKind.OPERATION */ :
-		return this_.priv_TypeTransformationParser_validOperationExpression_7173(expr)
+		return this_.priv_TypeTransformationParser_validOperationExpression_7181(expr)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Invalid type transformation expression")))
 	}

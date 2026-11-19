@@ -421,42 +421,22 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 		this_.self_.AddAllowlistWarningsGuard(options, j2gort.NewExt_java_io_File_1_string(this_.config.warningsAllowFile))
 	}
 	if !(this_.config.hideWarningsFor.IsEmpty()) {
-		options.AddWarningsGuard(NewShowByPathWarningsGuard_2_slice_string_ShowByPathWarningsGuard_ShowType(func() []string {
-			arr_9 := this_.config.hideWarningsFor.ToArray_1_slice_any(func() []any {
-				arr_6 := []string{}
-				if arr_6 == nil {
-					return nil
-				}
-				out_7 := make([]any, len(arr_6))
-				for i_, el_8 := range arr_6 {
-					out_7[i_] = j2gort.BoxString(el_8)
-				}
-				return out_7
-			}())
-			if arr_9 == nil {
-				return nil
-			}
-			out_10 := make([]string, len(arr_9))
-			for i_, el_11 := range arr_9 {
-				out_10[i_] = j2gort.CastString(el_11)
-			}
-			return out_10
-		}(), StaticGet_ShowByPathWarningsGuard_ShowType_EXCLUDE()))
+		options.AddWarningsGuard(NewShowByPathWarningsGuard_2_slice_string_ShowByPathWarningsGuard_ShowType(j2gort.ColToStringArray(this_.config.hideWarningsFor, []string{}), StaticGet_ShowByPathWarningsGuard_ShowType_EXCLUDE()))
 	}
 	var define j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](this_.config.define))
 	_ = define
 	if this_.config.browserFeaturesetYear != int32(0) {
 		func() {
 			defer func() {
-				if rec_12 := recover(); rec_12 != nil {
-					jex_13 := javalang.RecoverException(rec_12)
-					_ = jex_13
-					if j2gort.InstanceOf[javalang.IIllegalStateException](jex_13) {
-						e := j2gort.AsIface[javalang.IIllegalStateException](jex_13)
+				if rec_6 := recover(); rec_6 != nil {
+					jex_7 := javalang.RecoverException(rec_6)
+					_ = jex_7
+					if j2gort.InstanceOf[javalang.IIllegalStateException](jex_7) {
+						e := j2gort.AsIface[javalang.IIllegalStateException](jex_7)
 						_ = e
 						panic(NewFlagUsageException(j2gort.ThrowableGetMessage(e)))
 					} else {
-						panic(rec_12)
+						panic(rec_6)
 					}
 				}
 			}()
@@ -503,11 +483,11 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 	var inputSourceMaps j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.NewExt_com_google_common_collect_ImmutableMap_Builder()
 	_ = inputSourceMaps
 	{
-		cur_14 := j2gort.NewMapEntryCursor(this_.config.sourceMapInputFiles)
-		for cur_14.NextEntry() {
-			var sourceMap *SourceFile = SourceFile_S_Builder().WithKind(pkg_rhino.StaticGet_StaticSourceFile_SourceKind_NON_CODE()).WithPath_1_string(j2gort.CastString(cur_14.GetValue())).Build()
+		cur_8 := j2gort.NewMapEntryCursor(this_.config.sourceMapInputFiles)
+		for cur_8.NextEntry() {
+			var sourceMap *SourceFile = SourceFile_S_Builder().WithKind(pkg_rhino.StaticGet_StaticSourceFile_SourceKind_NON_CODE()).WithPath_1_string(j2gort.CastString(cur_8.GetValue())).Build()
 			_ = sourceMap
-			inputSourceMaps.Put_2(j2gort.BoxString(cur_14.KeyStr()), NewSourceMapInput(sourceMap))
+			inputSourceMaps.Put_2(j2gort.BoxString(cur_8.KeyStr()), NewSourceMapInput(sourceMap))
 		}
 	}
 	options.SetInputSourceMaps(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMap](inputSourceMaps.BuildOrThrow()))
@@ -521,9 +501,9 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 		var uniqueNames j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()
 		_ = uniqueNames
 		{
-			cur_15 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.config.outputManifests))
-			for cur_15.HasNext() {
-				filename := cur_15.NextStr()
+			cur_9 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.config.outputManifests))
+			for cur_9.HasNext() {
+				filename := cur_9.NextStr()
 				_ = filename
 				if !(uniqueNames.Add(filename)) {
 					panic(NewFlagUsageException(("output_manifest flags specify duplicate file names: " + j2gort.StrValString(filename))))
@@ -535,9 +515,9 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 		var uniqueNames_2 j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()
 		_ = uniqueNames_2
 		{
-			cur_16 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.config.outputBundles))
-			for cur_16.HasNext() {
-				filename_2 := cur_16.NextStr()
+			cur_10 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.config.outputBundles))
+			for cur_10.HasNext() {
+				filename_2 := cur_10.NextStr()
 				_ = filename_2
 				if !(uniqueNames_2.Add(filename_2)) {
 					panic(NewFlagUsageException(("output_bundle flags specify duplicate file names: " + j2gort.StrValString(filename_2))))
@@ -553,9 +533,9 @@ func (this_ *AbstractCommandLineRunnerBase) SetRunOptions(options *CompilerOptio
 	}
 	if this_.config.errorFormat == StaticGet_AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_JSON() {
 		clinit_JsonErrorReportGenerator()
-		var val_17 JsonErrorReportGenerator
-		InitJsonErrorReportGenerator(&val_17, this_.GetErrorPrintStream(), ToIface_SourceExcerptProvider(this_.compiler))
-		var errorGenerator *JsonErrorReportGenerator = &val_17
+		var val_11 JsonErrorReportGenerator
+		InitJsonErrorReportGenerator(&val_11, this_.GetErrorPrintStream(), ToIface_SourceExcerptProvider(this_.compiler))
+		var errorGenerator *JsonErrorReportGenerator = &val_11
 		_ = errorGenerator
 		this_.compiler.SetErrorManager(Upcast_ErrorManager(NewSortingErrorManager(j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_1(errorGenerator)))))
 	}
@@ -594,9 +574,9 @@ func AbstractCommandLineRunner_GetBuiltinExterns(env CompilerOptions_Environment
 			var entry *j2gort.Ext_java_util_zip_ZipEntry = nil
 			_ = entry
 			for (func() *j2gort.Ext_java_util_zip_ZipEntry {
-				var asgn_18 *j2gort.Ext_java_util_zip_ZipEntry = zip.GetNextEntry()
-				entry = asgn_18
-				return asgn_18
+				var asgn_12 *j2gort.Ext_java_util_zip_ZipEntry = zip.GetNextEntry()
+				entry = asgn_12
+				return asgn_12
 			}()) != nil {
 				var filename string = entry.GetName()
 				_ = filename
@@ -653,21 +633,21 @@ func (this_ *AbstractCommandLineRunnerBase) Run() {
 	_ = result
 	func() {
 		defer func() {
-			if rec_19 := recover(); rec_19 != nil {
-				jex_20 := javalang.RecoverException(rec_19)
-				_ = jex_20
-				if j2gort.InstanceOf[*FlagUsageException](jex_20) {
-					e := j2gort.AsIface[*FlagUsageException](jex_20)
+			if rec_13 := recover(); rec_13 != nil {
+				jex_14 := javalang.RecoverException(rec_13)
+				_ = jex_14
+				if j2gort.InstanceOf[*FlagUsageException](jex_14) {
+					e := j2gort.AsIface[*FlagUsageException](jex_14)
 					_ = e
 					this_.err.Println_1_string(j2gort.ThrowableGetMessage(e))
 					result = int32(-1)
-				} else if j2gort.InstanceOf[javalang.Throwable](jex_20) {
-					t := j2gort.AsIface[javalang.Throwable](jex_20)
+				} else if j2gort.InstanceOf[javalang.Throwable](jex_14) {
+					t := j2gort.AsIface[javalang.Throwable](jex_14)
 					_ = t
 					j2gort.ThrowablePrintStackTrace(t, this_.err)
 					result = int32(-2)
 				} else {
-					panic(rec_19)
+					panic(rec_13)
 				}
 			}
 		}()
@@ -756,10 +736,10 @@ func (this_ *AbstractCommandLineRunnerBase) CreateInputs_4(files j2gort.Ext_java
 						var rootFilename string = j2gort.CastString(j2gort.MapGetStr(this_.rootRelativePathsMap, filename))
 						_ = rootFilename
 						{
-							cur_21 := j2gort.NewIterCursor(j2gort.CheckNotNull(newFiles))
-							for cur_21.HasNext() {
-								rawElem_22 := cur_21.Next()
-								zipEntry := j2gort.CastPtr[SourceFile](rawElem_22)
+							cur_15 := j2gort.NewIterCursor(j2gort.CheckNotNull(newFiles))
+							for cur_15.HasNext() {
+								rawElem_16 := cur_15.Next()
+								zipEntry := j2gort.CastPtr[SourceFile](rawElem_16)
 								_ = zipEntry
 								var zipEntryName string = zipEntry.GetName()
 								_ = zipEntryName
@@ -774,8 +754,8 @@ func (this_ *AbstractCommandLineRunnerBase) CreateInputs_4(files j2gort.Ext_java
 					}
 					inputs = j2gort.AppendCollection[*SourceFile](inputs, j2gort.AsIface[j2gort.Ext_java_util_Collection](newFiles))
 					if jsChunkSpec != nil {
-						r_23 := jsChunkSpec
-						r_23.numJsFiles = (r_23.numJsFiles + (newFiles.Size() - int32(1)))
+						r_17 := jsChunkSpec
+						r_17.numJsFiles = (r_17.numJsFiles + (newFiles.Size() - int32(1)))
 					}
 				}
 			} else if !("-" == filename) {
@@ -820,10 +800,10 @@ func (this_ *AbstractCommandLineRunnerBase) CreateInputs_4(files j2gort.Ext_java
 	}
 	if jsonFiles != nil {
 		{
-			cur_24 := j2gort.NewIterCursor(j2gort.CheckNotNull(jsonFiles))
-			for cur_24.HasNext() {
-				rawElem_25 := cur_24.Next()
-				jsonFile := j2gort.CastPtr[AbstractCommandLineRunner_JsonFileSpec](rawElem_25)
+			cur_18 := j2gort.NewIterCursor(j2gort.CheckNotNull(jsonFiles))
+			for cur_18.HasNext() {
+				rawElem_19 := cur_18.Next()
+				jsonFile := j2gort.CastPtr[AbstractCommandLineRunner_JsonFileSpec](rawElem_19)
 				_ = jsonFile
 				inputs = append(inputs, SourceFile_FromCode_2(jsonFile.GetPath(), jsonFile.GetSrc()))
 			}
@@ -842,10 +822,10 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_dedup
 	var relativeToAbsoluteName j2gort.OrderedMap[string, string] = j2gort.NewOrderedMap[string, string]()
 	_ = relativeToAbsoluteName
 	{
-		cur_26 := j2gort.NewIterCursor(j2gort.CheckNotNull(files))
-		for cur_26.HasNext() {
-			rawElem_27 := cur_26.Next()
-			file := j2gort.CastPtr[AbstractCommandLineRunner_FlagEntry](rawElem_27)
+		cur_20 := j2gort.NewIterCursor(j2gort.CheckNotNull(files))
+		for cur_20.HasNext() {
+			rawElem_21 := cur_20.Next()
+			file := j2gort.CastPtr[AbstractCommandLineRunner_FlagEntry](rawElem_21)
 			_ = file
 			if (j2gort.Cast[AbstractCommandLineRunner_JsSourceType](file.flag) == StaticGet_AbstractCommandLineRunner_JsSourceType_JS()) || (j2gort.Cast[AbstractCommandLineRunner_JsSourceType](file.flag) == StaticGet_AbstractCommandLineRunner_JsSourceType_WEAKDEP()) {
 				var absoluteName string = file.value
@@ -889,9 +869,9 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_getMo
 	_ = filename
 	_ = moduleRoots
 	{
-		cur_28 := j2gort.NewIterCursor(j2gort.CheckNotNull(moduleRoots))
-		for cur_28.HasNext() {
-			moduleRoot := cur_28.NextStr()
+		cur_22 := j2gort.NewIterCursor(j2gort.CheckNotNull(moduleRoots))
+		for cur_22.HasNext() {
+			moduleRoot := cur_22.NextStr()
 			_ = moduleRoot
 			if javalang.StringStartsWith(j2gort.CheckNotNullString(filename), j2gort.StrValString(moduleRoot)+"/") {
 				return j2gort.JStrSubFrom(filename, (j2gort.JStrLen(moduleRoot) + int32(1)))
@@ -918,42 +898,42 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 		files = j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.ImmListOfPtr(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_JS()), "-")))
 	}
 	{
-		cur_29 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_AbstractCommandLineRunner_deduplicateIjsFiles_155(files, moduleRoots, !(jsChunkSpecs.IsEmpty()))))
-		for cur_29.HasNext() {
-			rawElem_30 := cur_29.Next()
-			error_ := j2gort.CastPtr[JSError](rawElem_30)
+		cur_23 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.priv_AbstractCommandLineRunner_deduplicateIjsFiles_155(files, moduleRoots, !(jsChunkSpecs.IsEmpty()))))
+		for cur_23.HasNext() {
+			rawElem_24 := cur_23.Next()
+			error_ := j2gort.CastPtr[JSError](rawElem_24)
 			_ = error_
 			this_.compiler.Report_1(error_)
 		}
 	}
-	var didRet_31 bool
-	var retVal_32 j2gort.Ext_java_util_List
+	var didRet_25 bool
+	var retVal_26 j2gort.Ext_java_util_List
 	func() {
 		defer func() {
-			if rec_33 := recover(); rec_33 != nil {
-				jex_34 := javalang.RecoverException(rec_33)
-				_ = jex_34
-				if j2gort.InstanceOf[*FlagUsageException](jex_34) {
-					e := j2gort.AsIface[*FlagUsageException](jex_34)
+			if rec_27 := recover(); rec_27 != nil {
+				jex_28 := javalang.RecoverException(rec_27)
+				_ = jex_28
+				if j2gort.InstanceOf[*FlagUsageException](jex_28) {
+					e := j2gort.AsIface[*FlagUsageException](jex_28)
 					_ = e
 					panic(NewFlagUsageException(("Bad --js flag. " + j2gort.StrValString(j2gort.ThrowableGetMessage(e)))))
 				} else {
-					panic(rec_33)
+					panic(rec_27)
 				}
 			}
 		}()
 		if jsonFiles != nil {
-			retVal_32 = this_.priv_AbstractCommandLineRunner_createInputs_153(files, jsonFiles, jsChunkSpecs)
-			didRet_31 = true
+			retVal_26 = this_.priv_AbstractCommandLineRunner_createInputs_153(files, jsonFiles, jsChunkSpecs)
+			didRet_25 = true
 			return
 		} else {
-			retVal_32 = this_.priv_AbstractCommandLineRunner_createInputs_152(files, true, jsChunkSpecs)
-			didRet_31 = true
+			retVal_26 = this_.priv_AbstractCommandLineRunner_createInputs_152(files, true, jsChunkSpecs)
+			didRet_25 = true
 			return
 		}
 	}()
-	if didRet_31 {
-		return retVal_32
+	if didRet_25 {
+		return retVal_26
 	}
 	panic("unreachable")
 }
@@ -968,28 +948,28 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 		externFiles.Add_1(NewAbstractCommandLineRunner_FlagEntry(j2gort.BoxNullableVal(StaticGet_AbstractCommandLineRunner_JsSourceType_EXTERN()), file))
 	}
 
-	var didRet_36 bool
-	var retVal_37 j2gort.Ext_java_util_List
+	var didRet_30 bool
+	var retVal_31 j2gort.Ext_java_util_List
 	func() {
 		defer func() {
-			if rec_38 := recover(); rec_38 != nil {
-				jex_39 := javalang.RecoverException(rec_38)
-				_ = jex_39
-				if j2gort.InstanceOf[*FlagUsageException](jex_39) {
-					e := j2gort.AsIface[*FlagUsageException](jex_39)
+			if rec_32 := recover(); rec_32 != nil {
+				jex_33 := javalang.RecoverException(rec_32)
+				_ = jex_33
+				if j2gort.InstanceOf[*FlagUsageException](jex_33) {
+					e := j2gort.AsIface[*FlagUsageException](jex_33)
 					_ = e
 					panic(NewFlagUsageException(("Bad --externs flag. " + j2gort.StrValString(j2gort.ThrowableGetMessage(e)))))
 				} else {
-					panic(rec_38)
+					panic(rec_32)
 				}
 			}
 		}()
-		retVal_37 = this_.priv_AbstractCommandLineRunner_createInputs_152(externFiles, false, j2gort.NewExt_java_util_ArrayList())
-		didRet_36 = true
+		retVal_31 = this_.priv_AbstractCommandLineRunner_createInputs_152(externFiles, false, j2gort.NewExt_java_util_ArrayList())
+		didRet_30 = true
 		return
 	}()
-	if didRet_36 {
-		return retVal_37
+	if didRet_30 {
+		return retVal_31
 	}
 	panic("unreachable")
 }
@@ -1019,10 +999,10 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 	var minJsFilesRequired int32 = int32(0)
 	_ = minJsFilesRequired
 	{
-		cur_40 := j2gort.NewIterCursor(j2gort.CheckNotNull(specs))
-		for cur_40.HasNext() {
-			rawElem_41 := cur_40.Next()
-			spec := j2gort.CastPtr[AbstractCommandLineRunner_JsChunkSpec](rawElem_41)
+		cur_34 := j2gort.NewIterCursor(j2gort.CheckNotNull(specs))
+		for cur_34.HasNext() {
+			rawElem_35 := cur_34.Next()
+			spec := j2gort.CastPtr[AbstractCommandLineRunner_JsChunkSpec](rawElem_35)
 			_ = spec
 			if j2gort.MapContainsKeyStr(chunksByName, spec.name) {
 				panic(NewFlagUsageException(("Duplicate chunk name: " + j2gort.StrValString(spec.name))))
@@ -1089,10 +1069,10 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 		var chunkFiles j2gort.Ext_java_util_List = j2gort.AsIface[j2gort.Ext_java_util_List](inputs.SubList((numJsFilesLeft - numJsFiles), numJsFilesLeft))
 		_ = chunkFiles
 		{
-			cur_44 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunkFiles))
-			for cur_44.HasNext() {
-				rawElem_45 := cur_44.Next()
-				input := j2gort.CastPtr[CompilerInput](rawElem_45)
+			cur_38 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunkFiles))
+			for cur_38.HasNext() {
+				rawElem_39 := cur_38.Next()
+				input := j2gort.CastPtr[CompilerInput](rawElem_39)
 				_ = input
 				chunk_2.Add_1_CompilerInput(input)
 			}
@@ -1123,18 +1103,18 @@ func AbstractCommandLineRunner_ParseChunkWrappers(specs j2gort.Ext_java_util_Lis
 	var wrappers j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = wrappers
 	{
-		cur_46 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
-		for cur_46.HasNext() {
-			rawElem_47 := cur_46.Next()
-			c := j2gort.CastPtr[JSChunk](rawElem_47)
+		cur_40 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
+		for cur_40.HasNext() {
+			rawElem_41 := cur_40.Next()
+			c := j2gort.CastPtr[JSChunk](rawElem_41)
 			_ = c
 			j2gort.MapPutStr(wrappers, c.GetName(), "")
 		}
 	}
 	{
-		cur_48 := j2gort.NewIterCursor(j2gort.CheckNotNull(specs))
-		for cur_48.HasNext() {
-			spec := cur_48.NextStr()
+		cur_42 := j2gort.NewIterCursor(j2gort.CheckNotNull(specs))
+		for cur_42.HasNext() {
+			spec := cur_42.NextStr()
 			_ = spec
 			var pos int32 = j2gort.JStrIndexOfCp(spec, int32(uint16(58)))
 			_ = pos
@@ -1168,9 +1148,9 @@ func AbstractCommandLineRunner_ParseChunkOutputFiles(specs j2gort.Ext_java_util_
 	var outputFilesBuilder j2gort.Ext_com_google_common_collect_ImmutableMap_Builder = j2gort.Ext_com_google_common_collect_ImmutableMap_S_Builder()
 	_ = outputFilesBuilder
 	{
-		cur_49 := j2gort.NewIterCursor(j2gort.CheckNotNull(specs))
-		for cur_49.HasNext() {
-			spec := cur_49.NextStr()
+		cur_43 := j2gort.NewIterCursor(j2gort.CheckNotNull(specs))
+		for cur_43.HasNext() {
+			spec := cur_43.NextStr()
 			_ = spec
 			var pos int32 = j2gort.JStrIndexOfCp(spec, int32(uint16(58)))
 			_ = pos
@@ -1327,16 +1307,16 @@ func AbstractCommandLineRunner_CloseAppendable(output j2gort.Ext_java_lang_Appen
 	_ = output
 	var flushable j2gort.Ext_java_io_Flushable
 	_ = flushable
-	var ok_50 bool
-	flushable, ok_50 = j2gort.TryCast[j2gort.Ext_java_io_Flushable](output)
-	if ok_50 {
+	var ok_44 bool
+	flushable, ok_44 = j2gort.TryCast[j2gort.Ext_java_io_Flushable](output)
+	if ok_44 {
 		flushable.Flush()
 	}
 	var closeable j2gort.Ext_java_io_Closeable
 	_ = closeable
-	var ok_51 bool
-	closeable, ok_51 = j2gort.TryCast[j2gort.Ext_java_io_Closeable](output)
-	if ok_51 {
+	var ok_45 bool
+	closeable, ok_45 = j2gort.TryCast[j2gort.Ext_java_io_Closeable](output)
+	if ok_45 {
 		closeable.Close_0()
 	}
 }
@@ -1399,10 +1379,10 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 		var foundJsonInputSourceMap bool = false
 		_ = foundJsonInputSourceMap
 		{
-			cur_52 := j2gort.NewIterCursor(j2gort.CheckNotNull(jsonFiles))
-			for cur_52.HasNext() {
-				rawElem_53 := cur_52.Next()
-				jsonFile := j2gort.CastPtr[AbstractCommandLineRunner_JsonFileSpec](rawElem_53)
+			cur_46 := j2gort.NewIterCursor(j2gort.CheckNotNull(jsonFiles))
+			for cur_46.HasNext() {
+				rawElem_47 := cur_46.Next()
+				jsonFile := j2gort.CastPtr[AbstractCommandLineRunner_JsonFileSpec](rawElem_47)
 				_ = jsonFile
 				if (jsonFile.GetSourceMap() != j2gort.NullString) && (j2gort.JStrLen(jsonFile.GetSourceMap()) > int32(0)) {
 					var sourceMapPath string = (j2gort.StrValString(jsonFile.GetPath()) + ".map")
@@ -1440,26 +1420,26 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 				var iifeCond_1 bool
 				{
 
-					re_54 := StaticGet_CompilerOptions_JsonStreamMode_IN()
-					ae_55 := this_.config.jsonStreamMode
-					if re_54 == 0 {
+					re_48 := StaticGet_CompilerOptions_JsonStreamMode_IN()
+					ae_49 := this_.config.jsonStreamMode
+					if re_48 == 0 {
 						j2gort.ThrowNPE()
 					}
-					iifeCond_1 = re_54 == ae_55
+					iifeCond_1 = re_48 == ae_49
 				}
 				if iifeCond_1 || func() bool {
-					re_56 := StaticGet_CompilerOptions_JsonStreamMode_NONE()
-					ae_57 := this_.config.jsonStreamMode
-					if re_56 == 0 {
+					re_50 := StaticGet_CompilerOptions_JsonStreamMode_NONE()
+					ae_51 := this_.config.jsonStreamMode
+					if re_50 == 0 {
 						j2gort.ThrowNPE()
 					}
-					return re_56 == ae_57
+					return re_50 == ae_51
 				}() {
 					{
-						cur_58 := j2gort.NewIterCursor(j2gort.CheckNotNull(jsChunkSpecs))
-						for cur_58.HasNext() {
-							rawElem_59 := cur_58.Next()
-							m := j2gort.CastPtr[AbstractCommandLineRunner_JsChunkSpec](rawElem_59)
+						cur_52 := j2gort.NewIterCursor(j2gort.CheckNotNull(jsChunkSpecs))
+						for cur_52.HasNext() {
+							rawElem_53 := cur_52.Next()
+							m := j2gort.CastPtr[AbstractCommandLineRunner_JsChunkSpec](rawElem_53)
 							_ = m
 							this_.self_.CheckChunkName(m.GetName())
 						}
@@ -1469,10 +1449,10 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 			var inputs []*CompilerInput = []*CompilerInput{}
 			_ = inputs
 			{
-				cur_60 := j2gort.NewIterCursor(j2gort.CheckNotNull(sources))
-				for cur_60.HasNext() {
-					rawElem_61 := cur_60.Next()
-					source := j2gort.CastPtr[SourceFile](rawElem_61)
+				cur_54 := j2gort.NewIterCursor(j2gort.CheckNotNull(sources))
+				for cur_54.HasNext() {
+					rawElem_55 := cur_54.Next()
+					source := j2gort.CastPtr[SourceFile](rawElem_55)
 					_ = source
 					inputs = append(inputs, NewCompilerInput_2_SourceFile_bool(source, false))
 				}
@@ -1480,10 +1460,10 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 			chunks = AbstractCommandLineRunner_CreateJsChunks(jsChunkSpecs, j2gort.ImmListFromTypedSlice(inputs))
 		}
 		{
-			cur_62 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
-			for cur_62.HasNext() {
-				rawElem_63 := cur_62.Next()
-				m_2 := j2gort.CastPtr[JSChunk](rawElem_63)
+			cur_56 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
+			for cur_56.HasNext() {
+				rawElem_57 := cur_56.Next()
+				m_2 := j2gort.CastPtr[JSChunk](rawElem_57)
 				_ = m_2
 				outputFileNames = append(outputFileNames, this_.GetChunkOutputFileName(m_2))
 			}
@@ -1531,10 +1511,10 @@ func (this_ *AbstractCommandLineRunnerBase) DoRun() int32 {
 	if createCommonJsModules {
 		chunks = j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_Ext_java_lang_Iterable(this_.compiler.GetChunks()))
 		{
-			cur_64 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
-			for cur_64.HasNext() {
-				rawElem_65 := cur_64.Next()
-				c := j2gort.CastPtr[JSChunk](rawElem_65)
+			cur_58 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
+			for cur_58.HasNext() {
+				rawElem_59 := cur_58.Next()
+				c := j2gort.CastPtr[JSChunk](rawElem_59)
 				_ = c
 				outputFileNames = append(outputFileNames, this_.GetChunkOutputFileName(c))
 			}
@@ -1659,15 +1639,15 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initW
 	_ = filename
 	func() {
 		defer func() {
-			if rec_67 := recover(); rec_67 != nil {
-				jex_68 := javalang.RecoverException(rec_67)
-				_ = jex_68
-				if j2gort.InstanceOf[javaio.IIOException](jex_68) {
-					e := j2gort.AsIface[javaio.IIOException](jex_68)
+			if rec_61 := recover(); rec_61 != nil {
+				jex_62 := javalang.RecoverException(rec_61)
+				_ = jex_62
+				if j2gort.InstanceOf[javaio.IIOException](jex_62) {
+					e := j2gort.AsIface[javaio.IIOException](jex_62)
 					_ = e
 					this_.compiler.Report_1(JSError_Make_2(StaticGet_AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST(), []string{filename}))
 				} else {
-					panic(rec_67)
+					panic(rec_61)
 				}
 			}
 		}()
@@ -1686,15 +1666,15 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_initC
 	_ = filename
 	func() {
 		defer func() {
-			if rec_69 := recover(); rec_69 != nil {
-				jex_70 := javalang.RecoverException(rec_69)
-				_ = jex_70
-				if j2gort.InstanceOf[javaio.IIOException](jex_70) {
-					e := j2gort.AsIface[javaio.IIOException](jex_70)
+			if rec_63 := recover(); rec_63 != nil {
+				jex_64 := javalang.RecoverException(rec_63)
+				_ = jex_64
+				if j2gort.InstanceOf[javaio.IIOException](jex_64) {
+					e := j2gort.AsIface[javaio.IIOException](jex_64)
 					_ = e
 					this_.compiler.Report_1(JSError_Make_2(StaticGet_AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST(), []string{filename}))
 				} else {
-					panic(rec_69)
+					panic(rec_63)
 				}
 			}
 		}()
@@ -1720,15 +1700,15 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_resto
 	_ = filename
 	func() {
 		defer func() {
-			if rec_71 := recover(); rec_71 != nil {
-				jex_72 := javalang.RecoverException(rec_71)
-				_ = jex_72
-				if j2gort.InstanceOf[javaio.IIOException](jex_72) || j2gort.InstanceOf[j2gort.Ext_java_lang_ClassNotFoundException](jex_72) {
-					e := jex_72
+			if rec_65 := recover(); rec_65 != nil {
+				jex_66 := javalang.RecoverException(rec_65)
+				_ = jex_66
+				if j2gort.InstanceOf[javaio.IIOException](jex_66) || j2gort.InstanceOf[j2gort.Ext_java_lang_ClassNotFoundException](jex_66) {
+					e := jex_66
 					_ = e
 					this_.compiler.Report_1(JSError_Make_2(StaticGet_AbstractCommandLineRunner_COULD_NOT_DESERIALIZE_AST(), []string{filename}))
 				} else {
-					panic(rec_71)
+					panic(rec_65)
 				}
 			}
 		}()
@@ -1748,15 +1728,15 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_saveS
 	_ = filename
 	func() {
 		defer func() {
-			if rec_73 := recover(); rec_73 != nil {
-				jex_74 := javalang.RecoverException(rec_73)
-				_ = jex_74
-				if j2gort.InstanceOf[javaio.IIOException](jex_74) {
-					e := j2gort.AsIface[javaio.IIOException](jex_74)
+			if rec_67 := recover(); rec_67 != nil {
+				jex_68 := javalang.RecoverException(rec_67)
+				_ = jex_68
+				if j2gort.InstanceOf[javaio.IIOException](jex_68) {
+					e := j2gort.AsIface[javaio.IIOException](jex_68)
 					_ = e
 					this_.compiler.Report_1(JSError_Make_2(StaticGet_AbstractCommandLineRunner_COULD_NOT_SERIALIZE_AST(), []string{filename}))
 				} else {
-					panic(rec_73)
+					panic(rec_67)
 				}
 			}
 		}()
@@ -1901,14 +1881,14 @@ func (this_ *AbstractCommandLineRunnerBase) CreateJsonFile(options *CompilerOpti
 	var jsOutput j2gort.Ext_java_lang_Appendable = j2gort.NewExt_java_lang_StringBuilder()
 	_ = jsOutput
 	this_.WriteOutput_8(jsOutput, this_.compiler, NewCompiler_SingleBinaryLicenseTracker(ToIface_AbstractCompiler(this_.compiler)), nil, this_.config.outputWrapper, outputMarker, escaper, this_.config.jsOutputFile)
-	var val_75 AbstractCommandLineRunner_JsonFileSpec
-	InitAbstractCommandLineRunner_JsonFileSpec_2(&val_75, javalang.ToJavaString(jsOutput), func() string {
+	var val_69 AbstractCommandLineRunner_JsonFileSpec
+	InitAbstractCommandLineRunner_JsonFileSpec_2(&val_69, javalang.ToJavaString(jsOutput), func() string {
 		if j2gort.Ext_com_google_common_base_Strings_IsNullOrEmpty(this_.config.jsOutputFile) {
 			return "compiled.js"
 		}
 		return this_.config.jsOutputFile
 	}())
-	var jsonOutput *AbstractCommandLineRunner_JsonFileSpec = &val_75
+	var jsonOutput *AbstractCommandLineRunner_JsonFileSpec = &val_69
 	_ = jsonOutput
 	if options.ShouldGatherSourceMapInfo() {
 		var sourcemap *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
@@ -1951,23 +1931,23 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 	if !(((this_.ShouldGenerateMapPerChunk(options) || !(options.ShouldGatherSourceMapInfo())) || (this_.config.jsonStreamMode == StaticGet_CompilerOptions_JsonStreamMode_OUT())) || (this_.config.jsonStreamMode == StaticGet_CompilerOptions_JsonStreamMode_BOTH())) {
 		return StaticGet_AbstractCommandLineRunner_INVALID_CHUNK_SOURCEMAP_PATTERN()
 	}
-	var val_78 Compiler_ChunkGraphAwareLicenseTracker
-	InitCompiler_ChunkGraphAwareLicenseTracker(&val_78, ToIface_AbstractCompiler(this_.compiler))
-	var mlicenseTracker *Compiler_ChunkGraphAwareLicenseTracker = &val_78
+	var val_72 Compiler_ChunkGraphAwareLicenseTracker
+	InitCompiler_ChunkGraphAwareLicenseTracker(&val_72, ToIface_AbstractCompiler(this_.compiler))
+	var mlicenseTracker *Compiler_ChunkGraphAwareLicenseTracker = &val_72
 	_ = mlicenseTracker
 	{
-		cur_79 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
-		for cur_79.HasNext() {
-			rawElem_80 := cur_79.Next()
-			m := j2gort.CastPtr[JSChunk](rawElem_80)
+		cur_73 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
+		for cur_73.HasNext() {
+			rawElem_74 := cur_73.Next()
+			m := j2gort.CastPtr[JSChunk](rawElem_74)
 			_ = m
 			{
 				var iifeCond_1 bool
 				{
 
-					sr_81 := m.GetName()
-					se_82 := "$weak$"
-					iifeCond_1 = j2gort.CheckNotNullString(sr_81) == se_82
+					sr_75 := m.GetName()
+					se_76 := "$weak$"
+					iifeCond_1 = j2gort.CheckNotNullString(sr_75) == se_76
 				}
 				if iifeCond_1 {
 					continue
@@ -2017,9 +1997,9 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_creat
 	var output *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = output
 	this_.WriteChunkOutput(filename, output, NewCompiler_ScriptNodeLicensesOnlyTracker(ToIface_AbstractCompiler(this_.compiler)), chunk)
-	var val_83 AbstractCommandLineRunner_JsonFileSpec
-	InitAbstractCommandLineRunner_JsonFileSpec_2(&val_83, output.String(), filename)
-	var jsonFile *AbstractCommandLineRunner_JsonFileSpec = &val_83
+	var val_77 AbstractCommandLineRunner_JsonFileSpec
+	InitAbstractCommandLineRunner_JsonFileSpec_2(&val_77, output.String(), filename)
+	var jsonFile *AbstractCommandLineRunner_JsonFileSpec = &val_77
 	_ = jsonFile
 	var chunkSourceMap *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = chunkSourceMap
@@ -2281,9 +2261,9 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions j2gort.Ext_j
 	_ = definitions
 	_ = options
 	{
-		cur_84 := j2gort.NewIterCursor(j2gort.CheckNotNull(definitions))
-		for cur_84.HasNext() {
-			override := cur_84.NextStr()
+		cur_78 := j2gort.NewIterCursor(j2gort.CheckNotNull(definitions))
+		for cur_78.HasNext() {
+			override := cur_78.NextStr()
 			_ = override
 			var assignment []string = j2gort.JStrSplitLimit(override, "=", int32(2))
 			_ = assignment
@@ -2312,27 +2292,27 @@ func AbstractCommandLineRunner_CreateDefineReplacements(definitions j2gort.Ext_j
 						continue
 					}
 				} else {
-					var tryFlow_85 int
+					var tryFlow_79 int
 					func() {
 						defer func() {
-							if rec_86 := recover(); rec_86 != nil {
-								jex_87 := javalang.RecoverException(rec_86)
-								_ = jex_87
-								if j2gort.InstanceOf[javalang.INumberFormatException](jex_87) {
-									e := j2gort.AsIface[javalang.INumberFormatException](jex_87)
+							if rec_80 := recover(); rec_80 != nil {
+								jex_81 := javalang.RecoverException(rec_80)
+								_ = jex_81
+								if j2gort.InstanceOf[javalang.INumberFormatException](jex_81) {
+									e := j2gort.AsIface[javalang.INumberFormatException](jex_81)
 									_ = e
 								} else {
-									panic(rec_86)
+									panic(rec_80)
 								}
 							}
 						}()
 						var value float64 = j2gort.ParseDouble(defValue)
 						_ = value
 						options.SetDefineToDoubleLiteral(defName, value)
-						tryFlow_85 = 2
+						tryFlow_79 = 2
 						return
 					}()
-					if tryFlow_85 == 2 {
+					if tryFlow_79 == 2 {
 						continue
 					}
 					if j2gort.JStrLen(defValue) > int32(0) {
@@ -2379,9 +2359,9 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 		return
 	}
 	{
-		cur_88 := j2gort.NewIterCursor(j2gort.CheckNotNull(outputFiles))
-		for cur_88.HasNext() {
-			output := cur_88.NextStr()
+		cur_82 := j2gort.NewIterCursor(j2gort.CheckNotNull(outputFiles))
+		for cur_82.HasNext() {
+			output := cur_82.NextStr()
 			_ = output
 			if j2gort.CheckNotNullString(output) == "" {
 				continue
@@ -2390,10 +2370,10 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_outpu
 				var chunks j2gort.Ext_java_lang_Iterable = this_.compiler.GetChunkGraph().GetAllChunks()
 				_ = chunks
 				{
-					cur_89 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
-					for cur_89.HasNext() {
-						rawElem_90 := cur_89.Next()
-						chunk := j2gort.CastPtr[JSChunk](rawElem_90)
+					cur_83 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunks))
+					for cur_83.HasNext() {
+						rawElem_84 := cur_83.Next()
+						chunk := j2gort.CastPtr[JSChunk](rawElem_84)
 						_ = chunk
 						func() {
 							var out j2gort.Ext_java_io_Writer = this_.priv_AbstractCommandLineRunner_fileNameToOutputWriter2_191(this_.priv_AbstractCommandLineRunner_expandCommandLinePath_188(output, chunk))
@@ -2457,10 +2437,10 @@ func (this_ *AbstractCommandLineRunnerBase) PrintChunkGraphManifestOrBundleTo(gr
 	var requiresNewline bool = false
 	_ = requiresNewline
 	{
-		cur_91 := j2gort.NewIterCursor(j2gort.CheckNotNull(graph.GetAllChunks()))
-		for cur_91.HasNext() {
-			rawElem_92 := cur_91.Next()
-			chunk := j2gort.CastPtr[JSChunk](rawElem_92)
+		cur_85 := j2gort.NewIterCursor(j2gort.CheckNotNull(graph.GetAllChunks()))
+		for cur_85.HasNext() {
+			rawElem_86 := cur_85.Next()
+			chunk := j2gort.CastPtr[JSChunk](rawElem_86)
 			_ = chunk
 			if !(isManifest) && chunk.IsWeak() {
 				continue
@@ -2491,10 +2471,10 @@ func (this_ *AbstractCommandLineRunnerBase) PrintManifestTo(chunk *JSChunk, out 
 	_ = chunk
 	_ = out
 	{
-		cur_93 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunk.GetInputs()))
-		for cur_93.HasNext() {
-			rawElem_94 := cur_93.Next()
-			input := j2gort.CastPtr[CompilerInput](rawElem_94)
+		cur_87 := j2gort.NewIterCursor(j2gort.CheckNotNull(chunk.GetInputs()))
+		for cur_87.HasNext() {
+			rawElem_88 := cur_87.Next()
+			input := j2gort.CastPtr[CompilerInput](rawElem_88)
 			_ = input
 			var name string = input.GetName()
 			_ = name
@@ -2526,9 +2506,9 @@ func (this_ *AbstractCommandLineRunnerBase) PrintBundleTo(chunk *JSChunk, out j2
 	_ = options
 	if options.GetNumParallelThreads() > int32(1) {
 		{
-			var val_95 PrebuildAst
-			InitPrebuildAst(&val_95, ToIface_AbstractCompiler(this_.compiler), this_.compiler.GetOptions().GetNumParallelThreads())
-			(&val_95).Prebuild(j2gort.ImmListFromTypedSlice(inputs))
+			var val_89 PrebuildAst
+			InitPrebuildAst(&val_89, ToIface_AbstractCompiler(this_.compiler), this_.compiler.GetOptions().GetNumParallelThreads())
+			(&val_89).Prebuild(j2gort.ImmListFromTypedSlice(inputs))
 		}
 	}
 	if options.GetRuntimeLibraryMode() == StaticGet_RuntimeJsLibManager_RuntimeLibraryMode_INJECT() {
@@ -2579,9 +2559,9 @@ func (this_ *AbstractCommandLineRunnerBase) priv_AbstractCommandLineRunner_const
 	var rootRelativePathsMap j2gort.Ext_java_util_Map = j2gort.NewExt_java_util_LinkedHashMap()
 	_ = rootRelativePathsMap
 	{
-		cur_100 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.config.manifestMaps))
-		for cur_100.HasNext() {
-			mapString := cur_100.NextStr()
+		cur_94 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.config.manifestMaps))
+		for cur_94.HasNext() {
+			mapString := cur_94.NextStr()
 			_ = mapString
 			var colonIndex int32 = j2gort.JStrIndexOfCp(mapString, int32(uint16(58)))
 			_ = colonIndex
@@ -3146,9 +3126,9 @@ func (this_ *AbstractCommandLineRunner_CommandLineConfig) SetOutputManifest(outp
 	_ = outputManifests
 	this_.outputManifests = j2gort.NewExt_java_util_ArrayList()
 	{
-		cur_101 := j2gort.NewIterCursor(j2gort.CheckNotNull(outputManifests))
-		for cur_101.HasNext() {
-			manifestName := cur_101.NextStr()
+		cur_95 := j2gort.NewIterCursor(j2gort.CheckNotNull(outputManifests))
+		for cur_95.HasNext() {
+			manifestName := cur_95.NextStr()
 			_ = manifestName
 			if !(j2gort.CheckNotNullString(manifestName) == "") {
 				this_.outputManifests.Add_1(j2gort.BoxString(manifestName))
@@ -3701,16 +3681,16 @@ func InitAbstractCommandLineRunner_FlagEntry(this_ *AbstractCommandLineRunner_Fl
 }
 
 // Java method: FlagEntry.equals(java.lang.Object o)
-func (this_ *AbstractCommandLineRunner_FlagEntry) Equals(arg_102 any) bool {
-	o := arg_102
+func (this_ *AbstractCommandLineRunner_FlagEntry) Equals(arg_96 any) bool {
+	o := arg_96
 	_ = o
 	if j2gort.InstanceOf[*AbstractCommandLineRunner_FlagEntry](o) {
 		var that *AbstractCommandLineRunner_FlagEntry = j2gort.CastPtr[AbstractCommandLineRunner_FlagEntry](o)
 		_ = that
 		return (javalang.ObjectsEquals(j2gort.CheckNotNull(that.flag), this_.flag) && func() bool {
-			sr_103 := that.value
-			se_104 := this_.value
-			return j2gort.CheckNotNullString(sr_103) == se_104
+			sr_97 := that.value
+			se_98 := this_.value
+			return j2gort.CheckNotNullString(sr_97) == se_98
 		}())
 	}
 	return false
@@ -3813,15 +3793,15 @@ func AbstractCommandLineRunner_JsChunkSpec_Create(specString string, isFirstChun
 	_ = numInputs
 	func() {
 		defer func() {
-			if rec_105 := recover(); rec_105 != nil {
-				jex_106 := javalang.RecoverException(rec_105)
-				_ = jex_106
-				if j2gort.InstanceOf[javalang.INumberFormatException](jex_106) {
-					ignored := j2gort.AsIface[javalang.INumberFormatException](jex_106)
+			if rec_99 := recover(); rec_99 != nil {
+				jex_100 := javalang.RecoverException(rec_99)
+				_ = jex_100
+				if j2gort.InstanceOf[javalang.INumberFormatException](jex_100) {
+					ignored := j2gort.AsIface[javalang.INumberFormatException](jex_100)
 					_ = ignored
 					numInputs = int32(-1)
 				} else {
-					panic(rec_105)
+					panic(rec_99)
 				}
 			}
 		}()
@@ -3829,9 +3809,9 @@ func AbstractCommandLineRunner_JsChunkSpec_Create(specString string, isFirstChun
 	}()
 	if numInputs < int32(0) {
 		if (int32(len(parts)) == int32(2)) && func() bool {
-			sr_107 := "auto"
-			se_108 := parts[int32(1)]
-			return j2gort.CheckNotNullString(sr_107) == se_108
+			sr_101 := "auto"
+			se_102 := parts[int32(1)]
+			return j2gort.CheckNotNullString(sr_101) == se_102
 		}() {
 			if !(isFirstChunk) {
 				panic(NewFlagUsageException(("Invalid JS file count '" + j2gort.StrValString(parts[int32(1)]) + "' for chunk: " + j2gort.StrValString(name) + ". Only the first chunk may specify a size of 'auto' and it must have no dependencies.")))
@@ -3841,15 +3821,15 @@ func AbstractCommandLineRunner_JsChunkSpec_Create(specString string, isFirstChun
 		}
 	}
 	return NewAbstractCommandLineRunner_JsChunkSpec(name, numInputs, j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
-		arr_109 := deps
-		if arr_109 == nil {
+		arr_103 := deps
+		if arr_103 == nil {
 			return nil
 		}
-		out_110 := make([]any, len(arr_109))
-		for i_, el_111 := range arr_109 {
-			out_110[i_] = j2gort.BoxString(el_111)
+		out_104 := make([]any, len(arr_103))
+		for i_, el_105 := range arr_103 {
+			out_104[i_] = j2gort.BoxString(el_105)
 		}
-		return out_110
+		return out_104
 	}()))
 }
 
@@ -3951,8 +3931,8 @@ func InitAbstractCommandLineRunner_SystemExitCodeReceiver(this_ *AbstractCommand
 }
 
 // Java method: SystemExitCodeReceiver.apply(java.lang.Integer exitCode)
-func (this_ *AbstractCommandLineRunner_SystemExitCodeReceiver) Apply(arg_112 any) any {
-	exitCode := j2gort.CastPtr[j2gort.BoxInt](arg_112)
+func (this_ *AbstractCommandLineRunner_SystemExitCodeReceiver) Apply(arg_106 any) any {
+	exitCode := j2gort.CastPtr[j2gort.BoxInt](arg_106)
 	_ = exitCode
 	var exitCodeValue int32 = j2gort.UnboxInt(j2gort.CheckNotNullPtr(exitCode))
 	_ = exitCodeValue

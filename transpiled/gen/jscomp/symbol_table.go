@@ -496,7 +496,7 @@ func (this_ *SymbolTable) priv_SymbolTable_toDebugStringTree_5218(builder *j2gor
 	_ = prefix
 	_ = scope
 	_ = childrenScopes
-	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_any_9850(j2gort.PtrToAny(scope))
+	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_any_9859(j2gort.PtrToAny(scope))
 	var childrenPrefix string = (j2gort.StrValString(prefix) + "    ")
 	_ = childrenPrefix
 	var printedSomething bool = false
@@ -558,7 +558,7 @@ func (this_ *SymbolTable) priv_SymbolTable_toDebugString_5220(builder *j2gort.Ex
 	_ = printScope
 	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_string("'")).Append_1_string(symbol.GetName())).Append_1_string("'")
 	if printScope {
-		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(" in ")).Append_1_any_9850(j2gort.PtrToAny(symbol.scope))
+		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(" in ")).Append_1_any_9859(j2gort.PtrToAny(symbol.scope))
 	}
 	builder.Append_1_uint16(uint16(10))
 	var refCount int32 = int32(0)

@@ -117,27 +117,7 @@ func InitColorRegistry(this_ *ColorRegistry, builder *ColorRegistry_Builder) {
 			} else {
 				var set *j2gort.Ext_java_util_LinkedHashSet = j2gort.CastPtr[j2gort.Ext_java_util_LinkedHashSet](val)
 				_ = set
-				builtGraph.Put_2(j2gort.PtrToAny(j2gort.CastPtr[Color](cur_1.GetKey())), j2gort.SliceToAny(func() []*Color {
-					arr_6 := set.ToArray_1_slice_any(func() []any {
-						arr_3 := StaticGet_Color_EMPTY_COLORS()
-						if arr_3 == nil {
-							return nil
-						}
-						out_4 := make([]any, len(arr_3))
-						for i_, el_5 := range arr_3 {
-							out_4[i_] = j2gort.PtrToAny(el_5)
-						}
-						return out_4
-					}())
-					if arr_6 == nil {
-						return nil
-					}
-					out_7 := make([]*Color, len(arr_6))
-					for i_, el_8 := range arr_6 {
-						out_7[i_] = j2gort.CastPtr[Color](el_8)
-					}
-					return out_7
-				}()))
+				builtGraph.Put_2(j2gort.PtrToAny(j2gort.CastPtr[Color](cur_1.GetKey())), j2gort.SliceToAny(j2gort.ColToPtrArray[Color](set, StaticGet_Color_EMPTY_COLORS())))
 			}
 		}
 	}
@@ -173,15 +153,15 @@ func (this_ *ColorRegistry) GetDisambiguationSupertypes(x *Color) j2gort.Ext_com
 		return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_1(j2gort.PtrToAny(supertypes[int32(0)]))
 	}
 	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(func() []any {
-		arr_9 := supertypes
-		if arr_9 == nil {
+		arr_3 := supertypes
+		if arr_3 == nil {
 			return nil
 		}
-		out_10 := make([]any, len(arr_9))
-		for i_, el_11 := range arr_9 {
-			out_10[i_] = j2gort.PtrToAny(el_11)
+		out_4 := make([]any, len(arr_3))
+		for i_, el_5 := range arr_3 {
+			out_4[i_] = j2gort.PtrToAny(el_5)
 		}
-		return out_10
+		return out_4
 	}())
 }
 
@@ -281,9 +261,9 @@ func (this_ *ColorRegistry_Builder) AddDisambiguationEdge(subtype *Color, supert
 	if existing == nil {
 		this_.colorToDisambiguationSupertypeGraph.Put_2(j2gort.PtrToAny(subtype), j2gort.PtrToAny(supertype))
 	} else {
-		var ok_12 bool
-		first, ok_12 = j2gort.TryCast[*Color](existing)
-		if ok_12 {
+		var ok_6 bool
+		first, ok_6 = j2gort.TryCast[*Color](existing)
+		if ok_6 {
 			if !(first.Equals(j2gort.PtrToAny(supertype))) {
 				var set *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet_1_int32(int32(4))
 				_ = set
@@ -314,10 +294,10 @@ func (this_ *ColorRegistry_Builder) AddMismatchLocation(id ColorId, location str
 // Java method: Builder.setDefaultNativeColorsForTesting()
 func (this_ *ColorRegistry_Builder) SetDefaultNativeColorsForTesting() *ColorRegistry_Builder {
 	{
-		cur_13 := j2gort.NewIterCursor(j2gort.CheckNotNull(StaticGet_ColorRegistry_REQUIRED_IDS()))
-		for cur_13.HasNext() {
-			rawElem_14 := cur_13.Next()
-			id := j2gort.Cast[ColorId](rawElem_14)
+		cur_7 := j2gort.NewIterCursor(j2gort.CheckNotNull(StaticGet_ColorRegistry_REQUIRED_IDS()))
+		for cur_7.HasNext() {
+			rawElem_8 := cur_7.Next()
+			id := j2gort.Cast[ColorId](rawElem_8)
 			_ = id
 			this_.SetNativeColor(Color_SingleBuilder().SetId(id).Build())
 		}

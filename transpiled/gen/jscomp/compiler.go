@@ -421,7 +421,7 @@ func (this_ *Compiler) priv_Compiler_initExperimentalOutputFeatureSetOptions_144
 	if options.GetExperimentalOutputFeatureSet().IsPresent() {
 		switch (j2gort.Cast[CompilerOptions_ExperimentalOutputFeatureSet](options.GetExperimentalOutputFeatureSet().Get())).Ordinal() {
 		case int32(0) /* ExperimentalOutputFeatureSet.ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS */ :
-			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
+			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7200([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
 		case int32(1) /* ExperimentalOutputFeatureSet.BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD */ :
 			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_BROWSER_2019().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), []*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS()}))
 		}
@@ -1688,7 +1688,7 @@ func (this_ *Compiler) GetCurrentJsSource() string {
 			}
 		}
 		if builder.Length() == int32(0) {
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9850(fileNameRegexList)
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9859(fileNameRegexList)
 		}
 	}
 	if !(chunkNameRegexList.IsEmpty()) {

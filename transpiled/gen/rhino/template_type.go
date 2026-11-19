@@ -242,6 +242,7 @@ func (this_ *TemplateType) GetBound() JSType {
 func (this_ *TemplateType) SetBound(bound JSType) {
 	_ = bound
 	this_.bound = bound
+	this_.GetJSTypeBase().protoFlags = int8((int32(this_.GetJSTypeBase().protoFlags) & ^(int32(int8(-128)))))
 	this_.SetReferencedType(bound)
 }
 

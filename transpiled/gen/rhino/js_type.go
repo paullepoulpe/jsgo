@@ -51,6 +51,7 @@ type JSType interface {
 	FastTypeClass() JSTypeClass
 	GetKindMask() int32
 	GetWellFormedTemplatizedKind() int32
+	MarkWellFormedTemplatizedOk()
 	MayHaveNonStringifiableKey() bool
 	HasKindMaskProxy(int32) bool
 	HasKindMask(int32) bool
@@ -258,14 +259,15 @@ func init() {
 func (b *JSTypeBase) GetJSTypeBase() *JSTypeBase { return b }
 func (*JSTypeBase) Implements_rhino_JSType()     {}
 
-func StaticGet_JSType_SerialVersionUID() int64              { return int64(1) }
-func StaticGet_JSType_JSTYPE_FLAG_LOOSEN_FWD_REF() int8     { return int8(1) }
-func StaticGet_JSType_JSTYPE_FLAG_HASH_IN_PROGRESS() int8   { return int8(2) }
-func StaticGet_JSType_JSTYPE_FLAG_IN_TEMPLATED_VISIT() int8 { return int8(4) }
-func StaticGet_JSType_JSTYPE_FLAG_RESOLVED() int8           { return int8(8) }
-func StaticGet_JSType_JSTYPE_FLAG_OBJ_VISITED() int8        { return int8(16) }
-func StaticGet_JSType_JSTYPE_FLAG_OBJ_NOT_UNKNOWN() int8    { return int8(32) }
-func StaticGet_JSType_JSTYPE_TEMPLATE_CHECK_SHIFT() int32   { return int32(6) }
+func StaticGet_JSType_SerialVersionUID() int64                     { return int64(1) }
+func StaticGet_JSType_JSTYPE_FLAG_LOOSEN_FWD_REF() int8            { return int8(1) }
+func StaticGet_JSType_JSTYPE_FLAG_HASH_IN_PROGRESS() int8          { return int8(2) }
+func StaticGet_JSType_JSTYPE_FLAG_IN_TEMPLATED_VISIT() int8        { return int8(4) }
+func StaticGet_JSType_JSTYPE_FLAG_RESOLVED() int8                  { return int8(8) }
+func StaticGet_JSType_JSTYPE_FLAG_OBJ_VISITED() int8               { return int8(16) }
+func StaticGet_JSType_JSTYPE_FLAG_OBJ_NOT_UNKNOWN() int8           { return int8(32) }
+func StaticGet_JSType_JSTYPE_TEMPLATE_CHECK_SHIFT() int32          { return int32(6) }
+func StaticGet_JSType_PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK() int8 { return int8(-128) }
 
 var static_JSType_CAN_CAST_TO_VISITOR *CanCastToVisitor
 
@@ -386,7 +388,17 @@ func (this_ *JSTypeBase) GetKindMask() int32 {
 
 // Java method: JSType.getWellFormedTemplatizedKind()
 func (this_ *JSTypeBase) GetWellFormedTemplatizedKind() int32 {
+	if (int32(this_.protoFlags) & int32(int8(-128))) != int32(0) {
+		return int32(0)
+	}
 	return (this_.typeKindMask & int32(13760))
+}
+
+// Java method: JSType.markWellFormedTemplatizedOk()
+func (this_ *JSTypeBase) MarkWellFormedTemplatizedOk() {
+	if this_.IsResolved() && this_.registry.GetResolver().IsClosed() {
+		this_.protoFlags = int8((int32(this_.protoFlags) | int32(int8(-128))))
+	}
 }
 
 // Java method: JSType.mayHaveNonStringifiableKey()
@@ -1522,7 +1534,7 @@ func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9117() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9117() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9126() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9126() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1546,14 +1558,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9117() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9126() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9117() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9126() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 

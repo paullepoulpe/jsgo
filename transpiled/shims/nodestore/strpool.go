@@ -504,23 +504,26 @@ func InternBytes(b []byte) StringID {
 }
 
 const (
-	joinDotShardBits    = 6
-	joinDotNumShards    = 1 << joinDotShardBits // 64 lazy shards (~1.5 KiB total BSS)
-	joinDotShardMask    = joinDotNumShards - 1
-	joinDot2CacheBits   = 16                    // 65,536 buckets * 4 ways = 262,144 entries
-	joinDot2SlotsPerSh  = 1 << (joinDot2CacheBits - joinDotShardBits)
-	joinDot3CacheBits   = 15                    // 32,768 buckets * 4 ways = 131,072 entries
-	joinDot3SlotsPerSh  = 1 << (joinDot3CacheBits - joinDotShardBits)
-	joinDot4CacheBits   = 16                    // 65,536 buckets * 4 ways = 262,144 entries
-	joinDot4SlotsPerSh  = 1 << (joinDot4CacheBits - joinDotShardBits)
-	joinDotBucketChunk  = 64
-	joinDotMaxChunksSh  = 32
-	joinDotMaxTotalLen  = 512
+	joinDotShardBits     = 6
+	joinDotNumShards     = 1 << joinDotShardBits // 64 lazy shards (~2 KiB total BSS)
+	joinDotShardMask     = joinDotNumShards - 1
+	joinDot2CacheBits    = 16 // 65,536 buckets * 4 ways = 262,144 entries
+	joinDot2SlotsPerSh   = 1 << (joinDot2CacheBits - joinDotShardBits)
+	joinDot3CacheBits    = 15 // 32,768 buckets * 4 ways = 131,072 entries
+	joinDot3SlotsPerSh   = 1 << (joinDot3CacheBits - joinDotShardBits)
+	joinDot4CacheBits    = 16 // 65,536 buckets * 4 ways = 262,144 entries
+	joinDot4SlotsPerSh   = 1 << (joinDot4CacheBits - joinDotShardBits)
+	joinDollarCacheBits  = 14 // 16,384 buckets * 4 ways = 65,536 entries
+	joinDollarSlotsPerSh = 1 << (joinDollarCacheBits - joinDotShardBits)
+	joinDotBucketChunk   = 64
+	joinDotMaxChunksSh   = 32
+	joinDotMaxTotalLen   = 512
 )
 
 func formatJoin2(a, b string) string       { return a + "." + b }
 func formatJoin3(a, b, c string) string    { return a + "." + b + "." + c }
 func formatJoin4(a, b, c, d string) string { return a + "." + b + "." + c + "." + d }
+func formatJoinDollar(a, b string) string  { return a + "$" + b }
 
 // joinDot2Bucket is an immutable 88-byte 4-way set-associative cache bucket
 // with all 4 string pointers at the head (ptrdata = 56). Neither caller slice
@@ -573,10 +576,19 @@ type joinDot4Shard struct {
 	chunks  uint32
 }
 
+type joinDollarShard struct {
+	buckets [joinDollarSlotsPerSh]atomic.Pointer[joinDot2Bucket]
+	seen    [joinDollarSlotsPerSh]atomic.Uint64
+	mu      sync.Mutex
+	cur     []joinDot2Bucket
+	chunks  uint32
+}
+
 var (
-	joinDot2Shards [joinDotNumShards]atomic.Pointer[joinDot2Shard]
-	joinDot3Shards [joinDotNumShards]atomic.Pointer[joinDot3Shard]
-	joinDot4Shards [joinDotNumShards]atomic.Pointer[joinDot4Shard]
+	joinDot2Shards   [joinDotNumShards]atomic.Pointer[joinDot2Shard]
+	joinDot3Shards   [joinDotNumShards]atomic.Pointer[joinDot3Shard]
+	joinDot4Shards   [joinDotNumShards]atomic.Pointer[joinDot4Shard]
+	joinDollarShards [joinDotNumShards]atomic.Pointer[joinDollarShard]
 )
 
 func joinDotCheckSeen(seen *atomic.Uint64, h32 uint32) bool {
@@ -670,6 +682,33 @@ func (sh *joinDot4Shard) allocBucket() *joinDot4Bucket {
 	return b
 }
 
+func getJoinDollarShard(shardIdx uint32) *joinDollarShard {
+	if sh := joinDollarShards[shardIdx].Load(); sh != nil {
+		return sh
+	}
+	ns := &joinDollarShard{}
+	if joinDollarShards[shardIdx].CompareAndSwap(nil, ns) {
+		return ns
+	}
+	return joinDollarShards[shardIdx].Load()
+}
+
+func (sh *joinDollarShard) allocBucket() *joinDot2Bucket {
+	sh.mu.Lock()
+	if len(sh.cur) == 0 {
+		n := joinDotBucketChunk
+		if sh.chunks >= 2 {
+			n = 256
+		}
+		sh.cur = make([]joinDot2Bucket, n)
+		sh.chunks++
+	}
+	b := &sh.cur[0]
+	sh.cur = sh.cur[1:]
+	sh.mu.Unlock()
+	return b
+}
+
 // JoinDot returns a + "." + b, deduplicating repeated qualified-name joins via
 // a bounded lock-free 4-way set-associative cache without polluting the
 // permanent AST string pool.
@@ -714,6 +753,73 @@ func JoinDot(a, b string) string {
 func joinDot2Miss(a, b string, shardIdx, slot, h32 uint32) string {
 	out := formatJoin2(a, b)
 	sh := getJoinDot2Shard(shardIdx)
+	old := sh.buckets[slot].Load()
+	if old != nil && old.out3 != "" && !joinDotCheckSeen(&sh.seen[slot], h32) {
+		return out
+	}
+	nb := sh.allocBucket()
+	nb.out0 = out
+	nb.h0 = h32
+	nb.alen0 = uint16(len(a))
+	if old != nil {
+		nb.out1 = old.out0
+		nb.h1 = old.h0
+		nb.alen1 = old.alen0
+		nb.out2 = old.out1
+		nb.h2 = old.h1
+		nb.alen2 = old.alen1
+		nb.out3 = old.out2
+		nb.h3 = old.h2
+		nb.alen3 = old.alen2
+	}
+	sh.buckets[slot].Store(nb)
+	return out
+}
+
+// JoinDollar returns a + "$" + b, deduplicating repeated collapsed-property joins
+// via a bounded lock-free 4-way set-associative cache without polluting the
+// permanent AST string pool.
+func JoinDollar(a, b string) string {
+	total := len(a) + len(b) + 1
+	if total > joinDotMaxTotalLen {
+		return a + "$" + b
+	}
+	h := maphash.String(poolSeed, a)*0x9E3779B97F4A7C15 ^ maphash.String(poolSeed, b)
+	idx := uint32(h >> (64 - joinDollarCacheBits))
+	shardIdx := idx & joinDotShardMask
+	slot := idx >> joinDotShardBits
+	h32 := uint32(h)
+	if sh := joinDollarShards[shardIdx].Load(); sh != nil {
+		if bkt := sh.buckets[slot].Load(); bkt != nil {
+			if bkt.h0 == h32 && len(bkt.out0) == total && int(bkt.alen0) == len(a) {
+				if s := bkt.out0; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
+			}
+			if bkt.h1 == h32 && len(bkt.out1) == total && int(bkt.alen1) == len(a) {
+				if s := bkt.out1; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
+			}
+			if bkt.h2 == h32 && len(bkt.out2) == total && int(bkt.alen2) == len(a) {
+				if s := bkt.out2; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
+			}
+			if bkt.h3 == h32 && len(bkt.out3) == total && int(bkt.alen3) == len(a) {
+				if s := bkt.out3; s[:len(a)] == a && s[len(a)+1:] == b {
+					return s
+				}
+			}
+		}
+	}
+	return joinDollarMiss(a, b, shardIdx, slot, h32)
+}
+
+//go:noinline
+func joinDollarMiss(a, b string, shardIdx, slot, h32 uint32) string {
+	out := formatJoinDollar(a, b)
+	sh := getJoinDollarShard(shardIdx)
 	old := sh.buckets[slot].Load()
 	if old != nil && old.out3 != "" && !joinDotCheckSeen(&sh.seen[slot], h32) {
 		return out

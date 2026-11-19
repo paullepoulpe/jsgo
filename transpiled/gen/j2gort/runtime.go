@@ -5063,8 +5063,9 @@ const (
 type jTombstoneType struct{}
 
 var (
-	jTombstoneObj  any   = jTombstoneType{}
-	emptyAnySlice_ []any = []any{}
+	jTombstoneObj  any      = jTombstoneType{}
+	emptyAnySlice_ []any    = []any{}
+	emptyStrSlice_ []string = []string{}
 )
 
 type jIdentityKey interface {
@@ -6635,11 +6636,7 @@ func (s *JSetCore) ForEach(fn func(any) bool) {
 			if str == jTombstoneStr {
 				continue
 			}
-			var v any
-			if str != NullString {
-				v = str
-			}
-			if !fn(v) {
+			if !fn(BoxString(str)) {
 				return
 			}
 		}
@@ -6665,6 +6662,19 @@ func (s *JSetCore) LiveKeys() []any {
 		return true
 	})
 	return out
+}
+
+func (s *JSetCore) DenseStrSlice() ([]string, bool) {
+	if s == nil {
+		return nil, false
+	}
+	if s.live == 0 {
+		return emptyStrSlice_, true
+	}
+	if s.mode == jSetModeStr && s.holes == 0 {
+		return s.ext.(*jSetStrState).strs, true
+	}
+	return nil, false
 }
 
 func (s *JSetCore) SetHash() int32 {
@@ -10598,11 +10608,7 @@ func (m *JMapCore) ForEachEntry(fn func(k, v any) bool) {
 			if e.key == jTombstoneStr {
 				continue
 			}
-			var k any
-			if e.key != NullString {
-				k = e.key
-			}
-			if !fn(k, e.val) {
+			if !fn(BoxString(e.key), e.val) {
 				return
 			}
 		}
@@ -10707,6 +10713,23 @@ func (m *JMapCore) LiveKeys() []any {
 		return true
 	})
 	return out
+}
+
+func (m *JMapCore) LiveStrKeys() ([]string, bool) {
+	if m == nil || m.Live == 0 {
+		return nil, true
+	}
+	if m.mode != jMapModeStr {
+		return nil, false
+	}
+	out := make([]string, 0, m.Live)
+	for i := int(m.firstIdx); i < len(m.strEntries); i++ {
+		k := m.strEntries[i].key
+		if k != jTombstoneStr {
+			out = append(out, k)
+		}
+	}
+	return out, true
 }
 
 func (m *JMapCore) LiveValues() []any {

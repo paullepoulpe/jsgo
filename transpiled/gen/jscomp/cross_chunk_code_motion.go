@@ -33,6 +33,11 @@ type CrossChunkCodeMotion struct {
 	chunkInsertionPointMap                     j2gort.OrderedMap[*JSChunk, pkg_rhino.Node] `gson:"chunkInsertionPointMap"`
 	idHash_                                    atomic.Int32
 	parentChunkCanSeeSymbolsDeclaredInChildren bool `gson:"parentChunkCanSeeSymbolsDeclaredInChildren"`
+	slab_InstanceofReference                   j2gort.PooledSlab[CrossChunkCodeMotion_InstanceofReference]
+	slab_GlobalSymbol                          j2gort.PooledSlab[CrossChunkCodeMotion_GlobalSymbol]
+	slab_DeclarationStatementGroup             j2gort.PooledSlab[CrossChunkCodeMotion_DeclarationStatementGroup]
+	slab_DeclarationStatementGroupCycle        j2gort.PooledSlab[CrossChunkCodeMotion_DeclarationStatementGroupCycle]
+	slab_GlobalSymbolCycle                     j2gort.PooledSlab[CrossChunkCodeMotion_GlobalSymbolCycle]
 }
 
 func (this_ *CrossChunkCodeMotion) BindSelf_(s any) {
@@ -85,6 +90,7 @@ func InitCrossChunkCodeMotion(this_ *CrossChunkCodeMotion, compiler AbstractComp
 func (this_ *CrossChunkCodeMotion) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
+	defer this_.ReleaseSlabs_()
 	func() {
 		defer func() {
 			this_.cccmLog = nil
@@ -359,7 +365,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 		if this_.outer_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2241(n) || this_.outer_.priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2239(n) {
 			return
 		} else if this_.outer_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2242(n) {
-			globalSymbol.instanceofReferencesToGuard.Push(CrossChunkCodeMotion_InstanceofReference_Immovable(chunk, ref))
+			globalSymbol.instanceofReferencesToGuard.Push(allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Immovable(&this_.outer_.slab_InstanceofReference, chunk, ref))
 			return
 		}
 	}
@@ -400,7 +406,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 				if this_.outer_.priv_CrossChunkCodeMotion_isGuardedInstanceofReference_2241(n) || this_.outer_.priv_CrossChunkCodeMotion_isUndefinedTypeofGuardReference_2239(n) {
 					continue
 				} else if this_.outer_.priv_CrossChunkCodeMotion_isUnguardedInstanceofReference_2242(n) {
-					refSymbol.instanceofReferencesToGuard.Push(CrossChunkCodeMotion_InstanceofReference_Movable(dsg, ref))
+					refSymbol.instanceofReferencesToGuard.Push(allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Movable(&this_.outer_.slab_InstanceofReference, dsg, ref))
 					continue
 				}
 			}
@@ -416,7 +422,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCollector) priv_GlobalSymbolCollec
 	var globalSymbol *CrossChunkCodeMotion_GlobalSymbol = this_.globalSymbolforVar.Get(var_)
 	_ = globalSymbol
 	if globalSymbol == nil {
-		globalSymbol = NewCrossChunkCodeMotion_GlobalSymbol(this_.outer_, var_)
+		globalSymbol = allocPooled_CrossChunkCodeMotion_GlobalSymbol(&this_.outer_.slab_GlobalSymbol, this_.outer_, var_)
 		this_.globalSymbolforVar.Put(var_, globalSymbol)
 		this_.symbolStack.Push(globalSymbol)
 	}
@@ -481,6 +487,12 @@ func NewCrossChunkCodeMotion_GlobalSymbol(outer_ *CrossChunkCodeMotion, var_ *Va
 	InitCrossChunkCodeMotion_GlobalSymbol(this_, var_)
 	return this_
 }
+func allocPooled_CrossChunkCodeMotion_GlobalSymbol(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_GlobalSymbol], outer_ *CrossChunkCodeMotion, var_ *Var) *CrossChunkCodeMotion_GlobalSymbol {
+	this_ := slab_.Alloc()
+	this_.outer_ = outer_
+	InitCrossChunkCodeMotion_GlobalSymbol(this_, var_)
+	return this_
+}
 
 func InitCrossChunkCodeMotion_GlobalSymbol(this_ *CrossChunkCodeMotion_GlobalSymbol, var_ *Var) {
 	_ = var_
@@ -507,7 +519,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statemen
 	var lastDsg *CrossChunkCodeMotion_DeclarationStatementGroup = this_.dsgStack.Peek()
 	_ = lastDsg
 	if lastDsg == nil {
-		lastDsg = NewCrossChunkCodeMotion_DeclarationStatementGroup(this_, chunk)
+		lastDsg = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroup(&this_.outer_.slab_DeclarationStatementGroup, this_, chunk)
 		this_.dsgStack.Push(lastDsg)
 	}
 	var statementDsg *CrossChunkCodeMotion_DeclarationStatementGroup = nil
@@ -523,7 +535,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbol) AddDeclarationStatement(statemen
 		if iifeCond_1 {
 			statementDsg = lastDsg
 		} else {
-			statementDsg = NewCrossChunkCodeMotion_DeclarationStatementGroup(this_, chunk)
+			statementDsg = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroup(&this_.outer_.slab_DeclarationStatementGroup, this_, chunk)
 			this_.dsgStack.Push(statementDsg)
 		}
 	}
@@ -607,6 +619,12 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) initFields_CrossChunkCodeMo
 // Java constructor: GlobalSymbolCycle()
 func NewCrossChunkCodeMotion_GlobalSymbolCycle(outer_ *CrossChunkCodeMotion) *CrossChunkCodeMotion_GlobalSymbolCycle {
 	this_ := &CrossChunkCodeMotion_GlobalSymbolCycle{}
+	this_.outer_ = outer_
+	InitCrossChunkCodeMotion_GlobalSymbolCycle(this_)
+	return this_
+}
+func allocPooled_CrossChunkCodeMotion_GlobalSymbolCycle(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_GlobalSymbolCycle], outer_ *CrossChunkCodeMotion) *CrossChunkCodeMotion_GlobalSymbolCycle {
+	this_ := slab_.Alloc()
 	this_.outer_ = outer_
 	InitCrossChunkCodeMotion_GlobalSymbolCycle(this_)
 	return this_
@@ -764,7 +782,7 @@ func (this_ *CrossChunkCodeMotion_GlobalSymbolCycle) priv_GlobalSymbolCycle_popu
 				ap_34 := dsg_3.currentChunk
 				return j2gort.CheckNotNullPtr(rp_33) == ap_34
 			}()) {
-				cycle = NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(this_.outer_, dsg_3.currentChunk)
+				cycle = allocPooled_CrossChunkCodeMotion_DeclarationStatementGroupCycle(&this_.outer_.slab_DeclarationStatementGroupCycle, this_.outer_, dsg_3.currentChunk)
 				*cyclesLatestFirst = append(*cyclesLatestFirst, cycle)
 			}
 			cycle.dsgs.AddLast(dsg_3)
@@ -813,6 +831,11 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroup) initFields_CrossChu
 // Java constructor: DeclarationStatementGroup(com.google.javascript.jscomp.CrossChunkCodeMotion.GlobalSymbol declaredGlobalSymbol, com.google.javascript.jscomp.JSChunk currentChunk)
 func NewCrossChunkCodeMotion_DeclarationStatementGroup(declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
 	this_ := &CrossChunkCodeMotion_DeclarationStatementGroup{}
+	InitCrossChunkCodeMotion_DeclarationStatementGroup(this_, declaredGlobalSymbol, currentChunk)
+	return this_
+}
+func allocPooled_CrossChunkCodeMotion_DeclarationStatementGroup(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_DeclarationStatementGroup], declaredGlobalSymbol *CrossChunkCodeMotion_GlobalSymbol, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroup {
+	this_ := slab_.Alloc()
 	InitCrossChunkCodeMotion_DeclarationStatementGroup(this_, declaredGlobalSymbol, currentChunk)
 	return this_
 }
@@ -981,10 +1004,9 @@ func (this_ *CrossChunkCodeMotion_OrderAndCombineGlobalSymbols) ProcessGlobalSym
 	}
 	if j2gort.CheckNotNullPtr(this_.componentRoots.Peek()) == symbol {
 		this_.componentRoots.Pop()
-		var val_46 CrossChunkCodeMotion_GlobalSymbolCycle
-		val_46.outer_ = this_.outer_
-		InitCrossChunkCodeMotion_GlobalSymbolCycle(&val_46)
-		var cycle *CrossChunkCodeMotion_GlobalSymbolCycle = &val_46
+		val_46 := allocPooled_CrossChunkCodeMotion_GlobalSymbolCycle(&this_.outer_.slab_GlobalSymbolCycle, this_.outer_)
+
+		var cycle *CrossChunkCodeMotion_GlobalSymbolCycle = val_46
 		_ = cycle
 		var connectedSymbol *CrossChunkCodeMotion_GlobalSymbol = nil
 		_ = connectedSymbol
@@ -1046,6 +1068,12 @@ func (this_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) initFields_Cro
 // Java constructor: DeclarationStatementGroupCycle(com.google.javascript.jscomp.JSChunk currentChunk)
 func NewCrossChunkCodeMotion_DeclarationStatementGroupCycle(outer_ *CrossChunkCodeMotion, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroupCycle {
 	this_ := &CrossChunkCodeMotion_DeclarationStatementGroupCycle{}
+	this_.outer_ = outer_
+	InitCrossChunkCodeMotion_DeclarationStatementGroupCycle(this_, currentChunk)
+	return this_
+}
+func allocPooled_CrossChunkCodeMotion_DeclarationStatementGroupCycle(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_DeclarationStatementGroupCycle], outer_ *CrossChunkCodeMotion, currentChunk *JSChunk) *CrossChunkCodeMotion_DeclarationStatementGroupCycle {
+	this_ := slab_.Alloc()
 	this_.outer_ = outer_
 	InitCrossChunkCodeMotion_DeclarationStatementGroupCycle(this_, currentChunk)
 	return this_
@@ -1288,6 +1316,11 @@ func NewCrossChunkCodeMotion_InstanceofReference(chunk *JSChunk, containingDsg *
 	InitCrossChunkCodeMotion_InstanceofReference(this_, chunk, containingDsg, reference)
 	return this_
 }
+func allocPooled_CrossChunkCodeMotion_InstanceofReference(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_InstanceofReference], chunk *JSChunk, containingDsg *CrossChunkCodeMotion_DeclarationStatementGroup, reference *Reference) *CrossChunkCodeMotion_InstanceofReference {
+	this_ := slab_.Alloc()
+	InitCrossChunkCodeMotion_InstanceofReference(this_, chunk, containingDsg, reference)
+	return this_
+}
 
 func InitCrossChunkCodeMotion_InstanceofReference(this_ *CrossChunkCodeMotion_InstanceofReference, chunk *JSChunk, containingDsg *CrossChunkCodeMotion_DeclarationStatementGroup, reference *Reference) {
 	_ = chunk
@@ -1305,12 +1338,22 @@ func CrossChunkCodeMotion_InstanceofReference_Immovable(chunk *JSChunk, referenc
 	_ = reference
 	return NewCrossChunkCodeMotion_InstanceofReference(chunk, nil, reference)
 }
+func allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Immovable(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_InstanceofReference], chunk *JSChunk, reference *Reference) *CrossChunkCodeMotion_InstanceofReference {
+	_ = chunk
+	_ = reference
+	return allocPooled_CrossChunkCodeMotion_InstanceofReference(slab_, chunk, nil, reference)
+}
 
 // Java static method: InstanceofReference.movable(com.google.javascript.jscomp.CrossChunkCodeMotion.DeclarationStatementGroup containingDsg, com.google.javascript.jscomp.Reference reference)
 func CrossChunkCodeMotion_InstanceofReference_Movable(containingDsg *CrossChunkCodeMotion_DeclarationStatementGroup, reference *Reference) *CrossChunkCodeMotion_InstanceofReference {
 	_ = containingDsg
 	_ = reference
 	return NewCrossChunkCodeMotion_InstanceofReference(nil, containingDsg, reference)
+}
+func allocPooledVia_CrossChunkCodeMotion_InstanceofReference_Movable(slab_ *j2gort.PooledSlab[CrossChunkCodeMotion_InstanceofReference], containingDsg *CrossChunkCodeMotion_DeclarationStatementGroup, reference *Reference) *CrossChunkCodeMotion_InstanceofReference {
+	_ = containingDsg
+	_ = reference
+	return allocPooled_CrossChunkCodeMotion_InstanceofReference(slab_, nil, containingDsg, reference)
 }
 
 // Java method: InstanceofReference.getChunk()
@@ -1325,4 +1368,29 @@ func (this_ *CrossChunkCodeMotion_InstanceofReference) GetChunk() *JSChunk {
 // Java method: InstanceofReference.getReference()
 func (this_ *CrossChunkCodeMotion_InstanceofReference) GetReference() *Reference {
 	return this_.reference
+}
+func (this_ *CrossChunkCodeMotion) ReleaseSlabs_() {
+	if this_ == nil {
+		return
+	}
+	this_.slab_GlobalSymbol.ReleaseWith(func(x_ *CrossChunkCodeMotion_GlobalSymbol) {
+		var z_ CrossChunkCodeMotion_GlobalSymbol
+		*x_ = z_
+	})
+	this_.slab_GlobalSymbolCycle.ReleaseWith(func(x_ *CrossChunkCodeMotion_GlobalSymbolCycle) {
+		var z_ CrossChunkCodeMotion_GlobalSymbolCycle
+		*x_ = z_
+	})
+	this_.slab_DeclarationStatementGroup.ReleaseWith(func(x_ *CrossChunkCodeMotion_DeclarationStatementGroup) {
+		var z_ CrossChunkCodeMotion_DeclarationStatementGroup
+		*x_ = z_
+	})
+	this_.slab_DeclarationStatementGroupCycle.ReleaseWith(func(x_ *CrossChunkCodeMotion_DeclarationStatementGroupCycle) {
+		var z_ CrossChunkCodeMotion_DeclarationStatementGroupCycle
+		*x_ = z_
+	})
+	this_.slab_InstanceofReference.ReleaseWith(func(x_ *CrossChunkCodeMotion_InstanceofReference) {
+		var z_ CrossChunkCodeMotion_InstanceofReference
+		*x_ = z_
+	})
 }

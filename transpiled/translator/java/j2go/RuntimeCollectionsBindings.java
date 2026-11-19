@@ -104,8 +104,8 @@ public final class RuntimeCollectionsBindings {
   public static void emitExtraStructFields(TypeElement te, StringBuilder out) {
     if (te.getQualifiedName().contentEquals("java.util.BitSet")) {
       out.append("\twords []uint64 `gson:\"-\"`\n");
-      out.append("\tbuf [8]uint64 `gson:\"-\"`\n");
-      out.append("\thi [8]int32 `gson:\"-\"`\n");
+      out.append("\tbuf [bsInlineWords]uint64 `gson:\"-\"`\n");
+      out.append("\thi [bsSparseCap]int32 `gson:\"-\"`\n");
       out.append("\tinitW int32 `gson:\"-\"`\n");
       out.append("\thiLen int32 `gson:\"-\"`\n");
     }
@@ -371,6 +371,15 @@ public final class RuntimeCollectionsBindings {
             .append("(this_) { return nil }\n");
       }
       out.append("\treturn &this_.inlineSet\n}\n");
+
+      out.append("func (this_ *").append(structName).append(") IterStrSlice_() ([]string, bool) {\n")
+          .append("\tif this_ == nil { ThrowNPE() }\n");
+      if (subclassed) {
+        out.append("\tif this_.Self_ != nil && this_.Self_ != ").append(selfIface)
+            .append("(this_) { return nil, false }\n");
+      }
+      out.append("\tif this_.Core_ != nil { return nil, false }\n")
+          .append("\treturn this_.inlineSet.DenseStrSlice()\n}\n");
 
       out.append("func (this_ *").append(structName).append(") SetContainsStr_(k string) bool {\n")
           .append("\tif this_ == nil { ThrowNPE() }\n");
@@ -3073,7 +3082,7 @@ public final class RuntimeCollectionsBindings {
           if (arity == 1) return "\thashSetForEach(" + hsBase + ", arg0)\n";
         }
         case "stream" -> {
-          if (arity == 0) return "\treturn streamFromSlice(hashSetToArray(" + hsBase + "))\n";
+          if (arity == 0) return "\treturn hashSetStream(" + hsBase + ")\n";
         }
         case "clone" -> {
           if (arity == 0) {
@@ -3090,7 +3099,7 @@ public final class RuntimeCollectionsBindings {
           if (arity == 0) return "\treturn hashSetHash(" + hsBase + ")\n";
         }
         case "toString" -> {
-          if (arity == 0) return "\treturn sliceJavaString(hashSetToArray(" + hsBase + "))\n";
+          if (arity == 0) return "\treturn hashSetString(" + hsBase + ")\n";
         }
         default -> {}
       }
@@ -4553,6 +4562,220 @@ public final class RuntimeCollectionsBindings {
         \treturn dst
         }
 
+        func ColToStringArray(col any, dst []string) []string {
+        \tif col == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif ssi, ok := col.(StrSliceIterable); ok {
+        \t\tif nc, ok2 := col.(jJavaNilChecker); ok2 && nc.IsJavaNil_() {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\tif ss, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tCheckNotNullSlice(dst)
+        \t\t\tn := len(ss)
+        \t\t\tif len(dst) < n {
+        \t\t\t\tout := make([]string, n)
+        \t\t\t\tcopy(out, ss)
+        \t\t\t\treturn out
+        \t\t\t}
+        \t\t\tcopy(dst, ss)
+        \t\t\tif len(dst) > n {
+        \t\t\t\tdst[n] = NullString
+        \t\t\t}
+        \t\t\treturn dst
+        \t\t}
+        \t}
+        \tif jsp, ok := col.(jFastJSetCoreProvider); ok {
+        \t\tif sc := jsp.fastSetJCore_(); sc != nil {
+        \t\t\tCheckNotNullSlice(dst)
+        \t\t\tn := int(sc.Size())
+        \t\t\tvar out []string
+        \t\t\tif len(dst) < n {
+        \t\t\t\tout = make([]string, n)
+        \t\t\t} else {
+        \t\t\t\tout = dst
+        \t\t\t\tif len(dst) > n {
+        \t\t\t\t\tdst[n] = NullString
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\tif n == 0 {
+        \t\t\t\treturn out
+        \t\t\t}
+        \t\t\tif sc.mode == jSetModeStr {
+        \t\t\t\tstrs := sc.ext.(*jSetStrState).strs
+        \t\t\t\tw := 0
+        \t\t\t\tfor i := int(sc.firstIdx); i < len(strs); i++ {
+        \t\t\t\t\tif s := strs[i]; s != jTombstoneStr {
+        \t\t\t\t\t\tout[w] = s
+        \t\t\t\t\t\tw++
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn out
+        \t\t\t}
+        \t\t\tw := 0
+        \t\t\tsc.ForEach(func(k any) bool {
+        \t\t\t\tout[w] = CastString(k)
+        \t\t\t\tw++
+        \t\t\t\treturn true
+        \t\t\t})
+        \t\t\treturn out
+        \t\t}
+        \t}
+        \tif isJavaNilAny(col) {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNullSlice(dst)
+        \tif sp, ok := col.(jFastSetCoreProvider); ok {
+        \t\tif mc := sp.fastSetCore_(); mc != nil && mc.mode == jMapModeStr {
+        \t\t\tn := int(mc.Size())
+        \t\t\tvar out []string
+        \t\t\tif len(dst) < n {
+        \t\t\t\tout = make([]string, n)
+        \t\t\t} else {
+        \t\t\t\tout = dst
+        \t\t\t\tif len(dst) > n {
+        \t\t\t\t\tdst[n] = NullString
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\tw := 0
+        \t\t\tfor i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+        \t\t\t\tif s := mc.strEntries[i].key; s != jTombstoneStr {
+        \t\t\t\t\tout[w] = s
+        \t\t\t\t\tw++
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\treturn out
+        \t\t}
+        \t}
+        \tcapHint := 0
+        \tif c, ok := col.(Ext_java_util_Collection); ok {
+        \t\tcapHint = int(c.Size())
+        \t}
+        \tcur := NewIterCursor(col)
+        \tif !cur.HasNext() {
+        \t\tif len(dst) > 0 {
+        \t\t\tdst[0] = NullString
+        \t\t}
+        \t\treturn dst
+        \t}
+        \tvar tmp []string
+        \tif capHint > 0 {
+        \t\ttmp = make([]string, 0, capHint)
+        \t}
+        \tfor cur.HasNext() {
+        \t\ttmp = append(tmp, cur.NextStr())
+        \t}
+        \tif len(dst) >= len(tmp) {
+        \t\tcopy(dst, tmp)
+        \t\tif len(dst) > len(tmp) {
+        \t\t\tdst[len(tmp)] = NullString
+        \t\t}
+        \t\treturn dst
+        \t}
+        \treturn tmp
+        }
+
+        func ColToNewStringArray(col any) []string {
+        \treturn ColToStringArray(col, emptyStrSlice_)
+        }
+
+        func ColToPtrArray[T any](col any, dst []*T) []*T {
+        \tif col == nil {
+        \t\tThrowNPE()
+        \t}
+        \tif si, ok := col.(SliceIterable); ok {
+        \t\tif nc, ok2 := col.(jJavaNilChecker); ok2 && nc.IsJavaNil_() {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\titems := si.IterSlice_()
+        \t\tCheckNotNullSlice(dst)
+        \t\tn := len(items)
+        \t\tvar out []*T
+        \t\tif len(dst) < n {
+        \t\t\tout = make([]*T, n)
+        \t\t} else {
+        \t\t\tout = dst
+        \t\t\tif len(dst) > n {
+        \t\t\t\tdst[n] = nil
+        \t\t\t}
+        \t\t}
+        \t\tfor i, x := range items {
+        \t\t\tout[i] = CastPtr[T](x)
+        \t\t}
+        \t\treturn out
+        \t}
+        \tif jsp, ok := col.(jFastJSetCoreProvider); ok {
+        \t\tif sc := jsp.fastSetJCore_(); sc != nil {
+        \t\t\tCheckNotNullSlice(dst)
+        \t\t\tn := int(sc.Size())
+        \t\t\tvar out []*T
+        \t\t\tif len(dst) < n {
+        \t\t\t\tout = make([]*T, n)
+        \t\t\t} else {
+        \t\t\t\tout = dst
+        \t\t\t\tif len(dst) > n {
+        \t\t\t\t\tdst[n] = nil
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\tif n == 0 {
+        \t\t\t\treturn out
+        \t\t\t}
+        \t\t\tif sc.mode == jSetModeAny {
+        \t\t\t\titems := sc.ext.(*jSetAnyState).items
+        \t\t\t\tw := 0
+        \t\t\t\tfor i := int(sc.firstIdx); i < len(items); i++ {
+        \t\t\t\t\tif it := items[i]; it != jTombstoneObj {
+        \t\t\t\t\t\tout[w] = CastPtr[T](it)
+        \t\t\t\t\t\tw++
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn out
+        \t\t\t}
+        \t\t\tw := 0
+        \t\t\tsc.ForEach(func(k any) bool {
+        \t\t\t\tout[w] = CastPtr[T](k)
+        \t\t\t\tw++
+        \t\t\t\treturn true
+        \t\t\t})
+        \t\t\treturn out
+        \t\t}
+        \t}
+        \tif isJavaNilAny(col) {
+        \t\tThrowNPE()
+        \t}
+        \tCheckNotNullSlice(dst)
+        \tcapHint := 0
+        \tif c, ok := col.(Ext_java_util_Collection); ok {
+        \t\tcapHint = int(c.Size())
+        \t}
+        \tcur := NewIterCursor(col)
+        \tif !cur.HasNext() {
+        \t\tif len(dst) > 0 {
+        \t\t\tdst[0] = nil
+        \t\t}
+        \t\treturn dst
+        \t}
+        \tvar tmp []*T
+        \tif capHint > 0 {
+        \t\ttmp = make([]*T, 0, capHint)
+        \t}
+        \tfor cur.HasNext() {
+        \t\ttmp = append(tmp, CastPtr[T](cur.Next()))
+        \t}
+        \tif len(dst) >= len(tmp) {
+        \t\tcopy(dst, tmp)
+        \t\tif len(dst) > len(tmp) {
+        \t\t\tdst[len(tmp)] = nil
+        \t\t}
+        \t\treturn dst
+        \t}
+        \treturn tmp
+        }
+
+        func ColToNewPtrArray[T any](col any) []*T {
+        \treturn ColToPtrArray(col, []*T{})
+        }
+
         type jFastSetCoreProvider interface {
         \tfastSetCore_() *JMapCore
         }
@@ -4981,7 +5204,27 @@ public final class RuntimeCollectionsBindings {
 
         func copySetCoreInto(dst *JSetCore, src *JSetCore) *JSetCore {
         \tdst.identity = src.identity
+        \tif src.Size() == 0 {
+        \t\treturn dst
+        \t}
         \tdst.InitExpectedSize(src.Size())
+        \tif src.mode == jSetModeStr {
+        \t\tstrs := src.ext.(*jSetStrState).strs
+        \t\tfor i := int(src.firstIdx); i < len(strs); i++ {
+        \t\t\tif s := strs[i]; s != jTombstoneStr {
+        \t\t\t\tdst.AddStr(s)
+        \t\t\t}
+        \t\t}
+        \t\treturn dst
+        \t}
+        \tif src.mode == jSetModeNode {
+        \t\tfor i := int(src.firstIdx); i < len(src.nodes); i++ {
+        \t\t\tif u := src.nodes[i]; u != jTombstoneNode {
+        \t\t\t\tdst.AddNode(u)
+        \t\t\t}
+        \t\t}
+        \t\treturn dst
+        \t}
         \tsrc.ForEach(func(k any) bool {
         \t\tdst.Add(k)
         \t\treturn true
@@ -4991,6 +5234,21 @@ public final class RuntimeCollectionsBindings {
 
         func setCoreAddAllIterable(sc *JSetCore, src any) bool {
         \tCheckNotNull(src)
+        \tif ssi, ok := src.(StrSliceIterable); ok {
+        \t\tif strs, ok2 := ssi.IterStrSlice_(); ok2 {
+        \t\t\tif len(strs) == 0 {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\tsc.InitExpectedSize(sc.Size() + int32(len(strs)))
+        \t\t\tchanged := false
+        \t\t\tfor _, s := range strs {
+        \t\t\t\tif s != jTombstoneStr && sc.AddStr(s) {
+        \t\t\t\t\tchanged = true
+        \t\t\t\t}
+        \t\t\t}
+        \t\t\treturn changed
+        \t\t}
+        \t}
         \tif tv, ok := src.(jTypedViewCursorSource); ok {
         \t\tif n, ok2 := tv.typedViewLen_(); ok2 {
         \t\t\tif n == 0 {
@@ -5027,6 +5285,23 @@ public final class RuntimeCollectionsBindings {
         \t\t\t}
         \t\t\tsc.InitExpectedSize(sc.Size() + osc.Size())
         \t\t\tchanged := false
+        \t\t\tif osc.mode == jSetModeStr {
+        \t\t\t\tstrs := osc.ext.(*jSetStrState).strs
+        \t\t\t\tfor i := int(osc.firstIdx); i < len(strs); i++ {
+        \t\t\t\t\tif s := strs[i]; s != jTombstoneStr && sc.AddStr(s) {
+        \t\t\t\t\t\tchanged = true
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn changed
+        \t\t\t}
+        \t\t\tif osc.mode == jSetModeNode {
+        \t\t\t\tfor i := int(osc.firstIdx); i < len(osc.nodes); i++ {
+        \t\t\t\t\tif u := osc.nodes[i]; u != jTombstoneNode && sc.AddNode(u) {
+        \t\t\t\t\t\tchanged = true
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\treturn changed
+        \t\t\t}
         \t\t\tosc.ForEach(func(k any) bool {
         \t\t\t\tif sc.Add(k) {
         \t\t\t\t\tchanged = true
@@ -5293,9 +5568,77 @@ public final class RuntimeCollectionsBindings {
         \t\t}
         \t\treturn
         \t}
-        \tfor _, k := range hs.inlineSet.LiveKeys() {
+        \ths.inlineSet.ForEach(func(k any) bool {
         \t\taction.Accept(k)
+        \t\treturn true
+        \t})
+        }
+
+        func hashSetStream(hs *Ext_java_util_HashSetBase) Ext_java_util_stream_Stream {
+        \tif mb := hs.mapBack(); mb != nil {
+        \t\treturn streamFromIterable(Cast[Ext_java_util_Set](mb.KeySet_0()))
         \t}
+        \tsc := &hs.inlineSet
+        \tif sc.IsEmpty() {
+        \t\treturn emptyStream_
+        \t}
+        \tvar cur JIterCursor
+        \tinited := false
+        \treturn &jStream{next: func() (any, bool) {
+        \t\tif !inited {
+        \t\t\tstart := int(sc.firstIdx)
+        \t\t\tcur = JIterCursor{sc: sc, idx: start, kind: 4}
+        \t\t\tcur.advanceJSet()
+        \t\t\tinited = true
+        \t\t}
+        \t\tif !cur.HasNext() {
+        \t\t\treturn nil, false
+        \t\t}
+        \t\treturn ToAny(cur.Next()), true
+        \t}}
+        }
+
+        func hashSetString(hs *Ext_java_util_HashSetBase) string {
+        \tif mb := hs.mapBack(); mb != nil {
+        \t\treturn sliceJavaString(colToSlice(Cast[Ext_java_util_Set](mb.KeySet_0())))
+        \t}
+        \tsc := &hs.inlineSet
+        \tif sc.IsEmpty() {
+        \t\treturn "[]"
+        \t}
+        \tvar sb strings.Builder
+        \tsb.WriteByte('[')
+        \tfirst := true
+        \tif sc.mode == jSetModeStr {
+        \t\tstrs := sc.ext.(*jSetStrState).strs
+        \t\tfor i := int(sc.firstIdx); i < len(strs); i++ {
+        \t\t\ts := strs[i]
+        \t\t\tif s == jTombstoneStr {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tif !first {
+        \t\t\t\tsb.WriteString(", ")
+        \t\t\t}
+        \t\t\tfirst = false
+        \t\t\tif s == NullString {
+        \t\t\t\tsb.WriteString("null")
+        \t\t\t} else {
+        \t\t\t\tsb.WriteString(s)
+        \t\t\t}
+        \t\t}
+        \t\tsb.WriteByte(']')
+        \t\treturn sb.String()
+        \t}
+        \tsc.ForEach(func(k any) bool {
+        \t\tif !first {
+        \t\t\tsb.WriteString(", ")
+        \t\t}
+        \t\tfirst = false
+        \t\tsb.WriteString(StrVal(k))
+        \t\treturn true
+        \t})
+        \tsb.WriteByte(']')
+        \treturn sb.String()
         }
 
         func hashSetEquals(hs *Ext_java_util_HashSetBase, other any) bool {
@@ -8825,6 +9168,22 @@ public final class RuntimeCollectionsBindings {
         \t\t}
         \t\treturn initIterMapCursor(mk.mc, false)
         \t}
+        \tif ms, ok := coll.(*jMultimapLiveSet); ok {
+        \t\tif ms == nil {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\tb := ms.getBucket()
+        \t\tif b == nil {
+        \t\t\treturn JIterCursor{}
+        \t\t}
+        \t\treturn initIterMapCursor(b.(*JMapCore), false)
+        \t}
+        \tif mmk, ok := coll.(*jMultimapLiveKeySet); ok {
+        \t\tif mmk == nil {
+        \t\t\tThrowNPE()
+        \t\t}
+        \t\treturn initIterMapCursor(mmk.mm.keys, false)
+        \t}
         \tif ev, ok := coll.(*jLiveEnumMapValues); ok {
         \t\tif ev == nil {
         \t\t\tThrowNPE()
@@ -8951,6 +9310,9 @@ public final class RuntimeCollectionsBindings {
         \tcase 1:
         \t\treturn c.idx < len(c.slice)
         \tcase 9:
+        \t\tfor c.idx < len(c.strs) && c.strs[c.idx] == jTombstoneStr {
+        \t\t\tc.idx++
+        \t\t}
         \t\treturn c.idx < len(c.strs)
         \tcase 10:
         \t\tn, _ := c.tv.typedViewLen_()
@@ -9110,10 +9472,7 @@ public final class RuntimeCollectionsBindings {
         \t\tcase jSetModeNode:
         \t\t\tv = boxNodeById(c.sc.nodes[c.idx])
         \t\tcase jSetModeStr:
-        \t\t\ts := c.sc.ext.(*jSetStrState).strs[c.idx]
-        \t\t\tif s != NullString {
-        \t\t\t\tv = s
-        \t\t\t}
+        \t\t\tv = BoxString(c.sc.ext.(*jSetStrState).strs[c.idx])
         \t\tcase jSetModeAny:
         \t\t\tv = c.sc.ext.(*jSetAnyState).items[c.idx]
         \t\t}
@@ -9143,15 +9502,15 @@ public final class RuntimeCollectionsBindings {
         \tcase 8:
         \t\treturn c.fallbackIter.Next()
         \tcase 9:
+        \t\tfor c.idx < len(c.strs) && c.strs[c.idx] == jTombstoneStr {
+        \t\t\tc.idx++
+        \t\t}
         \t\tif c.idx >= len(c.strs) {
         \t\t\tpanic(javalang.NewNoSuchElementException("iterator exhausted"))
         \t\t}
         \t\ts := c.strs[c.idx]
         \t\tc.idx++
-        \t\tif s == NullString {
-        \t\t\treturn nil
-        \t\t}
-        \t\treturn s
+        \t\treturn BoxString(s)
         \tcase 10:
         \t\tn, _ := c.tv.typedViewLen_()
         \t\tif c.idx >= n {
@@ -9170,6 +9529,9 @@ public final class RuntimeCollectionsBindings {
 
         func (c *JIterCursor) NextStr() string {
         \tif c.kind == 9 {
+        \t\tfor c.idx < len(c.strs) && c.strs[c.idx] == jTombstoneStr {
+        \t\t\tc.idx++
+        \t\t}
         \t\tif c.idx >= len(c.strs) {
         \t\t\tpanic(javalang.NewNoSuchElementException("iterator exhausted"))
         \t\t}
@@ -9579,6 +9941,49 @@ public final class RuntimeCollectionsBindings {
         \t\tif smc := sp.fastSetCore_(); smc != nil && !smc.Identity {
         \t\t\tif smc.Size() == 0 {
         \t\t\t\treturn emptyImmutableSet_
+        \t\t\t}
+        \t\t\tif smc.mode == jMapModeStr {
+        \t\t\t\tn := int(smc.Size())
+        \t\t\t\tif n == 1 {
+        \t\t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\t\ts := smc.strEntries[i].key
+        \t\t\t\t\t\tif s == jTombstoneStr {
+        \t\t\t\t\t\t\tcontinue
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\tif s == NullString {
+        \t\t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\treturn ImmSetOfStr1(s)
+        \t\t\t\t\t}
+        \t\t\t\t}
+        \t\t\t\tif n <= 8 {
+        \t\t\t\t\tvar sbuf [8]string
+        \t\t\t\t\tw := 0
+        \t\t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\t\ts := smc.strEntries[i].key
+        \t\t\t\t\t\tif s == jTombstoneStr {
+        \t\t\t\t\t\t\tcontinue
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\tif s == NullString {
+        \t\t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t\t}
+        \t\t\t\t\t\tsbuf[w] = s
+        \t\t\t\t\t\tw++
+        \t\t\t\t\t}
+        \t\t\t\t\treturn finishImmStrSetSmall(sbuf[:w])
+        \t\t\t\t}
+        \t\t\t\tstrs := make([]string, 0, n)
+        \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+        \t\t\t\t\ts := smc.strEntries[i].key
+        \t\t\t\t\tif s == jTombstoneStr {
+        \t\t\t\t\t\tcontinue
+        \t\t\t\t\t}
+        \t\t\t\t\tif s == NullString {
+        \t\t\t\t\t\tThrowNPE()
+        \t\t\t\t\t}
+        \t\t\t\t\tstrs = append(strs, s)
+        \t\t\t\t}
+        \t\t\t\treturn finishImmStrSetOwn(strs, nil)
         \t\t\t}
         \t\t\tif smc.Size() == 1 {
         \t\t\t\treturn newImmSet1(smc.FirstKey())
@@ -12615,7 +13020,22 @@ public final class RuntimeCollectionsBindings {
         \t\tif mm.valCmp != nil {
         \t\t\tts := &Ext_java_util_TreeSet{}; ts.BindExtSelf_(ts); ts.Core_ = sm; return ts
         \t\t}
-        \t\treturn wrapLinkedHashSet(sm.LiveKeys())
+        \t\tobj := &Ext_java_util_LinkedHashSet{}
+        \t\tobj.BindExtSelf_(obj)
+        \t\tobj.inlineSet.InitExpectedSize(sm.Size())
+        \t\tif sm.mode == jMapModeStr {
+        \t\t\tfor i := int(sm.firstIdx); i < len(sm.strEntries); i++ {
+        \t\t\t\tif k := sm.strEntries[i].key; k != jTombstoneStr {
+        \t\t\t\t\tobj.inlineSet.AddStr(k)
+        \t\t\t\t}
+        \t\t\t}
+        \t\t} else {
+        \t\t\tsm.ForEachEntry(func(k, _ any) bool {
+        \t\t\t\tobj.inlineSet.Add(k)
+        \t\t\t\treturn true
+        \t\t\t})
+        \t\t}
+        \t\treturn obj
         \t}
         \tif lc, ok := b.(*JListCore); ok {
         \t\tmm.total -= lc.Size()
@@ -12717,7 +13137,10 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tmm.keys.ForEachEntry(func(_, b any) bool {
         \t\tif mm.isSet {
-        \t\t\tout = append(out, b.(*JMapCore).LiveKeys()...)
+        \t\t\tb.(*JMapCore).ForEachEntry(func(v, _ any) bool {
+        \t\t\t\tout = append(out, v)
+        \t\t\t\treturn true
+        \t\t\t})
         \t\t} else if lc, ok := b.(*JListCore); ok {
         \t\t\tout = append(out, lc.Items...)
         \t\t} else {
@@ -13031,10 +13454,21 @@ public final class RuntimeCollectionsBindings {
         \tif b == nil { return setCoreTailSet(NewSortedJMapCore(nil), from, incl, false) }
         \treturn setCoreTailSet(b.(*JMapCore), from, incl, false)
         }
+        func (s *jMultimapLiveSet) fastSetCore_() *JMapCore {
+        \tif s == nil { return nil }
+        \tb := s.getBucket()
+        \tif b == nil { return nil }
+        \treturn b.(*JMapCore)
+        }
         func (s *jMultimapLiveSet) Iterator() any {
         \tb := s.getBucket()
-        \tif b == nil { return newSliceObjIter(nil) }
-        \treturn &jMultimapSetIter{mm: s.mm, key: s.key, strKey: s.strKey, nodeKey: s.nodeKey, keyKind: s.keyKind, vals: b.(*JMapCore).LiveKeys()}
+        \tif b == nil { return emptyMapIter_ }
+        \tmc := b.(*JMapCore)
+        \tif mc.Live == 0 { return emptyMapIter_ }
+        \tif strs, ok := mc.LiveStrKeys(); ok {
+        \t\treturn &jMultimapSetIter{mm: s.mm, key: s.key, strKey: s.strKey, nodeKey: s.nodeKey, keyKind: s.keyKind, strs: strs, isStr: true}
+        \t}
+        \treturn &jMultimapSetIter{mm: s.mm, key: s.key, strKey: s.strKey, nodeKey: s.nodeKey, keyKind: s.keyKind, vals: mc.LiveKeys()}
         }
 
         type jMultimapSetIter struct {
@@ -13043,15 +13477,35 @@ public final class RuntimeCollectionsBindings {
         \tstrKey  string
         \tnodeKey uint32
         \tvals    []any
+        \tstrs    []string
         \tidx     int
         \tlastVal any
+        \tlastStr string
         \tkeyKind uint8
+        \tisStr   bool
         \thasLast bool
         }
 
         func (*jMultimapSetIter) Implements_j2gort_Ext_java_util_Iterator() {}
-        func (it *jMultimapSetIter) HasNext() bool { return it.idx < len(it.vals) }
+        func (it *jMultimapSetIter) IterStrSlice_() ([]string, bool) {
+        \tif it != nil && it.isStr && it.idx == 0 {
+        \t\treturn it.strs, true
+        \t}
+        \treturn nil, false
+        }
+        func (it *jMultimapSetIter) HasNext() bool {
+        \tif it.isStr { return it.idx < len(it.strs) }
+        \treturn it.idx < len(it.vals)
+        }
         func (it *jMultimapSetIter) Next() any {
+        \tif it.isStr {
+        \t\tif it.idx >= len(it.strs) { panic(javalang.NewNoSuchElementException("exhausted")) }
+        \t\ts := it.strs[it.idx]
+        \t\tit.idx++
+        \t\tit.lastStr = s
+        \t\tit.hasLast = true
+        \t\treturn BoxString(s)
+        \t}
         \tif it.idx >= len(it.vals) { panic(javalang.NewNoSuchElementException("exhausted")) }
         \tv := it.vals[it.idx]
         \tit.idx++
@@ -13061,13 +13515,17 @@ public final class RuntimeCollectionsBindings {
         }
         func (it *jMultimapSetIter) Remove() {
         \tif !it.hasLast { panic(javalang.NewIllegalStateException("remove before next")) }
+        \tlv := it.lastVal
+        \tif it.isStr {
+        \t\tlv = BoxString(it.lastStr)
+        \t}
         \tswitch it.keyKind {
         \tcase 1:
-        \t\tit.mm.removeStr(it.strKey, it.lastVal)
+        \t\tit.mm.removeStr(it.strKey, lv)
         \tcase 2:
-        \t\tit.mm.removeNode(it.nodeKey, it.lastVal)
+        \t\tit.mm.removeNode(it.nodeKey, lv)
         \tdefault:
-        \t\tmultimapOp_remove_2(it.mm, it.key, it.lastVal)
+        \t\tmultimapOp_remove_2(it.mm, it.key, lv)
         \t}
         \tit.hasLast = false
         }
@@ -13077,6 +13535,10 @@ public final class RuntimeCollectionsBindings {
         \tmm *jMultimapCore
         }
 
+        func (s *jMultimapLiveKeySet) fastSetCore_() *JMapCore {
+        \tif s == nil { return nil }
+        \treturn s.mm.keys
+        }
         func (s *jMultimapLiveKeySet) Size() int32             { return s.mm.keys.Size() }
         func (s *jMultimapLiveKeySet) Contains(k any) bool     { return s.mm.keys.ContainsKey(k) }
         func (s *jMultimapLiveKeySet) SetContainsStr_(k string) bool { return s.mm.keys.ContainsStr(k) }
@@ -13095,20 +13557,44 @@ public final class RuntimeCollectionsBindings {
         \treturn true
         }
         func (s *jMultimapLiveKeySet) Iterator() any {
+        \tif s.mm.keys.Live == 0 { return emptyMapIter_ }
+        \tif strs, ok := s.mm.keys.LiveStrKeys(); ok {
+        \t\treturn &jMultimapKeyIter{mm: s.mm, strs: strs, isStr: true}
+        \t}
         \treturn &jMultimapKeyIter{mm: s.mm, keys: s.mm.keys.LiveKeys()}
         }
 
         type jMultimapKeyIter struct {
         \tmm      *jMultimapCore
         \tkeys    []any
+        \tstrs    []string
         \tidx     int
         \tlastKey any
+        \tlastStr string
+        \tisStr   bool
         \thasLast bool
         }
 
         func (*jMultimapKeyIter) Implements_j2gort_Ext_java_util_Iterator() {}
-        func (it *jMultimapKeyIter) HasNext() bool { return it.idx < len(it.keys) }
+        func (it *jMultimapKeyIter) IterStrSlice_() ([]string, bool) {
+        \tif it != nil && it.isStr && it.idx == 0 {
+        \t\treturn it.strs, true
+        \t}
+        \treturn nil, false
+        }
+        func (it *jMultimapKeyIter) HasNext() bool {
+        \tif it.isStr { return it.idx < len(it.strs) }
+        \treturn it.idx < len(it.keys)
+        }
         func (it *jMultimapKeyIter) Next() any {
+        \tif it.isStr {
+        \t\tif it.idx >= len(it.strs) { panic(javalang.NewNoSuchElementException("exhausted")) }
+        \t\ts := it.strs[it.idx]
+        \t\tit.idx++
+        \t\tit.lastStr = s
+        \t\tit.hasLast = true
+        \t\treturn BoxString(s)
+        \t}
         \tif it.idx >= len(it.keys) { panic(javalang.NewNoSuchElementException("exhausted")) }
         \tk := it.keys[it.idx]
         \tit.idx++
@@ -13118,6 +13604,11 @@ public final class RuntimeCollectionsBindings {
         }
         func (it *jMultimapKeyIter) Remove() {
         \tif !it.hasLast { panic(javalang.NewIllegalStateException("remove before next")) }
+        \tif it.isStr {
+        \t\t_ = it.mm.removeAllStr(it.lastStr)
+        \t\tit.hasLast = false
+        \t\treturn
+        \t}
         \t_ = multimapOp_removeAll_1(it.mm, it.lastKey)
         \tit.hasLast = false
         }
@@ -13168,10 +13659,14 @@ public final class RuntimeCollectionsBindings {
         func (s *jMultimapAsMapEntries) Size() int32 { return s.mm.keys.Size() }
         func (s *jMultimapAsMapEntries) Clear()      { multimapOp_clear_0(s.mm) }
         func (s *jMultimapAsMapEntries) Iterator() any {
-        \tvar items []any
-        \tfor _, k := range s.mm.keys.LiveKeys() {
-        \t\titems = append(items, &jSimpleEntry{k: k, v: multimapOp_get_1(s.mm, k), imm: true})
+        \tif s.mm.keys.Live == 0 {
+        \t\treturn emptyMapIter_
         \t}
+        \titems := make([]any, 0, s.mm.keys.Live)
+        \ts.mm.keys.ForEachEntry(func(k, _ any) bool {
+        \t\titems = append(items, &jSimpleEntry{k: k, v: multimapOp_get_1(s.mm, k), imm: true})
+        \t\treturn true
+        \t})
         \treturn &jMultimapAsMapIter{mm: s.mm, entries: items}
         }
 
@@ -15140,10 +15635,10 @@ public final class RuntimeCollectionsBindings {
         func pqOp_equals_1(pq *jPriorityQueue, o any) bool    { return RefEquals(pq, o) }
         func pqOp_hashCode_0(pq *jPriorityQueue) int32        { return javalang.IdentityHashCode(pq) }
 
-        // --- BitSet (inline [8]uint64 = 512 dense bits + [8]int32 = 8 sparse high bits inside Ext_java_util_BitSet) ---
+        // --- BitSet (inline [16]uint64 = 1024 dense bits + [8]int32 = 8 sparse high bits inside Ext_java_util_BitSet) ---
 
         const (
-        \tbsInlineWords = 8
+        \tbsInlineWords = 16
         \tbsInlineBits  = bsInlineWords * 64
         \tbsSparseCap   = 8
         )
@@ -16183,8 +16678,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\tcopy(c.buf[:], b.words[:n])
         \t\t}
         \t} else {
-        \t\tcapW := max(n, int(b.initW))
-        \t\tc.words = make([]uint64, n, capW)
+        \t\tc.words = make([]uint64, n)
         \t\tcopy(c.words, b.words[:n])
         \t}
         \treturn c
@@ -16563,7 +17057,12 @@ public final class RuntimeCollectionsBindings {
         \tnext func() (any, bool)
         }
 
+        var emptyStream_ = &jStream{next: func() (any, bool) { return nil, false }}
+
         func streamFromSlice(items []any) Ext_java_util_stream_Stream {
+        \tif len(items) == 0 {
+        \t\treturn emptyStream_
+        \t}
         \tidx := 0
         \treturn &jStream{next: func() (any, bool) {
         \t\tif idx >= len(items) { return nil, false }

@@ -4986,3 +4986,234 @@ func TestWave38CNodeData32ByteLayoutSourceFileAndLazyLength(t *testing.T) {
 		t.Fatalf("re-registered s1 lost Length (%d) or SourceFile (%d)", nLazy.Length(), nSF.SourceFile())
 	}
 }
+
+func TestWave39CHasNonNegativeLengthAnd16BlockSlab(t *testing.T) {
+	s1 := NewNodeStore()
+	s2 := NewNodeStore()
+	prev := SetCurrentNodeStore(s1)
+	defer SetCurrentNodeStore(prev)
+
+	baseNeg := negLenCount.Load()
+
+	// 1. NilNode.HasNonNegativeLength() must panic with runtime.Error both when negLenCount == 0 and > 0.
+	assertNilPanics := func(label string) {
+		t.Helper()
+		defer func() {
+			r := recover()
+			if _, ok := r.(runtime.Error); !ok {
+				t.Fatalf("%s: NilNode.HasNonNegativeLength() expected runtime.Error, got %T (%v)", label, r, r)
+			}
+		}()
+		_ = NilNode.HasNonNegativeLength()
+	}
+	assertNilPanics("fast-path")
+
+	// 2. Non-negative lengths (unset, 0, 1..65534, >= 65535) keep negLenCount unchanged and return true with 0 allocs.
+	nA := AllocNodeToken(0, 40)
+	nB := AllocNodeToken(0, 41)
+	nC := AllocNodeToken(0, 42)
+	for _, pos := range []int32{0, 1, 65534, 65535, 100_000, math.MaxInt32} {
+		nA.SetLength(pos)
+		if !nA.HasNonNegativeLength() {
+			t.Fatalf("HasNonNegativeLength() = false for length %d", pos)
+		}
+		if got := negLenCount.Load(); got != baseNeg {
+			t.Fatalf("positive SetLength(%d) changed negLenCount: got %d, want %d", pos, got, baseNeg)
+		}
+	}
+	if allocs := testing.AllocsPerRun(100, func() {
+		if !nA.HasNonNegativeLength() || !nB.HasNonNegativeLength() {
+			t.Fatal("unexpected false")
+		}
+	}); allocs != 0 {
+		t.Fatalf("expected 0 allocs on HasNonNegativeLength, got %v", allocs)
+	}
+
+	// 3. Negative length transitions: inline -> neg, neg -> neg, overflow+ -> neg, neg -> inline+, neg -> overflow+.
+	nA.SetLength(50)
+	nA.SetLength(-1)
+	nB.SetLength(-42)
+	nC.SetLength(100_000)
+	nC.SetLength(math.MinInt32)
+	if got := negLenCount.Load(); got != baseNeg+3 {
+		t.Fatalf("negLenCount = %d, want %d", got, baseNeg+3)
+	}
+	assertNilPanics("slow-path")
+
+	// Overwriting negative with another negative must not double-increment.
+	nB.SetLength(-99)
+	if got := negLenCount.Load(); got != baseNeg+3 {
+		t.Fatalf("neg->neg overwrite changed negLenCount: got %d, want %d", got, baseNeg+3)
+	}
+	nPosInline := AllocNodeToken(0, 43)
+	nPosInline.SetLength(123)
+	nPosOverflow := AllocNodeToken(0, 44)
+	nPosOverflow.SetLength(200_000)
+	if nA.HasNonNegativeLength() || nB.HasNonNegativeLength() || nC.HasNonNegativeLength() {
+		t.Fatal("expected HasNonNegativeLength() == false for negative-length nodes")
+	}
+	if !nPosInline.HasNonNegativeLength() || !nPosOverflow.HasNonNegativeLength() {
+		t.Fatal("expected HasNonNegativeLength() == true for non-negative nodes while negLenCount > 0")
+	}
+
+	// Store switch s1 -> s2 must subtract s1.negLenNodes so s2 runs with negLenCount == baseNeg!
+	SetCurrentNodeStore(s2)
+	if got := negLenCount.Load(); got != baseNeg {
+		t.Fatalf("switching to clean s2 left negLenCount = %d, want %d", got, baseNeg)
+	}
+	nS2 := AllocNodeToken(0, 45)
+	if !nS2.HasNonNegativeLength() {
+		t.Fatal("expected s2 node HasNonNegativeLength() == true")
+	}
+
+	// Switching back to s1 restores s1.negLenNodes in negLenCount!
+	SetCurrentNodeStore(s1)
+	if got := negLenCount.Load(); got != baseNeg+3 {
+		t.Fatalf("re-registering s1 gave negLenCount = %d, want %d", got, baseNeg+3)
+	}
+	if nA.HasNonNegativeLength() || nB.HasNonNegativeLength() || nC.HasNonNegativeLength() {
+		t.Fatal("re-registered s1 lost negative length state")
+	}
+
+	// Transition all 3 negative nodes back to non-negative (0, inline+, overflow+).
+	nA.SetLength(0)
+	nB.SetLength(500)
+	nC.SetLength(100_000)
+	if got := negLenCount.Load(); got != baseNeg {
+		t.Fatalf("clearing negative lengths gave negLenCount = %d, want %d", got, baseNeg)
+	}
+	if !nA.HasNonNegativeLength() || !nB.HasNonNegativeLength() || !nC.HasNonNegativeLength() {
+		t.Fatal("expected HasNonNegativeLength() == true after clearing negative lengths")
+	}
+
+	// Static template node negative length persists across ResetNodeStore and clears cleanly.
+	tmpl := NewTemplateNode(55)
+	tmpl.SetLength(-7)
+	if tmpl.HasNonNegativeLength() || negLenCount.Load() != baseNeg+1 {
+		t.Fatalf("template negative length tracking failed: count=%d", negLenCount.Load())
+	}
+	ResetNodeStore()
+	if tmpl.HasNonNegativeLength() || negLenCount.Load() != baseNeg+1 {
+		t.Fatalf("ResetNodeStore disturbed static template negLenCount: count=%d", negLenCount.Load())
+	}
+	tmpl.SetLength(0)
+	if !tmpl.HasNonNegativeLength() || negLenCount.Load() != baseNeg {
+		t.Fatalf("clearing static template negative length failed: count=%d", negLenCount.Load())
+	}
+
+	// 4. Verify [16]nodeBlock (8 MiB) slab batching progression on a fresh store:
+	// blkIdx < 2 -> 1 block (512 KiB), 2 <= blkIdx < 8 -> 4 blocks (2 MiB), blkIdx >= 8 -> 16 blocks (8 MiB).
+	sSlab := NewNodeStore()
+	SetCurrentNodeStore(sSlab)
+	_ = sSlab.Alloc()
+	if len(sSlab.blocks) != 1 {
+		t.Fatalf("blkIdx=0: len(blocks) = %d, want 1", len(sSlab.blocks))
+	}
+	for sSlab.NodeCount() <= blockLen {
+		_ = sSlab.Alloc()
+	}
+	if len(sSlab.blocks) != 2 {
+		t.Fatalf("blkIdx=1: len(blocks) = %d, want 2", len(sSlab.blocks))
+	}
+	for sSlab.NodeCount() <= 2*blockLen {
+		_ = sSlab.Alloc()
+	}
+	if len(sSlab.blocks) != 6 {
+		t.Fatalf("blkIdx=2: len(blocks) = %d, want 6", len(sSlab.blocks))
+	}
+	for sSlab.NodeCount() <= 6*blockLen {
+		_ = sSlab.Alloc()
+	}
+	if len(sSlab.blocks) != 10 {
+		t.Fatalf("blkIdx=6: len(blocks) = %d, want 10", len(sSlab.blocks))
+	}
+	var aSlab NodeAllocator
+	aSlab.InitLocal()
+	for sSlab.NodeCount() <= 10*blockLen {
+		_ = aSlab.AllocNode1Cached(40)
+	}
+	aSlab.Flush()
+	if len(sSlab.blocks) != 26 {
+		t.Fatalf("blkIdx=10: len(blocks) = %d, want 26 (16-block 8 MiB slab)", len(sSlab.blocks))
+	}
+	for i := 10; i < 26; i++ {
+		if sSlab.blocks[i] == nil {
+			t.Fatalf("sSlab.blocks[%d] == nil inside 16-block slab", i)
+		}
+	}
+
+	// 5. Concurrent -race stress test on SetLength (<0, 0..65534, >=65535) and HasNonNegativeLength.
+	const workers = 12
+	const perWorker = 300
+	workerNodes := make([][]Node, workers)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		w := w
+		go func() {
+			defer wg.Done()
+			var la NodeAllocator
+			la.InitLocal()
+			ns := make([]Node, perWorker)
+			for i := 0; i < perWorker; i++ {
+				n := la.AllocNode1Cached(38)
+				ns[i] = n
+				switch (w + i) % 5 {
+				case 0:
+					n.SetLength(-int32(i + 1))
+					if n.HasNonNegativeLength() {
+						t.Errorf("expected false for -%d", i+1)
+						return
+					}
+				case 1:
+					n.SetLength(int32(i))
+					if !n.HasNonNegativeLength() {
+						t.Errorf("expected true for %d", i)
+						return
+					}
+				case 2:
+					n.SetLength(70_000 + int32(i))
+					if !n.HasNonNegativeLength() {
+						t.Errorf("expected true for overflow %d", 70_000+i)
+						return
+					}
+				case 3:
+					n.SetLength(-5)
+					n.SetLength(int32(i))
+					if !n.HasNonNegativeLength() {
+						t.Errorf("expected true after -5 -> %d", i)
+						return
+					}
+				case 4:
+					n.SetLength(-9)
+					n.SetLength(90_000 + int32(i))
+					if !n.HasNonNegativeLength() {
+						t.Errorf("expected true after -9 -> overflow")
+						return
+					}
+				}
+			}
+			la.Flush()
+			workerNodes[w] = ns
+		}()
+	}
+	wg.Wait()
+
+	// Clear remaining negative lengths (case 0) and verify negLenCount returns to baseNeg.
+	for w := 0; w < workers; w++ {
+		for i, n := range workerNodes[w] {
+			if (w+i)%5 == 0 {
+				if n.HasNonNegativeLength() {
+					t.Fatalf("worker[%d][%d] expected negative length before clear", w, i)
+				}
+				n.SetLength(0)
+			}
+			if !n.HasNonNegativeLength() {
+				t.Fatalf("worker[%d][%d] expected non-negative length after clear", w, i)
+			}
+		}
+	}
+	if got := negLenCount.Load(); got != baseNeg {
+		t.Fatalf("after concurrent clear, negLenCount = %d, want %d", got, baseNeg)
+	}
+}

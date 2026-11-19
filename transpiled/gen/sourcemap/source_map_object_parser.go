@@ -341,25 +341,5 @@ func SourceMapObjectParser_ReadStringArray(lexer *SourceMapJsonLexer) []string {
 		lexer.CheckComma()
 	}
 	lexer.EndArray()
-	return func() []string {
-		arr_18 := list.ToArray_1_slice_any(func() []any {
-			arr_15 := j2gort.NewStringArray(int32(0))
-			if arr_15 == nil {
-				return nil
-			}
-			out_16 := make([]any, len(arr_15))
-			for i_, el_17 := range arr_15 {
-				out_16[i_] = j2gort.BoxString(el_17)
-			}
-			return out_16
-		}())
-		if arr_18 == nil {
-			return nil
-		}
-		out_19 := make([]string, len(arr_18))
-		for i_, el_20 := range arr_18 {
-			out_19[i_] = j2gort.CastString(el_20)
-		}
-		return out_19
-	}()
+	return j2gort.ColToNewStringArray(list)
 }

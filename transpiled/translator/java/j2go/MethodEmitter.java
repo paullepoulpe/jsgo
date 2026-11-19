@@ -1085,6 +1085,30 @@ public final class MethodEmitter {
             .append("FastStrHash32(")
             .append(pName)
             .append(")\n");
+      } else if (typeEl
+              .getQualifiedName()
+              .contentEquals("com.google.javascript.rhino.RhinoStringPool")
+          && ee.getSimpleName().contentEquals("joinDollar")
+          && mt.getParameters().size() == 2
+          && resolver.isStringType(ee.getParameters().get(0).asType())
+          && resolver.isStringType(ee.getParameters().get(1).asType())) {
+        VariableElement pve0 =
+            (VariableElement)
+                resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(0)));
+        VariableElement pve1 =
+            (VariableElement)
+                resolver.trees.getElement(new TreePath(mtPath, mt.getParameters().get(1)));
+        String p0 = ctx.lookupLocalVar(pve0);
+        String p1 = ctx.lookupLocalVar(pve1);
+        String ns = resolver.runtime.nodestoreAlias(ctx.imports);
+        String nsPref = ns.isEmpty() ? "" : (ns + ".");
+        out.append("\treturn ")
+            .append(nsPref)
+            .append("JoinDollar(")
+            .append(p0)
+            .append(", ")
+            .append(p1)
+            .append(")\n");
       } else if (mt.getBody() != null) {
         out.append(
             stmtEmitter.emitBlockStatements(

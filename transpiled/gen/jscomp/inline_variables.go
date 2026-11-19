@@ -1013,6 +1013,8 @@ type InlineVariables_InliningBehavior struct {
 	currentScopeHandledVarAnalysesMap j2gort.CustomOrderedMap[*Var, *InlineVariables_InlineVarAnalysis]                `gson:"currentScopeHandledVarAnalysesMap"`
 	varToAliasRetryHandlersMap        *SimpleMultimap[*Var, *InlineVariables_InliningBehavior_AliasInlineRetryHandler] `gson:"varToAliasRetryHandlersMap"`
 	idHash_                           atomic.Int32
+	scratchLocalScope_                NodeIterators_FunctionlessLocalScope
+	scratchLocalVarMotion_            NodeIterators_LocalVarMotion
 }
 
 func (this_ *InlineVariables_InliningBehavior) BindSelf_(s any) {
@@ -1377,12 +1379,12 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_canMoveMode
 	var it *NodeIterators_LocalVarMotion = nil
 	_ = it
 	if NodeUtil_IsNameDeclaration(initialization.GetParent()) {
-		it = NodeIterators_LocalVarMotion_ForVar(this_.outer_.compiler, initialization.GetNode(), initialization.GetParent(), initialization.GetGrandparent())
+		it = allocReuseVia_NodeIterators_LocalVarMotion_ForVar(&this_.scratchLocalVarMotion_, &this_.scratchLocalScope_, this_.outer_.compiler, initialization.GetNode(), initialization.GetParent(), initialization.GetGrandparent())
 	} else if initialization.GetParent().IsAssign() {
 		if !(initialization.GetGrandparent().IsExprResult()) {
 			j2gort.CheckState(false)
 		}
-		it = NodeIterators_LocalVarMotion_ForAssign(this_.outer_.compiler, initialization.GetNode(), initialization.GetParent(), initialization.GetGrandparent(), initialization.GetGrandparent().GetParent())
+		it = allocReuseVia_NodeIterators_LocalVarMotion_ForAssign(&this_.scratchLocalVarMotion_, &this_.scratchLocalScope_, this_.outer_.compiler, initialization.GetNode(), initialization.GetParent(), initialization.GetGrandparent(), initialization.GetGrandparent().GetParent())
 	} else {
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Unexpected initialization parent\n"+j2gort.StrValString(initialization.GetParent().ToStringTree()))))
 	}

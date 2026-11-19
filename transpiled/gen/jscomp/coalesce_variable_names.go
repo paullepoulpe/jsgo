@@ -294,27 +294,7 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNa
 	_ = escaped
 	var interferenceGraph pkg_graph.UndiGraph[*Var, any] = pkg_graph.ToIface_UndiGraph[*Var, any](pkg_graph.LinkedUndirectedGraph_Create[*Var, any]())
 	_ = interferenceGraph
-	var orderedVariables []*Var = func() []*Var {
-		arr_7 := this_.liveness.GetAllVariablesInOrder().ToArray_1_slice_any(func() []any {
-			arr_4 := make([]*Var, int32(0))
-			if arr_4 == nil {
-				return nil
-			}
-			out_5 := make([]any, len(arr_4))
-			for i_, el_6 := range arr_4 {
-				out_5[i_] = j2gort.PtrToAny(el_6)
-			}
-			return out_5
-		}())
-		if arr_7 == nil {
-			return nil
-		}
-		out_8 := make([]*Var, len(arr_7))
-		for i_, el_9 := range arr_7 {
-			out_8[i_] = j2gort.CastPtr[Var](el_9)
-		}
-		return out_8
-	}()
+	var orderedVariables []*Var = j2gort.ColToNewPtrArray[Var](this_.liveness.GetAllVariablesInOrder())
 	_ = orderedVariables
 	var interferenceGraphNodes_bsVal j2gort.Ext_java_util_BitSet
 	j2gort.InitExt_java_util_BitSet_0(&interferenceGraphNodes_bsVal)
@@ -323,23 +303,23 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNa
 	var interferenceBitSet []*j2gort.Ext_java_util_BitSet = make([]*j2gort.Ext_java_util_BitSet, int32(len(orderedVariables)))
 	_ = interferenceBitSet
 	func() {
-		arrMut_10 := interferenceBitSet
-		var arrBox_11 []any
-		if arrMut_10 != nil {
-			arrBox_11 = make([]any, len(arrMut_10))
-			for i_, el_12 := range arrMut_10 {
-				arrBox_11[i_] = j2gort.PtrToAny(el_12)
+		arrMut_4 := interferenceBitSet
+		var arrBox_5 []any
+		if arrMut_4 != nil {
+			arrBox_5 = make([]any, len(arrMut_4))
+			for i_, el_6 := range arrMut_4 {
+				arrBox_5[i_] = j2gort.PtrToAny(el_6)
 			}
 		}
-		j2gort.Ext_java_util_Arrays_SetAll_2_slice_any_Ext_java_util_function_IntFunction(arrBox_11, lambdaSingleton_coalesce_variable_names_1)
-		for i_, el_12 := range arrBox_11 {
-			arrMut_10[i_] = j2gort.CastPtr[j2gort.Ext_java_util_BitSet](el_12)
+		j2gort.Ext_java_util_Arrays_SetAll_2_slice_any_Ext_java_util_function_IntFunction(arrBox_5, lambdaSingleton_coalesce_variable_names_1)
+		for i_, el_6 := range arrBox_5 {
+			arrMut_4[i_] = j2gort.CastPtr[j2gort.Ext_java_util_BitSet](el_6)
 		}
 	}()
 	var vIndex int32 = int32(-1)
 	_ = vIndex
-	for _, el_13 := range j2gort.CheckNotNullSlice(orderedVariables) {
-		v := el_13
+	for _, el_7 := range j2gort.CheckNotNullSlice(orderedVariables) {
+		v := el_7
 		_ = v
 		vIndex = vIndex + 1
 		if escaped.Contains(j2gort.PtrToAny(v)) {
@@ -358,10 +338,10 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNa
 		interferenceGraphNodes.Set_1(vIndex)
 	}
 	{
-		cur_14 := j2gort.NewIterCursor(j2gort.CheckNotNull(cfg.GetNodes()))
-		for cur_14.HasNext() {
-			rawElem_15 := cur_14.Next()
-			cfgNode := j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](rawElem_15)
+		cur_8 := j2gort.NewIterCursor(j2gort.CheckNotNull(cfg.GetNodes()))
+		for cur_8.HasNext() {
+			rawElem_9 := cur_8.Next()
+			cfgNode := j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](rawElem_9)
 			_ = cfgNode
 			if cfg.IsImplicitReturn(cfgNode) {
 				continue
@@ -406,14 +386,14 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_computeVariableNa
 	}
 	var v1Index int32 = int32(-1)
 	_ = v1Index
-	for _, el_16 := range j2gort.CheckNotNullSlice(orderedVariables) {
-		v1 := el_16
+	for _, el_10 := range j2gort.CheckNotNullSlice(orderedVariables) {
+		v1 := el_10
 		_ = v1
 		v1Index = v1Index + 1
 		var v2Index int32 = int32(-1)
 		_ = v2Index
-		for _, el_17 := range j2gort.CheckNotNullSlice(orderedVariables) {
-			v2 := el_17
+		for _, el_11 := range j2gort.CheckNotNullSlice(orderedVariables) {
+			v2 := el_11
 			_ = v2
 			v2Index = v2Index + 1
 			if v1Index > v2Index {
@@ -441,12 +421,12 @@ func (this_ *CoalesceVariableNames) priv_CoalesceVariableNames_isInMultipleLvalu
 		_ = nameDecl
 		var count []int32 = []int32{int32(0)}
 		_ = count
-		NodeUtil_VisitLhsNodesInNode(nameDecl, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_18 any) {
-			lhs := j2gort.CastNode[pkg_rhino.Node](lp_18)
+		NodeUtil_VisitLhsNodesInNode(nameDecl, j2gort.NewLambda_Ext_java_util_function_Consumer(func(lp_12 any) {
+			lhs := j2gort.CastNode[pkg_rhino.Node](lp_12)
 			_ = lhs
-			a_19 := count
-			i_20 := int32(0)
-			a_19[i_20] = a_19[i_20] + 1
+			a_13 := count
+			i_14 := int32(0)
+			a_13[i_14] = a_13[i_14] + 1
 		}))
 		return (count[int32(0)] > int32(1))
 	default:
@@ -716,30 +696,30 @@ func CoalesceVariableNames_LiveRangeChecker_IsAssignTo(var_ *Var, n pkg_rhino.No
 	if n.IsName() {
 		if parent.IsParamList() {
 			return func() bool {
-				sr_21 := var_.GetName()
-				se_22 := n.GetString()
-				return j2gort.CheckNotNullString(sr_21) == se_22
+				sr_15 := var_.GetName()
+				se_16 := n.GetString()
+				return j2gort.CheckNotNullString(sr_15) == se_16
 			}()
 		} else if NodeUtil_IsNameDeclaration(parent) && n.HasChildren() {
 			return func() bool {
-				sr_23 := var_.GetName()
-				se_24 := n.GetString()
-				return j2gort.CheckNotNullString(sr_23) == se_24
+				sr_17 := var_.GetName()
+				se_18 := n.GetString()
+				return j2gort.CheckNotNullString(sr_17) == se_18
 			}()
 		} else if NodeUtil_IsLhsByDestructuring(n) {
 			return func() bool {
-				sr_25 := var_.GetName()
-				se_26 := n.GetString()
-				return j2gort.CheckNotNullString(sr_25) == se_26
+				sr_19 := var_.GetName()
+				se_20 := n.GetString()
+				return j2gort.CheckNotNullString(sr_19) == se_20
 			}()
 		}
 	} else if NodeUtil_IsAssignmentOp(n) {
 		var name pkg_rhino.Node = n.GetFirstChild()
 		_ = name
 		return (name.IsName() && func() bool {
-			sr_27 := var_.GetName()
-			se_28 := name.GetString()
-			return j2gort.CheckNotNullString(sr_27) == se_28
+			sr_21 := var_.GetName()
+			se_22 := name.GetString()
+			return j2gort.CheckNotNullString(sr_21) == se_22
 		}())
 	}
 	return false
@@ -750,9 +730,9 @@ func CoalesceVariableNames_LiveRangeChecker_IsReadFrom(var_ *Var, name pkg_rhino
 	_ = var_
 	_ = name
 	return ((name.IsName() && func() bool {
-		sr_29 := var_.GetName()
-		se_30 := name.GetString()
-		return j2gort.CheckNotNullString(sr_29) == se_30
+		sr_23 := var_.GetName()
+		se_24 := name.GetString()
+		return j2gort.CheckNotNullString(sr_23) == se_24
 	}()) && !(NodeUtil_IsNameDeclOrSimpleAssignLhs(name, name.GetParent())))
 }
 func (*CoalesceVariableNames) AlwaysShouldTraverse_() {}

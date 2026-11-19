@@ -120,7 +120,7 @@ func InitJSTypeColorIdHasher(this_ *JSTypeColorIdHasher, registry *pkg_rhino.JST
 }
 
 // Java method: JSTypeColorIdHasher.ensureCapacity(int additional)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7717(additional int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7725(additional int32) {
 	_ = additional
 	var needed int32 = (this_.scratchLen + additional)
 	_ = needed
@@ -147,9 +147,9 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_ensureCapacity_7717(a
 }
 
 // Java method: JSTypeColorIdHasher.putInt(int v)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7718(v int32) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7726(v int32) {
 	_ = v
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7717(int32(4))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7725(int32(4))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -178,14 +178,14 @@ func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putInt_7718(v int32) 
 }
 
 // Java method: JSTypeColorIdHasher.putUtf8(java.lang.String s)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7719(s string) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putUtf8_7727(s string) {
 	_ = s
 	var sLen int32 = j2gort.JStrLen(s)
 	_ = sLen
 	if sLen == int32(0) {
 		return
 	}
-	this_.priv_JSTypeColorIdHasher_ensureCapacity_7717((sLen * int32(3)))
+	this_.priv_JSTypeColorIdHasher_ensureCapacity_7725((sLen * int32(3)))
 	var buf []int8 = this_.scratchBytes
 	_ = buf
 	var pos int32 = this_.scratchLen
@@ -288,11 +288,11 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 		var fnType *pkg_rhino.FunctionType = type_.ToMaybeFunctionType()
 		_ = fnType
 		if fnType.HasInstanceType() {
-			this_.priv_JSTypeColorIdHasher_putInt_7718(int32(-1937018661))
+			this_.priv_JSTypeColorIdHasher_putInt_7726(int32(-1937018661))
 		}
 	}
 	if base_type__.HasReferenceName() {
-		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7721(type_)
+		this_.priv_JSTypeColorIdHasher_putReferenceNameType_7729(type_)
 	} else {
 		var ownProps j2gort.Ext_java_util_Set = type_.GetOwnPropertyNames()
 		_ = ownProps
@@ -304,51 +304,31 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 				for cur_57.HasNext() {
 					prop := cur_57.NextStr()
 					_ = prop
-					this_.priv_JSTypeColorIdHasher_putUtf8_7719(prop)
+					this_.priv_JSTypeColorIdHasher_putUtf8_7727(prop)
 				}
 			}
 		} else {
-			var sortedProps []string = func() []string {
-				arr_61 := ownProps.ToArray_1_slice_any(func() []any {
-					arr_58 := j2gort.NewStringArray(propCount)
-					if arr_58 == nil {
-						return nil
-					}
-					out_59 := make([]any, len(arr_58))
-					for i_, el_60 := range arr_58 {
-						out_59[i_] = j2gort.BoxString(el_60)
-					}
-					return out_59
-				}())
-				if arr_61 == nil {
-					return nil
-				}
-				out_62 := make([]string, len(arr_61))
-				for i_, el_63 := range arr_61 {
-					out_62[i_] = j2gort.CastString(el_63)
-				}
-				return out_62
-			}()
+			var sortedProps []string = j2gort.ColToStringArray(ownProps, j2gort.NewStringArray(propCount))
 			_ = sortedProps
 			func() {
-				arrMut_64 := sortedProps
-				var arrBox_65 []any
-				if arrMut_64 != nil {
-					arrBox_65 = make([]any, len(arrMut_64))
-					for i_, el_66 := range arrMut_64 {
-						arrBox_65[i_] = j2gort.BoxString(el_66)
+				arrMut_58 := sortedProps
+				var arrBox_59 []any
+				if arrMut_58 != nil {
+					arrBox_59 = make([]any, len(arrMut_58))
+					for i_, el_60 := range arrMut_58 {
+						arrBox_59[i_] = j2gort.BoxString(el_60)
 					}
 				}
-				j2gort.Ext_java_util_Arrays_Sort_1_slice_any(arrBox_65)
-				for i_, el_66 := range arrBox_65 {
-					arrMut_64[i_] = j2gort.CastString(el_66)
+				j2gort.Ext_java_util_Arrays_Sort_1_slice_any(arrBox_59)
+				for i_, el_60 := range arrBox_59 {
+					arrMut_58[i_] = j2gort.CastString(el_60)
 				}
 			}()
 			{
 				var i int32 = int32(0)
 				_ = i
 				for ; i < int32(len(sortedProps)); i = i + 1 {
-					this_.priv_JSTypeColorIdHasher_putUtf8_7719(sortedProps[i])
+					this_.priv_JSTypeColorIdHasher_putUtf8_7727(sortedProps[i])
 				}
 			}
 		}
@@ -357,21 +337,21 @@ func (this_ *JSTypeColorIdHasher) HashObjectType(type_ pkg_rhino.ObjectType) pkg
 }
 
 // Java method: JSTypeColorIdHasher.putReferenceNameType(com.google.javascript.rhino.jstype.ObjectType type)
-func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7721(type_ pkg_rhino.ObjectType) {
+func (this_ *JSTypeColorIdHasher) priv_JSTypeColorIdHasher_putReferenceNameType_7729(type_ pkg_rhino.ObjectType) {
 	_ = type_
-	this_.priv_JSTypeColorIdHasher_putUtf8_7719(type_.GetReferenceName())
+	this_.priv_JSTypeColorIdHasher_putUtf8_7727(type_.GetReferenceName())
 	var sourceRef pkg_rhino.JSType_WithSourceRef = JSTypeColorIdHasher_SourceRefFor(type_)
 	_ = sourceRef
 	if sourceRef == nil || sourceRef.IsJavaNil_() {
-		this_.priv_JSTypeColorIdHasher_putInt_7718(int32(1712056194))
+		this_.priv_JSTypeColorIdHasher_putInt_7726(int32(1712056194))
 		return
 	}
 	var moduleId string = sourceRef.GetGoogModuleId()
 	_ = moduleId
 	if moduleId == j2gort.NullString {
-		this_.priv_JSTypeColorIdHasher_putInt_7718(int32(630441471))
+		this_.priv_JSTypeColorIdHasher_putInt_7726(int32(630441471))
 	} else {
-		this_.priv_JSTypeColorIdHasher_putUtf8_7719(moduleId)
+		this_.priv_JSTypeColorIdHasher_putUtf8_7727(moduleId)
 	}
 }
 
@@ -568,7 +548,7 @@ func JSTypeColorIdHasher_HashLength65Plus(bytes []int8, length int32) int64 {
 	_ = end
 	var last64offset int32 = ((end + ((length - int32(1)) & int32(63))) - int32(63))
 	_ = last64offset
-	for doFirst_67 := true; doFirst_67 || (offset != end); doFirst_67 = false {
+	for doFirst_61 := true; doFirst_61 || (offset != end); doFirst_61 = false {
 		x = (j2gort.BoxLong_RotateRight((((x+y)+v0)+JSTypeColorIdHasher_Load64(bytes, (offset+int32(8)))), int32(37)) * int64(-5435081209227447693))
 		y = (j2gort.BoxLong_RotateRight(((y+v1)+JSTypeColorIdHasher_Load64(bytes, (offset+int32(48)))), int32(42)) * int64(-5435081209227447693))
 		x = (x ^ w1)

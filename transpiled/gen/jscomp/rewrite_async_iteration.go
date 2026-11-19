@@ -126,7 +126,7 @@ func clinitSlow_RewriteAsyncIteration() {
 		return
 	}
 	defer j2gort.ExitClinit(&clinitState_RewriteAsyncIteration, &clinitDone_RewriteAsyncIteration)
-	static_RewriteAsyncIteration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7192([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_FOR_AWAIT_OF()})
+	static_RewriteAsyncIteration_transpiledFeatures = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7200([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_FOR_AWAIT_OF()})
 	static_RewriteAsyncIteration_CANNOT_CONVERT_ASYNCGEN = DiagnosticType_Error("JSC_CANNOT_CONVERT_ASYNCGEN", "Cannot convert async generator. {0}")
 }
 

@@ -102,6 +102,13 @@ func RhinoStringPool_FastHash32(s string) int32 {
 	return j2gort.FastStrHash32(s)
 }
 
+// Java static method: RhinoStringPool.joinDollar(java.lang.String a, java.lang.String b)
+func RhinoStringPool_JoinDollar(a string, b string) string {
+	_ = a
+	_ = b
+	return nodestore.JoinDollar(a, b)
+}
+
 // Java class: com.google.javascript.rhino.RhinoStringPool.LazyInternedStringList
 type RhinoStringPool_LazyInternedStringList struct {
 	pool []string `gson:"pool"`

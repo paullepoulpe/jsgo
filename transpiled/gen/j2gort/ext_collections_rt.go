@@ -485,6 +485,220 @@ func sliceToArray1(items []any, dst []any) []any {
 	return dst
 }
 
+func ColToStringArray(col any, dst []string) []string {
+	if col == nil {
+		ThrowNPE()
+	}
+	if ssi, ok := col.(StrSliceIterable); ok {
+		if nc, ok2 := col.(jJavaNilChecker); ok2 && nc.IsJavaNil_() {
+			ThrowNPE()
+		}
+		if ss, ok2 := ssi.IterStrSlice_(); ok2 {
+			CheckNotNullSlice(dst)
+			n := len(ss)
+			if len(dst) < n {
+				out := make([]string, n)
+				copy(out, ss)
+				return out
+			}
+			copy(dst, ss)
+			if len(dst) > n {
+				dst[n] = NullString
+			}
+			return dst
+		}
+	}
+	if jsp, ok := col.(jFastJSetCoreProvider); ok {
+		if sc := jsp.fastSetJCore_(); sc != nil {
+			CheckNotNullSlice(dst)
+			n := int(sc.Size())
+			var out []string
+			if len(dst) < n {
+				out = make([]string, n)
+			} else {
+				out = dst
+				if len(dst) > n {
+					dst[n] = NullString
+				}
+			}
+			if n == 0 {
+				return out
+			}
+			if sc.mode == jSetModeStr {
+				strs := sc.ext.(*jSetStrState).strs
+				w := 0
+				for i := int(sc.firstIdx); i < len(strs); i++ {
+					if s := strs[i]; s != jTombstoneStr {
+						out[w] = s
+						w++
+					}
+				}
+				return out
+			}
+			w := 0
+			sc.ForEach(func(k any) bool {
+				out[w] = CastString(k)
+				w++
+				return true
+			})
+			return out
+		}
+	}
+	if isJavaNilAny(col) {
+		ThrowNPE()
+	}
+	CheckNotNullSlice(dst)
+	if sp, ok := col.(jFastSetCoreProvider); ok {
+		if mc := sp.fastSetCore_(); mc != nil && mc.mode == jMapModeStr {
+			n := int(mc.Size())
+			var out []string
+			if len(dst) < n {
+				out = make([]string, n)
+			} else {
+				out = dst
+				if len(dst) > n {
+					dst[n] = NullString
+				}
+			}
+			w := 0
+			for i := int(mc.firstIdx); i < len(mc.strEntries); i++ {
+				if s := mc.strEntries[i].key; s != jTombstoneStr {
+					out[w] = s
+					w++
+				}
+			}
+			return out
+		}
+	}
+	capHint := 0
+	if c, ok := col.(Ext_java_util_Collection); ok {
+		capHint = int(c.Size())
+	}
+	cur := NewIterCursor(col)
+	if !cur.HasNext() {
+		if len(dst) > 0 {
+			dst[0] = NullString
+		}
+		return dst
+	}
+	var tmp []string
+	if capHint > 0 {
+		tmp = make([]string, 0, capHint)
+	}
+	for cur.HasNext() {
+		tmp = append(tmp, cur.NextStr())
+	}
+	if len(dst) >= len(tmp) {
+		copy(dst, tmp)
+		if len(dst) > len(tmp) {
+			dst[len(tmp)] = NullString
+		}
+		return dst
+	}
+	return tmp
+}
+
+func ColToNewStringArray(col any) []string {
+	return ColToStringArray(col, emptyStrSlice_)
+}
+
+func ColToPtrArray[T any](col any, dst []*T) []*T {
+	if col == nil {
+		ThrowNPE()
+	}
+	if si, ok := col.(SliceIterable); ok {
+		if nc, ok2 := col.(jJavaNilChecker); ok2 && nc.IsJavaNil_() {
+			ThrowNPE()
+		}
+		items := si.IterSlice_()
+		CheckNotNullSlice(dst)
+		n := len(items)
+		var out []*T
+		if len(dst) < n {
+			out = make([]*T, n)
+		} else {
+			out = dst
+			if len(dst) > n {
+				dst[n] = nil
+			}
+		}
+		for i, x := range items {
+			out[i] = CastPtr[T](x)
+		}
+		return out
+	}
+	if jsp, ok := col.(jFastJSetCoreProvider); ok {
+		if sc := jsp.fastSetJCore_(); sc != nil {
+			CheckNotNullSlice(dst)
+			n := int(sc.Size())
+			var out []*T
+			if len(dst) < n {
+				out = make([]*T, n)
+			} else {
+				out = dst
+				if len(dst) > n {
+					dst[n] = nil
+				}
+			}
+			if n == 0 {
+				return out
+			}
+			if sc.mode == jSetModeAny {
+				items := sc.ext.(*jSetAnyState).items
+				w := 0
+				for i := int(sc.firstIdx); i < len(items); i++ {
+					if it := items[i]; it != jTombstoneObj {
+						out[w] = CastPtr[T](it)
+						w++
+					}
+				}
+				return out
+			}
+			w := 0
+			sc.ForEach(func(k any) bool {
+				out[w] = CastPtr[T](k)
+				w++
+				return true
+			})
+			return out
+		}
+	}
+	if isJavaNilAny(col) {
+		ThrowNPE()
+	}
+	CheckNotNullSlice(dst)
+	capHint := 0
+	if c, ok := col.(Ext_java_util_Collection); ok {
+		capHint = int(c.Size())
+	}
+	cur := NewIterCursor(col)
+	if !cur.HasNext() {
+		if len(dst) > 0 {
+			dst[0] = nil
+		}
+		return dst
+	}
+	var tmp []*T
+	if capHint > 0 {
+		tmp = make([]*T, 0, capHint)
+	}
+	for cur.HasNext() {
+		tmp = append(tmp, CastPtr[T](cur.Next()))
+	}
+	if len(dst) >= len(tmp) {
+		copy(dst, tmp)
+		if len(dst) > len(tmp) {
+			dst[len(tmp)] = nil
+		}
+		return dst
+	}
+	return tmp
+}
+
+func ColToNewPtrArray[T any](col any) []*T {
+	return ColToPtrArray(col, []*T{})
+}
+
 type jFastSetCoreProvider interface {
 	fastSetCore_() *JMapCore
 }
@@ -913,7 +1127,27 @@ func sliceJavaString(items []any) string {
 
 func copySetCoreInto(dst *JSetCore, src *JSetCore) *JSetCore {
 	dst.identity = src.identity
+	if src.Size() == 0 {
+		return dst
+	}
 	dst.InitExpectedSize(src.Size())
+	if src.mode == jSetModeStr {
+		strs := src.ext.(*jSetStrState).strs
+		for i := int(src.firstIdx); i < len(strs); i++ {
+			if s := strs[i]; s != jTombstoneStr {
+				dst.AddStr(s)
+			}
+		}
+		return dst
+	}
+	if src.mode == jSetModeNode {
+		for i := int(src.firstIdx); i < len(src.nodes); i++ {
+			if u := src.nodes[i]; u != jTombstoneNode {
+				dst.AddNode(u)
+			}
+		}
+		return dst
+	}
 	src.ForEach(func(k any) bool {
 		dst.Add(k)
 		return true
@@ -923,6 +1157,21 @@ func copySetCoreInto(dst *JSetCore, src *JSetCore) *JSetCore {
 
 func setCoreAddAllIterable(sc *JSetCore, src any) bool {
 	CheckNotNull(src)
+	if ssi, ok := src.(StrSliceIterable); ok {
+		if strs, ok2 := ssi.IterStrSlice_(); ok2 {
+			if len(strs) == 0 {
+				return false
+			}
+			sc.InitExpectedSize(sc.Size() + int32(len(strs)))
+			changed := false
+			for _, s := range strs {
+				if s != jTombstoneStr && sc.AddStr(s) {
+					changed = true
+				}
+			}
+			return changed
+		}
+	}
 	if tv, ok := src.(jTypedViewCursorSource); ok {
 		if n, ok2 := tv.typedViewLen_(); ok2 {
 			if n == 0 {
@@ -959,6 +1208,23 @@ func setCoreAddAllIterable(sc *JSetCore, src any) bool {
 			}
 			sc.InitExpectedSize(sc.Size() + osc.Size())
 			changed := false
+			if osc.mode == jSetModeStr {
+				strs := osc.ext.(*jSetStrState).strs
+				for i := int(osc.firstIdx); i < len(strs); i++ {
+					if s := strs[i]; s != jTombstoneStr && sc.AddStr(s) {
+						changed = true
+					}
+				}
+				return changed
+			}
+			if osc.mode == jSetModeNode {
+				for i := int(osc.firstIdx); i < len(osc.nodes); i++ {
+					if u := osc.nodes[i]; u != jTombstoneNode && sc.AddNode(u) {
+						changed = true
+					}
+				}
+				return changed
+			}
 			osc.ForEach(func(k any) bool {
 				if sc.Add(k) {
 					changed = true
@@ -1225,9 +1491,77 @@ func hashSetForEach(hs *Ext_java_util_HashSetBase, action Ext_java_util_function
 		}
 		return
 	}
-	for _, k := range hs.inlineSet.LiveKeys() {
+	hs.inlineSet.ForEach(func(k any) bool {
 		action.Accept(k)
+		return true
+	})
+}
+
+func hashSetStream(hs *Ext_java_util_HashSetBase) Ext_java_util_stream_Stream {
+	if mb := hs.mapBack(); mb != nil {
+		return streamFromIterable(Cast[Ext_java_util_Set](mb.KeySet_0()))
 	}
+	sc := &hs.inlineSet
+	if sc.IsEmpty() {
+		return emptyStream_
+	}
+	var cur JIterCursor
+	inited := false
+	return &jStream{next: func() (any, bool) {
+		if !inited {
+			start := int(sc.firstIdx)
+			cur = JIterCursor{sc: sc, idx: start, kind: 4}
+			cur.advanceJSet()
+			inited = true
+		}
+		if !cur.HasNext() {
+			return nil, false
+		}
+		return ToAny(cur.Next()), true
+	}}
+}
+
+func hashSetString(hs *Ext_java_util_HashSetBase) string {
+	if mb := hs.mapBack(); mb != nil {
+		return sliceJavaString(colToSlice(Cast[Ext_java_util_Set](mb.KeySet_0())))
+	}
+	sc := &hs.inlineSet
+	if sc.IsEmpty() {
+		return "[]"
+	}
+	var sb strings.Builder
+	sb.WriteByte('[')
+	first := true
+	if sc.mode == jSetModeStr {
+		strs := sc.ext.(*jSetStrState).strs
+		for i := int(sc.firstIdx); i < len(strs); i++ {
+			s := strs[i]
+			if s == jTombstoneStr {
+				continue
+			}
+			if !first {
+				sb.WriteString(", ")
+			}
+			first = false
+			if s == NullString {
+				sb.WriteString("null")
+			} else {
+				sb.WriteString(s)
+			}
+		}
+		sb.WriteByte(']')
+		return sb.String()
+	}
+	sc.ForEach(func(k any) bool {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		sb.WriteString(StrVal(k))
+		return true
+	})
+	sb.WriteByte(']')
+	return sb.String()
 }
 
 func hashSetEquals(hs *Ext_java_util_HashSetBase, other any) bool {
@@ -4753,6 +5087,22 @@ func NewIterCursor(coll any) JIterCursor {
 		}
 		return initIterMapCursor(mk.mc, false)
 	}
+	if ms, ok := coll.(*jMultimapLiveSet); ok {
+		if ms == nil {
+			ThrowNPE()
+		}
+		b := ms.getBucket()
+		if b == nil {
+			return JIterCursor{}
+		}
+		return initIterMapCursor(b.(*JMapCore), false)
+	}
+	if mmk, ok := coll.(*jMultimapLiveKeySet); ok {
+		if mmk == nil {
+			ThrowNPE()
+		}
+		return initIterMapCursor(mmk.mm.keys, false)
+	}
 	if ev, ok := coll.(*jLiveEnumMapValues); ok {
 		if ev == nil {
 			ThrowNPE()
@@ -4879,6 +5229,9 @@ func (c *JIterCursor) HasNext() bool {
 	case 1:
 		return c.idx < len(c.slice)
 	case 9:
+		for c.idx < len(c.strs) && c.strs[c.idx] == jTombstoneStr {
+			c.idx++
+		}
 		return c.idx < len(c.strs)
 	case 10:
 		n, _ := c.tv.typedViewLen_()
@@ -5038,10 +5391,7 @@ func (c *JIterCursor) Next() any {
 		case jSetModeNode:
 			v = boxNodeById(c.sc.nodes[c.idx])
 		case jSetModeStr:
-			s := c.sc.ext.(*jSetStrState).strs[c.idx]
-			if s != NullString {
-				v = s
-			}
+			v = BoxString(c.sc.ext.(*jSetStrState).strs[c.idx])
 		case jSetModeAny:
 			v = c.sc.ext.(*jSetAnyState).items[c.idx]
 		}
@@ -5071,15 +5421,15 @@ func (c *JIterCursor) Next() any {
 	case 8:
 		return c.fallbackIter.Next()
 	case 9:
+		for c.idx < len(c.strs) && c.strs[c.idx] == jTombstoneStr {
+			c.idx++
+		}
 		if c.idx >= len(c.strs) {
 			panic(javalang.NewNoSuchElementException("iterator exhausted"))
 		}
 		s := c.strs[c.idx]
 		c.idx++
-		if s == NullString {
-			return nil
-		}
-		return s
+		return BoxString(s)
 	case 10:
 		n, _ := c.tv.typedViewLen_()
 		if c.idx >= n {
@@ -5098,6 +5448,9 @@ func (c *JIterCursor) Next() any {
 
 func (c *JIterCursor) NextStr() string {
 	if c.kind == 9 {
+		for c.idx < len(c.strs) && c.strs[c.idx] == jTombstoneStr {
+			c.idx++
+		}
 		if c.idx >= len(c.strs) {
 			panic(javalang.NewNoSuchElementException("iterator exhausted"))
 		}
@@ -5503,6 +5856,49 @@ func immSetCopyOfIterable(src any) Ext_com_google_common_collect_ImmutableSet {
 		if smc := sp.fastSetCore_(); smc != nil && !smc.Identity {
 			if smc.Size() == 0 {
 				return emptyImmutableSet_
+			}
+			if smc.mode == jMapModeStr {
+				n := int(smc.Size())
+				if n == 1 {
+					for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+						s := smc.strEntries[i].key
+						if s == jTombstoneStr {
+							continue
+						}
+						if s == NullString {
+							ThrowNPE()
+						}
+						return ImmSetOfStr1(s)
+					}
+				}
+				if n <= 8 {
+					var sbuf [8]string
+					w := 0
+					for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+						s := smc.strEntries[i].key
+						if s == jTombstoneStr {
+							continue
+						}
+						if s == NullString {
+							ThrowNPE()
+						}
+						sbuf[w] = s
+						w++
+					}
+					return finishImmStrSetSmall(sbuf[:w])
+				}
+				strs := make([]string, 0, n)
+				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
+					s := smc.strEntries[i].key
+					if s == jTombstoneStr {
+						continue
+					}
+					if s == NullString {
+						ThrowNPE()
+					}
+					strs = append(strs, s)
+				}
+				return finishImmStrSetOwn(strs, nil)
 			}
 			if smc.Size() == 1 {
 				return newImmSet1(smc.FirstKey())
@@ -8933,7 +9329,22 @@ func (mm *jMultimapCore) finishRemoveAllBucket(b any) any {
 			ts.Core_ = sm
 			return ts
 		}
-		return wrapLinkedHashSet(sm.LiveKeys())
+		obj := &Ext_java_util_LinkedHashSet{}
+		obj.BindExtSelf_(obj)
+		obj.inlineSet.InitExpectedSize(sm.Size())
+		if sm.mode == jMapModeStr {
+			for i := int(sm.firstIdx); i < len(sm.strEntries); i++ {
+				if k := sm.strEntries[i].key; k != jTombstoneStr {
+					obj.inlineSet.AddStr(k)
+				}
+			}
+		} else {
+			sm.ForEachEntry(func(k, _ any) bool {
+				obj.inlineSet.Add(k)
+				return true
+			})
+		}
+		return obj
 	}
 	if lc, ok := b.(*JListCore); ok {
 		mm.total -= lc.Size()
@@ -9045,7 +9456,10 @@ func multimapOp_values_0(mm *jMultimapCore) any {
 	}
 	mm.keys.ForEachEntry(func(_, b any) bool {
 		if mm.isSet {
-			out = append(out, b.(*JMapCore).LiveKeys()...)
+			b.(*JMapCore).ForEachEntry(func(v, _ any) bool {
+				out = append(out, v)
+				return true
+			})
 		} else if lc, ok := b.(*JListCore); ok {
 			out = append(out, lc.Items...)
 		} else {
@@ -9399,12 +9813,29 @@ func (s *jMultimapLiveSet) TailSet_2(from any, incl bool) any {
 	}
 	return setCoreTailSet(b.(*JMapCore), from, incl, false)
 }
+func (s *jMultimapLiveSet) fastSetCore_() *JMapCore {
+	if s == nil {
+		return nil
+	}
+	b := s.getBucket()
+	if b == nil {
+		return nil
+	}
+	return b.(*JMapCore)
+}
 func (s *jMultimapLiveSet) Iterator() any {
 	b := s.getBucket()
 	if b == nil {
-		return newSliceObjIter(nil)
+		return emptyMapIter_
 	}
-	return &jMultimapSetIter{mm: s.mm, key: s.key, strKey: s.strKey, nodeKey: s.nodeKey, keyKind: s.keyKind, vals: b.(*JMapCore).LiveKeys()}
+	mc := b.(*JMapCore)
+	if mc.Live == 0 {
+		return emptyMapIter_
+	}
+	if strs, ok := mc.LiveStrKeys(); ok {
+		return &jMultimapSetIter{mm: s.mm, key: s.key, strKey: s.strKey, nodeKey: s.nodeKey, keyKind: s.keyKind, strs: strs, isStr: true}
+	}
+	return &jMultimapSetIter{mm: s.mm, key: s.key, strKey: s.strKey, nodeKey: s.nodeKey, keyKind: s.keyKind, vals: mc.LiveKeys()}
 }
 
 type jMultimapSetIter struct {
@@ -9413,15 +9844,39 @@ type jMultimapSetIter struct {
 	strKey  string
 	nodeKey uint32
 	vals    []any
+	strs    []string
 	idx     int
 	lastVal any
+	lastStr string
 	keyKind uint8
+	isStr   bool
 	hasLast bool
 }
 
 func (*jMultimapSetIter) Implements_j2gort_Ext_java_util_Iterator() {}
-func (it *jMultimapSetIter) HasNext() bool                          { return it.idx < len(it.vals) }
+func (it *jMultimapSetIter) IterStrSlice_() ([]string, bool) {
+	if it != nil && it.isStr && it.idx == 0 {
+		return it.strs, true
+	}
+	return nil, false
+}
+func (it *jMultimapSetIter) HasNext() bool {
+	if it.isStr {
+		return it.idx < len(it.strs)
+	}
+	return it.idx < len(it.vals)
+}
 func (it *jMultimapSetIter) Next() any {
+	if it.isStr {
+		if it.idx >= len(it.strs) {
+			panic(javalang.NewNoSuchElementException("exhausted"))
+		}
+		s := it.strs[it.idx]
+		it.idx++
+		it.lastStr = s
+		it.hasLast = true
+		return BoxString(s)
+	}
 	if it.idx >= len(it.vals) {
 		panic(javalang.NewNoSuchElementException("exhausted"))
 	}
@@ -9435,13 +9890,17 @@ func (it *jMultimapSetIter) Remove() {
 	if !it.hasLast {
 		panic(javalang.NewIllegalStateException("remove before next"))
 	}
+	lv := it.lastVal
+	if it.isStr {
+		lv = BoxString(it.lastStr)
+	}
 	switch it.keyKind {
 	case 1:
-		it.mm.removeStr(it.strKey, it.lastVal)
+		it.mm.removeStr(it.strKey, lv)
 	case 2:
-		it.mm.removeNode(it.nodeKey, it.lastVal)
+		it.mm.removeNode(it.nodeKey, lv)
 	default:
-		multimapOp_remove_2(it.mm, it.key, it.lastVal)
+		multimapOp_remove_2(it.mm, it.key, lv)
 	}
 	it.hasLast = false
 }
@@ -9451,6 +9910,12 @@ type jMultimapLiveKeySet struct {
 	mm *jMultimapCore
 }
 
+func (s *jMultimapLiveKeySet) fastSetCore_() *JMapCore {
+	if s == nil {
+		return nil
+	}
+	return s.mm.keys
+}
 func (s *jMultimapLiveKeySet) Size() int32                   { return s.mm.keys.Size() }
 func (s *jMultimapLiveKeySet) Contains(k any) bool           { return s.mm.keys.ContainsKey(k) }
 func (s *jMultimapLiveKeySet) SetContainsStr_(k string) bool { return s.mm.keys.ContainsStr(k) }
@@ -9473,20 +9938,50 @@ func (s *jMultimapLiveKeySet) Remove_1_any(k any) bool {
 	return true
 }
 func (s *jMultimapLiveKeySet) Iterator() any {
+	if s.mm.keys.Live == 0 {
+		return emptyMapIter_
+	}
+	if strs, ok := s.mm.keys.LiveStrKeys(); ok {
+		return &jMultimapKeyIter{mm: s.mm, strs: strs, isStr: true}
+	}
 	return &jMultimapKeyIter{mm: s.mm, keys: s.mm.keys.LiveKeys()}
 }
 
 type jMultimapKeyIter struct {
 	mm      *jMultimapCore
 	keys    []any
+	strs    []string
 	idx     int
 	lastKey any
+	lastStr string
+	isStr   bool
 	hasLast bool
 }
 
 func (*jMultimapKeyIter) Implements_j2gort_Ext_java_util_Iterator() {}
-func (it *jMultimapKeyIter) HasNext() bool                          { return it.idx < len(it.keys) }
+func (it *jMultimapKeyIter) IterStrSlice_() ([]string, bool) {
+	if it != nil && it.isStr && it.idx == 0 {
+		return it.strs, true
+	}
+	return nil, false
+}
+func (it *jMultimapKeyIter) HasNext() bool {
+	if it.isStr {
+		return it.idx < len(it.strs)
+	}
+	return it.idx < len(it.keys)
+}
 func (it *jMultimapKeyIter) Next() any {
+	if it.isStr {
+		if it.idx >= len(it.strs) {
+			panic(javalang.NewNoSuchElementException("exhausted"))
+		}
+		s := it.strs[it.idx]
+		it.idx++
+		it.lastStr = s
+		it.hasLast = true
+		return BoxString(s)
+	}
 	if it.idx >= len(it.keys) {
 		panic(javalang.NewNoSuchElementException("exhausted"))
 	}
@@ -9499,6 +9994,11 @@ func (it *jMultimapKeyIter) Next() any {
 func (it *jMultimapKeyIter) Remove() {
 	if !it.hasLast {
 		panic(javalang.NewIllegalStateException("remove before next"))
+	}
+	if it.isStr {
+		_ = it.mm.removeAllStr(it.lastStr)
+		it.hasLast = false
+		return
 	}
 	_ = multimapOp_removeAll_1(it.mm, it.lastKey)
 	it.hasLast = false
@@ -9560,10 +10060,14 @@ type jMultimapAsMapEntries struct {
 func (s *jMultimapAsMapEntries) Size() int32 { return s.mm.keys.Size() }
 func (s *jMultimapAsMapEntries) Clear()      { multimapOp_clear_0(s.mm) }
 func (s *jMultimapAsMapEntries) Iterator() any {
-	var items []any
-	for _, k := range s.mm.keys.LiveKeys() {
-		items = append(items, &jSimpleEntry{k: k, v: multimapOp_get_1(s.mm, k), imm: true})
+	if s.mm.keys.Live == 0 {
+		return emptyMapIter_
 	}
+	items := make([]any, 0, s.mm.keys.Live)
+	s.mm.keys.ForEachEntry(func(k, _ any) bool {
+		items = append(items, &jSimpleEntry{k: k, v: multimapOp_get_1(s.mm, k), imm: true})
+		return true
+	})
 	return &jMultimapAsMapIter{mm: s.mm, entries: items}
 }
 
@@ -11652,10 +12156,10 @@ func pqOp_toString_0(pq *jPriorityQueue) string    { return sliceJavaString(pq.i
 func pqOp_equals_1(pq *jPriorityQueue, o any) bool { return RefEquals(pq, o) }
 func pqOp_hashCode_0(pq *jPriorityQueue) int32     { return javalang.IdentityHashCode(pq) }
 
-// --- BitSet (inline [8]uint64 = 512 dense bits + [8]int32 = 8 sparse high bits inside Ext_java_util_BitSet) ---
+// --- BitSet (inline [16]uint64 = 1024 dense bits + [8]int32 = 8 sparse high bits inside Ext_java_util_BitSet) ---
 
 const (
-	bsInlineWords = 8
+	bsInlineWords = 16
 	bsInlineBits  = bsInlineWords * 64
 	bsSparseCap   = 8
 )
@@ -12695,8 +13199,7 @@ func bitSetOp_Clone(b *Ext_java_util_BitSet) any {
 			copy(c.buf[:], b.words[:n])
 		}
 	} else {
-		capW := max(n, int(b.initW))
-		c.words = make([]uint64, n, capW)
+		c.words = make([]uint64, n)
 		copy(c.words, b.words[:n])
 	}
 	return c
@@ -13149,7 +13652,12 @@ type jStream struct {
 	next func() (any, bool)
 }
 
+var emptyStream_ = &jStream{next: func() (any, bool) { return nil, false }}
+
 func streamFromSlice(items []any) Ext_java_util_stream_Stream {
+	if len(items) == 0 {
+		return emptyStream_
+	}
 	idx := 0
 	return &jStream{next: func() (any, bool) {
 		if idx >= len(items) {

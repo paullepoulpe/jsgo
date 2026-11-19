@@ -1558,27 +1558,7 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_jsSpl
 			}
 		}
 	}
-	return func() []string {
-		arr_21 := splitStrings.ToArray_1_slice_any(func() []any {
-			arr_18 := j2gort.NewStringArray(int32(0))
-			if arr_18 == nil {
-				return nil
-			}
-			out_19 := make([]any, len(arr_18))
-			for i_, el_20 := range arr_18 {
-				out_19[i_] = j2gort.BoxString(el_20)
-			}
-			return out_19
-		}())
-		if arr_21 == nil {
-			return nil
-		}
-		out_22 := make([]string, len(arr_21))
-		for i_, el_23 := range arr_21 {
-			out_22[i_] = j2gort.CastString(el_23)
-		}
-		return out_22
-	}()
+	return j2gort.ColToNewStringArray(splitStrings)
 }
 
 // Java method: PeepholeReplaceKnownMethods.tryFoldStringSplit(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node stringNode, com.google.javascript.rhino.Node arg1)
@@ -1623,8 +1603,8 @@ func (this_ *PeepholeReplaceKnownMethods) priv_PeepholeReplaceKnownMethods_tryFo
 	_ = stringArray
 	var arrayOfStrings pkg_rhino.Node = pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{})
 	_ = arrayOfStrings
-	for _, el_24 := range j2gort.CheckNotNullSlice(stringArray) {
-		element := el_24
+	for _, el_18 := range j2gort.CheckNotNullSlice(stringArray) {
+		element := el_18
 		_ = element
 		arrayOfStrings.AddChildToBack(pkg_rhino.IR_String(element).Srcref(stringNode))
 	}

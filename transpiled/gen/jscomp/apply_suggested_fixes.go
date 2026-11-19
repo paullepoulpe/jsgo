@@ -316,13 +316,13 @@ func InitApplySuggestedFixes_ReplacementMap(this_ *ApplySuggestedFixes_Replaceme
 // Java method: ReplacementMap.putIfNoOverlap(com.google.javascript.refactoring.SuggestedFix fix)
 func (this_ *ApplySuggestedFixes_ReplacementMap) PutIfNoOverlap(fix *SuggestedFix) {
 	_ = fix
-	if this_.priv_ReplacementMap_canPut_7862(fix) {
+	if this_.priv_ReplacementMap_canPut_7870(fix) {
 		this_.map_.PutAll_1(j2gort.AsIface[j2gort.Ext_com_google_common_collect_Multimap](fix.GetReplacements()))
 	}
 }
 
 // Java method: ReplacementMap.canPut(com.google.javascript.refactoring.SuggestedFix fix)
-func (this_ *ApplySuggestedFixes_ReplacementMap) priv_ReplacementMap_canPut_7862(fix *SuggestedFix) bool {
+func (this_ *ApplySuggestedFixes_ReplacementMap) priv_ReplacementMap_canPut_7870(fix *SuggestedFix) bool {
 	_ = fix
 	{
 		cur_16 := j2gort.NewIterCursor(j2gort.CheckNotNull(j2gort.AsIface[j2gort.Ext_java_util_Set](fix.GetReplacements().KeySet())))

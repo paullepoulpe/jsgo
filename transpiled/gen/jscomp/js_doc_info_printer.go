@@ -322,40 +322,20 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 		{
 			cur_10 := j2gort.NewMapEntryCursor(suppressions)
 			for cur_10.NextEntry() {
-				var warnings []string = func() []string {
-					arr_14 := j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](cur_10.GetKey()).ToArray_1_slice_any(func() []any {
-						arr_11 := j2gort.NewStringArray(int32(0))
-						if arr_11 == nil {
-							return nil
-						}
-						out_12 := make([]any, len(arr_11))
-						for i_, el_13 := range arr_11 {
-							out_12[i_] = j2gort.BoxString(el_13)
-						}
-						return out_12
-					}())
-					if arr_14 == nil {
-						return nil
-					}
-					out_15 := make([]string, len(arr_14))
-					for i_, el_16 := range arr_14 {
-						out_15[i_] = j2gort.CastString(el_16)
-					}
-					return out_15
-				}()
+				var warnings []string = j2gort.ColToNewStringArray(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](cur_10.GetKey()))
 				_ = warnings
 				func() {
-					arrMut_17 := warnings
-					var arrBox_18 []any
-					if arrMut_17 != nil {
-						arrBox_18 = make([]any, len(arrMut_17))
-						for i_, el_19 := range arrMut_17 {
-							arrBox_18[i_] = j2gort.BoxString(el_19)
+					arrMut_11 := warnings
+					var arrBox_12 []any
+					if arrMut_11 != nil {
+						arrBox_12 = make([]any, len(arrMut_11))
+						for i_, el_13 := range arrMut_11 {
+							arrBox_12[i_] = j2gort.BoxString(el_13)
 						}
 					}
-					j2gort.Ext_java_util_Arrays_Sort_2(arrBox_18, j2gort.Ext_java_util_Comparator_NaturalOrder())
-					for i_, el_19 := range arrBox_18 {
-						arrMut_17[i_] = j2gort.CastString(el_19)
+					j2gort.Ext_java_util_Arrays_Sort_2(arrBox_12, j2gort.Ext_java_util_Comparator_NaturalOrder())
+					for i_, el_13 := range arrBox_12 {
+						arrMut_11[i_] = j2gort.CastString(el_13)
 					}
 				}()
 				var text string = j2gort.CastString(cur_10.GetValue())
@@ -363,15 +343,15 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 				var sb j2gort.LocalStringBuilder
 
 				sb.AppendStr("@suppress {").AppendStr(j2gort.Ext_com_google_common_base_Joiner_On_1_uint16(uint16(44)).Join_1_slice_any(func() []any {
-					arr_20 := warnings
-					if arr_20 == nil {
+					arr_14 := warnings
+					if arr_14 == nil {
 						return nil
 					}
-					out_21 := make([]any, len(arr_20))
-					for i_, el_22 := range arr_20 {
-						out_21[i_] = j2gort.BoxString(el_22)
+					out_15 := make([]any, len(arr_14))
+					for i_, el_16 := range arr_14 {
+						out_15[i_] = j2gort.BoxString(el_16)
 					}
-					return out_21
+					return out_15
 				}())).AppendStr("}")
 				if !(j2gort.CheckNotNullString(text) == "") {
 					sb.AppendStr(" ").AppendStr(text)
@@ -422,9 +402,9 @@ func (this_ *JSDocInfoPrinter) Print(info *pkg_rhino.JSDocInfo) string {
 		parts = append(parts, "@legacyNamedTsExport")
 	}
 	{
-		cur_23 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetTsTypes()))
-		for cur_23.HasNext() {
-			tsType := cur_23.NextStr()
+		cur_17 := j2gort.NewIterCursor(j2gort.CheckNotNull(info.GetTsTypes()))
+		for cur_17.HasNext() {
+			tsType := cur_17.NextStr()
 			_ = tsType
 			parts = append(parts, "@tsType "+j2gort.StrValString(tsType))
 		}

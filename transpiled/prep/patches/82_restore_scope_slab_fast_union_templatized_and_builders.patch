@@ -1,0 +1,890 @@
+diff --git a/com/google/javascript/jscomp/InlineAndCollapseProperties.java b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+index 2b829f9..ae69b0b 100644
+--- a/com/google/javascript/jscomp/InlineAndCollapseProperties.java
++++ b/com/google/javascript/jscomp/InlineAndCollapseProperties.java
+@@ -41,6 +41,7 @@ import com.google.javascript.jscomp.diagnostic.LogFile;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.Node;
++import com.google.javascript.rhino.RhinoStringPool;
+ import com.google.javascript.rhino.Token;
+ import com.google.javascript.rhino.TokenStream;
+ import java.util.ArrayDeque;
+@@ -2432,10 +2433,11 @@ class InlineAndCollapseProperties implements CompilerPass {
+         // encoding from '.' -> '$'.
+         prop = prop.replace("$", "$0");
+       }
+-      String result = root + '$' + prop;
++      String base = RhinoStringPool.joinDollar(root, prop);
++      String result = base;
+       int id = 1;
+       while (namespace.containsName(result)) {
+-        result = root + '$' + prop + '$' + id;
++        result = base + '$' + id;
+         id++;
+       }
+       return result;
+diff --git a/com/google/javascript/jscomp/ProcessDefines.java b/com/google/javascript/jscomp/ProcessDefines.java
+index a28a70a..1fd01c5 100644
+--- a/com/google/javascript/jscomp/ProcessDefines.java
++++ b/com/google/javascript/jscomp/ProcessDefines.java
+@@ -34,6 +34,7 @@ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.JSDocInfo;
+ import com.google.javascript.rhino.JSTypeExpression;
+ import com.google.javascript.rhino.Node;
++import com.google.javascript.rhino.RhinoStringPool;
+ import com.google.javascript.rhino.Token;
+ import com.google.javascript.rhino.jstype.JSType;
+ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+@@ -340,7 +341,7 @@ class ProcessDefines implements CompilerPass {
+     if (KNOWN_DEFINES.contains(defineName) || defineName.equals("goog.LOCALE")) {
+       return defineName;
+     }
+-    return "jscomp$defines$" + defineName.replace('.', '$');
++    return RhinoStringPool.joinDollar("jscomp$defines", defineName.replace('.', '$'));
+   }
+ 
+   /**
+diff --git a/com/google/javascript/jscomp/Scope.java b/com/google/javascript/jscomp/Scope.java
+index 23a43e7..9f49e64 100644
+--- a/com/google/javascript/jscomp/Scope.java
++++ b/com/google/javascript/jscomp/Scope.java
+@@ -425,141 +425,11 @@ public final class Scope extends AbstractScope<Scope, Var> {
+     }
+   }
+ 
+-  private static final String[] EMPTY_VAR_NAMES = new String[0];
+-  private static final String[][] SINGLE_ASCII_VAR_NAMES = new String[128][];
+-  private static final String[] SINGLE_EXPORTS = new String[] {"exports"};
+-  private static final String[] SINGLE_THIS = new String[] {"this"};
+-  private static final String[] SINGLE_ARGUMENTS = new String[] {"arguments"};
+-  private static final String[] SINGLE_VALUE = new String[] {"value"};
+-  private static final String[] SINGLE_EVENT = new String[] {"event"};
+-  private static final String[] SINGLE_ERROR = new String[] {"error"};
+-  private static final String[] SINGLE_INDEX = new String[] {"index"};
+-  private static final String[] SINGLE_OPTIONS = new String[] {"options"};
+-  private static final String[] SINGLE_ELEMENT = new String[] {"element"};
+-  private static final String[] SINGLE_RESULT = new String[] {"result"};
+-  private static final String[] SINGLE_TARGET = new String[] {"target"};
+-  private static final String[] SINGLE_STATE = new String[] {"state"};
+-  private static final String[] SINGLE_PROPS = new String[] {"props"};
+-  private static final String[] SINGLE_DATA = new String[] {"data"};
+-  private static final String[] SINGLE_ITEM = new String[] {"item"};
+-  private static final String[] SINGLE_NAME = new String[] {"name"};
+-  private static final String[] SINGLE_TYPE = new String[] {"type"};
+-  private static final String[] SINGLE_NODE = new String[] {"node"};
+-  private static final String[] SINGLE_KEY = new String[] {"key"};
+-  private static final String[] SINGLE_VAL = new String[] {"val"};
+-  private static final String[] SINGLE_ERR = new String[] {"err"};
+-  private static final String[] SINGLE_RES = new String[] {"res"};
+-  private static final String[] SINGLE_REQ = new String[] {"req"};
+-  private static final String[] SINGLE_CB = new String[] {"cb"};
+-  private static final String[] SINGLE_FN = new String[] {"fn"};
+-  private static final String[] SINGLE_EL = new String[] {"el"};
+-  private static final String[] SINGLE_ID = new String[] {"id"};
+-  private static final String[] SINGLE_SELF = new String[] {"self"};
+-  private static final String[] SINGLE_THAT = new String[] {"that"};
+-  private static final String[] SINGLE_ARGS = new String[] {"args"};
+-  private static final String[] PAIR_A_B = new String[] {"a", "b"};
+-  private static final String[] PAIR_X_Y = new String[] {"x", "y"};
+-  private static final String[] PAIR_I_N = new String[] {"i", "n"};
+-  private static final String[] PAIR_K_V = new String[] {"k", "v"};
+-  private static final String[] PAIR_E_T = new String[] {"e", "t"};
+-  private static final String[] PAIR_T_E = new String[] {"t", "e"};
+-  private static final String[] PAIR_KEY_VALUE = new String[] {"key", "value"};
+-  private static final String[] PAIR_RESOLVE_REJECT = new String[] {"resolve", "reject"};
+-
+-  static {
+-    for (int c = '0'; c <= '9'; c++) {
+-      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
+-    }
+-    for (int c = 'A'; c <= 'Z'; c++) {
+-      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
+-    }
+-    for (int c = 'a'; c <= 'z'; c++) {
+-      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
+-    }
+-    SINGLE_ASCII_VAR_NAMES['_'] = new String[] {"_"};
+-    SINGLE_ASCII_VAR_NAMES['$'] = new String[] {"$"};
+-  }
+-
+-  private static String[] singletonVarNameArray(String name) {
+-    int len = name.length();
+-    if (len == 1) {
+-      char c = name.charAt(0);
+-      if (c < 128) {
+-        String[] cached = SINGLE_ASCII_VAR_NAMES[c];
+-        if (cached != null) {
+-          return cached;
+-        }
+-      }
+-      return new String[] {name};
+-    }
+-    return switch (name) {
+-      case "exports" -> SINGLE_EXPORTS;
+-      case "this" -> SINGLE_THIS;
+-      case "arguments" -> SINGLE_ARGUMENTS;
+-      case "value" -> SINGLE_VALUE;
+-      case "event" -> SINGLE_EVENT;
+-      case "error" -> SINGLE_ERROR;
+-      case "index" -> SINGLE_INDEX;
+-      case "options" -> SINGLE_OPTIONS;
+-      case "element" -> SINGLE_ELEMENT;
+-      case "result" -> SINGLE_RESULT;
+-      case "target" -> SINGLE_TARGET;
+-      case "state" -> SINGLE_STATE;
+-      case "props" -> SINGLE_PROPS;
+-      case "data" -> SINGLE_DATA;
+-      case "item" -> SINGLE_ITEM;
+-      case "name" -> SINGLE_NAME;
+-      case "type" -> SINGLE_TYPE;
+-      case "node" -> SINGLE_NODE;
+-      case "key" -> SINGLE_KEY;
+-      case "val" -> SINGLE_VAL;
+-      case "err" -> SINGLE_ERR;
+-      case "res" -> SINGLE_RES;
+-      case "req" -> SINGLE_REQ;
+-      case "cb" -> SINGLE_CB;
+-      case "fn" -> SINGLE_FN;
+-      case "el" -> SINGLE_EL;
+-      case "id" -> SINGLE_ID;
+-      case "self" -> SINGLE_SELF;
+-      case "that" -> SINGLE_THAT;
+-      case "args" -> SINGLE_ARGS;
+-      default -> new String[] {name};
+-    };
+-  }
+-
+-  private static String[] pairVarNameArray(String n0, String n1) {
+-    if ("a".equals(n0) && "b".equals(n1)) {
+-      return PAIR_A_B;
+-    }
+-    if ("x".equals(n0) && "y".equals(n1)) {
+-      return PAIR_X_Y;
+-    }
+-    if ("i".equals(n0) && "n".equals(n1)) {
+-      return PAIR_I_N;
+-    }
+-    if ("k".equals(n0) && "v".equals(n1)) {
+-      return PAIR_K_V;
+-    }
+-    if ("e".equals(n0) && "t".equals(n1)) {
+-      return PAIR_E_T;
+-    }
+-    if ("t".equals(n0) && "e".equals(n1)) {
+-      return PAIR_T_E;
+-    }
+-    if ("key".equals(n0) && "value".equals(n1)) {
+-      return PAIR_KEY_VALUE;
+-    }
+-    if ("resolve".equals(n0) && "reject".equals(n1)) {
+-      return PAIR_RESOLVE_REJECT;
+-    }
+-    return new String[] {n0, n1};
+-  }
+-
+   String[] getOwnVarNamesArray() {
+     if (vars != null) {
+       int n = vars.size();
+       if (n == 0) {
+-        return EMPTY_VAR_NAMES;
++        return TypedScopeCreator.emptyVarNames();
+       }
+       String[] out = new String[n];
+       int i = 0;
+@@ -570,13 +440,13 @@ public final class Scope extends AbstractScope<Scope, Var> {
+     }
+     int count = getVarCount();
+     if (count == 0) {
+-      return EMPTY_VAR_NAMES;
++      return TypedScopeCreator.emptyVarNames();
+     }
+     if (count == 1) {
+-      return singletonVarNameArray(var0.getName());
++      return TypedScopeCreator.singletonVarNameArray(var0.getName());
+     }
+     if (count == 2) {
+-      return pairVarNameArray(var0.getName(), var1.getName());
++      return TypedScopeCreator.pairVarNameArray(var0.getName(), var1.getName());
+     }
+     String[] out = new String[count];
+     out[0] = var0.getName();
+diff --git a/com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java b/com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java
+index d4c73e1..9bb2897 100644
+--- a/com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java
++++ b/com/google/javascript/jscomp/ThisAndArgumentsReferenceUpdater.java
+@@ -19,6 +19,7 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
+ import com.google.javascript.jscomp.parsing.parser.FeatureSet.Feature;
+ import com.google.javascript.rhino.IR;
+ import com.google.javascript.rhino.Node;
++import com.google.javascript.rhino.RhinoStringPool;
+ import org.jspecify.annotations.Nullable;
+ 
+ /**
+@@ -55,7 +56,10 @@ class ThisAndArgumentsReferenceUpdater implements NodeTraversal.Callback {
+       context.setNeedsThisVarWithType(AstFactory.type(n));
+ 
+       Node name =
+-          astFactory.createName(THIS_VAR + "$" + context.uniqueId, context.getThisType()).srcref(n);
++          astFactory
++              .createName(
++                  RhinoStringPool.joinDollar(THIS_VAR, context.uniqueId), context.getThisType())
++              .srcref(n);
+       name.makeNonIndexable();
+       if (compiler.getOptions().preservesDetailedSourceInfo()) {
+         name.setOriginalName("this");
+@@ -67,7 +71,8 @@ class ThisAndArgumentsReferenceUpdater implements NodeTraversal.Callback {
+ 
+       Node name =
+           astFactory
+-              .createName(ARGUMENTS_VAR + "$" + context.uniqueId, AstFactory.type(n))
++              .createName(
++                  RhinoStringPool.joinDollar(ARGUMENTS_VAR, context.uniqueId), AstFactory.type(n))
+               .srcref(n);
+       if (compiler.getOptions().preservesDetailedSourceInfo()) {
+         name.setOriginalName("arguments");
+@@ -134,7 +139,8 @@ class ThisAndArgumentsReferenceUpdater implements NodeTraversal.Callback {
+ 
+     void addVarDeclarations(AbstractCompiler compiler, AstFactory astFactory, Node script) {
+       if (needsThisVar) {
+-        Node name = astFactory.createName(THIS_VAR + "$" + uniqueId, getThisType());
++        Node name =
++            astFactory.createName(RhinoStringPool.joinDollar(THIS_VAR, uniqueId), getThisType());
+         Node thisVar = IR.constNode(name, astFactory.createThis(getThisType()));
+         NodeUtil.addFeatureToScript(script, Feature.CONST_DECLARATIONS, compiler);
+         thisVar.srcrefTreeIfMissing(scopeBody);
+@@ -153,7 +159,8 @@ class ThisAndArgumentsReferenceUpdater implements NodeTraversal.Callback {
+ 
+       if (needsArgumentsVar) {
+         Node argumentsVar =
+-            astFactory.createArgumentsAliasDeclaration(ARGUMENTS_VAR + "$" + uniqueId);
++            astFactory.createArgumentsAliasDeclaration(
++                RhinoStringPool.joinDollar(ARGUMENTS_VAR, uniqueId));
+         NodeUtil.addFeatureToScript(script, Feature.CONST_DECLARATIONS, compiler);
+ 
+         insertVarDeclaration(argumentsVar, scopeBody);
+diff --git a/com/google/javascript/jscomp/TypeValidator.java b/com/google/javascript/jscomp/TypeValidator.java
+index 113e15b..d8eab04 100644
+--- a/com/google/javascript/jscomp/TypeValidator.java
++++ b/com/google/javascript/jscomp/TypeValidator.java
+@@ -1330,85 +1330,98 @@ class TypeValidator implements Serializable {
+   }
+ 
+   private boolean checkWellFormedTemplatizedType(Node node, JSType type, int kind) {
+-    switch (kind) {
+-      case JSType.KIND_FUNCTION -> {
+-        FunctionType fn = (FunctionType) type;
+-        FunctionType.Parameter[] params = fn.getParameterArray();
+-        for (int i = 0, len = params.length; i < len; i++) {
+-          JSType paramType = params[i].getJSType();
+-          int paramKind = paramType.getWellFormedTemplatizedKind();
+-          if (paramKind != 0 && !checkWellFormedTemplatizedType(node, paramType, paramKind)) {
+-            return false;
++    boolean ok =
++        switch (kind) {
++          case JSType.KIND_FUNCTION -> {
++            FunctionType fn = (FunctionType) type;
++            FunctionType.Parameter[] params = fn.getParameterArray();
++            boolean paramsOk = true;
++            for (int i = 0, len = params.length; i < len; i++) {
++              JSType paramType = params[i].getJSType();
++              int paramKind = paramType.getWellFormedTemplatizedKind();
++              if (paramKind != 0 && !checkWellFormedTemplatizedType(node, paramType, paramKind)) {
++                paramsOk = false;
++                break;
++              }
++            }
++            if (!paramsOk) {
++              yield false;
++            }
++            JSType retType = fn.getReturnType();
++            int retKind = retType.getWellFormedTemplatizedKind();
++            yield retKind == 0 || checkWellFormedTemplatizedType(node, retType, retKind);
+           }
+-        }
+-        JSType retType = fn.getReturnType();
+-        int retKind = retType.getWellFormedTemplatizedKind();
+-        return retKind == 0 || checkWellFormedTemplatizedType(node, retType, retKind);
+-      }
+-      case JSType.KIND_UNION -> {
+-        UnionType union = (UnionType) type;
+-        int alternateCount = union.getAlternatesCount();
+-        for (int i = 0; i < alternateCount; i++) {
+-          JSType alternative = union.getAlternateAt(i);
+-          int altKind = alternative.getWellFormedTemplatizedKind();
+-          if (altKind != 0 && !checkWellFormedTemplatizedType(node, alternative, altKind)) {
+-            return false;
++          case JSType.KIND_UNION -> {
++            UnionType union = (UnionType) type;
++            int alternateCount = union.getAlternatesCount();
++            boolean unionOk = true;
++            for (int i = 0; i < alternateCount; i++) {
++              JSType alternative = union.getAlternateAt(i);
++              int altKind = alternative.getWellFormedTemplatizedKind();
++              if (altKind != 0 && !checkWellFormedTemplatizedType(node, alternative, altKind)) {
++                unionOk = false;
++                break;
++              }
++            }
++            yield unionOk;
+           }
+-        }
+-        return true;
+-      }
+-      case JSType.KIND_TEMPLATIZED -> {
+-        TemplatizedType templatized = (TemplatizedType) type;
+-        TemplateTypeMap referencedTemplates = templatized.getReferencedType().getTemplateTypeMap();
+-        ImmutableList<JSType> templateTypes = templatized.getTemplateTypes();
+-        int refCount = referencedTemplates.size();
+-        for (int i = 0, len = templateTypes.size(); i < len; i++) {
+-          JSType assignedType = templateTypes.get(i);
+-          if (i < refCount) {
+-            TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
+-            if (!assignedType.isSubtype(templateType.getBound())) {
+-              registerMismatchAndReport(
+-                  assignedType,
+-                  templateType.getBound(),
+-                  JSError.make(
+-                      node,
+-                      RhinoErrorReporter.BOUNDED_GENERIC_TYPE_ERROR,
+-                      assignedType.toString(),
+-                      templateType.getReferenceName(),
+-                      templateType.getBound().toString()));
+-              return false;
++          case JSType.KIND_TEMPLATIZED -> {
++            TemplatizedType templatized = (TemplatizedType) type;
++            TemplateTypeMap referencedTemplates =
++                templatized.getReferencedType().getTemplateTypeMap();
++            ImmutableList<JSType> templateTypes = templatized.getTemplateTypes();
++            int refCount = referencedTemplates.size();
++            boolean templatizedOk = true;
++            for (int i = 0, len = templateTypes.size(); i < len; i++) {
++              JSType assignedType = templateTypes.get(i);
++              if (i < refCount) {
++                TemplateType templateType = referencedTemplates.getTemplateKeyAt(i);
++                if (!assignedType.isSubtype(templateType.getBound())) {
++                  registerMismatchAndReport(
++                      assignedType,
++                      templateType.getBound(),
++                      JSError.make(
++                          node,
++                          RhinoErrorReporter.BOUNDED_GENERIC_TYPE_ERROR,
++                          assignedType.toString(),
++                          templateType.getReferenceName(),
++                          templateType.getBound().toString()));
++                  templatizedOk = false;
++                  break;
++                }
++              }
+             }
++            yield templatizedOk;
+           }
+-        }
+-        return true;
+-      }
+-      case JSType.KIND_NAMED -> {
+-        NamedType named = (NamedType) type;
+-        JSType ref = named.getReferencedType();
+-        int refKind = ref.getWellFormedTemplatizedKind();
+-        return refKind == 0 || checkWellFormedTemplatizedType(node, ref, refKind);
+-      }
+-      case JSType.KIND_TEMPLATE -> {
+-        TemplateType templateType = (TemplateType) type;
+-        if (templateType.containsCycle()) {
+-          return false;
+-        }
+-        JSType bound = templateType.getBound();
+-        int boundKind = bound.getWellFormedTemplatizedKind();
+-        return boundKind == 0 || checkWellFormedTemplatizedType(node, bound, boundKind);
+-      }
+-      case JSType.KIND_ENUM_ELEMENT -> {
+-        EnumElementType enumElement = (EnumElementType) type;
+-        JSType prim = enumElement.getPrimitiveType();
+-        if (prim == null) {
+-          return true;
+-        }
+-        int primKind = prim.getWellFormedTemplatizedKind();
+-        return primKind == 0 || checkWellFormedTemplatizedType(node, prim, primKind);
+-      }
+-      default -> {
+-        return true;
+-      }
++          case JSType.KIND_NAMED -> {
++            NamedType named = (NamedType) type;
++            JSType ref = named.getReferencedType();
++            int refKind = ref.getWellFormedTemplatizedKind();
++            yield refKind == 0 || checkWellFormedTemplatizedType(node, ref, refKind);
++          }
++          case JSType.KIND_TEMPLATE -> {
++            TemplateType templateType = (TemplateType) type;
++            if (templateType.containsCycle()) {
++              yield false;
++            }
++            JSType bound = templateType.getBound();
++            int boundKind = bound.getWellFormedTemplatizedKind();
++            yield boundKind == 0 || checkWellFormedTemplatizedType(node, bound, boundKind);
++          }
++          case JSType.KIND_ENUM_ELEMENT -> {
++            EnumElementType enumElement = (EnumElementType) type;
++            JSType prim = enumElement.getPrimitiveType();
++            if (prim == null) {
++              yield true;
++            }
++            int primKind = prim.getWellFormedTemplatizedKind();
++            yield primKind == 0 || checkWellFormedTemplatizedType(node, prim, primKind);
++          }
++          default -> true;
++        };
++    if (ok) {
++      type.markWellFormedTemplatizedOk();
+     }
++    return ok;
+   }
+ }
+diff --git a/com/google/javascript/jscomp/TypedScopeCreator.java b/com/google/javascript/jscomp/TypedScopeCreator.java
+index 6deeef8..aab0598 100644
+--- a/com/google/javascript/jscomp/TypedScopeCreator.java
++++ b/com/google/javascript/jscomp/TypedScopeCreator.java
+@@ -181,6 +181,12 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+   private int fnTypeBuilderPoolTop = 0;
+   private final TypedScope.Overflow[] overflowPool = new TypedScope.Overflow[16];
+   private int overflowPoolTop = 0;
++  private final NormalScopeBuilder[] normalScopeBuilderPool = new NormalScopeBuilder[32];
++  private int normalScopeBuilderPoolTop = 0;
++  private final FunctionScopeBuilder[] functionScopeBuilderPool = new FunctionScopeBuilder[32];
++  private int functionScopeBuilderPoolTop = 0;
++  private final ClassScopeBuilder[] classScopeBuilderPool = new ClassScopeBuilder[16];
++  private int classScopeBuilderPoolTop = 0;
+ 
+   private FunctionTypeBuilder acquireFunctionTypeBuilder(
+       String fnName, Node errorRoot, TypedScope scope) {
+@@ -225,6 +231,72 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       this.overflowPoolTop = top + 1;
+     }
+   }
++
++  private NormalScopeBuilder acquireNormalScopeBuilder(TypedScope scope) {
++    int top = this.normalScopeBuilderPoolTop;
++    if (top > 0) {
++      int nextTop = top - 1;
++      this.normalScopeBuilderPoolTop = nextTop;
++      NormalScopeBuilder b = this.normalScopeBuilderPool[nextTop];
++      this.normalScopeBuilderPool[nextTop] = null;
++      b.resetForScope(scope);
++      return b;
++    }
++    return new NormalScopeBuilder(scope);
++  }
++
++  private void releaseNormalScopeBuilder(NormalScopeBuilder builder) {
++    builder.clearForPool();
++    int top = this.normalScopeBuilderPoolTop;
++    if (top < this.normalScopeBuilderPool.length) {
++      this.normalScopeBuilderPool[top] = builder;
++      this.normalScopeBuilderPoolTop = top + 1;
++    }
++  }
++
++  private FunctionScopeBuilder acquireFunctionScopeBuilder(TypedScope scope) {
++    int top = this.functionScopeBuilderPoolTop;
++    if (top > 0) {
++      int nextTop = top - 1;
++      this.functionScopeBuilderPoolTop = nextTop;
++      FunctionScopeBuilder b = this.functionScopeBuilderPool[nextTop];
++      this.functionScopeBuilderPool[nextTop] = null;
++      b.resetForScope(scope);
++      return b;
++    }
++    return new FunctionScopeBuilder(scope);
++  }
++
++  private void releaseFunctionScopeBuilder(FunctionScopeBuilder builder) {
++    builder.clearForPool();
++    int top = this.functionScopeBuilderPoolTop;
++    if (top < this.functionScopeBuilderPool.length) {
++      this.functionScopeBuilderPool[top] = builder;
++      this.functionScopeBuilderPoolTop = top + 1;
++    }
++  }
++
++  private ClassScopeBuilder acquireClassScopeBuilder(TypedScope scope) {
++    int top = this.classScopeBuilderPoolTop;
++    if (top > 0) {
++      int nextTop = top - 1;
++      this.classScopeBuilderPoolTop = nextTop;
++      ClassScopeBuilder b = this.classScopeBuilderPool[nextTop];
++      this.classScopeBuilderPool[nextTop] = null;
++      b.resetForScope(scope);
++      return b;
++    }
++    return new ClassScopeBuilder(scope);
++  }
++
++  private void releaseClassScopeBuilder(ClassScopeBuilder builder) {
++    builder.clearForPool();
++    int top = this.classScopeBuilderPoolTop;
++    if (top < this.classScopeBuilderPool.length) {
++      this.classScopeBuilderPool[top] = builder;
++      this.classScopeBuilderPoolTop = top + 1;
++    }
++  }
+   // Unboxed table tracking escaped flag (bit 0) and assignment count (bits 1..31) per (scopeRoot, name).
+   private final ScopedVarStateTable scopedVarStates = new ScopedVarStateTable();
+ 
+@@ -622,12 +694,18 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       newScope = new TypedScope(typedParent, root, reservedNames, module, pooledOverflow);
+     }
+ 
++    NormalScopeBuilder pooledNormalBuilder = null;
++    FunctionScopeBuilder pooledFunctionBuilder = null;
++    ClassScopeBuilder pooledClassBuilder = null;
+     if (root.isFunction()) {
+-      scopeBuilder = new FunctionScopeBuilder(newScope);
++      pooledFunctionBuilder = acquireFunctionScopeBuilder(newScope);
++      scopeBuilder = pooledFunctionBuilder;
+     } else if (root.isClass() || root.isMemberFieldDef() || root.isComputedFieldDef()) {
+-      scopeBuilder = new ClassScopeBuilder(newScope);
++      pooledClassBuilder = acquireClassScopeBuilder(newScope);
++      scopeBuilder = pooledClassBuilder;
+     } else {
+-      scopeBuilder = new NormalScopeBuilder(newScope);
++      pooledNormalBuilder = acquireNormalScopeBuilder(newScope);
++      scopeBuilder = pooledNormalBuilder;
+       if (root.isModuleBody()) {
+         // Store the module scope on the CompilerInput object so it can be found and used for
+         // program analysis purposes.
+@@ -640,6 +718,13 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     try {
+       scopeBuilder.build();
+     } finally {
++      if (pooledNormalBuilder != null) {
++        releaseNormalScopeBuilder(pooledNormalBuilder);
++      } else if (pooledFunctionBuilder != null) {
++        releaseFunctionScopeBuilder(pooledFunctionBuilder);
++      } else if (pooledClassBuilder != null) {
++        releaseClassScopeBuilder(pooledClassBuilder);
++      }
+       if (pooledOverflow != null && !newScope.isUsingOverflow(pooledOverflow)) {
+         releaseOverflow(pooledOverflow);
+       }
+@@ -665,7 +750,139 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+     return newScope;
+   }
+ 
++  private static final String[] EMPTY_VAR_NAMES = new String[0];
++  private static final String[][] SINGLE_ASCII_VAR_NAMES = new String[128][];
+   private static final String[] EXPORTS_ONLY = new String[] {"exports"};
++  private static final String[] SINGLE_THIS = new String[] {"this"};
++  private static final String[] SINGLE_ARGUMENTS = new String[] {"arguments"};
++  private static final String[] SINGLE_VALUE = new String[] {"value"};
++  private static final String[] SINGLE_EVENT = new String[] {"event"};
++  private static final String[] SINGLE_ERROR = new String[] {"error"};
++  private static final String[] SINGLE_INDEX = new String[] {"index"};
++  private static final String[] SINGLE_OPTIONS = new String[] {"options"};
++  private static final String[] SINGLE_ELEMENT = new String[] {"element"};
++  private static final String[] SINGLE_RESULT = new String[] {"result"};
++  private static final String[] SINGLE_TARGET = new String[] {"target"};
++  private static final String[] SINGLE_STATE = new String[] {"state"};
++  private static final String[] SINGLE_PROPS = new String[] {"props"};
++  private static final String[] SINGLE_DATA = new String[] {"data"};
++  private static final String[] SINGLE_ITEM = new String[] {"item"};
++  private static final String[] SINGLE_NAME = new String[] {"name"};
++  private static final String[] SINGLE_TYPE = new String[] {"type"};
++  private static final String[] SINGLE_NODE = new String[] {"node"};
++  private static final String[] SINGLE_KEY = new String[] {"key"};
++  private static final String[] SINGLE_VAL = new String[] {"val"};
++  private static final String[] SINGLE_ERR = new String[] {"err"};
++  private static final String[] SINGLE_RES = new String[] {"res"};
++  private static final String[] SINGLE_REQ = new String[] {"req"};
++  private static final String[] SINGLE_CB = new String[] {"cb"};
++  private static final String[] SINGLE_FN = new String[] {"fn"};
++  private static final String[] SINGLE_EL = new String[] {"el"};
++  private static final String[] SINGLE_ID = new String[] {"id"};
++  private static final String[] SINGLE_SELF = new String[] {"self"};
++  private static final String[] SINGLE_THAT = new String[] {"that"};
++  private static final String[] SINGLE_ARGS = new String[] {"args"};
++  private static final String[] PAIR_A_B = new String[] {"a", "b"};
++  private static final String[] PAIR_X_Y = new String[] {"x", "y"};
++  private static final String[] PAIR_I_N = new String[] {"i", "n"};
++  private static final String[] PAIR_K_V = new String[] {"k", "v"};
++  private static final String[] PAIR_E_T = new String[] {"e", "t"};
++  private static final String[] PAIR_T_E = new String[] {"t", "e"};
++  private static final String[] PAIR_KEY_VALUE = new String[] {"key", "value"};
++  private static final String[] PAIR_RESOLVE_REJECT = new String[] {"resolve", "reject"};
++
++  static {
++    for (int c = '0'; c <= '9'; c++) {
++      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
++    }
++    for (int c = 'A'; c <= 'Z'; c++) {
++      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
++    }
++    for (int c = 'a'; c <= 'z'; c++) {
++      SINGLE_ASCII_VAR_NAMES[c] = new String[] {String.valueOf((char) c)};
++    }
++    SINGLE_ASCII_VAR_NAMES['_'] = new String[] {"_"};
++    SINGLE_ASCII_VAR_NAMES['$'] = new String[] {"$"};
++  }
++
++  static String[] emptyVarNames() {
++    return EMPTY_VAR_NAMES;
++  }
++
++  static String[] singletonVarNameArray(String name) {
++    int len = name.length();
++    if (len == 1) {
++      char c = name.charAt(0);
++      if (c < 128) {
++        String[] cached = SINGLE_ASCII_VAR_NAMES[c];
++        if (cached != null) {
++          return cached;
++        }
++      }
++      return new String[] {name};
++    }
++    return switch (name) {
++      case "exports" -> EXPORTS_ONLY;
++      case "this" -> SINGLE_THIS;
++      case "arguments" -> SINGLE_ARGUMENTS;
++      case "value" -> SINGLE_VALUE;
++      case "event" -> SINGLE_EVENT;
++      case "error" -> SINGLE_ERROR;
++      case "index" -> SINGLE_INDEX;
++      case "options" -> SINGLE_OPTIONS;
++      case "element" -> SINGLE_ELEMENT;
++      case "result" -> SINGLE_RESULT;
++      case "target" -> SINGLE_TARGET;
++      case "state" -> SINGLE_STATE;
++      case "props" -> SINGLE_PROPS;
++      case "data" -> SINGLE_DATA;
++      case "item" -> SINGLE_ITEM;
++      case "name" -> SINGLE_NAME;
++      case "type" -> SINGLE_TYPE;
++      case "node" -> SINGLE_NODE;
++      case "key" -> SINGLE_KEY;
++      case "val" -> SINGLE_VAL;
++      case "err" -> SINGLE_ERR;
++      case "res" -> SINGLE_RES;
++      case "req" -> SINGLE_REQ;
++      case "cb" -> SINGLE_CB;
++      case "fn" -> SINGLE_FN;
++      case "el" -> SINGLE_EL;
++      case "id" -> SINGLE_ID;
++      case "self" -> SINGLE_SELF;
++      case "that" -> SINGLE_THAT;
++      case "args" -> SINGLE_ARGS;
++      default -> new String[] {name};
++    };
++  }
++
++  static String[] pairVarNameArray(String n0, String n1) {
++    if ("a".equals(n0) && "b".equals(n1)) {
++      return PAIR_A_B;
++    }
++    if ("x".equals(n0) && "y".equals(n1)) {
++      return PAIR_X_Y;
++    }
++    if ("i".equals(n0) && "n".equals(n1)) {
++      return PAIR_I_N;
++    }
++    if ("k".equals(n0) && "v".equals(n1)) {
++      return PAIR_K_V;
++    }
++    if ("e".equals(n0) && "t".equals(n1)) {
++      return PAIR_E_T;
++    }
++    if ("t".equals(n0) && "e".equals(n1)) {
++      return PAIR_T_E;
++    }
++    if ("key".equals(n0) && "value".equals(n1)) {
++      return PAIR_KEY_VALUE;
++    }
++    if ("resolve".equals(n0) && "reject".equals(n1)) {
++      return PAIR_RESOLVE_REJECT;
++    }
++    return new String[] {n0, n1};
++  }
+ 
+   private static String[] withReservedExports(String @Nullable [] reservedNames) {
+     if (reservedNames == null || reservedNames.length == 0) {
+@@ -1013,10 +1230,10 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+   private abstract class AbstractScopeBuilder implements NodeTraversal.Callback {
+ 
+     /** The scope that we're building. */
+-    final TypedScope currentScope;
++    TypedScope currentScope;
+ 
+     /** The current hoist scope. */
+-    final TypedScope currentHoistScope;
++    TypedScope currentHoistScope;
+ 
+     /** The current source file that we're in. */
+     private @Nullable String sourceName = null;
+@@ -1046,6 +1263,22 @@ final class TypedScopeCreator implements ScopeCreator, StaticSymbolTable<TypedVa
+       this.currentHoistScope = scope.getClosestHoistScope();
+     }
+ 
++    void resetForScope(TypedScope scope) {
++      this.currentScope = scope;
++      this.currentHoistScope = scope.getClosestHoistScope();
++      this.sourceName = null;
++      this.inputId = null;
++      this.deferredActions = null;
++    }
++
++    void clearForPool() {
++      this.currentScope = null;
++      this.currentHoistScope = null;
++      this.sourceName = null;
++      this.inputId = null;
++      this.deferredActions = null;
++    }
++
+     /** Returns the current compiler input. */
+     CompilerInput getCompilerInput() {
+       return compiler.getInput(inputId);
+diff --git a/com/google/javascript/rhino/RhinoStringPool.java b/com/google/javascript/rhino/RhinoStringPool.java
+index 4a78150..b9394f2 100644
+--- a/com/google/javascript/rhino/RhinoStringPool.java
++++ b/com/google/javascript/rhino/RhinoStringPool.java
+@@ -67,6 +67,10 @@ public final class RhinoStringPool {
+     return h == 0 ? 1 : h;
+   }
+ 
++  public static String joinDollar(String a, String b) {
++    return a + "$" + b;
++  }
++
+   private RhinoStringPool() {}
+ 
+   /** Backed by a flat non-null string array for deserialized string pools. */
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 3fdfcb3..0874719 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -88,6 +88,7 @@ public abstract class JSType {
+   static final byte JSTYPE_FLAG_OBJ_VISITED = 1 << 4;
+   static final byte JSTYPE_FLAG_OBJ_NOT_UNKNOWN = 1 << 5;
+   private static final int JSTYPE_TEMPLATE_CHECK_SHIFT = 6;
++  static final byte PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK = (byte) (1 << 7);
+ 
+   private static final CanCastToVisitor CAN_CAST_TO_VISITOR = new CanCastToVisitor();
+ 
+@@ -165,9 +166,18 @@ public abstract class JSType {
+   }
+ 
+   public final int getWellFormedTemplatizedKind() {
++    if ((this.protoFlags & PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK) != 0) {
++      return 0;
++    }
+     return this.typeKindMask & WELL_FORMED_TEMPLATIZED_ACTIVE_MASK;
+   }
+ 
++  public final void markWellFormedTemplatizedOk() {
++    if (this.isResolved() && this.registry.getResolver().isClosed()) {
++      this.protoFlags |= PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
++    }
++  }
++
+   public final boolean mayHaveNonStringifiableKey() {
+     return (this.typeKindMask & NON_STRINGIFIABLE_KEY_CANDIDATE_MASK) != 0;
+   }
+diff --git a/com/google/javascript/rhino/jstype/TemplateType.java b/com/google/javascript/rhino/jstype/TemplateType.java
+index 8882629..b333e9e 100644
+--- a/com/google/javascript/rhino/jstype/TemplateType.java
++++ b/com/google/javascript/rhino/jstype/TemplateType.java
+@@ -141,6 +141,7 @@ public final class TemplateType extends ProxyObjectType {
+ 
+   public void setBound(JSType bound) {
+     this.bound = bound;
++    this.protoFlags &= ~PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK;
+     this.setReferencedType(bound);
+   }
+ 
+diff --git a/com/google/javascript/rhino/jstype/UnionType.java b/com/google/javascript/rhino/jstype/UnionType.java
+index 599d909..b8e58db 100644
+--- a/com/google/javascript/rhino/jstype/UnionType.java
++++ b/com/google/javascript/rhino/jstype/UnionType.java
+@@ -1174,6 +1174,17 @@ public final class UnionType extends JSType {
+       altCount--;
+     }
+ 
++    private static final int NON_SYMBOL_PRIMITIVE_MASK =
++        KIND_VOID
++            | KIND_NULL
++            | KIND_BOOLEAN_VALUE
++            | KIND_NUMBER_VALUE
++            | KIND_STRING_VALUE
++            | KIND_BIGINT_VALUE;
++
++    private static final int PRIMITIVE_SUBTYPE_SPECIAL_MASK =
++        KIND_PROXY | KIND_UNION | KIND_ALL | KIND_NO_TYPE | KIND_ENUM_ELEMENT;
++
+     private static boolean isSubtype(JSType rightType, JSType leftType) {
+       return rightType.isSubtypeWithoutStructuralTyping(leftType);
+     }
+@@ -1261,9 +1272,13 @@ public final class UnionType extends JSType {
+       // Look through the alternates we've got so far,
+       // and check if any of them are duplicates of
+       // one another.
++      int altMask = alternate.typeKindMask;
+       for (int index = 0; index < altCount; index++) {
+         boolean removeCurrent = false;
+         JSType current = getAlternateAtInternal(index);
++        if (identical(alternate, current)) {
++          return this;
++        }
+         if (!current.isResolved()) { // Defer de-duplicating unresolved alternates.
+           continue;
+         }
+@@ -1333,20 +1348,33 @@ public final class UnionType extends JSType {
+                 ObjectType rawType = templatizedCurrent.getReferencedObjTypeInternal();
+                 // Providing no type-parameter values specializes `rawType` on `?` by default.
+                 alternate = registry.createTemplatizedType(rawType, ImmutableList.of());
++                altMask = alternate.typeKindMask;
+                 removeCurrent = true;
+               }
+             }
+             // case 9 & 7b: leave current, add alternate
+           }
+           // Otherwise leave both templatized types.
+-        } else if (isSubtype(alternate, current)) {
+-          // Alternate is unnecessary.
+-          mayRegisterDroppedProperties(alternate, current);
+-          return this;
+-        } else if (isSubtype(current, alternate)) {
+-          // Alternate makes current obsolete
+-          mayRegisterDroppedProperties(current, alternate);
+-          removeCurrent = true;
++        } else {
++          int combinedMask = altMask | current.typeKindMask;
++          if ((combinedMask & NON_SYMBOL_PRIMITIVE_MASK) != 0
++              && (combinedMask & PRIMITIVE_SUBTYPE_SPECIAL_MASK) == 0) {
++            continue;
++          }
++          if ((combinedMask & KIND_SYMBOL_VALUE) != 0
++              && ((altMask & current.typeKindMask) & KIND_SYMBOL_VALUE) == 0
++              && (combinedMask & PRIMITIVE_SUBTYPE_SPECIAL_MASK) == 0) {
++            continue;
++          }
++          if (isSubtype(alternate, current)) {
++            // Alternate is unnecessary.
++            mayRegisterDroppedProperties(alternate, current);
++            return this;
++          } else if (isSubtype(current, alternate)) {
++            // Alternate makes current obsolete
++            mayRegisterDroppedProperties(current, alternate);
++            removeCurrent = true;
++          }
+         }
+ 
+         if (removeCurrent) {
+@@ -1373,7 +1401,7 @@ public final class UnionType extends JSType {
+     }
+ 
+     private void mayRegisterDroppedProperties(JSType subtype, JSType supertype) {
+-      if (subtype.toMaybeRecordType() != null && supertype.toMaybeRecordType() != null) {
++      if (subtype.isRecordType() && supertype.isRecordType()) {
+         registry.registerDroppedPropertiesInUnion(
+             subtype.toMaybeRecordType(), supertype.toMaybeRecordType());
+       }
