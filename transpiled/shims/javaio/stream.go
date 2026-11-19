@@ -8,6 +8,28 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
+	"sync/atomic"
+)
+
+const defaultStreamBufSize = 64 * 1024
+
+var (
+	bufferedReaderPool = sync.Pool{
+		New: func() any {
+			return bufio.NewReaderSize(nil, defaultStreamBufSize)
+		},
+	}
+	bufferedWriterPool = sync.Pool{
+		New: func() any {
+			return bufio.NewWriterSize(nil, defaultStreamBufSize)
+		},
+	}
+	rawWriteScratchPool = sync.Pool{
+		New: func() any {
+			return new([defaultStreamBufSize]byte)
+		},
+	}
 )
 
 func ignoreAlreadyClosed(err error) error {
@@ -192,11 +214,25 @@ func (s *ByteArrayInputStream) Close() error {
 
 // FileInputStream reads raw bytes from a filesystem file.
 type FileInputStream struct {
-	f *os.File
+	f      *os.File
+	fd     atomic.Int32
+	closed atomic.Bool
 }
 
 // NewFileInputStream opens path for reading.
 func NewFileInputStream(path string) (*FileInputStream, error) {
+	if hasRawFileFD {
+		fd, err := openRawReadFD(path)
+		if err != nil {
+			if isRawNotExist(err) {
+				return nil, NewFileNotFoundException(err.Error())
+			}
+			return nil, NewIOException(err.Error())
+		}
+		s := &FileInputStream{}
+		s.fd.Store(int32(fd))
+		return s, nil
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -204,7 +240,9 @@ func NewFileInputStream(path string) (*FileInputStream, error) {
 		}
 		return nil, NewIOException(err.Error())
 	}
-	return &FileInputStream{f: f}, nil
+	s := &FileInputStream{f: f}
+	s.fd.Store(-1)
+	return s, nil
 }
 
 // NewFileInputStreamFromFile opens f.GetPath() for reading.
@@ -212,11 +250,23 @@ func NewFileInputStreamFromFile(f *File) (*FileInputStream, error) {
 	return NewFileInputStream(f.GetPath())
 }
 
-func (s *FileInputStream) Read(b []byte) (int, error) { return s.f.Read(b) }
+func (s *FileInputStream) Read(b []byte) (int, error) {
+	if s == nil {
+		return 0, os.ErrClosed
+	}
+	if s.f != nil {
+		return s.f.Read(b)
+	}
+	fd := int(s.fd.Load())
+	if fd < 0 {
+		return 0, os.ErrClosed
+	}
+	return readRawFD(fd, b)
+}
 
 func (s *FileInputStream) ReadByte() (byte, error) {
 	var one [1]byte
-	n, err := s.f.Read(one[:])
+	n, err := s.Read(one[:])
 	if n == 0 {
 		if err == nil {
 			err = io.EOF
@@ -230,7 +280,7 @@ func (s *FileInputStream) Skip(n int64) (int64, error) {
 	if n <= 0 {
 		return 0, nil
 	}
-	return io.CopyN(io.Discard, s.f, n)
+	return io.CopyN(io.Discard, s, n)
 }
 
 func (s *FileInputStream) Available() int {
@@ -242,32 +292,50 @@ func (s *FileInputStream) Available() int {
 }
 
 func (s *FileInputStream) RemainingBytesHint() (int64, bool) {
-	if s == nil || s.f == nil {
+	if s == nil {
 		return 0, false
 	}
-	fi, err := s.f.Stat()
-	if err != nil || !fi.Mode().IsRegular() {
+	if s.f != nil {
+		fi, err := s.f.Stat()
+		if err != nil || !fi.Mode().IsRegular() {
+			return 0, false
+		}
+		pos, err := s.f.Seek(0, io.SeekCurrent)
+		if err != nil || fi.Size() < pos {
+			return 0, false
+		}
+		return fi.Size() - pos, true
+	}
+	fd := int(s.fd.Load())
+	if fd < 0 {
 		return 0, false
 	}
-	pos, err := s.f.Seek(0, io.SeekCurrent)
-	if err != nil || fi.Size() < pos {
-		return 0, false
-	}
-	return fi.Size() - pos, true
+	return remainingRegularRawFD(fd)
 }
 
 func (s *FileInputStream) Close() error {
-	if s == nil || s.f == nil {
+	if s == nil {
 		return nil
 	}
-	return ignoreAlreadyClosed(s.f.Close())
+	if s.f != nil {
+		if !s.closed.CompareAndSwap(false, true) {
+			return nil
+		}
+		return ignoreAlreadyClosed(s.f.Close())
+	}
+	fd := int(s.fd.Swap(-1))
+	if fd < 0 {
+		return nil
+	}
+	return ignoreAlreadyClosed(closeRawFD(fd))
 }
 
-// BufferedInputStream adds buffering to an InputStream / io.Reader.
+// BufferedInputStream adds 64 KiB pooled buffering to an InputStream / io.Reader.
 type BufferedInputStream struct {
 	br     *bufio.Reader
 	src    io.Reader
 	closer io.Closer
+	closed atomic.Bool
 }
 
 // NewBufferedInputStream creates a BufferedInputStream wrapping r.
@@ -276,18 +344,45 @@ func NewBufferedInputStream(r io.Reader) *BufferedInputStream {
 	if cl, ok := r.(io.Closer); ok {
 		c = cl
 	}
-	return &BufferedInputStream{br: bufio.NewReader(r), src: r, closer: c}
+	br := bufferedReaderPool.Get().(*bufio.Reader)
+	br.Reset(r)
+	return &BufferedInputStream{br: br, src: r, closer: c}
 }
 
-func (b *BufferedInputStream) Read(p []byte) (int, error) { return b.br.Read(p) }
-func (b *BufferedInputStream) ReadByte() (byte, error)    { return b.br.ReadByte() }
+func (b *BufferedInputStream) Read(p []byte) (int, error) {
+	if b == nil || b.closed.Load() || b.br == nil {
+		return 0, os.ErrClosed
+	}
+	return b.br.Read(p)
+}
+
+func (b *BufferedInputStream) ReadByte() (byte, error) {
+	if b == nil || b.closed.Load() || b.br == nil {
+		return 0, os.ErrClosed
+	}
+	return b.br.ReadByte()
+}
+
 func (b *BufferedInputStream) Skip(n int64) (int64, error) {
+	if b == nil || b.closed.Load() || b.br == nil {
+		return 0, os.ErrClosed
+	}
+	if n <= 0 {
+		return 0, nil
+	}
 	skipped, err := b.br.Discard(int(n))
 	return int64(skipped), err
 }
-func (b *BufferedInputStream) Available() int { return b.br.Buffered() }
+
+func (b *BufferedInputStream) Available() int {
+	if b == nil || b.closed.Load() || b.br == nil {
+		return 0
+	}
+	return b.br.Buffered()
+}
+
 func (b *BufferedInputStream) RemainingBytesHint() (int64, bool) {
-	if b == nil || b.br == nil {
+	if b == nil || b.closed.Load() || b.br == nil {
 		return 0, false
 	}
 	rem, ok := readerRemainingBytesHint(b.src)
@@ -296,7 +391,16 @@ func (b *BufferedInputStream) RemainingBytesHint() (int64, bool) {
 	}
 	return int64(b.br.Buffered()) + rem, true
 }
+
 func (b *BufferedInputStream) Close() error {
+	if b == nil || !b.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	if b.br != nil {
+		b.br.Reset(nil)
+		bufferedReaderPool.Put(b.br)
+		b.br = nil
+	}
 	if b.closer != nil {
 		return ignoreAlreadyClosed(b.closer.Close())
 	}
@@ -361,16 +465,60 @@ func (b *ByteArrayOutputStream) Reset() {
 
 // FileOutputStream writes raw bytes to a filesystem file.
 type FileOutputStream struct {
-	f *os.File
+	f      *os.File
+	fd     atomic.Int32
+	closed atomic.Bool
 }
 
 // NewFileOutputStream opens or creates path for writing (truncating existing content).
 func NewFileOutputStream(path string) (*FileOutputStream, error) {
-	f, err := os.Create(path)
+	return NewFileOutputStreamAppend(path, false)
+}
+
+// NewFileOutputStreamAppend opens or creates path for writing, either appending or truncating.
+func NewFileOutputStreamAppend(path string, appendMode bool) (*FileOutputStream, error) {
+	flags := os.O_WRONLY | os.O_CREATE
+	if appendMode {
+		flags |= os.O_APPEND
+	} else {
+		flags |= os.O_TRUNC
+	}
+	if hasRawFileFD {
+		fd, err := openRawWriteFD(path, flags)
+		if err != nil {
+			return nil, NewFileNotFoundException(err.Error())
+		}
+		s := &FileOutputStream{}
+		s.fd.Store(int32(fd))
+		return s, nil
+	}
+	f, err := os.OpenFile(path, flags, 0o666)
 	if err != nil {
 		return nil, NewFileNotFoundException(err.Error())
 	}
-	return &FileOutputStream{f: f}, nil
+	s := &FileOutputStream{f: f}
+	s.fd.Store(-1)
+	return s, nil
+}
+
+// NewFileOutputStreamFlags opens path with explicit os.O_* flags (used by javanio.Files_NewOutputStream).
+func NewFileOutputStreamFlags(path string, flags int) (*FileOutputStream, error) {
+	if hasRawFileFD {
+		fd, err := openRawWriteFD(path, flags)
+		if err != nil {
+			return nil, NewIOException(err.Error())
+		}
+		s := &FileOutputStream{}
+		s.fd.Store(int32(fd))
+		return s, nil
+	}
+	f, err := os.OpenFile(path, flags, 0o666)
+	if err != nil {
+		return nil, NewIOException(err.Error())
+	}
+	s := &FileOutputStream{f: f}
+	s.fd.Store(-1)
+	return s, nil
 }
 
 // NewFileOutputStreamFromFile opens or creates f.GetPath() for writing.
@@ -380,28 +528,99 @@ func NewFileOutputStreamFromFile(f *File) (*FileOutputStream, error) {
 
 // NewFileOutputStreamFromOSFile wraps an already opened *os.File.
 func NewFileOutputStreamFromOSFile(f *os.File) *FileOutputStream {
-	return &FileOutputStream{f: f}
+	s := &FileOutputStream{f: f}
+	s.fd.Store(-1)
+	return s
 }
 
-func (s *FileOutputStream) Write(p []byte) (int, error)          { return s.f.Write(p) }
-func (s *FileOutputStream) WriteString(str string) (int, error) { return s.f.WriteString(str) }
+func (s *FileOutputStream) Write(p []byte) (int, error) {
+	if s == nil {
+		return 0, os.ErrClosed
+	}
+	if s.f != nil {
+		if s.closed.Load() {
+			return 0, os.ErrClosed
+		}
+		return s.f.Write(p)
+	}
+	fd := int(s.fd.Load())
+	if fd < 0 {
+		return 0, os.ErrClosed
+	}
+	return writeRawFD(fd, p)
+}
+
+func (s *FileOutputStream) WriteString(str string) (int, error) {
+	if s == nil {
+		return 0, os.ErrClosed
+	}
+	if s.f != nil {
+		if s.closed.Load() {
+			return 0, os.ErrClosed
+		}
+		return s.f.WriteString(str)
+	}
+	fd := int(s.fd.Load())
+	if fd < 0 {
+		return 0, os.ErrClosed
+	}
+	if len(str) == 0 {
+		return 0, nil
+	}
+	if len(str) <= 4096 {
+		var tmp [4096]byte
+		n := copy(tmp[:], str)
+		return writeRawFD(fd, tmp[:n])
+	}
+	buf := rawWriteScratchPool.Get().(*[defaultStreamBufSize]byte)
+	total := 0
+	rem := str
+	for len(rem) > 0 {
+		chunk := min(len(rem), len(buf))
+		copy(buf[:chunk], rem[:chunk])
+		n, err := writeRawFD(fd, buf[:chunk])
+		total += n
+		if err != nil {
+			rawWriteScratchPool.Put(buf)
+			return total, err
+		}
+		rem = rem[chunk:]
+	}
+	rawWriteScratchPool.Put(buf)
+	return total, nil
+}
+
 func (s *FileOutputStream) WriteByte(c byte) error {
-	_, err := s.f.Write([]byte{c})
+	var one [1]byte
+	one[0] = c
+	_, err := s.Write(one[:])
 	return err
 }
+
 func (s *FileOutputStream) Flush() error { return nil }
+
 func (s *FileOutputStream) Close() error {
-	if s == nil || s.f == nil {
+	if s == nil {
 		return nil
 	}
-	return ignoreAlreadyClosed(s.f.Close())
+	if s.f != nil {
+		if !s.closed.CompareAndSwap(false, true) {
+			return nil
+		}
+		return ignoreAlreadyClosed(s.f.Close())
+	}
+	fd := int(s.fd.Swap(-1))
+	if fd < 0 {
+		return nil
+	}
+	return ignoreAlreadyClosed(closeRawFD(fd))
 }
 
-// BufferedOutputStream buffers writes to an underlying io.Writer.
+// BufferedOutputStream buffers writes to an underlying io.Writer using a pooled 64 KiB buffer.
 type BufferedOutputStream struct {
 	bw     *bufio.Writer
 	closer io.Closer
-	closed bool
+	closed atomic.Bool
 }
 
 // NewBufferedOutputStream creates a BufferedOutputStream wrapping w.
@@ -410,18 +629,43 @@ func NewBufferedOutputStream(w io.Writer) *BufferedOutputStream {
 	if cl, ok := w.(io.Closer); ok {
 		c = cl
 	}
-	return &BufferedOutputStream{bw: bufio.NewWriter(w), closer: c}
+	bw := bufferedWriterPool.Get().(*bufio.Writer)
+	bw.Reset(w)
+	return &BufferedOutputStream{bw: bw, closer: c}
 }
 
-func (b *BufferedOutputStream) Write(p []byte) (int, error) { return b.bw.Write(p) }
-func (b *BufferedOutputStream) WriteByte(c byte) error      { return b.bw.WriteByte(c) }
-func (b *BufferedOutputStream) Flush() error                { return b.bw.Flush() }
-func (b *BufferedOutputStream) Close() error {
-	if b == nil || b.closed {
+func (b *BufferedOutputStream) Write(p []byte) (int, error) {
+	if b == nil || b.closed.Load() || b.bw == nil {
+		return 0, os.ErrClosed
+	}
+	return b.bw.Write(p)
+}
+
+func (b *BufferedOutputStream) WriteByte(c byte) error {
+	if b == nil || b.closed.Load() || b.bw == nil {
+		return os.ErrClosed
+	}
+	return b.bw.WriteByte(c)
+}
+
+func (b *BufferedOutputStream) Flush() error {
+	if b == nil || b.closed.Load() || b.bw == nil {
 		return nil
 	}
-	b.closed = true
-	flushErr := ignoreAlreadyClosed(b.bw.Flush())
+	return b.bw.Flush()
+}
+
+func (b *BufferedOutputStream) Close() error {
+	if b == nil || !b.closed.CompareAndSwap(false, true) {
+		return nil
+	}
+	var flushErr error
+	if b.bw != nil {
+		flushErr = ignoreAlreadyClosed(b.bw.Flush())
+		b.bw.Reset(nil)
+		bufferedWriterPool.Put(b.bw)
+		b.bw = nil
+	}
 	if b.closer != nil {
 		if err := ignoreAlreadyClosed(b.closer.Close()); err != nil && flushErr == nil {
 			return err

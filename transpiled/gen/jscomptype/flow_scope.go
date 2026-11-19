@@ -21,6 +21,7 @@ import (
 	pkg_graph "github.com/paullepoulpe/jsgo/transpiled/gen/graph"
 	"github.com/paullepoulpe/jsgo/transpiled/gen/j2gort"
 	pkg_rhino "github.com/paullepoulpe/jsgo/transpiled/gen/rhino"
+	"github.com/paullepoulpe/jsgo/transpiled/shims/javalang"
 )
 
 // Java interface: com.google.javascript.jscomp.type.FlowScope
@@ -33,7 +34,9 @@ type FlowScope interface {
 	InferSlotType(string, pkg_rhino.JSType) any
 	InferQualifiedSlot(pkg_rhino.Node, string, pkg_rhino.JSType, pkg_rhino.JSType, bool) any
 	GetDeclarationScope() any
+	EqualsFlowScope(FlowScope) bool
 }
+
 func ToIface_FlowScope[T interface {
 	FlowScope
 	comparable
@@ -57,4 +60,11 @@ func init() {
 	j2gort.RegisterTypePredicate("com.google.javascript.jscomp.type.FlowScope", "com.google.javascript.jscomp.type.FlowScope", func(v_ any) bool {
 		return j2gort.InstanceOf[FlowScope](v_)
 	})
+}
+
+// Java default interface method: FlowScope.equalsFlowScope(com.google.javascript.jscomp.type.FlowScope other)
+func IfaceDefault_FlowScope_EqualsFlowScope(this_ FlowScope, other FlowScope) bool {
+	_ = this_
+	_ = other
+	return ((this_ == other || ((this_ == nil || this_.IsJavaNil_()) && (other == nil || other.IsJavaNil_()))) || javalang.ObjectsEquals(j2gort.CheckNotNull(this_), other))
 }

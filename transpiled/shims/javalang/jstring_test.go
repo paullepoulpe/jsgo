@@ -244,26 +244,27 @@ func TestLargeCopyrightJSFileZeroUTF16SliceAndNoASCIIEviction(t *testing.T) {
 		t.Fatalf("expected 0 allocs/op on cached 200 KB non-ASCII JS file after 5,000 ASCII type lookups, got %v", postAllocs)
 	}
 
-	// Token substrings (<= 256 bytes) from 200 KB JS file must allocate 0 objects on
-	// warm deduplicated hits, while > 256-byte small slices allocate 1 clone (no 200 KB []uint16 slice).
+	// Token substrings (<= 2048 bytes) from 200 KB JS file must allocate 0 objects on
+	// warm deduplicated hits, while > 2048-byte small slices allocate 1 clone (no 200 KB []uint16 slice).
 	subAllocs := testing.AllocsPerRun(20, func() {
 		tok45 := StringSubstring(jsFile, 1000, 1045)
 		tok120 := StringSubstring(jsFile, 1000, 1120)
-		if len(tok45) != 45 || len(tok120) != 120 {
-			t.Fatalf("unexpected token lengths %d, %d", len(tok45), len(tok120))
+		tok600 := StringSubstring(jsFile, 1000, 1600)
+		if len(tok45) != 45 || len(tok120) != 120 || len(tok600) != 600 {
+			t.Fatalf("unexpected token lengths %d, %d, %d", len(tok45), len(tok120), len(tok600))
 		}
 	})
 	if subAllocs != 0 {
-		t.Fatalf("expected 0 allocs/op on deduplicated <=256B token slices from 200 KB file, got %v", subAllocs)
+		t.Fatalf("expected 0 allocs/op on deduplicated <=2048B token/comment slices from 200 KB file, got %v", subAllocs)
 	}
 	longSubAllocs := testing.AllocsPerRun(20, func() {
-		tok := StringSubstring(jsFile, 1000, 1300)
-		if len(tok) != 300 {
+		tok := StringSubstring(jsFile, 1000, 3500)
+		if len(tok) != 2500 {
 			t.Fatalf("unexpected token length %d", len(tok))
 		}
 	})
 	if longSubAllocs != 1 {
-		t.Fatalf("expected 1 small clone alloc/op on 300B (>256B) token slice from 200 KB file, got %v", longSubAllocs)
+		t.Fatalf("expected 1 small clone alloc/op on 2500B (>2048B) slice from 200 KB file, got %v", longSubAllocs)
 	}
 }
 
@@ -897,4 +898,52 @@ func TestWave40CShardedZeroBucketAllocUnpinDedup256(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+
+func TestWave42C4WaySLRUAndLargeCommentUnpinDedup(t *testing.T) {
+	// 1. Repeated 600-byte Apache license header & JSDoc block comments (257..2048B) across
+	// >= 1 KB source files must admit on 2nd occurrence and allocate 0 objects on 3rd+ occurrences!
+	license := "/*\n * Copyright 2026 Google LLC\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * " +
+		strings.Repeat("you may not use this file except in compliance with the License. ", 8) + "\n */"
+	if len(license) <= 256 || len(license) > 2048 {
+		t.Fatalf("expected 257..2048B license comment, got %d", len(license))
+	}
+	file1 := license + "\n" + strings.Repeat("export const x = 1;\n", 100)
+	file2 := license + "\n" + strings.Repeat("export const y = 2;\n", 100)
+	file3 := license + "\n" + strings.Repeat("export const z = 3;\n", 100)
+
+	if g1 := StringSubstring(file1, 0, len(license)); g1 != license {
+		t.Fatal("1st occurrence mismatch")
+	}
+	if g2 := StringSubstring(file2, 0, len(license)); g2 != license {
+		t.Fatal("2nd occurrence mismatch")
+	}
+	allocs := testing.AllocsPerRun(50, func() {
+		if g3 := StringSubstring(file3, 0, len(license)); g3 != license {
+			t.Fatal("3rd+ occurrence mismatch")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocs on repeated 600B license comment after 2-hit admission, got %v", allocs)
+	}
+
+	// 2. Verify 4-way SLRU probation protection: flooding 50,000 one-hit unique comments must NOT
+	// evict hot protected identifiers that have already been promoted to slot[0..2]!
+	pad := strings.Repeat(" ", 1500)
+	hotSrc := pad + "goog.module.declareLegacyNamespace"
+	// Hit twice to ensure promotion into protected ways slot[0..2].
+	_ = unpinSubstring(len(hotSrc), hotSrc[len(pad):])
+	_ = unpinSubstring(len(hotSrc), hotSrc[len(pad):])
+	for i := 0; i < 50000; i++ {
+		oneOff := pad + fmt.Sprintf("/* one_off_unique_comment_%06d */", i)
+		_ = unpinSubstring(len(oneOff), oneOff[len(pad):])
+	}
+	if hitAllocs := testing.AllocsPerRun(20, func() {
+		if got := unpinSubstring(len(hotSrc), hotSrc[len(pad):]); got != "goog.module.declareLegacyNamespace" {
+			t.Fatal("hot protected identifier mismatch")
+		}
+	}); hitAllocs != 0 {
+		t.Fatalf("hot protected identifier was evicted by one-hit wonders: got %v allocs", hitAllocs)
+	}
 }

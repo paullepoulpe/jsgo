@@ -74,17 +74,24 @@ func InitPeepholeOptimizationsPass_3_AbstractCompiler_string_AbstractPeepholeOpt
 	_ = compiler
 	_ = passName
 	_ = optimizations
-	InitPeepholeOptimizationsPass_3_AbstractCompiler_string_Ext_java_util_List(this_, compiler, passName, j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_1 := optimizations
 		if arr_1 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_2 := make([]any, len(arr_1))
 		for i_, el_3 := range arr_1 {
 			out_2[i_] = el_3
 		}
-		return out_2
-	}()))
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	InitPeepholeOptimizationsPass_3_AbstractCompiler_string_Ext_java_util_List(this_, compiler, passName, j2gort.Ext_java_util_Arrays_AsList(iifeArg_1))
 }
 
 // Java constructor: PeepholeOptimizationsPass(com.google.javascript.jscomp.AbstractCompiler compiler, java.lang.String passName, java.util.List<com.google.javascript.jscomp.AbstractPeepholeOptimization> optimizations)
@@ -135,7 +142,7 @@ func (this_ *PeepholeOptimizationsPass) SetRetraverseOnChange(retraverse bool) {
 func (this_ *PeepholeOptimizationsPass) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.priv_PeepholeOptimizationsPass_beginTraversal_4214()
+	this_.priv_PeepholeOptimizationsPass_beginTraversal_4229()
 	{
 		var changedScopeNodes j2gort.Ext_java_util_List = this_.compiler.GetChangeTracker().GetChangedScopeNodesForPass(this_.passName)
 		_ = changedScopeNodes
@@ -150,11 +157,11 @@ func (this_ *PeepholeOptimizationsPass) Process_2(externs pkg_rhino.Node, root p
 			}
 		}
 	}
-	this_.priv_PeepholeOptimizationsPass_endTraversal_4215()
+	this_.priv_PeepholeOptimizationsPass_endTraversal_4230()
 }
 
 // Java method: PeepholeOptimizationsPass.beginTraversal()
-func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_beginTraversal_4214() {
+func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_beginTraversal_4229() {
 	for _, el_10 := range j2gort.CheckNotNullSlice(this_.peepholeOptimizations) {
 		optimization := el_10
 		_ = optimization
@@ -163,7 +170,7 @@ func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_beginTrav
 }
 
 // Java method: PeepholeOptimizationsPass.endTraversal()
-func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_endTraversal_4215() {
+func (this_ *PeepholeOptimizationsPass) priv_PeepholeOptimizationsPass_endTraversal_4230() {
 	for _, el_11 := range j2gort.CheckNotNullSlice(this_.peepholeOptimizations) {
 		optimization := el_11
 		_ = optimization
@@ -249,11 +256,11 @@ func (this_ *PeepholeOptimizationsPass_PeepCallback) EnterScope(t *NodeTraversal
 // Java method: PeepCallback.exitScope(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *PeepholeOptimizationsPass_PeepCallback) ExitScope(t *NodeTraversal) {
 	_ = t
-	this_.priv_PeepCallback_updateFeatures_4216(t)
+	this_.priv_PeepCallback_updateFeatures_4231(t)
 }
 
 // Java method: PeepCallback.updateFeatures(com.google.javascript.jscomp.NodeTraversal t)
-func (this_ *PeepholeOptimizationsPass_PeepCallback) priv_PeepCallback_updateFeatures_4216(t *NodeTraversal) {
+func (this_ *PeepholeOptimizationsPass_PeepCallback) priv_PeepCallback_updateFeatures_4231(t *NodeTraversal) {
 	_ = t
 	for _, el_13 := range j2gort.CheckNotNullSlice(this_.outer_.peepholeOptimizations) {
 		optim := el_13

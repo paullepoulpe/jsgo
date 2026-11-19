@@ -302,12 +302,19 @@ func (this_ *BaseTranspiler_CompilerSupplier) Compile(path *j2gort.Ext_java_net_
 	if !(result.errors.IsEmpty()) {
 		panic(NewTranspilationException_3(ToIface_SourceExcerptProvider(compiler), result.errors, result.warnings))
 	}
-	return NewBaseTranspiler_CompileResult(source, transpiled, func() string {
+	var iifeArg_1 string
+iifeSwitch_1:
+	switch {
+	default:
+
 		if transpiled {
-			return sourceMap.String()
+			iifeArg_1 = sourceMap.String()
+			break iifeSwitch_1
 		}
-		return ""
-	}())
+		iifeArg_1 = ""
+		break iifeSwitch_1
+	}
+	return NewBaseTranspiler_CompileResult(source, transpiled, iifeArg_1)
 }
 
 // Java method: CompilerSupplier.runtime(java.lang.String library)

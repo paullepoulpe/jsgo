@@ -95,14 +95,22 @@ func ResourceLoader_LoadTextResource(clazz *javalang.Class, path string) string 
 				}
 			}
 		}()
-		retVal_2 = j2gort.Ext_com_google_common_io_CharStreams_ToString(j2gort.NewExt_java_io_InputStreamReader_2_Ext_java_io_InputStream_Ext_java_nio_charset_Charset(func() j2gort.Ext_java_io_InputStream {
+		var iifeArg_1 j2gort.
+			Ext_java_io_InputStream
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if b_, ok_ := j2gort.ClassResourceBytes(clazz, path); ok_ {
 				s_ := &j2gort.Ext_java_io_InputStreamBase{Core_: b_}
 				s_.Self_ = s_
-				return s_
+				iifeArg_1 = s_
+				break iifeSwitch_1
 			}
-			return nil
-		}(), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8))
+			iifeArg_1 = nil
+			break iifeSwitch_1
+		}
+		retVal_2 = j2gort.Ext_com_google_common_io_CharStreams_ToString(j2gort.NewExt_java_io_InputStreamReader_2_Ext_java_io_InputStream_Ext_java_nio_charset_Charset(iifeArg_1, j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8))
 		didRet_1 = true
 		return
 	}()

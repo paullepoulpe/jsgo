@@ -94,12 +94,16 @@ func ClosureExportTypeClassifier_Classify(moduleRoot pkg_rhino.Node, googNamespa
 	var classifier *ClosureExportTypeClassifier = &val_1
 	_ = classifier
 	classifier.priv_ClosureExportTypeClassifier_addGoogModuleExports_1165()
-	ClosureExportTypeClassifier_ForEachTopLevelStatement(moduleRoot, func() j2gort.Ext_java_util_function_Consumer {
+	var iifeArg_1 j2gort.
+		Ext_java_util_function_Consumer
+	{
+
 		bound_2 := classifier
-		return j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
+		iifeArg_1 = j2gort.NewLambda_Ext_java_util_function_Consumer(func(mrp0_ any) {
 			bound_2.priv_ClosureExportTypeClassifier_visitStatement_1166(j2gort.CastNode[pkg_rhino.Node](mrp0_))
 		})
-	}())
+	}
+	ClosureExportTypeClassifier_ForEachTopLevelStatement(moduleRoot, iifeArg_1)
 	var info *ClosureExportTypeClassifier_NameInfo = j2gort.CastPtr[ClosureExportTypeClassifier_NameInfo](j2gort.MapGetStr(classifier.topLevelNames, "exports"))
 	_ = info
 	if classifier.forcedNamedExport.Contains(googNamespace) || (classifier.priv_ClosureExportTypeClassifier_kindOfName_1173(info, int32(0)) == StaticGet_ClosureExportTypeClassifier_Kind_NAMESPACE()) {

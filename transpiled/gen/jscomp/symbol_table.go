@@ -222,7 +222,7 @@ func (this_ *SymbolTable) GetEnclosingFunctionScope(n pkg_rhino.Node) *SymbolTab
 func (this_ *SymbolTable) GetParameterInFunction(sym *SymbolTable_Symbol, paramName string) *SymbolTable_Symbol {
 	_ = sym
 	_ = paramName
-	var scope *SymbolTable_SymbolScope = this_.priv_SymbolTable_getScopeInFunction_5203(sym)
+	var scope *SymbolTable_SymbolScope = this_.priv_SymbolTable_getScopeInFunction_5218(sym)
 	_ = scope
 	if scope != nil {
 		var param *SymbolTable_Symbol = scope.GetSlot(paramName)
@@ -235,7 +235,7 @@ func (this_ *SymbolTable) GetParameterInFunction(sym *SymbolTable_Symbol, paramN
 }
 
 // Java method: SymbolTable.getScopeInFunction(com.google.javascript.jscomp.SymbolTable.Symbol sym)
-func (this_ *SymbolTable) priv_SymbolTable_getScopeInFunction_5203(sym *SymbolTable_Symbol) *SymbolTable_SymbolScope {
+func (this_ *SymbolTable) priv_SymbolTable_getScopeInFunction_5218(sym *SymbolTable_Symbol) *SymbolTable_SymbolScope {
 	_ = sym
 	var type_ *pkg_rhino.FunctionType = sym.GetFunctionType()
 	_ = type_
@@ -254,13 +254,13 @@ func (this_ *SymbolTable) priv_SymbolTable_getScopeInFunction_5203(sym *SymbolTa
 func (this_ *SymbolTable) GetSymbolForScope(scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	_ = scope
 	if scope.GetSymbolForScope() == nil {
-		scope.SetSymbolForScope(this_.priv_SymbolTable_findSymbolForScope_5205(scope))
+		scope.SetSymbolForScope(this_.priv_SymbolTable_findSymbolForScope_5220(scope))
 	}
 	return scope.GetSymbolForScope()
 }
 
 // Java method: SymbolTable.findSymbolForScope(com.google.javascript.jscomp.SymbolTable.SymbolScope scope)
-func (this_ *SymbolTable) priv_SymbolTable_findSymbolForScope_5205(scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_findSymbolForScope_5220(scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	_ = scope
 	var rootNode pkg_rhino.Node = scope.GetRootNode()
 	_ = rootNode
@@ -282,7 +282,7 @@ func (this_ *SymbolTable) priv_SymbolTable_findSymbolForScope_5205(scope *Symbol
 // Java method: SymbolTable.getAllSymbolsForTypeOf(com.google.javascript.jscomp.SymbolTable.Symbol sym)
 func (this_ *SymbolTable) GetAllSymbolsForTypeOf(sym *SymbolTable_Symbol) j2gort.Ext_java_lang_Iterable {
 	_ = sym
-	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.GetAllSymbolsForType(this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(sym))))
+	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.GetAllSymbolsForType(this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(sym))))
 }
 
 // Java method: SymbolTable.getGlobalScope()
@@ -298,13 +298,13 @@ func (this_ *SymbolTable) GetSymbolDeclaredBy_1_FunctionType(fn *pkg_rhino.Funct
 	}
 	var instanceType pkg_rhino.ObjectType = fn.GetInstanceType()
 	_ = instanceType
-	return this_.priv_SymbolTable_getSymbolForName_5212(fn.GetSource(), instanceType.GetReferenceName())
+	return this_.priv_SymbolTable_getSymbolForName_5227(fn.GetSource(), instanceType.GetReferenceName())
 }
 
 // Java method: SymbolTable.getSymbolDeclaredBy(com.google.javascript.rhino.jstype.EnumType enumType)
 func (this_ *SymbolTable) GetSymbolDeclaredBy_1_EnumType(enumType *pkg_rhino.EnumType) *SymbolTable_Symbol {
 	_ = enumType
-	return this_.priv_SymbolTable_getSymbolForName_5212(enumType.GetSource(), enumType.GetElementsType().GetReferenceName())
+	return this_.priv_SymbolTable_getSymbolForName_5227(enumType.GetSource(), enumType.GetElementsType().GetReferenceName())
 }
 
 // Java method: SymbolTable.getSymbolForInstancesOf(com.google.javascript.jscomp.SymbolTable.Symbol sym)
@@ -326,11 +326,11 @@ func (this_ *SymbolTable) GetSymbolForInstancesOf_1_FunctionType(fn *pkg_rhino.F
 	}
 	var pType pkg_rhino.ObjectType = fn.GetPrototype()
 	_ = pType
-	return this_.priv_SymbolTable_getSymbolForName_5212(fn.GetSource(), pType.GetReferenceName())
+	return this_.priv_SymbolTable_getSymbolForName_5227(fn.GetSource(), pType.GetReferenceName())
 }
 
 // Java method: SymbolTable.getSymbolForName(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node source, java.lang.String name)
-func (this_ *SymbolTable) priv_SymbolTable_getSymbolForName_5212(source pkg_rhino.Node, name string) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_getSymbolForName_5227(source pkg_rhino.Node, name string) *SymbolTable_Symbol {
 	_ = source
 	_ = name
 	if (name == j2gort.NullString) || (this_.globalScope == nil) {
@@ -373,7 +373,7 @@ func (this_ *SymbolTable) GetAllSymbolsForType(type_ pkg_rhino.JSType) j2gort.Ex
 			var n int32 = union.GetAlternatesCount()
 			_ = n
 			for ; i < n; i = i + 1 {
-				var altSym *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5214(union.GetAlternateAt(i), true)
+				var altSym *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5229(union.GetAlternateAt(i), true)
 				_ = altSym
 				if altSym != nil {
 					result = append(result, j2gort.CheckNotNullElem(altSym))
@@ -382,7 +382,7 @@ func (this_ *SymbolTable) GetAllSymbolsForType(type_ pkg_rhino.JSType) j2gort.Ex
 		}
 		return j2gort.ImmListFromTypedSlice(result)
 	}
-	var result_2 *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5214(type_, true)
+	var result_2 *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5229(type_, true)
 	_ = result_2
 	if result_2 == nil {
 		return j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
@@ -392,7 +392,7 @@ func (this_ *SymbolTable) GetAllSymbolsForType(type_ pkg_rhino.JSType) j2gort.Ex
 }
 
 // Java method: SymbolTable.getSymbolForTypeHelper(com.google.javascript.rhino.jstype.JSType type, boolean linkToCtor)
-func (this_ *SymbolTable) priv_SymbolTable_getSymbolForTypeHelper_5214(type_ pkg_rhino.JSType, linkToCtor bool) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_getSymbolForTypeHelper_5229(type_ pkg_rhino.JSType, linkToCtor bool) *SymbolTable_Symbol {
 	_ = type_
 	_ = linkToCtor
 	if type_ == nil || type_.IsJavaNil_() {
@@ -433,7 +433,7 @@ func (this_ *SymbolTable) priv_SymbolTable_getSymbolForTypeHelper_5214(type_ pkg
 			return this_.globalScope.GetQualifiedSlot("Function.prototype")
 		}
 	} else if !(j2gort.IfaceEquals[pkg_rhino.JSType](type_.AutoboxesTo(), nil)) {
-		return this_.priv_SymbolTable_getSymbolForTypeHelper_5214(type_.AutoboxesTo(), linkToCtor)
+		return this_.priv_SymbolTable_getSymbolForTypeHelper_5229(type_.AutoboxesTo(), linkToCtor)
 	} else if base_type__.IsEnumType() {
 		return this_.GetSymbolDeclaredBy_1_EnumType(j2gort.CastPtr[pkg_rhino.EnumType](type_))
 	} else if base_type__.IsRecordType() {
@@ -468,7 +468,7 @@ func (this_ *SymbolTable) ToDebugStringTree_0() string {
 			scope_2 := j2gort.CastPtr[SymbolTable_SymbolScope](rawElem_4)
 			_ = scope_2
 			if scope_2.GetParentScope() == nil {
-				this_.priv_SymbolTable_toDebugStringTree_5216(builder, "", scope_2, childrenScopes)
+				this_.priv_SymbolTable_toDebugStringTree_5231(builder, "", scope_2, childrenScopes)
 			}
 		}
 	}
@@ -484,19 +484,19 @@ func (this_ *SymbolTable) ToDebugStringTree_0() string {
 				continue
 			}
 			visitedScopes.Add(symbol.GetPropertyScope())
-			this_.priv_SymbolTable_toDebugStringTree_5216(builder, "", symbol.propertyScope, childrenScopes)
+			this_.priv_SymbolTable_toDebugStringTree_5231(builder, "", symbol.propertyScope, childrenScopes)
 		}
 	}
 	return builder.String()
 }
 
 // Java method: SymbolTable.toDebugStringTree(java.lang.StringBuilder builder, java.lang.String prefix, com.google.javascript.jscomp.SymbolTable.SymbolScope scope, com.google.common.collect.ImmutableListMultimap<com.google.javascript.jscomp.SymbolTable.SymbolScope,com.google.javascript.jscomp.SymbolTable.SymbolScope> childrenScopes)
-func (this_ *SymbolTable) priv_SymbolTable_toDebugStringTree_5216(builder *j2gort.Ext_java_lang_StringBuilder, prefix string, scope *SymbolTable_SymbolScope, childrenScopes *j2gort.Ext_com_google_common_collect_ImmutableListMultimap) {
+func (this_ *SymbolTable) priv_SymbolTable_toDebugStringTree_5231(builder *j2gort.Ext_java_lang_StringBuilder, prefix string, scope *SymbolTable_SymbolScope, childrenScopes *j2gort.Ext_com_google_common_collect_ImmutableListMultimap) {
 	_ = builder
 	_ = prefix
 	_ = scope
 	_ = childrenScopes
-	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_any_9862(j2gort.PtrToAny(scope))
+	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_any_9887(j2gort.PtrToAny(scope))
 	var childrenPrefix string = (j2gort.StrValString(prefix) + "    ")
 	_ = childrenPrefix
 	var printedSomething bool = false
@@ -511,7 +511,7 @@ func (this_ *SymbolTable) priv_SymbolTable_toDebugStringTree_5216(builder *j2gor
 				symbol := cur_7.
 					Next()
 				_ = symbol
-				this_.priv_SymbolTable_toDebugString_5218(builder, childrenPrefix, symbol, false)
+				this_.priv_SymbolTable_toDebugString_5233(builder, childrenPrefix, symbol, false)
 			}
 		}
 	}
@@ -524,7 +524,7 @@ func (this_ *SymbolTable) priv_SymbolTable_toDebugStringTree_5216(builder *j2gor
 				rawElem_10 := cur_9.Next()
 				childScope := j2gort.CastPtr[SymbolTable_SymbolScope](rawElem_10)
 				_ = childScope
-				this_.priv_SymbolTable_toDebugStringTree_5216(builder, childrenPrefix, childScope, childrenScopes)
+				this_.priv_SymbolTable_toDebugStringTree_5231(builder, childrenPrefix, childScope, childrenScopes)
 			}
 		}
 	}
@@ -544,21 +544,21 @@ func (this_ *SymbolTable) ToDebugString_0() string {
 			rawElem_12 := cur_11.Next()
 			symbol := j2gort.CastPtr[SymbolTable_Symbol](rawElem_12)
 			_ = symbol
-			this_.priv_SymbolTable_toDebugString_5218(builder, "", symbol, true)
+			this_.priv_SymbolTable_toDebugString_5233(builder, "", symbol, true)
 		}
 	}
 	return builder.String()
 }
 
 // Java method: SymbolTable.toDebugString(java.lang.StringBuilder builder, java.lang.String prefix, com.google.javascript.jscomp.SymbolTable.Symbol symbol, boolean printScope)
-func (this_ *SymbolTable) priv_SymbolTable_toDebugString_5218(builder *j2gort.Ext_java_lang_StringBuilder, prefix string, symbol *SymbolTable_Symbol, printScope bool) {
+func (this_ *SymbolTable) priv_SymbolTable_toDebugString_5233(builder *j2gort.Ext_java_lang_StringBuilder, prefix string, symbol *SymbolTable_Symbol, printScope bool) {
 	_ = builder
 	_ = prefix
 	_ = symbol
 	_ = printScope
 	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(prefix)).Append_1_string("'")).Append_1_string(symbol.GetName())).Append_1_string("'")
 	if printScope {
-		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(" in ")).Append_1_any_9862(j2gort.PtrToAny(symbol.scope))
+		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string(" in ")).Append_1_any_9887(j2gort.PtrToAny(symbol.scope))
 	}
 	builder.Append_1_uint16(uint16(10))
 	var refCount int32 = int32(0)
@@ -591,7 +591,7 @@ func (this_ *SymbolTable) AddScopes(scopes j2gort.Ext_java_util_Collection) {
 			rawElem_16 := cur_15.Next()
 			scope := j2gort.AsIface[pkg_rhino.StaticScope](rawElem_16)
 			_ = scope
-			this_.priv_SymbolTable_createScopeFrom_5254(scope)
+			this_.priv_SymbolTable_createScopeFrom_5269(scope)
 		}
 	}
 }
@@ -629,13 +629,13 @@ func (this_ *SymbolTable) AddAnonymousFunctions() {
 			rawElem_20 := cur_19.Next()
 			scope_2 := j2gort.CastPtr[SymbolTable_SymbolScope](rawElem_20)
 			_ = scope_2
-			this_.priv_SymbolTable_addAnonymousFunctionsInScope_5223(scope_2)
+			this_.priv_SymbolTable_addAnonymousFunctionsInScope_5238(scope_2)
 		}
 	}
 }
 
 // Java method: SymbolTable.addAnonymousFunctionsInScope(com.google.javascript.jscomp.SymbolTable.SymbolScope scope)
-func (this_ *SymbolTable) priv_SymbolTable_addAnonymousFunctionsInScope_5223(scope *SymbolTable_SymbolScope) {
+func (this_ *SymbolTable) priv_SymbolTable_addAnonymousFunctionsInScope_5238(scope *SymbolTable_SymbolScope) {
 	_ = scope
 	var sym *SymbolTable_Symbol = this_.GetSymbolForScope(scope)
 	_ = sym
@@ -652,7 +652,7 @@ func (this_ *SymbolTable) priv_SymbolTable_addAnonymousFunctionsInScope_5223(sco
 			if rootNode.GetParent().IsMemberFunctionDef() {
 				rootNode = rootNode.GetParent()
 			}
-			var anonymousFunctionSymbol *SymbolTable_Symbol = this_.priv_SymbolTable_declareSymbol_5231(innerName, type_, true, parent, rootNode, nil)
+			var anonymousFunctionSymbol *SymbolTable_Symbol = this_.priv_SymbolTable_declareSymbol_5246(innerName, type_, true, parent, rootNode, nil)
 			_ = anonymousFunctionSymbol
 			scope.SetSymbolForScope(anonymousFunctionSymbol)
 		}
@@ -670,18 +670,18 @@ func (this_ *SymbolTable) AddSymbolsFrom(otherSymbolTable pkg_rhino.StaticSymbol
 			_ = otherSymbol
 			var name string = otherSymbol.GetName()
 			_ = name
-			var myScope *SymbolTable_SymbolScope = this_.priv_SymbolTable_createScopeFrom_5254(j2gort.AsIface[pkg_rhino.StaticScope](otherSymbolTable.GetScope(otherSymbol)))
+			var myScope *SymbolTable_SymbolScope = this_.priv_SymbolTable_createScopeFrom_5269(j2gort.AsIface[pkg_rhino.StaticScope](otherSymbolTable.GetScope(otherSymbol)))
 			_ = myScope
-			var decl pkg_rhino.StaticRef = this_.priv_SymbolTable_findBestDeclToAdd_5226(otherSymbolTable, otherSymbol)
+			var decl pkg_rhino.StaticRef = this_.priv_SymbolTable_findBestDeclToAdd_5241(otherSymbolTable, otherSymbol)
 			_ = decl
 			var mySymbol *SymbolTable_Symbol = nil
 			_ = mySymbol
 			if decl != nil && !decl.IsJavaNil_() {
 				var declNode pkg_rhino.Node = decl.GetNode()
 				_ = declNode
-				mySymbol = this_.priv_SymbolTable_isAnySymbolDeclared_5225(name, declNode, myScope)
+				mySymbol = this_.priv_SymbolTable_isAnySymbolDeclared_5240(name, declNode, myScope)
 				if mySymbol == nil {
-					mySymbol = this_.priv_SymbolTable_copySymbolTo_5229(otherSymbol, declNode, myScope)
+					mySymbol = this_.priv_SymbolTable_copySymbolTo_5244(otherSymbol, declNode, myScope)
 				}
 			} else {
 				mySymbol = myScope.GetOwnSlot(name)
@@ -693,7 +693,7 @@ func (this_ *SymbolTable) AddSymbolsFrom(otherSymbolTable pkg_rhino.StaticSymbol
 						rawElem_24 := cur_23.Next()
 						otherRef := j2gort.AsIface[pkg_rhino.StaticRef](rawElem_24)
 						_ = otherRef
-						if this_.priv_SymbolTable_isGoodRefToAdd_5227(otherRef) {
+						if this_.priv_SymbolTable_isGoodRefToAdd_5242(otherRef) {
 							mySymbol.DefineReferenceAt(otherRef.GetNode())
 						}
 					}
@@ -704,7 +704,7 @@ func (this_ *SymbolTable) AddSymbolsFrom(otherSymbolTable pkg_rhino.StaticSymbol
 }
 
 // Java method: SymbolTable.isAnySymbolDeclared(java.lang.String name, com.google.javascript.rhino.Node declNode, com.google.javascript.jscomp.SymbolTable.SymbolScope scope)
-func (this_ *SymbolTable) priv_SymbolTable_isAnySymbolDeclared_5225(name string, declNode pkg_rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_isAnySymbolDeclared_5240(name string, declNode pkg_rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	_ = name
 	_ = declNode
 	_ = scope
@@ -717,12 +717,12 @@ func (this_ *SymbolTable) priv_SymbolTable_isAnySymbolDeclared_5225(name string,
 }
 
 // Java method: SymbolTable.findBestDeclToAdd(com.google.javascript.rhino.StaticSymbolTable<S,R> otherSymbolTable, S slot)
-func (this_ *SymbolTable) priv_SymbolTable_findBestDeclToAdd_5226(otherSymbolTable pkg_rhino.StaticSymbolTable, slot pkg_rhino.StaticSlot) pkg_rhino.StaticRef {
+func (this_ *SymbolTable) priv_SymbolTable_findBestDeclToAdd_5241(otherSymbolTable pkg_rhino.StaticSymbolTable, slot pkg_rhino.StaticSlot) pkg_rhino.StaticRef {
 	_ = otherSymbolTable
 	_ = slot
 	var decl pkg_rhino.StaticRef = j2gort.AsIface[pkg_rhino.StaticRef](slot.GetDeclaration())
 	_ = decl
-	if this_.priv_SymbolTable_isGoodRefToAdd_5227(decl) {
+	if this_.priv_SymbolTable_isGoodRefToAdd_5242(decl) {
 		return decl
 	}
 	{
@@ -731,7 +731,7 @@ func (this_ *SymbolTable) priv_SymbolTable_findBestDeclToAdd_5226(otherSymbolTab
 			rawElem_26 := cur_25.Next()
 			ref := j2gort.AsIface[pkg_rhino.StaticRef](rawElem_26)
 			_ = ref
-			if this_.priv_SymbolTable_isGoodRefToAdd_5227(ref) {
+			if this_.priv_SymbolTable_isGoodRefToAdd_5242(ref) {
 				return ref
 			}
 		}
@@ -740,25 +740,25 @@ func (this_ *SymbolTable) priv_SymbolTable_findBestDeclToAdd_5226(otherSymbolTab
 }
 
 // Java method: SymbolTable.isGoodRefToAdd(com.google.javascript.rhino.@org.jspecify.annotations.Nullable StaticRef ref)
-func (this_ *SymbolTable) priv_SymbolTable_isGoodRefToAdd_5227(ref pkg_rhino.StaticRef) bool {
+func (this_ *SymbolTable) priv_SymbolTable_isGoodRefToAdd_5242(ref pkg_rhino.StaticRef) bool {
 	_ = ref
 	return (((((ref != nil && !ref.IsJavaNil_()) && (ref.GetNode() != 0)) && !(j2gort.IfaceEquals[pkg_rhino.StaticSourceFile](ref.GetNode().GetStaticSourceFile(), nil))) && !(NodeUtil_IsInSyntheticScript(ref.GetNode()))) && !(NodeUtil_IsGoogProvideCall(ref.GetNode())))
 }
 
 // Java method: SymbolTable.copySymbolTo(com.google.javascript.rhino.StaticSlot sym, com.google.javascript.jscomp.SymbolTable.SymbolScope scope)
-func (this_ *SymbolTable) priv_SymbolTable_copySymbolTo_5228(sym pkg_rhino.StaticSlot, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_copySymbolTo_5243(sym pkg_rhino.StaticSlot, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	_ = sym
 	_ = scope
-	return this_.priv_SymbolTable_copySymbolTo_5229(sym, j2gort.AsIface[pkg_rhino.StaticRef](sym.GetDeclaration()).GetNode(), scope)
+	return this_.priv_SymbolTable_copySymbolTo_5244(sym, j2gort.AsIface[pkg_rhino.StaticRef](sym.GetDeclaration()).GetNode(), scope)
 }
 
 // Java method: SymbolTable.copySymbolTo(com.google.javascript.rhino.StaticSlot sym, com.google.javascript.rhino.Node declNode, com.google.javascript.jscomp.SymbolTable.SymbolScope scope)
-func (this_ *SymbolTable) priv_SymbolTable_copySymbolTo_5229(sym pkg_rhino.StaticSlot, declNode pkg_rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_copySymbolTo_5244(sym pkg_rhino.StaticSlot, declNode pkg_rhino.Node, scope *SymbolTable_SymbolScope) *SymbolTable_Symbol {
 	_ = sym
 	_ = declNode
 	_ = scope
 	j2gort.CheckNotNullNode(declNode)
-	return this_.priv_SymbolTable_declareSymbol_5231(sym.GetName(), this_.priv_SymbolTable_getType_5256(sym), this_.priv_SymbolTable_isTypeInferred_5258(sym), scope, declNode, sym.GetJSDocInfo())
+	return this_.priv_SymbolTable_declareSymbol_5246(sym.GetName(), this_.priv_SymbolTable_getType_5271(sym), this_.priv_SymbolTable_isTypeInferred_5273(sym), scope, declNode, sym.GetJSDocInfo())
 }
 
 // Java static method: SymbolTable.sanitizeSpecialChars(java.lang.String s)
@@ -769,7 +769,7 @@ func SymbolTable_SanitizeSpecialChars(s string) string {
 }
 
 // Java method: SymbolTable.addSymbol(java.lang.String name, com.google.javascript.rhino.jstype.JSType type, boolean inferred, com.google.javascript.jscomp.SymbolTable.SymbolScope scope, com.google.javascript.rhino.Node declNode)
-func (this_ *SymbolTable) priv_SymbolTable_addSymbol_5230(name string, type_ pkg_rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope, declNode pkg_rhino.Node) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_addSymbol_5245(name string, type_ pkg_rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope, declNode pkg_rhino.Node) *SymbolTable_Symbol {
 	_ = name
 	_ = type_
 	_ = inferred
@@ -791,14 +791,14 @@ func (this_ *SymbolTable) priv_SymbolTable_addSymbol_5230(name string, type_ pkg
 }
 
 // Java method: SymbolTable.declareSymbol(java.lang.String name, com.google.javascript.rhino.jstype.@org.jspecify.annotations.Nullable JSType type, boolean inferred, com.google.javascript.jscomp.SymbolTable.SymbolScope scope, com.google.javascript.rhino.Node declNode, com.google.javascript.rhino.@org.jspecify.annotations.Nullable JSDocInfo info)
-func (this_ *SymbolTable) priv_SymbolTable_declareSymbol_5231(name string, type_ pkg_rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope, declNode pkg_rhino.Node, info *pkg_rhino.JSDocInfo) *SymbolTable_Symbol {
+func (this_ *SymbolTable) priv_SymbolTable_declareSymbol_5246(name string, type_ pkg_rhino.JSType, inferred bool, scope *SymbolTable_SymbolScope, declNode pkg_rhino.Node, info *pkg_rhino.JSDocInfo) *SymbolTable_Symbol {
 	_ = name
 	_ = type_
 	_ = inferred
 	_ = scope
 	_ = declNode
 	_ = info
-	var symbol *SymbolTable_Symbol = this_.priv_SymbolTable_addSymbol_5230(name, type_, inferred, scope, declNode)
+	var symbol *SymbolTable_Symbol = this_.priv_SymbolTable_addSymbol_5245(name, type_, inferred, scope, declNode)
 	_ = symbol
 	symbol.SetJSDocInfo(info)
 	symbol.SetDeclaration(symbol.DefineReferenceAt(declNode))
@@ -806,7 +806,7 @@ func (this_ *SymbolTable) priv_SymbolTable_declareSymbol_5231(name string, type_
 }
 
 // Java method: SymbolTable.mergeSymbol(com.google.javascript.jscomp.SymbolTable.Symbol from, com.google.javascript.jscomp.SymbolTable.Symbol to)
-func (this_ *SymbolTable) priv_SymbolTable_mergeSymbol_5232(from *SymbolTable_Symbol, to *SymbolTable_Symbol) {
+func (this_ *SymbolTable) priv_SymbolTable_mergeSymbol_5247(from *SymbolTable_Symbol, to *SymbolTable_Symbol) {
 	_ = from
 	_ = to
 	{
@@ -828,11 +828,11 @@ func (this_ *SymbolTable) priv_SymbolTable_mergeSymbol_5232(from *SymbolTable_Sy
 			}
 		}
 	}
-	this_.priv_SymbolTable_removeSymbol_5233(from)
+	this_.priv_SymbolTable_removeSymbol_5248(from)
 }
 
 // Java method: SymbolTable.removeSymbol(com.google.javascript.jscomp.SymbolTable.Symbol s)
-func (this_ *SymbolTable) priv_SymbolTable_removeSymbol_5233(s *SymbolTable_Symbol) {
+func (this_ *SymbolTable) priv_SymbolTable_removeSymbol_5248(s *SymbolTable_Symbol) {
 	_ = s
 	var scope *SymbolTable_SymbolScope = this_.GetScope(s)
 	_ = scope
@@ -849,7 +849,7 @@ func (this_ *SymbolTable) priv_SymbolTable_removeSymbol_5233(s *SymbolTable_Symb
 				rawElem_31 := cur_30.Next()
 				childSymbol := j2gort.CastPtr[SymbolTable_Symbol](rawElem_31)
 				_ = childSymbol
-				this_.priv_SymbolTable_removeSymbol_5233(childSymbol)
+				this_.priv_SymbolTable_removeSymbol_5248(childSymbol)
 			}
 		}
 		this_.scopes.Remove(s.GetDeclarationNode())
@@ -857,7 +857,7 @@ func (this_ *SymbolTable) priv_SymbolTable_removeSymbol_5233(s *SymbolTable_Symb
 }
 
 // Java method: SymbolTable.renameSymbol(com.google.javascript.jscomp.SymbolTable.SymbolScope scope, com.google.javascript.jscomp.SymbolTable.Symbol sym, java.lang.String newName)
-func (this_ *SymbolTable) priv_SymbolTable_renameSymbol_5234(scope *SymbolTable_SymbolScope, sym *SymbolTable_Symbol, newName string) {
+func (this_ *SymbolTable) priv_SymbolTable_renameSymbol_5249(scope *SymbolTable_SymbolScope, sym *SymbolTable_Symbol, newName string) {
 	_ = scope
 	_ = sym
 	_ = newName
@@ -867,9 +867,9 @@ func (this_ *SymbolTable) priv_SymbolTable_renameSymbol_5234(scope *SymbolTable_
 	var existingSym *SymbolTable_Symbol = scope.GetSlot(newName)
 	_ = existingSym
 	if existingSym == nil {
-		existingSym = this_.priv_SymbolTable_declareSymbol_5231(newName, this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(sym)), this_.priv_SymbolTable_isTypeInferred_5258(pkg_rhino.ToIface_StaticSlot(sym)), scope, sym.GetDeclarationNode(), sym.GetJSDocInfo())
+		existingSym = this_.priv_SymbolTable_declareSymbol_5246(newName, this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(sym)), this_.priv_SymbolTable_isTypeInferred_5273(pkg_rhino.ToIface_StaticSlot(sym)), scope, sym.GetDeclarationNode(), sym.GetJSDocInfo())
 	}
-	this_.priv_SymbolTable_mergeSymbol_5232(sym, existingSym)
+	this_.priv_SymbolTable_mergeSymbol_5247(sym, existingSym)
 }
 
 // Java method: SymbolTable.fillNamespaceReferences()
@@ -910,7 +910,7 @@ func (this_ *SymbolTable) FillNamespaceReferences() {
 						if name == j2gort.NullString {
 							continue
 						}
-						var namespace *SymbolTable_Symbol = this_.priv_SymbolTable_isAnySymbolDeclared_5225(name, currentNode, root.scope)
+						var namespace *SymbolTable_Symbol = this_.priv_SymbolTable_isAnySymbolDeclared_5240(name, currentNode, root.scope)
 						_ = namespace
 						if namespace == nil {
 							namespace = root.scope.GetQualifiedSlot(name)
@@ -925,7 +925,7 @@ func (this_ *SymbolTable) FillNamespaceReferences() {
 							} else {
 								symbolType = this_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_UNKNOWN_TYPE())
 							}
-							namespace = this_.priv_SymbolTable_declareSymbol_5231(name, symbolType, true, root.scope, currentNode, nil)
+							namespace = this_.priv_SymbolTable_declareSymbol_5246(name, symbolType, true, root.scope, currentNode, nil)
 						}
 						if namespace != nil {
 							namespace.DefineReferenceAt(currentNode)
@@ -949,7 +949,7 @@ func (this_ *SymbolTable) FillPropertyScopes() {
 			rawElem_37 := cur_36.Next()
 			sym := j2gort.CastPtr[SymbolTable_Symbol](rawElem_37)
 			_ = sym
-			if this_.priv_SymbolTable_needsPropertyScope_5237(sym) {
+			if this_.priv_SymbolTable_needsPropertyScope_5252(sym) {
 				var name string = sym.GetName()
 				_ = name
 				if j2gort.CheckNotNullString(name) == "exports" {
@@ -969,9 +969,9 @@ func (this_ *SymbolTable) FillPropertyScopes() {
 			rawElem_39 := cur_38.Next()
 			s := j2gort.CastPtr[SymbolTable_Symbol](rawElem_39)
 			_ = s
-			var type_ pkg_rhino.JSType = this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(s))
+			var type_ pkg_rhino.JSType = this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(s))
 			_ = type_
-			var symbolForType *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5214(type_, false)
+			var symbolForType *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5229(type_, false)
 			_ = symbolForType
 			if ((type_.GetJSTypeBase().IsNominalConstructorOrInterface() || type_.IsFunctionPrototypeType()) || type_.GetJSTypeBase().IsEnumType()) && !(s.Equals(j2gort.PtrToAny(symbolForType))) {
 				continue
@@ -985,10 +985,10 @@ func (this_ *SymbolTable) FillPropertyScopes() {
 			rawElem_41 := cur_40.Next()
 			s_2 := j2gort.CastPtr[SymbolTable_Symbol](rawElem_41)
 			_ = s_2
-			var type__2 pkg_rhino.JSType = this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(s_2))
+			var type__2 pkg_rhino.JSType = this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(s_2))
 			_ = type__2
 			if (type__2 == nil || type__2.IsJavaNil_()) || s_2.Equals(j2gort.PtrToAny(this_.symbolThatDeclaresType.Get(type__2))) {
-				this_.priv_SymbolTable_createPropertyScopeFor_5242(s_2)
+				this_.priv_SymbolTable_createPropertyScopeFor_5257(s_2)
 			}
 		}
 	}
@@ -998,7 +998,7 @@ func (this_ *SymbolTable) FillPropertyScopes() {
 			rawElem_43 := cur_42.Next()
 			s_3 := j2gort.CastPtr[SymbolTable_Symbol](rawElem_43)
 			_ = s_3
-			var type__3 pkg_rhino.JSType = this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(s_3))
+			var type__3 pkg_rhino.JSType = this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(s_3))
 			_ = type__3
 			if (type__3 != nil && !type__3.IsJavaNil_()) && (this_.symbolThatDeclaresType.Get(type__3) != nil) {
 				{
@@ -1012,14 +1012,14 @@ func (this_ *SymbolTable) FillPropertyScopes() {
 }
 
 // Java method: SymbolTable.needsPropertyScope(com.google.javascript.jscomp.SymbolTable.Symbol sym)
-func (this_ *SymbolTable) priv_SymbolTable_needsPropertyScope_5237(sym *SymbolTable_Symbol) bool {
+func (this_ *SymbolTable) priv_SymbolTable_needsPropertyScope_5252(sym *SymbolTable_Symbol) bool {
 	_ = sym
-	var jsType pkg_rhino.JSType = this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(sym))
+	var jsType pkg_rhino.JSType = this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(sym))
 	_ = jsType
 	if (jsType != nil && !jsType.IsJavaNil_()) && jsType.GetJSTypeBase().IsRecordType() {
 		return true
 	}
-	var type_ pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(sym)))
+	var type_ pkg_rhino.ObjectType = pkg_rhino.ObjectType_Cast(this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(sym)))
 	_ = type_
 	if type_ == nil || type_.IsJavaNil_() {
 		return false
@@ -1061,8 +1061,8 @@ func (this_ *SymbolTable) PruneOrphanedNames() {
 				currentName = j2gort.JStrSub(currentName, int32(0), dot)
 				var owner *SymbolTable_Symbol = s.scope.GetQualifiedSlot(currentName)
 				_ = owner
-				if ((owner != nil) && !(j2gort.IfaceEquals[pkg_rhino.JSType](this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(owner)), nil))) && ((this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(owner)).GetJSTypeBase().IsNominalConstructorOrInterface() || this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(owner)).IsFunctionPrototypeType()) || this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(owner)).GetJSTypeBase().IsEnumType()) {
-					this_.priv_SymbolTable_removeSymbol_5233(s)
+				if ((owner != nil) && !(j2gort.IfaceEquals[pkg_rhino.JSType](this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(owner)), nil))) && ((this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(owner)).GetJSTypeBase().IsNominalConstructorOrInterface() || this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(owner)).IsFunctionPrototypeType()) || this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(owner)).GetJSTypeBase().IsEnumType()) {
+					this_.priv_SymbolTable_removeSymbol_5248(s)
 					continue nextSymbol
 				}
 			}
@@ -1124,10 +1124,10 @@ func (this_ *SymbolTable) FillJSDocInfo(externs pkg_rhino.Node, root pkg_rhino.N
 								r_52.docScope = NewSymbolTable_SymbolScope(pkg_rhino.Node(0), nil, nil, sym)
 							}
 						}
-						var existingSymbol *SymbolTable_Symbol = this_.priv_SymbolTable_isAnySymbolDeclared_5225(name, paramNode, sym.docScope)
+						var existingSymbol *SymbolTable_Symbol = this_.priv_SymbolTable_isAnySymbolDeclared_5240(name, paramNode, sym.docScope)
 						_ = existingSymbol
 						if existingSymbol == nil {
-							this_.priv_SymbolTable_declareSymbol_5231(name, type_, (type_ == nil || type_.IsJavaNil_()), sym.docScope, paramNode, nil)
+							this_.priv_SymbolTable_declareSymbol_5246(name, type_, (type_ == nil || type_.IsJavaNil_()), sym.docScope, paramNode, nil)
 						}
 					} else {
 						param.DefineReferenceAt(paramNode)
@@ -1153,12 +1153,12 @@ func (this_ *SymbolTable) FillSymbolVisibility(externs pkg_rhino.Node, root pkg_
 }
 
 // Java method: SymbolTable.createPropertyScopeFor(com.google.javascript.jscomp.SymbolTable.Symbol s)
-func (this_ *SymbolTable) priv_SymbolTable_createPropertyScopeFor_5242(s *SymbolTable_Symbol) {
+func (this_ *SymbolTable) priv_SymbolTable_createPropertyScopeFor_5257(s *SymbolTable_Symbol) {
 	_ = s
 	if s.propertyScope != nil {
 		return
 	}
-	var jsType pkg_rhino.JSType = this_.priv_SymbolTable_getType_5256(pkg_rhino.ToIface_StaticSlot(s))
+	var jsType pkg_rhino.JSType = this_.priv_SymbolTable_getType_5271(pkg_rhino.ToIface_StaticSlot(s))
 	_ = jsType
 	var type_ pkg_rhino.ObjectType
 	_ = type_
@@ -1177,7 +1177,7 @@ func (this_ *SymbolTable) priv_SymbolTable_createPropertyScopeFor_5242(s *Symbol
 		}
 		return
 	}
-	var parentPropertyScope *SymbolTable_SymbolScope = this_.priv_SymbolTable_maybeGetParentPropertyScope_5243(type_)
+	var parentPropertyScope *SymbolTable_SymbolScope = this_.priv_SymbolTable_maybeGetParentPropertyScope_5258(type_)
 	_ = parentPropertyScope
 	s.SetPropertyScope(NewSymbolTable_SymbolScope(pkg_rhino.Node(0), parentPropertyScope, pkg_rhino.Upcast_JSType(type_), s))
 	var instanceType pkg_rhino.ObjectType = type_
@@ -1211,7 +1211,7 @@ func (this_ *SymbolTable) priv_SymbolTable_createPropertyScopeFor_5242(s *Symbol
 				}
 				continue
 			}
-			var newSym *SymbolTable_Symbol = this_.priv_SymbolTable_copySymbolTo_5228(newProp, s.propertyScope)
+			var newSym *SymbolTable_Symbol = this_.priv_SymbolTable_copySymbolTo_5243(newProp, s.propertyScope)
 			_ = newSym
 			if oldProp != nil {
 				if newSym.GetJSDocInfo() == nil {
@@ -1227,14 +1227,14 @@ func (this_ *SymbolTable) priv_SymbolTable_createPropertyScopeFor_5242(s *Symbol
 						newSym.DefineReferenceAt(ref.GetNode())
 					}
 				}
-				this_.priv_SymbolTable_removeSymbol_5233(oldProp)
+				this_.priv_SymbolTable_removeSymbol_5248(oldProp)
 			}
 		}
 	}
 }
 
 // Java method: SymbolTable.maybeGetParentPropertyScope(com.google.javascript.rhino.jstype.ObjectType symbolObjectType)
-func (this_ *SymbolTable) priv_SymbolTable_maybeGetParentPropertyScope_5243(symbolObjectType pkg_rhino.ObjectType) *SymbolTable_SymbolScope {
+func (this_ *SymbolTable) priv_SymbolTable_maybeGetParentPropertyScope_5258(symbolObjectType pkg_rhino.ObjectType) *SymbolTable_SymbolScope {
 	_ = symbolObjectType
 	var proto pkg_rhino.ObjectType = symbolObjectType.GetImplicitPrototype()
 	_ = proto
@@ -1243,7 +1243,7 @@ func (this_ *SymbolTable) priv_SymbolTable_maybeGetParentPropertyScope_5243(symb
 	}
 	var parentSymbol *SymbolTable_Symbol = nil
 	_ = parentSymbol
-	if this_.priv_SymbolTable_isEs6ClassConstructor_5244(pkg_rhino.Upcast_JSType(proto)) {
+	if this_.priv_SymbolTable_isEs6ClassConstructor_5259(pkg_rhino.Upcast_JSType(proto)) {
 		parentSymbol = this_.GetSymbolDeclaredBy_1_FunctionType(proto.ToMaybeFunctionType())
 	} else if proto.GetConstructor() != nil {
 		parentSymbol = this_.GetSymbolForInstancesOf_1_FunctionType(proto.GetConstructor())
@@ -1253,12 +1253,12 @@ func (this_ *SymbolTable) priv_SymbolTable_maybeGetParentPropertyScope_5243(symb
 	if parentSymbol == nil {
 		return nil
 	}
-	this_.priv_SymbolTable_createPropertyScopeFor_5242(parentSymbol)
+	this_.priv_SymbolTable_createPropertyScopeFor_5257(parentSymbol)
 	return parentSymbol.GetPropertyScope()
 }
 
 // Java method: SymbolTable.isEs6ClassConstructor(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *SymbolTable) priv_SymbolTable_isEs6ClassConstructor_5244(type_ pkg_rhino.JSType) bool {
+func (this_ *SymbolTable) priv_SymbolTable_isEs6ClassConstructor_5259(type_ pkg_rhino.JSType) bool {
 	_ = type_
 	return ((type_.GetJSTypeBase().IsFunctionType() && (type_.ToMaybeFunctionType().GetSource() != 0)) && type_.ToMaybeFunctionType().GetSource().IsClass())
 }
@@ -1280,7 +1280,7 @@ func (this_ *SymbolTable) FillSuperReferences(externs pkg_rhino.Node, root pkg_r
 }
 
 // Java method: SymbolTable.addRefsInGoogRequireStatement(com.google.javascript.rhino.Node n, java.util.Map<java.lang.String,com.google.javascript.jscomp.SymbolTable.SymbolScope> googModuleScopes)
-func (this_ *SymbolTable) priv_SymbolTable_addRefsInGoogRequireStatement_5247(n pkg_rhino.Node, googModuleScopes j2gort.Ext_java_util_Map) {
+func (this_ *SymbolTable) priv_SymbolTable_addRefsInGoogRequireStatement_5262(n pkg_rhino.Node, googModuleScopes j2gort.Ext_java_util_Map) {
 	_ = n
 	_ = googModuleScopes
 	if this_.compiler.GetOptions().ShouldRewriteModules() {
@@ -1302,7 +1302,7 @@ func (this_ *SymbolTable) priv_SymbolTable_addRefsInGoogRequireStatement_5247(n 
 	var moduleScope *SymbolTable_SymbolScope = j2gort.CastPtr[SymbolTable_SymbolScope](j2gort.MapGetStr(googModuleScopes, moduleName))
 	_ = moduleScope
 	if n.IsName() {
-		var declaration *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5214(n.GetJSType(), false)
+		var declaration *SymbolTable_Symbol = this_.priv_SymbolTable_getSymbolForTypeHelper_5229(n.GetJSType(), false)
 		_ = declaration
 		if declaration != nil {
 			declaration.DefineReferenceAt(n)
@@ -1311,7 +1311,7 @@ func (this_ *SymbolTable) priv_SymbolTable_addRefsInGoogRequireStatement_5247(n 
 		case int32(1) /* ModuleType.GOOG_MODULE */, int32(2) /* ModuleType.LEGACY_GOOG_MODULE */ :
 			declaration = moduleScope.GetOwnSlot("exports")
 		case int32(4) /* ModuleType.GOOG_PROVIDE */ :
-			declaration = this_.priv_SymbolTable_getSymbolForName_5212(pkg_rhino.Node(0), moduleName)
+			declaration = this_.priv_SymbolTable_getSymbolForName_5227(pkg_rhino.Node(0), moduleName)
 		default:
 		}
 		if declaration != nil {
@@ -1337,7 +1337,7 @@ func (this_ *SymbolTable) priv_SymbolTable_addRefsInGoogRequireStatement_5247(n 
 				case int32(1) /* ModuleType.GOOG_MODULE */, int32(2) /* ModuleType.LEGACY_GOOG_MODULE */ :
 					varDeclaration = moduleScope.GetOwnSlot(varName)
 				case int32(4) /* ModuleType.GOOG_PROVIDE */ :
-					varDeclaration = this_.priv_SymbolTable_getSymbolForName_5212(pkg_rhino.Node(0), (j2gort.StrValString(moduleName) + "." + j2gort.StrValString(varName)))
+					varDeclaration = this_.priv_SymbolTable_getSymbolForName_5227(pkg_rhino.Node(0), (j2gort.StrValString(moduleName) + "." + j2gort.StrValString(varName)))
 				default:
 				}
 				if varDeclaration != nil {
@@ -1384,7 +1384,7 @@ func (this_ *SymbolTable) FlattenGoogModuleExports() {
 					sym := j2gort.CastPtr[SymbolTable_Symbol](rawElem_63)
 					_ = sym
 					if javalang.StringStartsWith(j2gort.CheckNotNullString(sym.GetName()), "exports.") {
-						this_.priv_SymbolTable_renameSymbol_5234(moduleScope, sym, j2gort.JStrSubFrom(sym.GetName(), j2gort.JStrLen("exports.")))
+						this_.priv_SymbolTable_renameSymbol_5249(moduleScope, sym, j2gort.JStrSubFrom(sym.GetName(), j2gort.JStrLen("exports.")))
 					}
 				}
 			}
@@ -1393,7 +1393,7 @@ func (this_ *SymbolTable) FlattenGoogModuleExports() {
 }
 
 // Java method: SymbolTable.isSymbolAQuotedObjectKey(com.google.javascript.jscomp.SymbolTable.Symbol symbol)
-func (this_ *SymbolTable) priv_SymbolTable_isSymbolAQuotedObjectKey_5250(symbol *SymbolTable_Symbol) bool {
+func (this_ *SymbolTable) priv_SymbolTable_isSymbolAQuotedObjectKey_5265(symbol *SymbolTable_Symbol) bool {
 	_ = symbol
 	var node pkg_rhino.Node = symbol.GetDeclarationNode()
 	_ = node
@@ -1401,7 +1401,7 @@ func (this_ *SymbolTable) priv_SymbolTable_isSymbolAQuotedObjectKey_5250(symbol 
 }
 
 // Java method: SymbolTable.isSymbolDuplicatedExternOnWindow(com.google.javascript.jscomp.SymbolTable.Symbol symbol)
-func (this_ *SymbolTable) priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5251(symbol *SymbolTable_Symbol) bool {
+func (this_ *SymbolTable) priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5266(symbol *SymbolTable_Symbol) bool {
 	_ = symbol
 	var node pkg_rhino.Node = symbol.GetDeclarationNode()
 	_ = node
@@ -1409,7 +1409,7 @@ func (this_ *SymbolTable) priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5251
 }
 
 // Java method: SymbolTable.mergeExternSymbolsDuplicatedOnWindow()
-func (this_ *SymbolTable) priv_SymbolTable_mergeExternSymbolsDuplicatedOnWindow_5252() {
+func (this_ *SymbolTable) priv_SymbolTable_mergeExternSymbolsDuplicatedOnWindow_5267() {
 	var externSymbols j2gort.Ext_com_google_common_collect_Table = j2gort.Ext_com_google_common_collect_Tables_NewCustomTable(j2gort.NewExt_java_util_LinkedHashMap(), lambdaSingleton_symbol_table_2)
 	_ = externSymbols
 	{
@@ -1431,11 +1431,11 @@ func (this_ *SymbolTable) priv_SymbolTable_mergeExternSymbolsDuplicatedOnWindow_
 			}
 			var existingSymbol *SymbolTable_Symbol = j2gort.CastPtr[SymbolTable_Symbol](externSymbols.Get(j2gort.BoxString(sourceFile), j2gort.ValueOfInt(position)))
 			_ = existingSymbol
-			if this_.priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5251(existingSymbol) {
-				this_.priv_SymbolTable_mergeSymbol_5232(existingSymbol, symbol)
+			if this_.priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5266(existingSymbol) {
+				this_.priv_SymbolTable_mergeSymbol_5247(existingSymbol, symbol)
 				externSymbols.Put(j2gort.BoxString(sourceFile), j2gort.ValueOfInt(position), j2gort.PtrToAny(symbol))
-			} else if this_.priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5251(symbol) {
-				this_.priv_SymbolTable_mergeSymbol_5232(symbol, existingSymbol)
+			} else if this_.priv_SymbolTable_isSymbolDuplicatedExternOnWindow_5266(symbol) {
+				this_.priv_SymbolTable_mergeSymbol_5247(symbol, existingSymbol)
 			}
 		}
 	}
@@ -1449,22 +1449,22 @@ func (this_ *SymbolTable) RemoveGeneratedSymbols() {
 			rawElem_67 := cur_66.Next()
 			symbol := j2gort.CastPtr[SymbolTable_Symbol](rawElem_67)
 			_ = symbol
-			if this_.priv_SymbolTable_isSymbolAQuotedObjectKey_5250(symbol) {
+			if this_.priv_SymbolTable_isSymbolAQuotedObjectKey_5265(symbol) {
 				var symbolAlreadyRemoved bool = !(this_.GetScope(symbol).ownSymbols.ContainsKey(symbol.GetName()))
 				_ = symbolAlreadyRemoved
 				if !(symbolAlreadyRemoved) {
-					this_.priv_SymbolTable_removeSymbol_5233(symbol)
+					this_.priv_SymbolTable_removeSymbol_5248(symbol)
 				}
 			} else if (symbol.GetDeclarationNode() != 0) && symbol.GetDeclarationNode().IsModuleBody() {
-				this_.priv_SymbolTable_removeSymbol_5233(symbol)
+				this_.priv_SymbolTable_removeSymbol_5248(symbol)
 			}
 		}
 	}
-	this_.priv_SymbolTable_mergeExternSymbolsDuplicatedOnWindow_5252()
+	this_.priv_SymbolTable_mergeExternSymbolsDuplicatedOnWindow_5267()
 }
 
 // Java method: SymbolTable.createScopeFrom(com.google.javascript.rhino.StaticScope otherScope)
-func (this_ *SymbolTable) priv_SymbolTable_createScopeFrom_5254(otherScope pkg_rhino.StaticScope) *SymbolTable_SymbolScope {
+func (this_ *SymbolTable) priv_SymbolTable_createScopeFrom_5269(otherScope pkg_rhino.StaticScope) *SymbolTable_SymbolScope {
 	_ = otherScope
 	var otherScopeRoot pkg_rhino.Node = otherScope.GetRootNode_0()
 	_ = otherScopeRoot
@@ -1478,12 +1478,21 @@ func (this_ *SymbolTable) priv_SymbolTable_createScopeFrom_5254(otherScope pkg_r
 				j2gort.CheckStateStr(false, "Global scopes found at different roots")
 			}
 		}
-		myScope = NewSymbolTable_SymbolScope(otherScopeRoot, func() *SymbolTable_SymbolScope {
+		var iifeArg_1 *SymbolTable_SymbolScope
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if otherScopeParent == nil || otherScopeParent.IsJavaNil_() {
-				return nil
+				iifeArg_1 = nil
+				break iifeSwitch_1
 			}
-			return this_.priv_SymbolTable_createScopeFrom_5254(otherScopeParent)
-		}(), this_.priv_SymbolTable_getTypeOfThis_5257(otherScope), nil)
+			iifeArg_1 = this_.priv_SymbolTable_createScopeFrom_5269(otherScopeParent)
+			break iifeSwitch_1
+		}
+		myScope = NewSymbolTable_SymbolScope(otherScopeRoot, iifeArg_1,
+
+			this_.priv_SymbolTable_getTypeOfThis_5272(otherScope), nil)
 		this_.scopes.Put(otherScopeRoot, myScope)
 		if myScope.IsGlobalScope() {
 			this_.globalScope = myScope
@@ -1493,7 +1502,7 @@ func (this_ *SymbolTable) priv_SymbolTable_createScopeFrom_5254(otherScope pkg_r
 }
 
 // Java method: SymbolTable.getLexicalScopeDepth(com.google.javascript.jscomp.SymbolTable.SymbolScope scope)
-func (this_ *SymbolTable) priv_SymbolTable_getLexicalScopeDepth_5255(scope *SymbolTable_SymbolScope) int32 {
+func (this_ *SymbolTable) priv_SymbolTable_getLexicalScopeDepth_5270(scope *SymbolTable_SymbolScope) int32 {
 	_ = scope
 	if scope.IsLexicalScope() || scope.IsDocScope() {
 		return scope.GetScopeDepth()
@@ -1504,12 +1513,12 @@ func (this_ *SymbolTable) priv_SymbolTable_getLexicalScopeDepth_5255(scope *Symb
 		var sym *SymbolTable_Symbol = scope.GetSymbolForScope()
 		_ = sym
 		j2gort.CheckNotNullPtr(sym)
-		return (this_.priv_SymbolTable_getLexicalScopeDepth_5255(this_.GetScope(sym)) + int32(1))
+		return (this_.priv_SymbolTable_getLexicalScopeDepth_5270(this_.GetScope(sym)) + int32(1))
 	}
 }
 
 // Java method: SymbolTable.getType(com.google.javascript.rhino.StaticSlot sym)
-func (this_ *SymbolTable) priv_SymbolTable_getType_5256(sym pkg_rhino.StaticSlot) pkg_rhino.JSType {
+func (this_ *SymbolTable) priv_SymbolTable_getType_5271(sym pkg_rhino.StaticSlot) pkg_rhino.JSType {
 	_ = sym
 	if (sym.GetJSDocInfo() != nil) && sym.GetJSDocInfo().HasTypedefType() {
 		var type_ pkg_rhino.JSType = this_.registry.GetGlobalType(sym.GetName())
@@ -1530,7 +1539,7 @@ func (this_ *SymbolTable) priv_SymbolTable_getType_5256(sym pkg_rhino.StaticSlot
 }
 
 // Java method: SymbolTable.getTypeOfThis(com.google.javascript.rhino.StaticScope s)
-func (this_ *SymbolTable) priv_SymbolTable_getTypeOfThis_5257(s pkg_rhino.StaticScope) pkg_rhino.JSType {
+func (this_ *SymbolTable) priv_SymbolTable_getTypeOfThis_5272(s pkg_rhino.StaticScope) pkg_rhino.JSType {
 	_ = s
 	var staticTypedScope pkg_rhino.StaticTypedScope
 	_ = staticTypedScope
@@ -1543,7 +1552,7 @@ func (this_ *SymbolTable) priv_SymbolTable_getTypeOfThis_5257(s pkg_rhino.Static
 }
 
 // Java method: SymbolTable.isTypeInferred(com.google.javascript.rhino.StaticSlot sym)
-func (this_ *SymbolTable) priv_SymbolTable_isTypeInferred_5258(sym pkg_rhino.StaticSlot) bool {
+func (this_ *SymbolTable) priv_SymbolTable_isTypeInferred_5273(sym pkg_rhino.StaticSlot) bool {
 	_ = sym
 	var staticTypedSlot pkg_rhino.StaticTypedSlot
 	_ = staticTypedSlot
@@ -2102,7 +2111,7 @@ func (this_ *SymbolTable_PropertyRefCollector) Process_2(externs pkg_rhino.Node,
 }
 
 // Java method: PropertyRefCollector.maybeDefineReference(com.google.javascript.rhino.Node n, java.lang.String propName, com.google.javascript.jscomp.SymbolTable.Symbol ownerSymbol)
-func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDefineReference_5293(n pkg_rhino.Node, propName string, ownerSymbol *SymbolTable_Symbol) bool {
+func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDefineReference_5308(n pkg_rhino.Node, propName string, ownerSymbol *SymbolTable_Symbol) bool {
 	_ = n
 	_ = propName
 	_ = ownerSymbol
@@ -2133,7 +2142,7 @@ func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDe
 }
 
 // Java method: PropertyRefCollector.tryDefineLexicalQualifiedNameRef(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_tryDefineLexicalQualifiedNameRef_5294(name string, n pkg_rhino.Node) bool {
+func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_tryDefineLexicalQualifiedNameRef_5309(name string, n pkg_rhino.Node) bool {
 	_ = name
 	_ = n
 	if name != j2gort.NullString {
@@ -2148,20 +2157,20 @@ func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_tryDefi
 }
 
 // Java method: PropertyRefCollector.tryRemoveLexicalQualifiedNameRef(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_tryRemoveLexicalQualifiedNameRef_5295(name string, n pkg_rhino.Node) {
+func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_tryRemoveLexicalQualifiedNameRef_5310(name string, n pkg_rhino.Node) {
 	_ = name
 	_ = n
 	if name != j2gort.NullString {
 		var lexicalSym *SymbolTable_Symbol = this_.outer_.GetEnclosingScope(n).GetQualifiedSlot(name)
 		_ = lexicalSym
 		if ((lexicalSym != nil) && lexicalSym.IsLexicalVariable()) && (j2gort.CastPtr[SymbolTable_Reference](lexicalSym.GetDeclaration()).GetNode() == n) {
-			this_.outer_.priv_SymbolTable_removeSymbol_5233(lexicalSym)
+			this_.outer_.priv_SymbolTable_removeSymbol_5248(lexicalSym)
 		}
 	}
 }
 
 // Java method: PropertyRefCollector.maybeDefineTypedReference(com.google.javascript.rhino.Node n, java.lang.String propName, com.google.javascript.rhino.jstype.JSType owner)
-func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDefineTypedReference_5296(n pkg_rhino.Node, propName string, owner pkg_rhino.JSType) bool {
+func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDefineTypedReference_5311(n pkg_rhino.Node, propName string, owner pkg_rhino.JSType) bool {
 	_ = n
 	_ = propName
 	_ = owner
@@ -2174,9 +2183,9 @@ func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDe
 			return true
 		}
 	} else if base_owner_.IsNominalConstructorOrInterface() {
-		return this_.priv_PropertyRefCollector_maybeDefineReference_5293(n, propName, this_.outer_.GetSymbolDeclaredBy_1_FunctionType(owner.ToMaybeFunctionType()))
+		return this_.priv_PropertyRefCollector_maybeDefineReference_5308(n, propName, this_.outer_.GetSymbolDeclaredBy_1_FunctionType(owner.ToMaybeFunctionType()))
 	} else if base_owner_.IsEnumType() {
-		return this_.priv_PropertyRefCollector_maybeDefineReference_5293(n, propName, this_.outer_.GetSymbolDeclaredBy_1_EnumType(owner.ToMaybeEnumType()))
+		return this_.priv_PropertyRefCollector_maybeDefineReference_5308(n, propName, this_.outer_.GetSymbolDeclaredBy_1_EnumType(owner.ToMaybeEnumType()))
 	} else {
 		var defined bool = false
 		_ = defined
@@ -2191,11 +2200,11 @@ func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDe
 					_ = ctorType
 					var isConstructor bool = ((ctorType != nil && !ctorType.IsJavaNil_()) && (ctorType.GetJSTypeBase().IsConstructor() || ctorType.GetJSTypeBase().IsInterface()))
 					_ = isConstructor
-					if !(isConstructor) && this_.priv_PropertyRefCollector_maybeDefineReference_5293(n, propName, ctor) {
+					if !(isConstructor) && this_.priv_PropertyRefCollector_maybeDefineReference_5308(n, propName, ctor) {
 						defined = true
 					}
 				}
-				if this_.priv_PropertyRefCollector_maybeDefineReference_5293(n, propName, this_.outer_.GetSymbolForInstancesOf_1_SymbolTable_Symbol(ctor)) {
+				if this_.priv_PropertyRefCollector_maybeDefineReference_5308(n, propName, this_.outer_.GetSymbolForInstancesOf_1_SymbolTable_Symbol(ctor)) {
 					defined = true
 				}
 			}
@@ -2213,7 +2222,7 @@ func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDe
 		if (propNodeDecl != 0) && (propNodeDecl.IsGetProp() || propNodeDecl.IsOptChainGetProp()) {
 			var namespace pkg_rhino.Node = propNodeDecl.GetFirstChild()
 			_ = namespace
-			var namespaceSym *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_getSymbolForName_5212(namespace, namespace.GetQualifiedName())
+			var namespaceSym *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_getSymbolForName_5227(namespace, namespace.GetQualifiedName())
 			_ = namespaceSym
 			if (namespaceSym != nil) && (namespaceSym.GetPropertyScope() != nil) {
 				var propSym *SymbolTable_Symbol = namespaceSym.GetPropertyScope().GetSlot(propName)
@@ -2229,7 +2238,7 @@ func (this_ *SymbolTable_PropertyRefCollector) priv_PropertyRefCollector_maybeDe
 		if (propNodeDeclScope == nil) || !(propNodeDeclScope.IsModuleScope()) {
 			return false
 		}
-		var symbol *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_getSymbolForName_5212(propNodeDecl, propName)
+		var symbol *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_getSymbolForName_5227(propNodeDecl, propName)
 		_ = symbol
 		if (symbol != nil) && (symbol.GetDeclarationNode() != n) {
 			symbol.DefineReferenceAt(n)
@@ -2248,26 +2257,26 @@ func (this_ *SymbolTable_PropertyRefCollector) Visit_3(t *NodeTraversal, n pkg_r
 		var owner pkg_rhino.JSType = n.GetFirstChild().GetJSType()
 		_ = owner
 		if owner != nil && !owner.IsJavaNil_() {
-			var defined bool = this_.priv_PropertyRefCollector_maybeDefineTypedReference_5296(n, n.GetString(), owner)
+			var defined bool = this_.priv_PropertyRefCollector_maybeDefineTypedReference_5311(n, n.GetString(), owner)
 			_ = defined
 			if defined {
-				this_.priv_PropertyRefCollector_tryRemoveLexicalQualifiedNameRef_5295(n.GetQualifiedName(), n)
+				this_.priv_PropertyRefCollector_tryRemoveLexicalQualifiedNameRef_5310(n.GetQualifiedName(), n)
 				return
 			}
 		}
-		this_.priv_PropertyRefCollector_tryDefineLexicalQualifiedNameRef_5294(n.GetQualifiedName(), n)
+		this_.priv_PropertyRefCollector_tryDefineLexicalQualifiedNameRef_5309(n.GetQualifiedName(), n)
 	} else if n.IsStringKey() {
 		var owner_2 pkg_rhino.JSType = parent.GetJSType()
 		_ = owner_2
 		if owner_2 != nil && !owner_2.IsJavaNil_() {
-			var defined_2 bool = this_.priv_PropertyRefCollector_maybeDefineTypedReference_5296(n, n.GetString(), owner_2)
+			var defined_2 bool = this_.priv_PropertyRefCollector_maybeDefineTypedReference_5311(n, n.GetString(), owner_2)
 			_ = defined_2
 			if defined_2 {
-				this_.priv_PropertyRefCollector_tryRemoveLexicalQualifiedNameRef_5295(NodeUtil_GetBestLValueName(n), n)
+				this_.priv_PropertyRefCollector_tryRemoveLexicalQualifiedNameRef_5310(NodeUtil_GetBestLValueName(n), n)
 				return
 			}
 		}
-		this_.priv_PropertyRefCollector_tryDefineLexicalQualifiedNameRef_5294(NodeUtil_GetBestLValueName(n), n)
+		this_.priv_PropertyRefCollector_tryDefineLexicalQualifiedNameRef_5309(NodeUtil_GetBestLValueName(n), n)
 	}
 }
 
@@ -2338,7 +2347,7 @@ func (this_ *SymbolTable_ThisRefCollector) EnterScope(t *NodeTraversal) {
 		var firstInputRoot pkg_rhino.Node = t.GetScopeRoot().GetLastChild().GetFirstChild()
 		_ = firstInputRoot
 		if firstInputRoot != 0 {
-			symbol = this_.outer_.priv_SymbolTable_addSymbol_5230("*global*", this_.outer_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_GLOBAL_THIS()), false, this_.outer_.globalScope, firstInputRoot)
+			symbol = this_.outer_.priv_SymbolTable_addSymbol_5245("*global*", this_.outer_.registry.GetNativeType(pkg_rhino.StaticGet_JSTypeNative_GLOBAL_THIS()), false, this_.outer_.globalScope, firstInputRoot)
 			symbol.SetDeclaration(NewSymbolTable_Reference(symbol, firstInputRoot))
 		}
 		this_.thisStack = append(this_.thisStack, symbol)
@@ -2372,7 +2381,7 @@ func (this_ *SymbolTable_ThisRefCollector) EnterScope(t *NodeTraversal) {
 						} else {
 							type_ = fnType.GetTypeOfThis()
 						}
-						symbol = this_.outer_.priv_SymbolTable_addSymbol_5230("this", type_, false, scope, scopeRoot)
+						symbol = this_.outer_.priv_SymbolTable_addSymbol_5245("this", type_, false, scope, scopeRoot)
 					}
 				}
 			}
@@ -2490,7 +2499,7 @@ func (this_ *SymbolTable_JSDocInfoCollector) Visit_3(t *NodeTraversal, n pkg_rhi
 }
 
 // Java method: JSDocInfoCollector.isNativeSourcelessType(java.lang.String name)
-func (this_ *SymbolTable_JSDocInfoCollector) priv_JSDocInfoCollector_isNativeSourcelessType_5297(name string) bool {
+func (this_ *SymbolTable_JSDocInfoCollector) priv_JSDocInfoCollector_isNativeSourcelessType_5312(name string) bool {
 	_ = name
 	switch j2gort.CheckNotNullString(name) {
 	case "null", "undefined", "void":
@@ -2506,8 +2515,8 @@ func (this_ *SymbolTable_JSDocInfoCollector) VisitTypeNode(templateTypeNames j2g
 	_ = templateTypeNames
 	_ = scope
 	_ = n
-	if (n.IsStringLit() && !(this_.priv_JSDocInfoCollector_isNativeSourcelessType_5297(n.GetString()))) && !(j2gort.MapContainsKeyStr(templateTypeNames, n.GetString())) {
-		var symbol *SymbolTable_Symbol = this_.priv_JSDocInfoCollector_lookupPossiblyDottedName_5299(scope, n.GetString())
+	if (n.IsStringLit() && !(this_.priv_JSDocInfoCollector_isNativeSourcelessType_5312(n.GetString()))) && !(j2gort.MapContainsKeyStr(templateTypeNames, n.GetString())) {
+		var symbol *SymbolTable_Symbol = this_.priv_JSDocInfoCollector_lookupPossiblyDottedName_5314(scope, n.GetString())
 		_ = symbol
 		if symbol != nil {
 			var ref pkg_rhino.Node = n
@@ -2541,7 +2550,7 @@ func (this_ *SymbolTable_JSDocInfoCollector) VisitTypeNode(templateTypeNames j2g
 }
 
 // Java method: JSDocInfoCollector.lookupPossiblyDottedName(com.google.javascript.jscomp.SymbolTable.SymbolScope scope, java.lang.String dottedName)
-func (this_ *SymbolTable_JSDocInfoCollector) priv_JSDocInfoCollector_lookupPossiblyDottedName_5299(scope *SymbolTable_SymbolScope, dottedName string) *SymbolTable_Symbol {
+func (this_ *SymbolTable_JSDocInfoCollector) priv_JSDocInfoCollector_lookupPossiblyDottedName_5314(scope *SymbolTable_SymbolScope, dottedName string) *SymbolTable_Symbol {
 	_ = scope
 	_ = dottedName
 	var result *SymbolTable_Symbol = scope.GetQualifiedSlot(dottedName)
@@ -2559,9 +2568,9 @@ func (this_ *SymbolTable_JSDocInfoCollector) priv_JSDocInfoCollector_lookupPossi
 		autobox = type_.AutoboxesTo()
 	}
 	if autobox == nil || autobox.IsJavaNil_() {
-		return this_.outer_.priv_SymbolTable_getSymbolForTypeHelper_5214(type_, true)
+		return this_.outer_.priv_SymbolTable_getSymbolForTypeHelper_5229(type_, true)
 	} else {
-		return this_.outer_.priv_SymbolTable_getSymbolForTypeHelper_5214(autobox, true)
+		return this_.outer_.priv_SymbolTable_getSymbolForTypeHelper_5229(autobox, true)
 	}
 }
 
@@ -2621,14 +2630,14 @@ func (this_ *SymbolTable_VisibilityCollector) Visit_3(t *NodeTraversal, n pkg_rh
 	_ = n
 	_ = parent
 	if n.IsName() {
-		this_.priv_VisibilityCollector_visitName_5300(t, n)
+		this_.priv_VisibilityCollector_visitName_5315(t, n)
 	} else if n.IsGetProp() || n.IsOptChainGetProp() {
-		this_.priv_VisibilityCollector_visitProperty_5301(n, parent)
+		this_.priv_VisibilityCollector_visitProperty_5316(n, parent)
 	}
 }
 
 // Java method: VisibilityCollector.visitName(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *SymbolTable_VisibilityCollector) priv_VisibilityCollector_visitName_5300(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *SymbolTable_VisibilityCollector) priv_VisibilityCollector_visitName_5315(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var symbol *SymbolTable_Symbol = this_.outer_.symbols.Get(j2gort.BoxNode(n), j2gort.BoxString(n.GetString()))
@@ -2653,7 +2662,7 @@ func (this_ *SymbolTable_VisibilityCollector) priv_VisibilityCollector_visitName
 }
 
 // Java method: VisibilityCollector.visitProperty(com.google.javascript.rhino.Node getprop, com.google.javascript.rhino.Node parent)
-func (this_ *SymbolTable_VisibilityCollector) priv_VisibilityCollector_visitProperty_5301(getprop pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *SymbolTable_VisibilityCollector) priv_VisibilityCollector_visitProperty_5316(getprop pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = getprop
 	_ = parent
 	var propertyName string = getprop.GetString()
@@ -2854,7 +2863,7 @@ func (this_ *SymbolTable__Anon_96) Compare(arg_89 any, arg_90 any) int32 {
 	_ = scopeA
 	var scopeB *SymbolTable_SymbolScope = this_.outer_.GetScope(b)
 	_ = scopeB
-	var result int32 = (this_.outer_.priv_SymbolTable_getLexicalScopeDepth_5255(scopeA) - this_.outer_.priv_SymbolTable_getLexicalScopeDepth_5255(scopeB))
+	var result int32 = (this_.outer_.priv_SymbolTable_getLexicalScopeDepth_5270(scopeA) - this_.outer_.priv_SymbolTable_getLexicalScopeDepth_5270(scopeB))
 	_ = result
 	if result != int32(0) {
 		return result
@@ -2910,7 +2919,7 @@ func NewSymbolTable__Anon_90(outer_ *SymbolTable) *SymbolTable__Anon_90 {
 // Java method: .enterScope(com.google.javascript.jscomp.NodeTraversal t)
 func (this_ *SymbolTable__Anon_90) EnterScope(t *NodeTraversal) {
 	_ = t
-	this_.outer_.priv_SymbolTable_createScopeFrom_5254(pkg_rhino.ToIface_StaticScope(t.GetScope()))
+	this_.outer_.priv_SymbolTable_createScopeFrom_5269(pkg_rhino.ToIface_StaticScope(t.GetScope()))
 }
 
 // Java method: .visit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node p)
@@ -2965,7 +2974,7 @@ func (this_ *SymbolTable__Anon_91) Visit_3(t *NodeTraversal, n pkg_rhino.Node, p
 	if !(n.IsSuper()) || j2gort.IfaceEquals[pkg_rhino.JSType](n.GetJSType(), nil) {
 		return
 	}
-	var classSymbol *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_getSymbolForTypeHelper_5214(n.GetJSType(), false)
+	var classSymbol *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_getSymbolForTypeHelper_5229(n.GetJSType(), false)
 	_ = classSymbol
 	if classSymbol != nil {
 		classSymbol.DefineReferenceAt(n)
@@ -3029,7 +3038,7 @@ func (this_ *SymbolTable__Anon_92) Visit_3(t *NodeTraversal, n pkg_rhino.Node, p
 	_ = namespaceName
 	switch j2gort.CheckNotNullString(n.GetFirstChild().GetString()) {
 	case "module", "provide":
-		var ns *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_declareSymbol_5231(namespaceName, nil, false, this_.outer_.GetGlobalScope(), arg, nil)
+		var ns *SymbolTable_Symbol = this_.outer_.priv_SymbolTable_declareSymbol_5246(namespaceName, nil, false, this_.outer_.GetGlobalScope(), arg, nil)
 		_ = ns
 		j2gort.MapPutStr(this_.cap_1_declaredNamespaces, namespaceName, j2gort.PtrToAny(ns))
 		if n.GetGrandparent().IsModuleBody() {
@@ -3096,7 +3105,7 @@ func (this_ *SymbolTable__Anon_93) Visit_3(t *NodeTraversal, n pkg_rhino.Node, p
 	_ = namespaceName
 	switch j2gort.CheckNotNullString(n.GetFirstChild().GetString()) {
 	case "require", "requireType", "forwardDeclare":
-		this_.outer_.priv_SymbolTable_addRefsInGoogRequireStatement_5247(n.GetParent(), this_.cap_1_moduleScopes)
+		this_.outer_.priv_SymbolTable_addRefsInGoogRequireStatement_5262(n.GetParent(), this_.cap_1_moduleScopes)
 		var symbol *SymbolTable_Symbol = j2gort.CastPtr[SymbolTable_Symbol](j2gort.MapGetStr(this_.cap_2_declaredNamespaces, namespaceName))
 		_ = symbol
 		if symbol != nil {

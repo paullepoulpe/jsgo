@@ -415,17 +415,24 @@ func (this_ *AstValidator) ValidateExpression(n pkg_rhino.Node) {
 func (this_ *AstValidator) priv_AstValidator_validatePseudoExpression_758(n pkg_rhino.Node, allowedPseudoexpressions []pkg_rhino.Token) {
 	_ = n
 	_ = allowedPseudoexpressions
-	var allowedTokensSet j2gort.Ext_com_google_common_collect_ImmutableSet = j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_3 := allowedPseudoexpressions
 		if arr_3 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_4 := make([]any, len(arr_3))
 		for i_, el_5 := range arr_3 {
 			out_4[i_] = j2gort.BoxNullableVal(el_5)
 		}
-		return out_4
-	}())
+		iifeArg_1 = out_4
+		break iifeSwitch_1
+	}
+	var allowedTokensSet j2gort.Ext_com_google_common_collect_ImmutableSet = j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(iifeArg_1)
 	_ = allowedTokensSet
 	switch n.TokenSwitchOrd_() {
 	case int32(88) /* Token.EMPTY */ :

@@ -37,6 +37,10 @@ type DataFlowAnalysis[N comparable, L any] interface {
 	GetCfg() ControlFlowGraph[N]
 	IsForward() bool
 	IsBranched() bool
+	NeedsNodeAnnotations() bool
+	IsLatticeEqual(L, L) bool
+	GetNodeInLattice(*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) L
+	GetNodeOutLattice(*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) L
 	Join(L, L) L
 	CreateFlowJoiner() DataFlowAnalysis_FlowJoiner[L]
 	CreateFlowBrancher(N, L) DataFlowAnalysis_FlowBrancher[L]
@@ -60,11 +64,18 @@ func ToIface_DataFlowAnalysis[N comparable, L any, T_iface_ interface {
 // Java class: com.google.javascript.jscomp.DataFlowAnalysis
 type DataFlowAnalysisBase[N comparable, L any] struct {
 	self_            DataFlowAnalysis[N, L]
-	cfg              ControlFlowGraph[N]                                         `gson:"cfg"`
-	customComparator j2gort.Ext_java_util_Comparator                             `gson:"customComparator"`
-	workElements     []pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] `gson:"workElements"`
-	workHead         int32                                                       `gson:"workHead"`
-	workSize         int32                                                       `gson:"workSize"`
+	cfg              ControlFlowGraph[N]                                                            `gson:"cfg"`
+	customComparator j2gort.Ext_java_util_Comparator                                                `gson:"customComparator"`
+	workElements     []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] `gson:"workElements"`
+	cfgNodes         []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] `gson:"cfgNodes"`
+	stateIn          []L                                                                            `gson:"stateIn"`
+	stateOut         []L                                                                            `gson:"stateOut"`
+	edgeState        []L                                                                            `gson:"edgeState"`
+	stepCounts       []int32                                                                        `gson:"stepCounts"`
+	cfgNodeCount     int32                                                                          `gson:"cfgNodeCount"`
+	cfgEdgeCount     int32                                                                          `gson:"cfgEdgeCount"`
+	workHead         int32                                                                          `gson:"workHead"`
+	workSize         int32                                                                          `gson:"workSize"`
 	idHash_          atomic.Int32
 	forward          bool `gson:"forward"`
 	branched         bool `gson:"branched"`
@@ -185,10 +196,79 @@ func (this_ *DataFlowAnalysisBase[N, L]) InitCfg(cfg ControlFlowGraph[N]) {
 
 // Java method: DataFlowAnalysis.releaseCfgReference()
 func (this_ *DataFlowAnalysisBase[N, L]) ReleaseCfgReference() {
-	this_.priv_DataFlowAnalysis_clearWorkQueue_2322()
+	this_.priv_DataFlowAnalysis_clearWorkQueue_2328()
 	if (this_.workElements != nil) && (int32(len(this_.workElements)) > int32(4096)) {
 		this_.workElements = nil
 	}
+	var nCount int32 = this_.cfgNodeCount
+	_ = nCount
+	if this_.cfgNodes != nil {
+		if int32(len(this_.cfgNodes)) > int32(4096) {
+			this_.cfgNodes = nil
+		} else if nCount > int32(0) {
+			j2gort.ArraysFillRangeZero(this_.cfgNodes, int32(0), nCount)
+		}
+	}
+	if this_.stateIn != nil {
+		if int32(len(this_.stateIn)) > int32(4096) {
+			this_.stateIn = nil
+			this_.stateOut = nil
+			this_.stepCounts = nil
+		} else if nCount > int32(0) {
+			var iifeArg_1 L
+		iifeSwitch_1:
+			switch {
+			default:
+
+				if _, ok_ := any((*L)(nil)).(*string); ok_ {
+					iifeArg_1 = any(j2gort.NullString).(L)
+					break iifeSwitch_1
+				}
+				var z_ L
+				iifeArg_1 = z_
+				break iifeSwitch_1
+			}
+			j2gort.ArraysFillRange(this_.stateIn, int32(0), nCount, iifeArg_1)
+			var iifeArg_2 L
+		iifeSwitch_2:
+			switch {
+			default:
+
+				if _, ok_ := any((*L)(nil)).(*string); ok_ {
+					iifeArg_2 = any(j2gort.NullString).(L)
+					break iifeSwitch_2
+				}
+				var z_ L
+				iifeArg_2 = z_
+				break iifeSwitch_2
+			}
+			j2gort.ArraysFillRange(this_.stateOut, int32(0), nCount, iifeArg_2)
+		}
+	}
+	var eCount int32 = this_.cfgEdgeCount
+	_ = eCount
+	if this_.edgeState != nil {
+		if int32(len(this_.edgeState)) > (int32(4096) * int32(2)) {
+			this_.edgeState = nil
+		} else if eCount > int32(0) {
+			var iifeArg_3 L
+		iifeSwitch_3:
+			switch {
+			default:
+
+				if _, ok_ := any((*L)(nil)).(*string); ok_ {
+					iifeArg_3 = any(j2gort.NullString).(L)
+					break iifeSwitch_3
+				}
+				var z_ L
+				iifeArg_3 = z_
+				break iifeSwitch_3
+			}
+			j2gort.ArraysFillRange(this_.edgeState, int32(0), eCount, iifeArg_3)
+		}
+	}
+	this_.cfgNodeCount = int32(0)
+	this_.cfgEdgeCount = int32(0)
 	this_.cfg = nil
 	this_.customComparator = nil
 }
@@ -241,6 +321,30 @@ func (this_ *DataFlowAnalysisBase[N, L]) IsBranched() bool {
 	return false
 }
 
+// Java method: DataFlowAnalysis.needsNodeAnnotations()
+func (this_ *DataFlowAnalysisBase[N, L]) NeedsNodeAnnotations() bool {
+	return true
+}
+
+// Java method: DataFlowAnalysis.isLatticeEqual(L a, L b)
+func (this_ *DataFlowAnalysisBase[N, L]) IsLatticeEqual(a L, b L) bool {
+	_ = a
+	_ = b
+	panic("abstract or native method invoked")
+}
+
+// Java method: DataFlowAnalysis.getNodeInLattice(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node)
+func (this_ *DataFlowAnalysisBase[N, L]) GetNodeInLattice(node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) L {
+	_ = node
+	return this_.stateIn[node.GetDfaIndex()]
+}
+
+// Java method: DataFlowAnalysis.getNodeOutLattice(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node)
+func (this_ *DataFlowAnalysisBase[N, L]) GetNodeOutLattice(node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) L {
+	_ = node
+	return this_.stateOut[node.GetDfaIndex()]
+}
+
 // Java method: DataFlowAnalysis.join(L latticeA, L latticeB)
 func (this_ *DataFlowAnalysisBase[N, L]) Join(latticeA L, latticeB L) L {
 	_ = latticeA
@@ -273,33 +377,36 @@ func (this_ *DataFlowAnalysisBase[N, L]) FlowThrough(node N, input L) L {
 
 // Java method: DataFlowAnalysis.analyze()
 func (this_ *DataFlowAnalysisBase[N, L]) Analyze() {
-	this_.priv_DataFlowAnalysis_initialize_2315()
+	this_.priv_DataFlowAnalysis_initialize_2321()
 	var forward bool = this_.forward
 	_ = forward
-	var implicitReturn pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = this_.cfg.GetImplicitReturn()
+	var implicitReturn *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.cfg.GetImplicitReturnNode()
 	_ = implicitReturn
+	var steps []int32 = this_.stepCounts
+	_ = steps
 	for this_.workSize > int32(0) {
-		var curNode pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = this_.priv_DataFlowAnalysis_dequeueWorkNode_2321()
+		var curNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.priv_DataFlowAnalysis_dequeueWorkNode_2327()
 		_ = curNode
-		var curState *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](curNode.GetAnnotation())
-		_ = curState
+		var curIdx int32 = curNode.GetDfaIndex()
+		_ = curIdx
 		{
 			var iifeCond_1 int32
 			{
 
-				r_12 := curState
-				old_13 := r_12.stepCount
-				nw_14 := old_13 + 1
-				r_12.stepCount = nw_14
-				iifeCond_1 = old_13
+				a_12 := steps
+				i_13 := curIdx
+				old_14 := a_12[i_13]
+				nw_15 := old_14 + 1
+				a_12[i_13] = nw_15
+				iifeCond_1 = old_14
 			}
 			if iifeCond_1 > int32(20000) {
-				this_.priv_DataFlowAnalysis_clearWorkQueue_2322()
+				this_.priv_DataFlowAnalysis_clearWorkQueue_2328()
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "Dataflow analysis appears to diverge around: "+j2gort.StrVal(curNode))))
 			}
 		}
-		this_.priv_DataFlowAnalysis_joinInputs_2317(curNode)
-		if this_.priv_DataFlowAnalysis_flow_2316(curNode) {
+		this_.priv_DataFlowAnalysis_joinInputs_2323(curNode, curIdx)
+		if this_.priv_DataFlowAnalysis_flow_2322(curNode, curIdx) {
 			if forward {
 				{
 					var i int32 = int32(0)
@@ -307,10 +414,10 @@ func (this_ *DataFlowAnalysisBase[N, L]) Analyze() {
 					var count int32 = curNode.GetOutEdgeCount()
 					_ = count
 					for ; i < count; i = i + 1 {
-						var nextNode pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = curNode.GetOutEdgeAt(i).GetDestination()
+						var nextNode *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](curNode.GetOutEdgeAt(i)).GetDestination())
 						_ = nextNode
-						if !(nextNode == implicitReturn || ((nextNode == nil || nextNode.IsJavaNil_()) && (implicitReturn == nil || implicitReturn.IsJavaNil_()))) {
-							this_.priv_DataFlowAnalysis_enqueueWorkNode_2320(nextNode)
+						if nextNode != implicitReturn {
+							this_.priv_DataFlowAnalysis_enqueueWorkNode_2326(nextNode)
 						}
 					}
 				}
@@ -321,10 +428,10 @@ func (this_ *DataFlowAnalysisBase[N, L]) Analyze() {
 					var count_2 int32 = curNode.GetInEdgeCount()
 					_ = count_2
 					for ; i_2 < count_2; i_2 = i_2 + 1 {
-						var nextNode_2 pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = curNode.GetInEdgeAt(i_2).GetSource()
+						var nextNode_2 *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](curNode.GetInEdgeAt(i_2)).GetSource())
 						_ = nextNode_2
-						if !(nextNode_2 == implicitReturn || ((nextNode_2 == nil || nextNode_2.IsJavaNil_()) && (implicitReturn == nil || implicitReturn.IsJavaNil_()))) {
-							this_.priv_DataFlowAnalysis_enqueueWorkNode_2320(nextNode_2)
+						if nextNode_2 != implicitReturn {
+							this_.priv_DataFlowAnalysis_enqueueWorkNode_2326(nextNode_2)
 						}
 					}
 				}
@@ -332,7 +439,33 @@ func (this_ *DataFlowAnalysisBase[N, L]) Analyze() {
 		}
 	}
 	if forward {
-		this_.priv_DataFlowAnalysis_joinInputs_2317(implicitReturn)
+		this_.priv_DataFlowAnalysis_joinInputs_2323(implicitReturn, implicitReturn.GetDfaIndex())
+	}
+	if this_.self_.NeedsNodeAnnotations() {
+		this_.priv_DataFlowAnalysis_syncNodeAnnotations_2318()
+	}
+}
+
+// Java method: DataFlowAnalysis.syncNodeAnnotations()
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_syncNodeAnnotations_2318() {
+	var count int32 = this_.cfgNodeCount
+	_ = count
+	var nodes []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.cfgNodes
+	_ = nodes
+	var inArr []L = this_.stateIn
+	_ = inArr
+	var outArr []L = this_.stateOut
+	_ = outArr
+	var stepsArr []int32 = this_.stepCounts
+	_ = stepsArr
+	{
+		var i int32 = int32(0)
+		_ = i
+		for ; i < count; i = i + 1 {
+			var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](nodes[i].GetAnnotation())
+			_ = state
+			state.SyncResult(stepsArr[i], j2gort.ToAny(inArr[i]), j2gort.ToAny(outArr[i]))
+		}
 	}
 }
 
@@ -347,10 +480,16 @@ func (this_ *DataFlowAnalysisBase[N, L]) CreateEntryLattice() L {
 }
 
 // Java method: DataFlowAnalysis.initialize()
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_initialize_2315() {
-	this_.priv_DataFlowAnalysis_clearWorkQueue_2322()
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_initialize_2321() {
+	this_.priv_DataFlowAnalysis_clearWorkQueue_2328()
+	var prevNodeCount int32 = this_.cfgNodeCount
+	_ = prevNodeCount
+	if (prevNodeCount > int32(0)) && (this_.cfgNodes != nil) {
+		j2gort.ArraysFillRangeZero(this_.cfgNodes, int32(0), prevNodeCount)
+	}
 	var nodeCount int32 = this_.cfg.GetNodeCount()
 	_ = nodeCount
+	this_.cfgNodeCount = nodeCount
 	if this_.ordered {
 		var cap_ int32
 		_ = cap_
@@ -360,7 +499,7 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_initialize_2315()
 			cap_ = int32(4)
 		}
 		if (this_.workElements == nil) || (int32(len(this_.workElements)) < cap_) {
-			this_.workElements = make([]pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], cap_)
+			this_.workElements = make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], cap_)
 		}
 	} else {
 		var cap__2 int32 = int32(8)
@@ -369,250 +508,338 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_initialize_2315()
 			cap__2 = javalang.Shl32(cap__2, int(int32(1)))
 		}
 		if (this_.workElements == nil) || (int32(len(this_.workElements)) < cap__2) {
-			this_.workElements = make([]pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], cap__2)
+			this_.workElements = make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], cap__2)
 		}
 	}
-	var implicitReturn pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = this_.cfg.GetImplicitReturn()
+	var stateCap int32
+	_ = stateCap
+	if nodeCount > int32(8) {
+		stateCap = nodeCount
+	} else {
+		stateCap = int32(8)
+	}
+	if (this_.cfgNodes == nil) || (int32(len(this_.cfgNodes)) < stateCap) {
+		this_.cfgNodes = make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], stateCap)
+	}
+	if (this_.stateIn == nil) || (int32(len(this_.stateIn)) < stateCap) {
+		this_.stateIn = func() []L {
+			arr_16 := make([]L, stateCap)
+			if _, ok_ := any((*L)(nil)).(*string); ok_ {
+				ns_ := any(j2gort.NullString).(L)
+				for i_ := range arr_16 {
+					arr_16[i_] = ns_
+				}
+			}
+			return arr_16
+		}()
+		this_.stateOut = func() []L {
+			arr_17 := make([]L, stateCap)
+			if _, ok_ := any((*L)(nil)).(*string); ok_ {
+				ns_ := any(j2gort.NullString).(L)
+				for i_ := range arr_17 {
+					arr_17[i_] = ns_
+				}
+			}
+			return arr_17
+		}()
+		this_.stepCounts = make([]int32, stateCap)
+	} else if prevNodeCount > nodeCount {
+		var iifeArg_4 L
+	iifeSwitch_4:
+		switch {
+		default:
+
+			if _, ok_ := any((*L)(nil)).(*string); ok_ {
+				iifeArg_4 = any(j2gort.NullString).(L)
+				break iifeSwitch_4
+			}
+			var z_ L
+			iifeArg_4 = z_
+			break iifeSwitch_4
+		}
+		j2gort.ArraysFillRange(this_.stateIn, nodeCount, prevNodeCount, iifeArg_4)
+		var iifeArg_5 L
+	iifeSwitch_5:
+		switch {
+		default:
+
+			if _, ok_ := any((*L)(nil)).(*string); ok_ {
+				iifeArg_5 = any(j2gort.NullString).(L)
+				break iifeSwitch_5
+			}
+			var z_ L
+			iifeArg_5 = z_
+			break iifeSwitch_5
+		}
+		j2gort.ArraysFillRange(this_.stateOut, nodeCount, prevNodeCount, iifeArg_5)
+	}
+	var collected int32 = this_.cfg.CollectNodes(this_.cfgNodes)
+	_ = collected
+	if !(collected == nodeCount) {
+		j2gort.CheckState(false)
+	}
+	var recordAnnotations bool = this_.self_.NeedsNodeAnnotations()
+	_ = recordAnnotations
+	var implicitReturn *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.cfg.GetImplicitReturnNode()
 	_ = implicitReturn
+	var nodes []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.cfgNodes
+	_ = nodes
+	var inArr []L = this_.stateIn
+	_ = inArr
+	var outArr []L = this_.stateOut
+	_ = outArr
+	var stepsArr []int32 = this_.stepCounts
+	_ = stepsArr
 	{
-		cur_15 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.cfg.GetNodes()))
-		for cur_15.HasNext() {
-			rawElem_16 := cur_15.Next()
-			node := j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]](rawElem_16)
+		var i int32 = int32(0)
+		_ = i
+		for ; i < nodeCount; i = i + 1 {
+			var node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = nodes[i]
 			_ = node
+			node.SetDfaIndex(i)
 			node.SetInDfaQueue(false)
 			var initIn L = this_.self_.CreateInitialEstimateLattice()
 			_ = initIn
 			var initOut L = this_.self_.CreateInitialEstimateLattice()
 			_ = initOut
-			var existing pkg_graph.Annotation = node.GetAnnotation()
-			_ = existing
-			var raw *DataFlowAnalysis_LinearFlowState
-			_ = raw
-			var ok_17 bool
-			raw, ok_17 = j2gort.TryCast[*DataFlowAnalysis_LinearFlowState](existing)
-			if ok_17 {
-				var reused *DataFlowAnalysis_LinearFlowState = raw
-				_ = reused
-				reused.Reinit(j2gort.ToAny(initIn), j2gort.ToAny(initOut))
-			} else {
-				if cfgBase_ := this_.cfg.GetControlFlowGraphBase(); cfgBase_ != nil {
-					node.SetAnnotation(allocPooled_DataFlowAnalysis_LinearFlowState(&cfgBase_.slab_LinearFlowState, j2gort.ToAny(initIn), j2gort.ToAny(initOut)))
-				} else {
-					node.SetAnnotation(NewDataFlowAnalysis_LinearFlowState(j2gort.ToAny(initIn), j2gort.ToAny(initOut)))
-				}
-
+			{
+				a_18 := inArr
+				i_19 := i
+				a_18[i_19] = initIn
 			}
-			if !(node == implicitReturn || ((node == nil || node.IsJavaNil_()) && (implicitReturn == nil || implicitReturn.IsJavaNil_()))) {
-				this_.priv_DataFlowAnalysis_enqueueWorkNode_2320(node)
+			{
+				a_20 := outArr
+				i_21 := i
+				a_20[i_21] = initOut
+			}
+			{
+				a_22 := stepsArr
+				i_23 := i
+				a_22[i_23] = int32(0)
+			}
+			if recordAnnotations {
+				var existing pkg_graph.Annotation = node.GetAnnotation()
+				_ = existing
+				var raw *DataFlowAnalysis_LinearFlowState
+				_ = raw
+				var ok_24 bool
+				raw, ok_24 = j2gort.TryCast[*DataFlowAnalysis_LinearFlowState](existing)
+				if ok_24 {
+					var reused *DataFlowAnalysis_LinearFlowState = raw
+					_ = reused
+					reused.Reinit(j2gort.ToAny(initIn), j2gort.ToAny(initOut))
+				} else {
+					if cfgBase_ := this_.cfg.GetControlFlowGraphBase(); cfgBase_ != nil {
+						node.SetAnnotation(allocPooled_DataFlowAnalysis_LinearFlowState(&cfgBase_.slab_LinearFlowState, j2gort.ToAny(initIn), j2gort.ToAny(initOut)))
+					} else {
+						node.SetAnnotation(NewDataFlowAnalysis_LinearFlowState(j2gort.ToAny(initIn), j2gort.ToAny(initOut)))
+					}
+
+				}
+			}
+			if node != implicitReturn {
+				this_.priv_DataFlowAnalysis_enqueueWorkNode_2326(node)
 			}
 		}
 	}
+	var prevEdgeCount int32 = this_.cfgEdgeCount
+	_ = prevEdgeCount
 	if this_.branched {
+		var totalEdges int32 = int32(0)
+		_ = totalEdges
 		{
-			cur_18 := j2gort.NewIterCursor(j2gort.CheckNotNull(this_.cfg.GetNodes()))
-			for cur_18.HasNext() {
-				rawElem_19 := cur_18.Next()
-				node_2 := j2gort.AsIface[pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]](rawElem_19)
+			var i_2 int32 = int32(0)
+			_ = i_2
+			for ; i_2 < nodeCount; i_2 = i_2 + 1 {
+				totalEdges = (totalEdges + nodes[i_2].GetOutEdgeCount())
+			}
+		}
+		this_.cfgEdgeCount = totalEdges
+		var edgeCap int32
+		_ = edgeCap
+		if totalEdges > int32(8) {
+			edgeCap = totalEdges
+		} else {
+			edgeCap = int32(8)
+		}
+		if (this_.edgeState == nil) || (int32(len(this_.edgeState)) < edgeCap) {
+			this_.edgeState = func() []L {
+				arr_25 := make([]L, edgeCap)
+				if _, ok_ := any((*L)(nil)).(*string); ok_ {
+					ns_ := any(j2gort.NullString).(L)
+					for i_ := range arr_25 {
+						arr_25[i_] = ns_
+					}
+				}
+				return arr_25
+			}()
+		} else if prevEdgeCount > totalEdges {
+			var iifeArg_6 L
+		iifeSwitch_6:
+			switch {
+			default:
+
+				if _, ok_ := any((*L)(nil)).(*string); ok_ {
+					iifeArg_6 = any(j2gort.NullString).(L)
+					break iifeSwitch_6
+				}
+				var z_ L
+				iifeArg_6 = z_
+				break iifeSwitch_6
+			}
+			j2gort.ArraysFillRange(this_.edgeState, totalEdges, prevEdgeCount, iifeArg_6)
+		}
+		var edges []L = this_.edgeState
+		_ = edges
+		var edgeIdx int32 = int32(0)
+		_ = edgeIdx
+		{
+			var i_3 int32 = int32(0)
+			_ = i_3
+			for ; i_3 < nodeCount; i_3 = i_3 + 1 {
+				var node_2 *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = nodes[i_3]
 				_ = node_2
 				{
-					var i int32 = int32(0)
-					_ = i
+					var j int32 = int32(0)
+					_ = j
 					var outCount int32 = node_2.GetOutEdgeCount()
 					_ = outCount
-					for ; i < outCount; i = i + 1 {
-						node_2.GetOutEdgeAt(i).SetAnnotation(j2gort.AsIface[pkg_graph.Annotation](j2gort.ToAny(this_.self_.CreateInitialEstimateLattice())))
+					for ; j < outCount; j = j + 1 {
+						var outEdge *pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](node_2.GetOutEdgeAt(j))
+						_ = outEdge
+						outEdge.SetDfaEdgeIndex(edgeIdx)
+						{
+							a_26 := edges
+							var i_27 int32
+							{
+
+								old_28 := edgeIdx
+								nw_29 := old_28 + 1
+								edgeIdx = nw_29
+								i_27 = old_28
+							}
+							a_26[i_27] = this_.self_.CreateInitialEstimateLattice()
+						}
 					}
 				}
 			}
 		}
+	} else {
+		if (prevEdgeCount > int32(0)) && (this_.edgeState != nil) {
+			var iifeArg_7 L
+		iifeSwitch_7:
+			switch {
+			default:
+
+				if _, ok_ := any((*L)(nil)).(*string); ok_ {
+					iifeArg_7 = any(j2gort.NullString).(L)
+					break iifeSwitch_7
+				}
+				var z_ L
+				iifeArg_7 = z_
+				break iifeSwitch_7
+			}
+			j2gort.ArraysFillRange(this_.edgeState, int32(0), prevEdgeCount, iifeArg_7)
+		}
+		this_.cfgEdgeCount = int32(0)
 	}
 }
 
-// Java method: DataFlowAnalysis.flow(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node)
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_flow_2316(node pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool {
+// Java method: DataFlowAnalysis.flow(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node, int nodeIdx)
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_flow_2322(node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], nodeIdx int32) bool {
 	_ = node
-	var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](node.GetAnnotation())
-	_ = state
+	_ = nodeIdx
 	if this_.forward {
-		var outBefore L
-	iifeSwitch_2:
-		switch {
-		default:
-			tv_20 := state.GetOut()
-			if tv_20 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						outBefore = any(j2gort.NullString).(L)
-						break iifeSwitch_2
-					}
-					var z_ L
-					outBefore = z_
-					break iifeSwitch_2
-				}
-
-			}
-			outBefore = j2gort.Cast[L](tv_20)
-			break iifeSwitch_2
+		var outBefore L = this_.stateOut[nodeIdx]
+		_ = outBefore
+		var outAfter L
+		{
+			tv_30 := this_.self_.FlowThrough(node.GetValue(), this_.stateIn[nodeIdx])
+			_ = j2gort.CheckNotNull(j2gort.ToAny(tv_30))
+			outAfter = tv_30
 		}
 
-		_ = outBefore
-		state.priv_LinearFlowState_setOut_2332(j2gort.ToAny(this_.self_.FlowThrough(node.GetValue(), func() L {
-			tv_21 := state.GetIn()
-			if tv_21 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_21)
-		}())))
-		var changed bool = !(javalang.ObjectsEquals(j2gort.CheckNotNull(j2gort.ToAny(outBefore)), j2gort.ToAny(func() L {
-			tv_22 := state.GetOut()
-			if tv_22 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_22)
-		}())))
+		_ = outAfter
+		{
+			a_31 := this_.stateOut
+			i_32 := nodeIdx
+			a_31[i_32] = outAfter
+		}
+		var changed bool = !(this_.self_.IsLatticeEqual(outBefore, outAfter))
 		_ = changed
 		if this_.branched {
-			var brancher DataFlowAnalysis_FlowBrancher[L] = this_.self_.CreateFlowBrancher(node.GetValue(), func() L {
-				tv_23 := state.GetOut()
-				if tv_23 == nil {
-					{
-
-						if _, ok_ := any((*L)(nil)).(*string); ok_ {
-							return any(j2gort.NullString).(L)
-						}
-						var z_ L
-						return z_
-					}
-
-				}
-				return j2gort.Cast[L](tv_23)
-			}())
+			var brancher DataFlowAnalysis_FlowBrancher[L] = this_.self_.CreateFlowBrancher(node.GetValue(), outAfter)
 			_ = brancher
+			var edges []L = this_.edgeState
+			_ = edges
 			{
 				var i int32 = int32(0)
 				_ = i
 				var outCount int32 = node.GetOutEdgeCount()
 				_ = outCount
 				for ; i < outCount; i = i + 1 {
-					var outEdge pkg_graph.DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch] = node.GetOutEdgeAt(i)
+					var outEdge *pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](node.GetOutEdgeAt(i))
 					_ = outEdge
-					var outBranchBefore L
-				iifeSwitch_1:
-					switch {
-					default:
-						tv_24 := outEdge.GetAnnotation()
-						if tv_24 == nil {
-							{
-
-								if _, ok_ := any((*L)(nil)).(*string); ok_ {
-									outBranchBefore = any(j2gort.NullString).(L)
-									break iifeSwitch_1
-								}
-								var z_ L
-								outBranchBefore = z_
-								break iifeSwitch_1
-							}
-
-						}
-						outBranchBefore = j2gort.Cast[L](tv_24)
-						break iifeSwitch_1
+					var edgeIdx int32 = outEdge.GetDfaEdgeIndex()
+					_ = edgeIdx
+					var outBranchBefore L = edges[edgeIdx]
+					_ = outBranchBefore
+					var outBranchAfter L
+					{
+						tv_33 := brancher.BranchFlow(outEdge.GetValue())
+						_ = j2gort.CheckNotNull(j2gort.ToAny(tv_33))
+						outBranchAfter = tv_33
 					}
 
-					_ = outBranchBefore
-					var outBranchAfter L = brancher.BranchFlow(outEdge.GetValue())
 					_ = outBranchAfter
-					outEdge.SetAnnotation(j2gort.AsIface[pkg_graph.Annotation](j2gort.ToAny(outBranchAfter)))
+					{
+						a_34 := edges
+						i_35 := edgeIdx
+						a_34[i_35] = outBranchAfter
+					}
 					if !(changed) {
-						changed = !(javalang.ObjectsEquals(j2gort.CheckNotNull(j2gort.ToAny(outBranchBefore)), j2gort.ToAny(outBranchAfter)))
+						changed = !(this_.self_.IsLatticeEqual(outBranchBefore, outBranchAfter))
 					}
 				}
 			}
 		}
 		return changed
 	} else {
-		var inBefore L
-	iifeSwitch_3:
-		switch {
-		default:
-			tv_25 := state.GetIn()
-			if tv_25 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						inBefore = any(j2gort.NullString).(L)
-						break iifeSwitch_3
-					}
-					var z_ L
-					inBefore = z_
-					break iifeSwitch_3
-				}
-
-			}
-			inBefore = j2gort.Cast[L](tv_25)
-			break iifeSwitch_3
+		var inBefore L = this_.stateIn[nodeIdx]
+		_ = inBefore
+		var inAfter L
+		{
+			tv_36 := this_.self_.FlowThrough(node.GetValue(), this_.stateOut[nodeIdx])
+			_ = j2gort.CheckNotNull(j2gort.ToAny(tv_36))
+			inAfter = tv_36
 		}
 
-		_ = inBefore
-		state.priv_LinearFlowState_setIn_2330(j2gort.ToAny(this_.self_.FlowThrough(node.GetValue(), func() L {
-			tv_26 := state.GetOut()
-			if tv_26 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_26)
-		}())))
-		return !(javalang.ObjectsEquals(j2gort.CheckNotNull(j2gort.ToAny(inBefore)), j2gort.ToAny(func() L {
-			tv_27 := state.GetIn()
-			if tv_27 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_27)
-		}())))
+		_ = inAfter
+		{
+			a_37 := this_.stateIn
+			i_38 := nodeIdx
+			a_37[i_38] = inAfter
+		}
+		return !(this_.self_.IsLatticeEqual(inBefore, inAfter))
 	}
 }
 
-// Java method: DataFlowAnalysis.joinInputs(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node)
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_joinInputs_2317(node pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
+// Java method: DataFlowAnalysis.joinInputs(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node, int nodeIdx)
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_joinInputs_2323(node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], nodeIdx int32) {
 	_ = node
-	var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](node.GetAnnotation())
-	_ = state
+	_ = nodeIdx
 	var forward bool = this_.forward
 	_ = forward
-	if forward && j2gort.IfaceEquals[pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]](this_.cfg.GetEntry(), node) {
-		state.priv_LinearFlowState_setIn_2330(j2gort.ToAny(this_.self_.CreateEntryLattice()))
+	if forward && (this_.cfg.GetEntryNode() == node) {
+		{
+			a_40 := this_.stateIn
+			i_41 := nodeIdx
+			a_40[i_41] = func() L {
+				tv_39 := this_.self_.CreateEntryLattice()
+				_ = j2gort.CheckNotNull(j2gort.ToAny(tv_39))
+				return tv_39
+			}()
+		}
 		return
 	}
 	var edgeCount int32
@@ -623,16 +850,16 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_joinInputs_2317(n
 		edgeCount = node.GetOutEdgeCount()
 	}
 	var result L
-iifeSwitch_4:
+iifeSwitch_9:
 	switch {
 	default:
 		if _, ok_ := any((*L)(nil)).(*string); ok_ {
 			result = any(j2gort.NullString).(L)
-			break iifeSwitch_4
+			break iifeSwitch_9
 		}
 		var z_ L
 		result = z_
-		break iifeSwitch_4
+		break iifeSwitch_9
 	}
 
 	_ = result
@@ -640,12 +867,22 @@ iifeSwitch_4:
 	case int32(0):
 		return
 	case int32(1):
-		result = this_.priv_DataFlowAnalysis_getInputFromEdge_2318(func() pkg_graph.DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch] {
+		var iifeArg_8 *pkg_graph.
+			LinkedDirectedGraph_LinkedDiGraphEdge[N,
+			ControlFlowGraph_Branch,
+		]
+	iifeSwitch_8:
+		switch {
+		default:
+
 			if forward {
-				return node.GetInEdgeAt(int32(0))
+				iifeArg_8 = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](node.GetInEdgeAt(int32(0)))
+				break iifeSwitch_8
 			}
-			return node.GetOutEdgeAt(int32(0))
-		}())
+			iifeArg_8 = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](node.GetOutEdgeAt(int32(0)))
+			break iifeSwitch_8
+		}
+		result = this_.priv_DataFlowAnalysis_getInputFromEdge_2324(iifeArg_8)
 	default:
 		var joiner DataFlowAnalysis_FlowJoiner[L] = this_.self_.CreateFlowJoiner()
 		_ = joiner
@@ -654,7 +891,7 @@ iifeSwitch_4:
 				var i int32 = int32(0)
 				_ = i
 				for ; i < edgeCount; i = i + 1 {
-					joiner.JoinFlow(this_.priv_DataFlowAnalysis_getInputFromEdge_2318(node.GetInEdgeAt(i)))
+					joiner.JoinFlow(this_.priv_DataFlowAnalysis_getInputFromEdge_2324(j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](node.GetInEdgeAt(i))))
 				}
 			}
 		} else {
@@ -662,85 +899,41 @@ iifeSwitch_4:
 				var i_2 int32 = int32(0)
 				_ = i_2
 				for ; i_2 < edgeCount; i_2 = i_2 + 1 {
-					joiner.JoinFlow(this_.priv_DataFlowAnalysis_getInputFromEdge_2318(node.GetOutEdgeAt(i_2)))
+					joiner.JoinFlow(this_.priv_DataFlowAnalysis_getInputFromEdge_2324(j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]](node.GetOutEdgeAt(i_2))))
 				}
 			}
 		}
 		result = joiner.Finish()
 	}
 	if forward {
-		state.priv_LinearFlowState_setIn_2330(j2gort.ToAny(result))
+		{
+			a_43 := this_.stateIn
+			i_44 := nodeIdx
+			a_43[i_44] = func() L { tv_42 := result; _ = j2gort.CheckNotNull(j2gort.ToAny(tv_42)); return tv_42 }()
+		}
 	} else {
-		state.priv_LinearFlowState_setOut_2332(j2gort.ToAny(result))
+		{
+			a_46 := this_.stateOut
+			i_47 := nodeIdx
+			a_46[i_47] = func() L { tv_45 := result; _ = j2gort.CheckNotNull(j2gort.ToAny(tv_45)); return tv_45 }()
+		}
 	}
 }
 
-// Java method: DataFlowAnalysis.getInputFromEdge(com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> edge)
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_getInputFromEdge_2318(edge pkg_graph.DiGraph_DiGraphEdge[N, ControlFlowGraph_Branch]) L {
+// Java method: DataFlowAnalysis.getInputFromEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> edge)
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_getInputFromEdge_2324(edge *pkg_graph.LinkedDirectedGraph_LinkedDiGraphEdge[N, ControlFlowGraph_Branch]) L {
 	_ = edge
 	if this_.branched {
-		{
-
-			tv_28 := edge.GetAnnotation()
-			if tv_28 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_28)
-		}
-
+		return this_.edgeState[edge.GetDfaEdgeIndex()]
 	} else if this_.forward {
-		var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](edge.GetSource().GetAnnotation())
-		_ = state
-		{
-
-			tv_29 := state.GetOut()
-			if tv_29 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_29)
-		}
-
+		return this_.stateOut[j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]](edge.GetSource()).GetDfaIndex()]
 	} else {
-		var node pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = edge.GetDestination()
+		var node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]](edge.GetDestination())
 		_ = node
-		if j2gort.IfaceEquals[pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]](node, this_.cfg.GetImplicitReturn()) {
+		if node == this_.cfg.GetImplicitReturnNode() {
 			return this_.self_.CreateEntryLattice()
 		}
-		var state_2 *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](node.GetAnnotation())
-		_ = state_2
-		{
-
-			tv_30 := state_2.GetIn()
-			if tv_30 == nil {
-				{
-
-					if _, ok_ := any((*L)(nil)).(*string); ok_ {
-						return any(j2gort.NullString).(L)
-					}
-					var z_ L
-					return z_
-				}
-
-			}
-			return j2gort.Cast[L](tv_30)
-		}
-
+		return this_.stateIn[node.GetDfaIndex()]
 	}
 }
 
@@ -767,10 +960,10 @@ func DataFlowAnalysis_ComputeEscaped(jsScope *Scope, escaped j2gort.Ext_java_uti
 		(&ntb_).TraverseAtScope(ToIface_AbstractScope(jsScope))
 	}
 	{
-		cur_31 := j2gort.NewMapValCursor(allVarsInFn)
-		for cur_31.HasNext() {
-			rawElem_32 := cur_31.Next()
-			var_ := j2gort.CastPtr[Var](rawElem_32)
+		cur_48 := j2gort.NewMapValCursor(allVarsInFn)
+		for cur_48.HasNext() {
+			rawElem_49 := cur_48.Next()
+			var_ := j2gort.CastPtr[Var](rawElem_49)
 			_ = var_
 			if var_.GetParentNode().IsCatch() || compiler.GetCodingConvention().IsExported_1(var_.GetName()) {
 				escaped.Add_1(j2gort.PtrToAny(var_))
@@ -798,14 +991,14 @@ func DataFlowAnalysis_IsReferencedInNonStaticClassField(refScope *Scope, targetS
 	return false
 }
 
-// Java method: DataFlowAnalysis.compareWorkNodes(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> a, com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> b)
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_compareWorkNodes_2319(a pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], b pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) int32 {
+// Java method: DataFlowAnalysis.compareWorkNodes(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> a, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> b)
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_compareWorkNodes_2325(a *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], b *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) int32 {
 	_ = a
 	_ = b
 	var cmp j2gort.Ext_java_util_Comparator = this_.customComparator
 	_ = cmp
 	if cmp != nil {
-		return cmp.Compare(a, b)
+		return cmp.Compare(j2gort.PtrToAny(a), j2gort.PtrToAny(b))
 	}
 	var pa int32 = a.GetPriority()
 	_ = pa
@@ -844,14 +1037,14 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_compareWorkNodes_
 	}
 }
 
-// Java method: DataFlowAnalysis.enqueueWorkNode(com.google.javascript.jscomp.graph.DiGraph.DiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node)
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2320(node pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) {
+// Java method: DataFlowAnalysis.enqueueWorkNode(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,com.google.javascript.jscomp.ControlFlowGraph.Branch> node)
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2326(node *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]) {
 	_ = node
 	if node.IsInDfaQueue() {
 		return
 	}
 	node.SetInDfaQueue(true)
-	var elems []pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = this_.workElements
+	var elems []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.workElements
 	_ = elems
 	if this_.ordered {
 		var k int32 = this_.workSize
@@ -859,15 +1052,15 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2
 		if k == int32(len(elems)) {
 			{
 
-				arrSrc_33 := elems
-				arrLen_34 := (int32(len(elems)) * int32(2))
-				j2gort.CheckNotNullSlice(arrSrc_33)
-				if arrLen_34 < 0 {
+				arrSrc_50 := elems
+				arrLen_51 := (int32(len(elems)) * int32(2))
+				j2gort.CheckNotNullSlice(arrSrc_50)
+				if arrLen_51 < 0 {
 					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 				}
-				arrOut_35 := make([]pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], arrLen_34)
-				copy(arrOut_35, arrSrc_33)
-				elems = arrOut_35
+				arrOut_52 := make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], arrLen_51)
+				copy(arrOut_52, arrSrc_50)
+				elems = arrOut_52
 			}
 
 			this_.workElements = elems
@@ -876,28 +1069,28 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2
 		for k > int32(0) {
 			var parent int32 = javalang.Ushr32((k - int32(1)), int(int32(1)))
 			_ = parent
-			var e pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[parent]
+			var e *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[parent]
 			_ = e
-			if this_.priv_DataFlowAnalysis_compareWorkNodes_2319(node, e) >= int32(0) {
+			if this_.priv_DataFlowAnalysis_compareWorkNodes_2325(node, e) >= int32(0) {
 				break
 			}
 			{
-				a_36 := elems
-				i_37 := k
-				a_36[i_37] = e
+				a_53 := elems
+				i_54 := k
+				a_53[i_54] = e
 			}
 			k = parent
 		}
 		{
-			a_38 := elems
-			i_39 := k
-			a_38[i_39] = node
+			a_55 := elems
+			i_56 := k
+			a_55[i_56] = node
 		}
 	} else {
 		if this_.workSize == int32(len(elems)) {
 			var oldLen int32 = int32(len(elems))
 			_ = oldLen
-			var grown []pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = make([]pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch], (oldLen * int32(2)))
+			var grown []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = make([]*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch], (oldLen * int32(2)))
 			_ = grown
 			var mask int32 = (oldLen - int32(1))
 			_ = mask
@@ -906,9 +1099,9 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2
 				_ = i
 				for ; i < oldLen; i = i + 1 {
 					{
-						a_40 := grown
-						i_41 := i
-						a_40[i_41] = elems[((this_.workHead + i) & mask)]
+						a_57 := grown
+						i_58 := i
+						a_57[i_58] = elems[((this_.workHead + i) & mask)]
 					}
 				}
 			}
@@ -919,36 +1112,36 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_enqueueWorkNode_2
 		var tail int32 = ((this_.workHead + this_.workSize) & (int32(len(elems)) - int32(1)))
 		_ = tail
 		{
-			a_42 := elems
-			i_43 := tail
-			a_42[i_43] = node
+			a_59 := elems
+			i_60 := tail
+			a_59[i_60] = node
 		}
 		this_.workSize = this_.workSize + 1
 	}
 }
 
 // Java method: DataFlowAnalysis.dequeueWorkNode()
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_dequeueWorkNode_2321() pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
-	var elems []pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = this_.workElements
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_dequeueWorkNode_2327() *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] {
+	var elems []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.workElements
 	_ = elems
 	if this_.ordered {
-		var result pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[int32(0)]
+		var result *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[int32(0)]
 		_ = result
 		result.SetInDfaQueue(false)
 		var n int32
 		{
-			old_44 := this_.workSize
-			nw_45 := old_44 - 1
-			this_.workSize = nw_45
-			n = nw_45
+			old_61 := this_.workSize
+			nw_62 := old_61 - 1
+			this_.workSize = nw_62
+			n = nw_62
 		}
 		_ = n
-		var x pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[n]
+		var x *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[n]
 		_ = x
 		{
-			a_46 := elems
-			i_47 := n
-			a_46[i_47] = nil
+			a_63 := elems
+			i_64 := n
+			a_63[i_64] = nil
 		}
 		if n > int32(0) {
 			var half int32 = javalang.Ushr32(n, int(int32(1)))
@@ -958,40 +1151,40 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_dequeueWorkNode_2
 			for k < half {
 				var child int32 = ((javalang.Shl32(k, int(int32(1)))) + int32(1))
 				_ = child
-				var c pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[child]
+				var c *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[child]
 				_ = c
 				var right int32 = (child + int32(1))
 				_ = right
-				if (right < n) && (this_.priv_DataFlowAnalysis_compareWorkNodes_2319(c, elems[right]) > int32(0)) {
+				if (right < n) && (this_.priv_DataFlowAnalysis_compareWorkNodes_2325(c, elems[right]) > int32(0)) {
 					child = right
 					c = elems[right]
 				}
-				if this_.priv_DataFlowAnalysis_compareWorkNodes_2319(x, c) <= int32(0) {
+				if this_.priv_DataFlowAnalysis_compareWorkNodes_2325(x, c) <= int32(0) {
 					break
 				}
 				{
-					a_48 := elems
-					i_49 := k
-					a_48[i_49] = c
+					a_65 := elems
+					i_66 := k
+					a_65[i_66] = c
 				}
 				k = child
 			}
 			{
-				a_50 := elems
-				i_51 := k
-				a_50[i_51] = x
+				a_67 := elems
+				i_68 := k
+				a_67[i_68] = x
 			}
 		}
 		return result
 	} else {
 		var head int32 = this_.workHead
 		_ = head
-		var result_2 pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[head]
+		var result_2 *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[head]
 		_ = result_2
 		{
-			a_52 := elems
-			i_53 := head
-			a_52[i_53] = nil
+			a_69 := elems
+			i_70 := head
+			a_69[i_70] = nil
 		}
 		result_2.SetInDfaQueue(false)
 		this_.workHead = ((head + int32(1)) & (int32(len(elems)) - int32(1)))
@@ -1001,8 +1194,8 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_dequeueWorkNode_2
 }
 
 // Java method: DataFlowAnalysis.clearWorkQueue()
-func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_clearWorkQueue_2322() {
-	var elems []pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = this_.workElements
+func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_clearWorkQueue_2328() {
+	var elems []*pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = this_.workElements
 	_ = elems
 	if (elems != nil) && (this_.workSize > int32(0)) {
 		if this_.ordered {
@@ -1012,14 +1205,14 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_clearWorkQueue_23
 				var sz int32 = this_.workSize
 				_ = sz
 				for ; i < sz; i = i + 1 {
-					var n pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[i]
+					var n *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[i]
 					_ = n
-					if n != nil && !n.IsJavaNil_() {
+					if n != nil {
 						n.SetInDfaQueue(false)
 						{
-							a_54 := elems
-							i_55 := i
-							a_54[i_55] = nil
+							a_71 := elems
+							i_72 := i
+							a_71[i_72] = nil
 						}
 					}
 				}
@@ -1035,14 +1228,14 @@ func (this_ *DataFlowAnalysisBase[N, L]) priv_DataFlowAnalysis_clearWorkQueue_23
 				for ; i_2 < sz_2; i_2 = i_2 + 1 {
 					var idx int32 = ((this_.workHead + i_2) & mask)
 					_ = idx
-					var n_2 pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] = elems[idx]
+					var n_2 *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] = elems[idx]
 					_ = n_2
-					if n_2 != nil && !n_2.IsJavaNil_() {
+					if n_2 != nil {
 						n_2.SetInDfaQueue(false)
 						{
-							a_56 := elems
-							i_57 := idx
-							a_56[i_57] = nil
+							a_73 := elems
+							i_74 := idx
+							a_73[i_74] = nil
 						}
 					}
 				}
@@ -1180,6 +1373,16 @@ func (this_ *DataFlowAnalysis_LinearFlowState) Reinit(in any, out any) {
 	this_.out = out
 }
 
+// Java method: LinearFlowState.syncResult(int stepCount, L in, L out)
+func (this_ *DataFlowAnalysis_LinearFlowState) SyncResult(stepCount int32, in any, out any) {
+	_ = stepCount
+	_ = in
+	_ = out
+	this_.stepCount = stepCount
+	this_.in = in
+	this_.out = out
+}
+
 // Java method: LinearFlowState.clearForPool()
 func (this_ *DataFlowAnalysis_LinearFlowState) ClearForPool() {
 	this_.stepCount = int32(0)
@@ -1198,7 +1401,7 @@ func (this_ *DataFlowAnalysis_LinearFlowState) GetIn() any {
 }
 
 // Java method: LinearFlowState.setIn(L in)
-func (this_ *DataFlowAnalysis_LinearFlowState) priv_LinearFlowState_setIn_2330(in any) {
+func (this_ *DataFlowAnalysis_LinearFlowState) priv_LinearFlowState_setIn_2337(in any) {
 	_ = in
 	j2gort.CheckNotNull(in)
 	this_.in = in
@@ -1210,7 +1413,7 @@ func (this_ *DataFlowAnalysis_LinearFlowState) GetOut() any {
 }
 
 // Java method: LinearFlowState.setOut(L out)
-func (this_ *DataFlowAnalysis_LinearFlowState) priv_LinearFlowState_setOut_2332(out any) {
+func (this_ *DataFlowAnalysis_LinearFlowState) priv_LinearFlowState_setOut_2339(out any) {
 	_ = out
 	j2gort.CheckNotNull(out)
 	this_.out = out

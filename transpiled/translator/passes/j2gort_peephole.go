@@ -9337,6 +9337,12 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 		return 0
 	}
 
+	var facts *peepholeFileFacts
+	if info != nil {
+		parents, _ := buildParentMap(file)
+		facts = collectPeepholeFileFacts(file, info, parents)
+	}
+
 	usedIdents := make(map[string]bool)
 	ast.Inspect(file, func(n ast.Node) bool {
 		if id, ok := n.(*ast.Ident); ok && id.Name != "" {
@@ -9356,10 +9362,22 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 			}
 		}
 	}
+	nextArgIdx := 1
+	allocArgIdent := func() string {
+		for {
+			nm := fmt.Sprintf("iifeArg_%d", nextArgIdx)
+			nextArgIdx++
+			if !usedIdents[nm] {
+				usedIdents[nm] = true
+				return nm
+			}
+		}
+	}
+	synthPureIdents := make(map[string]bool)
 
 	count := 0
-	var walkFunc func(fnType *ast.FuncType, fnBody *ast.BlockStmt)
-	walkFunc = func(fnType *ast.FuncType, fnBody *ast.BlockStmt) {
+	var walkFunc func(fnRecv *ast.FieldList, fnType *ast.FuncType, fnBody *ast.BlockStmt)
+	walkFunc = func(fnRecv *ast.FieldList, fnType *ast.FuncType, fnBody *ast.BlockStmt) {
 		if fnBody == nil {
 			return
 		}
@@ -9369,22 +9387,34 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 				return false
 			}
 			if fl, ok := n.(*ast.FuncLit); ok {
-				walkFunc(fl.Type, fl.Body)
+				walkFunc(nil, fl.Type, fl.Body)
 				return false
 			}
 			return true
 		})
 
+		var fnRecvVar *types.Var
+		if info != nil && fnRecv != nil && len(fnRecv.List) == 1 && len(fnRecv.List[0].Names) == 1 {
+			if rId := fnRecv.List[0].Names[0]; rId != nil && rId.Name != "" && rId.Name != "_" {
+				if rv, okV := info.Defs[rId].(*types.Var); okV && rv != nil {
+					if _, isPtr := types.Unalias(rv.Type()).(*types.Pointer); isPtr && !isVarReassignedInBody(fnBody, rv, info) {
+						fnRecvVar = rv
+					}
+				}
+			}
+		}
+
 		encLabels := collectDirectLabelsInBlock(fnBody)
 		encHasDefer := hasDirectDeferInBlock(fnBody)
+		encHasGoto := hasDirectGotoInBlock(fnBody)
 		canUnwrapReturn := !encHasDefer && fnType != nil &&
 			fnType.Results != nil && len(fnType.Results.List) == 1 &&
 			len(fnType.Results.List[0].Names) == 0 && fnType.Results.List[0].Type != nil
 
-		var rewriteStmtList func(stmts []ast.Stmt) ([]ast.Stmt, bool)
-		var walkNodeStmts func(n ast.Node)
+		var rewriteStmtList func(stmts []ast.Stmt, isTopBody bool) ([]ast.Stmt, bool)
+		var walkNodeStmts func(n ast.Node, isTopBody bool)
 
-		walkNodeStmts = func(n ast.Node) {
+		walkNodeStmts = func(n ast.Node, isTopBody bool) {
 			if n == nil {
 				return
 			}
@@ -9393,23 +9423,23 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 				return
 			case *ast.BlockStmt:
 				for _, st := range x.List {
-					walkNodeStmts(st)
+					walkNodeStmts(st, false)
 				}
-				if upd, changed := rewriteStmtList(x.List); changed {
+				if upd, changed := rewriteStmtList(x.List, isTopBody); changed {
 					x.List = upd
 				}
 			case *ast.CaseClause:
 				for _, st := range x.Body {
-					walkNodeStmts(st)
+					walkNodeStmts(st, false)
 				}
-				if upd, changed := rewriteStmtList(x.Body); changed {
+				if upd, changed := rewriteStmtList(x.Body, false); changed {
 					x.Body = upd
 				}
 			case *ast.CommClause:
 				for _, st := range x.Body {
-					walkNodeStmts(st)
+					walkNodeStmts(st, false)
 				}
-				if upd, changed := rewriteStmtList(x.Body); changed {
+				if upd, changed := rewriteStmtList(x.Body, false); changed {
 					x.Body = upd
 				}
 			default:
@@ -9421,7 +9451,7 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 					case *ast.FuncLit:
 						return false
 					case *ast.BlockStmt, *ast.CaseClause, *ast.CommClause:
-						walkNodeStmts(child)
+						walkNodeStmts(child, false)
 						return false
 					}
 					return true
@@ -9429,13 +9459,26 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 			}
 		}
 
-		rewriteStmtList = func(stmts []ast.Stmt) ([]ast.Stmt, bool) {
+		topRecvNonNil := false
+		rewriteStmtList = func(stmts []ast.Stmt, isTopBody bool) ([]ast.Stmt, bool) {
 			var out []ast.Stmt
 			changed := false
 			for i, st := range stmts {
+				recvNonNilHere := topRecvNonNil
 				repl, okR := tryUnwrapStmtValueIIFE(
 					st, fnType, canUnwrapReturn, encLabels, allocSwitchLabel, fset, pkg, info,
 				)
+				nSites := 1
+				if !okR {
+					repl, nSites = tryUnwrapStmtCallArgIIFEs(
+						st, encHasGoto, encLabels, allocSwitchLabel, allocArgIdent,
+						synthPureIdents, fnRecvVar, recvNonNilHere, facts, fset, pkg, info,
+					)
+					okR = nSites > 0
+				}
+				if isTopBody && !topRecvNonNil && fnRecvVar != nil && stmtUnconditionallyDerefsVarFirst(st, fnRecvVar, info) {
+					topRecvNonNil = true
+				}
 				if !okR {
 					if changed {
 						out = append(out, st)
@@ -9448,17 +9491,17 @@ func unwrapFileStmtValueIIFEs(file *ast.File, fset *token.FileSet, pkg *types.Pa
 					changed = true
 				}
 				out = append(out, repl...)
-				count++
+				count += nSites
 			}
 			return out, changed
 		}
 
-		walkNodeStmts(fnBody)
+		walkNodeStmts(fnBody, true)
 	}
 
 	for _, decl := range file.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Body != nil {
-			walkFunc(fn.Type, fn.Body)
+			walkFunc(fn.Recv, fn.Type, fn.Body)
 		}
 	}
 	return count
@@ -9985,4 +10028,630 @@ func iifeTypesIdentical(lhsTypeAST, rhsTypeAST ast.Expr, lhsDefIdent *ast.Ident,
 		return false
 	}
 	return b1.String() == b2.String()
+}
+
+func hasDirectGotoInBlock(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found || n == nil {
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.BranchStmt:
+			if x.Tok == token.GOTO {
+				found = true
+				return false
+			}
+		}
+		return true
+	})
+	return found
+}
+
+func isDirectFuncLitCallExpr(expr ast.Expr) bool {
+	call, ok := stripParens(expr).(*ast.CallExpr)
+	if !ok || call == nil {
+		return false
+	}
+	_, isFL := stripParens(call.Fun).(*ast.FuncLit)
+	return isFL
+}
+
+type iifePrefixCheckState struct {
+	vars           map[*types.Var]bool
+	addrTakenNames map[string]bool
+	hasFieldAccess bool
+}
+
+func newIIFEPrefixCheckState() *iifePrefixCheckState {
+	return &iifePrefixCheckState{
+		vars:           make(map[*types.Var]bool),
+		addrTakenNames: make(map[string]bool),
+	}
+}
+
+func (s *iifePrefixCheckState) clone() *iifePrefixCheckState {
+	c := &iifePrefixCheckState{
+		vars:           make(map[*types.Var]bool, len(s.vars)),
+		addrTakenNames: make(map[string]bool, len(s.addrTakenNames)),
+		hasFieldAccess: s.hasFieldAccess,
+	}
+	for v := range s.vars {
+		c.vars[v] = true
+	}
+	for nm := range s.addrTakenNames {
+		c.addrTakenNames[nm] = true
+	}
+	return c
+}
+
+func tryUnwrapStmtCallArgIIFEs(
+	stmt ast.Stmt,
+	encHasGoto bool,
+	encLabels map[string]bool,
+	allocSwitchLabel func(map[string]bool) string,
+	allocArgIdent func() string,
+	synthPureIdents map[string]bool,
+	fnRecvVar *types.Var,
+	recvNonNilHere bool,
+	facts *peepholeFileFacts,
+	fset *token.FileSet,
+	pkg *types.Package,
+	info *types.Info,
+) ([]ast.Stmt, int) {
+	if info == nil || fset == nil {
+		return nil, 0
+	}
+
+	var rootCall *ast.CallExpr
+	baseState := newIIFEPrefixCheckState()
+	canScopeWrap := false
+
+	switch s := stmt.(type) {
+	case *ast.ExprStmt:
+		c, ok := stripParens(s.X).(*ast.CallExpr)
+		if !ok || isDirectFuncLitCallExpr(s.X) {
+			return nil, 0
+		}
+		rootCall = c
+		canScopeWrap = true
+
+	case *ast.DeclStmt:
+		if encHasGoto {
+			return nil, 0
+		}
+		gd, ok := s.Decl.(*ast.GenDecl)
+		if !ok || gd.Tok != token.VAR || len(gd.Specs) != 1 {
+			return nil, 0
+		}
+		vs, ok := gd.Specs[0].(*ast.ValueSpec)
+		if !ok || len(vs.Names) != 1 || len(vs.Values) != 1 {
+			return nil, 0
+		}
+		c, ok := stripParens(vs.Values[0]).(*ast.CallExpr)
+		if !ok || isDirectFuncLitCallExpr(vs.Values[0]) {
+			return nil, 0
+		}
+		rootCall = c
+
+	case *ast.AssignStmt:
+		if len(s.Lhs) != 1 || len(s.Rhs) != 1 {
+			return nil, 0
+		}
+		c, ok := stripParens(s.Rhs[0]).(*ast.CallExpr)
+		if !ok || isDirectFuncLitCallExpr(s.Rhs[0]) {
+			return nil, 0
+		}
+		switch s.Tok {
+		case token.DEFINE:
+			if encHasGoto {
+				return nil, 0
+			}
+			lhsId, okId := s.Lhs[0].(*ast.Ident)
+			if !okId || lhsId == nil || lhsId.Name == "" {
+				return nil, 0
+			}
+			rootCall = c
+		case token.ASSIGN:
+			if !isSafeIIFEAssignLhs(s.Lhs[0], baseState, fnRecvVar, recvNonNilHere, facts, pkg, info) {
+				return nil, 0
+			}
+			rootCall = c
+			canScopeWrap = true
+		default:
+			return nil, 0
+		}
+
+	case *ast.ReturnStmt:
+		if len(s.Results) != 1 {
+			return nil, 0
+		}
+		c, ok := stripParens(s.Results[0]).(*ast.CallExpr)
+		if !ok || isDirectFuncLitCallExpr(s.Results[0]) {
+			return nil, 0
+		}
+		rootCall = c
+		canScopeWrap = true
+
+	default:
+		return nil, 0
+	}
+
+	if encHasGoto && !canScopeWrap {
+		return nil, 0
+	}
+
+	var preStmts []ast.Stmt
+	unwrapped := 0
+	for {
+		curState := baseState.clone()
+		slotPtr, fl, bodyLabels, clonedType, okM := findFirstUnwrappableCallArgIIFE(
+			rootCall, curState, encLabels, synthPureIdents, fnRecvVar, recvNonNilHere, facts, fset, pkg, info,
+		)
+		if !okM {
+			break
+		}
+		for lbl := range bodyLabels {
+			encLabels[lbl] = true
+		}
+		tmpName := allocArgIdent()
+		synthPureIdents[tmpName] = true
+		argPos := (*slotPtr).Pos()
+		varDecl := &ast.DeclStmt{
+			Decl: &ast.GenDecl{
+				Tok: token.VAR,
+				Specs: []ast.Spec{
+					&ast.ValueSpec{
+						Names: []*ast.Ident{{NamePos: argPos, Name: tmpName}},
+						Type:  clonedType,
+					},
+				},
+			},
+		}
+		bodyStmt := buildUnwrappedIIFEAssignBlock(fl.Body, tmpName, encLabels, allocSwitchLabel)
+		*slotPtr = &ast.Ident{NamePos: argPos, Name: tmpName}
+		preStmts = append(preStmts, varDecl, bodyStmt)
+		unwrapped++
+	}
+
+	if unwrapped == 0 {
+		return nil, 0
+	}
+	if encHasGoto {
+		return []ast.Stmt{&ast.BlockStmt{List: append(preStmts, stmt)}}, unwrapped
+	}
+	return append(preStmts, stmt), unwrapped
+}
+
+func isSafeIIFEAssignLhs(
+	lhs ast.Expr,
+	state *iifePrefixCheckState,
+	fnRecvVar *types.Var,
+	recvNonNilHere bool,
+	facts *peepholeFileFacts,
+	pkg *types.Package,
+	info *types.Info,
+) bool {
+	switch e := stripParens(lhs).(type) {
+	case *ast.Ident:
+		if e.Name == "_" {
+			return true
+		}
+		v, ok := info.Uses[e].(*types.Var)
+		if !ok || v == nil || v.IsField() || v.Parent() == nil {
+			return false
+		}
+		if pkg != nil && v.Parent() == pkg.Scope() {
+			return false
+		}
+		state.vars[v] = true
+		return true
+
+	case *ast.SelectorExpr:
+		sel := info.Selections[e]
+		if sel == nil || sel.Kind() != types.FieldVal || len(sel.Index()) != 1 {
+			return false
+		}
+		baseId, ok := stripParens(e.X).(*ast.Ident)
+		if !ok || !isIIFEIdentProvenNonNilLocal(baseId, state, fnRecvVar, recvNonNilHere, facts, pkg, info) {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+func findFirstUnwrappableCallArgIIFE(
+	call *ast.CallExpr,
+	state *iifePrefixCheckState,
+	encLabels map[string]bool,
+	synthPureIdents map[string]bool,
+	fnRecvVar *types.Var,
+	recvNonNilHere bool,
+	facts *peepholeFileFacts,
+	fset *token.FileSet,
+	pkg *types.Package,
+	info *types.Info,
+) (*ast.Expr, *ast.FuncLit, map[string]bool, ast.Expr, bool) {
+	if call == nil || call.Ellipsis.IsValid() || len(call.Args) == 0 {
+		return nil, nil, nil, nil, false
+	}
+	if !isSafeCalleeBeforeIIFEArg(call.Fun, state, fnRecvVar, recvNonNilHere, facts, pkg, info) {
+		return nil, nil, nil, nil, false
+	}
+
+	for i := range call.Args {
+		arg := call.Args[i]
+		if fl, bodyLabels, ok := matchUnwrappableValueIIFECall(arg, encLabels); ok {
+			retTypeAST := fl.Type.Results.List[0].Type
+			if tv, okT := info.Types[retTypeAST]; !okT || tv.Type == nil || isInvalidOrUntyped(tv.Type) {
+				return nil, nil, nil, nil, false
+			}
+			if iifeBodyMayMutatePrefix(fl.Body, state, info) {
+				return nil, nil, nil, nil, false
+			}
+			clonedType, okC := cloneIIFETypeExpr(fset, retTypeAST)
+			if !okC {
+				return nil, nil, nil, nil, false
+			}
+			return &call.Args[i], fl, bodyLabels, clonedType, true
+		}
+
+		if innerCall, isC := stripParens(arg).(*ast.CallExpr); isC && !isDirectFuncLitCallExpr(arg) {
+			subState := state.clone()
+			if slot, fl, bodyLabels, clonedType, okSub := findFirstUnwrappableCallArgIIFE(
+				innerCall, subState, encLabels, synthPureIdents, fnRecvVar, recvNonNilHere, facts, fset, pkg, info,
+			); okSub {
+				return slot, fl, bodyLabels, clonedType, true
+			}
+		}
+
+		if !isSafePureArgBeforeIIFE(arg, state, synthPureIdents, fnRecvVar, recvNonNilHere, facts, pkg, info) {
+			return nil, nil, nil, nil, false
+		}
+	}
+	return nil, nil, nil, nil, false
+}
+
+func stripIndexExprs(expr ast.Expr) ast.Expr {
+	cur := stripParens(expr)
+	for {
+		switch x := cur.(type) {
+		case *ast.IndexExpr:
+			cur = stripParens(x.X)
+		case *ast.IndexListExpr:
+			cur = stripParens(x.X)
+		default:
+			return cur
+		}
+	}
+}
+
+func isSafeCalleeBeforeIIFEArg(
+	funExpr ast.Expr,
+	state *iifePrefixCheckState,
+	fnRecvVar *types.Var,
+	recvNonNilHere bool,
+	facts *peepholeFileFacts,
+	pkg *types.Package,
+	info *types.Info,
+) bool {
+	base := stripIndexExprs(funExpr)
+	switch f := base.(type) {
+	case *ast.Ident:
+		switch obj := info.Uses[f].(type) {
+		case *types.Func, *types.Builtin, *types.TypeName:
+			return true
+		case *types.Var:
+			if obj == nil || obj.IsField() || obj.Parent() == nil || (pkg != nil && obj.Parent() == pkg.Scope()) {
+				return false
+			}
+			state.vars[obj] = true
+			return true
+		}
+		return false
+
+	case *ast.SelectorExpr:
+		if pkgId, ok := stripParens(f.X).(*ast.Ident); ok {
+			if _, isPkg := info.Uses[pkgId].(*types.PkgName); isPkg {
+				switch info.Uses[f.Sel].(type) {
+				case *types.Func, *types.TypeName:
+					return true
+				}
+				return false
+			}
+		}
+		sel := info.Selections[f]
+		if sel == nil || sel.Kind() != types.MethodVal {
+			return false
+		}
+		mFn, okF := sel.Obj().(*types.Func)
+		if !okF || mFn == nil {
+			return false
+		}
+		sig, okS := mFn.Type().(*types.Signature)
+		if !okS || sig.Recv() == nil {
+			return false
+		}
+		_, isPtrRecv := types.Unalias(sig.Recv().Type()).(*types.Pointer)
+		recv := stripParens(f.X)
+		recvTV, okT := info.Types[recv]
+		if !okT || recvTV.Type == nil || isInvalidOrUntyped(recvTV.Type) {
+			return false
+		}
+		ut := types.Unalias(recvTV.Type)
+
+		switch r := recv.(type) {
+		case *ast.Ident:
+			rv, okV := info.Uses[r].(*types.Var)
+			if !okV || rv == nil || rv.IsField() || rv.Parent() == nil || (pkg != nil && rv.Parent() == pkg.Scope()) {
+				return false
+			}
+			switch ut.(type) {
+			case *types.Pointer:
+				if isPtrRecv && len(sel.Index()) == 1 {
+					state.vars[rv] = true
+					return true
+				}
+				return isIIFEIdentProvenNonNilLocal(r, state, fnRecvVar, recvNonNilHere, facts, pkg, info) && !sel.Indirect()
+			case *types.Struct, *types.Basic, *types.Slice:
+				if len(sel.Index()) == 1 {
+					state.vars[rv] = true
+					return true
+				}
+			case *types.Interface:
+				return isIIFEIdentProvenNonNilLocal(r, state, fnRecvVar, recvNonNilHere, facts, pkg, info)
+			}
+
+		case *ast.SelectorExpr:
+			fSel := info.Selections[r]
+			if fSel == nil || fSel.Kind() != types.FieldVal || len(fSel.Index()) != 1 {
+				return false
+			}
+			baseId, okB := stripParens(r.X).(*ast.Ident)
+			if !okB || !isIIFEIdentProvenNonNilLocal(baseId, state, fnRecvVar, recvNonNilHere, facts, pkg, info) {
+				return false
+			}
+			switch ut.(type) {
+			case *types.Pointer:
+				if isPtrRecv && len(sel.Index()) == 1 {
+					state.hasFieldAccess = true
+					return true
+				}
+			case *types.Struct, *types.Basic, *types.Slice:
+				if len(sel.Index()) == 1 {
+					state.hasFieldAccess = true
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func isIIFEIdentProvenNonNilLocal(
+	id *ast.Ident,
+	state *iifePrefixCheckState,
+	fnRecvVar *types.Var,
+	recvNonNilHere bool,
+	facts *peepholeFileFacts,
+	pkg *types.Package,
+	info *types.Info,
+) bool {
+	if id == nil {
+		return false
+	}
+	v, ok := info.Uses[id].(*types.Var)
+	if !ok || v == nil || v.IsField() || v.Parent() == nil || (pkg != nil && v.Parent() == pkg.Scope()) {
+		return false
+	}
+	nonNil := (recvNonNilHere && v == fnRecvVar) || (facts != nil && isProvablyNonNilExpr(id, facts, info))
+	if !nonNil {
+		return false
+	}
+	state.vars[v] = true
+	return true
+}
+
+func isSafePureArgBeforeIIFE(
+	expr ast.Expr,
+	state *iifePrefixCheckState,
+	synthPureIdents map[string]bool,
+	fnRecvVar *types.Var,
+	recvNonNilHere bool,
+	facts *peepholeFileFacts,
+	pkg *types.Package,
+	info *types.Info,
+) bool {
+	switch e := stripParens(expr).(type) {
+	case *ast.BasicLit:
+		return true
+
+	case *ast.Ident:
+		if synthPureIdents[e.Name] {
+			return true
+		}
+		switch obj := info.Uses[e].(type) {
+		case *types.Const, *types.Nil:
+			return true
+		case *types.Var:
+			if obj == nil || obj.IsField() || obj.Parent() == nil || (pkg != nil && obj.Parent() == pkg.Scope()) {
+				return false
+			}
+			state.vars[obj] = true
+			return true
+		}
+		return false
+
+	case *ast.UnaryExpr:
+		switch e.Op {
+		case token.ADD, token.SUB, token.NOT, token.XOR:
+			return isSafePureArgBeforeIIFE(e.X, state, synthPureIdents, fnRecvVar, recvNonNilHere, facts, pkg, info)
+		case token.AND:
+			id, ok := stripParens(e.X).(*ast.Ident)
+			if !ok || id == nil {
+				return false
+			}
+			v, okV := info.Uses[id].(*types.Var)
+			if !okV || v == nil || v.IsField() || v.Parent() == nil || (pkg != nil && v.Parent() == pkg.Scope()) {
+				return false
+			}
+			state.vars[v] = true
+			state.addrTakenNames[id.Name] = true
+			return true
+		}
+		return false
+
+	case *ast.BinaryExpr:
+		switch e.Op {
+		case token.QUO, token.REM:
+			return false
+		}
+		return isSafePureArgBeforeIIFE(e.X, state, synthPureIdents, fnRecvVar, recvNonNilHere, facts, pkg, info) &&
+			isSafePureArgBeforeIIFE(e.Y, state, synthPureIdents, fnRecvVar, recvNonNilHere, facts, pkg, info)
+
+	case *ast.SelectorExpr:
+		if pkgId, ok := stripParens(e.X).(*ast.Ident); ok {
+			if _, isPkg := info.Uses[pkgId].(*types.PkgName); isPkg {
+				_, isConst := info.Uses[e.Sel].(*types.Const)
+				return isConst
+			}
+		}
+		sel := info.Selections[e]
+		if sel == nil || sel.Kind() != types.FieldVal || len(sel.Index()) != 1 {
+			return false
+		}
+		baseId, ok := stripParens(e.X).(*ast.Ident)
+		if !ok || !isIIFEIdentProvenNonNilLocal(baseId, state, fnRecvVar, recvNonNilHere, facts, pkg, info) {
+			return false
+		}
+		state.hasFieldAccess = true
+		return true
+
+	case *ast.CallExpr:
+		if len(e.Args) != 1 || e.Ellipsis.IsValid() {
+			return false
+		}
+		funTV, ok := info.Types[e.Fun]
+		if !ok || !funTV.IsType() || funTV.Type == nil || isInvalidOrUntyped(funTV.Type) {
+			return false
+		}
+		switch types.Unalias(funTV.Type).Underlying().(type) {
+		case *types.Basic:
+			return isSafePureArgBeforeIIFE(e.Args[0], state, synthPureIdents, fnRecvVar, recvNonNilHere, facts, pkg, info)
+		case *types.Pointer:
+			argTV, okA := info.Types[e.Args[0]]
+			if !okA || argTV.Type == nil {
+				return false
+			}
+			if _, isSlice := types.Unalias(argTV.Type).Underlying().(*types.Slice); isSlice {
+				return false
+			}
+			return isSafePureArgBeforeIIFE(e.Args[0], state, synthPureIdents, fnRecvVar, recvNonNilHere, facts, pkg, info)
+		}
+	}
+	return false
+}
+
+func iifeBodyMayMutatePrefix(body *ast.BlockStmt, state *iifePrefixCheckState, info *types.Info) bool {
+	if len(state.vars) == 0 && len(state.addrTakenNames) == 0 && !state.hasFieldAccess {
+		return false
+	}
+	unsafe := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if unsafe || n == nil {
+			return false
+		}
+		if id, isId := n.(*ast.Ident); isId && state.addrTakenNames[id.Name] {
+			unsafe = true
+			return false
+		}
+		switch x := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range x.Lhs {
+				if id, ok := stripParens(lhs).(*ast.Ident); ok {
+					if x.Tok == token.DEFINE && info.Defs[id] != nil {
+						continue
+					}
+					if uv, okV := info.Uses[id].(*types.Var); okV && state.vars[uv] {
+						unsafe = true
+						return false
+					}
+				} else if state.hasFieldAccess {
+					unsafe = true
+					return false
+				}
+			}
+		case *ast.IncDecStmt:
+			if id, ok := stripParens(x.X).(*ast.Ident); ok {
+				if uv, okV := info.Uses[id].(*types.Var); okV && state.vars[uv] {
+					unsafe = true
+					return false
+				}
+			} else if state.hasFieldAccess {
+				unsafe = true
+				return false
+			}
+		case *ast.UnaryExpr:
+			if x.Op == token.AND {
+				if id, ok := stripParens(x.X).(*ast.Ident); ok {
+					if uv, okV := info.Uses[id].(*types.Var); okV && state.vars[uv] {
+						unsafe = true
+						return false
+					}
+				}
+			}
+		case *ast.CallExpr:
+			if state.hasFieldAccess {
+				if _, isFL := n.(*ast.FuncLit); !isFL && !isKnownPureLambdaOrAdapterCall(x, info) {
+					unsafe = true
+					return false
+				}
+			}
+		case *ast.FuncLit:
+			if state.hasFieldAccess {
+				// Uncalled lambda literal (returned as value) does not execute during IIFE evaluation,
+				// though we still check variable captures for addrTakenNames/vars if mutated inside.
+				for nm := range state.addrTakenNames {
+					if iifeASTContainsIdentNamed(x.Body, nm) {
+						unsafe = true
+						return false
+					}
+				}
+				return false
+			}
+		}
+		return true
+	})
+	return unsafe
+}
+
+func isKnownPureLambdaOrAdapterCall(call *ast.CallExpr, info *types.Info) bool {
+	if call == nil || call.Ellipsis.IsValid() {
+		return false
+	}
+	if funTV, ok := info.Types[call.Fun]; ok && funTV.IsType() {
+		return true
+	}
+	if _, ok := isToIfaceCall(call, info); ok {
+		return true
+	}
+	if _, ok := isUpcastCall(call, info); ok {
+		return true
+	}
+	if fnName, _, _, isJ2 := isJ2gortCall(call, info); isJ2 {
+		if strings.HasPrefix(fnName, "NewLambda_") || fnName == "AsIface" ||
+			fnName == "ToAny" || fnName == "PtrToAny" || fnName == "SliceToAny" ||
+			fnName == "BoxString" || fnName == "BoxNode" {
+			return true
+		}
+	}
+	if id, ok := stripIndexExprs(call.Fun).(*ast.Ident); ok {
+		if fn, okF := info.Uses[id].(*types.Func); okF && fn != nil && strings.HasPrefix(fn.Name(), "NewLambda_") {
+			return true
+		}
+	}
+	return false
 }

@@ -245,12 +245,17 @@ iifeSwitch_6:
 								}
 								return predIdx_2
 							}()] != int32(-1)) {
-								newIdomIdx = DominatorTree_Intersect(idomIndexes, func() int32 {
+								var iifeArg_1 int32
+								{
+
 									if !predIdx_2Ok_ {
 										j2gort.ThrowNPE()
 									}
-									return predIdx_2
-								}(), newIdomIdx)
+									iifeArg_1 = predIdx_2
+								}
+								newIdomIdx = DominatorTree_Intersect(idomIndexes, iifeArg_1,
+
+									newIdomIdx)
 							}
 						}
 					}

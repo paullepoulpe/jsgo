@@ -256,12 +256,20 @@ func ReportDecoder_MergeProfiles(profiles j2gort.Ext_java_util_List) *j2gort.Ext
 								_ = p
 								existing := j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Presence](lp_12)
 								_ = existing
-								return j2gort.PtrToAny(func() *j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Presence {
+								var iifeArg_1 *j2gort.
+									Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Presence
+							iifeSwitch_1:
+								switch {
+								default:
+
 									if ((pointStats.GetPointPresence() == j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Presence_F_PRESENT) || (existing == j2gort.Ext_com_google_javascript_jscomp_instrumentation_reporter_proto_InstrumentationPointStats_Presence_F_PRESENCE_UNKNOWN)) || (existing == nil) {
-										return pointStats.GetPointPresence()
+										iifeArg_1 = pointStats.GetPointPresence()
+										break iifeSwitch_1
 									}
-									return existing
-								}())
+									iifeArg_1 = existing
+									break iifeSwitch_1
+								}
+								return j2gort.PtrToAny(iifeArg_1)
 							}))
 						}
 					}

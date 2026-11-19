@@ -225,9 +225,9 @@ func DestructuredTarget_CreateAllNonEmptyTargetsInPattern_3_JSTypeRegistry_Ext_c
 // Java method: DestructuredTarget.inferTypeWithoutUsingDefaultValue()
 func (this_ *DestructuredTarget) InferTypeWithoutUsingDefaultValue() pkg_rhino.JSType {
 	if this_.pattern.IsObjectPattern() {
-		return this_.priv_DestructuredTarget_inferObjectPatternKeyType_2410()
+		return this_.priv_DestructuredTarget_inferObjectPatternKeyType_2417()
 	} else {
-		return this_.priv_DestructuredTarget_inferArrayPatternTargetType_2411()
+		return this_.priv_DestructuredTarget_inferArrayPatternTargetType_2418()
 	}
 }
 
@@ -248,7 +248,7 @@ func (this_ *DestructuredTarget) InferType() pkg_rhino.JSType {
 }
 
 // Java method: DestructuredTarget.inferObjectPatternKeyType()
-func (this_ *DestructuredTarget) priv_DestructuredTarget_inferObjectPatternKeyType_2410() pkg_rhino.JSType {
+func (this_ *DestructuredTarget) priv_DestructuredTarget_inferObjectPatternKeyType_2417() pkg_rhino.JSType {
 	var patternType pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](this_.patternTypeSupplier.Get())
 	_ = patternType
 	if this_.isRest {
@@ -285,7 +285,7 @@ func (this_ *DestructuredTarget) priv_DestructuredTarget_inferObjectPatternKeyTy
 }
 
 // Java method: DestructuredTarget.inferArrayPatternTargetType()
-func (this_ *DestructuredTarget) priv_DestructuredTarget_inferArrayPatternTargetType_2411() pkg_rhino.JSType {
+func (this_ *DestructuredTarget) priv_DestructuredTarget_inferArrayPatternTargetType_2418() pkg_rhino.JSType {
 	var patternType pkg_rhino.JSType = j2gort.AsIface[pkg_rhino.JSType](this_.patternTypeSupplier.Get())
 	_ = patternType
 	var templateTypeOfIterable pkg_rhino.JSType = patternType.GetTemplateTypeMap().GetResolvedTemplateType(this_.registry.GetIterableValueTemplate())

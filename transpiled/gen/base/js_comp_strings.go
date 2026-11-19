@@ -71,17 +71,24 @@ func InitJSCompStrings(this_ *JSCompStrings) {
 // Java static method: JSCompStrings.lines(java.lang.String[] lines)
 func JSCompStrings_Lines_1_slice_string(lines []string) string {
 	_ = lines
-	return j2gort.Ext_java_lang_String_Join_2_any_slice_any("\n", func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_1 := lines
 		if arr_1 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_2 := make([]any, len(arr_1))
 		for i_, el_3 := range arr_1 {
 			out_2[i_] = j2gort.BoxString(el_3)
 		}
-		return out_2
-	}())
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	return j2gort.Ext_java_lang_String_Join_2_any_slice_any("\n", iifeArg_1)
 }
 
 // Java static method: JSCompStrings.lines(java.lang.Iterable<java.lang.String> lines)

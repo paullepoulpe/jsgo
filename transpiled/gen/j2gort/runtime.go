@@ -506,7 +506,7 @@ func ObjEqNilIface[T interface {
 
 func CheckNotNullIface[I interface{ IsJavaNil_() bool }](v I) I {
 	if any(v) == nil || v.IsJavaNil_() {
-		ThrowNPE()
+		panic(npeSentinel_)
 	}
 	return v
 }
@@ -845,8 +845,10 @@ func SliceRefEquals[T any](a, b []T) bool {
 	return true
 }
 
+var npeSentinel_ any = javalang.NewNullPointerException()
+
 func ThrowNPE() {
-	panic(javalang.NewNullPointerException())
+	panic(npeSentinel_)
 }
 
 func CheckNotNullString(s string) string {
@@ -3132,8 +3134,10 @@ type jStringBuilderCore struct {
 	buf         []byte
 	cachedStr   string
 	utf16Len    int32  // >= 0 exact UTF-16 code unit count; -1 dirty
+	capHint     int32  // lazy initial capacity hint from StringBuilder(int)
 	pendingHigh uint16 // 0 = none; 0xD800..0xDBFF = trailing lone high surrogate held out of buf
 	hasCache    bool
+	inline      [61]byte
 }
 
 func (c *jStringBuilderCore) invalidateCache() {
@@ -3144,11 +3148,34 @@ func (c *jStringBuilderCore) invalidateCache() {
 }
 
 func (c *jStringBuilderCore) grow(capHint int) {
-	if capHint > 0 && capHint <= (1<<24) && cap(c.buf) < capHint {
-		nb := make([]byte, len(c.buf), capHint)
-		copy(nb, c.buf)
-		c.buf = nb
+	if capHint > 0 {
+		if capHint > (1 << 24) {
+			capHint = 1 << 24
+		}
+		if int(c.capHint) < capHint {
+			c.capHint = int32(capHint)
+		}
 	}
+}
+
+func (c *jStringBuilderCore) ensureSpace(extra int) {
+	need := len(c.buf) + extra
+	if need <= cap(c.buf) {
+		return
+	}
+	if c.buf == nil && need <= len(c.inline) {
+		c.buf = c.inline[:0]
+		return
+	}
+	c.growSlow(need)
+}
+
+//go:noinline
+func (c *jStringBuilderCore) growSlow(need int) {
+	newCap := max(need, int(c.capHint), cap(c.buf)*2, 64)
+	nb := make([]byte, len(c.buf), newCap)
+	copy(nb, c.buf)
+	c.buf = nb
 }
 
 func (c *jStringBuilderCore) reset() {
@@ -3169,6 +3196,7 @@ func (c *jStringBuilderCore) flushPendingHigh() {
 		ch := c.pendingHigh
 		c.pendingHigh = 0
 		c.invalidateCache()
+		c.ensureSpace(3)
 		c.buf = append(c.buf,
 			byte(0xE0|(ch>>12)),
 			byte(0x80|((ch>>6)&0x3F)),
@@ -3213,6 +3241,7 @@ func (c *jStringBuilderCore) appendChar(ch uint16) {
 		c.hasCache = false
 	}
 	if c.pendingHigh == 0 && ch < 0x80 {
+		c.ensureSpace(1)
 		c.buf = append(c.buf, byte(ch))
 		if c.utf16Len >= 0 {
 			c.utf16Len++
@@ -3228,6 +3257,7 @@ func (c *jStringBuilderCore) appendChar(ch uint16) {
 			c.pendingHigh = 0
 			var tmp [4]byte
 			n := utf8.EncodeRune(tmp[:], r)
+			c.ensureSpace(n)
 			c.buf = append(c.buf, tmp[:n]...)
 			return
 		}
@@ -3238,10 +3268,13 @@ func (c *jStringBuilderCore) appendChar(ch uint16) {
 		return
 	}
 	if ch < 0x80 {
+		c.ensureSpace(1)
 		c.buf = append(c.buf, byte(ch))
 	} else if ch < 0x800 {
+		c.ensureSpace(2)
 		c.buf = append(c.buf, byte(0xC0|(ch>>6)), byte(0x80|(ch&0x3F)))
 	} else {
+		c.ensureSpace(3)
 		c.buf = append(c.buf,
 			byte(0xE0|(ch>>12)),
 			byte(0x80|((ch>>6)&0x3F)),
@@ -3267,6 +3300,7 @@ func (c *jStringBuilderCore) appendString(raw string) {
 			}
 		}
 		if ascii {
+			c.ensureSpace(len(s))
 			c.buf = append(c.buf, s...)
 			if c.utf16Len >= 0 {
 				c.utf16Len += int32(len(s))
@@ -3284,6 +3318,7 @@ func (c *jStringBuilderCore) appendString(raw string) {
 			c.pendingHigh = 0
 			var tmp [4]byte
 			n := utf8.EncodeRune(tmp[:], r)
+			c.ensureSpace(n + len(s) - 3)
 			c.buf = append(c.buf, tmp[:n]...)
 			s = s[3:]
 			if len(s) == 0 {
@@ -3296,10 +3331,12 @@ func (c *jStringBuilderCore) appendString(raw string) {
 	n := len(s)
 	if n >= 3 && s[n-3] == 0xED && s[n-2] >= 0xA0 && s[n-2] <= 0xAF && (s[n-1]&0xC0) == 0x80 {
 		high := (uint16(s[n-3]&0x0F) << 12) | (uint16(s[n-2]&0x3F) << 6) | uint16(s[n-1]&0x3F)
+		c.ensureSpace(n - 3)
 		c.buf = append(c.buf, s[:n-3]...)
 		c.pendingHigh = high
 		return
 	}
+	c.ensureSpace(n)
 	c.buf = append(c.buf, s...)
 }
 
@@ -3314,6 +3351,7 @@ func (c *jStringBuilderCore) appendASCII(s string) {
 	if c.pendingHigh != 0 {
 		c.flushPendingHigh()
 	}
+	c.ensureSpace(len(s))
 	c.buf = append(c.buf, s...)
 	if c.utf16Len >= 0 {
 		c.utf16Len += int32(len(s))
@@ -3330,6 +3368,7 @@ func (c *jStringBuilderCore) appendInt64(v int64) {
 	}
 	var tmp [20]byte
 	b := strconv.AppendInt(tmp[:0], v, 10)
+	c.ensureSpace(len(b))
 	c.buf = append(c.buf, b...)
 	if c.utf16Len >= 0 {
 		c.utf16Len += int32(len(b))
@@ -3363,6 +3402,7 @@ func (c *jStringBuilderCore) appendCodePoint(cp int32) {
 		}
 		var tmp [4]byte
 		n := utf8.EncodeRune(tmp[:], cp)
+		c.ensureSpace(n)
 		c.buf = append(c.buf, tmp[:n]...)
 		if c.utf16Len >= 0 {
 			c.utf16Len += 2
@@ -3488,6 +3528,7 @@ func (c *jStringBuilderCore) insertChar(idx int32, ch uint16) {
 			off := c.byteOffsetOfUTF16(idx, effN)
 			if off >= 0 {
 				c.invalidateCache()
+				c.ensureSpace(1)
 				c.buf = append(c.buf, 0)
 				copy(c.buf[off+1:], c.buf[off:len(c.buf)-1])
 				c.buf[off] = byte(ch)
@@ -3532,6 +3573,7 @@ func (c *jStringBuilderCore) insertString(idx int32, raw string) {
 					c.invalidateCache()
 					k := len(sIns)
 					oldLen := len(c.buf)
+					c.ensureSpace(k)
 					c.buf = append(c.buf, sIns...)
 					copy(c.buf[off+k:], c.buf[off:oldLen])
 					copy(c.buf[off:], sIns)
@@ -3686,6 +3728,7 @@ func (c *jStringBuilderCore) setLength(newLen int32) {
 			c.flushPendingHigh()
 		}
 		add := int(newLen - cur)
+		c.ensureSpace(add)
 		c.buf = append(c.buf, make([]byte, add)...)
 		c.utf16Len = newLen
 		return
@@ -6967,9 +7010,9 @@ type jNodeMapState8 struct {
 	buf   [8]jNodeMapEntry
 }
 
-func newNodeMapState2(capHint int16) *jNodeMapState {
+func newNodeMapState2(capHint int32) *jNodeMapState {
 	if capHint > 8 {
-		return &jNodeMapState{entries: make([]jNodeMapEntry, 2, min(int(capHint), 256))}
+		return &jNodeMapState{entries: make([]jNodeMapEntry, 2, min(int(capHint), 65536))}
 	}
 	if capHint >= 1 && capHint <= 4 {
 		s4 := &jNodeMapState4{}
@@ -7071,9 +7114,9 @@ type jGenMapState4 struct {
 	inline [4]JMapEntry
 }
 
-func newGenMapState(capHint int16) *jGenMapState {
+func newGenMapState(capHint int32) *jGenMapState {
 	if capHint > 4 {
-		return &jGenMapState{entries: make([]JMapEntry, 0, min(int(capHint), 256))}
+		return &jGenMapState{entries: make([]JMapEntry, 0, min(int(capHint), 65536))}
 	}
 	if capHint == 1 {
 		s1 := &jGenMapState1{}
@@ -7115,7 +7158,7 @@ type JMapCore struct {
 	Live         int32
 	holes        int32
 	firstIdx     int32
-	capHint      int16
+	capHint      int32
 	mode         uint8
 	Identity     bool
 	immutable    bool
@@ -7247,11 +7290,11 @@ func (m *JMapCore) InitExpectedSize(expected int32) {
 		panic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
 	}
 	if expected > 0 && (m.mode == jMapModeEmpty || m.mode == jMapModeNullOnly || m.mode == jMapModeNode1) {
-		if expected > 4096 {
-			expected = 4096
+		if expected > 65536 {
+			expected = 65536
 		}
-		if int16(expected) > m.capHint {
-			m.capHint = int16(expected)
+		if expected > m.capHint {
+			m.capHint = expected
 		}
 	}
 }
@@ -7269,14 +7312,14 @@ func (m *JMapCore) InitAccessOrder(initialCap int32, loadFactor float32, accessO
 
 func (m *JMapCore) initCap() int {
 	if m.capHint > 0 {
-		return min(int(m.capHint), 256)
+		return min(int(m.capHint), 65536)
 	}
 	return 4
 }
 
 func (m *JMapCore) strInitCap() int {
 	if m.capHint > 0 {
-		return min(int(m.capHint), 256)
+		return min(int(m.capHint), 65536)
 	}
 	return 2
 }
@@ -8625,6 +8668,30 @@ func (m *JMapCore) GetOrDefaultStr(k string, def any) any {
 	return ToAny(def)
 }
 
+func (m *JMapCore) appendStrEntry(k string, v any) {
+	n := len(m.strEntries)
+	if n < cap(m.strEntries) {
+		m.strEntries = append(m.strEntries, jStrMapEntry{key: k, val: v})
+		return
+	}
+	c := cap(m.strEntries)
+	var newCap int
+	if c < 16 {
+		newCap = max(c*2, 4)
+	} else if c < 1024 {
+		newCap = c * 4
+	} else {
+		newCap = c * 2
+	}
+	if hint := int(m.capHint); hint > newCap {
+		newCap = hint
+	}
+	ne := make([]jStrMapEntry, n+1, newCap)
+	copy(ne, m.strEntries)
+	ne[n] = jStrMapEntry{key: k, val: v}
+	m.strEntries = ne
+}
+
 func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
 	if m.immutable {
 		panic(javalang.NewUnsupportedOperationException("immutable"))
@@ -8646,8 +8713,14 @@ func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
 			}
 			return m.putGenStr(g, k, boxedKey, v)
 		}
-		m.strEntries = make([]jStrMapEntry, 1, m.strInitCap())
+		initC := m.strInitCap()
+		m.strEntries = make([]jStrMapEntry, 1, initC)
 		m.strEntries[0] = jStrMapEntry{key: k, val: v}
+		if initC > jStrSmallLimit {
+			idxMap := make(map[string]int32, initC)
+			idxMap[k] = 0
+			m.ext = idxMap
+		}
 		m.mode = jMapModeStr
 		m.Live = 1
 		return nil, true
@@ -8662,10 +8735,18 @@ func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
 			return m.putGenStr(g, k, boxedKey, v)
 		}
 		nullVal := m.ext
-		m.strEntries = make([]jStrMapEntry, 2, max(m.initCap(), 2))
+		initC := max(m.initCap(), 2)
+		m.strEntries = make([]jStrMapEntry, 2, initC)
 		m.strEntries[0] = jStrMapEntry{key: NullString, val: nullVal}
 		m.strEntries[1] = jStrMapEntry{key: k, val: v}
-		m.ext = nil
+		if initC > jStrSmallLimit {
+			idxMap := make(map[string]int32, initC)
+			idxMap[NullString] = 0
+			idxMap[k] = 1
+			m.ext = idxMap
+		} else {
+			m.ext = nil
+		}
 		m.mode = jMapModeStr
 		m.Live = 2
 		m.holes = 0
@@ -8687,7 +8768,7 @@ func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
 				m.compactStr()
 			}
 			idxMap[k] = int32(len(m.strEntries))
-			m.strEntries = append(m.strEntries, jStrMapEntry{key: k, val: v})
+			m.appendStrEntry(k, v)
 			m.Live++
 			return nil, true
 		}
@@ -8702,7 +8783,7 @@ func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
 			m.compactStr()
 		}
 		if len(m.strEntries) >= jStrSmallLimit {
-			idxMap := make(map[string]int32, max(len(m.strEntries)+1, min(int(m.capHint), 256)))
+			idxMap := make(map[string]int32, max(64, int(m.capHint)))
 			for i := range m.strEntries {
 				if ek := m.strEntries[i].key; ek != jTombstoneStr {
 					idxMap[ek] = int32(i)
@@ -8711,7 +8792,7 @@ func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
 			idxMap[k] = int32(len(m.strEntries))
 			m.ext = idxMap
 		}
-		m.strEntries = append(m.strEntries, jStrMapEntry{key: k, val: v})
+		m.appendStrEntry(k, v)
 		m.Live++
 		return nil, true
 	case jMapModeSortedNat, jMapModeSortedCmp:

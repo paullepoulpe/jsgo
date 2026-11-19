@@ -1135,17 +1135,24 @@ func IR_Propdef(string_ Node, value Node) Node {
 // Java static method: IR.arraylit(com.google.javascript.rhino.Node[] exprs)
 func IR_Arraylit_1_Node(exprs []Node) Node {
 	_ = exprs
-	return IR_Arraylit_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_16 := exprs
 		if arr_16 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_17 := make([]any, len(arr_16))
 		for i_, el_18 := range arr_16 {
 			out_17[i_] = j2gort.BoxNode(el_18)
 		}
-		return out_17
-	}())))
+		iifeArg_1 = out_17
+		break iifeSwitch_1
+	}
+	return IR_Arraylit_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(iifeArg_1)))
 }
 
 // Java static method: IR.arraylit(java.lang.Iterable<com.google.javascript.rhino.Node> exprs)

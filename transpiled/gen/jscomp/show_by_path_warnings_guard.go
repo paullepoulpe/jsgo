@@ -33,7 +33,9 @@ func (this_ *ShowByPathWarningsGuard) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *ShowByPathWarningsGuard) IsJavaNil_() bool { return this_ == nil }
-func (*ShowByPathWarningsGuard) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.ShowByPathWarningsGuard", "ShowByPathWarningsGuard" }
+func (*ShowByPathWarningsGuard) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.ShowByPathWarningsGuard", "ShowByPathWarningsGuard"
+}
 func (this_ *ShowByPathWarningsGuard) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -102,11 +104,32 @@ func InitShowByPathWarningsGuard_2_slice_string_ShowByPathWarningsGuard_ShowType
 	_ = showType
 	InitWarningsGuard(&this_.WarningsGuardBase)
 	this_.initFields_ShowByPathWarningsGuard()
-	if !((paths != nil)) { j2gort.CheckArgument(false) }
-	if !((showType != 0)) { j2gort.CheckArgument(false) }
-	var pathList j2gort.Ext_com_google_common_collect_ImmutableList = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any { arr_1 := paths; if arr_1 == nil { return nil }; out_2 := make([]any, len(arr_1)); for i_, el_3 := range arr_1 { out_2[i_] = j2gort.BoxString(el_3) }; return out_2 }())
+	if !(paths != nil) {
+		j2gort.CheckArgument(false)
+	}
+	if !(showType != 0) {
+		j2gort.CheckArgument(false)
+	}
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
+		arr_1 := paths
+		if arr_1 == nil {
+			iifeArg_1 = nil
+			break iifeSwitch_1
+		}
+		out_2 := make([]any, len(arr_1))
+		for i_, el_3 := range arr_1 {
+			out_2[i_] = j2gort.BoxString(el_3)
+		}
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	var pathList j2gort.Ext_com_google_common_collect_ImmutableList = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_1)
 	_ = pathList
-	if ((showType == StaticGet_ShowByPathWarningsGuard_ShowType_INCLUDE())) {
+	if showType == StaticGet_ShowByPathWarningsGuard_ShowType_INCLUDE() {
 		this_.warningsGuard = ByPathWarningsGuard_ExceptPath(j2gort.AsIface[j2gort.Ext_java_util_List](pathList), StaticGet_CheckLevel_OFF())
 	} else {
 		this_.warningsGuard = ByPathWarningsGuard_ForPath(j2gort.AsIface[j2gort.Ext_java_util_List](pathList), StaticGet_CheckLevel_OFF())
@@ -161,12 +184,16 @@ func ShowByPathWarningsGuard_ShowType_ValueOf(name string) ShowByPathWarningsGua
 	panic(javalang.NewIllegalArgumentException("No enum constant com.google.javascript.jscomp.ShowByPathWarningsGuard.ShowType." + name))
 }
 
-func (this_ ShowByPathWarningsGuard_ShowType) IsJavaNil_() bool { return this_ == 0 }
-func (ShowByPathWarningsGuard_ShowType) HasIdentityEquals_() {}
-func (ShowByPathWarningsGuard_ShowType) Implements_j2gort_Ext_java_lang_Enum() {}
+func (this_ ShowByPathWarningsGuard_ShowType) IsJavaNil_() bool                              { return this_ == 0 }
+func (ShowByPathWarningsGuard_ShowType) HasIdentityEquals_()                                 {}
+func (ShowByPathWarningsGuard_ShowType) Implements_j2gort_Ext_java_lang_Enum()               {}
 func (ShowByPathWarningsGuard_ShowType) Implements_j2gort_Ext_java_lang_constant_Constable() {}
-func (this_ ShowByPathWarningsGuard_ShowType) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase { return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()} }
-func (ShowByPathWarningsGuard_ShowType) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.ShowByPathWarningsGuard$ShowType", "ShowType" }
+func (this_ ShowByPathWarningsGuard_ShowType) GetExt_java_lang_EnumBase() *j2gort.Ext_java_lang_EnumBase {
+	return &j2gort.Ext_java_lang_EnumBase{Core_: this_.GetEnumBase()}
+}
+func (ShowByPathWarningsGuard_ShowType) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.ShowByPathWarningsGuard$ShowType", "ShowType"
+}
 func (this_ ShowByPathWarningsGuard_ShowType) GetEnumBase() *j2gort.EnumBase {
 	if this_ == 0 {
 		return nil
@@ -225,4 +252,3 @@ func init() {
 		return j2gort.InstanceOf[ShowByPathWarningsGuard_ShowType](v_)
 	})
 }
-

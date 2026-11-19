@@ -50,6 +50,7 @@ type JSType interface {
 	GetJSTypeBase() *JSTypeBase
 	FastTypeClass() JSTypeClass
 	GetKindMask() int32
+	GetTypeId() int32
 	GetWellFormedTemplatizedKind() int32
 	MarkWellFormedTemplatizedOk()
 	MayHaveNonStringifiableKey() bool
@@ -398,6 +399,11 @@ func (this_ *JSTypeBase) FastTypeClass() JSTypeClass {
 // Java method: JSType.getKindMask()
 func (this_ *JSTypeBase) GetKindMask() int32 {
 	return this_.typeKindMask
+}
+
+// Java method: JSType.getTypeId()
+func (this_ *JSTypeBase) GetTypeId() int32 {
+	return this_.typeId
 }
 
 // Java method: JSType.getWellFormedTemplatizedKind()
@@ -1454,12 +1460,13 @@ func JSType_GetLeastSupertype(thisType JSType, thatType JSType) JSType {
 	clinit_JSType()
 	_ = thisType
 	_ = thatType
-	var areEquivalent bool = thisType.GetJSTypeBase().EqualsJSType(thatType)
+	base_thisType_ := thisType.GetJSTypeBase()
+	var areEquivalent bool = base_thisType_.EqualsJSType(thatType)
 	_ = areEquivalent
 	if areEquivalent {
 		return thisType
 	} else {
-		return thisType.GetJSTypeBase().registry.CreateUnionType_2(thisType, thatType)
+		return base_thisType_.registry.CreateUnionType_2(thisType, thatType)
 	}
 }
 
@@ -1572,12 +1579,13 @@ func (this_ *JSTypeBase) GetTypesUnderEquality(that JSType) JSType_TypePair {
 // Java method: JSType.getTypesUnderInequality(com.google.javascript.rhino.jstype.JSType that)
 func (this_ *JSTypeBase) GetTypesUnderInequality(that JSType) JSType_TypePair {
 	_ = that
-	if that.GetJSTypeBase().IsUnionType() {
+	base_that_ := that.GetJSTypeBase()
+	if base_that_.IsUnionType() {
 		var p JSType_TypePair = that.ToMaybeUnionType().GetTypesUnderInequality(this_.self_)
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if this_.priv_JSType_isNullTypeOrVoidType_9126() && that.GetJSTypeBase().priv_JSType_isNullTypeOrVoidType_9126() {
+	if this_.priv_JSType_isNullTypeOrVoidType_9150() && base_that_.priv_JSType_isNullTypeOrVoidType_9150() {
 		var noType JSType = this_.registry.GetNativeType(StaticGet_JSTypeNative_NO_TYPE())
 		_ = noType
 		return NewJSType_TypePair(noType, noType)
@@ -1601,14 +1609,14 @@ func (this_ *JSTypeBase) GetTypesUnderShallowInequality(that JSType) JSType_Type
 		_ = p
 		return NewJSType_TypePair(p.typeB, p.typeA)
 	}
-	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9126() {
+	if (this_.self_ == that || ((this_.self_ == nil || this_.self_.IsJavaNil_()) && (that == nil || that.IsJavaNil_()))) && this_.priv_JSType_isNullTypeOrVoidType_9150() {
 		return NewJSType_TypePair(nil, nil)
 	}
 	return NewJSType_TypePair(this_.self_, that)
 }
 
 // Java method: JSType.isNullTypeOrVoidType()
-func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9126() bool {
+func (this_ *JSTypeBase) priv_JSType_isNullTypeOrVoidType_9150() bool {
 	return ((this_.typeKindMask & (int32(131072) | int32(262144))) != int32(0))
 }
 

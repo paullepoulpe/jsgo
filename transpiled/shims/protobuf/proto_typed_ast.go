@@ -951,7 +951,7 @@ func (m *StringPoolProto) mergeFromStream(s *limProtoStream) {
 			entryLen := 1 + protoVarintLen(uint64(strLen)) + strLen
 			nc := len(m.wireChunks_)
 			if nc == 0 || cap(m.wireChunks_[nc-1])-len(m.wireChunks_[nc-1]) < entryLen {
-				chunkCap := min(4096<<min(nc, 6), 262144)
+				chunkCap := min(4096<<min(nc, 8), 1048576)
 				if s.rem >= 0 && chunkCap > s.rem+entryLen {
 					chunkCap = max(s.rem+entryLen, 256)
 				}

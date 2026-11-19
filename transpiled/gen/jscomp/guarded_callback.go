@@ -178,7 +178,7 @@ func (this_ *GuardedCallbackBase) Visit_3(traversal *NodeTraversal, n pkg_rhino.
 		this_.guarded.RemoveAll(j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.MultimapRemoveAllNode(this_.installedGuards, n)))
 	}
 	if GuardedCallback_IsAbrupt(n) {
-		this_.priv_GuardedCallback_promoteAbruptReturns_3173(parent)
+		this_.priv_GuardedCallback_promoteAbruptReturns_3180(parent)
 	}
 	this_.self_.VisitGuarded(traversal, n, parent)
 	poppedCtx_ := this_.contextStack.Pop()
@@ -195,7 +195,7 @@ func (this_ *GuardedCallbackBase) Visit_3(traversal *NodeTraversal, n pkg_rhino.
 }
 
 // Java method: GuardedCallback.promoteAbruptReturns(com.google.javascript.rhino.Node parent)
-func (this_ *GuardedCallbackBase) priv_GuardedCallback_promoteAbruptReturns_3173(parent pkg_rhino.Node) {
+func (this_ *GuardedCallbackBase) priv_GuardedCallback_promoteAbruptReturns_3180(parent pkg_rhino.Node) {
 	_ = parent
 	if parent.IsBlock() {
 		parent = parent.GetParent()
@@ -350,22 +350,35 @@ func InitGuardedCallback_Context(this_ *GuardedCallback_Context, conditional pkg
 func (this_ *GuardedCallback_Context) Link(newConditional pkg_rhino.Node, newSafe bool) *GuardedCallback_Context {
 	_ = newConditional
 	_ = newSafe
-	return NewGuardedCallback_Context(newConditional, newSafe, func() *GuardedCallback_Context {
+	var iifeArg_1 *GuardedCallback_Context
+iifeSwitch_1:
+	switch {
+	default:
+
 		if this_.conditional != 0 {
-			return this_
+			iifeArg_1 = this_
+			break iifeSwitch_1
 		}
-		return nil
-	}())
+		iifeArg_1 = nil
+		break iifeSwitch_1
+	}
+	return NewGuardedCallback_Context(newConditional, newSafe, iifeArg_1)
 }
 func (this_ *GuardedCallback_Context) linkWithSlab_(slab_ *j2gort.PooledSlab[GuardedCallback_Context], newConditional pkg_rhino.Node, newSafe bool) *GuardedCallback_Context {
 	_ = newConditional
 	_ = newSafe
-	return allocPooled_GuardedCallback_Context(slab_, newConditional, newSafe, func() *GuardedCallback_Context {
+	var iifeArg_1 *GuardedCallback_Context
+iifeSwitch_1:
+	switch {
+	default:
 		if this_.conditional != 0 {
-			return this_
+			iifeArg_1 = this_
+			break iifeSwitch_1
 		}
-		return nil
-	}())
+		iifeArg_1 = nil
+		break iifeSwitch_1
+	}
+	return allocPooled_GuardedCallback_Context(slab_, newConditional, newSafe, iifeArg_1)
 }
 
 // Java method: Context.propagate(boolean newSafe)

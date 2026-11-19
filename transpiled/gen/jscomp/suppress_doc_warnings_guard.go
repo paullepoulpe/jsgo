@@ -87,30 +87,30 @@ func (this_ *SuppressDocWarningsGuard) Level(error_ *JSError) *CheckLevel {
 	var node pkg_rhino.Node = error_.Node()
 	_ = node
 	if node == 0 {
-		node = this_.priv_SuppressDocWarningsGuard_getScriptNodeBySourceName_5192(error_)
+		node = this_.priv_SuppressDocWarningsGuard_getScriptNodeBySourceName_5207(error_)
 	}
 	if node == 0 {
 		return nil
 	}
-	var level *CheckLevel = this_.priv_SuppressDocWarningsGuard_getCheckLevelFromAncestors_5190(error_, node)
+	var level *CheckLevel = this_.priv_SuppressDocWarningsGuard_getCheckLevelFromAncestors_5205(error_, node)
 	_ = level
 	if level != nil {
 		return level
 	}
-	var scriptNode pkg_rhino.Node = this_.priv_SuppressDocWarningsGuard_getScriptNodeBySourceName_5192(error_)
+	var scriptNode pkg_rhino.Node = this_.priv_SuppressDocWarningsGuard_getScriptNodeBySourceName_5207(error_)
 	_ = scriptNode
 	if scriptNode != 0 {
 		var info *pkg_rhino.JSDocInfo = scriptNode.GetJSDocInfo()
 		_ = info
 		if info != nil {
-			return this_.priv_SuppressDocWarningsGuard_getCheckLevelFromInfo_5191(error_, info)
+			return this_.priv_SuppressDocWarningsGuard_getCheckLevelFromInfo_5206(error_, info)
 		}
 	}
 	return nil
 }
 
 // Java method: SuppressDocWarningsGuard.getCheckLevelFromAncestors(com.google.javascript.jscomp.JSError error, com.google.javascript.rhino.Node node)
-func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLevelFromAncestors_5190(error_ *JSError, node pkg_rhino.Node) *CheckLevel {
+func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLevelFromAncestors_5205(error_ *JSError, node pkg_rhino.Node) *CheckLevel {
 	_ = error_
 	_ = node
 	{
@@ -127,7 +127,7 @@ func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLev
 				info = NodeUtil_GetBestJSDocInfo(current)
 			}
 			if info != nil {
-				var level *CheckLevel = this_.priv_SuppressDocWarningsGuard_getCheckLevelFromInfo_5191(error_, info)
+				var level *CheckLevel = this_.priv_SuppressDocWarningsGuard_getCheckLevelFromInfo_5206(error_, info)
 				_ = level
 				if level != nil {
 					return level
@@ -139,7 +139,7 @@ func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLev
 }
 
 // Java method: SuppressDocWarningsGuard.getCheckLevelFromInfo(com.google.javascript.jscomp.JSError error, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLevelFromInfo_5191(error_ *JSError, info *pkg_rhino.JSDocInfo) *CheckLevel {
+func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLevelFromInfo_5206(error_ *JSError, info *pkg_rhino.JSDocInfo) *CheckLevel {
 	_ = error_
 	_ = info
 	{
@@ -161,7 +161,7 @@ func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getCheckLev
 }
 
 // Java method: SuppressDocWarningsGuard.getScriptNodeBySourceName(com.google.javascript.jscomp.JSError error)
-func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getScriptNodeBySourceName_5192(error_ *JSError) pkg_rhino.Node {
+func (this_ *SuppressDocWarningsGuard) priv_SuppressDocWarningsGuard_getScriptNodeBySourceName_5207(error_ *JSError) pkg_rhino.Node {
 	_ = error_
 	if error_.SourceName() == j2gort.NullString {
 		return pkg_rhino.Node(0)

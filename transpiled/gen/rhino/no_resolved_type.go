@@ -156,10 +156,17 @@ func (this_ *NoResolvedType) DefineProperty_4_Property_Key_JSType_bool_Node(prop
 // Java method: NoResolvedType.appendTo(com.google.javascript.rhino.jstype.TypeStringBuilder sb)
 func (this_ *NoResolvedType) AppendTo(sb *TypeStringBuilder) {
 	_ = sb
-	sb.Append_1_string(func() string {
+	var iifeArg_1 string
+iifeSwitch_1:
+	switch {
+	default:
+
 		if sb.IsForAnnotations() {
-			return "?"
+			iifeArg_1 = "?"
+			break iifeSwitch_1
 		}
-		return ("NoResolvedType<" + j2gort.StrValString(this_.referenceName) + ">")
-	}())
+		iifeArg_1 = ("NoResolvedType<" + j2gort.StrValString(this_.referenceName) + ">")
+		break iifeSwitch_1
+	}
+	sb.Append_1_string(iifeArg_1)
 }

@@ -1276,22 +1276,36 @@ func JsMessage_Hash_Hash64_2_string_int64(value string, seed int64) int64 {
 	if value == j2gort.NullString {
 		return JsMessage_Hash_Hash64_4(nil, int32(0), int32(0), seed)
 	}
-	return JsMessage_Hash_Hash64_2_slice_int8_int64(func() []int8 {
+	var iifeArg_1 []int8
+	{
+
 		_ = j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8
-		return j2gort.JStrGetBytes(value)
-	}(), seed)
+		iifeArg_1 = j2gort.JStrGetBytes(value)
+	}
+	return JsMessage_Hash_Hash64_2_slice_int8_int64(iifeArg_1,
+
+		seed)
 }
 
 // Java static method: Hash.hash64(byte[] value, long seed)
 func JsMessage_Hash_Hash64_2_slice_int8_int64(value []int8, seed int64) int64 {
 	_ = value
 	_ = seed
-	return JsMessage_Hash_Hash64_4(value, int32(0), func() int32 {
+	var iifeArg_2 int32
+iifeSwitch_1:
+	switch {
+	default:
+
 		if value == nil {
-			return int32(0)
+			iifeArg_2 = int32(0)
+			break iifeSwitch_1
 		}
-		return int32(len(value))
-	}(), seed)
+		iifeArg_2 = int32(len(value))
+		break iifeSwitch_1
+	}
+	return JsMessage_Hash_Hash64_4(value, int32(0), iifeArg_2,
+
+		seed)
 }
 
 // Java static method: Hash.hash64(byte @org.jspecify.annotations.Nullable [] value, int offset, int length, long seed)

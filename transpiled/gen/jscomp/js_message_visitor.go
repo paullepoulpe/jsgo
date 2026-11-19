@@ -386,12 +386,12 @@ func (this_ *JsMessageVisitorBase) Visit_3(traversal *NodeTraversal, node pkg_rh
 	_ = traversal
 	_ = node
 	_ = unused
-	this_.priv_JsMessageVisitor_collectGetMsgCall_3671(traversal, node)
-	this_.priv_JsMessageVisitor_checkMessageInitialization_3665(traversal, node)
+	this_.priv_JsMessageVisitor_collectGetMsgCall_3678(traversal, node)
+	this_.priv_JsMessageVisitor_checkMessageInitialization_3672(traversal, node)
 }
 
 // Java method: JsMessageVisitor.checkMessageInitialization(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node node)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_checkMessageInitialization_3665(traversal *NodeTraversal, node pkg_rhino.Node) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_checkMessageInitialization_3672(traversal *NodeTraversal, node pkg_rhino.Node) {
 	_ = traversal
 	_ = node
 	var parent pkg_rhino.Node = node.GetParent()
@@ -495,21 +495,21 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_checkMessageInitializat
 				}
 			}
 		}()
-		if this_.priv_JsMessageVisitor_isDeclareIcuTemplateCallee_3666(fnNameNode) {
-			var icuTemplateDefinition IcuTemplateDefinition = this_.priv_JsMessageVisitor_extractIcuTemplateDefinition_3678(msgNode, jsDocInfo, messageKeyFromLhs, sourceName)
+		if this_.priv_JsMessageVisitor_isDeclareIcuTemplateCallee_3673(fnNameNode) {
+			var icuTemplateDefinition IcuTemplateDefinition = this_.priv_JsMessageVisitor_extractIcuTemplateDefinition_3685(msgNode, jsDocInfo, messageKeyFromLhs, sourceName)
 			_ = icuTemplateDefinition
 			var extractedMessage *JsMessage = icuTemplateDefinition.GetMessage()
 			_ = extractedMessage
-			this_.priv_JsMessageVisitor_trackMessage_3668(traversal, possiblyObfuscatedMessageKey, msgNode, extractedMessage)
-			this_.priv_JsMessageVisitor_reportErrorIfEmptyMessage_3669(node, extractedMessage)
+			this_.priv_JsMessageVisitor_trackMessage_3675(traversal, possiblyObfuscatedMessageKey, msgNode, extractedMessage)
+			this_.priv_JsMessageVisitor_reportErrorIfEmptyMessage_3676(node, extractedMessage)
 			this_.self_.ProcessIcuTemplateDefinition(icuTemplateDefinition)
 		} else if fnNameNode.MatchesQualifiedName_1_string("goog.getMsg") {
-			var jsMessageDefinition JsMessageDefinition = this_.priv_JsMessageVisitor_extractJsMessageDefinition_3677(msgNode, jsDocInfo, messageKeyFromLhs, sourceName)
+			var jsMessageDefinition JsMessageDefinition = this_.priv_JsMessageVisitor_extractJsMessageDefinition_3684(msgNode, jsDocInfo, messageKeyFromLhs, sourceName)
 			_ = jsMessageDefinition
 			var extractedMessage_2 *JsMessage = jsMessageDefinition.GetMessage()
 			_ = extractedMessage_2
-			this_.priv_JsMessageVisitor_trackMessage_3668(traversal, possiblyObfuscatedMessageKey, msgNode, extractedMessage_2)
-			this_.priv_JsMessageVisitor_reportErrorIfEmptyMessage_3669(node, extractedMessage_2)
+			this_.priv_JsMessageVisitor_trackMessage_3675(traversal, possiblyObfuscatedMessageKey, msgNode, extractedMessage_2)
+			this_.priv_JsMessageVisitor_reportErrorIfEmptyMessage_3676(node, extractedMessage_2)
 			var desc string = extractedMessage_2.GetDesc()
 			_ = desc
 			if ((desc == j2gort.NullString) || (j2gort.CheckNotNullString(javalang.StringTrim(j2gort.CheckNotNullString(desc))) == "")) && !(extractedMessage_2.IsExternal()) {
@@ -523,7 +523,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_checkMessageInitializat
 }
 
 // Java method: JsMessageVisitor.isDeclareIcuTemplateCallee(com.google.javascript.rhino.Node calleeNode)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_isDeclareIcuTemplateCallee_3666(calleeNode pkg_rhino.Node) bool {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_isDeclareIcuTemplateCallee_3673(calleeNode pkg_rhino.Node) bool {
 	_ = calleeNode
 	if calleeNode.IsName() {
 		return javalang.StringEndsWith(j2gort.CheckNotNullString(calleeNode.GetString()), "declareIcuTemplate")
@@ -535,7 +535,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_isDeclareIcuTemplateCal
 }
 
 // Java method: JsMessageVisitor.buildJsMessage(com.google.javascript.jscomp.JsMessageVisitor.InputForBuildJsMsg input)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_buildJsMessage_3667(input JsMessageVisitor_InputForBuildJsMsg) *JsMessage {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_buildJsMessage_3674(input JsMessageVisitor_InputForBuildJsMsg) *JsMessage {
 	_ = input
 	var messageParts j2gort.Ext_com_google_common_collect_ImmutableList = input.GetMessageParts()
 	_ = messageParts
@@ -562,7 +562,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_buildJsMessage_3667(inp
 		_ = meaningForIdGeneration
 		if JsMessageVisitor_IsUnnamedMessageName(messageKeyFromLhs) {
 			isAnonymous = true
-			messageKeyFinal = this_.priv_JsMessageVisitor_generateKeyFromMessageText_3670(input.GetMessageText())
+			messageKeyFinal = this_.priv_JsMessageVisitor_generateKeyFromMessageText_3677(input.GetMessageText())
 			if meaningForIdGeneration == j2gort.NullString {
 				meaningForIdGeneration = messageKeyFinal
 			}
@@ -583,23 +583,23 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_buildJsMessage_3667(inp
 }
 
 // Java method: JsMessageVisitor.trackMessage(com.google.javascript.jscomp.NodeTraversal traversal, java.lang.String possiblyObfuscatedMessageKey, com.google.javascript.rhino.Node msgNode, com.google.javascript.jscomp.JsMessage extractedMessage)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackMessage_3668(traversal *NodeTraversal, possiblyObfuscatedMessageKey string, msgNode pkg_rhino.Node, extractedMessage *JsMessage) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackMessage_3675(traversal *NodeTraversal, possiblyObfuscatedMessageKey string, msgNode pkg_rhino.Node, extractedMessage *JsMessage) {
 	_ = traversal
 	_ = possiblyObfuscatedMessageKey
 	_ = msgNode
 	_ = extractedMessage
 	if !(extractedMessage.IsAnonymous()) && !(extractedMessage.IsExternal()) {
-		this_.priv_JsMessageVisitor_checkIfMessageDuplicated_3676(extractedMessage.GetKey(), msgNode)
+		this_.priv_JsMessageVisitor_checkIfMessageDuplicated_3683(extractedMessage.GetKey(), msgNode)
 	}
 	if extractedMessage.IsAnonymous() {
-		this_.priv_JsMessageVisitor_trackUnnamedMessage_3673(traversal, extractedMessage, possiblyObfuscatedMessageKey)
+		this_.priv_JsMessageVisitor_trackUnnamedMessage_3680(traversal, extractedMessage, possiblyObfuscatedMessageKey)
 	} else {
-		this_.priv_JsMessageVisitor_trackNormalMessage_3672(extractedMessage, extractedMessage.GetKey(), msgNode)
+		this_.priv_JsMessageVisitor_trackNormalMessage_3679(extractedMessage, extractedMessage.GetKey(), msgNode)
 	}
 }
 
 // Java method: JsMessageVisitor.reportErrorIfEmptyMessage(com.google.javascript.rhino.Node node, com.google.javascript.jscomp.JsMessage extractedMessage)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_reportErrorIfEmptyMessage_3669(node pkg_rhino.Node, extractedMessage *JsMessage) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_reportErrorIfEmptyMessage_3676(node pkg_rhino.Node, extractedMessage *JsMessage) {
 	_ = node
 	_ = extractedMessage
 	if extractedMessage.IsEmpty() {
@@ -631,7 +631,7 @@ func JsMessageVisitor_GetExternalMessageId(messageKey string) string {
 }
 
 // Java method: JsMessageVisitor.generateKeyFromMessageText(java.lang.String msgText)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_generateKeyFromMessageText_3670(msgText string) string {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_generateKeyFromMessageText_3677(msgText string) string {
 	_ = msgText
 	var nonnegativeHash int64 = (int64(9223372036854775807) & JsMessage_Hash_Hash64_1(msgText))
 	_ = nonnegativeHash
@@ -639,7 +639,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_generateKeyFromMessageT
 }
 
 // Java method: JsMessageVisitor.collectGetMsgCall(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node call)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_collectGetMsgCall_3671(traversal *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_collectGetMsgCall_3678(traversal *NodeTraversal, call pkg_rhino.Node) {
 	_ = traversal
 	_ = call
 	if !(call.IsCall()) {
@@ -647,15 +647,15 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_collectGetMsgCall_3671(
 	}
 	var callee pkg_rhino.Node = call.GetFirstChild()
 	_ = callee
-	if callee.MatchesQualifiedName_1_string("goog.getMsg") || this_.priv_JsMessageVisitor_isDeclareIcuTemplateCallee_3666(callee) {
+	if callee.MatchesQualifiedName_1_string("goog.getMsg") || this_.priv_JsMessageVisitor_isDeclareIcuTemplateCallee_3673(callee) {
 		this_.googMsgNodes.Add(call)
 	} else if callee.MatchesQualifiedName_1_string("goog.getMsgWithFallback") {
-		this_.priv_JsMessageVisitor_visitFallbackFunctionCall_3682(traversal, call)
+		this_.priv_JsMessageVisitor_visitFallbackFunctionCall_3689(traversal, call)
 	}
 }
 
 // Java method: JsMessageVisitor.trackNormalMessage(com.google.javascript.jscomp.JsMessage message, java.lang.String msgName, com.google.javascript.rhino.Node msgNode)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackNormalMessage_3672(message *JsMessage, msgName string, msgNode pkg_rhino.Node) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackNormalMessage_3679(message *JsMessage, msgName string, msgNode pkg_rhino.Node) {
 	_ = message
 	_ = msgName
 	_ = msgNode
@@ -667,7 +667,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackNormalMessage_3672
 }
 
 // Java method: JsMessageVisitor.trackUnnamedMessage(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.JsMessage message, java.lang.String msgNameInScope)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackUnnamedMessage_3673(t *NodeTraversal, message *JsMessage, msgNameInScope string) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_trackUnnamedMessage_3680(t *NodeTraversal, message *JsMessage, msgNameInScope string) {
 	_ = t
 	_ = message
 	_ = msgNameInScope
@@ -702,7 +702,7 @@ func JsMessageVisitor_IsLegalMessageVarAlias(msgNode pkg_rhino.Node) bool {
 }
 
 // Java method: JsMessageVisitor.getTrackedUnnamedMessage(com.google.javascript.jscomp.NodeTraversal t, java.lang.String msgNameInScope)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getTrackedUnnamedMessage_3674(t *NodeTraversal, msgNameInScope string) *JsMessage {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getTrackedUnnamedMessage_3681(t *NodeTraversal, msgNameInScope string) *JsMessage {
 	_ = t
 	_ = msgNameInScope
 	var var_ *Var = j2gort.CastPtr[Var](t.GetScope().GetVar(msgNameInScope))
@@ -714,7 +714,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getTrackedUnnamedMessag
 }
 
 // Java method: JsMessageVisitor.getTrackedNormalMessage(java.lang.String msgName)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getTrackedNormalMessage_3675(msgName string) *JsMessage {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getTrackedNormalMessage_3682(msgName string) *JsMessage {
 	_ = msgName
 	var location *JsMessageVisitor_MessageLocation = this_.messageNames.Get(msgName)
 	_ = location
@@ -726,7 +726,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getTrackedNormalMessage
 }
 
 // Java method: JsMessageVisitor.checkIfMessageDuplicated(java.lang.String msgName, com.google.javascript.rhino.Node msgNode)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_checkIfMessageDuplicated_3676(msgName string, msgNode pkg_rhino.Node) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_checkIfMessageDuplicated_3683(msgName string, msgNode pkg_rhino.Node) {
 	_ = msgName
 	_ = msgNode
 	if this_.messageNames.ContainsKey(msgName) {
@@ -767,7 +767,7 @@ func JsMessageVisitor_ExtractStringFromStringExprNode(node pkg_rhino.Node) strin
 }
 
 // Java method: JsMessageVisitor.extractJsMessageDefinition(com.google.javascript.rhino.Node msgNode, com.google.javascript.rhino.JSDocInfo jsDocInfo, java.lang.String messageKeyFromLhs, java.lang.String sourceName)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractJsMessageDefinition_3677(msgNode pkg_rhino.Node, jsDocInfo *pkg_rhino.JSDocInfo, messageKeyFromLhs string, sourceName string) JsMessageDefinition {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractJsMessageDefinition_3684(msgNode pkg_rhino.Node, jsDocInfo *pkg_rhino.JSDocInfo, messageKeyFromLhs string, sourceName string) JsMessageDefinition {
 	_ = msgNode
 	_ = jsDocInfo
 	_ = messageKeyFromLhs
@@ -843,16 +843,16 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractJsMessageDefinit
 	placeholderObjectLiteralMap.CheckForUnexpectedKeys(j2gort.AsIface[j2gort.Ext_java_util_Set](placeholderNamesFromText), lambdaSingleton_js_message_visitor_1)
 	var placeholderValuesMap j2gort.Ext_com_google_common_collect_ImmutableMap = placeholderObjectLiteralMap.ExtractAsValueMap()
 	_ = placeholderValuesMap
-	var jsMessageOptions JsMessageVisitor_JsMessageOptions = this_.priv_JsMessageVisitor_extractJsMessageOptions_3680(optionsBagArgument)
+	var jsMessageOptions JsMessageVisitor_JsMessageOptions = this_.priv_JsMessageVisitor_extractJsMessageOptions_3687(optionsBagArgument)
 	_ = jsMessageOptions
 	jsMessageOptions.CheckForUnknownPlaceholders(j2gort.AsIface[j2gort.Ext_java_util_Set](placeholderNamesFromText))
-	var jsExtractedMessage *JsMessage = this_.priv_JsMessageVisitor_buildJsMessage_3667(NewJsMessageVisitor__Anon_56(this_.self_, messageKeyFromLhs, sourceName, googGetMsgParsedText, jsMessageOptions, description, meaning, alternateMessageId))
+	var jsExtractedMessage *JsMessage = this_.priv_JsMessageVisitor_buildJsMessage_3674(NewJsMessageVisitor__Anon_56(this_.self_, messageKeyFromLhs, sourceName, googGetMsgParsedText, jsMessageOptions, description, meaning, alternateMessageId))
 	_ = jsExtractedMessage
 	return NewJsMessageVisitor__Anon_57(this_.self_, jsExtractedMessage, msgNode, msgTextNode, valuesObjLit, placeholderValuesMap, jsMessageOptions)
 }
 
 // Java method: JsMessageVisitor.extractIcuTemplateDefinition(com.google.javascript.rhino.Node msgNode, com.google.javascript.rhino.JSDocInfo jsDocInfo, java.lang.String messageKeyFromLhs, java.lang.String sourceName)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuTemplateDefinition_3678(msgNode pkg_rhino.Node, jsDocInfo *pkg_rhino.JSDocInfo, messageKeyFromLhs string, sourceName string) IcuTemplateDefinition {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuTemplateDefinition_3685(msgNode pkg_rhino.Node, jsDocInfo *pkg_rhino.JSDocInfo, messageKeyFromLhs string, sourceName string) IcuTemplateDefinition {
 	_ = msgNode
 	_ = jsDocInfo
 	_ = messageKeyFromLhs
@@ -873,14 +873,14 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuTemplateDefin
 	if stringLiteralExpression == 0 {
 		panic(NewJsMessageVisitor_MalformedException("message string argument expected", msgNode))
 	}
-	var icuMessageTemplateString *JsMessageVisitor_IcuMessageTemplateString = this_.priv_JsMessageVisitor_extractIcuMessageTemplateString_3679(stringLiteralExpression)
+	var icuMessageTemplateString *JsMessageVisitor_IcuMessageTemplateString = this_.priv_JsMessageVisitor_extractIcuMessageTemplateString_3686(stringLiteralExpression)
 	_ = icuMessageTemplateString
 	var optionsBagNode pkg_rhino.Node = stringLiteralExpression.GetNext()
 	_ = optionsBagNode
 	if optionsBagNode == 0 {
 		panic(NewJsMessageVisitor_MalformedException("options argument expected", msgNode))
 	}
-	var icuTemplateOptions JsMessageVisitor_IcuTemplateOptions = this_.priv_JsMessageVisitor_extractIcuTemplateOptions_3681(optionsBagNode)
+	var icuTemplateOptions JsMessageVisitor_IcuTemplateOptions = this_.priv_JsMessageVisitor_extractIcuTemplateOptions_3688(optionsBagNode)
 	_ = icuTemplateOptions
 	var extractedIcuTemplateParts *JsMessageVisitor_ExtractedIcuTemplateParts = icuMessageTemplateString.ExtractParts(j2gort.AsIface[j2gort.Ext_java_util_Set](icuTemplateOptions.GetPlaceholderNames()))
 	_ = extractedIcuTemplateParts
@@ -890,13 +890,13 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuTemplateDefin
 	if unexpectedArgument != 0 {
 		panic(NewJsMessageVisitor_MalformedException("too many arguments", unexpectedArgument))
 	}
-	var extractedMessage *JsMessage = this_.priv_JsMessageVisitor_buildJsMessage_3667(NewJsMessageVisitor__Anon_58(this_.self_, messageKeyFromLhs, sourceName, icuMessageTemplateString, extractedIcuTemplateParts, icuTemplateOptions))
+	var extractedMessage *JsMessage = this_.priv_JsMessageVisitor_buildJsMessage_3674(NewJsMessageVisitor__Anon_58(this_.self_, messageKeyFromLhs, sourceName, icuMessageTemplateString, extractedIcuTemplateParts, icuTemplateOptions))
 	_ = extractedMessage
 	return NewJsMessageVisitor__Anon_59(this_.self_, extractedMessage, msgNode, stringLiteralExpression)
 }
 
 // Java method: JsMessageVisitor.extractIcuMessageTemplateString(com.google.javascript.rhino.Node stringExpression)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuMessageTemplateString_3679(stringExpression pkg_rhino.Node) *JsMessageVisitor_IcuMessageTemplateString {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuMessageTemplateString_3686(stringExpression pkg_rhino.Node) *JsMessageVisitor_IcuMessageTemplateString {
 	_ = stringExpression
 	var templateString string = JsMessageVisitor_ExtractStringFromStringExprNode(stringExpression)
 	_ = templateString
@@ -904,7 +904,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuMessageTempla
 }
 
 // Java method: JsMessageVisitor.extractJsMessageOptions(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node optionsBag)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractJsMessageOptions_3680(optionsBag pkg_rhino.Node) JsMessageVisitor_JsMessageOptions {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractJsMessageOptions_3687(optionsBag pkg_rhino.Node) JsMessageVisitor_JsMessageOptions {
 	_ = optionsBag
 	var objectLiteralMap JsMessageVisitor_ObjectLiteralMap = JsMessageVisitor_ExtractObjectLiteralMap(optionsBag)
 	_ = objectLiteralMap
@@ -929,7 +929,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractJsMessageOptions
 }
 
 // Java method: JsMessageVisitor.extractIcuTemplateOptions(com.google.javascript.rhino.Node optionsBag)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuTemplateOptions_3681(optionsBag pkg_rhino.Node) JsMessageVisitor_IcuTemplateOptions {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_extractIcuTemplateOptions_3688(optionsBag pkg_rhino.Node) JsMessageVisitor_IcuTemplateOptions {
 	_ = optionsBag
 	var objectLiteralMap JsMessageVisitor_ObjectLiteralMap = JsMessageVisitor_ExtractObjectLiteralMap(optionsBag)
 	_ = objectLiteralMap
@@ -1093,7 +1093,7 @@ func JsMessageVisitor_ExtractGoogGetMsgParsedText(originalMsgText string) JsMess
 }
 
 // Java method: JsMessageVisitor.visitFallbackFunctionCall(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node call)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_visitFallbackFunctionCall_3682(t *NodeTraversal, call pkg_rhino.Node) {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_visitFallbackFunctionCall_3689(t *NodeTraversal, call pkg_rhino.Node) {
 	_ = t
 	_ = call
 	if (!(call.HasXChildren(int32(3))) || !(JsMessageVisitor_IsMessageIdentifier(call.GetSecondChild()))) || !(JsMessageVisitor_IsMessageIdentifier(call.GetLastChild())) {
@@ -1102,7 +1102,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_visitFallbackFunctionCa
 	}
 	var firstArg pkg_rhino.Node = call.GetSecondChild()
 	_ = firstArg
-	var firstMessage *JsMessage = this_.priv_JsMessageVisitor_getJsMessageFromNode_3685(t, firstArg)
+	var firstMessage *JsMessage = this_.priv_JsMessageVisitor_getJsMessageFromNode_3692(t, firstArg)
 	_ = firstMessage
 	if firstMessage == nil {
 		this_.compiler.Report_1(JSError_Make_3(firstArg, StaticGet_JsMessageVisitor_FALLBACK_ARG_ERROR(), []string{firstArg.GetQualifiedName()}))
@@ -1110,7 +1110,7 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_visitFallbackFunctionCa
 	}
 	var secondArg pkg_rhino.Node = firstArg.GetNext()
 	_ = secondArg
-	var secondMessage *JsMessage = this_.priv_JsMessageVisitor_getJsMessageFromNode_3685(t, secondArg)
+	var secondMessage *JsMessage = this_.priv_JsMessageVisitor_getJsMessageFromNode_3692(t, secondArg)
 	_ = secondMessage
 	if secondMessage == nil {
 		this_.compiler.Report_1(JSError_Make_3(secondArg, StaticGet_JsMessageVisitor_FALLBACK_ARG_ERROR(), []string{secondArg.GetQualifiedName()}))
@@ -1169,7 +1169,7 @@ func JsMessageVisitor_IsMessageIdentifier(node pkg_rhino.Node) bool {
 }
 
 // Java method: JsMessageVisitor.getJsMessageFromNode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node node)
-func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getJsMessageFromNode_3685(t *NodeTraversal, node pkg_rhino.Node) *JsMessage {
+func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getJsMessageFromNode_3692(t *NodeTraversal, node pkg_rhino.Node) *JsMessage {
 	_ = t
 	_ = node
 	var messageName string = node.GetQualifiedName()
@@ -1180,9 +1180,9 @@ func (this_ *JsMessageVisitorBase) priv_JsMessageVisitor_getJsMessageFromNode_36
 	var messageKey string = j2gort.JStrSubFrom(messageName, j2gort.JStrIndexOf(messageName, "MSG_"))
 	_ = messageKey
 	if JsMessageVisitor_IsUnnamedMessageName(messageKey) {
-		return this_.priv_JsMessageVisitor_getTrackedUnnamedMessage_3674(t, messageName)
+		return this_.priv_JsMessageVisitor_getTrackedUnnamedMessage_3681(t, messageName)
 	} else {
-		return this_.priv_JsMessageVisitor_getTrackedNormalMessage_3675(messageKey)
+		return this_.priv_JsMessageVisitor_getTrackedNormalMessage_3682(messageKey)
 	}
 }
 

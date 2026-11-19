@@ -948,12 +948,19 @@ func (this_ *CodeGeneratorBase) Add_3(node pkg_rhino.Node, context CodeGenerator
 		}
 	case int32(29) /* Token.OPTCHAIN_GETPROP */ :
 		this_.priv_CodeGenerator_addExpr_1328(first, NodeUtil_Precedence(type_), context)
-		this_.Add_1_string(func() string {
+		var iifeArg_1 string
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if node.IsOptionalChainStart() {
-				return "?."
+				iifeArg_1 = "?."
+				break iifeSwitch_1
 			}
-			return "."
-		}())
+			iifeArg_1 = "."
+			break iifeSwitch_1
+		}
+		this_.Add_1_string(iifeArg_1)
 		this_.priv_CodeGenerator_addGetpropIdentifier_1316(node)
 	case int32(26) /* Token.GETPROP */ :
 		if this_.useOriginalName && (node.GetOriginalName() != j2gort.NullString) {
@@ -1584,12 +1591,19 @@ func (this_ *CodeGeneratorBase) priv_CodeGenerator_addFunction_1321(n pkg_rhino.
 	if funcNeedsParens {
 		this_.Add_1_string("(")
 	}
-	this_.Add_1_string(func() string {
+	var iifeArg_2 string
+iifeSwitch_2:
+	switch {
+	default:
+
 		if n.IsAsyncFunction() {
-			return "async function"
+			iifeArg_2 = "async function"
+			break iifeSwitch_2
 		}
-		return "function"
-	}())
+		iifeArg_2 = "function"
+		break iifeSwitch_2
+	}
+	this_.Add_1_string(iifeArg_2)
 	if n.IsGeneratorFunction() {
 		this_.Add_1_string("*")
 		if !(j2gort.CheckNotNullString(first.GetString()) == "") {

@@ -190,7 +190,7 @@ func (this_ *JsDocTokenStream) ClearSource() {
 }
 
 // Java method: JsDocTokenStream.resetStringBuffer()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_resetStringBuffer_7105() {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_resetStringBuffer_7125() {
 	this_.stringBufferTop = int32(0)
 	this_.rawTokenStart = int32(-1)
 	this_.rawTokenContiguous = false
@@ -200,7 +200,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_resetStringBuffer_7105() {
 func (this_ *JsDocTokenStream) GetJsDocToken() JsDocToken {
 	var c int32 = int32(0)
 	_ = c
-	this_.priv_JsDocTokenStream_resetStringBuffer_7105()
+	this_.priv_JsDocTokenStream_resetStringBuffer_7125()
 	for {
 		for {
 			this_.charno = int32(-1)
@@ -218,17 +218,17 @@ func (this_ *JsDocTokenStream) GetJsDocToken() JsDocToken {
 			for doFirst_2 := true; doFirst_2 || (true); doFirst_2 = false {
 				c = this_.GetChar()
 				if JsDocTokenStream_IsAlpha(c) {
-					this_.priv_JsDocTokenStream_addToString_7112(c)
+					this_.priv_JsDocTokenStream_addToString_7132(c)
 				} else {
 					this_.UngetChar(c)
-					this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7111()
-					this_.priv_JsDocTokenStream_resetStringBuffer_7105()
+					this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7131()
+					this_.priv_JsDocTokenStream_resetStringBuffer_7125()
 					return StaticGet_JsDocToken_ANNOTATION()
 				}
 			}
 			fallthrough
 		case int32(uint16(42)):
-			if this_.priv_JsDocTokenStream_matchChar_7117(int32(uint16(47))) {
+			if this_.priv_JsDocTokenStream_matchChar_7137(int32(uint16(47))) {
 				return StaticGet_JsDocToken_EOC()
 			} else {
 				return StaticGet_JsDocToken_STAR()
@@ -271,10 +271,10 @@ func (this_ *JsDocTokenStream) GetJsDocToken() JsDocToken {
 					if c == int32(uint16(46)) {
 						return StaticGet_JsDocToken_ITER_REST()
 					} else {
-						this_.priv_JsDocTokenStream_addToString_7112(int32(uint16(46)))
+						this_.priv_JsDocTokenStream_addToString_7132(int32(uint16(46)))
 					}
 				}
-				this_.priv_JsDocTokenStream_pushUnget_7113(c)
+				this_.priv_JsDocTokenStream_pushUnget_7133(c)
 				c = int32(uint16(46))
 			}
 			fallthrough
@@ -282,13 +282,13 @@ func (this_ *JsDocTokenStream) GetJsDocToken() JsDocToken {
 			{
 				var c1 int32 = c
 				_ = c1
-				this_.priv_JsDocTokenStream_addToString_7112(c)
+				this_.priv_JsDocTokenStream_addToString_7132(c)
 				var c2 int32 = this_.GetChar()
 				_ = c2
 				if !(JsDocTokenStream_IsJSDocString(c2)) {
 					this_.UngetChar(c2)
-					this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7111()
-					this_.priv_JsDocTokenStream_resetStringBuffer_7105()
+					this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7131()
+					this_.priv_JsDocTokenStream_resetStringBuffer_7125()
 					return StaticGet_JsDocToken_STRING()
 				} else {
 					for doFirst_3 := true; doFirst_3 || (true); doFirst_3 = false {
@@ -297,17 +297,17 @@ func (this_ *JsDocTokenStream) GetJsDocToken() JsDocToken {
 						if (c1 == int32(uint16(46))) && (c2 == int32(uint16(60))) {
 							this_.UngetChar(c2)
 							this_.UngetChar(c1)
-							this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7111()
-							this_.priv_JsDocTokenStream_resetStringBuffer_7105()
+							this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7131()
+							this_.priv_JsDocTokenStream_resetStringBuffer_7125()
 							return StaticGet_JsDocToken_STRING()
 						} else {
 							if JsDocTokenStream_IsJSDocString(c2) {
-								this_.priv_JsDocTokenStream_addToString_7112(c1)
+								this_.priv_JsDocTokenStream_addToString_7132(c1)
 							} else {
 								this_.UngetChar(c2)
-								this_.priv_JsDocTokenStream_addToString_7112(c1)
-								this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7111()
-								this_.priv_JsDocTokenStream_resetStringBuffer_7105()
+								this_.priv_JsDocTokenStream_addToString_7132(c1)
+								this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7131()
+								this_.priv_JsDocTokenStream_resetStringBuffer_7125()
 								return StaticGet_JsDocToken_STRING()
 							}
 						}
@@ -327,18 +327,18 @@ func (this_ *JsDocTokenStream) GetRemainingJSDocLine() string {
 		c = this_.GetChar()
 		switch c {
 		case int32(uint16(42)):
-			if this_.priv_JsDocTokenStream_peekChar_7119() != int32(uint16(47)) {
-				this_.priv_JsDocTokenStream_addToString_7112(c)
+			if this_.priv_JsDocTokenStream_peekChar_7139() != int32(uint16(47)) {
+				this_.priv_JsDocTokenStream_addToString_7132(c)
 				break
 			}
 			fallthrough
 		case int32(-1), int32(uint16(10)):
 			this_.UngetChar(c)
-			this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7111()
-			this_.priv_JsDocTokenStream_resetStringBuffer_7105()
+			this_.string_ = this_.priv_JsDocTokenStream_getStringFromBuffer_7131()
+			this_.priv_JsDocTokenStream_resetStringBuffer_7125()
 			return this_.string_
 		default:
-			this_.priv_JsDocTokenStream_addToString_7112(c)
+			this_.priv_JsDocTokenStream_addToString_7132(c)
 		}
 	}
 	panic("unreachable")
@@ -364,7 +364,7 @@ func (this_ *JsDocTokenStream) GetString() string {
 }
 
 // Java method: JsDocTokenStream.getStringFromBuffer()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getStringFromBuffer_7111() string {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getStringFromBuffer_7131() string {
 	var top int32 = this_.stringBufferTop
 	_ = top
 	if top == int32(0) {
@@ -382,7 +382,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getStringFromBuffer_7111() 
 }
 
 // Java method: JsDocTokenStream.addToString(int c)
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_addToString_7112(c int32) {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_addToString_7132(c int32) {
 	_ = c
 	var n int32 = this_.stringBufferTop
 	_ = n
@@ -439,7 +439,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_addToString_7112(c int32) {
 }
 
 // Java method: JsDocTokenStream.pushUnget(int c)
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_pushUnget_7113(c int32) {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_pushUnget_7133(c int32) {
 	_ = c
 	switch func() int32 {
 		old_14 := this_.ungetCursor
@@ -459,7 +459,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_pushUnget_7113(c int32) {
 }
 
 // Java method: JsDocTokenStream.popUnget()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_popUnget_7114() int32 {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_popUnget_7134() int32 {
 	switch func() int32 {
 		old_16 := this_.ungetCursor
 		nw_17 := old_16 - 1
@@ -479,7 +479,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_popUnget_7114() int32 {
 }
 
 // Java method: JsDocTokenStream.lastUnget()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_lastUnget_7115() int32 {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_lastUnget_7135() int32 {
 	switch this_.ungetCursor - int32(1) {
 	case int32(0):
 		return this_.unget0
@@ -494,22 +494,22 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_lastUnget_7115() int32 {
 // Java method: JsDocTokenStream.ungetChar(int c)
 func (this_ *JsDocTokenStream) UngetChar(c int32) {
 	_ = c
-	if !(!((this_.ungetCursor != int32(0)) && (this_.priv_JsDocTokenStream_lastUnget_7115() == int32(uint16(10))))) {
+	if !(!((this_.ungetCursor != int32(0)) && (this_.priv_JsDocTokenStream_lastUnget_7135() == int32(uint16(10))))) {
 		panic(javalang.NewAssertionError(nil))
 	}
-	this_.priv_JsDocTokenStream_pushUnget_7113(c)
+	this_.priv_JsDocTokenStream_pushUnget_7133(c)
 	this_.cursor = this_.cursor - 1
 }
 
 // Java method: JsDocTokenStream.matchChar(int test)
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_matchChar_7117(test int32) bool {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_matchChar_7137(test int32) bool {
 	_ = test
-	var c int32 = this_.priv_JsDocTokenStream_getCharIgnoreLineEnd_7121()
+	var c int32 = this_.priv_JsDocTokenStream_getCharIgnoreLineEnd_7141()
 	_ = c
 	if c == test {
 		return true
 	} else {
-		this_.priv_JsDocTokenStream_ungetCharIgnoreLineEnd_7122(c)
+		this_.priv_JsDocTokenStream_ungetCharIgnoreLineEnd_7142(c)
 		return false
 	}
 }
@@ -540,11 +540,11 @@ func JsDocTokenStream_IsJSDocString(c int32) bool {
 
 // Java method: JsDocTokenStream.update()
 func (this_ *JsDocTokenStream) Update() {
-	this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+	this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 }
 
 // Java method: JsDocTokenStream.peekChar()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_peekChar_7119() int32 {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_peekChar_7139() int32 {
 	var c int32 = this_.GetChar()
 	_ = c
 	this_.UngetChar(c)
@@ -555,10 +555,10 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_peekChar_7119() int32 {
 func (this_ *JsDocTokenStream) GetChar() int32 {
 	if this_.ungetCursor != int32(0) {
 		this_.cursor = this_.cursor + 1
-		var c int32 = this_.priv_JsDocTokenStream_popUnget_7114()
+		var c int32 = this_.priv_JsDocTokenStream_popUnget_7134()
 		_ = c
 		if this_.charno == int32(-1) {
-			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 		}
 		return c
 	}
@@ -567,7 +567,7 @@ func (this_ *JsDocTokenStream) GetChar() int32 {
 		_ = c_2
 		if this_.sourceCursor == this_.sourceEnd {
 			if this_.charno == int32(-1) {
-				this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+				this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 			}
 			return int32(-1)
 		}
@@ -602,7 +602,7 @@ func (this_ *JsDocTokenStream) GetChar() int32 {
 			}
 		}
 		if this_.charno == int32(-1) {
-			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 		}
 		return c_2
 	}
@@ -610,13 +610,13 @@ func (this_ *JsDocTokenStream) GetChar() int32 {
 }
 
 // Java method: JsDocTokenStream.getCharIgnoreLineEnd()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getCharIgnoreLineEnd_7121() int32 {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getCharIgnoreLineEnd_7141() int32 {
 	if this_.ungetCursor != int32(0) {
 		this_.cursor = this_.cursor + 1
-		var c int32 = this_.priv_JsDocTokenStream_popUnget_7114()
+		var c int32 = this_.priv_JsDocTokenStream_popUnget_7134()
 		_ = c
 		if this_.charno == int32(-1) {
-			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 		}
 		return c
 	}
@@ -625,7 +625,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getCharIgnoreLineEnd_7121()
 		_ = c_2
 		if this_.sourceCursor == this_.sourceEnd {
 			if this_.charno == int32(-1) {
-				this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+				this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 			}
 			return int32(-1)
 		}
@@ -651,7 +651,7 @@ func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getCharIgnoreLineEnd_7121()
 			}
 		}
 		if this_.charno == int32(-1) {
-			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7123()
+			this_.charno = this_.priv_JsDocTokenStream_getLineOffset_7143()
 		}
 		return c_2
 	}
@@ -669,14 +669,14 @@ func JsDocTokenStream_IsJSLineTerminator(c int32) bool {
 }
 
 // Java method: JsDocTokenStream.ungetCharIgnoreLineEnd(int c)
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_ungetCharIgnoreLineEnd_7122(c int32) {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_ungetCharIgnoreLineEnd_7142(c int32) {
 	_ = c
-	this_.priv_JsDocTokenStream_pushUnget_7113(c)
+	this_.priv_JsDocTokenStream_pushUnget_7133(c)
 	this_.cursor = this_.cursor - 1
 }
 
 // Java method: JsDocTokenStream.getLineOffset()
-func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getLineOffset_7123() int32 {
+func (this_ *JsDocTokenStream) priv_JsDocTokenStream_getLineOffset_7143() int32 {
 	return (((this_.sourceCursor - this_.lineStart) - this_.ungetCursor) - int32(1))
 }
 

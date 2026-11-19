@@ -132,7 +132,7 @@ func InitBrowserWithTransformedPrefixesModuleResolver(this_ *BrowserWithTransfor
 }
 
 // Java method: BrowserWithTransformedPrefixesModuleResolver.replacePathPrefixes(java.lang.String moduleAddress)
-func (this_ *BrowserWithTransformedPrefixesModuleResolver) priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6034(moduleAddress string) string {
+func (this_ *BrowserWithTransformedPrefixesModuleResolver) priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6049(moduleAddress string) string {
 	_ = moduleAddress
 	if moduleAddress == j2gort.NullString {
 		return j2gort.NullString
@@ -161,7 +161,7 @@ func (this_ *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(scrip
 	_ = sourcename
 	_ = lineno
 	_ = colno
-	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6034(moduleAddress)
+	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6049(moduleAddress)
 	_ = transformedAddress
 	var replaced bool = ((transformedAddress != j2gort.NullString) && !(j2gort.CheckNotNullString(transformedAddress) == moduleAddress))
 	_ = replaced
@@ -176,7 +176,7 @@ func (this_ *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModule(scrip
 func (this_ *BrowserWithTransformedPrefixesModuleResolver) ResolveJsModuleSilently(scriptAddress string, moduleAddress string) string {
 	_ = scriptAddress
 	_ = moduleAddress
-	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6034(moduleAddress)
+	var transformedAddress string = this_.priv_BrowserWithTransformedPrefixesModuleResolver_replacePathPrefixes_6049(moduleAddress)
 	_ = transformedAddress
 	var replaced bool = ((transformedAddress != j2gort.NullString) && !(j2gort.CheckNotNullString(transformedAddress) == moduleAddress))
 	_ = replaced

@@ -78,12 +78,12 @@ func InitTypedCodeGenerator(this_ *TypedCodeGenerator, consumer CodeConsumer, op
 func (this_ *TypedCodeGenerator) Add_2(n pkg_rhino.Node, context CodeGenerator_Context) {
 	_ = n
 	_ = context
-	this_.priv_TypedCodeGenerator_maybeAddTypeAnnotation_5671(n)
+	this_.priv_TypedCodeGenerator_maybeAddTypeAnnotation_5686(n)
 	this_.CodeGeneratorBase.Add_2(n, context)
 }
 
 // Java method: TypedCodeGenerator.maybeAddTypeAnnotation(com.google.javascript.rhino.Node n)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_maybeAddTypeAnnotation_5671(n pkg_rhino.Node) {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_maybeAddTypeAnnotation_5686(n pkg_rhino.Node) {
 	_ = n
 	var parent pkg_rhino.Node = n.GetParent()
 	_ = parent
@@ -92,7 +92,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_maybeAddTypeAnnotation_
 	}
 	if (parent.IsBlock() || parent.IsScript()) || parent.IsClassMembers() {
 		if (n.IsClass() || n.IsFunction()) || n.IsMemberFunctionDef() {
-			this_.Add_1_string(this_.priv_TypedCodeGenerator_getTypeAnnotation_5672(n))
+			this_.Add_1_string(this_.priv_TypedCodeGenerator_getTypeAnnotation_5687(n))
 		} else if n.IsExprResult() && n.GetFirstChild().IsAssign() {
 			var assign pkg_rhino.Node = n.GetFirstChild()
 			_ = assign
@@ -101,27 +101,27 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_maybeAddTypeAnnotation_
 			} else {
 				var rhs pkg_rhino.Node = assign.GetLastChild()
 				_ = rhs
-				this_.Add_1_string(this_.priv_TypedCodeGenerator_getTypeAnnotation_5672(rhs))
+				this_.Add_1_string(this_.priv_TypedCodeGenerator_getTypeAnnotation_5687(rhs))
 			}
 		} else if NodeUtil_IsNameDeclaration(n) && (n.GetFirstFirstChild() != 0) {
 			if NodeUtil_IsNamespaceDecl(n.GetFirstChild()) && (n.GetJSDocInfo() != nil) {
 				this_.Add_1_string(this_.f_TypedCodeGenerator_jsDocInfoPrinter.Print(n.GetJSDocInfo()))
 			} else {
-				this_.Add_1_string(this_.priv_TypedCodeGenerator_getTypeAnnotation_5672(n.GetFirstFirstChild()))
+				this_.Add_1_string(this_.priv_TypedCodeGenerator_getTypeAnnotation_5687(n.GetFirstFirstChild()))
 			}
 		}
 	}
 }
 
 // Java method: TypedCodeGenerator.getTypeAnnotation(com.google.javascript.rhino.Node node)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getTypeAnnotation_5672(node pkg_rhino.Node) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getTypeAnnotation_5687(node pkg_rhino.Node) string {
 	_ = node
 	if node.IsMemberFunctionDef() {
-		return this_.priv_TypedCodeGenerator_getMemberFunctionAnnotation_5674(node.GetOnlyChild())
+		return this_.priv_TypedCodeGenerator_getMemberFunctionAnnotation_5689(node.GetOnlyChild())
 	} else if node.IsClass() {
-		return this_.priv_TypedCodeGenerator_getClassAnnotation_5676(node.GetJSType())
+		return this_.priv_TypedCodeGenerator_getClassAnnotation_5691(node.GetJSType())
 	} else if node.IsFunction() {
-		return this_.priv_TypedCodeGenerator_getFunctionAnnotation_5673(node)
+		return this_.priv_TypedCodeGenerator_getFunctionAnnotation_5688(node)
 	} else {
 		var nodeOriginallyHadJSDoc bool = (NodeUtil_GetBestJSDocInfo(node) != nil)
 		_ = nodeOriginallyHadJSDoc
@@ -133,7 +133,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getTypeAnnotation_5672(
 		if type_ == nil || type_.IsJavaNil_() {
 			return ""
 		} else if type_.GetJSTypeBase().IsFunctionType() {
-			return this_.priv_TypedCodeGenerator_getFunctionAnnotation_5673(node)
+			return this_.priv_TypedCodeGenerator_getFunctionAnnotation_5688(node)
 		} else if type_.GetJSTypeBase().IsEnumType() {
 			return ("/** @enum {" + j2gort.StrValString(type_.GetJSTypeBase().ToMaybeObjectType().GetEnumeratedTypeOfEnumObject().GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())) + "} */\n")
 		} else if ((!(type_.GetJSTypeBase().IsUnknownType()) && !(type_.GetJSTypeBase().IsEmptyType())) && !(type_.GetJSTypeBase().IsVoidType())) && !(type_.IsFunctionPrototypeType()) {
@@ -145,7 +145,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getTypeAnnotation_5672(
 }
 
 // Java method: TypedCodeGenerator.getFunctionAnnotation(com.google.javascript.rhino.Node fnNode)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getFunctionAnnotation_5673(fnNode pkg_rhino.Node) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getFunctionAnnotation_5688(fnNode pkg_rhino.Node) string {
 	_ = fnNode
 	var type_ pkg_rhino.JSType = fnNode.GetJSType()
 	_ = type_
@@ -167,7 +167,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getFunctionAnnotation_5
 	if (fnNode != 0) && fnNode.IsFunction() {
 		paramNode = NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
 	}
-	this_.priv_TypedCodeGenerator_appendFunctionParamAnnotations_5675(sb, funType, paramNode)
+	this_.priv_TypedCodeGenerator_appendFunctionParamAnnotations_5690(sb, funType, paramNode)
 	var retType pkg_rhino.JSType = funType.GetReturnType()
 	_ = retType
 	if (((retType != nil && !retType.IsJavaNil_()) && !(retType.GetJSTypeBase().IsEmptyType())) && !(funType.IsInterface())) && !(funType.IsConstructor() && retType.GetJSTypeBase().IsVoidType()) {
@@ -176,28 +176,28 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getFunctionAnnotation_5
 		sb.Append_1_string("\n")
 	}
 	if funType.IsConstructor() {
-		this_.priv_TypedCodeGenerator_appendClassAnnotations_5680(sb, funType)
+		this_.priv_TypedCodeGenerator_appendClassAnnotations_5695(sb, funType)
 		sb.Append_1_string(" * @constructor\n")
 	} else if funType.IsInterface() {
-		this_.priv_TypedCodeGenerator_appendInterfaceAnnotations_5681(sb, funType)
+		this_.priv_TypedCodeGenerator_appendInterfaceAnnotations_5696(sb, funType)
 	} else {
 		var thisType pkg_rhino.JSType = funType.GetTypeOfThis()
 		_ = thisType
 		if ((thisType != nil && !thisType.IsJavaNil_()) && !(thisType.GetJSTypeBase().IsUnknownType())) && !(thisType.GetJSTypeBase().IsVoidType()) {
-			if (fnNode == 0) || !(thisType.GetJSTypeBase().EqualsJSType(this_.priv_TypedCodeGenerator_findMethodOwner_5682(fnNode))) {
+			if (fnNode == 0) || !(thisType.GetJSTypeBase().EqualsJSType(this_.priv_TypedCodeGenerator_findMethodOwner_5697(fnNode))) {
 				sb.Append_1_string(" * ")
 				TypedCodeGenerator_AppendAnnotation(sb, "this", thisType.GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT()))
 				sb.Append_1_string("\n")
 			}
 		}
 	}
-	this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5677(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetTypeParameters()))
+	this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5692(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetTypeParameters()))
 	sb.Append_1_string(" */\n")
 	return sb.String()
 }
 
 // Java method: TypedCodeGenerator.getMemberFunctionAnnotation(com.google.javascript.rhino.Node fnNode)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getMemberFunctionAnnotation_5674(fnNode pkg_rhino.Node) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getMemberFunctionAnnotation_5689(fnNode pkg_rhino.Node) string {
 	_ = fnNode
 	if !(fnNode.IsFunction() && fnNode.GetParent().IsMemberFunctionDef()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(fnNode))
@@ -213,11 +213,11 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getMemberFunctionAnnota
 	_ = sb
 	var paramNode pkg_rhino.Node = NodeUtil_GetFunctionParameters(fnNode).GetFirstChild()
 	_ = paramNode
-	this_.priv_TypedCodeGenerator_appendFunctionParamAnnotations_5675(sb, funType, paramNode)
+	this_.priv_TypedCodeGenerator_appendFunctionParamAnnotations_5690(sb, funType, paramNode)
 	if NodeUtil_IsEs6Constructor(fnNode) {
-		this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5677(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetConstructorOnlyTemplateParameters()))
+		this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5692(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetConstructorOnlyTemplateParameters()))
 	} else {
-		this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5677(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetTypeParameters()))
+		this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5692(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetTypeParameters()))
 		var retType pkg_rhino.JSType = funType.GetReturnType()
 		_ = retType
 		if (retType != nil && !retType.IsJavaNil_()) && !(retType.GetJSTypeBase().IsEmptyType()) {
@@ -231,7 +231,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getMemberFunctionAnnota
 }
 
 // Java method: TypedCodeGenerator.appendFunctionParamAnnotations(java.lang.StringBuilder sb, com.google.javascript.rhino.jstype.FunctionType funType, com.google.javascript.rhino.Node paramNode)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendFunctionParamAnnotations_5675(sb *j2gort.Ext_java_lang_StringBuilder, funType *pkg_rhino.FunctionType, paramNode pkg_rhino.Node) {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendFunctionParamAnnotations_5690(sb *j2gort.Ext_java_lang_StringBuilder, funType *pkg_rhino.FunctionType, paramNode pkg_rhino.Node) {
 	_ = sb
 	_ = funType
 	_ = paramNode
@@ -246,8 +246,8 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendFunctionParamAnno
 		_ = i
 		for ; i < int32(len(formals)); i = i + 1 {
 			sb.Append_1_string(" * ")
-			TypedCodeGenerator_AppendAnnotation(sb, "param", this_.priv_TypedCodeGenerator_getParameterJSDocType_5683(formals, i, minArity, maxArity))
-			var parameterName string = this_.priv_TypedCodeGenerator_getParameterJSDocName_5678(paramNode, i)
+			TypedCodeGenerator_AppendAnnotation(sb, "param", this_.priv_TypedCodeGenerator_getParameterJSDocType_5698(formals, i, minArity, maxArity))
+			var parameterName string = this_.priv_TypedCodeGenerator_getParameterJSDocName_5693(paramNode, i)
 			_ = parameterName
 			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_string(" ")).Append_1_string(parameterName)).Append_1_string("\n")
 			if paramNode != 0 {
@@ -258,7 +258,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendFunctionParamAnno
 }
 
 // Java method: TypedCodeGenerator.getClassAnnotation(com.google.javascript.rhino.jstype.JSType classType)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getClassAnnotation_5676(classType pkg_rhino.JSType) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getClassAnnotation_5691(classType pkg_rhino.JSType) string {
 	_ = classType
 	if (classType == nil || classType.IsJavaNil_()) || classType.GetJSTypeBase().IsUnknownType() {
 		return ""
@@ -271,14 +271,14 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getClassAnnotation_5676
 	var sb *j2gort.Ext_java_lang_StringBuilder = j2gort.NewExt_java_lang_StringBuilder()
 	_ = sb
 	if funType.IsInterface() {
-		this_.priv_TypedCodeGenerator_appendInterfaceAnnotations_5681(sb, funType)
+		this_.priv_TypedCodeGenerator_appendInterfaceAnnotations_5696(sb, funType)
 	} else {
 		if !(funType.IsConstructor()) {
 			j2gort.CheckStateMsg(false, j2gort.PtrToAny(funType))
 		}
-		this_.priv_TypedCodeGenerator_appendClassAnnotations_5680(sb, funType)
+		this_.priv_TypedCodeGenerator_appendClassAnnotations_5695(sb, funType)
 	}
-	this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5677(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetTypeParameters()))
+	this_.priv_TypedCodeGenerator_appendTemplateAnnotations_5692(sb, j2gort.AsIface[j2gort.Ext_java_util_Collection](funType.GetTypeParameters()))
 	var jsdocContent string = sb.String()
 	_ = jsdocContent
 	if j2gort.CheckNotNullString(jsdocContent) == "" {
@@ -289,7 +289,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getClassAnnotation_5676
 }
 
 // Java method: TypedCodeGenerator.appendTemplateAnnotations(java.lang.StringBuilder sb, java.util.Collection<? extends com.google.javascript.rhino.jstype.JSType> typeParams)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendTemplateAnnotations_5677(sb *j2gort.Ext_java_lang_StringBuilder, typeParams j2gort.Ext_java_util_Collection) {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendTemplateAnnotations_5692(sb *j2gort.Ext_java_lang_StringBuilder, typeParams j2gort.Ext_java_util_Collection) {
 	_ = sb
 	_ = typeParams
 	if !(typeParams.IsEmpty()) {
@@ -297,7 +297,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendTemplateAnnotatio
 		sb.Append_1_string(j2gort.CastString(typeParams.Stream().Map(func() j2gort.Ext_java_util_function_Function {
 			bound_1 := this_
 			return j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any {
-				return j2gort.BoxString(bound_1.priv_TypedCodeGenerator_formatTypeVar_5679(j2gort.AsIface[pkg_rhino.JSType](mrp0_)))
+				return j2gort.BoxString(bound_1.priv_TypedCodeGenerator_formatTypeVar_5694(j2gort.AsIface[pkg_rhino.JSType](mrp0_)))
 			})
 		}()).Collect_1(j2gort.Ext_java_util_stream_Collectors_Joining_1(","))))
 		sb.Append_1_string("\n")
@@ -305,7 +305,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendTemplateAnnotatio
 }
 
 // Java method: TypedCodeGenerator.getParameterJSDocName(com.google.javascript.rhino.Node paramNode, int paramIndex)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getParameterJSDocName_5678(paramNode pkg_rhino.Node, paramIndex int32) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getParameterJSDocName_5693(paramNode pkg_rhino.Node, paramIndex int32) string {
 	_ = paramNode
 	_ = paramIndex
 	var nameNode pkg_rhino.Node = pkg_rhino.Node(0)
@@ -339,13 +339,13 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getParameterJSDocName_5
 }
 
 // Java method: TypedCodeGenerator.formatTypeVar(com.google.javascript.rhino.jstype.JSType var)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_formatTypeVar_5679(var_ pkg_rhino.JSType) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_formatTypeVar_5694(var_ pkg_rhino.JSType) string {
 	_ = var_
 	return var_.GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_IMPLICIT())
 }
 
 // Java method: TypedCodeGenerator.appendClassAnnotations(java.lang.StringBuilder sb, com.google.javascript.rhino.jstype.FunctionType funType)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendClassAnnotations_5680(sb *j2gort.Ext_java_lang_StringBuilder, funType *pkg_rhino.FunctionType) {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendClassAnnotations_5695(sb *j2gort.Ext_java_lang_StringBuilder, funType *pkg_rhino.FunctionType) {
 	_ = sb
 	_ = funType
 	var superConstructor *pkg_rhino.FunctionType = funType.GetInstanceType().GetSuperClassConstructor()
@@ -383,7 +383,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendClassAnnotations_
 }
 
 // Java method: TypedCodeGenerator.appendInterfaceAnnotations(java.lang.StringBuilder sb, com.google.javascript.rhino.jstype.FunctionType funType)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendInterfaceAnnotations_5681(sb *j2gort.Ext_java_lang_StringBuilder, funType *pkg_rhino.FunctionType) {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendInterfaceAnnotations_5696(sb *j2gort.Ext_java_lang_StringBuilder, funType *pkg_rhino.FunctionType) {
 	_ = sb
 	_ = funType
 	var interfaces j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_TreeSet()
@@ -415,7 +415,7 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_appendInterfaceAnnotati
 }
 
 // Java method: TypedCodeGenerator.findMethodOwner(com.google.javascript.rhino.Node n)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_findMethodOwner_5682(n pkg_rhino.Node) pkg_rhino.ObjectType {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_findMethodOwner_5697(n pkg_rhino.Node) pkg_rhino.ObjectType {
 	_ = n
 	if n == 0 {
 		return nil
@@ -455,7 +455,7 @@ func TypedCodeGenerator_AppendAnnotation(sb *j2gort.Ext_java_lang_StringBuilder,
 }
 
 // Java method: TypedCodeGenerator.getParameterJSDocType(com.google.javascript.rhino.jstype.FunctionType.Parameter[] parameters, int index, int minArgs, int maxArgs)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getParameterJSDocType_5683(parameters []pkg_rhino.FunctionType_Parameter, index int32, minArgs int32, maxArgs int32) string {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getParameterJSDocType_5698(parameters []pkg_rhino.FunctionType_Parameter, index int32, minArgs int32, maxArgs int32) string {
 	_ = parameters
 	_ = index
 	_ = minArgs
@@ -468,13 +468,13 @@ func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_getParameterJSDocType_5
 	var isRestArgument bool = ((maxArgs == int32(2147483647)) && (index == (int32(len(parameters)) - int32(1))))
 	_ = isRestArgument
 	if isRestArgument {
-		return ("..." + j2gort.StrValString(this_.priv_TypedCodeGenerator_restrictByUndefined_5684(type_).GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())))
+		return ("..." + j2gort.StrValString(this_.priv_TypedCodeGenerator_restrictByUndefined_5699(type_).GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())))
 	}
-	return (j2gort.StrValString(this_.priv_TypedCodeGenerator_restrictByUndefined_5684(type_).GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())) + "=")
+	return (j2gort.StrValString(this_.priv_TypedCodeGenerator_restrictByUndefined_5699(type_).GetJSTypeBase().ToAnnotationString(pkg_rhino.StaticGet_JSType_Nullability_EXPLICIT())) + "=")
 }
 
 // Java method: TypedCodeGenerator.restrictByUndefined(com.google.javascript.rhino.jstype.JSType type)
-func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_restrictByUndefined_5684(type_ pkg_rhino.JSType) pkg_rhino.JSType {
+func (this_ *TypedCodeGenerator) priv_TypedCodeGenerator_restrictByUndefined_5699(type_ pkg_rhino.JSType) pkg_rhino.JSType {
 	_ = type_
 	if !(type_.IsVoidable()) {
 		return type_

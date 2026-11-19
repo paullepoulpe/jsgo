@@ -189,7 +189,7 @@ func LinkedFlowScope_CreateFlowScope(pool *LinkedFlowScope_Pool, inputProvider C
 	InitLinkedFlowScope(&val_1)
 	var s *LinkedFlowScope = &val_1
 	_ = s
-	s.priv_LinkedFlowScope_init_3736(nil, inputProvider, scopes, singleScopeKey, singleScopeVal, syntacticScope, functionScope, unindexedRootBloom)
+	s.priv_LinkedFlowScope_init_3743(nil, inputProvider, scopes, singleScopeKey, singleScopeVal, syntacticScope, functionScope, unindexedRootBloom)
 	return s
 }
 
@@ -265,7 +265,7 @@ func LinkedFlowScope_CreateOverlaySlot(pool *LinkedFlowScope_Pool, name string, 
 }
 
 // Java method: LinkedFlowScope.init(com.google.javascript.jscomp.LinkedFlowScope.@org.jspecify.annotations.Nullable Pool pool, com.google.javascript.jscomp.CompilerInputProvider inputProvider, com.google.javascript.rhino.@org.jspecify.annotations.Nullable HamtPMap<com.google.javascript.jscomp.TypedScope,com.google.javascript.jscomp.LinkedFlowScope.OverlayScope> scopes, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable TypedScope singleScopeKey, com.google.javascript.jscomp.LinkedFlowScope.@org.jspecify.annotations.Nullable OverlayScope singleScopeVal, com.google.javascript.jscomp.TypedScope syntacticScope, com.google.javascript.jscomp.TypedScope functionScope, long unindexedRootBloom)
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_init_3736(pool *LinkedFlowScope_Pool, inputProvider CompilerInputProvider, scopes *pkg_rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope], singleScopeKey *TypedScope, singleScopeVal *LinkedFlowScope_OverlayScope, syntacticScope *TypedScope, functionScope *TypedScope, unindexedRootBloom int64) {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_init_3743(pool *LinkedFlowScope_Pool, inputProvider CompilerInputProvider, scopes *pkg_rhino.HamtPMap[*TypedScope, *LinkedFlowScope_OverlayScope], singleScopeKey *TypedScope, singleScopeVal *LinkedFlowScope_OverlayScope, syntacticScope *TypedScope, functionScope *TypedScope, unindexedRootBloom int64) {
 	_ = pool
 	_ = inputProvider
 	_ = scopes
@@ -285,7 +285,7 @@ func (this_ *LinkedFlowScope) priv_LinkedFlowScope_init_3736(pool *LinkedFlowSco
 }
 
 // Java method: LinkedFlowScope.clear()
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_clear_3737() {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_clear_3744() {
 	this_.pool = nil
 	this_.inputProvider = nil
 	this_.scopes = nil
@@ -297,18 +297,18 @@ func (this_ *LinkedFlowScope) priv_LinkedFlowScope_clear_3737() {
 }
 
 // Java method: LinkedFlowScope.hasNoScopes()
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_hasNoScopes_3738() bool {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_hasNoScopes_3745() bool {
 	return ((this_.scopes == nil) && (this_.singleScopeKey == nil))
 }
 
 // Java method: LinkedFlowScope.sameScopes(com.google.javascript.jscomp.LinkedFlowScope other)
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_sameScopes_3739(other *LinkedFlowScope) bool {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_sameScopes_3746(other *LinkedFlowScope) bool {
 	_ = other
 	return (((this_.scopes == other.scopes) && (this_.singleScopeKey == other.singleScopeKey)) && (this_.singleScopeVal == other.singleScopeVal))
 }
 
 // Java method: LinkedFlowScope.getScopeOverlay(com.google.javascript.jscomp.TypedScope key)
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_getScopeOverlay_3740(key *TypedScope) *LinkedFlowScope_OverlayScope {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_getScopeOverlay_3747(key *TypedScope) *LinkedFlowScope_OverlayScope {
 	_ = key
 	if this_.scopes != nil {
 		return this_.scopes.Get_1(key)
@@ -321,7 +321,7 @@ func (this_ *LinkedFlowScope) priv_LinkedFlowScope_getScopeOverlay_3740(key *Typ
 }
 
 // Java method: LinkedFlowScope.trimsAwaySingleKey(com.google.javascript.jscomp.TypedScope scope, com.google.javascript.jscomp.TypedScope keyToCheck)
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_trimsAwaySingleKey_3741(scope *TypedScope, keyToCheck *TypedScope) bool {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_trimsAwaySingleKey_3748(scope *TypedScope, keyToCheck *TypedScope) bool {
 	_ = scope
 	_ = keyToCheck
 	var thisScope *TypedScope = this_.syntacticScope
@@ -387,7 +387,7 @@ func LinkedFlowScope_TrimScopesMap(startMap *pkg_rhino.HamtPMap[*TypedScope, *Li
 }
 
 // Java method: LinkedFlowScope.flowsFromBottom()
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_flowsFromBottom_3742() bool {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_flowsFromBottom_3749() bool {
 	return this_.functionScope.IsBottom()
 }
 
@@ -441,7 +441,7 @@ func (this_ *LinkedFlowScope) InferSlotType(symbol string, type_ pkg_rhino.JSTyp
 	if targetScope == nil {
 		targetScope = this_.functionScope
 	}
-	var existingScope *LinkedFlowScope_OverlayScope = this_.priv_LinkedFlowScope_getScopeOverlay_3740(targetScope)
+	var existingScope *LinkedFlowScope_OverlayScope = this_.priv_LinkedFlowScope_getScopeOverlay_3747(targetScope)
 	_ = existingScope
 	var newScope *LinkedFlowScope_OverlayScope = nil
 	_ = newScope
@@ -566,7 +566,7 @@ func (this_ *LinkedFlowScope) GetSlot(name string) any {
 	var var_ *TypedVar = this_.syntacticScope.LookupTypedVar(name)
 	_ = var_
 	if var_ != nil {
-		var scope *LinkedFlowScope_OverlayScope = this_.priv_LinkedFlowScope_getScopeOverlay_3740(j2gort.CastPtr[TypedScope](var_.GetScope()))
+		var scope *LinkedFlowScope_OverlayScope = this_.priv_LinkedFlowScope_getScopeOverlay_3747(j2gort.CastPtr[TypedScope](var_.GetScope()))
 		_ = scope
 		if scope != nil {
 			return scope.GetOverlayOrFallback(name, var_)
@@ -579,16 +579,23 @@ func (this_ *LinkedFlowScope) GetSlot(name string) any {
 	var scope_2 *LinkedFlowScope_OverlayScope = nil
 	_ = scope_2
 	if dot < int32(0) {
-		scope_2 = this_.priv_LinkedFlowScope_getScopeOverlay_3740(this_.functionScope)
+		scope_2 = this_.priv_LinkedFlowScope_getScopeOverlay_3747(this_.functionScope)
 	} else {
 		var rootVar *TypedVar = this_.syntacticScope.LookupTypedVar(j2gort.JStrSub(name, int32(0), dot))
 		_ = rootVar
-		scope_2 = this_.priv_LinkedFlowScope_getScopeOverlay_3740(func() *TypedScope {
+		var iifeArg_1 *TypedScope
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if rootVar != nil {
-				return j2gort.CastPtr[TypedScope](rootVar.GetScope())
+				iifeArg_1 = j2gort.CastPtr[TypedScope](rootVar.GetScope())
+				break iifeSwitch_1
 			}
-			return this_.functionScope
-		}())
+			iifeArg_1 = this_.functionScope
+			break iifeSwitch_1
+		}
+		scope_2 = this_.priv_LinkedFlowScope_getScopeOverlay_3747(iifeArg_1)
 	}
 	if scope_2 != nil {
 		return scope_2.GetSlot(name)
@@ -678,7 +685,7 @@ func LinkedFlowScope_GetRootOfQualifiedName(name string) string {
 }
 
 // Java method: LinkedFlowScope.getOverlayScopeForName(java.lang.String name)
-func (this_ *LinkedFlowScope) priv_LinkedFlowScope_getOverlayScopeForName_3749(name string) *LinkedFlowScope_OverlayScope {
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_getOverlayScopeForName_3756(name string) *LinkedFlowScope_OverlayScope {
 	_ = name
 	var rootVar *TypedVar = this_.syntacticScope.LookupTypedVar(LinkedFlowScope_GetRootOfQualifiedName(name))
 	_ = rootVar
@@ -694,7 +701,7 @@ func (this_ *LinkedFlowScope) priv_LinkedFlowScope_getOverlayScopeForName_3749(n
 	} else {
 		scope = this_.functionScope
 	}
-	return this_.priv_LinkedFlowScope_getScopeOverlay_3740(scope)
+	return this_.priv_LinkedFlowScope_getScopeOverlay_3747(scope)
 }
 
 // Java method: LinkedFlowScope.getOwnSlot(java.lang.String name)
@@ -711,11 +718,11 @@ func (this_ *LinkedFlowScope) WithSyntacticScope(scope pkg_rhino.StaticTypedScop
 	if scope == this_.syntacticScope || ((scope == nil || scope.IsJavaNil_()) && (this_.syntacticScope == nil || this_.syntacticScope.IsJavaNil_())) {
 		return this_
 	}
-	if this_.priv_LinkedFlowScope_hasNoScopes_3738() {
+	if this_.priv_LinkedFlowScope_hasNoScopes_3745() {
 		return pkg_jscomptype.ToIface_FlowScope(LinkedFlowScope_CreateFlowScope(this_.pool, this_.inputProvider, nil, nil, nil, typedScope, this_.functionScope, int64(0)))
 	}
 	if this_.scopes == nil {
-		if this_.priv_LinkedFlowScope_trimsAwaySingleKey_3741(typedScope, this_.singleScopeKey) {
+		if this_.priv_LinkedFlowScope_trimsAwaySingleKey_3748(typedScope, this_.singleScopeKey) {
 			return pkg_jscomptype.ToIface_FlowScope(LinkedFlowScope_CreateFlowScope(this_.pool, this_.inputProvider, nil, nil, nil, typedScope, this_.functionScope, int64(0)))
 		}
 		return pkg_jscomptype.ToIface_FlowScope(LinkedFlowScope_CreateFlowScope(this_.pool, this_.inputProvider, nil, this_.singleScopeKey, this_.singleScopeVal, typedScope, this_.functionScope, this_.unindexedRootBloom))
@@ -735,25 +742,50 @@ func LinkedFlowScope_GetCommonParentDeclarationScope(left *LinkedFlowScope, righ
 	clinit_LinkedFlowScope()
 	_ = left
 	_ = right
-	if left.priv_LinkedFlowScope_flowsFromBottom_3742() {
+	if left.priv_LinkedFlowScope_flowsFromBottom_3749() {
 		return right.syntacticScope
-	} else if right.priv_LinkedFlowScope_flowsFromBottom_3742() {
+	} else if right.priv_LinkedFlowScope_flowsFromBottom_3749() {
 		return left.syntacticScope
 	}
 	return j2gort.CastPtr[TypedScope](left.syntacticScope.GetCommonParent(ToIface_AbstractScope(right.syntacticScope)))
 }
 
-// Java method: LinkedFlowScope.equals(java.lang.Object other)
-func (this_ *LinkedFlowScope) Equals(arg_4 any) bool {
-	other := arg_4
+// Java method: LinkedFlowScope.equalsFlowScope(com.google.javascript.jscomp.type.FlowScope other)
+func (this_ *LinkedFlowScope) EqualsFlowScope(other pkg_jscomptype.FlowScope) bool {
 	_ = other
+	if this_ == other || ((this_ == nil || this_.IsJavaNil_()) && (other == nil || other.IsJavaNil_())) {
+		return true
+	}
 	var that *LinkedFlowScope
 	_ = that
-	var ok_5 bool
-	that, ok_5 = j2gort.TryCast[*LinkedFlowScope](other)
-	if !ok_5 {
+	var ok_4 bool
+	that, ok_4 = j2gort.TryCast[*LinkedFlowScope](other)
+	if !ok_4 {
 		return false
 	}
+	return this_.priv_LinkedFlowScope_equalsLinkedFlowScope_3761(that)
+}
+
+// Java method: LinkedFlowScope.equals(java.lang.Object other)
+func (this_ *LinkedFlowScope) Equals(arg_5 any) bool {
+	other := arg_5
+	_ = other
+	if j2gort.RefEquals(this_, other) {
+		return true
+	}
+	var that *LinkedFlowScope
+	_ = that
+	var ok_6 bool
+	that, ok_6 = j2gort.TryCast[*LinkedFlowScope](other)
+	if !ok_6 {
+		return false
+	}
+	return this_.priv_LinkedFlowScope_equalsLinkedFlowScope_3761(that)
+}
+
+// Java method: LinkedFlowScope.equalsLinkedFlowScope(com.google.javascript.jscomp.LinkedFlowScope that)
+func (this_ *LinkedFlowScope) priv_LinkedFlowScope_equalsLinkedFlowScope_3761(that *LinkedFlowScope) bool {
+	_ = that
 	if this_.functionScope != that.functionScope {
 		return false
 	}
@@ -796,15 +828,15 @@ func LinkedFlowScope_EqualScopes(left *LinkedFlowScope_OverlayScope, right *Link
 			var iifeCond_1 bool
 			{
 
-				sr_6 := l0.name
-				se_7 := r0.name
-				iifeCond_1 = j2gort.CheckNotNullString(sr_6) == se_7
+				sr_7 := l0.name
+				se_8 := r0.name
+				iifeCond_1 = j2gort.CheckNotNullString(sr_7) == se_8
 			}
 			if !(iifeCond_1) || !(LinkedFlowScope_EqualSlots(pkg_rhino.ToIface_StaticTypedSlot(l0), pkg_rhino.ToIface_StaticTypedSlot(r0))) {
 				return false
 			}
 		}
-		return ((l1 == nil) || (func() bool { sr_8 := l1.name; se_9 := r1.name; return j2gort.CheckNotNullString(sr_8) == se_9 }() && LinkedFlowScope_EqualSlots(pkg_rhino.ToIface_StaticTypedSlot(l1), pkg_rhino.ToIface_StaticTypedSlot(r1))))
+		return ((l1 == nil) || (func() bool { sr_9 := l1.name; se_10 := r1.name; return j2gort.CheckNotNullString(sr_9) == se_10 }() && LinkedFlowScope_EqualSlots(pkg_rhino.ToIface_StaticTypedSlot(l1), pkg_rhino.ToIface_StaticTypedSlot(r1))))
 	}
 	if (left.slots == nil) || (right.slots == nil) {
 		return false
@@ -910,44 +942,44 @@ func (this_ *LinkedFlowScope_Pool) AcquireFlowScope(inputProvider CompilerInputP
 	_ = s
 	if this_.flowScopeCount < this_.flowScopeAlloc {
 		s = this_.flowScopes[func() int32 {
-			old_10 := this_.flowScopeCount
-			nw_11 := old_10 + 1
-			this_.flowScopeCount = nw_11
-			return old_10
+			old_11 := this_.flowScopeCount
+			nw_12 := old_11 + 1
+			this_.flowScopeCount = nw_12
+			return old_11
 		}()]
 	} else if this_.flowScopeCount < int32(4096) {
 		if this_.flowScopeCount == int32(len(this_.flowScopes)) {
 			this_.flowScopes = func() []*LinkedFlowScope {
-				arrSrc_12 := this_.flowScopes
-				arrLen_13 := min(int32(4096), (int32(len(this_.flowScopes)) * int32(2)))
-				j2gort.CheckNotNullSlice(arrSrc_12)
-				if arrLen_13 < 0 {
+				arrSrc_13 := this_.flowScopes
+				arrLen_14 := min(int32(4096), (int32(len(this_.flowScopes)) * int32(2)))
+				j2gort.CheckNotNullSlice(arrSrc_13)
+				if arrLen_14 < 0 {
 					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 				}
-				arrOut_14 := make([]*LinkedFlowScope, arrLen_13)
-				copy(arrOut_14, arrSrc_12)
-				return arrOut_14
+				arrOut_15 := make([]*LinkedFlowScope, arrLen_14)
+				copy(arrOut_15, arrSrc_13)
+				return arrOut_15
 			}()
 		}
 		s = NewLinkedFlowScope()
 		{
-			a_15 := this_.flowScopes
-			var i_16 int32
+			a_16 := this_.flowScopes
+			var i_17 int32
 			{
 
-				old_17 := this_.flowScopeCount
-				nw_18 := old_17 + 1
-				this_.flowScopeCount = nw_18
-				i_16 = old_17
+				old_18 := this_.flowScopeCount
+				nw_19 := old_18 + 1
+				this_.flowScopeCount = nw_19
+				i_17 = old_18
 			}
 
-			a_15[i_16] = s
+			a_16[i_17] = s
 		}
 		this_.flowScopeAlloc = this_.flowScopeCount
 	} else {
 		s = NewLinkedFlowScope()
 	}
-	s.priv_LinkedFlowScope_init_3736(this_, inputProvider, scopes, singleScopeKey, singleScopeVal, syntacticScope, functionScope, unindexedRootBloom)
+	s.priv_LinkedFlowScope_init_3743(this_, inputProvider, scopes, singleScopeKey, singleScopeVal, syntacticScope, functionScope, unindexedRootBloom)
 	return s
 }
 
@@ -962,38 +994,38 @@ func (this_ *LinkedFlowScope_Pool) AcquireOverlayScope(scope *TypedScope, slots 
 	_ = s
 	if this_.overlayScopeCount < this_.overlayScopeAlloc {
 		s = this_.overlayScopes[func() int32 {
-			old_19 := this_.overlayScopeCount
-			nw_20 := old_19 + 1
-			this_.overlayScopeCount = nw_20
-			return old_19
+			old_20 := this_.overlayScopeCount
+			nw_21 := old_20 + 1
+			this_.overlayScopeCount = nw_21
+			return old_20
 		}()]
 	} else if this_.overlayScopeCount < int32(4096) {
 		if this_.overlayScopeCount == int32(len(this_.overlayScopes)) {
 			this_.overlayScopes = func() []*LinkedFlowScope_OverlayScope {
-				arrSrc_21 := this_.overlayScopes
-				arrLen_22 := min(int32(4096), (int32(len(this_.overlayScopes)) * int32(2)))
-				j2gort.CheckNotNullSlice(arrSrc_21)
-				if arrLen_22 < 0 {
+				arrSrc_22 := this_.overlayScopes
+				arrLen_23 := min(int32(4096), (int32(len(this_.overlayScopes)) * int32(2)))
+				j2gort.CheckNotNullSlice(arrSrc_22)
+				if arrLen_23 < 0 {
 					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 				}
-				arrOut_23 := make([]*LinkedFlowScope_OverlayScope, arrLen_22)
-				copy(arrOut_23, arrSrc_21)
-				return arrOut_23
+				arrOut_24 := make([]*LinkedFlowScope_OverlayScope, arrLen_23)
+				copy(arrOut_24, arrSrc_22)
+				return arrOut_24
 			}()
 		}
 		s = NewLinkedFlowScope_OverlayScope()
 		{
-			a_24 := this_.overlayScopes
-			var i_25 int32
+			a_25 := this_.overlayScopes
+			var i_26 int32
 			{
 
-				old_26 := this_.overlayScopeCount
-				nw_27 := old_26 + 1
-				this_.overlayScopeCount = nw_27
-				i_25 = old_26
+				old_27 := this_.overlayScopeCount
+				nw_28 := old_27 + 1
+				this_.overlayScopeCount = nw_28
+				i_26 = old_27
 			}
 
-			a_24[i_25] = s
+			a_25[i_26] = s
 		}
 		this_.overlayScopeAlloc = this_.overlayScopeCount
 	} else {
@@ -1011,38 +1043,38 @@ func (this_ *LinkedFlowScope_Pool) AcquireOverlaySlot(name string, type_ pkg_rhi
 	_ = s
 	if this_.overlaySlotCount < this_.overlaySlotAlloc {
 		s = this_.overlaySlots[func() int32 {
-			old_28 := this_.overlaySlotCount
-			nw_29 := old_28 + 1
-			this_.overlaySlotCount = nw_29
-			return old_28
+			old_29 := this_.overlaySlotCount
+			nw_30 := old_29 + 1
+			this_.overlaySlotCount = nw_30
+			return old_29
 		}()]
 	} else if this_.overlaySlotCount < int32(4096) {
 		if this_.overlaySlotCount == int32(len(this_.overlaySlots)) {
 			this_.overlaySlots = func() []*LinkedFlowScope_OverlaySlot {
-				arrSrc_30 := this_.overlaySlots
-				arrLen_31 := min(int32(4096), (int32(len(this_.overlaySlots)) * int32(2)))
-				j2gort.CheckNotNullSlice(arrSrc_30)
-				if arrLen_31 < 0 {
+				arrSrc_31 := this_.overlaySlots
+				arrLen_32 := min(int32(4096), (int32(len(this_.overlaySlots)) * int32(2)))
+				j2gort.CheckNotNullSlice(arrSrc_31)
+				if arrLen_32 < 0 {
 					panic(j2gort.ConstructShimThrowable("java.lang.NegativeArraySizeException"))
 				}
-				arrOut_32 := make([]*LinkedFlowScope_OverlaySlot, arrLen_31)
-				copy(arrOut_32, arrSrc_30)
-				return arrOut_32
+				arrOut_33 := make([]*LinkedFlowScope_OverlaySlot, arrLen_32)
+				copy(arrOut_33, arrSrc_31)
+				return arrOut_33
 			}()
 		}
 		s = NewLinkedFlowScope_OverlaySlot()
 		{
-			a_33 := this_.overlaySlots
-			var i_34 int32
+			a_34 := this_.overlaySlots
+			var i_35 int32
 			{
 
-				old_35 := this_.overlaySlotCount
-				nw_36 := old_35 + 1
-				this_.overlaySlotCount = nw_36
-				i_34 = old_35
+				old_36 := this_.overlaySlotCount
+				nw_37 := old_36 + 1
+				this_.overlaySlotCount = nw_37
+				i_35 = old_36
 			}
 
-			a_33[i_34] = s
+			a_34[i_35] = s
 		}
 		this_.overlaySlotAlloc = this_.overlaySlotCount
 	} else {
@@ -1060,7 +1092,7 @@ func (this_ *LinkedFlowScope_Pool) Reset() {
 		var i int32 = int32(0)
 		_ = i
 		for ; i < fsLim; i = i + 1 {
-			this_.flowScopes[i].priv_LinkedFlowScope_clear_3737()
+			this_.flowScopes[i].priv_LinkedFlowScope_clear_3744()
 		}
 	}
 	this_.flowScopeCount = int32(0)
@@ -1171,12 +1203,12 @@ func (this_ *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input pkg_jscomptype.Flow
 	if this_.result == nil {
 		this_.result = linkedInput
 		return
-	} else if (this_.result == linkedInput) || (this_.result.priv_LinkedFlowScope_sameScopes_3739(linkedInput) && (this_.result.functionScope == linkedInput.functionScope)) {
+	} else if (this_.result == linkedInput) || (this_.result.priv_LinkedFlowScope_sameScopes_3746(linkedInput) && (this_.result.functionScope == linkedInput.functionScope)) {
 		return
-	} else if (this_.result.priv_LinkedFlowScope_flowsFromBottom_3742() && this_.result.priv_LinkedFlowScope_hasNoScopes_3738()) && !(linkedInput.priv_LinkedFlowScope_flowsFromBottom_3742()) {
+	} else if (this_.result.priv_LinkedFlowScope_flowsFromBottom_3749() && this_.result.priv_LinkedFlowScope_hasNoScopes_3745()) && !(linkedInput.priv_LinkedFlowScope_flowsFromBottom_3749()) {
 		this_.result = linkedInput
 		return
-	} else if (linkedInput.priv_LinkedFlowScope_flowsFromBottom_3742() && linkedInput.priv_LinkedFlowScope_hasNoScopes_3738()) && !(this_.result.priv_LinkedFlowScope_flowsFromBottom_3742()) {
+	} else if (linkedInput.priv_LinkedFlowScope_flowsFromBottom_3749() && linkedInput.priv_LinkedFlowScope_hasNoScopes_3745()) && !(this_.result.priv_LinkedFlowScope_flowsFromBottom_3749()) {
 		return
 	}
 	var common *TypedScope = LinkedFlowScope_GetCommonParentDeclarationScope(this_.result, linkedInput)
@@ -1196,9 +1228,9 @@ func (this_ *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input pkg_jscomptype.Flow
 	_ = aKey
 	var aVal *LinkedFlowScope_OverlayScope = nil
 	_ = aVal
-	if !(this_.result.priv_LinkedFlowScope_hasNoScopes_3738()) {
+	if !(this_.result.priv_LinkedFlowScope_hasNoScopes_3745()) {
 		if this_.result.scopes == nil {
-			if (this_.result.syntacticScope == common) || !(this_.result.priv_LinkedFlowScope_trimsAwaySingleKey_3741(common, this_.result.singleScopeKey)) {
+			if (this_.result.syntacticScope == common) || !(this_.result.priv_LinkedFlowScope_trimsAwaySingleKey_3748(common, this_.result.singleScopeKey)) {
 				aKey = this_.result.singleScopeKey
 				aVal = this_.result.singleScopeVal
 			}
@@ -1226,9 +1258,9 @@ func (this_ *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input pkg_jscomptype.Flow
 	_ = bKey
 	var bVal *LinkedFlowScope_OverlayScope = nil
 	_ = bVal
-	if !(linkedInput.priv_LinkedFlowScope_hasNoScopes_3738()) {
+	if !(linkedInput.priv_LinkedFlowScope_hasNoScopes_3745()) {
 		if linkedInput.scopes == nil {
-			if (linkedInput.syntacticScope == common) || !(linkedInput.priv_LinkedFlowScope_trimsAwaySingleKey_3741(common, linkedInput.singleScopeKey)) {
+			if (linkedInput.syntacticScope == common) || !(linkedInput.priv_LinkedFlowScope_trimsAwaySingleKey_3748(common, linkedInput.singleScopeKey)) {
 				bKey = linkedInput.singleScopeKey
 				bVal = linkedInput.singleScopeVal
 			}
@@ -1309,7 +1341,7 @@ func (this_ *LinkedFlowScope_FlowScopeJoinOp) JoinFlow(input pkg_jscomptype.Flow
 	}
 	var nextFnScope *TypedScope
 	_ = nextFnScope
-	if this_.result.priv_LinkedFlowScope_flowsFromBottom_3742() {
+	if this_.result.priv_LinkedFlowScope_flowsFromBottom_3749() {
 		nextFnScope = linkedInput.functionScope
 	} else {
 		nextFnScope = this_.result.functionScope
@@ -1524,8 +1556,8 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Reset(pool *LinkedFlowScope_Pool, 
 	this_.linkedA = linkedA
 	this_.linkedB = linkedB
 	{
-		r_37 := this_.slotReconciler
-		r_37.pool = pool
+		r_38 := this_.slotReconciler
+		r_38.pool = pool
 	}
 }
 
@@ -1534,12 +1566,12 @@ func (this_ *LinkedFlowScope_ScopeReconciler) ClearRefs() {
 	this_.linkedA = nil
 	this_.linkedB = nil
 	{
-		r_38 := this_.slotReconciler
-		r_38.typedScopeA = nil
+		r_39 := this_.slotReconciler
+		r_39.typedScopeA = nil
 	}
 	{
-		r_39 := this_.slotReconciler
-		r_39.typedScopeB = nil
+		r_40 := this_.slotReconciler
+		r_40.typedScopeB = nil
 	}
 }
 
@@ -1550,7 +1582,7 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 	_ = scopeB
 	var typedScopeA *TypedScope
 	_ = typedScopeA
-	if this_.linkedA.priv_LinkedFlowScope_flowsFromBottom_3742() {
+	if this_.linkedA.priv_LinkedFlowScope_flowsFromBottom_3749() {
 		typedScopeA = nil
 	} else if scopeA != nil {
 		typedScopeA = scopeA.scope
@@ -1559,7 +1591,7 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 	}
 	var typedScopeB *TypedScope
 	_ = typedScopeB
-	if this_.linkedB.priv_LinkedFlowScope_flowsFromBottom_3742() {
+	if this_.linkedB.priv_LinkedFlowScope_flowsFromBottom_3749() {
 		typedScopeB = nil
 	} else if scopeB != nil {
 		typedScopeB = scopeB.scope
@@ -1581,12 +1613,12 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 		bestScope = scopeB.scope
 	}
 	{
-		r_40 := this_.slotReconciler
-		r_40.typedScopeA = typedScopeA
+		r_41 := this_.slotReconciler
+		r_41.typedScopeA = typedScopeA
 	}
 	{
-		r_41 := this_.slotReconciler
-		r_41.typedScopeB = typedScopeB
+		r_42 := this_.slotReconciler
+		r_42.typedScopeB = typedScopeB
 	}
 	if ((scopeA == nil) || (scopeA.slots == nil)) && ((scopeB == nil) || (scopeB.slots == nil)) {
 		var a0 *LinkedFlowScope_OverlaySlot
@@ -1622,16 +1654,16 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 		if a0 == nil {
 			aLen = int32(0)
 		} else {
-		iifeSwitch_1:
+		iifeSwitch_2:
 			switch {
 			default:
 
 				if a1 == nil {
 					aLen = int32(1)
-					break iifeSwitch_1
+					break iifeSwitch_2
 				}
 				aLen = int32(2)
-				break iifeSwitch_1
+				break iifeSwitch_2
 			}
 
 		}
@@ -1640,16 +1672,16 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 		if b0 == nil {
 			bLen = int32(0)
 		} else {
-		iifeSwitch_2:
+		iifeSwitch_3:
 			switch {
 			default:
 
 				if b1 == nil {
 					bLen = int32(1)
-					break iifeSwitch_2
+					break iifeSwitch_3
 				}
 				bLen = int32(2)
-				break iifeSwitch_2
+				break iifeSwitch_3
 			}
 
 		}
@@ -1698,9 +1730,9 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 				var iifeCond_1 bool
 				{
 
-					sr_42 := sa.name
-					se_43 := sb.name
-					iifeCond_1 = j2gort.CheckNotNullString(sr_42) == se_43
+					sr_43 := sa.name
+					se_44 := sb.name
+					iifeCond_1 = j2gort.CheckNotNullString(sr_43) == se_44
 				}
 				if iifeCond_1 {
 					pickA = sa
@@ -1744,23 +1776,41 @@ func (this_ *LinkedFlowScope_ScopeReconciler) Merge(scopeKey *TypedScope, scopeA
 				if (k0a != nil) && (k0a == k0b) {
 					m0 = k0a
 				} else {
-					m0 = this_.slotReconciler.Merge(func() string {
+					var iifeArg_2 string
+				iifeSwitch_4:
+					switch {
+					default:
+
 						if k0a != nil {
-							return k0a.name
+							iifeArg_2 = k0a.name
+							break iifeSwitch_4
 						}
-						return k0b.name
-					}(), k0a, k0b)
+						iifeArg_2 = k0b.name
+						break iifeSwitch_4
+					}
+					m0 = this_.slotReconciler.Merge(iifeArg_2,
+
+						k0a, k0b)
 				}
 				if outCount == int32(2) {
 					if (k1a != nil) && (k1a == k1b) {
 						m1 = k1a
 					} else {
-						m1 = this_.slotReconciler.Merge(func() string {
+						var iifeArg_3 string
+					iifeSwitch_5:
+						switch {
+						default:
+
 							if k1a != nil {
-								return k1a.name
+								iifeArg_3 = k1a.name
+								break iifeSwitch_5
 							}
-							return k1b.name
-						}(), k1a, k1b)
+							iifeArg_3 = k1b.name
+							break iifeSwitch_5
+						}
+						m1 = this_.slotReconciler.Merge(iifeArg_3,
+
+							k1a, k1b)
 					}
 				}
 			}

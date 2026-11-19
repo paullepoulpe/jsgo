@@ -40,6 +40,7 @@ func (p *AbstractBaseDevirtPass) Apply(ctx *PassContext) (int, error) {
 }
 
 type abstractBaseMeta struct {
+	hasBase     bool
 	valid       bool
 	ifaceNamed  *types.Named
 	baseNamed   *types.Named
@@ -249,11 +250,82 @@ func (r *abstractDevirtResolver) metadataForIface(ifaceNamed *types.Named) *abst
 		}
 	}
 
+	meta.hasBase = true
 	meta.valid = len(safe) > 0
 	meta.baseNamed = baseNamed
 	meta.getterName = getterName
 	meta.safeMethods = safe
 	return meta
+}
+
+func (r *abstractDevirtResolver) matchExplicitBaseGet(call *ast.CallExpr, info *types.Info) (*ast.SelectorExpr, string, bool) {
+	if call == nil || len(call.Args) != 0 || call.Ellipsis.IsValid() {
+		return nil, "", false
+	}
+	selExpr, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selExpr.Sel == nil {
+		return nil, "", false
+	}
+	mName := selExpr.Sel.Name
+	if !strings.HasPrefix(mName, "Get") || !strings.HasSuffix(mName, "Base") {
+		return nil, "", false
+	}
+	sel := info.Selections[selExpr]
+	if sel == nil || sel.Kind() != types.MethodVal {
+		return nil, "", false
+	}
+	recvTV, ok := info.Types[selExpr.X]
+	if !ok || recvTV.IsType() || recvTV.IsBuiltin() || recvTV.IsNil() || recvTV.Type == nil || isInvalidOrUntyped(recvTV.Type) {
+		return nil, "", false
+	}
+	ut := types.Unalias(recvTV.Type)
+	if _, isTP := ut.(*types.TypeParam); isTP {
+		return nil, "", false
+	}
+	if !isNonEmptyInterfaceType(ut) {
+		return nil, "", false
+	}
+
+	if recvNamed, ok := ut.(*types.Named); ok {
+		if meta := r.metadataForIface(recvNamed); meta != nil && meta.hasBase && meta.getterName == mName {
+			return selExpr, meta.getterName, true
+		}
+	}
+
+	ifaceU, ok := ut.Underlying().(*types.Interface)
+	if !ok {
+		return nil, "", false
+	}
+	var candOrder []*types.Named
+	candSeen := make(map[*types.Named]bool)
+	var collectEmbedded func(it *types.Interface)
+	collectEmbedded = func(it *types.Interface) {
+		if it == nil {
+			return
+		}
+		for i := 0; i < it.NumEmbeddeds(); i++ {
+			et := types.Unalias(it.EmbeddedType(i))
+			if en, ok := et.(*types.Named); ok {
+				orig := en.Origin()
+				if !candSeen[orig] {
+					candSeen[orig] = true
+					candOrder = append(candOrder, orig)
+				}
+				if eu, okU := orig.Underlying().(*types.Interface); okU {
+					collectEmbedded(eu)
+				}
+			} else if eu, okU := et.(*types.Interface); okU {
+				collectEmbedded(eu)
+			}
+		}
+	}
+	collectEmbedded(ifaceU)
+	for _, en := range candOrder {
+		if meta := r.metadataForIface(en); meta != nil && meta.hasBase && meta.getterName == mName {
+			return selExpr, meta.getterName, true
+		}
+	}
+	return nil, "", false
 }
 
 func (r *abstractDevirtResolver) matchCall(call *ast.CallExpr, info *types.Info) (*ast.SelectorExpr, string, bool) {
@@ -348,10 +420,12 @@ func devirtAbstractBaseCalls(ctx *PassContext) (int, error) {
 }
 
 type devirtCallSite struct {
-	selExpr    *ast.SelectorExpr
-	getterName string
-	recvVar    *types.Var // non-nil when stripParens(selExpr.X) is a bare *ast.Ident variable
-	topStmtIdx int        // index in enclosing function's top-level BlockStmt (-1 if outside)
+	callExpr          *ast.CallExpr
+	selExpr           *ast.SelectorExpr
+	getterName        string
+	recvVar           *types.Var // non-nil when stripParens(selExpr.X) is a bare *ast.Ident variable
+	topStmtIdx        int        // index in enclosing function's top-level BlockStmt (-1 if outside)
+	isExplicitBaseGet bool
 }
 
 func devirtAbstractBaseFile(file *ast.File, resolver *abstractDevirtResolver, info *types.Info) int {
@@ -427,9 +501,12 @@ func devirtSingleFunc(
 	info *types.Info,
 	handledSels map[*ast.SelectorExpr]bool,
 ) int {
-	// Collect all devirtualizable calls inside body not yet handled by an inner FuncLit
-	// (an inner FuncLit only hoists its own local/param variables; any unhandled call inside
-	// a nested FuncLit referencing an outer variable or expression is still collected here).
+	parents, _ := buildParentMap(body)
+
+	// Collect all devirtualizable calls and explicit Get<I>Base() calls inside body not yet
+	// handled by an inner FuncLit (an inner FuncLit only hoists its own local/param variables;
+	// any unhandled call inside a nested FuncLit referencing an outer variable or expression
+	// is still collected here).
 	var sites []devirtCallSite
 	for stmtIdx, stmt := range body.List {
 		ast.Inspect(stmt, func(n ast.Node) bool {
@@ -437,20 +514,46 @@ func devirtSingleFunc(
 			if !ok {
 				return true
 			}
-			selExpr, getter, okM := resolver.matchCall(call, info)
-			if !okM || handledSels[selExpr] {
+			if selExpr, getter, okM := resolver.matchCall(call, info); okM {
+				if handledSels[selExpr] {
+					return true
+				}
+				var rv *types.Var
+				if id, okId := stripParens(selExpr.X).(*ast.Ident); okId {
+					rv = varFromObj(info.Uses[id])
+				}
+				sites = append(sites, devirtCallSite{
+					callExpr:   call,
+					selExpr:    selExpr,
+					getterName: getter,
+					recvVar:    rv,
+					topStmtIdx: stmtIdx,
+				})
 				return true
 			}
-			var rv *types.Var
-			if id, okId := stripParens(selExpr.X).(*ast.Ident); okId {
-				rv = varFromObj(info.Uses[id])
+			if selExpr, getter, okE := resolver.matchExplicitBaseGet(call, info); okE {
+				if handledSels[selExpr] {
+					return true
+				}
+				if _, isES := parents[call].(*ast.ExprStmt); isES {
+					return true
+				}
+				var rv *types.Var
+				if id, okId := stripParens(selExpr.X).(*ast.Ident); okId {
+					rv = varFromObj(info.Uses[id])
+				}
+				if rv == nil {
+					return true
+				}
+				sites = append(sites, devirtCallSite{
+					callExpr:          call,
+					selExpr:           selExpr,
+					getterName:        getter,
+					recvVar:           rv,
+					topStmtIdx:        stmtIdx,
+					isExplicitBaseGet: true,
+				})
 			}
-			sites = append(sites, devirtCallSite{
-				selExpr:    selExpr,
-				getterName: getter,
-				recvVar:    rv,
-				topStmtIdx: stmtIdx,
-			})
 			return true
 		})
 	}
@@ -461,19 +564,51 @@ func devirtSingleFunc(
 	// Attempt safe block-level base hoisting for unmodified parameters / top-level locals
 	// when the function body has no `goto` statements.
 	hoistedForSite := make([]string, len(sites))
+	movedCount := 0
 	if !blockHasGotoStmt(body) {
-		tryPlanBaseHoists(fnType, body, sites, hoistedForSite, info)
+		movedCount = tryPlanBaseHoists(fnType, body, sites, hoistedForSite, info)
 	}
 
+	rewritten := 0
 	for i, s := range sites {
-		handledSels[s.selExpr] = true
 		if hoistedForSite[i] != "" {
-			s.selExpr.X = &ast.Ident{NamePos: s.selExpr.X.Pos(), Name: hoistedForSite[i]}
-		} else {
+			if s.isExplicitBaseGet {
+				target := ast.Expr(s.callExpr)
+				parent := parents[target]
+				for {
+					pe, isP := parent.(*ast.ParenExpr)
+					if !isP || pe.X != target {
+						break
+					}
+					outer := parents[pe]
+					if outer == nil {
+						break
+					}
+					if _, isES := outer.(*ast.ExprStmt); isES {
+						break
+					}
+					target = pe
+					parent = outer
+				}
+				if parent != nil && replaceExprInParent(parent, target, &ast.Ident{NamePos: s.callExpr.Pos(), Name: hoistedForSite[i]}, parents) {
+					handledSels[s.selExpr] = true
+					rewritten++
+				}
+			} else {
+				handledSels[s.selExpr] = true
+				s.selExpr.X = &ast.Ident{NamePos: s.selExpr.X.Pos(), Name: hoistedForSite[i]}
+				rewritten++
+			}
+		} else if !s.isExplicitBaseGet {
+			handledSels[s.selExpr] = true
 			rewriteSelectorToInlineBaseGet(s.selExpr, s.getterName)
+			rewritten++
 		}
 	}
-	return len(sites)
+	if rewritten == 0 && movedCount > 0 {
+		return movedCount
+	}
+	return rewritten
 }
 
 type hoistVarDeclInfo struct {
@@ -483,13 +618,18 @@ type hoistVarDeclInfo struct {
 	initExpr ast.Expr
 }
 
+type varGetterKey struct {
+	v      *types.Var
+	getter string
+}
+
 func tryPlanBaseHoists(
 	fnType *ast.FuncType,
 	body *ast.BlockStmt,
 	sites []devirtCallSite,
 	hoistedForSite []string,
 	info *types.Info,
-) {
+) int {
 	// 1. Discover candidate variables declared in fnType.Params or top-level body.List.
 	var candOrder []*types.Var
 	candInfo := make(map[*types.Var]*hoistVarDeclInfo)
@@ -542,7 +682,7 @@ func tryPlanBaseHoists(
 		}
 	}
 	if len(candOrder) == 0 {
-		return
+		return 0
 	}
 
 	// 2. Scan body once to collect all used identifier names and disqualify any variable
@@ -624,40 +764,101 @@ func tryPlanBaseHoists(
 		return true
 	})
 
-	// 3. Group call site indices by candidate variable.
-	siteIdxsByVar := make(map[*types.Var][]int)
+	// Detect pre-existing unmodified top-level base bindings `b := x.Get<I>Base()` so we never
+	// rewrite the binding's own RHS and can reuse (or hoist earlier) `b` cleanly and idempotently.
+	siteIdxByCall := make(map[*ast.CallExpr]int, len(sites))
 	for i, s := range sites {
-		if s.recvVar == nil {
+		if s.isExplicitBaseGet && s.callExpr != nil {
+			siteIdxByCall[s.callExpr] = i
+		}
+	}
+	isExistingHoistInit := make(map[int]bool)
+	existingHoistByKey := make(map[varGetterKey]*hoistVarDeclInfo)
+	for _, bv := range candOrder {
+		bci := candInfo[bv]
+		if bci == nil || bci.declIdx < 0 || bci.initExpr == nil || mutated[bv] || shadowed[bv] {
+			continue
+		}
+		initCall, okC := stripParens(bci.initExpr).(*ast.CallExpr)
+		if !okC {
+			continue
+		}
+		si, okS := siteIdxByCall[initCall]
+		if !okS {
+			continue
+		}
+		rv := sites[si].recvVar
+		if rv == nil || candInfo[rv] == nil || mutated[rv] || shadowed[rv] {
+			continue
+		}
+		isExistingHoistInit[si] = true
+		key := varGetterKey{v: rv, getter: sites[si].getterName}
+		if existingHoistByKey[key] == nil {
+			existingHoistByKey[key] = bci
+		}
+	}
+
+	// 3. Group non-binding call site indices by (candidate variable, getter).
+	var groupOrder []varGetterKey
+	siteIdxsByKey := make(map[varGetterKey][]int)
+	for i, s := range sites {
+		if isExistingHoistInit[i] || s.recvVar == nil {
 			continue
 		}
 		ci := candInfo[s.recvVar]
 		if ci == nil || mutated[s.recvVar] || shadowed[s.recvVar] {
 			continue
 		}
-		siteIdxsByVar[s.recvVar] = append(siteIdxsByVar[s.recvVar], i)
+		key := varGetterKey{v: s.recvVar, getter: s.getterName}
+		if siteIdxsByKey[key] == nil {
+			groupOrder = append(groupOrder, key)
+		}
+		siteIdxsByKey[key] = append(siteIdxsByKey[key], i)
 	}
 
 	insertBefore := make(map[int][]ast.Stmt)
+	removeStmtIdx := make(map[int]bool)
 	anyHoist := false
+	movedCount := 0
 
-	for _, cv := range candOrder {
-		idxs := siteIdxsByVar[cv]
+	for _, key := range groupOrder {
+		idxs := siteIdxsByKey[key]
+		if len(idxs) == 0 {
+			continue
+		}
+		ci := candInfo[key.v]
+		getter := key.getter
+
+		if eb := existingHoistByKey[key]; eb != nil {
+			effIdx := eb.declIdx
+			hoistIdx := findEarliestSafeBaseHoistIdx(ci, body.List, info)
+			if hoistIdx >= 0 && hoistIdx < eb.declIdx {
+				hasEarlierSite := false
+				for _, si := range idxs {
+					if sites[si].topStmtIdx >= hoistIdx && sites[si].topStmtIdx < eb.declIdx {
+						hasEarlierSite = true
+						break
+					}
+				}
+				if hasEarlierSite && canMoveTopBaseAssignEarlier(body.List, hoistIdx, eb.declIdx, eb.name) {
+					insertBefore[hoistIdx] = append(insertBefore[hoistIdx], body.List[eb.declIdx])
+					removeStmtIdx[eb.declIdx] = true
+					anyHoist = true
+					movedCount++
+					effIdx = hoistIdx
+				}
+			}
+			for _, si := range idxs {
+				if (effIdx < eb.declIdx && sites[si].topStmtIdx >= effIdx) || sites[si].topStmtIdx > eb.declIdx {
+					hoistedForSite[si] = eb.name
+				}
+			}
+			continue
+		}
+
 		if len(idxs) < 2 {
 			continue
 		}
-		ci := candInfo[cv]
-		getter := sites[idxs[0]].getterName
-		sameGetter := true
-		for _, si := range idxs[1:] {
-			if sites[si].getterName != getter {
-				sameGetter = false
-				break
-			}
-		}
-		if !sameGetter {
-			continue
-		}
-
 		hoistIdx := findEarliestSafeBaseHoistIdx(ci, body.List, info)
 		if hoistIdx < 0 || hoistIdx >= len(body.List) {
 			continue
@@ -699,7 +900,7 @@ func tryPlanBaseHoists(
 	}
 
 	if !anyHoist {
-		return
+		return 0
 	}
 
 	newList := make([]ast.Stmt, 0, len(body.List)+len(candOrder))
@@ -707,9 +908,43 @@ func tryPlanBaseHoists(
 		if pre := insertBefore[i]; len(pre) > 0 {
 			newList = append(newList, pre...)
 		}
-		newList = append(newList, stmt)
+		if !removeStmtIdx[i] {
+			newList = append(newList, stmt)
+		}
 	}
 	body.List = newList
+	return movedCount
+}
+
+func canMoveTopBaseAssignEarlier(stmts []ast.Stmt, hoistIdx, declIdx int, baseName string) bool {
+	if hoistIdx < 0 || declIdx <= hoistIdx || declIdx >= len(stmts) {
+		return false
+	}
+	as, ok := stmts[declIdx].(*ast.AssignStmt)
+	if !ok || as.Tok != token.DEFINE || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return false
+	}
+	id, ok := as.Lhs[0].(*ast.Ident)
+	if !ok || id.Name != baseName {
+		return false
+	}
+	for i := hoistIdx; i < declIdx; i++ {
+		mentioned := false
+		ast.Inspect(stmts[i], func(n ast.Node) bool {
+			if mentioned || n == nil {
+				return false
+			}
+			if u, isId := n.(*ast.Ident); isId && u.Name == baseName {
+				mentioned = true
+				return false
+			}
+			return true
+		})
+		if mentioned {
+			return false
+		}
+	}
+	return true
 }
 
 func pickFreshDevirtIdent(used map[string]bool, prefix string) string {
@@ -752,13 +987,30 @@ func findEarliestSafeBaseHoistIdx(ci *hoistVarDeclInfo, stmts []ast.Stmt, info *
 		if stmtUnconditionallyDerefsVarFirst(st, ci.v, info) {
 			return i
 		}
-		if ifSt, ok := st.(*ast.IfStmt); ok && ifSt.Init == nil && ifSt.Else == nil && blockUnconditionallyReturnsOrPanics(ifSt.Body, info) {
-			if exprProvesVarNonNilWhenFalse(ifSt.Cond, ci.v, info) {
-				return i + 1
-			}
+		if ifSt, ok := st.(*ast.IfStmt); ok && ifStmtProvesVarNonNilOnFallthrough(ifSt, ci.v, info) {
+			return i + 1
 		}
 	}
 	return -1
+}
+
+// ifStmtProvesVarNonNilOnFallthrough checks whether an `if / else if / ...` chain proves v
+// non-nil on every control-flow path that falls through past the entire IfStmt.
+func ifStmtProvesVarNonNilOnFallthrough(ifSt *ast.IfStmt, v *types.Var, info *types.Info) bool {
+	for cur := ifSt; cur != nil; {
+		if cur.Init != nil || !blockUnconditionallyReturnsOrPanics(cur.Body, info) {
+			return false
+		}
+		if exprProvesVarNonNilWhenFalse(cur.Cond, v, info) || exprDerefsVarFirst(cur.Cond, v, info) {
+			return true
+		}
+		nextIf, ok := cur.Else.(*ast.IfStmt)
+		if !ok {
+			return false
+		}
+		cur = nextIf
+	}
+	return false
 }
 
 func isGuaranteedNonNilInitForDevirt(expr ast.Expr, info *types.Info) bool {

@@ -1628,10 +1628,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.jscompDevMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_7_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_1 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_DevMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_7_, set_7_, "enum", "com.google.javascript.jscomp.CompilerOptions.DevMode")
-		}(), false)
+			iifeArg_1 = j2gort.NewArgs4jBuiltinHandler(p, opt_7_, set_7_, "enum", "com.google.javascript.jscomp.CompilerOptions.DevMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_7_, iifeArg_1,
+
+			false)
 	}
 	{
 		opt_8_ := j2gort.NewArgs4jNamedOptionDef("--logging_level", nil, "The logging level (standard java.util.logging.Level values) for Compiler progress. Does not control errors or warnings for the JavaScript code under compilation", "", false, false, true, false)
@@ -1739,10 +1745,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.segmentOfCompilationToRun
 		})
-		j2gort.Args4jRegisterHandler(p, opt_16_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_2 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_SegmentOfCompilationToRun_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_16_, set_16_, "enum", "com.google.javascript.jscomp.CompilerOptions.SegmentOfCompilationToRun")
-		}(), false)
+			iifeArg_2 = j2gort.NewArgs4jBuiltinHandler(p, opt_16_, set_16_, "enum", "com.google.javascript.jscomp.CompilerOptions.SegmentOfCompilationToRun")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_16_, iifeArg_2,
+
+			false)
 	}
 	{
 		opt_17_ := j2gort.NewArgs4jNamedOptionDef("--variable_renaming_report", nil, "File where the serialized version of the variable renaming map produced should be saved", "", false, false, false, false)
@@ -1826,10 +1838,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.isolationMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_24_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_3 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_IsolationMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_24_, set_24_, "enum", "com.google.javascript.jscomp.CompilerOptions.IsolationMode")
-		}(), false)
+			iifeArg_3 = j2gort.NewArgs4jBuiltinHandler(p, opt_24_, set_24_, "enum", "com.google.javascript.jscomp.CompilerOptions.IsolationMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_24_, iifeArg_3,
+
+			false)
 	}
 	{
 		opt_25_ := j2gort.NewArgs4jNamedOptionDef("--output_wrapper", nil, "Interpolate output into this string at the place denoted by the marker token %output%. Use marker token %output|jsstring% to do js string escaping on the output. Consider using the --isolation_mode flag instead.", "", false, false, false, false)
@@ -1901,10 +1919,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return j2gort.ToAny(this_.sourceMapFormat)
 		})
-		j2gort.Args4jRegisterHandler(p, opt_30_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_4 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = SourceMap_Format_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_30_, set_30_, "enum", "com.google.javascript.jscomp.SourceMap.Format")
-		}(), false)
+			iifeArg_4 = j2gort.NewArgs4jBuiltinHandler(p, opt_30_, set_30_, "enum", "com.google.javascript.jscomp.SourceMap.Format")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_30_, iifeArg_4,
+
+			false)
 	}
 	{
 		opt_31_ := j2gort.NewArgs4jNamedOptionDef("--source_map_location_mapping", nil, "Source map location mapping separated by a '|' (i.e. filesystem-path|webserver-path)", "", false, false, false, true)
@@ -2048,10 +2072,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.incrementalCheckMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_43_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_5 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_IncrementalCheckMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_43_, set_43_, "enum", "com.google.javascript.jscomp.CompilerOptions.IncrementalCheckMode")
-		}(), false)
+			iifeArg_5 = j2gort.NewArgs4jBuiltinHandler(p, opt_43_, set_43_, "enum", "com.google.javascript.jscomp.CompilerOptions.IncrementalCheckMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_43_, iifeArg_5,
+
+			false)
 	}
 	{
 		opt_44_ := j2gort.NewArgs4jNamedOptionDef("--continue_after_errors", nil, "Continue trying to compile after an error is encountered.", "", false, false, false, false)
@@ -2090,10 +2120,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.warningLevel
 		})
-		j2gort.Args4jRegisterHandler(p, opt_47_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_6 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = WarningLevel_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_47_, set_47_, "enum", "com.google.javascript.jscomp.WarningLevel")
-		}(), false)
+			iifeArg_6 = j2gort.NewArgs4jBuiltinHandler(p, opt_47_, set_47_, "enum", "com.google.javascript.jscomp.WarningLevel")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_47_, iifeArg_6,
+
+			false)
 	}
 	{
 		opt_48_ := j2gort.NewArgs4jNamedOptionDef("--debug", nil, "Enable debugging options. Property renaming uses long mangled names which can be mapped back to the original name.", "", false, false, false, false)
@@ -2147,10 +2183,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return nil
 		})
-		j2gort.Args4jRegisterHandler(p, opt_52_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_7 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CommandLineRunner_FormattingOption_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_52_, set_52_, "enum", "com.google.javascript.jscomp.CommandLineRunner.FormattingOption")
-		}(), false)
+			iifeArg_7 = j2gort.NewArgs4jBuiltinHandler(p, opt_52_, set_52_, "enum", "com.google.javascript.jscomp.CommandLineRunner.FormattingOption")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_52_, iifeArg_7,
+
+			false)
 	}
 	{
 		opt_53_ := j2gort.NewArgs4jNamedOptionDef("--process_common_js_modules", nil, "Process CommonJS modules to a concatenable form.", "", false, false, false, false)
@@ -2369,10 +2411,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.tracerMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_72_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_8 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_TracerMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_72_, set_72_, "enum", "com.google.javascript.jscomp.CompilerOptions.TracerMode")
-		}(), false)
+			iifeArg_8 = j2gort.NewArgs4jBuiltinHandler(p, opt_72_, set_72_, "enum", "com.google.javascript.jscomp.CompilerOptions.TracerMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_72_, iifeArg_8,
+
+			false)
 	}
 	{
 		opt_73_ := j2gort.NewArgs4jNamedOptionDef("--rename_variable_prefix", nil, "Specifies a prefix that will be prepended to all variables.", "", false, false, false, false)
@@ -2420,10 +2468,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.environment
 		})
-		j2gort.Args4jRegisterHandler(p, opt_76_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_9 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_Environment_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_76_, set_76_, "enum", "com.google.javascript.jscomp.CompilerOptions.Environment")
-		}(), false)
+			iifeArg_9 = j2gort.NewArgs4jBuiltinHandler(p, opt_76_, set_76_, "enum", "com.google.javascript.jscomp.CompilerOptions.Environment")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_76_, iifeArg_9,
+
+			false)
 	}
 	{
 		opt_77_ := j2gort.NewArgs4jNamedOptionDef("--json_streams", nil, "Specifies whether standard input and output streams will be a JSON array of sources. Each source will be an object of the form {path: filename, src: file_contents, source_map: srcmap_contents }. Intended for use by stream-based build systems such as gulpjs. Options: NONE, IN, OUT, BOTH. Defaults to NONE.", "", false, false, false, false)
@@ -2435,10 +2489,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.jsonStreamMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_77_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_10 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_JsonStreamMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_77_, set_77_, "enum", "com.google.javascript.jscomp.CompilerOptions.JsonStreamMode")
-		}(), false)
+			iifeArg_10 = j2gort.NewArgs4jBuiltinHandler(p, opt_77_, set_77_, "enum", "com.google.javascript.jscomp.CompilerOptions.JsonStreamMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_77_, iifeArg_10,
+
+			false)
 	}
 	{
 		opt_78_ := j2gort.NewArgs4jNamedOptionDef("--preserve_type_annotations", nil, "Preserves type annotations.", "", false, false, true, false)
@@ -2480,10 +2540,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.dependencyMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_81_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_11 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = DependencyOptions_DependencyMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_81_, set_81_, "enum", "com.google.javascript.jscomp.DependencyOptions.DependencyMode")
-		}(), false)
+			iifeArg_11 = j2gort.NewArgs4jBuiltinHandler(p, opt_81_, set_81_, "enum", "com.google.javascript.jscomp.DependencyOptions.DependencyMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_81_, iifeArg_11,
+
+			false)
 	}
 	{
 		opt_82_ := j2gort.NewArgs4jNamedOptionDef("--entry_point", nil, "A file or namespace to use as the starting point for determining which src files to include in the compilation. ES6 and CommonJS modules are specified as file paths (without the extension). Closure-library namespaces are specified with a \"goog:\" prefix. Example: --entry_point=goog:goog.Promise", "", false, false, false, true)
@@ -2534,10 +2600,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.moduleResolutionMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_86_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_12 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = ModuleLoader_ResolutionMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_86_, set_86_, "enum", "com.google.javascript.jscomp.deps.ModuleLoader.ResolutionMode")
-		}(), false)
+			iifeArg_12 = j2gort.NewArgs4jBuiltinHandler(p, opt_86_, set_86_, "enum", "com.google.javascript.jscomp.deps.ModuleLoader.ResolutionMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_86_, iifeArg_12,
+
+			false)
 	}
 	{
 		opt_87_ := j2gort.NewArgs4jNamedOptionDef("--browser_resolver_prefix_replacements", nil, "Prefixes to replace in ES6 import paths before resolving. module_resolution must be BROWSER_WITH_TRANSFORMED_PREFIXES to take effect.", "", false, false, false, true)
@@ -2574,10 +2646,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.errorFormat
 		})
-		j2gort.Args4jRegisterHandler(p, opt_89_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_13 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = AbstractCommandLineRunner_CommandLineConfig_ErrorFormatOption_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_89_, set_89_, "enum", "com.google.javascript.jscomp.AbstractCommandLineRunner.CommandLineConfig.ErrorFormatOption")
-		}(), false)
+			iifeArg_13 = j2gort.NewArgs4jBuiltinHandler(p, opt_89_, set_89_, "enum", "com.google.javascript.jscomp.AbstractCommandLineRunner.CommandLineConfig.ErrorFormatOption")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_89_, iifeArg_13,
+
+			false)
 	}
 	{
 		opt_90_ := j2gort.NewArgs4jNamedOptionDef("--renaming", nil, "Disables variable renaming. Cannot be used with ADVANCED optimizations.", "", false, false, false, false)
@@ -2631,10 +2709,16 @@ func (this_ *CommandLineRunner_Flags) RegisterArgs4jOptions(p *j2gort.Ext_org_ko
 		}, func() any {
 			return this_.chunkOutputType
 		})
-		j2gort.Args4jRegisterHandler(p, opt_94_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_14 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = CompilerOptions_ChunkOutputType_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_94_, set_94_, "enum", "com.google.javascript.jscomp.CompilerOptions.ChunkOutputType")
-		}(), false)
+			iifeArg_14 = j2gort.NewArgs4jBuiltinHandler(p, opt_94_, set_94_, "enum", "com.google.javascript.jscomp.CompilerOptions.ChunkOutputType")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_94_, iifeArg_14,
+
+			false)
 	}
 	{
 		opt_95_ := j2gort.NewArgs4jNamedOptionDef("--allow_dynamic_import", nil, "Indicates that the compiler should allow dynamic import expressions. Dynamic import expressions are not yet fully supported and may lead to broken output code.", "", false, false, false, false)

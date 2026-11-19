@@ -81,13 +81,13 @@ func InitCrossChunkReferenceCollector(this_ *CrossChunkReferenceCollector, compi
 	this_.referenceCollector = NewReferenceCollector_5(compiler, NewCrossChunkReferenceCollector_TopLevelStatementCollectingBehavior(this_), creator, func() j2gort.Ext_com_google_common_base_Predicate {
 		bound_1 := this_
 		return j2gort.NewLambda_Ext_com_google_common_base_Predicate(func(mrp0_ any) bool {
-			return bound_1.priv_CrossChunkReferenceCollector_shouldCollectVar_2280(j2gort.CastPtr[Var](mrp0_))
+			return bound_1.priv_CrossChunkReferenceCollector_shouldCollectVar_2281(j2gort.CastPtr[Var](mrp0_))
 		})
 	}(), false)
 }
 
 // Java method: CrossChunkReferenceCollector.shouldCollectVar(com.google.javascript.jscomp.Var v)
-func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_shouldCollectVar_2280(v *Var) bool {
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_shouldCollectVar_2281(v *Var) bool {
 	_ = v
 	return (v.IsGlobal() && !(this_.compiler.GetCodingConvention().IsExported_2(v.GetName(), false)))
 }
@@ -134,17 +134,22 @@ func (this_ *CrossChunkReferenceCollector) GetGlobalVariableNamesMap() j2gort.Ex
 }
 
 // Java method: CrossChunkReferenceCollector.initializeDraftStatement(com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.rhino.Node statementNode)
-func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_initializeDraftStatement_2284(chunk *JSChunk, statementNode pkg_rhino.Node) *CrossChunkReferenceCollector_TopLevelStatement {
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_initializeDraftStatement_2285(chunk *JSChunk, statementNode pkg_rhino.Node) *CrossChunkReferenceCollector_TopLevelStatement {
 	_ = chunk
 	_ = statementNode
 	var val_4 CrossChunkReferenceCollector_TopLevelStatement
 	val_4.outer_ = this_
-	InitCrossChunkReferenceCollector_TopLevelStatement(&val_4, func() int32 {
+	var iifeArg_1 int32
+	{
+
 		old_5 := this_.statementCounter
 		nw_6 := old_5 + 1
 		this_.statementCounter = nw_6
-		return old_5
-	}(), chunk, statementNode)
+		iifeArg_1 = old_5
+	}
+	InitCrossChunkReferenceCollector_TopLevelStatement(&val_4, iifeArg_1,
+
+		chunk, statementNode)
 	var draft *CrossChunkReferenceCollector_TopLevelStatement = &val_4
 	_ = draft
 	if NodeUtil_IsNameDeclaration(statementNode) {
@@ -285,7 +290,7 @@ func (this_ *CrossChunkReferenceCollector) GetTopLevelStatement(index int32) *Cr
 }
 
 // Java method: CrossChunkReferenceCollector.canMoveValue(com.google.javascript.jscomp.Scope scope, com.google.javascript.rhino.Node valueNode)
-func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_canMoveValue_2287(scope *Scope, valueNode pkg_rhino.Node) bool {
+func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_canMoveValue_2288(scope *Scope, valueNode pkg_rhino.Node) bool {
 	_ = scope
 	_ = valueNode
 	if ((valueNode == 0) || NodeUtil_IsLiteralValue(valueNode, true)) || valueNode.IsFunction() {
@@ -312,17 +317,17 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 					if !(method.IsFunction()) {
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(method))
 					}
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, keyExpr)) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, keyExpr)) {
 						return false
 					}
 				} else if member.IsComputedFieldDef() {
 					var keyExpr_2 pkg_rhino.Node = member.GetFirstChild()
 					_ = keyExpr_2
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, keyExpr_2)) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, keyExpr_2)) {
 						return false
 					}
 				} else if member.IsMemberFieldDef() {
-					if member.IsStaticMember() && !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, member.GetFirstChild())) {
+					if member.IsStaticMember() && !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, member.GetFirstChild())) {
 						return false
 					}
 				} else if member.IsBlock() {
@@ -348,7 +353,7 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 			var child pkg_rhino.Node = valueNode.GetFirstChild()
 			_ = child
 			for ; child != 0; child = child.GetNext() {
-				if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, child)) {
+				if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child)) {
 					return false
 				}
 			}
@@ -362,11 +367,11 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 				switch child_2.TokenSwitchOrd_() {
 				case int32(107) /* Token.MEMBER_FUNCTION_DEF */, int32(95) /* Token.GETTER_DEF */, int32(96) /* Token.SETTER_DEF */ :
 				case int32(129) /* Token.COMPUTED_PROP */ :
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, child_2.GetFirstChild())) || !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, child_2.GetLastChild())) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_2.GetFirstChild())) || !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_2.GetLastChild())) {
 						return false
 					}
 				case int32(100) /* Token.STRING_KEY */, int32(128) /* Token.OBJECT_SPREAD */ :
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, child_2.GetOnlyChild())) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_2.GetOnlyChild())) {
 						return false
 					}
 				default:
@@ -391,7 +396,7 @@ func (this_ *CrossChunkReferenceCollector) priv_CrossChunkReferenceCollector_can
 			_ = child_3
 			for ; child_3 != 0; child_3 = child_3.GetNext() {
 				if child_3.IsTemplateLitSub() {
-					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2287(scope, child_3.GetFirstChild())) {
+					if !(this_.priv_CrossChunkReferenceCollector_canMoveValue_2288(scope, child_3.GetFirstChild())) {
 						return false
 					}
 				} else {
@@ -482,7 +487,7 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatementCollectingBehavior) B
 		if !(this_.outer_.topLevelStatementDraft == nil) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(n))
 		}
-		this_.outer_.topLevelStatementDraft = this_.outer_.priv_CrossChunkReferenceCollector_initializeDraftStatement_2284(t.GetChunk(), n)
+		this_.outer_.topLevelStatementDraft = this_.outer_.priv_CrossChunkReferenceCollector_initializeDraftStatement_2285(t.GetChunk(), n)
 	}
 }
 
@@ -700,7 +705,7 @@ func (this_ *CrossChunkReferenceCollector_TopLevelStatement) GetDeclaredValueNod
 
 // Java method: TopLevelStatement.isMovableDeclaration()
 func (this_ *CrossChunkReferenceCollector_TopLevelStatement) IsMovableDeclaration() bool {
-	return (this_.IsDeclarationStatement() && this_.outer_.priv_CrossChunkReferenceCollector_canMoveValue_2287(this_.declaredNameReference.GetScope(), this_.declaredValueNode))
+	return (this_.IsDeclarationStatement() && this_.outer_.priv_CrossChunkReferenceCollector_canMoveValue_2288(this_.declaredNameReference.GetScope(), this_.declaredValueNode))
 }
 func (this_ *CrossChunkReferenceCollector) ReleaseSlabs_() {
 	if this_ == nil {

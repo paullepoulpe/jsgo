@@ -531,12 +531,19 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 		}
 	}
 	if (DToA_Word0(d) & int32(2146435072)) == int32(2146435072) {
-		buf.Append_1_string(func() string {
+		var iifeArg_2 string
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if (DToA_Word1(d) == int32(0)) && ((DToA_Word0(d) & int32(1048575)) == int32(0)) {
-				return "Infinity"
+				iifeArg_2 = "Infinity"
+				break iifeSwitch_1
 			}
-			return "NaN"
-		}())
+			iifeArg_2 = "NaN"
+			break iifeSwitch_1
+		}
+		buf.Append_1_string(iifeArg_2)
 		return int32(9999)
 	}
 	if d == float64(int32(0)) {
@@ -1008,11 +1015,15 @@ func DToA_JS_dtoa(d float64, mode int32, biasUp bool, ndigits int32, sign []bool
 	}
 	if (ilim <= int32(0)) && (mode > int32(2)) {
 		if ((ilim < int32(0)) || ((func() int32 {
-			var asgn_38 int32 = b.CompareTo(j2gort.PtrToAny(func() *j2gort.Ext_java_math_BigInteger {
+			var iifeArg_1 *j2gort.
+				Ext_java_math_BigInteger
+			{
+
 				var asgn_39 *j2gort.Ext_java_math_BigInteger = l_S.Multiply(j2gort.Ext_java_math_BigInteger_ValueOf(int64(int32(5))))
 				l_S = asgn_39
-				return asgn_39
-			}()))
+				iifeArg_1 = asgn_39
+			}
+			var asgn_38 int32 = b.CompareTo(j2gort.PtrToAny(iifeArg_1))
 			i = asgn_38
 			return asgn_38
 		}()) < int32(0))) || ((i == int32(0)) && !(biasUp)) {

@@ -180,13 +180,13 @@ func (this_ *Denormalize) Visit_3(t *NodeTraversal, n pkg_rhino.Node, parent pkg
 	_ = t
 	_ = n
 	_ = parent
-	this_.priv_Denormalize_maybeCollapseIntoForStatements_2386(n, parent)
-	this_.priv_Denormalize_maybeCollapseLogicalAssignShorthand_2388(t, n, parent)
-	this_.priv_Denormalize_maybeCollapseAssignShorthand_2387(n, parent)
+	this_.priv_Denormalize_maybeCollapseIntoForStatements_2393(n, parent)
+	this_.priv_Denormalize_maybeCollapseLogicalAssignShorthand_2395(t, n, parent)
+	this_.priv_Denormalize_maybeCollapseAssignShorthand_2394(n, parent)
 }
 
 // Java method: Denormalize.maybeCollapseIntoForStatements(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *Denormalize) priv_Denormalize_maybeCollapseIntoForStatements_2386(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Denormalize) priv_Denormalize_maybeCollapseIntoForStatements_2393(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	if (parent == 0) || !(NodeUtil_IsStatementBlock(parent)) {
@@ -243,15 +243,15 @@ func (this_ *Denormalize) priv_Denormalize_maybeCollapseIntoForStatements_2386(n
 }
 
 // Java method: Denormalize.maybeCollapseAssignShorthand(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *Denormalize) priv_Denormalize_maybeCollapseAssignShorthand_2387(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Denormalize) priv_Denormalize_maybeCollapseAssignShorthand_2394(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
-	if !(this_.priv_Denormalize_isCollapsableAssign_2389(n)) {
+	if !(this_.priv_Denormalize_isCollapsableAssign_2396(n)) {
 		return
 	}
 	var op pkg_rhino.Node = n.GetLastChild()
 	_ = op
-	var assignOp pkg_rhino.Token = this_.priv_Denormalize_getAssignOpFromOp_2391(op)
+	var assignOp pkg_rhino.Token = this_.priv_Denormalize_getAssignOpFromOp_2398(op)
 	_ = assignOp
 	{
 		var iifeCond_1 bool
@@ -273,16 +273,16 @@ func (this_ *Denormalize) priv_Denormalize_maybeCollapseAssignShorthand_2387(n p
 }
 
 // Java method: Denormalize.maybeCollapseLogicalAssignShorthand(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *Denormalize) priv_Denormalize_maybeCollapseLogicalAssignShorthand_2388(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *Denormalize) priv_Denormalize_maybeCollapseLogicalAssignShorthand_2395(t *NodeTraversal, n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = t
 	_ = n
 	_ = parent
-	if !(this_.priv_Denormalize_isCollapsableLogicalAssign_2390(n)) {
+	if !(this_.priv_Denormalize_isCollapsableLogicalAssign_2397(n)) {
 		return
 	}
 	var op pkg_rhino.Node = n.GetLastChild()
 	_ = op
-	var assignOp pkg_rhino.Token = this_.priv_Denormalize_getAssignOpFromOp_2391(n)
+	var assignOp pkg_rhino.Token = this_.priv_Denormalize_getAssignOpFromOp_2398(n)
 	_ = assignOp
 	{
 		var iifeCond_1 bool
@@ -305,19 +305,19 @@ func (this_ *Denormalize) priv_Denormalize_maybeCollapseLogicalAssignShorthand_2
 }
 
 // Java method: Denormalize.isCollapsableAssign(com.google.javascript.rhino.Node n)
-func (this_ *Denormalize) priv_Denormalize_isCollapsableAssign_2389(n pkg_rhino.Node) bool {
+func (this_ *Denormalize) priv_Denormalize_isCollapsableAssign_2396(n pkg_rhino.Node) bool {
 	_ = n
-	return (((n.IsAssign() && n.GetFirstChild().IsName()) && this_.priv_Denormalize_hasCorrespondingAssignmentOp_2392(n.GetLastChild())) && n.GetLastChild().GetFirstChild().IsName())
+	return (((n.IsAssign() && n.GetFirstChild().IsName()) && this_.priv_Denormalize_hasCorrespondingAssignmentOp_2399(n.GetLastChild())) && n.GetLastChild().GetFirstChild().IsName())
 }
 
 // Java method: Denormalize.isCollapsableLogicalAssign(com.google.javascript.rhino.Node n)
-func (this_ *Denormalize) priv_Denormalize_isCollapsableLogicalAssign_2390(n pkg_rhino.Node) bool {
+func (this_ *Denormalize) priv_Denormalize_isCollapsableLogicalAssign_2397(n pkg_rhino.Node) bool {
 	_ = n
 	return ((((this_.outputFeatureSet.Has(pkg_parser.StaticGet_FeatureSet_Feature_LOGICAL_ASSIGNMENT()) && ((n.IsOr() || n.IsAnd()) || n.IsNullishCoalesce())) && n.GetFirstChild().IsName()) && n.GetLastChild().IsAssign()) && n.GetLastChild().GetFirstChild().IsName())
 }
 
 // Java method: Denormalize.getAssignOpFromOp(com.google.javascript.rhino.Node n)
-func (this_ *Denormalize) priv_Denormalize_getAssignOpFromOp_2391(n pkg_rhino.Node) pkg_rhino.Token {
+func (this_ *Denormalize) priv_Denormalize_getAssignOpFromOp_2398(n pkg_rhino.Node) pkg_rhino.Token {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(1) /* Token.BITOR */ :
@@ -357,7 +357,7 @@ func (this_ *Denormalize) priv_Denormalize_getAssignOpFromOp_2391(n pkg_rhino.No
 }
 
 // Java method: Denormalize.hasCorrespondingAssignmentOp(com.google.javascript.rhino.Node n)
-func (this_ *Denormalize) priv_Denormalize_hasCorrespondingAssignmentOp_2392(n pkg_rhino.Node) bool {
+func (this_ *Denormalize) priv_Denormalize_hasCorrespondingAssignmentOp_2399(n pkg_rhino.Node) bool {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(1) /* Token.BITOR */, int32(2) /* Token.BITXOR */, int32(3) /* Token.BITAND */, int32(10) /* Token.LSH */, int32(11) /* Token.RSH */, int32(12) /* Token.URSH */, int32(13) /* Token.ADD */, int32(14) /* Token.SUB */, int32(15) /* Token.MUL */, int32(16) /* Token.DIV */, int32(17) /* Token.MOD */ :

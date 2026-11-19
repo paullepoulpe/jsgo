@@ -74,12 +74,12 @@ func (this_ *Es6RenameReferences) Visit_3(t *NodeTraversal, n pkg_rhino.Node, pa
 	_ = n
 	_ = parent
 	if NodeUtil_IsReferenceName(n) {
-		this_.priv_Es6RenameReferences_renameReference_2556(t, n, n.GetString())
+		this_.priv_Es6RenameReferences_renameReference_2563(t, n, n.GetString())
 	}
 }
 
 // Java method: Es6RenameReferences.renameReference(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n, java.lang.String oldName)
-func (this_ *Es6RenameReferences) priv_Es6RenameReferences_renameReference_2556(t *NodeTraversal, n pkg_rhino.Node, oldName string) {
+func (this_ *Es6RenameReferences) priv_Es6RenameReferences_renameReference_2563(t *NodeTraversal, n pkg_rhino.Node, oldName string) {
 	_ = t
 	_ = n
 	_ = oldName

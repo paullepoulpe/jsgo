@@ -152,17 +152,24 @@ func (this_ *ColorRegistry) GetDisambiguationSupertypes(x *Color) j2gort.Ext_com
 	if len_ == int32(1) {
 		return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_1(j2gort.PtrToAny(supertypes[int32(0)]))
 	}
-	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_3 := supertypes
 		if arr_3 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_4 := make([]any, len(arr_3))
 		for i_, el_5 := range arr_3 {
 			out_4[i_] = j2gort.PtrToAny(el_5)
 		}
-		return out_4
-	}())
+		iifeArg_1 = out_4
+		break iifeSwitch_1
+	}
+	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(iifeArg_1)
 }
 
 // Java method: ColorRegistry.getDisambiguationSupertypesArray(com.google.javascript.jscomp.colors.Color x)

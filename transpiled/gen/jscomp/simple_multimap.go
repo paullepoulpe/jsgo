@@ -264,31 +264,47 @@ func (this_ *SimpleMultimap[K, V]) PutAll_1(other *SimpleMultimap[K, V]) bool {
 			_ = entry
 			{
 				ba_18 := modified
-				bb_19 := this_.Put(func() K {
+				var iifeArg_1 K
+			iifeSwitch_4:
+				switch {
+				default:
+
 					tv_16 := entry.GetKey()
 					if tv_16 == nil {
 						{
 							if _, ok_ := any((*K)(nil)).(*string); ok_ {
-								return any(j2gort.NullString).(K)
+								iifeArg_1 = any(j2gort.NullString).(K)
+								break iifeSwitch_4
 							}
 							var z_ K
-							return z_
+							iifeArg_1 = z_
+							break iifeSwitch_4
 						}
 					}
-					return j2gort.Cast[K](tv_16)
-				}(), func() V {
+					iifeArg_1 = j2gort.Cast[K](tv_16)
+					break iifeSwitch_4
+				}
+				var iifeArg_2 V
+			iifeSwitch_5:
+				switch {
+				default:
+
 					tv_17 := entry.GetValue()
 					if tv_17 == nil {
 						{
 							if _, ok_ := any((*V)(nil)).(*string); ok_ {
-								return any(j2gort.NullString).(V)
+								iifeArg_2 = any(j2gort.NullString).(V)
+								break iifeSwitch_5
 							}
 							var z_ V
-							return z_
+							iifeArg_2 = z_
+							break iifeSwitch_5
 						}
 					}
-					return j2gort.Cast[V](tv_17)
-				}())
+					iifeArg_2 = j2gort.Cast[V](tv_17)
+					break iifeSwitch_5
+				}
+				bb_19 := this_.Put(iifeArg_1, iifeArg_2)
 				modified = ba_18 || bb_19
 			}
 		}
@@ -502,7 +518,7 @@ func (this_ *SimpleMultimap[K, V]) Entries() j2gort.Ext_java_util_Collection {
 		cur_20 := j2gort.NewMapEntryCursor(this_.map_)
 		for cur_20.NextEntry() {
 			var key K
-		iifeSwitch_5:
+		iifeSwitch_7:
 			switch {
 			default:
 				tv_21 := cur_20.GetKey()
@@ -510,15 +526,15 @@ func (this_ *SimpleMultimap[K, V]) Entries() j2gort.Ext_java_util_Collection {
 					{
 						if _, ok_ := any((*K)(nil)).(*string); ok_ {
 							key = any(j2gort.NullString).(K)
-							break iifeSwitch_5
+							break iifeSwitch_7
 						}
 						var z_ K
 						key = z_
-						break iifeSwitch_5
+						break iifeSwitch_7
 					}
 				}
 				key = j2gort.Cast[K](tv_21)
-				break iifeSwitch_5
+				break iifeSwitch_7
 			}
 			_ = key
 			{
@@ -526,7 +542,7 @@ func (this_ *SimpleMultimap[K, V]) Entries() j2gort.Ext_java_util_Collection {
 				for cur_22.HasNext() {
 					rawElem_23 := cur_22.Next()
 					var value V
-				iifeSwitch_4:
+				iifeSwitch_6:
 					switch {
 					default:
 
@@ -535,15 +551,15 @@ func (this_ *SimpleMultimap[K, V]) Entries() j2gort.Ext_java_util_Collection {
 							{
 								if _, ok_ := any((*V)(nil)).(*string); ok_ {
 									value = any(j2gort.NullString).(V)
-									break iifeSwitch_4
+									break iifeSwitch_6
 								}
 								var z_ V
 								value = z_
-								break iifeSwitch_4
+								break iifeSwitch_6
 							}
 						}
 						value = j2gort.Cast[V](tv_24)
-						break iifeSwitch_4
+						break iifeSwitch_6
 					}
 					_ = value
 					entries = append(entries, j2gort.NewExt_java_util_AbstractMap_SimpleImmutableEntry_2(j2gort.ToAny(key), j2gort.ToAny(value)))
@@ -706,19 +722,27 @@ func (this_ *SimpleMultimap__Anon_81[K, V]) HasNext() bool {
 
 // Java method: .next()
 func (this_ *SimpleMultimap__Anon_81[K, V]) Next() any {
-	return j2gort.ToAny(func() V {
+	var iifeArg_3 V
+iifeSwitch_8:
+	switch {
+	default:
+
 		tv_26 := this_.listIterator.Next()
 		if tv_26 == nil {
 			{
 				if _, ok_ := any((*V)(nil)).(*string); ok_ {
-					return any(j2gort.NullString).(V)
+					iifeArg_3 = any(j2gort.NullString).(V)
+					break iifeSwitch_8
 				}
 				var z_ V
-				return z_
+				iifeArg_3 = z_
+				break iifeSwitch_8
 			}
 		}
-		return j2gort.Cast[V](tv_26)
-	}())
+		iifeArg_3 = j2gort.Cast[V](tv_26)
+		break iifeSwitch_8
+	}
+	return j2gort.ToAny(iifeArg_3)
 }
 
 func (this_ *SimpleMultimap__Anon_81[K, V]) Remove() {

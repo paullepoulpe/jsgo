@@ -91,7 +91,7 @@ func (this_ *InferConsts) Process_2(externs pkg_rhino.Node, js pkg_rhino.Node) {
 			rawElem_3 := cur_2.Next()
 			v := j2gort.CastPtr[Var](rawElem_3)
 			_ = v
-			this_.priv_InferConsts_considerVar_3197(v, j2gort.CastPtr[ReferenceCollection](collector.GetReferences(j2gort.PtrToAny(v))))
+			this_.priv_InferConsts_considerVar_3204(v, j2gort.CastPtr[ReferenceCollection](collector.GetReferences(j2gort.PtrToAny(v))))
 		}
 	}
 	scInline_1 := NewSyntacticScopeCreator_1(this_.compiler)
@@ -106,13 +106,13 @@ func (this_ *InferConsts) Process_2(externs pkg_rhino.Node, js pkg_rhino.Node) {
 			v_2 := cur_4.Next()
 
 			_ = v_2
-			this_.priv_InferConsts_considerVar_3197(v_2, nil)
+			this_.priv_InferConsts_considerVar_3204(v_2, nil)
 		}
 	}
 }
 
 // Java method: InferConsts.considerVar(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.@org.jspecify.annotations.Nullable ReferenceCollection refCollection)
-func (this_ *InferConsts) priv_InferConsts_considerVar_3197(v *Var, refCollection *ReferenceCollection) {
+func (this_ *InferConsts) priv_InferConsts_considerVar_3204(v *Var, refCollection *ReferenceCollection) {
 	_ = v
 	_ = refCollection
 	if v.IsImplicitGoogNamespace() {

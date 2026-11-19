@@ -474,9 +474,10 @@ func readTextFormatInput(in any) string {
 	return StrVal(in)
 }
 
-func (x *protoFieldDesc) IsJavaNil_() bool   { return x == nil }
-func (x *jProtoList) IsJavaNil_() bool       { return x == nil }
-func (x *jProtoStringList) IsJavaNil_() bool { return x == nil }
+func (x *protoFieldDesc) IsJavaNil_() bool       { return x == nil }
+func (x *jProtoList) IsJavaNil_() bool           { return x == nil }
+func (x *jProtoStringList) IsJavaNil_() bool     { return x == nil }
+func (x *jProtoByteStringList) IsJavaNil_() bool { return x == nil }
 var protoEnumCache_Mapping_OriginalMapping_Precision_ atomic.Pointer[[]*Ext_com_google_debugging_sourcemap_proto_Mapping_OriginalMapping_Precision]
 func lookupProtoEnum_Mapping_OriginalMapping_Precision(ord int32) *Ext_com_google_debugging_sourcemap_proto_Mapping_OriginalMapping_Precision {
 	s := protoEnumCache_Mapping_OriginalMapping_Precision_.Load()

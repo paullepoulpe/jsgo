@@ -71,17 +71,24 @@ func NewCombinedCompilerPass_2_AbstractCompiler_NodeTraversal_Callback(compiler 
 func InitCombinedCompilerPass_2_AbstractCompiler_NodeTraversal_Callback(this_ *CombinedCompilerPass, compiler AbstractCompiler, callbacks []NodeTraversal_Callback) {
 	_ = compiler
 	_ = callbacks
-	InitCombinedCompilerPass_2_AbstractCompiler_Ext_java_util_List(this_, compiler, j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_1 := callbacks
 		if arr_1 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_2 := make([]any, len(arr_1))
 		for i_, el_3 := range arr_1 {
 			out_2[i_] = el_3
 		}
-		return out_2
-	}())))
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	InitCombinedCompilerPass_2_AbstractCompiler_Ext_java_util_List(this_, compiler, j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_1)))
 }
 
 // Java constructor: CombinedCompilerPass(com.google.javascript.jscomp.AbstractCompiler compiler, java.util.List<com.google.javascript.jscomp.NodeTraversal.Callback> callbacks)

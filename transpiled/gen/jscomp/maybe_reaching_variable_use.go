@@ -147,7 +147,7 @@ func InitMaybeReachingVariableUse(this_ *MaybeReachingVariableUse, cfg ControlFl
 		slab_ReachingUses, n)
 }
 
-func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_lookupVarIndex_3846(name string) int32 {
+func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_lookupVarIndex_3856(name string) int32 {
 	_ = name
 	var table []string = this_.nameTable
 	_ = table
@@ -211,9 +211,9 @@ func (this_ *MaybeReachingVariableUse) FlowThrough(n pkg_rhino.Node, input *Mayb
 	_ = n
 	_ = input
 	this_.flowOutput = nil
-	var conditional bool = this_.priv_MaybeReachingVariableUse_hasExceptionHandler_3848(n)
+	var conditional bool = this_.priv_MaybeReachingVariableUse_hasExceptionHandler_3858(n)
 	_ = conditional
-	this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n, n, input, conditional)
+	this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n, n, input, conditional)
 	var out *MaybeReachingVariableUse_ReachingUses = this_.flowOutput
 	_ = out
 	this_.flowOutput = nil
@@ -225,7 +225,7 @@ func (this_ *MaybeReachingVariableUse) FlowThrough(n pkg_rhino.Node, input *Mayb
 }
 
 // Java method: MaybeReachingVariableUse.writableFlowOutput(com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses input)
-func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_writableFlowOutput_3847(input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
+func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_writableFlowOutput_3857(input *MaybeReachingVariableUse_ReachingUses) *MaybeReachingVariableUse_ReachingUses {
 	_ = input
 	var out *MaybeReachingVariableUse_ReachingUses = this_.flowOutput
 	_ = out
@@ -237,7 +237,7 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_writableFlo
 }
 
 // Java method: MaybeReachingVariableUse.hasExceptionHandler(com.google.javascript.rhino.Node cfgNode)
-func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_hasExceptionHandler_3848(cfgNode pkg_rhino.Node) bool {
+func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_hasExceptionHandler_3858(cfgNode pkg_rhino.Node) bool {
 	_ = cfgNode
 	var branchEdges j2gort.Ext_java_util_List = this_.GetCfg().GetOutEdges(cfgNode)
 	_ = branchEdges
@@ -256,7 +256,7 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_hasExceptio
 }
 
 // Java method: MaybeReachingVariableUse.computeMayUse(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node cfgNode, com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses output, boolean conditional)
-func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayUse_3849(n pkg_rhino.Node, cfgNode pkg_rhino.Node, output *MaybeReachingVariableUse_ReachingUses, conditional bool) {
+func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayUse_3859(n pkg_rhino.Node, cfgNode pkg_rhino.Node, output *MaybeReachingVariableUse_ReachingUses, conditional bool) {
 	_ = n
 	_ = cfgNode
 	_ = output
@@ -267,16 +267,16 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayU
 	case int32(32) /* Token.NAME */ :
 		if NodeUtil_IsLhsByDestructuring(n) {
 			if !(conditional) {
-				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3851(n.GetString(), output)
+				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3861(n.GetString(), output)
 			}
 		} else {
-			this_.priv_MaybeReachingVariableUse_addToUseIfLocal_3850(n.GetString(), cfgNode, output)
+			this_.priv_MaybeReachingVariableUse_addToUseIfLocal_3860(n.GetString(), cfgNode, output)
 		}
 		return
 	case int32(78) /* Token.WHILE */, int32(79) /* Token.DO */, int32(74) /* Token.IF */, int32(80) /* Token.FOR */ :
 		var condExpr pkg_rhino.Node = NodeUtil_GetConditionExpression(n)
 		_ = condExpr
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(condExpr, cfgNode, output, conditional)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(condExpr, cfgNode, output, conditional)
 		return
 	case int32(81) /* Token.FOR_IN */, int32(112) /* Token.FOR_OF */, int32(113) /* Token.FOR_AWAIT_OF */ :
 		var lhs pkg_rhino.Node = n.GetFirstChild()
@@ -290,28 +290,28 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayU
 			}
 		}
 		if lhs.IsDestructuringPattern() {
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(lhs, cfgNode, output, true)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(lhs, cfgNode, output, true)
 		}
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(rhs, cfgNode, output, conditional)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(rhs, cfgNode, output, conditional)
 		return
 	case int32(69) /* Token.AND */, int32(68) /* Token.OR */, int32(70) /* Token.COALESCE */, int32(29) /* Token.OPTCHAIN_GETPROP */, int32(30) /* Token.OPTCHAIN_GETELEM */ :
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetLastChild(), cfgNode, output, true)
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetLastChild(), cfgNode, output, true)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetFirstChild(), cfgNode, output, conditional)
 		return
 	case int32(31) /* Token.OPTCHAIN_CALL */ :
 		{
 			var c pkg_rhino.Node = n.GetLastChild()
 			_ = c
 			for ; c != n.GetFirstChild(); c = c.GetPrevious() {
-				this_.priv_MaybeReachingVariableUse_computeMayUse_3849(c, cfgNode, output, true)
+				this_.priv_MaybeReachingVariableUse_computeMayUse_3859(c, cfgNode, output, true)
 			}
 		}
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetFirstChild(), cfgNode, output, conditional)
 		return
 	case int32(67) /* Token.HOOK */ :
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetLastChild(), cfgNode, output, true)
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetSecondChild(), cfgNode, output, true)
-		this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetFirstChild(), cfgNode, output, conditional)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetLastChild(), cfgNode, output, true)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetSecondChild(), cfgNode, output, true)
+		this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetFirstChild(), cfgNode, output, conditional)
 		return
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
 		var varName pkg_rhino.Node = n.GetFirstChild()
@@ -320,27 +320,27 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayU
 			j2gort.CheckStateFmt(false, "AST should be normalized (%s)", j2gort.BoxNode(n))
 		}
 		if varName.IsDestructuringLhs() {
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(varName.GetFirstChild(), cfgNode, output, conditional)
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(varName.GetSecondChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(varName.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(varName.GetSecondChild(), cfgNode, output, conditional)
 		} else if varName.HasChildren() {
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(varName.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(varName.GetFirstChild(), cfgNode, output, conditional)
 			if !(conditional) {
-				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3851(varName.GetString(), output)
+				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3861(varName.GetString(), output)
 			}
 		}
 		return
 	case int32(134) /* Token.DEFAULT_VALUE */ :
 		if n.GetFirstChild().IsDestructuringPattern() {
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetFirstChild(), cfgNode, output, conditional)
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetSecondChild(), cfgNode, output, true)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetSecondChild(), cfgNode, output, true)
 		} else if n.GetFirstChild().IsName() {
 			if !(conditional) {
-				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3851(n.GetFirstChild().GetString(), output)
+				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3861(n.GetFirstChild().GetString(), output)
 			}
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetSecondChild(), cfgNode, output, true)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetSecondChild(), cfgNode, output, true)
 		} else {
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetSecondChild(), cfgNode, output, true)
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetSecondChild(), cfgNode, output, true)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetFirstChild(), cfgNode, output, conditional)
 		}
 	default:
 		if NodeUtil_IsAssignmentOp(n) && n.GetFirstChild().IsName() {
@@ -350,21 +350,21 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayU
 			var name pkg_rhino.Node = n.GetFirstChild()
 			_ = name
 			if !(conditional) {
-				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3851(name.GetString(), output)
+				this_.priv_MaybeReachingVariableUse_removeFromUseIfLocal_3861(name.GetString(), output)
 			}
 			if !(n.IsAssign()) {
-				this_.priv_MaybeReachingVariableUse_addToUseIfLocal_3850(name.GetString(), cfgNode, output)
+				this_.priv_MaybeReachingVariableUse_addToUseIfLocal_3860(name.GetString(), cfgNode, output)
 			}
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(name.GetNext(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(name.GetNext(), cfgNode, output, conditional)
 		} else if n.IsAssign() && n.GetFirstChild().IsDestructuringPattern() {
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetFirstChild(), cfgNode, output, conditional)
-			this_.priv_MaybeReachingVariableUse_computeMayUse_3849(n.GetSecondChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetFirstChild(), cfgNode, output, conditional)
+			this_.priv_MaybeReachingVariableUse_computeMayUse_3859(n.GetSecondChild(), cfgNode, output, conditional)
 		} else {
 			{
 				var c_2 pkg_rhino.Node = n.GetLastChild()
 				_ = c_2
 				for ; c_2 != 0; c_2 = c_2.GetPrevious() {
-					this_.priv_MaybeReachingVariableUse_computeMayUse_3849(c_2, cfgNode, output, conditional)
+					this_.priv_MaybeReachingVariableUse_computeMayUse_3859(c_2, cfgNode, output, conditional)
 				}
 			}
 		}
@@ -372,11 +372,11 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_computeMayU
 }
 
 // Java method: MaybeReachingVariableUse.addToUseIfLocal(java.lang.String name, com.google.javascript.rhino.Node node, com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses input)
-func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_addToUseIfLocal_3850(name string, node pkg_rhino.Node, input *MaybeReachingVariableUse_ReachingUses) {
+func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_addToUseIfLocal_3860(name string, node pkg_rhino.Node, input *MaybeReachingVariableUse_ReachingUses) {
 	_ = name
 	_ = node
 	_ = input
-	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3846(name)
+	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3856(name)
 	_ = varIdx
 	if (varIdx < int32(0)) || this_.isEscaped[varIdx] {
 		return
@@ -391,14 +391,14 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_addToUseIfL
 	if cur.ContainsUse(varIdx, node) {
 		return
 	}
-	this_.priv_MaybeReachingVariableUse_writableFlowOutput_3847(input).Put(varIdx, node)
+	this_.priv_MaybeReachingVariableUse_writableFlowOutput_3857(input).Put(varIdx, node)
 }
 
 // Java method: MaybeReachingVariableUse.removeFromUseIfLocal(java.lang.String name, com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses input)
-func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_removeFromUseIfLocal_3851(name string, input *MaybeReachingVariableUse_ReachingUses) {
+func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_removeFromUseIfLocal_3861(name string, input *MaybeReachingVariableUse_ReachingUses) {
 	_ = name
 	_ = input
-	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3846(name)
+	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3856(name)
 	_ = varIdx
 	if (varIdx < int32(0)) || this_.isEscaped[varIdx] {
 		return
@@ -413,41 +413,49 @@ func (this_ *MaybeReachingVariableUse) priv_MaybeReachingVariableUse_removeFromU
 	if cur.IsEmptyAt(varIdx) {
 		return
 	}
-	this_.priv_MaybeReachingVariableUse_writableFlowOutput_3847(input).RemoveAll(varIdx)
+	this_.priv_MaybeReachingVariableUse_writableFlowOutput_3857(input).RemoveAll(varIdx)
 }
 
 // Java method: MaybeReachingVariableUse.getUses(java.lang.String name, com.google.javascript.rhino.Node defNode)
 func (this_ *MaybeReachingVariableUse) GetUses(name string, defNode pkg_rhino.Node) j2gort.Ext_java_lang_Iterable {
 	_ = name
 	_ = defNode
-	var n pkg_graph.GraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.ToIface_GraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.GetCfg().GetNode(defNode)))
+	var n *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.GetCfg().GetNode(defNode))
 	_ = n
-	j2gort.CheckNotNullIface(n)
-	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3846(name)
+	j2gort.CheckNotNullPtr(n)
+	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3856(name)
 	_ = varIdx
 	if varIdx < int32(0) {
 		return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
 	}
-	var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](n.GetAnnotation())
-	_ = state
-	return j2gort.CastPtr[MaybeReachingVariableUse_ReachingUses](state.GetOut()).GetUsesAt(varIdx)
+	return this_.GetNodeOutLattice(n).GetUsesAt(varIdx)
 }
 
 // Java method: MaybeReachingVariableUse.hasSingleUse(java.lang.String name, com.google.javascript.rhino.Node defNode)
 func (this_ *MaybeReachingVariableUse) HasSingleUse(name string, defNode pkg_rhino.Node) bool {
 	_ = name
 	_ = defNode
-	var n pkg_graph.GraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = pkg_graph.ToIface_GraphNode[pkg_rhino.Node, ControlFlowGraph_Branch](j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.GetCfg().GetNode(defNode)))
+	var n *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = j2gort.CastPtr[pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch]](this_.GetCfg().GetNode(defNode))
 	_ = n
-	j2gort.CheckNotNullIface(n)
-	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3846(name)
+	j2gort.CheckNotNullPtr(n)
+	var varIdx int32 = this_.priv_MaybeReachingVariableUse_lookupVarIndex_3856(name)
 	_ = varIdx
 	if varIdx < int32(0) {
 		return false
 	}
-	var state *DataFlowAnalysis_LinearFlowState = j2gort.CastPtr[DataFlowAnalysis_LinearFlowState](n.GetAnnotation())
-	_ = state
-	return j2gort.CastPtr[MaybeReachingVariableUse_ReachingUses](state.GetOut()).HasSingleUseAt(varIdx)
+	return this_.GetNodeOutLattice(n).HasSingleUseAt(varIdx)
+}
+
+// Java method: MaybeReachingVariableUse.needsNodeAnnotations()
+func (this_ *MaybeReachingVariableUse) NeedsNodeAnnotations() bool {
+	return false
+}
+
+// Java method: MaybeReachingVariableUse.isLatticeEqual(com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses a, com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses b)
+func (this_ *MaybeReachingVariableUse) IsLatticeEqual(a *MaybeReachingVariableUse_ReachingUses, b *MaybeReachingVariableUse_ReachingUses) bool {
+	_ = a
+	_ = b
+	return a.EqualsUses(b)
 }
 
 // Java class: com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses
@@ -567,17 +575,24 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) GetUsesAt(varIdx int32) j2go
 		var ms []pkg_rhino.Node = this_.multiUse[varIdx]
 		_ = ms
 		if ms != nil {
-			return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+			var iifeArg_1 []any
+		iifeSwitch_1:
+			switch {
+			default:
+
 				arr_10 := ms
 				if arr_10 == nil {
-					return nil
+					iifeArg_1 = nil
+					break iifeSwitch_1
 				}
 				out_11 := make([]any, len(arr_10))
 				for i_, el_12 := range arr_10 {
 					out_11[i_] = j2gort.BoxNode(el_12)
 				}
-				return out_11
-			}()))
+				iifeArg_1 = out_11
+				break iifeSwitch_1
+			}
+			return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(iifeArg_1))
 		}
 	}
 	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
@@ -723,13 +738,13 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVar
 			if (ts == 0) && (tm == nil) {
 				if os != 0 {
 					{
-						a_27 := this_.priv_ReachingUses_ensureSingleArray_3861()
+						a_27 := this_.priv_ReachingUses_ensureSingleArray_3871()
 						i_28 := i
 						a_27[i_28] = os
 					}
 				} else {
 					{
-						a_29 := this_.priv_ReachingUses_ensureMultiArray_3862()
+						a_29 := this_.priv_ReachingUses_ensureMultiArray_3872()
 						i_30 := i
 						a_29[i_30] = om
 					}
@@ -743,7 +758,7 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVar
 							a_31[i_32] = pkg_rhino.Node(0)
 						}
 						{
-							a_33 := this_.priv_ReachingUses_ensureMultiArray_3862()
+							a_33 := this_.priv_ReachingUses_ensureMultiArray_3872()
 							i_34 := i
 							a_33[i_34] = MaybeReachingVariableUse_ReachingUses_PairSorted(ts, os)
 						}
@@ -755,7 +770,7 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVar
 						a_35[i_36] = pkg_rhino.Node(0)
 					}
 					{
-						a_37 := this_.priv_ReachingUses_ensureMultiArray_3862()
+						a_37 := this_.priv_ReachingUses_ensureMultiArray_3872()
 						i_38 := i
 						a_37[i_38] = func() []pkg_rhino.Node {
 							if MaybeReachingVariableUse_ReachingUses_ContainsSorted(om, ts) {
@@ -787,7 +802,7 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) Join(other *MaybeReachingVar
 }
 
 // Java method: ReachingUses.ensureSingleArray()
-func (this_ *MaybeReachingVariableUse_ReachingUses) priv_ReachingUses_ensureSingleArray_3861() []pkg_rhino.Node {
+func (this_ *MaybeReachingVariableUse_ReachingUses) priv_ReachingUses_ensureSingleArray_3871() []pkg_rhino.Node {
 	var s []pkg_rhino.Node = this_.singleUse
 	_ = s
 	if s == nil {
@@ -798,7 +813,7 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) priv_ReachingUses_ensureSing
 }
 
 // Java method: ReachingUses.ensureMultiArray()
-func (this_ *MaybeReachingVariableUse_ReachingUses) priv_ReachingUses_ensureMultiArray_3862() [][]pkg_rhino.Node {
+func (this_ *MaybeReachingVariableUse_ReachingUses) priv_ReachingUses_ensureMultiArray_3872() [][]pkg_rhino.Node {
 	var m [][]pkg_rhino.Node = this_.multiUse
 	_ = m
 	if m == nil {
@@ -812,15 +827,23 @@ func (this_ *MaybeReachingVariableUse_ReachingUses) priv_ReachingUses_ensureMult
 func (this_ *MaybeReachingVariableUse_ReachingUses) Equals(arg_43 any) bool {
 	other := arg_43
 	_ = other
-	if j2gort.RefEquals(this_, other) {
-		return true
-	}
 	var otherUses *MaybeReachingVariableUse_ReachingUses
 	_ = otherUses
-	var ok_45 bool
-	otherUses, ok_45 = j2gort.TryCast[*MaybeReachingVariableUse_ReachingUses](other)
-	ok_44 := !ok_45
-	if ok_44 || (this_.numVars != otherUses.numVars) {
+	var ok_44 bool
+	otherUses, ok_44 = j2gort.TryCast[*MaybeReachingVariableUse_ReachingUses](other)
+	if !ok_44 {
+		return false
+	}
+	return this_.EqualsUses(otherUses)
+}
+
+// Java method: ReachingUses.equalsUses(com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses otherUses)
+func (this_ *MaybeReachingVariableUse_ReachingUses) EqualsUses(otherUses *MaybeReachingVariableUse_ReachingUses) bool {
+	_ = otherUses
+	if this_ == otherUses {
+		return true
+	}
+	if this_.numVars != otherUses.numVars {
 		return false
 	}
 	var sa []pkg_rhino.Node = this_.singleUse
@@ -997,37 +1020,37 @@ func MaybeReachingVariableUse_ReachingUses_InsertSorted(arr []pkg_rhino.Node, ta
 	_ = out
 	if lo > int32(0) {
 		func() {
-			acSrc_46 := arr
-			acSP_47 := int32(0)
-			acDst_48 := out
-			acDP_49 := int32(0)
-			acLen_50 := lo
-			j2gort.CheckNotNullSlice(acSrc_46)
-			j2gort.CheckNotNullSlice(acDst_48)
-			if acSP_47 < 0 || acDP_49 < 0 || acLen_50 < 0 || int64(acSP_47)+int64(acLen_50) > int64(len(acSrc_46)) || int64(acDP_49)+int64(acLen_50) > int64(len(acDst_48)) {
+			acSrc_45 := arr
+			acSP_46 := int32(0)
+			acDst_47 := out
+			acDP_48 := int32(0)
+			acLen_49 := lo
+			j2gort.CheckNotNullSlice(acSrc_45)
+			j2gort.CheckNotNullSlice(acDst_47)
+			if acSP_46 < 0 || acDP_48 < 0 || acLen_49 < 0 || int64(acSP_46)+int64(acLen_49) > int64(len(acSrc_45)) || int64(acDP_48)+int64(acLen_49) > int64(len(acDst_47)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_48[int(acDP_49):int(acDP_49)+int(acLen_50)], acSrc_46[int(acSP_47):int(acSP_47)+int(acLen_50)])
+			copy(acDst_47[int(acDP_48):int(acDP_48)+int(acLen_49)], acSrc_45[int(acSP_46):int(acSP_46)+int(acLen_49)])
 		}()
 	}
 	{
-		a_51 := out
-		i_52 := lo
-		a_51[i_52] = target
+		a_50 := out
+		i_51 := lo
+		a_50[i_51] = target
 	}
 	if lo < len_ {
 		func() {
-			acSrc_53 := arr
-			acSP_54 := lo
-			acDst_55 := out
-			acDP_56 := (lo + int32(1))
-			acLen_57 := (len_ - lo)
-			j2gort.CheckNotNullSlice(acSrc_53)
-			j2gort.CheckNotNullSlice(acDst_55)
-			if acSP_54 < 0 || acDP_56 < 0 || acLen_57 < 0 || int64(acSP_54)+int64(acLen_57) > int64(len(acSrc_53)) || int64(acDP_56)+int64(acLen_57) > int64(len(acDst_55)) {
+			acSrc_52 := arr
+			acSP_53 := lo
+			acDst_54 := out
+			acDP_55 := (lo + int32(1))
+			acLen_56 := (len_ - lo)
+			j2gort.CheckNotNullSlice(acSrc_52)
+			j2gort.CheckNotNullSlice(acDst_54)
+			if acSP_53 < 0 || acDP_55 < 0 || acLen_56 < 0 || int64(acSP_53)+int64(acLen_56) > int64(len(acSrc_52)) || int64(acDP_55)+int64(acLen_56) > int64(len(acDst_54)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_55[int(acDP_56):int(acDP_56)+int(acLen_57)], acSrc_53[int(acSP_54):int(acSP_54)+int(acLen_57)])
+			copy(acDst_54[int(acDP_55):int(acDP_55)+int(acLen_56)], acSrc_52[int(acSP_53):int(acSP_53)+int(acLen_56)])
 		}()
 	}
 	return out
@@ -1068,44 +1091,44 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 		_ = hb
 		if ha < hb {
 			{
-				a_58 := out
-				var i_59 int32
+				a_57 := out
+				var i_58 int32
 				{
 
-					old_60 := outIdx
-					nw_61 := old_60 + 1
-					outIdx = nw_61
-					i_59 = old_60
+					old_59 := outIdx
+					nw_60 := old_59 + 1
+					outIdx = nw_60
+					i_58 = old_59
 				}
-				a_58[i_59] = na
+				a_57[i_58] = na
 			}
 			ia = ia + 1
 		} else if hb < ha {
 			{
-				a_62 := out
-				var i_63 int32
+				a_61 := out
+				var i_62 int32
 				{
 
-					old_64 := outIdx
-					nw_65 := old_64 + 1
-					outIdx = nw_65
-					i_63 = old_64
+					old_63 := outIdx
+					nw_64 := old_63 + 1
+					outIdx = nw_64
+					i_62 = old_63
 				}
-				a_62[i_63] = nb
+				a_61[i_62] = nb
 			}
 			ib = ib + 1
 		} else if na == nb {
 			{
-				a_66 := out
-				var i_67 int32
+				a_65 := out
+				var i_66 int32
 				{
 
-					old_68 := outIdx
-					nw_69 := old_68 + 1
-					outIdx = nw_69
-					i_67 = old_68
+					old_67 := outIdx
+					nw_68 := old_67 + 1
+					outIdx = nw_68
+					i_66 = old_67
 				}
-				a_66[i_67] = na
+				a_65[i_66] = na
 			}
 			ia = ia + 1
 			ib = ib + 1
@@ -1125,16 +1148,16 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 				_ = k
 				for ; k < endA; k = k + 1 {
 					{
-						a_70 := out
-						var i_71 int32
+						a_69 := out
+						var i_70 int32
 						{
 
-							old_72 := outIdx
-							nw_73 := old_72 + 1
-							outIdx = nw_73
-							i_71 = old_72
+							old_71 := outIdx
+							nw_72 := old_71 + 1
+							outIdx = nw_72
+							i_70 = old_71
 						}
-						a_70[i_71] = a[k]
+						a_69[i_70] = a[k]
 					}
 				}
 			}
@@ -1158,16 +1181,16 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 					}
 					if !(dup) {
 						{
-							a_74 := out
-							var i_75 int32
+							a_73 := out
+							var i_74 int32
 							{
 
-								old_76 := outIdx
-								nw_77 := old_76 + 1
-								outIdx = nw_77
-								i_75 = old_76
+								old_75 := outIdx
+								nw_76 := old_75 + 1
+								outIdx = nw_76
+								i_74 = old_75
 							}
-							a_74[i_75] = cand
+							a_73[i_74] = cand
 						}
 					}
 				}
@@ -1178,31 +1201,31 @@ func MaybeReachingVariableUse_ReachingUses_UnionSorted(a []pkg_rhino.Node, b []p
 	}
 	if ia < lenA {
 		func() {
-			acSrc_78 := a
-			acSP_79 := ia
-			acDst_80 := out
-			acDP_81 := outIdx
-			acLen_82 := (lenA - ia)
-			j2gort.CheckNotNullSlice(acSrc_78)
-			j2gort.CheckNotNullSlice(acDst_80)
-			if acSP_79 < 0 || acDP_81 < 0 || acLen_82 < 0 || int64(acSP_79)+int64(acLen_82) > int64(len(acSrc_78)) || int64(acDP_81)+int64(acLen_82) > int64(len(acDst_80)) {
+			acSrc_77 := a
+			acSP_78 := ia
+			acDst_79 := out
+			acDP_80 := outIdx
+			acLen_81 := (lenA - ia)
+			j2gort.CheckNotNullSlice(acSrc_77)
+			j2gort.CheckNotNullSlice(acDst_79)
+			if acSP_78 < 0 || acDP_80 < 0 || acLen_81 < 0 || int64(acSP_78)+int64(acLen_81) > int64(len(acSrc_77)) || int64(acDP_80)+int64(acLen_81) > int64(len(acDst_79)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_80[int(acDP_81):int(acDP_81)+int(acLen_82)], acSrc_78[int(acSP_79):int(acSP_79)+int(acLen_82)])
+			copy(acDst_79[int(acDP_80):int(acDP_80)+int(acLen_81)], acSrc_77[int(acSP_78):int(acSP_78)+int(acLen_81)])
 		}()
 	} else if ib < lenB {
 		func() {
-			acSrc_83 := b
-			acSP_84 := ib
-			acDst_85 := out
-			acDP_86 := outIdx
-			acLen_87 := (lenB - ib)
-			j2gort.CheckNotNullSlice(acSrc_83)
-			j2gort.CheckNotNullSlice(acDst_85)
-			if acSP_84 < 0 || acDP_86 < 0 || acLen_87 < 0 || int64(acSP_84)+int64(acLen_87) > int64(len(acSrc_83)) || int64(acDP_86)+int64(acLen_87) > int64(len(acDst_85)) {
+			acSrc_82 := b
+			acSP_83 := ib
+			acDst_84 := out
+			acDP_85 := outIdx
+			acLen_86 := (lenB - ib)
+			j2gort.CheckNotNullSlice(acSrc_82)
+			j2gort.CheckNotNullSlice(acDst_84)
+			if acSP_83 < 0 || acDP_85 < 0 || acLen_86 < 0 || int64(acSP_83)+int64(acLen_86) > int64(len(acSrc_82)) || int64(acDP_85)+int64(acLen_86) > int64(len(acDst_84)) {
 				panic(j2gort.ConstructShimThrowable("java.lang.ArrayIndexOutOfBoundsException"))
 			}
-			copy(acDst_85[int(acDP_86):int(acDP_86)+int(acLen_87)], acSrc_83[int(acSP_84):int(acSP_84)+int(acLen_87)])
+			copy(acDst_84[int(acDP_85):int(acDP_85)+int(acLen_86)], acSrc_82[int(acSP_83):int(acSP_83)+int(acLen_86)])
 		}()
 	}
 	return out

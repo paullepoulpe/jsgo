@@ -84,18 +84,18 @@ func CoverageInstrumentationCallback_GetFileName(traversal *NodeTraversal) strin
 }
 
 // Java method: CoverageInstrumentationCallback.createArrayName(com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_createArrayName_6447(traversal *NodeTraversal) string {
+func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_createArrayName_6467(traversal *NodeTraversal) string {
 	_ = traversal
 	return ("JSCompiler_lcov_data_" + j2gort.StrValString(CoverageUtil_CreateIdentifierFromText(CoverageInstrumentationCallback_GetFileName(traversal))))
 }
 
 // Java method: CoverageInstrumentationCallback.newInstrumentationNode(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node node)
-func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_newInstrumentationNode_6448(traversal *NodeTraversal, node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_newInstrumentationNode_6468(traversal *NodeTraversal, node pkg_rhino.Node) pkg_rhino.Node {
 	_ = traversal
 	_ = node
 	var lineNumber int32 = node.GetLineno()
 	_ = lineNumber
-	var arrayName string = this_.priv_CoverageInstrumentationCallback_createArrayName_6447(traversal)
+	var arrayName string = this_.priv_CoverageInstrumentationCallback_createArrayName_6467(traversal)
 	_ = arrayName
 	var getElemNode pkg_rhino.Node = pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(arrayName), pkg_rhino.IR_Number(float64((lineNumber - int32(1)))))
 	_ = getElemNode
@@ -114,25 +114,25 @@ func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallba
 }
 
 // Java method: CoverageInstrumentationCallback.newArrayDeclarationNode(com.google.javascript.jscomp.NodeTraversal traversal)
-func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_newArrayDeclarationNode_6449(traversal *NodeTraversal) pkg_rhino.Node {
+func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_newArrayDeclarationNode_6469(traversal *NodeTraversal) pkg_rhino.Node {
 	_ = traversal
-	return pkg_rhino.IR_Var_2(pkg_rhino.IR_Name(this_.priv_CoverageInstrumentationCallback_createArrayName_6447(traversal)), pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{}))
+	return pkg_rhino.IR_Var_2(pkg_rhino.IR_Name(this_.priv_CoverageInstrumentationCallback_createArrayName_6467(traversal)), pkg_rhino.IR_Arraylit_1_Node([]pkg_rhino.Node{}))
 }
 
 // Java method: CoverageInstrumentationCallback.newHeaderNode(com.google.javascript.jscomp.NodeTraversal traversal, com.google.javascript.rhino.Node srcref)
-func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_newHeaderNode_6450(traversal *NodeTraversal, srcref pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *CoverageInstrumentationCallback) priv_CoverageInstrumentationCallback_newHeaderNode_6470(traversal *NodeTraversal, srcref pkg_rhino.Node) pkg_rhino.Node {
 	_ = traversal
 	_ = srcref
 	var fileName string = CoverageInstrumentationCallback_GetFileName(traversal)
 	_ = fileName
-	var arrayName string = this_.priv_CoverageInstrumentationCallback_createArrayName_6447(traversal)
+	var arrayName string = this_.priv_CoverageInstrumentationCallback_createArrayName_6467(traversal)
 	_ = arrayName
 	var data *FileInstrumentationData = this_.instrumentationData.Get(fileName)
 	_ = data
 	j2gort.CheckNotNullPtr(data)
 	var objName string = "__jscov"
 	_ = objName
-	return pkg_rhino.IR_Block_1_Node_2([]pkg_rhino.Node{this_.priv_CoverageInstrumentationCallback_newArrayDeclarationNode_6449(traversal), pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("executedLines")), "push"), []pkg_rhino.Node{pkg_rhino.IR_Name(arrayName)})), pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("instrumentedLines")), "push"), []pkg_rhino.Node{pkg_rhino.IR_String(data.GetInstrumentedLinesAsHexString())})), pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("fileNames")), "push"), []pkg_rhino.Node{pkg_rhino.IR_String(fileName)}))}).SrcrefTreeIfMissing(srcref)
+	return pkg_rhino.IR_Block_1_Node_2([]pkg_rhino.Node{this_.priv_CoverageInstrumentationCallback_newArrayDeclarationNode_6469(traversal), pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("executedLines")), "push"), []pkg_rhino.Node{pkg_rhino.IR_Name(arrayName)})), pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("instrumentedLines")), "push"), []pkg_rhino.Node{pkg_rhino.IR_String(data.GetInstrumentedLinesAsHexString())})), pkg_rhino.IR_ExprResult(pkg_rhino.IR_Call(pkg_rhino.IR_Getprop_2(pkg_rhino.IR_Getelem(pkg_rhino.IR_Name(objName), pkg_rhino.IR_String("fileNames")), "push"), []pkg_rhino.Node{pkg_rhino.IR_String(fileName)}))}).SrcrefTreeIfMissing(srcref)
 }
 
 // Java method: CoverageInstrumentationCallback.shouldTraverse(com.google.javascript.jscomp.NodeTraversal nodeTraversal, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
@@ -155,7 +155,7 @@ func (this_ *CoverageInstrumentationCallback) Visit_3(traversal *NodeTraversal, 
 			if node.HasChildren() && node.GetFirstChild().IsModuleBody() {
 				node = node.GetFirstChild()
 			}
-			node.AddChildrenToFront(this_.priv_CoverageInstrumentationCallback_newHeaderNode_6450(traversal, node).RemoveChildren())
+			node.AddChildrenToFront(this_.priv_CoverageInstrumentationCallback_newHeaderNode_6470(traversal, node).RemoveChildren())
 		}
 		traversal.ReportCodeChange_0()
 		return
@@ -174,19 +174,19 @@ func (this_ *CoverageInstrumentationCallback) Visit_3(traversal *NodeTraversal, 
 	if (((node.IsFunction() || node.IsWith()) || node.IsCase()) || node.IsDefaultCase()) || node.IsCatch() {
 		var codeBlock pkg_rhino.Node = node.GetLastChild()
 		_ = codeBlock
-		codeBlock.AddChildToFront(this_.priv_CoverageInstrumentationCallback_newInstrumentationNode_6448(traversal, node))
+		codeBlock.AddChildToFront(this_.priv_CoverageInstrumentationCallback_newInstrumentationNode_6468(traversal, node))
 		traversal.ReportCodeChange_0()
 		return
 	}
 	if node.IsTry() {
 		var firstChild pkg_rhino.Node = node.GetFirstChild()
 		_ = firstChild
-		firstChild.AddChildToFront(this_.priv_CoverageInstrumentationCallback_newInstrumentationNode_6448(traversal, node))
+		firstChild.AddChildToFront(this_.priv_CoverageInstrumentationCallback_newInstrumentationNode_6468(traversal, node))
 		traversal.ReportCodeChange_0()
 		return
 	}
 	if ((parent != 0) && NodeUtil_IsStatementBlock(parent)) && !(node.IsModuleBody()) {
-		this_.priv_CoverageInstrumentationCallback_newInstrumentationNode_6448(traversal, node).InsertBefore(node)
+		this_.priv_CoverageInstrumentationCallback_newInstrumentationNode_6468(traversal, node).InsertBefore(node)
 		traversal.ReportCodeChange_0()
 		return
 	}

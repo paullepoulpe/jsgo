@@ -48,7 +48,9 @@ func (this_ *TypeDeclarationsIR) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *TypeDeclarationsIR) IsJavaNil_() bool { return this_ == nil }
-func (*TypeDeclarationsIR) JavaClassInfo_() (string, string) { return "com.google.javascript.rhino.TypeDeclarationsIR", "TypeDeclarationsIR" }
+func (*TypeDeclarationsIR) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.rhino.TypeDeclarationsIR", "TypeDeclarationsIR"
+}
 func (this_ *TypeDeclarationsIR) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -123,7 +125,7 @@ func TypeDeclarationsIR_NamedType_1_Ext_java_lang_Iterable(segments j2gort.Ext_j
 	_ = segmentsIt
 	var node Node = IR_Name(j2gort.CastString(segmentsIt.Next()))
 	_ = node
-	for (segmentsIt.HasNext()) {
+	for segmentsIt.HasNext() {
 		node = IR_Getprop_2(node, j2gort.CastString(segmentsIt.Next()))
 	}
 	return NewNode_2(StaticGet_Token_NAMED_TYPE(), node)
@@ -140,7 +142,7 @@ func TypeDeclarationsIR_RecordType(properties *j2gort.Ext_java_util_LinkedHashMa
 			var stringKey Node = IR_StringKey_1(cur_1.KeyStr())
 			_ = stringKey
 			node.AddChildToBack(stringKey)
-			if ((j2gort.CastNode[Node](cur_1.GetValue()) != 0)) {
+			if j2gort.CastNode[Node](cur_1.GetValue()) != 0 {
 				stringKey.AddChildToFront(j2gort.CastNode[Node](cur_1.GetValue()))
 			}
 		}
@@ -152,7 +154,7 @@ func TypeDeclarationsIR_RecordType(properties *j2gort.Ext_java_util_LinkedHashMa
 func TypeDeclarationsIR_MaybeAddType(node Node, type_ Node) Node {
 	_ = node
 	_ = type_
-	if ((type_ != 0)) {
+	if type_ != 0 {
 		node.SetDeclaredTypeExpression(type_)
 	}
 	return node
@@ -186,7 +188,7 @@ func TypeDeclarationsIR_FunctionType(returnType Node, requiredParams *j2gort.Ext
 			node.AddChildToBack(TypeDeclarationsIR_MaybeAddType(name_2, j2gort.CastNode[Node](cur_3.GetValue())))
 		}
 	}
-	if ((restName != j2gort.NullString)) {
+	if restName != j2gort.NullString {
 		var rest Node = NewNode_2(StaticGet_Token_ITER_REST(), IR_Name(restName))
 		_ = rest
 		node.AddChildToBack(TypeDeclarationsIR_MaybeAddType(rest, restType))
@@ -198,7 +200,7 @@ func TypeDeclarationsIR_FunctionType(returnType Node, requiredParams *j2gort.Ext
 func TypeDeclarationsIR_ParameterizedType(baseType Node, typeParameters j2gort.Ext_java_lang_Iterable) Node {
 	_ = baseType
 	_ = typeParameters
-	if (j2gort.Ext_com_google_common_collect_Iterables_IsEmpty(typeParameters)) {
+	if j2gort.Ext_com_google_common_collect_Iterables_IsEmpty(typeParameters) {
 		return baseType
 	}
 	var node Node = NewNode_2(StaticGet_Token_PARAMETERIZED_TYPE(), baseType)
@@ -223,7 +225,9 @@ func TypeDeclarationsIR_ArrayType(elementType Node) Node {
 // Java static method: TypeDeclarationsIR.unionType(java.lang.Iterable<com.google.javascript.rhino.Node> options)
 func TypeDeclarationsIR_UnionType_1_Ext_java_lang_Iterable(options j2gort.Ext_java_lang_Iterable) Node {
 	_ = options
-	if !(!(j2gort.Ext_com_google_common_collect_Iterables_IsEmpty(options))) { j2gort.CheckArgumentStr(false, "union must have at least one option") }
+	if !(!(j2gort.Ext_com_google_common_collect_Iterables_IsEmpty(options))) {
+		j2gort.CheckArgumentStr(false, "union must have at least one option")
+	}
 	var node Node = NewNode_1(StaticGet_Token_UNION_TYPE())
 	_ = node
 	{
@@ -240,7 +244,24 @@ func TypeDeclarationsIR_UnionType_1_Ext_java_lang_Iterable(options j2gort.Ext_ja
 // Java static method: TypeDeclarationsIR.unionType(com.google.javascript.rhino.Node[] options)
 func TypeDeclarationsIR_UnionType_1_Node(options []Node) Node {
 	_ = options
-	return TypeDeclarationsIR_UnionType_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(func() []any { arr_6 := options; if arr_6 == nil { return nil }; out_7 := make([]any, len(arr_6)); for i_, el_8 := range arr_6 { out_7[i_] = j2gort.BoxNode(el_8) }; return out_7 }())))
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
+		arr_6 := options
+		if arr_6 == nil {
+			iifeArg_1 = nil
+			break iifeSwitch_1
+		}
+		out_7 := make([]any, len(arr_6))
+		for i_, el_8 := range arr_6 {
+			out_7[i_] = j2gort.BoxNode(el_8)
+		}
+		iifeArg_1 = out_7
+		break iifeSwitch_1
+	}
+	return TypeDeclarationsIR_UnionType_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(iifeArg_1)))
 }
 
 // Java static method: TypeDeclarationsIR.optionalParameter(com.google.javascript.rhino.Node parameterType)
@@ -248,4 +269,3 @@ func TypeDeclarationsIR_OptionalParameter(parameterType Node) Node {
 	_ = parameterType
 	return NewNode_2(StaticGet_Token_OPTIONAL_PARAMETER(), parameterType)
 }
-

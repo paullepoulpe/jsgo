@@ -88,17 +88,24 @@ func NewComposeWarningsGuard_1_WarningsGuard(guards []WarningsGuard) *ComposeWar
 
 func InitComposeWarningsGuard_1_WarningsGuard(this_ *ComposeWarningsGuard, guards []WarningsGuard) {
 	_ = guards
-	InitComposeWarningsGuard_1_Ext_java_util_List(this_, j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_1 := guards
 		if arr_1 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_2 := make([]any, len(arr_1))
 		for i_, el_3 := range arr_1 {
 			out_2[i_] = el_3
 		}
-		return out_2
-	}())))
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	InitComposeWarningsGuard_1_Ext_java_util_List(this_, j2gort.AsIface[j2gort.Ext_java_util_List](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_1)))
 }
 
 // Java method: ComposeWarningsGuard.addGuard(com.google.javascript.jscomp.WarningsGuard guard)

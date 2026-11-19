@@ -92,17 +92,24 @@ func InitJsMessageExtractor_3(this_ *JsMessageExtractor, idGenerator JsMessage_I
 // Java method: JsMessageExtractor.extractMessages(com.google.javascript.jscomp.SourceFile[] inputs)
 func (this_ *JsMessageExtractor) ExtractMessages_1_SourceFile(inputs []*SourceFile) j2gort.Ext_java_util_Collection {
 	_ = inputs
-	return this_.ExtractMessages_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_1 := inputs
 		if arr_1 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_2 := make([]any, len(arr_1))
 		for i_, el_3 := range arr_1 {
 			out_2[i_] = j2gort.PtrToAny(el_3)
 		}
-		return out_2
-	}())))
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	return this_.ExtractMessages_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_1)))
 }
 
 // Java method: JsMessageExtractor.extractMessages(java.lang.Iterable<com.google.javascript.jscomp.SourceFile> inputs)
@@ -203,17 +210,17 @@ func InitJsMessageExtractor_ExtractMessagesVisitor(this_ *JsMessageExtractor_Ext
 // Java method: ExtractMessagesVisitor.processJsMessageDefinition(com.google.javascript.jscomp.JsMessageDefinition definition)
 func (this_ *JsMessageExtractor_ExtractMessagesVisitor) ProcessJsMessageDefinition(definition JsMessageDefinition) {
 	_ = definition
-	this_.priv_ExtractMessagesVisitor_processJsMessage_3663(definition.GetMessage())
+	this_.priv_ExtractMessagesVisitor_processJsMessage_3670(definition.GetMessage())
 }
 
 // Java method: ExtractMessagesVisitor.processIcuTemplateDefinition(com.google.javascript.jscomp.IcuTemplateDefinition definition)
 func (this_ *JsMessageExtractor_ExtractMessagesVisitor) ProcessIcuTemplateDefinition(definition IcuTemplateDefinition) {
 	_ = definition
-	this_.priv_ExtractMessagesVisitor_processJsMessage_3663(definition.GetMessage())
+	this_.priv_ExtractMessagesVisitor_processJsMessage_3670(definition.GetMessage())
 }
 
 // Java method: ExtractMessagesVisitor.processJsMessage(com.google.javascript.jscomp.JsMessage jsMessage)
-func (this_ *JsMessageExtractor_ExtractMessagesVisitor) priv_ExtractMessagesVisitor_processJsMessage_3663(jsMessage *JsMessage) {
+func (this_ *JsMessageExtractor_ExtractMessagesVisitor) priv_ExtractMessagesVisitor_processJsMessage_3670(jsMessage *JsMessage) {
 	_ = jsMessage
 	if this_.outer_.extractExternalMessages || !(jsMessage.IsExternal()) {
 		this_.messages.Add_1(j2gort.PtrToAny(jsMessage))

@@ -44,12 +44,20 @@ func ExtensionRegistry_GetEmptyRegistry() *ExtensionRegistry {
 
 type ByteString struct {
 	data []byte
+	str  string
+}
+
+type byteStringViewSlot struct {
+	mu sync.Mutex
+	s  string
+	b  []byte
 }
 
 var (
-	ByteString_EMPTY  = ByteString{}
-	emptyByteSlice    = []byte{}
-	byteString1Bytes  = func() [256]byte {
+	ByteString_EMPTY    = ByteString{}
+	emptyByteSlice      = []byte{}
+	byteStringViewCache [64]byteStringViewSlot
+	byteString1Bytes    = func() [256]byte {
 		var b [256]byte
 		for i := range b {
 			b[i] = byte(i)
@@ -95,72 +103,138 @@ func ByteString_CopyFromUtf8(s string) ByteString {
 		return ByteString{data: byteString1Bytes[c : int(c)+1 : int(c)+1]}
 	}
 	if javalang.IsASCII(s) || utf8.ValidString(s) {
-		if n <= 256 {
-			dst := allocWireBytes(n)
-			dst = dst[:n:n]
-			copy(dst, s)
-			return ByteString{data: dst}
-		}
-		cp := make([]byte, n)
-		copy(cp, s)
-		return ByteString{data: cp}
+		return ByteString{str: s}
 	}
 	return ByteString{data: javanio.StandardCharsets_UTF_8.Encode(s)}
 }
 
-func (bs ByteString) Size() int     { return len(bs.data) }
-func (bs ByteString) IsEmpty() bool { return len(bs.data) == 0 }
+func (bs ByteString) Size() int {
+	if bs.data != nil {
+		return len(bs.data)
+	}
+	return len(bs.str)
+}
+
+func (bs ByteString) IsEmpty() bool { return len(bs.data) == 0 && len(bs.str) == 0 }
 
 func (bs ByteString) ByteAt(index int) byte {
-	if index < 0 || index >= len(bs.data) {
-		panic(javalang.NewIndexOutOfBoundsExceptionForIndex(index, len(bs.data)))
+	if bs.data != nil || bs.str == "" {
+		if index < 0 || index >= len(bs.data) {
+			panic(javalang.NewIndexOutOfBoundsExceptionForIndex(index, len(bs.data)))
+		}
+		return bs.data[index]
 	}
-	return bs.data[index]
+	if index < 0 || index >= len(bs.str) {
+		panic(javalang.NewIndexOutOfBoundsExceptionForIndex(index, len(bs.str)))
+	}
+	return bs.str[index]
 }
 
 func (bs ByteString) ToByteArray() []byte {
-	if len(bs.data) == 0 {
-		return []byte{}
+	if bs.data != nil || bs.str == "" {
+		if len(bs.data) == 0 {
+			return []byte{}
+		}
+		cp := make([]byte, len(bs.data))
+		copy(cp, bs.data)
+		return cp
 	}
-	cp := make([]byte, len(bs.data))
-	copy(cp, bs.data)
+	cp := make([]byte, len(bs.str))
+	copy(cp, bs.str)
 	return cp
 }
 
 func (bs ByteString) BytesView() []byte {
-	return bs.data
+	if bs.data != nil || bs.str == "" {
+		return bs.data
+	}
+	s := bs.str
+	idx := (uint(len(s))*31 ^ uint(s[0])<<3 ^ uint(s[len(s)-1])) & 63
+	sh := &byteStringViewCache[idx]
+	sh.mu.Lock()
+	if sh.s == s && sh.b != nil {
+		out := sh.b
+		sh.mu.Unlock()
+		return out
+	}
+	out := []byte(s)
+	out = out[:len(out):len(out)]
+	sh.s = s
+	sh.b = out
+	sh.mu.Unlock()
+	return out
 }
 
-// bytesImmutable returns bs's immutable backing slice without cloning, capped
-// to its length so any accidental append allocates rather than mutating in place.
+// bytesImmutable returns bs's immutable backing slice without cloning when []byte-backed,
+// capped to its length so any accidental append allocates rather than mutating in place.
 func (bs ByteString) bytesImmutable() []byte {
-	n := len(bs.data)
-	if n == 0 {
-		return emptyByteSlice[:0:0]
+	if bs.data != nil || bs.str == "" {
+		n := len(bs.data)
+		if n == 0 {
+			return emptyByteSlice[:0:0]
+		}
+		return bs.data[:n:n]
 	}
-	return bs.data[:n:n]
+	n := len(bs.str)
+	if n <= 256 {
+		dst := allocWireBytes(n)[:n:n]
+		copy(dst, bs.str)
+		return dst
+	}
+	cp := make([]byte, n)
+	copy(cp, bs.str)
+	return cp
 }
 
 func (bs ByteString) ToStringUtf8() string {
+	if bs.data == nil && bs.str != "" {
+		return bs.str
+	}
 	return javanio.StandardCharsets_UTF_8.Decode(bs.data)
 }
 
 func (bs ByteString) NewCodedInput() *CodedInputStream {
-	return CodedInputStream_NewInstanceBytes(bs.data)
+	if bs.data != nil || bs.str == "" {
+		return CodedInputStream_NewInstanceBytes(bs.data)
+	}
+	return CodedInputStream_NewInstanceBytes(bs.bytesImmutable())
+}
+
+func byteStringEqual(a, b ByteString) bool {
+	if a.data != nil || a.str == "" {
+		if b.data != nil || b.str == "" {
+			return bytes.Equal(a.data, b.data)
+		}
+		return string(a.data) == b.str
+	}
+	if b.data != nil || b.str == "" {
+		return a.str == string(b.data)
+	}
+	return a.str == b.str
 }
 
 func (bs ByteString) Equals(other any) bool {
 	switch o := other.(type) {
 	case ByteString:
-		return bytes.Equal(bs.data, o.data)
+		return byteStringEqual(bs, o)
 	case *ByteString:
-		return o != nil && bytes.Equal(bs.data, o.data)
+		return o != nil && byteStringEqual(bs, *o)
 	default:
 		return false
 	}
 }
 
 func (bs ByteString) HashCode() int32 {
+	if bs.data == nil && bs.str != "" {
+		h := int32(len(bs.str))
+		for i := 0; i < len(bs.str); i++ {
+			h = h*31 + int32(int8(bs.str[i]))
+		}
+		if h == 0 {
+			return 1
+		}
+		return h
+	}
 	h := int32(len(bs.data))
 	for _, b := range bs.data {
 		h = h*31 + int32(int8(b))
@@ -172,7 +246,7 @@ func (bs ByteString) HashCode() int32 {
 }
 
 func (bs ByteString) String() string {
-	return fmt.Sprintf("<ByteString@%x size=%d>", bs.HashCode(), len(bs.data))
+	return fmt.Sprintf("<ByteString@%x size=%d>", bs.HashCode(), bs.Size())
 }
 
 // ByteString_Output models ByteString.Output in 48 bytes:
@@ -427,8 +501,8 @@ type CodedInputStream struct {
 }
 
 const (
-	scriptSlabMaxItem = 512 * 1024
-	scriptSlabMaxCap  = 2 * 1024 * 1024
+	scriptSlabMaxItem = 1024 * 1024
+	scriptSlabMaxCap  = 4 * 1024 * 1024
 )
 
 func (c *CodedInputStream) allocScriptBytes(sz, streamRem int) []byte {
@@ -463,14 +537,14 @@ func (c *CodedInputStream) allocScriptBytes(sz, streamRem int) []byte {
 		if rem >= 512 && rem > cap(c.scriptTail)-len(c.scriptTail) {
 			c.scriptTail = c.scriptSlab
 		}
-		if streamRem >= 2*scriptSlabMaxCap && c.scriptStep < 7 {
-			c.scriptStep = 7
+		if streamRem >= 2<<20 && c.scriptStep < 8 {
+			c.scriptStep = 8
 		}
-		slabCap := min(max(16384<<min(int(c.scriptStep), 7), sz), scriptSlabMaxCap)
+		slabCap := min(max(16384<<min(int(c.scriptStep), 8), sz), scriptSlabMaxCap)
 		if streamRem > 0 && slabCap > streamRem {
 			slabCap = max(streamRem, sz)
 		}
-		if c.scriptStep < 7 {
+		if c.scriptStep < 8 {
 			c.scriptStep++
 		}
 		c.scriptSlab = make([]byte, 0, slabCap)

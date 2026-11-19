@@ -6379,9 +6379,16 @@ type jImmMapBuilderCore struct {
 	sorted bool
 }
 
+func immMapBuilderEnsureMut(b *jImmMapBuilderCore) {
+	if b.mc.immutable {
+		b.mc = cloneJMapCore(b.mc)
+	}
+}
+
 func immMapBuilderPut(b *jImmMapBuilderCore, k, v any) {
 	k = CheckNotNull(ToAny(k))
 	v = CheckNotNull(ToAny(v))
+	immMapBuilderEnsureMut(b)
 	if b.mc.ContainsKey(k) {
 		b.hasDup = true
 		b.dupKey = k
@@ -6394,6 +6401,7 @@ func immMapBuilderPutStr(b *jImmMapBuilderCore, k string, v any) {
 		ThrowNPE()
 	}
 	v = CheckNotNull(ToAny(v))
+	immMapBuilderEnsureMut(b)
 	if b.mc.ContainsStr(k) {
 		b.hasDup = true
 		b.dupKey = k
@@ -6426,6 +6434,7 @@ func immMapBuilderPutAll(b *jImmMapBuilderCore, m Ext_java_util_Map) {
 			if smc.Size() == 0 {
 				return
 			}
+			immMapBuilderEnsureMut(b)
 			b.mc.InitExpectedSize(b.mc.Size() + smc.Size())
 			if smc.mode == jMapModeStr && !smc.Identity && !b.mc.Identity {
 				for i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
@@ -6450,6 +6459,7 @@ func immMapBuilderPutAll(b *jImmMapBuilderCore, m Ext_java_util_Map) {
 	}
 	if ep, ok := any(m).(jFastEnumMapProvider); ok {
 		if em := ep.fastEnumMap_(); em != nil {
+			immMapBuilderEnsureMut(b)
 			b.mc.InitExpectedSize(b.mc.Size() + em.size)
 			em.ForEachEntry(func(k, v any) bool {
 				immMapBuilderPut(b, k, v)
@@ -6472,18 +6482,18 @@ func immMapBuilderBuild(b *jImmMapBuilderCore, throwOnDup bool) any {
 		if b.mc.Size() == 0 && b.mc.IsNaturalOrder() {
 			return emptyImmutableSortedMap_
 		}
+		b.mc.sealImmutable()
 		obj := &Ext_com_google_common_collect_ImmutableSortedMap{}
 		obj.BindExtSelf_(obj)
-		dst := copySortedCoreInto(&obj.inlineCore, b.mc)
-		dst.sealImmutable()
+		obj.inlineCore = *b.mc
 		return obj
 	}
 	if b.mc.Size() == 0 {
 		return emptyImmutableMap_
 	}
+	b.mc.sealImmutable()
 	obj := newImmutableMapShell()
-	dst := copyHashCoreInto(&obj.inlineCore, b.mc)
-	dst.sealImmutable()
+	obj.inlineCore = *b.mc
 	return obj
 }
 
@@ -10579,20 +10589,20 @@ func multimapsIndex(vals Ext_java_lang_Iterable, keyFn Ext_com_google_common_bas
 // --- Multiset ---
 
 type jMultisetCore struct {
-	counts    *JMapCore // elem -> int32
-	total     int32
-	immutable bool
-	cmp       func(a, b any) int32
+	inlineCounts JMapCore
+	counts       *JMapCore // elem -> int32
+	total        int32
+	immutable    bool
+	cmp          func(a, b any) int32
 }
 
 func newMultisetCore(immutable bool, cmp func(a, b any) int32) *jMultisetCore {
-	var cm *JMapCore
 	if cmp != nil {
-		cm = NewSortedJMapCore(cmp)
-	} else {
-		cm = NewJMapCore(false)
+		return &jMultisetCore{counts: NewSortedJMapCore(cmp), immutable: immutable, cmp: cmp}
 	}
-	return &jMultisetCore{counts: cm, immutable: immutable, cmp: cmp}
+	c := &jMultisetCore{immutable: immutable}
+	c.counts = &c.inlineCounts
+	return c
 }
 
 func newTreeMultisetCore() *jMultisetCore {
@@ -10600,13 +10610,68 @@ func newTreeMultisetCore() *jMultisetCore {
 }
 
 func cloneMultisetCore(src *jMultisetCore, immutable bool) *jMultisetCore {
-	dst := newMultisetCore(immutable, src.cmp)
-	dst.counts = cloneJMapCore(src.counts)
-	dst.total = src.total
+	dst := &jMultisetCore{total: src.total, immutable: immutable, cmp: src.cmp}
+	if src.cmp != nil {
+		dst.counts = cloneJMapCore(src.counts)
+		if immutable {
+			dst.counts.sealImmutable()
+		}
+		return dst
+	}
+	dst.counts = &dst.inlineCounts
+	if !dst.inlineCounts.CopyFromSameMode(src.counts) {
+		copyHashCoreInto(&dst.inlineCounts, src.counts)
+	}
+	if immutable {
+		dst.inlineCounts.sealImmutable()
+	}
 	return dst
 }
 
+var emptyImmutableMultisetOnce = sync.OnceValue(func() Ext_com_google_common_collect_ImmutableMultiset {
+	c := newMultisetCore(true, nil)
+	c.counts.sealImmutable()
+	obj := &Ext_com_google_common_collect_ImmutableMultisetBase{}
+	obj.BindExtSelf_(obj)
+	obj.Core_ = c
+	return obj
+})
+
+func emptyImmutableMultiset() Ext_com_google_common_collect_ImmutableMultiset {
+	return emptyImmutableMultisetOnce()
+}
+
+func immMultisetBuilderMut(core *any) *jMultisetCore {
+	if *core == nil {
+		c := newMultisetCore(false, nil)
+		*core = c
+		return c
+	}
+	c := (*core).(*jMultisetCore)
+	if c.immutable {
+		c = cloneMultisetCore(c, false)
+		*core = c
+	}
+	return c
+}
+
+func immMultisetBuilderBuild(core any) Ext_com_google_common_collect_ImmutableMultiset {
+	if core == nil {
+		return emptyImmutableMultiset()
+	}
+	c := core.(*jMultisetCore)
+	if c.total == 0 && c.cmp == nil {
+		return emptyImmutableMultiset()
+	}
+	c.immutable = true
+	c.counts.sealImmutable()
+	return wrapImmutableMultiset(c)
+}
+
 func wrapImmutableMultiset(c *jMultisetCore) Ext_com_google_common_collect_ImmutableMultiset {
+	if c.total == 0 && c.cmp == nil && c.immutable {
+		return emptyImmutableMultiset()
+	}
 	obj := &Ext_com_google_common_collect_ImmutableMultisetBase{}
 	obj.BindExtSelf_(obj)
 	obj.Core_ = c
@@ -14938,39 +15003,10 @@ func MakeNonNilSlice[T any](cap int32) []T {
 }
 
 func CheckNotNullElem[T any](v T) T {
-	if any(v) == nil {
+	if isJavaNullMapVal(v) {
 		ThrowNPE()
 	}
-	switch x := any(v).(type) {
-	case string:
-		if x == NullString {
-			ThrowNPE()
-		}
-		return v
-	case int32, int64, bool, float64, float32, uint16, int8, int16, uint8, int, uint64:
-		return v
-	default:
-		switch nullValKindOf[T]() {
-		case kindNeverNull:
-			return v
-		case kindZeroIsNull:
-			var zero T
-			if any(v) == any(zero) {
-				ThrowNPE()
-			}
-			return v
-		case kindNullStringType:
-			if any(v).(string) == NullString {
-				ThrowNPE()
-			}
-			return v
-		default:
-			if isJavaNullMapValSlow(v) {
-				ThrowNPE()
-			}
-			return v
-		}
-	}
+	return v
 }
 
 func ImmSliceCloneNonNull[T any](s []T) []T {
@@ -17620,15 +17656,7 @@ const (
 	kindNullStringType uint8 = 3
 )
 
-var nullValKindMap sync.Map
-
-func computeNullValKind[V any](rt reflect.Type) uint8 {
-	if rt == nil || rt.Kind() == reflect.Interface {
-		return kindNullFallback
-	}
-	if rt == reflect.TypeFor[string]() {
-		return kindNullStringType
-	}
+func nullStructKindOf[V any](rt reflect.Type) uint8 {
 	var zero V
 	if nc, ok := any(zero).(jJavaNilChecker); ok {
 		if !nc.IsJavaNil_() {
@@ -17639,99 +17667,119 @@ func computeNullValKind[V any](rt reflect.Type) uint8 {
 		}
 		return kindNullFallback
 	}
-	if rn, ok := any(zero).(jRawNodeProvider); ok {
-		if rn.RawNodeId_() != 0 {
-			return kindNeverNull
-		}
-		if rt.Comparable() {
-			return kindZeroIsNull
-		}
-		return kindNullFallback
-	}
 	if rt.Implements(reflect.TypeFor[jIsNiler]()) {
 		return kindNullFallback
 	}
-	switch rt.Kind() {
-	case reflect.Bool,
-		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint64, reflect.Uintptr,
-		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
-		reflect.Struct, reflect.Array:
-		return kindNeverNull
-	case reflect.Uint32, reflect.Pointer, reflect.UnsafePointer:
-		return kindZeroIsNull
-	}
-	return kindNullFallback
+	return kindNeverNull
 }
 
 func nullValKindOf[V any]() uint8 {
 	rt := reflect.TypeFor[V]()
-	if k, ok := nullValKindMap.Load(rt); ok {
-		return k.(uint8)
+	if rt == nil {
+		return kindNullFallback
 	}
-	k := computeNullValKind[V](rt)
-	nullValKindMap.Store(rt, k)
-	return k
+	switch rt.Kind() {
+	case reflect.Pointer, reflect.Uint32, reflect.UnsafePointer:
+		return kindZeroIsNull
+	case reflect.String:
+		if rt.PkgPath() == "" {
+			return kindNullStringType
+		}
+		return kindNeverNull
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+		reflect.Array:
+		return kindNeverNull
+	case reflect.Uint8, reflect.Uint16:
+		if rt.PkgPath() == "" {
+			return kindNeverNull
+		}
+		var zero V
+		if nc, ok := any(zero).(jJavaNilChecker); ok && nc.IsJavaNil_() {
+			return kindZeroIsNull
+		}
+		return kindNeverNull
+	case reflect.Struct:
+		return nullStructKindOf[V](rt)
+	default:
+		return kindNullFallback
+	}
 }
 
 func isJavaNullMapVal[V any](v V) bool {
-	if any(v) == nil {
-		return true
+	return any(v) == nil || isJavaNullMapValNonNil(v)
+}
+
+func isJavaNullMapValNonNil[V any](v V) bool {
+	rt := reflect.TypeFor[V]()
+	if rt == nil {
+		return isJavaNullMapValSlow(v)
 	}
-	switch x := any(v).(type) {
-	case string:
-		return x == NullString
-	case int32, int64, bool, float64, float32, uint16, int8, int16, uint8, int, uint64:
-		return false
-	default:
-		switch nullValKindOf[V]() {
-		case kindNeverNull:
-			return false
-		case kindZeroIsNull:
-			var zero V
-			return any(v) == any(zero)
-		case kindNullStringType:
-			return any(v).(string) == NullString
-		default:
-			return isJavaNullMapValSlow(v)
+	switch rt.Kind() {
+	case reflect.Pointer, reflect.Uint32, reflect.UnsafePointer:
+		var zero V
+		return any(v) == any(zero)
+	case reflect.String:
+		if s, ok := any(v).(string); ok {
+			return s == NullString
 		}
+		return false
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+		reflect.Array:
+		return false
+	case reflect.Uint8, reflect.Uint16:
+		if rt.PkgPath() == "" {
+			return false
+		}
+		var zero V
+		return any(v) == any(zero)
+	case reflect.Struct:
+		if rt.Comparable() {
+			var zero V
+			if any(v) != any(zero) {
+				return false
+			}
+			return isZeroStructJavaNull[V]()
+		}
+		return isJavaNullMapValSlow(v)
+	default:
+		return isJavaNullMapValSlow(v)
 	}
 }
 
 //go:noinline
-func isJavaNullMapValSlow[V any](v V) bool {
+func isZeroStructJavaNull[V any]() bool {
 	var zero V
-	switch any(zero).(type) {
-	case nil:
-		x := any(v)
-		if x == nil {
-			return true
-		}
-		if nc, ok := x.(jJavaNilChecker); ok {
-			return nc.IsJavaNil_()
-		}
-		if rn, ok := x.(jRawNodeProvider); ok {
-			return rn.RawNodeId_() == 0
-		}
-		if nd, ok := x.(nodestore.Node); ok {
-			return uint32(nd) == 0
-		}
-		return isJavaNilAny(x)
-	case string:
-		return any(v).(string) == NullString
-	case int32, int64, bool, float64, float32, uint16, int8, int16:
-		return false
-	case uint32:
-		return any(v).(uint32) == 0
-	case nodestore.Node:
-		return uint32(any(v).(nodestore.Node)) == 0
-	case jJavaNilChecker:
-		return any(v).(jJavaNilChecker).IsJavaNil_()
-	case jRawNodeProvider:
-		return any(v).(jRawNodeProvider).RawNodeId_() == 0
-	default:
-		return isJavaNilAny(any(v))
+	if nc, ok := any(zero).(jJavaNilChecker); ok {
+		return nc.IsJavaNil_()
 	}
+	return false
+}
+
+//go:noinline
+func isJavaNullMapValSlow[V any](v V) bool {
+	x := any(v)
+	if x == nil {
+		return true
+	}
+	if nc, ok := x.(jJavaNilChecker); ok {
+		return nc.IsJavaNil_()
+	}
+	if rn, ok := x.(jRawNodeProvider); ok {
+		return rn.RawNodeId_() == 0
+	}
+	if nd, ok := x.(nodestore.Node); ok {
+		return uint32(nd) == 0
+	}
+	if in, ok := x.(jIsNiler); ok {
+		return in.IsNil()
+	}
+	return isJavaNilAny(x)
 }
 
 func javaMapValsEqual[V any](a, b V, identity bool) bool {
@@ -18831,6 +18879,45 @@ func (m *OrderedMap[K, V]) ToImmutableMap() Ext_com_google_common_collect_Immuta
 	}
 	obj := newImmutableMapShell()
 	mc := &obj.inlineCore
+	var zeroK K
+	if _, isStr := any(zeroK).(string); isStr {
+		n := int(live)
+		entries := make([]jStrMapEntry, n)
+		var idxMap map[string]int32
+		if n > jStrSmallLimit {
+			idxMap = make(map[string]int32, n)
+		}
+		w := 0
+		for i := int(m.firstIdx); i < len(m.entries); i++ {
+			if !m.isEntryActive(i) {
+				continue
+			}
+			ks := any(m.entries[i].Key).(string)
+			if ks == NullString {
+				ThrowNPE()
+			}
+			vBox := CheckNotNull(boxJavaElem(m.entries[i].Val))
+			if ks == jTombstoneStr {
+				entries = nil
+				break
+			}
+			if idxMap != nil {
+				idxMap[ks] = int32(w)
+			}
+			entries[w] = jStrMapEntry{key: ks, val: vBox}
+			w++
+		}
+		if entries != nil {
+			mc.strEntries = entries
+			if idxMap != nil {
+				mc.ext = idxMap
+			}
+			mc.mode = jMapModeStr
+			mc.Live = live
+			mc.immutable = true
+			return obj
+		}
+	}
 	mc.InitExpectedSize(live)
 	m.ForEach(func(k K, v V) {
 		mc.Put(CheckNotNull(boxJavaElem(k)), CheckNotNull(boxJavaElem(v)))

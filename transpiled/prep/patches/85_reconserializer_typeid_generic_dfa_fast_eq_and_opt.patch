@@ -1,0 +1,1568 @@
+diff --git a/com/google/javascript/jscomp/ControlFlowGraph.java b/com/google/javascript/jscomp/ControlFlowGraph.java
+index 8013e6ca..5bccd108 100644
+--- a/com/google/javascript/jscomp/ControlFlowGraph.java
++++ b/com/google/javascript/jscomp/ControlFlowGraph.java
+@@ -69,6 +69,10 @@ public class ControlFlowGraph<N> extends
+     return implicitReturn;
+   }
+ 
++  public LinkedDiGraphNode<N, ControlFlowGraph.Branch> getImplicitReturnNode() {
++    return implicitReturn;
++  }
++
+   /**
+    * Gets the entry point of the control flow graph. In general, this should be
+    * the beginning of the global script or beginning of a function.
+diff --git a/com/google/javascript/jscomp/CrossChunkCodeMotion.java b/com/google/javascript/jscomp/CrossChunkCodeMotion.java
+index e83c7806..28d6f221 100644
+--- a/com/google/javascript/jscomp/CrossChunkCodeMotion.java
++++ b/com/google/javascript/jscomp/CrossChunkCodeMotion.java
+@@ -74,6 +74,8 @@ class CrossChunkCodeMotion implements CompilerPass {
+    */
+   private final LinkedHashMap<JSChunk, Node> chunkInsertionPointMap = new LinkedHashMap<>();
+ 
++  private final BitSet scratchCycleImmovableChunks = new BitSet();
++
+   private final boolean parentChunkCanSeeSymbolsDeclaredInChildren;
+ 
+   /**
+@@ -319,7 +321,8 @@ class CrossChunkCodeMotion implements CompilerPass {
+       for (GlobalSymbol symbol : symbols) {
+         checkState(!symbol.isMoveDeclarationStatementsDone, "duplicate attempt to move %s", symbol);
+       }
+-      BitSet chunksWithImmovableReferences = new BitSet(graph.getChunkCount());
++      BitSet chunksWithImmovableReferences = scratchCycleImmovableChunks;
++      chunksWithImmovableReferences.clear();
+       ArrayList<DeclarationStatementGroupCycle> cyclesLatestFirst = new ArrayList<>();
+       populateDsgCyclesLatestFirst(cyclesLatestFirst);
+       for (int i = 0, size = cyclesLatestFirst.size(); i < size; i++) {
+diff --git a/com/google/javascript/jscomp/DataFlowAnalysis.java b/com/google/javascript/jscomp/DataFlowAnalysis.java
+index 1bdb9beb..25d1ce95 100644
+--- a/com/google/javascript/jscomp/DataFlowAnalysis.java
++++ b/com/google/javascript/jscomp/DataFlowAnalysis.java
+@@ -23,9 +23,10 @@ import static com.google.common.base.Preconditions.checkState;
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+ import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
+ import com.google.javascript.jscomp.graph.Annotation;
+-import com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
++import com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge;
++import com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode;
+ import com.google.javascript.rhino.Node;
+ import java.util.Arrays;
+ import java.util.Comparator;
+@@ -94,7 +95,14 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   private final boolean branched;
+   private boolean ordered;
+   private @Nullable Comparator<DiGraphNode<N, Branch>> customComparator;
+-  private DiGraphNode<N, Branch> @Nullable [] workElements;
++  private LinkedDiGraphNode<N, Branch> @Nullable [] workElements;
++  private LinkedDiGraphNode<N, Branch> @Nullable [] cfgNodes;
++  private L @Nullable [] stateIn;
++  private L @Nullable [] stateOut;
++  private L @Nullable [] edgeState;
++  private int @Nullable [] stepCounts;
++  private int cfgNodeCount;
++  private int cfgEdgeCount;
+   private int workHead;
+   private int workSize;
+ 
+@@ -152,6 +160,34 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     if (this.workElements != null && this.workElements.length > MAX_POOLED_WORK_ELEMENTS_CAPACITY) {
+       this.workElements = null;
+     }
++    int nCount = this.cfgNodeCount;
++    if (this.cfgNodes != null) {
++      if (this.cfgNodes.length > MAX_POOLED_WORK_ELEMENTS_CAPACITY) {
++        this.cfgNodes = null;
++      } else if (nCount > 0) {
++        Arrays.fill(this.cfgNodes, 0, nCount, null);
++      }
++    }
++    if (this.stateIn != null) {
++      if (this.stateIn.length > MAX_POOLED_WORK_ELEMENTS_CAPACITY) {
++        this.stateIn = null;
++        this.stateOut = null;
++        this.stepCounts = null;
++      } else if (nCount > 0) {
++        Arrays.fill(this.stateIn, 0, nCount, null);
++        Arrays.fill(this.stateOut, 0, nCount, null);
++      }
++    }
++    int eCount = this.cfgEdgeCount;
++    if (this.edgeState != null) {
++      if (this.edgeState.length > MAX_POOLED_WORK_ELEMENTS_CAPACITY * 2) {
++        this.edgeState = null;
++      } else if (eCount > 0) {
++        Arrays.fill(this.edgeState, 0, eCount, null);
++      }
++    }
++    this.cfgNodeCount = 0;
++    this.cfgEdgeCount = 0;
+     this.cfg = null;
+     this.customComparator = null;
+   }
+@@ -200,6 +236,21 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     return false;
+   }
+ 
++  /** Whether {@link LinearFlowState} node annotations need to be populated on the CFG. */
++  boolean needsNodeAnnotations() {
++    return true;
++  }
++
++  abstract boolean isLatticeEqual(L a, L b);
++
++  final L getNodeInLattice(LinkedDiGraphNode<N, Branch> node) {
++    return this.stateIn[node.getDfaIndex()];
++  }
++
++  final L getNodeOutLattice(LinkedDiGraphNode<N, Branch> node) {
++    return this.stateOut[node.getDfaIndex()];
++  }
++
+   final L join(L latticeA, L latticeB) {
+     FlowJoiner<L> joiner = this.createFlowJoiner();
+     joiner.joinFlow(latticeA);
+@@ -267,29 +318,30 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   final void analyze() {
+     initialize();
+     boolean forward = this.forward;
+-    DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
++    LinkedDiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturnNode();
++    int[] steps = this.stepCounts;
+     while (this.workSize > 0) {
+-      DiGraphNode<N, Branch> curNode = dequeueWorkNode();
+-      LinearFlowState<L> curState = curNode.getAnnotation();
+-      if (curState.stepCount++ > MAX_STEPS_PER_NODE) {
++      LinkedDiGraphNode<N, Branch> curNode = dequeueWorkNode();
++      int curIdx = curNode.getDfaIndex();
++      if (steps[curIdx]++ > MAX_STEPS_PER_NODE) {
+         clearWorkQueue();
+         throw new IllegalStateException("Dataflow analysis appears to diverge around: " + curNode);
+       }
+ 
+-      joinInputs(curNode);
+-      if (flow(curNode)) {
++      joinInputs(curNode, curIdx);
++      if (flow(curNode, curIdx)) {
+         // If there is a change in the current node, we want to grab the list
+         // of nodes that this node affects.
+         if (forward) {
+           for (int i = 0, count = curNode.getOutEdgeCount(); i < count; i++) {
+-            DiGraphNode<N, Branch> nextNode = curNode.getOutEdgeAt(i).getDestination();
++            LinkedDiGraphNode<N, Branch> nextNode = curNode.getOutEdgeAt(i).getDestination();
+             if (nextNode != implicitReturn) {
+               enqueueWorkNode(nextNode);
+             }
+           }
+         } else {
+           for (int i = 0, count = curNode.getInEdgeCount(); i < count; i++) {
+-            DiGraphNode<N, Branch> nextNode = curNode.getInEdgeAt(i).getSource();
++            LinkedDiGraphNode<N, Branch> nextNode = curNode.getInEdgeAt(i).getSource();
+             if (nextNode != implicitReturn) {
+               enqueueWorkNode(nextNode);
+             }
+@@ -298,7 +350,23 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       }
+     }
+     if (forward) {
+-      joinInputs(implicitReturn);
++      joinInputs(implicitReturn, implicitReturn.getDfaIndex());
++    }
++    if (needsNodeAnnotations()) {
++      syncNodeAnnotations();
++    }
++  }
++
++  @SuppressWarnings("unchecked")
++  private void syncNodeAnnotations() {
++    int count = this.cfgNodeCount;
++    LinkedDiGraphNode<N, Branch>[] nodes = this.cfgNodes;
++    L[] inArr = this.stateIn;
++    L[] outArr = this.stateOut;
++    int[] stepsArr = this.stepCounts;
++    for (int i = 0; i < count; i++) {
++      LinearFlowState<L> state = (LinearFlowState<L>) nodes[i].getAnnotation();
++      state.syncResult(stepsArr[i], inArr[i], outArr[i]);
+     }
+   }
+ 
+@@ -320,11 +388,16 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   @SuppressWarnings("unchecked")
+   private void initialize() {
+     clearWorkQueue();
++    int prevNodeCount = this.cfgNodeCount;
++    if (prevNodeCount > 0 && this.cfgNodes != null) {
++      Arrays.fill(this.cfgNodes, 0, prevNodeCount, null);
++    }
+     int nodeCount = cfg.getNodeCount();
++    this.cfgNodeCount = nodeCount;
+     if (this.ordered) {
+       int cap = nodeCount > 4 ? nodeCount : 4;
+       if (this.workElements == null || this.workElements.length < cap) {
+-        this.workElements = (DiGraphNode<N, Branch>[]) new DiGraphNode<?, ?>[cap];
++        this.workElements = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[cap];
+       }
+     } else {
+       int cap = 8;
+@@ -332,40 +405,88 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+         cap <<= 1;
+       }
+       if (this.workElements == null || this.workElements.length < cap) {
+-        this.workElements = (DiGraphNode<N, Branch>[]) new DiGraphNode<?, ?>[cap];
++        this.workElements = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[cap];
+       }
+     }
+-    DiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturn();
+-    for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
++    int stateCap = nodeCount > 8 ? nodeCount : 8;
++    if (this.cfgNodes == null || this.cfgNodes.length < stateCap) {
++      this.cfgNodes = (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[stateCap];
++    }
++    if (this.stateIn == null || this.stateIn.length < stateCap) {
++      this.stateIn = (L[]) new LatticeElement[stateCap];
++      this.stateOut = (L[]) new LatticeElement[stateCap];
++      this.stepCounts = new int[stateCap];
++    } else if (prevNodeCount > nodeCount) {
++      Arrays.fill(this.stateIn, nodeCount, prevNodeCount, null);
++      Arrays.fill(this.stateOut, nodeCount, prevNodeCount, null);
++    }
++    int collected = cfg.collectNodes(this.cfgNodes);
++    checkState(collected == nodeCount);
++    boolean recordAnnotations = needsNodeAnnotations();
++    LinkedDiGraphNode<N, Branch> implicitReturn = cfg.getImplicitReturnNode();
++    LinkedDiGraphNode<N, Branch>[] nodes = this.cfgNodes;
++    L[] inArr = this.stateIn;
++    L[] outArr = this.stateOut;
++    int[] stepsArr = this.stepCounts;
++    for (int i = 0; i < nodeCount; i++) {
++      LinkedDiGraphNode<N, Branch> node = nodes[i];
++      node.setDfaIndex(i);
+       node.setInDfaQueue(false);
+       L initIn = createInitialEstimateLattice();
+       L initOut = createInitialEstimateLattice();
+-      Annotation existing = node.getAnnotation();
+-      if (existing instanceof LinearFlowState<?> raw) {
+-        @SuppressWarnings("unchecked")
+-        LinearFlowState<L> reused = (LinearFlowState<L>) raw;
+-        reused.reinit(initIn, initOut);
+-      } else {
+-        LinearFlowState<?> rawPooled = popPooledFlowState();
+-        if (rawPooled != null) {
++      inArr[i] = initIn;
++      outArr[i] = initOut;
++      stepsArr[i] = 0;
++      if (recordAnnotations) {
++        Annotation existing = node.getAnnotation();
++        if (existing instanceof LinearFlowState<?> raw) {
+           @SuppressWarnings("unchecked")
+-          LinearFlowState<L> pooled = (LinearFlowState<L>) rawPooled;
+-          pooled.reinit(initIn, initOut);
+-          node.setAnnotation(pooled);
++          LinearFlowState<L> reused = (LinearFlowState<L>) raw;
++          reused.reinit(initIn, initOut);
+         } else {
+-          node.setAnnotation(new LinearFlowState<>(initIn, initOut));
++          LinearFlowState<?> rawPooled = popPooledFlowState();
++          if (rawPooled != null) {
++            @SuppressWarnings("unchecked")
++            LinearFlowState<L> pooled = (LinearFlowState<L>) rawPooled;
++            pooled.reinit(initIn, initOut);
++            node.setAnnotation(pooled);
++          } else {
++            node.setAnnotation(new LinearFlowState<>(initIn, initOut));
++          }
+         }
+       }
+       if (node != implicitReturn) {
+         enqueueWorkNode(node);
+       }
+     }
++    int prevEdgeCount = this.cfgEdgeCount;
+     if (this.branched) {
+-      for (DiGraphNode<N, Branch> node : cfg.getNodes()) {
+-        for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
+-          node.getOutEdgeAt(i).setAnnotation(this.createInitialEstimateLattice());
++      int totalEdges = 0;
++      for (int i = 0; i < nodeCount; i++) {
++        totalEdges += nodes[i].getOutEdgeCount();
++      }
++      this.cfgEdgeCount = totalEdges;
++      int edgeCap = totalEdges > 8 ? totalEdges : 8;
++      if (this.edgeState == null || this.edgeState.length < edgeCap) {
++        this.edgeState = (L[]) new LatticeElement[edgeCap];
++      } else if (prevEdgeCount > totalEdges) {
++        Arrays.fill(this.edgeState, totalEdges, prevEdgeCount, null);
++      }
++      L[] edges = this.edgeState;
++      int edgeIdx = 0;
++      for (int i = 0; i < nodeCount; i++) {
++        LinkedDiGraphNode<N, Branch> node = nodes[i];
++        for (int j = 0, outCount = node.getOutEdgeCount(); j < outCount; j++) {
++          LinkedDiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(j);
++          outEdge.setDfaEdgeIndex(edgeIdx);
++          edges[edgeIdx++] = this.createInitialEstimateLattice();
+         }
+       }
++    } else {
++      if (prevEdgeCount > 0 && this.edgeState != null) {
++        Arrays.fill(this.edgeState, 0, prevEdgeCount, null);
++      }
++      this.cfgEdgeCount = 0;
+     }
+   }
+ 
+@@ -374,31 +495,34 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+    *
+    * @return {@code true} if the flow state differs from the previous state.
+    */
+-  private boolean flow(DiGraphNode<N, Branch> node) {
+-    LinearFlowState<L> state = node.getAnnotation();
++  private boolean flow(LinkedDiGraphNode<N, Branch> node, int nodeIdx) {
+     if (this.forward) {
+-      L outBefore = state.getOut();
+-      state.setOut(flowThrough(node.getValue(), state.getIn()));
+-      boolean changed = !outBefore.equals(state.getOut());
++      L outBefore = this.stateOut[nodeIdx];
++      L outAfter = checkNotNull(flowThrough(node.getValue(), this.stateIn[nodeIdx]));
++      this.stateOut[nodeIdx] = outAfter;
++      boolean changed = !isLatticeEqual(outBefore, outAfter);
+ 
+       if (this.branched) {
+-        FlowBrancher<L> brancher = this.createFlowBrancher(node.getValue(), state.getOut());
++        FlowBrancher<L> brancher = this.createFlowBrancher(node.getValue(), outAfter);
++        L[] edges = this.edgeState;
+         for (int i = 0, outCount = node.getOutEdgeCount(); i < outCount; i++) {
+-          DiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(i);
+-          L outBranchBefore = outEdge.getAnnotation();
+-          L outBranchAfter = brancher.branchFlow(outEdge.getValue());
+-          outEdge.setAnnotation(outBranchAfter);
++          LinkedDiGraphEdge<N, Branch> outEdge = node.getOutEdgeAt(i);
++          int edgeIdx = outEdge.getDfaEdgeIndex();
++          L outBranchBefore = edges[edgeIdx];
++          L outBranchAfter = checkNotNull(brancher.branchFlow(outEdge.getValue()));
++          edges[edgeIdx] = outBranchAfter;
+           if (!changed) {
+-            changed = !outBranchBefore.equals(outBranchAfter);
++            changed = !isLatticeEqual(outBranchBefore, outBranchAfter);
+           }
+         }
+       }
+ 
+       return changed;
+     } else {
+-      L inBefore = state.getIn();
+-      state.setIn(flowThrough(node.getValue(), state.getOut()));
+-      return !inBefore.equals(state.getIn());
++      L inBefore = this.stateIn[nodeIdx];
++      L inAfter = checkNotNull(flowThrough(node.getValue(), this.stateOut[nodeIdx]));
++      this.stateIn[nodeIdx] = inAfter;
++      return !isLatticeEqual(inBefore, inAfter);
+     }
+   }
+ 
+@@ -408,11 +532,10 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+    *
+    * @param node Node to compute new join.
+    */
+-  private void joinInputs(DiGraphNode<N, Branch> node) {
+-    LinearFlowState<L> state = node.getAnnotation();
++  private void joinInputs(LinkedDiGraphNode<N, Branch> node, int nodeIdx) {
+     boolean forward = this.forward;
+-    if (forward && cfg.getEntry() == node) {
+-      state.setIn(createEntryLattice());
++    if (forward && cfg.getEntryNode() == node) {
++      this.stateIn[nodeIdx] = checkNotNull(createEntryLattice());
+       return;
+     }
+ 
+@@ -440,25 +563,23 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     }
+ 
+     if (forward) {
+-      state.setIn(result);
++      this.stateIn[nodeIdx] = checkNotNull(result);
+     } else {
+-      state.setOut(result);
++      this.stateOut[nodeIdx] = checkNotNull(result);
+     }
+   }
+ 
+-  private L getInputFromEdge(DiGraphEdge<N, Branch> edge) {
++  private L getInputFromEdge(LinkedDiGraphEdge<N, Branch> edge) {
+     if (this.branched) {
+-      return edge.getAnnotation();
++      return this.edgeState[edge.getDfaEdgeIndex()];
+     } else if (this.forward) {
+-      LinearFlowState<L> state = edge.getSource().getAnnotation();
+-      return state.getOut();
++      return this.stateOut[edge.getSource().getDfaIndex()];
+     } else {
+-      DiGraphNode<N, Branch> node = edge.getDestination();
+-      if (node == this.cfg.getImplicitReturn()) {
++      LinkedDiGraphNode<N, Branch> node = edge.getDestination();
++      if (node == this.cfg.getImplicitReturnNode()) {
+         return this.createEntryLattice();
+       }
+-      LinearFlowState<L> state = node.getAnnotation();
+-      return state.getIn();
++      return this.stateIn[node.getDfaIndex()];
+     }
+   }
+ 
+@@ -483,6 +604,12 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       this.out = out;
+     }
+ 
++    void syncResult(int stepCount, L in, L out) {
++      this.stepCount = stepCount;
++      this.in = in;
++      this.out = out;
++    }
++
+     void clearForPool() {
+       this.stepCount = 0;
+       this.in = null;
+@@ -600,7 +727,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     return false;
+   }
+ 
+-  private int compareWorkNodes(DiGraphNode<N, Branch> a, DiGraphNode<N, Branch> b) {
++  private int compareWorkNodes(LinkedDiGraphNode<N, Branch> a, LinkedDiGraphNode<N, Branch> b) {
+     Comparator<DiGraphNode<N, Branch>> cmp = this.customComparator;
+     if (cmp != null) {
+       return cmp.compare(a, b);
+@@ -611,12 +738,12 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   }
+ 
+   @SuppressWarnings("unchecked")
+-  private void enqueueWorkNode(DiGraphNode<N, Branch> node) {
++  private void enqueueWorkNode(LinkedDiGraphNode<N, Branch> node) {
+     if (node.isInDfaQueue()) {
+       return;
+     }
+     node.setInDfaQueue(true);
+-    DiGraphNode<N, Branch>[] elems = this.workElements;
++    LinkedDiGraphNode<N, Branch>[] elems = this.workElements;
+     if (this.ordered) {
+       int k = this.workSize;
+       if (k == elems.length) {
+@@ -626,7 +753,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       this.workSize = k + 1;
+       while (k > 0) {
+         int parent = (k - 1) >>> 1;
+-        DiGraphNode<N, Branch> e = elems[parent];
++        LinkedDiGraphNode<N, Branch> e = elems[parent];
+         if (compareWorkNodes(node, e) >= 0) {
+           break;
+         }
+@@ -637,8 +764,8 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     } else {
+       if (this.workSize == elems.length) {
+         int oldLen = elems.length;
+-        DiGraphNode<N, Branch>[] grown =
+-            (DiGraphNode<N, Branch>[]) new DiGraphNode<?, ?>[oldLen * 2];
++        LinkedDiGraphNode<N, Branch>[] grown =
++            (LinkedDiGraphNode<N, Branch>[]) new LinkedDiGraphNode<?, ?>[oldLen * 2];
+         int mask = oldLen - 1;
+         for (int i = 0; i < oldLen; i++) {
+           grown[i] = elems[(this.workHead + i) & mask];
+@@ -653,20 +780,20 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+     }
+   }
+ 
+-  private DiGraphNode<N, Branch> dequeueWorkNode() {
+-    DiGraphNode<N, Branch>[] elems = this.workElements;
++  private LinkedDiGraphNode<N, Branch> dequeueWorkNode() {
++    LinkedDiGraphNode<N, Branch>[] elems = this.workElements;
+     if (this.ordered) {
+-      DiGraphNode<N, Branch> result = elems[0];
++      LinkedDiGraphNode<N, Branch> result = elems[0];
+       result.setInDfaQueue(false);
+       int n = --this.workSize;
+-      DiGraphNode<N, Branch> x = elems[n];
++      LinkedDiGraphNode<N, Branch> x = elems[n];
+       elems[n] = null;
+       if (n > 0) {
+         int half = n >>> 1;
+         int k = 0;
+         while (k < half) {
+           int child = (k << 1) + 1;
+-          DiGraphNode<N, Branch> c = elems[child];
++          LinkedDiGraphNode<N, Branch> c = elems[child];
+           int right = child + 1;
+           if (right < n && compareWorkNodes(c, elems[right]) > 0) {
+             child = right;
+@@ -683,7 +810,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+       return result;
+     } else {
+       int head = this.workHead;
+-      DiGraphNode<N, Branch> result = elems[head];
++      LinkedDiGraphNode<N, Branch> result = elems[head];
+       elems[head] = null;
+       result.setInDfaQueue(false);
+       this.workHead = (head + 1) & (elems.length - 1);
+@@ -693,11 +820,11 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+   }
+ 
+   private void clearWorkQueue() {
+-    DiGraphNode<N, Branch>[] elems = this.workElements;
++    LinkedDiGraphNode<N, Branch>[] elems = this.workElements;
+     if (elems != null && this.workSize > 0) {
+       if (this.ordered) {
+         for (int i = 0, sz = this.workSize; i < sz; i++) {
+-          DiGraphNode<N, Branch> n = elems[i];
++          LinkedDiGraphNode<N, Branch> n = elems[i];
+           if (n != null) {
+             n.setInDfaQueue(false);
+             elems[i] = null;
+@@ -707,7 +834,7 @@ abstract class DataFlowAnalysis<N, L extends LatticeElement> {
+         int mask = elems.length - 1;
+         for (int i = 0, sz = this.workSize; i < sz; i++) {
+           int idx = (this.workHead + i) & mask;
+-          DiGraphNode<N, Branch> n = elems[idx];
++          LinkedDiGraphNode<N, Branch> n = elems[idx];
+           if (n != null) {
+             n.setInDfaQueue(false);
+             elems[idx] = null;
+diff --git a/com/google/javascript/jscomp/JSChunkGraph.java b/com/google/javascript/jscomp/JSChunkGraph.java
+index 8dcba329..179e6667 100644
+--- a/com/google/javascript/jscomp/JSChunkGraph.java
++++ b/com/google/javascript/jscomp/JSChunkGraph.java
+@@ -78,9 +78,12 @@ public final class JSChunkGraph implements Serializable {
+   private final JSChunk[] chunks;
+ 
+   /**
+-   * selfPlusTransitiveDeps[i] = indices of all chunks that chunks[i] depends on, including itself.
++   * selfPlusTransitiveDeps[i] = bitmask words of all chunks that chunks[i] depends on, including
++   * itself. Length of selfPlusTransitiveDeps[i] is (i >>> 6) + 1.
+    */
+-  private final BitSet[] selfPlusTransitiveDeps;
++  private final long[][] selfPlusTransitiveDeps;
++
++  private final long[] scratchCandidateWords;
+ 
+   /** subtreeSize[i] = Number of chunks that transitively depend on chunks[i], including itself. */
+   private final int[] subtreeSize;
+@@ -130,7 +133,8 @@ public final class JSChunkGraph implements Serializable {
+ 
+     // Determine transitive deps for all chunks.
+     // O(n*m * log(n)) (probably a bit better than that)
+-    selfPlusTransitiveDeps = initTransitiveDepsBitSets();
++    selfPlusTransitiveDeps = initTransitiveDepsWords();
++    scratchCandidateWords = new long[(chunks.length + 63) >>> 6];
+ 
+     // O(n*m)
+     subtreeSize = initSubtreeSize();
+@@ -230,18 +234,19 @@ public final class JSChunkGraph implements Serializable {
+     return chunksInDepOrder;
+   }
+ 
+-  private BitSet[] initTransitiveDepsBitSets() {
+-    BitSet[] array = new BitSet[chunks.length];
++  private long[][] initTransitiveDepsWords() {
++    long[][] array = new long[chunks.length][];
+     for (int chunkIndex = 0; chunkIndex < chunks.length; ++chunkIndex) {
+       final JSChunk chunk = chunks[chunkIndex];
+-      BitSet selfPlusTransitiveDeps = new BitSet(chunkIndex + 1);
+-      array[chunkIndex] = selfPlusTransitiveDeps;
+-      selfPlusTransitiveDeps.set(chunkIndex);
+-      // O(chunkIndex * log64(chunkIndex))
++      int wordLen = (chunkIndex >>> 6) + 1;
++      long[] deps = new long[wordLen];
++      array[chunkIndex] = deps;
++      deps[chunkIndex >>> 6] |= 1L << chunkIndex;
+       for (JSChunk dep : chunk.getDependencies()) {
+-        // Add this dependency and all of its dependencies to the current chunk.
+-        // O(log64(chunkIndex))
+-        selfPlusTransitiveDeps.or(array[dep.getIndex()]);
++        long[] depWords = array[dep.getIndex()];
++        for (int w = 0, len = depWords.length; w < len; w++) {
++          deps[w] |= depWords[w];
++        }
+       }
+     }
+     return array;
+@@ -250,13 +255,14 @@ public final class JSChunkGraph implements Serializable {
+   private int[] initSubtreeSize() {
+     int[] subtreeSize = new int[chunks.length];
+     for (int dependentIndex = 0; dependentIndex < chunks.length; ++dependentIndex) {
+-      BitSet dependencies = selfPlusTransitiveDeps[dependentIndex];
+-      // Iterating backward through the bitset is slightly more efficient, since it avoids
+-      // considering later chunks, which this one cannot depend on.
+-      for (int requiredIndex = dependentIndex;
+-          requiredIndex >= 0;
+-          requiredIndex = dependencies.previousSetBit(requiredIndex - 1)) {
+-        subtreeSize[requiredIndex] += 1; // Count dependent in required chunk's subtree.
++      long[] dependencies = selfPlusTransitiveDeps[dependentIndex];
++      for (int w = dependencies.length - 1; w >= 0; w--) {
++        long word = dependencies[w];
++        while (word != 0L) {
++          int bit = Long.numberOfTrailingZeros(word);
++          subtreeSize[(w << 6) + bit] += 1;
++          word &= (word - 1L);
++        }
+       }
+     }
+     return subtreeSize;
+@@ -356,7 +362,13 @@ public final class JSChunkGraph implements Serializable {
+    * itself, as that dependency would be cyclic.
+    */
+   public boolean dependsOn(JSChunk src, JSChunk m) {
+-    return src != m && selfPlusTransitiveDeps[src.getIndex()].get(m.getIndex());
++    if (src == m) {
++      return false;
++    }
++    int mIdx = m.getIndex();
++    long[] deps = selfPlusTransitiveDeps[src.getIndex()];
++    int w = mIdx >>> 6;
++    return w < deps.length && (deps[w] & (1L << mIdx)) != 0L;
+   }
+ 
+   /**
+@@ -373,41 +385,61 @@ public final class JSChunkGraph implements Serializable {
+    * @return A chunk on which all of the argument chunks depend
+    */
+   public JSChunk getSmallestCoveringSubtree(JSChunk parentTree, BitSet dependentChunks) {
+-    checkState(!dependentChunks.isEmpty());
++    int firstDependent = dependentChunks.nextSetBit(0);
++    checkState(firstDependent >= 0);
+ 
+     // Candidate chunks are those that all of the given dependent chunks depend on, including
+-    // themselves. The dependent chunk with the smallest index might be our answer, if all
+-    // the other chunks depend on it.
+-    int minDependentChunkIndex = chunks.length;
+-    final BitSet candidates = new BitSet(chunks.length);
+-    candidates.set(0, chunks.length, true);
+-    for (int dependentIndex = dependentChunks.nextSetBit(0);
++    // themselves. All candidates have index <= firstDependent (the smallest dependent chunk index).
++    long[] firstDeps = selfPlusTransitiveDeps[firstDependent];
++    int wordCount = firstDeps.length;
++    long[] candWords = this.scratchCandidateWords;
++    System.arraycopy(firstDeps, 0, candWords, 0, wordCount);
++
++    for (int dependentIndex = dependentChunks.nextSetBit(firstDependent + 1);
+         dependentIndex >= 0;
+         dependentIndex = dependentChunks.nextSetBit(dependentIndex + 1)) {
+-      minDependentChunkIndex = min(minDependentChunkIndex, dependentIndex);
+-      candidates.and(selfPlusTransitiveDeps[dependentIndex]);
++      long[] depWords = selfPlusTransitiveDeps[dependentIndex];
++      for (int w = 0; w < wordCount; w++) {
++        candWords[w] &= depWords[w];
++      }
++    }
++
++    boolean hasAnyCandidate = false;
++    for (int w = 0; w < wordCount; w++) {
++      if (candWords[w] != 0L) {
++        hasAnyCandidate = true;
++        break;
++      }
+     }
+-    checkState(!candidates.isEmpty(), "No common dependency found for %s", dependentChunks);
++    checkState(hasAnyCandidate, "No common dependency found for %s", dependentChunks);
+ 
+-    // All candidates must have an index <= the smallest dependent chunk index.
+     // Work backwards through the candidates starting with the dependent chunk with the smallest
+-    // index. For each candidate, we'll remove all of the chunks it depends on from consideration,
+-    // since they must all have larger subtrees than the one we're considering.
++    // index. For each candidate, remove all of the chunks it depends on from consideration, since
++    // they must all have larger subtrees than the one we're considering.
+     int parentTreeIndex = parentTree.getIndex();
+-    // default to parent tree if we don't find anything better
++    int parentWord = parentTreeIndex >>> 6;
++    long parentBit = 1L << parentTreeIndex;
+     int bestCandidateIndex = parentTreeIndex;
+-    for (int candidateIndex = candidates.previousSetBit(minDependentChunkIndex);
+-        candidateIndex >= 0;
+-        candidateIndex = candidates.previousSetBit(candidateIndex - 1)) {
+-
+-      BitSet candidatePlusTransitiveDeps = selfPlusTransitiveDeps[candidateIndex];
+-      if (candidatePlusTransitiveDeps.get(parentTreeIndex)) {
+-        // candidate is a subtree of parentTree
+-        candidates.andNot(candidatePlusTransitiveDeps);
+-        if (subtreeSize[candidateIndex] < subtreeSize[bestCandidateIndex]) {
+-          bestCandidateIndex = candidateIndex;
++    int bestSubtreeSize = subtreeSize[bestCandidateIndex];
++    for (int w = wordCount - 1; w >= 0; w--) {
++      long word;
++      while ((word = candWords[w]) != 0L) {
++        int bitInWord = 63 - Long.numberOfLeadingZeros(word);
++        int candidateIndex = (w << 6) + bitInWord;
++        long[] candDeps = selfPlusTransitiveDeps[candidateIndex];
++        if (parentWord < candDeps.length && (candDeps[parentWord] & parentBit) != 0L) {
++          for (int k = 0, len = candDeps.length; k < len; k++) {
++            candWords[k] &= ~candDeps[k];
++          }
++          int candSize = subtreeSize[candidateIndex];
++          if (candSize < bestSubtreeSize) {
++            bestCandidateIndex = candidateIndex;
++            bestSubtreeSize = candSize;
++          }
++        } else {
++          candWords[w] = word & ~(1L << bitInWord);
+         }
+-      } // eliminate candidates that are not a subtree of parentTree
++      }
+     }
+     return chunks[bestCandidateIndex];
+   }
+diff --git a/com/google/javascript/jscomp/LinkedFlowScope.java b/com/google/javascript/jscomp/LinkedFlowScope.java
+index 44cd80dd..dd22960c 100644
+--- a/com/google/javascript/jscomp/LinkedFlowScope.java
++++ b/com/google/javascript/jscomp/LinkedFlowScope.java
+@@ -1069,11 +1069,29 @@ final class LinkedFlowScope implements FlowScope {
+   private static final BiPredicate<OverlaySlot, OverlaySlot> EQUAL_SLOTS_PREDICATE =
+       LinkedFlowScope::equalSlots;
+ 
++  @Override
++  public boolean equalsFlowScope(FlowScope other) {
++    if (this == other) {
++      return true;
++    }
++    if (!(other instanceof LinkedFlowScope that)) {
++      return false;
++    }
++    return equalsLinkedFlowScope(that);
++  }
++
+   @Override
+   public boolean equals(Object other) {
++    if (this == other) {
++      return true;
++    }
+     if (!(other instanceof LinkedFlowScope that)) {
+       return false;
+     }
++    return equalsLinkedFlowScope(that);
++  }
++
++  private boolean equalsLinkedFlowScope(LinkedFlowScope that) {
+     if (this.functionScope != that.functionScope) {
+       return false;
+     }
+diff --git a/com/google/javascript/jscomp/LiveVariablesAnalysis.java b/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+index 9f647d19..a33af3a6 100644
+--- a/com/google/javascript/jscomp/LiveVariablesAnalysis.java
++++ b/com/google/javascript/jscomp/LiveVariablesAnalysis.java
+@@ -231,6 +231,10 @@ class LiveVariablesAnalysis
+       if (!(other instanceof LiveVariableLattice that)) {
+         return false;
+       }
++      return equalsLattice(that);
++    }
++
++    boolean equalsLattice(LiveVariableLattice that) {
+       if (this == that) {
+         return true;
+       }
+@@ -676,4 +680,9 @@ class LiveVariablesAnalysis
+       }
+     }
+   }
++
++  @Override
++  boolean isLatticeEqual(LiveVariableLattice a, LiveVariableLattice b) {
++    return a.equalsLattice(b);
++  }
+ }
+diff --git a/com/google/javascript/jscomp/MaybeReachingVariableUse.java b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+index b3d1ae8d..6710d5b8 100644
+--- a/com/google/javascript/jscomp/MaybeReachingVariableUse.java
++++ b/com/google/javascript/jscomp/MaybeReachingVariableUse.java
+@@ -23,8 +23,8 @@ import com.google.common.collect.ImmutableList;
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+ import com.google.javascript.jscomp.MaybeReachingVariableUse.ReachingUses;
+ import com.google.javascript.jscomp.graph.DiGraph.DiGraphEdge;
+-import com.google.javascript.jscomp.graph.GraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
++import com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode;
+ import com.google.javascript.rhino.Node;
+ import java.util.Arrays;
+ import java.util.List;
+@@ -317,10 +317,17 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+ 
+     @Override
+     public boolean equals(Object other) {
+-      if (this == other) {
++      if (!(other instanceof ReachingUses otherUses)) {
++        return false;
++      }
++      return equalsUses(otherUses);
++    }
++
++    boolean equalsUses(ReachingUses otherUses) {
++      if (this == otherUses) {
+         return true;
+       }
+-      if (!(other instanceof ReachingUses otherUses) || this.numVars != otherUses.numVars) {
++      if (this.numVars != otherUses.numVars) {
+         return false;
+       }
+       Node[] sa = this.singleUse;
+@@ -865,24 +872,32 @@ class MaybeReachingVariableUse extends DataFlowAnalysis<Node, ReachingUses> {
+    * @return the list of upward exposed uses of the variable {@code name} at defNode.
+    */
+   Iterable<Node> getUses(String name, Node defNode) {
+-    GraphNode<Node, Branch> n = getCfg().getNode(defNode);
++    LinkedDiGraphNode<Node, Branch> n = getCfg().getNode(defNode);
+     checkNotNull(n);
+     int varIdx = lookupVarIndex(name);
+     if (varIdx < 0) {
+       return ImmutableList.of();
+     }
+-    LinearFlowState<ReachingUses> state = n.getAnnotation();
+-    return state.getOut().getUsesAt(varIdx);
++    return getNodeOutLattice(n).getUsesAt(varIdx);
+   }
+ 
+   boolean hasSingleUse(String name, Node defNode) {
+-    GraphNode<Node, Branch> n = getCfg().getNode(defNode);
++    LinkedDiGraphNode<Node, Branch> n = getCfg().getNode(defNode);
+     checkNotNull(n);
+     int varIdx = lookupVarIndex(name);
+     if (varIdx < 0) {
+       return false;
+     }
+-    LinearFlowState<ReachingUses> state = n.getAnnotation();
+-    return state.getOut().hasSingleUseAt(varIdx);
++    return getNodeOutLattice(n).hasSingleUseAt(varIdx);
++  }
++
++  @Override
++  boolean needsNodeAnnotations() {
++    return false;
++  }
++
++  @Override
++  boolean isLatticeEqual(ReachingUses a, ReachingUses b) {
++    return a.equalsUses(b);
+   }
+ }
+diff --git a/com/google/javascript/jscomp/MustBeReachingVariableDef.java b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+index 8dc881f8..60205240 100644
+--- a/com/google/javascript/jscomp/MustBeReachingVariableDef.java
++++ b/com/google/javascript/jscomp/MustBeReachingVariableDef.java
+@@ -21,8 +21,8 @@ import static com.google.common.base.Preconditions.checkState;
+ 
+ import com.google.javascript.jscomp.ControlFlowGraph.AbstractCfgNodeTraversalCallback;
+ import com.google.javascript.jscomp.ControlFlowGraph.Branch;
+-import com.google.javascript.jscomp.graph.GraphNode;
+ import com.google.javascript.jscomp.graph.LatticeElement;
++import com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode;
+ import com.google.javascript.rhino.Node;
+ import java.util.Arrays;
+ import java.util.LinkedHashSet;
+@@ -358,12 +358,16 @@ final class MustBeReachingVariableDef
+ 
+     @Override
+     public boolean equals(Object other) {
+-      if (this == other) {
+-        return true;
+-      }
+       if (!(other instanceof MustDef otherMustDef)) {
+         return false;
+       }
++      return equalsMustDef(otherMustDef);
++    }
++
++    boolean equalsMustDef(MustDef otherMustDef) {
++      if (this == otherMustDef) {
++        return true;
++      }
+       Definition[] a = this.reachingDef;
+       Definition[] b = otherMustDef.reachingDef;
+       int len = a.length;
+@@ -429,6 +433,16 @@ final class MustBeReachingVariableDef
+     return true;
+   }
+ 
++  @Override
++  boolean needsNodeAnnotations() {
++    return false;
++  }
++
++  @Override
++  boolean isLatticeEqual(MustDef a, MustDef b) {
++    return a.equalsMustDef(b);
++  }
++
+   @Override
+   MustDef createEntryLattice() {
+     return new MustDef(this.vars);
+@@ -687,9 +701,8 @@ final class MustBeReachingVariableDef
+     if (varIdx < 0) {
+       return null;
+     }
+-    GraphNode<Node, Branch> n = getCfg().getNode(useNode);
+-    LinearFlowState<MustDef> state = n.getAnnotation();
+-    Definition def = state.getIn().reachingDef[varIdx];
++    LinkedDiGraphNode<Node, Branch> n = getCfg().getNode(useNode);
++    Definition def = getNodeInLattice(n).reachingDef[varIdx];
+     return (def == null || def == Definition.BOTTOM) ? null : def;
+   }
+ 
+diff --git a/com/google/javascript/jscomp/OptimizeCalls.java b/com/google/javascript/jscomp/OptimizeCalls.java
+index 6ea1c197..18307734 100644
+--- a/com/google/javascript/jscomp/OptimizeCalls.java
++++ b/com/google/javascript/jscomp/OptimizeCalls.java
+@@ -162,6 +162,8 @@ class OptimizeCalls implements CompilerPass {
+     private @Nullable Node n2;
+     private @Nullable Node n3;
+     private Node @Nullable [] nodes;
++    private Node @Nullable [] hashTable;
++    private int hashCount;
+     private int size;
+ 
+     NodeList() {
+@@ -230,6 +232,92 @@ class OptimizeCalls implements CompilerPass {
+       }
+       arr[s] = n;
+       this.size = s + 1;
++      if (this.hashTable != null && n != null) {
++        insertIntoHashTable(n);
++      }
++    }
++
++    private static int mixNodeHash(Node n) {
++      int h = n.hashCode() * 0x9E3779B9;
++      return h ^ (h >>> 16);
++    }
++
++    private void insertIntoHashTable(Node n) {
++      Node[] table = this.hashTable;
++      int mask = table.length - 1;
++      int slot = mixNodeHash(n) & mask;
++      while (true) {
++        Node existing = table[slot];
++        if (existing == null) {
++          if ((this.hashCount + 1) * 2 > table.length) {
++            growHashTable();
++            table = this.hashTable;
++            mask = table.length - 1;
++            slot = mixNodeHash(n) & mask;
++            while (table[slot] != null) {
++              slot = (slot + 1) & mask;
++            }
++          }
++          table[slot] = n;
++          this.hashCount++;
++          return;
++        }
++        if (existing == n) {
++          return;
++        }
++        slot = (slot + 1) & mask;
++      }
++    }
++
++    private void growHashTable() {
++      Node[] oldTable = this.hashTable;
++      int newCap = oldTable.length * 2;
++      Node[] newTable = new Node[newCap];
++      int mask = newCap - 1;
++      for (int i = 0, len = oldTable.length; i < len; i++) {
++        Node elem = oldTable[i];
++        if (elem != null) {
++          int slot = mixNodeHash(elem) & mask;
++          while (newTable[slot] != null) {
++            slot = (slot + 1) & mask;
++          }
++          newTable[slot] = elem;
++        }
++      }
++      this.hashTable = newTable;
++    }
++
++    private Node[] buildHashTable() {
++      int s = this.size;
++      int cap = 64;
++      while (cap < s * 2) {
++        cap <<= 1;
++      }
++      Node[] table = new Node[cap];
++      int mask = cap - 1;
++      int unique = 0;
++      Node[] arr = this.nodes;
++      for (int i = 0; i < s; i++) {
++        Node elem = arr[i];
++        if (elem != null) {
++          int slot = mixNodeHash(elem) & mask;
++          while (true) {
++            Node existing = table[slot];
++            if (existing == null) {
++              table[slot] = elem;
++              unique++;
++              break;
++            }
++            if (existing == elem) {
++              break;
++            }
++            slot = (slot + 1) & mask;
++          }
++        }
++      }
++      this.hashTable = table;
++      this.hashCount = unique;
++      return table;
+     }
+ 
+     void addAll(NodeList other) {
+@@ -278,6 +366,19 @@ class OptimizeCalls implements CompilerPass {
+         }
+       }
+       this.size = newSize;
++      if (this.hashTable != null) {
++        if ((this.hashCount + count) * 2 > this.hashTable.length) {
++          this.hashTable = null;
++          this.hashCount = 0;
++        } else {
++          for (int i = curSize; i < newSize; i++) {
++            Node elem = arr[i];
++            if (elem != null) {
++              insertIntoHashTable(elem);
++            }
++          }
++        }
++      }
+     }
+ 
+     void clear() {
+@@ -289,6 +390,8 @@ class OptimizeCalls implements CompilerPass {
+         this.n2 = null;
+         this.n3 = null;
+       }
++      this.hashTable = null;
++      this.hashCount = 0;
+       this.size = 0;
+     }
+ 
+@@ -307,6 +410,24 @@ class OptimizeCalls implements CompilerPass {
+       }
+       Node[] arr = this.nodes;
+       if (arr != null) {
++        if (target != null && s > 16) {
++          Node[] table = this.hashTable;
++          if (table == null) {
++            table = buildHashTable();
++          }
++          int mask = table.length - 1;
++          int slot = mixNodeHash(target) & mask;
++          while (true) {
++            Node existing = table[slot];
++            if (existing == null) {
++              return false;
++            }
++            if (existing == target) {
++              return true;
++            }
++            slot = (slot + 1) & mask;
++          }
++        }
+         for (int i = 0; i < s; i++) {
+           if (arr[i] == target) {
+             return true;
+diff --git a/com/google/javascript/jscomp/RemoveUnusedCode.java b/com/google/javascript/jscomp/RemoveUnusedCode.java
+index 90a50f70..9d72ee43 100644
+--- a/com/google/javascript/jscomp/RemoveUnusedCode.java
++++ b/com/google/javascript/jscomp/RemoveUnusedCode.java
+@@ -408,7 +408,7 @@ class RemoveUnusedCode implements CompilerPass {
+     worklist.add(new Continuation(root, scope));
+     while (!worklist.isEmpty()) {
+       Continuation continuation = worklist.remove();
+-      continuation.apply();
++      continuation.apply(this);
+     }
+ 
+     removeUnreferencedVarsAndPolyfills();
+@@ -1805,7 +1805,7 @@ class RemoveUnusedCode implements CompilerPass {
+    * Our progress in a traversal can be expressed completely as the current node and scope. The
+    * continuation lets us save that information so that we can continue the traversal later.
+    */
+-  private class Continuation {
++  private static final class Continuation {
+     private final Node node;
+     private final Scope scope;
+ 
+@@ -1814,12 +1814,12 @@ class RemoveUnusedCode implements CompilerPass {
+       this.scope = scope;
+     }
+ 
+-    void apply() {
++    void apply(RemoveUnusedCode pass) {
+       if (node.isFunction()) {
+         // Calling traverseNode here would create infinite recursion for a function declaration
+-        traverseFunction(node, scope);
++        pass.traverseFunction(node, scope);
+       } else {
+-        traverseNode(node, scope);
++        pass.traverseNode(node, scope);
+       }
+     }
+   }
+diff --git a/com/google/javascript/jscomp/TypeInference.java b/com/google/javascript/jscomp/TypeInference.java
+index 0168c44c..1369a230 100644
+--- a/com/google/javascript/jscomp/TypeInference.java
++++ b/com/google/javascript/jscomp/TypeInference.java
+@@ -183,6 +183,16 @@ class TypeInference extends DataFlowAnalysis<Node, FlowScope> {
+     this.flowScopePool.reset();
+   }
+ 
++  @Override
++  boolean needsNodeAnnotations() {
++    return this.compiler.isDebugLoggingEnabled();
++  }
++
++  @Override
++  boolean isLatticeEqual(FlowScope a, FlowScope b) {
++    return a.equalsFlowScope(b);
++  }
++
+   @CheckReturnValue
+   private FlowScope inferDeclarativelyUnboundVarsWithoutTypes(FlowScope flow) {
+     TypedScope scope = (TypedScope) flow.getDeclarationScope();
+diff --git a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+index df1c56c8..4be742df 100644
+--- a/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
++++ b/com/google/javascript/jscomp/graph/LinkedDirectedGraph.java
+@@ -192,6 +192,14 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+     return view;
+   }
+ 
++  public int collectNodes(LinkedDiGraphNode<N, E>[] out) {
++    int i = 0;
++    for (LinkedDiGraphNode<N, E> node : this.nodes.values()) {
++      out[i++] = node;
++    }
++    return i;
++  }
++
+   @Override
+   public LinkedDiGraphNode<N, E> getNode(N nodeValue) {
+     return nodes.get(nodeValue);
+@@ -526,6 +534,8 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+ 
+     private int astPosition = -1;
+ 
++    private int dfaIndex = -1;
++
+     private boolean useAnnotation;
+ 
+     private boolean inDfaQueue;
+@@ -554,6 +564,7 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+       this.annotation = null;
+       this.priority = -1;
+       this.astPosition = -1;
++      this.dfaIndex = -1;
+       this.inDfaQueue = false;
+     }
+ 
+@@ -777,6 +788,14 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+     public void setInDfaQueue(boolean inDfaQueue) {
+       this.inDfaQueue = inDfaQueue;
+     }
++
++    public int getDfaIndex() {
++      return this.dfaIndex;
++    }
++
++    public void setDfaIndex(int dfaIndex) {
++      this.dfaIndex = dfaIndex;
++    }
+   }
+ 
+   /** A directed graph edge that stores the source and destination nodes at each edge. */
+@@ -792,6 +811,8 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+ 
+     private @Nullable Annotation annotation;
+ 
++    private int dfaEdgeIndex = -1;
++
+     private boolean useAnnotation;
+ 
+     /**
+@@ -826,6 +847,7 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+       this.destNode = null;
+       this.value = null;
+       this.annotation = null;
++      this.dfaEdgeIndex = -1;
+     }
+ 
+     List<LinkedDiGraphEdge<N, E>> asSingletonList() {
+@@ -905,5 +927,13 @@ public class LinkedDirectedGraph<N, E> extends DiGraph<N, E> implements Graphviz
+     public GraphNode<N, E> getNodeB() {
+       return destNode;
+     }
++
++    public int getDfaEdgeIndex() {
++      return this.dfaEdgeIndex;
++    }
++
++    public void setDfaEdgeIndex(int dfaEdgeIndex) {
++      this.dfaEdgeIndex = dfaEdgeIndex;
++    }
+   }
+ }
+diff --git a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+index 74d15734..0ed001ce 100644
+--- a/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
++++ b/com/google/javascript/jscomp/serialization/JSTypeReconserializer.java
+@@ -43,6 +43,7 @@ import com.google.javascript.rhino.jstype.JSTypeRegistry;
+ import com.google.javascript.rhino.jstype.ObjectType;
+ import com.google.javascript.rhino.jstype.UnionType;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.LinkedHashMap;
+ import java.util.LinkedHashSet;
+@@ -72,8 +73,8 @@ final class JSTypeReconserializer {
+   private final SeenTypeRecord unknownRecord;
+   private final SeenTypeRecord topFunctionRecord;
+ 
+-  private final LinkedIdentityHashMap<JSType, SeenTypeRecord> typeToRecordCache =
+-      new LinkedIdentityHashMap<>();
++  private SeenTypeRecord[] typeToRecordById;
++  private @Nullable LinkedIdentityHashMap<JSType, SeenTypeRecord> fallbackTypeToRecordCache;
+   private final LinkedHashMap<ColorId, SeenTypeRecord> seenTypeRecords = new LinkedHashMap<>(4096);
+   private final SetMultimap<Integer, Integer> disambiguateEdges = LinkedHashMultimap.create();
+   private final LinkedHashSet<Integer> scratchInstancePointers = new LinkedHashSet<>();
+@@ -132,6 +133,7 @@ final class JSTypeReconserializer {
+     this.shouldPropagatePropertyName = shouldPropagatePropertyName;
+     this.astPropertySet = astPropertySet;
+     this.serializationMode = serializationMode;
++    this.typeToRecordById = new SeenTypeRecord[Math.max(16384, registry.getNextTypeId() + 64)];
+ 
+     this.seedCachesWithAxiomaticTypes();
+ 
+@@ -262,9 +264,20 @@ final class JSTypeReconserializer {
+         }
+       }
+ 
+-      SeenTypeRecord jstypeRecord = this.typeToRecordCache.get(type);
+-      if (jstypeRecord != null) {
+-        return jstypeRecord;
++      int typeId = type.getTypeId();
++      if (typeId > 0) {
++        SeenTypeRecord[] cache = this.typeToRecordById;
++        if (typeId < cache.length) {
++          SeenTypeRecord jstypeRecord = cache[typeId];
++          if (jstypeRecord != null) {
++            return jstypeRecord;
++          }
++        }
++      } else if (this.fallbackTypeToRecordCache != null) {
++        SeenTypeRecord jstypeRecord = this.fallbackTypeToRecordCache.get(type);
++        if (jstypeRecord != null) {
++          return jstypeRecord;
++        }
+       }
+ 
+       if ((mask & JSType.KIND_PROXY) == 0) {
+@@ -461,12 +474,37 @@ final class JSTypeReconserializer {
+       record = new SeenTypeRecord(id, pointer);
+       this.seenTypeRecords.put(id, record);
+     }
+-    this.typeToRecordCache.put(jstype, record);
+-    record.jstypes.add(jstype);
++    if (this.putCachedTypeRecord(jstype, record) == null) {
++      record.jstypes.add(jstype);
++    }
+ 
+     return record;
+   }
+ 
++  private @Nullable SeenTypeRecord putCachedTypeRecord(JSType jstype, SeenTypeRecord record) {
++    int typeId = jstype.getTypeId();
++    if (typeId > 0) {
++      SeenTypeRecord[] cache = this.typeToRecordById;
++      if (typeId >= cache.length) {
++        int nextCap = cache.length * 2;
++        while (nextCap <= typeId) {
++          nextCap *= 2;
++        }
++        cache = Arrays.copyOf(cache, nextCap);
++        this.typeToRecordById = cache;
++      }
++      SeenTypeRecord prev = cache[typeId];
++      cache[typeId] = record;
++      return prev;
++    }
++    LinkedIdentityHashMap<JSType, SeenTypeRecord> fallback = this.fallbackTypeToRecordCache;
++    if (fallback == null) {
++      fallback = new LinkedIdentityHashMap<>();
++      this.fallbackTypeToRecordCache = fallback;
++    }
++    return fallback.put(jstype, record);
++  }
++
+   private TypeProto reconcileUnionTypes(SeenTypeRecord seen) {
+     ArrayList<Integer> sortedMembers = new ArrayList<>(seen.unionMembers.size());
+     for (SeenTypeRecord member : seen.unionMembers) {
+@@ -735,8 +773,19 @@ final class JSTypeReconserializer {
+     // representations at once
+     ImmutableMultimap.Builder<String, JSType> colorIdToTypes =
+         ImmutableMultimap.<String, JSType>builder().orderKeysBy(naturalOrder());
+-    this.typeToRecordCache.forEach(
+-        (jstype, record) -> colorIdToTypes.put(record.colorId.toString(), jstype));
++    for (SeenTypeRecord record : this.seenTypeRecords.values()) {
++      if (!record.jstypes.isEmpty()) {
++        colorIdToTypes.putAll(record.colorId.toString(), record.jstypes);
++      }
++    }
++    if (this.fallbackTypeToRecordCache != null) {
++      this.fallbackTypeToRecordCache.forEach(
++          (jstype, record) -> {
++            if (!record.jstypes.contains(jstype)) {
++              colorIdToTypes.put(record.colorId.toString(), jstype);
++            }
++          });
++    }
+     return colorIdToTypes.build();
+   }
+ 
+diff --git a/com/google/javascript/jscomp/type/FlowScope.java b/com/google/javascript/jscomp/type/FlowScope.java
+index 8c8199d3..4a3b299d 100644
+--- a/com/google/javascript/jscomp/type/FlowScope.java
++++ b/com/google/javascript/jscomp/type/FlowScope.java
+@@ -61,4 +61,8 @@ public interface FlowScope extends StaticTypedScope, LatticeElement {
+ 
+   /** Returns the underlying TypedScope. */
+   StaticTypedScope getDeclarationScope();
++
++  default boolean equalsFlowScope(FlowScope other) {
++    return this == other || this.equals(other);
++  }
+ }
+diff --git a/com/google/javascript/rhino/jstype/EqualityChecker.java b/com/google/javascript/rhino/jstype/EqualityChecker.java
+index 1ba233d0..a91cdfd5 100644
+--- a/com/google/javascript/rhino/jstype/EqualityChecker.java
++++ b/com/google/javascript/rhino/jstype/EqualityChecker.java
+@@ -131,12 +131,20 @@ final class EqualityChecker {
+     this.hasRun = true;
+   }
+ 
+-  private static boolean canNonIdenticalTypesEqual(JSType left, JSType right) {
++  static boolean canNonIdenticalTypesEqual(JSType left, JSType right) {
+     int lm = left.typeKindMask;
+     int rm = right.typeKindMask;
+-    if (((lm | rm) & (JSType.KIND_PROXY | JSType.KIND_UNION)) != 0) {
++    int orMask = lm | rm;
++    if ((orMask & JSType.KIND_PROXY) != 0) {
+       return true;
+     }
++    if ((orMask & JSType.KIND_UNION) != 0) {
++      if (((lm ^ rm) & JSType.KIND_UNION) == 0) {
++        return true;
++      }
++      UnionType u = ((lm & JSType.KIND_UNION) != 0) ? (UnionType) left : (UnionType) right;
++      return u.getAlternatesCount() == 1;
++    }
+     JSTypeClass lc = left.fastTypeClass();
+     JSTypeClass rc = right.fastTypeClass();
+     return switch (lc) {
+@@ -151,6 +159,14 @@ final class EqualityChecker {
+     };
+   }
+ 
++  static boolean checkNonIdenticalIdentity(JSType left, JSType right) {
++    if (!canNonIdenticalTypesEqual(left, right)) {
++      return false;
++    }
++    EqualityChecker checker = new EqualityChecker(EqMethod.IDENTITY);
++    return checker.areEqualTopLevel(left, right);
++  }
++
+   static boolean check(EqMethod eqMethod, JSType left, JSType right) {
+     if (identical(left, right)) {
+       return true;
+@@ -169,7 +185,7 @@ final class EqualityChecker {
+       return false;
+     }
+     EqualityChecker checker = new EqualityChecker(eqMethod);
+-    return checker.areEqualCaching(left, right);
++    return checker.areEqualTopLevel(left, right);
+   }
+ 
+   static boolean checkCallType(EqMethod eqMethod, FunctionType left, FunctionType right) {
+@@ -213,7 +229,7 @@ final class EqualityChecker {
+     if (!canNonIdenticalTypesEqual(left, right)) {
+       return false;
+     }
+-    return this.areEqualCaching(left, right);
++    return this.areEqualTopLevel(left, right);
+   }
+ 
+   /** Return whether the parameters (ignoring any other aspects) of the two types are equal. */
+@@ -384,6 +400,28 @@ final class EqualityChecker {
+       return false;
+     }
+ 
++    return this.areEqualBody(left, right);
++  }
++
++  private boolean areEqualTopLevel(JSType left, JSType right) {
++    if (left.isNoResolvedType() && right.isNoResolvedType()) {
++      return Objects.equals(
++          left.toObjectType().getReferenceName(), //
++          right.toObjectType().getReferenceName());
++    }
++    if (this.eqMethod != EqMethod.DATA_FLOW
++        && left.isUnknownType()
++        && right.isUnknownType()
++        && (left.isNominalType() ^ right.isNominalType())) {
++      return false;
++    }
++    this.recursionDepth = 1;
++    boolean result = this.areEqualBody(left, right);
++    this.recursionDepth = 0;
++    return result;
++  }
++
++  private boolean areEqualBody(JSType left, JSType right) {
+     if (left.isUnionType() && right.isUnionType()) {
+       return this.areUnionEqual(left.toMaybeUnionType(), right.toMaybeUnionType());
+     } else if (left.isUnionType()) {
+@@ -402,30 +440,35 @@ final class EqualityChecker {
+       return this.areFunctionEqual(left.toMaybeFunctionType(), right.toMaybeFunctionType());
+     }
+ 
+-    if (!this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap())) {
+-      return false;
+-    }
+-
+-    if (left.isRecordType() && right.isRecordType()) {
+-      return this.areRecordEqual(left.toMaybeRecordType(), right.toMaybeRecordType());
+-    }
+-
+     if (left.isNominalType() && right.isNominalType()) {
+       ObjectType leftUnwrapped = unwrapNominalTypeProxies(left.toObjectType());
+       ObjectType rightUnwrapped = unwrapNominalTypeProxies(right.toObjectType());
+ 
+       checkState(leftUnwrapped.isNominalType() && rightUnwrapped.isNominalType());
+       if (left.isResolved() && right.isResolved()) {
+-        return identical(leftUnwrapped, rightUnwrapped);
++        if (!identical(leftUnwrapped, rightUnwrapped)) {
++          return false;
++        }
+       } else {
+         // TODO(b/140763807): this is not valid across scopes pre-resolution.
+         String nameOfleft = checkNotNull(leftUnwrapped.getReferenceName());
+         String nameOfright = checkNotNull(rightUnwrapped.getReferenceName());
+         String googModuleIdOfLeft = getGoogModuleId(leftUnwrapped);
+         String googModuleIdOfRight = getGoogModuleId(rightUnwrapped);
+-        return Objects.equals(nameOfleft, nameOfright)
+-            && Objects.equals(googModuleIdOfLeft, googModuleIdOfRight);
++        if (!Objects.equals(nameOfleft, nameOfright)
++            || !Objects.equals(googModuleIdOfLeft, googModuleIdOfRight)) {
++          return false;
++        }
+       }
++      return this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap());
++    }
++
++    if (!this.areTypeMapEqual(left.getTemplateTypeMap(), right.getTemplateTypeMap())) {
++      return false;
++    }
++
++    if (left.isRecordType() && right.isRecordType()) {
++      return this.areRecordEqual(left.toMaybeRecordType(), right.toMaybeRecordType());
+     }
+ 
+     /*
+@@ -642,8 +685,17 @@ final class EqualityChecker {
+   }
+ 
+   private boolean areTypeMapEqual(TemplateTypeMap left, TemplateTypeMap right) {
++    if (identical(left, right)) {
++      return true;
++    }
+     int leftKeysLen = left.size();
++    if (leftKeysLen == 0) {
++      return true;
++    }
+     int rightKeysLen = right.size();
++    if (rightKeysLen == 0) {
++      return false;
++    }
+     int leftValsLen = left.getTemplateValuesSize();
+     int rightValsLen = right.getTemplateValuesSize();
+ 
+@@ -679,17 +731,21 @@ final class EqualityChecker {
+   }
+ 
+   private static ObjectType unwrapNominalTypeProxies(ObjectType objType) {
+-    if (!objType.isResolved() || (!objType.isNamedType() && !objType.isTemplatizedType())) {
+-      // Don't unwrap TemplateTypes, as they should use identity semantics even if their bounds
+-      // are compatible. On the other hand, different TemplatizedType instances may be equal if
+-      // their TemplateTypeMaps are compatible (which was checked for earlier).
+-      return objType;
+-    }
+-
+-    ObjectType internal =
+-        objType.isNamedType()
+-            ? objType.toMaybeNamedType().getReferencedObjTypeInternal()
+-            : objType.toMaybeTemplatizedType().getReferencedObjTypeInternal();
+-    return unwrapNominalTypeProxies(internal);
++    // Don't unwrap TemplateTypes, as they should use identity semantics even if their bounds
++    // are compatible. On the other hand, different TemplatizedType instances may be equal if
++    // their TemplateTypeMaps are compatible.
++    while (objType.isResolved()
++        && (objType.typeKindMask
++                & (JSType.KIND_NAMED | JSType.KIND_TEMPLATIZED | JSType.KIND_PROXY))
++            != 0) {
++      if (objType.isNamedType()) {
++        objType = objType.toMaybeNamedType().getReferencedObjTypeInternal();
++      } else if (objType.isTemplatizedType()) {
++        objType = objType.toMaybeTemplatizedType().getReferencedObjTypeInternal();
++      } else {
++        break;
++      }
++    }
++    return objType;
+   }
+ }
+diff --git a/com/google/javascript/rhino/jstype/JSType.java b/com/google/javascript/rhino/jstype/JSType.java
+index 062e8e50..ef2ed34e 100644
+--- a/com/google/javascript/rhino/jstype/JSType.java
++++ b/com/google/javascript/rhino/jstype/JSType.java
+@@ -168,6 +168,10 @@ public abstract class JSType {
+     return this.typeKindMask;
+   }
+ 
++  public final int getTypeId() {
++    return this.typeId;
++  }
++
+   public final int getWellFormedTemplatizedKind() {
+     if ((this.protoFlags & PROTO_FLAG_WELL_FORMED_TEMPLATIZED_OK) != 0) {
+       return 0;
+diff --git a/com/google/javascript/rhino/jstype/JSTypeRegistry.java b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+index b508862a..9fb7e292 100644
+--- a/com/google/javascript/rhino/jstype/JSTypeRegistry.java
++++ b/com/google/javascript/rhino/jstype/JSTypeRegistry.java
+@@ -414,6 +414,10 @@ public final class JSTypeRegistry {
+   // applying nullability to forward references instead of the type expression evaluation.
+   private final ScopedNameSet nonNullableTypeNames = new ScopedNameSet();
+   int nextTypeId = 0;
++
++  public int getNextTypeId() {
++    return this.nextTypeId;
++  }
+   int hashDepth = 0;
+   private static final int UNION2_CACHE_MASK = 16383;
+   private JSType @Nullable [] union2A;
+diff --git a/com/google/javascript/rhino/jstype/SubtypeChecker.java b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+index 3cf91710..e40d28dc 100644
+--- a/com/google/javascript/rhino/jstype/SubtypeChecker.java
++++ b/com/google/javascript/rhino/jstype/SubtypeChecker.java
+@@ -341,7 +341,7 @@ final class SubtypeChecker {
+     }
+ 
+     // Reflexive case.
+-    if (subtype.equalsJSType(supertype)) {
++    if (EqualityChecker.checkNonIdenticalIdentity(subtype, supertype)) {
+       return true;
+     }
+ 

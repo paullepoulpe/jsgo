@@ -104,7 +104,7 @@ func InitEs6RewriteDestructuring(this_ *Es6RewriteDestructuring, builder *Es6Rew
 	this_.useJscompAssign = !(this_.compiler.GetOptions().GetOutputFeatureSet().Contains_1_FeatureSet(pkg_parser.StaticGet_FeatureSet_ES2015()))
 	switch (this_.rewriteMode).Ordinal() {
 	case int32(0) /* ObjectDestructuringRewriteMode.REWRITE_ALL_OBJECT_PATTERNS */ :
-		this_.featuresToTriggerRunningPass = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7198([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_DEFAULT_PARAMETERS(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})
+		this_.featuresToTriggerRunningPass = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_DEFAULT_PARAMETERS(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_DESTRUCTURING(), pkg_parser.StaticGet_FeatureSet_Feature_ARRAY_PATTERN_REST(), pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_DESTRUCTURING()})
 		this_.featuresToMarkAsRemoved = this_.featuresToTriggerRunningPass.With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
 	case int32(1) /* ObjectDestructuringRewriteMode.REWRITE_OBJECT_REST */ :
 		this_.featuresToTriggerRunningPass = pkg_parser.StaticGet_FeatureSet_BARE_MINIMUM().With_1_FeatureSet_Feature(pkg_parser.StaticGet_FeatureSet_Feature_OBJECT_PATTERN_REST())
@@ -140,7 +140,7 @@ func (this_ *Es6RewriteDestructuring) ShouldTraverse_3(t *NodeTraversal, n pkg_r
 	}
 	switch n.TokenSwitchOrd_() {
 	case int32(49) /* Token.PARAM_LIST */ :
-		this_.priv_Es6RewriteDestructuring_pullDestructuringOutOfParams_2622(n, parent)
+		this_.priv_Es6RewriteDestructuring_pullDestructuringOutOfParams_2629(n, parent)
 	case int32(102) /* Token.ARRAY_PATTERN */, int32(103) /* Token.OBJECT_PATTERN */ :
 		var hasRest bool = ((n.IsObjectPattern() && n.HasChildren()) && n.GetLastChild().IsRest())
 		_ = hasRest
@@ -178,7 +178,7 @@ func (this_ *Es6RewriteDestructuring) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(102) /* Token.ARRAY_PATTERN */, int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_Es6RewriteDestructuring_visitPattern_2627(t, n)
+		this_.priv_Es6RewriteDestructuring_visitPattern_2634(t, n)
 		if n == this_.patternNestingStack.GetLast().pattern {
 			this_.patternNestingStack.RemoveLast()
 		}
@@ -187,7 +187,7 @@ func (this_ *Es6RewriteDestructuring) Visit_3(t *NodeTraversal, n pkg_rhino.Node
 }
 
 // Java method: Es6RewriteDestructuring.pullDestructuringOutOfParams(com.google.javascript.rhino.Node paramList, com.google.javascript.rhino.Node function)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_pullDestructuringOutOfParams_2622(paramList pkg_rhino.Node, function pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_pullDestructuringOutOfParams_2629(paramList pkg_rhino.Node, function pkg_rhino.Node) {
 	_ = paramList
 	_ = function
 	var insertSpot pkg_rhino.Node = pkg_rhino.Node(0)
@@ -231,11 +231,11 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_pullDestructu
 					if nameOrPattern.IsName() {
 						newParam = nameOrPattern
 					} else {
-						newParam = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(this_.priv_Es6RewriteDestructuring_getTempVariableName_2626(), AstFactory_S_Type_1_Node(nameOrPattern))
+						newParam = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(this_.priv_Es6RewriteDestructuring_getTempVariableName_2633(), AstFactory_S_Type_1_Node(nameOrPattern))
 					}
 					var lhs pkg_rhino.Node = nameOrPattern.CloneTree_0()
 					_ = lhs
-					var rhs pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_defaultValueHook_2639(newParam.CloneTree_0(), defaultValue)
+					var rhs pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_defaultValueHook_2646(newParam.CloneTree_0(), defaultValue)
 					_ = rhs
 					var newStatement pkg_rhino.Node
 					_ = newStatement
@@ -257,17 +257,17 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_pullDestructu
 					}
 					insertSpot = newStatement
 					if newStatement.GetFirstChild().IsDestructuringLhs() {
-						insertSpot = this_.priv_Es6RewriteDestructuring_rewriteVarDestructuringDeclaration_2624(newStatement.GetFirstChild())
+						insertSpot = this_.priv_Es6RewriteDestructuring_rewriteVarDestructuringDeclaration_2631(newStatement.GetFirstChild())
 					}
 				}
 				param.ReplaceWith(newParam)
 				newParam.SetJSDocInfo(jsDoc)
 				this_.compiler.ReportChangeToChangeScope(function)
 			} else if param.IsDestructuringPattern() {
-				insertSpot = this_.priv_Es6RewriteDestructuring_replacePatternParamWithTempVar_2623(function, insertSpot, param, this_.priv_Es6RewriteDestructuring_getTempVariableName_2626())
+				insertSpot = this_.priv_Es6RewriteDestructuring_replacePatternParamWithTempVar_2630(function, insertSpot, param, this_.priv_Es6RewriteDestructuring_getTempVariableName_2633())
 				this_.compiler.ReportChangeToChangeScope(function)
 			} else if param.IsRest() && param.GetFirstChild().IsDestructuringPattern() {
-				insertSpot = this_.priv_Es6RewriteDestructuring_replacePatternParamWithTempVar_2623(function, insertSpot, param.GetFirstChild(), this_.priv_Es6RewriteDestructuring_getTempVariableName_2626())
+				insertSpot = this_.priv_Es6RewriteDestructuring_replacePatternParamWithTempVar_2630(function, insertSpot, param.GetFirstChild(), this_.priv_Es6RewriteDestructuring_getTempVariableName_2633())
 				this_.compiler.ReportChangeToChangeScope(function)
 			}
 		}
@@ -275,18 +275,18 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_pullDestructu
 }
 
 // Java method: Es6RewriteDestructuring.replacePatternParamWithTempVar(com.google.javascript.rhino.Node function, com.google.javascript.rhino.Node insertSpot, com.google.javascript.rhino.Node patternParam, java.lang.String tempVarName)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replacePatternParamWithTempVar_2623(function pkg_rhino.Node, insertSpot pkg_rhino.Node, patternParam pkg_rhino.Node, tempVarName string) pkg_rhino.Node {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replacePatternParamWithTempVar_2630(function pkg_rhino.Node, insertSpot pkg_rhino.Node, patternParam pkg_rhino.Node, tempVarName string) pkg_rhino.Node {
 	_ = function
 	_ = insertSpot
 	_ = patternParam
 	_ = tempVarName
 	var paramType AstFactory_Type = AstFactory_S_Type_1_Node(patternParam)
 	_ = paramType
-	var newParam pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, paramType)
+	var newParam pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, paramType)
 	_ = newParam
 	newParam.SetJSDocInfo(patternParam.GetJSDocInfo())
 	patternParam.ReplaceWith(newParam)
-	var newDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(patternParam, this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, paramType))
+	var newDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(patternParam, this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, paramType))
 	_ = newDecl
 	newDecl.SrcrefTreeIfMissing(patternParam)
 	if insertSpot == 0 {
@@ -299,11 +299,11 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replacePatter
 	} else {
 		newDecl.InsertAfter(insertSpot)
 	}
-	return this_.priv_Es6RewriteDestructuring_rewriteVarDestructuringDeclaration_2624(newDecl.GetFirstChild())
+	return this_.priv_Es6RewriteDestructuring_rewriteVarDestructuringDeclaration_2631(newDecl.GetFirstChild())
 }
 
 // Java method: Es6RewriteDestructuring.rewriteVarDestructuringDeclaration(com.google.javascript.rhino.Node destructuringLhs)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_rewriteVarDestructuringDeclaration_2624(destructuringLhs pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_rewriteVarDestructuringDeclaration_2631(destructuringLhs pkg_rhino.Node) pkg_rhino.Node {
 	_ = destructuringLhs
 	if !(destructuringLhs.IsDestructuringLhs()) {
 		j2gort.CheckStateMsg(false, j2gort.BoxNode(destructuringLhs))
@@ -346,14 +346,14 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_rewriteVarDes
 }
 
 // Java method: Es6RewriteDestructuring.createTempVarNameNode(java.lang.String name, com.google.javascript.jscomp.AstFactory.Type type)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_createTempVarNameNode_2625(name string, type_ AstFactory_Type) pkg_rhino.Node {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_createTempVarNameNode_2632(name string, type_ AstFactory_Type) pkg_rhino.Node {
 	_ = name
 	_ = type_
 	return this_.astFactory.CreateConstantName(name, type_)
 }
 
 // Java method: Es6RewriteDestructuring.getTempVariableName()
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_getTempVariableName_2626() string {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_getTempVariableName_2633() string {
 	return ("$jscomp$destructuring$var" + j2gort.StrValInt32(func() int32 {
 		old_8 := this_.destructuringVarCounter
 		nw_9 := old_8 + 1
@@ -363,7 +363,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_getTempVariab
 }
 
 // Java method: Es6RewriteDestructuring.visitPattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node pattern)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitPattern_2627(t *NodeTraversal, pattern pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitPattern_2634(t *NodeTraversal, pattern pkg_rhino.Node) {
 	_ = t
 	_ = pattern
 	var parent pkg_rhino.Node = pattern.GetParent()
@@ -376,31 +376,31 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitPattern_
 			var declarationParent pkg_rhino.Node = declaration.GetParent()
 			_ = declarationParent
 			if declarationParent.IsVanillaFor() {
-				this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInVanillaForInnerVars_2635(t, pattern)
+				this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInVanillaForInnerVars_2642(t, pattern)
 			} else if NodeUtil_IsEnhancedFor(declarationParent) {
-				this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForInnerVars_2636(pattern)
+				this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForInnerVars_2643(pattern)
 			} else {
-				this_.priv_Es6RewriteDestructuring_replacePattern_2628(t, pattern, pattern.GetNext(), declaration, declaration)
+				this_.priv_Es6RewriteDestructuring_replacePattern_2635(t, pattern, pattern.GetNext(), declaration, declaration)
 			}
 		}
 	case int32(51) /* Token.ASSIGN */ :
 		if parent.GetParent().IsExprResult() {
-			this_.priv_Es6RewriteDestructuring_replacePattern_2628(t, pattern, pattern.GetNext(), parent, parent.GetParent())
+			this_.priv_Es6RewriteDestructuring_replacePattern_2635(t, pattern, pattern.GetNext(), parent, parent.GetParent())
 		} else {
-			this_.priv_Es6RewriteDestructuring_wrapAssignOrDestructuringInCallToArrow_2633(t, parent)
+			this_.priv_Es6RewriteDestructuring_wrapAssignOrDestructuringInCallToArrow_2640(t, parent)
 		}
 	case int32(126) /* Token.OBJECT_REST */, int32(125) /* Token.ITER_REST */, int32(100) /* Token.STRING_KEY */, int32(102) /* Token.ARRAY_PATTERN */, int32(134) /* Token.DEFAULT_VALUE */, int32(129) /* Token.COMPUTED_PROP */ :
 	case int32(112) /* Token.FOR_OF */, int32(81) /* Token.FOR_IN */, int32(113) /* Token.FOR_AWAIT_OF */ :
-		this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForWithOuterVars_2637(pattern)
+		this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForWithOuterVars_2644(pattern)
 	case int32(86) /* Token.CATCH */ :
-		this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInCatch_2638(t, pattern)
+		this_.priv_Es6RewriteDestructuring_visitDestructuringPatternInCatch_2645(t, pattern)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "unexpected parent")))
 	}
 }
 
 // Java method: Es6RewriteDestructuring.replacePattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node pattern, com.google.javascript.rhino.Node rhs, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node nodeToDetach)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replacePattern_2628(t *NodeTraversal, pattern pkg_rhino.Node, rhs pkg_rhino.Node, parent pkg_rhino.Node, nodeToDetach pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replacePattern_2635(t *NodeTraversal, pattern pkg_rhino.Node, rhs pkg_rhino.Node, parent pkg_rhino.Node, nodeToDetach pkg_rhino.Node) {
 	_ = t
 	_ = pattern
 	_ = rhs
@@ -411,22 +411,22 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replacePatter
 	}
 	switch pattern.TokenSwitchOrd_() {
 	case int32(102) /* Token.ARRAY_PATTERN */ :
-		this_.priv_Es6RewriteDestructuring_replaceArrayPattern_2632(t, pattern, rhs, parent, nodeToDetach)
+		this_.priv_Es6RewriteDestructuring_replaceArrayPattern_2639(t, pattern, rhs, parent, nodeToDetach)
 	case int32(103) /* Token.OBJECT_PATTERN */ :
-		this_.priv_Es6RewriteDestructuring_replaceObjectPattern_2629(t, pattern, rhs, parent, nodeToDetach)
+		this_.priv_Es6RewriteDestructuring_replaceObjectPattern_2636(t, pattern, rhs, parent, nodeToDetach)
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "unexpected")))
 	}
 }
 
 // Java method: Es6RewriteDestructuring.replaceObjectPattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node objectPattern, com.google.javascript.rhino.Node rhs, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node nodeToDetach)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObjectPattern_2629(t *NodeTraversal, objectPattern pkg_rhino.Node, rhs pkg_rhino.Node, parent pkg_rhino.Node, nodeToDetach pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObjectPattern_2636(t *NodeTraversal, objectPattern pkg_rhino.Node, rhs pkg_rhino.Node, parent pkg_rhino.Node, nodeToDetach pkg_rhino.Node) {
 	_ = t
 	_ = objectPattern
 	_ = rhs
 	_ = parent
 	_ = nodeToDetach
-	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	_ = tempVarName
 	var tempVarType AstFactory_Type = AstFactory_S_Type_1_Node(objectPattern)
 	_ = tempVarType
@@ -436,14 +436,14 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 	_ = propsToDeleteForRest
 	if objectPattern.HasChildren() && objectPattern.GetLastChild().IsRest() {
 		propsToDeleteForRest = j2gort.NewExt_java_util_ArrayList()
-		restTempVarName = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+		restTempVarName = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	} else if this_.rewriteMode == StaticGet_Es6RewriteDestructuring_ObjectDestructuringRewriteMode_REWRITE_OBJECT_REST() {
 		if !(this_.patternNestingStack.PeekLast().hasNestedObjectRest) {
 			this_.destructuringVarCounter = this_.destructuringVarCounter - 1
 			return
 		}
 	}
-	var tempDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, tempVarType), rhs.Detach()).SrcrefTreeIfMissing(objectPattern)
+	var tempDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, tempVarType), rhs.Detach()).SrcrefTreeIfMissing(objectPattern)
 	_ = tempDecl
 	if parent.IsConst() {
 		var jsDoc *pkg_rhino.JSDocInfo_Builder = pkg_rhino.JSDocInfo_S_Builder()
@@ -464,7 +464,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 			var newRHS pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = newRHS
 			if child.IsStringKey() {
-				var tempVarNameNode pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, tempVarType)
+				var tempVarNameNode pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, tempVarType)
 				_ = tempVarNameNode
 				var getprop pkg_rhino.Node
 				_ = getprop
@@ -482,13 +482,13 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 					newLHS = value.RemoveFirstChild()
 					var defaultValue pkg_rhino.Node = value.RemoveFirstChild()
 					_ = defaultValue
-					var intermediateTempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+					var intermediateTempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 					_ = intermediateTempVarName
-					var intermediateDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(intermediateTempVarName, AstFactory_S_Type_1_Node(getprop)), getprop)
+					var intermediateDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(intermediateTempVarName, AstFactory_S_Type_1_Node(getprop)), getprop)
 					_ = intermediateDecl
 					intermediateDecl.SrcrefTreeIfMissing(child)
 					intermediateDecl.InsertBefore(nodeToDetach)
-					newRHS = this_.priv_Es6RewriteDestructuring_defaultValueHook_2639(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(intermediateTempVarName, AstFactory_S_Type_1_Node(getprop)), defaultValue)
+					newRHS = this_.priv_Es6RewriteDestructuring_defaultValueHook_2646(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(intermediateTempVarName, AstFactory_S_Type_1_Node(getprop)), defaultValue)
 				}
 				if propsToDeleteForRest != nil {
 					propsToDeleteForRest.Add_1(j2gort.BoxNode(child))
@@ -510,9 +510,9 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 					defaultValue_2 = pkg_rhino.Node(0)
 				}
 				if propsToDeleteForRest != nil {
-					var exprEvalTempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+					var exprEvalTempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 					_ = exprEvalTempVarName
-					var exprEvalTempVarModel pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(exprEvalTempVarName, AstFactory_S_Type_1_Node(propExpr))
+					var exprEvalTempVarModel pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(exprEvalTempVarName, AstFactory_S_Type_1_Node(propExpr))
 					_ = exprEvalTempVarModel
 					var exprEvalDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(exprEvalTempVarModel.CloneNode_0(), propExpr)
 					_ = exprEvalDecl
@@ -522,17 +522,17 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 					propsToDeleteForRest.Add_1(j2gort.BoxNode(exprEvalTempVarModel.CloneNode_0()))
 				}
 				if hasDefault {
-					var getelem pkg_rhino.Node = this_.astFactory.CreateGetElem(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, tempVarType), propExpr)
+					var getelem pkg_rhino.Node = this_.astFactory.CreateGetElem(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, tempVarType), propExpr)
 					_ = getelem
-					var intermediateTempVarName_2 string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+					var intermediateTempVarName_2 string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 					_ = intermediateTempVarName_2
-					var intermediateDecl_2 pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(intermediateTempVarName_2, AstFactory_S_Type_1_Node(getelem)), getelem)
+					var intermediateDecl_2 pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(intermediateTempVarName_2, AstFactory_S_Type_1_Node(getelem)), getelem)
 					_ = intermediateDecl_2
 					intermediateDecl_2.SrcrefTreeIfMissing(child)
 					intermediateDecl_2.InsertBefore(nodeToDetach)
-					newRHS = this_.priv_Es6RewriteDestructuring_defaultValueHook_2639(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(intermediateTempVarName_2, AstFactory_S_Type_1_Node(getelem)), defaultValue_2)
+					newRHS = this_.priv_Es6RewriteDestructuring_defaultValueHook_2646(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(intermediateTempVarName_2, AstFactory_S_Type_1_Node(getelem)), defaultValue_2)
 				} else {
-					newRHS = this_.astFactory.CreateGetElem(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, AstFactory_S_Type_1_Node(newLHS)), propExpr)
+					newRHS = this_.astFactory.CreateGetElem(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, AstFactory_S_Type_1_Node(newLHS)), propExpr)
 				}
 			} else if child.IsRest() {
 				if next != 0 {
@@ -541,11 +541,11 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 				var assignCall pkg_rhino.Node
 				_ = assignCall
 				if this_.useJscompAssign {
-					assignCall = this_.astFactory.CreateJscompAssignCall(this_.namespace, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()), []pkg_rhino.Node{this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{}), this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, tempVarType)})
+					assignCall = this_.astFactory.CreateJscompAssignCall(this_.namespace, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()), []pkg_rhino.Node{this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{}), this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, tempVarType)})
 				} else {
-					assignCall = this_.astFactory.CreateObjectDotAssignCall(this_.namespace, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()), []pkg_rhino.Node{this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{}), this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, tempVarType)})
+					assignCall = this_.astFactory.CreateObjectDotAssignCall(this_.namespace, AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_TOP_OBJECT()), []pkg_rhino.Node{this_.astFactory.CreateObjectLit_1([]pkg_rhino.Node{}), this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, tempVarType)})
 				}
-				var restTempDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(restTempVarName, tempVarType), assignCall)
+				var restTempDecl pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(restTempVarName, tempVarType), assignCall)
 				_ = restTempDecl
 				restTempDecl.SrcrefTreeIfMissing(objectPattern)
 				restTempDecl.InsertBefore(nodeToDetach)
@@ -555,11 +555,11 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 					if !(restName.IsName()) {
 						j2gort.CheckStateMsg(false, j2gort.BoxNode(restName))
 					}
-					newLHS = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(restName.GetString(), AstFactory_S_Type_1_Node(restName))
+					newLHS = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(restName.GetString(), AstFactory_S_Type_1_Node(restName))
 				} else {
 					newLHS = restName.Detach()
 				}
-				newRHS = this_.priv_Es6RewriteDestructuring_objectPatternRestRHS_2630(objectPattern, child, restTempVarName, propsToDeleteForRest)
+				newRHS = this_.priv_Es6RewriteDestructuring_objectPatternRestRHS_2637(objectPattern, child, restTempVarName, propsToDeleteForRest)
 			} else {
 				panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", "unexpected child")))
 			}
@@ -585,7 +585,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceObject
 }
 
 // Java method: Es6RewriteDestructuring.objectPatternRestRHS(com.google.javascript.rhino.Node objectPattern, com.google.javascript.rhino.Node rest, java.lang.String restTempVarName, java.util.ArrayList<com.google.javascript.rhino.Node> statedProperties)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_objectPatternRestRHS_2630(objectPattern pkg_rhino.Node, rest pkg_rhino.Node, restTempVarName string, statedProperties j2gort.Ext_java_util_ArrayList) pkg_rhino.Node {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_objectPatternRestRHS_2637(objectPattern pkg_rhino.Node, rest pkg_rhino.Node, restTempVarName string, statedProperties j2gort.Ext_java_util_ArrayList) pkg_rhino.Node {
 	_ = objectPattern
 	_ = rest
 	_ = restTempVarName
@@ -593,17 +593,17 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_objectPattern
 	if !(objectPattern.GetLastChild() == rest) {
 		j2gort.CheckArgument(false)
 	}
-	var restTempVarModel pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(restTempVarName, AstFactory_S_Type_1_Node(objectPattern))
+	var restTempVarModel pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(restTempVarName, AstFactory_S_Type_1_Node(objectPattern))
 	_ = restTempVarModel
 	var result pkg_rhino.Node = restTempVarModel.CloneNode_0()
 	_ = result
 	if !(statedProperties.IsEmpty()) {
 		var propItr j2gort.Ext_java_util_Iterator = j2gort.AsIface[j2gort.Ext_java_util_Iterator](statedProperties.Iterator())
 		_ = propItr
-		var comma pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_deletionNodeForRestProperty_2631(restTempVarModel.CloneNode_0(), j2gort.CastNode[pkg_rhino.Node](propItr.Next()))
+		var comma pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_deletionNodeForRestProperty_2638(restTempVarModel.CloneNode_0(), j2gort.CastNode[pkg_rhino.Node](propItr.Next()))
 		_ = comma
 		for propItr.HasNext() {
-			comma = this_.astFactory.CreateComma(comma, this_.priv_Es6RewriteDestructuring_deletionNodeForRestProperty_2631(restTempVarModel.CloneNode_0(), j2gort.CastNode[pkg_rhino.Node](propItr.Next())))
+			comma = this_.astFactory.CreateComma(comma, this_.priv_Es6RewriteDestructuring_deletionNodeForRestProperty_2638(restTempVarModel.CloneNode_0(), j2gort.CastNode[pkg_rhino.Node](propItr.Next())))
 		}
 		result = this_.astFactory.CreateComma(comma, result)
 	}
@@ -612,7 +612,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_objectPattern
 }
 
 // Java method: Es6RewriteDestructuring.deletionNodeForRestProperty(com.google.javascript.rhino.Node restTempVarNameNode, com.google.javascript.rhino.Node property)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_deletionNodeForRestProperty_2631(restTempVarNameNode pkg_rhino.Node, property pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_deletionNodeForRestProperty_2638(restTempVarNameNode pkg_rhino.Node, property pkg_rhino.Node) pkg_rhino.Node {
 	_ = restTempVarNameNode
 	_ = property
 	var get pkg_rhino.Node = pkg_rhino.Node(0)
@@ -640,7 +640,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_deletionNodeF
 }
 
 // Java method: Es6RewriteDestructuring.replaceArrayPattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node arrayPattern, com.google.javascript.rhino.Node rhs, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node nodeToDetach)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceArrayPattern_2632(t *NodeTraversal, arrayPattern pkg_rhino.Node, rhs pkg_rhino.Node, parent pkg_rhino.Node, nodeToDetach pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceArrayPattern_2639(t *NodeTraversal, arrayPattern pkg_rhino.Node, rhs pkg_rhino.Node, parent pkg_rhino.Node, nodeToDetach pkg_rhino.Node) {
 	_ = t
 	_ = arrayPattern
 	_ = rhs
@@ -651,7 +651,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceArrayP
 			return
 		}
 	}
-	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	_ = tempVarName
 	var makeIteratorCall pkg_rhino.Node = this_.astFactory.CreateJSCompMakeIteratorCall(rhs.Detach(), this_.namespace)
 	_ = makeIteratorCall
@@ -680,18 +680,18 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceArrayP
 			var newRHS pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = newRHS
 			if child.IsDefaultValue() {
-				var nextVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+				var nextVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 				_ = nextVarName
 				var nextCallDotValue pkg_rhino.Node = this_.astFactory.CreateGetPropWithUnknownType(this_.astFactory.CreateCallWithUnknownType(this_.astFactory.CreateGetPropWithUnknownType(tempVarModel.CloneNode_0(), "next"), []pkg_rhino.Node{}), "value")
 				_ = nextCallDotValue
 				var nextVarType AstFactory_Type = AstFactory_S_Type_1_Node(nextCallDotValue)
 				_ = nextVarType
-				var var_ pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(nextVarName, nextVarType), nextCallDotValue)
+				var var_ pkg_rhino.Node = pkg_rhino.IR_Var_2(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(nextVarName, nextVarType), nextCallDotValue)
 				_ = var_
 				var_.SrcrefTreeIfMissing(child)
 				var_.InsertBefore(nodeToDetach)
 				newLHS = child.RemoveFirstChild()
-				newRHS = this_.priv_Es6RewriteDestructuring_defaultValueHook_2639(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(nextVarName, nextVarType), child.GetLastChild().Detach())
+				newRHS = this_.priv_Es6RewriteDestructuring_defaultValueHook_2646(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(nextVarName, nextVarType), child.GetLastChild().Detach())
 			} else if child.IsRest() {
 				newLHS = child.RemoveFirstChild()
 				newRHS = this_.astFactory.CreateJscompArrayFromIteratorCall(tempVarModel.CloneNode_0(), this_.namespace)
@@ -718,17 +718,17 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_replaceArrayP
 }
 
 // Java method: Es6RewriteDestructuring.wrapAssignOrDestructuringInCallToArrow(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node assignment)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_wrapAssignOrDestructuringInCallToArrow_2633(t *NodeTraversal, assignment pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_wrapAssignOrDestructuringInCallToArrow_2640(t *NodeTraversal, assignment pkg_rhino.Node) {
 	_ = t
 	_ = assignment
 	var lhs pkg_rhino.Node = assignment.GetFirstChild()
 	_ = lhs
 	var rhs pkg_rhino.Node = assignment.GetLastChild().Detach()
 	_ = rhs
-	this_.priv_Es6RewriteDestructuring_validateNoAwaitOrYieldInNestedAssignmentPattern_2634(lhs)
-	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+	this_.priv_Es6RewriteDestructuring_validateNoAwaitOrYieldInNestedAssignmentPattern_2641(lhs)
+	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	_ = tempVarName
-	var tempVarModel pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, AstFactory_S_Type_1_Node(rhs))
+	var tempVarModel pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, AstFactory_S_Type_1_Node(rhs))
 	_ = tempVarModel
 	var paramList pkg_rhino.Node = pkg_rhino.IR_ParamList([]pkg_rhino.Node{tempVarModel.CloneNode_0()})
 	_ = paramList
@@ -750,11 +750,11 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_wrapAssignOrD
 	call.PutBooleanProp(pkg_rhino.StaticGet_Node_FREE_CALL(), true)
 	assignment.ReplaceWith(call)
 	NodeUtil_MarkNewScopesChanged_2_Node_AbstractCompiler(call, this_.compiler)
-	this_.priv_Es6RewriteDestructuring_replacePattern_2628(t, replacementExpr.GetFirstChild(), replacementExpr.GetLastChild(), replacementExpr, exprResult)
+	this_.priv_Es6RewriteDestructuring_replacePattern_2635(t, replacementExpr.GetFirstChild(), replacementExpr.GetLastChild(), replacementExpr, exprResult)
 }
 
 // Java method: Es6RewriteDestructuring.validateNoAwaitOrYieldInNestedAssignmentPattern(com.google.javascript.rhino.Node pattern)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_validateNoAwaitOrYieldInNestedAssignmentPattern_2634(pattern pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_validateNoAwaitOrYieldInNestedAssignmentPattern_2641(pattern pkg_rhino.Node) {
 	_ = pattern
 	var hasAwaitOrYieldInLhs bool = (NodeUtil_FindPreorder(pattern, lambdaSingleton_es6_rewrite_destructuring_1, StaticGet_NodeUtil_MATCH_NOT_FUNCTION()) != 0)
 	_ = hasAwaitOrYieldInLhs
@@ -764,7 +764,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_validateNoAwa
 }
 
 // Java method: Es6RewriteDestructuring.visitDestructuringPatternInVanillaForInnerVars(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node pattern)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInVanillaForInnerVars_2635(t *NodeTraversal, pattern pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInVanillaForInnerVars_2642(t *NodeTraversal, pattern pkg_rhino.Node) {
 	_ = t
 	_ = pattern
 	if !(pattern.IsDestructuringPattern()) {
@@ -804,7 +804,7 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestruct
 			_ = newDeclaration_2
 			newDeclaration_2.AddChildToBack(destructuringLhs.Detach())
 			newDeclaration_2.InsertBefore(insertionPoint)
-			this_.priv_Es6RewriteDestructuring_replacePattern_2628(t, pattern, pattern.GetNext(), newDeclaration_2, newDeclaration_2)
+			this_.priv_Es6RewriteDestructuring_replacePattern_2635(t, pattern, pattern.GetNext(), newDeclaration_2, newDeclaration_2)
 			if !(declaration.HasChildren()) {
 				declaration.ReplaceWith(pkg_rhino.IR_Empty())
 			}
@@ -816,11 +816,11 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestruct
 				_ = name
 				name.CloneNode_0().InsertBefore(destructuringLhs)
 			}))
-			var unusedVar pkg_rhino.Node = this_.astFactory.CreateNameWithUnknownType((j2gort.StrValString(this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()) + "$unused")).Srcref(destructuringLhs)
+			var unusedVar pkg_rhino.Node = this_.astFactory.CreateNameWithUnknownType((j2gort.StrValString(this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()) + "$unused")).Srcref(destructuringLhs)
 			_ = unusedVar
 			destructuringLhs.ReplaceWith(unusedVar)
 			unusedVar.AddChildToBack(destructuringLhs)
-			this_.priv_Es6RewriteDestructuring_wrapAssignOrDestructuringInCallToArrow_2633(t, destructuringLhs)
+			this_.priv_Es6RewriteDestructuring_wrapAssignOrDestructuringInCallToArrow_2640(t, destructuringLhs)
 		}
 	default:
 		panic(j2gort.AsIface[javalang.IIllegalStateException](j2gort.ConstructShimThrowable("java.lang.IllegalStateException", j2gort.BoxString(declaration.String()))))
@@ -829,12 +829,12 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestruct
 }
 
 // Java method: Es6RewriteDestructuring.visitDestructuringPatternInEnhancedForInnerVars(com.google.javascript.rhino.Node pattern)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForInnerVars_2636(pattern pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForInnerVars_2643(pattern pkg_rhino.Node) {
 	_ = pattern
 	if !(pattern.IsDestructuringPattern()) {
 		j2gort.CheckArgument(false)
 	}
-	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	_ = tempVarName
 	var destructuringLhs pkg_rhino.Node = pattern.GetParent()
 	_ = destructuringLhs
@@ -850,10 +850,10 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestruct
 	}
 	var block pkg_rhino.Node = forNode.GetLastChild()
 	_ = block
-	destructuringLhs.ReplaceWith(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, AstFactory_S_Type_1_Node(pattern)).Srcref(pattern))
+	destructuringLhs.ReplaceWith(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, AstFactory_S_Type_1_Node(pattern)).Srcref(pattern))
 	var declarationType pkg_rhino.Token = declarationNode.GetToken()
 	_ = declarationType
-	var decl pkg_rhino.Node = pkg_rhino.IR_Declaration_3(pattern.Detach(), this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, AstFactory_S_Type_1_Node(pattern)), declarationType)
+	var decl pkg_rhino.Node = pkg_rhino.IR_Declaration_3(pattern.Detach(), this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, AstFactory_S_Type_1_Node(pattern)), declarationType)
 	_ = decl
 	decl.SrcrefTreeIfMissing(pattern)
 	var newBlock pkg_rhino.Node = pkg_rhino.IR_Block_1_Node(decl)
@@ -863,18 +863,18 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestruct
 }
 
 // Java method: Es6RewriteDestructuring.visitDestructuringPatternInEnhancedForWithOuterVars(com.google.javascript.rhino.Node pattern)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForWithOuterVars_2637(pattern pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInEnhancedForWithOuterVars_2644(pattern pkg_rhino.Node) {
 	_ = pattern
 	if !(pattern.IsDestructuringPattern()) {
 		j2gort.CheckArgument(false)
 	}
-	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	_ = tempVarName
 	var forNode pkg_rhino.Node = pattern.GetParent()
 	_ = forNode
 	var block pkg_rhino.Node = forNode.GetLastChild()
 	_ = block
-	var name pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, AstFactory_S_Type_1_Node(pattern))
+	var name pkg_rhino.Node = this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, AstFactory_S_Type_1_Node(pattern))
 	_ = name
 	var decl pkg_rhino.Node = pkg_rhino.IR_Var_1(name)
 	_ = decl
@@ -884,29 +884,29 @@ func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestruct
 	_ = clonedName
 	clonedName.SrcrefTreeIfMissing(pattern)
 	pattern.ReplaceWith(clonedName)
-	var exprResult pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateAssign_2_Node_Node(pattern, this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, AstFactory_S_Type_1_Node(pattern))))
+	var exprResult pkg_rhino.Node = pkg_rhino.IR_ExprResult(this_.astFactory.CreateAssign_2_Node_Node(pattern, this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, AstFactory_S_Type_1_Node(pattern))))
 	_ = exprResult
 	exprResult.SrcrefTreeIfMissing(pattern)
 	block.AddChildToFront(exprResult)
 }
 
 // Java method: Es6RewriteDestructuring.visitDestructuringPatternInCatch(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node pattern)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInCatch_2638(t *NodeTraversal, pattern pkg_rhino.Node) {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_visitDestructuringPatternInCatch_2645(t *NodeTraversal, pattern pkg_rhino.Node) {
 	_ = t
 	_ = pattern
-	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2626()
+	var tempVarName string = this_.priv_Es6RewriteDestructuring_getTempVariableName_2633()
 	_ = tempVarName
 	var catchBlock pkg_rhino.Node = pattern.GetNext()
 	_ = catchBlock
 	var patternType AstFactory_Type = AstFactory_S_Type_1_Node(pattern)
 	_ = patternType
-	pattern.ReplaceWith(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, patternType))
-	catchBlock.AddChildToFront(pkg_rhino.IR_Declaration_3(pattern, this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2625(tempVarName, patternType), pkg_rhino.StaticGet_Token_LET()))
+	pattern.ReplaceWith(this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, patternType))
+	catchBlock.AddChildToFront(pkg_rhino.IR_Declaration_3(pattern, this_.priv_Es6RewriteDestructuring_createTempVarNameNode_2632(tempVarName, patternType), pkg_rhino.StaticGet_Token_LET()))
 	NodeUtil_AddFeatureToScript(t.GetCurrentScript(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS(), this_.compiler)
 }
 
 // Java method: Es6RewriteDestructuring.defaultValueHook(com.google.javascript.rhino.Node getprop, com.google.javascript.rhino.Node defaultValue)
-func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_defaultValueHook_2639(getprop pkg_rhino.Node, defaultValue pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es6RewriteDestructuring) priv_Es6RewriteDestructuring_defaultValueHook_2646(getprop pkg_rhino.Node, defaultValue pkg_rhino.Node) pkg_rhino.Node {
 	_ = getprop
 	_ = defaultValue
 	var undefined pkg_rhino.Node = this_.astFactory.CreateUndefinedValue()

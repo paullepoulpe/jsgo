@@ -63,6 +63,7 @@ type InlineFunctions struct {
 	slab_InlineFunctions_FunctionVar        j2gort.PooledSlab[InlineFunctions_FunctionVar]
 	slab_InlineFunctions_NamedFunction      j2gort.PooledSlab[InlineFunctions_NamedFunction]
 	slab_InlineFunctions_FunctionExpression j2gort.PooledSlab[InlineFunctions_FunctionExpression]
+	slab_InlineFunctions_FunctionState      j2gort.PooledSlab[InlineFunctions_FunctionState]
 }
 
 func (this_ *InlineFunctions) BindSelf_(s any) {
@@ -157,12 +158,12 @@ func InitInlineFunctions(this_ *InlineFunctions, compiler AbstractCompiler, safe
 }
 
 // Java method: InlineFunctions.getOrCreateFunctionState(java.lang.String fnName)
-func (this_ *InlineFunctions) priv_InlineFunctions_getOrCreateFunctionState_3269(fnName string) *InlineFunctions_FunctionState {
+func (this_ *InlineFunctions) priv_InlineFunctions_getOrCreateFunctionState_3276(fnName string) *InlineFunctions_FunctionState {
 	_ = fnName
 	var fs *InlineFunctions_FunctionState = this_.fns.Get(fnName)
 	_ = fs
 	if fs == nil {
-		fs = NewInlineFunctions_FunctionState()
+		fs = allocPooled_InlineFunctions_FunctionState(&this_.slab_InlineFunctions_FunctionState)
 		this_.fns.Put(fnName, fs)
 	}
 	return fs
@@ -203,21 +204,21 @@ func (this_ *InlineFunctions) Process_2(externs pkg_rhino.Node, root pkg_rhino.N
 		(&ntb_).Traverse(root)
 	}
 
-	this_.priv_InlineFunctions_trimCandidatesNotMeetingMinimumRequirements_3275()
+	this_.priv_InlineFunctions_trimCandidatesNotMeetingMinimumRequirements_3282()
 	if this_.fns.IsEmpty() {
 		return
 	}
 	var fnNames j2gort.Ext_com_google_common_collect_ImmutableSet = this_.fns.KeysToImmutableSet()
 	_ = fnNames
 	this_.injector.SetKnownConstantFunctions(fnNames)
-	this_.priv_InlineFunctions_trimCandidatesUsingOnCost_3276()
+	this_.priv_InlineFunctions_trimCandidatesUsingOnCost_3283()
 	if this_.fns.IsEmpty() {
 		return
 	}
-	this_.priv_InlineFunctions_resolveInlineConflicts_3279()
-	this_.priv_InlineFunctions_decomposeExpressions_3282()
+	this_.priv_InlineFunctions_resolveInlineConflicts_3286()
+	this_.priv_InlineFunctions_decomposeExpressions_3289()
 	NodeTraversal_Traverse(this_.compiler, root, Upcast_NodeTraversal_Callback(NewInlineFunctions_CallVisitor(this_, NewInlineFunctions_Inline(this_.injector))))
-	this_.priv_InlineFunctions_removeInlinedFunctions_3283()
+	this_.priv_InlineFunctions_removeInlinedFunctions_3290()
 }
 
 // Java static method: InlineFunctions.isAlwaysInlinable(com.google.javascript.rhino.Node fn)
@@ -233,7 +234,7 @@ func InlineFunctions_IsAlwaysInlinable(fn pkg_rhino.Node) bool {
 }
 
 // Java method: InlineFunctions.targetSizeAfterInlineExceedsLimit(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions) priv_InlineFunctions_targetSizeAfterInlineExceedsLimit_3270(t *NodeTraversal, functionState *InlineFunctions_FunctionState) bool {
+func (this_ *InlineFunctions) priv_InlineFunctions_targetSizeAfterInlineExceedsLimit_3277(t *NodeTraversal, functionState *InlineFunctions_FunctionState) bool {
 	_ = t
 	_ = functionState
 	var containingFunction pkg_rhino.Node = t.GetEnclosingFunction()
@@ -254,21 +255,21 @@ func (this_ *InlineFunctions) priv_InlineFunctions_targetSizeAfterInlineExceedsL
 }
 
 // Java method: InlineFunctions.maybeAddFunction(com.google.javascript.jscomp.InlineFunctions.Function fn, com.google.javascript.jscomp.JSChunk chunk)
-func (this_ *InlineFunctions) priv_InlineFunctions_maybeAddFunction_3271(fn InlineFunctions_Function, chunk *JSChunk) {
+func (this_ *InlineFunctions) priv_InlineFunctions_maybeAddFunction_3278(fn InlineFunctions_Function, chunk *JSChunk) {
 	_ = fn
 	_ = chunk
 	var name string = fn.GetName()
 	_ = name
-	var functionState *InlineFunctions_FunctionState = this_.priv_InlineFunctions_getOrCreateFunctionState_3269(name)
+	var functionState *InlineFunctions_FunctionState = this_.priv_InlineFunctions_getOrCreateFunctionState_3276(name)
 	_ = functionState
-	this_.priv_InlineFunctions_updateFunctionStateForInlining_3272(fn, chunk, functionState)
+	this_.priv_InlineFunctions_updateFunctionStateForInlining_3279(fn, chunk, functionState)
 	if !(!(InlineFunctions_HasRequireInliningAnnotation(fn.GetFunctionNode()) && !(functionState.CanInline()))) {
 		j2gort.CheckState(false)
 	}
 }
 
 // Java method: InlineFunctions.updateFunctionStateForInlining(com.google.javascript.jscomp.InlineFunctions.Function fn, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions) priv_InlineFunctions_updateFunctionStateForInlining_3272(fn InlineFunctions_Function, chunk *JSChunk, functionState *InlineFunctions_FunctionState) {
+func (this_ *InlineFunctions) priv_InlineFunctions_updateFunctionStateForInlining_3279(fn InlineFunctions_Function, chunk *JSChunk, functionState *InlineFunctions_FunctionState) {
 	_ = fn
 	_ = chunk
 	_ = functionState
@@ -278,7 +279,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_updateFunctionStateForInlinin
 	}
 	var fnNode pkg_rhino.Node = fn.GetFunctionNode()
 	_ = fnNode
-	if this_.priv_InlineFunctions_hasNoInlineAnnotation_3273(fnNode) {
+	if this_.priv_InlineFunctions_hasNoInlineAnnotation_3280(fnNode) {
 		functionState.DisallowInlining_2(this_.compiler, StaticGet_InlineFunctions_DisallowInliningReason_NO_INLINE_ANNOTATION())
 		return
 	}
@@ -294,7 +295,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_updateFunctionStateForInlinin
 		if InlineFunctions_HasNonInlinableParam(NodeUtil_GetFunctionParameters(fnNode)) {
 			functionState.DisallowInlining_2(this_.compiler, StaticGet_InlineFunctions_DisallowInliningReason_NON_INLINABLE_PARAM())
 		}
-		if !(this_.priv_InlineFunctions_isCandidateFunction_3274(fn)) {
+		if !(this_.priv_InlineFunctions_isCandidateFunction_3281(fn)) {
 			functionState.DisallowInlining_2(this_.compiler, StaticGet_InlineFunctions_DisallowInliningReason_NOT_CANDIDATE_FUNCTION())
 		}
 		if functionState.CanInline() {
@@ -334,7 +335,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_updateFunctionStateForInlinin
 }
 
 // Java method: InlineFunctions.hasNoInlineAnnotation(com.google.javascript.rhino.Node fnNode)
-func (this_ *InlineFunctions) priv_InlineFunctions_hasNoInlineAnnotation_3273(fnNode pkg_rhino.Node) bool {
+func (this_ *InlineFunctions) priv_InlineFunctions_hasNoInlineAnnotation_3280(fnNode pkg_rhino.Node) bool {
 	_ = fnNode
 	var jsDocInfo *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(fnNode)
 	_ = jsDocInfo
@@ -369,7 +370,7 @@ func InlineFunctions_HasLocalNames(fnNode pkg_rhino.Node) bool {
 }
 
 // Java method: InlineFunctions.isCandidateFunction(com.google.javascript.jscomp.InlineFunctions.Function fn)
-func (this_ *InlineFunctions) priv_InlineFunctions_isCandidateFunction_3274(fn InlineFunctions_Function) bool {
+func (this_ *InlineFunctions) priv_InlineFunctions_isCandidateFunction_3281(fn InlineFunctions_Function) bool {
 	_ = fn
 	var fnName string = fn.GetName()
 	_ = fnName
@@ -410,7 +411,7 @@ func InlineFunctions_IsCandidateUsage(name pkg_rhino.Node) bool {
 }
 
 // Java method: InlineFunctions.trimCandidatesNotMeetingMinimumRequirements()
-func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesNotMeetingMinimumRequirements_3275() {
+func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesNotMeetingMinimumRequirements_3282() {
 	var toRemove []string = nil
 	_ = toRemove
 	{
@@ -444,7 +445,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesNotMeetingMinim
 }
 
 // Java method: InlineFunctions.trimCandidatesUsingOnCost()
-func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesUsingOnCost_3276() {
+func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesUsingOnCost_3283() {
 	var toRemove []string = nil
 	_ = toRemove
 	{
@@ -453,7 +454,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesUsingOnCost_327
 			var functionState *InlineFunctions_FunctionState = cur_3.Value()
 			_ = functionState
 			if functionState.HasReferences() {
-				var lowersCost bool = this_.priv_InlineFunctions_minimizeCost_3277(functionState)
+				var lowersCost bool = this_.priv_InlineFunctions_minimizeCost_3284(functionState)
 				_ = lowersCost
 				if !(lowersCost) {
 					if toRemove == nil {
@@ -487,13 +488,13 @@ func (this_ *InlineFunctions) priv_InlineFunctions_trimCandidatesUsingOnCost_327
 }
 
 // Java method: InlineFunctions.minimizeCost(com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions) priv_InlineFunctions_minimizeCost_3277(functionState *InlineFunctions_FunctionState) bool {
+func (this_ *InlineFunctions) priv_InlineFunctions_minimizeCost_3284(functionState *InlineFunctions_FunctionState) bool {
 	_ = functionState
-	if !(this_.priv_InlineFunctions_inliningLowersCost_3278(functionState)) {
+	if !(this_.priv_InlineFunctions_inliningLowersCost_3285(functionState)) {
 		if functionState.HasBlockInliningReferences() {
 			functionState.SetRemove_4(false, this_.compiler, StaticGet_InlineFunctions_CannotRemoveReason_BLOCK_INLINING_REFERENCE(), StaticGet_InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_YES())
 			functionState.RemoveBlockInliningReferences()
-			if !(functionState.HasReferences()) || !(this_.priv_InlineFunctions_inliningLowersCost_3278(functionState)) {
+			if !(functionState.HasReferences()) || !(this_.priv_InlineFunctions_inliningLowersCost_3285(functionState)) {
 				return false
 			}
 		} else {
@@ -504,7 +505,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_minimizeCost_3277(functionSta
 }
 
 // Java method: InlineFunctions.inliningLowersCost(com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions) priv_InlineFunctions_inliningLowersCost_3278(functionState *InlineFunctions_FunctionState) bool {
+func (this_ *InlineFunctions) priv_InlineFunctions_inliningLowersCost_3285(functionState *InlineFunctions_FunctionState) bool {
 	_ = functionState
 	if functionState.RequireInlining() || functionState.EncourageInlining() {
 		return true
@@ -516,7 +517,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_inliningLowersCost_3278(funct
 }
 
 // Java method: InlineFunctions.resolveInlineConflicts()
-func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflicts_3279() {
+func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflicts_3286() {
 	{
 		cur_4 := this_.fns.IterValues()
 		for cur_4.HasNext() {
@@ -524,7 +525,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflicts_3279()
 			functionState := cur_4.
 				Next()
 			_ = functionState
-			this_.priv_InlineFunctions_resolveInlineConflictsForFunction_3280(functionState)
+			this_.priv_InlineFunctions_resolveInlineConflictsForFunction_3287(functionState)
 		}
 	}
 }
@@ -540,14 +541,14 @@ func InlineFunctions_HasNonInlinableParam(node pkg_rhino.Node) bool {
 }
 
 // Java method: InlineFunctions.resolveInlineConflictsForFunction(com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflictsForFunction_3280(functionState *InlineFunctions_FunctionState) {
+func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflictsForFunction_3287(functionState *InlineFunctions_FunctionState) {
 	_ = functionState
 	if !(functionState.HasReferences()) || !(functionState.CanInline()) {
 		return
 	}
 	var fnNode pkg_rhino.Node = functionState.GetFn().GetFunctionNode()
 	_ = fnNode
-	var names j2gort.OrderedSet[string] = this_.priv_InlineFunctions_findCalledFunctions_3281(fnNode)
+	var names j2gort.OrderedSet[string] = this_.priv_InlineFunctions_findCalledFunctions_3288(fnNode)
 	_ = names
 	if !(names.IsEmpty()) {
 		{
@@ -560,7 +561,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflictsForFunc
 				_ = fsCalled
 				if (fsCalled != nil) && fsCalled.CanRemove() {
 					fsCalled.SetRemove_4(false, this_.compiler, StaticGet_InlineFunctions_CannotRemoveReason_CALLED_BY_INLINED_FUNCTION(), StaticGet_InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO())
-					if (!(this_.priv_InlineFunctions_minimizeCost_3277(fsCalled)) && !(fsCalled.RequireInlining())) && !(fsCalled.EncourageInlining()) {
+					if (!(this_.priv_InlineFunctions_minimizeCost_3284(fsCalled)) && !(fsCalled.RequireInlining())) && !(fsCalled.EncourageInlining()) {
 						fsCalled.DisallowInlining_2(this_.compiler, StaticGet_InlineFunctions_DisallowInliningReason_COST())
 					}
 				}
@@ -571,7 +572,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_resolveInlineConflictsForFunc
 }
 
 // Java method: InlineFunctions.findCalledFunctions(com.google.javascript.rhino.Node node)
-func (this_ *InlineFunctions) priv_InlineFunctions_findCalledFunctions_3281(node pkg_rhino.Node) j2gort.OrderedSet[string] {
+func (this_ *InlineFunctions) priv_InlineFunctions_findCalledFunctions_3288(node pkg_rhino.Node) j2gort.OrderedSet[string] {
 	_ = node
 	var changed j2gort.OrderedSet[string] = j2gort.NewOrderedSet[string]()
 	_ = changed
@@ -600,7 +601,7 @@ func ordSet_InlineFunctions_FindCalledFunctions(node pkg_rhino.Node, changed *j2
 }
 
 // Java method: InlineFunctions.decomposeExpressions()
-func (this_ *InlineFunctions) priv_InlineFunctions_decomposeExpressions_3282() {
+func (this_ *InlineFunctions) priv_InlineFunctions_decomposeExpressions_3289() {
 	{
 		cur_8 := this_.fns.IterValues()
 		for cur_8.HasNext() {
@@ -641,7 +642,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_decomposeExpressions_3282() {
 }
 
 // Java method: InlineFunctions.removeInlinedFunctions()
-func (this_ *InlineFunctions) priv_InlineFunctions_removeInlinedFunctions_3283() {
+func (this_ *InlineFunctions) priv_InlineFunctions_removeInlinedFunctions_3290() {
 	{
 		cur_12 := this_.fns.IterEntries()
 		for cur_12.NextEntry() {
@@ -658,7 +659,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_removeInlinedFunctions_3283()
 				if !(fn != nil && !fn.IsJavaNil_()) {
 					j2gort.CheckState(false)
 				}
-				this_.priv_InlineFunctions_verifyAllReferencesInlined_3284(name, functionState)
+				this_.priv_InlineFunctions_verifyAllReferencesInlined_3291(name, functionState)
 				fn.Remove()
 				NodeUtil_MarkFunctionsDeleted_2_Node_AbstractCompiler(fn.GetFunctionNode(), this_.compiler)
 			}
@@ -667,7 +668,7 @@ func (this_ *InlineFunctions) priv_InlineFunctions_removeInlinedFunctions_3283()
 }
 
 // Java method: InlineFunctions.verifyAllReferencesInlined(java.lang.String name, com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions) priv_InlineFunctions_verifyAllReferencesInlined_3284(name string, functionState *InlineFunctions_FunctionState) {
+func (this_ *InlineFunctions) priv_InlineFunctions_verifyAllReferencesInlined_3291(name string, functionState *InlineFunctions_FunctionState) {
 	_ = name
 	_ = functionState
 	if functionState.HasInlineReferences() {
@@ -847,7 +848,7 @@ func (this_ *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeT
 		var nameNode pkg_rhino.Node = n.GetFirstChild()
 		_ = nameNode
 		if (nameNode.IsName() && nameNode.HasChildren()) && nameNode.GetFirstChild().IsFunction() {
-			this_.outer_.priv_InlineFunctions_maybeAddFunction_3271(ToIface_InlineFunctions_Function(allocPooled_InlineFunctions_FunctionVar(&this_.outer_.slab_InlineFunctions_FunctionVar, this_.outer_, n)), t.GetChunk())
+			this_.outer_.priv_InlineFunctions_maybeAddFunction_3278(ToIface_InlineFunctions_Function(allocPooled_InlineFunctions_FunctionVar(&this_.outer_.slab_InlineFunctions_FunctionVar, this_.outer_, n)), t.GetChunk())
 		}
 	case int32(73) /* Token.FUNCTION */ :
 		if !(NodeUtil_IsStatementBlock(parent) || parent.IsLabel()) {
@@ -856,7 +857,7 @@ func (this_ *InlineFunctions_FindCandidateFunctions) FindNamedFunctions(t *NodeT
 		if NodeUtil_IsFunctionDeclaration(n) {
 			var fn InlineFunctions_Function = ToIface_InlineFunctions_Function(allocPooled_InlineFunctions_NamedFunction(&this_.outer_.slab_InlineFunctions_NamedFunction, this_.outer_, n))
 			_ = fn
-			this_.outer_.priv_InlineFunctions_maybeAddFunction_3271(fn, t.GetChunk())
+			this_.outer_.priv_InlineFunctions_maybeAddFunction_3278(fn, t.GetChunk())
 		}
 	default:
 	}
@@ -882,7 +883,7 @@ func (this_ *InlineFunctions_FindCandidateFunctions) FindFunctionExpressions(t *
 		if fnNode != 0 {
 			var fn InlineFunctions_Function = ToIface_InlineFunctions_Function(allocPooled_InlineFunctions_FunctionExpression(&this_.outer_.slab_InlineFunctions_FunctionExpression, fnNode, func() int32 { old_17 := this_.callsSeen; nw_18 := old_17 + 1; this_.callsSeen = nw_18; return old_17 }()))
 			_ = fn
-			this_.outer_.priv_InlineFunctions_maybeAddFunction_3271(fn, t.GetChunk())
+			this_.outer_.priv_InlineFunctions_maybeAddFunction_3278(fn, t.GetChunk())
 			this_.outer_.anonFns.Put(fnNode, fn.GetName())
 		}
 	default:
@@ -1101,7 +1102,7 @@ func (this_ *InlineFunctions_FindCandidatesReferences) Visit_3(t *NodeTraversal,
 	_ = parent
 	this_.InlineFunctions_CallVisitorBase.Visit_3(t, n, parent)
 	if n.IsName() {
-		this_.priv_FindCandidatesReferences_checkNameUsage_3290(n, parent)
+		this_.priv_FindCandidatesReferences_checkNameUsage_3297(n, parent)
 	}
 }
 
@@ -1129,11 +1130,11 @@ func (this_ *InlineFunctions_FindCandidatesReferences) MaybeAddReference(t *Node
 	} else {
 		mode = StaticGet_FunctionInjector_InliningMode_BLOCK()
 	}
-	var referenceAdded bool = this_.priv_FindCandidatesReferences_maybeAddReferenceUsingMode_3289(t, functionState, callNode, chunk, mode)
+	var referenceAdded bool = this_.priv_FindCandidatesReferences_maybeAddReferenceUsingMode_3296(t, functionState, callNode, chunk, mode)
 	_ = referenceAdded
 	if !(referenceAdded) && (mode == StaticGet_FunctionInjector_InliningMode_DIRECT()) {
 		mode = StaticGet_FunctionInjector_InliningMode_BLOCK()
-		referenceAdded = this_.priv_FindCandidatesReferences_maybeAddReferenceUsingMode_3289(t, functionState, callNode, chunk, mode)
+		referenceAdded = this_.priv_FindCandidatesReferences_maybeAddReferenceUsingMode_3296(t, functionState, callNode, chunk, mode)
 	}
 	if !(referenceAdded) {
 		functionState.SetRemove_5(false, this_.outer_.compiler, StaticGet_InlineFunctions_CannotRemoveReason_UNINLINABLE_REFERENCE(), StaticGet_InlineFunctions_ShouldWarnWhenRequireInliningCannotInline_NO(), callNode)
@@ -1141,13 +1142,13 @@ func (this_ *InlineFunctions_FindCandidatesReferences) MaybeAddReference(t *Node
 }
 
 // Java method: FindCandidatesReferences.maybeAddReferenceUsingMode(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.InlineFunctions.FunctionState functionState, com.google.javascript.rhino.Node callNode, com.google.javascript.jscomp.JSChunk chunk, com.google.javascript.jscomp.FunctionInjector.InliningMode mode)
-func (this_ *InlineFunctions_FindCandidatesReferences) priv_FindCandidatesReferences_maybeAddReferenceUsingMode_3289(t *NodeTraversal, functionState *InlineFunctions_FunctionState, callNode pkg_rhino.Node, chunk *JSChunk, mode FunctionInjector_InliningMode) bool {
+func (this_ *InlineFunctions_FindCandidatesReferences) priv_FindCandidatesReferences_maybeAddReferenceUsingMode_3296(t *NodeTraversal, functionState *InlineFunctions_FunctionState, callNode pkg_rhino.Node, chunk *JSChunk, mode FunctionInjector_InliningMode) bool {
 	_ = t
 	_ = functionState
 	_ = callNode
 	_ = chunk
 	_ = mode
-	if this_.outer_.enforceMaxSizeAfterInlining && this_.outer_.priv_InlineFunctions_targetSizeAfterInlineExceedsLimit_3270(t, functionState) {
+	if this_.outer_.enforceMaxSizeAfterInlining && this_.outer_.priv_InlineFunctions_targetSizeAfterInlineExceedsLimit_3277(t, functionState) {
 		return false
 	}
 	var candidate *InlineFunctions_Reference = allocPooled_InlineFunctions_Reference(&this_.outer_.slab_InlineFunctions_Reference, callNode, t.GetScope(), chunk, mode)
@@ -1163,7 +1164,7 @@ func (this_ *InlineFunctions_FindCandidatesReferences) priv_FindCandidatesRefere
 }
 
 // Java method: FindCandidatesReferences.checkNameUsage(com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent)
-func (this_ *InlineFunctions_FindCandidatesReferences) priv_FindCandidatesReferences_checkNameUsage_3290(n pkg_rhino.Node, parent pkg_rhino.Node) {
+func (this_ *InlineFunctions_FindCandidatesReferences) priv_FindCandidatesReferences_checkNameUsage_3297(n pkg_rhino.Node, parent pkg_rhino.Node) {
 	_ = n
 	_ = parent
 	if !(n.IsName()) {
@@ -1247,7 +1248,7 @@ func (this_ *InlineFunctions_Inline) VisitCallSite(t *NodeTraversal, callNode pk
 		var ref *InlineFunctions_Reference = functionState.GetReference(callNode)
 		_ = ref
 		if ref != nil {
-			this_.priv_Inline_inlineFunction_3291(t, ref, functionState)
+			this_.priv_Inline_inlineFunction_3298(t, ref, functionState)
 			{
 				r_19 := ref
 				r_19.inlined = true
@@ -1257,7 +1258,7 @@ func (this_ *InlineFunctions_Inline) VisitCallSite(t *NodeTraversal, callNode pk
 }
 
 // Java method: Inline.inlineFunction(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.InlineFunctions.Reference ref, com.google.javascript.jscomp.InlineFunctions.FunctionState functionState)
-func (this_ *InlineFunctions_Inline) priv_Inline_inlineFunction_3291(t *NodeTraversal, ref *InlineFunctions_Reference, functionState *InlineFunctions_FunctionState) {
+func (this_ *InlineFunctions_Inline) priv_Inline_inlineFunction_3298(t *NodeTraversal, ref *InlineFunctions_Reference, functionState *InlineFunctions_FunctionState) {
 	_ = t
 	_ = ref
 	_ = functionState
@@ -1349,6 +1350,11 @@ func (this_ *InlineFunctions_FunctionState) initFields_InlineFunctions_FunctionS
 // Java constructor: FunctionState()
 func NewInlineFunctions_FunctionState() *InlineFunctions_FunctionState {
 	this_ := &InlineFunctions_FunctionState{}
+	InitInlineFunctions_FunctionState(this_)
+	return this_
+}
+func allocPooled_InlineFunctions_FunctionState(slab_ *j2gort.PooledSlab[InlineFunctions_FunctionState]) *InlineFunctions_FunctionState {
+	this_ := slab_.Alloc()
 	InitInlineFunctions_FunctionState(this_)
 	return this_
 }
@@ -1578,8 +1584,16 @@ func (this_ *InlineFunctions_FunctionState) HasReferences() bool {
 func (this_ *InlineFunctions_FunctionState) AddReference(ref *InlineFunctions_Reference) {
 	_ = ref
 	if this_.references != nil {
-		this_.references.Put(ref.GetFunctionInjector_ReferenceBase().callNode, ref)
+		cn_ := ref.GetFunctionInjector_ReferenceBase().callNode
+		if this_.references.Size() == int32(256) && !this_.references.ContainsKey(cn_) {
+			big_ := j2gort.AcquireOrderedMapPtrCap[pkg_rhino.Node, *InlineFunctions_Reference](int32(512))
+			big_.PutAllMapPtr(this_.references)
+			j2gort.ReleaseOrderedMap(this_.references)
+			this_.references = big_
+		}
+		this_.references.Put(cn_, ref)
 		return
+
 	}
 	if (this_.ref0 == nil) || (this_.ref0.GetFunctionInjector_ReferenceBase().callNode == ref.GetFunctionInjector_ReferenceBase().callNode) {
 		this_.ref0 = ref
@@ -2494,6 +2508,11 @@ func (this_ *InlineFunctions) ReleaseSlabs_() {
 	this_.slab_InlineFunctions_FunctionVar.Release()
 	this_.slab_InlineFunctions_NamedFunction.Release()
 	this_.slab_InlineFunctions_FunctionExpression.Release()
+	this_.slab_InlineFunctions_FunctionState.Release()
+	if this_.injector != nil {
+		this_.injector.callerFnStateCache.ReleaseToPool()
+	}
+
 }
 func (*InlineFunctions_FindCandidateFunctions) AlwaysShouldTraverse_()      {}
 func (*InlineFunctions_FindCandidateFunctions) CanReleaseSyntacticScopes_() {}

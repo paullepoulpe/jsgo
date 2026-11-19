@@ -774,17 +774,24 @@ func (this_ *AstFactory) CreateQName_3_StaticScope_string_slice_string(scope pkg
 	_ = baseName
 	_ = propertyNames
 	j2gort.CheckNotNullString(baseName)
-	return this_.CreateQName_3_StaticScope_string_Ext_java_lang_Iterable(scope, baseName, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_9 := propertyNames
 		if arr_9 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_10 := make([]any, len(arr_9))
 		for i_, el_11 := range arr_9 {
 			out_10[i_] = j2gort.BoxString(el_11)
 		}
-		return out_10
-	}())))
+		iifeArg_1 = out_10
+		break iifeSwitch_1
+	}
+	return this_.CreateQName_3_StaticScope_string_Ext_java_lang_Iterable(scope, baseName, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(iifeArg_1)))
 }
 
 // Java method: AstFactory.createQName(com.google.javascript.rhino.StaticScope scope, java.lang.String baseName, java.lang.Iterable<java.lang.String> propertyNames)
@@ -1636,17 +1643,24 @@ func (this_ *AstFactory) CreateOptionalChainShortCircuit(receiver pkg_rhino.Node
 // Java method: AstFactory.createArraylit(com.google.javascript.rhino.Node[] elements)
 func (this_ *AstFactory) CreateArraylit_1_Node(elements []pkg_rhino.Node) pkg_rhino.Node {
 	_ = elements
-	return this_.CreateArraylit_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_2 []any
+iifeSwitch_2:
+	switch {
+	default:
+
 		arr_17 := elements
 		if arr_17 == nil {
-			return nil
+			iifeArg_2 = nil
+			break iifeSwitch_2
 		}
 		out_18 := make([]any, len(arr_17))
 		for i_, el_19 := range arr_17 {
 			out_18[i_] = j2gort.BoxNode(el_19)
 		}
-		return out_18
-	}())))
+		iifeArg_2 = out_18
+		break iifeSwitch_2
+	}
+	return this_.CreateArraylit_1_Ext_java_lang_Iterable(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_java_util_Arrays_AsList(iifeArg_2)))
 }
 
 // Java method: AstFactory.createArraylit(java.lang.Iterable<com.google.javascript.rhino.Node> elements)
@@ -1716,7 +1730,7 @@ func (this_ *AstFactory) CreateJscompArrayFromIteratorCall(iterator pkg_rhino.No
 	var makeIteratorName pkg_rhino.Node = this_.CreateQName_2_StaticScope_RuntimeJsLibManager_JsLibField(scope, arrayFromIterator)
 	_ = makeIteratorName
 	var resultType AstFactory_Type
-iifeSwitch_1:
+iifeSwitch_3:
 	switch {
 	default:
 		switch (this_.typeMode).Ordinal() {
@@ -1727,13 +1741,13 @@ iifeSwitch_1:
 			_ = makeIteratorType
 			makeIteratorName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIteratorType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
 			resultType = AstFactory_S_Type_1_JSType(makeIteratorName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
-			break iifeSwitch_1
+			break iifeSwitch_3
 		case int32(1) /* TypeMode.COLOR */ :
 			resultType = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
-			break iifeSwitch_1
+			break iifeSwitch_3
 		case int32(2) /* TypeMode.NONE */ :
 			resultType = AstFactory_NoTypeInformation()
-			break iifeSwitch_1
+			break iifeSwitch_3
 		}
 		panic("unreachable switch expression")
 	}
@@ -1755,7 +1769,7 @@ func (this_ *AstFactory) CreateJscompArrayFromIterableCall(iterable pkg_rhino.No
 	_ = makeIterableName
 	var resultType AstFactory_Type = nil
 	_ = resultType
-iifeSwitch_2:
+iifeSwitch_4:
 	switch {
 	default:
 
@@ -1767,19 +1781,19 @@ iifeSwitch_2:
 			_ = makeIterableType
 			makeIterableName.SetJSType(this_.priv_AstFactory_replaceTemplate_740(makeIterableType, j2gort.Ext_com_google_common_collect_ImmutableList_Of_1(iterableType)))
 			resultType = AstFactory_S_Type_1_JSType(makeIterableName.GetJSType().GetJSTypeBase().AssertFunctionType().GetReturnType())
-			break iifeSwitch_2
+			break iifeSwitch_4
 		case int32(1) /* TypeMode.COLOR */ :
 			{
 
 				var asgn_20 AstFactory_Type = AstFactory_S_Type_1_Color(this_.colorRegistry.Get(pkg_colors.StaticGet_StandardColors_ARRAY_ID()))
 				resultType = asgn_20
 				resultType = asgn_20
-				break iifeSwitch_2
+				break iifeSwitch_4
 			}
 
 		case int32(2) /* TypeMode.NONE */ :
 			resultType = AstFactory_NoTypeInformation()
-			break iifeSwitch_2
+			break iifeSwitch_4
 		}
 		panic("unreachable switch expression")
 	}

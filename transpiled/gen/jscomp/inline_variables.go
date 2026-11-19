@@ -309,6 +309,9 @@ type InlineVariables_InlineVarAnalysis struct {
 	initValue           pkg_rhino.Node             `gson:"initValue"`
 	idHash_             atomic.Int32
 	kind                int8 `gson:"kind"`
+	lazyRefInfo_        *ReferenceCollection
+	lazyWellDefined_    int8
+	lazyAssignedOnce_   int8
 }
 
 func (this_ *InlineVariables_InlineVarAnalysis) BindSelf_(s any) {
@@ -374,15 +377,32 @@ func InitInlineVariables_InlineVarAnalysis(this_ *InlineVariables_InlineVarAnaly
 	this_.initValue = initValue
 	this_.initialization = initialization
 	this_.singleReadReference = singleReadReference
+	this_.
+
+		// Java static method: InlineVarAnalysis.createLazyNegative(com.google.javascript.jscomp.InlineVariables.VarExpert expert)
+		lazyRefInfo_ = nil
 }
 
-// Java static method: InlineVarAnalysis.createLazyNegative(com.google.javascript.jscomp.InlineVariables.VarExpert expert)
 func InlineVariables_InlineVarAnalysis_CreateLazyNegative(expert *InlineVariables_VarExpert) *InlineVariables_InlineVarAnalysis {
 	_ = expert
 	return NewInlineVariables_InlineVarAnalysis(int8(2), nil, expert, pkg_rhino.Node(0), nil, nil)
 }
 func allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative(beh_ *InlineVariables_InliningBehavior, expert *InlineVariables_VarExpert) *InlineVariables_InlineVarAnalysis {
 	_ = expert
+	if beh_ != nil && beh_.outer_ != nil && expert != nil && expert.fixedAnalysis == nil && expert.referenceInfo != nil {
+		if expert.isWellDefined == 0 || expert.isAssignedOnceInLifetime == 0 {
+			return StaticGet_InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS()
+		}
+		if expert.isWellDefined == 1 && expert.isAssignedOnceInLifetime == 1 {
+			return StaticGet_InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS()
+		}
+		a_ := beh_.outer_.slab_InlineVariables_InlineVarAnalysis.Alloc()
+		a_.kind = int8(2)
+		a_.lazyRefInfo_ = expert.referenceInfo
+		a_.lazyWellDefined_ = expert.isWellDefined
+		a_.lazyAssignedOnce_ = expert.isAssignedOnceInLifetime
+		return a_
+	}
 	expert = promoteIvScratchVarExpert_(beh_, expert)
 
 	return allocIvPooled_InlineVariables_InlineVarAnalysis(beh_, int8(2), nil, expert, pkg_rhino.Node(0), nil, nil)
@@ -460,6 +480,29 @@ func (this_ *InlineVariables_InlineVarAnalysis) IsSafeToInlineAliases() bool {
 	case int8(1), int8(4), int8(5), int8(6):
 		return true
 	case int8(2):
+		if this_.lazyRefInfo_ != nil {
+			if this_.lazyWellDefined_ == 0 || this_.lazyAssignedOnce_ == 0 {
+				return false
+			}
+			if this_.lazyWellDefined_ < 0 {
+				if this_.lazyRefInfo_.IsWellDefined() {
+					this_.lazyWellDefined_ = 1
+				} else {
+					this_.lazyWellDefined_ = 0
+					return false
+				}
+			}
+			if this_.lazyAssignedOnce_ < 0 {
+				if this_.lazyRefInfo_.IsAssignedOnceInLifetime() {
+					this_.lazyAssignedOnce_ = 1
+				} else {
+					this_.lazyAssignedOnce_ = 0
+					return false
+				}
+			}
+			return true
+		}
+
 		return this_.expert.IsWellDefinedAssignedOnce()
 	case int8(3):
 		panic(j2gort.AsIface[javalang.IUnsupportedOperationException](j2gort.ConstructShimThrowable("java.lang.UnsupportedOperationException", "analysis is incomplete")))
@@ -625,7 +668,7 @@ func InitInlineVariables_VarExpert_5(this_ *InlineVariables_VarExpert, behavior 
 }
 
 // Java method: VarExpert.isNeverAssigned()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_isNeverAssigned_3365() bool {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_isNeverAssigned_3372() bool {
 	if int32(this_.isNeverAssigned) != int32(int8(-1)) {
 		return (int32(this_.isNeverAssigned) == int32(int8(1)))
 	} else if (this_.initializationReferenceKnown && (this_.initializationReference != nil)) || (int32(this_.isAssignedOnceInLifetime) == int32(int8(1))) {
@@ -647,7 +690,7 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_isNeverAssigned_3365() bo
 }
 
 // Java method: VarExpert.isWellDefined()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_isWellDefined_3366() bool {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_isWellDefined_3373() bool {
 	if int32(this_.isWellDefined) != int32(int8(-1)) {
 		return (int32(this_.isWellDefined) == int32(int8(1)))
 	} else {
@@ -666,7 +709,7 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_isWellDefined_3366() bool
 }
 
 // Java method: VarExpert.isAssignedOnceInLifetime()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_isAssignedOnceInLifetime_3367() bool {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_isAssignedOnceInLifetime_3374() bool {
 	if int32(this_.isAssignedOnceInLifetime) != int32(int8(-1)) {
 		return (int32(this_.isAssignedOnceInLifetime) == int32(int8(1)))
 	} else {
@@ -685,7 +728,7 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_isAssignedOnceInLifetime_
 }
 
 // Java method: VarExpert.isReferencedWeakly()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_isReferencedWeakly_3368() bool {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_isReferencedWeakly_3375() bool {
 	if int32(this_.isReferencedWeakly) != int32(int8(-1)) {
 		return (int32(this_.isReferencedWeakly) == int32(int8(1)))
 	} else {
@@ -708,7 +751,7 @@ func (this_ *InlineVariables_VarExpert) IsWellDefinedAssignedOnce() bool {
 	if int32(this_.isWellDefinedAssignedOnce) != int32(int8(-1)) {
 		return (int32(this_.isWellDefinedAssignedOnce) == int32(int8(1)))
 	} else {
-		var val bool = ((((int32(this_.isWellDefined) != int32(int8(0))) && (int32(this_.isAssignedOnceInLifetime) != int32(int8(0)))) && this_.priv_VarExpert_isWellDefined_3366()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3367())
+		var val bool = ((((int32(this_.isWellDefined) != int32(int8(0))) && (int32(this_.isAssignedOnceInLifetime) != int32(int8(0)))) && this_.priv_VarExpert_isWellDefined_3373()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3374())
 		_ = val
 		if !(int32(this_.isWellDefinedAssignedOnce) == int32(int8(-1))) {
 			j2gort.CheckStateStr(false, "already known")
@@ -723,7 +766,7 @@ func (this_ *InlineVariables_VarExpert) IsWellDefinedAssignedOnce() bool {
 }
 
 // Java method: VarExpert.getInitialization()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_getInitialization_3370() *Reference {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_getInitialization_3377() *Reference {
 	if this_.initializationReferenceKnown {
 		return this_.initializationReference
 	} else {
@@ -744,28 +787,28 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_getInitialization_3370() 
 }
 
 // Java method: VarExpert.hasValidDeclaration()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_hasValidDeclaration_3371() bool {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_hasValidDeclaration_3378() bool {
 	return this_.behavior.IsValidDeclaration(this_.declaration)
 }
 
 // Java method: VarExpert.hasValidInitialization()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_hasValidInitialization_3372() bool {
-	return this_.behavior.IsValidInitialization(this_.priv_VarExpert_getInitialization_3370())
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_hasValidInitialization_3379() bool {
+	return this_.behavior.IsValidInitialization(this_.priv_VarExpert_getInitialization_3377())
 }
 
 // Java method: VarExpert.allReferencesAreValid()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_allReferencesAreValid_3373() bool {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_allReferencesAreValid_3380() bool {
 	if int32(this_.allReferencesAreValid) != int32(int8(-1)) {
 		return (int32(this_.allReferencesAreValid) == int32(int8(1)))
 	} else {
-		var hasValidDeclaration bool = this_.priv_VarExpert_hasValidDeclaration_3371()
+		var hasValidDeclaration bool = this_.priv_VarExpert_hasValidDeclaration_3378()
 		_ = hasValidDeclaration
-		var hasValidInitialization bool = this_.priv_VarExpert_hasValidInitialization_3372()
+		var hasValidInitialization bool = this_.priv_VarExpert_hasValidInitialization_3379()
 		_ = hasValidInitialization
-		var neverAssigned bool = this_.priv_VarExpert_isNeverAssigned_3365()
+		var neverAssigned bool = this_.priv_VarExpert_isNeverAssigned_3372()
 		_ = neverAssigned
 		if hasValidDeclaration && (hasValidInitialization || neverAssigned) {
-			var initialization *Reference = this_.priv_VarExpert_getInitialization_3370()
+			var initialization *Reference = this_.priv_VarExpert_getInitialization_3377()
 			_ = initialization
 			{
 				var i int32 = int32(0)
@@ -825,10 +868,10 @@ func (this_ *InlineVariables_VarExpert) Analyze() *InlineVariables_InlineVarAnal
 	if this_.fixedAnalysis != nil {
 		return this_.fixedAnalysis
 	}
-	if InlineVariables_HasNoInlineAnnotation(this_.v) || this_.priv_VarExpert_isReferencedWeakly_3368() {
-		return this_.priv_VarExpert_getNegativeInlineVarAnalysis_3379()
+	if InlineVariables_HasNoInlineAnnotation(this_.v) || this_.priv_VarExpert_isReferencedWeakly_3375() {
+		return this_.priv_VarExpert_getNegativeInlineVarAnalysis_3386()
 	}
-	var initialization *Reference = this_.priv_VarExpert_getInitialization_3370()
+	var initialization *Reference = this_.priv_VarExpert_getInitialization_3377()
 	_ = initialization
 	var initValue pkg_rhino.Node
 	_ = initValue
@@ -841,31 +884,31 @@ func (this_ *InlineVariables_VarExpert) Analyze() *InlineVariables_InlineVarAnal
 	InitInlineVariables_VarExpert_InitialValueAnalysis(&val_2, this_.v, initValue)
 	var initialValueAnalysis *InlineVariables_VarExpert_InitialValueAnalysis = &val_2
 	_ = initialValueAnalysis
-	if (this_.isDeclaredOrInferredConstant && initialValueAnalysis.IsImmutableValue()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3367() {
-		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3380(initValue)
+	if (this_.isDeclaredOrInferredConstant && initialValueAnalysis.IsImmutableValue()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3374() {
+		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 	}
 	if this_.behavior.Mode() == StaticGet_InlineVariables_Mode_CONSTANTS_ONLY() {
-		return this_.priv_VarExpert_getNegativeInlineVarAnalysis_3379()
+		return this_.priv_VarExpert_getNegativeInlineVarAnalysis_3386()
 	}
 	if initialValueAnalysis.IsAlias() {
 		return allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateWaitForAlias(this_.behavior, initialValueAnalysis.GetAliasedVar())
 	}
-	return this_.priv_VarExpert_analyzeWithInitialValue_3378(initialization, initValue, initialValueAnalysis)
+	return this_.priv_VarExpert_analyzeWithInitialValue_3385(initialization, initValue, initialValueAnalysis)
 }
 
 // Java method: VarExpert.analyzeWithInitialValue(com.google.javascript.jscomp.@org.jspecify.annotations.Nullable Reference initialization, com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node initValue, com.google.javascript.jscomp.InlineVariables.VarExpert.InitialValueAnalysis initialValueAnalysis)
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_analyzeWithInitialValue_3378(initialization *Reference, initValue pkg_rhino.Node, initialValueAnalysis *InlineVariables_VarExpert_InitialValueAnalysis) *InlineVariables_InlineVarAnalysis {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_analyzeWithInitialValue_3385(initialization *Reference, initValue pkg_rhino.Node, initialValueAnalysis *InlineVariables_VarExpert_InitialValueAnalysis) *InlineVariables_InlineVarAnalysis {
 	_ = initialization
 	_ = initValue
 	_ = initialValueAnalysis
 	var refCount int32 = this_.referenceInfo.Size()
 	_ = refCount
-	if (refCount > int32(1)) && this_.priv_VarExpert_allReferencesAreValid_3373() {
+	if (refCount > int32(1)) && this_.priv_VarExpert_allReferencesAreValid_3380() {
 		if this_.referenceInfo.IsNeverAssigned() {
 			return allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateInlineUndefined(this_.behavior, this_)
 		}
-		if this_.priv_VarExpert_isWellDefined_3366() && (initialValueAnalysis.IsImmutableValue() || (initValue.IsThis() && !(this_.referenceInfo.IsThisRebound()))) {
-			return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3380(initValue)
+		if this_.priv_VarExpert_isWellDefined_3373() && (initialValueAnalysis.IsImmutableValue() || (initValue.IsThis() && !(this_.referenceInfo.IsThisRebound()))) {
+			return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 		}
 		var firstReadRefIndex int32
 		_ = firstReadRefIndex
@@ -877,7 +920,7 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_analyzeWithInitialValue_3
 		var numReadRefs int32 = (refCount - firstReadRefIndex)
 		_ = numReadRefs
 		if numReadRefs == int32(0) {
-			return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3380(initValue)
+			return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 		}
 		if numReadRefs == int32(1) {
 			var singleReadReference *Reference = this_.referenceInfo.Get(firstReadRefIndex)
@@ -887,11 +930,11 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_analyzeWithInitialValue_3
 			}
 		}
 	}
-	return this_.priv_VarExpert_getNegativeInlineVarAnalysis_3379()
+	return this_.priv_VarExpert_getNegativeInlineVarAnalysis_3386()
 }
 
 // Java method: VarExpert.getNegativeInlineVarAnalysis()
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_getNegativeInlineVarAnalysis_3379() *InlineVariables_InlineVarAnalysis {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_getNegativeInlineVarAnalysis_3386() *InlineVariables_InlineVarAnalysis {
 	if (this_.mayBeAParameterModifiedViaArguments || (this_.behavior.Mode() == StaticGet_InlineVariables_Mode_CONSTANTS_ONLY())) || (int32(this_.isWellDefinedAssignedOnce) == int32(int8(0))) {
 		return StaticGet_InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS()
 	}
@@ -902,7 +945,7 @@ func (this_ *InlineVariables_VarExpert) priv_VarExpert_getNegativeInlineVarAnaly
 }
 
 // Java method: VarExpert.createInlineWellDefinedVarAnalysis(com.google.javascript.rhino.@org.jspecify.annotations.Nullable Node initValue)
-func (this_ *InlineVariables_VarExpert) priv_VarExpert_createInlineWellDefinedVarAnalysis_3380(initValue pkg_rhino.Node) *InlineVariables_InlineVarAnalysis {
+func (this_ *InlineVariables_VarExpert) priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue pkg_rhino.Node) *InlineVariables_InlineVarAnalysis {
 	_ = initValue
 	return allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateInlineWellDefined(this_.behavior, this_, initValue)
 }
@@ -914,7 +957,7 @@ func (this_ *InlineVariables_VarExpert) ReanalyzeAfterAliasedVar(aliasedVar *Var
 	if this_.fixedAnalysis != nil {
 		panic(j2gort.AsIface[javalang.IUnsupportedOperationException](j2gort.ConstructShimThrowable("java.lang.UnsupportedOperationException", "not waiting for an aliased variable")))
 	}
-	var initialization *Reference = this_.priv_VarExpert_getInitialization_3370()
+	var initialization *Reference = this_.priv_VarExpert_getInitialization_3377()
 	_ = initialization
 	var initValue pkg_rhino.Node
 	_ = initValue
@@ -927,13 +970,13 @@ func (this_ *InlineVariables_VarExpert) ReanalyzeAfterAliasedVar(aliasedVar *Var
 	InitInlineVariables_VarExpert_InitialValueAnalysis(&val_3, this_.v, initValue)
 	var initialValueAnalysis *InlineVariables_VarExpert_InitialValueAnalysis = &val_3
 	_ = initialValueAnalysis
-	if (this_.isDeclaredOrInferredConstant && initialValueAnalysis.IsImmutableValue()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3367() {
-		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3380(initValue)
+	if (this_.isDeclaredOrInferredConstant && initialValueAnalysis.IsImmutableValue()) && this_.priv_VarExpert_isAssignedOnceInLifetime_3374() {
+		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 	}
 	if ((initialValueAnalysis.IsAlias() && j2gort.ObjEqCustomPtr(aliasedVar, initialValueAnalysis.GetAliasedVar())) && aliasedVarAnalysis.IsSafeToInlineAliases()) && this_.IsWellDefinedAssignedOnce() {
-		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3380(initValue)
+		return this_.priv_VarExpert_createInlineWellDefinedVarAnalysis_3387(initValue)
 	}
-	return this_.priv_VarExpert_analyzeWithInitialValue_3378(initialization, initValue, initialValueAnalysis)
+	return this_.priv_VarExpert_analyzeWithInitialValue_3385(initialization, initValue, initialValueAnalysis)
 }
 
 // Java class: com.google.javascript.jscomp.InlineVariables.VarExpert.InitialValueAnalysis
@@ -1111,15 +1154,15 @@ func (this_ *InlineVariables_InliningBehavior) Mode() *InlineVariables_Mode {
 func (this_ *InlineVariables_InliningBehavior) AfterExitScope(t *NodeTraversal, referenceMap ReferenceMap) {
 	_ = t
 	_ = referenceMap
-	this_.priv_InliningBehavior_doInlinesForScope_3386(t, referenceMap)
+	this_.priv_InliningBehavior_doInlinesForScope_3393(t, referenceMap)
 }
 
 // Java method: InliningBehavior.doInlinesForScope(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.jscomp.ReferenceMap referenceMap)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesForScope_3386(t *NodeTraversal, referenceMap ReferenceMap) {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesForScope_3393(t *NodeTraversal, referenceMap ReferenceMap) {
 	_ = t
 	_ = referenceMap
 	this_.currentScopeHandledVarAnalysesMap.Clear()
-	var mayBeAParameterModifiedViaArguments bool = this_.priv_InliningBehavior_varsInThisScopeMayBeModifiedUsingArguments_3387(t.GetScope(), referenceMap)
+	var mayBeAParameterModifiedViaArguments bool = this_.priv_InliningBehavior_varsInThisScopeMayBeModifiedUsingArguments_3394(t.GetScope(), referenceMap)
 	_ = mayBeAParameterModifiedViaArguments
 	{
 		cur_6 := (t.GetScope()).iterVars_()
@@ -1130,7 +1173,7 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesFo
 			_ = v
 			var referenceInfo *ReferenceCollection = j2gort.CastPtr[ReferenceCollection](referenceMap.GetReferences(j2gort.PtrToAny(v)))
 			_ = referenceInfo
-			var expert *InlineVariables_VarExpert = this_.priv_InliningBehavior_createVarExpert_3389(v, referenceInfo, mayBeAParameterModifiedViaArguments)
+			var expert *InlineVariables_VarExpert = this_.priv_InliningBehavior_createVarExpert_3396(v, referenceInfo, mayBeAParameterModifiedViaArguments)
 			_ = expert
 			var analysis *InlineVariables_InlineVarAnalysis = expert.Analyze()
 			_ = analysis
@@ -1151,7 +1194,7 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesFo
 					analysis.PerformInline()
 				}
 				this_.currentScopeHandledVarAnalysesMap.Put(v, analysis)
-				this_.priv_InliningBehavior_retryAliases_3388(v, analysis)
+				this_.priv_InliningBehavior_retryAliases_3395(v, analysis)
 			}
 		}
 	}
@@ -1167,7 +1210,7 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_doInlinesFo
 }
 
 // Java method: InliningBehavior.varsInThisScopeMayBeModifiedUsingArguments(com.google.javascript.jscomp.Scope scope, com.google.javascript.jscomp.ReferenceMap referenceMap)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_varsInThisScopeMayBeModifiedUsingArguments_3387(scope *Scope, referenceMap ReferenceMap) bool {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_varsInThisScopeMayBeModifiedUsingArguments_3394(scope *Scope, referenceMap ReferenceMap) bool {
 	_ = scope
 	_ = referenceMap
 	if scope.IsFunctionScope() && !(scope.GetRootNode_0().IsArrowFunction()) {
@@ -1195,7 +1238,7 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_varsInThisS
 }
 
 // Java method: InliningBehavior.retryAliases(com.google.javascript.jscomp.Var aliasedVar, com.google.javascript.jscomp.InlineVariables.InlineVarAnalysis aliasedVarAnalysis)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_retryAliases_3388(aliasedVar *Var, aliasedVarAnalysis *InlineVariables_InlineVarAnalysis) {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_retryAliases_3395(aliasedVar *Var, aliasedVarAnalysis *InlineVariables_InlineVarAnalysis) {
 	_ = aliasedVar
 	_ = aliasedVarAnalysis
 	{
@@ -1210,7 +1253,7 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_retryAliase
 }
 
 // Java method: InliningBehavior.createVarExpert(com.google.javascript.jscomp.Var v, com.google.javascript.jscomp.ReferenceCollection referenceInfo, boolean mayBeAParameterModifiedViaArguments)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_createVarExpert_3389(v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool) *InlineVariables_VarExpert {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_createVarExpert_3396(v *Var, referenceInfo *ReferenceCollection, mayBeAParameterModifiedViaArguments bool) *InlineVariables_VarExpert {
 	_ = v
 	_ = referenceInfo
 	_ = mayBeAParameterModifiedViaArguments
@@ -1295,7 +1338,7 @@ func (this_ *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Ref
 		this_.outer_.compiler.ReportChangeToChangeScope(value)
 		this_.outer_.compiler.ReportChangeToEnclosingScope(value.GetParent())
 	}
-	this_.priv_InliningBehavior_inlineValue_3396(ref.GetNode(), value.Detach())
+	this_.priv_InliningBehavior_inlineValue_3403(ref.GetNode(), value.Detach())
 	if decl != init {
 		var expressRoot pkg_rhino.Node = init.GetGrandparent()
 		_ = expressRoot
@@ -1305,7 +1348,7 @@ func (this_ *InlineVariables_InliningBehavior) Inline(decl *Reference, init *Ref
 		NodeUtil_RemoveChild(expressRoot.GetParent(), expressRoot)
 	}
 	if !(isFunctionDeclaration) {
-		this_.priv_InliningBehavior_removeDeclaration_3395(decl)
+		this_.priv_InliningBehavior_removeDeclaration_3402(decl)
 	}
 }
 
@@ -1323,21 +1366,21 @@ func (this_ *InlineVariables_InliningBehavior) InlineWellDefinedVariable(v *Var,
 			var r *Reference = refSet.Get(i)
 			_ = r
 			if r.GetNode() == v.GetNameNode() {
-				this_.priv_InliningBehavior_removeDeclaration_3395(r)
+				this_.priv_InliningBehavior_removeDeclaration_3402(r)
 			} else if r.IsSimpleAssignmentToName() {
-				this_.priv_InliningBehavior_inlineValue_3396(r.GetParent(), value.Detach())
+				this_.priv_InliningBehavior_inlineValue_3403(r.GetParent(), value.Detach())
 			} else {
 				var clonedValue pkg_rhino.Node = value.CloneTree_0()
 				_ = clonedValue
 				NodeUtil_MarkNewScopesChanged_2_Node_AbstractCompiler(clonedValue, this_.outer_.compiler)
-				this_.priv_InliningBehavior_inlineValue_3396(r.GetNode(), clonedValue)
+				this_.priv_InliningBehavior_inlineValue_3403(r.GetNode(), clonedValue)
 			}
 		}
 	}
 }
 
 // Java method: InliningBehavior.removeDeclaration(com.google.javascript.jscomp.Reference decl)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_removeDeclaration_3395(decl *Reference) {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_removeDeclaration_3402(decl *Reference) {
 	_ = decl
 	var varNode pkg_rhino.Node = decl.GetParent()
 	_ = varNode
@@ -1354,7 +1397,7 @@ func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_removeDecla
 }
 
 // Java method: InliningBehavior.inlineValue(com.google.javascript.rhino.Node toRemove, com.google.javascript.rhino.Node toInsert)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_inlineValue_3396(toRemove pkg_rhino.Node, toInsert pkg_rhino.Node) {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_inlineValue_3403(toRemove pkg_rhino.Node, toInsert pkg_rhino.Node) {
 	_ = toRemove
 	_ = toInsert
 	this_.outer_.compiler.ReportChangeToEnclosingScope(toRemove)
@@ -1403,17 +1446,17 @@ func (this_ *InlineVariables_InliningBehavior) CanInline(declaration *Reference,
 	if (initialization.GetScope() != declaration.GetScope()) || !(initialization.GetScope().Contains(ToIface_AbstractScope(reference.GetScope()))) {
 		return false
 	}
-	return (this_.priv_InliningBehavior_canMoveAggressively_3398(initValue) || this_.priv_InliningBehavior_canMoveModerately_3399(initialization, reference))
+	return (this_.priv_InliningBehavior_canMoveAggressively_3405(initValue) || this_.priv_InliningBehavior_canMoveModerately_3406(initialization, reference))
 }
 
 // Java method: InliningBehavior.canMoveAggressively(com.google.javascript.rhino.Node value)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_canMoveAggressively_3398(value pkg_rhino.Node) bool {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_canMoveAggressively_3405(value pkg_rhino.Node) bool {
 	_ = value
 	return (NodeUtil_IsLiteralValue(value, true) || value.IsFunction())
 }
 
 // Java method: InliningBehavior.canMoveModerately(com.google.javascript.jscomp.Reference initialization, com.google.javascript.jscomp.Reference reference)
-func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_canMoveModerately_3399(initialization *Reference, reference *Reference) bool {
+func (this_ *InlineVariables_InliningBehavior) priv_InliningBehavior_canMoveModerately_3406(initialization *Reference, reference *Reference) bool {
 	_ = initialization
 	_ = reference
 	var it *NodeIterators_LocalVarMotion = nil
@@ -1576,7 +1619,7 @@ func (this_ *InlineVariables_InliningBehavior_AliasInlineRetryHandler) HandleAli
 		newAnalysis.PerformInline()
 	}
 	this_.outer_.currentScopeHandledVarAnalysesMap.Put(this_.v, newAnalysis)
-	this_.outer_.priv_InliningBehavior_retryAliases_3388(this_.v, newAnalysis)
+	this_.outer_.priv_InliningBehavior_retryAliases_3395(this_.v, newAnalysis)
 }
 func (this_ *InlineVariables) ReleaseSlabs_() {
 	if this_ == nil {

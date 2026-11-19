@@ -150,7 +150,7 @@ func (this_ *LinkedUndirectedGraph[N, E]) GetNeighborNodes(value N) j2gort.Ext_j
 	_ = value
 	var uNode UndiGraph_UndiGraphNode[N, E] = this_.GetUndirectedGraphNode(value)
 	_ = uNode
-	return (j2gort.CastPtr[LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]](uNode)).priv_LinkedUndirectedGraphNode_neighborList_6368()
+	return (j2gort.CastPtr[LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]](uNode)).priv_LinkedUndirectedGraphNode_neighborList_6388()
 }
 
 // Java method: LinkedUndirectedGraph.getUndirectedGraphEdges(N n1, N n2)
@@ -268,7 +268,7 @@ func (this_ *LinkedUndirectedGraph[N, E]) GetNode(value N) any {
 func (this_ *LinkedUndirectedGraph[N, E]) IsConnected_2(n1 N, n2 N) bool {
 	_ = n1
 	_ = n2
-	return this_.priv_LinkedUndirectedGraph_isConnected_6365(n1, j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), n2)
+	return this_.priv_LinkedUndirectedGraph_isConnected_6385(n1, j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), n2)
 }
 
 // Java method: LinkedUndirectedGraph.isConnected(N n1, E e, N n2)
@@ -276,11 +276,11 @@ func (this_ *LinkedUndirectedGraph[N, E]) IsConnected_3_any_any_any(n1 N, e E, n
 	_ = n1
 	_ = e
 	_ = n2
-	return this_.priv_LinkedUndirectedGraph_isConnected_6365(n1, j2gort.Ext_com_google_common_base_Predicates_EqualTo(j2gort.ToAny(e)), n2)
+	return this_.priv_LinkedUndirectedGraph_isConnected_6385(n1, j2gort.Ext_com_google_common_base_Predicates_EqualTo(j2gort.ToAny(e)), n2)
 }
 
 // Java method: LinkedUndirectedGraph.isConnected(N n1, com.google.common.base.Predicate<E> edgePredicate, N n2)
-func (this_ *LinkedUndirectedGraph[N, E]) priv_LinkedUndirectedGraph_isConnected_6365(n1 N, edgePredicate j2gort.Ext_com_google_common_base_Predicate, n2 N) bool {
+func (this_ *LinkedUndirectedGraph[N, E]) priv_LinkedUndirectedGraph_isConnected_6385(n1 N, edgePredicate j2gort.Ext_com_google_common_base_Predicate, n2 N) bool {
 	_ = n1
 	_ = edgePredicate
 	_ = n2
@@ -504,7 +504,7 @@ func (this_ *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) GetLabel() s
 }
 
 // Java method: LinkedUndirectedGraphNode.neighborList()
-func (this_ *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) priv_LinkedUndirectedGraphNode_neighborList_6368() j2gort.Ext_java_util_List {
+func (this_ *LinkedUndirectedGraph_LinkedUndirectedGraphNode[N, E]) priv_LinkedUndirectedGraphNode_neighborList_6388() j2gort.Ext_java_util_List {
 	var result []GraphNode[N, E] = j2gort.MakeNonNilSlice[GraphNode[N, E]](this_.neighborEdges.Size())
 	_ = result
 	{

@@ -220,17 +220,24 @@ func (this_ *SourceMapConsumerV3) GetMappingForLine(lineNumber int32, column int
 
 // Java method: SourceMapConsumerV3.getOriginalSources()
 func (this_ *SourceMapConsumerV3) GetOriginalSources() j2gort.Ext_java_util_Collection {
-	return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_6 := this_.sources
 		if arr_6 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_7 := make([]any, len(arr_6))
 		for i_, el_8 := range arr_6 {
 			out_7[i_] = j2gort.BoxString(el_8)
 		}
-		return out_7
-	}()))
+		iifeArg_1 = out_7
+		break iifeSwitch_1
+	}
+	return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(iifeArg_1))
 }
 
 // Java method: SourceMapConsumerV3.getOriginalSourcesContent()
@@ -238,33 +245,47 @@ func (this_ *SourceMapConsumerV3) GetOriginalSourcesContent() j2gort.Ext_java_ut
 	if this_.sourcesContent == nil {
 		return nil
 	} else {
-		return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+		var iifeArg_2 []any
+	iifeSwitch_2:
+		switch {
+		default:
+
 			arr_9 := this_.sourcesContent
 			if arr_9 == nil {
-				return nil
+				iifeArg_2 = nil
+				break iifeSwitch_2
 			}
 			out_10 := make([]any, len(arr_9))
 			for i_, el_11 := range arr_9 {
 				out_10[i_] = j2gort.BoxString(el_11)
 			}
-			return out_10
-		}()))
+			iifeArg_2 = out_10
+			break iifeSwitch_2
+		}
+		return j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(iifeArg_2))
 	}
 }
 
 // Java method: SourceMapConsumerV3.getOriginalNames()
 func (this_ *SourceMapConsumerV3) GetOriginalNames() j2gort.Ext_java_util_List {
-	return j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_3 []any
+iifeSwitch_3:
+	switch {
+	default:
+
 		arr_12 := this_.names
 		if arr_12 == nil {
-			return nil
+			iifeArg_3 = nil
+			break iifeSwitch_3
 		}
 		out_13 := make([]any, len(arr_12))
 		for i_, el_14 := range arr_12 {
 			out_13[i_] = j2gort.BoxString(el_14)
 		}
-		return out_13
-	}())
+		iifeArg_3 = out_13
+		break iifeSwitch_3
+	}
+	return j2gort.Ext_java_util_Arrays_AsList(iifeArg_3)
 }
 
 // Java method: SourceMapConsumerV3.getFile()
@@ -396,17 +417,17 @@ func (this_ *SourceMapConsumerV3) priv_SourceMapConsumerV3_createReverseMapping_
 						var originalFile string = this_.sources[sourceFileId]
 						_ = originalFile
 						var lineToCollectionMap j2gort.Ext_java_util_Map
-					iifeSwitch_1:
+					iifeSwitch_4:
 						switch {
 						default:
 							m_16 := this_.reverseSourceMapping
 							k_17 := originalFile
 							if v_18, ok_19 := j2gort.MapTryGetComputeStr(m_16, k_17); ok_19 {
 								lineToCollectionMap = j2gort.AsIface[j2gort.Ext_java_util_Map](v_18)
-								break iifeSwitch_1
+								break iifeSwitch_4
 							}
 							lineToCollectionMap = j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.MapComputeIfAbsentStr(m_16, k_17, lambdaSingleton_source_map_consumer_v3_1))
-							break iifeSwitch_1
+							break iifeSwitch_4
 						}
 						_ = lineToCollectionMap
 						if !(lineToCollectionMap.ContainsKey(j2gort.ValueOfInt(sourceLine))) {

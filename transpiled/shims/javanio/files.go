@@ -639,6 +639,21 @@ func Files_WriteStringCharset(p *Path, csq string, cs *Charset, opts ...Standard
 	if cs == nil {
 		panic(javalang.NewNullPointerExceptionMsg("charset is null"))
 	}
+	if (cs == StandardCharsets_UTF_8 && (javalang.IsASCII(csq) || isValidUTF8String(csq))) ||
+		((cs == StandardCharsets_US_ASCII || cs == StandardCharsets_ISO_8859_1) && javalang.IsASCII(csq)) {
+		out, err := Files_NewOutputStream(p, opts...)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := out.WriteString(csq); err != nil {
+			_ = out.Close()
+			return nil, javaio.NewIOException(err.Error())
+		}
+		if err := out.Close(); err != nil {
+			return nil, javaio.NewIOException(err.Error())
+		}
+		return p, nil
+	}
 	return Files_Write(p, cs.Encode(csq), opts...)
 }
 
@@ -652,21 +667,18 @@ func Files_NewOutputStream(p *Path, opts ...StandardOpenOption) (*javaio.FileOut
 		return javaio.NewFileOutputStream(target)
 	}
 	flags := 0
+	hasRead := false
 	hasWrite := false
-	hasAppend := false
-	hasTrunc := false
 	for _, opt := range opts {
 		switch opt {
 		case StandardOpenOption_READ:
-			flags |= os.O_RDONLY
+			hasRead = true
 		case StandardOpenOption_WRITE:
 			hasWrite = true
 		case StandardOpenOption_APPEND:
-			hasAppend = true
 			hasWrite = true
 			flags |= os.O_APPEND
 		case StandardOpenOption_TRUNCATE_EXISTING:
-			hasTrunc = true
 			flags |= os.O_TRUNC
 		case StandardOpenOption_CREATE:
 			flags |= os.O_CREATE
@@ -674,17 +686,12 @@ func Files_NewOutputStream(p *Path, opts ...StandardOpenOption) (*javaio.FileOut
 			flags |= os.O_CREATE | os.O_EXCL
 		}
 	}
-	if hasWrite {
+	if hasRead && hasWrite {
+		flags |= os.O_RDWR
+	} else if !hasRead {
 		flags |= os.O_WRONLY
 	}
-	if !hasAppend && !hasTrunc && len(opts) == 0 {
-		flags |= os.O_WRONLY | os.O_CREATE | os.O_TRUNC
-	}
-	f, err := os.OpenFile(target, flags, 0o666)
-	if err != nil {
-		return nil, javaio.NewIOException(err.Error())
-	}
-	return javaio.NewFileOutputStreamFromOSFile(f), nil
+	return javaio.NewFileOutputStreamFlags(target, flags)
 }
 
 func Files_NewBufferedReader(p *Path, cs *Charset) (*javaio.BufferedReader, error) {

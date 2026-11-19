@@ -32,7 +32,9 @@ func (this_ *Platform) BindSelf_(s any) {
 	_ = s
 }
 func (this_ *Platform) IsJavaNil_() bool { return this_ == nil }
-func (*Platform) JavaClassInfo_() (string, string) { return "com.google.javascript.jscomp.Platform", "Platform" }
+func (*Platform) JavaClassInfo_() (string, string) {
+	return "com.google.javascript.jscomp.Platform", "Platform"
+}
 func (this_ *Platform) IdentityHash_() int32 {
 	if this_ == nil {
 		return 0
@@ -88,6 +90,22 @@ func Platform_TotalMemory() int64 {
 func Platform_FormatMessage(message string, arguments []string) string {
 	_ = message
 	_ = arguments
-	return j2gort.Ext_java_text_MessageFormat_Format(message, func() []any { arr_1 := arguments; if arr_1 == nil { return nil }; out_2 := make([]any, len(arr_1)); for i_, el_3 := range arr_1 { out_2[i_] = j2gort.BoxString(el_3) }; return out_2 }())
-}
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
 
+		arr_1 := arguments
+		if arr_1 == nil {
+			iifeArg_1 = nil
+			break iifeSwitch_1
+		}
+		out_2 := make([]any, len(arr_1))
+		for i_, el_3 := range arr_1 {
+			out_2[i_] = j2gort.BoxString(el_3)
+		}
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	return j2gort.Ext_java_text_MessageFormat_Format(message, iifeArg_1)
+}

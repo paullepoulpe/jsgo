@@ -169,10 +169,13 @@ func (this_ *VariableMap) ToBytes() []int8 {
 // Java static method: VariableMap.fromBytes(byte[] bytes)
 func VariableMap_FromBytes(bytes []int8) *VariableMap {
 	_ = bytes
-	return VariableMap_FromLines(func() string {
+	var iifeArg_1 string
+	{
+
 		b_9 := bytes
-		return j2gort.NewStringFromBytes(b_9, 0, int32(len(b_9)), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
-	}())
+		iifeArg_1 = j2gort.NewStringFromBytes(b_9, 0, int32(len(b_9)), j2gort.Ext_java_nio_charset_StandardCharsets_F_UTF_8)
+	}
+	return VariableMap_FromLines(iifeArg_1)
 }
 
 // Java static method: VariableMap.fromStream(java.io.InputStream stream)

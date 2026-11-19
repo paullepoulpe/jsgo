@@ -128,7 +128,7 @@ func NewDefaultNameGenerator() *DefaultNameGenerator {
 
 func InitDefaultNameGenerator(this_ *DefaultNameGenerator) {
 	this_.initFields_DefaultNameGenerator()
-	this_.priv_DefaultNameGenerator_buildPriorityLookupMap_2355()
+	this_.priv_DefaultNameGenerator_buildPriorityLookupMap_2362()
 	var reservedNames j2gort.Ext_java_util_Set = j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_Sets_NewLinkedHashSetWithExpectedSize(int32(0)))
 	_ = reservedNames
 	this_.Reset_3(reservedNames, "", j2gort.AsIface[j2gort.Ext_java_util_Set](j2gort.Ext_com_google_common_collect_ImmutableSet_Of_0()))
@@ -163,7 +163,7 @@ func InitDefaultNameGenerator_4_Ext_java_util_Set_string_Ext_java_util_Set_Ext_j
 	_ = reservedFirstCharacters
 	_ = reservedNonFirstCharacters
 	this_.initFields_DefaultNameGenerator()
-	this_.priv_DefaultNameGenerator_buildPriorityLookupMap_2355()
+	this_.priv_DefaultNameGenerator_buildPriorityLookupMap_2362()
 	this_.Reset_4(reservedNames, prefix, reservedFirstCharacters, reservedNonFirstCharacters)
 }
 
@@ -192,7 +192,7 @@ func InitDefaultNameGenerator_4_Ext_java_util_Set_string_Ext_java_util_Set_Ext_j
 }
 
 // Java method: DefaultNameGenerator.buildPriorityLookupMap()
-func (this_ *DefaultNameGenerator) priv_DefaultNameGenerator_buildPriorityLookupMap_2355() {
+func (this_ *DefaultNameGenerator) priv_DefaultNameGenerator_buildPriorityLookupMap_2362() {
 	this_.priorityLookupMap = j2gort.AsIface[j2gort.Ext_java_util_Map](j2gort.Ext_com_google_common_collect_Maps_NewLinkedHashMapWithExpectedSize(int32(len(StaticGet_DefaultNameGenerator_NONFIRST_CHAR()))))
 	var order int32 = int32(0)
 	_ = order
@@ -258,7 +258,7 @@ func (this_ *DefaultNameGenerator) Reset_4(reservedNames j2gort.Ext_java_util_Se
 			arrMut_6[i_] = j2gort.CastPtr[DefaultNameGenerator_CharPriority](el_8)
 		}
 	}()
-	this_.priv_DefaultNameGenerator_checkPrefix_2361(prefix)
+	this_.priv_DefaultNameGenerator_checkPrefix_2368(prefix)
 }
 
 // Java method: DefaultNameGenerator.clone(java.util.Set<java.lang.String> reservedNames, java.lang.String prefix, java.util.Set<java.lang.Character> reservedCharacters)
@@ -337,7 +337,7 @@ func (this_ *DefaultNameGenerator) ReserveCharacters(chars []uint16, reservedCha
 }
 
 // Java method: DefaultNameGenerator.checkPrefix(java.lang.String prefix)
-func (this_ *DefaultNameGenerator) priv_DefaultNameGenerator_checkPrefix_2361(prefix string) {
+func (this_ *DefaultNameGenerator) priv_DefaultNameGenerator_checkPrefix_2368(prefix string) {
 	_ = prefix
 	if j2gort.JStrLen(prefix) > int32(0) {
 		if !(DefaultNameGenerator_Contains(this_.firstChars, j2gort.JStrCharAt(prefix, int32(0)))) {

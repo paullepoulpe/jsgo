@@ -199,21 +199,21 @@ func (this_ *InlineAndCollapseProperties) Process_2(externs pkg_rhino.Node, root
 		this_.decisionsLog = logFile
 		switch (this_.propertyCollapseLevel).Ordinal() {
 		case int32(1) /* PropertyCollapseLevel.NONE */ :
-			this_.priv_InlineAndCollapseProperties_performMinimalInliningAndNoCollapsing_3208(externs, root)
+			this_.priv_InlineAndCollapseProperties_performMinimalInliningAndNoCollapsing_3215(externs, root)
 		case int32(2) /* PropertyCollapseLevel.MODULE_EXPORT */ :
-			this_.priv_InlineAndCollapseProperties_performMinimalInliningAndModuleExportCollapsing_3209(externs, root)
+			this_.priv_InlineAndCollapseProperties_performMinimalInliningAndModuleExportCollapsing_3216(externs, root)
 		case int32(0) /* PropertyCollapseLevel.ALL */ :
 			if this_.testAggressiveInliningOnly {
-				this_.priv_InlineAndCollapseProperties_performAggressiveInliningForTest_3211(externs, root)
+				this_.priv_InlineAndCollapseProperties_performAggressiveInliningForTest_3218(externs, root)
 			} else {
-				this_.priv_InlineAndCollapseProperties_performAggressiveInliningAndCollapsing_3210(externs, root)
+				this_.priv_InlineAndCollapseProperties_performAggressiveInliningAndCollapsing_3217(externs, root)
 			}
 		}
 	}()
 }
 
 // Java method: InlineAndCollapseProperties.performMinimalInliningAndNoCollapsing(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performMinimalInliningAndNoCollapsing_3208(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performMinimalInliningAndNoCollapsing_3215(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	{
@@ -225,7 +225,7 @@ func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_perfo
 }
 
 // Java method: InlineAndCollapseProperties.performMinimalInliningAndModuleExportCollapsing(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performMinimalInliningAndModuleExportCollapsing_3209(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performMinimalInliningAndModuleExportCollapsing_3216(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	{
@@ -244,7 +244,7 @@ func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_perfo
 }
 
 // Java method: InlineAndCollapseProperties.performAggressiveInliningAndCollapsing(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performAggressiveInliningAndCollapsing_3210(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performAggressiveInliningAndCollapsing_3217(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	{
@@ -268,7 +268,7 @@ func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_perfo
 }
 
 // Java method: InlineAndCollapseProperties.performAggressiveInliningForTest(com.google.javascript.rhino.Node externs, com.google.javascript.rhino.Node root)
-func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performAggressiveInliningForTest_3211(externs pkg_rhino.Node, root pkg_rhino.Node) {
+func (this_ *InlineAndCollapseProperties) priv_InlineAndCollapseProperties_performAggressiveInliningForTest_3218(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
 	var val_7 InlineAndCollapseProperties_AggressiveInlineAliases
@@ -655,12 +655,12 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) Process_2(exte
 	this_.outer_.namespace = NewGlobalNamespace_3_LogFile_AbstractCompiler_Node(this_.outer_.decisionsLog, this_.outer_.compiler, root)
 	for this_.codeChanged {
 		this_.codeChanged = false
-		this_.priv_AggressiveInlineAliases_inlineAliases_3219(this_.outer_.namespace)
+		this_.priv_AggressiveInlineAliases_inlineAliases_3226(this_.outer_.namespace)
 	}
 }
 
 // Java method: AggressiveInlineAliases.inlineAliases(com.google.javascript.jscomp.GlobalNamespace namespace)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineAliases_3219(namespace *GlobalNamespace) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineAliases_3226(namespace *GlobalNamespace) {
 	_ = namespace
 	namespace.EnsureGenerated()
 	var workList j2gort.Deque[*GlobalNamespace_Name]
@@ -681,9 +681,9 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 			continue
 		}
 		if (!(name.InExterns()) && (name.GetGlobalSets() == int32(1))) && (name.GetLocalSets() == int32(0)) {
-			this_.priv_AggressiveInlineAliases_maybeInlineInnerName_3221(name)
+			this_.priv_AggressiveInlineAliases_maybeInlineInnerName_3228(name)
 			if (name.GetAliasingGets() > int32(0)) || (name.GetSubclassingGets() > int32(0)) {
-				this_.priv_AggressiveInlineAliases_inlineAliasesForName_3220(name, namespace)
+				this_.priv_AggressiveInlineAliases_inlineAliasesForName_3227(name, namespace)
 			}
 		}
 		if (((name.IsObjectLiteral() || name.IsFunction()) || name.IsClass()) && !(InlineAndCollapseProperties_IsUnsafelyReassigned(name))) && name.HasProps() {
@@ -717,7 +717,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.inlineAliasesForName(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.jscomp.GlobalNamespace namespace)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineAliasesForName_3220(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineAliasesForName_3227(name *GlobalNamespace_Name, namespace *GlobalNamespace) {
 	_ = name
 	_ = namespace
 	var refs []*GlobalNamespace_Ref = j2gort.CopyCollectionToSlice[*GlobalNamespace_Ref](name.GetRefs())
@@ -725,9 +725,9 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 	for _, ref := range refs {
 		_ = ref
 		if (ref.IsAliasingGet() && !(InlineAndCollapseProperties_MayBeGlobalAlias(ref))) && !(ref.IsTwin()) {
-			this_.priv_AggressiveInlineAliases_inlineAliasIfPossible_3224(name, ref, namespace)
+			this_.priv_AggressiveInlineAliases_inlineAliasIfPossible_3231(name, ref, namespace)
 		} else if (ref.IsAliasingGet() && j2gort.CastPtr[Scope](ref.scope.GetClosestHoistScope()).IsGlobal()) && !(ref.IsTwin()) {
-			this_.priv_AggressiveInlineAliases_inlineGlobalAliasIfPossible_3228(name, ref, namespace)
+			this_.priv_AggressiveInlineAliases_inlineGlobalAliasIfPossible_3235(name, ref, namespace)
 		} else if (name.IsClass() && ref.IsSubclassingGet()) && name.HasProps() {
 			{
 				var i int32 = int32(0)
@@ -735,7 +735,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 				var size int32 = name.GetPropCount()
 				_ = size
 				for ; i < size; i = i + 1 {
-					this_.priv_AggressiveInlineAliases_rewriteAllSubclassInheritedAccesses_3222(name, ref, name.GetPropAt(i), namespace)
+					this_.priv_AggressiveInlineAliases_rewriteAllSubclassInheritedAccesses_3229(name, ref, name.GetPropAt(i), namespace)
 				}
 			}
 		}
@@ -744,7 +744,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.maybeInlineInnerName(com.google.javascript.jscomp.GlobalNamespace.Name globalName)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_maybeInlineInnerName_3221(globalName *GlobalNamespace_Name) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_maybeInlineInnerName_3228(globalName *GlobalNamespace_Name) {
 	_ = globalName
 	var globalNameDeclaration *GlobalNamespace_Ref = j2gort.CheckNotNullPtr(j2gort.CastPtr[GlobalNamespace_Ref](globalName.GetDeclaration()))
 	_ = globalNameDeclaration
@@ -794,7 +794,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 			var innerNameRefNode pkg_rhino.Node = innerNameRef.GetNode()
 			_ = innerNameRefNode
 			if NodeUtil_IsNormalGet(innerNameRefNode.GetParent()) {
-				newNodes.Add_1(this_.priv_AggressiveInlineAliases_replaceAliasReference_3227(globalNameDeclaration, innerNameRef))
+				newNodes.Add_1(this_.priv_AggressiveInlineAliases_replaceAliasReference_3234(globalNameDeclaration, innerNameRef))
 			}
 		}
 	}
@@ -802,7 +802,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.rewriteAllSubclassInheritedAccesses(com.google.javascript.jscomp.GlobalNamespace.Name superclassNameObj, com.google.javascript.jscomp.GlobalNamespace.Ref superclassRef, com.google.javascript.jscomp.GlobalNamespace.Name prop, com.google.javascript.jscomp.GlobalNamespace namespace)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteAllSubclassInheritedAccesses_3222(superclassNameObj *GlobalNamespace_Name, superclassRef *GlobalNamespace_Ref, prop *GlobalNamespace_Name, namespace *GlobalNamespace) bool {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteAllSubclassInheritedAccesses_3229(superclassNameObj *GlobalNamespace_Name, superclassRef *GlobalNamespace_Ref, prop *GlobalNamespace_Name, namespace *GlobalNamespace) bool {
 	_ = superclassNameObj
 	_ = superclassRef
 	_ = prop
@@ -834,7 +834,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 				ref := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_17)
 				_ = ref
 				if ref.IsSubclassingGet() {
-					this_.priv_AggressiveInlineAliases_rewriteAllSubclassInheritedAccesses_3222(superclassNameObj, ref, prop, namespace)
+					this_.priv_AggressiveInlineAliases_rewriteAllSubclassInheritedAccesses_3229(superclassNameObj, ref, prop, namespace)
 				}
 			}
 		}
@@ -851,14 +851,14 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 		} else {
 			return false
 		}
-		this_.priv_AggressiveInlineAliases_rewriteNestedAliasReference_3231(superclassNameNode, int32(0), newNodes, subclassPropNameObj)
+		this_.priv_AggressiveInlineAliases_rewriteNestedAliasReference_3238(superclassNameNode, int32(0), newNodes, subclassPropNameObj)
 		namespace.ScanNewNodes(newNodes)
 	}
 	return true
 }
 
 // Java method: AggressiveInlineAliases.isInlineableModuleExportsAlias(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.jscomp.ReferenceCollection aliasRefs)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_isInlineableModuleExportsAlias_3223(name *GlobalNamespace_Name, aliasRefs *ReferenceCollection) bool {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_isInlineableModuleExportsAlias_3230(name *GlobalNamespace_Name, aliasRefs *ReferenceCollection) bool {
 	_ = name
 	_ = aliasRefs
 	var aliasedNameStr string = name.GetFullName()
@@ -907,7 +907,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.inlineAliasIfPossible(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.jscomp.GlobalNamespace.Ref alias, com.google.javascript.jscomp.GlobalNamespace namespace)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineAliasIfPossible_3224(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineAliasIfPossible_3231(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
 	_ = name
 	_ = alias
 	_ = namespace
@@ -943,7 +943,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 		_ = aliasRefs
 		var newNodes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 		_ = newNodes
-		if aliasRefs.IsWellDefined() && (aliasRefs.IsAssignedOnceInLifetime() || this_.priv_AggressiveInlineAliases_isInlineableModuleExportsAlias_3223(name, aliasRefs)) {
+		if aliasRefs.IsWellDefined() && (aliasRefs.IsAssignedOnceInLifetime() || this_.priv_AggressiveInlineAliases_isInlineableModuleExportsAlias_3230(name, aliasRefs)) {
 			var readNodes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 			_ = readNodes
 			var size int32 = aliasRefs.Size()
@@ -961,16 +961,16 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 				for ; i < size; i = i + 1 {
 					var aliasRef *Reference = aliasRefs.Get(i)
 					_ = aliasRef
-					readNodes.Add_1(this_.priv_AggressiveInlineAliases_replaceAliasReference_3227(alias, aliasRef))
+					readNodes.Add_1(this_.priv_AggressiveInlineAliases_replaceAliasReference_3234(alias, aliasRef))
 				}
 			}
-			this_.priv_AggressiveInlineAliases_replaceAliasingAssignment_3226(alias, name, aliasLhsNode, newNodes)
+			this_.priv_AggressiveInlineAliases_replaceAliasingAssignment_3233(alias, name, aliasLhsNode, newNodes)
 			newNodes.AddAll_1(readNodes)
 			namespace.ScanNewNodes(newNodes)
 			return
 		}
 		if name.IsConstructor() {
-			if !(this_.priv_AggressiveInlineAliases_partiallyInlineAlias_3225(alias, name, namespace, aliasRefs, aliasLhsNode)) {
+			if !(this_.priv_AggressiveInlineAliases_partiallyInlineAlias_3232(alias, name, namespace, aliasRefs, aliasLhsNode)) {
 				if InlineAndCollapseProperties_ReferencesCollapsibleProperty(aliasRefs, name, namespace) {
 					this_.outer_.compiler.Report_1(JSError_Make_3(aliasParent, StaticGet_InlineAndCollapseProperties_UNSAFE_CTOR_ALIASING(), []string{aliasVarName}))
 				}
@@ -980,7 +980,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.partiallyInlineAlias(com.google.javascript.jscomp.GlobalNamespace.Ref alias, com.google.javascript.jscomp.GlobalNamespace.Name aliasingName, com.google.javascript.jscomp.GlobalNamespace namespace, com.google.javascript.jscomp.ReferenceCollection aliasRefs, com.google.javascript.rhino.Node aliasLhsNode)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_partiallyInlineAlias_3225(alias *GlobalNamespace_Ref, aliasingName *GlobalNamespace_Name, namespace *GlobalNamespace, aliasRefs *ReferenceCollection, aliasLhsNode pkg_rhino.Node) bool {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_partiallyInlineAlias_3232(alias *GlobalNamespace_Ref, aliasingName *GlobalNamespace_Name, namespace *GlobalNamespace, aliasRefs *ReferenceCollection, aliasLhsNode pkg_rhino.Node) bool {
 	_ = alias
 	_ = aliasingName
 	_ = namespace
@@ -1028,7 +1028,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 			_ = refBlock
 			if ((refBlock != aliasBlock) && aliasBlock.ProvablyExecutesBefore(refBlock)) || ((refBlock == aliasBlock) && alreadySeenInitialAlias) {
 				this_.codeChanged = true
-				readNodes.Add_1(this_.priv_AggressiveInlineAliases_replaceAliasReference_3227(alias, aliasRef_2))
+				readNodes.Add_1(this_.priv_AggressiveInlineAliases_replaceAliasReference_3234(alias, aliasRef_2))
 			} else {
 				foundNonReplaceableAlias = true
 			}
@@ -1037,7 +1037,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 	var newNodes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 	_ = newNodes
 	if !(foundNonReplaceableAlias) {
-		this_.priv_AggressiveInlineAliases_replaceAliasingAssignment_3226(alias, aliasingName, aliasLhsNode, newNodes)
+		this_.priv_AggressiveInlineAliases_replaceAliasingAssignment_3233(alias, aliasingName, aliasLhsNode, newNodes)
 	}
 	newNodes.AddAll_1(readNodes)
 	if this_.codeChanged {
@@ -1047,7 +1047,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.replaceAliasingAssignment(com.google.javascript.jscomp.GlobalNamespace.Ref alias, com.google.javascript.jscomp.GlobalNamespace.Name aliasName, com.google.javascript.rhino.Node aliasLhsNode, java.util.Set<com.google.javascript.jscomp.GlobalNamespace.AstChange> newNodes)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_replaceAliasingAssignment_3226(alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode pkg_rhino.Node, newNodes j2gort.Ext_java_util_Set) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_replaceAliasingAssignment_3233(alias *GlobalNamespace_Ref, aliasName *GlobalNamespace_Name, aliasLhsNode pkg_rhino.Node, newNodes j2gort.Ext_java_util_Set) {
 	_ = alias
 	_ = aliasName
 	_ = aliasLhsNode
@@ -1076,7 +1076,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.replaceAliasReference(com.google.javascript.jscomp.GlobalNamespace.Ref alias, com.google.javascript.jscomp.Reference aliasRef)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_replaceAliasReference_3227(alias *GlobalNamespace_Ref, aliasRef *Reference) GlobalNamespace_AstChange {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_replaceAliasReference_3234(alias *GlobalNamespace_Ref, aliasRef *Reference) GlobalNamespace_AstChange {
 	_ = alias
 	_ = aliasRef
 	var originalRefNode pkg_rhino.Node = alias.GetNode()
@@ -1100,7 +1100,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.inlineGlobalAliasIfPossible(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.jscomp.GlobalNamespace.Ref alias, com.google.javascript.jscomp.GlobalNamespace namespace)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineGlobalAliasIfPossible_3228(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_inlineGlobalAliasIfPossible_3235(name *GlobalNamespace_Name, alias *GlobalNamespace_Ref, namespace *GlobalNamespace) {
 	_ = name
 	_ = alias
 	_ = namespace
@@ -1133,9 +1133,9 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 		if !(aliasInlinability.ShouldInlineUsages()) {
 			return
 		}
-		var readNodes j2gort.Ext_java_util_Set = this_.priv_AggressiveInlineAliases_rewriteAliasReferences_3229(aliasingName, alias, aliasInlinability)
+		var readNodes j2gort.Ext_java_util_Set = this_.priv_AggressiveInlineAliases_rewriteAliasReferences_3236(aliasingName, alias, aliasInlinability)
 		_ = readNodes
-		this_.priv_AggressiveInlineAliases_rewriteAliasProps_3230(aliasingName, alias.GetNode(), int32(0), readNodes)
+		this_.priv_AggressiveInlineAliases_rewriteAliasProps_3237(aliasingName, alias.GetNode(), int32(0), readNodes)
 		var newNodes j2gort.Ext_java_util_Set = j2gort.NewExt_java_util_LinkedHashSet()
 		_ = newNodes
 		if aliasInlinability.ShouldRemoveDeclaration() {
@@ -1164,7 +1164,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.rewriteAliasReferences(com.google.javascript.jscomp.GlobalNamespace.Name aliasingName, com.google.javascript.jscomp.GlobalNamespace.Ref aliasingRef, com.google.javascript.jscomp.GlobalNamespace.Inlinability aliasInlinability)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteAliasReferences_3229(aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) j2gort.Ext_java_util_Set {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteAliasReferences_3236(aliasingName *GlobalNamespace_Name, aliasingRef *GlobalNamespace_Ref, aliasInlinability GlobalNamespace_Inlinability) j2gort.Ext_java_util_Set {
 	_ = aliasingName
 	_ = aliasingRef
 	_ = aliasInlinability
@@ -1218,7 +1218,7 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 }
 
 // Java method: AggressiveInlineAliases.rewriteAliasProps(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.rhino.Node value, int depth, java.util.Set<com.google.javascript.jscomp.GlobalNamespace.AstChange> newNodes)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteAliasProps_3230(name *GlobalNamespace_Name, value pkg_rhino.Node, depth int32, newNodes j2gort.Ext_java_util_Set) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteAliasProps_3237(name *GlobalNamespace_Name, value pkg_rhino.Node, depth int32, newNodes j2gort.Ext_java_util_Set) {
 	_ = name
 	_ = value
 	_ = depth
@@ -1235,18 +1235,18 @@ func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_Aggressiv
 		var size int32 = name.GetPropCount()
 		_ = size
 		for ; i < size; i = i + 1 {
-			this_.priv_AggressiveInlineAliases_rewriteNestedAliasReference_3231(value, depth, newNodes, name.GetPropAt(i))
+			this_.priv_AggressiveInlineAliases_rewriteNestedAliasReference_3238(value, depth, newNodes, name.GetPropAt(i))
 		}
 	}
 }
 
 // Java method: AggressiveInlineAliases.rewriteNestedAliasReference(com.google.javascript.rhino.Node value, int depth, java.util.Set<com.google.javascript.jscomp.GlobalNamespace.AstChange> newNodes, com.google.javascript.jscomp.GlobalNamespace.Name prop)
-func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteNestedAliasReference_3231(value pkg_rhino.Node, depth int32, newNodes j2gort.Ext_java_util_Set, prop *GlobalNamespace_Name) {
+func (this_ *InlineAndCollapseProperties_AggressiveInlineAliases) priv_AggressiveInlineAliases_rewriteNestedAliasReference_3238(value pkg_rhino.Node, depth int32, newNodes j2gort.Ext_java_util_Set, prop *GlobalNamespace_Name) {
 	_ = value
 	_ = depth
 	_ = newNodes
 	_ = prop
-	this_.priv_AggressiveInlineAliases_rewriteAliasProps_3230(prop, value, (depth + int32(1)), newNodes)
+	this_.priv_AggressiveInlineAliases_rewriteAliasProps_3237(prop, value, (depth + int32(1)), newNodes)
 	var refs []*GlobalNamespace_Ref = j2gort.CopyCollectionToSlice[*GlobalNamespace_Ref](prop.GetRefs())
 	_ = refs
 	for _, ref := range refs {
@@ -1429,14 +1429,14 @@ func (this_ *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) Visi
 		insertionPoint = tempConstNode
 		rhs = tempName.CloneNode_0()
 	}
-	var unusedNewInsertionPoint pkg_rhino.Node = this_.priv_RewriteSimpleDestructuringAliases_expandObjectPattern_3232(t, insertionPoint, objectPattern, rhs)
+	var unusedNewInsertionPoint pkg_rhino.Node = this_.priv_RewriteSimpleDestructuringAliases_expandObjectPattern_3239(t, insertionPoint, objectPattern, rhs)
 	_ = unusedNewInsertionPoint
 	n.Detach()
 	t.ReportCodeChange_0()
 }
 
 // Java method: RewriteSimpleDestructuringAliases.expandObjectPattern(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node insertionPoint, com.google.javascript.rhino.Node objectPattern, com.google.javascript.rhino.Node rhs)
-func (this_ *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) priv_RewriteSimpleDestructuringAliases_expandObjectPattern_3232(t *NodeTraversal, insertionPoint pkg_rhino.Node, objectPattern pkg_rhino.Node, rhs pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) priv_RewriteSimpleDestructuringAliases_expandObjectPattern_3239(t *NodeTraversal, insertionPoint pkg_rhino.Node, objectPattern pkg_rhino.Node, rhs pkg_rhino.Node) pkg_rhino.Node {
 	_ = t
 	_ = insertionPoint
 	_ = objectPattern
@@ -1467,7 +1467,7 @@ func (this_ *InlineAndCollapseProperties_RewriteSimpleDestructuringAliases) priv
 			newConstNode.InsertAfter(insertionPoint)
 			insertionPoint = newConstNode
 			if keyChild.IsObjectPattern() {
-				insertionPoint = this_.priv_RewriteSimpleDestructuringAliases_expandObjectPattern_3232(t, insertionPoint, keyChild, nameNode.CloneNode_0())
+				insertionPoint = this_.priv_RewriteSimpleDestructuringAliases_expandObjectPattern_3239(t, insertionPoint, keyChild, nameNode.CloneNode_0())
 			}
 		}
 	}
@@ -1540,7 +1540,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) Process_2(externs p
 		NodeTraversal_Traverse(this_.outer_.compiler, root, NewInlineAndCollapseProperties_CollapseProperties_FindDynamicallyImportedModules(this_, this_.outer_.haveModulesBeenRewritten, this_.outer_.moduleResolutionMode))
 	}
 	j2gort.CheckNotNullPtr(this_.outer_.namespace).EnsureGenerated()
-	var escaped j2gort.OrderedSet[*GlobalNamespace_Name] = this_.priv_CollapseProperties_checkNamespaces_3235()
+	var escaped j2gort.OrderedSet[*GlobalNamespace_Name] = this_.priv_CollapseProperties_checkNamespaces_3242()
 	_ = escaped
 	{
 		var i int32 = int32(0)
@@ -1550,36 +1550,36 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) Process_2(externs p
 		for ; i < size; i = i + 1 {
 			var name *GlobalNamespace_Name = this_.outer_.namespace.globalNames[i]
 			_ = name
-			this_.priv_CollapseProperties_flattenReferencesToCollapsibleDescendantNames_3238(name, name.GetBaseName(), &escaped)
-			this_.priv_CollapseProperties_collapseDeclarationOfNameAndDescendants_3249(name, name.GetBaseName(), &escaped)
+			this_.priv_CollapseProperties_flattenReferencesToCollapsibleDescendantNames_3245(name, name.GetBaseName(), &escaped)
+			this_.priv_CollapseProperties_collapseDeclarationOfNameAndDescendants_3256(name, name.GetBaseName(), &escaped)
 		}
 	}
 }
 
 // Java method: CollapseProperties.canCollapse(com.google.javascript.jscomp.GlobalNamespace.Name name)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_canCollapse_3233(name *GlobalNamespace_Name) bool {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_canCollapse_3240(name *GlobalNamespace_Name) bool {
 	_ = name
 	var inlinability GlobalNamespace_Inlinability = name.CanCollapseOrInline()
 	_ = inlinability
 	if !(inlinability.CanCollapse()) {
-		this_.priv_CollapseProperties_logDecisionForName_3239(name, inlinability, "canCollapse() returns false")
+		this_.priv_CollapseProperties_logDecisionForName_3246(name, inlinability, "canCollapse() returns false")
 		return false
 	}
 	if this_.outer_.propertyCollapseLevel == StaticGet_CompilerOptions_PropertyCollapseLevel_MODULE_EXPORT() {
 		if !(name.IsModuleExport()) {
-			this_.priv_CollapseProperties_logDecisionForName_3239(name, inlinability, "module export: canCollapse() returns false")
+			this_.priv_CollapseProperties_logDecisionForName_3246(name, inlinability, "module export: canCollapse() returns false")
 			return false
 		} else if this_.dynamicallyImportedModules.Contains(name.GetBaseName()) {
-			this_.priv_CollapseProperties_logDecisionForName_3239(name, inlinability, "dynamic module export: canCollapse() returns false")
+			this_.priv_CollapseProperties_logDecisionForName_3246(name, inlinability, "dynamic module export: canCollapse() returns false")
 			return false
 		}
 	}
-	this_.priv_CollapseProperties_logDecisionForName_3239(name, inlinability, "canCollapse() returns true")
+	this_.priv_CollapseProperties_logDecisionForName_3246(name, inlinability, "canCollapse() returns true")
 	return true
 }
 
 // Java method: CollapseProperties.canEliminate(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.rhino.Node rvalue)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_canEliminate_3234(name *GlobalNamespace_Name, rvalue pkg_rhino.Node) bool {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_canEliminate_3241(name *GlobalNamespace_Name, rvalue pkg_rhino.Node) bool {
 	_ = name
 	_ = rvalue
 	if !(name.CanEliminate()) {
@@ -1607,7 +1607,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.checkNamespaces()
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_checkNamespaces_3235() j2gort.OrderedSet[*GlobalNamespace_Name] {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_checkNamespaces_3242() j2gort.OrderedSet[*GlobalNamespace_Name] {
 	var escaped j2gort.OrderedSet[*GlobalNamespace_Name] = j2gort.NewOrderedSet[*GlobalNamespace_Name]()
 	_ = escaped
 	var dynamicallyImportedModuleRefs *j2gort.OrderedSet[string]
@@ -1626,7 +1626,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 					Next()
 				_ = name
 				if this_.dynamicallyImportedModules.Contains(name.GetFullName()) {
-					this_.priv_CollapseProperties_logDecisionForName_3240(name, "escapes - dynamically imported module namespace")
+					this_.priv_CollapseProperties_logDecisionForName_3247(name, "escapes - dynamically imported module namespace")
 					escaped.Add(name)
 					if !(name.HasProps()) {
 						continue
@@ -1648,7 +1648,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 								var rValue pkg_rhino.Node = NodeUtil_GetRValueOfLValue(propDeclaration.GetNode())
 								_ = rValue
 								if rValue.IsName() {
-									this_.priv_CollapseProperties_logDecisionForName_3240(name, "escapes - dynamically imported module namespace property alias")
+									this_.priv_CollapseProperties_logDecisionForName_3247(name, "escapes - dynamically imported module namespace property alias")
 									dynamicallyImportedModuleRefs.Add(rValue.GetQualifiedName())
 								}
 							}
@@ -1684,16 +1684,16 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 					_ = ref
 					if ref.IsDeleteProp() {
 						if initialized {
-							this_.priv_CollapseProperties_warnAboutNamespaceRedefinition_3237(name_2, ref)
+							this_.priv_CollapseProperties_warnAboutNamespaceRedefinition_3244(name_2, ref)
 						}
 					} else if ref.IsSet() && (ref != j2gort.CastPtr[GlobalNamespace_Ref](name_2.GetDeclaration())) {
 						if initialized && !(InlineAndCollapseProperties_IsSafeNamespaceReinit(ref)) {
-							this_.priv_CollapseProperties_warnAboutNamespaceRedefinition_3237(name_2, ref)
+							this_.priv_CollapseProperties_warnAboutNamespaceRedefinition_3244(name_2, ref)
 						}
 						initialized = true
 					} else if ref.IsAliasingGet() {
-						this_.priv_CollapseProperties_warnAboutNamespaceAliasing_3236(name_2, ref)
-						this_.priv_CollapseProperties_logDecisionForName_3240(name_2, "escapes")
+						this_.priv_CollapseProperties_warnAboutNamespaceAliasing_3243(name_2, ref)
+						this_.priv_CollapseProperties_logDecisionForName_3247(name_2, "escapes")
 						escaped.Add(name_2)
 						break
 					}
@@ -1705,21 +1705,21 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.warnAboutNamespaceAliasing(com.google.javascript.jscomp.GlobalNamespace.Name nameObj, com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_warnAboutNamespaceAliasing_3236(nameObj *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_warnAboutNamespaceAliasing_3243(nameObj *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
 	_ = nameObj
 	_ = ref
 	this_.outer_.compiler.Report_1(JSError_Make_3(ref.GetNode(), StaticGet_InlineAndCollapseProperties_PARTIAL_NAMESPACE_WARNING(), []string{nameObj.GetFullName()}))
 }
 
 // Java method: CollapseProperties.warnAboutNamespaceRedefinition(com.google.javascript.jscomp.GlobalNamespace.Name nameObj, com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_warnAboutNamespaceRedefinition_3237(nameObj *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_warnAboutNamespaceRedefinition_3244(nameObj *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
 	_ = nameObj
 	_ = ref
 	this_.outer_.compiler.Report_1(JSError_Make_3(ref.GetNode(), StaticGet_InlineAndCollapseProperties_NAMESPACE_REDEFINED_WARNING(), []string{nameObj.GetFullName()}))
 }
 
 // Java method: CollapseProperties.flattenReferencesToCollapsibleDescendantNames(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias, java.util.LinkedHashSet<com.google.javascript.jscomp.GlobalNamespace.Name> escaped)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenReferencesToCollapsibleDescendantNames_3238(n *GlobalNamespace_Name, alias string, escaped *j2gort.OrderedSet[*GlobalNamespace_Name]) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenReferencesToCollapsibleDescendantNames_3245(n *GlobalNamespace_Name, alias string, escaped *j2gort.OrderedSet[*GlobalNamespace_Name]) {
 	_ = n
 	_ = alias
 	_ = escaped
@@ -1727,11 +1727,11 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 		return
 	}
 	if n.IsCollapsingExplicitlyDenied() {
-		this_.priv_CollapseProperties_logDecisionForName_3240(n, "@nocollapse: will not flatten descendant name references")
+		this_.priv_CollapseProperties_logDecisionForName_3247(n, "@nocollapse: will not flatten descendant name references")
 		return
 	}
 	if !(j2gort.CheckNotNullPtr(escaped).IsEmpty()) && j2gort.CheckNotNullPtr(escaped).Contains(n) {
-		this_.priv_CollapseProperties_logDecisionForName_3240(n, "escapes: will not flatten descendant name references")
+		this_.priv_CollapseProperties_logDecisionForName_3247(n, "escapes: will not flatten descendant name references")
 		return
 	}
 	var isLogging bool = ((this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging())
@@ -1752,29 +1752,29 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 			_ = propAlias
 			if isAllowedToCollapse {
 				if inlinability.CanCollapse() {
-					this_.priv_CollapseProperties_logDecisionForName_3239(p, inlinability, "will flatten references")
-					propAlias = this_.priv_CollapseProperties_appendPropForAlias_3262(alias, p.GetBaseName())
-					this_.priv_CollapseProperties_flattenReferencesTo_3245(p, propAlias)
+					this_.priv_CollapseProperties_logDecisionForName_3246(p, inlinability, "will flatten references")
+					propAlias = this_.priv_CollapseProperties_appendPropForAlias_3269(alias, p.GetBaseName())
+					this_.priv_CollapseProperties_flattenReferencesTo_3252(p, propAlias)
 				} else if p.IsCollapsingExplicitlyDenied() {
-					this_.priv_CollapseProperties_logDecisionForName_3240(p, "@nocollapse: will not flatten references")
+					this_.priv_CollapseProperties_logDecisionForName_3247(p, "@nocollapse: will not flatten references")
 				} else if p.IsSimpleStubDeclaration() {
-					this_.priv_CollapseProperties_logDecisionForName_3240(p, "simple stub declaration: will flatten references")
-					propAlias = this_.priv_CollapseProperties_appendPropForAlias_3262(alias, p.GetBaseName())
-					this_.priv_CollapseProperties_flattenSimpleStubDeclaration_3242(p, propAlias)
+					this_.priv_CollapseProperties_logDecisionForName_3247(p, "simple stub declaration: will flatten references")
+					propAlias = this_.priv_CollapseProperties_appendPropForAlias_3269(alias, p.GetBaseName())
+					this_.priv_CollapseProperties_flattenSimpleStubDeclaration_3249(p, propAlias)
 				} else {
-					this_.priv_CollapseProperties_logDecisionForName_3239(p, inlinability, "will not flatten references")
+					this_.priv_CollapseProperties_logDecisionForName_3246(p, inlinability, "will not flatten references")
 				}
 			}
 			if (p.HasProps() && !(p.IsCollapsingExplicitlyDenied())) && (j2gort.CheckNotNullPtr(escaped).IsEmpty() || !(j2gort.CheckNotNullPtr(escaped).Contains(p))) {
 				if propAlias == j2gort.NullString {
-					propAlias = this_.priv_CollapseProperties_appendPropForAlias_3262(alias, p.GetBaseName())
+					propAlias = this_.priv_CollapseProperties_appendPropForAlias_3269(alias, p.GetBaseName())
 				}
-				this_.priv_CollapseProperties_flattenReferencesToCollapsibleDescendantNames_3238(p, propAlias, escaped)
+				this_.priv_CollapseProperties_flattenReferencesToCollapsibleDescendantNames_3245(p, propAlias, escaped)
 			} else if isLogging && p.HasProps() {
 				if p.IsCollapsingExplicitlyDenied() {
-					this_.priv_CollapseProperties_logDecisionForName_3240(p, "@nocollapse: will not flatten descendant name references")
+					this_.priv_CollapseProperties_logDecisionForName_3247(p, "@nocollapse: will not flatten descendant name references")
 				} else if !(j2gort.CheckNotNullPtr(escaped).IsEmpty()) && j2gort.CheckNotNullPtr(escaped).Contains(p) {
-					this_.priv_CollapseProperties_logDecisionForName_3240(p, "escapes: will not flatten descendant name references")
+					this_.priv_CollapseProperties_logDecisionForName_3247(p, "escapes: will not flatten descendant name references")
 				}
 			}
 		}
@@ -1782,20 +1782,20 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.logDecisionForName(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.jscomp.GlobalNamespace.Inlinability inlinability, java.lang.String message)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDecisionForName_3239(name *GlobalNamespace_Name, inlinability GlobalNamespace_Inlinability, message string) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDecisionForName_3246(name *GlobalNamespace_Name, inlinability GlobalNamespace_Inlinability, message string) {
 	_ = name
 	_ = inlinability
 	_ = message
 	if (this_.outer_.decisionsLog == nil || this_.outer_.decisionsLog.IsJavaNil_()) || !(this_.outer_.decisionsLog.IsLogging()) {
 		return
 	}
-	this_.priv_CollapseProperties_logDecisionForName_3241(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+	this_.priv_CollapseProperties_logDecisionForName_3248(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 		return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("inlinability %s: %s", []any{j2gort.BoxNullableVal(inlinability), j2gort.BoxString(message)}))
 	}))
 }
 
 // Java method: CollapseProperties.logDecisionForName(com.google.javascript.jscomp.GlobalNamespace.Name name, java.lang.String message)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDecisionForName_3240(name *GlobalNamespace_Name, message string) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDecisionForName_3247(name *GlobalNamespace_Name, message string) {
 	_ = name
 	_ = message
 	if (this_.outer_.decisionsLog == nil || this_.outer_.decisionsLog.IsJavaNil_()) || !(this_.outer_.decisionsLog.IsLogging()) {
@@ -1809,7 +1809,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.logDecisionForName(com.google.javascript.jscomp.GlobalNamespace.Name name, java.util.function.Supplier<java.lang.String> messageSupplier)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDecisionForName_3241(name *GlobalNamespace_Name, messageSupplier j2gort.Ext_java_util_function_Supplier) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDecisionForName_3248(name *GlobalNamespace_Name, messageSupplier j2gort.Ext_java_util_function_Supplier) {
 	_ = name
 	_ = messageSupplier
 	if (this_.outer_.decisionsLog == nil || this_.outer_.decisionsLog.IsJavaNil_()) || !(this_.outer_.decisionsLog.IsLogging()) {
@@ -1823,7 +1823,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.flattenSimpleStubDeclaration(com.google.javascript.jscomp.GlobalNamespace.Name name, java.lang.String alias)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenSimpleStubDeclaration_3242(name *GlobalNamespace_Name, alias string) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenSimpleStubDeclaration_3249(name *GlobalNamespace_Name, alias string) {
 	_ = name
 	_ = alias
 	var ref *GlobalNamespace_Ref = name.GetOnlyRef()
@@ -1842,7 +1842,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.shouldAddConstantName(com.google.javascript.rhino.Node declarationNode, java.lang.String collapsedName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_shouldAddConstantName_3243(declarationNode pkg_rhino.Node, collapsedName string) bool {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_shouldAddConstantName_3250(declarationNode pkg_rhino.Node, collapsedName string) bool {
 	_ = declarationNode
 	_ = collapsedName
 	if declarationNode == 0 {
@@ -1854,7 +1854,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.flattenSingleDirectRef(com.google.javascript.jscomp.GlobalNamespace.Ref r, java.lang.String alias, int aliasId, java.lang.String originalName, int origNameId, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenSingleDirectRef_3244(r *GlobalNamespace_Ref, alias string, aliasId int32, originalName string, origNameId int32, isConstantName bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenSingleDirectRef_3251(r *GlobalNamespace_Ref, alias string, aliasId int32, originalName string, origNameId int32, isConstantName bool) {
 	_ = r
 	_ = alias
 	_ = aliasId
@@ -1866,7 +1866,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var rParent pkg_rhino.Node = rNode.GetParent()
 	_ = rParent
 	if !(NodeUtil_MayBeObjectLitKey(rNode)) {
-		this_.priv_CollapseProperties_flattenNameRef_3248(alias, aliasId, rNode, rParent, originalName, origNameId, isConstantName)
+		this_.priv_CollapseProperties_flattenNameRef_3255(alias, aliasId, rNode, rParent, originalName, origNameId, isConstantName)
 	} else if rNode.IsStringKey() && rParent.IsObjectPattern() {
 		var newNode pkg_rhino.Node = (func() pkg_rhino.Node {
 			if aliasId != int32(0) {
@@ -1881,7 +1881,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.flattenReferencesTo(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenReferencesTo_3245(n *GlobalNamespace_Name, alias string) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenReferencesTo_3252(n *GlobalNamespace_Name, alias string) {
 	_ = n
 	_ = alias
 	var originalName string = n.GetFullName()
@@ -1898,7 +1898,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var isConstantName bool
 	_ = isConstantName
 	if declNode != 0 {
-		isConstantName = this_.priv_CollapseProperties_shouldAddConstantName_3243(declNode, alias)
+		isConstantName = this_.priv_CollapseProperties_shouldAddConstantName_3250(declNode, alias)
 	} else {
 		isConstantName = this_.outer_.compiler.GetCodingConvention().IsConstant(alias)
 	}
@@ -1927,16 +1927,16 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 			var r3 *GlobalNamespace_Ref = n.InlineRef3()
 			_ = r3
 			if (r0 != nil) && (r0 != decl) {
-				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r0, alias, aliasId, originalName, origNameId, isConstantName)
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3251(r0, alias, aliasId, originalName, origNameId, isConstantName)
 			}
 			if (r1 != nil) && (r1 != decl) {
-				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r1, alias, aliasId, originalName, origNameId, isConstantName)
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3251(r1, alias, aliasId, originalName, origNameId, isConstantName)
 			}
 			if (r2 != nil) && (r2 != decl) {
-				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r2, alias, aliasId, originalName, origNameId, isConstantName)
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3251(r2, alias, aliasId, originalName, origNameId, isConstantName)
 			}
 			if (r3 != nil) && (r3 != decl) {
-				this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r3, alias, aliasId, originalName, origNameId, isConstantName)
+				this_.priv_CollapseProperties_flattenSingleDirectRef_3251(r3, alias, aliasId, originalName, origNameId, isConstantName)
 			}
 		}
 	} else {
@@ -1954,7 +1954,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				r := j2gort.CastPtr[GlobalNamespace_Ref](rawElem_34)
 				_ = r
 				if r != decl {
-					this_.priv_CollapseProperties_flattenSingleDirectRef_3244(r, alias, aliasId, originalName, origNameId_2, isConstantName)
+					this_.priv_CollapseProperties_flattenSingleDirectRef_3251(r, alias, aliasId, originalName, origNameId_2, isConstantName)
 				}
 			}
 		}
@@ -1975,7 +1975,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				var p *GlobalNamespace_Name = n.GetPropAt(i)
 				_ = p
 				prefixBuf.Append_1_string(p.GetBaseName())
-				this_.priv_CollapseProperties_flattenPrefixes_3246(alias, aliasId, prefixBuf, p, int32(1), isConstantName)
+				this_.priv_CollapseProperties_flattenPrefixes_3253(alias, aliasId, prefixBuf, p, int32(1), isConstantName)
 				prefixBuf.SetLength(baseLen)
 			}
 		}
@@ -1983,7 +1983,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.flattenPrefixes(java.lang.String alias, int aliasId, java.lang.StringBuilder prefixBuf, com.google.javascript.jscomp.GlobalNamespace.Name n, int depth, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenPrefixes_3246(alias string, aliasId int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, n *GlobalNamespace_Name, depth int32, isConstantName bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenPrefixes_3253(alias string, aliasId int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, n *GlobalNamespace_Name, depth int32, isConstantName bool) {
 	_ = alias
 	_ = aliasId
 	_ = prefixBuf
@@ -1996,31 +1996,31 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var decl *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
 	_ = decl
 	if ((decl != nil) && (decl.GetNode() != 0)) && decl.GetNode().IsGetProp() {
-		materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, decl.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+		materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3254(alias, aliasId, decl.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 	}
 	if n.HasInlineRefs() {
 		var r0 *GlobalNamespace_Ref = n.InlineRef0()
 		_ = r0
 		if r0 != nil {
 			if r0 != decl {
-				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r0.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3254(alias, aliasId, r0.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 			}
 			var r1 *GlobalNamespace_Ref = n.InlineRef1()
 			_ = r1
 			if r1 != nil {
 				if r1 != decl {
-					materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r1.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+					materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3254(alias, aliasId, r1.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 				}
 				var r2 *GlobalNamespace_Ref = n.InlineRef2()
 				_ = r2
 				if r2 != nil {
 					if r2 != decl {
-						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r2.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3254(alias, aliasId, r2.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 					}
 					var r3 *GlobalNamespace_Ref = n.InlineRef3()
 					_ = r3
 					if (r3 != nil) && (r3 != decl) {
-						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r3.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+						materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3254(alias, aliasId, r3.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 					}
 				}
 			}
@@ -2035,7 +2035,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				if r == decl {
 					continue
 				}
-				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3247(alias, aliasId, r.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
+				materializedOriginalName = this_.priv_CollapseProperties_flattenNameRefAtDepth_3254(alias, aliasId, r.GetNode(), depth, prefixBuf, materializedOriginalName, isConstantName)
 			}
 		}
 	}
@@ -2051,7 +2051,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				var p *GlobalNamespace_Name = n.GetPropAt(i)
 				_ = p
 				prefixBuf.Append_1_string(p.GetBaseName())
-				this_.priv_CollapseProperties_flattenPrefixes_3246(alias, aliasId, prefixBuf, p, (depth + int32(1)), isConstantName)
+				this_.priv_CollapseProperties_flattenPrefixes_3253(alias, aliasId, prefixBuf, p, (depth + int32(1)), isConstantName)
 				prefixBuf.SetLength(prevLen)
 			}
 		}
@@ -2059,7 +2059,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.flattenNameRefAtDepth(java.lang.String alias, int aliasId, com.google.javascript.rhino.Node n, int depth, java.lang.StringBuilder prefixBuf, java.lang.@org.jspecify.annotations.Nullable String materializedOriginalName, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRefAtDepth_3247(alias string, aliasId int32, n pkg_rhino.Node, depth int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, materializedOriginalName string, isConstantName bool) string {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRefAtDepth_3254(alias string, aliasId int32, n pkg_rhino.Node, depth int32, prefixBuf *j2gort.Ext_java_lang_StringBuilder, materializedOriginalName string, isConstantName bool) string {
 	_ = alias
 	_ = aliasId
 	_ = n
@@ -2094,14 +2094,14 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 					this_.currentPrefixOrigNameId = origNameId
 				}
 			}
-			this_.priv_CollapseProperties_flattenNameRef_3248(alias, aliasId, n.GetFirstChild(), n, materializedOriginalName, origNameId, isConstantName)
+			this_.priv_CollapseProperties_flattenNameRef_3255(alias, aliasId, n.GetFirstChild(), n, materializedOriginalName, origNameId, isConstantName)
 		}
 	}
 	return materializedOriginalName
 }
 
 // Java method: CollapseProperties.flattenNameRef(java.lang.String alias, int aliasId, com.google.javascript.rhino.Node n, com.google.javascript.rhino.Node parent, java.lang.String originalName, int origNameId, boolean isConstantName)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRef_3248(alias string, aliasId int32, n pkg_rhino.Node, parent pkg_rhino.Node, originalName string, origNameId int32, isConstantName bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_flattenNameRef_3255(alias string, aliasId int32, n pkg_rhino.Node, parent pkg_rhino.Node, originalName string, origNameId int32, isConstantName bool) {
 	_ = alias
 	_ = aliasId
 	_ = n
@@ -2132,7 +2132,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.collapseDeclarationOfNameAndDescendants(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias, java.util.LinkedHashSet<com.google.javascript.jscomp.GlobalNamespace.Name> escaped)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_collapseDeclarationOfNameAndDescendants_3249(n *GlobalNamespace_Name, alias string, escaped *j2gort.OrderedSet[*GlobalNamespace_Name]) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_collapseDeclarationOfNameAndDescendants_3256(n *GlobalNamespace_Name, alias string, escaped *j2gort.OrderedSet[*GlobalNamespace_Name]) {
 	_ = n
 	_ = alias
 	_ = escaped
@@ -2142,20 +2142,20 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	_ = canCollapseChildNames
 	if !(childNameInlinability.CanCollapse()) {
 		if (this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging() {
-			this_.priv_CollapseProperties_logDecisionForName_3241(n, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+			this_.priv_CollapseProperties_logDecisionForName_3248(n, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 				return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("child name inlinability: %s: will not collapse child names", []any{j2gort.BoxNullableVal(childNameInlinability)}))
 			}))
 		}
 		canCollapseChildNames = false
 	} else if !(j2gort.CheckNotNullPtr(escaped).IsEmpty()) && j2gort.CheckNotNullPtr(escaped).Contains(n) {
-		this_.priv_CollapseProperties_logDecisionForName_3240(n, "escapes: will not collapse child names")
+		this_.priv_CollapseProperties_logDecisionForName_3247(n, "escapes: will not collapse child names")
 		canCollapseChildNames = false
 	} else {
 		canCollapseChildNames = true
 	}
-	if this_.priv_CollapseProperties_canCollapse_3233(n) {
-		this_.priv_CollapseProperties_logDecisionForName_3240(n, "collapsing")
-		this_.priv_CollapseProperties_updateGlobalNameDeclaration_3251(n, alias, canCollapseChildNames)
+	if this_.priv_CollapseProperties_canCollapse_3240(n) {
+		this_.priv_CollapseProperties_logDecisionForName_3247(n, "collapsing")
+		this_.priv_CollapseProperties_updateGlobalNameDeclaration_3258(n, alias, canCollapseChildNames)
 	}
 	if !(n.HasProps()) {
 		return
@@ -2163,7 +2163,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	if !(j2gort.CheckNotNullPtr(escaped).IsEmpty()) && j2gort.CheckNotNullPtr(escaped).Contains(n) {
 		return
 	}
-	this_.priv_CollapseProperties_logDecisionForName_3240(n, "collapsing descendants")
+	this_.priv_CollapseProperties_logDecisionForName_3247(n, "collapsing descendants")
 	var isLogging bool = ((this_.outer_.decisionsLog != nil && !this_.outer_.decisionsLog.IsJavaNil_()) && this_.outer_.decisionsLog.IsLogging())
 	_ = isLogging
 	{
@@ -2174,16 +2174,16 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 		for ; i < size; i = i + 1 {
 			var p *GlobalNamespace_Name = n.GetPropAt(i)
 			_ = p
-			if (!(isLogging) && !(p.HasProps())) && !(this_.priv_CollapseProperties_canCollapse_3233(p)) {
+			if (!(isLogging) && !(p.HasProps())) && !(this_.priv_CollapseProperties_canCollapse_3240(p)) {
 				continue
 			}
-			this_.priv_CollapseProperties_collapseDeclarationOfNameAndDescendants_3249(p, this_.priv_CollapseProperties_appendPropForAlias_3262(alias, p.GetBaseName()), escaped)
+			this_.priv_CollapseProperties_collapseDeclarationOfNameAndDescendants_3256(p, this_.priv_CollapseProperties_appendPropForAlias_3269(alias, p.GetBaseName()), escaped)
 		}
 	}
 }
 
 // Java method: CollapseProperties.updateTwinnedDeclaration(java.lang.String alias, com.google.javascript.jscomp.GlobalNamespace.Name refName, com.google.javascript.jscomp.GlobalNamespace.Ref ref)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateTwinnedDeclaration_3250(alias string, refName *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateTwinnedDeclaration_3257(alias string, refName *GlobalNamespace_Name, ref *GlobalNamespace_Ref) {
 	_ = alias
 	_ = refName
 	_ = ref
@@ -2200,7 +2200,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var grandparent pkg_rhino.Node = parent.GetParent()
 	_ = grandparent
 	if (rvalue != 0) && rvalue.IsFunction() {
-		this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3255(rvalue, refName.GetJSDocInfo(), refName)
+		this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3262(rvalue, refName.GetJSDocInfo(), refName)
 	}
 	var nameNode pkg_rhino.Node = NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, alias, grandparent.GetFirstChild(), refName.GetFullName())
 	_ = nameNode
@@ -2219,14 +2219,14 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.updateGlobalNameDeclaration(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias, boolean canCollapseChildNames)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclaration_3251(n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclaration_3258(n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
 	_ = n
 	_ = alias
 	_ = canCollapseChildNames
 	var decl *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
 	_ = decl
 	if decl == nil {
-		this_.priv_CollapseProperties_logDecisionForName_3240(n, "no global declaration found")
+		this_.priv_CollapseProperties_logDecisionForName_3247(n, "no global declaration found")
 		return
 	}
 	var isSimpleName bool = n.IsSimpleName()
@@ -2235,47 +2235,47 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	_ = declNode
 	switch declNode.GetParent().TokenSwitchOrd_() {
 	case int32(51) /* Token.ASSIGN */ :
-		this_.priv_CollapseProperties_logDeclarationAction_3252(n, declNode, "updating assignment")
-		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtAssignNode_3254(n, alias, canCollapseChildNames)
+		this_.priv_CollapseProperties_logDeclarationAction_3259(n, declNode, "updating assignment")
+		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtAssignNode_3261(n, alias, canCollapseChildNames)
 	case int32(84) /* Token.VAR */, int32(111) /* Token.LET */, int32(97) /* Token.CONST */ :
-		this_.priv_CollapseProperties_logDeclarationAction_3252(n, declNode, "updating variable declaration")
-		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtVariableNode_3256(n, canCollapseChildNames)
+		this_.priv_CollapseProperties_logDeclarationAction_3259(n, declNode, "updating variable declaration")
+		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtVariableNode_3263(n, canCollapseChildNames)
 	case int32(73) /* Token.FUNCTION */ :
-		this_.priv_CollapseProperties_logDeclarationAction_3252(n, declNode, "updating function declaration")
-		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtFunctionNode_3257(n, canCollapseChildNames)
+		this_.priv_CollapseProperties_logDeclarationAction_3259(n, declNode, "updating function declaration")
+		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtFunctionNode_3264(n, canCollapseChildNames)
 	case int32(105) /* Token.CLASS */ :
-		this_.priv_CollapseProperties_logDeclarationAction_3252(n, declNode, "updating class declaration")
-		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtClassNode_3258(n, canCollapseChildNames)
+		this_.priv_CollapseProperties_logDeclarationAction_3259(n, declNode, "updating class declaration")
+		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtClassNode_3265(n, canCollapseChildNames)
 	case int32(106) /* Token.CLASS_MEMBERS */ :
-		this_.priv_CollapseProperties_logDeclarationAction_3252(n, declNode, "updating static member declaration")
-		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtStaticMemberNode_3259(n, alias, canCollapseChildNames)
+		this_.priv_CollapseProperties_logDeclarationAction_3259(n, declNode, "updating static member declaration")
+		this_.priv_CollapseProperties_updateGlobalNameDeclarationAtStaticMemberNode_3266(n, alias, canCollapseChildNames)
 	default:
-		this_.priv_CollapseProperties_logDeclarationAction_3252(n, declNode, "not updating an unsupported type of declaration node")
+		this_.priv_CollapseProperties_logDeclarationAction_3259(n, declNode, "not updating an unsupported type of declaration node")
 	}
 	if !(isSimpleName) {
 		var commonAncestor *JSChunk = n.GetDeepestCommonAncestorChunk(this_.outer_.compiler.GetChunkGraph())
 		_ = commonAncestor
 		if commonAncestor != decl.GetChunk() {
-			this_.priv_CollapseProperties_moveDeclarationIntoHigherChunk_3253(decl, commonAncestor)
+			this_.priv_CollapseProperties_moveDeclarationIntoHigherChunk_3260(decl, commonAncestor)
 		}
 	}
 }
 
 // Java method: CollapseProperties.logDeclarationAction(com.google.javascript.jscomp.GlobalNamespace.Name name, com.google.javascript.rhino.Node declarationNode, java.lang.String message)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDeclarationAction_3252(name *GlobalNamespace_Name, declarationNode pkg_rhino.Node, message string) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_logDeclarationAction_3259(name *GlobalNamespace_Name, declarationNode pkg_rhino.Node, message string) {
 	_ = name
 	_ = declarationNode
 	_ = message
 	if (this_.outer_.decisionsLog == nil || this_.outer_.decisionsLog.IsJavaNil_()) || !(this_.outer_.decisionsLog.IsLogging()) {
 		return
 	}
-	this_.priv_CollapseProperties_logDecisionForName_3241(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
+	this_.priv_CollapseProperties_logDecisionForName_3248(name, j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 		return j2gort.BoxString(j2gort.Ext_java_lang_String_Format_2("%s: %s", []any{j2gort.BoxNode(declarationNode), j2gort.BoxString(message)}))
 	}))
 }
 
 // Java method: CollapseProperties.moveDeclarationIntoHigherChunk(com.google.javascript.jscomp.GlobalNamespace.Ref decl, com.google.javascript.jscomp.JSChunk commonAncestor)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_moveDeclarationIntoHigherChunk_3253(decl *GlobalNamespace_Ref, commonAncestor *JSChunk) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_moveDeclarationIntoHigherChunk_3260(decl *GlobalNamespace_Ref, commonAncestor *JSChunk) {
 	_ = decl
 	_ = commonAncestor
 	var newNode pkg_rhino.Node = decl.GetNode()
@@ -2303,7 +2303,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.updateGlobalNameDeclarationAtAssignNode(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias, boolean canCollapseChildNames)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtAssignNode_3254(n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtAssignNode_3261(n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
 	_ = n
 	_ = alias
 	_ = canCollapseChildNames
@@ -2312,7 +2312,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var rvalue pkg_rhino.Node = ref.GetNode().GetNext()
 	_ = rvalue
 	if ref.IsTwin() {
-		this_.priv_CollapseProperties_updateTwinnedDeclaration_3250(alias, n, ref)
+		this_.priv_CollapseProperties_updateTwinnedDeclaration_3257(alias, n, ref)
 		return
 	}
 	var varNode pkg_rhino.Node = pkg_rhino.NewNode_1(pkg_rhino.StaticGet_Token_VAR())
@@ -2325,20 +2325,20 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	_ = isObjLit
 	var insertedVarNode bool = false
 	_ = insertedVarNode
-	if isObjLit && this_.priv_CollapseProperties_canEliminate_3234(n, rvalue) {
+	if isObjLit && this_.priv_CollapseProperties_canEliminate_3241(n, rvalue) {
 		grandparent.ReplaceWith(varNode)
 		n.UpdateRefNode(ref, pkg_rhino.Node(0))
 		insertedVarNode = true
 		this_.outer_.compiler.ReportChangeToEnclosingScope(varNode)
 	} else if !(n.IsSimpleName()) {
 		if rvalue.IsFunction() {
-			this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3255(rvalue, n.GetJSDocInfo(), n)
+			this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3262(rvalue, n.GetJSDocInfo(), n)
 		}
 		this_.outer_.compiler.ReportChangeToEnclosingScope(rvalue)
 		rvalue.Detach()
 		var nameNode pkg_rhino.Node = NodeUtil_NewName_4_AbstractCompiler_string_Node_string(this_.outer_.compiler, alias, grandparent, n.GetFullName())
 		_ = nameNode
-		nameNode.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), this_.priv_CollapseProperties_shouldAddConstantName_3243(ref.GetNode(), alias))
+		nameNode.PutBooleanProp(pkg_rhino.StaticGet_Node_IS_CONSTANT_NAME(), this_.priv_CollapseProperties_shouldAddConstantName_3250(ref.GetNode(), alias))
 		var info *pkg_rhino.JSDocInfo = NodeUtil_GetBestJSDocInfo(ref.GetNode().GetParent())
 		_ = info
 		if info != nil {
@@ -2353,9 +2353,9 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	}
 	if canCollapseChildNames {
 		if isObjLit {
-			this_.priv_CollapseProperties_declareVariablesForObjLitValues_3260(n, alias, rvalue, varNode, varNode.GetPrevious())
+			this_.priv_CollapseProperties_declareVariablesForObjLitValues_3267(n, alias, rvalue, varNode, varNode.GetPrevious())
 		}
-		this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3261(n, alias, varParent, varNode)
+		this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3268(n, alias, varParent, varNode)
 	}
 	if insertedVarNode {
 		if !(varNode.HasChildren()) {
@@ -2365,7 +2365,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.checkForReceiverAffectedByCollapse(com.google.javascript.rhino.Node function, com.google.javascript.rhino.JSDocInfo docInfo, com.google.javascript.jscomp.GlobalNamespace.Name name)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_checkForReceiverAffectedByCollapse_3255(function pkg_rhino.Node, docInfo *pkg_rhino.JSDocInfo, name *GlobalNamespace_Name) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_checkForReceiverAffectedByCollapse_3262(function pkg_rhino.Node, docInfo *pkg_rhino.JSDocInfo, name *GlobalNamespace_Name) {
 	_ = function
 	_ = docInfo
 	_ = name
@@ -2386,11 +2386,11 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.updateGlobalNameDeclarationAtVariableNode(com.google.javascript.jscomp.GlobalNamespace.Name n, boolean canCollapseChildNames)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtVariableNode_3256(n *GlobalNamespace_Name, canCollapseChildNames bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtVariableNode_3263(n *GlobalNamespace_Name, canCollapseChildNames bool) {
 	_ = n
 	_ = canCollapseChildNames
 	if !(canCollapseChildNames) {
-		this_.priv_CollapseProperties_logDecisionForName_3240(n, "cannot collapse child names: skipping")
+		this_.priv_CollapseProperties_logDecisionForName_3247(n, "cannot collapse child names: skipping")
 		return
 	}
 	var ref *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
@@ -2406,10 +2406,10 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var isObjLit bool = rvalue.IsObjectLit()
 	_ = isObjLit
 	if isObjLit {
-		this_.priv_CollapseProperties_declareVariablesForObjLitValues_3260(n, name, rvalue, variableNode, variableNode.GetPrevious())
+		this_.priv_CollapseProperties_declareVariablesForObjLitValues_3267(n, name, rvalue, variableNode, variableNode.GetPrevious())
 	}
-	this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3261(n, name, grandparent, variableNode)
-	if isObjLit && this_.priv_CollapseProperties_canEliminate_3234(n, rvalue) {
+	this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3268(n, name, grandparent, variableNode)
+	if isObjLit && this_.priv_CollapseProperties_canEliminate_3241(n, rvalue) {
 		ref.GetNode().Detach()
 		this_.outer_.compiler.ReportChangeToEnclosingScope(variableNode)
 		if !(variableNode.HasChildren()) {
@@ -2420,35 +2420,35 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.updateGlobalNameDeclarationAtFunctionNode(com.google.javascript.jscomp.GlobalNamespace.Name n, boolean canCollapseChildNames)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtFunctionNode_3257(n *GlobalNamespace_Name, canCollapseChildNames bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtFunctionNode_3264(n *GlobalNamespace_Name, canCollapseChildNames bool) {
 	_ = n
 	_ = canCollapseChildNames
-	if !(canCollapseChildNames) || !(this_.priv_CollapseProperties_canCollapse_3233(n)) {
+	if !(canCollapseChildNames) || !(this_.priv_CollapseProperties_canCollapse_3240(n)) {
 		return
 	}
 	var ref *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
 	_ = ref
 	var fnName string = ref.GetNode().GetString()
 	_ = fnName
-	this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3261(n, fnName, ref.GetNode().GetAncestor(int32(2)), ref.GetNode().GetParent())
+	this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3268(n, fnName, ref.GetNode().GetAncestor(int32(2)), ref.GetNode().GetParent())
 }
 
 // Java method: CollapseProperties.updateGlobalNameDeclarationAtClassNode(com.google.javascript.jscomp.GlobalNamespace.Name n, boolean canCollapseChildNames)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtClassNode_3258(n *GlobalNamespace_Name, canCollapseChildNames bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtClassNode_3265(n *GlobalNamespace_Name, canCollapseChildNames bool) {
 	_ = n
 	_ = canCollapseChildNames
-	if !(canCollapseChildNames) || !(this_.priv_CollapseProperties_canCollapse_3233(n)) {
+	if !(canCollapseChildNames) || !(this_.priv_CollapseProperties_canCollapse_3240(n)) {
 		return
 	}
 	var ref *GlobalNamespace_Ref = j2gort.CastPtr[GlobalNamespace_Ref](n.GetDeclaration())
 	_ = ref
 	var className string = ref.GetNode().GetString()
 	_ = className
-	this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3261(n, className, ref.GetNode().GetAncestor(int32(2)), ref.GetNode().GetParent())
+	this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3268(n, className, ref.GetNode().GetAncestor(int32(2)), ref.GetNode().GetParent())
 }
 
 // Java method: CollapseProperties.updateGlobalNameDeclarationAtStaticMemberNode(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias, boolean canCollapseChildNames)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtStaticMemberNode_3259(n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_updateGlobalNameDeclarationAtStaticMemberNode_3266(n *GlobalNamespace_Name, alias string, canCollapseChildNames bool) {
 	_ = n
 	_ = alias
 	_ = canCollapseChildNames
@@ -2462,7 +2462,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	var enclosingStatement pkg_rhino.Node = NodeUtil_GetEnclosingStatement(classNode)
 	_ = enclosingStatement
 	if canCollapseChildNames {
-		this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3261(n, alias, enclosingStatement.GetParent(), classNode)
+		this_.priv_CollapseProperties_addStubsForUndeclaredProperties_3268(n, alias, enclosingStatement.GetParent(), classNode)
 	}
 	var member pkg_rhino.Node = declaration.GetNode().Detach()
 	_ = member
@@ -2471,7 +2471,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 	if member.HasChildren() {
 		var memberVal pkg_rhino.Node = member.GetOnlyChild()
 		_ = memberVal
-		this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3255(memberVal, member.GetJSDocInfo(), n)
+		this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3262(memberVal, member.GetJSDocInfo(), n)
 		memberVal = memberVal.Detach()
 		varDecl = pkg_rhino.IR_Var_2(NodeUtil_NewName_3_AbstractCompiler_string_Node(this_.outer_.compiler, alias, member), memberVal).Srcref(member)
 	} else {
@@ -2484,7 +2484,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.declareVariablesForObjLitValues(com.google.javascript.jscomp.GlobalNamespace.Name objlitName, java.lang.String alias, com.google.javascript.rhino.Node objlit, com.google.javascript.rhino.Node varNode, com.google.javascript.rhino.Node nameToAddAfter)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_declareVariablesForObjLitValues_3260(objlitName *GlobalNamespace_Name, alias string, objlit pkg_rhino.Node, varNode pkg_rhino.Node, nameToAddAfter pkg_rhino.Node) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_declareVariablesForObjLitValues_3267(objlitName *GlobalNamespace_Name, alias string, objlit pkg_rhino.Node, varNode pkg_rhino.Node, nameToAddAfter pkg_rhino.Node) {
 	_ = objlitName
 	_ = alias
 	_ = objlit
@@ -2517,25 +2517,28 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 			if isJsIdentifier {
 				propName = key.GetString()
 			} else {
-				propName = strconv.FormatInt(int64(func() int32 {
+				var iifeArg_1 int32
+				{
+
 					old_37 := arbitraryNameCounter
 					nw_38 := old_37 + 1
 					arbitraryNameCounter = nw_38
-					return nw_38
-				}()), 10)
+					iifeArg_1 = nw_38
+				}
+				propName = strconv.FormatInt(int64(iifeArg_1), 10)
 			}
 			var qName string = (j2gort.StrValString(objlitName.GetFullName()) + "." + j2gort.StrValString(propName))
 			_ = qName
 			var p *GlobalNamespace_Name = j2gort.CastPtr[GlobalNamespace_Name](this_.outer_.namespace.GetOwnSlot(qName))
 			_ = p
-			if (p != nil) && !(this_.priv_CollapseProperties_canCollapse_3233(p)) {
+			if (p != nil) && !(this_.priv_CollapseProperties_canCollapse_3240(p)) {
 				continue
 			}
-			var propAlias string = this_.priv_CollapseProperties_appendPropForAlias_3262(alias, propName)
+			var propAlias string = this_.priv_CollapseProperties_appendPropForAlias_3269(alias, propName)
 			_ = propAlias
 			var refNode pkg_rhino.Node = pkg_rhino.Node(0)
 			_ = refNode
-			var isConstantName bool = this_.priv_CollapseProperties_shouldAddConstantName_3243(key, propAlias)
+			var isConstantName bool = this_.priv_CollapseProperties_shouldAddConstantName_3250(key, propAlias)
 			_ = isConstantName
 			if discardKeys {
 				key.Detach()
@@ -2569,7 +2572,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 				}
 				p.UpdateRefNode(j2gort.CastPtr[GlobalNamespace_Ref](p.GetDeclaration()), nameNode)
 				if value.IsFunction() {
-					this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3255(value, key.GetJSDocInfo(), p)
+					this_.priv_CollapseProperties_checkForReceiverAffectedByCollapse_3262(value, key.GetJSDocInfo(), p)
 				}
 			}
 		}
@@ -2577,7 +2580,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.addStubsForUndeclaredProperties(com.google.javascript.jscomp.GlobalNamespace.Name n, java.lang.String alias, com.google.javascript.rhino.Node parent, com.google.javascript.rhino.Node addAfter)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_addStubsForUndeclaredProperties_3261(n *GlobalNamespace_Name, alias string, parent pkg_rhino.Node, addAfter pkg_rhino.Node) {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_addStubsForUndeclaredProperties_3268(n *GlobalNamespace_Name, alias string, parent pkg_rhino.Node, addAfter pkg_rhino.Node) {
 	_ = n
 	_ = alias
 	_ = parent
@@ -2603,7 +2606,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 			if !(p.NeedsToBeStubbed()) {
 				continue
 			}
-			var propAlias string = this_.priv_CollapseProperties_appendPropForAlias_3262(alias, p.GetBaseName())
+			var propAlias string = this_.priv_CollapseProperties_appendPropForAlias_3269(alias, p.GetBaseName())
 			_ = propAlias
 			var nameNode pkg_rhino.Node = pkg_rhino.IR_Name(propAlias)
 			_ = nameNode
@@ -2624,7 +2627,7 @@ func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProper
 }
 
 // Java method: CollapseProperties.appendPropForAlias(java.lang.String root, java.lang.String prop)
-func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_appendPropForAlias_3262(root string, prop string) string {
+func (this_ *InlineAndCollapseProperties_CollapseProperties) priv_CollapseProperties_appendPropForAlias_3269(root string, prop string) string {
 	_ = root
 	_ = prop
 	if j2gort.JStrIndexOfCp(prop, int32(uint16(36))) != int32(-1) {
@@ -2861,21 +2864,21 @@ func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesCollector) Visit_3
 	switch n.TokenSwitchOrd_() {
 	case int32(84) /* Token.VAR */, int32(97) /* Token.CONST */, int32(111) /* Token.LET */ :
 		if n.HasOneChild() && t.InGlobalScope() {
-			this_.priv_AliasesCollector_visitAliasDefinition_3263(n.GetFirstChild(), NodeUtil_GetBestJSDocInfo(n.GetFirstChild()))
+			this_.priv_AliasesCollector_visitAliasDefinition_3270(n.GetFirstChild(), NodeUtil_GetBestJSDocInfo(n.GetFirstChild()))
 		}
 	case int32(51) /* Token.ASSIGN */ :
 		if ((parent != 0) && parent.IsExprResult()) && t.InGlobalScope() {
-			this_.priv_AliasesCollector_visitAliasDefinition_3263(n.GetFirstChild(), n.GetJSDocInfo())
+			this_.priv_AliasesCollector_visitAliasDefinition_3270(n.GetFirstChild(), n.GetJSDocInfo())
 		}
 	default:
 	}
 }
 
 // Java method: AliasesCollector.visitAliasDefinition(com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesCollector) priv_AliasesCollector_visitAliasDefinition_3263(lhs pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
+func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesCollector) priv_AliasesCollector_visitAliasDefinition_3270(lhs pkg_rhino.Node, info *pkg_rhino.JSDocInfo) {
 	_ = lhs
 	_ = info
-	if (this_.priv_AliasesCollector_isDeclaredConst_3264(lhs, info) && ((info == nil) || !(info.HasTypeInformation()))) && lhs.IsQualifiedName() {
+	if (this_.priv_AliasesCollector_isDeclaredConst_3271(lhs, info) && ((info == nil) || !(info.HasTypeInformation()))) && lhs.IsQualifiedName() {
 		var rhs pkg_rhino.Node = NodeUtil_GetRValueOfLValue(lhs)
 		_ = rhs
 		if (rhs != 0) && rhs.IsQualifiedName() {
@@ -2891,7 +2894,7 @@ func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesCollector) priv_Al
 }
 
 // Java method: AliasesCollector.isDeclaredConst(com.google.javascript.rhino.Node lhs, com.google.javascript.rhino.JSDocInfo info)
-func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesCollector) priv_AliasesCollector_isDeclaredConst_3264(lhs pkg_rhino.Node, info *pkg_rhino.JSDocInfo) bool {
+func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesCollector) priv_AliasesCollector_isDeclaredConst_3271(lhs pkg_rhino.Node, info *pkg_rhino.JSDocInfo) bool {
 	_ = lhs
 	_ = info
 	if (info != nil) && info.HasConstAnnotation() {
@@ -2963,15 +2966,15 @@ func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit_3(t
 	switch n.TokenSwitchOrd_() {
 	case int32(32) /* Token.NAME */, int32(26) /* Token.GETPROP */ :
 		if n.IsQualifiedName() && this_.outer_.aliases.ContainsKey(n.GetQualifiedName()) {
-			if this_.priv_AliasesInliner_isLeftmostNameLocal_3265(t, n) {
+			if this_.priv_AliasesInliner_isLeftmostNameLocal_3272(t, n) {
 				return
 			}
 			if NodeUtil_IsNameDeclOrSimpleAssignLhs(n, parent) {
 				return
 			}
-			var newNode pkg_rhino.Node = this_.outer_.astFactory.CreateQName_2_StaticScope_string(pkg_rhino.ToIface_StaticScope(this_.outer_.namespace), this_.priv_AliasesInliner_resolveAlias_3266(n.GetQualifiedName(), n))
+			var newNode pkg_rhino.Node = this_.outer_.astFactory.CreateQName_2_StaticScope_string(pkg_rhino.ToIface_StaticScope(this_.outer_.namespace), this_.priv_AliasesInliner_resolveAlias_3273(n.GetQualifiedName(), n))
 			_ = newNode
-			if this_.priv_AliasesInliner_isLeftmostNameLocal_3265(t, newNode) {
+			if this_.priv_AliasesInliner_isLeftmostNameLocal_3272(t, newNode) {
 				return
 			}
 			newNode.SrcrefTree(n)
@@ -2986,7 +2989,7 @@ func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) Visit_3(t
 }
 
 // Java method: AliasesInliner.isLeftmostNameLocal(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) priv_AliasesInliner_isLeftmostNameLocal_3265(t *NodeTraversal, n pkg_rhino.Node) bool {
+func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) priv_AliasesInliner_isLeftmostNameLocal_3272(t *NodeTraversal, n pkg_rhino.Node) bool {
 	_ = t
 	_ = n
 	if !(n.IsQualifiedName()) {
@@ -3000,7 +3003,7 @@ func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) priv_Alia
 }
 
 // Java method: AliasesInliner.resolveAlias(java.lang.String name, com.google.javascript.rhino.Node n)
-func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) priv_AliasesInliner_resolveAlias_3266(name string, n pkg_rhino.Node) string {
+func (this_ *InlineAndCollapseProperties_InlineAliases_AliasesInliner) priv_AliasesInliner_resolveAlias_3273(name string, n pkg_rhino.Node) string {
 	_ = name
 	_ = n
 	var aliasPath j2gort.LocalOrderedSet[string] = j2gort.NewLocalOrderedSet[string]()

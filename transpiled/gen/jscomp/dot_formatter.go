@@ -111,9 +111,9 @@ func InitDotFormatter_4(this_ *DotFormatter, n pkg_rhino.Node, cfg ControlFlowGr
 	this_.cfg = cfg
 	this_.builder = builder
 	this_.printAnnotations = printAnnotations
-	this_.priv_DotFormatter_formatPreamble_2446()
-	this_.priv_DotFormatter_traverseNodes_2444(n)
-	this_.priv_DotFormatter_formatConclusion_2447()
+	this_.priv_DotFormatter_formatPreamble_2453()
+	this_.priv_DotFormatter_traverseNodes_2451(n)
+	this_.priv_DotFormatter_formatConclusion_2454()
 }
 
 // Java static method: DotFormatter.toDot(com.google.javascript.rhino.Node n)
@@ -221,7 +221,7 @@ func DotFormatter_NewInstanceForTesting() *DotFormatter {
 }
 
 // Java method: DotFormatter.traverseNodes(com.google.javascript.rhino.Node parent)
-func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2444(parent pkg_rhino.Node) {
+func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2451(parent pkg_rhino.Node) {
 	_ = parent
 	var keyParent int32 = this_.Key(parent)
 	_ = keyParent
@@ -236,7 +236,7 @@ func (this_ *DotFormatter) priv_DotFormatter_traverseNodes_2444(parent pkg_rhino
 			this_.builder.Append_1_any(" -> ")
 			this_.builder.Append_1_any(j2gort.BoxString(DotFormatter_FormatNodeName(j2gort.ValueOfInt(keyChild))))
 			this_.builder.Append_1_any(" [weight=1];\n")
-			this_.priv_DotFormatter_traverseNodes_2444(child)
+			this_.priv_DotFormatter_traverseNodes_2451(child)
 		}
 	}
 	if (this_.cfg != nil && !this_.cfg.IsJavaNil_()) && this_.cfg.HasNode(parent) {
@@ -284,7 +284,15 @@ func (this_ *DotFormatter) Key(n pkg_rhino.Node) int32 {
 	var key *j2gort.BoxInt = this_.assignments.Get(n)
 	_ = key
 	if key == nil {
-		key = j2gort.ValueOfInt(func() int32 { old_11 := this_.keyCount; nw_12 := old_11 + 1; this_.keyCount = nw_12; return old_11 }())
+		var iifeArg_1 int32
+		{
+
+			old_11 := this_.keyCount
+			nw_12 := old_11 + 1
+			this_.keyCount = nw_12
+			iifeArg_1 = old_11
+		}
+		key = j2gort.ValueOfInt(iifeArg_1)
 		this_.assignments.Put(n, key)
 		this_.builder.Append_1_any("  ")
 		this_.builder.Append_1_any(j2gort.BoxString(DotFormatter_FormatNodeName(key)))
@@ -337,13 +345,13 @@ func DotFormatter_FormatNodeName(key *j2gort.BoxInt) string {
 }
 
 // Java method: DotFormatter.formatPreamble()
-func (this_ *DotFormatter) priv_DotFormatter_formatPreamble_2446() {
+func (this_ *DotFormatter) priv_DotFormatter_formatPreamble_2453() {
 	this_.builder.Append_1_any("digraph AST {\n")
 	this_.builder.Append_1_any("  ")
 	this_.builder.Append_1_any("node [color=lightblue2, style=filled];\n")
 }
 
 // Java method: DotFormatter.formatConclusion()
-func (this_ *DotFormatter) priv_DotFormatter_formatConclusion_2447() {
+func (this_ *DotFormatter) priv_DotFormatter_formatConclusion_2454() {
 	this_.builder.Append_1_any("}\n")
 }

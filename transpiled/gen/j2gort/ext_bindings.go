@@ -6045,25 +6045,33 @@ func init() {
 func (b *Ext_com_google_common_collect_ImmutableMultiset_Builder) Implements_j2gort_Ext_com_google_common_collect_ImmutableCollection_Builder() {
 }
 func (this_ *Ext_com_google_common_collect_ImmutableMultiset_Builder) Add_1_any(arg0 any) any {
-	multisetOp_add_2(this_.Core_.(*jMultisetCore), CheckNotNull(ToAny(arg0)), 1)
+	multisetOp_add_2(immMultisetBuilderMut(&this_.Core_), CheckNotNull(ToAny(arg0)), 1)
 	return this_
 }
 func (this_ *Ext_com_google_common_collect_ImmutableMultiset_Builder) Add_1_slice_any(arg0 []any) any {
-	c := this_.Core_.(*jMultisetCore)
-	for _, x := range arg0 {
-		multisetOp_add_2(c, CheckNotNull(ToAny(x)), 1)
+	if len(arg0) > 0 {
+		c := immMultisetBuilderMut(&this_.Core_)
+		for _, x := range arg0 {
+			multisetOp_add_2(c, CheckNotNull(ToAny(x)), 1)
+		}
 	}
 	return this_
 }
 func (this_ *Ext_com_google_common_collect_ImmutableMultiset_Builder) AddAll_1_Ext_java_lang_Iterable(arg0 Ext_java_lang_Iterable) any {
-	c := this_.Core_.(*jMultisetCore)
-	for it := Iterate(arg0); it.HasNext(); {
-		multisetOp_add_2(c, CheckNotNull(it.Next()), 1)
+	it := Iterate(arg0)
+	if it.HasNext() {
+		c := immMultisetBuilderMut(&this_.Core_)
+		for {
+			multisetOp_add_2(c, CheckNotNull(it.Next()), 1)
+			if !it.HasNext() {
+				break
+			}
+		}
 	}
 	return this_
 }
 func (this_ *Ext_com_google_common_collect_ImmutableMultiset_Builder) Build() any {
-	return wrapImmutableMultiset(cloneMultisetCore(this_.Core_.(*jMultisetCore), true))
+	return immMultisetBuilderBuild(this_.Core_)
 }
 
 // External subclassable class com.google.common.collect.ImmutableMultisetGwtSerializationDependencies
@@ -22942,7 +22950,7 @@ type Ext_java_lang_AbstractStringBuilder interface {
 	SetLength(int32)
 	CharAt(int32) uint16
 	SetCharAt(int32, uint16)
-	Append_1_any_9862(any) any
+	Append_1_any_9887(any) any
 	Append_1_string(string) any
 	Append_1_slice_uint16([]uint16) any
 	Append_1_int32(int32) any
@@ -22972,7 +22980,6 @@ func ToIface_Ext_java_lang_AbstractStringBuilder[T interface {
 
 type Ext_java_lang_AbstractStringBuilderBase struct {
 	Self_    Ext_java_lang_AbstractStringBuilder `gson:"-"`
-	Core_    any                                 `gson:"-"`
 	jSBCore_ jStringBuilderCore                  `gson:"-"`
 }
 
@@ -22986,25 +22993,6 @@ func (b *Ext_java_lang_AbstractStringBuilderBase) BindExtSelf_(s any) {
 }
 func init() {
 	RegisterTypePredicate("java.lang.AbstractStringBuilder", "java.lang.AbstractStringBuilder", func(v_ any) bool { return InstanceOf[Ext_java_lang_AbstractStringBuilder](v_) })
-}
-func (b *Ext_java_lang_AbstractStringBuilderBase) getCore() any { return b.Core_ }
-func (b *Ext_java_lang_AbstractStringBuilderBase) sb() *strings.Builder {
-	if b.Core_ == nil {
-		b.Core_ = &strings.Builder{}
-	}
-	return b.Core_.(*strings.Builder)
-}
-func (b *Ext_java_lang_AbstractStringBuilderBase) lc() *JListCore {
-	if b.Core_ == nil {
-		b.Core_ = NewJListCore()
-	}
-	return b.Core_.(*JListCore)
-}
-func (b *Ext_java_lang_AbstractStringBuilderBase) mc() *JMapCore {
-	if b.Core_ == nil {
-		b.Core_ = NewJMapCore(false)
-	}
-	return b.Core_.(*JMapCore)
 }
 func (b *Ext_java_lang_AbstractStringBuilderBase) sbCore() *jStringBuilderCore { return &b.jSBCore_ }
 func (b *Ext_java_lang_AbstractStringBuilderBase) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {
@@ -23025,7 +23013,7 @@ func (this_ *Ext_java_lang_AbstractStringBuilderBase) CharAt(arg0 int32) uint16 
 func (this_ *Ext_java_lang_AbstractStringBuilderBase) SetCharAt(arg0 int32, arg1 uint16) {
 	this_.sbCore().setCharAt(arg0, arg1)
 }
-func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9862(arg0 any) any {
+func (this_ *Ext_java_lang_AbstractStringBuilderBase) Append_1_any_9887(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	if this_.Self_ != nil {
 		return this_.Self_
@@ -23763,7 +23751,7 @@ func init() {
 }
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_AbstractStringBuilder() {}
 func (b *Ext_java_lang_StringBuilder) Implements_j2gort_Ext_java_lang_Appendable()            {}
-func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9862(arg0 any) any {
+func (this_ *Ext_java_lang_StringBuilder) Append_1_any_9887(arg0 any) any {
 	this_.sbCore().appendString(StrVal(arg0))
 	return this_
 }
@@ -26882,9 +26870,6 @@ func (this_ *Ext_java_util_BitSet) Set_1(arg0 int32) {
 func (this_ *Ext_java_util_BitSet) Set_2_int32_int32(arg0 int32, arg1 int32) {
 	bitSetOp_Set_2_int32_int32(this_, arg0, arg1)
 }
-func (this_ *Ext_java_util_BitSet) Set_3(arg0 int32, arg1 int32, arg2 bool) {
-	bitSetOp_Set_3(this_, arg0, arg1, arg2)
-}
 func (this_ *Ext_java_util_BitSet) Clear_1(arg0 int32) {
 	bitSetOp_Clear_1(this_, arg0)
 }
@@ -26897,9 +26882,6 @@ func (this_ *Ext_java_util_BitSet) Get_1(arg0 int32) bool {
 func (this_ *Ext_java_util_BitSet) NextSetBit(arg0 int32) int32 {
 	return bitSetOp_NextSetBit(this_, arg0)
 }
-func (this_ *Ext_java_util_BitSet) PreviousSetBit(arg0 int32) int32 {
-	return bitSetOp_PreviousSetBit(this_, arg0)
-}
 func (this_ *Ext_java_util_BitSet) Length() int32 {
 	return bitSetOp_Length(this_)
 }
@@ -26911,9 +26893,6 @@ func (this_ *Ext_java_util_BitSet) Intersects(arg0 *Ext_java_util_BitSet) bool {
 }
 func (this_ *Ext_java_util_BitSet) Cardinality() int32 {
 	return bitSetOp_Cardinality(this_)
-}
-func (this_ *Ext_java_util_BitSet) And(arg0 *Ext_java_util_BitSet) {
-	bitSetOp_And(this_, arg0)
 }
 func (this_ *Ext_java_util_BitSet) Or(arg0 *Ext_java_util_BitSet) {
 	bitSetOp_Or(this_, arg0)
@@ -33539,13 +33518,11 @@ func InitExt_com_google_common_collect_ImmutableMultimap_Builder(this_ *Ext_com_
 }
 
 func Ext_com_google_common_collect_ImmutableMultiset_S_Builder() *Ext_com_google_common_collect_ImmutableMultiset_Builder {
-	b := &Ext_com_google_common_collect_ImmutableMultiset_Builder{}
-	b.Core_ = newMultisetCore(false, nil)
-	return b
+	return &Ext_com_google_common_collect_ImmutableMultiset_Builder{}
 }
 
 func Ext_com_google_common_collect_ImmutableMultiset_Of_0() Ext_com_google_common_collect_ImmutableMultiset {
-	return wrapImmutableMultiset(newMultisetCore(true, nil))
+	return emptyImmutableMultiset()
 }
 
 func Ext_com_google_common_collect_ImmutableMultiset_ToImmutableMultiset_0() Ext_java_util_stream_Collector {
@@ -34831,6 +34808,10 @@ func InitExt_java_lang_InterruptedException(this_ *Ext_java_lang_InterruptedExce
 
 func BoxLong_BitCount(arg0 int64) int32 {
 	return LongBitCount(arg0)
+}
+
+func BoxLong_NumberOfLeadingZeros(arg0 int64) int32 {
+	return LongLeadingZeros(arg0)
 }
 
 func BoxLong_NumberOfTrailingZeros(arg0 int64) int32 {

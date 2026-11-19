@@ -427,10 +427,10 @@ func NewStringFromBytes(b []byte, cs *Charset) string {
 
 // --- Reader / Writer Charset Bridges ---
 
-const charsetWriterBufSize = 8192
+const charsetWriterBufSize = 32768
 
 var (
-	charsetWriterBufChan = make(chan *[charsetWriterBufSize]byte, 16)
+	charsetWriterBufChan = make(chan *[charsetWriterBufSize]byte, 12)
 	charsetWriterBufPool = sync.Pool{
 		New: func() any {
 			return new([charsetWriterBufSize]byte)
@@ -494,34 +494,32 @@ func (w *charsetWriter) Write(s string) {
 	}
 	if (w.cs == StandardCharsets_UTF_8 && (javalang.IsASCII(s) || utf8.ValidString(s))) ||
 		((w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) && javalang.IsASCII(s)) {
-		if len(s) >= charsetWriterBufSize {
-			w.flushBuf()
-			if sw, ok := w.out.(io.StringWriter); ok {
-				if _, err := sw.WriteString(s); err != nil {
-					panic(javaio.NewIOException(err.Error()))
-				}
-				return
-			}
-			buf := w.ensureBuf()
-			for len(s) >= charsetWriterBufSize {
-				copy(buf[:], s[:charsetWriterBufSize])
-				if _, err := w.out.Write(buf[:]); err != nil {
-					panic(javaio.NewIOException(err.Error()))
-				}
-				s = s[charsetWriterBufSize:]
-			}
-			if len(s) > 0 {
-				copy(buf[:], s)
-				w.n = len(s)
-			}
+		buf := w.ensureBuf()
+		if len(s) <= charsetWriterBufSize-w.n {
+			copy(buf[w.n:], s)
+			w.n += len(s)
 			return
 		}
-		buf := w.ensureBuf()
-		if w.n+len(s) > charsetWriterBufSize {
-			w.flushBuf()
+		if w.n > 0 {
+			fill := charsetWriterBufSize - w.n
+			copy(buf[w.n:], s[:fill])
+			s = s[fill:]
+			w.n = 0
+			if _, err := w.out.Write(buf[:]); err != nil {
+				panic(javaio.NewIOException(err.Error()))
+			}
 		}
-		copy(buf[w.n:], s)
-		w.n += len(s)
+		for len(s) >= charsetWriterBufSize {
+			copy(buf[:], s[:charsetWriterBufSize])
+			if _, err := w.out.Write(buf[:]); err != nil {
+				panic(javaio.NewIOException(err.Error()))
+			}
+			s = s[charsetWriterBufSize:]
+		}
+		if len(s) > 0 {
+			copy(buf[:], s)
+			w.n = len(s)
+		}
 		return
 	}
 	if (w.cs == StandardCharsets_UTF_8 || w.cs == StandardCharsets_US_ASCII || w.cs == StandardCharsets_ISO_8859_1) &&
@@ -766,6 +764,10 @@ func isBytesASCII(b []byte) bool {
 
 func isStringASCII(s string) bool {
 	return javalang.IsASCII(s)
+}
+
+func isValidUTF8String(s string) bool {
+	return utf8.ValidString(s)
 }
 
 // validateUTF8Chunk validates b in-place using 32-byte uint64 ASCII word skips

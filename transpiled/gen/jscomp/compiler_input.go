@@ -270,12 +270,20 @@ func (this_ *CompilerInput) GetKnownRequires() j2gort.Ext_com_google_common_coll
 			return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
 		}
 	}
-	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](CompilerInput_Concat(func() j2gort.Ext_java_lang_Iterable {
+	var iifeArg_1 j2gort.
+		Ext_java_lang_Iterable
+iifeSwitch_1:
+	switch {
+	default:
+
 		if this_.dependencyInfo != nil && !this_.dependencyInfo.IsJavaNil_() {
-			return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetRequires())
+			iifeArg_1 = j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetRequires())
+			break iifeSwitch_1
 		}
-		return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
-	}(), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraRequires)))
+		iifeArg_1 = j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
+		break iifeSwitch_1
+	}
+	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](CompilerInput_Concat(iifeArg_1, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraRequires)))
 }
 
 // Java method: CompilerInput.getKnownRequiredSymbols()
@@ -314,12 +322,20 @@ func (this_ *CompilerInput) GetKnownProvides() j2gort.Ext_com_google_common_coll
 			return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
 		}
 	}
-	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](CompilerInput_Concat(func() j2gort.Ext_java_lang_Iterable {
+	var iifeArg_2 j2gort.
+		Ext_java_lang_Iterable
+iifeSwitch_2:
+	switch {
+	default:
+
 		if this_.dependencyInfo != nil && !this_.dependencyInfo.IsJavaNil_() {
-			return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetProvides())
+			iifeArg_2 = j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.dependencyInfo.GetProvides())
+			break iifeSwitch_2
 		}
-		return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
-	}(), j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraProvides)))
+		iifeArg_2 = j2gort.AsIface[j2gort.Ext_java_lang_Iterable](j2gort.Ext_com_google_common_collect_ImmutableList_Of_0())
+		break iifeSwitch_2
+	}
+	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableCollection](CompilerInput_Concat(iifeArg_2, j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.extraProvides)))
 }
 
 // Java method: CompilerInput.addProvide(java.lang.String provide)

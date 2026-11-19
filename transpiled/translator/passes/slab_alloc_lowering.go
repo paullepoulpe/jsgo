@@ -820,6 +820,11 @@ func (p *SlabAllocLoweringPass) Apply(ctx *PassContext) (int, error) {
 		return count, err
 	}
 	count += w41Count
+	w42Count, err := applyWave42SlabLowerings(ctx, structByNamed, valueCopied, singletonStructs, ctorByFunc, existingPkgFuncs, existingMethods)
+	if err != nil {
+		return count, err
+	}
+	count += w42Count
 
 	return count, nil
 }
@@ -29835,4 +29840,1382 @@ func w41ExtractSingleVarInit(stmt ast.Stmt) (string, ast.Expr, bool) {
 		return id.Name, s.Rhs[0], true
 	}
 	return "", nil, false
+}
+
+// -----------------------------------------------------------------------------
+// Wave 42B OPT Pass-Synthesized Hotspot Optimizations:
+//  1) InlineVariables CreateLazyNegative: avoid eager promoteIvScratchVarExpert_ (94.4% of calls)
+//     by folding already-known isWellDefined/isAssignedOnceInLifetime outcomes to static singletons
+//     and deferring unknown checks onto lazyRefInfo_ *ReferenceCollection directly on InlineVarAnalysis.
+//  2) InlineFunctions + FunctionInjector: pool InlineFunctions_FunctionState onto PooledSlab,
+//     pool FunctionInjector.callerFnStateCache across runs, and promote >256-entry OrderedMap
+//     reference maps into OrderedMap's largeFree pool tier so 257+ call-site functions stop rehashing.
+//  3) RemoveUnusedCode: replace dynamic BindSelf_(any) itable probe with static this_.self_ = this_
+//     (inlining allocPooled_RemoveUnusedCode_*), strip ToIface+CastPtr round-trips in Build* methods,
+//     and guard zero-continuation / NullString write barriers in InitRemoveUnusedCode_Removable + finish.
+// -----------------------------------------------------------------------------
+
+func applyWave42SlabLowerings(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	if !j2gortPooledSlabHasRelease(ctx) {
+		return 0, nil
+	}
+	total := 0
+	c1, err := applyWave42InlineVariablesLazyNegativeLowering(ctx, structByNamed, valueCopied)
+	if err != nil {
+		return total, err
+	}
+	total += c1
+	c2, err := applyWave42InlineFunctionsPoolLowering(ctx, structByNamed, valueCopied, singletonStructs, ctorByFunc, existingPkgFuncs, existingMethods)
+	if err != nil {
+		return total, err
+	}
+	total += c2
+	c3, err := applyWave42RemoveUnusedCodeFastAllocLowering(ctx, structByNamed, valueCopied)
+	if err != nil {
+		return total, err
+	}
+	total += c3
+	return total, nil
+}
+
+func applyWave42InlineVariablesLazyNegativeLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+) (int, error) {
+	var ivNamed, behNamed, expNamed, anaNamed, rcNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "InlineVariables":
+			ivNamed = n
+		case "InlineVariables_InliningBehavior":
+			behNamed = n
+		case "InlineVariables_VarExpert":
+			expNamed = n
+		case "InlineVariables_InlineVarAnalysis":
+			anaNamed = n
+		case "ReferenceCollection":
+			rcNamed = n
+		}
+	}
+	if ivNamed == nil || behNamed == nil || expNamed == nil || anaNamed == nil || rcNamed == nil {
+		return 0, nil
+	}
+	ivMeta := structByNamed[ivNamed]
+	behMeta := structByNamed[behNamed]
+	expMeta := structByNamed[expNamed]
+	anaMeta := structByNamed[anaNamed]
+	if ivMeta == nil || behMeta == nil || expMeta == nil || anaMeta == nil {
+		return 0, nil
+	}
+	ivFile := ivMeta.file
+	if behMeta.file != ivFile || expMeta.file != ivFile || anaMeta.file != ivFile ||
+		!ctx.ShouldTransform(ivFile) || valueCopied[anaNamed] || valueCopied[expNamed] {
+		return 0, nil
+	}
+	if hasASTFieldNamed(anaMeta.structAST, "lazyRefInfo_") {
+		return 0, nil
+	}
+	if !hasASTFieldNamed(behMeta.structAST, "scratchVarExpert_") ||
+		(!ivMeta.slabFields["slab_InlineVariables_InlineVarAnalysis"] && !hasASTFieldNamed(ivMeta.structAST, "slab_InlineVariables_InlineVarAnalysis")) {
+		return 0, nil
+	}
+
+	// Verify VarExpert has fixedAnalysis, referenceInfo (*ReferenceCollection), isWellDefined (int8),
+	// isAssignedOnceInLifetime (int8), and ReferenceCollection has IsWellDefined() + IsAssignedOnceInLifetime().
+	if ptrNamedOrigin(structFieldType(expNamed, "fixedAnalysis")) != anaNamed ||
+		ptrNamedOrigin(structFieldType(expNamed, "referenceInfo")) != rcNamed ||
+		!types.Identical(structFieldType(expNamed, "isWellDefined"), types.Typ[types.Int8]) ||
+		!types.Identical(structFieldType(expNamed, "isAssignedOnceInLifetime"), types.Typ[types.Int8]) {
+		return 0, nil
+	}
+	rcPtr := types.NewPointer(rcNamed)
+	if !hasZeroArgBoolMethod(rcPtr, ctx.Pkg, "IsWellDefined") ||
+		!hasZeroArgBoolMethod(rcPtr, ctx.Pkg, "IsAssignedOnceInLifetime") {
+		return 0, nil
+	}
+
+	var (
+		hasNoInlineUnsafeStatic bool
+		hasNoInlineSafeStatic   bool
+		initAnaFn               *ast.FuncDecl
+		lazyNegAllocFn          *ast.FuncDecl
+		isSafeAliasesFn         *ast.FuncDecl
+		expIsWellDefOnceFn      *ast.FuncDecl
+	)
+	for _, decl := range ivFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name == nil || fn.Body == nil {
+			continue
+		}
+		if fn.Recv == nil {
+			switch fn.Name.Name {
+			case "StaticGet_InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS":
+				hasNoInlineUnsafeStatic = true
+			case "StaticGet_InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS":
+				hasNoInlineSafeStatic = true
+			case "InitInlineVariables_InlineVarAnalysis":
+				initAnaFn = fn
+			case "allocIvPooledVia_InlineVariables_InlineVarAnalysis_CreateLazyNegative":
+				lazyNegAllocFn = fn
+			}
+			continue
+		}
+		if len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		switch recvStructTypeName(fn.Recv.List[0].Type) {
+		case "InlineVariables_InlineVarAnalysis":
+			if fn.Name.Name == "IsSafeToInlineAliases" {
+				isSafeAliasesFn = fn
+			}
+		case "InlineVariables_VarExpert":
+			if fn.Name.Name == "IsWellDefinedAssignedOnce" {
+				expIsWellDefOnceFn = fn
+			}
+		}
+	}
+	if !hasNoInlineUnsafeStatic || !hasNoInlineSafeStatic || initAnaFn == nil ||
+		lazyNegAllocFn == nil || isSafeAliasesFn == nil || expIsWellDefOnceFn == nil {
+		return 0, nil
+	}
+	// Confirm VarExpert.IsWellDefinedAssignedOnce delegates to isWellDefined + isAssignedOnceInLifetime.
+	if !slabASTContainsIdent(expIsWellDefOnceFn.Body, "isWellDefined") ||
+		!slabASTContainsIdent(expIsWellDefOnceFn.Body, "isAssignedOnceInLifetime") {
+		return 0, nil
+	}
+
+	initParams := extractFlatParamNames(initAnaFn.Type.Params)
+	lazyParams := extractFlatParamNames(lazyNegAllocFn.Type.Params)
+	safeRecv := isSafeAliasesFn.Recv.List[0].Names[0].Name
+	if len(initParams) < 1 || initParams[0] == "" || len(lazyParams) != 2 ||
+		lazyParams[0] == "" || lazyParams[1] == "" || safeRecv == "" || safeRecv == "_" {
+		return 0, nil
+	}
+	behP, expP := lazyParams[0], lazyParams[1]
+
+	// Locate `case int8(2):` (or `case 2:`) in IsSafeToInlineAliases() switching on `<safeRecv>.kind`.
+	var targetCase *ast.CaseClause
+	for _, st := range isSafeAliasesFn.Body.List {
+		sw, okSw := st.(*ast.SwitchStmt)
+		if !okSw || sw.Body == nil || !w41IsRecvFieldSel(sw.Tag, safeRecv, "kind") {
+			continue
+		}
+		for _, rawCC := range sw.Body.List {
+			cc, okCC := rawCC.(*ast.CaseClause)
+			if !okCC || len(cc.List) != 1 || len(cc.Body) != 1 {
+				continue
+			}
+			if !w42IsConstIntExpr(cc.List[0], 2) {
+				continue
+			}
+			if ret, isRet := cc.Body[0].(*ast.ReturnStmt); isRet && len(ret.Results) == 1 &&
+				slabASTContainsSelectorName(ret.Results[0], "IsWellDefinedAssignedOnce") {
+				targetCase = cc
+				break
+			}
+		}
+	}
+	if targetCase == nil {
+		return 0, nil
+	}
+
+	fastSrc := fmt.Sprintf(`package p
+func f() {
+	if %[1]s != nil && %[1]s.outer_ != nil && %[2]s != nil && %[2]s.fixedAnalysis == nil && %[2]s.referenceInfo != nil {
+		if %[2]s.isWellDefined == 0 || %[2]s.isAssignedOnceInLifetime == 0 {
+			return StaticGet_InlineVariables_NO_INLINE_SELF_OR_ALIASES_ANALYSIS()
+		}
+		if %[2]s.isWellDefined == 1 && %[2]s.isAssignedOnceInLifetime == 1 {
+			return StaticGet_InlineVariables_NO_INLINE_SELF_ALIASES_OK_ANALYSIS()
+		}
+		a_ := %[1]s.outer_.slab_InlineVariables_InlineVarAnalysis.Alloc()
+		a_.kind = int8(2)
+		a_.lazyRefInfo_ = %[2]s.referenceInfo
+		a_.lazyWellDefined_ = %[2]s.isWellDefined
+		a_.lazyAssignedOnce_ = %[2]s.isAssignedOnceInLifetime
+		return a_
+	}
+}
+`, behP, expP)
+	fastPF, err := parser.ParseFile(ctx.Fset, "", fastSrc, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	caseSrc := fmt.Sprintf(`package p
+func f() bool {
+	if %[1]s.lazyRefInfo_ != nil {
+		if %[1]s.lazyWellDefined_ == 0 || %[1]s.lazyAssignedOnce_ == 0 {
+			return false
+		}
+		if %[1]s.lazyWellDefined_ < 0 {
+			if %[1]s.lazyRefInfo_.IsWellDefined() {
+				%[1]s.lazyWellDefined_ = 1
+			} else {
+				%[1]s.lazyWellDefined_ = 0
+				return false
+			}
+		}
+		if %[1]s.lazyAssignedOnce_ < 0 {
+			if %[1]s.lazyRefInfo_.IsAssignedOnceInLifetime() {
+				%[1]s.lazyAssignedOnce_ = 1
+			} else {
+				%[1]s.lazyAssignedOnce_ = 0
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+`, safeRecv)
+	casePF, err := parser.ParseFile(ctx.Fset, "", caseSrc, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	anaMeta.structAST.Fields.List = append(anaMeta.structAST.Fields.List,
+		&ast.Field{
+			Names: []*ast.Ident{{Name: "lazyRefInfo_"}},
+			Type:  &ast.StarExpr{X: &ast.Ident{Name: "ReferenceCollection"}},
+		},
+		&ast.Field{
+			Names: []*ast.Ident{{Name: "lazyWellDefined_"}},
+			Type:  &ast.Ident{Name: "int8"},
+		},
+		&ast.Field{
+			Names: []*ast.Ident{{Name: "lazyAssignedOnce_"}},
+			Type:  &ast.Ident{Name: "int8"},
+		},
+	)
+
+	initAnaFn.Body.List = append(initAnaFn.Body.List, &ast.AssignStmt{
+		Lhs: []ast.Expr{&ast.SelectorExpr{X: &ast.Ident{Name: initParams[0]}, Sel: &ast.Ident{Name: "lazyRefInfo_"}}},
+		Tok: token.ASSIGN,
+		Rhs: []ast.Expr{&ast.Ident{Name: "nil"}},
+	})
+
+	insIdx := 0
+	for insIdx < len(lazyNegAllocFn.Body.List) && isBlankDiscardStmt(lazyNegAllocFn.Body.List[insIdx]) {
+		insIdx++
+	}
+	lazyNegAllocFn.Body.List = slices.Insert(lazyNegAllocFn.Body.List, insIdx, fastPF.Decls[0].(*ast.FuncDecl).Body.List...)
+
+	caseIfStmt := casePF.Decls[0].(*ast.FuncDecl).Body.List[0]
+	targetCase.Body = append([]ast.Stmt{caseIfStmt}, targetCase.Body...)
+
+	ctx.MarkFileModified(ivFile)
+	return 1, nil
+}
+
+func w42IsConstIntExpr(expr ast.Expr, want int) bool {
+	e := stripParens(expr)
+	if call, ok := e.(*ast.CallExpr); ok && len(call.Args) == 1 && !call.Ellipsis.IsValid() {
+		if id, okId := stripParens(call.Fun).(*ast.Ident); okId && (id.Name == "int8" || id.Name == "int32" || id.Name == "int") {
+			e = stripParens(call.Args[0])
+		}
+	}
+	lit, ok := e.(*ast.BasicLit)
+	if !ok || lit.Kind != token.INT {
+		return false
+	}
+	v, err := strconv.Atoi(lit.Value)
+	return err == nil && v == want
+}
+
+func applyWave42InlineFunctionsPoolLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied, singletonStructs map[*types.Named]bool,
+	ctorByFunc map[*types.Func]*slabCtorMeta,
+	existingPkgFuncs map[string]bool,
+	existingMethods map[*types.Named]map[string]bool,
+) (int, error) {
+	var ifNamed, fsNamed, fiNamed, gnNamed, gnNameNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "InlineFunctions":
+			ifNamed = n
+		case "InlineFunctions_FunctionState":
+			fsNamed = n
+		case "FunctionInjector":
+			fiNamed = n
+		case "GlobalNamespace":
+			gnNamed = n
+		case "GlobalNamespace_Name":
+			gnNameNamed = n
+		}
+	}
+
+	count := 0
+
+	// 2a. Pool InlineFunctions_FunctionState onto InlineFunctions.slab_InlineFunctions_FunctionState.
+	if ifNamed != nil && fsNamed != nil && !valueCopied[ifNamed] && !singletonStructs[ifNamed] &&
+		!valueCopied[fsNamed] && !singletonStructs[fsNamed] {
+		ifMeta := structByNamed[ifNamed]
+		fsMeta := structByNamed[fsNamed]
+		if ifMeta != nil && fsMeta != nil && ifMeta.file == fsMeta.file &&
+			ctx.ShouldTransform(ifMeta.file) && canEnsureJ2gortInFile(ifMeta.file, ctx) {
+			procFn, procRecv := findPtrMethodDeclBySyntax(ifMeta.file, "InlineFunctions", "Process_2")
+			if procFn != nil && procRecv != "" && inlineFunctionsProcessClearsFns(procFn.Body, procRecv) {
+				const fsSlabField = "slab_InlineFunctions_FunctionState"
+				targetChildren := map[*types.Named]string{fsNamed: fsSlabField}
+				w36DiscoverInnerChildCtors(ctx, targetChildren, ctorByFunc)
+				allowedOwners := map[*types.Named]bool{ifNamed: true}
+				if ifMeta.slabFields[fsSlabField] || w37ChildOnlyConstructedInsideOwners(ctx, allowedOwners, fsNamed, ctorByFunc) {
+					newDeclsByFile := make(map[*ast.File][]funcInsertSpec)
+					cFS, err := w37RewriteOuterOrSelfChildAllocs(ctx, ifMeta, ifNamed, allowedOwners, targetChildren, ctorByFunc, existingPkgFuncs, newDeclsByFile)
+					if err != nil {
+						return count, err
+					}
+					for _, f := range ctx.Files {
+						if sp := newDeclsByFile[f]; len(sp) > 0 {
+							spliceSynthesizedDecls(f, sp)
+						}
+					}
+					count += cFS
+					if ifMeta.slabFields[fsSlabField] {
+						cRel, err := w36EnsureOwnerReleaseSlabsMethod(ctx, ifMeta, ifNamed, "InlineFunctions", []string{fsSlabField}, existingMethods)
+						if err != nil {
+							return count, err
+						}
+						count += cRel
+						if !blockHasDeferMethodCall(procFn.Body, procRecv, "ReleaseSlabs_") {
+							insIdx := 0
+							for insIdx < len(procFn.Body.List) && isBlankDiscardStmt(procFn.Body.List[insIdx]) {
+								insIdx++
+							}
+							procFn.Body.List = slices.Insert(procFn.Body.List, insIdx, ast.Stmt(&ast.DeferStmt{
+								Call: &ast.CallExpr{
+									Fun: &ast.SelectorExpr{
+										X:   &ast.Ident{Name: procRecv},
+										Sel: &ast.Ident{Name: "ReleaseSlabs_"},
+									},
+								},
+							}))
+							ctx.MarkFileModified(ifMeta.file)
+							count++
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2b. Pool FunctionInjector.callerFnStateCache via AcquireOrderedMapCap(2048) + ReleaseToPool in InlineFunctions.ReleaseSlabs_().
+	if ifNamed != nil && fiNamed != nil && !valueCopied[ifNamed] && !valueCopied[fiNamed] &&
+		ptrNamedOrigin(structFieldType(ifNamed, "injector")) == fiNamed &&
+		j2gortHasExport(ctx, "AcquireOrderedMapCap") && j2gortTypeHasMethod(ctx, "OrderedMap", "ReleaseToPool") {
+		if _, isPtr, hasCache := findOrderedMapFieldMeta(fiNamed, "callerFnStateCache"); hasCache && !isPtr {
+			ifMeta := structByNamed[ifNamed]
+			fiMeta := structByNamed[fiNamed]
+			if ifMeta != nil && fiMeta != nil && ctx.ShouldTransform(ifMeta.file) && ctx.ShouldTransform(fiMeta.file) &&
+				canEnsureJ2gortInFile(fiMeta.file, ctx) {
+				relFn, relRecv := findPtrMethodDeclBySyntax(ifMeta.file, "InlineFunctions", "ReleaseSlabs_")
+				keyTypeStr := w42ExtractOrderedMapKeyTypeStr(ctx.Fset, fiMeta.structAST, "callerFnStateCache")
+				if relFn != nil && relRecv != "" && keyTypeStr != "" {
+					var getCallerFn *ast.FuncDecl
+					var getCallerRecv string
+					for _, decl := range fiMeta.file.Decls {
+						fn, ok := decl.(*ast.FuncDecl)
+						if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil ||
+							len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+							continue
+						}
+						if recvStructTypeName(fn.Recv.List[0].Type) != "FunctionInjector" {
+							continue
+						}
+						if strings.HasPrefix(fn.Name.Name, "priv_FunctionInjector_getCallerFnState_") || fn.Name.Name == "getCallerFnState" {
+							getCallerFn = fn
+							getCallerRecv = fn.Recv.List[0].Names[0].Name
+							break
+						}
+					}
+					if getCallerFn != nil && getCallerRecv != "" && getCallerRecv != "_" {
+						if !slabASTContainsIdent(getCallerFn.Body, "AcquireOrderedMapCap") {
+							putIdx := -1
+							for i, st := range getCallerFn.Body.List {
+								es, okES := st.(*ast.ExprStmt)
+								if !okES {
+									continue
+								}
+								call, okC := stripParens(es.X).(*ast.CallExpr)
+								if !okC || len(call.Args) != 2 {
+									continue
+								}
+								sel, okS := stripParens(call.Fun).(*ast.SelectorExpr)
+								if okS && sel.Sel != nil && sel.Sel.Name == "Put" &&
+									w41IsRecvFieldSel(sel.X, getCallerRecv, "callerFnStateCache") {
+									putIdx = i
+									break
+								}
+							}
+							if putIdx >= 0 {
+								j2Qual, okQ := ensureJ2gortImportInFile(fiMeta.file, ctx)
+								if okQ {
+									acqPF, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+										"package p\nfunc f() {\nif %[1]s.callerFnStateCache.IsEmpty() {\n\t%[1]s.callerFnStateCache = %[2]s.AcquireOrderedMapCap[%[3]s, %[3]s](int32(2048))\n}\n}\n",
+										getCallerRecv, j2Qual, keyTypeStr,
+									), 0)
+									if pErr != nil {
+										return count, pErr
+									}
+									getCallerFn.Body.List = slices.Insert(getCallerFn.Body.List, putIdx, acqPF.Decls[0].(*ast.FuncDecl).Body.List...)
+									ctx.MarkFileModified(fiMeta.file)
+									count++
+								}
+							}
+						}
+						if slabASTContainsIdent(getCallerFn.Body, "AcquireOrderedMapCap") &&
+							!slabASTContainsIdent(relFn.Body, "callerFnStateCache") {
+							relPF, pErr := parser.ParseFile(ctx.Fset, "", fmt.Sprintf(
+								"package p\nfunc f() {\nif %[1]s.injector != nil {\n\t%[1]s.injector.callerFnStateCache.ReleaseToPool()\n}\n}\n",
+								relRecv,
+							), 0)
+							if pErr != nil {
+								return count, pErr
+							}
+							relFn.Body.List = append(relFn.Body.List, relPF.Decls[0].(*ast.FuncDecl).Body.List...)
+							ctx.MarkFileModified(ifMeta.file)
+							count++
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2c. Promote >256-entry OrderedMap pointer fields (FunctionState.references & GlobalNamespace_Name.refsForNodeMap)
+	// from smallFree (cap <= 256) to largeFree (512..65536) at Size() == 256 so pooled large maps are reused across passes.
+	if j2gortHasExport(ctx, "AcquireOrderedMapPtrCap") &&
+		j2gortHasExport(ctx, "ReleaseOrderedMap") &&
+		j2gortTypeHasMethod(ctx, "OrderedMap", "PutAllMapPtr") &&
+		j2gortTypeHasMethod(ctx, "OrderedMap", "ContainsKey") {
+		if ifNamed != nil && fsNamed != nil {
+			ifMeta := structByNamed[ifNamed]
+			fsMeta := structByNamed[fsNamed]
+			if ifMeta != nil && fsMeta != nil && ctx.ShouldTransform(fsMeta.file) &&
+				slabASTContainsIdent(ifMeta.file, "ReleaseOrderedMap") {
+				cProm, err := w42PromoteOrderedMapPtrPutAt256(ctx, fsMeta, "InlineFunctions_FunctionState", "references", "AddReference", false)
+				if err != nil {
+					return count, err
+				}
+				count += cProm
+			}
+		}
+		if gnNamed != nil && gnNameNamed != nil {
+			gnMeta := structByNamed[gnNamed]
+			gnNameMeta := structByNamed[gnNameNamed]
+			if gnMeta != nil && gnNameMeta != nil && ctx.ShouldTransform(gnNameMeta.file) &&
+				slabASTContainsIdent(gnMeta.file, "ReleaseOrderedMap") {
+				cProm, err := w42PromoteOrderedMapPtrPutAt256(ctx, gnNameMeta, "GlobalNamespace_Name", "refsForNodeMap", "priv_Name_putRef_", true)
+				if err != nil {
+					return count, err
+				}
+				count += cProm
+			}
+		}
+	}
+
+	return count, nil
+}
+
+func w42ExtractOrderedMapKeyTypeStr(fset *token.FileSet, st *ast.StructType, fieldName string) string {
+	kStr, _ := w42ExtractOrderedMapKVTypeStrs(fset, st, fieldName)
+	return kStr
+}
+
+func w42ExtractOrderedMapKVTypeStrs(fset *token.FileSet, st *ast.StructType, fieldName string) (string, string) {
+	if st == nil || st.Fields == nil {
+		return "", ""
+	}
+	for _, fld := range st.Fields.List {
+		matched := false
+		for _, nm := range fld.Names {
+			if nm.Name == fieldName {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		tExpr := stripParens(fld.Type)
+		if star, isStar := tExpr.(*ast.StarExpr); isStar {
+			tExpr = stripParens(star.X)
+		}
+		ile, ok := tExpr.(*ast.IndexListExpr)
+		if !ok || len(ile.Indices) != 2 {
+			return "", ""
+		}
+		var bK, bV bytes.Buffer
+		if printer.Fprint(&bK, fset, ile.Indices[0]) != nil || printer.Fprint(&bV, fset, ile.Indices[1]) != nil {
+			return "", ""
+		}
+		return bK.String(), bV.String()
+	}
+	return "", ""
+}
+
+func w42PromoteOrderedMapPtrPutAt256(
+	ctx *PassContext,
+	meta *slabStructMeta,
+	structName, fieldName, methodName string,
+	isPrefix bool,
+) (int, error) {
+	if meta == nil || !canEnsureJ2gortInFile(meta.file, ctx) {
+		return 0, nil
+	}
+	kTypeStr, vTypeStr := w42ExtractOrderedMapKVTypeStrs(ctx.Fset, meta.structAST, fieldName)
+	if kTypeStr == "" || vTypeStr == "" {
+		return 0, nil
+	}
+	for _, decl := range meta.file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil ||
+			len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		if recvStructTypeName(fn.Recv.List[0].Type) != structName {
+			continue
+		}
+		if isPrefix {
+			if !strings.HasPrefix(fn.Name.Name, methodName) {
+				continue
+			}
+		} else if fn.Name.Name != methodName {
+			continue
+		}
+		if slabASTContainsIdent(fn.Body, "PutAllMapPtr") {
+			return 0, nil
+		}
+		recvName := fn.Recv.List[0].Names[0].Name
+		if recvName == "" || recvName == "_" {
+			return 0, nil
+		}
+		idx := 0
+		for idx < len(fn.Body.List) && isBlankDiscardStmt(fn.Body.List[idx]) {
+			idx++
+		}
+		if idx >= len(fn.Body.List) {
+			return 0, nil
+		}
+		ifSt, okIf := fn.Body.List[idx].(*ast.IfStmt)
+		if !okIf || ifSt.Init != nil || ifSt.Else != nil || ifSt.Body == nil || len(ifSt.Body.List) != 2 {
+			return 0, nil
+		}
+		bin, okB := stripParens(ifSt.Cond).(*ast.BinaryExpr)
+		if !okB || bin.Op != token.NEQ || !w41IsRecvFieldSel(bin.X, recvName, fieldName) || !isIdentNamed(bin.Y, "nil") {
+			return 0, nil
+		}
+		es, okES := ifSt.Body.List[0].(*ast.ExprStmt)
+		_, okRet := ifSt.Body.List[1].(*ast.ReturnStmt)
+		if !okES || !okRet {
+			return 0, nil
+		}
+		putCall, okC := stripParens(es.X).(*ast.CallExpr)
+		if !okC || len(putCall.Args) != 2 || putCall.Ellipsis.IsValid() {
+			return 0, nil
+		}
+		putSel, okS := stripParens(putCall.Fun).(*ast.SelectorExpr)
+		if !okS || putSel.Sel == nil || putSel.Sel.Name != "Put" || !w41IsRecvFieldSel(putSel.X, recvName, fieldName) {
+			return 0, nil
+		}
+		j2Qual, okQ := ensureJ2gortImportInFile(meta.file, ctx)
+		if !okQ {
+			return 0, nil
+		}
+		var kBuf, vBuf bytes.Buffer
+		if printer.Fprint(&kBuf, ctx.Fset, putCall.Args[0]) != nil || printer.Fprint(&vBuf, ctx.Fset, putCall.Args[1]) != nil {
+			return 0, nil
+		}
+		src := fmt.Sprintf(`package p
+func f() {
+	cn_ := %[5]s
+	if %[1]s.%[2]s.Size() == int32(256) && !%[1]s.%[2]s.ContainsKey(cn_) {
+		big_ := %[3]s.AcquireOrderedMapPtrCap[%[4]s](int32(512))
+		big_.PutAllMapPtr(%[1]s.%[2]s)
+		%[3]s.ReleaseOrderedMap(%[1]s.%[2]s)
+		%[1]s.%[2]s = big_
+	}
+	%[1]s.%[2]s.Put(cn_, %[6]s)
+	return
+}
+`, recvName, fieldName, j2Qual, kTypeStr+", "+vTypeStr, kBuf.String(), vBuf.String())
+		pf, err := parser.ParseFile(ctx.Fset, "", src, 0)
+		if err != nil {
+			return 0, err
+		}
+		ifSt.Body.List = pf.Decls[0].(*ast.FuncDecl).Body.List
+		ctx.MarkFileModified(meta.file)
+		return 1, nil
+	}
+	return 0, nil
+}
+
+func applyWave42RemoveUnusedCodeFastAllocLowering(
+	ctx *PassContext,
+	structByNamed map[*types.Named]*slabStructMeta,
+	valueCopied map[*types.Named]bool,
+) (int, error) {
+	if ctx.Pkg == nil || ctx.Pkg.Scope() == nil {
+		return 0, nil
+	}
+	var rucNamed, remBaseNamed, rbNamed *types.Named
+	for n := range structByNamed {
+		if n == nil || n.Obj() == nil {
+			continue
+		}
+		switch n.Obj().Name() {
+		case "RemoveUnusedCode":
+			rucNamed = n
+		case "RemoveUnusedCode_RemovableBase":
+			remBaseNamed = n
+		case "RemoveUnusedCode_RemovableBuilder":
+			rbNamed = n
+		}
+	}
+	if rucNamed == nil || remBaseNamed == nil || rbNamed == nil {
+		return 0, nil
+	}
+	rucMeta := structByNamed[rucNamed]
+	remBaseMeta := structByNamed[remBaseNamed]
+	rbMeta := structByNamed[rbNamed]
+	if rucMeta == nil || remBaseMeta == nil || rbMeta == nil {
+		return 0, nil
+	}
+	rucFile := rucMeta.file
+	if remBaseMeta.file != rucFile || rbMeta.file != rucFile ||
+		!ctx.ShouldTransform(rucFile) || valueCopied[rucNamed] || valueCopied[remBaseNamed] || valueCopied[rbNamed] {
+		return 0, nil
+	}
+
+	remIfaceTN, ok := ctx.Pkg.Scope().Lookup("RemoveUnusedCode_Removable").(*types.TypeName)
+	if !ok || remIfaceTN == nil {
+		return 0, nil
+	}
+	remIface, ok := remIfaceTN.Type().Underlying().(*types.Interface)
+	if !ok {
+		return 0, nil
+	}
+	if !types.Identical(structFieldType(remBaseNamed, "self_"), remIfaceTN.Type()) {
+		return 0, nil
+	}
+
+	// Verify RemoveUnusedCode_RemovableBase.BindSelf_ only executes `this_.self_ = s.(RemoveUnusedCode_Removable)`.
+	baseBindFn, baseBindRecv := findPtrMethodDeclBySyntax(rucFile, "RemoveUnusedCode_RemovableBase", "BindSelf_")
+	if baseBindFn == nil || !w42IsSimpleRemovableBindSelf(baseBindFn, baseBindRecv) {
+		return 0, nil
+	}
+
+	// Collect all concrete RemoveUnusedCode_<Sub> structs embedding RemoveUnusedCode_RemovableBase
+	// whose BindSelf_ solely forwards to RemoveUnusedCode_RemovableBase.BindSelf_.
+	safeRemovableSub := make(map[string]*types.Named)
+	for n, sm := range structByNamed {
+		if n == nil || n.Obj() == nil || sm == nil || sm.file != rucFile || n == remBaseNamed {
+			continue
+		}
+		name := n.Obj().Name()
+		if !strings.HasPrefix(name, "RemoveUnusedCode_") {
+			continue
+		}
+		if !w42StructEmbedsNamed(n, remBaseNamed) || !types.Implements(types.NewPointer(n), remIface) {
+			continue
+		}
+		subBindFn, subBindRecv := findPtrMethodDeclBySyntax(rucFile, name, "BindSelf_")
+		if subBindFn != nil && w42IsForwardingRemovableBindSelf(subBindFn, subBindRecv) {
+			safeRemovableSub[name] = n
+		}
+	}
+
+	count := 0
+
+	// 3a. Replace `this_.BindSelf_(this_)` with `this_.self_ = this_` inside `allocPooled_RemoveUnusedCode_<Sub>`.
+	allocHelperSub := make(map[string]w42RucInlineAllocSpec)
+	for _, decl := range rucFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || fn.Name == nil || fn.Body == nil ||
+			!strings.HasPrefix(fn.Name.Name, "allocPooled_RemoveUnusedCode_") {
+			continue
+		}
+		subName := strings.TrimPrefix(fn.Name.Name, "allocPooled_")
+		if safeRemovableSub[subName] == nil {
+			continue
+		}
+		if fn.Type.Results == nil || len(fn.Type.Results.List) != 1 {
+			continue
+		}
+		retStar, okS := stripParens(fn.Type.Results.List[0].Type).(*ast.StarExpr)
+		if !okS || !isIdentNamed(retStar.X, subName) {
+			continue
+		}
+
+		for i, st := range fn.Body.List {
+			es, okES := st.(*ast.ExprStmt)
+			if !okES {
+				continue
+			}
+			call, okC := stripParens(es.X).(*ast.CallExpr)
+			if !okC || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+				continue
+			}
+			sel, okSel := stripParens(call.Fun).(*ast.SelectorExpr)
+			if !okSel || sel.Sel == nil || sel.Sel.Name != "BindSelf_" {
+				continue
+			}
+			selfId, ok1 := stripParens(sel.X).(*ast.Ident)
+			argId, ok2 := stripParens(call.Args[0]).(*ast.Ident)
+			if !ok1 || !ok2 || selfId.Name == "" || selfId.Name != argId.Name {
+				continue
+			}
+			fn.Body.List[i] = &ast.AssignStmt{
+				Lhs: []ast.Expr{
+					&ast.SelectorExpr{
+						X:   &ast.Ident{NamePos: selfId.Pos(), Name: selfId.Name},
+						Sel: &ast.Ident{NamePos: sel.Sel.Pos(), Name: "self_"},
+					},
+				},
+				TokPos: call.Pos(),
+				Tok:    token.ASSIGN,
+				Rhs:    []ast.Expr{&ast.Ident{NamePos: argId.Pos(), Name: argId.Name}},
+			}
+			ctx.MarkFileModified(rucFile)
+			count++
+		}
+
+		if initName, okIn := w42ExtractRucAllocInitFuncName(fn, subName); okIn {
+			allocHelperSub[fn.Name.Name] = w42RucInlineAllocSpec{subName: subName, initName: initName}
+		}
+	}
+
+	// 3b. Inline `allocPooled_RemoveUnusedCode_<Sub>` directly at `(*RemoveUnusedCode_RemovableBuilder).Build*`
+	// sites and strip the `ToIface_RemoveUnusedCode_Removable` + `j2gort.CastPtr[<Sub>]` round-trip.
+	var finishFn *ast.FuncDecl
+	var finishRecv, finishParam string
+	for _, decl := range rucFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil ||
+			len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+			continue
+		}
+		if recvStructTypeName(fn.Recv.List[0].Type) != "RemoveUnusedCode_RemovableBuilder" {
+			continue
+		}
+		if strings.HasPrefix(fn.Name.Name, "priv_RemovableBuilder_finish_") || fn.Name.Name == "finish" {
+			pNames := extractFlatParamNames(fn.Type.Params)
+			if len(pNames) == 1 && pNames[0] != "" && w42FinishOnlyReturnsParam(fn.Body, pNames[0]) {
+				finishFn = fn
+				finishRecv = fn.Recv.List[0].Names[0].Name
+				finishParam = pNames[0]
+				break
+			}
+		}
+	}
+
+	if finishFn != nil && len(allocHelperSub) > 0 {
+		finishName := finishFn.Name.Name
+		for _, decl := range rucFile.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || fn.Name == nil || fn.Body == nil || len(fn.Body.List) == 0 ||
+				len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
+				continue
+			}
+			if recvStructTypeName(fn.Recv.List[0].Type) != "RemoveUnusedCode_RemovableBuilder" ||
+				!strings.HasPrefix(fn.Name.Name, "Build") {
+				continue
+			}
+			bRecv := fn.Recv.List[0].Names[0].Name
+			if bRecv == "" || bRecv == "_" || fn.Type.Results == nil || len(fn.Type.Results.List) != 1 {
+				continue
+			}
+			retStmt, okR := fn.Body.List[len(fn.Body.List)-1].(*ast.ReturnStmt)
+			if !okR || len(retStmt.Results) != 1 {
+				continue
+			}
+			allocCall, spec, okM := w42MatchBuilderFinishAllocReturn(retStmt.Results[0], bRecv, finishName, allocHelperSub)
+			if !okM || len(allocCall.Args) < 1 || !w41IsRecvFieldSel(allocCall.Args[0], bRecv, "outer_") {
+				continue
+			}
+			retTExpr := stripParens(fn.Type.Results.List[0].Type)
+			validRet := isIdentNamed(retTExpr, "RemoveUnusedCode_Removable")
+			if star, isS := retTExpr.(*ast.StarExpr); isS && isIdentNamed(star.X, spec.subName) {
+				validRet = true
+			}
+			if !validRet {
+				continue
+			}
+			resIdent := "res_"
+			if slabASTContainsIdent(fn.Body, resIdent) {
+				resIdent = "rucRes_"
+			}
+			outerIdent := "outer_"
+			if slabASTContainsIdent(fn.Body, outerIdent) {
+				outerIdent = "rucOuter_"
+			}
+			pos := retStmt.Pos()
+			initArgs := make([]ast.Expr, 0, len(allocCall.Args))
+			initArgs = append(initArgs, &ast.Ident{NamePos: pos, Name: resIdent})
+			initArgs = append(initArgs, allocCall.Args[1:]...)
+			replStmts := []ast.Stmt{
+				&ast.AssignStmt{
+					Lhs:    []ast.Expr{&ast.Ident{NamePos: pos, Name: outerIdent}},
+					TokPos: pos,
+					Tok:    token.DEFINE,
+					Rhs: []ast.Expr{
+						&ast.SelectorExpr{
+							X:   &ast.Ident{NamePos: pos, Name: bRecv},
+							Sel: &ast.Ident{NamePos: pos, Name: "outer_"},
+						},
+					},
+				},
+				&ast.AssignStmt{
+					Lhs:    []ast.Expr{&ast.Ident{NamePos: pos, Name: resIdent}},
+					TokPos: pos,
+					Tok:    token.DEFINE,
+					Rhs: []ast.Expr{
+						&ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X: &ast.SelectorExpr{
+									X:   &ast.Ident{NamePos: pos, Name: outerIdent},
+									Sel: &ast.Ident{NamePos: pos, Name: "slab_" + spec.subName},
+								},
+								Sel: &ast.Ident{NamePos: pos, Name: "Alloc"},
+							},
+						},
+					},
+				},
+				&ast.AssignStmt{
+					Lhs: []ast.Expr{
+						&ast.SelectorExpr{
+							X:   &ast.Ident{NamePos: pos, Name: resIdent},
+							Sel: &ast.Ident{NamePos: pos, Name: "self_"},
+						},
+					},
+					TokPos: pos,
+					Tok:    token.ASSIGN,
+					Rhs:    []ast.Expr{&ast.Ident{NamePos: pos, Name: resIdent}},
+				},
+				&ast.AssignStmt{
+					Lhs: []ast.Expr{
+						&ast.SelectorExpr{
+							X:   &ast.Ident{NamePos: pos, Name: resIdent},
+							Sel: &ast.Ident{NamePos: pos, Name: "outer_"},
+						},
+					},
+					TokPos: pos,
+					Tok:    token.ASSIGN,
+					Rhs:    []ast.Expr{&ast.Ident{NamePos: pos, Name: outerIdent}},
+				},
+				&ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun:  &ast.Ident{NamePos: pos, Name: spec.initName},
+						Args: initArgs,
+					},
+				},
+				&ast.ExprStmt{
+					X: &ast.CallExpr{
+						Fun: &ast.SelectorExpr{
+							X:   &ast.Ident{NamePos: pos, Name: bRecv},
+							Sel: &ast.Ident{NamePos: pos, Name: finishName},
+						},
+						Args: []ast.Expr{&ast.Ident{NamePos: pos, Name: "nil"}},
+					},
+				},
+				&ast.ReturnStmt{
+					Return:  pos,
+					Results: []ast.Expr{&ast.Ident{NamePos: pos, Name: resIdent}},
+				},
+			}
+			fn.Body.List = append(fn.Body.List[:len(fn.Body.List)-1], replStmts...)
+			ctx.MarkFileModified(rucFile)
+			count++
+		}
+	}
+
+	// 3c. Guard zero-continuation & NullString write barriers in InitRemoveUnusedCode_Removable and finishFn
+	// (tolerating RemoveUnusedCode_Continuation with or without outer_, as value struct or pointer).
+	cont0T := structFieldType(remBaseNamed, "continuation0")
+	contZeroExpr := w42ContinuationZeroExpr(cont0T)
+	if contZeroExpr != "" &&
+		types.Identical(cont0T, structFieldType(rbNamed, "continuation0")) &&
+		types.Identical(cont0T, structFieldType(remBaseNamed, "continuation1")) &&
+		types.Identical(cont0T, structFieldType(rbNamed, "continuation1")) &&
+		structHasFieldNamed(remBaseNamed, "restContinuations") &&
+		structHasFieldNamed(rbNamed, "restContinuations") &&
+		types.Identical(structFieldType(remBaseNamed, "propertyName"), types.Typ[types.String]) &&
+		types.Identical(structFieldType(rbNamed, "propertyName"), types.Typ[types.String]) {
+
+		j2Qual, okQ := ensureJ2gortImportInFile(rucFile, ctx)
+		if okQ {
+			initFieldsRemFn, initFieldsRemRecv := findPtrMethodDeclBySyntax(rucFile, "RemoveUnusedCode_RemovableBase", "initFields_RemoveUnusedCode_Removable")
+			var initRemFn *ast.FuncDecl
+			for _, decl := range rucFile.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if ok && fn.Recv == nil && fn.Name != nil && fn.Name.Name == "InitRemoveUnusedCode_Removable" && fn.Body != nil {
+					initRemFn = fn
+					break
+				}
+			}
+			if initFieldsRemFn != nil && initRemFn != nil &&
+				w42InitFieldsOnlySetsNullPropertyName(initFieldsRemFn, initFieldsRemRecv, j2Qual) &&
+				slabASTContainsSelectorName(initRemFn.Body, "initFields_RemoveUnusedCode_Removable") {
+				pNames := extractFlatParamNames(initRemFn.Type.Params)
+				if len(pNames) == 3 && pNames[0] != "" && pNames[1] != "" && pNames[2] != "" &&
+					w42MatchesStandardInitRemovableBody(initRemFn.Body, pNames[0], pNames[1], pNames[2]) {
+					initSrc := fmt.Sprintf(`package p
+func f() {
+	if %[3]s.continuation0 != %[4]s {
+		%[1]s.continuation0 = %[3]s.continuation0
+		if %[3]s.continuation1 != %[4]s {
+			%[1]s.continuation1 = %[3]s.continuation1
+			if %[3]s.restContinuations != nil {
+				%[1]s.restContinuations = %[3]s.restContinuations
+			}
+		}
+	}
+	%[1]s.propertyName = %[3]s.propertyName
+	%[1]s.isPrototypeDotPropertyReference = %[3]s.isPrototypeDotPropertyReference
+	%[1]s.isThisDotPropertyReference = %[3]s.isThisDotPropertyReference
+	%[1]s.targetNode = %[2]s
+}
+`, pNames[0], pNames[1], pNames[2], contZeroExpr)
+					initPF, pErr := parser.ParseFile(ctx.Fset, "", initSrc, 0)
+					if pErr != nil {
+						return count, pErr
+					}
+					initRemFn.Body.List = initPF.Decls[0].(*ast.FuncDecl).Body.List
+					ctx.MarkFileModified(rucFile)
+					count++
+				}
+			}
+
+			if finishFn != nil && finishRecv != "" && finishRecv != "_" && finishParam != "" &&
+				w42MatchesStandardFinishBuilderBody(finishFn.Body, finishRecv, finishParam, j2Qual) {
+				finSrc := fmt.Sprintf(`package p
+func f() {
+	if %[1]s.continuation0 != %[3]s {
+		%[1]s.continuation0 = %[3]s
+		if %[1]s.continuation1 != %[3]s {
+			%[1]s.continuation1 = %[3]s
+			%[1]s.restContinuations = nil
+		}
+	}
+	if %[1]s.propertyName != %[4]s.NullString {
+		%[1]s.propertyName = %[4]s.NullString
+	}
+	%[1]s.isPrototypeDotPropertyReference = false
+	%[1]s.isThisDotPropertyReference = false
+	%[1]s.outer_.freeBuilder = %[1]s
+	return %[2]s
+}
+`, finishRecv, finishParam, contZeroExpr, j2Qual)
+				finPF, pErr := parser.ParseFile(ctx.Fset, "", finSrc, 0)
+				if pErr != nil {
+					return count, pErr
+				}
+				finishFn.Body.List = finPF.Decls[0].(*ast.FuncDecl).Body.List
+				ctx.MarkFileModified(rucFile)
+				count++
+			}
+		}
+	}
+
+	return count, nil
+}
+
+func w42StructEmbedsNamed(stNamed, wantEmbedded *types.Named) bool {
+	if stNamed == nil || wantEmbedded == nil {
+		return false
+	}
+	st, ok := stNamed.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		f := st.Field(i)
+		if f.Embedded() && namedOrigin(f.Type()) == wantEmbedded {
+			return true
+		}
+	}
+	return false
+}
+
+func w42IsSimpleRemovableBindSelf(fn *ast.FuncDecl, recvName string) bool {
+	if fn == nil || fn.Body == nil || recvName == "" {
+		return false
+	}
+	pNames := extractFlatParamNames(fn.Type.Params)
+	if len(pNames) != 1 || pNames[0] == "" {
+		return false
+	}
+	var nonBlank []ast.Stmt
+	for _, st := range fn.Body.List {
+		if !isBlankDiscardStmt(st) {
+			nonBlank = append(nonBlank, st)
+		}
+	}
+	if len(nonBlank) != 1 {
+		return false
+	}
+	as, ok := nonBlank[0].(*ast.AssignStmt)
+	if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return false
+	}
+	if !w41IsRecvFieldSel(as.Lhs[0], recvName, "self_") {
+		return false
+	}
+	ta, ok := stripParens(as.Rhs[0]).(*ast.TypeAssertExpr)
+	return ok && isIdentNamed(ta.X, pNames[0]) && isIdentNamed(ta.Type, "RemoveUnusedCode_Removable")
+}
+
+func w42IsForwardingRemovableBindSelf(fn *ast.FuncDecl, recvName string) bool {
+	if fn == nil || fn.Body == nil || recvName == "" {
+		return false
+	}
+	pNames := extractFlatParamNames(fn.Type.Params)
+	if len(pNames) != 1 || pNames[0] == "" {
+		return false
+	}
+	var nonBlank []ast.Stmt
+	for _, st := range fn.Body.List {
+		if !isBlankDiscardStmt(st) {
+			nonBlank = append(nonBlank, st)
+		}
+	}
+	if len(nonBlank) != 1 {
+		return false
+	}
+	es, ok := nonBlank[0].(*ast.ExprStmt)
+	if !ok {
+		return false
+	}
+	call, ok := stripParens(es.X).(*ast.CallExpr)
+	if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() || !isIdentNamed(call.Args[0], pNames[0]) {
+		return false
+	}
+	sel, ok := stripParens(call.Fun).(*ast.SelectorExpr)
+	if !ok || sel.Sel == nil || sel.Sel.Name != "BindSelf_" {
+		return false
+	}
+	return w41IsRecvFieldSel(sel.X, recvName, "RemoveUnusedCode_RemovableBase")
+}
+
+func w42FinishOnlyReturnsParam(body *ast.BlockStmt, paramName string) bool {
+	if body == nil || len(body.List) == 0 || paramName == "" {
+		return false
+	}
+	ret, ok := body.List[len(body.List)-1].(*ast.ReturnStmt)
+	if !ok || len(ret.Results) != 1 || !isIdentNamed(ret.Results[0], paramName) {
+		return false
+	}
+	for i := 0; i < len(body.List)-1; i++ {
+		if isBlankDiscardStmt(body.List[i]) {
+			continue
+		}
+		if slabASTContainsIdent(body.List[i], paramName) {
+			return false
+		}
+	}
+	return true
+}
+
+func w42UnwrapRemovableCastsAndAdapters(expr ast.Expr) ast.Expr {
+	cur := stripParens(expr)
+	for {
+		call, ok := cur.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+			return cur
+		}
+		base := stripIndexExprs(call.Fun)
+		matched := false
+		switch f := base.(type) {
+		case *ast.Ident:
+			if f.Name == "ToIface_RemoveUnusedCode_Removable" || f.Name == "Upcast_RemoveUnusedCode_Removable" {
+				matched = true
+			}
+		case *ast.SelectorExpr:
+			if f.Sel != nil {
+				switch f.Sel.Name {
+				case "CastPtr", "Cast", "UncheckedCast", "AsIface", "CheckNotNull", "CheckNotNullIface", "CheckNotNullPtr":
+					matched = true
+				}
+			}
+		}
+		if !matched {
+			return cur
+		}
+		cur = stripParens(call.Args[0])
+	}
+}
+
+type w42RucInlineAllocSpec struct {
+	subName  string
+	initName string
+}
+
+func w42ExtractRucAllocInitFuncName(fn *ast.FuncDecl, subName string) (string, bool) {
+	if fn == nil || fn.Body == nil {
+		return "", false
+	}
+	pNames := extractFlatParamNames(fn.Type.Params)
+	if len(pNames) < 1 || pNames[0] == "" {
+		return "", false
+	}
+	var stmts []ast.Stmt
+	for _, st := range fn.Body.List {
+		if isBlankDiscardStmt(st) {
+			continue
+		}
+		if es, isES := st.(*ast.ExprStmt); isES {
+			if c, isC := stripParens(es.X).(*ast.CallExpr); isC && len(c.Args) == 0 {
+				if id, isId := stripParens(c.Fun).(*ast.Ident); isId && strings.HasPrefix(id.Name, "clinit_") {
+					continue
+				}
+			}
+		}
+		stmts = append(stmts, st)
+	}
+	if len(stmts) != 5 {
+		return "", false
+	}
+	// 0: this_ := outer_.slab_<subName>.Alloc()
+	as0, ok0 := stmts[0].(*ast.AssignStmt)
+	if !ok0 || as0.Tok != token.DEFINE || len(as0.Lhs) != 1 || len(as0.Rhs) != 1 {
+		return "", false
+	}
+	selfId, okId := as0.Lhs[0].(*ast.Ident)
+	if !okId || selfId.Name == "" {
+		return "", false
+	}
+	allocCall, okC0 := stripParens(as0.Rhs[0]).(*ast.CallExpr)
+	if !okC0 || len(allocCall.Args) != 0 {
+		return "", false
+	}
+	allocSel, okS0 := stripParens(allocCall.Fun).(*ast.SelectorExpr)
+	if !okS0 || allocSel.Sel == nil || allocSel.Sel.Name != "Alloc" ||
+		!w41IsRecvFieldSel(allocSel.X, pNames[0], "slab_"+subName) {
+		return "", false
+	}
+	// 1: this_.self_ = this_
+	as1, ok1 := stmts[1].(*ast.AssignStmt)
+	if !ok1 || as1.Tok != token.ASSIGN || len(as1.Lhs) != 1 || len(as1.Rhs) != 1 ||
+		!w41IsRecvFieldSel(as1.Lhs[0], selfId.Name, "self_") || !isIdentNamed(as1.Rhs[0], selfId.Name) {
+		return "", false
+	}
+	// 2: this_.outer_ = outer_
+	as2, ok2 := stmts[2].(*ast.AssignStmt)
+	if !ok2 || as2.Tok != token.ASSIGN || len(as2.Lhs) != 1 || len(as2.Rhs) != 1 ||
+		!w41IsRecvFieldSel(as2.Lhs[0], selfId.Name, "outer_") || !isIdentNamed(as2.Rhs[0], pNames[0]) {
+		return "", false
+	}
+	// 3: InitRemoveUnusedCode_<Sub>(this_, p1, ...)
+	es3, ok3 := stmts[3].(*ast.ExprStmt)
+	if !ok3 {
+		return "", false
+	}
+	initCall, okIC := stripParens(es3.X).(*ast.CallExpr)
+	if !okIC || initCall.Ellipsis.IsValid() || len(initCall.Args) != len(pNames) {
+		return "", false
+	}
+	initId, okII := stripParens(initCall.Fun).(*ast.Ident)
+	if !okII || !strings.HasPrefix(initId.Name, "Init") || !isIdentNamed(initCall.Args[0], selfId.Name) {
+		return "", false
+	}
+	for i := 1; i < len(pNames); i++ {
+		if !isIdentNamed(initCall.Args[i], pNames[i]) {
+			return "", false
+		}
+	}
+	// 4: return this_
+	ret4, ok4 := stmts[4].(*ast.ReturnStmt)
+	if !ok4 || len(ret4.Results) != 1 || !isIdentNamed(ret4.Results[0], selfId.Name) {
+		return "", false
+	}
+	return initId.Name, true
+}
+
+func w42MatchBuilderFinishAllocReturn(
+	expr ast.Expr,
+	builderRecv, finishName string,
+	allocHelperSub map[string]w42RucInlineAllocSpec,
+) (*ast.CallExpr, w42RucInlineAllocSpec, bool) {
+	inner := w42UnwrapRemovableCastsAndAdapters(expr)
+	finCall, ok := inner.(*ast.CallExpr)
+	if !ok || len(finCall.Args) != 1 || finCall.Ellipsis.IsValid() {
+		return nil, w42RucInlineAllocSpec{}, false
+	}
+	finSel, ok := stripParens(finCall.Fun).(*ast.SelectorExpr)
+	if !ok || finSel.Sel == nil || finSel.Sel.Name != finishName || !isIdentNamed(finSel.X, builderRecv) {
+		return nil, w42RucInlineAllocSpec{}, false
+	}
+	argInner := w42UnwrapRemovableCastsAndAdapters(finCall.Args[0])
+	allocCall, ok := argInner.(*ast.CallExpr)
+	if !ok || allocCall.Ellipsis.IsValid() {
+		return nil, w42RucInlineAllocSpec{}, false
+	}
+	fnId, ok := stripParens(allocCall.Fun).(*ast.Ident)
+	if !ok {
+		return nil, w42RucInlineAllocSpec{}, false
+	}
+	spec, ok := allocHelperSub[fnId.Name]
+	if !ok {
+		return nil, w42RucInlineAllocSpec{}, false
+	}
+	return allocCall, spec, true
+}
+
+func w42ContinuationZeroExpr(t types.Type) string {
+	if t == nil {
+		return ""
+	}
+	ut := types.Unalias(t)
+	if _, isPtr := ut.(*types.Pointer); isPtr {
+		return "nil"
+	}
+	if !types.Comparable(ut) {
+		return ""
+	}
+	cn := namedOrigin(ut)
+	if cn == nil || cn.Obj() == nil || cn.TypeParams() != nil {
+		return ""
+	}
+	if _, isSt := cn.Underlying().(*types.Struct); !isSt {
+		return ""
+	}
+	return "(" + cn.Obj().Name() + "{})"
+}
+
+func w42InitFieldsOnlySetsNullPropertyName(fn *ast.FuncDecl, recvName, j2Qual string) bool {
+	if fn == nil || fn.Body == nil || recvName == "" {
+		return false
+	}
+	var nonBlank []ast.Stmt
+	for _, st := range fn.Body.List {
+		if !isBlankDiscardStmt(st) {
+			nonBlank = append(nonBlank, st)
+		}
+	}
+	if len(nonBlank) != 1 {
+		return false
+	}
+	as, ok := nonBlank[0].(*ast.AssignStmt)
+	if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return false
+	}
+	return w41IsRecvFieldSel(as.Lhs[0], recvName, "propertyName") &&
+		w41IsRecvFieldSel(as.Rhs[0], j2Qual, "NullString")
+}
+
+func w42MatchesStandardInitRemovableBody(body *ast.BlockStmt, selfName, targetName, builderName string) bool {
+	if body == nil {
+		return false
+	}
+	var stmts []ast.Stmt
+	for _, st := range body.List {
+		if !isBlankDiscardStmt(st) {
+			stmts = append(stmts, st)
+		}
+	}
+	if len(stmts) != 8 {
+		return false
+	}
+	es, ok := stmts[0].(*ast.ExprStmt)
+	if !ok {
+		return false
+	}
+	c, ok := stripParens(es.X).(*ast.CallExpr)
+	if !ok || len(c.Args) != 0 || !w41IsRecvFieldSel(c.Fun, selfName, "initFields_RemoveUnusedCode_Removable") {
+		return false
+	}
+	wantBuilderFields := []string{
+		"continuation0",
+		"continuation1",
+		"restContinuations",
+		"propertyName",
+		"isPrototypeDotPropertyReference",
+		"isThisDotPropertyReference",
+	}
+	for i, bf := range wantBuilderFields {
+		as, okA := stmts[i+1].(*ast.AssignStmt)
+		if !okA || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+			return false
+		}
+		if !w41IsRecvFieldSel(as.Lhs[0], selfName, bf) || !w41IsRecvFieldSel(as.Rhs[0], builderName, bf) {
+			return false
+		}
+	}
+	asLast, okL := stmts[7].(*ast.AssignStmt)
+	return okL && asLast.Tok == token.ASSIGN && len(asLast.Lhs) == 1 && len(asLast.Rhs) == 1 &&
+		w41IsRecvFieldSel(asLast.Lhs[0], selfName, "targetNode") && isIdentNamed(asLast.Rhs[0], targetName)
+}
+
+func w42MatchesStandardFinishBuilderBody(body *ast.BlockStmt, recvName, paramName, j2Qual string) bool {
+	if body == nil {
+		return false
+	}
+	var stmts []ast.Stmt
+	for _, st := range body.List {
+		if !isBlankDiscardStmt(st) {
+			stmts = append(stmts, st)
+		}
+	}
+	if len(stmts) != 8 {
+		return false
+	}
+	wantLhs := []string{
+		"continuation0",
+		"continuation1",
+		"restContinuations",
+		"propertyName",
+		"isPrototypeDotPropertyReference",
+		"isThisDotPropertyReference",
+	}
+	for i, lf := range wantLhs {
+		as, okA := stmts[i].(*ast.AssignStmt)
+		if !okA || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+			return false
+		}
+		if !w41IsRecvFieldSel(as.Lhs[0], recvName, lf) {
+			return false
+		}
+		switch lf {
+		case "restContinuations":
+			if !isIdentNamed(as.Rhs[0], "nil") {
+				return false
+			}
+		case "propertyName":
+			if !w41IsRecvFieldSel(as.Rhs[0], j2Qual, "NullString") {
+				return false
+			}
+		case "isPrototypeDotPropertyReference", "isThisDotPropertyReference":
+			if !isIdentNamed(as.Rhs[0], "false") {
+				return false
+			}
+		}
+	}
+	// stmts[6]: `this_.outer_.freeBuilder = this_`
+	as6, ok6 := stmts[6].(*ast.AssignStmt)
+	if !ok6 || as6.Tok != token.ASSIGN || len(as6.Lhs) != 1 || len(as6.Rhs) != 1 || !isIdentNamed(as6.Rhs[0], recvName) {
+		return false
+	}
+	selFree, okSF := stripParens(as6.Lhs[0]).(*ast.SelectorExpr)
+	if !okSF || selFree.Sel == nil || selFree.Sel.Name != "freeBuilder" || !w41IsRecvFieldSel(selFree.X, recvName, "outer_") {
+		return false
+	}
+	ret, okR := stmts[7].(*ast.ReturnStmt)
+	return okR && len(ret.Results) == 1 && isIdentNamed(ret.Results[0], paramName)
 }

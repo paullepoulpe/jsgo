@@ -422,7 +422,7 @@ func (this_ *Compiler) priv_Compiler_initExperimentalOutputFeatureSetOptions_144
 	if options.GetExperimentalOutputFeatureSet().IsPresent() {
 		switch (j2gort.Cast[CompilerOptions_ExperimentalOutputFeatureSet](options.GetExperimentalOutputFeatureSet().Get())).Ordinal() {
 		case int32(0) /* ExperimentalOutputFeatureSet.ES5_WITH_SOME_PERFORMANT_ES2015_AND_ASYNC_FUNCTIONS */ :
-			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7198([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
+			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_ES5().With_1_FeatureSet_Feature_7218([]*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_ASYNC_FUNCTIONS(), pkg_parser.StaticGet_FeatureSet_Feature_BLOCK_SCOPED_FUNCTION_DECLARATION(), pkg_parser.StaticGet_FeatureSet_Feature_CONST_DECLARATIONS(), pkg_parser.StaticGet_FeatureSet_Feature_GENERATORS(), pkg_parser.StaticGet_FeatureSet_Feature_LET_DECLARATIONS()}))
 		case int32(1) /* ExperimentalOutputFeatureSet.BROWSER_2019_WITHOUT_CLASSES_AND_SPREAD */ :
 			options.SetOutputFeatureSet(pkg_parser.StaticGet_FeatureSet_BROWSER_2019().Without_2(pkg_parser.StaticGet_FeatureSet_Feature_CLASSES(), []*pkg_parser.FeatureSet_Feature{pkg_parser.StaticGet_FeatureSet_Feature_CLASS_GETTER_SETTER(), pkg_parser.StaticGet_FeatureSet_Feature_NEW_TARGET(), pkg_parser.StaticGet_FeatureSet_Feature_SUPER(), pkg_parser.StaticGet_FeatureSet_Feature_SPREAD_EXPRESSIONS()}))
 		}
@@ -509,14 +509,22 @@ func (this_ *Compiler) InitOptions(options *CompilerOptions) {
 // Java method: Compiler.printConfig()
 func (this_ *Compiler) PrintConfig() {
 	if this_.IsDebugLoggingEnabled() {
-		this_.priv_Compiler_logToFile_1444("externs.log", func() j2gort.Ext_java_util_function_Supplier {
+		var iifeArg_1 j2gort.
+			Ext_java_util_function_Supplier
+		{
+
 			bound_6 := this_.externs
-			return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_6.String()) })
-		}())
-		this_.priv_Compiler_logToFile_1444("inputs.json", func() j2gort.Ext_java_util_function_Supplier {
+			iifeArg_1 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.BoxString(bound_6.String()) })
+		}
+		this_.priv_Compiler_logToFile_1444("externs.log", iifeArg_1)
+		var iifeArg_2 j2gort.
+			Ext_java_util_function_Supplier
+		{
+
 			bound_7 := j2gort.NewExt_com_google_gson_GsonBuilder().SetPrettyPrinting().Create().ToJson_1_Ext_com_google_gson_JsonElement(j2gort.AsIface[j2gort.Ext_com_google_gson_JsonElement](this_.chunkGraph.ToJson()))
-			return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.CheckNotNullString(bound_7) })
-		}())
+			iifeArg_2 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.CheckNotNullString(bound_7) })
+		}
+		this_.priv_Compiler_logToFile_1444("inputs.json", iifeArg_2)
 		this_.priv_Compiler_logToFile_1444("options.log", j2gort.NewLambda_Ext_java_util_function_Supplier(func() any {
 			return j2gort.BoxString(this_.options.String())
 		}))
@@ -540,10 +548,14 @@ func (this_ *Compiler) PrintConfig() {
 // Java method: Compiler.maybeLogPrunedInputs()
 func (this_ *Compiler) priv_Compiler_maybeLogPrunedInputs_1443() {
 	if this_.IsDebugLoggingEnabled() {
-		this_.priv_Compiler_logToFile_1444("inputs_pruned.json", func() j2gort.Ext_java_util_function_Supplier {
+		var iifeArg_3 j2gort.
+			Ext_java_util_function_Supplier
+		{
+
 			bound_8 := j2gort.NewExt_com_google_gson_GsonBuilder().SetPrettyPrinting().Create().ToJson_1_Ext_com_google_gson_JsonElement(j2gort.AsIface[j2gort.Ext_com_google_gson_JsonElement](this_.chunkGraph.ToJson()))
-			return j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.CheckNotNullString(bound_8) })
-		}())
+			iifeArg_3 = j2gort.NewLambda_Ext_java_util_function_Supplier(func() any { return j2gort.CheckNotNullString(bound_8) })
+		}
+		this_.priv_Compiler_logToFile_1444("inputs_pruned.json", iifeArg_3)
 	}
 }
 
@@ -1691,7 +1703,7 @@ func (this_ *Compiler) GetCurrentJsSource() string {
 			}
 		}
 		if builder.Length() == int32(0) {
-			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9862(fileNameRegexList)
+			j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](builder.Append_1_string("// No files matched any of: ")).Append_1_any_9887(fileNameRegexList)
 		}
 	}
 	if !(chunkNameRegexList.IsEmpty()) {
@@ -2823,7 +2835,15 @@ func (this_ *Compiler) ToSource_0() string {
 						var scriptNode pkg_rhino.Node = this_.externsRoot.GetFirstChild()
 						_ = scriptNode
 						for ; scriptNode != 0; scriptNode = scriptNode.GetNext() {
-							this_.ToSource_4(cb, lt, func() int32 { old_134 := i; nw_135 := old_134 + 1; i = nw_135; return old_134 }(), scriptNode)
+							var iifeArg_4 int32
+							{
+
+								old_134 := i
+								nw_135 := old_134 + 1
+								i = nw_135
+								iifeArg_4 = old_134
+							}
+							this_.ToSource_4(cb, lt, iifeArg_4, scriptNode)
 						}
 					}
 				}
@@ -2831,7 +2851,15 @@ func (this_ *Compiler) ToSource_0() string {
 					var scriptNode_2 pkg_rhino.Node = this_.jsRoot.GetFirstChild()
 					_ = scriptNode_2
 					for ; scriptNode_2 != 0; scriptNode_2 = scriptNode_2.GetNext() {
-						this_.ToSource_4(cb, lt, func() int32 { old_136 := i; nw_137 := old_136 + 1; i = nw_137; return old_136 }(), scriptNode_2)
+						var iifeArg_5 int32
+						{
+
+							old_136 := i
+							nw_137 := old_136 + 1
+							i = nw_137
+							iifeArg_5 = old_136
+						}
+						this_.ToSource_4(cb, lt, iifeArg_5, scriptNode_2)
 					}
 				}
 			}
@@ -2881,7 +2909,15 @@ func (this_ *Compiler) ToSource_2(licenseTracker CodePrinter_LicenseTracker, chu
 				if scriptNode == 0 {
 					panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Bad chunk: "+j2gort.StrValString(chunk.GetName()))))
 				}
-				this_.ToSource_4(cb, licenseTracker, func() int32 { old_141 := seq; nw_142 := old_141 + 1; seq = nw_142; return old_141 }(), scriptNode)
+				var iifeArg_6 int32
+				{
+
+					old_141 := seq
+					nw_142 := old_141 + 1
+					seq = nw_142
+					iifeArg_6 = old_141
+				}
+				this_.ToSource_4(cb, licenseTracker, iifeArg_6, scriptNode)
 			}
 		}
 		{
@@ -2896,7 +2932,15 @@ func (this_ *Compiler) ToSource_2(licenseTracker CodePrinter_LicenseTracker, chu
 				if scriptNode_2 == 0 {
 					panic(j2gort.AsIface[javalang.IIllegalArgumentException](j2gort.ConstructShimThrowable("java.lang.IllegalArgumentException", "Bad chunk: "+j2gort.StrValString(chunk.GetName()))))
 				}
-				this_.ToSource_4(cb, licenseTracker, func() int32 { old_143 := seq; nw_144 := old_143 + 1; seq = nw_144; return old_143 }(), scriptNode_2)
+				var iifeArg_7 int32
+				{
+
+					old_143 := seq
+					nw_144 := old_143 + 1
+					seq = nw_144
+					iifeArg_7 = old_143
+				}
+				this_.ToSource_4(cb, licenseTracker, iifeArg_7, scriptNode_2)
 			}
 		}
 		return j2gort.BoxString(cb.String())
@@ -4363,12 +4407,15 @@ func (this_ *Compiler) GetCompilerStateProtoBuilder() *j2gort.Ext_com_google_jav
 				if !(depIdxOk_) {
 					j2gort.CheckStateFmt(false, "Missing dependency %s for chunk %s", j2gort.BoxString(dep.GetName()), j2gort.BoxString(chunk.GetName()))
 				}
-				chunkBuilder.AddDependencies(func() int32 {
+				var iifeArg_11 int32
+				{
+
 					if !depIdxOk_ {
 						j2gort.ThrowNPE()
 					}
-					return depIdx
-				}())
+					iifeArg_11 = depIdx
+				}
+				chunkBuilder.AddDependencies(iifeArg_11)
 			}
 		}
 		{
@@ -4403,12 +4450,19 @@ func (this_ *Compiler) GetCompilerStateProtoBuilder() *j2gort.Ext_com_google_jav
 	builder.AddAllInjectedLibraries(j2gort.AsIface[j2gort.Ext_java_lang_Iterable](this_.runtimeJsLibManager.GetInjectedLibraries()))
 	var lastInjectedLibrary pkg_rhino.Node = this_.runtimeJsLibManager.GetLastInjectedLibrary()
 	_ = lastInjectedLibrary
-	builder.SetLastInjectedLibraryIndexInFirstScript(func() int32 {
+	var iifeArg_8 int32
+iifeSwitch_1:
+	switch {
+	default:
+
 		if ((lastInjectedLibrary != 0) && (this_.jsRoot != 0)) && this_.jsRoot.HasChildren() {
-			return this_.jsRoot.GetFirstChild().GetIndexOfChild(lastInjectedLibrary)
+			iifeArg_8 = this_.jsRoot.GetFirstChild().GetIndexOfChild(lastInjectedLibrary)
+			break iifeSwitch_1
 		}
-		return int32(-1)
-	}())
+		iifeArg_8 = int32(-1)
+		break iifeSwitch_1
+	}
+	builder.SetLastInjectedLibraryIndexInFirstScript(iifeArg_8)
 	if this_.accessorSummary != nil {
 		builder.SetAccessorSummary_1_Ext_com_google_javascript_jscomp_AccessorSummaryProto(this_.accessorSummary.ToProto())
 	}
@@ -4750,29 +4804,43 @@ func Compiler_ResolveSibling(fromPath string, toPath string) string {
 	if javalang.StringStartsWith(j2gort.CheckNotNullString(toPath), "/") {
 		return toPath
 	}
-	var fromPathParts j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_9 []any
+iifeSwitch_2:
+	switch {
+	default:
+
 		arr_210 := j2gort.JStrSplit(fromPath, "/")
 		if arr_210 == nil {
-			return nil
+			iifeArg_9 = nil
+			break iifeSwitch_2
 		}
 		out_211 := make([]any, len(arr_210))
 		for i_, el_212 := range arr_210 {
 			out_211[i_] = j2gort.BoxString(el_212)
 		}
-		return out_211
-	}())))
+		iifeArg_9 = out_211
+		break iifeSwitch_2
+	}
+	var fromPathParts j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(iifeArg_9)))
 	_ = fromPathParts
-	var toPathParts j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(func() []any {
+	var iifeArg_10 []any
+iifeSwitch_3:
+	switch {
+	default:
+
 		arr_213 := j2gort.JStrSplit(toPath, "/")
 		if arr_213 == nil {
-			return nil
+			iifeArg_10 = nil
+			break iifeSwitch_3
 		}
 		out_214 := make([]any, len(arr_213))
 		for i_, el_215 := range arr_213 {
 			out_214[i_] = j2gort.BoxString(el_215)
 		}
-		return out_214
-	}())))
+		iifeArg_10 = out_214
+		break iifeSwitch_3
+	}
+	var toPathParts j2gort.Ext_java_util_List = j2gort.NewExt_java_util_ArrayList_1_Ext_java_util_Collection(j2gort.AsIface[j2gort.Ext_java_util_Collection](j2gort.Ext_java_util_Arrays_AsList(iifeArg_10)))
 	_ = toPathParts
 	if !(fromPathParts.IsEmpty()) {
 		fromPathParts.Remove_1_int32((fromPathParts.Size() - int32(1)))

@@ -160,15 +160,18 @@ const (
 	strCacheWays            = 4
 	strMetaBlockUnits       = 64
 
-	unpinDedupMaxLen    = 256
-	unpinDedupShards    = 256
-	unpinDedupShardMask = unpinDedupShards - 1
-	unpinDedupSlots     = 64 // 256 * 64 * 2 = 32,768 in-place BSS entries (0 bucket allocs)
-	unpinDedupSlotMask  = unpinDedupSlots - 1
-	shortASCIIShards    = 64
-	shortASCIIShardMask = shortASCIIShards - 1
-	shortASCIISets      = 16 // 64 * 16 * 4 = 4,096 in-place entries (0 heap allocs)
-	shortASCIISetMask   = shortASCIISets - 1
+	unpinDedupFastMaxLen = 256
+	unpinDedupMaxLen     = 2048
+	unpinDedupShards     = 512
+	unpinDedupShardMask  = unpinDedupShards - 1
+	unpinDedupSlots      = 64 // 512 * 64 * 4 = 131,072 in-place SLRU entries in BSS (0 bucket allocs)
+	unpinDedupSlotMask   = unpinDedupSlots - 1
+	unpinLargeSeenLen    = 65536
+	unpinLargeSeenMask   = unpinLargeSeenLen - 1
+	shortASCIIShards     = 64
+	shortASCIIShardMask  = shortASCIIShards - 1
+	shortASCIISets       = 16 // 64 * 16 * 4 = 4,096 in-place entries (0 heap allocs)
+	shortASCIISetMask    = shortASCIISets - 1
 
 	cpASCIIRunFlag uint32 = 1 << 31
 	cpOffsetMask   uint32 = (1 << 31) - 1
@@ -176,21 +179,25 @@ const (
 
 type unpinShard struct {
 	mu    sync.RWMutex
-	slots [unpinDedupSlots][2]string
+	slots [unpinDedupSlots][4]string
 }
 
-// unpinShards is a bounded 256-shard × 64-slot 2-way set-associative deduplication
-// table (32,768 cached substrings in BSS, zero heap bucket allocations) for substrings
-// (<= 256 bytes) sliced out of >= 1 KB source buffers, hashed with maphash.String.
+// unpinShards is a bounded 512-shard × 64-slot 4-way segmented-LRU deduplication
+// table (131,072 cached substrings in BSS, zero heap bucket allocations) for substrings
+// (<= 2048 bytes) sliced out of >= 1 KB source buffers, hashed with maphash.String.
+// Substrings > 256 bytes require a 2nd hit in unpinLargeSeen before cache admission so
+// unique per-file comments never pollute cache slots while repeated Apache/Google license
+// headers and JSDoc blocks deduplicate across all 43,917 files.
 var (
-	unpinSeed   = maphash.MakeSeed()
-	unpinShards [unpinDedupShards]unpinShard
+	unpinSeed      = maphash.MakeSeed()
+	unpinLargeSeen [unpinLargeSeenLen]atomic.Uint32
+	unpinShards    [unpinDedupShards]unpinShard
 )
 
 // unpinSubstring clones small substrings sliced out of >= 1 KB source buffers
 // (< 1 KB or < 1/4 of parentLen), preventing identifiers, JSDoc tags/comments,
 // or module paths from pinning entire JS SourceFile backing byte arrays in live heap,
-// while deduplicating repeated tokens (<= 256 bytes) in-place without bucket allocs.
+// while deduplicating repeated tokens and JSDoc/license comments in-place without bucket allocs.
 func unpinSubstring(parentLen int, sub string) string {
 	if len(sub) == 0 {
 		return ""
@@ -212,7 +219,7 @@ func unpinSubstringFromParent(parentLen int, sub string) string {
 		}
 		h := maphash.String(unpinSeed, sub)
 		sh := &unpinShards[h&unpinDedupShardMask]
-		slotIdx := (h >> 8) & unpinDedupSlotMask
+		slotIdx := (h >> 9) & unpinDedupSlotMask
 		sh.mu.RLock()
 		slot := sh.slots[slotIdx]
 		sh.mu.RUnlock()
@@ -221,6 +228,29 @@ func unpinSubstringFromParent(parentLen int, sub string) string {
 		}
 		if slot[1] == sub {
 			return slot[1]
+		}
+		if slot[2] == sub {
+			return slot[2]
+		}
+		if slot[3] == sub {
+			if sh.mu.TryLock() {
+				if sh.slots[slotIdx][3] == slot[3] {
+					sh.slots[slotIdx][3] = sh.slots[slotIdx][2]
+					sh.slots[slotIdx][2] = sh.slots[slotIdx][1]
+					sh.slots[slotIdx][1] = sh.slots[slotIdx][0]
+					sh.slots[slotIdx][0] = slot[3]
+				}
+				sh.mu.Unlock()
+			}
+			return slot[3]
+		}
+		if len(sub) > unpinDedupFastMaxLen {
+			seenIdx := (h >> 15) & unpinLargeSeenMask
+			tag := uint32(h>>32) | 1
+			if unpinLargeSeen[seenIdx].Load() != tag {
+				unpinLargeSeen[seenIdx].Store(tag)
+				return strings.Clone(sub)
+			}
 		}
 		return unpinDedupMiss(sh, slotIdx, sub)
 	}
@@ -231,19 +261,42 @@ func unpinSubstringFromParent(parentLen int, sub string) string {
 func unpinDedupMiss(sh *unpinShard, slotIdx uint64, sub string) string {
 	cloned := strings.Clone(sub)
 	sh.mu.Lock()
-	s0 := sh.slots[slotIdx][0]
-	if s0 == sub {
+	cur := sh.slots[slotIdx]
+	if cur[0] == sub {
 		sh.mu.Unlock()
-		return s0
+		return cur[0]
 	}
-	if s1 := sh.slots[slotIdx][1]; s1 == sub {
-		sh.slots[slotIdx][1] = s0
-		sh.slots[slotIdx][0] = s1
+	if cur[1] == sub {
+		sh.slots[slotIdx][1] = cur[0]
+		sh.slots[slotIdx][0] = cur[1]
 		sh.mu.Unlock()
-		return s1
+		return cur[1]
 	}
-	sh.slots[slotIdx][1] = s0
-	sh.slots[slotIdx][0] = cloned
+	if cur[2] == sub {
+		sh.slots[slotIdx][2] = cur[1]
+		sh.slots[slotIdx][1] = cur[0]
+		sh.slots[slotIdx][0] = cur[2]
+		sh.mu.Unlock()
+		return cur[2]
+	}
+	if cur[3] == sub {
+		sh.slots[slotIdx][3] = cur[2]
+		sh.slots[slotIdx][2] = cur[1]
+		sh.slots[slotIdx][1] = cur[0]
+		sh.slots[slotIdx][0] = cur[3]
+		sh.mu.Unlock()
+		return cur[3]
+	}
+	if cur[0] == "" {
+		sh.slots[slotIdx][0] = cloned
+	} else if cur[1] == "" {
+		sh.slots[slotIdx][1] = cloned
+	} else if cur[2] == "" {
+		sh.slots[slotIdx][2] = cloned
+	} else {
+		// Insert into probation slot[3] so 1-hit wonders never evict hot protected entries slot[0..2].
+		sh.slots[slotIdx][3] = cloned
+	}
 	sh.mu.Unlock()
 	return cloned
 }

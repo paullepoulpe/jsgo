@@ -2061,3 +2061,88 @@ func TestWave40CEagerBottomUpAstSizeAndBatchedRecycle(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+
+func TestWave42CZeroAllocByteStringCopyFromUtf8AndSlabScriptIsolation(t *testing.T) {
+	// 1. ByteString_CopyFromUtf8 must allocate 0 objects for ANY length of valid UTF-8 / ASCII string
+	// (including >256 bytes!), and StringPoolProto.AddStrings must append directly without wire-slab copies.
+	longUTF8 := strings.Repeat("proto.google.cloud.aiplatform.v1.PredictionServiceClient.", 8) + "λ🚀"
+	allocs := testing.AllocsPerRun(100, func() {
+		b0 := protobuf.ByteString_CopyFromUtf8("")
+		b1 := protobuf.ByteString_CopyFromUtf8("a")
+		b2 := protobuf.ByteString_CopyFromUtf8("goog.module.get('foo.bar.Baz')")
+		b3 := protobuf.ByteString_CopyFromUtf8(longUTF8)
+		if !b0.IsEmpty() || b1.Size() != 1 || b2.ToStringUtf8() != "goog.module.get('foo.bar.Baz')" || b3.ToStringUtf8() != longUTF8 {
+			t.Fatal("ByteString_CopyFromUtf8 mismatch")
+		}
+		if b3.ByteAt(0) != 'p' || b3.HashCode() == 0 {
+			t.Fatal("ByteAt / HashCode failed")
+		}
+	})
+	if allocs != 0 {
+		t.Fatalf("expected 0 allocs for ByteString_CopyFromUtf8 + ToStringUtf8, got %.2f", allocs)
+	}
+
+	// 2. Verify BytesView() pointer stability on repeated calls for j2gort.ByteStringRefEquals(x, x),
+	// and cross-representation Equals(CopyFrom([]byte), CopyFromUtf8(string)).
+	bsStr := protobuf.ByteString_CopyFromUtf8("hello_ref_equals_check")
+	bsBytes := protobuf.ByteString_CopyFrom([]byte("hello_ref_equals_check"))
+	v1 := bsStr.BytesView()
+	v2 := bsStr.BytesView()
+	if &v1[0] != &v2[0] {
+		t.Fatal("expected stable BytesView backing slice across repeated calls on identical UTF-8 ByteString")
+	}
+	if !bsStr.Equals(bsBytes) || !bsBytes.Equals(bsStr) || bsStr.HashCode() != bsBytes.HashCode() {
+		t.Fatal("cross-representation ByteString Equals / HashCode mismatch")
+	}
+
+	// 3. StringPoolProto.AddStrings + TypedAst streaming read into 4 MiB allocScriptBytes slabs:
+	// verify full-slice expression isolation (append on GetScript() cannot clobber adjacent script!).
+	sp := protobuf.StringPoolProto_NewBuilder().SetMaxLength(512)
+	sp.AddStrings(protobuf.ByteString_CopyFromUtf8("alpha"))
+	sp.AddStrings(protobuf.ByteString_CopyFromUtf8(longUTF8))
+	sp.AddStrings(protobuf.ByteString_CopyFrom([]byte("gamma")))
+
+	s1 := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_SOURCE_FILE).SetSourceFile(1).
+		AddChild(protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_STRING_LITERAL).SetStringValuePointer(1)).
+		Build().ToByteString()
+	s2 := protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_SOURCE_FILE).SetSourceFile(2).
+		AddChild(protobuf.AstNode_NewBuilder().SetKind(protobuf.NodeKind_IDENTIFIER).SetStringValuePointer(2)).
+		Build().ToByteString()
+
+	ta := protobuf.TypedAst_NewBuilder().
+		SetStringPool(sp.Build()).
+		AddCodeAst(protobuf.LazyAst_NewBuilder().SetScript(s1).SetSourceFile(1).Build()).
+		AddCodeAst(protobuf.LazyAst_NewBuilder().SetScript(s2).SetSourceFile(2).Build()).
+		Build()
+	var wire bytes.Buffer
+	if _, err := protobuf.TypedAst_List_NewBuilder().AddTypedAsts(ta).Build().WriteTo(&wire); err != nil {
+		t.Fatal(err)
+	}
+	cis, err := protobuf.CodedInputStream_NewInstance(bytes.NewReader(wire.Bytes()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tag, err := cis.ReadTag()
+	if err != nil || tag != 10 {
+		t.Fatalf("unexpected tag=%d err=%v", tag, err)
+	}
+	parsedTA := protobuf.TypedAst_NewBuilder()
+	if err := cis.ReadMessage(parsedTA, protobuf.ExtensionRegistry_GetEmptyRegistry()); err != nil {
+		t.Fatal(err)
+	}
+	gotScripts := parsedTA.GetCodeAstList()
+	if len(gotScripts) != 2 {
+		t.Fatalf("expected 2 scripts, got %d", len(gotScripts))
+	}
+	wantS2 := append([]byte(nil), gotScripts[1].GetScript()...)
+	// Appending to script 0's slice must NOT overwrite script 1 in the shared 4 MiB slab!
+	_ = append(gotScripts[0].GetScript(), 0xFF, 0xFE, 0xFD, 0xFC)
+	if !bytes.Equal(gotScripts[1].GetScript(), wantS2) {
+		t.Fatal("append to LazyAst.GetScript() clobbered adjacent script in scriptSlab!")
+	}
+	strs := parsedTA.GetStringPool().GetStringsByteStringList()
+	if len(strs) != 3 || strs[0].ToStringUtf8() != "alpha" || strs[1].ToStringUtf8() != longUTF8 || strs[2].ToStringUtf8() != "gamma" {
+		t.Fatalf("StringPoolProto roundtrip mismatch: %v", strs)
+	}
+}

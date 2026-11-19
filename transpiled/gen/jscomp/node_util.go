@@ -6914,12 +6914,12 @@ func (this_ *NodeUtil_PreOrderIterator) ComputeNext() any {
 	}
 	var returnValue pkg_rhino.Node = this_.current
 	_ = returnValue
-	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4013(returnValue)
+	this_.current = this_.priv_PreOrderIterator_calculateNextNode_4025(returnValue)
 	return j2gort.BoxNode(returnValue)
 }
 
 // Java method: PreOrderIterator.calculateNextNode(com.google.javascript.rhino.Node currentNode)
-func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4013(currentNode pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *NodeUtil_PreOrderIterator) priv_PreOrderIterator_calculateNextNode_4025(currentNode pkg_rhino.Node) pkg_rhino.Node {
 	_ = currentNode
 	j2gort.CheckNotNullNode(currentNode)
 	if j2gort.PredTestNode(this_.traverseNodePredicate, uint32(currentNode)) {

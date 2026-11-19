@@ -274,7 +274,7 @@ func (this_ *ReferenceCollection) IsThisRebound() bool {
 }
 
 // Java method: ReferenceCollection.isInitializingDeclarationAt(int index)
-func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingDeclarationAt_4641(index int32) bool {
+func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingDeclarationAt_4656(index int32) bool {
 	_ = index
 	var maybeInit *Reference = this_.Get(index)
 	_ = maybeInit
@@ -285,7 +285,7 @@ func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingDeclara
 }
 
 // Java method: ReferenceCollection.isInitializingAssignmentAt(int index)
-func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingAssignmentAt_4642(index int32) bool {
+func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingAssignmentAt_4657(index int32) bool {
 	_ = index
 	if (index < this_.Size()) && (index > int32(0)) {
 		var maybeDecl *Reference = this_.Get((index - int32(1)))
@@ -306,16 +306,16 @@ func (this_ *ReferenceCollection) priv_ReferenceCollection_isInitializingAssignm
 
 // Java method: ReferenceCollection.getInitializingReference()
 func (this_ *ReferenceCollection) GetInitializingReference() *Reference {
-	if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4641(int32(0)) {
+	if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4656(int32(0)) {
 		return this_.Get(int32(0))
-	} else if this_.priv_ReferenceCollection_isInitializingAssignmentAt_4642(int32(1)) && this_.priv_ReferenceCollection_areInSameFile_4644(int32(0), int32(1)) {
+	} else if this_.priv_ReferenceCollection_isInitializingAssignmentAt_4657(int32(1)) && this_.priv_ReferenceCollection_areInSameFile_4659(int32(0), int32(1)) {
 		return this_.Get(int32(1))
 	}
 	return nil
 }
 
 // Java method: ReferenceCollection.areInSameFile(int idx0, int idx1)
-func (this_ *ReferenceCollection) priv_ReferenceCollection_areInSameFile_4644(idx0 int32, idx1 int32) bool {
+func (this_ *ReferenceCollection) priv_ReferenceCollection_areInSameFile_4659(idx0 int32, idx1 int32) bool {
 	_ = idx0
 	_ = idx1
 	return j2gort.ObjEqCustomPtr(this_.Get(idx0).GetInputId(), this_.Get(idx1).GetInputId())
@@ -329,7 +329,7 @@ func (this_ *ReferenceCollection) GetInitializingReferenceForConstants() *Refere
 		var i int32 = int32(0)
 		_ = i
 		for ; i < size; i = i + 1 {
-			if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4641(i) || this_.priv_ReferenceCollection_isInitializingAssignmentAt_4642(i) {
+			if this_.priv_ReferenceCollection_isInitializingDeclarationAt_4656(i) || this_.priv_ReferenceCollection_isInitializingAssignmentAt_4657(i) {
 				return this_.Get(i)
 			}
 		}

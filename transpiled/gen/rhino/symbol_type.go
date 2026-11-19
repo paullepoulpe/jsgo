@@ -140,7 +140,8 @@ func (this_ *SymbolTypeBase) TestForEquality(that JSType) pkg_base.Tri {
 	if result != 0 {
 		return result
 	}
-	if that.GetJSTypeBase().CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || that.GetJSTypeBase().CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
+	base_that_ := that.GetJSTypeBase()
+	if base_that_.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_TYPE())) || base_that_.CanCastTo(this_.GetNativeType(StaticGet_JSTypeNative_SYMBOL_OBJECT_TYPE())) {
 		return pkg_base.StaticGet_Tri_UNKNOWN()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()

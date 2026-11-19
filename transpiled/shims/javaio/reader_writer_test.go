@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/iotest"
 )
@@ -268,4 +269,195 @@ func TestRemainingBytesHintAndReadAllBytesFastPath(t *testing.T) {
 	if err != nil || !bytes.Equal(rest, payload[10:]) {
 		t.Fatalf("ReadAllBytes(BufferedInputStream) mismatch: len=%d err=%v", len(rest), err)
 	}
+	_ = bis.Close()
+}
+
+type writeCountingSink struct {
+	buf    bytes.Buffer
+	writes int
+	closes int
+}
+
+func (s *writeCountingSink) Write(p []byte) (int, error) {
+	s.writes++
+	return s.buf.Write(p)
+}
+
+func (s *writeCountingSink) Close() error {
+	s.closes++
+	return nil
+}
+
+func TestWave42CRawUnixFDFileOutputStreamAnd64KiBBufferedStreams(t *testing.T) {
+	dir := t.TempDir()
+
+	// 1. Create, truncate, append, WriteByte, small + >64 KiB WriteString, and NewFileOutputStreamFromOSFile.
+	p1 := filepath.Join(dir, "chunk.js")
+	fos1, err := NewFileOutputStream(p1)
+	if err != nil {
+		t.Fatalf("NewFileOutputStream failed: %v", err)
+	}
+	if _, err := fos1.Write([]byte("stale-initial-content-that-must-be-truncated")); err != nil {
+		t.Fatal(err)
+	}
+	if err := fos1.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Double Close() must be idempotent.
+	if err := fos1.Close(); err != nil {
+		t.Fatalf("double Close() failed: %v", err)
+	}
+	if _, err := fos1.Write([]byte("x")); err == nil {
+		t.Fatal("expected error writing to closed FileOutputStream")
+	}
+
+	// Re-open via NewFileOutputStream -> must truncate existing content.
+	fos2, err := NewFileOutputStream(p1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fos2.WriteString("const header = 1;\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := fos2.WriteByte('/'); err != nil {
+		t.Fatal(err)
+	}
+	if err := fos2.WriteByte('/'); err != nil {
+		t.Fatal(err)
+	}
+	largeBody := strings.Repeat("export const line = '0123456789abcdef';\n", 2500) // 100 KiB (> 64 KiB scratch chunk)
+	if n, err := fos2.WriteString(largeBody); err != nil || n != len(largeBody) {
+		t.Fatalf("large WriteString failed: n=%d err=%v", n, err)
+	}
+	if err := fos2.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Append via NewFileOutputStreamAppend(..., true).
+	fosApp, err := NewFileOutputStreamAppend(p1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fosApp.Write([]byte("// trailer\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := fosApp.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	wantFull := "const header = 1;\n//" + largeBody + "// trailer\n"
+	fis, err := NewFileInputStream(p1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bis := NewBufferedInputStream(fis)
+	gotBytes, err := ReadAllBytes(bis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := bis.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if string(gotBytes) != wantFull {
+		t.Fatalf("round-trip mismatch: got len=%d, want len=%d", len(gotBytes), len(wantFull))
+	}
+
+	// NewFileOutputStreamFromOSFile compatibility.
+	osFilePath := filepath.Join(dir, "from_os.txt")
+	osf, err := os.Create(osFilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fosOS := NewFileOutputStreamFromOSFile(osf)
+	if _, err := fosOS.WriteString("os-file-ok"); err != nil {
+		t.Fatal(err)
+	}
+	if err := fosOS.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(osFilePath); err != nil || string(b) != "os-file-ok" {
+		t.Fatalf("NewFileOutputStreamFromOSFile mismatch: %q err=%v", string(b), err)
+	}
+
+	// Error handling on bad path (missing parent directory -> FileNotFoundException).
+	if _, err := NewFileOutputStream(filepath.Join(dir, "no_such_dir", "out.js")); err == nil {
+		t.Fatal("expected FileNotFoundException on missing parent directory")
+	} else if _, ok := err.(*FileNotFoundException); !ok {
+		t.Fatalf("expected *FileNotFoundException, got %T (%v)", err, err)
+	}
+
+	// 2. 64 KiB pooled BufferedOutputStream: 50 KiB of small writes must coalesce into ONE flush on Close()!
+	sink := &writeCountingSink{}
+	bos := NewBufferedOutputStream(sink)
+	chunk := bytes.Repeat([]byte("abcdefghij"), 100) // 1,000 B
+	for i := 0; i < 50; i++ {
+		if _, err := bos.Write(chunk); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sink.writes != 0 {
+		t.Fatalf("expected 0 flushes for 50 KB inside 64 KiB BufferedOutputStream, got %d", sink.writes)
+	}
+	if err := bos.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if sink.writes != 1 || sink.closes != 1 || sink.buf.Len() != 50000 {
+		t.Fatalf("after Close(): writes=%d closes=%d len=%d", sink.writes, sink.closes, sink.buf.Len())
+	}
+
+	// 3. Concurrent -race stress: parallel file creates/writes/reads + concurrent Close() on shared stream.
+	sharedPath := filepath.Join(dir, "shared_close.js")
+	sharedOut, err := NewFileOutputStream(sharedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sharedOut.WriteString("race-safe-close"); err != nil {
+		t.Fatal(err)
+	}
+	var closeWG sync.WaitGroup
+	for g := 0; g < 16; g++ {
+		closeWG.Add(1)
+		go func() {
+			defer closeWG.Done()
+			_ = sharedOut.Close()
+		}()
+	}
+	closeWG.Wait()
+
+	var wg sync.WaitGroup
+	for g := 0; g < 16; g++ {
+		g := g
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			p := filepath.Join(dir, "worker_"+strings.Repeat("x", g%5)+"_"+string(rune('a'+g))+".bin")
+			out, err := NewFileOutputStream(p)
+			if err != nil {
+				t.Errorf("worker %d open failed: %v", g, err)
+				return
+			}
+			bw := NewBufferedOutputStream(out)
+			payload := bytes.Repeat([]byte{byte('A' + g)}, 80*1024) // > 64 KiB
+			if _, err := bw.Write(payload); err != nil {
+				t.Errorf("worker %d write failed: %v", g, err)
+				return
+			}
+			if err := bw.Close(); err != nil {
+				t.Errorf("worker %d close failed: %v", g, err)
+				return
+			}
+			in, err := NewFileInputStream(p)
+			if err != nil {
+				t.Errorf("worker %d reopen failed: %v", g, err)
+				return
+			}
+			bi := NewBufferedInputStream(in)
+			got, err := ReadAllBytes(bi)
+			_ = bi.Close()
+			if err != nil || !bytes.Equal(got, payload) {
+				t.Errorf("worker %d verify mismatch: len=%d err=%v", g, len(got), err)
+			}
+		}()
+	}
+	wg.Wait()
 }

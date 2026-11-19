@@ -192,7 +192,7 @@ func (this_ *Scope) MakeImplicitVar(var_ AbstractScope_ImplicitVar) any {
 }
 
 // Java method: Scope.findOwnDeclaredVar(java.lang.String name)
-func (this_ *Scope) priv_Scope_findOwnDeclaredVar_5007(name string) *Var {
+func (this_ *Scope) priv_Scope_findOwnDeclaredVar_5022(name string) *Var {
 	_ = name
 	if this_.vars != nil {
 		return this_.vars.Get(name)
@@ -231,7 +231,7 @@ func (this_ *Scope) priv_Scope_findOwnDeclaredVar_5007(name string) *Var {
 // Java method: Scope.getOwnDeclaredVar(java.lang.String name)
 func (this_ *Scope) GetOwnDeclaredVar(name string) any {
 	_ = name
-	return j2gort.PtrToAny(this_.priv_Scope_findOwnDeclaredVar_5007(name))
+	return j2gort.PtrToAny(this_.priv_Scope_findOwnDeclaredVar_5022(name))
 }
 
 // Java method: Scope.putOwnDeclaredVar(java.lang.String name, com.google.javascript.jscomp.Var var)
@@ -267,12 +267,19 @@ func (this_ *Scope) PutOwnDeclaredVar(name string, arg_1 any) {
 		this_.var5 = var_
 		return
 	}
-	this_.vars = j2gort.AcquireOrderedMapPtrCap[string, *Var](func() int32 {
+	var iifeArg_1 int32
+iifeSwitch_1:
+	switch {
+	default:
+
 		if this_.parent == nil {
-			return int32(1024)
+			iifeArg_1 = int32(1024)
+			break iifeSwitch_1
 		}
-		return int32(16)
-	}())
+		iifeArg_1 = int32(16)
+		break iifeSwitch_1
+	}
+	this_.vars = j2gort.AcquireOrderedMapPtrCap[string, *Var](iifeArg_1)
 	this_.vars.Put(this_.var0.GetName(), this_.var0)
 	this_.vars.Put(this_.var1.GetName(), this_.var1)
 	this_.vars.Put(this_.var2.GetName(), this_.var2)
@@ -361,7 +368,7 @@ func (this_ *Scope) LookupVar(name string) *Var {
 			var scope *Scope = this_
 			_ = scope
 			for ; scope != nil; scope = scope.parent {
-				var var_ *Var = scope.priv_Scope_findOwnDeclaredVar_5007(name)
+				var var_ *Var = scope.priv_Scope_findOwnDeclaredVar_5022(name)
 				_ = var_
 				if var_ != nil {
 					return var_
@@ -374,7 +381,7 @@ func (this_ *Scope) LookupVar(name string) *Var {
 		var scope_2 *Scope = this_
 		_ = scope_2
 		for ; scope_2 != nil; scope_2 = scope_2.parent {
-			var var__2 *Var = scope_2.priv_Scope_findOwnDeclaredVar_5007(name)
+			var var__2 *Var = scope_2.priv_Scope_findOwnDeclaredVar_5022(name)
 			_ = var__2
 			if var__2 != nil {
 				return var__2
@@ -620,17 +627,24 @@ func (this_ *Scope) MergeVarNamesArray(existing []string) []string {
 	_ = existing
 	var merged *j2gort.Ext_java_util_LinkedHashSet = j2gort.NewExt_java_util_LinkedHashSet_1_int32((int32(len(existing)) + this_.GetVarCount()))
 	_ = merged
-	j2gort.Ext_java_util_Collections_AddAll(merged, func() []any {
+	var iifeArg_2 []any
+iifeSwitch_2:
+	switch {
+	default:
+
 		arr_25 := existing
 		if arr_25 == nil {
-			return nil
+			iifeArg_2 = nil
+			break iifeSwitch_2
 		}
 		out_26 := make([]any, len(arr_25))
 		for i_, el_27 := range arr_25 {
 			out_26[i_] = j2gort.BoxString(el_27)
 		}
-		return out_26
-	}())
+		iifeArg_2 = out_26
+		break iifeSwitch_2
+	}
+	j2gort.Ext_java_util_Collections_AddAll(merged, iifeArg_2)
 	this_.AddVarNamesTo(merged)
 	return j2gort.ColToNewStringArray(merged)
 }

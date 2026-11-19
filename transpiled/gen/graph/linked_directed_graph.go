@@ -35,6 +35,7 @@ type LinkedDirectedGraph[N comparable, E any] interface {
 	ResetForReuse(bool, bool) bool
 	Connect_3_DiGraph_DiGraphNode_any_any__any_DiGraph_DiGraphNode_any_any_(DiGraph_DiGraphNode[N, E], E, DiGraph_DiGraphNode[N, E])
 	ConnectIfNotConnectedInDirection(N, E, N)
+	CollectNodes([]*LinkedDirectedGraph_LinkedDiGraphNode[N, E]) int32
 	IsConnectedInDirection_3_LinkedDirectedGraph_LinkedDiGraphNode_any_any__Ext_com_google_common_base_Predicate_LinkedDirectedGraph_LinkedDiGraphNode_any_any_(*LinkedDirectedGraph_LinkedDiGraphNode[N, E], j2gort.Ext_com_google_common_base_Predicate, *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) bool
 }
 
@@ -165,7 +166,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) ResetForReuse(useNodeAnnotations boo
 }
 
 // Java method: LinkedDirectedGraph.acquireEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> src, E edgeValue, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> dest)
-func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_acquireEdge_6342(src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
+func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_acquireEdge_6357(src *LinkedDirectedGraph_LinkedDiGraphNode[N, E], edgeValue E, dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] {
 	_ = src
 	_ = edgeValue
 	_ = dest
@@ -190,7 +191,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) Connect_3_any_any_any(srcValue N, ed
 	_ = src
 	var dest *LinkedDirectedGraph_LinkedDiGraphNode[N, E] = j2gort.CastPtr[LinkedDirectedGraph_LinkedDiGraphNode[N, E]](this_.GetNodeOrFail(destValue))
 	_ = dest
-	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6342(src, edgeValue, dest)
+	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6357(src, edgeValue, dest)
 	_ = edge
 	src.AddOutEdge(edge)
 	dest.AddInEdge(edge)
@@ -205,7 +206,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) Connect_3_DiGraph_DiGraphNode_any_an
 	_ = lSrc
 	var lDest *LinkedDirectedGraph_LinkedDiGraphNode[N, E] = j2gort.CastPtr[LinkedDirectedGraph_LinkedDiGraphNode[N, E]](dest)
 	_ = lDest
-	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6342(lSrc, edgeValue, lDest)
+	var edge *LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = this_.priv_LinkedDirectedGraph_acquireEdge_6357(lSrc, edgeValue, lDest)
 	_ = edge
 	lSrc.AddOutEdge(edge)
 	lDest.AddInEdge(edge)
@@ -262,6 +263,35 @@ func (this_ *LinkedDirectedGraphBase[N, E]) GetNodes() j2gort.Ext_java_util_Coll
 		this_.nodesView = view
 	}
 	return view
+}
+
+// Java method: LinkedDirectedGraph.collectNodes(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E>[] out)
+func (this_ *LinkedDirectedGraphBase[N, E]) CollectNodes(out []*LinkedDirectedGraph_LinkedDiGraphNode[N, E]) int32 {
+	_ = out
+	var i int32 = int32(0)
+	_ = i
+	{
+		cur_5 := this_.nodes.IterValues()
+		for cur_5.HasNext() {
+
+			node := cur_5.
+				Next()
+			_ = node
+			{
+				a_7 := out
+				var i_8 int32
+				{
+
+					old_9 := i
+					nw_10 := old_9 + 1
+					i = nw_10
+					i_8 = old_9
+				}
+				a_7[i_8] = node
+			}
+		}
+	}
+	return i
 }
 
 // Java method: LinkedDirectedGraph.getNode(N nodeValue)
@@ -358,10 +388,10 @@ func (this_ *LinkedDirectedGraphBase[N, E]) GetEdges_0() j2gort.Ext_java_util_Li
 	var result []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]{}
 	_ = result
 	{
-		cur_5 := this_.nodes.IterValues()
-		for cur_5.HasNext() {
+		cur_11 := this_.nodes.IterValues()
+		for cur_11.HasNext() {
 
-			node := cur_5.
+			node := cur_11.
 				Next()
 			_ = node
 			if node.outEdges != nil {
@@ -463,7 +493,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) GetEdgesInDirection(n1 N, n2 N) j2go
 func (this_ *LinkedDirectedGraphBase[N, E]) IsConnectedInDirection_2(source N, dest N) bool {
 	_ = source
 	_ = dest
-	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6346(source, j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), dest)
+	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6362(source, j2gort.Ext_com_google_common_base_Predicates_AlwaysTrue(), dest)
 }
 
 // Java method: LinkedDirectedGraph.isConnectedInDirection(N source, E edgeValue, N dest)
@@ -471,7 +501,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) IsConnectedInDirection_3_any_any_any
 	_ = source
 	_ = edgeValue
 	_ = dest
-	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6346(source, j2gort.Ext_com_google_common_base_Predicates_EqualTo(j2gort.ToAny(edgeValue)), dest)
+	return this_.priv_LinkedDirectedGraph_isConnectedInDirection_6362(source, j2gort.Ext_com_google_common_base_Predicates_EqualTo(j2gort.ToAny(edgeValue)), dest)
 }
 
 // Java method: LinkedDirectedGraph.isConnectedInDirection(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> source, com.google.common.base.Predicate<E> edgeFilter, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> dest)
@@ -520,7 +550,7 @@ func (this_ *LinkedDirectedGraphBase[N, E]) IsConnectedInDirection_3_LinkedDirec
 }
 
 // Java method: LinkedDirectedGraph.isConnectedInDirection(N n1, com.google.common.base.Predicate<E> edgeMatcher, N n2)
-func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_isConnectedInDirection_6346(n1 N, edgeMatcher j2gort.Ext_com_google_common_base_Predicate, n2 N) bool {
+func (this_ *LinkedDirectedGraphBase[N, E]) priv_LinkedDirectedGraph_isConnectedInDirection_6362(n1 N, edgeMatcher j2gort.Ext_com_google_common_base_Predicate, n2 N) bool {
 	_ = n1
 	_ = edgeMatcher
 	_ = n2
@@ -600,10 +630,10 @@ func (this_ *LinkedDirectedGraphBase[N, E]) GetGraphvizEdges() j2gort.Ext_java_u
 	var edgeList []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E] = []*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]{}
 	_ = edgeList
 	{
-		cur_7 := this_.nodes.IterValues()
-		for cur_7.HasNext() {
+		cur_13 := this_.nodes.IterValues()
+		for cur_13.HasNext() {
 
-			node := cur_7.
+			node := cur_13.
 				Next()
 			_ = node
 			if node.outEdges != nil {
@@ -629,10 +659,10 @@ func (this_ *LinkedDirectedGraphBase[N, E]) GetGraphvizNodes() j2gort.Ext_java_u
 	var nodeList []*LinkedDirectedGraph_LinkedDiGraphNode[N, E] = j2gort.MakeNonNilSlice[*LinkedDirectedGraph_LinkedDiGraphNode[N, E]](this_.nodes.Size())
 	_ = nodeList
 	{
-		cur_9 := this_.nodes.IterValues()
-		for cur_9.HasNext() {
+		cur_15 := this_.nodes.IterValues()
+		for cur_15.HasNext() {
 
-			node := cur_9.
+			node := cur_15.
 				Next()
 			_ = node
 			nodeList = append(nodeList, node)
@@ -712,6 +742,7 @@ type LinkedDirectedGraph_LinkedDiGraphNode[N comparable, E any] struct {
 	annotation        Annotation                                     `gson:"annotation"`
 	priority          int32                                          `gson:"priority"`
 	astPosition       int32                                          `gson:"astPosition"`
+	dfaIndex          int32                                          `gson:"dfaIndex"`
 	idHash_           atomic.Int32
 	useAnnotation     bool `gson:"useAnnotation"`
 	inDfaQueue        bool `gson:"inDfaQueue"`
@@ -755,6 +786,7 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) initFields_LinkedDirec
 	this_.cachedId = j2gort.NullString
 	this_.priority = int32(-1)
 	this_.astPosition = int32(-1)
+	this_.dfaIndex = int32(-1)
 }
 
 // Java constructor: LinkedDiGraphNode(N nodeValue, boolean useAnnotation)
@@ -801,6 +833,7 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) ClearForPool() {
 	this_.annotation = nil
 	this_.priority = int32(-1)
 	this_.astPosition = int32(-1)
+	this_.dfaIndex = int32(-1)
 	this_.inDfaQueue = false
 }
 
@@ -1112,6 +1145,17 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) SetInDfaQueue(inDfaQue
 	this_.inDfaQueue = inDfaQueue
 }
 
+// Java method: LinkedDiGraphNode.getDfaIndex()
+func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) GetDfaIndex() int32 {
+	return this_.dfaIndex
+}
+
+// Java method: LinkedDiGraphNode.setDfaIndex(int dfaIndex)
+func (this_ *LinkedDirectedGraph_LinkedDiGraphNode[N, E]) SetDfaIndex(dfaIndex int32) {
+	_ = dfaIndex
+	this_.dfaIndex = dfaIndex
+}
+
 // Java class: com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphEdge
 type LinkedDirectedGraph_LinkedDiGraphEdge[N comparable, E any] struct {
 	sourceNode        *LinkedDirectedGraph_LinkedDiGraphNode[N, E] `gson:"sourceNode"`
@@ -1119,6 +1163,7 @@ type LinkedDirectedGraph_LinkedDiGraphEdge[N comparable, E any] struct {
 	value             E                                            `gson:"value"`
 	singletonSelfList j2gort.Ext_java_util_List                    `gson:"singletonSelfList"`
 	annotation        Annotation                                   `gson:"annotation"`
+	dfaEdgeIndex      int32                                        `gson:"dfaEdgeIndex"`
 	idHash_           atomic.Int32
 	useAnnotation     bool `gson:"useAnnotation"`
 }
@@ -1158,6 +1203,7 @@ func (*LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) Implements_graph_Annotatable
 
 func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) initFields_LinkedDirectedGraph_LinkedDiGraphEdge() {
 	_ = this_
+	this_.dfaEdgeIndex = int32(-1)
 }
 
 // Java constructor: LinkedDiGraphEdge(com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> sourceNode, E edgeValue, com.google.javascript.jscomp.graph.LinkedDirectedGraph.LinkedDiGraphNode<N,E> destNode, boolean useAnnotation)
@@ -1208,6 +1254,7 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) ClearForPool() {
 		return z_
 	}()
 	this_.annotation = nil
+	this_.dfaEdgeIndex = int32(-1)
 }
 
 // Java method: LinkedDiGraphEdge.asSingletonList()
@@ -1286,6 +1333,17 @@ func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetNodeA() GraphNode[N
 // Java method: LinkedDiGraphEdge.getNodeB()
 func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetNodeB() GraphNode[N, E] {
 	return ToIface_GraphNode[N, E](this_.destNode)
+}
+
+// Java method: LinkedDiGraphEdge.getDfaEdgeIndex()
+func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) GetDfaEdgeIndex() int32 {
+	return this_.dfaEdgeIndex
+}
+
+// Java method: LinkedDiGraphEdge.setDfaEdgeIndex(int dfaEdgeIndex)
+func (this_ *LinkedDirectedGraph_LinkedDiGraphEdge[N, E]) SetDfaEdgeIndex(dfaEdgeIndex int32) {
+	_ = dfaEdgeIndex
+	this_.dfaEdgeIndex = dfaEdgeIndex
 }
 func (this_ *LinkedDirectedGraphBase[N, E]) ReleaseSlabs_() {
 	if this_ == nil {

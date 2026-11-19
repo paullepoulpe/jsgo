@@ -78,12 +78,12 @@ func LinterMain_Main(args []string) {
 	{
 		var val_1 LinterMain
 		InitLinterMain(&val_1)
-		(&val_1).priv_LinterMain_run_3782(args)
+		(&val_1).priv_LinterMain_run_3791(args)
 	}
 }
 
 // Java method: LinterMain.run(java.lang.String[] args)
-func (this_ *LinterMain) priv_LinterMain_run_3782(args []string) {
+func (this_ *LinterMain) priv_LinterMain_run_3791(args []string) {
 	_ = args
 	var parser *j2gort.Ext_org_kohsuke_args4j_CmdLineParser = j2gort.NewExt_org_kohsuke_args4j_CmdLineParser_1(this_)
 	_ = parser
@@ -126,10 +126,14 @@ func (this_ *LinterMain) RegisterArgs4jOptions(p *j2gort.Ext_org_kohsuke_args4j_
 		}, func() any {
 			return this_.resolutionMode
 		})
-		j2gort.Args4jRegisterHandler(p, opt_1_, func() j2gort.Ext_org_kohsuke_args4j_spi_OptionHandler {
+		var iifeArg_1 j2gort.
+			Ext_org_kohsuke_args4j_spi_OptionHandler
+		{
+
 			_ = ModuleLoader_ResolutionMode_Values()
-			return j2gort.NewArgs4jBuiltinHandler(p, opt_1_, set_1_, "enum", "com.google.javascript.jscomp.deps.ModuleLoader.ResolutionMode")
-		}(), false)
+			iifeArg_1 = j2gort.NewArgs4jBuiltinHandler(p, opt_1_, set_1_, "enum", "com.google.javascript.jscomp.deps.ModuleLoader.ResolutionMode")
+		}
+		j2gort.Args4jRegisterHandler(p, opt_1_, iifeArg_1, false)
 	}
 	{
 		opt_2_ := j2gort.NewArgs4jArgumentDef("", "", false, false, true, 0)

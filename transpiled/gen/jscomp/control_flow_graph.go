@@ -36,6 +36,7 @@ type ControlFlowGraph[N comparable] interface {
 	ResetCfgForPool() bool
 	ReinitCfg(N, bool)
 	GetImplicitReturn() pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
+	GetImplicitReturnNode() *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	GetEntry() pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]
 	GetEntryNode() *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch]
 	IsImplicitReturn(pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch]) bool
@@ -149,6 +150,11 @@ func (this_ *ControlFlowGraphBase[N]) ReinitCfg(entryValue N, edgeAnnotations bo
 // Java method: ControlFlowGraph.getImplicitReturn()
 func (this_ *ControlFlowGraphBase[N]) GetImplicitReturn() pkg_graph.DiGraph_DiGraphNode[N, ControlFlowGraph_Branch] {
 	return pkg_graph.ToIface_DiGraph_DiGraphNode[N, ControlFlowGraph_Branch](this_.implicitReturn)
+}
+
+// Java method: ControlFlowGraph.getImplicitReturnNode()
+func (this_ *ControlFlowGraphBase[N]) GetImplicitReturnNode() *pkg_graph.LinkedDirectedGraph_LinkedDiGraphNode[N, ControlFlowGraph_Branch] {
+	return this_.implicitReturn
 }
 
 // Java method: ControlFlowGraph.getEntry()

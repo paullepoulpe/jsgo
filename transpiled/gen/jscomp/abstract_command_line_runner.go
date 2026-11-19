@@ -1066,16 +1066,16 @@ func AbstractCommandLineRunner_CreateJsChunks(specs j2gort.Ext_java_util_List, i
 	for _, chunkName := range chunkNames {
 		_ = chunkName
 		var numJsFiles int32
-	iifeSwitch_3:
+	iifeSwitch_4:
 		switch {
 		default:
 			if v_, ok_ := chunksFileCountMap.GetOk(chunkName); ok_ {
 				numJsFiles = v_
-				break iifeSwitch_3
+				break iifeSwitch_4
 			}
 			j2gort.ThrowNPE()
 			numJsFiles = 0
-			break iifeSwitch_3
+			break iifeSwitch_4
 		}
 
 		_ = numJsFiles
@@ -3838,17 +3838,24 @@ func AbstractCommandLineRunner_JsChunkSpec_Create(specString string, isFirstChun
 			panic(NewFlagUsageException(("Invalid JS file count '" + j2gort.StrValString(parts[int32(1)]) + "' for chunk: " + j2gort.StrValString(name))))
 		}
 	}
-	return NewAbstractCommandLineRunner_JsChunkSpec(name, numInputs, j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_3:
+	switch {
+	default:
+
 		arr_103 := deps
 		if arr_103 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_3
 		}
 		out_104 := make([]any, len(arr_103))
 		for i_, el_105 := range arr_103 {
 			out_104[i_] = j2gort.BoxString(el_105)
 		}
-		return out_104
-	}()))
+		iifeArg_1 = out_104
+		break iifeSwitch_3
+	}
+	return NewAbstractCommandLineRunner_JsChunkSpec(name, numInputs, j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_1))
 }
 
 // Java method: JsChunkSpec.getName()

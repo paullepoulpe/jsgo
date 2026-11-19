@@ -120,7 +120,7 @@ func (this_ *ExportTestFunctions) Process_2(externs pkg_rhino.Node, root pkg_rhi
 }
 
 // Java method: ExportTestFunctions.exportTestFunctionAsSymbol(java.lang.String testFunctionName, com.google.javascript.rhino.Node node)
-func (this_ *ExportTestFunctions) priv_ExportTestFunctions_exportTestFunctionAsSymbol_2789(testFunctionName string, node pkg_rhino.Node) {
+func (this_ *ExportTestFunctions) priv_ExportTestFunctions_exportTestFunctionAsSymbol_2796(testFunctionName string, node pkg_rhino.Node) {
 	_ = testFunctionName
 	_ = node
 	var exportCallTarget pkg_rhino.Node = NodeUtil_NewQName_4_AbstractCompiler_string_Node_string(this_.compiler, this_.exportSymbolFunction, node, testFunctionName)
@@ -139,7 +139,7 @@ func (this_ *ExportTestFunctions) priv_ExportTestFunctions_exportTestFunctionAsS
 }
 
 // Java method: ExportTestFunctions.exportTestFunctionAsProperty(com.google.javascript.rhino.Node fullyQualifiedFunctionName, com.google.javascript.rhino.Node node)
-func (this_ *ExportTestFunctions) priv_ExportTestFunctions_exportTestFunctionAsProperty_2790(fullyQualifiedFunctionName pkg_rhino.Node, node pkg_rhino.Node) {
+func (this_ *ExportTestFunctions) priv_ExportTestFunctions_exportTestFunctionAsProperty_2797(fullyQualifiedFunctionName pkg_rhino.Node, node pkg_rhino.Node) {
 	_ = fullyQualifiedFunctionName
 	_ = node
 	if !(fullyQualifiedFunctionName.IsGetProp()) {
@@ -268,24 +268,24 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) Visit_3(t *NodeTraver
 			var functionName string = NodeUtil_GetName(n)
 			_ = functionName
 			if ExportTestFunctions_IsTestFunction(functionName) {
-				this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsSymbol_2789(functionName, n)
+				this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsSymbol_2796(functionName, n)
 			}
-		} else if this_.priv_ExportTestFunctionsNodes_isNameDeclaredFunction_2795(n) {
+		} else if this_.priv_ExportTestFunctionsNodes_isNameDeclaredFunction_2802(n) {
 			var functionNode pkg_rhino.Node = n.GetFirstFirstChild()
 			_ = functionNode
 			var functionName_2 string = NodeUtil_GetName(functionNode)
 			_ = functionName_2
 			if ExportTestFunctions_IsTestFunction(functionName_2) {
-				this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsSymbol_2789(functionName_2, n)
+				this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsSymbol_2796(functionName_2, n)
 			}
-		} else if this_.priv_ExportTestFunctionsNodes_isNameDeclaredClass_2796(n) {
+		} else if this_.priv_ExportTestFunctionsNodes_isNameDeclaredClass_2803(n) {
 			var classNode pkg_rhino.Node = n.GetFirstFirstChild()
 			_ = classNode
 			var className string = NodeUtil_GetName(classNode)
 			_ = className
-			this_.priv_ExportTestFunctionsNodes_exportClass_2792(classNode, className, n)
+			this_.priv_ExportTestFunctionsNodes_exportClass_2799(classNode, className, n)
 		} else if n.IsClass() {
-			this_.priv_ExportTestFunctionsNodes_exportClass_2791(n)
+			this_.priv_ExportTestFunctionsNodes_exportClass_2798(n)
 		}
 	} else if NodeUtil_IsExprAssign(parent) {
 		var grandparent pkg_rhino.Node = parent.GetParent()
@@ -300,13 +300,13 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) Visit_3(t *NodeTraver
 			if lastChild.IsFunction() {
 				if ExportTestFunctions_IsTestFunction(nodeName) {
 					if n.GetFirstChild().IsName() {
-						this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsSymbol_2789(nodeName, parent)
+						this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsSymbol_2796(nodeName, parent)
 					} else {
-						this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsProperty_2790(firstChild, n)
+						this_.outer_.priv_ExportTestFunctions_exportTestFunctionAsProperty_2797(firstChild, n)
 					}
 				}
 			} else if lastChild.IsClass() {
-				this_.priv_ExportTestFunctionsNodes_exportClass_2792(lastChild, nodeName, parent)
+				this_.priv_ExportTestFunctionsNodes_exportClass_2799(lastChild, nodeName, parent)
 			}
 		}
 	} else if ExportTestFunctions_IsTestSuiteArgument(n, t) {
@@ -320,7 +320,7 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) Visit_3(t *NodeTraver
 					c.SetQuotedStringKey()
 					this_.outer_.compiler.ReportChangeToEnclosingScope(c)
 				} else if c.IsMemberFunctionDef() {
-					this_.priv_ExportTestFunctionsNodes_rewriteMemberDefInObjLit_2793(c, n)
+					this_.priv_ExportTestFunctionsNodes_rewriteMemberDefInObjLit_2800(c, n)
 				}
 				c = next
 			}
@@ -329,15 +329,15 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) Visit_3(t *NodeTraver
 }
 
 // Java method: ExportTestFunctionsNodes.exportClass(com.google.javascript.rhino.Node classNode)
-func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_exportClass_2791(classNode pkg_rhino.Node) {
+func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_exportClass_2798(classNode pkg_rhino.Node) {
 	_ = classNode
 	var className string = NodeUtil_GetName(classNode)
 	_ = className
-	this_.priv_ExportTestFunctionsNodes_exportClass_2792(classNode, className, classNode)
+	this_.priv_ExportTestFunctionsNodes_exportClass_2799(classNode, className, classNode)
 }
 
 // Java method: ExportTestFunctionsNodes.exportClass(com.google.javascript.rhino.Node classNode, java.lang.String className, com.google.javascript.rhino.Node addAfter)
-func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_exportClass_2792(classNode pkg_rhino.Node, className string, addAfter pkg_rhino.Node) {
+func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_exportClass_2799(classNode pkg_rhino.Node, className string, addAfter pkg_rhino.Node) {
 	_ = classNode
 	_ = className
 	_ = addAfter
@@ -377,7 +377,7 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFuncti
 }
 
 // Java method: ExportTestFunctionsNodes.rewriteMemberDefInObjLit(com.google.javascript.rhino.Node memberDef, com.google.javascript.rhino.Node objLit)
-func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_rewriteMemberDefInObjLit_2793(memberDef pkg_rhino.Node, objLit pkg_rhino.Node) {
+func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_rewriteMemberDefInObjLit_2800(memberDef pkg_rhino.Node, objLit pkg_rhino.Node) {
 	_ = memberDef
 	_ = objLit
 	var name string = memberDef.GetString()
@@ -391,7 +391,7 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFuncti
 }
 
 // Java method: ExportTestFunctionsNodes.getNameDeclaredGrandchild(com.google.javascript.rhino.Node node)
-func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_getNameDeclaredGrandchild_2794(node pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_getNameDeclaredGrandchild_2801(node pkg_rhino.Node) pkg_rhino.Node {
 	_ = node
 	if !(NodeUtil_IsNameDeclaration(node)) {
 		return pkg_rhino.Node(0)
@@ -400,17 +400,17 @@ func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFuncti
 }
 
 // Java method: ExportTestFunctionsNodes.isNameDeclaredFunction(com.google.javascript.rhino.Node node)
-func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_isNameDeclaredFunction_2795(node pkg_rhino.Node) bool {
+func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_isNameDeclaredFunction_2802(node pkg_rhino.Node) bool {
 	_ = node
-	var grandchild pkg_rhino.Node = this_.priv_ExportTestFunctionsNodes_getNameDeclaredGrandchild_2794(node)
+	var grandchild pkg_rhino.Node = this_.priv_ExportTestFunctionsNodes_getNameDeclaredGrandchild_2801(node)
 	_ = grandchild
 	return ((grandchild != 0) && grandchild.IsFunction())
 }
 
 // Java method: ExportTestFunctionsNodes.isNameDeclaredClass(com.google.javascript.rhino.Node node)
-func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_isNameDeclaredClass_2796(node pkg_rhino.Node) bool {
+func (this_ *ExportTestFunctions_ExportTestFunctionsNodes) priv_ExportTestFunctionsNodes_isNameDeclaredClass_2803(node pkg_rhino.Node) bool {
 	_ = node
-	var grandchild pkg_rhino.Node = this_.priv_ExportTestFunctionsNodes_getNameDeclaredGrandchild_2794(node)
+	var grandchild pkg_rhino.Node = this_.priv_ExportTestFunctionsNodes_getNameDeclaredGrandchild_2801(node)
 	_ = grandchild
 	return ((grandchild != 0) && grandchild.IsClass())
 }

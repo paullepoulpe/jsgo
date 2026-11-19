@@ -711,12 +711,15 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_computeCfg_2185(root 
 	this_.astPositionCounter = int32(0)
 	this_.cfg = ToIface_ControlFlowGraph[pkg_rhino.Node](ControlFlowAnalysis_AcquireAstCfg(ControlFlowAnalysis_ComputeFallThrough(root), this_.edgeAnnotations))
 	NodeTraversal_Traverse(this_.compiler, root, this_)
-	this_.priv_ControlFlowAnalysis_putAstPosition_2181(pkg_rhino.Node(0), func() int32 {
+	var iifeArg_1 int32
+	{
+
 		old_58 := this_.astPositionCounter
 		nw_59 := old_58 + 1
 		this_.astPositionCounter = nw_59
-		return nw_59
-	}())
+		iifeArg_1 = nw_59
+	}
+	this_.priv_ControlFlowAnalysis_putAstPosition_2181(pkg_rhino.Node(0), iifeArg_1)
 	this_.priorityCounter = int32(0)
 	var entry pkg_graph.DiGraph_DiGraphNode[pkg_rhino.Node, ControlFlowGraph_Branch] = this_.cfg.GetEntry()
 	_ = entry
@@ -927,12 +930,15 @@ func (this_ *ControlFlowAnalysis) ShouldTraverse_3(nodeTraversal *NodeTraversal,
 	_ = n
 	_ = parent
 	if this_.priv_ControlFlowAnalysis_shouldTraverseIntoChildren_2187(n, parent) {
-		this_.priv_ControlFlowAnalysis_putAstPosition_2181(n, func() int32 {
+		var iifeArg_2 int32
+		{
+
 			old_91 := this_.astPositionCounter
 			nw_92 := old_91 + 1
 			this_.astPositionCounter = nw_92
-			return old_91
-		}())
+			iifeArg_2 = old_91
+		}
+		this_.priv_ControlFlowAnalysis_putAstPosition_2181(n, iifeArg_2)
 		return true
 	}
 	return false
@@ -960,12 +966,15 @@ func (this_ *ControlFlowAnalysis) priv_ControlFlowAnalysis_shouldTraverseIntoChi
 			var shouldTraverseForChild bool = (n == parent.GetLastChild())
 			_ = shouldTraverseForChild
 			if !(shouldTraverseForChild) {
-				this_.priv_ControlFlowAnalysis_putAstPosition_2181(n, func() int32 {
+				var iifeArg_3 int32
+				{
+
 					old_93 := this_.astPositionCounter
 					nw_94 := old_93 + 1
 					this_.astPositionCounter = nw_94
-					return old_93
-				}())
+					iifeArg_3 = old_93
+				}
+				this_.priv_ControlFlowAnalysis_putAstPosition_2181(n, iifeArg_3)
 			}
 			return shouldTraverseForChild
 		case int32(79) /* Token.DO */ :

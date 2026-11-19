@@ -136,7 +136,7 @@ func (this_ *TypedAstSerializer) SerializeRoots(externsRoot pkg_rhino.Node, jsRo
 		j2gort.CheckArgument(false)
 	}
 	if this_.compiler.HasOptimizationColors() {
-		this_.typeSerializer = ToIface_TypedAstSerializer_TypeSerializer(this_.priv_TypedAstSerializer_createColorTypeSerializer_7789(this_.compiler, this_.serializationMode, this_.stringPool))
+		this_.typeSerializer = ToIface_TypedAstSerializer_TypeSerializer(this_.priv_TypedAstSerializer_createColorTypeSerializer_7810(this_.compiler, this_.serializationMode, this_.stringPool))
 	} else if this_.compiler.HasTypeCheckingRun() {
 		this_.typeSerializer = ToIface_TypedAstSerializer_TypeSerializer(TypedAstSerializer_CreateJSTypeSerializer(this_.compiler, this_.serializationMode, this_.stringPool))
 	} else {
@@ -151,7 +151,7 @@ func (this_ *TypedAstSerializer) SerializeRoots(externsRoot pkg_rhino.Node, jsRo
 			if NodeUtil_IsFromTypeSummary(script) {
 				continue
 			}
-			builder.AddExternAst_1_Ext_com_google_javascript_jscomp_serialization_LazyAst(this_.priv_TypedAstSerializer_serializeScriptNode_7781(script))
+			builder.AddExternAst_1_Ext_com_google_javascript_jscomp_serialization_LazyAst(this_.priv_TypedAstSerializer_serializeScriptNode_7802(script))
 		}
 	}
 	{
@@ -161,7 +161,7 @@ func (this_ *TypedAstSerializer) SerializeRoots(externsRoot pkg_rhino.Node, jsRo
 			if NodeUtil_IsFromTypeSummary(script_2) {
 				continue
 			}
-			builder.AddCodeAst_1_Ext_com_google_javascript_jscomp_serialization_LazyAst(this_.priv_TypedAstSerializer_serializeScriptNode_7781(script_2))
+			builder.AddCodeAst_1_Ext_com_google_javascript_jscomp_serialization_LazyAst(this_.priv_TypedAstSerializer_serializeScriptNode_7802(script_2))
 		}
 	}
 	var sourceFiles *j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFilePool = j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFilePool](j2gort.Ext_com_google_javascript_jscomp_serialization_SourceFilePool_NewBuilder_0().AddAllSourceFile(j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableList](j2gort.AsIface[j2gort.Ext_java_util_Set](this_.sourceFilePointers.LiveKeySet()).Stream().Map(lambdaSingleton_typed_ast_serializer_1).Collect_1(j2gort.Ext_com_google_common_collect_ImmutableList_ToImmutableList()))).Build())
@@ -183,15 +183,15 @@ func (this_ *TypedAstSerializer) SerializeRoots(externsRoot pkg_rhino.Node, jsRo
 }
 
 // Java method: TypedAstSerializer.serializeScriptNode(com.google.javascript.rhino.Node script)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_serializeScriptNode_7781(script pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_LazyAst {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_serializeScriptNode_7802(script pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_LazyAst {
 	_ = script
 	if !(script.IsScript()) {
 		j2gort.CheckState(false)
 	}
 	this_.previousLine = func() int32 { var asgn_2 int32 = int32(0); this_.previousColumn = asgn_2; return asgn_2 }()
-	var sourceFile int32 = this_.priv_TypedAstSerializer_getSourceFilePointer_7784(script)
+	var sourceFile int32 = this_.priv_TypedAstSerializer_getSourceFilePointer_7805(script)
 	_ = sourceFile
-	var scriptProto *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode = this_.priv_TypedAstSerializer_visit_7783(script)
+	var scriptProto *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode = this_.priv_TypedAstSerializer_visit_7804(script)
 	_ = scriptProto
 	this_.subtreeSourceFiles.Clear()
 	var encodedSourceMap string = this_.compiler.GetBase64SourceMapContents(script.GetSourceFileName())
@@ -205,7 +205,7 @@ func (this_ *TypedAstSerializer) priv_TypedAstSerializer_serializeScriptNode_778
 }
 
 // Java method: TypedAstSerializer.createWithPositionInfo(com.google.javascript.rhino.Node n)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_createWithPositionInfo_7782(n pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_createWithPositionInfo_7803(n pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder {
 	_ = n
 	if !nodestore.Node(n).HasNonNegativeLength() {
 		j2gort.CheckState(false)
@@ -222,20 +222,20 @@ func (this_ *TypedAstSerializer) priv_TypedAstSerializer_createWithPositionInfo_
 }
 
 // Java method: TypedAstSerializer.visit(com.google.javascript.rhino.Node n)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_visit_7783(n pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_visit_7804(n pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode {
 	_ = n
-	var builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder = this_.priv_TypedAstSerializer_createWithPositionInfo_7782(n)
+	var builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder = this_.priv_TypedAstSerializer_createWithPositionInfo_7803(n)
 	_ = builder
-	this_.priv_TypedAstSerializer_addType_7785(n, builder)
+	this_.priv_TypedAstSerializer_addType_7806(n, builder)
 	var serializedJsdoc *j2gort.Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc = JSDocSerializer_SerializeJsdoc(n.GetJSDocInfo(), this_.stringPool)
 	_ = serializedJsdoc
 	if serializedJsdoc != nil {
 		builder.SetJsdoc_1_Ext_com_google_javascript_jscomp_serialization_OptimizationJsdoc(serializedJsdoc)
 	}
-	builder.SetKind(this_.priv_TypedAstSerializer_kindTranslator_7788(n))
-	this_.priv_TypedAstSerializer_valueTranslator_7786(builder, n)
+	builder.SetKind(this_.priv_TypedAstSerializer_kindTranslator_7809(n))
+	this_.priv_TypedAstSerializer_valueTranslator_7807(builder, n)
 	builder.SetBooleanProperties(n.SerializeProperties())
-	var sourceFile int32 = this_.priv_TypedAstSerializer_getSourceFilePointer_7784(n)
+	var sourceFile int32 = this_.priv_TypedAstSerializer_getSourceFilePointer_7805(n)
 	_ = sourceFile
 	builder.SetSourceFile(sourceFile)
 	var origNameId int32
@@ -249,32 +249,39 @@ func (this_ *TypedAstSerializer) priv_TypedAstSerializer_visit_7783(n pkg_rhino.
 		var child pkg_rhino.Node = n.GetFirstChild()
 		_ = child
 		for ; child != 0; child = child.GetNext() {
-			builder.AddChild_1_Ext_com_google_javascript_jscomp_serialization_AstNode(this_.priv_TypedAstSerializer_visit_7783(child))
+			builder.AddChild_1_Ext_com_google_javascript_jscomp_serialization_AstNode(this_.priv_TypedAstSerializer_visit_7804(child))
 		}
 	}
 	var shadowedCode pkg_rhino.Node = n.GetClosureUnawareShadow()
 	_ = shadowedCode
 	if shadowedCode != 0 {
-		builder.AddChild_1_Ext_com_google_javascript_jscomp_serialization_AstNode(this_.priv_TypedAstSerializer_visit_7783(shadowedCode.GetFirstFirstChild().GetFirstChild()))
+		builder.AddChild_1_Ext_com_google_javascript_jscomp_serialization_AstNode(this_.priv_TypedAstSerializer_visit_7804(shadowedCode.GetFirstFirstChild().GetFirstChild()))
 	}
 	if sourceFile != int32(0) {
 		this_.subtreeSourceFiles.RemoveLast()
 	}
 	if origNameId >= int32(0) {
-		builder.SetOriginalNamePointer(func() int32 {
+		var iifeArg_1 int32
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if origNameId <= int32(1) {
-				return int32(0)
+				iifeArg_1 = int32(0)
+				break iifeSwitch_1
 			}
-			return this_.stringPool.PutByInternedId(origNameId)
-		}())
+			iifeArg_1 = this_.stringPool.PutByInternedId(origNameId)
+			break iifeSwitch_1
+		}
+		builder.SetOriginalNamePointer(iifeArg_1)
 	} else {
-		this_.priv_TypedAstSerializer_setOriginalName_7787(builder, n)
+		this_.priv_TypedAstSerializer_setOriginalName_7808(builder, n)
 	}
 	return j2gort.CastPtr[j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode](builder.Build())
 }
 
 // Java method: TypedAstSerializer.getSourceFilePointer(com.google.javascript.rhino.Node n)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_getSourceFilePointer_7784(n pkg_rhino.Node) int32 {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_getSourceFilePointer_7805(n pkg_rhino.Node) int32 {
 	_ = n
 	var sourceFile *SourceFile = j2gort.CastPtr[SourceFile](n.GetStaticSourceFile())
 	_ = sourceFile
@@ -315,14 +322,14 @@ func (this_ *TypedAstSerializer) priv_TypedAstSerializer_getSourceFilePointer_77
 
 }
 
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_addType_7785(n pkg_rhino.Node, builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_addType_7806(n pkg_rhino.Node, builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder) {
 	_ = n
 	_ = builder
 	this_.typeSerializer.AddTypeForNode(n, builder)
 }
 
 // Java method: TypedAstSerializer.valueTranslator(com.google.javascript.jscomp.serialization.AstNode.Builder builder, com.google.javascript.rhino.Node n)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_valueTranslator_7786(builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder, n pkg_rhino.Node) {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_valueTranslator_7807(builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder, n pkg_rhino.Node) {
 	_ = builder
 	_ = n
 	switch n.TokenSwitchOrd_() {
@@ -349,7 +356,7 @@ func (this_ *TypedAstSerializer) priv_TypedAstSerializer_valueTranslator_7786(bu
 }
 
 // Java method: TypedAstSerializer.setOriginalName(com.google.javascript.jscomp.serialization.AstNode.Builder builder, com.google.javascript.rhino.Node n)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_setOriginalName_7787(builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder, n pkg_rhino.Node) {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_setOriginalName_7808(builder *j2gort.Ext_com_google_javascript_jscomp_serialization_AstNode_Builder, n pkg_rhino.Node) {
 	_ = builder
 	_ = n
 	var originalName string = n.GetOriginalName()
@@ -362,7 +369,7 @@ func (this_ *TypedAstSerializer) priv_TypedAstSerializer_setOriginalName_7787(bu
 }
 
 // Java method: TypedAstSerializer.kindTranslator(com.google.javascript.rhino.Node n)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_kindTranslator_7788(n pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_NodeKind {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_kindTranslator_7809(n pkg_rhino.Node) *j2gort.Ext_com_google_javascript_jscomp_serialization_NodeKind {
 	_ = n
 	switch n.TokenSwitchOrd_() {
 	case int32(94) /* Token.SCRIPT */ :
@@ -673,20 +680,29 @@ func TypedAstSerializer_CreateJSTypeSerializer(compiler AbstractCompiler, serial
 }
 
 // Java method: TypedAstSerializer.createColorTypeSerializer(com.google.javascript.jscomp.AbstractCompiler compiler, com.google.javascript.jscomp.serialization.SerializationOptions serializationMode, com.google.javascript.jscomp.serialization.StringPool.Builder stringPoolBuilder)
-func (this_ *TypedAstSerializer) priv_TypedAstSerializer_createColorTypeSerializer_7789(compiler AbstractCompiler, serializationMode *SerializationOptions, stringPoolBuilder *StringPool_Builder) *TypedAstSerializer_ColorTypeSerializer {
+func (this_ *TypedAstSerializer) priv_TypedAstSerializer_createColorTypeSerializer_7810(compiler AbstractCompiler, serializationMode *SerializationOptions, stringPoolBuilder *StringPool_Builder) *TypedAstSerializer_ColorTypeSerializer {
 	_ = compiler
 	_ = serializationMode
 	_ = stringPoolBuilder
 	var usedPropertyNames *j2gort.Ext_java_util_LinkedHashSet = TypedAstSerializer_CollectUsedPropertyNames(compiler)
 	_ = usedPropertyNames
 	var val_5 ColorSerializer
-	InitColorSerializer(&val_5, serializationMode, func() ColorSerializer_StringPoolIndexFn {
+	var iifeArg_2 ColorSerializer_StringPoolIndexFn
+	{
+
 		bound_6 := stringPoolBuilder
-		return NewLambda_ColorSerializer_StringPoolIndexFn(func(mrp0_ string) int32 { return bound_6.Put(mrp0_) })
-	}(), func() ColorSerializer_PropertyFilter {
+		iifeArg_2 = NewLambda_ColorSerializer_StringPoolIndexFn(func(mrp0_ string) int32 { return bound_6.Put(mrp0_) })
+	}
+	var iifeArg_3 ColorSerializer_PropertyFilter
+	{
+
 		bound_7 := usedPropertyNames
-		return NewLambda_ColorSerializer_PropertyFilter(func(mrp0_ string) bool { return bound_7.Contains(j2gort.BoxString(mrp0_)) })
-	}())
+		iifeArg_3 = NewLambda_ColorSerializer_PropertyFilter(func(mrp0_ string) bool { return bound_7.Contains(j2gort.BoxString(mrp0_)) })
+	}
+	InitColorSerializer(&val_5, serializationMode, iifeArg_2,
+
+		iifeArg_3,
+	)
 	var colorSerializer *ColorSerializer = &val_5
 	_ = colorSerializer
 	return NewTypedAstSerializer_ColorTypeSerializer(colorSerializer, compiler.GetColorRegistry())
@@ -922,16 +938,21 @@ func (this_ *TypedAstSerializer_ColorTypeSerializer) AddTypeForNode(node pkg_rhi
 func (this_ *TypedAstSerializer_ColorTypeSerializer) GenerateTypePool() *j2gort.Ext_com_google_javascript_jscomp_serialization_TypePool {
 	var mismatchLocationsForDebugging *j2gort.Ext_com_google_common_collect_ImmutableSetMultimap = this_.colorRegistry.GetMismatchLocationsForDebugging()
 	_ = mismatchLocationsForDebugging
-	return this_.colorSerializer.GenerateTypePool(func() ColorSerializer_DisambiguationSupertypesFn {
+	var iifeArg_4 ColorSerializer_DisambiguationSupertypesFn
+	{
+
 		bound_8 := this_.colorRegistry
-		return NewLambda_ColorSerializer_DisambiguationSupertypesFn(func(mrp0_ *pkg_colors.Color) []*pkg_colors.Color {
+		iifeArg_4 = NewLambda_ColorSerializer_DisambiguationSupertypesFn(func(mrp0_ *pkg_colors.Color) []*pkg_colors.Color {
 			return bound_8.GetDisambiguationSupertypesArray(mrp0_)
 		})
-	}(), j2gort.NewLambda_Ext_java_util_function_Function(func(lp_9 any) any {
-		color := j2gort.CastPtr[pkg_colors.Color](lp_9)
-		_ = color
-		return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](mismatchLocationsForDebugging.Get(j2gort.BoxNullableVal(color.GetId())))
-	}))
+	}
+	return this_.colorSerializer.GenerateTypePool(iifeArg_4,
+
+		j2gort.NewLambda_Ext_java_util_function_Function(func(lp_9 any) any {
+			color := j2gort.CastPtr[pkg_colors.Color](lp_9)
+			_ = color
+			return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSet](mismatchLocationsForDebugging.Get(j2gort.BoxNullableVal(color.GetId())))
+		}))
 }
 
 // Java class:

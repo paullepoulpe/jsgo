@@ -121,12 +121,19 @@ func SourceMapObjectParser_Parse(contents string) *SourceMapObject {
 		_ = sourceMapRoot
 		builder.SetVersion(sourceMapRoot.Get("version").GetAsInt())
 		builder.SetFile(SourceMapObjectParser_GetStringOrNull(sourceMapRoot, "file"))
-		builder.SetLineCount(func() int32 {
+		var iifeArg_1 int32
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if sourceMapRoot.Has("lineCount") {
-				return sourceMapRoot.Get("lineCount").GetAsInt()
+				iifeArg_1 = sourceMapRoot.Get("lineCount").GetAsInt()
+				break iifeSwitch_1
 			}
-			return int32(-1)
-		}())
+			iifeArg_1 = int32(-1)
+			break iifeSwitch_1
+		}
+		builder.SetLineCount(iifeArg_1)
 		builder.SetMappings(SourceMapObjectParser_GetStringOrNull(sourceMapRoot, "mappings"))
 		builder.SetSourceRoot(SourceMapObjectParser_GetStringOrNull(sourceMapRoot, "sourceRoot"))
 		if sourceMapRoot.Has("sections") {

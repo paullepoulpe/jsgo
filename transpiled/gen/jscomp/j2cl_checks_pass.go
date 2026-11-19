@@ -144,13 +144,13 @@ func (this_ *J2clChecksPass) Visit_3(unused *NodeTraversal, n pkg_rhino.Node, pa
 	if (firstSource == j2gort.NullString) && (lastSource == j2gort.NullString) {
 		return
 	}
-	this_.priv_J2clChecksPass_reportIfMatches_3449(n, firstSource, lastSource, "java.lang.Integer", "java/lang/Integer.impl.java.js")
-	this_.priv_J2clChecksPass_reportIfMatches_3449(n, firstSource, lastSource, "java.lang.Float", "java/lang/Float.impl.java.js")
-	this_.priv_J2clChecksPass_reportIfMatches_3449(n, firstSource, lastSource, "goog.math.Long", "javascript/closure/math/long.js")
+	this_.priv_J2clChecksPass_reportIfMatches_3456(n, firstSource, lastSource, "java.lang.Integer", "java/lang/Integer.impl.java.js")
+	this_.priv_J2clChecksPass_reportIfMatches_3456(n, firstSource, lastSource, "java.lang.Float", "java/lang/Float.impl.java.js")
+	this_.priv_J2clChecksPass_reportIfMatches_3456(n, firstSource, lastSource, "goog.math.Long", "javascript/closure/math/long.js")
 }
 
 // Java method: J2clChecksPass.reportIfMatches(com.google.javascript.rhino.Node n, java.lang.@org.jspecify.annotations.Nullable String firstSource, java.lang.@org.jspecify.annotations.Nullable String lastSource, java.lang.String typeName, java.lang.String fileName)
-func (this_ *J2clChecksPass) priv_J2clChecksPass_reportIfMatches_3449(n pkg_rhino.Node, firstSource string, lastSource string, typeName string, fileName string) {
+func (this_ *J2clChecksPass) priv_J2clChecksPass_reportIfMatches_3456(n pkg_rhino.Node, firstSource string, lastSource string, typeName string, fileName string) {
 	_ = n
 	_ = firstSource
 	_ = lastSource

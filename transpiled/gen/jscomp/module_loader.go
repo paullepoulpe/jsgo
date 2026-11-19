@@ -40,22 +40,36 @@ func init() {
 	lambdaSingleton_module_loader_3 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_1 any) any {
 		n := j2gort.CastString(lp_1)
 		_ = n
-		return j2gort.BoxString(func() string {
+		var iifeArg_1 string
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if ModuleLoader_IsAmbiguousIdentifier(n) {
-				return ("/" + j2gort.StrValString(n))
+				iifeArg_1 = ("/" + j2gort.StrValString(n))
+				break iifeSwitch_1
 			}
-			return n
-		}())
+			iifeArg_1 = n
+			break iifeSwitch_1
+		}
+		return j2gort.BoxString(iifeArg_1)
 	})
 	lambdaSingleton_module_loader_4 = j2gort.NewLambda_Ext_java_util_function_Function(func(lp_3 any) any {
 		n := j2gort.CastString(lp_3)
 		_ = n
-		return j2gort.BoxString(func() string {
+		var iifeArg_2 string
+	iifeSwitch_2:
+		switch {
+		default:
+
 			if ModuleLoader_IsAmbiguousIdentifier(n) {
-				return ("/" + j2gort.StrValString(n))
+				iifeArg_2 = ("/" + j2gort.StrValString(n))
+				break iifeSwitch_2
 			}
-			return n
-		}())
+			iifeArg_2 = n
+			break iifeSwitch_2
+		}
+		return j2gort.BoxString(iifeArg_2)
 	})
 	lambdaSingleton_module_loader_5 = j2gort.NewLambda_Ext_java_util_function_Function(func(mrp0_ any) any { return j2gort.BoxString(j2gort.AsIface[DependencyInfo](mrp0_).GetName()) })
 }
@@ -205,8 +219,8 @@ func InitModuleLoader(this_ *ModuleLoader, builder *ModuleLoader_Builder) {
 	this_.errorHandler = j2gort.CheckNotNullIface(builder.errorHandler)
 	this_.pathResolver = j2gort.CheckNotNullPtr(builder.pathResolver)
 	this_.pathEscaper = j2gort.CheckNotNullPtr(builder.pathEscaper)
-	this_.moduleRootPaths = this_.priv_ModuleLoader_createRootPaths_6119(j2gort.CheckNotNull(builder.moduleRoots))
-	var modulePaths j2gort.Ext_com_google_common_collect_ImmutableSet = this_.priv_ModuleLoader_resolvePaths_6120(j2gort.CheckNotNull(builder.inputs))
+	this_.moduleRootPaths = this_.priv_ModuleLoader_createRootPaths_6134(j2gort.CheckNotNull(builder.moduleRoots))
+	var modulePaths j2gort.Ext_com_google_common_collect_ImmutableSet = this_.priv_ModuleLoader_resolvePaths_6135(j2gort.CheckNotNull(builder.inputs))
 	_ = modulePaths
 	this_.moduleResolver = builder.factory.Create(modulePaths, this_.moduleRootPaths, this_.errorHandler, this_.pathEscaper)
 }
@@ -257,7 +271,7 @@ func ModuleLoader_IsPathIdentifier(name string) bool {
 }
 
 // Java method: ModuleLoader.createRootPaths(java.lang.Iterable<java.lang.String> roots)
-func (this_ *ModuleLoader) priv_ModuleLoader_createRootPaths_6119(roots j2gort.Ext_java_lang_Iterable) j2gort.Ext_com_google_common_collect_ImmutableList {
+func (this_ *ModuleLoader) priv_ModuleLoader_createRootPaths_6134(roots j2gort.Ext_java_lang_Iterable) j2gort.Ext_com_google_common_collect_ImmutableList {
 	_ = roots
 	return j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableSortedSet](j2gort.Ext_com_google_common_collect_Streams_Stream_1_Ext_java_lang_Iterable(roots).Map(j2gort.ToIface_Ext_java_util_function_Function(this_.pathResolver)).Map(func() j2gort.Ext_java_util_function_Function {
 		bound_2 := this_.pathEscaper
@@ -266,7 +280,7 @@ func (this_ *ModuleLoader) priv_ModuleLoader_createRootPaths_6119(roots j2gort.E
 }
 
 // Java method: ModuleLoader.resolvePaths(java.lang.Iterable<? extends com.google.javascript.jscomp.deps.DependencyInfo> inputs)
-func (this_ *ModuleLoader) priv_ModuleLoader_resolvePaths_6120(inputs j2gort.Ext_java_lang_Iterable) j2gort.Ext_com_google_common_collect_ImmutableSet {
+func (this_ *ModuleLoader) priv_ModuleLoader_resolvePaths_6135(inputs j2gort.Ext_java_lang_Iterable) j2gort.Ext_com_google_common_collect_ImmutableSet {
 	_ = inputs
 	var dupeModulePaths j2gort.Ext_com_google_common_collect_ImmutableMultiset = j2gort.AsIface[j2gort.Ext_com_google_common_collect_ImmutableMultiset](j2gort.Ext_com_google_common_collect_Streams_Stream_1_Ext_java_lang_Iterable(inputs).Map(lambdaSingleton_module_loader_5).Map(j2gort.ToIface_Ext_java_util_function_Function(this_.pathResolver)).Map(func() j2gort.Ext_java_util_function_Function {
 		bound_5 := this_.pathEscaper

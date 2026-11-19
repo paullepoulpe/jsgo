@@ -115,25 +115,25 @@ func (this_ *CheckMissingSemicolon) Visit_3(t *NodeTraversal, n pkg_rhino.Node, 
 	_ = t
 	_ = n
 	_ = parent
-	if (!(n.IsScript()) && NodeUtil_IsStatement(n)) && this_.priv_CheckMissingSemicolon_shouldHaveSemicolon_6551(n) {
-		this_.priv_CheckMissingSemicolon_checkSemicolon_6552(t, n)
+	if (!(n.IsScript()) && NodeUtil_IsStatement(n)) && this_.priv_CheckMissingSemicolon_shouldHaveSemicolon_6571(n) {
+		this_.priv_CheckMissingSemicolon_checkSemicolon_6572(t, n)
 	}
 }
 
 // Java method: CheckMissingSemicolon.shouldHaveSemicolon(com.google.javascript.rhino.Node statement)
-func (this_ *CheckMissingSemicolon) priv_CheckMissingSemicolon_shouldHaveSemicolon_6551(statement pkg_rhino.Node) bool {
+func (this_ *CheckMissingSemicolon) priv_CheckMissingSemicolon_shouldHaveSemicolon_6571(statement pkg_rhino.Node) bool {
 	_ = statement
 	if ((((statement.IsFunction() || statement.IsClass()) || statement.IsBlock()) || statement.IsLabelName()) || statement.IsModuleBody()) || (NodeUtil_IsControlStructure(statement) && !(statement.IsDo())) {
 		return false
 	}
 	if statement.IsExport() {
-		return this_.priv_CheckMissingSemicolon_shouldHaveSemicolon_6551(statement.GetFirstChild())
+		return this_.priv_CheckMissingSemicolon_shouldHaveSemicolon_6571(statement.GetFirstChild())
 	}
 	return true
 }
 
 // Java method: CheckMissingSemicolon.checkSemicolon(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node n)
-func (this_ *CheckMissingSemicolon) priv_CheckMissingSemicolon_checkSemicolon_6552(t *NodeTraversal, n pkg_rhino.Node) {
+func (this_ *CheckMissingSemicolon) priv_CheckMissingSemicolon_checkSemicolon_6572(t *NodeTraversal, n pkg_rhino.Node) {
 	_ = t
 	_ = n
 	var staticSourceFile pkg_rhino.StaticSourceFile = n.GetStaticSourceFile()

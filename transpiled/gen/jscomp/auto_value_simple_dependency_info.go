@@ -263,17 +263,24 @@ func (this_ *AutoValue_SimpleDependencyInfo_Builder) SetProvides_1_Ext_java_util
 // Java method: Builder.setProvides(java.lang.String[] provides)
 func (this_ *AutoValue_SimpleDependencyInfo_Builder) SetProvides_1_slice_string(provides []string) SimpleDependencyInfo_Builder {
 	_ = provides
-	this_.provides = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_6 := provides
 		if arr_6 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_7 := make([]any, len(arr_6))
 		for i_, el_8 := range arr_6 {
 			out_7[i_] = j2gort.BoxString(el_8)
 		}
-		return out_7
-	}())
+		iifeArg_1 = out_7
+		break iifeSwitch_1
+	}
+	this_.provides = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_1)
 	return this_
 }
 
@@ -287,17 +294,24 @@ func (this_ *AutoValue_SimpleDependencyInfo_Builder) SetRequires_1_Ext_java_util
 // Java method: Builder.setRequires(com.google.javascript.jscomp.deps.DependencyInfo.Require[] requires)
 func (this_ *AutoValue_SimpleDependencyInfo_Builder) SetRequires_1_DependencyInfo_Require(requires []*DependencyInfo_Require) SimpleDependencyInfo_Builder {
 	_ = requires
-	this_.requires = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_2 []any
+iifeSwitch_2:
+	switch {
+	default:
+
 		arr_9 := requires
 		if arr_9 == nil {
-			return nil
+			iifeArg_2 = nil
+			break iifeSwitch_2
 		}
 		out_10 := make([]any, len(arr_9))
 		for i_, el_11 := range arr_9 {
 			out_10[i_] = j2gort.PtrToAny(el_11)
 		}
-		return out_10
-	}())
+		iifeArg_2 = out_10
+		break iifeSwitch_2
+	}
+	this_.requires = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_2)
 	return this_
 }
 
@@ -311,17 +325,24 @@ func (this_ *AutoValue_SimpleDependencyInfo_Builder) SetTypeRequires_1_Ext_java_
 // Java method: Builder.setTypeRequires(java.lang.String[] typeRequires)
 func (this_ *AutoValue_SimpleDependencyInfo_Builder) SetTypeRequires_1_slice_string(typeRequires []string) SimpleDependencyInfo_Builder {
 	_ = typeRequires
-	this_.typeRequires = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(func() []any {
+	var iifeArg_3 []any
+iifeSwitch_3:
+	switch {
+	default:
+
 		arr_12 := typeRequires
 		if arr_12 == nil {
-			return nil
+			iifeArg_3 = nil
+			break iifeSwitch_3
 		}
 		out_13 := make([]any, len(arr_12))
 		for i_, el_14 := range arr_12 {
 			out_13[i_] = j2gort.BoxString(el_14)
 		}
-		return out_13
-	}())
+		iifeArg_3 = out_13
+		break iifeSwitch_3
+	}
+	this_.typeRequires = j2gort.Ext_com_google_common_collect_ImmutableList_CopyOf_1_slice_any(iifeArg_3)
 	return this_
 }
 

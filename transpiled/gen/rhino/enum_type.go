@@ -182,12 +182,19 @@ func (this_ *EnumType) TestForEquality(that JSType) pkg_base.Tri {
 // Java method: EnumType.appendTo(com.google.javascript.rhino.jstype.TypeStringBuilder sb)
 func (this_ *EnumType) AppendTo(sb *TypeStringBuilder) {
 	_ = sb
-	sb.Append_1_string(func() string {
+	var iifeArg_1 string
+iifeSwitch_1:
+	switch {
+	default:
+
 		if sb.IsForAnnotations() {
-			return "!Object"
+			iifeArg_1 = "!Object"
+			break iifeSwitch_1
 		}
-		return this_.GetReferenceName()
-	}())
+		iifeArg_1 = this_.GetReferenceName()
+		break iifeSwitch_1
+	}
+	sb.Append_1_string(iifeArg_1)
 }
 
 // Java method: EnumType.getDisplayName()

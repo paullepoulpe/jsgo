@@ -1836,9 +1836,10 @@ public final class RuntimeProtobufBindings {
         \treturn StrVal(in)
         }
 
-        func (x *protoFieldDesc) IsJavaNil_() bool   { return x == nil }
-        func (x *jProtoList) IsJavaNil_() bool       { return x == nil }
-        func (x *jProtoStringList) IsJavaNil_() bool { return x == nil }
+        func (x *protoFieldDesc) IsJavaNil_() bool       { return x == nil }
+        func (x *jProtoList) IsJavaNil_() bool           { return x == nil }
+        func (x *jProtoStringList) IsJavaNil_() bool     { return x == nil }
+        func (x *jProtoByteStringList) IsJavaNil_() bool { return x == nil }
         """);
 
     Map<String, String> sortedProtoTypes = new TreeMap<>(PROTO_MSG_TYPES);

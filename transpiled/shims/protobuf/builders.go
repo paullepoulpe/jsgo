@@ -2324,8 +2324,8 @@ func (m *AstNode) ToByteArray() []byte {
 }
 
 const (
-	wireSlabSize    = 2 * 1024 * 1024
-	wireSlabMaxItem = 512 * 1024
+	wireSlabSize    = 4 * 1024 * 1024
+	wireSlabMaxItem = 1024 * 1024
 )
 
 var (
@@ -2595,7 +2595,7 @@ func (m *StringPoolProto) addWireString(v []byte) {
 	entryLen := 1 + protoVarintLen(uint64(len(v))) + len(v)
 	nc := len(m.wireChunks_)
 	if nc == 0 || cap(m.wireChunks_[nc-1])-len(m.wireChunks_[nc-1]) < entryLen {
-		chunkCap := min(4096<<min(nc, 6), 262144)
+		chunkCap := min(4096<<min(nc, 8), 1048576)
 		if entryLen > chunkCap {
 			chunkCap = entryLen
 		}
@@ -2606,6 +2606,27 @@ func (m *StringPoolProto) addWireString(v []byte) {
 	b = append(b, 0x0A)
 	b = protoAppendVarint(b, uint64(len(v)))
 	b = append(b, v...)
+	m.wireChunks_[nc-1] = b
+	m.wireStringsSize_ += entryLen
+	m.wireStringsCnt_++
+	m.cachedSize = 0
+}
+
+func (m *StringPoolProto) addWireStringStr(s string) {
+	entryLen := 1 + protoVarintLen(uint64(len(s))) + len(s)
+	nc := len(m.wireChunks_)
+	if nc == 0 || cap(m.wireChunks_[nc-1])-len(m.wireChunks_[nc-1]) < entryLen {
+		chunkCap := min(4096<<min(nc, 8), 1048576)
+		if entryLen > chunkCap {
+			chunkCap = entryLen
+		}
+		m.wireChunks_ = append(m.wireChunks_, make([]byte, 0, chunkCap))
+		nc++
+	}
+	b := m.wireChunks_[nc-1]
+	b = append(b, 0x0A)
+	b = protoAppendVarint(b, uint64(len(s)))
+	b = append(b, s...)
 	m.wireChunks_[nc-1] = b
 	m.wireStringsSize_ += entryLen
 	m.wireStringsCnt_++
@@ -2635,6 +2656,10 @@ func (m *StringPoolProto) SetMaxLength(v int32) *StringPoolProto {
 	return m
 }
 func (m *StringPoolProto) AddStrings(v ByteString) *StringPoolProto {
+	if v.data == nil && v.str != "" {
+		m.addWireStringStr(v.str)
+		return m
+	}
 	m.addWireString(v.data)
 	return m
 }

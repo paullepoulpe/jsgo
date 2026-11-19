@@ -988,8 +988,8 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 		_ = compiler
 		return NewDefaultPassConfig__Anon_27(this_, compiler)
 	})).GetPassFactory_BuilderBase().Build()
-	this_.processDefinesCheck = this_.priv_DefaultPassConfig_createProcessDefines_2382(StaticGet_ProcessDefines_Mode_CHECK())
-	this_.processDefinesOptimize = this_.priv_DefaultPassConfig_createProcessDefines_2382(StaticGet_ProcessDefines_Mode_OPTIMIZE())
+	this_.processDefinesCheck = this_.priv_DefaultPassConfig_createProcessDefines_2389(StaticGet_ProcessDefines_Mode_CHECK())
+	this_.processDefinesOptimize = this_.priv_DefaultPassConfig_createProcessDefines_2389(StaticGet_ProcessDefines_Mode_OPTIMIZE())
 	this_.stripCode = PassFactory_S_Builder().SetName("stripCode").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_45 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_45)
 		_ = compiler
@@ -1166,8 +1166,8 @@ func (this_ *DefaultPassConfig) initFields_DefaultPassConfig() {
 		_ = compiler
 		return NewCoverageInstrumentationPass_4(compiler, StaticGet_CoverageInstrumentationPass_CoverageReach_CONDITIONAL(), this_.GetPassConfigBase().options.GetInstrumentForCoverageOption(), this_.GetPassConfigBase().options.GetProductionInstrumentationArrayName())
 	})).GetPassFactory_BuilderBase().Build()
-	this_.gatherExternPropertiesCheck = this_.priv_DefaultPassConfig_createGatherExternProperties_2384(StaticGet_GatherExternProperties_Mode_CHECK())
-	this_.gatherExternPropertiesOptimize = this_.priv_DefaultPassConfig_createGatherExternProperties_2384(StaticGet_GatherExternProperties_Mode_OPTIMIZE())
+	this_.gatherExternPropertiesCheck = this_.priv_DefaultPassConfig_createGatherExternProperties_2391(StaticGet_GatherExternProperties_Mode_CHECK())
+	this_.gatherExternPropertiesOptimize = this_.priv_DefaultPassConfig_createGatherExternProperties_2391(StaticGet_GatherExternProperties_Mode_OPTIMIZE())
 	this_.polymerPass = PassFactory_S_Builder().SetName("polymerPass").SetInternalFactory(lambdaSingleton_default_pass_config_73).GetPassFactory_BuilderBase().Build()
 	this_.chromePass = PassFactory_S_Builder().SetName("chromePass").SetInternalFactory(lambdaSingleton_default_pass_config_74).GetPassFactory_BuilderBase().Build()
 	this_.j2clConstantHoisterPass = PassFactory_S_Builder().SetName("j2clConstantHoisterPass").SetRunInFixedPointLoop(true).SetInternalFactory(lambdaSingleton_default_pass_config_75).GetPassFactory_BuilderBase().Build()
@@ -1279,7 +1279,7 @@ func (this_ *DefaultPassConfig) GetTranspileOnlyPasses() *PassListBuilder {
 	passes.MaybeAdd(this_.invertContextualRenaming)
 	passes.MaybeAdd(this_.removePropertyRenamingCalls)
 	passes.AssertAllOneTimePasses()
-	this_.priv_DefaultPassConfig_assertValidOrderForChecks_2377(passes)
+	this_.priv_DefaultPassConfig_assertValidOrderForChecks_2384(passes)
 	return passes
 }
 
@@ -1301,7 +1301,7 @@ func (this_ *DefaultPassConfig) GetWhitespaceOnlyPasses() *PassListBuilder {
 }
 
 // Java method: DefaultPassConfig.addModuleRewritingPasses(com.google.javascript.jscomp.PassListBuilder checks, com.google.javascript.jscomp.CompilerOptions options)
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_addModuleRewritingPasses_2368(checks *PassListBuilder, options *CompilerOptions) {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_addModuleRewritingPasses_2375(checks *PassListBuilder, options *CompilerOptions) {
 	_ = checks
 	_ = options
 	if options.GetLanguageIn().ToFeatureSet().Has(pkg_parser.StaticGet_FeatureSet_Feature_MODULES()) {
@@ -1332,7 +1332,7 @@ func (this_ *DefaultPassConfig) GetChecks() *PassListBuilder {
 		checks.MaybeAdd(this_.angularPass)
 		checks.MaybeAdd(this_.closureGoogScopeAliases)
 		checks.MaybeAdd(this_.closurePrimitives)
-		this_.priv_DefaultPassConfig_addModuleRewritingPasses_2368(checks, this_.GetPassConfigBase().options)
+		this_.priv_DefaultPassConfig_addModuleRewritingPasses_2375(checks, this_.GetPassConfigBase().options)
 		checks.MaybeAdd(this_.clearTypedScopeCreatorPass)
 		checks.MaybeAdd(this_.clearTopTypedScopePass)
 		checks.MaybeAdd(this_.generateExports)
@@ -1408,7 +1408,7 @@ func (this_ *DefaultPassConfig) GetChecks() *PassListBuilder {
 		checks.MaybeAdd(this_.closurePrimitives)
 	}
 	if this_.GetPassConfigBase().options.ShouldRewriteModulesBeforeTypechecking() {
-		this_.priv_DefaultPassConfig_addModuleRewritingPasses_2368(checks, this_.GetPassConfigBase().options)
+		this_.priv_DefaultPassConfig_addModuleRewritingPasses_2375(checks, this_.GetPassConfigBase().options)
 	}
 	if this_.GetPassConfigBase().options.IsPolymerPassEnabled() {
 		checks.MaybeAdd(this_.polymerPass)
@@ -1439,7 +1439,7 @@ func (this_ *DefaultPassConfig) GetChecks() *PassListBuilder {
 		checks.MaybeAdd(this_.clearTypedScopeCreatorPass)
 	}
 	if this_.GetPassConfigBase().options.ShouldRewriteModulesAfterTypechecking() {
-		this_.priv_DefaultPassConfig_addModuleRewritingPasses_2368(checks, this_.GetPassConfigBase().options)
+		this_.priv_DefaultPassConfig_addModuleRewritingPasses_2375(checks, this_.GetPassConfigBase().options)
 	}
 	if this_.GetPassConfigBase().options.ShouldAllowDynamicImport() && this_.GetPassConfigBase().options.GetLanguageIn().ToFeatureSet().Has(pkg_parser.StaticGet_FeatureSet_Feature_DYNAMIC_IMPORT()) {
 		checks.MaybeAdd(StaticGet_DefaultPassConfig_RewriteDynamicImports())
@@ -1488,7 +1488,7 @@ func (this_ *DefaultPassConfig) GetChecks() *PassListBuilder {
 		checks.MaybeAdd(this_.serializeTypedAst)
 	}
 	checks.AssertAllOneTimePasses()
-	this_.priv_DefaultPassConfig_assertValidOrderForChecks_2377(checks)
+	this_.priv_DefaultPassConfig_assertValidOrderForChecks_2384(checks)
 	return checks
 }
 
@@ -1516,9 +1516,9 @@ func (this_ *DefaultPassConfig) GetOptimizations() *PassListBuilder {
 	if this_.GetPassConfigBase().options.GetSkipNonTranspilationPasses() {
 		return passes
 	}
-	passes.AddAll(this_.priv_DefaultPassConfig_getEarlyOptimizationPasses_2372())
+	passes.AddAll(this_.priv_DefaultPassConfig_getEarlyOptimizationPasses_2379())
 	passes.MaybeAdd(PassFactory_CreateEmptyPass("optimizationsHalfwayPoint"))
-	passes.AddAll(this_.priv_DefaultPassConfig_getLateOptimizationPasses_2373())
+	passes.AddAll(this_.priv_DefaultPassConfig_getLateOptimizationPasses_2380())
 	return passes
 }
 
@@ -1543,19 +1543,19 @@ func (this_ *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 	}
 	if this_.GetPassConfigBase().options.DoLateLocalization() {
 		if this_.GetPassConfigBase().options.ShouldRunReplaceMessagesPass() {
-			passes.MaybeAdd(this_.priv_DefaultPassConfig_getReplaceProtectedMessagesPass_2381())
+			passes.MaybeAdd(this_.priv_DefaultPassConfig_getReplaceProtectedMessagesPass_2388())
 		}
 		passes.MaybeAdd(this_.substituteLocaleData)
 		passes.MaybeAdd(this_.peepholeOptimizationsOnceNormalized)
 	}
 	if this_.GetPassConfigBase().options.ShouldInlineVariables() || this_.GetPassConfigBase().options.ShouldInlineLocalVariables() {
 		passes.MaybeAdd(this_.flowSensitiveInlineVariables)
-		if !(this_.GetPassConfigBase().options.DoLateLocalization()) && this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2376() {
+		if !(this_.GetPassConfigBase().options.DoLateLocalization()) && this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2383() {
 			passes.MaybeAdd(this_.removeUnusedCodeOnce)
 		}
 	}
 	if this_.GetPassConfigBase().options.DoLateLocalization() {
-		passes.AddAll(this_.priv_DefaultPassConfig_getPostL10nOptimizations_2371())
+		passes.AddAll(this_.priv_DefaultPassConfig_getPostL10nOptimizations_2378())
 	}
 	passes.MaybeAdd(PassFactory_CreateEmptyPass("beforeChunkMotion"))
 	if this_.GetPassConfigBase().options.ShouldRunCrossChunkCodeMotion() {
@@ -1650,7 +1650,7 @@ func (this_ *DefaultPassConfig) GetFinalizations() *PassListBuilder {
 }
 
 // Java method: DefaultPassConfig.getEarlyOptimizationLoopPasses()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationLoopPasses_2370() *PassListBuilder {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationLoopPasses_2377() *PassListBuilder {
 	var val_94 PassListBuilder
 	InitPassListBuilder(&val_94, this_.GetPassConfigBase().options)
 	var earlyLoopPasses *PassListBuilder = &val_94
@@ -1663,7 +1663,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationLoopP
 	if this_.GetPassConfigBase().options.GetCollapseObjectLiterals() {
 		earlyLoopPasses.MaybeAdd(this_.collapseObjectLiterals)
 	}
-	if this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2376() {
+	if this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2383() {
 		earlyLoopPasses.MaybeAdd(this_.removeUnusedCode)
 	}
 	if this_.GetPassConfigBase().options.ShouldFoldConstants() {
@@ -1674,7 +1674,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationLoopP
 }
 
 // Java method: DefaultPassConfig.getPostL10nOptimizations()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getPostL10nOptimizations_2371() *PassListBuilder {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getPostL10nOptimizations_2378() *PassListBuilder {
 	var val_95 PassListBuilder
 	InitPassListBuilder(&val_95, this_.GetPassConfigBase().options)
 	var loopPasses *PassListBuilder = &val_95
@@ -1694,7 +1694,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getPostL10nOptimizations_
 	} else if this_.GetPassConfigBase().options.ShouldInlineConstantVars() {
 		loopPasses.MaybeAdd(this_.inlineConstants)
 	}
-	if this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2376() {
+	if this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2383() {
 		loopPasses.MaybeAdd(this_.removeUnusedCode)
 	}
 	if this_.GetPassConfigBase().options.ShouldFoldConstants() {
@@ -1705,7 +1705,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getPostL10nOptimizations_
 }
 
 // Java method: DefaultPassConfig.getEarlyOptimizationPasses()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationPasses_2372() *PassListBuilder {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationPasses_2379() *PassListBuilder {
 	var val_96 PassListBuilder
 	InitPassListBuilder(&val_96, this_.GetPassConfigBase().options)
 	var passes *PassListBuilder = &val_96
@@ -1720,7 +1720,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationPasse
 			passes.MaybeAdd(this_.j2clSourceFileChecker)
 		}
 	} else {
-		this_.priv_DefaultPassConfig_addNonTypedAstNormalizationPasses_2375(passes)
+		this_.priv_DefaultPassConfig_addNonTypedAstNormalizationPasses_2382(passes)
 	}
 	passes.MaybeAdd(this_.removeUnnecessarySyntheticExterns)
 	if this_.GetPassConfigBase().options.GetSyntheticBlockStartMarker() != j2gort.NullString {
@@ -1742,9 +1742,9 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationPasse
 		passes.MaybeAdd(this_.replaceMessagesForChrome)
 	} else if this_.GetPassConfigBase().options.ShouldRunReplaceMessagesPass() {
 		if this_.GetPassConfigBase().options.DoLateLocalization() {
-			passes.MaybeAdd(this_.priv_DefaultPassConfig_getProtectMessagesPass_2380())
+			passes.MaybeAdd(this_.priv_DefaultPassConfig_getProtectMessagesPass_2387())
 		} else {
-			passes.MaybeAdd(this_.priv_DefaultPassConfig_getFullReplaceMessagesPass_2379())
+			passes.MaybeAdd(this_.priv_DefaultPassConfig_getFullReplaceMessagesPass_2386())
 		}
 	}
 	if this_.GetPassConfigBase().options.DoLateLocalization() {
@@ -1805,14 +1805,14 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getEarlyOptimizationPasse
 }
 
 // Java method: DefaultPassConfig.getLateOptimizationPasses()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getLateOptimizationPasses_2373() *PassListBuilder {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getLateOptimizationPasses_2380() *PassListBuilder {
 	var val_97 PassListBuilder
 	InitPassListBuilder(&val_97, this_.GetPassConfigBase().options)
 	var passes *PassListBuilder = &val_97
 	_ = passes
 	if this_.GetPassConfigBase().options.GetSmartNameRemoval() {
 		passes.MaybeAdd(PassFactory_CreateEmptyPass("beforeEarlyOptimizationLoop"))
-		passes.AddAll(this_.priv_DefaultPassConfig_getEarlyOptimizationLoopPasses_2370())
+		passes.AddAll(this_.priv_DefaultPassConfig_getEarlyOptimizationLoopPasses_2377())
 		passes.MaybeAdd(PassFactory_CreateEmptyPass("afterEarlyOptimizationLoop"))
 	}
 	if this_.GetPassConfigBase().options.GetClosurePass() {
@@ -1827,20 +1827,20 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getLateOptimizationPasses
 	if this_.GetPassConfigBase().options.ShouldDevirtualizeMethods() {
 		passes.MaybeAdd(this_.devirtualizeMethods)
 	}
-	passes.MaybeAdd(this_.priv_DefaultPassConfig_getCustomPasses_2385(StaticGet_CustomPassExecutionTime_BEFORE_OPTIMIZATION_LOOP()))
+	passes.MaybeAdd(this_.priv_DefaultPassConfig_getCustomPasses_2392(StaticGet_CustomPassExecutionTime_BEFORE_OPTIMIZATION_LOOP()))
 	passes.MaybeAdd(PassFactory_CreateEmptyPass("beforeMainOptimizations"))
 	if this_.GetPassConfigBase().options.ShouldInlineVariables() || this_.GetPassConfigBase().options.ShouldInlineLocalVariables() {
 		passes.MaybeAdd(this_.flowSensitiveInlineVariables)
 	}
-	passes.AddAll(this_.priv_DefaultPassConfig_getMainOptimizationLoop_2374())
+	passes.AddAll(this_.priv_DefaultPassConfig_getMainOptimizationLoop_2381())
 	passes.MaybeAdd(PassFactory_CreateEmptyPass("afterMainOptimizations"))
-	passes.MaybeAdd(this_.priv_DefaultPassConfig_getCustomPasses_2385(StaticGet_CustomPassExecutionTime_AFTER_OPTIMIZATION_LOOP()))
-	this_.priv_DefaultPassConfig_assertValidOrderForOptimizations_2378(passes)
+	passes.MaybeAdd(this_.priv_DefaultPassConfig_getCustomPasses_2392(StaticGet_CustomPassExecutionTime_AFTER_OPTIMIZATION_LOOP()))
+	this_.priv_DefaultPassConfig_assertValidOrderForOptimizations_2385(passes)
 	return passes
 }
 
 // Java method: DefaultPassConfig.getMainOptimizationLoop()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getMainOptimizationLoop_2374() *PassListBuilder {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getMainOptimizationLoop_2381() *PassListBuilder {
 	var val_98 PassListBuilder
 	InitPassListBuilder(&val_98, this_.GetPassConfigBase().options)
 	var passes *PassListBuilder = &val_98
@@ -1875,7 +1875,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getMainOptimizationLoop_2
 	if this_.GetPassConfigBase().options.GetCollapseObjectLiterals() {
 		passes.MaybeAdd(this_.collapseObjectLiterals)
 	}
-	if this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2376() {
+	if this_.priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2383() {
 		passes.MaybeAdd(this_.removeUnusedCode)
 	}
 	if this_.GetPassConfigBase().options.ShouldFoldConstants() {
@@ -1886,19 +1886,19 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getMainOptimizationLoop_2
 }
 
 // Java method: DefaultPassConfig.addNonTypedAstNormalizationPasses(com.google.javascript.jscomp.PassListBuilder passes)
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_addNonTypedAstNormalizationPasses_2375(passes *PassListBuilder) {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_addNonTypedAstNormalizationPasses_2382(passes *PassListBuilder) {
 	_ = passes
 	passes.MaybeAdd(this_.removeCastNodes)
 	passes.MaybeAdd(this_.typesToColors)
 }
 
 // Java method: DefaultPassConfig.shouldRunRemoveUnusedCode()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2376() bool {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_shouldRunRemoveUnusedCode_2383() bool {
 	return ((((this_.GetPassConfigBase().options.ShouldRemoveUnusedVariables() || this_.GetPassConfigBase().options.ShouldRemoveUnusedLocalVariables()) || this_.GetPassConfigBase().options.ShouldRemoveUnusedPrototypeProperties()) || this_.GetPassConfigBase().options.IsRemoveUnusedClassProperties()) || this_.GetPassConfigBase().options.GetRewritePolyfills())
 }
 
 // Java method: DefaultPassConfig.assertValidOrderForChecks(com.google.javascript.jscomp.PassListBuilder checks)
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_assertValidOrderForChecks_2377(checks *PassListBuilder) {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_assertValidOrderForChecks_2384(checks *PassListBuilder) {
 	_ = checks
 	checks.AssertPassOrder(this_.declaredGlobalExternsOnWindow, this_.checkVars, "declaredGlobalExternsOnWindow must happen before VarCheck, which adds synthetic externs")
 	checks.AssertPassOrder(this_.chromePass, this_.checkJsDocAndEs6Modules, "The ChromePass must run before after JsDoc and Es6 module checking.")
@@ -1924,7 +1924,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_assertValidOrderForChecks
 }
 
 // Java method: DefaultPassConfig.assertValidOrderForOptimizations(com.google.javascript.jscomp.PassListBuilder optimizations)
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_assertValidOrderForOptimizations_2378(optimizations *PassListBuilder) {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_assertValidOrderForOptimizations_2385(optimizations *PassListBuilder) {
 	_ = optimizations
 	optimizations.AssertPassOrder(this_.j2clPass, StaticGet_TranspilationPasses_RewriteGenerators(), "J2CL normalization should be done before generator re-writing.")
 	optimizations.AssertPassOrder(StaticGet_TranspilationPasses_RewritePolyfills(), this_.processDefinesOptimize, "Polyfill injection must be done before processDefines as some polyfills reference goog.defines.")
@@ -1937,7 +1937,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_assertValidOrderForOptimi
 }
 
 // Java method: DefaultPassConfig.getFullReplaceMessagesPass()
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getFullReplaceMessagesPass_2379() PassFactory {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getFullReplaceMessagesPass_2386() PassFactory {
 	return PassFactory_S_Builder().SetName("replaceMessages").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_99 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_99)
 		_ = compiler
@@ -1948,7 +1948,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getFullReplaceMessagesPas
 	).Build()
 }
 
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getProtectMessagesPass_2380() PassFactory {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getProtectMessagesPass_2387() PassFactory {
 	return PassFactory_S_Builder().SetName("protectMessages").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_100 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_100)
 		_ = compiler
@@ -1959,7 +1959,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getProtectMessagesPass_23
 	).Build()
 }
 
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getReplaceProtectedMessagesPass_2381() PassFactory {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getReplaceProtectedMessagesPass_2388() PassFactory {
 	return PassFactory_S_Builder().SetName("replaceProtectedMessages").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_101 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_101)
 		_ = compiler
@@ -2013,7 +2013,7 @@ func DefaultPassConfig_CombineChecks(compiler AbstractCompiler, callbacks j2gort
 }
 
 // Java method: DefaultPassConfig.createProcessDefines(com.google.javascript.jscomp.ProcessDefines.Mode mode)
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createProcessDefines_2382(mode ProcessDefines_Mode) PassFactory {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createProcessDefines_2389(mode ProcessDefines_Mode) PassFactory {
 	_ = mode
 	return PassFactory_S_Builder().SetName(("processDefines_" + j2gort.StrValString((mode).Name()))).SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_102 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_102)
@@ -2025,7 +2025,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createProcessDefines_2382
 	).Build()
 }
 
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_runVariableRenaming_2383(compiler AbstractCompiler, prevVariableMap *VariableMap, externs pkg_rhino.Node, root pkg_rhino.Node) *VariableMap {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_runVariableRenaming_2390(compiler AbstractCompiler, prevVariableMap *VariableMap, externs pkg_rhino.Node, root pkg_rhino.Node) *VariableMap {
 	_ = compiler
 	_ = prevVariableMap
 	_ = externs
@@ -2049,7 +2049,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_runVariableRenaming_2383(
 }
 
 // Java method: DefaultPassConfig.createGatherExternProperties(com.google.javascript.jscomp.GatherExternProperties.Mode mode)
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createGatherExternProperties_2384(mode GatherExternProperties_Mode) PassFactory {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createGatherExternProperties_2391(mode GatherExternProperties_Mode) PassFactory {
 	_ = mode
 	return PassFactory_S_Builder().SetName("gatherExternProperties").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_104 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_104)
@@ -2061,7 +2061,7 @@ func (this_ *DefaultPassConfig) priv_DefaultPassConfig_createGatherExternPropert
 	).Build()
 }
 
-func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getCustomPasses_2385(executionTime CustomPassExecutionTime) PassFactory {
+func (this_ *DefaultPassConfig) priv_DefaultPassConfig_getCustomPasses_2392(executionTime CustomPassExecutionTime) PassFactory {
 	_ = executionTime
 	return PassFactory_S_Builder().SetName("runCustomPasses").SetInternalFactory(j2gort.NewLambda_Ext_java_util_function_Function(func(lp_105 any) any {
 		compiler := j2gort.AsIface[AbstractCompiler](lp_105)
@@ -2730,7 +2730,7 @@ func NewDefaultPassConfig__Anon_33(outer_ *DefaultPassConfig, cap_p_compiler Abs
 func (this_ *DefaultPassConfig__Anon_33) Process_2(externs pkg_rhino.Node, root pkg_rhino.Node) {
 	_ = externs
 	_ = root
-	this_.cap_0_compiler.SetVariableMap(this_.outer_.priv_DefaultPassConfig_runVariableRenaming_2383(this_.cap_0_compiler, this_.cap_1_prevVariableMap, externs, root))
+	this_.cap_0_compiler.SetVariableMap(this_.outer_.priv_DefaultPassConfig_runVariableRenaming_2390(this_.cap_0_compiler, this_.cap_1_prevVariableMap, externs, root))
 }
 
 // Java class:

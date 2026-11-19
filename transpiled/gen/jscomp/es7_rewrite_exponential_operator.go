@@ -97,10 +97,14 @@ func clinitSlow_Es7RewriteExponentialOperator() {
 
 func (this_ *Es7RewriteExponentialOperator) initFields_Es7RewriteExponentialOperator() {
 	_ = this_
-	this_.mathPowCall = j2gort.AsIface[j2gort.Ext_java_util_function_Supplier](j2gort.Ext_com_google_common_base_Suppliers_Memoize(func() j2gort.Ext_com_google_common_base_Supplier {
+	var iifeArg_1 j2gort.
+		Ext_com_google_common_base_Supplier
+	{
+
 		bound_1 := this_
-		return j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any { return j2gort.BoxNode(bound_1.priv_Es7RewriteExponentialOperator_createMathPowCall_2784()) })
-	}()))
+		iifeArg_1 = j2gort.NewLambda_Ext_com_google_common_base_Supplier(func() any { return j2gort.BoxNode(bound_1.priv_Es7RewriteExponentialOperator_createMathPowCall_2791()) })
+	}
+	this_.mathPowCall = j2gort.AsIface[j2gort.Ext_java_util_function_Supplier](j2gort.Ext_com_google_common_base_Suppliers_Memoize(iifeArg_1))
 }
 
 // Java constructor: Es7RewriteExponentialOperator(com.google.javascript.jscomp.AbstractCompiler compiler)
@@ -147,19 +151,19 @@ func (this_ *Es7RewriteExponentialOperator) Visit_3(t *NodeTraversal, n pkg_rhin
 	_ = parent
 	switch n.TokenSwitchOrd_() {
 	case int32(18) /* Token.EXPONENT */ :
-		if this_.priv_Es7RewriteExponentialOperator_checkOperatorType_2785(n) {
-			this_.priv_Es7RewriteExponentialOperator_visitExponentiationOperator_2780(n)
+		if this_.priv_Es7RewriteExponentialOperator_checkOperatorType_2792(n) {
+			this_.priv_Es7RewriteExponentialOperator_visitExponentiationOperator_2787(n)
 		}
 	case int32(63) /* Token.ASSIGN_EXPONENT */ :
-		if this_.priv_Es7RewriteExponentialOperator_checkOperatorType_2785(n) {
-			this_.priv_Es7RewriteExponentialOperator_visitExponentiationAssignmentOperator_2781(t, n)
+		if this_.priv_Es7RewriteExponentialOperator_checkOperatorType_2792(n) {
+			this_.priv_Es7RewriteExponentialOperator_visitExponentiationAssignmentOperator_2788(t, n)
 		}
 	default:
 	}
 }
 
 // Java method: Es7RewriteExponentialOperator.visitExponentiationOperator(com.google.javascript.rhino.Node operator)
-func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_visitExponentiationOperator_2780(operator pkg_rhino.Node) {
+func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_visitExponentiationOperator_2787(operator pkg_rhino.Node) {
 	_ = operator
 	var callClone pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.mathPowCall.Get()).CloneTree_0()
 	_ = callClone
@@ -171,7 +175,7 @@ func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_v
 }
 
 // Java method: Es7RewriteExponentialOperator.visitExponentiationAssignmentOperator(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node operator)
-func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_visitExponentiationAssignmentOperator_2781(t *NodeTraversal, operator pkg_rhino.Node) {
+func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_visitExponentiationAssignmentOperator_2788(t *NodeTraversal, operator pkg_rhino.Node) {
 	_ = t
 	_ = operator
 	var enclosingStatement pkg_rhino.Node = NodeUtil_GetEnclosingStatement(operator)
@@ -181,19 +185,19 @@ func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_v
 	var replacement pkg_rhino.Node = pkg_rhino.Node(0)
 	_ = replacement
 	if left.IsName() {
-		replacement = this_.priv_Es7RewriteExponentialOperator_handleLHSName_2782(operator, left)
+		replacement = this_.priv_Es7RewriteExponentialOperator_handleLHSName_2789(operator, left)
 	} else {
 		if !(left.IsGetProp() || left.IsGetElem()) {
 			j2gort.CheckStateMsg(false, j2gort.BoxNode(left))
 		}
-		replacement = this_.priv_Es7RewriteExponentialOperator_handleLHSPropertyReference_2783(t, operator, left, enclosingStatement)
+		replacement = this_.priv_Es7RewriteExponentialOperator_handleLHSPropertyReference_2790(t, operator, left, enclosingStatement)
 	}
 	operator.ReplaceWith(replacement)
 	this_.compiler.ReportChangeToEnclosingScope(enclosingStatement)
 }
 
 // Java method: Es7RewriteExponentialOperator.handleLHSName(com.google.javascript.rhino.Node operator, com.google.javascript.rhino.Node left)
-func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_handleLHSName_2782(operator pkg_rhino.Node, left pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_handleLHSName_2789(operator pkg_rhino.Node, left pkg_rhino.Node) pkg_rhino.Node {
 	_ = operator
 	_ = left
 	var callClone pkg_rhino.Node = j2gort.CastNode[pkg_rhino.Node](this_.mathPowCall.Get()).CloneTree_0()
@@ -204,7 +208,7 @@ func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_h
 }
 
 // Java method: Es7RewriteExponentialOperator.handleLHSPropertyReference(com.google.javascript.jscomp.NodeTraversal t, com.google.javascript.rhino.Node operator, com.google.javascript.rhino.Node left, com.google.javascript.rhino.Node enclosingStatement)
-func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_handleLHSPropertyReference_2783(t *NodeTraversal, operator pkg_rhino.Node, left pkg_rhino.Node, enclosingStatement pkg_rhino.Node) pkg_rhino.Node {
+func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_handleLHSPropertyReference_2790(t *NodeTraversal, operator pkg_rhino.Node, left pkg_rhino.Node, enclosingStatement pkg_rhino.Node) pkg_rhino.Node {
 	_ = t
 	_ = operator
 	_ = left
@@ -260,12 +264,12 @@ func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_h
 }
 
 // Java method: Es7RewriteExponentialOperator.createMathPowCall()
-func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_createMathPowCall_2784() pkg_rhino.Node {
+func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_createMathPowCall_2791() pkg_rhino.Node {
 	return this_.astFactory.CreateCall(this_.astFactory.CreateQName_2_StaticScope_string(this_.compiler.GetTranspilationNamespace(), "Math.pow"), AstFactory_S_Type_1_Color(pkg_colors.StaticGet_StandardColors_NUMBER()), []pkg_rhino.Node{})
 }
 
 // Java method: Es7RewriteExponentialOperator.checkOperatorType(com.google.javascript.rhino.Node operator)
-func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_checkOperatorType_2785(operator pkg_rhino.Node) bool {
+func (this_ *Es7RewriteExponentialOperator) priv_Es7RewriteExponentialOperator_checkOperatorType_2792(operator pkg_rhino.Node) bool {
 	_ = operator
 	if !(operator.IsExponent() || operator.IsAssignExponent()) {
 		j2gort.CheckArgumentMsg(false, j2gort.BoxNode(operator))

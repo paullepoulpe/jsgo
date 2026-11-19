@@ -1180,7 +1180,7 @@ public final class RuntimeBindings {
 
         func CheckNotNullIface[I interface{ IsJavaNil_() bool }](v I) I {
         \tif any(v) == nil || v.IsJavaNil_() {
-        \t\tThrowNPE()
+        \t\tpanic(npeSentinel_)
         \t}
         \treturn v
         }
@@ -1519,8 +1519,10 @@ public final class RuntimeBindings {
         \treturn true
         }
 
+        var npeSentinel_ any = javalang.NewNullPointerException()
+
         func ThrowNPE() {
-        \tpanic(javalang.NewNullPointerException())
+        \tpanic(npeSentinel_)
         }
 
         func CheckNotNullString(s string) string {
@@ -3751,8 +3753,10 @@ public final class RuntimeBindings {
         \tbuf         []byte
         \tcachedStr   string
         \tutf16Len    int32  // >= 0 exact UTF-16 code unit count; -1 dirty
+        \tcapHint     int32  // lazy initial capacity hint from StringBuilder(int)
         \tpendingHigh uint16 // 0 = none; 0xD800..0xDBFF = trailing lone high surrogate held out of buf
         \thasCache    bool
+        \tinline      [61]byte
         }
 
         func (c *jStringBuilderCore) invalidateCache() {
@@ -3763,11 +3767,34 @@ public final class RuntimeBindings {
         }
 
         func (c *jStringBuilderCore) grow(capHint int) {
-        \tif capHint > 0 && capHint <= (1<<24) && cap(c.buf) < capHint {
-        \t\tnb := make([]byte, len(c.buf), capHint)
-        \t\tcopy(nb, c.buf)
-        \t\tc.buf = nb
+        \tif capHint > 0 {
+        \t\tif capHint > (1 << 24) {
+        \t\t\tcapHint = 1 << 24
+        \t\t}
+        \t\tif int(c.capHint) < capHint {
+        \t\t\tc.capHint = int32(capHint)
+        \t\t}
         \t}
+        }
+
+        func (c *jStringBuilderCore) ensureSpace(extra int) {
+        \tneed := len(c.buf) + extra
+        \tif need <= cap(c.buf) {
+        \t\treturn
+        \t}
+        \tif c.buf == nil && need <= len(c.inline) {
+        \t\tc.buf = c.inline[:0]
+        \t\treturn
+        \t}
+        \tc.growSlow(need)
+        }
+
+        //go:noinline
+        func (c *jStringBuilderCore) growSlow(need int) {
+        \tnewCap := max(need, int(c.capHint), cap(c.buf)*2, 64)
+        \tnb := make([]byte, len(c.buf), newCap)
+        \tcopy(nb, c.buf)
+        \tc.buf = nb
         }
 
         func (c *jStringBuilderCore) reset() {
@@ -3788,6 +3815,7 @@ public final class RuntimeBindings {
         \t\tch := c.pendingHigh
         \t\tc.pendingHigh = 0
         \t\tc.invalidateCache()
+        \t\tc.ensureSpace(3)
         \t\tc.buf = append(c.buf,
         \t\t\tbyte(0xE0|(ch>>12)),
         \t\t\tbyte(0x80|((ch>>6)&0x3F)),
@@ -3832,6 +3860,7 @@ public final class RuntimeBindings {
         \t\tc.hasCache = false
         \t}
         \tif c.pendingHigh == 0 && ch < 0x80 {
+        \t\tc.ensureSpace(1)
         \t\tc.buf = append(c.buf, byte(ch))
         \t\tif c.utf16Len >= 0 {
         \t\t\tc.utf16Len++
@@ -3847,6 +3876,7 @@ public final class RuntimeBindings {
         \t\t\tc.pendingHigh = 0
         \t\t\tvar tmp [4]byte
         \t\t\tn := utf8.EncodeRune(tmp[:], r)
+        \t\t\tc.ensureSpace(n)
         \t\t\tc.buf = append(c.buf, tmp[:n]...)
         \t\t\treturn
         \t\t}
@@ -3857,10 +3887,13 @@ public final class RuntimeBindings {
         \t\treturn
         \t}
         \tif ch < 0x80 {
+        \t\tc.ensureSpace(1)
         \t\tc.buf = append(c.buf, byte(ch))
         \t} else if ch < 0x800 {
+        \t\tc.ensureSpace(2)
         \t\tc.buf = append(c.buf, byte(0xC0|(ch>>6)), byte(0x80|(ch&0x3F)))
         \t} else {
+        \t\tc.ensureSpace(3)
         \t\tc.buf = append(c.buf,
         \t\t\tbyte(0xE0|(ch>>12)),
         \t\t\tbyte(0x80|((ch>>6)&0x3F)),
@@ -3886,6 +3919,7 @@ public final class RuntimeBindings {
         \t\t\t}
         \t\t}
         \t\tif ascii {
+        \t\t\tc.ensureSpace(len(s))
         \t\t\tc.buf = append(c.buf, s...)
         \t\t\tif c.utf16Len >= 0 {
         \t\t\t\tc.utf16Len += int32(len(s))
@@ -3903,6 +3937,7 @@ public final class RuntimeBindings {
         \t\t\tc.pendingHigh = 0
         \t\t\tvar tmp [4]byte
         \t\t\tn := utf8.EncodeRune(tmp[:], r)
+        \t\t\tc.ensureSpace(n + len(s) - 3)
         \t\t\tc.buf = append(c.buf, tmp[:n]...)
         \t\t\ts = s[3:]
         \t\t\tif len(s) == 0 {
@@ -3915,10 +3950,12 @@ public final class RuntimeBindings {
         \tn := len(s)
         \tif n >= 3 && s[n-3] == 0xED && s[n-2] >= 0xA0 && s[n-2] <= 0xAF && (s[n-1]&0xC0) == 0x80 {
         \t\thigh := (uint16(s[n-3]&0x0F) << 12) | (uint16(s[n-2]&0x3F) << 6) | uint16(s[n-1]&0x3F)
+        \t\tc.ensureSpace(n - 3)
         \t\tc.buf = append(c.buf, s[:n-3]...)
         \t\tc.pendingHigh = high
         \t\treturn
         \t}
+        \tc.ensureSpace(n)
         \tc.buf = append(c.buf, s...)
         }
 
@@ -3933,6 +3970,7 @@ public final class RuntimeBindings {
         \tif c.pendingHigh != 0 {
         \t\tc.flushPendingHigh()
         \t}
+        \tc.ensureSpace(len(s))
         \tc.buf = append(c.buf, s...)
         \tif c.utf16Len >= 0 {
         \t\tc.utf16Len += int32(len(s))
@@ -3949,6 +3987,7 @@ public final class RuntimeBindings {
         \t}
         \tvar tmp [20]byte
         \tb := strconv.AppendInt(tmp[:0], v, 10)
+        \tc.ensureSpace(len(b))
         \tc.buf = append(c.buf, b...)
         \tif c.utf16Len >= 0 {
         \t\tc.utf16Len += int32(len(b))
@@ -3982,6 +4021,7 @@ public final class RuntimeBindings {
         \t\t}
         \t\tvar tmp [4]byte
         \t\tn := utf8.EncodeRune(tmp[:], rune(cp))
+        \t\tc.ensureSpace(n)
         \t\tc.buf = append(c.buf, tmp[:n]...)
         \t\tif c.utf16Len >= 0 {
         \t\t\tc.utf16Len += 2
@@ -4107,6 +4147,7 @@ public final class RuntimeBindings {
         \t\t\toff := c.byteOffsetOfUTF16(idx, effN)
         \t\t\tif off >= 0 {
         \t\t\t\tc.invalidateCache()
+        \t\t\t\tc.ensureSpace(1)
         \t\t\t\tc.buf = append(c.buf, 0)
         \t\t\t\tcopy(c.buf[off+1:], c.buf[off:len(c.buf)-1])
         \t\t\t\tc.buf[off] = byte(ch)
@@ -4151,6 +4192,7 @@ public final class RuntimeBindings {
         \t\t\t\t\tc.invalidateCache()
         \t\t\t\t\tk := len(sIns)
         \t\t\t\t\toldLen := len(c.buf)
+        \t\t\t\t\tc.ensureSpace(k)
         \t\t\t\t\tc.buf = append(c.buf, sIns...)
         \t\t\t\t\tcopy(c.buf[off+k:], c.buf[off:oldLen])
         \t\t\t\t\tcopy(c.buf[off:], sIns)
@@ -4305,6 +4347,7 @@ public final class RuntimeBindings {
         \t\t\tc.flushPendingHigh()
         \t\t}
         \t\tadd := int(newLen - cur)
+        \t\tc.ensureSpace(add)
         \t\tc.buf = append(c.buf, make([]byte, add)...)
         \t\tc.utf16Len = newLen
         \t\treturn
@@ -7583,9 +7626,9 @@ public final class RuntimeBindings {
         \tbuf   [8]jNodeMapEntry
         }
 
-        func newNodeMapState2(capHint int16) *jNodeMapState {
+        func newNodeMapState2(capHint int32) *jNodeMapState {
         \tif capHint > 8 {
-        \t\treturn &jNodeMapState{entries: make([]jNodeMapEntry, 2, min(int(capHint), 256))}
+        \t\treturn &jNodeMapState{entries: make([]jNodeMapEntry, 2, min(int(capHint), 65536))}
         \t}
         \tif capHint >= 1 && capHint <= 4 {
         \t\ts4 := &jNodeMapState4{}
@@ -7687,9 +7730,9 @@ public final class RuntimeBindings {
         \tinline [4]JMapEntry
         }
 
-        func newGenMapState(capHint int16) *jGenMapState {
+        func newGenMapState(capHint int32) *jGenMapState {
         \tif capHint > 4 {
-        \t\treturn &jGenMapState{entries: make([]JMapEntry, 0, min(int(capHint), 256))}
+        \t\treturn &jGenMapState{entries: make([]JMapEntry, 0, min(int(capHint), 65536))}
         \t}
         \tif capHint == 1 {
         \t\ts1 := &jGenMapState1{}
@@ -7731,7 +7774,7 @@ public final class RuntimeBindings {
         \tLive         int32
         \tholes        int32
         \tfirstIdx     int32
-        \tcapHint      int16
+        \tcapHint      int32
         \tmode         uint8
         \tIdentity     bool
         \timmutable    bool
@@ -7863,11 +7906,11 @@ public final class RuntimeBindings {
         \t\tpanic(javalang.NewIllegalArgumentException("Illegal initial capacity: " + fmt.Sprint(expected)))
         \t}
         \tif expected > 0 && (m.mode == jMapModeEmpty || m.mode == jMapModeNullOnly || m.mode == jMapModeNode1) {
-        \t\tif expected > 4096 {
-        \t\t\texpected = 4096
+        \t\tif expected > 65536 {
+        \t\t\texpected = 65536
         \t\t}
-        \t\tif int16(expected) > m.capHint {
-        \t\t\tm.capHint = int16(expected)
+        \t\tif expected > m.capHint {
+        \t\t\tm.capHint = expected
         \t\t}
         \t}
         }
@@ -7885,14 +7928,14 @@ public final class RuntimeBindings {
 
         func (m *JMapCore) initCap() int {
         \tif m.capHint > 0 {
-        \t\treturn min(int(m.capHint), 256)
+        \t\treturn min(int(m.capHint), 65536)
         \t}
         \treturn 4
         }
 
         func (m *JMapCore) strInitCap() int {
         \tif m.capHint > 0 {
-        \t\treturn min(int(m.capHint), 256)
+        \t\treturn min(int(m.capHint), 65536)
         \t}
         \treturn 2
         }
@@ -9246,6 +9289,30 @@ public final class RuntimeBindings {
         \treturn ToAny(def)
         }
 
+        func (m *JMapCore) appendStrEntry(k string, v any) {
+        \tn := len(m.strEntries)
+        \tif n < cap(m.strEntries) {
+        \t\tm.strEntries = append(m.strEntries, jStrMapEntry{key: k, val: v})
+        \t\treturn
+        \t}
+        \tc := cap(m.strEntries)
+        \tvar newCap int
+        \tif c < 16 {
+        \t\tnewCap = max(c*2, 4)
+        \t} else if c < 1024 {
+        \t\tnewCap = c * 4
+        \t} else {
+        \t\tnewCap = c * 2
+        \t}
+        \tif hint := int(m.capHint); hint > newCap {
+        \t\tnewCap = hint
+        \t}
+        \tne := make([]jStrMapEntry, n+1, newCap)
+        \tcopy(ne, m.strEntries)
+        \tne[n] = jStrMapEntry{key: k, val: v}
+        \tm.strEntries = ne
+        }
+
         func (m *JMapCore) putStrBoxed(k string, boxedKey any, v any) (any, bool) {
         \tif m.immutable {
         \t\tpanic(javalang.NewUnsupportedOperationException("immutable"))
@@ -9267,8 +9334,14 @@ public final class RuntimeBindings {
         \t\t\t}
         \t\t\treturn m.putGenStr(g, k, boxedKey, v)
         \t\t}
-        \t\tm.strEntries = make([]jStrMapEntry, 1, m.strInitCap())
+        \t\tinitC := m.strInitCap()
+        \t\tm.strEntries = make([]jStrMapEntry, 1, initC)
         \t\tm.strEntries[0] = jStrMapEntry{key: k, val: v}
+        \t\tif initC > jStrSmallLimit {
+        \t\t\tidxMap := make(map[string]int32, initC)
+        \t\t\tidxMap[k] = 0
+        \t\t\tm.ext = idxMap
+        \t\t}
         \t\tm.mode = jMapModeStr
         \t\tm.Live = 1
         \t\treturn nil, true
@@ -9283,10 +9356,18 @@ public final class RuntimeBindings {
         \t\t\treturn m.putGenStr(g, k, boxedKey, v)
         \t\t}
         \t\tnullVal := m.ext
-        \t\tm.strEntries = make([]jStrMapEntry, 2, max(m.initCap(), 2))
+        \t\tinitC := max(m.initCap(), 2)
+        \t\tm.strEntries = make([]jStrMapEntry, 2, initC)
         \t\tm.strEntries[0] = jStrMapEntry{key: NullString, val: nullVal}
         \t\tm.strEntries[1] = jStrMapEntry{key: k, val: v}
-        \t\tm.ext = nil
+        \t\tif initC > jStrSmallLimit {
+        \t\t\tidxMap := make(map[string]int32, initC)
+        \t\t\tidxMap[NullString] = 0
+        \t\t\tidxMap[k] = 1
+        \t\t\tm.ext = idxMap
+        \t\t} else {
+        \t\t\tm.ext = nil
+        \t\t}
         \t\tm.mode = jMapModeStr
         \t\tm.Live = 2
         \t\tm.holes = 0
@@ -9308,7 +9389,7 @@ public final class RuntimeBindings {
         \t\t\t\tm.compactStr()
         \t\t\t}
         \t\t\tidxMap[k] = int32(len(m.strEntries))
-        \t\t\tm.strEntries = append(m.strEntries, jStrMapEntry{key: k, val: v})
+        \t\t\tm.appendStrEntry(k, v)
         \t\t\tm.Live++
         \t\t\treturn nil, true
         \t\t}
@@ -9323,7 +9404,7 @@ public final class RuntimeBindings {
         \t\t\tm.compactStr()
         \t\t}
         \t\tif len(m.strEntries) >= jStrSmallLimit {
-        \t\t\tidxMap := make(map[string]int32, max(len(m.strEntries)+1, min(int(m.capHint), 256)))
+        \t\t\tidxMap := make(map[string]int32, max(64, int(m.capHint)))
         \t\t\tfor i := range m.strEntries {
         \t\t\t\tif ek := m.strEntries[i].key; ek != jTombstoneStr {
         \t\t\t\t\tidxMap[ek] = int32(i)
@@ -9332,7 +9413,7 @@ public final class RuntimeBindings {
         \t\t\tidxMap[k] = int32(len(m.strEntries))
         \t\t\tm.ext = idxMap
         \t\t}
-        \t\tm.strEntries = append(m.strEntries, jStrMapEntry{key: k, val: v})
+        \t\tm.appendStrEntry(k, v)
         \t\tm.Live++
         \t\treturn nil, true
         \tcase jMapModeSortedNat, jMapModeSortedCmp:
@@ -12181,6 +12262,7 @@ public final class RuntimeBindings {
     boolean isRootExt =
         !skipEmbeddedSuperStruct
             && !qn.equals("java.util.BitSet")
+            && !qn.equals("java.lang.AbstractStringBuilder")
             && (sup == null
                 || mapsToAny(sup)
                 || isShimException(sup)

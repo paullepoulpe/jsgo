@@ -171,12 +171,19 @@ func QualifiedName_Of(string_ string) QualifiedName {
 	_ = builder
 	for doFirst_1 := true; doFirst_1 || (index >= int32(0)); doFirst_1 = false {
 		index = j2gort.JStrIndexOfCpFrom(string_, int32(uint16(46)), lastIndex)
-		var term string = j2gort.JStrSub(string_, lastIndex, func() int32 {
+		var iifeArg_1 int32
+	iifeSwitch_1:
+		switch {
+		default:
+
 			if index < int32(0) {
-				return j2gort.JStrLen(string_)
+				iifeArg_1 = j2gort.JStrLen(string_)
+				break iifeSwitch_1
 			}
-			return index
-		}())
+			iifeArg_1 = index
+			break iifeSwitch_1
+		}
+		var term string = j2gort.JStrSub(string_, lastIndex, iifeArg_1)
 		_ = term
 		builder = append(builder, j2gort.CheckNotNullString(RhinoStringPool_AddOrGet(term)))
 		lastIndex = (index + int32(1))
@@ -228,17 +235,17 @@ func (this_ *QualifiedNameBase) GetRoot() string {
 func (this_ *QualifiedNameBase) Components() j2gort.Ext_java_lang_Iterable {
 	var components *j2gort.Ext_com_google_common_collect_ImmutableList_Builder = (&j2gort.Ext_com_google_common_collect_ImmutableList_Builder{})
 	_ = components
-	this_.priv_QualifiedName_buildComponents_8785(components)
+	this_.priv_QualifiedName_buildComponents_8806(components)
 	return j2gort.AsIface[j2gort.Ext_java_lang_Iterable](components.BuildImmList_())
 }
 
 // Java method: QualifiedName.buildComponents(com.google.common.collect.ImmutableList.Builder<java.lang.String> builder)
-func (this_ *QualifiedNameBase) priv_QualifiedName_buildComponents_8785(builder *j2gort.Ext_com_google_common_collect_ImmutableList_Builder) {
+func (this_ *QualifiedNameBase) priv_QualifiedName_buildComponents_8806(builder *j2gort.Ext_com_google_common_collect_ImmutableList_Builder) {
 	_ = builder
 	var owner QualifiedName = this_.self_.GetOwner()
 	_ = owner
 	if owner != nil && !owner.IsJavaNil_() {
-		owner.GetQualifiedNameBase().priv_QualifiedName_buildComponents_8785(builder)
+		owner.GetQualifiedNameBase().priv_QualifiedName_buildComponents_8806(builder)
 	}
 	builder.AddStrVoid_(this_.self_.GetComponent())
 }
@@ -346,7 +353,7 @@ func (this_ *QualifiedName_StringListQname) AppendTo(sb *j2gort.Ext_java_lang_St
 		_ = i
 		for ; i < this_.size; i = i + 1 {
 			if i > int32(0) {
-				sb.Append_1_any_9862(j2gort.PtrToAny(separator))
+				sb.Append_1_any_9887(j2gort.PtrToAny(separator))
 			}
 			sb.Append_1_string(this_.terms[i])
 		}
@@ -464,7 +471,7 @@ func (this_ *QualifiedName_GetpropQname) AppendTo(sb *j2gort.Ext_java_lang_Strin
 	_ = sb
 	_ = separator
 	this_.owner.AppendTo(sb, separator)
-	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9862(j2gort.PtrToAny(separator))).Append_1_string(this_.prop)
+	j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9887(j2gort.PtrToAny(separator))).Append_1_string(this_.prop)
 }
 
 // Java method: GetpropQname.matches(com.google.javascript.rhino.Node n)
@@ -562,7 +569,7 @@ func (this_ *QualifiedName_NodeQname) AppendTo(sb *j2gort.Ext_java_lang_StringBu
 	_ = components
 	sb.Append_1_string(j2gort.CastString(components.Next()))
 	for components.HasNext() {
-		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9862(j2gort.PtrToAny(separator))).Append_1_string(j2gort.CastString(components.Next()))
+		j2gort.CastPtr[j2gort.Ext_java_lang_StringBuilder](sb.Append_1_any_9887(j2gort.PtrToAny(separator))).Append_1_string(j2gort.CastString(components.Next()))
 	}
 }
 

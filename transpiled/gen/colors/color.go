@@ -237,17 +237,24 @@ func Color_ToImmutableColorSet(arr []*Color) j2gort.Ext_com_google_common_collec
 	if len_ == int32(1) {
 		return j2gort.Ext_com_google_common_collect_ImmutableSet_Of_1(j2gort.PtrToAny(arr[int32(0)]))
 	}
-	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(func() []any {
+	var iifeArg_1 []any
+iifeSwitch_1:
+	switch {
+	default:
+
 		arr_1 := arr
 		if arr_1 == nil {
-			return nil
+			iifeArg_1 = nil
+			break iifeSwitch_1
 		}
 		out_2 := make([]any, len(arr_1))
 		for i_, el_3 := range arr_1 {
 			out_2[i_] = j2gort.PtrToAny(el_3)
 		}
-		return out_2
-	}())
+		iifeArg_1 = out_2
+		break iifeSwitch_1
+	}
+	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(iifeArg_1)
 }
 
 // Java static method: Color.toImmutableStringSet(java.lang.String[] arr)
@@ -262,17 +269,24 @@ func Color_ToImmutableStringSet(arr []string) j2gort.Ext_com_google_common_colle
 	if len_ == int32(1) {
 		return j2gort.ImmSetOfStr1(arr[int32(0)])
 	}
-	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(func() []any {
+	var iifeArg_2 []any
+iifeSwitch_2:
+	switch {
+	default:
+
 		arr_4 := arr
 		if arr_4 == nil {
-			return nil
+			iifeArg_2 = nil
+			break iifeSwitch_2
 		}
 		out_5 := make([]any, len(arr_4))
 		for i_, el_6 := range arr_4 {
 			out_5[i_] = j2gort.BoxString(el_6)
 		}
-		return out_5
-	}())
+		iifeArg_2 = out_5
+		break iifeSwitch_2
+	}
+	return j2gort.Ext_com_google_common_collect_ImmutableSet_CopyOf_1_slice_any(iifeArg_2)
 }
 
 // Java static method: Color.toUniqueColorArray(java.util.Collection<com.google.javascript.jscomp.colors.Color> colors)
@@ -1085,13 +1099,13 @@ func (this_ *Color) SubtractNullOrVoid() *Color {
 	var cached *Color = this_.subtractNullOrVoid
 	_ = cached
 	if cached == nil {
-		return this_.priv_Color_computeSubtractNullOrVoid_5979()
+		return this_.priv_Color_computeSubtractNullOrVoid_5994()
 	}
 	return cached
 }
 
 // Java method: Color.computeSubtractNullOrVoid()
-func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5979() *Color {
+func (this_ *Color) priv_Color_computeSubtractNullOrVoid_5994() *Color {
 	{
 		if this_ == nil {
 			j2gort.ThrowNPE()
@@ -1392,14 +1406,14 @@ func (this_ *Color) HashCode() int32 {
 	var h int32 = this_.hashCode
 	_ = h
 	if h == int32(0) {
-		h = this_.priv_Color_computeHashCode_5983()
+		h = this_.priv_Color_computeHashCode_5998()
 		this_.hashCode = h
 	}
 	return h
 }
 
 // Java method: Color.computeHashCode()
-func (this_ *Color) priv_Color_computeHashCode_5983() int32 {
+func (this_ *Color) priv_Color_computeHashCode_5998() int32 {
 	var protoHash int32 = int32(0)
 	_ = protoHash
 	{

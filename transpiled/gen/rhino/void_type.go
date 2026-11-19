@@ -111,7 +111,8 @@ func (this_ *VoidType) TestForEquality(that JSType) pkg_base.Tri {
 			return pkg_base.StaticGet_Tri_UNKNOWN()
 		}
 	}
-	if that.GetJSTypeBase().IsSubtypeOf_1(this_) || that.GetJSTypeBase().IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NULL_TYPE())) {
+	base_that_ := that.GetJSTypeBase()
+	if base_that_.IsSubtypeOf_1(this_) || base_that_.IsSubtypeOf_1(this_.GetNativeType(StaticGet_JSTypeNative_NULL_TYPE())) {
 		return pkg_base.StaticGet_Tri_TRUE()
 	}
 	return pkg_base.StaticGet_Tri_FALSE()

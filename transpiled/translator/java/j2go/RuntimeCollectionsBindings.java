@@ -1230,7 +1230,7 @@ public final class RuntimeCollectionsBindings {
         return true;
       }
       case "com.google.common.collect.ImmutableMultiset.Builder" -> {
-        out.append('\t').append(targetVar).append(".Core_ = newMultisetCore(false, nil)\n");
+        out.append('\t').append(targetVar).append(".Core_ = nil\n");
         return true;
       }
       case "java.util.BitSet" -> {
@@ -1700,11 +1700,11 @@ public final class RuntimeCollectionsBindings {
       }
       case "com.google.common.collect.ImmutableMultiset" -> {
         if (simple.equals("of") && arity == 0) {
-          out.append("\treturn wrapImmutableMultiset(newMultisetCore(true, nil))\n}\n\n");
+          out.append("\treturn emptyImmutableMultiset()\n}\n\n");
           return true;
         }
         if (simple.equals("builder") && arity == 0) {
-          out.append("\tb := &Ext_com_google_common_collect_ImmutableMultiset_Builder{}\n\tb.Core_ = newMultisetCore(false, nil)\n\treturn b\n}\n\n");
+          out.append("\treturn &Ext_com_google_common_collect_ImmutableMultiset_Builder{}\n}\n\n");
           return true;
         }
         if (simple.equals("toImmutableMultiset") && arity == 0) {
@@ -3711,14 +3711,14 @@ public final class RuntimeCollectionsBindings {
       case "com.google.common.collect.ImmutableMultiset.Builder" -> {
         if (m.equals("add") && arity == 1) {
           return p0.startsWith("[]")
-              ? "\tc := this_.Core_.(*jMultisetCore)\n\tfor _, x := range arg0 { multisetOp_add_2(c, CheckNotNull(ToAny(x)), 1) }\n\treturn this_\n"
-              : "\tmultisetOp_add_2(this_.Core_.(*jMultisetCore), CheckNotNull(ToAny(arg0)), 1)\n\treturn this_\n";
+              ? "\tif len(arg0) > 0 {\n\t\tc := immMultisetBuilderMut(&this_.Core_)\n\t\tfor _, x := range arg0 { multisetOp_add_2(c, CheckNotNull(ToAny(x)), 1) }\n\t}\n\treturn this_\n"
+              : "\tmultisetOp_add_2(immMultisetBuilderMut(&this_.Core_), CheckNotNull(ToAny(arg0)), 1)\n\treturn this_\n";
         }
         if (m.equals("addAll") && arity == 1) {
-          return "\tc := this_.Core_.(*jMultisetCore)\n\tfor it := Iterate(arg0); it.HasNext(); { multisetOp_add_2(c, CheckNotNull(it.Next()), 1) }\n\treturn this_\n";
+          return "\tit := Iterate(arg0)\n\tif it.HasNext() {\n\t\tc := immMultisetBuilderMut(&this_.Core_)\n\t\tfor { multisetOp_add_2(c, CheckNotNull(it.Next()), 1); if !it.HasNext() { break } }\n\t}\n\treturn this_\n";
         }
         if (m.equals("build") && arity == 0) {
-          return "\treturn wrapImmutableMultiset(cloneMultisetCore(this_.Core_.(*jMultisetCore), true))\n";
+          return "\treturn immMultisetBuilderBuild(this_.Core_)\n";
         }
       }
       case "com.google.common.collect.MultimapBuilder.MultimapBuilderWithKeys" -> {
@@ -10464,9 +10464,16 @@ public final class RuntimeCollectionsBindings {
         \tsorted bool
         }
 
+        func immMapBuilderEnsureMut(b *jImmMapBuilderCore) {
+        \tif b.mc.immutable {
+        \t\tb.mc = cloneJMapCore(b.mc)
+        \t}
+        }
+
         func immMapBuilderPut(b *jImmMapBuilderCore, k, v any) {
         \tk = CheckNotNull(ToAny(k))
         \tv = CheckNotNull(ToAny(v))
+        \timmMapBuilderEnsureMut(b)
         \tif b.mc.ContainsKey(k) {
         \t\tb.hasDup = true
         \t\tb.dupKey = k
@@ -10479,6 +10486,7 @@ public final class RuntimeCollectionsBindings {
         \t\tThrowNPE()
         \t}
         \tv = CheckNotNull(ToAny(v))
+        \timmMapBuilderEnsureMut(b)
         \tif b.mc.ContainsStr(k) {
         \t\tb.hasDup = true
         \t\tb.dupKey = k
@@ -10511,6 +10519,7 @@ public final class RuntimeCollectionsBindings {
         \t\t\tif smc.Size() == 0 {
         \t\t\t\treturn
         \t\t\t}
+        \t\t\timmMapBuilderEnsureMut(b)
         \t\t\tb.mc.InitExpectedSize(b.mc.Size() + smc.Size())
         \t\t\tif smc.mode == jMapModeStr && !smc.Identity && !b.mc.Identity {
         \t\t\t\tfor i := int(smc.firstIdx); i < len(smc.strEntries); i++ {
@@ -10535,6 +10544,7 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tif ep, ok := any(m).(jFastEnumMapProvider); ok {
         \t\tif em := ep.fastEnumMap_(); em != nil {
+        \t\t\timmMapBuilderEnsureMut(b)
         \t\t\tb.mc.InitExpectedSize(b.mc.Size() + em.size)
         \t\t\tem.ForEachEntry(func(k, v any) bool {
         \t\t\t\timmMapBuilderPut(b, k, v)
@@ -10557,18 +10567,18 @@ public final class RuntimeCollectionsBindings {
         \t\tif b.mc.Size() == 0 && b.mc.IsNaturalOrder() {
         \t\t\treturn emptyImmutableSortedMap_
         \t\t}
+        \t\tb.mc.sealImmutable()
         \t\tobj := &Ext_com_google_common_collect_ImmutableSortedMap{}
         \t\tobj.BindExtSelf_(obj)
-        \t\tdst := copySortedCoreInto(&obj.inlineCore, b.mc)
-        \t\tdst.sealImmutable()
+        \t\tobj.inlineCore = *b.mc
         \t\treturn obj
         \t}
         \tif b.mc.Size() == 0 {
         \t\treturn emptyImmutableMap_
         \t}
+        \tb.mc.sealImmutable()
         \tobj := newImmutableMapShell()
-        \tdst := copyHashCoreInto(&obj.inlineCore, b.mc)
-        \tdst.sealImmutable()
+        \tobj.inlineCore = *b.mc
         \treturn obj
         }
 
@@ -14164,20 +14174,20 @@ public final class RuntimeCollectionsBindings {
         // --- Multiset ---
 
         type jMultisetCore struct {
-        \tcounts    *JMapCore // elem -> int32
-        \ttotal     int32
-        \timmutable bool
-        \tcmp       func(a, b any) int32
+        \tinlineCounts JMapCore
+        \tcounts       *JMapCore // elem -> int32
+        \ttotal        int32
+        \timmutable    bool
+        \tcmp          func(a, b any) int32
         }
 
         func newMultisetCore(immutable bool, cmp func(a, b any) int32) *jMultisetCore {
-        \tvar cm *JMapCore
         \tif cmp != nil {
-        \t\tcm = NewSortedJMapCore(cmp)
-        \t} else {
-        \t\tcm = NewJMapCore(false)
+        \t\treturn &jMultisetCore{counts: NewSortedJMapCore(cmp), immutable: immutable, cmp: cmp}
         \t}
-        \treturn &jMultisetCore{counts: cm, immutable: immutable, cmp: cmp}
+        \tc := &jMultisetCore{immutable: immutable}
+        \tc.counts = &c.inlineCounts
+        \treturn c
         }
 
         func newTreeMultisetCore() *jMultisetCore {
@@ -14185,13 +14195,68 @@ public final class RuntimeCollectionsBindings {
         }
 
         func cloneMultisetCore(src *jMultisetCore, immutable bool) *jMultisetCore {
-        \tdst := newMultisetCore(immutable, src.cmp)
-        \tdst.counts = cloneJMapCore(src.counts)
-        \tdst.total = src.total
+        \tdst := &jMultisetCore{total: src.total, immutable: immutable, cmp: src.cmp}
+        \tif src.cmp != nil {
+        \t\tdst.counts = cloneJMapCore(src.counts)
+        \t\tif immutable {
+        \t\t\tdst.counts.sealImmutable()
+        \t\t}
+        \t\treturn dst
+        \t}
+        \tdst.counts = &dst.inlineCounts
+        \tif !dst.inlineCounts.CopyFromSameMode(src.counts) {
+        \t\tcopyHashCoreInto(&dst.inlineCounts, src.counts)
+        \t}
+        \tif immutable {
+        \t\tdst.inlineCounts.sealImmutable()
+        \t}
         \treturn dst
         }
 
+        var emptyImmutableMultisetOnce = sync.OnceValue(func() Ext_com_google_common_collect_ImmutableMultiset {
+        \tc := newMultisetCore(true, nil)
+        \tc.counts.sealImmutable()
+        \tobj := &Ext_com_google_common_collect_ImmutableMultisetBase{}
+        \tobj.BindExtSelf_(obj)
+        \tobj.Core_ = c
+        \treturn obj
+        })
+
+        func emptyImmutableMultiset() Ext_com_google_common_collect_ImmutableMultiset {
+        \treturn emptyImmutableMultisetOnce()
+        }
+
+        func immMultisetBuilderMut(core *any) *jMultisetCore {
+        \tif *core == nil {
+        \t\tc := newMultisetCore(false, nil)
+        \t\t*core = c
+        \t\treturn c
+        \t}
+        \tc := (*core).(*jMultisetCore)
+        \tif c.immutable {
+        \t\tc = cloneMultisetCore(c, false)
+        \t\t*core = c
+        \t}
+        \treturn c
+        }
+
+        func immMultisetBuilderBuild(core any) Ext_com_google_common_collect_ImmutableMultiset {
+        \tif core == nil {
+        \t\treturn emptyImmutableMultiset()
+        \t}
+        \tc := core.(*jMultisetCore)
+        \tif c.total == 0 && c.cmp == nil {
+        \t\treturn emptyImmutableMultiset()
+        \t}
+        \tc.immutable = true
+        \tc.counts.sealImmutable()
+        \treturn wrapImmutableMultiset(c)
+        }
+
         func wrapImmutableMultiset(c *jMultisetCore) Ext_com_google_common_collect_ImmutableMultiset {
+        \tif c.total == 0 && c.cmp == nil && c.immutable {
+        \t\treturn emptyImmutableMultiset()
+        \t}
         \tobj := &Ext_com_google_common_collect_ImmutableMultisetBase{}
         \tobj.BindExtSelf_(obj)
         \tobj.Core_ = c
@@ -18289,39 +18354,10 @@ public final class RuntimeCollectionsBindings {
         }
 
         func CheckNotNullElem[T any](v T) T {
-        \tif any(v) == nil {
+        \tif isJavaNullMapVal(v) {
         \t\tThrowNPE()
         \t}
-        \tswitch x := any(v).(type) {
-        \tcase string:
-        \t\tif x == NullString {
-        \t\t\tThrowNPE()
-        \t\t}
-        \t\treturn v
-        \tcase int32, int64, bool, float64, float32, uint16, int8, int16, uint8, int, uint64:
-        \t\treturn v
-        \tdefault:
-        \t\tswitch nullValKindOf[T]() {
-        \t\tcase kindNeverNull:
-        \t\t\treturn v
-        \t\tcase kindZeroIsNull:
-        \t\t\tvar zero T
-        \t\t\tif any(v) == any(zero) {
-        \t\t\t\tThrowNPE()
-        \t\t\t}
-        \t\t\treturn v
-        \t\tcase kindNullStringType:
-        \t\t\tif any(v).(string) == NullString {
-        \t\t\t\tThrowNPE()
-        \t\t\t}
-        \t\t\treturn v
-        \t\tdefault:
-        \t\t\tif isJavaNullMapValSlow(v) {
-        \t\t\t\tThrowNPE()
-        \t\t\t}
-        \t\t\treturn v
-        \t\t}
-        \t}
+        \treturn v
         }
 
         func ImmSliceCloneNonNull[T any](s []T) []T {
@@ -20970,15 +21006,7 @@ public final class RuntimeCollectionsBindings {
         \tkindNullStringType uint8 = 3
         )
 
-        var nullValKindMap sync.Map
-
-        func computeNullValKind[V any](rt reflect.Type) uint8 {
-        \tif rt == nil || rt.Kind() == reflect.Interface {
-        \t\treturn kindNullFallback
-        \t}
-        \tif rt == reflect.TypeFor[string]() {
-        \t\treturn kindNullStringType
-        \t}
+        func nullStructKindOf[V any](rt reflect.Type) uint8 {
         \tvar zero V
         \tif nc, ok := any(zero).(jJavaNilChecker); ok {
         \t\tif !nc.IsJavaNil_() {
@@ -20989,99 +21017,119 @@ public final class RuntimeCollectionsBindings {
         \t\t}
         \t\treturn kindNullFallback
         \t}
-        \tif rn, ok := any(zero).(jRawNodeProvider); ok {
-        \t\tif rn.RawNodeId_() != 0 {
-        \t\t\treturn kindNeverNull
-        \t\t}
-        \t\tif rt.Comparable() {
-        \t\t\treturn kindZeroIsNull
-        \t\t}
-        \t\treturn kindNullFallback
-        \t}
         \tif rt.Implements(reflect.TypeFor[jIsNiler]()) {
         \t\treturn kindNullFallback
         \t}
-        \tswitch rt.Kind() {
-        \tcase reflect.Bool,
-        \t\treflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-        \t\treflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint64, reflect.Uintptr,
-        \t\treflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
-        \t\treflect.Struct, reflect.Array:
-        \t\treturn kindNeverNull
-        \tcase reflect.Uint32, reflect.Pointer, reflect.UnsafePointer:
-        \t\treturn kindZeroIsNull
-        \t}
-        \treturn kindNullFallback
+        \treturn kindNeverNull
         }
 
         func nullValKindOf[V any]() uint8 {
         \trt := reflect.TypeFor[V]()
-        \tif k, ok := nullValKindMap.Load(rt); ok {
-        \t\treturn k.(uint8)
+        \tif rt == nil {
+        \t\treturn kindNullFallback
         \t}
-        \tk := computeNullValKind[V](rt)
-        \tnullValKindMap.Store(rt, k)
-        \treturn k
+        \tswitch rt.Kind() {
+        \tcase reflect.Pointer, reflect.Uint32, reflect.UnsafePointer:
+        \t\treturn kindZeroIsNull
+        \tcase reflect.String:
+        \t\tif rt.PkgPath() == "" {
+        \t\t\treturn kindNullStringType
+        \t\t}
+        \t\treturn kindNeverNull
+        \tcase reflect.Bool,
+        \t\treflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+        \t\treflect.Uint, reflect.Uint64, reflect.Uintptr,
+        \t\treflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+        \t\treflect.Array:
+        \t\treturn kindNeverNull
+        \tcase reflect.Uint8, reflect.Uint16:
+        \t\tif rt.PkgPath() == "" {
+        \t\t\treturn kindNeverNull
+        \t\t}
+        \t\tvar zero V
+        \t\tif nc, ok := any(zero).(jJavaNilChecker); ok && nc.IsJavaNil_() {
+        \t\t\treturn kindZeroIsNull
+        \t\t}
+        \t\treturn kindNeverNull
+        \tcase reflect.Struct:
+        \t\treturn nullStructKindOf[V](rt)
+        \tdefault:
+        \t\treturn kindNullFallback
+        \t}
         }
 
         func isJavaNullMapVal[V any](v V) bool {
-        \tif any(v) == nil {
-        \t\treturn true
+        \treturn any(v) == nil || isJavaNullMapValNonNil(v)
+        }
+
+        func isJavaNullMapValNonNil[V any](v V) bool {
+        \trt := reflect.TypeFor[V]()
+        \tif rt == nil {
+        \t\treturn isJavaNullMapValSlow(v)
         \t}
-        \tswitch x := any(v).(type) {
-        \tcase string:
-        \t\treturn x == NullString
-        \tcase int32, int64, bool, float64, float32, uint16, int8, int16, uint8, int, uint64:
-        \t\treturn false
-        \tdefault:
-        \t\tswitch nullValKindOf[V]() {
-        \t\tcase kindNeverNull:
-        \t\t\treturn false
-        \t\tcase kindZeroIsNull:
-        \t\t\tvar zero V
-        \t\t\treturn any(v) == any(zero)
-        \t\tcase kindNullStringType:
-        \t\t\treturn any(v).(string) == NullString
-        \t\tdefault:
-        \t\t\treturn isJavaNullMapValSlow(v)
+        \tswitch rt.Kind() {
+        \tcase reflect.Pointer, reflect.Uint32, reflect.UnsafePointer:
+        \t\tvar zero V
+        \t\treturn any(v) == any(zero)
+        \tcase reflect.String:
+        \t\tif s, ok := any(v).(string); ok {
+        \t\t\treturn s == NullString
         \t\t}
+        \t\treturn false
+        \tcase reflect.Bool,
+        \t\treflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+        \t\treflect.Uint, reflect.Uint64, reflect.Uintptr,
+        \t\treflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+        \t\treflect.Array:
+        \t\treturn false
+        \tcase reflect.Uint8, reflect.Uint16:
+        \t\tif rt.PkgPath() == "" {
+        \t\t\treturn false
+        \t\t}
+        \t\tvar zero V
+        \t\treturn any(v) == any(zero)
+        \tcase reflect.Struct:
+        \t\tif rt.Comparable() {
+        \t\t\tvar zero V
+        \t\t\tif any(v) != any(zero) {
+        \t\t\t\treturn false
+        \t\t\t}
+        \t\t\treturn isZeroStructJavaNull[V]()
+        \t\t}
+        \t\treturn isJavaNullMapValSlow(v)
+        \tdefault:
+        \t\treturn isJavaNullMapValSlow(v)
         \t}
         }
 
         //go:noinline
-        func isJavaNullMapValSlow[V any](v V) bool {
+        func isZeroStructJavaNull[V any]() bool {
         \tvar zero V
-        \tswitch any(zero).(type) {
-        \tcase nil:
-        \t\tx := any(v)
-        \t\tif x == nil {
-        \t\t\treturn true
-        \t\t}
-        \t\tif nc, ok := x.(jJavaNilChecker); ok {
-        \t\t\treturn nc.IsJavaNil_()
-        \t\t}
-        \t\tif rn, ok := x.(jRawNodeProvider); ok {
-        \t\t\treturn rn.RawNodeId_() == 0
-        \t\t}
-        \t\tif nd, ok := x.(nodestore.Node); ok {
-        \t\t\treturn uint32(nd) == 0
-        \t\t}
-        \t\treturn isJavaNilAny(x)
-        \tcase string:
-        \t\treturn any(v).(string) == NullString
-        \tcase int32, int64, bool, float64, float32, uint16, int8, int16:
-        \t\treturn false
-        \tcase uint32:
-        \t\treturn any(v).(uint32) == 0
-        \tcase nodestore.Node:
-        \t\treturn uint32(any(v).(nodestore.Node)) == 0
-        \tcase jJavaNilChecker:
-        \t\treturn any(v).(jJavaNilChecker).IsJavaNil_()
-        \tcase jRawNodeProvider:
-        \t\treturn any(v).(jRawNodeProvider).RawNodeId_() == 0
-        \tdefault:
-        \t\treturn isJavaNilAny(any(v))
+        \tif nc, ok := any(zero).(jJavaNilChecker); ok {
+        \t\treturn nc.IsJavaNil_()
         \t}
+        \treturn false
+        }
+
+        //go:noinline
+        func isJavaNullMapValSlow[V any](v V) bool {
+        \tx := any(v)
+        \tif x == nil {
+        \t\treturn true
+        \t}
+        \tif nc, ok := x.(jJavaNilChecker); ok {
+        \t\treturn nc.IsJavaNil_()
+        \t}
+        \tif rn, ok := x.(jRawNodeProvider); ok {
+        \t\treturn rn.RawNodeId_() == 0
+        \t}
+        \tif nd, ok := x.(nodestore.Node); ok {
+        \t\treturn uint32(nd) == 0
+        \t}
+        \tif in, ok := x.(jIsNiler); ok {
+        \t\treturn in.IsNil()
+        \t}
+        \treturn isJavaNilAny(x)
         }
 
         func javaMapValsEqual[V any](a, b V, identity bool) bool {
@@ -22181,6 +22229,45 @@ public final class RuntimeCollectionsBindings {
         \t}
         \tobj := newImmutableMapShell()
         \tmc := &obj.inlineCore
+        \tvar zeroK K
+        \tif _, isStr := any(zeroK).(string); isStr {
+        \t\tn := int(live)
+        \t\tentries := make([]jStrMapEntry, n)
+        \t\tvar idxMap map[string]int32
+        \t\tif n > jStrSmallLimit {
+        \t\t\tidxMap = make(map[string]int32, n)
+        \t\t}
+        \t\tw := 0
+        \t\tfor i := int(m.firstIdx); i < len(m.entries); i++ {
+        \t\t\tif !m.isEntryActive(i) {
+        \t\t\t\tcontinue
+        \t\t\t}
+        \t\t\tks := any(m.entries[i].Key).(string)
+        \t\t\tif ks == NullString {
+        \t\t\t\tThrowNPE()
+        \t\t\t}
+        \t\t\tvBox := CheckNotNull(boxJavaElem(m.entries[i].Val))
+        \t\t\tif ks == jTombstoneStr {
+        \t\t\t\tentries = nil
+        \t\t\t\tbreak
+        \t\t\t}
+        \t\t\tif idxMap != nil {
+        \t\t\t\tidxMap[ks] = int32(w)
+        \t\t\t}
+        \t\t\tentries[w] = jStrMapEntry{key: ks, val: vBox}
+        \t\t\tw++
+        \t\t}
+        \t\tif entries != nil {
+        \t\t\tmc.strEntries = entries
+        \t\t\tif idxMap != nil {
+        \t\t\t\tmc.ext = idxMap
+        \t\t\t}
+        \t\t\tmc.mode = jMapModeStr
+        \t\t\tmc.Live = live
+        \t\t\tmc.immutable = true
+        \t\t\treturn obj
+        \t\t}
+        \t}
         \tmc.InitExpectedSize(live)
         \tm.ForEach(func(k K, v V) {
         \t\tmc.Put(CheckNotNull(boxJavaElem(k)), CheckNotNull(boxJavaElem(v)))
